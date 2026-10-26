@@ -332,8 +332,7 @@ bool parse_extent_line(const std::string& line, const std::u16string& base_dir, 
             ext.kind = VmdkExtentKind::Flat;
             if (toks.size() >= 5) {
                 char* end2 = nullptr;
-                const unsigned long long off_sectors =
-                    std::strtoull(toks[4].c_str(), &end2, 10);
+                const unsigned long long off_sectors = std::strtoull(toks[4].c_str(), &end2, 10);
                 ext.flat_offset = (end2 == toks[4].c_str()) ? 0 : off_sectors * SECTOR;
             }
         } else { /* SPARSE */
@@ -386,8 +385,7 @@ VmdkDescriptor parse_vmdk_descriptor(const std::string& text, const std::u16stri
         if (line.rfind("createType", 0) == 0 && line.size() > 11 && line[10] == '=') {
             create_type = line.substr(11);
             /* the value is quoted: createType="monolithicSparse" */
-            if (create_type.size() >= 2 && create_type.front() == '"' &&
-                create_type.back() == '"')
+            if (create_type.size() >= 2 && create_type.front() == '"' && create_type.back() == '"')
                 create_type = create_type.substr(1, create_type.size() - 2);
         } else if (line.rfind("parentFileNameHint", 0) == 0) {
             const size_t q1 = line.find('"');
@@ -496,8 +494,7 @@ private:
             return OK;
         }
         const u64 in_grain = (local_sector % e.sparse.grain_size) * SECTOR + virt_off % SECTOR;
-        return io_read_exact(*e.file.io, e.file.handle, u64(gte) * SECTOR + in_grain, out,
-                             chunk);
+        return io_read_exact(*e.file.io, e.file.handle, u64(gte) * SECTOR + in_grain, out, chunk);
     }
 
     std::vector<VmdkExtent> extents_;
@@ -505,8 +502,8 @@ private:
     Geometry geom_;
 };
 
-std::unique_ptr<IStorageDevice> open_vmdk(ImageFileIo& io, const std::u16string& path,
-                                          u32 depth, u32* err) {
+std::unique_ptr<IStorageDevice> open_vmdk(ImageFileIo& io, const std::u16string& path, u32 depth,
+                                          u32* err) {
     if (depth > 32) {
         *err = ERR_DEPTH_LIMIT;
         return nullptr;
@@ -554,9 +551,8 @@ std::unique_ptr<IStorageDevice> open_vmdk(ImageFileIo& io, const std::u16string&
             return nullptr;
         }
         ext.gd.resize(size_t(gdes), 0);
-        if (gdes &&
-            io_read_exact(io, ext.file.handle, sh.gd_offset * SECTOR, ext.gd.data(),
-                          u32(gdes * 4)) != OK) {
+        if (gdes && io_read_exact(io, ext.file.handle, sh.gd_offset * SECTOR, ext.gd.data(),
+                                  u32(gdes * 4)) != OK) {
             *err = ERR_IMAGE_CORRUPT;
             return nullptr;
         }
@@ -577,8 +573,8 @@ std::unique_ptr<IStorageDevice> open_vmdk(ImageFileIo& io, const std::u16string&
                               u32(dbytes)) == OK) {
                 text[size_t(dbytes)] = 0;
                 u32 derr = OK;
-                const VmdkDescriptor d = parse_vmdk_descriptor(std::string(text.data()),
-                                                                 base_dir, io, &derr, false);
+                const VmdkDescriptor d =
+                    parse_vmdk_descriptor(std::string(text.data()), base_dir, io, &derr, false);
                 if (derr != OK) {
                     *err = derr; /* streamOptimized / VMFS / corrupt keys */
                     return nullptr;
@@ -683,8 +679,8 @@ public:
     /* N-072: image files are static media - a torn label cannot heal */
     bool is_static_media() const override { return true; }
 
-    VhdDevice(HeldFile file, u32 disk_type, u64 current_size, u32 block_size,
-              std::vector<u32> bat, std::unique_ptr<IStorageDevice> parent)
+    VhdDevice(HeldFile file, u32 disk_type, u64 current_size, u32 block_size, std::vector<u32> bat,
+              std::unique_ptr<IStorageDevice> parent)
         : file_(std::move(file)), disk_type_(disk_type), block_size_(block_size),
           bat_(std::move(bat)), parent_(std::move(parent)) {
         geom_.logical_sector = SECTOR;
@@ -768,8 +764,8 @@ private:
     u8 bitmap_cache_[SECTOR] = {0};
 };
 
-std::unique_ptr<IStorageDevice> open_vhd(ImageFileIo& io, const std::u16string& path,
-                                         u32 depth, u32* err) {
+std::unique_ptr<IStorageDevice> open_vhd(ImageFileIo& io, const std::u16string& path, u32 depth,
+                                         u32* err) {
     if (depth > 32) {
         *err = ERR_DEPTH_LIMIT;
         return nullptr;
@@ -882,9 +878,9 @@ std::unique_ptr<IStorageDevice> open_vhd(ImageFileIo& io, const std::u16string& 
         }
     }
 
-    return std::unique_ptr<IStorageDevice>(new VhdDevice(
-        std::move(file), f.disk_type, f.current_size, block_size, std::move(bat),
-        std::move(parent)));
+    return std::unique_ptr<IStorageDevice>(new VhdDevice(std::move(file), f.disk_type,
+                                                         f.current_size, block_size, std::move(bat),
+                                                         std::move(parent)));
 }
 
 /* ------------------------------------------------------------------ */
@@ -974,8 +970,7 @@ public:
     bool is_static_media() const override { return true; }
 
     VhdxDevice(HeldFile file, u64 virt_size, u32 block_size, u32 logical_sector,
-               std::vector<u64> bat, u32 chunk_ratio_bits,
-               std::vector<LogOverlayRange> overlay)
+               std::vector<u64> bat, u32 chunk_ratio_bits, std::vector<LogOverlayRange> overlay)
         : file_(std::move(file)), bat_(std::move(bat)), block_size_(block_size),
           chunk_ratio_bits_(chunk_ratio_bits), overlay_(std::move(overlay)) {
         geom_.logical_sector = logical_sector;
@@ -1138,8 +1133,8 @@ std::vector<LogOverlayRange> vhdx_build_log_overlay(ImageFileIo& io, u64 h,
     const u32 sectors = log_len / 4096;
     for (u32 start = 0; start < sectors;) {
         VhdxLogEntry e;
-        if (!vhdx_log_entry_valid(io, h, hdr, log_start, log_len, u64(start) * 4096, file_bytes,
-                                  0, false, &e)) {
+        if (!vhdx_log_entry_valid(io, h, hdr, log_start, log_len, u64(start) * 4096, file_bytes, 0,
+                                  false, &e)) {
             ++start; /* advance one sector (qemu inc_and_exit) */
             continue;
         }
@@ -1148,8 +1143,8 @@ std::vector<LogOverlayRange> vhdx_build_log_overlay(ImageFileIo& io, u64 h,
         u64 expect = e.sequence;
         for (;;) {
             VhdxLogEntry next;
-            if (!vhdx_log_entry_valid(io, h, hdr, log_start, log_len, pos, file_bytes, expect,
-                                      true, &next))
+            if (!vhdx_log_entry_valid(io, h, hdr, log_start, log_len, pos, file_bytes, expect, true,
+                                      &next))
                 break;
             chain.count++;
             chain.last_seq = next.sequence;
@@ -1189,8 +1184,7 @@ std::vector<LogOverlayRange> vhdx_build_log_overlay(ImageFileIo& io, u64 h,
                 const u64 seq = rd64(d + 0x18);
                 const u8* ds = entry.data() + data_off;
                 if (data_off + 4096 > e.entry_length || rd32(ds) != VHDX_DATA_SIG ||
-                    rd32(ds + 4) != u32(seq >> 32) ||
-                    rd32(ds + 4092) != u32(seq & 0xFFFFFFFF)) {
+                    rd32(ds + 4) != u32(seq >> 32) || rd32(ds + 4092) != u32(seq & 0xFFFFFFFF)) {
                     *err = ERR_IMAGE_CORRUPT;
                     return overlay;
                 }
@@ -1220,15 +1214,14 @@ std::vector<LogOverlayRange> vhdx_build_log_overlay(ImageFileIo& io, u64 h,
         }
         pos = (pos + e.entry_length) % log_len;
     }
-    std::sort(overlay.begin(), overlay.end(),
-              [](const LogOverlayRange& a, const LogOverlayRange& b) {
-                  return a.offset < b.offset;
-              });
+    std::sort(
+        overlay.begin(), overlay.end(),
+        [](const LogOverlayRange& a, const LogOverlayRange& b) { return a.offset < b.offset; });
     return overlay;
 }
 
-std::unique_ptr<IStorageDevice> open_vhdx(ImageFileIo& io, const std::u16string& path,
-                                          u32 depth, u32* err) {
+std::unique_ptr<IStorageDevice> open_vhdx(ImageFileIo& io, const std::u16string& path, u32 depth,
+                                          u32* err) {
     (void)depth; /* differencing is refused below - no recursion yet */
     HeldFile file;
     file.io = &io;
@@ -1333,8 +1326,7 @@ std::unique_ptr<IStorageDevice> open_vhdx(ImageFileIo& io, const std::u16string&
     bool has_parent = false;
     for (u32 i = 0; i < meta_count && i < 2047; ++i) {
         u8 me[32];
-        if (io_read_exact(io, file.handle, meta_offset + 32 + u64(i) * 32, me, sizeof(me)) !=
-            OK) {
+        if (io_read_exact(io, file.handle, meta_offset + 32 + u64(i) * 32, me, sizeof(me)) != OK) {
             *err = ERR_READ_FAILED;
             return nullptr;
         }
@@ -1411,9 +1403,9 @@ std::unique_ptr<IStorageDevice> open_vhdx(ImageFileIo& io, const std::u16string&
     for (u32 i = 0; i < bat_entries; ++i)
         bat[i] = rd64(bat_raw.data() + u64(i) * 8);
 
-    return std::unique_ptr<IStorageDevice>(new VhdxDevice(
-        std::move(file), virt_size, block_size, logical_sector, std::move(bat),
-        chunk_ratio_bits, std::move(overlay)));
+    return std::unique_ptr<IStorageDevice>(new VhdxDevice(std::move(file), virt_size, block_size,
+                                                          logical_sector, std::move(bat),
+                                                          chunk_ratio_bits, std::move(overlay)));
 }
 
 } // namespace

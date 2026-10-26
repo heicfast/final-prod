@@ -359,8 +359,7 @@ u32 ck_commit_cb(void* user) {
     /* the staging handle is CLOSED: the replace-rename cannot hit a
      * sharing violation (MoveFileExW on an open file needs
      * FILE_SHARE_DELETE, which fopen does not request). */
-    if (!MoveFileExW(u8_to_ws(s->tmp_path.c_str()).c_str(),
-                     u8_to_ws(s->final_path.c_str()).c_str(),
+    if (!MoveFileExW(u8_to_ws(s->tmp_path.c_str()).c_str(), u8_to_ws(s->final_path.c_str()).c_str(),
                      MOVEFILE_REPLACE_EXISTING))
         return ERR_SESSION_IO;
 #else
@@ -393,8 +392,8 @@ u64 f_size_cb(void* user) {
  * ========================================================================= */
 
 struct CrDevice {
-    std::unique_ptr<IStorageDevice> dev;  /* the view handed to the core */
-    std::unique_ptr<IStorageDevice> hold; /* parent disk (slices borrow it) */
+    std::unique_ptr<IStorageDevice> dev;        /* the view handed to the core */
+    std::unique_ptr<IStorageDevice> hold;       /* parent disk (slices borrow it) */
     std::unique_ptr<IStorageDevice> slice_hold; /* M-033: the slice under a
                                                    decrypting device */
     u32 disk = 0;
@@ -1134,7 +1133,6 @@ u32 open_image_impl(const char* utf8_path, uint64_t offset, uint64_t bytes, cr_u
     return ret_ok();
 }
 
-
 /* M-030 (diff-to-fix): the transport-open diagnostic. The pre-fix ABI
  * could not distinguish "driver absent" from "driver open failed with
  * X" - the silent RDA->direct fallback overwrote the RDA leg's error
@@ -1353,12 +1351,12 @@ u32 unlock_volume_with_dictionary_impl(char letter, const char* const* utf8_user
     ptrs.reserve(wide.size());
     for (const std::wstring& w : wide)
         ptrs.push_back(w.c_str());
-    const u32 rc = win::bitlocker::unlock_with_dictionary(
-        wchar_t(letter), ptrs.data(), ptrs.size());
+    const u32 rc =
+        win::bitlocker::unlock_with_dictionary(wchar_t(letter), ptrs.data(), ptrs.size());
     if (rc == OK)
         return ret_ok();
-    return ret_(rc, "dictionary unlock exhausted (%u + %u candidates)",
-                unsigned(228), unsigned(ptrs.size()));
+    return ret_(rc, "dictionary unlock exhausted (%u + %u candidates)", unsigned(228),
+                unsigned(ptrs.size()));
 }
 
 #else /* !_WIN32 */
@@ -1383,8 +1381,7 @@ u32 open_volume_with_key_impl(char letter, const char* utf8_hex_fvek, cr_ui_devi
     (void)letter;
     (void)utf8_hex_fvek;
     (void)out;
-    return ret_(ERR_UNSUPPORTED,
-                "cr_ui_open_volume_with_key requires the Windows platform layer");
+    return ret_(ERR_UNSUPPORTED, "cr_ui_open_volume_with_key requires the Windows platform layer");
 }
 
 u32 unlock_volume_with_dictionary_impl(char letter, const char* const* utf8_user_passwords,
@@ -1445,9 +1442,8 @@ extern "C" CR_UI_API uint32_t cr_ui_last_transport_error(void) {
 extern "C" CR_UI_API uint32_t cr_ui_open_volume(char letter, cr_ui_device** out) {
     return guarded(open_volume_impl, letter, out);
 }
-extern "C" CR_UI_API uint32_t cr_ui_open_volume_with_key(char letter,
-                                                        const char* utf8_hex_fvek,
-                                                        cr_ui_device** out) {
+extern "C" CR_UI_API uint32_t cr_ui_open_volume_with_key(char letter, const char* utf8_hex_fvek,
+                                                         cr_ui_device** out) {
     return guarded(open_volume_with_key_impl, letter, utf8_hex_fvek, out);
 }
 extern "C" CR_UI_API uint32_t cr_ui_unlock_volume_with_dictionary(
@@ -1663,7 +1659,7 @@ u32 scan_create_impl(const cr_ui_scan_config* cfg, cr_ui_scan** out) {
     arm_repair_hooks(s, cfg); /* S-008: pre-scan repair consent gate */
     if (cfg)
         s->memory_warn_mb = cfg->memory_warn_mb; /* N-062 */
-    if (cfg && cfg->pre_scan_check) /* M-041: the damage-audit phase */
+    if (cfg && cfg->pre_scan_check)              /* M-041: the damage-audit phase */
         s->cfg.pre_scan_check = true;
     if (cfg && cfg->progress) {
         s->progress = cfg->progress;
@@ -1821,9 +1817,9 @@ u32 scan_run_impl(cr_ui_scan* scan) {
     if (s->ck_sink) {
         if (s->ck_sink->f)
             std::fclose(s->ck_sink->f);
-        /* the staging file is transient: the final path holds the last
-         * COMMITTED checkpoint; a leftover .tmp is a torn never-committed
-         * emit (N-014's crash window) - remove it, never trust it. */
+            /* the staging file is transient: the final path holds the last
+             * COMMITTED checkpoint; a leftover .tmp is a torn never-committed
+             * emit (N-014's crash window) - remove it, never trust it. */
 #ifdef _WIN32
         DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
 #else
@@ -2106,9 +2102,9 @@ u32 apply_lost_partition_impl(cr_ui_device* dev, const cr_ui_apply_candidate* ca
     if (u32 trc = table::parse_disk_table(d->dev.get(), tbl))
         return ret_(trc, "apply refused: cannot read the partition table (%s)", err_text(trc));
     apply::ApplyPlan plan;
-    const u32 prc = apply::plan_apply(
-        d->dev.get(), c, plan, tbl.partitions,
-        rebuild_table ? apply::ApplyScope::RebuildTable : apply::ApplyScope::SingleEntry);
+    const u32 prc = apply::plan_apply(d->dev.get(), c, plan, tbl.partitions,
+                                      rebuild_table ? apply::ApplyScope::RebuildTable
+                                                    : apply::ApplyScope::SingleEntry);
     if (plan.refused || prc != OK) {
         fill_apply_result(out, 0, 2, 0, plan.refusal_reason.c_str());
         return ret_(ERR_APPLY_REFUSED, "apply refused: %s", plan.refusal_reason.c_str());
@@ -2244,10 +2240,10 @@ bool save_progress_adapter_(u64 done, u64 total, void* user) {
         std::memset(&out, 0, sizeof(out));
         out.type = CR_EVT_SAVE_PROGRESS;
         out.stage = 0xFFFFFFFFu;
-        out.stage_permille = pm;      /* the save's own 0..1000 */
-        out.overall_permille = 1000;  /* standing - the scan is complete */
-        out.bytes_done = done;        /* nodes serialized */
-        out.bytes_total = total;      /* total nodes */
+        out.stage_permille = pm;     /* the save's own 0..1000 */
+        out.overall_permille = 1000; /* standing - the scan is complete */
+        out.bytes_done = done;       /* nodes serialized */
+        out.bytes_total = total;     /* total nodes */
         s->event_fn(s->event_user, &out);
     }
     return true;
@@ -2373,8 +2369,8 @@ extern "C" CR_UI_API void cr_ui_scan_close(cr_ui_scan* scan) {
         if (s->ck_sink) {
             if (s->ck_sink->f)
                 std::fclose(s->ck_sink->f);
-            /* N-014: the staging file is transient (a torn never-committed
-             * emit); the final path holds the last committed checkpoint. */
+                /* N-014: the staging file is transient (a torn never-committed
+                 * emit); the final path holds the last committed checkpoint. */
 #ifdef _WIN32
             DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
 #else
@@ -3025,8 +3021,7 @@ u32 query_apply_buckets_impl(cr_ui_query* q, uint32_t date_bucket, uint32_t size
      * scan-controller init; the query-time derivation is the same
      * day-truncated-local math) */
     const u64 now_ft = u64(std::time(nullptr) + 11'644'473'600) * 10'000'000;
-    if (!query::apply_date_bucket(f, u16(date_bucket), now_ft, date_custom_from,
-                                  date_custom_to)) {
+    if (!query::apply_date_bucket(f, u16(date_bucket), now_ft, date_custom_from, date_custom_to)) {
         /* the skipped Date IDs (0x104) and unknown values: no invented
          * semantics - reject with the exact bad ID in the diagnostic */
         return ret_(ERR_BAD_PARAMETER, "date_bucket 0x%x is not an og filter-bar bucket ID",
@@ -3766,8 +3761,7 @@ extern "C" CR_UI_API uint32_t cr_ui_health_read(uint32_t disk, cr_ui_smart_repor
 
 /* ---- M-048: the user-extensible signature database (ABI-since 2.1) ---- */
 
-extern "C" CR_UI_API uint32_t cr_ui_register_user_signs(const char* json_bytes,
-                                                       uint32_t json_len) {
+extern "C" CR_UI_API uint32_t cr_ui_register_user_signs(const char* json_bytes, uint32_t json_len) {
     if (json_bytes == nullptr || json_len == 0)
         return ERR_BAD_PARAMETER;
     carve::usersigns::UserSignSet set;

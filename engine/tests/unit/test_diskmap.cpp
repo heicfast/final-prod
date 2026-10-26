@@ -50,10 +50,10 @@ TEST(DiskMap, RangeFreeEdgeMatrix) {
     /* sub-cluster span: the containing cluster's truth governs (the map
      * is cluster-granular; the disk map's cells are never finer) */
     EXPECT_TRUE(fm.range_free(4096, 1));
-    EXPECT_TRUE(fm.range_free(4097, 2048));   /* still inside cluster 0 */
+    EXPECT_TRUE(fm.range_free(4097, 2048)); /* still inside cluster 0 */
 
     /* clear a middle bit: spans crossing it stop being free */
-    fm.bits[0] = 0b00001101; /* cluster 1's bit cleared */
+    fm.bits[0] = 0b00001101;                 /* cluster 1's bit cleared */
     EXPECT_TRUE(fm.range_free(4096, 4096));  /* cluster 0 alone */
     EXPECT_FALSE(fm.range_free(4096, 8192)); /* crosses cluster 1 */
     EXPECT_TRUE(fm.range_free(12288, 8192)); /* clusters 2..3 */

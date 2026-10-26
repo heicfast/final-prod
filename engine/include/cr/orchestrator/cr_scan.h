@@ -132,10 +132,10 @@ enum class Type : u32 {
      * (CR_EVT_SAVE_PROGRESS) are SHIM-side events (the watchdog thread
      * and the save path) - the core never emits them. The core's next
      * event type therefore starts at 10. */
-    FsCheck = 10       /* M-041: pre-scan damage-audit phase done (see check
-                        * fields; fires ONCE per scan with the final report
-                        * summary — per-error detail rides the session record
-                        * and stats) */
+    FsCheck = 10 /* M-041: pre-scan damage-audit phase done (see check
+                  * fields; fires ONCE per scan with the final report
+                  * summary — per-error detail rides the session record
+                  * and stats) */
 };
 
 struct Event {

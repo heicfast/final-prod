@@ -389,16 +389,16 @@ TEST(Query, TypeSortKeyOrdersByCategoryThenExtension) {
         return n;
     };
     /* emission order deliberately scrambled vs the expected sort */
-    add(root, "zeta.mp3");       /* Audio -> slot 3 */
-    add(root, "alpha.txt");      /* Document -> slot 1 */
-    add(root, "omega.png");      /* Image(Graphic) -> slot 0 */
-    add(root, "beta.htm");       /* Document, ext htm (before txt) */
-    add(root, "gamma.mkv");      /* Video -> slot 4 */
-    add(root, "noext");          /* no extension -> Other? no: no dot ->
-                                  * cat_of -> Other (unknown ext) -> slot 5 */
-    add(root, "delta.zip");      /* Archive -> slot 6 */
-    add(root, "alpha2.txt");     /* Document, ext txt, name after beta.htm's
-                                  * tie-break demo */
+    add(root, "zeta.mp3");   /* Audio -> slot 3 */
+    add(root, "alpha.txt");  /* Document -> slot 1 */
+    add(root, "omega.png");  /* Image(Graphic) -> slot 0 */
+    add(root, "beta.htm");   /* Document, ext htm (before txt) */
+    add(root, "gamma.mkv");  /* Video -> slot 4 */
+    add(root, "noext");      /* no extension -> Other? no: no dot ->
+                              * cat_of -> Other (unknown ext) -> slot 5 */
+    add(root, "delta.zip");  /* Archive -> slot 6 */
+    add(root, "alpha2.txt"); /* Document, ext txt, name after beta.htm's
+                              * tie-break demo */
     query::Query q;
     q.sort = query::SortKey::Type;
     q.dir = query::SortDir::Asc;
@@ -454,11 +454,11 @@ TEST(Error, ErrTextCoversEveryCode) {
     /* M-049: every code must carry a distinct, non-empty text (the flat
      * code->text table was untested; unknown codes get the fallback). */
     const u32 codes[] = {
-        ERR_OPEN_FAILED, ERR_READ_FAILED, ERR_WRITE_FAILED, ERR_RANGE_OUT_OF_BOUNDS,
-        ERR_RETRY_EXHAUSTED, ERR_BAD_PARAMETER, ERR_NO_MEMORY, ERR_BAD_MAGIC,
-        ERR_UNSUPPORTED, ERR_TRUNCATED, ERR_CANCELLED, ERR_SESSION_FORMAT,
-        ERR_DEST_FULL, ERR_BAD_CHECKSUM, ERR_FVE_LOCKED, ERR_APPLY_CONSENT_DENIED,
-        ERR_INTERNAL, ERR_IMAGE_CORRUPT,
+        ERR_OPEN_FAILED,     ERR_READ_FAILED,   ERR_WRITE_FAILED, ERR_RANGE_OUT_OF_BOUNDS,
+        ERR_RETRY_EXHAUSTED, ERR_BAD_PARAMETER, ERR_NO_MEMORY,    ERR_BAD_MAGIC,
+        ERR_UNSUPPORTED,     ERR_TRUNCATED,     ERR_CANCELLED,    ERR_SESSION_FORMAT,
+        ERR_DEST_FULL,       ERR_BAD_CHECKSUM,  ERR_FVE_LOCKED,   ERR_APPLY_CONSENT_DENIED,
+        ERR_INTERNAL,        ERR_IMAGE_CORRUPT,
     };
     std::set<std::string> texts;
     for (u32 c : codes) {
@@ -578,8 +578,8 @@ TEST(Query, DateBucketsTranslateToRanges) {
     /* Custom: both bounds day-truncated locally, inclusive */
     {
         Filter f;
-        EXPECT_TRUE(apply_date_bucket(f, DateBucket_Custom, now,
-                                      at_ft(2026, 1, 5, 18, 0, 0), at_ft(2026, 3, 10, 9, 30, 0)));
+        EXPECT_TRUE(apply_date_bucket(f, DateBucket_Custom, now, at_ft(2026, 1, 5, 18, 0, 0),
+                                      at_ft(2026, 3, 10, 9, 30, 0)));
         EXPECT_EQ(day_ft(2026, 1, 5), f.modified_from);
         EXPECT_EQ(day_ft(2026, 3, 11) - 1, f.modified_to);
     }
@@ -717,8 +717,8 @@ TEST(Query, BucketFiltersThroughRun) {
      * inclusive bounds) */
     {
         Query q;
-        ASSERT_TRUE(apply_date_bucket(q.filter, DateBucket_Custom, now,
-                                      at_ft(2026, 9, 1, 23, 0, 0), at_ft(2026, 9, 30, 1, 0, 0)));
+        ASSERT_TRUE(apply_date_bucket(q.filter, DateBucket_Custom, now, at_ft(2026, 9, 1, 23, 0, 0),
+                                      at_ft(2026, 9, 30, 1, 0, 0)));
         const Result r = run(t, q);
         ASSERT_EQ(u64(1), r.total_matched);
         EXPECT_EQ("fortydays.txt", r.rows[0].name_utf8);

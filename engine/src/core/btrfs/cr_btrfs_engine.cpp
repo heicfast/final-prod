@@ -5,8 +5,8 @@
 
 #include "cr/btrfs/cr_btrfs_engine.h"
 #include "cr/btrfs/cr_btrfs_cache.h" /* N-072: the re-scan cache */
-#include "cr/cr_bits.h" /* shared byte readers (W4 dedup, DC-12) */
-#include "cr/cr_text.h" /* S-005: on-disk UTF-8 names decode, not byte-lift */
+#include "cr/cr_bits.h"              /* shared byte readers (W4 dedup, DC-12) */
+#include "cr/cr_text.h"              /* S-005: on-disk UTF-8 names decode, not byte-lift */
 #include "cr/compress/cr_decomp.h"
 #include <cstring>
 #include <functional>
@@ -66,9 +66,9 @@ constexpr u8 KEY_EXTENT_DATA = 108;
 constexpr u8 KEY_DIR_ITEM = 84;
 constexpr u8 KEY_ROOT_ITEM = 132;
 constexpr u8 KEY_ROOT_REF = 156; /* N-047: btrfs_root_ref names child
-                                   * subvols (kernel btrfs_tree.h: dirid@0,
-                                   * sequence@8, name_len@16, name@18;
-                                   * key.objectid = the child subvol id) */
+                                  * subvols (kernel btrfs_tree.h: dirid@0,
+                                  * sequence@8, name_len@16, name@18;
+                                  * key.objectid = the child subvol id) */
 constexpr u8 KEY_CHUNK = 228;
 constexpr u8 KEY_XATTR = 24; /* S-028: BTRFS_XATTR_ITEM_KEY (og type 0x18) */
 
@@ -550,154 +550,155 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
         root_tree = cached.root_tree;
         stats.chunks = v.chunks.size();
     } else {
-    /* 2. chunk tree walk: build the full logical->physical map. The chunk
-     * tree root's logical address: candidates validated by the node's
-     * self-referential bytenr (a wrong offset can never validate) AND by
-     * the presence of CHUNK items (only the chunk tree holds them). BTR-2:
-     * the expected chunk_tree_uuid is adopted from the first
-     * self-validating chunk-tree node header (kernel semantics). */
-    {
-        std::vector<u64> candidates;
-        /* chunk_root@sb+0x58 and root@sb+0x50 are the canonical fields
-         * (kernel btrfs_super_block); the other slots are validated by the
-         * node's self-referential bytenr so a wrong candidate never wins. */
-        candidates.push_back(le64(sb_raw.data() + 0x58));
-        candidates.push_back(le64(sb_raw.data() + 0x50));
-        candidates.push_back(le64(sb_raw.data() + 0x60));
-        candidates.push_back(le64(sb_raw.data() + 0x68));
-        candidates.push_back(le64(sb_raw.data() + 0x70));
-        for (u64 cand : candidates) {
-            if (cand == 0)
-                continue;
-            std::vector<u8> node;
-            if (!v.read_node(cand, node, true))
-                continue;
-            /* confirm this is the chunk tree: it must hold CHUNK items */
-            const u32 nritems = le32(node.data() + HDR_NR_ITEMS);
-            bool has_chunk = false;
-            for (u32 i = 0; i < nritems && i < MAX_ITEMS; ++i) {
-                const u8* it = node.data() + HDR_ITEM_ARRAY + u64(i) * 25;
-                if (it[ITEM_KEY + KEY_TYPE] == KEY_CHUNK) {
-                    has_chunk = true;
-                    break;
-                }
-            }
-            if (has_chunk) {
-                chunk_root = cand;
-                break;
-            }
-            /* not the chunk tree: forget the adopted uuid so the next
-             * candidate adopts its own */
-            v.have_chunk_tree_uuid = false;
-        }
-        if (chunk_root == 0 && !v.chunks.empty()) {
-            /* fallback: bounded scan of system chunks for a self-validating
-             * node carrying CHUNK items */
-            for (const auto& c : v.chunks) {
-                if (!(c.type & CHUNK_TYPE_SYSTEM))
+        /* 2. chunk tree walk: build the full logical->physical map. The chunk
+         * tree root's logical address: candidates validated by the node's
+         * self-referential bytenr (a wrong offset can never validate) AND by
+         * the presence of CHUNK items (only the chunk tree holds them). BTR-2:
+         * the expected chunk_tree_uuid is adopted from the first
+         * self-validating chunk-tree node header (kernel semantics). */
+        {
+            std::vector<u64> candidates;
+            /* chunk_root@sb+0x58 and root@sb+0x50 are the canonical fields
+             * (kernel btrfs_super_block); the other slots are validated by the
+             * node's self-referential bytenr so a wrong candidate never wins. */
+            candidates.push_back(le64(sb_raw.data() + 0x58));
+            candidates.push_back(le64(sb_raw.data() + 0x50));
+            candidates.push_back(le64(sb_raw.data() + 0x60));
+            candidates.push_back(le64(sb_raw.data() + 0x68));
+            candidates.push_back(le64(sb_raw.data() + 0x70));
+            for (u64 cand : candidates) {
+                if (cand == 0)
                     continue;
-                for (u64 off = 0; off + v.sb.nodesize <= c.logical_len; off += v.sb.nodesize) {
-                    const u64 logical = c.logical_start + off;
-                    std::vector<u8> node;
-                    if (!v.read_node(logical, node, true))
-                        continue;
-                    const u32 nritems = le32(node.data() + HDR_NR_ITEMS);
-                    bool has_chunk = false;
-                    for (u32 i = 0; i < nritems && i < MAX_ITEMS; ++i) {
-                        const u8* it = node.data() + HDR_ITEM_ARRAY + u64(i) * 25;
-                        if (it[ITEM_KEY + KEY_TYPE] == KEY_CHUNK) {
-                            has_chunk = true;
-                            break;
-                        }
-                    }
-                    if (has_chunk) {
-                        chunk_root = logical;
+                std::vector<u8> node;
+                if (!v.read_node(cand, node, true))
+                    continue;
+                /* confirm this is the chunk tree: it must hold CHUNK items */
+                const u32 nritems = le32(node.data() + HDR_NR_ITEMS);
+                bool has_chunk = false;
+                for (u32 i = 0; i < nritems && i < MAX_ITEMS; ++i) {
+                    const u8* it = node.data() + HDR_ITEM_ARRAY + u64(i) * 25;
+                    if (it[ITEM_KEY + KEY_TYPE] == KEY_CHUNK) {
+                        has_chunk = true;
                         break;
                     }
-                    v.have_chunk_tree_uuid = false; /* not the chunk tree: re-adopt on the next */
                 }
-                if (chunk_root != 0)
-                    break;
-            }
-        }
-    }
-    if (chunk_root == 0)
-        return ERR_BAD_MAGIC;
-
-    {
-        std::vector<ChunkMap> discovered;
-        auto on_item = [&](const Key& k, const u8* data, u32 len) {
-            if (k.type == KEY_CHUNK && len >= 48) {
-                ChunkMap cm;
-                if (parse_chunk(data, len, cm)) {
-                    cm.logical_start = k.offset;
-                    discovered.push_back(cm);
-                }
-            }
-            return true;
-        };
-        walk_tree(v, chunk_root, cancel, on_item, stats.nodes_read, stats.damaged_nodes);
-        for (const auto& c : discovered)
-            v.chunks.push_back(c);
-        stats.chunks = v.chunks.size();
-    }
-    if (progress)
-        (void)progress(1, 4, progress_user);
-
-    /* 3. root tree discovery: candidates + scan of metadata chunks for the
-     * node holding ROOT_ITEM(CHUNK_TREE) (only the root tree contains it;
-     * cross-validates with the chunk tree we already loaded). */
-    {
-        std::vector<u64> candidates{le64(sb_raw.data() + 0x50), le64(sb_raw.data() + 0x58),
-                                    le64(sb_raw.data() + 0x60), le64(sb_raw.data() + 0x68),
-                                    le64(sb_raw.data() + 0x70)};
-        for (u64 cand : candidates) {
-            if (cand == 0)
-                continue;
-            std::vector<u8> node;
-            if (!v.read_node(cand, node))
-                continue;
-            const u32 nritems = le32(node.data() + HDR_NR_ITEMS);
-            for (u32 i = 0; i < nritems && i < MAX_ITEMS; ++i) {
-                const u8* it = node.data() + HDR_ITEM_ARRAY + u64(i) * 25;
-                const Key k = read_key(it + ITEM_KEY);
-                if (k.type == KEY_ROOT_ITEM && k.objectid == OID_CHUNK_TREE) {
-                    root_tree = cand;
+                if (has_chunk) {
+                    chunk_root = cand;
                     break;
                 }
+                /* not the chunk tree: forget the adopted uuid so the next
+                 * candidate adopts its own */
+                v.have_chunk_tree_uuid = false;
             }
-            if (root_tree != 0)
-                break;
-        }
-        if (root_tree == 0) {
-            for (const auto& c : v.chunks) {
-                if (!(c.type & (CHUNK_TYPE_METADATA | CHUNK_TYPE_SYSTEM)))
-                    continue;
-                for (u64 off = 0; off + v.sb.nodesize <= c.logical_len && root_tree == 0;
-                     off += v.sb.nodesize) {
-                    const u64 logical = c.logical_start + off;
-                    std::vector<u8> node;
-                    if (!v.read_node(logical, node))
+            if (chunk_root == 0 && !v.chunks.empty()) {
+                /* fallback: bounded scan of system chunks for a self-validating
+                 * node carrying CHUNK items */
+                for (const auto& c : v.chunks) {
+                    if (!(c.type & CHUNK_TYPE_SYSTEM))
                         continue;
-                    const u32 nritems = le32(node.data() + HDR_NR_ITEMS);
-                    for (u32 i = 0; i < nritems && i < MAX_ITEMS; ++i) {
-                        const u8* it = node.data() + HDR_ITEM_ARRAY + u64(i) * 25;
-                        const Key k = read_key(it + ITEM_KEY);
-                        if (k.type == KEY_ROOT_ITEM && k.objectid == OID_CHUNK_TREE) {
-                            root_tree = logical;
+                    for (u64 off = 0; off + v.sb.nodesize <= c.logical_len; off += v.sb.nodesize) {
+                        const u64 logical = c.logical_start + off;
+                        std::vector<u8> node;
+                        if (!v.read_node(logical, node, true))
+                            continue;
+                        const u32 nritems = le32(node.data() + HDR_NR_ITEMS);
+                        bool has_chunk = false;
+                        for (u32 i = 0; i < nritems && i < MAX_ITEMS; ++i) {
+                            const u8* it = node.data() + HDR_ITEM_ARRAY + u64(i) * 25;
+                            if (it[ITEM_KEY + KEY_TYPE] == KEY_CHUNK) {
+                                has_chunk = true;
+                                break;
+                            }
+                        }
+                        if (has_chunk) {
+                            chunk_root = logical;
                             break;
                         }
+                        v.have_chunk_tree_uuid =
+                            false; /* not the chunk tree: re-adopt on the next */
+                    }
+                    if (chunk_root != 0)
+                        break;
+                }
+            }
+        }
+        if (chunk_root == 0)
+            return ERR_BAD_MAGIC;
+
+        {
+            std::vector<ChunkMap> discovered;
+            auto on_item = [&](const Key& k, const u8* data, u32 len) {
+                if (k.type == KEY_CHUNK && len >= 48) {
+                    ChunkMap cm;
+                    if (parse_chunk(data, len, cm)) {
+                        cm.logical_start = k.offset;
+                        discovered.push_back(cm);
+                    }
+                }
+                return true;
+            };
+            walk_tree(v, chunk_root, cancel, on_item, stats.nodes_read, stats.damaged_nodes);
+            for (const auto& c : discovered)
+                v.chunks.push_back(c);
+            stats.chunks = v.chunks.size();
+        }
+        if (progress)
+            (void)progress(1, 4, progress_user);
+
+        /* 3. root tree discovery: candidates + scan of metadata chunks for the
+         * node holding ROOT_ITEM(CHUNK_TREE) (only the root tree contains it;
+         * cross-validates with the chunk tree we already loaded). */
+        {
+            std::vector<u64> candidates{le64(sb_raw.data() + 0x50), le64(sb_raw.data() + 0x58),
+                                        le64(sb_raw.data() + 0x60), le64(sb_raw.data() + 0x68),
+                                        le64(sb_raw.data() + 0x70)};
+            for (u64 cand : candidates) {
+                if (cand == 0)
+                    continue;
+                std::vector<u8> node;
+                if (!v.read_node(cand, node))
+                    continue;
+                const u32 nritems = le32(node.data() + HDR_NR_ITEMS);
+                for (u32 i = 0; i < nritems && i < MAX_ITEMS; ++i) {
+                    const u8* it = node.data() + HDR_ITEM_ARRAY + u64(i) * 25;
+                    const Key k = read_key(it + ITEM_KEY);
+                    if (k.type == KEY_ROOT_ITEM && k.objectid == OID_CHUNK_TREE) {
+                        root_tree = cand;
+                        break;
                     }
                 }
                 if (root_tree != 0)
                     break;
             }
+            if (root_tree == 0) {
+                for (const auto& c : v.chunks) {
+                    if (!(c.type & (CHUNK_TYPE_METADATA | CHUNK_TYPE_SYSTEM)))
+                        continue;
+                    for (u64 off = 0; off + v.sb.nodesize <= c.logical_len && root_tree == 0;
+                         off += v.sb.nodesize) {
+                        const u64 logical = c.logical_start + off;
+                        std::vector<u8> node;
+                        if (!v.read_node(logical, node))
+                            continue;
+                        const u32 nritems = le32(node.data() + HDR_NR_ITEMS);
+                        for (u32 i = 0; i < nritems && i < MAX_ITEMS; ++i) {
+                            const u8* it = node.data() + HDR_ITEM_ARRAY + u64(i) * 25;
+                            const Key k = read_key(it + ITEM_KEY);
+                            if (k.type == KEY_ROOT_ITEM && k.objectid == OID_CHUNK_TREE) {
+                                root_tree = logical;
+                                break;
+                            }
+                        }
+                    }
+                    if (root_tree != 0)
+                        break;
+                }
+            }
         }
-    }
-    if (root_tree == 0)
-        return ERR_BAD_MAGIC;
+        if (root_tree == 0)
+            return ERR_BAD_MAGIC;
     } /* cache-miss derivation path (N-072: the chunk chase, the chunk walk
-      * and the root probe are the re-scan's repeated derivations) */
+       * and the root probe are the re-scan's repeated derivations) */
 
     /* N-072 save point: persist this scan's derivations for the next one.
      * A failed write is non-fatal (the scan already has its results); a
@@ -740,8 +741,8 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
             if (k.type == KEY_ROOT_REF && len >= 18) {
                 const u32 nl = u32(le16(data + 16));
                 if (nl != 0 && nl <= 255 && len >= 18u + nl) {
-                    std::u16string w = text::utf8_to_u16_lossless(std::string_view(
-                        reinterpret_cast<const char*>(data + 18), nl));
+                    std::u16string w = text::utf8_to_u16_lossless(
+                        std::string_view(reinterpret_cast<const char*>(data + 18), nl));
                     if (!w.empty())
                         ref_names[k.objectid] = std::move(w);
                 }
@@ -759,8 +760,7 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
                 k.offset == 0x8dbfc2d2ULL && len >= DI_HEADER + 7) {
                 const u16 nl = le16(data + DI_NAMELEN);
                 const u16 dl = le16(data + DI_DATALEN);
-                if (nl == 7 && dl == 0 &&
-                    std::memcmp(data + DI_NAME, "default", 7) == 0 &&
+                if (nl == 7 && dl == 0 && std::memcmp(data + DI_NAME, "default", 7) == 0 &&
                     data[DI_LOCATION + 8] == KEY_ROOT_ITEM)
                     default_subvol = le64(data + DI_LOCATION);
                 return true;
@@ -825,8 +825,7 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
                 role16 = sv.name;
             } else {
                 char role[32];
-                snprintf(role, sizeof(role), "subvol-%llu",
-                         static_cast<unsigned long long>(sv.id));
+                snprintf(role, sizeof(role), "subvol-%llu", static_cast<unsigned long long>(sv.id));
                 for (const char* p = role; *p; ++p)
                     role16.push_back(u16(u8(*p)));
             }
@@ -834,7 +833,8 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
             if (!sv_props)
                 continue;
             sv_props->name = role16;
-            sv_props->fs_kind = u32(FsKindCode::Btrfs); /* factory 11 (row 45: 7 collided with exFAT) */
+            sv_props->fs_kind =
+                u32(FsKindCode::Btrfs); /* factory 11 (row 45: 7 collided with exFAT) */
             sv_props->attributes = 0x10;
             sv_props->record_ref = sv.id;
             sv_root = tree.add_file(root_active, sv_props);
@@ -1068,7 +1068,7 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
                     if (!cp)
                         return;
                     cp->name = de.name;
-                    cp->name_raw = de.name_raw; /* N-016b: og-parity raw bytes */
+                    cp->name_raw = de.name_raw;           /* N-016b: og-parity raw bytes */
                     cp->fs_kind = u32(FsKindCode::Btrfs); /* factory 11 (row 45) */
                     cp->logical_size = cit->second.size;
                     /* N-047: the og's FILE_ATTRIBUTE_NORMAL (0x80) on

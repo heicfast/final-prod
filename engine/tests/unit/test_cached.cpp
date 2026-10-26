@@ -123,8 +123,7 @@ TEST(Cached, ScanCacheBudgetIsTheRegisteredDivergence) {
     /* M-058 moved the construction into build_read_pipe(); the budget
      * constants live at run()'s call site now - the pin follows the
      * truth, same lockstep contract. */
-    EXPECT_NE(std::string::npos,
-              scan_src.find("build_read_pipe(slice, 8ull << 20, 256 * 1024)"))
+    EXPECT_NE(std::string::npos, scan_src.find("build_read_pipe(slice, 8ull << 20, 256 * 1024)"))
         << "scan-pipe cache construction drifted from the registered 8 MiB / 256 KiB";
     EXPECT_NE(std::string::npos, scan_src.find("PARITY-DELTAS D-72"))
         << "the cr_scan.cpp cache comment must cite the register row";

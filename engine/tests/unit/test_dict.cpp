@@ -55,7 +55,7 @@ struct LogRecorder {
 struct AttemptRecorder {
     std::vector<std::string> seen;
     u32 fail_until = 0; /* attempts with index <= fail_until return LOCKED */
-    u32 ok_at = 0;       /* 1-based candidate position that unlocks */
+    u32 ok_at = 0;      /* 1-based candidate position that unlocks */
     u32 calls = 0;
 
     static u32 attempt(const char* password, void* user) {
@@ -244,8 +244,7 @@ TEST(Dict, AttemptsLoggedThroughSeamWithoutPasswordMaterial) {
     EXPECT_EQ(size_t(1), log.count_prefix("dict unlock: candidate 3 succeeded (shipped set)"));
     /* password material NEVER appears in any line */
     for (const std::string& l : log.lines) {
-        EXPECT_EQ(std::string::npos, l.find(rec.seen[2]))
-            << "password leaked into log line: " << l;
+        EXPECT_EQ(std::string::npos, l.find(rec.seen[2])) << "password leaked into log line: " << l;
         EXPECT_EQ(std::string::npos, l.find("12345678"))
             << "shipped password leaked into log line: " << l;
     }

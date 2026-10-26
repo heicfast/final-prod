@@ -1114,7 +1114,7 @@ TEST(RawFixer, ExfatRestorePlanIsSectorSized4Kn) {
      * sector. */
     std::vector<u8> img(4096ull * 2048, 0);
     build_exfat_boot_4k(img.data(), 2048);
-    put64(img.data() + 0x48, 0); /* break the shape: volume_length < 2048 */
+    put64(img.data() + 0x48, 0);                       /* break the shape: volume_length < 2048 */
     build_exfat_boot_4k(img.data() + 12 * 4096, 2048); /* valid backup */
     fill_exfat_checksums(img, 4096);
 

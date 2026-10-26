@@ -80,8 +80,7 @@ SetChecksumForms entry_set_checksum_dual(const u8* entries, u32 entry_count) {
     for (u32 i = 0; i < bytes; ++i) {
         if (i == 2 || i == 3)
             continue; /* the stored SetChecksum field */
-        out.raw = static_cast<u16>(((out.raw & 1) ? 0x8000u : 0u) + (out.raw >> 1) +
-                                   entries[i]);
+        out.raw = static_cast<u16>(((out.raw & 1) ? 0x8000u : 0u) + (out.raw >> 1) + entries[i]);
         if (deleted_set) {
             u16 sub = entries[i];
             if (i == 0)
@@ -90,8 +89,8 @@ SetChecksumForms entry_set_checksum_dual(const u8* entries, u32 entry_count) {
                 sub = 0xC0; /* Stream | InUse */
             else if ((i & 0x1F) == 0)
                 sub = 0xC1; /* File Name | InUse */
-            out.restored = static_cast<u16>(((out.restored & 1) ? 0x8000u : 0u) +
-                                            (out.restored >> 1) + sub);
+            out.restored =
+                static_cast<u16>(((out.restored & 1) ? 0x8000u : 0u) + (out.restored >> 1) + sub);
         }
     }
     return out;

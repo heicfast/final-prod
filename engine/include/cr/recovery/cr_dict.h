@@ -60,10 +60,10 @@ bool parse(const char* bytes, size_t len, std::vector<std::string>& out);
 /* One attempt outcome through the injected attempt function (u32 error
  * code; OK (0) = the candidate unlocked the volume). */
 struct AttemptResult {
-    u32 attempted = 0;        /* candidates tried (shipped + user) */
-    u32 success_index = 0;    /* 1-based position of the winner (0 = none) */
+    u32 attempted = 0;          /* candidates tried (shipped + user) */
+    u32 success_index = 0;      /* 1-based position of the winner (0 = none) */
     bool from_user_set = false; /* winner came from the user candidates */
-    u32 rc = 0;               /* the failing error code when !success */
+    u32 rc = 0;                 /* the failing error code when !success */
 };
 
 /* The consent-gated attempt loop - the og's dictionary flow. Tries every

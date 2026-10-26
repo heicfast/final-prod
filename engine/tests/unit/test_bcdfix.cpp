@@ -59,8 +59,12 @@ struct MemHive {
     }
 };
 
-bool allow(void*) { return true; }
-bool deny(void*) { return false; }
+bool allow(void*) {
+    return true;
+}
+bool deny(void*) {
+    return false;
+}
 
 } // namespace
 
@@ -141,11 +145,13 @@ TEST(BcdFix, BootfixRefusedWithoutConsent) {
 
     MemHive mem{hive, 0, {}};
     size_t applied = 99;
-    EXPECT_EQ(ERR_REPAIR_REFUSED, execute_plan(plan, &MemHive::thunk, &mem, nullptr, nullptr, &applied));
+    EXPECT_EQ(ERR_REPAIR_REFUSED,
+              execute_plan(plan, &MemHive::thunk, &mem, nullptr, nullptr, &applied));
     EXPECT_EQ(applied, 0u);
     EXPECT_EQ(mem.writes, 0) << "no consent callback: nothing is ever written";
 
-    EXPECT_EQ(ERR_REPAIR_REFUSED, execute_plan(plan, &MemHive::thunk, &mem, deny, nullptr, &applied));
+    EXPECT_EQ(ERR_REPAIR_REFUSED,
+              execute_plan(plan, &MemHive::thunk, &mem, deny, nullptr, &applied));
     EXPECT_EQ(mem.writes, 0) << "an explicit deny: nothing is written";
 
     EXPECT_EQ(OK, execute_plan(plan, &MemHive::thunk, &mem, allow, nullptr, &applied));
@@ -180,6 +186,5 @@ TEST(BcdFix, BoundariesNeverPlan) {
     auto hive2 = hive_with_cell(512, 0x99AABBCC, 300);
     auto plan2 = plan_rewrites(hive2.data(), hive2.size(), 0x99AABBCC, 300, 301);
     ASSERT_EQ(plan2.size(), 1u);
-    EXPECT_EQ(ERR_WRITE_FAILED,
-              execute_plan(plan2, &NeverWrite::thunk, nullptr, allow, nullptr));
+    EXPECT_EQ(ERR_WRITE_FAILED, execute_plan(plan2, &NeverWrite::thunk, nullptr, allow, nullptr));
 }

@@ -441,7 +441,6 @@ TEST(Btrfs, EndToEndWalk) {
     EXPECT_EQ(2, checked);
 }
 
-
 TEST(Btrfs, TwoSubvolumesRootSeparately) {
     /* N-019 scenario 8 (the rooting surface EndToEndWalk only covered for
      * ONE subvolume): two subvolumes on one filesystem - the DEFAULT
@@ -544,8 +543,7 @@ TEST(Btrfs, TwoSubvolumesRootSeparately) {
      * 256 is a non-default subvolume and stays a named container. */
     EXPECT_TRUE(paths.count("hello.txt")) << "default subvol: children at the volume root";
     EXPECT_TRUE(paths.count("sub/nested.bin"));
-    EXPECT_TRUE(paths.count("subvol-256/second.txt"))
-        << "non-default subvol: named container root";
+    EXPECT_TRUE(paths.count("subvol-256/second.txt")) << "non-default subvol: named container root";
     /* no cross-subvol leakage in either direction */
     EXPECT_FALSE(paths.count("subvol-5/hello.txt"))
         << "the default subvol no longer surfaces a named container (M-020)";
@@ -644,8 +642,8 @@ TEST(Btrfs, SubvolumeNamedFromRootRef) {
         nb.add(k256, make_root_item(L_FS_TREE, 256));
         Key kr;
         kr.objectid = 256; /* the child this ROOT_REF names */
-        kr.type = 156;   /* ROOT_REF */
-        kr.offset = 0;   /* parent tree id (not consumed for naming) */
+        kr.type = 156;     /* ROOT_REF */
+        kr.offset = 0;     /* parent tree id (not consumed for naming) */
         std::vector<u8> ref(18 + 6, 0);
         put64(ref.data() + 0, 256); /* dirid */
         put64(ref.data() + 8, 1);   /* sequence */
@@ -662,7 +660,7 @@ TEST(Btrfs, SubvolumeNamedFromRootRef) {
         kd.offset = 0x8dbfc2d2ULL;
         std::vector<u8> rec(30 + 7, 0);
         put64(rec.data() + 0, 5); /* located objectid: root 5 */
-        rec[8] = 132;            /* located type: ROOT_ITEM (og gate) */
+        rec[8] = 132;             /* located type: ROOT_ITEM (og gate) */
         put64(rec.data() + 17, 1);
         put16(rec.data() + 25, 0); /* data_len */
         put16(rec.data() + 27, 7); /* name_len */
@@ -690,12 +688,14 @@ TEST(Btrfs, SubvolumeNamedFromRootRef) {
         }
     };
     walk(ra, "");
-    EXPECT_TRUE(paths.count("golden")) << "the non-default subvol keeps its ROOT_REF-named container";
+    EXPECT_TRUE(paths.count("golden"))
+        << "the non-default subvol keeps its ROOT_REF-named container";
     EXPECT_TRUE(paths.count("golden/hello.txt"));
     EXPECT_TRUE(paths.count("golden/sub/nested.bin"));
     EXPECT_TRUE(paths.count("hello.txt")) << "the default subvol's children render at the root";
     EXPECT_FALSE(paths.count("subvol-5")) << "the default never gets a container";
-    EXPECT_FALSE(paths.count("subvol-256")) << "the fallback name must not appear when ROOT_REF names it";
+    EXPECT_FALSE(paths.count("subvol-256"))
+        << "the fallback name must not appear when ROOT_REF names it";
 }
 
 TEST(Btrfs, FileAttributeNormalBit) {
@@ -1465,7 +1465,7 @@ static u32 put_sys_chunk(u8* sb, u32 pos, u64 logical, u64 length, u64 type, u64
     put16(sb + pos + 0x2C, u16(stripes.size()));
     put16(sb + pos + 0x2E, sub_stripes);
     for (u32 i = 0; i < stripes.size(); ++i) {
-        put64(sb + pos + 48 + u32(i) * 32, stripes[i].first);     /* devid */
+        put64(sb + pos + 48 + u32(i) * 32, stripes[i].first);      /* devid */
         put64(sb + pos + 48 + u32(i) * 32 + 8, stripes[i].second); /* offset */
     }
     return u32(17 + 48 + stripes.size() * 32);
@@ -1541,11 +1541,11 @@ TEST(Btrfs, Raid10GeometryGate) {
  * the internal node's copy (bytenr mismatch) and no file is found. */
 static std::vector<u8> build_raid1_volume() {
     constexpr u64 L_R1_CHUNK = 0x800000;
-    constexpr u64 L_FS_ROOT = 0x800000;   /* internal node logical */
-    constexpr u64 L_FS_LEAF = 0x801000;   /* leaf logical */
-    constexpr u64 P_COPY0 = 0x900000;     /* stripe 0: internal node copy */
-    constexpr u64 P_COPY1 = 0x910000;     /* stripe 1: leaf copy */
-    constexpr u64 L_DATA = 0x700000;      /* data extent (identity chunk) */
+    constexpr u64 L_FS_ROOT = 0x800000; /* internal node logical */
+    constexpr u64 L_FS_LEAF = 0x801000; /* leaf logical */
+    constexpr u64 P_COPY0 = 0x900000;   /* stripe 0: internal node copy */
+    constexpr u64 P_COPY1 = 0x910000;   /* stripe 1: leaf copy */
+    constexpr u64 L_DATA = 0x700000;    /* data extent (identity chunk) */
     std::vector<u8> d(10ull << 20, 0);
 
     u8* sb = d.data() + 0x10000;
@@ -1863,15 +1863,13 @@ TEST(Btrfs, DefaultDirItemNonSubvolumeLocationFallsBack) {
     EXPECT_EQ(1u, st.subvolumes);
 }
 
-
 /* ------------------------------------------------------------------ */
 /* N-072: the re-scan metadata cache                                   */
 /* ------------------------------------------------------------------ */
 
 class RecordingCacheIo final : public BtrfsCacheIo {
 public:
-    bool read_blob(const std::u16string& dir, const u8 fsid[16],
-                   std::vector<u8>& out) override {
+    bool read_blob(const std::u16string& dir, const u8 fsid[16], std::vector<u8>& out) override {
         ++reads;
         (void)dir;
         (void)fsid;
@@ -1988,8 +1986,8 @@ TEST(Btrfs, CacheDisabledByDefault) {
     BtrfsScanStats st3;
     tree::ResultTree tree3;
     auto* ra3 = tree3.add_root(u"Found");
-    ASSERT_EQ(OK,
-              scan_btrfs(&dev, nullptr, nullptr, nullptr, tree3, ra3, nullptr, nullptr, st3, &cfg2));
+    ASSERT_EQ(
+        OK, scan_btrfs(&dev, nullptr, nullptr, nullptr, tree3, ra3, nullptr, nullptr, st3, &cfg2));
     EXPECT_EQ(st3.cache_writes, 0u);
 }
 
@@ -2008,7 +2006,8 @@ TEST(Btrfs, CacheWarmScanSkipsChunkDerivation) {
     tree::ResultTree t1;
     auto* ra1 = t1.add_root(u"Found");
     BtrfsScanStats st1;
-    ASSERT_EQ(OK, scan_btrfs(&dev, nullptr, nullptr, nullptr, t1, ra1, nullptr, nullptr, st1, &cfg));
+    ASSERT_EQ(OK,
+              scan_btrfs(&dev, nullptr, nullptr, nullptr, t1, ra1, nullptr, nullptr, st1, &cfg));
     EXPECT_EQ(st1.cache_hits, 0u);
     EXPECT_EQ(st1.cache_writes, 1u);
     EXPECT_EQ(io.writes, 1);

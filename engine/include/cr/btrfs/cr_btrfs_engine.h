@@ -103,8 +103,8 @@ struct ChunkMap {
     u64 type = 0;           /* DATA 1 / SYSTEM 2 / METADATA 4 / RAID bits */
     u64 stripe_len = 0;     /* kernel chunk stripe_len (RAID0/RAID10 math) */
     u16 num_stripes = 0;
-    u16 sub_stripes = 0;    /* RAID10 mirror-set size */
-    u16 mirror_index = 0;   /* og rotating-mirror state (:2534-2537) */
+    u16 sub_stripes = 0;  /* RAID10 mirror-set size */
+    u16 mirror_index = 0; /* og rotating-mirror state (:2534-2537) */
     std::vector<ChunkStripe> stripes;
 };
 
