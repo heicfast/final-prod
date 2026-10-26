@@ -972,6 +972,31 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
         }
     }
 
+    /* ---- M-041 pre-scan damage-audit check phase (the og's
+     * FileSystemCheck position: after repair, before the engines) ----
+     * Read-only; runs on the caller's raw slice (pre-cache: the audit
+     * must see the same bytes repair wrote, uncached). The report NEVER
+     * aborts the scan — the og's escalation ladder audits, then scans
+     * anyway (rawfixer-fs-repair.md:59-65: only volumes that resist
+     * RawFixer fall through to RAW carving; the audit informs, never
+     * gates). Skipped when already cancelled (same rule as repair). */
+    if (cfg_.pre_scan_check && !(cancel && cancel->checkpoint())) {
+        stats.check_ran = true;
+        stats.check_status = check::run_fscheck(slice, check::CheckCallbacks{}, stats.check_report);
+        stats.check_detected = stats.check_report.family_detected;
+        if (event_fn_) {
+            event::Event e;
+            e.type = event::Type::FsCheck;
+            e.stage = 0xFFFFFFFFu;
+            e.timestamp_ms = 0; /* pre-stage: no run clock yet */
+            e.check_errors = stats.check_report.errors.size();
+            e.check_family = stats.check_report.family_detected
+                                 ? u32(stats.check_report.family[0])
+                                 : 0;
+            event_fn_(e, event_user_);
+        }
+    }
+
     /* R1.6 production wiring (audit row 40a): every engine read goes
      * through retry+bisection (bad-sector isolation with Skip-mode
      * zero-fill, so one dead spot cannot abort a scan) and a bounded LRU
@@ -1836,6 +1861,17 @@ u32 ScanController::save_session(session::Writer& w, const ScanStats& stats,
                 return rc;
     }
 
+    /* M-041: the damage-audit check report (the og's FileSystemCheck
+     * error set). Optional record - emitted only when the check stage
+     * ran and produced a report (detected family or findings); sessions
+     * saved without the stage lack it and the report reads empty. */
+    if (stats.check_ran && (stats.check_report.family_detected ||
+                            !stats.check_report.errors.empty())) {
+        if (check::serialize_fs_check(stats.check_report, blob) == OK)
+            if (u32 rc = w.add_record(session::REC_FS_CHECK, blob.data(), u32(blob.size())))
+                return rc;
+    }
+
     /* N-060: the tree record is the long pole on large sessions - the
      * progress/cancel hook rides it (per node; ERR_CANCELLED propagates
      * and the caller discards the partial container). */
@@ -1970,6 +2006,17 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
              * existed carries none and the flag just stays false. */
             (void)session::deserialize_disk_layout(rec.data.data(), rec.data.size(),
                                                    stats.persisted_layout);
+            break;
+        case session::REC_FS_CHECK:
+            /* M-041: the persisted damage-audit report (codes 0x1001..
+             * 0x100e with cluster/LCN/version params). Restored so a
+             * reloaded session surfaces the audit findings without a
+             * re-run; sessions saved before the record existed carry
+             * none and the report reads empty. */
+            stats.check_ran = true;
+            (void)check::deserialize_fs_check(rec.data.data(), rec.data.size(),
+                                              stats.check_report);
+            stats.check_detected = stats.check_report.family_detected;
             break;
         default:
             break;

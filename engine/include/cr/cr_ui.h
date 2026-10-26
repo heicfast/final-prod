@@ -177,6 +177,13 @@ typedef void (*cr_ui_recovery_progress_fn)(void* user, uint64_t bytes_done, uint
                                  * temp-then-rename; the og's per-child IsCancelled is    \
                                  * the save progress object's own state, NOT the scan     \
                                  * flag - save-on-scan-cancel stays intact). */
+#define CR_EVT_FS_CHECK                                                                              \
+    10u /* M-041 pre-scan damage-audit phase done (the og's                                       \
+        * FileSystemCheck): fired ONCE per scan after the check phase                            \
+        * completes - check_errors carries the reported issue count                              \
+        * (0x1001..0x100e taxonomy) and check_family the detected                                \
+        * family byte; per-error detail rides the session record.                               \
+        * The report NEVER aborts the scan. */
 
 typedef struct cr_ui_event {
     uint32_t type;         /* CR_EVT_* above */
@@ -214,6 +221,14 @@ typedef struct cr_ui_event {
     uint32_t err_operation;
     uint32_t err_attempts;
     uint32_t err_context_pad;
+    /* v2-era append (M-041, CR_EVT_FS_CHECK): the damage-audit phase's
+     * summary - reported issue count (the 0x1001..0x100e set; the full
+     * detail with codes/params/paths rides the session record + stats)
+     * and the detected family byte ('f' fat / 'n' ntfs / 0 undetected).
+     * stage = 0xFFFFFFFF (pre-scan). */
+    uint64_t check_errors;
+    uint32_t check_family;
+    uint32_t check_pad; /* keeps the POD an 8-byte multiple (always 0) */
 } cr_ui_event;
 
 typedef void (*cr_ui_event_fn)(void* user, const cr_ui_event* evt);
@@ -433,6 +448,7 @@ typedef struct cr_ui_scan_config {
                                              * Warn line through the cr::log
                                              * seam at/above the threshold.
                                              * Zero-init safe (0 = off). */
+<<<<<<< Updated upstream
     const char* raw_category_name_utf8;     /* v2-era append (M-029): the
                                              * display name for the raw/carve
                                              * category root - the og's
@@ -440,6 +456,18 @@ typedef struct cr_ui_scan_config {
                                              * naming surface. NULL/"" = the
                                              * default "Other Deleted Files
                                              * (Carved)" role. */
+=======
+    uint32_t pre_scan_check; /* v2-era append (M-041): 1 = run the
+                              * read-only damage-audit check phase
+                              * (the og's FileSystemCheck error set,
+                              * codes 0x1001..0x100e) after any
+                              * pre-scan repair and before the
+                              * engines. The report NEVER aborts the
+                              * scan; it surfaces through
+                              * cr_ui_scan_stats' check_* fields, the
+                              * FsCheck event and the session record.
+                              * Zero-init safe (0 = off). */
+>>>>>>> Stashed changes
 } cr_ui_scan_config;
 
 CR_UI_API uint32_t cr_ui_scan_create(const cr_ui_scan_config* cfg, cr_ui_scan** out);
@@ -507,6 +535,12 @@ typedef struct cr_ui_scan_stats {
     uint32_t repair_planned; /* surfaced action count */
     uint32_t repair_applied; /* transactionally written (all-or-rolled-back) */
     uint32_t repair_denied;  /* consent denied or unavailable (nothing written) */
+    /* v2-era append (M-041 damage-audit report summary; the full issue
+     * list with codes/params/paths rides the session record + the core's
+     * ScanStats): */
+    uint32_t check_ran;      /* the check phase executed at all */
+    uint32_t check_errors;   /* reported issue count (the 0x1001..0x100e set) */
+    uint32_t check_detected; /* family identified (fat/ntfs) */
 } cr_ui_scan_stats;
 
 CR_UI_API uint32_t cr_ui_scan_get_stats(cr_ui_scan* s, cr_ui_scan_stats* out);
