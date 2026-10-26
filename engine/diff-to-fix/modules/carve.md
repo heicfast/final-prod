@@ -444,5 +444,5 @@ fix-plan item 3 requires bench evidence for geometry changes, and the
 executed-transport comparison is the Windows bench lane's job (the
 finding itself records no og-execution possible here; M-009 posture).
 The I-009 mid-sector superset stays. Stateless-vs-pending model
-difference registered (PARITY-DELTAS D-80) — the porting boundary the
+difference registered (PARITY-DELTAS D-81) — the porting boundary the
 S-017 plan must respect.

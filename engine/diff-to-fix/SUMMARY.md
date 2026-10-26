@@ -105,7 +105,7 @@ never contain) degrade to prefix+tail, never more bytes than before.
 Geometry (1 MiB windows, byte-granular dispatch) intentionally unchanged
 per the finding's own bench-evidence rule — the I-009 mid-sector
 superset stays; the stateless-vs-pending model difference registered as
-PARITY-DELTAS D-80 (the S-017 porting boundary). Proof:
+PARITY-DELTAS D-81 (the S-017 porting boundary). Proof:
 CarveEngine.WindowServingEliminatesPerCandidateRereads (fail-before
 EXECUTED: 52 vs 4, RED on the pre-fix wiring) +
 CarveEngine.WindowServingServesStraddlingReadsCorrectly (exact

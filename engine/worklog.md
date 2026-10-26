@@ -13623,7 +13623,7 @@ Work Log:
   reads pre-fix → 4 post-fix (13x; zero per-candidate re-reads).
   Fix-plan item 3 (geometry) NOT taken — the finding's own bench-evidence
   rule; Windows bench lane owns executed X47 (M-009 posture). Item 4
-  registered as PARITY-DELTAS D-80.
+  registered as PARITY-DELTAS D-81.
 - Debug path: traced the 1 MiB probe/window interaction first-hand (the
   entropy/MP3 block reads can never fit a 1 MiB window; the PNG validator
   is the clean in-window fixture), all instrumentation removed before
@@ -13635,7 +13635,7 @@ Work Log:
   46/46; full suite 799/799 linux-release.
 - Audit trail: Resolution + FIXED/ move; matrix carve row MATCH;
   modules/carve.md session-33 verdict; SUMMARY part-2 delta;
-  PARITY-DELTAS D-80.
+  PARITY-DELTAS D-81.
 
 Stage Summary:
 - M-025 FIXED (tally: 2 — M-020, M-025). MAJOR 10 open. Next: pull, then
