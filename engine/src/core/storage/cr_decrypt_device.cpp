@@ -9,8 +9,7 @@
 
 namespace cr {
 
-std::unique_ptr<DecryptingDevice> DecryptingDevice::create(IStorageDevice* inner,
-                                                           const u8* fvek,
+std::unique_ptr<DecryptingDevice> DecryptingDevice::create(IStorageDevice* inner, const u8* fvek,
                                                            size_t fvek_len) {
     if (!inner || !fvek)
         return nullptr;

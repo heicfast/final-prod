@@ -133,8 +133,8 @@ int probe_fat(IStorageDevice* disk, u64 boot_lba, Candidate& c) {
      * directly (u32 LE at +0x1C, the DOS 3.31 BPB layout). */
     c.bytes_per_sector = p.bytes_per_sector;
     c.sectors_per_cluster = p.sectors_per_cluster;
-    c.hidden_sectors = u32(sec[0x1C]) | (u32(sec[0x1D]) << 8) | (u32(sec[0x1E]) << 16) |
-                       (u32(sec[0x1F]) << 24);
+    c.hidden_sectors =
+        u32(sec[0x1C]) | (u32(sec[0x1D]) << 8) | (u32(sec[0x1E]) << 16) | (u32(sec[0x1F]) << 24);
     c.have_geometry = 1;
     /* N-034 (diff-to-fix): the og's deep-scan ladder gates
      * (PartitionRecoveryD FUN_180004610 + FUN_1800048f0/4a40/4b70):
@@ -154,9 +154,9 @@ int probe_fat(IStorageDevice* disk, u64 boot_lba, Candidate& c) {
      * ahead of it; the og's DataAreaStart). totalSec is data-area-sized
      * (EndSec = DataAreaStart + totalSec in the og's dump). */
     c.data_start_lba = boot_lba + p.first_data_sector;
-    c.data_sector_count =
-        c.sector_count > p.first_data_sector ? c.sector_count - p.first_data_sector
-                                             : c.sector_count;
+    c.data_sector_count = c.sector_count > p.first_data_sector
+                              ? c.sector_count - p.first_data_sector
+                              : c.sector_count;
     /* FAT area probe: entries 2..4 readable and first data cluster sane */
     u8 fat_probe[16];
     if (disk->read_at(p.fat_start + 8, fat_probe, 16) == OK)
@@ -562,8 +562,7 @@ bool revalidate_candidate(IStorageDevice* disk, const Candidate& c) {
     if (pts < 0)
         return false; /* the current disk no longer classifies the start
                          sector as the persisted family: stale, drop */
-    if (c.have_geometry && scratch.have_geometry &&
-        c.bytes_per_sector != scratch.bytes_per_sector)
+    if (c.have_geometry && scratch.have_geometry && c.bytes_per_sector != scratch.bytes_per_sector)
         return false; /* geometry identity mismatch (the og's per-record
                          payload check — a re-formatted region with the
                          same OEM at the same LBA is still a different
@@ -633,8 +632,8 @@ void count_tree(tree::FileNode* n, u64& files, u64& folders) {
  * this is the registered safety valve). */
 constexpr u64 CONTENT_PROBE_BUDGET = 200000;
 
-void content_counts(IStorageDevice* disk, const Candidate& c, CancelToken* cancel,
-                    u64& files, u64& folders) {
+void content_counts(IStorageDevice* disk, const Candidate& c, CancelToken* cancel, u64& files,
+                    u64& folders) {
     files = 0;
     folders = 0;
     if (c.fs == CandidateFs::BitLocker || c.fs == CandidateFs::GptTable ||
@@ -677,8 +676,8 @@ void content_counts(IStorageDevice* disk, const Candidate& c, CancelToken* cance
     case CandidateFs::Exfat: {
         exfat::ExfatScanFlags fl;
         exfat::ExfatScanStats st;
-        rc = exfat::scan_exfat(slice.get(), fl, cancel, budget, &calls, tree, ra, rd, nullptr,
-                               st, nullptr);
+        rc = exfat::scan_exfat(slice.get(), fl, cancel, budget, &calls, tree, ra, rd, nullptr, st,
+                               nullptr);
         break;
     }
     case CandidateFs::Ext2: {
@@ -690,8 +689,8 @@ void content_counts(IStorageDevice* disk, const Candidate& c, CancelToken* cance
     case CandidateFs::HfsPlus: {
         hfsplus::HfsScanFlags fl;
         hfsplus::HfsScanStats st;
-        rc = hfsplus::scan_hfsplus(slice.get(), fl, cancel, budget, &calls, tree, ra, rd,
-                                   nullptr, st);
+        rc = hfsplus::scan_hfsplus(slice.get(), fl, cancel, budget, &calls, tree, ra, rd, nullptr,
+                                   st);
         break;
     }
     case CandidateFs::Btrfs: {
@@ -882,7 +881,7 @@ u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& know
                 c.data_sector_count = c.sector_count;
             }
             c.structural_points = pts; /* M-017: the primary score is the
-                                          * content model; points tie-break */
+                                        * content model; points tie-break */
             found.push_back(c);
         }
     }
@@ -897,10 +896,8 @@ u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& know
              * sector sits inside the outer's reserved+FATs region is NOT
              * contained: the metadata gap spans it, the data area does
              * not. */
-            if (found[i].fs == keep[j].fs &&
-                found[i].start_lba >= keep[j].data_start_lba &&
-                found[i].start_lba <
-                    keep[j].data_start_lba + keep[j].data_sector_count) {
+            if (found[i].fs == keep[j].fs && found[i].start_lba >= keep[j].data_start_lba &&
+                found[i].start_lba < keep[j].data_start_lba + keep[j].data_sector_count) {
                 /* GAP-S6-6: a fallback-sized outer candidate spans to disk
                  * end BY CONSTRUCTION - its "containment" of a later peer
                  * is an artifact, not evidence of nesting. Only probe-

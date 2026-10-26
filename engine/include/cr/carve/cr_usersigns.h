@@ -33,11 +33,11 @@ namespace cr {
 namespace carve {
 namespace usersigns {
 
-constexpr u32 kMaxSignBytes = 16;  /* the og's longest entry is 8 bytes; 16 bounds hostile input */
-constexpr u32 kMaxEntries = 256;   /* the og ships 111; 2.3x headroom, hostile-blob bound */
+constexpr u32 kMaxSignBytes = 16; /* the og's longest entry is 8 bytes; 16 bounds hostile input */
+constexpr u32 kMaxEntries = 256;  /* the og ships 111; 2.3x headroom, hostile-blob bound */
 constexpr u32 kMaxSignsPerEntry = 8;
-constexpr u32 kMaxOffset = 512;    /* signs live inside the probe stride (the og's offsets are 0) */
-constexpr u32 kMaxExtLen = 8;      /* the og's longest ext is 4 ("epub", "hqx") */
+constexpr u32 kMaxOffset = 512; /* signs live inside the probe stride (the og's offsets are 0) */
+constexpr u32 kMaxExtLen = 8;   /* the og's longest ext is 4 ("epub", "hqx") */
 constexpr u32 kMaxMimeLen = 63;
 
 struct UserSign {
@@ -70,8 +70,8 @@ u32 parse(const char* bytes, size_t len, UserSignSet& out);
  * Thread-safe (mutex-guarded); installed sets replace the previous one
  * (re-registration is the og's config-reload posture). */
 u32 install_set(UserSignSet&& set); /* returns the install error or OK */
-u32 active_count(); /* installed sign count (0 = none) */
-u32 snapshot(UserSignSet& out); /* value copy under the lock (ABI info) */
+u32 active_count();                 /* installed sign count (0 = none) */
+u32 snapshot(UserSignSet& out);     /* value copy under the lock (ABI info) */
 
 /* Match `p` (the stride base, at least kMaxOffset+1 bytes valid) against
  * the active set; returns the matching sign or nullptr. First match in

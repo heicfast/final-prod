@@ -72,16 +72,16 @@ struct ExfatScanStats {
     u64 files = 0;
     u64 dirs = 0;
     u64 deleted_entries = 0;
-    u64 sets_damaged = 0; /* checksum mismatch (kept, marked damaged) */
-    u64 sets_rejected = 0; /* M-013: deleted sets dropped by the dual-form
-                             * gate (some later recovered by the oracle) */
-    u64 sets_gated = 0; /* M-014: sets skipped by the og's structural
-                          * gates (secondary-count bounds, timestamp
-                          * field sanity, reserved fields, empty streams,
-                          * name-fragment flags) - never emitted, never
-                          * parked */
+    u64 sets_damaged = 0;       /* checksum mismatch (kept, marked damaged) */
+    u64 sets_rejected = 0;      /* M-013: deleted sets dropped by the dual-form
+                                 * gate (some later recovered by the oracle) */
+    u64 sets_gated = 0;         /* M-014: sets skipped by the og's structural
+                                 * gates (secondary-count bounds, timestamp
+                                 * field sanity, reserved fields, empty streams,
+                                 * name-fragment flags) - never emitted, never
+                                 * parked */
     u64 sets_reconstructed = 0; /* M-013: parked sets recovered by the
-                                  * checksum oracle (suffix substitution) */
+                                 * checksum oracle (suffix substitution) */
     u64 no_fat_chains = 0;
     u64 chains_broken = 0;
     u64 assumed_contiguous = 0; /* EXFAT-2: FREE-entry continuation salvage */

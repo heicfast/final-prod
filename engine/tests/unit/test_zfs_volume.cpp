@@ -39,7 +39,6 @@ constexpr u64 B_BIGDIR_ZAP = 0x92000; /* fat zap (embedded ptrtbl) */
 constexpr u64 B_FILE_DATA = 0xA0000;
 constexpr u64 B_ZLE_DATA = 0xA2000;
 
-
 constexpr u64 TXG = 77;
 
 class MemDevice final : public IStorageDevice {
@@ -275,9 +274,9 @@ constexpr u64 B_SA_REG = 0xA8200;       /* object 24: 2K fzap (hdr + leaf) */
 constexpr u64 B_SA_LAYOUTS = 0xA9200;   /* object 25: header + leaf @+512 */
 constexpr u64 B_REGFILE_DATA = 0xA9800; /* object 22's data block */
 
-std::vector<u8> make_fzap_leaf_raw(
-    const std::vector<std::pair<std::string, std::vector<u8>>>& entries, u32 intlen,
-    u64 block_size = FZ_BLOCK) {
+std::vector<u8>
+make_fzap_leaf_raw(const std::vector<std::pair<std::string, std::vector<u8>>>& entries, u32 intlen,
+                   u64 block_size = FZ_BLOCK) {
     /* like make_fzap_leaf but with arbitrary-length intlen-byte value
      * arrays (the SA layouts object shape) and arbitrary block size (the
      * registry's 14 entries need a 2K leaf: 42 chunks > a 512B leaf's
@@ -361,13 +360,13 @@ std::vector<u8> make_sa_layout2_bonus(u64 size, u64 mode, u64 parent, u64 crtime
      * attribute) - the layout reserves each slot's full registered
      * length */
     std::vector<u8> b(8 + 8 + 8 + 8 + 16, 0);
-    put32(b.data(), 0x2F505A); /* SA_MAGIC */
+    put32(b.data(), 0x2F505A);                    /* SA_MAGIC */
     put16(b.data() + 4, u16(2) | (u16(1) << 10)); /* layout 2, 8-byte hdr */
-    put64(b.data() + 8, size);    /* slot 0: ZPL_SIZE (attr 6, 8 bytes) */
-    put64(b.data() + 16, mode);   /* slot 1: ZPL_MODE (attr 5, 8 bytes) */
-    put64(b.data() + 24, parent); /* slot 2: ZPL_PARENT (attr 7, 8 bytes) */
-    put64(b.data() + 32, crtime); /* slot 3: ZPL_CRTIME (attr 3, 16
-                                   * bytes: seconds + usec) */
+    put64(b.data() + 8, size);                    /* slot 0: ZPL_SIZE (attr 6, 8 bytes) */
+    put64(b.data() + 16, mode);                   /* slot 1: ZPL_MODE (attr 5, 8 bytes) */
+    put64(b.data() + 24, parent);                 /* slot 2: ZPL_PARENT (attr 7, 8 bytes) */
+    put64(b.data() + 32, crtime);                 /* slot 3: ZPL_CRTIME (attr 3, 16
+                                                   * bytes: seconds + usec) */
     return b;
 }
 
@@ -546,7 +545,8 @@ std::vector<u8> build_pool(const char* vdev_type = "disk") {
             make_dnode(dn, 16 /* DSL_DATASET */, 16, 1, 1, 1, 256);
             u8* bonus = dn + 64 + 128;
             u8 bp[128];
-            make_bp(bp, B_ZPL, 4096, 4096, 0); /* ZPL objset block - forward ref: stamped after the ZPL block lands */
+            make_bp(bp, B_ZPL, 4096, 4096,
+                    0); /* ZPL objset block - forward ref: stamped after the ZPL block lands */
             memcpy(bonus + 128, bp, 128);
         }
         /* object 5 at slot 5: nested dsl dir (no children, head 6) */
@@ -576,7 +576,8 @@ std::vector<u8> build_pool(const char* vdev_type = "disk") {
         std::vector<u8> os(2048, 0);
         u8* meta = os.data();
         make_dnode(meta, 10 /* DNODE */, 0, 8 /* 4096B */, 1, 1, 0);
-        make_bp(meta + 64, B_MOS_DNODES, 4096, 4096, 0); /* checksum stamped in the ordered pass below */
+        make_bp(meta + 64, B_MOS_DNODES, 4096, 4096,
+                0); /* checksum stamped in the ordered pass below */
         /* objset fields at 512+ (sync funcs etc.) left zero */
         memcpy(d.data() + B_MOS, os.data(), os.size());
     }
@@ -620,10 +621,9 @@ std::vector<u8> build_pool(const char* vdev_type = "disk") {
         auto m = make_microzap({{"REGISTRY", 24}, {"LAYOUTS", 25}});
         memcpy(d.data() + B_SA_MASTER, m.data(), m.size());
         std::vector<std::pair<std::string, u64>> regs;
-        const char* names[14] = {"ZPL_ATIME", "ZPL_MTIME",   "ZPL_CTIME",  "ZPL_CRTIME",
-                                 "ZPL_GEN",   "ZPL_MODE",    "ZPL_SIZE",   "ZPL_PARENT",
-                                 "ZPL_LINKS", "ZPL_XATTR",   "ZPL_RDEV",   "ZPL_FLAGS",
-                                 "ZPL_UID",   "ZPL_GID"};
+        const char* names[14] = {"ZPL_ATIME", "ZPL_MTIME", "ZPL_CTIME",  "ZPL_CRTIME", "ZPL_GEN",
+                                 "ZPL_MODE",  "ZPL_SIZE",  "ZPL_PARENT", "ZPL_LINKS",  "ZPL_XATTR",
+                                 "ZPL_RDEV",  "ZPL_FLAGS", "ZPL_UID",    "ZPL_GID"};
         for (int i = 0; i < 14; ++i) {
             const u64 len = i < 4 ? 16 : 8; /* times are sec+usec pairs */
             regs.push_back({names[i], u64(i) | (len << 16)});
@@ -721,8 +721,8 @@ std::vector<u8> build_pool(const char* vdev_type = "disk") {
             a.links = 3;
             a.size = 512;
             auto bonus = make_sa_bonus(a);
-            make_dnode(dn, 20, 44, 1, 2, 1, 0);                      /* TWO blkptrs: hdr + leaf */
-            make_bp(dn + 64, B_BIGDIR_ZAP, 512, 512, 0, &d);         /* block 0 */
+            make_dnode(dn, 20, 44, 1, 2, 1, 0);              /* TWO blkptrs: hdr + leaf */
+            make_bp(dn + 64, B_BIGDIR_ZAP, 512, 512, 0, &d); /* block 0 */
             make_bp(dn + 64 + 128, B_BIGDIR_ZAP + 512, 512, 512, 0, &d); /* block 1 */
             const u32 blen = u32(bonus.size());
             put16(dn + 10, u16(blen));
@@ -823,13 +823,13 @@ std::vector<u8> build_pool(const char* vdev_type = "disk") {
         {
             u8* dn = blk.data() + 24 * 512;
             make_dnode(dn, 46 /* SA_ATTR_REGISTRATION */, 0, 4 /* 2K blocks */, 2, 1, 0);
-            make_bp(dn + 64, B_SA_REG, 2048, 2048, 0, &d);             /* block 0 */
+            make_bp(dn + 64, B_SA_REG, 2048, 2048, 0, &d);              /* block 0 */
             make_bp(dn + 64 + 128, B_SA_REG + 2048, 2048, 2048, 0, &d); /* block 1 */
         }
         {
             u8* dn = blk.data() + 25 * 512;
-            make_dnode(dn, 47 /* SA_ATTR_LAYOUTS */, 0, 1, 2, 1, 0); /* 2 bps: hdr + leaf */
-            make_bp(dn + 64, B_SA_LAYOUTS, 512, 512, 0, &d);         /* block 0 */
+            make_dnode(dn, 47 /* SA_ATTR_LAYOUTS */, 0, 1, 2, 1, 0);     /* 2 bps: hdr + leaf */
+            make_bp(dn + 64, B_SA_LAYOUTS, 512, 512, 0, &d);             /* block 0 */
             make_bp(dn + 64 + 128, B_SA_LAYOUTS + 512, 512, 512, 0, &d); /* block 1 */
         }
         memcpy(d.data() + B_ZPL_DNODES, blk.data(), blk.size());
@@ -856,13 +856,11 @@ std::vector<u8> build_pool(const char* vdev_type = "disk") {
      *      block. The uberblock rootbp (stamped in the label loop
      *      below) reads B_MOS after this, closing the chain. */
     {
-        stamp_fletcher4(d.data() + B_MOS_DNODES + 4 * 512 + 64 + 128 + 128, d.data() + B_ZPL,
-                        4096);
+        stamp_fletcher4(d.data() + B_MOS_DNODES + 4 * 512 + 64 + 128 + 128, d.data() + B_ZPL, 4096);
         /* A-008: object 6 (the nested "sub" head dataset) also points at
          * the ZPL objset block; stamped before the enclosing array's own
          * bp so the chain closes */
-        stamp_fletcher4(d.data() + B_MOS_DNODES + 6 * 512 + 64 + 128 + 128, d.data() + B_ZPL,
-                        4096);
+        stamp_fletcher4(d.data() + B_MOS_DNODES + 6 * 512 + 64 + 128 + 128, d.data() + B_ZPL, 4096);
         stamp_fletcher4(d.data() + B_MOS + 64, d.data() + B_MOS_DNODES, 4096);
     }
 
@@ -1106,9 +1104,11 @@ struct SecondStateCfg {
 void stamp_second_state(std::vector<u8>& d, const SecondStateCfg& cfg) {
     /* 1. the txg-82 root-dir zap */
     {
-        std::vector<std::pair<std::string, u64>> entries = {
-            {"bigdir", 11},        {"zlefile", 12},  {"embedded.txt", 13},
-            {"legacy.txt", 14},    {"registryfile", 22}};
+        std::vector<std::pair<std::string, u64>> entries = {{"bigdir", 11},
+                                                            {"zlefile", 12},
+                                                            {"embedded.txt", 13},
+                                                            {"legacy.txt", 14},
+                                                            {"registryfile", 22}};
         if (cfg.keep_hello)
             entries.insert(entries.begin(), {"hello.txt", 10});
         auto z = make_microzap(entries);
@@ -1326,11 +1326,9 @@ TEST(Zfs, RingTornNewestStateFallsBackToOlder) {
  * the four label uberblocks must be re-stamped in order. */
 void restamp_zpl_array(std::vector<u8>& img) {
     stamp_fletcher4(img.data() + B_ZPL + 64, img.data() + B_ZPL_DNODES, 16384);
-    stamp_fletcher4(img.data() + B_MOS_DNODES + 4 * 512 + 64 + 128 + 128, img.data() + B_ZPL,
-                    4096);
+    stamp_fletcher4(img.data() + B_MOS_DNODES + 4 * 512 + 64 + 128 + 128, img.data() + B_ZPL, 4096);
     /* A-008: object 6 (the "sub" head dataset) shares the ZPL block */
-    stamp_fletcher4(img.data() + B_MOS_DNODES + 6 * 512 + 64 + 128 + 128, img.data() + B_ZPL,
-                    4096);
+    stamp_fletcher4(img.data() + B_MOS_DNODES + 6 * 512 + 64 + 128 + 128, img.data() + B_ZPL, 4096);
     stamp_fletcher4(img.data() + B_MOS + 64, img.data() + B_MOS_DNODES, 4096);
     for (int li = 0; li < 4; ++li) {
         const u64 base = li < 2 ? u64(li) * (256ull << 10) : IMG - (4 - li) * (256ull << 10);
@@ -1451,8 +1449,7 @@ TEST(Zfs, StripedPoolForeignVdevFallbackRead) {
             if (f->name_utf8() == "bigdir") {
                 for (tree::FileNode* g = f->first_child(); g; g = g->next_sibling()) {
                     if (g->props() && g->name_utf8() == "alpha.bin") {
-                        ASSERT_EQ(1u, g->props()->extents.size())
-                            << "foreign-vdev extent skipped";
+                        ASSERT_EQ(1u, g->props()->extents.size()) << "foreign-vdev extent skipped";
                         EXPECT_EQ(B_STRIPE_COPY, g->props()->extents[0].offset);
                         alpha_extent = true;
                     }
@@ -1533,8 +1530,8 @@ TEST(Zfs, SaRegistryDrivenLayout2) {
 
     /* the layout-2 object surfaced with registry-decoded attrs */
     ASSERT_NE(reg, nullptr) << "registered layout-2 object dropped";
-    EXPECT_EQ(u64(4096), reg->logical_size);   /* slot 0 = ZPL_SIZE */
-    EXPECT_EQ(0u, reg->attributes & 0x10);     /* slot 1 = ZPL_MODE: file */
+    EXPECT_EQ(u64(4096), reg->logical_size); /* slot 0 = ZPL_SIZE */
+    EXPECT_EQ(0u, reg->attributes & 0x10);   /* slot 1 = ZPL_MODE: file */
     EXPECT_EQ(u64(1700000002ull + 11644473600ull) * 10000000ull,
               reg->times.created); /* slot 3 = ZPL_CRTIME */
     /* layout-1 objects decode through the registry path too (the
@@ -1553,8 +1550,7 @@ TEST(Zfs, SaRegistryAbsentFallsBackToLayout1) {
         memcpy(img.data() + B_MASTER_ZAP, z.data(), z.size());
         /* re-stamp the master dnode's bp over the rewritten block, then
          * the enclosing ZPL array chain */
-        stamp_fletcher4(img.data() + B_ZPL_DNODES + 1 * 512 + 64, img.data() + B_MASTER_ZAP,
-                        512);
+        stamp_fletcher4(img.data() + B_ZPL_DNODES + 1 * 512 + 64, img.data() + B_MASTER_ZAP, 512);
         restamp_zpl_array(img);
     }
     MemDevice dev(img);
@@ -1766,8 +1762,7 @@ TEST(Zfs, NonAsciiNamesDecodedNotByteLifted) {
         memcpy(img.data() + B_ROOTDIR_ZAP, z.data(), z.size());
         /* M-019: the rewritten zap block needs its bp checksum re-stamped
          * (a real pool always writes a matching fletcher4) */
-        stamp_fletcher4(img.data() + B_ZPL_DNODES + 2 * 512 + 64, img.data() + B_ROOTDIR_ZAP,
-                        512);
+        stamp_fletcher4(img.data() + B_ZPL_DNODES + 2 * 512 + 64, img.data() + B_ROOTDIR_ZAP, 512);
         restamp_zpl_array(img); /* the bp lives inside the checksummed array */
         /* pool display name: patch the 4-byte nvlist string "tank" in all
          * four vdev labels to the 4-byte UTF-8 name "\xe6\x96\x87x" ("文x")
@@ -1818,7 +1813,6 @@ TEST(Zfs, NonAsciiNamesDecodedNotByteLifted) {
     ASSERT_TRUE(names.count("\xe6\x96\x87x") != 0);
     EXPECT_EQ(names["\xe6\x96\x87x"], std::u16string(u"\u6587x"));
 }
-
 
 /* ------------------------------------------------------------------ */
 /* N-072: the delay-execution label retry (live handles only)          */
@@ -1881,7 +1875,8 @@ TEST(Zfs, LabelRetryGivesUpBounded) {
     tree::ResultTree tree;
     auto* ra = tree.add_root(u"Found");
     ZfsScanStats st;
-    EXPECT_EQ(ERR_BAD_MAGIC, scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    EXPECT_EQ(ERR_BAD_MAGIC,
+              scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
     EXPECT_EQ(st.label_retries, 3u);
 }
 
@@ -1900,7 +1895,8 @@ TEST(Zfs, StaticMediaNeverRetries) {
     tree::ResultTree tree;
     auto* ra = tree.add_root(u"Found");
     ZfsScanStats st;
-    EXPECT_EQ(ERR_BAD_MAGIC, scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    EXPECT_EQ(ERR_BAD_MAGIC,
+              scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
     EXPECT_EQ(st.label_retries, 0u) << "static media never enters the retry loop";
 }
 
@@ -1920,8 +1916,8 @@ TEST(Zfs, RingWindowRenamedEntryRecalledUnderBothNames) {
     stamp_second_state(img, cfg);
     {
         std::vector<std::pair<std::string, u64>> entries2 = {
-            {"bigdir", 11},       {"zlefile", 12},  {"embedded.txt", 13},
-            {"legacy.txt", 14},   {"registryfile", 22}, {"renamed.txt", 10}};
+            {"bigdir", 11},     {"zlefile", 12},      {"embedded.txt", 13},
+            {"legacy.txt", 14}, {"registryfile", 22}, {"renamed.txt", 10}};
         auto z2 = make_microzap(entries2);
         memcpy(img.data() + B_ROOTDIR_ZAP2, z2.data(), z2.size());
         make_bp(img.data() + B_ZPL_DNODES2 + 2 * 512 + 64, B_ROOTDIR_ZAP2, 512, 512, 0, &img);

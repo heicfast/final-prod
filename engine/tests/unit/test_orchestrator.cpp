@@ -231,8 +231,12 @@ TEST(FilterFolder, CorpusListsPinned) {
     EXPECT_LT(std::strlen(reinterpret_cast<const char*>(filterfolder::data::kFatNamePool)), 4096u);
     /* the byte content is the og's list verbatim: the trailing byte of
      * each pool is the terminator, the one before it the delimiter */
-    EXPECT_EQ(u8('\0'), *(filterfolder::data::kFolderPool + std::strlen(reinterpret_cast<const char*>(filterfolder::data::kFolderPool))));
-    EXPECT_EQ(u8(';'), *(filterfolder::data::kFolderPool + std::strlen(reinterpret_cast<const char*>(filterfolder::data::kFolderPool)) - 1));
+    EXPECT_EQ(u8('\0'),
+              *(filterfolder::data::kFolderPool +
+                std::strlen(reinterpret_cast<const char*>(filterfolder::data::kFolderPool))));
+    EXPECT_EQ(u8(';'),
+              *(filterfolder::data::kFolderPool +
+                std::strlen(reinterpret_cast<const char*>(filterfolder::data::kFolderPool)) - 1));
     /* FolderName: upgrade/setup scaffolding */
     EXPECT_TRUE(filterfolder::is_junk_name(u"Config.Msi", true));
     EXPECT_TRUE(filterfolder::is_junk_name(u"$Windows.~BT", true));
@@ -251,10 +255,11 @@ TEST(FilterFolder, CorpusListsPinned) {
     EXPECT_TRUE(filterfolder::is_junk_name(u"MountPointManagerRemoteDatabase", false));
     /* FatFilterName: the localized New Folder family + SVI + BitLocker */
     EXPECT_TRUE(filterfolder::is_junk_name(u"New Folder", true));
-    EXPECT_TRUE(filterfolder::is_junk_name(u"\u65B0\u5EFA\u6587\u4EF6\u5939", true));   /* zh-CN */
-    EXPECT_TRUE(filterfolder::is_junk_name(u"\u65B0\u5EFA\u8CC7\u6599\u593E", true));   /* zh-TW */
-    EXPECT_TRUE(filterfolder::is_junk_name(u"\u65B0\u3057\u3044\u30D5\u30A9\u30EB\u30C0\u30FC", true)); /* ja */
-    EXPECT_TRUE(filterfolder::is_junk_name(u"\uC0C8 \uD3F4\uB354", true));  /* ko */
+    EXPECT_TRUE(filterfolder::is_junk_name(u"\u65B0\u5EFA\u6587\u4EF6\u5939", true)); /* zh-CN */
+    EXPECT_TRUE(filterfolder::is_junk_name(u"\u65B0\u5EFA\u8CC7\u6599\u593E", true)); /* zh-TW */
+    EXPECT_TRUE(filterfolder::is_junk_name(u"\u65B0\u3057\u3044\u30D5\u30A9\u30EB\u30C0\u30FC",
+                                           true));                         /* ja */
+    EXPECT_TRUE(filterfolder::is_junk_name(u"\uC0C8 \uD3F4\uB354", true)); /* ko */
     EXPECT_TRUE(filterfolder::is_junk_name(u"Neuer Ordner", true));
     EXPECT_TRUE(filterfolder::is_junk_name(u"Nova pasta", true));
     EXPECT_TRUE(filterfolder::is_junk_name(u"Nuova cartella", true));
@@ -318,7 +323,8 @@ TEST(Orchestrator, JunkFilteredFromResults) {
             size_t pos = (f - 1) * 13;
             for (int pi = 0; pi < 3; ++pi) {
                 for (int ci = 0; ci < cnt[pi]; ++ci) {
-                    const u16 ch = pos < name.size() ? name[pos] : (pos == name.size() ? 0x0000 : 0xFFFF);
+                    const u16 ch =
+                        pos < name.size() ? name[pos] : (pos == name.size() ? 0x0000 : 0xFFFF);
                     e[off[pi] + 2 * size_t(ci)] = u8(ch & 0xFF);
                     e[off[pi] + 2 * size_t(ci) + 1] = u8(ch >> 8);
                     ++pos;
@@ -355,8 +361,7 @@ TEST(Orchestrator, JunkFilteredFromResults) {
     std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
         for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
             if (c->props())
-                flagged[c->name_utf8()] =
-                    (c->props()->flags & tree::NODE_FLAG_JUNK_FILTERED) != 0;
+                flagged[c->name_utf8()] = (c->props()->flags & tree::NODE_FLAG_JUNK_FILTERED) != 0;
             collect(c);
         }
     };
@@ -458,18 +463,15 @@ TEST(Orchestrator, LogSinkReceivesScanBrackets) {
     /* the scan-end line carries the truthful counters */
     {
         std::lock_guard<std::mutex> lock(rec.mu);
-        auto it = std::find_if(rec.lines.begin(), rec.lines.end(),
-                               [](const auto& l) {
-                                   return l.second.find("scan end: rc=") !=
-                                          std::string::npos;
-                               });
+        auto it = std::find_if(rec.lines.begin(), rec.lines.end(), [](const auto& l) {
+            return l.second.find("scan end: rc=") != std::string::npos;
+        });
         ASSERT_NE(it, rec.lines.end());
         char buf[32];
         snprintf(buf, sizeof(buf), "files=%llu", (unsigned long long)stats.files_found);
         EXPECT_NE(it->second.find(buf), std::string::npos)
             << "the END bracket carries the files counter: " << it->second;
-        snprintf(buf, sizeof(buf), "elapsed_ms=%llu",
-                 (unsigned long long)stats.elapsed_ms);
+        snprintf(buf, sizeof(buf), "elapsed_ms=%llu", (unsigned long long)stats.elapsed_ms);
         EXPECT_NE(it->second.find(buf), std::string::npos)
             << "the END bracket carries the pause-compensated duration";
     }
@@ -543,7 +545,6 @@ TEST(Orchestrator, ProbeFamily) {
     b[510] = 0x00;
     EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Unknown);
 }
-
 
 /* ---- N-050: two-stage recognition (boot gate -> content proof) ------- */
 
@@ -632,7 +633,6 @@ static void udf_write_anchor(std::vector<u8>& img, u32 vds_sector) {
     a[0x17] = u8(vds_sector >> 24);
 }
 
-
 TEST(Orchestrator, FsFamilyValuesMatchContract) {
     /* N-076 pin: the documented wire contract (FB-L03's held slot, the
      * cr_ui ABI hint cases, S-019's "BitLocker = 10", M-044's Udf = 11).
@@ -691,9 +691,9 @@ std::vector<u8> build_udf(size_t vds_lba = 0x101) {
     std::vector<u8> img((vds_lba + 2) * 512, 0);
     put32v(img, 0x100 * 512 + 0x14, u32(vds_lba)); /* AVDP main VDS location */
     u8* pvd = img.data() + vds_lba * 512;
-    pvd[0] = 1;  /* DescriptorTag.TagIdentifier = 1 (PVD) */
-    pvd[1] = 1;  /* DescriptorVersion */
-    pvd[0x10] = 0x0B; /* VolumeIdentifier dstring: 11 chars */
+    pvd[0] = 1;                                 /* DescriptorTag.TagIdentifier = 1 (PVD) */
+    pvd[1] = 1;                                 /* DescriptorVersion */
+    pvd[0x10] = 0x0B;                           /* VolumeIdentifier dstring: 11 chars */
     std::memcpy(pvd + 0x11, "12345678UDF", 11); /* "UDF" at +0x19..0x1b */
     return img;
 }
@@ -729,10 +729,10 @@ TEST(Orchestrator, UdfNotConfusedWithFat) {
     u8* b = img.data();
     b[0] = 0xEB;
     b[1] = 0x3C;
-    b[2] = 0x90;                     /* FAT jump code */
+    b[2] = 0x90;                       /* FAT jump code */
     std::memcpy(b + 3, "MSDOS5.0", 8); /* OEM */
-    put16(img, 0x0B, 512);           /* pow2 bps */
-    b[0x10] = 2;                     /* numFATs (M-045's gate) */
+    put16(img, 0x0B, 512);             /* pow2 bps */
+    b[0x10] = 2;                       /* numFATs (M-045's gate) */
     b[510] = 0x55;
     b[511] = 0xAA;
     MemDevice dev(std::move(img));
@@ -843,14 +843,16 @@ TEST(Orchestrator, UdfSurfacesAsCarveFamily) {
         ASSERT_EQ(ctrl.save_session(w, stats), OK);
         ASSERT_EQ(w.finalize(), OK);
     }
-    session::Reader r(+[](void* u, void* b, u32 len) -> u32 {
-        auto* m = static_cast<MemFile*>(u);
-        if (m->pos + len > m->data.size())
-            return 1;
-        std::memcpy(b, m->data.data() + m->pos, len);
-        m->pos += len;
-        return 0;
-    }, MemFile::sk, +[](void* u) -> u64 { return static_cast<MemFile*>(u)->data.size(); }, &mf);
+    session::Reader r(
+        +[](void* u, void* b, u32 len) -> u32 {
+            auto* m = static_cast<MemFile*>(u);
+            if (m->pos + len > m->data.size())
+                return 1;
+            std::memcpy(b, m->data.data() + m->pos, len);
+            m->pos += len;
+            return 0;
+        },
+        MemFile::sk, +[](void* u) -> u64 { return static_cast<MemFile*>(u)->data.size(); }, &mf);
     ASSERT_EQ(r.open(nullptr), OK);
     bool saw_vi = false;
     for (u32 i = 0; i < r.record_count(); ++i) {
@@ -974,8 +976,7 @@ TEST(Orchestrator, CarveSingleNamingFamily) {
     ASSERT_GE(carved_names.size(), size_t(2));
     bool saw_jpg = false, saw_psd = false;
     for (const std::string& n : carved_names) {
-        EXPECT_EQ(std::string::npos, n.find("Carved"))
-            << "the split family is gone: " << n;
+        EXPECT_EQ(std::string::npos, n.find("Carved")) << "the split family is gone: " << n;
         /* the registered default: FileNNNNNN.ext (6 digits) */
         ASSERT_GE(n.size(), size_t(10)) << n;
         EXPECT_EQ(0u, n.compare(0, 4, "File")) << n;
@@ -1818,14 +1819,16 @@ TEST(Orchestrator, IdentityCardV4SnapshotAndAxes) {
         ASSERT_EQ(ctrl.save_session(w, stats), OK);
         ASSERT_EQ(w.finalize(), OK);
     }
-    session::Reader r(+[](void* u, void* b, u32 len) -> u32 {
-        auto* m = static_cast<MemFile*>(u);
-        if (m->pos + len > m->data.size())
-            return 1;
-        std::memcpy(b, m->data.data() + m->pos, len);
-        m->pos += len;
-        return 0;
-    }, MemFile::sk, +[](void* u) -> u64 { return static_cast<MemFile*>(u)->data.size(); }, &mf);
+    session::Reader r(
+        +[](void* u, void* b, u32 len) -> u32 {
+            auto* m = static_cast<MemFile*>(u);
+            if (m->pos + len > m->data.size())
+                return 1;
+            std::memcpy(b, m->data.data() + m->pos, len);
+            m->pos += len;
+            return 0;
+        },
+        MemFile::sk, +[](void* u) -> u64 { return static_cast<MemFile*>(u)->data.size(); }, &mf);
     ASSERT_EQ(r.open(nullptr), OK);
     bool saw_vi = false;
     for (u32 i = 0; i < r.record_count(); ++i) {

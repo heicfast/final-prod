@@ -60,8 +60,7 @@ public:
      * convention). Unaligned reads decrypt whole spanned sectors and copy
      * the requested window - byte-exact for any offset/length.
      */
-    static std::unique_ptr<DecryptingDevice> create(IStorageDevice* inner,
-                                                    const u8* fvek,
+    static std::unique_ptr<DecryptingDevice> create(IStorageDevice* inner, const u8* fvek,
                                                     size_t fvek_len);
 
     u32 read_at(u64 offset, void* buffer, u32 length) override;

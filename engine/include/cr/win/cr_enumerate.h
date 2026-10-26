@@ -82,10 +82,10 @@ inline bool decode_device_descriptor(const u8* buf, size_t len, PhysicalDisk& d)
         while (i < len && buf[i] != 0 && out.size() < 128)
             out.push_back(wchar_t(buf[i++]));
     };
-    put_str(d.model, u32at(16));      /* ProductIdOffset */
-    put_str(d.firmware, u32at(20));   /* ProductRevisionOffset */
-    put_str(d.serial, u32at(24));     /* SerialNumberOffset */
-    const u32 bus = u32at(28);        /* BusType */
+    put_str(d.model, u32at(16));    /* ProductIdOffset */
+    put_str(d.firmware, u32at(20)); /* ProductRevisionOffset */
+    put_str(d.serial, u32at(24));   /* SerialNumberOffset */
+    const u32 bus = u32at(28);      /* BusType */
     d.removable = (bus == 7 /*Usb*/ || bus == 11 /*Sd*/ || bus == 12 /*Mmc*/);
     return true;
 }
@@ -95,22 +95,38 @@ inline bool decode_device_descriptor(const u8* buf, size_t len, PhysicalDisk& d)
  * names). PURE. */
 inline const wchar_t* bus_interface_name(u32 bus) {
     switch (bus) {
-    case 7: return L"USB Device";
-    case 0: return L"Unknown";
-    case 1: return L"SCSI";
-    case 2: return L"ATAPI";
-    case 3: return L"ATA";
-    case 4: return L"1394";
-    case 6: return L"Fibre Channel";
-    case 8: return L"RAID";
-    case 10: return L"SAS";
-    case 11: return L"SD";
-    case 12: return L"MMC";
-    case 13: return L"Virtual";
-    case 14: return L"File-Backed Virtual";
-    case 15: return L"Storage Spaces";
-    case 17: return L"NVMe";
-    default: return L"";
+    case 7:
+        return L"USB Device";
+    case 0:
+        return L"Unknown";
+    case 1:
+        return L"SCSI";
+    case 2:
+        return L"ATAPI";
+    case 3:
+        return L"ATA";
+    case 4:
+        return L"1394";
+    case 6:
+        return L"Fibre Channel";
+    case 8:
+        return L"RAID";
+    case 10:
+        return L"SAS";
+    case 11:
+        return L"SD";
+    case 12:
+        return L"MMC";
+    case 13:
+        return L"Virtual";
+    case 14:
+        return L"File-Backed Virtual";
+    case 15:
+        return L"Storage Spaces";
+    case 17:
+        return L"NVMe";
+    default:
+        return L"";
     }
 }
 
@@ -131,8 +147,8 @@ inline bool decode_device_id_descriptor(const u8* buf, size_t len, std::wstring&
     for (u32 i = 0; i < n && off + 10 <= len; ++i) {
         const u32 code = u32(buf[off]) | (u32(buf[off + 1]) << 8) | (u32(buf[off + 2]) << 16) |
                          (u32(buf[off + 3]) << 24);
-        const u32 assoc = u32(buf[off + 4]) | (u32(buf[off + 5]) << 8) |
-                          (u32(buf[off + 6]) << 16) | (u32(buf[off + 7]) << 24);
+        const u32 assoc = u32(buf[off + 4]) | (u32(buf[off + 5]) << 8) | (u32(buf[off + 6]) << 16) |
+                          (u32(buf[off + 7]) << 24);
         const u32 size = u32(buf[off + 8]) | (u32(buf[off + 9]) << 8);
         const size_t body = off + 10;
         if (body + size > len)
@@ -210,8 +226,7 @@ u32 enumerate_disk_interfaces(PhysicalDiskList& out);
  * Order: loop disks in loop order, then interface-only disks in pass
  * order. Returns OK; out is fully replaced. */
 inline u32 merge_disk_enumeration(const PhysicalDiskList& loop_disks,
-                                  const PhysicalDiskList& interface_disks,
-                                  PhysicalDiskList& out) {
+                                  const PhysicalDiskList& interface_disks, PhysicalDiskList& out) {
     out = loop_disks;
     for (const PhysicalDisk& iface : interface_disks) {
         if (iface.number != kUnknownDiskNumber) {

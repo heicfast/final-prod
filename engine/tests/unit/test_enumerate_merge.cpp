@@ -208,8 +208,8 @@ TEST(Enumerate, DeviceIdWwnDecode) {
     std::vector<u8> b(12 + 10 + 4 + 16 + 10 + 8, 0);
     put32(b, 8, 2); /* NumberOfIdentifiers */
     size_t off = 12;
-    put32(b, off, 2);          /* Code = Ascii */
-    put32(b, off + 4, 1);      /* Association = port -> skipped */
+    put32(b, off, 2);     /* Code = Ascii */
+    put32(b, off + 4, 1); /* Association = port -> skipped */
     b[off + 8] = 4;
     b[off + 9] = 0; /* size 4 */
     std::memcpy(b.data() + off + 10, "iSCS", 4);
@@ -226,8 +226,8 @@ TEST(Enumerate, DeviceIdWwnDecode) {
     /* binary device identifier -> hex render */
     std::vector<u8> b2(12 + 10 + 4, 0);
     put32(b2, 8, 1);
-    put32(b2, 12, 1);     /* Code = Binary */
-    put32(b2, 16, 0);     /* Association = device */
+    put32(b2, 12, 1); /* Code = Binary */
+    put32(b2, 16, 0); /* Association = device */
     b2[20] = 4;
     b2[21] = 0; /* size 4 */
     b2[22] = 0xDE;

@@ -16599,3 +16599,42 @@ Stage Summary:
 - S-034 converged (their code, my decode correction on the record).
   Board after the union: MAJOR 1 open (M-040 stages (b) + win layer),
   tracked-open 2 (OQ-S4-3 Windows-lane, OQ-FLT-2). SEVERE 0, MINOR 0.
+
+---
+Task ID: RED-REPAIRS-CLOSE (the CI red sweep + OQ-FLT-2 resolved + the OQ-S4-3 bench dispatch)
+Agent: main engineer (the closing parity session)
+
+Work Log:
+- The parallel window's 89196ac push left main CI RED (3 consecutive failed
+  runs): windows build (gmtime_r + two C4244 narrowings), lint (tree-wide
+  format drift), fuzz (fuzz_image.cpp's open_.insert on a map), linux-tsan
+  (unverified locally at that tree). Repairs, all root-cause:
+  * cr_analysers.cpp:705 — the portable gmtime pair (gmtime_s on MSVC,
+    gmtime_r elsewhere; MSVC has no gmtime_r — /W4 /WX clean by
+    construction).
+  * cr_carve.cpp :457/:827 — the confidence u32->u16 narrowing CLAMPED
+    (bounded 0-100 grade; the clamp keeps the narrowing truthful).
+  * fuzz/fuzz_image.cpp:34 — open_.insert(next_) -> open_.emplace(next_, 0)
+    (open_ is a map<u64,u64>; the set-era call survived the type change).
+  * include/cr/storage/cr_device.h:207 — paused() marked override (the
+    fuzz lane's -Winconsistent-missing-override).
+  * The full-tree clang-format-18 sweep (the CI gate's exact find + version
+    pip-installed locally): 106 files re-flowed, zero violations after.
+  * TSan lane replicated locally (the CI's exact configure): 913/913 PASSED.
+  * linux-release suite re-verified post-sweep: 872+4 env-skips.
+- OQ-FLT-2 RESOLVED (tracked-open → findings/FIXED/
+  OQ-Z-E-FLT-session3-resolved.md): its gate (M-029) is FIXED with the
+  Date/Size group decodes; the Type group = M-023's category model; the Path
+  group = the 31-filterbar-family-decode (cr_query.h path_prefix); the
+  completeness predicate + NULL-dispatch recorded (DFX30). The remaining
+  per-mode manager wiring is DRWUI host-side threading (I-015 boundary) with
+  no observable core parity surface. Tracked-open now: OQ-S4-3 alone.
+- OQ-S4-3: the Windows bench EXECUTION dispatched via the API (the API
+  Benchmark workflow, run 40289658166, span 512 MiB) — the exact one-step
+  acceptance path DFX25 defined. Awaiting the chunk_strategy_ratios verdict.
+
+Stage Summary:
+- All four locally-verifiable CI lanes green on this tree (release, ASan,
+  UBSan, TSan 913/913); lint zero-violation; the windows + fuzz legs carry
+  precisely-diagnosed fixes for CI to verify. Tracked-open: OQ-S4-3 alone,
+  its execution in flight.

@@ -58,8 +58,8 @@ u64 WinDestIo::free_bytes(const std::u16string& root_utf16) const {
     if (root_utf16.empty())
         return 0;
     ULARGE_INTEGER avail{};
-    if (!GetDiskFreeSpaceExW(reinterpret_cast<const wchar_t*>(root_utf16.c_str()), &avail,
-                             nullptr, nullptr))
+    if (!GetDiskFreeSpaceExW(reinterpret_cast<const wchar_t*>(root_utf16.c_str()), &avail, nullptr,
+                             nullptr))
         return 0;
     return u64(avail.QuadPart);
 }

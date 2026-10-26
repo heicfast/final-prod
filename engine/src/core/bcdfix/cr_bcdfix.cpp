@@ -62,8 +62,8 @@ std::vector<BcdRewrite> plan_rewrites(const u8* hive, size_t size, u32 mbr_signa
     return plan;
 }
 
-u32 execute_plan(const std::vector<BcdRewrite>& plan, WriteFn write, void* user,
-                 ConsentFn consent, void* consent_user, size_t* applied) {
+u32 execute_plan(const std::vector<BcdRewrite>& plan, WriteFn write, void* user, ConsentFn consent,
+                 void* consent_user, size_t* applied) {
     if (applied != nullptr)
         *applied = 0;
     if (plan.empty())
@@ -85,8 +85,7 @@ u32 execute_plan(const std::vector<BcdRewrite>& plan, WriteFn write, void* user,
     return OK;
 }
 
-u32 undo_plan(const std::vector<BcdRewrite>& plan, WriteFn write, void* user,
-              size_t* applied) {
+u32 undo_plan(const std::vector<BcdRewrite>& plan, WriteFn write, void* user, size_t* applied) {
     if (applied != nullptr)
         *applied = 0;
     if (plan.empty())

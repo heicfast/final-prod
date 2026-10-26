@@ -1184,7 +1184,6 @@ std::vector<u8> build_exfat_large_fat_image() {
     return img;
 }
 
-
 /* N-067 empirical pin: the checksum algorithm is whatever REAL volume
  * writers use. tests/data/exfat/upcase-table-mkfs-exfat-1.2.9.bin is the
  * 5836-byte spec up-case table extracted from a fresh mkfs.exfat
@@ -1422,7 +1421,7 @@ TEST(ExfatEngine, DeletedSetOracleReassembly) {
     head.stream_entry_deleted(0x01, 9, 100, 512); /* "right.dat" = 9 chars */
     head.name_entry_deleted(u"right.dat");
     std::memcpy(img.data() + AT, head.entries.data(), head.entries.size());
-    head.finish_set(img, AT); /* stamped over the CORRECT name bytes */
+    head.finish_set(img, AT);   /* stamped over the CORRECT name bytes */
     img[AT + 2 * 32 + 2] = 'X'; /* tear the name's first byte post-stamp */
 
     /* the orphan tail: the CORRECT name entry, parked one entry later */
@@ -1438,7 +1437,7 @@ TEST(ExfatEngine, DeletedSetOracleReassembly) {
     ExfatScanFlags flags;
     ExfatScanStats stats;
     ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
-    EXPECT_EQ(stats.sets_rejected, 1u); /* the torn head was parked */
+    EXPECT_EQ(stats.sets_rejected, 1u);      /* the torn head was parked */
     EXPECT_EQ(stats.sets_reconstructed, 1u); /* the oracle rebuilt it */
     auto all = collect_all(tree);
     tree::FileNode* right = nullptr;
@@ -1461,8 +1460,7 @@ TEST(ExfatEngine, LiveCompleteSetBadChecksumUngraded) {
     auto* ra = tree.add_root(u"Found");
     ExfatScanFlags flags; /* og profile */
     ExfatScanStats stats;
-    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr,
-                         stats),
+    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
               OK);
     EXPECT_EQ(stats.sets_rejected, 0u); /* the gate is deleted-sets-only */
     EXPECT_EQ(stats.sets_damaged, 0u);  /* og profile: no live downgrade either */
@@ -1559,12 +1557,12 @@ TEST(ExfatEngine, GarbageTimestampRejected) {
         u32 ts;
     };
     const Bad bad[] = {
-        {"tsmonth0.dat", (0x16u << 16) | 0x6000u},        /* month=0 (day=22) */
-        {"tsmonth13.dat", (0x1A6u << 16) | 0x6000u},     /* month=13 (day=6) */
-        {"tsday0.dat", (0x60u << 16) | 0x6000u},         /* day=0, month=3 */
-        {"tshour24.dat", (0x5A46u << 16) | 0xC000u},     /* hour=24 */
-        {"tszero.dat", 0},                               /* all zero */
-        {"tsmin60.dat", (0x5A46u << 16) | 0x780u},       /* minute=60 */
+        {"tsmonth0.dat", (0x16u << 16) | 0x6000u},   /* month=0 (day=22) */
+        {"tsmonth13.dat", (0x1A6u << 16) | 0x6000u}, /* month=13 (day=6) */
+        {"tsday0.dat", (0x60u << 16) | 0x6000u},     /* day=0, month=3 */
+        {"tshour24.dat", (0x5A46u << 16) | 0xC000u}, /* hour=24 */
+        {"tszero.dat", 0},                           /* all zero */
+        {"tsmin60.dat", (0x5A46u << 16) | 0x780u},   /* minute=60 */
     };
     size_t at = AT;
     for (const auto& b : bad) {
@@ -1725,9 +1723,10 @@ TEST(ExfatEngine, ValidBoundaryTimestampsStillPass) {
         u32 ts;
     };
     const Ok ok[] = {
-        {u"okmin.dat", (1u << 16) | (1u << 21)},                 /* Jan 1 00:00:00 */
-        {u"okmax.dat", (31u << 16) | (12u << 21) | (23u << 11) | (59u << 5) | 29u}, /* Dec 31 23:59:58 */
-        {u"oksec29.dat", (6u << 16) | (2u << 21) | 29u},         /* 2sec field = 29 */
+        {u"okmin.dat", (1u << 16) | (1u << 21)}, /* Jan 1 00:00:00 */
+        {u"okmax.dat",
+         (31u << 16) | (12u << 21) | (23u << 11) | (59u << 5) | 29u}, /* Dec 31 23:59:58 */
+        {u"oksec29.dat", (6u << 16) | (2u << 21) | 29u},              /* 2sec field = 29 */
     };
     size_t at = AT;
     for (const auto& o : ok) {
@@ -1784,7 +1783,9 @@ TEST(ExfatEngine, NameUtf16TableInvalidCharRejected) {
     sb.finish_set(img, AT);
     ExfatScanStats stats;
     const auto names = m014_scan_names(std::move(img), &stats);
-    EXPECT_EQ(names.end(), std::find(names.begin(), names.end(), "tab\xE1\x80\x80" "bad.dat"))
+    EXPECT_EQ(names.end(), std::find(names.begin(), names.end(),
+                                     "tab\xE1\x80\x80"
+                                     "bad.dat"))
         << "U+0100 (table[0x01] == 0) must reject the set";
     EXPECT_GE(stats.sets_gated, 1u);
 }
@@ -1805,7 +1806,9 @@ TEST(ExfatEngine, NameUtf16TableAllowedCharAccepted) {
     sb.finish_set(img, AT);
     ExfatScanStats stats;
     const auto names = m014_scan_names(std::move(img), &stats);
-    EXPECT_NE(names.end(), std::find(names.begin(), names.end(), "tab\xE1\xA8\x80" "ok.dat"))
+    EXPECT_NE(names.end(), std::find(names.begin(), names.end(),
+                                     "tab\xE1\xA8\x80"
+                                     "ok.dat"))
         << "U+1A00 (table[0x1A] == 1) must survive the gate";
     EXPECT_EQ(stats.sets_gated, 0u);
 }
@@ -1870,11 +1873,11 @@ TEST(ExfatEngine, RecyclePairingMirrored) {
     /* the $I record image at cluster 12 (sector 35): v2 fixed form */
     {
         const size_t IREC = 25 * 512 + (12 - 2) * 512;
-        put32v(img, IREC, 2);                /* version 2 */
-        put32v(img, IREC + 8, 777);          /* original size */
-        put32v(img, IREC + 16, 0);           /* FILETIME lo */
-        put32v(img, IREC + 20, 29);          /* FILETIME hi */
-        put32v(img, IREC + 24, 15);          /* pathlen */
+        put32v(img, IREC, 2);       /* version 2 */
+        put32v(img, IREC + 8, 777); /* original size */
+        put32v(img, IREC + 16, 0);  /* FILETIME lo */
+        put32v(img, IREC + 20, 29); /* FILETIME hi */
+        put32v(img, IREC + 24, 15); /* pathlen */
         /* N-082 (NEW-FINDING, the M-052 landing's ASan red): the $I path
          * fixture copied 15 units from a 14-unit literal (13 chars +
          * NUL) - one past the terminator under ASan. The copy is now
@@ -1917,4 +1920,5 @@ TEST(ExfatEngine, RecyclePairingMirrored) {
     ASSERT_EQ(photo->props()->extents.size(), 1u);
     EXPECT_EQ(photo->props()->extents[0].offset, u64(25 + 17) * 512) << "$R content cluster 19";
     EXPECT_EQ(raw_i, 0) << "bin metadata never surfaces";
-    EXPECT_EQ(raw_r, 0) << "the raw $R name is remapped away";}
+    EXPECT_EQ(raw_r, 0) << "the raw $R name is remapped away";
+}

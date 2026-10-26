@@ -97,8 +97,8 @@ u32 parse_disk_table(IStorageDevice* device, DiskTable& out);
  * break_lba (optional out): the LBA of the first unreadable/invalid
  * link — the M-002 honesty carrier for DiskTable::ebr_break_lba. */
 constexpr u32 EBR_DEPTH_LIMIT = 1024;
-u32 parse_ebr_chain(IStorageDevice* device, u64 first_ebr_lba,
-                    std::vector<PartitionInfo>& out, u64* break_lba = nullptr);
+u32 parse_ebr_chain(IStorageDevice* device, u64 first_ebr_lba, std::vector<PartitionInfo>& out,
+                    u64* break_lba = nullptr);
 
 /* Map an MBR type byte to FsKind (best effort, public id conventions). */
 FsKind mbr_type_to_kind(u8 type);

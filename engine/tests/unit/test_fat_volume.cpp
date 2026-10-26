@@ -91,9 +91,9 @@ void make_lfn_slot(u8* slot, u8 seq, u8 checksum, const char16_t* fragment) {
      * offsets (name1 at +1); storing through u16* members is unaligned
      * UB flagged by the UBSan lane. Same bytes, byte-wise stores. */
     std::u16string f = fragment;
-    slot[0] = seq;      /* sequence */
+    slot[0] = seq; /* sequence */
     slot[11] = ATTR_LFN;
-    slot[12] = 0;       /* type */
+    slot[12] = 0; /* type */
     slot[13] = checksum;
     put_u16(slot + 26, 0); /* first_cluster */
     const int counts[3] = {5, 6, 2};
@@ -218,7 +218,7 @@ TEST(FatEngine, FreeMapExcludesVirtualClustersAndMatchesFAT) {
     u32 rc = scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats, &fm);
     ASSERT_EQ(rc, OK) << err_text(rc);
 
-    const u64 DATA = 74 * 512;      /* cluster 2 = sector 74 */
+    const u64 DATA = 74 * 512;       /* cluster 2 = sector 74 */
     const u64 VIRT = DATA - 2 * 512; /* the virtual clusters' byte span */
     ASSERT_TRUE(fm.valid());
     EXPECT_EQ(fm.base_byte, VIRT);
@@ -1010,7 +1010,6 @@ tree::FileNode* find_node(tree::ResultTree& tree, const char* want) {
     return nullptr;
 }
 
-
 namespace {
 /* M-011: a large-FAT32 boot-sector writer (spf above the old 16 MiB cap).
  * 34000 sectors/FAT = 17 MiB table; total sized so the data area holds
@@ -1062,9 +1061,9 @@ TEST(FatEngine, LargeFat32TableAccepted) {
         u8* d = img.data() + data_start + 0 * 512 + 0 * 32; /* cluster 2 byte 0 */
         /* 8.3 name: "BIG     " + ext "TXT" (name d[0..7], ext d[8..10]) */
         std::memcpy(d, "BIG     TXT", 11);
-        d[0x0B] = 0x20;   /* archive */
-        d[0x1A] = 100;    /* first cluster low */
-        d[0x1C] = 12;     /* size */
+        d[0x0B] = 0x20; /* archive */
+        d[0x1A] = 100;  /* first cluster low */
+        d[0x1C] = 12;   /* size */
     }
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
@@ -1098,7 +1097,6 @@ TEST(FatEngine, SmallFat16TableDeclined) {
     u32 rc = scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats);
     EXPECT_EQ(rc, ERR_BAD_PARAMETER) << "spf=8 FAT16 declined (og window)";
 }
-
 
 namespace {
 /* a device that FAILS reads over a byte range (the FAT1 region) */
@@ -1256,7 +1254,6 @@ TEST(FatEngine, MirrorOnlyScanFat1Unreadable) {
             readme = true;
     EXPECT_TRUE(readme) << "live file recovered through the mirror";
 }
-
 
 TEST(FatEngine, CrossLinkedFat1RejectedAndFat2Used) {
     /* M-015: a FAT1 containing a cross-link (two chains claiming one
@@ -1574,10 +1571,10 @@ TEST(FatEngine, FatClusterCountOverflowRejected) {
      * the spec's reserved max is 0x0FFFFFF6 so only overflow noise is
      * cut. Fail-before: classified FAT32 and passed. */
     auto img = build_fat16_image();
-    put16(img, 0x11, 0);          /* FAT32 shape: no root dir */
-    put16(img, 0x16, 0);          /* spf16 = 0 */
-    put32v(img, 0x24, 64);        /* spf32 */
-    put16(img, 0x13, 0);          /* use total32 */
+    put16(img, 0x11, 0);                 /* FAT32 shape: no root dir */
+    put16(img, 0x16, 0);                 /* spf16 = 0 */
+    put32v(img, 0x24, 64);               /* spf32 */
+    put16(img, 0x13, 0);                 /* use total32 */
     put32v(img, 0x20, 130 + 0xFFFFFF0u); /* first_data 130 + cap clusters */
     std::memcpy(img.data() + 0x52, "FAT32   ", 8);
     u8 boot[512];
@@ -1713,11 +1710,11 @@ std::vector<u8> build_fat16_recycle_image(const char* bin_root_8_3) {
     u8* irec = img.data() + DATA + (50 - 2) * 512;
     put32v(img, DATA + (50 - 2) * 512, 2); /* version 2 */
     put32v(img, DATA + (50 - 2) * 512 + 4, 0);
-    put32v(img, DATA + (50 - 2) * 512 + 8, 4096);  /* original size */
+    put32v(img, DATA + (50 - 2) * 512 + 8, 4096); /* original size */
     put32v(img, DATA + (50 - 2) * 512 + 12, 0);
-    put32v(img, DATA + (50 - 2) * 512 + 16, 0);    /* FILETIME lo */
-    put32v(img, DATA + (50 - 2) * 512 + 20, 30);   /* FILETIME hi -> 30<<32 */
-    put32v(img, DATA + (50 - 2) * 512 + 24, 15);   /* pathlen */
+    put32v(img, DATA + (50 - 2) * 512 + 16, 0);  /* FILETIME lo */
+    put32v(img, DATA + (50 - 2) * 512 + 20, 30); /* FILETIME hi -> 30<<32 */
+    put32v(img, DATA + (50 - 2) * 512 + 24, 15); /* pathlen */
     const char16_t* path = u"C:\\vacation.jpg";
     for (int i = 0; i < 15; ++i)
         put_u16(irec + 28 + i * 2, path[i]);
