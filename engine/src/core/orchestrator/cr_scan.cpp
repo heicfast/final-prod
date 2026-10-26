@@ -1039,6 +1039,7 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
         publish_owner_module_(errmod::kOrchestrator);
         cfg_.fs_hint = probe_family(pipe);
     }
+
     /* volume facts for the session VolumeInfo (G-14) - recorded from the
      * caller's slice before the pipe wrapped it */
     vol_offset_ = slice->absolute_base();

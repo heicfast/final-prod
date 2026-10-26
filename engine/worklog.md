@@ -15175,6 +15175,55 @@ Stage Summary:
 - Claim posted; starting M-041 (full corpus re-read of
   FileSystemCheck_decompiled.c first).
 
+---
+Task ID: DFX35-4 (session 35, third fix — M-041)
+Agent: main engineer (DFX35)
+Task: M-041 — the damage-audit check phase (FileSystemCheck.mo parity).
+
+Work Log:
+- Corpus re-verified FIRST-HAND (all load-bearing cites):
+  FAT12/16/32 ceilings (:1355-1360/:1413-1417/:1469-1473 — they CLAMP
+  the audited cluster count, not reject; the finding's framing
+  corrected), 0x1004 size-vs-chain arithmetic (:2050-2076), volume-size
+  gate (:2832-2835), `.`/`..` byte validation (:1893-1907), version set
+  {0x102, 3, 0x301} (:2994-3003), orphan BAD sentinels (:872-878) ->
+  0x1003 (:945-951), FAT copies -> 0x1005 (:745-752), "Bitmap mark it
+  as free!!!" (:3200). CONFIRMED-DIVERGENCE.
+- Landed: include/cr/check/cr_fscheck.h + src/core/check/cr_fscheck.cpp
+  (both passes, taxonomy in numeric parity; the 12-bit/16-bit/32-bit FAT
+  entry decoder; the BorrowedDevice non-owning adapter for
+  NtfsVolume::open); the orchestrator stage (after repair, before
+  engines; default ON with run_fs_check opt-out; report in
+  ScanStats.fs_check_* + a log Warn line; NEVER aborts).
+- Development corrections caught by the tests themselves: (1) the $MFT
+  proof must parse the $FILE_NAME PAYLOAD's name (parse_file_name), not
+  the attribute's own name; (2) the runlist decode must go through
+  parse_data_runs (attribute-relative offset), not a record-relative
+  pointer; (3) the $Bitmap size sanity is in BYTES (clusters x cluster
+  size) with a coverage + 1 MiB tolerance; (4) the dir-cycle detection
+  must run BEFORE the global cross-link test (a self-referencing chain
+  is a cycle, not a cross-link); (5) the check stage reads the RAW
+  slice — pipe reads stole the error map's per-range ENGINE attribution
+  (the ErrorRange attribution test caught it: last_err_module became
+  the orchestrator's stamp when the check touched a dead sector first).
+- Fixture notes recorded: build_image's MFT/MIRR LCN overlap (68..71)
+  makes it bitmap-cross-linked by construction — the check tests use
+  build_dump_image (bitmap-consistent); the mirror-region re-plant for
+  the $MFTMirr proof (the recycle records overwrite the mirror copies,
+  the known quirk).
+- Tests: 14 (FatCheck.* x9 incl. the BAD-sentinel negative, NtfsCheck.*
+  x4 incl. the 3.1-passes pin, Orchestrator.CheckPhaseNeverAbortsScan).
+  Fail-before by construction (the API did not exist — N-046 precedent).
+  Suite 877/877 linux-release.
+- Audit trail: Resolution + FIXED/ move; NEW module row
+  modules/check-phase.md; matrix check-phase row; SUMMARY session-35
+  addition; CAPABILITY-MATRIX row.
+
+Stage Summary:
+- M-041 FIXED (session tally: 3 — M-014, M-052, M-041 + N-079 + 3
+  repair pushes). MAJOR 5 remain (M-030/M-034/M-039/M-040/M-048).
+  Next: pull-check; M-039/M-048 are the parallel lane's claimed next -
+  coordinate via the worklog before taking one.
 
 
 

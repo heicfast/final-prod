@@ -1008,6 +1008,26 @@ open (22 acknowledged in FIXED/) · tracked-open 11 · FIXED/ **178** files
 N-033 → N-064.
 ## Session-35 delta (2026-10-26 — DFX35, re-stamped from 23: the MAJOR-closing wave, M-014 first)
 
+**M-041 FIXED (MAJOR — the damage-audit check phase):** the og's
+FileSystemCheck.mo is now a core module (include/cr/check/cr_fscheck.h):
+a read-only pre-scan audit with the og's error taxonomy in numeric
+parity (0x1001-0x100e). FAT pass in the og's phase order (DBR gates —
+the ceilings CLAMP, the finding's "validator" framing corrected by the
+decompile; hole/duplicate scans; pairwise copy compare; the dir audit
+with `.`/`..`, size-vs-chain, cycles, cross-links; the orphan sweep
+with the BAD-sentinel set). NTFS pass (volume-size gate, the $MFT /
+$MFTMirr payload-name proofs, the version gate {1.2,3.0,3.1}, $Bitmap
+structural, the MFT×$Bitmap cross-check with both og strings). Wired as
+a pre-scan stage (default ON, opt-out, never aborts; reads the raw
+slice so its failures never steal the error map's engine attribution —
+the ErrorRange attribution test caught exactly that during the build).
+New module doc: modules/check-phase.md. 14 tests (fail-before by
+construction — the API did not exist). Suite 877/877.
+
+**Counts after this landing:** MAJOR 5 · MINOR 10 · FIXED 209
+findings. Next on this lane: pull-check, then the remaining MAJORs
+(M-030/M-034/M-039/M-040/M-048) minus whatever the parallel lanes land.
+
 **M-052 FIXED (MAJOR — the FAT/exFAT recycle-bin $I/$R pairing) +
 N-079 NEW-FINDING FIXED (MINOR — the NTFS landing's missing bin
 scope):** the recycle model is now shared across all three engines

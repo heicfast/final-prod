@@ -1833,3 +1833,4 @@ TEST(FatEngine, NonRecycleDollarFilesStayRaw) {
             raw_ok = true;
     EXPECT_TRUE(raw_ok) << "non-bin '$' files must stay raw-named";
 }
+
