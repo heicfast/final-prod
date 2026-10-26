@@ -2397,48 +2397,18 @@ FileProperties → a WriterConfig `preserve_dacl` flag (default OFF)
 applying it via SetSecurityInfo on the win destio layer only — never on
 the POSIX test shims.
 
-<<<<<<< HEAD
-### D-78 — the password-dictionary unlock aid: authored seed + format-compatible loader, the og's Dict asset not copied (N-064, REGISTERED DIVERGENCE)
+<!-- D-number errata (session 34, DFX34 reconciliation): a second D-78 row
+     (N-064 pwddict: "authored seed + format-compatible loader, the og's
+     Dict asset not copied") was registered here by the convergent N-064
+     landing (817740c) and is WITHDRAWN: the canonical N-064 (DFX31
+     5a29dbd, first-landing-wins) ships the corpus-exact 228-entry table
+     per the repo's established raw_signs.json conversion precedent, so
+     the divergence the row registered no longer exists. The row's only
+     surviving idea — a format-compatible user-dictionary FILE loader —
+     is recorded in the N-064 finding's Convergence addendum as an
+     unregistered future superset. The D-78 number below belongs to the
+     N-032 CSMI transport registration that landed first in this window. -->
 
-**OG:** ships a 228-entry password dictionary at install root (`Dict`,
-2,742 B — byte-verified, artifacts/config-files/config-data-reference.md:20)
-consumed by BitLockerLib's manage-bde -Password unlock flow
-(config-data-reference.md:86) and the repair line's password-aware
-consumers (EuOfficeRepairFile encrypted HWPX; archive repair's
-CheckPassWord/CheckPassWordByData — FileRepair/archive-repair artifact).
-
-**CORE:** the MECHANISM is ported whole (N-064): `cr/pwddict` parses
-dictionaries in the og's exact file format (comma-terminated CRLF lines,
-unterminated final entry, space-bearing entries — decoded first-hand from
-the corpus file), and `bitlocker::try_password_unlock` feeds candidates
-through the same Windows unlock plumbing as a typed password. The SHIPPED
-list is an authored 20-entry seed of universal common-password patterns
-(present in every public leaked-credential corpus) — the og's 228-entry
-asset is NOT copied into this repo (the fixing rules forbid copying
-proprietary data files; the list's composition is the og's editorial
-asset even where individual entries are universal). A host that wants the
-og-exact behavior points the CLI's `--bitlocker-pwddict <path>` at any
-dictionary file in the format — the og's own Dict file works verbatim.
-
-**CONSENT MODEL (preserved, F61):** the sequencer has NO scan-path
-reference; it runs only inside an explicit host unlock action (the CLI
-flag / the UI unlock dialog analog). Locked volumes without user
-consent or key material stay refused ERR_FVE_LOCKED — the S-014/F13
-legitimate-unlock-only posture is unchanged. Attempt policy (corpus is
-silent on ordering/rate-limiting — the finding's own open question):
-sequential, first-success-wins, one attempt per candidate, duplicates
-attempted once; attempt log lines carry progress + candidate length
-only, never password text.
-
-**RISK:** none beyond the og's own (a user-consented dictionary run
-against the user's own locked volume; Windows applies/rejects every
-password). The repair-line Dict consumers (encrypted Office/HWPX,
-password-protected archives) stay scope-excluded with I-010.
-
-**VERDICT:** ACCEPTED (registered divergence: authored seed +
-format-compatible loader vs the og's copied asset; mechanism parity
-complete; D-78).
-=======
 ### D-78 — CSMI SMART transport: SCSI-address routing, no RAID census; LSILOGIC sibling and SMART auto-enable not ported (N-032, REGISTERED DIVERGENCE — transport scope)
 
 **Class:** registered divergence (health transport scope) · **Finding:**
@@ -2508,4 +2478,3 @@ with wrong bytes. Fixtures: `Btrfs.Raid0StripeMathSplitsAtStripeBoundaries`
 (the spanning split + the in-stripe offset), `Btrfs.Raid10GeometryGate`
 (the og's parse-time gate stays og-exact — the superset is read-side
 only).
->>>>>>> origin/main

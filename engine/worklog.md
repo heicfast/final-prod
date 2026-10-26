@@ -13759,3 +13759,55 @@ Stage Summary:
   N-071 → N-072 → N-075 → N-066 → N-065 → N-059 → N-050 → N-049 →
   N-036 → N-033 → N-031 → N-027 → N-026 → N-007/I-004 → N-019 →
   N-032, absorbing parallel landings per first-landing-wins.
+
+---
+Task ID: DFX34-T2 (session 34, second landing — the N-064 convergent-landing reconciliation)
+Agent: main engineer (diff-to-fix fix session 34 — DFX34)
+Task: Reconcile the convergent two-lane N-064 landing (first-landing-wins:
+DFX31 `5a29dbd` canonical) + repair the parallel-window merge corruption
+(main was RED: conflict markers in rrecov.cpp / cr_bitlocker.h / audit
+docs from an earlier union merge) + the win_syntax_check gate hardening.
+
+Work Log:
+- Discovered post-push: DFX31's cr::dict N-064 (generated corpus-exact
+  228-entry table + --bitlocker-dict + cr_ui ABI export) landed on main
+  BEFORE my 817740c (cr/pwddict + --bitlocker-pwddict +
+  try_password_unlock); an intermediate union merge left BOTH
+  implementations in-tree AND raw conflict markers in rrecov.cpp (10),
+  cr_bitlocker.h (1), RESOLVED-INDEX, CAPABILITY-MATRIX, PARITY-DELTAS
+  and four worklog prompt archives — win_syntax_check RED on main.
+- Reconciliation: rrecov.cpp restored to the canonical 5a29dbd
+  open_volume_view/cmd_scan (theirs) + kept the parallel N-033 lane's
+  carve-format additions + my usage-line flag documentation;
+  cr_bitlocker.h/.cpp restored to canonical (my appended duplicate
+  plumbing removed); cr/pwddict module + test_pwddict.cpp +
+  CMake entries deleted; my D-78 PARITY-DELTAS row WITHDRAWN (obsolete:
+  canonical ships the corpus-exact table per the repo's raw_signs.json
+  conversion precedent — no divergence to register; withdrawal errata
+  note left in place); RESOLVED-INDEX: one N-064 row (DFX31 canonical);
+  CAPABILITY-MATRIX posture = canonical + convergence note; the finding
+  file: canonical Resolution + a full Convergence addendum (what was
+  absorbed, what was withdrawn, the future-superset loader idea);
+  orphan markers stripped from the four prompt archives; SUMMARY s34
+  record corrected (convergence, not a second fix).
+- Gate fix (root cause): win_syntax_check now compiles with
+  `-D__declspec(x)=` — gcc on ELF targets has no __declspec keyword
+  (clang-only flag; -fms-extensions does not cover it) and the app
+  layer's new `#include "cr/cr_ui.h"` (N-033 lane) parses its _WIN32
+  export macro under the gate. Command-line emulation is
+  order-independent (a stub-header macro would depend on windows.h
+  preceding cr_ui.h — it does not in rrecov.cpp's include order);
+  parse-gate-only, real builds use the real compiler keyword.
+- Win-stub: CP_UTF8 + MultiByteToWideChar declarations kept (the
+  canonical dictionary_unlock_seam widen needs them; the gate caught my
+  first draft's undeclared usage — recorded as the gate working).
+- Full suite on the reconciled tree: **810/810** linux-release green
+  (win_syntax_check parse-clean over all 7 win-layer files + rrecov.cpp).
+  Tree-wide marker sweep: zero conflict markers anywhere.
+
+Stage Summary:
+- N-064 stands FIXED (canonical DFX31; this lane's landing absorbed with
+  a full convergence record — the audit trail is the deliverable). Main
+  is GREEN again after the corruption window. Remaining MINOR-tail
+  queue: N-071 → N-072 → N-066 → N-065 → N-059 → N-033 → N-007/I-004 →
+  N-019, then MAJOR leftovers / tracked-open assist.
