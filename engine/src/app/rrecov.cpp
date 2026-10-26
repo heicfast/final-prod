@@ -43,6 +43,7 @@
 #include "cr/win/cr_elevate.h"
 #include "cr/storage/cr_decrypt_device.h"
 #include "cr/crypto/cr_aes.h"
+#include "cr/cr_text.h" /* N-009c: --filter UTF-8 encoding */
 #include <windows.h>
 #include <map>
 #include <chrono>
@@ -507,16 +508,19 @@ struct TreePrintFlags {
     std::string filter; /* substring, case-insensitive */
 };
 
-bool name_matches(const tree::FileNode* n, const TreePrintFlags& f) {
-    if (f.filter.empty())
+/* N-009c: ASCII-case-insensitive UTF-8 substring match - the shared
+ * filter contract (query::Filter::name_substring is "UTF-8, ASCII-
+ * case-insensitive"; the tree command routes through it, so the scan
+ * print and recover paths must agree byte-for-byte with that matcher). */
+bool name_contains_ci(const std::string& name, const std::string& needle) {
+    if (needle.empty())
         return true;
-    const std::string name = n->name_utf8();
-    if (name.size() < f.filter.size())
+    if (name.size() < needle.size())
         return false;
-    for (size_t i = 0; i + f.filter.size() <= name.size(); ++i) {
+    for (size_t i = 0; i + needle.size() <= name.size(); ++i) {
         size_t k = 0;
-        for (; k < f.filter.size(); ++k) {
-            char a = name[i + k], b = f.filter[k];
+        for (; k < needle.size(); ++k) {
+            char a = name[i + k], b = needle[k];
             if (a >= 'A' && a <= 'Z')
                 a += 32;
             if (b >= 'A' && b <= 'Z')
@@ -524,10 +528,16 @@ bool name_matches(const tree::FileNode* n, const TreePrintFlags& f) {
             if (a != b)
                 break;
         }
-        if (k == f.filter.size())
+        if (k == needle.size())
             return true;
     }
     return false;
+}
+
+bool name_matches(const tree::FileNode* n, const TreePrintFlags& f) {
+    if (f.filter.empty())
+        return true;
+    return name_contains_ci(n->name_utf8(), f.filter);
 }
 
 void print_tree(tree::ResultTree& tree, const TreePrintFlags& f) {
@@ -585,8 +595,10 @@ u64 file_tell_cb(void* user) {
     return u64(_ftelli64(static_cast<FILE*>(user)));
 }
 u32 file_seek_cb(void* user, u64 absolute) {
-    return _fseeki64(static_cast<FILE*>(user), __int64(absolute), SEEK_SET) == 0 ? OK
-                                                                                 : ERR_SESSION_IO;
+    return _fseeki64(static_cast<FILE*>(user), static_cast<long long>(absolute),
+                     SEEK_SET) == 0
+               ? OK
+               : ERR_SESSION_IO;
 }
 u32 file_read_cb(void* user, void* buf, u32 len) {
     FILE* f = static_cast<FILE*>(user);
@@ -594,9 +606,9 @@ u32 file_read_cb(void* user, void* buf, u32 len) {
 }
 u64 file_size_cb(void* user) {
     FILE* f = static_cast<FILE*>(user);
-    const __int64 cur = _ftelli64(f);
+    const long long cur = _ftelli64(f);
     _fseeki64(f, 0, SEEK_END);
-    const __int64 end = _ftelli64(f);
+    const long long end = _ftelli64(f);
     _fseeki64(f, cur, SEEK_SET);
     return u64(end);
 }
@@ -690,7 +702,7 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         if (get_opt(argc, argv, i, L"--log", &log_path))
             continue;
         if (get_opt(argc, argv, i, L"--filter", &v)) {
-            print_flags.filter = narrow(v);
+            print_flags.filter = text::wide_to_utf8(v); /* N-009c: UTF-8, not '?' */
             continue;
         }
         if (has_flag(argc, argv, i, L"--deleted-only")) {
@@ -1098,7 +1110,7 @@ int cmd_tree(int argc, wchar_t** argv, int& i) {
         if (get_opt(argc, argv, i, L"--in", &in_path))
             continue;
         if (get_opt(argc, argv, i, L"--filter", &v)) {
-            f.filter = narrow(v);
+            f.filter = text::wide_to_utf8(v); /* N-009c: UTF-8, not '?' */
             continue;
         }
         if (has_flag(argc, argv, i, L"--deleted-only")) {
@@ -1185,6 +1197,10 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
         wprintf(L"recover needs --in file.crsf (--disk N | --image file) --to DIR\n");
         return 1;
     }
+    /* N-009c: encode the filter ONCE as UTF-8 (the old per-item narrow()
+     * mapped every non-ASCII unit to '?', so a CJK/accented --filter never
+     * matched); matching is the shared ASCII-case-insensitive contract. */
+    const std::string filter8 = text::wide_to_utf8(filter);
 
     /* load the session tree */
     FILE* fin = nullptr;
@@ -1268,7 +1284,7 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
                 }
                 if (deleted_only && !deleted)
                     continue;
-                if (!filter.empty() && c->name_utf8().find(narrow(filter)) == std::string::npos)
+                if (!filter8.empty() && !name_contains_ci(c->name_utf8(), filter8))
                     continue;
                 const u32 eq = writer.enqueue(c, path);
                 if (eq == ERR_DEST_OVERLAP)
@@ -1831,6 +1847,9 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
     /* the union's apply-capable view: the RW transport carrying the corpus
      * device-control chain (0x7C100/0x7C010/0x7C058/0x70140 + the 3x
      * settle tail) - execute_apply drives it inside the transaction */
+    u32 e = 0; /* M-057: was referenced (&e) but never declared - the apply
+                * path could not compile on MSVC since it landed (the app
+                * layer had no parse gate until this session) */
     auto wdev = win::open_disk_apply_rw(disk, use_rda, use_rda ? L"RDA" : nullptr, &e);
     if (!wdev) {
         wprintf(L"cannot open disk %u for write (rc=%08x): %hs\n", disk, e,

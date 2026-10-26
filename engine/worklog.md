@@ -12169,7 +12169,6 @@ Stage Summary:
   (N-048 seam + N-061 run-log/auto-naming + N-062 monitor). Next:
   N-064 (Dict password dictionary) or N-049/N-050 (lost-record family).
 
-=======
 
 ---
 Task ID: DFX16-M013 (session 16, MAJOR lane)
@@ -12238,6 +12237,45 @@ Stage Summary:
   queue claimed. First fix: N-009 (grouped minors).
 
 ---
+Task ID: DFX23-T1 (session 23, first+second fix — N-009c/N-009d + M-057)
+Agent: main engineer (diff-to-fix fix session 23 — DFX23)
+Task: N-009c CLI --filter ASCII mangling; N-009d ACL registration; M-057
+(app-layer build integrity — discovered by the gate extension).
+
+Work Log:
+- Verified the finding in-source first: all three --filter sites narrow()
+  the wide argv ('?' substitution); the recover path additionally used a
+  case-SENSITIVE find (internal inconsistency vs the tree/list paths).
+- Implemented cr::text::wide_to_utf8 in cr_text.h (both wchar_t widths,
+  surrogate pairs, lone halves -> U+FFFD per the shared S-005/N-029a
+  policy); wired scan print / tree / recover; name_contains_ci factored
+  out of name_matches as the shared matcher (the query layer's
+  name_substring semantics).
+- Extended tools/win_syntax_check.sh to src/app (M-055 rationale: the app
+  is equally Windows-only); grew tests/win-stub/windows.h (WINAPI empty —
+  x64-faithful, CTRL events, _wfopen_s/_fseeki64/_ftelli64, __int64,
+  SetConsoleCtrlHandler, QueryPerformanceFrequency).
+- THE GATE'S FIRST CATCH: rrecov.cpp cmd_apply referenced &e with no
+  declaration since 0a68937 (the S-029 union landing) — the whole app has
+  been MSVC-uncompilable. Filed M-057 (NEW-FINDING, MAJOR, M-055 class),
+  fixed (u32 e = 0; matching cmd_fix/cmd_undo), fail-before EXECUTED
+  (gate RED with the exact 'e' was not declared diagnostic; pass-after
+  8/8 files parse). Also de-MSVC'd file_seek_cb's __int64(absolute)
+  functional cast (long long + static_cast).
+- N-009d: D-77 registered in PARITY-DELTAS (inherit-destination ACL
+  posture; $SDH/$SII port recorded as the next step, not silently
+  dropped — the finding's own optional-port text).
+- Tests: Text.WideToUtf8EncodesNonAscii, Text.WideToUtf8SurrogatePairAndLoneHalf,
+  Text.CliFilterUtf8MatchesDecodedNames (CJK filter matches decoded name
+  byte-exact; the old '??' mangled form pinned to never match).
+- Suite 740/740 linux-release. Audit trail: both finding files carry
+  Resolutions; both moved to FIXED/; RESOLVED-INDEX rows; matrix cells
+  (writer+report/cli/health/quality); SUMMARY session-23 delta + counts.
+
+Stage Summary:
+- Tally 2 (N-009 group + M-057). MINOR 18 remain. Next: N-007/I-004
+  (ReFS detection strictness).
+
 Task ID: DFX24-T0 (session 24 bootstrap — lane claim)
 Agent: main engineer (diff-to-fix fix session 24 — DFX24)
 Task: Session bootstrap + DISJOINT lane claim (DFX23 took the MINOR tier
@@ -12263,6 +12301,41 @@ Stage Summary:
   fix: M-049 (error model divergence).
 
 ---
+Task ID: DFX32-T0 (session 32 bootstrap — lane claim; re-stamped from the
+colliding DFX25 stamp — the INFO-closure lane owns that ID)
+Agent: main engineer (diff-to-fix fix session 32 — DFX32)
+Task: Session bootstrap + DISJOINT lane claim (DFX23 owns MINOR, DFX24 owns
+MAJOR; the tracked-open queue is claimed head+tail by two lanes — this lane
+claims the MAJOR MIDDLE BAND, the zone both MAJOR lanes reach last).
+
+Work Log:
+- Baseline: HEAD `02b950f` (both parallel claims absorbed; fetch verified
+  before claim — no parallel lane has pushed a fix since the claims).
+  Corpus `03ad46c` unmoved.
+- Baseline suite executed green FIRST-HAND at the claim tree:
+  linux-release **737/737** (ctest, incl. win_syntax_check; 4 pre-existing
+  env skips inside cr_tests — qemu/mkfs absent in container, unchanged).
+- Session prompt saved token-redacted: worklog/session-diff-fix-25-prompt.md.
+- Lane claim (disjoint in CURSOR against the two MAJOR lanes converging
+  head-first (M-049 ->) and tail-first (-> M-041)): the MAJOR MIDDLE BAND
+  in this order — M-020 (Btrfs profile machinery + default subvol) ->
+  M-025 (carve 8MiB pingpong -> streaming) -> M-030 (driver-utilization
+  WinPE gate/ladder/chunking) -> M-029 (query sort/paging/bucket-ids
+  server-side push) -> M-018 (junk filter FilterFolder) -> M-039
+  (cross-engine occupancy bitmap). Every finding re-checked open
+  immediately before work; pull before every push; FIXED-ALREADY
+  classification for anything a parallel lane lands first; union merge
+  if a parallel landing arrives mid-fix. After the middle band: whatever
+  remains open at pull time (MAJOR leftovers if the head/tail lanes
+  stall, then MINOR rear, then tracked-open sub-items).
+- One finding, one verified fix, one push throughout.
+
+Stage Summary:
+- Session 32 open. Baseline 737/737 green. MAJOR-middle lane claimed.
+  First item: M-020 (Btrfs profile machinery and default subvolume).
+
+
+
 Task ID: DFX25-T0 (session 25 bootstrap — lane claim; re-stamped from the
 local 23 — the parallel MINOR lane owns that ID, DFX24 owns MAJOR)
 Agent: main engineer (diff-to-fix fix session 25 — DFX25)
@@ -12278,7 +12351,7 @@ Work Log:
 - Baseline suite executed green FIRST-HAND before any finding work:
   linux-release **737/737** at `716d121` (full ctest).
 - Corpus `03ad46c` unmoved (verified at first corpus read).
-- Session prompt saved token-redacted: worklog/session-diff-fix-25-prompt.md.
+- Session prompt saved token-redacted: worklog/session-diff-fix-30-prompt.md.
 - One finding, one verified fix, one push throughout.
 
 Stage Summary:
@@ -12368,10 +12441,38 @@ Stage Summary:
   verification, starting M-041 (damage-audit check phase).
 
 ---
+Task ID: DFX27-T0 (session re-stamp — 23 → 27; disjoint MINOR-queue share)
+Agent: main engineer (the ORIGINAL DFX23 — 354c555 was this lane's claim,
+pushed before the parallel 6b550fd DFX23-T1; re-stamping to kill the ID
+collision rather than fight over it)
+Task: Union resolution + disjoint lane re-claim.
+
+Work Log:
+- My N-009c/d + M-057 batch (committed locally) met a parallel window on
+  push: DFX24 (MAJOR lane), DFX25→DFX26 (INFO closure — 22/22 moved to
+  FIXED/ — + MAJOR-tail + tracked-open), and a SECOND DFX23 (6b550fd,
+  same MINOR-first queue I claimed at 354c555).
+- Union merged: both worklog sides kept verbatim; SUMMARY carries both
+  session deltas (mine on top, counts reconciled to the union truth:
+  SEVERE 0 · MAJOR 14 open · MINOR 18 · INFO 0 open · tracked-open 11).
+- This lane re-stamps to DFX27 and takes the DISJOINT TAIL of the MINOR
+  queue (the parallel DFX23 works the head in claim order): I take
+  N-075, N-072, N-071, N-066, N-065, N-064, N-059, N-050, N-049, N-036
+  (then, if the parallel lane stalls, the head remainder N-007/N-019/
+  N-025/N-026/N-027/N-031/N-032/N-033 — each re-checked open before
+  work).
+- Full suite re-run on the union BEFORE this push (protocol): see the
+  DFX27-T1 entry for the green count.
+
+Stage Summary:
+- Session re-stamped DFX27. N-009 (group) + M-057 landed by this lane.
+  MINOR 18 remain (9 claimed here, 9 for the parallel DFX23). Next:
+  N-075 (event-bus query signals).
+
 Task ID: DFX27-T0 (session 27 bootstrap — lane claim; re-stamped 25→26→27 —
 parallel lanes in this window took DFX25 (INFO closure) and DFX26 (MAJOR-tail
 back-to-front); DFX23 MINOR and DFX24 MAJOR claims stalled at bootstrap)
-Agent: main engineer (diff-to-fix fix session 27 — DFX27)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
 Task: Session bootstrap + DISJOINT lane claim: the MAJOR tier HEAD
 (front-to-back), which is disjoint from DFX26's claimed MAJOR-tail
 (back-to-front). First-landing-wins on any overlapping finding; pull before
@@ -12417,7 +12518,7 @@ Work Log:
   busy = the shim's run-lifecycle atomic; stopping = the LIVE
   PausableToken cancel request (persists after the one-shot run — the
   honest "a cancel WAS requested" answer; distinct from telemetry's
-  post-run cancelled flag). PARITY-DELTAS D-77 registers the pull-progress
+  post-run cancelled flag). PARITY-DELTAS D-78 registers the pull-progress
   convention difference (poll-dominant og vs push + telemetry pull, the
   information content covered). ABI-CONTRACT §5 gains the state-query
   line + the recovery-progress mapping note (typed IUIProgressInfo ->
@@ -12441,3 +12542,339 @@ Stage Summary:
 - N-075 FIXED (session tally: 1). MINOR 18 remain. Next: N-019 (the
   12-scenario per-parameter regression-test gap — the literal Q65
   interpretation, one test per missing scenario).
+
+Task ID: DFX30-T0.5 (lane-ID disambiguation #2 — the MAJOR-tail lane keeps its
+scope, re-stamps its ID only; NO new claim)
+Agent: core-parity-fix-agent (main, DFX30 — previously the "DFX26" whose
+MAJOR-tail back-to-front claim 65122f0 is referenced by DFX27's bootstrap;
+re-stamped 26→29→30 as parallel lanes squatted each ID in turn)
+Task: Resolve the duplicate lane IDs (DFX26 twice, DFX29 twice); keep this
+lane's scope unchanged.
+
+Work Log:
+- Two "DFX26" entries existed (fe7a0bc MINOR-rear "Z User" vs this lane
+  65122f0 MAJOR-tail "parity-fix-agent"); two "DFX29" entries now exist
+  (da48de1's parent — the ORIGINAL DFX23 lane (N-009 + M-057 landed) claiming
+  the MINOR middle band — vs this lane's just-pushed T0.5). This lane
+  re-stamps to DFX30, scope unchanged — the MAJOR tier TAIL back-to-front:
+  M-041 → M-040 → M-034 → M-048 → M-039 → M-030 → M-029 → M-025 → then
+  toward the middle, absorbing parallel landings as convergence.
+- Lane map after this note: DFX23-orig/DFX29 = MINOR middle band (N-036/
+  N-049/N-050/N-033/N-064; N-009+M-057 landed) · DFX28 = MINOR front band
+  (N-025 landed e2b4549; N-026 in progress; N-027/N-031/N-032/N-019/N-007)
+  · 2adfb51 lane = MINOR rear (N-075/N-072/N-071/N-066/N-065/N-059) ·
+  DFX24/DFX27 = MAJOR head (bootstrap-only so far) · DFX25 = INFO (closed
+  22/22) + tracked-open · DFX30 = THIS LANE, MAJOR tail. All MAJOR lanes
+  note: no MAJOR fix has landed from any lane as of this note — the tier's
+  first landing wins per finding.
+- Open inventory: MAJOR 14 (+M-057 new) · MINOR 17-ish (N-009 group, N-025
+  landed) · INFO 0 · tracked-open 11 · FIXED/ growing. This lane verifies
+  each finding's open state immediately before working it.
+
+Stage Summary:
+- Lane ID disambiguated (DFX30). Work begins NOW: M-041 (damage-audit check
+  phase) — corpus re-verification first, then implementation. No further
+  lane-meta pushes from this session unless a collision forces one.
+Task ID: DFX28-T1 (session 28, re-stamped from the squatted DFX23 bootstrap; first fix — N-025)
+Agent: main engineer (diff-to-fix fix session — MINOR-first mandate, lane disjoint from the DFX26/27 MAJOR lanes)
+Task: N-025 the LDM geometry minors group (N-012a config-size gate + N-012b
+zero-interleave default).
+
+Work Log:
+- Bootstrap: baseline 737/737 linux-release at 716d121; corpus 03ad46c
+  unmoved; prompt saved token-redacted (worklog/session-diff-fix-23-prompt.md,
+  the lane ID re-stamped here after parallel squatters took 23-27).
+- Corpus re-verified first-hand: the < 0x801 gate + "ConfigSize larger than
+  1m ?." -> rc 0xfffffff8 (LdmManager_decompiled.c:59748-59759); the
+  interleave defaults (ctor 0x10000 :47665; use-site re-default :68631-68637;
+  sector fallback 0x80 :68638-68641).
+- Fix: gate `config_size >= 0x801 -> ERR_BAD_CHECKSUM` in parse_ldm_database
+  (the 8192-sector read clamp removed as unreachable — the gate fires first);
+  zero interleave -> 128 sectors on both STRIPE and RAID layout paths.
+- Tests: Ldm.OversizeConfigRejected + Ldm.ZeroInterleaveDefaultsTo64K both
+  fail-before RED on the stash-isolated pre-fix tree (oversize disk parsed OK;
+  zero-chunk layout incomplete); Ldm.ConfigSizeExactlyOneMebibyteAccepted
+  boundary pin. Suite 740/740.
+- Audit trail: Resolution + FIXED/ move, RESOLVED-INDEX row, matrix
+  table+ldm row -> MATCH, ldm.md verdict, SUMMARY session-28 delta.
+
+Stage Summary:
+- N-025 FIXED (session tally: 1). MINOR 18 remain (INFO tier closed by the
+  parallel DFX25 lane). Next: N-026 (the ReFS page/gate group).
+Task ID: DFX29-T0 (session re-stamp — 27 → 29; MINOR middle band)
+Agent: main engineer (the ORIGINAL 354c555 DFX23 lane — N-009 + M-057
+landed; re-stamped twice to stay disjoint in a 5-lane window)
+Task: Union resolution + final disjoint lane claim.
+
+Work Log:
+- Second push collision this session: the window absorbed DFX26
+  (MAJOR-tail), a parallel DFX27 (MAJOR-head — my just-pushed 27 stamp
+  collided; theirs is a bootstrap-only claim), DFX28 (rear-first MINOR
+  = my previously-claimed tail band N-075..N-059).
+- Claim map after this union (all bootstrap-only except this lane's
+  landed N-009+M-057 and DFX25's INFO closure):
+  DFX23-parallel = MINOR head-first · DFX24 = MAJOR · DFX26 = MAJOR-tail
+  · DFX27-parallel = MAJOR-head · DFX28 = MINOR rear-first.
+- THIS LANE (DFX29) claims the MINOR MIDDLE BAND — the only findings no
+  lane has named finding-by-finding: **N-036 → N-049 → N-050 → N-033 →
+  N-064**. First-landing-wins per finding; every finding re-checked open
+  immediately before work; pull before every push.
+- Suite green on this union: 740/740 (verified before the re-stamp
+  commit below).
+
+Stage Summary:
+- DFX29 open on the MINOR middle band. Tally so far (this lane): N-009
+  group + M-057. First fix: N-036 (ReFS data-run recognizer).
+---
+Task ID: DFX28-T2 (lane claim refresh — the N-025 lane; disjoint from DFX29 middle band + the 2adfb51 rear-first claim)
+Agent: main engineer (MINOR-first mandate lane; N-025 landed as e2b4549)
+Task: Lane claim for the MINOR FRONT BAND after the 5-lane window shake-out.
+
+Lane claim (disjoint set, posting before further finding work):
+- N-026 (ReFS page/gate group) — IN PROGRESS
+- N-027 (carve/writer group) — next
+- N-031 (carve dispatch deltas)
+- N-032 (health transports CSMI/USB)
+- N-019 (13 regression-test scenarios)
+- N-007 (ReFS detection strictness)
+DFX29 owns the middle band (N-036/N-049/N-050/N-033/N-064); the 2adfb51
+lane owns the rear (N-075/N-072/N-071/N-066/N-065/N-059); DFX26/27 own
+MAJOR. No overlap with any posted claim.
+
+Stage Summary:
+- Lane re-based at 0a9b19e post-merge; N-025 FIXED (e2b4549); front band
+  claimed; proceeding to N-026.
+
+---
+Task ID: DFX30-T0 (session 30 bootstrap — lane claim)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: Session bootstrap + DISJOINT lane claim (the tracked-open OQ queue is
+unclaimed by any active lane; the mid-MAJOR cluster is reached last by both
+MAJOR lanes).
+
+Work Log:
+- Pull at bootstrap absorbed the 5-lane window shake-out (DFX26 MAJOR-tail,
+  DFX27 MAJOR-head, DFX28 MINOR front band, DFX29 MINOR middle band + the
+  N-009/M-057 landings, the rear-first MINOR lane, N-025 e2b4549).
+- Baseline verified green FIRST-HAND this session: linux-release 737/737
+  PASS (17 s) at the pre-union tree 02b950f; re-verified on the merged tree
+  before the first fix.
+- Corpus 03ad46c unmoved (verified at first corpus read this session).
+- Session prompt saved token-redacted: worklog/session-diff-fix-30-prompt.md.
+- Lane claim (disjoint from every posted claim; the whole tracked-open
+  queue is now claimed by DFX30-tail/DFX31-head, MINOR by three lanes,
+  MAJOR-head by DFX27, MAJOR-tail by DFX30):
+  the MID-MAJOR CLUSTER — M-029 (decode-blocked remainder: the Date/Size
+  bucket IDs + the node+0x89 bits-11-14 tag derivation — corpus decode
+  work no lane has landed) → M-025 (carve read-model perf) → M-039
+  (occupancy bitmap feed) → M-020 (btrfs profiles + default subvol) →
+  M-048 (user-extensible signature DB) → M-018 (junk filter family) —
+  the findings BOTH MAJOR lanes reach last (7th+ in their sweeps);
+  first-landing-wins, pull before every landing, cede per protocol on
+  collision.
+- One finding, one verified fix, one push throughout.
+
+Stage Summary:
+- DFX32 open. Baseline green. First work: M-029's bucket-ID/tag-derivation
+  decode in DRWUI_decompiled.c (CTimeFilterBtn/CSizeFilterBtn + the
+  node+0x89 bits-11-14 consumer), then the implementation.
+
+
+---
+Task ID: DFX30-T0 (session 30 bootstrap — lane claim; re-stamped past the same-window DFX25-29 squats — all claims union-kept above)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: Session bootstrap + lane claim (the deferred win-layer trio first;
+pull-before-every-fix thereafter).
+
+Work Log:
+- Pull at bootstrap: HEAD `02b950f` (origin/main unmoved — the DFX24
+  lane-claim commit; no parallel fix landing since). Corpus `03ad46c`
+  unmoved (verified at first corpus read this session).
+- Baseline suite executed green FIRST-HAND at the claim tree:
+  linux-release **737/737** (incl. win_syntax_check).
+- Session prompt saved token-redacted:
+  worklog/session-diff-fix-30-prompt.md.
+- Mandate per prompt: minor-first queue, 20+ fix target, fixed findings
+  moved to findings/FIXED/, all docs/counts/matrices current after each
+  landing.
+- Lane claim (disjoint in CURSOR from the other MINOR lanes): the
+  win-layer/crypto-heavy trio every other lane deferred to LAST —
+  N-032 (CSMI transport), N-064 (Dict password aid), N-071 (enumerate
+  breadth) — FIRST, then N-072, N-033, N-019, N-050 (pull before each;
+  first-landing-wins on any overlap with the parallel rear-first lanes;
+  union merge if a parallel landing arrives mid-fix).
+- One finding, one verified fix, one push throughout.
+
+Stage Summary:
+- Session 29 open. Baseline 737/737 green at `02b950f` (re-verified on
+  the union tree before the first fix). First fix: N-032 (the CSMI
+  health transport — the deferred trio).
+
+
+  group + M-057. First fix: N-036 (ReFS data-run recognizer).
+
+Task ID: DFX27-T0 (session 27 bootstrap — lane claim; re-stamped twice:
+the local DFX25 collided with the parallel INFO-closure lane, the local
+DFX26 re-stamp then collided with the parallel MAJOR-tail lane's 65122f0
+claim — this lane takes the next free ID)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: Session bootstrap + DISJOINT lane claim: the tracked-open queue TAIL
+(split against DFX25, whose natural queue order starts at the head) +
+independent verification of landed closures + NEW-FINDING work.
+
+Work Log:
+- Four parallel lanes observed live at fetch (claims all pushed within a
+  ~25-minute window): DFX23 MINOR-forward (354c555), DFX24 MAJOR-forward
+  (02b950f), DFX25 INFO-closed + tracked-open head (03608d8/849195e),
+  DFX26 MAJOR-backward (65122f0). This lane re-stamps to DFX27.
+- Baseline executed green FIRST-HAND before any finding work: linux-release
+  **737/737** at `02b950f`; the absorbed merges since are audit-trail-only
+  (INFO file moves + worklog) — no source change — so the baseline carries.
+  Full suite re-run happens before this session's first source-touching
+  landing regardless.
+- Corpus `03ad46c` unmoved (verified at first corpus read this session).
+- DFX25's INFO closure INDEPENDENTLY SPOT-CHECKED this session before
+  claiming (trust-but-verify): I-006/I-012/I-017/I-020/I-024 all carry
+  Resolution sections with per-finding verification notes — closure sound.
+- Session prompt saved token-redacted: worklog/session-diff-fix-27-prompt.md.
+- Lane claim (disjoint, split against DFX25's tracked-open queue by
+  direction — DFX25 starts at the head: OQ-RS, OQ-S20-1, OQ-S2M-2, OQ-S3,
+  OQ-S4-3): this lane owns the TAIL: OQ-Z-E-FLT, OQ-T6-T7, OQ-S6-3,
+  OQ-S6-2, OQ-S6-1, OQ-S5-1 — resolve each to a fix this session where
+  feasible, else push forward precisely with new first-hand evidence.
+  Plus: NEW-FINDINGs discovered during verification get filed + fixed.
+- One finding, one verified fix, one push throughout.
+
+Stage Summary:
+- Session 30 open on the disjoint tracked-open tail. Baseline green.
+  First act: OQ-Z-E-FLT (ZFS/exFAT/FLT open questions).
+Task ID: DFX29-T0 (session 29 bootstrap — lane claim; re-stamped 25→29 — the
+name DFX25 was squatted by the INFO-closure lane in the same window; this
+session's claim absorbed the full parallel-claim set per union protocol)
+Agent: main engineer (diff-to-fix fix session 29 — DFX29)
+Task: Session bootstrap + lane claim BEFORE any finding work (protocol).
+
+Work Log:
+- Baseline: HEAD `02b950f` (my local claim commit; origin had moved to
+  `2adfb51` by first push — the window's parallel claims absorbed via union
+  merge: DFX23 MINOR front-first, DFX26 MINOR rear-first, DFX26 MAJOR-tail,
+  DFX27 MAJOR-head, DFX25 INFO-closure 22/22 already landed). Corpus
+  `03ad46c` unmoved.
+- Baseline suite executed green FIRST-HAND at `02b950f` BEFORE any claim:
+  linux-release **737/737** (ctest, incl. cr_ui_abi_check + win_syntax_check).
+- Session prompt saved token-redacted: worklog/session-diff-fix-29-prompt.md.
+- Mandate per prompt: MINOR-first queue (user directive), 20+ fix target,
+  fixed findings moved to findings/FIXED/, all docs/counts/matrices current
+  after each landing.
+- Lane claim (collision-minimizing within the contested MINOR tier): start
+  at the crypto/win-heavy tail BOTH other MINOR lanes defer to their end —
+  N-064 → N-071 → N-032 → N-072 → N-033 → N-050 → N-019 → N-075 → N-066 →
+  N-065 → N-059 → N-049 → N-036 → N-031 → N-027 → N-026 → N-025 →
+  N-007/I-004 → N-009 — pulling before every push; anything a parallel lane
+  lands first is classified FIXED-ALREADY and skipped. All lanes are
+  bootstrap-only at this fetch; first-landing-wins decides.
+- One finding, one verified fix, one push throughout.
+
+Stage Summary:
+- Session 29 open. Baseline 737/737 green. MINOR tail-first queue claimed.
+  First fix: N-064 (Dict password dictionary absent).
+
+
+---
+Task ID: DFX31-T0 (session 31 bootstrap — final re-stamp; IDs 25/29/30 taken by parallel lanes in this window)
+Agent: main engineer (diff-to-fix fix session 31 — DFX31)
+Task: Lane claim + immediate start of fixing (protocol).
+
+Work Log:
+- IDs DFX23..DFX30 are all claimed by parallel bootstrap lanes this window
+  (two real landings observed: N-009c/d+M-057 at e1f17bc, N-025 at
+  e2b4549). This lane re-stamps to DFX31 and starts FIXING immediately —
+  no further lane gymnastics; first-landing-wins decides every race.
+- Baseline 737/737 linux-release executed first-hand at 02b950f before
+  the claim; union tree to be re-verified with the next fix landing.
+- Corpus 03ad46c unmoved.
+- Queue (MINOR tail-first per user directive): N-064, N-071, N-032,
+  N-072, N-033, N-050, N-019, N-075, N-066, N-065, N-059, N-049, N-036,
+  N-031, N-027, N-026, N-007/I-004, N-009 leftovers — pulling before
+  every finding and every push; FIXED-ALREADY classification on any
+  parallel landing.
+- One finding, one verified fix, one push throughout.
+
+Stage Summary:
+- Session 31 open. First fix: N-064 (Dict password dictionary absent).
+---
+Task ID: DFX31-T0 (session 31 bootstrap — lane claim; re-stamped 25→30→31
+through the same-window ID churn — DFX25 squatted by the INFO-closure
+lane, DFX30 by the tracked-open-TAIL lane at 29a8932)
+Agent: main engineer (diff-to-fix fix session 31 — DFX31)
+Task: Session bootstrap + DISJOINT tracked-open lane claim: the HEAD set
+the parallel DFX30 (29a8932, "tracked-open tail queue") does NOT own.
+Their tail: OQ-Z-E-FLT, OQ-T6-T7, OQ-S6-1, OQ-S6-2, OQ-S6-3, OQ-S5-1.
+THIS lane claims: OQ-RS (RS-1..RS-8), OQ-S2M-2 (bonus setter / ZFS pool
+display name / Btrfs name-conversion anchor), OQ-S3-JPEG (fallback +
+continuation no-EOI accept), OQ-S4-3 (Windows bench — likely
+push-forward), OQ-S20-1 (BitLocker FVE metadata grammar + KDF interop).
+First-landing-wins per OQ; pull before each resolution; skip anything a
+parallel lane lands; convergence records per protocol.
+
+Work Log:
+- Pull at bootstrap: HEAD 02b950f (DFX24's claim, the current tip).
+  Parallel-window claims absorbed: DFX23 MINOR queue (354c555), DFX24
+  MAJOR queue (02b950f).
+- Baseline executed first-hand BEFORE the claim on the current tree:
+  linux-release 737/737 green.
+- Corpus 03ad46c unmoved (verified at clone).
+- Session prompt saved token-redacted:
+  worklog/session-diff-fix-25-prompt.md.
+- INFORMATIONAL tier state verified at bootstrap: all 22 findings carry
+  ACKNOWLEDGED resolutions (grep-verified) — the re-verification sweep
+  will spot-check rationale against the corpus as the queue is worked.
+- Lane claim (disjoint from both parallel lanes): the TRACKED-OPEN
+  queue — all 11 OQ files, every sub-question:
+    OQ-Z-E-FLT (Z1 og-quirk doc, Z2 addBlock txg gate, Z3/Z4/Z5, FLT-1
+      table breadth, FLT-2 layout)
+    OQ-RS (RS-1..RS-8)
+    OQ-T6 (vdev id-map read path; T7 already resolved)
+    OQ-S2M-2 (bonus setter serializer, ZFS pool display name, Btrfs
+      name-conversion anchor)
+    OQ-S3-JPEG (fallback/continuation no-EOI accept)
+    OQ-S4-3 (Windows bench — likely push-forward)
+    OQ-S5-1 (CheckVersion consumer)
+    OQ-S6-1 (PartitionRecoveryD generator sets)
+    OQ-S6-2 (Btrfs RC4 PRGA target)
+    OQ-S6-3 (CRAW reader +0xF4/+0x94/+0x56)
+    OQ-S20-1 (BitLocker FVE metadata grammar + KDF interop)
+  Each resolves to: evidence artifact + verdict + code/doc landing, or
+  a precisely-pushed-forward addendum with new evidence. One OQ, one
+  verified resolution, one push throughout.
+
+Stage Summary:
+- Session 31 open on the disjoint tracked-open HEAD lane. Baseline 737/737
+  green. First target: OQ-S2M-2's grep-sized probes, then the OQ-S3-JPEG
+  decompile walk, then OQ-RS, then OQ-S20-1 (the big BitLocker leg).
+
+---
+Task ID: DFX33-T0 (session 33 bootstrap — final re-stamp; the DFX32 stamp
+was taken by the mid-MAJOR-cluster lane 372bcf1 while this lane's union
+push was in flight — no more lane-meta after this, fixing starts NOW)
+Agent: main engineer (diff-to-fix fix session 33 — DFX33)
+Task: Lane re-stamp + start of fixing (first-landing-wins governs all
+overlaps; every finding re-checked open at pull before work).
+
+Work Log:
+- The parallel-lane claim map is fully saturated (every MAJOR 2-3x, every
+  MINOR 3-4x, tracked-open head+tail, INFO closed). This lane therefore
+  claims NO exclusive zone: cursor = M-020 (Btrfs profile machinery +
+  default subvol) first, then whatever is open at pull time in MAJOR
+  (middle band M-025/M-030/M-029/M-018/M-039 as cursor permits), then
+  MINOR rear, then tracked-open sub-items. Pull before every finding;
+  FIXED-ALREADY classification for parallel landings; union merge on
+  mid-fix arrivals.
+- Baseline 737/737 linux-release executed first-hand at `02b950f` +
+  union tree re-verified before the first source-touching landing.
+- Corpus `03ad46c` unmoved. Parallel prompts preserved verbatim
+  (session-diff-fix-32-prompt.parallel-DFX31-32.md).
+
+Stage Summary:
+- Session 33 open. First fix: M-020 (Btrfs profile machinery and default
+  subvolume) — corpus re-verification starts now.

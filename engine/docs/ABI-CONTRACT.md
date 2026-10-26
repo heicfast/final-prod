@@ -143,7 +143,7 @@ carve formats: carve_format_count / carve_format_info — see §7a
 disk map:    cr_ui_disk_map (session OR snapshot) — see §7
 ```
 
-**Recovery-progress mapping (N-075 / D-77).** The og's typed
+**Recovery-progress mapping (N-075 / D-78).** The og's typed
 `IUIProgressInfo` per-item recovery-progress interface
 (`RecoverProgressUISink::sigUpdateProgress(const IUIProgressInfo*)` —
 corpus UIUX/20-moc-surface-sink-architecture.md :145) maps onto surfaces

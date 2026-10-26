@@ -1,5 +1,86 @@
-# SUMMARY.md — executive summary (diff-fix session 25 on top; earlier sessions below)
+# SUMMARY.md — executive summary (sessions 23+25+28 on top; earlier sessions below)
 
+## Session-28 delta (2026-10-26 — DFX28: the rear-first MINOR lane)
+
+Bootstrap: absorbed the window's parallel claims (DFX23 MINOR front-first,
+DFX24 MAJOR, DFX25 INFO-closure 22/22, DFX26 MAJOR-tail, DFX27 MAJOR-head)
+via union merges; this lane works the open MINOR tier from the REAR
+(converging toward DFX23's front-first progress; ALREADY-FIXED
+classification on collision). Baseline **737/737** linux-release green at
+the claim tree (`354c555` content); corpus `03ad46c` unmoved.
+
+**N-075 FIXED (MINOR — the event-bus contract shape):** the finding's own
+"cheapest honest close" executed — `cr_ui_scan_busy` +
+`cr_ui_scan_stopping` synchronous query exports (v2-era append, no bump):
+the og's `sigIsBusy(bool&)` ×14 / `sigIsStopping(bool&)` ×8 reference-out
+query signals surfaced at the ABI boundary (busy = the live run-lifecycle
+atomic; stopping = the LIVE token cancel request, persisting after the
+one-shot run — distinct from telemetry's post-run cancelled flag). The
+pull-polled progress convention registered as PARITY-DELTAS **D-78**
+(renumbered from a D-77 collision with the parallel lane's N-009d ACL
+register — the errata convention; the og's 38-consumer poll farm vs the
+core's coalesced push + any-thread telemetry pull); the typed
+`IUIProgressInfo` mapping documented in ABI-CONTRACT §5
+(recovery_progress_fn + queue_count + get_stats + report_json —
+deliberately no parallel interface). Proof:
+`CrUi.ScanBusyStoppingQueries` (mid-run pause-gate window: busy observed
+live, stopping flips at cancel, one-shot persistence after return) +
+plain-C edges in `cr_ui_abi_check`; fail-before EXECUTED at compile (the
+symbols did not exist). Suite **738/738** at the fix commit.
+
+**Post-merge union counts (session-28 close on the merged tree, absorbing
+the parallel N-009/N-025/M-057 landings):** SEVERE **0** · MAJOR **14** ·
+MINOR **16** · INFO 0 open (22 acknowledged in FIXED/) · **FIXED/ 174
+findings** (175 files incl. RESOLVED-INDEX) · tracked-open 11. Next on
+this lane: N-019 (the 12-scenario regression-test gap), then
+N-050/N-033/N-072 rear-first.
+
+
+## Session-23 delta (2026-10-26 — DFX23: the MINOR-first closing wave, batch 1 — N-009 group closed + M-057)
+
+Baseline `716d121` verified green FIRST-HAND (linux-release **737/737**,
+incl. win_syntax_check) before any change; corpus `03ad46c` unmoved; lane
+claim pushed before finding work (protocol). Mandate: MINOR-first queue,
+20+ fixes, fixed findings to FIXED/, docs/counts current after every landing.
+
+**N-009 CLOSED (the group's last two halves):**
+**N-009c** — the CLI `--filter` ASCII-mangling fixed for real: the new pure
+`cr::text::wide_to_utf8` (locale-independent wide→UTF-8; lone surrogate
+halves → one U+FFFD per the shared text policy; both wchar_t widths) feeds
+all three filter sites (scan print / tree / recover), and the recover path's
+match was aligned to the shared ASCII-case-insensitive contract
+(`name_contains_ci` factored out of `name_matches` — the query layer's
+`name_substring` semantics; the old recover match was case-SENSITIVE, an
+internal inconsistency removed). 3 proof tests (`Text.WideToUtf8*` +
+`Text.CliFilterUtf8MatchesDecodedNames` — the CJK-filter-matches-decoded-name
+byte property, with the old `'?'` polarity pinned to never match).
+**N-009d** — resolved by **D-77 registration** (inherit-destination ACL
+posture; the finding's own optional-port text; `preserve_dacl` recorded as
+the next step, not silently dropped). Finding → FIXED/ (a/b halves were
+already fixed in the s2 wave; the group is now fully closed).
+
+**M-057 NEW-FINDING (MAJOR) filed + FIXED (the gate extension's first
+catch):** extending `win_syntax_check` to `src/app` (same M-055 rationale —
+the app is equally Windows-only) immediately surfaced that **`rrecov.exe`
+has been MSVC-uncompilable since `0a68937`** — `cmd_apply` (the S-029 apply
+union landing) references `&e` with no `u32 e` declaration. Fixed (the
+declaration, matching the sibling cmd_fix/cmd_undo shape) + the gate now
+parses all 8 Windows-only files permanently; fail-before EXECUTED (the
+exact `'e' was not declared` diagnostic), pass-after 8/8. Q67 buildability
+now covers every Windows-only directory (src/win + src/app).
+
+**Post-fix counts (this batch, union with the parallel lanes' INFO
+closure; superseded by the session-28 union below — DFX23's N-025 landing
+and DFX28's N-075 landing both post-date this paragraph):** SEVERE **0** ·
+MAJOR 14 open (M-057 filed+fixed same session) · MINOR **18** · INFO
+**0 open** (22 acknowledged — closed into FIXED/ by the parallel DFX25
+lane in the same window) · FIXED **173** files (172 findings +
+RESOLVED-INDEX — mine +2, theirs +22, overlapping base 149) ·
+tracked-open 11.
+Suite **740/740** linux-release at the fix commit (+3 Text tests, gate
+extended). Next on this lane: N-007/I-004 → N-025 → N-026 → N-027 →
+N-031 → N-036 → N-049 → N-059 → N-065 → N-066 → N-075 → N-019 → N-050 →
+N-033 → N-072, then the win-layer/crypto-heavy N-032/N-071/N-064.
 ## Session-25 delta (2026-10-26 — DFX25: the INFORMATIONAL tier closed into FIXED/; tracked-open resolution wave)
 
 Baseline `716d121` verified green first-hand (737/737 linux-release, full
@@ -26,8 +107,32 @@ tests (the INFORMATIONAL safety-hardening rule — no code change).
 RESOLVED-INDEX) · tracked-open 11 (resolution wave below — see the session's
 worklog entries for the per-OQ dispositions).
 
+
 <!-- DFX16 note: session 16 ran as a parallel lane in the same window as
      sessions 17-22; its delta is recorded here for chronology. -->
+
+## Session-23 delta (2026-10-26 — DFX23: the MINOR-first close-out lane, N-025 first landing)
+
+Session bootstrap at `716d121` (DFX16-M013 rebase reconciliation; N-062 the
+last fix landing); corpus `03ad46c` unmoved. Baseline before any change:
+**737/737** linux-release green. Mandate: minor findings first, 20+ fixes,
+fixed findings moved to findings/FIXED/, all docs/counts current.
+
+**N-025 FIXED (the LDM geometry group, both sub-items):** N-012a — the og's
+1 MiB config-region gate (`config_size < 0x801` else "ConfigSize larger than
+1m ?." -> rc 0xfffffff8, LdmManager_decompiled.c:59748-59759, re-verified
+first-hand this session) is now first-class in parse_ldm_database; the old
+8192-sector read clamp (an unregistered parse-anyway superset) removed as
+unreachable. N-012b — a zero interleave defaults to the og's 64 KiB (0x10000
+bytes = 0x80 sectors at the 512-LBA grid; ctor default :47665, use-site
+re-default :68631-68637, sector fallback 0x80 :68638-68641 — all sites
+re-verified first-hand) on BOTH the striped and RAID-5 layout paths; the old
+code lost the volume entirely (zero-capacity layout). Tests:
+Ldm.OversizeConfigRejected + Ldm.ZeroInterleaveDefaultsTo64K (both
+fail-before RED on the stash-isolated pre-fix tree) + the
+Ldm.ConfigSizeExactlyOneMebibyteAccepted boundary pin (2048 keeps parsing).
+Suite **740/740**.
+
 
 ## Session-16 delta (2026-10-26 — DFX16: S-029 closed — the SEVERE tier is empty)
 
