@@ -1,6 +1,5 @@
 # diff-to-fix/findings/FIXED/ — resolved findings (audit trail)
 
-<<<<<<< HEAD
 ## Resolved findings (session-24 wave, DFX24: +N-079 (NEW-FINDING, ASan-lane baseline repair) + M-014 completion (UTF-16 table, on top of the parallel first landing))
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |
@@ -9,13 +8,11 @@
 | M-014 (completion) | MAJOR (S2; first landing by the parallel DFX23 lane) | exFAT structural entry gates — UTF-16 name-validity table (PTR_180045a00) recovered and wired | (this session's M-014 completion commit — the finding's Resolution addendum carries it) | The first landing left the 0xHH00 table check unimplemented on the premise "its bytes are not recoverable from the corpus (no raw binary ships)" — the premise was WRONG: og-codebase/exFATSearchDLL.dll ships the binary. 256 bytes at .rdata RVA 0x45A00 extracted byte-exact via the PE section map (file offset 0x44600) and the byte order pinned by the raw disassembly at VA 0x180003030 (invalid iff low byte == 0 AND table[high byte] == 0; chars with nonzero low bytes never table-checked). Wired into name_fragment_gates_ok; NameUtf16TableInvalidCharRejected fail-before EXECUTED (RED with the table loop disabled), NameUtf16TableAllowedCharAccepted pins the over-rejection boundary (U+1A00 passes where U+0100 fails). |
 
 
-=======
 ## Resolved findings (session-28 wave 3: +N-033 (the CLI half + the D-80 register; the ABI half landed s6); live file inventory)
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |
 |---|---|---|---|---|
 | N-033 | MINOR (S3) | EUGetAnalyserList/Map/Multimap consumed by the FS engines (registry clone); the core exposes no carve-capability ABI | `1f08c20` (ABI half, s6) + this session's CLI-close commit | ABI half landed session 6 (cr_ui_carve_format_count/info, added-export rule). This session: the CLI half (`rrecov list-carve-formats` — subcommand form, one row per format over both layers, FB-K01 exit discipline) + the per-scan registry-refresh divergence REGISTERED as D-80 (the og's per-scan LoadLibrary/clone is multi-DLL machinery; the core reads its compile-time immutable registry directly — same content by construction) + ABI-CONTRACT 7a's CLI projection note. Pinned by CarveFormatRegistryEnumeration + the win_syntax_check parse gate (extended with the -D__declspec(x)= parse-neutralization for ELF g++). |
->>>>>>> 49eed4775346b8eee82abee2258a60e9a51e65cf
 
 ## Resolved findings (session-31 wave 4: +OQ-S20-1 (premise-corrected — the og delegates user-key unlock to Windows; no stretch exists in its binary); live file inventory)
 

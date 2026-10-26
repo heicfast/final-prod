@@ -7716,8 +7716,6 @@ FileProperties → a WriterConfig `preserve_dacl` flag (default OFF)
 applying it via SetSecurityInfo on the win destio layer only — never on
 the POSIX test shims.
 
-### D-78 — the password-dictionary unlock aid: authored seed + format-compatible loader, the og's Dict asset not copied (N-064, REGISTERED DIVERGENCE)
-=======
 ### D-80 — the password-dictionary data posture: the corpus Dict converted as generated data (raw_signs precedent), user dictionaries loadable (N-064 convergence record — two parallel landings, first-landing-wins)
 
 **Class:** convergence record (replaces this lane's original D-78
@@ -7769,7 +7767,6 @@ complete; D-78).
      the standing errata convention both stand; future sessions cite
      them by FINDING (N-064 / N-032 / M-020), not by bare D-number. -->
 
-=======
 ### D-78 — CSMI SMART transport: SCSI-address routing, no RAID census; LSILOGIC sibling and SMART auto-enable not ported (N-032, REGISTERED DIVERGENCE — transport scope)
 
 **Class:** registered divergence (health transport scope) · **Finding:**

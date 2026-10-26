@@ -14632,3 +14632,46 @@ Work Log:
 
 Stage Summary:
 - OQ-S5-1 closed (convergent two-lane). MY CLAIMED QUEUE IS COMPLETE.
+
+---
+Task ID: DFX34-T3 (session 34, third landing — the post-merge corruption repair, take two)
+Agent: main engineer (diff-to-fix fix session 34 — DFX34)
+Task: Repair the SECOND corruption wave: the 53-commit parallel merge
+absorbed at DFX34-T2's push left interleaved triple-merged N-064 regions
+in rrecov.cpp (three open_volume_view bodies interleaved, duplicated
+call sites, a duplicated print_carve_formats from the convergent N-033
+landings), a dead try_password_unlock declaration + markers in
+cr_bitlocker.h, and markers in four audit docs.
+
+Work Log:
+- rrecov.cpp RECONSTRUCTED to the converged design the finding's
+  Convergence record declares: ONE consent flag --bitlocker-dict with an
+  OPTIONAL file value (bare = the shipped 228-entry cr::dict table;
+  --bitlocker-dict <file> = the absorbed DFX34 loader riding
+  cr::dict::parse with honest failure diagnostics and the 256 KiB cap),
+  the Unknown-state consented attempt before the FB-B01 refusal (the
+  convergent landing's design point, kept), auto-unlock still first,
+  the duplicated print_carve_formats definitions collapsed to the
+  polished one (empty-registry exit-1 + broken-row exit-1, FB-K01
+  discipline), one call site, no pwddict references.
+- cr_bitlocker.h N-064 region restored to the canonical pair
+  (unlock_with_dictionary wide ABI overload + the narrow CLI overload);
+  the dead try_password_unlock declaration (module deleted) removed.
+- Audit docs: CORPUS-ERRATA E46 = both convergent decodes kept (the
+  convergence line interleaves them, append-only); RESOLVED-INDEX =
+  both wave sections unioned; my withdrawn D-78 pwddict row removed from
+  PARITY-DELTAS (superseded by the D-80 convergence record per the
+  first-in-file renumber policy in the file's own header); orphan
+  ======= markers removed; worklog prompt archives stripped.
+- Full suite on the repaired tree: **844/844** linux-release green
+  (win_syntax_check parse-clean over all win-layer + app files).
+  Tree-wide marker sweep: ZERO conflict markers anywhere.
+
+Stage Summary:
+- The N-064 collision is fully closed: canonical cr::dict + the absorbed
+  loader (--bitlocker-dict [file]) + both Resolutions preserved
+  append-only + the D-80 convergence record. Main is GREEN. This lane
+  returns to the MINOR-tail queue: N-071 (verify — parallel D-84/D-85
+  rows suggest a lane landed it; re-verify against the tree first) →
+  N-072 → N-066 → N-065 → N-059 → N-033 (verify — D-80 N-033 row
+  suggests landed) → N-007/I-004 → N-019.
