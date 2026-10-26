@@ -21,16 +21,21 @@
  * Compression: off/lzjb/zle/gzip via zlib, lz4, zstd (cr::compress).
  * Extents carry {codec, psize} so the writer decodes at stream time.
  *
- * Deleted-file story (S-034, DFX30): ZFS is CoW with copy-on-everything
- * semantics. The PREMISE this engine was built on — "the og reads the
- * newest txg's live state only" — is REFUTED by first-hand decode of the
+ * Deleted-file story (S-034 FIXED, DFX36): ZFS is CoW with copy-on-everything
+ * semantics. The PREMISE this engine was originally built on — "the og reads
+ * the newest txg's live state only" — was REFUTED by first-hand decode of the
  * og's quick-searcher run loop (ZfsSearchDLL FUN_180006b90 :5685-5841
  * iterates EVERY uberblock slot in the label-0 ring and walks each txg's
  * tree through a per-txg VdevLoc::UberData registry, FUN_180003150/
- * FUN_180017310, emitting ZplNodes per state). This engine currently
- * walks the newest txg only — a REGISTERED GAP (diff-to-fix findings/
- * SEVERE/S-034) until the fix lands; deleted content meanwhile surfaces
- * via RAW carving only (a strict subset of the og's ring-window recall).
+ * FUN_180017310, emitting ZplNodes per state). FIXED: this engine now walks
+ * every distinct-txg ring state (storage order; the og's label-0 walk on
+ * intact pools, with the 4-label superset recovering torn label-0 slots)
+ * and dedups cross-state emission by (full path, object id) first-wins —
+ * the collector FUN_180005940's registry semantics (path key built by the
+ * recursive parent chain FUN_18001afb0; per-path object-id sets; files
+ * drop on id-hit; emission assigns the serial). Files deleted within the
+ * ring's txg window therefore surface in the result set (the og's
+ * ring-window recall), not via RAW carving only.
  *
  * Big-endian pools (SPARC/POWER writers) are detected and refused with a
  * clear error code rather than misparsed (bit 63 of blk_prop marks the
@@ -1187,8 +1192,24 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
      * start)][128K uberblock ring (128 slots x 1KiB)]. */
     const u64 label_base[4] = {0, LABEL_SIZE, total - 2 * LABEL_SIZE, total - LABEL_SIZE};
     LabelConfig cfg;
-    u64 best_txg = 0;
-    std::vector<u8> best_ub;
+    /* S-034: the og walks EVERY uberblock slot in the ring, storage
+     * order, and walks each slot's txg state through the tree machinery
+     * (ZfsSearchDLL run loop FUN_180006b90 :5685-5841: pvVar18 += 0x400
+     * per slot, slot->ub_txg at +0x10 fed to addBlock FUN_180003150;
+     * addBlock re-reads the ring for the txg's record, opens the state's
+     * tree from the record's ub_rootbp, and descends unbounded
+     * from_txg=0). We collect every valid uberblock the same way - but
+     * dedup states by TXG first: the OpenZFS syncer writes each
+     * uberblock to all four labels' rings at the same slot index, so
+     * distinct-txg-once == the og's label-0 walk on intact pools, while
+     * a torn label-0 slot still recovers through labels 1-3 (the
+     * multi-label + geometry-probe superset, I-009 lineage). */
+    struct RingState {
+        u64 txg;
+        std::vector<u8> ub;
+    };
+    std::vector<RingState> ring;
+    u64 newest_txg = 0;
     for (int li = 0; li < 4; ++li) {
         if (label_base[li] + LABEL_SIZE > total)
             continue;
@@ -1271,18 +1292,26 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
                 }
                 ++hits;
                 const u64 txg = le64(ub.data() + UB_TXG);
-                if (txg > best_txg) {
-                    best_txg = txg;
-                    best_ub.assign(ub.begin(), ub.begin() + UBERBLOCK_SIZE);
-                }
+                if (txg > newest_txg)
+                    newest_txg = txg;
+                bool dup = false;
+                for (const auto& rs : ring)
+                    if (rs.txg == txg) {
+                        dup = true; /* same uberblock mirrored in another
+                                     * label's ring - walked once */
+                        break;
+                    }
+                if (!dup)
+                    ring.push_back(
+                        RingState{txg, std::vector<u8>(ub.begin(), ub.begin() + UBERBLOCK_SIZE)});
             }
             if (hits > 0)
                 break; /* found the pool's true uberblock geometry */
         }
     }
-    if (best_ub.empty())
+    if (ring.empty())
         return ERR_BAD_MAGIC;
-    stats.txg = best_txg;
+    stats.txg = newest_txg;
 
     Volume v;
     v.dev = slice;
@@ -1293,28 +1322,61 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
     if (cfg.valid && cfg.vdev_type != "disk" && !cfg.vdev_type.empty())
         ++stats.unsupported_vdevs; /* mirror/raidz: report only */
 
-    /* 2. MOS: rootbp -> objset_phys; object 1 = object directory ZAP. */
-    ObjSet mos;
-    if (!mos.load(&v, best_ub.data() + UB_ROOTBP))
-        return ERR_BAD_MAGIC;
+    /* 2..4. S-034: per-state walk over the collected ring, storage
+     * order. The og feeds EVERY slot's txg state through the same MOS
+     * -> datasets -> ZPL machinery and dedups cross-state emission in
+     * the collector (FUN_180005940): a path-keyed registry (full path
+     * = the recursive parent chain, FUN_18001afb0) holding per-path
+     * object-id sets; a FILE whose id is already registered under its
+     * path is dropped, so a file present in N states emits ONCE
+     * (first storage-order state wins) while a file deleted in-window
+     * (present only in older states) still emits - the result-set
+     * membership gap this fix closes. The og's folder display-string
+     * re-emit refinement (vtable+0x68 compare) has no core analog and
+     * no recovery-content effect (the path already carries the name) -
+     * registered as the decode residual in the finding. */
+    std::map<std::u16string, std::set<u64>> emitted_path_ids;
+    /* path -> the node already emitted there: later states re-walk every
+     * dataset/directory subtree (the og's descent recurses through
+     * already-emitted type-2 nodes - the collector's registry drop does
+     * NOT stop the walk) and attach NEW ids (delete + recreate in-window)
+     * to the existing parent, never a duplicate. */
+    std::map<std::u16string, tree::FileNode*> emitted_path_nodes;
+    const std::u16string pool_display_ = text::utf8_to_u16(
+        cfg.valid && !cfg.pool_name.empty() ? cfg.pool_name : std::string("pool"));
+    u64 states_walked = 0;
+    for (const auto& rs : ring) {
+        if (cancel && cancel->checkpoint())
+            return ERR_CANCELLED;
 
-    std::vector<ZapEntry> objdir;
-    if (!read_zap(v, mos, 1, objdir) || objdir.empty())
-        return ERR_BAD_MAGIC;
+        /* 2. MOS: rootbp -> objset_phys; object 1 = object directory ZAP.
+         * A state whose chain fails to open is skipped, never fatal - the
+         * og's addBlock returns quietly when the txg's record does not
+         * open (FUN_180003150's local_68 == 0 path). */
+        ObjSet mos;
+        if (!mos.load(&v, rs.ub.data() + UB_ROOTBP))
+            continue;
 
-    u64 dataset_dir_obj = 0;
-    for (const auto& e : objdir)
-        if (e.name == "root_dataset" || e.name == "dataset")
-            dataset_dir_obj = e.value;
-    if (dataset_dir_obj == 0)
-        return ERR_BAD_MAGIC;
-    if (progress)
-        (void)progress(1, 4, progress_user);
+        std::vector<ZapEntry> objdir;
+        if (!read_zap(v, mos, 1, objdir) || objdir.empty())
+            continue;
+
+        u64 dataset_dir_obj = 0;
+        for (const auto& e : objdir)
+            if (e.name == "root_dataset" || e.name == "dataset")
+                dataset_dir_obj = e.value;
+        if (dataset_dir_obj == 0)
+            continue;
+        ++states_walked;
+        if (progress)
+            (void)progress(1, 4, progress_user);
 
     /* 3. dataset hierarchy: dsl_dir bonus {child zap@240, head ds@248};
-     * head dnode bonus {bp@128}. */
+     * head dnode bonus {bp@128}. dir_obj carried as the dataset's
+     * registry identity (MOS-unique, stable across states). */
     struct WalkOut {
         std::u16string name;
+        u64 dir_obj = 0;
         std::vector<u8> ds_bp;
     };
     std::vector<WalkOut> datasets;
@@ -1337,6 +1399,7 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
                     u64(hdn.bonuslen()) <= hdn.bonus_cap()) {
                     WalkOut wo;
                     wo.name = prefix;
+                    wo.dir_obj = dsl_dir_obj;
                     wo.ds_bp.assign(hdn.bonus() + DS_BP, hdn.bonus() + DS_BP + BP_SIZE);
                     datasets.push_back(std::move(wo));
                 }
@@ -1358,27 +1421,40 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
         (void)progress(2, 4, progress_user);
 
     /* 4. per-dataset ZPL walk: master node object 1 -> ROOT -> dirs. */
-    std::u16string pool_display_ = text::utf8_to_u16(
-        cfg.valid && !cfg.pool_name.empty() ? cfg.pool_name : std::string("pool"));
     for (const auto& ds : datasets) {
         if (cancel && cancel->checkpoint())
             return ERR_CANCELLED;
         ObjSet zpl;
         if (!zpl.load(&v, ds.ds_bp.data()))
             continue;
-        ++stats.datasets;
 
         std::u16string dname = ds.name.empty() ? pool_display_ : ds.name;
-        auto* dprops = new (std::nothrow) tree::FileProperties();
-        if (!dprops)
-            continue;
-        dprops->name = dname;
-        dprops->attributes = 0x10;
-        tree::FileNode* ds_node = tree.add_file(root_active, dprops);
-        dprops->release();
-        if (!ds_node)
-            continue;
-        ++stats.dirs;
+        /* S-034: the dataset node dedups by (path, dir_obj) first-wins
+         * - a dataset present in every ring state emits once, but its
+         * subtree is still walked per state (new ids attach to the
+         * existing node). */
+        const std::u16string ds_path = u"/" + dname;
+        auto& ds_ids = emitted_path_ids[ds_path];
+        auto ds_nit = emitted_path_nodes.find(ds_path);
+        tree::FileNode* ds_node = nullptr;
+        if (ds_ids.count(ds.dir_obj) && ds_nit != emitted_path_nodes.end()) {
+            ++stats.ring_dedup_skips;
+            ds_node = ds_nit->second; /* reuse: the walk continues under it */
+        } else {
+            auto* dprops = new (std::nothrow) tree::FileProperties();
+            if (!dprops)
+                continue;
+            dprops->name = dname;
+            dprops->attributes = 0x10;
+            ds_node = tree.add_file(root_active, dprops);
+            dprops->release();
+            if (!ds_node)
+                continue;
+            ds_ids.insert(ds.dir_obj);
+            emitted_path_nodes[ds_path] = ds_node;
+            ++stats.datasets;
+            ++stats.dirs;
+        }
 
         std::vector<ZapEntry> master;
         if (!read_zap(v, zpl, 1, master))
@@ -1523,95 +1599,122 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
         };
 
         std::set<u64> visited;
-        std::function<void(u64, tree::FileNode*, int)> emit_dir = [&](u64 dir_obj,
-                                                                      tree::FileNode* parent,
-                                                                      int depth) {
-            if (depth > MAX_DEPTH || visited.count(dir_obj))
-                return;
-            visited.insert(dir_obj);
-            const ObjInfo* di = load_obj(dir_obj);
-            if (di == nullptr || !di->dir)
-                return;
-            std::vector<ZapEntry> entries;
-            if (!read_zap(v, zpl, dir_obj, entries))
-                return;
-            for (const auto& e : entries) {
-                if (cancel && cancel->checkpoint())
+        /* S-034: emit_dir threads the registry path (the og's recursive
+         * parent-chain key, FUN_18001afb0) so every entry dedups by
+         * (full path, object id) across ring states. */
+        std::function<void(u64, tree::FileNode*, const std::u16string&, int)> emit_dir =
+            [&](u64 dir_obj, tree::FileNode* parent, const std::u16string& path, int depth) {
+                if (depth > MAX_DEPTH || visited.count(dir_obj))
                     return;
-                if (e.name == "." || e.name == "..")
-                    continue;
-                const ObjInfo* ci = load_obj(e.value);
-                if (ci == nullptr)
-                    continue;
-                const bool is_dir = ci->dir;
-                auto* p = new (std::nothrow) tree::FileProperties();
-                if (!p)
+                visited.insert(dir_obj);
+                const ObjInfo* di = load_obj(dir_obj);
+                if (di == nullptr || !di->dir)
                     return;
-                p->name = text::utf8_to_u16(e.name); /* S-005: UTF-8 decode */
-                p->fs_kind = u32(FsKindCode::Zfs);   /* corpus factory code */
-                p->logical_size = ci->size;
-                p->allocated_size = ci->dn.maxblkid() != 0
-                                        ? u64(ci->dn.datablksz()) * (ci->dn.maxblkid() + 1)
-                                        : (ci->size ? u64(ci->dn.datablksz()) : 0);
-                p->attributes = is_dir ? 0x10 : 0;
-                p->record_ref = e.value;
-                /* N-059: the ZPL_FLAGS low u16 — the og's +0x5A secondary
-                 * flags (census-level semantics; carried opaque). The
-                 * classic znode flag set (immutable/appendonly/...) is the
-                 * low word; extended bits ride the registry only. */
-                p->zfs_secondary_flags = u16(ci->flags);
-                p->times.created = unix_to_filetime(i64(ci->crtime[0]));
-                p->times.modified = unix_to_filetime(i64(ci->mtime[0]));
-                p->times.changed = unix_to_filetime(i64(ci->ctime[0]));
-                p->times.accessed = unix_to_filetime(i64(ci->atime[0]));
-                if (!is_dir && ci->size > 0) {
-                    FileExtentPlan plan;
-                    if (plan_file_extents(v, ci->dn, plan)) {
-                        /* merge adjacent raw extents */
-                        u64 compressed = 0;
-                        for (auto& it : plan.items) {
-                            if (it.codec != 0)
-                                ++compressed;
-                            if (!p->extents.empty() && it.codec == 0 &&
-                                p->extents.back().codec == 0 &&
-                                p->extents.back().offset + p->extents.back().length == it.offset) {
-                                p->extents.back().length += it.length;
-                                p->extents.back().psize = 0;
-                            } else {
-                                tree::FileProperties::Extent ex;
-                                ex.offset = it.offset;
-                                ex.length = it.length;
-                                ex.codec = it.codec;
-                                ex.psize = it.psize;
-                                p->extents.push_back(ex);
+                std::vector<ZapEntry> entries;
+                if (!read_zap(v, zpl, dir_obj, entries))
+                    return;
+                for (const auto& e : entries) {
+                    if (cancel && cancel->checkpoint())
+                        return;
+                    if (e.name == "." || e.name == "..")
+                        continue;
+                    const ObjInfo* ci = load_obj(e.value);
+                    if (ci == nullptr)
+                        continue;
+                    const bool is_dir = ci->dir;
+                    /* S-034: cross-state first-wins - a (path, object-id)
+                     * already emitted from an earlier ring state is
+                     * skipped (the og's collector drop); an id NEW under
+                     * this path (delete + recreate in-window) emits as its
+                     * own node, exactly the og's per-path id-set shape. */
+                    const std::u16string child_path = path + u"/" + text::utf8_to_u16(e.name);
+                    auto& path_ids = emitted_path_ids[child_path];
+                    auto pnit = emitted_path_nodes.find(child_path);
+                    if (path_ids.count(e.value)) {
+                        ++stats.ring_dedup_skips;
+                        /* the og's descent continues through already-emitted
+                         * directories (the collector drop never stops the
+                         * walk): recurse with the EXISTING node so deeper
+                         * new ids land under the right parent. */
+                        if (is_dir && pnit != emitted_path_nodes.end())
+                            emit_dir(e.value, pnit->second, child_path, depth + 1);
+                        continue;
+                    }
+                    auto* p = new (std::nothrow) tree::FileProperties();
+                    if (!p)
+                        return;
+                    p->name = text::utf8_to_u16(e.name); /* S-005: UTF-8 decode */
+                    p->fs_kind = u32(FsKindCode::Zfs);   /* corpus factory code */
+                    p->logical_size = ci->size;
+                    p->allocated_size = ci->dn.maxblkid() != 0
+                                            ? u64(ci->dn.datablksz()) * (ci->dn.maxblkid() + 1)
+                                            : (ci->size ? u64(ci->dn.datablksz()) : 0);
+                    p->attributes = is_dir ? 0x10 : 0;
+                    p->record_ref = e.value;
+                    /* N-059: the ZPL_FLAGS low u16 — the og's +0x5A secondary
+                     * flags (census-level semantics; carried opaque). The
+                     * classic znode flag set (immutable/appendonly/...) is the
+                     * low word; extended bits ride the registry only. */
+                    p->zfs_secondary_flags = u16(ci->flags);
+                    p->times.created = unix_to_filetime(i64(ci->crtime[0]));
+                    p->times.modified = unix_to_filetime(i64(ci->mtime[0]));
+                    p->times.changed = unix_to_filetime(i64(ci->ctime[0]));
+                    p->times.accessed = unix_to_filetime(i64(ci->atime[0]));
+                    if (!is_dir && ci->size > 0) {
+                        FileExtentPlan plan;
+                        if (plan_file_extents(v, ci->dn, plan)) {
+                            /* merge adjacent raw extents */
+                            u64 compressed = 0;
+                            for (auto& it : plan.items) {
+                                if (it.codec != 0)
+                                    ++compressed;
+                                if (!p->extents.empty() && it.codec == 0 &&
+                                    p->extents.back().codec == 0 &&
+                                    p->extents.back().offset + p->extents.back().length == it.offset) {
+                                    p->extents.back().length += it.length;
+                                    p->extents.back().psize = 0;
+                                } else {
+                                    tree::FileProperties::Extent ex;
+                                    ex.offset = it.offset;
+                                    ex.length = it.length;
+                                    ex.codec = it.codec;
+                                    ex.psize = it.psize;
+                                    p->extents.push_back(ex);
+                                }
                             }
-                        }
-                        stats.compressed_extents += compressed;
-                        for (auto& em : plan.embedded) {
-                            if (em.size() <= (1u << 20)) {
-                                p->resident_data.insert(p->resident_data.end(), em.begin(),
-                                                        em.end());
-                                ++stats.embedded_files;
+                            stats.compressed_extents += compressed;
+                            for (auto& em : plan.embedded) {
+                                if (em.size() <= (1u << 20)) {
+                                    p->resident_data.insert(p->resident_data.end(), em.begin(),
+                                                            em.end());
+                                    ++stats.embedded_files;
+                                }
                             }
                         }
                     }
+                    tree::FileNode* n = tree.add_file(parent, p);
+                    p->release();
+                    if (!n)
+                        continue;
+                    path_ids.insert(e.value);
+                    emitted_path_nodes[child_path] = n;
+                    if (is_dir) {
+                        ++stats.dirs;
+                        emit_dir(e.value, n, child_path, depth + 1);
+                    } else {
+                        ++stats.files;
+                    }
                 }
-                tree::FileNode* n = tree.add_file(parent, p);
-                p->release();
-                if (!n)
-                    continue;
-                if (is_dir) {
-                    ++stats.dirs;
-                    emit_dir(e.value, n, depth + 1);
-                } else {
-                    ++stats.files;
-                }
-            }
-        };
-        emit_dir(root_obj, ds_node, 0);
+            };
+        emit_dir(root_obj, ds_node, ds_path, 0);
         if (progress)
             (void)progress(3, 4, progress_user);
     }
+    }
+    if (states_walked == 0)
+        return ERR_BAD_MAGIC; /* no ring state opened - the pre-S-034
+                               * single-state failure shape */
+    stats.ring_states_walked = states_walked;
 
     stats.damaged_blocks = v.damaged;
     stats.microzap_entries = v.microzap_entries;

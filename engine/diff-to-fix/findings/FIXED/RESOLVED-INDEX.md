@@ -1,5 +1,11 @@
 # diff-to-fix/findings/FIXED/ — resolved findings (audit trail)
 
+## Resolved findings (session-36 wave, DFX36: +S-034 — the last SEVERE closed)
+
+| ID | Severity (orig) | Title | Fix commit | Resolution |
+|---|---|---|---|---|
+| S-034 | SEVERE (S30 NEW-FINDING, DFX30) | ZFS: the og walks EVERY uberblock in the ring (per-txg state recovery); the core read the newest txg only — files deleted within the ring window were og-visible and core-invisible | (this session's S-034 commit — DFX36; file carries the full Resolution) | The three decode items resolved first-hand from the corpus (the visitor _Do_call FUN_18000dd40 at vftable 0x309b8+0x10 binary-verified; the collector FUN_180005940's (full-path, object-id) first-wins registry with per-path id sets; FUN_18001afb0 = the recursive parent-chain path key; the og's folder display-string re-emit residual + last_txg-as-cosmetic-0 registered). The engine walks every DISTINCT-txg ring state (storage order; the og's label-0 walk on intact pools + the 4-label torn-slot superset) through the existing MOS->dataset->ZPL machinery with node-reusing dedup (later states attach NEW ids — delete+recreate in-window emits BOTH — to existing parents; the walk continues through already-emitted subtrees exactly as the og's descent does). New telemetry ring_states_walked/ring_dedup_skips; stats.txg stays the newest. Fail-before EXECUTED RED ("deleted-in-window file lost"); suite 905/905 release + ZFS 19/19 under ASan/UBSan. D-05 -> FIXED. |
+
 ## Resolved findings (session-30b wave, DFX30-MAJOR-tail lane: +M-041; the convergent N-079 reconciled to the parallel wave's canonical file — this lane's eb3cb6d convergence record rides the worklog)
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |

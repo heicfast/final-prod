@@ -1,4 +1,38 @@
-# SUMMARY.md — executive summary (diff-fix session 33 on top; earlier sessions below)
+# SUMMARY.md — executive summary (diff-fix session 36 on top; earlier sessions below)
+
+## Session-36 delta, part 1 (2026-10-26 — DFX36: S-034 FIXED — the last SEVERE closed)
+
+**S-034 FIXED (SEVERE — the ZFS ring-txg history):** every decode item in
+the fix plan was resolved first-hand from the corpus before any code
+changed — the visitor `_Do_call` located by binary vtable walk
+(FUN_18000dd40 at vftable RVA 0x309b8 slot+0x10), delegating to the
+collector FUN_180005940 whose registry is keyed by the node's FULL PATH
+(the recursive parent-chain concatenation FUN_18001afb0) holding
+per-path object-id sets: files drop on id-hit (first storage-order state
+wins), folders compare a display string (registered as a no-content-
+effect residual), delete+recreate emits BOTH ids under the same path,
+and last_txg is a cosmetic never-updated "0" in the log. The engine now
+walks every DISTINCT-txg ring state (== the og's label-0 walk on intact
+pools; the 4-label probe stays as the torn-slot superset) through the
+existing MOS->dataset->ZPL machinery, with node-reusing (path, id)
+dedup — later states attach new content to existing parents (the og's
+descent continues through already-emitted subtrees). Deleted-in-window
+files surface in the result set — the B1/B5 membership gap closed.
+Proof: RingHistorySurfacesDeletedInWindowFile (fail-before EXECUTED RED
+"deleted-in-window file lost"), RingHistoryUnchangedFileEmitsOnce,
+RingHistoryDeleteAndRecreateEmitsBothIds; suite **905/905**
+linux-release; ZFS 19/19 under ASan + UBSan. D-05 -> FIXED; the
+session-5-era union regression (FatScanStats recycle fields + the N-079
+test dropped by the 7ec5446 merge) repaired first (234bf0b-lineage
+restore, suite 898/898 at that tree).
+
+**Post-fix counts (this landing):** SEVERE **0** · MAJOR 1 open (M-040) ·
+MINOR 1 open (N-072) · INFO 0 open · tracked-open 2 (OQ-S4-3 —
+Windows-lane; OQ-FLT-2). M-030 verified FIXED-ALREADY this session (the
+parallel lane's fa80496 landing re-verified in-source: win_pe_environment,
+IOCTL_VOLUME_OFFLINE terminal + the ONLINE/mount-point restore chain,
+ENUMERATE_DISK_BOUND=200, cr_ui_last_transport_error).
+
 
 ## Session-33 delta, part 5 (2026-10-26 — DFX33: N-007 FIXED — ReFS page-signature discovery width)
 

@@ -126,7 +126,7 @@
 - **RISK:** User-visible improvement on 4Kn media; none on 512-byte media.
 - **VERDICT: ACCEPTED** (both sides cited; F1 markers in code+tests).
 
-### D-05 — ZFS deleted-file story: newest-txg live state only — PREMISE REFUTED (S-034, DFX30 2026-10-26)
+### D-05 — ZFS deleted-file story: newest-txg live state only — PREMISE REFUTED, THEN FIXED (S-034, DFX30 filed / DFX36 fixed, 2026-10-26)
 
 - **WHAT OG DOES (re-decoded first-hand):** walks EVERY uberblock slot in the
   label-0 ring (quick-searcher run loop FUN_180006b90 :5685-5841: per-slot
@@ -146,10 +146,21 @@
   newest-only SELECTION; the caller-level semantics (which the deep-dive did
   not decode) iterate every slot per txg.
 - **RISK:** Deleted-ZFS recall strictly BELOW og inside the ring window.
-- **VERDICT: REFUTED PREMISE — open gap S-034** (diff-to-fix/findings/SEVERE/
-  S-034-zfs-ring-txg-history-not-walked.md). Not a parity decision anymore;
-  the fix (per-txg ring walk with cross-txg dedup) is queued behind the
-  three decode items in S-034's fix plan.
+- **VERDICT: FIXED (DFX36)** — the engine walks every DISTINCT-txg ring
+  state (storage order; == the og's label-0 walk on intact pools, with the
+  4-label superset recovering torn label-0 slots) and dedups cross-state
+  emission by (full path, object id) first-wins with node reuse — the
+  collector FUN_180005940's registry semantics, decoded down to the visitor
+  `_Do_call` (FUN_18000dd40 at vftable 0x309b8 slot+0x10, binary-verified)
+  and the recursive parent-chain path key (FUN_18001afb0). Files deleted
+  in-window surface (result-set membership parity); delete+recreate emits
+  both ids under the same path (the per-path id-set shape). Resolution +
+  tests: findings/FIXED/S-034-zfs-ring-txg-history-not-walked.md
+  (RingHistorySurfacesDeletedInWindowFile fail-before RED, suite 905/905,
+  ASan/UBSan clean). The remaining deliberate deltas: the multi-label
+  distinct-txg superset (above) and the plain-node emission of
+  in-window-deleted files (the og's flat records carry no decoded
+  deleted-marker — membership parity is the demand).
 
 ### D-06 — Btrfs deleted recovery: newest-generation tree only (row 20) — CLOSED
 
@@ -2749,7 +2760,7 @@ Y-DELTAS — deliberate-deviations registry (AUTHORITATIVE)
 - **RISK:** User-visible improvement on 4Kn media; none on 512-byte media.
 - **VERDICT: ACCEPTED** (both sides cited; F1 markers in code+tests).
 
-### D-05 — ZFS deleted-file story: newest-txg live state only — PREMISE REFUTED (S-034, DFX30 2026-10-26)
+### D-05 — ZFS deleted-file story: newest-txg live state only — PREMISE REFUTED, THEN FIXED (S-034, DFX30 filed / DFX36 fixed, 2026-10-26)
 
 - **WHAT OG DOES (re-decoded first-hand):** walks EVERY uberblock slot in the
   label-0 ring (quick-searcher run loop FUN_180006b90 :5685-5841: per-slot
@@ -2769,10 +2780,21 @@ Y-DELTAS — deliberate-deviations registry (AUTHORITATIVE)
   newest-only SELECTION; the caller-level semantics (which the deep-dive did
   not decode) iterate every slot per txg.
 - **RISK:** Deleted-ZFS recall strictly BELOW og inside the ring window.
-- **VERDICT: REFUTED PREMISE — open gap S-034** (diff-to-fix/findings/SEVERE/
-  S-034-zfs-ring-txg-history-not-walked.md). Not a parity decision anymore;
-  the fix (per-txg ring walk with cross-txg dedup) is queued behind the
-  three decode items in S-034's fix plan.
+- **VERDICT: FIXED (DFX36)** — the engine walks every DISTINCT-txg ring
+  state (storage order; == the og's label-0 walk on intact pools, with the
+  4-label superset recovering torn label-0 slots) and dedups cross-state
+  emission by (full path, object id) first-wins with node reuse — the
+  collector FUN_180005940's registry semantics, decoded down to the visitor
+  `_Do_call` (FUN_18000dd40 at vftable 0x309b8 slot+0x10, binary-verified)
+  and the recursive parent-chain path key (FUN_18001afb0). Files deleted
+  in-window surface (result-set membership parity); delete+recreate emits
+  both ids under the same path (the per-path id-set shape). Resolution +
+  tests: findings/FIXED/S-034-zfs-ring-txg-history-not-walked.md
+  (RingHistorySurfacesDeletedInWindowFile fail-before RED, suite 905/905,
+  ASan/UBSan clean). The remaining deliberate deltas: the multi-label
+  distinct-txg superset (above) and the plain-node emission of
+  in-window-deleted files (the og's flat records carry no decoded
+  deleted-marker — membership parity is the demand).
 
 ### D-06 — Btrfs deleted recovery: newest-generation tree only (row 20) — CLOSED
 
@@ -5294,7 +5316,7 @@ its own stacks later.
 - **RISK:** User-visible improvement on 4Kn media; none on 512-byte media.
 - **VERDICT: ACCEPTED** (both sides cited; F1 markers in code+tests).
 
-### D-05 — ZFS deleted-file story: newest-txg live state only — PREMISE REFUTED (S-034, DFX30 2026-10-26)
+### D-05 — ZFS deleted-file story: newest-txg live state only — PREMISE REFUTED, THEN FIXED (S-034, DFX30 filed / DFX36 fixed, 2026-10-26)
 
 - **WHAT OG DOES (re-decoded first-hand):** walks EVERY uberblock slot in the
   label-0 ring (quick-searcher run loop FUN_180006b90 :5685-5841: per-slot
@@ -5314,10 +5336,21 @@ its own stacks later.
   newest-only SELECTION; the caller-level semantics (which the deep-dive did
   not decode) iterate every slot per txg.
 - **RISK:** Deleted-ZFS recall strictly BELOW og inside the ring window.
-- **VERDICT: REFUTED PREMISE — open gap S-034** (diff-to-fix/findings/SEVERE/
-  S-034-zfs-ring-txg-history-not-walked.md). Not a parity decision anymore;
-  the fix (per-txg ring walk with cross-txg dedup) is queued behind the
-  three decode items in S-034's fix plan.
+- **VERDICT: FIXED (DFX36)** — the engine walks every DISTINCT-txg ring
+  state (storage order; == the og's label-0 walk on intact pools, with the
+  4-label superset recovering torn label-0 slots) and dedups cross-state
+  emission by (full path, object id) first-wins with node reuse — the
+  collector FUN_180005940's registry semantics, decoded down to the visitor
+  `_Do_call` (FUN_18000dd40 at vftable 0x309b8 slot+0x10, binary-verified)
+  and the recursive parent-chain path key (FUN_18001afb0). Files deleted
+  in-window surface (result-set membership parity); delete+recreate emits
+  both ids under the same path (the per-path id-set shape). Resolution +
+  tests: findings/FIXED/S-034-zfs-ring-txg-history-not-walked.md
+  (RingHistorySurfacesDeletedInWindowFile fail-before RED, suite 905/905,
+  ASan/UBSan clean). The remaining deliberate deltas: the multi-label
+  distinct-txg superset (above) and the plain-node emission of
+  in-window-deleted files (the og's flat records carry no decoded
+  deleted-marker — membership parity is the demand).
 
 ### D-06 — Btrfs deleted recovery: newest-generation tree only (row 20) — CLOSED
 

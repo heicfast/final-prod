@@ -2,8 +2,12 @@
  * cr_zfs_engine.h - ZFS scan engine (single-vdev pools).
  *
  * Corpus: ZfsSearchDLL (zfs_struct:: namespace: UberData, VdevLoc/VdevDisk,
- * objset, ZplNode/ZplNodeFile; uberblock walk decompile-verified: magic
- * 0x00BAB10C, rings walked with txg newest-wins).
+ * objset, ZplNode/ZplNodeFile; the quick searcher's run loop
+ * FUN_180006b90 walks EVERY uberblock slot in the label-0 ring,
+ * storage order, feeding each slot's txg to addBlock FUN_180003150;
+ * per-state trees open from the slot's ub_rootbp and descend
+ * from_txg=0 unbounded; the collector FUN_180005940 dedups emission
+ * by (full path, object id) first-wins - S-034 parity).
  *
  * Walks: vdev labels (4 per disk: 0, 256K, end-512K, end-256K) -> nvlist
  * config at label+16K (XDR/big-endian - vdev_label.c packs labels with
@@ -56,7 +60,7 @@ struct ZfsScanStats {
     u64 macrozap_entries = 0;
     u64 damaged_blocks = 0;
     u64 unsupported_vdevs = 0;  /* gang/indirect/mirror/raid multi-vdev */
-    u64 txg = 0;                /* the selected uberblock's txg */
+    u64 txg = 0;                /* the newest uberblock's txg */
     u64 embedded_files = 0;     /* files with embedded-bp content */
     u64 compressed_extents = 0; /* extents carrying a codec */
     u64 foreign_vdev_reads = 0; /* M-019: DVAs naming another vdev id,
@@ -64,6 +68,12 @@ struct ZfsScanStats {
                                  * fallback (the scanned disk) */
     u64 checksum_drops = 0;     /* M-019: blocks dropped after fletcher4
                                  * mismatch on every DVA copy */
+    u64 ring_states_walked = 0; /* S-034: ring uberblock states whose
+                                 * MOS->dataset chain opened (the og walks
+                                 * every ring slot; distinct txgs here) */
+    u64 ring_dedup_skips = 0;   /* S-034: nodes dropped by the (path,
+                                 * object-id) first-wins registry across
+                                 * states */
 };
 
 /* Parsed label config (nvlist subset we need). */

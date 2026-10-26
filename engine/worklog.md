@@ -15913,3 +15913,56 @@ Work Log:
 Stage Summary:
 - Main green again. Baseline: 898/898. Next: S-034 decode + fix (the
   only SEVERE), then M-030, M-040, N-072, then the OQ residuals.
+
+---
+Task ID: DFX36-T2 (S-034)
+Agent: main engineer (diff-to-fix fix session 36 — DFX36)
+Task: S-034 — the ZFS ring-txg history walk (the last SEVERE)
+
+Work Log:
+- Corpus decode FIRST (all three fix-plan items): (a) the visitor
+  lambda's _Do_call found by binary vtable walk (RVA 0x309b8,
+  MSVC _Func_impl_no_alloc slot layout _Copy/_Move/_Do_call/
+  _Target_type/_Delete at 0/8/0x10/0x18/0x20) = FUN_18000dd40 ->
+  collector FUN_180005940: registry at collector+0x110 keyed by the
+  FULL PATH (FUN_18001afb0 = recursive parent-chain + name), per-path
+  object-id sets (vtable+0x60 identity), files drop on id-hit, folders
+  string-compare (vtable+0x68) and re-emit on change, emission assigns
+  serial=++counter; (b) per-txg tree-open FUN_180016c50 copies the ring
+  record's ub_rootbp (rec+0x28..0xa8) — no separate MOS snapshot-list
+  emission; (c) last_txg = the constant string "0" in the log
+  (local_84 = 0x30, never updated) — cosmetic.
+- Engine: every valid uberblock collected (labels in order, storage
+  order per ring, geometry probe + BE refusal unchanged), deduped by
+  TXG (the syncer mirrors each uberblock to all 4 labels — distinct-
+  txg-once == the og's L0 walk on intact pools; torn L0 slots recover
+  through L1-3). Per-state walk through the existing MOS->dataset->ZPL
+  path; (path, object-id) first-wins registry WITH node reuse (later
+  states attach new ids to existing parents — the og's descent
+  continues through already-emitted subtrees; the registry drop never
+  stops the walk). Dataset identity = dsl_dir obj; new stats
+  ring_states_walked/ring_dedup_skips; stats.txg = newest (pins kept).
+- Fixture bug found during test development: the state-2 blocks
+  initially overlapped the copied dnode array's 16K fletcher4 window
+  (B_ZPL2 at 0xB4000 inside B_ZPL_DNODES2 0xB2000..0xB6000) — a
+  self-referential checksum invalidation; blocks spread to
+  0xB8000/0xBA000/0xBC000.
+- Tests: stamp_second_state() (state txg+1: root dir without hello.txt,
+  or with hello.txt -> NEW id 30) + 3 tests. Fail-before EXECUTED on
+  the stashed pre-fix engine: RingHistorySurfacesDeletedInWindowFile
+  RED ("deleted-in-window file lost", 0 vs 1),
+  RingHistoryDeleteAndRecreateEmitsBothIds RED (1 vs 2),
+  RingHistoryUnchangedFileEmitsOnce green-by-design (the pre-fix
+  single-state walk trivially has no duplicates).
+- Verified: suite 905/905 linux-release; ZFS 19/19 linux-gcc (ASan) +
+  linux-ubsan.
+- Audit trail: finding -> FIXED/ with the full Resolution (decode
+  items (a)/(b)/(c) + the two deliberate deltas registered); matrix
+  zfs B/D cells -> MATCH; modules/zfs.md session-36 verdict; D-05
+  REFUTED -> FIXED (primary + archive pointer); SUMMARY session-36
+  delta; RESOLVED-INDEX row.
+
+Stage Summary:
+- S-034 FIXED. SEVERE count now 0. Remaining: M-040 (MAJOR, boot-chain
+  family), N-072 (MINOR, btrfs cache + zfs label polling), OQ-S4-3
+  (Windows-lane), OQ-FLT-2.

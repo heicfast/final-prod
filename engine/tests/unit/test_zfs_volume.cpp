@@ -1058,6 +1058,180 @@ TEST(Zfs, LabelPositionsRecoveredFromTail) {
     EXPECT_EQ(u64(TXG), st.txg);
 }
 
+/* ---- S-034: the ring-history (per-txg state) walk ----
+ *
+ * The og's quick searcher walks EVERY uberblock slot in label-0's ring
+ * (ZfsSearchDLL FUN_180006b90 :5685-5841, storage order) and dedups
+ * cross-state emission by (full path, object id) first-wins in its
+ * collector (FUN_180005940: the path-keyed registry at +0x110 with
+ * per-path object-id sets). These tests stamp a SECOND ring state - a
+ * later txg whose root directory lost hello.txt (the deleted-in-window
+ * scenario) - and pin the three decoded behaviors: deleted-in-window
+ * files surface, unchanged files emit once, and delete+recreate emits
+ * both ids under the same path. */
+constexpr u64 B_ROOTDIR_ZAP2 = 0xB0000;   /* state-2 root dir (no hello.txt) */
+constexpr u64 B_ZPL_DNODES2 = 0xB2000;    /* state-2 ZPL dnode array copy (16K:
+                                           * 0xB2000..0xB6000 - nothing else may
+                                           * live inside this checksum window) */
+constexpr u64 B_ZPL2 = 0xB8000;           /* state-2 ZPL objset (past the window) */
+constexpr u64 B_MOS_DNODES2 = 0xBA000;    /* state-2 MOS dnode array copy */
+constexpr u64 B_MOS2 = 0xBC000;           /* state-2 MOS objset */
+
+/* Builds state txg+1: root dir WITHOUT hello.txt; when recreate_id != 0,
+ * hello.txt maps to that NEW object id instead (a full dnode for the id
+ * is placed in the copied ZPL dnode array). Returns nothing - the image
+ * is stamped in place: a second uberblock in label 0's ring slot 1. */
+void stamp_second_state(std::vector<u8>& img, u64 recreate_id) {
+    /* the state-2 root-dir ZAP: hello.txt gone (or re-created at the new
+     * id); every other entry unchanged */
+    std::vector<std::pair<std::string, u64>> entries = {{"bigdir", 11},
+                                                        {"zlefile", 12},
+                                                        {"embedded.txt", 13},
+                                                        {"legacy.txt", 14},
+                                                        {"registryfile", 22}};
+    if (recreate_id != 0)
+        entries.push_back({"hello.txt", recreate_id});
+    auto z = make_microzap(entries);
+    memcpy(img.data() + B_ROOTDIR_ZAP2, z.data(), z.size());
+
+    /* the state-2 ZPL dnode array: a copy with object 2's bp redirected
+     * to the new root-dir ZAP (+ the recreated object's dnode) */
+    memcpy(img.data() + B_ZPL_DNODES2, img.data() + B_ZPL_DNODES, 16384);
+    {
+        u8 bp[128];
+        make_bp(bp, B_ROOTDIR_ZAP2, 512, 512, 0, &img);
+        memcpy(img.data() + B_ZPL_DNODES2 + 2 * 512 + 64, bp, 128);
+    }
+    if (recreate_id != 0) {
+        /* the recreated hello.txt: a plain SA file at the same data
+         * block (object 30 - a NEW id under the SAME path) */
+        u8* dn = img.data() + B_ZPL_DNODES2 + size_t(recreate_id) * 512;
+        SaAttrs a;
+        a.mode = 0100644;
+        a.parent = 2;
+        a.links = 1;
+        a.size = 18;
+        a.mtime = a.ctime = a.crtime = 1700000005;
+        auto bonus = make_sa_bonus(a);
+        make_dnode(dn, 19 /* PLAIN_FILE */, 44 /* SA */, 1, 1, 1, 0);
+        make_bp(dn + 64, B_FILE_DATA, 512, 512, 0, &img);
+        put16(dn + 10, u16(bonus.size()));
+        memcpy(dn + 64 + 128, bonus.data(), bonus.size());
+    }
+
+    /* the state-2 ZPL objset: meta bp over the FINAL copied array */
+    memcpy(img.data() + B_ZPL2, img.data() + B_ZPL, 2048);
+    {
+        u8 bp[128];
+        make_bp(bp, B_ZPL_DNODES2, 16384, 16384, 0, &img);
+        memcpy(img.data() + B_ZPL2 + 64, bp, 128);
+    }
+
+    /* the state-2 MOS dnode array: copy with objects 4+6 (the head
+     * datasets) bonus bps redirected to the state-2 ZPL objset */
+    memcpy(img.data() + B_MOS_DNODES2, img.data() + B_MOS_DNODES, 4096);
+    {
+        u8 bp[128];
+        make_bp(bp, B_ZPL2, 4096, 4096, 0, &img);
+        memcpy(img.data() + B_MOS_DNODES2 + 4 * 512 + 64 + 128 + 128, bp, 128);
+        memcpy(img.data() + B_MOS_DNODES2 + 6 * 512 + 64 + 128 + 128, bp, 128);
+    }
+
+    /* the state-2 MOS objset: meta bp over the FINAL copied array */
+    memcpy(img.data() + B_MOS2, img.data() + B_MOS, 2048);
+    {
+        u8 bp[128];
+        make_bp(bp, B_MOS_DNODES2, 4096, 4096, 0, &img);
+        memcpy(img.data() + B_MOS2 + 64, bp, 128);
+    }
+
+    /* the second uberblock: label 0's ring slot 1, txg+1, rootbp over
+     * the state-2 MOS */
+    u8* ub = img.data() + 0 + (128ull << 10) + 1024;
+    put64(ub + 0, 0x00BAB10C);
+    put64(ub + 8, 5000);
+    put64(ub + 16, TXG + 1);
+    put64(ub + 32, 1700000001);
+    u8 bp[128];
+    make_bp(bp, B_MOS2, 2048, 2048, 0, &img);
+    memcpy(ub + 40, bp, 128);
+}
+
+/* collects (path -> count) over the tree for duplicate-name pinning */
+std::map<std::string, u64> collect_path_counts(tree::FileNode* n, const std::string& p,
+                                               std::map<std::string, u64>& out) {
+    for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+        if (!c->props())
+            continue;
+        const std::string full = p.empty() ? c->name_utf8() : p + "/" + c->name_utf8();
+        ++out[full];
+        collect_path_counts(c, full, out);
+    }
+    return out;
+}
+
+TEST(Zfs, RingHistorySurfacesDeletedInWindowFile) {
+    /* THE S-034 gap: hello.txt exists at txg 77 and is deleted before
+     * txg 78. The og's per-state ring walk returns it (the txg-77 state
+     * contains it); the pre-fix newest-only core did not. */
+    auto img = build_pool();
+    stamp_second_state(img, 0);
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ZfsScanStats st;
+    ASSERT_EQ(OK, scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+
+    std::map<std::string, u64> paths;
+    collect_path_counts(ra, "", paths);
+    EXPECT_EQ(u64(1), paths["tank/hello.txt"]) << "deleted-in-window file lost";
+    EXPECT_EQ(u64(1), paths["sub/hello.txt"]);
+    EXPECT_EQ(u64(1), paths["tank/bigdir"]);
+    EXPECT_EQ(u64(1), paths["tank/bigdir/alpha.bin"]);
+    EXPECT_EQ(u64(1), paths["tank/zlefile"]);
+    EXPECT_EQ(u64(TXG + 1), st.txg) << "stats.txg must stay the NEWEST txg";
+    EXPECT_EQ(u64(2), st.ring_states_walked) << "both ring states must be walked";
+    EXPECT_GE(st.ring_dedup_skips, u64(1)) << "state 2's re-walk must dedup";
+}
+
+TEST(Zfs, RingHistoryUnchangedFileEmitsOnce) {
+    /* the dedup pin: files present in every ring state emit exactly
+     * once (the og's collector drops the id-hit) - no duplicate nodes
+     * anywhere in the tree. */
+    auto img = build_pool();
+    stamp_second_state(img, 0);
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ZfsScanStats st;
+    ASSERT_EQ(OK, scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    std::map<std::string, u64> paths;
+    collect_path_counts(ra, "", paths);
+    for (const auto& kv : paths)
+        EXPECT_EQ(u64(1), kv.second) << "duplicate node: " << kv.first;
+}
+
+TEST(Zfs, RingHistoryDeleteAndRecreateEmitsBothIds) {
+    /* delete + recreate in-window: state 78's hello.txt is a NEW object
+     * (id 30) under the same path. The og's per-path id-SET registry
+     * emits BOTH - the deleted original (id 10, from state 77) and the
+     * replacement (id 30, from state 78). */
+    auto img = build_pool();
+    stamp_second_state(img, 30);
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ZfsScanStats st;
+    ASSERT_EQ(OK, scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    std::map<std::string, u64> paths;
+    collect_path_counts(ra, "", paths);
+    EXPECT_EQ(u64(2), paths["tank/hello.txt"])
+        << "delete+recreate must surface BOTH ids under the same path";
+    /* the fixture's "sub" dataset shares the same ZPL objset content, so
+     * its hello.txt is recreated at id 30 too - both datasets show both */
+    EXPECT_EQ(u64(2), paths["sub/hello.txt"]);
+}
+
 TEST(Zfs, NewestTxgAcrossLabelsWins) {
     auto img = build_pool();
     /* write a newer uberblock into label 1 (base 256K) slot 1 */

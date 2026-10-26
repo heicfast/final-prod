@@ -164,3 +164,31 @@ multivdev-fallback/checksum side.)
 |---|---|---|
 | N-056 | MINOR | Delay-execution label/uberblock import polling missing (og retries with backoff during long walks; core probes once — torn pools fail immediately) |
 | INFO-register | — | Core decompresses lzjb/zle/gzip/lz4/zstd (cr_zfs_engine.cpp:19-21); the og models per-object compression (std::map<int64,zio_compress>, remaining-engines:80). No divergence claimable in either direction (both read compressed pools); recorded for the decode-evidence ledger |
+
+## Session-36 verdict update (S-034 FIXED, DFX36, 2026-10-26)
+
+**Ring-txg history — `S-034` FIXED.** The engine now walks EVERY
+distinct-txg uberblock state from the label rings (storage order per
+ring, labels in order — the og's label-0 walk on intact pools, with the
+4-label superset recovering torn label-0 slots) instead of the newest
+txg only. Cross-state emission dedups by (full path, object id)
+first-wins with node reuse — the decoded collector semantics
+(FUN_180005940's path-keyed registry, the recursive parent-chain key
+FUN_18001afb0, per-path id sets; the visitor `_Do_call` FUN_18000dd40
+at vftable 0x309b8 slot+0x10, binary-verified): files deleted
+in-window surface in the result set (B1/B5 membership parity),
+unchanged files emit exactly once, delete+recreate emits BOTH ids
+under the same path, and later states attach new content to the
+EXISTING parents (the walk continues through already-emitted
+subtrees — the og's descent semantics; the registry drop never stops
+the walk). New stats: `ring_states_walked`, `ring_dedup_skips`;
+`txg` stays the newest. Decode residuals registered in the finding:
+the og's folder display-string re-emit (vtable+0x68 — no core analog,
+no content effect) and last_txg-as-cosmetic-0 (a never-updated log
+value). Deliberate deltas: the multi-label distinct-txg superset +
+plain-node emission of in-window-deleted files (the og's records
+carry no decoded deleted-marker). Proof:
+Zfs.RingHistorySurfacesDeletedInWindowFile (fail-before RED —
+"deleted-in-window file lost"), Zfs.RingHistoryUnchangedFileEmitsOnce,
+Zfs.RingHistoryDeleteAndRecreateEmitsBothIds; suite 905/905, ZFS
+19/19 ASan/UBSan. B1/B5 (ring-window recall) verdict: MATCH.
