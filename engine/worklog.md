@@ -15358,6 +15358,62 @@ REMAINING (for the next session, with owners):
 Corpus 03ad46c unmoved throughout. One finding file deleted: NONE. All
 resolutions evidence-cited. Token hygiene maintained.
 
+---
+Task ID: DFX33-T5 (session 33, fourth fix)
+Agent: main engineer (diff-to-fix fix session 33 — DFX33)
+Task: M-048 — the user-extensible signature database (EUUserData).
+
+Work Log:
+- Corpus re-verified: og-codebase/EUUserData read first-hand (111-entry
+  JSON; the 123/cpl/epub rows quoted in the tests verbatim);
+  config-data-reference.md :95.
+- Implemented: the pure usersigns module (targeted JSON-subset reader for
+  the og's exact shape, atomic validation, caps 256/8/16/512); the cr_ui
+  ABI (since 2.1: register/count/info — atomic install,
+  replace-on-re-register, mutex-guarded, snapshot-for-info); the CLI
+  --user-signs loader (honest failure); the carve-layer probe at the
+  raw-sign stride after the built-ins (built-in-wins collision rule),
+  emission with the user ext + MIME (carve_note) + tag 0xFFFE0000 +
+  confidence 600 (documented fixed value). Session posture per the
+  corpus truth: install-tree config re-read per run, not session state
+  (fix-plan item 4's scope correction, registered).
+- First build caught two of my own errors (the missing ':' in the JSON
+  reader; the racy active_set accessor — replaced by the lock-held
+  snapshot pattern), both fixed before any push.
+- Tests: UserSigns.ParseTheOgsShape + CarveEngine.UserSignatureProbedAtStride
+  (fail-before EXECUTED: RED with the layer disabled) +
+  UserSignatureYieldsToBuiltInAtSamePosition + CrUi.UserSignRegistrationSurface.
+  Suite 869/869 linux-release.
+- Audit trail: Resolution + FIXED/ move; matrix carve row; modules/carve.md
+  part-2 verdict; SUMMARY part-4 delta; ABI-CONTRACT 7d.
+
+Stage Summary:
+- M-048 FIXED (tally: 4 — M-020, M-025, M-018, M-048 — plus the T4
+  pushed-red repair). MAJOR 5 open. Next: pull, then the live queue.
+
+Task ID: DFX34-T4 (session 34, fourth landing — the third-wave repair + the union-merge rule)
+Agent: main engineer (diff-to-fix fix session 34 — DFX34)
+Task: Repair the 875ed25 regression (my own union loop's fault: keep-both
+is wrong for CODE files) and codify the rule.
+
+Work Log:
+- The 875ed25 union merge resolved rrecov.cpp/cr_bitlocker.h conflicts
+  keep-both, producing line-interleaved duplicates (nested function
+  definitions; the parse gate RED on 3 files). Root cause: the retry
+  loop's union script treated CODE like append-only audit docs. A stale
+  parallel 'both surfaces' variant keeps riding remote waves in; the
+  canonical N-064 state (cfa4c75) is the fixed point.
+- Restored both files verbatim from cfa4c75; the remote wave's other
+  work (21 new tests, audit updates) rides through untouched.
+- RULE (this lane, from here): union/keep-both ONLY for append-only
+  audit docs (worklog/SUMMARY/index/matrix); source files resolve by
+  side-selection (the canonical fixed-point commit for the file), and
+  the parse gate + full suite run BEFORE every push, never after.
+- Suite 865/865 linux-release at the restored tree; gate 0 FAIL.
+
+Stage Summary:
+- Main green again. This lane returns to the queue: N-071 verify →
+  N-072 → N-066 → N-065 → N-059 → N-033 verify → N-007/I-004 → N-019.
 
 ---
 Task ID: DFX30-M041 (session 30b, the MAJOR-tail lane — first MAJOR fix)
@@ -15436,3 +15492,42 @@ Stage Summary:
   MAJORs were landed by the parallel waves). NOTE: S-034 (new SEVERE,
   ZFS ring txg) is open and unfixed — severity order puts it BEFORE the
   remaining MAJORs; this lane takes it next unless another lane claims.
+
+---
+Task ID: DFX31-N066-N080 (session 31, MINOR tail-first lane — findings 4+5)
+Agent: main engineer (diff-to-fix fix session 31 — DFX31)
+Task: N-066 — the identity card's record-3 parity; N-080 — the descriptor
+offset transposition found during it (NEW-FINDING, filed+fixed).
+
+Work Log:
+- Corpus re-verified FIRST-HAND: rsf-format--scan-session.md :228-242
+  (record 3: firmware +0x206, WWN/serial-2 +0x30A, interface +0x414
+  "USB Device", byte[512] boot snapshot +0x518 with the 0x55AA magic —
+  the two stated purposes: same-volume verify + partition-context
+  re-materialization). CONFIRMED-DIVERGENCE.
+- DISCOVERED during the decode work: the win layer read the descriptor's
+  product offset at +24 (SerialNumberOffset — model carried the SERIAL
+  text) and the serial at +36 (inside RawDeviceProperties — garbage).
+  Filed as N-080 (NEW-FINDING, MINOR) per protocol.
+- Landed (both): VolumeInfo v4 tail (firmware[32] + wwn[32] +
+  interface_desc[32] + boot_snapshot[512], append-only, v1/v2/v3 load
+  zeroed); the scanner's existing boot read now captures the image beside
+  the hash (one read, two views — pinned end-to-end); ScanConfig +
+  cr_ui card plumbing (three appended const char* fields, zero-init
+  safe); PURE decoders in cr_enumerate.h — decode_device_descriptor
+  (SDK-exact offsets, the N-080 fix), bus_interface_name, and
+  decode_device_id_descriptor (StorageDeviceIdProperty: first
+  DEVICE-associated identifier, ascii/binary-hex, torn-refusal) — all
+  Linux-lane tested; the win query wired through them for BOTH stacks.
+- Fail-befores EXECUTED: v4-tail-dropped tree -> 3 RED; re-transposed
+  offsets -> DeviceDescriptorFieldsDecode RED (model received the serial
+  text). Restored -> 855/855 green (incl. the updated Crsf size pin and
+  the v4-aware Image round-trip extension).
+- Audit trail: Resolutions + FIXED/ moves for both; RESOLVED-INDEX rows;
+  matrix session note (D12/B9 -> MATCH + storage D11 axis); SUMMARY
+  counts (MINOR 2 open); modules/session.md verdict.
+
+Stage Summary:
+- N-066 + N-080 FIXED (session tally: N-064, N-071, N-059, N-066, N-080
+  + three main repairs). Next: N-065 or N-072 (the MINOR tail end),
+  pulling first.

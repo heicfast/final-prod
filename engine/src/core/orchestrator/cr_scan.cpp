@@ -1063,8 +1063,16 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
      * resume side skips comparison on zero. */
     {
         u8 boot[512] = {};
-        vol_boot_hash_ =
-            slice->read_at(0, boot, sizeof(boot)) == OK ? table::crc32(boot, sizeof(boot)) : 0;
+        if (slice->read_at(0, boot, sizeof(boot)) == OK) {
+            vol_boot_hash_ = table::crc32(boot, sizeof(boot));
+            /* N-066: keep the full sector image for the identity card's
+             * v4 tail (the og record-3's +0x518 snapshot). */
+            std::memcpy(vol_boot_snapshot_, boot, sizeof(boot));
+            vol_boot_snapshot_valid_ = true;
+        } else {
+            vol_boot_hash_ = 0;
+            vol_boot_snapshot_valid_ = false;
+        }
     }
 
     const auto stamp = [&stats, t0, cancel, this](u32 rc) -> u32 {
@@ -1802,6 +1810,15 @@ u32 ScanController::save_session(session::Writer& w, const ScanStats& stats,
     for (size_t i = 0; i < sizeof(vi.serial) - 1 && cfg_.volume_serial[i]; ++i)
         vi.serial[i] = cfg_.volume_serial[i];
     vi.boot_hash = vol_boot_hash_;
+    /* N-066: the record-3 axes + the boot snapshot (v4 tail). */
+    for (size_t i = 0; i < sizeof(vi.firmware) - 1 && cfg_.volume_firmware[i]; ++i)
+        vi.firmware[i] = cfg_.volume_firmware[i];
+    for (size_t i = 0; i < sizeof(vi.wwn) - 1 && cfg_.volume_wwn[i]; ++i)
+        vi.wwn[i] = cfg_.volume_wwn[i];
+    for (size_t i = 0; i < sizeof(vi.interface_desc) - 1 && cfg_.volume_interface[i]; ++i)
+        vi.interface_desc[i] = cfg_.volume_interface[i];
+    if (vol_boot_snapshot_valid_)
+        std::memcpy(vi.boot_snapshot, vol_boot_snapshot_, sizeof(vi.boot_snapshot));
     vi.scanned_bytes = stats.bytes_scanned;
     vi.elapsed_ms = stats.elapsed_ms;
     /* S-030 v3 tail: the image target's file path (empty otherwise) */
