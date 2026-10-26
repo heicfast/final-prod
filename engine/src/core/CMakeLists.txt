@@ -59,6 +59,7 @@ add_library(cr_core STATIC
     preview/cr_preview.cpp
     query/cr_query.cpp
     query/cr_filefilter_data.cpp
+    check/cr_fscheck.cpp
     repair/cr_rawfixer.cpp
     apply/cr_apply.cpp
     reghive/cr_reghive.cpp

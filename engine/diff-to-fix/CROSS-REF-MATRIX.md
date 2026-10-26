@@ -34,6 +34,24 @@ the numbered loop; residual stacks registered as D-79); storage B8/P42/A54
 nflags bit-6 append-only block); session D11/D12 cells -> MATCH; the
 N-019/M-020 convergence break repaired in the same landing.
 
+**Session-30b changes (2026-10-26, DFX30-MAJOR-tail lane — this lane):**
+**M-041 FIXED** — the og's FileSystemCheck parity module
+(`include/cr/check/cr_fscheck.h` + `src/core/check/cr_fscheck.cpp`): the full
+error taxonomy 0x1001..0x100e, the FAT pass in og phase order (DBR ceilings
+341.3333333/0x100/>>(2), dead-zone + duplicate-ref scans, pairwise copy
+compare, dir-tree audit, orphan sweep with the host decision), the NTFS pass
+($MFT/$MFTMirr proofs, version gate {1.2, 3.0, 3.1}, $Bitmap structural,
+the $MFT::$BITMAP-gated MFT×$Bitmap cross-check 0x1002/0x1003), the 8-event
+callback surface, the never-abort wiring (ScanConfig::pre_scan_check after
+repair), REC_FS_CHECK, the cr_ui ABI appends (union with the parallel
+M-049 error-context append) + CLI `scan --check`. New module
+row: `check-phase` (modules/check-phase.md); deliberate deltas registered as
+D-76 (the undecoded slack term, the param superset, the partial-load refusal).
+15 fail-before tests; suites 758/758 release + ASan. **N-079 CONVERGENT**:
+this lane's leak repair (eb3cb6d) reconciled to the parallel wave's canonical
+deque-pool implementation (first-landing-wins; findings/FIXED/N-079 is the
+parallel lane's file — this lane's convergence record rides the worklog).
+
 **Session-25 changes (2026-10-26, DFX25 — INFO tier closed into FIXED/, tracked-open resolution wave):**
 the 22 acknowledged INFORMATIONAL findings (I-001..I-024) moved from
 `findings/INFORMATIONAL/` to `findings/FIXED/` — the directory is now empty
@@ -182,7 +200,8 @@ dispositions is the surviving one).
 | preview (S4 NEW) | NA | NA | NA | NA | NA | NA | NA | NA | **M-028 (S4: caps bypass — executed proof; provenance misattributions) FIXED (s21 — read_cost-gated budgets + checked_read; findings/FIXED/M-028)**; M-024 landed s15 (CarveFlags::disabled_formats) | I-013 (S4: architecture register — og socket protocol vs in-process reader) |
 | query (S4 NEW) | ~~M-029~~ **FIXED (s32 DFX32: bucket-ID translation + general-raw naming — the decode-blocked remainder closed with the DRWUI first-hand decode; Resolution in FIXED/M-029)** + ~~M-023~~ FIXED (FIXED/M-023: category source now the generated table) | NA | NA | NA | NA | NA | NA | NA | NA | ~~M-029~~, ~~N-040~~ FIXED | M-029 (S4); S-023 grading rows now carry grades + sort key 6 |
 | transport (S4 NEW) | M-030 (S4: WinPE gate, stale-handle ladder, terminal OFFLINE, 32-disk cap) | M-030 | M-030 (IOCTL numbers = own driver's, grammar shape M) | M-030 (chunking provenance corrected; OQ-S4-3 perf open) | M-030; **S-030 FIXED (S8 — image scan targets: flat/VMDK/VHD through `cr/storage/cr_image`, CLI --image, session v3 identity tail; D-64 registers edisk/dmg exclusions + VHDX/parent-chain remainders)** | NA | NA | M-030 (silent RDA fallback) | M-030 | M | **N-041 (S4: dead RdaClient + volume_letter_to_disk)**; I-016 (S4: wire register) |
-| mom-capabilities (S5b NEW) | **M-043 (S5b: NTFS content-proof + backup-boot) FIXED s15**; **M-044 (S5b: UDF family) FIXED (s21 — the og-exact AVDP→VDS probe + FsFamily::Udf 11; findings/FIXED/M-044)**; **M-045 (S5b: FAT gates) FIXED s15**; N-050 (S5b: boot-only recognition) | **M-042 (S5b: lostpart persistence semantics)**; N-049 (S5b: record richness) | I-020 (S5b: corpus-doc corrections register) | **S-029 FIXED (s10)** (apply module + CLI; PARITY-DELTAS D-68/D-69) | **M-040 (S5b: BCD/NVRAM/boot.ini/chkdsk family)**; **M-041 (S5b: check phase + error taxonomy 0x1001-0x100e)** | **S-030 (S5b: image scan targets) FIXED (s8 — findings/FIXED/S-030; module row: modules/imaging.md)** | ~~N-048~~ **FIXED (s18 DFX18: the cr::log seam — host sink default-NULL + START/END/stage/checkpoint/candidate/read-error sites; CLI --log wired as the EPMLOG-role sink; D-75 registers the single-process divergence; fail-before RED executed)** | **I-019 (S5b: EPM tool-ops scope register)**; OQ-S5-1 (CheckVersion consumer) | M-040 pending (S-029 decided: implemented v1 MBR — D-68) | NA |
+| mom-capabilities (S5b NEW) | **M-043 (S5b: NTFS content-proof + backup-boot) FIXED s15**; **M-044 (S5b: UDF family) FIXED (s21 — the og-exact AVDP→VDS probe + FsFamily::Udf 11; findings/FIXED/M-044)**; **M-045 (S5b: FAT gates) FIXED s15**; N-050 (S5b: boot-only recognition) | **M-042 (S5b: lostpart persistence semantics)**; N-049 (S5b: record richness) | I-020 (S5b: corpus-doc corrections register) | **S-029 FIXED (s10)** (apply module + CLI; PARITY-DELTAS D-68/D-69) | **M-040 (S5b: BCD/NVRAM/boot.ini/chkdsk family)**; ~~M-041 (S5b: check phase + error taxonomy 0x1001-0x100e)~~ **FIXED (s30 DFX30 — the cr/check module: full taxonomy + FAT/NTFS passes + never-abort wiring + REC_FS_CHECK + ABI/CLI; 15 tests; findings/FIXED/M-041; module row: modules/check-phase.md)** | **S-030 (S5b: image scan targets) FIXED (s8 — findings/FIXED/S-030; module row: modules/imaging.md)** | ~~N-048~~ **FIXED (s18 DFX18: the cr::log seam — host sink default-NULL + START/END/stage/checkpoint/candidate/read-error sites; CLI --log wired as the EPMLOG-role sink; D-75 registers the single-process divergence; fail-before RED executed)** | **I-019 (S5b: EPM tool-ops scope register)**; OQ-S5-1 (CheckVersion consumer) | M-040 pending (S-029 decided: implemented v1 MBR — D-68) | NA |
+| check-phase (S30 NEW) | **M-041 FIXED (s30 DFX30)** — the damage-audit phase: FAT pass (DBR ceilings, dead-zone/dup scans, pairwise copy compare, dir audit, orphan sweep) + NTFS pass ($MFT/$MFTMirr/version/$Bitmap/cross-check), taxonomy 0x1001-0x100e | NA | NA | NA | NA | **M-041 FIXED (s30)** — never-abort wiring, REC_FS_CHECK, ABI, CLI --check | NA | NA | NA | NA | M-040 (the escalation endpoints) stays open on its row |
 
 **Session-5 fix note (2026-10-26):** S-021 + S-003 FIXED (HFS+ journal
 differential harvest — PARITY-DELTAS D-56; the fallback residual tracked in

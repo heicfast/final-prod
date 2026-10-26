@@ -741,6 +741,7 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
     std::wstring out_path, log_path, resume_path, repair_undo_path;
     bool json = false;
     bool repair = false, repair_apply = false;
+    bool fs_check = false; /* M-041: the damage-audit check phase */
     TreePrintFlags print_flags;
 
     while (i < argc) {
@@ -839,6 +840,12 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
             repair = true;
             continue;
         }
+        if (has_flag(argc, argv, i, L"--check")) {
+            /* M-041: the og's FileSystemCheck damage audit — read-only,
+             * report-only, never aborts the scan */
+            fs_check = true;
+            continue;
+        }
         if (has_flag(argc, argv, i, L"--repair-apply")) {
             repair = true;
             repair_apply = true;
@@ -891,6 +898,8 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
      * the RW handle opens lazily at consent time (never grabbed for a
      * dry-run). Volume scans map writes through the volume slice. */
     RepairCliCtx repair_ctx;
+    if (fs_check) /* M-041: the read-only damage audit (never writes) */
+        cfg.pre_scan_check = true;
     if (repair) {
         cfg.pre_scan_repair = true;
         repair_ctx.apply = repair_apply;
@@ -1086,6 +1095,48 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
                 wprintf(L"[repair] WARNING: could not save the undo log to %s\n",
                         repair_undo_path.c_str());
             }
+        }
+    }
+
+    /* M-041 damage-audit check report (the og's FileSystemCheck error
+     * set, codes 0x1001..0x100e - the operator sees every finding the
+     * audit surfaced; the scan itself always continued) */
+    if (fs_check && stats.check_ran) {
+        if (!stats.check_detected)
+            wprintf(L"[check] no checkable FAT/NTFS family detected - audit skipped\n");
+        else if (stats.check_report.errors.empty())
+            wprintf(L"[check] %hs volume clean - no audit findings\n", stats.check_report.family);
+        else {
+            wprintf(L"[check] %hs volume: %zu finding(s)\n", stats.check_report.family,
+                    stats.check_report.errors.size());
+            for (const auto& is : stats.check_report.errors) {
+                wchar_t fam = 0;
+                if (is.code == check::CHK_DUPLICATE_ALLOC)
+                    fam = L'd';
+                else if (is.code == check::CHK_ORPHAN_CLUSTER)
+                    fam = L'o';
+                wprintf(L"  [check] %04x%s%s%s%s%s%s%s%s%s%s%s (param=%llu%s%s)\n", is.code,
+                        is.code == check::CHK_VOLUME_TOO_SMALL ? L" volume-below-DBR-size" : L"",
+                        fam == L'd' ? L" duplicate-allocation" : L"",
+                        fam == L'o' ? L" orphan/bitmap-free-but-allocated" : L"",
+                        is.code == check::CHK_SIZE_CHAIN_MISMATCH ? L" size!=chain" : L"",
+                        is.code == check::CHK_FAT_COPY_MISMATCH ? L" FAT-copy-mismatch" : L"",
+                        is.code == check::CHK_FAT_TABLE_INVALID ? L" FAT-table-invalid" : L"",
+                        is.code == check::CHK_DIR_TREE_INVALID ? L" dir-tree-invalid" : L"",
+                        is.code == check::CHK_MFT_RECORD_INVALID ? L" $MFT-record-invalid" : L"",
+                        is.code == check::CHK_MFTMIRR_INVALID ? L" $MFTMirr-invalid" : L"",
+                        is.code == check::CHK_NTFS_VERSION ? L" ntfs-version" : L"",
+                        is.code == check::CHK_BITMAP_STRUCTURAL ? L" $Bitmap-structural" : L"",
+                        static_cast<unsigned long long>(is.param),
+                        is.record_no != 0xFFFFFFFFu ? L" record=" : L"",
+                        is.record_no != 0xFFFFFFFFu
+                            ? std::to_wstring(is.record_no).c_str()
+                            : L"");
+                if (!is.path_hint.empty())
+                    wprintf(L"          path: %hs\n", is.path_hint.c_str());
+            }
+            wprintf(L"[check] the scan continued - findings are advisory "
+                    L"(structured scan -> repair -> chkdsk -> RAW carving)\n");
         }
     }
     log_close();
@@ -2291,6 +2342,8 @@ int wmain(int argc, wchar_t** argv) {
             L"             [--threads N] [--out file.crsf] [--resume file.crsf] [--log file]\n"
             L"             [--json] [--csv] [--filter s] [--deleted-only]\n"
             L"             [--repair] [--repair-apply] [--repair-undo file]\n"
+            L"             [--check]  (M-041 damage audit: the og's FileSystemCheck error\n"
+            L"                        set 0x1001..0x100e, read-only, never aborts the scan)\n"
             L"             [--bitlocker-fvek hex]  (locked volume: user-supplied FVEK,\n"
             L"                                     64/128 hex chars - in-stack XTS-AES\n"
             L"                                     decrypt, engines see plaintext)\n"

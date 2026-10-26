@@ -1,5 +1,11 @@
 # diff-to-fix/findings/FIXED/ — resolved findings (audit trail)
 
+## Resolved findings (session-30b wave, DFX30-MAJOR-tail lane: +M-041; the convergent N-079 reconciled to the parallel wave's canonical file — this lane's eb3cb6d convergence record rides the worklog)
+
+| ID | Severity (orig) | Title | Fix commit | Resolution |
+|---|---|---|---|---|
+| M-041 | MAJOR (S5b) | No damage-audit/check phase: the og's FileSystemCheck (chkdsk-grade FAT/NTFS audit) and its WinChkdsk delegation have no core counterpart | (this session's M-041 commit — DFX30) | New pure-core check module (cr/check/cr_fscheck.h/.cpp): the og's error taxonomy 0x1001..0x100e numeric-parity; FAT pass in og phase order (DBR ceilings 341.3333333/0x100/>>(2) + signature dispatch, dead-zone + duplicate-reference scans, entry-by-entry pairwise copy compare with the entry-0 media mask, FAT32 root-chain gate, dir-tree audit ('.'/'..' pair, first-cluster, cluster-granular size-vs-chain, ancestor cycle), orphan sweep with the host decision); NTFS pass ($MFT resident-"$MFT" proof, $MFTMirr slot-0 proof, version gate {0x102,3,0x301} with the version word as param, $Bitmap structural floor, $MFT::$BITMAP + flags&1-gated MFT×$Bitmap cross-check 0x1003/0x1002); the og's terminal/non-terminal semantics preserved; the 8-event callback surface; wired as the optional pre-scan stage after repair (never aborts); REC_FS_CHECK session record; cr_ui ABI appends (pre_scan_check + check_* stats + CR_EVT_FS_CHECK 10); CLI scan --check. 15 tests (each fail-before by absence); suites 758/758 release + ASan. Deliberate deltas D-76 (undecoded slack term not guessed; param/record superset context; partial-bitmap-load refusal). |
+
 ## Resolved findings (session-28 wave 3: +N-033 (the CLI half + the D-80 register; the ABI half landed s6); live file inventory)
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |
