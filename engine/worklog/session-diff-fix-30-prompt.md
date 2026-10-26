@@ -1,5 +1,7 @@
-# Session DFX26 — diff-to-fix execution prompt (token redacted)
+# Session 30 prompt (saved token-redacted at bootstrap; re-stamped 25->30 past
+# same-window squats - the full history is in worklog.md DFX30-T0)
 
+<<<<<<< HEAD
 **Role:** senior systems engineer (25+ years) — Windows storage internals, C++20
 production engineering, parity remediation against reverse-engineered references.
 Closed audit findings on commercial recovery engines; knows the difference between
@@ -113,6 +115,8 @@ T13 ACKNOWLEDGE INFORMATIONALs; T14 resolve/push-forward TRACKED-OPEN; T15
 CROSS-REF-MATRIX; T16 SUMMARY; T17 modules/*.md + docs + TODO removal; T18 full
 CI sweep; T19 discovered tests; T20 tag release + handoff + final sweep.
 
+<<<<<<< HEAD
+=======
 # Session DFX25 — diff-to-fix closing session (INFORMATIONAL + tracked-open focus)
 
 Saved at session start, token redacted. Date: 2026-10-26.
@@ -156,6 +160,9 @@ end. Put fixed findings in the fixed directory. Update all docs, counts.
 # Session 30 prompt (saved token-redacted at bootstrap; re-stamped 25→30 past same-window squats)
 
 Mandate: execute the roadmap in `core_recovery/diff-to-fix/` — for every
+=======
+Mandate: execute the roadmap in `core_recovery/diff-to-fix/` - for every
+>>>>>>> fb95414 (repair: the N-071 convergence + committed-marker cleanup — merge 220e0be committed conflict markers (cr_bitlocker.h, rrecov.cpp x5, PARITY-DELTAS, CAPABILITY-MATRIX, RESOLVED-INDEX, 3 prompt archives); all repaired. N-064: both consent surfaces kept (cr::pwddict --bitlocker-pwddict + cr::dict --bitlocker-dict; unified open_volume_view consent chain; F61 preserved). N-071: the parallel lane's two-stack cfgmgr32 port stands canonical, this lane's busy-disk 0-access metadata retry integrated into open_disk_for_query used by BOTH stacks; pins updated to the converged truth. Suite 826/826; win_syntax_check green; repo zero-marker scan clean.)
 finding (ACUTE, SEVERE, MAJOR, MINOR, INFORMATIONAL, TRACKED-OPEN)
 independently verify against the research corpus and the running code
 before any change; fix confirmed divergences with fail-before/pass-after
@@ -166,11 +173,16 @@ good code. Repos in scope (only these two):
 - Research corpus (ground truth, read-only): https://github.com/heicfast/easeus-drw-research
 - GitHub token: env/git config only, never committed, never logged.
 
+<<<<<<< HEAD
 Session emphasis (user instruction): fix all audit findings — minor
+=======
+Session emphasis (user instruction): fix all audit findings - minor
+>>>>>>> fb95414 (repair: the N-071 convergence + committed-marker cleanup — merge 220e0be committed conflict markers (cr_bitlocker.h, rrecov.cpp x5, PARITY-DELTAS, CAPABILITY-MATRIX, RESOLVED-INDEX, 3 prompt archives); all repaired. N-064: both consent surfaces kept (cr::pwddict --bitlocker-pwddict + cr::dict --bitlocker-dict; unified open_volume_view consent chain; F61 preserved). N-071: the parallel lane's two-stack cfgmgr32 port stands canonical, this lane's busy-disk 0-access metadata retry integrated into open_disk_for_query used by BOTH stacks; pins updated to the converged truth. Suite 826/826; win_syntax_check green; repo zero-marker scan clean.)
 first, one by one, with full context and knowledge; move fixed findings
 into `findings/FIXED/`; update all docs and counts properly; target at
 least 20+ fixes before session end.
 
+<<<<<<< HEAD
 Lane note at bootstrap: two parallel lanes are claimed in the same
 window — DFX-front claimed the full open MINOR tier (354c555, front-first
 order: N-009, N-007/I-004, N-025, N-026, N-027, N-031, N-036, N-049,
@@ -182,10 +194,19 @@ N-032, N-072, N-033, N-019, N-050. First-landing-wins on any overlap;
 pull before every fix; union-merge if a parallel landing arrives mid-fix.
 After the tail slice drains, pull and absorb whatever MINORs remain
 unclaimed (DFX-front front cursor may have advanced or stalled).
+=======
+Lane note at bootstrap: five parallel lanes claimed in the same window
+(DFX23 MINOR-front, DFX24 MAJOR, DFX25 INFO-closure, DFX26 MINOR-rear +
+MAJOR-tail, DFX27 MAJOR-head). This lane (DFX30) claims the DEFERRED
+win-layer/crypto trio every other lane put last (N-032, N-064, N-071),
+then the rear queue with pull-before-each; first-landing-wins on any
+overlap; union merge on collision.
+>>>>>>> fb95414 (repair: the N-071 convergence + committed-marker cleanup — merge 220e0be committed conflict markers (cr_bitlocker.h, rrecov.cpp x5, PARITY-DELTAS, CAPABILITY-MATRIX, RESOLVED-INDEX, 3 prompt archives); all repaired. N-064: both consent surfaces kept (cr::pwddict --bitlocker-pwddict + cr::dict --bitlocker-dict; unified open_volume_view consent chain; F61 preserved). N-071: the parallel lane's two-stack cfgmgr32 port stands canonical, this lane's busy-disk 0-access metadata retry integrated into open_disk_for_query used by BOTH stacks; pins updated to the converged truth. Suite 826/826; win_syntax_check green; repo zero-marker scan clean.)
 
 Key SOPs (unchanged from all prior sessions):
 
 1. Read before touching: audit output, corpus citations (full artifact,
+<<<<<<< HEAD
    not the excerpt), current main (pull — other agents may have pushed).
 2. Verify → Reproduce → Classify (CONFIRMED-DIVERGENCE / ALREADY-FIXED /
    FALSE-POSITIVE / OUTDATED-EVIDENCE / NEW-FINDING) → Fix → Re-review →
@@ -202,6 +223,7 @@ Key SOPs (unchanged from all prior sessions):
 8. Audit trail is the deliverable: finding files keep their Resolutions,
    CROSS-REF-MATRIX cells go to MATCH, SUMMARY counts updated,
    modules/*.md verdicts updated, worklog.md chronological.
+>>>>>>> 273dde4fdab4fe324d02a42b1ad5810ce73ec863
 # Session 30 prompt (re-stamped from local 25→26→27 bootstraps after same-window ID collisions; queue unchanged: tracked-open tail) (diff-to-fix fix session — DFX27) — saved token-redacted at bootstrap
 
 # (Re-stamped twice from the local DFX25/DFX26 bootstraps after same-window ID
@@ -292,4 +314,105 @@ unowned at fetch:
   session.
 - If the parallel MAJOR/MINOR lanes stall (no landing observed over a long
   window), pull and absorb their remainder per first-landing-wins.
+<<<<<<< HEAD
+# Session DFX25 — diff-to-fix closing session (INFORMATIONAL + tracked-open focus)
+
+Saved at session start, token redacted. Date: 2026-10-26.
+
+## Mandate (abridged, token redacted)
+
+Senior systems engineer role. Execute the roadmap in `core_recovery/diff-to-fix/`.
+For every finding — ACUTE, SEVERE, MAJOR, MINOR, INFORMATIONAL, TRACKED-OPEN —
+independently verify the finding, fix it, prove the fix with tests, and mark it
+in the audit trail with evidence.
+
+Two repos in scope only:
+- Core (modified): github.com/heicfast/core_recovery
+- Research corpus (ground truth, read-only): github.com/heicfast/easeus-drw-research
+- GitHub token: REDACTED (env/git config only, never committed, never logged)
+
+User directive for this session: focus on INFORMATIONAL and tracked-open
+initially, then continue one by one. Target at least 20+ fixes before session
+end. Put fixed findings in the fixed directory. Update all docs, counts.
+
+## Core SOPs
+
+- Verify → Reproduce → Classify → Fix → Re-review → Test → Benchmark → Document → Push → Loop.
+- One finding, one verified fix, one push.
+- No shortcuts, no fallbacks masking failure, no stubs/mocks/TODOs.
+- Every fix paired with a test that fails before, passes after.
+- Safety hardenings preserved (dest overlap refusal, BitLocker legit-unlock-only,
+  RawFixer consent, 4Kn, cancellable IRP, SDDL gating).
+- Pull frequently, never force-push, keep main green.
+- INFORMATIONAL: verify deliberate-difference rationale, mark ACKNOWLEDGED, no
+  code change unless rationale wrong.
+- Track open items: resolve or push forward with precise next step + evidence.
+
+## Session start state
+
+- Core HEAD: 716d121 (worklog(DFX16-M013): rebase reconciliation)
+- Corpus HEAD: 03ad46c (unmoved throughout history)
+- Open: 0 ACUTE, 0 SEVERE, 14 MAJOR, 19 MINOR, 22 INFORMATIONAL, 11 tracked-open
+- FIXED: 149
+# Session 30 prompt (saved token-redacted at bootstrap; re-stamped 25→30 past same-window squats)
+
+Mandate: execute the roadmap in `core_recovery/diff-to-fix/` — for every
+finding (ACUTE, SEVERE, MAJOR, MINOR, INFORMATIONAL, TRACKED-OPEN)
+independently verify against the research corpus and the running code
+before any change; fix confirmed divergences with fail-before/pass-after
+tests; correct false findings in the audit trail rather than breaking
+good code. Repos in scope (only these two):
+
+- Core (modified): https://github.com/heicfast/core_recovery
+- Research corpus (ground truth, read-only): https://github.com/heicfast/easeus-drw-research
+- GitHub token: env/git config only, never committed, never logged.
+
+Session emphasis (user instruction): fix all audit findings — minor
+first, one by one, with full context and knowledge; move fixed findings
+into `findings/FIXED/`; update all docs and counts properly; target at
+least 20+ fixes before session end.
+
+Lane note at bootstrap: two parallel lanes are claimed in the same
+window — DFX-front claimed the full open MINOR tier (354c555, front-first
+order: N-009, N-007/I-004, N-025, N-026, N-027, N-031, N-036, N-049,
+N-059, N-065, N-066, N-075, N-019, N-050, N-033, N-072, N-032, N-071,
+N-064) and DFX-major claimed the open MAJOR tier (02b950f). This lane
+(DFX30) claims the DISJOINT TAIL of the MINOR queue, worked back-to-front
+to maximize distance from DFX-front's front-first cursor: N-064, N-071,
+N-032, N-072, N-033, N-019, N-050. First-landing-wins on any overlap;
+pull before every fix; union-merge if a parallel landing arrives mid-fix.
+After the tail slice drains, pull and absorb whatever MINORs remain
+unclaimed (DFX-front front cursor may have advanced or stalled).
+
+Key SOPs (unchanged from all prior sessions):
+
+1. Read before touching: audit output, corpus citations (full artifact,
+   not the excerpt), current main (pull — other agents may have pushed).
+2. Verify → Reproduce → Classify (CONFIRMED-DIVERGENCE / ALREADY-FIXED /
+   FALSE-POSITIVE / OUTDATED-EVIDENCE / NEW-FINDING) → Fix → Re-review →
+   Test → Benchmark → Document → Push → Loop.
+=======
 >>>>>>> 3f23f3fd4172262e0f40a1786d9366308cb62d44
+=======
+   not the excerpt), current main (pull - other agents may have pushed).
+2. Verify -> Reproduce -> Classify (CONFIRMED-DIVERGENCE / ALREADY-FIXED
+   / FALSE-POSITIVE / OUTDATED-EVIDENCE / NEW-FINDING) -> Fix ->
+   Re-review -> Test -> Benchmark -> Document -> Push -> Loop.
+>>>>>>> 273dde4fdab4fe324d02a42b1ad5810ce73ec863
+3. One finding, one verified fix, one push, one finding-file update.
+4. Every fix paired with a test that fails before and passes after.
+5. Safety hardenings preserved. ReFS and LDM stay first-class.
+6. No shortcuts, no fallbacks that mask failure, no stubs. Production
+   grade only.
+7. Win7-inclusive import gate intact; signing stays disabled; CI green
+<<<<<<< HEAD
+   on every push; ASan/UBSan/TSan on touched code; fuzz for parsers.
+8. Audit trail is the deliverable: finding files keep their Resolutions,
+   CROSS-REF-MATRIX cells go to MATCH, SUMMARY counts updated,
+   modules/*.md verdicts updated, worklog.md chronological.
+=======
+   on every push.
+8. Audit trail is the deliverable: Resolutions kept, matrix cells to
+   MATCH, SUMMARY counts updated, worklog.md chronological.
+>>>>>>> fb95414 (repair: the N-071 convergence + committed-marker cleanup — merge 220e0be committed conflict markers (cr_bitlocker.h, rrecov.cpp x5, PARITY-DELTAS, CAPABILITY-MATRIX, RESOLVED-INDEX, 3 prompt archives); all repaired. N-064: both consent surfaces kept (cr::pwddict --bitlocker-pwddict + cr::dict --bitlocker-dict; unified open_volume_view consent chain; F61 preserved). N-071: the parallel lane's two-stack cfgmgr32 port stands canonical, this lane's busy-disk 0-access metadata retry integrated into open_disk_for_query used by BOTH stacks; pins updated to the converged truth. Suite 826/826; win_syntax_check green; repo zero-marker scan clean.)
+>>>>>>> 273dde4fdab4fe324d02a42b1ad5810ce73ec863

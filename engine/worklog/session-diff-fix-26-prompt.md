@@ -52,7 +52,6 @@ Session-24 lane facts recorded at bootstrap:
 - Open inventory at bootstrap: MINOR 19 (DFX23's queue) · MAJOR 14
   (this lane) · INFO 24 · tracked-open 11 · FIXED/ 149.
 - Corpus commit: 03ad46c (verify unmoved at first use).
-=======
 # Session 24 prompt (saved 2026-10-26, token redacted)
 
 You are a senior systems engineer (25+ years) in Windows storage internals, C++20
@@ -91,4 +90,3 @@ Session-specific mandate: Fix all the audit findings (focus on MINOR initially) 
 one, with full context and knowledge, and update and put fixed findings in the FIXED
 directory. Update all docs, counts and all properly. Target for at least 20+ fixes
 before session end.
->>>>>>> ab018de (worklog(DFX24): session-24 bootstrap — lane claim (rear-first MINOR queue), baseline 737/737 green at 354c555)
