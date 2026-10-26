@@ -15827,7 +15827,6 @@ Work Log:
 Stage Summary:
 - main green again. Session tally: 5 fixes (M-020, M-025, M-018, M-048,
   N-007) + 2 multi-lane repairs (T4, T7).
-<<<<<<< HEAD
 ---
 Task ID: DFX24-T5 (M-039)
 Agent: DFX24 (session 24, the MAJOR lane)
@@ -15841,5 +15840,3 @@ Work Log:
 
 Stage Summary:
 - M-039 FIXED. Remaining MAJOR: M-030, M-040.
-=======
->>>>>>> 5f2e2ad6566e1cb15620ec25b5e86a73a31fd55b
