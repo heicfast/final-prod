@@ -2014,6 +2014,15 @@ set_tests_properties([=[NtfsVolume.SpoofedOemRejectedEarly]=]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
 )
+add_test([=[NtfsVolume.RecycleBinScopeOutOfBinDollarFilesStayRaw]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=NtfsVolume.RecycleBinScopeOutOfBinDollarFilesStayRaw]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[NtfsVolume.RecycleBinScopeOutOfBinDollarFilesStayRaw]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_ntfs_volume.cpp:4308]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
 add_test([=[FatEngine.FreeMapExcludesVirtualClustersAndMatchesFAT]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=FatEngine.FreeMapExcludesVirtualClustersAndMatchesFAT]==] --gtest_also_run_disabled_tests)
 set_tests_properties([=[FatEngine.FreeMapExcludesVirtualClustersAndMatchesFAT]=]
   PROPERTIES
@@ -2401,11 +2410,38 @@ set_tests_properties([=[FatEngine.PrimaryFreeStillConsultsMirror]=]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
 )
+add_test([=[FatEngine.RecyclePairingRestoresOriginalName]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=FatEngine.RecyclePairingRestoresOriginalName]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[FatEngine.RecyclePairingRestoresOriginalName]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_fat_volume.cpp:1754]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[FatEngine.RecycleLegacyRoots]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=FatEngine.RecycleLegacyRoots]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[FatEngine.RecycleLegacyRoots]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_fat_volume.cpp:1787]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[FatEngine.NonRecycleDollarFilesStayRaw]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=FatEngine.NonRecycleDollarFilesStayRaw]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[FatEngine.NonRecycleDollarFilesStayRaw]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_fat_volume.cpp:1805]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
 add_test([=[ExfatEngine.TimestampsMatchOgLocalAsUtc]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=ExfatEngine.TimestampsMatchOgLocalAsUtc]==] --gtest_also_run_disabled_tests)
 set_tests_properties([=[ExfatEngine.TimestampsMatchOgLocalAsUtc]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:423]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:424]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -2414,7 +2450,7 @@ add_test([=[ExfatEngine.TimestampsZeroTzPassThrough]=]  /home/z/my-project/work/
 set_tests_properties([=[ExfatEngine.TimestampsZeroTzPassThrough]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:444]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:445]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -2423,7 +2459,7 @@ add_test([=[ExfatEngine.TimestampsMatchExplorerDisplay]=]  /home/z/my-project/wo
 set_tests_properties([=[ExfatEngine.TimestampsMatchExplorerDisplay]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:458]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:459]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -2432,7 +2468,7 @@ add_test([=[ExfatEngine.TimestampsWestOffsetAlsoIgnored]=]  /home/z/my-project/w
 set_tests_properties([=[ExfatEngine.TimestampsWestOffsetAlsoIgnored]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:474]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:475]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -2441,7 +2477,7 @@ add_test([=[ExfatEngine.FreeMapExcludesVirtualClustersAndMatchesBitmap]=]  /home
 set_tests_properties([=[ExfatEngine.FreeMapExcludesVirtualClustersAndMatchesBitmap]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:489]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:490]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -2450,7 +2486,7 @@ add_test([=[ExfatEngine.TornBitmapReadYieldsNoFreeMap]=]  /home/z/my-project/wor
 set_tests_properties([=[ExfatEngine.TornBitmapReadYieldsNoFreeMap]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:560]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:561]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -2459,7 +2495,7 @@ add_test([=[ExfatEngine.EndToEnd]=]  /home/z/my-project/work/core_recovery/build
 set_tests_properties([=[ExfatEngine.EndToEnd]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:583]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:584]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -2468,7 +2504,7 @@ add_test([=[ExfatEngine.UpcaseTableChecksumValidated]=]  /home/z/my-project/work
 set_tests_properties([=[ExfatEngine.UpcaseTableChecksumValidated]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:670]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:671]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -2477,7 +2513,7 @@ add_test([=[ExfatEngine.UpcaseLengthSanity]=]  /home/z/my-project/work/core_reco
 set_tests_properties([=[ExfatEngine.UpcaseLengthSanity]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:711]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:712]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -2486,7 +2522,7 @@ add_test([=[ExfatEngine.FreeMapProducerMatchesSpecBitMapping]=]  /home/z/my-proj
 set_tests_properties([=[ExfatEngine.FreeMapProducerMatchesSpecBitMapping]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:752]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:753]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -2495,7 +2531,7 @@ add_test([=[ExfatEngine.SetChecksumMismatchGradesExcellentInOgProfile]=]  /home/
 set_tests_properties([=[ExfatEngine.SetChecksumMismatchGradesExcellentInOgProfile]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:815]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:816]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -2504,7 +2540,7 @@ add_test([=[ExfatEngine.SetChecksumMismatchMarksDamaged]=]  /home/z/my-project/w
 set_tests_properties([=[ExfatEngine.SetChecksumMismatchMarksDamaged]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:836]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:837]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -2513,7 +2549,7 @@ add_test([=[ExfatEngine.InvalidFirstClusterRejected]=]  /home/z/my-project/work/
 set_tests_properties([=[ExfatEngine.InvalidFirstClusterRejected]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:863]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:864]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -2522,7 +2558,7 @@ add_test([=[ExfatEngine.EocFamilyTerminatesChain]=]  /home/z/my-project/work/cor
 set_tests_properties([=[ExfatEngine.EocFamilyTerminatesChain]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:909]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:910]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -2531,7 +2567,7 @@ add_test([=[ExfatEngine.FreeEntryContiguousSalvage]=]  /home/z/my-project/work/c
 set_tests_properties([=[ExfatEngine.FreeEntryContiguousSalvage]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:943]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:944]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -2540,7 +2576,7 @@ add_test([=[ExfatEngine.BootGatesMatchOg]=]  /home/z/my-project/work/core_recove
 set_tests_properties([=[ExfatEngine.BootGatesMatchOg]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:979]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:980]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -2549,7 +2585,7 @@ add_test([=[ExfatEngine.UpcaseAlgorithmMatchesRealMkfsExfat]=]  /home/z/my-proje
 set_tests_properties([=[ExfatEngine.UpcaseAlgorithmMatchesRealMkfsExfat]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1195]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1196]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -2558,7 +2594,7 @@ add_test([=[ExfatEngine.LargeFatFullChains]=]  /home/z/my-project/work/core_reco
 set_tests_properties([=[ExfatEngine.LargeFatFullChains]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1214]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1215]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -2567,7 +2603,7 @@ add_test([=[ExfatEngine.LargeFatDirectoryWalk]=]  /home/z/my-project/work/core_r
 set_tests_properties([=[ExfatEngine.LargeFatDirectoryWalk]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1254]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1255]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -2576,7 +2612,7 @@ add_test([=[ExfatEngine.StreamReservedPartiallyNonzeroPassesOgByteOr]=]  /home/z
 set_tests_properties([=[ExfatEngine.StreamReservedPartiallyNonzeroPassesOgByteOr]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1285]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1286]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -2585,7 +2621,7 @@ add_test([=[ExfatEngine.StreamReservedAllBytesNonzeroStillDamaged]=]  /home/z/my
 set_tests_properties([=[ExfatEngine.StreamReservedAllBytesNonzeroStillDamaged]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1324]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1325]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -2594,7 +2630,7 @@ add_test([=[ExfatEngine.StreamReserved1ByteStrictlyZero]=]  /home/z/my-project/w
 set_tests_properties([=[ExfatEngine.StreamReserved1ByteStrictlyZero]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1350]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1351]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -2603,7 +2639,7 @@ add_test([=[ExfatEngine.DeletedSetChecksumRejectsTornSet]=]  /home/z/my-project/
 set_tests_properties([=[ExfatEngine.DeletedSetChecksumRejectsTornSet]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1377]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1378]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -2612,7 +2648,7 @@ add_test([=[ExfatEngine.DeletedSetOracleReassembly]=]  /home/z/my-project/work/c
 set_tests_properties([=[ExfatEngine.DeletedSetOracleReassembly]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1406]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1407]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -2621,7 +2657,7 @@ add_test([=[ExfatEngine.LiveCompleteSetBadChecksumUngraded]=]  /home/z/my-projec
 set_tests_properties([=[ExfatEngine.LiveCompleteSetBadChecksumUngraded]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1452]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1453]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -2630,7 +2666,7 @@ add_test([=[ExfatEngine.EmptyFileSuppressedLikeOg]=]  /home/z/my-project/work/co
 set_tests_properties([=[ExfatEngine.EmptyFileSuppressedLikeOg]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1505]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1506]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -2639,7 +2675,7 @@ add_test([=[ExfatEngine.GarbageTimestampRejected]=]  /home/z/my-project/work/cor
 set_tests_properties([=[ExfatEngine.GarbageTimestampRejected]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1540]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1541]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -2648,7 +2684,7 @@ add_test([=[ExfatEngine.SecondaryCountCapped]=]  /home/z/my-project/work/core_re
 set_tests_properties([=[ExfatEngine.SecondaryCountCapped]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1593]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1594]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -2657,7 +2693,7 @@ add_test([=[ExfatEngine.BadNameFlagsRejected]=]  /home/z/my-project/work/core_re
 set_tests_properties([=[ExfatEngine.BadNameFlagsRejected]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1629]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1630]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -2666,7 +2702,7 @@ add_test([=[ExfatEngine.FileReservedNonzeroRejected]=]  /home/z/my-project/work/
 set_tests_properties([=[ExfatEngine.FileReservedNonzeroRejected]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1678]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1679]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -2675,7 +2711,34 @@ add_test([=[ExfatEngine.ValidBoundaryTimestampsStillPass]=]  /home/z/my-project/
 set_tests_properties([=[ExfatEngine.ValidBoundaryTimestampsStillPass]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1714]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1715]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[ExfatEngine.NameUtf16TableInvalidCharRejected]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=ExfatEngine.NameUtf16TableInvalidCharRejected]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[ExfatEngine.NameUtf16TableInvalidCharRejected]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1772]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[ExfatEngine.NameUtf16TableAllowedCharAccepted]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=ExfatEngine.NameUtf16TableAllowedCharAccepted]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[ExfatEngine.NameUtf16TableAllowedCharAccepted]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1792]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[ExfatEngine.RecyclePairingMirrored]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=ExfatEngine.RecyclePairingMirrored]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[ExfatEngine.RecyclePairingMirrored]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_exfat_volume.cpp:1815]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -3215,7 +3278,7 @@ add_test([=[Btrfs.SubvolumeNamedFromRootRef]=]  /home/z/my-project/work/core_rec
 set_tests_properties([=[Btrfs.SubvolumeNamedFromRootRef]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:554]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:618]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -3224,7 +3287,7 @@ add_test([=[Btrfs.FileAttributeNormalBit]=]  /home/z/my-project/work/core_recove
 set_tests_properties([=[Btrfs.FileAttributeNormalBit]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:636]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:700]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -3233,7 +3296,7 @@ add_test([=[Btrfs.BadMagicRejected]=]  /home/z/my-project/work/core_recovery/bui
 set_tests_properties([=[Btrfs.BadMagicRejected]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:665]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:729]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -3242,7 +3305,7 @@ add_test([=[Btrfs.PackedDirItemsInOneItem]=]  /home/z/my-project/work/core_recov
 set_tests_properties([=[Btrfs.PackedDirItemsInOneItem]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:675]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:739]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -3251,7 +3314,7 @@ add_test([=[Btrfs.MirrorSelectionNewestGeneration]=]  /home/z/my-project/work/co
 set_tests_properties([=[Btrfs.MirrorSelectionNewestGeneration]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:728]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:792]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -3260,7 +3323,7 @@ add_test([=[Btrfs.InternalKeyPtrWalk]=]  /home/z/my-project/work/core_recovery/b
 set_tests_properties([=[Btrfs.InternalKeyPtrWalk]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:762]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:826]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -3269,7 +3332,7 @@ add_test([=[Btrfs.InlineAndCompressedExtents]=]  /home/z/my-project/work/core_re
 set_tests_properties([=[Btrfs.InlineAndCompressedExtents]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:872]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:936]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -3278,7 +3341,7 @@ add_test([=[Btrfs.NonAsciiNamesDecodedNotByteLifted]=]  /home/z/my-project/work/
 set_tests_properties([=[Btrfs.NonAsciiNamesDecodedNotByteLifted]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:1018]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:1082]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -3287,7 +3350,7 @@ add_test([=[Btrfs.Latin1NameRoundTripsRawBytes]=]  /home/z/my-project/work/core_
 set_tests_properties([=[Btrfs.Latin1NameRoundTripsRawBytes]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:1088]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:1152]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -3296,7 +3359,7 @@ add_test([=[Btrfs.XattrDosAttribApplied]=]  /home/z/my-project/work/core_recover
 set_tests_properties([=[Btrfs.XattrDosAttribApplied]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:1175]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:1239]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -3305,7 +3368,7 @@ add_test([=[Btrfs.UserXattrRecordsEmitted]=]  /home/z/my-project/work/core_recov
 set_tests_properties([=[Btrfs.UserXattrRecordsEmitted]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:1243]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:1307]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -3314,7 +3377,7 @@ add_test([=[Btrfs.CompressionPropertyTagged]=]  /home/z/my-project/work/core_rec
 set_tests_properties([=[Btrfs.CompressionPropertyTagged]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:1318]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:1382]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -3323,7 +3386,7 @@ add_test([=[Btrfs.Raid10GeometryGate]=]  /home/z/my-project/work/core_recovery/b
 set_tests_properties([=[Btrfs.Raid10GeometryGate]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:1409]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:1473]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -3332,7 +3395,7 @@ add_test([=[Btrfs.Raid1RotatingMirrorReads]=]  /home/z/my-project/work/core_reco
 set_tests_properties([=[Btrfs.Raid1RotatingMirrorReads]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:1595]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:1659]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -3341,7 +3404,7 @@ add_test([=[Btrfs.Raid0StripeMathSplitsAtStripeBoundaries]=]  /home/z/my-project
 set_tests_properties([=[Btrfs.Raid0StripeMathSplitsAtStripeBoundaries]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:1625]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:1689]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -3350,7 +3413,7 @@ add_test([=[Btrfs.DefaultDirItemNonSubvolumeLocationFallsBack]=]  /home/z/my-pro
 set_tests_properties([=[Btrfs.DefaultDirItemNonSubvolumeLocationFallsBack]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:1746]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_btrfs_volume.cpp:1810]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5326,11 +5389,47 @@ set_tests_properties([=[Session.AutoNamingConvention]=]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
 )
+add_test([=[Session.BtrfsExtrasRoundTrip]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=Session.BtrfsExtrasRoundTrip]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[Session.BtrfsExtrasRoundTrip]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_session.cpp:978]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[Session.ZfsSecondaryFlagsRoundTrip]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=Session.ZfsSecondaryFlagsRoundTrip]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[Session.ZfsSecondaryFlagsRoundTrip]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_session.cpp:1013]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[Session.EngineExtrasAbsentWhenUnpopulated]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=Session.EngineExtrasAbsentWhenUnpopulated]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[Session.EngineExtrasAbsentWhenUnpopulated]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_session.cpp:1054]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
 add_test([=[Orchestrator.DynamicDiskVolumeScan]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=Orchestrator.DynamicDiskVolumeScan]==] --gtest_also_run_disabled_tests)
 set_tests_properties([=[Orchestrator.DynamicDiskVolumeScan]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:169]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:171]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[Orchestrator.JunkFilteredFromResults]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=Orchestrator.JunkFilteredFromResults]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[Orchestrator.JunkFilteredFromResults]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:266]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5339,7 +5438,7 @@ add_test([=[Orchestrator.LogSilentByDefault]=]  /home/z/my-project/work/core_rec
 set_tests_properties([=[Orchestrator.LogSilentByDefault]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:237]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:403]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5348,7 +5447,7 @@ add_test([=[Orchestrator.LogSinkReceivesScanBrackets]=]  /home/z/my-project/work
 set_tests_properties([=[Orchestrator.LogSinkReceivesScanBrackets]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:257]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:423]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5357,7 +5456,7 @@ add_test([=[Orchestrator.MemoryMonitorEmitsUnderPressure]=]  /home/z/my-project/
 set_tests_properties([=[Orchestrator.MemoryMonitorEmitsUnderPressure]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:301]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:467]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5366,7 +5465,7 @@ add_test([=[Orchestrator.WeightedProgress]=]  /home/z/my-project/work/core_recov
 set_tests_properties([=[Orchestrator.WeightedProgress]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:332]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:498]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5375,7 +5474,7 @@ add_test([=[Orchestrator.ProbeFamily]=]  /home/z/my-project/work/core_recovery/b
 set_tests_properties([=[Orchestrator.ProbeFamily]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:342]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:508]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5384,7 +5483,7 @@ add_test([=[Orchestrator.SpoofedExfatOemRejectedBeforeEngine]=]  /home/z/my-proj
 set_tests_properties([=[Orchestrator.SpoofedExfatOemRejectedBeforeEngine]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:373]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:539]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5393,7 +5492,7 @@ add_test([=[Orchestrator.SpoofedFatBootUnreadableRootRejected]=]  /home/z/my-pro
 set_tests_properties([=[Orchestrator.SpoofedFatBootUnreadableRootRejected]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:386]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:552]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5402,7 +5501,7 @@ add_test([=[Orchestrator.RealExfatBootContentVerified]=]  /home/z/my-project/wor
 set_tests_properties([=[Orchestrator.RealExfatBootContentVerified]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:399]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:565]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5411,7 +5510,7 @@ add_test([=[Orchestrator.FsFamilyValuesMatchContract]=]  /home/z/my-project/work
 set_tests_properties([=[Orchestrator.FsFamilyValuesMatchContract]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:459]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:625]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5420,7 +5519,7 @@ add_test([=[Orchestrator.UdfProbeFailsOnMkudffsShapeLikeTheOg]=]  /home/z/my-pro
 set_tests_properties([=[Orchestrator.UdfProbeFailsOnMkudffsShapeLikeTheOg]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:476]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:642]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5429,7 +5528,7 @@ add_test([=[Orchestrator.ProbesUdfVolume]=]  /home/z/my-project/work/core_recove
 set_tests_properties([=[Orchestrator.ProbesUdfVolume]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:524]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:690]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5438,7 +5537,7 @@ add_test([=[Orchestrator.UdfProbeRequiresBothDescriptorReads]=]  /home/z/my-proj
 set_tests_properties([=[Orchestrator.UdfProbeRequiresBothDescriptorReads]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:532]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:698]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5447,7 +5546,7 @@ add_test([=[Orchestrator.UdfNotConfusedWithFat]=]  /home/z/my-project/work/core_
 set_tests_properties([=[Orchestrator.UdfNotConfusedWithFat]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:546]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:712]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5456,7 +5555,7 @@ add_test([=[Orchestrator.UdfSurfacesAsCarveFamily]=]  /home/z/my-project/work/co
 set_tests_properties([=[Orchestrator.UdfSurfacesAsCarveFamily]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:570]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:736]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5465,7 +5564,7 @@ add_test([=[Orchestrator.CarveSingleNamingFamily]=]  /home/z/my-project/work/cor
 set_tests_properties([=[Orchestrator.CarveSingleNamingFamily]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:692]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:858]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5474,7 +5573,7 @@ add_test([=[Orchestrator.StagedRunAndSessionRoundTrip]=]  /home/z/my-project/wor
 set_tests_properties([=[Orchestrator.StagedRunAndSessionRoundTrip]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:816]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:982]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5483,7 +5582,7 @@ add_test([=[Orchestrator.PreScanRepairRestoresTornFatAndScans]=]  /home/z/my-pro
 set_tests_properties([=[Orchestrator.PreScanRepairRestoresTornFatAndScans]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:1097]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:1263]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5492,7 +5591,7 @@ add_test([=[Orchestrator.PreScanRepairDeniedNeverWrites]=]  /home/z/my-project/w
 set_tests_properties([=[Orchestrator.PreScanRepairDeniedNeverWrites]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:1149]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:1315]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5501,7 +5600,7 @@ add_test([=[Orchestrator.PreScanRepairWithoutHooksNeverWrites]=]  /home/z/my-pro
 set_tests_properties([=[Orchestrator.PreScanRepairWithoutHooksNeverWrites]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:1181]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:1347]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5510,7 +5609,7 @@ add_test([=[Orchestrator.ReadPipeBuildsCacheOverRetryForValidGeometry]=]  /home/
 set_tests_properties([=[Orchestrator.ReadPipeBuildsCacheOverRetryForValidGeometry]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:1532]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:1698]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5519,7 +5618,7 @@ add_test([=[Orchestrator.ReadPipeDegradesToBareSliceWhenCacheCreationFails]=]  /
 set_tests_properties([=[Orchestrator.ReadPipeDegradesToBareSliceWhenCacheCreationFails]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:1547]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:1713]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5528,7 +5627,16 @@ add_test([=[Orchestrator.ReadPipeZeroCapacityDegradesToBareSlice]=]  /home/z/my-
 set_tests_properties([=[Orchestrator.ReadPipeZeroCapacityDegradesToBareSlice]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:1564]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:1730]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[FilterFolder.CorpusListsPinned]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=FilterFolder.CorpusListsPinned]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[FilterFolder.CorpusListsPinned]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:219]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5537,7 +5645,7 @@ add_test([=[SafeWriter.OverlapRefusal]=]  /home/z/my-project/work/core_recovery/
 set_tests_properties([=[SafeWriter.OverlapRefusal]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:899]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:1065]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5546,7 +5654,7 @@ add_test([=[SafeWriter.CollisionAndSanitize]=]  /home/z/my-project/work/core_rec
 set_tests_properties([=[SafeWriter.CollisionAndSanitize]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:945]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:1111]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5555,7 +5663,7 @@ add_test([=[SafeWriter.ResidentPrefixNotOverwritten]=]  /home/z/my-project/work/
 set_tests_properties([=[SafeWriter.ResidentPrefixNotOverwritten]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:961]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:1127]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5564,7 +5672,7 @@ add_test([=[SafeWriter.InvalidUtf8NameRestoredFromRaw]=]  /home/z/my-project/wor
 set_tests_properties([=[SafeWriter.InvalidUtf8NameRestoredFromRaw]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:1482]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:1648]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5573,7 +5681,7 @@ add_test([=[ScanEvents.ErrorRangeGoesToLiveSink]=]  /home/z/my-project/work/core
 set_tests_properties([=[ScanEvents.ErrorRangeGoesToLiveSink]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:1266]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:1432]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5582,7 +5690,7 @@ add_test([=[ScanEvents.SinkSwitchDeliversAllTypes]=]  /home/z/my-project/work/co
 set_tests_properties([=[ScanEvents.SinkSwitchDeliversAllTypes]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:1294]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:1460]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5591,7 +5699,7 @@ add_test([=[ScanEvents.SingleBoundaryAtTeardown]=]  /home/z/my-project/work/core
 set_tests_properties([=[ScanEvents.SingleBoundaryAtTeardown]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:1323]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:1489]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5600,7 +5708,7 @@ add_test([=[ScanEvents.ErrorRangeCarriesModuleOperationAttempts]=]  /home/z/my-p
 set_tests_properties([=[ScanEvents.ErrorRangeCarriesModuleOperationAttempts]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:1392]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:1558]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5609,7 +5717,7 @@ add_test([=[ScanEvents.ProbeBlockFailureAttributesToOrchestrator]=]  /home/z/my-
 set_tests_properties([=[ScanEvents.ProbeBlockFailureAttributesToOrchestrator]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:1416]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:1582]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5618,7 +5726,7 @@ add_test([=[ScanEvents.CarveErrorRangeAttributesToCarveModule]=]  /home/z/my-pro
 set_tests_properties([=[ScanEvents.CarveErrorRangeAttributesToCarveModule]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:1440]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:1606]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5627,7 +5735,7 @@ add_test([=[ScanConfig.DeepStageDefaultsOnAndWholeDiskOff]=]  /home/z/my-project
 set_tests_properties([=[ScanConfig.DeepStageDefaultsOnAndWholeDiskOff]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:1462]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_orchestrator.cpp:1628]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5843,7 +5951,7 @@ add_test([=[WriterDirs.PerItemErrorCollectedQueueContinues]=]  /home/z/my-projec
 set_tests_properties([=[WriterDirs.PerItemErrorCollectedQueueContinues]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_writer_dirs.cpp:347]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_writer_dirs.cpp:348]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5852,7 +5960,7 @@ add_test([=[WriterDirs.MetadataOnlyItemSkipsNotZeroFills]=]  /home/z/my-project/
 set_tests_properties([=[WriterDirs.MetadataOnlyItemSkipsNotZeroFills]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_writer_dirs.cpp:386]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_writer_dirs.cpp:387]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5861,7 +5969,34 @@ add_test([=[WriterDirs.ProgressExcludesErrorItems]=]  /home/z/my-project/work/co
 set_tests_properties([=[WriterDirs.ProgressExcludesErrorItems]=]
   PROPERTIES
     
-    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_writer_dirs.cpp:449]==]
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_writer_dirs.cpp:450]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[WriterDirs.CollisionNameUnderscoreFormat]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=WriterDirs.CollisionNameUnderscoreFormat]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[WriterDirs.CollisionNameUnderscoreFormat]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_writer_dirs.cpp:489]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[WriterDirs.CollisionExhaustionFailsTheItem]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=WriterDirs.CollisionExhaustionFailsTheItem]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[WriterDirs.CollisionExhaustionFailsTheItem]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_writer_dirs.cpp:542]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[WriterDirs.MkdirSemanticsMatchShCreateDirectoryEx]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=WriterDirs.MkdirSemanticsMatchShCreateDirectoryEx]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[WriterDirs.MkdirSemanticsMatchShCreateDirectoryEx]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_writer_dirs.cpp:585]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -5961,6 +6096,87 @@ set_tests_properties([=[FveAutoUnlock.SelectionPrefersMatchingVolumeGuid]=]
   PROPERTIES
     
     DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_reghive.cpp:371]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[Pwddict.ParsesOgeDictFormatByteFaithfully]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=Pwddict.ParsesOgeDictFormatByteFaithfully]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[Pwddict.ParsesOgeDictFormatByteFaithfully]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_pwddict.cpp:79]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[Pwddict.ParseAcceptsLfAndOptionalComma]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=Pwddict.ParseAcceptsLfAndOptionalComma]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[Pwddict.ParseAcceptsLfAndOptionalComma]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_pwddict.cpp:99]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[Pwddict.ParseEnforcesCapsAndRefusesOversize]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=Pwddict.ParseEnforcesCapsAndRefusesOversize]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[Pwddict.ParseEnforcesCapsAndRefusesOversize]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_pwddict.cpp:109]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[Pwddict.SeedDictionaryIsSane]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=Pwddict.SeedDictionaryIsSane]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[Pwddict.SeedDictionaryIsSane]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_pwddict.cpp:143]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[Pwddict.TryPasswordsStopsAtFirstSuccess]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=Pwddict.TryPasswordsStopsAtFirstSuccess]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[Pwddict.TryPasswordsStopsAtFirstSuccess]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_pwddict.cpp:172]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[Pwddict.TryPasswordsDedupsPreservingOrder]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=Pwddict.TryPasswordsDedupsPreservingOrder]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[Pwddict.TryPasswordsDedupsPreservingOrder]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_pwddict.cpp:184]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[Pwddict.TryPasswordsExhaustsToLockedAndGuardsArgs]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=Pwddict.TryPasswordsExhaustsToLockedAndGuardsArgs]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[Pwddict.TryPasswordsExhaustsToLockedAndGuardsArgs]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_pwddict.cpp:198]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[Pwddict.AttemptLogCarriesProgressAndLengthNeverSecrets]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=Pwddict.AttemptLogCarriesProgressAndLengthNeverSecrets]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[Pwddict.AttemptLogCarriesProgressAndLengthNeverSecrets]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_pwddict.cpp:221]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[Pwddict.ExhaustLogsWarnOnce]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=Pwddict.ExhaustLogsWarnOnce]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[Pwddict.ExhaustLogsWarnOnce]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_pwddict.cpp:243]==]
     WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
@@ -6829,6 +7045,141 @@ set_tests_properties([=[RawFixer.ExfatBackupReadFull4Kn]=]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
 )
+add_test([=[Consistency.ExtensionIsLastDotUppercased]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=Consistency.ExtensionIsLastDotUppercased]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[Consistency.ExtensionIsLastDotUppercased]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_consistency.cpp:61]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[Consistency.CheckableVocabularyIsSignatureFamiliesPlusSpecials]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=Consistency.CheckableVocabularyIsSignatureFamiliesPlusSpecials]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[Consistency.CheckableVocabularyIsSignatureFamiliesPlusSpecials]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_consistency.cpp:69]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[Consistency.ClassifierIsSubstringPlusVideoSpecials]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=Consistency.ClassifierIsSubstringPlusVideoSpecials]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[Consistency.ClassifierIsSubstringPlusVideoSpecials]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_consistency.cpp:90]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[Lost.ContentInconsistentGhostRejected]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=Lost.ContentInconsistentGhostRejected]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[Lost.ContentInconsistentGhostRejected]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_consistency.cpp:132]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[Lost.ContentConsistentGhostAccepted]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=Lost.ContentConsistentGhostAccepted]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[Lost.ContentConsistentGhostAccepted]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_consistency.cpp:156]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[Lost.RatioBoundaryThirtyPercent]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=Lost.RatioBoundaryThirtyPercent]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[Lost.RatioBoundaryThirtyPercent]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_consistency.cpp:174]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[Lost.MajorityGateRequiresHalfFilterable]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=Lost.MajorityGateRequiresHalfFilterable]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[Lost.MajorityGateRequiresHalfFilterable]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_consistency.cpp:199]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[Lost.DirectoriesAndExtentlessFilesMirrorOgCounters]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=Lost.DirectoriesAndExtentlessFilesMirrorOgCounters]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[Lost.DirectoriesAndExtentlessFilesMirrorOgCounters]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_consistency.cpp:219]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[Lost.DataStartOutOfBoundsInvalidatesTheCandidate]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=Lost.DataStartOutOfBoundsInvalidatesTheCandidate]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[Lost.DataStartOutOfBoundsInvalidatesTheCandidate]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_consistency.cpp:247]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[Lost.UnreadableDataStartStaysUnmatched]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=Lost.UnreadableDataStartStaysUnmatched]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[Lost.UnreadableDataStartStaysUnmatched]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_consistency.cpp:259]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[Lost.EmptyCandidateListNeverRejects]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=Lost.EmptyCandidateListNeverRejects]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[Lost.EmptyCandidateListNeverRejects]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_consistency.cpp:283]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[Lost.WholeDiskScanDropsContentInconsistentExfatGhost]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=Lost.WholeDiskScanDropsContentInconsistentExfatGhost]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[Lost.WholeDiskScanDropsContentInconsistentExfatGhost]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_consistency.cpp:542]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[Lost.WholeDiskScanKeepsContentConsistentExfatGhost]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=Lost.WholeDiskScanKeepsContentConsistentExfatGhost]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[Lost.WholeDiskScanKeepsContentConsistentExfatGhost]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_consistency.cpp:591]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[TreeDetach.RemovesNodesRootsAndIndexes]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=TreeDetach.RemovesNodesRootsAndIndexes]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[TreeDetach.RemovesNodesRootsAndIndexes]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_consistency.cpp:308]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
+add_test([=[TreeDetach.HardLinkPropsSurviveWithTheirRefs]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=TreeDetach.HardLinkPropsSurviveWithTheirRefs]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[TreeDetach.HardLinkPropsSurviveWithTheirRefs]=]
+  PROPERTIES
+    
+    DEF_SOURCE_LINE [==[/home/z/my-project/work/core_recovery/tests/unit/test_consistency.cpp:347]==]
+    WORKING_DIRECTORY [==[/home/z/my-project/work/core_recovery/build-linux/tests]==]
+    SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
+    
+)
 add_test([=[Refs.BootValidation]=]  /home/z/my-project/work/core_recovery/build-linux/tests/cr_tests [==[--gtest_filter=Refs.BootValidation]==] --gtest_also_run_disabled_tests)
 set_tests_properties([=[Refs.BootValidation]=]
   PROPERTIES
@@ -7117,4 +7468,4 @@ set_tests_properties([=[Refs.SingleContainerExtentsUnchanged]=]
     SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==]
     
 )
-set(cr_tests_TESTS [==[Fixup.ValidRecordApplies]==] [==[Fixup.TornRecordRejected]==] [==[Fixup.TornThirdTailStillSalvaged]==] [==[Fixup.MinSizeGate]==] [==[Fixup.ZeroOffsetRejected]==] [==[Fixup.FourKnSectorSize]==] [==[Image.FlatFileScansMbr]==] [==[Image.FlatRejectsEmptyAndMissing]==] [==[Image.ImageRejectsTruncatedFile]==] [==[Image.EdiskRefusedAsRegisteredExclusion]==] [==[Image.BadMagicVmdkRefusedNotFlatFallback]==] [==[Image.VmdkSparseExtentReads]==] [==[Image.VmdkDifferencingChainReadsParent]==] [==[Image.VmdkStreamOptimizedRefused]==] [==[Image.VhdDynamicDisk]==] [==[Image.VhdDifferencingReadsParentOnClearBitmap]==] [==[Image.VhdBadChecksumRefused]==] [==[Image.VhdxDynamicReads]==] [==[Image.VhdxLogOverlayServesUnflushedWrites]==] [==[Image.VhdxDifferencingRefusedPrecisely]==] [==[Image.Lba0LayoutClassification]==] [==[Image.ExtensionClassificationMatchesOgDispatch]==] [==[Image.SessionRoundTripPersistsImagePath]==] [==[Image.QemuVmdkCompat]==] [==[Image.QemuVhdCompat]==] [==[Image.QemuVhdxCompat]==] [==[NvmeHealth.PageFieldOffsets]==] [==[NvmeHealth.FullFieldSurface]==] [==[NvmeHealth.DataUnitsConvertedToBytes]==] [==[NvmeHealth.ShortBufferRejected]==] [==[NvmeHealth.NullRejected]==] [==[NvmeHealth.PercentageUsedIsU8Width]==] [==[Nvme.CliTempFractionIsCelsiusDecidegrees]==] [==[Health.SmartCommandListMatchesImplementation]==] [==[Health.Attr197Raw3IsCaution]==] [==[Health.ValueBelowVendorThresholdIsBad]==] [==[Health.Attr5RawAllFFSkipsCautionCheck]==] [==[Health.DuplicateAttrIdYieldsUnknown]==] [==[Health.NoGradedSignalYieldsUnknown]==] [==[Health.SsdAnyAttrBelowThresholdIsBad]==] [==[Health.TemperatureNeverAffectsTheDiskGrade]==] [==[Health.SsdLifeFamilyGatesAndBoundaries]==] [==[Health.SsdLifeBelowVendorThresholdIsBad]==] [==[Health.SsdLifeInvertFormReads100MinusRaw]==] [==[Health.WdcAttr230LifeFromRawByte]==] [==[Health.Attr1RuleIsSandForceGated]==] [==[Health.FailingBitForcesDiskBadButAttrGradesFollowOg]==] [==[Health.NvmeGradeMapping]==] [==[Health.ModelSaysSsdOcList]==] [==[Health.ClassifyFamilyDecodedVendors]==] [==[Health.ClassifyFamilyAttributeSignatures]==] [==[Health.ClassifyFamilyFormsAndFallbacks]==] [==[Health.MakeGradeInputsAppliesOgDefaults]==] [==[Health.GradeNames]==] [==[Health.CsmiRequestMatchesOgWireFormat]==] [==[Health.CsmiIdentifyCarriesZeroLbaAndSmartCarriesMagic]==] [==[Health.CsmiBuilderRejectsUndersizedBuffer]==] [==[Health.CsmiResponseDataExtractedAtOgOffset]==] [==[Health.CsmiTransportUnavailableClassifiesTheOgErrorSet]==] [==[Health.CsmiTransportFallsBack]==] [==[Health.CsmiReadsAttributes]==] [==[Health.SmartChainEmptyIsBadParameter]==] [==[Health.SmartAttrNameTableCoversTheCuratedIds]==] [==[RunList.SingleRunDecode]==] [==[RunList.NegativeDelta]==] [==[RunList.SparseRun]==] [==[RunList.TerminatesAndRejectsTruncated]==] [==[RunList.ZeroLengthRunRejected]==] [==[RunList.MaxClusterGuard]==] [==[RunList.EncodeDecodeRoundTrip]==] [==[RunList.SignedWidthEdgeCases]==] [==[RunList.ExtentCoalesce]==] [==[RunList.Int64MinOffsetRejected]==] [==[Crc32.KnownVectors]==] [==[Gpt.ValidTable]==] [==[Gpt.BadHeaderCrcDetected]==] [==[Gpt.DeadPrimaryHeaderSalvagesOwnEntries]==] [==[Gpt.ProtectiveOnlyVolumeRecoversFromBackup]==] [==[Gpt.HostileSalvageHeaderEntriesOutsideDiskRejected]==] [==[Gpt.CanonicalTypeGuidConstantsMatchRealDiskBytes]==] [==[Gpt.LdmGuidConstantsMatchMicrosoftWinioctlText]==] [==[Gpt.EspMsrLinuxBiosbootLdmClassification]==] [==[Mbr.PlainWithExtended]==] [==[Mbr.EbrLayoutAssignedAndPlainMbrStaysMbr]==] [==[Mbr.EbrCycleGuard]==] [==[Mbr.TornLinkKeepsPriorVolumes]==] [==[Mbr.TornLinkStatusReported]==] [==[Slice.BoundsEnforced]==] [==[Slice.TailReadRefusalPinned]==] [==[Slice.StartMustBeAligned]==] [==[Slice.RaggedTailAllowed]==] [==[Slice.GeometryRefreshAfterMediaChange]==] [==[Slice.GeometryRefreshRefusesInvalidatingChange]==] [==[DevMap.AddMergeSerialize]==] [==[DevMap.ModuleAttributionRecordedAndNewestWinsOnCoalesce]==] [==[DevMap.ModuleNotSerializedWireStaysTrio]==] [==[Cached.HitMissAndBridging]==] [==[Cached.BoundsReject]==] [==[Cached.FailedBlocksAreNotCachedForever]==] [==[Cached.ScanCacheBudgetIsTheRegisteredDivergence]==] [==[DirectAlign.AlignedRequestIsTheFastPath]==] [==[DirectAlign.FourKMultipleNotSixtyFourKTakesTheEnvelope]==] [==[DirectAlign.UnalignedOffsetAndLengthEnvelope]==] [==[DirectAlign.MultiBlockEnvelopeCoversTheRequest]==] [==[DirectAlign.DeviceTailClampIsTheDocumentedException]==] [==[DirectAlign.OneMiBWriterChunkAtAlignedOffsetStaysDirect]==] [==[DirectAlign.OutOfBoundsAndEmptyRequestsFail]==] [==[DirectAlign.IssuedLengthAlwaysSixtyFourKMultipleExceptTail]==] [==[DirectAlign.UnifiedEnvelopeExhaustivePropertyBothDevices]==] [==[Retry.CleanReadPassesThrough]==] [==[Retry.FailModeReportsExhaustedAndMapsRange]==] [==[Retry.SkipModeZeroFillsOnlyBadSectors]==] [==[Retry.UnalignedBadRangeRoundsToWholeSectors]==] [==[Retry.BacktrackReadSalvagesPartialSector]==] [==[Retry.BacktrackOffReproducesLegacyExhausted]==] [==[Retry.BacktrackStaysAlignedOn4Kn]==] [==[Retry.BoundsAreEnforcedBeforeInner]==] [==[Retry.DeterministicFailureNotRetried]==] [==[Retry.GeometryForwarded]==] [==[Retry.ThreadStampAttributedToRecordedRange]==] [==[Retry.OwnerFallbackCoversUnstampedWorkerThreads]==] [==[Errmod.GuardSetsAndRestoresTheThreadStamp]==] [==[Pool.RunsAllItemsExactlyOnce]==] [==[Pool.AbortStopsWork]==] [==[Pool.ExternalCancelTokenAdapter]==] [==[Pool.ExceptionsNeverCrossThreadEdge]==] [==[Pool.WaitIdleAndPending]==] [==[Pool.CancelPoolWatcherDrainsQueueWithinOneTick]==] [==[Pool.CancelPoolWatcherNullTokenIsInert]==] [==[ParallelCarve.MatchesSingleThreaded]==] [==[ParallelRemnants.SameRecordsAsSequential]==] [==[NodeTree.AddRootsAndFiles]==] [==[NodeTree.HardLinkSharesProps]==] [==[NodeTree.ExtentDedupIndex]==] [==[NodeTree.ResetFreesClean]==] [==[Grading.MonotonicMaxNeverDowngrades]==] [==[Grading.Grade2Sticky]==] [==[Grading.DefaultGradeIsAverageAtEmit]==] [==[Grading.SizeFloorIs1]==] [==[Grading.EmailCategoryFastPath]==] [==[Grading.ExistingFilesHighDeletedNot]==] [==[Grading.SmallFileUnder1024High]==] [==[Grading.NtfsDeviceIndexRuleUpgrades]==] [==[Grading.ExtensionTableGatesDeepValidation]==] [==[Grading.TwinAddressFlagsBoth]==] [==[Grading.TableMembershipAndCount]==] [==[Grading.RegradeOnlyGrade1]==] [==[Grading.AssistantCountersMixedFixture]==] [==[Grading.SessionRoundTripPreservesGrade]==] [==[Report.ContainsAssistantStatistics]==] [==[Report.EscapingStrictJson]==] [==[Report.SchemaShapeAndDeterminism]==] [==[Report.WriterOutcomesAndHashHonesty]==] [==[Report.MultiExtentSpannedVolumeRefused]==] [==[Report.DestFullFastFailStopsAttempting]==] [==[Report.DestFullPreCheckRefusesUpfront]==] [==[Report.SalvagedOutcomeMarksZeroFilledCommits]==] [==[Report.EmitsCiSchemaSample]==] [==[Enumerate.ScopeDeltaRegisteredWithRevisitTrigger]==] [==[Enumerate.BusyDiskMetadataRetryShipsInQueryDisk]==] [==[Enumerate.ScopeContractDocumentedInHeader]==] [==[Enumerate.SetupApiMerge]==] [==[Enumerate.DedupByInstancePath]==] [==[Enumerate.MergeWithEmptyInterfaceStackKeepsLoop]==] [==[Enumerate.MergeWithEmptyLoopTakesAllInterfaces]==] [==[NtfsVolume.NonresidentAttrlistOnMft]==] [==[NtfsVolume.NestedAttrlistChase]==] [==[NtfsVolume.ResidentAdsCarriesContent]==] [==[NtfsVolume.AdsAttachesToFirstLink]==] [==[NtfsVolume.UsnJrnlHarvest]==] [==[NtfsVolume.UsnJrnlSparseV3Resync]==] [==[NtfsVolume.ShiftedHeaderSalvage]==] [==[NtfsVolume.EndToEndWalk]==] [==[NtfsVolume.HardLinkSingleLinkMatchesOg]==] [==[NtfsVolume.HardLinkFanOutOptIn]==] [==[NtfsVolume.RecycleBinMapping]==] [==[NtfsVolume.RemnantScanFindsDetachedRecord]==] [==[NtfsVolume.ViabilityProbeUsesDataSize]==] [==[NtfsVolume.ViabilityBoundaryExactFastPath]==] [==[NtfsVolume.ExtensionRecordsNotCountedDamaged]==] [==[NtfsVolume.CompressedDataRecoversRealContent]==] [==[NtfsVolume.Lznt1MsXcaDocumentedVector]==] [==[NtfsVolume.RemnantScanReconstructsDataRunlist]==] [==[NtfsVolume.RemnantScanReconstructsResidentData]==] [==[NtfsVolume.RemnantScanCompressedStreamStaysMetadataOnly]==] [==[NtfsVolume.OverwrittenHonestModeKeepsAndGrades]==] [==[NtfsVolume.HardLinkDestroyRuleInteraction]==] [==[NtfsVolume.BootNoPow2RecordSizeAcceptedAtDecodedValue]==] [==[NtfsVolume.BootRecordSizeZeroRejected]==] [==[NtfsVolume.BootNegativeExponentOverflowRejected]==] [==[NtfsVolume.BootUsableLargeRecordSizeKept]==] [==[NtfsVolume.RemnantReachableUnderTornDbr]==] [==[NtfsVolume.MirrorCoversRunlistSize]==] [==[NtfsVolume.MirrorResidentDataRejected]==] [==[NtfsVolume.UserFileNamedDollarNotHidden]==] [==[NtfsVolume.MainWalkKeepsOverwrittenDeleted]==] [==[NtfsVolume.GuidDumpPassRecoversReusedRecord]==] [==[NtfsVolume.GuidDumpDestroyRules]==] [==[NtfsVolume.SizeZeroRescueFromMftCopy]==] [==[NtfsVolume.SizeZeroRescueSameNameMerge]==] [==[NtfsVolume.GuidDumpStrideIsRecordAligned]==] [==[NtfsVolume.GuidDumpLargeRecordParsedFully]==] [==[NtfsVolume.MainWalkKeepsSystemFlaggedUserFile]==] [==[NtfsVolume.OrphanIndxBlockHarvestsEntries]==] [==[NtfsVolume.IndxHiddenSystemEntryRejected]==] [==[NtfsVolume.IndxSlackNeverHarvested]==] [==[NtfsVolume.RemnantDirRecordHarvestsIndexRootChildren]==] [==[NtfsVolume.AdsDroppedInParityMode]==] [==[NtfsVolume.AdsEmittedByDefaultSuperset]==] [==[NtfsVolume.AttributesFromSIWhenAvailable]==] [==[NtfsVolume.AttributesFallBackToFileNameWhenSIAbsent]==] [==[NtfsVolume.AttributesPreserveOfflineBit]==] [==[NtfsVolume.ShortNameFieldRoundtrips]==] [==[NtfsVolume.UsnHarvestTrueDeleteReason0x80020000]==] [==[NtfsVolume.UsnHarvestRejectsCompressionChangeOnly]==] [==[NtfsVolume.UsnHarvestCapMinesTail]==] [==[NtfsVolume.DiskMapFreeCellsFromRealBitmap]==] [==[NtfsVolume.MultiHopAttrlistOgParityStopsAtDepth1]==] [==[NtfsVolume.DeletedAttrlistChaseFollowsChildrenAtDepth1]==] [==[NtfsVolume.TornPrimaryBackupBootScans]==] [==[NtfsVolume.TornPrimaryShapeBackupBootScans]==] [==[NtfsVolume.BackupBadFallsBackToRefusal]==] [==[NtfsVolume.BootFromBackupFlagged]==] [==[NtfsVolume.SpoofedOemRejectedEarly]==] [==[FatEngine.FreeMapExcludesVirtualClustersAndMatchesFAT]==] [==[FatEngine.Fat16EndToEnd]==] [==[FatEngine.LfnCorruptFallsBackToShort]==] [==[FatEngine.Fat32RootChainAndBackupBoot]==] [==[FatEngine.Fat16HasNoBackupBootFallback]==] [==[FatEngine.Fat32BackupBootFallback]==] [==[FatEngine.ChainCycleIsCut]==] [==[FatEngine.Fat12ChainsCanonicalEocAndBad]==] [==[FatEngine.DeletedLfnFragmentOrder]==] [==[FatEngine.DeletedLfnRealWorldChecksumRecoversFullName]==] [==[FatEngine.DeletedLfnSingleSlotChecksumRecovery]==] [==[FatEngine.DeletedLfnTornChecksumKeepsHonestFallback]==] [==[FatEngine.LfnDeletedChecksumBijection]==] [==[FatEngine.DeletedUnlinkedChainGetsContiguousRun]==] [==[FatEngine.DeletedUnlinkedChainTruncatesAtReusedCluster]==] [==[FatEngine.DeletedLinkedChainStillPrefersFatTruth]==] [==[FatEngine.Fat32EocMask24AndAlternateFamiliesEndClean]==] [==[FatEngine.Fat16BadClusterStillCanonical]==] [==[FatEngine.LargeFat32TableAccepted]==] [==[FatEngine.SmallFat16TableDeclined]==] [==[FatEngine.MirrorShiftedCopyRejected]==] [==[FatEngine.MirrorCrossLinkRejected]==] [==[FatEngine.MirrorOnlyScanFat1Unreadable]==] [==[FatEngine.CrossLinkedFat1RejectedAndFat2Used]==] [==[FatEngine.MediaByteCanonicalEnforcedFat16]==] [==[FatEngine.InvalidDateYieldsZeroFileTime]==] [==[FatEngine.InvalidMonthYieldsZeroFileTime]==] [==[FatEngine.InvalidDayYieldsZeroFileTime]==] [==[FatEngine.ValidDateYieldsCorrectFileTime]==] [==[FatEngine.FlavorBoundary65524IsFat32]==] [==[FatEngine.BootStringGateDeclinesTornStringVolume]==] [==[FatEngine.BootStringCaseInsensitiveAccepted]==] [==[FatEngine.Fat16LowRootEntriesDeclined]==] [==[FatEngine.Fat16RootEntriesNotSectorMultipleDeclined]==] [==[FatEngine.NumFatsThreeDeclined]==] [==[FatEngine.SpcDomainMatchesOgSet]==] [==[FatEngine.FatBps1536Accepted]==] [==[FatEngine.FatBps32768CeilingAndNonMultipleRejected]==] [==[FatEngine.FatZeroNumFatsRejected]==] [==[FatEngine.FatClusterCountOverflowRejected]==] [==[FatEngine.DateSanityRejectedInStrictMode]==] [==[FatEngine.BadPrimaryServedWithoutMirrorConsult]==] [==[FatEngine.PrimaryFreeStillConsultsMirror]==] [==[ExfatEngine.TimestampsMatchOgLocalAsUtc]==] [==[ExfatEngine.TimestampsZeroTzPassThrough]==] [==[ExfatEngine.TimestampsMatchExplorerDisplay]==] [==[ExfatEngine.TimestampsWestOffsetAlsoIgnored]==] [==[ExfatEngine.FreeMapExcludesVirtualClustersAndMatchesBitmap]==] [==[ExfatEngine.TornBitmapReadYieldsNoFreeMap]==] [==[ExfatEngine.EndToEnd]==] [==[ExfatEngine.UpcaseTableChecksumValidated]==] [==[ExfatEngine.UpcaseLengthSanity]==] [==[ExfatEngine.FreeMapProducerMatchesSpecBitMapping]==] [==[ExfatEngine.SetChecksumMismatchGradesExcellentInOgProfile]==] [==[ExfatEngine.SetChecksumMismatchMarksDamaged]==] [==[ExfatEngine.InvalidFirstClusterRejected]==] [==[ExfatEngine.EocFamilyTerminatesChain]==] [==[ExfatEngine.FreeEntryContiguousSalvage]==] [==[ExfatEngine.BootGatesMatchOg]==] [==[ExfatEngine.UpcaseAlgorithmMatchesRealMkfsExfat]==] [==[ExfatEngine.LargeFatFullChains]==] [==[ExfatEngine.LargeFatDirectoryWalk]==] [==[ExfatEngine.StreamReservedPartiallyNonzeroPassesOgByteOr]==] [==[ExfatEngine.StreamReservedAllBytesNonzeroStillDamaged]==] [==[ExfatEngine.StreamReserved1ByteStrictlyZero]==] [==[ExfatEngine.DeletedSetChecksumRejectsTornSet]==] [==[ExfatEngine.DeletedSetOracleReassembly]==] [==[ExfatEngine.LiveCompleteSetBadChecksumUngraded]==] [==[ExfatEngine.EmptyFileSuppressedLikeOg]==] [==[ExfatEngine.GarbageTimestampRejected]==] [==[ExfatEngine.SecondaryCountCapped]==] [==[ExfatEngine.BadNameFlagsRejected]==] [==[ExfatEngine.FileReservedNonzeroRejected]==] [==[ExfatEngine.ValidBoundaryTimestampsStillPass]==] [==[Ext4Engine.ExtentTreeDepth3]==] [==[Ext4Engine.SuperblockValidation]==] [==[Ext4Engine.EndToEndWalk]==] [==[Ext4Engine.BadMagicRejected]==] [==[Ext4Engine.UnixTimeConversion]==] [==[Ext4Engine.JournalSalvage]==] [==[Ext4Engine.InodeSizeOffsetIsSpecTrue]==] [==[Ext4Engine.JournalUncommittedTailSurfaces]==] [==[Ext4Engine.JournalUnreferencedDirBlockSalvaged]==] [==[Ext4Engine.JournalFirstBlockNotJsbNoSalvage]==] [==[Ext4Engine.CorruptRecLenSkipsEntryNotBlock]==] [==[Ext4Engine.InodeZeroHoleContinues]==] [==[Ext4Engine.FileTypeGateSkipsInvalid]==] [==[Ext4Engine.NonAsciiNamesDecodedNotByteLifted]==] [==[Ext4Engine.MetaBgVolumeRecoversAllGroups]==] [==[Ext4Engine.MetaBgDeletedSweepReachesDistributedGroups]==] [==[Ext4Engine.MetaBgDescriptorBlockReadOnce]==] [==[Ext4Engine.MetaBgFirstMetaBgFrontRegion]==] [==[Ext4Engine.MetaBgSuperblockFieldsParsed]==] [==[Ext4Engine.BackupSuperblockRescueWhenPrimaryDestroyed]==] [==[Ext4Engine.BackupRescueFallsBackToBackupGdt]==] [==[Ext4Engine.BackupRescueWholeDiskRebase]==] [==[Ext4Engine.BadMagicWithoutBackupsStillRejected]==] [==[Ext4Engine.JournalSalvagedDirReparented]==] [==[Ext4Engine.JournalUnreferencedOrphanFlatWithRealName]==] [==[Ext4Engine.TwoPassJournalClaimInteraction]==] [==[Ext4Engine.CatchBufferBacktrackSalvage]==] [==[Ext4Engine.BacktrackOffZeroFillsTheWindow]==] [==[Ext4Engine.ZeroFillOnlyWhenBacktrackAlsoFails]==] [==[Ext4Engine.NanosecondsPreservedFromExtraField]==] [==[Ext4Engine.InvalidUtf8NameCarriesRawBytes]==] [==[HfsPlus.VolumeHeaderValidation]==] [==[HfsPlus.EndToEndWalk]==] [==[HfsPlus.DecmpfsInlineAndRsrcContentRecovered]==] [==[HfsPlus.DecmpfsDisabledLeavesEmptyShell]==] [==[HfsPlus.MacTimeConversion]==] [==[HfsPlus.BadSignatureRejected]==] [==[HfsPlus.LeafNodeLayoutMatchesOnDiskFormat]==] [==[HfsPlus.DotfileAndPrivateDataFiltered]==] [==[HfsPlus.PrdfRecordFolderized]==] [==[HfsPlus.RecordBit29SelectsResourceFork]==] [==[HfsPlus.LargeBlockSizeAccepted]==] [==[HfsPlus.ExtentsOverflowRecordResolvesFragmentedFork]==] [==[HfsPlus.JournalHarvestEmitsDeletedRecords]==] [==[HfsPlus.JournalDifferentialDifferentFileIdKept]==] [==[HfsPlus.JournalBadHeaderGates]==] [==[HfsPlus.JournalWrapHandled]==] [==[HfsPlus.JournalHarvestDisabledByFlag]==] [==[HfsPlus.JournalSameKeyDifferentFileIdBothKept]==] [==[HfsPlus.JournalAttrDecmpfsFallbackFeedsEmptyForkFile]==] [==[HfsPlus.JournalRequiresVolumeJournaledBit]==] [==[HfsPlus.JournalInfoBlockHasNoMagicField]==] [==[HfsPlus.JournalNodeImageRejectsInconsistentOffsetTable]==] [==[HfsPlus.JournalFallbackSalvageWhenHeaderInvalid]==] [==[HfsPlus.JournalFallbackRequiresNodeShapedStart]==] [==[Btrfs.SuperblockValidation]==] [==[Btrfs.NonPow2NodesizeRejectedRegistered]==] [==[Btrfs.EndToEndWalk]==] [==[Btrfs.TwoSubvolumesRootSeparately]==] [==[Btrfs.SubvolumeNamedFromRootRef]==] [==[Btrfs.FileAttributeNormalBit]==] [==[Btrfs.BadMagicRejected]==] [==[Btrfs.PackedDirItemsInOneItem]==] [==[Btrfs.MirrorSelectionNewestGeneration]==] [==[Btrfs.InternalKeyPtrWalk]==] [==[Btrfs.InlineAndCompressedExtents]==] [==[Btrfs.NonAsciiNamesDecodedNotByteLifted]==] [==[Btrfs.Latin1NameRoundTripsRawBytes]==] [==[Btrfs.XattrDosAttribApplied]==] [==[Btrfs.UserXattrRecordsEmitted]==] [==[Btrfs.CompressionPropertyTagged]==] [==[Btrfs.Raid10GeometryGate]==] [==[Btrfs.Raid1RotatingMirrorReads]==] [==[Btrfs.Raid0StripeMathSplitsAtStripeBoundaries]==] [==[Btrfs.DefaultDirItemNonSubvolumeLocationFallsBack]==] [==[Zfs.EndToEndWalk]==] [==[Zfs.ChildDirZapReadsKernelOffset32]==] [==[Zfs.OriginObjNotTreatedAsChildZap]==] [==[Zfs.LabelPositionsRecoveredFromTail]==] [==[Zfs.NewestTxgAcrossLabelsWins]==] [==[Zfs.ChecksumFailDropsAndRetriesNextDva]==] [==[Zfs.StripedPoolForeignVdevFallbackRead]==] [==[Zfs.MirrorSecondMemberScan]==] [==[Zfs.SaRegistryDrivenLayout2]==] [==[Zfs.SaRegistryAbsentFallsBackToLayout1]==] [==[Zfs.BadMagicRejected]==] [==[Zfs.ZleRoundTrip]==] [==[Zfs.CodecMapping]==] [==[Zfs.CodecRoundTrips]==] [==[Zfs.TruncatedSourcesRejectedNotOverread]==] [==[Zfs.NonAsciiNamesDecodedNotByteLifted]==] [==[RefsDetect.FindsMsbPages]==] [==[RefsDetect.CheckpointVariant]==] [==[RefsDetect.IdentificationFallback]==] [==[RefsDetect.NonRefsRejected]==] [==[Ldm.ParsesDatabaseAndGraph]==] [==[Ldm.ResolvesSimpleVolume]==] [==[Ldm.SimpleVolumeDeviceReads]==] [==[Ldm.StripedVolumeInterleave]==] [==[Ldm.CompositeVblkRecord]==] [==[Ldm.NonLdmDiskRejected]==] [==[Ldm.Raid5LeftSymmetricReads]==] [==[Ldm.Raid5ReconstructsMissingColumn]==] [==[Ldm.Raid5TwoMissingColumnsUnrecoverable]==] [==[Ldm.MirroredReadFailover]==] [==[Ldm.MirroredBothCopiesFail]==] [==[Ldm.SpannedConcatenation]==] [==[Ldm.GptDynamicDiskCanonicalGuidsParse]==] [==[Ldm.GptDynamicDiskFabricatedGuidsRejected]==] [==[Ldm.GptDynamicDiskTableClassifiesLdmEntries]==] [==[Ldm.GptDynamicDiskRealCanonicalGuidsParse]==] [==[Ldm.GptPathFindsMetadata4Kn]==] [==[Ldm.TocblockAtConfigPlus0]==] [==[Ldm.TocblockPrefersPlus2OnConflict]==] [==[Ldm.TocblockTailCopies]==] [==[Ldm.OversizeConfigRejected]==] [==[Ldm.ConfigSizeExactlyOneMebibyteAccepted]==] [==[Ldm.ZeroInterleaveDefaultsTo64K]==] [==[LostDiscovery.FindsScoresAndRejectsNoise]==] [==[LostDiscovery.OverlapClassification]==] [==[LostDiscovery.TwoHealthyDeletedPartitionsBothSurface]==] [==[LostDiscovery.DamagedBpbFallbackMustNotSwallowPeer]==] [==[LostDiscovery.Ext4SuperblockAnchorsDeletedPartition]==] [==[LostDiscovery.Ext4BlockGroupCopyNotACandidateStart]==] [==[LostDiscovery.HfsPlusVolumeHeaderAnchorsDeletedPartition]==] [==[LostDiscovery.BtrfsSuperblockAnchorsDeletedPartition]==] [==[LostDiscovery.ZfsLabelAnchorsDeletedPartition]==] [==[LostDiscovery.RefsBootAnchorsDeletedPartition]==] [==[LostDiscovery.SuperblockNoiseRejected]==] [==[LostDiscovery.LostBitlockerPartitionDiscovered]==] [==[LostDiscovery.LostBitlockerOemNoise]==] [==[LostDiscovery.LostBitlockerInsideExtendedRegionStillFound]==] [==[LostDiscovery.FatBootWithOgGatesBecomesCandidate]==] [==[LostDiscovery.Fat32ExtentUsesDataAreaForContainment]==] [==[LostDiscovery.LostCandidateReportsDataAreaOffset]==] [==[LostDiscovery.FileRichCandidateOutranksCleanBoot]==] [==[LostDiscovery.TableMatchBonus500]==] [==[LostDiscovery.OverLargeDuplicateRescoredToFront]==] [==[LostFatGates.Spc256Rejected]==] [==[LostFatGates.NumFatsZeroRejectedThreeAcceptedByDeepGates]==] [==[LostFatGates.Fat32NameStringTornYieldsNoCandidate]==] [==[LostFatGates.Fat12SmallFatProbe]==] [==[LostFatGates.Fat12ProbeSpfBoundIsExclusiveAt200]==] [==[LostFatGates.Fat32GateStringIsCaseSensitive]==] [==[LostScoring.MatchesLogRows]==] [==[Sha256.NistVectors]==] [==[Sha256.StreamedMatchesOneShot]==] [==[Sha256.Id128Truncation]==] [==[AesXts.Aes128Fips197KnownAnswer]==] [==[AesXts.Aes256Fips197KnownAnswer]==] [==[AesXts.Xts128CrossImplementationVector]==] [==[AesXts.Xts256CrossImplementationVector]==] [==[AesXts.Xts256WholeSectorVector]==] [==[AesXts.WeakKeyHalvesRejected]==] [==[AesXts.RoundTripVariedLengths]==] [==[AesXts.DistinctTweaksGiveDistinctCiphertexts]==] [==[DecryptingDevice.ReadsPlaintextThroughWrapper]==] [==[DecryptingDevice.UnalignedAndCrossSectorReads]==] [==[DecryptingDevice.InnerErrorsPropagateVerbatim]==] [==[DecryptingDevice.BadKeyMaterialCreateFails]==] [==[BitLockerStack.EncryptedVolumeScansOnlyThroughDecryptDevice]==] [==[Dict.ShippedTableMatchesCorpusShape]==] [==[Dict.ShippedTableKeepsCorpusDuplicates]==] [==[Dict.ParseDictionaryGrammar]==] [==[Dict.ParseToleratesLfAndEmptyLines]==] [==[Dict.ParseRoundTripsTheCorpusGrammar]==] [==[Dict.ParseRejectsBadGrammar]==] [==[Dict.TryStopsAtFirstSuccessInShippedOrder]==] [==[Dict.UserCandidatesFollowShippedDictionary]==] [==[Dict.AllFailReportsEveryAttempt]==] [==[Dict.NullAttemptFunctionIsANoOp]==] [==[Dict.AttemptsLoggedThroughSeamWithoutPasswordMaterial]==] [==[ResumeRevalidation.ResumeDropsStaleCandidateAfterRelayout]==] [==[ResumeRevalidation.ResumeKeepsValidCandidate]==] [==[ResumeRevalidation.DiskLayoutRecordRoundTrip]==] [==[ResumeRevalidation.LayoutChangedFlagged]==] [==[ResumeRevalidation.SizeSourceFlagRoundTrip]==] [==[ResumeRevalidation.CandidateGeometryRoundTrip]==] [==[ResumeRevalidation.ArbiterStartOffDiskDropsAndUnknownKeeps]==] [==[Text.AsciiPassesThrough]==] [==[Text.LatinAccentDecodes]==] [==[Text.CjkDecodesToCodePoints]==] [==[Text.AstralPlaneBecomesSurrogatePair]==] [==[Text.OverlongFormsRejectedAsReplacement]==] [==[Text.SurrogateHalvesRejected]==] [==[Text.BeyondUnicodeRejected]==] [==[Text.InvalidLeadBytesResyncOneByte]==] [==[Text.TruncatedTailBecomesReplacement]==] [==[Text.MaximalSubpartReplacement]==] [==[Text.EmbeddedNulDecodes]==] [==[Text.RoundTripThroughNodeUtf8]==] [==[Text.InvalidByteLosslessMapping]==] [==[Text.LosslessRoundTripRecoversRawBytes]==] [==[Text.ZfsDecoderStaysReplacement]==] [==[Text.WideToUtf8EncodesNonAscii]==] [==[Text.WideToUtf8SurrogatePairAndLoneHalf]==] [==[Text.CliFilterUtf8MatchesDecodedNames]==] [==[CarveEngine.GrammarValidationAndSpecificity]==] [==[CarveEngine.CarvesMidSectorStart]==] [==[CarveEngine.SecondPassFullyDeduped]==] [==[CarveEngine.VideoPostProcessorHookInvoked]==] [==[CarveEngine.HookDegradesWhenModuleAbsent]==] [==[CarveEngine.RegistryF8Gate]==] [==[CarveEngine.PstAndRar5Grammar]==] [==[CarveEngine.ExtendedFormatsGrammar]==] [==[CarveEngine.PdfEofLastWinsAndFrameFloors]==] [==[CarveEngine.RawSignLayerHeaderOnlyAndSharedMagic]==] [==[CarveEngine.RawSignTailPairWithinFormat]==] [==[CarveEngine.UnreadableWindowNotCountedAsScanned]==] [==[CarveEngine.ZipCdAnchorCarvesDestroyedHead]==] [==[CarveEngine.ZipIndexlessLfhChainSalvage]==] [==[CarveEngine.ZipSalvageAbsorbsDataSectors]==] [==[CarveEngine.Zip64ExtraFieldContinuesChain]==] [==[CarveEngine.ZipCleanArchiveNotInflatedByZeroSlack]==] [==[CarveEngine.BeTiffAndOrfVariantsCarve]==] [==[CarveEngine.OverlapScorePrefersHigherConfidence]==] [==[CarveEngine.TiffVsRawTiebreak]==] [==[CarveEngine.PstUnknownVersionAcceptedAtFloor]==] [==[CarveEngine.JpegSof0PrecisionGate]==] [==[CarveEngine.SlicedDeviceSecondPassFullyDedupedAndAbsolute]==] [==[CarveEngine.CarvedNodesAreDeleted]==] [==[CarveEngine.RawSignCarvedNodesAreDeleted]==] [==[CarveEngine.DeletedOnlyQueryIncludesCarvedFiles]==] [==[CarveEngine.CarvedNodesCarryScanTimestamp]==] [==[CarveEngine.RawSignCarvedNodesCarryScanTimestamp]==] [==[CarveEngine.ScanTimestampSurvivesSessionRoundTrip]==] [==[CarveEngine.ZipInnerEntryInventoryEmitted]==] [==[CarveEngine.ZipIndexlessEntryInventory]==] [==[CarveEngine.Rar4InnerEntryInventory]==] [==[CarveEngine.ProvenanceChecksumAndAnchorsPersist]==] [==[CarveEngine.TailAnchorCarriedOnTailPairedHits]==] [==[CarveEngine.BitmapSkipsUsedClusters]==] [==[CarveEngine.NoBitmapCarvesEverything]==] [==[CarveEngine.FormatDisabledSkipsSignature]==] [==[CarveEngine.FormatDisabledRawSignsToo]==] [==[CarveEngine.AllFormatsEnabledByDefault]==] [==[CarveEngine.WindowServingEliminatesPerCandidateRereads]==] [==[CarveEngine.WindowServingServesStraddlingReadsCorrectly]==] [==[CarveEngine.Mp4NamedByMetadataTemplate]==] [==[CarveEngine.MovNamedByMetadataTemplate]==] [==[CarveEngine.MovV1MvhdHighWordQuirkReplicated]==] [==[CarveEngine.FallbackNamerDocumented]==] [==[CarveEngine.ZeroSectorSkipStats]==] [==[CarveEngine.WindowBufferReusedByValidatorChecksumAndHash]==] [==[CarveEngine.BoundaryStraddlingCandidateSplitsReadsCorrectly]==] [==[RawSigns.UnitsAreKib]==] [==[RawSigns.CarvesFiveMiBVob]==] [==[RawSigns.MinFloorOneKib]==] [==[RawSigns.TailPairWindowScaled]==] [==[Carve.Mp4RealFtypIsom]==] [==[Carve.MovRealFtypQt]==] [==[Carve.HeicRealFtypHeic]==] [==[Carve.M4aRealFtyp]==] [==[Carve.MovMoovWithoutFtyp]==] [==[Carve.RegistrySelfProbeReachesEveryFormat]==] [==[Carve.S007CommonFormatsCarve]==] [==[Carve.S007ValidatorsRejectNoise]==] [==[Carve.S007TruncatedSalvageSemantics]==] [==[Carve.ZipTruncatedHeadRecovered]==] [==[Carve.ZipLfhSanityGates]==] [==[Carve.MkvDocTypeWebmAccepted]==] [==[Carve.MkvDocTypeExoticRejected]==] [==[Carve.MkvElementBoundsGate]==] [==[Carve.HeifSiblingBrandLabeledHeif]==] [==[Carve.IiuTiffEpValidatedByTiffGrammar]==] [==[Carve.IiuRw2FallbackWhenTiffEpRejects]==] [==[Carve.RafVariantHeaderAccepted]==] [==[Carve.RafRealAsciiVersionAccepted]==] [==[Carve.JpegFourthByteOutsideOgSet]==] [==[Carve.JpegTruncatedTailSalvagedAtSofEstimate]==] [==[Carve.JpegTruncatedTailWithoutSofSalvagesAtCapTenth]==] [==[Carve.JpegCompleteFileStopsAtEoiNotSofEstimate]==] [==[Carve.CabLowercaseMagic]==] [==[Crsf.RoundTrip]==] [==[Crsf.CorruptionSkipsForward]==] [==[Crsf.TreeRoundTrip]==] [==[Crsf.TinyChunkDeflatesWhenSmaller]==] [==[Crsf.VolumeInfoIdentityCardRoundTrip]==] [==[Crsf.TornCheckpointSalvagesPrefix]==] [==[SessionTree.RefreshStatsIsRecursive]==] [==[SessionTree.ReloadedRootStatsAreRecursive]==] [==[SessionTree.StatsDeletedCountRecursive]==] [==[Session.GradeRoleAndProvenanceRoundTrip]==] [==[Session.OldFormatStillLoads]==] [==[Session.ForwardParentDeferredAndCounted]==] [==[Session.BadMarkerFailsTheRecord]==] [==[Session.TruncatedTailFailsAfterFullCount]==] [==[Session.HostileNameAndRoleLengthBombs]==] [==[Session.CorruptRecordEarlyExitsReleaseProps]==] [==[Session.RawNameRoundTrip]==] [==[Session.OldFormatWithoutRawNameStillLoads]==] [==[Session.SaveEmitsProgress]==] [==[Session.SaveCancelsCleanly]==] [==[Session.AutoNamingConvention]==] [==[Orchestrator.DynamicDiskVolumeScan]==] [==[Orchestrator.LogSilentByDefault]==] [==[Orchestrator.LogSinkReceivesScanBrackets]==] [==[Orchestrator.MemoryMonitorEmitsUnderPressure]==] [==[Orchestrator.WeightedProgress]==] [==[Orchestrator.ProbeFamily]==] [==[Orchestrator.SpoofedExfatOemRejectedBeforeEngine]==] [==[Orchestrator.SpoofedFatBootUnreadableRootRejected]==] [==[Orchestrator.RealExfatBootContentVerified]==] [==[Orchestrator.FsFamilyValuesMatchContract]==] [==[Orchestrator.UdfProbeFailsOnMkudffsShapeLikeTheOg]==] [==[Orchestrator.ProbesUdfVolume]==] [==[Orchestrator.UdfProbeRequiresBothDescriptorReads]==] [==[Orchestrator.UdfNotConfusedWithFat]==] [==[Orchestrator.UdfSurfacesAsCarveFamily]==] [==[Orchestrator.CarveSingleNamingFamily]==] [==[Orchestrator.StagedRunAndSessionRoundTrip]==] [==[Orchestrator.PreScanRepairRestoresTornFatAndScans]==] [==[Orchestrator.PreScanRepairDeniedNeverWrites]==] [==[Orchestrator.PreScanRepairWithoutHooksNeverWrites]==] [==[Orchestrator.ReadPipeBuildsCacheOverRetryForValidGeometry]==] [==[Orchestrator.ReadPipeDegradesToBareSliceWhenCacheCreationFails]==] [==[Orchestrator.ReadPipeZeroCapacityDegradesToBareSlice]==] [==[SafeWriter.OverlapRefusal]==] [==[SafeWriter.CollisionAndSanitize]==] [==[SafeWriter.ResidentPrefixNotOverwritten]==] [==[SafeWriter.InvalidUtf8NameRestoredFromRaw]==] [==[ScanEvents.ErrorRangeGoesToLiveSink]==] [==[ScanEvents.SinkSwitchDeliversAllTypes]==] [==[ScanEvents.SingleBoundaryAtTeardown]==] [==[ScanEvents.ErrorRangeCarriesModuleOperationAttempts]==] [==[ScanEvents.ProbeBlockFailureAttributesToOrchestrator]==] [==[ScanEvents.CarveErrorRangeAttributesToCarveModule]==] [==[ScanConfig.DeepStageDefaultsOnAndWholeDiskOff]==] [==[PauseResume.TokenCheckpointBlocksAndResumes]==] [==[PauseResume.CancelWhilePausedWakesWaiter]==] [==[PauseResume.PausedMsAccounting]==] [==[PauseResume.ScanPauseFreezesAndElapsedExcludesPause]==] [==[PauseResume.SaveOnCancelStampsTruthfulMaskAndResumeSkipsQuick]==] [==[PauseResume.MaskIntegrityViolationRefusesResume]==] [==[PauseResume.ResumedSessionPreservesOriginalConfiguredMask]==] [==[PauseResume.SessionRestoresVolumeInfoAndCandidates]==] [==[PauseResume.SaveAfterResumeReloadsCleanly]==] [==[Checkpoint.StageBoundaryCheckpointResumesAfterCrash]==] [==[Checkpoint.CorruptMagicRefused]==] [==[Checkpoint.CommitHookFiresAfterEveryFinalizeAndAbortsOnError]==] [==[ExtentBasis.TreeRebaseShiftsOnceAndIsIdempotent]==] [==[ExtentBasis.SliceScanSavesAbsoluteExtents]==] [==[ExtentBasis.LegacySliceRelativeSessionNormalizedOnLoad]==] [==[Telemetry.UniformProgressAcrossStagesMonotonic]==] [==[Telemetry.FatWalkEmitsIncrementalTicks]==] [==[Telemetry.PerStageShapeAndCompletion]==] [==[Telemetry.LiveErrorMapVisibleMidScan]==] [==[Telemetry.QueryDuringScanIsThreadSafe]==] [==[WriterDirs.StructureReconstructionWithEmptyLeaves]==] [==[WriterDirs.DeepDestChainCreatedAndIdempotentRerun]==] [==[WriterDirs.IntraQueueDuplicatesRenameUnderSkip]==] [==[WriterDirs.PerItemErrorCollectedQueueContinues]==] [==[WriterDirs.MetadataOnlyItemSkipsNotZeroFills]==] [==[WriterDirs.ProgressExcludesErrorItems]==] [==[Reghive.ParsesValidHiveAndRejectsGarbage]==] [==[Reghive.RejectsCorruptedHeaderChecksum]==] [==[Reghive.WalksControlSetKeyFamilyCaseInsensitive]==] [==[Reghive.EnumeratesSubkeyNames]==] [==[Reghive.ReadsBinaryValueDataPointedAndInline]==] [==[Reghive.UnicodeKeyNamesWalkAsAscii]==] [==[Reghive.TruncatedAndMutatedHivesParseOrRefuseWithoutCrashing]==] [==[FveAutoUnlock.HarvestsPerGuidDataBlobs]==] [==[FveAutoUnlock.HarvestCapsBlobsAt256Bytes]==] [==[FveAutoUnlock.HarvestCapsRecordsAt100AndSkipsTinyBlobs]==] [==[FveAutoUnlock.SelectionPrefersMatchingVolumeGuid]==] [==[Preview.ExtentAccurateReadsWithSparseTailAndEof]==] [==[Preview.BoundedReadCannotBeTricked]==] [==[Preview.ReadFailuresZeroFilledAndReported]==] [==[Preview.CompressedExtentDecodes]==] [==[Preview.ConcurrentIndependentReaders]==] [==[Preview.MalformedCapsExtentKeepsAlignment]==] [==[PreviewMeta.JpegDimensionsAndExif]==] [==[PreviewMeta.PngGifBmpDimensions]==] [==[PreviewMeta.WavDurationAndMp4Brand]==] [==[PreviewMeta.PdfTextAndPlainAndUnsupported]==] [==[PreviewMeta.TruncatedMagicsAreSafeAndHonest]==] [==[PreviewMeta.WavFmtChunkOutsideHeadCache]==] [==[PreviewMeta.DocxRawDeflateInflatesAndPlainZipStaysZip]==] [==[PreviewMeta.DocxCapsMaxReadHonored]==] [==[PreviewMeta.DocxTailBeyondBudgetDegradesToZip]==] [==[PreviewMeta.CompressedExtentReportsTruncatedUnderBudget]==] [==[PreviewMeta.CompressedExtentWholeBlockReadDisclosed]==] [==[PreviewMeta.MetadataTruncatedFlagTruthfulAllPaths]==] [==[PreviewMeta.RandomSmallInputsAreSafe]==] [==[Snapshot.CaptureFidelityAndDfsParity]==] [==[Snapshot.PartialFlagAndEmptyTree]==] [==[Snapshot.ConcurrentEmitCaptureWalk]==] [==[Snapshot.RecoveryFromSnapshotIsByteIdentical]==] [==[Query.CategoryMap]==] [==[Query.EmailCategoryExists]==] [==[Query.BookmarksCategory]==] [==[Query.CameraRawClassified]==] [==[Query.TableCountMatchesCorpusUniques]==] [==[Query.CrossListedFirstWriterWins]==] [==[Query.FilterSortPageCorrectness]==] [==[Query.PathPrefixFilterMatchesAndPrunes]==] [==[Query.RandomizedAgainstReference]==] [==[Query.TypeSortKeyOrdersByCategoryThenExtension]==] [==[Query.ModifiedUnitIsFiletimeEverywhere]==] [==[Query.DateBucketsTranslateToRanges]==] [==[Query.SizeBucketsTranslateToRanges]==] [==[Query.BucketFiltersThroughRun]==] [==[Error.ErrTextCoversEveryCode]==] [==[QueryPerf.MillionNodesFilterCountUnder200ms]==] [==[DiskMap.RangeFreeEdgeMatrix]==] [==[DiskMap.FreeMapRecordRoundTripAndRejection]==] [==[DiskMap.FreeOverlayHonorsZoomWindow]==] [==[DiskMap.DownsamplePreservesRawTruth]==] [==[DiskMap.FreeNeverMarksFoundContentCells]==] [==[DiskMap.OverlayBudgetGrowsCellSize]==] [==[Apply.PlansEntryIntoFirstFreeSlot]==] [==[Apply.ExecuteWritesEntryVerifiesAndUndoes]==] [==[Apply.RefusedWithoutConsent]==] [==[Apply.StaleTableRefusedBeforeConsent]==] [==[Apply.QuiesceFailureIsACleanRefusal]==] [==[Apply.WriteFailureRollsBackEverything]==] [==[Apply.ContainmentRefusals]==] [==[Apply.SignatureRestorePlannedWhenAbsent]==] [==[Apply.ChsClampsBeyondCylinder1023]==] [==[Apply.FamilyTypeMap]==] [==[LostApply.WritesEntryAndRefreshesModernPath]==] [==[LostApply.LegacyPathMatchesCorpusSequence]==] [==[LostApply.GptRebuildRegeneratesSignature]==] [==[LostApply.ConsentBeforeLockDenialHoldsNothing]==] [==[LostApply.UndoApplyRestoresAndRefreshes]==] [==[LostApply.RefreshFailureIsReportedNotSwallowed]==] [==[LostApply.RollsBackWhenVerifyFails]==] [==[LostApply.PlanIsReadOnlyAndRefusalsAreResults]==] [==[RawFixer.CleanExfatNeverTouched]==] [==[RawFixer.ExfatChecksumRepair]==] [==[RawFixer.ExfatDestroyedPrimaryRestoredFromBackup]==] [==[RawFixer.NtfsBackupRestore]==] [==[RawFixer.NtfsCleanRefused]==] [==[RawFixer.NtfsNoBackupRefused]==] [==[RawFixer.Fat32BackupRestore]==] [==[RawFixer.ExfatGeometryRederivation]==] [==[RawFixer.ExfatAmbiguousGeometryRefused]==] [==[RawFixer.UnknownFamilyRefused]==] [==[RawFixer.ExecuteRefusesEmptyPlan]==] [==[RawFixer.FailedWriteRollsBackEverything]==] [==[RawFixer.UndoLogRoundTrip]==] [==[RawFixer.MftRecord0RestoredFromMirror]==] [==[RawFixer.MftCleanNeverTouched]==] [==[RawFixer.MftBothInvalidNoWrite]==] [==[RawFixer.MftRestoreMakesVolumeOpenable]==] [==[RawFixer.FatTornMirrorCopyRestoredSectorGranular]==] [==[RawFixer.FatTornPrimaryRestoredFromMirror]==] [==[RawFixer.FatMirrorAmbiguityNeverWritten]==] [==[RawFixer.FatCleanMirrorNoAction]==] [==[RawFixer.FixByScanSectorRebuildsBootFromOnlyCandidate]==] [==[RawFixer.FixByScanSectorAmbiguousCandidatesRefused]==] [==[RawFixer.FixByScanSectorIdenticalCandidatesNotAmbiguous]==] [==[RawFixer.RebasedPartitionPlanWritesAtDiskBasisNeverLba0]==] [==[RawFixer.VolumeLockAcquiredBeforeFirstWrite]==] [==[RawFixer.VolumeLockFailureNeverWrites]==] [==[RawFixer.UnlockHappensOnRollbackPath]==] [==[RawFixer.NtfsPrimaryDamaged4Kn]==] [==[RawFixer.ExfatViaBackup4Kn]==] [==[RawFixer.AnalyzeAllBranches4KnAsan]==] [==[RawFixer.ExfatRestorePlanIsSectorSized4Kn]==] [==[RawFixer.ExfatBackupReadFull4Kn]==] [==[Refs.BootValidation]==] [==[Refs.FullScanHierarchy]==] [==[Refs.FallbackRootSkipsOgSystemFamilies]==] [==[Refs.DeletedGradingAndId2]==] [==[Refs.OrchestratorProbeAndScan]==] [==[Refs.NextChainFindsNewerTable]==] [==[Refs.CheckpointLayoutMinor14]==] [==[Refs.Pre34CheckpointRejected]==] [==[Refs.CheckpointBodyMinorGatesLayoutNotVbr]==] [==[Refs.VbrMinor14BodyMinorOldListStillOldLayout]==] [==[Refs.ResidentInlineFileRecovered]==] [==[Refs.ResidentDollarIMetadataRead]==] [==[Refs.MultipleDataAttributesMerged]==] [==[Refs.PropertyFlagAndUnknownRowsDoNotBreakDataWalk]==] [==[Refs.PagedRunTableFollowed]==] [==[Refs.Gen7OldGrammarDatarunAttribute]==] [==[Refs.RunlistGranularityMismatchDiscarded]==] [==[Refs.StaleMsbPageDeletedFileRecovered]==] [==[Refs.StaleSweepSkipsLivePages]==] [==[Refs.HardLinkRowsCollapseToOneResult]==] [==[Refs.RecycleRoutedFlaggedAndDollarIRemap]==] [==[Refs.ProgressMonotonicIntermediateTicks]==] [==[Refs.ProgressCancellationMidWalk]==] [==[Refs.Bps256Accepted]==] [==[Refs.Bps1024Accepted]==] [==[Refs.Cluster16KRejected]==] [==[Refs.Cluster64KAccepted]==] [==[Refs.OpenReadIsFourKiB]==] [==[Refs.ContainerRelativeRunTranslatedPerOgFormula]==] [==[Refs.PhysicalRunFlag20Untranslated]==] [==[Refs.ContainerBlockBelowSpanStaysPhysical]==] [==[Refs.SingleContainerExtentsUnchanged]==])
+set(cr_tests_TESTS [==[Fixup.ValidRecordApplies]==] [==[Fixup.TornRecordRejected]==] [==[Fixup.TornThirdTailStillSalvaged]==] [==[Fixup.MinSizeGate]==] [==[Fixup.ZeroOffsetRejected]==] [==[Fixup.FourKnSectorSize]==] [==[Image.FlatFileScansMbr]==] [==[Image.FlatRejectsEmptyAndMissing]==] [==[Image.ImageRejectsTruncatedFile]==] [==[Image.EdiskRefusedAsRegisteredExclusion]==] [==[Image.BadMagicVmdkRefusedNotFlatFallback]==] [==[Image.VmdkSparseExtentReads]==] [==[Image.VmdkDifferencingChainReadsParent]==] [==[Image.VmdkStreamOptimizedRefused]==] [==[Image.VhdDynamicDisk]==] [==[Image.VhdDifferencingReadsParentOnClearBitmap]==] [==[Image.VhdBadChecksumRefused]==] [==[Image.VhdxDynamicReads]==] [==[Image.VhdxLogOverlayServesUnflushedWrites]==] [==[Image.VhdxDifferencingRefusedPrecisely]==] [==[Image.Lba0LayoutClassification]==] [==[Image.ExtensionClassificationMatchesOgDispatch]==] [==[Image.SessionRoundTripPersistsImagePath]==] [==[Image.QemuVmdkCompat]==] [==[Image.QemuVhdCompat]==] [==[Image.QemuVhdxCompat]==] [==[NvmeHealth.PageFieldOffsets]==] [==[NvmeHealth.FullFieldSurface]==] [==[NvmeHealth.DataUnitsConvertedToBytes]==] [==[NvmeHealth.ShortBufferRejected]==] [==[NvmeHealth.NullRejected]==] [==[NvmeHealth.PercentageUsedIsU8Width]==] [==[Nvme.CliTempFractionIsCelsiusDecidegrees]==] [==[Health.SmartCommandListMatchesImplementation]==] [==[Health.Attr197Raw3IsCaution]==] [==[Health.ValueBelowVendorThresholdIsBad]==] [==[Health.Attr5RawAllFFSkipsCautionCheck]==] [==[Health.DuplicateAttrIdYieldsUnknown]==] [==[Health.NoGradedSignalYieldsUnknown]==] [==[Health.SsdAnyAttrBelowThresholdIsBad]==] [==[Health.TemperatureNeverAffectsTheDiskGrade]==] [==[Health.SsdLifeFamilyGatesAndBoundaries]==] [==[Health.SsdLifeBelowVendorThresholdIsBad]==] [==[Health.SsdLifeInvertFormReads100MinusRaw]==] [==[Health.WdcAttr230LifeFromRawByte]==] [==[Health.Attr1RuleIsSandForceGated]==] [==[Health.FailingBitForcesDiskBadButAttrGradesFollowOg]==] [==[Health.NvmeGradeMapping]==] [==[Health.ModelSaysSsdOcList]==] [==[Health.ClassifyFamilyDecodedVendors]==] [==[Health.ClassifyFamilyAttributeSignatures]==] [==[Health.ClassifyFamilyFormsAndFallbacks]==] [==[Health.MakeGradeInputsAppliesOgDefaults]==] [==[Health.GradeNames]==] [==[Health.CsmiRequestMatchesOgWireFormat]==] [==[Health.CsmiIdentifyCarriesZeroLbaAndSmartCarriesMagic]==] [==[Health.CsmiBuilderRejectsUndersizedBuffer]==] [==[Health.CsmiResponseDataExtractedAtOgOffset]==] [==[Health.CsmiTransportUnavailableClassifiesTheOgErrorSet]==] [==[Health.CsmiTransportFallsBack]==] [==[Health.CsmiReadsAttributes]==] [==[Health.SmartChainEmptyIsBadParameter]==] [==[Health.SmartAttrNameTableCoversTheCuratedIds]==] [==[RunList.SingleRunDecode]==] [==[RunList.NegativeDelta]==] [==[RunList.SparseRun]==] [==[RunList.TerminatesAndRejectsTruncated]==] [==[RunList.ZeroLengthRunRejected]==] [==[RunList.MaxClusterGuard]==] [==[RunList.EncodeDecodeRoundTrip]==] [==[RunList.SignedWidthEdgeCases]==] [==[RunList.ExtentCoalesce]==] [==[RunList.Int64MinOffsetRejected]==] [==[Crc32.KnownVectors]==] [==[Gpt.ValidTable]==] [==[Gpt.BadHeaderCrcDetected]==] [==[Gpt.DeadPrimaryHeaderSalvagesOwnEntries]==] [==[Gpt.ProtectiveOnlyVolumeRecoversFromBackup]==] [==[Gpt.HostileSalvageHeaderEntriesOutsideDiskRejected]==] [==[Gpt.CanonicalTypeGuidConstantsMatchRealDiskBytes]==] [==[Gpt.LdmGuidConstantsMatchMicrosoftWinioctlText]==] [==[Gpt.EspMsrLinuxBiosbootLdmClassification]==] [==[Mbr.PlainWithExtended]==] [==[Mbr.EbrLayoutAssignedAndPlainMbrStaysMbr]==] [==[Mbr.EbrCycleGuard]==] [==[Mbr.TornLinkKeepsPriorVolumes]==] [==[Mbr.TornLinkStatusReported]==] [==[Slice.BoundsEnforced]==] [==[Slice.TailReadRefusalPinned]==] [==[Slice.StartMustBeAligned]==] [==[Slice.RaggedTailAllowed]==] [==[Slice.GeometryRefreshAfterMediaChange]==] [==[Slice.GeometryRefreshRefusesInvalidatingChange]==] [==[DevMap.AddMergeSerialize]==] [==[DevMap.ModuleAttributionRecordedAndNewestWinsOnCoalesce]==] [==[DevMap.ModuleNotSerializedWireStaysTrio]==] [==[Cached.HitMissAndBridging]==] [==[Cached.BoundsReject]==] [==[Cached.FailedBlocksAreNotCachedForever]==] [==[Cached.ScanCacheBudgetIsTheRegisteredDivergence]==] [==[DirectAlign.AlignedRequestIsTheFastPath]==] [==[DirectAlign.FourKMultipleNotSixtyFourKTakesTheEnvelope]==] [==[DirectAlign.UnalignedOffsetAndLengthEnvelope]==] [==[DirectAlign.MultiBlockEnvelopeCoversTheRequest]==] [==[DirectAlign.DeviceTailClampIsTheDocumentedException]==] [==[DirectAlign.OneMiBWriterChunkAtAlignedOffsetStaysDirect]==] [==[DirectAlign.OutOfBoundsAndEmptyRequestsFail]==] [==[DirectAlign.IssuedLengthAlwaysSixtyFourKMultipleExceptTail]==] [==[DirectAlign.UnifiedEnvelopeExhaustivePropertyBothDevices]==] [==[Retry.CleanReadPassesThrough]==] [==[Retry.FailModeReportsExhaustedAndMapsRange]==] [==[Retry.SkipModeZeroFillsOnlyBadSectors]==] [==[Retry.UnalignedBadRangeRoundsToWholeSectors]==] [==[Retry.BacktrackReadSalvagesPartialSector]==] [==[Retry.BacktrackOffReproducesLegacyExhausted]==] [==[Retry.BacktrackStaysAlignedOn4Kn]==] [==[Retry.BoundsAreEnforcedBeforeInner]==] [==[Retry.DeterministicFailureNotRetried]==] [==[Retry.GeometryForwarded]==] [==[Retry.ThreadStampAttributedToRecordedRange]==] [==[Retry.OwnerFallbackCoversUnstampedWorkerThreads]==] [==[Errmod.GuardSetsAndRestoresTheThreadStamp]==] [==[Pool.RunsAllItemsExactlyOnce]==] [==[Pool.AbortStopsWork]==] [==[Pool.ExternalCancelTokenAdapter]==] [==[Pool.ExceptionsNeverCrossThreadEdge]==] [==[Pool.WaitIdleAndPending]==] [==[Pool.CancelPoolWatcherDrainsQueueWithinOneTick]==] [==[Pool.CancelPoolWatcherNullTokenIsInert]==] [==[ParallelCarve.MatchesSingleThreaded]==] [==[ParallelRemnants.SameRecordsAsSequential]==] [==[NodeTree.AddRootsAndFiles]==] [==[NodeTree.HardLinkSharesProps]==] [==[NodeTree.ExtentDedupIndex]==] [==[NodeTree.ResetFreesClean]==] [==[Grading.MonotonicMaxNeverDowngrades]==] [==[Grading.Grade2Sticky]==] [==[Grading.DefaultGradeIsAverageAtEmit]==] [==[Grading.SizeFloorIs1]==] [==[Grading.EmailCategoryFastPath]==] [==[Grading.ExistingFilesHighDeletedNot]==] [==[Grading.SmallFileUnder1024High]==] [==[Grading.NtfsDeviceIndexRuleUpgrades]==] [==[Grading.ExtensionTableGatesDeepValidation]==] [==[Grading.TwinAddressFlagsBoth]==] [==[Grading.TableMembershipAndCount]==] [==[Grading.RegradeOnlyGrade1]==] [==[Grading.AssistantCountersMixedFixture]==] [==[Grading.SessionRoundTripPreservesGrade]==] [==[Report.ContainsAssistantStatistics]==] [==[Report.EscapingStrictJson]==] [==[Report.SchemaShapeAndDeterminism]==] [==[Report.WriterOutcomesAndHashHonesty]==] [==[Report.MultiExtentSpannedVolumeRefused]==] [==[Report.DestFullFastFailStopsAttempting]==] [==[Report.DestFullPreCheckRefusesUpfront]==] [==[Report.SalvagedOutcomeMarksZeroFilledCommits]==] [==[Report.EmitsCiSchemaSample]==] [==[Enumerate.ScopeDeltaRegisteredWithRevisitTrigger]==] [==[Enumerate.BusyDiskMetadataRetryShipsInQueryDisk]==] [==[Enumerate.ScopeContractDocumentedInHeader]==] [==[Enumerate.SetupApiMerge]==] [==[Enumerate.DedupByInstancePath]==] [==[Enumerate.MergeWithEmptyInterfaceStackKeepsLoop]==] [==[Enumerate.MergeWithEmptyLoopTakesAllInterfaces]==] [==[NtfsVolume.NonresidentAttrlistOnMft]==] [==[NtfsVolume.NestedAttrlistChase]==] [==[NtfsVolume.ResidentAdsCarriesContent]==] [==[NtfsVolume.AdsAttachesToFirstLink]==] [==[NtfsVolume.UsnJrnlHarvest]==] [==[NtfsVolume.UsnJrnlSparseV3Resync]==] [==[NtfsVolume.ShiftedHeaderSalvage]==] [==[NtfsVolume.EndToEndWalk]==] [==[NtfsVolume.HardLinkSingleLinkMatchesOg]==] [==[NtfsVolume.HardLinkFanOutOptIn]==] [==[NtfsVolume.RecycleBinMapping]==] [==[NtfsVolume.RemnantScanFindsDetachedRecord]==] [==[NtfsVolume.ViabilityProbeUsesDataSize]==] [==[NtfsVolume.ViabilityBoundaryExactFastPath]==] [==[NtfsVolume.ExtensionRecordsNotCountedDamaged]==] [==[NtfsVolume.CompressedDataRecoversRealContent]==] [==[NtfsVolume.Lznt1MsXcaDocumentedVector]==] [==[NtfsVolume.RemnantScanReconstructsDataRunlist]==] [==[NtfsVolume.RemnantScanReconstructsResidentData]==] [==[NtfsVolume.RemnantScanCompressedStreamStaysMetadataOnly]==] [==[NtfsVolume.OverwrittenHonestModeKeepsAndGrades]==] [==[NtfsVolume.HardLinkDestroyRuleInteraction]==] [==[NtfsVolume.BootNoPow2RecordSizeAcceptedAtDecodedValue]==] [==[NtfsVolume.BootRecordSizeZeroRejected]==] [==[NtfsVolume.BootNegativeExponentOverflowRejected]==] [==[NtfsVolume.BootUsableLargeRecordSizeKept]==] [==[NtfsVolume.RemnantReachableUnderTornDbr]==] [==[NtfsVolume.MirrorCoversRunlistSize]==] [==[NtfsVolume.MirrorResidentDataRejected]==] [==[NtfsVolume.UserFileNamedDollarNotHidden]==] [==[NtfsVolume.MainWalkKeepsOverwrittenDeleted]==] [==[NtfsVolume.GuidDumpPassRecoversReusedRecord]==] [==[NtfsVolume.GuidDumpDestroyRules]==] [==[NtfsVolume.SizeZeroRescueFromMftCopy]==] [==[NtfsVolume.SizeZeroRescueSameNameMerge]==] [==[NtfsVolume.GuidDumpStrideIsRecordAligned]==] [==[NtfsVolume.GuidDumpLargeRecordParsedFully]==] [==[NtfsVolume.MainWalkKeepsSystemFlaggedUserFile]==] [==[NtfsVolume.OrphanIndxBlockHarvestsEntries]==] [==[NtfsVolume.IndxHiddenSystemEntryRejected]==] [==[NtfsVolume.IndxSlackNeverHarvested]==] [==[NtfsVolume.RemnantDirRecordHarvestsIndexRootChildren]==] [==[NtfsVolume.AdsDroppedInParityMode]==] [==[NtfsVolume.AdsEmittedByDefaultSuperset]==] [==[NtfsVolume.AttributesFromSIWhenAvailable]==] [==[NtfsVolume.AttributesFallBackToFileNameWhenSIAbsent]==] [==[NtfsVolume.AttributesPreserveOfflineBit]==] [==[NtfsVolume.ShortNameFieldRoundtrips]==] [==[NtfsVolume.UsnHarvestTrueDeleteReason0x80020000]==] [==[NtfsVolume.UsnHarvestRejectsCompressionChangeOnly]==] [==[NtfsVolume.UsnHarvestCapMinesTail]==] [==[NtfsVolume.DiskMapFreeCellsFromRealBitmap]==] [==[NtfsVolume.MultiHopAttrlistOgParityStopsAtDepth1]==] [==[NtfsVolume.DeletedAttrlistChaseFollowsChildrenAtDepth1]==] [==[NtfsVolume.TornPrimaryBackupBootScans]==] [==[NtfsVolume.TornPrimaryShapeBackupBootScans]==] [==[NtfsVolume.BackupBadFallsBackToRefusal]==] [==[NtfsVolume.BootFromBackupFlagged]==] [==[NtfsVolume.SpoofedOemRejectedEarly]==] [==[NtfsVolume.RecycleBinScopeOutOfBinDollarFilesStayRaw]==] [==[FatEngine.FreeMapExcludesVirtualClustersAndMatchesFAT]==] [==[FatEngine.Fat16EndToEnd]==] [==[FatEngine.LfnCorruptFallsBackToShort]==] [==[FatEngine.Fat32RootChainAndBackupBoot]==] [==[FatEngine.Fat16HasNoBackupBootFallback]==] [==[FatEngine.Fat32BackupBootFallback]==] [==[FatEngine.ChainCycleIsCut]==] [==[FatEngine.Fat12ChainsCanonicalEocAndBad]==] [==[FatEngine.DeletedLfnFragmentOrder]==] [==[FatEngine.DeletedLfnRealWorldChecksumRecoversFullName]==] [==[FatEngine.DeletedLfnSingleSlotChecksumRecovery]==] [==[FatEngine.DeletedLfnTornChecksumKeepsHonestFallback]==] [==[FatEngine.LfnDeletedChecksumBijection]==] [==[FatEngine.DeletedUnlinkedChainGetsContiguousRun]==] [==[FatEngine.DeletedUnlinkedChainTruncatesAtReusedCluster]==] [==[FatEngine.DeletedLinkedChainStillPrefersFatTruth]==] [==[FatEngine.Fat32EocMask24AndAlternateFamiliesEndClean]==] [==[FatEngine.Fat16BadClusterStillCanonical]==] [==[FatEngine.LargeFat32TableAccepted]==] [==[FatEngine.SmallFat16TableDeclined]==] [==[FatEngine.MirrorShiftedCopyRejected]==] [==[FatEngine.MirrorCrossLinkRejected]==] [==[FatEngine.MirrorOnlyScanFat1Unreadable]==] [==[FatEngine.CrossLinkedFat1RejectedAndFat2Used]==] [==[FatEngine.MediaByteCanonicalEnforcedFat16]==] [==[FatEngine.InvalidDateYieldsZeroFileTime]==] [==[FatEngine.InvalidMonthYieldsZeroFileTime]==] [==[FatEngine.InvalidDayYieldsZeroFileTime]==] [==[FatEngine.ValidDateYieldsCorrectFileTime]==] [==[FatEngine.FlavorBoundary65524IsFat32]==] [==[FatEngine.BootStringGateDeclinesTornStringVolume]==] [==[FatEngine.BootStringCaseInsensitiveAccepted]==] [==[FatEngine.Fat16LowRootEntriesDeclined]==] [==[FatEngine.Fat16RootEntriesNotSectorMultipleDeclined]==] [==[FatEngine.NumFatsThreeDeclined]==] [==[FatEngine.SpcDomainMatchesOgSet]==] [==[FatEngine.FatBps1536Accepted]==] [==[FatEngine.FatBps32768CeilingAndNonMultipleRejected]==] [==[FatEngine.FatZeroNumFatsRejected]==] [==[FatEngine.FatClusterCountOverflowRejected]==] [==[FatEngine.DateSanityRejectedInStrictMode]==] [==[FatEngine.BadPrimaryServedWithoutMirrorConsult]==] [==[FatEngine.PrimaryFreeStillConsultsMirror]==] [==[FatEngine.RecyclePairingRestoresOriginalName]==] [==[FatEngine.RecycleLegacyRoots]==] [==[FatEngine.NonRecycleDollarFilesStayRaw]==] [==[ExfatEngine.TimestampsMatchOgLocalAsUtc]==] [==[ExfatEngine.TimestampsZeroTzPassThrough]==] [==[ExfatEngine.TimestampsMatchExplorerDisplay]==] [==[ExfatEngine.TimestampsWestOffsetAlsoIgnored]==] [==[ExfatEngine.FreeMapExcludesVirtualClustersAndMatchesBitmap]==] [==[ExfatEngine.TornBitmapReadYieldsNoFreeMap]==] [==[ExfatEngine.EndToEnd]==] [==[ExfatEngine.UpcaseTableChecksumValidated]==] [==[ExfatEngine.UpcaseLengthSanity]==] [==[ExfatEngine.FreeMapProducerMatchesSpecBitMapping]==] [==[ExfatEngine.SetChecksumMismatchGradesExcellentInOgProfile]==] [==[ExfatEngine.SetChecksumMismatchMarksDamaged]==] [==[ExfatEngine.InvalidFirstClusterRejected]==] [==[ExfatEngine.EocFamilyTerminatesChain]==] [==[ExfatEngine.FreeEntryContiguousSalvage]==] [==[ExfatEngine.BootGatesMatchOg]==] [==[ExfatEngine.UpcaseAlgorithmMatchesRealMkfsExfat]==] [==[ExfatEngine.LargeFatFullChains]==] [==[ExfatEngine.LargeFatDirectoryWalk]==] [==[ExfatEngine.StreamReservedPartiallyNonzeroPassesOgByteOr]==] [==[ExfatEngine.StreamReservedAllBytesNonzeroStillDamaged]==] [==[ExfatEngine.StreamReserved1ByteStrictlyZero]==] [==[ExfatEngine.DeletedSetChecksumRejectsTornSet]==] [==[ExfatEngine.DeletedSetOracleReassembly]==] [==[ExfatEngine.LiveCompleteSetBadChecksumUngraded]==] [==[ExfatEngine.EmptyFileSuppressedLikeOg]==] [==[ExfatEngine.GarbageTimestampRejected]==] [==[ExfatEngine.SecondaryCountCapped]==] [==[ExfatEngine.BadNameFlagsRejected]==] [==[ExfatEngine.FileReservedNonzeroRejected]==] [==[ExfatEngine.ValidBoundaryTimestampsStillPass]==] [==[ExfatEngine.NameUtf16TableInvalidCharRejected]==] [==[ExfatEngine.NameUtf16TableAllowedCharAccepted]==] [==[ExfatEngine.RecyclePairingMirrored]==] [==[Ext4Engine.ExtentTreeDepth3]==] [==[Ext4Engine.SuperblockValidation]==] [==[Ext4Engine.EndToEndWalk]==] [==[Ext4Engine.BadMagicRejected]==] [==[Ext4Engine.UnixTimeConversion]==] [==[Ext4Engine.JournalSalvage]==] [==[Ext4Engine.InodeSizeOffsetIsSpecTrue]==] [==[Ext4Engine.JournalUncommittedTailSurfaces]==] [==[Ext4Engine.JournalUnreferencedDirBlockSalvaged]==] [==[Ext4Engine.JournalFirstBlockNotJsbNoSalvage]==] [==[Ext4Engine.CorruptRecLenSkipsEntryNotBlock]==] [==[Ext4Engine.InodeZeroHoleContinues]==] [==[Ext4Engine.FileTypeGateSkipsInvalid]==] [==[Ext4Engine.NonAsciiNamesDecodedNotByteLifted]==] [==[Ext4Engine.MetaBgVolumeRecoversAllGroups]==] [==[Ext4Engine.MetaBgDeletedSweepReachesDistributedGroups]==] [==[Ext4Engine.MetaBgDescriptorBlockReadOnce]==] [==[Ext4Engine.MetaBgFirstMetaBgFrontRegion]==] [==[Ext4Engine.MetaBgSuperblockFieldsParsed]==] [==[Ext4Engine.BackupSuperblockRescueWhenPrimaryDestroyed]==] [==[Ext4Engine.BackupRescueFallsBackToBackupGdt]==] [==[Ext4Engine.BackupRescueWholeDiskRebase]==] [==[Ext4Engine.BadMagicWithoutBackupsStillRejected]==] [==[Ext4Engine.JournalSalvagedDirReparented]==] [==[Ext4Engine.JournalUnreferencedOrphanFlatWithRealName]==] [==[Ext4Engine.TwoPassJournalClaimInteraction]==] [==[Ext4Engine.CatchBufferBacktrackSalvage]==] [==[Ext4Engine.BacktrackOffZeroFillsTheWindow]==] [==[Ext4Engine.ZeroFillOnlyWhenBacktrackAlsoFails]==] [==[Ext4Engine.NanosecondsPreservedFromExtraField]==] [==[Ext4Engine.InvalidUtf8NameCarriesRawBytes]==] [==[HfsPlus.VolumeHeaderValidation]==] [==[HfsPlus.EndToEndWalk]==] [==[HfsPlus.DecmpfsInlineAndRsrcContentRecovered]==] [==[HfsPlus.DecmpfsDisabledLeavesEmptyShell]==] [==[HfsPlus.MacTimeConversion]==] [==[HfsPlus.BadSignatureRejected]==] [==[HfsPlus.LeafNodeLayoutMatchesOnDiskFormat]==] [==[HfsPlus.DotfileAndPrivateDataFiltered]==] [==[HfsPlus.PrdfRecordFolderized]==] [==[HfsPlus.RecordBit29SelectsResourceFork]==] [==[HfsPlus.LargeBlockSizeAccepted]==] [==[HfsPlus.ExtentsOverflowRecordResolvesFragmentedFork]==] [==[HfsPlus.JournalHarvestEmitsDeletedRecords]==] [==[HfsPlus.JournalDifferentialDifferentFileIdKept]==] [==[HfsPlus.JournalBadHeaderGates]==] [==[HfsPlus.JournalWrapHandled]==] [==[HfsPlus.JournalHarvestDisabledByFlag]==] [==[HfsPlus.JournalSameKeyDifferentFileIdBothKept]==] [==[HfsPlus.JournalAttrDecmpfsFallbackFeedsEmptyForkFile]==] [==[HfsPlus.JournalRequiresVolumeJournaledBit]==] [==[HfsPlus.JournalInfoBlockHasNoMagicField]==] [==[HfsPlus.JournalNodeImageRejectsInconsistentOffsetTable]==] [==[HfsPlus.JournalFallbackSalvageWhenHeaderInvalid]==] [==[HfsPlus.JournalFallbackRequiresNodeShapedStart]==] [==[Btrfs.SuperblockValidation]==] [==[Btrfs.NonPow2NodesizeRejectedRegistered]==] [==[Btrfs.EndToEndWalk]==] [==[Btrfs.TwoSubvolumesRootSeparately]==] [==[Btrfs.SubvolumeNamedFromRootRef]==] [==[Btrfs.FileAttributeNormalBit]==] [==[Btrfs.BadMagicRejected]==] [==[Btrfs.PackedDirItemsInOneItem]==] [==[Btrfs.MirrorSelectionNewestGeneration]==] [==[Btrfs.InternalKeyPtrWalk]==] [==[Btrfs.InlineAndCompressedExtents]==] [==[Btrfs.NonAsciiNamesDecodedNotByteLifted]==] [==[Btrfs.Latin1NameRoundTripsRawBytes]==] [==[Btrfs.XattrDosAttribApplied]==] [==[Btrfs.UserXattrRecordsEmitted]==] [==[Btrfs.CompressionPropertyTagged]==] [==[Btrfs.Raid10GeometryGate]==] [==[Btrfs.Raid1RotatingMirrorReads]==] [==[Btrfs.Raid0StripeMathSplitsAtStripeBoundaries]==] [==[Btrfs.DefaultDirItemNonSubvolumeLocationFallsBack]==] [==[Zfs.EndToEndWalk]==] [==[Zfs.ChildDirZapReadsKernelOffset32]==] [==[Zfs.OriginObjNotTreatedAsChildZap]==] [==[Zfs.LabelPositionsRecoveredFromTail]==] [==[Zfs.NewestTxgAcrossLabelsWins]==] [==[Zfs.ChecksumFailDropsAndRetriesNextDva]==] [==[Zfs.StripedPoolForeignVdevFallbackRead]==] [==[Zfs.MirrorSecondMemberScan]==] [==[Zfs.SaRegistryDrivenLayout2]==] [==[Zfs.SaRegistryAbsentFallsBackToLayout1]==] [==[Zfs.BadMagicRejected]==] [==[Zfs.ZleRoundTrip]==] [==[Zfs.CodecMapping]==] [==[Zfs.CodecRoundTrips]==] [==[Zfs.TruncatedSourcesRejectedNotOverread]==] [==[Zfs.NonAsciiNamesDecodedNotByteLifted]==] [==[RefsDetect.FindsMsbPages]==] [==[RefsDetect.CheckpointVariant]==] [==[RefsDetect.IdentificationFallback]==] [==[RefsDetect.NonRefsRejected]==] [==[Ldm.ParsesDatabaseAndGraph]==] [==[Ldm.ResolvesSimpleVolume]==] [==[Ldm.SimpleVolumeDeviceReads]==] [==[Ldm.StripedVolumeInterleave]==] [==[Ldm.CompositeVblkRecord]==] [==[Ldm.NonLdmDiskRejected]==] [==[Ldm.Raid5LeftSymmetricReads]==] [==[Ldm.Raid5ReconstructsMissingColumn]==] [==[Ldm.Raid5TwoMissingColumnsUnrecoverable]==] [==[Ldm.MirroredReadFailover]==] [==[Ldm.MirroredBothCopiesFail]==] [==[Ldm.SpannedConcatenation]==] [==[Ldm.GptDynamicDiskCanonicalGuidsParse]==] [==[Ldm.GptDynamicDiskFabricatedGuidsRejected]==] [==[Ldm.GptDynamicDiskTableClassifiesLdmEntries]==] [==[Ldm.GptDynamicDiskRealCanonicalGuidsParse]==] [==[Ldm.GptPathFindsMetadata4Kn]==] [==[Ldm.TocblockAtConfigPlus0]==] [==[Ldm.TocblockPrefersPlus2OnConflict]==] [==[Ldm.TocblockTailCopies]==] [==[Ldm.OversizeConfigRejected]==] [==[Ldm.ConfigSizeExactlyOneMebibyteAccepted]==] [==[Ldm.ZeroInterleaveDefaultsTo64K]==] [==[LostDiscovery.FindsScoresAndRejectsNoise]==] [==[LostDiscovery.OverlapClassification]==] [==[LostDiscovery.TwoHealthyDeletedPartitionsBothSurface]==] [==[LostDiscovery.DamagedBpbFallbackMustNotSwallowPeer]==] [==[LostDiscovery.Ext4SuperblockAnchorsDeletedPartition]==] [==[LostDiscovery.Ext4BlockGroupCopyNotACandidateStart]==] [==[LostDiscovery.HfsPlusVolumeHeaderAnchorsDeletedPartition]==] [==[LostDiscovery.BtrfsSuperblockAnchorsDeletedPartition]==] [==[LostDiscovery.ZfsLabelAnchorsDeletedPartition]==] [==[LostDiscovery.RefsBootAnchorsDeletedPartition]==] [==[LostDiscovery.SuperblockNoiseRejected]==] [==[LostDiscovery.LostBitlockerPartitionDiscovered]==] [==[LostDiscovery.LostBitlockerOemNoise]==] [==[LostDiscovery.LostBitlockerInsideExtendedRegionStillFound]==] [==[LostDiscovery.FatBootWithOgGatesBecomesCandidate]==] [==[LostDiscovery.Fat32ExtentUsesDataAreaForContainment]==] [==[LostDiscovery.LostCandidateReportsDataAreaOffset]==] [==[LostDiscovery.FileRichCandidateOutranksCleanBoot]==] [==[LostDiscovery.TableMatchBonus500]==] [==[LostDiscovery.OverLargeDuplicateRescoredToFront]==] [==[LostFatGates.Spc256Rejected]==] [==[LostFatGates.NumFatsZeroRejectedThreeAcceptedByDeepGates]==] [==[LostFatGates.Fat32NameStringTornYieldsNoCandidate]==] [==[LostFatGates.Fat12SmallFatProbe]==] [==[LostFatGates.Fat12ProbeSpfBoundIsExclusiveAt200]==] [==[LostFatGates.Fat32GateStringIsCaseSensitive]==] [==[LostScoring.MatchesLogRows]==] [==[Sha256.NistVectors]==] [==[Sha256.StreamedMatchesOneShot]==] [==[Sha256.Id128Truncation]==] [==[AesXts.Aes128Fips197KnownAnswer]==] [==[AesXts.Aes256Fips197KnownAnswer]==] [==[AesXts.Xts128CrossImplementationVector]==] [==[AesXts.Xts256CrossImplementationVector]==] [==[AesXts.Xts256WholeSectorVector]==] [==[AesXts.WeakKeyHalvesRejected]==] [==[AesXts.RoundTripVariedLengths]==] [==[AesXts.DistinctTweaksGiveDistinctCiphertexts]==] [==[DecryptingDevice.ReadsPlaintextThroughWrapper]==] [==[DecryptingDevice.UnalignedAndCrossSectorReads]==] [==[DecryptingDevice.InnerErrorsPropagateVerbatim]==] [==[DecryptingDevice.BadKeyMaterialCreateFails]==] [==[BitLockerStack.EncryptedVolumeScansOnlyThroughDecryptDevice]==] [==[Dict.ShippedTableMatchesCorpusShape]==] [==[Dict.ShippedTableKeepsCorpusDuplicates]==] [==[Dict.ParseDictionaryGrammar]==] [==[Dict.ParseToleratesLfAndEmptyLines]==] [==[Dict.ParseRoundTripsTheCorpusGrammar]==] [==[Dict.ParseRejectsBadGrammar]==] [==[Dict.TryStopsAtFirstSuccessInShippedOrder]==] [==[Dict.UserCandidatesFollowShippedDictionary]==] [==[Dict.AllFailReportsEveryAttempt]==] [==[Dict.NullAttemptFunctionIsANoOp]==] [==[Dict.AttemptsLoggedThroughSeamWithoutPasswordMaterial]==] [==[ResumeRevalidation.ResumeDropsStaleCandidateAfterRelayout]==] [==[ResumeRevalidation.ResumeKeepsValidCandidate]==] [==[ResumeRevalidation.DiskLayoutRecordRoundTrip]==] [==[ResumeRevalidation.LayoutChangedFlagged]==] [==[ResumeRevalidation.SizeSourceFlagRoundTrip]==] [==[ResumeRevalidation.CandidateGeometryRoundTrip]==] [==[ResumeRevalidation.ArbiterStartOffDiskDropsAndUnknownKeeps]==] [==[Text.AsciiPassesThrough]==] [==[Text.LatinAccentDecodes]==] [==[Text.CjkDecodesToCodePoints]==] [==[Text.AstralPlaneBecomesSurrogatePair]==] [==[Text.OverlongFormsRejectedAsReplacement]==] [==[Text.SurrogateHalvesRejected]==] [==[Text.BeyondUnicodeRejected]==] [==[Text.InvalidLeadBytesResyncOneByte]==] [==[Text.TruncatedTailBecomesReplacement]==] [==[Text.MaximalSubpartReplacement]==] [==[Text.EmbeddedNulDecodes]==] [==[Text.RoundTripThroughNodeUtf8]==] [==[Text.InvalidByteLosslessMapping]==] [==[Text.LosslessRoundTripRecoversRawBytes]==] [==[Text.ZfsDecoderStaysReplacement]==] [==[Text.WideToUtf8EncodesNonAscii]==] [==[Text.WideToUtf8SurrogatePairAndLoneHalf]==] [==[Text.CliFilterUtf8MatchesDecodedNames]==] [==[CarveEngine.GrammarValidationAndSpecificity]==] [==[CarveEngine.CarvesMidSectorStart]==] [==[CarveEngine.SecondPassFullyDeduped]==] [==[CarveEngine.VideoPostProcessorHookInvoked]==] [==[CarveEngine.HookDegradesWhenModuleAbsent]==] [==[CarveEngine.RegistryF8Gate]==] [==[CarveEngine.PstAndRar5Grammar]==] [==[CarveEngine.ExtendedFormatsGrammar]==] [==[CarveEngine.PdfEofLastWinsAndFrameFloors]==] [==[CarveEngine.RawSignLayerHeaderOnlyAndSharedMagic]==] [==[CarveEngine.RawSignTailPairWithinFormat]==] [==[CarveEngine.UnreadableWindowNotCountedAsScanned]==] [==[CarveEngine.ZipCdAnchorCarvesDestroyedHead]==] [==[CarveEngine.ZipIndexlessLfhChainSalvage]==] [==[CarveEngine.ZipSalvageAbsorbsDataSectors]==] [==[CarveEngine.Zip64ExtraFieldContinuesChain]==] [==[CarveEngine.ZipCleanArchiveNotInflatedByZeroSlack]==] [==[CarveEngine.BeTiffAndOrfVariantsCarve]==] [==[CarveEngine.OverlapScorePrefersHigherConfidence]==] [==[CarveEngine.TiffVsRawTiebreak]==] [==[CarveEngine.PstUnknownVersionAcceptedAtFloor]==] [==[CarveEngine.JpegSof0PrecisionGate]==] [==[CarveEngine.SlicedDeviceSecondPassFullyDedupedAndAbsolute]==] [==[CarveEngine.CarvedNodesAreDeleted]==] [==[CarveEngine.RawSignCarvedNodesAreDeleted]==] [==[CarveEngine.DeletedOnlyQueryIncludesCarvedFiles]==] [==[CarveEngine.CarvedNodesCarryScanTimestamp]==] [==[CarveEngine.RawSignCarvedNodesCarryScanTimestamp]==] [==[CarveEngine.ScanTimestampSurvivesSessionRoundTrip]==] [==[CarveEngine.ZipInnerEntryInventoryEmitted]==] [==[CarveEngine.ZipIndexlessEntryInventory]==] [==[CarveEngine.Rar4InnerEntryInventory]==] [==[CarveEngine.ProvenanceChecksumAndAnchorsPersist]==] [==[CarveEngine.TailAnchorCarriedOnTailPairedHits]==] [==[CarveEngine.BitmapSkipsUsedClusters]==] [==[CarveEngine.NoBitmapCarvesEverything]==] [==[CarveEngine.FormatDisabledSkipsSignature]==] [==[CarveEngine.FormatDisabledRawSignsToo]==] [==[CarveEngine.AllFormatsEnabledByDefault]==] [==[CarveEngine.WindowServingEliminatesPerCandidateRereads]==] [==[CarveEngine.WindowServingServesStraddlingReadsCorrectly]==] [==[CarveEngine.Mp4NamedByMetadataTemplate]==] [==[CarveEngine.MovNamedByMetadataTemplate]==] [==[CarveEngine.MovV1MvhdHighWordQuirkReplicated]==] [==[CarveEngine.FallbackNamerDocumented]==] [==[CarveEngine.ZeroSectorSkipStats]==] [==[CarveEngine.WindowBufferReusedByValidatorChecksumAndHash]==] [==[CarveEngine.BoundaryStraddlingCandidateSplitsReadsCorrectly]==] [==[RawSigns.UnitsAreKib]==] [==[RawSigns.CarvesFiveMiBVob]==] [==[RawSigns.MinFloorOneKib]==] [==[RawSigns.TailPairWindowScaled]==] [==[Carve.Mp4RealFtypIsom]==] [==[Carve.MovRealFtypQt]==] [==[Carve.HeicRealFtypHeic]==] [==[Carve.M4aRealFtyp]==] [==[Carve.MovMoovWithoutFtyp]==] [==[Carve.RegistrySelfProbeReachesEveryFormat]==] [==[Carve.S007CommonFormatsCarve]==] [==[Carve.S007ValidatorsRejectNoise]==] [==[Carve.S007TruncatedSalvageSemantics]==] [==[Carve.ZipTruncatedHeadRecovered]==] [==[Carve.ZipLfhSanityGates]==] [==[Carve.MkvDocTypeWebmAccepted]==] [==[Carve.MkvDocTypeExoticRejected]==] [==[Carve.MkvElementBoundsGate]==] [==[Carve.HeifSiblingBrandLabeledHeif]==] [==[Carve.IiuTiffEpValidatedByTiffGrammar]==] [==[Carve.IiuRw2FallbackWhenTiffEpRejects]==] [==[Carve.RafVariantHeaderAccepted]==] [==[Carve.RafRealAsciiVersionAccepted]==] [==[Carve.JpegFourthByteOutsideOgSet]==] [==[Carve.JpegTruncatedTailSalvagedAtSofEstimate]==] [==[Carve.JpegTruncatedTailWithoutSofSalvagesAtCapTenth]==] [==[Carve.JpegCompleteFileStopsAtEoiNotSofEstimate]==] [==[Carve.CabLowercaseMagic]==] [==[Crsf.RoundTrip]==] [==[Crsf.CorruptionSkipsForward]==] [==[Crsf.TreeRoundTrip]==] [==[Crsf.TinyChunkDeflatesWhenSmaller]==] [==[Crsf.VolumeInfoIdentityCardRoundTrip]==] [==[Crsf.TornCheckpointSalvagesPrefix]==] [==[SessionTree.RefreshStatsIsRecursive]==] [==[SessionTree.ReloadedRootStatsAreRecursive]==] [==[SessionTree.StatsDeletedCountRecursive]==] [==[Session.GradeRoleAndProvenanceRoundTrip]==] [==[Session.OldFormatStillLoads]==] [==[Session.ForwardParentDeferredAndCounted]==] [==[Session.BadMarkerFailsTheRecord]==] [==[Session.TruncatedTailFailsAfterFullCount]==] [==[Session.HostileNameAndRoleLengthBombs]==] [==[Session.CorruptRecordEarlyExitsReleaseProps]==] [==[Session.RawNameRoundTrip]==] [==[Session.OldFormatWithoutRawNameStillLoads]==] [==[Session.SaveEmitsProgress]==] [==[Session.SaveCancelsCleanly]==] [==[Session.AutoNamingConvention]==] [==[Session.BtrfsExtrasRoundTrip]==] [==[Session.ZfsSecondaryFlagsRoundTrip]==] [==[Session.EngineExtrasAbsentWhenUnpopulated]==] [==[Orchestrator.DynamicDiskVolumeScan]==] [==[Orchestrator.JunkFilteredFromResults]==] [==[Orchestrator.LogSilentByDefault]==] [==[Orchestrator.LogSinkReceivesScanBrackets]==] [==[Orchestrator.MemoryMonitorEmitsUnderPressure]==] [==[Orchestrator.WeightedProgress]==] [==[Orchestrator.ProbeFamily]==] [==[Orchestrator.SpoofedExfatOemRejectedBeforeEngine]==] [==[Orchestrator.SpoofedFatBootUnreadableRootRejected]==] [==[Orchestrator.RealExfatBootContentVerified]==] [==[Orchestrator.FsFamilyValuesMatchContract]==] [==[Orchestrator.UdfProbeFailsOnMkudffsShapeLikeTheOg]==] [==[Orchestrator.ProbesUdfVolume]==] [==[Orchestrator.UdfProbeRequiresBothDescriptorReads]==] [==[Orchestrator.UdfNotConfusedWithFat]==] [==[Orchestrator.UdfSurfacesAsCarveFamily]==] [==[Orchestrator.CarveSingleNamingFamily]==] [==[Orchestrator.StagedRunAndSessionRoundTrip]==] [==[Orchestrator.PreScanRepairRestoresTornFatAndScans]==] [==[Orchestrator.PreScanRepairDeniedNeverWrites]==] [==[Orchestrator.PreScanRepairWithoutHooksNeverWrites]==] [==[Orchestrator.ReadPipeBuildsCacheOverRetryForValidGeometry]==] [==[Orchestrator.ReadPipeDegradesToBareSliceWhenCacheCreationFails]==] [==[Orchestrator.ReadPipeZeroCapacityDegradesToBareSlice]==] [==[FilterFolder.CorpusListsPinned]==] [==[SafeWriter.OverlapRefusal]==] [==[SafeWriter.CollisionAndSanitize]==] [==[SafeWriter.ResidentPrefixNotOverwritten]==] [==[SafeWriter.InvalidUtf8NameRestoredFromRaw]==] [==[ScanEvents.ErrorRangeGoesToLiveSink]==] [==[ScanEvents.SinkSwitchDeliversAllTypes]==] [==[ScanEvents.SingleBoundaryAtTeardown]==] [==[ScanEvents.ErrorRangeCarriesModuleOperationAttempts]==] [==[ScanEvents.ProbeBlockFailureAttributesToOrchestrator]==] [==[ScanEvents.CarveErrorRangeAttributesToCarveModule]==] [==[ScanConfig.DeepStageDefaultsOnAndWholeDiskOff]==] [==[PauseResume.TokenCheckpointBlocksAndResumes]==] [==[PauseResume.CancelWhilePausedWakesWaiter]==] [==[PauseResume.PausedMsAccounting]==] [==[PauseResume.ScanPauseFreezesAndElapsedExcludesPause]==] [==[PauseResume.SaveOnCancelStampsTruthfulMaskAndResumeSkipsQuick]==] [==[PauseResume.MaskIntegrityViolationRefusesResume]==] [==[PauseResume.ResumedSessionPreservesOriginalConfiguredMask]==] [==[PauseResume.SessionRestoresVolumeInfoAndCandidates]==] [==[PauseResume.SaveAfterResumeReloadsCleanly]==] [==[Checkpoint.StageBoundaryCheckpointResumesAfterCrash]==] [==[Checkpoint.CorruptMagicRefused]==] [==[Checkpoint.CommitHookFiresAfterEveryFinalizeAndAbortsOnError]==] [==[ExtentBasis.TreeRebaseShiftsOnceAndIsIdempotent]==] [==[ExtentBasis.SliceScanSavesAbsoluteExtents]==] [==[ExtentBasis.LegacySliceRelativeSessionNormalizedOnLoad]==] [==[Telemetry.UniformProgressAcrossStagesMonotonic]==] [==[Telemetry.FatWalkEmitsIncrementalTicks]==] [==[Telemetry.PerStageShapeAndCompletion]==] [==[Telemetry.LiveErrorMapVisibleMidScan]==] [==[Telemetry.QueryDuringScanIsThreadSafe]==] [==[WriterDirs.StructureReconstructionWithEmptyLeaves]==] [==[WriterDirs.DeepDestChainCreatedAndIdempotentRerun]==] [==[WriterDirs.IntraQueueDuplicatesRenameUnderSkip]==] [==[WriterDirs.PerItemErrorCollectedQueueContinues]==] [==[WriterDirs.MetadataOnlyItemSkipsNotZeroFills]==] [==[WriterDirs.ProgressExcludesErrorItems]==] [==[WriterDirs.CollisionNameUnderscoreFormat]==] [==[WriterDirs.CollisionExhaustionFailsTheItem]==] [==[WriterDirs.MkdirSemanticsMatchShCreateDirectoryEx]==] [==[Reghive.ParsesValidHiveAndRejectsGarbage]==] [==[Reghive.RejectsCorruptedHeaderChecksum]==] [==[Reghive.WalksControlSetKeyFamilyCaseInsensitive]==] [==[Reghive.EnumeratesSubkeyNames]==] [==[Reghive.ReadsBinaryValueDataPointedAndInline]==] [==[Reghive.UnicodeKeyNamesWalkAsAscii]==] [==[Reghive.TruncatedAndMutatedHivesParseOrRefuseWithoutCrashing]==] [==[FveAutoUnlock.HarvestsPerGuidDataBlobs]==] [==[FveAutoUnlock.HarvestCapsBlobsAt256Bytes]==] [==[FveAutoUnlock.HarvestCapsRecordsAt100AndSkipsTinyBlobs]==] [==[FveAutoUnlock.SelectionPrefersMatchingVolumeGuid]==] [==[Pwddict.ParsesOgeDictFormatByteFaithfully]==] [==[Pwddict.ParseAcceptsLfAndOptionalComma]==] [==[Pwddict.ParseEnforcesCapsAndRefusesOversize]==] [==[Pwddict.SeedDictionaryIsSane]==] [==[Pwddict.TryPasswordsStopsAtFirstSuccess]==] [==[Pwddict.TryPasswordsDedupsPreservingOrder]==] [==[Pwddict.TryPasswordsExhaustsToLockedAndGuardsArgs]==] [==[Pwddict.AttemptLogCarriesProgressAndLengthNeverSecrets]==] [==[Pwddict.ExhaustLogsWarnOnce]==] [==[Preview.ExtentAccurateReadsWithSparseTailAndEof]==] [==[Preview.BoundedReadCannotBeTricked]==] [==[Preview.ReadFailuresZeroFilledAndReported]==] [==[Preview.CompressedExtentDecodes]==] [==[Preview.ConcurrentIndependentReaders]==] [==[Preview.MalformedCapsExtentKeepsAlignment]==] [==[PreviewMeta.JpegDimensionsAndExif]==] [==[PreviewMeta.PngGifBmpDimensions]==] [==[PreviewMeta.WavDurationAndMp4Brand]==] [==[PreviewMeta.PdfTextAndPlainAndUnsupported]==] [==[PreviewMeta.TruncatedMagicsAreSafeAndHonest]==] [==[PreviewMeta.WavFmtChunkOutsideHeadCache]==] [==[PreviewMeta.DocxRawDeflateInflatesAndPlainZipStaysZip]==] [==[PreviewMeta.DocxCapsMaxReadHonored]==] [==[PreviewMeta.DocxTailBeyondBudgetDegradesToZip]==] [==[PreviewMeta.CompressedExtentReportsTruncatedUnderBudget]==] [==[PreviewMeta.CompressedExtentWholeBlockReadDisclosed]==] [==[PreviewMeta.MetadataTruncatedFlagTruthfulAllPaths]==] [==[PreviewMeta.RandomSmallInputsAreSafe]==] [==[Snapshot.CaptureFidelityAndDfsParity]==] [==[Snapshot.PartialFlagAndEmptyTree]==] [==[Snapshot.ConcurrentEmitCaptureWalk]==] [==[Snapshot.RecoveryFromSnapshotIsByteIdentical]==] [==[Query.CategoryMap]==] [==[Query.EmailCategoryExists]==] [==[Query.BookmarksCategory]==] [==[Query.CameraRawClassified]==] [==[Query.TableCountMatchesCorpusUniques]==] [==[Query.CrossListedFirstWriterWins]==] [==[Query.FilterSortPageCorrectness]==] [==[Query.PathPrefixFilterMatchesAndPrunes]==] [==[Query.RandomizedAgainstReference]==] [==[Query.TypeSortKeyOrdersByCategoryThenExtension]==] [==[Query.ModifiedUnitIsFiletimeEverywhere]==] [==[Query.DateBucketsTranslateToRanges]==] [==[Query.SizeBucketsTranslateToRanges]==] [==[Query.BucketFiltersThroughRun]==] [==[Error.ErrTextCoversEveryCode]==] [==[QueryPerf.MillionNodesFilterCountUnder200ms]==] [==[DiskMap.RangeFreeEdgeMatrix]==] [==[DiskMap.FreeMapRecordRoundTripAndRejection]==] [==[DiskMap.FreeOverlayHonorsZoomWindow]==] [==[DiskMap.DownsamplePreservesRawTruth]==] [==[DiskMap.FreeNeverMarksFoundContentCells]==] [==[DiskMap.OverlayBudgetGrowsCellSize]==] [==[Apply.PlansEntryIntoFirstFreeSlot]==] [==[Apply.ExecuteWritesEntryVerifiesAndUndoes]==] [==[Apply.RefusedWithoutConsent]==] [==[Apply.StaleTableRefusedBeforeConsent]==] [==[Apply.QuiesceFailureIsACleanRefusal]==] [==[Apply.WriteFailureRollsBackEverything]==] [==[Apply.ContainmentRefusals]==] [==[Apply.SignatureRestorePlannedWhenAbsent]==] [==[Apply.ChsClampsBeyondCylinder1023]==] [==[Apply.FamilyTypeMap]==] [==[LostApply.WritesEntryAndRefreshesModernPath]==] [==[LostApply.LegacyPathMatchesCorpusSequence]==] [==[LostApply.GptRebuildRegeneratesSignature]==] [==[LostApply.ConsentBeforeLockDenialHoldsNothing]==] [==[LostApply.UndoApplyRestoresAndRefreshes]==] [==[LostApply.RefreshFailureIsReportedNotSwallowed]==] [==[LostApply.RollsBackWhenVerifyFails]==] [==[LostApply.PlanIsReadOnlyAndRefusalsAreResults]==] [==[RawFixer.CleanExfatNeverTouched]==] [==[RawFixer.ExfatChecksumRepair]==] [==[RawFixer.ExfatDestroyedPrimaryRestoredFromBackup]==] [==[RawFixer.NtfsBackupRestore]==] [==[RawFixer.NtfsCleanRefused]==] [==[RawFixer.NtfsNoBackupRefused]==] [==[RawFixer.Fat32BackupRestore]==] [==[RawFixer.ExfatGeometryRederivation]==] [==[RawFixer.ExfatAmbiguousGeometryRefused]==] [==[RawFixer.UnknownFamilyRefused]==] [==[RawFixer.ExecuteRefusesEmptyPlan]==] [==[RawFixer.FailedWriteRollsBackEverything]==] [==[RawFixer.UndoLogRoundTrip]==] [==[RawFixer.MftRecord0RestoredFromMirror]==] [==[RawFixer.MftCleanNeverTouched]==] [==[RawFixer.MftBothInvalidNoWrite]==] [==[RawFixer.MftRestoreMakesVolumeOpenable]==] [==[RawFixer.FatTornMirrorCopyRestoredSectorGranular]==] [==[RawFixer.FatTornPrimaryRestoredFromMirror]==] [==[RawFixer.FatMirrorAmbiguityNeverWritten]==] [==[RawFixer.FatCleanMirrorNoAction]==] [==[RawFixer.FixByScanSectorRebuildsBootFromOnlyCandidate]==] [==[RawFixer.FixByScanSectorAmbiguousCandidatesRefused]==] [==[RawFixer.FixByScanSectorIdenticalCandidatesNotAmbiguous]==] [==[RawFixer.RebasedPartitionPlanWritesAtDiskBasisNeverLba0]==] [==[RawFixer.VolumeLockAcquiredBeforeFirstWrite]==] [==[RawFixer.VolumeLockFailureNeverWrites]==] [==[RawFixer.UnlockHappensOnRollbackPath]==] [==[RawFixer.NtfsPrimaryDamaged4Kn]==] [==[RawFixer.ExfatViaBackup4Kn]==] [==[RawFixer.AnalyzeAllBranches4KnAsan]==] [==[RawFixer.ExfatRestorePlanIsSectorSized4Kn]==] [==[RawFixer.ExfatBackupReadFull4Kn]==] [==[Consistency.ExtensionIsLastDotUppercased]==] [==[Consistency.CheckableVocabularyIsSignatureFamiliesPlusSpecials]==] [==[Consistency.ClassifierIsSubstringPlusVideoSpecials]==] [==[Lost.ContentInconsistentGhostRejected]==] [==[Lost.ContentConsistentGhostAccepted]==] [==[Lost.RatioBoundaryThirtyPercent]==] [==[Lost.MajorityGateRequiresHalfFilterable]==] [==[Lost.DirectoriesAndExtentlessFilesMirrorOgCounters]==] [==[Lost.DataStartOutOfBoundsInvalidatesTheCandidate]==] [==[Lost.UnreadableDataStartStaysUnmatched]==] [==[Lost.EmptyCandidateListNeverRejects]==] [==[Lost.WholeDiskScanDropsContentInconsistentExfatGhost]==] [==[Lost.WholeDiskScanKeepsContentConsistentExfatGhost]==] [==[TreeDetach.RemovesNodesRootsAndIndexes]==] [==[TreeDetach.HardLinkPropsSurviveWithTheirRefs]==] [==[Refs.BootValidation]==] [==[Refs.FullScanHierarchy]==] [==[Refs.FallbackRootSkipsOgSystemFamilies]==] [==[Refs.DeletedGradingAndId2]==] [==[Refs.OrchestratorProbeAndScan]==] [==[Refs.NextChainFindsNewerTable]==] [==[Refs.CheckpointLayoutMinor14]==] [==[Refs.Pre34CheckpointRejected]==] [==[Refs.CheckpointBodyMinorGatesLayoutNotVbr]==] [==[Refs.VbrMinor14BodyMinorOldListStillOldLayout]==] [==[Refs.ResidentInlineFileRecovered]==] [==[Refs.ResidentDollarIMetadataRead]==] [==[Refs.MultipleDataAttributesMerged]==] [==[Refs.PropertyFlagAndUnknownRowsDoNotBreakDataWalk]==] [==[Refs.PagedRunTableFollowed]==] [==[Refs.Gen7OldGrammarDatarunAttribute]==] [==[Refs.RunlistGranularityMismatchDiscarded]==] [==[Refs.StaleMsbPageDeletedFileRecovered]==] [==[Refs.StaleSweepSkipsLivePages]==] [==[Refs.HardLinkRowsCollapseToOneResult]==] [==[Refs.RecycleRoutedFlaggedAndDollarIRemap]==] [==[Refs.ProgressMonotonicIntermediateTicks]==] [==[Refs.ProgressCancellationMidWalk]==] [==[Refs.Bps256Accepted]==] [==[Refs.Bps1024Accepted]==] [==[Refs.Cluster16KRejected]==] [==[Refs.Cluster64KAccepted]==] [==[Refs.OpenReadIsFourKiB]==] [==[Refs.ContainerRelativeRunTranslatedPerOgFormula]==] [==[Refs.PhysicalRunFlag20Untranslated]==] [==[Refs.ContainerBlockBelowSpanStaysPhysical]==] [==[Refs.SingleContainerExtentsUnchanged]==])
