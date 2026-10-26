@@ -519,15 +519,20 @@ TEST(Btrfs, TwoSubvolumesRootSeparately) {
     };
     walk(ra, "");
 
-    /* each file under its OWN root */
-    EXPECT_TRUE(paths.count("subvol-5/hello.txt"));
-    EXPECT_TRUE(paths.count("subvol-5/sub/nested.bin"));
+    /* M-020 convergence: the default subvolume (root 5 - the fallback,
+     * no DIR_ITEM in this fixture) renders its children AT THE VOLUME
+     * ROOT (the og's FUN_1800061f0 pick); the non-default subvol keeps
+     * its container. Each file still under its OWN root - no
+     * cross-subvol leakage either direction. */
+    EXPECT_TRUE(paths.count("hello.txt"));
+    EXPECT_TRUE(paths.count("sub"));
+    EXPECT_TRUE(paths.count("sub/nested.bin"));
     EXPECT_TRUE(paths.count("subvol-256/second.txt"));
+    EXPECT_FALSE(paths.count("subvol-5")) << "the default never gets a container";
     /* no cross-subvol leakage */
     EXPECT_FALSE(paths.count("subvol-5/second.txt"));
     EXPECT_FALSE(paths.count("subvol-256/hello.txt"));
-    EXPECT_FALSE(paths.count("second.txt"));
-    EXPECT_FALSE(paths.count("hello.txt"));
+    EXPECT_FALSE(paths.count("subvol-256/second.txt/hello.txt"));
 
     /* the second subvol's file: size + extent + content at its own data */
     tree::FileNode* second = nullptr;

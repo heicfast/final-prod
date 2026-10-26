@@ -1,4 +1,36 @@
-# SUMMARY.md — executive summary (diff-fix sessions 32+33+34 on top; earlier sessions below)
+# SUMMARY.md — executive summary (diff-fix session 33 on top; earlier sessions below)
+
+## Session-33 delta, part 3 (2026-10-26 — DFX33: M-018 FIXED — the FilterFolder result-set junk filter)
+
+**M-018 FIXED (MAJOR — the og's PushFolderFilter result-set policy):**
+the corpus ini was re-read BYTE-EXACT first-hand (the finding carried two
+typos vs the shipped file: `._.DS_Store` → the file's `._.DS_Store`,
+`新建資料夘` → `新建資料夾`) and converted to generated data
+(scripts/gen_filterfolder.py, the gen_dict/raw_signs precedent: 4 folder
++ 7 file + 14 fat-name entries). The pass (`filterfolder::apply`) runs
+post-walk/pre-grading/pre-session-capture and marks matching nodes
+NODE_FLAG_JUNK_FILTERED (bit 14, tree-internal); the query surface
+(passes), the CLI tree and recover-all planning all skip flagged nodes —
+sessions/reports/recovery agree with the og's presented tree, and
+recover-all never writes the hidden set (the finding's own impact line).
+Children of filtered nodes stay (the og hides entries, not contents).
+ScanStats.junk_filtered added. Policy registered as D-82 (comparator
+mode undecoded in the corpus: exact+ASCII-fold chosen; applied at
+emission; sessions re-derive on resume). Proof:
+FilterFolder.CorpusListsPinned (every entry of all three lists incl. the
+10-locale New Folder family + SVI + the BitLocker artifacts; count pins;
+negatives) + Orchestrator.JunkFilteredFromResults (fail-before EXECUTED
+RED with the pass disabled: a FAT16 volume with DESKTOP.INI, $USNJRNL,
+LFN System Volume Information and LFN zh-CN 新建文件夹 — junk_filtered
+== 4, flags on exactly the junk nodes, KEEP.ME/DOC.TXT visible, the
+query excludes the hidden set); suite **823/823** linux-release at the
+fix commit (the N-019 scenario-8 test from a parallel lane converged to
+the M-020 default-at-root rendering in the same commit — its leakage
+assertions preserved).
+
+**Post-fix counts (this landing):** SEVERE **0** · MAJOR **8** open ·
+MINOR per the live union · INFO **0 open** · tracked-open 6.
+
 
 ## Session-34 delta (2026-10-26 — DFX34: the MINOR-tail lane, first landing — N-064)
 

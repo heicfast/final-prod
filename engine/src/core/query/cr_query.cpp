@@ -116,6 +116,10 @@ bool passes(const Filter& f, const tree::FileNode* n, const tree::FileProperties
             Category& cat_out, const std::string& full_path) {
     if (n->is_full() || pr == nullptr)
         return false; /* roots/structure: never result rows */
+    if ((pr->flags & tree::NODE_FLAG_JUNK_FILTERED) != 0)
+        return false; /* M-018: the og's FilterFolder hidden set - never a
+                       * result row (the PushFolderFilter presentation
+                       * pass; sessions re-derive the flag on resume) */
     /* Fast paths first: name-dependent predicates (category, extension,
      * substring) are evaluated LAST and only when configured, so the
      * plain count path (size/date/confidence/origin) never converts a

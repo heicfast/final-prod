@@ -292,6 +292,10 @@ struct ScanStats {
     /* N-031: all-zero 512-byte strides whose raw-sign probe was skipped
      * (the og's zero-sector fast-skip analog; diagnostics/telemetry). */
     u64 carve_zero_strides = 0;
+    /* M-018: nodes the FilterFolder pass flagged (the og's
+     * PushFolderFilter hidden set - OS droppings, metadata noise,
+     * localized "New Folder" names, SVI, BitLocker artifacts). */
+    u64 junk_filtered = 0;
     ReadErrorMap errors;
     std::vector<lost::Candidate> lost_candidates;
 

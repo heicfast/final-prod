@@ -14129,3 +14129,42 @@ Work Log:
 Stage Summary:
 - N-064 convergence closed; main green again. Session tally: N-064
   (canonical + convergence), N-071. Next: pull, then N-072 or N-066.
+
+---
+Task ID: DFX33-T3 (session 33, third fix)
+Agent: main engineer (diff-to-fix fix session 33 — DFX33)
+Task: M-018 — the FilterFolder result-set junk filter.
+
+Work Log:
+- Corpus re-verified BYTE-EXACT against the shipped ini (og-codebase/
+  config/FilterFolder.ini): the finding carried two typos — `._DS_Store`
+  vs the file's `._.DS_Store`, and the artifact's `新建資料夘` vs the
+  file's `新建資料夾`; the Korean entry is "새 폴더" (4 code points).
+  PushFolderFilter wiring re-confirmed (applog :22:57:57.920).
+- Implemented all four fix-plan items: generated data
+  (scripts/gen_filterfolder.py → cr_filterfolder_data.cpp, 4+7+14
+  entries); the filterfolder::apply pass in ScanController::run()
+  (post-walk, pre-grading, pre-session-capture) marking
+  NODE_FLAG_JUNK_FILTERED (bit 14); consumer gates (query passes(), CLI
+  print_tree, recover-all plan — the og's "hide from results" + the
+  finding's "recover-all writes junk" impact both closed);
+  ScanStats.junk_filtered. Children of filtered nodes stay. Policy
+  registered D-82 (comparator mode undecoded: exact+ASCII-fold;
+  emission-side; sessions re-derive idempotently).
+- Tests: FilterFolder.CorpusListsPinned (all three lists, count pins,
+  fold, kind-separation, negatives — caught the Korean literal error
+  first-hand: 4 code points, not 2) + Orchestrator.JunkFilteredFromResults
+  (fail-before EXECUTED: RED with the pass disabled; LFN chain fixtures
+  for System Volume Information + zh-CN 新建文件夹 written against the
+  engine's lfn_assemble contract; the FAT undelete convention (_ELFILE)
+  surfaced during the run and is asserted as such).
+- Convergence: the parallel lane's N-019 scenario-8
+  (Btrfs.TwoSubvolumesRootSeparately) landed expecting the pre-M-020
+  rendering; updated to the M-020 default-at-root truth (corpus-verified
+  FUN_1800061f0) with its leakage assertions preserved.
+- Suite 823/823 linux-release at the fix commit.
+
+Stage Summary:
+- M-018 FIXED (tally: 3 — M-020, M-025, M-018). MAJOR 8 open. Next: pull,
+  then M-035 (engine-side FileFilter validation) or the live queue head.
+

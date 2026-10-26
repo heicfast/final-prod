@@ -34,6 +34,16 @@ namespace tree {
  * props - a reloaded session's nodes are already absolute. */
 constexpr u16 NODE_FLAG_EXT_SHIFTED = 0x8000;
 
+/* NODE_FLAG_JUNK_FILTERED (M-018, bit 14 - tree-internal, set only by the
+ * orchestrator's filterfolder pass): the node matched the og's shipped
+ * FilterFolder.ini hidden sets (OS droppings, metadata noise, localized
+ * "New Folder" names, System Volume Information, BitLocker recovery
+ * artifacts). Presentation surfaces (query rows, CLI tree, recover-all
+ * planning) skip flagged nodes - the og's PushFolderFilter "hide OS junk
+ * from results". Engines never set it; sessions re-derive it on resume
+ * (the pass is idempotent and names are stable). */
+constexpr u16 NODE_FLAG_JUNK_FILTERED = 0x4000;
+
 enum class Origin : u8 { Structured = 0, Carved = 1, Lost = 2, Virtual = 3 };
 enum class DeletedState : u8 { Active = 0, Deleted = 1, PartiallyOverwritten = 2, Damaged = 3 };
 enum class Confidence : u8 {

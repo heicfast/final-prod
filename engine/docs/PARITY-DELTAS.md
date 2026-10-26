@@ -7779,3 +7779,24 @@ list would be missed — no such device class is documented in the corpus
 (the QA host's own Storage-Spaces census ran WITHOUT producing an
 extra device). The merge is the engine scope; the UI shell may layer
 its own stacks later.
+
+
+### D-82 — the FilterFolder junk-filter policy: applied at emission, sessions re-derive on resume; comparator mode undecoded (M-018, REGISTERED POLICY)
+
+The og pushes FilterFolder.ini's hidden sets per scan-partition at scan
+setup (PushFolderFilter) and its presentation hides OS droppings,
+metadata noise, localized "New Folder" names, System Volume Information
+and BitLocker recovery artifacts. The corpus does NOT decode: (a) the
+comparator (case mode; exact vs prefix — whether "$UsnJrnl:$J" matches
+the "$UsnJrnl" entry), or (b) whether recover-all also skips the hidden
+set (the artifact scopes the filter to "hide ... from results").
+
+The core's registered choices: (1) matching is exact u16 equality with
+ASCII-case-fold (the only sane Windows-name semantics — DESKTOP.INI is
+desktop.ini; the fold is a no-op for the CJK entries); (2) the filter
+applies at EMISSION — query rows, CLI tree and recover-all planning all
+skip flagged nodes, so sessions, reports and recovery agree (the finding's
+own open-question recommendation); (3) sessions do not persist the flag —
+the pass re-runs idempotently on resume (names are stable); (4) children
+of a filtered node are NOT filtered (the og hides entries, not their
+contents). Junk counts surface as ScanStats.junk_filtered.

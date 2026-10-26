@@ -31,6 +31,7 @@
 #include "cr/ntfs/cr_mftwalk.h"
 #include "cr/refs/cr_refs_engine.h"
 #include "cr/session/cr_crsf.h"
+#include "cr/orchestrator/cr_filterfolder.h"
 #include "cr/storage/cr_cached.h"
 #include "cr/storage/cr_retry.h"
 #include "cr/storage/cr_slice.h"
@@ -1093,6 +1094,13 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
     if (rp.chain)
         stats.cached_hits = rp.chain->hits(), stats.cached_misses = rp.chain->misses();
     tree_.refresh_stats();
+    /* M-018: the og's PushFolderFilter pass (FilterFolder.ini hidden
+     * sets, pushed per scan-partition at scan setup - applog
+     * :22:57:57.920 "run to CDoScanPartition::PushFolderFilter:84").
+     * Post-walk, pre-grading, pre-session-capture: query rows, the CLI
+     * tree and recover-all planning all skip flagged nodes, so
+     * sessions/reports/recovery agree with the og's presented tree. */
+    stats.junk_filtered = filterfolder::apply(tree_);
     /* S-023: the post-scan CRecoverability grading pass - the og runs its
      * two "Recoverability analyze" jobs at scan completion (DRWUI
      * FUN_14038aad0); ours is one deterministic pass over the stable
