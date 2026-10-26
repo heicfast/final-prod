@@ -15763,3 +15763,16 @@ Work Log:
 Stage Summary:
 - main green again. Session tally: 5 fixes (M-020, M-025, M-018, M-048,
   N-007) + 2 multi-lane repairs (T4, T7).
+---
+Task ID: DFX24-T5 (M-039)
+Agent: DFX24 (session 24, the MAJOR lane)
+Task: M-039 cross-engine occupancy bitmap -> carve skip gate
+
+Work Log:
+- Verified the finding's corpus citations (EXT4 FUN_180012040 :14892-93 + fill :6866-6869, Btrfs :2547-2551, Zfs :40576/:40599) against the decompile.
+- Implemented the fix plan's three steps: orchestrator-side extent aggregation from the result tree (structured origins only, sorted + coalesced interval set, slice-relative rebase); CarveFlags::occupied_ranges feeding BOTH dispatch layers (grammar: suppress + jump-to-interval-end; raw-sign: 512-stride suppress); interval-set memory shape. Carved nodes excluded from the gate (resume re-carve protection). occupancy_skipped telemetry on CarveStats + ScanStats.
+- 3 tests (SkipsFsAllocatedRegions, StructuredBoundaryPartialOverlap, OccupancyGateJumpsWholeInterval); fail-before EXECUTED as an engine mutation (2/3 RED; the straddle pin green by design); suite 895/895.
+- Audit trail: finding -> FIXED/ with Resolution; index row; matrix rows; carve + orchestration module verdicts; SUMMARY delta.
+
+Stage Summary:
+- M-039 FIXED. Remaining MAJOR: M-030, M-040.

@@ -3873,3 +3873,94 @@ TEST(CarveEngine, BoundaryStraddlingCandidateSplitsReadsCorrectly) {
      * (the tail walk may chunk) - the carve CORRECTNESS above is the
      * assertion; this test guards the split-read contract. */
 }
+
+/* ---- M-039 (diff-to-fix): the occupancy interval gate --------------- */
+
+TEST(CarveEngine, SkipsFsAllocatedRegions) {
+    /* M-039 falsifiable claim: a signature inside an FS-accounted
+     * extent produces NO carve candidate (the og's per-volume bitmap
+     * every FS engine fills is the raw phase's skip input). Fail-before:
+     * with the gate absent, the JPEG at 512 carves normally. */
+    auto img = build_carve_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    /* the structured walk accounted [512, 1033) - the JPEG plant's
+     * extent. Everything inside is FS-accounted space. */
+    std::vector<std::pair<u64, u64>> occupied = {{512, 1033}};
+    flags.occupied_ranges = &occupied;
+    CarveStats stats;
+    u32 rc =
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_EQ(stats.validated, 3u) << "the in-extent JPEG must be suppressed (jpg/png/zip/docx -> 3)";
+    EXPECT_GE(stats.occupancy_skipped, 1u) << "the gate must count its suppression";
+    bool jpg_at_512 = false;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->props()->extents.empty() && c->props()->extents[0].offset == 512)
+                jpg_at_512 = true;
+            collect(c);
+        }
+    };
+    collect(root);
+    EXPECT_FALSE(jpg_at_512) << "no carve candidate at the occupied offset";
+}
+
+TEST(CarveEngine, StructuredBoundaryPartialOverlap) {
+    /* M-039 boundary pin: a signature STRADDLING an occupied interval's
+     * start still dispatches (the gate suppresses positions INSIDE the
+     * interval, exactly like the og's bitmap gate checks the candidate
+     * position; a candidate beginning before accounted space is not
+     * accounted space). The dedup tree remains the safety net for the
+     * overlap itself - the finding's own requirement. */
+    auto img = build_carve_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    /* the interval starts INSIDE the JPEG plant (candidate at 512,
+     * interval from 516): the 512 start dispatches. */
+    std::vector<std::pair<u64, u64>> occupied = {{516, 1033}};
+    flags.occupied_ranges = &occupied;
+    CarveStats stats;
+    u32 rc =
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_EQ(stats.validated, 4u) << "the straddling JPEG still carves";
+    bool jpg_at_512 = false;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->props()->extents.empty() && c->props()->extents[0].offset == 512)
+                jpg_at_512 = true;
+            collect(c);
+        }
+    };
+    collect(root);
+    EXPECT_TRUE(jpg_at_512) << "the before-interval start is not suppressed";
+}
+
+TEST(CarveEngine, OccupancyGateJumpsWholeInterval) {
+    /* M-039 mechanics: the grammar layer jumps to the interval END (the
+     * M-005 cluster-jump analog) - the raw-sign stride positions inside
+     * the interval are never probed (occupancy_skipped counts the
+     * grammar entry only... both layers count; assert >= 1 and that the
+     * scan still completes the whole device). */
+    auto img = build_carve_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    std::vector<std::pair<u64, u64>> occupied = {{0, 8192}}; /* first 8 KiB accounted */
+    flags.occupied_ranges = &occupied;
+    CarveStats stats;
+    u32 rc =
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    /* the JPEG@512, PNG@2048 and ZIP@4096 are inside [0, 8192); the
+     * DOCX@8192 sits exactly on the excluded boundary end and carves */
+    EXPECT_EQ(stats.validated, 1u);
+    EXPECT_GE(stats.occupancy_skipped, 2u);
+    EXPECT_TRUE(stats.bytes_scanned >= 256 * 1024 - 4096) << "the scan still covers the device";
+}

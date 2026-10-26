@@ -329,6 +329,10 @@ struct ScanStats {
     /* N-031: all-zero 512-byte strides whose raw-sign probe was skipped
      * (the og's zero-sector fast-skip analog; diagnostics/telemetry). */
     u64 carve_zero_strides = 0;
+    /* M-039: carve positions suppressed by the occupancy interval gate
+     * (the cross-engine FS-accounted-extent skip - the og's per-volume
+     * bitmap every FS engine fills; both carve layers count). */
+    u64 carve_occupancy_skipped = 0;
     /* M-018: nodes the FilterFolder pass flagged (the og's
      * PushFolderFilter hidden set - OS droppings, metadata noise,
      * localized "New Folder" names, SVI, BitLocker artifacts). */
