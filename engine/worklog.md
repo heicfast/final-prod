@@ -12236,3 +12236,43 @@ Work Log:
 Stage Summary:
 - Session 23 open. Baseline 737/737 green at `716d121`. MINOR-first
   queue claimed. First fix: N-009 (grouped minors).
+
+---
+Task ID: DFX23-T1 (session 23, first+second fix — N-009c/N-009d + M-057)
+Agent: main engineer (diff-to-fix fix session 23 — DFX23)
+Task: N-009c CLI --filter ASCII mangling; N-009d ACL registration; M-057
+(app-layer build integrity — discovered by the gate extension).
+
+Work Log:
+- Verified the finding in-source first: all three --filter sites narrow()
+  the wide argv ('?' substitution); the recover path additionally used a
+  case-SENSITIVE find (internal inconsistency vs the tree/list paths).
+- Implemented cr::text::wide_to_utf8 in cr_text.h (both wchar_t widths,
+  surrogate pairs, lone halves -> U+FFFD per the shared S-005/N-029a
+  policy); wired scan print / tree / recover; name_contains_ci factored
+  out of name_matches as the shared matcher (the query layer's
+  name_substring semantics).
+- Extended tools/win_syntax_check.sh to src/app (M-055 rationale: the app
+  is equally Windows-only); grew tests/win-stub/windows.h (WINAPI empty —
+  x64-faithful, CTRL events, _wfopen_s/_fseeki64/_ftelli64, __int64,
+  SetConsoleCtrlHandler, QueryPerformanceFrequency).
+- THE GATE'S FIRST CATCH: rrecov.cpp cmd_apply referenced &e with no
+  declaration since 0a68937 (the S-029 union landing) — the whole app has
+  been MSVC-uncompilable. Filed M-057 (NEW-FINDING, MAJOR, M-055 class),
+  fixed (u32 e = 0; matching cmd_fix/cmd_undo), fail-before EXECUTED
+  (gate RED with the exact 'e' was not declared diagnostic; pass-after
+  8/8 files parse). Also de-MSVC'd file_seek_cb's __int64(absolute)
+  functional cast (long long + static_cast).
+- N-009d: D-77 registered in PARITY-DELTAS (inherit-destination ACL
+  posture; $SDH/$SII port recorded as the next step, not silently
+  dropped — the finding's own optional-port text).
+- Tests: Text.WideToUtf8EncodesNonAscii, Text.WideToUtf8SurrogatePairAndLoneHalf,
+  Text.CliFilterUtf8MatchesDecodedNames (CJK filter matches decoded name
+  byte-exact; the old '??' mangled form pinned to never match).
+- Suite 740/740 linux-release. Audit trail: both finding files carry
+  Resolutions; both moved to FIXED/; RESOLVED-INDEX rows; matrix cells
+  (writer+report/cli/health/quality); SUMMARY session-23 delta + counts.
+
+Stage Summary:
+- Tally 2 (N-009 group + M-057). MINOR 18 remain. Next: N-007/I-004
+  (ReFS detection strictness).
