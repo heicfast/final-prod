@@ -1,3 +1,43 @@
+# SUMMARY.md — executive summary (diff-fix sessions 32(+33+34) on top; earlier sessions below)
+
+## Session-32 delta, part 2 (2026-10-26 — DFX32: M-025 FIXED — the carve window-aware read view + the pushed-red N-064 union repair)
+
+**The pushed-red repair first** (main was RED from a parallel convergent
+merge): the two N-064 landings (try_password_unlock/cr-pwddict vs
+unlock_with_dictionary/cr-dict) merged with UNRESOLVED conflict markers in
+6 files and a cr_bitlocker.cpp referencing the lost cr::dict module —
+win_syntax_check failing, the app uncompilable. Repaired as the convergent
+union (b00c02f): cr/pwddict is the canonical module; unlock_with_dictionary
+re-implemented as its ABI-shaped adapter; BOTH CLI consent flags kept
+(--bitlocker-pwddict <file|seed> + the valueless --bitlocker-dict); the
+Windows contract tests rewritten onto the pwddict seam; docs keep-both.
+Suite green again (win_syntax_check PASS).
+
+**M-025 FIXED (the fix plan's steps 1 + 2a/2b + 4; step 3 evaluated and
+not taken):** the WindowView — an IStorageDevice wrapper serving every
+read intersecting the already-scanned window from the in-memory buffer,
+wired at all 8 device-read sites of the window scan across BOTH emit
+layers (grammar validator + M-051 checksum + small-file hash + M-021
+feed; raw-sign tail walk + checksum + hash + feed); cross-window tails
+split-read (in-window prefix + device tail). Fail-before RED on the
+device-direct tree: the counting-device test saw **82 device reads** for
+a one-window fixture (per-candidate probe + checksum + hash re-reads) vs
+the expected **1**. MEASURED (scripts/bench_m025.cpp — 64 MiB sign-quiet
+fixture + 1280 grammar-validated candidates; the LCG fill abandoned as
+the bench lesson: random FF-sync bytes make the raw-sign tail walk read
+11+ GB, measuring the tail-scan budget instead of this fix's delta):
+device read_at calls 20,544 → 2,080 (**9.88×**), device bytes 2.20 GB →
+1.06 GB (**2.08×**), wall 3,936 → 3,818 ms on the memcpy device (no
+regression; the real-transport gain is ~18.5K fewer read round trips per
+64 MiB). The geometry change (4-8 MiB ping-pong) NOT taken — dispatch is
+byte-granularity-dominated (the I-009 superset) and the view already
+removed the re-read margin. PARITY-DELTAS **D-80** registers the
+stateless-view-vs-pending-object architecture (future stateful analysers
+port behind the M-021 CarvePostProcessor seam).
+
+**Counts after these landings (live tree):** SEVERE 1 · MAJOR **9** ·
+MINOR 8 · INFO 0 open · tracked-open 10 · FIXED/ 191 files. Session tally
+(this lane): M-029 + M-025 + the N-064 union repair.
 # SUMMARY.md — executive summary (diff-fix session 33 on top; earlier sessions below)
 
 ## Session-33 delta, part 3 (2026-10-26 — DFX33: M-018 FIXED — the FilterFolder result-set junk filter)
