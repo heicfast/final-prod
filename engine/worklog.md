@@ -14824,3 +14824,25 @@ Stage Summary:
 - Main green again (849/849). Session tally stands: N-064 (+convergence),
   N-071, N-059, two pushed-red repairs, one convergence repair. Next:
   pull, then N-066/N-072/N-065 (the MINOR tail) if still open.
+
+---
+Task ID: DFX35-T4 (session 35 — M-041 lane claim, posted before work)
+Agent: main engineer (DFX35)
+Task: Lane claim (protocol): M-041 — the damage-audit check phase.
+
+Work Log:
+- Post-merge inventory at f3382cf: MAJOR 6 (M-030, M-034, M-039,
+  M-040, M-041, M-048) · MINOR 4 · FIXED 208. The window's parallel
+  lanes landed M-018/M-020/M-025/M-029/M-035/M-049 and the M-014
+  table completion (DFX24 — the og binary DOES ship in
+  og-codebase/, correcting my session-35 premise; noted for future
+  corpus checks).
+- Another lane signaled "M-039 or M-048 next" — DISJOINT claim here:
+  M-041 (the og's FileSystemCheck damage-audit phase: the FAT
+  DBR-ceiling/hole/dup/copy-compare/dir-tree/orphan pass + the NTFS
+  $MFT/$MFTMirr/version-gate/$Bitmap/cross-check pass, error taxonomy
+  0x1001-0x100e, read-only report, never aborts the scan).
+
+Stage Summary:
+- Claim posted; starting M-041 (full corpus re-read of
+  FileSystemCheck_decompiled.c first).
