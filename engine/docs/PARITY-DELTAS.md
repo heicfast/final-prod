@@ -2260,3 +2260,23 @@ disk GUID — every call site passes a 4-byte stack slot as one register
 argument (PR:32805 local_24 ulong; RM:46338; CM:118357; UL:37590), and the
 GPT header GUID is untouched by FUN_1800392f0. The core stamps the
 regenerated 32-bit signature on the GPT rebuild exactly as the corpus does.
+
+### D-75 — the logging seam: one host sink, no cross-process transport (N-048, REGISTERED DIVERGENCE)
+
+The og runs a three-layer logging architecture: Log.mo's EPMLOG.log
+(64 KiB cross-process shared staging + named mutex + 10 MB
+truncate-rollover, line format `[%Y-%m-%d %H:%M:%S:%ms] (T:%d/P:%d)
+msg`), PubLog's 2 MB ring for the UI-family binaries, and Logger.dll's
+async queue + worker with keep-second-half compaction
+(Log_decompiled.c :159-176/:193/:604-621/:699, PubLog_decompiled.c
+:119-135, Logger_decompiled.c :1630-1696/:1962-2015). The core is a
+SINGLE-PROCESS library: there is no second process to share a mapping
+with, no UI-family binary set for the ring, and an async worker queue
+buys nothing at the core's line volumes (diagnostic brackets, not
+traces). The seam is therefore the SINK, not the transport
+(`cr::log::set_sink` — default NULL = silent, zero formatting
+overhead; serialized synchronous deliveries; the host owns every
+policy the og baked into its transports: file placement, rollover,
+compaction, async). The og's per-line timestamp/process decoration is
+its transports' job; the core emits the message text. Pinned by
+`Orchestrator.LogSilentByDefault` + `Orchestrator.LogSinkReceivesScanBrackets`.

@@ -11954,3 +11954,41 @@ Work Log:
 Stage Summary:
 - N-060 FIXED (tally: 6 — N-045, N-046, N-040, N-074, N-043, N-060).
   MINOR 31 remain. Next: N-061 (runlog/auto-naming) or N-062/N-064.
+
+---
+Task ID: DFX18-T7 (session 18, seventh fix — N-048)
+Agent: main engineer (diff-to-fix fix session 18 — DFX18)
+Task: N-048 the engine logging seam — the fix plan's recommended
+minimal form.
+
+Work Log:
+- Corpus re-verified first-hand: Log_decompiled.c (:159-176 EPM_ shared
+  mapping, :193 named mutex, :604-621 EPMLOG.log, :699 line format),
+  PubLog (:119-135 2 MB ring), Logger (:1630-1696 async, :1962-2015
+  compaction) + the qa-logs/vendor-logs content set — the finding's
+  citations are accurate.
+- Implementation: cr::log (cr_log.h + err/cr_log.cpp) — levels
+  Error/Warn/Info; SinkFn + user registered by the host, default NULL
+  = silent with the enabled() atomic fast path; bounded 512-byte
+  vsnprintf; deliveries serialized (synchronous seam, documented).
+- Emission sites (the og's event set): scan START (extent/fs_hint/
+  stages), scan END (rc/counters/error-ranges/pause-compensated
+  elapsed — asserted against stats), stage boundaries, committed
+  checkpoints, lost-candidate resolutions (CalcPartition.log
+  semantics), retry-exhaust read errors (Error, PRD:21962's trail).
+- CLI: --log file = the host sink ([E/W/I] lines; detached at close).
+- D-75 registers the single-process divergence: no shared mapping /
+  ring / async queue — the core has no second process; the host owns
+  the transport policies through the sink.
+- Tests: Orchestrator.LogSilentByDefault + LogSinkReceivesScanBrackets.
+  Fail-before RED EXECUTED on the stash-isolated tree (the emission
+  sites reverted, the seam present: zero lines, both bracket
+  assertions failed). Suite 732/732 linux-release.
+- Audit trail: Resolution + FIXED/ move, index row (102 header),
+  matrix mom-capabilities cell, SUMMARY counts, PARITY-DELTAS D-75.
+
+Stage Summary:
+- N-048 FIXED (tally: 7 — N-045, N-046, N-040, N-074, N-043, N-060,
+  N-048). MINOR 30 remain. Next: N-061's auto-naming half (the
+  run-log half rode this seam), then N-062 (the memory monitor on
+  the same sink).

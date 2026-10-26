@@ -5,9 +5,13 @@
 #include "cr/session/cr_crsf.h"
 #include "cr/storage/cr_device.h"
 #include "test_fixtures.hpp"
+#include <algorithm>
 #include <cstring>
+#include <string>
 #include <utility>
 #include <vector>
+
+#include "cr/cr_log.h"
 
 using namespace cr;
 using namespace cr::orchestrator;
@@ -207,6 +211,91 @@ TEST(Orchestrator, DynamicDiskVolumeScan) {
     ASSERT_NE(nullptr, doc);
 }
 } // namespace
+
+/* ---- N-048: the engine logging seam ---- */
+
+namespace {
+struct LogRecorder {
+    std::mutex mu;
+    std::vector<std::pair<cr::log::Level, std::string>> lines;
+    static void sink(cr::log::Level lvl, const char* line, void* user) {
+        auto* r = static_cast<LogRecorder*>(user);
+        std::lock_guard<std::mutex> lock(r->mu);
+        r->lines.push_back({lvl, line});
+    }
+    size_t count(const char* needle) const {
+        size_t n = 0;
+        for (const auto& l : lines)
+            if (l.second.find(needle) != std::string::npos)
+                ++n;
+        return n;
+    }
+};
+} // namespace
+
+TEST(Orchestrator, LogSilentByDefault) {
+    /* N-048: the pre-fix world was SILENT - no sink registered, no line
+     * formatted, zero overhead. The seam must default to that world and
+     * return to it after an explicit clear. */
+    cr::log::set_sink(nullptr, nullptr);
+    EXPECT_FALSE(cr::log::enabled());
+    /* the silent write is a no-op (nothing to observe except that it
+     * returns; the enabled() fast path is the contract) */
+    cr::log::write(cr::log::Level::Info, "silence %d", 42);
+    EXPECT_FALSE(cr::log::enabled());
+    /* a registered-then-cleared sink goes silent again */
+    LogRecorder rec;
+    cr::log::set_sink(&LogRecorder::sink, &rec);
+    EXPECT_TRUE(cr::log::enabled());
+    cr::log::set_sink(nullptr, nullptr);
+    EXPECT_FALSE(cr::log::enabled());
+    cr::log::write(cr::log::Level::Error, "must not arrive");
+    EXPECT_EQ(rec.lines.size(), 0u) << "a cleared sink receives nothing";
+}
+
+TEST(Orchestrator, LogSinkReceivesScanBrackets) {
+    /* N-048/N-061: the og's run-log channel (EPMLOG.log + the qa-logs
+     * semantics: CScanMgr::doScan entry, quick/deep ranges,
+     * UpdateScanFinishedInfo) maps to the core seam: scan START/END
+     * brackets + stage boundaries; the retry pipe's exhaust adds the
+     * og's read-error trail (PartitionRecoveryD PRD:21962). */
+    auto fat = build_fat16();
+    MemDevice dev(std::move(fat));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = false;
+    cfg.run_carve = false;
+    LogRecorder rec;
+    cr::log::set_sink(&LogRecorder::sink, &rec);
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
+    cr::log::set_sink(nullptr, nullptr); /* detach before the recorder dies */
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    ASSERT_FALSE(rec.lines.empty());
+    EXPECT_GE(rec.count("scan start: extent="), 1u) << "the START bracket";
+    EXPECT_GE(rec.count("scan end: rc="), 1u) << "the END bracket with counters";
+    EXPECT_GE(rec.count("stage 0 begin"), 1u) << "the stage-boundary trail";
+    /* the scan-end line carries the truthful counters */
+    {
+        std::lock_guard<std::mutex> lock(rec.mu);
+        auto it = std::find_if(rec.lines.begin(), rec.lines.end(),
+                               [](const auto& l) {
+                                   return l.second.find("scan end: rc=") !=
+                                          std::string::npos;
+                               });
+        ASSERT_NE(it, rec.lines.end());
+        char buf[32];
+        snprintf(buf, sizeof(buf), "files=%llu", (unsigned long long)stats.files_found);
+        EXPECT_NE(it->second.find(buf), std::string::npos)
+            << "the END bracket carries the files counter: " << it->second;
+        snprintf(buf, sizeof(buf), "elapsed_ms=%llu",
+                 (unsigned long long)stats.elapsed_ms);
+        EXPECT_NE(it->second.find(buf), std::string::npos)
+            << "the END bracket carries the pause-compensated duration";
+    }
+}
 
 TEST(Orchestrator, WeightedProgress) {
     StageWeights w{40, 35, 25};

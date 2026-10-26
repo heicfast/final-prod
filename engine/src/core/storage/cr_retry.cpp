@@ -4,6 +4,7 @@
  */
 
 #include "cr/storage/cr_retry.h"
+#include "cr/cr_log.h"
 #include <cstring>
 #include <vector>
 
@@ -103,6 +104,15 @@ u32 RetryingDevice::read_isolated(u64 offset, u8* buffer, u32 length, u32 depth_
             std::lock_guard<std::mutex> lock(map_mutex_);
             map_.add(offset, length, policy_.max_attempts);
         }
+        /* N-048 (the og's clone read-error trail - PartitionRecoveryD
+         * PRD:21962/:22121 logs read failures; the og's engines log
+         * through PubLog/Logger): the read-failure exhaust is the
+         * Error-level seam event. Only when a sink is registered - the
+         * fast path is the atomic enabled() check. */
+        if (cr::log::enabled())
+            cr::log::write(cr::log::Level::Error,
+                           "read failed: off=%llu len=%u attempts=%u", offset, length,
+                           policy_.max_attempts);
         if (policy_.mode == RetryMode::Skip) {
             memset(buffer, 0, length);
             return OK;

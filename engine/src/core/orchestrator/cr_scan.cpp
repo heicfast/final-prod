@@ -13,6 +13,7 @@
  */
 
 #include "cr/orchestrator/cr_scan.h"
+#include "cr/cr_log.h"
 #include "cr/cr_bits.h"
 #include "cr/btrfs/cr_btrfs_engine.h"
 #include "cr/carve/cr_carve.h"
@@ -199,6 +200,10 @@ void ScanController::tel_stage_begin_(u32 stage, const CancelToken* cancel) {
         st = StageTelemetry{};
     }
     emit_event_(event::Type::ScanStage, stage); /* GAP-S6-10 (outside the lock) */
+    /* N-048: the stage-begin boundary (the og's Quick/Deep scan range
+     * lines bracket each stage) */
+    if (cr::log::enabled())
+        cr::log::write(cr::log::Level::Info, "stage %u begin", stage);
 }
 
 void ScanController::tel_stage_end_(u32 stage, const CancelToken* cancel) {
@@ -370,6 +375,14 @@ void ScanController::emit_boundary_events_(u32 stage) const {
 }
 
 void ScanController::emit_lost_candidate_(const lost::Candidate& cand) const {
+    /* N-061 (the og's CalcPartition.log: candidate generation + scoring
+     * is the lost-partition search's real output format - qa-logs
+     * section 3): every discovered candidate is a run-log line with the
+     * scored truth. */
+    if (cr::log::enabled())
+        cr::log::write(cr::log::Level::Info,
+                       "lost candidate: lba=%llu sectors=%llu fs=%u score=%u",
+                       cand.start_lba, cand.sector_count, u32(cand.fs), cand.score);
     if (event_fn_ == nullptr)
         return;
     event::Event e;
@@ -468,6 +481,11 @@ u32 ScanController::emit_checkpoint_() const {
         if (u32 rc = cfg_.checkpoint.commit(cfg_.checkpoint.user))
             return rc;
     ++checkpoint_count_;
+    /* N-048 (the og's stage-boundary/checkpoint trail): every committed
+     * checkpoint is a bracket event in the run log. */
+    if (cr::log::enabled())
+        cr::log::write(cr::log::Level::Info, "checkpoint %llu committed",
+                       u64(checkpoint_count_));
     if (event_fn_ != nullptr) { /* GAP-S6-10 */
         event::Event e;
         e.type = event::Type::Checkpoint;
@@ -821,6 +839,16 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
     vol_bytes_ = slice->size();
     vol_logical_sector_ = slice->geometry().logical_sector;
     vol_physical_sector_ = slice->geometry().physical_sector;
+
+    /* N-048/N-061 (the og's scan bracket - CScanMgr::doScan + the
+     * quick/deep sector-range lines, qa-logs channel): the START
+     * bracket carries the slice extent, the probe hint and the
+     * configured stage set. Silent unless a host registered a sink. */
+    if (cr::log::enabled())
+        cr::log::write(cr::log::Level::Info,
+                       "scan start: extent=%llu+%llu fs_hint=%u stages=quick:%d deep:%d carve:%d",
+                       vol_offset_, vol_bytes_, u32(cfg_.fs_hint), cfg_.run_quick ? 1 : 0,
+                       cfg_.run_deep ? 1 : 0, cfg_.run_carve ? 1 : 0);
     /* SESS-2/GAP-W3-9a: volume identity hash - CRC32 over the first 512
      * bytes of the slice (the boot sector / volume header). Recorded at
      * run start; the resume path recomputes and compares, so a session
@@ -863,6 +891,16 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
             tel_retry_.store(nullptr, std::memory_order_release);
             tel_cancel_.store(nullptr, std::memory_order_release);
         }
+        /* N-048/N-061 (the og's UpdateScanFinishedInfo bracket): the END
+         * bracket carries the result code, the counters, the error-map
+         * size and the pause-compensated duration. */
+        if (cr::log::enabled())
+            cr::log::write(cr::log::Level::Info,
+                           "scan end: rc=%u files=%llu deleted=%llu carved=%llu lost=%llu "
+                           "error_ranges=%u elapsed_ms=%llu",
+                           rc, stats.files_found, stats.deleted_found, stats.carved_found,
+                           stats.lost_partitions, u32(stats.errors.ranges().size()),
+                           stats.elapsed_ms);
         return rc;
     };
     if (cancel && cancel->checkpoint())
