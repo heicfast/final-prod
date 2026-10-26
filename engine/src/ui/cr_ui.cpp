@@ -27,6 +27,7 @@
 #include "cr/orchestrator/cr_scan.h"
 #include "cr/carve/cr_signatures.h"
 #include "cr/carve/cr_rawsigns.h"
+#include "cr/carve/cr_usersigns.h"
 #include "cr/tree/cr_diskmap.h"
 #include "cr/preview/cr_preview.h"
 #include "cr/query/cr_query.h"
@@ -3704,4 +3705,45 @@ extern "C" CR_UI_API uint32_t cr_ui_health_read(uint32_t disk, cr_ui_smart_repor
                                                 cr_ui_smart_attr* attrs, uint32_t attr_cap,
                                                 uint32_t* attr_count) {
     return guarded(health_read_impl, disk, rep, attrs, attr_cap, attr_count);
+}
+
+/* ---- M-048: the user-extensible signature database (ABI-since 2.1) ---- */
+
+extern "C" CR_UI_API uint32_t cr_ui_register_user_signs(const char* json_bytes,
+                                                       uint32_t json_len) {
+    if (json_bytes == nullptr || json_len == 0)
+        return ERR_BAD_PARAMETER;
+    carve::usersigns::UserSignSet set;
+    if (u32 rc = carve::usersigns::parse(json_bytes, size_t(json_len), set))
+        return rc;
+    return carve::usersigns::install_set(std::move(set));
+}
+
+extern "C" CR_UI_API uint32_t cr_ui_user_sign_count(void) {
+    return carve::usersigns::active_count();
+}
+
+extern "C" CR_UI_API uint32_t cr_ui_user_sign_info(uint32_t index, cr_ui_user_sign* out) {
+    if (out == nullptr)
+        return ERR_BAD_PARAMETER;
+    std::memset(out, 0, sizeof(*out));
+    /* snapshot under the registry's own lock discipline: match_at/count
+     * are the guarded surfaces; the info walk takes one consistent copy */
+    const u32 n = carve::usersigns::active_count();
+    if (index >= n)
+        return ERR_BAD_PARAMETER;
+    /* one consistent copy under the registry's lock (the count-then-read
+     * window is closed by re-validating against the snapshot) */
+    carve::usersigns::UserSignSet snap;
+    if (u32 rc = carve::usersigns::snapshot(snap))
+        return rc;
+    if (index >= snap.signs.size())
+        return ERR_BAD_PARAMETER; /* the set changed between calls */
+    const carve::usersigns::UserSign& s = snap.signs[index];
+    std::memcpy(out->ext, s.ext, sizeof(out->ext));
+    std::memcpy(out->mime, s.mime, sizeof(out->mime));
+    out->offset = s.offset;
+    out->sign_len = s.len;
+    std::memcpy(out->bytes, s.bytes, sizeof(out->bytes));
+    return OK;
 }

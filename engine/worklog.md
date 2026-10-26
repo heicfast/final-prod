@@ -15229,6 +15229,38 @@ Stage Summary:
 - Main green at the union (849/849). Audit trail + repairs landed
   together.
 
+---
+Task ID: DFX23-T4 (session-23 continuation — convergence adoption + next-queue claim)
+Agent: session-23 (this lane)
+Task: absorb the merge-storm window (e70cb4d), land the convergence
+record, claim the next unclaimed MAJOR
+
+Work Log:
+- The remote moved twice during this lane's M-014+N-079 work (a2ee86a ->
+  e70cb4d): parallel lanes landed M-052, M-041-claim, the DFX24 M-014
+  table completion, the N-079 log-seam fix (deque pool), and multiple
+  convergent repairs of the same pushed-reds this lane had also fixed
+  locally (btrfs N-019/M-020 expectation, rrecov/bitlocker markers).
+  Local unpushed implementations were tangled by auto-merge; per the
+  first-landing-wins protocol the lane RESET onto the converged origin
+  tree (e70cb4d) and re-lands only unique value:
+  (a) the M-014 convergence record (triple-confirmed constants, the
+  independent table dump, the fail-before matrix, the OOB closure) —
+  committed as an audit-only change;
+  (b) this lane's N-079 churn test ported onto the canonical deque fix
+  (LogSinkRegistrySurvivesHeavyChurn — delivery-follows-current through
+  20 swaps, stale-silent, unregister-reusable).
+- The converged tree verified green first-hand before the re-land:
+  826/826 linux-release exit 0; exFAT suite carries the complete
+  canonical gates incl. the UTF-16 table.
+- Lane claim for the next finding: M-030 (driver utilization: WinPE
+  gate, handle ladder, chunking) — M-041 is claimed by DFX35-T4,
+  M-039/M-048 signaled by another lane; M-034/M-040 remain unclaimed
+  after M-030.
+
+Stage Summary:
+- M-014 + N-079 fully closed across all lanes; the audit trail carries
+  the convergence. Next: M-030 full verification against the corpus.
 
 Task ID: DFX32-TCLOSE (session 32 close — handoff)
 Agent: main engineer (diff-to-fix fix session 32 — DFX32)
@@ -15358,6 +15390,38 @@ Corpus 03ad46c unmoved throughout. One finding file deleted: NONE. All
 resolutions evidence-cited. Token hygiene maintained.
 
 ---
+Task ID: DFX33-T5 (session 33, fourth fix)
+Agent: main engineer (diff-to-fix fix session 33 — DFX33)
+Task: M-048 — the user-extensible signature database (EUUserData).
+
+Work Log:
+- Corpus re-verified: og-codebase/EUUserData read first-hand (111-entry
+  JSON; the 123/cpl/epub rows quoted in the tests verbatim);
+  config-data-reference.md :95.
+- Implemented: the pure usersigns module (targeted JSON-subset reader for
+  the og's exact shape, atomic validation, caps 256/8/16/512); the cr_ui
+  ABI (since 2.1: register/count/info — atomic install,
+  replace-on-re-register, mutex-guarded, snapshot-for-info); the CLI
+  --user-signs loader (honest failure); the carve-layer probe at the
+  raw-sign stride after the built-ins (built-in-wins collision rule),
+  emission with the user ext + MIME (carve_note) + tag 0xFFFE0000 +
+  confidence 600 (documented fixed value). Session posture per the
+  corpus truth: install-tree config re-read per run, not session state
+  (fix-plan item 4's scope correction, registered).
+- First build caught two of my own errors (the missing ':' in the JSON
+  reader; the racy active_set accessor — replaced by the lock-held
+  snapshot pattern), both fixed before any push.
+- Tests: UserSigns.ParseTheOgsShape + CarveEngine.UserSignatureProbedAtStride
+  (fail-before EXECUTED: RED with the layer disabled) +
+  UserSignatureYieldsToBuiltInAtSamePosition + CrUi.UserSignRegistrationSurface.
+  Suite 869/869 linux-release.
+- Audit trail: Resolution + FIXED/ move; matrix carve row; modules/carve.md
+  part-2 verdict; SUMMARY part-4 delta; ABI-CONTRACT 7d.
+
+Stage Summary:
+- M-048 FIXED (tally: 4 — M-020, M-025, M-018, M-048 — plus the T4
+  pushed-red repair). MAJOR 5 open. Next: pull, then the live queue.
+
 Task ID: DFX34-T4 (session 34, fourth landing — the third-wave repair + the union-merge rule)
 Agent: main engineer (diff-to-fix fix session 34 — DFX34)
 Task: Repair the 875ed25 regression (my own union loop's fault: keep-both
@@ -15524,3 +15588,26 @@ Stage Summary:
 - N-065 closed FIXED-ALREADY (tally: 1 verified closure this session).
   MINOR open: N-007/I-004, N-072. Next: N-007 (ReFS first-DWORD
   discovery), then N-072 (Btrfs cache + ZFS retry).
+Task ID: DFX23-T5 (343e206 window repair)
+Agent: session-23 (this lane)
+Task: absorb 343e206 (N-066/N-080 + the M-041 ABI field) + repair the
+remote's own marker residue
+
+Work Log:
+- Union with 343e206: N-066 identity-card v4 tail, N-080, the M-041
+  pre_scan_check ABI field (the DFX35 lane's finding landed while we
+  held the claim - their lane wins M-041; this lane's M-030 claim
+  stands), build-tree hygiene.
+- Pushed-red repaired (proven on the remote's own tree): include/cr/
+  cr_ui.h carried committed stash-pop conflict markers dropping BOTH
+  the M-029 raw_category_name_utf8 and the M-041 pre_scan_check fields
+  while src/ui/cr_ui.cpp consumed both (the linux build was red on
+  origin/main). Union: both fields restored, marker residue dropped.
+- The N-066/N-080 test block re-braced after the append-union (the
+  dropped closing brace between tests).
+- Verification: 848/848 linux-release exit 0; ctest 887/887
+  (win_syntax_check + fuzz smoke green); zero conflict markers anywhere
+  in src/include/tests (swept).
+
+Stage Summary:
+- Remote green again. M-030 verification starts now (the lane's claim).
