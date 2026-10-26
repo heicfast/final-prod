@@ -14656,3 +14656,63 @@ Stage Summary:
 - N-059 FIXED + main green again (session tally: N-064, N-071, N-059 +
   the N-064 convergence + the N-019/M-020 repair). Next: N-066 or
   N-072, pulling first.
+=======
+---
+Task ID: DFX35-2 (session 35, second fix — M-052 + the N-079 discovery)
+Agent: main engineer (diff-to-fix fix session 35 — DFX35, MAJOR-first)
+Task: M-052 — the FAT/exFAT recycle-bin $I/$R pairing; generalize the
+NTFS model into a shared helper.
+
+Work Log:
+- Corpus re-verified FIRST-HAND: the four-name _stricmp bin-root
+  recognizer in all three SearchDLLs (FAT :1668-1677, exFAT :40583-
+  40592, NTFS :37387-37410 — including the deliberate "$RECYCLE.BI0"
+  mangled-variant match), the NTFS ancestor-chain scope consumer
+  (:43538-43550), the artifact's pairing statement ("by index across
+  bin subfolders", fat-exfat-engine-internals.md :37-40). CONFIRMED.
+- Discovery during verification (N-079, filed as NEW-FINDING): the
+  NTFS landing matched $I/$R name prefixes EVERYWHERE — user files
+  named "$Image.txt" vanished (unconditional skip, no parse gate) and
+  out-of-bin "$R…" files mis-paired with in-bin $I records (wrong
+  name + wrong Deleted forcing). The og's own handling is
+  location-scoped (parent-chain walk over the recognizer).
+- Landed: include/cr/cr_recycle.h — parse_record (the $I v1/v2
+  parser, format-dependent pathlen moved verbatim from the NTFS
+  landing), token_of (dot-stripped pairing token), is_bin_root (the
+  four-name set, ASCII case-insensitive). FAT: bin context threaded
+  through walk_dir_entries/recurse_dir/emit_entry; in-bin $I read
+  from the chain (bounded 2076 B) + parsed + skipped; $R remap at
+  emission or post-walk fixup; recycle_info/recycle_remapped stats.
+  exFAT: same model in walk_entries/recurse_dir; ParkedSet carries
+  in_bin through the M-013 oracle re-walk. NTFS: wrappers delegate to
+  the shared header; the $I skip is parse-gated; ALL $R remaps moved
+  post-walk with the bin-ancestry check (N-079 fix).
+- Tests: FatEngine.RecyclePairingRestoresOriginalName +
+  RecycleLegacyRoots + NonRecycleDollarFilesStayRaw (FAT16 fixture
+  extension: $RECYCLE.BIN\S-1-5-21\$I/$R on clusters 40/41/50/51);
+  ExfatEngine.RecyclePairingMirrored (bin at cluster 90, sets planted
+  through SetBuilder — first run caught my own name-length miscount:
+  "$RECYCLE.BIN" is 12 chars, not 11, so the root never matched);
+  NtfsVolume.RecycleBinScopeOutOfBinDollarFilesStayRaw (self-contained
+  volume — the shared dump image's MFT only covers records 0..13, so
+  the scope test needed its own geometry).
+- Debug detour: the first exFAT run showed recycle_info=0; a
+  temporary walk trace (since removed) found the truncated
+  '$RECYCLE.BI' name — the miscount above, not an engine defect. Also
+  verified en route: SetBuilder::finish_set's entries.size()*32 loop
+  is checksum-equivalent to the engine's byte range whenever the set
+  is followed by >= 2976 zero bytes (16 ROL15 zero-steps = identity;
+  2976 % 16 == 0) — benign, left as is.
+- Fail-before EXECUTED: the three engine .cpp files stashed (headers
+  kept so the new tests compile) — 4 of 5 new tests RED (the fifth,
+  NonRecycleDollarFilesStayRaw, is the no-over-match guard: green on
+  both trees by design). Restored: suite 794/794 linux-release.
+- Audit trail: M-052 Resolution + FIXED/ move; N-079 finding filed
+  (NEW-FINDING, MINOR) with Resolution + FIXED/; matrix rows (fat
+  B4/B5/D11, exfat B4/B5/D11, ntfs N-079 row); modules fat/exfat/ntfs
+  session-35 verdicts; CAPABILITY-MATRIX recycle row extended to all
+  three engines; SUMMARY session-35 delta appended.
+
+Stage Summary:
+- M-052 FIXED + N-079 NEW-FINDING FIXED (session tally: 2). MAJOR 11
+  remain. Next: M-020 (Btrfs chunk profiles + default subvol pick).
