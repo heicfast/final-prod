@@ -295,11 +295,37 @@ the corpus-silent integrity-stream scenario: property-flag rows 0x108/0xf8
 + unknown-type rows walked past, data byte-exact, granularity guard quiet).
 Suite **753/753**.
 
-**Post-fix counts (session-28, after N-075 + N-019):** SEVERE **0** ·
-MAJOR **14** · MINOR **15** · INFO 0 open (22 acknowledged in FIXED/) ·
-**FIXED/ 175 findings** (176 files incl. RESOLVED-INDEX) · tracked-open 11
-(OQ-T6 pushed forward with new evidence). Next on this lane:
-N-050/N-033/N-072 rear-first.
+**N-033 FIXED (MINOR — the CLI half + the refresh divergence):** the ABI
+half landed session 6 (`cr_ui_carve_format_count/info`); this session
+closed the rest — `rrecov list-carve-formats` (subcommand form, one row
+per format over both carve layers, the FB-K01 exit discipline: an empty
+registry or failed row is exit 1, never a silent "nothing to carve") +
+the per-scan registry-refresh divergence REGISTERED as PARITY-DELTAS
+D-80 (the og's FS engines LoadLibrary/clone the RAWSearchDLL registry
+per scan — multi-DLL machinery; the core reads its compile-time
+immutable registry directly, same content by construction) +
+ABI-CONTRACT §7a's CLI projection note. Pinned by the existing
+`CrUi.CarveFormatRegistryEnumeration` + the win-layer parse gate
+(extended with `-D__declspec(x)=` parse-neutralization — ELF g++
+rejects the `__declspec` that cr_ui.h's _WIN32 branch uses; the gate
+checks structure, MSVC CI exercises the real macro).
+
+**Pushed-red repaired en route (the M-055/M-057 family):** a same-window
+parallel merge had committed conflict markers into rrecov.cpp +
+cr_bitlocker.h + PARITY-DELTAS + CAPABILITY-MATRIX (win_syntax_check
+RED on origin/main — executed first-hand). The two N-064 designs were
+unioned (both consent surfaces: `--bitlocker-pwddict <file|seed>` AND
+`--bitlocker-dict`; both functions stand; auto → shipped-dict →
+file/seed → refuse-with-guidance); my session's M-020-stale
+TwoSubvolumesRootSeparately re-verified and updated. 827/827 green
+post-repair.
+
+**Post-fix counts (session-28, after N-075 + N-019 + N-033):** SEVERE
+**0** · MAJOR **14** · MINOR **5 open** (N-007, N-059, N-065, N-066,
+N-072 — the parallel lanes drained the rest of the tier) · INFO 0 open
+(22 acknowledged in FIXED/) · **FIXED/ 176 findings** (177 files incl.
+RESOLVED-INDEX) · tracked-open 11 (OQ-T6 pushed forward with new
+evidence). Next on this lane: N-066/N-065/N-059/N-072 rear-first.
 
 ## Session-31 delta, wave 4 (2026-10-26 — DFX31: OQ-S20-1 resolved — the BitLocker derivation premise corrected: no stretch exists in the og; M-033's surface IS the og's surface)
 

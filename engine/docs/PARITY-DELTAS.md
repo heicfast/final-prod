@@ -7648,7 +7648,7 @@ destroyed IS objectively degraded, and hiding that from the user would be
 the og's UX weakness, not a parity virtue. Pinned by
 Carve.JpegTruncatedTailSalvagedAtSofEstimate (grade assertion).
 
-### D-78 — progress delivery: push events + telemetry pull, not the og's poll-dominant timer farm (N-075, REGISTERED DIVERGENCE; renumbered from a D-77 collision with the N-009d ACL register landed by the parallel lane in the same window — the errata convention)
+### D-78 — progress delivery: push events + telemetry pull, not the og's poll-dominant timer farm (N-075, REGISTERED DIVERGENCE; renumbered from a D-77 collision with the N-009d ACL register — and now one of three same-window D-78 registrations; cite by finding: N-075)
 
 The og's progress model is predominantly PULL-polled: 38 `timeout()`
 timer consumers call `onGet*Progress` on the UI thread, and the only
@@ -7716,11 +7716,9 @@ FileProperties → a WriterConfig `preserve_dacl` flag (default OFF)
 applying it via SetSecurityInfo on the win destio layer only — never on
 the POSIX test shims.
 
-<<<<<<< HEAD
 ### D-78 — the password-dictionary unlock aid: authored seed + format-compatible loader, the og's Dict asset not copied (N-064, REGISTERED DIVERGENCE)
 =======
 ### D-80 — the password-dictionary data posture: the corpus Dict converted as generated data (raw_signs precedent), user dictionaries loadable (N-064 convergence record — two parallel landings, first-landing-wins)
->>>>>>> 273dde4fdab4fe324d02a42b1ad5810ce73ec863
 
 **Class:** convergence record (replaces this lane's original D-78
 registration, renumbered per the errata convention — D-78 collided with
@@ -7761,12 +7759,17 @@ og-format dictionary.
 **RISK:** none beyond the capability itself; the F61 consent gate is
 structural in both landings and unchanged in the union.
 
-<<<<<<< HEAD
 **VERDICT:** ACCEPTED (registered divergence: authored seed +
 format-compatible loader vs the og's copied asset; mechanism parity
 complete; D-78).
+
+<!-- D-number errata (session-28 merge): this same-window landing
+     produced duplicate D-78/D-79 registrations from two parallel lanes
+     (the N-064 pwddict register and the N-032/M-020 pair below). Per
+     the standing errata convention both stand; future sessions cite
+     them by FINDING (N-064 / N-032 / M-020), not by bare D-number. -->
+
 =======
->>>>>>> 273dde4fdab4fe324d02a42b1ad5810ce73ec863
 ### D-78 — CSMI SMART transport: SCSI-address routing, no RAID census; LSILOGIC sibling and SMART auto-enable not ported (N-032, REGISTERED DIVERGENCE — transport scope)
 
 **Class:** registered divergence (health transport scope) · **Finding:**
@@ -7836,8 +7839,7 @@ with wrong bytes. Fixtures: `Btrfs.Raid0StripeMathSplitsAtStripeBoundaries`
 (the spanning split + the in-stripe offset), `Btrfs.Raid10GeometryGate`
 (the og's parse-time gate stays og-exact — the superset is read-side
 only).
-<<<<<<< HEAD
-=======
+
 
 
 ### D-81 — Carve validators are stateless single-shot; no pending-object/ContinueScan streaming state (M-025, REGISTERED ARCHITECTURAL DIVERGENCE)
@@ -7868,7 +7870,6 @@ incremental continuation (streaming formats whose end cannot be probed
 by a bounded forward walk) must either keep that model in its own layer
 or extend the validator contract — this register is the flag S-017's
 fix-plan step 3 cites.
->>>>>>> 273dde4fdab4fe324d02a42b1ad5810ce73ec863
 ### D-79 — disk enumeration: the two-stack merge (PhysicalDrive loop + cfgmgr32 disk interfaces), not the og's five-stack fan-in (N-071, REGISTERED DIVERGENCE — partial port with scope rationale)
 
 **Class:** registered divergence (enumeration breadth) · **Finding:**
@@ -7916,6 +7917,26 @@ list would be missed — no such device class is documented in the corpus
 (the QA host's own Storage-Spaces census ran WITHOUT producing an
 extra device). The merge is the engine scope; the UI shell may layer
 its own stacks later.
+
+### D-80 — carve registry consumption: direct compile-time read, no per-scan cross-DLL re-clone (N-033, REGISTERED DIVERGENCE — structural, content-identical)
+
+The og's FS SearchDLLs import RAWSearchDLL.dll at runtime and clone its
+master analyser registry into their own state — `LoadLibraryA
+("RAWSearchDLL.dll")` + `GetProcAddress("EUGetAnalyserList"/"Map"/
+"Multimap")` + a full std::map/multimap/list tree-copy with leftmost/
+rightmost fixups (FATSearchDLL_decompiled.c :13872-13977, into members
++0xb8/+0xd0/+0xe0), and the SAME sequence again per scan (:29290-29361)
+— because the og is a multi-DLL process and the registry lives in
+another module. The core is one static library: `carve::registry()` is a
+compile-time immutable table read directly at every consumption site (the
+F8 gate + the scan loop), so there is nothing to clone and nothing that
+can drift between the scan's start and its per-engine fetches — the same
+content by construction, one less failure surface (a torn LoadLibrary or
+a version-skewed RAWSearchDLL is an og-only hazard). The capability
+question the clone serves ("which formats can we carve") is answered by
+the ABI enumeration (`cr_ui_carve_format_count/info`, ABI-CONTRACT §7a)
+and its CLI projection (`rrecov list-carve-formats`, landed with this
+register). Pinned by `CrUi.CarveFormatRegistryEnumeration`.
 
 
 ### D-85 — device enumeration scope: the PhysicalDrive namespace is the engine's device truth; no WMI/SetupAPI/VDS/StorageSpaces/FunctionDiscovery fan-in (N-071, REGISTERED DIVERGENCE — scope)

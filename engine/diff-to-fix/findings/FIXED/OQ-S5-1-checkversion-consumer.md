@@ -1,12 +1,6 @@
 # OQ-S5-1 — Is CheckVersion.mo's OS-aware recovery live in the og product, or dead-shipped legacy?
 
-**Status:** RESOLVED (DFX30, 2026-10-26) — **DEAD-SHIPPED: no consumer
-exists.** The by-name load-request sweep is now EXHAUSTED across every
-decompiled host in the corpus — including `MainModule_decompiled.c`
-(the exact artifact DFX14's addendum queued as missing, now present in
-`ghidra-partition/`). Zero load requests. The core's absence of
-OS-aware recovery = **MATCH-by-omission** (the og capability was never
-live).
+**Status:** RESOLVED (session 25, DFX25) — **MATCH-by-omission: DEAD-SHIPPED** (the sweep is exhausted; evidence: `../evidence/decompiled-quotes/s25-oq-s5-1-checkversion-dead-shipped.md`)
 **Module:** mom-runtime/CheckVersion · **Parameters:** P1 (detection — OS-install classification), P42 (surface)
 **Audited commit:** `7cf6754` · corpus `03ad46c`
 
@@ -41,38 +35,7 @@ be filed.
    whether GetModule-by-name can be driven by a config file (config/*.ini
    in og-codebase) rather than code references.
 
-## RESOLUTION (DFX30, 2026-10-26 — the sweep exhausted)
-
-- The MOM load contract is **by-name, lazy, on-demand**
-  (`FUN_1800017f0("DeviceManager")` -> append ".mo" -> LoadLibraryA ->
-  GetProcAddress("GetModule") -> self-registration —
-  mom-module-system--architecture.md §1.1, line-cited). A module goes
-  live ONLY when some host requests it by name string.
-- The sweep: `grep -rln "CheckVersion"` across ALL corpus decompile
-  trees — ghidra-partition (MainModule, RecoveryModule,
-  PartitionRecovery.dll, UILogic, ToolsModule, CloneModule, Boot,
-  BootDriver, Burn, Win32Bcd, WinChkdsk, AutoUpdate, GetDriverInfo,
-  Logger, RawFixer, BitLockerLib, libvmdk, peformat, setupdrvx64),
-  ghidra-mo (all 120 module decompiles), ghidra-drwui (DRWUI.exe),
-  ghidra-core, ghidra-wave2, ghidra-misc, ghidra-local — returns
-  **exactly ONE hit: CheckVersion_decompiled.c itself** (the module's
-  own self-references). The module_import_matrix.json (36 modules)
-  agrees: zero modules reference CheckVersion.
-- CheckVersion.mo IS shipped (og-codebase/PartitionRecovery/
-  CheckVersion.mo; PE with the full IObject/GetModule contract; imports
-  only CRT/KERNEL32/MSVCP — no outbound module dependencies) and fully
-  implements the OS-detect surface (FUN_180003050 module main,
-  DiskContainer::scan FUN_180003580 rdisk 0..31 x partition 1..32,
-  IsWindowsServerInstalled FUN_1800029e0 SELECT\CURRENT ->
-  PRODUCTOPTIONS\PRODUCTTYPE). But no host in the corpus ever
-  requests it: **dead-shipped legacy**.
-- The acceptance criterion's second branch fires: **MATCH-by-omission
-  with dead-shipping evidence** — the og product's live behavior does
-  NOT include OS-aware recovery; the core's zero ProductType/OS-detect
-  surface is parity, not a gap. modules/mom-capabilities.md carries the
-  dead-shipping register row (updated in the same landing).
-
-## Acceptance (for the record)
+## Acceptance
 
 RESOLVED when a consumer is found (→ file the missing-capability finding
 with the consumer's call chain) or the payload sweep is exhausted (→
@@ -95,3 +58,55 @@ open: the LOAD is documented, the INVOCATION is not decoded anywhere.
 Next concrete step (refined): a MainModule_decompiled.c pass over the
 module-init/dispatch vtable to find CheckVersion's registered callbacks —
 the corpus lacks that decompile today; queue it as the next RE artifact.
+
+
+---
+
+## RESOLUTION (session 25, 2026-10-26 — the acceptance's exhausted-sweep branch)
+
+The consumer sweep was completed exhaustively this session:
+
+1. **Every decompiled host**: zero name-requests — "CheckVersion"
+   appears only inside CheckVersion.mo itself (its GetName
+   FUN_18000bb10 :7896, zero external callers). The MOM load contract
+   is ON-DEMAND BY NAME (mom-module-system--architecture.md §1.1,
+   decoded from PartitionRecovery_decompiled.c: `FUN_1800017f0("name")`
+   → "name.mo" → LoadLibraryA → GetModule) — no call site anywhere
+   requests this module. (Session-14's "the module IS in the 31-module
+   MOM load list" was the SHIPPING-inventory table, not a load list —
+   the architecture doc's own text: "Loads .mo modules on demand".)
+2. **Every PE binary in the corpus**: zero references — the BUILDPE
+   payload (EaseUS-x64/*) and the full product tree swept; the single
+   hit (`EUFileRepair/CORE_RL_xml_.dll` → `xmlCheckVersion`) is
+   libxml2's coincidental API name, not a consumer.
+3. **Config-driven loads**: zero — all *.ini/*.xml in og-codebase and
+   BUILDPE config swept clean.
+4. **Generic loaders**: none — the FindFirstFileW sites in the host
+   DLLs (PartitionRecovery :56255/:60558 etc.) are the
+   recovered-filesystem walker with ACL checks (GetFileSecurityW
+   family), not module-directory enumeration.
+5. The PE edition drops the MOM system entirely (pe-payload-census
+   :53) — the module is full-edition-only, where it still has no
+   consumer.
+
+**Disposition per the acceptance clause: MATCH-by-omission registered
+in modules/mom-capabilities.md with dead-shipping evidence. No finding
+filed (the capability never runs in the shipped product — there is no
+recovery behavior to diverge from). No code change.** The core's
+absence of OS-install classification is parity.
+
+
+### Convergence addendum (DFX30, 2026-10-26 — independent verification)
+
+A second lane (DFX30, the tracked-open tail) ran the sweep independently
+before discovering DFX25's landing. Same conclusion; one addition: the
+sweep now explicitly covers **`MainModule_decompiled.c` — the exact
+"next RE artifact" DFX14's addendum queued as missing** — now present in
+`ghidra-partition/` (alongside RecoveryModule, UILogic, ToolsModule, and
+15 more host DLLs; all 120 ghidra-mo modules; DRWUI.exe; the remaining
+trees): `grep -rln "CheckVersion"` across every decompile tree returns
+exactly one hit — the module's own file — and module_import_matrix.json
+(36 modules) agrees. The module ships with the full IObject/GetModule
+contract (CRT/KERNEL32-only imports, no outbound module dependencies).
+DEAD-SHIPPED stands; MATCH-by-omission stands; the FIXED/ filing
+completed by DFX30 in the same change.

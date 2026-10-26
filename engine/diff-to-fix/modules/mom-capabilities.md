@@ -102,14 +102,17 @@ Audited 2026-10-26 (session 5) — first-time coverage for every row here.
 - **CheckVersion.mo (OS-aware recovery)** — registered here: offline
   OS-install detection (\winnt/\windows sweep, rdisk 0..31 × partition
   1..32, offline SYSTEM hive ProductType ServerNT/LanmanNT/WinNT) —
-  core absent; **DEAD-SHIPPED — RESOLVED (DFX30, 2026-10-26, OQ-S5-1)**:
-  the MOM load contract is by-name lazy (mom-module-system §1.1), and the
-  exhaustive sweep across every corpus decompile (incl. the now-present
-  MainModule_decompiled.c — the exact next artifact DFX14 queued) finds
-  ZERO "CheckVersion" load requests — the module ships, implements its
-  GetModule contract, and is never loaded. The og's live behavior does
-  NOT include OS-aware recovery; the core's absence is MATCH-by-omission
-  (no finding, deliberate parity by shared dead code).
+  core absent; **MATCH-BY-OMISSION (dead-shipped: OQ-S5-1 RESOLVED s25)**
+  — the consumer sweep is exhausted: zero name-requests in every
+  decompiled host (the MOM load contract is on-demand by name,
+  mom-module-system §1.1; the module's "CheckVersion" string appears
+  only in its own GetName), zero references in every PE binary of the
+  corpus (BUILDPE payload + the full product tree; the single
+  `xmlCheckVersion` hit in EUFileRepair/CORE_RL_xml_.dll is libxml2's
+  coincidental API), zero config-driven loads, and no generic
+  directory-enumeration loader exists (the FindFirstFileW sites are the
+  recovered-filesystem walker with ACL checks). The capability never
+  runs in the shipped product; the core's absence is parity.
 
 ## Findings index (this module)
 
@@ -140,7 +143,7 @@ Audited 2026-10-26 (session 5) — first-time coverage for every row here.
 
 ## Open (tracked)
 
-- **OQ-S5-1** — RESOLVED (DFX30): dead-shipped; MATCH-by-omission (the row above)
-  live in the og product or dead-shipped? Next artifacts: BUILDPE payload
-  string sweep + DRWService/EuRepairHost decompiles (not in the reversed
-  set).
+- **OQ-S5-1 RESOLVED (s25)**: dead-shipped — the sweep is exhausted
+  (no host requests the module by name, no PE binary references it, no
+  config-driven load, no enumeration loader; PE edition drops the MOM
+  system entirely). MATCH-by-omission registered above.
