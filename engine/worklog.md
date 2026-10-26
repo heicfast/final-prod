@@ -14050,3 +14050,42 @@ Work Log:
 Stage Summary:
 - N-064 convergence closed; main green again. Session tally: N-064
   (canonical + convergence), N-071. Next: pull, then N-072 or N-066.
+
+---
+Task ID: DFX31-N059 (session 31, MINOR tail-first lane — finding 3)
+Agent: main engineer (diff-to-fix fix session 31 — DFX31)
+Task: N-059 — the per-FS session extras (Btrfs/ZFS + the HFS+ fold) +
+the N-019/M-020 convergence repair.
+
+Work Log:
+- Corpus re-verified FIRST-HAND: ifileproperties-part3 :15-65 (Btrfs
+  +0x3B/+0x3F/+0x81; ZFS +0x5A; the ZfsDataRunlist vtable container),
+  part2 :39-75 (HFS+ +0xE mode/flags secondary, +0x74 type id, the
+  extent-list grammar). CONFIRMED-DIVERGENCE.
+- Landed: FileProperties carriers (btrfs_id_a/b, btrfs_generation,
+  zfs_secondary_flags, hfs_secondary_flags, hfs_type_id — og semantics
+  census-level, id_b never invented); engine emission (btrfs inode
+  generation from INO_GENERATION@0 + the owning subvol id; zfs ZPL_FLAGS
+  from the SA registry — the "not consumed" comment's gap closed for
+  flags; hfs catalog flags + Finder type at the live-walk AND
+  journal/orphan emission sites); the nflags bit-6 fixed 24-byte
+  append-only session block (old files zero; plain nodes byte-identical).
+- Fail-before EXECUTED: bit-6-disabled tree -> BtrfsExtrasRoundTrip +
+  ZfsSecondaryFlagsRoundTrip RED; restored -> 3/3 GREEN.
+- CONVERGENCE REPAIR (pushed-red main): the parallel lanes' N-019 test
+  (Btrfs.TwoSubvolumesRootSeparately, subvol-5/* expectations)
+  contradicted the M-020 landing's corpus-verified default-subvol
+  contract (FUN_1800061f0 :3975-4060; the finding's own falsifiable
+  claim (c)); the test expectations corrected to the M-020 contract
+  (default's children at the volume root, subvol-256 keeps its
+  container, leakage assertions preserved). Verified the breakage
+  pre-existed my N-059 work via stash isolation.
+- Audit trail: Resolution + FIXED/ move; RESOLVED-INDEX row; matrix
+  session note; modules/session.md verdict; SUMMARY counts (MINOR 4
+  open).
+
+Stage Summary:
+- N-059 FIXED + main green again (session tally: N-064, N-071, N-059 +
+  the N-064 convergence + the N-019/M-020 repair). Next: N-066 or
+  N-072, pulling first.
+

@@ -20,7 +20,10 @@ cr_ui_unlock_volume_with_dictionary additive ABI export. F61 consent gate
 structural; health/bitlocker F61/B1 cells -> MATCH. **N-071** FIXED —
 the two-stack disk enumeration (cfgmgr32 disk-interface pass merged into
 the numbered loop; residual stacks registered as D-79); storage B8/P42/A54
--> MATCH-with-D-79.
+-> MATCH-with-D-79. **N-059** FIXED — the per-FS session extras
+(Btrfs/ZFS/HFS+ secondary payload carriers + engine emission + the
+nflags bit-6 append-only block); session D11/D12 cells -> MATCH; the
+N-019/M-020 convergence break repaired in the same landing.
 
 **Session-25 changes (2026-10-26, DFX25 — INFO tier closed into FIXED/, tracked-open resolution wave):**
 the 22 acknowledged INFORMATIONAL findings (I-001..I-024) moved from

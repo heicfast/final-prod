@@ -430,8 +430,22 @@ merge-disabled tree); 4 pure tests; win_syntax_check green (cfgmgr32
 stub pair); suite 769/769. modules/storage.md's stale local N-055 row
 for this finding corrected to the integrated N-071.
 
-Counts after this landing: **MINOR 17 open** (N-064, N-071 moved to
-FIXED/), MAJOR 14 open (DFX27/DFX26 lanes), INFO 0, tracked-open 11.
+**N-059 FIXED (MINOR — the per-FS session extras):** the og's Btrfs
+record (+0x3B/+0x3F secondary ids, +0x81 generation/transid qword), ZFS
+record (+0x5A secondary flags), and — the session-6 addendum's fold —
+HFS+ record (part2 +0xE mode/flags, +0x74 type id) now round-trip:
+FileProperties carriers + engine emission (the btrfs inode generation;
+the znode ZPL_FLAGS low u16; the HFS+ catalog flags + Finder type) + the
+nflags bit-6 fixed 24-byte append-only block. Fail-before EXECUTED (2
+RED on the bit-6-disabled tree); 3 round-trip tests; suite 822/822. The
+same landing repaired the parallel lanes' N-019/M-020 convergence break
+(Btrfs.TwoSubvolumesRootSeparately expectations corrected to the
+corpus-verified default-subvol-at-root contract — the union had left
+main red).
+
+Counts after this landing: **MINOR 4 open** (N-064, N-071, N-059 moved
+to FIXED/; the tier's other findings landed by the parallel lanes),
+MAJOR 10 open, INFO 0, tracked-open 6.
 
 ## Session-30 delta (2026-10-26 — DFX30: the deferred win-layer trio, 1/N-032)
 

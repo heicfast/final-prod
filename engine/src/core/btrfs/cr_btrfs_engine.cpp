@@ -803,6 +803,7 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
             u64 size = 0;
             u32 mode = 0;
             u32 nlink = 0;
+            u64 generation = 0; /* N-059: inode-item qword@0 (og +0x81) */
             u64 atime = 0, ctime = 0, mtime = 0, crtime = 0;
             struct Ext {
                 u64 off, len; /* slice bytes */
@@ -821,6 +822,7 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
         auto on_item = [&](const Key& k, const u8* data, u32 len) {
             if (k.type == KEY_INODE_ITEM && len >= INO_MIN) {
                 InodeInfo& ii = inodes[k.objectid];
+                ii.generation = le64(data + INO_GENERATION); /* N-059 */
                 ii.size = le64(data + INO_SIZE);
                 ii.nlink = le32(data + INO_NLINK);
                 ii.mode = le32(data + INO_MODE);
@@ -1034,6 +1036,13 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
                     cp->times.changed = cit->second.ctime;
                     cp->times.accessed = cit->second.atime;
                     cp->record_ref = de.child;
+                    /* N-059: the per-FS secondary payload — the owning
+                     * subvol root id (the naming/N-047 datum; og +0x3B
+                     * census-level) and the inode generation (og +0x81
+                     * "generation/transid family"). id_b has no decoded
+                     * source; it stays 0 (never invented). */
+                    cp->btrfs_id_a = u32(sv.id);
+                    cp->btrfs_generation = cit->second.generation;
                     for (const auto& e : cit->second.extents)
                         cp->extents.push_back({e.off, e.len, e.codec, e.psize});
                     if (!cit->second.inline_bytes.empty()) {
