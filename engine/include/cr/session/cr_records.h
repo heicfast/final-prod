@@ -84,6 +84,17 @@ struct VolumeInfo {
     /* S-030 (v3 tail - v1/v2 sessions deserialize with zeros): the image
      * FILE path when the scan target was a disk image; empty otherwise. */
     char image[256] = {0};
+    /* N-066 (v4 tail - v1/v2/v3 sessions deserialize with zeros and skip):
+     * the og record-3 identity-card axes + the boot snapshot (rsf-format
+     * :228-242 — firmware revision +0x206, WWN/serial-2 +0x30A, interface
+     * description +0x414, byte[512] MBR/BOOT snapshot +0x518). The CRC32
+     * boot_hash stays the FAST verify path; the snapshot serves mismatch
+     * diagnostics (show WHAT changed) and offline partition-context
+     * re-materialization if tooling ever needs it. */
+    char firmware[32] = {0};
+    char wwn[32] = {0};
+    char interface_desc[32] = {0};
+    u8 boot_snapshot[512] = {0};
 };
 u32 serialize_volume_info(const VolumeInfo& vi, std::vector<u8>& out);
 u32 deserialize_volume_info(const u8* data, size_t len, VolumeInfo& vi);

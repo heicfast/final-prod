@@ -1,719 +1,982 @@
-/* cr_fscheck.cpp - the damage-audit check phase (M-041, diff-to-fix).
+/*
+ * cr_fscheck.cpp - the damage-audit check phase (M-041, diff-to-fix).
  *
- * Read-only audit pass reproducing the og's FileSystemCheck.mo behavior
- * with its error taxonomy (see cr_fscheck.h for the full corpus map).
- * NEVER repairs, NEVER aborts a scan - the report is data.
+ * Re-implemented from understanding of ghidra-mo/FileSystemCheck_decompiled.c
+ * (corpus 03ad46c; every gate cites its decompile line in the header). No
+ * decompiled code is reproduced; the error taxonomy, phase order, thresholds
+ * and termination semantics are the parity surface.
  *
  * Licensed under the MIT license. See LICENSE.
  */
 
 #include "cr/check/cr_fscheck.h"
-#include "cr/fat/cr_fat_engine.h"
-#include "cr/fat/cr_fat_wire.h"
+
 #include "cr/ntfs/cr_attributes.h"
 #include "cr/ntfs/cr_bitmap.h"
 #include "cr/ntfs/cr_bootstrap.h"
 #include "cr/ntfs/cr_fixup.h"
 #include "cr/ntfs/cr_ntfs_wire.h"
 #include "cr/ntfs/cr_runlist.h"
+
 #include <algorithm>
+#include <cmath>
 #include <cstring>
-#include <memory>
-#include <set>
-#include <vector>
 
 namespace cr {
-namespace fscheck {
+namespace check {
 
 namespace {
 
-void push_error(FsCheckReport& r, u32 code, u64 param, std::u16string hint = {}) {
-    CheckError e;
-    e.code = code;
-    e.param = param;
-    e.path_hint = std::move(hint);
-    r.errors.push_back(std::move(e));
+/* ---------- small helpers ---------- */
+
+inline u16 rd16(const u8* p) {
+    return u16(p[0]) | (u16(p[1]) << 8);
+}
+inline u32 rd32(const u8* p) {
+    return u32(p[0]) | (u32(p[1]) << 8) | (u32(p[2]) << 16) | (u32(p[3]) << 24);
+}
+inline u64 rd64(const u8* p) {
+    return u64(rd32(p)) | (u64(rd32(p + 4)) << 32);
 }
 
-/* ------------------------------- FAT pass ------------------------------ */
+void emit(CheckIssue issue, const CheckCallbacks& cb, FsCheckReport& out, bool& stop) {
+    out.errors.push_back(std::move(issue));
+    if (cb.on_error && !cb.on_error(cb.user, out.errors.back()))
+        stop = true; /* the og's stop-decision (event 6) */
+}
 
-struct FatAudit {
-    IStorageDevice* dev;
-    fat::FatParams p;
-    FsCheckReport* r;
-    CancelToken* cancel;
-    /* entry values per copy, decoded (fat1 authoritative) */
-    std::vector<u32> fat1, fat2;
-    u32 entry_count = 0;      /* table entries (incl. 2 virtual) */
-    u32 data_cluster_count = 0; /* clusters after the 2 virtual ones */
-    /* per-flavor reserved/BAD/EOC families */
-    u32 bad_val = 0;
-    u32 reserved_lo = 0;
+void status(const CheckCallbacks& cb, const char* text) {
+    if (cb.status)
+        cb.status(cb.user, text);
+}
 
-    u32 reserved_bad() const {
-        return bad_val;
+/* The og's FAT flavor reserved floors (FUN_180005fd0/FUN_180005e90
+ * local_50 tables, :4353-4355/:4398-4400): the dead-zone upper bound is
+ * the value ONE BELOW the BAD sentinel. */
+constexpr u32 FAT_RESERVED_FLOOR[3] = {0xFF6, 0xFFF6, 0xFFFFFF6};
+/* The orphan sweep's BAD sentinels (:874-876). */
+constexpr u32 FAT_BAD[3] = {0xFF7, 0xFFF7, 0xFFFFFF7};
+
+/* Raw (uncanonicalized) FAT entry decode at flavor width. */
+u32 fat_raw_entry(const std::vector<u8>& fat, u32 flavor, u32 cluster) {
+    switch (flavor) {
+    case 0: { /* FAT12 */
+        const size_t off = size_t(cluster) + size_t(cluster) / 2;
+        if (off + 2 > fat.size())
+            return 0;
+        u32 v = rd16(fat.data() + off);
+        return (cluster & 1) ? (v >> 4) : (v & 0xFFF);
     }
-    bool is_eoc_family(u32 v) const { return v >= reserved_lo; }
-    bool is_data_link(u32 v) const {
-        return v >= 2 && v < 2 + data_cluster_count;
+    case 1: { /* FAT16 */
+        const size_t off = size_t(cluster) * 2;
+        if (off + 2 > fat.size())
+            return 0;
+        return rd16(fat.data() + off);
     }
+    default: { /* FAT32 */
+        const size_t off = size_t(cluster) * 4;
+        if (off + 4 > fat.size())
+            return 0;
+        return rd32(fat.data() + off) & 0x0FFFFFFF;
+    }
+    }
+}
 
-    std::vector<u8> visited;    /* per data cluster: consumed by a chain */
-    std::vector<u8> dir_on_path; /* recursion-local cycle guard */
-    int depth = 0;
-    static constexpr int MAX_DEPTH = 64;
+/* Canonicalized entry (the chain-walk view: BAD/EOC sentinels folded to
+ * the fat:: constants) — used for chain walking, never for the raw
+ * pairwise copy compare. */
+u32 fat_canon_entry(const std::vector<u8>& fat, u32 flavor, u32 cluster) {
+    const u32 v = fat_raw_entry(fat, flavor, cluster);
+    if (v == FAT_BAD[flavor])
+        return fat::CHAIN_BAD;
+    if (v >= (FAT_BAD[flavor] + 1))
+        return fat::CHAIN_EOC_MIN;
+    return v;
+}
 
-    std::u16string cur_path; /* best-effort path prefix */
+/* ---------- the FAT pass ---------- */
+
+struct FatCheckCtx {
+    IStorageDevice* slice = nullptr;
+    CheckCallbacks cb;
+    FsCheckReport* rep = nullptr;
+    bool stop = false;
+
+    u32 flavor = 1; /* 0/1/2 = FAT12/16/32 */
+    u16 bps = 512;
+    u32 spc = 1;
+    u32 fat_count = 2;
+    u32 spf = 1;          /* sectors per FAT (flavor's own field) */
+    u64 fat_start = 0;    /* byte offset of FAT1 */
+    u32 root_sectors = 0; /* FAT12/16 */
+    u64 root_dir_off = 0; /* FAT12/16 byte offset */
+    u32 root_cluster = 2; /* FAT32 */
+    u64 total_sectors = 0;
+    u64 cluster_count = 0; /* incl. the 2 reserved (clusters 2..cc+1) */
+    u64 cluster_bytes = 0;
+    u64 first_data_byte = 0;
+    std::vector<u8> fat1, fat2; /* raw copies (fat2 empty when single) */
+    std::vector<u8> visited;    /* byte per cluster (2..cc+1) */
 };
 
-bool poll_cancel(FatAudit& a) {
-    return a.cancel != nullptr && a.cancel->checkpoint();
+bool read_bytes(IStorageDevice* dev, u64 off, void* buf, u32 len) {
+    return dev->read_at(off, buf, len) == OK;
 }
 
-u32 fat_entry_at(const std::vector<u8>& raw, fat::Flavor f, u32 i) {
-    switch (f) {
-    case fat::Flavor::Fat12: {
-        const size_t off = (size_t(i) * 3) / 2;
-        if (off + 1 >= raw.size())
-            return 0;
-        if (i & 1)
-            return u32(raw[off] >> 4) | (u32(raw[off + 1]) << 4);
-        return u32(raw[off]) | (u32(raw[off + 1] & 0x0F) << 8);
+/* DBR validators — FUN_180002a60 (FAT12) / FUN_180002c20 (FAT16) /
+ * FUN_180002dd0 (FAT32), cited per gate. Returns false -> 0x100d. */
+bool fat_validate_dbr(FatCheckCtx& c, const u8* b) {
+    /* signature gates: FAT12/16 "FAT1"+digit at +0x36/:3a; FAT32
+     * "FAT3"+'2' at +0x52/:56 (validators' own memcmp gates). */
+    if (c.flavor != 2) {
+        if (rd32(b + 0x36) != 0x31544146) /* "FAT1" */
+            return false;
+        const char want = c.flavor == 0 ? '2' : '6';
+        if (char(b[0x3A]) != want)
+            return false;
+    } else {
+        if (rd32(b + 0x52) != 0x33544146) /* "FAT3" */
+            return false;
+        if (char(b[0x56]) != '2')
+            return false;
     }
-    case fat::Flavor::Fat16: {
-        const size_t off = size_t(i) * 2;
-        if (off + 1 >= raw.size())
-            return 0;
-        return u32(raw[off]) | (u32(raw[off + 1]) << 8);
+    /* sectors-per-cluster: the pow2 switch 1..128 (:1319-1327) */
+    c.spc = b[0x0D];
+    if (c.spc == 0 || (c.spc & (c.spc - 1)) != 0 || c.spc > 128)
+        return false;
+    /* FAT count: (byte)(n-1) < 4 -> 1..4 (:1328) */
+    c.fat_count = b[0x10];
+    if (c.fat_count < 1 || c.fat_count > 4)
+        return false;
+    c.bps = rd16(b + 0x0B);
+    const u16 reserved = rd16(b + 0x0E);
+    c.spf = c.flavor == 2 ? rd32(b + 0x24) : rd16(b + 0x16);
+    if (c.spf == 0)
+        return false;
+
+    u64 root_entries = 0;
+    if (c.flavor != 2) {
+        root_entries = rd16(b + 0x11);
+        /* root dir sectors: the og's `entries >> 4` (:1338/:1382 — 32 B
+         * per entry over 512 B sectors; the check phase assumes 512 B
+         * here, matching the decompile exactly). */
+        c.root_sectors = u32(root_entries >> 4);
+        c.total_sectors = rd32(b + 0x20);
+        if (c.total_sectors == 0)
+            c.total_sectors = rd16(b + 0x13); /* tot16 fallback (:1332) */
+    } else {
+        /* FAT32 extra gates (:1447-1455): spf16 == 0 or == spf32; root
+         * cluster in (1, tot/spc). tot32 only (no 16-bit fallback). */
+        const u16 spf16 = rd16(b + 0x16);
+        if (spf16 != 0 && spf16 != c.spf)
+            return false;
+        c.root_cluster = rd32(b + 0x2C);
+        c.total_sectors = rd32(b + 0x20);
+        if (c.total_sectors == 0)
+            return false;
+        if (c.root_cluster <= 1 || c.root_cluster >= c.total_sectors / c.spc)
+            return false;
     }
-    default: {
-        const size_t off = size_t(i) * 4;
-        if (off + 3 >= raw.size())
-            return 0;
-        return u32(raw[off]) | (u32(raw[off + 1]) << 8) | (u32(raw[off + 2]) << 16) |
-               (u32(raw[off + 3]) << 24);
+    if (c.total_sectors == 0)
+        return false;
+
+    /* cluster count: (tot - fat_count*spf - reserved - root_sectors)/spc
+     * + 2  (:1349-1352/:1394-1397/:1470) */
+    const u64 fat_span = u64(c.fat_count) * c.spf;
+    if (c.total_sectors <= fat_span + reserved + c.root_sectors)
+        return false;
+    u64 cc = (c.total_sectors - fat_span - reserved - c.root_sectors) / c.spc + 2;
+
+    /* per-flavor ceilings */
+    if (c.flavor == 0) {
+        const u64 cap = u64(double(c.spf) * 341.3333333); /* :1358-1360 */
+        if (cap < cc)
+            cc = cap;
+    } else if (c.flavor == 1) {
+        const u64 cap = u64(c.spf) * 0x100; /* :1415 */
+        if (cap < cc)
+            cc = cap;
+    } else {
+        const u64 cap = (u64(c.bps) * c.spf) >> 2; /* :1471 */
+        if (cap < cc)
+            cc = cap;
     }
-    }
+    if (cc < 3)
+        return false;
+
+    c.cluster_count = cc;
+    c.cluster_bytes = u64(c.spc) * c.bps;
+    c.fat_start = u64(reserved) * c.bps;
+    if (c.flavor != 2)
+        c.root_dir_off = (u64(reserved) + fat_span) * c.bps;
+    c.first_data_byte =
+        (u64(reserved) + fat_span + c.root_sectors) * c.bps;
+    return true;
 }
 
-/* The og's DBR phase: structural gates reject (0x100d upstream); the
- * per-flavor ceilings CLAMP the audited cluster count (decompile
- * :1355-1360/:1413-1417/:1469-1473 - `if (ceiling < computed) computed =
- * ceiling`, return 1). Returns false on a structural failure. */
-bool fat_dbr_gates(const u8* boot, FatAudit& a) {
-    using fat::Flavor;
-    const u16 bps = u16(boot[11]) | u16(boot[12]) << 8;
-    const u8 spc = boot[13];
-    const u8 nfats = boot[16];
-    if (bps == 0 || (bps & (bps - 1)) != 0)
+/* Load one FAT copy (the og's per-copy read loop, :583-626). */
+bool fat_load_copy(FatCheckCtx& c, u32 index, std::vector<u8>& out) {
+    const u64 bytes = u64(c.spf) * c.bps;
+    if (bytes == 0 || bytes > (64u << 20))
         return false;
-    if (spc == 0 || (spc & (spc - 1)) != 0)
-        return false;
-    if (nfats < 1 || nfats > 4)
-        return false;
-    const u32 spf = u32(boot[22]) | u32(boot[23]) << 8; /* FAT12/16 */
-    const u32 spf32 = u32(boot[36]) | u32(boot[37]) << 8 | u32(boot[38]) << 16 |
-                      u32(boot[39]) << 24;
-    switch (a.p.flavor) {
-    case Flavor::Fat12: {
-        if (std::memcmp(boot + 54, "FAT12   ", 8) != 0 && std::memcmp(boot + 54, "FAT     ", 8) != 0)
+    out.resize(size_t(bytes));
+    return read_bytes(c.slice, c.fat_start + u64(index) * bytes, out.data(), u32(bytes));
+}
+
+/* Dead-zone entry check — FUN_180005fd0 (:4392-4415): entries 2..cc-1
+ * whose value lands in [cc, reserved-floor) are neither valid links nor
+ * the reserved family -> table invalid (0x1006). */
+bool fat_entries_in_range(FatCheckCtx& c, const std::vector<u8>& fat) {
+    const u32 floor = FAT_RESERVED_FLOOR[c.flavor];
+    for (u32 e = 2; e + 1 < c.cluster_count; ++e) {
+        const u32 v = fat_raw_entry(fat, c.flavor, e);
+        if (v >= c.cluster_count && v <= floor)
             return false;
-        const long long ceiling = (long long)((double)spf * 341.3333333);
-        if ((long long)a.data_cluster_count > ceiling)
-            a.data_cluster_count = u32(ceiling);
-        a.bad_val = 0xff7;
-        a.reserved_lo = 0xff6;
-        break;
-    }
-    case Flavor::Fat16: {
-        if (std::memcmp(boot + 54, "FAT16   ", 8) != 0 && std::memcmp(boot + 54, "FAT     ", 8) != 0)
-            return false;
-        const long long ceiling = (long long)spf * 0x100;
-        if ((long long)a.data_cluster_count > ceiling)
-            a.data_cluster_count = u32(ceiling);
-        a.bad_val = 0xfff7;
-        a.reserved_lo = 0xfff6;
-        break;
-    }
-    case Flavor::Fat32: {
-        if (std::memcmp(boot + 82, "FAT32   ", 8) != 0)
-            return false;
-        if (spf32 == 0)
-            return false;
-        const u32 root_cluster = u32(boot[44]) | u32(boot[45]) << 8 | u32(boot[46]) << 16 |
-                                 u32(boot[47]) << 24;
-        if (root_cluster < 2 || root_cluster >= 2 + a.data_cluster_count)
-            return false;
-        const u64 ceiling = (u64(bps) * spf32) >> 2;
-        if (u64(a.data_cluster_count) > ceiling)
-            a.data_cluster_count = u32(ceiling);
-        a.bad_val = 0xffffff7;
-        a.reserved_lo = 0xffffff6;
-        break;
-    }
-    default:
-        return false;
     }
     return true;
 }
 
-/* Follow one chain from `first`, marking the global visited array
- * (cross-link detection) and detecting path-local cycles. Returns the
- * walked cluster list. The walk is capped at data_cluster_count steps
- * (a pathological cycle cannot spin forever); a cycle in a DIRECTORY
- * chain is reported by the caller (0x1007). */
-std::vector<u32> walk_chain(FatAudit& a, u32 first, bool* crosslink, bool* cycle) {
-    std::vector<u32> out;
-    *crosslink = false;
-    *cycle = false;
-    std::set<u32> local;
-    u32 c = first;
-    u32 guard = 0;
-    while (c >= 2 && c < 2 + a.data_cluster_count) {
-        if (guard++ > a.data_cluster_count + 2) {
-            *cycle = true;
-            break;
-        }
-        if (!local.insert(c).second) {
-            *cycle = true; /* path-local revisit (the og's TBitmap loop
-                            * detection, :1174) - a self-referencing chain
-                            * is a CYCLE, not a cross-link */
-            break;
-        }
-        if (a.visited[size_t(c - 2)]) {
-            *crosslink = true; /* another chain already consumed it */
-            break;
-        }
-        a.visited[size_t(c - 2)] = 1;
-        ++a.r->clusters_visited;
-        out.push_back(c);
-        const u32 v = a.fat1[size_t(c)];
-        if (v == 0 || a.is_eoc_family(v))
-            break; /* FREE stop (should not happen live) or EOC */
-        c = v;
+/* Duplicate-reference scan — FUN_180005e90 (:4340-4386): two entries
+ * pointing at the same in-range cluster -> 0x1006. */
+bool fat_no_duplicate_refs(FatCheckCtx& c, const std::vector<u8>& fat) {
+    const u32 floor = FAT_RESERVED_FLOOR[c.flavor];
+    std::vector<u8> seen(size_t(c.cluster_count) + 2, 0);
+    for (u32 e = 2; e + 1 < c.cluster_count; ++e) {
+        const u32 v = fat_raw_entry(fat, c.flavor, e);
+        if (v == 0 || v > floor || v >= c.cluster_count)
+            continue; /* free / reserved family / out of space */
+        if (seen[size_t(v)])
+            return false;
+        seen[size_t(v)] = 1;
     }
-    return out;
+    return true;
 }
 
-std::vector<u8> read_dir_clusters(FatAudit& a, const std::vector<u32>& clusters) {
-    std::vector<u8> out;
-    out.reserve(clusters.size() * size_t(a.p.cluster_bytes));
-    for (u32 c : clusters) {
-        const u64 off = fat::FatTable::cluster_offset(a.p, c);
-        const size_t before = out.size();
-        out.resize(before + a.p.cluster_bytes, 0);
-        if (a.dev->read_at(off, out.data() + before, a.p.cluster_bytes) != OK) {
-            push_error(*a.r, CHECK_EXCEPTION, c);
-            out.resize(before);
-            continue;
-        }
+/* Chain walk over FAT1 (canonical entries). The og walks chains through
+ * its (compared) first-copy table object. */
+bool fat_chain(FatCheckCtx& c, u32 start, std::vector<u32>& chain) {
+    chain.clear();
+    if (start < 2 || start >= c.cluster_count + 2)
+        return false;
+    u32 cur = start;
+    const u32 cap = u32(c.cluster_count) + 2;
+    std::vector<u8> seen(size_t(c.cluster_count) + 2, 0);
+    while (true) {
+        if (seen[size_t(cur)])
+            return false; /* cycle */
+        seen[size_t(cur)] = 1;
+        chain.push_back(cur);
+        const u32 v = fat_canon_entry(c.fat1, c.flavor, cur);
+        if (v == fat::CHAIN_BAD)
+            return false; /* broken mid-chain */
+        if (v >= fat::CHAIN_EOC_MIN)
+            return true; /* clean EOC */
+        if (v < 2 || v >= cap)
+            return false;
+        cur = v;
+        if (chain.size() > cap)
+            return false;
     }
-    return out;
 }
 
-void audit_dir_entries(FatAudit& a, const std::vector<u8>& buf, const std::u16string& prefix) {
-    const size_t count = buf.size() / 32;
-    for (size_t i = 0; i < count; ++i) {
-        if (poll_cancel(a))
-            return;
-        const u8* raw = buf.data() + i * 32;
-        const fat::DirEntry* e = reinterpret_cast<const fat::DirEntry*>(raw);
-        if (e->name[0] == fat::DENTRY_END)
-            break;
-        if (e->name[0] == fat::DENTRY_DELETED)
-            continue; /* deleted: not audited (the og skips 0xE5, :1929) */
-        if (e->attributes == fat::ATTR_LFN)
-            continue;
-        if (e->attributes & 0x08)
-            continue; /* volume label */
-        ++a.r->entries_scanned;
+void fat_mark_visited(FatCheckCtx& c, const std::vector<u32>& chain) {
+    for (u32 cl : chain)
+        if (cl >= 2 && size_t(cl) < c.visited.size())
+            c.visited[size_t(cl)] = 1;
+}
 
-        const bool is_dir = (e->attributes & fat::ATTR_DIRECTORY) != 0;
-        const u32 fc = (u32(e->first_cluster_high) << 16) | e->first_cluster_low;
+/* Directory audit — FUN_180003360. `ancestors` carries the recursion
+ * path's clusters (the og's CSimpleArray<uint> param_5; 0xffffffff at
+ * the root). Returns false when the walk must stop (host stop-decision
+ * or an og-terminal error). */
+bool fat_audit_dir(FatCheckCtx& c, const std::vector<u32>& chain_or_root,
+                   bool root_fixed_area, bool is_root, std::vector<u32> ancestors,
+                   const std::string& path) {
+    if (c.stop)
+        return false;
+    if (c.cb.path)
+        c.cb.path(c.cb.user, path.c_str());
 
-        /* `.`/`..` validation (the og checks the pair's byte form,
-         * :1893-1907): when present, the first entry must be "." and the
-         * second "..", both directories. */
-        if (e->name[0] == '.' && is_dir) {
-            const bool dot_ok = e->name[1] == ' ' && i == 0;
-            bool dotdot_ok = false;
-            if (i + 1 < count) {
-                const fat::DirEntry* e2 =
-                    reinterpret_cast<const fat::DirEntry*>(buf.data() + (i + 1) * 32);
-                dotdot_ok = e2->name[0] == '.' && e2->name[1] == '.' && e2->name[2] == ' ' &&
-                            (e2->attributes & fat::ATTR_DIRECTORY) != 0 &&
-                            e2->name[0] != fat::DENTRY_DELETED;
-            }
-            if (!dot_ok || !dotdot_ok) {
-                push_error(*a.r, CHECK_DENTRY_INVALID, 0, prefix);
+    /* entries per cluster window (the og's local_130 = cluster_bytes/32
+     * per cluster of the chain) */
+    const size_t per_cluster = c.cluster_bytes / 32;
+    std::vector<u32> chain;
+
+    auto read_entry = [&](size_t idx, u8* out32) -> bool {
+        if (root_fixed_area) {
+            /* FAT12/16 fixed root area: contiguous bytes */
+            const u64 off = c.root_dir_off + u64(idx) * 32;
+            return read_bytes(c.slice, off, out32, 32);
+        }
+        const u32 cluster = chain_or_root[idx / per_cluster];
+        const u64 off = c.first_data_byte + (u64(cluster) - 2) * c.cluster_bytes +
+                        (u64(idx % per_cluster) * 32);
+        return read_bytes(c.slice, off, out32, 32);
+    };
+    auto entry_count = [&]() -> size_t {
+        if (root_fixed_area)
+            return size_t(c.root_sectors) * (c.bps / 32);
+        return chain_or_root.size() * per_cluster;
+    };
+
+    /* subdirectories must open with '.' and '..' (:1890-1897) and the
+     * walk skips those two entries (:1907 local_130 -= 2). */
+    size_t start_idx = 0;
+    if (!is_root) {
+        u8 e0[32], e1[32];
+        if (!read_entry(0, e0) || !read_entry(1, e1)) {
+            CheckIssue is;
+            is.code = CHK_DIR_TREE_INVALID;
+            is.path_hint = path;
+            emit(std::move(is), c.cb, *c.rep, c.stop);
+            return !c.stop;
+        }
+        const bool dot_ok = e0[0] == '.' && e0[1] == ' ';
+        const bool dotdot_ok = e1[0] == '.' && e1[1] == '.' && e1[2] == ' ';
+        if (!dot_ok || !dotdot_ok) {
+            CheckIssue is;
+            is.code = CHK_DIR_TREE_INVALID;
+            is.path_hint = path;
+            emit(std::move(is), c.cb, *c.rep, c.stop);
+        }
+        start_idx = 2;
+    }
+
+    for (size_t idx = start_idx; idx < entry_count(); ++idx) {
+        if (c.stop)
+            return false;
+        u8 e[32];
+        if (!read_entry(idx, e))
+            break; /* unreadable window: og's read-fail path ends the dir */
+        if (e[0] == fat::DENTRY_END)
+            break; /* 0x00 end marker (:1920-1924) */
+        if (e[0] == fat::DENTRY_DELETED)
+            continue; /* deleted: not audited (live-tree audit) */
+        if (e[11] == fat::ATTR_LFN)
+            continue; /* LFN slot */
+        if (e[0] == 0x20 && e[1] == 0 && e[11] == 0)
+            break; /* the og's 0x20/zero-attr end form (:1922-1924) */
+
+        const u32 first_cluster =
+            c.flavor == 2 ? (u32(rd16(e + 20)) << 16) | rd16(e + 26) : rd16(e + 26);
+        const u32 size = rd32(e + 28);
+        const bool is_dir = (e[11] & fat::ATTR_DIRECTORY) != 0;
+
+        /* name for path context (8.3 display form) */
+        char nm[13];
+        size_t nlen = 0;
+        for (size_t i = 0; i < 11 && e[i] != ' '; ++i)
+            nm[nlen++] = char(e[i]);
+        if (e[8] != ' ' && e[9] != ' ') { /* has extension */
+            nm[nlen++] = '.';
+            for (size_t i = 8; i < 11 && e[i] != ' '; ++i)
+                nm[nlen++] = char(e[i]);
+        } else if (nlen > 8) {
+            nlen = 8; /* base-name only, no space-run tail */
+        }
+        nm[nlen] = 0;
+        std::string child = path.empty() ? nm : path + "\\" + nm;
+
+        /* invalid first cluster: == 1 or >= cluster space (:1937-1948) */
+        if (first_cluster != 0 &&
+            (first_cluster == 1 || first_cluster >= c.cluster_count + 2)) {
+            CheckIssue is;
+            is.code = CHK_DIR_TREE_INVALID;
+            is.path_hint = child;
+            emit(std::move(is), c.cb, *c.rep, c.stop);
+            continue; /* per-entry: the walk continues */
+        }
+
+        if (first_cluster == 0)
+            continue; /* empty file/dir: nothing to walk */
+
+        if (is_dir) {
+            /* cycle: the cluster already in the ancestor path (:2079-2097) */
+            if (std::find(ancestors.begin(), ancestors.end(), first_cluster) !=
+                ancestors.end()) {
+                CheckIssue is;
+                is.code = CHK_DIR_TREE_INVALID;
+                is.path_hint = child;
+                emit(std::move(is), c.cb, *c.rep, c.stop);
                 continue;
             }
-            ++i; /* the ".." pair member is validated */
-            continue;
+            if (!fat_chain(c, first_cluster, chain)) {
+                /* chain build failure -> host decision -> 0x1006
+                 * (:2020-2045: FUN_1800027a0 fail + FUN_180002770) */
+                const bool report =
+                    !c.cb.orphan_decision || c.cb.orphan_decision(c.cb.user);
+                if (report) {
+                    CheckIssue is;
+                    is.code = CHK_FAT_TABLE_INVALID;
+                    is.path_hint = child;
+                    emit(std::move(is), c.cb, *c.rep, c.stop);
+                }
+                continue;
+            }
+            fat_mark_visited(c, chain);
+            ancestors.push_back(first_cluster);
+            if (!fat_audit_dir(c, chain, /*root_fixed_area=*/false, /*is_root=*/false,
+                               ancestors, child))
+                return false;
+            ancestors.pop_back();
+        } else {
+            /* live file: size != chain length (:2050-2076). The og
+             * compares sector sums: round_up(ceil(size/bps), spc) vs the
+             * chain's sector total — cluster-granular equivalent:
+             * ceil(size/cluster_bytes) vs chain length. */
+            if (!fat_chain(c, first_cluster, chain)) {
+                const bool report =
+                    !c.cb.orphan_decision || c.cb.orphan_decision(c.cb.user);
+                if (report) {
+                    CheckIssue is;
+                    is.code = CHK_FAT_TABLE_INVALID;
+                    is.path_hint = child;
+                    emit(std::move(is), c.cb, *c.rep, c.stop);
+                }
+                continue;
+            }
+            fat_mark_visited(c, chain);
+            const u64 expected = (size + c.cluster_bytes - 1) / c.cluster_bytes;
+            if (expected != chain.size()) {
+                CheckIssue is;
+                is.code = CHK_SIZE_CHAIN_MISMATCH;
+                is.path_hint = child;
+                emit(std::move(is), c.cb, *c.rep, c.stop);
+            }
         }
-
-        const bool fc_ok = fc >= 2 && fc < 2 + a.data_cluster_count;
-        if (!fc_ok && !( !is_dir && e->file_size == 0 && fc == 0)) {
-            push_error(*a.r, CHECK_DENTRY_INVALID, fc, prefix);
-            continue;
-        }
-        if (fc == 0)
-            continue; /* legal empty file */
-
-        bool crosslink = false, cycle = false;
-        const std::vector<u32> chain = walk_chain(a, fc, &crosslink, &cycle);
-        if (crosslink) {
-            push_error(*a.r, CHECK_CROSSLINK, fc, prefix);
-            continue;
-        }
-        if (!is_dir) {
-            /* size vs chain (the og: expected clusters from the size vs
-             * the walked sum, :2050-2076) */
-            const u64 expect = (u64(e->file_size) + a.p.cluster_bytes - 1) / a.p.cluster_bytes;
-            if (expect != chain.size())
-                push_error(*a.r, CHECK_SIZE_NE_CHAIN, fc, prefix);
-            continue;
-        }
-        /* directory: cycle -> 0x1007; then recurse into the content */
-        if (cycle) {
-            push_error(*a.r, CHECK_DENTRY_INVALID, fc, prefix);
-            continue;
-        }
-        if (a.depth >= FatAudit::MAX_DEPTH)
-            continue;
-        const std::vector<u8> content = read_dir_clusters(a, chain);
-        std::u16string name;
-        for (int k = 0; k < 11 && e->name[k] != ' '; ++k)
-            name.push_back(u16(e->name[k]));
-        std::u16string child_prefix = prefix.empty() ? name : prefix + u"\\" + name;
-        ++a.depth;
-        audit_dir_entries(a, content, child_prefix);
-        --a.depth;
     }
+    return !c.stop;
 }
 
 } // namespace
 
-u32 check_fat_volume(IStorageDevice* slice, FsCheckReport& report, CancelToken* cancel) {
+u32 check_fat(IStorageDevice* slice, const CheckCallbacks& cb, FsCheckReport& out) {
     if (slice == nullptr)
         return ERR_BAD_PARAMETER;
-    report = FsCheckReport();
+    FatCheckCtx c;
+    c.slice = slice;
+    c.cb = cb;
+    c.rep = &out;
+    std::snprintf(out.family, sizeof(out.family), "fat");
+    out.family_detected = true;
+
+    status(cb, "  Checking DBR");
     u8 boot[512];
-    if (slice->read_at(0, boot, sizeof(boot)) != OK)
-        return ERR_READ_FAILED;
+    if (!read_bytes(slice, 0, boot, sizeof(boot))) {
+        CheckIssue is;
+        is.code = CHK_CHECK_EXCEPTION;
+        emit(std::move(is), cb, out, c.stop);
+        return OK; /* never fails the caller's scan (0x100e class) */
+    }
+    /* flavor from the boot signature (the DBR validators' own gates) */
+    if (rd32(boot + 0x36) == 0x31544146 && char(boot[0x3A]) == '2')
+        c.flavor = 0;
+    else if (rd32(boot + 0x36) == 0x31544146 && char(boot[0x3A]) == '6')
+        c.flavor = 1;
+    else if (rd32(boot + 0x52) == 0x33544146 && char(boot[0x56]) == '2')
+        c.flavor = 2;
+    else {
+        out.family_detected = false;
+        out.family[0] = 0;
+        return OK; /* not a check-FAT volume */
+    }
 
-    FatAudit a;
-    a.dev = slice;
-    a.r = &report;
-    a.cancel = cancel;
-    /* the engine's own boot validation gives the geometry; the check's
-     * DBR gates (og 0x100d family) run on top */
-    if (fat::validate_boot(boot, slice->size(), a.p) != OK) {
-        push_error(report, CHECK_DBR_BAD, 0);
+    if (!fat_validate_dbr(c, boot)) {
+        CheckIssue is;
+        is.code = CHK_DBR_INVALID;
+        emit(std::move(is), cb, out, c.stop); /* terminal in the og (:553-567) */
         return OK;
     }
-    a.data_cluster_count = a.p.cluster_count >= 2 ? a.p.cluster_count - 2 : 0;
-    if (!fat_dbr_gates(boot, a)) {
-        push_error(report, CHECK_DBR_BAD, 0);
+    /* volume-size floor: device < DBR-derived volume -> 0x1001, NON-terminal
+     * (:576-577 — the check continues). */
+    if (slice->size() < c.total_sectors * c.bps) {
+        CheckIssue is;
+        is.code = CHK_VOLUME_TOO_SMALL;
+        emit(std::move(is), cb, out, c.stop);
+    }
+    if (c.stop)
         return OK;
-    }
-    if (a.data_cluster_count == 0 || a.p.fat_sectors == 0) {
-        push_error(report, CHECK_DBR_BAD, 0);
-        return OK;
-    }
 
-    /* ---- load both FAT copies (raw bytes; the check reads them itself,
-     * exactly like the og's CCheckFAT) ---- */
-    const u64 fat_bytes = u64(a.p.fat_sectors) * a.p.bytes_per_sector;
-    std::vector<u8> raw1;
-    raw1.resize(size_t(fat_bytes));
-    std::vector<u8> raw2;
-    if (slice->read_at(a.p.fat_start, raw1.data(), u32(fat_bytes)) != OK)
-        return ERR_READ_FAILED;
-    const bool two_copies = a.p.fat_count >= 2 && a.p.fat2_start != 0;
-    if (two_copies) {
-        raw2.resize(size_t(fat_bytes));
-        if (slice->read_at(a.p.fat2_start, raw2.data(), u32(fat_bytes)) != OK)
-            return ERR_READ_FAILED;
-    }
-
-    /* entry count: all entries the table can address (the og scans the
-     * whole table, bounded by the clamped cluster count + 2 virtual) */
-    a.entry_count = 2 + a.data_cluster_count;
-    a.fat1.resize(a.entry_count, 0);
-    for (u32 i = 0; i < a.entry_count; ++i)
-        a.fat1[i] = fat_entry_at(raw1, a.p.flavor, i);
-    if (two_copies) {
-        a.fat2.resize(a.entry_count, 0);
-        for (u32 i = 0; i < a.entry_count; ++i)
-            a.fat2[i] = fat_entry_at(raw2, a.p.flavor, i);
-    }
-    report.fat_entries_scanned = a.entry_count;
-
-    /* ---- phase 2: entry holes + duplicate references (0x1006) ---- */
-    {
-        std::vector<u8> claimed(size_t(a.data_cluster_count), 0);
-        for (u32 c = 2; c < a.entry_count; ++c) {
-            if (poll_cancel(a))
-                return OK;
-            const u32 v = a.fat1[size_t(c)];
-            if (v == 0)
-                continue; /* free */
-            if (a.is_data_link(v)) {
-                /* hole check half: a data link is always well-formed;
-                 * duplicate check: two entries naming the same target */
-                const u32 target = v - 2;
-                if (++claimed[size_t(target)] > 1)
-                    push_error(report, CHECK_CHAIN_INVALID, v);
-            } else if (!a.is_eoc_family(v)) {
-                /* neither free-target, data link, nor EOC/BAD family:
-                 * an entry pointing into the hole between the data
-                 * region and the reserved family (FUN_180005fd0) */
-                push_error(report, CHECK_CHAIN_INVALID, v);
-            }
-        }
-    }
-
-    /* ---- phase 3: pairwise copy compare (0x1005) ---- */
-    if (two_copies) {
-        for (u32 i = 0; i < a.entry_count; ++i) {
-            if (a.fat1[i] != a.fat2[i]) {
-                push_error(report, CHECK_FAT_COPIES_DIFFER, i);
-                break; /* the og reports the first mismatch and stops */
-            }
-        }
-    }
-
-    /* ---- phase 4: cluster-chain / directory audit ---- */
-    a.visited.assign(size_t(a.data_cluster_count), 0);
-    if (a.p.flavor == fat::Flavor::Fat32) {
-        if (a.p.root_cluster >= 2 && a.p.root_cluster < 2 + a.data_cluster_count) {
-            bool crosslink = false, cycle = false;
-            const std::vector<u32> chain = walk_chain(a, a.p.root_cluster, &crosslink, &cycle);
-            if (cycle)
-                push_error(report, CHECK_DENTRY_INVALID, a.p.root_cluster);
-            const std::vector<u8> content = read_dir_clusters(a, chain);
-            ++a.depth;
-            audit_dir_entries(a, content, std::u16string());
-            --a.depth;
-        } else {
-            push_error(report, CHECK_DBR_BAD, a.p.root_cluster);
-        }
-    } else {
-        /* fixed root area */
-        const u64 len = u64(a.p.root_entries) * 32;
-        if (len > 0) {
-            std::vector<u8> root(size_t(len), 0);
-            if (slice->read_at(a.p.root_dir_offset, root.data(), u32(len)) != OK)
-                push_error(report, CHECK_EXCEPTION, 0);
-            else {
-                ++a.depth;
-                audit_dir_entries(a, root, std::u16string());
-                --a.depth;
-            }
-        }
-    }
-
-    /* ---- phase 5: orphan sweep (0x1003) ---- */
-    for (u32 c = 2; c < a.entry_count; ++c) {
-        if (poll_cancel(a))
+    /* ---- per-copy load + table validation (0x1006, terminal) ---- */
+    status(cb, "  Checking FAT");
+    if (cb.set_range)
+        cb.set_range(cb.user, 0, c.fat_count * 100);
+    for (u32 i = 0; i < c.fat_count && !c.stop; ++i) {
+        std::vector<u8> copy;
+        if (!fat_load_copy(c, i, copy) || !fat_entries_in_range(c, copy) ||
+            !fat_no_duplicate_refs(c, copy)) {
+            CheckIssue is;
+            is.code = CHK_FAT_TABLE_INVALID;
+            emit(std::move(is), cb, out, c.stop); /* terminal (:606/:616) */
             return OK;
-        if (a.visited[size_t(c - 2)])
-            continue;
-        const u32 v = a.fat1[size_t(c)];
-        if (v == 0)
-            continue; /* free */
-        if (v == a.bad_val)
-            continue; /* BAD (the og's sentinel set) */
-        /* unvisited, non-free, non-BAD: orphan (host decision in the og;
-         * recorded here) */
-        push_error(report, CHECK_ORPHAN, c);
+        }
+        if (i == 0)
+            c.fat1 = std::move(copy);
+        else if (i == 1)
+            c.fat2 = std::move(copy);
+        if (cb.set_pos)
+            cb.set_pos(cb.user, i * 100 + 50);
     }
+    if (c.stop)
+        return OK;
+
+    /* ---- pairwise copy compare (0x1005, terminal) ---- */
+    if (c.fat_count >= 2 && !c.fat2.empty()) {
+        status(cb, "  Comparing FAT");
+        out.fat_copies_compared = 2;
+        const u32 floor = FAT_RESERVED_FLOOR[c.flavor];
+        for (u32 e = 0; e < c.cluster_count + 2; ++e) {
+            const u32 a = fat_raw_entry(c.fat1, c.flavor, e);
+            const u32 b = fat_raw_entry(c.fat2, c.flavor, e);
+            out.fat_entries_checked = e + 1;
+            if (a != b) {
+                CheckIssue is;
+                is.code = CHK_FAT_COPY_MISMATCH;
+                is.param = e;
+                emit(std::move(is), cb, out, c.stop); /* terminal (:748-752) */
+                return OK;
+            }
+            if (e == 0) {
+                /* entry-0 media signature (:667-684/:754-775): mismatch
+                 * ends the check with NO error code (og parity — the
+                 * table object is unusable, the check bails silently). */
+                const bool sig_ok =
+                    c.flavor == 0 ? (a & 0xF8) == 0xF8
+                    : c.flavor == 1 ? (a & 0xFFF8) == 0xFFF8
+                                    : (a & 0xFFFFFF8) == 0xFFFFFF8;
+                if (!sig_ok)
+                    return OK;
+            }
+        }
+        (void)floor;
+    }
+
+    /* ---- root chain (FAT32) / root area (FAT12/16) ---- */
+    status(cb, "  Checking Cluster Chain");
+    c.visited.assign(size_t(c.cluster_count) + 2, 0);
+    std::vector<u32> root_chain;
+    bool root_ok = true;
+    if (c.flavor == 2) {
+        root_ok = fat_chain(c, c.root_cluster, root_chain);
+        if (root_ok)
+            fat_mark_visited(c, root_chain);
+        else {
+            CheckIssue is;
+            is.code = CHK_FAT_TABLE_INVALID; /* terminal (:803-824) */
+            emit(std::move(is), cb, out, c.stop);
+            return OK;
+        }
+    }
+
+    /* ---- directory-tree audit (per-entry errors, non-terminal) ---- */
+    status(cb, "  Checking Directory Tree");
+    if (cb.set_range)
+        cb.set_range(cb.user, 0, c.cluster_count);
+    /* the volume ROOT (fixed area or the FAT32 root chain) never takes
+     * the '.'/'..' pair check (the og's 0xffffffff root sentinel) */
+    fat_audit_dir(c, root_chain, /*root_fixed_area=*/c.flavor != 2, /*is_root=*/true,
+                  {}, "");
+    if (c.stop)
+        return OK;
+
+    /* ---- orphan sweep (:880-949): first unvisited non-free non-self
+     * non-BAD cluster -> host decision -> single 0x1003, terminal. ---- */
+    status(cb, "  Checking Orphan Clusters");
+    for (u32 cl = 2; cl < c.cluster_count + 2; ++cl) {
+        if (c.visited[cl])
+            continue;
+        const u32 v = fat_canon_entry(c.fat1, c.flavor, cl);
+        if (v == 0 || v == cl || v == fat::CHAIN_BAD)
+            continue;
+        const bool report = !c.cb.orphan_decision || c.cb.orphan_decision(cb.user);
+        if (report) {
+            CheckIssue is;
+            is.code = CHK_ORPHAN_CLUSTER;
+            is.param = cl;
+            emit(std::move(is), cb, out, c.stop); /* terminal (:949) */
+        }
+        return OK;
+    }
+    out.clusters_visited = 0;
+    for (u8 v : c.visited)
+        out.clusters_visited += v;
     return OK;
 }
 
-/* ------------------------------ NTFS pass ------------------------------ */
+/* ================= the NTFS pass ================= */
 
 namespace {
 
-/* non-owning device adapter: NtfsVolume::open adopts a unique_ptr; the
- * check borrows the caller's slice (the wrapper dies, the slice lives) */
-struct BorrowedDevice final : public IStorageDevice {
-    explicit BorrowedDevice(IStorageDevice* d) : d_(d) {
-        geom_ = d->geometry();
+/* A minimal MFT record reader over record 0's $DATA runlist (what the
+ * og's CNTFSLib gives its check classes). */
+struct NtfsCheckCtx {
+    IStorageDevice* slice = nullptr;
+    CheckCallbacks cb;
+    FsCheckReport* rep = nullptr;
+    bool stop = false;
+
+    ntfs::VolumeParams p;
+    ntfs::RunList mft_runs;
+    u64 mft_records = 0;      /* allocated $MFT size / record size */
+    u64 mft_bytes = 0;        /* allocated $MFT size */
+    std::vector<u8> bitmap;   /* $Bitmap $DATA bytes */
+    u64 bitmap_bits = 0;
+    std::vector<u8> mft_bmp;  /* $MFT::$BITMAP resident value */
+    std::vector<u8> seen;     /* cross-check LCN dedup bitmap */
+
+    bool record_offset(u64 rec, u64& off) const {
+        if (p.record_size == 0)
+            return false;
+        const u64 vcn = rec * p.record_size / p.cluster_bytes;
+        for (const ntfs::DataRun& r : mft_runs.runs()) {
+            if (r.sparse)
+                continue;
+            if (vcn >= r.vcn && vcn < r.vcn + r.length) {
+                off = (r.lcn + (vcn - r.vcn)) * p.cluster_bytes +
+                      (rec * p.record_size) % p.cluster_bytes;
+                return true;
+            }
+        }
+        return false;
     }
-    u32 read_at(u64 at, void* out, u32 len) override { return d_->read_at(at, out, len); }
-    u64 size() const override { return d_->size(); }
-    const Geometry& geometry() const override { return geom_; }
-
-private:
-    IStorageDevice* d_;
-    Geometry geom_;
+    bool read_record(u64 rec, std::vector<u8>& buf) {
+        u64 off = 0;
+        if (!record_offset(rec, off))
+            return false;
+        buf.resize(size_t(p.record_size));
+        if (!read_bytes(slice, off, buf.data(), u32(p.record_size)))
+            return false;
+        ntfs::RecordHeader rh;
+        std::memcpy(&rh, buf.data(), sizeof(rh));
+        if (rh.magic != ntfs::RECORD_MAGIC_FILE)
+            return false;
+        if (ntfs::fixup_validate(buf.data(), u32(p.record_size), rh.update_sequence_offset,
+                                 rh.update_sequence_size, u16(p.sector_bytes)) != OK)
+            return false;
+        return ntfs::fixup_apply(buf.data(), u32(p.record_size), rh.update_sequence_offset,
+                                 rh.update_sequence_size,
+                                 u16(p.sector_bytes)) == OK;
+    }
+    bool mft_in_use(u64 rec) const {
+        if (mft_bmp.empty())
+            return false;
+        const size_t byte = size_t(rec / 8);
+        if (byte >= mft_bmp.size())
+            return false;
+        return (mft_bmp[byte] & (1u << (rec & 7))) != 0;
+    }
+    bool cluster_in_use(u64 lcn) const {
+        if (lcn / 8 >= bitmap.size())
+            return false;
+        return (bitmap[size_t(lcn / 8)] & (1u << (lcn & 7))) != 0;
+    }
+    void seen_set(u64 lcn) {
+        if (lcn / 8 >= seen.size())
+            return;
+        seen[size_t(lcn / 8)] |= u8(1u << (lcn & 7));
+    }
+    bool seen_test(u64 lcn) const {
+        if (lcn / 8 >= seen.size())
+            return false;
+        return (seen[size_t(lcn / 8)] & (1u << (lcn & 7))) != 0;
+    }
 };
 
-struct NtfsRecHeader {
-    u32 magic;
-    u16 update_sequence_offset;
-    u16 update_sequence_size;
-    u64 base_record;
-    u16 flags;
-};
-
-bool parse_rec_header(const u8* rec, NtfsRecHeader& h) {
-    std::memcpy(&h.magic, rec, 4);
-    if (h.magic != cr::ntfs::RECORD_MAGIC_FILE)
+/* record 0's resident $FILE_NAME must be "$MFT" (0x1008) / the mirror's
+ * slot-0 record the same (0x1009). */
+bool record_named_mft(std::vector<u8>& buf, u32 recsize) {
+    std::vector<ntfs::AttrView> attrs;
+    if (ntfs::enum_attributes(buf.data(), recsize, attrs) != OK)
         return false;
-    std::memcpy(&h.update_sequence_offset, rec + 4, 2);
-    std::memcpy(&h.update_sequence_size, rec + 6, 2);
-    std::memcpy(&h.base_record, rec + 0x20, 8);
-    std::memcpy(&h.flags, rec + 0x16, 2);
-    return true;
-}
-
-/* the og's $MFT proof: record must carry a RESIDENT $FILE_NAME whose
- * FILE NAME VALUE is exactly "$MFT" (:2900-2916 - the name inside the
- * attribute payload, not the attribute's own name) */
-bool mft_name_proof(const u8* rec, u32 record_size, u32 sector_bytes) {
-    NtfsRecHeader h;
-    if (!parse_rec_header(rec, h))
-        return false;
-    if (cr::ntfs::fixup_apply(const_cast<u8*>(rec), record_size, h.update_sequence_offset,
-                          h.update_sequence_size, sector_bytes) != OK)
-        return false;
-    std::vector<cr::ntfs::AttrView> attrs;
-    if (cr::ntfs::enum_attributes(rec, record_size, attrs) != OK)
-        return false;
-    for (const cr::ntfs::AttrView& a : attrs) {
-        if (a.type != cr::ntfs::ATTR_TYPE_FILE_NAME || a.nonresident)
+    for (const auto& a : attrs) {
+        if (a.type != ntfs::ATTR_TYPE_FILE_NAME)
             continue;
-        cr::ntfs::FileNameInfo fi;
-        if (cr::ntfs::parse_file_name(a, fi) == OK && fi.name == u"$MFT")
-            return true;
+        if (a.nonresident)
+            return false; /* the og: non-resident $FILE_NAME fails */
+        ntfs::FileNameInfo fi;
+        if (ntfs::parse_file_name(a, fi) != OK)
+            return false;
+        return fi.name == u"$MFT"; /* first $FILE_NAME decides */
     }
     return false;
 }
 
 } // namespace
 
-u32 check_ntfs_volume(IStorageDevice* slice, FsCheckReport& report, CancelToken* cancel) {
+u32 check_ntfs(IStorageDevice* slice, const CheckCallbacks& cb, FsCheckReport& out) {
     if (slice == nullptr)
         return ERR_BAD_PARAMETER;
-    report = FsCheckReport();
-    if (cancel && cancel->cancelled())
-        return ERR_CANCELLED;
+    NtfsCheckCtx c;
+    c.slice = slice;
+    c.cb = cb;
+    c.rep = &out;
+    std::snprintf(out.family, sizeof(out.family), "ntfs");
+    out.family_detected = true;
 
-    /* ---- the volume-size gate (0x1001): the DBR's total size must not
-     * exceed the device (the og compares the caller's size against the
-     * volume's, :2832-2835) ---- */
-    {
-        u8 boot[512];
-        if (slice->read_at(0, boot, sizeof(boot)) != OK)
-            return ERR_READ_FAILED;
-        const u16 bps = u16(boot[11]) | u16(boot[12]) << 8;
-        u64 total_sectors = u32(boot[40]) | u32(boot[41]) << 8 | u32(boot[42]) << 16 |
-                            u32(boot[43]) << 24;
-        if (total_sectors == 0)
-            std::memcpy(&total_sectors, boot + 0x28, 8);
-        if (bps != 0 && total_sectors != 0 &&
-            u64(total_sectors) * bps > slice->size() + 512) {
-            push_error(report, CHECK_SIZE_MISMATCH, u64(total_sectors) * bps);
-        }
-    }
-
-    u32 err = 0;
-    auto vol = cr::ntfs::NtfsVolume::open(std::unique_ptr<IStorageDevice>(new BorrowedDevice(slice)),
-                                      &err);
-    if (vol == nullptr)
-        return err != OK ? err : ERR_UNSUPPORTED;
-    const cr::ntfs::VolumeParams& vp = vol->params();
-    if (cancel && cancel->cancelled())
-        return ERR_CANCELLED;
-
-    std::vector<u8> rec;
-
-    /* ---- $MFT record-0 proof (0x1008) ---- */
-    if (vol->read_record(0, rec) != OK || rec.size() < vp.record_size ||
-        !mft_name_proof(rec.data(), u32(vp.record_size), vp.sector_bytes))
-        push_error(report, CHECK_MFT_BAD, 0);
-    if (cancel && cancel->cancelled())
-        return ERR_CANCELLED;
-
-    /* ---- $MFTMirr proof (0x1009): the mirror's record 0 carries the
-     * same "$MFT" $FILE_NAME (:2921-2971) ---- */
-    {
-        std::vector<u8> mir;
-        if (vol->read_record_mirror(0, mir) != OK || mir.size() < vp.record_size ||
-            !mft_name_proof(mir.data(), u32(vp.record_size), vp.sector_bytes))
-            push_error(report, CHECK_MFTMIRR_BAD, 0);
-    }
-    if (cancel && cancel->cancelled())
-        return ERR_CANCELLED;
-
-    /* ---- the NTFS version gate (0x100a): $Volume's $VOLUME_INFORMATION
-     * must carry {1.2, 3.0, 3.1} (the og's literal set {0x102, 3, 0x301},
-     * :2994-3003) ---- */
-    {
-        bool found = false;
-        u8 major = 0, minor = 0;
-        const u64 scan_cap = vol->max_record_no() < 16 ? vol->max_record_no() : 16;
-        for (u64 rn = 0; rn < scan_cap && !found; ++rn) {
-            if (vol->read_record(rn, rec) != OK || rec.size() < vp.record_size)
-                continue;
-            NtfsRecHeader h;
-            if (!parse_rec_header(rec.data(), h))
-                continue;
-            if (cr::ntfs::fixup_apply(rec.data(), u32(vp.record_size), h.update_sequence_offset,
-                                  h.update_sequence_size, vp.sector_bytes) != OK)
-                continue;
-            std::vector<cr::ntfs::AttrView> attrs;
-            if (cr::ntfs::enum_attributes(rec.data(), u32(vp.record_size), attrs) != OK)
-                continue;
-            bool is_volume = false;
-            for (const cr::ntfs::AttrView& a : attrs) {
-                if (a.type != cr::ntfs::ATTR_TYPE_FILE_NAME || a.nonresident)
-                    continue;
-                cr::ntfs::FileNameInfo fi;
-                if (cr::ntfs::parse_file_name(a, fi) == OK && fi.name == u"$Volume")
-                    is_volume = true;
-            }
-            if (!is_volume)
-                continue;
-            for (const cr::ntfs::AttrView& a : attrs) {
-                if (a.type != cr::ntfs::ATTR_TYPE_VOLUME_INFORMATION || a.nonresident)
-                    continue;
-                const u8* d = nullptr;
-                u32 dlen = 0;
-                if (cr::ntfs::resident_span(a, d, dlen) != OK || dlen < 0x10)
-                    continue;
-                major = d[8];
-                minor = d[9];
-                found = true;
-                break;
-            }
-        }
-        if (found) {
-            const bool ok_ver = (major == 1 && minor == 2) || (major == 3 && minor == 0) ||
-                                (major == 3 && minor == 1);
-            if (!ok_ver)
-                push_error(report, CHECK_VERSION_BAD, (u64(major) << 8) | minor);
-        }
-        /* not found: the og's GetNTFSVersion would have failed through
-         * its own volume object; our open already validated the boot, so
-         * a missing $Volume is not a version-gate failure - no error */
-    }
-    if (cancel && cancel->cancelled())
-        return ERR_CANCELLED;
-
-    /* ---- $Bitmap structural (0x100b) + the MFT x $Bitmap cross-check
-     * (0x1003 free-but-allocated / 0x1002 double-claim) ---- */
-    std::unique_ptr<cr::ntfs::VolumeBitmap> bitmap;
-    const u32 bm_rc = cr::ntfs::VolumeBitmap::load(vol.get(), bitmap);
-    if (bm_rc != OK || bitmap == nullptr) {
-        push_error(report, CHECK_BITMAP_BAD, bm_rc);
+    /* boot + geometry (the og's CheckDBR precondition) */
+    ntfs::BootSector bs;
+    std::memset(&bs, 0, sizeof(bs));
+    if (!read_bytes(slice, 0, &bs, sizeof(bs)) ||
+        ntfs::validate_boot_sector(bs, slice->geometry(), c.p) != OK) {
+        CheckIssue is;
+        is.code = CHK_CHECK_EXCEPTION; /* 0x100e: unusable volume shape */
+        emit(std::move(is), cb, out, c.stop);
         return OK;
     }
+
+    /* ---- $MFT record 0 proof (0x1008, terminal :2888-2916) ---- */
+    status(cb, "  Checking $MFT");
+    std::vector<u8> rec0;
     {
-        /* structural: the $Bitmap record must not carry $ATTRIBUTE_LIST
-         * and its $DATA must be non-resident (the og :3788-3942); size
-         * sanity against the cluster count (0x100b) */
-        if (vol->read_record(6, rec) != OK || rec.size() < vp.record_size) {
-            push_error(report, CHECK_BITMAP_BAD, 6);
+        const u64 off = c.p.mft_lcn * c.p.cluster_bytes;
+        rec0.resize(size_t(c.p.record_size));
+        if (!read_bytes(slice, off, rec0.data(), u32(c.p.record_size))) {
+            CheckIssue is;
+            is.code = CHK_MFT_RECORD_INVALID;
+            emit(std::move(is), cb, out, c.stop);
             return OK;
         }
-        NtfsRecHeader h;
-        if (parse_rec_header(rec.data(), h) &&
-            cr::ntfs::fixup_apply(rec.data(), u32(vp.record_size), h.update_sequence_offset,
-                              h.update_sequence_size, vp.sector_bytes) == OK) {
-            std::vector<cr::ntfs::AttrView> attrs;
-            if (cr::ntfs::enum_attributes(rec.data(), u32(vp.record_size), attrs) == OK) {
-                bool has_attrlist = false, data_resident = true;
-                u64 data_size = 0;
-                for (const cr::ntfs::AttrView& a : attrs) {
-                    if (a.type == cr::ntfs::ATTR_TYPE_ATTRIBUTE_LIST)
-                        has_attrlist = true;
-                    if (a.type == cr::ntfs::ATTR_TYPE_DATA && a.name_length == 0) {
-                        data_resident = !a.nonresident;
-                        /* non-resident span in BYTES (the run clusters x
-                         * cluster size); resident = the value length */
-                        data_size = a.nonresident
-                                        ? (a.last_vcn - a.start_vcn + 1) * vp.cluster_bytes
-                                        : a.value_length;
+        ntfs::RecordHeader rh;
+        std::memcpy(&rh, rec0.data(), sizeof(rh));
+        if (rh.magic != ntfs::RECORD_MAGIC_FILE ||
+            ntfs::fixup_validate(rec0.data(), u32(c.p.record_size), rh.update_sequence_offset,
+                                 rh.update_sequence_size, u16(c.p.sector_bytes)) != OK ||
+            ntfs::fixup_apply(rec0.data(), u32(c.p.record_size), rh.update_sequence_offset,
+                              rh.update_sequence_size, u16(c.p.sector_bytes)) != OK ||
+            !record_named_mft(rec0, u32(c.p.record_size))) {
+            CheckIssue is;
+            is.code = CHK_MFT_RECORD_INVALID;
+            emit(std::move(is), cb, out, c.stop);
+            return OK;
+        }
+    }
+
+    /* the $MFT stream: record 0's non-resident $DATA runlist (the og's
+     * m_ntfsMft.Init — the check's own reader, no engine dependency). */
+    {
+        std::vector<ntfs::AttrView> attrs;
+        bool have_runs = false;
+        if (ntfs::enum_attributes(rec0.data(), u32(c.p.record_size), attrs) == OK) {
+            for (const auto& a : attrs) {
+                if (a.type == ntfs::ATTR_TYPE_BITMAP && !a.nonresident) {
+                    const u8* d = nullptr;
+                    u32 len = 0;
+                    if (ntfs::resident_span(a, d, len) == OK && d && len)
+                        c.mft_bmp.assign(d, d + len);
+                }
+                if (a.type == ntfs::ATTR_TYPE_DATA && a.nonresident && a.name_length == 0) {
+                    if (ntfs::parse_data_runs(a, c.p.total_clusters, c.mft_runs) == OK) {
+                        have_runs = true;
+                        c.mft_bytes = a.allocated;
                     }
-                }
-                if (has_attrlist || data_resident) {
-                    push_error(report, CHECK_BITMAP_BAD, 6);
-                    return OK;
-                }
-                /* size sanity: the stream must COVER the volume's clusters
-                 * (a short $Bitmap cannot describe the volume) without an
-                 * absurd over-allocation (1 MiB of slop - real volumes
-                 * round up to one cluster) */
-                const u64 expect = (vp.total_clusters + 7) / 8;
-                if (data_size < expect || data_size > expect + (1ull << 20)) {
-                    push_error(report, CHECK_BITMAP_BAD, data_size);
-                    return OK;
                 }
             }
         }
+        if (!have_runs || c.mft_bytes == 0) {
+            /* resident or absent $MFT $DATA: the og's MFT init failure —
+             * the check cannot proceed past the proofs. */
+            CheckIssue is;
+            is.code = CHK_MFT_RECORD_INVALID;
+            emit(std::move(is), cb, out, c.stop);
+            return OK;
+        }
+        c.mft_records = c.mft_bytes / c.p.record_size;
     }
-    if (cancel && cancel->cancelled())
-        return ERR_CANCELLED;
 
-    /* the cross-check: every allocated record's non-resident dataruns
-     * against (a) the on-disk bitmap (free-but-allocated -> 0x1003) and
-     * (b) a fresh claimed map (double-claim -> 0x1002). Sparse runs are
-     * holes, not claims. */
+    /* ---- $MFTMirr slot-0 proof (0x1009, NON-terminal :2944-2979) ---- */
+    status(cb, "  Checking $MFTMirr");
     {
-        const u64 max_rec = vol->max_record_no();
-        std::vector<u8> claimed; /* fresh bitmap: LCNs claimed this pass */
-        const u64 total = vp.total_clusters;
-        claimed.assign(size_t((total + 7) / 8), 0);
-        for (u64 rn = 0; rn < max_rec; ++rn) {
-            if ((rn & 0xFF) == 0 && cancel && cancel->checkpoint())
-                return ERR_CANCELLED;
-            if (vol->read_record(rn, rec) != OK || rec.size() < vp.record_size)
-                continue;
-            NtfsRecHeader h;
-            if (!parse_rec_header(rec.data(), h))
-                continue;
-            if ((h.flags & cr::ntfs::RECORD_IN_USE) == 0)
-                continue; /* the og walks ALLOCATED records */
-            if (h.base_record != 0)
-                continue; /* extension record: its base carries the runs */
-            if (cr::ntfs::fixup_apply(rec.data(), u32(vp.record_size), h.update_sequence_offset,
-                                  h.update_sequence_size, vp.sector_bytes) != OK)
-                continue;
-            std::vector<cr::ntfs::AttrView> attrs;
-            if (cr::ntfs::enum_attributes(rec.data(), u32(vp.record_size), attrs) != OK)
-                continue;
-            ++report.records_scanned;
-            for (const cr::ntfs::AttrView& a : attrs) {
-                if (!a.nonresident)
-                    continue;
-                cr::ntfs::RunList rl;
-                if (cr::ntfs::parse_data_runs(a, vp.total_clusters, rl) != OK)
-                    continue;
-                for (const cr::ntfs::DataRun& dr : rl.runs()) {
-                    if (dr.sparse || dr.lcn == 0)
+        std::vector<u8> mirr;
+        const u64 off = c.p.mftmirr_lcn * c.p.cluster_bytes;
+        mirr.resize(size_t(c.p.record_size));
+        bool ok = read_bytes(slice, off, mirr.data(), u32(c.p.record_size));
+        if (ok) {
+            ntfs::RecordHeader rh;
+            std::memcpy(&rh, mirr.data(), sizeof(rh));
+            ok = rh.magic == ntfs::RECORD_MAGIC_FILE &&
+                 ntfs::fixup_validate(mirr.data(), u32(c.p.record_size),
+                                      rh.update_sequence_offset, rh.update_sequence_size,
+                                      u16(c.p.sector_bytes)) == OK &&
+                 ntfs::fixup_apply(mirr.data(), u32(c.p.record_size), rh.update_sequence_offset,
+                                   rh.update_sequence_size, u16(c.p.sector_bytes)) == OK &&
+                 record_named_mft(mirr, u32(c.p.record_size));
+        }
+        if (!ok) {
+            CheckIssue is;
+            is.code = CHK_MFTMIRR_INVALID;
+            emit(std::move(is), cb, out, c.stop);
+            if (c.stop)
+                return OK;
+        }
+    }
+
+    /* ---- NTFS version gate (0x100A, NON-terminal :2994-3003) ---- */
+    status(cb, "  Checking NTFS Version");
+    {
+        /* $Volume (record 3) $VOLUME_INFORMATION (0x70): major/minor at
+         * value +8/+9. Valid words: 0x102 (1.2), 3 (3.0), 0x301 (3.1). */
+        u32 word = 0;
+        bool have = false;
+        std::vector<u8> vol;
+        if (c.read_record(3, vol)) {
+            std::vector<ntfs::AttrView> attrs;
+            if (ntfs::enum_attributes(vol.data(), u32(c.p.record_size), attrs) == OK) {
+                for (const auto& a : attrs) {
+                    if (a.type != ntfs::ATTR_TYPE_VOLUME_INFORMATION || a.nonresident)
                         continue;
-                    for (u64 lcn = dr.lcn; lcn < dr.lcn + dr.length; ++lcn) {
-                        if (lcn >= vp.total_clusters)
-                            break;
-                        if (!bitmap->test(lcn)) {
-                            /* free-but-allocated ("Bitmap mark it as
-                             * free!!!", :3196-3209) */
-                            push_error(report, CHECK_ORPHAN, lcn);
-                        }
-                        const size_t byte = size_t(lcn >> 3);
-                        const u8 bit = u8(1u << (lcn & 7));
-                        if (claimed[byte] & bit) {
-                            /* double-claim ("Please use 'Chkdsk'
-                             * first!!!", :3211-3224) */
-                            push_error(report, CHECK_CROSSLINK, lcn);
-                        } else {
-                            claimed[byte] |= bit;
-                        }
+                    const u8* d = nullptr;
+                    u32 len = 0;
+                    if (ntfs::resident_span(a, d, len) == OK && d && len >= 10) {
+                        word = (u32(d[8]) << 8) | u32(d[9]);
+                        have = true;
                     }
+                    break;
+                }
+            }
+        }
+        if (!have || (word != 0x102 && word != 3 && word != 0x301)) {
+            CheckIssue is;
+            is.code = CHK_NTFS_VERSION;
+            is.param = word; /* the og passes the version word (:3003) */
+            emit(std::move(is), cb, out, c.stop);
+            if (c.stop)
+                return OK;
+        }
+    }
+
+    /* ---- $Bitmap structural (0x100B) + load ---- */
+    status(cb, "  Checking $Bitmap");
+    {
+        std::vector<u8> bmp_rec;
+        bool loaded = false;
+        if (c.read_record(6, bmp_rec)) {
+            std::vector<ntfs::AttrView> attrs;
+            if (ntfs::enum_attributes(bmp_rec.data(), u32(c.p.record_size), attrs) == OK) {
+                for (const auto& a : attrs) {
+                    if (a.type != ntfs::ATTR_TYPE_DATA || a.name_length != 0)
+                        continue;
+                    if (!a.nonresident) {
+                        /* the og: "The $Bitmap::$DATA stream is resident!
+                         * Currently, we do not support it!" -> load fails
+                         * -> 0x100b, cross-check skipped. */
+                        break;
+                    }
+                    ntfs::RunList rl;
+                    if (ntfs::parse_data_runs(a, c.p.total_clusters, rl) != OK)
+                        break;
+                    c.bitmap_bits = a.allocated * 8;
+                    /* structural floor (:3866-3888): bits >= MFT record
+                     * count. (The og's slack term at :3869-3871 —
+                     * CCheckNTFSVolume+0x30 — is layout-undecoded; on
+                     * every well-formed volume the bit count equals the
+                     * cluster count and no fixed slack constant can fire
+                     * without flagging healthy volumes; registered in the
+                     * M-041 Resolution, not guessed here.) */
+                    if (c.bitmap_bits < c.mft_records) {
+                        CheckIssue is;
+                        is.code = CHK_BITMAP_STRUCTURAL;
+                        emit(std::move(is), cb, out, c.stop);
+                        if (c.stop)
+                            return OK;
+                    }
+                    c.bitmap.resize(size_t(a.allocated));
+                    u64 got = 0;
+                    bool ok = true;
+                    for (const ntfs::DataRun& r : rl.runs()) {
+                        if (r.sparse)
+                            continue;
+                        const u64 bytes = r.length * c.p.cluster_bytes;
+                        if (got + bytes > c.bitmap.size()) {
+                            ok = false; /* runs overshoot the declared size */
+                            break;
+                        }
+                        if (!read_bytes(slice, r.lcn * c.p.cluster_bytes,
+                                        c.bitmap.data() + size_t(got), u32(bytes))) {
+                            ok = false;
+                            break;
+                        }
+                        got += bytes;
+                    }
+                    /* a partial load must NOT pass as loaded: the
+                     * zero-filled tail would read as "every cluster
+                     * free" and fire false 0x1003 verdicts. */
+                    if (ok && got == a.allocated)
+                        loaded = !c.bitmap.empty();
+                    break;
+                }
+            }
+        }
+        if (!loaded) {
+            /* unusable $Bitmap: the og logs LoadVolumeBitmap failed and
+             * the check ends here (no cross-check without the bitmap). */
+            if (!out.has_code(CHK_BITMAP_STRUCTURAL)) {
+                CheckIssue is;
+                is.code = CHK_BITMAP_STRUCTURAL;
+                emit(std::move(is), cb, out, c.stop);
+            }
+            return OK;
+        }
+    }
+
+    /* ---- MFT x $Bitmap cross-check (FUN_180004d80 :3061-3249) ---- */
+    status(cb, "  Cross-checking MFT against $Bitmap");
+    if (c.mft_bmp.empty()) {
+        /* Read_MFT_Bitmap failed -> the og skips the cross-check
+         * (:3130-3136, the else-branch). */
+        return OK;
+    }
+    c.seen.assign(size_t((c.p.total_clusters + 7) / 8), 0);
+    if (cb.set_range)
+        cb.set_range(cb.user, 0, c.mft_records);
+    for (u64 r = 0; r < c.mft_records && !c.stop; ++r) {
+        if (cb.set_pos && (r & 0xFF) == 0)
+            cb.set_pos(cb.user, r);
+        if (!c.mft_in_use(r))
+            continue; /* the $MFT::$BITMAP gate (:3138) */
+        std::vector<u8> rec;
+        if (!c.read_record(r, rec)) {
+            out.mft_records_examined++;
+            continue; /* unreadable record: the og logs and skips */
+        }
+        ntfs::RecordHeader rh;
+        std::memcpy(&rh, rec.data(), sizeof(rh));
+        if ((rh.flags & 0x01) == 0)
+            continue; /* the record-flags in-use gate (:3165) */
+        out.mft_records_examined++;
+        std::vector<ntfs::AttrView> attrs;
+        if (ntfs::enum_attributes(rec.data(), u32(c.p.record_size), attrs) != OK)
+            continue;
+        for (const auto& a : attrs) {
+            if (!a.nonresident)
+                continue; /* every non-resident attribute's runs (:3167) */
+            ntfs::RunList rl;
+            if (ntfs::parse_data_runs(a, c.p.total_clusters, rl) != OK)
+                continue;
+            for (const ntfs::DataRun& run : rl.runs()) {
+                if (run.sparse)
+                    continue; /* the og's -1 LCN skip (:3190) */
+                for (u64 i = 0; i < run.length; ++i) {
+                    const u64 lcn = run.lcn + i;
+                    if (!c.cluster_in_use(lcn)) {
+                        /* "Bitmap mark it as free!!!" (:3196-3209) */
+                        CheckIssue is;
+                        is.code = CHK_ORPHAN_CLUSTER;
+                        is.param = lcn;
+                        is.record_no = u32(r);
+                        emit(std::move(is), cb, out, c.stop);
+                        if (c.stop)
+                            return OK;
+                    } else if (c.seen_test(lcn)) {
+                        /* "Please use 'Chkdsk' first!!!" (:3211-3224) */
+                        CheckIssue is;
+                        is.code = CHK_DUPLICATE_ALLOC;
+                        is.param = lcn;
+                        is.record_no = u32(r);
+                        emit(std::move(is), cb, out, c.stop);
+                        if (c.stop)
+                            return OK;
+                    }
+                    c.seen_set(lcn);
                 }
             }
         }
@@ -721,5 +984,108 @@ u32 check_ntfs_volume(IStorageDevice* slice, FsCheckReport& report, CancelToken*
     return OK;
 }
 
-} // namespace fscheck
+u32 run_fscheck(IStorageDevice* slice, const CheckCallbacks& cb, FsCheckReport& out) {
+    if (slice == nullptr)
+        return ERR_BAD_PARAMETER;
+    u8 boot[512];
+    if (!read_bytes(slice, 0, boot, sizeof(boot)))
+        return OK; /* nothing checkable */
+    /* family probe: the check module's own dispatch (the og's
+     * FileSystemCheck constructs CCheckFAT/CCheckNTFSVolume by volume
+     * type; the DBR validators themselves gate on these signatures). */
+    if (std::memcmp(boot + 3, "NTFS    ", 8) == 0)
+        return check_ntfs(slice, cb, out);
+    const bool fat12_16 = rd32(boot + 0x36) == 0x31544146 &&
+                          (char(boot[0x3A]) == '2' || char(boot[0x3A]) == '6');
+    const bool fat32 = rd32(boot + 0x52) == 0x33544146 && char(boot[0x56]) == '2';
+    if (fat12_16 || fat32)
+        return check_fat(slice, cb, out);
+    return OK; /* unknown family: undetected, empty report */
+}
+
+/* ---- session persistence (REC_FS_CHECK) ---- */
+
+u32 serialize_fs_check(const FsCheckReport& rep, std::vector<u8>& out) {
+    out.clear();
+    out.reserve(16 + rep.errors.size() * 24);
+    auto put32 = [&](u32 v) {
+        out.push_back(u8(v));
+        out.push_back(u8(v >> 8));
+        out.push_back(u8(v >> 16));
+        out.push_back(u8(v >> 24));
+    };
+    auto put64 = [&](u64 v) {
+        put32(u32(v));
+        put32(u32(v >> 32));
+    };
+    put32(u32(rep.errors.size()));
+    for (const auto& e : rep.errors) {
+        put32(e.code);
+        put64(e.param);
+        put32(e.record_no);
+        put32(u32(e.path_hint.size()));
+        for (char ch : e.path_hint)
+            out.push_back(u8(ch));
+    }
+    put32(rep.fat_copies_compared);
+    put32(rep.fat_entries_checked);
+    put32(rep.clusters_visited);
+    put32(rep.mft_records_examined);
+    put32(rep.family_detected ? 1 : 0);
+    for (char ch : rep.family) {
+        out.push_back(u8(ch));
+        if (ch == 0)
+            break;
+    }
+    while (out.size() % 8)
+        out.push_back(0);
+    return OK;
+}
+
+u32 deserialize_fs_check(const u8* data, size_t len, FsCheckReport& rep) {
+    rep = FsCheckReport{};
+    if (data == nullptr || len < 4)
+        return ERR_BAD_PARAMETER;
+    size_t pos = 0;
+    auto get32 = [&](u32& v) -> bool {
+        if (pos + 4 > len)
+            return false;
+        v = rd32(data + pos);
+        pos += 4;
+        return true;
+    };
+    auto get64 = [&](u64& v) -> bool {
+        u32 lo = 0, hi = 0;
+        if (!get32(lo) || !get32(hi))
+            return false;
+        v = u64(lo) | (u64(hi) << 32);
+        return true;
+    };
+    u32 count = 0;
+    if (!get32(count))
+        return ERR_BAD_PARAMETER;
+    rep.errors.reserve(std::min<u32>(count, 1u << 16));
+    for (u32 i = 0; i < count; ++i) {
+        CheckIssue e;
+        u32 plen = 0;
+        if (!get32(e.code) || !get64(e.param) || !get32(e.record_no) || !get32(plen) ||
+            pos + plen > len)
+            return ERR_BAD_PARAMETER;
+        e.path_hint.assign(reinterpret_cast<const char*>(data + pos), plen);
+        pos += plen;
+        rep.errors.push_back(std::move(e));
+    }
+    u32 detected = 0;
+    if (!get32(rep.fat_copies_compared) || !get32(rep.fat_entries_checked) ||
+        !get32(rep.clusters_visited) || !get32(rep.mft_records_examined) || !get32(detected))
+        return ERR_BAD_PARAMETER;
+    rep.family_detected = detected != 0;
+    size_t f = 0;
+    while (pos < len && f + 1 < sizeof(rep.family) && data[pos] != 0)
+        rep.family[f++] = char(data[pos++]);
+    rep.family[f] = 0;
+    return OK;
+}
+
+} // namespace check
 } // namespace cr

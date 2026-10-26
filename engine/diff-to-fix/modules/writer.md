@@ -122,3 +122,12 @@ pinned in-test) + WinDestIo.UncShapedPathsFailCleanly (the `\\?\UNC\`
 family: exists/mkdir/create_temp contracts on an unresolvable share).
 Windows/MSVC lane proves execution; Linux suite 684/684 unaffected.
 F62/A35/Q65 → MATCH.
+
+
+## Session-34 verification (DFX34) — N-065 closed FIXED-ALREADY
+
+| Parameter | Verdict |
+|---|---|
+| A27 collision naming | **MATCH** — the og's two `%s_%d`/`%s_%d%s` branches (DRWUI :357116-357131), last-dot split, extensionless branch, counter from 1, cap 10,000, exhaustion fails the item (parallel-lane landing, verified green this session) |
+| S35 mkdir acceptance | **MATCH (semantic form, REGISTERED)** — the SHCreateDirectoryExW 0/0xB7 contract as exist-as-directory success / file-in-the-way fail / else propagate; the literal gate broke drive-root chains (MSVC test #227 incident, in-source comment) |
+| P46 D-19 doc truth | **MATCH** — the refuted "unevidenced" claim superseded by the decoded policy (PARITY-DELTAS:456+) |

@@ -58,24 +58,28 @@ bool query_disk_handle(HANDLE h, PhysicalDisk& d) {
         u8 buf[4096];
         if (DeviceIoControl(h, IOCTL_STORAGE_QUERY_PROPERTY, &q, sizeof(q), buf, sizeof(buf), &br,
                             nullptr)) {
-            const u8* base = buf;
-            const DWORD prod_off = u32_from_bytes_le(base + 24);
-            const DWORD serial_off = u32_from_bytes_le(base + 36);
-            const DWORD bus = u32_from_bytes_le(base + 28);
-            if (prod_off && prod_off < sizeof(buf)) {
-                const char* p = reinterpret_cast<const char*>(base + prod_off);
-                const char* mlim = reinterpret_cast<const char*>(base) + sizeof(buf);
-                while (p < mlim && *p)
-                    d.model.push_back(wchar_t(*p++));
-            }
-            if (serial_off && serial_off < sizeof(buf)) {
-                const char* p = reinterpret_cast<const char*>(base + serial_off);
-                const char* slim = reinterpret_cast<const char*>(base) + sizeof(buf);
-                while (p < slim && *p)
-                    d.serial.push_back(wchar_t(*p++));
-            }
-            d.removable = (bus == BusTypeUsb || bus == BusTypeSd || bus == BusTypeMmc);
+            /* N-080 (fixed with N-066): the SDK-exact offset decode lives
+             * in the pure header function — product@+16, revision@+20 (the
+             * firmware axis), serial@+24, bus@+28. The pre-fix code read
+             * the product at +24 (the SERIAL offset) and the serial at
+             * +36 (inside RawDeviceProperties). */
+            decode_device_descriptor(buf, sizeof(buf), d);
+            /* N-066: the interface axis from the bus type (the og's
+             * +0x414 "USB Device" family) + the WWN/serial-2 axis from
+             * the device-id descriptor (the first DEVICE-associated
+             * identifier, ascii or hex). */
+            const u32 bus = u32_from_bytes_le(buf + 28);
+            if (const wchar_t* name = bus_interface_name(bus))
+                if (*name)
+                    d.interface_desc = name;
         }
+        STORAGE_PROPERTY_QUERY qid = {};
+        qid.PropertyId = StorageDeviceIdProperty;
+        qid.QueryType = PropertyStandardQuery;
+        u8 idbuf[1024];
+        if (DeviceIoControl(h, IOCTL_STORAGE_QUERY_PROPERTY, &qid, sizeof(qid), idbuf,
+                            sizeof(idbuf), &br, nullptr))
+            decode_device_id_descriptor(idbuf, sizeof(idbuf), d.wwn);
     }
     return ok;
 }

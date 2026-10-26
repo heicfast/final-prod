@@ -221,3 +221,12 @@ see the reconciliation note in `tracked-open/OQ-RS-refs-session3.md`.)
   the post-main flush, $I evidence read + $R remap (family convention).
 - **Open:** N-036 container map; OQ-2 real-volume dump; the og keep-one tie-break
   fields remain shape-decoded (documented simplification).
+
+
+## Session-33 verdict update (2026-10-26, DFX33 — N-007 FIXED)
+
+**B1/C19 → MATCH (post-fix):** page-signature discovery now matches the
+og's first-DWORD dispatch (:11692); the full-width memcmp stays as the
+grading signal (RefsInfo::signature_partial — corrupt-tail pages found,
+flagged, never silently dropped). The I-004 version-gate superset stays
+ACKNOWLEDGED (D-48b).

@@ -60,3 +60,12 @@ structure walk"; the og gate (major==3 && minor>3 + major==1 path) is
 corpus-documented; the rationale holds. Registered this session: PARITY-DELTAS
 D-48b (first row; parity benches must not count ReFS 2.x / 3.0–3.3 yield
 against the og). No code change — future work must PRESERVE the superset.
+
+---
+
+## N-007 Resolution
+
+**Status:** FIXED
+**Fixed in commit:** this session's N-007 landing (DFX33; sha in the worklog entry)
+**Verified by:** `RefsDetect.PartialSignaturePageDetected` (fail-before EXECUTED: RED on the full-width-only tree — a corrupt-tail SUPB page returned ERR_BAD_MAGIC; pass-after: found + `signature_partial` graded, a corrupt-tail-only volume found, a clean volume unflagged) + the refs suite 32/32 + full suite **891/891** linux-release.
+**Resolution notes:** Corpus re-verified first-hand (ReFSSearchDLL :11689-11720: the dispatch selects the signature string by page kind then compares `*param_2 == *(int*)pcVar4` — FIRST DWORD ONLY; "SUPB"/"CHKP"/"MSB+" — the page object is constructed and the ref-parser validates further). The core's detect now matches that discovery rule: `page_match` compares the first 4 bytes for discovery, keeps the full-width memcmp as the grading signal, and records `RefsInfo::signature_partial` (first-4 hit, full compare failed) — the volume is still found, exactly the og's corrupt-page tolerance. The full engine's own validation chain (bytenr/identity gates in scan_refs) is unchanged and remains the deeper gate. The I-004 half of this file stays ACKNOWLEDGED (the version-gate superset, D-48b) — no code change, preserved.

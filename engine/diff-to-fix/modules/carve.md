@@ -190,13 +190,29 @@ leg that landed first; registry decode evidence: `evidence/decompiled-quotes/s3-
   (**N-033**: consumed by the FS SearchDLLs, which clone the master registry into
   per-engine state); the core's table is compile-time with no enumeration ABI
   (A42/A45).
-- **M-025 (MAJOR):** read model — og = 4 MiB device reads into an 8 MiB ping-pong
-  buffer, one dispatch per sector-aligned position, allocated-cluster skip,
-  open-ended formats tracked as pending CRawFileInfo objects extended across
-  chunk boundaries (streaming state machine); core = 1 MiB windows, byte
-  granularity (superset, I-009), stateless validators that re-read extents from
-  the device (≤8 MiB extra re-read for hashing). M-021's repair-hook fix depends
-  on M-025's pending-object state machine.
+- **M-025 (MAJOR) — FIXED (session 32, DFX32):** read model — og = 4 MiB device
+  reads into an 8 MiB ping-pong buffer, one dispatch per sector-aligned
+  position, allocated-cluster skip, open-ended formats tracked as pending
+  CRawFileInfo objects extended across chunk boundaries (streaming state
+  machine); core = 1 MiB windows, byte granularity (superset, I-009 kept
+  deliberately), stateless validators. The fix landed the og's
+  buffer-residency BENEFIT without the state machine: a WindowView
+  (IStorageDevice wrapper) serves all 8 device-read sites of the window scan
+  (validator probes, M-051 checksums, small-file hashes, raw-sign tail walks,
+  post-processor feeds — both emit layers) from the already-read window,
+  split-reading only the cross-window tails. MEASURED (scripts/bench_m025.cpp,
+  64 MiB / 1280 candidates, sign-quiet fill): read_at calls 20,544 → 2,080
+  (9.88×), device bytes 2.20 GB → 1.06 GB (2.08×), no wall regression on the
+  memcpy device (the real-transport gain is the ~18.5K fewer read round trips
+  per 64 MiB). Fail-before: the counting-device test (82 reads pre-fix vs 1).
+  The pending-object model itself is registered as PARITY-DELTAS D-80 — future
+  stateful analysers (the og's MovAnalyzer/MTS family) port behind the M-021
+  CarvePostProcessor seam, not by rewriting the scan loop; the M-021 hook as
+  landed is a per-candidate feed and never depended on continuation state
+  (the finding's dependency note is resolved by that shape). The geometry
+  change (4-8 MiB ping-pong) was evaluated and NOT taken: dispatch cost is
+  byte-granularity-dominated (the I-009 superset), and the window size only
+  affects the re-read margin the view already removed.
 - **Dispatch chain semantics (addendum to N-031):** u16 equal_range chains iterate
   in insertion order; plain-accept-after-special-reject records format id 8
   (generic) and continues; `00 01 00 00` = TTF (u32 layer) pre-empts MDB (u16).
@@ -446,3 +462,16 @@ finding itself records no og-execution possible here; M-009 posture).
 The I-009 mid-sector superset stays. Stateless-vs-pending model
 difference registered (PARITY-DELTAS D-81) — the porting boundary the
 S-017 plan must respect.
+
+
+## Session-33 verdict update, part 2 (2026-10-26, DFX33 — M-048 FIXED)
+
+**B1/A28/D16 → MATCH (post-fix):** the user-extensible signature database
+is live: the og's EUUserData JSON shape parses (targeted reader, atomic
+validation), registers through the cr_ui ABI (since 2.1) or the CLI
+--user-signs flag, and probes at the raw-sign stride AFTER the built-in
+layers (built-in-wins collision rule). Emission carries the user's
+extension + MIME (carve_note), tag 0xFFFE0000, confidence 600 (the
+documented fixed value — EUUserData carries none). Source-of-truth
+posture is the og's own: an install-tree config re-read per scan, not
+session state.

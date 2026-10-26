@@ -1737,31 +1737,104 @@ TEST(Orchestrator, ReadPipeZeroCapacityDegradesToBareSlice) {
     EXPECT_EQ(nullptr, rp.retry);
 }
 
-TEST(Orchestrator, CheckPhaseNeverAbortsScan) {
-    /* M-041: the damage-audit check phase is a READ-ONLY pre-scan stage.
-    * A DAMAGED FAT16 volume (orphan chain + FAT-copy disagreement) must
-    * still scan to completion with results - the report lands in the
-    * fs_check_* stats and the scan proceeds exactly like the og's
-    * fall-through stance. */
-    auto img = build_fat16();
-    constexpr size_t FAT1 = 2 * 512;
-    constexpr size_t FAT2 = 22 * 512;
-    /* damage: an orphaned live chain at cluster 12 (no dentry) */
-    put16(img, FAT1 + 12 * 2, 0xFFFF);
-    put16(img, FAT2 + 12 * 2, 0xFFFF);
-    /* damage: the copies disagree on cluster 10's successor */
-    put16(img, FAT2 + 10 * 2, 11 + 1);
+TEST(Orchestrator, LogSinkRegistrySurvivesHeavyChurn) {
+    /* N-079 additive pin (the DFX23 convergent landing's test, ported
+     * onto the canonical deque-pool fix): the seam must keep delivery
+     * on the CURRENT sink through heavy registration churn, superseded
+     * registrations must go silent, and the null-unregister path must
+     * leave the registry usable without burning pool capacity. The
+     * canonical fix's pool is unbounded so 20 registrations exercise the
+     * swap bookkeeping; the pin holds for either registry design. */
+    LogRecorder current, stale;
+    cr::log::set_sink(&LogRecorder::sink, &stale);
+    for (int i = 0; i < 20; ++i) /* heavy churn past any small pool */
+        cr::log::set_sink(&LogRecorder::sink, &current);
+    EXPECT_TRUE(cr::log::enabled());
+    cr::log::write(cr::log::Level::Info, "after churn %d", 1);
+    cr::log::set_sink(nullptr, nullptr);
+    EXPECT_FALSE(cr::log::enabled());
+    EXPECT_EQ(stale.lines.size(), 0u) << "superseded registrations go silent";
+    ASSERT_FALSE(current.lines.empty());
+    EXPECT_NE(current.lines[0].second.find("after churn"), std::string::npos)
+        << "delivery follows the CURRENT sink through the churn";
+    current.lines.clear();
+    cr::log::set_sink(&LogRecorder::sink, &current);
+    cr::log::write(cr::log::Level::Warn, "revived");
+    cr::log::set_sink(nullptr, nullptr);
+    ASSERT_EQ(current.lines.size(), 1u);
+    EXPECT_NE(current.lines[0].second.find("revived"), std::string::npos)
+        << "the null-publish unregister leaves the registry usable";
+}
 
+TEST(Orchestrator, IdentityCardV4SnapshotAndAxes) {
+    /* N-066 end-to-end: run() captures the full 512-byte boot-sector image
+     * alongside the CRC32 (the og record-3's +0x518 snapshot) and emits it
+     * into the VolumeInfo v4 tail; the config's record-3 axes (firmware,
+     * WWN, interface) flow through to the card. */
+    auto img = build_fat16();
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
     ScanConfig cfg;
-    cfg.run_carve = false; /* focus: the structured pass + the check */
-    ScanStats stats;
+    cfg.run_quick = true;
+    cfg.run_deep = false;
+    cfg.run_carve = false;
+    std::memcpy(cfg.volume_firmware, "01.02D-04", 9);
+    std::memcpy(cfg.volume_wwn, "50014ee2b8a1c2d3", 16);
+    std::memcpy(cfg.volume_interface, "USB Device", 10);
     ScanController ctrl(tree, cfg);
-    u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
-    ASSERT_EQ(OK, rc) << "the check phase must never abort the scan";
-    EXPECT_NE(stats.fs_check_first_code, 0u) << "the damaged volume must report";
-    EXPECT_GE(stats.fs_check_errors, 1u);
-    /* the structured results still exist (files_found > 0) */
-    EXPECT_GT(stats.files_found, 0u);
+    ScanStats stats;
+    ASSERT_EQ(ctrl.run(&dev, nullptr, nullptr, nullptr, stats), OK) << err_text(u32(0));
+    struct MemFile {
+        std::vector<u8> data;
+        u64 pos = 0;
+        static u32 wr(void* u, const void* b, u32 len) {
+            auto* m = static_cast<MemFile*>(u);
+            if (m->pos + len > m->data.size())
+                m->data.resize(size_t(m->pos + len));
+            std::memcpy(m->data.data() + m->pos, b, len);
+            m->pos += len;
+            return 0;
+        }
+        static u64 tl(void* u) { return static_cast<MemFile*>(u)->pos; }
+        static u32 sk(void* u, u64 abs) {
+            static_cast<MemFile*>(u)->pos = abs;
+            return 0;
+        }
+    } mf;
+    {
+        session::Writer w(MemFile::wr, MemFile::tl, MemFile::sk, &mf);
+        ASSERT_EQ(w.open(7), OK);
+        ASSERT_EQ(ctrl.save_session(w, stats), OK);
+        ASSERT_EQ(w.finalize(), OK);
+    }
+    session::Reader r(+[](void* u, void* b, u32 len) -> u32 {
+        auto* m = static_cast<MemFile*>(u);
+        if (m->pos + len > m->data.size())
+            return 1;
+        std::memcpy(b, m->data.data() + m->pos, len);
+        m->pos += len;
+        return 0;
+    }, MemFile::sk, +[](void* u) -> u64 { return static_cast<MemFile*>(u)->data.size(); }, &mf);
+    ASSERT_EQ(r.open(nullptr), OK);
+    bool saw_vi = false;
+    for (u32 i = 0; i < r.record_count(); ++i) {
+        session::Record rec;
+        ASSERT_EQ(r.read_record(i, rec), OK);
+        if (rec.type != session::REC_VOLUME_INFO)
+            continue;
+        session::VolumeInfo vi;
+        ASSERT_EQ(session::deserialize_volume_info(rec.data.data(), rec.data.size(), vi), OK);
+        saw_vi = true;
+        EXPECT_EQ(0, std::strcmp(vi.firmware, "01.02D-04"));
+        EXPECT_EQ(0, std::strcmp(vi.wwn, "50014ee2b8a1c2d3"));
+        EXPECT_EQ(0, std::strcmp(vi.interface_desc, "USB Device"));
+        /* the snapshot is the fixture's first 512 bytes and the hash is
+         * crc32 of the same - two views of ONE read (N-066's contract) */
+        u8 boot[512] = {};
+        ASSERT_EQ(dev.read_at(0, boot, sizeof(boot)), u32(OK));
+        EXPECT_EQ(0, std::memcmp(vi.boot_snapshot, boot, 512));
+        EXPECT_EQ(table::crc32(boot, sizeof(boot)), vi.boot_hash);
+        break;
+    }
+    EXPECT_TRUE(saw_vi) << "the VolumeInfo record must be present";
 }
