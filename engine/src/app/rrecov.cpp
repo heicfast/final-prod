@@ -26,7 +26,9 @@
  */
 
 #include "cr/cr_log.h"
-#include "cr/cr_ui.h" /* N-033 CLI half: the carve-format enumeration ABI */
+#include "cr/carve/cr_signatures.h" /* N-033 CLI half: the carve-format registry */
+#include "cr/carve/cr_rawsigns.h"
+#include "cr/carve/cr_usersigns.h" /* N-064: --user-signs installs through the same core path the cr_ui ABI wraps */
 #include "cr/orchestrator/cr_scan.h"
 #include "cr/recovery/cr_dict.h"
 #include "cr/recovery/cr_safewriter.h"
@@ -593,7 +595,17 @@ int print_disks() {
  * ------------------------------------------------------------------------- */
 
 int print_carve_formats() {
-    const uint32_t n = cr_ui_carve_format_count();
+    /* Same projection the cr_ui ABI enumerates (cr_ui_carve_format_count/
+     * info are thin wrappers over this exact walk), consumed through the
+     * core registry directly: the CLI stays a standalone cr_core+cr_win
+     * binary - linking cr_ui.dll here would give the process TWO copies
+     * of the engine (the static core in the exe + the one inside the
+     * DLL), and a --user-signs install would land in the copy the exe's
+     * scan never reads. The cr_ui wrapper surface itself stays pinned
+     * by the cr_ui ABI tests. */
+    const uint32_t grammar_n = uint32_t(carve::registry_size());
+    const uint32_t raw_n = carve::rawsigns::kFormatCount;
+    const uint32_t n = grammar_n + raw_n;
     if (n == 0) {
         wprintf(L"carve registry is empty\n");
         return 1; /* never exit-0 on an empty registry - scripts must not
@@ -601,22 +613,47 @@ int print_carve_formats() {
     }
     wprintf(L"%u carve format(s)\n", n);
     for (uint32_t i = 0; i < n; ++i) {
-        cr_ui_carve_format f{};
-        if (cr_ui_carve_format_info(i, &f) != 0) {
-            wprintf(L"row %u: enumeration failed\n", i);
-            return 1; /* FB-K01 family: a broken row is a failure, not a
-                         silent skip */
+        uint32_t layer;
+        const char* ext;
+        uint64_t min_size, max_size;
+        uint16_t conf;
+        uint32_t magic_len = 0;
+        const uint8_t* magic = nullptr;
+        if (i < grammar_n) {
+            const carve::Signature& s = carve::registry()[i];
+            layer = 0;
+            ext = s.ext;
+            min_size = s.min_size;
+            max_size = s.max_size;
+            conf = s.base_confidence;
+            magic_len = s.header_len;
+            magic = s.header;
+        } else {
+            const uint32_t fmt = i - grammar_n;
+            const carve::rawsigns::RawSignFormat& f = carve::rawsigns::kFormats[fmt];
+            layer = 1;
+            ext = f.ext;
+            min_size = f.min_size;
+            max_size = f.max_size;
+            /* the format's strongest header-sign confidence (the table
+             * stores confidence per sign, not per format) */
+            uint16_t best = 0;
+            for (uint32_t k = 0; k < carve::rawsigns::kHeaderSignCount; ++k)
+                if (carve::rawsigns::kHeaderSigns[k].fmt == fmt &&
+                    carve::rawsigns::kHeaderSigns[k].conf > best)
+                    best = carve::rawsigns::kHeaderSigns[k].conf;
+            conf = best;
         }
-        wchar_t magic[16 * 2 + 1] = L"";
-        if (f.magic_len > 0) {
-            for (uint32_t k = 0; k < f.magic_len && k < 16; ++k)
-                swprintf(magic + k * 2, 3, L"%02x", f.magic[k]);
+        wchar_t magic_hex[16 * 2 + 1] = L"";
+        if (magic_len > 0) {
+            for (uint32_t k = 0; k < magic_len && k < 16; ++k)
+                swprintf(magic_hex + k * 2, 3, L"%02x", magic[k]);
         }
         wprintf(L"  [%2u] %-7s %-8hs min %10llu B  max %-10llu  conf %4u  %s%s\n", i,
-                f.layer == 0 ? L"grammar" : L"rawsign", f.ext,
-                static_cast<unsigned long long>(f.min_size),
-                static_cast<unsigned long long>(f.max_size), f.base_confidence,
-                f.magic_len ? L"magic " : L"", f.magic_len ? magic : L"-");
+                layer == 0 ? L"grammar" : L"rawsign", ext,
+                static_cast<unsigned long long>(min_size),
+                static_cast<unsigned long long>(max_size), conf, magic_len ? L"magic " : L"",
+                magic_len ? magic_hex : L"-");
     }
     return 0;
 }
@@ -794,14 +831,22 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
             while ((got = fread(buf, 1, sizeof(buf), f)) > 0)
                 json.insert(json.end(), buf, buf + got);
             fclose(f);
-            const u32 rc = cr_ui_register_user_signs(json.data(), u32(json.size()));
+            /* the same install the cr_ui ABI performs (cr_ui_register_user_
+             * signs wraps parse + install_set): through the core directly so
+             * the registration lands in THIS process's engine registry -
+             * the copy the scan below actually reads */
+            carve::usersigns::UserSignSet set;
+            u32 rc = carve::usersigns::parse(json.data(), size_t(json.size()), set);
+            if (rc == 0)
+                rc = carve::usersigns::install_set(std::move(set));
             if (rc != 0) {
                 wprintf(L"[user-signs] %ls is not a valid signature database "
                         L"(the og's EUUserData JSON shape)\n",
                         user_signs_path.c_str());
                 return 1;
             }
-            wprintf(L"[user-signs] %u user signature(s) registered\n", cr_ui_user_sign_count());
+            wprintf(L"[user-signs] %u user signature(s) registered\n",
+                    carve::usersigns::active_count());
         }
     }
     std::vector<std::string> dict_user;

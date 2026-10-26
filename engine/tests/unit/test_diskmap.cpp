@@ -13,6 +13,8 @@
 #include "cr/tree/cr_diskmap.h"
 #include "cr/session/cr_records.h"
 #include "cr/tree/cr_node.h"
+#include "cr/tree/cr_snapshot.h"
+#include "cr/storage/cr_device.h"
 
 #include <gtest/gtest.h>
 
@@ -230,4 +232,70 @@ TEST(DiskMap, OverlayBudgetGrowsCellSize) {
     EXPECT_EQ(g.cell_count, (64ull << 20) / 2 + 1);
     /* the overlay vectors stay within the budget */
     EXPECT_LE(cov.size(), size_t(64ull << 20));
+}
+
+/* The hostile-map precedence + downsample-conservatism proof (moved
+ * from test_cr_ui.cpp: a pure core-builder test - the cr_ui suite
+ * links ONLY the shared C-ABI surface on MSVC, which does not export
+ * the C++ core; this test never touched the ABI). */
+
+TEST(DiskMap, FreeNeverOverridesUsedOrBadAndDownsampleIsConservative) {
+    /* Pure-builder precedence proof with a HOSTILE map: the bitmap
+     * claims every cluster free while a structured-active extent covers
+     * one cell and a read-error span covers another. USED and FsBad are
+     * the stricter claims - free must never override either. Plus the
+     * persistence downsample: cells only partially covered by the raw
+     * map stay NOT free (unknown is not free). */
+    using namespace cr;
+    tree::ResultTree t;
+    tree::FullNode* root = t.add_root(u"V");
+    auto* p = new tree::FileProperties();
+    p->record_ref = 1;
+    p->name = u"used.bin";
+    p->logical_size = 512;
+    p->extents.push_back({2 * 512, 512}); /* cell 2 */
+    tree::FileNode* f = t.add_file(root, p);
+    ASSERT_NE(f, nullptr);
+    p->release();
+
+    storage::FreeMap fm; /* claims ALL of [0, 8 KiB) free */
+    fm.base_byte = 0;
+    fm.cluster_bytes = 512;
+    fm.cluster_count = 16;
+    fm.bits.assign(2, 0xFF);
+
+    ReadErrorMap errors; /* a bad span over cell 5 */
+    errors.add(5 * 512, 512, 3);
+
+    viz::DiskMapInputs in;
+    in.slice_start = 0;
+    in.slice_bytes = 16 * 512;
+    in.cluster_bytes = 512;
+    in.free_map = &fm;
+    in.errors = &errors;
+    viz::DiskMapGeometry geom;
+    std::vector<u8> alloc;
+    std::vector<std::pair<u64, u64>> bad;
+    u32 bad_needed = 0;
+    ASSERT_EQ(
+        viz::build_disk_map(in, t, geom, &alloc, nullptr, nullptr, nullptr, bad, 8, &bad_needed),
+        u32(OK));
+    ASSERT_EQ(geom.cell_count, 16u);
+    EXPECT_EQ(alloc[2], 1u) << "USED is the stricter claim - hostile-free must not win";
+    EXPECT_EQ(alloc[5], 3u) << "FsBad (error span) is the stricter claim";
+    EXPECT_EQ(alloc[6], 2u) << "plain free cell paints FREE";
+    EXPECT_EQ(alloc[15], 2u);
+    EXPECT_EQ(bad_needed, 1u);
+
+    /* downsample: the raw map covers [0, 8 KiB) but the view is 12 KiB
+     * -> cells 16..23 (of the 24 half-KiB cells... at 512-byte cells)
+     * are NOT covered and must stay not-free even in the raw map's own
+     * tail; the covered cells stay free. */
+    storage::FreeMap down;
+    ASSERT_EQ(viz::downsample_free_map(fm, 0, 12 * 1024, down), u32(OK));
+    ASSERT_EQ(down.cluster_count, 24u); /* 12 KiB at 512-byte cells */
+    for (u64 k = 0; k < 16; ++k)
+        EXPECT_TRUE(down.is_free(k)) << "covered free clusters stay free after downsample";
+    for (u64 k = 16; k < 24; ++k)
+        EXPECT_FALSE(down.is_free(k)) << "uncovered tail is unknown, never free";
 }

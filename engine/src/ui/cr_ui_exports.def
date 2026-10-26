@@ -1,0 +1,19 @@
+; cr_ui_exports.def - the MSVC export tail for the ONE core symbol the
+; shim's own test binary consumes (tests/unit/test_cr_ui.cpp's
+; HeartbeatDuringStall drives the cr::log sink seam to observe the
+; N-062 memory-warn line through the same registry the DLL's scan
+; reads).
+;
+; On Linux the equivalent resolution is automatic: the statically linked
+; cr_core objects inside libcr_ui.so keep default visibility, so the
+; full core surface is reachable from the .dynsym. MSVC exports only
+; __declspec(dllexport) symbols, so this explicit one-entry list mirrors
+; the Linux behavior for exactly the symbol the test needs.
+;
+; The name below is the MSVC x64 decorated form of
+;   void cr::log::set_sink(void (*)(cr::log::Level, const char*, void*), void*)
+; If the signature ever changes, this entry goes stale and the MSVC
+; link fails loudly - update it in lockstep with include/cr/cr_log.h.
+
+EXPORTS
+    ?set_sink@log@cr@@YAXP6AXW4Level@12@PEBDPEAX@Z2@Z
