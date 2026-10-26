@@ -13423,3 +13423,35 @@ Stage Summary:
   fix queued behind decode items). Session tally: OQ-FLT-1 + OQ-Z5 + OQ-Z2
   resolved, S-034 filed. Next on this lane: OQ-Z1 (og dsl_dir/dsl_dataset
   offsets — the MOS-walk documentation question).
+
+---
+Task ID: DFX30-T4 (OQ-Z1 resolved — no divergence)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: OQ-Z1 — og dsl_dir/dsl_dataset offset constants (documentation
+question; the core already proven kernel-correct by the session-6
+refinement)
+
+Work Log:
+- The og-side decode executed first-hand (the OQ's "next session" entry
+  point): MOS walk -> "root_dataset" literal-string ZAP resolution
+  (FUN_18000bf60/FUN_18001e270, :19941/:20003, LITTLE-ENDIAN u64 values =
+  kernel ZAP semantics) -> FUN_180017690 dataset open (:20313-20787).
+- The load-bearing read PROVEN: the og reads the dataset root blkptr at
+  dnode-bonus+128 (bonus from node+0x1d*8 copied to local_13a8/local_1328;
+  FUN_180014ec0 receives local_1328 = the bonus+128 position, :20452-20506)
+  = kernel dsl_dataset_phys.ds_bp@128 = the core's DS_BP=128
+  (cr_zfs_engine.cpp:320/:1333). MATCH.
+- head_dataset_obj@8/child_dir_zapobj@24: explicit sites not individually
+  cited (they sit in the +0x1010 dnode-cache map consumers); closed by the
+  shipped-product argument (a deviating offset breaks the og on every real
+  pool; ds_bp@128 + LE-u64 ZAP semantics demonstrate kernel-layout
+  navigation) + the core's header-correctness re-verified (:316-320).
+- Disposition: NO og quirk to document; no PARITY-DELTAS row; the OQ's
+  kernel-text mis-transcription already recorded by session 6. The ACUTE
+  risk is fully retired (both engines kernel-layout).
+- Audit trail: OQ-Z1 marked RESOLVED inside OQ-Z-E-FLT-session3.md.
+
+Stage Summary:
+- OQ-Z1 RESOLVED (no divergence; core stands). Session tally: OQ-FLT-1,
+  OQ-Z5, OQ-Z2->S-034, OQ-Z1. Next on this lane: OQ-E1 (ext4 orphan
+  reachability — gates S-018 step 3).
