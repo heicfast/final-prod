@@ -14716,3 +14716,39 @@ Work Log:
 Stage Summary:
 - M-052 FIXED + N-079 NEW-FINDING FIXED (session tally: 2). MAJOR 11
   remain. Next: M-020 (Btrfs chunk profiles + default subvol pick).
+---
+Task ID: DFX35-3 (session 35 — the pushed-red repair before M-020)
+Agent: main engineer (DFX35)
+Task: Repair the pushed-red main inherited from the window's merge
+churn (the M-055/DFX22 precedent).
+
+Work Log:
+- The union rebase exposed two red tests from the parallel window's
+  merge chain (verified absent from my own files):
+  (1) win_syntax_check: cr_bitlocker.h carried COMMITTED conflict
+  markers (duplicate CONSENT block + a bare ======= at :91) and
+  rrecov.cpp had comment/code interleaved into broken syntax — the
+  196d75a merge ("827/827 green" claimed) mangled both. The merge
+  chain ALSO dropped the entire N-064 pwddict module (include/cr/
+  pwddict/, src/core/pwddict/, tests/unit/test_pwddict.cpp, both
+  CMake wirings) — the restored rrecov includes cr/pwddict/
+  cr_pwddict.h.
+  (2) Enumerate.ScopeDeltaRegisteredWithRevisitTrigger: the DFX30-T4
+  canonical renumber (their own note: "enumeration two-stack
+  D-79->D-84, Btrfs M-020 D-79->D-83") was applied to one copy of the
+  tripled ledger sections but a later bad merge reverted the first
+  copy; re-applied the two renames to the first-copy headings.
+- Restored from the last-green tree 126710f: cr_bitlocker.h, rrecov.cpp,
+  the pwddict module (3 files + 2 CMake wirings, indentation
+  normalized).
+- Suite 841/841 linux-release post-repair (win_syntax_check green; the
+  pwddict tests restored with the module).
+- KNOWN DEBT (still the DFX30 lane's declared next push, not hijacked):
+  PARITY-DELTAS.md carries DUPLICATED section blocks from the window's
+  union merges (the same D-rows at 2-3 file positions: D-80 x4, D-81
+  x3, D-79 copies) — the deterministic dedup/renumber pass stays
+  queued; this repair only restored the canonical first-copy numbers
+  the failing test anchors on.
+
+Stage Summary:
+- Main green again (841/841). Proceeding to M-020.

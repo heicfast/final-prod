@@ -2591,7 +2591,7 @@ records this as inherent: UNVERIFIED-BY-EXECUTION on this hardware).
 Recovery correctness is unaffected (health is advisory).
 
 
-### D-79 — Btrfs RAID0/RAID10 chunk reads: kernel stripe math vs the og's read failure (M-020, REGISTERED SUPERSET)
+### D-83 — Btrfs RAID0/RAID10 chunk reads: kernel stripe math vs the og's read failure (M-020, REGISTERED SUPERSET)
 
 The og's logical→physical node reader (BtrfsSearchDLL FUN_1800042a0,
 :2498-2583, verified first-hand session 33) serves ONLY the 2-copy class
@@ -2645,7 +2645,7 @@ incremental continuation (streaming formats whose end cannot be probed
 by a bounded forward walk) must either keep that model in its own layer
 or extend the validator contract — this register is the flag S-017's
 fix-plan step 3 cites.
-### D-79 — disk enumeration: the two-stack merge (PhysicalDrive loop + cfgmgr32 disk interfaces), not the og's five-stack fan-in (N-071, REGISTERED DIVERGENCE — partial port with scope rationale)
+### D-84 — disk enumeration: the two-stack merge (PhysicalDrive loop + cfgmgr32 disk interfaces), not the og's five-stack fan-in (N-071, REGISTERED DIVERGENCE — partial port with scope rationale)
 
 **Class:** registered divergence (enumeration breadth) · **Finding:**
 diff-to-fix N-071 (MINOR, fixed with the two-stack merge; residual
@@ -5255,7 +5255,7 @@ incremental continuation (streaming formats whose end cannot be probed
 by a bounded forward walk) must either keep that model in its own layer
 or extend the validator contract — this register is the flag S-017's
 fix-plan step 3 cites.
-### D-79 — disk enumeration: the two-stack merge (PhysicalDrive loop + cfgmgr32 disk interfaces), not the og's five-stack fan-in (N-071, REGISTERED DIVERGENCE — partial port with scope rationale)
+### D-84 — disk enumeration: the two-stack merge (PhysicalDrive loop + cfgmgr32 disk interfaces), not the og's five-stack fan-in (N-071, REGISTERED DIVERGENCE — partial port with scope rationale)
 
 **Class:** registered divergence (enumeration breadth) · **Finding:**
 diff-to-fix N-071 (MINOR, fixed with the two-stack merge; residual
@@ -7815,7 +7815,7 @@ records this as inherent: UNVERIFIED-BY-EXECUTION on this hardware).
 Recovery correctness is unaffected (health is advisory).
 
 
-### D-79 — Btrfs RAID0/RAID10 chunk reads: kernel stripe math vs the og's read failure (M-020, REGISTERED SUPERSET)
+### D-83 — Btrfs RAID0/RAID10 chunk reads: kernel stripe math vs the og's read failure (M-020, REGISTERED SUPERSET)
 
 The og's logical→physical node reader (BtrfsSearchDLL FUN_1800042a0,
 :2498-2583, verified first-hand session 33) serves ONLY the 2-copy class
@@ -7870,7 +7870,7 @@ incremental continuation (streaming formats whose end cannot be probed
 by a bounded forward walk) must either keep that model in its own layer
 or extend the validator contract — this register is the flag S-017's
 fix-plan step 3 cites.
-### D-79 — disk enumeration: the two-stack merge (PhysicalDrive loop + cfgmgr32 disk interfaces), not the og's five-stack fan-in (N-071, REGISTERED DIVERGENCE — partial port with scope rationale)
+### D-84 — disk enumeration: the two-stack merge (PhysicalDrive loop + cfgmgr32 disk interfaces), not the og's five-stack fan-in (N-071, REGISTERED DIVERGENCE — partial port with scope rationale)
 
 **Class:** registered divergence (enumeration breadth) · **Finding:**
 diff-to-fix N-071 (MINOR, fixed with the two-stack merge; residual
