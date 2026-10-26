@@ -164,6 +164,19 @@ typedef void (*cr_ui_recovery_progress_fn)(void* user, uint64_t bytes_done, uint
                              * instead). stage = 0xFFFFFFFF; bytes_total = 0 (unknown);         \
                              * overall_permille / stage_permille = the standing values;         \
                              * timestamp_ms = elapsed_ms; files counters = standing. */
+#define CR_EVT_SAVE_PROGRESS 9u /* N-060 save-path progress: fired from the thread running  \
+                                 * cr_ui_scan_save_session while the session serializes -  \
+                                 * coalesced (first tick, permille steps, terminal);      \
+                                 * stage = 0xFFFFFFFF; stage_permille = the save's own    \
+                                 * 0..1000; overall_permille = 1000 (standing - the scan  \
+                                 * is complete); bytes_done/bytes_total = nodes           \
+                                 * serialized / total nodes. Cancellation: the SAVE-     \
+                                 * SCOPED flag (cr_ui_scan_save_cancel during the save    \
+                                 * aborts it with CR_UI_ERR_CANCELLED and the final path  \
+                                 * keeps its previous content - the save is atomic        \
+                                 * temp-then-rename; the og's per-child IsCancelled is    \
+                                 * the save progress object's own state, NOT the scan     \
+                                 * flag - save-on-scan-cancel stays intact). */
 
 typedef struct cr_ui_event {
     uint32_t type;         /* CR_EVT_* above */
@@ -517,6 +530,16 @@ CR_UI_API uint32_t cr_ui_apply_save_undo(cr_ui_device* dev, const char* utf8_pat
  * emits, loadable by cr_ui_session_load / `rrecov tree`. Valid after run()
  * (including a cancelled one) or after a session-resumed run. */
 CR_UI_API uint32_t cr_ui_scan_save_session(cr_ui_scan* s, const char* utf8_path);
+
+/* N-060: cancel an in-flight cr_ui_scan_save_session (the og's per-child
+ * IUIProgressInfo::IsCancelled teardown - rsf-format--scan-session.md
+ * flow section). SAVE-SCOPED: never touches the scan's cancel token, so
+ * the save-on-scan-cancel flow (persisting a partial session after a
+ * cancelled scan) is unaffected. The aborted save returns
+ * CR_UI_ERR_CANCELLED; the final path keeps its previous content and no
+ * staging .tmp remains. A save not in flight is a no-op. Safe from any
+ * thread. */
+CR_UI_API uint32_t cr_ui_scan_save_cancel(cr_ui_scan* scan);
 
 /* Immutable value snapshot of the result tree (G-02). Callable from any
  * thread WHILE run() executes (partial=1 is stamped - mid-scan truth) and

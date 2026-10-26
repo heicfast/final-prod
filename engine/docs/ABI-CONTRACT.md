@@ -142,6 +142,21 @@ items committed, report truthful about the rest). Save-on-cancel is the
 caller's explicit choice (`cr_ui_scan_save_session` works on a cancelled
 scan) — matching the CLI's `--out` policy.
 
+**Session-save contract (N-060).** The save is ATOMIC (staging
+`<path>.tmp`, commit-by-rename): a torn save (cancel, failure, crash
+between truncate and finalize) never destroys the previous good session
+file at the final path; the staging file is removed on cancel/failure.
+While the session serializes, the library emits `CR_EVT_SAVE_PROGRESS`
+(coalesced: first tick, permille steps, terminal — fired from the thread
+running `cr_ui_scan_save_session`). `cr_ui_scan_save_cancel` sets the
+SAVE-SCOPED cancel flag — the og's per-child `IUIProgressInfo::
+IsCancelled` teardown (rsf-format--scan-session.md flow section: checked
+after every child, writer @186644-186674), which is the save progress
+object's OWN state, not the scan flag — so save-on-scan-cancel is
+unaffected. The aborted save returns `CR_UI_ERR_CANCELLED`; the final
+path keeps its previous content. The CLI's save path mirrors the atomic
+discipline (`<path>.tmp` + rename).
+
 ## 6. Typed event stream (GAP-S6-10)
 
 **Corpus lineage.** The reference pipes engine events to the UI through a
@@ -171,6 +186,7 @@ typed stream.
 #define CR_EVT_LOST_CANDIDATE   6u  /* lost-partition candidate found */
 #define CR_EVT_REPAIR           7u  /* pre-scan repair lifecycle (S-008) */
 #define CR_EVT_HEARTBEAT        8u  /* N-043 liveness heartbeat (5 s watchdog) */
+#define CR_EVT_SAVE_PROGRESS    9u  /* N-060 save-path progress (coalesced) */
 
 typedef struct cr_ui_event {
     uint32_t type;            /* CR_EVT_* above */

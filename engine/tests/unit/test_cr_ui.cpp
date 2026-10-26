@@ -26,6 +26,8 @@
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <future>
@@ -1050,6 +1052,111 @@ TEST(CrUi, HeartbeatDuringStall) {
             last = e.overall_permille;
         }
     }
+}
+
+/* ---- N-060: save-path progress + atomic cancel ---- */
+
+namespace {
+std::string read_all_bytes(const std::filesystem::path& p) {
+    std::ifstream in(p, std::ios::binary);
+    if (!in)
+        return {};
+    std::ostringstream ss;
+    ss << in.rdbuf();
+    return ss.str();
+}
+} // namespace
+
+namespace {
+struct SaveEvtLog {
+    cr_ui_scan* scan = nullptr;
+    bool cancel_enabled = false; /* part 2 only: the success path first */
+    uint32_t save_events = 0;
+    uint32_t last_pm = 0xFFFFFFFFu;
+    std::vector<uint32_t> pms;
+    bool overall_always_standing_1000 = true;
+    void record(const cr_ui_event* e) {
+        if (e->type != CR_EVT_SAVE_PROGRESS)
+            return;
+        ++save_events;
+        pms.push_back(e->stage_permille);
+        if (e->overall_permille != 1000u)
+            overall_always_standing_1000 = false;
+        /* cancel the save from the FIRST save-progress event - the
+         * og's per-child IsCancelled teardown (the save-scoped flag,
+         * NOT the scan token) */
+        if (cancel_enabled && save_events == 1)
+            cr_ui_scan_save_cancel(scan);
+    }
+};
+void save_evt_cb(void* user, const cr_ui_event* e) {
+    static_cast<SaveEvtLog*>(user)->record(e);
+}
+} // namespace
+
+TEST(CrUi, SaveProgressEventsAndAtomicCancel) {
+    /* N-060 end-to-end: the save emits coalesced CR_EVT_SAVE_PROGRESS
+     * (first tick + permille steps; overall stays the standing 1000 -
+     * the scan is complete); cr_ui_scan_save_cancel DURING the save (the
+     * og's IUIProgressInfo::IsCancelled - the save progress object's own
+     * state, NOT the scan flag: save-on-scan-cancel stays intact) aborts
+     * with CR_UI_ERR_CANCELLED; the atomic temp-then-rename keeps the
+     * FINAL path byte-identical to the previous good session and leaves
+     * no staging .tmp. */
+    Ui u;
+    std::string img = write_fixture("savecancel");
+    ASSERT_FALSE(img.empty());
+    ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+    cr_ui_scan_config cfg{};
+    cfg.stage_mask = 7;
+    ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+
+    namespace fs = std::filesystem;
+    const fs::path dir = fs::temp_directory_path() /
+        (std::string("cr_n060_") + std::to_string(CR_TEST_GETPID()));
+    std::error_code ec;
+    fs::remove_all(dir, ec);
+    fs::create_directories(dir);
+    const fs::path final_path = dir / "session.crsf";
+    const fs::path tmp_path = dir / "session.crsf.tmp";
+
+    /* 1. the success path commits atomically: final exists, no .tmp */
+    SaveEvtLog log;
+    log.scan = u.scan;
+    ASSERT_EQ(cr_ui_scan_set_event_fn(u.scan, save_evt_cb, &log), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_save_session(u.scan, final_path.string().c_str()), CR_UI_OK);
+    EXPECT_TRUE(fs::exists(final_path, ec));
+    EXPECT_FALSE(fs::exists(tmp_path, ec)) << "no staging file after a committed save";
+    EXPECT_GE(log.save_events, 1u) << "the save must emit progress events";
+    EXPECT_TRUE(log.overall_always_standing_1000)
+        << "save progress never touches the completed scan's standing permille";
+    uint32_t last = 0;
+    for (uint32_t pm : log.pms) {
+        EXPECT_GE(pm, last) << "save stage_permille is monotonic";
+        last = pm;
+    }
+    /* the committed file's bytes are the baseline the cancel must keep */
+    const std::string good = read_all_bytes(final_path);
+    EXPECT_FALSE(good.empty());
+
+    /* 2. the cancel path: aborting mid-save keeps the previous good file */
+    log.save_events = 0;
+    log.pms.clear();
+    log.cancel_enabled = true; /* arm the cancel for this save */
+    ASSERT_EQ(cr_ui_scan_save_session(u.scan, final_path.string().c_str()),
+              0x50020005u /* CR_UI_ERR_CANCELLED */);
+    EXPECT_GE(log.save_events, 1u) << "the cancel rode a save-progress event";
+    EXPECT_EQ(read_all_bytes(final_path), good)
+        << "an aborted save leaves the previous good session byte-identical";
+    EXPECT_FALSE(fs::exists(tmp_path, ec)) << "no staging file after an aborted save";
+    /* the save cancel is save-scoped: the SCAN token was never touched */
+    cr_ui_telemetry t{};
+    ASSERT_EQ(cr_ui_scan_telemetry(u.scan, &t), CR_UI_OK);
+    EXPECT_EQ(t.cancelled, 0u) << "save cancel never cancels the scan";
+
+    fs::remove_all(dir, ec);
 }
 
 /* ---- N-040: ABI doc-truthfulness pins ---- */

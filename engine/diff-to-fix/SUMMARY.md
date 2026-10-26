@@ -258,6 +258,26 @@ with it in the same commit. Suite 686/686. Finding → FIXED/.
 SEVERE 0 · MAJOR 24 · MINOR 32 · INFO 22 (0 actionable) · tracked-open
 16 · FIXED 115 files (114 findings + RESOLVED-INDEX).
 
+**N-060 FIXED (save progress + cancel + atomic saves):** the og's save
+window (rsf-format flow section: 40 + 50·processed/(2·remaining) with
+per-child IUIProgressInfo::IsCancelled teardown, re-verified first-hand)
+mapped honestly: per-node `session::SerializeProgress` hook through
+serialize_tree (ERR_CANCELLED on false) + save_session pass-through +
+the shim's coalesced CR_EVT_SAVE_PROGRESS (9u; the save's own 0..1000
+stage_permille, overall stays the standing 1000 — the og's 40→65%
+window would regress our monotonic permille; not adopted, registered)
++ the SAVE-SCOPED cr_ui_scan_save_cancel export (the mid-fix
+correction: the og's IsCancelled is the save object's state, NOT the
+scan flag — save-on-scan-cancel stays intact) + atomic temp-then-rename
+saves (shim + CLI — the N-014 discipline; a torn save never destroys
+the previous good session). Session.SaveEmitsProgress /
+SaveCancelsCleanly + CrUi.SaveProgressEventsAndAtomicCancel; fail-before
+by construction. Suite 716/716. Finding → FIXED/.
+
+**Counts after this landing (direct file inventory at the N-060 push):**
+SEVERE 0 · MAJOR 24 · MINOR 31 · INFO 22 (0 actionable) · tracked-open
+16 · FIXED 116 files (115 findings + RESOLVED-INDEX).
+
 ## Session-10 delta — the SEVERE tier close-out (2026-10-26)
 
 This lane (DFX10) executed the published order S-009 -> S-029 -> S-030

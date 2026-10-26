@@ -63,6 +63,7 @@
 #include <functional>
 #include <map>
 #include <condition_variable>
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <vector>
@@ -692,6 +693,12 @@ struct CrScan {
      * / saw_progress / run_started_at are guarded by heartbeat_mu;
      * heartbeat_stop + the cv shut the thread down at run end (and
      * defensively at close). */
+    /* N-060: SAVE-SCOPED cancel flag (the og's IUIProgressInfo
+     * IsCancelled is the save progress object's own state, NOT the scan
+     * flag - rsf-format--scan-session.md flow section). cr_ui_scan_
+     * save_cancel sets it; the save adapter polls it per node; the
+     * scan's PausableToken is untouched (save-on-scan-cancel intact). */
+    std::atomic<bool> save_cancel{false};
     std::thread heartbeat_thread;
     std::mutex heartbeat_mu;
     std::condition_variable heartbeat_cv;
@@ -1986,25 +1993,99 @@ u32 scan_checkpoint_count_impl(cr_ui_scan* scan, uint64_t* out) {
     return ret_ok();
 }
 
+/* N-060: the save-path progress/cancel adapter. The og's save rides the
+ * scan's cancellation flag with per-child IsCancelled teardown and
+ * reports progress inside the save window (rsf-format--scan-session.md
+ * flow section). The core hook is per-node; this adapter (a) consults
+ * the SAME token the scan used - cr_ui_scan_cancel during the save is
+ * the save-cancel - and (b) coalesces CR_EVT_SAVE_PROGRESS events
+ * (first tick, permille steps, terminal - the event cadence the scan
+ * progress bridge uses, never per node). */
+struct SaveProgressState {
+    CrScan* s = nullptr;
+    u32 last_pm = 0xFFFFFFFFu;
+    bool first = true;
+};
+bool save_progress_adapter_(u64 done, u64 total, void* user) {
+    auto* st = static_cast<SaveProgressState*>(user);
+    CrScan* s = st->s;
+    /* per-child IsCancelled equivalent: the SAVE-SCOPED flag is checked
+     * on EVERY tick, events or not (a silent host can still cancel the
+     * save); the scan token is deliberately NOT consulted - the og's
+     * save-cancel is the progress object's own state, so a scan
+     * cancelled mid-run can still persist its partial session */
+    if (s->save_cancel.load(std::memory_order_relaxed))
+        return false;
+    if (!s->event_fn)
+        return true;
+    const u32 pm = total ? u32(done * 1000 / total) : 1000;
+    if (st->first || pm != st->last_pm || done == total) {
+        st->first = false;
+        st->last_pm = pm;
+        cr_ui_event out;
+        std::memset(&out, 0, sizeof(out));
+        out.type = CR_EVT_SAVE_PROGRESS;
+        out.stage = 0xFFFFFFFFu;
+        out.stage_permille = pm;      /* the save's own 0..1000 */
+        out.overall_permille = 1000;  /* standing - the scan is complete */
+        out.bytes_done = done;        /* nodes serialized */
+        out.bytes_total = total;      /* total nodes */
+        s->event_fn(s->event_user, &out);
+    }
+    return true;
+}
+
 u32 scan_save_session_impl(cr_ui_scan* scan, const char* utf8_path) {
     if (!scan || !utf8_path || !*utf8_path)
         return ret_(ERR_BAD_PARAMETER, "bad argument: scan/path");
     auto* s = reinterpret_cast<CrScan*>(scan);
     if (!s->has_ctrl)
         return ret_(ERR_BAD_PARAMETER, "scan has not run (nothing to save)");
-    FILE* f = open_file(utf8_path, true);
+    /* N-060: atomic temp-then-rename (the N-014 checkpoint discipline;
+     * the og's crash-safety rule - a torn save never destroys the
+     * previous good session file). The final path is only ever replaced
+     * by a fully finalized container; a cancel or failure leaves the
+     * previous good file and removes the staging .tmp. */
+    s->save_cancel.store(false, std::memory_order_relaxed); /* fresh save */
+    const std::string final_path(utf8_path);
+    const std::string tmp_path = final_path + ".tmp";
+    FILE* f = open_file(tmp_path.c_str(), true);
     if (!f)
-        return ret_(ERR_SESSION_IO, "cannot create session file %s", utf8_path);
+        return ret_(ERR_SESSION_IO, "cannot create session file %s", tmp_path.c_str());
     session::Writer w(f_write_cb, f_tell_cb, f_seek_cb, f);
     w.set_flags(session::CRSF_FLAG_ABS_EXTENTS); /* F-1: absolute basis */
+    SaveProgressState spst;
+    spst.s = s;
     u32 rc = w.open(0x52434F56);
     if (rc == OK)
-        rc = s->ctrl->save_session(w, s->stats);
+        rc = s->ctrl->save_session(w, s->stats, save_progress_adapter_, &spst);
     if (rc == OK)
         rc = w.finalize();
     std::fclose(f);
-    if (rc != OK)
+    if (rc == OK) {
+        std::error_code ec;
+        std::filesystem::rename(tmp_path, final_path, ec);
+        if (ec)
+            rc = ERR_SESSION_IO;
+    }
+    if (rc != OK) {
+        /* cancel or failure: the staging file is a torn never-committed
+         * save - remove it, never trust it (the final path keeps the
+         * previous good session, exactly as before the attempt) */
+#ifdef _WIN32
+        DeleteFileW(u8_to_ws(tmp_path.c_str()).c_str());
+#else
+        std::remove(tmp_path.c_str());
+#endif
         return ret_(rc, "session save failed (%s)", err_text(rc));
+    }
+    return ret_ok();
+}
+
+u32 scan_save_cancel_impl(cr_ui_scan* scan) {
+    if (!scan)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: scan");
+    reinterpret_cast<CrScan*>(scan)->save_cancel.store(true, std::memory_order_relaxed);
     return ret_ok();
 }
 
@@ -2147,6 +2228,9 @@ extern "C" CR_UI_API uint32_t cr_ui_apply_save_undo(cr_ui_device* dev, const cha
 }
 extern "C" CR_UI_API uint32_t cr_ui_scan_save_session(cr_ui_scan* scan, const char* utf8_path) {
     return guarded(scan_save_session_impl, scan, utf8_path);
+}
+extern "C" CR_UI_API uint32_t cr_ui_scan_save_cancel(cr_ui_scan* scan) {
+    return guarded(scan_save_cancel_impl, scan);
 }
 extern "C" CR_UI_API uint32_t cr_ui_scan_snapshot(cr_ui_scan* scan, cr_ui_snapshot** out) {
     return guarded(scan_snapshot_impl, scan, out);

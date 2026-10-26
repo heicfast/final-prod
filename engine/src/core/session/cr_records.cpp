@@ -86,7 +86,8 @@ struct Cursor {
 };
 } // namespace
 
-u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out) {
+u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out,
+                   SerializeProgress progress, void* progress_user) {
     out.clear();
     /* depth-first walk; ids in emission order; parents always earlier.
      * The ROOTS THEMSELVES are emitted (marker=1 full nodes, parent
@@ -107,9 +108,20 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out) {
     for (const tree::FileNode* r : tree.roots())
         walk(r, 0xFFFFFFFFu);
 
+    /* N-060: per-node progress + cancel (the og checks per child during
+     * save teardown - rsf-format--scan-session.md flow section; the
+     * pre-order walk already knows the total). The terminal tick is
+     * (total, total) so a completed save is always observable; a false
+     * return aborts with ERR_CANCELLED and the caller discards the
+     * partial output (the writer never sees it). */
+    const u64 total_nodes = u64(order.size());
+    if (progress && !progress(0, total_nodes, progress_user))
+        return ERR_CANCELLED;
     /* first pass: measure node_count; header written now, patched after */
     put32(out, u32(order.size()));
     for (size_t i = 0; i < order.size(); ++i) {
+        if (progress && !progress(u64(i), total_nodes, progress_user))
+            return ERR_CANCELLED;
         const tree::FileNode* n = order[i];
         const tree::FileProperties* pr = n->props();
         /* v2 node flags (stored in the v1 reserved slot; old readers skip
@@ -219,6 +231,8 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out) {
             put64(out, f->stats().deleted_count);
         }
     }
+    if (progress && !progress(total_nodes, total_nodes, progress_user))
+        return ERR_CANCELLED; /* terminal tick is cancellable too */
     return OK;
 }
 

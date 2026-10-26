@@ -11914,3 +11914,43 @@ Stage Summary:
   tally: N-078, N-016b (N-029 group), N-063, N-056 (4 findings) + 2
   baseline repairs + 1 convergence verification. Next: N-046 (geometry
   refresh), N-043 (progress liveness watchdog).
+
+---
+
+---
+Task ID: DFX18-T6 (session 18, sixth fix — N-060)
+Agent: main engineer (diff-to-fix fix session 18 — DFX18)
+Task: N-060 save_session progress + cancel + atomicity.
+
+Work Log:
+- Corpus re-verified first-hand (rsf-format--scan-session.md flow
+  section): progress = 40 + 50·processed/(2·remaining) via callback;
+  cancel = IUIProgressInfo::IsCancelled checked after EVERY child
+  (writer @186644-186674) — and IsCancelled is the SAVE PROGRESS
+  OBJECT's state, not the scan flag. That decode CORRECTED my initial
+  design mid-fix (gating the save on the scan's PausableToken would
+  have broken save-on-scan-cancel — the CancelSaveAndResume contract);
+  the save-cancel is a separate save-scoped flag + export.
+- Core: session::SerializeProgress (per-node (done,total) ticks, total
+  from the pre-order walk, ERR_CANCELLED on false, terminal tick) +
+  serialize_tree hook + save_session pass-through (NULL = silent).
+- Shim: coalescing adapter → CR_EVT_SAVE_PROGRESS (9u, appended type;
+  first tick, permille steps, terminal; stage_permille = the save's own
+  0..1000, overall = the STANDING 1000 — the og's 40→65% window would
+  regress our monotonic permille; not adopted, registered in
+  ABI-CONTRACT) + cr_ui_scan_save_cancel (appended export) + ATOMIC
+  temp-then-rename save (staging .tmp, commit-by-rename, remove on
+  cancel/failure — the N-014 discipline). CLI save_session_to mirrors.
+- Tests: Session.SaveEmitsProgress + Session.SaveCancelsCleanly (core;
+  my first hand-count of the fixture tree was wrong — replaced with a
+  programmatic walk) + CrUi.SaveProgressEventsAndAtomicCancel (shim;
+  the first run caught my callback cancelling the SUCCESS path too —
+  gated to part 2). Fail-before by construction (the hook/export did
+  not exist).
+- Suite 716/716 linux-release. Audit trail: Resolution + FIXED/ move,
+  index row (101 header), matrix rows (session ×3), SUMMARY counts,
+  ABI-CONTRACT §5 save contract + event table.
+
+Stage Summary:
+- N-060 FIXED (tally: 6 — N-045, N-046, N-040, N-074, N-043, N-060).
+  MINOR 31 remain. Next: N-061 (runlog/auto-naming) or N-062/N-064.

@@ -1419,7 +1419,9 @@ u32 ScanController::run_carve_stage(IStorageDevice* slice, CancelToken* cancel,
     return rc;
 }
 
-u32 ScanController::save_session(session::Writer& w, const ScanStats& stats) const {
+u32 ScanController::save_session(session::Writer& w, const ScanStats& stats,
+                                 session::SerializeProgress progress,
+                                 void* progress_user) const {
     /* record order: session state, volume info, partition contexts, tree,
      * error map (the writer chains them; ids from the container)
      *
@@ -1506,9 +1508,16 @@ u32 ScanController::save_session(session::Writer& w, const ScanStats& stats) con
                 return rc;
     }
 
-    if (session::serialize_tree(tree_, blob) == OK)
-        if (u32 rc = w.add_record(session::REC_RESULT_TREE, blob.data(), u32(blob.size())))
+    /* N-060: the tree record is the long pole on large sessions - the
+     * progress/cancel hook rides it (per node; ERR_CANCELLED propagates
+     * and the caller discards the partial container). */
+    {
+        const u32 rc = session::serialize_tree(tree_, blob, progress, progress_user);
+        if (rc != OK)
             return rc;
+        if (u32 rc2 = w.add_record(session::REC_RESULT_TREE, blob.data(), u32(blob.size())))
+            return rc2;
+    }
 
     if (session::serialize_error_map(stats.errors, blob) == OK)
         if (u32 rc = w.add_record(session::REC_ERROR_MAP, blob.data(), u32(blob.size())))
