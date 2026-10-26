@@ -393,3 +393,21 @@ B1/A28 verdicts: MATCH.
   Both new tests pin exact structural sizes (1208 / 1210); fail-before
   executed on the stash-isolated pre-fix tree with the hit-inflated
   values quoted in the finding. A28/B1 verdict: MATCH.
+
+## Session-17 fix row (2026-10-26, DFX17 — N-063 closed)
+
+**N-063 FIXED** (findings/FIXED/): the og's per-analyser carved-file
+naming landed — `CarveResult::embedded_name` carrier with emit
+precedence (embedded_name > namer callback > default). The MP4/MOV
+template is decode-pinned first-hand: "Lost Name File (<time>)_EaseUS"
+with <time> = "%04d:%02d:%02d %02d:%02d:%02d" of the RAW mvhd value
+(v0: BE u32@+0x10; v1: the FIRST FOUR BYTES of the u64@+0x14 — the og's
+high-word quirk, every sane v1 time formats as the epoch) fed as Unix
+seconds with NO 1904-epoch conversion — both og quirks replicated and
+pinned by test, never "corrected". The field is the MODIFICATION time
+under the ISO layout (the finding's "creation" label corrected by the
+decode). The false "corpus policy" comment on default_namer repaired;
+File%06u is now the REGISTERED deliberate default (PARITY-DELTAS D-76,
+with the UTC-vs-host-local template formatting divergence). 4 tests,
+fail-before 3/3 RED. B10/A28 → MATCH for the decoded surface; the
+CZeroEnd-family membership beyond MP4/MOV is the recorded remainder.

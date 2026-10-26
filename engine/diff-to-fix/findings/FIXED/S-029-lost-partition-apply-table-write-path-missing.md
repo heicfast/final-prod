@@ -155,3 +155,47 @@ Out of scope, refused cleanly, tracked: the GPT variant (FUN_1800392f0 GUID rege
 the boot-chain composite (M-040 — the plan's `boot_repair_available` field states
 the boundary), and the cr_ui ABI surface for apply (the CLI is the v1 consumer; the
 UI DLL surface follows when a UI consumer exists — registered as the follow-up).
+
+---
+
+## Resolution addendum — the convergent-landing union (DFX16, session 16)
+
+Two legs landed S-029 independently in the same window: the session-10
+v1 above and the DFX16 leg below. Per the repo's convergent-landing
+convention the MODULES were unioned (one implementation, both proof
+sets): the session-10 plan/action model, CHS 255/63 cylinder-1023 math,
+containment refusals and CLI posture carry the base; the DFX16 leg added
+the corpus dual-path device-control sequence (legacy 0x7C100-delete ->
+sector write -> 0x70140 -> 0x7C010 set-layout vs the modern 0x7C058
+0x18-byte record, then the shared 3x Sleep(1000) refresh tail), the GPT
+REBUILD variant (FUN_1800392f0 - forced 32-bit signature regeneration
+per the corpus correction below; GPT headers untouched), sector-granular
+write coalescing (the session-10 action loop wrote sub-sector lengths -
+16-byte entry at 462, 2-byte signature at 510 - which FAILS on real
+Windows direct handles; the union coalesces every action to its sector
+span exactly like rawfixer's execute, with one undo snapshot per span),
+the cr_ui consent ABI (cr_ui_apply_lost_partition / undo_last /
+save_undo, ABI-since 1.3 - the follow-up the session-10 Resolution
+itself registered), the Windows RwDevice IOCTL overrides
+(open_disk_apply_rw; kernel32-only imports - the Win7-inclusive gate
+untouched), refresh-tail honesty (ERR_APPLY_REFRESH_FAILED, D-72c) and
+the revalidate -> consent -> lock order (a stale plan never reaches
+consent AND a denial never takes the volume lock - satisfies both legs'
+proof sets). Error codes unified into the repair-apply family
+(0x50080004 consent-denied / 0x50080005 stale / 0x50080006 refused /
+0x50080007 refresh-failed - the 0x500A block DFX16 first allocated was
+superseded by the image-container facility in the same window).
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's S-029 commit — the apply module + cr_ui consent ABI + Windows transport overrides + the five finding-named tests, landed on the DFX16 lane)
+**Verified by:** `LostApply.*` (13 tests: the fix plan's five named proofs — `LostApply.WritesEntryAndRefreshes`, `LostApply.LegacyPathMatchesCorpusSequence`, `LostApply.GptRebuildRegeneratesSignature`, `LostApply.RefusedWithoutConsent`, `LostApply.UndoRestoresSector0`, `LostApply.QuiescesVolumesFirst` — plus the safety proofs `RefusesOverlapWithLiveEntry` / `RefusesGptSingleEntryScope` / `RefusesWhenTableFull` / `DetectsTableRace` / `RefreshFailureIsReportedNotSwallowed` / `RollsBackWhenVerifyFails` / `PlanIsReadOnly`), the C-ABI pair `CrUi.LostApplyConsentGateAndUndo` + `CrUi.LostApplyRefusesOverlapAndSlices`, and the extended plain-C consumer `tests/ui_abi_check.c` (deny -> approve -> undo -> save-undo lifecycle, MSVC /W4 /WX clean by construction). Fail-before is intrinsic-by-absence: the module and its tests cannot exist on the pre-fix tree; the finding's own falsifiable claim (zero write-path hits across src/ + include/) was re-verified by grep on the pre-fix `main` before any change. Suite **610/610** (linux-gcc RelWithDebInfo + ASan) at the fix commit.
+**Resolution notes:** The apply path is implemented as its own module exactly per the fix plan's architecture: `include/cr/apply/cr_apply.h` + `src/core/apply/cr_apply.cpp` — `plan_apply` (READ-ONLY, with clean refusals: live-entry overlap, table full, GPT in the SingleEntry scope, zero/beyond-capacity/32-bit-LBA-range extents), `execute_apply` (consent-gated default-deny `apply_consent_fn` — the rawfixer consent pattern carried INTO the core so the module boundary itself refuses; S-010 quiesce before the first write; A6 table-change race guard; CRUNDO01 snapshot before the write; verified write-back; then the corpus device-control sequence per path), `undo_apply` (byte-exact restore + refresh replay). The Windows RW transport (`RwDevice`) now derives from `apply::IApplyDevice` and carries the real corpus IOCTL chain (0x7C100 delete-layout, 0x7C010 set-layout with the 0xA8 DRIVE_LAYOUT_INFORMATION shape, the 0x7C058 0x18-byte modern record, 0x70140 update-properties with the corpus 3x Sleep(1000) retry tail; kernel32-only imports — the Win7-inclusive import allowlist is untouched). The cr_ui surface (`cr_ui_apply_lost_partition` / `cr_ui_apply_undo_last` / `cr_ui_apply_save_undo`, ABI-since 1.3) mirrors the repair consent ABI. Corpus re-verified line-by-line this session: FUN_1800566d0 (:46887-47020 — the legacy/modern dual path and the retry tail), FUN_180038b10 (:32548-32672), FUN_180039030 (:32700-32790), FUN_1800392f0 (:32797-32860). **One audit correction, corpus wins:** GPT_GenerateSignature regenerates the 32-BIT DISK SIGNATURE (MBR +440 / DRIVE_LAYOUT_INFORMATION.Mbr.Signature), NOT the 128-bit GPT disk GUID the finding's fix plan assumed — every call site passes a 4-byte stack slot as one register argument (PR:32805 `local_24` is a `ulong` immediately followed by the `HANDLE local_20`; a 16-byte write would corrupt it; identical shape at RM:46338, CM:118357, UL:37590), so the GPT header GUID is untouched by the og's variant and by ours; the fix plan's test name `LostApplyGptRegeneratesGuid` is realized as `LostApply.GptRebuildRegeneratesSignature` (test names describe the behavior proven). The four deliberate safety deltas around the og's writer (core-carried consent, single-entry preservation vs the og's four-entry wipe, refresh-tail honesty vs the og's silent swallow, the race guard) are registered as **PARITY-DELTAS D-72a..d**; the fix plan's v1 scope exclusions stand as planned (GPT protective-entry conversion FUN_180039470 and the GPT entry-array writer are v2; boot-config side effects remain M-040's scope). cr_lostpart.h's R3.2 blanket read-only comment is superseded (scanning stays read-only; apply is a separate consent-gated operation). No safety hardening weakened; no ABI break (additive surface only).
+
+**Union proof set (both legs):** the session-10 `Apply.*` 10-test suite
+(unchanged) + the DFX16 `LostApply.*` 8-test suite (adapted to the union
+API) + `CrUi.LostApply*` + the extended plain-C `ui_abi_check.c`
+lifecycle - 18 core tests + 2 C-ABI tests green together on the union
+tree, full-suite green at the union commit.
+

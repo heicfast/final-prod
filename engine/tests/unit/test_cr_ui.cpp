@@ -800,6 +800,7 @@ struct EventLog {
     uint32_t files_events = 0;
     uint32_t checkpoints = 0;
     uint32_t repair_events = 0;
+    uint32_t heartbeats = 0; /* N-043: known type (slow lanes may stall >5s) */
     uint32_t unknown_types = 0;
     bool saw_quick = false, saw_deep = false, saw_carve = false;
     void record(const cr_ui_event* e) {
@@ -820,6 +821,9 @@ struct EventLog {
         case CR_EVT_REPAIR: /* S-008: known type of this build */
             ++repair_events;
             break;
+        case CR_EVT_HEARTBEAT: /* N-043: known type (slow lanes may stall) */
+            ++heartbeats;
+            break;
         case CR_EVT_FILES_FOUND:
             ++files_events;
             break;
@@ -827,7 +831,7 @@ struct EventLog {
             ++checkpoints;
             break;
         default:
-            if (e->type > CR_EVT_LOST_CANDIDATE)
+            if (e->type > CR_EVT_HEARTBEAT)
                 ++unknown_types; /* must never happen from this build */
             break;
         }
@@ -946,6 +950,108 @@ TEST(CrUi, EventStreamUnsubscribeAndResubscribe) {
     EXPECT_EQ(log.events.size(), 0u) << "unsubscribed scans must emit nothing";
 }
 
+/* ---- N-043: the liveness heartbeat watchdog ---- */
+
+namespace {
+struct HeartbeatLog {
+    std::mutex mu;
+    std::vector<cr_ui_event> events;
+    std::vector<std::thread::id> threads;
+    void record(const cr_ui_event* e) {
+        std::lock_guard<std::mutex> lock(mu);
+        events.push_back(*e);
+        threads.push_back(std::this_thread::get_id());
+    }
+};
+void hb_event_cb(void* user, const cr_ui_event* e) {
+    static_cast<HeartbeatLog*>(user)->record(e);
+}
+} // namespace
+
+TEST(CrUi, HeartbeatDuringStall) {
+    /* N-043 (the finding's fix-plan option (b), the honest heartbeat): a
+     * pause-parked scan is a DETERMINISTIC stall - no CR_EVT_SCAN_PROGRESS
+     * fires while parked, run() is in flight - so the 5 s watchdog (the
+     * og's FUN_140577100 cadence, DRWUI_decompiled.c:910565-910585) must
+     * fire CR_EVT_HEARTBEAT from its OWN thread. The honest divergence:
+     * the og's watchdog bumps its coarse progress counter (+0xe8) and
+     * re-fires the progress callback - FABRICATED movement; ours must
+     * carry the STANDING permille (zero synthetic advance) so the full
+     * log incl. heartbeats stays strictly monotonic (the finding's
+     * Progress.HeartbeatDuringStall + PermilleStrictlyMonotonicUnder-
+     * Heartbeat pair, proven on one deterministic stall fixture - two
+     * 6+ second stalls would double the suite for no extra coverage). */
+    Ui u;
+    std::string img = write_fixture("hb");
+    ASSERT_FALSE(img.empty());
+    ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+    HeartbeatLog log;
+    cr_ui_scan_config cfg{};
+    cfg.stage_mask = 7;
+    ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_set_event_fn(u.scan, hb_event_cb, &log), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_pause(u.scan), CR_UI_OK); /* park at the first gate */
+    auto fut = std::async(std::launch::async, [&u] { return cr_ui_scan_run(u.scan); });
+    cr_ui_telemetry t{};
+    for (int i = 0; i < 3000; ++i) {
+        if (cr_ui_scan_telemetry(u.scan, &t) == CR_UI_OK && t.running)
+            break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    ASSERT_EQ(t.running, 1u) << "the scan must park RUNNING inside the pause gate";
+
+    /* the stall window: poll for the watchdog's first beat (bounded at
+     * 12 s; the cadence is 5 s from the last progress - the park fires
+     * none, so the clock runs from run start) */
+    bool saw_hb = false;
+    uint32_t hb_pm = 0, last_progress_pm = 0;
+    bool saw_progress = false;
+    std::thread::id hb_thread{};
+    for (int i = 0; i < 12000 && !saw_hb; ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::lock_guard<std::mutex> lock(log.mu);
+        for (size_t k = 0; k < log.events.size(); ++k) {
+            if (log.events[k].type == CR_EVT_HEARTBEAT) {
+                saw_hb = true;
+                hb_pm = log.events[k].overall_permille;
+                hb_thread = log.threads[k];
+            } else if (log.events[k].type == CR_EVT_SCAN_PROGRESS) {
+                saw_progress = true;
+                last_progress_pm = log.events[k].overall_permille;
+            }
+        }
+    }
+    /* EXPECT (not ASSERT): a failure must NOT return early here - the
+     * parked scan + the async run thread below MUST be released or the
+     * fixture teardown deadlocks against the pause gate */
+    EXPECT_TRUE(saw_hb) << "the watchdog must beat during a >5s stall";
+    /* the standing truth, never a synthetic advance (the og's +1 bump is
+     * the registered divergence this pin forbids) */
+    EXPECT_EQ(hb_pm, saw_progress ? last_progress_pm : 0u)
+        << "heartbeats must carry the standing permille - no fabricated movement";
+    /* from the watchdog's OWN thread (not the test thread; the scan runs
+     * on the async thread) */
+    if (saw_hb) {
+        EXPECT_NE(hb_thread, std::this_thread::get_id());
+    }
+
+    /* always resume and complete cleanly with the watchdog joined */
+    ASSERT_EQ(cr_ui_scan_resume(u.scan), CR_UI_OK);
+    ASSERT_EQ(fut.get(), CR_UI_OK);
+
+    /* full-log monotonicity INCLUDING heartbeats (progress + heartbeat
+     * events never regress overall_permille) */
+    uint32_t last = 0;
+    std::lock_guard<std::mutex> lock(log.mu);
+    for (const auto& e : log.events) {
+        if (e.type == CR_EVT_SCAN_PROGRESS || e.type == CR_EVT_HEARTBEAT) {
+            EXPECT_GE(e.overall_permille, last);
+            last = e.overall_permille;
+        }
+    }
+}
+
 /* ---- N-040: ABI doc-truthfulness pins ---- */
 
 namespace {
@@ -979,9 +1085,10 @@ TEST(CrUi, EventThreadContractPinned) {
      *      records it without any host-side marshaling requirement. */
     const std::string doc = cr_test::read_repo_file("docs/ABI-CONTRACT.md");
     ASSERT_FALSE(doc.empty());
-    EXPECT_NE(doc.find("Fired on engine worker threads or the thread running `run()`"),
+    EXPECT_NE(doc.find("Fired on engine worker threads, the thread running `run()`, or the"),
               std::string::npos)
-        << "ABI-CONTRACT must carry the truthful thread contract";
+        << "ABI-CONTRACT must carry the truthful thread contract (the N-043 "
+           "heartbeat watchdog is the third delivery thread)";
     EXPECT_EQ(doc.find("Fired on the thread running `run()` only"), std::string::npos)
         << "the false run()-thread-only claim must never return";
     const std::string hdr = cr_test::read_repo_file("include/cr/cr_ui.h");
@@ -1202,9 +1309,9 @@ TEST(CrUi, DiskMapFreeOverlayFromFatTable) {
     ASSERT_EQ(got.cluster_bytes, 512u);
     ASSERT_EQ(got.cell_bytes, 512u);
     /* data base = sector 74; cluster c lives at cell 72 + c */
-    const unsigned cell_doc = 72 + 10;      /* DOC.TXT first cluster */
-    const unsigned cell_del = 72 + 20;      /* DELFILE.TXT (deleted) */
-    const unsigned cell_free = 72 + 200;    /* far-away free cluster */
+    const unsigned cell_doc = 72 + 10;   /* DOC.TXT first cluster */
+    const unsigned cell_del = 72 + 20;   /* DELFILE.TXT (deleted) */
+    const unsigned cell_free = 72 + 200; /* far-away free cluster */
     ASSERT_LT(cell_free, unsigned(got.cell_count));
     EXPECT_EQ(alloc[cell_doc], 1u) << "active structured content is USED, never free";
     EXPECT_EQ(alloc[cell_del], 0u) << "deleted chain: FAT non-zero (not free), deleted (not USED)";
@@ -1247,8 +1354,8 @@ TEST(CrUi, DiskMapFreeCellsSurviveSessionReloadAndSnapshot) {
     uint32_t bad_count = 0;
     want.start_byte = 0;
     want.total_bytes = 512ull * 5074;
-    ASSERT_EQ(cr_ui_disk_map(nullptr, snap, &want, &got, &alloc, nullptr, nullptr, nullptr,
-                             nullptr, 0, &bad_count),
+    ASSERT_EQ(cr_ui_disk_map(nullptr, snap, &want, &got, &alloc, nullptr, nullptr, nullptr, nullptr,
+                             0, &bad_count),
               CR_UI_OK);
     uint64_t free_via_snapshot = 0;
     for (uint64_t i = 0; i < got.cell_count; ++i)
@@ -1261,8 +1368,8 @@ TEST(CrUi, DiskMapFreeCellsSurviveSessionReloadAndSnapshot) {
     uint8_t* f2 = nullptr;
     oob.start_byte = 512ull * 5074;
     oob.total_bytes = 4096;
-    EXPECT_EQ(cr_ui_disk_map(nullptr, snap, &oob, &got2, &f2, nullptr, nullptr, nullptr, nullptr,
-                             0, &bad_count),
+    EXPECT_EQ(cr_ui_disk_map(nullptr, snap, &oob, &got2, &f2, nullptr, nullptr, nullptr, nullptr, 0,
+                             &bad_count),
               0x50020004u /* ERR_RANGE_OUT_OF_BOUNDS */);
     EXPECT_EQ(f2, nullptr);
     cr_ui_disk_map_free(alloc);
@@ -1289,8 +1396,8 @@ TEST(CrUi, DiskMapScanSnapshotCarriesFreeMap) {
     uint32_t bad_count = 0;
     want.start_byte = 0;
     want.total_bytes = 512ull * 5074;
-    ASSERT_EQ(cr_ui_disk_map(nullptr, snap, &want, &got, &alloc, nullptr, nullptr, nullptr,
-                             nullptr, 0, &bad_count),
+    ASSERT_EQ(cr_ui_disk_map(nullptr, snap, &want, &got, &alloc, nullptr, nullptr, nullptr, nullptr,
+                             0, &bad_count),
               CR_UI_OK);
     ASSERT_NE(alloc, nullptr);
     EXPECT_EQ(got.cluster_bytes, 512u) << "the free map is the cluster hint on this path too";
@@ -1341,9 +1448,9 @@ TEST(DiskMap, FreeNeverOverridesUsedOrBadAndDownsampleIsConservative) {
     std::vector<u8> alloc;
     std::vector<std::pair<u64, u64>> bad;
     u32 bad_needed = 0;
-    ASSERT_EQ(viz::build_disk_map(in, t, geom, &alloc, nullptr, nullptr, nullptr, bad, 8,
-                                  &bad_needed),
-              u32(OK));
+    ASSERT_EQ(
+        viz::build_disk_map(in, t, geom, &alloc, nullptr, nullptr, nullptr, bad, 8, &bad_needed),
+        u32(OK));
     ASSERT_EQ(geom.cell_count, 16u);
     EXPECT_EQ(alloc[2], 1u) << "USED is the stricter claim - hostile-free must not win";
     EXPECT_EQ(alloc[5], 3u) << "FsBad (error span) is the stricter claim";
@@ -1641,4 +1748,191 @@ TEST(CrUi, CheckpointPreviousGoodSurvivesTornEmit) {
     EXPECT_EQ(after, good) << "previous good checkpoint preserved byte-identical";
     /* the torn staging file did not survive either */
     EXPECT_EQ(std::fopen((ck + ".tmp").c_str(), "rb"), nullptr);
+}
+
+/* ---------------------------------------------------------------- */
+/* S-029: lost-partition APPLY through the C ABI (consent, undo)     */
+/* ---------------------------------------------------------------- */
+
+namespace {
+
+/* an MBR disk image: one live NTFS entry (slot 0, LBA 2048/1024),
+ * signature 0xAABBCCDD; the lost candidate at LBA 3200/512. */
+std::vector<unsigned char> build_mbr_disk() {
+    std::vector<unsigned char> img(size_t(4096) * 512, 0);
+    unsigned char* s0 = img.data();
+    const auto put32l = [](unsigned char* p, unsigned long v) {
+        p[0] = static_cast<unsigned char>(v & 0xFF);
+        p[1] = static_cast<unsigned char>((v >> 8) & 0xFF);
+        p[2] = static_cast<unsigned char>((v >> 16) & 0xFF);
+        p[3] = static_cast<unsigned char>((v >> 24) & 0xFF);
+    };
+    put32l(s0 + 440, 0xAABBCCDD);
+    s0[446 + 4] = 0x07;
+    put32l(s0 + 446 + 8, 2048);
+    put32l(s0 + 446 + 12, 1024);
+    s0[510] = 0x55;
+    s0[511] = 0xAA;
+    return img;
+}
+
+std::string write_mbr_disk(const char* tag) {
+    const std::string path = cr_test::tmp_path("cr_ui", tag);
+    const auto img = build_mbr_disk();
+    FILE* f = std::fopen(path.c_str(), "wb");
+    if (!f)
+        return {};
+    const size_t n = std::fwrite(img.data(), 1, img.size(), f);
+    std::fclose(f);
+    return n == img.size() ? path : std::string();
+}
+
+std::vector<unsigned char> read_whole_file(const std::string& path) {
+    std::vector<unsigned char> out;
+    FILE* f = std::fopen(path.c_str(), "rb");
+    if (!f)
+        return out;
+    unsigned char buf[65536];
+    size_t n = 0;
+    while ((n = std::fread(buf, 1, sizeof(buf), f)) > 0)
+        out.insert(out.end(), buf, buf + n);
+    std::fclose(f);
+    return out;
+}
+
+unsigned g_apply_consent_calls = 0;
+unsigned g_apply_consent_reply = 0;
+cr_ui_apply_plan g_apply_consent_plan{};
+
+} // namespace
+
+uint32_t apply_consent_cb(void* user, const cr_ui_apply_plan* plan) {
+    ++*static_cast<unsigned*>(user);
+    g_apply_consent_plan = *plan;
+    return g_apply_consent_reply;
+}
+
+TEST(CrUi, LostApplyConsentGateAndUndo) {
+    /* The S-029 C-ABI lifecycle: plan -> consent (default-deny) ->
+     * transactional write into the IMAGE FILE -> undo restore -> undo
+     * container persistence. */
+    Ui u;
+    std::string img = write_mbr_disk("apply");
+    ASSERT_FALSE(img.empty());
+    const std::vector<unsigned char> pristine = read_whole_file(img);
+    ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+
+    cr_ui_apply_candidate cand{};
+    cand.start_lba = 3200;
+    cand.sector_count = 512;
+    cand.fs = 0 /* NTFS */;
+    cr_ui_apply_result res{};
+
+    /* NULL consent: default-deny, nothing written */
+    g_apply_consent_calls = 0;
+    EXPECT_EQ(cr_ui_apply_lost_partition(u.dev, &cand, 0, nullptr, nullptr, &res),
+              0x50080004u /* ERR_APPLY_CONSENT_DENIED */);
+    EXPECT_EQ(res.outcome, 1u);
+    EXPECT_EQ(res.applied, 0u);
+    EXPECT_EQ(res.undo_entries, 0u);
+    EXPECT_EQ(read_whole_file(img), pristine);
+
+    /* denying callback: same refusal, callback saw the plan */
+    g_apply_consent_reply = 0;
+    EXPECT_EQ(
+        cr_ui_apply_lost_partition(u.dev, &cand, 0, apply_consent_cb, &g_apply_consent_calls, &res),
+        0x50080004u);
+    ASSERT_EQ(g_apply_consent_calls, 1u);
+    EXPECT_EQ(g_apply_consent_plan.refused, 0u);
+    EXPECT_EQ(g_apply_consent_plan.mbr_type, 0x07u);
+    EXPECT_EQ(g_apply_consent_plan.slot, 1u);
+    EXPECT_EQ(g_apply_consent_plan.signature, 0xAABBCCDDu);
+    EXPECT_EQ(read_whole_file(img), pristine);
+
+    /* approving callback: the entry lands in the image file */
+    g_apply_consent_reply = 1;
+    EXPECT_EQ(
+        cr_ui_apply_lost_partition(u.dev, &cand, 0, apply_consent_cb, &g_apply_consent_calls, &res),
+        CR_UI_OK);
+    EXPECT_EQ(res.outcome, 0u);
+    EXPECT_EQ(res.applied, 1u);
+    EXPECT_EQ(res.undo_entries, 1u);
+    const std::vector<unsigned char> applied = read_whole_file(img);
+    ASSERT_EQ(applied.size(), pristine.size());
+    EXPECT_EQ(applied[446 + 16 + 4], 0x07u);
+    EXPECT_EQ(applied[446 + 16 + 8], 3200 & 0xFF);
+    EXPECT_EQ(applied[446 + 16 + 9], (3200 >> 8) & 0xFF);
+    EXPECT_EQ(applied[446 + 16 + 12], 512 & 0xFF);
+    EXPECT_EQ(applied[446 + 16 + 13], (512 >> 8) & 0xFF);
+    /* the live entry + signature + 55AA preserved */
+    EXPECT_EQ(applied[446 + 4], 0x07u);
+    EXPECT_EQ(applied[440], 0xDD);
+    EXPECT_EQ(applied[510], 0x55);
+    EXPECT_EQ(applied[511], 0xAA);
+
+    /* undo restores byte-exact */
+    EXPECT_EQ(cr_ui_apply_undo_last(u.dev, &res), CR_UI_OK);
+    EXPECT_EQ(res.outcome, 0u);
+    EXPECT_EQ(res.applied, 1u);
+    EXPECT_EQ(read_whole_file(img), pristine);
+
+    /* the undo container persists (CRUNDO01) */
+    const std::string undo_path = img + ".undo";
+    EXPECT_EQ(cr_ui_apply_save_undo(u.dev, undo_path.c_str()), CR_UI_OK);
+    const std::vector<unsigned char> blob = read_whole_file(undo_path);
+    EXPECT_GT(blob.size(), 8u);
+}
+
+TEST(CrUi, LostApplyRefusesOverlapAndSlices) {
+    /* planner refusals surface through the ABI with reasons; a volume
+     * slice (image opened at nonzero offset) is refused outright. */
+    Ui u;
+    std::string img = write_mbr_disk("applyref");
+    ASSERT_FALSE(img.empty());
+    ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+
+    cr_ui_apply_candidate cand{};
+    cand.start_lba = 2500; /* overlaps the live 2048..3072 */
+    cand.sector_count = 600;
+    cand.fs = 0;
+    cr_ui_apply_result res{};
+    g_apply_consent_calls = 0;
+    g_apply_consent_reply = 1;
+    EXPECT_EQ(
+        cr_ui_apply_lost_partition(u.dev, &cand, 0, apply_consent_cb, &g_apply_consent_calls, &res),
+        0x50080006u /* ERR_APPLY_REFUSED */);
+    EXPECT_EQ(res.outcome, 2u);
+    EXPECT_NE(std::string(res.reason).find("overlap"), std::string::npos);
+    EXPECT_EQ(g_apply_consent_calls, 0u); /* refused plans never reach consent */
+
+    /* GPT single-entry scope: refused (v1 is the MBR path) */
+    Ui ug;
+    std::string gimg = img + ".gpt";
+    {
+        auto d = build_mbr_disk();
+        std::memset(d.data() + 446, 0, 64);
+        d[446 + 4] = 0xEE; /* protective */
+        FILE* f = std::fopen(gimg.c_str(), "wb");
+        ASSERT_NE(f, nullptr);
+        ASSERT_EQ(std::fwrite(d.data(), 1, d.size(), f), d.size());
+        std::fclose(f);
+    }
+    ASSERT_EQ(cr_ui_open_image(gimg.c_str(), 0, 0, &ug.dev), CR_UI_OK);
+    EXPECT_EQ(cr_ui_apply_lost_partition(ug.dev, &cand, 0, apply_consent_cb, &g_apply_consent_calls,
+                                         &res),
+              0x50080006u);
+    EXPECT_EQ(res.outcome, 2u);
+    EXPECT_NE(std::string(res.reason).find("GPT"), std::string::npos);
+
+    /* a slice view (nonzero offset) is not the disk */
+    Ui us;
+    std::string simg = img + ".slice";
+    ASSERT_EQ(cr_ui_open_image(img.c_str(), 512, 0, &us.dev), CR_UI_OK);
+    cand.start_lba = 3200;
+    cand.sector_count = 512;
+    EXPECT_EQ(cr_ui_apply_lost_partition(us.dev, &cand, 0, apply_consent_cb, &g_apply_consent_calls,
+                                         &res),
+              0x50080006u);
+    EXPECT_EQ(res.outcome, 2u);
+    EXPECT_NE(std::string(res.reason).find("slice"), std::string::npos);
 }

@@ -10,6 +10,7 @@
 #include "cr/storage/cr_device.h"
 #include <algorithm>
 #include <cstring>
+#include <ctime>
 #include <vector>
 
 namespace cr {
@@ -26,6 +27,11 @@ u32 rd32(IStorageDevice* s, u64 off) {
     if (!rd(s, off, b, 4))
         return 0;
     return u32_from_bytes_le(b);
+}
+u8 rd8(IStorageDevice* s, u64 off) {
+    u8 b = 0;
+    rd(s, off, &b, 1);
+    return b;
 }
 u32 rdbe32(IStorageDevice* s, u64 off) {
     u8 b[4];
@@ -537,18 +543,128 @@ CarveResult validate_heif(IStorageDevice* s, u64 hit, u64 cap) {
         r.note = "HEIF-family (og display label: HEIF)";
     return r;
 }
+/* ---- N-063: the og's per-analyser carved-file naming (MP4/MOV) -------
+ * RAWSearchDLL decode (first-hand, this session):
+ *   - the analyser formats "Lost Name File (" + <time> + ")_EaseUS"
+ *     (memmove sites :33412/:33418/:33434; the literal strings at
+ *     :33312/:33408);
+ *   - <time> = "%04d:%02d:%02d %02d:%02d:%02d" via _localtime64
+ *     (:33465 FUN_18002b540, the format call at :33531) of the RAW
+ *     mvhd field value - NO 1904 MP4-epoch conversion anywhere in the
+ *     decode (the BE value feeds _localtime64 as Unix seconds);
+ *   - the field read is mvhd+0x10 (v0, u32) / the FIRST FOUR BYTES of
+ *     mvhd+0x14 (v1, u64 - i.e. the HIGH 32 bits of the BE u64, so
+ *     every sane v1 time formats as 1970:01:01 00:00:00 - the og's own
+ *     quirk, replicated faithfully);
+ *   - the field is MODIFICATION time under the ISO/QuickTime layout
+ *     (v0 creation@+12/mod@+16; v1 creation@+12u64/mod@+20u64) - the
+ *     finding's "creation-time" label corrected by the decode.
+ * Registered divergences (PARITY-DELTAS): the og formats via
+ * _localtime64 (scanning-host local time); the core formats UTC for
+ * determinism - identical digits on a UTC host. */
+static std::u16string mp4_og_name(IStorageDevice* s, u64 hit, u64 cap) {
+    /* walk top-level boxes for moov, then moov's children for mvhd */
+    u64 pos = hit;
+    u64 mvhd = 0;
+    int boxes = 0;
+    while (pos + 8 <= hit + cap && mvhd == 0) {
+        if (++boxes > 4096)
+            break;
+        const u32 sz = rdbe32(s, pos);
+        u8 type[4];
+        if (!rd(s, pos + 4, type, 4))
+            break;
+        u64 box_len = sz;
+        if (sz == 1) {
+            const u64 big = (u64(rdbe32(s, pos + 8)) << 32) | rdbe32(s, pos + 12);
+            if (big < 16 || pos + big > hit + cap)
+                break;
+            box_len = big;
+        } else if (sz == 0) {
+            box_len = (hit + cap) - pos; /* to-EOF box */
+        }
+        if (pos + box_len > hit + cap)
+            box_len = (hit + cap) - pos;
+        if (std::memcmp(type, "moov", 4) == 0 && box_len >= 8) {
+            /* walk moov's children */
+            u64 ipos = pos + 8;
+            const u64 iend = pos + box_len;
+            int inner = 0;
+            while (ipos + 8 <= iend) {
+                if (++inner > 1024)
+                    break;
+                const u32 isz = rdbe32(s, ipos);
+                u8 itype[4];
+                if (!rd(s, ipos + 4, itype, 4))
+                    break;
+                u64 ibox = isz;
+                if (isz == 1) {
+                    const u64 big2 = (u64(rdbe32(s, ipos + 8)) << 32) | rdbe32(s, ipos + 12);
+                    if (big2 < 16 || ipos + big2 > iend)
+                        break;
+                    ibox = big2;
+                } else if (isz == 0) {
+                    ibox = iend - ipos;
+                }
+                if (std::memcmp(itype, "mvhd", 4) == 0 && ibox >= 20) {
+                    mvhd = ipos;
+                    break;
+                }
+                if (ibox < 8)
+                    break;
+                ipos += ibox;
+            }
+        }
+        if (box_len < 8)
+            break;
+        pos += box_len;
+    }
+    if (mvhd == 0)
+        return {}; /* no mvhd: the emit site falls back (the og keeps its
+                      own default too when the box is absent) */
+    const u8 version = rd8(s, mvhd + 8);
+    u32 raw_time;
+    if (version == 1) {
+        /* the og reads the FIRST FOUR BYTES of the u64 at mvhd+0x14
+         * (the high 32 of the BE value) - sane v1 times read as 0 */
+        raw_time = rdbe32(s, mvhd + 0x14);
+    } else {
+        raw_time = rdbe32(s, mvhd + 0x10);
+    }
+    /* format as UTC "%04d:%02d:%02d %02d:%02d:%02d" (deterministic;
+     * the og's _localtime64 is the registered divergence) */
+    std::time_t tt = std::time_t(raw_time);
+    std::tm tmv{};
+    gmtime_r(&tt, &tmv);
+    char tb[40];
+    snprintf(tb, sizeof(tb), "%04d:%02d:%02d %02d:%02d:%02d", tmv.tm_year + 1900,
+             tmv.tm_mon + 1, tmv.tm_mday, tmv.tm_hour, tmv.tm_min, tmv.tm_sec);
+    std::u16string out;
+    for (const char* p = "Lost Name File ("; *p; ++p)
+        out.push_back(u16(u8(*p)));
+    for (const char* p = tb; *p; ++p)
+        out.push_back(u16(u8(*p)));
+    for (const char* p = ")_EaseUS"; *p; ++p)
+        out.push_back(u16(u8(*p)));
+    return out;
+}
+
 CarveResult validate_mp4(IStorageDevice* s, u64 hit, u64 cap) {
     static const char* const brands[] = {"isom", "mp42", "mp41", "iso2", "avc1", "dash"};
     CarveResult r = bmff_walk(s, hit, cap, brands, 6);
-    if (r.ok)
+    if (r.ok) {
         r.confidence = 780;
+        r.embedded_name = mp4_og_name(s, hit, cap); /* N-063: og template */
+    }
     return r;
 }
 CarveResult validate_mov(IStorageDevice* s, u64 hit, u64 cap) {
     static const char* const brands[] = {"qt  "};
     CarveResult r = bmff_walk(s, hit, cap, brands, 1);
-    if (r.ok)
+    if (r.ok) {
         r.confidence = 720;
+        r.embedded_name = mp4_og_name(s, hit, cap); /* N-063: og template */
+    }
     return r;
 }
 

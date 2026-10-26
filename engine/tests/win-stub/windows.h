@@ -128,6 +128,8 @@ inline HANDLE GetCurrentProcess() { return (HANDLE)0; }
 inline DWORD GetCurrentProcessId() { return 0; }
 inline void Sleep(DWORD) {}
 inline unsigned long long GetTickCount64() { return 0; }
+inline DWORD GetTickCount() { return 0; }
+inline BOOL QueryPerformanceCounter(LARGE_INTEGER*) { return 1; }
 
 /* ---- CRT-adjacent formatting (MSVC secure CRT) ----------------------- */
 #define _TRUNCATE ((size_t)-1)

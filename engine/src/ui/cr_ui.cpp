@@ -21,6 +21,7 @@
 
 #include "cr/cr_ui.h"
 
+#include "cr/apply/cr_apply.h"
 #include "cr/orchestrator/cr_scan.h"
 #include "cr/carve/cr_signatures.h"
 #include "cr/carve/cr_rawsigns.h"
@@ -54,12 +55,14 @@
 #include <mutex>
 #include <cerrno>
 #include <chrono>
+#include <thread>
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <map>
+#include <condition_variable>
 #include <memory>
 #include <string>
 #include <vector>
@@ -379,6 +382,12 @@ struct CrDevice {
     /* M-033: in-stack XTS decrypt is active on this view (locked volume
      * scanned with a user-supplied FVEK). */
     bool xts_layer = false;
+    /* S-029 lost-partition apply: the retained undo log of the last
+     * apply executed through this device (undo_last / save_undo).
+     * Device-level state: the apply operates on the disk the device
+     * represents, not on any scan. */
+    repair::UndoLog apply_undo;
+    bool have_apply_undo = false;
 };
 
 /* read-only, sector-granular file-backed device (the portable source for
@@ -452,8 +461,13 @@ private:
 /* S-008: read-write view over an image file, mapped through the image
  * offset - the write side of ImageFileDevice (same bytes, opened "r+b"
  * so nothing is truncated). Sector-granular bounds identical to the read
- * view; repair writes land inside the scanned image only. */
-class ImageWriteDevice final : public repair::IWriteDevice {
+ * view; repair writes land inside the scanned image only.
+ * S-029: the base is apply::IApplyDevice (IS-A IWriteDevice) so the same
+ * class serves the repair writer AND the apply writer - image files have
+ * no OS disk layout, so the apply device controls keep their portable
+ * OK defaults (the sector write IS the commit; the undo log + verified
+ * read-back carry the transaction). */
+class ImageWriteDevice final : public apply::IApplyDevice {
 public:
     static std::unique_ptr<ImageWriteDevice> open(const char* u8path, u64 offset, u64 bytes,
                                                   u32* err) {
@@ -669,6 +683,22 @@ struct CrScan {
     std::mutex progress_mu;
     u32 last_pm = 0xFFFFFFFFu;
     u32 last_stage = 0xFFFFFFFFu;
+    /* N-043 heartbeat watchdog: fires CR_EVT_HEARTBEAT from its own
+     * thread every 5000 ms while run() is in flight and no
+     * CR_EVT_SCAN_PROGRESS arrived in the window - the og's liveness
+     * watchdog (DRWUI_decompiled.c:910565-910585, CreateThread
+     * :910864), honest variant: no synthetic permille advance, the
+     * payload carries the standing telemetry truth. last_progress_at
+     * / saw_progress / run_started_at are guarded by heartbeat_mu;
+     * heartbeat_stop + the cv shut the thread down at run end (and
+     * defensively at close). */
+    std::thread heartbeat_thread;
+    std::mutex heartbeat_mu;
+    std::condition_variable heartbeat_cv;
+    bool heartbeat_stop = false;
+    std::chrono::steady_clock::time_point run_started_at{};
+    std::chrono::steady_clock::time_point last_progress_at{};
+    bool saw_progress = false;
 #ifdef _WIN32
     std::vector<std::unique_ptr<IStorageDevice>> ldm_members;
 #endif
@@ -757,7 +787,73 @@ void scan_event_trampoline_(const orchestrator::event::Event& e, void* user) {
     out.candidate_lba = e.candidate_lba;
     out.repair_actions = u32(e.repair_actions);
     out.repair_outcome = e.repair_outcome;
+    /* N-043: every progress arrival resets the heartbeat watchdog's
+     * stall clock (the og watches its engine step counter +0x8fc;
+     * CR_EVT_SCAN_PROGRESS is that counter's echo on this surface). */
+    if (u32(e.type) == CR_EVT_SCAN_PROGRESS) {
+        std::lock_guard<std::mutex> hb(s->heartbeat_mu);
+        s->last_progress_at = std::chrono::steady_clock::now();
+        s->saw_progress = true;
+    }
     s->event_fn(s->event_user, &out);
+}
+
+/* N-043: the liveness heartbeat watchdog - the og's 5 s watchdog thread
+ * (FUN_140577100, DRWUI_decompiled.c:910565-910585: Sleep(5000), and when
+ * the engine step counter +0x8fc lags the expected count +0x8f8, bump the
+ * coarse progress +0xe8 and re-fire the progress callback; started via
+ * CreateThread at :910864). HONEST VARIANT - the registered divergence
+ * this implementation pins: the og fabricates coarse-progress movement
+ * during stalls; we fire a dedicated CR_EVT_HEARTBEAT that carries the
+ * STANDING telemetry truth (permille never advances without work). A
+ * host can therefore distinguish "alive, stalled on I/O" from "hung"
+ * without ever being shown fake progress. */
+void heartbeat_loop_(CrScan* s, orchestrator::ScanController* ctrl) {
+    std::unique_lock<std::mutex> lock(s->heartbeat_mu);
+    for (;;) {
+        s->heartbeat_cv.wait_for(lock, std::chrono::milliseconds(5000));
+        if (s->heartbeat_stop)
+            return;
+        if (!s->running.load(std::memory_order_acquire))
+            continue;
+        const auto now = std::chrono::steady_clock::now();
+        const auto last = s->saw_progress ? s->last_progress_at : s->run_started_at;
+        if (now - last < std::chrono::milliseconds(5000))
+            continue; /* live progress in the window - no heartbeat */
+        lock.unlock();
+        /* standing truth only; telemetry takes its own lock (never
+         * nested under heartbeat_mu - the trampoline takes heartbeat_mu
+         * only after tel_publish_ has released tel_.m) */
+        const orchestrator::ScanTelemetrySnapshot t = ctrl->telemetry();
+        u32 stage = 0xFFFFFFFFu;
+        u32 stage_pm = 0xFFFFFFFFu;
+        if (!t.quick.completed) {
+            stage = 0;
+            stage_pm = t.quick.permille;
+        } else if (!t.deep.completed) {
+            stage = 1;
+            stage_pm = t.deep.permille;
+        } else if (!t.carve.completed) {
+            stage = 2;
+            stage_pm = t.carve.permille;
+        }
+        cr_ui_event out;
+        std::memset(&out, 0, sizeof(out));
+        out.type = CR_EVT_HEARTBEAT;
+        out.stage = stage;
+        out.timestamp_ms = u32(t.elapsed_ms & 0xFFFFFFFFull);
+        out.bytes_done = t.bytes_scanned; /* carve-true bytes so far */
+        out.bytes_total = 0;              /* unknown - honest, never invented */
+        out.stage_permille = stage_pm;
+        out.overall_permille = t.overall_permille; /* standing, never bumped */
+        out.files_found = t.files_found;
+        out.deleted_found = t.deleted_found;
+        out.carved_found = t.carved_found;
+        out.error_ranges = u32(t.errors.ranges().size());
+        if (s->event_fn)
+            s->event_fn(s->event_user, &out);
+        lock.lock();
+    }
 }
 
 bool scan_progress_bridge_(u32 overall_pm, void* user) {
@@ -1500,8 +1596,29 @@ u32 scan_run_impl(cr_ui_scan* scan) {
         }
     }
     s->started = true;
+    {
+        std::lock_guard<std::mutex> lock(s->heartbeat_mu);
+        s->run_started_at = std::chrono::steady_clock::now();
+        s->saw_progress = false;
+        s->heartbeat_stop = false;
+    }
     s->running.store(true);
+    /* N-043: the liveness watchdog (only when events are subscribed -
+     * a silent host cannot observe a heartbeat anyway). ctrl is stable
+     * for the whole run; the raw pointer is captured under ctrl_mu. */
+    if (s->event_fn) {
+        std::lock_guard<std::mutex> lock(s->ctrl_mu);
+        if (s->ctrl)
+            s->heartbeat_thread = std::thread(heartbeat_loop_, s, s->ctrl.get());
+    }
     const u32 rc = s->ctrl->run(s->dev->dev.get(), &s->token, scan_progress_bridge_, s, s->stats);
+    {
+        std::lock_guard<std::mutex> lock(s->heartbeat_mu);
+        s->heartbeat_stop = true;
+    }
+    s->heartbeat_cv.notify_all();
+    if (s->heartbeat_thread.joinable())
+        s->heartbeat_thread.join();
     s->running.store(false);
     if (s->ck_sink) {
         if (s->ck_sink->f)
@@ -1669,6 +1786,197 @@ u32 scan_repair_save_undo_impl(cr_ui_scan* scan, const char* utf8_path) {
     return ret_ok();
 }
 
+/* =========================================================================
+ * S-029: lost-partition APPLY (consent-gated, transactional)
+ * ========================================================================= */
+namespace {
+
+/* the apply consent context: the C-ABI callback + user pair handed to
+ * cr_ui_apply_lost_partition (ui_apply_consent bridges core->POD). */
+struct UiApplyConsentCtx {
+    cr_ui_apply_consent_fn fn = nullptr;
+    void* user = nullptr;
+};
+
+bool ui_apply_consent(const apply::ApplyPlan& plan, void* user) {
+    auto* ctx = static_cast<UiApplyConsentCtx*>(user);
+    if (!ctx || !ctx->fn)
+        return false; /* default-deny: never execute without a callback */
+    cr_ui_apply_plan p;
+    std::memset(&p, 0, sizeof(p));
+    p.refused = plan.refused ? 1u : 0u;
+    p.scope = plan.scope == apply::ApplyScope::RebuildTable ? 1u : 0u;
+    p.start_lba = plan.start_lba;
+    p.sector_count = plan.sector_count;
+    p.mbr_type = plan.mbr_type;
+    p.slot = plan.entry_index;
+    p.regenerate_signature = plan.regenerate_signature ? 1u : 0u;
+    p.signature = plan.mbr_signature;
+    copy_bstr(p.reason, sizeof(p.reason), plan.refused ? plan.refusal_reason : std::string());
+    return ctx->fn(ctx->user, &p) != 0;
+}
+
+/* opens the apply write view for the device: image files reopen r+b at
+ * offset 0 (the whole image IS the disk); Windows disks open the RW
+ * transport with the corpus IOCTL chain. NULL = no write view (the
+ * caller surfaces refused-with-reason, never a guessed write). */
+std::unique_ptr<apply::IApplyDevice> ui_apply_open_writer(CrDevice* d) {
+    if (!d->image_path.empty()) {
+        if (d->image_offset != 0)
+            return nullptr; /* a slice view is not the disk */
+        u32 err = OK;
+        return ImageWriteDevice::open(d->image_path.c_str(), 0, 0, &err);
+    }
+#ifdef _WIN32
+    if (d->disk_known) {
+        u32 err = OK;
+        if (auto w = win::open_disk_apply_rw(d->disk, true, L"RDA", &err))
+            return w;
+        if (auto w2 = win::open_disk_apply_rw(d->disk, false, nullptr, &err))
+            return w2;
+        return nullptr;
+    }
+#endif
+    return nullptr;
+}
+
+void fill_apply_result(cr_ui_apply_result* out, u32 applied, u32 outcome, u64 undo_entries,
+                       const char* reason) {
+    std::memset(out, 0, sizeof(*out));
+    out->applied = applied;
+    out->outcome = outcome;
+    out->undo_entries = undo_entries;
+    copy_bstr(out->reason, sizeof(out->reason), reason ? reason : "");
+}
+
+} // namespace
+
+u32 apply_lost_partition_impl(cr_ui_device* dev, const cr_ui_apply_candidate* cand,
+                              uint32_t rebuild_table, cr_ui_apply_consent_fn consent,
+                              void* consent_user, cr_ui_apply_result* out) {
+    if (!dev || !cand || !out)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: dev/cand/out");
+    auto* d = reinterpret_cast<CrDevice*>(dev);
+    std::memset(out, 0, sizeof(*out));
+
+    /* the table lives at the disk's LBA 0: only whole-disk views apply
+     * (volume slices AND image views opened at a nonzero offset) */
+    if (d->volume_len != 0 || (!d->image_path.empty() && d->image_offset != 0)) {
+        fill_apply_result(out, 0, 2, 0,
+                          "volume slices cannot apply (the table lives at disk LBA 0)");
+        return ret_(ERR_APPLY_REFUSED, "apply refused: device is a volume slice");
+    }
+    if (cand->fs > u32(lost::CandidateFs::BitLocker)) {
+        fill_apply_result(out, 0, 2, 0, "unknown candidate family");
+        return ret_(ERR_APPLY_REFUSED, "apply refused: bad candidate fs %u", cand->fs);
+    }
+
+    lost::Candidate c;
+    c.start_lba = cand->start_lba;
+    c.sector_count = cand->sector_count;
+    c.fs = lost::CandidateFs(cand->fs);
+
+    /* plan (READ-ONLY) against the live table of the same view */
+    table::DiskTable tbl;
+    if (u32 trc = table::parse_disk_table(d->dev.get(), tbl))
+        return ret_(trc, "apply refused: cannot read the partition table (%s)", err_text(trc));
+    apply::ApplyPlan plan;
+    const u32 prc = apply::plan_apply(
+        d->dev.get(), c, plan, tbl.partitions,
+        rebuild_table ? apply::ApplyScope::RebuildTable : apply::ApplyScope::SingleEntry);
+    if (plan.refused || prc != OK) {
+        fill_apply_result(out, 0, 2, 0, plan.refusal_reason.c_str());
+        return ret_(ERR_APPLY_REFUSED, "apply refused: %s", plan.refusal_reason.c_str());
+    }
+
+    /* the write view (consent may still deny; nothing opened is written) */
+    auto wdev = ui_apply_open_writer(d);
+    if (!wdev) {
+        fill_apply_result(out, 0, 2, 0, "no write view available for this device");
+        return ret_(ERR_APPLY_REFUSED,
+                    "apply refused: no write view (open the disk/image for writing)");
+    }
+
+    UiApplyConsentCtx ctx{consent, consent_user};
+    repair::UndoLog undo;
+    const u32 rc = apply::execute_apply(wdev.get(), plan, ui_apply_consent, &ctx, undo);
+
+    /* retain the undo log on the device (undo_last / save_undo) */
+    d->apply_undo = undo;
+    d->have_apply_undo = !undo.entries.empty();
+
+    if (rc == OK) {
+        fill_apply_result(out, 1, 0, undo.entries.size(), nullptr);
+        return ret_ok();
+    }
+    switch (rc) {
+    case ERR_APPLY_CONSENT_DENIED:
+        fill_apply_result(out, 0, 1, undo.entries.size(), "consent denied (nothing written)");
+        return ret_(rc, "apply consent denied");
+    case ERR_APPLY_STALE:
+        fill_apply_result(out, 0, 3, undo.entries.size(),
+                          "the partition table changed since the plan");
+        return ret_(rc, "apply refused: the table changed since the plan");
+    case ERR_VOLUME_LOCK_FAILED:
+        fill_apply_result(out, 0, 2, undo.entries.size(),
+                          "volume busy (quiesce refused - nothing written)");
+        return ret_(rc, "apply refused: volume busy");
+    case ERR_APPLY_REFRESH_FAILED:
+        fill_apply_result(out, 1, 4, undo.entries.size(),
+                          "applied but the disk-properties refresh failed (undo available)");
+        return ret_(rc, "applied but refresh failed (undo available)");
+    default:
+        fill_apply_result(out, 0, 5, undo.entries.size(), err_text(rc));
+        return ret_(rc, "apply failed: %s", err_text(rc));
+    }
+}
+
+u32 apply_undo_last_impl(cr_ui_device* dev, cr_ui_apply_result* out) {
+    if (!dev || !out)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: dev/out");
+    auto* d = reinterpret_cast<CrDevice*>(dev);
+    std::memset(out, 0, sizeof(*out));
+    if (!d->have_apply_undo || d->apply_undo.entries.empty()) {
+        fill_apply_result(out, 0, 2, 0, "no apply undo log on this device");
+        return ret_(ERR_BAD_PARAMETER, "no apply undo log on this device");
+    }
+    auto wdev = ui_apply_open_writer(d);
+    if (!wdev) {
+        fill_apply_result(out, 0, 5, d->apply_undo.entries.size(), "no write view available");
+        return ret_(ERR_APPLY_REFUSED, "undo refused: no write view");
+    }
+    const u32 rc = apply::undo_apply(*wdev, d->apply_undo);
+    if (rc == OK) {
+        fill_apply_result(out, 1, 0, d->apply_undo.entries.size(), nullptr);
+        return ret_ok();
+    }
+    if (rc == ERR_APPLY_REFRESH_FAILED) {
+        fill_apply_result(out, 1, 4, d->apply_undo.entries.size(),
+                          "restored but the disk-properties refresh failed");
+        return ret_(rc, "undo restored but refresh failed");
+    }
+    fill_apply_result(out, 0, 5, d->apply_undo.entries.size(), err_text(rc));
+    return ret_(rc, "undo failed: %s", err_text(rc));
+}
+
+u32 apply_save_undo_impl(cr_ui_device* dev, const char* utf8_path) {
+    if (!dev || !utf8_path)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: dev/path");
+    auto* d = reinterpret_cast<CrDevice*>(dev);
+    if (!d->have_apply_undo || d->apply_undo.entries.empty())
+        return ret_(ERR_BAD_PARAMETER, "no apply undo log on this device");
+    FILE* f = open_file(utf8_path, true);
+    if (!f)
+        return ret_(ERR_OPEN_FAILED, "cannot create undo log %s", utf8_path);
+    std::vector<u8> blob;
+    d->apply_undo.serialize(blob);
+    const size_t n = std::fwrite(blob.data(), 1, blob.size(), f);
+    std::fclose(f);
+    if (n != blob.size())
+        return ret_(ERR_SESSION_IO, "short write on %s", utf8_path);
+    return ret_ok();
+}
+
 u32 scan_checkpoint_count_impl(cr_ui_scan* scan, uint64_t* out) {
     if (!scan || !out)
         return ret_(ERR_BAD_PARAMETER, "bad argument: scan/out");
@@ -1774,6 +2082,17 @@ extern "C" CR_UI_API void cr_ui_scan_close(cr_ui_scan* scan) {
             std::remove(s->ck_sink->tmp_path.c_str());
 #endif
         }
+        /* N-043: defensively stop + join the heartbeat watchdog - a
+         * joinable std::thread member would std::terminate the process
+         * at deletion (close while run() is in flight is a host bug,
+         * but the failure mode must not be termination) */
+        {
+            std::lock_guard<std::mutex> lock(s->heartbeat_mu);
+            s->heartbeat_stop = true;
+        }
+        s->heartbeat_cv.notify_all();
+        if (s->heartbeat_thread.joinable())
+            s->heartbeat_thread.join();
         delete s;
     } catch (...) {
     }
@@ -1811,6 +2130,20 @@ extern "C" CR_UI_API uint32_t cr_ui_scan_checkpoint_count(cr_ui_scan* scan, uint
 }
 extern "C" CR_UI_API uint32_t cr_ui_scan_repair_save_undo(cr_ui_scan* scan, const char* utf8_path) {
     return guarded(scan_repair_save_undo_impl, scan, utf8_path);
+}
+
+extern "C" CR_UI_API uint32_t cr_ui_apply_lost_partition(
+    cr_ui_device* dev, const cr_ui_apply_candidate* cand, uint32_t rebuild_table,
+    cr_ui_apply_consent_fn consent, void* consent_user, cr_ui_apply_result* out) {
+    return guarded(apply_lost_partition_impl, dev, cand, rebuild_table, consent, consent_user, out);
+}
+
+extern "C" CR_UI_API uint32_t cr_ui_apply_undo_last(cr_ui_device* dev, cr_ui_apply_result* out) {
+    return guarded(apply_undo_last_impl, dev, out);
+}
+
+extern "C" CR_UI_API uint32_t cr_ui_apply_save_undo(cr_ui_device* dev, const char* utf8_path) {
+    return guarded(apply_save_undo_impl, dev, utf8_path);
 }
 extern "C" CR_UI_API uint32_t cr_ui_scan_save_session(cr_ui_scan* scan, const char* utf8_path) {
     return guarded(scan_save_session_impl, scan, utf8_path);

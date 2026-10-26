@@ -170,6 +170,7 @@ typed stream.
 #define CR_EVT_CHECKPOINT       5u  /* a checkpoint was written */
 #define CR_EVT_LOST_CANDIDATE   6u  /* lost-partition candidate found */
 #define CR_EVT_REPAIR           7u  /* pre-scan repair lifecycle (S-008) */
+#define CR_EVT_HEARTBEAT        8u  /* N-043 liveness heartbeat (5 s watchdog) */
 
 typedef struct cr_ui_event {
     uint32_t type;            /* CR_EVT_* above */
@@ -187,12 +188,16 @@ typedef struct cr_ui_event {
     uint64_t checkpoint_index;
     /* lost candidate (CR_EVT_LOST_CANDIDATE) */
     uint64_t candidate_lba;
-    /* pre-scan repair (CR_EVT_REPAIR; ABI-since 1.2 - the former reserved
+    /* pre-scan repair (CR_EVT_REPAIR; v1-era append - no 1.2 marker ever
+       shipped, section 9 - the former reserved
      * slots, layout unchanged): planned/applied action count + outcome
      * (0 plan ready for consent, 1 applied, 2 consent denied,
      * 3 failed or writer unavailable). stage stays 0xFFFFFFFF. */
     uint32_t repair_actions;
     uint32_t repair_outcome;
+    /* (CR_EVT_HEARTBEAT reuses the payload fields above: the standing
+       permille/counters + timestamp_ms = elapsed_ms; stage = 0xFFFFFFFF
+       when no stage is in flight; bytes_total = 0 = unknown.) */
 } cr_ui_event;
 
 typedef void (*cr_ui_event_fn)(void* user, const cr_ui_event* evt);
@@ -202,11 +207,21 @@ CR_UI_API uint32_t cr_ui_scan_set_event_fn(cr_ui_scan* s, cr_ui_event_fn fn,
 ```
 
 Contract:
-- Fired on engine worker threads or the thread running `run()` (both are
-  possible — the engine's own scan workers emit stage/sample events; the
-  header's rule is authoritative). Must not block (same rule as the
+- Fired on engine worker threads, the thread running `run()`, or the
+  shim's heartbeat watchdog thread (all three are possible — the engine's
+  own scan workers emit stage/sample events; the header's rule is
+  authoritative). Must not block (same rule as the
   progress callback). No cancellation semantics — cancel via the token
   functions.
+- `CR_EVT_HEARTBEAT` (N-043, the og's 5 s liveness watchdog — corpus
+  DRWUI_decompiled.c:910565-910585, CreateThread :910864 — in the HONEST
+  variant) fires from the shim's watchdog thread every 5000 ms while
+  `run()` is in flight and no `CR_EVT_SCAN_PROGRESS` arrived in the
+  window (a pause-parked or I/O-stalled scan). It carries the STANDING
+  telemetry truth — permille NEVER advances without work (the og's
+  watchdog bumps its coarse counter +0xe8 instead, fabricating movement;
+  that is the registered divergence). A host distinguishes "alive,
+  stalled" from "hung" without ever being shown fake progress.
 - Ordering: stage transitions are delivered exactly once in scan order;
   progress/files/error events are samples (coalesced to the same cadence the
   engine progress uses — per work unit batch, never per byte).

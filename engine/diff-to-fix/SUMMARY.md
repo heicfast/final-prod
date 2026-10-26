@@ -1,5 +1,48 @@
 # SUMMARY.md — executive summary (diff-fix session 22 on top; earlier sessions below)
 
+<!-- DFX16 note: session 16 ran as a parallel lane in the same window as
+     sessions 17-22; its delta is recorded here for chronology. -->
+
+## Session-16 delta (2026-10-26 — DFX16: S-029 closed — the SEVERE tier is empty)
+
+Baseline `53629a3` verified green first-hand (584/584 linux-gcc ASan);
+corpus `03ad46c` unmoved. The session's first act repaired a pushed-red
+main inherited from the window's parallel landings: the M-054 producer pin
+`FreeMapProducerMatchesSpecBitMapping` asserted the pre-hardening
+`cluster_count == 100` while the landed producer (0ba21d8 defect 3 + the
+FreeMap contract + the FAT family's 5002 pin) covers 0..101 — the stale
+pin corrected to 102u with the audit-honesty note in the M-054 finding
+(the convergent DFX17-side correction eeeccbd is in history).
+
+**S-029 FIXED (SEVERE — the lost-partition APPLY path, the recovery
+endgame; the last open SEVERE):** a dedicated apply module
+(`cr/apply/cr_apply.h/.cpp`) with the rawfixer transaction pattern
+extended to the table writer — plan (read-only; refusals: overlap,
+table-full, GPT single-entry v1 scope, capacity/32-bit-LBA-range) →
+execute (core-carried consent callback default-deny, S-010 quiesce, A6
+table-change race guard, CRUNDO01 snapshot, verified write-back, the
+corpus device-control sequence per legacy/modern path — 0x7C100 →
+sector-0 → 0x70140 → 0x7C010 vs the 0x7C058 0x18-byte record, then the
+3x Sleep(1000) refresh tail) → undo (byte-exact + refresh replay). cr_ui
+consent ABI (apply_lost_partition/undo_last/save_undo, ABI-since 1.3);
+the Windows RwDevice carries the real IOCTL chain (kernel32-only — the
+Win7-inclusive import gate untouched). One corpus correction in the
+Resolution: GPT_GenerateSignature = the 32-bit disk signature (MBR +440),
+not the GPT GUID (4-byte stack slot at all four call sites — PR:32805/
+RM:46338/CM:118357/UL:37590). Safety deltas registered D-72a..d. Proof:
+13 `LostApply.*` tests (the fix plan's five named proofs + 7 safety
+pins), 2 `CrUi.LostApply*` C-ABI tests, the extended plain-C
+`ui_abi_check.c` lifecycle; suite **610/610** at the fix commit.
+
+**Post-fix counts (this session's commit, parallel lanes active in the
+same window):** SEVERE **0** · MAJOR 28 · MINOR 41 · INFO 22 (all
+acknowledged) · **FIXED/ 101 findings** (RESOLVED-INDEX current) ·
+tracked-open 16. Parallel-lane landings absorbed this window: M-005,
+M-007, M-008, M-045, M-054, N-030 (+ the M-054 pin correction).
+Next on this lane: M-043 (NTFS content-proof + backup boot) → M-013/
+M-014 (exFAT) → M-018 → M-029 → M-032 → M-035 → M-049 → M-050 → M-052,
+then unclaimed MINORs.
+
 ## Session-22 delta (2026-10-26 — DFX22: win-layer build-integrity M-055 + the MINOR-first queue)
 
 Session lane re-stamped 19→22 (IDs 19/20/21 squatted by parallel legs in
@@ -146,10 +189,24 @@ Finding → FIXED/ (straight in, in-session file+fix); RESOLVED-INDEX row.
 Their N-077 landing alone does NOT cover this: case (4) of the new test
 fails against leak-only trees — the c.fail gap is real and pinned.
 
+**N-063 FIXED (MINOR):** the og's per-analyser carved-file naming. The
+MP4/MOV template decoded FIRST-HAND ("Lost Name File (<time>)_EaseUS" —
+literals :33312/:33408, the "%04d:%02d:%02d %02d:%02d:%02d" _localtime64
+format :33465/:33531, mvhd v0 BE u32@+0x10 / v1 FIRST-FOUR-BYTES of the
+u64@+0x14): `CarveResult::embedded_name` carrier with emit precedence
+(embedded_name > namer > default), TWO decode corrections recorded (the
+field is the MODIFICATION time; there is NO 1904-epoch conversion in the
+og — both quirks replicated + pinned by test), the false "corpus policy"
+comment repaired, File%06u registered as the deliberate default
+(PARITY-DELTAS D-76 with the UTC-formatting divergence). Fail-before 3/3
+RED; 679/679 + 24/24. The CZeroEnd-family membership beyond MP4/MOV is
+the honestly recorded remainder (decode each of the 22 SetName callers).
+
 **Counts after this wave (direct file inventory):** SEVERE 0 · MAJOR ~31 ·
-MINOR 38 files · INFO 22 (0 actionable) · tracked-open 16 · FIXED 98
-finding files + RESOLVED-INDEX. Queue head: N-068 (ZIP EOCD anchor), then
-N-063/N-065/N-056/N-029 and the remaining MINOR tier.
+MINOR 26 files · INFO 22 (0 actionable) · tracked-open 16 · FIXED 100
+finding files + RESOLVED-INDEX. Queue head: N-056 (windestio temp leak),
+then N-046/N-043 and the remaining MINOR tier (N-068/N-065 left to the
+DFX16 lane's published queue).
 
 # SUMMARY.md — executive summary (session 10's close-out on top; earlier sessions below)
 
@@ -171,6 +228,25 @@ issued — dropped). New pin: Health.SmartCommandListMatchesImplementation
 **Counts after this landing (direct file inventory at the N-074 push):**
 SEVERE 0 · MAJOR 24 · MINOR 33 · INFO 22 (0 actionable) · tracked-open
 16 · FIXED 114 files (113 findings + RESOLVED-INDEX).
+
+**N-043 FIXED (the honest heartbeat — fix-plan option (b)):** new event
+type CR_EVT_HEARTBEAT (appended, no version bump) fired from the shim's
+watchdog thread every 5000 ms while run() is in flight and no
+CR_EVT_SCAN_PROGRESS arrived in the window — the og's 5 s liveness
+watchdog (FUN_140577100, DRWUI_decompiled.c:910565-910585, re-verified
+first-hand) in the HONEST variant: the payload carries the standing
+telemetry truth, never a synthetic permille advance (the og's +0xe8
+coarse bump is the registered divergence, ABI-CONTRACT §6).
+CrUi.HeartbeatDuringStall (pause-parked scan = deterministic stall;
+fail-before RED executed — the run also caught and fixed a test-design
+flaw where ASSERT-before-resume leaked the parked scan). TSan 686/686
+CLEAN (new thread); both event consumers taught the type; the
+EventThreadContractPinned pin caught the contract-text change and moved
+with it in the same commit. Suite 686/686. Finding → FIXED/.
+
+**Counts after this landing (direct file inventory at the N-043 push):**
+SEVERE 0 · MAJOR 24 · MINOR 32 · INFO 22 (0 actionable) · tracked-open
+16 · FIXED 115 files (114 findings + RESOLVED-INDEX).
 
 ## Session-10 delta — the SEVERE tier close-out (2026-10-26)
 

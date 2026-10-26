@@ -2181,3 +2181,82 @@ future corpus decode of any legacy File*Analyser body makes its port
 evidenced — until then this stays a registered simplification, pinned by
 CarveEngine.OverlapScorePrefersHigherConfidence (which proves the scoring
 half) and the absence of any fallback path in cr_registry.cpp.
+
+### D-76 — carved-file naming: the File%06u deliberate default + the MP4/MOV template's UTC formatting (N-063)
+
+**Class:** registered divergence (naming) + replicated reference quirk · **Finding:** diff-to-fix N-063 (MINOR, FIXED) · **Date:** 2026-10-26
+
+The og names carved files PER-ANALYSER (SetName-family, ≥8 emit sites):
+the MP4/MOV analyser formats "Lost Name File (<time>)_EaseUS"
+(RAWSearchDLL :33312/:33408 literals, :33412-33434 assembly) where
+<time> is "%04d:%02d:%02d %02d:%02d:%02d" of the RAW mvhd field value —
+the u32 at mvhd+0x10 (v0) or the FIRST FOUR BYTES of the u64 at
+mvhd+0x14 (v1) — fed to _localtime64 as Unix seconds with NO 1904
+MP4-epoch conversion. Two og quirks replicated faithfully and pinned by
+test (never "corrected"): (a) the missing epoch conversion (modern mvhd
+values format ~66 years in the future), (b) the v1 high-word truncation
+(every sane v1 time formats as 1970:01:01 00:00:00). The field is the
+MODIFICATION time under the ISO layout — the finding's "creation-time"
+label corrected by the decode.
+
+**Deliberate divergences this fix registers:**
+1. Formats with NO decoded og naming rule (jpg/png/zip/docx/... — the
+   CZeroEndRawFileInfo membership is not decoded per-format in the
+   corpus) keep OUR `File%06u.ext` default: zero-padded, stable
+   ordering. The old code comment's false "corpus policy" claim is
+   repaired; this is the documented core-side default, not an og scheme
+   (the deep-dive artifact's "File0001.jpg lives in the UI" claim was a
+   corpus erratum, corrected with OQ-S4-2's decode).
+2. The og formats the template time via _localtime64 (scanning-host
+   LOCAL time); the core formats UTC (gmtime_r) for determinism —
+   identical digits on a UTC host. Same class as the S-011 tz posture:
+   host-independent output over host-local fidelity.
+
+**Carrier:** `CarveResult::embedded_name` (the per-analyser name rides
+the validation result; emit precedence: embedded_name > namer callback >
+the deliberate default). MP4/MOV wired now; the CZeroEnd-family
+membership decode is the recorded next step in the finding.
+
+**Pin tests:** `CarveEngine.Mp4NamedByMetadataTemplate`,
+`CarveEngine.MovNamedByMetadataTemplate`,
+`CarveEngine.MovV1MvhdHighWordQuirkReplicated` (the quirk pin),
+`CarveEngine.FallbackNamerDocumented` (the deliberate default).
+
+### D-72 — Lost-partition APPLY: the safety registers around the og's table writer (S-029)
+
+The S-029 apply module reproduces the og's write-path architecture
+(PartitionRecovery FUN_1800566d0/FUN_180038b10/FUN_1800392f0: the legacy
+0x7C100-delete -> sector-0 rewrite -> 0x70140-refresh -> 0x7C010-set-layout
+sequence, the modern 0x7C058 0x18-byte record, the 3x Sleep(1000)
+UPDATE_PROPERTIES retry tail, GPT_GenerateSignature on the GPT rebuild) with
+four registered deliberate deltas — each a safety superset over a reference
+weakness, none a capability loss:
+
+- **D-72a — Consent at the core (A1).** The og's apply is a UI flow the
+  product calls directly; the core module REQUIRES a nonzero consent
+  callback before any write (NULL/zero = ERR_APPLY_CONSENT_DENIED, zero
+  writes, not even a volume lock). Pinned by `LostApply.RefusedWithoutConsent`.
+- **D-72b — Single-entry preservation (A7).** The og's legacy path
+  zero-wipes ALL FOUR entries as part of its rebuild; the core's
+  SingleEntry scope (the default) preserves the other three entries
+  byte-for-byte — applying one lost partition must never destroy three
+  live ones. The og's exact wipe semantics remain available as the
+  explicit RebuildTable scope. Pinned by `LostApply.WritesEntryAndRefreshes`.
+- **D-72c — Refresh-tail honesty (vs the og's silent swallow).** The corpus
+  tail loop ignores a failing 3x UPDATE_PROPERTIES retry
+  (PR:47015-47025 - the function returns with no error); the core reports
+  ERR_APPLY_REFRESH_FAILED with the table written+verified and the undo log
+  valid — a stale OS mount view must be visible to the operator, never
+  silently absorbed. Pinned by `LostApply.RefreshFailureIsReportedNotSwallowed`.
+- **D-72d — The table-change race guard (A6).** The plan snapshots sector
+  0; execute refuses (ERR_APPLY_TABLE_CHANGED, zero writes) if the table
+  moved between plan and execute — the og has no such guard. Pinned by
+  `LostApply.DetectsTableRace`.
+
+Corpus correction carried by the same fix (recorded in the finding's
+Resolution): GPT_GenerateSignature regenerates the 32-BIT DISK SIGNATURE
+(MBR +440 / DRIVE_LAYOUT_INFORMATION.Mbr.Signature), not the 128-bit GPT
+disk GUID — every call site passes a 4-byte stack slot as one register
+argument (PR:32805 local_24 ulong; RM:46338; CM:118357; UL:37590), and the
+GPT header GUID is untouched by FUN_1800392f0. The core stamps the
+regenerated 32-bit signature on the GPT rebuild exactly as the corpus does.

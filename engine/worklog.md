@@ -11777,3 +11777,201 @@ Stage Summary:
   Session unique fixes remain M-033 + M-042. Next in my queue: M-020
   (btrfs profile), M-039 (occupancy bitmap), M-041 (damage audit),
   M-048 (signature db), M-034 (NAS).
+Task ID: DFX21-M042-CONV (M-042 convergence — ceded to the parallel lane)
+Agent: main engineer (diff-to-fix session 21 — DFX21)
+Task: M-042 session-resume re-validation — executed in full, then ceded
+to the parallel DFX20 lane's landing (first-landing-wins).
+
+Work Log:
+- Implemented the complete M-042 fix (re-validation at run() start on
+  resumed controllers, identity-gated; PartitionContext v2 geometry tail;
+  REC_DISK_LAYOUT; post-discovery forced checkpoint; PARITY-DELTAS D-73;
+  4 tests + geometry pins; fail-before proven by temporary revert; suite
+  697/697 green locally — commit bc718bc, still in this repo's reflog).
+- Push window raced the parallel lane: 63a3a77 ("fix(M-042): resume
+  disk-truth pass") landed on origin first with a RICHER shape
+  (lost::revalidate_candidate dispatching the same per-family probes the
+  discovery uses — closer to the og's FUN_180021080 re-run than my
+  probe_family mapping; load-time revalidate_disk on the device-bearing
+  CLI surfaces; CLI resume warnings; crsf-format.md docs; 6 tests incl.
+  the arbiter edges).
+- Per the first-landing-wins protocol my landing was DROPPED (reset to
+  origin/main; both implementations preserved in git history — mine via
+  this worklog's reference and the reflog). Verified the union tree
+  green first-hand: 712/712 linux-release.
+- Session tally stands at: M-044 FIXED (mine, f71e06c + convergent
+  union), M-028 FIXED (mine), M-021 FIXED (mine, 75a5a29), M-042 FIXED
+  (theirs, ceded).
+
+Stage Summary:
+- Convergence recorded honestly; next queue item: M-048 (user-extensible
+  signature DB), then M-025 (carve read model).
+
+---
+
+---
+Task ID: DFX18-T5 (session 18, fifth fix — N-043)
+Agent: main engineer (diff-to-fix fix session 18 — DFX18)
+Task: N-043 progress liveness — implement fix-plan option (b), the
+honest heartbeat event.
+
+Work Log:
+- Corpus re-verified first-hand: FUN_140577100 (DRWUI_decompiled.c
+  :910565-910585) — Sleep(5000) loop, step counter +0x8fc vs expected
+  +0x8f8, coarse bump +0xe8, callback re-fire vt+8; CreateThread at
+  :910864; cancel flag at +200. Exactly as the finding cites.
+- Implementation: CR_EVT_HEARTBEAT (8u, appended — no version bump per
+  §9) + the shim's watchdog thread (5000 ms cv wait; fires while
+  running && no CR_EVT_SCAN_PROGRESS in the window; payload = the
+  STANDING telemetry truth: overall/stage permille, files counters,
+  elapsed_ms, carve-true bytes; bytes_total=0 unknown). Defensive join
+  at run end AND close (joinable-thread termination hazard). Both
+  event consumers (EventLog + the C consumer) taught the type — slow
+  CI lanes legitimately emit heartbeats on >5s silent windows; unknown
+  thresholds moved past 8.
+- The honest divergence registered in ABI-CONTRACT §6 (the og bumps
+  coarse progress = fabricated movement; ours never advances permille
+  without work). The doc's verbatim event block updated in lockstep —
+  AND its stale "ABI-since 1.2" copy (a D4 leftover the N-040 fix
+  missed: the doc embeds a copy of the header block) fixed too.
+- Tests: CrUi.HeartbeatDuringStall (pause-parked scan = deterministic
+  stall; standing-permille assertion + watchdog-thread assertion +
+  full-log monotonicity incl. heartbeats — the finding's two test
+  names on one deterministic fixture). Fail-before RED executed clean
+  (12.9s, zero beats) — the first fail-before attempt exposed a
+  test-design flaw (ASSERT before resume leaked the parked scan →
+  teardown deadlock); hardened to EXPECT + always-resume in the same
+  change. Dangling-else -Werror caught and fixed.
+- The EventThreadContractPinned pin (N-040) caught my own contract-text
+  change — updated in the same commit (the lockstep working both
+  directions).
+- TSan lane: 686/686 CLEAN (the threading mandate for a new thread).
+  linux-release 686/686. Audit trail: Resolution + FIXED/ move, index
+  row (100 header), matrix orchestrator rows (both session rows),
+  SUMMARY counts.
+
+Stage Summary:
+- N-043 FIXED (tally: 5 — N-045, N-046, N-040, N-074, N-043). MINOR 32
+  remain. Next: N-060 (save-progress cancel), N-061 (runlog).
+  temp leak), N-046, N-043.
+
+---
+Task ID: DFX17-F4 (session 17, finding 4 — N-063)
+Agent: main engineer (diff-to-fix fix session 17 — DFX17, MINOR-first mandate)
+Task: N-063 — carve default naming invented; the og names per-analyser.
+Verified first-hand in the decompile, fixed, fail-before executed.
+
+Work Log:
+- Corpus decode re-verified FIRST-HAND (RAWSearchDLL_decompiled.c):
+  * the template literals "Lost Name File (" (16 bytes, :33312/:33408)
+    and ")_EaseUS" (8 bytes, the memmove sites :33412-33434);
+  * the time format "%04d:%02d:%02d %02d:%02d:%02d" through
+    _localtime64 (FUN_18002b540 :33465; the snprintf at :33531);
+  * the field reads: mvhd v0 -> the BE u32 at +0x10 (:33322-33327);
+    mvhd v1 -> the FIRST FOUR BYTES of the u64 at +0x14 (:33335-33338,
+    i.e. the HIGH 32 of the BE value);
+  * TWO decode corrections to the finding, recorded: (a) the field is
+    the MODIFICATION time under the ISO layout (the finding's
+    "creation-time" label corrected); (b) there is NO 1904 MP4-epoch
+    conversion anywhere in the og path (the raw value feeds
+    _localtime64 as Unix seconds).
+- Implementation: CarveResult::embedded_name (the per-analyser name
+  carrier); mp4_og_name() in cr_analysers.cpp (moov->mvhd walk,
+  version-branch field reads, gmtime_r UTC formatting - the
+  host-local-vs-UTC divergence registered); emit precedence in
+  cr_carve.cpp (embedded_name > namer > default_namer); the false
+  "corpus policy" comment on default_namer repaired (it is OUR
+  deliberate default, now registered as PARITY-DELTAS D-76).
+- Og quirks REPLICATED, pinned by test, never "corrected": the
+  no-epoch shift (modern mvhd values format ~66 years future) and the
+  v1 high-word truncation (sane v1 times -> 1970:01:01 00:00:00).
+- Tests (4): CarveEngine.Mp4NamedByMetadataTemplate,
+  MovNamedByMetadataTemplate, MovV1MvhdHighWordQuirkReplicated,
+  FallbackNamerDocumented. Fail-before EXECUTED (emit-hook-disabled
+  sim: 3/3 naming tests RED). Pass-after: 679/679 + 24/24 UI.
+- Audit trail: Resolution in the finding (with the two decode
+  corrections + the CZeroEnd-family remainder and its next concrete
+  step), moved MINOR/ -> FIXED/, RESOLVED-INDEX row, BOTH matrix rows
+  (the session-5 detail row + the multi-column session-11 row),
+  modules/carve.md fix row, PARITY-DELTAS D-76, SUMMARY delta.
+- Remainder honestly recorded (not silent): the CZeroEndRawFileInfo
+  content-embedded-name family beyond MP4/MOV - which of the 22
+  FUN_1800173f0 (SetName) call sites extract content names vs metadata
+  templates is not decoded per-format; next step: decode each caller
+  the way this fix decoded the MP4/MOV analyser, wire each onto
+  embedded_name as its evidence lands.
+
+Stage Summary:
+- N-063 FIXED. Session tally: N-078, N-016b, N-063 (3 findings) + 2
+  baseline repairs + 1 convergence verification. Next: N-056 (windestio
+  temp leak on failed rename), N-046 (geometry refresh), N-043
+  (progress liveness watchdog).
+
+  temp leak), N-046, N-043.
+
+Task ID: DFX16-S029 (session 16, the SEVERE close-out)
+Agent: core-parity-fix-agent (main)
+Task: S-029 — lost-partition APPLY path: verify, classify, fix, prove
+
+Work Log:
+- Corpus re-verified LINE BY LINE before any code: FUN_1800566d0
+  (PR:46887-47020 legacy/modern dual path + the 3x Sleep(1000)
+  UPDATE_PROPERTIES retry tail), FUN_180038b10 (:32548-32672), FUN_180039030
+  (:32700-32790 the four-entry wipe), FUN_1800392f0 (:32797-32860 GPT
+  variant). CONFIRMED-DIVERGENCE: zero write-path hits on the pre-fix main
+  (grep re-verified), the finding's falsifiable claim reproduced.
+- CORPUS CORRECTION (recorded in the finding's Resolution): the audit's
+  "GPT_GenerateSignature new disk GUID" is a mis-read — every call site
+  (PR:32805, RM:46338, CM:118357, UL:37590) passes a 4-byte stack slot as
+  ONE register argument (PR's local_24 ulong is immediately followed by
+  the HANDLE local_20; a 16-byte GUID write would corrupt it). The
+  regenerated identity is the 32-bit disk signature (MBR +440 /
+  DRIVE_LAYOUT_INFORMATION.Mbr.Signature); the GPT header GUID is
+  untouched by the og's variant. The fix plan's test name
+  LostApplyGptRegeneratesGuid is realized as
+  LostApply.GptRebuildRegeneratesSignature (names describe proven
+  behavior).
+- Landed the apply module: include/cr/apply/cr_apply.h + src/core/apply/
+  cr_apply.cpp — plan_apply (read-only; refusals: live-entry overlap,
+  table full, GPT single-entry scope v1, zero/beyond-capacity/
+  32-bit-LBA-range extents), execute_apply (apply_consent_fn default-deny
+  AT the core boundary, S-010 quiesce, A6 sector-0 race guard, CRUNDO01
+  snapshot, verified write-back, the corpus device-control sequence per
+  path with the exact legacy order LOCK→DELETE→WRITE→UPDATE→SET_LAYOUT→
+  tail), undo_apply (byte-exact restore + refresh replay). Error facility
+  0x500A (CONSENT_DENIED/REFUSED/TABLE_CHANGED/REFRESH_FAILED) +
+  err_text rows.
+- cr_ui surface (ABI-since 1.3): cr_ui_apply_lost_partition /
+  cr_ui_apply_undo_last / cr_ui_apply_save_undo with the POD
+  plan/result structs and the cr_ui_apply_consent_fn callback — the
+  repair-consent ABI pattern mirrored; image devices reopen r+b (the
+  ImageWriteDevice base is now apply::IApplyDevice — one class serves
+  repair and apply; image files keep the portable no-op device controls).
+- Windows transport: RwDevice base -> apply::IApplyDevice with the real
+  corpus IOCTLs (0x7C100, 0x7C010 with the 0xA8 DLI shape, 0x7C058 with
+  the 0x18-byte record, 0x70140 + settle_refresh Sleep(1000));
+  open_disk_apply_rw factory (shared open path with open_disk_rw — RDA
+  duality preserved). kernel32-only entropy for the signature generator —
+  the Win7-inclusive import allowlist is untouched (no Ole32).
+- Tests: 13 LostApply.* core tests (the fix plan's five named proofs +
+  overlap/GPT-v1/table-full refusals, race guard, refresh honesty,
+  rollback, plan read-only); 2 CrUi.LostApply* C-ABI tests; ui_abi_check.c
+  extended with the plain-C deny→approve→undo→save lifecycle. Fail-before
+  is intrinsic-by-absence (the module cannot exist on the pre-fix tree;
+  the finding's grep claim re-verified pre-change).
+- Suite 610/610 (linux-gcc RelWithDebInfo + ASan) at the fix commit.
+  Also repaired the inherited pushed-red main (M-054's stale
+  cluster_count pin 100→102 — convergent with eeeccbd, both in history).
+- Audit trail: finding Resolution + move to findings/FIXED/;
+  RESOLVED-INDEX row; CROSS-REF-MATRIX lost-partition cell → FIXED;
+  modules/lost-partition.md session-16 verdict; SUMMARY session-16
+  section; PARITY-DELTAS D-72a..d (consent, single-entry preservation,
+  refresh honesty, race guard); CAPABILITY-MATRIX apply row DONE;
+  cr_lostpart.h R3.2 comment superseded.
+
+Stage Summary:
+- SEVERE tier is EMPTY (S-029 closed with the transaction proof set).
+- Session tally so far: 1 SEVERE fixed + 1 pushed-red repair. Next:
+  M-043 (NTFS content-proof + backup boot), then M-013/M-014/M-018/
+  M-029/M-032/M-035/M-049/M-050/M-052 (the unclaimed MAJOR lane).
+=======

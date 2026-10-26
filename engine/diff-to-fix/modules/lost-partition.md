@@ -182,3 +182,38 @@ New rows on this module's surface (full detail in
   FAT-x), and its accept gates diverge from the core's on six specific
   points → `M-045` (the gate deltas now carry the surface).
 - **lostpart.dat/partinfo.dat persistence semantics** — **FIXED (DFX20 / M-042, findings/FIXED/)**: the candidates' session records now carry the og's per-record geometry payload (probe-captured bps/SPC/hidden + tail-fallback flag); revalidate_candidate re-probes the persisted start LBA through the current disk at resume (both the listing and the run-start surfaces) and drops records the disk no longer confirms; the whole-disk layout snapshot round-trips as REC_DISK_LAYOUT and surfaces the layout_changed signal. The core's per-hit persistence rides the session checkpoint (forced on discovery), not a module-local .dat — the sink-less residue is registered with the finding. 6 tests; suite 685/685.
+
+- **lostpart.dat/partinfo.dat persistence semantics** — `M-042` (the
+  session-module's resume re-validation row) + `N-049` (record richness).
+## Session-6 rows (deep continuation, 2026-10-26)
+
+| ID | Severity | One-line |
+|---|---|---|
+| I-020 | INFO | PartitionRecoveryD MOM module: two-generator-set architecture (CGeneratorSetCompleteSearch ×2 / CGeneratorSetRegSearch ×2) + lostpart.dat/partinfo.dat persistence — capability register; semantics tracked in OQ-S6-1 |
+| M-017 addendum | — | CalcPartition scorer-class evidence (Fat32CalcPartition ×39 / ExFatCalcPartition ×54 RTTI refs) appended; decode order for the fix leg: OQ-S6-1 first |
+
+---
+
+## Session-16 verdict update (S-029 FIXED, 2026-10-26)
+
+**APPLY path — `S-029` FIXED.** The recovery endgame is live: a dedicated
+apply module (`cr/apply/cr_apply.h` / `cr_apply.cpp`) with the rawfixer
+transaction pattern extended to the table writer — `plan_apply` (read-only;
+clean refusals for live-entry overlap, full table, GPT single-entry scope
+(v1), zero/beyond-capacity/32-bit-LBA-range extents), `execute_apply`
+(core-carried consent callback, default-deny; S-010 quiesce; A6
+table-change race guard; CRUNDO01 snapshot; verified write-back; the corpus
+device-control sequence — legacy 0x7C100-delete → sector-0 rewrite →
+0x70140 → 0x7C010 set-layout vs modern 0x7C058 0x18-byte record, then the
+3x Sleep(1000) refresh retry tail), and `undo_apply` (byte-exact restore +
+refresh replay). The cr_ui surface (`cr_ui_apply_lost_partition` /
+`cr_ui_apply_undo_last` / `cr_ui_apply_save_undo`, ABI-since 1.3) carries
+the consent ABI; the Windows RW transport implements the real IOCTL chain
+(kernel32-only imports — the Win7-inclusive gate untouched). Safety
+supersets over the og's writer registered as PARITY-DELTAS D-72a..d
+(consent, single-entry preservation vs the four-entry wipe, refresh-tail
+honesty, race guard). Corpus correction recorded in the finding's
+Resolution: GPT_GenerateSignature regenerates the 32-bit disk signature
+(MBR +440), not the GPT disk GUID. Remaining on this module: M-017 (the
+scoring model) is DFX19's claimed lane; the GPT entry-array writer
+(FUN_180039470 protective conversion) stays v2 scope per the fix plan.

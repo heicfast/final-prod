@@ -1799,7 +1799,10 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
     }
 
     /* execute (consent-gated transactional write) */
-    auto wdev = win::open_disk_rw(disk, use_rda, use_rda ? L"RDA" : nullptr, &e);
+    /* the union's apply-capable view: the RW transport carrying the corpus
+     * device-control chain (0x7C100/0x7C010/0x7C058/0x70140 + the 3x
+     * settle tail) - execute_apply drives it inside the transaction */
+    auto wdev = win::open_disk_apply_rw(disk, use_rda, use_rda ? L"RDA" : nullptr, &e);
     if (!wdev) {
         wprintf(L"cannot open disk %u for write (rc=%08x): %hs\n", disk, e,
                 cr::win::is_elevated()
