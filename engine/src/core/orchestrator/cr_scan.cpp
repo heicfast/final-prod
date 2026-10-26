@@ -972,6 +972,31 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
         }
     }
 
+    /* ---- M-041 pre-scan damage-audit check phase (the og's
+     * FileSystemCheck position: after repair, before the engines) ----
+     * Read-only; runs on the caller's raw slice (pre-cache: the audit
+     * must see the same bytes repair wrote, uncached). The report NEVER
+     * aborts the scan — the og's escalation ladder audits, then scans
+     * anyway (rawfixer-fs-repair.md:59-65: only volumes that resist
+     * RawFixer fall through to RAW carving; the audit informs, never
+     * gates). Skipped when already cancelled (same rule as repair). */
+    if (cfg_.pre_scan_check && !(cancel && cancel->checkpoint())) {
+        stats.check_ran = true;
+        stats.check_status = check::run_fscheck(slice, check::CheckCallbacks{}, stats.check_report);
+        stats.check_detected = stats.check_report.family_detected;
+        if (event_fn_) {
+            event::Event e;
+            e.type = event::Type::FsCheck;
+            e.stage = 0xFFFFFFFFu;
+            e.timestamp_ms = 0; /* pre-stage: no run clock yet */
+            e.check_errors = stats.check_report.errors.size();
+            e.check_family = stats.check_report.family_detected
+                                 ? u32(stats.check_report.family[0])
+                                 : 0;
+            event_fn_(e, event_user_);
+        }
+    }
+
     /* R1.6 production wiring (audit row 40a): every engine read goes
      * through retry+bisection (bad-sector isolation with Skip-mode
      * zero-fill, so one dead spot cannot abort a scan) and a bounded LRU
@@ -1014,6 +1039,7 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
         publish_owner_module_(errmod::kOrchestrator);
         cfg_.fs_hint = probe_family(pipe);
     }
+
     /* volume facts for the session VolumeInfo (G-14) - recorded from the
      * caller's slice before the pipe wrapped it */
     vol_offset_ = slice->absolute_base();
@@ -1038,8 +1064,16 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
      * resume side skips comparison on zero. */
     {
         u8 boot[512] = {};
-        vol_boot_hash_ =
-            slice->read_at(0, boot, sizeof(boot)) == OK ? table::crc32(boot, sizeof(boot)) : 0;
+        if (slice->read_at(0, boot, sizeof(boot)) == OK) {
+            vol_boot_hash_ = table::crc32(boot, sizeof(boot));
+            /* N-066: keep the full sector image for the identity card's
+             * v4 tail (the og record-3's +0x518 snapshot). */
+            std::memcpy(vol_boot_snapshot_, boot, sizeof(boot));
+            vol_boot_snapshot_valid_ = true;
+        } else {
+            vol_boot_hash_ = 0;
+            vol_boot_snapshot_valid_ = false;
+        }
     }
 
     const auto stamp = [&stats, t0, cancel, this](u32 rc) -> u32 {
@@ -1777,6 +1811,15 @@ u32 ScanController::save_session(session::Writer& w, const ScanStats& stats,
     for (size_t i = 0; i < sizeof(vi.serial) - 1 && cfg_.volume_serial[i]; ++i)
         vi.serial[i] = cfg_.volume_serial[i];
     vi.boot_hash = vol_boot_hash_;
+    /* N-066: the record-3 axes + the boot snapshot (v4 tail). */
+    for (size_t i = 0; i < sizeof(vi.firmware) - 1 && cfg_.volume_firmware[i]; ++i)
+        vi.firmware[i] = cfg_.volume_firmware[i];
+    for (size_t i = 0; i < sizeof(vi.wwn) - 1 && cfg_.volume_wwn[i]; ++i)
+        vi.wwn[i] = cfg_.volume_wwn[i];
+    for (size_t i = 0; i < sizeof(vi.interface_desc) - 1 && cfg_.volume_interface[i]; ++i)
+        vi.interface_desc[i] = cfg_.volume_interface[i];
+    if (vol_boot_snapshot_valid_)
+        std::memcpy(vi.boot_snapshot, vol_boot_snapshot_, sizeof(vi.boot_snapshot));
     vi.scanned_bytes = stats.bytes_scanned;
     vi.elapsed_ms = stats.elapsed_ms;
     /* S-030 v3 tail: the image target's file path (empty otherwise) */
@@ -1816,6 +1859,17 @@ u32 ScanController::save_session(session::Writer& w, const ScanStats& stats,
     if (!disk_layout_.empty()) {
         if (session::serialize_disk_layout(disk_layout_, blob) == OK)
             if (u32 rc = w.add_record(session::REC_DISK_LAYOUT, blob.data(), u32(blob.size())))
+                return rc;
+    }
+
+    /* M-041: the damage-audit check report (the og's FileSystemCheck
+     * error set). Optional record - emitted only when the check stage
+     * ran and produced a report (detected family or findings); sessions
+     * saved without the stage lack it and the report reads empty. */
+    if (stats.check_ran && (stats.check_report.family_detected ||
+                            !stats.check_report.errors.empty())) {
+        if (check::serialize_fs_check(stats.check_report, blob) == OK)
+            if (u32 rc = w.add_record(session::REC_FS_CHECK, blob.data(), u32(blob.size())))
                 return rc;
     }
 
@@ -1953,6 +2007,17 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
              * existed carries none and the flag just stays false. */
             (void)session::deserialize_disk_layout(rec.data.data(), rec.data.size(),
                                                    stats.persisted_layout);
+            break;
+        case session::REC_FS_CHECK:
+            /* M-041: the persisted damage-audit report (codes 0x1001..
+             * 0x100e with cluster/LCN/version params). Restored so a
+             * reloaded session surfaces the audit findings without a
+             * re-run; sessions saved before the record existed carry
+             * none and the report reads empty. */
+            stats.check_ran = true;
+            (void)check::deserialize_fs_check(rec.data.data(), rec.data.size(),
+                                              stats.check_report);
+            stats.check_detected = stats.check_report.family_detected;
             break;
         default:
             break;

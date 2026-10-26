@@ -32,7 +32,29 @@ the numbered loop; residual stacks registered as D-79); storage B8/P42/A54
 -> MATCH-with-D-79. **N-059** FIXED — the per-FS session extras
 (Btrfs/ZFS/HFS+ secondary payload carriers + engine emission + the
 nflags bit-6 append-only block); session D11/D12 cells -> MATCH; the
-N-019/M-020 convergence break repaired in the same landing.
+N-019/M-020 convergence break repaired in the same landing. **N-066**
+FIXED — the identity card's record-3 parity (v4 tail: firmware/WWN/
+interface + the boot snapshot; session D12/B9 -> MATCH) + **N-080**
+(NEW-FINDING) — the descriptor offset transposition fixed (storage D11
+axis -> MATCH).
+
+**Session-30b changes (2026-10-26, DFX30-MAJOR-tail lane — this lane):**
+**M-041 FIXED** — the og's FileSystemCheck parity module
+(`include/cr/check/cr_fscheck.h` + `src/core/check/cr_fscheck.cpp`): the full
+error taxonomy 0x1001..0x100e, the FAT pass in og phase order (DBR ceilings
+341.3333333/0x100/>>(2), dead-zone + duplicate-ref scans, pairwise copy
+compare, dir-tree audit, orphan sweep with the host decision), the NTFS pass
+($MFT/$MFTMirr proofs, version gate {1.2, 3.0, 3.1}, $Bitmap structural,
+the $MFT::$BITMAP-gated MFT×$Bitmap cross-check 0x1002/0x1003), the 8-event
+callback surface, the never-abort wiring (ScanConfig::pre_scan_check after
+repair), REC_FS_CHECK, the cr_ui ABI appends (union with the parallel
+M-049 error-context append) + CLI `scan --check`. New module
+row: `check-phase` (modules/check-phase.md); deliberate deltas registered as
+D-87 (the undecoded slack term, the param superset, the partial-load refusal).
+15 fail-before tests; suites 758/758 release + ASan. **N-079 CONVERGENT**:
+this lane's leak repair (eb3cb6d) reconciled to the parallel wave's canonical
+deque-pool implementation (first-landing-wins; findings/FIXED/N-079 is the
+parallel lane's file — this lane's convergence record rides the worklog).
 
 **Session-25 changes (2026-10-26, DFX25 — INFO tier closed into FIXED/, tracked-open resolution wave):**
 the 22 acknowledged INFORMATIONAL findings (I-001..I-024) moved from
@@ -182,7 +204,8 @@ dispositions is the surviving one).
 | preview (S4 NEW) | NA | NA | NA | NA | NA | NA | NA | NA | **M-028 (S4: caps bypass — executed proof; provenance misattributions) FIXED (s21 — read_cost-gated budgets + checked_read; findings/FIXED/M-028)**; M-024 landed s15 (CarveFlags::disabled_formats) | I-013 (S4: architecture register — og socket protocol vs in-process reader) |
 | query (S4 NEW) | ~~M-029~~ **FIXED (s32 DFX32: bucket-ID translation + general-raw naming — the decode-blocked remainder closed with the DRWUI first-hand decode; Resolution in FIXED/M-029)** + ~~M-023~~ FIXED (FIXED/M-023: category source now the generated table) | NA | NA | NA | NA | NA | NA | NA | NA | ~~M-029~~, ~~N-040~~ FIXED | M-029 (S4); S-023 grading rows now carry grades + sort key 6 |
 | transport (S4 NEW) | M-030 (S4: WinPE gate, stale-handle ladder, terminal OFFLINE, 32-disk cap) | M-030 | M-030 (IOCTL numbers = own driver's, grammar shape M) | M-030 (chunking provenance corrected; OQ-S4-3 perf open) | M-030; **S-030 FIXED (S8 — image scan targets: flat/VMDK/VHD through `cr/storage/cr_image`, CLI --image, session v3 identity tail; D-64 registers edisk/dmg exclusions + VHDX/parent-chain remainders)** | NA | NA | M-030 (silent RDA fallback) | M-030 | M | **N-041 (S4: dead RdaClient + volume_letter_to_disk)**; I-016 (S4: wire register) |
-| mom-capabilities (S5b NEW) | **M-043 (S5b: NTFS content-proof + backup-boot) FIXED s15**; **M-044 (S5b: UDF family) FIXED (s21 — the og-exact AVDP→VDS probe + FsFamily::Udf 11; findings/FIXED/M-044)**; **M-045 (S5b: FAT gates) FIXED s15**; N-050 (S5b: boot-only recognition) | **M-042 (S5b: lostpart persistence semantics)**; N-049 (S5b: record richness) | I-020 (S5b: corpus-doc corrections register) | **S-029 FIXED (s10)** (apply module + CLI; PARITY-DELTAS D-68/D-69) | **M-040 (S5b: BCD/NVRAM/boot.ini/chkdsk family)**; **M-041 (S5b: check phase + error taxonomy 0x1001-0x100e)** | **S-030 (S5b: image scan targets) FIXED (s8 — findings/FIXED/S-030; module row: modules/imaging.md)** | ~~N-048~~ **FIXED (s18 DFX18: the cr::log seam — host sink default-NULL + START/END/stage/checkpoint/candidate/read-error sites; CLI --log wired as the EPMLOG-role sink; D-75 registers the single-process divergence; fail-before RED executed)** | **I-019 (S5b: EPM tool-ops scope register)**; OQ-S5-1 (CheckVersion consumer) | M-040 pending (S-029 decided: implemented v1 MBR — D-68) | NA |
+| mom-capabilities (S5b NEW) | **M-043 (S5b: NTFS content-proof + backup-boot) FIXED s15**; **M-044 (S5b: UDF family) FIXED (s21 — the og-exact AVDP→VDS probe + FsFamily::Udf 11; findings/FIXED/M-044)**; **M-045 (S5b: FAT gates) FIXED s15**; N-050 (S5b: boot-only recognition) | **M-042 (S5b: lostpart persistence semantics)**; N-049 (S5b: record richness) | I-020 (S5b: corpus-doc corrections register) | **S-029 FIXED (s10)** (apply module + CLI; PARITY-DELTAS D-68/D-69) | **M-040 (S5b: BCD/NVRAM/boot.ini/chkdsk family)**; ~~M-041 (S5b: check phase + error taxonomy 0x1001-0x100e)~~ **FIXED (s30 DFX30 — the cr/check module: full taxonomy + FAT/NTFS passes + never-abort wiring + REC_FS_CHECK + ABI/CLI; 15 tests; findings/FIXED/M-041; module row: modules/check-phase.md)** | **S-030 (S5b: image scan targets) FIXED (s8 — findings/FIXED/S-030; module row: modules/imaging.md)** | ~~N-048~~ **FIXED (s18 DFX18: the cr::log seam — host sink default-NULL + START/END/stage/checkpoint/candidate/read-error sites; CLI --log wired as the EPMLOG-role sink; D-75 registers the single-process divergence; fail-before RED executed)** | **I-019 (S5b: EPM tool-ops scope register)**; OQ-S5-1 (CheckVersion consumer) | M-040 pending (S-029 decided: implemented v1 MBR — D-68) | NA |
+| check-phase (S30 NEW) | **M-041 FIXED (s30 DFX30)** — the damage-audit phase: FAT pass (DBR ceilings, dead-zone/dup scans, pairwise copy compare, dir audit, orphan sweep) + NTFS pass ($MFT/$MFTMirr/version/$Bitmap/cross-check), taxonomy 0x1001-0x100e | NA | NA | NA | NA | **M-041 FIXED (s30)** — never-abort wiring, REC_FS_CHECK, ABI, CLI --check | NA | NA | NA | NA | M-040 (the escalation endpoints) stays open on its row |
 
 **Session-5 fix note (2026-10-26):** S-021 + S-003 FIXED (HFS+ journal
 differential harvest — PARITY-DELTAS D-56; the fallback residual tracked in
@@ -247,6 +270,7 @@ F safety · Q quality (definitions in `PARAMETERS.md`).
 | zfs | B11 (SA registry) | ~~M-038~~ **FIXED (s19)** — registry-driven SA decode; findings/FIXED/M-038 |
 | zfs | B1/B2/A25/D15 | ~~M-019~~ **FIXED (s19)** — first-entry fallback for every DVA (foreign reads counted), fletcher4 {7,0} gate over raw bytes + 32-byte compare + next-DVA retry, L0 extents planned at the fallback position; fixtures now checksum-carrying; 2 fail-before + 1 pin; findings/FIXED/M-019 |
 | refs | B1/C19/C20/A25 | ~~N-026~~ **FIXED (s28, mixed)** — boot gates aligned (bps ladder + cluster product {4K,64K}, og :13544-49) + 4-KiB open read; N-013a/N-013c INVALID on first-hand decode (0x50 body is by-construction — hardcoded 0x30 ref extension; the mid-volume formula is N-036's container key, og probes NO superblock backup); findings/FIXED/N-026 |
+| refs | B1/C19 (N-007) | ~~N-007~~ **FIXED (s33)** — first-DWORD page-signature discovery (og :11692 `*param_2 == *(int*)pcVar4`), full-width memcmp as the grading signal (signature_partial); I-004 half stays ACKNOWLEDGED (D-48b); findings/FIXED/N-007-I-004 |
 | table+ldm | B1/C20 | ~~M-016~~ **FIXED (s19)** — candidate list {2,0,1,2045,2046} = og probe order + tail superset behind; config+0 disk parses, +2 wins conflicts (committed_seq proof); 3 tests, findings/FIXED/M-016 |
 | table+ldm | B1/A27/X49 | ~~N-025~~ **FIXED (s23)** — 1 MiB config gate (>= 0x801 -> ERR_BAD_CHECKSUM, og :59748-59759) + zero-interleave 64 KiB default on stripe/RAID-5 (og :47665/:68631-68641); 2 fail-before tests + boundary pin; findings/FIXED/N-025 |
 | lost-partition | B3/A30/B16 (engine-side filter validation) | **M-035 — FIXED (s27 DFX27)** (the exFAT-only content-consistency scorer: considered/filterable/matched counters + the reject rule decompile-exact (strict < 0.3), substring classifier + MOV/MP4/JPG specials, out-of-bounds invalidation; scan_candidate wiring + detach_subtree; ScanStats::lost_content_rejected; 15 tests + fail-before; findings/FIXED/M-035) |
@@ -335,7 +359,7 @@ byte-pin→I-009, probe-row→I-010; dropped as dups: boot-geometry→N-013b, by
 | session+orchestrator | F32/F38/F41 | ~~N-060~~ **FIXED (s18 DFX18: per-node SerializeProgress hook + coalesced CR_EVT_SAVE_PROGRESS + the SAVE-SCOPED cr_ui_scan_save_cancel (the og's IsCancelled is the save object's state — save-on-scan-cancel intact) + atomic temp-then-rename saves; fail-before by construction; suite 716/716)** |
 | orchestration+session | F35/Q46/D12 | ~~N-061~~ **FIXED (s18 DFX18: run-log = the N-048 seam + the CLI --log sink with the qa-logs semantic set at the core; auto-naming = session::auto_session_name_at, byte-exact vs the corpus sample; Session.AutoNamingConvention fail-before by construction; suite 733/733)** |
 | orchestration | F35/P49 | ~~N-062~~ **FIXED (s18 DFX18: check_memory_pressure on the seam + the shim sampler on the 5 s watchdog cadence + memory_warn_mb (0 = OFF the conservative default); never scheduling-coupled)** |
-| carve | B10/A28/Q68 | **N-063 FIXED s17** (default_namer "File%06u" was a core invention — now the registered deliberate default D-76; MP4/MOV per-analyser template decoded + replicated quirks; embedded_name carrier; findings/FIXED/) |
+| carve | B10/A28/Q68 | **N-063 FIXED s17** (default_namer "File%06u" was a core invention — now the registered deliberate default D-87; MP4/MOV per-analyser template decoded + replicated quirks; embedded_name carrier; findings/FIXED/) |
 | health/bitlocker | F61/B1 | MATCH (N-064 FIXED s31: cr::dict + unlock_with_dictionary + --bitlocker-dict + cr_ui export; consent-gated, manage-bde plumbing, Office side out-of-scope per I-010) |
 | health/bitlocker | F61/B1 | ~~N-064~~ **FIXED (s34 DFX34: pure cr/pwddict module — og-exact Dict format parse (comma-terminated CRLF, byte-verified first-hand), 20-entry authored seed = REGISTERED DIVERGENCE D-78 (the og's 228-entry asset never copied; loader is format-compatible), consent-gated sequencer (dedup, caps, attempt-log progress+length only) + win try_password_unlock (same unlock() plumbing as a typed password, no in-process crypto) + CLI --bitlocker-pwddict <path\|seed> explicit-consent action; scan path holds no reference (F61 preserved); 9 Pwddict tests + executed fail-before RED; suite 752/752; findings/FIXED/)** |
 | cross-cutting | B1/F59/F61/F62/Q46 | I-021 (S5) scope/deliberate-delta registers (og always-elevated manifests, EuSendMessage installer-only, repair toggle, CRecoveryFilter layering, PENetwork SMB, DRWCfg.bin) |
@@ -352,8 +376,13 @@ not-BAAD both sides; FAT quick-scan threading — already registered D-30x).
 
 | Module | Parameter(s) | Verdict change (evidence in the finding + `evidence/decompiled-quotes/s6-*`) |
 |---|---|---|
+<<<<<<< HEAD
+| fat | B4/B5/D11/A29 | **M-052 FIXED (s24 DFX24)** (recycle-bin $I/$R pairing — the shared cr/recycle model wired into the dentry walk; findings/FIXED/M-052) |
+| exfat | B1/A25/S35 | **N-067 FIXED s11** (upcase-table validation — og shape gates + checksum32 stream check, soft stats signal; findings/FIXED/); B4/B5/D11 **M-052 FIXED (s24 DFX24)** (recycle mirror — the shared cr/recycle pairing; findings/FIXED/M-052) |
+=======
 | fat | B4/B5/D11/A29 | **M-052 — FIXED (s35)** (the shared $I/$R pairing model — four-root recognition, chain-read $I parse, original-name remap + post-walk fixup; findings/FIXED/M-052) |
 | exfat | B1/A25/S35 | **N-067 FIXED s11** (upcase-table validation — og shape gates + checksum32 stream check, soft stats signal; findings/FIXED/); B4/B5/D11 **M-052 FIXED (s35)** (the FAT-mirrored pairing — bin context through walk + oracle re-walks; findings/FIXED/M-052) |
+>>>>>>> 880e2a1b1429859df8d575aa53e835d1d65fe01f
 | carve | A25/D11/P42 | **S-032 (converged)** (archive inner-file inventories missing) |
 | carve | B1/C19 | **N-069 FIXED s11** (CAB mscf case key — FMT_CAB_LC dual row + two-spelling validator re-check; findings/FIXED/); B1/A28 **N-068 FIXED s11** (LFH sanity gates decompile-exact; EOCD half FIXED-ALREADY — the CD anchor + EOCD reconciliation already cover it; findings/FIXED/) |
 | carve | A28/A29/D15/B3 | **N-070** (overlap scoring + two-generation fallback); **S-007 addendum** (bare-MPEG dispatch gap — 18+ u16 sync keys vs ID3-only; family roster with provenance) |
@@ -363,7 +392,7 @@ not-BAAD both sides; FAT quick-scan threading — already registered D-30x).
 | session | D11/D12/B4/B9 | **S-031 (converged)** (carved files: deleted flag + timestamp + validator payload dropped at emission; sessions round-trip the misstatement) |
 | session | D12/S36 | **N-066** (identity card: firmware/WWN/interface + 512-byte boot snapshot vs model/serial/CRC32); A35/D12/F35 **N-078 FIXED s17** (truncated carve_note silent-OK exit — the c.fail-less break; filed+fixed, renumbered past the parallel lane's N-077 leak finding; findings/FIXED/) |
 | session/tree | D11/D12/P42 | **M-051+N-059 (converged)** (type-registry ID + per-FS secondary payload slots missing) |
-| writer | A27/S35/P46 | **N-065** (collision `name_N`/cap 10000 vs ` (N)`/cap 64/`_dup`; mkdir 0/0xB7-only; **D-19 premise refuted** with decompile evidence) |
+| writer | A27/S35/P46 | ~~N-065~~ **FIXED-ALREADY (s34 DFX34 verification — parallel-lane landing: collision = the og's `%s_%d`/`%s_%d%s` two-branch shape, cap 10,000, exhaustion fails the item, `_dup` removed; mkdir = the 0/0xB7 contract in SEMANTIC form as a registered divergence — the literal gate broke drive-root chains, MSVC test #227; D-19's refuted claim superseded; proof tests verified green: CollisionNameUnderscoreFormat / CollisionExhaustionFailsTheItem / MkdirSemanticsMatchShCreateDirectoryEx; findings/FIXED/)** |
 | health | P46/P68 | **S-024 addendum** (cr_health.h claims 0xD1/0xD8 never issued — doc-truth sub-item; capability gap stays S-024) |
 | storage | B8/P42/A54 | MATCH-with-D-84 (N-071 FIXED s31: the two-stack merge — PhysicalDrive loop + cfgmgr32 GUID_DEVINTERFACE_DISK pass, pure merge_disk_enumeration dedup; residual stacks registered) |
 

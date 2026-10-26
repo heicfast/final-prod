@@ -11,6 +11,7 @@
  */
 
 #include "cr/refs/cr_refs_engine.h"
+#include "cr/refs/cr_refs_detect.h"
 #include "cr/orchestrator/cr_scan.h"
 #include "cr/tree/cr_node.h"
 #include <gtest/gtest.h>
@@ -1763,6 +1764,51 @@ TEST(Refs, SingleContainerExtentsUnchanged) {
            "flags 0x10 (not 0x40) never enter the container path";
 }
 
+
+/* ---- N-007: first-DWORD page-signature discovery (the og's dispatch) ---- */
+
+TEST(RefsDetect, PartialSignaturePageDetected) {
+    /* the og's page dispatch compares the FIRST DWORD only
+     * (ReFSSearchDLL :11692 `*param_2 == *(int*)pcVar4`); a page whose
+     * signature TAIL is corrupt still opens (the ref-parser validates
+     * further). The core matches: first-4 discovery + full-width as the
+     * grading signal (signature_partial). */
+    std::vector<u8> img(1ull << 20, 0);
+    /* a full-signature page at 0x10000 */
+    std::memcpy(img.data() + 0x10000, "SUPBMSB+ReFSFSRS", 16);
+    /* a corrupt-tail page at 0x10200: first dword SUPB, garbage after */
+    std::memcpy(img.data() + 0x10200, "SUPB", 4);
+    std::memcpy(img.data() + 0x10204, "\xDE\xAD\xBE\xEF", 4);
+    RamDevice dev(std::move(img));
+    RefsInfo info;
+    ASSERT_EQ(OK, detect_refs(&dev, info));
+    EXPECT_TRUE(info.found) << "the corrupt-tail page is found (the og's rule)";
+    EXPECT_TRUE(info.signature_partial)
+        << "the grading signal marks the corrupt signature tail";
+
+    /* a volume whose ONLY page has a corrupt tail: still found (the
+     * pre-fix core returned ERR_BAD_MAGIC here) */
+    std::vector<u8> img2(1ull << 20, 0);
+    std::memcpy(img2.data() + 0x10000, "MSB+", 4);
+    std::memcpy(img2.data() + 0x10004, "\x00\x00\x00\x00", 4);
+    RamDevice dev2(std::move(img2));
+    RefsInfo info2;
+    ASSERT_EQ(OK, detect_refs(&dev2, info2));
+    EXPECT_TRUE(info2.found);
+    EXPECT_TRUE(info2.signature_partial);
+
+    /* clean volume: no partial flag */
+    std::vector<u8> img3(1ull << 20, 0);
+    std::memcpy(img3.data() + 0x10000, "MSB+ReFSFSRS", 12);
+    RamDevice dev3(std::move(img3));
+    RefsInfo info3;
+    ASSERT_EQ(OK, detect_refs(&dev3, info3));
+    EXPECT_TRUE(info3.found);
+    EXPECT_FALSE(info3.signature_partial);
+}
 } // namespace
 } // namespace refs
+
+
+
 } // namespace cr

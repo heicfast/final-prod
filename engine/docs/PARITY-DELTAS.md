@@ -7873,6 +7873,47 @@ live probe (the SetupAPI disk-interface pass is the designed extension
 point — enumerate_via_setupapi() merging dedup'd by device instance
 path per the finding's fix plan option b).
 
+### D-87 — the damage-audit check phase: three bounded divergences from the og's FileSystemCheck (M-041, REGISTERED; renumbered from a D-76 collision with the parallel lanes' N-063 register — the errata convention)
+
+**CONTEXT:** M-041 landed the og's chkdsk-grade audit layer
+(`cr/check/cr_fscheck.h/.cpp`, corpus ghidra-mo/FileSystemCheck_decompiled.c,
+every load-bearing gate decompile-cited in the header). Three points could
+not be decoded to byte-parity and are registered here rather than guessed.
+
+**(a) The $Bitmap slack term is not implemented.** The og's structural
+check (checkntfs.cpp :3866-3888, inside FUN_180005590) fires 0x100b when
+`bitmap_bits < mft_record_count` OR when
+`mft_record_size × (CCheckNTFSVolume+0x30) × 8 <= bitmap_bits − mft_record_count`.
+The first half is implemented exactly. The second half's constant lives in
+an object-field layout the decompile does not resolve (+0x30 is not read
+anywhere else in the module): every well-formed volume stores exactly
+one bit per cluster, and no fixed slack constant can both fire on
+corruption and stay silent on healthy volumes under the field's plausible
+readings — the term is layout-undecoded and deliberately NOT approximated.
+
+**(b) CheckIssue carries superset context the og's callback does not.** The
+og's FAT-path 0x1003 (orphan sweep) reports `(code, 0)`; the NTFS
+cross-check reports `(code, LCN)` and the record number only in its log
+line. The core's `CheckIssue` carries the orphan CLUSTER, the NTFS LCN,
+the claiming record number, and a path hint for the dir audit. Hosts
+consuming the report get strictly more context; the numeric codes and
+their meanings are unchanged.
+
+**(c) A partial $Bitmap run load fails the load (0x100b), never a
+zero-tail audit.** The og's LoadVolumeBitmap allocates the declared
+$DATA size and reads the runs; a short/failed read leaves the og's log
+line and a bitmap whose tail content depends on its allocator. The core
+refuses to cross-check against a partially-loaded bitmap (the zero-filled
+tail would read as "every cluster free" and fire false 0x1003 verdicts) —
+the structural 0x100b is reported instead. The og's
+"Call LoadVolumeBitmap() failed!" path is the closest analogue.
+
+**RISK:** none user-observable beyond the og's own coverage; (a) may miss
+a corruption class the og's slack term catches (undecodable which), (b) is
+additive, (c) is stricter-than-og on a pathological shape. REVISIT
+TRIGGER: any future decode of CCheckNTFSVolume's field layout (+0x30)
+reopens (a) with the exact constant.
+
 ### D-86 — the logging seam: one host sink, no cross-process transport (N-048, REGISTERED DIVERGENCE)
 
 The og runs a three-layer logging architecture: Log.mo's EPMLOG.log
