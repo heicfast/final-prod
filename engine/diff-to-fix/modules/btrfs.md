@@ -122,7 +122,7 @@ cross-engine gap is M-039. This leg's local S-021 renumbered to S-028.)
 | ID | Severity | One-line |
 |---|---|---|
 | N-056 | MINOR | Re-scan metadata cache (og persists BtrfsCache.txt subvolume/chunk-tree cache; core cold every scan) + ZFS-side polling in the same file |
-| OQ-S6-2 | tracked | The RC4 PRGA target (encrypted-dataset support claim — capa-verified primitive, undecoded role; possibly the cache obfuscation itself) |
+| OQ-S6-2 | RESOLVED (s25) — **INVALID premise**: capa false positive (0x180012190 = adler32/crc32 chunk pump, no RC4 essentials anywhere in the binary); erratum E46; no divergence — parity by shared absence |
 
 
 ## Session-33 verdict update (2026-10-26, DFX33 — M-020 FIXED)

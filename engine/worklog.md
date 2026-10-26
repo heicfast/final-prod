@@ -13602,6 +13602,46 @@ Stage Summary:
   landed M-014/M-049 in the same window). Next: pull, then M-025 (carve
   read model) or whatever remains open.
 
+
+---
+Task ID: DFX33-T2 (session 33, second fix)
+Agent: main engineer (diff-to-fix fix session 33 — DFX33)
+Task: M-025 — the carve read model (8 MiB ping-pong / already-in-buffer
+vs 1 MiB windows with per-candidate device re-reads).
+
+Work Log:
+- Corpus re-verified at the cited lines (:9269-9275, :9184-9209, :9434-
+  9438, :9496-9510, :9620-9622, :9541-9605, :10114-10144). CONFIRMED as
+  structural cost (the finding's own framing: no og-execution possible
+  here; the divergence is decoded structure, not a measured X47 delta).
+- Implemented fix-plan 2a+2b as the WindowDevice read context: in-window
+  reads served from the window buffer; straddling reads split
+  buffer-prefix + device-tail. Wired: validators, both checksum sites,
+  both hash sites, the raw-sign tail scans. M-021 hook keeps the raw
+  slice (host contract).
+- MEASURED (fix-plan item 1): the counting-device fixture — 52 device
+  reads pre-fix → 4 post-fix (13x; zero per-candidate re-reads).
+  Fix-plan item 3 (geometry) NOT taken — the finding's own bench-evidence
+  rule; Windows bench lane owns executed X47 (M-009 posture). Item 4
+  registered as PARITY-DELTAS D-81.
+- Debug path: traced the 1 MiB probe/window interaction first-hand (the
+  entropy/MP3 block reads can never fit a 1 MiB window; the PNG validator
+  is the clean in-window fixture), all instrumentation removed before
+  commit.
+- Tests: CarveEngine.WindowServingEliminatesPerCandidateRereads (RED on
+  the pre-fix wiring: 52 vs 4) + WindowServingServesStraddlingReadsCorrectly
+  (boundary plant: exact extent 521/length/checksum — caught my own
+  fixture-arithmetic slip: plant_jpeg is 521 B, not 519). Carve suite
+  46/46; full suite 799/799 linux-release.
+- Audit trail: Resolution + FIXED/ move; matrix carve row MATCH;
+  modules/carve.md session-33 verdict; SUMMARY part-2 delta;
+  PARITY-DELTAS D-81.
+
+Stage Summary:
+- M-025 FIXED (tally: 2 — M-020, M-025). MAJOR 10 open. Next: pull, then
+  M-029 (query model) or whatever remains open.
+
+
 Task ID: DFX30-T4 (OQ-Z1 resolved — no divergence)
 Agent: main engineer (diff-to-fix fix session 30 — DFX30)
 Task: OQ-Z1 — og dsl_dir/dsl_dataset offset constants (documentation
@@ -13634,6 +13674,35 @@ Stage Summary:
   reachability — gates S-018 step 3).
 
 ---
+Task ID: DFX29-T4 (session 23 lane, sixth fix — N-033, the CLI half)
+Agent: main engineer (diff-to-fix fix session 29-lane — DFX29)
+Task: N-033's remaining scope: the CLI capability surface + the
+per-scan refresh divergence register.
+
+Work Log:
+- Verified the session-6 addendum's state in-tree first (cr_ui_carve_
+  format_count/info present + ABI-CONTRACT §7a + the enumeration test).
+- Implemented rrecov --list-carve-formats: checked BEFORE command
+  dispatch (works bare), renders layer/ext/min/max/base_confidence/
+  grammar-magic in the ABI's deterministic order; usage text updated.
+- Gate hardening en route: cr_ui.h's CR_UI_API expands to __declspec
+  under the parse gate's -D_WIN32 — Linux g++ cannot parse it. First
+  attempt (stub windows.h #define) broke on include order (cr_ui.h
+  precedes windows.h in rrecov); final form: -D__declspec(x)= in the
+  gate's CXXFLAGS (include-order-proof, never in shipping code).
+  win_syntax_check 8/8 GREEN.
+- ABI-CONTRACT §7a: the per-scan registry-refresh divergence registered
+  (og re-clones cross-DLL per scan; core tables compile-time immutable —
+  lifetime-valid enumeration; the runtime-config future named as a
+  versioned-ABI question).
+- Suite 800/800 (one flaky timing test from a parallel lane's landing
+  failed once, two consecutive full runs green). Audit trail: Resolution
+  (full closure), FIXED/ move, index row, SUMMARY batch-5 delta + counts.
+
+Stage Summary:
+- Tally 6 (N-009 group, M-057, N-036, N-049, N-050, N-033). MINOR 7
+  remain. Next: N-065 (writer destination policy).
+
 Task ID: DFX30-T5 (OQ-E1 resolved — verification of S-025's answer)
 Agent: main engineer (diff-to-fix fix session 30 — DFX30)
 Task: OQ-E1 — ext4 orphan reachability: which parent wins when both
@@ -14004,3 +14073,367 @@ Stage Summary:
 - N-033 FIXED (session tally: 3 — N-075, N-019, N-033 — + the pushed-red
   repair). MINOR 5 open (N-007, N-059, N-065, N-066, N-072). Next:
   N-066 (session identity card).
+
+Task ID: DFX30-T8 (OQ-FLT-2 pushed forward with new evidence)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: OQ-FLT-2 — the AdvanceFilterCondition 0x48-byte layout.
+
+Work Log:
+- FUN_1406f91d0 decoded (:1142279-1142292): the completeness predicate —
+  AND of bit0 at dword indices 0/1/2/8/0xf/0x10 (byte offsets
+  0/4/8/32/60/64; six of the seven groups).
+- Dispatch semantics decoded at both consumers: CSetFilterThread::run
+  (FUN_14072f8c0 :1170069-1170101) passes NULL to the manager vtable+0x10
+  apply when all six bits set (the no-filter/everything state); the
+  filter-bar call sites (:1155006/:1155018) pass !(all-set) to
+  FUN_1406fa840.
+- Delivery chain re-confirmed: two CFilterBars (Path/Type views) ->
+  sigFilterChange -> CRightContent::onFilterChanged (FUN_14072b730) ->
+  CSetFilterThread (ctor FUN_14072e290, TimeCritical start, modal
+  freeze-dialog at node count >= 1,000,001).
+- The full per-group semantics/tag vocabulary/path-mode decode lives in
+  the manager apply method (vtable+0x10 on FUN_1401d4920/FUN_1401d4930/
+  FUN_14031c410 managers) — precise next targets recorded in the OQ.
+- Gate status: the OQ's original gate (session-3-local N-028) renumbered;
+  the live consumer is M-029 (open, DFX24's lane) whose corpus refs
+  already cite the 7-group struct. Full decode stays with M-029's fix.
+- Audit trail: OQ-FLT-2 PUSHED FORWARD with the new evidence + precise
+  next targets; OQ-Z-E-FLT-session3.md header updated (all other
+  sub-questions resolved this session or before).
+
+Stage Summary:
+- OQ-FLT-2 pushed forward (predicate + dispatch + chain decoded; apply
+  method = next target, feeds M-029). The OQ-Z-E-FLT file is now 7/8
+  sub-questions resolved. Next on this lane: OQ-T6 residual (uberblock
+  geometry + checksum-verify depth), then OQ-S6-3/S6-2/S6-1/S5-1.
+
+---
+Task ID: DFX25-T4c/T4d (session 25 — OQ-S6-3 + OQ-S6-2 resolutions)
+Agent: main engineer (DFX25)
+Task: Resolve OQ-S6-3 (CRAW reader semantics) and OQ-S6-2 (Btrfs RC4
+target) — decode-first, classify, land the audit trail.
+
+Work Log:
+- OQ-S6-3 (CRAW reader FUN_140c40d80, DRWUI :1875575): all three fields
+  are pass-through at load — no checksum validation, no read-bounding on
+  anchor B, no boolean consumer. Producer FUN_180012190-family decode:
+  the +0xF4 boolean is set iff the analyser type id == 0xA8(168)
+  (FUN_140c41450) — a per-format marker in the +0xF8 type registry's id
+  space; 2,431/12,147 = the type-168 population; none of the three filed
+  hypotheses correct. Vtable proof (props-vtables.txt :42): the +0xF4,
+  +0x56, and dual-anchor getters have ZERO callers and NO vtable slots —
+  dead accessors. Bonus decode: type 0x2A's tail-extent pair (analyser
+  +0xd8/+0xe0) appended to the runlist + folded into the size — the
+  tail-pairing shape the core's raw-sign path implements. M-051's design
+  CONFIRMED on all three fields; the decoded semantics documented at the
+  carve_flag carrier (cr_node.h); M-051 addendum + evidence file
+  s25-oq-s6-3-craw-reader-decode.md. No code change.
+- OQ-S6-2 (Btrfs "RC4 PRGA"): the capa match (0x180012190, the ONLY
+  RC4-rule hit) disassembled first-hand for all 469 bytes — a chunked
+  checksum-verified copy pump: type 1 → FUN_180014c00 = adler-32
+  (0xFFF1/5552-blocking), type 2 → FUN_180014ee0 = slicing-by-4 table
+  CRC; the matched loops are u16 length-table maintenance. NO RC4
+  essentials anywhere: no `and $0xff` in the function, no 256-state/KSA
+  in the whole decompile (zero % 0x100), no keystream XOR, no key
+  material, no crypto strings. CLASSIFICATION: INVALID premise (capa
+  false positive). Erratum E46 filed; evidence file
+  s25-oq-s6-2-btrfs-rc4-false-positive.md; N-072 carries no RC4
+  dependence (grep-verified). No code change — parity by shared absence.
+- Both landings pushed with the audit trail (OQ files → RESOLVED,
+  module row updated).
+
+Stage Summary:
+- OQ-S6-3 + OQ-S6-2 RESOLVED (24+5 resolutions this session counting the
+  INFO tier + A-008). Tracked-open files remaining: OQ-RS, OQ-S20-1,
+  OQ-S4-3, OQ-S5-1, OQ-S6-1, OQ-T6-T7, OQ-Z-E-FLT residues (DFX30's
+  active lane). Next on this lane: OQ-S6-1 (generator-set semantics).
+Task ID: DFX30-T9 (OQ-T6-T7 closed to FIXED/)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: OQ-T6 residuals (uberblock geometry registration, multi-vdev,
+checksum depth) + OQ-T7 (already resolved) — close the file.
+
+Work Log:
+- T6.2 (multi-vdev DVA): RESOLVED — M-019's landing + DFX30's first-hand
+  re-verification (OQ-Z3): the og's registry loop falls back to the FIRST
+  entry on any vdev-id miss; core MATCHES since M-019.
+- T6.3 (uberblock geometry): RESOLVED as a registered superset — D-04
+  already carries "ZFS uberblock ring auto-probes ashift shifts 10-13";
+  the og's hardcoded 1 KiB slots re-confirmed first-hand (FUN_180018930's
+  128 KiB read at 0x20000 with fixed 0x400 stride, the S-034 decode).
+- T6.4 (checksum-verify depth): RESOLVED — M-019's decode: the
+  fletcher4-family gate (checksum-type bits 40-47, zc in {7,0}), the
+  interleaved 4-accumulator fletcher4 + 32-byte compare + next-DVA retry;
+  core MATCHES since M-019 (ChecksumFailDropsAndRetriesNextDva).
+- D-09 registry row updated NEEDS-WORK -> ACCEPTED with the pinned og
+  story (type-blind + first-entry fallback; the "single-vdev only +
+  unsupported_vdevs" text was the pre-M-019 posture; gang-wording note
+  preserved).
+- File header stamped ALL-RESOLVED; git mv tracked-open/ ->
+  findings/FIXED/ (the OQ-S003 precedent).
+
+Stage Summary:
+- OQ-T6-T7 CLOSED (2 files remain in tracked-open from this lane's queue:
+  OQ-S6-3, OQ-S6-2, OQ-S6-1, OQ-S5-1 + DFX25's head items). Session
+  tally: 8 items (7 resolutions + 1 push-forward) + S-034 + D-09 re-verdict
+  + OQ-T6-T7 closure. Next: OQ-S6-3 (CRAW reader F4 boolean).
+---
+Task ID: DFX31-N064-CONV (session 31 — the N-064 two-landing reconciliation + pushed-red repair)
+Agent: main engineer (diff-to-fix fix session 31 — DFX31)
+Task: Reconcile the convergent N-064 landings (first-landing-wins) and
+repair the pushed-red main (ccbe9eb committed unresolved conflict
+markers into the win layer).
+
+Work Log:
+- Timeline verified by commit timestamps: DFX31's N-064 (cr::dict) pushed
+  at 05:26:57Z (4c475ba content); the parallel DFX34 lane's cr::pwddict
+  landed 05:37:29Z (817740c); their union merge ccbe9eb committed
+  conflict markers into cr_bitlocker.h/.cpp regions + rrecov.cpp
+  (win_syntax_check RED — pushed-red main, the M-055 class of break).
+- Reconciliation: markers resolved to the canonical (first-landed,
+  cr::dict) side; the cr::pwddict module + --bitlocker-pwddict flag +
+  test_pwddict.cpp dropped cleanly; the ONE genuine superset capability
+  ABSORBED — user-supplied dictionary files in the og's exact format:
+  --bitlocker-dict [file] (load_dict_candidates rides cr::dict::parse,
+  256 KiB hostile-input cap, honest failures on unreadable/over-cap/
+  invalid/empty dictionaries) + the DFX34 design point that the
+  Unknown-state (boot-unreadable, typically locked) volume gets the
+  consented dictionary attempt before its refusal + the narrow-candidate
+  unlock_with_dictionary overload for the CLI path.
+- D-78 (their data-posture registration) renumbered to D-80 and re-worded
+  as the convergence record (the canonical posture: the corpus Dict
+  converts as generated data per the raw_signs.json precedent — 228
+  common passwords are facts, not creative expression; the loader keeps
+  host flexibility). Both Resolutions preserved in the finding file
+  (append-only); the convergence record appended after them.
+- Verified: full build green; win_syntax_check green (all 8 files);
+  suite 814/814 linux-release at the reconciliation tree.
+
+Stage Summary:
+- N-064 convergence closed; main green again. Session tally: N-064
+  (canonical + convergence), N-071. Next: pull, then N-072 or N-066.
+
+---
+Task ID: DFX30-T11 (OQ-S6-2 — convergent verification; DFX25's landing stands)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: OQ-S6-2 — the Btrfs RC4 PRGA target.
+
+Work Log:
+- Decoded FUN_180012190 independently: sliding-window pump + adler32
+  (FUN_180014c00, mod-0xFFF1) + table-CRC32 (FUN_180014ee0) + the deflate
+  length-symbol tables in FUN_1800143a0 + the 0x106 lookahead in
+  FUN_180012370 = the zlib-inflate cluster; NO RC4 KSA/PRGA anywhere
+  (grep-verified). Push met DFX25's convergent landing (their resolution
+  + erratum E46 pushed first).
+- Per the convergence protocol: DFX25's landed resolution stands; my
+  decode recorded as the convergence addendum in the file (the cluster
+  identification is the addition); the FIXED/ filing completed in the
+  same change; my duplicate E46 dropped, convergence note appended to
+  theirs instead.
+
+Stage Summary:
+- OQ-S6-2 closed (convergent two-lane resolution: capa false positive,
+  no RC4, core MATCH by mutual absence). Session tally: 11 items. Next:
+  OQ-S6-1 (PartitionRecoveryD generator sets).
+
+---
+---
+Task ID: DFX30-T2 (session 30, second fix — N-071)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: N-071 — device enumeration breadth (the deferred trio, 2/3;
+N-064 absorbed by the parallel DFX31 lane mid-flight).
+
+Work Log:
+- Re-verified the finding's premise against the corpus (mom-module-
+  system--architecture.md :57-59 five-stack list; the QA census) and
+  the current cr_enumerate.cpp; the open question (Storage Spaces
+  members failing to surface as PhysicalDriveN) stays
+  UNVERIFIED-BY-EXECUTION — no observed miss in any fleet.
+- Resolution per the finding's own recommendation, option (a):
+  PARITY-DELTAS D-80 (the scope registration + revisit trigger; renumbered past the parallel lane same-window D-79), PLUS
+  the one real behavioral gap ported: query_disk now retries a
+  0-ACCESS metadata-only open on ERROR_ACCESS_DENIED/
+  ERROR_SHARING_VIOLATION — the FILE_ANY_ACCESS geometry/descriptor
+  IOCTLs answer, so a share-blocked disk stays listed (busy=true);
+  the og's stacks enumerate without opening, our loop's truth is the
+  open, the retry closes the observable difference. Option (b) NOT
+  built (speculative surface on an unobserved miss — the opposite of
+  no-hallucinated-parity).
+- Tests: 3 source-truth pins (Enumerate.ScopeDeltaRegistered...,
+  BusyDiskMetadataRetryShipsInQueryDisk, ScopeContractDocumentedInHeader
+  — the N-074 doc-truth pattern; the behavior is MSVC-lane territory,
+  parse-gated on Linux). win-stub extended with the two error codes;
+  win_syntax_check green over all 8 win-layer files.
+- Audit trail: Resolution + FIXED/ move; RESOLVED-INDEX row; matrix
+  storage row; modules/storage.md session-30 row; SUMMARY counts.
+
+Stage Summary:
+- N-071 FIXED (session tally: 2 — N-032, N-071). The deferred trio is
+  drained on this lane (N-064 landed by DFX31). Next: pull, then the
+  rear queue (N-072/N-033/N-019/N-050 — contested by DFX28's lane;
+  first-landing-wins per finding, pull before each).
+
+=======
+
+---
+Task ID: DFX30-T3 (session 30, third push — the N-071 convergence repair +
+the repo-wide committed-marker cleanup)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: Repair the pushed-red state inherited from the window's parallel
+merges (committed conflict markers) + land the N-071 convergence.
+
+Work Log:
+- DISCOVERED mid-push: merge 220e0be ("sync before N-071 push")
+  COMMITTED conflict markers in include/cr/win/cr_bitlocker.h (1 block,
+  the two convergent N-064 declarations), src/app/rrecov.cpp (5 blocks,
+  the two N-064 CLI designs), plus marker soup in docs/PARITY-DELTAS.md,
+  docs/CAPABILITY-MATRIX.md, RESOLVED-INDEX.md and three worklog prompt
+  archives. Repo-wide scan found every instance; all repaired.
+- N-064 convergence resolution (both implementations stand, both are
+  consumed): the header keeps BOTH declarations (try_password_unlock =
+  the cr::pwddict surface; unlock_with_dictionary = the cr::dict
+  surface); rrecov's open_volume_view unified to (letter, out, fvek_hex,
+  pwddict_arg, dict_consent) with the consent chain: auto-unlock →
+  [--bitlocker-dict → shipped dictionary] → [--bitlocker-pwddict
+  <path|seed> → loaded candidates] → refusal advertising both aids.
+  Both flags parsed in the cmd_scan pre-pass; usage line updated; the
+  guidance message advertises both surfaces. F61 consent posture
+  preserved: no flag, no attempt, ERR_FVE_LOCKED.
+- N-071 convergence (my option-(a)+hardening landed onto the parallel
+  lane's option-(b) two-stack port): THEIR canonical stands (the
+  cfgmgr32 GUID_DEVINTERFACE_DISK present-instance pass +
+  merge_disk_enumeration pure seam + its 4 merge tests); MY busy-disk
+  hardening integrated into open_disk_for_query() used by BOTH stacks
+  (0-access metadata-only retry on ERROR_ACCESS_DENIED/
+  ERROR_SHARING_VIOLATION; busy=true). Delta rows: D-79 = their
+  two-stack port (canonical), D-80 = my companion scope row (renumbered
+  past the same-window D-79 collisions); my 3 source-truth pins updated
+  to pin the CONVERGED truth (both rows registered, both stacks use the
+  retry).
+- Suite 826/826 linux-release; win_syntax_check green over all 8
+  win-layer files; repo-wide zero-marker scan clean.
+
+Stage Summary:
+- N-071 FIXED (convergent union; session tally: 2 — N-032, N-071) +
+  the pushed-red repair. REMAINING KNOWN DEBT (next push): the delta
+  ledger has duplicate numbers from the window (D-75 x2, D-78 x2, D-79
+  x3) - a deterministic renumbering pass is queued.
+
+=======
+
+---
+Task ID: DFX30-T4b (session 30 — the ledger repair landed; survey)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+
+Work Log:
+- The delta-ledger union repair landed (see commit 9a3b6bd): nested
+  markers stripped, duplicate topics deduped, collisions renumbered
+  (D-81..D-85), the D-80 N-064 convergence body restored verbatim,
+  references updated repo-wide; the Btrfs pushed-red union repaired
+  (M-020 default-subvol semantics vs N-019's stale expectation).
+- Suite 822/822 on the repaired tree; win_syntax_check green; the
+  repo-wide zero-marker scan clean.
+
+Stage Summary:
+- Session tally: N-032 FIXED + N-071 FIXED (convergent) + 4 repair
+  pushes (N-064 convergence support, marker cleanup, Btrfs union red,
+  delta ledger). Next: survey the remaining open set and continue.
+
+=======
+
+---
+Task ID: DFX25-T4b (session 25 — OQ-S6-1 resolution)
+Agent: main engineer (DFX25)
+Task: Resolve OQ-S6-1 (PartitionRecoveryD generator-set semantics +
+lostpart.dat/partinfo.dat formats) — decode, classify, land.
+
+Work Log:
+- Decode first-hand (PartitionRecoveryD_decompiled.c + byte-level vtable
+  dumps from the .mo binary): CGeneratorSetRegSearch and
+  CGeneratorSetCompleteSearch are behaviorally IDENTICAL (same base ctor
+  FUN_180006d90; vtables 0x18002c1a8/0x18002c2e8 share every method
+  except the dtor) — registration identities in the mode map
+  (FUN_18000d3b0: Complete=4, Reg=1, Fast=2, Fast1M=3). The
+  "registry-driven second pass" hypothesis REFUTED; the name is not the
+  Windows registry.
+- The .dat files decoded: module's own directory; partinfo.dat =
+  0x18-byte "Part"-magic live-table snapshot (delete-both-on-first-use,
+  rewritten per run, memcmp'd at the next run -> layout_changed ->
+  progress reset); lostpart.dat = 0x448-byte "Part"-magic candidate
+  cache (appended per discovery, deduped by {+0x28,+0x30,+8} when the
+  layout is unchanged).
+- Consequences landed: I-020's upgrade condition refuted (stays
+  acknowledged INFO — I-024 addendum recorded); M-042 CONFIRMED at the
+  mechanism level (the same information flow as REC_DISK_LAYOUT type 8
+  + per-candidate revalidation); no core surface added (no .dat files —
+  session-embedded equivalents already landed; the og's
+  delete-on-first-use makes them per-boot scratch). x2 census = two
+  instances of the whole search stack.
+- Evidence file s25-oq-s6-1-generator-sets-and-dat-files.md; OQ resolved
+  in tracked-open; I-024 addendum; landed be3a8a9 (via merge e77c749).
+- Housekeeping: worklog.md.bak (a parallel lane's merge artifact,
+  949KB) removed from the tree — git history preserves all content.
+
+Stage Summary:
+- OQ-S6-1 RESOLVED (no code change — decode-only landing). Session
+  tally: 27 resolutions (22 INFO closures, A-008 ACUTE, OQ-Z1, OQ-S6-3,
+  OQ-S6-2, OQ-S6-1). Next: OQ-S5-1 (CheckVersion's consumer).
+
+Task ID: DFX30-T12 (OQ-S6-1 resolved + closed)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: OQ-S6-1 — PartitionRecoveryD generator-set semantics + the
+lostpart.dat/partinfo.dat formats.
+
+Work Log:
+- Family census (factory registrations FUN_18000d3b0): FOUR generator
+  sets — Reg(1), Fast(2), Fast1M(3), Complete(4); all CSettingsStore
+  subclasses; Fast pair parameterized (+0x38/+0x40); Complete/Reg
+  identical vtables (RTTI-walked, 5 slots, dtor-only difference).
+- The location generators: CLocationGenAbnormal,
+  CLocationGenDependOnGeomotry, CLocationGenFromReg. FromReg's reader
+  (FUN_18000f5b0) decoded first-hand: MountedDevices-style REG_BINARY
+  "Data" values, '#' markers at +0xC4/+0xE6, 32-byte field at +0xC6,
+  %I64X hex parse, sector-alignment check -> {offset, sector_count}
+  probe seed. RegSearch = registry-seeded targeted pass (hypothesis (a)
+  CONFIRMED).
+- The .dat formats: partinfo.dat = 24-byte "Part"-magic records (the
+  remembered live table; memcmp'd at run start for layout-change
+  detection — the M-042 REC_DISK_LAYOUT semantics); lostpart.dat =
+  1096-byte "Part"-magic records (remembered lost candidates; the
+  get-first API at FUN_180020120). Module-dir paths via FUN_180025dc0.
+- Q3 superseded (the x2 doubling = the four-set family artifact); Q4:
+  registry-seeded recall is a subset of the exhaustive sweep — core
+  recall parity holds; the fast path is a latency optimization
+  (deliberate-difference note for mom-capabilities.md, no finding).
+- Audit trail: resolution recorded in the file; closed to FIXED/.
+
+Stage Summary:
+- OQ-S6-1 RESOLVED + closed. Session tally: 12 items (S-034 + D-09 +
+  10 OQ dispositions). Remaining on this lane: OQ-S5-1 (CheckVersion
+  consumer).
+
+---
+Task ID: DFX30-T12b (OQ-S6-1 — convergent landing CORRECTED)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+
+Work Log:
+- Push met DFX25's convergent OQ-S6-1 resolution. Their .dat decode is
+  richer than mine (delete-on-first-use lifecycle, dedup keys
+  {+0x28,+0x30,+8}, GetModuleFileNameW module-dir) and is ADOPTED.
+- Their point 1 ("behaviorally identical; the name does not refer to the
+  Windows registry") is REFUTED by the mode-dispatch layer they did not
+  reach: FUN_180022430 (:20851-20895) dispatches on the search-mode field
+  (the factory-id space) — mode 1 (RegSearch) attaches CLocationGenFromReg
+  (FUN_1800214c0) + the .dat context load; mode 4 (CompleteSearch)
+  attaches FUN_180021d70 + a 0x4000 parameter. CLocationGenFromReg's
+  loader FUN_18000f5b0 = RegOpenKeyA + RegQueryValueExA("Data") with the
+  MountedDevices '#'@+0xC4/+0xE6 / 32B-field@+0xC6 / %I64X decode —
+  hypothesis (a) CONFIRMED (registry-seeded probing).
+- Correction recorded as the CORRECTION ADDENDUM in the file (their
+  content preserved verbatim; the union stands); Q4's no-unique-recall
+  conclusion SURVIVES the correction (registry positions subset of the
+  exhaustive sweep). File closed to FIXED/.
+- Their residual (which UI surface requests mode 1 vs 4) stands.
+
+Stage Summary:
+- OQ-S6-1 closed with a two-lane union + one corrected conclusion.
+  Remaining on this lane: OQ-S5-1 (CheckVersion consumer).

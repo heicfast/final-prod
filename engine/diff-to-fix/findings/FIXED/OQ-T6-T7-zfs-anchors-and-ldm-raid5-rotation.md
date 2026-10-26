@@ -1,4 +1,4 @@
-# OQ-T6 (tracked-open) — ZFS: og nvlist anchor, multi-vdev DVA resolution, uberblock geometry
+# OQ-T6 (tracked-open — ALL SUB-QUESTIONS RESOLVED; closed to FIXED/ by DFX30 2026-10-26) — ZFS: og nvlist anchor, multi-vdev DVA resolution, uberblock geometry
 # OQ-T7 (tracked-open) — LDM: RAID-5 rotation parity vs LdmManager.mo
 
 ---
@@ -40,18 +40,31 @@ FUN_180024110's map consumers in the DVA resolution path.
    label0+16 KiB (=0x4000); it may be a second-copy anchor or an og quirk. Until the og's
    caller context is decoded, the core's per-label read stands as the spec-correct
    superset.
-2. **Multi-vdev DVA resolution (capability gap, registered D-09 NEEDS-WORK).** The og's
-   vdev_tree parser recurses into children (type-9) and builds a per-vdev geometry
-   registry — but whether DVAs are resolved across sibling vdevs is NOT decoded. Our core
-   refuses non-zero vdev ids (`cr_zfs_engine.cpp:409`) and reports
-   `stats.unsupported_vdevs`. Mirror/raidz pools: unknown og yield vs our zero. This is
-   the biggest open ZFS question and the corpus's ZfsSearchDLL (981 fns / 45,364 lines)
-   has enough material to answer it.
-3. **Uberblock geometry.** Og: fixed 1 KiB slots (0x80-qword stride, verified :32365).
-   Core: probes shifts 10..13 with hit-count validation (`cr_zfs_engine.cpp:1061–1091`) —
-   supports ashift-13 pools the og cannot read. Superset; no action, register.
-4. **Checksum-verify depth in CStreamBase** (fletcher2/4, sha256, on-disk blkptr
-   checksums?) — decode needed for X-parameter and correctness grading parity.
+2. **Multi-vdev DVA resolution — RESOLVED (M-019's landing + DFX30's first-hand
+   re-verification, recorded in OQ-Z3):** the og does NOT resolve across
+   sibling vdevs — FUN_1800168b0's registry loop falls back to the FIRST
+   entry on any vdev-id miss (never fails). The core MATCHES since M-019
+   (foreign-vdev blocks planned at the fallback position,
+   `foreign_vdev_reads` counted; D-09 re-verdicted ACCEPTED with the
+   pinned og story). The pre-fix core's refusal (`cr_zfs_engine.cpp:409`
+   at audit time) was the divergence — closed.
+3. **Uberblock geometry — RESOLVED (registered superset, D-04; og constant
+   re-confirmed first-hand by DFX30):** Og: fixed 1 KiB slots (0x80-qword
+   stride, verified :32365; and the ring loader FUN_180018930 reads the
+   128 KiB ring at offset 0x20000 with the hardcoded 0x400 stride — the
+   S-034 decode). Core: probes shifts 10..13 with hit-count validation
+   (`cr_zfs_engine.cpp:1061–1091`) — supports ashift-13 pools the og
+   cannot read. REGISTERED: PARITY-DELTAS **D-04** ("ZFS uberblock ring
+   auto-probes ashift shifts 10-13"). No action.
+4. **Checksum-verify depth — RESOLVED (M-019's decode + landing):** the og
+   gates block reads on the fletcher4 family only — `prop>>0x28 & 0xff`
+   = the checksum-type field (blk_prop bits 40-47), gate `(zc==7)||(zc==0)`
+   (fletcher4 / off), the interleaved 4-accumulator fletcher4 over the raw
+   bytes + a 32-byte memcmp against the stored checksum, with next-DVA
+   retry on mismatch or read failure (drops counted). The core implements
+   exactly this since M-019 (read_block's {7,0} gate; ChecksumFailDropsAnd-
+   RetriesNextDva fail-before-proven). No fletcher2/sha256 path exists in
+   the og's engine (no such accumulators beyond the fletcher4 shape).
 
 ---
 

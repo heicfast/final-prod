@@ -436,6 +436,21 @@ Contract:
   content by construction; the clone pattern exists only because the og
   is multi-DLL).
 
+- Per-scan refresh divergence (N-033, registered): the og's FS engines
+  RE-CLONE the RAWSearchDLL registry per scan
+  (FATSearchDLL_decompiled.c :29290-29361 — LoadLibrary +
+  GetProcAddress + std-container copy on every search) because the master
+  registry lives in another DLL and may have been reconfigured between
+  scans. The core's registry is compile-time immutable (both tables
+  append-only, §7a), so there is nothing to re-fetch: the enumeration is
+  valid for the library's lifetime and no refresh hook exists. If a host
+  ever ships runtime-configurable carve tables, the refresh seam becomes
+  a versioned ABI question (a bumped count between calls), not a silent
+  re-clone.
+- CLI rendering: `rrecov --list-carve-formats` prints the whole table
+  (layer, ext, size bounds, base confidence, grammar-layer magic) — the
+  parity-tooling surface (N-033's step 2).
+
 ## 8. SQLite session index — REJECTED-BY-REFERENCE (closed GAP-S6-12)
 
 **This section previously specified a queryable SQLite sidecar index

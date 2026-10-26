@@ -82,6 +82,29 @@ the og's own file) and the shipped-dictionary action
 candidates through the manage-bde/PowerShell plumbing). Explicit host
 action only in every form; locked volumes WITHOUT user consent or key
 material stay refused — ERR_FVE_LOCKED, no bypass); signing
+
+S-014 posture: live-registry + offline-hive auto-unlock, the N-064
+password-dictionary unlock aid (cr::dict + --bitlocker-dict /
+cr_ui_unlock_volume_with_dictionary — user-consented only, 228-entry
+shipped dictionary + user candidates through the manage-bde/PowerShell
+plumbing), and locked volumes WITHOUT user key material or the explicit
+dictionary consent stay refused — ERR_FVE_LOCKED, no bypass); signing
+S-014 posture: live-registry + offline-hive auto-unlock; the N-064
+password-dictionary aid (`cr/pwddict` + `bitlocker::try_password_unlock`
++ CLI `--bitlocker-pwddict <path|seed>`) is the og's Dict unlock flow
+ported with the consent gate intact — explicit host action only, the
+shipped seed is an authored list (D-78: the og's 228-entry asset is not
+copied; the loader is format-compatible so any dictionary in the og's
+format works, including the og's own file); and locked volumes WITHOUT
+user consent or key material stay refused — ERR_FVE_LOCKED, no bypass);
+signing
+S-014 posture: live-registry + offline-hive auto-unlock, the N-064
+password-dictionary unlock aid (cr::dict + --bitlocker-dict /
+cr_ui_unlock_volume_with_dictionary — user-consented only, 228-entry
+shipped dictionary + user candidates through the manage-bde/PowerShell
+plumbing), and locked volumes WITHOUT user key material or the explicit
+dictionary consent stay refused — ERR_FVE_LOCKED, no bypass); signing
+
 (OSSign disabled); `.rsf` import (G-11, tracked disposition).
 
 ## 4. Open gap register (code-verified)

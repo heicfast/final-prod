@@ -39,6 +39,11 @@ fi
 #   uses __declspec(dllimport) - MSVC-legal, ELF-g++-unparseable). The
 #   gate checks STRUCTURE, not import semantics; the real macro is
 #   exercised by the MSVC lane on Windows CI.
+
+# -D'__declspec(x)=': the app layer includes cr_ui.h (whose CR_UI_API
+# expands to __declspec(dllexport/dllimport) under _WIN32) possibly BEFORE
+# windows.h - a command-line function-like no-op is include-order-proof
+# (the gate never links, so the storage class is irrelevant to parsing).
 CXXFLAGS="-std=c++20 -fshort-wchar -D_WIN32 -D__declspec(x)= -fsyntax-only -I$STUB_DIR -I$SRC_DIR/include"
 
 rc=0

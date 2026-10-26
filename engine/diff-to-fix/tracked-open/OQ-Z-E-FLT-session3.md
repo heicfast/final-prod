@@ -5,7 +5,10 @@
 > decode; M-017 scoring decode). OQ-E1 gates S-025 (journal reparenting);
 > OQ-E2 gates S-026 (meta_bg); OQ-Z1 is ACUTE-gated (dsl offsets).
 
-**Status:** OPEN · **Filed:** session 3 (2026-10-26)
+**Status:** OPEN — one sub-question remaining (OQ-FLT-2, pushed forward with
+new evidence; gates M-029). All other sub-questions RESOLVED: OQ-E2 (prior
+session), OQ-T8/T9 (prior legs), OQ-FLT-1/OQ-Z5/OQ-Z2->S-034/OQ-Z1/OQ-E1/
+OQ-Z3/OQ-Z4 (DFX30, 2026-10-26). · **Filed:** session 3 (2026-10-26)
 **Context findings:** M-023 (ZFS SA), S-018/S-019/S-020 (ext4), M-019/S-016 (filter), I-010/I-016 (resolutions)
 
 ## OQ-Z1 — ZFS dsl_dir/dsl_dataset offset constants (ACUTE-gated)
@@ -282,6 +285,36 @@ SearchDLL binary (NTFS/FAT/EXT4/RAW/Btrfs/ReFS/HFS+/ZFS). Blast radius of
 M-019 depends on the answer.
 
 ## OQ-FLT-2 — AdvanceFilterCondition field layout (gates N-028)
+
+**PUSHED FORWARD with NEW EVIDENCE (DFX30, 2026-10-26) — now gating
+M-029 (the session-3-local N-028 renumbered; M-029's corpus references
+already carry "0x48-byte/7-group struct"):**
+- `FUN_1406f91d0` DECODED (:1142279-1142292): the completeness predicate —
+  AND of bit0 at dword indices 0, 1, 2, 8, 0xf, 0x10 (byte offsets
+  0/4/8/32/60/64 — six of the seven groups; the seventh's bit is not
+  consulted by this predicate).
+- The DISPATCH semantics decoded at BOTH consumers:
+  `CSetFilterThread::run` (FUN_14072f8c0 :1170069-1170101) copies the
+  0x48 condition, calls the predicate, and passes **NULL** to the
+  manager's vtable+0x10 apply when ALL SIX bits are set (the
+  "everything"/no-filter state) — the condition pointer otherwise; the
+  filter-bar-side call sites (:1155006/:1155018) pass `!(all-six-set)`
+  into FUN_1406fa840.
+- The delivery chain re-confirmed: two CFilterBar instances (Path view
+  this+0x68, Type view this+0x70) -> sigFilterChange(cond, bClear,
+  bForce) -> CRightContent::onFilterChanged (FUN_14072b730) ->
+  CSetFilterThread (0x60 bytes, ctor FUN_14072e290, QThread::start
+  priority 7 = TimeCritical; the modal freeze-dialog path when node
+  count >= 0xf4241 = 1,000,001 and the guards hold).
+- PRECISE NEXT DECODE TARGETS (the per-group semantics + tag vocabulary +
+  path matching all live in the apply method): the per-mode managers
+  resolved by FUN_1401b61f0(singleton, mode) — mode 0: FUN_1401d4920(s
+  +0x20)+8; mode 1: FUN_1401d4930(s+0x20)+8; mode 2: FUN_14031c410()+8 —
+  and their **vtable+0x10 apply(this, const AdvanceFilterCondition*)**
+  implementation. The 12 non-enable dwords (3..7, 9..14, 17) are the
+  group values (type mask / date bucket pair / size bucket pair / tag
+  set / path string offset family — exact mapping pends the apply
+  decode).
 
 Decode `FUN_1406f91d0` + the 0x48-byte layout (7 enable-bit groups at dword
 offsets 0/4/8/32/60/64 + one more) — exact per-group semantics, the tag

@@ -5,6 +5,20 @@
  * enumeration, volume identification, partition tables via the pure-core
  * parse_disk_table, R6 filter data.
  *
+ * SCOPE (N-071, registered PARITY-DELTAS D-80): the engine's device
+ * truth is the \\.\PhysicalDriveN namespace + the volume-letter
+ * companion path. The og's five-stack discovery fan-in (WMI, SetupAPI,
+ * VDS, Storage Spaces, Function Discovery - mom-module-system--
+ * architecture.md :57-59) is MOM device-manager/UI machinery; its
+ * load-bearing effect for a recovery engine - a busy disk must stay
+ * listed - is covered by the metadata-only enumeration retry in
+ * query_disk (0-access open when the data open is share-blocked).
+ * Devices that do not surface as PhysicalDriveN at all (none observed
+ * on any CI/host in this project's fleet; the Storage Spaces claim in
+ * the corpus is a design description, not an observed miss) remain out
+ * of scope until a live miss-case is recorded - the D-80 revisit
+ * trigger.
+ *
  * Licensed under the MIT license. See LICENSE.
  */
 
@@ -28,6 +42,8 @@ struct PhysicalDisk {
     u32 logical_sector = 0;
     u32 physical_sector = 0;
     bool removable = false; /* BusType USB/SD */
+    bool busy = false;      /* N-071: metadata-only open (share-blocked data
+                               open) - listed, scans re-open later */
     table::DiskTable table; /* parsed layout */
     bool table_ok = false;
     /* N-071: the PnP disk-interface instance path when this entry came
