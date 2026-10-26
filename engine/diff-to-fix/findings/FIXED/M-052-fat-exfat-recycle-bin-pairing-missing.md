@@ -54,3 +54,11 @@ S-019-fixed lineage (lost BitLocker probes — same "probe family" layering site
 ## Open questions
 
 None — the corpus states the behavior directly and the NTFS side proves the model in-repo.
+
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's M-052 commit — DFX24)
+**Verified by:** `FatEngine.RecyclePairingRestoresOriginalName`, `FatEngine.RecycleLegacyRoots`, `FatEngine.NonRecycleDollarFilesStayRaw`, `ExfatEngine.RecyclePairingMirrored` — fail-before EXECUTED as an engine mutation (the bin-root marker neutralized: 3/4 RED — the pairing and both engines' mirrors fail, the raw-named $R surfaces; the over-matching pin stays green by design), reverted-green; suite 848/848 linux-release, ASan lane 848/848.
+**Resolution notes:** The NTFS engine's in-repo reference implementation (cr_mftwalk.cpp: $I parse, extension-stripped pairing token, $R remap + post-walk fixup) is extracted into the shared `cr/recycle` helper (include/cr/cr_recycle.h + src/core/recovery/cr_recycle.cpp) parameterized by name + content-stream bytes, exactly as the fix plan specified; the NTFS side now consumes it through thin attribute-view glue (behavior identical, the refactor is the plan's step 1). Wired into the FAT dentry walk (cr_fat_quick.cpp) and the exFAT entry-set walk (cr_exfat_quick.cpp): the three corpus roots ($RECYCLE.BIN / Recycled / Recycler, case-blind — the byte-exact _stricmp family, fat-exfat-engine-internals.md :37-40) mark their whole subtree; $I<token> streams (v1: 28+2*pathlen, v2: 544 fixed — the shared parse honors both forms incl. the Win10+ variable form's repurposed @0x18) are parsed for the original name/size/deletion-time and never surface; $R<token> files surface under their ORIGINAL name and $I-recorded size/time, marked Deleted (in-use inside the bin, deleted from the user's location — the NTFS model); a $R whose $I appears later is fixed post-walk (the NTFS GAP-P1-3 pattern). New stats `recycle_info` / `recycle_remapped` on both engines. The corpus's dedicated UI flow (IRecycleBinNode2UI / CRecycleBinRecoveryController) is host-layer surface — the core contract (original name + metadata restoration) is what the engines provide. No safety hardening touched; the deleted-$I limitation (0xE5-mangled FAT names lose the token) matches the NTFS side's deleted-record posture and is recorded here as the known edge.

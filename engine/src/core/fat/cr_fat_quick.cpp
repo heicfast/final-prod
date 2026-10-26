@@ -7,8 +7,10 @@
  */
 
 #include "cr/fat/cr_fat_engine.h"
+#include "cr/cr_recycle.h" /* M-052: the shared $I/$R recycle model */
 
 #include <cstring>
+#include <map>
 #include <set>
 
 namespace cr {
@@ -75,6 +77,20 @@ struct EmitCtx {
     std::set<u64> visited_dirs; /* cycle guard for dir recursion */
     int depth = 0;
     constexpr static int MAX_DEPTH = 64;
+    /* M-052: the recycle-bin state. A bin ROOT ($RECYCLE.BIN / Recycled
+     * / Recycler, case-blind - the corpus's _stricmp family) marks its
+     * whole subtree: $I<token> streams are parsed for the original
+     * name/size/time (never surfaced), $R<token> files surface under
+     * their ORIGINAL name marked Deleted (in-use inside the bin, but
+     * deleted from the user's location - the NTFS engine's model,
+     * now shared through cr/recycle). */
+    bool in_recycle = false;
+    std::map<std::u16string, recycle::RecycleInfo> recycle_info;
+    struct PendingR {
+        tree::FileNode* node;
+        std::u16string token;
+    };
+    std::vector<PendingR> pending_recycle_r;
 };
 
 tree::Confidence grade_deleted_chain(const ChainResult& chain, u32 expect_clusters) {
@@ -273,6 +289,34 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
     if (chain.cancelled)
         return; /* unwinding mid-chain: no partial emission */
 
+    /* M-052: inside a recycle-bin subtree, $I<token> streams carry the
+     * ORIGINAL name/size/time of the deletion - parse and remember,
+     * never surface (bin metadata, not recoverable content). The $I is
+     * small (v1: 28+2*pathlen; v2: 544) - read straight off the chain. */
+    if (ctx.in_recycle && !is_dir) {
+        const std::u16string tok = recycle::token(name);
+        if (!tok.empty() && name.size() >= 3 && name[1] == u'I') {
+            std::vector<u8> ibuf;
+            ibuf.resize(size_t(std::min<u64>(4096, e.file_size ? e.file_size : 544)));
+            u64 filled = 0;
+            for (u32 c : chain.clusters) {
+                if (filled >= ibuf.size())
+                    break;
+                const u32 take = u32(std::min<u64>(ctx.p.cluster_bytes, ibuf.size() - filled));
+                if (ctx.dev->read_at(FatTable::cluster_offset(ctx.p, c), ibuf.data() + filled,
+                                     take) != OK)
+                    break;
+                filled += take;
+            }
+            recycle::RecycleInfo ri;
+            if (filled >= 30 && recycle::parse_stream(ibuf.data(), u32(filled), ri)) {
+                ctx.recycle_info[tok] = std::move(ri);
+                ++ctx.stats->recycle_info;
+            }
+            return; /* bin metadata: not a result */
+        }
+    }
+
     tree::FileProperties* props = new (std::nothrow) tree::FileProperties();
     if (props == nullptr)
         return;
@@ -354,9 +398,37 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
     if (chain.broken)
         ++ctx.stats->chains_broken;
 
-    /* recurse into subdirectories (both live and deleted trees) */
+    /* M-052: a $R<token> inside the bin surfaces under its ORIGINAL
+     * name/size/time when the $I was already seen (the pair is usually
+     * adjacent; the post-walk fixup catches the higher-order case) and
+     * is marked Deleted - in-use inside the bin, deleted from the
+     * user's location (the NTFS engine's model). */
+    if (ctx.in_recycle && !is_dir) {
+        const std::u16string rtok = recycle::token(name);
+        if (!rtok.empty() && name.size() >= 3 && name[1] == u'R') {
+            auto it = ctx.recycle_info.find(rtok);
+            if (it != ctx.recycle_info.end()) {
+                props->name = it->second.orig_name;
+                if (it->second.size != 0)
+                    props->logical_size = it->second.size;
+                props->times.modified = it->second.time;
+                n->set_deleted_state(tree::DeletedState::Deleted);
+                ++ctx.stats->recycle_remapped;
+            } else {
+                ctx.pending_recycle_r.push_back({n, rtok});
+            }
+        }
+    }
+
+    /* recurse into subdirectories (both live and deleted trees); a bin
+     * ROOT marks its subtree as recycle-bin (M-052 - the corpus's
+     * $RECYCLE.BIN / Recycled / Recycler roots, case-blind) */
     if (is_dir && first_cluster >= 2) {
+        const bool was_in_recycle = ctx.in_recycle;
+        if (!was_in_recycle && recycle::is_root_name(name))
+            ctx.in_recycle = true;
         recurse_dir(ctx, first_cluster, n, deleted);
+        ctx.in_recycle = was_in_recycle;
     }
 }
 
@@ -480,6 +552,26 @@ u32 scan_fat(IStorageDevice* slice, const FatScanFlags& flags, CancelToken* canc
         if (ctx.cancel && ctx.cancel->checkpoint())
             return ERR_CANCELLED;
     }
+
+    /* M-052: post-walk recycle fixup - $R files emitted before their $I
+     * was parsed (the $I can sit at a later dentry or a sibling
+     * subfolder of the bin). Nodes are arena-stable; mutating through
+     * the node is safe after the walk. */
+    for (const auto& pr : ctx.pending_recycle_r) {
+        auto it = ctx.recycle_info.find(pr.token);
+        if (it == ctx.recycle_info.end())
+            continue;
+        tree::FileProperties* rp = pr.node->props();
+        if (rp == nullptr)
+            continue;
+        rp->name = it->second.orig_name;
+        if (it->second.size != 0)
+            rp->logical_size = it->second.size;
+        rp->times.modified = it->second.time;
+        pr.node->set_deleted_state(tree::DeletedState::Deleted);
+        ++stats.recycle_remapped;
+    }
+
     if (progress)
         (void)progress(1, 1, progress_user);
     return OK;

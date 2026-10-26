@@ -51,6 +51,7 @@ add_library(cr_core STATIC
     session/cr_crsf.cpp
     session/cr_records.cpp
     recovery/cr_safewriter.cpp
+    recovery/cr_recycle.cpp
     recovery/cr_report.cpp
     recovery/cr_dict.cpp
     recovery/cr_dict_data.cpp

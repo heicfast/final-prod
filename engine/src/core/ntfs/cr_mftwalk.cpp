@@ -6,6 +6,7 @@
 #include "cr/ntfs/cr_mftwalk.h"
 #include "cr/compress/cr_decomp.h"
 #include "cr/cr_parallel.h"
+#include "cr/cr_recycle.h" /* M-052: the shared $I/$R recycle model */
 #include "cr/ntfs/cr_attributes.h"
 #include "cr/ntfs/cr_fixup.h"
 #include <atomic>
@@ -165,7 +166,12 @@ u32 build_props(NtfsVolume* vol, const std::vector<AttrView>& attrs, u64 record_
 } // namespace
 
 /* ---- $Recycle.Bin mapping (og parity: recycle-bin files surface under
- * their pre-deletion name; $I metadata parsed, $R content remapped) ---- */
+ * their pre-deletion name; $I metadata parsed, $R content remapped).
+ * M-052: the model is extracted into the shared cr/recycle helper
+ * (the FAT/exFAT engines carry the same capability the corpus
+ * documents for all three); the NTFS side keeps only the
+ * attribute-view glue (find the unnamed resident $DATA, hand its
+ * bytes to the shared parse). ---- */
 struct RecycleInfo {
     u64 size = 0;
     u64 time = 0;
@@ -183,72 +189,23 @@ static u32 parse_recycle_info(const std::vector<AttrView>& attrs, RecycleInfo& o
         u32 dlen = 0;
         if (resident_span(a, d, dlen) != OK)
             continue;
-        if (dlen < 30)
+        recycle::RecycleInfo shared;
+        if (!recycle::parse_stream(d, dlen, shared))
             continue;
-        const u32 ver = u32_from_bytes_le(d);
-        if (ver != 1 && ver != 2)
-            continue;
-        const u64 size = u64_from_bytes_le(d + 8);
-        const u64 t = u64_from_bytes_le(d + 16);
-        /* Path length determination is FORMAT-DEPENDENT (runner benchmark
-         * evidence - every $I parse was rejected on the real volume):
-         * - Vista..Win8 fixed form (dlen==544): pathlen is the u32@0x18
-         *   (the field the old code trusted on ALL forms).
-         * - Windows 10+ variable form (dlen == 28 + 2*pathlen): @0x18 was
-         *   REPURPOSED as a deletion-sequence counter (37, 38, 42... -
-         *   Champlain Forensics, Win10 $I research); the path is the whole
-         *   tail, NUL-padded, terminated by three zero bytes.
-         * Try the @0x18 value first when it validates against dlen, else
-         * derive from the tail length; the string is cut at the first NUL
-         * either way. */
-        const u32 field24 = u32_from_bytes_le(d + 24);
-        const u32 derived = (dlen >= 28 && ((dlen - 28) & 1) == 0) ? u32((dlen - 28) / 2) : 0;
-        u32 plen = 0;
-        if (field24 >= 1 && field24 <= 1024 && 28 + u64(field24) * 2 <= dlen)
-            plen = field24;
-        else if (derived >= 1)
-            plen = derived;
-        if (plen == 0 || plen > 1024)
-            continue;
-        std::u16string path;
-        path.reserve(plen);
-        for (u32 i = 0; i < plen; ++i) {
-            const u16 ch = u16_from_bytes_le(d + 28 + i * 2);
-            if (ch == 0)
-                break; /* NUL-terminated / NUL-padded tail */
-            path.push_back(ch);
-        }
-        if (path.empty())
-            continue;
-        const size_t slash = path.rfind(u'\\');
-        const std::u16string base = slash == std::u16string::npos ? path : path.substr(slash + 1);
-        if (base.empty())
-            continue;
-        out.size = size;
-        out.time = t;
-        out.orig_name = base;
+        out.size = shared.size;
+        out.time = shared.time;
+        out.orig_name = std::move(shared.orig_name);
         return OK;
     }
     return ERR_UNSUPPORTED;
 }
 
-/* $Recycle.Bin pairing token: the random chars after the $I/$R marker.
- * REAL Windows convention (benchmark-volume evidence, GAP-P1-3): the
- * $R keeps the ORIGINAL EXTENSION while its $I does not
- * ($R2X9K4L.jpg pairs with $I2X9K4L) - so substr(2) keys never
- * matched and 0/26 recycle deletions surfaced raw-named. The extension
- * is NOT part of the pairing token: strip at the first '.' (the shell
- * token never contains one). */
+/* $Recycle.Bin pairing token: M-052 moved the token shape into the
+ * shared cr/recycle helper (the $R keeps the ORIGINAL EXTENSION while
+ * its $I does not - $R2X9K4L.jpg pairs with $I2X9K4L - so the token
+ * is the marker tail up to the first '.', never including it). */
 static std::u16string recycle_token(const std::u16string& n) {
-    if (n.size() < 3 || n[0] != u'$' || (n[1] != u'I' && n[1] != u'R'))
-        return {};
-    std::u16string tok;
-    for (size_t i = 2; i < n.size(); ++i) {
-        if (n[i] == u'.')
-            break;
-        tok.push_back(n[i]);
-    }
-    return tok;
+    return recycle::token(n);
 }
 
 /* volume metafiles only - NOT every '$' name (the old blanket skip

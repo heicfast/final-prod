@@ -1809,3 +1809,85 @@ TEST(ExfatEngine, NameUtf16TableAllowedCharAccepted) {
         << "U+1A00 (table[0x1A] == 1) must survive the gate";
     EXPECT_EQ(stats.sets_gated, 0u);
 }
+
+/* ---- M-052 (diff-to-fix): the recycle-bin pairing mirrored on exFAT --- */
+
+TEST(ExfatEngine, RecyclePairingMirrored) {
+    /* M-052: the exFAT engine carries the same $I/$R pairing as FAT/NTFS
+     * (the corpus documents the mirror - fat-exfat-engine-internals.md
+     * :71). A $RECYCLE.BIN tree on the fixture volume: bin root @90,
+     * SID dir @91, the $I v2 record @92->93 (544 B, two clusters), the
+     * $R content @94. Fail-before: with the pairing absent, the $R
+     * surfaces as the raw "$R7ABC12.docx" name with no original-name
+     * restoration. */
+    auto img = build_exfat_image();
+    const size_t FAT = 24 * 512;
+    put32v(img, FAT + 90 * 4, 0xFFFFFFFF); /* bin root */
+    put32v(img, FAT + 91 * 4, 0xFFFFFFFF); /* SID dir */
+    put32v(img, FAT + 92 * 4, 93);         /* $I: 544 B spans two clusters */
+    put32v(img, FAT + 93 * 4, 0xFFFFFFFF);
+    put32v(img, FAT + 94 * 4, 0xFFFFFFFF); /* $R content */
+
+    const size_t ROOT = 25 * 512;
+    size_t at = ROOT + 576; /* past the fixture's own 18 root entries */
+    const auto plant_at = [&](size_t dst, u8 attr, u8 name_len, u32 fc, u64 dl,
+                              const char16_t* nm) {
+        SetBuilder sb;
+        sb.file_entry(attr, EXFAT_TEST_TS);
+        sb.stream_entry(0x01, name_len, fc, dl);
+        sb.name_entry(nm);
+        std::memcpy(img.data() + dst, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, dst);
+    };
+    /* the bin root set lives in the VOLUME root; the SID subdir set
+     * lives INSIDE the bin root's cluster (90); the $I/$R sets live
+     * INSIDE the SID dir's cluster (91) */
+    plant_at(at, 0x10 /*dir*/, 12, 90, 512, u"$RECYCLE.BIN");
+    const size_t BIN = 25 * 512 + (90 - 2) * 512;
+    plant_at(BIN, 0x10, 7, 91, 512, u"S-1-5-2");
+    const size_t SID = 25 * 512 + (91 - 2) * 512;
+    plant_at(SID + 0 * 32, 0x20, 8, 92, 544, u"$I7ABC12");
+    plant_at(SID + 3 * 32, 0x20, 13, 94, 512, u"$R7ABC12.docx");
+
+    /* the $I v2 record at cluster 92 (2 clusters, 544 bytes) */
+    const size_t IREC = 25 * 512 + (92 - 2) * 512;
+    const u64 want_time = 1740830400ULL * 10000000ULL + 116444736000000000ULL;
+    put32v(img, IREC + 0, 2); /* version 2 (Vista+ fixed form) */
+    for (int i = 0; i < 8; ++i)
+        img[IREC + 8 + i] = u8((12345ull) >> (8 * i));
+    for (int i = 0; i < 8; ++i)
+        img[IREC + 16 + i] = u8(want_time >> (8 * i));
+    put32v(img, IREC + 24, 26); /* pathlen */
+    const char16_t* path = u"C:\\users\\test\\report.docx";
+    for (int i = 0; path[i]; ++i)
+        put16(img, IREC + 28 + i * 2, path[i]);
+    std::memcpy(img.data() + 25 * 512 + (94 - 2) * 512, "RECYCLEDBYTES", 14);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr,
+                         stats),
+              OK);
+    EXPECT_GE(stats.recycle_info, 1u);
+    EXPECT_GE(stats.recycle_remapped, 1u);
+    tree::FileNode* report = nullptr;
+    bool raw_r = false, raw_i = false;
+    for (auto* n : collect_all(tree)) {
+        if (n->name_utf8() == "report.docx")
+            report = n;
+        if (n->name_utf8().rfind("$R7ABC12", 0) == 0)
+            raw_r = true;
+        if (n->name_utf8().rfind("$I7ABC12", 0) == 0)
+            raw_i = true;
+    }
+    ASSERT_NE(report, nullptr) << "the $R must surface under its original name";
+    EXPECT_FALSE(raw_r) << "the raw $R name must not appear";
+    EXPECT_FALSE(raw_i) << "the $I metadata must never surface";
+    EXPECT_EQ(report->props()->logical_size, 12345u);
+    EXPECT_EQ(report->props()->times.modified, want_time);
+    EXPECT_EQ(report->deleted_state(), tree::DeletedState::Deleted);
+    ASSERT_FALSE(report->props()->extents.empty());
+}

@@ -14582,3 +14582,19 @@ Work Log:
 
 Stage Summary:
 - OQ-S5-1 closed (convergent two-lane). MY CLAIMED QUEUE IS COMPLETE.
+
+---
+Task ID: DFX24-T3 (M-052 + baseline repairs)
+Agent: DFX24 (session 24, the MAJOR lane)
+Task: M-052 FAT/exFAT recycle-bin pairing; union-red repairs
+
+Work Log:
+- M-052: verified the finding's corpus citations (fat-exfat-engine-internals.md :21/:37-40/:71/:101) and the NTFS reference implementation (cr_mftwalk.cpp:162-250 + the GAP-P1-3 post-walk fixup); extracted the model into include/cr/cr_recycle.h + src/core/recovery/cr_recycle.cpp (name + content-stream parameterization); NTFS refactored to consume it (identical behavior); FAT + exFAT walks wired (bin-root subtree marking, $I parse-and-remember, $R remap + Deleted state, post-walk fixup, new stats).
+- 4 tests added (FAT pairing, legacy roots, non-recycle over-matching pin, exFAT mirror); fail-before EXECUTED as an engine mutation (bin-root marker neutralized: 3/4 RED; the pin green by design); suite 848/848 linux-release + ASan lane green.
+- Baseline repair 2: the 9a9340e/196d75a parallel-merge lineage committed conflict markers into cr_bitlocker.h + a structurally broken rrecov.cpp (win_syntax_check RED — the gate did its job). Repaired as the canonical union: 6afa8fc's cr::dict ruling + the N-033 CLI additions. Green post-repair.
+- Audit trail: M-052 finding -> FIXED/ with Resolution; RESOLVED-INDEX row; fat/exfat matrix rows -> MATCH; module verdict updates; SUMMARY session-24 delta extended.
+
+Stage Summary:
+- M-052 FIXED (the audit's engine-consistency finding closed; the shared helper is the fix plan's architecture).
+- Pushed-red main repaired twice this session (D-84 ledger row; win-layer markers).
+- Remaining MAJOR: M-018, M-030, M-034, M-039, M-040, M-041, M-048.
