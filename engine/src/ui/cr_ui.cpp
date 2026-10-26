@@ -1134,13 +1134,29 @@ u32 open_image_impl(const char* utf8_path, uint64_t offset, uint64_t bytes, cr_u
     return ret_ok();
 }
 
+
+/* M-030 (diff-to-fix): the transport-open diagnostic. The pre-fix ABI
+ * could not distinguish "driver absent" from "driver open failed with
+ * X" - the silent RDA->direct fallback overwrote the RDA leg's error
+ * (the finding's claim (f)). open_disk_impl records the surviving leg's
+ * error here; cr_ui_last_transport_error() reads it. 0 = the last open
+ * succeeded (or no open was attempted on this process). */
+std::atomic<uint32_t> g_last_transport_error{0};
+void set_last_transport_error_(uint32_t e) {
+    g_last_transport_error.store(e, std::memory_order_release);
+}
+
 #ifdef _WIN32
 
 u32 open_disk_impl(uint32_t disk, cr_ui_device** out) {
     if (!out)
         return ret_(ERR_BAD_PARAMETER, "bad argument: out");
     u32 err = 0, gle = 0;
-    if (win::rda_available(L"RDA", &gle)) {
+    /* M-030: the og's WinPE gate - in a PE environment the corpus
+     * callers open \\.\PhysicalDrive%d directly and never attempt the
+     * service grammar (Device_decompiled.c :50653-50663); the core's
+     * RDA driver is not present on PE media either. */
+    if (!win::win_pe_environment() && win::rda_available(L"RDA", &gle)) {
         if (auto dev = win::open_rda_partition(L"RDA", disk, 0, &err)) {
             auto* d = new CrDevice();
             d->dev = std::move(dev);
@@ -1150,11 +1166,36 @@ u32 open_disk_impl(uint32_t disk, cr_ui_device** out) {
             *out = reinterpret_cast<cr_ui_device*>(d);
             return ret_ok();
         }
+        /* M-030: the RDA leg's failure reason is now PRESERVED - the
+         * pre-fix code let the direct leg overwrite *err, so the ABI
+         * could never distinguish "driver absent" from "driver open
+         * failed with X" (the finding's silent-fallback claim). The
+         * final failure reports the RDA leg's error when the direct leg
+         * has nothing more specific; cr_ui_last_transport_error()
+         * surfaces the diagnostic either way. */
+        u32 rda_err = err;
+        auto dev = win::open_physical_drive(disk, &err);
+        if (!dev) {
+            set_last_transport_error_(rda_err ? rda_err : err);
+            return ret_(err ? err : u32(ERR_OPEN_FAILED),
+                        "cannot open disk %u (RDA and direct paths failed)", disk);
+        }
+        set_last_transport_error_(rda_err);
+        auto* d = new CrDevice();
+        d->dev = std::move(dev);
+        d->disk = disk;
+        d->disk_known = true;
+        d->transport = "direct";
+        *out = reinterpret_cast<cr_ui_device*>(d);
+        return ret_ok();
     }
     auto dev = win::open_physical_drive(disk, &err);
-    if (!dev)
+    if (!dev) {
+        set_last_transport_error_(err);
         return ret_(err ? err : u32(ERR_OPEN_FAILED),
                     "cannot open disk %u (RDA and direct paths failed)", disk);
+    }
+    set_last_transport_error_(0);
     auto* d = new CrDevice();
     d->dev = std::move(dev);
     d->disk = disk;
@@ -1325,6 +1366,10 @@ u32 unlock_volume_with_dictionary_impl(char letter, const char* const* utf8_user
 u32 open_disk_impl(uint32_t disk, cr_ui_device** out) {
     (void)disk;
     (void)out;
+    /* M-030: no transport leg runs on the platform stub - the advisory
+     * reads clean (0) for the attempt (nothing recorded, nothing lost).
+     */
+    set_last_transport_error_(0);
     return ret_(ERR_UNSUPPORTED, "cr_ui_open_disk requires the Windows platform layer");
 }
 
@@ -1380,7 +1425,6 @@ u32 device_transport_impl(cr_ui_device* dev, char* buf, uint32_t cap, uint32_t* 
     const bool fit = copy_bstr(buf, cap, t);
     return ret_(fit ? OK : u32(ERR_TRUNCATED), "%s", d->transport);
 }
-
 } // namespace
 
 extern "C" CR_UI_API uint32_t cr_ui_open_image(const char* utf8_path, uint64_t offset,
@@ -1389,6 +1433,14 @@ extern "C" CR_UI_API uint32_t cr_ui_open_image(const char* utf8_path, uint64_t o
 }
 extern "C" CR_UI_API uint32_t cr_ui_open_disk(uint32_t disk, cr_ui_device** out) {
     return guarded(open_disk_impl, disk, out);
+}
+extern "C" CR_UI_API uint32_t cr_ui_last_transport_error(void) {
+    /* M-030: the transport-open diagnostic read side. The value is the
+     * surviving transport leg's error code from the LAST cr_ui_open_disk
+     * call on this process (0 = the last open succeeded / none yet).
+     * Advisory only: never gates a return code, never clears state - the
+     * open calls' own return codes stay authoritative. */
+    return g_last_transport_error.load(std::memory_order_acquire);
 }
 extern "C" CR_UI_API uint32_t cr_ui_open_volume(char letter, cr_ui_device** out) {
     return guarded(open_volume_impl, letter, out);
@@ -1649,8 +1701,13 @@ void arm_ldm_resolver(CrScan* s) {
     table::LdmInfo probe;
     if (table::parse_ldm_database(s->dev->dev.get(), probe) != OK || !probe.found)
         return;
+    /* M-030: the LDM resolver enumerates the og's full 200-disk space
+     * (the driver CREATE grammar accepts disk# <= 199 - eprdtdrv_
+     * decompiled.c :184; the pin lives in cr_winenv.h). The pre-fix 32
+     * cap was exactly wrong here: cross-disk LDM resolution is the
+     * multi-disk path where hosts beyond 32 disks matter most. */
     win::PhysicalDiskList list;
-    if (win::enumerate_disks(32, list) != OK)
+    if (win::enumerate_disks(win::ENUMERATE_DISK_BOUND, list) != OK)
         return;
     auto guid_map = std::make_shared<std::map<table::LdmGuid, IStorageDevice*>>();
     for (const auto& pd : list) {

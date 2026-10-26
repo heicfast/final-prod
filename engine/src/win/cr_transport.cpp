@@ -16,6 +16,8 @@
 #include "cr/win/cr_transport.h"
 #include "cr/win/cr_rda.h"
 #include "cr/win/cr_enumerate.h" /* S-010: volume enumeration for the lock sequence */
+#include "cr/win/cr_winenv.h"    /* M-030: the PE-gate + quiesce-chain pins */
+#include "cr/cr_log.h"          /* N-048 seam: the OFFLINE failure line */
 #include "cr/table/cr_table_parse.h"
 #include "cr/storage/cr_directalign.h"
 #include <windows.h>
@@ -450,6 +452,23 @@ bool rda_available(const wchar_t* service_name, u32* last_error) {
     return true;
 }
 
+/* M-030 (diff-to-fix): the og's WinPE environment gate. The corpus
+ * probe (Device.mo FUN_1800577e0, Device_decompiled.c :50943-50992,
+ * re-verified this session) reads GetSystemDirectoryA and decides on
+ * the FIRST BYTE: 'X'/'x' = WinPE's system drive. The probe's own
+ * \\.\X: open + IOCTL 0x560000 presence confirmation discards its
+ * result (the decision input is the drive letter alone - see
+ * cr_winenv.h). The four corpus callers branch to the DIRECT
+ * PhysicalDrive/HarddiskVolume paths when it returns nonzero
+ * (:352/:7816/:50653/:52437); the driver grammar runs only on live
+ * Windows where the driver is expected to be installed. GetSystem-
+ * DirectoryA is kernel32 - the Win7-inclusive import gate is intact. */
+bool win_pe_environment() {
+    char sysdir[8] = {};
+    const UINT n = GetSystemDirectoryA(sysdir, sizeof(sysdir));
+    return n != 0 && pe_environment_by_system_drive(sysdir[0]);
+}
+
 bool volume_extent(wchar_t letter, u32* disk, u64* start, u64* len) {
     wchar_t vol[8];
     _snwprintf_s(vol, 8, _TRUNCATE, L"\\\\.\\%c:", letter);
@@ -478,7 +497,13 @@ bool volume_extent(wchar_t letter, u32* disk, u64* start, u64* len) {
 
 std::unique_ptr<IStorageDevice> open_disk(u32 disk, bool prefer_rda, const wchar_t* service,
                                           u32* err) {
-    if (prefer_rda) {
+    /* M-030: the og's WinPE gate rides the driver preference - in a PE
+     * environment (X: system drive, the corpus probe above) the corpus
+     * callers open \\.\PhysicalDrive%d DIRECT and never attempt the
+     * service grammar (Device_decompiled.c :50653-50663); the core's
+     * RDA driver is not installed on PE media either, so the RDA-first
+     * posture would only add a failed-open latency there. */
+    if (prefer_rda && !win_pe_environment()) {
         /* RDA first (locked volumes, damaged media), direct fallback
          * (reference duality - Device.mo). */
         u32 e = 0;
@@ -512,19 +537,27 @@ public:
             CloseHandle(h_);
     }
 
-    /* S-010 volume quiesce (corpus RecoveryModule_decompiled.c:44686-44720
-     * and its PartitionRecovery mirror): per MOUNTED volume on this disk -
-     *   FSCTL_LOCK_VOLUME (0x90018)   :44686 - a busy volume = refuse
-     *   DeleteVolumeMountPointA        :44699 - the OS must not re-open it
-     *   FlushFileBuffers               :44703
-     *   Sleep(2000) settle             :44707
-     *   FSCTL_IS_VOLUME_MOUNTED (0x90020) :44708 - verify the lock took
-     *   FSCTL_DISMOUNT_VOLUME (0x9001c)  :44713
-     * The volume handles are held for the device lifetime (the lock is
-     * released at close). Unmounted volumes (no letter) have nothing to
-     * quiesce. A lock that cannot be acquired = ERR_VOLUME_LOCK_FAILED:
-     * execute() refuses the whole repair before the first write - the
-     * concurrent user keeps the volume, never a raced write. */
+    /* S-010 volume quiesce + M-030's terminal step (corpus
+     * RecoveryModule_decompiled.c :60401-60447 - the repair-write
+     * quiesce chain; the earlier :44686-44720 cite was stale, corrected
+     * this session). Per MOUNTED volume on this disk -
+     *   FSCTL_LOCK_VOLUME (0x90018)    :60401 - a busy volume = refuse
+     *   DeleteVolumeMountPointA         :60412 - the OS must not re-open it
+     *   FlushFileBuffers                :60422
+     *   Sleep(2000) settle              :60428
+     *   FSCTL_DISMOUNT_VOLUME (0x90020) :60431
+     *   FSCTL_UNLOCK_VOLUME (0x9001c)   :60436 - the og unlocks before
+     *     the terminal step; the core holds its lock to the close below
+     *     (the unlock releases at handle close - same terminal state)
+     *   IOCTL_VOLUME_OFFLINE (0x56c00c) :60440 - M-030: THE TERMINAL
+     *     STEP, previously missing: a mounted-but-locked volume can
+     *     still receive third-party I/O through pre-existing handles;
+     *     OFFLINE closes that window (the og offlines, never just locks).
+     * The volume handles are held for the device lifetime. Unmounted
+     * volumes (no letter) have nothing to quiesce. A lock that cannot
+     * be acquired = ERR_VOLUME_LOCK_FAILED: execute() refuses the whole
+     * repair before the first write - the concurrent user keeps the
+     * volume, never a raced write. */
     u32 lock_volume() override {
         if (locked_)
             return OK; /* idempotent */
@@ -547,17 +580,46 @@ public:
                 CloseHandle(vh);
                 return ERR_VOLUME_LOCK_FAILED; /* busy volume: clean refusal */
             }
-            /* the letter must go so the OS does not hand the volume back
-             * out (corpus :44699); unmount + settle + verify + dismount */
+            /* M-030: capture the volume's GUID path BEFORE the mount
+             * point goes away - the OFFLINE terminal step below removes
+             * the volume from the mountable set, and the restore path
+             * (release_locked_volumes_) needs \??\Volume{...}\ to bring
+             * it back online. The corpus restore (FUN_1800459b0
+             * :34465-34502) reopens the volume device by identity. */
             wchar_t mount[8] = {v.letter, L':', L'\\', 0};
+            wchar_t guid[64] = {};
+            VolumeRestore vr;
+            vr.letter = v.letter;
+            (void)GetVolumeNameForVolumeMountPointW(mount, guid, 64);
+            vr.guid = guid; /* empty on failure: the restore degrades to
+                            * handle-close only (never worse than the
+                            * pre-M-030 behavior) */
+            /* the letter must go so the OS does not hand the volume back
+             * out (corpus :60412); flush + settle + verify + dismount */
             DeleteVolumeMountPointW(mount);
             FlushFileBuffers(vh);
-            Sleep(2000); /* corpus :44707 settle */
+            Sleep(2000); /* corpus :60428 settle */
             DeviceIoControl(vh, FSCTL_IS_VOLUME_MOUNTED, nullptr, 0, nullptr, 0, &bytes_ret,
-                            nullptr); /* corpus :44708 verify */
+                            nullptr); /* verify */
             DeviceIoControl(vh, FSCTL_DISMOUNT_VOLUME, nullptr, 0, nullptr, 0, &bytes_ret,
-                            nullptr); /* corpus :44713 */
+                            nullptr); /* corpus :60431 */
+            /* M-030: the terminal OFFLINE step (corpus :60440,
+             * IOCTL_VOLUME_OFFLINE 0x56c00c). Failure is recorded, not
+             * fatal: the og's chain treats every step's error the same
+             * way (GetLastError() into the chain's error slot) and
+             * proceeds - the volume is still dismounted and locked; a
+             * failed OFFLINE degrades to exactly the pre-M-030 posture
+             * (surfaced through the N-048 log seam, never silent). */
+            if (!DeviceIoControl(vh, IOCTL_VOLUME_OFFLINE, nullptr, 0, nullptr, 0, &bytes_ret,
+                                 nullptr)) {
+                const DWORD offline_gle = GetLastError();
+                cr::log::write(cr::log::Level::Warn,
+                               "quiesce: volume offline failed gle=%lu (degraded "
+                               "to dismount+lock posture)",
+                               (unsigned long)offline_gle);
+            }
             locked_volumes_.push_back(vh);
+            restores_.push_back(vr);
         }
         locked_ = true;
         return OK;
@@ -742,12 +804,48 @@ private:
         return OK;
     }
 
-    /* close every held volume handle - that is what releases the locks */
+    /* close every held volume handle - that is what releases the locks.
+     * M-030: for every volume the quiesce OFFLINED, run the og's restore
+     * chain first (corpus FUN_1800459b0, RecoveryModule_decompiled.c
+     * :34465-34502, decoded this session - OQ-2 resolved): reopen the
+     * volume by its GUID path, IOCTL_VOLUME_ONLINE (0x56c008 :34484),
+     * re-create the mount point (SetVolumeMountPointW - the saved
+     * letter; the og's vtable +0x78 restore step), Sleep(1000) settle
+     * (:34499), close. Without this the quiesced volume would stay
+     * letterless after repair - the pre-M-030 core deleted the mount
+     * point and never restored it. A volume whose GUID was not
+     * captured degrades to the handle-close only (the pre-M-030
+     * behavior, never worse). */
+    struct VolumeRestore {
+        wchar_t letter = 0;
+        std::wstring guid; /* \\??\\Volume{...}\\ or empty */
+    };
+
     void release_locked_volumes_() {
-        for (HANDLE vh : locked_volumes_)
-            if (vh != INVALID_HANDLE_VALUE)
-                CloseHandle(vh);
+        for (size_t k = 0; k < locked_volumes_.size(); ++k) {
+            HANDLE vh = locked_volumes_[k];
+            if (vh == INVALID_HANDLE_VALUE)
+                continue;
+            CloseHandle(vh); /* releases the volume lock first */
+            if (k < restores_.size() && !restores_[k].guid.empty()) {
+                const VolumeRestore& vr = restores_[k];
+                HANDLE vh2 =
+                    CreateFileW(vr.guid.c_str(), GENERIC_READ | GENERIC_WRITE,
+                               FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING,
+                               FILE_ATTRIBUTE_NORMAL, nullptr);
+                if (vh2 != INVALID_HANDLE_VALUE) {
+                    DWORD br = 0;
+                    (void)DeviceIoControl(vh2, IOCTL_VOLUME_ONLINE, nullptr, 0, nullptr, 0, &br,
+                                          nullptr);
+                    CloseHandle(vh2);
+                }
+                wchar_t mount[8] = {vr.letter, L':', L'\\', 0};
+                (void)SetVolumeMountPointW(vr.guid.c_str(), mount);
+                Sleep(1000); /* corpus :34499 settle */
+            }
+        }
         locked_volumes_.clear();
+        restores_.clear();
         locked_ = false;
     }
 
@@ -762,6 +860,8 @@ private:
     std::mutex heal_mu_;
     bool locked_ = false;
     std::vector<HANDLE> locked_volumes_;
+    std::vector<VolumeRestore> restores_; /* pushed in lockstep with
+                                           * locked_volumes_ (same loop) */
 };
 
 } // namespace
