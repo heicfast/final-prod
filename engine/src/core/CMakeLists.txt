@@ -36,6 +36,7 @@ add_library(cr_core STATIC
     ext4/cr_ext4_engine.cpp
     hfsplus/cr_hfsplus_engine.cpp
     btrfs/cr_btrfs_engine.cpp
+    btrfs/cr_btrfs_cache.cpp
     zfs/cr_zfs_engine.cpp
     lost/cr_candidates.cpp
     lost/cr_consistency.cpp
