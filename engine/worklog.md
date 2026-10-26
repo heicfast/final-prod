@@ -12262,3 +12262,27 @@ Work Log:
 Stage Summary:
 - Session 24 open on the disjoint MAJOR lane. Baseline green. First
   fix: M-049 (error model divergence).
+
+---
+Task ID: DFX25-T0 (session 25 bootstrap — lane claim)
+Agent: main engineer (diff-to-fix fix session 25 — DFX25)
+Task: Session bootstrap + DISJOINT lane claim (DFX23 holds MINOR, DFX24 holds
+MAJOR — both claims pushed within ~3 min of this session's fetch).
+
+Work Log:
+- Pull at bootstrap: HEAD `02b950f` (= DFX24's claim tree; DFX23's `354c555`
+  absorbed). Corpus `03ad46c` unmoved (verified at first corpus read).
+- Baseline executed green FIRST-HAND before the claim: linux-release
+  **737/737** at `02b950f`.
+- Session prompt saved token-redacted: worklog/session-diff-fix-25-prompt.md.
+- Lane claim (disjoint from both active lanes): the INFORMATIONAL tier
+  (24 findings — 15 with no ACKNOWLEDGED resolution: I-006, I-007, I-008,
+  I-012, I-013, I-015..I-024; plus verification depth for the thin rows) and
+  the tracked-open queue (11 OQ items — resolve or push forward with new
+  evidence). Any NEW-FINDING during verification gets filed + fixed.
+- One finding, one verified fix, one push throughout.
+
+Stage Summary:
+- Session 25 open on the disjoint INFORMATIONAL + tracked-open lane.
+  Baseline green. First work: I-006 verification against the corpus.
+
