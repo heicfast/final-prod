@@ -69,8 +69,15 @@ live since M-033 — a user-supplied FVEK, the og's GetFullVolumeEncryptionKey
 output shape, flows through `DecryptingDevice`, the in-stack XTS-AES layer
 matching the og's volume-IO placement: `--bitlocker-fvek` CLI /
 `cr_ui_open_volume_with_key` ABI; detection + legitimate unlock remain the
-S-014 posture: live-registry + offline-hive auto-unlock, and locked volumes
-WITHOUT user key material stay refused — ERR_FVE_LOCKED, no bypass); signing
+S-014 posture: live-registry + offline-hive auto-unlock; the N-064
+password-dictionary aid (`cr/pwddict` + `bitlocker::try_password_unlock`
++ CLI `--bitlocker-pwddict <path|seed>`) is the og's Dict unlock flow
+ported with the consent gate intact — explicit host action only, the
+shipped seed is an authored list (D-78: the og's 228-entry asset is not
+copied; the loader is format-compatible so any dictionary in the og's
+format works, including the og's own file); and locked volumes WITHOUT
+user consent or key material stay refused — ERR_FVE_LOCKED, no bypass);
+signing
 (OSSign disabled); `.rsf` import (G-11, tracked disposition).
 
 ## 4. Open gap register (code-verified)

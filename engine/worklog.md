@@ -12912,3 +12912,57 @@ Stage Summary:
 - Session 34 open on the MINOR-tail lane. First: full read of the tail
   findings + corpus verification, starting N-064 (Dict password
   dictionary absent).
+
+---
+Task ID: DFX34-T1 (session 34, first fix — N-064)
+Agent: main engineer (diff-to-fix fix session 34 — DFX34)
+Task: N-064 — the BitLocker/Office password-dictionary unlock aid absent
+(the og ships Dict, 228 entries, wired to manage-bde -Password).
+
+Work Log:
+- Corpus re-verified BYTE-LEVEL first-hand before any change:
+  og-codebase/Dict (2,742 B, 228 entries; every line "entry,"+CRLF, the
+  final entry unterminated and comma-less; longest 20 chars; entries may
+  contain spaces — "charlie brown"/"mickey mouse" read directly;
+  pure printable ASCII), config-data-reference.md:20/:86, UIUX
+  15-scenario-flows:33 (the consent = BitlockerUnlockDialog →
+  BitlockerUnlockThread), FileRepair/archive-repair artifact (the
+  repair-line consumer — scope-excluded I-010). CONFIRMED-DIVERGENCE
+  (core negative space re-verified: key-based unlock only).
+- Implementation: pure `cr/pwddict` module (include/cr/pwddict +
+  src/core/pwddict) — parse() in the og's exact format (LF-tolerant,
+  comma-optional for hand-edited files), seed_dictionary() (authored
+  20-entry generic list), try_passwords() consent-gated sequencer
+  (order-preserving dedup, caps 4096/128/256KiB, N-048-seam attempt
+  logging with progress+length ONLY — password text never logged;
+  policy: sequential, first-success-wins, duplicates once). Win layer:
+  bitlocker::try_password_unlock — the SAME unlock() plumbing as a
+  typed password (PowerShell Unlock-BitLocker -Password → manage-bde
+  -Password fallback), CP_UTF8 widen, no in-process crypto. CLI:
+  scan --bitlocker-pwddict <path|seed> (pre-pass like --bitlocker-fvek;
+  the flag IS the consent; locked/unknown volumes only; auto-unlock
+  still tried first; over-cap/empty/unreadable dictionaries refused
+  with diagnostics). Scan path holds NO reference to the sequencer
+  (F61 legitimate-unlock-only preserved).
+- REGISTERED DIVERGENCE D-78 (PARITY-DELTAS): authored seed + the
+  og's asset never copied (fixing rule: never copy proprietary data
+  files); loader byte-format-compatible so the og's own Dict works.
+- Tests: 9 Pwddict.* (format byte-faithful incl. the corpus shape;
+  LF/comma-optional; caps + oversize refusal + null guards; seed
+  sanity; first-success stop; dedup order; exhaust; log-secrecy
+  (no "secret" substring in any line); exhaust Warn-once).
+  Executed fail-before RED: implementation stashed aside → the test
+  unit fails to compile (cr/pwddict/cr_pwddict.h absent) — the
+  capability did not exist. win_syntax_check CAUGHT the first win
+  draft's undeclared MultiByteToWideChar/CP_UTF8 (stub surface grown:
+  CP_UTF8 + MultiByteToWideChar) — the gate working as designed.
+- Suite 752/752 linux-release. Audit trail: Resolution + FIXED/ move,
+  RESOLVED-INDEX row (s34 header), CROSS-REF-MATRIX health/bitlocker
+  cell, modules/health.md (s5 bullet + open-items note), SUMMARY s34
+  delta + counts, PARITY-DELTAS D-78, CAPABILITY-MATRIX posture.
+
+Stage Summary:
+- N-064 FIXED (tally 1/20+). MINOR 16 remain. Next (tail-first):
+  N-071 → N-072 → N-075 → N-066 → N-065 → N-059 → N-050 → N-049 →
+  N-036 → N-033 → N-031 → N-027 → N-026 → N-007/I-004 → N-019 →
+  N-032, absorbing parallel landings per first-landing-wins.

@@ -1,4 +1,49 @@
-# SUMMARY.md — executive summary (sessions 25+28 on top; earlier sessions below)
+# SUMMARY.md — executive summary (session 34 on top; earlier sessions below)
+
+## Session-34 delta (2026-10-26 — DFX34: the MINOR-tail lane, first landing — N-064)
+
+Bootstrap at `65122f0`-lineage (the window's parallel claim wave absorbed
+by union merges; ID re-stamped 27→32→34 across three push races, each
+squatted pre-landing — first-landing-wins honored). Baseline linux-release
+**737/737** green FIRST-HAND at the claim tree; corpus `03ad46c` unmoved
+(verified at first corpus read). Lane: the MINOR tier tail back-to-front,
+20+ fix target, groups per sub-fix, every parallel landing absorbed.
+
+**N-064 FIXED (MINOR — the BitLocker password-dictionary unlock aid):**
+the og ships a 228-entry Dict (2,742 B) wired to BitLockerLib's
+manage-bde -Password flow + the repair line (config-data-reference:20/:86;
+the UI consent = BitlockerUnlockDialog → BitlockerUnlockThread). Corpus
+re-verified BYTE-LEVEL this session (comma-terminated CRLF lines,
+unterminated final entry, space-bearing entries — "charlie brown" read
+first-hand). Landed: pure `cr/pwddict` (format-exact parse + authored
+20-entry seed = **REGISTERED DIVERGENCE D-78** (the og's asset never
+copied; the loader is byte-format-compatible so the og's own Dict file
+works verbatim) + the consent-gated sequencer: order-preserving dedup,
+caps 4096/128/256KiB, attempt-log lines carry progress + candidate LENGTH
+only — password text never logged) + win `try_password_unlock` (SAME
+unlock() plumbing as a typed password: PowerShell Unlock-BitLocker
+-Password → manage-bde -Password fallback; CP_UTF8 widen; Windows applies
+the key, the core does no crypto) + CLI `scan --bitlocker-pwddict
+<path|seed>` (the explicit flag IS the consent — nothing in the scan
+path references the sequencer; F61 legitimate-unlock-only preserved,
+locked volumes without consent/key stay ERR_FVE_LOCKED). Attempt policy
+(the finding's open question): sequential, first-success-wins, one
+attempt per candidate, duplicates once — documented in the header.
+Proof: 9 `Pwddict.*` tests + executed fail-before RED (the test unit
+does not compile on the pre-fix tree — the capability was absent);
+win_syntax_check itself caught the first win-layer draft's undeclared
+MultiByteToWideChar/CP_UTF8 (stub surface grown — the gate working).
+Suite **752/752** at the fix tree. The repair-line Dict consumers
+(EuOfficeRepairFile/archive CheckPassWord) stay scope-excluded (I-010).
+
+**Post-fix counts:** SEVERE **0** · MAJOR 14 · MINOR **16** · INFO 0
+open · **FIXED/ 175 files** (174 findings + RESOLVED-INDEX) ·
+tracked-open 11 OQs. Next on this lane (tail-first): N-071 (device
+enumeration breadth) → N-072 (btrfs rescan cache + zfs label polling) →
+N-075 → N-066 → N-065 → N-059 → N-050 → N-049 → N-036 → N-033 → N-031
+→ N-027 → N-026 → N-007/I-004 → N-019 → N-032, absorbing the parallel
+lanes' landings per first-landing-wins.
+
 
 ## Session-23 delta (2026-10-26 — DFX23: the MINOR-first closing wave, batch 1 — N-009 group closed + M-057)
 

@@ -1,6 +1,6 @@
 # diff-to-fix/findings/FIXED/ — resolved findings (audit trail)
 
-## Resolved findings (session-28 wave on top: +N-025; session-25 wave: +I-001..I-024 — the INFORMATIONAL tier closed into FIXED/ (22/22 acknowledged, re-verified on `716d121`, pins green 737/737); live file inventory)
+## Resolved findings (session-34 wave on top: +N-064 (DFX34); session-28 wave: +N-025; session-25 wave: +I-001..I-024 — the INFORMATIONAL tier closed into FIXED/ (22/22 acknowledged, re-verified on `716d121`, pins green 737/737); live file inventory)
 
 > The 22 INFORMATIONAL findings were acknowledged across sessions 2-14
 > (each file carries its own `## Resolution` with the verification evidence).
@@ -18,6 +18,7 @@
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |
 |---|---|---|---|---|
+| N-064 | MINOR (S5) | Dict password-dictionary unlock aid absent (og ships a 228-entry Dict wired to manage-bde -Password + encrypted-doc repair) | (this session's N-064 commit — file carries the Resolution) | Pure `cr/pwddict` module (og-exact comma-terminated CRLF format parse, first-hand byte-verified vs og-codebase/Dict; 20-entry authored seed = REGISTERED DIVERGENCE — the og's 228-entry asset never copied, the loader is format-compatible so the og's own file works) + win `try_password_unlock` (same unlock() plumbing as a typed password; CP_UTF8 widen; no in-process crypto) + CLI `--bitlocker-pwddict <path\|seed>` explicit-consent action; scan path holds no reference (F61 preserved). Attempt log lines carry progress+length only, never password text. 9 Pwddict tests; executed fail-before RED (test unit does not compile pre-fix); win_syntax_check caught the first draft's undeclared MultiByteToWideChar (stub grown). Suite 752/752. |
 | N-025 | MINOR (S2 group) | LDM geometry minors: N-012a config-size gate (og rejects >= 0x801 sectors; core clamped 4 MiB and continued) + N-012b zero-interleave default (og 64 KiB; core refused) | (this session's N-025 commit — file carries the Resolution) | Gate `config_size >= 0x801 -> ERR_BAD_CHECKSUM` in parse_ldm_database (LdmManager_decompiled.c:59748-59759, re-verified first-hand); the unreachable 8192-sector read clamp removed. Zero interleave defaults to 128 sectors (64 KiB) on BOTH the striped and RAID-5 layout paths (og :47665 ctor default, :68631-68641 use-site, re-verified). 3 tests (2 fail-before RED on the stash-isolated pre-fix tree); suite 740/740. |
 | I-001 | INFORMATIONAL | NTFS metafile filter: blanket `$`-skip vs og's known-list (user `$…` files surface + recycle deletions) | `f74a5dd` (ack) — moved FIXED/ this session | ACKNOWLEDGED — deliberate recovery-positive superset; pin UserFileNamedDollarNotHidden green; corpus cite re-verified first-hand this session (:21186); D-12. |
 | I-002 | INFORMATIONAL | FAT12 bad-cluster canonicalized vs og raw-follow | `f74a5dd` (ack) — moved FIXED/ this session | ACKNOWLEDGED — CORRECTIONS row 3 + raw-follow semantics confirmed; pin Fat16BadClusterStillCanonical green (it surfaced N-010, fixed); D-39. |
