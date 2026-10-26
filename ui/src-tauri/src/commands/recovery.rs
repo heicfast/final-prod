@@ -419,7 +419,7 @@ pub async fn recovery_items(
                     });
                 }
                 if state_word == "done" {
-                    row["savedAs"] = item.get("path").and_then(|p| p.as_str()).map(String::from);
+                    row["savedAs"] = item.get("path").and_then(|p| p.as_str()).map(String::from).into();
                 }
                 row
             })

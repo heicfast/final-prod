@@ -324,7 +324,7 @@ pub fn launch_run_thread(
         );
         use tauri::Emitter;
         let _ = app_for_run.emit(
-            format!("scan-finished:{}", entry_for_run.scan_id),
+            &format!("scan-finished:{}", entry_for_run.scan_id),
             json!({ "status": status, "failure": failure }),
         );
     });

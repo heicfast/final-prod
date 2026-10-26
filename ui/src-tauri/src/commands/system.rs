@@ -49,13 +49,13 @@ fn driver_probe() -> (bool, bool, Option<String>, String) {
     let scm = unsafe {
         OpenSCManagerA(std::ptr::null(), std::ptr::null(), SC_MANAGER_CONNECT)
     };
-    if scm == 0 {
+    if scm.is_null() {
         return (false, false, None, "SCM is not accessible".into());
     }
     let name = b"RDA\0";
     let svc = unsafe { OpenServiceA(scm, name.as_ptr(), SERVICE_QUERY_STATUS) };
     unsafe { CloseServiceHandle(scm) };
-    if svc == 0 {
+    if svc.is_null() {
         return (false, false, None, format!("the {RDA_SERVICE} service is not installed"));
     }
     let mut status = SERVICE_STATUS {

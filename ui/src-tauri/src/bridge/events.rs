@@ -15,7 +15,7 @@
 //! `scan-finished:` / `recovery-finished:` themselves.
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{Receiver, TryRecvError};
+use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -213,7 +213,7 @@ pub fn spawn_scan_emitter(
     std::thread::spawn(move || {
         let scan_ptr = scan_ptr.get();
         for evt in rx {
-            let Ok(live) = live.lock() else { break };
+            let Ok(mut live) = live.lock() else { break };
             let mut emit = false;
             match evt.r#type {
                 abi::CR_EVT_SCAN_STAGE => {

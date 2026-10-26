@@ -6,6 +6,7 @@ pub mod devices;
 pub mod health;
 pub mod recovery;
 pub mod repair;
+pub mod preview;
 pub mod results;
 pub mod scan;
 pub mod sessions;

@@ -117,6 +117,7 @@ impl ScanLive {
 /// `cr_ui_snapshot_node` indices). Built in ONE DFS pass (parents precede
 /// children in pre-order, so full paths assemble incrementally — O(total
 /// path bytes), never O(n x depth)).
+#[derive(Clone)]
 pub struct NodeMeta {
     pub node_id: u64,
     pub parent: u32, // CR_UI_SNAP_NONE preserved for roots
@@ -302,7 +303,7 @@ pub struct JobLive {
     pub total_count: u64,
     pub current_file: Option<String>,
     pub verifying: bool,
-    pub throughput: f64,
+    pub last_throughput: f64,
     pub eta_seconds: Option<u64>,
     pub started_unix_ms: i64,
 }
@@ -320,7 +321,7 @@ impl JobLive {
             total_count,
             current_file: None,
             verifying: false,
-            throughput: 0.0,
+            last_throughput: 0.0,
             eta_seconds: None,
             started_unix_ms: super::util::now_unix_ms(),
         }
