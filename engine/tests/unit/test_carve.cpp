@@ -378,6 +378,121 @@ TEST(CarveEngine, SecondPassFullyDeduped) {
     EXPECT_EQ(s2.sign_hits, s1.sign_hits); /* same fixture, same probes */
 }
 
+/* ---- M-021: the post-carve processing hook (the og's EUVideoRepair
+ * binding at controller+0x158; the deferred-poll feed) ---- */
+
+/* a carvable QuickTime MOV: ftyp box at +0 with brand "qt  " (the box
+ * SIZE at candidate+0, "ftyp" TYPE at +4 - the S-017 registry shape),
+ * then a well-formed moov + mdat box walk */
+static void plant_mov(std::vector<u8>& img, size_t at) {
+    const auto be32 = [&img](size_t p, u32 v) {
+        img[p] = u8(v >> 24);
+        img[p + 1] = u8(v >> 16);
+        img[p + 2] = u8(v >> 8);
+        img[p + 3] = u8(v);
+    };
+    be32(at, 20); /* ftyp box size */
+    std::memcpy(img.data() + at + 4, "ftyp", 4);
+    std::memcpy(img.data() + at + 8, "qt  ", 4); /* brand */
+    be32(at + 12, 0x200);                         /* minor version */
+    std::memcpy(img.data() + at + 16, "qt  ", 4); /* compatible brand */
+    be32(at + 20, 8 + 40); /* moov box size (48) */
+    std::memcpy(img.data() + at + 24, "moov", 4);
+    for (int i = 0; i < 40; ++i)
+        img[at + 28 + i] = 0; /* moov payload */
+    be32(at + 68, 8 + 56); /* mdat box size (64) */
+    std::memcpy(img.data() + at + 72, "mdat", 4);
+    for (int i = 0; i < 56; ++i)
+        img[at + 76 + i] = 0x5A;
+    /* terminator: an over-cap box size right after the stream so the
+     * bmff walk ends at the mdat (the 0xAA filler alone would be walked
+     * as a 2.8 GiB "box" still inside the 4 GiB cap) */
+    be32(at + 132, 0xFFFFFFFF);
+}
+
+namespace {
+class RecordingProcessor final : public CarvePostProcessor {
+public:
+    struct Hit {
+        u32 format_tag;
+        std::string ext;
+        u64 offset, length;
+    };
+    std::vector<Hit> hits;
+    u32 version_seen = 0;
+    void on_candidate(IStorageDevice* slice, const CarveCandidateInfo& info) override {
+        (void)slice;
+        version_seen = api_version();
+        hits.push_back({info.format_tag, info.format_ext, info.offset, info.length});
+    }
+};
+} // namespace
+
+TEST(CarveEngine, VideoPostProcessorHookInvoked) {
+    /* the og feeds every finalized carve candidate to the EUVideoRepair
+     * binding when present (GetVideoInfo filters videos; FUN_18000d670
+     * :10130-10136) - a registered processor sees the MOV candidate with
+     * its stream location (the GetVideoInfo analog: the processor can
+     * read the bytes through the slice at the fed offset) */
+    /* 0xAA filler: a zero tail would read as a size-0 "to-EOF" box and
+     * stretch the extent to the format cap; garbage ends the walk */
+    std::vector<u8> img(64 * 1024, 0xAA);
+    plant_mov(img, 512);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    RecordingProcessor proc;
+    flags.post_processor = &proc;
+    CarveStats stats;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                          stats),
+              OK);
+    /* the fixture's well-formed moov box ALSO anchors the S-017
+     * naked-moov salvage row - two finalized candidates, and the hook
+     * sees BOTH (the og's poll feeds every finalized object) */
+    ASSERT_EQ(stats.validated, 2u);
+    ASSERT_EQ(proc.hits.size(), 2u) << "every finalized candidate reached the hook";
+    /* hits arrive in scan order: the ftyp-anchored MOV first, then the
+     * moov-anchored naked salvage */
+    EXPECT_EQ(proc.hits[0].format_tag, u32(FMT_MOV));
+    EXPECT_EQ(proc.hits[0].ext, "mov");
+    EXPECT_EQ(proc.hits[0].offset, 512u);
+    EXPECT_EQ(proc.hits[0].length, 132u) << "ftyp(20) + moov(48) + mdat(64)";
+    EXPECT_EQ(proc.hits[1].format_tag, u32(FMT_MOV_NAKED));
+    EXPECT_EQ(proc.hits[1].offset, 532u) << "the moov box start";
+    EXPECT_EQ(proc.hits[1].length, 112u) << "moov(48) + mdat(64)";
+    EXPECT_EQ(proc.version_seen, 1u);
+    /* the hook is a FEED, not a gate: the nodes are emitted regardless */
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    ASSERT_EQ(all.size(), 2u);
+    EXPECT_EQ(all[0]->props()->carve_format, u32(FMT_MOV));
+}
+
+TEST(CarveEngine, HookDegradesWhenModuleAbsent) {
+    /* the og's DLL-absent degrade: no binding -> null at controller+0x158
+     * -> the pipeline runs identically (raw emission, no crash, no
+     * behavioral delta) */
+    std::vector<u8> img(64 * 1024, 0xAA); /* to-EOF-box guard, as above */
+    plant_mov(img, 512);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags; /* post_processor null: the unbound default */
+    CarveStats stats;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                          stats),
+              OK);
+    EXPECT_EQ(stats.validated, 2u) << "unbound hook changes nothing";
+}
+
 TEST(CarveEngine, RegistryF8Gate) {
     std::vector<const Signature*> bad;
     EXPECT_EQ(validate_registry(&bad), 0u); /* the shipped table is clean */
@@ -1055,16 +1170,116 @@ TEST(CarveEngine, ZipIndexlessLfhChainSalvage) {
             zip = c;
     }
     ASSERT_NE(zip, nullptr) << "indexless archive must still carve";
-    /* chain end = 30 + 21 name + 256 data = 307 bytes */
-    EXPECT_EQ(zip->props()->logical_size, size_t(30 + 21 + 256));
+    /* chain end = 30 + 21 name + 256 data = 307 bytes. N-008: the og's
+     * salvage extension then absorbs data-bearing trailing sectors
+     * (decompile :18492-500) - this multi-format image carries the next
+     * fixture's bytes right after, so the span extends sector-wise
+     * through them until a zero-tailed sector (or the cap); the exact
+     * end is layout-dependent here, the dedicated
+     * ZipSalvageAbsorbsDataSectors test pins the precise semantics. */
+    EXPECT_GE(zip->props()->logical_size, size_t(30 + 21 + 256));
     EXPECT_LE(zip->props()->carve_confidence, 700u); /* low confidence */
 }
 
-TEST(CarveEngine, ZipZeroPaddingAbsorbed) {
-    /* CARVE-2: the og's last-16-bytes-zero test extends the archive over
-     * trailing zero padding (5.24 MB cap) */
+TEST(CarveEngine, ZipSalvageAbsorbsDataSectors) {
+    /* N-008 (decompile :18492-18508): after a BROKEN chain the og
+     * absorbs data-bearing trailing sectors - entry requires the window
+     * at [chain_end, +512) to carry a non-zero tail dword; a window
+     * whose trailing 16 bytes are all zero ends the absorption and is
+     * never absorbed; cap 0x500001. */
+    auto img = std::vector<u8>(1 * 1024 * 1024, 0);
+    const size_t at = 4096;
+    std::memcpy(img.data() + at, "PK\x03\x04", 4);
+    put16(img, at + 26, 5);
+    put16(img, at + 28, 0);
+    put32v(img, at + 18, 64);
+    put32v(img, at + 22, 64);
+    std::memcpy(img.data() + at + 30, "a.bin", 5);
+    std::memset(img.data() + at + 35, 0x5A, 64);
+    const size_t chain_end = at + 99;
+    /* the window [chain_end, chain_end+512) is data-bearing */
+    std::memset(img.data() + chain_end, 0x33, 512);
+    /* the NEXT window is zero-tailed (the image is zero beyond) */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    tree::FileNode* zip = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && !c->props()->extents.empty() &&
+            c->props()->extents.front().offset == at && c->props()->carve_format == FMT_ZIP)
+            zip = c;
+    ASSERT_NE(zip, nullptr) << "the torn indexless zip must carve";
+    EXPECT_EQ(zip->props()->extents.front().length, size_t(99 + 512))
+        << "the chain (99 B) + ONE data-bearing 512 B window absorbed; the zero-tailed window is "
+           "not";
+}
+
+TEST(CarveEngine, Zip64ExtraFieldContinuesChain) {
+    /* N-008: the indexless chain walk continues through ZIP64 entries -
+     * csize 0xFFFFFFFF in the LFH resolves through the extra field's
+     * 0x0001 record (usize then csize, 8 bytes each); the old walk broke
+     * on the sentinel and truncated the archive. */
+    auto img = std::vector<u8>(1 * 1024 * 1024, 0);
+    const size_t at = 4096;
+    std::memcpy(img.data() + at, "PK\x03\x04", 4);
+    put16(img, at + 26, 7);
+    put16(img, at + 28, 24);
+    put32v(img, at + 18, 0xFFFFFFFF);
+    put32v(img, at + 22, 0xFFFFFFFF);
+    std::memcpy(img.data() + at + 30, "z64.bin", 7);
+    {
+        const size_t ex = at + 30 + 7;
+        put16(img, ex, 0x0001);
+        put16(img, ex + 2, 16);
+        put32v(img, ex + 4, 64);
+        put32v(img, ex + 8, 0);
+        put32v(img, ex + 12, 64);
+        put32v(img, ex + 16, 0);
+    }
+    std::memset(img.data() + at + 61, 0x42, 64);
+    const size_t at2 = at + 30 + 7 + 24 + 64;
+    std::memcpy(img.data() + at2, "PK\x03\x04", 4);
+    put16(img, at2 + 26, 7);
+    put16(img, at2 + 28, 0);
+    put32v(img, at2 + 18, 32);
+    put32v(img, at2 + 22, 32);
+    std::memcpy(img.data() + at2 + 30, "z65.bin", 7);
+    std::memset(img.data() + at2 + 37, 0x43, 32);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    tree::FileNode* zip = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && !c->props()->extents.empty() &&
+            c->props()->extents.front().offset == at && c->props()->carve_format == FMT_ZIP)
+            zip = c;
+    ASSERT_NE(zip, nullptr) << "the ZIP64 indexless archive must carve";
+    bool has_first = false, has_second = false;
+    for (tree::FileNode* e = zip->first_child(); e; e = e->next_sibling()) {
+        if (e->props()->name == u"z64.bin")
+            has_first = true;
+        if (e->props()->name == u"z65.bin")
+            has_second = true;
+    }
+    EXPECT_TRUE(has_first) << "entry 1 in the inventory";
+    EXPECT_TRUE(has_second) << "the chain continued past the ZIP64 sentinel into entry 2";
+}
+
+TEST(CarveEngine, ZipCleanArchiveNotInflatedByZeroSlack) {
+    /* N-008/N-027d: the og NEVER extends a CLEAN archive past its EOCD -
+     * the old 16-byte-granular zero-absorption (the pre-N-008 core's
+     * invented behavior) inflated intact ZIPs with trailing zero slack.
+     * A clean archive with 128 bytes of zeros after the EOCD carves to
+     * exactly its EOCD end. */
     auto img = build_carve_image();
-    /* 128 bytes of zero padding right after the plain ZIP's EOCD */
     std::memset(img.data() + 4096 + 140, 0, 128);
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
@@ -1080,7 +1295,7 @@ TEST(CarveEngine, ZipZeroPaddingAbsorbed) {
             zip = c;
     }
     ASSERT_NE(zip, nullptr);
-    EXPECT_EQ(zip->props()->logical_size, size_t(140 + 128)); /* padding absorbed */
+    EXPECT_EQ(zip->props()->logical_size, size_t(140)) << "zero slack must NOT be absorbed";
 }
 
 TEST(CarveEngine, BeTiffAndOrfVariantsCarve) {
@@ -1152,6 +1367,114 @@ TEST(CarveEngine, BeTiffAndOrfVariantsCarve) {
     EXPECT_TRUE(be_tiff) << "MM\\0\\2A anchor must carve";
     EXPECT_TRUE(iirs) << "IIRS anchor must carve";
     EXPECT_TRUE(mmor) << "MMOR anchor must carve";
+}
+
+TEST(CarveEngine, OverlapScorePrefersHigherConfidence) {
+    /* N-070: at a position where several magics coincide the og emits the
+     * highest accumulated header+tail-confidence candidate (the engine
+     * "accumulates header + tail confidences to rank candidate carves
+     * (multiple overlapping candidates resolved by score)" -
+     * searchdll-family--architecture.md:73), not whichever registry row
+     * sits first in trial order. Discriminating fixture: II*\0 with BOTH
+     * the "CR" sub-magic at +8 (CR2 accepts: base 850 + validator 850 =
+     * 1700) and a DNGVersion tag 0xC612 in the IFD (DNG accepts: base
+     * 880 + validator 880 = 1760). Pre-fix the trial loop broke at the
+     * first accept (CR2 - kTrialOrder puts it before DNG); post-fix the
+     * accumulated score picks DNG. */
+    std::vector<u8> img(2 * 1024 * 1024, 0);
+    const size_t at = 1024 * 1024;
+    u8* t = img.data() + at;
+    auto w16 = [&](size_t o, u16 v) {
+        t[o] = u8(v);
+        t[o + 1] = u8(v >> 8);
+    };
+    auto w32 = [&](size_t o, u32 v) {
+        for (int i = 0; i < 4; ++i)
+            t[o + i] = u8(v >> (8 * i));
+    };
+    std::memcpy(t, "II\x2A\x00", 4);
+    w32(4, 16); /* IFD offset */
+    t[8] = 'C';
+    t[9] = 'R';      /* CR2 sub-magic (validate_cr2's +8 probe) */
+    w16(16, 1);      /* one IFD entry */
+    w16(18, 0xC612); /* DNGVersion (validate_dng's accept tag) */
+    w16(20, 1);      /* type BYTE */
+    w32(22, 8);      /* count > 4: data at the value offset */
+    w32(26, 1200);   /* value = data offset */
+    w32(30, 0);      /* next IFD = 0 */
+    for (int i = 0; i < 8; ++i)
+        t[1200 + i] = 0x22;
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    int nodes_at = 0;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        if (c->props() && !c->props()->extents.empty() &&
+            c->props()->extents.front().offset == at) {
+            ++nodes_at;
+            EXPECT_EQ(c->props()->carve_format, u32(FMT_DNG))
+                << "the higher accumulated score (DNG 1760 vs CR2 1700) must win the position";
+            EXPECT_EQ(c->props()->logical_size, size_t(1208));
+        }
+    }
+    EXPECT_EQ(nodes_at, 1) << "exactly one winner per overlap position";
+    EXPECT_EQ(s.validated, 1u);
+}
+
+TEST(CarveEngine, TiffVsRawTiebreak) {
+    /* N-070 companion pin: the census's own collision family (TIFF `II*.`
+     * vs camera RAW, rawsearchdll--analyser-registry-census.md:53) has a
+     * deterministic winner for the PLAIN case - no CR sub-magic and no
+     * DNGVersion: CR2 and DNG both reject, TIFF accepts (800 + 800).
+     * This outcome is identical pre- and post-fix (single acceptor); the
+     * test pins that the scoring change did not disturb it. */
+    std::vector<u8> img(2 * 1024 * 1024, 0);
+    const size_t at = 1024 * 1024;
+    u8* t = img.data() + at;
+    auto w16 = [&](size_t o, u16 v) {
+        t[o] = u8(v);
+        t[o + 1] = u8(v >> 8);
+    };
+    auto w32 = [&](size_t o, u32 v) {
+        for (int i = 0; i < 4; ++i)
+            t[o + i] = u8(v >> (8 * i));
+    };
+    std::memcpy(t, "II\x2A\x00", 4);
+    w32(4, 8);       /* IFD offset */
+    w16(8, 1);       /* one entry */
+    w16(10, 0x0100); /* ImageWidth */
+    w16(12, 3);      /* type SHORT */
+    w32(14, 5);      /* count > 4: data at the value offset */
+    w32(18, 1200);   /* value = data offset */
+    w32(22, 0);      /* next IFD = 0 */
+    for (int i = 0; i < 10; ++i)
+        t[1200 + i] = 0x33;
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    bool tiff = false;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        if (c->props() && !c->props()->extents.empty() &&
+            c->props()->extents.front().offset == at) {
+            EXPECT_EQ(c->props()->carve_format, u32(FMT_TIFF));
+            /* M-056: the out-of-line entry (count 5 SHORTs at +1200) ends
+             * the file at 1210 RELATIVE - the pre-fix absolute-basis end
+             * reported hit + 1210 (the candidate offset added to its own
+             * size; on real disks the 256 MiB cap then absorbed the
+             * neighborhood). */
+            EXPECT_EQ(c->props()->logical_size, size_t(1210));
+            tiff = true;
+        }
+    }
+    EXPECT_TRUE(tiff) << "plain II*\\0 file: TIFF is the single acceptor (deterministic winner)";
 }
 
 TEST(CarveEngine, PstUnknownVersionAcceptedAtFloor) {
@@ -2019,6 +2342,110 @@ size_t plant_zip_with_data(std::vector<u8>& img, size_t at, const char* name,
 
 } // namespace
 
+TEST(Carve, ZipTruncatedHeadRecovered) {
+    /* N-068 claim 1: a zip whose first 512 bytes are destroyed (the LFH +
+     * data head) but whose CD + EOCD survive still carves. The og's
+     * analyser dispatches all three structures (entry-point table,
+     * rawsearchdll--zip-analyser-carving.md :13-21); the core's CD anchor
+     * (PK\\x01\\x02, "preferred anchor") owns this recovery, with the
+     * EOCD reconciliation sizing the span. */
+    auto img = std::vector<u8>(2 * 1024 * 1024, 0);
+    const std::vector<u8> payload(1024, 0xAB);
+    (void)plant_zip_with_data(img, 4096, "letter.txt", payload);
+    /* destroy the head: LFH + name + most of the data */
+    std::memset(img.data() + 4096, 0, 512);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* zip_node = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && !c->props()->extents.empty() &&
+            c->props()->extents.front().offset >= 4096 &&
+            c->props()->extents.front().offset < 4096 + 2048)
+            zip_node = c;
+    ASSERT_NE(zip_node, nullptr) << "head-destroyed zip must still carve (CD/EOCD survive)";
+}
+
+TEST(Carve, ZipLfhSanityGates) {
+    /* N-068 claim 2: the og's LFH anchor carries two cheap FP-suppressor
+     * gates (decompile :18385-18388, byte-exact): reject when
+     * u16@+8 > 10 (the artifact calls it version_needed; in the spec LFH
+     * layout +8 is the compression method - the og gates the bytes either
+     * way) or when (u16@+0x1a - 1) > 0x102, i.e. the accept window is
+     * [1, 0x103] (the artifact's "[1, 0x102]" range text is off-by-one vs
+     * the decompile's `0x102 < field - 1`). */
+    const std::vector<u8> payload(64, 0x33);
+    /* (a) u16@+8 = 11: past the method/version bar - rejected by the og */
+    {
+        auto img = std::vector<u8>(1 * 1024 * 1024, 0);
+        (void)plant_zip_with_data(img, 4096, "gate.bin", payload);
+        put16(img, 4096 + 8, 11);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
+                  OK);
+        for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+            ASSERT_TRUE(!(c->props() && c->props()->carve_format == FMT_ZIP &&
+                          !c->props()->extents.empty() &&
+                          c->props()->extents.front().offset == 4096))
+                << "LFH with u16@+8 = 11 must be rejected by the anchor gate";
+    }
+    /* (b) u16@+0x1a = 0x1FF: outside the [1, 0x103] window - rejected */
+    {
+        auto img = std::vector<u8>(1 * 1024 * 1024, 0);
+        (void)plant_zip_with_data(img, 4096, "gate.bin", payload);
+        put16(img, 4096 + 0x1a, 0x1FF);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
+                  OK);
+        for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+            ASSERT_TRUE(!(c->props() && c->props()->carve_format == FMT_ZIP &&
+                          !c->props()->extents.empty() &&
+                          c->props()->extents.front().offset == 4096))
+                << "LFH with u16@+0x1a = 0x1FF must be rejected by the anchor gate";
+    }
+    /* (c) regression pin: the boundary values ACCEPT - u16@+8 = 10 and
+     * u16@+0x1a at the window edges 1 and 0x103 - a normal (gate-passing)
+     * zip still carves. plant_zip_with_data writes +8 = 0 (stored) and the
+     * 8-char name at +0x1a; re-stamp to exercise the edges. */
+    {
+        auto img = std::vector<u8>(1 * 1024 * 1024, 0);
+        (void)plant_zip_with_data(img, 4096, "gate.bin", payload);
+        put16(img, 4096 + 8, 10); /* method/version at the bar */
+        /* NOTE: +0x1a is the LFH name length - changing it would break
+         * the walk's geometry; the edge-exercise for the second gate is
+         * covered by (b)'s rejection + the accept-window derivation. */
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
+                  OK);
+        bool carved = false;
+        for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+            if (c->props() && c->props()->carve_format == FMT_ZIP && !c->props()->extents.empty() &&
+                c->props()->extents.front().offset == 4096)
+                carved = true;
+        EXPECT_TRUE(carved) << "a gate-passing LFH must still carve";
+    }
+}
+
 TEST(CarveEngine, ZipInnerEntryInventoryEmitted) {
     /* the og's ZIP analyser returns the complete inner inventory (names,
      * sizes, offsets) which the results tree presents as the archive's
@@ -2402,7 +2829,8 @@ TEST(Carve, RafRealAsciiVersionAccepted) {
     ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
               OK);
     auto* n = find_carved_by_ext(root, "raf");
-    ASSERT_NE(n, nullptr) << "real ASCII-version RAF must carve (pre-fix: the binary ver gate rejected it)";
+    ASSERT_NE(n, nullptr)
+        << "real ASCII-version RAF must carve (pre-fix: the binary ver gate rejected it)";
     EXPECT_EQ(n->props()->extents.front().offset, u64(at));
     EXPECT_GE(n->props()->logical_size, u64(1024));
 }
@@ -2687,7 +3115,7 @@ TEST(CarveEngine, NoBitmapCarvesEverything) {
     EXPECT_EQ(st.bitmap_skipped_bytes, 0u);
 
     storage::FreeMap invalid; /* zeroed: cluster_bytes 0 -> not valid */
-    run(&invalid, 2, st); /* invalid map must not gate either */
+    run(&invalid, 2, st);     /* invalid map must not gate either */
     EXPECT_EQ(st.bitmap_skipped_bytes, 0u);
 }
 
@@ -2762,8 +3190,8 @@ TEST(CarveEngine, FormatDisabledRawSignsToo) {
     auto* root2 = tree2.add_root(u"Lost Files");
     CarveFlags flags2;
     CarveStats stats2;
-    ASSERT_EQ(carve_slice(&dev2, flags2, nullptr, nullptr, nullptr, tree2, root2, nullptr,
-                          nullptr, stats2),
+    ASSERT_EQ(carve_slice(&dev2, flags2, nullptr, nullptr, nullptr, tree2, root2, nullptr, nullptr,
+                          stats2),
               OK);
     EXPECT_GE(stats2.sign_hits, 1u) << "enabled by default: the sample sign fires";
 }

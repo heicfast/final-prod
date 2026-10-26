@@ -154,8 +154,10 @@ carve-specific divergences surfaced.
   ~26 additional og-only formats (bytes cited); ISO9660 is core-only (og cannot carve ISO).
 - **N-014d filed:** ZIP padding semantic inversion (og salvages non-empty trailing sectors
   after broken chains, never inflates clean archives; two-tier version gates) — N-008 refined.
-- **M-021 filed:** video-repair pre-scan wiring absent (og loads EUVideoRepair.dll and runs
-  a per-candidate repair check).
+- **M-021 filed → FIXED (s21):** video-repair pre-scan wiring — versioned
+  `CarvePostProcessor` bound through `CarveFlags::post_processor` (null = the og's
+  DLL-absent degrade); fires per validated candidate pre-insertion on BOTH emit
+  layers (grammar + raw-sign); a feed never a gate; findings/FIXED/M-021.
 - **N-014b/c filed:** carved-name split inside the core; runtime per-format config surface.
 
 ---
@@ -353,3 +355,41 @@ carries the distinct format id. B1/C19 verdict for this row: MATCH.
   RawSignTailPairWithinFormat tests. Option (a) (table-order parity)
   stays gated on decoding the og's own emitted grade — FUN_18000d670's
   result fill — recorded as the revisit precondition.
+
+**N-068 (MINOR, S5) — FIXED (s11; EOCD half FIXED-ALREADY):** the LFH
+anchor now carries the og's two candidate gates (decompile :18385-18388
+byte-exact: u16@+8 <= 10 and the [1, 0x103] window at +0x1a — the
+artifact's labels are off; E44), applied in zip_common so FMT_ZIP and
+FMT_DOCX share them. The EOCD-anchor recall claim is covered by the
+existing FMT_ZIP_CD + EOCD reconciliation (head-destroyed zip
+reproduction passes pre-fix); a registry EOCD row would double-emit or be
+dead code — the analysis is recorded in the finding's Resolution.
+B1/A28 verdicts: MATCH.
+
+## Session-22 carve batch (N-070 + M-056 — the overlap-scoring wave)
+
+- **N-070 (A28/A29/D15/B3) FIXED (half 1 implemented, half 2 registered):**
+  the grammar-layer trial loop now ACCUMULATES every accepting candidate
+  at a magic position and emits the highest `base_confidence + validator
+  confidence` one (ties: registry trial order — deterministic); the og
+  ranks overlapping candidates by accumulated header+tail confidence
+  (searchdll-family--architecture.md:73, re-verified first-hand). Every
+  gate's break/continue semantics preserved exactly (already-emitted
+  break, suppress_overlap mid-stream skip, F9 dedup resolution). The
+  two-generation `File*Analyser` fallback chain is REGISTERED as
+  PARITY-DELTAS **D-75** (legacy bodies undecoded in the corpus; the two
+  fully-decoded legacy grammars — MKV vint walk, RAR4 fast validator —
+  are already the core's validators). Tests:
+  `CarveEngine.OverlapScorePrefersHigherConfidence` (fail-before: trial
+  order emitted CR2 1700 over DNG 1760 — the discriminator fixture),
+  `CarveEngine.TiffVsRawTiebreak` (the census's collision family pinned,
+  deterministic single-acceptor outcome unchanged).
+- **M-056 (NEW-FINDING, filed+fixed in the same batch):** tiff_common's
+  out-of-line-entry end was computed ABSOLUTE but consumed RELATIVE —
+  every TIFF-family carve with count>4 entries (all real multi-strip
+  TIFFs: StripOffsets/StripByteCounts) sized at `hit + real_size`, which
+  on real disks clamped to the 256 MiB cap and absorbed the neighborhood.
+  `data_at = u64(val)` (TIFF-base-relative, matching the inline branch).
+  Both new tests pin exact structural sizes (1208 / 1210); fail-before
+  executed on the stash-isolated pre-fix tree with the hit-inflated
+  values quoted in the finding. A28/B1 verdict: MATCH.

@@ -163,3 +163,20 @@ normalized to a light node); (c) c.fail alone fails the load (a degraded
 final node no longer loads as OK); (d) name AND full-node role lengths
 bounds-checked BEFORE allocation (the hostile 128 KiB-per-node resize
 gone). 6 tests; suite 602/602.
+
+## Session-17 fix row (2026-10-26, DFX17 — N-078 closed + the leak baseline repair converged)
+
+**N-078 FIXED** (findings/FIXED/, filed+fixed in-session — NEW-FINDING
+from the baseline leak repair; renumbered N-077→N-078 after the parallel
+session-22 lane filed the leak half under N-077 and landed first): the truncated-carve_note exit was the
+ONLY corrupt-record break that left `c.fail` unset — a record whose
+carve_note length overstates the remaining bytes loaded the container
+as OK (silent partial load, violating N-058's own failed-stream rule).
+One-line root cause: `c.fail = true` before the break (the pattern every
+sibling site already used). The LeakSanitizer baseline red (FileProperties leaks on the five pre-attach
+corrupt-record exits) was repaired CONVERGENTLY: this leg's PropsGuard and
+the parallel session-22 lane's PropsRef (98b7d13, N-077) are functionally
+identical; theirs landed first and stands — this leg's dropped in the union
+per first-landing-wins. Session.CorruptRecordEarlyExitsReleaseProps drives all five
+paths under the sanitizer gate (fail-before EXECUTED: LSan red on main,
+case (4) returned OK=0). Suite 614/614 + 21/21 UI + ABI green.

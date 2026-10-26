@@ -5,8 +5,9 @@
  * accessors GetSmartAttributeSat/Csmi/Si/NVMeRealtek). DELTA, documented
  * (AUDIT-PIPELINE HEALTH-2): our implementation uses
  * IOCTL_ATA_PASS_THROUGH (ATA_PASS_THROUGH_EX) with the same ATA SMART
- * command set (0xB0 feature 0xD0 READ_DATA / 0xD1 READ_THRESHOLDS / 0xD8
- * RETURN_STATUS, 0xEC IDENTIFY) - an equivalent direct route to the same
+ * command set (0xB0 feature 0xD0 READ_DATA / 0xD1 READ_THRESHOLDS —
+ * issued since S-024's fix, cr_health.cpp:192-200 — / 0xEC IDENTIFY) - an
+ * equivalent direct route to the same
  * commands where the corpus's SAT wrapper (IOCTL_SCSI_PASS_THROUGH
  * 0x4D004) tunnels them through the SCSI layer - plus the legacy
  * SMART_RCV_DRIVE_DATA 0x7C088 fallback the corpus also carries.

@@ -422,15 +422,22 @@ Split verdict — three sub-claims:
 ### D-19 — Recovery queue: collision naming, atomic writes, hash verify, resume (F11)
 
 - **WHAT OG DOES:** Writes recovered files directly to destination via normal
-  file APIs after `CreateDirectoryW` path reconstruction; collision handling not
-  evidenced as rename-policy (corpus `architecture/04-recovery-workflow.md` §7.5;
-  no collision policy in any artifact — AUDIT-UI §5.7 calls it "unevidenced in
-  og").
+  file APIs after `CreateDirectoryW` path reconstruction. Collision policy
+  DECODED (N-074/N-065; DRWUI_decompiled.c:357116-357131, re-verified
+  first-hand): the og retries colliding names as `%s_%d` / `%s_%d%s`
+  (FID_conflict_sprintf_s, 0x410-wide buffers) with a 10,000-attempt cap
+  — the earlier "no collision policy in any artifact" claim (AUDIT-UI
+  §5.7) is superseded by the decompile walk.
 - **WHAT WE DO:** Collision naming `name (N).ext` + corpus sanitizer
   (`cr_safewriter.cpp:29`), atomic temp+rename via DestIo, SHA-256 verify with
   per-item mismatch accounting, resumable queue (`.part-<id>` suffix, resumed
-  counting), zero-fill Skip policy. Evidence: F11 registry; AUDIT row 35 + Wave-2
-  fixes; tests (collisions, hashing, resume) per `docs/testing.md`.
+  counting), zero-fill Skip policy. The collision SCHEME is the registered
+  deliberate divergence from the now-decoded og policy (`name (N).ext` vs the
+  og's `%s_%d`; our cap is 64 vs the og's 10,000) — see N-065 for the full
+  comparison and the PARITY decision. The atomic-write/hash-verify/resume
+  layers remain REGISTERED SUPERSETS the og lacks. Evidence: F11 registry;
+  AUDIT row 35 + Wave-2 fixes; tests (collisions, hashing, resume) per
+  `docs/testing.md`.
 - **WHY:** safety/correctness-fix.
 - **RISK:** None negative.
 - **VERDICT: ACCEPTED** (og-side absence documented as "unevidenced", which is
@@ -894,8 +901,10 @@ Split verdict — three sub-claims:
 - **WHAT OG DOES:** 64-KiB bootstrap read buffer feeding the MFT batch walk
   (corpus ntfs deep-dive §2).
 - **WHAT WE DO:** Engine reads per-record; the `CachedReader` (8 MiB LRU,
-  64-KiB blocks) coalesces — device-read count equals the og's bootstrap
-  buffer behavior (verified: read-count parity in tests).
+  **256-KiB blocks** since a4053c4 — D-51 registers the block-size tuning;
+  the budget+algorithm register is D-72) coalesces — device-read count
+  equals the og's bootstrap buffer behavior (verified: read-count parity
+  in tests; this row's old "64-KiB blocks" text predates the tuning wave).
 - **WHY:** layering (one cache serves every engine, not just NTFS).
 - **RISK:** none measured.
 - **VERDICT: ACCEPTED** (contract §2/§3 amended accordingly in W5).
@@ -2150,3 +2159,25 @@ the honest extent of the parity. The error-object layer stays out of core
 scope (UI-bus architecture); the engine-side subset (module/operation/
 retry-state context) is the registered open item in the finding. Pinned
 by Error.ErrTextCoversEveryCode + the header truth.
+
+### D-75 — carve validator chain: single modern validator per format, no legacy File*Analyser fallback generation (N-070, REGISTERED SIMPLIFICATION — deliberately not ported)
+
+The og's analyser registry wires every magic key to a two-generation chain:
+a modern (namespaced) analyser plus — where one exists — a legacy
+first-generation `File*Analyser` fallback; a candidate is discarded only
+when BOTH validators fail (rawsearchdll--analyser-registry-census.md:43,
+:45-117 the chain roster). The core has exactly one validator per registry
+row; a rejection is final at the grammar layer. Decision (explicit, per
+the finding's own fix-plan option): the legacy validator BODIES are not
+decoded in the corpus — the census carries class names and chain wiring
+only; the two legacy grammars that ARE fully decoded (the FileMKVAnalyser
+EBML vint walk, analyser-granular-batch1 :43-61; the FileRARAnalyser fast
+validator, :25-40) are already the core's validators (N-051 quartet).
+Porting the undecoded remainder would be invented grammar — fabrication,
+not parity. The N-070 half this registers away from is the second-chance
+accept-rate; the overlap-scoring half (accumulated header+tail confidence
+ranking) IS implemented (the finding's fix). Revisit precondition: a
+future corpus decode of any legacy File*Analyser body makes its port
+evidenced — until then this stays a registered simplification, pinned by
+CarveEngine.OverlapScorePrefersHigherConfidence (which proves the scoring
+half) and the absence of any fallback path in cr_registry.cpp.
