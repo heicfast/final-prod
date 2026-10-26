@@ -188,12 +188,16 @@ function Invoke-Installer {
         Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if (-not $appBundle) { throw 'no Tauri NSIS app bundle found; run the ui lane first' }
     $makensis = Find-Makensis
-    # NSIS define paths are normalized to FORWARD slashes: makensis's File
-    # globbing accepts backslash single-file paths but a mixed
-    # 'D:\dir\kit/*' filespec finds no files (first seen on a real Windows
-    # runner — the local compile-check had used forward slashes throughout,
-    # which is why it never caught this).
-    $appBundleFwd   = ($appBundle.FullName -replace '\\', '/')
+    # NSIS define paths are normalized to FORWARD slashes (makensis's File
+    # globbing rejected the mixed 'D:\dir\kit/*' form — round 2 of the
+    # validation run). BUT forward-slash paths that contain SPACES break
+    # single-file File lookups (round 3: 'Recovery Wizard_0.5.0_x64-setup.exe'
+    # -> no files found) — so the Tauri bundle (productName has a space) is
+    # copied to a space-free staged name first. Same bytes; the /oname
+    # extraction in the .nsi is unchanged.
+    $appBundleStaged = Join-Path $StageDir 'app-setup.exe'
+    Copy-Item $appBundle.FullName -Destination $appBundleStaged -Force
+    $appBundleFwd   = ($appBundleStaged -replace '\\', '/')
     $engineKitFwd   = ((Join-Path $StageDir 'engine') -replace '\\', '/')
     $driverStageFwd = ((Join-Path $StageDir 'driver') -replace '\\', '/')
     $outDirFwd      = ($OutDir -replace '\\', '/')
