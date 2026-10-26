@@ -74,5 +74,15 @@ void write(Level level, const char* fmt, ...) {
     va_end(ap);
 }
 
+void check_memory_pressure(u32 threshold_mb, u64 working_set_mb) {
+    /* N-062: pure check - the caller owns the platform sampling. The
+     * og's CMemMonitorManager (Log.mo census) feeds logs/UI only; no
+     * scheduling coupling (the finding's rule). */
+    if (threshold_mb == 0 || working_set_mb < threshold_mb)
+        return;
+    write(Level::Warn, "memory pressure: working_set=%llu MB threshold=%u MB",
+          (unsigned long long)working_set_mb, threshold_mb);
+}
+
 } // namespace log
 } // namespace cr

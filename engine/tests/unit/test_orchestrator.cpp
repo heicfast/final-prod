@@ -297,6 +297,37 @@ TEST(Orchestrator, LogSinkReceivesScanBrackets) {
     }
 }
 
+TEST(Orchestrator, MemoryMonitorEmitsUnderPressure) {
+    /* N-062 (the og's CMemMonitorManager pressure events on the same
+     * sink - Log.md census): the pure threshold check emits a Warn line
+     * at/above the threshold; below it and when the monitor is OFF
+     * (threshold 0 - the conservative library default; the og's
+     * always-on monitor is its UI process's choice) it stays silent.
+     * Never coupled to scheduling (the finding's own rule - no corpus
+     * evidence the og throttles; the manager feeds logs/UI). */
+    LogRecorder rec;
+    cr::log::set_sink(&LogRecorder::sink, &rec);
+    /* a synthetic low threshold always exceeded */
+    cr::log::check_memory_pressure(1u, 2u);
+    cr::log::set_sink(nullptr, nullptr);
+    ASSERT_EQ(rec.lines.size(), 1u);
+    EXPECT_EQ(rec.lines[0].first, cr::log::Level::Warn);
+    EXPECT_NE(rec.lines[0].second.find("memory pressure: working_set=2 MB threshold=1 MB"),
+              std::string::npos);
+    /* below the threshold: silent */
+    LogRecorder rec2;
+    cr::log::set_sink(&LogRecorder::sink, &rec2);
+    cr::log::check_memory_pressure(100u, 2u);
+    cr::log::set_sink(nullptr, nullptr);
+    EXPECT_EQ(rec2.lines.size(), 0u);
+    /* the monitor OFF (0): silent even at an enormous working set */
+    LogRecorder rec3;
+    cr::log::set_sink(&LogRecorder::sink, &rec3);
+    cr::log::check_memory_pressure(0u, 1u << 20u);
+    cr::log::set_sink(nullptr, nullptr);
+    EXPECT_EQ(rec3.lines.size(), 0u);
+}
+
 TEST(Orchestrator, WeightedProgress) {
     StageWeights w{40, 35, 25};
     EXPECT_EQ(weighted_progress(w, 0, 0, 0), 0u);

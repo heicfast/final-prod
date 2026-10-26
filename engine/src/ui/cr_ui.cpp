@@ -20,6 +20,7 @@
  */
 
 #include "cr/cr_ui.h"
+#include "cr/cr_log.h"
 
 #include "cr/apply/cr_apply.h"
 #include "cr/orchestrator/cr_scan.h"
@@ -64,6 +65,7 @@
 #include <map>
 #include <condition_variable>
 #include <filesystem>
+#include <fstream>
 #include <memory>
 #include <string>
 #include <vector>
@@ -693,6 +695,10 @@ struct CrScan {
      * / saw_progress / run_started_at are guarded by heartbeat_mu;
      * heartbeat_stop + the cv shut the thread down at run end (and
      * defensively at close). */
+    /* N-062: the memory monitor's threshold (MiB; copied from
+     * cr_ui_scan_config.memory_warn_mb at creation - the shim's own
+     * copy; the core ScanConfig stays untouched). */
+    u32 memory_warn_mb = 0;
     /* N-060: SAVE-SCOPED cancel flag (the og's IUIProgressInfo
      * IsCancelled is the save progress object's own state, NOT the scan
      * flag - rsf-format--scan-session.md flow section). cr_ui_scan_
@@ -815,12 +821,39 @@ void scan_event_trampoline_(const orchestrator::event::Event& e, void* user) {
  * STANDING telemetry truth (permille never advances without work). A
  * host can therefore distinguish "alive, stalled on I/O" from "hung"
  * without ever being shown fake progress. */
+/* N-062: the process working set in MiB (the platform sample the pure
+ * cr::log::check_memory_pressure consumes - the core logs no OS headers,
+ * so the sample lives here at the shim). 0 on an unreadable source
+ * (never above a nonzero threshold - a failed sample never warns). */
+static u64 working_set_mb_() {
+#ifdef _WIN32
+    PROCESS_MEMORY_COUNTERS pmc{};
+    if (!GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc)))
+        return 0;
+    return u64(pmc.WorkingSetSize >> 20);
+#else
+    /* /proc/self/statm field 2 = resident pages (the second long) */
+    std::ifstream in("/proc/self/statm");
+    unsigned long long total = 0, resident = 0;
+    if (!(in >> total >> resident))
+        return 0;
+    const long page = sysconf(_SC_PAGESIZE);
+    return page > 0 ? u64(resident * u64(page)) >> 20 : 0;
+#endif
+}
+
 void heartbeat_loop_(CrScan* s, orchestrator::ScanController* ctrl) {
     std::unique_lock<std::mutex> lock(s->heartbeat_mu);
     for (;;) {
         s->heartbeat_cv.wait_for(lock, std::chrono::milliseconds(5000));
         if (s->heartbeat_stop)
             return;
+        /* N-062: the memory monitor rides every watchdog tick (the og's
+         * CMemMonitorManager cadence on the Log.mo sink) - independent of
+         * the heartbeat stall state. check_memory_pressure is a no-op
+         * when the threshold is 0 (the conservative default: OFF). */
+        if (s->memory_warn_mb)
+            cr::log::check_memory_pressure(s->memory_warn_mb, working_set_mb_());
         if (!s->running.load(std::memory_order_acquire))
             continue;
         const auto now = std::chrono::steady_clock::now();
@@ -1489,6 +1522,8 @@ u32 scan_create_impl(const cr_ui_scan_config* cfg, cr_ui_scan** out) {
         return rc; /* fill_scan_config already set last_error */
     }
     arm_repair_hooks(s, cfg); /* S-008: pre-scan repair consent gate */
+    if (cfg)
+        s->memory_warn_mb = cfg->memory_warn_mb; /* N-062 */
     if (cfg && cfg->progress) {
         s->progress = cfg->progress;
         s->progress_user = cfg->progress_user;
@@ -1610,10 +1645,13 @@ u32 scan_run_impl(cr_ui_scan* scan) {
         s->heartbeat_stop = false;
     }
     s->running.store(true);
-    /* N-043: the liveness watchdog (only when events are subscribed -
-     * a silent host cannot observe a heartbeat anyway). ctrl is stable
-     * for the whole run; the raw pointer is captured under ctrl_mu. */
-    if (s->event_fn) {
+    /* N-043/N-062: the liveness watchdog (when events are subscribed -
+     * a silent host cannot observe a heartbeat - OR the memory monitor
+     * is armed; N-062's monitor rides the same 5 s cadence through the
+     * cr::log seam, which a silent host can still consume). ctrl is
+     * stable for the whole run; the raw pointer is captured under
+     * ctrl_mu. */
+    if (s->event_fn || s->memory_warn_mb) {
         std::lock_guard<std::mutex> lock(s->ctrl_mu);
         if (s->ctrl)
             s->heartbeat_thread = std::thread(heartbeat_loop_, s, s->ctrl.get());

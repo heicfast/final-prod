@@ -13,6 +13,7 @@
 
 #include <gtest/gtest.h>
 #include "cr/cr_ui.h"
+#include "cr/cr_log.h"
 /* S-009 pure-builder tests: the core symbols resolve from libcr_ui
  * (which embeds the core); these includes are for the types only. */
 #include "cr/storage/cr_device.h"
@@ -968,6 +969,25 @@ struct HeartbeatLog {
 void hb_event_cb(void* user, const cr_ui_event* e) {
     static_cast<HeartbeatLog*>(user)->record(e);
 }
+
+/* N-062: the cr::log sink recorder (the memory monitor rides the seam) */
+struct MemoryLog {
+    std::mutex mu;
+    std::vector<std::string> lines;
+    static void sink(cr::log::Level lvl, const char* line, void* user) {
+        auto* m = static_cast<MemoryLog*>(user);
+        std::lock_guard<std::mutex> lock(m->mu);
+        if (lvl == cr::log::Level::Warn)
+            m->lines.push_back(line);
+    }
+    size_t count(const char* needle) const {
+        size_t n = 0;
+        for (const auto& l : lines)
+            if (l.find(needle) != std::string::npos)
+                ++n;
+        return n;
+    }
+};
 } // namespace
 
 TEST(CrUi, HeartbeatDuringStall) {
@@ -990,6 +1010,14 @@ TEST(CrUi, HeartbeatDuringStall) {
     HeartbeatLog log;
     cr_ui_scan_config cfg{};
     cfg.stage_mask = 7;
+    /* N-062: the memory monitor rides the same watchdog cadence - a
+     * synthetic 1 MiB threshold is always exceeded, so the parked stall
+     * window must also produce the Warn pressure line through the
+     * cr::log seam (one parked window proves both the heartbeat and
+     * the monitor) */
+    cfg.memory_warn_mb = 1;
+    MemoryLog mlog;
+    cr::log::set_sink(&MemoryLog::sink, &mlog);
     ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
     ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
     ASSERT_EQ(cr_ui_scan_set_event_fn(u.scan, hb_event_cb, &log), CR_UI_OK);
@@ -1037,6 +1065,13 @@ TEST(CrUi, HeartbeatDuringStall) {
     if (saw_hb) {
         EXPECT_NE(hb_thread, std::this_thread::get_id());
     }
+
+    /* N-062: the monitor fired on the watchdog cadence during the same
+     * parked window (every 5 s tick, at/above the 1 MiB threshold) */
+    EXPECT_GE(mlog.count("memory pressure: working_set="), 1u)
+        << "the memory monitor must ride the watchdog cadence";
+    /* detach the log sink BEFORE the recorders die */
+    cr::log::set_sink(nullptr, nullptr);
 
     /* always resume and complete cleanly with the watchdog joined */
     ASSERT_EQ(cr_ui_scan_resume(u.scan), CR_UI_OK);

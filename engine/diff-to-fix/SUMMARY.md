@@ -316,6 +316,23 @@ og's UI policy, not the library's). Suite 733/733.
 SEVERE 0 · MAJOR 24 · MINOR 29 · INFO 22 (0 actionable) · tracked-open
 16 · FIXED 118 files (117 findings + RESOLVED-INDEX).
 
+**N-062 FIXED (the memory monitor on the same seam):** the og's
+CMemMonitorManager pressure tracking mapped onto the N-048 cr::log
+seam: the pure `check_memory_pressure(threshold_mb, working_set_mb)`
+(Warn line with both numbers; OFF at 0 — the conservative library
+default; the og's always-on monitor is its UI process's choice) + the
+platform sampler in the shim (statm / GetProcessMemoryInfo; a failed
+sample never warns) riding the heartbeat watchdog's 5 s cadence (the
+watchdog now starts on events OR the armed monitor) +
+`cr_ui_scan_config.memory_warn_mb` (appended, zero-init safe). NEVER
+coupled to scheduling (the finding's own rule). Orchestrator.
+MemoryMonitorEmitsUnderPressure + the HeartbeatDuringStall extension
+(fail-before RED executed on the stash-isolated tree). Suite 734/734.
+
+**Counts after this landing (direct file inventory at the N-062 push):**
+SEVERE 0 · MAJOR 24 · MINOR 28 · INFO 22 (0 actionable) · tracked-open
+16 · FIXED 119 files (118 findings + RESOLVED-INDEX).
+
 ## Session-10 delta — the SEVERE tier close-out (2026-10-26)
 
 This lane (DFX10) executed the published order S-009 -> S-029 -> S-030

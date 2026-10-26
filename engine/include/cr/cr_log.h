@@ -66,6 +66,18 @@ bool enabled();
  * silent. Safe from any thread, including engine workers. */
 void write(Level level, const char* fmt, ...);
 
+/* N-062 (the og's CMemMonitorManager pressure events on the same sink):
+ * the pure threshold check - emits a Warn pressure line when
+ * threshold_mb != 0 (0 = the monitor is OFF - the conservative library
+ * default; the og's always-on monitor is its UI process's choice) and
+ * working_set_mb >= threshold_mb. The WORKING SET is sampled by the
+ * caller (platform-specific: /proc/self/statm resident on POSIX,
+ * GetProcessMemoryInfo on Windows - the core logs no OS headers); the
+ * shim's heartbeat watchdog samples it on its 5 s cadence. Never
+ * coupled to scheduling decisions (the finding's own rule: no corpus
+ * evidence the og throttles on pressure - the manager feeds logs/UI). */
+void check_memory_pressure(u32 threshold_mb, u64 working_set_mb);
+
 } // namespace log
 } // namespace cr
 

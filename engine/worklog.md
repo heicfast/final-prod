@@ -12130,3 +12130,41 @@ Stage Summary:
 - N-061 FIXED (tally: 8 — N-045, N-046, N-040, N-074, N-043, N-060,
   N-048, N-061). MINOR 29 remain. Next: N-062 (the memory monitor on
   the same seam — the finding's own pairing), claimed in the matrix.
+
+---
+Task ID: DFX18-T9 (session 18, ninth fix — N-062)
+Agent: main engineer (diff-to-fix fix session 18 — DFX18)
+Task: N-062 the memory monitor on the same seam (the finding's own
+pairing with N-061's run-log).
+
+Work Log:
+- Corpus re-verified: Log.md census names CMemMonitorManager (the
+  class only — no cadence/throttle decode); qa-logs shows
+  memory-pressure entries. The finding's open question (feeds anything
+  besides logs/UI?) stays corpus-UNVERIFIED — deliberately not assumed;
+  the monitor is advisory only.
+- Implementation: the pure check in the N-048 seam
+  (cr::log::check_memory_pressure — Warn line with both numbers; OFF at
+  threshold 0, the conservative library default) + the platform sampler
+  in the shim (working_set_mb_: /proc/self/statm resident on POSIX,
+  GetProcessMemoryInfo on Windows; 0 on an unreadable source — a failed
+  sample never warns) riding the heartbeat watchdog's 5 s cadence (the
+  watchdog now starts on events OR the armed monitor) +
+  cr_ui_scan_config.memory_warn_mb (appended tail field, zero-init
+  safe). Never coupled to scheduling (the finding's rule).
+- Tests: Orchestrator.MemoryMonitorEmitsUnderPressure (the pure check:
+  Warn at/above, silent below, silent when OFF even at 1 TiB) + the
+  HeartbeatDuringStall extension (the monitor rides the SAME parked
+  window — one 5 s stall proves both the heartbeat and the monitor;
+  fail-before RED EXECUTED on the stash-isolated tree: the shim
+  reverted, zero memory lines). First build caught my own three errors
+  (multi-word functional cast; reading the core ScanConfig the field
+  does not live on; a missing include) — all fixed before any push.
+- Suite 734/734 linux-release. Audit trail: Resolution + FIXED/ move,
+  index row (104 header), matrix orchestrator rows, SUMMARY counts.
+
+Stage Summary:
+- N-062 FIXED (tally: 9 — N-045, N-046, N-040, N-074, N-043, N-060,
+  N-048, N-061, N-062). MINOR 28 remain. The Log.mo family is closed
+  (N-048 seam + N-061 run-log/auto-naming + N-062 monitor). Next:
+  N-064 (Dict password dictionary) or N-049/N-050 (lost-record family).

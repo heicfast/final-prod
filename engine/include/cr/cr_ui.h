@@ -361,6 +361,16 @@ typedef struct cr_ui_scan_config {
                                              * before the stages */
     cr_ui_repair_consent_fn repair_consent; /* NULL = never execute */
     void* repair_consent_user;
+    uint32_t memory_warn_mb;                /* v2-era append (N-062): the
+                                             * memory monitor's threshold in
+                                             * MiB; 0 = OFF (the conservative
+                                             * default). While run() is in
+                                             * flight the shim's watchdog
+                                             * samples the process working
+                                             * set every 5 s and emits a
+                                             * Warn line through the cr::log
+                                             * seam at/above the threshold.
+                                             * Zero-init safe (0 = off). */
 } cr_ui_scan_config;
 
 CR_UI_API uint32_t cr_ui_scan_create(const cr_ui_scan_config* cfg, cr_ui_scan** out);
