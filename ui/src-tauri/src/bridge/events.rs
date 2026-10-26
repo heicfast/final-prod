@@ -15,7 +15,7 @@
 //! `scan-finished:` / `recovery-finished:` themselves.
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{Receiver, Sender, TryRecvError};
+use std::sync::mpsc::{Receiver, SyncSender, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -28,13 +28,16 @@ use super::state::{JobLive, ScanLive, Terminal, BAD_SECTOR_MAP_CAP, DISCONNECT_A
 // Sinks (engine worker threads — never add anything blocking in here)
 // ---------------------------------------------------------------------------
 
-/// The scan event sink. `user` is a `*mut Sender<CrUiEvent>` boxed by the
-/// scan-start path and freed by ScanEntry::Drop after unsubscribing.
+/// The scan event sink. `user` is a `*mut SyncSender<CrUiEvent>` boxed by
+/// the scan-start path and freed by ScanEntry::Drop after unsubscribing.
+/// SyncSender::try_send is the STABLE never-block send (std's unbounded
+/// Sender::try_send is nightly-only); the bounded channel gives the
+/// coalescing semantics event-mapping.md mandates.
 pub unsafe extern "C" fn scan_event_sink(user: *mut std::ffi::c_void, evt: *const abi::CrUiEvent) {
     if user.is_null() || evt.is_null() {
         return;
     }
-    let tx = unsafe { &*(user as *mut Sender<abi::CrUiEvent>) };
+    let tx = unsafe { &*(user as *mut SyncSender<abi::CrUiEvent>) };
     let copy = unsafe { *evt };
     let _ = tx.try_send(copy); // channel-full = UI slow; the emitter coalesces
 }
@@ -48,7 +51,7 @@ pub unsafe extern "C" fn recovery_progress_sink(
     if user.is_null() {
         return;
     }
-    let tx = unsafe { &*(user as *mut Sender<(u64, u64)>) };
+    let tx = unsafe { &*(user as *mut SyncSender<(u64, u64)>) };
     let _ = tx.try_send((bytes_done, bytes_total));
 }
 

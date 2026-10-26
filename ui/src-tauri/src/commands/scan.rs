@@ -17,7 +17,7 @@
 //! (INTEGRATION-GAPS G-1).
 
 use std::sync::atomic::Ordering;
-use std::sync::mpsc::channel;
+use std::sync::mpsc::sync_channel;
 use std::sync::{Arc, Mutex};
 
 use serde_json::{json, Value};
@@ -171,7 +171,9 @@ pub fn scan_start_blocking(
     check(unsafe { abi::cr_ui_scan_attach_device(scan, dev) }, "cr_ui_scan_attach_device")?;
 
     // Channel + sink box BEFORE run (the sink is read at scan start).
-    let (tx, rx) = channel::<abi::CrUiEvent>();
+    // Bounded (512): the sink try_sends — full channel means the UI is
+    // slow and the emitter coalesces; the engine worker thread never blocks.
+    let (tx, rx) = sync_channel::<abi::CrUiEvent>(512);
     let sink_user = Box::into_raw(Box::new(tx.clone()));
     check(
         unsafe {

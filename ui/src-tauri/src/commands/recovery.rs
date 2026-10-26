@@ -14,7 +14,7 @@
 //! now backed by the engine's report.
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::channel;
+use std::sync::mpsc::sync_channel;
 use std::sync::{Arc, Mutex};
 
 use serde_json::{json, Value};
@@ -91,7 +91,9 @@ fn recovery_start_blocking(
     cfg.skip_hash_verify = if options.get("verifyOnWrite").and_then(|v| v.as_bool()) == Some(false) { 1 } else { 0 };
     cfg.skip_dir_reconstruct = if options.get("rebuildFolders").and_then(|v| v.as_bool()) == Some(false) { 1 } else { 0 };
 
-    let (tx, rx) = channel::<(u64, u64)>();
+    // Bounded (64): byte-sample coalescing — the writer's progress fn
+    // never blocks; the emitter keeps the freshest sample.
+    let (tx, rx) = sync_channel::<(u64, u64)>(64);
     let sink_user = Box::into_raw(Box::new(tx.clone()));
     cfg.progress = Some(crate::bridge::events::recovery_progress_sink);
     cfg.progress_user = sink_user as *mut std::ffi::c_void;

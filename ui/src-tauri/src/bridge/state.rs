@@ -16,7 +16,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::SyncSender;
 use std::sync::{Arc, Mutex};
 
 use super::abi;
@@ -218,8 +218,8 @@ pub struct ScanEntry {
     pub snapshot_exists: Arc<AtomicBool>,
     /// The sink channel: a clone kept here (keeps the emitter fed) plus the
     /// leaked box handed to the engine as the sink user pointer.
-    pub events_tx: Sender<abi::CrUiEvent>,
-    pub sink_user: SendPtr<Sender<abi::CrUiEvent>>,
+    pub events_tx: SyncSender<abi::CrUiEvent>,
+    pub sink_user: SendPtr<SyncSender<abi::CrUiEvent>>,
     pub snap: Mutex<SnapshotCache>,
     /// Job ids created against this entry (close guard: the borrowed device
     /// must outlive every recovery; scan_close refuses while jobs are live).
@@ -343,8 +343,8 @@ pub struct JobEntry {
     pub finished: Mutex<Option<(&'static str, String)>>,
     pub live: Arc<Mutex<JobLive>>,
     /// (bytes_done, bytes_total) samples from cr_ui_recovery_progress_fn.
-    pub events_tx: Sender<(u64, u64)>,
-    pub sink_user: SendPtr<Sender<(u64, u64)>>,
+    pub events_tx: SyncSender<(u64, u64)>,
+    pub sink_user: SendPtr<SyncSender<(u64, u64)>>,
 }
 
 impl Drop for JobEntry {
@@ -692,12 +692,16 @@ pub fn metas_snapshot(state: &BridgeState, scan_id: &str) -> BridgeResult<(Arc<S
     refresh_snapshot(state, scan_id)?;
     let entry = state.scan_entry_arc(scan_id)?;
     ensure_metas(&entry)?;
-    let snap = entry.snap.lock().map_err(|_| poisoned())?;
-    let metas = snap
-        .metas
-        .clone()
-        .ok_or_else(|| BridgeError::bridge(code::UNKNOWN, "metadata cache missing after build"))?;
-    Ok((entry, metas, snap.partial))
+    // Extract under the lock, then release before moving `entry` out.
+    let (metas, partial) = {
+        let snap = entry.snap.lock().map_err(|_| poisoned())?;
+        let metas = snap
+            .metas
+            .clone()
+            .ok_or_else(|| BridgeError::bridge(code::UNKNOWN, "metadata cache missing after build"))?;
+        (metas, snap.partial)
+    };
+    Ok((entry, metas, partial))
 }
 
 /// Session-info label composition used by sessions list/save meta rows
