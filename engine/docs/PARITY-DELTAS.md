@@ -2397,7 +2397,6 @@ FileProperties → a WriterConfig `preserve_dacl` flag (default OFF)
 applying it via SetSecurityInfo on the win destio layer only — never on
 the POSIX test shims.
 
-<<<<<<< HEAD
 ### D-78 — the password-dictionary unlock aid: authored seed + format-compatible loader, the og's Dict asset not copied (N-064, REGISTERED DIVERGENCE)
 
 **OG:** ships a 228-entry password dictionary at install root (`Dict`,
@@ -2438,7 +2437,6 @@ password-protected archives) stay scope-excluded with I-010.
 **VERDICT:** ACCEPTED (registered divergence: authored seed +
 format-compatible loader vs the og's copied asset; mechanism parity
 complete; D-78).
-=======
 ### D-78 — CSMI SMART transport: SCSI-address routing, no RAID census; LSILOGIC sibling and SMART auto-enable not ported (N-032, REGISTERED DIVERGENCE — transport scope)
 
 **Class:** registered divergence (health transport scope) · **Finding:**
@@ -2508,7 +2506,6 @@ with wrong bytes. Fixtures: `Btrfs.Raid0StripeMathSplitsAtStripeBoundaries`
 (the spanning split + the in-stripe offset), `Btrfs.Raid10GeometryGate`
 (the og's parse-time gate stays og-exact — the superset is read-side
 only).
->>>>>>> origin/main
 ### D-79 — disk enumeration: the two-stack merge (PhysicalDrive loop + cfgmgr32 disk interfaces), not the og's five-stack fan-in (N-071, REGISTERED DIVERGENCE — partial port with scope rationale)
 
 **Class:** registered divergence (enumeration breadth) · **Finding:**

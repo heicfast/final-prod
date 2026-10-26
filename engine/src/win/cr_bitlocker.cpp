@@ -159,8 +159,16 @@ u32 unlock(wchar_t letter, int key_type, const std::wstring& key_or_path) {
  * user-typed password (unlock() key_type 0). */
 u32 unlock_with_dictionary(wchar_t letter, const wchar_t* const* user_passwords,
                            size_t user_count) {
-    std::vector<std::string> user;
-    user.reserve(user_count);
+    /* the ABI-shaped form (the valueless consent flag / the cr_ui action):
+     * the shipped seed dictionary runs first (the og's Dict flow), then
+     * the user-provided wide strings - both through the SAME pure
+     * sequencer try_password_unlock rides (cr::pwddict::try_passwords:
+     * order-preserving dedup, caps, the N-048 attempt log; password text
+     * never logged). Non-ASCII user input rejects the whole call with
+     * ERR_BAD_PARAMETER - the dictionary grammar is ASCII (corpus
+     * first-hand), and a silent drop would hide a user error. */
+    std::vector<std::string> candidates = pwddict::seed_dictionary();
+    candidates.reserve(candidates.size() + user_count);
     for (size_t i = 0; i < user_count; ++i) {
         if (user_passwords[i] == nullptr)
             continue;
@@ -171,16 +179,10 @@ u32 unlock_with_dictionary(wchar_t letter, const wchar_t* const* user_passwords,
                 return ERR_BAD_PARAMETER; /* the dictionary grammar is ASCII */
             narrow.push_back(char(*p));
         }
-        if (!narrow.empty() && narrow.size() <= dict::kMaxPasswordLen)
-            user.push_back(std::move(narrow));
+        if (!narrow.empty() && narrow.size() <= pwddict::kMaxEntryChars)
+            candidates.push_back(std::move(narrow));
     }
-    const dict::AttemptResult res = detail::dictionary_unlock_seam(
-        user,
-        [](wchar_t l, const wchar_t* password, void*) -> u32 {
-            return unlock(l, 0, password);
-        },
-        letter, nullptr);
-    return res.success_index != 0 ? OK : ERR_FVE_LOCKED;
+    return try_password_unlock(letter, candidates);
 }
 
 namespace {
@@ -334,24 +336,33 @@ std::wstring build_unlock_command(wchar_t letter, int key_type,
 
 /* The dictionary loop with the attempt seam: widens each candidate and
  * feeds it to `attempt` (the real flow unlocks; tests record). */
-dict::AttemptResult dictionary_unlock_seam(
-    const std::vector<std::string>& user_candidates,
-    u32 (*attempt)(wchar_t letter, const wchar_t* password, void* user), wchar_t letter,
-    void* user) {
+u32 dictionary_unlock_seam(const std::vector<std::string>& user_candidates, bool include_seed,
+                           u32 (*attempt)(wchar_t letter, const wchar_t* password, void* user),
+                           wchar_t letter, void* user, size_t* attempts_made) {
+    /* the recorder surface for the N-064 contract tests: the pure pwddict
+     * sequencer over the candidate list (seed prepended when requested),
+     * each candidate widened and fed to `attempt` (the tests record; the
+     * product flow unlocks). */
     struct Ctx {
         wchar_t letter;
         u32 (*attempt)(wchar_t, const wchar_t*, void*);
         void* user;
     } ctx{letter, attempt, user};
-    return dict::try_passwords(
-        [](const char* password, void* p) -> u32 {
+    std::vector<std::string> candidates;
+    if (include_seed)
+        candidates = pwddict::seed_dictionary();
+    candidates.insert(candidates.end(), user_candidates.begin(), user_candidates.end());
+    return pwddict::try_passwords(
+        candidates,
+        [](const std::string& password, void* p) -> u32 {
             Ctx* c = static_cast<Ctx*>(p);
             std::wstring wide;
-            for (const char* q = password; *q != '\0'; ++q)
-                wide.push_back(static_cast<wchar_t>(static_cast<unsigned char>(*q)));
+            wide.reserve(password.size());
+            for (char ch : password)
+                wide.push_back(static_cast<wchar_t>(static_cast<unsigned char>(ch)));
             return c->attempt(c->letter, wide.c_str(), c->user);
         },
-        &ctx, &user_candidates);
+        &ctx, attempts_made);
 }
 
 const char* fve_live_registry_path_a() {
