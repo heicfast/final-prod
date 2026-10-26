@@ -13683,3 +13683,25 @@ Work Log:
 Stage Summary:
 - OQ-Z3 RESOLVED-SUPERSEDED. Session tally: OQ-FLT-1, OQ-Z5, OQ-Z2->S-034,
   OQ-Z1, OQ-E1, OQ-Z3. Next: OQ-Z4 (decompression census).
+
+---
+Task ID: DFX25-T4a-push (session 25 — A-008 landing)
+Agent: main engineer (DFX25)
+Task: Land A-008 + the INFO-closure on main through the parallel-lane churn.
+
+Work Log:
+- Three pull cycles (parallel lanes DFX23/24/26-35 active all window: N-064,
+  N-049, N-025/N-026/N-027, N-036, N-075, OQ-S2M-2 (DFX31), OQ-Z2->S-034
+  (DFX30), OQ-E1 (DFX30)); keep-both resolutions on the append-style files;
+  RESOLVED-INDEX structural repair (duplicate session-25 headers collapsed,
+  two malformed table separators restored).
+- Union-tree full suite green before each push: 739 -> 768 -> 792/792
+  (final, incl. the parallel lanes' new tests + S-034's); Zfs.* 18/18.
+- Landed: ed3eabe (A-008 fix + audit trail + index repair on top).
+
+Stage Summary:
+- A-008 on main; OQ-Z1 RESOLVED. INFO tier 0 open. Next on this lane:
+  OQ-S6-3 (CRAW reader F4/anchor-B/checksum — RAWSearchDLL decode),
+  then OQ-S6-2 (Btrfs RC4), OQ-S6-1 (generator sets), OQ-S3-JPEG,
+  OQ-S5-1. The OQ-Z-E-FLT file's remaining items are DFX30's active
+  lane — avoiding collision.
