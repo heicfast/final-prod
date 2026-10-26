@@ -16798,3 +16798,32 @@ Stage Summary:
   GPT semantics). Board: SEVERE 0, MAJOR 0, MINOR 0; tracked-open:
   OQ-S4-3 (Windows-lane), OQ-FLT-2 (status to be re-checked — the
   parallel lane's audit rows mention an OQ-Z-E-FLT closure).
+
+---
+Task ID: DFX36-T6 (the ddb7e1c union repair — origin/main was RED)
+Agent: main engineer (diff-to-fix fix session 36 — DFX36)
+Task: Repair the pushed-red ddb7e1c merge (committed conflict markers in
+8 files + an internally inconsistent API) and land the truthful union
+
+Work Log:
+- Origin/main at ddb7e1c was RED: its merge reverted nvramfix's
+  stopped_early signature while rrecov + the tests still used it
+  (uncompilable), AND committed conflict markers in 8 files (the
+  nvramfix/bootfix sources + headers, rrecov, the win-stub, the M-040
+  finding, the matrix, modules/boot-repair).
+- Repaired as the coherent union: the stopped_early API everywhere
+  (the correction wave's observability superset — bodies, callers,
+  tests consistent); the audit files unioned truthfully (the canonical
+  full-position rewrite FUN_180004b40 + the four correction-wave fixes
+  recorded; the GPT GUID-alone + the absent-BootOrder no-op + the
+  missing-variable walk stop; the 13-test roster); the matrix row's
+  **** formatting glitch fixed; the win-stub deduplicated (the merge
+  had glued both declaration sites).
+- Verified: suite 926/926 linux-release; win_syntax_check green over
+  all 9 win files; the NvramFix 13/13 + BcdFix green under ASan/UBSan
+  (verified at the pre-merge tree; re-verified release here).
+
+Stage Summary:
+- Main green again. M-040 CLOSED with the corrected semantics. Board:
+  SEVERE 0, MAJOR 0, MINOR 0; tracked-open: OQ-S4-3 + OQ-FLT-2
+  (status to re-check against the parallel lanes' closures).

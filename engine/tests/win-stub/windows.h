@@ -32,8 +32,6 @@ typedef int BOOL;
 typedef unsigned char BOOLEAN;
 typedef unsigned int UINT;
 typedef void* HANDLE;
-typedef void* HMODULE;
-typedef void* FARPROC;
 typedef void* HKEY;
 typedef const wchar_t* LPCWSTR;
 typedef wchar_t* LPWSTR;
@@ -218,6 +216,9 @@ inline DWORD SetFilePointer(HANDLE, LONG, LONG*, DWORD) {
 typedef void* FARPROC;
 typedef void* HMODULE;
 typedef void* HINSTANCE;
+/* M-040 (diff-to-fix): the bootfix win layer's dynamic-resolution seam
+ * (GetModuleHandleW + GetProcAddress, EFIBoot :3281-3290's own pattern).
+ * Declarations only - the parse gate never links them. */
 inline HMODULE GetModuleHandleW(const wchar_t*) {
     return (HMODULE)0;
 }
@@ -299,16 +300,6 @@ inline BOOL GetVolumePathNamesForVolumeNameW(const wchar_t*, wchar_t*, DWORD, DW
 inline BOOL OpenProcessToken(HANDLE, DWORD, HANDLE*) {
     return 1;
 }
-<<<<<<< HEAD
-/* M-040 (diff-to-fix): the bootfix win layer's dynamic-resolution seam
- * (GetModuleHandleW + GetProcAddress, EFIBoot :3281-3290's own pattern).
- * Declarations only - the parse gate never links them. */
-inline FARPROC GetProcAddress(HMODULE, const char*) {
-    return nullptr;
-}
-inline HMODULE GetModuleHandleW(const wchar_t*) {
-    return nullptr;
-=======
 #define TOKEN_ADJUST_PRIVILEGES 0x0020UL
 #define SE_PRIVILEGE_ENABLED 0x00000002UL
 struct LUID {
@@ -331,7 +322,6 @@ inline BOOL LookupPrivilegeValueW(const wchar_t*, const wchar_t*, LUID*) {
 }
 inline BOOL AdjustTokenPrivileges(HANDLE, BOOL, TOKEN_PRIVILEGES*, DWORD, void*, void*) {
     return 1;
->>>>>>> origin/main
 }
 inline BOOL GetTokenInformation(HANDLE, int, void*, DWORD, DWORD*) {
     return 1;
