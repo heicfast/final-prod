@@ -9,6 +9,16 @@
 # of the matching configuration from the manifest-installed tree next to
 # the target binary: deterministic, name-agnostic, no import parsing.
 #
+# SINGLE DEPLOYER (release run 2, v0.5.0-rc2): z-applocal and this backstop
+# used to run together and RACED under parallel MSBuild — z-applocal for
+# rrecov died with 'Access is denied' (MSB3075, exit 5) while this backstop
+# was copying the same DLLs into the same directory. The win presets now
+# set VCPKG_APPLOCAL_DEPS=OFF: this script is the ONLY deployer. It also
+# RETRIES each copy: several targets share a deploy directory (five test
+# executables all land in tests/<CFG>), and under --parallel their POST_BUILD
+# deploys can overlap on the same destination file — a Windows sharing
+# violation at that moment is transient, not fatal, and is handled as such.
+#
 # Expected invocation (see cr_deploy_vcpkg_binaries() in the top-level
 # CMakeLists.txt): cmake -DBIN_ROOT=... -DOUT_DIR=... -DCFG=Debug -P ...
 
@@ -38,7 +48,22 @@ foreach(triplet ${triplet_dirs})
     endif()
     foreach(dll ${dlls})
         if(EXISTS "${dll}")
-            file(COPY "${dll}" DESTINATION "${OUT_DIR}")
+            set(deployed FALSE)
+            foreach(attempt RANGE 3) # 4 attempts, 250 ms apart - covers a
+                # concurrent POST_BUILD deploy from a sibling target
+                execute_process(
+                    COMMAND ${CMAKE_COMMAND} -E copy "${dll}" "${OUT_DIR}"
+                    RESULT_VARIABLE copy_rc)
+                if(copy_rc EQUAL 0)
+                    set(deployed TRUE)
+                    break()
+                endif()
+                execute_process(COMMAND ${CMAKE_COMMAND} -E sleep 0.25)
+            endforeach()
+            if(NOT deployed)
+                message(FATAL_ERROR
+                    "DeployVcpkgBinaries: ${dll} -> ${OUT_DIR} failed after 4 attempts")
+            endif()
             message(STATUS "deployed ${dll} -> ${OUT_DIR}")
         endif()
     endforeach()

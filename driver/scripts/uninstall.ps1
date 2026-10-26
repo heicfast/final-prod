@@ -12,8 +12,13 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$identity = [Security.Principal.WindowsPrincipal]::[Security.Principal.WindowsIdentity]::GetCurrent()
-if (-not $identity.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+# --- elevation guard (canonical form — see install.ps1's note: the old
+# [WindowsPrincipal]::[WindowsIdentity]::GetCurrent() one-liner evaluated to
+# $null and killed the script at line 1; the .nsi uninstaller's sc.exe
+# fallback masked it, but the driver's own teardown never ran) ---
+$identity  = [Security.Principal.WindowsIdentity]::GetCurrent()
+$principal = New-Object Security.Principal.WindowsPrincipal($identity)
+if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Write-Error "This script must run elevated (Administrator)."
 }
 

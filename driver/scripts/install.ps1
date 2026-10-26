@@ -35,8 +35,16 @@ param(
 $ErrorActionPreference = 'Stop'
 
 # --- elevation guard ---------------------------------------------------------
-$identity = [Security.Principal.WindowsPrincipal]::[Security.Principal.WindowsIdentity]::GetCurrent()
-if (-not $identity.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+# NOTE the canonical two-step form: the previous one-liner
+#   [WindowsPrincipal]::[WindowsIdentity]::GetCurrent()
+# parsed but evaluated to $null (PowerShell treats the whole
+# '[WindowsIdentity]::GetCurrent()' as the MEMBER-NAME expression of the
+# outer '::' access), so IsInRole() ran on null and the script DIED at line 1
+# with a nonzero exit — run 13's T15 evidence: no service, no .sys, the
+# installer's registration-failed branch. Fixed to the working form.
+$identity  = [Security.Principal.WindowsIdentity]::GetCurrent()
+$principal = New-Object Security.Principal.WindowsPrincipal($identity)
+if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Write-Error "This script must run elevated (Administrator)."
 }
 

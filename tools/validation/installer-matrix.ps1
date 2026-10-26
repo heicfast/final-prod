@@ -48,8 +48,8 @@ $ErrorActionPreference = 'Stop'
 
 $InstallDir = "$env:ProgramFiles\HeicFast\Recovery Wizard"
 $AppExeName = 'recovery-wizard-ui.exe'   # the Tauri-built binary name (Cargo package name; APP_EXE in recoverywizard.nsi)
-$Unkey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\HeicFast Recovery Wizard'
-$SwKey = 'HKLM:\SOFTWARE\HeicFast\Recovery Wizard'
+$Unkey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Recovery Wizard'  # INTEGRATION-PLAN §7 row 6: Uninstall\<product name> (round 13: was 'HeicFast Recovery Wizard' — the .nsi and this probe now carry the plan-exact name)
+$SwKey = 'HKLM:\SOFTWARE\HeicFast\Recovery Wizard'  # INTEGRATION-PLAN §7 row 6: two-level product key (round 13 taught the .nsi to write HERE — a PowerShell two-segment path, NOT the single 'HeicFast Recovery Wizard' key with a space)
 $SessionsDir = "$env:ProgramData\HeicFast\Recovery Wizard\sessions"
 $DriverSvc = 'RDA'
 

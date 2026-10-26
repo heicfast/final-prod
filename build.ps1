@@ -100,11 +100,20 @@ function Invoke-Engine {
     # matching-config DLL next to each target; names vary across vcpkg ports
     # and configs: zlib1/lz4/liblz4/liblz4d/zstd, so the kit globs the deployed
     # set instead of hardcoding names).
+    # TEST-RUNTIME EXCLUSION (round 13 evidence): the deploy backstop also
+    # places the vcpkg gtest/gmock DLLs (the manifest's test dependency) beside
+    # cr_ui.dll — they are NOT runtime dependencies (cr_ui.dll's imports are
+    # allowlisted by the engine's own PE gate, which knows nothing of gtest)
+    # yet they shipped in the kit AND the portable zip, and the uninstaller's
+    # hardcoded delete list missed them (4 leftover files after uninstall).
+    # The kit is the curated PRODUCT set: test runtimes stay in the build tree.
     $engineKit = Join-Path $StageDir 'engine'
     New-Item -ItemType Directory -Force -Path $engineKit | Out-Null
     Copy-Item "$uiBin\cr_ui.dll", "$uiBin\cr_ui.lib" -Destination $engineKit
     Copy-Item "$appBin\rrecov.exe" -Destination $engineKit
-    $deployed = Get-ChildItem $uiBin -Filter '*.dll' | Where-Object { $_.Name -ne 'cr_ui.dll' }
+    $deployed = Get-ChildItem $uiBin -Filter '*.dll' | Where-Object {
+        $_.Name -ne 'cr_ui.dll' -and $_.Name -notmatch '^(gtest|gmock)'
+    }
     if (-not $deployed) { throw "no deployed vcpkg runtime DLLs beside cr_ui.dll in $uiBin - expected the cr_deploy_vcpkg_binaries POST_BUILD output" }
     $deployed | Copy-Item -Destination $engineKit
     Write-Host "[engine] kit staged -> $engineKit (runtime DLLs: $($deployed.Name -join ', '))"

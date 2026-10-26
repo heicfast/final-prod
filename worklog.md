@@ -517,3 +517,80 @@ rc2 cut: VERSION + the three lockstep consumers -> 0.5.0-rc2 (the rc1 tag
 is immutable; failures roll forward, tags never move). The rc2 tree also
 carries the /SD silent-mode fix (bdf4eb3d) + the ask_close live-check
 delta (d0670530) — rc1's installer would have hung any /S deploy.
+
+## 2026-10-26T23:05Z — round 13 evidence read: four real product bugs fixed; release run 2's deploy race fixed
+
+Run 13 (40413941883, bdf4eb3d) — the first with the /SD fix — completed the
+WHOLE T15 matrix in ~15 s of installer time: baseline clean, install ok
+(6.1 s), update/reinstall ok (marker preserved), repair-over-corruption ok
+(hash restored). The uninstall row read CHECK-LEFTOVERS. The evidence
+files named four DISTINCT product bugs, all fixed this window:
+
+1. Registry layout did not match the plan (or any consumer's probe).
+   The .nsi wrote the product SW key as the single key
+   `Software\HeicFast Recovery Wizard` (a key NAME containing a space),
+   while INTEGRATION-PLAN §7 row 6 — and the matrix probe, and the
+   ProgramData tree's own shape — all use the two-level
+   `Software\HeicFast\Recovery Wizard`. The matrix's snapshot of
+   `HKLM:\SOFTWARE\HeicFast\Recovery Wizard` (a two-segment PowerShell
+   path) was actually reading the /D-SEED key (case-insensitively the
+   same tree), which holds only the default value — hence
+   `regVersion: null` and the "missing" named values that were never
+   missing, just written elsewhere. Fixed: PRODUCT_SWKEY
+   ("Software\HeicFast\Recovery Wizard") for every SW-tree access;
+   the uninstall key renamed to the plan-exact `Uninstall\Recovery
+   Wizard` (key name = product name, NSIS standard); the matrix probe
+   follows; MULTIUSER_*_REGISTRY_KEY defines follow; the uninstaller
+   now also deletes the seed key (`Software\heicfast\Recovery Wizard` —
+   run 13 proved the inner uninstaller does NOT remove it) plus its
+   empty manufacturer parent.
+
+2. The elevation guard in driver/scripts/install.ps1 (and uninstall.ps1)
+   was dead code that KILLED the script: `[WindowsPrincipal]::
+   [WindowsIdentity]::GetCurrent()` parses but evaluates to $null
+   (PowerShell treats the whole `[WindowsIdentity]::GetCurrent()` as
+   the MEMBER-NAME expression of the outer `::` access — verified with
+   a portable pwsh probe), so `IsInRole()` ran on null and the script
+   exited nonzero at line 1. Evidence: driverService null + no
+   System32\drivers\RDA.sys after install — install.ps1 produced
+   NOTHING. The .nsi's registration-failed branch (with /SD IDOK)
+   then recorded the degradation truthfully, which is why the install
+   row still read ok. Fixed to the canonical two-line guard in both
+   scripts. (The .nsi's sc.exe fallback had been masking the broken
+   uninstall.ps1 — the driver's own teardown never once ran.)
+
+3. The shipped engine kit carried TEST runtimes: the deploy backstop
+   copies every vcpkg bin DLL, including gtest/gmock (the manifest's
+   test dependency). cr_ui.dll imports none of them (its import
+   allowlist proves it), yet the kit — and the portable zip — shipped
+   them, and the uninstaller's hardcoded DLL delete list missed them:
+   the 4 leftover files of the uninstall row. Fixed: build.ps1's kit
+   curation excludes gtest/gmock (the build tree keeps them — the
+   tests need them); the uninstaller gains a `$INSTDIR\*.dll`
+   catch-all AFTER the inner uninstaller has removed its files (every
+   remaining DLL in $INSTDIR is then ours — also cleans installs made
+   by older installers whose kits carried the test DLLs).
+
+4. Release run 2 (v0.5.0-rc2, 40415111906) failed in the ENGINE BUILD:
+   `error MSB3075 ... z-applocal ... Access is denied` (exit 5) — a
+   deployment RACE. The engine had TWO deployers (vcpkg's z-applocal
+   per-target POST_BUILD + our cr_deploy_vcpkg_binaries backstop);
+   under `cmake --build --parallel` they wrote the same DLLs into the
+   same directories concurrently. Nondeterministic — four prior builds
+   passed, run 2 lost the race. Fixed: VCPKG_APPLOCAL_DEPS=OFF in both
+   win presets (the backstop is the single deployer — the engine's own
+   docs already distrust z-applocal's name resolution) +
+   DeployVcpkgBinaries.cmake retries each copy 4x/250 ms (five test
+   targets share tests/<CFG>, so even single-deployer POST_BUILDs can
+   overlap under --parallel; a sharing violation then is transient).
+
+Also: rc2's artifacts (if the lane re-runs green) carry the pre-fix
+installer — the rc1/rc2 tags are immutable records; the FINAL v0.5.0
+tag ships the corrected product after run 14's matrix lands green.
+
+Validation done locally before push: makensis 3.11 cross-compile of the
+.nsi (exit 0, zero warnings at -V3); pwsh parse-lint of every touched
+.ps1; the plan's §7 row 6 re-checked verbatim for both key forms.
+
+Next: push, dispatch validation run 14 (the fixed installer), watch
+engine-ci on the preset/deploy changes, then re-cut the release lane.

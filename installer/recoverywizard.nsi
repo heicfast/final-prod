@@ -85,7 +85,18 @@ SetCompressor /SOLID lzma
 
 !define PRODUCT_NAME        "HeicFast Recovery Wizard"
 !define PRODUCT_PUBLISHER   "HeicFast"
-!define PRODUCT_UNKEY       "HeicFast Recovery Wizard"
+; Registry layout (INTEGRATION-PLAN §7 row 6, exactly):
+;   product SW key    HKLM\Software\HeicFast\Recovery Wizard\{Version, InstallDir,...}
+;   uninstall key     HKLM\...\Uninstall\Recovery Wizard  (key name = product name,
+;                     NSIS standard; DisplayName carries the full publisher name)
+; Validation round 13 caught the original single-key-with-space form
+; ("Software\HeicFast Recovery Wizard" — a DIFFERENT location than every
+; consumer probes): the T15 matrix reads HKLM:\SOFTWARE\HeicFast\Recovery
+; Wizard (a PowerShell two-segment path) and saw only the /D-seed's default
+; value, while our named values landed in the single-key form it never
+; probed. One truth now: PRODUCT_SWKEY everywhere for the SW tree.
+!define PRODUCT_UNKEY       "Recovery Wizard"             ; Uninstall\<name> (Add/Remove entry key)
+!define PRODUCT_SWKEY       "Software\HeicFast\Recovery Wizard" ; SW product key (two-level, like ProgramData)
 !define DRIVER_SERVICE      "RDA"            ; contracts/README.md: defined ONCE
 ;                                              (engine opens \\.\RDA\<token>\...;
 ;                                              device name = UPPERCASE(service name))
@@ -112,9 +123,9 @@ ${Using:StrFunc} StrStr
 ; launches with one UAC prompt and honors the user's context choice.
 ; (All MULTIUSER_* defines MUST precede the include.)
 !define MULTIUSER_EXECUTIONLEVEL Highest
-!define MULTIUSER_INSTALLMODE_DEFAULT_REGISTRY_KEY       "Software\${PRODUCT_UNKEY}"
+!define MULTIUSER_INSTALLMODE_DEFAULT_REGISTRY_KEY       "${PRODUCT_SWKEY}"
 !define MULTIUSER_INSTALLMODE_DEFAULT_REGISTRY_VALUENAME "InstallMode"
-!define MULTIUSER_INSTALLMODE_INSTDIR_REGISTRY_KEY       "Software\${PRODUCT_UNKEY}"
+!define MULTIUSER_INSTALLMODE_INSTDIR_REGISTRY_KEY       "${PRODUCT_SWKEY}"
 !define MULTIUSER_INSTALLMODE_INSTDIR_REGISTRY_VALUENAME "InstallDir"
 !include "MultiUser.nsh"
 
@@ -322,16 +333,16 @@ Section "-post" ; hidden: shared state, registry, uninstaller
   CreateDirectory "${PROGRAMDATA_LOGS}"
   DetailPrint "Shared state: ${PROGRAMDATA_ROOT}"
 
-  ; ---- Product registry key ----------------------------------------------
+  ; ---- Product registry key (INTEGRATION-PLAN §7 row 6: two-level form) ---
   ${If} $DriverResult == "installed"
   ${OrIf} $DriverResult == "installed-not-running"
-    WriteRegDWORD SHCTX "Software\${PRODUCT_UNKEY}" "DriverInstalled" 1
+    WriteRegDWORD SHCTX "${PRODUCT_SWKEY}" "DriverInstalled" 1
   ${Else}
-    WriteRegDWORD SHCTX "Software\${PRODUCT_UNKEY}" "DriverInstalled" 0
+    WriteRegDWORD SHCTX "${PRODUCT_SWKEY}" "DriverInstalled" 0
   ${EndIf}
-  WriteRegStr   SHCTX "Software\${PRODUCT_UNKEY}" "InstallDir" "$INSTDIR"
-  WriteRegStr   SHCTX "Software\${PRODUCT_UNKEY}" "Version" "${PRODUCT_VERSION}"
-  WriteRegStr   SHCTX "Software\${PRODUCT_UNKEY}" "InstallMode" "$MultiUser.InstallMode"
+  WriteRegStr   SHCTX "${PRODUCT_SWKEY}" "InstallDir" "$INSTDIR"
+  WriteRegStr   SHCTX "${PRODUCT_SWKEY}" "Version" "${PRODUCT_VERSION}"
+  WriteRegStr   SHCTX "${PRODUCT_SWKEY}" "InstallMode" "$MultiUser.InstallMode"
 
   ; ---- Uninstall key: take over the inner installer's entry --------------
   ; The Tauri bundle wrote its own key (name varies across Tauri versions).
@@ -516,7 +527,7 @@ FunctionEnd
 
 Section "Uninstall"
   ; ---- 0. Shell context follows the recorded install mode ----------------
-  ReadRegStr $0 SHCTX "Software\${PRODUCT_UNKEY}" "InstallMode"
+  ReadRegStr $0 SHCTX "${PRODUCT_SWKEY}" "InstallMode"
   ${If} $0 == "AllUsers"
     SetShellVarContext all
   ${Else}
@@ -616,11 +627,32 @@ Section "Uninstall"
   Delete /REBOOTOK "$INSTDIR\zstd.dll"
   Delete /REBOOTOK "$INSTDIR\zstdd.dll"
   Delete /REBOOTOK "$INSTDIR\libzstd.dll"
+  ; Catch-all: the kit's runtime-DLL set varies by vcpkg naming, and round 13
+  ; proved a hardcoded list leaks (gtest/gmock rode along — 4 leftover files
+  ; after uninstall). By this point the inner Tauri uninstaller has already
+  ; removed ITS files, so every remaining DLL in $INSTDIR is ours; delete
+  ; them all, then the explicit list above stays as documentation of the
+  ; expected set. Also covers installs made by older installers whose kits
+  ; carried the test DLLs.
+  Delete "$INSTDIR\*.dll"
   RMDir /r "$INSTDIR\driver"
 
   ; ---- 6. Registry ---------------------------------------------------------
   DeleteRegKey SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_UNKEY}"
-  DeleteRegKey SHCTX "Software\${PRODUCT_UNKEY}"
+  DeleteRegKey SHCTX "${PRODUCT_SWKEY}"
+
+  ; The install-time /D-seed key (Software\heicfast\Recovery Wizard — the
+  ; inner setup's install-location key, case-insensitively the SAME tree the
+  ; T15 matrix probes). The inner uninstaller does NOT remove it (run 13
+  ; evidence: the default value survived our complete uninstall), so we
+  ; clean it ourselves: WE seeded it on fresh machines. The empty manufacturer
+  ; parent goes too when nothing else lives under it.
+  DeleteRegKey SHCTX "Software\heicfast\Recovery Wizard"
+  ClearErrors
+  EnumRegKey $0 SHCTX "Software\heicfast" 0
+  ${If} $0 == ""
+    DeleteRegKey SHCTX "Software\heicfast"
+  ${EndIf}
 
   ; ---- 7. Final tidy -------------------------------------------------------
   Delete /REBOOTOK "$INSTDIR\HeicFastUninstall.exe"
