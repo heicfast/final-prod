@@ -625,14 +625,36 @@ FsFamily ScanController::probe_family(IStorageDevice* slice) {
                  * FUN_180005180 :4038-4058) */
                 const u16 usa_off = u16_from_bytes_le(rec + 0x04);
                 const u16 usa_cnt = u16_from_bytes_le(rec + 0x06);
-                if (usa_cnt != 0 && usa_cnt < 0x11 && usa_off >= 0x2a && usa_off < 0x2a + 0xd7)
+                if (usa_cnt != 0 && usa_cnt < 0x11 && usa_off >= 0x2a && usa_off < 0x2a + 0xd7) {
+                    log::write(log::Level::Info,
+                               "recognition: ntfs content-verified (MFT record 0 + USA "
+                               "bounds)");
                     return FsFamily::Ntfs;
+                }
             }
         }
         /* content proof failed: not NTFS by proof - fall through */
     }
-    if (std::memcmp(sec + 3, "EXFAT   ", 8) == 0)
-        return FsFamily::Exfat;
+    if (std::memcmp(sec + 3, "EXFAT   ", 8) == 0) {
+        /* N-050 (the exFAT half): the og's analyser layer proves content
+         * BEFORE the engine runs; the cheap exFAT form is the engine's
+         * own boot-region validator (EXFAT-4's structural gates: OEM,
+         * 55AA, shift bounds, the MustBeZero sweep +0x0B..+0x3F, FAT
+         * count/length, heap fit - exFATSearchDLL FUN_180021e80
+         * :28180-28208). A spoofed EXFAT OEM on a FAT/NTFS sector fails
+         * the sweep (their BPB bytes are nonzero there) and never
+         * dispatches the engine; a real boot region proves itself. The
+         * boot-checksum verdict stays informational exactly as the
+         * engine treats it (the engine gates on the structural rc only
+         * - matching verdicts, no recovery-negative strictness). */
+        exfat::ExfatParams xp;
+        if (exfat::validate_boot_region(slice, xp) == OK) {
+            log::write(log::Level::Info, "recognition: exfat content-verified (boot region)");
+            return FsFamily::Exfat;
+        }
+        /* content proof failed: fall through (the FAT gates underneath
+         * decide - the og's multi-analyser outcome) */
+    }
     /* ReFS: OEM "ReFS" + the DBR bytes-per-sector field (u32 @+0x20 == 512,
      * decompile-verified gate from RefsProc::CRefsVolumeBootRecord). */
     if (std::memcmp(sec + 3, "ReFS", 4) == 0)
@@ -698,8 +720,43 @@ FsFamily ScanController::probe_family(IStorageDevice* slice) {
      * the same way and the family result is Unknown). */
     if (sec[510] == 0x55 && sec[511] == 0xAA) {
         const u16 bps = u16_from_bytes_le(sec + 0x0B);
-        if (sec[0x10] != 0 && bps >= 512 && bps <= 4096 && (bps & (bps - 1)) == 0)
-            return FsFamily::Fat;
+        if (sec[0x10] != 0 && bps >= 512 && bps <= 4096 && (bps & (bps - 1)) == 0) {
+            /* N-050 (the FAT half): the og's analyser verifies the ROOT
+             * DIRECTORY after FAT-type classification before recognition
+             * (FATFileSystemAnalyser FUN_180002180 :1124-1144: fixed-root
+             * scan for types 1/2 = FUN_180001f70, root-cluster chain walk
+             * for type 3 = FUN_180001d70). The cheap form (the finding's
+             * fix plan): ONE bounded read at the computed root offset -
+             * FAT12/16: reserved + numFats*spf16; FAT32 (spf16 == 0):
+             * reserved + numFats*spf32 + (rootCluster-2)*spc. A volume
+             * whose root is unreadable (spoofed OEM over garbage, a
+             * truncated image) fails the proof and never dispatches the
+             * engine; a readable root sector proves the classification. */
+            const u16 reserved = u16_from_bytes_le(sec + 0x0E);
+            const u8 spc = sec[0x0D];
+            const u16 spf16 = u16_from_bytes_le(sec + 0x16);
+            u64 root_sector = 0;
+            bool root_known = false;
+            if (spf16 != 0) {
+                root_sector = u64(reserved) + u64(sec[0x10]) * spf16;
+                root_known = true; /* FAT12/16 fixed root */
+            } else {
+                const u32 spf32 = u32_from_bytes_le(sec + 0x24);
+                const u32 root_cluster = u32_from_bytes_le(sec + 0x2C);
+                if (spc != 0 && root_cluster >= 2) {
+                    root_sector = u64(reserved) + u64(sec[0x10]) * spf32 +
+                                  (u64(root_cluster) - 2) * spc;
+                    root_known = true; /* FAT32 root cluster */
+                }
+            }
+            u8 root_first[512];
+            if (root_known && slice->read_at(root_sector * bps, root_first, sizeof(root_first)) == OK) {
+                log::write(log::Level::Info,
+                           "recognition: fat content-verified (root directory readable)");
+                return FsFamily::Fat;
+            }
+            /* root proof failed: not FAT by proof - fall through */
+        }
     }
     /* ext2/3/4: superblock magic at byte offset 1024+0x38 */
     u8 sb2[2] = {};
