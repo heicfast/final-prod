@@ -143,6 +143,13 @@ struct CarveResult {
     u16 confidence = 0;              /* 0..1000 */
     const char* note = "";           /* evidence note for the node registry */
     std::vector<CarveEntry> entries; /* S-032: inner-entry inventory */
+    /* N-063: the analyser's OWN name for the carved file (the og's
+     * per-analyser SetName - content/metadata-derived, e.g. the MP4/MOV
+     * "Lost Name File (<time>)_EaseUS" template, RAWSearchDLL
+     * :33312/:33408/:33447/:33531). Empty = no og naming rule for this
+     * format -> the emit site falls back to the namer callback / the
+     * documented File%06u deliberate default. */
+    std::u16string embedded_name;
 };
 
 /*

@@ -3220,3 +3220,160 @@ TEST(CarveEngine, AllFormatsEnabledByDefault) {
     EXPECT_TRUE(carve_format_listed("heic jpg", jpg));
     EXPECT_FALSE(carve_format_listed("jpe", jpg));
 }
+
+/* ---- N-063: the og's per-analyser carved-file naming ------------------- */
+
+namespace {
+
+/* a minimal MP4/MOV: ftyp + moov{mvhd} + mdat + terminator. mvhd version
+ * and time fields are caller-controlled (the og's naming source). */
+std::vector<u8> build_bmff_named_image(u8 mvhd_version, u32 v0_time, u64 v1_time,
+                                       const char* brand) {
+    std::vector<u8> img(2 * 512, 0); /* 1 KiB slice: ftyp+moov+mdat fit */
+    const auto be32 = [&img](size_t p, u32 v) {
+        img[p] = u8(v >> 24);
+        img[p + 1] = u8(v >> 16);
+        img[p + 2] = u8(v >> 8);
+        img[p + 3] = u8(v);
+    };
+    const size_t at = 0;
+    /* ftyp (20 bytes) */
+    be32(at, 20);
+    std::memcpy(img.data() + at + 4, "ftyp", 4);
+    std::memcpy(img.data() + at + 8, brand, 4);
+    be32(at + 12, 0x200);
+    std::memcpy(img.data() + at + 16, brand, 4);
+    /* moov: header (8) + mvhd */
+    const size_t mvhd_len = mvhd_version == 1 ? 36 : 28;
+    const size_t moov_len = 8 + mvhd_len;
+    be32(at + 20, u32(8 + moov_len));
+    std::memcpy(img.data() + at + 24, "moov", 4);
+    const size_t mv = at + 28;
+    be32(mv, u32(mvhd_len));
+    std::memcpy(img.data() + mv + 4, "mvhd", 4);
+    img[mv + 8] = mvhd_version; /* version; flags stay zero */
+    if (mvhd_version == 1) {
+        /* creation u64 @+12, modification u64 @+20 (BE) */
+        for (int i = 0; i < 8; ++i)
+            img[mv + 12 + i] = u8(v1_time >> (8 * (7 - i)));
+        for (int i = 0; i < 8; ++i)
+            img[mv + 20 + i] = u8(v1_time >> (8 * (7 - i)));
+        be32(mv + 28, 600);  /* timescale */
+        be32(mv + 32, 3600); /* duration */
+    } else {
+        be32(mv + 12, 0);        /* creation */
+        be32(mv + 16, v0_time);  /* modification - the og's naming field */
+        be32(mv + 20, 600);      /* timescale */
+        be32(mv + 24, 3600);     /* duration */
+    }
+    /* mdat (24 bytes) + terminator box (over-cap size ends the walk) */
+    const size_t md = at + 20 + moov_len;
+    be32(md, 24);
+    std::memcpy(img.data() + md + 4, "mdat", 4);
+    std::memset(img.data() + md + 8, 0x5A, 16);
+    be32(md + 24, 0xFFFFFFFF);
+    return img;
+}
+
+} // namespace
+
+TEST(CarveEngine, Mp4NamedByMetadataTemplate) {
+    /* N-063 falsifiable claim: a carved MP4 in the og is named
+     * "Lost Name File (<time>)_EaseUS" (metadata-derived), not
+     * "File000123.mp4". The time is the RAW mvhd+0x10 field value fed
+     * as Unix seconds (no 1904-epoch conversion in the og's decode) -
+     * 1738843200 = 2025-02-06 12:00:00 UTC. Fail-before: the node was
+     * named File000001.mp4. */
+    auto img = build_bmff_named_image(0, 1738843200u, 0, "isom");
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats st;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st),
+              OK);
+    tree::FileNode* mp4 = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->carve_format == FMT_MP4)
+            mp4 = c;
+    ASSERT_NE(mp4, nullptr) << "the MP4 must carve";
+    EXPECT_EQ(mp4->props()->name, std::u16string(u"Lost Name File (2025:02:06 12:00:00)_EaseUS"));
+}
+
+TEST(CarveEngine, MovNamedByMetadataTemplate) {
+    /* the MOV (qt brand) analyser carries the same og template; a v0
+     * mvhd time of 0 formats as the epoch (the og feeds 0 straight to
+     * _localtime64) */
+    auto img = build_bmff_named_image(0, 0u, 0, "qt  ");
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats st;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st),
+              OK);
+    tree::FileNode* mov = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->carve_format == FMT_MOV)
+            mov = c;
+    ASSERT_NE(mov, nullptr) << "the MOV must carve";
+    EXPECT_EQ(mov->props()->name, std::u16string(u"Lost Name File (1970:01:01 00:00:00)_EaseUS"));
+}
+
+TEST(CarveEngine, MovV1MvhdHighWordQuirkReplicated) {
+    /* the og's v1 read takes the FIRST FOUR BYTES of the u64 at
+     * mvhd+0x14 (the HIGH 32 of the BE value - :33335-33338) so every
+     * sane v1 modification time (high word 0) formats as the epoch.
+     * Replicated faithfully; pinned here so a "fix" never silently
+     * diverges from the og's own quirk. */
+    auto img = build_bmff_named_image(1, 0, 0x00000000E0B67B00ull, "isom");
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats st;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st),
+              OK);
+    tree::FileNode* mp4 = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->carve_format == FMT_MP4)
+            mp4 = c;
+    ASSERT_NE(mp4, nullptr);
+    EXPECT_EQ(mp4->props()->name, std::u16string(u"Lost Name File (1970:01:01 00:00:00)_EaseUS"))
+        << "the og's v1 high-word quirk must be replicated, not corrected";
+}
+
+TEST(CarveEngine, FallbackNamerDocumented) {
+    /* formats with no decoded og naming rule keep the deliberate
+     * File%06u default (registered in PARITY-DELTAS): the JPEG carve
+     * from the standard fixture is File000001.jpg. */
+    auto img = build_carve_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats st;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st),
+              OK);
+    /* the fixture's carved jpg/png/zip/docx all lack decoded og naming
+     * rules - every one of them carries the deliberate File%06u.ext
+     * default (zero-padded, stable ordering; PARITY-DELTAS) */
+    int fallback_named = 0;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        if (!c->props())
+            continue;
+        const std::string n8 = c->name_utf8();
+        if (n8.compare(0, 4, "File") != 0)
+            continue;
+        const size_t dot = n8.rfind('.');
+        if (dot == std::string::npos)
+            continue;
+        bool digits = dot == 10; /* File + 6 digits + .ext */
+        for (size_t k = 4; k < dot; ++k)
+            if (n8[k] < '0' || n8[k] > '9')
+                digits = false;
+        if (digits)
+            ++fallback_named;
+    }
+    EXPECT_GE(fallback_named, 3) << "rule-less formats keep the deliberate default";
+}

@@ -11751,3 +11751,56 @@ Work Log:
 Stage Summary:
 - N-043 FIXED (tally: 5 — N-045, N-046, N-040, N-074, N-043). MINOR 32
   remain. Next: N-060 (save-progress cancel), N-061 (runlog).
+  temp leak), N-046, N-043.
+
+---
+Task ID: DFX17-F4 (session 17, finding 4 — N-063)
+Agent: main engineer (diff-to-fix fix session 17 — DFX17, MINOR-first mandate)
+Task: N-063 — carve default naming invented; the og names per-analyser.
+Verified first-hand in the decompile, fixed, fail-before executed.
+
+Work Log:
+- Corpus decode re-verified FIRST-HAND (RAWSearchDLL_decompiled.c):
+  * the template literals "Lost Name File (" (16 bytes, :33312/:33408)
+    and ")_EaseUS" (8 bytes, the memmove sites :33412-33434);
+  * the time format "%04d:%02d:%02d %02d:%02d:%02d" through
+    _localtime64 (FUN_18002b540 :33465; the snprintf at :33531);
+  * the field reads: mvhd v0 -> the BE u32 at +0x10 (:33322-33327);
+    mvhd v1 -> the FIRST FOUR BYTES of the u64 at +0x14 (:33335-33338,
+    i.e. the HIGH 32 of the BE value);
+  * TWO decode corrections to the finding, recorded: (a) the field is
+    the MODIFICATION time under the ISO layout (the finding's
+    "creation-time" label corrected); (b) there is NO 1904 MP4-epoch
+    conversion anywhere in the og path (the raw value feeds
+    _localtime64 as Unix seconds).
+- Implementation: CarveResult::embedded_name (the per-analyser name
+  carrier); mp4_og_name() in cr_analysers.cpp (moov->mvhd walk,
+  version-branch field reads, gmtime_r UTC formatting - the
+  host-local-vs-UTC divergence registered); emit precedence in
+  cr_carve.cpp (embedded_name > namer > default_namer); the false
+  "corpus policy" comment on default_namer repaired (it is OUR
+  deliberate default, now registered as PARITY-DELTAS D-76).
+- Og quirks REPLICATED, pinned by test, never "corrected": the
+  no-epoch shift (modern mvhd values format ~66 years future) and the
+  v1 high-word truncation (sane v1 times -> 1970:01:01 00:00:00).
+- Tests (4): CarveEngine.Mp4NamedByMetadataTemplate,
+  MovNamedByMetadataTemplate, MovV1MvhdHighWordQuirkReplicated,
+  FallbackNamerDocumented. Fail-before EXECUTED (emit-hook-disabled
+  sim: 3/3 naming tests RED). Pass-after: 679/679 + 24/24 UI.
+- Audit trail: Resolution in the finding (with the two decode
+  corrections + the CZeroEnd-family remainder and its next concrete
+  step), moved MINOR/ -> FIXED/, RESOLVED-INDEX row, BOTH matrix rows
+  (the session-5 detail row + the multi-column session-11 row),
+  modules/carve.md fix row, PARITY-DELTAS D-76, SUMMARY delta.
+- Remainder honestly recorded (not silent): the CZeroEndRawFileInfo
+  content-embedded-name family beyond MP4/MOV - which of the 22
+  FUN_1800173f0 (SetName) call sites extract content names vs metadata
+  templates is not decoded per-format; next step: decode each caller
+  the way this fix decoded the MP4/MOV analyser, wire each onto
+  embedded_name as its evidence lands.
+
+Stage Summary:
+- N-063 FIXED. Session tally: N-078, N-016b, N-063 (3 findings) + 2
+  baseline repairs + 1 convergence verification. Next: N-056 (windestio
+  temp leak on failed rename), N-046 (geometry refresh), N-043
+  (progress liveness watchdog).

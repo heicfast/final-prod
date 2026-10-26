@@ -146,10 +146,24 @@ Finding → FIXED/ (straight in, in-session file+fix); RESOLVED-INDEX row.
 Their N-077 landing alone does NOT cover this: case (4) of the new test
 fails against leak-only trees — the c.fail gap is real and pinned.
 
+**N-063 FIXED (MINOR):** the og's per-analyser carved-file naming. The
+MP4/MOV template decoded FIRST-HAND ("Lost Name File (<time>)_EaseUS" —
+literals :33312/:33408, the "%04d:%02d:%02d %02d:%02d:%02d" _localtime64
+format :33465/:33531, mvhd v0 BE u32@+0x10 / v1 FIRST-FOUR-BYTES of the
+u64@+0x14): `CarveResult::embedded_name` carrier with emit precedence
+(embedded_name > namer > default), TWO decode corrections recorded (the
+field is the MODIFICATION time; there is NO 1904-epoch conversion in the
+og — both quirks replicated + pinned by test), the false "corpus policy"
+comment repaired, File%06u registered as the deliberate default
+(PARITY-DELTAS D-76 with the UTC-formatting divergence). Fail-before 3/3
+RED; 679/679 + 24/24. The CZeroEnd-family membership beyond MP4/MOV is
+the honestly recorded remainder (decode each of the 22 SetName callers).
+
 **Counts after this wave (direct file inventory):** SEVERE 0 · MAJOR ~31 ·
-MINOR 38 files · INFO 22 (0 actionable) · tracked-open 16 · FIXED 98
-finding files + RESOLVED-INDEX. Queue head: N-068 (ZIP EOCD anchor), then
-N-063/N-065/N-056/N-029 and the remaining MINOR tier.
+MINOR 26 files · INFO 22 (0 actionable) · tracked-open 16 · FIXED 100
+finding files + RESOLVED-INDEX. Queue head: N-056 (windestio temp leak),
+then N-046/N-043 and the remaining MINOR tier (N-068/N-065 left to the
+DFX16 lane's published queue).
 
 # SUMMARY.md — executive summary (session 10's close-out on top; earlier sessions below)
 

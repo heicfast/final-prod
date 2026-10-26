@@ -287,8 +287,15 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 return ERR_NO_MEMORY;
             }
             const u32 idx = ctx.file_index.fetch_add(1, std::memory_order_relaxed);
-            props->name =
-                ctx.namer ? ctx.namer(sig, file_len, idx) : default_namer(sig, file_len, idx);
+            /* N-063: the og's per-analyser name first (the analyser's
+             * own SetName - e.g. MP4/MOV's "Lost Name File (...)_EaseUS"
+             * template), then the caller's namer callback, then the
+             * documented File%06u deliberate default (PARITY-DELTAS:
+             * formats with no decoded og naming rule). */
+            props->name = !cr.embedded_name.empty()
+                              ? cr.embedded_name
+                              : (ctx.namer ? ctx.namer(sig, file_len, idx)
+                                           : default_namer(sig, file_len, idx));
             props->fs_kind =
                 u32(FsKindCode::Raw); /* carved (row 45: was invented 0xFF; factory RAW=6) */
             props->logical_size = file_len;
@@ -643,7 +650,13 @@ u32 scan_window_index(ScanCtx& ctx, u64 wi, std::set<u64>& emitted_at) {
 std::u16string default_namer(const Signature& sig, u64 size, u32 index) {
     (void)size;
     char buf[32];
-    /* File000001.jpg - zero-padded for stable ordering (corpus policy) */
+    /* N-063 comment repair: the og has NO FileNNNN scheme anywhere (the
+     * deep-dive artifact's "File0001.jpg lives in the UI" claim was a
+     * corpus erratum, corrected with OQ-S4-2's decode). This is OUR
+     * deliberate default for formats whose og naming rule is not
+     * decoded (registered in docs/PARITY-DELTAS.md) - zero-padded for
+     * stable ordering; formats WITH a decoded og rule name via
+     * CarveResult::embedded_name before this fallback. */
     int n = snprintf(buf, sizeof(buf), "File%06u.%s", index, sig.ext);
     if (n <= 0)
         buf[0] = 0;
