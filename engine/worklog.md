@@ -12600,7 +12600,6 @@ Stage Summary:
   claimed; proceeding to N-026.
 
 ---
-<<<<<<< HEAD
 Task ID: DFX30-T0 (session 30 bootstrap — lane claim)
 Agent: main engineer (diff-to-fix fix session 30 — DFX30)
 Task: Session bootstrap + DISJOINT lane claim (the tracked-open OQ queue is
@@ -12633,7 +12632,7 @@ Stage Summary:
 - DFX32 open. Baseline green. First work: M-029's bucket-ID/tag-derivation
   decode in DRWUI_decompiled.c (CTimeFilterBtn/CSizeFilterBtn + the
   node+0x89 bits-11-14 consumer), then the implementation.
-=======
+
 
 ---
 Task ID: DFX30-T0 (session 30 bootstrap — lane claim; re-stamped past the same-window DFX25-29 squats — all claims union-kept above)
@@ -12703,9 +12702,6 @@ Work Log:
 Stage Summary:
 - Session 30 open on the disjoint tracked-open tail. Baseline green.
   First act: OQ-Z-E-FLT (ZFS/exFAT/FLT open questions).
-<<<<<<< HEAD
->>>>>>> aeaa5754f5904e785fe0206312ff4af0717fcf91
-=======
 Task ID: DFX29-T0 (session 29 bootstrap — lane claim; re-stamped 25→29 — the
 name DFX25 was squatted by the INFO-closure lane in the same window; this
 session's claim absorbed the full parallel-claim set per union protocol)
@@ -12760,7 +12756,6 @@ Work Log:
 
 Stage Summary:
 - Session 31 open. First fix: N-064 (Dict password dictionary absent).
-=======
 ---
 Task ID: DFX31-T0 (session 31 bootstrap — lane claim; re-stamped 25→30→31
 through the same-window ID churn — DFX25 squatted by the INFO-closure
@@ -12811,7 +12806,6 @@ Stage Summary:
 - Session 31 open on the disjoint tracked-open HEAD lane. Baseline 737/737
   green. First target: OQ-S2M-2's grep-sized probes, then the OQ-S3-JPEG
   decompile walk, then OQ-RS, then OQ-S20-1 (the big BitLocker leg).
->>>>>>> 2928da26fdd823f2686863072f95b13629c3dd4d
 
 ---
 Task ID: DFX33-T0 (session 33 bootstrap — final re-stamp; the DFX32 stamp
