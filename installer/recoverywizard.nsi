@@ -68,6 +68,21 @@ SetCompressor /SOLID lzma
   !define PATHSEP "/"
 !endif
 
+; AbortWithReason — Abort, but leave a trace: silent installs show NO
+; message box, so %TEMP%\HeicFastRecoveryWizard-install-abort.txt is the
+; ONLY place the reason survives (the T15 runtime matrix copies it into
+; its evidence; a real user's support request can attach it). Defined
+; BEFORE the sections — NSIS macros must exist before their first
+; !insertmacro (compile-time order).
+!macro AbortWithReason REASON
+  Push $0
+  FileOpen $0 "$TEMP\HeicFastRecoveryWizard-install-abort.txt" w
+  FileWrite $0 "${REASON}"
+  FileClose $0
+  Pop $0
+  Abort "${REASON}"
+!macroend
+
 !define PRODUCT_NAME        "HeicFast Recovery Wizard"
 !define PRODUCT_PUBLISHER   "HeicFast"
 !define PRODUCT_UNKEY       "HeicFast Recovery Wizard"
@@ -295,19 +310,6 @@ SectionEnd
 ; Section descriptions (MUST follow the Section definitions: ${SEC_*} section
 ; index defines are created by the Section commands below.)
 ; -----------------------------------------------------------------------------
-; AbortWithReason — Abort, but leave a trace: silent installs show NO
-; message box, so %TEMP%\HeicFastRecoveryWizard-install-abort.txt is the
-; ONLY place the reason survives (the T15 runtime matrix copies it into
-; its evidence; a real user's support request can attach it).
-!macro AbortWithReason REASON
-  Push $0
-  FileOpen $0 "$TEMP\HeicFastRecoveryWizard-install-abort.txt" w
-  FileWrite $0 "${REASON}"
-  FileClose $0
-  Pop $0
-  Abort "${REASON}"
-!macroend
-
 LangString DESC_APP    ${LANG_ENGLISH} "The ${PRODUCT_NAME} application and the native recovery engine. Required."
 LangString DESC_DRIVER ${LANG_ENGLISH} "The RDA raw-disk kernel driver (rda.sys): fast, reliable sector-level reads via \\.\RDA. Not available in per-user installs; the app falls back to Windows direct disk access without it."
 
