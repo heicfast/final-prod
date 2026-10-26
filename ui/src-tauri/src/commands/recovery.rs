@@ -220,14 +220,12 @@ fn recovery_start_blocking(
         job_id: job_id.clone(),
         scan_id: scan_id.clone(),
         recovery,
-        device: SendPtr::new(dev),
         destination: destination.clone(),
         options_json: options.clone(),
         node_ids,
         started_at,
         finished: Mutex::new(None),
         live: Arc::new(Mutex::new(JobLive::new(queued as u64))),
-        events_tx: tx,
         sink_user: SendPtr::new(sink_user),
     });
 

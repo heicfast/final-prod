@@ -55,18 +55,6 @@ pub unsafe extern "C" fn recovery_progress_sink(
     let _ = tx.try_send((bytes_done, bytes_total));
 }
 
-/// Drain everything queued, keeping only the freshest sample.
-pub fn coalesce_bytes(rx: &Receiver<(u64, u64)>) -> Option<(u64, u64)> {
-    let mut last = None;
-    loop {
-        match rx.try_recv() {
-            Ok(sample) => last = Some(sample),
-            Err(TryRecvError::Disconnected) | Err(TryRecvError::Empty) => break,
-        }
-    }
-    last
-}
-
 // ---------------------------------------------------------------------------
 // Progress payload composition
 // ---------------------------------------------------------------------------

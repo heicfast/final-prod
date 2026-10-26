@@ -204,21 +204,6 @@ pub fn snapshot_dfs(snap: *mut abi::CrUiSnapshot) -> BridgeResult<Vec<u32>> {
     Ok(idx)
 }
 
-/// Two-call transport name of a device ("rda" | "direct" | "image").
-pub fn device_transport(dev: *mut abi::CrUiDevice) -> BridgeResult<String> {
-    let mut needed: u32 = 0;
-    let rc = unsafe { abi::cr_ui_device_transport(dev, std::ptr::null_mut(), 0, &mut needed) };
-    check(rc, "cr_ui_device_transport(size)")?;
-    if needed == 0 {
-        return Ok(String::new());
-    }
-    let mut buf = vec![0i8; needed as usize];
-    let cap = needed;
-    let rc = unsafe { abi::cr_ui_device_transport(dev, buf.as_mut_ptr(), cap, &mut needed) };
-    check(rc, "cr_ui_device_transport")?;
-    Ok(unsafe { cstr_to_string_lossy(buf.as_ptr()) })
-}
-
 /// One row of the snapshot: node info + full (never silently truncated) name.
 /// Single call with a generous buffer; re-fetch with exact size on TRUNCATED.
 pub fn snapshot_node(

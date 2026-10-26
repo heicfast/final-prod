@@ -331,7 +331,6 @@ pub async fn session_load(
                 device,
             },
             target_json,
-            target_id: path.clone(),
             device_id: String::new(),
             volume_id: None,
             params_json: json!({ "targetId": path }),
@@ -346,12 +345,6 @@ pub async fn session_load(
                 data_found_bytes: 0,
             }))),
             snapshot_exists: Arc::new(std::sync::atomic::AtomicBool::new(false)),
-            events_tx: {
-                // Session entries never subscribe a sink; a bounded placeholder
-                // keeps the field's never-block shape without a live receiver.
-                let (tx, _rx) = std::sync::mpsc::sync_channel(1);
-                tx
-            },
             sink_user: SendPtr::new(std::ptr::null_mut()),
             snap: std::sync::Mutex::new(SnapshotCache {
                 gen: 0,

@@ -211,7 +211,6 @@ pub fn scan_start_blocking(
             device,
         },
         target_json,
-        target_id: target_id.clone(),
         device_id,
         volume_id: volume_id_str,
         params_json,
@@ -220,7 +219,6 @@ pub fn scan_start_blocking(
         live: live.clone(),
         terminal: terminal.clone(),
         snapshot_exists: snapshot_exists.clone(),
-        events_tx: tx,
         sink_user: SendPtr::new(sink_user),
         snap: Mutex::new(crate::bridge::state::SnapshotCache {
             gen: 0,

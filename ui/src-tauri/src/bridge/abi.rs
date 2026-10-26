@@ -14,7 +14,14 @@
 //! engine worker threads, must not block, and carry NO cancellation
 //! semantics. See docs/INTEGRATION-PLAN.md §4.4 and contracts/event-mapping.md.
 
-#![allow(clippy::missing_safety_doc)]
+// The ABI surface is PINNED 1:1 to engine/include/cr/cr_ui.h (the whole
+// 78-export surface, not just the calls the bridge makes today). Unconsumed
+// declarations are therefore EXPECTED: exports the product has no surface
+// for yet (images, unlock aids - G-1, the query family the bridge-side
+// filter replaced - G-7, resume/undo/assistant) stay declared so the file
+// remains the complete, diffable header binding. This allow is scoped to
+// this module ONLY; dead LOGIC elsewhere is removed, not silenced.
+#![allow(dead_code, clippy::missing_safety_doc)]
 
 use std::ffi::c_void;
 

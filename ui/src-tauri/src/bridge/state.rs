@@ -78,7 +78,6 @@ pub struct ScanLive {
     pub repair_summary: Option<String>, // CR_EVT_REPAIR outcome line (log surface)
     pub last_heartbeat_ms: Option<u64>, // engine watchdog liveness (G-8 synthesis)
     pub last_progress_ms: u64,
-    pub started_unix_ms: i64,
     pub save_permille: u32,
     /// Token-call transient ('pausing' | 'resuming') with an expiry —
     /// cleared by the emitter when telemetry reflects the new state.
@@ -104,7 +103,6 @@ impl ScanLive {
             repair_summary: None,
             last_heartbeat_ms: None,
             last_progress_ms: 0,
-            started_unix_ms: super::util::now_unix_ms(),
             save_permille: 0,
             transient: None,
             last_throughput: 0.0,
@@ -132,9 +130,7 @@ pub struct NodeMeta {
     pub deleted: u32,    // 0 active / 1 deleted / 2 partial / 3 damaged
     pub confidence: u32, // ordinal 0..4
     pub grade: u32,      // 0 low / 1 average / 2 high (S-023)
-    pub attributes: u32,
     pub extent_count: u32,
-    pub carve_format: u32,
     pub hash_valid: u32,
     /// 1 when the engine's twin/overlap rule flagged this node.
     pub overlap: u32,
@@ -199,9 +195,6 @@ pub struct ScanEntry {
     /// The resolved target (contract-shaped Device or Volume JSON) the UI
     /// showed when the scan started — returned verbatim by getScanState.
     pub target_json: serde_json::Value,
-    /// The UI's targetId (device id, volume id, or a virtual quick-target
-    /// resolved to a real volume at start time).
-    pub target_id: String,
     /// Owning device id + volume id (isSourceOfActiveScan + destination
     /// overlap checks). volume_id is None for whole-disk targets.
     pub device_id: String,
@@ -216,9 +209,9 @@ pub struct ScanEntry {
     pub terminal: Arc<Mutex<Option<Terminal>>>,
     /// True once at least one snapshot exists (recoverableDuringScan).
     pub snapshot_exists: Arc<AtomicBool>,
-    /// The sink channel: a clone kept here (keeps the emitter fed) plus the
-    /// leaked box handed to the engine as the sink user pointer.
-    pub events_tx: SyncSender<abi::CrUiEvent>,
+    /// The boxed sink sender handed to the engine as the event-fn user
+    /// pointer (freed by Drop after unsubscribing; it also keeps the
+    /// channel open for the emitter).
     pub sink_user: SendPtr<SyncSender<abi::CrUiEvent>>,
     pub snap: Mutex<SnapshotCache>,
     /// Job ids created against this entry (close guard: the borrowed device
@@ -305,7 +298,6 @@ pub struct JobLive {
     pub verifying: bool,
     pub last_throughput: f64,
     pub eta_seconds: Option<u64>,
-    pub started_unix_ms: i64,
 }
 
 impl JobLive {
@@ -323,7 +315,6 @@ impl JobLive {
             verifying: false,
             last_throughput: 0.0,
             eta_seconds: None,
-            started_unix_ms: super::util::now_unix_ms(),
         }
     }
 }
@@ -332,9 +323,6 @@ pub struct JobEntry {
     pub job_id: String,
     pub scan_id: String,
     pub recovery: SendPtr<abi::CrUiRecovery>,
-    /// The source device (borrowed; must outlive the recovery — the owning
-    /// scan entry's close is guarded by its `jobs` list).
-    pub device: SendPtr<abi::CrUiDevice>,
     pub destination: String,
     pub options_json: serde_json::Value,
     /// Explicit selection node ids; empty for recover-all.
@@ -342,8 +330,8 @@ pub struct JobEntry {
     pub started_at: String,
     pub finished: Mutex<Option<(&'static str, String)>>,
     pub live: Arc<Mutex<JobLive>>,
-    /// (bytes_done, bytes_total) samples from cr_ui_recovery_progress_fn.
-    pub events_tx: SyncSender<(u64, u64)>,
+    /// The boxed progress-fn sender handed to the engine (keeps the sample
+    /// channel open for the emitter; freed on Drop).
     pub sink_user: SendPtr<SyncSender<(u64, u64)>>,
 }
 
@@ -597,9 +585,7 @@ pub fn ensure_metas(entry: &ScanEntry) -> BridgeResult<()> {
             deleted: info.deleted,
             confidence: info.confidence,
             grade: info.grade,
-            attributes: info.attributes,
             extent_count: info.extent_count,
-            carve_format: info.carve_format,
             hash_valid: info.hash_valid,
             overlap: info.overlap,
             category,
@@ -645,9 +631,7 @@ fn placeholder_meta() -> NodeMeta {
         deleted: 0,
         confidence: 0,
         grade: 0,
-        attributes: 0,
         extent_count: 0,
-        carve_format: 0,
         hash_valid: 0,
         overlap: 0,
         category: 0,
@@ -664,27 +648,6 @@ pub fn extension_of(name: &str) -> String {
         Some(at) if at + 1 < name.len() => name[at + 1..].to_lowercase(),
         _ => String::new(),
     }
-}
-
-/// Run `f` over the entry's current metadata cache, refreshing first.
-/// One code path serves BOTH live scans and loaded sessions (the engine's
-/// cr_ui_query_run cannot express the contract's 'existing' atom — see
-/// docs/INTEGRATION-VALIDATION.md; G-7 records the future migration).
-pub fn with_metas<T>(
-    state: &BridgeState,
-    scan_id: &str,
-    f: impl FnOnce(&[NodeMeta], bool /*partial*/) -> T,
-) -> BridgeResult<T> {
-    refresh_snapshot(state, scan_id)?;
-    let entry = state.scan_entry_arc(scan_id)?;
-    ensure_metas(&entry)?;
-    let snap = entry.snap.lock().map_err(|_| poisoned())?;
-    let partial = snap.partial;
-    let metas = snap
-        .metas
-        .as_ref()
-        .ok_or_else(|| BridgeError::bridge(code::UNKNOWN, "metadata cache missing after build"))?;
-    Ok(f(metas, partial))
 }
 
 /// Clone the metadata cache (payload assembly needs owned rows sometimes).

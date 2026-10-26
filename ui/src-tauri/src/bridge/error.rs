@@ -27,7 +27,6 @@ pub mod code {
     pub const SCAN_NOT_RUNNING: &str = "scan-not-running";
     pub const SCAN_NOT_PAUSED: &str = "scan-not-paused";
     pub const SCAN_SCOPE_INVALID: &str = "scan-scope-invalid";
-    pub const DESTINATION_INVALID: &str = "destination-invalid";
     pub const DEVICE_GONE: &str = "device-gone";
     pub const DEVICE_PERMISSION: &str = "device-permission";
     pub const PREVIEW_TOO_LARGE: &str = "preview-too-large";
@@ -36,7 +35,6 @@ pub mod code {
     pub const PREVIEW_DAMAGED: &str = "preview-damaged";
     pub const NOT_IMPLEMENTED: &str = "not-implemented";
     pub const HEALTH_UNAVAILABLE: &str = "health-unavailable";
-    pub const SESSION_CORRUPT: &str = "session-corrupt";
     pub const UNKNOWN: &str = "unknown";
 }
 
@@ -105,13 +103,6 @@ impl BridgeError {
         )
     }
 
-    /// Map an engine code with no UI-visible meaning onto the truthful
-    /// fallback (unknown) while keeping the numeric code in the payload.
-    pub fn engine_unknown(code: u32, context: &str) -> Self {
-        let mut e = BridgeError::engine(code, context);
-        e.bridge_code = Some(code::UNKNOWN);
-        e
-    }
 }
 
 pub type BridgeResult<T> = Result<T, BridgeError>;
