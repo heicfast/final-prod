@@ -1543,9 +1543,10 @@ static std::vector<u8> build_raid1_volume() {
     constexpr u64 L_R1_CHUNK = 0x800000;
     constexpr u64 L_FS_ROOT = 0x800000; /* internal node logical */
     constexpr u64 L_FS_LEAF = 0x801000; /* leaf logical */
-    constexpr u64 P_COPY0 = 0x900000;   /* stripe 0: internal node copy */
-    constexpr u64 P_COPY1 = 0x910000;   /* stripe 1: leaf copy */
-    constexpr u64 L_DATA = 0x700000;    /* data extent (identity chunk) */
+    constexpr u64 P_COPY0 = 0x900000; /* stripe 0: internal node copy */
+    constexpr u64 P_COPY1 = 0x910000; /* stripe 1: leaf copy */
+    /* L_DATA: the file-scope constant (same value 0x700000) - a local
+     * re-declaration shadowed it (MSVC C4459); the file-scope one serves */
     std::vector<u8> d(10ull << 20, 0);
 
     u8* sb = d.data() + 0x10000;
