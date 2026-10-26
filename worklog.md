@@ -386,3 +386,29 @@ Also this window:
 Remaining: watch the validation run (T14/T15 evidence), commit the reviewed
 evidence into docs/INTEGRATION-VALIDATION/, then T18 (cut v0.5.0-rc1, watch
 release.yml end to end, clean-runner install via the matrix, final tag).
+
+---
+
+## 2026-10-26T22:35Z — T18: the v0.5.0-rc1 cut (release lane dispatched)
+
+State at the cut: main at d4922aff. Product lanes green — contracts-ci,
+ui-ci, ui-e2e at b671348f; engine-ci 6/6 and driver-ci green at a790cf9b;
+no engine/, ui/, or driver/ source changes after those SHAs (the trail
+since touched only installer/, tools/validation/, docs/, build.ps1 — and
+build.ps1's full-product path is proven by the validation lane's green
+"Full product build" steps on d4922aff itself). T14 evidence committed
+(docs/INTEGRATION-VALIDATION/t14-measurements/). T15 (installer runtime
+matrix) still pending — two validation-evidence runs in flight on
+d4922aff; the T15 matrix step is the long pole and is under active
+diagnosis this session (the RC proceeds first per operator instruction:
+artifacts in hand for local testing outrank the T15 transcript).
+
+The cut: VERSION 0.5.0 -> 0.5.0-rc1 in lockstep with ui/package.json,
+ui/src-tauri/Cargo.toml, ui/src-tauri/tauri.conf.json (the
+Assert-VersionConsistency gate's exact consumer set; pnpm-lock.yaml and
+the tree carry no other version references — verified by grep). Tag
+v0.5.0-rc1 pushed -> release.yml dispatched: contracts gate, build.ps1
+-Target all (WITH tests — engine ctest + ui vitest in-lane), artifact
+verification, truthful unsigned notes, release upload with SHA256SUMS.
+RC purpose per docs/RELEASE.md: operator tests the setup.exe + portable
+zip on a real machine before the final v0.5.0 tag.
