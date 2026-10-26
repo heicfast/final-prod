@@ -15708,3 +15708,34 @@ Work Log:
 Stage Summary:
 - Lane open. S-034 decode starts now (corpus: ZfsSearchDLL_decompiled.c
   ring walk + addBlock + the ZplNode visitor path).
+
+---
+Task ID: DFX34-T7 (session 34, seventh landing — the M-052/N-079 collision repair + the N-007 convergence)
+Agent: main engineer (diff-to-fix fix session 34 — DFX34)
+Task: Repair the M-052 multi-lane collision residue (main RED on the
+N-079 test) + absorb the convergent N-007 second landing.
+
+Work Log:
+- Root cause of the red: the 53b7d68 convergence repair adopted
+  c33c64b's engine files, which carry the N-079 scope defect (the
+  $I/$R name-prefix gate matches everywhere), while the tree kept
+  76d4878's N-079 pin test — plus a union-glued missing brace in
+  test_exfat_volume.cpp and a stray c33c64b cr_recycle.cpp (a .cpp
+  variant of 76d4878's header-only model with a different RecycleInfo
+  shape).
+- Repair: adopted 76d4878's coherent set wholesale (cr_mftwalk with the
+  bin-membership gate via recycle::is_bin_root, the header-only
+  cr_recycle.h, both engines' quick scans + headers + tests); removed
+  the stray .cpp + its CMake entry; fixed the glued test brace.
+- N-007 convergence: the remote ALSO landed N-007 (lambda-based
+  first-DWORD dispatch — equivalent semantics to mine); adopted origin's
+  implementation (first-landing-wins) and kept THIS lane's two proof
+  tests (the remote landing shipped none). Both RefsDetect partial
+  tests green on the adopted implementation.
+- Suite 894/894; gate 0 FAIL; zero markers in src/include/tests.
+
+Stage Summary:
+- Main green again. N-007 stands FIXED (convergent; this lane's tests
+  are the proof set). MINOR open: N-072 only. Next: N-072, then MAJORs
+  (M-030/M-034/M-039/M-040/M-048 — verifying which the parallel lanes
+  drain while I work).
