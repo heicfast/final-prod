@@ -1,0 +1,15 @@
+# Build outputs
+build/
+dist/
+out/
+target/
+node_modules/
+vcpkg_installed/
+*.user
+*.aps
+.vs/
+.vscode/
+.idea/
+# Session/log scratch
+*.log
+!engine/tests/**/fixtures/**/*.log
