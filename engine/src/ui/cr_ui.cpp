@@ -1246,6 +1246,41 @@ u32 open_volume_with_key_impl(char letter, const char* utf8_hex_fvek, cr_ui_devi
     return ret_ok();
 }
 
+u32 unlock_volume_with_dictionary_impl(char letter, const char* const* utf8_user_passwords,
+                                       uint32_t count) {
+    /* N-064: the og's Dict flow as the host's explicit consent action. */
+    std::vector<std::wstring> wide;
+    wide.reserve(count);
+    for (uint32_t k = 0; k < count; ++k) {
+        if (!utf8_user_passwords[k])
+            continue;
+        /* The dictionary grammar is ASCII (the win layer enforces the same
+         * rule): any non-ASCII candidate is refused, not silently mapped. */
+        std::wstring w;
+        bool ascii = true;
+        for (const char* p = utf8_user_passwords[k]; *p != '\0'; ++p) {
+            if (static_cast<unsigned char>(*p) >= 0x80) {
+                ascii = false;
+                break;
+            }
+            w.push_back(wchar_t(static_cast<unsigned char>(*p)));
+        }
+        if (!ascii)
+            return ret_(ERR_BAD_PARAMETER, "dictionary candidate %u is not ASCII", k);
+        wide.push_back(std::move(w));
+    }
+    std::vector<const wchar_t*> ptrs;
+    ptrs.reserve(wide.size());
+    for (const std::wstring& w : wide)
+        ptrs.push_back(w.c_str());
+    const u32 rc = win::bitlocker::unlock_with_dictionary(
+        wchar_t(letter), ptrs.data(), ptrs.size());
+    if (rc == OK)
+        return ret_ok();
+    return ret_(rc, "dictionary unlock exhausted (%u + %u candidates)",
+                unsigned(228), unsigned(ptrs.size()));
+}
+
 #else /* !_WIN32 */
 
 u32 open_disk_impl(uint32_t disk, cr_ui_device** out) {
@@ -1266,6 +1301,15 @@ u32 open_volume_with_key_impl(char letter, const char* utf8_hex_fvek, cr_ui_devi
     (void)out;
     return ret_(ERR_UNSUPPORTED,
                 "cr_ui_open_volume_with_key requires the Windows platform layer");
+}
+
+u32 unlock_volume_with_dictionary_impl(char letter, const char* const* utf8_user_passwords,
+                                       uint32_t count) {
+    (void)letter;
+    (void)utf8_user_passwords;
+    (void)count;
+    return ret_(ERR_UNSUPPORTED,
+                "cr_ui_unlock_volume_with_dictionary requires the Windows platform layer");
 }
 
 #endif
@@ -1314,6 +1358,10 @@ extern "C" CR_UI_API uint32_t cr_ui_open_volume_with_key(char letter,
                                                         const char* utf8_hex_fvek,
                                                         cr_ui_device** out) {
     return guarded(open_volume_with_key_impl, letter, utf8_hex_fvek, out);
+}
+extern "C" CR_UI_API uint32_t cr_ui_unlock_volume_with_dictionary(
+    char letter, const char* const* utf8_user_passwords, uint32_t count) {
+    return guarded(unlock_volume_with_dictionary_impl, letter, utf8_user_passwords, count);
 }
 extern "C" CR_UI_API void cr_ui_device_close(cr_ui_device* dev) {
     if (!dev)

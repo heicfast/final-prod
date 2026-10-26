@@ -69,8 +69,12 @@ live since M-033 — a user-supplied FVEK, the og's GetFullVolumeEncryptionKey
 output shape, flows through `DecryptingDevice`, the in-stack XTS-AES layer
 matching the og's volume-IO placement: `--bitlocker-fvek` CLI /
 `cr_ui_open_volume_with_key` ABI; detection + legitimate unlock remain the
-S-014 posture: live-registry + offline-hive auto-unlock, and locked volumes
-WITHOUT user key material stay refused — ERR_FVE_LOCKED, no bypass); signing
+S-014 posture: live-registry + offline-hive auto-unlock, the N-064
+password-dictionary unlock aid (cr::dict + --bitlocker-dict /
+cr_ui_unlock_volume_with_dictionary — user-consented only, 228-entry
+shipped dictionary + user candidates through the manage-bde/PowerShell
+plumbing), and locked volumes WITHOUT user key material or the explicit
+dictionary consent stay refused — ERR_FVE_LOCKED, no bypass); signing
 (OSSign disabled); `.rsf` import (G-11, tracked disposition).
 
 ## 4. Open gap register (code-verified)

@@ -79,6 +79,41 @@ RESOLVED-INDEX row; modules/lost-partition.md + modules/zfs.md updated.
 OQ-S3-JPEG, OQ-S4-3, OQ-S5-1, OQ-S6-1, OQ-S6-2, OQ-S6-3, OQ-S20-1; the
 DFX30 tail lane owns the first six of those). Next on this lane: OQ-S3-JPEG
 (the fallback/continuation no-EOI decode).
+# SUMMARY.md — executive summary (session 31 on top; earlier sessions below)
+
+## Session-31 delta (2026-10-26 — DFX31: the MINOR tail-first lane opens with N-064)
+
+Baseline 737/737 green first-hand (linux-release ctest at `02b950f`,
+re-verified 754/754 on the merged tree after absorbing the window's
+parallel landings — N-009c/d+M-057 `e1f17bc`, N-025 `e2b4549`); corpus
+`03ad46c` unmoved. Lane: the MINOR tier from the tail (the crypto/win-heavy
+segment the front-first lanes defer), one finding, one verified fix, one
+push throughout.
+
+**N-064 FIXED (MINOR — the Dict password-dictionary unlock aid):** the
+og ships a 228-entry common-password dictionary (og-codebase/Dict, 2,742 B
+byte-verified; config-data-reference.md :20) wired to BitLockerLib's
+manage-bde -Password user-consented unlock and EuOfficeRepairFile's
+encrypted-HWPX repair. The core had key-based unlock only (S-014). Landed:
+`cr::dict` (pure core — scripts/gen_dict.py generates the byte-faithful
+table incl. the og's seven duplicate lines, the raw_signs conversion
+precedent; parse() implements the Dict file grammar; try_passwords() is
+the consent-gated attempt loop: shipped-then-user order, stop-on-first-OK,
+index-only log lines through the N-048/N-061 seam — password material
+never logged, the og's qa-logs carry no password text either); the win
+layer's `unlock_with_dictionary` (the EXPLICIT CONSENT ACTION riding the
+unchanged PowerShell -Password / manage-bde -Password plumbing, grammar
+extracted to detail::build_unlock_command for shape tests); the CLI
+`--bitlocker-dict` consent flag (locked volumes stay refused without it —
+F61 legitimate-unlock-only preserved, structural); the additive
+`cr_ui_unlock_volume_with_dictionary` ABI export (M-033 precedent). The
+Office/HWPX consumer stays out-of-scope (I-010). Fail-before EXECUTED
+(the 4 attempt-loop tests RED on the loop-disabled tree); 11 pure-core +
+3 win-lane tests; suite 754/754. Attempt policy documented per the
+finding's open question: sequential, no retry, no parallelism.
+
+Counts after this landing: **MINOR 18 open** (N-064 moved to FIXED/),
+MAJOR 14 open (DFX27/DFX26 lanes), INFO 0, tracked-open 11.
 
 ## Session-23 delta (2026-10-26 — DFX23: the MINOR-first closing wave, batch 1 — N-009 group closed + M-057)
 
@@ -184,6 +219,26 @@ open question) settles it and is the bench stage's next step.
 (22 acknowledged in FIXED/) · tracked-open 11 · FIXED/ **174** files
 (173 findings + RESOLVED-INDEX). Next on this lane: N-049 (lost-record
 field richness) → N-050 → N-033 → N-064.
+
+## Session-23 delta, batch 3 (2026-10-26 — DFX29: N-049 verified already-landed + the missing pin)
+
+**N-049 FIXED-ALREADY (via M-042's REC_PARTITION_CONTEXT v2, `63a3a77`):**
+the finding's full pinned field list — bps, SPC, hidden_sectors, flags
+bit0=size_from_device_end — landed with M-042's resume-disk-truth pass
+before this session; verified in-source on the current tree (the v2
+struct, both save/load sites, v1 back-compat zeroed). The per-hit
+crash-safety title half = M-042's per-hit checkpoints + N-014's atomic
+rename. The finding's named-but-missing reproduction ADDED:
+`ResumeRevalidation.SizeSourceFlagRoundTrip` (flag true round-trips +
+the inverse no-false-positive half) — passes on the current tree, the
+FIXED-ALREADY proof. The optional capped-evidence list deliberately NOT
+persisted (would fight M-042's re-probe-on-resume design — recorded as
+reviewed in the Resolution). Suite **754/754**.
+
+**Post-fix counts:** SEVERE **0** · MAJOR 14 · MINOR **13** · INFO 0
+open (22 acknowledged in FIXED/) · tracked-open 11 · FIXED/ **178** files
+(177 findings + RESOLVED-INDEX). Next on this lane: N-050 (recognition contract) →
+N-033 → N-064.
 
 <!-- DFX16 note: session 16 ran as a parallel lane in the same window as
      sessions 17-22; its delta is recorded here for chronology. -->

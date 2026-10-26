@@ -13091,3 +13091,71 @@ Stage Summary:
 - OQ-Z5 RESOLVED (interface split named; complete adds streaming emission
   + restart + config channels; quick is a real one-shot scanner). Next on
   this lane: OQ-Z2 (addBlock from_txg/birth_txg gate).
+  this lane: OQ-Z2 (addBlock from_txg/birth_txg gate).
+
+---
+Task ID: DFX29-T2 (session 23 lane, fourth fix — N-049 FIXED-ALREADY + pin)
+Agent: main engineer (diff-to-fix fix session 29-lane — DFX29)
+Task: N-049 lost-record field richness.
+
+Work Log:
+- Verified in-source on the current tree BEFORE any change: M-042's
+  REC_PARTITION_CONTEXT v2 (63a3a77) carries the finding's full pinned
+  field list (bytes_per_sector, sectors_per_cluster, hidden_sectors,
+  flags bit0=size_from_device_end + bit1 geometry-valid); the save path
+  stamps them (cr_scan.cpp:1524-1533) and the load restores them
+  (:1651-1654); v1 back-compat zeroed. Per-hit crash safety = M-042
+  checkpoints + N-014 atomic rename. Classification: FIXED-ALREADY.
+- The finding's named test SizeSourceFlagRoundTrip was missing (only
+  CandidateGeometryRoundTrip existed): ADDED as the FIXED-ALREADY
+  reproduction — flag true round-trips + the inverse no-false-positive
+  half. Passes on the current tree.
+- The optional capped-evidence list deliberately not persisted (would
+  fight M-042's re-probe-on-resume design) — recorded as a reviewed
+  choice in the Resolution.
+- Suite 754/754. Audit trail: Resolution (FIXED-ALREADY), FIXED/ move,
+  index row, matrix session row, SUMMARY batch-3 delta + counts.
+
+Stage Summary:
+- Tally 4 (N-009 group, M-057, N-036, N-049). MINOR 13 remain. Next:
+  N-050 (recognition contract boot-only).
+Task ID: DFX31-N064 (session 31, MINOR tail-first lane — finding 1)
+Agent: main engineer (diff-to-fix fix session 31 — DFX31)
+Task: N-064 — the Dict password-dictionary unlock aid (BitLocker
+legitimate-unlock family, consent-gated port).
+
+Work Log:
+- Corpus re-verified FIRST-HAND: og-codebase/Dict byte-level (2,742 B, 228
+  comma-terminated CRLF lines, pure ASCII, lengths 2..20, SEVEN duplicate
+  lines kept: password/clinton/administrator/admin/super/user x2 + cola x3
+  — my initial no-duplicates test assumption was WRONG and corrected to a
+  keeps-duplicates pin, corpus wins); config-data-reference.md :20/:86;
+  bitlockerlib--bitlocker-implementation.md :16-17/:39-44 (the user-consented
+  password dialog -> GetProtectors -> PSUnlockBitLocker / manage-bde -Password
+  fallback); repair-architecture.md :60/:142-145 (the HWPX consumer —
+  out-of-scope per I-010). CONFIRMED-DIVERGENCE (key-based unlock only).
+- Landed: cr::dict pure-core module (scripts/gen_dict.py -> generated
+  byte-faithful table, the raw_signs conversion precedent; parse() = the
+  Dict file grammar; try_passwords() = the consent-gated loop:
+  shipped-then-user, stop-on-first-OK, index-only cr::log lines). Win
+  layer: unlock_with_dictionary() (explicit consent action) on the
+  UNCHANGED PowerShell -Password / manage-bde -Password plumbing (grammar
+  extracted to detail::build_unlock_command). CLI --bitlocker-dict consent
+  flag. cr_ui_unlock_volume_with_dictionary additive ABI export (M-033
+  precedent, no version bump). F61 hardening preserved: scan/open paths
+  never attempt passwords; locked volumes stay ERR_FVE_LOCKED without
+  consent.
+- Fail-before EXECUTED: loop-disabled tree -> the 4 attempt-loop tests RED
+  (attempted=0, no order, zero log lines); restored -> 11/11 GREEN.
+- Tests: 11 pure-core (test_dict.cpp) + 3 win-lane contract tests
+  (test_bitlocker_win.cpp — the finding's own two named tests + the
+  order/wide-conversion seam). Suite 754/754 linux-release at the landing
+  tree (baseline 737/737 + the window's parallel landings + 11 new).
+- Audit trail: Resolution + FIXED/ move; RESOLVED-INDEX session-31 row;
+  matrix health cells + health/bitlocker detail row -> MATCH + session
+  note; modules/health.md verdict; SUMMARY session-31 delta + counts
+  (MINOR 18 open); CAPABILITY-MATRIX exclusion-section update.
+
+Stage Summary:
+- N-064 FIXED (session tally: 1). Next: N-071 (device enumeration
+  breadth), pulling first — parallel lanes are active on the MINOR tier.

@@ -245,6 +245,23 @@ CR_UI_API uint32_t cr_ui_open_volume(char letter, cr_ui_device** out);
 CR_UI_API uint32_t cr_ui_open_volume_with_key(char letter, const char* utf8_hex_fvek,
                                                cr_ui_device** out);
 
+/* N-064 (additive export - compatible per the ABI policy, no version bump):
+ * the password-dictionary unlock aid, the og's Dict flow (228-entry shipped
+ * common-password dictionary, config-data-reference.md :20) applied through
+ * the same PowerShell -Password / manage-bde -Password plumbing as a
+ * user-typed password. THE EXPLICIT CONSENT ACTION: the host calls it only
+ * from its user-initiated unlock surface (the og's BitlockerUnlockDialog
+ * analog); cr_ui_open_volume NEVER tries passwords by itself - a locked
+ * volume stays CR_UI_ERR_FVE_LOCKED until the user acts.
+ * utf8_user_passwords: optional extra candidates tried AFTER the shipped
+ * set (may be NULL with count 0). Returns OK when a candidate unlocked the
+ * volume, CR_UI_ERR_FVE_LOCKED when the whole set failed, ERR_UNSUPPORTED
+ * off-Windows. Attempt lines carry the candidate index only (never the
+ * password) through the engine log seam. */
+CR_UI_API uint32_t cr_ui_unlock_volume_with_dictionary(char letter,
+                                                       const char* const* utf8_user_passwords,
+                                                       uint32_t count);
+
 CR_UI_API void cr_ui_device_close(cr_ui_device* dev);
 
 typedef struct cr_ui_geometry {
