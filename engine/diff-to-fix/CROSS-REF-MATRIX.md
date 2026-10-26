@@ -184,6 +184,7 @@ F safety · Q quality (definitions in `PARAMETERS.md`).
 | exfat | B3/B4/B10 | **M-014** (structural gates: secondary_count ∈ [2,18], timestamp sanity, empty files dropped, name-entry validation) |
 | hfsplus | B3/B5/B7/C20 | **N-028 — FIXED (minors session, 2026-10-26)** (sink filter at both record sources ✓; rsrc superset registered D-53; 'prdf' folderization ✓ — see findings/FIXED/N-028) + **N-038 FIXED** (ownerFlags 0x20 fork selection) + **N-005 FIXED** (block bound 16 MiB + product sanity) |
 | btrfs | B1/B2/A26/B5 | **M-020** (chunk-profile machinery: RAID10 gate, 2-copy rotating mirrors vs stripe-0-only; default-subvol pick) |
+| zfs | B11 (SA registry) | ~~M-038~~ **FIXED (s19)** — registry-driven SA decode; findings/FIXED/M-038 |
 | zfs | B1/B2/A25/D15 | ~~M-019~~ **FIXED (s19)** — first-entry fallback for every DVA (foreign reads counted), fletcher4 {7,0} gate over raw bytes + 32-byte compare + next-DVA retry, L0 extents planned at the fallback position; fixtures now checksum-carrying; 2 fail-before + 1 pin; findings/FIXED/M-019 |
 | refs | B1/C19/C20/A25 | **N-026** (checkpoint dynamic body offset vs hardcode; two-sided boot gates; second-copy location START+MID vs START+TAIL) |
 | table+ldm | B1/C20 | ~~M-016~~ **FIXED (s19)** — candidate list {2,0,1,2045,2046} = og probe order + tail superset behind; config+0 disk parses, +2 wins conflicts (committed_seq proof); 3 tests, findings/FIXED/M-016 |

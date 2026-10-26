@@ -246,6 +246,22 @@ Bootstrap `ff734d7` (union of the parallel lanes' claims: DFX18 on the MINOR
 tier, this leg on the unclaimed MAJOR batch); baseline suite **594/594**
 Linux RelWithDebInfo + ASan. Corpus `03ad46c` unmoved.
 
+**M-038 FIXED (third landing):** ZFS SA registry-driven decode — the
+core's SA decode was layout-1-hardcoded (`layout != 1 -> nullptr`,
+dropping every object with a registered non-1 layout). Now: the og's
+three-object chain (master "SA_ATTRS" -> {REGISTRY, LAYOUTS},
+:22934-23140), by-name attribute resolution (ZPL_PARENT :24324 family),
+offsets by cumulative registered lengths over each layout's slot order,
+and the og's zero-attrs surface for unregistered layouts (:17636 — the
+object surfaces, attrs zeroed — where the core dropped the file
+entirely). Layout 1 keeps the implicit-default fallback for
+registry-less pools. Fixtures now carry the real registry chain (a 2K
+fzap registry — 14 entries don't fit 512B — plus a layouts fzap with
+the 14-slot layout 1 and a differently-ordered 4-slot layout 2, decoded
+by the new registryfile object). ZapEntry gained raw_value (fzap arrays
+exceed 8 bytes). 2 fail-before tests. Suite 687/687. findings/FIXED/
+M-038; matrix zfs B11 MATCH.
+
 **M-019 FIXED (second landing):** ZFS multi-vdev + integrity — read_raw
 drops the `vdev != 0` refusal (the og's registry first-entry fallback,
 FUN_1800168b0 :19544-56 — foreign reads now served and counted);
