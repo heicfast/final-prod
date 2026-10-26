@@ -326,7 +326,7 @@ not-BAAD both sides; FAT quick-scan threading — already registered D-30x).
 | visualization | P42/D-model | **S-009 addendum** (stale premise corrected — surface landed; residual: kCellAllocFree dead, VolumeBitmap discarded) |
 | query | P42 (sort Type) | M-029 addendum (path-group CLOSED session-6) + **session-11: Type sort CLOSED (SortKey::Type, ABI code 7, iconIndex order) + the modified-unit doc lie fixed (FILETIME, pinned) + paging documented as the deliberate difference (no og page-size constant); REMAINING: bucket-ID translation + general-raw naming (decode-blocked, next steps recorded in the finding)** |
 | abi (cr_ui) | P42 | **N-033 addendum** (carve-format registry landed — ABI sub-item CLOSED; CLI listing sub-item remains) |
-| quality (cross-cutting) | P46/P68 | ~~N-074~~ **FIXED (s18 DFX18 canonical `479b0c7` + convergent s22 DFX22 landing reconciled in the same-window merge — both lanes verified all five sub-items first-hand independently; pin Health.SmartCommandListMatchesImplementation fail-before-proven)** |
+| quality (cross-cutting) | P46/P68 | ~~N-074~~ **FIXED (s18 DFX18 canonical `479b0c7` + convergent s22 DFX22 landing reconciled in the same-window merge — both lanes verified all five sub-items first-hand independently; pin Health.SmartCommandListMatchesImplementation fail-before-proven)**; **~~N-019~~ FIXED (s28: the 13-scenario Q65 gap — 4 new mutation-proven tests + 6 already-covered re-cited + 1 superseded by M-017's scoring + OQ-T6 pushed forward with new snapshot evidence; see FIXED/N-019)** |
 
 New tracked-open: **OQ-S6-1** (PartitionRecoveryD generator-set semantics), **OQ-S6-2**
 (Btrfs RC4 target), **OQ-S6-3** (CRAW +0xF4/anchor-B/checksum consumption) — 14 tracked-open

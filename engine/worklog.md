@@ -12991,3 +12991,44 @@ Stage Summary:
 - Session 34 open on the MINOR-tail lane. First: full read of the tail
   findings + corpus verification, starting N-064 (Dict password
   dictionary absent).
+---
+Task ID: DFX28-T2 (session 28, second fix — N-019)
+Agent: main engineer (diff-to-fix fix session 28 — DFX28)
+Task: N-019 the 13-scenario per-parameter regression-test gap (Q65's
+literal interpretation).
+
+Work Log:
+- Re-verified EVERY scenario on the current tree first (the finding was
+  filed at 5d6da5f, ~450 tests ago — the scenario table is stale in 6
+  places): scenario 2 = AdsDroppedInParityMode/AdsEmittedByDefaultSuperset
+  (ALREADY-FIXED); 3 = holes.dat->Excellent + zfn.dat PartialRisk 1/2 +
+  ViabilityBoundaryExactFastPath (ALREADY-FIXED); 4 =
+  CrossLinkedFat1RejectedAndFat2Used + ChainCycleIsCut (ALREADY-FIXED,
+  M-015); 7 = RecordBit29SelectsResourceFork + DecmpfsInlineAndRsrcContent
+  Recovered (ALREADY-FIXED); 11 = StripedVolumeInterleave per-chunk
+  column/row byte-exact (ALREADY-FIXED); 12 = MirroredReadFailover +
+  MirroredBothCopiesFail (ALREADY-FIXED); 13 = SUPERSEDED (M-017's content
+  scoring replaced the Inside/Overlaps penalties the finding's premise
+  cites; modern pins LostScoring.MatchesLogRows/TableMatchBonus500/
+  OverLargeDuplicateRescoredToFront exist); 5 = N/A; 9 = OQ-T6 with NEW
+  evidence (corpus zfs deep-dive §3: the og surfaces DSL snapshot roots,
+  capa-class; core negative-space: no origin_obj/ds_snapnames chase) —
+  OQ-T6 file updated with the addendum.
+- 4 tests written: NtfsVolume.HardLinkDestroyRuleInteraction (5 legs:
+  destroy ON/OFF x parity/fan-out + partial-reuse; the destroy decision is
+  per-RECORD upstream of the fan-out); Ext4Engine.ExtentTreeDepth3 (root
+  depth 3, kernel semantics - depth = levels below root; the first build
+  caught my own root-depth miscount, the same silent-extent-loss RED the
+  test exists to catch); Btrfs.TwoSubvolumesRootSeparately (subvol 5 +
+  256); Refs.PropertyFlagAndUnknownRowsDoNotBreakDataWalk (the honest
+  rescope of the corpus-silent integrity-stream scenario).
+- Fail-befores EXECUTED as mutations, each RED then reverted-green:
+  destroy-rule disabled (5 failures); ext4 depth capped (1); btrfs
+  user-subvol gate dropped (4); refs unknown-row early-break (1).
+- Suite 753/753 linux-release. Audit trail: Resolution + FIXED/ move,
+  RESOLVED-INDEX row, matrix quality row, SUMMARY delta + counts
+  (MINOR 15, FIXED/ 175), OQ-T6 evidence addendum.
+
+Stage Summary:
+- N-019 FIXED (session tally: 2 — N-075, N-019). MINOR 15 remain. Next:
+  N-050 (recognition contract boot-only) rear-first.

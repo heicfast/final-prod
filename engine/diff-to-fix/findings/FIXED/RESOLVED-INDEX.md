@@ -1,5 +1,11 @@
 # diff-to-fix/findings/FIXED/ — resolved findings (audit trail)
 
+## Resolved findings (session-28 wave 2: +N-019 — the 13-scenario regression-test gap closed after full per-scenario re-verification; live file inventory)
+
+| ID | Severity (orig) | Title | Fix commit | Resolution |
+|---|---|---|---|---|
+| N-019 | MINOR (S2) | Missing per-parameter regression tests: 13 edge-case scenarios not pinned | (this session's N-019 commit — file carries the Resolution) | Re-verified per scenario on the current tree: 6 ALREADY-FIXED with covering tests re-cited (ADS boundary, sparse ratio, FAT cross-link, HFS+ rsrc, LDM stripe/mirror); 1 SUPERSEDED (overlap-scoring premise — M-017's content model replaced the penalties); 1 N/A (exFAT multi-fork); 1 BLOCKED→OQ-T6 (ZFS snapshot, NEW corpus capa evidence added: the og surfaces DSL snapshot roots, core negative-space verified); 4 tests WRITTEN with executed mutation fail-befores (HardLinkDestroyRuleInteraction — destroy is per-RECORD upstream of the fan-out; Ext4ExtentTreeDepth3 — root d3→idx→idx→leaf byte-exact; BtrfsTwoSubvolumesRootSeparately — no cross-subvol leakage; RefsPropertyFlagAndUnknownRowsDoNotBreakDataWalk — the honest rescope of the corpus-silent integrity-stream scenario). Suite 753/753. |
+
 ## Resolved findings (session-28 wave: +N-075 (rear-first MINOR lane, DFX28); live file inventory)
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |

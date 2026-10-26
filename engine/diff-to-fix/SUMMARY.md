@@ -28,11 +28,32 @@ live, stopping flips at cancel, one-shot persistence after return) +
 plain-C edges in `cr_ui_abi_check`; fail-before EXECUTED at compile (the
 symbols did not exist). Suite **738/738** at the fix commit.
 
-**Post-merge union counts (session-28 close on the merged tree, absorbing
-the parallel N-009/N-025/M-057 landings):** SEVERE **0** · MAJOR **14** ·
-MINOR **16** · INFO 0 open (22 acknowledged in FIXED/) · **FIXED/ 174
-findings** (175 files incl. RESOLVED-INDEX) · tracked-open 11. Next on
-this lane: N-019 (the 12-scenario regression-test gap), then
+**N-019 FIXED (MINOR — the 13-scenario per-parameter regression-test gap,
+after full per-scenario re-verification on the current tree):** 6 scenarios
+ALREADY-FIXED by later landings (ADS boundary, sparse ratio, FAT cross-link,
+HFS+ resource fork, LDM stripe alignment, LDM mirror read — covering tests
+re-cited in the Resolution); 1 SUPERSEDED (the overlap-scoring premise —
+M-017's content-driven model replaced the penalty table the finding cited);
+1 N/A (exFAT multi-fork); 1 routed to OQ-T6 with NEW evidence (ZFS snapshot:
+the og surfaces DSL snapshot roots per the corpus capa digest; core
+negative-space verified — the OQ's next decode target is now precise);
+4 tests WRITTEN with executed mutation fail-befores:
+`NtfsVolume.HardLinkDestroyRuleInteraction` (the destroy decision is
+per-RECORD upstream of the fan-out — destroyed once, both links vanish
+together in fan-out mode, partial reuse keeps PartialRisk),
+`Ext4Engine.ExtentTreeDepth3` (root depth 3 → index → index → leaf; two
+disjoint runs, byte-exact content markers),
+`Btrfs.TwoSubvolumesRootSeparately` (subvol 5 + subvol 256; every file
+under its own root, no leakage either direction), and
+`Refs.PropertyFlagAndUnknownRowsDoNotBreakDataWalk` (the honest rescope of
+the corpus-silent integrity-stream scenario: property-flag rows 0x108/0xf8
++ unknown-type rows walked past, data byte-exact, granularity guard quiet).
+Suite **753/753**.
+
+**Post-fix counts (session-28, after N-075 + N-019):** SEVERE **0** ·
+MAJOR **14** · MINOR **15** · INFO 0 open (22 acknowledged in FIXED/) ·
+**FIXED/ 175 findings** (176 files incl. RESOLVED-INDEX) · tracked-open 11
+(OQ-T6 pushed forward with new evidence). Next on this lane:
 N-050/N-033/N-072 rear-first.
 
 

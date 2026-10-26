@@ -2150,6 +2150,162 @@ TEST(NtfsVolume, OverwrittenHonestModeKeepsAndGrades) {
     EXPECT_EQ(over->deleted_state(), tree::DeletedState::PartiallyOverwritten);
 }
 
+/* ---- N-019 scenario 1: the destroy rule x hard-link fan-out ---------- */
+
+TEST(NtfsVolume, HardLinkDestroyRuleInteraction) {
+    /* N-019 (diff-to-fix; the one destroy-rule surface no prior test
+     * pinned): the destroy decision is per-RECORD and sits UPSTREAM of
+     * the fan-out (cr_mftwalk.cpp: `continue` skips the whole record
+     * before any node exists). A DELETED hard-linked record (two
+     * $FILE_NAME parents, shared props) with fully-reused runs must be
+     * destroyed exactly ONCE - neither link survives in parity mode AND
+     * both links vanish together in fan-out mode (the shared props are
+     * released with the record, never per-link; no half-destroyed
+     * emission where one link lives while its sibling dies). A
+     * partially-reused record survives every mode graded. */
+    auto build = [](Image& img, u64 lcn) {
+        build_image(img);
+        {
+            RecBuilder r;
+            r.header(27, 0); /* deleted (not in use) */
+            r.attr_si(0x20);
+            r.attr_file_name(16, u"hlx.txt", FILE_NAME_WIN32, 0x20, 1024, 1024);
+            r.attr_file_name(5, u"hlx@root.txt", FILE_NAME_WIN32, 0x20, 1024, 1024);
+            r.attr_data_runlist(lcn, 2, 1024);
+            r.finish();
+            std::memcpy(img.sec(MFT_LCN + 54), r.buf.data(), RECORD_SIZE);
+        }
+    };
+    auto walk = [](Image& img, WalkerFlags wf, WalkStats& stats, tree::ResultTree& tree,
+                   int& link_nodes) {
+        MemDevice dev(img.raw(), img.geom());
+        u32 err = 0;
+        auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+        ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+        std::unique_ptr<VolumeBitmap> bm;
+        ASSERT_EQ(VolumeBitmap::load(vol.get(), bm), OK);
+        auto* ra = tree.add_root(u"a");
+        auto* rd = tree.add_root(u"d");
+        auto* rl = tree.add_root(u"l");
+        link_nodes = 0;
+        std::function<void(tree::FileNode*)> count = [&](tree::FileNode* n) {
+            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+                if (c->name_utf8() == "hlx.txt" || c->name_utf8() == "hlx@root.txt") {
+                    ++link_nodes;
+                    /* the surviving link must carry the shared props + grade */
+                    EXPECT_NE(c->props(), nullptr);
+                }
+                count(c);
+            }
+        };
+        ASSERT_EQ(
+            OK, walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+        for (auto* r : tree.roots())
+            count(r);
+    };
+
+    /* ---- leg A: fully-reused + destroy ON + parity mode -> GONE ---- */
+    {
+        Image img;
+        build(img, 244);
+        u8* bm = img.sec(BITMAP_LCN);
+        bm[244 / 8] |= u8(1u << (244 % 8));
+        bm[245 / 8] |= u8(1u << (245 % 8));
+        WalkerFlags wf;
+        wf.destroy_fully_overwritten = true;
+        WalkStats stats;
+        tree::ResultTree tree;
+        int links = -1;
+        walk(img, wf, stats, tree, links);
+        EXPECT_EQ(2u, stats.destroyed_overwritten)
+            << "destroyed ONCE each - the base fixture's overwrit.dat (220-223 pre-SET) + "
+               "the hard-linked record - per record, never per link";
+        EXPECT_EQ(0, links) << "parity mode: the destroyed record emits NO node";
+    }
+    /* ---- leg B: fully-reused + destroy ON + fan-out mode -> BOTH gone,
+     * still ONE destroy counter (the record is the unit) ---- */
+    {
+        Image img;
+        build(img, 244);
+        u8* bm = img.sec(BITMAP_LCN);
+        bm[244 / 8] |= u8(1u << (244 % 8));
+        bm[245 / 8] |= u8(1u << (245 % 8));
+        WalkerFlags wf;
+        wf.destroy_fully_overwritten = true;
+        wf.single_link_per_record = false; /* the opt-in fan-out */
+        WalkStats stats;
+        tree::ResultTree tree;
+        int links = -1;
+        walk(img, wf, stats, tree, links);
+        EXPECT_EQ(2u, stats.destroyed_overwritten)
+            << "the counter counts RECORDS, not links (the base overwrit.dat + the one "
+               "hard-linked record - despite its two $FILE_NAME entries)";
+        EXPECT_EQ(0, links) << "fan-out mode: destroy still takes the whole record - no link survives";
+    }
+    /* ---- leg C: fully-reused + destroy OFF (honest mode) -> kept,
+     * graded Overwritten; parity = ONE node, fan-out = TWO nodes ---- */
+    {
+        Image img;
+        build(img, 244);
+        u8* bm = img.sec(BITMAP_LCN);
+        bm[244 / 8] |= u8(1u << (244 % 8));
+        bm[245 / 8] |= u8(1u << (245 % 8));
+        WalkerFlags wf; /* destroy_fully_overwritten = false */
+        WalkStats stats;
+        tree::ResultTree tree;
+        int links = -1;
+        walk(img, wf, stats, tree, links);
+        EXPECT_EQ(0u, stats.destroyed_overwritten);
+        EXPECT_EQ(1, links) << "honest mode: the graded record stays visible";
+    }
+    {
+        Image img;
+        build(img, 244);
+        u8* bm = img.sec(BITMAP_LCN);
+        bm[244 / 8] |= u8(1u << (244 % 8));
+        bm[245 / 8] |= u8(1u << (245 % 8));
+        WalkerFlags wf;
+        wf.single_link_per_record = false;
+        WalkStats stats;
+        tree::ResultTree tree;
+        int links = -1;
+        walk(img, wf, stats, tree, links);
+        EXPECT_EQ(0u, stats.destroyed_overwritten);
+        EXPECT_EQ(2, links) << "fan-out + honest mode: both links carry the shared props";
+    }
+    /* ---- leg D: PARTIALLY reused + destroy ON -> kept, PartialRisk
+     * (1/2 clusters reused; the destroy rule fires only at ratio 1.0) ---- */
+    {
+        Image img;
+        build(img, 246);
+        u8* bm = img.sec(BITMAP_LCN);
+        bm[246 / 8] |= u8(1u << (246 % 8)); /* first cluster reused only */
+        WalkerFlags wf;
+        wf.destroy_fully_overwritten = true;
+        WalkStats stats;
+        tree::ResultTree tree;
+        int links = -1;
+        walk(img, wf, stats, tree, links);
+        EXPECT_EQ(1u, stats.destroyed_overwritten)
+            << "only the base fixture's overwrit.dat - partial reuse never destroys "
+               "(the og gate is intact == total)";
+        EXPECT_EQ(1, links);
+        /* grade: PartialRisk via the 1/2 bitmap ratio */
+        tree::FileNode* node = nullptr;
+        std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+                if (c->name_utf8() == "hlx@root.txt" || c->name_utf8() == "hlx.txt")
+                    node = c;
+                find(c);
+            }
+        };
+        for (auto* r : tree.roots())
+            find(r);
+        ASSERT_NE(node, nullptr);
+        EXPECT_EQ(node->confidence(), tree::Confidence::PartialRisk);
+    }
+}
+
 /* ---- M-001: record-size degradation ladder (og never rejects) ---------- */
 
 namespace {
