@@ -12317,7 +12317,7 @@ Work Log:
 - Baseline suite executed green FIRST-HAND before any finding work:
   linux-release **737/737** at `716d121` (full ctest).
 - Corpus `03ad46c` unmoved (verified at first corpus read).
-- Session prompt saved token-redacted: worklog/session-diff-fix-25-prompt.md.
+- Session prompt saved token-redacted: worklog/session-diff-fix-30-prompt.md.
 - One finding, one verified fix, one push throughout.
 
 Stage Summary:
@@ -12513,6 +12513,58 @@ Work Log:
 Stage Summary:
 - DFX29 open on the MINOR middle band. Tally so far (this lane): N-009
   group + M-057. First fix: N-036 (ReFS data-run recognizer).
+---
+Task ID: DFX28-T2 (lane claim refresh — the N-025 lane; disjoint from DFX29 middle band + the 2adfb51 rear-first claim)
+Agent: main engineer (MINOR-first mandate lane; N-025 landed as e2b4549)
+Task: Lane claim for the MINOR FRONT BAND after the 5-lane window shake-out.
+
+Lane claim (disjoint set, posting before further finding work):
+- N-026 (ReFS page/gate group) — IN PROGRESS
+- N-027 (carve/writer group) — next
+- N-031 (carve dispatch deltas)
+- N-032 (health transports CSMI/USB)
+- N-019 (13 regression-test scenarios)
+- N-007 (ReFS detection strictness)
+DFX29 owns the middle band (N-036/N-049/N-050/N-033/N-064); the 2adfb51
+lane owns the rear (N-075/N-072/N-071/N-066/N-065/N-059); DFX26/27 own
+MAJOR. No overlap with any posted claim.
+
+Stage Summary:
+- Lane re-based at 0a9b19e post-merge; N-025 FIXED (e2b4549); front band
+  claimed; proceeding to N-026.
+
+---
+
+---
+Task ID: DFX30-T0 (session 30 bootstrap — lane claim; re-stamped past the same-window DFX25-29 squats — all claims union-kept above)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: Session bootstrap + lane claim (the deferred win-layer trio first;
+pull-before-every-fix thereafter).
+
+Work Log:
+- Pull at bootstrap: HEAD `02b950f` (origin/main unmoved — the DFX24
+  lane-claim commit; no parallel fix landing since). Corpus `03ad46c`
+  unmoved (verified at first corpus read this session).
+- Baseline suite executed green FIRST-HAND at the claim tree:
+  linux-release **737/737** (incl. win_syntax_check).
+- Session prompt saved token-redacted:
+  worklog/session-diff-fix-30-prompt.md.
+- Mandate per prompt: minor-first queue, 20+ fix target, fixed findings
+  moved to findings/FIXED/, all docs/counts/matrices current after each
+  landing.
+- Lane claim (disjoint in CURSOR from the other MINOR lanes): the
+  win-layer/crypto-heavy trio every other lane deferred to LAST —
+  N-032 (CSMI transport), N-064 (Dict password aid), N-071 (enumerate
+  breadth) — FIRST, then N-072, N-033, N-019, N-050 (pull before each;
+  first-landing-wins on any overlap with the parallel rear-first lanes;
+  union merge if a parallel landing arrives mid-fix).
+- One finding, one verified fix, one push throughout.
+
+Stage Summary:
+- Session 29 open. Baseline 737/737 green at `02b950f` (re-verified on
+  the union tree before the first fix). First fix: N-032 (the CSMI
+  health transport — the deferred trio).
+
 
   group + M-057. First fix: N-036 (ReFS data-run recognizer).
 
