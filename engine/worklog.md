@@ -16031,3 +16031,23 @@ Work Log:
 Stage Summary:
 - Main green again. Baseline: 898/898. Next: S-034 decode + fix (the
   only SEVERE), then M-030, M-040, N-072, then the OQ residuals.
+
+---
+Task ID: DFX33b-T5b (the N-072/S-034 union repair + push-through)
+Agent: main engineer (diff-to-fix fix session 33b — DFX33b)
+
+Work Log:
+- The 890cf7a wave (N-072's ZFS label retry) merged onto this lane's
+  S-034 landing with CONFLICT MARKERS left in cr_zfs_engine.h/.cpp —
+  main uncompilable (the pushed-red class). Repaired as the convergent
+  union: the label sweep is a re-runnable unit (N-072: 3 retries,
+  250/500/1000 ms backoff, is_static_media gate, cancel-aware 50 ms
+  slices) whose collection is the S-034 ring-state vector (txg-deduped,
+  newest-first) instead of best_txg/best_ub. Both stat fields kept.
+- Verified: 913/913 ctest; 23 ZFS tests green together (4 S-034 ring
+  tests + N-072's retry tests).
+- Pushed: 6e7e535 (S-034 cb046ed + merges + the union repair).
+
+Stage Summary:
+- S-034 stands on main with N-072. Board: MAJOR 1 (M-040),
+  tracked-open 2 (OQ-S4-3, OQ-FLT-2). SEVERE 0, MINOR 0.
