@@ -46,12 +46,12 @@
 | Lost-partition discovery | CGenericRecoveryController insert | deep-stage whole-disk discover, candidate scoring, virtual volume materialization, parallel candidate scans; probe families NTFS/FAT/exFAT/GPT/ext/HFS+/Btrfs/ZFS/ReFS (S-006) + BitLocker "-FVE-FS-" (S-019, og type-0xB classifier gate; locked-volume surfacing) + UDF (M-044: the og's AVDP→Main-VDS descriptor probe, analyser result 0xc; no engine on either side — carve-only) | **DONE** | test_lostpart.cpp incl. LostBitlocker* S-019 tests; deleted_found merge F-B-11 |
 
 | Lost-partition discovery | CGenericRecoveryController insert | deep-stage whole-disk discover, candidate scoring, virtual volume materialization, parallel candidate scans; probe families NTFS/FAT/exFAT/GPT/ext/HFS+/Btrfs/ZFS/ReFS (S-006) + BitLocker "-FVE-FS-" (S-019, og type-0xB classifier gate; locked-volume surfacing) | **DONE** | test_lostpart.cpp incl. LostBitlocker* S-019 tests; deleted_found merge F-B-11 |
-| Lost-partition APPLY (S-029) | RecoveryModule CreateRecoveryPartitionObject -> PartitionRecovery FUN_1800566d0/FUN_180038b10/FUN_1800392f0 (delete-layout -> sector-0 rewrite -> set-layout / 0x7C058 record -> 3x UPDATE_PROPERTIES retry; GPT_GenerateSignature rebuild) | apply module (cr/apply): plan_apply (read-only, refusals: overlap/no-slot/GPT-v1/capacity/32-bit-range) -> execute_apply (consent-gated default-deny, S-010 quiesce, sector-0 race guard, CRUNDO01 transaction, verified write-back, corpus device-control sequence per path) -> undo_apply; cr_ui consent ABI (cr_ui_apply_lost_partition/undo_last/save_undo); Windows RW transport carries the real IOCTL chain (0x7C100/0x7C010/0x7C058/0x70140 + Sleep(1000) tail) | **DONE (deltas D-72a..d)** | test_apply.cpp (13 tests: the five finding-named proofs + legacy-sequence/GPT-signature/race/refresh/rollback/refusals); CrUi.LostApply* C-ABI tests; ui_abi_check.c plain-C lifecycle |
+| Lost-partition APPLY (S-029) | RecoveryModule CreateRecoveryPartitionObject -> PartitionRecovery FUN_1800566d0/FUN_180038b10/FUN_1800392f0 (delete-layout -> sector-0 rewrite -> set-layout / 0x7C058 record -> 3x UPDATE_PROPERTIES retry; GPT_GenerateSignature rebuild) | apply module (cr/apply): plan_apply (read-only, refusals: overlap/no-slot/GPT-v1/capacity/32-bit-range) -> execute_apply (consent-gated default-deny, S-010 quiesce, sector-0 race guard, CRUNDO01 transaction, verified write-back, corpus device-control sequence per path) -> undo_apply; cr_ui consent ABI (cr_ui_apply_lost_partition/undo_last/save_undo); Windows RW transport carries the real IOCTL chain (0x7C100/0x7C010/0x7C058/0x70140 + Sleep(1000) tail) | **DONE (deltas D-98a..d)** | test_apply.cpp (13 tests: the five finding-named proofs + legacy-sequence/GPT-signature/race/refresh/rollback/refusals); CrUi.LostApply* C-ABI tests; ui_abi_check.c plain-C lifecycle |
 | Post-apply boot-chain repair (M-040) | Fixup.mo BCD offset surgery (FUN_180001980 cell decode + FUN_180002520 rewrite + Bcd_RestoreBcdFile undo + the BCD00000000 force-unload) + EFIBoot.mo Boot#### NVRAM patching (FUN_1800046f0 matcher + FUN_180004b40 full-position rewrite, dynamic firmware seam :3281-3290) | cr/bcdfix (stage a: cell decode + new_lba<<9 rewrite + plan/execute/undo + P62 consent) + cr/nvramfix (stage b: the Boot#### updater over the injected seam, MBR/GPT matching, no create/delete) + src/win/cr_bootfix.cpp (the file side: force-unload retry + flush tail; the firmware side: dynamic resolution + SeSystemEnvironmentPrivilege); boot.ini + chkdsk = registered dispositions (D-90); the post-apply wiring is the host-layer boundary (the og runs it in MainModule's host chain) | **DONE (stages a+b; D-90 dispositions)** | test_bcdfix.cpp (5) + test_nvramfix.cpp (11, incl. NvramPatchUpdatesLoadOption); the win layer on the Windows CI lane |
 | GPT two-step salvage | IsGPTDisk + backup (FUN_180006e20) | primary-entry salvage + device-derived backup LBA + protective-only entry | **DONE** | 3267d26 (W2-19); 3 new tests |
 | MBR/EBR chains | Partition.mo | EBR chain walk with cycle guards | **DONE** | test_crc32_gpt.cpp EBR cases |
-| Carving registry | raw_signs.json 139 ext + the hardcoded dual-registry common set (S-007) | signature registry + load-time validator gate (F8), BE-TIFF/ORF wired, +27 S-007 entries (GIF/BMP/audio family/AAC/RTF/OLE/MPEG/DWG) | **DONE+** | W2 CARVE-3; D-57 (S-007); test_carve.cpp |
-| Carving validators | grammar+sign + BruteForce frame walkers | grammar validators (JPEG/PNG/ZIP/7z/PST/OFFICE/TIFF/WAV/MP3/PDF...), ZIP 3-anchor + CD ownership + padding, PST floor, SOF0 gate; S-007: GIF/BMP/RTF/OLE/MPEG-PS/ES/DWG + 10-frame headerless MP3/AAC walkers | **DONE** (niche ~25-format tail scoped in S-007) | W2 CARVE-2/4/6/11; D-57 (S-007); test_carve.cpp fixtures |
+| Carving registry | raw_signs.json 139 ext + the hardcoded dual-registry common set (S-007) | signature registry + load-time validator gate (F8), BE-TIFF/ORF wired, +27 S-007 entries (GIF/BMP/audio family/AAC/RTF/OLE/MPEG/DWG) | **DONE+** | W2 CARVE-3; D-95 (S-007); test_carve.cpp |
+| Carving validators | grammar+sign + BruteForce frame walkers | grammar validators (JPEG/PNG/ZIP/7z/PST/OFFICE/TIFF/WAV/MP3/PDF...), ZIP 3-anchor + CD ownership + padding, PST floor, SOF0 gate; S-007: GIF/BMP/RTF/OLE/MPEG-PS/ES/DWG + 10-frame headerless MP3/AAC walkers | **DONE** (niche ~25-format tail scoped in S-007) | W2 CARVE-2/4/6/11; D-95 (S-007); test_carve.cpp fixtures |
 | Merge/dedup | UI attach points | (first-cluster, size-class, hash) dedup pre-attach | **DONE+** | F9; "pass 2 adds zero nodes" test |
 | Session (CRSF) | .rsf | own format: per-record CRC32, skip-forward, versioned records, five roles | **DONE (delta D-01)** | test_session.cpp round-trip + F10 |
 | Checkpoint/resume | none located (UNVERIFIED-4) | stage-boundary CheckpointSink, crash-resume, --resume CLI | **DONE+** | G-13/G-07; test_pause_resume.cpp |
@@ -72,43 +72,12 @@ live since M-033 — a user-supplied FVEK, the og's GetFullVolumeEncryptionKey
 output shape, flows through `DecryptingDevice`, the in-stack XTS-AES layer
 matching the og's volume-IO placement: `--bitlocker-fvek` CLI /
 `cr_ui_open_volume_with_key` ABI; detection + legitimate unlock remain the
-
-S-014 posture: live-registry + offline-hive auto-unlock; the N-064
-password-dictionary aid is the og's Dict unlock flow ported with the
-consent gate intact, in BOTH same-window landing forms — explicit
-candidates (`cr/pwddict` + `bitlocker::try_password_unlock` + CLI
-`--bitlocker-pwddict <path|seed>`; the shipped seed is an authored
-list, D-78: the og's 228-entry asset is not copied, the loader is
-format-compatible so any dictionary in the og's format works including
-the og's own file) and the shipped-dictionary action
-(`unlock_with_dictionary` + CLI `--bitlocker-dict` /
-`cr_ui_unlock_volume_with_dictionary`; the 228-entry list + user
-candidates through the manage-bde/PowerShell plumbing). Explicit host
-action only in every form; locked volumes WITHOUT user consent or key
-material stay refused — ERR_FVE_LOCKED, no bypass); signing
-
 S-014 posture: live-registry + offline-hive auto-unlock, the N-064
 password-dictionary unlock aid (cr::dict + --bitlocker-dict /
 cr_ui_unlock_volume_with_dictionary — user-consented only, 228-entry
 shipped dictionary + user candidates through the manage-bde/PowerShell
 plumbing), and locked volumes WITHOUT user key material or the explicit
 dictionary consent stay refused — ERR_FVE_LOCKED, no bypass); signing
-S-014 posture: live-registry + offline-hive auto-unlock; the N-064
-password-dictionary aid (`cr/pwddict` + `bitlocker::try_password_unlock`
-+ CLI `--bitlocker-pwddict <path|seed>`) is the og's Dict unlock flow
-ported with the consent gate intact — explicit host action only, the
-shipped seed is an authored list (D-78: the og's 228-entry asset is not
-copied; the loader is format-compatible so any dictionary in the og's
-format works, including the og's own file); and locked volumes WITHOUT
-user consent or key material stay refused — ERR_FVE_LOCKED, no bypass);
-signing
-S-014 posture: live-registry + offline-hive auto-unlock, the N-064
-password-dictionary unlock aid (cr::dict + --bitlocker-dict /
-cr_ui_unlock_volume_with_dictionary — user-consented only, 228-entry
-shipped dictionary + user candidates through the manage-bde/PowerShell
-plumbing), and locked volumes WITHOUT user key material or the explicit
-dictionary consent stay refused — ERR_FVE_LOCKED, no bypass); signing
-
 (OSSign disabled); `.rsf` import (G-11, tracked disposition).
 
 ## 4. Open gap register (code-verified)

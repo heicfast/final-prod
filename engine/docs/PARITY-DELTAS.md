@@ -28,6 +28,23 @@
      D-78 row tombstoned (superseded by the D-80 convergence record). Live
      references updated repo-wide; worklog history verbatim. -->
 
+<!-- REVIEW-SESSION ledger reconciliation (2026-10-26): the parallel-lane waves left
+     12 same-number collisions (D-52/53/56/57/59/72/73/75/78/80/81/82 at 2-4 file
+     positions, distinct topics sharing numbers). Resolved per the errata convention
+     (first-landing-wins keeps the number; later same-window collisions renumber):
+     D-91 HFS+ journal harvest+S-021 span fix (was D-52), D-92 ext4/Btrfs M-010
+     lossless names (was D-53), D-93 HFS+ journal differential (was D-56), D-94
+     FAT/exFAT open gates (was D-56), D-95 S-007 carve common set (was D-57), D-96
+     session-7 INFO batch (was D-59), D-97 M-024 carve default-off (was D-72),
+     D-98 S-029 APPLY safety registers (was D-72), D-99 M-043 backup fallback (was
+     D-73), D-100 N-033 carve-registry consumption (was D-80), D-101 M-025
+     stateless carve validators (was D-81), D-102 M-018 FilterFolder policy (was
+     D-82). Dropped as superseded by documented renumbers: the D-78 CSMI copy
+     (live at D-82), the D-78 pwddict copy (tombstoned per the D-80 convergence
+     record), one D-78 N-075 union duplicate, the D-75 logging-seam copy (live at
+     D-81). Live references updated repo-wide (7 sites); worklog history and the
+     finding files' session texts stay verbatim (append-only convention). -->
+
 <!-- DFX30-T4 delta-ledger repair (2026-10-26): the same-window parallel landings
      collided on D-75/D-78/D-79/D-80 AND committed nested conflict markers into this
      file (merge 220ebe lineage). Repair: markers stripped keeping both sides,
@@ -1440,7 +1457,7 @@ spec-correct timestamps.
   MainWalkKeepsSystemFlaggedUserFile} on top of the original five pins.
 - **STATUS:** ACCEPTED (og parity; diff-to-fix S-012 FIXED).
 
-### D-56 — HFS+ journal differential harvest: the og's primary deleted surface (S-021/S-003)
+### D-93 — HFS+ journal differential harvest: the og's primary deleted surface (S-021/S-003) (renumbered from a same-window D-56 collision - the errata convention)
 
 **Class:** parity (mechanism) + deliberate hardening · **Findings:** diff-to-fix S-021 (SEVERE, FIXED) + S-003 (SEVERE, FIXED — outcome parity; "replay" premise corrected) · **Date:** 2026-10-26
 
@@ -1524,7 +1541,7 @@ FUN_180004070/FUN_180004610 chain entered but unresolved). No invented gates.
 `BtrfsSuperblockAnchorsDeletedPartition`, `ZfsLabelAnchorsDeletedPartition`,
 `RefsBootAnchorsDeletedPartition`, `SuperblockNoiseRejected`.
 
-### D-56 — FAT/exFAT engine-open + lost-scan gates: og parity with three registered core deltas (N-010b/N-010c/N-022/N-034)
+### D-94 — FAT/exFAT engine-open + lost-scan gates: og parity with three registered core deltas (N-010b/N-010c/N-022/N-034) (renumbered from a same-window D-56 collision - the errata convention)
 
 **Class:** parity + registered superset (engine semantics) · **Findings:** diff-to-fix N-010a..f (N-023 group), N-022, N-034 (MINOR, FIXED 2026-10-26; renumbered D-51 -> D-56 to clear the numbering collision with the NTFS two-pass entry and the section-K bullet family) · **Date:** 2026-10-26
 
@@ -1700,7 +1717,7 @@ gate stated and pinned. N-010d (exFAT tz) was already fixed by S-011
 `Pool.CancelPoolWatcherDrainsQueueWithinOneTick`, `Pool.CancelPoolWatcherNullTokenIsInert`,
 `NvmeHealth.PercentageUsedIsU8Width`, `WriterDirs.ProgressExcludesErrorItems`.
 
-### D-52 — HFS+ journal deleted-record harvest (S-021) + the record-span convention fix (A-005)
+### D-91 — HFS+ journal deleted-record harvest (S-021) + the record-span convention fix (A-005) (renumbered from a same-window D-52 collision - the errata convention)
 
 **Session:** diff-to-fix remediation (S-021 + A-005). **Corpus:**
 HFSPlusSearchDLL CHFSPlusJournal (`hfsplusjournal.cpp` trace strings)
@@ -1739,7 +1756,7 @@ HFSPlusSearchDLL CHFSPlusJournal (`hfsplusjournal.cpp` trace strings)
 `HfsPlus.JournalHarvestDisabledByFlag`, `HfsPlus.LeafNodeLayoutMatchesOnDiskFormat`
 (the A-005 convention guard).
 
-### D-59 — Audit-acknowledged supersets and registers, session-7 INFO tier (I-006..I-020 batch)
+### D-96 — Audit-acknowledged supersets and registers, session-7 INFO tier (I-006..I-020 batch) (renumbered from a same-window D-59 collision - the errata convention)
 
 Rows registered here had no prior PARITY-DELTAS entry; every rationale was
 re-verified against corpus `03ad46c` and the running core this session
@@ -1833,7 +1850,7 @@ Verified against corpus 03ad46c and the running core before acknowledgment.
 - **D-60l — Core-only carve anchors (I-022-6, ACCEPTED).** ISO9660, RAR5,
   M4A, ZIP-CD/naked-MOV (S-007's register).
 
-### D-57 — Carve common formats: the og's hardcoded dual-registry set (S-007 primary)
+### D-95 — Carve common formats: the og's hardcoded dual-registry set (S-007 primary) (renumbered from a same-window D-57 collision - the errata convention)
 
 **Class:** parity + two registered calibration deltas · **Finding:** diff-to-fix S-007 (SEVERE, primary set FIXED; niche tail scoped in the finding) · **Date:** 2026-10-26
 
@@ -1872,7 +1889,7 @@ bounded extent now) + the bench seed-matrix extension (Windows runner).
 **Pin tests:** `Carve.S007CommonFormatsCarve`, `Carve.S007ValidatorsRejectNoise`,
 `Carve.S007TruncatedSalvageSemantics`.
 
-### D-53 — ext4/Btrfs lossless invalid-UTF-8 name mapping (M-010)
+### D-92 — ext4/Btrfs lossless invalid-UTF-8 name mapping (M-010) (renumbered from a same-window D-53 collision - the errata convention)
 
 **Session:** diff-to-fix remediation (M-010). **Corpus:** EXT4SearchDLL /
 BtrfsSearchDLL imports (zero conversion APIs — re-verified); ZfsSearchDLL
@@ -2173,7 +2190,7 @@ scans. Pinned by `Cached.ScanCacheBudgetIsTheRegisteredDivergence`
 (doc-truth pin: source constant + this row + the cr_cached.h divergence
 block must stay in lockstep).
 
-### D-73 — NTFS scan-path volume-end backup fallback (M-043, session 14; renumbered from a D-72 collision with the scan-cache register — the errata convention)
+### D-99 — NTFS scan-path volume-end backup fallback (M-043, session 14; renumbered from a D-72 collision with the scan-cache register — the errata convention)
 
 **Deliberate recovery SUPERSET — not og parity (corpus-proven).** The og
 has NO scan-path backup-boot fallback: the analyser's backup step
@@ -2191,7 +2208,7 @@ D-72 in this leg's push; the parallel leg's scan-cache register (N-045)
 landed as D-72 in the same window. The FAT-entry precedent applies — the
 later landing renumbers; this one is now D-73. All references updated.)*
 
-### D-72 — carve default-off formats are host policy, not engine constants (M-024)
+### D-97 — carve default-off formats are host policy, not engine constants (M-024) (renumbered from a same-window D-72 collision - the errata convention)
 
 The og's RawConfig.ini [Filter] ships STL and VPJ default-DISABLED — its
 effective carve set differs from its compiled set. The core ships every
@@ -2293,7 +2310,7 @@ membership decode is the recorded next step in the finding.
 `CarveEngine.MovV1MvhdHighWordQuirkReplicated` (the quirk pin),
 `CarveEngine.FallbackNamerDocumented` (the deliberate default).
 
-### D-72 — Lost-partition APPLY: the safety registers around the og's table writer (S-029)
+### D-98 — Lost-partition APPLY: the safety registers around the og's table writer (S-029) (renumbered from a same-window D-72 collision - the errata convention)
 
 The S-029 apply module reproduces the og's write-path architecture
 (PartitionRecovery FUN_1800566d0/FUN_180038b10/FUN_1800392f0: the legacy
@@ -2303,23 +2320,23 @@ UPDATE_PROPERTIES retry tail, GPT_GenerateSignature on the GPT rebuild) with
 four registered deliberate deltas — each a safety superset over a reference
 weakness, none a capability loss:
 
-- **D-72a — Consent at the core (A1).** The og's apply is a UI flow the
+- **D-98a — Consent at the core (A1).** The og's apply is a UI flow the
   product calls directly; the core module REQUIRES a nonzero consent
   callback before any write (NULL/zero = ERR_APPLY_CONSENT_DENIED, zero
   writes, not even a volume lock). Pinned by `LostApply.RefusedWithoutConsent`.
-- **D-72b — Single-entry preservation (A7).** The og's legacy path
+- **D-98b — Single-entry preservation (A7).** The og's legacy path
   zero-wipes ALL FOUR entries as part of its rebuild; the core's
   SingleEntry scope (the default) preserves the other three entries
   byte-for-byte — applying one lost partition must never destroy three
   live ones. The og's exact wipe semantics remain available as the
   explicit RebuildTable scope. Pinned by `LostApply.WritesEntryAndRefreshes`.
-- **D-72c — Refresh-tail honesty (vs the og's silent swallow).** The corpus
+- **D-98c — Refresh-tail honesty (vs the og's silent swallow).** The corpus
   tail loop ignores a failing 3x UPDATE_PROPERTIES retry
   (PR:47015-47025 - the function returns with no error); the core reports
   ERR_APPLY_REFRESH_FAILED with the table written+verified and the undo log
   valid — a stale OS mount view must be visible to the operator, never
   silently absorbed. Pinned by `LostApply.RefreshFailureIsReportedNotSwallowed`.
-- **D-72d — The table-change race guard (A6).** The plan snapshots sector
+- **D-98d — The table-change race guard (A6).** The plan snapshots sector
   0; execute refuses (ERR_APPLY_TABLE_CHANGED, zero writes) if the table
   moved between plan and execute — the og has no such guard. Pinned by
   `LostApply.DetectsTableRace`.
@@ -2331,26 +2348,6 @@ disk GUID — every call site passes a 4-byte stack slot as one register
 argument (PR:32805 local_24 ulong; RM:46338; CM:118357; UL:37590), and the
 GPT header GUID is untouched by FUN_1800392f0. The core stamps the
 regenerated 32-bit signature on the GPT rebuild exactly as the corpus does.
-
-### D-75 — the logging seam: one host sink, no cross-process transport (N-048, REGISTERED DIVERGENCE)
-
-The og runs a three-layer logging architecture: Log.mo's EPMLOG.log
-(64 KiB cross-process shared staging + named mutex + 10 MB
-truncate-rollover, line format `[%Y-%m-%d %H:%M:%S:%ms] (T:%d/P:%d)
-msg`), PubLog's 2 MB ring for the UI-family binaries, and Logger.dll's
-async queue + worker with keep-second-half compaction
-(Log_decompiled.c :159-176/:193/:604-621/:699, PubLog_decompiled.c
-:119-135, Logger_decompiled.c :1630-1696/:1962-2015). The core is a
-SINGLE-PROCESS library: there is no second process to share a mapping
-with, no UI-family binary set for the ring, and an async worker queue
-buys nothing at the core's line volumes (diagnostic brackets, not
-traces). The seam is therefore the SINK, not the transport
-(`cr::log::set_sink` — default NULL = silent, zero formatting
-overhead; serialized synchronous deliveries; the host owns every
-policy the og baked into its transports: file placement, rollover,
-compaction, async). The og's per-line timestamp/process decoration is
-its transports' job; the core emits the message text. Pinned by
-`Orchestrator.LogSilentByDefault` + `Orchestrator.LogSinkReceivesScanBrackets`.
 
 ### D-79 — salvaged (no-EOI) JPEGs graded PartialRisk, not stamped identically to complete files (S-018 re-file, s31; REGISTERED DIVERGENCE)
 
@@ -2434,50 +2431,6 @@ FileProperties → a WriterConfig `preserve_dacl` flag (default OFF)
 applying it via SetSecurityInfo on the win destio layer only — never on
 the POSIX test shims.
 
-### D-78 — CSMI SMART transport: SCSI-address routing, no RAID census; LSILOGIC sibling and SMART auto-enable not ported (N-032, REGISTERED DIVERGENCE — transport scope)
-
-**Class:** registered divergence (health transport scope) · **Finding:**
-diff-to-fix N-032 (MINOR, FIXED with this registration) · **Date:** 2026-10-26
-
-**WHAT OG DOES:** the DiskHealth companion's CAtaSmart engine reaches
-SMART through a multi-transport accessor set. The CSMI route
-(GetSmartAttributeCsmi) is IOCTL_SCSI_MINIPORT CC-0x19 "CSMISAS"
-(wire-decoded this session, DiskHealth_decompiled.c FUN_00425450), but
-the og routes every request through a companion-side RAID census
-(GET_DRIVER_INFO / GET_RAID_INFO / GET_RAID_CONFIG / GET_PHY_INFO walks,
-incl. an AMD "rcraid" family) that fills phy/port/target-SAS-address
-from the array inventory. A second, LSILOGIC-signature sibling transport
-(FUN_00426040) serves LSI controllers. When the first CSMI SMART read
-fails, the og auto-enables SMART on the disk (command 0xB0 feature 0xD8
-— a device WRITE, dispatch case 0x16 :4427-4438) and retries.
-
-**WHAT WE DO:** the CSMI channel (src/win/cr_health.cpp
-CsmiMiniportChannel) issues the og-exact CC-0x19 request built by the
-pure seam (include/cr/health/cr_csmi.h — every load-bearing byte pinned
-by Health.CsmiRequestMatchesOgWireFormat), routed through
-IOCTL_SCSI_GET_ADDRESS on the physical-drive handle (the og's own
-address probe, FUN_00417750 :12254): PortNumber opens the \\.\Scsi%u:
-device, PathId/TargetId carry the routing. No RAID census, no LSILOGIC
-sibling, no SMART auto-enable.
-
-**WHY:** (1) The census is companion device-manager machinery (its
-inputs are the array inventory, not a single disk handle) — the finding's
-own fix plan prescribes the IOCTL_SCSI_GET_ADDRESS-based pattern.
-(2) The auto-enable is a device write; this module is report-only by
-standing policy (cr_health.h header contract). A disabled-SMART disk
-reads health-unavailable rather than us flipping device state during a
-read-only advisory pass. (3) The LSILOGIC route is a separate vendor
-family the finding does not name (its acceptance is the Intel-RST CSMI
-transport).
-
-**RISK:** on RST arrays whose member routing genuinely requires the
-census-sourced SAS address, our CC-0x19 request may be rejected where
-the og's succeeds — the failure is clean (ERR_HEALTH_UNAVAILABLE, the
-final fallback the finding mandates). Real-hardware validation on an
-Intel RST host is pending for both implementations' claims (the finding
-records this as inherent: UNVERIFIED-BY-EXECUTION on this hardware).
-Recovery correctness is unaffected (health is advisory).
-
 ### D-83 — Btrfs RAID0/RAID10 chunk reads: kernel stripe math vs the og's read failure (M-020, REGISTERED SUPERSET)
 
 The og's logical→physical node reader (BtrfsSearchDLL FUN_1800042a0,
@@ -2503,7 +2456,7 @@ with wrong bytes. Fixtures: `Btrfs.Raid0StripeMathSplitsAtStripeBoundaries`
 (the og's parse-time gate stays og-exact — the superset is read-side
 only).
 
-### D-81 — Carve validators are stateless single-shot; no pending-object/ContinueScan streaming state (M-025, REGISTERED ARCHITECTURAL DIVERGENCE)
+### D-101 — Carve validators are stateless single-shot; no pending-object/ContinueScan streaming state (M-025, REGISTERED ARCHITECTURAL DIVERGENCE) (renumbered from a same-window D-81 collision - the errata convention)
 
 The og's block scan keeps open-ended formats (MovAnalyzer/MTS and family)
 as pending CRawFileInfo objects re-fed every sector through analyser slot
@@ -2713,32 +2666,6 @@ Recovery correctness is unaffected (health is advisory).
 - **VERDICT: ACCEPTED** (collision half now og-MATCH by N-065; the
   atomic-write/hash-verify/resume supersets remain registered).
 
-### D-78 — progress delivery: push events + telemetry pull, not the og's poll-dominant timer farm (N-075, REGISTERED DIVERGENCE; renumbered from a D-77 collision with the N-009d ACL register — and now one of three same-window D-78 registrations; cite by finding: N-075)
-
-The og's progress model is predominantly PULL-polled: 38 `timeout()`
-timer consumers call `onGet*Progress` on the UI thread, and the only
-progress-push signal is `sigPercentChange` (CUISink's — corpus
-UIUX/25-connect-wiring-graph.md :175-192); scan/finish events push.
-The core inverts this deliberately: progress is a coalesced monotonic
-PUSH (`CR_EVT_SCAN_PROGRESS` + the cr_ui_progress bridge with
-single-flight delivery), and the pull surface is the telemetry
-snapshot (`cr_ui_scan_telemetry`, any thread, any time) — the host
-that wants og-style polling simply calls telemetry on its own timer,
-so the information content is fully covered by the two surfaces the
-core already had. The og's reference-out QUERY signals
-(`sigIsBusy(bool&)` ×14, `sigIsStopping(bool&)` ×8, :125-144) are now
-surfaced as the synchronous ABI ops `cr_ui_scan_busy` /
-`cr_ui_scan_stopping` (N-075's fix) — synchronous by construction,
-the stronger contract vs the og's Qt-connection-dependent answer
-edge. The og's typed `IUIProgressInfo` per-item recovery-progress
-interface (UIUX/20-moc-surface-sink-architecture.md :145) maps onto
-the writer's report/queue item-state surfaces (documented in
-ABI-CONTRACT §5a) rather than a parallel ABI interface. Pinned by
-`CrUi.ScanBusyStoppingQueries` + the plain-C edges in
-`cr_ui_abi_check`.
-
-### D-78 — the password-dictionary unlock aid: authored seed + format-compatible loader, the og's Dict asset not copied (N-064, REGISTERED DIVERGENCE)
-
 ### D-80 — the password-dictionary data posture: the corpus Dict converted as generated data (raw_signs precedent), user dictionaries loadable (N-064 convergence record — two parallel landings, first-landing-wins)
 
 **Class:** convergence record (replaces this lane's original D-78
@@ -2790,7 +2717,7 @@ complete; D-78).
      the standing errata convention both stand; future sessions cite
      them by FINDING (N-064 / N-032 / M-020), not by bare D-number. -->
 
-### D-82 — the FilterFolder junk-filter policy: applied at emission, sessions re-derive on resume; comparator mode undecoded (M-018, REGISTERED POLICY)
+### D-102 — the FilterFolder junk-filter policy: applied at emission, sessions re-derive on resume; comparator mode undecoded (M-018, REGISTERED POLICY) (renumbered from a same-window D-82 collision - the errata convention)
 
 The og pushes FilterFolder.ini's hidden sets per scan-partition at scan
 setup (PushFolderFilter) and its presentation hides OS droppings,
@@ -2810,7 +2737,7 @@ the pass re-runs idempotently on resume (names are stable); (4) children
 of a filtered node are NOT filtered (the og hides entries, not their
 contents). Junk counts surface as ScanStats.junk_filtered.
 
-### D-80 — carve registry consumption: direct compile-time read, no per-scan cross-DLL re-clone (N-033, REGISTERED DIVERGENCE — structural, content-identical)
+### D-100 — carve registry consumption: direct compile-time read, no per-scan cross-DLL re-clone (N-033, REGISTERED DIVERGENCE — structural, content-identical) (renumbered from a same-window D-80 collision - the errata convention)
 
 The og's FS SearchDLLs import RAWSearchDLL.dll at runtime and clone its
 master analyser registry into their own state — `LoadLibraryA
