@@ -1,5 +1,11 @@
 # diff-to-fix/findings/FIXED/ — resolved findings (audit trail)
 
+## Resolved findings (session-31 wave on top: +OQ-S2M-2 (all three probes RESOLVED — the +0x68 bonus-setter family decoded, the ZFS "pool name" proven absent, the Btrfs conversion anchor pinned to the DRWUI render layer); live file inventory)
+
+| ID | Severity (orig) | Title | Fix commit | Resolution |
+|---|---|---|---|---|
+| OQ-S2M-2 | tracked-open (s2 residues) — **RESOLVED (s31)** | SearchDLL bonus-field setter (+0x68), ZFS pool display name, Btrfs name-conversion anchor | (no code change — s31 evidence landing) | (1) +0x68 set by scan-path composers: FAT/exFAT two-factor ladder boot+fs ∈ {10,45,50} (FATSearchDLL:6946-6969/:7142-7167; exFAT:39504-39526; producers FUN_180009960 :6693/:6704-07/:6719 + the FAT32 backup-boot classifier :8004-8052; bit 0x100 setter absent — boot 50-tier unreachable in build); NTFS composite (flag base FUN_18000dc70 :10538-73 + boot ±FUN_1800097d0 :7229-33 + stitching +30/:28944/:28973/:29003/FUN_180024990 + one-shot +50 :28803-06 latch +0x178). "FAT32 20" = 10+10 both minima — no constant exists; M-017's landed fs_bonus CONFIRMED (187-row 6-decimal parity stands). (2) ZFS pool name never exists: 0 "name"/"pool" hits in the engine; DRWUI FUN_140510080 :842335-96 has no case 13 → "Unknow" (XML :207358 + CalcPartition log :845776 consumers); "ZFS partition" strings:39717 = the GPT type-GUID table only; core's label-name read registered superset (modules/zfs.md). (3) Btrfs anchor = DRWUI render layer CP_UTF8/dwFlags=0 (FUN_140163af0 :264664-89 invoked :357529; FUN_1400d9ef0 :190981-97 family); engine byte-oriented (0 conversion imports, re-verified); S-005 parity holds; N-016a/b residuals already FIXED. Evidence: s31-oq-s2m-2-bonus-setter-zfs-name-btrfs-anchor.md. |
+
 ## Resolved findings (session-28 wave: +N-075 (rear-first MINOR lane, DFX28); live file inventory)
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |
@@ -8,6 +14,7 @@
 | N-075 | MINOR (s6, renumbered from the session-6-local N-059 at integration) | Event-bus contract shape: og query-signals (sigIsBusy(bool&) x14, sigIsStopping(bool&) x8 — reference-out queries) + pull-polled progress + typed IUIProgressInfo vs core one-way push | (this session's N-075 commit — file carries the Resolution) | cr_ui_scan_busy + cr_ui_scan_stopping appended (v2-era append, no bump): synchronous query ops — busy = the live run-lifecycle atomic, stopping = the LIVE token cancel request (persists after the one-shot run; distinct from telemetry's post-run cancelled flag). Pull-progress convention REGISTERED as PARITY-DELTAS D-78 (renumbered from the D-77 collision with the parallel lane's N-009d ACL register — errata convention; the og's 38-consumer poll farm vs push + any-thread telemetry pull); the typed IUIProgressInfo mapping documented in ABI-CONTRACT 5 (recovery_progress_fn + queue_count + get_stats + report_json — no parallel interface). Pinned by CrUi.ScanBusyStoppingQueries (mid-run pause-gate proof, fail-before RED at compile — the symbols did not exist) + the plain-C edges in cr_ui_abi_check. Suite 738/738. |
 
 ## Resolved findings (session-25 wave: +I-001..I-024 — the INFORMATIONAL tier closed into FIXED/ (22/22 acknowledged, re-verified on `716d121`, pins green 737/737); live file inventory)
+
 
 ## Resolved findings (session-28 wave on top: +N-025; session-25 wave: +I-001..I-024 — the INFORMATIONAL tier closed into FIXED/ (22/22 acknowledged, re-verified on `716d121`, pins green 737/737); live file inventory)
 
