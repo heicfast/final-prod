@@ -83,3 +83,10 @@ FAT region spans it, where the og's data-area extent would not.
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** this session's N-035 lost-partition extent batch
+**Verified by:** `LostDiscovery.Fat32ExtentUsesDataAreaForContainment` (fail-before EXECUTED on the stash-isolated pre-fix engine with the field-referencing test isolated out: the peer whose boot sector sits inside the outer's reserved+FATs region was swallowed by the whole-volume extent — RED with the exact message; pass-after both candidates surface) + `LostDiscovery.LostCandidateReportsDataAreaOffset` (fail-before by construction — the assertions reference the new fields; the values document the FAT metadata-gap shape vs the NTFS no-gap shape) + the full lost-partition subset 23/23 + full suite 691/691 at the push.
+**Resolution notes:** Candidate carries BOTH extents: `sector_count` stays the whole-volume extent (materialize/slicing read the metadata region) and the new `data_start_lba`/`data_sector_count` carry the og's DataAreaStart/totalSec pair. probe_fat sets them from `FatParams.first_data_sector` (the corpus log's metadata-gap family: reserved + FATs [+ root]); every other probe normalizes to DataAreaStart == StartSec (the NTFS no-gap shape per the log). The nested-same-fs dedup containment and the live-table overlap classification now run on the data-area extent (the og's EndSec = DataAreaStart + totalSec math, DRWUI :842476-842479); the GAP-S6-6 tail-fallback exclusion is preserved (fallback candidates normalize to the whole-volume extent AND stay flagged). The normalization also clamps a nonsensical data extent (probe arithmetic overflow) back to the volume extent. Extent REPORTING: the finding's "report both sizes" lands structurally — the Candidate exposes both fields for every consumer (stats consumers read per-candidate fields; DiscoveryResult has no aggregate that would carry them).

@@ -11331,3 +11331,30 @@ Work Log:
 Stage Summary:
 - M-038 FIXED (session tally: 3 MAJORs + 2 CI-green repairs). Next:
   M-017 (lost partition scoring).
+
+---
+Task ID: DFX22-T6 (N-035 — lost-candidate data-area extents)
+Agent: main engineer (diff-to-fix minors-first session 22)
+Task: N-035 — lost-candidate extent anchoring at the data area.
+
+Work Log:
+- Corpus re-verified first-hand: DRWUI_decompiled.c :842476-842479
+  (EndSec = DataAreaStart + totalSec: local_98 = local_a0 + local_90,
+  +0x10 DataAreaStart, +0x60 totalSector); CalcPartition.log round-1
+  cand39 arithmetic re-checked (29308200 + 242140827 = 271449027).
+- Candidate gained data_start_lba + data_sector_count (0 = unset ->
+  normalized to the whole-volume extent = the NTFS no-gap shape).
+- probe_fat sets them from FatParams.first_data_sector (the metadata-gap
+  family); the post-probe normalization clamps nonsensical extents.
+- Dedup containment + live-table overlap classification switched to the
+  data-area extent; materialize/slicing keep the whole-volume extent;
+  the GAP-S6-6 tail-fallback exclusion preserved (fallback candidates
+  normalize AND stay flagged).
+- Tests: Fat32ExtentUsesDataAreaForContainment (fail-before EXECUTED on
+  the isolated pre-fix engine — the peer inside the outer's FAT region
+  was swallowed pre-fix) + LostCandidateReportsDataAreaOffset (the
+  FAT-gap vs NTFS-no-gap shapes). Suite 691/691.
+
+Stage Summary:
+- Session tally: 8 resolutions. MINOR live count 30. Next: N-014 (stage
+  checkpoint atomicity).

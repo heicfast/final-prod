@@ -721,3 +721,70 @@ TEST(LostDiscovery, FatBootWithOgGatesBecomesCandidate) {
     ASSERT_NE(fat_c, nullptr) << "valid FAT16 boot must surface as a candidate";
     EXPECT_EQ(fat_c->fs, CandidateFs::Fat);
 }
+
+TEST(LostDiscovery, Fat32ExtentUsesDataAreaForContainment) {
+    /* N-035: the og's containment math is anchored at the DATA AREA
+     * (EndSec = DataAreaStart + totalSec; DRWUI_decompiled.c
+     * :842476-842479; CalcPartition.log: FAT32 candidates carry
+     * StartSec->DataAreaStart gaps of 472011..2724233 sectors). A peer
+     * whose boot sector sits inside the outer's reserved+FATs region is
+     * NOT contained by the og - the metadata gap spans it, the data
+     * area does not. Pre-fix the whole-volume extent swallowed it. */
+    /* outer FAT16 at 16: reserved 2 + 2 FATs x 300 + root 32 =
+     * first_data 634 (data area from 650); total 40000, spc 8 ->
+     * ~4920 clusters (FAT16 bracket). Inner FAT12 at 316 - inside the
+     * outer's SECOND FAT region [18..618), before the data area. */
+    std::vector<u8> img(u64(40960) * 512, 0);
+    plant_fat_boot(img, 16, 8, 2, 512, 40000, 300, 0, false);
+    plant_fat_boot(img, 316, 8, 2, 512, 2000, 20, 0, false);
+    MemDevice dev(std::move(img));
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK);
+    const Candidate* outer = nullptr;
+    const Candidate* inner = nullptr;
+    int fat_count = 0;
+    for (const auto& c : r.candidates) {
+        if (c.fs != CandidateFs::Fat)
+            continue;
+        ++fat_count;
+        if (c.start_lba == 16)
+            outer = &c;
+        if (c.start_lba == 316)
+            inner = &c;
+    }
+    ASSERT_NE(outer, nullptr);
+    EXPECT_NE(inner, nullptr)
+        << "the peer inside the outer's FAT region is not contained by the data-area extent";
+    EXPECT_GE(fat_count, 2);
+}
+
+TEST(LostDiscovery, LostCandidateReportsDataAreaOffset) {
+    /* N-035: the Candidate carries BOTH extents - the whole-volume one
+     * (materialize/slicing need the metadata region) and the og's
+     * data-area one (DataAreaStart + totalSec; the QA log's totalSec).
+     * FAT is the metadata-gap family; NTFS shows DataAreaStart ==
+     * StartSec in the corpus log. */
+    std::vector<u8> img(u64(40960) * 512, 0);
+    plant_fat_boot(img, 16, 8, 2, 512, 40000, 300, 0, false);
+    plant_ntfs(img, 2048, 4000, 100);
+    MemDevice dev(std::move(img));
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK);
+    const Candidate* fat_c = nullptr;
+    const Candidate* ntfs_c = nullptr;
+    for (const auto& c : r.candidates) {
+        if (c.fs == CandidateFs::Fat && c.start_lba == 16)
+            fat_c = &c;
+        if (c.fs == CandidateFs::Ntfs && c.start_lba == 2048)
+            ntfs_c = &c;
+    }
+    ASSERT_NE(fat_c, nullptr);
+    ASSERT_NE(ntfs_c, nullptr);
+    /* FAT: reserved 2 + 2x300 FATs + 32 root = first_data 634 */
+    EXPECT_EQ(fat_c->sector_count, 40000u); /* whole-volume extent intact */
+    EXPECT_EQ(fat_c->data_start_lba, 16u + 634u);
+    EXPECT_EQ(fat_c->data_sector_count, 40000u - 634u);
+    /* NTFS: DataAreaStart == StartSec (the corpus log's no-gap shape) */
+    EXPECT_EQ(ntfs_c->data_start_lba, ntfs_c->start_lba);
+    EXPECT_EQ(ntfs_c->data_sector_count, ntfs_c->sector_count);
+}

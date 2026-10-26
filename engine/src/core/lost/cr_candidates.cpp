@@ -130,6 +130,14 @@ int probe_fat(IStorageDevice* disk, u64 boot_lba, Candidate& c) {
         return -100;
     int pts = 20; /* valid FAT BPB (og gate passed) */
     c.sector_count = p.total_bytes / p.bytes_per_sector;
+    /* N-035: FAT is the metadata-gap family - the data area begins at
+     * first_data_sector (reserved + two FATs [+ root dir on FAT12/16]
+     * ahead of it; the og's DataAreaStart). totalSec is data-area-sized
+     * (EndSec = DataAreaStart + totalSec in the og's dump). */
+    c.data_start_lba = boot_lba + p.first_data_sector;
+    c.data_sector_count =
+        c.sector_count > p.first_data_sector ? c.sector_count - p.first_data_sector
+                                             : c.sector_count;
     /* FAT area probe: entries 2..4 readable and first data cluster sane */
     u8 fat_probe[16];
     if (disk->read_at(p.fat_start + 8, fat_probe, 16) == OK)
@@ -581,6 +589,20 @@ u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& know
             /* bound by device tail */
             if (c.start_lba + c.sector_count > disk->size() / ls)
                 c.sector_count = disk->size() / ls - c.start_lba;
+            /* N-035: probes that do not set a data-area extent are the
+             * DataAreaStart == StartSec shape (NTFS/exFAT/others per the
+             * corpus log); the tail fallback inherits the same
+             * normalization (its containment is already excluded by
+             * GAP-S6-6's flag). */
+            if (c.data_sector_count == 0) {
+                c.data_start_lba = c.start_lba;
+                c.data_sector_count = c.sector_count;
+            }
+            if (c.data_start_lba + c.data_sector_count > c.start_lba + c.sector_count) {
+                /* the data extent can never exceed the volume extent */
+                c.data_start_lba = c.start_lba;
+                c.data_sector_count = c.sector_count;
+            }
             c.score = pts;
             found.push_back(c);
         }
@@ -591,8 +613,15 @@ u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& know
     for (size_t i = 0; i < found.size(); ++i) {
         bool dup = false;
         for (size_t j = 0; j < keep.size(); ++j) {
-            if (found[i].fs == keep[j].fs && found[i].start_lba >= keep[j].start_lba &&
-                found[i].start_lba < keep[j].start_lba + keep[j].sector_count) {
+            /* N-035: containment runs on the DATA-AREA extent (the og's
+             * EndSec = DataAreaStart + totalSec math) - a peer whose boot
+             * sector sits inside the outer's reserved+FATs region is NOT
+             * contained: the metadata gap spans it, the data area does
+             * not. */
+            if (found[i].fs == keep[j].fs &&
+                found[i].start_lba >= keep[j].data_start_lba &&
+                found[i].start_lba <
+                    keep[j].data_start_lba + keep[j].data_sector_count) {
                 /* GAP-S6-6: a fallback-sized outer candidate spans to disk
                  * end BY CONSTRUCTION - its "containment" of a later peer
                  * is an artifact, not evidence of nesting. Only probe-
@@ -607,7 +636,10 @@ u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& know
             keep.push_back(found[i]);
     }
     for (auto& c : keep) {
-        Overlap ov = classify_overlap(c.start_lba, c.sector_count, known);
+        /* N-035: the og's containment/overlap rules operate on the
+         * data-area extent (its 16-MiB size-match and containment-drop
+         * both; the QA log's totalSec is the data-area size) */
+        Overlap ov = classify_overlap(c.data_start_lba, c.data_sector_count, known);
         switch (ov) {
         case Overlap::Inside:
             c.score -= 20; /* a filesystem inside a live partition: damaged

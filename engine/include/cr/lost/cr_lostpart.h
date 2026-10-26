@@ -55,7 +55,20 @@ struct Evidence {
 
 struct Candidate {
     u64 start_lba = 0;
-    u64 sector_count = 0;
+    u64 sector_count = 0; /* whole-volume extent (boot sector -> volume
+                           * end; materialize/slicing need the metadata
+                           * region too) */
+    /* N-035 (diff-to-fix): the og's CSearchedPartitionInfo carries BOTH
+     * StartSector and DataAreaStart and anchors its extent math at the
+     * DATA AREA (EndSec = DataAreaStart + totalSec, DRWUI_decompiled.c
+     * :842476-842479; CalcPartition.log ground truth: FAT32 candidates
+     * show StartSec->DataAreaStart gaps of 472011..2724233 sectors -
+     * the reserved+two-FATs region; NTFS candidates show no gap). The
+     * containment/dedup/overlap classification runs on the data-area
+     * extent below; 0 = unset (normalized to the whole-volume extent,
+     * i.e. DataAreaStart == StartSec - the NTFS/exFAT shape). */
+    u64 data_start_lba = 0;
+    u64 data_sector_count = 0;
     CandidateFs fs = CandidateFs::Unknown;
     int score = 0;
     std::vector<Evidence> evidence;

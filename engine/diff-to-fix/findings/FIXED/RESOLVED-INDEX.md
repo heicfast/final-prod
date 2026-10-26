@@ -1,6 +1,12 @@
 # diff-to-fix/findings/FIXED/ — resolved findings (audit trail)
 
-## Resolved findings (session-22 wave: +M-055, +N-077, +N-020, +N-070 +M-056 (NEW-FINDING), +N-074 (convergent), +N-047; live file inventory)
+## Resolved findings (session-22 wave: +M-055, +N-077, +N-020, +N-070 +M-056 (NEW-FINDING), +N-074 (convergent), +N-047, +N-035; live file inventory)
+
+| ID | Severity (orig) | Title | Fix commit | Resolution |
+|---|---|---|---|---|
+| N-035 | MINOR (S2) | Lost-candidate extent semantics: og anchors at DataAreaStart, core at partition start | (this session's N-035 lost-partition extent batch — file carries the Resolution) | Candidate carries both extents (sector_count whole-volume for materialize/slicing; data_start_lba/data_sector_count = the og's DataAreaStart/totalSec). probe_fat sets them from first_data_sector; other probes normalize to the no-gap shape. Dedup containment + overlap classification run on the data-area extent; GAP-S6-6 tail-fallback exclusion preserved. Fat32ExtentUsesDataAreaForContainment fail-before executed on the isolated pre-fix engine. |
+
+
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |
 |---|---|---|---|---|
