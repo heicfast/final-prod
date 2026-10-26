@@ -11,7 +11,8 @@ largest single-engine file) + `include/cr/zfs/` + `tests/unit/test_zfs_volume.cp
 ## Behavioral
 
 - **B1 detection** — `M` uberblock magic 0x00BAB10C (4 decompile sites verified), txg at
-  UB+0x10, newest-txg-wins, vdev label probing (4 labels, front/back); core adds
+  UB+0x10, every valid ring uberblock collected txg-keyed (S-034 FIXED: newest walks live,
+  older states feed the deleted tree), vdev label probing (4 labels, front/back); core adds
   shift-probing 10..13 (4 Kn pools) — superset, register; BE-pool refusal
   (`ERR_UNSUPPORTED`) — documented deliberate hardening.
 - **B2 recovery correctness** — `M` nvlist XDR+native decode, micro/fat ZAP, gang blocks
@@ -164,3 +165,13 @@ multivdev-fallback/checksum side.)
 |---|---|---|
 | N-056 | MINOR | Delay-execution label/uberblock import polling missing (og retries with backoff during long walks; core probes once — torn pools fail immediately) |
 | INFO-register | — | Core decompresses lzjb/zle/gzip/lz4/zstd (cr_zfs_engine.cpp:19-21); the og models per-object compression (std::map<int64,zio_compress>, remaining-engines:80). No divergence claimable in either direction (both read compressed pools); recorded for the decode-evidence ledger |
+
+## Session-37 row (DFX37 — S-034 FIXED)
+
+| ID | Severity | One-line |
+|---|---|---|
+| S-034 | SEVERE | The og walks EVERY uberblock in the ring (per-txg state recovery; FUN_180006b90 :5685-5841 -> addBlock :1967-2259 -> from_txg=0 descent FUN_18001ac60); the core read the newest txg only — **FIXED (DFX37)**: the probe collects every valid ring uberblock (txg-keyed registry semantics), the newest state walks live, every older state walks into the deleted tree with cross-state identity dedup (head object + object id + logical birth txg); deleted-in-window files surface as Deleted results. Decode items closed: no engine-side dedup in the og (FUN_180012450 plain ctor), last_txg display-only (sole binary occurrence = the progress string), per-state dataset/snapshot walks inherent to the descent. The one-emission-instead-of-N divergence registered in PARITY-DELTAS. Proof: Zfs.RingWindowDeletedFileSurfaces (fail-before RED executed) + RingUnchangedObjectEmittedOnce + RingWalkSkippedWithoutDeletedRoot; 905/905. |
+
+**B1 detection** row above updated by this landing: "newest-txg-wins" was the refuted premise's
+selection story for THE WALK; detection itself now reads "every valid ring uberblock collected
+(txg-keyed), newest walks live, older states feed the deleted tree (S-034)".

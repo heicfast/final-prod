@@ -145,11 +145,20 @@
   (`plVar12[-0x7e] <= plVar12[2]` = slot-1KiB-back vs current) as a
   newest-only SELECTION; the caller-level semantics (which the deep-dive did
   not decode) iterate every slot per txg.
-- **RISK:** Deleted-ZFS recall strictly BELOW og inside the ring window.
-- **VERDICT: REFUTED PREMISE — open gap S-034** (diff-to-fix/findings/SEVERE/
-  S-034-zfs-ring-txg-history-not-walked.md). Not a parity decision anymore;
-  the fix (per-txg ring walk with cross-txg dedup) is queued behind the
-  three decode items in S-034's fix plan.
+- **RISK:** (was) Deleted-ZFS recall strictly BELOW og inside the ring window.
+- **VERDICT: REFUTED PREMISE — the gap is CLOSED by S-034's fix (DFX37,
+  findings/FIXED/S-034-zfs-ring-txg-history-not-walked.md).** The core now
+  walks every valid ring uberblock (txg-keyed registry semantics): the
+  newest state is the live tree, every older state feeds the deleted tree
+  with cross-state identity dedup. ONE registered divergence remains (the
+  emission model): the og emits one ZplNode per state with no engine-side
+  dedup (FUN_180012450 is a plain ctor; the visitor bulk-collects), while
+  the core emits each object once — the newest state's copy live, older-only
+  objects (and superseded incarnations of re-created object ids) as Deleted.
+  Same content set, honest deleted marking, no duplicate result rows; the
+  og's duplicate rows are a presentation artifact the core deliberately
+  improves on. A txg mirrored across several labels' rings also walks once
+  (the og walks the same txg once per label copy).
 
 ### D-06 — Btrfs deleted recovery: newest-generation tree only (row 20) — CLOSED
 
@@ -2768,11 +2777,20 @@ Y-DELTAS — deliberate-deviations registry (AUTHORITATIVE)
   (`plVar12[-0x7e] <= plVar12[2]` = slot-1KiB-back vs current) as a
   newest-only SELECTION; the caller-level semantics (which the deep-dive did
   not decode) iterate every slot per txg.
-- **RISK:** Deleted-ZFS recall strictly BELOW og inside the ring window.
-- **VERDICT: REFUTED PREMISE — open gap S-034** (diff-to-fix/findings/SEVERE/
-  S-034-zfs-ring-txg-history-not-walked.md). Not a parity decision anymore;
-  the fix (per-txg ring walk with cross-txg dedup) is queued behind the
-  three decode items in S-034's fix plan.
+- **RISK:** (was) Deleted-ZFS recall strictly BELOW og inside the ring window.
+- **VERDICT: REFUTED PREMISE — the gap is CLOSED by S-034's fix (DFX37,
+  findings/FIXED/S-034-zfs-ring-txg-history-not-walked.md).** The core now
+  walks every valid ring uberblock (txg-keyed registry semantics): the
+  newest state is the live tree, every older state feeds the deleted tree
+  with cross-state identity dedup. ONE registered divergence remains (the
+  emission model): the og emits one ZplNode per state with no engine-side
+  dedup (FUN_180012450 is a plain ctor; the visitor bulk-collects), while
+  the core emits each object once — the newest state's copy live, older-only
+  objects (and superseded incarnations of re-created object ids) as Deleted.
+  Same content set, honest deleted marking, no duplicate result rows; the
+  og's duplicate rows are a presentation artifact the core deliberately
+  improves on. A txg mirrored across several labels' rings also walks once
+  (the og walks the same txg once per label copy).
 
 ### D-06 — Btrfs deleted recovery: newest-generation tree only (row 20) — CLOSED
 
@@ -5313,11 +5331,20 @@ its own stacks later.
   (`plVar12[-0x7e] <= plVar12[2]` = slot-1KiB-back vs current) as a
   newest-only SELECTION; the caller-level semantics (which the deep-dive did
   not decode) iterate every slot per txg.
-- **RISK:** Deleted-ZFS recall strictly BELOW og inside the ring window.
-- **VERDICT: REFUTED PREMISE — open gap S-034** (diff-to-fix/findings/SEVERE/
-  S-034-zfs-ring-txg-history-not-walked.md). Not a parity decision anymore;
-  the fix (per-txg ring walk with cross-txg dedup) is queued behind the
-  three decode items in S-034's fix plan.
+- **RISK:** (was) Deleted-ZFS recall strictly BELOW og inside the ring window.
+- **VERDICT: REFUTED PREMISE — the gap is CLOSED by S-034's fix (DFX37,
+  findings/FIXED/S-034-zfs-ring-txg-history-not-walked.md).** The core now
+  walks every valid ring uberblock (txg-keyed registry semantics): the
+  newest state is the live tree, every older state feeds the deleted tree
+  with cross-state identity dedup. ONE registered divergence remains (the
+  emission model): the og emits one ZplNode per state with no engine-side
+  dedup (FUN_180012450 is a plain ctor; the visitor bulk-collects), while
+  the core emits each object once — the newest state's copy live, older-only
+  objects (and superseded incarnations of re-created object ids) as Deleted.
+  Same content set, honest deleted marking, no duplicate result rows; the
+  og's duplicate rows are a presentation artifact the core deliberately
+  improves on. A txg mirrored across several labels' rings also walks once
+  (the og walks the same txg once per label copy).
 
 ### D-06 — Btrfs deleted recovery: newest-generation tree only (row 20) — CLOSED
 

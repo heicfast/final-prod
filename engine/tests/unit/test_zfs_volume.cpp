@@ -39,6 +39,19 @@ constexpr u64 B_BIGDIR_ZAP = 0x92000; /* fat zap (embedded ptrtbl) */
 constexpr u64 B_FILE_DATA = 0xA0000;
 constexpr u64 B_ZLE_DATA = 0xA2000;
 
+/* S-034: the second pool state's blocks (txg 76 - one older than the
+ * live state; shares every unchanged block with it, the way a real pool
+ * shares unmodified blocks across txgs). NOTE the placement: the state-2
+ * ZPL dnode array is a 16K block spanning B_ZPL_DNODES2..+0x4000, so the
+ * state-2 root ZAP and GONE.TXT's data sit PAST its end (0xBA000+). */
+constexpr u64 B_MOS2 = 0xB0000;         /* state-2 MOS objset_phys */
+constexpr u64 B_MOS_DNODES2 = 0xB2000;  /* state-2 MOS dnode array */
+constexpr u64 B_ZPL2 = 0xB4000;         /* state-2 ZPL objset_phys */
+constexpr u64 B_ZPL_DNODES2 = 0xB6000;  /* state-2 ZPL dnode array (16K) */
+constexpr u64 B_ROOTDIR_ZAP2 = 0xBA000; /* state-2 root dir ZAP (+GONE.TXT) */
+constexpr u64 B_GONE_DATA = 0xBA200;    /* GONE.TXT content */
+constexpr u64 TXG2 = 76;
+
 constexpr u64 TXG = 77;
 
 class MemDevice final : public IStorageDevice {
@@ -901,6 +914,91 @@ std::vector<u8> build_pool(const char* vdev_type = "disk") {
     return d;
 }
 
+/* S-034 fixture: build_pool() plus a SECOND pool state at txg 76 whose
+ * root directory additionally holds GONE.TXT (object 30) - the file is
+ * deleted-in-window (present in the ring's older state, absent from the
+ * newest). The second state shares every unchanged block with the live
+ * state: only the root-dir ZAP (one extra entry + the new object's
+ * dnode), the two dnode arrays, and the MOS/ZPL objset blocks are new. */
+std::vector<u8> build_ring_pool() {
+    std::vector<u8> d = build_pool();
+
+    /* state-2 root dir ZAP: the live entries + GONE.TXT */
+    {
+        auto z = make_microzap({{"hello.txt", 10},
+                                {"bigdir", 11},
+                                {"zlefile", 12},
+                                {"embedded.txt", 13},
+                                {"legacy.txt", 14},
+                                {"registryfile", 22},
+                                {"GONE.TXT", 30}});
+        memcpy(d.data() + B_ROOTDIR_ZAP2, z.data(), z.size());
+    }
+    memcpy(d.data() + B_GONE_DATA, "gone file content", 17);
+
+    /* state-2 ZPL dnode array: byte-copy of the live array (every shared
+     * object's dnode - and its stamped checksums - carry over verbatim),
+     * object 2's blkptr retargeted at the state-2 root ZAP, plus the
+     * GONE.TXT dnode at object 30 */
+    {
+        memcpy(d.data() + B_ZPL_DNODES2, d.data() + B_ZPL_DNODES, 16384);
+        u8* dn2 = d.data() + B_ZPL_DNODES2 + 2 * 512;
+        make_bp(dn2 + 64, B_ROOTDIR_ZAP2, 512, 512, 0, &d);
+        u8* gn = d.data() + B_ZPL_DNODES2 + 30 * 512;
+        SaAttrs a;
+        a.mode = 0100644; /* octal: S_IFREG|rw-r--r-- */
+        a.parent = 2;
+        a.links = 1;
+        a.size = 17;
+        a.mtime = a.ctime = a.crtime = 1690000000;
+        auto bonus = make_sa_bonus(a);
+        make_dnode(gn, 19 /* PLAIN_FILE_CONTENTS */, 44 /* SA */, 1, 1, 1, 0);
+        make_bp(gn + 64, B_GONE_DATA, 512, 512, 0, &d);
+        put16(gn + 10, u16(bonus.size()));
+        memcpy(gn + 64 + 128, bonus.data(), bonus.size());
+    }
+
+    /* state-2 ZPL objset: meta dnode -> the state-2 dnode array */
+    {
+        std::vector<u8> os(2048, 0);
+        make_dnode(os.data(), 10 /* DNODE */, 0, 32 /* 16K blocks */, 1, 1, 0);
+        make_bp(os.data() + 64, B_ZPL_DNODES2, 16384, 16384, 0, &d);
+        memcpy(d.data() + B_ZPL2, os.data(), os.size());
+    }
+
+    /* state-2 MOS dnode array: copy of the live array with both dataset
+     * heads (objects 4 and 6) retargeted at the state-2 ZPL objset */
+    {
+        memcpy(d.data() + B_MOS_DNODES2, d.data() + B_MOS_DNODES, 4096);
+        u8 bp[128];
+        make_bp(bp, B_ZPL2, 2048, 2048, 0, &d);
+        memcpy(d.data() + B_MOS_DNODES2 + 4 * 512 + 64 + 128 + 128, bp, 128);
+        memcpy(d.data() + B_MOS_DNODES2 + 6 * 512 + 64 + 128 + 128, bp, 128);
+    }
+
+    /* state-2 MOS objset: meta dnode -> the state-2 MOS array */
+    {
+        std::vector<u8> os(2048, 0);
+        make_dnode(os.data(), 10, 0, 8, 1, 1, 0);
+        make_bp(os.data() + 64, B_MOS_DNODES2, 4096, 4096, 0, &d);
+        memcpy(d.data() + B_MOS2, os.data(), os.size());
+    }
+
+    /* the second uberblock: slot 1 of every label's ring, txg 76 */
+    for (int li = 0; li < 4; ++li) {
+        const u64 base = li < 2 ? u64(li) * (256ull << 10) : IMG - (4 - li) * (256ull << 10);
+        u8* ub = d.data() + base + (128ull << 10) + 1024; /* slot 1 */
+        put64(ub + 0, 0x00BAB10C); /* magic */
+        put64(ub + 8, 5000);       /* version */
+        put64(ub + 16, TXG2);      /* txg */
+        put64(ub + 32, 1700000000);
+        u8 bp[128];
+        make_bp(bp, B_MOS2, 2048, 2048, 0, &d);
+        memcpy(ub + 40, bp, 128); /* rootbp */
+    }
+    return d;
+}
+
 TEST(Zfs, EndToEndWalk) {
     auto img = build_pool();
     MemDevice dev(img);
@@ -973,6 +1071,121 @@ TEST(Zfs, EndToEndWalk) {
                           f->props()->times.modified);
             }
         }
+}
+
+/* ---- S-034: the ring txg-history walk ----
+ * The og's quick searcher iterates EVERY uberblock in the label ring and
+ * walks each txg's state (ZfsSearchDLL FUN_180006b90 :5685-5841 -> addBlock
+ * FUN_180003150; from_txg=0 descent FUN_18001ac60). Files deleted within
+ * the ring's txg window are og-visible; the pre-fix core read the newest
+ * txg only (the refuted "newest only" parity claim). */
+
+TEST(Zfs, RingWindowDeletedFileSurfaces) {
+    auto img = build_ring_pool();
+    MemDevice dev(img);
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    ZfsScanStats st;
+    u32 rc = scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(u64(TXG), st.txg); /* the newest uberblock still selects the txg */
+    EXPECT_GE(st.ring_states_walked, 2u);
+
+    /* GONE.TXT: in the txg-76 state, deleted before 77 - must surface as
+     * a DELETED result (pre-fix: absent from every result set). The
+     * fixture's "sub" dataset shares the state-2 ZPL, so sub/GONE.TXT is
+     * a separate legitimate emission; the pin counts tank's copy. */
+    tree::FileNode* gone = nullptr;
+    int gone_count = 0;
+    std::function<void(tree::FileNode*, const std::string&)> find_gone =
+        [&](tree::FileNode* n, const std::string& p) {
+            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+                if (!c->props())
+                    continue;
+                const std::string full = p.empty() ? c->name_utf8() : p + "/" + c->name_utf8();
+                if (full == "tank/GONE.TXT") {
+                    ++gone_count;
+                    gone = c;
+                }
+                find_gone(c, full);
+            }
+        };
+    find_gone(ra, "");
+    find_gone(rd, "");
+    ASSERT_EQ(1, gone_count) << "tank/GONE.TXT must surface exactly once";
+    ASSERT_NE(nullptr, gone->props());
+    EXPECT_EQ(tree::DeletedState::Deleted, gone->deleted_state());
+    EXPECT_EQ(u64(17), gone->props()->logical_size);
+    ASSERT_EQ(1u, gone->props()->extents.size());
+    EXPECT_EQ(B_GONE_DATA, gone->props()->extents[0].offset);
+}
+
+TEST(Zfs, RingUnchangedObjectEmittedOnce) {
+    /* hello.txt exists in BOTH states with an identical dnode (same
+     * object id, same birth): the cross-txg identity dedup must emit it
+     * exactly once, Active, under the live tree (the og emits one
+     * ZplNode per state; the core's single emission is the registered
+     * presentation-side dedup - PARITY-DELTAS). */
+    auto img = build_ring_pool();
+    MemDevice dev(img);
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    ZfsScanStats st;
+    u32 rc = scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+
+    int hello_count = 0;
+    std::function<void(tree::FileNode*, const std::string&)> count_hello =
+        [&](tree::FileNode* n, const std::string& p) {
+            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+                if (!c->props())
+                    continue;
+                const std::string full = p.empty() ? c->name_utf8() : p + "/" + c->name_utf8();
+                if (full == "tank/hello.txt")
+                    ++hello_count;
+                count_hello(c, full);
+            }
+        };
+    count_hello(ra, "");
+    count_hello(rd, "");
+    /* exactly ONE tank/hello.txt across both trees (the fixture's "sub"
+     * dataset shares the same ZPL - sub/hello.txt is a separate,
+     * legitimate emission and not counted) */
+    EXPECT_EQ(1, hello_count) << "an unchanged object emits once across states";
+}
+
+TEST(Zfs, RingWalkSkippedWithoutDeletedRoot) {
+    /* root_deleted == nullptr (the pre-S-034 call shape): the old-state
+     * walks are skipped - no emission surface - but the live walk is
+     * unchanged and the deleted content stays invisible, never crashes */
+    auto img = build_ring_pool();
+    MemDevice dev(img);
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ZfsScanStats st;
+    u32 rc = scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(u64(TXG), st.txg);
+
+    int gone_count = 0;
+    std::function<void(tree::FileNode*, const std::string&)> find_gone =
+        [&](tree::FileNode* n, const std::string& p) {
+            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+                if (!c->props())
+                    continue;
+                const std::string full = p.empty() ? c->name_utf8() : p + "/" + c->name_utf8();
+                if (full == "tank/GONE.TXT")
+                    ++gone_count;
+                find_gone(c, full);
+            }
+        };
+    find_gone(ra, "");
+    EXPECT_EQ(0, gone_count) << "no deleted root: the ring window stays dark";
 }
 
 /* A-008: the child_dir_zapobj offset. OpenZFS dsl_dir.h puts

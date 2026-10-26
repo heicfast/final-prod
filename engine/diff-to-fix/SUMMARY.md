@@ -40,6 +40,56 @@ per-group decode). Session target: 20+ verified fixes — the three open
 findings' sub-items plus the decode-driven NEW-FINDINGs the verification
 pass is expected to surface.
 
+## Session-37 delta, part 2 (2026-10-26 — DFX37: S-034 FIXED — the ZFS ring txg-history walk; the SEVERE tier is empty)
+
+**S-034 FIXED (SEVERE — the worklog handoff's highest-value item):** the
+og's quick searcher walks EVERY uberblock in the label ring — per-txg
+state recovery (FUN_180006b90 :5685-5841 iterates every 1KiB slot ->
+addBlock FUN_180003150 -> the from_txg=0 descent FUN_18001ac60) — and
+the core read only the newest txg, leaving files deleted within the
+ring's txg window (up to 128 transaction groups — the recent-deletions
+population, a recovery product's primary scenario) invisible except via
+RAW carving. All three of the finding's decode items were answered
+first-hand from the corpus BEFORE implementation: (1a) the og has NO
+engine-side emission dedup (the ZplNodeFile ctor FUN_180012450 is a
+plain refcounted constructor; the visitor bulk-collects one ZplNode per
+state per object); (1b) the per-txg walks re-walk each state's own
+dataset/snapshot hierarchy through the same descent (no separate
+MOS-snapshot-list step in the quick searcher); (1c) `last_txg` is
+display-only — its sole occurrence in the entire binary is the progress
+string at :5703. The fix: the geometry probe collects every valid ring
+uberblock into a txg-keyed map (the og registry's semantics; a txg
+mirrored across labels walks once), the per-state walk is factored into
+walk_state(ub, live), the newest state walks as the live tree
+(bit-for-bit the previous behavior), and every older state walks
+newest->oldest into the deleted tree with cross-state identity dedup
+(dataset head object + object id + the dnode's first block pointer's
+LOGICAL birth txg): deleted-in-window files surface as Deleted results,
+unchanged objects emit once, superseded incarnations surface as deleted
+history, and live directories serve as unmarked containers in the
+deleted tree. New stats ring_states_walked + ring_deleted_recovered;
+root_deleted=nullptr (the pre-fix call shape) skips the old-state walks.
+One REGISTERED divergence (PARITY-DELTAS D-05 verdict updated): one
+emission per object instead of the og's one-per-state — same content
+set, no duplicate rows. Proof: Zfs.RingWindowDeletedFileSurfaces
+(fail-before RED EXECUTED: ring_states_walked 0, tank/GONE.TXT absent),
+Zfs.RingUnchangedObjectEmittedOnce (the dedup pin),
+Zfs.RingWalkSkippedWithoutDeletedRoot (the legacy call shape); the new
+build_ring_pool() fixture builds a complete second pool state at txg 76
+sharing every unchanged block with the live state (real-pool block
+sharing); suite **905/905** linux-gcc (ASan) incl. win_syntax_check; all
+18 pre-existing ZFS tests green (BE refusal, ashift-13 geometry,
+foreign-vdev fallback, A-08 pins). Audit trail: findings/FIXED/
+S-034 (Resolution with the decode answers + the fixture block-collision
+lesson), CROSS-REF-MATRIX zfs B/D cells -> MATCH, modules/zfs.md
+session-37 row + B1 detection update, PARITY-DELTAS D-05 verdict ->
+closed-with-one-registered-divergence, CAPABILITY-MATRIX ZFS row, the
+engine header's deleted-file story rewritten.
+
+**Counts after this fix (file inventory):** SEVERE **0** · MAJOR 1
+(M-040) · MINOR 1 (N-072) · tracked-open 2 (OQ-S4-3, OQ-FLT-2) ·
+**FIXED 220**.
+
 ## Session-33 delta, part 5 (2026-10-26 — DFX33: N-007 FIXED — ReFS page-signature discovery width)
 
 **N-007 FIXED (MINOR — with the I-004 half staying ACKNOWLEDGED):** the
