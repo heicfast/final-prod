@@ -14295,3 +14295,31 @@ Stage Summary:
 - OQ-S6-1 RESOLVED (no code change — decode-only landing). Session
   tally: 27 resolutions (22 INFO closures, A-008 ACUTE, OQ-Z1, OQ-S6-3,
   OQ-S6-2, OQ-S6-1). Next: OQ-S5-1 (CheckVersion's consumer).
+
+---
+Task ID: DFX25-T4f (session 25 — OQ-S5-1 resolution)
+Agent: main engineer (DFX25)
+Task: Resolve OQ-S5-1 (CheckVersion.mo's consumer — live or dead-shipped).
+
+Work Log:
+- The MOM load contract re-verified: modules load ON-DEMAND BY NAME
+  (mom-module-system §1.1) — shipping presence is not a load. Session-14's
+  "31-module load list" was the inventory table (reconciled in the OQ
+  resolution).
+- The sweep executed exhaustively, all negative: (1) zero name-requests in
+  every decompiled host — "CheckVersion" exists only in the module's own
+  GetName (FUN_18000bb10 :7896); (2) zero references in every PE binary
+  (BUILDPE payload + full og-codebase tree; the single xmlCheckVersion hit
+  = libxml2's coincidental API in CORE_RL_xml_.dll); (3) zero
+  config-driven loads (all ini/xml swept); (4) no generic loader — the
+  FindFirstFileW sites are the recovered-filesystem walker with ACL
+  checks, not module enumeration; (5) PE edition drops MOM entirely.
+- CLASSIFICATION: MATCH-by-omission (dead-shipped). No finding (the
+  capability never runs; nothing to diverge from). Registered in
+  modules/mom-capabilities.md with the evidence; OQ resolved; evidence
+  file s25-oq-s5-1-checkversion-dead-shipped.md. No code change.
+
+Stage Summary:
+- OQ-S5-1 RESOLVED (dead-shipped / MATCH-by-omission). Session tally: 28
+  resolutions. Remaining tracked-open: OQ-RS, OQ-S20-1, OQ-S4-3,
+  OQ-T6-T7, OQ-Z-E-FLT residues (DFX30's active lane).
