@@ -609,6 +609,130 @@ TEST(Orchestrator, UdfSurfacesAsCarveFamily) {
     EXPECT_TRUE(saw_vi);
 }
 
+TEST(Orchestrator, CarveSingleNamingFamily) {
+    /* N-014b: one scan emits ONE carved-name family. The grammar layer
+     * and the raw-sign layer both name through the registered chain
+     * (og per-analyser embedded_name, then the File%06u default); the
+     * old orchestrator-side "Carved%06u" lambda produced a second family
+     * inside the same scan. */
+    auto img = build_fat16();
+    /* plant INSIDE the volume's free clusters (carving runs on the
+     * volume slice, free-map gated): clusters 100 and 300 are untouched
+     * (DATA starts at sector 74; cluster N lives at DATA+(N-2)*512) */
+    const size_t DATA = 74 * 512;
+    {
+        u8* at = img.data() + DATA + (100 - 2) * 512;
+        at[0] = 0xFF;
+        at[1] = 0xD8;
+        at[2] = 0xFF;
+        at[3] = 0xE0;
+        at[4] = 0;
+        at[5] = 16;
+        std::memcpy(at + 6, "JFIF", 4);
+        at[10] = 1;
+        at[11] = 1;
+        at[14] = 1;
+        at[15] = 0;
+        at[16] = 0;
+        at[17] = 0;
+        size_t p = 20;
+        at[p] = 0xFF;
+        at[p + 1] = 0xFE;
+        at[p + 2] = 0x01;
+        at[p + 3] = 0xD2; /* 466: big payload (grammar floor) */
+        for (int i = 0; i < 462; ++i)
+            at[p + 4 + i] = u8('A' + (i % 26));
+        p += 2 + 466;
+        at[p] = 0xFF;
+        at[p + 1] = 0xC0;
+        at[p + 2] = 0;
+        at[p + 3] = 17;
+        at[p + 4] = 8;
+        at[p + 5] = 0;
+        at[p + 6] = 64;
+        at[p + 7] = 0;
+        at[p + 8] = 48;
+        at[p + 9] = 1;
+        at[p + 10] = 1;
+        at[p + 11] = 0x22;
+        p += 2 + 17;
+        at[p] = 0xFF;
+        at[p + 1] = 0xDA; /* SOS */
+        at[p + 2] = 0;
+        at[p + 3] = 8;
+        for (int i = 0; i < 8; ++i)
+            at[p + 4 + i] = 0x11;
+        p += 2 + 12;
+        at[p] = 0x00;
+        at[p + 1] = 0x11;
+        at[p + 2] = 0x22;
+        at[p + 3] = 0x33;
+        at[p + 4] = 0xFF;
+        at[p + 5] = 0xD9; /* EOI */
+    }
+    /* raw-sign-layer candidate: a PSD in another free cluster */
+    {
+        u8* at = img.data() + DATA + (300 - 2) * 512;
+        std::memcpy(at, "8BPS", 4);
+        at[4] = 0;
+        at[5] = 1; /* version BE */
+        at[12] = 0;
+        at[13] = 1; /* channels BE */
+        at[14] = 0;
+        at[15] = 0;
+        at[16] = 0;
+        at[17] = 64; /* height BE */
+        at[18] = 0;
+        at[19] = 0;
+        at[20] = 0;
+        at[21] = 48; /* width BE */
+        at[22] = 0;
+        at[23] = 8; /* depth BE */
+        at[24] = 0;
+        at[25] = 1; /* color mode */
+    }
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = false;
+    cfg.run_carve = true;
+    cfg.whole_disk = false;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    ASSERT_EQ(ctrl.run(&dev, nullptr, nullptr, nullptr, stats), OK) << "scan ran";
+    ASSERT_GE(stats.carved_found, 2u) << "both the grammar and raw-sign candidates carved";
+
+    /* every carved node must carry the single File%06u family */
+    std::vector<std::string> carved_names;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->origin() == tree::Origin::Carved)
+                carved_names.push_back(c->name_utf8());
+            collect(c);
+        }
+    };
+    for (tree::FileNode* r : tree.roots())
+        collect(r);
+    ASSERT_GE(carved_names.size(), size_t(2));
+    bool saw_jpg = false, saw_psd = false;
+    for (const std::string& n : carved_names) {
+        EXPECT_EQ(std::string::npos, n.find("Carved"))
+            << "the split family is gone: " << n;
+        /* the registered default: FileNNNNNN.ext (6 digits) */
+        ASSERT_GE(n.size(), size_t(10)) << n;
+        EXPECT_EQ(0u, n.compare(0, 4, "File")) << n;
+        for (int i = 4; i < 10; ++i)
+            EXPECT_TRUE(n[i] >= '0' && n[i] <= '9') << "index digits: " << n;
+        if (n.size() > 10 && n.compare(n.size() - 4, 4, ".jpg") == 0)
+            saw_jpg = true;
+        if (n.size() > 10 && n.compare(n.size() - 4, 4, ".psd") == 0)
+            saw_psd = true;
+    }
+    EXPECT_TRUE(saw_jpg) << "the grammar-layer candidate is in the family";
+    EXPECT_TRUE(saw_psd) << "the raw-sign-layer candidate is in the family";
+}
+
 TEST(Orchestrator, StagedRunAndSessionRoundTrip) {
     auto img = build_fat16();
     MemDevice dev(std::move(img));

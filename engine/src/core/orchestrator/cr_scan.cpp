@@ -1432,17 +1432,16 @@ u32 ScanController::run_carve_stage(IStorageDevice* slice, CancelToken* cancel,
         cf.free_map = &carve_fm;
     }
     carve::CarveStats cs;
-    carve::NameCallback namer = [](const carve::Signature& sig, u64 size, u32 index) {
-        (void)size;
-        char buf[32];
-        snprintf(buf, sizeof(buf), "Carved%06u.%s", index, sig.ext);
-        std::u16string out;
-        for (const char* p = buf; *p; ++p)
-            out.push_back(u16(u8(*p)));
-        return out;
-    };
-    u32 rc = carve::carve_slice(slice, cf, cancel, carve_cb, &cbridge, tree_, root_carved_, &tree_,
-                                namer, cs);
+    /* N-014b: no orchestrator-side namer - both carve layers name
+     * through the single registered chain (the og per-analyser
+     * embedded_name first, then the File%06u default documented in
+     * PARITY-DELTAS). The old "Carved%06u" lambda here produced a second
+     * name family inside one scan (grammar layer "Carved...", raw-sign
+     * layer "File...") - the split N-014b flagged; the family is one now.
+     * Hosts wanting their own policy pass a namer to carve_slice
+     * directly (both layers honor it since the N-014b routing). */
+    u32 rc = carve::carve_slice(slice, cf, cancel, carve_cb, &cbridge, tree_, root_carved_,
+                                &tree_, nullptr, cs);
     stats.carved_found = cs.validated;
     stats.bytes_scanned += cs.bytes_scanned;
     stats.carve_bitmap_skipped_bytes = cs.bitmap_skipped_bytes; /* M-005 */

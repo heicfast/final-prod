@@ -551,12 +551,18 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 return ERR_NO_MEMORY;
             }
             const u32 fi = ctx.file_index.fetch_add(1, std::memory_order_relaxed);
-            char nbuf[40];
-            snprintf(nbuf, sizeof(nbuf), "File%06u.%s", fi, fmt.ext);
-            std::u16string uname;
-            for (const char* p = nbuf; *p; ++p)
-                uname.push_back(u16(u8(*p)));
-            props->name = uname;
+            /* N-014b: ONE naming family per scan - the raw-sign layer
+             * rides the SAME chain as the grammar layer (the caller's
+             * namer, then the registered File%06u default) instead of
+             * its own hardcoded scheme. The og has no FileNNNN/Carved
+             * scheme at all (corpus erratum, OQ-S4-2's decode; naming is
+             * the host callback's job - N-063), so the callback contract
+             * reads only ext/name; a partial Signature view of the
+             * raw-sign format is the honest projection of that contract. */
+            Signature rsig{};
+            rsig.ext = fmt.ext;
+            rsig.name = fmt.ext;
+            props->name = ctx.namer ? ctx.namer(rsig, len, fi) : default_namer(rsig, len, fi);
             props->fs_kind = u32(FsKindCode::Raw);
             props->logical_size = len;
             props->carve_format = 0xFFFF0000u + best->fmt; /* raw-sign tag */

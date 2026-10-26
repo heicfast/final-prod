@@ -12945,3 +12945,29 @@ Stage Summary:
 - Session 34 open on the MINOR-tail lane. First: full read of the tail
   findings + corpus verification, starting N-064 (Dict password
   dictionary absent).
+---
+Task ID: DFX28-T4 (session 28, third fix — N-027)
+Agent: main engineer (diff-to-fix fix session — MINOR front band)
+Task: N-027 the carve/writer minors group (N-014a/b/c/d).
+
+Work Log:
+- Verified all four sub-items against the CURRENT tree (post-parallel-landings):
+  N-014a already fixed by N-016 (cr_scan.cpp comment + SingleBoundaryAtTeardown);
+  N-014c already fixed by M-024 (CarveFlags.disabled_formats, both layers);
+  N-014d already fixed by N-008+N-068 (salvage polarity + LFH gates) — my own
+  corpus re-read of :18479-18498 confirmed the direction verbatim and corrected
+  the audit's "~4 GiB" cap detail (real bound 0x500001 bytes).
+- N-014b fixed for real: raw-sign emit rides the namer chain (partial-Signature
+  projection for the ext/name callback contract); the orchestrator's
+  Carved%06u lambda removed (no og basis — corpus erratum killed the UI-side
+  File0001 reading; naming is the host callback's job per N-063).
+- Test: Orchestrator.CarveSingleNamingFamily — grammar JPEG + raw-sign PSD in
+  FAT16 free clusters; fail-before RED (Carved000000.jpg visible in the tree),
+  pass-after all File%06u. Suite 749/749.
+- Audit trail: Resolution (mixed FIXED + 3x FIXED-ALREADY with the in-tree
+  proofs) + FIXED/ move, RESOLVED-INDEX row, matrix carve row, carve.md +
+  writer.md verdicts, SUMMARY delta.
+
+Stage Summary:
+- N-027 FIXED (session tally: 3 — N-025, N-026, N-027). MINOR 15 remain.
+  Next: N-031 (carve dispatch deltas — zero-sector skip + stride doc).
