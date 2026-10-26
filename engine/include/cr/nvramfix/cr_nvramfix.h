@@ -69,9 +69,9 @@ constexpr u8 kTypeMedia = 0x04;
 constexpr u8 kSubTypeHarddrive = 0x01;
 constexpr size_t kNodeHeaderSize = 4; /* u8 type, u8 subtype, u16 len */
 /* MEDIA_HARDDRIVE_DEVICE_PATH fields */
-constexpr size_t kHdPartitionNumber = 4;   /* u32 */
-constexpr size_t kHdPartitionStart = 8;   /* u64 */
-constexpr size_t kHdPartitionSize = 16;   /* u64 */
+constexpr size_t kHdPartitionNumber = 4; /* u32 */
+constexpr size_t kHdPartitionStart = 8;  /* u64 */
+constexpr size_t kHdPartitionSize = 16;  /* u64 */
 constexpr size_t kHdSignature = 24;      /* u8[16] */
 constexpr size_t kHdMbrType = 40;        /* u8: 1=MBR, 2=GPT */
 constexpr size_t kHdSignatureType = 41;  /* u8: 1=MBR sig, 2=GUID, 0=none */
@@ -93,15 +93,15 @@ struct TargetPartition {
     /* OLD identity - the match keys */
     u32 old_mbr_signature = 0; /* MBR mode */
     u8 old_gpt_guid[16] = {0}; /* GPT mode */
-    bool gpt_mode = false;      /* false = MBR matching, true = GPT */
+    bool gpt_mode = false;     /* false = MBR matching, true = GPT */
     u64 old_start = 0;
     u64 old_size = 0;
     /* NEW values - the rewrite payload */
     u32 new_partition_number = 0;
     u64 new_start = 0;
     u64 new_size = 0;
-    u32 new_mbr_signature = 0;    /* MBR-mode rewrite */
-    u8 new_gpt_guid[16] = {0};   /* GPT-mode rewrite */
+    u32 new_mbr_signature = 0; /* MBR-mode rewrite */
+    u8 new_gpt_guid[16] = {0}; /* GPT-mode rewrite */
 };
 
 /* The injected firmware-variable seam (the win layer resolves
@@ -132,7 +132,7 @@ struct NvramRewrite {
  * Errors: ERR_BAD_PARAMETER (null seam), ERR_READ_FAILED (BootOrder
  * unreadable), ERR_BAD_MAGIC (a load option too malformed to walk). */
 std::vector<NvramRewrite> plan_boot_entries(GetVarFn get, void* get_user,
-                                             const TargetPartition& target, u32* error = nullptr);
+                                            const TargetPartition& target, u32* error = nullptr);
 
 /* Execute a plan through the injected setter under the consent
  * callback. consent == nullptr = DEFAULT-DENY. Stops at the first

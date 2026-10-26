@@ -108,7 +108,7 @@ std::vector<u8> build_load_option(const char16_t* description,
 
 /* a MEDIA_HARDDRIVE_DEVICE_PATH node (42 bytes) */
 std::vector<u8> hd_node(u32 number, u64 start, u64 size, const u8 sig[16], u8 mbr_type,
-                         u8 sig_type) {
+                        u8 sig_type) {
     std::vector<u8> n(kHdNodeSize, 0);
     n[0] = 0x04; /* Type: MEDIA */
     n[1] = 0x01; /* SubType: HARDDRIVE */
@@ -131,8 +131,12 @@ void mbr_sig(u8 sig[16], u32 s) {
     sig[3] = u8(s >> 24);
 }
 
-bool allow_always(void*) { return true; }
-bool deny_always(void*) { return false; }
+bool allow_always(void*) {
+    return true;
+}
+bool deny_always(void*) {
+    return false;
+}
 
 const char16_t kBootOrderName[] = u"BootOrder";
 const char16_t kBoot0000[] = u"Boot0000";
@@ -158,8 +162,8 @@ TEST(NvramFix, MatchesMbrBySignatureStartSize) {
     MockVars vars;
     u8 sig[16];
     mbr_sig(sig, 0xAABBCCDDu);
-    vars.put(kBoot0000, build_load_option(u"Windows Boot Manager",
-                                           {hd_node(2, 2048, 4096, sig, 1, 1)}));
+    vars.put(kBoot0000,
+             build_load_option(u"Windows Boot Manager", {hd_node(2, 2048, 4096, sig, 1, 1)}));
     /* a second entry on a DIFFERENT disk: must not match */
     u8 other[16];
     mbr_sig(other, 0xDEADBEEFu);
@@ -167,8 +171,8 @@ TEST(NvramFix, MatchesMbrBySignatureStartSize) {
     /* a third entry on the SAME disk but a different partition start */
     u8 same[16];
     mbr_sig(same, 0xAABBCCDDu);
-    vars.put(kBoot0002, build_load_option(u"Same disk other partition",
-                                           {hd_node(2, 9999, 4096, same, 1, 1)}));
+    vars.put(kBoot0002,
+             build_load_option(u"Same disk other partition", {hd_node(2, 9999, 4096, same, 1, 1)}));
     vars.put(kBootOrderName, {0x00, 0x00, 0x01, 0x00, 0x02, 0x00});
 
     u32 err = OK;
@@ -266,13 +270,15 @@ TEST(NvramFix, ConsentDefaultDeny) {
     MockVars vars;
     u8 sig[16];
     mbr_sig(sig, 0xAABBCCDDu);
-    vars.put(kBoot0000, build_load_option(u"Windows Boot Manager", {hd_node(2, 2048, 4096, sig, 1, 1)}));
+    vars.put(kBoot0000,
+             build_load_option(u"Windows Boot Manager", {hd_node(2, 2048, 4096, sig, 1, 1)}));
     vars.put(kBootOrderName, {0x00, 0x00});
     auto plan = plan_boot_entries(&MockVars::get, &vars, mbr_target());
     ASSERT_EQ(1u, plan.size());
 
     size_t applied = 99;
-    EXPECT_EQ(ERR_REPAIR_REFUSED, execute_plan(plan, &MockVars::set, &vars, nullptr, nullptr, &applied));
+    EXPECT_EQ(ERR_REPAIR_REFUSED,
+              execute_plan(plan, &MockVars::set, &vars, nullptr, nullptr, &applied));
     EXPECT_EQ(0u, applied);
     EXPECT_EQ(0u, vars.sets()) << "default-deny wrote nothing";
     applied = 99;
@@ -306,17 +312,20 @@ TEST(NvramFix, SetFailureStopsAndReports) {
     MockVars vars;
     u8 sig[16];
     mbr_sig(sig, 0xAABBCCDDu);
-    vars.put(kBoot0000, build_load_option(u"Windows Boot Manager", {hd_node(2, 2048, 4096, sig, 1, 1)}));
+    vars.put(kBoot0000,
+             build_load_option(u"Windows Boot Manager", {hd_node(2, 2048, 4096, sig, 1, 1)}));
     u8 sig2[16];
     mbr_sig(sig2, 0xAABBCCDDu);
-    vars.put(kBoot0001, build_load_option(u"Windows Boot Manager 2", {hd_node(4, 2048, 4096, sig2, 1, 1)}));
+    vars.put(kBoot0001,
+             build_load_option(u"Windows Boot Manager 2", {hd_node(4, 2048, 4096, sig2, 1, 1)}));
     vars.put(kBootOrderName, {0x00, 0x00, 0x01, 0x00});
     auto plan = plan_boot_entries(&MockVars::get, &vars, mbr_target());
     ASSERT_EQ(2u, plan.size());
 
     vars.fail_next_set();
     size_t applied = 0;
-    EXPECT_EQ(ERR_WRITE_FAILED, execute_plan(plan, &MockVars::set, &vars, &allow_always, nullptr, &applied));
+    EXPECT_EQ(ERR_WRITE_FAILED,
+              execute_plan(plan, &MockVars::set, &vars, &allow_always, nullptr, &applied));
     EXPECT_EQ(0u, applied);
     EXPECT_EQ(0u, vars.sets()) << "the failed Set wrote nothing";
 }

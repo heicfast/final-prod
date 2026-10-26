@@ -47,9 +47,8 @@ namespace bootfix {
 /* Read the hive file and build the rewrite plan (planning only - no
  * write, no consent needed). Returns OK / ERR_READ_FAILED (open or
  * read failed; GetLastError is in *last_error when provided). */
-u32 bcd_file_plan(const wchar_t* path, u32 mbr_signature, u64 old_start_lba,
-                  u64 new_start_lba, std::vector<bcdfix::BcdRewrite>* out,
-                  unsigned long* last_error = nullptr);
+u32 bcd_file_plan(const wchar_t* path, u32 mbr_signature, u64 old_start_lba, u64 new_start_lba,
+                  std::vector<bcdfix::BcdRewrite>* out, unsigned long* last_error = nullptr);
 
 /* Execute the plan against the hive file under the consent callback
  * (default-deny). When the file is held by the registry loader, the
@@ -89,12 +88,12 @@ bool enable_system_environment_privilege();
  * resolved Get seam). Returns the plan; *error carries the cr error
  * code. */
 std::vector<nvramfix::NvramRewrite> nvram_plan(const nvramfix::TargetPartition& target,
-                                                u32* error = nullptr);
+                                               u32* error = nullptr);
 
 /* Execute the plan through the live Set seam under the consent
  * callback (default-deny). */
-u32 nvram_execute(const std::vector<nvramfix::NvramRewrite>& plan,
-                  nvramfix::ConsentFn consent, void* consent_user, size_t* applied = nullptr);
+u32 nvram_execute(const std::vector<nvramfix::NvramRewrite>& plan, nvramfix::ConsentFn consent,
+                  void* consent_user, size_t* applied = nullptr);
 
 /* Undo: restore the original variable bytes. */
 u32 nvram_undo(const std::vector<nvramfix::NvramRewrite>& plan, size_t* applied = nullptr);
