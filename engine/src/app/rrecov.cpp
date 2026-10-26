@@ -44,6 +44,7 @@
 #include "cr/storage/cr_decrypt_device.h"
 #include "cr/crypto/cr_aes.h"
 #include "cr/cr_text.h" /* N-009c: --filter UTF-8 encoding */
+#include "cr/cr_ui.h"   /* N-033: the carve-format enumeration ABI */
 #include <windows.h>
 #include <map>
 #include <chrono>
@@ -2134,16 +2135,62 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
 
 } // namespace
 
+/* N-033: render the carve-format enumeration (the cr_ui ABI, \u00a77a) -
+ * the CLI/parity-tooling counterpart of the og host's format-config UI
+ * built on EUGetAnalyserList/Map/Multimap. Grammar registry rows first
+ * (FormatId order), then raw-sign prefilter rows (kFormats order) - the
+ * ABI's deterministic append-only order. */
+int print_carve_formats() {
+    const u32 n = cr_ui_carve_format_count();
+    wprintf(L"carve formats: %u (grammar registry first, then raw-sign prefilter)\n", n);
+    wprintf(L"%-4s %-8s %-7s %-16s %-16s %-5s %s\n", L"#", L"layer", L"ext", L"min-bytes",
+            L"max-bytes", L"conf", L"magic (grammar layer)");
+    static const wchar_t kHex[] = L"0123456789abcdef";
+    for (u32 k = 0; k < n; ++k) {
+        cr_ui_carve_format f;
+        if (cr_ui_carve_format_info(k, &f) != 0)
+            break;
+        wchar_t ext[25] = {};
+        for (u32 j = 0; j < 24 && f.ext[j]; ++j)
+            ext[j] = wchar_t(f.ext[j]);
+        wchar_t magic[40] = {};
+        if (f.layer == 0 && f.magic_len != 0) {
+            wchar_t* p = magic;
+            for (u32 j = 0; j < f.magic_len && p + 2 < magic + 39; ++j) {
+                *p++ = kHex[f.magic[j] >> 4];
+                *p++ = kHex[f.magic[j] & 0xF];
+            }
+        }
+        wprintf(L"%-4u %-8s %-7s %-16llu %-16llu %-5u %s\n", k,
+                f.layer == 0 ? L"grammar" : L"raw", ext,
+                static_cast<unsigned long long>(f.min_size),
+                static_cast<unsigned long long>(f.max_size), f.base_confidence, magic);
+    }
+    return 0;
+}
+
 int wmain(int argc, wchar_t** argv) {
     /* Ctrl-C: cooperative cancel of the in-flight scan/recover (the
      * process is NOT killed - the token polls at loop heads, the session
      * saves, the exit code is 3). */
     SetConsoleCtrlHandler(ctrl_c_handler, TRUE);
+    /* N-033 (the CLI half of the carve-capability surface): the og host
+     * builds its "which formats can we carve" UI from
+     * EUGetAnalyserList/Map/Multimap + GetRawUserInfoMap; the core's
+     * counterpart is the cr_ui carve-format ABI, and this flag renders
+     * it (parity tooling and CLI hosts self-describe the carve set
+     * instead of hard-coding knowledge of the tables). Checked BEFORE
+     * command dispatch so it works bare: rrecov --list-carve-formats. */
+    for (int a = 1; a < argc; ++a) {
+        if (std::wstring(argv[a]) == L"--list-carve-formats")
+            return print_carve_formats();
+    }
     if (argc < 2) {
         wprintf(
             L"rrecov - core_recovery CLI\n"
             L"usage:\n"
             L"  rrecov list\n"
+            L"  rrecov --list-carve-formats   (the carve-capability table: ext/size bounds/confidence/magic)\n"
             L"  rrecov scan --disk N | --volume C: | --image file.vmdk|.vhd|.vhdx|.img [.dmg raw]\n"
             L"             [--whole-disk] [--quick-only] [--no-carve]\n"
             L"             (deep stage always on; --quick-only disables it; --whole-disk = lost-partition discovery)\n"

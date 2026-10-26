@@ -455,6 +455,28 @@ lane's original claim) landed by the parallel window. Next on this lane:
 N-033 (carve capability ABI), then the unclaimed MINOR remainder
 (N-065/N-066/N-059/N-072), then feasible MAJORs.
 
+## Session-23 delta, batch 5 (2026-10-26 — DFX29: N-033 closed — the CLI half + the refresh-divergence register)
+
+**N-033 FIXED (the finding's last open scope):** `rrecov
+--list-carve-formats` renders the cr_ui carve-format table (the ABI half
+landed in session 6) — layer/ext/size bounds/base confidence/grammar
+magic, checked before command dispatch (works bare), usage updated.
+Parity tooling and CLI hosts self-describe the carve set. ABI-CONTRACT
+§7a gains the per-scan registry-refresh divergence note (the og's FS
+engines re-clone the cross-DLL RAWSearchDLL registry per scan,
+FATSearchDLL :29290-29361; the core's tables are compile-time immutable
+append-only — the enumeration is lifetime-valid, no refresh seam; the
+future runtime-config path is named as a versioned-ABI question). Gate
+hardening en route: cr_ui.h's `__declspec` expansion under the parse
+gate's -D_WIN32 is neutralized in the gate's CXXFLAGS (include-order-
+proof; never in shipping code) — win_syntax_check 8/8 GREEN. Suite
+**800/800**.
+
+**Post-fix counts:** SEVERE **0** · MAJOR 11 · MINOR **7** · INFO 0 open ·
+tracked-open 10 · FIXED/ **189** files (188 findings + RESOLVED-INDEX).
+Next on this lane: N-065 (writer destination policy) -> N-066 -> N-059
+-> N-072, then feasible MAJORs (M-052/M-035/M-048/M-018).
+
 <!-- DFX16 note: session 16 ran as a parallel lane in the same window as
      sessions 17-22; its delta is recorded here for chronology. -->
 
