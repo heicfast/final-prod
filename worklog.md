@@ -281,3 +281,62 @@ Next (tracked): engine-ci's tsan tail; ui-e2e.yml (playwright lane with
 browsers installed); release.yml (T13); INTEGRATION-VALIDATION evidence
 (T14); root README/BUILD/ARCHITECTURE/RELEASE/TESTING (T16 remainder);
 the RC tag + clean-runner install evidence (T18/T15).
+
+---
+
+## 2026-10-26T17:35Z — all CI lanes green; release lane + docs set shipped; handoff
+
+Green state at ec3e50b5 (verified via the API):
+- contracts-ci GREEN — validate.mjs phase 1+2 (33 commands cross-checked
+  both directions) + the filefilter freshness gate (1,481 extensions).
+- ui-ci GREEN (windows) — typecheck, eslint, prettier, arch-lint A1-A7,
+  ast-grep x2, filefilter, knip (KNIP_DISABLE_RAW_TRANSFER=1, documented),
+  jscpd, vitest 127/127, coverage 96.4/84.4/100/98.6, production build +
+  bundle budget, cargo check + clippy -D warnings on the bridge.
+- ui-e2e GREEN (windows) — 12/12 Playwright specs on the test-mode build
+  (the double fidelity fix: it now resolves the virtual quick-targets
+  exactly like the real bridge — succeed where production succeeds).
+- driver-ci GREEN — lint, fuzz, unit (MSVC /W4 /WX), WDK Debug+Release
+  matrix + the unsigned assertion.
+- engine-ci — lint, fuzz, Linux ASan (full suite), Linux UBSan, Windows
+  MSVC + Win7 PE gates + ctest ALL GREEN; the TSan lane was still in
+  flight at press time (the longest job in the set; watch run 40349677467
+  — no code changed under it since it started, its outcome is about the
+  engine tree, which this session never touched).
+
+Also this window:
+- release.yml (T13): version gate (tag == VERSION) → contracts gate →
+  build.ps1 -Target all → artifact verification → truthful notes (nothing
+  signed; the driver test-signing path; the surfaced driver step; the
+  portable no-driver label) → release upload with SHA256SUMS,
+  fail_on_unmatched_files.
+- The root docs set (T16): README (integration-shipped status + docs map),
+  BUILD (lanes, version policy, toolchain, the engine-kit link/load
+  truth), ARCHITECTURE (component diagram, threading rules, install
+  layout), RELEASE (tag flow, signing truth, RC discipline), TESTING
+  (suite map + the double's charter), PARITY-DELTAS (D-I1..I11 + this
+  integration's D-B1..B5), INTEGRATION-VALIDATION (evidence index with
+  committed evidence, the CI green table with SHAs, and the PENDING items
+  stated as pending), INTEGRATION-GAPS (G-1..G-11 with follow-ups).
+- ui-e2e.yml + the playwright test-mode webServer.
+
+Remaining work (tracked honestly — none of it blocks the integration
+claim; all of it is executable from this handoff):
+1. Watch engine-ci's TSan tail (run 40349677467); fix for cause if red.
+2. T14 measurements: the latency/throughput table vs the retired
+   simulator's documented budgets + the G-7 filter cost at 10^5/10^6
+   scales + memory bounds. Executable on any windows runner with the
+   engine kit staged; record into docs/INTEGRATION-VALIDATION.md.
+3. T15 runtime matrix: run the built installer on a clean windows runner;
+   capture install/uninstall/update/repair transcripts + registry/dir
+   diffs; commit under docs/INTEGRATION-VALIDATION/.
+4. T18: cut v0.5.0-rc1, confirm release.yml end-to-end, install/run on the
+   clean runner, then the final tag.
+5. G-1 follow-up (the one capability gap with a UX consequence): the
+   scan-page consent prompt + consent_respond re-add, per the recorded
+   design in INTEGRATION-GAPS.md G-1.
+
+Every claim above is verifiable: the runs are in the repository's Actions
+history at the named SHAs; the committed evidence artifacts are in
+docs/INTEGRATION-VALIDATION/ and docs/; the manifest's removed-commands
+rationale is in contracts/command-surface.json itself.
