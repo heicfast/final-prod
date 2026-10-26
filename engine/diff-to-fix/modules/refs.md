@@ -80,10 +80,16 @@ refs-specific divergences surfaced.
 ## Session-2 update (2026-10-25, core `e93decf`)
 
 **Verdict changes (quotes in `../evidence/decompiled-quotes/btrfs-zfs-refs-session2.md`):**
-- **N-026 filed (new):** checkpoint body offset — og dynamic (`*(uint*)(page+4)`) vs core
-  hardcoded 0x50/0x56/0xA8; boot gates two-sided (og bps {256..4096} + cluster ∈ {4K,64K}
-  ONLY vs core bps {512,4096} + pow2 cluster); second-copy location og START+MID vs core
-  START+TAIL; volume-open read size (informational).
+- **N-026 FIXED (s28, mixed resolution):** boot gates aligned to the og (bps ladder
+  {256,512,1024,2048,4096} + cluster product gate {4 KiB, 64 KiB}, FUN_180012390:13544-49)
+  and the volume open now reads the og's 4 KiB — 4 fail-before tests + the 64-KiB boundary
+  pin. Two sub-items INVALID on this session's first-hand decode: the "dynamic body
+  offset" is 0x50 BY CONSTRUCTION (the ref parser hardcodes the 0x30 extension,
+  FUN_18000ff60:11875 — the core's hardcode IS parity), and the "mid-volume second copy"
+  is a misattribution of N-036's container-map key (FUN_180011e90 full-decode: identity /
+  binary-search / rewrite; the og probes NO superblock backup — single metadata base
+  spc×0x1E at :2457, checkpoint A/B from sb fields). The core's {30, n-3, n-2} probe set
+  stays the superset. Resolution in findings/FIXED/N-026.
 - **N-007/I-004 re-confirmed verbatim:** first-DWORD page dispatch (`:11701`); 3.4+ version
   gate; SUPB/CHKP constants byte-exact.
 - **GAP-S6-3 (landed fix) verified og-parity:** body-minor gate source (`minor >= 0xE →
@@ -150,7 +156,8 @@ Complements M-022/I-012 above (same session, parallel leg; full inventory:
   mismatch (damaged-record FP guard); core accepts any in-bounds parse.
 - **I-013 (INFO):** host-OS runtime gate — og's DLL refuses hosts < Win8 (6.2);
   core is host-agnostic (deliberate portability; parity benches on Linux are not
-  og-divergent). On-disk gates remain I-004 + N-026/N-013b.
+  og-divergent). On-disk gates: I-004 (registered superset) + the s28 og-exact
+  geometry gates (N-026/N-013b FIXED).
 - **Convergence with the leg above:** my agent's row-grammar findings
   (directory rows 0x10 / 0x30+subtype; `0x00010030` packed markers ≡ og key+0
   type/key+2 subtype) independently match the M-022 convergence checks ✓; the

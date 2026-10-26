@@ -2686,3 +2686,24 @@ MINOR 31 · INFO 18 · tracked-open 12 = **90 active** / **56 files in FIXED/**.
 
 **Live counts (after S-028):** ACUTE 0 · SEVERE 5 · MAJOR 42 ·
 MINOR 44 · INFO 20 · tracked-open 12 = **111 active** / **60 files in FIXED/**.
+
+**N-026 FIXED (the ReFS page/gate group — mixed resolution, 2 fixes + 2 audit
+corrections):** N-013b — the DBR geometry gates now match the og exactly: bps
+ladder {256,512,1024,2048,4096} (FUN_180012390:13544-13546, re-verified
+verbatim) and the cluster product gate {4 KiB, 64 KiB} (:13547-13549); the old
+core REFUSED 256/1024/2048-bps volumes the og opens and ACCEPTED 16/32-KiB
+cluster shapes the og refuses — both directions closed (the 1.x-3.x version
+superset stays: I-004/D-48b). N-013d — the volume open reads the og's 4 KiB
+(:2425-2444). N-013a INVALID (first-hand decode: the og's "dynamic body
+offset" is 0x50 BY CONSTRUCTION — the ref parser hardcodes the 0x30 extension,
+FUN_18000ff60:11875; the audit's `*(uint*)(page+4)` was Ghidra's
+parsed-object view, not a raw-page field). N-013c INVALID (the "mid-volume
+second copy" is a misattribution: the cited formula is the container-map key
+in FUN_180011e90 — N-036's decode, confirmed by the full-function read; the
+og reads the superblock at the SINGLE metadata base spc×0x1E, :2457, and
+probes no backup; the core's {30,n-3,n-2} set stays the superset —
+implementing the audit's "mid-volume probe" would have been hallucinated
+parity). Tests: Refs.Bps256Accepted / Bps1024Accepted / Cluster16KRejected /
+OpenReadIsFourKiB (all fail-before RED) + Cluster64KAccepted boundary pin.
+Suite **748/748**.
+

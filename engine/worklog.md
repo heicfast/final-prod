@@ -12646,6 +12646,39 @@ Stage Summary:
   claimed; proceeding to N-026.
 
 ---
+Task ID: DFX28-T3 (session 28, second fix — N-026)
+Agent: main engineer (diff-to-fix fix session — MINOR front band)
+Task: N-026 the ReFS page/gate minors group (N-013a/b/c/d).
+
+Work Log:
+- Corpus re-verified first-hand, full decode chains this time:
+  - N-013b confirmed verbatim (bps ladder + cluster product gates, FUN_180012390).
+  - N-013d confirmed (alloc(0x1000) + FUN_180012390(buf, 0x1000) at :2425-2444).
+  - N-013a DISPROVEN: header.size = 0x20 (FUN_18000fc80:11705) + ref.size, and
+    the ref parser FUN_18000ff60:11875 sets ref.size = 0x30 as a HARDCODED
+    immediate -> body 0x50 by construction; the audit's "page+4 dynamic field"
+    was the parsed header OBJECT's field in Ghidra's view, never a raw-page
+    read. Core hardcode IS parity.
+  - N-013c DISPROVEN: read FUN_180011e90 in full — ((pos/unit)>>1-2)*unit is
+    the container-map key (identity-when-small / binary-search / rewrite
+    (block&(unit-1))|base) = N-036's decode. The og reads the superblock at
+    the SINGLE metadata base spc*0x1E (:2457; FUN_1800021e0 reads one cluster
+    there); checkpoint A at sb[5], fallback B at sb[6] (:946-1010) — matching
+    the core's existing chain. No backup probe exists in the og.
+- Fix (cr_refs_engine.cpp): bps gate {256,512,1024,2048,4096}; cluster
+  product gate {4096,65536} replacing pow2-spc<=128; open read 4096 (512
+  narrow fallback for sub-4-KiB synthetic slices only).
+- Tests: Refs.Bps256Accepted, Refs.Bps1024Accepted, Refs.Cluster16KRejected,
+  Refs.OpenReadIsFourKiB — all fail-before RED on the stash-isolated pre-fix
+  tree; Refs.Cluster64KAccepted boundary pin. Suite 748/748.
+- Audit trail: Resolution (mixed FIXED/INVALID with the decode evidence) +
+  FIXED/ move, RESOLVED-INDEX row, matrix refs row, refs.md verdicts (2
+  sections), SUMMARY session delta.
+
+Stage Summary:
+- N-026 FIXED (session tally: 2 — N-025, N-026). MINOR 16 remain. Two audit
+  claims corrected in the trail rather than "fixed" in code (N-013a, N-013c).
+  Next: N-027 (the carve/writer group).
 Task ID: DFX30-T0 (session 30 bootstrap — lane claim)
 Agent: main engineer (diff-to-fix fix session 30 — DFX30)
 Task: Session bootstrap + DISJOINT lane claim (the tracked-open OQ queue is
@@ -12878,3 +12911,83 @@ Work Log:
 Stage Summary:
 - Session 33 open. First fix: M-020 (Btrfs profile machinery and default
   subvolume) — corpus re-verification starts now.
+
+
+---
+Task ID: DFX30-T1 (OQ-FLT-1 resolved)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: OQ-FLT-1 (inside tracked-open/OQ-Z-E-FLT-session3.md) — is the
+170-entry extension table engine-wide or exFAT-only? (M-035's blast-radius
+question)
+
+Work Log:
+- Probe executed first-hand on the corpus: PE section mapping of
+  exFATSearchDLL VA 0x18005a090 (.data, file offset 0x58690) -> 170 x
+  char[9] table extracted (169 populated + all-zero slot-169 sentinel;
+  first key "Raw"; flag bytes all 0).
+- Byte-exact 1530-byte block search across all 9 SearchDLL binaries:
+  NTFSSearchDLL 1 copy (.rdata 0x18006db20, ZERO code refs — DAT_ scan 0 +
+  full-VA/RVA pointer scans 0 = dead data); FATSearchDLL 3 copies (1 dead
+  .rdata + live DAT_1800630d0 x5 refs + DAT_180067720 x2 refs);
+  exFATSearchDLL 2 copies (1 dead .rdata + the live DAT_18005a090 x4);
+  RAWSearchDLL 1 live copy (DAT_18008f070 x1); EXT4/Btrfs/ReFS/HFS+/Zfs:
+  ABSENT.
+- Set-diff vs DRWUI.exe 0x141bb0500 grading table: 169/169 keys IDENTICAL
+  (only-in-exFAT: none; only-in-DRWUI: none).
+- Live consumers read first-hand: FAT FUN_180024a10 (index gate < 0xAA +
+  strupr + strstr = the FileFilter path), FAT FUN_180017b90 (whole-table
+  category iteration), RAW FUN_18000b7a0 (index -> name accessor, record
+  +0x18 field). None is a validation scorer.
+- Scorer blast radius: grep for the reject rule's 0.3-compare across every
+  engine decompile: 0 hits outside exFATSearchDLL. FUN_180025390's
+  majority-mismatch + ratio<0.3 ghost rejection is exFAT-ONLY.
+- Audit trail: OQ-Z-E-FLT-session3.md OQ-FLT-1 section marked RESOLVED
+  (DFX30) with the evidence pointer; M-035's Open-questions section
+  ANSWERED with the same evidence + the implementer note (shared-vocabulary
+  insight: the core's kGradingExtensions can serve index->name); evidence
+  file added at diff-to-fix/evidence/decompiled-quotes/
+  s30-oq-flt1-extension-table-distribution.md.
+- No source change (OQ resolution; the consuming finding M-035 is DFX24's
+  lane and stays open with its scope now precisely bounded).
+
+Stage Summary:
+- OQ-FLT-1 RESOLVED: scorer exFAT-only; table = 4-engine shared
+  vocabulary, set-identical to DRWUI's grading set. Next on this lane:
+  OQ-Z5 (CZfsSearchController vs CZfsQuickSearch vtable diff).
+---
+Task ID: DFX34-T0 (session 34 bootstrap — lane claim; MINOR tail back-to-front)
+Agent: main engineer (diff-to-fix fix session 34 — DFX34; ID re-stamped
+27→32→34 across three push races, each squatted by parallel lanes)
+
+Task: Session bootstrap + lane claim: the MINOR tier TAIL back-to-front
+(the user directive for this lane: focus on MINOR initially, 20+ fix
+target, fixed findings → findings/FIXED/, all docs/counts current after
+each landing).
+
+Work Log:
+- Pulled both repos at bootstrap; absorbed the window's parallel claims
+  by union merges (none of this lane's claim commits landed — ID races
+  lost three times, honored per first-landing-wins). Core HEAD at claim:
+  `8144f30`; corpus `03ad46c` (verified unmoved at first corpus read).
+- Session prompt saved token-redacted:
+  worklog/session-diff-fix-34-prompt.md.
+- Baseline build+test executed FIRST-HAND at `65122f0` (pre-race tree):
+  linux-release **737/737** green (full ctest, incl. win_syntax_check);
+  the absorbed parallel landings (N-025 `e2b4549`, N-009c/d + M-057
+  `e1f17bc`) are audit-trail-only + engine-neutral in that window and
+  will be re-verified at the first fix's fail-before run on the union
+  tree (suite count now 740/740 per the parallel lanes' records).
+- Open inventory at claim: SEVERE 0 · MAJOR 14 (M-057 landed) · MINOR 17
+  · INFO 0 · tracked-open 11 OQs · FIXED/ 171+.
+- Lane claim: the MINOR tier BACK-TO-FRONT — N-064 → N-071 → N-072 →
+  N-075 → N-066 → N-065 → N-059 → N-050 → N-049 → N-036 → N-033 →
+  N-031 → N-027 → N-026 → N-007/I-004 → N-009-remainder → N-019 →
+  N-032. Overlapping silent claims converge per first-landing-wins on
+  LANDINGS; every landing absorbed with a convergence record. Groups
+  count per sub-fix toward the 20+ target.
+- One finding, one verified fix, one push throughout.
+
+Stage Summary:
+- Session 34 open on the MINOR-tail lane. First: full read of the tail
+  findings + corpus verification, starting N-064 (Dict password
+  dictionary absent).
