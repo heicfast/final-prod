@@ -188,23 +188,17 @@ function Invoke-Installer {
         Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if (-not $appBundle) { throw 'no Tauri NSIS app bundle found; run the ui lane first' }
     $makensis = Find-Makensis
-    # NSIS define paths are normalized to FORWARD slashes (makensis's File
-    # globbing rejected the mixed 'D:\dir\kit/*' form — round 2 of the
-    # validation run). BUT forward-slash paths that contain SPACES break
-    # single-file File lookups (round 3: 'Recovery Wizard_0.5.0_x64-setup.exe'
-    # -> no files found) — so the Tauri bundle (productName has a space) is
-    # copied to a space-free staged name first. Same bytes; the /oname
-    # extraction in the .nsi is unchanged.
-    $appBundleStaged = Join-Path $StageDir 'app-setup.exe'
-    Copy-Item $appBundle.FullName -Destination $appBundleStaged -Force
-    $appBundleFwd   = ($appBundleStaged -replace '\\', '/')
-    $engineKitFwd   = ((Join-Path $StageDir 'engine') -replace '\\', '/')
-    $driverStageFwd = ((Join-Path $StageDir 'driver') -replace '\\', '/')
-    $outDirFwd      = ($OutDir -replace '\\', '/')
-    & $makensis "/DPRODUCT_VERSION=$Version" "/DAPP_BUNDLE=$appBundleFwd" `
-        "/DENGINE_KIT=$engineKitFwd" `
-        "/DDRIVER_STAGE=$driverStageFwd" `
-        "/DOUT_DIR=$outDirFwd" (Join-Path $RepoRoot 'installer\recoverywizard.nsi')
+    # NATIVE (backslash) define paths + /DPATHSEP=\\ — the Tauri-bundled
+    # Windows makensis rejects forward-slash File filespecs ('no files found'
+    # even for a space-free existing file — validation rounds 3-4), while the
+    # backslash single-file form works (round 2) and the .nsi's own PATHSEP
+    # default keeps the Linux cross-compile validation (forward slashes)
+    # intact. The PowerShell literal '\\' passes one backslash through the
+    # C-runtime argument unescaping.
+    & $makensis "/DPRODUCT_VERSION=$Version" "/DAPP_BUNDLE=$($appBundle.FullName)" `
+        "/DENGINE_KIT=$(Join-Path $StageDir 'engine')" `
+        "/DDRIVER_STAGE=$(Join-Path $StageDir 'driver')" `
+        "/DOUT_DIR=$OutDir" "/DPATHSEP=\\" (Join-Path $RepoRoot 'installer\recoverywizard.nsi')
     if ($LASTEXITCODE -ne 0) { throw 'installer build failed' }
     Write-Host "[installer] -> $OutDir\RecoveryWizard-$Version-setup.exe"
 }

@@ -58,6 +58,16 @@ SetCompressor /SOLID lzma
   !define REPO_ROOT "${__FILEDIR__}/.."
 !endif
 
+; PATHSEP — the separator used inside File/OutFile filespecs built from the
+; build-passed defines. DEFAULT '/' (the Linux cross-compile validation
+; proven form); build.ps1 passes /DPATHSEP=\ on Windows, where the Tauri-
+; bundled makensis rejects forward-slash filespecs (validation rounds 2-4:
+; 'D:\dir\kit/*' and even the space-free 'D:/a/.../app-setup.exe' both
+; resolved to 'no files found', while the backslash forms resolve).
+!ifndef PATHSEP
+  !define PATHSEP "/"
+!endif
+
 !define PRODUCT_NAME        "HeicFast Recovery Wizard"
 !define PRODUCT_PUBLISHER   "HeicFast"
 !define PRODUCT_UNKEY       "HeicFast Recovery Wizard"
@@ -70,7 +80,7 @@ SetCompressor /SOLID lzma
 !define PROGRAMDATA_LOGS     "${PROGRAMDATA_ROOT}\logs"
 
 Name "${PRODUCT_NAME} ${PRODUCT_VERSION}"
-OutFile "${OUT_DIR}/RecoveryWizard-${PRODUCT_VERSION}-setup.exe"
+OutFile "${OUT_DIR}${PATHSEP}RecoveryWizard-${PRODUCT_VERSION}-setup.exe"
 InstallDir "$PROGRAMFILES64\HeicFast\Recovery Wizard"
 
 ; -----------------------------------------------------------------------------
@@ -164,7 +174,7 @@ Section "${PRODUCT_NAME} (required)" SEC_APP
   DetailPrint "Installing native recovery engine..."
   SetDetailsPrint both
   SetOutPath "$INSTDIR"
-  File /x cr_ui.lib "${ENGINE_KIT}/*"
+  File /x cr_ui.lib "${ENGINE_KIT}${PATHSEP}*"
 
   ${IfNot} ${FileExists} "$INSTDIR\cr_ui.dll"
     Abort "Engine kit incomplete: cr_ui.dll is missing."
@@ -194,11 +204,11 @@ Section "RDA raw-disk kernel driver (recommended)" SEC_DRIVER
   ; Stage the driver files (kept in <app>\driver — the signed-drop-in surface
   ; for later: replace .sys + reinstall without touching the app).
   SetOutPath "$INSTDIR\driver"
-  File "${DRIVER_STAGE}/rda.sys"
-  File "${DRIVER_STAGE}/rdacli.exe"
-  File "${DRIVER_STAGE}/rda.inf"
-  File "${DRIVER_STAGE}/install.ps1"
-  File "${DRIVER_STAGE}/uninstall.ps1"
+  File "${DRIVER_STAGE}${PATHSEP}rda.sys"
+  File "${DRIVER_STAGE}${PATHSEP}rdacli.exe"
+  File "${DRIVER_STAGE}${PATHSEP}rda.inf"
+  File "${DRIVER_STAGE}${PATHSEP}install.ps1"
+  File "${DRIVER_STAGE}${PATHSEP}uninstall.ps1"
 
   ; Update/repair semantics: an existing RDA service is stopped and removed
   ; first (stop -> delete -> recreate; no reboot — demand-start with a real
