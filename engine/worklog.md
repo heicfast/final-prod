@@ -16904,3 +16904,63 @@ Stage Summary:
   files. tracked-open: OQ-S4-3 alone (the Windows bench — dispatched
   by the parallel lane, in flight at this writing). The audit closes
   cleanly pending that execution's numbers.
+
+---
+Task ID: RV2 (review-validate session — the CI-red repair wave + the ledger/docs overhaul)
+Agent: review-and-validate session
+Task: Fix the four red CI gates the parallel waves pushed through; the
+PARITY-DELTAS collision reconciliation; the documentation overhaul (new
+API/formats/parameters/connection docs + README/RELEASE-NOTES refresh);
+the --check CLI half of M-041 the canonical landing had lost.
+
+Work Log:
+- CI diagnosis (run 40286862579 at 297661c + prior runs): lint
+  (~100 drifted files), fuzz (fuzz_image.cpp born-broken: map::insert(u64)
+  since its S-030 landing), windows (gmtime_r POSIX-only C3861 + two
+  u32->u16 C4244 casts in cr_carve.cpp), linux-tsan (a real data race —
+  two carve pool threads entering the test's EventRecorder concurrently;
+  the product contract at cr_scan.h:110-113 explicitly documents
+  non-serialized worker-thread delivery, so the TEST was at fault).
+- All four fixed at the source; a parallel lane (0e6a642/78c11d0)
+  independently landed the same two win-build fixes — converged cleanly
+  in the merge (their comment wording kept). TSan suite 870/870 + 0
+  warnings across 5 stress runs post-fix.
+- PARITY-DELTAS reconciliation (the DFX35 KNOWN DEBT): 12 same-number
+  collisions resolved per the errata convention (D-91..D-102 renumbered;
+  4 superseded copies dropped with the errata note); 7 live references
+  updated repo-wide; ledger now 97 rows, zero duplicate numbers.
+- CAPABILITY-MATRIX repaired: the four stacked S-014 posture paragraphs
+  collapsed to the canonical dict-only wording (matching D-80 + the win
+  layer), the duplicated lost-partition row removed, upstream's M-040
+  boot-chain row kept, the APPLY sub-deltas renamed D-98a..d.
+- Hallucination sweep (scripts/hallucination_sweep*.py): every test name
+  claimed in every finding's Resolution cross-checked against the actual
+  suite (928 TEST() sites) and full git history. Result: 162
+  claimed-but-missing tokens, ALL resolved as plan-section names,
+  re-suited/renamed landings, or word-order variants — every
+  behavior spot-checked has a live pin. Two evidence-wording overclaims
+  corrected in the trail (M-030's "Windows CI surface this fix wires";
+  M-044's convergence addendum cites plan names - the first Resolution's
+  names are live). No hallucinated fixes found.
+- M-041 CLI half landed: the canonical Resolution claimed "CLI scan
+  --check" but grep-verified it NEVER existed in any commit (the union
+  chain kept the ABI half, lost the CLI half). Landed: --check flag ->
+  ScanConfig::pre_scan_check + the per-finding report print; parse-gate
+  green; finding Resolution addendum 2 appended.
+- Safety-hardening inventory verified intact post-collisions: destination
+  overlap refusal (cr_apply A3), BitLocker legitimate-unlock-only
+  (ERR_FVE_LOCKED + consent architecture), RawFixer explicit consent
+  (S1 header contract), 4Kn gates (512..4096), SDDL (driver-side
+  documented divergence), ReFS/LDM first-class (1577+1513 LOC engines,
+  68 tests).
+- Documentation overhaul: docs/API.md (new), docs/FORMATS.md (new),
+  docs/PARAMETERS.md (new), docs/CONNECTION-GUIDE.md (new), README.md
+  refreshed (current scope/status/docs index), RELEASE-NOTES.md rewritten
+  for v0.4.0-parity referencing SUMMARY.md + PARITY-DELTAS.md.
+- Final tree: 885+4 skipped core + 35 UI tests green; lint clean;
+  win-layer parse gate green; no conflict markers anywhere.
+
+Stage Summary:
+- The review session's remaining deliverable: tag v0.4.0-parity once CI
+  is green on the docs push, and the final handoff note.
+
