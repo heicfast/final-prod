@@ -278,6 +278,26 @@ by construction. Suite 716/716. Finding → FIXED/.
 SEVERE 0 · MAJOR 24 · MINOR 31 · INFO 22 (0 actionable) · tracked-open
 16 · FIXED 116 files (115 findings + RESOLVED-INDEX).
 
+**N-048 FIXED (the engine logging seam — the fix plan's recommended
+minimal form):** `cr::log` (levels Error/Warn/Info; a host-registered
+sink, default NULL = silent with a zero-overhead fast path; bounded
+formatting; serialized synchronous deliveries) + the og's event set as
+emission sites: scan START/END brackets (the qa-logs semantics —
+extent/fs_hint/stages; rc/all counters/error-ranges/pause-compensated
+duration), stage boundaries, committed checkpoints, lost-candidate
+resolutions (the CalcPartition.log truth: lba/sectors/fs/score), and
+the retry pipe's read-failure exhaust (Error — PartitionRecoveryD's
+read-error trail). The CLI's --log file is the host sink (the
+EPMLOG.log role). D-75 registers the single-process sink-not-transport
+divergence (no shared mapping/ring/async queue — the core has no
+second process). Orchestrator.LogSilentByDefault +
+LogSinkReceivesScanBrackets — fail-before RED executed (the emission
+sites reverted, the seam present: zero lines). Suite 732/732.
+
+**Counts after this landing (direct file inventory at the N-048 push):**
+SEVERE 0 · MAJOR 24 · MINOR 30 · INFO 22 (0 actionable) · tracked-open
+16 · FIXED 117 files (116 findings + RESOLVED-INDEX).
+
 ## Session-10 delta — the SEVERE tier close-out (2026-10-26)
 
 This lane (DFX10) executed the published order S-009 -> S-029 -> S-030

@@ -24,6 +24,7 @@
  * Licensed under the MIT license. See LICENSE.
  */
 
+#include "cr/cr_log.h"
 #include "cr/orchestrator/cr_scan.h"
 #include "cr/recovery/cr_safewriter.h"
 #include "cr/query/cr_query.h"
@@ -125,15 +126,28 @@ BOOL WINAPI ctrl_c_handler(DWORD type) {
 
 FILE* g_log = nullptr;
 
+/* N-048: the CLI's --log FILE* is the host sink for the core logging seam
+ * (the og's EPMLOG.log role - the persistent run-log artifact). The sink
+ * runs on any thread (engine workers); vfprintf on a FILE* is CRT-locked,
+ * and the seam serializes deliveries on top. */
+void log_sink(cr::log::Level level, const char* line, void*) {
+    const char* tag = level == cr::log::Level::Error ? "E" : level == cr::log::Level::Warn ? "W" : "I";
+    fprintf(g_log, "[%s] %s\n", tag, line);
+    fflush(g_log);
+}
+
 void log_open(const wchar_t* path) {
     if (g_log)
         fclose(g_log);
     g_log = nullptr;
     if (path)
         _wfopen_s(&g_log, path, L"w");
+    /* the seam follows the file: open = sink on, close/reopen = swap */
+    cr::log::set_sink(g_log ? &log_sink : nullptr, nullptr);
 }
 
 void log_close() {
+    cr::log::set_sink(nullptr, nullptr); /* detach before the FILE* dies */
     if (g_log)
         fclose(g_log);
     g_log = nullptr;

@@ -5,6 +5,7 @@
 add_library(cr_core STATIC
     cr_parallel.cpp
     err/cr_error.cpp
+    err/cr_log.cpp
     health/cr_nvme.cpp
     health/cr_grade.cpp
     health/cr_family.cpp
