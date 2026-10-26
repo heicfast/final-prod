@@ -42,7 +42,7 @@ constexpr u32 CNID_ROOT_PARENT = 1;
 constexpr u32 CNID_ROOT_FOLDER = 2;
 constexpr u32 CNID_EXTENTS_FILE = 3;
 constexpr u32 CNID_CATALOG_FILE = 4;
-constexpr u32 CNID_ALLOCATION_FILE = 6;
+[[maybe_unused]] constexpr u32 CNID_ALLOCATION_FILE = 6;
 constexpr u32 CNID_ATTRIBUTES_FILE = 8;
 constexpr u32 CNID_FIRST_USER = 16;
 
@@ -54,13 +54,13 @@ constexpr u32 FORK_EXTENTS = 0x10; /* 8 x (start u32, count u32) */
 /* B-tree node header (14 bytes) — TN1150 BTNodeDescriptor; og gate
  * FUN_180010720 accepts kind in {-1,0,1,2} (kind+1 <= 3 unsigned) */
 constexpr u32 NH_FORWARD = 0x00;
-constexpr u32 NH_BACKWARD = 0x04;
-constexpr i16 NH_KIND_LEAF = -1;  /* kBTLeafNode */
-constexpr i16 NH_KIND_INDEX = 0;  /* kBTIndexNode */
-constexpr i16 NH_KIND_HEADER = 1; /* kBTHeaderNode */
-constexpr i16 NH_KIND_MAP = 2;    /* kBTMapNode */
-constexpr u32 NH_KIND = 0x08;     /* SInt8 node type */
-constexpr u32 NH_HEIGHT = 0x09;
+[[maybe_unused]] constexpr u32 NH_BACKWARD = 0x04;
+constexpr i16 NH_KIND_LEAF = -1;                   /* kBTLeafNode */
+[[maybe_unused]] constexpr i16 NH_KIND_INDEX = 0;  /* kBTIndexNode */
+[[maybe_unused]] constexpr i16 NH_KIND_HEADER = 1; /* kBTHeaderNode */
+[[maybe_unused]] constexpr i16 NH_KIND_MAP = 2;    /* kBTMapNode */
+constexpr u32 NH_KIND = 0x08;                      /* SInt8 node type */
+[[maybe_unused]] constexpr u32 NH_HEIGHT = 0x09;
 constexpr u32 NH_NUM_RECORDS = 0x0A;
 
 /* BTHeaderRec (after the 14-byte node descriptor of node 0; 106 bytes,
@@ -75,11 +75,11 @@ constexpr u32 BTH_NODE_SIZE = 0x12;
 /* catalog record types */
 constexpr i16 REC_FOLDER = 1;
 constexpr i16 REC_FILE = 2;
-constexpr i16 REC_FOLDER_THREAD = 3;
-constexpr i16 REC_FILE_THREAD = 4;
+[[maybe_unused]] constexpr i16 REC_FOLDER_THREAD = 3;
+[[maybe_unused]] constexpr i16 REC_FILE_THREAD = 4;
 
 /* HFSPlusCatalogFile field offsets (from record body start) */
-constexpr u32 CF_RECORD_TYPE = 0x00;
+[[maybe_unused]] constexpr u32 CF_RECORD_TYPE = 0x00;
 constexpr u32 CF_FLAGS = 0x02;
 constexpr u32 CF_FILE_ID = 0x08;
 constexpr u32 CF_CREATE_DATE = 0x0C;
@@ -90,14 +90,14 @@ constexpr u32 CF_DATA_FORK = 0x58;
 constexpr u32 CF_RESOURCE_FORK = 0xA8;
 
 /* folder record fields */
-constexpr u32 CD_VALENCE = 0x04;
+[[maybe_unused]] constexpr u32 CD_VALENCE = 0x04;
 constexpr u32 CD_FOLDER_ID = 0x08;
 constexpr u32 CD_CREATE = 0x0C;
 constexpr u32 CD_CONTENT_MOD = 0x10;
 
 constexpr u32 MAX_TREE_NODES = 1u << 22; /* 4M nodes bound */
 constexpr u32 MAX_RECORD_NAME = 255;
-constexpr u32 DIR_DEPTH_LIMIT = 64;
+[[maybe_unused]] constexpr u32 DIR_DEPTH_LIMIT = 64;
 
 struct ForkData {
     u64 logical_size = 0;

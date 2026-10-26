@@ -58,7 +58,7 @@ constexpr u16 ENTRY_DELETED = 0x4;
 
 /* ---- index-header flags ---- */
 constexpr u8 NODE_INNER = 0x1;
-constexpr u8 NODE_ROOT = 0x2;
+[[maybe_unused]] constexpr u8 NODE_ROOT = 0x2;
 
 constexpr u32 MAX_NODES_PER_TABLE = 4096;
 constexpr u32 MAX_TABLE_DEPTH = 32;
@@ -1463,7 +1463,14 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
         }
     };
 
-    Walker w{eng, tree, root_deleted, flags, alloc, stats, tables, child_tables};
+    /* every trailing member is written at its EXISTING effective value
+     * (progress/progress_user/emitted: identical to their default member
+     * initializers; identity/recycle_pending/dollar_i: value-initialized
+     * empty containers, exactly what the short brace list produced) so
+     * clang's -Wmissing-field-initializers has nothing left to flag while
+     * the aggregate's construction stays provably byte-identical. */
+    Walker w{eng,          tree,    root_deleted, flags, alloc, stats, tables,
+             child_tables, nullptr, nullptr,      0,     {},    {},    {}};
     w.progress = progress;
     w.progress_user = progress_user;
     u64 root_id = ROOT_DIR_TABLE;

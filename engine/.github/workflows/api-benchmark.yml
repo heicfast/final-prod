@@ -49,7 +49,9 @@ permissions:
   contents: read
 
 env:
-  RDA_RELEASE_TAG: v0.2.1
+  # v0.2.2 = the driver's current release (the sc.exe installer fix).
+  # Functional floor is >= v0.2.1 (the error-87 fix); pinned to the newest.
+  RDA_RELEASE_TAG: v0.2.2
 
 jobs:
   alignbench:

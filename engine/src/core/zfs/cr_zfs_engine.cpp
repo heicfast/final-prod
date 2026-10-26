@@ -74,7 +74,7 @@ constexpr u64 LABEL_SIZE = 256ull << 10;
 constexpr u64 VDEV_PHYS_OFFSET = 16ull << 10; /* 8K skip + 8K boot env */
 constexpr u64 VDEV_PHYS_SIZE = 112ull << 10;
 constexpr u64 UBRING_OFFSET = 128ull << 10;
-constexpr u32 UB_MAGIC = 0;
+[[maybe_unused]] constexpr u32 UB_MAGIC = 0;
 constexpr u32 UB_TXG = 16;
 constexpr u32 UB_ROOTBP = 40;        /* blkptr 128 bytes */
 constexpr u64 UBERBLOCK_SIZE = 1024; /* smallest slot; larger slots only
@@ -94,14 +94,14 @@ constexpr u64 UBERBLOCK_MAGIC = 0x00BAB10CULL;
 constexpr u32 BP_DVA = 0;
 constexpr u32 BP_PROP = 48;
 constexpr u32 BP_CKSUM = 96; /* blk_cksum (zio_cksum_t, 32 bytes) */
-constexpr u32 BP_BIRTH = 72;
+[[maybe_unused]] constexpr u32 BP_BIRTH = 72;
 constexpr u32 BP_SIZE = 128;
 
-constexpr u32 ZIO_COMPRESS_LZJB = 3;
+[[maybe_unused]] constexpr u32 ZIO_COMPRESS_LZJB = 3;
 constexpr u32 ZIO_COMPRESS_EMPTY = 4;
-constexpr u32 ZIO_COMPRESS_ZLE = 14;
-constexpr u32 ZIO_COMPRESS_LZ4 = 15;
-constexpr u32 ZIO_COMPRESS_ZSTD = 16;
+[[maybe_unused]] constexpr u32 ZIO_COMPRESS_ZLE = 14;
+[[maybe_unused]] constexpr u32 ZIO_COMPRESS_LZ4 = 15;
+[[maybe_unused]] constexpr u32 ZIO_COMPRESS_ZSTD = 16;
 
 bool bp_is_embedded(const u8* bp) {
     return (le64(bp + BP_PROP) >> 39) & 1;
@@ -212,8 +212,8 @@ constexpr u32 DN_INDBLKSHIFT = 1;
 constexpr u32 DN_NLEVELS = 2;
 constexpr u32 DN_NBLKPTR = 3;
 constexpr u32 DN_BONUSTYPE = 4;
-constexpr u32 DN_COMPRESS = 6;
-constexpr u32 DN_FLAGS = 7;
+[[maybe_unused]] constexpr u32 DN_COMPRESS = 6;
+[[maybe_unused]] constexpr u32 DN_FLAGS = 7;
 constexpr u32 DN_DATABLKSZSEC = 8;
 constexpr u32 DN_BONUSLEN = 10;
 constexpr u32 DN_EXTRA_SLOTS = 12;
@@ -222,8 +222,8 @@ constexpr u32 DN_BLKPTR = 64;
 constexpr u32 DN_SIZE = 512;
 
 constexpr u32 DMU_OT_OBJECT_DIRECTORY = 1;
-constexpr u32 DMU_OT_DNODE = 10;
-constexpr u32 DMU_OT_OBJSET = 11;
+[[maybe_unused]] constexpr u32 DMU_OT_DNODE = 10;
+[[maybe_unused]] constexpr u32 DMU_OT_OBJSET = 11;
 constexpr u32 DMU_OT_DSL_DIR_CHILD_MAP = 13;
 constexpr u32 DMU_OT_DSL_DS_SNAP_MAP = 14;
 constexpr u32 DMU_OT_DSL_PROPS = 15;
@@ -286,20 +286,20 @@ constexpr u32 SA_LAYOUT1_ATIME = 8;
 constexpr u32 SA_LAYOUT1_MTIME = 24;
 constexpr u32 SA_LAYOUT1_CTIME = 40;
 constexpr u32 SA_LAYOUT1_CRTIME = 56;
-constexpr u32 SA_LAYOUT1_GEN = 72;
+[[maybe_unused]] constexpr u32 SA_LAYOUT1_GEN = 72;
 constexpr u32 SA_LAYOUT1_MODE = 80;
 constexpr u32 SA_LAYOUT1_SIZE = 88;
 constexpr u32 SA_LAYOUT1_PARENT = 96;
 constexpr u32 SA_LAYOUT1_LINKS = 104;
-constexpr u32 SA_LAYOUT1_XATTR = 112;
-constexpr u32 SA_LAYOUT1_RDEV = 120;
-constexpr u32 SA_LAYOUT1_FLAGS = 128;
-constexpr u32 SA_LAYOUT1_UID = 136;
-constexpr u32 SA_LAYOUT1_GID = 144;
+[[maybe_unused]] constexpr u32 SA_LAYOUT1_XATTR = 112;
+[[maybe_unused]] constexpr u32 SA_LAYOUT1_RDEV = 120;
+[[maybe_unused]] constexpr u32 SA_LAYOUT1_FLAGS = 128;
+[[maybe_unused]] constexpr u32 SA_LAYOUT1_UID = 136;
+[[maybe_unused]] constexpr u32 SA_LAYOUT1_GID = 144;
 constexpr u32 SA_LAYOUT1_MIN = 112; /* header + body through links */
 
 /* ---- objset_phys ---- */
-constexpr u32 OS_META_DNODE = 0;
+[[maybe_unused]] constexpr u32 OS_META_DNODE = 0;
 
 /* ---------------------------------------------------------------- */
 /* M-038: SA attribute registry (per dataset).                       */
@@ -345,7 +345,7 @@ constexpr u32 DS_BP = 128;
 /* ---- ZAP (OpenZFS zap_impl.h / zap_leaf.h) ---- */
 constexpr u64 ZBT_MICRO = (1ull << 63) + 3;
 constexpr u64 ZBT_HEADER = (1ull << 63) + 1;
-constexpr u64 ZBT_LEAF = (1ull << 63) + 0;
+[[maybe_unused]] constexpr u64 ZBT_LEAF = (1ull << 63) + 0;
 constexpr u64 ZAP_MAGIC = 0x2F52AB2ABull;
 constexpr u32 MZAP_ENTRIES_AT = 64; /* mzap_phys header */
 constexpr u32 MZAP_ENT_SIZE = 64;   /* mzap_ent_phys */
@@ -360,7 +360,7 @@ constexpr u32 FZ_ZT_SHIFT = 32;
 /* zap leaf: ZAP_LEAF_MAGIC 0x2AB1EAF; 24-byte chunks; chunk types */
 constexpr u32 ZAP_LEAF_MAGIC = 0x2AB1EAFu;
 constexpr u32 ZAP_LEAF_CHUNKSIZE = 24;
-constexpr u32 ZAP_CHUNK_FREE = 253;
+[[maybe_unused]] constexpr u32 ZAP_CHUNK_FREE = 253;
 constexpr u32 ZAP_CHUNK_ENTRY = 252;
 constexpr u32 ZAP_CHUNK_ARRAY = 251;
 /* leaf header: block_type u64@0, pad u64@8, prefix u64@16, magic u32@24,
@@ -380,7 +380,7 @@ constexpr u32 ZL_NENTRIES = 30;
  * Native pair (LE pools / in-core images): {size i32, name_sz i16 (incl
  * NUL), value_elem i32, type i32, name[name_sz], pad8, value}; size==0
  * terminates. */
-constexpr u32 NV_DATA_BOOLEAN = 1;
+[[maybe_unused]] constexpr u32 NV_DATA_BOOLEAN = 1;
 constexpr u32 NV_DATA_UINT64 = 8;
 constexpr u32 NV_DATA_STRING = 9;
 constexpr u32 NV_DATA_NVLIST = 19;

@@ -1195,7 +1195,13 @@ CarveResult validate_avi(IStorageDevice* s, u64 hit, u64 cap) {
     if (std::memcmp(av, "AVI ", 4) != 0)
         return r;
     u32 size = rd32(s, hit + 4);
-    if (size < 16 || size > 4ull << 30)
+    /* The og-style "reject > 4 GiB" ceiling is structurally unreachable
+     * here: the RIFF size field is a u32, whose maximum (4 GiB - 1) is
+     * already below the 4ull << 30 threshold the earlier `size >`
+     * compared against - that comparison was always false and is dropped
+     * (the size < 16 sanity floor stays). No accepted/rejected input set
+     * changes. */
+    if (size < 16)
         return r;
     /* hdrl LIST at +12 */
     u8 list[4];
