@@ -73,8 +73,12 @@ def split_semi(val):
 
 def emit_pool(name, entries, out):
     joined = ";".join(entries) + ";"
-    raw = joined.encode("utf-8")
-    out.append(f"/* {len(entries)} entries, {len(raw)} bytes (semicolon-delimited, trailing) */\n")
+    raw = joined.encode("utf-8") + b"\x00"  # NUL-terminated: split_into's
+    # NUL scan must stay in bounds (the ASan lane red at
+    # cr_filterfolder.cpp:31 - a bare trailing-semicolon pool
+    # over-reads the array's end)
+    out.append(f"/* {len(entries)} entries, {len(raw)} bytes incl. NUL "
+               f"(semicolon-delimited, trailing, NUL-terminated) */\n")
     out.append(f"const u8 k{name}Pool[] = {{\n")
     for i in range(0, len(raw), 16):
         chunk = raw[i:i + 16]

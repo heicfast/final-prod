@@ -1875,9 +1875,13 @@ TEST(ExfatEngine, RecyclePairingMirrored) {
         put32v(img, IREC + 16, 0);           /* FILETIME lo */
         put32v(img, IREC + 20, 29);          /* FILETIME hi */
         put32v(img, IREC + 24, 15);          /* pathlen */
-        const char16_t* path = u"C:\\photo.jpg";
-        for (int i = 0; i < 15; ++i)
-            put16(img, IREC + 28 + i * 2, path[i]);
+        /* ASan red fix (pushed-red repair): a real $I record NUL-pads
+         * the path tail - write the literal's 12 units then zeros; the
+         * pre-fix loop read 15 units straight out of the 13-unit global
+         * literal (global-buffer-overflow on the ASan lane) */
+        const std::u16string path = u"C:\\photo.jpg";
+        for (u32 i = 0; i < 15; ++i)
+            put16(img, IREC + 28 + i * 2, i < path.size() ? u16(path[i]) : u16(0));
     }
     /* $R content marker at cluster 19 (sector 42) */
     std::memcpy(img.data() + 25 * 512 + (19 - 2) * 512, "EXFAT-RECYCLED", 14);
