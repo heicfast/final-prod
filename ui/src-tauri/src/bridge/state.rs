@@ -1,23 +1,28 @@
 //! bridge/state.rs — handle registries + the snapshot metadata cache.
 //!
 //! Layout (docs/INTEGRATION-PLAN.md §4.2): `BridgeState` is Tauri-managed
-//! state holding the scan/job registries. Close order is enforced on drop
-//! per the engine's lifetime rules: preview handles are transient (opened +
-//! closed inside a single command), snapshot caches close before the owning
-//! session/scan, scan before device, device last. One controlling thread per
-//! run-handle: run/process execute on dedicated spawned threads; token and
-//! telemetry queries are any-thread safe by the engine's own contract.
+//! state holding the scan/job registries. Entries are `Arc`ed so long
+//! passes (the O(n) metadata build) hold only the ENTRY's snapshot mutex —
+//! never the registry lock — while generation swaps stay serialized on that
+//! same mutex (a stale handle can never be closed mid-pass).
+//!
+//! Close order is enforced on Drop per the engine's lifetime rules: preview
+//! handles are transient (opened + closed inside a single command), snapshot
+//! caches close before the owning session/scan, scan before device, device
+//! last. One controlling thread per run-handle: run/process execute on
+//! dedicated spawned threads; token and telemetry queries are any-thread
+//! safe by the engine's own contract.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 
 use super::abi;
 use super::error::{code, BridgeError, BridgeResult};
 use super::filefilter::category_for_extension;
-use super::util::{fixed_str, iso_from_filetime, SendPtr};
+use super::util::{iso_from_filetime, SendPtr};
 
 pub const BAD_SECTOR_MAP_CAP: usize = 4096; // bounded map; the count stays exact
 
@@ -71,7 +76,7 @@ pub struct ScanLive {
     pub lost_candidates: u64,
     pub fs_check_errors: u32,
     pub repair_summary: Option<String>, // CR_EVT_REPAIR outcome line (log surface)
-    pub last_heartbeat_ms: Option<u64>, // run-thread liveness (G-8 synthesis)
+    pub last_heartbeat_ms: Option<u64>, // engine watchdog liveness (G-8 synthesis)
     pub last_progress_ms: u64,
     pub started_unix_ms: i64,
     pub save_permille: u32,
@@ -111,7 +116,7 @@ impl ScanLive {
 /// One row of the per-generation metadata cache (index-addressed, matching
 /// `cr_ui_snapshot_node` indices). Built in ONE DFS pass (parents precede
 /// children in pre-order, so full paths assemble incrementally — O(total
-/// path bytes), never O(n × depth)).
+/// path bytes), never O(n x depth)).
 pub struct NodeMeta {
     pub node_id: u64,
     pub parent: u32, // CR_UI_SNAP_NONE preserved for roots
@@ -130,8 +135,10 @@ pub struct NodeMeta {
     pub extent_count: u32,
     pub carve_format: u32,
     pub hash_valid: u32,
-    pub category: u8, // 0 none / bits 1..8 per cr_ui.h query category map
-    /// Subtree aggregates (dirs only; files carry their own row).
+    /// 1 when the engine's twin/overlap rule flagged this node.
+    pub overlap: u32,
+    pub category: u8, // 0 dirs / bits 1..8 per cr_ui.h category_mask
+    /// Subtree aggregates (files only; dirs accumulate in the reverse pass).
     pub file_count: u64,
     pub tree_size: u64,
     pub child_count: u32,
@@ -194,7 +201,11 @@ pub struct ScanEntry {
     /// The UI's targetId (device id, volume id, or a virtual quick-target
     /// resolved to a real volume at start time).
     pub target_id: String,
-    /// params echoed back by getScanState.
+    /// Owning device id + volume id (isSourceOfActiveScan + destination
+    /// overlap checks). volume_id is None for whole-disk targets.
+    pub device_id: String,
+    pub volume_id: Option<String>,
+    /// params echoed back by getScanState (ScanParams shape).
     pub params_json: serde_json::Value,
     /// G-11 view scoping: normalized lowercase '/'-joined prefix (no drive
     /// letter); None = whole volume.
@@ -202,11 +213,15 @@ pub struct ScanEntry {
     pub started_at: String,
     pub live: Arc<Mutex<ScanLive>>,
     pub terminal: Arc<Mutex<Option<Terminal>>>,
-    /// The event-sink channel owned by this entry (emitter holds the rx).
-    pub events_tx: std::sync::mpsc::Sender<abi::CrUiEvent>,
+    /// True once at least one snapshot exists (recoverableDuringScan).
+    pub snapshot_exists: Arc<AtomicBool>,
+    /// The sink channel: a clone kept here (keeps the emitter fed) plus the
+    /// leaked box handed to the engine as the sink user pointer.
+    pub events_tx: Sender<abi::CrUiEvent>,
+    pub sink_user: SendPtr<Sender<abi::CrUiEvent>>,
     pub snap: Mutex<SnapshotCache>,
-    /// Job ids created against this entry (close guard: device must outlive
-    /// every recovery; scan_close refuses while jobs are live).
+    /// Job ids created against this entry (close guard: the borrowed device
+    /// must outlive every recovery; scan_close refuses while jobs are live).
     pub jobs: Mutex<Vec<String>>,
 }
 
@@ -218,7 +233,9 @@ impl ScanEntry {
     pub fn device(&self) -> *mut abi::CrUiDevice {
         match &self.kind {
             ScanKind::Live { device, .. } => device.get(),
-            ScanKind::Session { device, .. } => device.map(|d| d.get()).unwrap_or(std::ptr::null_mut()),
+            ScanKind::Session { device, .. } => device
+                .map(|d| d.get())
+                .unwrap_or(std::ptr::null_mut()),
         }
     }
 
@@ -239,8 +256,21 @@ impl ScanEntry {
 
 impl Drop for ScanEntry {
     fn drop(&mut self) {
+        // Unsubscribe FIRST so no engine thread can touch the sink box after
+        // this point (scan_close also refuses while busy — double lock).
+        if let ScanKind::Live { scan, .. } = &self.kind {
+            unsafe {
+                abi::cr_ui_scan_set_event_fn(scan.get(), None, std::ptr::null_mut());
+            }
+        }
+        // Free the leaked sink Sender (Box::from_raw under the SendPtr).
+        let p = self.sink_user.get();
+        if !p.is_null() {
+            unsafe { drop(Box::from_raw(p)) };
+            self.sink_user = SendPtr::new(std::ptr::null_mut());
+        }
         // Order per the engine's lifetime rules: snapshot cache closes first
-        // (its Drop), then scan/session, then the borrowed device.
+        // (its own Drop), then scan/session, then the borrowed device.
         match &self.kind {
             ScanKind::Live { scan, device } => {
                 unsafe { abi::cr_ui_scan_close(scan.get()) };
@@ -275,7 +305,6 @@ pub struct JobLive {
     pub throughput: f64,
     pub eta_seconds: Option<u64>,
     pub started_unix_ms: i64,
-    pub last_tick_ms: i64,
 }
 
 impl JobLive {
@@ -294,7 +323,6 @@ impl JobLive {
             throughput: 0.0,
             eta_seconds: None,
             started_unix_ms: super::util::now_unix_ms(),
-            last_tick_ms: super::util::now_unix_ms(),
         }
     }
 }
@@ -304,7 +332,7 @@ pub struct JobEntry {
     pub scan_id: String,
     pub recovery: SendPtr<abi::CrUiRecovery>,
     /// The source device (borrowed; must outlive the recovery — the owning
-    /// scan entry's close is guarded by `jobs`).
+    /// scan entry's close is guarded by its `jobs` list).
     pub device: SendPtr<abi::CrUiDevice>,
     pub destination: String,
     pub options_json: serde_json::Value,
@@ -314,14 +342,19 @@ pub struct JobEntry {
     pub finished: Mutex<Option<(&'static str, String)>>,
     pub live: Arc<Mutex<JobLive>>,
     /// (bytes_done, bytes_total) samples from cr_ui_recovery_progress_fn.
-    pub events_tx: std::sync::mpsc::Sender<(u64, u64)>,
-    pub terminal_emitted: Arc<std::sync::atomic::AtomicBool>,
+    pub events_tx: Sender<(u64, u64)>,
+    pub sink_user: SendPtr<Sender<(u64, u64)>>,
 }
 
 impl Drop for JobEntry {
     fn drop(&mut self) {
         unsafe { abi::cr_ui_recovery_close(self.recovery.get()) };
-        // NOTE: the device is NOT closed here — it belongs to the scan entry.
+        // Free the leaked progress-fn Sender box.
+        let p = self.sink_user.get();
+        if !p.is_null() {
+            unsafe { drop(Box::from_raw(p)) };
+        }
+        // The device is NOT closed here — it belongs to the scan entry.
     }
 }
 
@@ -356,8 +389,8 @@ pub struct SessionListMeta {
 }
 
 pub struct BridgeState {
-    pub scans: Mutex<HashMap<String, ScanEntry>>,
-    pub jobs: Mutex<HashMap<String, JobEntry>>,
+    pub scans: Mutex<HashMap<String, Arc<ScanEntry>>>,
+    pub jobs: Mutex<HashMap<String, Arc<JobEntry>>>,
     pub next_scan: AtomicU64,
     pub next_job: AtomicU64,
     pub sessions_dir: PathBuf,
@@ -384,26 +417,32 @@ impl BridgeState {
         format!("job-{}", self.next_job.fetch_add(1, Ordering::Relaxed))
     }
 
-    pub fn scan_entry(&self, scan_id: &str) -> BridgeResult<std::sync::MutexGuard<'_, HashMap<String, ScanEntry>>> {
+    /// Look up a scan entry (cloned Arc — safe to use after releasing the
+    /// registry lock).
+    pub fn scan_entry_arc(&self, scan_id: &str) -> BridgeResult<Arc<ScanEntry>> {
         let guard = self.scans.lock().map_err(|_| poisoned())?;
-        if !guard.contains_key(scan_id) {
-            return Err(BridgeError::bridge(
-                code::SCAN_NOT_FOUND,
-                format!("scan {scan_id} is not registered (unknown or closed id)"),
-            ));
-        }
-        Ok(guard)
+        guard
+            .get(scan_id)
+            .cloned()
+            .ok_or_else(|| {
+                BridgeError::bridge(
+                    code::SCAN_NOT_FOUND,
+                    format!("scan {scan_id} is not registered (unknown or closed id)"),
+                )
+            })
     }
 
-    pub fn job_entry(&self, job_id: &str) -> BridgeResult<std::sync::MutexGuard<'_, HashMap<String, JobEntry>>> {
+    pub fn job_entry_arc(&self, job_id: &str) -> BridgeResult<Arc<JobEntry>> {
         let guard = self.jobs.lock().map_err(|_| poisoned())?;
-        if !guard.contains_key(job_id) {
-            return Err(BridgeError::bridge(
-                code::UNKNOWN,
-                format!("job {job_id} is not registered"),
-            ));
-        }
-        Ok(guard)
+        guard
+            .get(job_id)
+            .cloned()
+            .ok_or_else(|| {
+                BridgeError::bridge(
+                    code::UNKNOWN,
+                    format!("job {job_id} is not registered"),
+                )
+            })
     }
 }
 
@@ -412,12 +451,15 @@ fn poisoned() -> BridgeError {
 }
 
 /// Session store (contracts/README.md §6): ProgramData in installed mode;
-/// `.\sessions\` beside the exe when the install dir is writable (portable
-/// mode, docs/INTEGRATION-PLAN.md §7.5).
+/// `.\sessions\` beside the exe when ProgramData is absent (portable mode,
+/// docs/INTEGRATION-PLAN.md §7.5).
 fn sessions_dir() -> PathBuf {
     if let Ok(pd) = std::env::var("ProgramData") {
         if !pd.is_empty() {
-            let dir = PathBuf::from(pd).join("HeicFast").join("Recovery Wizard").join("sessions");
+            let dir = PathBuf::from(pd)
+                .join("HeicFast")
+                .join("Recovery Wizard")
+                .join("sessions");
             let _ = std::fs::create_dir_all(&dir);
             return dir;
         }
@@ -431,47 +473,40 @@ fn sessions_dir() -> PathBuf {
 }
 
 // ---------------------------------------------------------------------------
-// Snapshot metadata pass (shared by results / preview / recovery)
+// Snapshot refresh + metadata pass
 // ---------------------------------------------------------------------------
 
 pub const SNAPSHOT_REFRESH_MIN_MS: i64 = 1500;
 
 /// Refresh policy: live scans re-snapshot at a bounded cadence; terminal
-/// scans freeze. Returns the current generation number.
-pub fn refresh_snapshot(
-    state: &BridgeState,
-    scan_id: &str,
-) -> BridgeResult<u64> {
-    let scans = state.scan_entry(scan_id)?;
-    let entry = scans
-        .get(scan_id)
-        .ok_or_else(|| BridgeError::bridge(code::SCAN_NOT_FOUND, "scan entry vanished"))?;
+/// scans freeze; session entries take ONE stable snapshot. Returns the
+/// current generation. The registry lock is held only to fetch the entry.
+pub fn refresh_snapshot(state: &BridgeState, scan_id: &str) -> BridgeResult<u64> {
+    let entry = state.scan_entry_arc(scan_id)?;
     let terminal = entry.is_terminal();
     let now = super::util::now_unix_ms();
+    let mut snap = entry.snap.lock().map_err(|_| poisoned())?;
 
-    // A live scan needs its scan handle to re-snapshot.
-    let scan_ptr = entry.scan_handle();
-    let mut snap = entry
-        .snap
-        .lock()
-        .map_err(|_| poisoned())?;
     let fresh_enough = now.saturating_sub(snap.last_refresh_ms) < SNAPSHOT_REFRESH_MIN_MS;
     if snap.frozen || (fresh_enough && !snap.handle.is_null()) {
         return Ok(snap.gen);
     }
-    if scan_ptr.is_null() {
-        // Session entry: one stable snapshot forever.
+    if let ScanKind::Session { session, .. } = &entry.kind {
         if !snap.handle.is_null() {
             snap.frozen = true;
             return Ok(snap.gen);
         }
-        let sess = entry.session_handle();
         let mut out: *mut abi::CrUiSnapshot = std::ptr::null_mut();
         super::error::check(
-            unsafe { abi::cr_ui_session_snapshot(sess, &mut out) },
+            unsafe { abi::cr_ui_session_snapshot(session.get(), &mut out) },
             "cr_ui_session_snapshot",
         )?;
-        install_snapshot(&mut snap, out, terminal, now);
+        install_snapshot(&mut snap, out, true, now);
+        entry.snapshot_exists.store(true, Ordering::Release);
+        return Ok(snap.gen);
+    }
+    let scan_ptr = entry.scan_handle();
+    if scan_ptr.is_null() {
         return Ok(snap.gen);
     }
     let mut out: *mut abi::CrUiSnapshot = std::ptr::null_mut();
@@ -480,6 +515,7 @@ pub fn refresh_snapshot(
         "cr_ui_scan_snapshot",
     )?;
     install_snapshot(&mut snap, out, terminal, now);
+    entry.snapshot_exists.store(true, Ordering::Release);
     Ok(snap.gen)
 }
 
@@ -495,8 +531,8 @@ fn install_snapshot(
         abi::cr_ui_snapshot_node_count(fresh, &mut count);
         abi::cr_ui_snapshot_partial(fresh, &mut partial);
     }
-    // Replace the previous generation (its Drop closes the old handle — any
-    // enqueue against it has already completed synchronously).
+    // Replacing the generation closes the old handle in its Drop — safe:
+    // every meta pass and enqueue against it finished under this mutex.
     *snap = SnapshotCache {
         gen: snap.gen + 1,
         handle: SendPtr::new(fresh),
@@ -508,13 +544,10 @@ fn install_snapshot(
     };
 }
 
-/// Build (or reuse) the metadata cache for the CURRENT snapshot generation.
-/// Callers must hold the scan registry lock (entries are accessed under it).
+/// Build (or reuse) the metadata cache for the entry's CURRENT generation.
+/// Runs under the entry's snapshot mutex only — never the registry lock.
 pub fn ensure_metas(entry: &ScanEntry) -> BridgeResult<()> {
-    let mut snap = entry
-        .snap
-        .lock()
-        .map_err(|_| poisoned())?;
+    let mut snap = entry.snap.lock().map_err(|_| poisoned())?;
     if snap.metas.is_some() || snap.handle.is_null() {
         return Ok(());
     }
@@ -524,17 +557,19 @@ pub fn ensure_metas(entry: &ScanEntry) -> BridgeResult<()> {
     // DFS pre-order: parents precede children — paths assemble in O(n).
     let order = super::util::snapshot_dfs(handle)?;
     let mut metas: Vec<NodeMeta> = Vec::with_capacity(count);
-    // Temporarily fill with placeholders so parent lookups by index work.
     for _ in 0..count {
         metas.push(placeholder_meta());
     }
     for &idx in &order {
+        if idx as usize >= count {
+            continue; // defensive: engine index contract says < count
+        }
         let (info, name) = super::util::snapshot_node(handle, idx)?;
         let parent = info.parent;
-        let path = if parent == abi::CR_UI_SNAP_NONE || parent >= count as u32 {
+        let path = if parent == abi::CR_UI_SNAP_NONE || parent as usize >= count {
             String::new() // volume root / virtual root row
         } else {
-            let parent_path = &metas[parent as usize].path;
+            let parent_path = metas[parent as usize].path.clone();
             if parent_path.is_empty() {
                 name.clone()
             } else {
@@ -565,14 +600,14 @@ pub fn ensure_metas(entry: &ScanEntry) -> BridgeResult<()> {
             extent_count: info.extent_count,
             carve_format: info.carve_format,
             hash_valid: info.hash_valid,
+            overlap: info.overlap,
             category,
             file_count: if is_dir { 0 } else { 1 },
             tree_size: if is_dir { 0 } else { info.logical_size },
             child_count: 0,
         };
     }
-    // Direct-child counts + subtree aggregates: iterate pre-order once more
-    // counting children into parents; then reverse pass folds subtree sums.
+    // Direct-child counts, then reverse DFS folds subtree aggregates.
     for i in 0..count {
         let parent = metas[i].parent;
         if parent != abi::CR_UI_SNAP_NONE && (parent as usize) < count {
@@ -580,10 +615,14 @@ pub fn ensure_metas(entry: &ScanEntry) -> BridgeResult<()> {
         }
     }
     for &idx in order.iter().rev() {
+        if idx as usize >= count {
+            continue;
+        }
+        let (fc, ts) = (metas[idx as usize].file_count, metas[idx as usize].tree_size);
         let parent = metas[idx as usize].parent;
         if parent != abi::CR_UI_SNAP_NONE && (parent as usize) < count {
-            metas[parent as usize].file_count += metas[idx as usize].file_count;
-            metas[parent as usize].tree_size += metas[idx as usize].tree_size;
+            metas[parent as usize].file_count += fc;
+            metas[parent as usize].tree_size += ts;
         }
     }
     snap.metas = Some(metas);
@@ -609,6 +648,7 @@ fn placeholder_meta() -> NodeMeta {
         extent_count: 0,
         carve_format: 0,
         hash_valid: 0,
+        overlap: 0,
         category: 0,
         file_count: 0,
         tree_size: 0,
@@ -617,7 +657,7 @@ fn placeholder_meta() -> NodeMeta {
 }
 
 /// Lowercased extension WITHOUT the dot ("jpg"); "" when the name carries
-/// none (the engine's category_for_extension treats unknown → Other).
+/// none (the engine's classification treats unknown -> Other).
 pub fn extension_of(name: &str) -> String {
     match name.rfind('.') {
         Some(at) if at + 1 < name.len() => name[at + 1..].to_lowercase(),
@@ -625,20 +665,18 @@ pub fn extension_of(name: &str) -> String {
     }
 }
 
-/// The meta cache clone-light accessor: run `f` with the metas of the
-/// entry's current generation. Rebuilt automatically when the generation
-/// changed since the last build.
+/// Run `f` over the entry's current metadata cache, refreshing first.
+/// One code path serves BOTH live scans and loaded sessions (the engine's
+/// cr_ui_query_run cannot express the contract's 'existing' atom — see
+/// docs/INTEGRATION-VALIDATION.md; G-7 records the future migration).
 pub fn with_metas<T>(
     state: &BridgeState,
     scan_id: &str,
-    f: impl FnOnce(&[NodeMeta], u32 /*partial*/) -> T,
+    f: impl FnOnce(&[NodeMeta], bool /*partial*/) -> T,
 ) -> BridgeResult<T> {
     refresh_snapshot(state, scan_id)?;
-    let scans = state.scan_entry(scan_id)?;
-    let entry = scans
-        .get(scan_id)
-        .ok_or_else(|| BridgeError::bridge(code::SCAN_NOT_FOUND, "scan entry vanished"))?;
-    ensure_metas(entry)?;
+    let entry = state.scan_entry_arc(scan_id)?;
+    ensure_metas(&entry)?;
     let snap = entry.snap.lock().map_err(|_| poisoned())?;
     let partial = snap.partial;
     let metas = snap
@@ -648,11 +686,24 @@ pub fn with_metas<T>(
     Ok(f(metas, partial))
 }
 
+/// Clone the metadata cache (payload assembly needs owned rows sometimes).
+pub fn metas_snapshot(state: &BridgeState, scan_id: &str) -> BridgeResult<(Arc<ScanEntry>, Vec<NodeMeta>, bool)> {
+    refresh_snapshot(state, scan_id)?;
+    let entry = state.scan_entry_arc(scan_id)?;
+    ensure_metas(&entry)?;
+    let snap = entry.snap.lock().map_err(|_| poisoned())?;
+    let metas = snap
+        .metas
+        .clone()
+        .ok_or_else(|| BridgeError::bridge(code::UNKNOWN, "metadata cache missing after build"))?;
+    Ok((entry, metas, snap.partial))
+}
+
 /// Session-info label composition used by sessions list/save meta rows
 /// (contracts/type-maps.md §9): label + model when present.
 pub fn session_target_label(info: &abi::CrUiSessionInfo) -> String {
-    let label = fixed_str(&info.label);
-    let model = fixed_str(&info.model);
+    let label = super::util::fixed_str(&info.label);
+    let model = super::util::fixed_str(&info.model);
     if model.is_empty() {
         label
     } else if label.is_empty() {
@@ -662,8 +713,6 @@ pub fn session_target_label(info: &abi::CrUiSessionInfo) -> String {
     }
 }
 
-/// How long without heartbeats before `deviceConnected` reads false
-/// (2× the engine's 5 s watchdog window — event-mapping.md §G-8).
+/// How long without heartbeats/progress before `deviceConnected` reads
+/// false (2x the engine's 5 s watchdog window — event-mapping.md §G-8).
 pub const DISCONNECT_AFTER_MS: u64 = 10_000;
-
-pub const HEARTBEAT_WINDOW: Duration = Duration::from_millis(DISCONNECT_AFTER_MS);

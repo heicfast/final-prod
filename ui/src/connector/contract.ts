@@ -1,8 +1,7 @@
 /**
  * CONNECTOR CONTRACT — the single source of truth for every command and event
  * the recovery backend will ever expose. The UI talks ONLY to this interface
- * (via src/queries). Swapping the Mock Connector for a real IPC bridge must
- * require zero changes above this layer.
+ * (via src/queries) against the real cr_ui engine bridge.
  *
  * Principles:
  *  - The UI renders and requests; the connector provides and grades.
@@ -580,7 +579,8 @@ export interface DriverStatus {
 export interface AppInfo {
   readonly name: string;
   readonly version: string;
-  readonly connectorMode: 'mock' | 'tauri';
+  /** G-6: no cr_ui export carries an engine version string (the ABI number
+   * is a contract number, not a product version) — null until one exists. */
   readonly engineVersion: string | null;
   readonly platform: string;
 }
@@ -610,11 +610,10 @@ export interface SystemDomain {
     neededBytes: number,
   ): Promise<DestinationValidation>;
   /**
-   * Native folder picker; mock returns from a canned set in dev/browser mode.
-   * The optional hint roots the dialog at a volume (scan-scope picking on the
-   * scanned device) or asks it to avoid a device (destination picking must
-   * not suggest the recovery source); the connector still owns validation of
-   * the result.
+   * Native folder picker. The optional hint roots the dialog at a volume
+   * (scan-scope picking on the scanned device) or asks it to avoid a device
+   * (destination picking must not suggest the recovery source); the connector
+   * validates the result.
    */
   pickDirectory(hint?: {
     readonly volumeId?: string | null;
@@ -640,23 +639,3 @@ export interface RecoveryConnector {
   readonly system: SystemDomain;
 }
 
-/** Dev-panel scenario control (mock-only surface; real connector throws). */
-export interface ScenarioControl {
-  setScenario(scenario: MockScenarioId): void;
-  getScenario(): MockScenarioId;
-  setSeed(seed: number): void;
-  reset(): void;
-}
-
-export type MockScenarioId =
-  | 'standard'
-  | 'large-ntfs'
-  | 'sd-card'
-  | 'btrfs-disk'
-  | 'lost-partition'
-  | 'permission-denied'
-  | 'disconnect-mid-scan'
-  | 'bad-sectors'
-  | 'failing-disk'
-  | 'out-of-space'
-  | 'corrupt-session';

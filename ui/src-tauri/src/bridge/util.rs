@@ -86,6 +86,11 @@ fn civil_from_unix_days(z: i64) -> (i64, u32, u32) {
     (if m <= 2 { y + 1 } else { y }, m, d)
 }
 
+/// Civil date parts for a unix day count (the auto-name composer uses M/D).
+pub fn civil_parts(days: i64) -> (i64, u32, u32) {
+    civil_from_unix_days(days)
+}
+
 /// Format unix milliseconds as `YYYY-MM-DDTHH:MM:SS.sssZ` (UTC, the shape
 /// `new Date().toISOString()` produced — the contract's Iso8601 examples).
 pub fn iso_from_unix_ms(unix_ms: i64) -> String {
