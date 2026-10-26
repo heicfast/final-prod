@@ -2452,3 +2452,33 @@ with wrong bytes. Fixtures: `Btrfs.Raid0StripeMathSplitsAtStripeBoundaries`
 (the spanning split + the in-stripe offset), `Btrfs.Raid10GeometryGate`
 (the og's parse-time gate stays og-exact — the superset is read-side
 only).
+
+
+### D-80 — Carve validators are stateless single-shot; no pending-object/ContinueScan streaming state (M-025, REGISTERED ARCHITECTURAL DIVERGENCE)
+
+The og's block scan keeps open-ended formats (MovAnalyzer/MTS and family)
+as pending CRawFileInfo objects re-fed every sector through analyser slot
+4 (ContinueScan, RAWSearchDLL :9541-9605, :10114-10144) until the
+analyser reports done — O(1) per-sector work per open file against
+buffer-resident data. The core's validators are stateless single-shot
+functions (CarveResult (*)(IStorageDevice*, hit, cap)) that walk their
+grammar from the hit; there is no cross-window per-candidate state.
+
+Why kept: (1) the stateless contract is what the existing 46-test carve
+suite pins and what every ported analyser to date (S-007's MPEG family,
+S-017's MOV salvage) has been written against — a pending-object
+migration would touch every validator for no measured coverage gain
+(byte-granular dispatch finds mid-sector starts the og never sees,
+I-009); (2) the read-model half of the finding — the cost profile — is
+now served by the window buffer (M-025's WindowDevice: candidates cost
+zero device re-reads when their reads fit the window, 13x fewer reads
+measured), which was the dominant structural cost; (3) the og's
+continuation machinery exists to serve ITS buffer-resident model — with
+validators reading through the window context the same coverage is
+achieved without per-sector state.
+
+Boundary: any future port of an og analyser that genuinely requires
+incremental continuation (streaming formats whose end cannot be probed
+by a bounded forward walk) must either keep that model in its own layer
+or extend the validator contract — this register is the flag S-017's
+fix-plan step 3 cites.

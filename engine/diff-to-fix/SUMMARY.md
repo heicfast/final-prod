@@ -1,5 +1,34 @@
 # SUMMARY.md — executive summary (diff-fix session 33 on top; earlier sessions below)
 
+## Session-33 delta, part 2 (2026-10-26 — DFX33: M-025 FIXED — the carve read model: window-serving reads, 13x fewer device reads measured)
+
+**M-025 FIXED (MAJOR — the carve scan's read model):** the og's
+already-in-buffer model is now the core's: scan_one_window wraps the
+slice in a WindowDevice for the window's duration — reads inside the
+window are served from the buffer, reads straddling a window edge split
+into buffer-prefix + device-tail (byte-identical by construction). Every
+grammar validator call, both M-051 checksum sites, both hash sites and
+the raw-sign tail scans read through it (the M-021 hook keeps the raw
+slice — host contract clarity). MEASURED, the counting-device execution
+the finding's own test list prescribes: 4 MiB fixture, 4 small PNG
+plants, hashing on — **52 device reads pre-fix → 4 post-fix** (the
+window fills only; zero per-candidate re-reads for in-window
+candidates); straddling probes (1 MiB JPEG/MP3 blocks a 1 MiB window can
+never contain) degrade to prefix+tail, never more bytes than before.
+Geometry (1 MiB windows, byte-granular dispatch) intentionally unchanged
+per the finding's own bench-evidence rule — the I-009 mid-sector
+superset stays; the stateless-vs-pending model difference registered as
+PARITY-DELTAS D-80 (the S-017 porting boundary). Proof:
+CarveEngine.WindowServingEliminatesPerCandidateRereads (fail-before
+EXECUTED: 52 vs 4, RED on the pre-fix wiring) +
+CarveEngine.WindowServingServesStraddlingReadsCorrectly (exact
+extent/length/checksum on a boundary-crossing plant); carve suite 46/46;
+full suite **799/799** linux-release at the fix commit.
+
+**Post-fix counts (this landing):** SEVERE **0** · MAJOR **10** open ·
+MINOR per the live union · INFO **0 open** · tracked-open 11.
+
+
 ## Session-33 delta (2026-10-26 — DFX33: M-020 FIXED — the Btrfs profile machinery + default subvolume)
 
 Baseline 737/737 linux-release verified first-hand at the session's union

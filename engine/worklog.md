@@ -13521,3 +13521,42 @@ Stage Summary:
   landed M-014/M-049 in the same window). Next: pull, then M-025 (carve
   read model) or whatever remains open.
 
+
+---
+Task ID: DFX33-T2 (session 33, second fix)
+Agent: main engineer (diff-to-fix fix session 33 — DFX33)
+Task: M-025 — the carve read model (8 MiB ping-pong / already-in-buffer
+vs 1 MiB windows with per-candidate device re-reads).
+
+Work Log:
+- Corpus re-verified at the cited lines (:9269-9275, :9184-9209, :9434-
+  9438, :9496-9510, :9620-9622, :9541-9605, :10114-10144). CONFIRMED as
+  structural cost (the finding's own framing: no og-execution possible
+  here; the divergence is decoded structure, not a measured X47 delta).
+- Implemented fix-plan 2a+2b as the WindowDevice read context: in-window
+  reads served from the window buffer; straddling reads split
+  buffer-prefix + device-tail. Wired: validators, both checksum sites,
+  both hash sites, the raw-sign tail scans. M-021 hook keeps the raw
+  slice (host contract).
+- MEASURED (fix-plan item 1): the counting-device fixture — 52 device
+  reads pre-fix → 4 post-fix (13x; zero per-candidate re-reads).
+  Fix-plan item 3 (geometry) NOT taken — the finding's own bench-evidence
+  rule; Windows bench lane owns executed X47 (M-009 posture). Item 4
+  registered as PARITY-DELTAS D-80.
+- Debug path: traced the 1 MiB probe/window interaction first-hand (the
+  entropy/MP3 block reads can never fit a 1 MiB window; the PNG validator
+  is the clean in-window fixture), all instrumentation removed before
+  commit.
+- Tests: CarveEngine.WindowServingEliminatesPerCandidateRereads (RED on
+  the pre-fix wiring: 52 vs 4) + WindowServingServesStraddlingReadsCorrectly
+  (boundary plant: exact extent 521/length/checksum — caught my own
+  fixture-arithmetic slip: plant_jpeg is 521 B, not 519). Carve suite
+  46/46; full suite 799/799 linux-release.
+- Audit trail: Resolution + FIXED/ move; matrix carve row MATCH;
+  modules/carve.md session-33 verdict; SUMMARY part-2 delta;
+  PARITY-DELTAS D-80.
+
+Stage Summary:
+- M-025 FIXED (tally: 2 — M-020, M-025). MAJOR 10 open. Next: pull, then
+  M-029 (query model) or whatever remains open.
+
