@@ -15911,3 +15911,48 @@ Work Log:
 
 Stage Summary:
 - M-039 FIXED. Remaining MAJOR: M-030, M-040.
+
+---
+Task ID: DFX33b-T5 (S-034 — the SEVERE board item)
+Agent: main engineer (diff-to-fix fix session 33b — DFX33b; re-stamped from DFX33 after the parallel lane's first-landing)
+Task: S-034 — ZFS ring txg-history walk.
+
+Work Log:
+- Origin pull absorbed mid-session (b5513b8): the parallel lanes landed
+  M-030, M-034, M-039, M-041, M-048, N-007, N-065, N-066 (+M-018/M-020/
+  M-025 family + repairs) — the board collapsed from 13 to 5 items.
+  Merge union-resolved (worklog keep-both; this lane re-stamped DFX33b).
+  A botched first merge (files applied, index write failed) was unwound
+  cleanly (reset + clean + re-merge).
+- The three decode items answered FIRST-HAND from the corpus before any
+  code: (1) collector FUN_180006b40 = plain push_back, NO engine dedup;
+  emission gate at FUN_18001d9a0 :26210 is from_txg < birth_txg ||
+  from_txg == 0 (always true at top level — addBlock descends with
+  from_txg=0); (2) each state's walk IS the state's own tree content
+  (tree-open FUN_180016c50 re-ensures the registry per record; no
+  separate MOS snapshot re-emission); (3) last_txg is display-only (the
+  previous iteration's txg in the log string).
+- Implementation: every valid uberblock state from all four labels'
+  rings, txg-deduped, newest-first; first-openable state = LIVE tree;
+  older states = RECALL walks with cross-state identity dedup
+  (dataset, parent dir, entry name, objid, dnode bp0 birth) —
+  deleted-in-window → Deleted nodes in place; unchanged dirs re-walked
+  against their existing node; modified-in-window → prior version as a
+  Deleted sibling; torn states skipped like the og's tree-open failure.
+  ring_states telemetry added.
+- Fixture: a second CoW state (txg 82) over the base pool — only the
+  changed chain gets new blocks (rootdir zap → ZPL array → ZPL objset →
+  MOS array → MOS objset → uberblock), everything else shared.
+- Proof: 4 tests fail-before RED on the pre-fix engine (verified by
+  rebuild with the old engine + new-field header), pass-after; full
+  suite 903/903 (ctest, incl. win_syntax_check + cr_ui_abi_check).
+- Audit trail: finding → FIXED/ with full Resolution; matrix zfs cells;
+  modules/zfs.md B1/B4 verdicts + session row; SUMMARY session-33b
+  delta; PARITY-DELTAS D-05 → FIXED.
+- Ledger repair: PARITY-DELTAS.md merge-storm duplicates deduplicated
+  (156 identical + 16 divergent reconciled keep-largest; 99 D-rows
+  remain). Announced in the commit.
+
+Stage Summary:
+- S-034 FIXED and pushed (cb046ed). Board: MAJOR 1 (M-040), MINOR 1
+  (N-072), tracked-open 2 (OQ-S4-3, OQ-FLT-2). SEVERE 0.
