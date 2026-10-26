@@ -95,6 +95,11 @@ struct ExfatScanStats {
     u64 upcase_validated =
         0; /* in-use upcase dentries whose structure passed the og's shape gates */
     u64 upcase_mismatches = 0; /* checksum/length/read integrity failures (0 = clean or absent) */
+    /* M-052 (diff-to-fix): the recycle-bin $I/$R pairing, og parity for
+     * exFAT ("mirrored from FAT engine", fat-exfat-engine-internals.md
+     * :71 - IRecycleBinNode2UI, multiple _stricmp sites) */
+    u64 recycle_info = 0;     /* $I metadata records parsed inside bin roots */
+    u64 recycle_remapped = 0; /* $R files remapped to their original name */
 };
 
 struct ExfatScanFlags {

@@ -2591,7 +2591,7 @@ records this as inherent: UNVERIFIED-BY-EXECUTION on this hardware).
 Recovery correctness is unaffected (health is advisory).
 
 
-### D-79 — Btrfs RAID0/RAID10 chunk reads: kernel stripe math vs the og's read failure (M-020, REGISTERED SUPERSET)
+### D-83 — Btrfs RAID0/RAID10 chunk reads: kernel stripe math vs the og's read failure (M-020, REGISTERED SUPERSET)
 
 The og's logical→physical node reader (BtrfsSearchDLL FUN_1800042a0,
 :2498-2583, verified first-hand session 33) serves ONLY the 2-copy class
@@ -2645,7 +2645,7 @@ incremental continuation (streaming formats whose end cannot be probed
 by a bounded forward walk) must either keep that model in its own layer
 or extend the validator contract — this register is the flag S-017's
 fix-plan step 3 cites.
-### D-79 — disk enumeration: the two-stack merge (PhysicalDrive loop + cfgmgr32 disk interfaces), not the og's five-stack fan-in (N-071, REGISTERED DIVERGENCE — partial port with scope rationale)
+### D-84 — disk enumeration: the two-stack merge (PhysicalDrive loop + cfgmgr32 disk interfaces), not the og's five-stack fan-in (N-071, REGISTERED DIVERGENCE — partial port with scope rationale)
 
 **Class:** registered divergence (enumeration breadth) · **Finding:**
 diff-to-fix N-071 (MINOR, fixed with the two-stack merge; residual
@@ -2781,32 +2781,6 @@ records this as inherent: UNVERIFIED-BY-EXECUTION on this hardware).
 Recovery correctness is unaffected (health is advisory).
 
 
-### D-83 — Btrfs RAID0/RAID10 chunk reads: kernel stripe math vs the og's read failure (M-020, REGISTERED SUPERSET)
-
-The og's logical→physical node reader (BtrfsSearchDLL FUN_1800042a0,
-:2498-2583, verified first-hand session 33) serves ONLY the 2-copy class
-(SINGLE/DUP/RAID1 → the rotating mirror). RAID0 (class 8) and RAID10
-(class 0x40) fall through to LAB_1800043fe — the read FAILS; the og
-recovers nothing from striped chunks. The pre-fix core instead read
-stripe 0 of every chunk unconditionally — on striped chunks that yields
-WRONG BYTES (crossed data), which is worse than nothing for content
-correctness.
-
-The core now implements the kernel stripe math for both profiles
-(RAID0: `idx = stripe_nr % n`, physical = stripes[idx].offset +
-(stripe_nr/n)·stripe_len + in-stripe; RAID10: mirror-set selection with
-og-style member rotation), splits raw extents at stripe boundaries so
-spanning files map per-stripe, and refuses+counts what cannot be mapped
-correctly (compressed extents spanning stripes, classes &0x80/&0x100,
-zero stripe_len on striped chunks — the og refuses the latter classes
-too). This is a deliberate recovery-positive superset: content the og
-cannot read is recovered with correct bytes, and nothing is ever emitted
-with wrong bytes. Fixtures: `Btrfs.Raid0StripeMathSplitsAtStripeBoundaries`
-(the spanning split + the in-stripe offset), `Btrfs.Raid10GeometryGate`
-(the og's parse-time gate stays og-exact — the superset is read-side
-only).
-
-
 ### D-78 — progress delivery: push events + telemetry pull, not the og's poll-dominant timer farm (N-075, REGISTERED DIVERGENCE; renumbered from a D-77 collision with the N-009d ACL register — and now one of three same-window D-78 registrations; cite by finding: N-075)
 
 The og's progress model is predominantly PULL-polled: 38 `timeout()`
@@ -2873,58 +2847,6 @@ the ABI enumeration (`cr_ui_carve_format_count/info`, ABI-CONTRACT §7a)
 and its CLI projection (`rrecov list-carve-formats`, landed with this
 register). Pinned by `CrUi.CarveFormatRegistryEnumeration`.
 
-
-### D-84 — disk enumeration: the two-stack merge (PhysicalDrive loop + cfgmgr32 disk interfaces), not the og's five-stack fan-in (N-071, REGISTERED DIVERGENCE — partial port with scope rationale)
-
-**Class:** registered divergence (enumeration breadth) · **Finding:**
-diff-to-fix N-071 (MINOR, fixed with the two-stack merge; residual
-registered here) · **Date:** 2026-10-26
-
-**WHAT OG DOES:** the device discovery fan-in spans five stacks — WMI
-(MSFT_* namespaces), SetupAPI device interfaces, VDS (dynamic-disk
-packs), Storage Spaces, and Function Discovery (mom-module-system
-architecture :57-59; the QA boot census shows `CDiskEnumerator :
-Storage space init` + `GetUsedPhysicalDisks` + `Vds loadservice` running
-alongside the plain `disk enumerate` — vendor-logs :13-29) — merged into
-the device list the UI presents, with hot-plug notification.
-
-**WHAT WE DO:** a two-stack merge: the numbered `\\.\PhysicalDrive0..N`
-loop (geometry/alignment/descriptor/table parse) + the cfgmgr32
-`GUID_DEVINTERFACE_DISK` present-instance pass (every interface opened,
-queried with the same IOCTL family, merged by
-`merge_disk_enumeration` — dedup by disk number, then by instance
-path; N-071's landing). The WMI/VDS/Storage-Spaces/FunctionDiscovery
-stacks are not ported; hot-plug eventing is not ported (the CLI/UI
-re-enumerates on demand).
-
-**WHY:** (1) Every block device Windows exposes for user-mode READ
-surfaces as `\\.\PhysicalDriveN` or a disk-interface instance — the two
-stacks cover the readable-device space the recovery engine consumes;
-the og's extra stacks feed its UI metadata (WMI friendly names, VDS
-dynamic-volume CONFIG — which our LDM engine parses from the disk
-itself — and Storage Spaces pool topology for display). (2) The
-finding's own open question records that Storage Spaces members DO
-surface as PhysicalDrive in practice (the miss-case is
-UNVERIFIED-BY-EXECUTION without a Storage Spaces host; the QA census
-shows the stacks RUNNING, not a disk the numbered namespace lacks). (3)
-FunctionDiscovery and hot-plug notify are product-shell concerns (the
-og's DeviceManager.mo is a UI-facing module); the engine's contract is
-a complete device LIST on demand, which the merge provides. The
-cfgmgr32 pair (`CM_Get_Device_Interface_List_SizeW`/
-`CM_Get_Device_Interface_ListW`) is Win2000-era — the Win7-inclusive
-import gate holds (cfgmgr32 added to the strict allowlist with the
-function pair).
-
-**RISK:** a device reachable ONLY through VDS/Storage-Spaces stacks and
-absent from both the PhysicalDrive namespace AND the disk-interface
-list would be missed — no such device class is documented in the corpus
-(the QA host's own Storage-Spaces census ran WITHOUT producing an
-
-> Grafted back (DFX24 union repair, 2026-10-26): the DFX30-T4 delta-ledger
-> renumbering renamed this row D-79 -> D-84 in the ledger comment but the row
-> itself was dropped in the union; restored verbatim from the canonical N-071
-> landing 7ee64fb with the renumbered id (test
-> Enumerate.ScopeDeltaRegisteredWithRevisitTrigger stays red without it).
 
 ### D-85 — device enumeration scope: the PhysicalDrive namespace is the engine's device truth; no WMI/SetupAPI/VDS/StorageSpaces/FunctionDiscovery fan-in (N-071, REGISTERED DIVERGENCE — scope)
 

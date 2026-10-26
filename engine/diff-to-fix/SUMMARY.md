@@ -820,6 +820,32 @@ open (22 acknowledged in FIXED/) · tracked-open 11 · FIXED/ **178** files
 N-033 → N-064.
 ## Session-35 delta (2026-10-26 — DFX35, re-stamped from 23: the MAJOR-closing wave, M-014 first)
 
+**M-052 FIXED (MAJOR — the FAT/exFAT recycle-bin $I/$R pairing) +
+N-079 NEW-FINDING FIXED (MINOR — the NTFS landing's missing bin
+scope):** the recycle model is now shared across all three engines
+(include/cr/cr_recycle.h): the $I v1/v2 record parser (format-dependent
+pathlen, runner-benchmark evidence), the dot-stripped pairing token,
+and the og's FOUR-name bin-root set (Recycler / Recycled /
+$Recycle.Bin / $RECYCLE.BI0 — verified first-hand in all three
+SearchDLLs; the mangled $RECYCLE.BI0 variant is deliberate og
+matching). FAT and exFAT thread the bin context through the directory
+recursion (and the M-013 oracle's re-walks): in-bin $I metadata never
+surfaces; in-bin $R content remaps to the ORIGINAL name with the $I's
+size/deletion-FILETIME, marked Deleted; the post-walk fixup pairs
+across walk order ("across bin subfolders"). Verification of the NTFS
+reference implementation found it matched $I/$R NAME PREFIXES
+everywhere (user files named "$Image.txt" vanished; out-of-bin "$R…"
+mis-paired) — filed as N-079 and fixed in the same change (parse-gated
+skip + ancestor-chain-gated remap, the og's own scope test). New stats
+recycle_info/recycle_remapped on both FAT-family engines. Proof: 3
+fail-before EXECUTED tests + the no-over-match guard + the NTFS scope
+pin (fail-before EXECUTED) + RecycleBinMapping regression green
+throughout; suite 794/794.
+
+**Counts after this landing:** MAJOR 11 · MINOR 10 · FIXED 186
+findings (+ N-079 new). Next on this lane: M-020 (Btrfs chunk
+profiles + default subvol).
+
 Baseline `716d121` verified green first-hand (737/737 linux-release);
 corpus `03ad46c` unmoved. Lane: MAJOR-first per the session mandate,
 20+ fixes targeted. Open inventory at start: MAJOR 14 · MINOR 19 ·
