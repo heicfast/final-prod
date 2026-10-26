@@ -217,3 +217,67 @@ the mid-scan query cost measurement G-7 depends on); e2e under
 built-bundle story the plan §5.4 sets); release.yml (T13); docs sweep
 (T16: README/BUILD/ARCHITECTURE/RELEASE/TESTING + CONNECTOR-CONTRACT mock
 sections + stale VITE_CONNECTOR references); RC tag (T18); handoff (T20).
+
+---
+
+## 2026-10-26T17:15Z — the bridge compiles: 10-round CI iteration to green (T7 compile lane + T17 start)
+
+The Rust bridge was written without any local cargo (the sandbox has no
+Rust toolchain) — the ui-ci Windows lane IS its compiler. Ten rounds,
+every red fixed for the root cause, zero suppressions:
+
+- R1 (a790cf9b): json! let-block value (the macro parses '{' as an object
+  start) + a leftover positional {}. Pre-flight audit in the same push:
+  SendPtr INSIDE thread closures (raw pointers are !Send even when
+  extracted just before the move), Manager import, unused imports,
+  parens-wrapped if-else json! values.
+- R2 (cdaf7e53): commands/mod.rs was missing the preview module; Sender
+  import; the scan emitter's lock guard needed mut; JobLive field-name
+  mismatch (last_throughput); NodeMeta needed Clone; savedAs Into<Value>;
+  emit takes &str; SCM handles are pointers (.is_null()).
+- R3 (d701b74a): std mpsc Sender::try_send is NIGHTLY-ONLY — the sinks now
+  use bounded sync_channel + SyncSender::try_send (STABLE, never-block,
+  coalescing semantics per event-mapping.md); metas_snapshot borrow-vs-move;
+  one unused mut.
+- R4 (f2ae9f59): buf's mut restored (round-3 removed the wrong binding);
+  five unused imports.
+- R5 (521371ec): lib.rs's BridgeState import needed the module path after
+  the re-export cleanup. CARGO CHECK PASSED at this point.
+- R6 (6b4c7ebd→60937e45): clippy dead-code sweep — the pinned abi.rs gets a
+  module-scoped allow(dead_code) WITH the rationale (the complete 78-export
+  header binding stays declared; G-1/G-7 explain why some exports are
+  unconsumed); every genuinely dead bridge item REMOVED (unread struct
+  fields, superseded helpers, never-minted error constants).
+- R7 (61c0646a): 15 clippy style findings, all fixed canonically (PageReq +
+  TreeSpec structs replacing 8/9-arg helpers, strip_prefix, char-array
+  patterns, &Path, sort_by_key(Reverse), closure elisions, doc reflow).
+- R8 (39187ba7): Option<SendPtr> moves (derive(Copy) bounds T: Copy) — borrow.
+- R9 (4c9f115a): one redundant field name. **ui-ci GREEN.**
+
+GREEN STATE at 4c9f115a (verified via the API):
+- contracts-ci: validate.mjs phase 1+2 GREEN on every push since the bridge
+  landed (33 commands cross-checked both directions) + filefilter freshness
+  (1,481 extensions).
+- ui-ci (windows-latest): typecheck, eslint, prettier, arch-lint A1-A7,
+  ast-grep x2, knip (KNIP_DISABLE_RAW_TRANSFER=1 — the oxc raw-transfer
+  reservation exceeds small runners/sandboxes; documented in the lane),
+  jscpd 0 clones, vitest 127/127 + coverage 96.4/84.4/100/98.6 on the real
+  connector, production build + bundle budget, **cargo check + clippy
+  -D warnings GREEN** on the ~3,700-line bridge.
+- driver-ci (a790cf9b): lint/fuzz/unit/WDK Debug+Release matrix + the
+  unsigned assertion — GREEN first run.
+- engine-ci (a790cf9b): lint, linux ASan (full suite), linux-ubsan, fuzz,
+  **windows (MSVC vcpkg manifest Debug+Release + Win7 PE stamp/import
+  gates + ctest)** all GREEN; linux-tsan still in flight at press time.
+
+Also this window: playwright.config.ts builds in TEST MODE before preview
+(the e2e bundle carries the labeled double — verified both ways: test build
+contains the double's fixtures and zero real-connector strings; production
+the reverse); docs sweep (ui/README.md connector section, CONNECTOR-
+CONTRACT.md's shipped-bridge + never-shipped-double sections, the
+UI-SURFACE historical banner, pathScope G-11 truth).
+
+Next (tracked): engine-ci's tsan tail; ui-e2e.yml (playwright lane with
+browsers installed); release.yml (T13); INTEGRATION-VALIDATION evidence
+(T14); root README/BUILD/ARCHITECTURE/RELEASE/TESTING (T16 remainder);
+the RC tag + clean-runner install evidence (T18/T15).
