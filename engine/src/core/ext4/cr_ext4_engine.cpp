@@ -951,8 +951,8 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
         std::vector<u8> data;
         read_extent_data(*ctx.v, iv, MAX_DIR_BYTES, data);
         std::vector<DirEntry> entries;
-        if (!parse_dir_block(data.data(), data.size(), ctx.filetype,
-                             ctx.v->sb.inodes_count, entries))
+        if (!parse_dir_block(data.data(), data.size(), ctx.filetype, ctx.v->sb.inodes_count,
+                             entries))
             return OK; /* unparseable dir: metadata-only below */
 
         for (const auto& de : entries) {
@@ -972,7 +972,7 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
             if (!props)
                 return ERR_NO_MEMORY;
             props->name = de.name;
-            props->name_raw = de.name_raw; /* N-016b */
+            props->name_raw = de.name_raw;          /* N-016b */
             props->fs_kind = u32(FsKindCode::Ext4); /* corpus factory code */
             props->logical_size = child.size;
             props->attributes = is_dir ? 0x10 : 0;

@@ -96,7 +96,7 @@ struct Filter {
  * The skipped IDs (0x104, 0x1005) have NO og semantics - the translation
  * rejects them rather than inventing constants. */
 enum DateBucket : u16 {
-    DateBucket_None = 0,        /* leave the filter untouched */
+    DateBucket_None = 0, /* leave the filter untouched */
     DateBucket_Today = 0x100,
     DateBucket_Yesterday = 0x101,
     DateBucket_Last7Days = 0x102,
@@ -106,7 +106,7 @@ enum DateBucket : u16 {
 };
 
 enum SizeBucket : u16 {
-    SizeBucket_None = 0,        /* leave the filter untouched */
+    SizeBucket_None = 0, /* leave the filter untouched */
     SizeBucket_To512KiB = 0x1000,
     SizeBucket_To1MiB = 0x1001,
     SizeBucket_To512MiB = 0x1002,
@@ -122,23 +122,30 @@ enum SizeBucket : u16 {
  * uses custom_from_ft/custom_to_ft (raw FILETIMEs, day-truncated locally,
  * both ends inclusive). Returns false (filter untouched) for unknown or
  * skipped IDs. */
-bool apply_date_bucket(Filter& f, u16 bucket, u64 now_ft,
-                       u64 custom_from_ft = 0, u64 custom_to_ft = 0);
+bool apply_date_bucket(Filter& f, u16 bucket, u64 now_ft, u64 custom_from_ft = 0,
+                       u64 custom_to_ft = 0);
 
 /* Translate a Size bucket ID into the filter's size range (exact og
  * boundaries; the Custom bucket is inclusive on both ends). Returns false
  * (filter untouched) for unknown or skipped IDs. */
-bool apply_size_bucket(Filter& f, u16 bucket,
-                       u64 custom_min = 0, u64 custom_max = ~u64(0));
+bool apply_size_bucket(Filter& f, u16 bucket, u64 custom_min = 0, u64 custom_max = ~u64(0));
 
-enum class SortKey : u8 { None = 0, Name, Size, Modified, Confidence, Path, Grade,
-                      /* M-029: the og's Type column (results-view column
-                       * 3, corpus UIUX results-view captures). Ordering:
-                       * category (the FileFilter.xml iconIndex display order:
-                       * Graphic/Document/Email/Audio/Video/Other/Archive/
-                       * Bookmarks, iconIndex 0-7), then extension, then name.
-                       * None-category rows sort last. */
-                      Type };
+enum class SortKey : u8 {
+    None = 0,
+    Name,
+    Size,
+    Modified,
+    Confidence,
+    Path,
+    Grade,
+    /* M-029: the og's Type column (results-view column
+     * 3, corpus UIUX results-view captures). Ordering:
+     * category (the FileFilter.xml iconIndex display order:
+     * Graphic/Document/Email/Audio/Video/Other/Archive/
+     * Bookmarks, iconIndex 0-7), then extension, then name.
+     * None-category rows sort last. */
+    Type
+};
 enum class SortDir : u8 { Asc = 0, Desc };
 
 struct Query {

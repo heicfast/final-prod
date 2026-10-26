@@ -15,9 +15,9 @@
 
 namespace {
 
+using cr::text::lossless_u16_to_utf8;
 using cr::text::utf8_to_u16;
 using cr::text::utf8_to_u16_lossless;
-using cr::text::lossless_u16_to_utf8;
 
 std::u16string u(std::initializer_list<char16_t> cps) {
     return std::u16string(cps.begin(), cps.end());
@@ -58,7 +58,7 @@ TEST(Text, OverlongFormsRejectedAsReplacement) {
      * with them), so their continuations surface as their own subparts. */
     EXPECT_EQ(utf8_to_u16("\xc0\x80"), u({u'\uFFFD', u'\uFFFD'})); /* NUL overlong */
     EXPECT_EQ(utf8_to_u16("\xc1\xbf"), u({u'\uFFFD', u'\uFFFD'})); /* 2-byte overlong */
-    EXPECT_EQ(utf8_to_u16("\xe0\x80\x80"), u({u'\uFFFD'})); /* 3-byte overlong: one subpart */
+    EXPECT_EQ(utf8_to_u16("\xe0\x80\x80"), u({u'\uFFFD'}));     /* 3-byte overlong: one subpart */
     EXPECT_EQ(utf8_to_u16("\xf0\x80\x80\x80"), u({u'\uFFFD'})); /* 4-byte overlong: one subpart */
     /* the overlong VALUE never decodes: no U+0000 from C0 80 */
     EXPECT_EQ(utf8_to_u16("\xc0\x80").find(u'\0'), std::u16string::npos);
@@ -124,8 +124,7 @@ TEST(Text, MaximalSubpartReplacement) {
      * single-byte subpart (they can never begin a sequence) */
     EXPECT_EQ(utf8_to_u16("\x80\x80\x80"), u({u'\uFFFD', u'\uFFFD', u'\uFFFD'}));
     /* mixed: maximal-subpart FFFD + a valid CJK sequence after it */
-    EXPECT_EQ(utf8_to_u16("\xe6\x96\xe7\x85\xa7"),
-              u({u'\uFFFD', char16_t(0x7167)}));
+    EXPECT_EQ(utf8_to_u16("\xe6\x96\xe7\x85\xa7"), u({u'\uFFFD', char16_t(0x7167)}));
 }
 
 TEST(Text, EmbeddedNulDecodes) {
@@ -177,8 +176,7 @@ TEST(Text, InvalidByteLosslessMapping) {
      * U+E000 + byte - bijective, reconstructible, never U+FFFD */
     EXPECT_EQ(u"\uE0E9", utf8_to_u16_lossless("\xE9"));
     /* valid sequences untouched */
-    EXPECT_EQ(u"r\u00E9sum\u00E9.txt",
-              utf8_to_u16_lossless("r\xC3\xA9sum\xC3\xA9.txt"));
+    EXPECT_EQ(u"r\u00E9sum\u00E9.txt", utf8_to_u16_lossless("r\xC3\xA9sum\xC3\xA9.txt"));
     /* a torn 3-byte lead: the lead byte maps losslessly, each following
      * continuation byte fails its own lead test and maps individually */
     const std::u16string torn = utf8_to_u16_lossless("\xE2\x28\xA1");
@@ -199,15 +197,13 @@ TEST(Text, LosslessRoundTripRecoversRawBytes) {
      * (0xE9 == -0x17, 0xC3 == -0x3D, 0xA9 == -0x57) - same bytes,
      * constant fits, no truncation warning. */
     const char raw[] = {'r', char(-0x17), 's', 'u', 'm', char(-0x17), '.', 't', 'x', 't'};
-    const std::u16string mapped =
-        utf8_to_u16_lossless(std::string_view(raw, sizeof(raw)));
+    const std::u16string mapped = utf8_to_u16_lossless(std::string_view(raw, sizeof(raw)));
     std::string back;
     ASSERT_TRUE(lossless_u16_to_utf8(mapped, back));
     EXPECT_EQ(0, memcmp(raw, back.data(), sizeof(raw)));
     /* mixed: valid UTF-8 + raw bytes round-trip together */
     const char mixed[] = {'a', char(-0x3D), char(-0x57), 'b', char(-0x17), 'c'};
-    const std::u16string m2 =
-        utf8_to_u16_lossless(std::string_view(mixed, sizeof(mixed)));
+    const std::u16string m2 = utf8_to_u16_lossless(std::string_view(mixed, sizeof(mixed)));
     std::string b2;
     ASSERT_TRUE(lossless_u16_to_utf8(m2, b2));
     EXPECT_EQ(0, memcmp(mixed, b2.data(), sizeof(mixed)));
@@ -258,8 +254,10 @@ TEST(Text, WideToUtf8SurrogatePairAndLoneHalf) {
     EXPECT_EQ(std::string("\xEF\xBF\xBD\xEF\xBF\xBD"),
               cr::text::wide_to_utf8(std::wstring({wchar_t(0xD83D), wchar_t(0xD83D)})));
     /* lead followed by a non-trailing unit: no pair, both halves FFFD'd */
-    EXPECT_EQ(std::string("a\xEF\xBF\xBD" "b"),
-              cr::text::wide_to_utf8(std::wstring({wchar_t(L'a'), wchar_t(0xD83D), wchar_t(L'b')})));
+    EXPECT_EQ(
+        std::string("a\xEF\xBF\xBD"
+                    "b"),
+        cr::text::wide_to_utf8(std::wstring({wchar_t(L'a'), wchar_t(0xD83D), wchar_t(L'b')})));
 }
 
 TEST(Text, CliFilterUtf8MatchesDecodedNames) {
@@ -274,8 +272,8 @@ TEST(Text, CliFilterUtf8MatchesDecodedNames) {
 
     /* name_utf8() = the u16 name re-encoded to UTF-8; the round trip
      * through utf8_to_u16 must be stable for well-formed input */
-    const std::string name_u8 = cr::text::wide_to_utf8(
-        std::wstring(name_u16.begin(), name_u16.end()));
+    const std::string name_u8 =
+        cr::text::wide_to_utf8(std::wstring(name_u16.begin(), name_u16.end()));
     EXPECT_EQ(name_on_disk, name_u8);
 
     /* the filter's UTF-8 is a byte substring of the name's UTF-8: the

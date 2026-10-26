@@ -391,8 +391,7 @@ TEST(SessionTree, ReloadedRootStatsAreRecursive) {
     tree::ResultTree loaded;
     ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), loaded), OK);
     ASSERT_FALSE(loaded.roots().empty());
-    const tree::FullNode* lr =
-        static_cast<const tree::FullNode*>(loaded.roots()[0]);
+    const tree::FullNode* lr = static_cast<const tree::FullNode*>(loaded.roots()[0]);
     /* the persisted image wins on load: same totals by construction */
     EXPECT_EQ(lr->stats().file_count, files);
     EXPECT_EQ(lr->stats().dir_count, dirs);
@@ -464,8 +463,8 @@ struct WireNode {
         p64(allocated);
         for (int i = 0; i < 4; ++i)
             p64(0); /* times */
-        p32(0);   /* attributes */
-        p16(0);   /* flags */
+        p32(0);     /* attributes */
+        p16(0);     /* flags */
         p16(u16(name.size()));
         for (u16 ch : name) {
             blob.push_back(u8(ch));
@@ -552,8 +551,8 @@ TEST(Session, GradeRoleAndProvenanceRoundTrip) {
 
 TEST(Session, OldFormatStillLoads) {
     /* M-050's forward-compat guard: a legacy v1-wire node (nflags=0 -
-    * no short name, no grade byte, no resident blob, no provenance)
-    * loads exactly as before, under the synthetic Restored root. */
+     * no short name, no grade byte, no resident blob, no provenance)
+     * loads exactly as before, under the synthetic Restored root. */
     WireNode w;
     w.parent_id = 0xFFFFFFFFu;
     w.marker = 0;
@@ -666,17 +665,28 @@ TEST(Session, HostileNameAndRoleLengthBombs) {
         };
         p32(blob, 1); /* one node */
         p32(blob, 0xFFFFFFFFu);
-        blob.push_back(0); blob.push_back(0); /* nflags */
-        blob.push_back(0);                    /* marker */
-        blob.push_back(0); blob.push_back(0); blob.push_back(0); /* origin/deleted/conf */
-        for (int i = 0; i < 8; ++i) blob.push_back(0); /* record_ref */
-        for (int i = 0; i < 4; ++i) blob.push_back(0); /* fs_kind */
-        for (int i = 0; i < 8 * 2; ++i) blob.push_back(0); /* logical+allocated */
-        for (int i = 0; i < 8 * 4; ++i) blob.push_back(0); /* times */
-        for (int i = 0; i < 4; ++i) blob.push_back(0); /* attributes */
-        blob.push_back(0); blob.push_back(0); /* flags */
-        blob.push_back(0xE0); blob.push_back(0xEA); /* name_len = 0xEAE0 = 60128 */
-        blob.push_back(0x41); blob.push_back(0); /* 2 bytes of name, then EOF */
+        blob.push_back(0);
+        blob.push_back(0); /* nflags */
+        blob.push_back(0); /* marker */
+        blob.push_back(0);
+        blob.push_back(0);
+        blob.push_back(0); /* origin/deleted/conf */
+        for (int i = 0; i < 8; ++i)
+            blob.push_back(0); /* record_ref */
+        for (int i = 0; i < 4; ++i)
+            blob.push_back(0); /* fs_kind */
+        for (int i = 0; i < 8 * 2; ++i)
+            blob.push_back(0); /* logical+allocated */
+        for (int i = 0; i < 8 * 4; ++i)
+            blob.push_back(0); /* times */
+        for (int i = 0; i < 4; ++i)
+            blob.push_back(0); /* attributes */
+        blob.push_back(0);
+        blob.push_back(0); /* flags */
+        blob.push_back(0xE0);
+        blob.push_back(0xEA); /* name_len = 0xEAE0 = 60128 */
+        blob.push_back(0x41);
+        blob.push_back(0); /* 2 bytes of name, then EOF */
         tree::ResultTree t2;
         EXPECT_EQ(deserialize_tree(blob.data(), blob.size(), t2), u32(0x50040001));
     }
@@ -689,23 +699,36 @@ TEST(Session, HostileNameAndRoleLengthBombs) {
         };
         p32(blob, 1);
         p32(blob, 0xFFFFFFFFu);
-        blob.push_back(0); blob.push_back(0);
+        blob.push_back(0);
+        blob.push_back(0);
         blob.push_back(1); /* marker = full node */
-        blob.push_back(0); blob.push_back(0); blob.push_back(0);
-        for (int i = 0; i < 8; ++i) blob.push_back(0);
-        for (int i = 0; i < 4; ++i) blob.push_back(0);
-        for (int i = 0; i < 8 * 2; ++i) blob.push_back(0);
-        for (int i = 0; i < 8 * 4; ++i) blob.push_back(0);
-        for (int i = 0; i < 4; ++i) blob.push_back(0);
-        blob.push_back(0); blob.push_back(0);
-        blob.push_back(0); blob.push_back(0); /* empty name */
+        blob.push_back(0);
+        blob.push_back(0);
+        blob.push_back(0);
+        for (int i = 0; i < 8; ++i)
+            blob.push_back(0);
+        for (int i = 0; i < 4; ++i)
+            blob.push_back(0);
+        for (int i = 0; i < 8 * 2; ++i)
+            blob.push_back(0);
+        for (int i = 0; i < 8 * 4; ++i)
+            blob.push_back(0);
+        for (int i = 0; i < 4; ++i)
+            blob.push_back(0);
+        blob.push_back(0);
+        blob.push_back(0);
+        blob.push_back(0);
+        blob.push_back(0); /* empty name */
         /* nflags&4==0: no short name; ec=0 */
         p32(blob, 0);
         p32(blob, 0); /* carve_format */
-        blob.push_back(0); blob.push_back(0); /* carve_confidence */
+        blob.push_back(0);
+        blob.push_back(0); /* carve_confidence */
         blob.push_back(0); /* hash_valid */
-        blob.push_back(0xF0); blob.push_back(0xEA); /* role_len = 0xEAF0 = 60144 */
-        blob.push_back(0x41); blob.push_back(0); /* 2 bytes, then EOF */
+        blob.push_back(0xF0);
+        blob.push_back(0xEA); /* role_len = 0xEAF0 = 60144 */
+        blob.push_back(0x41);
+        blob.push_back(0); /* 2 bytes, then EOF */
         tree::ResultTree t2;
         EXPECT_EQ(deserialize_tree(blob.data(), blob.size(), t2), u32(0x50040001));
     }
@@ -731,75 +754,105 @@ TEST(Session, CorruptRecordEarlyExitsReleaseProps) {
             b.push_back(u8(v));
             b.push_back(u8(v >> 8));
         };
-        p32(1);                       /* node count */
-        p32(0xFFFFFFFFu);             /* parent_id */
+        p32(1);           /* node count */
+        p32(0xFFFFFFFFu); /* parent_id */
         p16(nflags);
         b.push_back(marker);
-        b.push_back(0);               /* origin */
-        b.push_back(0);               /* deleted */
-        b.push_back(0);               /* confidence */
-        for (int i = 0; i < 8; ++i) b.push_back(0);  /* record_ref */
-        for (int i = 0; i < 4; ++i) b.push_back(0);  /* fs_kind */
-        for (int i = 0; i < 8 * 2; ++i) b.push_back(0); /* logical+allocated */
-        for (int i = 0; i < 8 * 4; ++i) b.push_back(0); /* times */
-        for (int i = 0; i < 4; ++i) b.push_back(0);  /* attributes */
-        b.push_back(0); b.push_back(0);               /* flags */
+        b.push_back(0); /* origin */
+        b.push_back(0); /* deleted */
+        b.push_back(0); /* confidence */
+        for (int i = 0; i < 8; ++i)
+            b.push_back(0); /* record_ref */
+        for (int i = 0; i < 4; ++i)
+            b.push_back(0); /* fs_kind */
+        for (int i = 0; i < 8 * 2; ++i)
+            b.push_back(0); /* logical+allocated */
+        for (int i = 0; i < 8 * 4; ++i)
+            b.push_back(0); /* times */
+        for (int i = 0; i < 4; ++i)
+            b.push_back(0); /* attributes */
+        b.push_back(0);
+        b.push_back(0); /* flags */
     };
 
     { /* (1) name-length bomb: claims 512 bytes, 2 provided */
         std::vector<u8> b;
         node_prefix(b, 0, 0);
-        b.push_back(0x00); b.push_back(0x02); /* name_len = 512 */
-        b.push_back(0x41); b.push_back(0);
+        b.push_back(0x00);
+        b.push_back(0x02); /* name_len = 512 */
+        b.push_back(0x41);
+        b.push_back(0);
         tree::ResultTree t;
         EXPECT_EQ(deserialize_tree(b.data(), b.size(), t), u32(0x50040001));
     }
     { /* (2) truncated resident data: rlen 64, 8 provided (nflags&2) */
         std::vector<u8> b;
         node_prefix(b, 2, 0);
-        b.push_back(0); b.push_back(0);       /* name_len = 0 */
-        for (u32 i = 0; i < 4; ++i) b.push_back(0); /* extent count */
-        for (u32 i = 0; i < 4; ++i) b.push_back(0x40); /* rlen = 0x40404040? no: LE 64 */
-        for (int i = 0; i < 8; ++i) b.push_back(0xAA); /* 8 of 64 bytes */
+        b.push_back(0);
+        b.push_back(0); /* name_len = 0 */
+        for (u32 i = 0; i < 4; ++i)
+            b.push_back(0); /* extent count */
+        for (u32 i = 0; i < 4; ++i)
+            b.push_back(0x40); /* rlen = 0x40404040? no: LE 64 */
+        for (int i = 0; i < 8; ++i)
+            b.push_back(0xAA); /* 8 of 64 bytes */
         tree::ResultTree t;
         EXPECT_EQ(deserialize_tree(b.data(), b.size(), t), u32(0x50040001));
     }
     { /* (3) truncated sha128: hash_valid=1, 4 of 16 provided */
         std::vector<u8> b;
         node_prefix(b, 0, 0);
-        b.push_back(0); b.push_back(0);       /* name_len = 0 */
-        for (u32 i = 0; i < 4; ++i) b.push_back(0); /* extent count */
-        for (u32 i = 0; i < 4; ++i) b.push_back(0); /* carve_format */
-        b.push_back(0); b.push_back(0);       /* carve_confidence */
-        b.push_back(1);                       /* hash_valid */
-        for (int i = 0; i < 4; ++i) b.push_back(0x5A); /* 4 of 16 sha bytes */
+        b.push_back(0);
+        b.push_back(0); /* name_len = 0 */
+        for (u32 i = 0; i < 4; ++i)
+            b.push_back(0); /* extent count */
+        for (u32 i = 0; i < 4; ++i)
+            b.push_back(0); /* carve_format */
+        b.push_back(0);
+        b.push_back(0); /* carve_confidence */
+        b.push_back(1); /* hash_valid */
+        for (int i = 0; i < 4; ++i)
+            b.push_back(0x5A); /* 4 of 16 sha bytes */
         tree::ResultTree t;
         EXPECT_EQ(deserialize_tree(b.data(), b.size(), t), u32(0x50040001));
     }
     { /* (4) truncated carve_note: nl claims 8 bytes, 2 provided (nflags&16) */
         std::vector<u8> b;
         node_prefix(b, 16, 0);
-        b.push_back(0); b.push_back(0);       /* name_len = 0 */
-        for (u32 i = 0; i < 4; ++i) b.push_back(0); /* extent count */
-        for (u32 i = 0; i < 4; ++i) b.push_back(0); /* carve_format */
-        b.push_back(0); b.push_back(0);       /* carve_confidence */
-        b.push_back(0);                       /* hash_valid */
-        for (u32 i = 0; i < 4; ++i) b.push_back(0); /* carve_checksum */
-        b.push_back(8); b.push_back(0);       /* note length = 8 */
-        b.push_back(0x41); b.push_back(0);    /* 2 of 8 bytes */
+        b.push_back(0);
+        b.push_back(0); /* name_len = 0 */
+        for (u32 i = 0; i < 4; ++i)
+            b.push_back(0); /* extent count */
+        for (u32 i = 0; i < 4; ++i)
+            b.push_back(0); /* carve_format */
+        b.push_back(0);
+        b.push_back(0); /* carve_confidence */
+        b.push_back(0); /* hash_valid */
+        for (u32 i = 0; i < 4; ++i)
+            b.push_back(0); /* carve_checksum */
+        b.push_back(8);
+        b.push_back(0); /* note length = 8 */
+        b.push_back(0x41);
+        b.push_back(0); /* 2 of 8 bytes */
         tree::ResultTree t;
         EXPECT_EQ(deserialize_tree(b.data(), b.size(), t), u32(0x50040001));
     }
     { /* (5) role-length bomb: full node claims 128-byte role, 2 provided */
         std::vector<u8> b;
         node_prefix(b, 0, 1); /* marker = full node */
-        b.push_back(0); b.push_back(0);       /* name_len = 0 */
-        for (u32 i = 0; i < 4; ++i) b.push_back(0); /* extent count */
-        for (u32 i = 0; i < 4; ++i) b.push_back(0); /* carve_format */
-        b.push_back(0); b.push_back(0);       /* carve_confidence */
-        b.push_back(0);                       /* hash_valid */
-        b.push_back(0x80); b.push_back(0x00); /* role_len = 128 */
-        b.push_back(0x52); b.push_back(0);    /* 2 bytes, then EOF */
+        b.push_back(0);
+        b.push_back(0); /* name_len = 0 */
+        for (u32 i = 0; i < 4; ++i)
+            b.push_back(0); /* extent count */
+        for (u32 i = 0; i < 4; ++i)
+            b.push_back(0); /* carve_format */
+        b.push_back(0);
+        b.push_back(0); /* carve_confidence */
+        b.push_back(0); /* hash_valid */
+        b.push_back(0x80);
+        b.push_back(0x00); /* role_len = 128 */
+        b.push_back(0x52);
+        b.push_back(0); /* 2 bytes, then EOF */
         tree::ResultTree t;
         EXPECT_EQ(deserialize_tree(b.data(), b.size(), t), u32(0x50040001));
     }
@@ -915,8 +968,8 @@ TEST(Session, SaveEmitsProgress) {
     /* the total equals the tree's serialized node count (roundtrip the
      * blob and count - the header carries it) */
     ASSERT_GE(blob.size(), 4u);
-    const u32 node_count = u32(blob[0]) | (u32(blob[1]) << 8) | (u32(blob[2]) << 16) |
-                           (u32(blob[3]) << 24);
+    const u32 node_count =
+        u32(blob[0]) | (u32(blob[1]) << 8) | (u32(blob[2]) << 16) | (u32(blob[3]) << 24);
     EXPECT_EQ(total, u64(node_count));
     EXPECT_EQ(expected, u64(node_count)); /* the full pre-order walk */
 }
@@ -933,16 +986,14 @@ TEST(Session, SaveCancelsCleanly) {
     rec.cancel_at_done_ge = true;
     rec.threshold = 1; /* cancel on the first per-node tick */
     std::vector<u8> blob;
-    EXPECT_EQ(serialize_tree(t, blob, &SaveProgressRecorder::thunk, &rec),
-              u32(ERR_CANCELLED));
+    EXPECT_EQ(serialize_tree(t, blob, &SaveProgressRecorder::thunk, &rec), u32(ERR_CANCELLED));
     EXPECT_FALSE(rec.ticks.empty());
     /* even the (0,total) entry tick is cancellable */
     SaveProgressRecorder rec0;
     rec0.cancel_at_done_ge = true;
     rec0.threshold = 0;
     std::vector<u8> blob0;
-    EXPECT_EQ(serialize_tree(t, blob0, &SaveProgressRecorder::thunk, &rec0),
-              u32(ERR_CANCELLED));
+    EXPECT_EQ(serialize_tree(t, blob0, &SaveProgressRecorder::thunk, &rec0), u32(ERR_CANCELLED));
     EXPECT_EQ(blob0.size(), 0u) << "a cancelled entry tick emits nothing";
 }
 
@@ -957,8 +1008,7 @@ TEST(Session, AutoNamingConvention) {
     tm.tm_hour = 23;
     tm.tm_min = 13;
     tm.tm_sec = 21;
-    EXPECT_EQ(auto_session_name_at(u"Local Disk (I:)", tm),
-              "auto_Local Disk (I_)10_14_23_13_21");
+    EXPECT_EQ(auto_session_name_at(u"Local Disk (I:)", tm), "auto_Local Disk (I_)10_14_23_13_21");
     /* the full forbidden set sanitizes to '_' (never a name-breaking
      * character survives; spaces and parentheses pass through) */
     EXPECT_EQ(auto_session_name_at(u"a<b>c:d\"e/f\\g|h?i*j", tm),
@@ -988,8 +1038,8 @@ TEST(Session, BtrfsExtrasRoundTrip) {
     p->name = u"snap.dat";
     p->fs_kind = u32(FsKindCode::Btrfs);
     p->logical_size = 4096;
-    p->btrfs_id_a = 257;      /* subvol root id (the N-047 naming datum) */
-    p->btrfs_id_b = 0;        /* undecoded — never invented */
+    p->btrfs_id_a = 257; /* subvol root id (the N-047 naming datum) */
+    p->btrfs_id_b = 0;   /* undecoded — never invented */
     p->btrfs_generation = 0x1122334455667788ull;
     p->extents.push_back({8192, 4096});
     auto* f = t.add_file(root, p);

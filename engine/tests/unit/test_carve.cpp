@@ -394,14 +394,14 @@ static void plant_mov(std::vector<u8>& img, size_t at) {
     };
     be32(at, 20); /* ftyp box size */
     std::memcpy(img.data() + at + 4, "ftyp", 4);
-    std::memcpy(img.data() + at + 8, "qt  ", 4); /* brand */
+    std::memcpy(img.data() + at + 8, "qt  ", 4);  /* brand */
     be32(at + 12, 0x200);                         /* minor version */
     std::memcpy(img.data() + at + 16, "qt  ", 4); /* compatible brand */
-    be32(at + 20, 8 + 40); /* moov box size (48) */
+    be32(at + 20, 8 + 40);                        /* moov box size (48) */
     std::memcpy(img.data() + at + 24, "moov", 4);
     for (int i = 0; i < 40; ++i)
         img[at + 28 + i] = 0; /* moov payload */
-    be32(at + 68, 8 + 56); /* mdat box size (64) */
+    be32(at + 68, 8 + 56);    /* mdat box size (64) */
     std::memcpy(img.data() + at + 72, "mdat", 4);
     for (int i = 0; i < 56; ++i)
         img[at + 76 + i] = 0x5A;
@@ -446,9 +446,9 @@ TEST(CarveEngine, VideoPostProcessorHookInvoked) {
     RecordingProcessor proc;
     flags.post_processor = &proc;
     CarveStats stats;
-    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
-                          stats),
-              OK);
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
     /* the fixture's well-formed moov box ALSO anchors the S-017
      * naked-moov salvage row - two finalized candidates, and the hook
      * sees BOTH (the og's poll feeds every finalized object) */
@@ -488,9 +488,9 @@ TEST(CarveEngine, HookDegradesWhenModuleAbsent) {
     auto* root = tree.add_root(u"Lost Files");
     CarveFlags flags; /* post_processor null: the unbound default */
     CarveStats stats;
-    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
-                          stats),
-              OK);
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
     EXPECT_EQ(stats.validated, 2u) << "unbound hook changes nothing";
 }
 
@@ -2943,7 +2943,7 @@ TEST(Carve, JpegTruncatedTailWithoutSofSalvagesAtCapTenth) {
     ASSERT_NE(jpg, nullptr) << "dims-unknown truncated JPEG salvages at the /10 limit";
     EXPECT_EQ(jpg->props()->extents.front().offset, at);
     EXPECT_EQ(jpg->props()->extents.front().length, 256 * 1024 - at); /* to the device end */
-    EXPECT_EQ(jpg->props()->carve_confidence, 750u); /* (900 + 600) / 2 */
+    EXPECT_EQ(jpg->props()->carve_confidence, 750u);                  /* (900 + 600) / 2 */
 }
 
 TEST(Carve, JpegCompleteFileStopsAtEoiNotSofEstimate) {
@@ -3368,10 +3368,10 @@ std::vector<u8> build_bmff_named_image(u8 mvhd_version, u32 v0_time, u64 v1_time
         be32(mv + 28, 600);  /* timescale */
         be32(mv + 32, 3600); /* duration */
     } else {
-        be32(mv + 12, 0);        /* creation */
-        be32(mv + 16, v0_time);  /* modification - the og's naming field */
-        be32(mv + 20, 600);      /* timescale */
-        be32(mv + 24, 3600);     /* duration */
+        be32(mv + 12, 0);       /* creation */
+        be32(mv + 16, v0_time); /* modification - the og's naming field */
+        be32(mv + 20, 600);     /* timescale */
+        be32(mv + 24, 3600);    /* duration */
     }
     /* mdat (24 bytes) + terminator box (over-cap size ends the walk) */
     const size_t md = at + 20 + moov_len;
@@ -3381,7 +3381,6 @@ std::vector<u8> build_bmff_named_image(u8 mvhd_version, u32 v0_time, u64 v1_time
     be32(md + 24, 0xFFFFFFFF);
     return img;
 }
-
 
 /* M-025: window-serving read context - the og's already-in-buffer model.
  * A fully in-window candidate (validator walk + checksum + small-file
@@ -3435,8 +3434,8 @@ TEST(CarveEngine, WindowServingEliminatesPerCandidateRereads) {
     fl.hash_small_files = true;
     fl.hash_threshold = 8ull << 20; /* hash every plant (519 B each) */
     CarveStats st;
-    ASSERT_EQ(OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr,
-                              nullptr, st));
+    ASSERT_EQ(OK,
+              carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
     EXPECT_EQ(u64(planted), st.validated) << "all plants carved";
     EXPECT_EQ(u64(planted), st.hashed) << "all plants hashed (in-window, no re-read)";
     EXPECT_EQ(u64(0), st.rejected) << "PNG plants attract no cross-format trials";
@@ -3466,8 +3465,8 @@ TEST(CarveEngine, WindowServingServesStraddlingReadsCorrectly) {
     fl.hash_small_files = true;
     fl.hash_threshold = 8ull << 20;
     CarveStats st;
-    ASSERT_EQ(OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr,
-                              nullptr, st));
+    ASSERT_EQ(OK,
+              carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
     ASSERT_EQ(1u, st.validated);
     ASSERT_EQ(1u, st.hashed);
     /* the emitted node's checksum matches a direct CRC32 of the plant */
@@ -3610,8 +3609,8 @@ TEST(CarveEngine, ZeroSectorSkipStats) {
         auto* root = tree.add_root(u"Lost Files");
         CarveFlags flags;
         CarveStats stats;
-        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr,
-                              nullptr, stats),
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
                   OK)
             << err_text(OK);
         EXPECT_GT(stats.zero_strides_skipped, 200u)
@@ -3637,12 +3636,11 @@ TEST(CarveEngine, ZeroSectorSkipStats) {
         auto* root = tree.add_root(u"Lost Files");
         CarveFlags flags;
         CarveStats stats;
-        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr,
-                              nullptr, stats),
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
                   OK)
             << err_text(OK);
-        EXPECT_EQ(stats.zero_strides_skipped, 0u)
-            << "no stride of a non-zero image may be skipped";
+        EXPECT_EQ(stats.zero_strides_skipped, 0u) << "no stride of a non-zero image may be skipped";
     }
 }
 
@@ -3682,19 +3680,18 @@ TEST(UserSigns, ParseTheOgsShape) {
     /* validation rejects, atomically (no partial load) */
     auto reject = [](const char* bad) {
         carve::usersigns::UserSignSet s;
-        EXPECT_EQ(ERR_BAD_PARAMETER, carve::usersigns::parse(bad, std::strlen(bad), s))
-            << bad;
+        EXPECT_EQ(ERR_BAD_PARAMETER, carve::usersigns::parse(bad, std::strlen(bad), s)) << bad;
         EXPECT_FALSE(s.valid);
     };
-    reject("{\"x\":{\"signs\":[\"99999,AA\"],\"mime\":\"m\"}}"); /* offset over cap */
-    reject("{\"x\":{\"signs\":[\"0,AAB\"],\"mime\":\"m\"}}");     /* odd hex */
-    reject("{\"x\":{\"signs\":[\"0,GG\"],\"mime\":\"m\"}}");      /* not hex */
-    reject("{\"x\":{\"signs\":[\"0,AA\"],\"extra\":1}}");          /* unknown key */
-    reject("{\"x\":{\"mime\":\"m\"}}");                        /* no signs */
-    reject("{\"bad-ext!\":{\"signs\":[\"0,AA\"],\"mime\":\"m\"}}"); /* charset */
+    reject("{\"x\":{\"signs\":[\"99999,AA\"],\"mime\":\"m\"}}");      /* offset over cap */
+    reject("{\"x\":{\"signs\":[\"0,AAB\"],\"mime\":\"m\"}}");         /* odd hex */
+    reject("{\"x\":{\"signs\":[\"0,GG\"],\"mime\":\"m\"}}");          /* not hex */
+    reject("{\"x\":{\"signs\":[\"0,AA\"],\"extra\":1}}");             /* unknown key */
+    reject("{\"x\":{\"mime\":\"m\"}}");                               /* no signs */
+    reject("{\"bad-ext!\":{\"signs\":[\"0,AA\"],\"mime\":\"m\"}}");   /* charset */
     reject("{\"x\":{\"signs\":[\"0,AA\"],\"mime\":\"m\"}} trailing"); /* garbage */
-    reject("");                                                  /* empty */
-    reject("[]");                                                /* not an object */
+    reject("");                                                       /* empty */
+    reject("[]");                                                     /* not an object */
     /* empty signs array is dead config */
     reject("{\"x\":{\"signs\":[],\"mime\":\"m\"}}");
 }
@@ -3718,14 +3715,13 @@ TEST(CarveEngine, UserSignatureProbedAtStride) {
         CarveFlags fl;
         fl.hash_small_files = false;
         CarveStats st;
-        ASSERT_EQ(OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr,
-                                  nullptr, st));
+        ASSERT_EQ(
+            OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
         EXPECT_EQ(0u, st.sign_hits) << "DEADBEEF is not a built-in magic";
     }
 
     /* register and re-carve */
-    const char* json =
-        "{\"xyz\": {\"signs\": [\"0,DEADBEEF\"], \"mime\": \"application/x-xyz\"}}";
+    const char* json = "{\"xyz\": {\"signs\": [\"0,DEADBEEF\"], \"mime\": \"application/x-xyz\"}}";
     carve::usersigns::UserSignSet set;
     ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
     ASSERT_EQ(OK, carve::usersigns::install_set(std::move(set)));
@@ -3737,8 +3733,8 @@ TEST(CarveEngine, UserSignatureProbedAtStride) {
     CarveFlags fl;
     fl.hash_small_files = false;
     CarveStats st;
-    ASSERT_EQ(OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
-                              st));
+    ASSERT_EQ(OK,
+              carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
     EXPECT_EQ(1u, st.sign_hits);
     tree::FileNode* hit = nullptr;
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
@@ -3776,8 +3772,8 @@ TEST(CarveEngine, UserSignatureYieldsToBuiltInAtSamePosition) {
     CarveFlags fl;
     fl.hash_small_files = false;
     CarveStats st;
-    ASSERT_EQ(OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
-                              st));
+    ASSERT_EQ(OK,
+              carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
     /* the built-in PNG owns the position: exactly one record, and it is
      * the grammar-layer PNG (not the user tag) */
     u32 png_records = 0, user_records = 0;
@@ -3810,9 +3806,9 @@ TEST(CarveEngine, WindowBufferReusedByValidatorChecksumAndHash) {
     auto* root = tree.add_root(u"Lost Files");
     CarveFlags flags; /* hash_small_files defaults ON (8 MiB threshold) */
     CarveStats stats;
-    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
-                          stats),
-              OK)
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
         << err_text(OK);
     ASSERT_GE(stats.validated, 4u) << "the shared fixture carries jpg/png/zip/docx";
 
@@ -3843,9 +3839,9 @@ TEST(CarveEngine, BoundaryStraddlingCandidateSplitsReadsCorrectly) {
     auto* root = tree.add_root(u"Lost Files");
     CarveFlags flags;
     CarveStats stats;
-    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
-                          stats),
-              OK)
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
         << err_text(OK);
 
     std::vector<tree::FileNode*> all;
@@ -3894,7 +3890,8 @@ TEST(CarveEngine, SkipsFsAllocatedRegions) {
     u32 rc =
         carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
     ASSERT_EQ(rc, OK) << err_text(rc);
-    EXPECT_EQ(stats.validated, 3u) << "the in-extent JPEG must be suppressed (jpg/png/zip/docx -> 3)";
+    EXPECT_EQ(stats.validated, 3u)
+        << "the in-extent JPEG must be suppressed (jpg/png/zip/docx -> 3)";
     EXPECT_GE(stats.occupancy_skipped, 1u) << "the gate must count its suppression";
     bool jpg_at_512 = false;
     std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {

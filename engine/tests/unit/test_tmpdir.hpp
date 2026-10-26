@@ -53,8 +53,7 @@ inline std::string read_repo_file(const char* relpath) {
     const std::string path = std::string(CR_SOURCE_DIR) + "/" + relpath;
     std::ifstream in(path, std::ios::binary);
     if (!in) {
-        ADD_FAILURE() << "cannot open " << path
-                      << " (out-of-source run without CR_SOURCE_DIR?)";
+        ADD_FAILURE() << "cannot open " << path << " (out-of-source run without CR_SOURCE_DIR?)";
         return {};
     }
     std::ostringstream ss;

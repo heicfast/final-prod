@@ -39,7 +39,7 @@ constexpr LONG kStatusObjectNameNotFound = 0xC0000034L;
 /* ---- the documented NT structures for ZwUnloadKey (public DDK
  * knowledge, the og's own Fixup :533/:542 call shape) ---- */
 struct NtUnicodeString {
-    unsigned short length;       /* bytes, no NUL */
+    unsigned short length; /* bytes, no NUL */
     unsigned short maximum_length;
     wchar_t* buffer;
 };
@@ -70,8 +70,8 @@ bool adjust_privilege(unsigned long privilege, bool enable) {
 /* the firmware seam (EFIBoot :3281-3290: GetProcAddress on kernel32 -
  * an XP-era box without the exports still loads) */
 struct FirmwareSeam {
-    unsigned long (WINAPI* get)(const wchar_t*, void*, unsigned long);
-    bool (WINAPI* set)(const wchar_t*, const void*, unsigned long);
+    unsigned long(WINAPI* get)(const wchar_t*, void*, unsigned long);
+    bool(WINAPI* set)(const wchar_t*, const void*, unsigned long);
     bool resolved = false;
 };
 
@@ -80,9 +80,9 @@ const FirmwareSeam& firmware_seam() {
         FirmwareSeam s;
         const HMODULE k32 = GetModuleHandleW(L"kernel32.dll");
         if (k32 != nullptr) {
-            s.get = reinterpret_cast<unsigned long (WINAPI*)(const wchar_t*, void*, unsigned long)>(
+            s.get = reinterpret_cast<unsigned long(WINAPI*)(const wchar_t*, void*, unsigned long)>(
                 reinterpret_cast<void*>(GetProcAddress(k32, "GetFirmwareEnvironmentVariableW")));
-            s.set = reinterpret_cast<bool (WINAPI*)(const wchar_t*, const void*, unsigned long)>(
+            s.set = reinterpret_cast<bool(WINAPI*)(const wchar_t*, const void*, unsigned long)>(
                 reinterpret_cast<void*>(GetProcAddress(k32, "SetFirmwareEnvironmentVariableW")));
         }
         s.resolved = s.get != nullptr && s.set != nullptr;
@@ -104,8 +104,8 @@ bool read_whole(HANDLE h, std::vector<u8>* out) {
         ov.Offset = u32((u64(done)) & 0xFFFFFFFFull);
         ov.OffsetHigh = u32((u64(done)) >> 32);
         DWORD got = 0;
-        const DWORD chunk = DWORD((out->size() - done) > (1u << 20) ? (1u << 20)
-                                                                   : (out->size() - done));
+        const DWORD chunk =
+            DWORD((out->size() - done) > (1u << 20) ? (1u << 20) : (out->size() - done));
         if (!ReadFile(h, out->data() + done, chunk, &got, &ov) || got == 0)
             return false;
         done += got;
@@ -147,8 +147,8 @@ bool force_unload_bcd_hive() {
     const HMODULE nt = GetModuleHandleW(L"ntdll.dll");
     if (nt == nullptr)
         return false;
-    const ZwUnloadKeyFn unload = reinterpret_cast<ZwUnloadKeyFn>(
-        reinterpret_cast<void*>(GetProcAddress(nt, "ZwUnloadKey")));
+    const ZwUnloadKeyFn unload =
+        reinterpret_cast<ZwUnloadKeyFn>(reinterpret_cast<void*>(GetProcAddress(nt, "ZwUnloadKey")));
     if (unload == nullptr)
         return false;
     /* the og enables both before the unload (Fixup :243-255) */
@@ -171,9 +171,8 @@ bool force_unload_bcd_hive() {
 }
 
 /* ---- stage a ---- */
-u32 bcd_file_plan(const wchar_t* path, u32 mbr_signature, u64 old_start_lba,
-                  u64 new_start_lba, std::vector<bcdfix::BcdRewrite>* out,
-                  unsigned long* last_error) {
+u32 bcd_file_plan(const wchar_t* path, u32 mbr_signature, u64 old_start_lba, u64 new_start_lba,
+                  std::vector<bcdfix::BcdRewrite>* out, unsigned long* last_error) {
     if (last_error)
         *last_error = 0;
     if (out == nullptr)
@@ -200,9 +199,9 @@ u32 bcd_file_plan(const wchar_t* path, u32 mbr_signature, u64 old_start_lba,
 }
 
 namespace {
-u32 bcd_file_apply(const wchar_t* path, const std::vector<bcdfix::BcdRewrite>& plan,
-                   bool new_bytes, bcdfix::ConsentFn consent, void* consent_user,
-                   size_t* applied, unsigned long* last_error, bool need_consent) {
+u32 bcd_file_apply(const wchar_t* path, const std::vector<bcdfix::BcdRewrite>& plan, bool new_bytes,
+                   bcdfix::ConsentFn consent, void* consent_user, size_t* applied,
+                   unsigned long* last_error, bool need_consent) {
     if (applied)
         *applied = 0;
     if (last_error)
@@ -245,12 +244,12 @@ u32 bcd_file_execute(const wchar_t* path, const std::vector<bcdfix::BcdRewrite>&
                           last_error, /*need_consent=*/true);
 }
 
-u32 bcd_file_undo(const wchar_t* path, const std::vector<bcdfix::BcdRewrite>& plan,
-                  size_t* applied, unsigned long* last_error) {
+u32 bcd_file_undo(const wchar_t* path, const std::vector<bcdfix::BcdRewrite>& plan, size_t* applied,
+                  unsigned long* last_error) {
     /* undo is the recovery path - it runs WITHOUT the consent gate
      * (the consent authorized the transaction; undo restores it) */
-    return bcd_file_apply(path, plan, /*new_bytes=*/false, nullptr, nullptr, applied,
-                          last_error, /*need_consent=*/false);
+    return bcd_file_apply(path, plan, /*new_bytes=*/false, nullptr, nullptr, applied, last_error,
+                          /*need_consent=*/false);
 }
 
 /* ---- stage b ---- */
@@ -278,9 +277,13 @@ bool __nvram_set(const char16_t* name, const void* data, u32 len, void* /*user*/
 } // namespace
 
 std::vector<nvramfix::NvramRewrite> nvram_plan(const nvramfix::TargetPartition& target,
+<<<<<<< HEAD
                                                 u32* error, bool* stopped_early) {
     if (stopped_early)
         *stopped_early = false;
+=======
+                                               u32* error) {
+>>>>>>> origin/main
     if (!firmware_seam().resolved) {
         if (error)
             *error = ERR_UNSUPPORTED;

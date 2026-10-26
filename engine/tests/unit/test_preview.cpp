@@ -795,8 +795,8 @@ TEST(PreviewMeta, DocxCapsMaxReadHonored) {
     ASSERT_GT(zip.size(), 200'000u);
     MemDevice dev(std::move(zip));
     const u64 zlen = dev.geometry().total_bytes;
-    tree::FileProperties* pr = props_with("d.docx", zlen, 0,
-                                          {tree::FileProperties::Extent{0, zlen, 0, 0}});
+    tree::FileProperties* pr =
+        props_with("d.docx", zlen, 0, {tree::FileProperties::Extent{0, zlen, 0, 0}});
     PropsGuard g(pr);
     PreviewReader r(&dev, pr);
     Caps caps;
@@ -819,8 +819,8 @@ TEST(PreviewMeta, DocxTailBeyondBudgetDegradesToZip) {
     auto zip = build_audit_zip();
     MemDevice dev(std::move(zip));
     const u64 zlen = dev.geometry().total_bytes;
-    tree::FileProperties* pr = props_with("d.docx", zlen, 0,
-                                          {tree::FileProperties::Extent{0, zlen, 0, 0}});
+    tree::FileProperties* pr =
+        props_with("d.docx", zlen, 0, {tree::FileProperties::Extent{0, zlen, 0, 0}});
     PropsGuard g(pr);
     PreviewReader r(&dev, pr);
     Caps caps;
@@ -853,9 +853,9 @@ TEST(PreviewMeta, CompressedExtentReportsTruncatedUnderBudget) {
     }
     ASSERT_GT(comp.size(), 4096u); /* the block alone busts the budget */
     MemDevice dev(comp);
-    tree::FileProperties* pr = props_with("c.bin", plain.size(), 0,
-                                          {tree::FileProperties::Extent{
-                                              0, plain.size(), compress::kGzip, comp.size()}});
+    tree::FileProperties* pr =
+        props_with("c.bin", plain.size(), 0,
+                   {tree::FileProperties::Extent{0, plain.size(), compress::kGzip, comp.size()}});
     PropsGuard g(pr);
     PreviewReader r(&dev, pr);
     Caps caps;
@@ -886,9 +886,9 @@ TEST(PreviewMeta, CompressedExtentWholeBlockReadDisclosed) {
         deflateEnd(&zs);
     }
     MemDevice dev(comp);
-    tree::FileProperties* pr = props_with("c.bin", plain.size(), 0,
-                                          {tree::FileProperties::Extent{
-                                              0, plain.size(), compress::kGzip, comp.size()}});
+    tree::FileProperties* pr =
+        props_with("c.bin", plain.size(), 0,
+                   {tree::FileProperties::Extent{0, plain.size(), compress::kGzip, comp.size()}});
     PropsGuard g(pr);
     PreviewReader r(&dev, pr);
     Caps caps;
@@ -911,8 +911,8 @@ TEST(PreviewMeta, MetadataTruncatedFlagTruthfulAllPaths) {
     for (const u32 budget : {4096u, 8192u, 70000u, 1u << 20}) {
         MemDevice dev(zip);
         const u64 zlen = dev.geometry().total_bytes;
-        tree::FileProperties* pr = props_with("d.docx", zlen, 0,
-                                              {tree::FileProperties::Extent{0, zlen, 0, 0}});
+        tree::FileProperties* pr =
+            props_with("d.docx", zlen, 0, {tree::FileProperties::Extent{0, zlen, 0, 0}});
         PropsGuard g(pr);
         PreviewReader r(&dev, pr);
         Caps caps;

@@ -2198,8 +2198,8 @@ TEST(NtfsVolume, HardLinkDestroyRuleInteraction) {
                 count(c);
             }
         };
-        ASSERT_EQ(
-            OK, walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+        ASSERT_EQ(OK, walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, ra, rd, rl,
+                               stats));
         for (auto* r : tree.roots())
             count(r);
     };
@@ -2240,7 +2240,8 @@ TEST(NtfsVolume, HardLinkDestroyRuleInteraction) {
         EXPECT_EQ(2u, stats.destroyed_overwritten)
             << "the counter counts RECORDS, not links (the base overwrit.dat + the one "
                "hard-linked record - despite its two $FILE_NAME entries)";
-        EXPECT_EQ(0, links) << "fan-out mode: destroy still takes the whole record - no link survives";
+        EXPECT_EQ(0, links)
+            << "fan-out mode: destroy still takes the whole record - no link survives";
     }
     /* ---- leg C: fully-reused + destroy OFF (honest mode) -> kept,
      * graded Overwritten; parity = ONE node, fan-out = TWO nodes ---- */
@@ -2429,7 +2430,7 @@ TEST(NtfsVolume, RemnantReachableUnderTornDbr) {
  * — was superseded by the concurrent M-043 landing's read-only fallback
  * (1468393) and removed in the union merge. The corpus truth it guarded
  * (the og has NO scan-path backup fallback) is registered in the M-043
- * finding's concurrent-filing reconciliation and PARITY-DELTAS D-73; the
+ * finding's concurrent-filing reconciliation and PARITY-DELTAS D-99; the
  * landing's own test set (TornPrimaryBackupBootScans /
  * TornPrimaryShapeBackupBootScans / BackupBadFallsBackToRefusal /
  * BootFromBackupFlagged / SpoofedOemRejectedEarly) pins the merged
@@ -3935,7 +3936,6 @@ TEST(NtfsVolume, UsnHarvestCapMinesTail) {
     EXPECT_EQ(head_gone, nullptr) << "the skipped head window must not be mined";
 }
 
-
 /* ---- S-009 hardening (session 9's port): the REAL $Bitmap drives the
  * free overlay through the exact producer contract the dispatch uses
  * (invert: bit set = cluster free). The fixture's planted bitmap truth:
@@ -3989,8 +3989,8 @@ TEST(NtfsVolume, DiskMapFreeCellsFromRealBitmap) {
     viz::DiskMapGeometry g;
     std::vector<u8> alloc;
     std::vector<std::pair<u64, u64>> bad;
-    ASSERT_EQ(
-        viz::build_disk_map(in, tree, g, &alloc, nullptr, nullptr, nullptr, bad, 0, nullptr), OK);
+    ASSERT_EQ(viz::build_disk_map(in, tree, g, &alloc, nullptr, nullptr, nullptr, bad, 0, nullptr),
+              OK);
     ASSERT_EQ(g.cell_bytes, u64(CLUSTER)) << "cluster hint renders cluster-sized cells";
     ASSERT_GT(alloc.size(), 210u);
 
@@ -4444,8 +4444,8 @@ TEST(NtfsVolume, RecycleBinScopeOutOfBinDollarFilesStayRaw) {
     auto* rl = tree.add_root(u"Lost");
     WalkerFlags wf;
     WalkStats stats;
-    ASSERT_EQ(OK, walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, ra, rd, rl,
-                           stats));
+    ASSERT_EQ(OK,
+              walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
     EXPECT_EQ(stats.recycle_info, 1u);
     EXPECT_EQ(stats.recycle_remapped, 1u);
     std::vector<tree::FileNode*> all;

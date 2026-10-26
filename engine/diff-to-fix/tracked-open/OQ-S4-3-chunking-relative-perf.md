@@ -82,3 +82,23 @@ resolution is case-insensitive) and `branches: [main]` — the "corruption"
 was a display-layer artifact stripping `[m`/`[M` pairs as false ANSI SGR
 codes. No finding filed; no healthy file "repaired". The lesson: verify
 suspected corruption at BYTE level (od -c / python reads) before filing.
+
+
+---
+
+## Session-37 addendum (DFX37 — pushed forward unchanged; the harness verified on the live tree)
+
+Re-verified this session on the post-S-034/M-040 tree: the acceptance
+machinery is intact and complete (bench/ours/run-alignbench.ps1 carries
+the 4 MiB + 7 MiB og-strategy proxies alongside the 64 KiB envelope +
+256 KiB cache-block core proxies in ONE pass, cpu_ms recorded per
+measurement, the chunk_strategy_ratios verdict block emitted into
+alignbench.json; scripts/ps_parsecheck.ps1 gates the fleet's syntax).
+The remaining step is EXACTLY ONE WINDOWS EXECUTION, unchanged: dispatch
+the API Benchmark workflow (or run `bench/ours/run-alignbench.ps1
+-Target '\\.\C:' -SpanMiB 512` on the Windows lane), then transcribe
+the chunk_strategy_ratios + the comparative-bench time-to-first-result
+into this file, M-030's Resolution addendum, and SUMMARY's performance
+section. Not resolvable from the Linux container (the question is
+real-hardware I/O behavior by nature); no new engineering prerequisite
+exists. This file remains OPEN solely on that execution.

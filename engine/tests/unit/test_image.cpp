@@ -62,9 +62,7 @@ public:
     }
     void close(u64 file) override { open_.erase(file); }
 
-    void add(const std::u16string& path, std::vector<u8> bytes) {
-        files_[path] = std::move(bytes);
-    }
+    void add(const std::u16string& path, std::vector<u8> bytes) { files_[path] = std::move(bytes); }
     std::vector<u8>& bytes(const std::u16string& path) { return files_[path]; }
 
 private:
@@ -215,9 +213,9 @@ VmdkBuilt build_monolithic_sparse(u64 capacity_sectors, u64 grain_sectors,
     const u64 data_sector = (gt_sector + gdes * 4 /* each GT is 512 entries */ + 7) & ~u64(7);
 
     std::string desc = "# Disk DescriptorFile\nversion=1\nCID=fffffffe\n";
-    desc += "parentCID=" + (parent_hint.empty() ? std::string("ffffffff")
-                                                : std::string("fffffffd")) +
-            "\n";
+    desc +=
+        "parentCID=" + (parent_hint.empty() ? std::string("ffffffff") : std::string("fffffffd")) +
+        "\n";
     desc += "createType=\"" + create_type + "\"\n\n";
     desc += "# Extent description\n";
     desc += "RW " + std::to_string(capacity_sectors) + " SPARSE \"img.vmdk\"\n\n";
@@ -226,8 +224,8 @@ VmdkBuilt build_monolithic_sparse(u64 capacity_sectors, u64 grain_sectors,
         desc = "# Disk DescriptorFile\nversion=1\nCID=fffffffe\nparentCID=fffffffd\n"
                "createType=\"" +
                create_type + "\"\nparentFileNameHint=\"" + parent_hint +
-               "\"\n\n# Extent description\nRW " +
-               std::to_string(capacity_sectors) + " SPARSE \"img.vmdk\"\n\n#DDB\n\n";
+               "\"\n\n# Extent description\nRW " + std::to_string(capacity_sectors) +
+               " SPARSE \"img.vmdk\"\n\n#DDB\n\n";
     while (desc.size() < desc_sectors * 512)
         desc.push_back('\0');
 
@@ -317,8 +315,8 @@ TEST(Image, VmdkDifferencingChainReadsParent) {
     cg[2] = std::vector<u8>(64 * 1024, 0xEF);
     io.add(p("parent.vmdk"), build_monolithic_sparse(8192, 128, pg).bytes);
     /* the child references the parent via parentFileNameHint (relative) */
-    io.add(p("child.vmdk"), build_monolithic_sparse(8192, 128, cg, "monolithicSparse",
-                                                     "parent.vmdk").bytes);
+    io.add(p("child.vmdk"),
+           build_monolithic_sparse(8192, 128, cg, "monolithicSparse", "parent.vmdk").bytes);
     u32 err = 0;
     auto dev = open_image(io, p("child.vmdk"), &err);
     ASSERT_NE(dev, nullptr);
@@ -373,7 +371,7 @@ std::vector<u8> build_dynamic_vhd(u64 current_size, u32 block_size,
     /* dynamic disk header at offset 512 (footer->dataOffset points here) */
     std::memcpy(v.data() + 512, "cxsparse", 8);
     be64put(v, 512 + 0x08, 0xFFFFFFFFFFFFFFFFULL);
-    be64put(v, 512 + 0x10, bat_off); /* table offset */
+    be64put(v, 512 + 0x10, bat_off);    /* table offset */
     be32put(v, 512 + 0x18, 0x00010000); /* version */
     be32put(v, 512 + 0x1C, max_entries);
     be32put(v, 512 + 0x20, block_size);
@@ -486,8 +484,7 @@ TEST(Image, VhdDifferencingReadsParentOnClearBitmap) {
     std::map<u64, std::map<u64, std::vector<u8>>> cb;
     cb[0][512] = std::vector<u8>(512, 0xCD);
     const std::u16string parent_path = p("base.vhd");
-    io.add(p("diff.vhd"),
-           build_dynamic_vhd(2 * 1024 * 1024, 2 * 1024 * 1024, cb, 4, &parent_path));
+    io.add(p("diff.vhd"), build_dynamic_vhd(2 * 1024 * 1024, 2 * 1024 * 1024, cb, 4, &parent_path));
     u32 err = 0;
     auto dev = open_image(io, p("diff.vhd"), &err);
     ASSERT_NE(dev, nullptr);
@@ -572,8 +569,8 @@ std::vector<u8> build_vhdx(u64 virt_size, u32 block_size, u32 logical_sector,
         /* log guid (nonzero so the log machinery engages when present) */
         for (int i = 0; i < 16; i++)
             h[0x30 + i] = u8(0x10 + i);
-        put16(h, 0x40, 0);  /* log version */
-        put16(h, 0x42, 1);  /* file version */
+        put16(h, 0x40, 0);                               /* log version */
+        put16(h, 0x42, 1);                               /* file version */
         put32(h, 0x44, log_entry ? 1 * 1024 * 1024 : 0); /* log length */
         put64(h, 0x48, log_off);
         put32(h, 0x04, test_crc32c(h.data(), 4096, 4));
@@ -610,9 +607,9 @@ std::vector<u8> build_vhdx(u64 virt_size, u32 block_size, u32 logical_sector,
     /* metadata region: header + 3 entries (file params, virtual size,
      * logical sector size) at +64 KiB */
     {
-        std::vector<u8> m(64 * 1024 + 32, 0); /* header + entries + 64 KiB values */
+        std::vector<u8> m(64 * 1024 + 32, 0);  /* header + entries + 64 KiB values */
         put64(m, 0x00, 0x617461646174656DULL); /* "metadata" */
-        put16(m, 0x0A, 3);                      /* entry count */
+        put16(m, 0x0A, 3);                     /* entry count */
         auto entry = [&](size_t slot, u32 g1, u16 g2, u16 g3, u32 moff, u32 mlen) {
             put32(m, 32 + slot * 32 + 0, g1);
             put16(m, 32 + slot * 32 + 4, g2);
@@ -620,8 +617,8 @@ std::vector<u8> build_vhdx(u64 virt_size, u32 block_size, u32 logical_sector,
             put32(m, 32 + slot * 32 + 16, moff);
             put32(m, 32 + slot * 32 + 20, mlen);
         };
-        entry(0, 0xCAA16737, 0xFA36, 0x4D43, 64 * 1024, 8); /* file params */
-        entry(1, 0x2FA54224, 0xCD1B, 0x4876, 64 * 1024 + 8, 8); /* virt size */
+        entry(0, 0xCAA16737, 0xFA36, 0x4D43, 64 * 1024, 8);      /* file params */
+        entry(1, 0x2FA54224, 0xCD1B, 0x4876, 64 * 1024 + 8, 8);  /* virt size */
         entry(2, 0x8141BF1D, 0xA96F, 0x4709, 64 * 1024 + 16, 4); /* logical */
         put32(m, 64 * 1024 + 0, block_size);
         put32(m, 64 * 1024 + 4, 0); /* data bits: no parent */
@@ -704,11 +701,11 @@ TEST(Image, VhdxLogOverlayServesUnflushedWrites) {
      * leading u64@0x08, file_offset u64@0x10, sequence u64@0x18 */
     const u8 new_data[16] = {0xEF, 0xEF, 0xEF, 0xEF, 0xEF, 0xEF, 0xEF, 0xEF,
                              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-    put32(entry, 0x40 + 0, 0x63736564); /* "desc" */
+    put32(entry, 0x40 + 0, 0x63736564);                     /* "desc" */
     std::memcpy(entry.data() + 0x40 + 4, new_data + 12, 4); /* trailing */
     std::memcpy(entry.data() + 0x40 + 8, new_data, 8);      /* leading */
-    put64(entry, 0x40 + 0x10, file_data_off); /* file offset (4KB aligned) */
-    put64(entry, 0x40 + 0x18, 1);             /* sequence */
+    put64(entry, 0x40 + 0x10, file_data_off);               /* file offset (4KB aligned) */
+    put64(entry, 0x40 + 0x18, 1);                           /* sequence */
     /* data sector @4096: "data" + seq hi + 4084 bytes + seq lo */
     put32(entry, 4096 + 0, 0x61746164);
     put32(entry, 4096 + 4, 0);
@@ -717,8 +714,7 @@ TEST(Image, VhdxLogOverlayServesUnflushedWrites) {
     put32(entry, 4, test_crc32c(entry.data(), 8192, 4));
 
     MemImageIo io;
-    io.add(p("crashed.vhdx"),
-           build_vhdx(1024 * 1024, 1024 * 1024, 512, payload, &entry));
+    io.add(p("crashed.vhdx"), build_vhdx(1024 * 1024, 1024 * 1024, 512, payload, &entry));
     u32 err = 0;
     auto dev = open_image(io, p("crashed.vhdx"), &err);
     ASSERT_NE(dev, nullptr) << "err=" << err;
@@ -852,9 +848,7 @@ public:
     /* registers a fixture under a name; opens stream from the bytes (the
      * committed fixture IS the file - this exercises the exact on-disk
      * bytes qemu wrote, without depending on CWD layout) */
-    void add(const std::u16string& path, std::vector<u8> bytes) {
-        files_[path] = std::move(bytes);
-    }
+    void add(const std::u16string& path, std::vector<u8> bytes) { files_[path] = std::move(bytes); }
     u32 open(const std::u16string& path, u32* err) override {
         if (!files_.count(path)) {
             if (err)

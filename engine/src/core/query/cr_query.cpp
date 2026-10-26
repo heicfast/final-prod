@@ -465,8 +465,7 @@ u64 local_day_plus(u64 day_floor_ft, int days) {
 
 } // namespace
 
-bool apply_date_bucket(Filter& f, u16 bucket, u64 now_ft, u64 custom_from_ft,
-                       u64 custom_to_ft) {
+bool apply_date_bucket(Filter& f, u16 bucket, u64 now_ft, u64 custom_from_ft, u64 custom_to_ft) {
     const u64 today = local_day_floor(now_ft);
     /* the Filter's range compare is inclusive on both ends, so every
      * half-open day window [lo_day, hi_day) becomes

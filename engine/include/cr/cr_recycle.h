@@ -40,9 +40,9 @@ namespace recycle {
 
 /* One $I metadata record's user-relevant fields. */
 struct Info {
-    u64 size = 0;               /* original file size (u64 @+8) */
-    u64 time = 0;               /* deletion FILETIME, 100-ns since 1601 (u64 @+16) */
-    std::u16string orig_name;   /* basename of the recorded original path */
+    u64 size = 0;             /* original file size (u64 @+8) */
+    u64 time = 0;             /* deletion FILETIME, 100-ns since 1601 (u64 @+16) */
+    std::u16string orig_name; /* basename of the recorded original path */
 };
 
 /* Parse a $I record image (Vista..Win8 fixed v2 = 544 bytes; Windows 10+

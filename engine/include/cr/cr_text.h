@@ -93,9 +93,9 @@ inline std::u16string utf8_to_u16(std::string_view in) {
         }
         bool ok = good == extra;
         /* RFC 3629: reject overlong forms and surrogate halves */
-        if (ok && ((extra == 1 && cp < 0x80u) || (extra == 2 && cp < 0x800u) ||
-                   (extra == 3 && cp < 0x10000u) || (cp >= 0xD800u && cp <= 0xDFFFu) ||
-                   cp > 0x10FFFFu))
+        if (ok &&
+            ((extra == 1 && cp < 0x80u) || (extra == 2 && cp < 0x800u) ||
+             (extra == 3 && cp < 0x10000u) || (cp >= 0xD800u && cp <= 0xDFFFu) || cp > 0x10FFFFu))
             ok = false;
         if (ok) {
             append_codepoint(out, cp);
@@ -242,8 +242,8 @@ inline std::string wide_to_utf8(const std::wstring& in) {
     out.reserve(in.size());
     for (size_t i = 0; i < in.size(); ++i) {
         u32 cp = u32(u64(in[i])); /* zero-extend any wchar_t width */
-        if (cp >= 0xD800u && cp <= 0xDBFFu && i + 1 < in.size() &&
-            u32(in[i + 1]) >= 0xDC00u && u32(in[i + 1]) <= 0xDFFFu) {
+        if (cp >= 0xD800u && cp <= 0xDBFFu && i + 1 < in.size() && u32(in[i + 1]) >= 0xDC00u &&
+            u32(in[i + 1]) <= 0xDFFFu) {
             cp = 0x10000u + ((cp - 0xD800u) << 10) + (u32(in[i + 1]) - 0xDC00u);
             ++i;
         } else if (cp >= 0xD800u && cp <= 0xDFFFu) {

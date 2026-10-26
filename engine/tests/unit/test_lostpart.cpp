@@ -155,8 +155,8 @@ TEST(LostDiscovery, FindsScoresAndRejectsNoise) {
 
     EXPECT_EQ(ntfs_c->fs, CandidateFs::Ntfs);
     EXPECT_EQ(ntfs_c->structural_points, 70); /* 15 boot + 25 bpb + 30 mft */
-    EXPECT_EQ(ntfs_c->score, 1000); /* M-017: best content count this scan
-        (60: no files, NTFS bonus) - ln-normalized to the top */
+    EXPECT_EQ(ntfs_c->score, 1000);           /* M-017: best content count this scan
+                  (60: no files, NTFS bonus) - ln-normalized to the top */
     EXPECT_EQ(ntfs_c->sector_count, 512u);
     EXPECT_EQ(ntfs_c->start_lba + ntfs_c->sector_count, 1536u); /* no tail overlap
         with the live partition at 2048 -> no Overlaps penalty in this case */
@@ -812,15 +812,15 @@ void plant_fat16_content(std::vector<u8>& img, u64 lba, u16 nfiles) {
     u8* b = img.data() + lba * 512;
     std::memcpy(b + 3, "MSWIN4.1", 8);
     put16(img, lba * 512 + 0x0B, 512); /* bps */
-    b[0x0D] = 1;                        /* spc */
+    b[0x0D] = 1;                       /* spc */
     put16(img, lba * 512 + 0x0E, 2);   /* reserved */
-    b[0x10] = 2;                        /* numfats (N-034 gate: 1..2) */
+    b[0x10] = 2;                       /* numfats (N-034 gate: 1..2) */
     put16(img, lba * 512 + 0x11, 512); /* root entries */
     put16(img, lba * 512 + 0x13, u16(vol_sectors));
-    b[0x15] = 0xF8;                     /* media */
-    put16(img, lba * 512 + 0x16, 20);   /* spf */
-    put16(img, lba * 512 + 0x18, 63);   /* spt */
-    put16(img, lba * 512 + 0x1A, 255);  /* heads */
+    b[0x15] = 0xF8;                    /* media */
+    put16(img, lba * 512 + 0x16, 20);  /* spf */
+    put16(img, lba * 512 + 0x18, 63);  /* spt */
+    put16(img, lba * 512 + 0x1A, 255); /* heads */
     b[0x26] = 0x29;
     std::memcpy(b + 0x2B, "LOSTFAT    ", 11);
     std::memcpy(b + 0x36, "FAT16   ", 8);
@@ -847,7 +847,7 @@ void plant_fat16_content(std::vector<u8>& img, u64 lba, u16 nfiles) {
         e[4] = 'T';
         e[5] = 'X';
         e[6] = 'T';
-        e[11] = 0x20; /* archive */
+        e[11] = 0x20;                                   /* archive */
         put16(img, ROOT + size_t(i) * 32 + 14, 0x5821); /* write date (valid) */
         put16(img, ROOT + size_t(i) * 32 + 16, 0x6000); /* write time */
         put16(img, ROOT + size_t(i) * 32 + 18, 0x5821); /* access date */
@@ -940,9 +940,9 @@ TEST(LostDiscovery, OverLargeDuplicateRescoredToFront) {
      * result #2 (log-proven round 3). A matcher adjacent to the leader
      * takes the break path instead. */
     std::vector<u8> img(u64(131072) * 512, 0); /* 64 MiB disk */
-    plant_fat16_content(img, 4096, 40);  /* leader: 2020, 16384 sectors */
-    plant_ntfs(img, 1024, 65536, 64);    /* NON-matcher: 32 MiB vs 8 MiB */
-    plant_ntfs(img, 70000, 4096, 64);    /* matcher: 2 MiB within 16 MiB */
+    plant_fat16_content(img, 4096, 40);        /* leader: 2020, 16384 sectors */
+    plant_ntfs(img, 1024, 65536, 64);          /* NON-matcher: 32 MiB vs 8 MiB */
+    plant_ntfs(img, 70000, 4096, 64);          /* matcher: 2 MiB within 16 MiB */
     MemDevice dev(std::move(img));
     DiscoveryResult r;
     ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK);

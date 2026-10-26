@@ -84,7 +84,6 @@ bool query_disk_handle(HANDLE h, PhysicalDisk& d) {
     return ok;
 }
 
-
 /* N-071 hardening (convergent with the two-stack port): a disk held by
  * another process (backup/AV/imaging - share modes that exclude our
  * data-open request) must not vanish from the device list. The og's
@@ -95,7 +94,7 @@ bool query_disk_handle(HANDLE h, PhysicalDisk& d) {
  * FILE_ANY_ACCESS IOCTLs used here (geometry-EX, storage query,
  * device number) still answer. A disk that cannot even be
  * metadata-opened stays absent (the honest limit - PARITY-DELTAS
- * D-80's revisit trigger). */
+ * D-85's revisit trigger). */
 HANDLE open_disk_for_query(const wchar_t* path, bool& busy) {
     HANDLE h =
         CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
@@ -168,15 +167,14 @@ u32 enumerate_disks(u32 max_disks, std::vector<PhysicalDisk>& out) {
  * (matching the loop's CreateFileW-failure behavior). */
 u32 enumerate_disk_interfaces(PhysicalDiskList& out) {
     ULONG need = 0;
-    CONFIGRET cr = CM_Get_Device_Interface_List_SizeW(
-        &need, const_cast<GUID*>(&kGuidDevinterfaceDisk), nullptr,
-        CM_GET_DEVICE_INTERFACE_LIST_PRESENT);
+    CONFIGRET cr =
+        CM_Get_Device_Interface_List_SizeW(&need, const_cast<GUID*>(&kGuidDevinterfaceDisk),
+                                           nullptr, CM_GET_DEVICE_INTERFACE_LIST_PRESENT);
     if (cr != CR_SUCCESS || need == 0)
         return OK; /* no disk interfaces: the numbered loop stands alone */
     std::wstring buf(size_t(need), L'\0');
     cr = CM_Get_Device_Interface_ListW(const_cast<GUID*>(&kGuidDevinterfaceDisk), nullptr,
-                                       buf.data(), need,
-                                       CM_GET_DEVICE_INTERFACE_LIST_PRESENT);
+                                       buf.data(), need, CM_GET_DEVICE_INTERFACE_LIST_PRESENT);
     if (cr != CR_SUCCESS)
         return OK; /* the interface stack failed: degrade to stack 1 */
     const wchar_t* p = buf.c_str();

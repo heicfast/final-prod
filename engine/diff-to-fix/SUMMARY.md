@@ -1,4 +1,34 @@
-# SUMMARY.md — executive summary (the S-034 ring-walk session on top; earlier sessions below)
+# SUMMARY.md — executive summary (the M-040 close on top; earlier sessions below)
+
+## Session-37 delta (2026-10-26 — DFX37: M-040 stages (b) + the win layer FIXED; the SEVERE/MINOR tiers closed by the convergent lanes; the ASan pushed-reds repaired)
+
+**M-040 FIXED (stages a+b)** — stage (b), the UEFI NVRAM Boot####/BootOrder
+updater, landed as the pure module `cr/nvramfix` + the win layer
+(`src/win/cr_bootfix.cpp`): the FUN_1800046f0 matcher (MBR sig+start+size /
+GPT GUID+start) and the FUN_180004b40 full-position rewrite
+(PartitionNumber/Start/Size/Signature) decoded first-hand; the firmware seam
+resolved dynamically exactly like the og (EFIBoot :3281-3290 — ZERO new
+static imports, the Win7 allowlist gate untouched); SeSystemEnvironmentPrivilege
+via ntdll!RtlAdjustPrivilege (the og's XP path); the stage-a file side
+(OVERLAPPED positional writes + FlushFileBuffers + the BCD00000000
+force-unload retry under SeRestore/SeBackup). 11 NvramFix tests incl. the
+finding's named NvramPatchUpdatesLoadOption. boot.ini + chkdsk stay at their
+D-90 dispositions; the S-029 host wiring is the documented host-layer
+boundary. The finding moved to findings/FIXED/.
+
+**The SEVERE/MINOR tiers closed** — S-034 (the ring walk) FIXED by the
+convergent parallel lane (their cb046ed landing adopted per
+first-landing-wins; this lane's independent decode + implementation
+reconciled and recorded); N-007/N-072/N-065/N-066 FIXED by the parallel
+waves; M-030/M-039 landed. This lane's surviving artifacts: the two ASan
+pushed-red repairs (the exFAT $I fixture overread + the filterfolder pool
+NUL-termination, convergent with the lane's N-081/N-082), the cr_ui.h
+union-marker repair, and the ZFS fuzz-seed generator.
+
+**Live counts after this session:** ACUTE 0 · SEVERE 0 · MAJOR 0 · MINOR 0 ·
+INFO 0 open · tracked-open 2 (OQ-S4-3, OQ-Z-E-FLT residuals) · FIXED/ 224
+files. **The findings board is EMPTY — every filed finding is dispositioned.**
+
 
 ## Session delta (2026-10-26 — the SEVERE lane: S-034 FIXED — the ZFS ring walk)
 

@@ -432,7 +432,7 @@ Contract:
 - The og's FS engines re-clone the RAWSearchDLL registry per scan
   (FATSearchDLL :13872-13977 LoadLibrary/GetProcAddress + the per-scan
   re-fetch :29290-29361); the core's registry is compile-time immutable
-  and read directly — PARITY-DELTAS D-80 registers the difference (same
+  and read directly — PARITY-DELTAS D-100 registers the difference (same
   content by construction; the clone pattern exists only because the og
   is multi-DLL).
 

@@ -751,6 +751,5 @@ bool carve_format_listed(const char* disabled_list, const Signature& sig) {
     return carve_token_listed(disabled_list, sig.ext, sig.name);
 }
 
-
 } // namespace carve
 } // namespace cr

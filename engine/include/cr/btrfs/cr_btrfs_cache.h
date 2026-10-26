@@ -49,8 +49,7 @@ class BtrfsCacheIo {
 public:
     virtual ~BtrfsCacheIo() = default;
     /* Read the volume's cached blob into `out`; false = no cache / unreadable. */
-    virtual bool read_blob(const std::u16string& dir, const u8 fsid[16],
-                           std::vector<u8>& out) = 0;
+    virtual bool read_blob(const std::u16string& dir, const u8 fsid[16], std::vector<u8>& out) = 0;
     /* Persist the blob; false = unwritable (the scan proceeds, cache-less). */
     virtual bool write_blob(const std::u16string& dir, const u8 fsid[16],
                             const std::vector<u8>& bytes) = 0;

@@ -738,16 +738,16 @@ std::vector<u8> make_gpt_dynamic_disk_4kn(const u8* meta_guid, const u8* data_gu
     std::memcpy(h, "EFI PART", 8);
     put32le(h + 8, 0x00010000);
     put32le(h + 12, 92);
-    put64le(h + 24, 1);   /* first usable (4Kn LBAs) */
-    put64le(h + 32, 8191);/* last usable */
-    put64le(h + 40, 2);   /* entries at 4Kn LBA 2 */
+    put64le(h + 24, 1);    /* first usable (4Kn LBAs) */
+    put64le(h + 32, 8191); /* last usable */
+    put64le(h + 40, 2);    /* entries at 4Kn LBA 2 */
     put64le(h + 48, 8190);
-    put64le(h + 72, 2);   /* 2 entries */
+    put64le(h + 72, 2); /* 2 entries */
     put32le(h + 80, 2);
     put32le(h + 84, 128);
     std::vector<u8> entries(2 * 128, 0);
     std::memcpy(entries.data() + 0, meta_guid, 16);
-    put64le(entries.data() + 32, cfg_start / 8);  /* 512-LBA 63488 -> 4Kn 7936 */
+    put64le(entries.data() + 32, cfg_start / 8);     /* 512-LBA 63488 -> 4Kn 7936 */
     put64le(entries.data() + 40, ldm_meta_last / 8); /* 65528 -> 4Kn 8191 */
     std::memcpy(entries.data() + 128, data_guid, 16);
     put64le(entries.data() + 128 + 32, 2048 / 8);
@@ -835,7 +835,7 @@ TEST(Ldm, TocblockPrefersPlus2OnConflict) {
     /* VMDB@17 already written by the fixture (committed_seq 42) */
     u8* vmdb18 = d.data() + (STRIPE_CFG_START + 18) * 512;
     memcpy(vmdb18, d.data() + (STRIPE_CFG_START + 17) * 512, 512);
-    p64be(vmdb18 + 0x75, 99); /* distinct committed sequence */
+    p64be(vmdb18 + 0x75, 99);      /* distinct committed sequence */
     m016_write_tocblock(d, 1, 17); /* stale copy first in the old order */
     m016_write_tocblock(d, 2, 18); /* og-preferred copy */
     MemDevice dev(std::move(d));

@@ -392,8 +392,7 @@ std::unique_ptr<NtfsVolume> NtfsVolume::open(std::unique_ptr<IStorageDevice> dev
         const u64 sec = v->dev_->geometry().logical_sector != 0
                             ? u64(v->dev_->geometry().logical_sector)
                             : u64(512);
-        if (total >= 2 * sec &&
-            v->dev_->read_at(total - sec, &backup, sizeof(backup)) == OK &&
+        if (total >= 2 * sec && v->dev_->read_at(total - sec, &backup, sizeof(backup)) == OK &&
             boot_signature_ok(reinterpret_cast<const u8*>(&backup))) {
             VolumeParams bp{};
             if (validate_boot_sector(backup, v->dev_->geometry(), bp) == OK) {

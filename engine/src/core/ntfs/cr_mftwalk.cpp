@@ -514,8 +514,7 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
              * child list, no recursion). single_hop_attrlist=true caps the
              * BFS at one level for benchmark parity; the default keeps the
              * multi-hop superset (the finding's recommendation). */
-            const int depth_limit =
-                flags.single_hop_attrlist ? 1 : int(FRAG_DEPTH_LIMIT);
+            const int depth_limit = flags.single_hop_attrlist ? 1 : int(FRAG_DEPTH_LIMIT);
             for (int level = 0; level < depth_limit && !frontier.empty(); ++level) {
                 std::vector<AttrListEntry> next;
                 for (const AttrListEntry& e : frontier) {
@@ -949,8 +948,8 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                 link_name = nullptr;
                 for (const FileNameInfo& n : names)
                     if (n.parent_record == p &&
-                        (link_name == nullptr ||
-                         namespace_rank(n.namespace_type) >= namespace_rank(link_name->namespace_type)))
+                        (link_name == nullptr || namespace_rank(n.namespace_type) >=
+                                                     namespace_rank(link_name->namespace_type)))
                         link_name = &n;
                 if (link_name == nullptr)
                     link_name = best; /* parents derive from names; unreachable */

@@ -326,3 +326,70 @@ vocabulary's source, and the path matching mode.
 
 The session-3 storage/census residuals stand as filed; no new evidence
 this session.
+
+---
+
+## Session close addendum (the closing parity session, 2026-10-26) — OQ-FLT-2 RESOLVED (converged; no residual gate)
+
+**OQ-FLT-2 is RESOLVED.** The question's purpose — "gates M-029" — is fully
+discharged by the convergent landings, and every group of the 0x48-byte
+AdvanceFilterCondition now has a decoded, implemented counterpart in the
+core:
+
+- **The gate:** M-029 is FIXED (`f388cad`) — its own Resolution carries the
+  first-hand DRWUI decode of the Date/Size group semantics (the CTimeFilterBtn
+  menu 0x100..0x105, the CSizeFilterBtn menu 0x1000..0x1006, the bounds
+  initializer FUN_140254670's day-truncated local arithmetic, the tag setters,
+  and the custom-range matcher) — exactly the per-group mapping this OQ
+  pushed forward for the date/size dwords.
+- **The Type group:** M-023's category model (findings/FIXED/M-023 — the
+  1,481-extension generated table + the category bits) covers the type-mask
+  dword; the core's `query::Filter::category_mask` is the implemented
+  counterpart.
+- **The Path group:** the corpus's own UIUX artifact
+  (`UIUX/31-filterbar-family-decode.md` §3-§6) decoded the path-prefix
+  semantics and the core implements it (`query::Filter::path_prefix` with the
+  subtree-pruning walk, cr_query.h) — the OQ's "path matching mode" question
+  is answered there: a full-path ASCII-case-insensitive prefix match.
+- **The completeness predicate + dispatch semantics** (DFX30's evidence,
+  above): recorded, and consistent with the core's zero-init-safe Filter
+  (empty conditions = no filtering — the og's all-six-bits NULL-dispatch
+  analog).
+- **The remaining per-mode manager wiring** (FUN_1401b61f0's three modes and
+  their vtable+0x10 applies) is DRWUI's own UI-thread dispatch — a host-side
+  surface outside the core library's boundary per the I-015 architecture
+  register (the og's searcher/UI contract lives in the host; the core's cr_ui
+  exposes the filter surface as data, the host owns its threading). No core
+  finding depends on it: the group SEMANTICS are all decoded and implemented;
+  only the og's private wiring order remains, with no observable parity
+  surface.
+
+Disposition: the tracked-open file closes; the evidence chain (DFX30's
+predicate decode + M-029's group decode + M-023's categories + the
+31-filterbar path decode) is the resolution record. No new finding — nothing
+user-observable remains undecoded; the file moves to findings/FIXED/ with
+the tracked-open inventory reduced to OQ-S4-3 alone (whose Windows bench
+execution was dispatched this session).
+## Session-37 disposition (DFX37, 2026-10-26) — OQ-FLT-2 CLOSED-CONSUMED; the file's ledger is complete
+
+**OQ-FLT-2** was pushed forward as "gating M-029". M-029 landed (`f388cad`,
+findings/FIXED/) with its own first-hand decode of exactly the sub-vocabulary
+its fix implemented: the Date bucket IDs 0x100-0x105 (the CTimeFilterBtn
+menu FUN_140705c50), the Size bucket IDs 0x1000-0x1006 (CSizeFilterBtn menu
+FUN_140706060), the custom-range matcher (local-day-truncated, inclusive
+both ends, FUN_140256830), and the node-side tag setters (date tags at
+node+0x89 bits 11-14, size-bucket tags at bits 17-22, FUN_140255820) — plus
+the completeness predicate (FUN_1406f91d0's six-bit AND) decoded in DFX30's
+push-forward. The remaining sub-decode listed there (the per-mode managers'
+vtable+0x10 apply — the type-mask group and the path-string group's
+matching mode) has NO consuming finding on the now-empty board: it was
+M-029's gate, M-029 closed without needing it (the og's apply-side
+type/path semantics are surfaced in the core's query::apply_date_bucket/
+apply_size_bucket + the Type/Path filter surface that DID land). Decoding
+further would be corpus work with no consumer — the audit discipline's own
+boundary. **Disposition: the file closes as RESOLVED (every sub-question
+either resolved, superseded, or consumed by its gating finding's landing).
+Future reference for any new query-model finding: the apply-method decode
+entry points are FUN_1401b61f0(mode) -> mode 0: FUN_1401d4920+8 / mode 1:
+FUN_1401d4930+8 / mode 2: FUN_14031c410+8 (the CAdvanceFileFilterMgr
+singletons; verified this session at DRWUI_decompiled.c :319062-319112).**

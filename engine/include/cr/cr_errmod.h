@@ -58,9 +58,9 @@ enum Module : u32 {
     kHfsplus = 7,
     kRefs = 8,
     kZfs = 9,
-    kCarve = 10,   /* the carve stage's grammar sweep */
-    kLost = 11,    /* lost-partition discovery */
-    kLdm = 12,     /* the dynamic-disk (LDM) database parse + volume scans */
+    kCarve = 10, /* the carve stage's grammar sweep */
+    kLost = 11,  /* lost-partition discovery */
+    kLdm = 12,   /* the dynamic-disk (LDM) database parse + volume scans */
 };
 
 /* Operations - the error-range family is read failures today. Stable
