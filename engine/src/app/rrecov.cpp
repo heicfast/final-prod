@@ -2052,18 +2052,13 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
             static_cast<unsigned long long>(plan.sector_count),
             plan.restores_signature ? L" + 0x55AA signature restore" : L"");
     for (const auto& a : plan.actions)
-<<<<<<< HEAD
-        wprintf(L"  [apply] offset=%llu len=%zu : %hs\n",
-                static_cast<unsigned long long>(a.offset), a.after.size(), a.reason.c_str());
+        wprintf(L"  [apply] offset=%llu len=%zu : %hs\n", static_cast<unsigned long long>(a.offset),
+                a.after.size(), a.reason.c_str());
     /* M-040: the boot-chain repair family now exists (bcdfix +
      * nvramfix + the win runtime); the CORE plan never performs it
      * (the og's Fixup runs host-side after the layout write too) - the
      * CLI offers it as the explicit --boot-fix step after a successful
      * apply. */
-=======
-        wprintf(L"  [apply] offset=%llu len=%zu : %hs\n", static_cast<unsigned long long>(a.offset),
-                a.after.size(), a.reason.c_str());
->>>>>>> origin/main
     if (!plan.boot_repair_available)
         wprintf(L"  [apply] boot-chain repair: separate opt-in step (re-run with "
                 L"--boot-fix <old-lba> to rewrite the BCD offsets + NVRAM entry after "
