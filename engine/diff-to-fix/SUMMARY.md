@@ -164,6 +164,35 @@ findings** (175 files incl. RESOLVED-INDEX) · tracked-open 11. Next on
 this lane: N-019 (the 12-scenario regression-test gap), then
 N-050/N-033/N-072 rear-first.
 
+## Session-31 delta, wave 2 (2026-10-26 — DFX31: OQ-S3-JPEG resolved — S-018 RE-FILED CONFIRMED and FIXED: the truncated-JPEG salvage)
+
+**S-018 RE-FILED + FIXED (SEVERE — the canonical damaged-disk photo
+recovered):** the s3 INVALID's residual question ("if any sub-analyser
+accepts without an EOI, the salvage claim could hold through the
+fallback") is answered YES first-hand: the legacy FileJPGAnalyser tier
+(dispatcher FUN_18004b170 → JFIF/Exif/generic) walks SOS-gated headers and
+its shared post-SOS walker FUN_18004c480 (:57942-99) ACCEPTS AT ITS SCAN
+LIMIT with no EOI — h*w*3 from the candidate start (SOF dims) or
+20,000,000 (the 200,000,000 global cap /10), device-bounded by the
+sliding getter FUN_180042930; the census-documented two-generation chain
+makes one accept sufficient. `validate_jpeg` now mirrors the salvage on
+every no-EOI exit (SOS-gated, the og's exact limits and sizing), graded
+PartialRisk-600 — D-79 registered (the og stamps salvaged files
+identically to complete ones; the core grades honestly). Proof: 2
+fail-before RED executed on the stash-isolated pre-fix tree + the
+complete-file EOI pin; **suite 755/755**. The modern tier's EOI gate
+(the s3 correction) is preserved exactly — complete files keep the
+900-tier accept.
+
+OQ-S3-JPEG RESOLVED (both questions dispositioned; the continuation
+residual dissolved — first-accept-wins dispatch, the fallback dominates
+in-window). OQ → FIXED/; S-018's re-file Resolution appended; carve.md
+verdict rows updated; D-79 registered.
+**Counts after this landing: tracked-open 9** (OQ-Z-E-FLT, OQ-RS,
+OQ-T6-T7, OQ-S4-3, OQ-S5-1, OQ-S6-1, OQ-S6-2, OQ-S6-3, OQ-S20-1).
+Next on this lane: OQ-RS (the ReFS residual probes), then OQ-S20-1
+(the BitLocker FVE metadata grammar leg).
+
 ## Session-31 delta (2026-10-26 — DFX31: the tracked-open HEAD lane opens; OQ-S2M-2's three probes RESOLVED)
 
 Baseline 737/737 green at bootstrap (02b950f lineage through the window's

@@ -1,6 +1,15 @@
 # diff-to-fix/findings/FIXED/ — resolved findings (audit trail)
 
+## Resolved findings (session-31 wave 2: +S-018 RE-FILED (the legacy-tier salvage decode) + OQ-S3-JPEG; live file inventory)
+
+| ID | Severity (orig) | Title | Fix commit | Resolution |
+|---|---|---|---|---|
+| S-018 | SEVERE (re-filed CONFIRMED s31; INVALID s3 stands for the modern tier) | JPEG EOI policy: the og's legacy FileJPGAnalyser tier salvages tail-truncated JPEGs; the core required FFD9 unconditionally and dropped them | (this session's S-018 salvage commit) | validate_jpeg now mirrors the decoded legacy tier: SOF dims captured (SOF0 precision-8-gated last-wins, SOF2 fill-if-empty — FUN_18004bbd0's arms), and every no-EOI exit (entropy cap, walk cap, mid-scan I/O failure = the getter-NULL analog) takes the salvage when SOS was seen: end = min(hit + h*w*3 | hit + 20,000,000, bound) — the og's exact limits (FUN_18004c480 :57958-59 accept-at-limit; FUN_180001350+0x70 = the 200M cap), confidence 600 (PartialRisk — D-79, the registered grading delta; the og stamps identically). 2 fail-before RED (executed on the stash-isolated pre-fix tree) + the EOI pin (complete files keep the 900 full-walk grade). Suite 755/755. |
+| OQ-S3-JPEG | tracked-open (s3 residual) — **RESOLVED (s31)** | Do the og's fallback/continuation JPEG paths accept tail-truncated (no-EOI) files? | (the S-018 salvage commit — evidence landing) | YES for all three fallback sub-analysers (JFIF/Exif/generic behind FUN_18004b170): SOS-gated header walks + the shared post-SOS walker FUN_18004c480 which accepts at h*w*3 / 20M / device-end with no EOI. The continuation question dissolved (first-accept-wins dispatch; the fallback dominates in-window). S-018 re-filed + FIXED; evidence s31-oq-s3-jpeg-fallback-decode.md. |
+
+
 ## Resolved findings (session-28 wave on top: +N-025, +N-026, +N-027, +N-031; session-25 wave: +I-001..I-024 — the INFORMATIONAL tier closed into FIXED/ (22/22 acknowledged, re-verified on `716d121`, pins green 737/737); live file inventory)
+)
 ## Resolved findings (session-31 wave on top: +OQ-S2M-2 (all three probes RESOLVED — the +0x68 bonus-setter family decoded, the ZFS "pool name" proven absent, the Btrfs conversion anchor pinned to the DRWUI render layer); live file inventory)
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |

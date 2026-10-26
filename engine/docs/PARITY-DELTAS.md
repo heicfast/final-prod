@@ -2315,6 +2315,20 @@ compaction, async). The og's per-line timestamp/process decoration is
 its transports' job; the core emits the message text. Pinned by
 `Orchestrator.LogSilentByDefault` + `Orchestrator.LogSinkReceivesScanBrackets`.
 
+### D-79 — salvaged (no-EOI) JPEGs graded PartialRisk, not stamped identically to complete files (S-018 re-file, s31; REGISTERED DIVERGENCE)
+
+The og's legacy FileJPGAnalyser tier accepts tail-truncated JPEGs at its
+scan limit (h*w*3 from the candidate start, or the 200,000,000 global cap
+/ 10) and stamps them with the SAME format code (0x23) and no reduced
+grade as complete files (FUN_18004c480 :57958-59, RAWSearchDLL_decompiled.c;
+evidence diff-to-fix/evidence/decompiled-quotes/s31-oq-s3-jpeg-fallback-decode.md).
+The core mirrors the salvage's accept/sizing exactly but grades the result
+PartialRisk (validator confidence 600 < the 850 Excellent band) and notes
+it ("fallback-salvage(no-EOI,...)") — a recovered file whose tail is
+destroyed IS objectively degraded, and hiding that from the user would be
+the og's UX weakness, not a parity virtue. Pinned by
+Carve.JpegTruncatedTailSalvagedAtSofEstimate (grade assertion).
+
 ### D-78 — progress delivery: push events + telemetry pull, not the og's poll-dominant timer farm (N-075, REGISTERED DIVERGENCE; renumbered from a D-77 collision with the N-009d ACL register landed by the parallel lane in the same window — the errata convention)
 
 The og's progress model is predominantly PULL-polled: 38 `timeout()`
