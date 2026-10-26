@@ -5750,20 +5750,28 @@ Split verdict — three sub-claims:
   (FID_conflict_sprintf_s, 0x410-wide buffers) with a 10,000-attempt cap
   — the earlier "no collision policy in any artifact" claim (AUDIT-UI
   §5.7) is superseded by the decompile walk.
-- **WHAT WE DO:** Collision naming `name (N).ext` + corpus sanitizer
-  (`cr_safewriter.cpp:29`), atomic temp+rename via DestIo, SHA-256 verify with
-  per-item mismatch accounting, resumable queue (`.part-<id>` suffix, resumed
-  counting), zero-fill Skip policy. The collision SCHEME is the registered
-  deliberate divergence from the now-decoded og policy (`name (N).ext` vs the
-  og's `%s_%d`; our cap is 64 vs the og's 10,000) — see N-065 for the full
-  comparison and the PARITY decision. The atomic-write/hash-verify/resume
-  layers remain REGISTERED SUPERSETS the og lacks. Evidence: F11 registry;
-  AUDIT row 35 + Wave-2 fixes; tests (collisions, hashing, resume) per
-  `docs/testing.md`.
-- **WHY:** safety/correctness-fix.
+- **WHAT WE DO:** Collision policy ALIGNED TO THE OG (N-065, s23):
+  `name_1.ext` / `name_2.ext` (`%s_%d` extensionless / `%s_%d%s` with
+  extension, counter from 1), `rename_attempts` default 10,000 (the og's
+  cap), exhaustion FAILS the item with `ERR_DEST_NAME_EXHAUSTED` (the
+  og's cap-break at DRWUI :357131) — the old `name (N).ext` shape, the
+  64 cap and the og-foreign `_dup` fallback are removed. Kept supersets
+  the og lacks (all registered): atomic temp+rename via DestIo, SHA-256
+  verify with per-item mismatch accounting, resumable queue
+  (`.part-<id>` suffix, resumed counting), zero-fill Skip policy, the
+  corpus name sanitizer (`cr_safewriter.cpp`). mkdir acceptance is the
+  SHCreateDirectoryExW 0/0xB7 contract in semantic form (WinDestIo's
+  exist-as-directory tolerance IS the API's ERROR_ALREADY_EXISTS-on-
+  existing behavior — the finding's ACCESS_DENIED premise mis-modeled
+  the API; the component walk + tolerance replaced a stricter form that
+  broke drive-letter destinations on the MSVC lane, test #227). Evidence:
+  F11 registry; N-065's Resolution + first-hand decompile cites; tests
+  (`CollisionNameUnderscoreFormat`, `CollisionExhaustionFailsTheItem`,
+  `MkdirSemanticsMatchShCreateDirectoryEx`) per `docs/testing.md`.
+- **WHY:** safety/correctness-fix (supersets) + og parity (collision).
 - **RISK:** None negative.
-- **VERDICT: ACCEPTED** (og-side absence documented as "unevidenced", which is
-  itself the honest form of evidence for this delta; our side fully cited).
+- **VERDICT: ACCEPTED** (collision half now og-MATCH by N-065; the
+  atomic-write/hash-verify/resume supersets remain registered).
 
 ### D-20 — UI hard destination gate (ADR-7, defense in depth)
 
@@ -7708,7 +7716,11 @@ FileProperties → a WriterConfig `preserve_dacl` flag (default OFF)
 applying it via SetSecurityInfo on the win destio layer only — never on
 the POSIX test shims.
 
+<<<<<<< HEAD
+### D-78 — the password-dictionary unlock aid: authored seed + format-compatible loader, the og's Dict asset not copied (N-064, REGISTERED DIVERGENCE)
+=======
 ### D-80 — the password-dictionary data posture: the corpus Dict converted as generated data (raw_signs precedent), user dictionaries loadable (N-064 convergence record — two parallel landings, first-landing-wins)
+>>>>>>> 273dde4fdab4fe324d02a42b1ad5810ce73ec863
 
 **Class:** convergence record (replaces this lane's original D-78
 registration, renumbered per the errata convention — D-78 collided with
@@ -7749,6 +7761,12 @@ og-format dictionary.
 **RISK:** none beyond the capability itself; the F61 consent gate is
 structural in both landings and unchanged in the union.
 
+<<<<<<< HEAD
+**VERDICT:** ACCEPTED (registered divergence: authored seed +
+format-compatible loader vs the og's copied asset; mechanism parity
+complete; D-78).
+=======
+>>>>>>> 273dde4fdab4fe324d02a42b1ad5810ce73ec863
 ### D-78 — CSMI SMART transport: SCSI-address routing, no RAID census; LSILOGIC sibling and SMART auto-enable not ported (N-032, REGISTERED DIVERGENCE — transport scope)
 
 **Class:** registered divergence (health transport scope) · **Finding:**
@@ -7818,6 +7836,8 @@ with wrong bytes. Fixtures: `Btrfs.Raid0StripeMathSplitsAtStripeBoundaries`
 (the spanning split + the in-stripe offset), `Btrfs.Raid10GeometryGate`
 (the og's parse-time gate stays og-exact — the superset is read-side
 only).
+<<<<<<< HEAD
+=======
 
 
 ### D-81 — Carve validators are stateless single-shot; no pending-object/ContinueScan streaming state (M-025, REGISTERED ARCHITECTURAL DIVERGENCE)
@@ -7848,6 +7868,7 @@ incremental continuation (streaming formats whose end cannot be probed
 by a bounded forward walk) must either keep that model in its own layer
 or extend the validator contract — this register is the flag S-017's
 fix-plan step 3 cites.
+>>>>>>> 273dde4fdab4fe324d02a42b1ad5810ce73ec863
 ### D-79 — disk enumeration: the two-stack merge (PhysicalDrive loop + cfgmgr32 disk interfaces), not the og's five-stack fan-in (N-071, REGISTERED DIVERGENCE — partial port with scope rationale)
 
 **Class:** registered divergence (enumeration breadth) · **Finding:**
