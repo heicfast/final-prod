@@ -197,8 +197,8 @@ std::u16string boot_name(u16 id) {
 } // namespace
 
 std::vector<NvramRewrite> plan_boot_entries(GetVarFn get, void* get_user,
-                                             const TargetPartition& target, u32* error,
-                                             bool* stopped_early) {
+                                            const TargetPartition& target, u32* error,
+                                            bool* stopped_early) {
     if (error)
         *error = OK;
     std::vector<NvramRewrite> plan;

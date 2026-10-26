@@ -31,7 +31,7 @@ public:
     explicit FuzzIo(std::vector<uint8_t> bytes) : bytes_(std::move(bytes)) {}
     u32 open(const std::u16string&, u32*) override {
         next_ += 1;
-        open_.emplace(next_, 0);
+        open_.insert(next_);
         return next_;
     }
     u32 read(u64 file, u64 at, void* buf, u32 len) override {
