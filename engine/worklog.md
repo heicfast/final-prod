@@ -12300,30 +12300,74 @@ Stage Summary:
   preserved with pin tests).
 
 ---
-Task ID: DFX26-T0 (session 26 bootstrap — lane claim; re-stamped from the
-colliding local DFX25 — the parallel INFO lane owns that ID and has CLOSED
-the INFO tier this window)
-Agent: main engineer (diff-to-fix fix session 26 — DFX26)
-Task: Session bootstrap + DISJOINT lane claim + verification of the parallel
-INFO closure (trust-but-verify protocol).
+Task ID: DFX26-T0 (session 26 bootstrap — lane claim; this lane's push lost
+the ID race twice — 23→25→26 — first-landing-wins on all three prior claims)
+Agent: core-parity-fix-agent (main, DFX26)
+Task: Session bootstrap + DISJOINT lane claim: the MAJOR tier TAIL
+back-to-front (the user directive for this lane: focus on MAJOR initially).
 
 Work Log:
-- Pull at first push surfaced THREE parallel claims: DFX23 (354c555, MINOR
-  tier), DFX24 (02b950f, MAJOR tier), DFX25 (03608d8, INFO tier — closed
-  22/22 into FIXED/ this window). This lane re-stamps to DFX26.
-- Baseline executed green FIRST-HAND before any finding work: linux-release
-  **737/737** at `02b950f` (pre-merge tree; the INFO-closure merge is
-  audit-trail-only — no source change — so the baseline carries).
-- Corpus `03ad46c` unmoved (verified at first corpus read this session).
-- Session prompt saved token-redacted: worklog/session-diff-fix-26-prompt.md.
-- Lane claim (disjoint, split against the DFX25 queue): tracked-open items
-  OQ-S5-1, OQ-S6-1, OQ-S6-2, OQ-S6-3, OQ-T6-T7, OQ-Z-E-FLT (the S5/S6/T/Z
-  tail of the queue — DFX25's natural order starts at the OQ-RS/OQ-S2M/OQ-S3/
-  OQ-S4 head) + independent re-verification of the DFX25 INFO closure + any
-  NEW-FINDING discovered during verification (filed + fixed this session).
+- Pulled both repos at bootstrap. Core HEAD at my clone: `716d121`.
+  Corpus HEAD: `03ad46c` (unmoved since session 1). My bootstrap push
+  (6b550fd, then DFX23-T1) lost the race to 354c555 (DFX23 MINOR) and
+  02b950f (DFX24 MAJOR front-to-back); my re-stamped DFX25 claim
+  (849195e) lost again to 03608d8 (DFX25 INFO+tracked-open, which also
+  CLOSED the INFO tier 22/22). Union merges resolved preserving all
+  claims; this lane re-stamps to DFX26.
+- Session prompt saved token-redacted (re-stamped):
+  worklog/session-diff-fix-26-prompt.md.
+- Baseline build+test executed FIRST-HAND at `716d121` before any claim:
+  linux-release **737/737** green (incl. win_syntax_check).
+- Open inventory after the DFX25 INFO closure absorbed: SEVERE 0 ·
+  MAJOR 14 · MINOR 19 · INFO 0 · tracked-open 11 OQs · FIXED/ 171.
+- Lane claim (disjoint from all three active lanes): the MAJOR tier
+  BACK-TO-FRONT — M-041 → M-040 → M-034 → M-048 → M-039 → M-030 →
+  M-029 → M-025 → then toward the middle (M-020, M-018, M-014, M-052,
+  M-035, M-049 — any DFX24 landing absorbed as convergence per
+  protocol). Mandate is MAJOR-first; tail-first maximizes disjoint
+  throughput against DFX24's front-first queue. If the MAJOR tier
+  drains, assist on tracked-open (coordinating with DFX25) and MINOR
+  leftovers (coordinating with DFX23) with convergence records.
 - One finding, one verified fix, one push throughout.
 
 Stage Summary:
-- Session 26 open on the disjoint tracked-open tail + INFO-closure
-  verification lane. Baseline green. First act: verify the INFO closure,
-  then OQ-S5-1.
+- Session 26 open on the disjoint MAJOR-tail lane. Baseline 737/737
+  green. First: full read of the 14 open MAJOR findings + corpus
+  verification, starting M-041 (damage-audit check phase).
+
+---
+Task ID: DFX27-T0 (session 27 bootstrap — lane claim; re-stamped twice:
+the local DFX25 collided with the parallel INFO-closure lane, the local
+DFX26 re-stamp then collided with the parallel MAJOR-tail lane's 65122f0
+claim — this lane takes the next free ID)
+Agent: main engineer (diff-to-fix fix session 27 — DFX27)
+Task: Session bootstrap + DISJOINT lane claim: the tracked-open queue TAIL
+(split against DFX25, whose natural queue order starts at the head) +
+independent verification of landed closures + NEW-FINDING work.
+
+Work Log:
+- Four parallel lanes observed live at fetch (claims all pushed within a
+  ~25-minute window): DFX23 MINOR-forward (354c555), DFX24 MAJOR-forward
+  (02b950f), DFX25 INFO-closed + tracked-open head (03608d8/849195e),
+  DFX26 MAJOR-backward (65122f0). This lane re-stamps to DFX27.
+- Baseline executed green FIRST-HAND before any finding work: linux-release
+  **737/737** at `02b950f`; the absorbed merges since are audit-trail-only
+  (INFO file moves + worklog) — no source change — so the baseline carries.
+  Full suite re-run happens before this session's first source-touching
+  landing regardless.
+- Corpus `03ad46c` unmoved (verified at first corpus read this session).
+- DFX25's INFO closure INDEPENDENTLY SPOT-CHECKED this session before
+  claiming (trust-but-verify): I-006/I-012/I-017/I-020/I-024 all carry
+  Resolution sections with per-finding verification notes — closure sound.
+- Session prompt saved token-redacted: worklog/session-diff-fix-27-prompt.md.
+- Lane claim (disjoint, split against DFX25's tracked-open queue by
+  direction — DFX25 starts at the head: OQ-RS, OQ-S20-1, OQ-S2M-2, OQ-S3,
+  OQ-S4-3): this lane owns the TAIL: OQ-Z-E-FLT, OQ-T6-T7, OQ-S6-3,
+  OQ-S6-2, OQ-S6-1, OQ-S5-1 — resolve each to a fix this session where
+  feasible, else push forward precisely with new first-hand evidence.
+  Plus: NEW-FINDINGs discovered during verification get filed + fixed.
+- One finding, one verified fix, one push throughout.
+
+Stage Summary:
+- Session 27 open on the disjoint tracked-open tail. Baseline green.
+  First act: OQ-Z-E-FLT (ZFS/exFAT/FLT open questions).
