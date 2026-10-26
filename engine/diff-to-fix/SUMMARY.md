@@ -271,12 +271,11 @@ runners disable LSan (ptrace), so main stays green in CI.
 **Counts after this landing (pre-merge with the parallel lanes' window):** MAJOR 13 · MINOR 19 · INFO 24 ·
 FIXED 150 findings. Next on this lane: M-052 (FAT/exFAT recycle-bin
 pairing — the NTFS implementation generalizes) → M-020 (Btrfs chunk
-profiles) → M-035 (lost-partition content validation).>>>>>>> 6816de5 (fix(M-014): exFAT structural entry gates — FUN_180002f90/FUN_180029280/FUN_180003030 decompile-exact)
+profiles) → M-035 (lost-partition content validation).
 
 <!-- DFX16 note: session 16 ran as a parallel lane in the same window as
      sessions 17-22; its delta is recorded here for chronology. -->
 
->>>>>>> c2714c0 (fix(M-014): exFAT structural entry gates — FUN_180002f90/FUN_180029280/FUN_180003030 decompile-exact)
 ## Session-23 delta (2026-10-26 — DFX23: the MINOR-first close-out lane, N-025 first landing)
 
 Session bootstrap at `716d121` (DFX16-M013 rebase reconciliation; N-062 the
