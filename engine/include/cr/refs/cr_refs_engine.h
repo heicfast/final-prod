@@ -100,7 +100,12 @@ struct RefsBoot {
     u64 volume_clusters = 0;
     u64 volume_bytes = 0;
     u64 serial = 0;
-    u64 container_bytes = 0; /* DBR +0x40: bounds the MSB/OID area (M-026) */
+    u64 container_bytes = 0;    /* DBR +0x40: bounds the MSB/OID area (M-026) */
+    u32 container_clusters = 0; /* DBR +0x34: container span in clusters -
+                                 * N-036: the og's container-translation unit
+                                 * (volume+0x148 -> parser+0xa8), gates the
+                                 * container-record acceptance and keys the
+                                 * map; 0 = no container layout decode */
 };
 bool validate_boot(const u8 sector[512], RefsBoot& out);
 

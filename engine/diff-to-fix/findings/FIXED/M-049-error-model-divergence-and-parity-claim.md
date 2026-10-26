@@ -111,3 +111,51 @@ natural fit is the event stream's error-range family (already carries
 offset/length/attempts) extended with a module/operation pair at the
 orchestrator's emit sites; the og's CErrorManager/CErrorTrackManager
 layer stays out of core scope (MOM UI bus).
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** <this-push>
+**Verified by:** fail-before RED EXECUTED (attribution recording disabled at the
+single retry-device seam: 5/6 RED — ErrorRangeCarriesModuleOperationAttempts,
+ProbeBlockFailureAttributesToOrchestrator,
+CarveErrorRangeAttributesToCarveModule, Retry.ThreadStampAttributedToRecordedRange,
+Retry.OwnerFallbackCoversUnstampedWorkerThreads; restored → all GREEN); suite
+**745/745** linux-release. ABI pins: 15 static_asserts in cr_ui.cpp
+(CR_ERRMOD_*/CR_ERROP_* == the core enum) + the extended ui_abi_check.c
+event_cb (plain-C /W4 /WX readability of the triple).
+**Resolution notes:** Session 11 closed the header-truth + err_text halves
+(see the addendum above). This session closed the remaining registered
+step 2 — the engine-side error-context subset — on the addendum's own
+decided seam: the event stream's error-range family. `cr_ui_event` gains
+`err_module`/`err_operation`/`err_attempts` (+ an alignment pad — the
+8-byte-multiple POD pin stands; v2-era append, no bump per ABI-CONTRACT §9)
+with new CR_ERRMOD_* (NONE/ORCHESTRATOR/9 engines/CARVE/LOST/LDM) and
+CR_ERROP_* (READ) constants. Attribution is per-range and recorded at
+failure time: the retry device stamps each ReadErrorRange with the reading
+sub-pass's module — a per-THREAD stamp (`cr::errmod`, cr_errmod.h) for the
+orchestrator thread + every pool task it owns (the candidate fan-out
+stamps per-candidate families inside scan_candidate), with a per-DEVICE
+owner fallback covering engine-internal worker pools (NTFS remnant
+fan-out, carve window fan-out); the emit site reads the newest range's
+module + attempts. Corpus-verified first-hand this session:
+architecture/05-scan-engine-architecture.md:62 (the two 12-digit codes)
+and MOM-modules/Error.md (the IErrorModule/IErrorProc registrar census
+the module-id set is the engine-side subset of). Session records keep the
+geometric trio (wire-compatible both directions; a reloaded range is
+honestly kNone — the og's persisted lostpart records carry geometry only,
+PRD:20409); coalesced ranges keep the NEWEST constituent's attribution.
+D-68 updated (the subset is no longer the open item). The
+CErrorManager/CErrorTrackManager MOM-bus layer remains out of core scope
+by the finding's own scoping. Tests:
+ScanEvents.ErrorRangeCarriesModuleOperationAttempts (FAT-engine traversal
+failure in a second cache block — the fixture grew a far subdir),
+ScanEvents.ProbeBlockFailureAttributesToOrchestrator (the same dead
+sector in block 0 attributes to the probe — the attribution tracks WHO
+was reading, not a stage constant),
+ScanEvents.CarveErrorRangeAttributesToCarveModule (carve-only scan),
+Retry.ThreadStampAttributedToRecordedRange,
+Retry.OwnerFallbackCoversUnstampedWorkerThreads (stamp beats owner),
+Errmod.GuardSetsAndRestoresTheThreadStamp,
+DevMap.ModuleAttributionRecordedAndNewestWinsOnCoalesce,
+DevMap.ModuleNotSerializedWireStaysTrio (44-byte wire pin).
