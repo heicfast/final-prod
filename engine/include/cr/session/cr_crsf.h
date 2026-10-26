@@ -57,6 +57,14 @@ enum RecordType : u32 {
      * guess. Payload: u32 cluster_bytes, u32 reserved(0), u64 base_byte,
      * u64 cluster_count, u32 bits_len, bits bytes. */
     REC_ALLOC_MAP = 7,
+    /* M-042: the whole-disk layout snapshot at save time (the og's
+     * partinfo.dat). OPTIONAL with the same skip-unknown-types rule;
+     * readers compare it against the freshly enumerated table at search
+     * start to surface the "layout changed" flag (surfaced, never
+     * enforced — the per-record candidate re-validation is the drop
+     * path). Payload: u32 count + per-entry {u64 start, u64 count,
+     * u32 type}. */
+    REC_DISK_LAYOUT = 8,
 };
 
 /* In-memory record. */

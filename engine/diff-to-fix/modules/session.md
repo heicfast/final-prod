@@ -99,12 +99,7 @@ Core (audited `67193b6`): `src/core/session/` (721 LOC) + `include/cr/session/` 
 
 ## Session-5 addendum (2026-10-26, audited `7cf6754`)
 
-- **Resume re-validation** — `M-042` (MAJOR): the og's lostpart.dat flow
-  re-reads each persisted candidate's boot sector on load and drops stale
-  records (PRD:20748-20842) with a partinfo.dat whole-disk layout snapshot
-  for change detection; the core's REC_PARTITION_CONTEXT restore
-  (cr_scan.cpp:1293-1310) is blind. Full decode in
-  `evidence/decompiled-quotes/s5-image-fscheck-persistence.md` §D.
+- **Resume re-validation** — **FIXED (DFX20 / M-042, findings/FIXED/)**: lost::revalidate_candidate re-reads every restored candidate's start LBA through the CURRENT disk at both device-bearing surfaces (load_session_summary's revalidate_disk param + run() start on whole-disk-basis resumes) and DROPS stale records — the og's PRD:20748-20842 semantics. REC_PARTITION_CONTEXT v2 carries the per-record geometry payload (bps/SPC/hidden/flags, length-versioned); REC_DISK_LAYOUT (type 8) is the partinfo.dat equivalent (layout_changed surfaced at resume, never enforced); discovery-hit checkpoints now forced ahead of stage boundaries (sink-gated). Executed fail-before + 6 tests (test_resume_revalidation.cpp); suite 685/685.
 - **Record richness** — `N-049`: persisted candidates lack bps/SPC/hidden/
   size-source/evidence fields the og's 0x448-byte record carries.
 

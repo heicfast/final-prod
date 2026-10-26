@@ -240,6 +240,17 @@ preview cap = 1 MiB at the UI socket layer per I-015; IInWindowStream =
 + the compressed-extent whole-block cost disclosed. 5 tests fail-before;
 fuzz tight-budget trap added; suite 662/662. MAJOR open 28.
 
+**M-021 FIXED (carve post-processor hook):** the og's EUVideoRepair binding
+(controller+0x158, optional LoadLibrary; the per-candidate deferred poll at
+FUN_18000d670 :10130-10136 — both re-verified first-hand) now has its core
+equivalent: versioned `CarvePostProcessor` + `CarveFlags::post_processor`
+(null = the unbound degrade); fires per validated candidate pre-insertion on
+both emit layers; a FEED never a gate (the og's poll never drops a
+candidate). The repair engine itself stays scope-excluded
+(PARITY-CORE-REC:164) — the hook point is the parity surface. 2 tests
+(hook-invoked fail-before-proven by wiring revert; degrade-when-absent);
+suite 685/685. MAJOR open 27.
+
 ## Session-19 delta (2026-10-26 — DFX19: MAJOR-first lane, first landing M-016)
 
 Bootstrap `ff734d7` (union of the parallel lanes' claims: DFX18 on the MINOR
@@ -378,14 +389,33 @@ separation, plaintext reads through the wrapper, byte-exact
 unaligned/cross-sector reads, transport-error propagation, and the
 M-033 acceptance (an XTS-encrypted FAT16 volume is opaque to the raw
 engine and scans correctly through the decrypt device with the key).
-Suite **608/608** after.
+Suite 608/608 at the M-033 landing; **685/685** after M-042.
+
+**M-042 FIXED (the resume disk-truth pass):** CONFIRMED-DIVERGENCE on all
+three falsifiable deltas (blind restore, no partinfo equivalent,
+config-gated candidate persistence, thin per-record payload), fixed per
+the finding's own 5-step plan. lost::revalidate_candidate re-runs the
+SAME per-family probe the discovery uses, at the persisted start LBA,
+through the CURRENT disk, at both device-bearing surfaces (the listing
+loads gained revalidate_disk - cmd_recover now opens the source disk
+BEFORE the session load; cmd_apply's candidate listing is re-validated on
+the once-opened view it reuses for plan_apply - and run() start for the
+resume flows, whole-disk basis only). REC_PARTITION_CONTEXT v2
+(append-only, length-versioned like SessionState v2) carries
+bps/SPC/hidden/flags; REC_DISK_LAYOUT (type 8) is the partinfo.dat
+equivalent with the layout_changed signal surfaced at resume (CLI warns;
+never enforced); a checkpoint is FORCED the moment discovery produces
+candidates (sink-gated - the no-.dat-side-channel residue registered, not
+papered over). **Executed fail-before**: the re-validation gates disabled
+-> ResumeDropsStaleCandidateAfterRelayout RED on both surfaces; restored
+-> green. 6 tests in test_resume_revalidation.cpp; suite 685/685.
 
 **Counts after this push (direct file inventory):** SEVERE **1** (S-029,
-DFX10's claim) · MAJOR **27** (M-005/M-007/M-008/M-037/M-045/M-046/
-M-054 landed by parallel lanes since session-15's count; M-033 this push)
+DFX10's claim) · MAJOR **26** (M-005/M-007/M-008/M-037/M-045/M-046/
+M-054 landed by parallel lanes since session-15's count; M-033 + M-042 this push)
 · MINOR **41** (parallel lanes landed N-041/N-069/N-030 since the
 session-15 count) · INFO 22 (all ACKNOWLEDGED) · FIXED/ family
-**102 files** (incl. RESOLVED-INDEX; +M-033 this push; the parallel waves'
+**103 files** (incl. RESOLVED-INDEX; +M-033 +M-042 this push; the parallel waves'
 M-005/M-007/M-008/M-045/M-054/N-041/N-069/N-030 already inside) ·
 tracked-open **17** (+OQ-S20-1 this push). Top remaining risks: S-029 (the last SEVERE), then
 the MAJOR tier by user impact — M-042 (session-resume revalidation),

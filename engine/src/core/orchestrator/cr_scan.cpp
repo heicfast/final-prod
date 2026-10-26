@@ -123,6 +123,11 @@ ScanController::ScanController(tree::ResultTree& tree, ScanConfig cfg,
     }
     if (cfg_.run_carve && root_carved_ == nullptr)
         root_carved_ = tree_.add_root(u"Other Deleted Files (Carved)");
+    /* M-042: a whole-disk-basis resume (the only basis persisted lost
+     * candidates exist on - whole_disk scans) enables the run-start
+     * re-validation; volume-basis resumes keep the candidates as-is
+     * (their LBAs would read against the wrong base). */
+    resumed_whole_disk_ = resumed.slice_offset == 0;
     adopt_resume_state_(resumed);
 }
 
@@ -614,6 +619,70 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
     if (slice == nullptr)
         return ERR_BAD_PARAMETER;
     const auto t0 = std::chrono::steady_clock::now();
+
+    /* ---- M-042: search-start disk-truth pass (the og's at-search-start
+     * semantics: the partinfo layout compare PRD:20998-21039 + the
+     * per-record re-validation PRD:20748-20842). Placement note: BEFORE
+     * the pre-scan repair hook - the og runs its lostpart load/compare at
+     * search start, prior to any repair pass, and a repaired boot must
+     * not retroactively change the persisted-vs-fresh verdict. ----
+     *
+     * (a) capture the live whole-disk table (saved as REC_DISK_LAYOUT at
+     *     save/checkpoint time - the og's partinfo rebuild);
+     * (b) when the resumed session carried a layout snapshot, compare:
+     *     stats.layout_changed = the honest "disk changed" signal
+     *     (surfaced, never enforced);
+     * (c) re-validate every RESTORED lost candidate (stats.lost_candidates
+     *     is non-empty at run() start ONLY when it was populated by
+     *     load_session/resume - a fresh run starts empty and discovery
+     *     fills it mid-run): re-read each record's start LBA through the
+     *     CURRENT disk and drop the records the disk no longer confirms.
+     *     Only on whole-disk-basis resumes (see the ctor note). */
+    disk_layout_.clear();
+    {
+        table::DiskTable live;
+        if (table::parse_disk_table(slice, live) == OK) {
+            disk_layout_.reserve(live.partitions.size());
+            for (const auto& p : live.partitions) {
+                session::DiskLayoutEntry e;
+                e.start_lba = p.start_lba;
+                e.sector_count = p.sector_count;
+                e.mbr_type = p.mbr_type;
+                disk_layout_.push_back(e);
+            }
+        }
+    }
+    if (!stats.persisted_layout.empty() && !disk_layout_.empty()) {
+        bool changed = stats.persisted_layout.size() != disk_layout_.size();
+        if (!changed) {
+            for (size_t i = 0; i < disk_layout_.size(); i++) {
+                const auto& a = stats.persisted_layout[i];
+                const auto& b = disk_layout_[i];
+                if (a.start_lba != b.start_lba || a.sector_count != b.sector_count ||
+                    a.mbr_type != b.mbr_type) {
+                    changed = true;
+                    break;
+                }
+            }
+        }
+        stats.layout_changed = changed;
+        stats.persisted_layout.clear();
+        stats.persisted_layout.shrink_to_fit();
+    }
+    if (resumed_whole_disk_ && !stats.lost_candidates.empty()) {
+        std::vector<lost::Candidate> confirmed;
+        confirmed.reserve(stats.lost_candidates.size());
+        stats.revalidated_candidates = stats.lost_candidates.size();
+        for (const auto& c : stats.lost_candidates) {
+            if (lost::revalidate_candidate(slice, c))
+                confirmed.push_back(c);
+            else
+                ++stats.dropped_stale_candidates;
+        }
+        stats.lost_candidates = std::move(confirmed);
+        stats.lost_partitions = stats.lost_candidates.size();
+    }
+
     {
         std::lock_guard<std::mutex> lock(tel_.m);
         tel_.snap = ScanTelemetrySnapshot{};
@@ -1159,6 +1228,18 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
             stats.lost_candidates = dr.candidates;
             stats.lost_partitions = dr.candidates.size();
             if (!dr.candidates.empty()) {
+                /* M-042: the og's per-hit persistence (PRD:20409 - the
+                 * scan loop appends every FOUND partition's record
+                 * unconditionally, so a killed scan still leaves its
+                 * finds on disk). The core's equivalent: force a full
+                 * checkpoint the moment discovery produces candidates,
+                 * ahead of any stage boundary - still gated on a
+                 * configured sink (the core has no module-local .dat
+                 * side-channel; a session-less run has nowhere to write,
+                 * the honest architecture difference registered with the
+                 * finding). */
+                if (u32 hit_rc = emit_checkpoint_())
+                    return hit_rc;
                 /* Pre-create roots and slices on THIS thread (tree + slice
                  * construction is cheap), then fan the volume scans out. */
                 struct CandWork {
@@ -1390,9 +1471,29 @@ u32 ScanController::save_session(session::Writer& w, const ScanStats& stats) con
         pc.fs_kind = u32(c.fs);
         pc.score = u32(c.score > 0 ? c.score : 0);
         pc.kind = 1;
+        /* M-042 v2: the og's per-record geometry payload + flags */
+        pc.bytes_per_sector = c.bytes_per_sector;
+        pc.sectors_per_cluster = c.sectors_per_cluster;
+        pc.hidden_sectors = c.hidden_sectors;
+        pc.flags = 0;
+        if (c.size_from_device_end)
+            pc.flags |= 0x1;
+        if (c.have_geometry)
+            pc.flags |= 0x2;
         if (session::serialize_partition_context(pc, blob) == OK)
             if (u32 rc =
                     w.add_record(session::REC_PARTITION_CONTEXT, blob.data(), u32(blob.size())))
+                return rc;
+    }
+
+    /* M-042: the whole-disk layout snapshot (the og's partinfo.dat
+     * semantics) - captured at run() start, emitted with every
+     * save/checkpoint so the next search can flag "layout changed".
+     * Empty for volume-basis views (parse_disk_table found no table) and
+     * for saves that never ran - honest emptiness, never fabricated. */
+    if (!disk_layout_.empty()) {
+        if (session::serialize_disk_layout(disk_layout_, blob) == OK)
+            if (u32 rc = w.add_record(session::REC_DISK_LAYOUT, blob.data(), u32(blob.size())))
                 return rc;
     }
 
@@ -1420,13 +1521,15 @@ u32 ScanController::save_session(session::Writer& w, const ScanStats& stats) con
     return OK;
 }
 
-u32 ScanController::load_session(session::Reader& r, tree::ResultTree& tree, ScanStats& stats) {
+u32 ScanController::load_session(session::Reader& r, tree::ResultTree& tree, ScanStats& stats,
+                                IStorageDevice* revalidate_disk) {
     session::VolumeSessionInfo info;
-    return load_session_summary(r, tree, stats, info);
+    return load_session_summary(r, tree, stats, info, revalidate_disk);
 }
 
 u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& tree,
-                                         ScanStats& stats, session::VolumeSessionInfo& info) {
+                                         ScanStats& stats, session::VolumeSessionInfo& info,
+                                         IStorageDevice* revalidate_disk) {
     u32 count = 0;
     if (u32 rc = r.open(&count))
         return rc;
@@ -1485,10 +1588,43 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
                 c.sector_count = pc.sector_count;
                 c.fs = lost::CandidateFs(u8(pc.fs_kind));
                 c.score = int(pc.score);
+                /* M-042 v2: the geometry payload rides back into the
+                 * candidate (have_geometry from flags bit 1 - v1
+                 * sessions have no geometry and stay classification-only
+                 * re-validatable). */
+                c.bytes_per_sector = pc.bytes_per_sector;
+                c.sectors_per_cluster = pc.sectors_per_cluster;
+                c.hidden_sectors = pc.hidden_sectors;
+                c.size_from_device_end = (pc.flags & 0x1) != 0;
+                c.have_geometry = (pc.flags & 0x2) != 0;
+                /* M-042: the og re-reads every persisted record at search
+                 * start and DROPS the ones the current disk no longer
+                 * confirms (PRD:20748-20842). Two execution points: here
+                 * (the device-bearing listing surfaces - revalidate_disk)
+                 * and at run() start (the resume flows - see run()); both
+                 * use the same lost::revalidate_candidate arbiter, and the
+                 * bookkeeping lands in the same stats fields. A null
+                 * revalidate_disk = a device-less listing: candidates
+                 * restore as-is (the og has no device-less surface). */
+                if (revalidate_disk != nullptr) {
+                    ++stats.revalidated_candidates;
+                    if (!lost::revalidate_candidate(revalidate_disk, c)) {
+                        ++stats.dropped_stale_candidates;
+                        break;
+                    }
+                }
                 stats.lost_candidates.push_back(c);
             }
             break;
         }
+        case session::REC_DISK_LAYOUT:
+            /* M-042: the persisted whole-disk layout (the og's partinfo
+             * snapshot). Consumed by the run-start compare that surfaces
+             * stats.layout_changed; a session saved before the record
+             * existed carries none and the flag just stays false. */
+            (void)session::deserialize_disk_layout(rec.data.data(), rec.data.size(),
+                                                   stats.persisted_layout);
+            break;
         default:
             break;
         }
@@ -1538,9 +1674,10 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
 
 u32 ScanController::resume(session::Reader& r, tree::ResultTree& tree,
                            const ScanConfig& original_cfg, ScanStats& stats,
-                           session::VolumeSessionInfo& info, std::unique_ptr<ScanController>& out) {
+                           session::VolumeSessionInfo& info, std::unique_ptr<ScanController>& out,
+                           IStorageDevice* revalidate_disk) {
     out.reset();
-    if (u32 rc = load_session_summary(r, tree, stats, info))
+    if (u32 rc = load_session_summary(r, tree, stats, info, revalidate_disk))
         return rc;
     ScanConfig cfg = original_cfg;
     if (info.stage_done_mask & STAGE_QUICK)

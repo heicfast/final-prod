@@ -326,6 +326,19 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             }
             if (sig.suppress_overlap)
                 ctx.overlap_covered.push_back({cand_abs, cand_abs + file_len});
+            /* M-021: the post-carve processing hook - the og's deferred-poll
+             * position (per finalized candidate, post-validate, pre-insertion).
+             * A feed, never a gate; unbound = raw emission (the og's
+             * DLL-absent degrade). */
+            if (ctx.flags->post_processor) {
+                CarveCandidateInfo ci;
+                ci.format_tag = sig.id;
+                ci.format_ext = sig.ext;
+                ci.offset = cand_abs;
+                ci.length = file_len;
+                ci.confidence = props->carve_confidence;
+                ctx.flags->post_processor->on_candidate(ctx.slice, ci);
+            }
             tree::FileNode* n = ctx.tree->add_file(ctx.carve_root, props);
             props->release();
             if (n == nullptr) {
@@ -568,6 +581,18 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                     props->hash_valid = true;
                     ctx.hashed.fetch_add(1, std::memory_order_relaxed);
                 }
+            }
+            /* M-021: the post-carve hook fires on the raw-sign layer's
+             * finalized candidates too (the og's block scan feeds every
+             * CRawFileInfo through the same deferred poll). */
+            if (ctx.flags->post_processor) {
+                CarveCandidateInfo ci;
+                ci.format_tag = props->carve_format;
+                ci.format_ext = fmt.ext;
+                ci.offset = start_abs;
+                ci.length = len;
+                ci.confidence = props->carve_confidence;
+                ctx.flags->post_processor->on_candidate(ctx.slice, ci);
             }
             tree::FileNode* n = ctx.tree->add_file(ctx.carve_root, props);
             props->release();

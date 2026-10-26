@@ -11065,6 +11065,59 @@ Stage Summary:
   Next: N-020/N-074 (doc-drift pairs), then N-043/N-048/N-060/N-061.
 
 ---
+Task ID: DFX20-M042 (session 20, finding 2)
+Agent: main engineer (diff-to-fix fix session 20 — DFX20)
+Task: M-042 — session-resume lost-partition re-validation missing.
+Verified against the corpus decode (s5-image-fscheck-persistence.md §D),
+classified CONFIRMED-DIVERGENCE, fixed, fail-before EXECUTED, proven.
+
+Work Log:
+- Corpus re-verified: the evidence file's §D carries the lead-verified
+  decode (per-hit append PRD:20409; resume load :20742-20744; layout
+  compare FUN_1800229c0 :20998-21039; per-record re-validation :20748-20842
+  with the {start,end,type} drop at :20820-20835; shipped-file cross-check
+  lostpart.dat/partinfo.dat). Core re-verified at HEAD: blind restore (the
+  G-23 gate only), config-gated checkpoints, thin records - all three
+  falsifiable deltas confirmed.
+- Fix, per the finding's 5-step plan:
+  (1) lost::revalidate_candidate (cr_lostpart.h/cr_candidates.cpp): the
+      SAME per-family discovery probe re-run at the record's start LBA
+      through the CURRENT disk; drop on classification mismatch,
+      start-past-disk, or persisted-BPB geometry mismatch; Unknown-family
+      kept (the og's applied-flag skip shape).
+  (2) REC_PARTITION_CONTEXT v2: append-only bps/SPC/hidden/flags
+      (bit0 = size_from_device_end, bit1 = geometry valid), length-detected
+      (25-byte v1 loads zeroed, like SessionState v2); geometry captured
+      at discovery by probe_ntfs/probe_fat/probe_exfat.
+  (3) REC_DISK_LAYOUT (type 8): live table captured at run() start, saved
+      with every save/checkpoint; resume compares -> stats.layout_changed
+      (CLI WARNING; surfaced, never enforced - the og's partinfo flag).
+  (4) Per-hit persistence: checkpoint FORCED when discovery produces
+      candidates (sink-gated; the core has no .dat side-channel - the
+      session-less residue REGISTERED, not papered over).
+  (5) The five planned tests + the arbiter-edge test, all under
+      behavior-named IDs in tests/unit/test_resume_revalidation.cpp.
+- Execution points: load_session/load_session_summary/resume gained a
+  nullable revalidate_disk (rrecov cmd_recover now opens the source disk
+  BEFORE the load; cmd_apply opens once, re-validates the listing, reuses
+  the view for plan_apply); run() start re-validates for whole-disk-basis
+  resumes (volume-basis LBAs would read the wrong base - the og has no
+  cross-basis case).
+- FAIL-BEFORE EXECUTED: both re-validation gates temporarily disabled ->
+  ResumeDropsStaleCandidateAfterRelayout RED (the finding's exact claim:
+  the stale record survives on both surfaces); restored -> green.
+- Suite 685/685 linux-gcc (RelWithDebInfo + ASan). Audit trail: Resolution
+  + FIXED/ move; RESOLVED-INDEX row; matrix session-20 rows (session
+  D12/S36 + lost-partition A30); modules/session.md +
+  modules/lost-partition.md verdicts; SUMMARY session-20 delta extended;
+  docs/crsf-format.md (PARTITION_CONTEXT v2 + DISK_LAYOUT sections); CLI
+  resume warnings (layout changed / dropped stale candidates).
+
+Stage Summary:
+- M-042 FIXED (session tally: 2 - M-033 + M-042). Next in my claimed
+  queue: M-017 (lost-partition scoring model), then M-019->landed? (check
+  inventory), M-020 (btrfs profile), M-038 (ZFS SA layout), M-021 (carve
+  video repair), M-025 (carve read model).
 Task ID: DFX16-N008 (ZIP salvage extension + ZIP64 chain + clean-archive honesty)
 Agent: main engineer (diff-to-fix session 11 — DFX16)
 Task: Verify and fix N-008's ZIP half (the M-005 half is closed in its own

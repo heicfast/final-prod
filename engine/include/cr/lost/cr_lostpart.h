@@ -63,6 +63,17 @@ struct Candidate {
                                         * device-tail FALLBACK (probe could
                                         * not read a real volume size) -
                                         * never containment evidence */
+    /* M-042 (the og's per-record geometry payload — CSearchedPartitionInfo
+     * bps/SPC/hidden, PartitionRecoveryD lostpart.dat +0x38 bps / +0x444
+     * SPC): captured by the BPB-family probes at discovery so the
+     * persisted record carries geometry evidence. have_geometry = 0 for
+     * non-BPB formats (GPT/Btrfs/ZFS/HFS+/ext/ReFS/BitLocker) — the og
+     * leaves those fields zero for them too (only the BPB families write
+     * real values). */
+    u32 bytes_per_sector = 0;
+    u32 sectors_per_cluster = 0;
+    u32 hidden_sectors = 0;
+    u8 have_geometry = 0;
 };
 
 /* The full result set of one discovery pass. */
@@ -94,6 +105,19 @@ Overlap classify_overlap(u64 start, u64 count, const std::vector<table::Partitio
  * module (cr/apply/cr_apply.h: plan_apply/execute_apply - MBR entry,
  * transactional, undoable); this materializer stays read-only by design. */
 std::unique_ptr<PartitionSlice> materialize(IStorageDevice* disk, const Candidate& c);
+
+/* M-042: resume re-validation (the og's per-record re-read-and-drop,
+ * PartitionRecoveryD PRD:20748-20842 — at search start every persisted
+ * lostpart record is re-read at its start LBA through the device and
+ * re-validated; records whose identity no longer matches the CURRENT disk
+ * are dropped before they reach the UI). Our identity = {start_lba,
+ * fs classification} (the og's is {start, end, type}; our count check
+ * rides the device size) plus the persisted BPB geometry when the record
+ * carries it. still_valid = false when the disk no longer classifies the
+ * record's start as the persisted family — the caller drops the record.
+ * The CURRENT disk is the arbiter, exactly like the og: a session resumed
+ * against any other disk gets that disk's verdict. */
+bool revalidate_candidate(IStorageDevice* disk, const Candidate& c);
 
 } // namespace lost
 } // namespace cr

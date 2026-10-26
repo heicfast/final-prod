@@ -97,15 +97,47 @@ struct SessionState {
 u32 serialize_session_state(const SessionState& st, std::vector<u8>& out);
 u32 deserialize_session_state(const u8* data, size_t len, SessionState& st);
 
-/* ---- partition context (REC_PARTITION_CONTEXT payload) ---- */
+/* ---- partition context (REC_PARTITION_CONTEXT payload) ----
+ * v1 (25 bytes): start/count/fs/score/kind. v2 (41 bytes, M-042): the
+ * og's per-record geometry payload appended — bytes_per_sector,
+ * sectors_per_cluster, hidden_sectors (the CSearchedPartitionInfo
+ * bps/SPC/hidden fields, PartitionRecoveryD lostpart.dat +0x38/+0x444)
+ * + a flags word (bit 0 = size_from_device_end, GAP-S6-6's tail-fallback
+ * marker). v1 sessions load with the extras zeroed (have-geometry =
+ * flags bit 1 unset); the resume re-validation treats zero-geometry
+ * records as unprobeable-on-geometry and falls back to the
+ * classification identity only. */
 struct PartitionContext {
     u64 start_lba = 0;
     u64 sector_count = 0;
     u32 fs_kind = 0;
     u32 score = 0; /* lost-partition score when applicable */
     u8 kind = 0;   /* 0 live, 1 lost candidate */
+    /* v2 (M-042): */
+    u32 bytes_per_sector = 0;
+    u32 sectors_per_cluster = 0;
+    u32 hidden_sectors = 0;
+    u32 flags = 0; /* bit 0 = size_from_device_end; bit 1 = geometry valid */
 };
 u32 serialize_partition_context(const PartitionContext& pc, std::vector<u8>& out);
+
+/* ---- whole-disk layout snapshot (REC_DISK_LAYOUT payload, M-042) ----
+ * The og's partinfo.dat semantics: the live partition table's entries
+ * captured at save time; on the next search the freshly enumerated
+ * layout is compared against it to flag "disk changed" (PRD:20998-21039,
+ * FUN_1800229c0). Surfaced as a summary flag, never enforced (a changed
+ * layout does not block the resume — the per-record re-validation is
+ * the drop path; this is the honest user-visible signal). Entries:
+ * u32 count + per-entry {u64 start_lba, u64 sector_count, u32 mbr_type}.
+ * OPTIONAL with the skip-unknown-types rule (sessions saved before
+ * M-042 lack it; the flag just stays false). */
+struct DiskLayoutEntry {
+    u64 start_lba = 0;
+    u64 sector_count = 0;
+    u32 mbr_type = 0;
+};
+u32 serialize_disk_layout(const std::vector<DiskLayoutEntry>& entries, std::vector<u8>& out);
+u32 deserialize_disk_layout(const u8* data, size_t len, std::vector<DiskLayoutEntry>& out);
 
 /* ---- S-023 assistant statistics (REC_ASSISTANT_STATS payload) ----
  * Fixed-layout wire form (v1): 8 u64 counters + 8 u64 category counts +
