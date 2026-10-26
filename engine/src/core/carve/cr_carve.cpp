@@ -454,10 +454,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 ci.format_ext = sig.ext;
                 ci.offset = cand_abs;
                 ci.length = file_len;
-                /* MSVC C4244: the grade is a bounded 0-100 value; clamp
-                 * the narrowing so the /W4 /WX build stays truthful */
-                ci.confidence =
-                    u16(props->carve_confidence > 0xFFFFu ? 0xFFFFu : props->carve_confidence);
+                ci.confidence = u16(props->carve_confidence); /* 0..1000: fits u16 */
                 ctx.flags->post_processor->on_candidate(ctx.slice, ci);
             }
             tree::FileNode* n = ctx.tree->add_file(ctx.carve_root, props);
@@ -596,14 +593,14 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                         Signature rsig{};
                         rsig.ext = us->ext;
                         rsig.name = us->ext;
-                        props->name =
-                            ctx.namer ? ctx.namer(rsig, len, fi) : default_namer(rsig, len, fi);
+                        props->name = ctx.namer ? ctx.namer(rsig, len, fi)
+                                                : default_namer(rsig, len, fi);
                         props->fs_kind = u32(FsKindCode::Raw);
                         props->logical_size = len;
                         props->carve_format = 0xFFFE0000u; /* M-048: the user-signature tag */
-                        props->carve_confidence = 600;     /* user-taught, no og-calibrated
-                                                            * confidence - the fixed documented
-                                                            * value (PARITY-DELTAS) */
+                        props->carve_confidence = 600; /* user-taught, no og-calibrated
+                                                         * confidence - the fixed documented
+                                                         * value (PARITY-DELTAS) */
                         props->times.modified = ctx.scan_time;
                         {
                             u8 hdr[512];
@@ -827,10 +824,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 ci.format_ext = fmt.ext;
                 ci.offset = start_abs;
                 ci.length = len;
-                /* MSVC C4244: the grade is a bounded 0-100 value; clamp
-                 * the narrowing so the /W4 /WX build stays truthful */
-                ci.confidence =
-                    u16(props->carve_confidence > 0xFFFFu ? 0xFFFFu : props->carve_confidence);
+                ci.confidence = u16(props->carve_confidence); /* 0..1000: fits u16 */
                 ctx.flags->post_processor->on_candidate(ctx.slice, ci);
             }
             tree::FileNode* n = ctx.tree->add_file(ctx.carve_root, props);

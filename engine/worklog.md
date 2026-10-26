@@ -16638,3 +16638,26 @@ Stage Summary:
   UBSan, TSan 913/913); lint zero-violation; the windows + fuzz legs carry
   precisely-diagnosed fixes for CI to verify. Tracked-open: OQ-S4-3 alone,
   its execution in flight.
+
+---
+Task ID: FINAL-MERGE-3 (the M-040 stage-b wave absorbed — the board empties)
+Agent: main engineer (the closing parity session)
+
+Work Log:
+- The newest parallel wave landed M-040's remaining stages while this lane
+  repaired CI: src/core/nvramfix (the stage-b UEFI Boot####/BootOrder
+  updater) + src/win/cr_bootfix.cpp (the stage-a win layer: the hive
+  force-unload + DASD flush tail) + tests — M-040 moved to findings/FIXED
+  (stages (a)+(b) implemented and proven; (c)/(d) registered D-90).
+- Convergent gmtime/C4244 repairs: their 0e6a642 landed first — theirs taken
+  (first-landing-wins), this lane's identical-shape fixes dropped cleanly.
+- The OQ-Z-E-FLT closure record unioned keep-both (both lanes closed it
+  convergently with the same evidence chain).
+- Post-merge verification: build green; NvramFix+BcdFix 16/16; full suite
+  872+4 env-skips linux-release.
+
+Stage Summary:
+- The findings board at this merge: SEVERE 0 · MAJOR 0 · MINOR 0 · INFO 0 ·
+  tracked-open 1 (OQ-S4-3, its Windows bench execution in flight — run
+  40289658166). Every finding file lives in findings/FIXED/ with its
+  Resolution.
