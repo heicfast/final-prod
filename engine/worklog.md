@@ -14563,3 +14563,49 @@ Work Log:
 
 Stage Summary:
 - OQ-S5-1 closed (convergent two-lane). MY CLAIMED QUEUE IS COMPLETE.
+
+---
+Task ID: DFX30-T14 (pushed-red repair: D-84 ledger row + the N-064 win-layer markers)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: The final CI sweep found main RED (2 failures). Fix every red,
+leave main green.
+
+Work Log:
+- Failure 1 (Enumerate.ScopeDeltaRegisteredWithRevisitTrigger): the
+  parallel-window D-numbering collisions left PARITY-DELTAS.md with the
+  D-84 row (the N-071 two-stack enumeration registration) LOST from the
+  ledger (the renumber note says "enumeration two-stack D-79->D-84" but
+  no D-84 row existed) plus TRIPPLICATED rows from stacked union merges
+  (D-80 password-dictionary x3, D-81 carve-validators x3). Repair: the
+  D-84 row restored verbatim from its last-good source (7ee64fb's D-79
+  text, retitled per the ledger note) + exact-header dedupe (first
+  kept). Test green.
+- Failure 2 (win_syntax_check): the stacked N-064 union merges committed
+  conflict-marker residue into two source files (the M-055 failure
+  class — invisible to the Linux build because rrecov.cpp is Windows-app
+  code only the parse gate covers):
+  - include/cr/win/cr_bitlocker.h: a bare '=======' + a duplicated
+    try_password_unlock declaration — deduped, marker removed.
+  - src/app/rrecov.cpp: (a) load_pwddict_candidates truncated mid-body
+    calling the DROPPED cr::pwddict::seed_dictionary (6afa8fc removed
+    that namespace) + the orphaned load_dict_candidates — merged into
+    ONE coherent loader (seed -> cr::dict::kDictEntries; file -> the
+    256 KiB cap + cr::dict::parse, honest-failure diagnostics);
+    (b) open_volume_view's triple-garbled signature + three interleaved
+    consent-flow copies — rewritten as the documented union design
+    (auto-unlock -> shipped dictionary [dict_consent] -> file/seed
+    candidates [pwddict_arg] -> refuse-with-guidance; the Unknown+
+    consent path tries the dictionaries BEFORE refusing; one missing
+    brace restored); (c) cmd_scan's triple-stacked pre-pass — one
+    coherent pre-pass (--bitlocker-fvek / valueless --bitlocker-dict /
+    --bitlocker-pwddict <file|seed>); (d) the triple call site — one
+    call; (e) a DUPLICATE print_carve_formats (an anonymous-namespace
+    copy stacked against N-033's global copy = ambiguous overload) —
+    the N-033 canonical copy stands.
+- Verified: win_syntax_check green file-by-file; FULL SUITE **842/842**
+  green (the fail-before is the recorded ctest run above: 840/842 with
+  the exact failures).
+
+Stage Summary:
+- Main green again (842/842). The audit-trail commits + this repair are
+  ready to push as one landing.

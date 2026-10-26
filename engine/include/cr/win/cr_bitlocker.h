@@ -83,12 +83,6 @@ u32 try_auto_unlock_offline(wchar_t letter, const wchar_t* hive_path);
  * volume, ERR_FVE_LOCKED when the whole set failed. */
 u32 try_password_unlock(wchar_t letter, const std::vector<std::string>& candidates);
 
- * CONSENT: nothing in the scan path calls this - only an explicit host
- * unlock action may (F61: legitimate unlock only, never auto-attempt on
- * scan). Returns OK or ERR_FVE_LOCKED. */
-u32 try_password_unlock(wchar_t letter, const std::vector<std::string>& candidates);
-
-=======
 /* N-064 (diff-to-fix): the password-dictionary unlock aid - the og's Dict
  * flow (228-entry shipped dictionary, config-data-reference.md :20; tried
 
