@@ -22,14 +22,31 @@ struct Site {
 };
 
 std::mutex g_mu;
-/* written under g_mu, read lock-free on the write fast path (sites are
- * immutable once published; set_sink replaces the pointer atomically and
- * leaks the old site - sinks are set once per process in practice, and a
- * use-after-free on a racing write is worse than a bounded leak on an
- * exotic swap) */
+/* The site pointer: replaced under g_mu and deleted under g_mu
+ * (N-079: the N-048 seam's original "leaked by design" stance flagged
+ * LeakSanitizer on every sink-registering test - the ASan lane was
+ * pushed red by the landing window). write_va loads the site INSIDE
+ * the mutex, so a replaced site can never be dereferenced after its
+ * deletion; the exit-time release rides a static-duration deleter. */
 std::atomic<Site*> g_site{nullptr};
 
+/* Deletes the live site at process exit (static duration: runs after
+ * main returns; any later log call sees a null site and stays silent,
+ * the default posture). */
+struct SinkReleaser {
+    ~SinkReleaser() {
+        Site* s = g_site.exchange(nullptr, std::memory_order_acq_rel);
+        delete s;
+    }
+};
+const SinkReleaser g_sink_releaser;
+
 void write_va(Level level, const char* fmt, va_list ap) {
+    /* N-079: the site is loaded INSIDE the mutex so a set_sink swap can
+     * safely delete the retired site (no reader can hold it past the
+     * lock); the seam is synchronous by contract, so the lock is the
+     * delivery serializer it already was. */
+    std::lock_guard<std::mutex> lock(g_mu);
     Site* site = g_site.load(std::memory_order_acquire);
     if (!site || !site->fn)
         return;
@@ -43,7 +60,6 @@ void write_va(Level level, const char* fmt, va_list ap) {
         n = int(sizeof(buf)) - 1; /* truncated, still NUL-terminated */
     /* serialize deliveries: the seam is synchronous (the registered
      * divergence - the og's async queue buys nothing at these volumes) */
-    std::lock_guard<std::mutex> lock(g_mu);
     site->fn(level, buf, site->user);
 }
 
@@ -56,10 +72,15 @@ void set_sink(SinkFn fn, void* user) {
         next->fn = fn;
         next->user = user;
     }
-    /* publish under the write mutex; the old site is leaked by design
-     * (see g_site's comment) */
-    std::lock_guard<std::mutex> lock(g_mu);
-    g_site.store(next, std::memory_order_release);
+    /* publish under the write mutex and retire the old site under the
+     * same mutex (N-079: write_va holds the mutex across its load+use,
+     * so the retired site is unreferenced by the time we delete it) */
+    Site* old = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(g_mu);
+        old = g_site.exchange(next, std::memory_order_acq_rel);
+    }
+    delete old;
 }
 
 bool enabled() {
