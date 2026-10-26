@@ -10,6 +10,30 @@
 
 ## OQ-Z1 — ZFS dsl_dir/dsl_dataset offset constants (ACUTE-gated)
 
+**RESOLVED (session 25, 2026-10-26) — the ACUTE gate was REAL: filed A-008
+(child_dir_zapobj read at +24 = the dd_origin_obj slot). FIXED same session.**
+
+The kernel truth (OpenZFS master dsl_dir.h, fetched verbatim this session):
+`{creation_time@0, head_dataset_obj@8, parent_obj@16, origin_obj@24,
+child_dir_zapobj@32, ...}` — the session-6 refinement's claim that the core
+was "kernel-correct on all three constants" repeated the engine comment's
+mis-transcription (it dropped dd_parent_obj). head@8 and ds_bp@128 were
+correct; **child zap was read from the origin slot**. On normal pools
+(origin=0) NO child dataset ever enumerated — every `zfs create` under the
+pool silently missing; on clones the origin was followed as a child zap
+(ghost datasets — proven in the fail-before, not inferred). The og-side
+decode (this session, ZfsSearchDLL_decompiled.c :20313-20788): dnode layer
+kernel-exact (bonus at dnode+0xC0, bonuslen u16@+0x0A); the dataset-open
+copies are capped 0x100 (= sizeof dsl_dir_phys 256B) and 0x140 (= sizeof
+dsl_dataset_phys 320B); the head-dataset hop at +8; ds_bp at +128 feeding
+FUN_180014ec0 (bp+0x37 & 0x7f = blk_prop bits 56-62 = level/crypt/dedup —
+the indirect recursion); child enumeration via FUN_1800165f0 with `$FREE`
+and `$ORIGIN` (DAT_180031550/0x180031558) skipped — kernel semantics
+verbatim. Core==og==kernel after A-008's fix (fail-before RED 3/3,
+pass-after 739/739). See findings/FIXED/A-008 for the full evidence chain.
+A real-pool integration fixture remains a good future belt (nice-to-have,
+not a finding — the header fetch + og decode are conclusive).
+
 Our constants: `head_dataset_obj@8, child_dir_zapobj@24, ds_bp@128`
 (`src/core/zfs/cr_zfs_engine.cpp:235-237`). Kernel reference:
 `dsl_dir_phys {head@8, parent@16, origin@24, child_dir_zapobj@32}` and

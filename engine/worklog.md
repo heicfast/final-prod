@@ -13618,3 +13618,47 @@ Stage Summary:
 - OQ-E1 RESOLVED (verified). Session tally: OQ-FLT-1, OQ-Z5, OQ-Z2->S-034,
   OQ-Z1, OQ-E1. Next on this lane: OQ-Z3 (multi-vdev DVA resolution) or
   OQ-Z4 (decompression census).
+Task ID: DFX25-T4a (session 25 — OQ-Z1, the ACUTE-gated tracked-open item)
+Agent: main engineer (diff-to-fix fix session 25 — DFX25)
+Task: Resolve OQ-Z1 (ZFS dsl_dir/dsl_dataset offset constants) — verify,
+classify, fix if needed, prove, record.
+
+Work Log:
+- Og decode first-hand (ZfsSearchDLL_decompiled.c :20313-20788):
+  FUN_180017690 = open-objset-by-dsl-dir. Dnode layer kernel-exact (tree
+  nodes wrap dnodes at +0x28; bonus at dnode+0xC0; bonuslen u16 @+0x0A).
+  First bonus copy capped 0x100 (= sizeof dsl_dir_phys 256B), second
+  (object-id tree-search hop = head_dataset_obj) capped 0x140 (= sizeof
+  dsl_dataset_phys 320B); FUN_180014ec0 receives second-copy+128 = ds_bp
+  (its bp+0x37 & 0x7f gate = blk_prop bits 56-62 = level/crypt/dedup —
+  the indirect recursion; spa.h layout fetched from OpenZFS master).
+  Child enumeration: FUN_180018db0 :20598 + FUN_1800165f0 :20602, entry
+  walk skipping $FREE/$ORIGIN (DAT_180031550/0x180031558), recursing
+  FUN_180017690 per child dsl-dir id — kernel child-zap semantics.
+- Kernel truth fetched verbatim (OpenZFS master dsl_dir.h, dsl_dataset.h,
+  spa.h): child_dir_zapobj@32 (origin_obj@24, parent_obj@16), ds_bp@128.
+- CLASSIFICATION of the core: CONFIRMED-DIVERGENCE (ACUTE) — the core's
+  DD_CHILD_DIR_ZAPOBJ=24 read the dd_origin_obj slot; the session-6 OQ
+  refinement's "kernel-correct on all three" claim was itself the
+  mis-transcription (engine comment dropped dd_parent_obj); the fixture
+  stamped the same wrong offset (self-confirming, suite green while real
+  pools miswalked).
+- FIX: constant 24→32 + corrected full-field-list comment
+  (cr_zfs_engine.cpp:308-320); fixture de-self-referenced (child zap
+  stamped ONLY at +32, origin@24 explicit; nested head dataset object 6
+  now resolvable via a valid bp to the shared ZPL block;
+  restamp_zpl_array extended to re-stamp object 6's bp).
+- PROOF: fail-before EXECUTED RED 3/3 on the pre-fix tree (git stash of
+  the engine change): Zfs.EndToEndWalk + Zfs.ChildDirZapReadsKernelOffset32
+  (sub dataset missing — the silent-loss mode) + Zfs.OriginObjNotTreatedAsChildZap
+  (ghost "root_dataset" dataset from the origin slot — the clone mode,
+  PROVEN). Pass-after: 16/16 Zfs, full suite 739/739 linux-release.
+- Audit trail: findings/FIXED/A-008 (filed with full evidence + Resolution);
+  OQ-Z1 marked RESOLVED in tracked-open/OQ-Z-E-FLT-session3.md (the file's
+  other OQs stay open); RESOLVED-INDEX row; matrix session-25 detail row;
+  modules/zfs.md verdict; SUMMARY session-25 delta.
+
+Stage Summary:
+- OQ-Z1 RESOLVED; A-008 (ACUTE NEW-FINDING) filed and FIXED with executed
+  fail-before. Suite 739/739. Next OQ on the lane: OQ-S6-1
+  (PartitionRecoveryD generator-set semantics).

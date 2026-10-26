@@ -312,11 +312,18 @@ struct SaRegistry {
     bool has_layout(u64 n) const { return layouts.count(n) != 0; }
 };
 
-/* ---- dsl_dir / dsl_dataset bonus (OpenZFS include/sys/dsl_dir.h:
- * dsl_dir_phys_s {creation_time@0, head_dataset_obj@8, origin_obj@16,
- * child_dir_zapobj@24, ...}; dsl_dataset.h: ds_bp@128) ---- */
+/* ---- dsl_dir / dsl_dataset bonus (OpenZFS include/sys/dsl_dir.h,
+ * dsl_dir_phys_s: creation_time@0, head_dataset_obj@8, parent_obj@16,
+ * origin_obj@24, child_dir_zapobj@32, used_bytes@40, ... props_zapobj@80,
+ * deleg_zapobj@88, flags@96, used_breakdown@104, clones@144, pad->256B;
+ * dsl_dataset.h: ds_dir_obj@0, prev_snap_obj@8, prev_snap_txg@16,
+ * next_snap_obj@24, snapnames_zapobj@32, ..., flags@120, ds_bp@128,
+ * pad->320B. A-008: the @24 child-zap misread (origin_obj slot) corrected
+ * to the kernel's @32 — verified against OpenZFS master dsl_dir.h and the
+ * og's ZfsSearchDLL decode (256B dsl_dir bonus copy; head-dataset hop at +8;
+ * child-zap enumeration skipping $FREE/$ORIGIN entries).) ---- */
 constexpr u32 DD_HEAD_DATASET_OBJ = 8;
-constexpr u32 DD_CHILD_DIR_ZAPOBJ = 24;
+constexpr u32 DD_CHILD_DIR_ZAPOBJ = 32;
 constexpr u32 DS_BP = 128;
 
 /* ---- ZAP (OpenZFS zap_impl.h / zap_leaf.h) ---- */

@@ -380,3 +380,10 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | session | D12/S36/P34/P35 | **M-042 FIXED (DFX20)** - resume re-validation landed: lost::revalidate_candidate at load (revalidate_disk) AND run() start (whole-disk-basis resumes); stale records DROPPED (PRD:20748-20842 semantics). REC_PARTITION_CONTEXT v2 append-only (bps/SPC/hidden/flags - the og's CSearchedPartitionInfo payload); REC_DISK_LAYOUT type 8 (partinfo equivalent - layout_changed surfaced at resume, never enforced); per-hit checkpoint forced when discovery produces candidates (sink-gated). Executed fail-before; 6 tests; suite 685/685. |
 | lost-partition | A30/B1/S35 | **M-042 FIXED (DFX20)** - the discovery probes capture per-record geometry (probe_ntfs/probe_fat/probe_exfat fill bps/SPC/hidden); revalidate_candidate re-runs the SAME per-family probe for resume truth. |
 | cli | C24/grammar | **M-033** — `scan --volume X: --bitlocker-fvek <hex>` (64/128 hex chars, pre-pass so option order is free); locked refusal message now points at the new path. |
+
+## Session-25 detail rows (2026-10-26 — DFX25, the INFO+tracked-open lane)
+
+| Module | Parameter(s) | Verdict change |
+|---|---|---|
+| zfs | B1/B8 (dataset hierarchy constants) | **OQ-Z1 RESOLVED → A-008 (ACUTE, NEW-FINDING) FIXED** — child_dir_zapobj was read from dsl_dir bonus+24 (the dd_origin_obj slot; kernel +32 per OpenZFS master dsl_dir.h fetched verbatim + the og's own decode: 256B dsl_dir copy / 320B dsl_dataset copy, head hop @+8, ds_bp@+128, child zap walk skipping $FREE/$ORIGIN). Normal pools: NO child dataset ever enumerated (every zfs create silently missing); clones: origin followed as a child zap (ghost datasets — proven in the executed fail-before). Fail-before RED 3/3 (EndToEndWalk, ChildDirZapReadsKernelOffset32, OriginObjNotTreatedAsChildZap); pass-after 16/16 Zfs; suite 739/739. Fixture de-self-referenced (kernel layout). findings/FIXED/A-008. |
+| (info tier) | all | **22/22 acknowledged INFORMATIONAL findings moved INFORMATIONAL/ → FIXED/** (resolutions verified on `716d121`, pins green; two first-hand spot-checks re-executed). No verdict changes — `ack` cells now denote filed-in-FIXED. |
