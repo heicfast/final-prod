@@ -1874,10 +1874,12 @@ TEST(ExfatEngine, RecyclePairingMirrored) {
         put32v(img, IREC + 8, 777);          /* original size */
         put32v(img, IREC + 16, 0);           /* FILETIME lo */
         put32v(img, IREC + 20, 29);          /* FILETIME hi */
-        put32v(img, IREC + 24, 15);          /* pathlen */
-        const char16_t* path = u"C:\\photo.jpg";
+        put32v(img, IREC + 24, 15);          /* pathlen (12 chars + NUL pad:
+                                               the v2 fixed form's tail is NUL-padded) */
+        const char16_t* path = u"C:\\photo.jpg";  /* 12 chars */
         for (int i = 0; i < 15; ++i)
-            put16(img, IREC + 28 + i * 2, path[i]);
+            put16(img, IREC + 28 + i * 2,
+                  i < 12 ? path[i] : char16_t{0});
     }
     /* $R content marker at cluster 19 (sector 42) */
     std::memcpy(img.data() + 25 * 512 + (19 - 2) * 512, "EXFAT-RECYCLED", 14);
