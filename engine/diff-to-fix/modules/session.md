@@ -114,7 +114,7 @@ Core (audited `67193b6`): `src/core/session/` (721 LOC) + `include/cr/session/` 
 - **N-058 (MINOR, NEW):** load validation deltas (forward parent re-parent, bad-marker
   light-node, short-count OK, u16 name-length wrap) vs the og's per-node checks; the
   core's CRC32/F10/bomb-caps registered as a superset (I-022).
-- **N-059 (MINOR, NEW):** btrfs secondary ids A/B + generation/transid qword and zfs
+- **N-059 FIXED (s31 — DFX31):** the per-FS secondary payload now round-trips — FileProperties carriers (btrfs_id_a = the owning subvol root id, btrfs_generation = the inode item's qword, zfs_secondary_flags = ZPL_FLAGS low u16, hfs_secondary_flags = the catalog flags, hfs_type_id = the Finder type; og semantics census-level, id_b never invented) + the nflags bit-6 fixed 24-byte append-only block; engines emit at every site. 3 round-trip tests, fail-before executed. (was: btrfs secondary ids A/B + generation/transid qword and zfs
   secondary flags unpersisted; ZfsDataRunlist flattening is a functional match.
 - **N-060 (MINOR, NEW):** save_session has no progress/cancel contract (og 40%→65%
   per-node + per-child IsCancelled).

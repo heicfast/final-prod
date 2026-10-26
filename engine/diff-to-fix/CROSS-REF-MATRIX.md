@@ -29,7 +29,10 @@ cr_ui_unlock_volume_with_dictionary additive ABI export. F61 consent gate
 structural; health/bitlocker F61/B1 cells -> MATCH. **N-071** FIXED —
 the two-stack disk enumeration (cfgmgr32 disk-interface pass merged into
 the numbered loop; residual stacks registered as D-79); storage B8/P42/A54
--> MATCH-with-D-79.
+-> MATCH-with-D-79. **N-059** FIXED — the per-FS session extras
+(Btrfs/ZFS/HFS+ secondary payload carriers + engine emission + the
+nflags bit-6 append-only block); session D11/D12 cells -> MATCH; the
+N-019/M-020 convergence break repaired in the same landing.
 
 **Session-25 changes (2026-10-26, DFX25 — INFO tier closed into FIXED/, tracked-open resolution wave):**
 the 22 acknowledged INFORMATIONAL findings (I-001..I-024) moved from
@@ -255,7 +258,7 @@ F safety · Q quality (definitions in `PARAMETERS.md`).
 | session | B10/D12 | **N-029 FIXED s17** (N-016a: maximal-subpart policy, DFX12 lane; N-016b: raw name bytes persisted [nflags bit 32] + og-parity restore naming from raw; findings/FIXED/) |
 | health | F61/B1 | **S-014** (BitLocker auto-unlock: wrong live registry path, offline-hive path absent, unassociated enumeration — F61 was never scored before) |
 | orchestrator | O38/P42/R56 | **A-004 — FIXED (session 3)** (ErrorRange fired through the config sink while the guard checked the live sink — delivered via the live sink now) + **S-016 — FIXED (session 3)** (snapshot error map was fed only AFTER the boundary emitters — the ErrorRange stream never fired; tel_counts_ now feeds it before every emit) |
-| orchestrator/wide | B1/D16 | **M-018** (FilterFolder junk-filter family absent and unregistered) — adjacent minors **N-016 + N-017 FIXED (minors session 2026-10-26)** (teardown double-emit removed, count pinned; CancelPoolWatcher factored + wired at the candidate fan-out — D-54) |
+| orchestrator/wide | B1/D16 | ~~M-018~~ **FIXED (s33)** — the FilterFolder pass: generated data (byte-exact corpus ini via scripts/gen_filterfolder.py, the file's `._.DS_Store`/`新建資料夾` over the finding's typos), NODE_FLAG_JUNK_FILTERED at post-walk pre-grading, query/CLI-tree/recover-all gates, junk_filtered stat, D-82 policy register — adjacent minors **N-016 + N-017 FIXED (minors session 2026-10-26)** (teardown double-emit removed, count pinned; CancelPoolWatcher factored + wired at the candidate fan-out — D-54) |
 | visualization | (S-009 remainder) | disk-map: engine bitmaps unwired (`kCellAllocFree` unreachable), no CRSF record, snapshot path no error map, 2 acceptance tests missing, §7 doc drift |
 | cross-cutting | Q68 (corpus docs) | **I-011** (8 corpus artifact claims corrected against the decompile; see CORPUS-ERRATA.md addendum) |
 | cross-cutting | Q68/Q46 | **I-010** (scope exclusions + supersets registered: cloud/NAS/repair/WinPE/installer/licensing/i18n; ZFS label-field superset; ext4 primary-SB-only = og parity) |

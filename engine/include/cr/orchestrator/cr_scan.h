@@ -292,6 +292,11 @@ struct ScanStats {
     /* N-031: all-zero 512-byte strides whose raw-sign probe was skipped
      * (the og's zero-sector fast-skip analog; diagnostics/telemetry). */
     u64 carve_zero_strides = 0;
+    /* M-018: nodes the FilterFolder pass flagged (the og's
+     * PushFolderFilter hidden set - OS droppings, metadata noise,
+     * localized "New Folder" names, SVI, BitLocker artifacts). */
+    u64 junk_filtered = 0;
+
     /* M-035: lost candidates the engine-side content-consistency scorer
      * rejected (the og's exFAT-only FUN_180025390 rule - majority
      * checkable + match ratio < 0.3 + at least one checkable file, or a

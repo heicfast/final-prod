@@ -521,6 +521,21 @@ TEST(Btrfs, TwoSubvolumesRootSeparately) {
     };
     walk(ra, "");
 
+    /* M-020 convergence: the default subvolume (root 5 - the fallback,
+     * no DIR_ITEM in this fixture) renders its children AT THE VOLUME
+     * ROOT (the og's FUN_1800061f0 pick); the non-default subvol keeps
+     * its container. Each file still under its OWN root - no
+     * cross-subvol leakage either direction. */
+    EXPECT_TRUE(paths.count("hello.txt"));
+    EXPECT_TRUE(paths.count("sub"));
+    EXPECT_TRUE(paths.count("sub/nested.bin"));
+    EXPECT_TRUE(paths.count("subvol-256/second.txt"));
+    EXPECT_FALSE(paths.count("subvol-5")) << "the default never gets a container";
+    /* no cross-subvol leakage */
+    EXPECT_FALSE(paths.count("subvol-5/second.txt"));
+    EXPECT_FALSE(paths.count("subvol-256/hello.txt"));
+    EXPECT_FALSE(paths.count("subvol-256/second.txt/hello.txt"));
+
     /* each file under its OWN root. M-020 semantics (landed after this
      * test was drafted - re-verified): subvol 5 IS the default subvolume,
      * so its children render DIRECTLY at the volume root (the og's
@@ -564,6 +579,22 @@ TEST(Btrfs, TwoSubvolumesRootSeparately) {
     EXPECT_FALSE(paths.count("second.txt")) << "second.txt never leaks to the root";
 
     EXPECT_FALSE(paths.count("subvol-5/hello.txt"));
+    /* each file under its OWN root. M-020 (corpus FUN_1800061f0
+     * :3975-4060, root-5 fallback): the DEFAULT subvolume (5, absent a
+     * "default" DIR_ITEM) renders its children DIRECTLY at the volume
+     * root - no subvol-5 container; every other subvolume keeps its
+     * container. The pre-M-020 expectations (subvol-5/-prefixed paths) encoded
+     * the old shape and were corrected when the parallel lanes' M-020
+     * landed after this test's first landing. */
+    EXPECT_TRUE(paths.count("hello.txt"));
+    EXPECT_TRUE(paths.count("sub/nested.bin"));
+    EXPECT_TRUE(paths.count("subvol-256/second.txt"));
+    /* no cross-subvol leakage: subvol-256's file never renders at the
+     * root, the default's files never render inside subvol-256 */
+    EXPECT_FALSE(paths.count("subvol-5/hello.txt"));
+    EXPECT_FALSE(paths.count("subvol-5/second.txt"));
+    EXPECT_FALSE(paths.count("subvol-256/hello.txt"));
+    EXPECT_FALSE(paths.count("second.txt"));
 
     /* the second subvol's file: size + extent + content at its own data */
     tree::FileNode* second = nullptr;

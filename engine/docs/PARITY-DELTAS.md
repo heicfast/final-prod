@@ -2833,6 +2833,26 @@ ABI-CONTRACT §5a) rather than a parallel ABI interface. Pinned by
 
 ### D-78 — the password-dictionary unlock aid: authored seed + format-compatible loader, the og's Dict asset not copied (N-064, REGISTERED DIVERGENCE)
 =======
+### D-82 — the FilterFolder junk-filter policy: applied at emission, sessions re-derive on resume; comparator mode undecoded (M-018, REGISTERED POLICY)
+
+The og pushes FilterFolder.ini's hidden sets per scan-partition at scan
+setup (PushFolderFilter) and its presentation hides OS droppings,
+metadata noise, localized "New Folder" names, System Volume Information
+and BitLocker recovery artifacts. The corpus does NOT decode: (a) the
+comparator (case mode; exact vs prefix — whether "$UsnJrnl:$J" matches
+the "$UsnJrnl" entry), or (b) whether recover-all also skips the hidden
+set (the artifact scopes the filter to "hide ... from results").
+
+The core's registered choices: (1) matching is exact u16 equality with
+ASCII-case-fold (the only sane Windows-name semantics — DESKTOP.INI is
+desktop.ini; the fold is a no-op for the CJK entries); (2) the filter
+applies at EMISSION — query rows, CLI tree and recover-all planning all
+skip flagged nodes, so sessions, reports and recovery agree (the finding's
+own open-question recommendation); (3) sessions do not persist the flag —
+the pass re-runs idempotently on resume (names are stable); (4) children
+of a filtered node are NOT filtered (the og hides entries, not their
+contents). Junk counts surface as ScanStats.junk_filtered.
+
 ### D-80 — carve registry consumption: direct compile-time read, no per-scan cross-DLL re-clone (N-033, REGISTERED DIVERGENCE — structural, content-identical)
 
 The og's FS SearchDLLs import RAWSearchDLL.dll at runtime and clone its
@@ -2894,6 +2914,17 @@ cfgmgr32 pair (`CM_Get_Device_Interface_List_SizeW`/
 `CM_Get_Device_Interface_ListW`) is Win2000-era — the Win7-inclusive
 import gate holds (cfgmgr32 added to the strict allowlist with the
 function pair).
+
+**RISK:** a device reachable ONLY through VDS/Storage-Spaces stacks and
+absent from both the PhysicalDrive namespace AND the disk-interface
+list would be missed — no such device class is documented in the corpus
+(the QA host's own Storage-Spaces census ran WITHOUT producing an
+
+> Grafted back (DFX24 union repair, 2026-10-26): the DFX30-T4 delta-ledger
+> renumbering renamed this row D-79 -> D-84 in the ledger comment but the row
+> itself was dropped in the union; restored verbatim from the canonical N-071
+> landing 7ee64fb with the renumbered id (test
+> Enumerate.ScopeDeltaRegisteredWithRevisitTrigger stays red without it).
 
 ### D-85 — device enumeration scope: the PhysicalDrive namespace is the engine's device truth; no WMI/SetupAPI/VDS/StorageSpaces/FunctionDiscovery fan-in (N-071, REGISTERED DIVERGENCE — scope)
 
