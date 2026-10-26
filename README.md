@@ -10,7 +10,7 @@ the shared boundary contracts (`contracts/`), and the combined installer
 Merged with full history from:
 | Component | Source repository | Merged commit |
 |---|---|---|
-| engine/ | heicfast/core_recovery (main) | a574ecf6cc06a374e1ee0f893e574efef4904639 |
+| engine/ | heicfast/core_recovery (main) | 5ddccd8912b81d971970f84adf53674d6c6be55d |
 | ui/ | heicfast/recovery-wizard-ui-new (v3) | f4a8f8aebab625e9048d833cd9c3501741d7c436 |
 | driver/ | heicfast/rda-driver (main) | da7efb9e0c94046893c62b25695bb95edf519f8b |
 
