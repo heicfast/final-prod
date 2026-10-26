@@ -169,6 +169,17 @@ Section "${PRODUCT_NAME} (required)" SEC_APP
   InitPluginsDir
   File "/oname=$PLUGINSDIR\app-setup.exe" "${APP_BUNDLE}"
 
+  ; Seed the inner installer's install-location registry: Tauri's
+  ; RestorePreviousInstallLocation reads the DEFAULT value of
+  ; SHCTX\Software\<manufacturer>\<productName> (our identifier
+  ; com.heicfast.recoverywizard -> manufacturer 'heicfast'). On the
+  ; fresh-machine SILENT flow the /D= pin is not honored (validation
+  ; rounds 8-9: the app landed in the inner's own default) — with the
+  ; seed, the inner's placeholder-dir path adopts OUR dir. The key is
+  ; OWNED by the inner (it records and deletes it in its own uninstaller),
+  ; so seeding leaks nothing.
+  WriteRegStr SHCTX "Software\heicfast\Recovery Wizard" "" "$INSTDIR"
+
   ${If} $MultiUser.InstallMode == "AllUsers"
     ExecWait '"$PLUGINSDIR\app-setup.exe" /S /allusers /D=$INSTDIR' $0
   ${Else}
@@ -179,7 +190,20 @@ Section "${PRODUCT_NAME} (required)" SEC_APP
     !insertmacro AbortWithReason "Application setup failed (exit code $1). The inner Tauri bundle is at $PLUGINSDIR\app-setup.exe."
   ${EndIf}
 
-  ; Integrity: the inner installer must have produced the app + its uninstaller
+  ; Integrity + ADOPTION: $INSTDIR becomes WHERE THE PRODUCT IS. The seed
+  ; above steers the inner to our dir; if a template change ever makes it
+  ; land elsewhere anyway, probe the inner's own defaults and adopt the
+  ; real location — the engine kit, driver stage, and registry keys then
+  ; record the truth instead of a fiction.
+  ${IfNot} ${FileExists} "$INSTDIR\${APP_EXE}"
+    ${If} ${FileExists} "$PROGRAMFILES64\${PRODUCT_NAME}\${APP_EXE}"
+      StrCpy $INSTDIR "$PROGRAMFILES64\${PRODUCT_NAME}"
+      DetailPrint "Adopted the inner install location: $INSTDIR (its per-machine default)"
+    ${ElseIf} ${FileExists} "$LOCALAPPDATA\${PRODUCT_NAME}\${APP_EXE}"
+      StrCpy $INSTDIR "$LOCALAPPDATA\${PRODUCT_NAME}"
+      DetailPrint "Adopted the inner install location: $INSTDIR (its per-user default)"
+    ${EndIf}
+  ${EndIf}
   ${IfNot} ${FileExists} "$INSTDIR\${APP_EXE}"
   ${AndIfNot} ${FileExists} "$INSTDIR\uninstall.exe"
     !insertmacro AbortWithReason "Application setup did not produce the expected files in $INSTDIR (missing ${APP_EXE} / uninstall.exe)."

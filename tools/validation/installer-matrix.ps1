@@ -166,6 +166,16 @@ if ($install.exitCode -ne 0) {
     throw "installer exited $($install.exitCode): $($abortReason.Trim())"
 }
 
+# The installer's registry InstallDir is the SOURCE OF TRUTH for the
+# location: the .nsi records the ADOPTED dir when the inner setup lands
+# elsewhere (the /D= bypass), so resolve from the registry — the expected
+# default above only serves the baseline probe.
+$regInstallDir = Get-RegSnapshot -Path $SwKey
+if ($regInstallDir -and $regInstallDir.InstallDir) {
+    $InstallDir = $regInstallDir.InstallDir
+    Write-Host "[matrix] install dir (registry): $InstallDir"
+}
+
 $appExe = Join-Path $InstallDir $AppExeName
 $crUi = Join-Path $InstallDir 'cr_ui.dll'
 $installed = [ordered]@{
