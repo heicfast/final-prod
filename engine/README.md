@@ -135,7 +135,8 @@ docs/testing.md).
 | Document | Content |
 |---|---|
 | [docs/API.md](docs/API.md) | API reference — CLI, cr_ui ABI, C++ core, events, error model |
-| [docs/CONNECTION-GUIDE.md](docs/CONNECTION-GUIDE.md) | binding, lifecycle, devices, BitLocker, threading, consent |
+| [docs/CONNECTION-GUIDE.md](docs/CONNECTION-GUIDE.md) | binding, lifecycle, devices, BitLocker, threading, consent, known hosts |
+| [docs/DRIVER-UTILIZATION.md](docs/DRIVER-UTILIZATION.md) | the driver contract per interaction + release pinning |
 | [docs/FORMATS.md](docs/FORMATS.md) | formats guide — engines, carving, sessions, images, report |
 | [docs/PARAMETERS.md](docs/PARAMETERS.md) | every tunable with defaults and bounds |
 | [docs/CAPABILITY-MATRIX.md](docs/CAPABILITY-MATRIX.md) | per-capability status vs the reference |
@@ -145,6 +146,8 @@ docs/testing.md).
 | [docs/testing.md](docs/testing.md) · [docs/build.md](docs/build.md) | test philosophy · build details |
 | [diff-to-fix/README.md](diff-to-fix/README.md) | the parity audit trail (findings → fixes → proofs) |
 | [worklog.md](worklog.md) | the chronological engineering log |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | build lanes, test/gate inventory, commit style, the zero-behavior-change discipline |
+| [SECURITY.md](SECURITY.md) | BitLocker legitimate-unlock-only policy, consent model, transport boundary |
 
 ## License
 

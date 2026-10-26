@@ -236,3 +236,18 @@ The boot-config artifact (first-cited this session) sharpens this finding's WinP
 ## Resolution clarification (review session — evidence-wording truth)
 
 The Resolution's sentence "Transport.WinPEDirectFirst / Transport.OfflineTerminalStepInRepairChain / Abi.TransportErrorSurfaced are the Windows CI surface this fix wires" overstates: those named Windows-lane behavioral tests are NOT in the tree (they are the declared next Windows-CI addition; the executed proof is the Linux-lane corpus pins + the win-layer parse gate + the ABI exercise of cr_ui_last_transport_error). Recorded here so future audits do not read the sentence as an executed claim. The stale-handle ladder (item b) is verified present in-source regardless (cr_transport.cpp ERROR_INVALID_HANDLE close/reopen/retry at :209/:257/:324/:644).
+
+
+## Resolution measurement addendum (2026-10-26 — the chunking divergence now carries measured numbers)
+
+OQ-S4-3's transport-chunking half executed on the Windows lane (alignbench
+run `40315255368`, push, tree `095aab5`, image win22, target `\\.\C:`, span
+512 MiB, qd 1, RDA service RUNNING). The registered deliberate improvement
+(64 KiB direct-I/O envelope over the og's 4/7 MiB buffered-synchronous
+chunks) is now a number, not an argument: og 4 MiB = 197.32 MiB/s vs core
+64 KiB envelope = 203.98 MiB/s (core +3.4%); og 7 MiB = 196.15 vs core
+203.98 (core +4.0%); core 256 KiB cache block = 241.64 MiB/s (core +22.5%
+vs og 4 MiB). CPU is comparable (593.8 ms core 64 KiB vs 609.4/515.6 ms og
+over the same 512 MiB span). Full table transcribed in
+`diff-to-fix/tracked-open/OQ-S4-3-chunking-relative-perf.md` (closing
+addendum); the scan-level time-to-first-result half stays with OQ-S4-3.

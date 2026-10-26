@@ -78,6 +78,57 @@ M-041/N-064 files). **The findings board is EMPTY and now
 independently reviewed.**
 
 
+## Session-38 delta (2026-10-26 — v0.4.1-parity lane: the clang fuzz-lane warning backlog zeroed + the OQ-S4-3 transport measurement transcribed; docs truth pass)
+
+**The zero-warning lane** (commit `095aab5`, on top of the v0.4.0-parity
+tag commit `394a102`): the clang fuzz lane's entire 48-warning backlog
+from the live job log (`-Wunused-const-variable` x44 on wire-format
+constants in the zfs/hfsplus/btrfs/ext4/refs engines — now
+`[[maybe_unused]]`, the constants stay as documentation;
+`-Wmissing-field-initializers` x1, the refs Walker, trailing members now
+written at their existing effective values, construction provably
+byte-identical; `-Wtautological-constant-out-of-range-compare` x1, the
+u32 RIFF-size > 4 GiB ceiling in validate_avi — structurally unreachable
+on a u32, dead branch dropped with the contract recorded;
+`-Wunused-but-set-variable` x1, btrfs subvol_index dead store;
+`-Wunused-function` x1, cr_fscheck's caller-less rd64) plus the fuzz
+Makefile now carries `-Werror` — every CI lane enforces the same
+zero-warning gate (gcc/MSVC already did). The S-023 merge-storm duplicate
+of the analysis-adoption block in cr_ui.cpp deleted (the live twin sets
+`have_analysis` first; the second guard could never fire). Verified
+locally: full linux-gcc ASan lane builds clean, **926/926**, incl.
+win_syntax_check + cr_ui_abi_check. CI on `095aab5`: all six lanes green
+(windows, linux, tsan, ubsan, lint, fuzz-with--Werror); API-Benchmark
+green. The api-benchmark rda-driver pin moved v0.2.1 -> v0.2.2
+(DRIVER-UTILIZATION pinning addendum).
+
+**OQ-S4-3: the transport-chunking half is now a recorded measurement**
+(alignbench run `40315255368` on `095aab5`, win22, `\\.\C:`, 512 MiB,
+qd 1, RDA service RUNNING): og 4 MiB = 197.32 MiB/s vs core 64 KiB
+envelope = 203.98 (og trails 3.4%); og 7 MiB = 196.15 vs core 203.98
+(og trails 4.0%); core 256 KiB = 241.64 (og trails ~19%); CPU comparable
+(593.8 vs 609.4/515.6 ms). Verdict transcribed in the OQ file's closing
+addendum + M-030's Resolution measurement addendum. **Remaining open:
+only the scan-level time-to-first-result half** (comparative-bench
+dispatch; no engineering prerequisite). M-030's registered deliberate
+improvement now carries evidence-grade numbers.
+
+**The v0.4.1-parity docs truth pass:** CONTRIBUTING.md (build lanes,
+local test runs, gate inventory, commit style) and SECURITY.md (the
+BitLocker legitimate-unlock-only policy, no FVEK extraction, RawFixer
+consent, Win7 floor, the driver-side SDDL boundary) created;
+CONNECTION-GUIDE §8 (known host projects — the UI consumes nothing yet,
+contracts kept in lockstep); DRIVER-UTILIZATION release-pinning
+addendum; testing.md's 926 already matches the measured ctest count
+(RELEASE-NOTES' older 924 described the pre-wave tree; v0.4.1-parity
+notes state 926/926 measured).
+
+**Live counts after this session:** ACUTE 0 · SEVERE 0 · MAJOR 0 ·
+MINOR 0 · INFO 0 open · tracked-open 1 (OQ-S4-3 — **transport half
+CLOSED by measurement**; scan-level TTFR half only) · FIXED/ 226
+files. **The findings board remains EMPTY.**
+
+
 
 ## Session-37 delta (2026-10-26 — DFX37: M-040 stages (b) + the win layer FIXED; the SEVERE/MINOR tiers closed by the convergent lanes; the ASan pushed-reds repaired)
 
