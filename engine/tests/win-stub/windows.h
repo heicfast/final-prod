@@ -398,7 +398,7 @@ inline ULONG RtlNtStatusToDosError(long) {
 
 /* ---- MSVC CRT surface (parse-gate only) ------------------------------- */
 typedef int errno_t;
-#define __int64 long long /* MSVC builtin 64-bit type; width-faithful */
+typedef long long __int64; /* MSVC builtin type; width-faithful, cast-capable */
 inline errno_t _wfopen_s(FILE**, const wchar_t*, const wchar_t*) {
     return 0;
 }

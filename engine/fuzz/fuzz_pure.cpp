@@ -101,10 +101,15 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     }
     case 6: {
         /* NTFS attributes: enum over a record-sized buffer with
-         * parameters from the head bytes */
+         * parameters from the head bytes. The record base is buf+4, so
+         * the guard must cover record_size PLUS the 4-byte offset - the
+         * smoke campaign's ASan heap-buffer-overflow (u16_from_bytes_le
+         * at the record tail) was this harness off-by-4, not a product
+         * defect: enum_attributes is bounds-guarded against its own
+         * record_size. */
         if (len >= 32) {
             const uint32_t record_size = 512u << (buf[0] % 4);
-            if (size_t(record_size) <= len) {
+            if (size_t(record_size) + 4 <= len) {
                 std::vector<cr::ntfs::AttrView> attrs;
                 (void)cr::ntfs::enum_attributes(buf + 4, record_size, attrs);
             }

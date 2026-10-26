@@ -58,11 +58,14 @@ for f in "$SRC_DIR"/src/win/*.cpp; do
     fi
 done
 
-# The app layer (src/app/*.cpp) is Windows-only for the same reason the
-# win layer is (wmain, _wfopen_s, the cr::win surface); N-009c's fix
-# edits it, so the parse gate now covers it too (an app-layer structural
-# break was exactly the M-055 failure class, one directory over).
-for f in "$SRC_DIR"/src/app/*.cpp; do
+# The app layer (src/app/*.cpp) and the UI shim (src/ui/*.cpp) are
+# Windows-only for the same reason the win layer is (wmain, _wfopen_s,
+# the cr::win surface, the SDK-heavy _WIN32 blocks); the gate covers
+# them too (structural breaks in Windows-only directories were exactly
+# the M-055 failure class, one directory over - the cr_ui ENUMERATE_
+# DISK_BOUND/psapi/share breakage of the M-030/S-008/N-062 window was
+# the same class, invisible until the MSVC lane ran).
+for f in "$SRC_DIR"/src/app/*.cpp "$SRC_DIR"/src/ui/*.cpp; do
     name=$(basename "$f")
     if ! out=$("$CXX" $CXXFLAGS "$f" 2>&1); then
         echo "win_syntax_check: FAIL: app/$name does not parse" >&2

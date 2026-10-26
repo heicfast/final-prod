@@ -45,6 +45,7 @@
 #include "cr/win/cr_enumerate.h"
 #include "cr/win/cr_health.h"
 #include "cr/win/cr_transport.h"
+#include "cr/win/cr_winenv.h" /* M-030: ENUMERATE_DISK_BOUND (the 200-disk grammar bound) */
 #include "cr/storage/cr_decrypt_device.h" /* M-033: in-stack XTS wrapper */
 #include <windows.h>
 #include <psapi.h> /* N-062: PROCESS_MEMORY_COUNTERS/GetProcessMemoryInfo */
