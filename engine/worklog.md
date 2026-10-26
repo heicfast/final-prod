@@ -13602,6 +13602,46 @@ Stage Summary:
   landed M-014/M-049 in the same window). Next: pull, then M-025 (carve
   read model) or whatever remains open.
 
+
+---
+Task ID: DFX33-T2 (session 33, second fix)
+Agent: main engineer (diff-to-fix fix session 33 — DFX33)
+Task: M-025 — the carve read model (8 MiB ping-pong / already-in-buffer
+vs 1 MiB windows with per-candidate device re-reads).
+
+Work Log:
+- Corpus re-verified at the cited lines (:9269-9275, :9184-9209, :9434-
+  9438, :9496-9510, :9620-9622, :9541-9605, :10114-10144). CONFIRMED as
+  structural cost (the finding's own framing: no og-execution possible
+  here; the divergence is decoded structure, not a measured X47 delta).
+- Implemented fix-plan 2a+2b as the WindowDevice read context: in-window
+  reads served from the window buffer; straddling reads split
+  buffer-prefix + device-tail. Wired: validators, both checksum sites,
+  both hash sites, the raw-sign tail scans. M-021 hook keeps the raw
+  slice (host contract).
+- MEASURED (fix-plan item 1): the counting-device fixture — 52 device
+  reads pre-fix → 4 post-fix (13x; zero per-candidate re-reads).
+  Fix-plan item 3 (geometry) NOT taken — the finding's own bench-evidence
+  rule; Windows bench lane owns executed X47 (M-009 posture). Item 4
+  registered as PARITY-DELTAS D-81.
+- Debug path: traced the 1 MiB probe/window interaction first-hand (the
+  entropy/MP3 block reads can never fit a 1 MiB window; the PNG validator
+  is the clean in-window fixture), all instrumentation removed before
+  commit.
+- Tests: CarveEngine.WindowServingEliminatesPerCandidateRereads (RED on
+  the pre-fix wiring: 52 vs 4) + WindowServingServesStraddlingReadsCorrectly
+  (boundary plant: exact extent 521/length/checksum — caught my own
+  fixture-arithmetic slip: plant_jpeg is 521 B, not 519). Carve suite
+  46/46; full suite 799/799 linux-release.
+- Audit trail: Resolution + FIXED/ move; matrix carve row MATCH;
+  modules/carve.md session-33 verdict; SUMMARY part-2 delta;
+  PARITY-DELTAS D-81.
+
+Stage Summary:
+- M-025 FIXED (tally: 2 — M-020, M-025). MAJOR 10 open. Next: pull, then
+  M-029 (query model) or whatever remains open.
+
+
 Task ID: DFX30-T4 (OQ-Z1 resolved — no divergence)
 Agent: main engineer (diff-to-fix fix session 30 — DFX30)
 Task: OQ-Z1 — og dsl_dir/dsl_dataset offset constants (documentation
@@ -13986,6 +14026,45 @@ Stage Summary:
   geometry + checksum-verify depth), then OQ-S6-3/S6-2/S6-1/S5-1.
 
 ---
+Task ID: DFX25-T4c/T4d (session 25 — OQ-S6-3 + OQ-S6-2 resolutions)
+Agent: main engineer (DFX25)
+Task: Resolve OQ-S6-3 (CRAW reader semantics) and OQ-S6-2 (Btrfs RC4
+target) — decode-first, classify, land the audit trail.
+
+Work Log:
+- OQ-S6-3 (CRAW reader FUN_140c40d80, DRWUI :1875575): all three fields
+  are pass-through at load — no checksum validation, no read-bounding on
+  anchor B, no boolean consumer. Producer FUN_180012190-family decode:
+  the +0xF4 boolean is set iff the analyser type id == 0xA8(168)
+  (FUN_140c41450) — a per-format marker in the +0xF8 type registry's id
+  space; 2,431/12,147 = the type-168 population; none of the three filed
+  hypotheses correct. Vtable proof (props-vtables.txt :42): the +0xF4,
+  +0x56, and dual-anchor getters have ZERO callers and NO vtable slots —
+  dead accessors. Bonus decode: type 0x2A's tail-extent pair (analyser
+  +0xd8/+0xe0) appended to the runlist + folded into the size — the
+  tail-pairing shape the core's raw-sign path implements. M-051's design
+  CONFIRMED on all three fields; the decoded semantics documented at the
+  carve_flag carrier (cr_node.h); M-051 addendum + evidence file
+  s25-oq-s6-3-craw-reader-decode.md. No code change.
+- OQ-S6-2 (Btrfs "RC4 PRGA"): the capa match (0x180012190, the ONLY
+  RC4-rule hit) disassembled first-hand for all 469 bytes — a chunked
+  checksum-verified copy pump: type 1 → FUN_180014c00 = adler-32
+  (0xFFF1/5552-blocking), type 2 → FUN_180014ee0 = slicing-by-4 table
+  CRC; the matched loops are u16 length-table maintenance. NO RC4
+  essentials anywhere: no `and $0xff` in the function, no 256-state/KSA
+  in the whole decompile (zero % 0x100), no keystream XOR, no key
+  material, no crypto strings. CLASSIFICATION: INVALID premise (capa
+  false positive). Erratum E46 filed; evidence file
+  s25-oq-s6-2-btrfs-rc4-false-positive.md; N-072 carries no RC4
+  dependence (grep-verified). No code change — parity by shared absence.
+- Both landings pushed with the audit trail (OQ files → RESOLVED,
+  module row updated).
+
+Stage Summary:
+- OQ-S6-3 + OQ-S6-2 RESOLVED (24+5 resolutions this session counting the
+  INFO tier + A-008). Tracked-open files remaining: OQ-RS, OQ-S20-1,
+  OQ-S4-3, OQ-S5-1, OQ-S6-1, OQ-T6-T7, OQ-Z-E-FLT residues (DFX30's
+  active lane). Next on this lane: OQ-S6-1 (generator-set semantics).
 Task ID: DFX30-T9 (OQ-T6-T7 closed to FIXED/)
 Agent: main engineer (diff-to-fix fix session 30 — DFX30)
 Task: OQ-T6 residuals (uberblock geometry registration, multi-vdev,
@@ -14015,3 +14094,61 @@ Stage Summary:
   OQ-S6-3, OQ-S6-2, OQ-S6-1, OQ-S5-1 + DFX25's head items). Session
   tally: 8 items (7 resolutions + 1 push-forward) + S-034 + D-09 re-verdict
   + OQ-T6-T7 closure. Next: OQ-S6-3 (CRAW reader F4 boolean).
+---
+Task ID: DFX31-N064-CONV (session 31 — the N-064 two-landing reconciliation + pushed-red repair)
+Agent: main engineer (diff-to-fix fix session 31 — DFX31)
+Task: Reconcile the convergent N-064 landings (first-landing-wins) and
+repair the pushed-red main (ccbe9eb committed unresolved conflict
+markers into the win layer).
+
+Work Log:
+- Timeline verified by commit timestamps: DFX31's N-064 (cr::dict) pushed
+  at 05:26:57Z (4c475ba content); the parallel DFX34 lane's cr::pwddict
+  landed 05:37:29Z (817740c); their union merge ccbe9eb committed
+  conflict markers into cr_bitlocker.h/.cpp regions + rrecov.cpp
+  (win_syntax_check RED — pushed-red main, the M-055 class of break).
+- Reconciliation: markers resolved to the canonical (first-landed,
+  cr::dict) side; the cr::pwddict module + --bitlocker-pwddict flag +
+  test_pwddict.cpp dropped cleanly; the ONE genuine superset capability
+  ABSORBED — user-supplied dictionary files in the og's exact format:
+  --bitlocker-dict [file] (load_dict_candidates rides cr::dict::parse,
+  256 KiB hostile-input cap, honest failures on unreadable/over-cap/
+  invalid/empty dictionaries) + the DFX34 design point that the
+  Unknown-state (boot-unreadable, typically locked) volume gets the
+  consented dictionary attempt before its refusal + the narrow-candidate
+  unlock_with_dictionary overload for the CLI path.
+- D-78 (their data-posture registration) renumbered to D-80 and re-worded
+  as the convergence record (the canonical posture: the corpus Dict
+  converts as generated data per the raw_signs.json precedent — 228
+  common passwords are facts, not creative expression; the loader keeps
+  host flexibility). Both Resolutions preserved in the finding file
+  (append-only); the convergence record appended after them.
+- Verified: full build green; win_syntax_check green (all 8 files);
+  suite 814/814 linux-release at the reconciliation tree.
+
+Stage Summary:
+- N-064 convergence closed; main green again. Session tally: N-064
+  (canonical + convergence), N-071. Next: pull, then N-072 or N-066.
+
+---
+Task ID: DFX30-T11 (OQ-S6-2 — convergent verification; DFX25's landing stands)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: OQ-S6-2 — the Btrfs RC4 PRGA target.
+
+Work Log:
+- Decoded FUN_180012190 independently: sliding-window pump + adler32
+  (FUN_180014c00, mod-0xFFF1) + table-CRC32 (FUN_180014ee0) + the deflate
+  length-symbol tables in FUN_1800143a0 + the 0x106 lookahead in
+  FUN_180012370 = the zlib-inflate cluster; NO RC4 KSA/PRGA anywhere
+  (grep-verified). Push met DFX25's convergent landing (their resolution
+  + erratum E46 pushed first).
+- Per the convergence protocol: DFX25's landed resolution stands; my
+  decode recorded as the convergence addendum in the file (the cluster
+  identification is the addition); the FIXED/ filing completed in the
+  same change; my duplicate E46 dropped, convergence note appended to
+  theirs instead.
+
+Stage Summary:
+- OQ-S6-2 closed (convergent two-lane resolution: capa false positive,
+  no RC4, core MATCH by mutual absence). Session tally: 11 items. Next:
+  OQ-S6-1 (PartitionRecoveryD generator sets).

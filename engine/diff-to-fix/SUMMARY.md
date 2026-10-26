@@ -87,6 +87,35 @@ modified-unit + paging s11; buckets + naming s32).
 
 
 
+## Session-33 delta, part 2 (2026-10-26 — DFX33: M-025 FIXED — the carve read model: window-serving reads, 13x fewer device reads measured)
+
+**M-025 FIXED (MAJOR — the carve scan's read model):** the og's
+already-in-buffer model is now the core's: scan_one_window wraps the
+slice in a WindowDevice for the window's duration — reads inside the
+window are served from the buffer, reads straddling a window edge split
+into buffer-prefix + device-tail (byte-identical by construction). Every
+grammar validator call, both M-051 checksum sites, both hash sites and
+the raw-sign tail scans read through it (the M-021 hook keeps the raw
+slice — host contract clarity). MEASURED, the counting-device execution
+the finding's own test list prescribes: 4 MiB fixture, 4 small PNG
+plants, hashing on — **52 device reads pre-fix → 4 post-fix** (the
+window fills only; zero per-candidate re-reads for in-window
+candidates); straddling probes (1 MiB JPEG/MP3 blocks a 1 MiB window can
+never contain) degrade to prefix+tail, never more bytes than before.
+Geometry (1 MiB windows, byte-granular dispatch) intentionally unchanged
+per the finding's own bench-evidence rule — the I-009 mid-sector
+superset stays; the stateless-vs-pending model difference registered as
+PARITY-DELTAS D-81 (the S-017 porting boundary). Proof:
+CarveEngine.WindowServingEliminatesPerCandidateRereads (fail-before
+EXECUTED: 52 vs 4, RED on the pre-fix wiring) +
+CarveEngine.WindowServingServesStraddlingReadsCorrectly (exact
+extent/length/checksum on a boundary-crossing plant); carve suite 46/46;
+full suite **799/799** linux-release at the fix commit.
+
+**Post-fix counts (this landing):** SEVERE **0** · MAJOR **10** open ·
+MINOR per the live union · INFO **0 open** · tracked-open 11.
+
+
 ## Session-33 delta (2026-10-26 — DFX33: M-020 FIXED — the Btrfs profile machinery + default subvolume)
 
 Baseline 737/737 linux-release verified first-hand at the session's union
@@ -271,6 +300,62 @@ MAJOR **14** · MINOR **15** · INFO 0 open (22 acknowledged in FIXED/) ·
 **FIXED/ 175 findings** (176 files incl. RESOLVED-INDEX) · tracked-open 11
 (OQ-T6 pushed forward with new evidence). Next on this lane:
 N-050/N-033/N-072 rear-first.
+
+## Session-31 delta, wave 4 (2026-10-26 — DFX31: OQ-S20-1 resolved — the BitLocker derivation premise corrected: no stretch exists in the og; M-033's surface IS the og's surface)
+
+**OQ-S20-1 RESOLVED (premise-corrected, zero code change — the corpus
+wins):** the decode proves the og's BitLockerLib does NOT implement the
+standard recovery-password stretch (no 0x100000/0xFFFFF/0xF4240 loop
+constant; the verified SHA-256 layer — FUN_1800011a0/:1da0/:1ea0 — has
+three non-iterating consumers; the generic KDF framework defaults to
+10000 with only the vendor "BITLOCKER"-labeled KDF at FUN_18003fd80) —
+user-key unlock is DELEGATED TO WINDOWS (PSUnlockBitLocker
+`Unlock-BitLocker -MountPoint`, the manage-bde fallback; the auto path
+applies DRWService's external keys). The og's in-stack surface = the FVE
+metadata parse + protector enumeration (SetProcessProtectorKey's
+protector_t = 36-char GUID/type@+0x25/material@+0x26) + the 64-byte FVEK
+extract (GetFullVolumeEncryptionKey) + the XTS decrypt — **exactly the
+core's M-033 posture; D-75 CONFIRMED**. The KDF/AES-CCM/BEK port is
+registered as a deliberate-superset scope decision (Windows-free unlock —
+valuable where even the og's delegation fails, but an IMPROVEMENT, not
+parity). Evidence: s31-oq-s20-1-bitlocker-derivation-scope.md.
+**Counts after this landing: tracked-open 7** (OQ-Z-E-FLT, OQ-T6-T7,
+OQ-S4-3, OQ-S5-1, OQ-S6-1, OQ-S6-2, OQ-S6-3 — all owned by the parallel
+DFX30 tail lane). My lane's queue is drained; next: OQ-S4-3's
+push-forward addendum, then absorb any orphans the parallel lanes leave.
+
+## Session-31 delta, wave 3 (2026-10-26 — DFX31: OQ-RS resolved — the ReFS system-table set decoded and FIXED; 6/8 probes closed)
+
+**OQ-RS RESOLVED (RS-2..8 dispositioned; one code fix with fail-before
+proof):**
+- **RS-7 FIXED:** the og registers system-table handlers for EXACTLY
+  {0x500, 0x600, 0x701} (ReFSSearchDLL ctor :600-620) and NORMALIZES any
+  id > 0x700 to the 0x701 family (:1150-1154). 0x520 appears nowhere in
+  the engine — the core's FSMETADATA_TABLE=0x520 was an uncited T10-era
+  guess. The fallback root-detection and the orphan sweep now exclude
+  the og's system families {0x500, >0x700}.
+  `Refs.FallbackRootSkipsOgSystemFamilies` fail-before RED (the 0x500
+  system table elected as the user root — hello.txt absent from the
+  walk) / GREEN post-fix; suite 755/755.
+- **RS-5 RESOLVED:** the .mo ReFS analyser is structural-only (zero
+  deleted-evidence handling in 42,013 lines) — the core's deleted
+  surfacing is NOT double-counted; I-009's registration parity-safe.
+- **RS-6 RESOLVED:** CRefsAppDataRunItem is a data-run item family
+  member (sibling of CRefsFileDataRunItem), not ADS recovery — I-012's
+  shared-limitation stands.
+- **RS-8 RESOLVED:** the og validates only the MSB+ magic per page (the
+  two 0x2b42534d sites); no volume-GUID cross-check — the core's dual
+  validation registered as a deliberate superset.
+- **RS-2/RS-3 SUPERSEDED** by the landed S-020 (resident rows) and
+  N-036 (container map) decodes they gated.
+- **RS-1/RS-4 PUSHED FORWARD** precisely: fixture-gated (no real ReFS
+  volume in corpus; the cited run 40079065019 is an NTFS scenario) —
+  the Windows bench stage's real-volume probe is the recorded next step.
+
+Evidence: `s31-oq-rs-refs-residuals.md`; OQ → FIXED/. **Counts after
+this landing: tracked-open 8** (OQ-Z-E-FLT, OQ-T6-T7, OQ-S4-3, OQ-S5-1,
+OQ-S6-1, OQ-S6-2, OQ-S6-3, OQ-S20-1). Next on this lane: OQ-S20-1 (the
+BitLocker FVE metadata grammar + KDF interop leg).
 
 ## Session-31 delta, wave 2 (2026-10-26 — DFX31: OQ-S3-JPEG resolved — S-018 RE-FILED CONFIRMED and FIXED: the truncated-JPEG salvage)
 

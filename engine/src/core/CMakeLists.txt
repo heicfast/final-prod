@@ -59,7 +59,6 @@ add_library(cr_core STATIC
     repair/cr_rawfixer.cpp
     apply/cr_apply.cpp
     reghive/cr_reghive.cpp
-    pwddict/cr_pwddict.cpp
     refs/cr_refs_engine.cpp
     orchestrator/cr_scan.cpp
     tree/cr_node.cpp
