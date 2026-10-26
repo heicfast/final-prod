@@ -1541,11 +1541,11 @@ TEST(Btrfs, Raid10GeometryGate) {
  * the internal node's copy (bytenr mismatch) and no file is found. */
 static std::vector<u8> build_raid1_volume() {
     constexpr u64 L_R1_CHUNK = 0x800000;
-    constexpr u64 L_FS_ROOT = 0x800000; /* internal node logical */
-    constexpr u64 L_FS_LEAF = 0x801000; /* leaf logical */
-    constexpr u64 P_COPY0 = 0x900000;   /* stripe 0: internal node copy */
-    constexpr u64 P_COPY1 = 0x910000;   /* stripe 1: leaf copy */
-    constexpr u64 L_DATA = 0x700000;    /* data extent (identity chunk) */
+    constexpr u64 L_FS_ROOT = 0x800000;    /* internal node logical */
+    constexpr u64 L_FS_LEAF = 0x801000;    /* leaf logical */
+    constexpr u64 P_COPY0 = 0x900000;      /* stripe 0: internal node copy */
+    constexpr u64 P_COPY1 = 0x910000;      /* stripe 1: leaf copy */
+    constexpr u64 L_DATA_LOCAL = 0x700000; /* renamed: MSVC C4459 vs the file-global L_DATA */
     std::vector<u8> d(10ull << 20, 0);
 
     u8* sb = d.data() + 0x10000;
@@ -1644,7 +1644,7 @@ static std::vector<u8> build_raid1_volume() {
         ke.type = 108;
         ke.objectid = 257;
         ke.offset = 0;
-        nb.add(ke, make_extent_data(L_DATA, 4096));
+        nb.add(ke, make_extent_data(L_DATA_LOCAL, 4096));
         Key kd;
         kd.type = 84;
         kd.objectid = 256;
@@ -1653,7 +1653,7 @@ static std::vector<u8> build_raid1_volume() {
         auto nd = nb.finish(L_FS_LEAF, 0);
         memcpy(d.data() + P_COPY1 + (L_FS_LEAF - L_R1_CHUNK), nd.data(), NODESIZE);
     }
-    memcpy(d.data() + L_DATA, "raid1 mirror", 13);
+    memcpy(d.data() + L_DATA_LOCAL, "raid1 mirror", 13);
     return d;
 }
 

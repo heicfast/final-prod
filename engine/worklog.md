@@ -16723,3 +16723,38 @@ Work Log:
 Stage Summary:
 - Board: SEVERE 0 · MAJOR 0 · MINOR 0 · INFO 0 · tracked-open 1 (OQ-S4-3,
   one dispatch deep into its acceptance path, rerun in flight).
+
+---
+Task ID: RED-REPAIRS-2 (the committed-marker repair + the MSVC test reds + the bench re-dispatch)
+Agent: main engineer (the closing parity session)
+
+Work Log:
+- The 40291877684 bench run (the first on a build-fixed tree) still failed
+  at the Windows build: the parallel window's M-040-stage-b merge had left
+  COMMITTED CONFLICT MARKERS in the nvramfix/bootfix family (cr_nvramfix.h
+  :136, cr_nvramfix.cpp :200, cr_bootfix.cpp :280, cr_bootfix.h :91,
+  rrecov.cpp :2055 — the merge-storm pathology) + four MSVC-only test reds
+  (cr_image_win.cpp:55 + test_image.cpp:45 C4244 u64->u32 returns;
+  test_btrfs_volume.cpp:1548 C4459 the local L_DATA shadowing the file
+  global; test_refs_volume.cpp:1490 std::count_if without <algorithm>).
+- Repairs, all root-cause:
+  * the five marker sites resolved to the HEAD superset variant
+    (nvramfix::plan_boot_entries with the stopped_early observability
+    param — the .cpp body at :225-245 and src/win/cr_bootfix.cpp :281 both
+    depend on it; the simple origin variant was the stale side);
+  * the two u64->u32 returns clamped/cast explicitly;
+  * the raid1 fixture's local L_DATA renamed L_DATA_LOCAL (the C4459 fix —
+    the earlier automated rename had hit the wrong scope, caught by the
+    local build and corrected before the push);
+  * <algorithm> added to test_refs_volume.cpp;
+  * test_nvramfix.cpp + the four files clang-format-18'd.
+- Gates on the repaired tree: lint 0 violations (the CI gate's exact find +
+  version); linux-release 885+4 env-skips; ASan exit 0 (885/889); UBSan
+  exit 0; TSan 926/926 (the full CI-lane ctest incl. win_syntax_check);
+  NvramFix 13/13.
+- The bench re-dispatched on this tree (the acceptance path for OQ-S4-3).
+
+Stage Summary:
+- main repaired to fully-buildable on every lane this container can verify;
+  the Windows+ fuzz legs carry precisely-diagnosed fixes for CI. OQ-S4-3's
+  execution path re-entered on a green-build tree.

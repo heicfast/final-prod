@@ -237,9 +237,8 @@ TEST(NvramFix, MbrFlagsMayRideDifferentNodes) {
     mbr_sig(other, 0x55667788u);
     /* node A: the right disk signature, the wrong position; node B: the
      * right position, another disk - the flags split across nodes */
-    vars.put(kBoot0000,
-             build_load_option(u"split", {hd_node(2, 0, 0, sig, 1, 1),
-                                          hd_node(2, 2048, 4096, other, 1, 1)}));
+    vars.put(kBoot0000, build_load_option(u"split", {hd_node(2, 0, 0, sig, 1, 1),
+                                                     hd_node(2, 2048, 4096, other, 1, 1)}));
     vars.put(kBootOrderName, {0x00, 0x00});
     u32 err = OK;
     auto plan = plan_boot_entries(&MockVars::get, &vars, mbr_target(), &err);

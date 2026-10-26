@@ -15,6 +15,7 @@
 #include "cr/orchestrator/cr_scan.h"
 #include "cr/tree/cr_node.h"
 #include <gtest/gtest.h>
+#include <algorithm> /* std::count_if (MSVC's strict include hygiene) */
 #include <cstring>
 #include <vector>
 

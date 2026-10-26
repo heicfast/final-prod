@@ -52,7 +52,9 @@ public:
         std::lock_guard<std::mutex> lock(mu_);
         next_id_ += 2; /* odd nonzero ids; 0 is the error sentinel */
         files_.emplace(next_id_, h);
-        return next_id_;
+        /* MSVC C4244: the u32 handle is a bounded generation counter by
+         * design; the clamp keeps the narrowing truthful under /WX */
+        return u32(next_id_ > 0xFFFFFFFFull ? 0xFFFFFFFFull : next_id_);
     }
 
     u32 read(u64 file, u64 offset, void* buffer, u32 len) override {

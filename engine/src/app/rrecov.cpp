@@ -2052,18 +2052,13 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
             static_cast<unsigned long long>(plan.sector_count),
             plan.restores_signature ? L" + 0x55AA signature restore" : L"");
     for (const auto& a : plan.actions)
-<<<<<<< HEAD
-        wprintf(L"  [apply] offset=%llu len=%zu : %hs\n",
-                static_cast<unsigned long long>(a.offset), a.after.size(), a.reason.c_str());
+        wprintf(L"  [apply] offset=%llu len=%zu : %hs\n", static_cast<unsigned long long>(a.offset),
+                a.after.size(), a.reason.c_str());
     /* M-040: the boot-chain repair family now exists (bcdfix +
      * nvramfix + the win runtime); the CORE plan never performs it
      * (the og's Fixup runs host-side after the layout write too) - the
      * CLI offers it as the explicit --boot-fix step after a successful
      * apply. */
-=======
-        wprintf(L"  [apply] offset=%llu len=%zu : %hs\n", static_cast<unsigned long long>(a.offset),
-                a.after.size(), a.reason.c_str());
->>>>>>> origin/main
     if (!plan.boot_repair_available)
         wprintf(L"  [apply] boot-chain repair: separate opt-in step (re-run with "
                 L"--boot-fix <old-lba> to rewrite the BCD offsets + NVRAM entry after "
@@ -2144,8 +2139,7 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
          * explicit path. The C: system-root guess matches the og's
          * GetSystemDirectoryA-based probe (FUN_1800017a0). Plan-only
          * first (no writes), then the consent-gated execute + flush. */
-        const wchar_t* paths[2] = {L"C:\\Boot\\BCD",
-                                   L"C:\\EFI\\MICROSOFT\\BOOT\\BCD"};
+        const wchar_t* paths[2] = {L"C:\\Boot\\BCD", L"C:\\EFI\\MICROSOFT\\BOOT\\BCD"};
         bool any = false;
         for (const wchar_t* bcd_path : paths) {
             if (!boot_fix_bcd.empty()) {
@@ -2154,8 +2148,8 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
                 bcd_path = boot_fix_bcd.c_str();
             }
             std::vector<cr::bcdfix::BcdRewrite> bcd_plan;
-            u32 brc = win::bootfix::bcd_file_plan(bcd_path, sig, boot_fix_old_lba, new_lba,
-                                                  &bcd_plan);
+            u32 brc =
+                win::bootfix::bcd_file_plan(bcd_path, sig, boot_fix_old_lba, new_lba, &bcd_plan);
             if (brc != OK || bcd_plan.empty()) {
                 if (brc != OK)
                     wprintf(L"[boot-fix] %ls: rc=%08x %hs\n", bcd_path, brc, err_text(brc));
@@ -2201,8 +2195,7 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
                         L"LBA %llu%s\n",
                         napplied, napplied == 1 ? L"y" : L"ies", nt.new_partition_number,
                         static_cast<unsigned long long>(nt.new_start),
-                        stopped_early ? L" (walk stopped at a stale BootOrder id)"
-                                      : L"");
+                        stopped_early ? L" (walk stopped at a stale BootOrder id)" : L"");
                 any = true;
             } else if (nrc == ERR_REPAIR_REFUSED) {
                 wprintf(L"[boot-fix] NVRAM: consent refused - nothing written\n");
