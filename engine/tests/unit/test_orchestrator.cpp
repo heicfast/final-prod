@@ -1,6 +1,7 @@
 /* Orchestrator + safe recovery writer tests. */
 #include <gtest/gtest.h>
 #include "cr/orchestrator/cr_scan.h"
+#include "cr/cr_errmod.h"
 #include "cr/recovery/cr_safewriter.h"
 #include "cr/session/cr_crsf.h"
 #include "cr/storage/cr_device.h"
@@ -352,7 +353,12 @@ TEST(Orchestrator, ProbeFamily) {
      * underneath wins - exactly the og's multi-analyser outcome. */
     EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Fat);
     std::memcpy(b + 3, "EXFAT   ", 8);
-    EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Exfat);
+    /* N-050: a spoofed EXFAT OEM on a FAT volume fails the exFAT
+     * boot-region content proof (the FAT BPB's nonzero bytes at
+     * 0x0B..0x3F fail the og's MustBeZero sweep) and the FAT gates +
+     * root proof underneath win - exactly the og's multi-analyser
+     * outcome (the engine is never dispatched on the spoofed family). */
+    EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Fat);
     std::memset(b + 3, 'X', 8);
     /* odd OEM but 55AA + sane BPB still probes FAT (heuristic hint);
      * destroy the signature for Unknown */
@@ -361,6 +367,75 @@ TEST(Orchestrator, ProbeFamily) {
     EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Unknown);
 }
 
+
+/* ---- N-050: two-stage recognition (boot gate -> content proof) ------- */
+
+TEST(Orchestrator, SpoofedExfatOemRejectedBeforeEngine) {
+    /* the finding's named proof: a volume with a spoofed family OEM but
+     * no matching content never dispatches the engine. probe_family is
+     * the dispatch gate (the fs_hint switch keys on it), so family !=
+     * Exfat means the exFAT engine's invocation counter stays zero. */
+    auto img = build_fat16();
+    std::memcpy(img.data() + 3, "EXFAT   ", 8);
+    MemDevice dev(std::move(img));
+    EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Fat)
+        << "spoofed EXFAT OEM over a FAT volume: the content proof must "
+           "refuse the exFAT family (the og's analyser does)";
+}
+
+TEST(Orchestrator, SpoofedFatBootUnreadableRootRejected) {
+    /* FAT half: the boot BYTES pass (55AA + numFATs + pow2 bps + sane
+     * spf16) but the root directory's first sector is unreachable
+     * (truncated image) - the og's root verification (FUN_180002180 ->
+     * FUN_180001f70) reads the root and fails; recognition refused. */
+    auto img = build_fat16();
+    img.resize(42 * 512); /* the root starts at sector 42: unreachable */
+    MemDevice dev(std::move(img));
+    EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Unknown)
+        << "a FAT boot whose root directory cannot be read is not FAT by "
+           "proof (the og's analyser refuses it)";
+}
+
+TEST(Orchestrator, RealExfatBootContentVerified) {
+    /* the positive pin: a structurally valid exFAT boot region (the
+     * engine's own gates: OEM + 55AA + shift bounds + MustBeZero sweep
+     * + FAT count/length + heap fit; wire-struct offsets per
+     * cr_exfat_wire.h BootSectorMain) proves the family - the cheap
+     * form of the og analyser's recognition, before any engine
+     * dispatch. 2 MiB image, 512-byte sectors, 2 sectors/cluster. */
+    const u64 VOL_SECTORS = 4096;
+    std::vector<u8> img(size_t(VOL_SECTORS) * 512, 0);
+    u8* b = img.data();
+    b[0] = 0xEB;
+    b[1] = 0x76;
+    b[2] = 0x90;
+    std::memcpy(b + 3, "EXFAT   ", 8);
+    /* volume_length u64 @0x48 */
+    for (int i = 0; i < 8; ++i)
+        b[0x48 + i] = u8(VOL_SECTORS >> (8 * i));
+    /* fat_offset u32 @0x50 (>= 24: past the boot region) */
+    b[0x50] = 24;
+    /* fat_length u32 @0x54 */
+    b[0x54] = 8;
+    /* cluster_heap_offset u32 @0x58 (>= fat_offset+fat_length) */
+    b[0x58] = 40;
+    /* cluster_count u32 @0x5C (heap fit: (n-1)*2+40 <= 4096) */
+    b[0x5C] = 0xE4; /* 2020 */
+    b[0x5D] = 0x07;
+    /* first_cluster_of_root u32 @0x60 (>= 2, < count+2) */
+    b[0x60] = 2;
+    /* bytes_per_sector_shift u8 @0x6C = 9 (512) */
+    b[0x6C] = 9;
+    /* sectors_per_cluster_shift u8 @0x6D = 1 */
+    b[0x6D] = 1;
+    /* fat_count u8 @0x6E = 1 */
+    b[0x6E] = 1;
+    b[510] = 0x55;
+    b[511] = 0xAA;
+    MemDevice dev(std::move(img));
+    EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Exfat)
+        << "a structurally valid exFAT boot region proves the family";
+}
 
 /* ---- M-044: UDF recognition (the og's analyser result 0xc) -----------
  * The probe is decompile-exact (FATFileSystemAnalyser_decompiled.c
@@ -484,7 +559,12 @@ TEST(Orchestrator, UdfNotConfusedWithFat) {
     b[510] = 0x55;
     b[511] = 0xAA;
     MemDevice dev(std::move(img));
-    EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Fat);
+    /* N-050: the painted FAT boot passes the byte gates but the root
+     * proof refuses it (no valid FAT geometry: spc == 0 and the 0x2C
+     * field is UDF descriptor bytes, not a root cluster >= 2) - the
+     * og's analyser fails the same root verification, so the volume is
+     * neither UDF (jump code skips the probe) nor FAT: Unknown. */
+    EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Unknown);
 }
 
 TEST(Orchestrator, UdfSurfacesAsCarveFamily) {
@@ -607,6 +687,130 @@ TEST(Orchestrator, UdfSurfacesAsCarveFamily) {
         saw_vi = true;
     }
     EXPECT_TRUE(saw_vi);
+}
+
+TEST(Orchestrator, CarveSingleNamingFamily) {
+    /* N-014b: one scan emits ONE carved-name family. The grammar layer
+     * and the raw-sign layer both name through the registered chain
+     * (og per-analyser embedded_name, then the File%06u default); the
+     * old orchestrator-side "Carved%06u" lambda produced a second family
+     * inside the same scan. */
+    auto img = build_fat16();
+    /* plant INSIDE the volume's free clusters (carving runs on the
+     * volume slice, free-map gated): clusters 100 and 300 are untouched
+     * (DATA starts at sector 74; cluster N lives at DATA+(N-2)*512) */
+    const size_t DATA = 74 * 512;
+    {
+        u8* at = img.data() + DATA + (100 - 2) * 512;
+        at[0] = 0xFF;
+        at[1] = 0xD8;
+        at[2] = 0xFF;
+        at[3] = 0xE0;
+        at[4] = 0;
+        at[5] = 16;
+        std::memcpy(at + 6, "JFIF", 4);
+        at[10] = 1;
+        at[11] = 1;
+        at[14] = 1;
+        at[15] = 0;
+        at[16] = 0;
+        at[17] = 0;
+        size_t p = 20;
+        at[p] = 0xFF;
+        at[p + 1] = 0xFE;
+        at[p + 2] = 0x01;
+        at[p + 3] = 0xD2; /* 466: big payload (grammar floor) */
+        for (int i = 0; i < 462; ++i)
+            at[p + 4 + i] = u8('A' + (i % 26));
+        p += 2 + 466;
+        at[p] = 0xFF;
+        at[p + 1] = 0xC0;
+        at[p + 2] = 0;
+        at[p + 3] = 17;
+        at[p + 4] = 8;
+        at[p + 5] = 0;
+        at[p + 6] = 64;
+        at[p + 7] = 0;
+        at[p + 8] = 48;
+        at[p + 9] = 1;
+        at[p + 10] = 1;
+        at[p + 11] = 0x22;
+        p += 2 + 17;
+        at[p] = 0xFF;
+        at[p + 1] = 0xDA; /* SOS */
+        at[p + 2] = 0;
+        at[p + 3] = 8;
+        for (int i = 0; i < 8; ++i)
+            at[p + 4 + i] = 0x11;
+        p += 2 + 12;
+        at[p] = 0x00;
+        at[p + 1] = 0x11;
+        at[p + 2] = 0x22;
+        at[p + 3] = 0x33;
+        at[p + 4] = 0xFF;
+        at[p + 5] = 0xD9; /* EOI */
+    }
+    /* raw-sign-layer candidate: a PSD in another free cluster */
+    {
+        u8* at = img.data() + DATA + (300 - 2) * 512;
+        std::memcpy(at, "8BPS", 4);
+        at[4] = 0;
+        at[5] = 1; /* version BE */
+        at[12] = 0;
+        at[13] = 1; /* channels BE */
+        at[14] = 0;
+        at[15] = 0;
+        at[16] = 0;
+        at[17] = 64; /* height BE */
+        at[18] = 0;
+        at[19] = 0;
+        at[20] = 0;
+        at[21] = 48; /* width BE */
+        at[22] = 0;
+        at[23] = 8; /* depth BE */
+        at[24] = 0;
+        at[25] = 1; /* color mode */
+    }
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = false;
+    cfg.run_carve = true;
+    cfg.whole_disk = false;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    ASSERT_EQ(ctrl.run(&dev, nullptr, nullptr, nullptr, stats), OK) << "scan ran";
+    ASSERT_GE(stats.carved_found, 2u) << "both the grammar and raw-sign candidates carved";
+
+    /* every carved node must carry the single File%06u family */
+    std::vector<std::string> carved_names;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->origin() == tree::Origin::Carved)
+                carved_names.push_back(c->name_utf8());
+            collect(c);
+        }
+    };
+    for (tree::FileNode* r : tree.roots())
+        collect(r);
+    ASSERT_GE(carved_names.size(), size_t(2));
+    bool saw_jpg = false, saw_psd = false;
+    for (const std::string& n : carved_names) {
+        EXPECT_EQ(std::string::npos, n.find("Carved"))
+            << "the split family is gone: " << n;
+        /* the registered default: FileNNNNNN.ext (6 digits) */
+        ASSERT_GE(n.size(), size_t(10)) << n;
+        EXPECT_EQ(0u, n.compare(0, 4, "File")) << n;
+        for (int i = 4; i < 10; ++i)
+            EXPECT_TRUE(n[i] >= '0' && n[i] <= '9') << "index digits: " << n;
+        if (n.size() > 10 && n.compare(n.size() - 4, 4, ".jpg") == 0)
+            saw_jpg = true;
+        if (n.size() > 10 && n.compare(n.size() - 4, 4, ".psd") == 0)
+            saw_psd = true;
+    }
+    EXPECT_TRUE(saw_jpg) << "the grammar-layer candidate is in the family";
+    EXPECT_TRUE(saw_psd) << "the raw-sign-layer candidate is in the family";
 }
 
 TEST(Orchestrator, StagedRunAndSessionRoundTrip) {
@@ -1040,6 +1244,8 @@ struct EventRecorder {
     std::vector<event::Type> seen;
     u64 last_err_start = 0, last_err_len = 0;
     u32 max_error_ranges = 0;
+    /* M-049: the error-context triple on the last ErrorRange event */
+    u32 last_err_module = 0xFFFFFFFFu, last_err_operation = 0xFFFFFFFFu, last_err_attempts = 0;
     static void on_evt(const event::Event& e, void* user) {
         auto* r = static_cast<EventRecorder*>(user);
         r->seen.push_back(e.type);
@@ -1047,6 +1253,9 @@ struct EventRecorder {
             r->last_err_start = e.err_start_bytes;
             r->last_err_len = e.err_len_bytes;
             r->max_error_ranges = std::max(r->max_error_ranges, e.error_ranges);
+            r->last_err_module = e.err_module;
+            r->last_err_operation = e.err_operation;
+            r->last_err_attempts = e.err_attempts;
         }
     }
     bool has(event::Type t) const { return std::find(seen.begin(), seen.end(), t) != seen.end(); }
@@ -1145,6 +1354,111 @@ TEST(ScanEvents, SingleBoundaryAtTeardown) {
     EXPECT_EQ(files_found, 3u) << "one FilesFound per boundary - no teardown double-fire";
 }
 
+/* ---- M-049: the error-context triple (module/operation/retry state) on
+ * the ErrorRange event - the engine-side subset of the og's error-object
+ * architecture (per-module registrars; the MOM-bus manager layer stays out
+ * of core scope) ---- */
+
+namespace {
+/* M-049 fixture: build_fat16 plus a SUBDIRECTORY whose cluster sits in
+ * the SECOND 256 KiB cache block (sector 532 = cluster 460) - beyond
+ * every probe read (they all touch only block 0 on this geometry) but
+ * squarely inside the FAT engine's directory traversal. A dead sector
+ * there is recorded while the ENGINE-pass thread stamp is active: the
+ * per-sub-pass attribution this test proves. */
+std::vector<u8> build_fat16_with_far_subdir() {
+    std::vector<u8> img = build_fat16();
+    const size_t FAT1 = 2 * 512, FAT2 = 22 * 512, ROOT = 42 * 512;
+    const u32 SUB_CL = 460; /* sector 74 + 458 = 532: cache block 1 */
+    put16(img, FAT1 + SUB_CL * 2, 0xFFFF);
+    put16(img, FAT2 + SUB_CL * 2, 0xFFFF);
+    u8* root = img.data() + ROOT;
+    u8* e = root + 2 * 32; /* slot 2: the first free slot - a zero name[0]
+                            * there is the END marker, so the entry must
+                            * land at 2 to be walked at all */
+    std::memset(e, 0, 32);
+    const char* name = "FARSUB     ";
+    for (int i = 0; i < 11; ++i)
+        e[i] = u8(name[i]);
+    e[11] = 0x10; /* ATTR_DIRECTORY */
+    put16(img, ROOT + 2 * 32 + 20, 0);
+    put16(img, ROOT + 2 * 32 + 26, u16(SUB_CL));
+    put32v(img, ROOT + 2 * 32 + 28, 0);
+    /* the subdir cluster itself: all-zero dentries (empty directory) */
+    return img;
+}
+} // namespace
+
+TEST(ScanEvents, ErrorRangeCarriesModuleOperationAttempts) {
+    /* a persistent read failure inside the FAT engine's own directory
+     * traversal (the far subdir cluster - first touched by the engine,
+     * never by the probe) must arrive attributed to the FAT module,
+     * operation READ, with the retry pipe's attempt count - the triple
+     * the og's error objects would have carried as module/proc context. */
+    FailingSectorDevice dev(build_fat16_with_far_subdir(), 532);
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = true;
+    cfg.run_carve = false;
+    cfg.whole_disk = false;
+    ScanController ctrl(tree, cfg);
+    EventRecorder rec;
+    ASSERT_EQ(OK, ctrl.set_event_sink(&EventRecorder::on_evt, &rec));
+    ScanStats stats;
+    ASSERT_EQ(OK, ctrl.run(&dev, nullptr, nullptr, nullptr, stats));
+    ASSERT_TRUE(rec.has(event::Type::ErrorRange)) << "the engine traversed the far subdir";
+    EXPECT_EQ(u32(errmod::kFat), rec.last_err_module) << "attributed to the FAT engine pass";
+    EXPECT_EQ(errmod::op_read, rec.last_err_operation) << "the error-range family is reads";
+    EXPECT_EQ(3u, rec.last_err_attempts) << "the retry policy's attempt count";
+}
+
+TEST(ScanEvents, ProbeBlockFailureAttributesToOrchestrator) {
+    /* the SAME dead sector in cache block 0 (the boot/FAT/root region)
+     * is first touched by the PROBE's cache-block read - attributed to
+     * the orchestrator module: the attribution tracks WHO was reading
+     * when the range was recorded, not a stage constant. (The existing
+     * A-004 fixtures' sector-30 failures ride this path.) */
+    FailingSectorDevice dev(build_fat16(), 30);
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = true;
+    cfg.run_carve = false;
+    cfg.whole_disk = false;
+    ScanController ctrl(tree, cfg);
+    EventRecorder rec;
+    ASSERT_EQ(OK, ctrl.set_event_sink(&EventRecorder::on_evt, &rec));
+    ScanStats stats;
+    ASSERT_EQ(OK, ctrl.run(&dev, nullptr, nullptr, nullptr, stats));
+    ASSERT_TRUE(rec.has(event::Type::ErrorRange));
+    EXPECT_EQ(u32(errmod::kOrchestrator), rec.last_err_module)
+        << "the probe's block read was the first (and only) reader";
+    EXPECT_EQ(errmod::op_read, rec.last_err_operation);
+}
+
+TEST(ScanEvents, CarveErrorRangeAttributesToCarveModule) {
+    /* the same failing sector read by the CARVE sweep attributes to the
+     * carve module - the attribution is per-sub-pass, not a constant: the
+     * module id distinguishes WHO was reading when the sector died. */
+    FailingSectorDevice dev(build_fat16(), 30);
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = false;
+    cfg.run_deep = false;
+    cfg.run_carve = true;
+    cfg.whole_disk = false;
+    ScanController ctrl(tree, cfg);
+    EventRecorder rec;
+    ASSERT_EQ(OK, ctrl.set_event_sink(&EventRecorder::on_evt, &rec));
+    ScanStats stats;
+    ASSERT_EQ(OK, ctrl.run(&dev, nullptr, nullptr, nullptr, stats));
+    ASSERT_TRUE(rec.has(event::Type::ErrorRange)) << "the carve window sweep read the dead sector";
+    EXPECT_EQ(u32(errmod::kCarve), rec.last_err_module) << "attributed to the carve sweep";
+    EXPECT_EQ(errmod::op_read, rec.last_err_operation);
+    EXPECT_EQ(3u, rec.last_err_attempts);
+}
+
 TEST(ScanConfig, DeepStageDefaultsOnAndWholeDiskOff) {
     /* N-044: the og's "Deep Scan" toggle means the complete-searcher pass;
      * the core's deep stage is DEFAULT-ON (ScanConfig.run_deep), the flag
@@ -1211,4 +1525,48 @@ TEST(SafeWriter, InvalidUtf8NameRestoredFromRaw) {
     EXPECT_EQ(writer.queue()[0].final_name, std::u16string(u"\uFFFD(bad"))
         << "restore filename must substitute per the og's conversion, not "
            "carry private-use units";
+}
+
+/* ---- M-058: the read-pipe construction is a pinned contract -------------- */
+
+TEST(Orchestrator, ReadPipeBuildsCacheOverRetryForValidGeometry) {
+    MemDevice dev(build_fat16());
+    ReadPipe rp = build_read_pipe(&dev, 8ull << 20, 256 * 1024);
+    /* the healthy path: engines read through the cache, the live error-map
+     * source is the cache's inner retry device, the chain owns it all */
+    ASSERT_NE(nullptr, rp.pipe);
+    ASSERT_NE(nullptr, rp.chain);
+    ASSERT_NE(nullptr, rp.retry);
+    EXPECT_NE(rp.pipe, &dev);
+    u8 boot[512] = {};
+    ASSERT_EQ(rp.pipe->read_at(0, boot, sizeof(boot)), OK);
+    EXPECT_EQ(0x55u, boot[510]);
+    EXPECT_EQ(0xAAu, boot[511]);
+}
+
+TEST(Orchestrator, ReadPipeDegradesToBareSliceWhenCacheCreationFails) {
+    MemDevice dev(build_fat16());
+    /* cache_bytes < block_bytes -> CachedReader::create refuses AND destroys
+     * the retry device it took by value. The pre-M-058 inline construction
+     * fell back to the destroyed retry pointer here (use-after-free); the
+     * pinned contract is the BARE SLICE. */
+    ReadPipe rp = build_read_pipe(&dev, 4096, 8192);
+    ASSERT_EQ(rp.pipe, &dev) << "degraded pipe must be the caller's slice";
+    EXPECT_EQ(nullptr, rp.chain) << "no cache exists on this path";
+    EXPECT_EQ(nullptr, rp.retry) << "no live error-map source on this path";
+    /* the degraded pipe must be READABLE (it is the slice itself) */
+    u8 boot[512] = {};
+    ASSERT_EQ(rp.pipe->read_at(0, boot, sizeof(boot)), OK);
+    EXPECT_EQ(0x55u, boot[510]);
+    EXPECT_EQ(0xAAu, boot[511]);
+}
+
+TEST(Orchestrator, ReadPipeZeroCapacityDegradesToBareSlice) {
+    MemDevice dev(build_fat16());
+    /* capacity == 0 (cache_bytes == block_bytes is fine, but a zero cache
+     * budget must round to zero blocks) - same pinned degradation */
+    ReadPipe rp = build_read_pipe(&dev, 0, 256 * 1024);
+    ASSERT_EQ(rp.pipe, &dev);
+    EXPECT_EQ(nullptr, rp.chain);
+    EXPECT_EQ(nullptr, rp.retry);
 }

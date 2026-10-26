@@ -4,6 +4,33 @@ Every constant, structure and algorithm claim below is verified against the RE c
 (`easeus-drw-research`) and carries its evidence pointer. If code and this file disagree,
 this file wins; if the corpus and this file disagree, that is a documented correction.
 
+## 0. Recognition contract — two-stage, before any engine (N-050)
+
+The og recognises volumes through a dedicated ANALYSER layer whose contract is
+two-stage: a boot gate, then a cheap CONTENT PROOF, and only then engine
+dispatch (corpus: `IVolumeAnalyser` factory + the per-family analysers —
+NTFSFileSystemAnalyser :4259-4370 (MFT $Volume/first-records proof, M-043),
+FATFileSystemAnalyser :1385-1500 + FUN_180002180 :1124-1144 (root-directory
+verification after FAT-type classification: fixed-root scan types 1/2 =
+FUN_180001f70, root-cluster chain walk type 3 = FUN_180001d70),
+ExtFileSystemAnalyser :3404-3425 (superblock arithmetic), the exFAT analyser
+(unpinned body — the conservative boot-region proof below)). A volume with a
+spoofed family OEM but no matching content returns not-recognized from the
+analyser and NO engine runs.
+
+The core implements the same contract in `ScanController::probe_family`
+(orchestrator/cr_scan.cpp): NTFS = first MFT record (FILE magic + USA bounds,
+M-043); exFAT = the engine's own boot-region validator (OEM + 55AA + shift
+bounds + MustBeZero sweep + FAT count/length + heap fit; the checksum verdict
+stays informational exactly as the engine treats it); FAT = root-directory
+first-sector readability at the computed root offset (FAT12/16 fixed root =
+reserved + numFats*spf16; FAT32 = reserved + numFats*spf32 +
+(rootCluster-2)*spc); ext4 = superblock magic + the engine's arithmetic gates
+(S-006); UDF = the og's AVDP->VDS probe (M-044). Every content proof emits a
+`recognition: <family> content-verified` line on the logging seam (N-048).
+Families whose analyser body is corpus-undecoded (HFS+/Btrfs/ZFS/ReFS
+recognition gates) keep their magic-gate probes — a registered, honest gap.
+
 ## 1. Error-code family (engine convention)
 
 HRESULT-style `0x5002xxxx` engine codes (corpus: `05-scan-engine-architecture.md` §4,

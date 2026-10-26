@@ -3,14 +3,21 @@
  *
  * Corpus: DiskHealth.exe (DiskSmart; CAtaSmart engine with multi-transport
  * accessors GetSmartAttributeSat/Csmi/Si/NVMeRealtek). DELTA, documented
- * (AUDIT-PIPELINE HEALTH-2): our implementation uses
- * IOCTL_ATA_PASS_THROUGH (ATA_PASS_THROUGH_EX) with the same ATA SMART
+ * (AUDIT-PIPELINE HEALTH-2): our implementation runs the same ATA SMART
  * command set (0xB0 feature 0xD0 READ_DATA / 0xD1 READ_THRESHOLDS —
- * issued since S-024's fix, cr_health.cpp:192-200 — / 0xEC IDENTIFY) - an
- * equivalent direct route to the same
- * commands where the corpus's SAT wrapper (IOCTL_SCSI_PASS_THROUGH
- * 0x4D004) tunnels them through the SCSI layer - plus the legacy
- * SMART_RCV_DRIVE_DATA 0x7C088 fallback the corpus also carries.
+ * issued in the pure seam src/core/health/cr_smart_ata.cpp since N-032 —
+ * / 0xEC IDENTIFY) over a three-transport chain:
+ *   1. IOCTL_ATA_PASS_THROUGH (ATA_PASS_THROUGH_EX) - the direct route;
+ *   2. SMART_RCV_DRIVE_DATA 0x7C088 - the legacy fallback the corpus also
+ *      carries (task file matches the og's IDEREGS decode: count 1,
+ *      sector 1, cyl 4F/C2 for SMART commands);
+ *   3. CSMI CC-0x19 SCSI-miniport pass-through (N-032) - the og's
+ *      GetSmartAttributeCsmi route for Intel RST / AMD rcraid arrays,
+ *      wire-decoded from DiskHealth_decompiled.c FUN_00425450 (see
+ *      include/cr/health/cr_csmi.h). The og's RAID-census routing and
+ *      its LSILOGIC sibling transport stay companion-side; its SMART
+ *      auto-enable (the ENABLE-OPERATIONS feature write) is a device
+ *      write this report-only module does not perform.
  * DRWUI's SSD detection used WMI MSFT_PhysicalDisk MediaType==4; ours
  * uses the seek-penalty IOCTL heuristic (HEALTH-5: one story, documented
  * here). TRIM state: fsutil behavior query disabledeletenotify, first

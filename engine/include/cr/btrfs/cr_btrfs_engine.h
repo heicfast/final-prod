@@ -13,6 +13,20 @@
  * ROOT_ITEM(CHUNK_TREE) cross-check) -> per-subvolume FS trees: inode,
  * dir_item/dir_index, extent_data (regular + inline), subvolumes as roots.
  *
+ * M-020 chunk profiles (BtrfsSearchDLL_decompiled.c :2498-2543, first-hand):
+ * DUP(&0x20)/RAID1(&0x10)/SINGLE map through the og's rotating mirror
+ * index (per-chunk u16 state, index = (index+1) % num_stripes per access,
+ * :2534-2540); RAID10 geometry gate at parse (:2162-2168: sub_stripes==0
+ * or num_stripes<sub_stripes rejects the chunk); RAID0/RAID10 stripe math
+ * is the core's REGISTERED SUPERSET (the og's read path fails both classes
+ * - class 8/0x40 goto LAB_1800043fe, verified :2521-2583); classes &0x80/
+ * &0x100 are refused exactly like the og. Default-subvolume pick
+ * (FUN_1800061f0 :3975-4060): the root tree's DIR_ITEM
+ * (ROOT_TREE_DIR_OBJECTID 6, type 0x54, name-hash 0x8dbfc2d2) named
+ * "default" (len 7) whose located key is a ROOT_ITEM (0x84) selects the
+ * default; fallback root 5; the default's children render at the volume
+ * root (ReFS convention), other subvolumes stay named containers.
+ *
  * Deleted-file story (parity decision, AUDIT.md row 20 + corpus
  * SearchDLL/refs-btrfs-zfs-engine-algorithms-v2.md section 2): only the
  * NEWEST-generation tree is walked - the og does the same (max-generation
@@ -58,14 +72,35 @@ struct BtrfsScanStats {
                                          * (the og's +0x88 codec tag; the
                                          * per-extent truth stays on the
                                          * extents - I-014 B4) */
+    /* M-020: extents the profile machinery could not map (unsupported
+     * profile classes, compressed extents spanning a stripe boundary on
+     * striped profiles, extents crossing past the chunk end) - counted,
+     * never silently emitted with wrong bytes. */
+    u64 unmappable_extents = 0;
+    u64 mirror_rotations = 0; /* 2-copy accesses served by the non-first stripe */
 };
 
-/* One chunk mapping: [logical_start, +logical_len) -> device bytes. */
+/* One chunk stripe (kernel btrfs_stripe: devid u64, offset u64, uuid[16]). */
+struct ChunkStripe {
+    u64 devid = 0;
+    u64 offset = 0; /* slice-relative physical offset */
+};
+
+/* One chunk mapping: [logical_start, +logical_len) -> device bytes.
+ * M-020: the full stripe array is retained; the profile-aware mapping
+ * lives in the engine (rotating mirror for 2-copy, stripe math for
+ * RAID0/RAID10 - see the header comment). physical_start remains the
+ * stripe-0 offset for diagnostics. */
 struct ChunkMap {
-    u64 logical_start;
-    u64 logical_len;
-    u64 physical_start; /* slice-relative */
-    u64 type;           /* DATA 1 / SYSTEM 2 / METADATA 4 / RAID bits */
+    u64 logical_start = 0;
+    u64 logical_len = 0;
+    u64 physical_start = 0; /* stripe-0 offset (diagnostics) */
+    u64 type = 0;           /* DATA 1 / SYSTEM 2 / METADATA 4 / RAID bits */
+    u64 stripe_len = 0;     /* kernel chunk stripe_len (RAID0/RAID10 math) */
+    u16 num_stripes = 0;
+    u16 sub_stripes = 0;    /* RAID10 mirror-set size */
+    u16 mirror_index = 0;   /* og rotating-mirror state (:2534-2537) */
+    std::vector<ChunkStripe> stripes;
 };
 
 /* Superblock (kernel fs/btrfs/ctree.h struct btrfs_super_block). */

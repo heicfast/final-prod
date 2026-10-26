@@ -21,6 +21,7 @@
 
 #include "cr/cr_ui.h"
 #include "cr/cr_log.h"
+#include "cr/cr_errmod.h"
 
 #include "cr/apply/cr_apply.h"
 #include "cr/orchestrator/cr_scan.h"
@@ -58,6 +59,7 @@
 #include <chrono>
 #include <thread>
 #include <cstdarg>
+#include <ctime>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -71,6 +73,26 @@
 #include <vector>
 
 using namespace cr;
+
+/* M-049: the ABI's CR_ERRMOD_ and CR_ERROP_ constants are pinned to the
+ * core's cr_errmod.h attribution set at compile time - the two surfaces
+ * must never drift (the ABI header stays self-contained C; this is the
+ * executable form of that coupling). */
+static_assert(CR_ERRMOD_NONE == cr::errmod::kNone, "ABI/core module id drift");
+static_assert(CR_ERRMOD_ORCHESTRATOR == cr::errmod::kOrchestrator, "ABI/core module id drift");
+static_assert(CR_ERRMOD_NTFS == cr::errmod::kNtfs, "ABI/core module id drift");
+static_assert(CR_ERRMOD_FAT == cr::errmod::kFat, "ABI/core module id drift");
+static_assert(CR_ERRMOD_EXFAT == cr::errmod::kExfat, "ABI/core module id drift");
+static_assert(CR_ERRMOD_EXT4 == cr::errmod::kExt4, "ABI/core module id drift");
+static_assert(CR_ERRMOD_BTRFS == cr::errmod::kBtrfs, "ABI/core module id drift");
+static_assert(CR_ERRMOD_HFSPLUS == cr::errmod::kHfsplus, "ABI/core module id drift");
+static_assert(CR_ERRMOD_REFS == cr::errmod::kRefs, "ABI/core module id drift");
+static_assert(CR_ERRMOD_ZFS == cr::errmod::kZfs, "ABI/core module id drift");
+static_assert(CR_ERRMOD_CARVE == cr::errmod::kCarve, "ABI/core module id drift");
+static_assert(CR_ERRMOD_LOST == cr::errmod::kLost, "ABI/core module id drift");
+static_assert(CR_ERRMOD_LDM == cr::errmod::kLdm, "ABI/core module id drift");
+static_assert(CR_ERROP_NONE == cr::errmod::op_none, "ABI/core operation id drift");
+static_assert(CR_ERROP_READ == cr::errmod::op_read, "ABI/core operation id drift");
 
 /* =========================================================================
  * diagnostics (thread-local last_error; every entry returns through ret_)
@@ -796,6 +818,11 @@ void scan_event_trampoline_(const orchestrator::event::Event& e, void* user) {
     out.err_start_bytes = e.err_start_bytes;
     out.err_len_bytes = e.err_len_bytes;
     out.error_ranges = e.error_ranges;
+    /* M-049: the error-context triple (module/operation/retry state) -
+     * field-for-field like every other payload member. */
+    out.err_module = e.err_module;
+    out.err_operation = e.err_operation;
+    out.err_attempts = e.err_attempts;
     out.checkpoint_index = e.checkpoint_index;
     out.candidate_lba = e.candidate_lba;
     out.repair_actions = u32(e.repair_actions);
@@ -1052,6 +1079,10 @@ u32 fill_scan_config(const cr_ui_scan_config* in, orchestrator::ScanConfig& out)
     copy_card(out.volume_label, sizeof(out.volume_label), in ? in->volume_label_utf8 : nullptr);
     copy_card(out.volume_model, sizeof(out.volume_model), in ? in->volume_model_utf8 : nullptr);
     copy_card(out.volume_serial, sizeof(out.volume_serial), in ? in->volume_serial_utf8 : nullptr);
+    /* M-029: the raw/carve category root's display name (the og's
+     * "filter_generalraw" surface); empty = the default role */
+    copy_card(out.raw_category_name, sizeof(out.raw_category_name),
+              in ? in->raw_category_name_utf8 : nullptr);
     return OK;
 }
 
@@ -2896,6 +2927,58 @@ extern "C" CR_UI_API void cr_ui_query_rows_free(cr_ui_query_row* rows, uint32_t 
         std::free(rows[i].path);
     }
     std::free(rows);
+}
+
+namespace {
+
+u32 query_apply_buckets_impl(cr_ui_query* q, uint32_t date_bucket, uint32_t size_bucket,
+                             uint64_t date_custom_from, uint64_t date_custom_to,
+                             uint64_t size_custom_min, uint64_t size_custom_max) {
+    if (!q)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: q");
+    /* seed a core filter from the query's current ranges (the same
+     * sentinel convention query_run_impl reads: 0 = unbounded) */
+    query::Filter f;
+    f.size_min = q->size_min;
+    f.size_max = q->size_max ? q->size_max : ~u64(0);
+    f.modified_from = q->modified_from;
+    f.modified_to = q->modified_to ? q->modified_to : ~u64(0);
+    /* the host clock as FILETIME (the og derives its cached day bounds at
+     * scan-controller init; the query-time derivation is the same
+     * day-truncated-local math) */
+    const u64 now_ft = u64(std::time(nullptr) + 11'644'473'600) * 10'000'000;
+    if (!query::apply_date_bucket(f, u16(date_bucket), now_ft, date_custom_from,
+                                  date_custom_to)) {
+        /* the skipped Date IDs (0x104) and unknown values: no invented
+         * semantics - reject with the exact bad ID in the diagnostic */
+        return ret_(ERR_BAD_PARAMETER, "date_bucket 0x%x is not an og filter-bar bucket ID",
+                    date_bucket);
+    }
+    if (!query::apply_size_bucket(f, u16(size_bucket), size_custom_min, size_custom_max)) {
+        return ret_(ERR_BAD_PARAMETER, "size_bucket 0x%x is not an og filter-bar bucket ID",
+                    size_bucket);
+    }
+    /* write back ONLY the axes a bucket actually replaced: the None
+     * buckets (and any rejection above) leave the ABI query's fields
+     * byte-identical, sentinel convention included */
+    if (date_bucket != 0) {
+        q->modified_from = f.modified_from;
+        q->modified_to = f.modified_to;
+    }
+    if (size_bucket != 0) {
+        q->size_min = f.size_min;
+        q->size_max = f.size_max;
+    }
+    return ret_ok();
+}
+
+} // namespace
+
+extern "C" CR_UI_API uint32_t cr_ui_query_apply_buckets(
+    cr_ui_query* q, uint32_t date_bucket, uint32_t size_bucket, uint64_t date_custom_from,
+    uint64_t date_custom_to, uint64_t size_custom_min, uint64_t size_custom_max) {
+    return guarded(query_apply_buckets_impl, q, date_bucket, size_bucket, date_custom_from,
+                   date_custom_to, size_custom_min, size_custom_max);
 }
 
 /* =========================================================================

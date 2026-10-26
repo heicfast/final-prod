@@ -241,12 +241,59 @@ static u64 scan_eocd_for_cd_anchor(IStorageDevice* s, u64 anchor, u64 limit) {
 
 } // namespace
 
-/* ---- JPEG: SOI + marker walk to EOI (F4-class grammar, corpus SOF0) ---- */
+/* ---- JPEG: SOI + marker walk to EOI (F4-class grammar, corpus SOF0) ----
+ *
+ * S-018 RE-FILED (s31, OQ-S3-JPEG resolved): the og's JPEG chain is
+ * two-generation — the EOI-gated modern BruteForce::JpegAnalyzer (S-018's
+ * original INVALID evidence, the backward FF D9 scan) AND the legacy
+ * FileJPGAnalyser fallback (dispatcher FUN_18004b170 → JFIF/Exif/generic
+ * sub-analysers FUN_18004bbd0/b3b0/c1e0; the census-documented chain: one
+ * generation accepting is enough). The legacy tier SALVAGES tail-truncated
+ * JPEGs: its header walk is SOS-gated (SOF0 precision-8 checked, SOF2 dims
+ * fill-if-empty), and the post-SOS walker FUN_18004c480
+ * (RAWSearchDLL_decompiled.c:57942-57991) scans for FF D9 up to the limit
+ * h*w*3 (dims from SOF) or 20,000,000 (the 200,000,000 global cap at
+ * FUN_180001350+0x70, /10) measured FROM THE CANDIDATE START — and on
+ * reaching the limit (or the device end via the sliding-window getter
+ * FUN_180042930) it ACCEPTS anyway: the 0x23 format stamp + size = the
+ * offset reached (:57958-59 `if (limit <= off || get() == NULL) goto
+ * ACCEPT`). The core previously required EOI unconditionally — the
+ * canonical damaged-disk photo (tail destroyed) was dropped where the og
+ * salvages it. The salvage below reproduces the legacy tier's sizing;
+ * the deliberate delta: the og stamps salvaged files identically to
+ * complete ones (no grade distinction found in the legacy path), the
+ * core grades them PartialRisk (600 < the 850 Excellent band) — recover
+ * more, grade honestly (registered in PARITY-DELTAS). */
 CarveResult validate_jpeg(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
     u64 pos = hit + 2; /* skip FFD8 */
     bool saw_sof = false, saw_sos = false;
+    /* the og fallback's salvage inputs: SOF dimensions (last good SOF0
+     * wins, SOF2 fills-if-empty — FUN_18004bbd0 case -0x40/-0x3e) */
+    u64 sof_estimate = 0; /* h*w*3; 0 = dims unknown/unreadable */
     int markers = 0;
+    /* the legacy tier's accept-at-limit: anchored at the candidate start,
+     * end = min(hit + (h*w*3 | 20,000,000), bound) where bound is the
+     * furthest offset the scan could reach (probe_limit, or the I/O
+     * failure point — the og's getter NULL accepts at the current
+     * offset, :57959); SOS is the gate (no SOS in the header walk = the
+     * og's buffer-end reject) */
+    const auto salvage = [&](u64 bound) -> CarveResult {
+        if (!saw_sos)
+            return r; /* og: the walk never reached SOS → no stamp */
+        const u64 og_limit = sof_estimate != 0 ? sof_estimate : 20000000ull;
+        u64 end = hit + og_limit;
+        if (end > bound)
+            end = bound;
+        if (end <= hit + 2)
+            return r;
+        r.ok = true;
+        r.end = end;
+        r.confidence = 600;
+        r.note = sof_estimate != 0 ? "fallback-salvage(no-EOI,SOF-estimate)"
+                                   : "fallback-salvage(no-EOI,cap/10)";
+        return r;
+    };
     while (pos + 4 <= hit + cap) {
         if (++markers > 65536)
             return r; /* pathological */
@@ -279,6 +326,22 @@ CarveResult validate_jpeg(IStorageDevice* s, u64 hit, u64 cap) {
             if (rd(s, pos + 4, prec, 1) && prec[0] != 8)
                 saw_sof = false;
         }
+        /* S-018 salvage inputs — the og fallback's dimension reads
+         * (FUN_18004bbd0 :57749-58/:57762-66): SOF0 re-reads dims
+         * unconditionally after the precision gate (precision BE at
+         * pos+4, height BE at pos+5, width BE at pos+7); SOF2 fills
+         * them only when still unknown (`uVar17 * uVar16 == 0`). */
+        if (mk == 0xC0 || mk == 0xC2) {
+            u8 prec[1];
+            const bool prec_ok =
+                mk == 0xC2 || (rd(s, pos + 4, prec, 1) && prec[0] == 8);
+            if (prec_ok) {
+                const u64 h = rdbe16(s, pos + 5);
+                const u64 w = rdbe16(s, pos + 7);
+                if (h != 0 && w != 0 && (mk == 0xC0 || sof_estimate == 0))
+                    sof_estimate = h * w * 3;
+            }
+        }
         /* JPEG segment lengths are BIG-endian (wire-correct read; the
          * original LE read desynced on every real-world file) */
         u16 len = rdbe16(s, pos + 2);
@@ -299,7 +362,8 @@ CarveResult validate_jpeg(IStorageDevice* s, u64 hit, u64 cap) {
                 if (take < 2)
                     break;
                 if (!rd(s, p, buf.data(), take))
-                    return r;
+                    return salvage(p); /* og: getter NULL mid-scan accepts
+                                        * at the current offset */
                 for (u32 i = 0; i + 1 < take; ++i) {
                     if (buf[i] == 0xFF && buf[i + 1] != 0 &&
                         !(buf[i + 1] >= 0xD0 && buf[i + 1] <= 0xD7)) {
@@ -313,12 +377,15 @@ CarveResult validate_jpeg(IStorageDevice* s, u64 hit, u64 cap) {
                 p += take - 1; /* 1-byte seam: boundary markers */
             }
             if (!found)
-                return r; /* cap reached without a closing marker */
+                return salvage(elim); /* cap reached without a closing
+                                      * marker — the og legacy tier
+                                      * accepts at its limit */
             continue;
         }
         pos += 2 + u64(len);
     }
-    return r; /* cap reached without EOI */
+    return salvage(probe_limit(s, hit, cap)); /* cap reached without EOI —
+                                               * same legacy-tier accept */
 }
 
 /* ---- PNG: magic + IHDR dims + IEND ---- */

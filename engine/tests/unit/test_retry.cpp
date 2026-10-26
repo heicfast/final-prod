@@ -5,6 +5,7 @@
  */
 
 #include "cr/storage/cr_retry.h"
+#include "cr/cr_errmod.h"
 #include <gtest/gtest.h>
 #include <cstring>
 #include <vector>
@@ -214,6 +215,80 @@ TEST(Retry, GeometryForwarded) {
     auto dev = RetryingDevice::create(std::move(inner));
     EXPECT_TRUE(dev->geometry().is_4kn());
     EXPECT_EQ(u64(1 << 20), dev->size());
+}
+
+/* ---- M-049: the per-range module attribution (thread stamp + owner) ---- */
+
+TEST(Retry, ThreadStampAttributedToRecordedRange) {
+    /* a stamped thread's failures carry its module: the engine-side
+     * subset of the og's per-module error registrars, recorded at the
+     * failure site exactly like the og's error objects carry their
+     * module context. */
+    auto inner = std::make_unique<FlakyDevice>(1 << 20);
+    inner->add_bad_range(4096, 512);
+    auto dev = RetryingDevice::create(std::move(inner), RetryPolicy{3, RetryMode::Skip});
+    u8 buf[16384];
+    {
+        errmod::Guard g(errmod::kNtfs);
+        EXPECT_EQ(OK, dev->read_at(0, buf, sizeof(buf)));
+    }
+    ASSERT_EQ(1u, dev->error_map().ranges().size());
+    EXPECT_EQ(u32(errmod::kNtfs), dev->error_map().ranges()[0].module);
+    /* the stamp restored to none after the guard: an unstamped thread's
+     * failure carries the owner fallback (here none - unattributed) */
+    EXPECT_EQ(OK, dev->read_at(20480, buf, 4096));
+}
+
+TEST(Retry, OwnerFallbackCoversUnstampedWorkerThreads) {
+    /* engine-internal worker pools read with no thread stamp; the
+     * device-level owner (published by the orchestrator between
+     * sub-passes) is the fallback attribution - the whole point of the
+     * two-level design (cr_errmod.h). */
+    auto inner = std::make_unique<FlakyDevice>(1 << 20);
+    inner->add_bad_range(4096, 512);
+    auto dev = RetryingDevice::create(std::move(inner), RetryPolicy{3, RetryMode::Skip});
+    dev->set_owner_module(errmod::kCarve);
+    /* simulate the unstamped worker: a thread that never set a stamp.
+     * The test thread itself is unstamped here (no Guard active). */
+    EXPECT_EQ(errmod::kNone, errmod::current());
+    u8 buf[16384];
+    EXPECT_EQ(OK, dev->read_at(0, buf, sizeof(buf)));
+    ASSERT_EQ(1u, dev->error_map().ranges().size());
+    EXPECT_EQ(u32(errmod::kCarve), dev->error_map().ranges()[0].module)
+        << "the owner fallback attributed the unstamped read";
+    /* the thread stamp takes precedence over the owner when set */
+    inner = std::make_unique<FlakyDevice>(1 << 20);
+    inner->add_bad_range(4096, 512);
+    dev = RetryingDevice::create(std::move(inner), RetryPolicy{3, RetryMode::Skip});
+    dev->set_owner_module(errmod::kCarve);
+    {
+        errmod::Guard g(errmod::kFat);
+        EXPECT_EQ(OK, dev->read_at(0, buf, sizeof(buf)));
+    }
+    ASSERT_EQ(1u, dev->error_map().ranges().size());
+    EXPECT_EQ(u32(errmod::kFat), dev->error_map().ranges()[0].module)
+        << "the thread stamp beats the owner";
+}
+
+TEST(Errmod, GuardSetsAndRestoresTheThreadStamp) {
+    /* pool threads are reused - an unrestored stamp would leak into the
+     * next task; the Guard restores the previous stamp exactly. */
+    EXPECT_EQ(errmod::kNone, errmod::current());
+    {
+        errmod::Guard a(errmod::kNtfs);
+        EXPECT_EQ(u32(errmod::kNtfs), errmod::current());
+        {
+            errmod::Guard b(errmod::kCarve); /* nested: restores to NTFS */
+            EXPECT_EQ(u32(errmod::kCarve), errmod::current());
+        }
+        EXPECT_EQ(u32(errmod::kNtfs), errmod::current());
+    }
+    EXPECT_EQ(errmod::kNone, errmod::current());
+    /* set_thread returns the previous value (the Guard's mechanism) */
+    EXPECT_EQ(u32(errmod::kNone), errmod::set_thread(errmod::kRefs));
+    EXPECT_EQ(u32(errmod::kRefs), errmod::current());
+    (void)errmod::set_thread(errmod::kNone);
+    EXPECT_EQ(errmod::kNone, errmod::current());
 }
 
 } // namespace cr

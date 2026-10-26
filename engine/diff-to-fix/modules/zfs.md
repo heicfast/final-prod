@@ -150,7 +150,7 @@ Label superset rows unchanged (I-010).
 | ID | Severity | One-line |
 |---|---|---|
 | M-038 | MAJOR | SA decode layout-1-hardcoded (og is registry-driven by NAME: ZPL_PARENT :24324 / ZPL_CRTIME :24807); non-1 registered layouts drop objects entirely |
-| OQ-Z1 | OPEN | dsl_dir/dsl_dataset offsets (ours child_dir_zapobj@24/ds_bp@128 vs kernel @32) — ACUTE-gated probe on a real pool |
+| OQ-Z1 | RESOLVED (s25) — **A-008 ACUTE filed+FIXED**: child zap was read at +24 (the dd_origin_obj slot); kernel +32; children silently missing on real pools; ghost datasets on clones. Fail-before RED 3/3; 739/739 after |
 | OQ-Z2..Z5 | OPEN | txg decider (:2162-2170); multi-vdev DVA; decompression census (no zlib/lz4 strings in the og binary — it may not decompress at all); Quick-vs-Complete controller delta |
 
 Probes: `tracked-open/OQ-Z-E-FLT-session3.md`. (Lead leg's M-019 covers the
