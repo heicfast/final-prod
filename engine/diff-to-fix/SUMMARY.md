@@ -93,6 +93,84 @@ CrUi.SessionSaveWritesCrsfOnly. Suite 656/656. Finding → FIXED/.
 SEVERE 0 · MAJOR 24 · MINOR 34 · INFO 22 (0 actionable) · tracked-open
 16 · FIXED 113 files (112 findings + RESOLVED-INDEX).
 
+# SUMMARY.md — executive summary (session 17's MINOR-first wave on top; earlier sessions below)
+
+## Session-17 delta (2026-10-26 — DFX17: MINOR-first close-out wave)
+
+Session start: the union tree at `b8b0318`+ (baseline verified **562/562** +
+21/21 at bootstrap; the hot remote's parallel landings — M-054/M-045/M-002/
+M-037/N-030/M-007/M-016/M-043/S-030/M-050+N-058/N-057/M-016 — absorbed by
+rebase as they arrived, each re-verified). Corpus `03ad46c` unmoved.
+Mandate: **MINOR findings first**, 20+ fixes.
+
+**N-067 — CONVERGED (parallel DFX16 lane landed `6795918` while this lane's
+implementation sat behind a rebase conflict):** this leg independently
+re-verified the landed fix first-hand against the corpus decompile
+(exFATSearchDLL_decompiled.c :24440-24452 case -0x7e — the og's 0x82-dentry
+shape gates: reserved1@+1..+3 zero, checksum field @+4..+7 FREE (4 bytes),
+reserved2@+8..+0xF zero, the bVar21-required u32@+0x10..+0x13 zero via
+LAB_18001db06, first_cluster@+0x14 in [2,0xFFFFFFF5], u64 length@+0x18 in
+cluster arithmetic). The landed implementation (og shape gates +
+chain-read checksum32 stream validation, soft stats, grade-not-reject)
+matches the decompile on every axis. This leg's competing implementation
+was DROPPED with an honest record: its wire layout (u16 checksum@+2,
+u32 length@+0x10) came from a faulty spec recollection and is REFUTED by
+the og's own field map (the free zone is exactly +4..+7; +0x10 is
+zero-checked, never a length). Lesson registered: the decompile is the
+authority for the og's dentry shapes — never trust unverified spec memory
+against it.
+
+**Baseline repair 1 (M-054 test expectation):** the M-054 lane's
+`FreeMapProducerMatchesSpecBitMapping` shipped `cluster_count 100u`
+against the S-009-hardened coverage semantic (2 virtual + 100 data = 102)
+and left main red; repaired to 102u by this lane and, in the same window,
+by the parallel lanes (eeeccbd + the 8c02a57 dedupe) — first-landing-wins,
+all attempts in history.
+
+**Baseline repair 2 (LeakSanitizer red — converged with the parallel
+session-22 lane's N-077 PropsRef landing 98b7d13; first-landing-wins, this
+leg's equivalent guard dropped) + N-078 NEW-FINDING (filed + fixed):** main leaked three 264-byte `FileProperties` objects from
+`deserialize_tree`'s corrupt-record early exits (the M-050/N-058 landing's
+hardening paths — five break sites exit between the per-record allocation
+and the node attach without releasing the creation ref). Repaired with a
+scope guard covering every early exit; the attach path disarms it. The
+new five-path regression test (`Session.CorruptRecordEarlyExitsReleaseProps`)
+then caught a SECOND defect on one of those paths: the truncated-carve_note
+exit broke without setting `c.fail` — a silent partial load violating
+N-058's failed-stream rule — filed as **N-078** (renumbered when the parallel lane took N-077 for the
+leak half) and fixed (one-line root
+cause: the same fail propagation every sibling site already used).
+Fail-before EXECUTED on both (LSan red on main; case (4) returned OK=0).
+Post-fix: **614/614 + 21/21 UI + ABI check green, LeakSanitizer clean.**
+Finding → FIXED/ (straight in, in-session file+fix); RESOLVED-INDEX row.
+Their N-077 landing alone does NOT cover this: case (4) of the new test
+fails against leak-only trees — the c.fail gap is real and pinned.
+
+**Counts after this wave (direct file inventory):** SEVERE 0 · MAJOR ~31 ·
+MINOR 38 files · INFO 22 (0 actionable) · tracked-open 16 · FIXED 98
+finding files + RESOLVED-INDEX. Queue head: N-068 (ZIP EOCD anchor), then
+N-063/N-065/N-056/N-029 and the remaining MINOR tier.
+
+# SUMMARY.md — executive summary (session 10's close-out on top; earlier sessions below)
+
+---
+**N-074 FIXED (doc-drift group #2, all five):** CAPABILITY-MATRIX LZNT1
+row split (DONE with code+test cites; XPRESS/LZX the SHARED limitation
+— the og is LZNT1-only too); GAP-S6-11 CLOSED (the disk-map surface
+landed; S-009's free overlay noted; host-side rendering the design);
+D-43 re-worded to the 256 KiB block reality (D-51/D-72 cross-refs); D-19
+rewritten per the DECODED og collision policy (corpus
+:357116-357131 re-verified first-hand — `%s_%d`/cap-10000; our
+`name (N)`/cap-64 scheme now the REGISTERED divergence, the
+atomic/hash/resume layers still registered supersets); cr_health.h's
+command list corrected (0xD1 ships since S-024 — kept; 0xD8 never
+issued — dropped). New pin: Health.SmartCommandListMatchesImplementation
+(fail-before RED executed on the stash-isolated pre-fix tree). Suite
+662/662. Finding → FIXED/.
+
+**Counts after this landing (direct file inventory at the N-074 push):**
+SEVERE 0 · MAJOR 24 · MINOR 33 · INFO 22 (0 actionable) · tracked-open
+16 · FIXED 114 files (113 findings + RESOLVED-INDEX).
 
 ## Session-10 delta — the SEVERE tier close-out (2026-10-26)
 
@@ -167,6 +245,22 @@ fuzz tight-budget trap added; suite 662/662. MAJOR open 28.
 Bootstrap `ff734d7` (union of the parallel lanes' claims: DFX18 on the MINOR
 tier, this leg on the unclaimed MAJOR batch); baseline suite **594/594**
 Linux RelWithDebInfo + ASan. Corpus `03ad46c` unmoved.
+
+**M-038 FIXED (third landing):** ZFS SA registry-driven decode — the
+core's SA decode was layout-1-hardcoded (`layout != 1 -> nullptr`,
+dropping every object with a registered non-1 layout). Now: the og's
+three-object chain (master "SA_ATTRS" -> {REGISTRY, LAYOUTS},
+:22934-23140), by-name attribute resolution (ZPL_PARENT :24324 family),
+offsets by cumulative registered lengths over each layout's slot order,
+and the og's zero-attrs surface for unregistered layouts (:17636 — the
+object surfaces, attrs zeroed — where the core dropped the file
+entirely). Layout 1 keeps the implicit-default fallback for
+registry-less pools. Fixtures now carry the real registry chain (a 2K
+fzap registry — 14 entries don't fit 512B — plus a layouts fzap with
+the 14-slot layout 1 and a differently-ordered 4-slot layout 2, decoded
+by the new registryfile object). ZapEntry gained raw_value (fzap arrays
+exceed 8 bytes). 2 fail-before tests. Suite 687/687. findings/FIXED/
+M-038; matrix zfs B11 MATCH.
 
 **M-019 FIXED (second landing):** ZFS multi-vdev + integrity — read_raw
 drops the `vdev != 0` refusal (the og's registry first-entry fallback,

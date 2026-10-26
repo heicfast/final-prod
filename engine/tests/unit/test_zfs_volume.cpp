@@ -264,19 +264,126 @@ std::vector<u8> make_fzap_leaf(const std::vector<std::pair<std::string, u64>>& e
     return leaf;
 }
 
-std::vector<u8> make_fzap_header(u64 leaf_block) {
-    std::vector<u8> hdr(FZ_BLOCK, 0);
+/* ---- M-038: SA registry fixtures ----
+ * Real pools carry the SA registry chain (master node "SA_ATTRS" ->
+ * {REGISTRY, LAYOUTS}); layout entries are u16 attr-number arrays whose
+ * value can exceed 8 bytes (layout 1 = 14 slots = 28 bytes -> fat ZAP
+ * with intlen-2 value arrays). */
+constexpr u64 B_SA_MASTER = 0xA8000;    /* object 23: REGISTRY/LAYOUTS map */
+constexpr u64 B_SA_REG = 0xA8200;       /* object 24: 2K fzap (hdr + leaf) */
+constexpr u64 B_SA_LAYOUTS = 0xA9200;   /* object 25: header + leaf @+512 */
+constexpr u64 B_REGFILE_DATA = 0xA9800; /* object 22's data block */
+
+std::vector<u8> make_fzap_leaf_raw(
+    const std::vector<std::pair<std::string, std::vector<u8>>>& entries, u32 intlen,
+    u64 block_size = FZ_BLOCK) {
+    /* like make_fzap_leaf but with arbitrary-length intlen-byte value
+     * arrays (the SA layouts object shape) and arbitrary block size (the
+     * registry's 14 entries need a 2K leaf: 42 chunks > a 512B leaf's
+     * 18) */
+    std::vector<u8> leaf(size_t(block_size), 0);
+    put64(leaf.data() + 0, (1ull << 63) + 0); /* ZBT_LEAF */
+    put64(leaf.data() + 16, 0);               /* prefix */
+    put32(leaf.data() + 24, 0x2AB1EAF);       /* ZAP_LEAF_MAGIC */
+    put16(leaf.data() + 30, u16(entries.size()));
+    u32 bshift = 0;
+    while ((1ull << bshift) < block_size)
+        ++bshift;
+    const u32 hash_entries = 1u << (bshift > 5 ? bshift - 5 : 1);
+    const u32 chunks_at = 48 + hash_entries * 2;
+    const u32 nchunks = u32((block_size - chunks_at) / 24);
+    u32 next_chunk = 0;
+    for (const auto& e : entries) {
+        if (next_chunk + 2 > nchunks)
+            break;
+        const u32 entry_chunk = next_chunk++;
+        /* value array chunks (21 data bytes each, chained) */
+        std::vector<u8> val = e.second;
+        u32 first_value_chunk = 0xFFFFFFFF;
+        u32 consumed = 0;
+        u32 prev_chunk = 0xFFFFFFFF;
+        while (consumed < val.size()) {
+            if (next_chunk >= nchunks)
+                break;
+            const u32 ci = next_chunk++;
+            if (first_value_chunk == 0xFFFFFFFF)
+                first_value_chunk = ci;
+            u8* vc = leaf.data() + chunks_at + u64(ci) * 24;
+            vc[0] = 251; /* ZAP_CHUNK_ARRAY */
+            const u32 take = u32(val.size()) - consumed < 21 ? u32(val.size()) - consumed : 21;
+            memcpy(vc + 1, val.data() + consumed, take);
+            put16(vc + 22, 0xFFFF);
+            if (prev_chunk != 0xFFFFFFFF)
+                put16(leaf.data() + chunks_at + u64(prev_chunk) * 24 + 22, u16(ci));
+            prev_chunk = ci;
+            consumed += take;
+        }
+        /* name array chunks */
+        std::vector<u8> name(e.first.begin(), e.first.end());
+        name.push_back(0);
+        u32 first_name_chunk = next_chunk;
+        consumed = 0;
+        prev_chunk = 0xFFFFFFFF;
+        while (consumed < name.size()) {
+            if (next_chunk >= nchunks)
+                break;
+            const u32 ci = next_chunk++;
+            u8* nc = leaf.data() + chunks_at + u64(ci) * 24;
+            nc[0] = 251;
+            const u32 take = u32(name.size()) - consumed < 21 ? u32(name.size()) - consumed : 21;
+            memcpy(nc + 1, name.data() + consumed, take);
+            put16(nc + 22, 0xFFFF);
+            if (prev_chunk != 0xFFFFFFFF)
+                put16(leaf.data() + chunks_at + u64(prev_chunk) * 24 + 22, u16(ci));
+            prev_chunk = ci;
+            consumed += take;
+        }
+        u8* ec = leaf.data() + chunks_at + u64(entry_chunk) * 24;
+        ec[0] = 252; /* ZAP_CHUNK_ENTRY */
+        ec[1] = u8(intlen);
+        put16(ec + 4, u16(first_name_chunk));
+        put16(ec + 6, u16(name.size()));
+        put16(ec + 8, u16(first_value_chunk));
+        put16(ec + 10, u16((val.size() + intlen - 1) / intlen)); /* value_numints */
+        put32(ec + 12, 0);                                       /* cd */
+        put64(ec + 16, 0);                                       /* hash */
+    }
+    return leaf;
+}
+
+/* layout-2 bonus: slots [ZPL_SIZE, ZPL_MODE, ZPL_PARENT, ZPL_CRTIME] in
+ * registry attr numbers 6/5/7/3 - an order deliberately DIFFERENT from
+ * layout 1, proving registry-driven offset resolution */
+std::vector<u8> make_sa_layout2_bonus(u64 size, u64 mode, u64 parent, u64 crtime) {
+    /* slot lengths come from the registry: ZPL_SIZE/MODE/PARENT are 8
+     * bytes; ZPL_CRTIME is a 16-byte sec+usec PAIR (like every ZPL time
+     * attribute) - the layout reserves each slot's full registered
+     * length */
+    std::vector<u8> b(8 + 8 + 8 + 8 + 16, 0);
+    put32(b.data(), 0x2F505A); /* SA_MAGIC */
+    put16(b.data() + 4, u16(2) | (u16(1) << 10)); /* layout 2, 8-byte hdr */
+    put64(b.data() + 8, size);    /* slot 0: ZPL_SIZE (attr 6, 8 bytes) */
+    put64(b.data() + 16, mode);   /* slot 1: ZPL_MODE (attr 5, 8 bytes) */
+    put64(b.data() + 24, parent); /* slot 2: ZPL_PARENT (attr 7, 8 bytes) */
+    put64(b.data() + 32, crtime); /* slot 3: ZPL_CRTIME (attr 3, 16
+                                   * bytes: seconds + usec) */
+    return b;
+}
+
+std::vector<u8> make_fzap_header(u64 leaf_block, u64 block_size = FZ_BLOCK) {
+    std::vector<u8> hdr(size_t(block_size), 0);
     put64(hdr.data() + 0, (1ull << 63) + 1); /* ZBT_HEADER */
     put64(hdr.data() + 8, 0x2F52AB2ABull);   /* ZAP_MAGIC */
     /* embedded pointer table (zt_blk == 0): second half of the block */
     put64(hdr.data() + 16, 0); /* zt_blk = 0 -> embedded */
     put64(hdr.data() + 24, 0); /* zt_numblks */
-    put64(hdr.data() + 32, 4); /* zt_shift: 16 entries */
+    put64(hdr.data() + 32, 4); /* zt_shift (the reader uses blocksize/16
+                                * for the embedded table) */
     put64(hdr.data() + 56, 2); /* freeblk */
     put64(hdr.data() + 64, 1); /* num_leafs */
     put64(hdr.data() + 72, 0); /* num_entries */
     /* embedded ptrtbl at block/2, entry 0 -> leaf block number */
-    put64(hdr.data() + FZ_BLOCK / 2, leaf_block);
+    put64(hdr.data() + block_size / 2, leaf_block);
     return hdr;
 }
 
@@ -467,7 +574,7 @@ std::vector<u8> build_pool(const char* vdev_type = "disk") {
 
     /* ---- ZPL master ZAP: ROOT -> 2 ---- */
     {
-        auto z = make_microzap({{"ROOT", 2}});
+        auto z = make_microzap({{"ROOT", 2}, {"SA_ATTRS", 23}}); /* M-038 */
         memcpy(d.data() + B_MASTER_ZAP, z.data(), z.size());
     }
 
@@ -477,7 +584,8 @@ std::vector<u8> build_pool(const char* vdev_type = "disk") {
                                 {"bigdir", 11},
                                 {"zlefile", 12},
                                 {"embedded.txt", 13},
-                                {"legacy.txt", 14}});
+                                {"legacy.txt", 14},
+                                {"registryfile", 22}}); /* M-038 */
         memcpy(d.data() + B_ROOTDIR_ZAP, z.data(), z.size());
     }
 
@@ -490,6 +598,50 @@ std::vector<u8> build_pool(const char* vdev_type = "disk") {
         memcpy(d.data() + B_BIGDIR_ZAP + 512, leaf.data(), leaf.size());
         auto hdr = make_fzap_header(1); /* leaf block number (object-relative) */
         memcpy(d.data() + B_BIGDIR_ZAP, hdr.data(), hdr.size());
+    }
+
+    /* ---- M-038: SA registry chain ----
+     * object 66 (SA master): REGISTRY -> 67, LAYOUTS -> 68
+     * object 67 (registry): ZPL_* name -> {attr number | length<<16}
+     *   (the zfs_sa.c registration order: atime mtime ctime crtime gen
+     *   mode size parent links xattr rdev flags uid gid = numbers 0-13)
+     * object 68 (layouts): "1" -> the 14 default slots; "2" ->
+     *   [size(6), mode(5), parent(7), crtime(3)] - a different order */
+    {
+        auto m = make_microzap({{"REGISTRY", 24}, {"LAYOUTS", 25}});
+        memcpy(d.data() + B_SA_MASTER, m.data(), m.size());
+        std::vector<std::pair<std::string, u64>> regs;
+        const char* names[14] = {"ZPL_ATIME", "ZPL_MTIME",   "ZPL_CTIME",  "ZPL_CRTIME",
+                                 "ZPL_GEN",   "ZPL_MODE",    "ZPL_SIZE",   "ZPL_PARENT",
+                                 "ZPL_LINKS", "ZPL_XATTR",   "ZPL_RDEV",   "ZPL_FLAGS",
+                                 "ZPL_UID",   "ZPL_GID"};
+        for (int i = 0; i < 14; ++i) {
+            const u64 len = i < 4 ? 16 : 8; /* times are sec+usec pairs */
+            regs.push_back({names[i], u64(i) | (len << 16)});
+        }
+        /* the 14-entry registry needs a 2K fzap (a 512B block holds at
+         * most 7 microzap entries / ~6 fzap entries) */
+        std::vector<std::pair<std::string, std::vector<u8>>> reg_raw;
+        for (const auto& e : regs) {
+            std::vector<u8> v(8, 0);
+            put64(v.data(), e.second);
+            reg_raw.push_back({e.first, v});
+        }
+        auto rh = make_fzap_header(1, 2048);
+        memcpy(d.data() + B_SA_REG, rh.data(), rh.size());
+        auto rl = make_fzap_leaf_raw(reg_raw, 8, 2048);
+        memcpy(d.data() + B_SA_REG + 2048, rl.data(), rl.size());
+        auto lh = make_fzap_header(1);
+        memcpy(d.data() + B_SA_LAYOUTS, lh.data(), lh.size());
+        std::vector<u8> lay1(28, 0);
+        for (int i = 0; i < 14; ++i) {
+            lay1[size_t(i) * 2] = u8(i); /* u16 LE slot i */
+        }
+        std::vector<u8> lay2 = {6, 0, 5, 0, 7, 0, 3, 0}; /* u16 LE slots */
+        auto lf = make_fzap_leaf_raw({{"1", lay1}, {"2", lay2}}, 2);
+        memcpy(d.data() + B_SA_LAYOUTS + 512, lf.data(), lf.size());
+        /* object 22's data block (a registry-layout-2 file) */
+        memcpy(d.data() + B_REGFILE_DATA, "Registry layout-2 file", 22);
     }
 
     /* ---- file data blocks ---- */
@@ -641,6 +793,35 @@ std::vector<u8> build_pool(const char* vdev_type = "disk") {
             make_bp(dn + 64, B_FILE_DATA, 512, 512, 0, &d);
             put16(dn + 10, u16(bonus.size()));
             memcpy(dn + 64 + 128, bonus.data(), bonus.size());
+        }
+        /* object 22 (M-038): a file whose SA bonus uses registered
+         * layout 2 - [size, mode, parent, crtime], decoded only through
+         * the registry (no implicit default exists for it) */
+        {
+            u8* dn = blk.data() + 22 * 512;
+            auto bonus = make_sa_layout2_bonus(4096, 0100644, 2, 1700000002);
+            make_dnode(dn, 19 /* PLAIN_FILE */, 44 /* SA */, 1, 1, 1, u32(bonus.size()));
+            make_bp(dn + 64, B_REGFILE_DATA, 512, 512, 0, &d);
+            memcpy(dn + 64 + 128, bonus.data(), bonus.size());
+        }
+        /* objects 23-25 (M-038): the SA registry chain (the 16K dnode
+         * array holds 32 slots; 23-25 are free) */
+        {
+            u8* dn = blk.data() + 23 * 512;
+            make_dnode(dn, 45 /* SA_MASTER_NODE */, 0, 1, 1, 1, 0);
+            make_bp(dn + 64, B_SA_MASTER, 512, 512, 0, &d);
+        }
+        {
+            u8* dn = blk.data() + 24 * 512;
+            make_dnode(dn, 46 /* SA_ATTR_REGISTRATION */, 0, 4 /* 2K blocks */, 2, 1, 0);
+            make_bp(dn + 64, B_SA_REG, 2048, 2048, 0, &d);             /* block 0 */
+            make_bp(dn + 64 + 128, B_SA_REG + 2048, 2048, 2048, 0, &d); /* block 1 */
+        }
+        {
+            u8* dn = blk.data() + 25 * 512;
+            make_dnode(dn, 47 /* SA_ATTR_LAYOUTS */, 0, 1, 2, 1, 0); /* 2 bps: hdr + leaf */
+            make_bp(dn + 64, B_SA_LAYOUTS, 512, 512, 0, &d);         /* block 0 */
+            make_bp(dn + 64 + 128, B_SA_LAYOUTS + 512, 512, 512, 0, &d); /* block 1 */
         }
         memcpy(d.data() + B_ZPL_DNODES, blk.data(), blk.size());
     }
@@ -985,6 +1166,91 @@ TEST(Zfs, MirrorSecondMemberScan) {
     EXPECT_GE(st.unsupported_vdevs, u64(1)); /* reported, not refused */
     EXPECT_EQ(u64(0), st.checksum_drops);    /* every read verified clean */
     EXPECT_EQ(u64(0), st.foreign_vdev_reads);
+}
+
+TEST(Zfs, SaRegistryDrivenLayout2) {
+    /* M-038: objects carrying a REGISTERED non-1 layout must decode
+     * through the dataset's SA registry (the og resolves attributes BY
+     * NAME - ZPL_PARENT :24324, ZPL_CRTIME :24807 - and decodes every
+     * registered layout through the LAYOUTS map :17636). The fixture's
+     * layout 2 slots are [ZPL_SIZE, ZPL_MODE, ZPL_PARENT, ZPL_CRTIME] -
+     * a deliberately different order than layout 1 - so this test
+     * proves the offsets come from the registry, not the default table.
+     * Before the fix the object was dropped outright (`layout != 1 ->
+     * nullptr`) and the file never appeared. */
+    auto img = build_pool();
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ZfsScanStats st;
+    ASSERT_EQ(OK, scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+
+    const tree::FileProperties* reg = nullptr;
+    const tree::FileProperties* hello = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props()) {
+                if (c->name_utf8() == "registryfile")
+                    reg = c->props();
+                if (c->name_utf8() == "hello.txt")
+                    hello = c->props();
+            }
+            find(c);
+        }
+    };
+    find(ra);
+
+    /* the layout-2 object surfaced with registry-decoded attrs */
+    ASSERT_NE(reg, nullptr) << "registered layout-2 object dropped";
+    EXPECT_EQ(u64(4096), reg->logical_size);   /* slot 0 = ZPL_SIZE */
+    EXPECT_EQ(0u, reg->attributes & 0x10);     /* slot 1 = ZPL_MODE: file */
+    EXPECT_EQ(u64(1700000002ull + 11644473600ull) * 10000000ull,
+              reg->times.created); /* slot 3 = ZPL_CRTIME */
+    /* layout-1 objects decode through the registry path too (the
+     * fixture's LAYOUTS object carries the full 14-slot layout 1) */
+    ASSERT_NE(hello, nullptr);
+    EXPECT_EQ(u64(18), hello->logical_size);
+}
+
+TEST(Zfs, SaRegistryAbsentFallsBackToLayout1) {
+    /* M-038 compat pin: pools (and fixtures) without the SA registry
+     * chain decode layout-1 objects through the implicit default table
+     * - the pre-M-038 behavior, required for registry-less pools. */
+    auto img = build_pool();
+    {
+        auto z = make_microzap({{"ROOT", 2}}); /* SA_ATTRS stripped */
+        memcpy(img.data() + B_MASTER_ZAP, z.data(), z.size());
+        /* re-stamp the master dnode's bp over the rewritten block, then
+         * the enclosing ZPL array chain */
+        stamp_fletcher4(img.data() + B_ZPL_DNODES + 1 * 512 + 64, img.data() + B_MASTER_ZAP,
+                        512);
+        restamp_zpl_array(img);
+    }
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ZfsScanStats st;
+    ASSERT_EQ(OK, scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+
+    std::set<std::string> paths;
+    std::function<void(tree::FileNode*, std::string)> walk = [&](tree::FileNode* n,
+                                                                 const std::string& p) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->props())
+                continue;
+            const std::string nm = c->name_utf8();
+            const std::string full = p.empty() ? nm : p + "/" + nm;
+            paths.insert(full);
+            walk(c, full);
+        }
+    };
+    walk(ra, "");
+    EXPECT_TRUE(paths.count("tank/hello.txt"));
+    EXPECT_TRUE(paths.count("tank/bigdir/alpha.bin"));
+    /* the layout-2 object surfaces with zero attrs when the registry is
+     * absent (og parity: the uniform map lookup misses -> zeroed attrs,
+     * the object still surfaces) */
+    EXPECT_TRUE(paths.count("tank/registryfile"));
 }
 
 TEST(Zfs, BadMagicRejected) {

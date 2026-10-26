@@ -250,3 +250,18 @@ The journal rows move to MATCH with the corrections (full decode record in
 | Header-invalid fallback | **MATCH** | the salvage ladder (:1715-1760 + FUN_180003ea0 = scratch-node harvest, never a live-tree install); OQ-S003 RESOLVED |
 | Extents-overflow record decode | **MATCH** | A-007: 12-byte key + 64-byte descriptors at key+12 (was off-by-two — silent fragmented-tail loss) |
 | tx entry loop | **MATCH (og quirk)** | the og's count-1 loop replicated for parity (TN1150's replay is inclusive — the og defect registered in-code) |
+
+## Session-22 N-047 decision: volume-node naming stays partition-layer (REGISTERED divergence)
+
+The og's HFS+ engine emits its own named system node — an
+`HFSPlusSystemNodeProperties` with the literal name "HFSPlus"
+(HFSPlusSearchDLL_decompiled.c :8798-8813: `FUN_180006720(puVar2 + 3,
+"HFSPlus", 7)` attached under the volume's node). The core deliberately
+does NOT: volume-level naming belongs to the orchestrator/partition layer
+(the root role the scan tree receives), so an engine-side "HFSPlus" node
+would duplicate the partition node one level down (two named containers
+for one volume — the merged-tree model the core's consumers query).
+Decision per the finding's own fix-plan option 2: keep the architecture,
+register the divergence here. The engine's per-FILE naming, attributes,
+and extents are unaffected (all MATCH rows above). Revisit only if a
+consumer needs engine-attested volume identity on the node itself.

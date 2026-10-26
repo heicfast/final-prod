@@ -10,7 +10,10 @@
 #include "cr/health/cr_nvme.h"
 #include "cr/cr_error.h"
 #include <cstring>
+#include <string>
 #include <vector>
+
+#include "test_tmpdir.hpp" /* cr_test::read_repo_file (N-074 doc-truth pin) */
 
 using namespace cr;
 using cr::health::parse_nvme_health_page;
@@ -155,4 +158,27 @@ TEST(Nvme, CliTempFractionIsCelsiusDecidegrees) {
     health::NvmeHealthInfo h;
     h.temperature_k = 310; /* the page's 16-bit field carries whole K only */
     EXPECT_EQ(h.decidegrees_c(), 369u);
+}
+
+TEST(Health, SmartCommandListMatchesImplementation) {
+    /* N-074 doc-truth pin (the N-040 family's doc-lint, applied to the
+     * health header): cr_health.h's DELTA comment may only claim SMART
+     * commands the implementation issues. 0xD1 READ_THRESHOLDS ships
+     * (cr_health.cpp:192-200, S-024's fix); 0xD8 RETURN_STATUS was a
+     * claimed-but-never-issued command (grep of cr_health.cpp: 0 hits)
+     * and must not return to the comment until the code issues it. */
+    const std::string hdr = cr_test::read_repo_file("include/cr/win/cr_health.h");
+    ASSERT_FALSE(hdr.empty());
+    EXPECT_NE(hdr.find("0xD1 READ_THRESHOLDS"), std::string::npos)
+        << "S-024's threshold reads ship - the header must keep claiming them";
+    EXPECT_EQ(hdr.find("0xD8"), std::string::npos)
+        << "0xD8 RETURN_STATUS is not issued by cr_health.cpp - the header "
+           "must not claim it (re-adding requires issuing it in code first)";
+    const std::string src = cr_test::read_repo_file("src/win/cr_health.cpp");
+    ASSERT_FALSE(src.empty());
+    EXPECT_NE(src.find("0xD1"), std::string::npos)
+        << "the threshold read must actually ship";
+    EXPECT_EQ(src.find("0xD8"), std::string::npos)
+        << "if 0xD8 ever ships, update cr_health.h's comment in the same "
+           "change (this pin forces the lockstep)";
 }

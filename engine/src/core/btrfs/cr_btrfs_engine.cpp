@@ -64,6 +64,10 @@ constexpr u8 KEY_INODE_ITEM = 1;
 constexpr u8 KEY_EXTENT_DATA = 108;
 constexpr u8 KEY_DIR_ITEM = 84;
 constexpr u8 KEY_ROOT_ITEM = 132;
+constexpr u8 KEY_ROOT_REF = 156; /* N-047: btrfs_root_ref names child
+                                   * subvols (kernel btrfs_tree.h: dirid@0,
+                                   * sequence@8, name_len@16, name@18;
+                                   * key.objectid = the child subvol id) */
 constexpr u8 KEY_CHUNK = 228;
 constexpr u8 KEY_XATTR = 24; /* S-028: BTRFS_XATTR_ITEM_KEY (og type 0x18) */
 
@@ -551,7 +555,22 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
     };
     std::vector<Subvol> subvols;
     {
+        /* N-047: ROOT_REF names arrive in the same root-tree walk; they
+         * are buffered (item order between ROOT_ITEM 132 and ROOT_REF 156
+         * is ascending per key order, but the walk tolerates any order)
+         * and applied after the walk. */
+        std::map<u64, std::u16string> ref_names;
         auto on_item = [&](const Key& k, const u8* data, u32 len) {
+            if (k.type == KEY_ROOT_REF && len >= 18) {
+                const u32 nl = u32(le16(data + 16));
+                if (nl != 0 && nl <= 255 && len >= 18u + nl) {
+                    std::u16string w = text::utf8_to_u16_lossless(std::string_view(
+                        reinterpret_cast<const char*>(data + 18), nl));
+                    if (!w.empty())
+                        ref_names[k.objectid] = std::move(w);
+                }
+                return true;
+            }
             if (k.type != KEY_ROOT_ITEM || len < 0xB8)
                 return true;
             if (k.objectid != OID_FS_TREE && k.objectid < OID_FIRST_SUBVOL)
@@ -565,9 +584,14 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
             return true;
         };
         walk_tree(v, root_tree, cancel, on_item, stats.nodes_read, stats.damaged_nodes);
-        /* subvolume names: ROOT_REF/DIR_ITEM entries in the root tree name
-         * children; recovered best-effort below during the FS walk via the
-         * default "subvol-<id>" naming */
+        /* apply the ROOT_REF names (N-047): the og surfaces each subvolume
+         * with its ROOT_REF-derived display name; the subvol-<id> fallback
+         * stays for unnamed/damaged root trees */
+        for (auto& s : subvols) {
+            const auto it = ref_names.find(s.id);
+            if (it != ref_names.end())
+                s.name = it->second;
+        }
     }
     if (progress)
         (void)progress(3, 4, progress_user);
@@ -581,11 +605,18 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
         if (cancel && cancel->checkpoint())
             return ERR_CANCELLED;
         ++subvol_index;
-        char role[32];
-        snprintf(role, sizeof(role), "subvol-%llu", static_cast<unsigned long long>(sv.id));
+        /* N-047: the ROOT_REF-derived name when the root tree carries one
+         * (the og's per-subvol display name); subvol-<id> stays as the
+         * fallback for unnamed subvolumes */
         std::u16string role16;
-        for (const char* p = role; *p; ++p)
-            role16.push_back(u16(u8(*p)));
+        if (!sv.name.empty()) {
+            role16 = sv.name;
+        } else {
+            char role[32];
+            snprintf(role, sizeof(role), "subvol-%llu", static_cast<unsigned long long>(sv.id));
+            for (const char* p = role; *p; ++p)
+                role16.push_back(u16(u8(*p)));
+        }
         /* subvolumes live under root_active like every other engine
          * (single merged tree; the corpus builder renders subvols as
          * separate result roots - we nest them for one canonical tree) */
@@ -799,7 +830,12 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
                     cp->name = de.name;
                     cp->fs_kind = u32(FsKindCode::Btrfs); /* factory 11 (row 45) */
                     cp->logical_size = cit->second.size;
-                    cp->attributes = is_dir ? 0x10 : 0;
+                    /* N-047: the og's FILE_ATTRIBUTE_NORMAL (0x80) on
+                     * regular files - dirs 0x10 (BtrfsSearchDLL_decompiled.c
+                     * :3574-3577: uStack_92 = 0x80 default, 0x10 when the
+                     * type byte == 2). The S-028 DOSATTRIB OR below still
+                     * applies on top. */
+                    cp->attributes = is_dir ? 0x10 : 0x80;
                     cp->times.created = cit->second.crtime;
                     cp->times.modified = cit->second.mtime;
                     cp->times.changed = cit->second.ctime;

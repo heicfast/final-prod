@@ -56,3 +56,39 @@ M-026 (parallel leg)-context (ZFS supersets recorded in I-007), OQ-Z1..Z5 (track
 ## Open questions
 
 The exact layout-registry ZAP object number and slot encoding — decode pass on a real pool image (folded into tracked-open OQ-Z).
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's M-038 fix — see `git log` for "fix(M-038)")
+**Verified by:** `Zfs.SaRegistryDrivenLayout2` (fail-before PROVEN by temporary revert to
+the layout-1-only decode: the registered layout-2 object was dropped outright —
+`layout != 1 -> nullptr` — and the file never appeared; pass-after: the object surfaces
+with size/mode/parent/crtime decoded through the registry's slot order, which is
+deliberately different from layout 1) and `Zfs.SaRegistryAbsentFallsBackToLayout1`
+(fail-before on the zero-attrs surface: the registry-less pool still emits the layout-2
+object with zero attrs — og parity; plus the implicit-default layout-1 compat pin).
+Suite 687/687 Linux RelWithDebInfo + ASan/LSan.
+**Resolution notes:** Corpus re-verified first-hand: the og's three-object chain
+(ZfsSearchDLL :22934-23140 — master node "SA_ATTRS" -> object; that object's ZAP holds
+"REGISTRY" and "LAYOUTS"), the registry value decode (bits 0-15 attr number, bits 16-23
+length — :23170-80), the by-name attribute resolution ("ZPL_PARENT" :24324, "ZPL_ATIME"
+:24441, "ZPL_MTIME" :24563, "ZPL_CTIME" :24685, "ZPL_CRTIME" :24807, "ZPL_SIZE" :26449),
+the layouts map built from the LAYOUTS object (:23251), and the uniform layout lookup at
+object-decode time (:17636 — layout number -> map; on a miss the attrs are ZEROED, the
+object still surfaces). Fix: ZapEntry gained raw_value bytes (fzap arrays exceed 8 bytes
+— layout 1's 14 u16 slots = 28 bytes); SaRegistry loaded per dataset (master -> SA_ATTRS
+-> {REGISTRY, LAYOUTS}; registry: name -> {attr num, length}; layouts: decimal-string
+number -> u16 slot array); object decode is registry-driven (offsets by cumulative
+registered lengths over the layout's slot order, hdrsize from layout_info bits 10-15
+x8); layout 1 falls back to the implicit default table when the registry is absent
+(registry-less pools + the legacy fixtures); an unregistered non-default layout now
+surfaces the object with ZERO attrs (og parity) instead of dropping it — the pre-M-038
+core dropped the object here, losing the file entirely. Fixture upgraded to a real
+registry chain: master "SA_ATTRS" -> 23, {REGISTRY -> 24, LAYOUTS -> 25}; the 14-entry
+registry is a 2K fzap (a 512B block holds at most 7 microzap entries); the layouts
+object is a 512B fzap carrying the full 14-slot layout 1 AND a 4-slot layout 2
+[ZPL_SIZE, ZPL_MODE, ZPL_PARENT, ZPL_CRTIME] with a deliberately different order; object
+22 (registryfile) carries the layout-2 bonus. Fix-the-cause honored: the layout number
+is no longer the gate — the registry is the source of attr identity, exactly the og's
+by-name model.

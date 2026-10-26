@@ -116,6 +116,12 @@ it is now FIXED and lives in `findings/FIXED/`.)
   types {7, 0} over the raw bytes with the 32-byte stored compare, retries the next DVA
   on mismatch/read-failure, and plans L0 extents at the fallback position. Fixtures are
   now checksum-carrying pools. Resolution in findings/FIXED/M-019.
+- **B11 → M-038 FIXED (s19):** SA decode is registry-driven — the og's three-object
+  chain (master "SA_ATTRS" -> {REGISTRY, LAYOUTS}), by-name attribute resolution,
+  offsets by cumulative registered lengths, and the zero-attrs surface for unregistered
+  layouts (the og zero-fills at :17636; the core previously DROPPED the object).
+  Layout 1 keeps the implicit-default fallback for registry-less pools. Resolution in
+  findings/FIXED/M-038.
 - **D15-adjacent:** og grading = ZfsDecider txg-based block decisions (from_txg/birth_txg);
   shared-controller grading is undecodable in the DLL (consistent with OQ-S2M-1).
 - **Matches confirmed:** DVA encoding (+4 MiB vdev skip), BPE embedded-block layout,

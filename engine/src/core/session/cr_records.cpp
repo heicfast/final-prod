@@ -272,12 +272,17 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* re
         auto* props = new (std::nothrow) tree::FileProperties();
         if (!props)
             return 0x50030009;
-        PropsRef props_ref(props); /* N-077: releases on every early break */
+        PropsRef props_ref(props); /* N-077: releases on every early break
+         * (three convergent landings - session-22's PropsRef [canonical,
+         * first-landed], session-19 DFX19's PropsGuard, DFX17's
+         * PropsGuard - all functionally identical; the PropsRef stands) */
 
-        /* (Convergent repair note: this session's DFX16 leg found the
-         * same leak and filed the identical unique_ptr fix; the parallel
-         * lane's N-077 PropsRef landing is canonical - kept, duplicate
-         * removed at the rebase union.) */
+        /* (Convergent repair note: this session's DFX19 leg found the
+         * same leak independently during the s19 ASan/LSan suite sweep
+         * and filed a PropsGuard fix; the parallel lane's N-077 PropsRef
+         * landing is canonical - kept, the duplicate guard removed at
+         * the rebase union to avoid a double release on the break
+         * paths.) */
         props->record_ref = c.g64();
         props->fs_kind = c.g32();
         if (props->fs_kind == 12)
@@ -334,8 +339,16 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* re
         if (nflags & 16) { /* M-051: restore the RAW provenance */
             props->carve_checksum = c.g32();
             const u16 nl = c.g16();
-            if (c.left < size_t(nl) * 2u)
+            /* N-078 (NEW-FINDING, filed+fixed this session; the parallel
+             * session-22 lane's N-077 covers the leak half): this break
+             * was the ONLY corrupt-record exit that left c.fail unset -
+             * a truncated carve_note record loaded as OK (silent partial
+             * load, violating N-058's "a failed stream is an error"
+             * rule). Every other length-bomb site sets c.fail. */
+            if (c.left < size_t(nl) * 2u) {
+                c.fail = true;
                 break;
+            }
             props->carve_note.resize(nl);
             for (u16 k = 0; k < nl; ++k)
                 props->carve_note[k] = c.g16();

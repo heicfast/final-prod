@@ -278,6 +278,33 @@ constexpr u32 SA_LAYOUT1_MIN = 112; /* header + body through links */
 /* ---- objset_phys ---- */
 constexpr u32 OS_META_DNODE = 0;
 
+/* ---------------------------------------------------------------- */
+/* M-038: SA attribute registry (per dataset).                       */
+/* The og resolves system attributes BY NAME through the on-disk     */
+/* registry (ZfsSearchDLL: "ZPL_PARENT" :24324, "ZPL_ATIME" :24441,  */
+/* "ZPL_MTIME" :24563, "ZPL_CTIME" :24685, "ZPL_CRTIME" :24807,      */
+/* "ZPL_SIZE" :26449), and decodes every layout through the layouts  */
+/* map built from the LAYOUTS object (:23251; the object decode at   */
+/* :17636 does a uniform map lookup and ZEROES the attrs on a miss   */
+/* - the object still surfaces). Structure (the og's three-object    */
+/* chain, :22934-23140): master node ZAP "SA_ATTRS" -> object; that  */
+/* object's ZAP holds "REGISTRY" -> the attribute registry and       */
+/* "LAYOUTS" -> the layouts object. Registry entries: attribute      */
+/* name -> { bits 0-15 attr number, bits 16-23 length in bytes }     */
+/* (the og's decode: (short)value / (byte)(value>>0x10) :23170-80).  */
+/* Layout entries: decimal-string layout number -> u16 attr-number   */
+/* array (OpenZFS sa.c sa_load_layout; og :23190-23250 stride-2 BE   */
+/* walk - LE pool values read LE here).                              */
+/* ---------------------------------------------------------------- */
+struct SaRegistry {
+    bool valid = false;
+    std::map<u16, u8> len_by_num;               /* attr number -> length */
+    std::map<u16, std::string> name_by_num;     /* attr number -> name */
+    std::map<u64, std::vector<u16>> layouts;    /* layout number -> ordered slots */
+
+    bool has_layout(u64 n) const { return layouts.count(n) != 0; }
+};
+
 /* ---- dsl_dir / dsl_dataset bonus (OpenZFS include/sys/dsl_dir.h:
  * dsl_dir_phys_s {creation_time@0, head_dataset_obj@8, origin_obj@16,
  * child_dir_zapobj@24, ...}; dsl_dataset.h: ds_bp@128) ---- */
@@ -688,6 +715,9 @@ struct ObjSet {
 struct ZapEntry {
     std::string name;
     u64 value = 0;
+    std::vector<u8> raw_value; /* M-038: full value bytes (fzap arrays can
+                                * exceed 8 bytes - e.g. SA layout slot
+                                * lists; microzap = the 8-byte LE image) */
 };
 
 bool read_microzap(const std::vector<u8>& blk, std::vector<ZapEntry>& out) {
@@ -708,6 +738,7 @@ bool read_microzap(const std::vector<u8>& blk, std::vector<ZapEntry>& out) {
         ZapEntry ze;
         ze.name.assign(name, nlen);
         ze.value = value;
+        ze.raw_value.assign(e, e + 8); /* M-038: 8-byte LE image */
         out.push_back(std::move(ze));
         if (out.size() > MAX_ZAP_ENTRIES)
             break;
@@ -788,7 +819,8 @@ bool read_leaf(const std::vector<u8>& leaf, std::vector<ZapEntry>& out) {
             std::vector<u8> val;
             if (!read_array(value_chunk, value_numints * (value_intlen ? value_intlen : 1), val))
                 continue;
-            ze.value = val.size() >= 8 ? le64(val.data()) : 0;
+            ze.raw_value = std::move(val);
+            ze.value = ze.raw_value.size() >= 8 ? le64(ze.raw_value.data()) : 0;
         }
         out.push_back(std::move(ze));
     }
@@ -898,6 +930,60 @@ bool read_zap(Volume& v, ObjSet& os, u64 object, std::vector<ZapEntry>& out) {
         return read_fzap(v, os, dn, blk, dbsz, out);
     return false;
 }
+
+bool load_sa_registry(Volume& v, ObjSet& zpl, const std::vector<ZapEntry>& master,
+                      SaRegistry& reg) {
+    u64 sa_obj = 0;
+    for (const auto& e : master)
+        if (e.name == "SA_ATTRS")
+            sa_obj = e.value;
+    if (sa_obj == 0)
+        return false;
+    std::vector<ZapEntry> sa_entries;
+    if (!read_zap(v, zpl, sa_obj, sa_entries))
+        return false;
+    u64 reg_obj = 0, lay_obj = 0;
+    for (const auto& e : sa_entries) {
+        if (e.name == "REGISTRY")
+            reg_obj = e.value;
+        else if (e.name == "LAYOUTS")
+            lay_obj = e.value;
+    }
+    if (reg_obj != 0) {
+        std::vector<ZapEntry> rs;
+        if (read_zap(v, zpl, reg_obj, rs)) {
+            for (const auto& e : rs) {
+                const u16 num = u16(e.value & 0xFFFF);
+                const u8 len = u8((e.value >> 16) & 0xFF);
+                if (len == 0)
+                    continue; /* variable-length attrs cannot sit in a
+                               * fixed layout slot (ZPL registers none);
+                               * attr number 0 IS valid (ZPL_ATIME) */
+                reg.len_by_num[num] = len;
+                reg.name_by_num[num] = e.name;
+            }
+        }
+    }
+    if (lay_obj != 0) {
+        std::vector<ZapEntry> ls;
+        if (read_zap(v, zpl, lay_obj, ls)) {
+            for (auto& e : ls) {
+                char* end = nullptr;
+                const unsigned long long ln = strtoull(e.name.c_str(), &end, 10);
+                if (end == e.name.c_str() || *end != '\0' || ln == 0)
+                    continue; /* layout entries are named by number */
+                std::vector<u16> slots;
+                for (size_t i = 0; i + 2 <= e.raw_value.size(); i += 2)
+                    slots.push_back(u16(e.raw_value[i] | (u16(e.raw_value[i + 1]) << 8)));
+                if (!slots.empty() && slots.size() <= 64)
+                    reg.layouts[u64(ln)] = std::move(slots);
+            }
+        }
+    }
+    reg.valid = !reg.len_by_num.empty() || !reg.layouts.empty();
+    return reg.valid;
+}
+
 
 /* ---- file content through the dnode block tree ---- */
 
@@ -1290,6 +1376,12 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
         if (root_obj == 0)
             continue;
 
+        /* M-038: per-dataset SA registry (master node "SA_ATTRS" ->
+         * {REGISTRY, LAYOUTS}); absent registry = the implicit default
+         * layout only (registry-less pools and the legacy fixtures) */
+        SaRegistry sa_reg;
+        load_sa_registry(v, zpl, master, sa_reg);
+
         struct ObjInfo {
             u64 mode = 0;
             u64 size = 0;
@@ -1315,12 +1407,71 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
             if (blen == 0 || u64(blen) > bcap || blen > MAX_BONUS)
                 return nullptr;
             const u8* b = dn.bonus();
-            if (dn.bonustype() == DMU_OT_SA && blen >= SA_LAYOUT1_MIN) {
-                /* SA layout 1 (standard ZPL attr order after the 8-byte
-                 * header); non-standard layouts fall back to no attrs */
+            if (dn.bonustype() == DMU_OT_SA && blen >= 8) {
+                /* M-038: registry-driven SA decode (the og resolves
+                 * attributes BY NAME through the dataset's SA registry
+                 * and decodes every registered layout; the uniform map
+                 * lookup at :17636 ZEROES attrs on a miss - the object
+                 * still surfaces). Layout 1 falls back to the implicit
+                 * default table (the zfs_attr_table order) when the
+                 * registry/layouts object is absent - the pre-M-038
+                 * behavior, kept for registry-less pools. */
                 const u32 magic = le32(b);
-                const u32 layout = le16(b + 4) & 0x3FF;
-                if (magic == SA_MAGIC && layout == 1) {
+                const u32 layout_info = le16(b + 4);
+                const u32 layout = layout_info & 0x3FF;
+                const u32 hdr_bytes = ((layout_info >> 10) & 0x3F) << 3;
+                if (magic != SA_MAGIC)
+                    return nullptr; /* not an SA bonus */
+                bool decoded = false;
+                if (sa_reg.valid && sa_reg.has_layout(layout)) {
+                    /* registry-driven: offsets by cumulative registered
+                     * lengths over the layout's slot order */
+                    u32 off = hdr_bytes;
+                    for (u16 slot : sa_reg.layouts[layout]) {
+                        auto lit = sa_reg.len_by_num.find(slot);
+                        if (lit == sa_reg.len_by_num.end())
+                            break; /* unregistered attr number: keep the
+                                    * attrs decoded so far (the og zero-
+                                    * fills the missing tail) */
+                        const u8 alen = lit->second;
+                        if (u64(off) + alen > blen)
+                            break; /* bonus shorter than the layout: keep
+                                    * the in-bounds prefix */
+                        auto nit = sa_reg.name_by_num.find(slot);
+                        if (nit != sa_reg.name_by_num.end()) {
+                            const u8* p = b + off;
+                            u64 v64 = alen >= 8 ? le64(p)
+                                                : (alen == 4 ? u64(le32(p))
+                                                             : (alen == 2 ? u64(le16(p))
+                                                                          : u64(*p)));
+                            const std::string& nm = nit->second;
+                            if (nm == "ZPL_ATIME")
+                                oi.atime[0] = v64;
+                            else if (nm == "ZPL_MTIME")
+                                oi.mtime[0] = v64;
+                            else if (nm == "ZPL_CTIME")
+                                oi.ctime[0] = v64;
+                            else if (nm == "ZPL_CRTIME")
+                                oi.crtime[0] = v64;
+                            else if (nm == "ZPL_MODE")
+                                oi.mode = v64;
+                            else if (nm == "ZPL_SIZE")
+                                oi.size = v64;
+                            else if (nm == "ZPL_PARENT")
+                                oi.parent = v64;
+                            else if (nm == "ZPL_LINKS")
+                                oi.links = v64;
+                            /* gen/xattr/rdev/flags/uid/gid: carried in
+                             * the registry, not consumed by the walk */
+                        }
+                        off += alen;
+                    }
+                    decoded = true;
+                } else if (layout == 1 && blen >= SA_LAYOUT1_MIN) {
+                    /* implicit default layout 1 (zfs_attr_table order):
+                     * the fallback for registry-less pools - real pools
+                     * carry layout 1 in the LAYOUTS object and decode
+                     * through the registry path above */
                     oi.atime[0] = le64(b + SA_LAYOUT1_ATIME);
                     oi.mtime[0] = le64(b + SA_LAYOUT1_MTIME);
                     oi.ctime[0] = le64(b + SA_LAYOUT1_CTIME);
@@ -1329,9 +1480,12 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
                     oi.parent = le64(b + SA_LAYOUT1_PARENT);
                     oi.links = le64(b + SA_LAYOUT1_LINKS);
                     oi.size = le64(b + SA_LAYOUT1_SIZE);
-                } else {
-                    return nullptr; /* unknown SA layout: skip cleanly */
+                    decoded = true;
                 }
+                (void)decoded; /* an unregistered non-default layout
+                 * surfaces the object with ZERO attrs - og parity (the
+                 * uniform map lookup at :17636 zero-fills); the pre-M-038
+                 * core DROPPED the object here, losing the file entirely */
             } else if (dn.bonustype() == DMU_OT_ZNODE && blen >= ZP_MIN) {
                 /* legacy znode_phys (zfs_sa.h) */
                 oi.atime[0] = le64(b + ZP_ATIME);
