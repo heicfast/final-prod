@@ -12603,3 +12603,45 @@ Work Log:
 Stage Summary:
 - Session 30 open on the disjoint tracked-open tail. Baseline green.
   First act: OQ-Z-E-FLT (ZFS/exFAT/FLT open questions).
+
+---
+Task ID: DFX30-T1 (OQ-FLT-1 resolved)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: OQ-FLT-1 (inside tracked-open/OQ-Z-E-FLT-session3.md) — is the
+170-entry extension table engine-wide or exFAT-only? (M-035's blast-radius
+question)
+
+Work Log:
+- Probe executed first-hand on the corpus: PE section mapping of
+  exFATSearchDLL VA 0x18005a090 (.data, file offset 0x58690) -> 170 x
+  char[9] table extracted (169 populated + all-zero slot-169 sentinel;
+  first key "Raw"; flag bytes all 0).
+- Byte-exact 1530-byte block search across all 9 SearchDLL binaries:
+  NTFSSearchDLL 1 copy (.rdata 0x18006db20, ZERO code refs — DAT_ scan 0 +
+  full-VA/RVA pointer scans 0 = dead data); FATSearchDLL 3 copies (1 dead
+  .rdata + live DAT_1800630d0 x5 refs + DAT_180067720 x2 refs);
+  exFATSearchDLL 2 copies (1 dead .rdata + the live DAT_18005a090 x4);
+  RAWSearchDLL 1 live copy (DAT_18008f070 x1); EXT4/Btrfs/ReFS/HFS+/Zfs:
+  ABSENT.
+- Set-diff vs DRWUI.exe 0x141bb0500 grading table: 169/169 keys IDENTICAL
+  (only-in-exFAT: none; only-in-DRWUI: none).
+- Live consumers read first-hand: FAT FUN_180024a10 (index gate < 0xAA +
+  strupr + strstr = the FileFilter path), FAT FUN_180017b90 (whole-table
+  category iteration), RAW FUN_18000b7a0 (index -> name accessor, record
+  +0x18 field). None is a validation scorer.
+- Scorer blast radius: grep for the reject rule's 0.3-compare across every
+  engine decompile: 0 hits outside exFATSearchDLL. FUN_180025390's
+  majority-mismatch + ratio<0.3 ghost rejection is exFAT-ONLY.
+- Audit trail: OQ-Z-E-FLT-session3.md OQ-FLT-1 section marked RESOLVED
+  (DFX30) with the evidence pointer; M-035's Open-questions section
+  ANSWERED with the same evidence + the implementer note (shared-vocabulary
+  insight: the core's kGradingExtensions can serve index->name); evidence
+  file added at diff-to-fix/evidence/decompiled-quotes/
+  s30-oq-flt1-extension-table-distribution.md.
+- No source change (OQ resolution; the consuming finding M-035 is DFX24's
+  lane and stays open with its scope now precisely bounded).
+
+Stage Summary:
+- OQ-FLT-1 RESOLVED: scorer exFAT-only; table = 4-engine shared
+  vocabulary, set-identical to DRWUI's grading set. Next on this lane:
+  OQ-Z5 (CZfsSearchController vs CZfsQuickSearch vtable diff).

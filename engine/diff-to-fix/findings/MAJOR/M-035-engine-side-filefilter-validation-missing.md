@@ -55,4 +55,16 @@ M-023 (parallel leg) (the filter table this consumes), M-017 (parallel leg) (sco
 
 ## Open questions
 
-Whether the same scorer exists in the OTHER SearchDLLs (NTFS/FAT/Btrfs/…) or is exFAT-only — byte-search the 170-entry table pattern (x9 stride) in each binary; blast radius depends on the answer (tracked OQ-FLT-1).
+~~Whether the same scorer exists in the OTHER SearchDLLs (NTFS/FAT/Btrfs/…) or is exFAT-only — byte-search the 170-entry table pattern (x9 stride) in each binary; blast radius depends on the answer (tracked OQ-FLT-1).~~
+
+**ANSWERED (DFX30, OQ-FLT-1 resolution, 2026-10-26):** the scorer is
+**exFAT-only** — zero `<= 0.3` compare sites in every other engine decompile
+(first-hand scan; evidence
+`diff-to-fix/evidence/decompiled-quotes/s30-oq-flt1-extension-table-distribution.md`).
+The fix scope of this finding is the exFAT lost-partition validation path
+alone. NOTE for the implementer: the 169-entry extension table itself is a
+4-engine shared vocabulary (live in FAT/exFAT/RAW as the `+0x18`
+extension-INDEX -> name mapping, gate `< 0xAA`; dead copy in NTFS; absent in
+EXT4/Btrfs/ReFS/HFS+/ZFS) and is set-identical to DRWUI's grading table —
+the core's single shared table (`cr_grading.cpp kGradingExtensions`) can
+serve the index mapping too if the fix needs index->name resolution.
