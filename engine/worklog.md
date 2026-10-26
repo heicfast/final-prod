@@ -12689,3 +12689,46 @@ Work Log:
 
 Stage Summary:
 - Session 31 open. First fix: N-064 (Dict password dictionary absent).
+
+---
+Task ID: DFX31-N064 (session 31, MINOR tail-first lane — finding 1)
+Agent: main engineer (diff-to-fix fix session 31 — DFX31)
+Task: N-064 — the Dict password-dictionary unlock aid (BitLocker
+legitimate-unlock family, consent-gated port).
+
+Work Log:
+- Corpus re-verified FIRST-HAND: og-codebase/Dict byte-level (2,742 B, 228
+  comma-terminated CRLF lines, pure ASCII, lengths 2..20, SEVEN duplicate
+  lines kept: password/clinton/administrator/admin/super/user x2 + cola x3
+  — my initial no-duplicates test assumption was WRONG and corrected to a
+  keeps-duplicates pin, corpus wins); config-data-reference.md :20/:86;
+  bitlockerlib--bitlocker-implementation.md :16-17/:39-44 (the user-consented
+  password dialog -> GetProtectors -> PSUnlockBitLocker / manage-bde -Password
+  fallback); repair-architecture.md :60/:142-145 (the HWPX consumer —
+  out-of-scope per I-010). CONFIRMED-DIVERGENCE (key-based unlock only).
+- Landed: cr::dict pure-core module (scripts/gen_dict.py -> generated
+  byte-faithful table, the raw_signs conversion precedent; parse() = the
+  Dict file grammar; try_passwords() = the consent-gated loop:
+  shipped-then-user, stop-on-first-OK, index-only cr::log lines). Win
+  layer: unlock_with_dictionary() (explicit consent action) on the
+  UNCHANGED PowerShell -Password / manage-bde -Password plumbing (grammar
+  extracted to detail::build_unlock_command). CLI --bitlocker-dict consent
+  flag. cr_ui_unlock_volume_with_dictionary additive ABI export (M-033
+  precedent, no version bump). F61 hardening preserved: scan/open paths
+  never attempt passwords; locked volumes stay ERR_FVE_LOCKED without
+  consent.
+- Fail-before EXECUTED: loop-disabled tree -> the 4 attempt-loop tests RED
+  (attempted=0, no order, zero log lines); restored -> 11/11 GREEN.
+- Tests: 11 pure-core (test_dict.cpp) + 3 win-lane contract tests
+  (test_bitlocker_win.cpp — the finding's own two named tests + the
+  order/wide-conversion seam). Suite 754/754 linux-release at the landing
+  tree (baseline 737/737 + the window's parallel landings + 11 new).
+- Audit trail: Resolution + FIXED/ move; RESOLVED-INDEX session-31 row;
+  matrix health cells + health/bitlocker detail row -> MATCH + session
+  note; modules/health.md verdict; SUMMARY session-31 delta + counts
+  (MINOR 18 open); CAPABILITY-MATRIX exclusion-section update.
+
+Stage Summary:
+- N-064 FIXED (session tally: 1). Next: N-071 (device enumeration
+  breadth), pulling first — parallel lanes are active on the MINOR tier.
+

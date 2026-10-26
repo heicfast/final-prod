@@ -1,5 +1,10 @@
 # diff-to-fix/findings/FIXED/ — resolved findings (audit trail)
 
+## Session-31 wave (+N-064 — DFX31, MINOR tail-first lane)
+
+| ID | Severity (orig) | Title | Fix commit | Resolution |
+|---|---|---|---|---|
+| N-064 | MINOR (S5) | BitLocker/Office password-dictionary unlock aid absent (the og ships Dict, 228 entries, wired to manage-bde -Password + encrypted-HWPX repair) | (this session's N-064 commit — DFX31) | cr::dict pure-core module: generated 228-entry table (scripts/gen_dict.py, raw_signs conversion precedent; the 7 duplicate lines kept byte-faithfully), the Dict-file parse grammar, and the consent-gated try_passwords loop (shipped-then-user order, stop-on-first-OK, index-only log lines through the N-048/N-061 seam — password material never logged). Win layer: unlock_with_dictionary (the explicit consent action) riding the SAME PowerShell -Password / manage-bde -Password plumbing (grammar extracted to detail::build_unlock_command, unchanged); CLI --bitlocker-dict consent flag; cr_ui_unlock_volume_with_dictionary additive ABI export (M-033 precedent). Office/HWPX side stays out-of-scope (I-010). 11 pure-core tests (fail-before EXECUTED: the 4 attempt-loop tests RED on the loop-disabled tree) + 3 win-lane contract tests; suite 754/754. |
 ## Resolved findings (session-28 wave on top: +N-025; session-25 wave: +I-001..I-024 — the INFORMATIONAL tier closed into FIXED/ (22/22 acknowledged, re-verified on `716d121`, pins green 737/737); live file inventory)
 
 > The 22 INFORMATIONAL findings were acknowledged across sessions 2-14
