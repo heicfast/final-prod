@@ -1,5 +1,4 @@
-
-# SUMMARY.md — executive summary (diff-fix session 23 on top; earlier sessions below)
+# SUMMARY.md — executive summary (sessions 25+28 on top; earlier sessions below)
 
 ## Session-23 delta (2026-10-26 — DFX23: the MINOR-first closing wave, batch 1 — N-009 group closed + M-057)
 
@@ -44,7 +43,6 @@ Suite **740/740** linux-release at the fix commit (+3 Text tests, gate
 extended). Next on this lane: N-007/I-004 → N-025 → N-026 → N-027 →
 N-031 → N-036 → N-049 → N-059 → N-065 → N-066 → N-075 → N-019 → N-050 →
 N-033 → N-072, then the win-layer/crypto-heavy N-032/N-071/N-064.
-
 ## Session-25 delta (2026-10-26 — DFX25: the INFORMATIONAL tier closed into FIXED/; tracked-open resolution wave)
 
 Baseline `716d121` verified green first-hand (737/737 linux-release, full
@@ -74,6 +72,29 @@ worklog entries for the per-OQ dispositions).
 
 <!-- DFX16 note: session 16 ran as a parallel lane in the same window as
      sessions 17-22; its delta is recorded here for chronology. -->
+
+## Session-23 delta (2026-10-26 — DFX23: the MINOR-first close-out lane, N-025 first landing)
+
+Session bootstrap at `716d121` (DFX16-M013 rebase reconciliation; N-062 the
+last fix landing); corpus `03ad46c` unmoved. Baseline before any change:
+**737/737** linux-release green. Mandate: minor findings first, 20+ fixes,
+fixed findings moved to findings/FIXED/, all docs/counts current.
+
+**N-025 FIXED (the LDM geometry group, both sub-items):** N-012a — the og's
+1 MiB config-region gate (`config_size < 0x801` else "ConfigSize larger than
+1m ?." -> rc 0xfffffff8, LdmManager_decompiled.c:59748-59759, re-verified
+first-hand this session) is now first-class in parse_ldm_database; the old
+8192-sector read clamp (an unregistered parse-anyway superset) removed as
+unreachable. N-012b — a zero interleave defaults to the og's 64 KiB (0x10000
+bytes = 0x80 sectors at the 512-LBA grid; ctor default :47665, use-site
+re-default :68631-68637, sector fallback 0x80 :68638-68641 — all sites
+re-verified first-hand) on BOTH the striped and RAID-5 layout paths; the old
+code lost the volume entirely (zero-capacity layout). Tests:
+Ldm.OversizeConfigRejected + Ldm.ZeroInterleaveDefaultsTo64K (both
+fail-before RED on the stash-isolated pre-fix tree) + the
+Ldm.ConfigSizeExactlyOneMebibyteAccepted boundary pin (2048 keeps parsing).
+Suite **740/740**.
+
 
 ## Session-16 delta (2026-10-26 — DFX16: S-029 closed — the SEVERE tier is empty)
 

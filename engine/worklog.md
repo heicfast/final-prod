@@ -12463,6 +12463,32 @@ Stage Summary:
   model divergence and parity claim).
 
 ---
+Task ID: DFX28-T1 (session 28, re-stamped from the squatted DFX23 bootstrap; first fix — N-025)
+Agent: main engineer (diff-to-fix fix session — MINOR-first mandate, lane disjoint from the DFX26/27 MAJOR lanes)
+Task: N-025 the LDM geometry minors group (N-012a config-size gate + N-012b
+zero-interleave default).
+
+Work Log:
+- Bootstrap: baseline 737/737 linux-release at 716d121; corpus 03ad46c
+  unmoved; prompt saved token-redacted (worklog/session-diff-fix-23-prompt.md,
+  the lane ID re-stamped here after parallel squatters took 23-27).
+- Corpus re-verified first-hand: the < 0x801 gate + "ConfigSize larger than
+  1m ?." -> rc 0xfffffff8 (LdmManager_decompiled.c:59748-59759); the
+  interleave defaults (ctor 0x10000 :47665; use-site re-default :68631-68637;
+  sector fallback 0x80 :68638-68641).
+- Fix: gate `config_size >= 0x801 -> ERR_BAD_CHECKSUM` in parse_ldm_database
+  (the 8192-sector read clamp removed as unreachable — the gate fires first);
+  zero interleave -> 128 sectors on both STRIPE and RAID layout paths.
+- Tests: Ldm.OversizeConfigRejected + Ldm.ZeroInterleaveDefaultsTo64K both
+  fail-before RED on the stash-isolated pre-fix tree (oversize disk parsed OK;
+  zero-chunk layout incomplete); Ldm.ConfigSizeExactlyOneMebibyteAccepted
+  boundary pin. Suite 740/740.
+- Audit trail: Resolution + FIXED/ move, RESOLVED-INDEX row, matrix
+  table+ldm row -> MATCH, ldm.md verdict, SUMMARY session-28 delta.
+
+Stage Summary:
+- N-025 FIXED (session tally: 1). MINOR 18 remain (INFO tier closed by the
+  parallel DFX25 lane). Next: N-026 (the ReFS page/gate group).
 Task ID: DFX29-T0 (session re-stamp — 27 → 29; MINOR middle band)
 Agent: main engineer (the ORIGINAL 354c555 DFX23 lane — N-009 + M-057
 landed; re-stamped twice to stay disjoint in a 5-lane window)
@@ -12486,6 +12512,8 @@ Work Log:
 
 Stage Summary:
 - DFX29 open on the MINOR middle band. Tally so far (this lane): N-009
+  group + M-057. First fix: N-036 (ReFS data-run recognizer).
+
   group + M-057. First fix: N-036 (ReFS data-run recognizer).
 
 Task ID: DFX27-T0 (session 27 bootstrap — lane claim; re-stamped twice:

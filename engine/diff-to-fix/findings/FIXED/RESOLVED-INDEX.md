@@ -1,6 +1,6 @@
 # diff-to-fix/findings/FIXED/ — resolved findings (audit trail)
 
-## Resolved findings (session-25 wave: +I-001..I-024 — the INFORMATIONAL tier closed into FIXED/ (22/22 acknowledged, re-verified on `716d121`, pins green 737/737); live file inventory)
+## Resolved findings (session-28 wave on top: +N-025; session-25 wave: +I-001..I-024 — the INFORMATIONAL tier closed into FIXED/ (22/22 acknowledged, re-verified on `716d121`, pins green 737/737); live file inventory)
 
 > The 22 INFORMATIONAL findings were acknowledged across sessions 2-14
 > (each file carries its own `## Resolution` with the verification evidence).
@@ -18,6 +18,7 @@
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |
 |---|---|---|---|---|
+| N-025 | MINOR (S2 group) | LDM geometry minors: N-012a config-size gate (og rejects >= 0x801 sectors; core clamped 4 MiB and continued) + N-012b zero-interleave default (og 64 KiB; core refused) | (this session's N-025 commit — file carries the Resolution) | Gate `config_size >= 0x801 -> ERR_BAD_CHECKSUM` in parse_ldm_database (LdmManager_decompiled.c:59748-59759, re-verified first-hand); the unreachable 8192-sector read clamp removed. Zero interleave defaults to 128 sectors (64 KiB) on BOTH the striped and RAID-5 layout paths (og :47665 ctor default, :68631-68641 use-site, re-verified). 3 tests (2 fail-before RED on the stash-isolated pre-fix tree); suite 740/740. |
 | I-001 | INFORMATIONAL | NTFS metafile filter: blanket `$`-skip vs og's known-list (user `$…` files surface + recycle deletions) | `f74a5dd` (ack) — moved FIXED/ this session | ACKNOWLEDGED — deliberate recovery-positive superset; pin UserFileNamedDollarNotHidden green; corpus cite re-verified first-hand this session (:21186); D-12. |
 | I-002 | INFORMATIONAL | FAT12 bad-cluster canonicalized vs og raw-follow | `f74a5dd` (ack) — moved FIXED/ this session | ACKNOWLEDGED — CORRECTIONS row 3 + raw-follow semantics confirmed; pin Fat16BadClusterStillCanonical green (it surfaced N-010, fixed); D-39. |
 | I-003 | INFORMATIONAL | Btrfs core exceeds og deep-scan (NULL-stub) and mirror-probing | `f74a5dd` (ack) — moved FIXED/ this session | ACKNOWLEDGED — NULL-stub + mirror-abort decompiles re-read and hold; pin MirrorSelectionNewestGeneration green; D-48a. |
