@@ -72,6 +72,39 @@ RESOLVED-INDEX) · tracked-open 11 (resolution wave below — see the session's
 worklog entries for the per-OQ dispositions).
 
 
+## Session-23 delta, batch 2 (2026-10-26 — DFX29: N-036 — the ReFS container-map half closed)
+
+**N-036 FIXED (the finding's remaining container-translation half; the
+recognizer half had landed with S-020):** the invented top-nibble
+translate model (feeding a map nothing ever populated) is REPLACED by the
+og formula, re-verified first-hand at BOTH decoded consumers
+(FUN_180011e90 :13223-13267 + FUN_180004820 :2355-2386, byte-identical):
+identity when block < span / map empty / key absent; key
+`(((block/span)>>1)-2)*span`; rewrite `(block & (span-1)) | base`; u64
+wrap semantics preserved. The span is DBR +0x34 — the og's
+volume+0x148 -> parser+0xa8 wiring (FUN_180011cd0) decoded THIS SESSION,
+which settles the finding's "container-cluster count" identification —
+now `RefsBoot::container_clusters`. The container map is populated from
+FUN_180002a60's system-directory records (0xa0/0xe0-length keys with the
+{base, span} tail pair; span == DBR+0x34 is the acceptance gate) during
+the ObjectID-table walk (zero extra I/O) + a bounded system-table sweep
+(IDs < 0x100 — never doubles the user-tree walk). Fail-before EXECUTED:
+translate reverted to identity -> `Refs.ContainerRelativeRunTranslated…
+PerOgFormula` RED (42*4096 vs 302*4096) AND `Refs.PhysicalRunFlag20…
+Untranslated` RED (both files collapsed onto extent 42 by M-027's
+placement-signature dedup — the loser never emitted; a genuine
+second-order proof). 4 new tests; suite **744/744**. Residual (recorded
+in the Resolution, not blocking): the og's record payload carries its key
+at +0x20, so an alternative key-relative shape reading exists — the
+auditor's reading is implemented with the unit==span gate as the
+discriminator; the real multi-container volume probe (the finding's own
+open question) settles it and is the bench stage's next step.
+
+**Post-fix counts:** SEVERE **0** · MAJOR 14 · MINOR **17** · INFO 0 open
+(22 acknowledged in FIXED/) · tracked-open 11 · FIXED/ **174** files
+(173 findings + RESOLVED-INDEX). Next on this lane: N-049 (lost-record
+field richness) → N-050 → N-033 → N-064.
+
 <!-- DFX16 note: session 16 ran as a parallel lane in the same window as
      sessions 17-22; its delta is recorded here for chronology. -->
 

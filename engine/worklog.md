@@ -12487,3 +12487,39 @@ Work Log:
 Stage Summary:
 - DFX29 open on the MINOR middle band. Tally so far (this lane): N-009
   group + M-057. First fix: N-036 (ReFS data-run recognizer).
+
+---
+Task ID: DFX29-T1 (session 23 lane, third fix — N-036, the container half)
+Agent: main engineer (diff-to-fix fix session 29-lane — DFX29)
+Task: N-036's remaining scope: the ReFS container-translation model.
+
+Work Log:
+- Corpus re-verified FIRST-HAND beyond the finding: FUN_180011e90
+  (:13223-13267) AND FUN_180004820 (:2355-2386) — both consumers
+  byte-identical (key ((block/span)>>1)-2)*span; rewrite (block &
+  (span-1)) | base; identity when block<span / map null / key absent).
+  NEW DECODE this session: the span wiring — volume+0x148 (= DBR+0x34,
+  written at :2463) -> parser+0xa8 via FUN_180011cd0's field copy
+  (+0xa0 offset mapping); and FUN_180002a60's record shape (0xa0/0xe0
+  payload, base/unit tail pair, unit==span gate, counter*span map key).
+  The alternative key-relative shape reading (payload key at +0x20 per
+  :8043-8050) is recorded as the residual — the auditor's reading
+  implemented, unit==span the discriminator either way.
+- Implementation: translate_cluster rewritten to the og formula (u64
+  wrap semantics preserved); RefsBoot::container_clusters (DBR+0x34);
+  container_record_base() decoder; collection in the ObjectID-table walk
+  (zero extra I/O) + bounded system-table sweep (IDs < 0x100; user trees
+  are 0x600+). The top-nibble invented model removed.
+- Tests: 4 new (ContainerRelativeRunTranslatedPerOgFormula,
+  PhysicalRunFlag20Untranslated, ContainerBlockBelowSpanStaysPhysical,
+  SingleContainerExtentsUnchanged). Fail-before EXECUTED on the
+  identity-reverted tree: 2 RED — the second (PhysicalRun) failed for a
+  genuine second-order reason: both proof files collapsed onto extent 42
+  and M-027's placement-signature dedup dropped the loser.
+- Suite 744/744 linux-release. Audit trail: Resolution rewritten (both
+  halves now closed), FIXED/ move, index row, matrix refs row, SUMMARY
+  batch-2 delta + counts.
+
+Stage Summary:
+- Tally 3 (N-009 group, M-057, N-036). MINOR 17 remain. Next: N-049
+  (lost-record field richness).

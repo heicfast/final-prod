@@ -81,19 +81,35 @@ struct Engine {
      * the bounded cache) - the stale-page sweep's live-reachability set */
     std::set<u64> live_pages;
 
-    /* cluster translation: container-tagged VCNs carry container+1 in the
-     * top nibble; without a container table the tag is masked (typical
-     * single-container volume). */
-    std::map<u64, u64> container_lcn; /* container index -> start LCN */
-    u64 translate_cluster(u64 vcn) const {
-        const u64 tag = vcn >> 60;
-        u64 cl = vcn & 0x0FFFFFFFFFFFFFFFull;
-        if (tag >= 1) {
-            auto it = container_lcn.find(tag - 1);
-            if (it != container_lcn.end())
-                cl += it->second;
-        }
-        return cl;
+    /* cluster translation (N-036: og FUN_180011e90 :13223-13267, the same
+     * formula in FUN_180004820 :2355-2386 and the page-read path
+     * FUN_180011b50 :13117-13146 - all three consumers byte-identical):
+     * container-relative blocks (run flag 0x20 clear) are VIRTUAL block
+     * numbers rewritten through the per-volume container map built from
+     * the system-directory container records (FUN_180002a60 :1302-1342):
+     *   span   = DBR +0x34, the container span in clusters (the og's
+     *            volume+0x148 -> parser+0xa8 via FUN_180011cd0)
+     *   key    = (((block / span) >> 1) - 2) * span
+     *   block' = (block & (span - 1)) | map[key]
+     * Identity when block < span (the low physical area), the map is
+     * empty (every single-container volume), or the key is absent
+     * (unknown container: the og leaves the block untranslated rather
+     * than failing the walk). The unsigned key arithmetic wraps exactly
+     * as the og's u64 does - a wrapped key simply misses the map.
+     * The previous top-nibble-tag model was an invented grammar feeding
+     * a map nothing ever populated - removed with this fix. */
+    std::map<u64, u64> container_lcn; /* key = counter*span -> base cluster */
+    u32 container_span = 0;           /* DBR +0x34 (og volume+0x148) */
+    u64 translate_cluster(u64 block) const {
+        if (container_span == 0 || block < container_span)
+            return block;
+        if (container_lcn.empty())
+            return block;
+        const u64 key = (((block / container_span) >> 1) - 2) * container_span;
+        auto it = container_lcn.find(key);
+        if (it == container_lcn.end())
+            return block;
+        return (block & u64(container_span - 1)) | it->second;
     }
 
     bool read_cluster(u64 cluster, void* buf) const {
@@ -281,6 +297,33 @@ bool walk_table(Engine& e, const u64 root_lcns[4], u32 depth,
         }
     }
     return true;
+}
+
+/* N-036: decode a system-directory container record (og FUN_180002a60
+ * :1302-1342). The og's leaf records carry a 0xa0- or 0xe0-length key
+ * whose tail holds {base u64, span u64} at +0x90/+0x98 (0xa0 layout) or
+ * +0xd0/+0xd8 (0xe0 layout); the span field must equal the DBR +0x34
+ * container span (the og compares against volume+0x148) - that gate is
+ * the acceptance discriminator. Returns the container's base cluster. */
+static bool container_record_base(const EntryView& ev, u32 span, u64& base) {
+    if (span == 0)
+        return false;
+    u64 base_off = 0, unit_off = 0;
+    if (ev.key_len == 0xa0) {
+        base_off = 0x90;
+        unit_off = 0x98;
+    } else if (ev.key_len == 0xe0) {
+        base_off = 0xd0;
+        unit_off = 0xd8;
+    } else {
+        return false;
+    }
+    if (unit_off + 8 > ev.key_len)
+        return false;
+    if (le64(ev.key + unit_off) != span)
+        return false; /* og gate: the record's span == DBR +0x34 */
+    base = le64(ev.key + base_off);
+    return base != 0;
 }
 
 /* File/dir general info from the variable index-root component (thesis
@@ -567,6 +610,9 @@ bool validate_boot(const u8 sector[512], RefsBoot& out) {
     out.minor = sector[0x29];
     out.serial = le64(sector + 0x38);
     out.container_bytes = le64(sector + 0x40); /* M-026: MSB/OID area bound */
+    out.container_clusters = le32(sector + 0x34); /* N-036: the og's translation
+        unit (volume+0x148 -> parser+0xa8 via FUN_180011cd0) - the container
+        span in clusters that gates record acceptance AND keys the map */
     return out.major >= 1 && out.major <= 3;
 }
 
@@ -624,6 +670,7 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
     eng.boot = boot;
     eng.stats = &stats;
     eng.cancel = cancel;
+    eng.container_span = boot.container_clusters; /* N-036 translation unit */
     /* page geometry: 16 KiB pages from 4 clusters at 4 KiB cluster size;
      * one cluster at >= 16 KiB (thesis 4.3.2). */
     eng.page_clusters = boot.cluster_bytes < 16384 ? u32(16384 / boot.cluster_bytes) : 1;
@@ -784,12 +831,18 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
         return out_lcns[0] != 0;
     };
 
-    /* ---- 5. ObjectID table: tableID -> root LCN quad (thesis 4.12) ---- */
+    /* ---- 5. ObjectID table: tableID -> root LCN quad (thesis 4.12) ----
+     * N-036: the same walk collects the system-directory container
+     * records (og FUN_180002a60's map build, keyed counter*span -> base);
+     * the og builds its map from the checkpoint-descriptor system
+     * directory before any content walk - populating during this
+     * pre-content walk matches that ordering. */
     struct TableInfo {
         u64 lcns[4] = {0, 0, 0, 0};
         bool visited = false;
     };
     std::map<u64, TableInfo> tables;
+    u64 container_counter = 0; /* the og's +0x14c counter (map key index) */
     {
         u64 root[4];
         if (!table_root(0, root))
@@ -799,6 +852,12 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
         walk_table(
             eng, root, 0,
             [&](const EntryView& ev) {
+                u64 cbase = 0;
+                if (container_record_base(ev, eng.container_span, cbase)) {
+                    eng.container_lcn[container_counter * eng.container_span] = cbase;
+                    ++container_counter;
+                    return !eng.cancelled();
+                }
                 if (ev.key_len < 8 || ev.val_len < 0x38)
                     return true;
                 TableInfo ti;
@@ -807,6 +866,30 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
                 if (ti.lcns[0] != 0) {
                     tables[le64(ev.key)] = ti;
                     ++stats.tables;
+                }
+                return !eng.cancelled();
+            },
+            visited, nodes);
+    }
+    /* N-036 continuation: container records may also live in the system
+     * tables themselves (System Dir 0x0-0x5 per the corpus deep-dive).
+     * The sweep is bounded to table IDs < 0x100 (system structures; user
+     * directories are 0x600+) so the collection never doubles the user-
+     * tree walk cost. Deterministic ascending-ID order - on a real volume
+     * all container records live in one table, where entry order == the
+     * og's sorted-map order. */
+    for (const auto& kv : tables) {
+        if (kv.first >= 0x100 || kv.second.visited)
+            continue;
+        std::set<u64> visited;
+        u32 nodes = 0;
+        walk_table(
+            eng, kv.second.lcns, 0,
+            [&](const EntryView& ev) {
+                u64 cbase = 0;
+                if (container_record_base(ev, eng.container_span, cbase)) {
+                    eng.container_lcn[container_counter * eng.container_span] = cbase;
+                    ++container_counter;
                 }
                 return !eng.cancelled();
             },
