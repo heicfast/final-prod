@@ -11,17 +11,22 @@ largest single-engine file) + `include/cr/zfs/` + `tests/unit/test_zfs_volume.cp
 ## Behavioral
 
 - **B1 detection** — `M` uberblock magic 0x00BAB10C (4 decompile sites verified), txg at
-  UB+0x10, newest-txg-wins, vdev label probing (4 labels, front/back); core adds
-  shift-probing 10..13 (4 Kn pools) — superset, register; BE-pool refusal
-  (`ERR_UNSUPPORTED`) — documented deliberate hardening.
+  UB+0x10, ring-walk: EVERY valid uberblock state is walked newest-first with
+  cross-state identity dedup (S-034 FIXED — the og's quick searcher iterates every
+  label-0 ring slot and walks each txg's tree; the old newest-only verdict was a
+  refuted premise); vdev label probing (4 labels, front/back); core adds
+  shift-probing 10..13 (4 Kn pools) + all-four-labels ring collection — superset,
+  register; BE-pool refusal (`ERR_UNSUPPORTED`) — documented deliberate hardening.
 - **B2 recovery correctness** — `M` nvlist XDR+native decode, micro/fat ZAP, gang blocks
   (3-blkptr headers), BPE (embedded block pointers), per-object compression registry
   (LZJB/LZ4/zle/gzip → codec-tagged extents; lzjb/zle hardened ports in storage module);
   **OQ-T6** multi-vdev (refused, single-disk resolvable only — og extent unknown).
 - **B3** — `M` checksum-aware reads at blkptr level.
-- **B4 deleted classification** — `NA` with note (documented no-deleted-recovery, CoW
-  rationale `cr_zfs_engine.cpp:987–988`; og deleted-ZFS behavior not evidenced in corpus
-  — RAWSearch covers content in the og, same posture as Btrfs).
+- **B4 deleted classification** — `M` (S-034 FIXED): the ring-txg-history walk recalls
+  deleted-in-window files as Deleted nodes (the og walks every ring state; the old
+  "no-deleted-recovery, CoW rationale" note was the refuted newest-only premise —
+  deleted content beyond the ring window still surfaces via RAW carving only, same
+  posture as Btrfs).
 - **B5 orphan** — `M` snapshots surfaced as roots when present in the DSL tree (og
   deep-dive §3 parity; core snapshot surfacing implemented).
 - **B7 sparse** — `M` holes via blkptr l0==0 and gang leaders.
@@ -164,3 +169,12 @@ multivdev-fallback/checksum side.)
 |---|---|---|
 | N-056 | MINOR | Delay-execution label/uberblock import polling missing (og retries with backoff during long walks; core probes once — torn pools fail immediately) |
 | INFO-register | — | Core decompresses lzjb/zle/gzip/lz4/zstd (cr_zfs_engine.cpp:19-21); the og models per-object compression (std::map<int64,zio_compress>, remaining-engines:80). No divergence claimable in either direction (both read compressed pools); recorded for the decode-evidence ledger |
+
+
+---
+
+## Session-33b row (S-034 fixed, 2026-10-26)
+
+| ID | Severity | One-line |
+|---|---|---|
+| S-034 | SEVERE → **FIXED** | Ring txg-history walk: every valid uberblock state walked newest-first, cross-state identity dedup (dataset, parent, name, objid, bp0 birth); deleted-in-window files surface as Deleted in place; modified-in-window recalls the prior version as a Deleted sibling; torn states skipped like the og's tree-open failure. Decode items (1)(2)(3) answered first-hand (collector = plain push_back, no engine dedup; per-state tree walk is the state's own content; last_txg display-only). Tests: RingWindowDeletedFileRecalled / RingWindowUnchangedEntriesEmitOnce / RingWindowModifiedFilePriorVersionRecalled / RingTornNewestStateFallsBackToOlder (all fail-before RED). `ring_states` telemetry added |

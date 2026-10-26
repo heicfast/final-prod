@@ -64,6 +64,8 @@ struct ZfsScanStats {
                                  * fallback (the scanned disk) */
     u64 checksum_drops = 0;     /* M-019: blocks dropped after fletcher4
                                  * mismatch on every DVA copy */
+    u64 ring_states = 0;        /* S-034: distinct txg states opened from
+                                 * the uberblock rings (live + recall) */
 };
 
 /* Parsed label config (nvlist subset we need). */
