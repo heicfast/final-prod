@@ -1,5 +1,46 @@
 # diff-to-fix/findings/FIXED/ — resolved findings (audit trail)
 
+## Resolved findings (session-25 wave: +I-001..I-024 — the INFORMATIONAL tier closed into FIXED/ (22/22 acknowledged, re-verified on `716d121`, pins green 737/737); live file inventory)
+
+> The 22 INFORMATIONAL findings were acknowledged across sessions 2-14
+> (each file carries its own `## Resolution` with the verification evidence).
+> Session 25 (DFX25) re-verified the tier on the current tree — resolution
+> sections present 22/22; the five load-bearing pins executed green
+> (UserFileNamedDollarNotHidden, Fat16BadClusterStillCanonical,
+> MirrorSelectionNewestGeneration, NanosecondsPreservedFromExtraField,
+> ScanCacheBudgetIsTheRegisteredDivergence); two first-hand spot-checks
+> re-executed (I-001's `*pcVar15 == '$'` at NTFSSearchDLL :21186 re-read in
+> the corpus; I-022's per-record decompressed-CRC32 at cr_crsf.cpp :78/:167
+> re-read in-tree) — and moved the files here per the user directive
+> (acknowledged INFO findings belong with the resolved set). No code change:
+> the INFORMATIONAL safety-hardening rule (deliberate divergences preserved,
+> pin tests guard against future "parity fixes" that would regress them).
+
+| ID | Severity (orig) | Title | Fix commit | Resolution |
+|---|---|---|---|---|
+| I-001 | INFORMATIONAL | NTFS metafile filter: blanket `$`-skip vs og's known-list (user `$…` files surface + recycle deletions) | `f74a5dd` (ack) — moved FIXED/ this session | ACKNOWLEDGED — deliberate recovery-positive superset; pin UserFileNamedDollarNotHidden green; corpus cite re-verified first-hand this session (:21186); D-12. |
+| I-002 | INFORMATIONAL | FAT12 bad-cluster canonicalized vs og raw-follow | `f74a5dd` (ack) — moved FIXED/ this session | ACKNOWLEDGED — CORRECTIONS row 3 + raw-follow semantics confirmed; pin Fat16BadClusterStillCanonical green (it surfaced N-010, fixed); D-39. |
+| I-003 | INFORMATIONAL | Btrfs core exceeds og deep-scan (NULL-stub) and mirror-probing | `f74a5dd` (ack) — moved FIXED/ this session | ACKNOWLEDGED — NULL-stub + mirror-abort decompiles re-read and hold; pin MirrorSelectionNewestGeneration green; D-48a. |
+| I-006 | INFORMATIONAL | ext4 nanoseconds superset (core preserves, og drops) | `2fad125` (ack+pin) — moved FIXED/ this session | ACKNOWLEDGED — the I-006 re-verification pass landed the missing pin (NanosecondsPreservedFromExtraField, nsec 393,216,000 preserved); D-family registered. |
+| I-007 | INFORMATIONAL | ext4/HFS+/Btrfs core reads more timestamps than og | (ack, s2 register) — moved FIXED/ this session | ACKNOWLEDGED — deliberate superset registered for parity-benchmark awareness; no code change. |
+| I-008 | INFORMATIONAL | LDM RAID-5 four rotations dormant in og; core implements | (ack, s2 register) — moved FIXED/ this session | ACKNOWLEDGED — core's four-rotation support is the deliberate superset over the og's dormant single path; first-class LDM preserved. |
+| I-009 | INFORMATIONAL | Carve probing (byte-step) and block-IO shapes are core supersets | (ack) — moved FIXED/ this session | ACKNOWLEDGED — cr_carve.cpp 1 MiB WINDOW + 4 KiB OVERLAP re-read first-hand; core-only finds on non-aligned starts are NOT parity regressions (bench-filter note operative). |
+| I-010 | INFORMATIONAL | Scope exclusions and engine supersets registered | (ack) — moved FIXED/ this session | ACKNOWLEDGED — CAPABILITY-MATRIX scope rows + PARITY-CORE-REC:164 + D-26 family re-checked; cloud/NAS/repair-chain/WinPE/installer/licensing/i18n stay excluded with rationale. |
+| I-011 | INFORMATIONAL | Corpus errata session-2 register (8 corrections) | (ack) — moved FIXED/ this session | ACKNOWLEDGED — rows cross-checked against CORPUS-ERRATA.md; future sessions must cite corrected facts (0x10=DIRECTORY; pass-2 parses GUID dump; small records destroyed; HFS+ journal magic 0x4a4e4c78 LE). |
+| I-012 | INFORMATIONAL | ReFS ADS gap resolved (shared limitation, no divergence) | (ack) — moved FIXED/ this session | ACKNOWLEDGED — neither side recovers ReFS alternate data streams; parity by shared limitation. |
+| I-013 | INFORMATIONAL | ReFS host-OS runtime gate superset | (ack) — moved FIXED/ this session | ACKNOWLEDGED — core's runtime gate is the documented superset; preserved. |
+| I-014 | INFORMATIONAL | ext4/HFS+ supersets and matches register | (ack, s3) — moved FIXED/ this session | ACKNOWLEDGED — deleted-inode sweep + fragmented-journal-walk correctness advantage ("do not replicate the og's physical+1 bug") registered; hard-links/hot-files/decmpfs MATCH-by-omission. |
+| I-015 | INFORMATIONAL | Preview architecture register: og socket protocol vs core reader | (ack, s4) — moved FIXED/ this session | ACKNOWLEDGED — READ-ONLY register; the 1 MiB UI-socket cap provenance anchored in M-028's fix; 4 MiB kept as documented superset. |
+| I-016 | INFORMATIONAL | Engine factory contract register and FS code spaces | (ack, s4) — moved FIXED/ this session | ACKNOWLEDGED — register; engine-enable gates decision item noted for engineering (FsFamily reserved-5 anchor landed as N-076). |
+| I-017 | INFORMATIONAL | Slice layer deliberate supersets | (ack, s3) — moved FIXED/ this session | ACKNOWLEDGED — slice-layer supersets registered (modules/storage.md); preserved. |
+| I-018 | INFORMATIONAL | NVMe route byte parity MATCH | (ack, s3) — moved FIXED/ this session | ACKNOWLEDGED — route byte MATCH record; no divergence. |
+| I-019 | INFORMATIONAL | EPM tool-ops scope register | (ack, s5b) — moved FIXED/ this session | ACKNOWLEDGED — scope exclusion with rationale; no code change. |
+| I-020 | INFORMATIONAL | Corpus doc corrections s5 (errata 37-42) | (ack) — moved FIXED/ this session | ACKNOWLEDGED — six corrections cross-checked (CTbFile, CFatVirtualView, EFIBoot, Fixup, FATX naming, extension-table); fed OQ-S4-1's evidence base. |
+| I-021 | INFORMATIONAL | Session-5 scope and deliberate delta registers | `896cee3` (ack) — moved FIXED/ this session | ACKNOWLEDGED — PE manifests re-checked directly in corpus (requireAdministrator); PARITY-DELTAS D-60a..l. |
+| I-022 | INFORMATIONAL | Session-5 core superset registers | `896cee3` (ack) — moved FIXED/ this session | ACKNOWLEDGED — cr_crsf.cpp per-record decompressed-CRC32 + bomb cap re-read first-hand this session (:78/:167/:319); D-60 family. |
+| I-023 | INFORMATIONAL | DrwCfg persistent config channel scope register | `b2bd91b` (ack) — moved FIXED/ this session | ACKNOWLEDGED — settings persistence is host responsibility; og's hardcoded-key AES channel not copied (DPAPI note stands); no code change. |
+| I-024 | INFORMATIONAL | PartitionRecoveryD generator sets and .dat persistence register | `b2bd91b` (ack) — moved FIXED/ this session | ACKNOWLEDGED — capability register; behavioral decode remains OQ-S6-1's scope (this session's queue). |
+
 ## Resolved findings (session-22 wave: +M-055, +N-077, +N-020, +N-070 +M-056 (NEW-FINDING), +N-074 (convergent), +N-047, +N-035, +N-014; live file inventory)
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |
