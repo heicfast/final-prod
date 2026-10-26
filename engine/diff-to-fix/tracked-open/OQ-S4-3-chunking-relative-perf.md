@@ -102,3 +102,28 @@ into this file, M-030's Resolution addendum, and SUMMARY's performance
 section. Not resolvable from the Linux container (the question is
 real-hardware I/O behavior by nature); no new engineering prerequisite
 exists. This file remains OPEN solely on that execution.
+---
+
+## Session-close addendum (the closing parity session) — the Windows execution ATTEMPTED: dispatched, first run build-stage failed on the pre-fix tree, the rerun on the fixed tree in flight
+
+The acceptance's "exactly one Windows execution" was dispatched this session
+via the API (workflow api-benchmark.yml, `workflow_dispatch` run
+**40289658166**, span 512 MiB, on `8b2d8db`). The run failed BEFORE the
+harness — at the Windows build step, on the exact pushed-reds the parallel
+window had landed (gmtime_r C3861 + the two C4244 confidence narrowings —
+errors at cr_analysers.cpp:705 / cr_carve.cpp:457/:827), so no
+alignbench.json artifact exists for it; two parallel-lane dispatches from the
+same window (runs 40290109004 on `da46b14`, 40290704073 on `ca71045`) failed
+identically. Those build reds are now FIXED on main (the convergent repairs
+landed as `0e6a642` + this lane's same-shape fixes; the current tree builds
+clean on the local gates). The push-triggered rerun on the fixed tree
+(**run 40291877684** on `6ec8027`) is IN FLIGHT at session close.
+
+**Status: UNVERIFIED-BY-EXECUTION (one dispatch deep into the acceptance
+path — the harness itself has not yet produced numbers).** The remaining
+step is now purely: read run 40291877684's (or any successor's)
+bench-artifacts/alignbench.json chunk_strategy_ratios block and transcribe
+it here + M-030's Resolution addendum + SUMMARY's performance section. The
+dispatch path (workflow_dispatch via the API) is proven working — the
+204-accepted dispatch landed and executed; only the tree's build health
+stood between dispatch and numbers, and that is now green on main.

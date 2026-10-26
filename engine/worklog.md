@@ -16706,3 +16706,20 @@ Stage Summary:
   40289658166). Every finding file lives in findings/FIXED/ with its
   Resolution.
 
+
+---
+Task ID: SESSION-CLOSE-1 (the OQ-S4-3 dispatch evidence recorded)
+Agent: main engineer (the closing parity session)
+
+Work Log:
+- The OQ-S4-3 Windows-execution attempt recorded in the tracked-open file:
+  dispatch 40289658166 (204-accepted, ran) failed at the Windows BUILD step
+  on the pre-fix tree (the gmtime_r/C4244 reds — now fixed on main); the
+  push-triggered rerun 40291877684 on the fixed tree 6ec8027 in flight at
+  session close; the remaining step is purely transcriptional (read the
+  alignbench.json chunk_strategy_ratios block).
+- Final tree verification: 887 tests — 883 pass + 4 env-skips linux-release.
+
+Stage Summary:
+- Board: SEVERE 0 · MAJOR 0 · MINOR 0 · INFO 0 · tracked-open 1 (OQ-S4-3,
+  one dispatch deep into its acceptance path, rerun in flight).
