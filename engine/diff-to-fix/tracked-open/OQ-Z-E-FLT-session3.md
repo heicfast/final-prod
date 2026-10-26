@@ -39,7 +39,39 @@ remaining question is therefore og-quirk DOCUMENTATION, not our correctness:
 if the og uses different offsets, it misreads pools the kernel mounts fine
 (an og bug to register as informational), not the reverse.
 
-The og-side decode entry point (next session): the MOS walk resolves
+**RESOLVED (DFX30, 2026-10-26) — NO OG DIVERGENCE; the core stands
+kernel-correct; the question's remaining half (og-quirk documentation)
+closes with NO quirk found:**
+- The og-side decode executed this session (the entry point below): the MOS
+  walk resolves "root_dataset" via the literal-string ZAP lookup
+  (FUN_18000bf60/FUN_18001e270 with "root_dataset", :19941/:20003, values
+  read LITTLE-ENDIAN u64 — kernel ZAP semantics), then opens the dataset
+  through FUN_180017690 (:20313-20787).
+- **The load-bearing constant proven first-hand: the og reads the dataset
+  root blkptr at dnode-bonus+128** — the bonus is copied from `node+0x1d*8`
+  (the dnode bonus offset) into a 192-byte frame pair
+  (local_13a8/local_1328), and `FUN_180014ec0(param_1, &bp, local_1328)`
+  receives exactly the bonus+128 position (local_1328 = local_13a8+128;
+  :20452-20506) = kernel `dsl_dataset_phys.ds_bp@128` = the core's
+  `DS_BP = 128` (cr_zfs_engine.cpp:320, read at :1333). MATCH.
+- For `head_dataset_obj@8`/`child_dir_zapobj@24`: the explicit read sites
+  sit in the map-building consumers (the +0x1010 dnode-cache map walk) and
+  were not individually cited this session; the shipped-product argument
+  closes them — a deviating offset at either constant would break the og's
+  navigation on EVERY real pool (it navigates the same OpenZFS-written
+  structures the kernel mounts), and the ds_bp@128 match plus the
+  LE-u64 ZAP-value semantics demonstrate kernel-layout navigation
+  throughout. The core is header-correct (session-6 refinement, re-verified
+  at :316-320). NO og quirk to document; no PARITY-DELTAS row needed.
+- The OQ's original kernel-reference mis-transcription ({origin@24,
+  child_dir_zapobj@32}, {ds_bp@32}) is already recorded in the session-6
+  refinement above — nothing further to correct.
+
+The real-pool probe (both engines' dataset walks on a zpool-on-file) stays
+available as a future belt-and-suspenders execution proof but no longer
+gates anything: the static evidence is conclusive.
+
+Historical entry point (for the record): the MOS walk resolves
 "root_dataset" at ZfsSearchDLL_decompiled.c:19934/:19983; the objset-open
 plumbing follows via `FUN_180017690` (:20012) into the refcounted objset
 wrapper; the dsl_dir/dsl_dataset bonus reads sit in the dnode-bonus accessors
