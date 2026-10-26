@@ -157,9 +157,8 @@ persisted (would fight M-042's re-probe-on-resume design — recorded as
 reviewed in the Resolution). Suite **754/754**.
 
 **Post-fix counts:** SEVERE **0** · MAJOR 14 · MINOR **13** · INFO 0
-open (22 acknowledged in FIXED/) · tracked-open 10 (OQ-Z5 resolved by
-the parallel DFX30 lane) · FIXED/ **178** files (177 findings +
-RESOLVED-INDEX). Next on this lane: N-050 (recognition contract) →
+open (22 acknowledged in FIXED/) · tracked-open 11 · FIXED/ **178** files
+(177 findings + RESOLVED-INDEX). Next on this lane: N-050 (recognition contract) →
 N-033 → N-064.
 
 <!-- DFX16 note: session 16 ran as a parallel lane in the same window as
