@@ -590,6 +590,12 @@ u32 serialize_volume_info(const VolumeInfo& vi, std::vector<u8>& out) {
     /* S-030 v3 tail: the image file path (empty for disk/volume targets;
      * old readers stop before it - the record stays loadable) */
     out.insert(out.end(), vi.image, vi.image + 256);
+    /* N-066 v4 tail: the og record-3 axes + the 512-byte boot snapshot
+     * (empty strings / zeroed snapshot when the source had none). */
+    out.insert(out.end(), vi.firmware, vi.firmware + 32);
+    out.insert(out.end(), vi.wwn, vi.wwn + 32);
+    out.insert(out.end(), vi.interface_desc, vi.interface_desc + 32);
+    out.insert(out.end(), vi.boot_snapshot, vi.boot_snapshot + 512);
     return OK;
 }
 
@@ -619,6 +625,23 @@ u32 deserialize_volume_info(const u8* data, size_t len, VolumeInfo& vi) {
             if (!c.bytes(reinterpret_cast<u8*>(vi.image), 256))
                 return 0x50040001;
             vi.image[255] = 0; /* never trust a torn NUL */
+        }
+        /* N-066 v4 tail: absent on v1/v2/v3 records - zeros mean the
+         * axes were never captured (the same skip-on-zero contract as
+         * the v2 identity tail; the boot snapshot stays all-zero and
+         * the mismatch diagnostics degrade to the hash compare). */
+        if (len >= 80 + 84 + 256 + 32 + 32 + 32 + 512) {
+            if (!c.bytes(reinterpret_cast<u8*>(vi.firmware), 32))
+                return 0x50040001;
+            if (!c.bytes(reinterpret_cast<u8*>(vi.wwn), 32))
+                return 0x50040001;
+            if (!c.bytes(reinterpret_cast<u8*>(vi.interface_desc), 32))
+                return 0x50040001;
+            if (!c.bytes(vi.boot_snapshot, 512))
+                return 0x50040001;
+            vi.firmware[31] = 0;
+            vi.wwn[31] = 0;
+            vi.interface_desc[31] = 0;
         }
     }
     return c.fail ? u32(0x50040001) : u32(OK);

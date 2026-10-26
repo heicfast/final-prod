@@ -7547,6 +7547,49 @@ ABI-CONTRACT §5a) rather than a parallel ABI interface. Pinned by
 `CrUi.ScanBusyStoppingQueries` + the plain-C edges in
 `cr_ui_abi_check`.
 
+### D-77 — recovered files inherit destination ACL defaults; no source-descriptor re-application (N-009d, REGISTERED DIVERGENCE — capability not ported)
+
+**Class:** registered divergence (writer security posture) · **Finding:**
+diff-to-fix N-009d (MINOR, resolved by registration) · **Date:** 2026-10-26
+
+**WHAT OG DOES:** the pending-operation engine's copy paths preserve
+source security descriptors — epmpublic carries CAccessControlList /
+CAccessEntry / CFileDaclProc / CFileSecurityInfo classes that capture the
+source stream's ACL and re-apply it on the recovered copy (corpus
+`re-workspace/artifacts/PartitionRecovery/pending-operation-engine.md`;
+the same surface also carries IOCTL_DISK_DELETE_DRIVE_LAYOUT for its
+destructive ops). On NTFS sources the descriptor stream is the $SDH/$SII
+security-index pair; on FAT-family sources there is no descriptor to
+carry and the og's classes no-op.
+
+**WHAT WE DO:** `cr_safewriter` / `cr_destio` create every recovered
+file as a NEW file that inherits the destination volume's default DACL
+(grep SDDL/SetSecurityInfo/ACL across src/ + include/: zero hits). No
+descriptor is captured on the source side and none is applied on the
+destination side.
+
+**WHY:** (1) For a recovery product the recovered file IS a new file —
+the destination's owner policy should govern it, not the (often corrupt,
+often attacker-influenced) source metadata; re-applying a source DACL
+verbatim can re-create an unreadable file at the destination (a
+recovery-negative outcome the og's users hit with inherited-deny ACEs).
+(2) The NTFS $SDH/$SII decode surface does not exist in the core engine
+today; porting it would be a feature-sized effort whose only consumer
+would be this flag. (3) The finding's own fix text marks the port
+"optional" and asks for the default-OFF decision to be registered here.
+The risk is accepted: ACL fidelity is lost on cross-ACL-tree recovery,
+content is never lost.
+
+**RISK:** user-observable only when recovering NTFS→NTFS with
+non-default source ACLs and expecting them to travel: they do not.
+Recovery content, names, timestamps and hashing are unaffected.
+
+**VERDICT:** ACCEPTED (default: inherit-destination). If a future host
+needs descriptor transport, the recorded next step is: NTFS $SDH/$SII
+index decode in the engine → descriptor carrier on
+FileProperties → a WriterConfig `preserve_dacl` flag (default OFF)
+applying it via SetSecurityInfo on the win destio layer only — never on
+the POSIX test shims.
 ### D-78 — the password-dictionary unlock aid: authored seed + format-compatible loader, the og's Dict asset not copied (N-064, REGISTERED DIVERGENCE)
 
 ### D-80 — the password-dictionary data posture: the corpus Dict converted as generated data (raw_signs precedent), user dictionaries loadable (N-064 convergence record — two parallel landings, first-landing-wins)
@@ -7829,6 +7872,47 @@ from `rrecov list` / `cr_ui_enumerate_disks` reopens this row with a
 live probe (the SetupAPI disk-interface pass is the designed extension
 point — enumerate_via_setupapi() merging dedup'd by device instance
 path per the finding's fix plan option b).
+
+### D-87 — the damage-audit check phase: three bounded divergences from the og's FileSystemCheck (M-041, REGISTERED; renumbered from a D-76 collision with the parallel lanes' N-063 register — the errata convention)
+
+**CONTEXT:** M-041 landed the og's chkdsk-grade audit layer
+(`cr/check/cr_fscheck.h/.cpp`, corpus ghidra-mo/FileSystemCheck_decompiled.c,
+every load-bearing gate decompile-cited in the header). Three points could
+not be decoded to byte-parity and are registered here rather than guessed.
+
+**(a) The $Bitmap slack term is not implemented.** The og's structural
+check (checkntfs.cpp :3866-3888, inside FUN_180005590) fires 0x100b when
+`bitmap_bits < mft_record_count` OR when
+`mft_record_size × (CCheckNTFSVolume+0x30) × 8 <= bitmap_bits − mft_record_count`.
+The first half is implemented exactly. The second half's constant lives in
+an object-field layout the decompile does not resolve (+0x30 is not read
+anywhere else in the module): every well-formed volume stores exactly
+one bit per cluster, and no fixed slack constant can both fire on
+corruption and stay silent on healthy volumes under the field's plausible
+readings — the term is layout-undecoded and deliberately NOT approximated.
+
+**(b) CheckIssue carries superset context the og's callback does not.** The
+og's FAT-path 0x1003 (orphan sweep) reports `(code, 0)`; the NTFS
+cross-check reports `(code, LCN)` and the record number only in its log
+line. The core's `CheckIssue` carries the orphan CLUSTER, the NTFS LCN,
+the claiming record number, and a path hint for the dir audit. Hosts
+consuming the report get strictly more context; the numeric codes and
+their meanings are unchanged.
+
+**(c) A partial $Bitmap run load fails the load (0x100b), never a
+zero-tail audit.** The og's LoadVolumeBitmap allocates the declared
+$DATA size and reads the runs; a short/failed read leaves the og's log
+line and a bitmap whose tail content depends on its allocator. The core
+refuses to cross-check against a partially-loaded bitmap (the zero-filled
+tail would read as "every cluster free" and fire false 0x1003 verdicts) —
+the structural 0x100b is reported instead. The og's
+"Call LoadVolumeBitmap() failed!" path is the closest analogue.
+
+**RISK:** none user-observable beyond the og's own coverage; (a) may miss
+a corruption class the og's slack term catches (undecodable which), (b) is
+additive, (c) is stricter-than-og on a pathological shape. REVISIT
+TRIGGER: any future decode of CCheckNTFSVolume's field layout (+0x30)
+reopens (a) with the exact constant.
 
 ### D-86 — the logging seam: one host sink, no cross-process transport (N-048, REGISTERED DIVERGENCE)
 
