@@ -16470,3 +16470,51 @@ Stage Summary:
 - S-034 converged (their code, my decode correction on the record).
   Board after the union: MAJOR 1 open (M-040 stages (b) + win layer),
   tracked-open 2 (OQ-S4-3 Windows-lane, OQ-FLT-2). SEVERE 0, MINOR 0.
+
+---
+Task ID: DFX36-T4 (M-040 stage b + the win layer)
+Agent: main engineer (diff-to-fix fix session 36 — DFX36)
+Task: M-040 stage (b) — the UEFI NVRAM Boot#### updater + the win-layer
+file IO (stage a's second half)
+
+Work Log:
+- Corpus decode FIRST (EFIBoot_decompiled.c, first-hand): the matcher
+  FUN_1800046f0 (:3366-3434 — the EFI_LOAD_OPTION walk, the
+  HARDDRIVE node layout, the MBR signature+start+size vs GPT
+  GUID-only asymmetry, the sticky-flag semantics) and the updater
+  FUN_180004b40 (:3564-3715 — BootOrder walk, patch-every-04/01-node,
+  the new-info struct {signature, partition number, start, size}, the
+  three break sites, BootOrder never rewritten). Readiness probe
+  (:3888-3894), privilege enable (:3248-3264), the XP-compat dynamic
+  resolver (:3281-3290).
+- Stage (b) landed as the pure module cr/efifix: the injected
+  FirmwareVars interface (available/get/set) so the logic tests
+  everywhere; boot_entry_matches + update_boot_entries under the P62
+  consent gate (default-deny, ERR_REPAIR_REFUSED). Bounds-clamped
+  walks (the og overreads hostile variables — registered hardening).
+- The win layer cr/win/cr_bootfix: repair_bcd_file (dynamic-ntdll
+  ZwUnloadKey hive unload under SeRestore/SeBackup, best-effort with
+  log; whole-file read; plan_rewrites; OVERLAPPED-positioned writes —
+  no SetFilePointer import; FlushFileBuffers tail) +
+  make_firmware_vars (the real firmware APIs + the readiness probe) +
+  run_boot_chain_repair (BCD files + NVRAM under one consent; either
+  leg's failure reported, never blocking).
+- The PE allowlist grew 6 audited entries with corpus cites
+  (LookupPrivilegeValueW, AdjustTokenPrivileges,
+  Get/SetFirmwareEnvironmentVariableW, LoadLibraryW, FreeLibrary — all
+  Vista-era or older; the gate's documented conscious-update process).
+  The win-stub SDK grew the matching declarations; win_syntax_check
+  green over all 9 win files.
+- Tests: 9 EfiFix tests incl. the finding's own named
+  NvramPatchUpdatesLoadOption (the injected-resolver design). Fail-
+  before by construction (new module). The -O0 UBSan lane caught a
+  real uninit-tail bug in the Boot%04X name buffer during development
+  — fixed in the landing (the lane working as designed).
+- Verified: suite 920/920 linux-release; EfiFix+BcdFix 14/14 under
+  ASan and UBSan.
+
+Stage Summary:
+- M-040 stages (a)+(b)+win layer landed. The remaining scope is the
+  S-029 post-apply host-side wiring (the cr_ui apply-flow call site
+  feeding run_boot_chain_repair from the applied plan's geometry) —
+  precisely tracked on the finding.

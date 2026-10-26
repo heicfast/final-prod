@@ -46,6 +46,7 @@ add_executable(cr_tests
     unit/test_report.cpp
     unit/test_reghive.cpp
     unit/test_bcdfix.cpp
+    unit/test_efifix.cpp
     unit/test_preview.cpp
     unit/test_snapshot.cpp
     unit/test_query.cpp

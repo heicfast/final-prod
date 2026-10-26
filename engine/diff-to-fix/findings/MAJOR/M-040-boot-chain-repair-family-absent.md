@@ -122,3 +122,84 @@ not enumerated this session).
 **Fixed in commit:** (this session's M-040 stage-a commit — `git log` "fix(M-040 stage a)")
 **Verified by:** 5 proof tests green — `BcdFix.BcdFindsBootPartitionBySignature`, `BcdFix.BcdOffsetRewriteWritesNewLba`, `BcdFix.BcdUndoRestoresOffsets`, `BcdFix.BootfixRefusedWithoutConsent` (four of the finding's five named tests; the fifth, `NvramPatchUpdatesLoadOption`, is stage (b)'s), plus `BcdFix.BoundariesNeverPlan` (truncated/misaligned/null buffers, foreign signature/LBA, writer-error propagation, empty-plan no-op). Fail-before by construction (the module did not exist). Suite **914/914** linux-release.
 **Resolution notes:** Stage (a) — the BCD offset rewriter, "the narrowest recovery-relevant piece" per the plan — landed as the pure module `cr/bcdfix` (include/cr/bcdfix + src/core/bcdfix): the corpus's own cell decode (FUN_180001980 :499-599, re-verified first-hand this session: the 8-byte-walk finds 0xffffffa0 allocated 96-byte cells; the partition BYTE-offset u64 at cell+0x24 with LBA = value>>9; the MBR signature u32 at cell+0x3C; the match is signature AND old-LBA), the rewrite shape (FUN_180002520 :957-992: write `new_lba << 9` at the offset field), the plan/execute/undo split over an injected writer (the win layer owns the handle + the FSCTL_ALLOW_EXTENDED_DASD_IO 0x90083 + flush tail, Fixup :263-306), and the P62 consent gate (no callback = default-DENY, ERR_REPAIR_REFUSED — the rawfixer S-008 model; only an explicit allow writes; undo restores the original bytes byte-exactly = the Bcd_RestoreBcdFile analog :4562-4625). Stage (b) — the UEFI NVRAM Boot####/BootOrder updater (EFIBoot state 4 path only, :3860-3960; SeSystemEnvironmentPrivilege; the injected-resolver test design is the plan's own) — is the PRECISE NEXT STEP, unchanged in scope. Stage (c) — boot.ini — REGISTERED SKIPPABLE (Win7 boots BCD; the Win7-inclusive posture does not require legacy ARC-path repair; PARITY-DELTAS row below). Stage (d) — the post-op `ChkDsk.exe %C: /F /X` delegation — REGISTERED UI-LAYER (an external binary spawned by the og's undo chain MM:83206; the core's contract ends at the undo record — the host owns process delegation, like the og's own host). The win-layer file IO (`src/win/cr_bootfix.cpp`: hive force-unload ZwUnloadKey \Registry\Machine\BCD00000000 :533/:542, SeRestore/SeBackup :243-255, the DASD flush tail) + the S-029 post-apply wiring remain the second half of stage (a)'s completion — tracked here as the concrete continuation, not silently dropped.
+
+---
+
+## Resolution update (stage b + the win layer landed — DFX36, 2026-10-26)
+
+**Status:** OPEN — STAGES (a) + (b) + THE WIN LAYER LANDED; the remaining
+scope is the S-029 post-apply ORCHESTRATION WIRING (the host-side call
+site), precisely tracked below.
+**Fixed in commit:** (this session's M-040 stage-b commit — `git log`
+"fix(M-040 stage b)"; SHA in worklog.md at push)
+**Verified by:** the 9-test EfiFix suite (tests/unit/test_efifix.cpp) —
+`EfiFix.NvramPatchUpdatesLoadOption` (the finding's own fifth named
+test, the injected-resolver design the plan specified), plus
+`GptEntryMatchesByGuidOnlyAndPatchesFullGuid` (the og's MBR-vs-GPT
+matching asymmetry: MBR needs signature+start+size, GPT matches the
+GUID only — EFIBoot :3386-3424), `MbrMatchRequiresSignatureAndGeometry`,
+`RefusedWithoutConsent` (the P62 default-deny, byte-identical variable
+after refusal), `EveryHardDriveNodeInPathPatched` (FUN_180004b40's
+patch-every-04/01-node loop), `MalformedOptionsNeverOverreadAndNeverMatch`
+(the registered bounds hardening: unterminated description / truncated
+node / zero node length — the og overreads its 1 MiB scratch on all
+three), `UnavailableFirmwareNoopsAndMissingOrderNoops` (the readiness
+gate), `FirmwareFailureStopsTheSweep` (the og's three break sites;
+already-patched entries stay patched; the failed write applies
+nothing), `IncompleteResolverRejected`. Fail-before BY CONSTRUCTION
+(the `cr::efifix` module did not exist — the N-046/M-041 precedent).
+Full suite **920/920** linux-release; the EfiFix+BcdFix set 14/14 under
+ASan (linux-gcc) and UBSan (linux-ubsan) — the -O0 sanitizer lane
+caught a real uninitialized-tail bug in the Boot%04X name buffer during
+development (fixed in the landing commit, recorded here as the lane
+working). The win layer parses clean under win_syntax_check (the stub
+SDK grew the SDK-faithful declarations: LookupPrivilegeValueW,
+AdjustTokenPrivileges, LoadLibraryW/FreeLibrary, GetProcAddress,
+Get/SetFirmwareEnvironmentVariableW, the TOKEN_PRIVILEGES family).
+**Resolution notes:** Stage (b) — the UEFI NVRAM Boot#### updater —
+landed as the pure module `cr/efifix` (include/cr/efifix/cr_efifix.h +
+src/core/efifix/cr_efifix.cpp), re-implemented from the first-hand
+decode of EFIBoot_decompiled.c: the matcher FUN_1800046f0 (:3366-3434 —
+the EFI_LOAD_OPTION walk: u32 attributes@0 + u16 path-list length@4 +
+the NUL-terminated UTF-16 description@6 + the device-path nodes; the
+MEDIA_HARDDRIVE_DP node layout: partition number u32@+4, start LBA
+u64@+8, size u64@+0x10, 16-byte signature@+0x18, format u8@+0x28,
+signature type u8@+0x29; the MBR-mode match = signature AND start AND
+size with the og's sticky-flags semantics, the GPT-mode match = the
+partition GUID only) and the updater FUN_180004b40 (:3564-3715 — walk
+BootOrder, re-read each matching Boot####, patch EVERY 04/01 node to
+the new {partition number, start, size, signature} — the MBR form
+writes the u32 signature, the GPT form all 16 GUID bytes — and write
+the variable back; BootOrder itself is never rewritten; any firmware
+failure breaks the sweep). The injected FirmwareVars interface carries
+the og's readiness probe (the zero-GUID dummy read failing with
+something other than ERROR_INVALID_FUNCTION, :3888-3894) so the pure
+logic is testable everywhere; the win resolver (make_firmware_vars)
+owns SeSystemEnvironmentPrivilege + the real
+Get/SetFirmwareEnvironmentVariableW with the EFI global GUID literal.
+The win layer `cr/win/cr_bootfix` (stage a's file-IO half + stage b's
+resolver): repair_bcd_file (the best-effort hive unload — dynamic
+ntdll ZwUnloadKey on \Registry\Machine\BCD00000000 under
+SeRestore/SeBackup, Fixup :533/:542/:243-255, dynamically resolved so
+ntdll never enters the static import table; the whole-file read;
+bcdfix::plan_rewrites; the OVERLAPPED-positioned 8-byte writes — no
+SetFilePointer import; the FlushFileBuffers tail, Fixup :263-306) and
+run_boot_chain_repair (the combined BCD-files + NVRAM chain under one
+consent decision, either leg's failure reported without blocking the
+other — the og's chain continues past a Bcd failure). The PE import
+allowlist gained the six audited entries with corpus cites
+(LookupPrivilegeValueW, AdjustTokenPrivileges,
+Get/SetFirmwareEnvironmentVariableW — all Vista-era or older;
+LoadLibraryW, FreeLibrary — XP-era, the dynamic ntdll resolution).
+Deliberate deltas registered: the bounds-clamped walks (the og
+overreads hostile firmware variables — the malformed-option test pins
+the refusal); the partition-format/signature-type bytes are re-stamped
+on patch (the og patches the position+signature fields only — the
+re-stamp keeps a GPT partition's node coherent when the disk was
+re-laid; no HARDDRIVE node of the opposite family is converted: the
+branch is chosen by the NODE's existing signature type, exactly the
+og's branch). **The remaining scope:** the S-029 post-apply wiring —
+the host-side call site that feeds run_boot_chain_repair from an
+applied plan's (mbr_signature, old/new start LBA) — is the precise next
+step (the ApplyPlan already carries the fields; the cr_ui apply flow is
+the call site; nothing else in the family remains).
