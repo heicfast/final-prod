@@ -14461,3 +14461,42 @@ Work Log:
 Stage Summary:
 - OQ-S6-1 closed with a two-lane union + one corrected conclusion.
   Remaining on this lane: OQ-S5-1 (CheckVersion consumer).
+
+---
+Task ID: DFX25-T4g (session 25 — OQ-S4-3 push-forward + the near-miss record)
+Agent: main engineer (DFX25)
+Task: OQ-S4-3 (chunking relative perf) — land the engineering prerequisite;
+resolve or precisely push forward.
+
+Work Log:
+- The OQ's required code change ("a 4 MiB-chunk build variant") landed as a
+  RUNTIME variant: run-alignbench.ps1 sweep + 7 MiB (the og's VOLUME chunk;
+  4 MiB was already present); cpu_ms (TotalProcessorTime delta) on every
+  measurement — the OQ's CPU metric; a chunk_strategy_ratios verdict block
+  (og4m/og7m x core64k/core256k, throughput + cpu-per-byte) into the JSON;
+  the header documents the OQ-S4-3 extension.
+- Real gate gap closed: scripts/ps_parsecheck.ps1's file list was missing
+  run-alignbench.ps1 + scripts/bench_seed.ps1 — added (the pre-dispatch
+  parse gate now covers the whole bench .ps1 fleet).
+- OQ-S4-3 status: UNVERIFIED-BY-EXECUTION, pushed forward precisely — the
+  remaining step is exactly one Windows execution (dispatch the API
+  Benchmark workflow / run alignbench on the Windows lane) + transcribe
+  the verdict into the OQ file, M-030's Resolution addendum, and SUMMARY's
+  performance section. The scan-level time-to-first-result half comes from
+  the existing comparative-bench matrix.
+- NEAR-MISS RECORD (verification discipline): an apparent "[m/[M-eating
+  corruption" of the bench fleet (ath]::Round / branches: ain] across 10
+  files) was investigated — display-layer artifact: the tool-output
+  pipeline strips literal [m/[M pairs as false ANSI SGR codes. Byte-level
+  verification (od -c + python reads) REFUTED the corruption: the files
+  use lowercase [math]:: (valid PowerShell — type resolution is
+  case-insensitive) and branches: [main]. A corruption-gate script and a
+  SEVERE finding were drafted and ABORTED before any push. No healthy file
+  touched; no finding filed; the lesson recorded in the OQ file: verify
+  suspected corruption at BYTE level before filing.
+
+Stage Summary:
+- OQ-S4-3: prerequisite landed, one Windows execution remains (precise next
+  step recorded). Session tally: 29 resolutions (22 INFO closures, A-008
+  ACUTE, OQ-Z1/S6-3/S6-2/S6-1/S5-1 resolutions, OQ-S4-3 push-forward with
+  the prerequisite landed).
