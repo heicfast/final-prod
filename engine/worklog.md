@@ -13639,3 +13639,33 @@ Work Log:
 Stage Summary:
 - OQ-Z3 RESOLVED-SUPERSEDED. Session tally: OQ-FLT-1, OQ-Z5, OQ-Z2->S-034,
   OQ-Z1, OQ-E1, OQ-Z3. Next: OQ-Z4 (decompression census).
+
+---
+Task ID: DFX30-T7 (OQ-Z4 resolved — decompression census)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: OQ-Z4 — enumerate the og's ZFS decompression routines; codec parity
+with the core's {lzjb, zle, gzip, lz4, zstd}.
+
+Work Log:
+- ZfsSearchDLL.dll census: 0 codec strings in all three string tables;
+  0 compression imports. The compression byte's only consumer found via
+  the ZfsDataRunlist RTTI walk (vftable RVA 0x180030e50): the +0x48 slot
+  FUN_180001fd0 records extents into std::map<i64, zio_compress> — the
+  codec is METADATA; the engine emits raw blocks (the per-blkptr loop
+  FUN_180003660 :2729-2900 passes (buffer, (prop>>0x20)&0x7f) per
+  0x80-stride blkptr).
+- Host-side check: DRWUI.exe statically links zlib 1.2.3 (deflate/inflate
+  banners + CZlibCompressor/czlibdecompressor RTTI) — gzip-family only;
+  no lz4/lzjb/zle/zstd strings anywhere in the payload.
+- Conclusion: the og's ENGINE decompression set is EMPTY; the core's
+  writer-side decode {lzjb, zle, gzip, lz4, zstd} is the confirmed strict
+  superset (engine: empty; host: zlib-only). The core's existing design
+  comment (cr_zfs_engine.cpp "Extents carry {codec, psize} so the writer
+  decodes at stream time") already documents this — no code change; the
+  PARITY-CORE-FS2 codec rows stand.
+- Audit trail: OQ-Z4 marked RESOLVED in OQ-Z-E-FLT-session3.md.
+
+Stage Summary:
+- OQ-Z4 RESOLVED (engine set empty; core = evidenced superset). Session
+  tally: OQ-FLT-1, OQ-Z5, OQ-Z2->S-034, OQ-Z1, OQ-E1, OQ-Z3, OQ-Z4.
+  Next: OQ-FLT-2 (AdvanceFilterCondition layout — gates N-028).

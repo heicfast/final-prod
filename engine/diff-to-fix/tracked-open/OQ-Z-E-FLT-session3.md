@@ -133,6 +133,32 @@ single-vdev (OQ-T6 extension)? Our skip is at :408-410/:938-942.
 
 ## OQ-Z4 — Og ZFS decompression census
 
+**RESOLVED (DFX30, 2026-10-26) — the og's ENGINE does not decompress at
+all; the core's writer-side decode is the confirmed SUPERSET (the OQ's
+hypothesis, now evidence-backed):**
+- ZfsSearchDLL.dll: ZERO codec strings (lzjb/lz4/zlib/zstd/gzip/inflate/
+  deflate — 0 hits across strings_ascii/strings_utf16/rabin2 .data
+  strings) and ZERO compression imports. The 981-function census closes
+  structurally: the compression byte's ONLY consumer is the ZfsDataRunlist
+  +0x48 vtable slot FUN_180001fd0 (RTTI-walked vftable RVA 0x180030e50,
+  slot 9), which records extents into a
+  `std::map<__int64, enum zfs_struct::zio_compress>` — the og STORES the
+  codec as per-extent metadata and emits raw blocks. The per-extent loop
+  (FUN_180003660 :2729-2900) passes `(buffer, (blk_prop>>0x20)&0x7f)` to
+  that slot per 0x80-stride blkptr.
+- The decompression capability lives HOST-side, not engine-side:
+  DRWUI.exe statically links zlib 1.2.3 ("deflate 1.2.3 … Jean-loup
+  Gailly", "inflate 1.2.3 … Mark Adler", .?AVCZlibCompressor@@ /
+  .?AVczlibdecompressor@@ RTTI) — gzip-family ONLY; no lz4/lzjb/zle/zstd
+  strings anywhere in the product payload (so at best the og's host
+  hand-rolls them; at worst LZ4-default pools save raw compressed bytes —
+  an og weakness either way).
+- Core stance confirmed: `cr_zfs_engine.cpp` "Extents carry {codec, psize}
+  so the writer decodes at stream time" with the {lzjb, zle, gzip, lz4,
+  zstd} set = a strict superset of the og's engine (empty set) and >= the
+  og's host (zlib-only, strings-evidenced). No code change; the superset
+  is already the documented design (PARITY-CORE-FS2 codec rows).
+
 Enumerate the og's decompression routines among the 981 functions (lzjb
 `0x84`-style tables, lz4 copy loops, zlib strings were NOT surfaced) to
 confirm codec parity with our {lzjb, zle, gzip, lz4, zstd} set. Note: our
