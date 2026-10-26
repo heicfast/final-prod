@@ -17,7 +17,7 @@ use std::sync::Arc;
 use serde_json::{json, Value};
 
 use crate::bridge::abi;
-use crate::bridge::error::{code, check, BridgeError, BridgeResult};
+use crate::bridge::error::{code, check, BridgeError};
 use crate::bridge::state::{
     session_target_label, BridgeState, ScanEntry, ScanKind, ScanLive, SessionListRow,
     SnapshotCache, Terminal,

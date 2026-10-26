@@ -11,12 +11,9 @@
 //! 'invalid'; free < needed → 'out-of-space'; a real write probe fails →
 //! 'unwritable'.
 
-use std::sync::Arc;
-
 use serde_json::{json, Value};
 
 use crate::bridge::error::{code, BridgeError, BridgeResult};
-use crate::bridge::state::BridgeState;
 use crate::bridge::util::enumerate_volumes;
 
 const RDA_SERVICE: &str = "RDA";

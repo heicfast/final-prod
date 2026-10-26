@@ -10,7 +10,8 @@
 //!
 //! The command modules under `crate::commands` implement the manifest in
 //! contracts/command-surface.json; contracts/validate.mjs phase 2 cross-checks
-//! every command both ways.
+//! every command both ways. (No blanket re-exports: each consumer imports the
+//! exact types it uses - lib.rs manages Arc<BridgeState> directly.)
 
 pub mod abi;
 pub mod error;
@@ -18,6 +19,3 @@ pub mod events;
 pub mod filefilter;
 pub mod state;
 pub mod util;
-
-pub use error::{BridgeError, BridgeResult};
-pub use state::BridgeState;

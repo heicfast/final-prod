@@ -27,7 +27,7 @@ use crate::bridge::error::{code, check, BridgeError, BridgeResult};
 use crate::bridge::events::{
     emit_scan_progress, scan_flags, scan_status, spawn_scan_emitter,
 };
-use crate::bridge::state::{BridgeState, ScanEntry, ScanKind, ScanLive, SnapshotCache, Terminal};
+use crate::bridge::state::{BridgeState, ScanEntry, ScanKind, ScanLive, Terminal};
 use crate::bridge::util::{now_iso, now_unix_ms, SendPtr};
 use crate::commands::devices::{disk_id, resolve_target, volume_id};
 

@@ -212,7 +212,7 @@ pub fn device_transport(dev: *mut abi::CrUiDevice) -> BridgeResult<String> {
     if needed == 0 {
         return Ok(String::new());
     }
-    let buf = vec![0i8; needed as usize];
+    let mut buf = vec![0i8; needed as usize];
     let cap = needed;
     let rc = unsafe { abi::cr_ui_device_transport(dev, buf.as_mut_ptr(), cap, &mut needed) };
     check(rc, "cr_ui_device_transport")?;
