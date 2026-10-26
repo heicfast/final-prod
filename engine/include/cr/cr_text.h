@@ -227,6 +227,49 @@ inline bool name_has_raw_band(const std::u16string& name) {
     return false;
 }
 
+/* N-009c (diff-to-fix): wide host argument -> UTF-8, locale-independent.
+ * The CLI --filter argument arrives from wmain as wide characters (UTF-16
+ * units on Windows hosts, plain codepoints on 32-bit wchar_t hosts) and
+ * must match names compared as UTF-8 (the query layer's name_substring
+ * contract: "UTF-8, ASCII-case-insensitive"). The previous app-side
+ * narrow() replaced every non-ASCII unit with '?', so any non-ASCII
+ * filter never matched anything. Lone surrogate halves encode as U+FFFD
+ * (the shared text policy); well-formed pairs encode their codepoint;
+ * values above U+10FFFF clamp to U+FFFD so the output is always
+ * well-formed UTF-8. */
+inline std::string wide_to_utf8(const std::wstring& in) {
+    std::string out;
+    out.reserve(in.size());
+    for (size_t i = 0; i < in.size(); ++i) {
+        u32 cp = u32(u64(in[i])); /* zero-extend any wchar_t width */
+        if (cp >= 0xD800u && cp <= 0xDBFFu && i + 1 < in.size() &&
+            u32(in[i + 1]) >= 0xDC00u && u32(in[i + 1]) <= 0xDFFFu) {
+            cp = 0x10000u + ((cp - 0xD800u) << 10) + (u32(in[i + 1]) - 0xDC00u);
+            ++i;
+        } else if (cp >= 0xD800u && cp <= 0xDFFFu) {
+            cp = 0xFFFDu; /* lone half - one U+FFFD per the shared policy */
+        }
+        if (cp > 0x10FFFFu)
+            cp = 0xFFFDu;
+        if (cp < 0x80u) {
+            out.push_back(char(u8(cp)));
+        } else if (cp < 0x800u) {
+            out.push_back(char(u8(0xC0u | (cp >> 6))));
+            out.push_back(char(u8(0x80u | (cp & 0x3Fu))));
+        } else if (cp < 0x10000u) {
+            out.push_back(char(u8(0xE0u | (cp >> 12))));
+            out.push_back(char(u8(0x80u | ((cp >> 6) & 0x3Fu))));
+            out.push_back(char(u8(0x80u | (cp & 0x3Fu))));
+        } else {
+            out.push_back(char(u8(0xF0u | (cp >> 18))));
+            out.push_back(char(u8(0x80u | ((cp >> 12) & 0x3Fu))));
+            out.push_back(char(u8(0x80u | ((cp >> 6) & 0x3Fu))));
+            out.push_back(char(u8(0x80u | (cp & 0x3Fu))));
+        }
+    }
+    return out;
+}
+
 } // namespace text
 } // namespace cr
 
