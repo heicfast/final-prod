@@ -15324,3 +15324,29 @@ REMAINING (for the next session, with owners):
 
 Corpus 03ad46c unmoved throughout. One finding file deleted: NONE. All
 resolutions evidence-cited. Token hygiene maintained.
+
+---
+Task ID: DFX33-T1 (session 33 bootstrap)
+Agent: main engineer (diff-to-fix fix session 33 — DFX33)
+
+Work Log:
+- Both repos pulled clean: core HEAD `2d1626b` (merge: worklog union;
+  the DFX32 close lineage), corpus `03ad46c` (unmoved since session 1 —
+  verified). No incoming commits behind origin at bootstrap.
+- Session prompt saved token-redacted to worklog/session-33-diff-fix-prompt.md.
+- Baseline verified first-hand: Linux release build + suite
+  **826 passed / 0 failed / 4 env-skips** (qemu-img + mkfs.exfat
+  availability skips; the 865 figure at DFX32 close includes
+  Windows-only test cases that do not register on Linux).
+- Active board at bootstrap (read in full): SEVERE 1 (S-034),
+  MAJOR 6 (M-030/M-034/M-039/M-040/M-041/M-048), MINOR 4
+  (N-007/N-065/N-066/N-072), tracked-open 2 (OQ-S4-3, OQ-Z-E-FLT for
+  OQ-FLT-2 alone). FIXED/ holds 208 files.
+- Session plan: S-034 first (SEVERE), then MAJORs in impact order
+  (M-039, M-041, M-048, M-030, M-040, M-034), then MINORs, then the
+  OQs; NEW-FINDINGs discovered during verification are filed and fixed
+  per the mandate.
+
+Stage Summary:
+- Bootstrap complete; board recorded; work begins at S-034 (ZFS ring
+  txg-history walking — the three decode items in its fix plan first).
