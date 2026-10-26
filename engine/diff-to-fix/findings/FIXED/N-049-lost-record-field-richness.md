@@ -59,3 +59,10 @@ M-042 (the parent finding — re-validation + layout snapshot).
 ## Open questions
 
 None.
+
+## Resolution (session 23 — verified already-landed; the missing named pin added)
+
+**Status:** FIXED-ALREADY (via M-042's REC_PARTITION_CONTEXT v2 landing, commit `63a3a77`; verified on the current tree this session)
+**Fixed in commit:** `63a3a77` (M-042; this session adds the missing named reproduction test)
+**Verified by:** first-hand code read: `PartitionContext` v2 (include/cr/session/cr_records.h:108-131) carries exactly the finding's pinned field list — bytes_per_sector, sectors_per_cluster, hidden_sectors, flags bit0=size_from_device_end (+ bit1=geometry-valid, a superset the finding did not demand); the save path stamps them (cr_scan.cpp:1524-1533) and the load path restores them (:1651-1654); v1 (25-byte) sessions back-compat with the extras zeroed. The per-hit crash-safety title half = M-042's per-hit checkpoints + N-014's atomic stage checkpoints (both landed). The finding's own falsifiable claim now has its named pin: `ResumeRevalidation.SizeSourceFlagRoundTrip` (ADDED this session — save with size_from_device_end=true → reload → flag true; plus the inverse no-false-positive half) — passes on the current tree, proving behavior matches. Suite 753/753 + 1 = 754/754 with the new test.
+**Resolution notes:** every non-optional item of the fix plan landed with M-042 before this session; this finding's residual value was the missing `SizeSourceFlagRoundTrip` pin (the geometry half had `CandidateGeometryRoundTrip` already) — added now. The "optionally a capped evidence list" remains deliberately NOT persisted: the evidence[] list drives in-memory grading only, and M-042's resume design re-probes rather than trusting stale evidence (persisting it would fight the re-validation contract); recorded here so a future audit sees the choice was reviewed, not missed. No code change beyond the test.

@@ -58,7 +58,7 @@
 | Health/SMART | SAT wrapper | ATA_PASS_THROUGH + NVMe log-page 2, 0xD1 vendor thresholds, the 4-status grading model (Unknown/Good/Caution/Bad per the DiskHealth rules), derived verdicts | **DONE (delta D-42 + S-024 grading)** | test_health parse cases + test_health_grade (8 rule tests) |
 | RawFixer | FATFixer/CheckBackupDBR; NTFSFixer CheckMFT; FATFixer CheckFatTable/CheckRootDir; shared FixByScanSector; pre-scan position | analyze + dry-run + transactional apply/rollback, 4Kn-aware, consent-gated; CheckMFT ($MFT record 0 from $MFTMirr), CheckFatTable (sector-granular mirror restore), CheckRootDir/IsValidRootDir/CheckRoot advisories, FixByScanSector (bounded 64 MiB probe); wired pre-scan (CLI --repair/--repair-apply, cr_ui consent ABI, Repair events, undo-log persistence); volume quiesce S7 (lock before first write, refuse-not-race, corpus LOCK/DISMOUNT sequence) | **DONE (S-008+S-010)** | FIX-2/3 W3; test_rawfixer.cpp + PreScan* orchestrator/ABI tests |
 | Transport | EPRDTDRV grammar + direct | RDA grammar + direct duality, retry/bisection + ReadErrorMap (the structured-open RdaClient was deleted by N-041 - zero callers since introduction; wire structs stay documented in cr_rda.h) | **DONE** | D-37/D-38; test_retry.cpp |
-| Orchestration | Quick+Advanced generations | staged single-pass (D-36), weighted monotonic progress, pause/cancel/checkpoint, error map | **DONE** | ARCH-4 reworded claims; test_orchestrator.cpp |
+| Orchestration | Quick+Advanced generations | staged single-pass (D-36), weighted monotonic progress, pause/cancel/checkpoint, error map with per-range module attribution (M-049: the engine-side error-context subset — CR_ERRMOD_* on the ErrorRange event) | **DONE** | ARCH-4 reworded claims; test_orchestrator.cpp |
 
 ## 3. Explicit exclusions (standing)
 
@@ -69,6 +69,7 @@ live since M-033 — a user-supplied FVEK, the og's GetFullVolumeEncryptionKey
 output shape, flows through `DecryptingDevice`, the in-stack XTS-AES layer
 matching the og's volume-IO placement: `--bitlocker-fvek` CLI /
 `cr_ui_open_volume_with_key` ABI; detection + legitimate unlock remain the
+<<<<<<< HEAD
 S-014 posture: live-registry + offline-hive auto-unlock; the N-064
 password-dictionary aid (`cr/pwddict` + `bitlocker::try_password_unlock`
 + CLI `--bitlocker-pwddict <path|seed>`) is the og's Dict unlock flow
@@ -78,6 +79,14 @@ copied; the loader is format-compatible so any dictionary in the og's
 format works, including the og's own file); and locked volumes WITHOUT
 user consent or key material stay refused — ERR_FVE_LOCKED, no bypass);
 signing
+=======
+S-014 posture: live-registry + offline-hive auto-unlock, the N-064
+password-dictionary unlock aid (cr::dict + --bitlocker-dict /
+cr_ui_unlock_volume_with_dictionary — user-consented only, 228-entry
+shipped dictionary + user candidates through the manage-bde/PowerShell
+plumbing), and locked volumes WITHOUT user key material or the explicit
+dictionary consent stay refused — ERR_FVE_LOCKED, no bypass); signing
+>>>>>>> origin/main
 (OSSign disabled); `.rsf` import (G-11, tracked disposition).
 
 ## 4. Open gap register (code-verified)

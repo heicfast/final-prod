@@ -2862,6 +2862,112 @@ TEST(Carve, JpegFourthByteOutsideOgSet) {
     ASSERT_NE(jpg, nullptr) << "FF D8 FF 99 (outside the og's 4-dword set) must carve here";
 }
 
+/* ---- S-018 re-filed (s31 / OQ-S3-JPEG resolved): the og's legacy
+ * FileJPGAnalyser tier salvages tail-truncated JPEGs. The dispatcher
+ * FUN_18004b170 branches JFIF/Exif/generic; each sub-analyser's header
+ * walk is SOS-gated and the post-SOS walker FUN_18004c480
+ * (RAWSearchDLL_decompiled.c:57942-57991) ACCEPTS AT ITS SCAN LIMIT when
+ * no FF D9 is found — the limit is h*w*3 measured from the candidate
+ * start when the SOF supplied dimensions, else the 200,000,000-byte
+ * global cap (FUN_180001350+0x70) divided by 10; the sliding-window
+ * getter FUN_180042930 accepts at the device end. The core mirrors the
+ * salvage at PartialRisk (600 — the deliberate grading delta; the og
+ * stamps salvaged files identically to complete ones). */
+TEST(Carve, JpegTruncatedTailSalvagedAtSofEstimate) {
+    /* SOI+APP0+SOF0(64x48)+SOS with the EOI destroyed and a marker-free
+     * tail: the salvage extent is hit + 64*48*3 = hit + 9216 */
+    std::vector<u8> img(256 * 1024, 0x11); /* marker-free filler */
+    const size_t at = 4096;
+    (void)plant_jpeg(img, at);
+    bool destroyed = false;
+    for (size_t i = at; i < at + 600; ++i) {
+        if (img[i] == 0xFF && img[i + 1] == 0xD9) {
+            img[i] = 0x22;
+            img[i + 1] = 0x33;
+            destroyed = true;
+            break;
+        }
+    }
+    ASSERT_TRUE(destroyed) << "fixture bug: planted EOI not found";
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    auto* jpg = find_carved_by_ext(root, "jpg");
+    ASSERT_NE(jpg, nullptr)
+        << "the og salvages tail-truncated JPEGs (legacy fallback tier); the core must too";
+    EXPECT_EQ(jpg->props()->extents.front().offset, at);
+    EXPECT_EQ(jpg->props()->extents.front().length, 64u * 48u * 3u);
+    /* the emitted confidence is the engine's (sig.base 900 + validator
+     * 600) / 2 = 750; the GRADE comes from the raw validator (600 < 850
+     * -> PartialRisk) */
+    EXPECT_EQ(jpg->props()->carve_confidence, 750u);
+    EXPECT_EQ(jpg->confidence(), tree::Confidence::PartialRisk);
+}
+
+TEST(Carve, JpegTruncatedTailWithoutSofSalvagesAtCapTenth) {
+    /* no SOF in the header walk -> dims unknown -> the og's /10 limit
+     * (200,000,000 / 10) bounded by the device: the salvage spans to the
+     * device end (FUN_180042930's getter-NULL accept) */
+    std::vector<u8> img(256 * 1024, 0x11);
+    const size_t at = 4096;
+    (void)plant_jpeg(img, at);
+    bool neutralized = false;
+    for (size_t i = at; i < at + 600; ++i) {
+        if (img[i] == 0xFF && img[i + 1] == 0xC0) {
+            img[i + 1] = 0xE2; /* SOF0 -> APP2 (same length semantics) */
+            neutralized = true;
+            break;
+        }
+    }
+    ASSERT_TRUE(neutralized) << "fixture bug: planted SOF0 not found";
+    for (size_t i = at; i < at + 600; ++i) {
+        if (img[i] == 0xFF && img[i + 1] == 0xD9) {
+            img[i] = 0x22;
+            img[i + 1] = 0x33;
+            break;
+        }
+    }
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    auto* jpg = find_carved_by_ext(root, "jpg");
+    ASSERT_NE(jpg, nullptr) << "dims-unknown truncated JPEG salvages at the /10 limit";
+    EXPECT_EQ(jpg->props()->extents.front().offset, at);
+    EXPECT_EQ(jpg->props()->extents.front().length, 256 * 1024 - at); /* to the device end */
+    EXPECT_EQ(jpg->props()->carve_confidence, 750u); /* (900 + 600) / 2 */
+}
+
+TEST(Carve, JpegCompleteFileStopsAtEoiNotSofEstimate) {
+    /* pin: a COMPLETE JPEG still accepts at its EOI with the full-walk
+     * grade (the modern tier's semantics, S-018's INVALID evidence) —
+     * the salvage never fires when EOI exists, and the precise EOI
+     * extent (519) is never replaced by the SOF estimate (9216) */
+    std::vector<u8> img(256 * 1024, 0x11);
+    const size_t at = 4096;
+    const size_t len = plant_jpeg(img, at);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    auto* jpg = find_carved_by_ext(root, "jpg");
+    ASSERT_NE(jpg, nullptr) << "complete JPEG must carve";
+    EXPECT_EQ(jpg->props()->extents.front().offset, at);
+    EXPECT_EQ(jpg->props()->extents.front().length, len);
+    EXPECT_EQ(jpg->props()->carve_confidence, 900u);
+    EXPECT_EQ(jpg->confidence(), tree::Confidence::Excellent);
+}
+
 /* Build a minimal-but-grammar-valid CFHEADER at `at` with the magic in
  * either case (MSCF / mscf). Layout: magic@0, reserved@4, cbCabinet@8,
  * reserved@12, coffFiles@16, reserved@20, version@24, cFolders@26,
@@ -3376,4 +3482,56 @@ TEST(CarveEngine, FallbackNamerDocumented) {
             ++fallback_named;
     }
     EXPECT_GE(fallback_named, 3) << "rule-less formats keep the deliberate default";
+}
+
+TEST(CarveEngine, ZeroSectorSkipStats) {
+    /* N-031: the og's all-zero-sector fast-skip, core shape - strides
+     * whose sign window (the first 47 bytes, probe_header's whole span)
+     * is all zero skip the raw-sign probe and are counted; a non-zero
+     * region skips nothing. Detection is unchanged: a plant behind a
+     * zero region still carves (the grammar layer's dispatch never
+     * skipped). */
+    {
+        /* zero-heavy image: 256 KiB of zeros with one JPEG at 128 KiB */
+        std::vector<u8> img(256 * 1024, 0);
+        plant_jpeg(img, 128 * 1024);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr,
+                              nullptr, stats),
+                  OK)
+            << err_text(OK);
+        EXPECT_GT(stats.zero_strides_skipped, 200u)
+            << "the zero region's strides must skip the sign probe (512 of them exist; "
+               "the JPEG's own strides and its 47-byte wake do not)";
+        /* the plant behind the zeros still carves - the skip never cost
+         * detection */
+        std::vector<tree::FileNode*> all;
+        std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+                all.push_back(c);
+                collect(c);
+            }
+        };
+        collect(root);
+        EXPECT_GE(all.size(), 1u) << "the JPEG behind the zero region is still carved";
+    }
+    {
+        /* control: non-zero noise skips nothing */
+        std::vector<u8> img(64 * 1024, 0xAA);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr,
+                              nullptr, stats),
+                  OK)
+            << err_text(OK);
+        EXPECT_EQ(stats.zero_strides_skipped, 0u)
+            << "no stride of a non-zero image may be skipped";
+    }
 }

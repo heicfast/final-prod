@@ -132,9 +132,31 @@ recover:     recovery_create -> recovery_set_destination
              -> recovery_enqueue_[node|subtree][_snapshot]* -> recovery_process
              -> recovery_report_json -> recovery_close
 events:      (any time after create) scan_set_event_fn — see §6
+state query: (any time after create, any thread) scan_busy / scan_stopping —
+             the og's sigIsBusy(bool&) ×14 / sigIsStopping(bool&) ×8
+             reference-out query signals (corpus UIUX/25-connect-wiring-graph.md
+             :125-144) as synchronous ops; busy = run() in flight, stopping =
+             the live cancel request (persists after the one-shot run ends —
+             a cancel WAS requested on this handle; telemetry's cancelled flag
+             is the post-run state, busy/stopping are the live answers)
 carve formats: carve_format_count / carve_format_info — see §7a
 disk map:    cr_ui_disk_map (session OR snapshot) — see §7
 ```
+
+**Recovery-progress mapping (N-075 / D-78).** The og's typed
+`IUIProgressInfo` per-item recovery-progress interface
+(`RecoverProgressUISink::sigUpdateProgress(const IUIProgressInfo*)` —
+corpus UIUX/20-moc-surface-sink-architecture.md :145) maps onto surfaces
+this ABI already ships, deliberately (D-78: no parallel interface):
+`cr_ui_recovery_progress_fn` is the progress edge (cumulative bytes
+done/total across the queue), `cr_ui_recovery_queue_count` the live queue
+depth, `cr_ui_recovery_get_stats` the per-outcome counters (done, refused,
+errors, hash_mismatch, resumed, salvaged, dirs, nothing_to_recover), and
+`cr_ui_recovery_report_json` the per-item truth (every item reports its
+state — recovered/pending/failed-with-reason — valid at any time, not
+just at completion). A host porting the og's per-item progress reads
+report_json on its own cadence, exactly as the og's 38 timer consumers
+poll `onGet*Progress`.
 
 Cancellation semantics: `cancel()` makes `run()`/`process()` return
 `ERR_CANCELLED` with all completed work intact (tree browsable, committed
@@ -211,6 +233,18 @@ typedef struct cr_ui_event {
      * 3 failed or writer unavailable). stage stays 0xFFFFFFFF. */
     uint32_t repair_actions;
     uint32_t repair_outcome;
+    /* error context (CR_EVT_ERROR_RANGE; M-049 v2-era append): the
+     * module/operation/retry-state triple - the engine-side subset of
+     * the og's error-object architecture (per-module registrars; the
+     * MOM-bus manager/track-manager layer stays out of core scope).
+     * Module ids: CR_ERRMOD_* below (per-range attribution recorded at
+     * failure time - WHO was reading when the sector died; kNone for
+     * ranges reloaded from pre-M-049 sessions). The trailing pad keeps
+     * the POD an 8-byte multiple (transport bridges); always zero. */
+    uint32_t err_module;
+    uint32_t err_operation;  /* CR_ERROP_* (READ for this family) */
+    uint32_t err_attempts;   /* retries spent before the range was given up */
+    uint32_t err_context_pad;
     /* (CR_EVT_HEARTBEAT reuses the payload fields above: the standing
        permille/counters + timestamp_ms = elapsed_ms; stage = 0xFFFFFFFF
        when no stage is in flight; bytes_total = 0 = unknown.) */
@@ -220,6 +254,31 @@ typedef void (*cr_ui_event_fn)(void* user, const cr_ui_event* evt);
 
 CR_UI_API uint32_t cr_ui_scan_set_event_fn(cr_ui_scan* s, cr_ui_event_fn fn,
                                            void* user);
+```
+
+Error-context constants (M-049; `CR_EVT_ERROR_RANGE` payload) — the
+module ids mirror the core's `cr_errmod.h` attribution set (engine-side
+subset of the og's per-module error registrars, Error.md census); the
+numeric values are core-internal per the D-68 value-space policy,
+append-only, pinned to the core enum by compile-time asserts in
+cr_ui.cpp:
+
+```c
+#define CR_ERRMOD_NONE 0u         /* unattributed (pre-M-049 session reloads) */
+#define CR_ERRMOD_ORCHESTRATOR 1u /* the scan layer's own reads (probe/table) */
+#define CR_ERRMOD_NTFS 2u
+#define CR_ERRMOD_FAT 3u
+#define CR_ERRMOD_EXFAT 4u
+#define CR_ERRMOD_EXT4 5u
+#define CR_ERRMOD_BTRFS 6u
+#define CR_ERRMOD_HFSPLUS 7u
+#define CR_ERRMOD_REFS 8u
+#define CR_ERRMOD_ZFS 9u
+#define CR_ERRMOD_CARVE 10u /* the carve stage's grammar sweep */
+#define CR_ERRMOD_LOST 11u  /* lost-partition discovery */
+#define CR_ERRMOD_LDM 12u   /* dynamic-disk (LDM) database parse + volumes */
+#define CR_ERROP_NONE 0u
+#define CR_ERROP_READ 1u
 ```
 
 Contract:

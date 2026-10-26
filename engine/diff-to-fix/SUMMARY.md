@@ -1,3 +1,4 @@
+# SUMMARY.md — executive summary (diff-fix session 33 on top; earlier sessions below)
 # SUMMARY.md — executive summary (session 34 on top; earlier sessions below)
 
 ## Session-34 delta (2026-10-26 — DFX34: the MINOR-tail lane, first landing — N-064)
@@ -45,6 +46,306 @@ N-075 → N-066 → N-065 → N-059 → N-050 → N-049 → N-036 → N-033 → 
 lanes' landings per first-landing-wins.
 
 
+## Session-33 delta (2026-10-26 — DFX33: M-020 FIXED — the Btrfs profile machinery + default subvolume)
+
+Baseline 737/737 linux-release verified first-hand at the session's union
+tree (02b950f + the parallel claim landings); corpus `03ad46c` unmoved.
+Lane: first-landing-wins on the MAJOR tier (M-020 first).
+
+**M-020 FIXED (MAJOR — Btrfs chunk profiles + default subvolume):** the
+corpus was re-verified line-by-line BEFORE the fix and the audit's Summary
+carried a decode error, corrected in the record: the og's read path
+(:2498-2583) serves ONLY the 2-copy class (SINGLE/DUP/RAID1 → rotating
+mirror, :2534-2540); RAID0/RAID10 classes FALL TO THE FAILURE RETURN —
+the og reads NOTHING from striped chunks (the audit's "2-copy profiles
+(DUP/RAID1/RAID10) through a rotating mirror" was wrong; its own quote
+block was right). Implemented og-exact: the RAID10 parse-time geometry
+gate (:2162-2168), the per-chunk rotating mirror index for the 2-copy
+class, the default-subvolume DIR_ITEM pick ((6, 0x54, 0x8dbfc2d2)
+"default" with a ROOT_ITEM located key; root-5 fallback; :3975-4060) with
+the default's children rendering at the volume root (ReFS convention) and
+non-default subvols keeping their N-047 containers. Registered superset
+D-79: RAID0/RAID10 kernel stripe math (the pre-fix stripe-0 read emitted
+wrong bytes on striped chunks; now mapped correctly or refused+counted —
+`unmappable_extents`), raw extents split at stripe boundaries,
+compressed extents stay atomic. Fix-plan item 3 (error-map) verified
+already-by-construction (the Skip-mode RetryingDevice pipe records
+sector-granular failures below the engine; no duplicate recording).
+Proof: 4 new fail-before tests (Raid1RotatingMirrorReads,
+Raid10GeometryGate, Raid0StripeMathSplitsAtStripeBoundaries,
+DefaultDirItemNonSubvolumeLocationFallsBack — all RED on the
+pre-fix-behavior tree, 4/4) + the updated EndToEndWalk /
+SubvolumeNamedFromRootRef (default-at-root expectations, RED on the same
+tree); suite **747/747** linux-release at the fix commit (parallel-lane
+test landings included in the count; incl. win_syntax_check).
+
+**Post-fix counts (this landing):** SEVERE **0** · MAJOR **13** open ·
+MINOR 18 (per the union; parallel lanes may land more in-flight) · INFO
+**0 open** · FIXED **174** files · tracked-open 11. Next on this lane:
+M-025 (carve 8 MiB pingpong → streaming) or whatever remains open at the
+next pull.
+
+
+---
+
+# SUMMARY.md — executive summary (sessions 27+30+31+35 on top; earlier sessions below)
+
+## Session-27 delta (2026-10-26 — DFX27: the MAJOR-head lane; M-058 NEW-FINDING filed + fixed; M-049 convergence)
+
+Baseline: linux-release **743/743** at `db3de2c` (post-merge with the window's
+parallel claims; suite re-verified after every pull). Corpus `03ad46c` unmoved.
+Lane: the MAJOR tier head (M-049 → M-035 → M-052 → M-014 → …), disjoint from
+the parallel lanes' tail/mid claims.
+
+**M-058 NEW-FINDING (MAJOR) filed + FIXED (found during M-049 verification):**
+reasoning about `retry_raw`'s lifetime on every path (the M-049 error-context
+stamping) exposed that run()'s cache-failure fallback dereferenced the retry
+device `CachedReader::create` destroys on its failure returns — a latent
+use-after-free on the defensive path (unreachable at run()'s constant geometry,
+**executed under ASan** in the standalone repro — evidence/executions/
+s27-m058-readpipe-uaf-asan.md) and the direct contradiction of the adjacent
+comment (which documented the bare-slice fallback). Fixed by extracting
+`build_read_pipe()` with the degraded path as a pinned contract; 3 ReadPipe pin
+tests; the N-045/D-72 budget pin re-anchored to the call site (lockstep
+preserved). Suite **746/746**.
+
+**M-049 convergence (first-landing-wins):** the parallel DFX24 lane landed
+the error-context carrier (`8ba2316` — per-thread RAII stamps + the retry
+device's owner fallback + the err_module/err_operation/err_attempts event/ABI
+triple; 8 tests, suite 745/745 at its tree) while this lane's duplicate
+implementation was mid-flight. The duplicate was dropped; the landing was
+reviewed sound on the merged tree (suite green below). This lane proceeds to
+M-035 — also named as DFX24's next target; first-landing-wins on the pull.
+
+
+## Session-30 delta (2026-10-26 — DFX30: the tracked-open tail lane — OQ resolutions + NEW-FINDING S-034)
+
+Bootstrap: absorbed the window's parallel claims (DFX23 MINOR, DFX24 MAJOR,
+DFX25 INFO-closure, DFX26 MAJOR-tail, DFX27 MAJOR-head, DFX28 MINOR-rear)
+via union merges; this lane claimed the DISJOINT tracked-open TAIL.
+Baseline **737/737** linux-release green at the claim tree (re-verified
+**749/749** after absorbing the parallel lanes' test additions, before this
+session's first source-touching commit); corpus `03ad46c` unmoved.
+
+**S-034 NEW-FINDING filed (SEVERE — from OQ-Z2's verification):** the og's
+ZFS quick-searcher walks EVERY uberblock slot in the label-0 ring — per-slot
+`txg` fed to `FUN_180003150` ("addBlock") with a per-txg
+`VdevLoc::UberData` registry (`FUN_180017310`), per-state tree walks, and
+`ZplNode` emission via a `bool(shared_ptr<ZplNode>)` visitor; "from_txg: 0"
+descends unbounded. The core reads the newest txg only, on a parity premise
+("the og reads the newest txg's live state only" — engine header + D-05)
+that this session REFUTED first-hand (D-05's corpus citation over-read a
+neighbor-txg ring comparison as newest-only selection; corpus erratum E45
+filed). Files deleted within the ring's txg window are og-visible and
+core-invisible (RAW carving is the core's only coverage — a strict subset).
+Doc-truth landed at filing: engine header comment corrected, D-05
+re-verdicted REFUTED-PREMISE→open gap, PARITY-CORE-FS2 zfs deleted row →
+DIVERGENCE-SEVERE, matrix B/D cells updated. The behavioral fix is queued
+behind three decode items (cross-txg emission/dedup semantics in
+`ZplNodeFile`'s registration path; MOS snapshot re-emission; `last_txg`'s
+role) — no guessed parity. Suite 749/749 at the filing commit.
+
+**OQ-FLT-1 RESOLVED (M-035's blast-radius question):** the 169-entry
+extension table (char[9], "Raw" first, all-zero sentinel slot 169) is
+byte-identical to DRWUI's grading set and present in 4 engines — live in
+FAT (2 consumer sites: the `< 0xAA` index-gate strstr filter path +
+whole-table category iteration), exFAT (M-035's classifier+scorer), RAW
+(index→name accessor); a DEAD .rdata copy in NTFS (zero code+pointer refs);
+absent in EXT4/Btrfs/ReFS/HFS+/ZFS. The validation scorer
+(majority-mismatch + ratio<0.3 reject) is exFAT-ONLY (zero 0.3-compare
+sites elsewhere). M-035's fix scope stays exFAT; the shared extension-INDEX
+vocabulary recorded for N-049/N-050. Evidence:
+`evidence/decompiled-quotes/s30-oq-flt1-extension-table-distribution.md`.
+
+**OQ-Z5 RESOLVED:** ZFS quick/complete = the product-wide
+`IQuickFileSystemSearchController` (16 slots) vs
+`ICompleteFileSystemSearchController` (34 slots) plugin split (RTTI-walked
+first-hand). Complete adds streaming per-hit emission (std::function +
+sector math + the ub-magic/ZEC_MAGIC label probe — zec at +0x1d8 = the
+512-byte-slot assumption vs the core's kernel-correct shifts-10..13 ring
+probe), a restart entry, and five config channels; quick is a real one-shot
+scanner (bulk single-value collect; the BIGGER object, 0x120 vs 0xe8). The
+core's orchestrator-layer quick/deep split is the union — no action.
+Evidence: `evidence/decompiled-quotes/s30-oq-z5-zfs-quick-vs-complete.md`.
+
+**Post-filing counts (this session's tree; parallel lanes active):**
+SEVERE **1** (S-034, new) · MAJOR 14 · MINOR 18 · INFO 0 open · FIXED/ 171 ·
+tracked-open 11 files (3 sub-questions resolved this session: OQ-FLT-1,
+OQ-Z5, OQ-Z2→S-034; OQ-E2 and OQ-T7 were already resolved).
+
+# SUMMARY.md — executive summary (sessions 30+31+35 on top; earlier sessions below)
+
+## Session-28 delta (2026-10-26 — DFX28: the rear-first MINOR lane)
+
+Bootstrap: absorbed the window's parallel claims (DFX23 MINOR front-first,
+DFX24 MAJOR, DFX25 INFO-closure 22/22, DFX26 MAJOR-tail, DFX27 MAJOR-head)
+via union merges; this lane works the open MINOR tier from the REAR
+(converging toward DFX23's front-first progress; ALREADY-FIXED
+classification on collision). Baseline **737/737** linux-release green at
+the claim tree (`354c555` content); corpus `03ad46c` unmoved.
+
+**N-075 FIXED (MINOR — the event-bus contract shape):** the finding's own
+"cheapest honest close" executed — `cr_ui_scan_busy` +
+`cr_ui_scan_stopping` synchronous query exports (v2-era append, no bump):
+the og's `sigIsBusy(bool&)` ×14 / `sigIsStopping(bool&)` ×8 reference-out
+query signals surfaced at the ABI boundary (busy = the live run-lifecycle
+atomic; stopping = the LIVE token cancel request, persisting after the
+one-shot run — distinct from telemetry's post-run cancelled flag). The
+pull-polled progress convention registered as PARITY-DELTAS **D-78**
+(renumbered from a D-77 collision with the parallel lane's N-009d ACL
+register — the errata convention; the og's 38-consumer poll farm vs the
+core's coalesced push + any-thread telemetry pull); the typed
+`IUIProgressInfo` mapping documented in ABI-CONTRACT §5
+(recovery_progress_fn + queue_count + get_stats + report_json —
+deliberately no parallel interface). Proof:
+`CrUi.ScanBusyStoppingQueries` (mid-run pause-gate window: busy observed
+live, stopping flips at cancel, one-shot persistence after return) +
+plain-C edges in `cr_ui_abi_check`; fail-before EXECUTED at compile (the
+symbols did not exist). Suite **738/738** at the fix commit.
+
+**Post-merge union counts (session-28 close on the merged tree, absorbing
+the parallel N-009/N-025/M-057 landings):** SEVERE **0** · MAJOR **14** ·
+MINOR **16** · INFO 0 open (22 acknowledged in FIXED/) · **FIXED/ 174
+findings** (175 files incl. RESOLVED-INDEX) · tracked-open 11. Next on
+this lane: N-019 (the 12-scenario regression-test gap), then
+N-050/N-033/N-072 rear-first.
+
+## Session-31 delta, wave 2 (2026-10-26 — DFX31: OQ-S3-JPEG resolved — S-018 RE-FILED CONFIRMED and FIXED: the truncated-JPEG salvage)
+
+**S-018 RE-FILED + FIXED (SEVERE — the canonical damaged-disk photo
+recovered):** the s3 INVALID's residual question ("if any sub-analyser
+accepts without an EOI, the salvage claim could hold through the
+fallback") is answered YES first-hand: the legacy FileJPGAnalyser tier
+(dispatcher FUN_18004b170 → JFIF/Exif/generic) walks SOS-gated headers and
+its shared post-SOS walker FUN_18004c480 (:57942-99) ACCEPTS AT ITS SCAN
+LIMIT with no EOI — h*w*3 from the candidate start (SOF dims) or
+20,000,000 (the 200,000,000 global cap /10), device-bounded by the
+sliding getter FUN_180042930; the census-documented two-generation chain
+makes one accept sufficient. `validate_jpeg` now mirrors the salvage on
+every no-EOI exit (SOS-gated, the og's exact limits and sizing), graded
+PartialRisk-600 — D-79 registered (the og stamps salvaged files
+identically to complete ones; the core grades honestly). Proof: 2
+fail-before RED executed on the stash-isolated pre-fix tree + the
+complete-file EOI pin; **suite 755/755**. The modern tier's EOI gate
+(the s3 correction) is preserved exactly — complete files keep the
+900-tier accept.
+
+OQ-S3-JPEG RESOLVED (both questions dispositioned; the continuation
+residual dissolved — first-accept-wins dispatch, the fallback dominates
+in-window). OQ → FIXED/; S-018's re-file Resolution appended; carve.md
+verdict rows updated; D-79 registered.
+**Counts after this landing: tracked-open 9** (OQ-Z-E-FLT, OQ-RS,
+OQ-T6-T7, OQ-S4-3, OQ-S5-1, OQ-S6-1, OQ-S6-2, OQ-S6-3, OQ-S20-1).
+Next on this lane: OQ-RS (the ReFS residual probes), then OQ-S20-1
+(the BitLocker FVE metadata grammar leg).
+
+## Session-31 delta (2026-10-26 — DFX31: the tracked-open HEAD lane opens; OQ-S2M-2's three probes RESOLVED)
+
+Baseline 737/737 green at bootstrap (02b950f lineage through the window's
+parallel claims); corpus `03ad46c` unmoved. Lane: the tracked-open HEAD set
+(OQ-RS, OQ-S2M-2, OQ-S3-JPEG, OQ-S4-3, OQ-S20-1) — disjoint from the
+parallel DFX30's tracked-open tail and every finding-tier lane.
+
+**OQ-S2M-2 RESOLVED (all three probes; zero code change — the decode
+confirms landed behavior):**
+1. **The +0x68 bonus setter located and fully decoded** — per-engine
+   scan-path composers, not the serializer: FAT/exFAT carry a two-factor
+   ladder (`+0x68 = boot_quality + fs_quality`, each ∈ {10,45,50};
+   FATSearchDLL :6946-6969/:7142-7167, exFATSearchDLL :39504-39526; the
+   FAT32 fs bits come from FUN_180009960 with the backup-boot verdict from
+   the classifier at :8004-8052; the boot pair's bit 0x100 has NO setter in
+   the build — its 50-tier is unreachable); NTFS carries the composite
+   (flag-weight base FUN_18000dc70 :10538-73 + boot-validation ±FUN_1800097d0
+   :7229-33 + MFT-run stitching +30 per fragment / +50 one-shot for
+   >3-gap survivals in FUN_180023cb0). The CalcPartition-observed
+   "FAT32 20" = **10+10, both ladders at minimum** — no constant exists
+   (session-14's zero-hit grep is explained: accumulator latches on
+   registers, not immediates). M-017's landed `fs_bonus()` CONFIRMED — the
+   flat values are the honest mapping for the core's single-probe
+   architecture; the 187-row 6-decimal log parity stands.
+2. **The ZFS "pool display name" never exists** — 0 "name"/"pool" hits in
+   ZfsSearchDLL (re-verified); DRWUI's FS-name builder FUN_140510080
+   (:842335-96) has no case 13 → "Unknow" in the XML `filesystem` field and
+   the CalcPartition log; "ZFS partition" (strings:39717) is the GPT
+   type-GUID table. The core's label-`name` read registered as a deliberate
+   display-information superset (modules/zfs.md).
+3. **The Btrfs name-conversion anchor = the DRWUI render layer,
+   CP_UTF8/dwFlags=0** — FUN_140163af0 (:264664-89, restore-path invoke
+   :357529) + the FUN_1400d9ef0 family (:190981-97); the engine is
+   byte-oriented (0 conversion imports, re-verified); S-005 parity holds;
+   the predicted residuals N-016a/N-016b already FIXED (N-029/M-010).
+
+Evidence: `evidence/decompiled-quotes/s31-oq-s2m-2-bonus-setter-zfs-name-btrfs-anchor.md`
+(20 verbatim quotes, three negative greps re-run). OQ → FIXED/ with
+RESOLVED-INDEX row; modules/lost-partition.md + modules/zfs.md updated.
+**Counts after this landing: tracked-open 10** (OQ-Z-E-FLT, OQ-RS, OQ-T6-T7,
+OQ-S3-JPEG, OQ-S4-3, OQ-S5-1, OQ-S6-1, OQ-S6-2, OQ-S6-3, OQ-S20-1; the
+DFX30 tail lane owns the first six of those). Next on this lane: OQ-S3-JPEG
+(the fallback/continuation no-EOI decode).
+# SUMMARY.md — executive summary (session 31 on top; earlier sessions below)
+
+## Session-31 delta (2026-10-26 — DFX31: the MINOR tail-first lane opens with N-064)
+
+Baseline 737/737 green first-hand (linux-release ctest at `02b950f`,
+re-verified 754/754 on the merged tree after absorbing the window's
+parallel landings — N-009c/d+M-057 `e1f17bc`, N-025 `e2b4549`); corpus
+`03ad46c` unmoved. Lane: the MINOR tier from the tail (the crypto/win-heavy
+segment the front-first lanes defer), one finding, one verified fix, one
+push throughout.
+
+**N-064 FIXED (MINOR — the Dict password-dictionary unlock aid):** the
+og ships a 228-entry common-password dictionary (og-codebase/Dict, 2,742 B
+byte-verified; config-data-reference.md :20) wired to BitLockerLib's
+manage-bde -Password user-consented unlock and EuOfficeRepairFile's
+encrypted-HWPX repair. The core had key-based unlock only (S-014). Landed:
+`cr::dict` (pure core — scripts/gen_dict.py generates the byte-faithful
+table incl. the og's seven duplicate lines, the raw_signs conversion
+precedent; parse() implements the Dict file grammar; try_passwords() is
+the consent-gated attempt loop: shipped-then-user order, stop-on-first-OK,
+index-only log lines through the N-048/N-061 seam — password material
+never logged, the og's qa-logs carry no password text either); the win
+layer's `unlock_with_dictionary` (the EXPLICIT CONSENT ACTION riding the
+unchanged PowerShell -Password / manage-bde -Password plumbing, grammar
+extracted to detail::build_unlock_command for shape tests); the CLI
+`--bitlocker-dict` consent flag (locked volumes stay refused without it —
+F61 legitimate-unlock-only preserved, structural); the additive
+`cr_ui_unlock_volume_with_dictionary` ABI export (M-033 precedent). The
+Office/HWPX consumer stays out-of-scope (I-010). Fail-before EXECUTED
+(the 4 attempt-loop tests RED on the loop-disabled tree); 11 pure-core +
+3 win-lane tests; suite 754/754. Attempt policy documented per the
+finding's open question: sequential, no retry, no parallelism.
+
+Counts after this landing: **MINOR 18 open** (N-064 moved to FIXED/),
+MAJOR 14 open (DFX27/DFX26 lanes), INFO 0, tracked-open 11.
+
+## Session-30 delta (2026-10-26 — DFX30: the deferred win-layer trio, 1/N-032)
+
+Lane: the MINOR items every parallel lane deferred to last (N-032/N-064/
+N-071), worked while the front/middle bands drain elsewhere. Baseline
+743/743 at the union tree (737 claim + the parallel N-025/N-009c/d/M-057
+landings absorbed); corpus `03ad46c` unmoved. (N-064 was absorbed by the
+parallel DFX31 lane mid-flight — first-landing-wins; this lane's N-032
+stands.)
+
+**N-032 FIXED (MINOR — the CSMI health transport):** the corpus citation
+was deepened before any code: the companion's actual wire was decoded
+first-hand from DiskHealth_decompiled.c — GetSmartAttributeCsmi =
+FUN_00425450: IOCTL_SCSI_MINIPORT (0x4D008), SRB_IO_CONTROL "CSMISAS"
+CC 0x19, vendor fixed area {phy, port, SAS address, Register-FIS
+(0x8027) task file, SMART magic LBA 0xA0C24F00, vendor field 0x11},
+request 0x2A8, response data @+0xA4, transport-miss GetLastError set
+{1, 0x32, 0x37}; plus the og's IOCTL_SCSI_GET_ADDRESS probe and its
+legacy SMART IDEREGS (count 1, sector 1, cyl 4F/C2). Landed: pure wire
+module (cr_csmi) + the pure transport-chain seam (cr_smart_ata — the
+og's CAtaSmart accessor model: the first channel answering IDENTIFY
+serves the whole command set; the read flow moved out of the win layer)
++ the three-transport win chain (ata-passthrough → legacy with og-exact
+SMART stamping → CsmiMiniportChannel). 9 tests (wire pins + fallback
+pair + parse proof); EXECUTED fail-before: the pre-fix chain shape
+returns ERR_HEALTH_UNAVAILABLE on the RST-shaped mock. Registered
+remainders D-78 (RAID-census routing, LSILOGIC sibling, SMART
+auto-enable write — report-only module). Suite **752/752** at the fix
+commit (754/754 on the post-union tree with the parallel N-064 tests).
 ## Session-23 delta (2026-10-26 — DFX23: the MINOR-first closing wave, batch 1 — N-009 group closed + M-057)
 
 Baseline `716d121` verified green FIRST-HAND (linux-release **737/737**,
@@ -79,10 +380,12 @@ exact `'e' was not declared` diagnostic), pass-after 8/8. Q67 buildability
 now covers every Windows-only directory (src/win + src/app).
 
 **Post-fix counts (this batch, union with the parallel lanes' INFO
-closure):** SEVERE **0** · MAJOR 14 open (M-057 filed+fixed same session) ·
-MINOR **18** · INFO **0 open** (22 acknowledged — closed into FIXED/ by the
-parallel DFX25 lane in the same window) · FIXED **173** files (172 findings
-+ RESOLVED-INDEX — mine +2, theirs +22, overlapping base 149) ·
+closure; superseded by the session-28 union below — DFX23's N-025 landing
+and DFX28's N-075 landing both post-date this paragraph):** SEVERE **0** ·
+MAJOR 14 open (M-057 filed+fixed same session) · MINOR **18** · INFO
+**0 open** (22 acknowledged — closed into FIXED/ by the parallel DFX25
+lane in the same window) · FIXED **173** files (172 findings +
+RESOLVED-INDEX — mine +2, theirs +22, overlapping base 149) ·
 tracked-open 11.
 Suite **740/740** linux-release at the fix commit (+3 Text tests, gate
 extended). Next on this lane: N-007/I-004 → N-025 → N-026 → N-027 →
@@ -109,11 +412,143 @@ re-executed (I-001's blanket `$`-skip re-read at NTFSSearchDLL_decompiled.c
 rows; the deliberate divergences they register stay preserved with their pin
 tests (the INFORMATIONAL safety-hardening rule — no code change).
 
-**Post-move counts:** SEVERE **0** · MAJOR 14 · MINOR 19 · INFO **0 open**
+**Post-move counts (session-25 close, pre-session-28):** SEVERE **0** · MAJOR 14 · MINOR 19 · INFO **0 open**
 (22 acknowledged, all in FIXED/) · **FIXED/ 171 files** (170 findings +
 RESOLVED-INDEX) · tracked-open 11 (resolution wave below — see the session's
 worklog entries for the per-OQ dispositions).
 
+
+## Session-23 delta, batch 2 (2026-10-26 — DFX29: N-036 — the ReFS container-map half closed)
+
+**N-036 FIXED (the finding's remaining container-translation half; the
+recognizer half had landed with S-020):** the invented top-nibble
+translate model (feeding a map nothing ever populated) is REPLACED by the
+og formula, re-verified first-hand at BOTH decoded consumers
+(FUN_180011e90 :13223-13267 + FUN_180004820 :2355-2386, byte-identical):
+identity when block < span / map empty / key absent; key
+`(((block/span)>>1)-2)*span`; rewrite `(block & (span-1)) | base`; u64
+wrap semantics preserved. The span is DBR +0x34 — the og's
+volume+0x148 -> parser+0xa8 wiring (FUN_180011cd0) decoded THIS SESSION,
+which settles the finding's "container-cluster count" identification —
+now `RefsBoot::container_clusters`. The container map is populated from
+FUN_180002a60's system-directory records (0xa0/0xe0-length keys with the
+{base, span} tail pair; span == DBR+0x34 is the acceptance gate) during
+the ObjectID-table walk (zero extra I/O) + a bounded system-table sweep
+(IDs < 0x100 — never doubles the user-tree walk). Fail-before EXECUTED:
+translate reverted to identity -> `Refs.ContainerRelativeRunTranslated…
+PerOgFormula` RED (42*4096 vs 302*4096) AND `Refs.PhysicalRunFlag20…
+Untranslated` RED (both files collapsed onto extent 42 by M-027's
+placement-signature dedup — the loser never emitted; a genuine
+second-order proof). 4 new tests; suite **744/744**. Residual (recorded
+in the Resolution, not blocking): the og's record payload carries its key
+at +0x20, so an alternative key-relative shape reading exists — the
+auditor's reading is implemented with the unit==span gate as the
+discriminator; the real multi-container volume probe (the finding's own
+open question) settles it and is the bench stage's next step.
+
+**Post-fix counts:** SEVERE **0** · MAJOR 14 · MINOR **17** · INFO 0 open
+(22 acknowledged in FIXED/) · tracked-open 11 · FIXED/ **174** files
+(173 findings + RESOLVED-INDEX). Next on this lane: N-049 (lost-record
+field richness) → N-050 → N-033 → N-064.
+
+## Session-23 delta, batch 3 (2026-10-26 — DFX29: N-049 verified already-landed + the missing pin)
+
+**N-049 FIXED-ALREADY (via M-042's REC_PARTITION_CONTEXT v2, `63a3a77`):**
+the finding's full pinned field list — bps, SPC, hidden_sectors, flags
+bit0=size_from_device_end — landed with M-042's resume-disk-truth pass
+before this session; verified in-source on the current tree (the v2
+struct, both save/load sites, v1 back-compat zeroed). The per-hit
+crash-safety title half = M-042's per-hit checkpoints + N-014's atomic
+rename. The finding's named-but-missing reproduction ADDED:
+`ResumeRevalidation.SizeSourceFlagRoundTrip` (flag true round-trips +
+the inverse no-false-positive half) — passes on the current tree, the
+FIXED-ALREADY proof. The optional capped-evidence list deliberately NOT
+persisted (would fight M-042's re-probe-on-resume design — recorded as
+reviewed in the Resolution). Suite **754/754**.
+
+**Post-fix counts:** SEVERE **0** · MAJOR 14 · MINOR **13** · INFO 0
+open (22 acknowledged in FIXED/) · tracked-open 11 · FIXED/ **178** files
+(177 findings + RESOLVED-INDEX). Next on this lane: N-050 (recognition contract) →
+N-033 → N-064.
+## Session-35 delta (2026-10-26 — DFX35, re-stamped from 23: the MAJOR-closing wave, M-014 first)
+
+Baseline `716d121` verified green first-hand (737/737 linux-release);
+corpus `03ad46c` unmoved. Lane: MAJOR-first per the session mandate,
+20+ fixes targeted. Open inventory at start: MAJOR 14 · MINOR 19 ·
+INFO 24 · tracked-open 11 (SEVERE/ACUTE tiers empty).
+
+**M-014 FIXED (MAJOR — the exFAT structural entry gates):** the og's
+four gate families landed decompile-exact (FUN_180002f90 /
+FUN_180002f40 / FUN_180029280 / FUN_180003030, every citation
+re-read first-hand in the corpus, not from the finding text):
+secondary_count ∈ [2,18]; create+modify+access timestamp field sanity
+(day≠0, month∈[1,12], hour≤23, min≤59, 2sec≤29 — all-zero FAILS,
+correcting the fix-plan guess); stream non-zero gates (data_length,
+first_cluster, name_length — empty files never emitted, the og quirk
+inherited as parity); name flags/first-char gates. Gates apply to
+live, deleted and oracle re-walked sets; new stat `sets_gated`; the
+oracle's declared bound tightened 512→19. Corpus-UNVERIFIED residue
+documented, not guessed: the 0xHH00 UTF-16 validity table
+(PTR_180045a00 bytes not recoverable). Six fixtures carried TS=0
+stamps (the refuted premise) — updated to real stamps. Proof: 5
+fail-before EXECUTED tests + 1 boundary guard; suite 743/743
+linux-release. Environment note recorded for the next session: the
+local ASan lane flags 4 LSan items (the N-048 sink's documented
+immortal allocation) — verified identical at the baseline tree; CI
+runners disable LSan (ptrace), so main stays green in CI.
+
+**Counts after this landing (pre-merge with the parallel lanes' window):** MAJOR 13 · MINOR 19 · INFO 24 ·
+FIXED 150 findings. Next on this lane: M-052 (FAT/exFAT recycle-bin
+pairing — the NTFS implementation generalizes) → M-020 (Btrfs chunk
+profiles) → M-035 (lost-partition content validation).
+**A-008 NEW-FINDING (ACUTE) filed + FIXED (OQ-Z1's ACUTE gate was real):**
+the ZFS dsl_dir child zap was read from bonus **+24 — the dd_origin_obj
+slot**; kernel (OpenZFS master dsl_dir.h, fetched verbatim) puts
+dd_child_dir_zapobj at **+32**. On normal pools (origin=0) **no child
+dataset ever enumerated** — every `zfs create` under the pool silently
+missing from results; on clones the origin was followed as a child zap
+(ghost datasets — the clone-shape failure mode PROVEN in the executed
+fail-before, not inferred). The og-side decode this session
+(ZfsSearchDLL :20313-20788) is kernel-exact end-to-end: 256B dsl_dir bonus
+copy / 320B dsl_dataset copy, head-dataset hop @+8, ds_bp@+128, child-zap
+walk skipping `$FREE`/`$ORIGIN` — core==og==kernel after the fix. The
+session-6 refinement's "kernel-correct on all three constants" claim
+corrected in the OQ file (it repeated the engine comment's mis-transcribed
+field list, which dropped dd_parent_obj); the test fixture was
+self-confirming (stamped the same wrong offset) — de-self-referenced now.
+Proof: fail-before RED 3/3 (`Zfs.EndToEndWalk`, `Zfs.ChildDirZapReadsKernelOffset32`,
+`Zfs.OriginObjNotTreatedAsChildZap`), pass-after 16/16 Zfs, **suite
+739/739**. `restamp_zpl_array` extended for the shared-ZPL second dataset.
+OQ-Z1 RESOLVED (tracked-open 11 → the OQ-Z-E-FLT file carries the
+resolution; its Z2..Z5/E1/FLT residues stay open).
+
+## Session-23 delta, batch 4 (2026-10-26 — DFX29: N-050 — the two-stage recognition contract)
+
+**N-050 FIXED:** the recognition contract is now boot gate -> CONTENT PROOF
+-> engine on every family with a corpus-decoded analyser. NEW proofs: exFAT
+(the engine's own validate_boot_region — OEM-first so a spoofed OEM fails the
+MustBeZero sweep; the structural rc equals the engine's own gate, the
+checksum verdict stays informational on both sides, no recovery-negative
+strictness) and FAT (root-dir first-sector readability: FAT12/16 fixed root
+= reserved+numFats*spf16; FAT32 = reserved+numFats*spf32+(rootCluster-2)*spc
+— FUN_180002180's cheap form per the fix plan). NTFS/ext4/UDF content proofs
+were already landed (M-043/S-006/M-044). Every proof emits
+`recognition: <family> content-verified` on the N-048 logging seam; the
+contract is documented as ground-truth-contracts.md §0 (with the honest
+HFS+/Btrfs/ZFS/ReFS recognition-gate gap and the exFAT analyser's unpinned
+body recorded). Fail-before EXECUTED (2 of 3 new tests RED on the reverted
+probe — the third is the positive pin); two pre-existing expectations
+CORRECTED toward og parity (spoofed-EXFAT-OEM -> Fat, the og's
+multi-analyser outcome; the painted-FAT-boot UDF image -> Unknown — the old
+Fat was the spoof-accepting answer). Suite **757/757**.
+
+**Post-fix counts (at this batch's push, union with the window's parallel
+landings M-020/M-014/M-049/M-058/N-058/N-032/N-064 + OQ resolutions):**
+SEVERE **0** · MAJOR 11 · MINOR **8** · INFO 0 open · tracked-open 10 ·
+FIXED/ **188** files (187 findings + RESOLVED-INDEX). N-064 (on this
+lane's original claim) landed by the parallel window. Next on this lane:
+N-033 (carve capability ABI), then the unclaimed MINOR remainder
+(N-065/N-066/N-059/N-072), then feasible MAJORs.
 
 <!-- DFX16 note: session 16 ran as a parallel lane in the same window as
      sessions 17-22; its delta is recorded here for chronology. -->
@@ -140,6 +575,74 @@ fail-before RED on the stash-isolated pre-fix tree) + the
 Ldm.ConfigSizeExactlyOneMebibyteAccepted boundary pin (2048 keeps parsing).
 Suite **740/740**.
 
+**N-027 FIXED (this lane's third — the carve/writer group, one real fix +
+three verified FIXED-ALREADY):** N-014b — the carved-name split is closed:
+the raw-sign emit layer now rides the same namer chain as the grammar layer
+(caller namer, then the registered File%06u default), and the orchestrator's
+"Carved%06u" lambda is removed — one File%06u family per scan (fail-before
+RED: the grammar-layer JPEG carved as Carved000000.jpg while the raw-sign PSD
+carried File%06u.psd; pass-after all File%06u;
+Orchestrator.CarveSingleNamingFamily). N-014a FIXED-ALREADY (N-016's teardown
+double-emit removal), N-014c FIXED-ALREADY (M-024's
+CarveFlags.disabled_formats), N-014d FIXED-ALREADY (N-008's salvage-polarity
+inversion + N-068's LFH gates; this session's re-read of :18479-18498
+confirmed the direction verbatim and corrected the audit's "~4 GiB" cap to
+the real 0x500001 loop bound). Suite **749/749**.
+## Session-24 delta (2026-10-26 — DFX24: the disjoint MAJOR lane; DFX23 owns the MINOR queue)
+
+Bootstrap: the parallel DFX23 lane claimed the full MINOR tier at 354c555
+in the same window — this lane re-stamped 23→24 and claimed the DISJOINT
+open MAJOR tier (14 findings). Baseline executed first-hand BEFORE the
+claim: linux-release suite **737/737** green at 716d121 (= 354c555
+content); corpus 03ad46c unmoved (re-verified at first read).
+
+**M-049 FIXED (MAJOR — the error model, both halves now closed):** the
+session-11 half (header value-space truth + the err_text coverage test)
+was verified landed; this session closed the finding's registered step 2
+— the engine-side error-context subset of the og's error-object
+architecture (per-module registrars, Error.md census; corpus re-verified
+first-hand: 05-scan-engine-architecture.md:62 + the Error.md RTTI
+census). The error-range event family now carries the
+module/operation/retry-state triple: `err_module`/`err_operation`/
+`err_attempts` on `cr_ui_event` (v2-era append + alignment pad — the
+8-byte-multiple POD pin stands, no ABI bump per §9), new CR_ERRMOD_*
+(NONE/ORCHESTRATOR/9 structured engines/CARVE/LOST/LDM) + CR_ERROP_*
+(READ) ABI constants pinned to the core enum by 15 static asserts. The
+attribution is per-range and recorded at failure time: `cr::errmod`
+(cr_errmod.h) — a per-thread stamp the orchestrator sets around every
+sub-pass (probe/table = orchestrator, engine pass = family, remnant =
+NTFS, discovery = LOST, candidates = per-candidate family stamped inside
+scan_candidate, carve = CARVE, LDM database = LDM) + a per-device owner
+fallback on the retry device covering engine-internal worker pools;
+coalesced ranges keep the NEWEST attribution; sessions persist the
+geometric trio unchanged (44-byte wire pin — reloaded ranges honestly
+kNone). The N-048 read-failure log line carries the module id. D-68
+updated (the subset is no longer the open item). Fail-before RED
+EXECUTED at the single retry-device seam (attribution disabled: 5/6 RED
+— the three event-attribution tests + the two retry-unit tests);
+restored → suite **745/745** linux-release (8 new tests); ui_abi_check.c
+extended (plain-C /W4 /WX readability of the triple).
+
+**Counts after this landing (direct file inventory):** SEVERE 0 · MAJOR
+13 · MINOR 19 (DFX23's queue) · INFO 24 · tracked-open 11 · **FIXED/ 150
+files** (149 findings + RESOLVED-INDEX). Next on this lane: M-035
+(engine-side FileFilter validation) → M-052 → M-014 → M-018.
+
+**N-031 FIXED (the carve dispatch deltas):** the og's all-zero-sector fast-skip
+landed at the raw-sign layer in an exact core form — a 512-byte stride whose
+sign window (the first 47 bytes, probe_header's whole offset span) is all zero
+skips the 47-lookup sign-table walk and is counted
+(ScanCtx→CarveStats.zero_strides_skipped→ScanStats.carve_zero_strides); the
+grammar layer's first-byte dispatch keeps running on zeros (the finding's own
+profile rule). The 512-vs-device-sector stride difference is documented at
+cr_rawsigns.h (the core's probe positions are a strict superset on 4Kn — bench
+comparability registered); the only_common whole-map restrict is expressible on
+M-024's landed disabled_formats surface (registered as host policy, no engine
+constant); the collision-order equivalence pins (TiffVsRawTiebreak et al.) stay
+green. Tests: CarveEngine.ZeroSectorSkipStats (zero-heavy image: >200 strides
+skipped, the JPEG behind the zeros still carves; non-zero control skips 0) +
+the pins re-run. Suite **766/766** (fail-before by construction — the counter
+did not exist).
 
 ## Session-16 delta (2026-10-26 — DFX16: S-029 closed — the SEVERE tier is empty)
 
@@ -2693,3 +3196,24 @@ MINOR 31 · INFO 18 · tracked-open 12 = **90 active** / **56 files in FIXED/**.
 
 **Live counts (after S-028):** ACUTE 0 · SEVERE 5 · MAJOR 42 ·
 MINOR 44 · INFO 20 · tracked-open 12 = **111 active** / **60 files in FIXED/**.
+
+**N-026 FIXED (the ReFS page/gate group — mixed resolution, 2 fixes + 2 audit
+corrections):** N-013b — the DBR geometry gates now match the og exactly: bps
+ladder {256,512,1024,2048,4096} (FUN_180012390:13544-13546, re-verified
+verbatim) and the cluster product gate {4 KiB, 64 KiB} (:13547-13549); the old
+core REFUSED 256/1024/2048-bps volumes the og opens and ACCEPTED 16/32-KiB
+cluster shapes the og refuses — both directions closed (the 1.x-3.x version
+superset stays: I-004/D-48b). N-013d — the volume open reads the og's 4 KiB
+(:2425-2444). N-013a INVALID (first-hand decode: the og's "dynamic body
+offset" is 0x50 BY CONSTRUCTION — the ref parser hardcodes the 0x30 extension,
+FUN_18000ff60:11875; the audit's `*(uint*)(page+4)` was Ghidra's
+parsed-object view, not a raw-page field). N-013c INVALID (the "mid-volume
+second copy" is a misattribution: the cited formula is the container-map key
+in FUN_180011e90 — N-036's decode, confirmed by the full-function read; the
+og reads the superblock at the SINGLE metadata base spc×0x1E, :2457, and
+probes no backup; the core's {30,n-3,n-2} set stays the superset —
+implementing the audit's "mid-volume probe" would have been hallucinated
+parity). Tests: Refs.Bps256Accepted / Bps1024Accepted / Cluster16KRejected /
+OpenReadIsFourKiB (all fail-before RED) + Cluster64KAccepted boundary pin.
+Suite **748/748**.
+

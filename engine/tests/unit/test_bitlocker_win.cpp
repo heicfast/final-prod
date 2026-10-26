@@ -360,3 +360,88 @@ TEST(Bitlocker, AutoUnlockSelectionNoGuidFallsBackInOrder) {
     EXPECT_EQ(std::vector<u8>(40, 0x01), rec.attempts[0].second);
     EXPECT_EQ(std::vector<u8>(40, 0x02), rec.attempts[1].second);
 }
+
+/* ---------------------------------------------------------------- */
+/* N-064: the password-dictionary unlock aid                         */
+/* ---------------------------------------------------------------- */
+
+namespace {
+
+/* recorder for the dictionary seam: candidate order + stop-on-success */
+struct DictRecorder {
+    std::vector<std::wstring> seen;
+    u32 ok_at = 0; /* 1-based candidate position that unlocks */
+    static u32 thunk(wchar_t /*letter*/, const wchar_t* password, void* user) {
+        auto* self = static_cast<DictRecorder*>(user);
+        self->seen.emplace_back(password);
+        return self->ok_at != 0 && self->seen.size() >= self->ok_at ? OK : ERR_FVE_LOCKED;
+    }
+};
+
+} // namespace
+
+TEST(Bitlocker, DictionaryAttemptUsesManageBde) {
+    /* The plumbing test (the finding's own spec): every dictionary attempt
+     * rides the SAME command grammar as a user-typed password - the
+     * PowerShell -Password primary and the manage-bde -Password legacy
+     * fallback (corpus: BitLockerLib's manage-bde string-built command,
+     * bitlockerlib--bitlocker-implementation.md :17/:44). */
+    const std::wstring ps = detail::build_unlock_command(L'X', 0, L"hunter2", false);
+    EXPECT_NE(std::wstring::npos, ps.find(L"Unlock-BitLocker -MountPoint \"X:\""));
+    EXPECT_NE(std::wstring::npos, ps.find(L"-Password \"hunter2\""));
+    const std::wstring mbde = detail::build_unlock_command(L'X', 0, L"hunter2", true);
+    EXPECT_NE(std::wstring::npos, mbde.find(L"manage-bde -unlock X: -Password \"hunter2\""));
+
+    /* the other key forms keep their grammar (regression pin) */
+    EXPECT_NE(std::wstring::npos,
+              detail::build_unlock_command(L'X', 1, L"48-digits", false)
+                  .find(L"-RecoveryPassword"));
+    EXPECT_NE(std::wstring::npos,
+              detail::build_unlock_command(L'X', 2, L"C:\\k.beK", true).find(L"-KeyFilePath"));
+}
+
+TEST(Bitlocker, DictionaryUnlockConsentGated) {
+    /* No attempts without the explicit action: the AUTO unlock surfaces
+     * wired into the scan/open path (try_auto_unlock_offline here - the
+     * same family try_auto_unlock drives live) attempt ONLY harvested
+     * .bek keys, never a password candidate; the dictionary loop is a
+     * separate entry point (unlock_with_dictionary) that nothing in the
+     * open path calls - the CLI gates it behind --bitlocker-dict and
+     * cr_ui_open_volume never invokes it (a locked volume stays
+     * ERR_FVE_LOCKED until the host's explicit consent action). */
+    std::vector<AutoUnlockKey> keys;
+    AutoUnlockKey ka;
+    ka.volume_guid = kGuidA;
+    ka.blob = blob_of(0x01, 40);
+    keys.push_back(ka);
+    Recorder rec;
+    rec.rc = ERR_FVE_LOCKED;
+    EXPECT_EQ(ERR_FVE_LOCKED,
+              detail::apply_auto_unlock_keys(L'Z', keys, kGuidA, &Recorder::thunk, &rec));
+    ASSERT_EQ(size_t(1), rec.attempts.size()); /* bek attempts only */
+    /* the dictionary loop, when explicitly driven, DOES run through its
+     * own seam - the consent boundary is the call site, pinned here by
+     * contrast: the auto path above never touched it. */
+    DictRecorder dr;
+    dr.ok_at = 2;
+    const dict::AttemptResult res =
+        detail::dictionary_unlock_seam({}, &DictRecorder::thunk, L'Z', &dr);
+    EXPECT_EQ(u32(2), res.success_index);
+    ASSERT_EQ(size_t(2), dr.seen.size());
+    EXPECT_EQ(std::wstring(L"12345678"), dr.seen[0]); /* kDictEntries[0] widened */
+}
+
+TEST(Bitlocker, DictionarySeamOrderStopAndWideConversion) {
+    DictRecorder dr;
+    dr.ok_at = dict::kDictEntryCount + 1; /* first user candidate wins */
+    const std::vector<std::string> user{"my own secret"};
+    const dict::AttemptResult res =
+        detail::dictionary_unlock_seam(user, &DictRecorder::thunk, L'Z', &dr);
+    EXPECT_TRUE(res.from_user_set);
+    EXPECT_EQ(dict::kDictEntryCount + 1, res.success_index);
+    ASSERT_EQ(size_t(dict::kDictEntryCount + 1), dr.seen.size());
+    /* shipped set in table order (spot: first + last), then the user set */
+    EXPECT_EQ(L"12345678", dr.seen[0]);
+    EXPECT_EQ(L"simmons", dr.seen[dict::kDictEntryCount - 1]);
+    EXPECT_EQ(L"my own secret", dr.seen[dict::kDictEntryCount]);
+}
