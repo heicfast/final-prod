@@ -103,9 +103,7 @@ test.describe('responsive + DPI', () => {
     const health = page.getByRole('link', { name: /disk health/i });
     await health.focus();
     await page.keyboard.press('Enter');
-    await expect(
-      page.getByRole('heading', { level: 1, name: /disk health/i }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /disk health/i })).toBeVisible();
     const activeId = await page.evaluate(() => document.activeElement?.id);
     expect(activeId, 'focus lands on the main landmark after route change').toBe(
       'main-content',
