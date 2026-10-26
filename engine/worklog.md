@@ -15700,6 +15700,52 @@ Stage Summary:
 - Remote green again. M-030 verification starts now (the lane's claim).
 
 ---
+Task ID: DFX23-T6 (M-030 + the storm window's ASan reds)
+Agent: session-23 (this lane)
+Task: M-030 — the four open transport items + N-081/N-082 (the storm
+lanes' ASan reds, found during M-030's verification sweep)
+
+Work Log:
+- Corpus first (all three open questions resolved by decode):
+  (1) OQ-3: FUN_1800577e0 (Device_decompiled.c :50943-50992) probes
+  GetSystemDirectoryA's FIRST BYTE ('X'/'x'); typed void but the FOUR
+  callers' branch patterns pin the polarity - 0 = live Windows -> the
+  PID-token grammar; nonzero = PE -> \\.\PhysicalDrive%d (disk) /
+  \\.\HarddiskVolume%d (volume) DIRECT (:352/:7816/:50653/:52437).
+  (2) OQ-2: the restore chain decoded - FUN_1800459b0
+  (RecoveryModule_decompiled.c :34465-34502): reopen by identity,
+  IOCTL_VOLUME_ONLINE (0x56C008 :34484), re-create the mount point,
+  Sleep(1000) :34499. (3) The full quiesce chain re-read at
+  :60401-60447: LOCK :60401 -> DeleteVolumeMountPoint :60412 -> Flush
+  :60422 -> Sleep(2000) :60428 -> DISMOUNT (0x90020) :60431 -> UNLOCK
+  (0x9001c) :60436 -> OFFLINE (0x56C00c) :60440.
+- M-030 landed (all four open items): win_pe_environment() gate on BOTH
+  open paths (kernel32-only - Win7 gate intact); terminal OFFLINE after
+  DISMOUNT + the GUID-capture + ONLINE/mount-point restore on release
+  (closing the letterless-after-repair hole - the pre-fix core deleted
+  mount points and never restored them); OFFLINE failure degrades to
+  the dismount+lock posture via the N-048 log seam; LDM enumerate
+  32->200 (win::ENUMERATE_DISK_BOUND, eprdtdrv :184); the stale cite
+  (:44686-44720 -> :60401-60447) + the mislabeled FSCTL hex comments
+  fixed; cr_ui_last_transport_error (ABI-since 2.2) surfaces the RDA
+  leg's error. Corpus pins in include/cr/win/cr_winenv.h (both lanes
+  compile them); SDK stubs extended (GetSystemDirectoryA,
+  IOCTL_VOLUME_OFFLINE/ONLINE, SetVolumeMountPointW); ui_abi_check.c
+  exercises the new export.
+- N-081/N-082 NEW-FINDINGS (the M-018/M-052 storm landings' ASan reds,
+  proven pre-existing with this lane's changes stashed): the
+  filterfolder pools are trailing-delimiter NO-NUL arrays read as C
+  strings (split_into global-buffer-overflow) -> bounded string_view
+  parse with exported byte lengths; the M-052 $I fixture copied 15
+  units from a 14-unit literal -> string-bounded copy, field NUL-
+  padded. Both ASan binaries exit 0 post-fix.
+- Verification: ctest 895/895 (win_syntax_check green over the touched
+  win files); linux-release 852/852 exit 0; ASan cr_tests + cr_ui_tests
+  exit 0, zero summaries.
+
+Stage Summary:
+- M-030 CLOSED; the ASan lane is clean again. Open MAJOR: M-034, M-039
+  (claimed elsewhere), M-040. Next: pull-check, then M-034 or M-040.
 Task ID: DFX34-T6 (session 34, sixth landing — N-007 FIXED)
 Agent: main engineer (diff-to-fix fix session 34 — DFX34)
 Task: N-007 — ReFS page-signature discovery width (full memcmp vs the
@@ -15890,3 +15936,28 @@ Stage Summary:
   N-065 FIXED-ALREADY + N-072 FIXED + N-064 convergent-absorbed (+5
   main-red repairs). Remaining open: MAJOR M-030, M-040 (the parallel
   lanes drained the rest). Next: M-030 or M-040.
+Task ID: DFX36-T1 (session 36 start + pushed-red repair)
+Agent: main engineer (diff-to-fix fix session 36 — DFX36)
+Task: Session start protocol; repair the 7ec5446 union regression (build RED on main)
+
+Work Log:
+- Pulled both repos. core_recovery at 7ec5446 (origin/main absorbed);
+  corpus at 03ad46c (unmoved). Session prompt saved token-redacted at
+  worklog/session-diff-fix-36-prompt.md. worklog.md's leftover union
+  conflict markers resolved (the DFX24-T5 M-039 entry kept — the HEAD
+  side; the incoming side was empty).
+- Open findings at start: S-034 (SEVERE), M-030/M-040 (MAJOR), N-072
+  (MINOR); tracked-open: OQ-S4-3, OQ-Z-E-FLT (OQ-FLT-2 residual).
+- Pushed-red repair: the 7ec5446 union dropped the M-052 recycle fields
+  from FatScanStats (include/cr/fat/cr_fat_engine.h, 4 lines) and the
+  N-079 test RecycleBinScopeOutOfBinDollarFilesStayRaw from
+  tests/unit/test_ntfs_volume.cpp (179 lines) — cr_fat_quick.cpp's
+  stats.recycle_info/recycle_remapped references failed to compile.
+  Both files restored verbatim from the coherent 234bf0b repair tree
+  (the exFAT header was intact; the M-039 additions in carve/scan/
+  devmap/tests kept).
+- Verified: full suite 898/898 linux-release.
+
+Stage Summary:
+- Main green again. Baseline: 898/898. Next: S-034 decode + fix (the
+  only SEVERE), then M-030, M-040, N-072, then the OQ residuals.

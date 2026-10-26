@@ -220,39 +220,25 @@ Function-map additions (per-engine-function-map.md, first-cited): `CFATQuickSear
 threaded quick scan is REGISTERED (PARITY-DELTAS D-30x — not a new finding); `Fat32CalcPartition`
 scorer-class evidence appended to M-017. The `FATFilterName` ini runtime-filter surface belongs
 to M-024's family (no separate finding).
-<<<<<<< HEAD
-## Session-24 verdict update (M-052 FIXED, DFX24, 2026-10-26)
-
-**Recycle-bin pairing — `M-052` FIXED.** The fat engine carries the
-$I/$R pairing through the shared `cr/recycle` helper (the NTFS
-engine's reference model extracted to its engine-neutral form): the
-three corpus roots ($RECYCLE.BIN / Recycled / Recycler, case-blind)
-mark the subtree; `$I<token>` streams are parsed (v1 28+2*pathlen, v2
-544 fixed, the Win10+ variable form's repurposed @0x18 honored) and
-never surface; `$R<token>` files surface under their ORIGINAL
-name/size/deletion-time, marked Deleted, with the post-walk fixup for
-late-ordered pairs. Stats `recycle_info` / `recycle_remapped`.
-B4/B5/D11 verdict: MATCH. Fail-before EXECUTED (engine mutation:
-3/4 RED; the over-matching pin green by design).
-=======
 
 ---
 
-## Session-35 verdict update (M-052 FIXED, 2026-10-26)
+## Session-24/35 verdict update (M-052 FIXED — DFX24 + the s35 convergent landing, 2026-10-26)
 
-**Recycle-bin $I/$R pairing — `M-052` FIXED.** The FAT walk recognizes
-the og's four bin roots (_stricmp set verified first-hand,
-FATSearchDLL :1668-1677: Recycler / Recycled / $Recycle.Bin /
-$RECYCLE.BI0) and threads the bin context through the whole subtree.
-In-bin $I<token> files: the v1/v2 record image is read from the chain
-and the original name/size/deletion-FILETIME remembered — the metadata
-file never surfaces. In-bin $R<token> files: emitted under the
-ORIGINAL name with the $I's size/time, forced Deleted (the dentry
-stays live in the bin), content extents untouched. The $I may sit
-later in the walk — the post-walk fixup completes the pair (the og
-pairs "across bin subfolders"). Shared model: cr/cr_recycle.h (with
-the exFAT mirror + the NTFS wrappers). New stats recycle_info /
-recycle_remapped. Proof: RecyclePairingRestoresOriginalName +
-RecycleLegacyRoots + NonRecycleDollarFilesStayRaw (fail-before
-EXECUTED). B4/B5/D11 verdict: MATCH.
->>>>>>> 880e2a1b1429859df8d575aa53e835d1d65fe01f
+**Recycle-bin pairing — `M-052` FIXED.** The fat engine recognizes the
+og's four bin roots (_stricmp set verified first-hand, FATSearchDLL
+:1668-1677: Recycler / Recycled / $Recycle.Bin / $RECYCLE.BI0 — the
+corpus-richer four-root set) and threads the bin context through the
+whole subtree via the shared `cr/recycle` helper (the NTFS engine's
+reference model extracted to its engine-neutral form). In-bin
+`$I<token>` streams are parsed (v1 28+2*pathlen, v2 544 fixed, the
+Win10+ variable form's repurposed @0x18 honored) and never surface;
+in-bin `$R<token>` files are emitted under their ORIGINAL
+name/size/deletion-time, forced Deleted, content extents untouched,
+with the post-walk fixup for late-ordered pairs (the og pairs "across
+bin subfolders"). Stats `recycle_info` / `recycle_remapped`. Proof:
+RecyclePairingRestoresOriginalName + RecycleLegacyRoots +
+NonRecycleDollarFilesStayRaw (fail-before EXECUTED — engine mutation
+3/4 RED; the over-matching pin green by design). B4/B5/D11 verdict:
+MATCH.
+

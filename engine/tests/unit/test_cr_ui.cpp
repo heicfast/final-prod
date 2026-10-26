@@ -2321,3 +2321,16 @@ TEST(CrUi, UserSignRegistrationSurface) {
     ASSERT_EQ(0u, cr_ui_register_user_signs(one, cr::u32(std::strlen(one))));
     EXPECT_EQ(1u, cr_ui_user_sign_count());
 }
+
+TEST(CrUi, TransportErrorAdvisoryZeroOnCleanState) {
+    /* M-030 claim (f): the ABI can now report the transport-open
+     * diagnostic (ABI-since 2.2, additive). On the Linux stub the open
+     * path is UNSUPPORTED and records the clean state, so the advisory
+     * reads 0 - the ABI contract pin; the Windows lane's
+     * Abi.TransportErrorSurfaced exercises the recorded-error path
+     * (RDA leg fails with X -> the direct fallback succeeds -> the
+     * advisory reports X). Fail-before: the export did not exist. */
+    cr_ui_device* d = nullptr;
+    EXPECT_EQ(cr_ui_open_disk(0, &d), CR_UI_ERR_UNSUPPORTED);
+    EXPECT_EQ(cr_ui_last_transport_error(), 0u);
+}

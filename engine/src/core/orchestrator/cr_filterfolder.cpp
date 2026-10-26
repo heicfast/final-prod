@@ -21,21 +21,29 @@ struct JunkSets {
     std::set<std::u16string> any_kind;
 
     JunkSets() {
-        split_into(data::kFolderPool, folders);
-        split_into(data::kFilePool, files);
-        split_into(data::kFatNamePool, any_kind);
+        split_into(data::kFolderPool, data::kFolderPoolLen, folders);
+        split_into(data::kFilePool, data::kFilePoolLen, files);
+        split_into(data::kFatNamePool, data::kFatNamePoolLen, any_kind);
     }
 
-    static void split_into(const u8* pool, std::set<std::u16string>& out) {
-        const char* p = reinterpret_cast<const char*>(pool);
-        while (*p) {
-            const char* semi = std::strchr(p, ';');
-            const char* end = semi ? semi : p + std::strlen(p);
-            if (end > p)
-                out.insert(text::utf8_to_u16_lossless(std::string_view(p, size_t(end - p))));
-            if (!semi)
+    /* N-081 (NEW-FINDING, the M-018 landing's ASan red): the pools are
+     * semicolon-delimited with a TRAILING delimiter and NO NUL
+     * terminator - the first cut read them as C strings and ran
+     * strchr/strlen past the array end (global-buffer-overflow on the
+     * linux-gcc lane). The parse is now bounded by the exported byte
+     * lengths; identical tokens for well-formed data (the trailing
+     * ';' yields no empty tail). */
+    static void split_into(const u8* pool, u32 pool_len, std::set<std::u16string>& out) {
+        const std::string_view all(reinterpret_cast<const char*>(pool), pool_len);
+        size_t pos = 0;
+        while (pos < all.size()) {
+            const size_t semi = all.find(';', pos);
+            const size_t end = semi == std::string_view::npos ? all.size() : semi;
+            if (end > pos)
+                out.insert(text::utf8_to_u16_lossless(all.substr(pos, end - pos)));
+            if (semi == std::string_view::npos)
                 break;
-            p = semi + 1;
+            pos = semi + 1;
         }
     }
 };

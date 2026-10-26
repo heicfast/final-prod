@@ -222,6 +222,17 @@ TEST(FilterFolder, CorpusListsPinned) {
     EXPECT_EQ(4u, filterfolder::data::kFolderCount);
     EXPECT_EQ(7u, filterfolder::data::kFileCount);
     EXPECT_EQ(14u, filterfolder::data::kFatNameCount);
+    /* every pool must terminate within its own bytes: the consumer reads
+     * them as C strings, so a pool without a NUL is a global-buffer
+     * overflow (the merge regression this pin guards against; under ASan
+     * the strlen walks past the array and aborts) */
+    EXPECT_LT(std::strlen(reinterpret_cast<const char*>(filterfolder::data::kFolderPool)), 4096u);
+    EXPECT_LT(std::strlen(reinterpret_cast<const char*>(filterfolder::data::kFilePool)), 4096u);
+    EXPECT_LT(std::strlen(reinterpret_cast<const char*>(filterfolder::data::kFatNamePool)), 4096u);
+    /* the byte content is the og's list verbatim: the trailing byte of
+     * each pool is the terminator, the one before it the delimiter */
+    EXPECT_EQ(u8('\0'), *(filterfolder::data::kFolderPool + std::strlen(reinterpret_cast<const char*>(filterfolder::data::kFolderPool))));
+    EXPECT_EQ(u8(';'), *(filterfolder::data::kFolderPool + std::strlen(reinterpret_cast<const char*>(filterfolder::data::kFolderPool)) - 1));
     /* FolderName: upgrade/setup scaffolding */
     EXPECT_TRUE(filterfolder::is_junk_name(u"Config.Msi", true));
     EXPECT_TRUE(filterfolder::is_junk_name(u"$Windows.~BT", true));
