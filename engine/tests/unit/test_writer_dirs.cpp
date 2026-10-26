@@ -285,8 +285,9 @@ TEST(WriterDirs, DeepDestChainCreatedAndIdempotentRerun) {
 
 TEST(WriterDirs, IntraQueueDuplicatesRenameUnderSkip) {
     /* two queued nodes with the same name in the same dir: the second
-     * renames to "name (2).txt" even under ConflictPolicy::Skip (intra-
-     * queue collisions always rename; the destination is not consulted) */
+     * renames to the og's "name_1.txt" (N-065: DRWUI %s_%d%s form) even
+     * under ConflictPolicy::Skip (intra-queue collisions always rename;
+     * the destination is not consulted) */
     std::vector<u8> img(512, 0);
     std::memcpy(img.data(), "AA", 2);
     MemDevice dev(img);
@@ -312,7 +313,7 @@ TEST(WriterDirs, IntraQueueDuplicatesRenameUnderSkip) {
     ASSERT_EQ(OK, writer.process(nullptr, nullptr, nullptr, stats));
     EXPECT_EQ(u64(2), stats.done);
     EXPECT_TRUE(fs::is_regular_file(tmp.p / "out/dup.txt"));
-    EXPECT_TRUE(fs::is_regular_file(tmp.p / "out/dup (2).txt"));
+    EXPECT_TRUE(fs::is_regular_file(tmp.p / "out/dup_1.txt"));
 }
 
 /* WRITER-1 (AUDIT-PIPELINE, F-A4-8): per-item failures are collected, not
@@ -481,4 +482,165 @@ TEST(WriterDirs, ProgressExcludesErrorItems) {
     EXPECT_EQ(u64(2), stats.done);
     EXPECT_EQ(ctx.first, 4u) << "done must reach only the two written items' bytes (2+2)";
     EXPECT_EQ(ctx.second, 6u) << "total still counts every queued item";
+}
+
+/* ---- N-065: the og's collision policy (DRWUI :357116-357131) ---------- */
+
+TEST(WriterDirs, CollisionNameUnderscoreFormat) {
+    /* the og renames to name_1.ext / name_2.ext (%s_%d%s, counter from
+     * 1) - NOT the old "name (N).ext" space-parens form. Three same-name
+     * nodes in one directory: the original + two og-form renames. */
+    std::vector<u8> img(512, 0);
+    std::memcpy(img.data(), "AA", 2);
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* found = tree.add_root(u"Found");
+    (void)add_node(tree, found, "rep.docx", 0, 2);
+    (void)add_node(tree, found, "rep.docx", 0, 2);
+    (void)add_node(tree, found, "rep.docx", 0, 2);
+    tree.refresh_stats();
+
+    TmpDir tmp;
+    FsIo io(tmp.p);
+    WriterConfig c;
+    SafeWriter writer(io, &dev, c);
+    tree::FileNode* n = found->first_child();
+    ASSERT_NE(nullptr, n);
+    for (int k = 0; k < 3; ++k) {
+        ASSERT_EQ(OK, writer.enqueue(n, u"out\\"));
+        n = n->next_sibling();
+    }
+    WriterStats stats;
+    ASSERT_EQ(OK, writer.process(nullptr, nullptr, nullptr, stats));
+    EXPECT_EQ(u64(3), stats.done);
+    EXPECT_TRUE(fs::is_regular_file(tmp.p / "out/rep.docx"));
+    EXPECT_TRUE(fs::is_regular_file(tmp.p / "out/rep_1.docx")) << "the og's %s_%d%s form";
+    EXPECT_TRUE(fs::is_regular_file(tmp.p / "out/rep_2.docx"));
+    /* extensionless names take the og's %s_%d branch */
+    {
+        tree::ResultTree t2;
+        auto* f2 = t2.add_root(u"Found");
+        (void)add_node(t2, f2, "README", 0, 2);
+        (void)add_node(t2, f2, "README", 0, 2);
+        t2.refresh_stats();
+        TmpDir tmp2;
+        FsIo io2(tmp2.p);
+        SafeWriter w2(io2, &dev, c);
+        tree::FileNode* r = f2->first_child();
+        ASSERT_EQ(OK, w2.enqueue(r, u"out\\"));
+        r = r->next_sibling();
+        ASSERT_EQ(OK, w2.enqueue(r, u"out\\"));
+        WriterStats st2;
+        ASSERT_EQ(OK, w2.process(nullptr, nullptr, nullptr, st2));
+        EXPECT_TRUE(fs::is_regular_file(tmp2.p / "out/README"));
+        EXPECT_TRUE(fs::is_regular_file(tmp2.p / "out/README_1")) << "the %s_%d branch";
+    }
+    /* the default cap is the og's 10,000 (was 64) */
+    EXPECT_EQ(10000u, WriterConfig{}.rename_attempts);
+}
+
+TEST(WriterDirs, CollisionExhaustionFailsTheItem) {
+    /* the og's cap-break (DRWUI :357131 `if (10000 < counter) break`):
+     * when every rename candidate is taken the file is FAILED - never a
+     * synthesized "_dup" name (the old core's og-foreign fallback, which
+     * could itself collide). Small cap + a fully-colliding destination
+     * proves the semantics without 10,000 files. */
+    std::vector<u8> img(512, 0);
+    std::memcpy(img.data(), "AA", 2);
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* found = tree.add_root(u"Found");
+    (void)add_node(tree, found, "rep.txt", 0, 2);
+    tree.refresh_stats();
+
+    TmpDir tmp;
+    FsIo io(tmp.p);
+    WriterConfig c;
+    c.rename_attempts = 2; /* name_1 and name_2 both pre-exist */
+    fs::create_directories(tmp.p / "out");
+    for (const char* pre : {"rep.txt", "rep_1.txt", "rep_2.txt"})
+        std::ofstream(tmp.p / "out" / pre).put('x');
+    SafeWriter writer(io, &dev, c);
+    tree::FileNode* n = found->first_child();
+    ASSERT_NE(nullptr, n);
+    ASSERT_EQ(OK, writer.enqueue(n, u"out\\"));
+
+    WriterStats stats;
+    ASSERT_EQ(OK, writer.process(nullptr, nullptr, nullptr, stats));
+    EXPECT_EQ(u64(1), stats.errors) << "the exhausted item FAILS (og cap-break)";
+    EXPECT_EQ(u64(0), stats.done);
+    /* no _dup file was ever synthesized */
+    bool saw_dup = false;
+    for (const auto& rel : walk_tree(tmp.p))
+        if (rel.find("_dup") != std::string::npos)
+            saw_dup = true;
+    EXPECT_FALSE(saw_dup) << "the og never produces a _dup name";
+    /* the report row carries the honest reason */
+    const auto rows = writer.report_items();
+    ASSERT_EQ(1u, rows.size());
+    EXPECT_EQ(report::Outcome::Error, rows[0].outcome);
+    EXPECT_EQ(u32(ERR_DEST_NAME_EXHAUSTED), rows[0].reason);
+}
+
+TEST(WriterDirs, MkdirSemanticsMatchShCreateDirectoryEx) {
+    /* N-065's mkdir half, pinned with the close-reading classification:
+     * the og's SHCreateDirectoryExW gate (accept 0 / 0xB7 - DRWUI
+     * :870436-438) is SEMANTICALLY the exist-as-directory contract, not a
+     * narrower error filter: the API itself returns ERROR_ALREADY_EXISTS
+     * for pre-existing paths (that is WHY the og accepts 0xB7), so "dir
+     * pre-exists -> proceed" is og parity on both sides. The finding's
+     * ACCESS_DENIED premise mis-models the API (a pre-existing directory
+     * yields 0xB7 there, which the og ACCEPTS). Pins: (a) an existing
+     * directory component proceeds; (b) a FILE in the way fails the
+     * item (the true divergence-free strictness); both sides refuse. */
+    std::vector<u8> img(512, 0);
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* found = tree.add_root(u"Found");
+    (void)add_node(tree, found, "a", 0, 0, true); /* the mkdir carrier */
+    tree.refresh_stats();
+
+    TmpDir tmp;
+    FsIo io(tmp.p);
+    WriterConfig c;
+    /* (a) pre-existing directory chain: proceeds (the 0xB7 contract) */
+    fs::create_directories(tmp.p / "dest/a");
+    SafeWriter w1(io, &dev, c);
+    ASSERT_EQ(OK, w1.enqueue(found->first_child(), u"dest\\"));
+    WriterStats s1;
+    EXPECT_EQ(OK, w1.process(nullptr, nullptr, nullptr, s1));
+    EXPECT_EQ(u64(1), s1.dirs) << "existing directory = the og's accepted 0xB7";
+
+    /* (b) mkdir FAILURE propagates to the item (both sides refuse hard
+     * mkdir errors: SHCreateDirectoryExW accepts only 0/0xB7, WinDestIo
+     * refuses non-directory obstructions - pinned on the MSVC lane,
+     * test_destio_win.cpp:65 - and the writer must FAIL the item, not
+     * proceed). Proven through a fault shim: mkdir refuses the chain. */
+    TmpDir tmp2;
+    /* a minimal delegating shim: everything through FsIo, mkdir refused
+     * (FsIo is final; the wrapper implements DestIo directly) */
+    class RefusingMkdirIo final : public DestIo {
+    public:
+        explicit RefusingMkdirIo(FsIo& inner) : inner_(inner) {}
+        u32 create_temp(u64 id, const std::u16string& fin, const std::u16string& suf) override {
+            return inner_.create_temp(id, fin, suf);
+        }
+        u32 mkdir(const std::u16string&) override { return ERR_DEST_UNWRITABLE; }
+        u32 write(u64 id, u64 off, const void* data, u32 len) override {
+            return inner_.write(id, off, data, len);
+        }
+        u32 commit(u64 id) override { return inner_.commit(id); }
+        void close(u64 id) override { inner_.close(id); }
+        bool exists(const std::u16string& p) override { return inner_.exists(p); }
+
+    private:
+        FsIo& inner_;
+    };
+    FsIo io2(tmp2.p);
+    RefusingMkdirIo rio(io2);
+    SafeWriter w2(rio, &dev, c);
+    ASSERT_EQ(OK, w2.enqueue(found->first_child(), u"dest2\\"));
+    WriterStats s2;
+    EXPECT_EQ(OK, w2.process(nullptr, nullptr, nullptr, s2)); /* collected, not fatal */
+    EXPECT_GE(s2.errors, u64(1)) << "a hard mkdir failure fails the item on both sides";
 }

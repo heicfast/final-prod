@@ -1,5 +1,14 @@
 # CROSS-REF-MATRIX.md — module × parameter verdict matrix (post-rebase with parallel leg)
 
+**Session-27 changes (2026-10-26, DFX27 — the MAJOR-head lane):** **M-035
+FIXED** (engine-side FileFilter validation — the exFAT-only content-consistency
+scorer, reject rule decompile-exact with the strict-< correction; scan_candidate
+wiring + ResultTree::detach_subtree; lost-partition A30/B3 and query B16 rows
+below; findings/FIXED/M-035). **M-058 NEW-FINDING FIXED** (build-integrity/
+memory-safety: run()'s cache-failure fallback UAF — build_read_pipe extracted,
+ASan fail-before executed; the orchestrator row's R1.6 pipe note). M-049 landed
+first from the parallel DFX24 lane (convergence honored).
+
 **Session-30 changes (2026-10-26, DFX30 — tracked-open tail lane):** OQ-FLT-1
 RESOLVED (the 169-entry extension table = a 4-engine shared vocabulary, live in
 FAT/exFAT/RAW, dead copy in NTFS, absent in 5 engines; the M-035 scorer is
@@ -237,6 +246,7 @@ F safety · Q quality (definitions in `PARAMETERS.md`).
 | refs | B1/C19/C20/A25 | ~~N-026~~ **FIXED (s28, mixed)** — boot gates aligned (bps ladder + cluster product {4K,64K}, og :13544-49) + 4-KiB open read; N-013a/N-013c INVALID on first-hand decode (0x50 body is by-construction — hardcoded 0x30 ref extension; the mid-volume formula is N-036's container key, og probes NO superblock backup); findings/FIXED/N-026 |
 | table+ldm | B1/C20 | ~~M-016~~ **FIXED (s19)** — candidate list {2,0,1,2045,2046} = og probe order + tail superset behind; config+0 disk parses, +2 wins conflicts (committed_seq proof); 3 tests, findings/FIXED/M-016 |
 | table+ldm | B1/A27/X49 | ~~N-025~~ **FIXED (s23)** — 1 MiB config gate (>= 0x801 -> ERR_BAD_CHECKSUM, og :59748-59759) + zero-interleave 64 KiB default on stripe/RAID-5 (og :47665/:68631-68641); 2 fail-before tests + boundary pin; findings/FIXED/N-025 |
+| lost-partition | B3/A30/B16 (engine-side filter validation) | **M-035 — FIXED (s27 DFX27)** (the exFAT-only content-consistency scorer: considered/filterable/matched counters + the reject rule decompile-exact (strict < 0.3), substring classifier + MOV/MP4/JPG specials, out-of-bounds invalidation; scan_candidate wiring + detach_subtree; ScanStats::lost_content_rejected; 15 tests + fail-before; findings/FIXED/M-035) |
 | lost-partition | A30 | ~~M-017~~ **FIXED (s19)** — the og's content model end to end: weighted count + bonus + 500 table-match (polarity inversion repaired), ln/ln permille, containment-drop, stable sort, the iVar16 size-match promotion re-decoded; findings/FIXED/M-017 |
 | carve | B1/X47/X51 | **I-009** (byte-stepped probing = detection superset; block-shape constants) |
 | carve | B2-adj/R54/R57 | **M-021** (video-repair pre-scan hook absent) |
@@ -363,7 +373,7 @@ not-BAAD both sides; FAT quick-scan threading — already registered D-30x).
 | orchestrator | A38/A41/P42/A44 | ~~N-075~~ **MATCH** (FIXED/N-075, session 28: `cr_ui_scan_busy`/`cr_ui_scan_stopping` synchronous query exports — the og's sigIsBusy(bool&) x14 / sigIsStopping(bool&) x8 reference-out signals; pull-progress convention REGISTERED as D-78; typed IUIProgressInfo mapping documented in ABI-CONTRACT 5; pinned by `CrUi.ScanBusyStoppingQueries` + the plain-C edges); **I-023** (DRWCfg scope register) |
 | visualization | P42/D-model | **S-009 addendum** (stale premise corrected — surface landed; residual: kCellAllocFree dead, VolumeBitmap discarded) |
 | query | P42 (sort Type) — **MATCH** | M-029 addendum (path-group CLOSED session-6) + session-11: Type sort CLOSED (SortKey::Type, ABI code 7, iconIndex order) + the modified-unit doc lie fixed (FILETIME, pinned) + paging documented as the deliberate difference (no og page-size constant) + **session-32: the bucket-ID translation + general-raw naming CLOSED (query::apply_date_bucket/apply_size_bucket from the DRWUI FUN_140705c50/FUN_140706060/FUN_140254670/FUN_140255820/FUN_140256830 decode; cr_ui_query_apply_buckets added export; ScanConfig::raw_category_name) — the finding's every sub-item is now closed (FIXED/)** |
-| abi (cr_ui) | P42 | **N-033 addendum** (carve-format registry landed — ABI sub-item CLOSED; CLI listing sub-item remains) |
+| abi (cr_ui) | P42 | ~~N-033~~ **MATCH** (FIXED/N-033: ABI sub-item landed s6 (cr_ui_carve_format_count/info) + the CLI sub-item closed s28 (`rrecov list-carve-formats`, FB-K01 exit discipline) + the per-scan refresh divergence REGISTERED as D-80; pinned by CarveFormatRegistryEnumeration + the parse gate) |
 | quality (cross-cutting) | P46/P68 | ~~N-074~~ **FIXED (s18 DFX18 canonical `479b0c7` + convergent s22 DFX22 landing reconciled in the same-window merge — both lanes verified all five sub-items first-hand independently; pin Health.SmartCommandListMatchesImplementation fail-before-proven)**; **~~N-019~~ FIXED (s28: the 13-scenario Q65 gap — 4 new mutation-proven tests + 6 already-covered re-cited + 1 superseded by M-017's scoring + OQ-T6 pushed forward with new snapshot evidence; see FIXED/N-019)** |
 
 New tracked-open: **OQ-S6-1** (PartitionRecoveryD generator-set semantics), **OQ-S6-2**

@@ -247,8 +247,26 @@ the error-context carrier (`8ba2316` — per-thread RAII stamps + the retry
 device's owner fallback + the err_module/err_operation/err_attempts event/ABI
 triple; 8 tests, suite 745/745 at its tree) while this lane's duplicate
 implementation was mid-flight. The duplicate was dropped; the landing was
-reviewed sound on the merged tree (suite green below). This lane proceeds to
-M-035 — also named as DFX24's next target; first-landing-wins on the pull.
+reviewed sound on the merged tree (suite green below).
+
+**M-035 FIXED (MAJOR — the engine-side FileFilter validation):** the og's
+exFAT-only lost-candidate content-consistency scorer (FUN_180025390, re-verified
+line-by-line first-hand incl. the classifier and the filter-set helper) is now
+the `cr::lost` scorer: considered/filterable/matched counters decompile-exact,
+the reject rule `considered/2 <= filterable && ratio < 0.3 && filterable != 0`
+(STRICT < — corrected from the decompile's `<= 0.3 && != 0.3`; the finding
+text said `<=`), the substring classifier + MOV/MP4/JPG family specials,
+out-of-bounds data-start invalidation. scan_candidate scores the walked files
+after the engine dispatch and detaches the subtree on reject (the new
+ResultTree::detach_subtree — the memory-safe drop mechanism), zeroes the
+counts, bumps ScanStats::lost_content_rejected. The candidate stays listed
+(per-hit persistence, M-042). 15 tests (the finding's 3 named + helpers +
+detach + 2 end-to-end whole-disk ghost scans); fail-before EXECUTED; suite
+**808/808**. Corpus corrections: the reject boundary is strict-<; the finding's
+"failed" label for iVar17 is the CHECKABLE count (the majority gate is
+checkable-dominated, not mismatch-dominated). This lane proceeds per the open
+inventory (M-052/M-018/M-020 contested with the parallel lanes — pull-check
+before each).
 
 
 ## Session-30 delta (2026-10-26 — DFX30: the tracked-open tail lane — OQ resolutions + NEW-FINDING S-034)
@@ -358,11 +376,37 @@ the corpus-silent integrity-stream scenario: property-flag rows 0x108/0xf8
 + unknown-type rows walked past, data byte-exact, granularity guard quiet).
 Suite **753/753**.
 
-**Post-fix counts (session-28, after N-075 + N-019):** SEVERE **0** ·
-MAJOR **14** · MINOR **15** · INFO 0 open (22 acknowledged in FIXED/) ·
-**FIXED/ 175 findings** (176 files incl. RESOLVED-INDEX) · tracked-open 11
-(OQ-T6 pushed forward with new evidence). Next on this lane:
-N-050/N-033/N-072 rear-first.
+**N-033 FIXED (MINOR — the CLI half + the refresh divergence):** the ABI
+half landed session 6 (`cr_ui_carve_format_count/info`); this session
+closed the rest — `rrecov list-carve-formats` (subcommand form, one row
+per format over both carve layers, the FB-K01 exit discipline: an empty
+registry or failed row is exit 1, never a silent "nothing to carve") +
+the per-scan registry-refresh divergence REGISTERED as PARITY-DELTAS
+D-80 (the og's FS engines LoadLibrary/clone the RAWSearchDLL registry
+per scan — multi-DLL machinery; the core reads its compile-time
+immutable registry directly, same content by construction) +
+ABI-CONTRACT §7a's CLI projection note. Pinned by the existing
+`CrUi.CarveFormatRegistryEnumeration` + the win-layer parse gate
+(extended with `-D__declspec(x)=` parse-neutralization — ELF g++
+rejects the `__declspec` that cr_ui.h's _WIN32 branch uses; the gate
+checks structure, MSVC CI exercises the real macro).
+
+**Pushed-red repaired en route (the M-055/M-057 family):** a same-window
+parallel merge had committed conflict markers into rrecov.cpp +
+cr_bitlocker.h + PARITY-DELTAS + CAPABILITY-MATRIX (win_syntax_check
+RED on origin/main — executed first-hand). The two N-064 designs were
+unioned (both consent surfaces: `--bitlocker-pwddict <file|seed>` AND
+`--bitlocker-dict`; both functions stand; auto → shipped-dict →
+file/seed → refuse-with-guidance); my session's M-020-stale
+TwoSubvolumesRootSeparately re-verified and updated. 827/827 green
+post-repair.
+
+**Post-fix counts (session-28, after N-075 + N-019 + N-033):** SEVERE
+**0** · MAJOR **14** · MINOR **5 open** (N-007, N-059, N-065, N-066,
+N-072 — the parallel lanes drained the rest of the tier) · INFO 0 open
+(22 acknowledged in FIXED/) · **FIXED/ 176 findings** (177 files incl.
+RESOLVED-INDEX) · tracked-open 11 (OQ-T6 pushed forward with new
+evidence). Next on this lane: N-066/N-065/N-059/N-072 rear-first.
 
 ## Session-31 delta, wave 4 (2026-10-26 — DFX31: OQ-S20-1 resolved — the BitLocker derivation premise corrected: no stretch exists in the og; M-033's surface IS the og's surface)
 
