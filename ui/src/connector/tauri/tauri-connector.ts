@@ -45,7 +45,6 @@ import type {
   SessionMeta,
   SortDirection,
   SortField,
-  TreeNode,
   TreePage,
 } from '../contract';
 
@@ -136,7 +135,7 @@ function toConnectorError(raw: unknown): ConnectorError {
     code,
     reasonKey: REASON_KEYS[code],
     detail: detailCode !== undefined ? { code: detailCode } : undefined,
-  }) as ConnectorError;
+  });
 }
 
 /**
@@ -161,7 +160,7 @@ function connError(code: ConnectorErrorCode, message: string): ConnectorError {
 function normalizePreview(p: PreviewPayload | null): PreviewPayload | null {
   if (p === null) return null;
   if (p.kind === 'hex' && !ArrayBuffer.isView(p.bytes)) {
-    return { ...p, bytes: new Uint8Array(p.bytes as unknown as readonly number[]) };
+    return { ...p, bytes: new Uint8Array(p.bytes as readonly number[]) };
   }
   return p;
 }
@@ -227,8 +226,7 @@ export function createTauriConnector(): RecoveryConnector {
         scanId: string,
         parentId: string | null,
         mode: ResultTreeMode,
-      ): Promise<TreePage> =>
-        bridge(invoke('results_tree', { scanId, parentId, mode })),
+      ): Promise<TreePage> => bridge(invoke('results_tree', { scanId, parentId, mode })),
 
       queryResults: async (
         scanId: string,
@@ -288,9 +286,7 @@ export function createTauriConnector(): RecoveryConnector {
         destination: string,
         options: RecoveryOptions,
       ): Promise<{ jobId: string }> =>
-        bridge(
-          invoke('recovery_start', { scanId, selection, destination, options }),
-        ),
+        bridge(invoke('recovery_start', { scanId, selection, destination, options })),
 
       cancelRecovery: async (jobId: string): Promise<void> =>
         bridge(invoke('recovery_cancel', { jobId })),
@@ -301,8 +297,7 @@ export function createTauriConnector(): RecoveryConnector {
       getRecoveryItems: async (
         jobId: string,
         page: { offset: number; limit: number },
-      ): Promise<readonly RecoveryItem[]> =>
-        bridge(invoke('recovery_items', { jobId, page })),
+      ): Promise<readonly RecoveryItem[]> => bridge(invoke('recovery_items', { jobId, page })),
 
       onRecoveryProgress: (
         jobId: string,
@@ -334,8 +329,7 @@ export function createTauriConnector(): RecoveryConnector {
       applyRepair: async (
         deviceId: string,
         options: { consentToken: string },
-      ): Promise<{ applied: number }> =>
-        bridge(invoke('repair_apply', { deviceId, options })),
+      ): Promise<{ applied: number }> => bridge(invoke('repair_apply', { deviceId, options })),
 
       getUndoLog: async (deviceId: string): Promise<readonly RepairUndoEntry[]> =>
         bridge(invoke('repair_undo_log', { deviceId })),
@@ -355,9 +349,7 @@ export function createTauriConnector(): RecoveryConnector {
         sourceDeviceId: string,
         neededBytes: number,
       ): Promise<DestinationValidation> =>
-        bridge(
-          invoke('system_validate_destination', { path, sourceDeviceId, neededBytes }),
-        ),
+        bridge(invoke('system_validate_destination', { path, sourceDeviceId, neededBytes })),
 
       pickDirectory: async (hint?: {
         volumeId?: string | null;

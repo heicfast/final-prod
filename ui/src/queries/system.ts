@@ -42,3 +42,24 @@ export function usePickDirectory() {
       connector.system.pickDirectory(hint),
   });
 }
+
+/**
+ * Open-location flow (the corpus context-menu item): resolve the node's real
+ * on-disk path through the results detail, then reveal it in the system
+ * explorer. Only existing-origin rows have a live location — the connector
+ * refuses the rest truthfully (deleted/carved content is not on disk).
+ */
+export function useOpenLocation(scanId: string) {
+  return useMutation({
+    mutationFn: async (nodeId: string): Promise<void> => {
+      const detail = await connector.results.getNodeDetail(scanId, nodeId);
+      if (!detail.fullPhysicalPath) {
+        throw Object.assign(
+          new Error('This item has no on-disk location (deleted or carved content).'),
+          { code: 'unknown', reasonKey: 'results.context.openLocationMissing' },
+        );
+      }
+      await connector.system.openPath(detail.fullPhysicalPath);
+    },
+  });
+}

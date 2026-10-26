@@ -1,9 +1,6 @@
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useQueryClient } from '@tanstack/react-query';
-import type { MockScenarioId } from '@/connector/contract';
-import { FlaskConicalIcon, GaugeIcon, RotateCcwIcon, XIcon } from 'lucide-react';
-import { useScenarioControl } from '@/queries/dev';
+import { FlaskConicalIcon, GaugeIcon, XIcon } from 'lucide-react';
 import { useUiStore } from '@/stores/ui-store';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -12,35 +9,16 @@ import { setLocale } from '@/i18n';
 
 /**
  * Developer panel — dev builds only (import.meta.env.DEV gated at the mount
- * site in the shell). Scenario selector, seed, error injection, language and
- * density overrides, performance overlay.
+ * site in the shell). The scenario/seed controls left with the simulated
+ * backend; the legitimate dev tools remain: language and density overrides,
+ * performance overlay. (docs/INTEGRATION-PLAN.md section 5.1)
  */
-
-const SCENARIOS: readonly MockScenarioId[] = [
-  'standard',
-  'large-ntfs',
-  'sd-card',
-  'btrfs-disk',
-  'lost-partition',
-  'permission-denied',
-  'disconnect-mid-scan',
-  'bad-sectors',
-  'out-of-space',
-  'corrupt-session',
-];
 
 export function DevPanel(): React.JSX.Element {
   const { t } = useTranslation();
-  const control = useScenarioControl();
   const ui = useUiStore();
-  const qc = useQueryClient();
   const { density, setDensity } = useTheme();
-  const [scenario, setScenario] = React.useState<MockScenarioId>(
-    control?.getScenario() ?? 'standard',
-  );
-  const [seed, setSeed] = React.useState(42);
 
-  if (!control) return <></>;
   if (!ui.devPanelOpen) return <></>;
 
   return (
@@ -66,46 +44,6 @@ export function DevPanel(): React.JSX.Element {
       </div>
 
       <div className="space-y-3 text-sm">
-        <div className="space-y-1">
-          <Label htmlFor="dev-scenario">{t('devPanel.scenario')}</Label>
-          <select
-            id="dev-scenario"
-            value={scenario}
-            onChange={(e) => {
-              const next = e.target.value as MockScenarioId;
-              setScenario(next);
-              control.setScenario(next);
-              // The scenario reshapes the whole mock world (devices,
-              // scans, sessions) — invalidate everything so the UI
-              // reflects it immediately.
-              void qc.invalidateQueries();
-            }}
-            className="h-8 w-full rounded-sm border border-border bg-surface px-2 text-sm"
-          >
-            {SCENARIOS.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="space-y-1">
-          <Label htmlFor="dev-seed">{t('devPanel.seed')}</Label>
-          <div className="flex gap-2">
-            <input
-              id="dev-seed"
-              type="number"
-              value={seed}
-              onChange={(e) => setSeed(Number(e.target.value))}
-              className="h-8 w-24 rounded-sm border border-border bg-surface px-2 text-sm tabular"
-            />
-            <Button variant="secondary" size="sm" onClick={() => control.setSeed(seed)}>
-              {t('common.apply')}
-            </Button>
-          </div>
-        </div>
-
         <div className="space-y-1">
           <Label>{t('devPanel.language')}</Label>
           <div className="flex gap-2">
@@ -136,20 +74,6 @@ export function DevPanel(): React.JSX.Element {
             {ui.perfOverlayVisible ? 'ON' : 'OFF'}
           </Button>
         </div>
-
-        <Button
-          variant="secondary"
-          size="sm"
-          className="w-full"
-          onClick={() => {
-            control.reset();
-            setScenario('standard');
-            setSeed(42);
-          }}
-        >
-          <RotateCcwIcon aria-hidden />
-          {t('devPanel.reset')}
-        </Button>
       </div>
     </aside>
   );

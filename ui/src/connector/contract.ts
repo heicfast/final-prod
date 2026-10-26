@@ -638,4 +638,3 @@ export interface RecoveryConnector {
   readonly repair: RepairDomain;
   readonly system: SystemDomain;
 }
-

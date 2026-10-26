@@ -4,7 +4,6 @@ import { useTheme, type ThemeMode } from '@/app/theme';
 import { useAppInfo, useDriverStatus } from '@/queries/system';
 import { exportLogText, getLogBuffer } from '@/lib/logger';
 import { setLocale, SUPPORTED_LOCALES, type AppLocale } from '@/i18n';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Segmented } from '@/components/ui/stepper';
@@ -189,20 +188,6 @@ export function SettingsPage(): React.JSX.Element {
                   {t('settings.version')}
                 </TableCell>
                 <TableCell className="tabular">{appInfo.data?.version ?? '—'}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="text-foreground-secondary">
-                  {t('settings.connectorMode')}
-                </TableCell>
-                <TableCell>
-                  <Badge
-                    variant={appInfo.data?.connectorMode === 'mock' ? 'warning' : 'success'}
-                  >
-                    {appInfo.data?.connectorMode === 'mock'
-                      ? t('settings.connectorMock')
-                      : t('settings.connectorTauri')}
-                  </Badge>
-                </TableCell>
               </TableRow>
               <TableRow>
                 <TableCell className="text-foreground-secondary">

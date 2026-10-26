@@ -32,9 +32,7 @@ const cpp = readFileSync(source, 'utf8');
 
 // Entry shape: {"ext", Category::Name} — extensions may contain letters,
 // digits, '-', '_', '+' (e.g. "c++", "f4v"); a naive \w+ class loses them.
-const rows = [...cpp.matchAll(/\{"([^"\s]+)",\s*Category::(\w+)\}/g)].map(
-  (m) => [m[1], m[2]],
-);
+const rows = [...cpp.matchAll(/\{"([^"\s]+)",\s*Category::(\w+)\}/g)].map((m) => [m[1], m[2]]);
 if (rows.length === 0) {
   console.error('gen-filefilter: no entries parsed — engine table moved?');
   process.exit(1);

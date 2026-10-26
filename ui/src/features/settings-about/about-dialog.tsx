@@ -2,7 +2,6 @@ import * as React from 'react';
 import { useTranslation } from 'react-i18next';
 import { AppWindowIcon } from 'lucide-react';
 import { useAppInfo, useDriverStatus } from '@/queries/system';
-import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
@@ -30,18 +29,6 @@ export function AboutDialog({
   const info = appInfo.data;
   const rows: { label: string; value: React.ReactNode }[] = [
     { label: t('about.version'), value: info ? info.version : '…' },
-    {
-      label: t('about.connector'),
-      value: info ? (
-        <Badge variant={info.connectorMode === 'tauri' ? 'success' : 'warning'}>
-          {info.connectorMode === 'tauri'
-            ? t('settings.connectorTauri')
-            : t('settings.connectorMock')}
-        </Badge>
-      ) : (
-        '…'
-      ),
-    },
     {
       label: t('about.engine'),
       value: info?.engineVersion ?? t('about.engineNone'),

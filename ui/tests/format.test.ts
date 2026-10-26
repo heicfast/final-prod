@@ -68,4 +68,3 @@ describe('formatting (grid #49 — Intl-based)', () => {
     expect(rows[0].hex.startsWith('48 65 6c 6c 6f 00 ff 20  41')).toBe(true);
   });
 });
-

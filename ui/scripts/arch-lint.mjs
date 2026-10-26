@@ -110,6 +110,19 @@ for (const file of files) {
       violations.push(`A6 ${path}: exported type uses \`any\``);
     }
   }
+
+  // A7 (plan §5.5): shipped code never imports the test double. The rule
+  // matches IMPORT statements only — comments and prose mentioning the
+  // fakes tree are documentation, not violations.
+  if (path.startsWith('src/')) {
+    const fakeImport = [
+      ...text.matchAll(/import[^;'"]*from\s+['"][^'"]*tests\/fakes\/[^'"]*['"]/g),
+    ];
+    const relFakeImport = [...text.matchAll(/from\s+['"]\.\.\/\.\.\/tests\/fakes\//g)];
+    if (fakeImport.length > 0 || relFakeImport.length > 0) {
+      violations.push(`A7 ${path}: shipped source imports the test double (tests/fakes)`);
+    }
+  }
 }
 
 if (violations.length > 0) {

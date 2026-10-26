@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { useCountResults, useResultsPages, useResultTree } from '@/queries/results';
 import { useSaveSession } from '@/queries/sessions';
-import { useConnectorMode } from '@/queries/dev';
+import { useOpenLocation } from '@/queries/system';
 import { useFilterStore, useSortStore, resolveFilter } from '@/stores/filter-store';
 import { selectedCountOf, useSelectionStore } from '@/stores/selection-store';
 import { useUiStore } from '@/stores/ui-store';
@@ -76,7 +76,7 @@ export function ResultsExplorer({
   const selection = useSelectionStore();
   const ui = useUiStore();
   const saveSession = useSaveSession(scanId);
-  const connectorMode = useConnectorMode();
+  const openLocation = useOpenLocation(scanId);
 
   const [filterBarOpen, setFilterBarOpen] = React.useState(false);
   const [searchDraft, setSearchDraft] = React.useState(filter.search);
@@ -111,6 +111,17 @@ export function ResultsExplorer({
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [activeNodeId]);
+
+  // Open-location target mirrors the preview target (single selection,
+  // else the active row, else the first row). Only existing-origin rows
+  // have a live on-disk location — the menu item states the truth otherwise.
+  const openTarget = React.useMemo(() => {
+    const single =
+      selection.mode === 'ids' && selection.ids.size === 1 ? [...selection.ids][0] : null;
+    const targetId = single ?? activeNodeId ?? rows[0]?.id ?? null;
+    const row = rows.find((r) => r.id === targetId) ?? null;
+    return row && row.origin === 'existing' ? row : null;
+  }, [selection.mode, selection.ids, activeNodeId, rows]);
 
   const rowHeight = ui.viewMode === 'details' ? 42 : 96;
   const selectionSnapshot = React.useMemo(
@@ -473,10 +484,19 @@ export function ResultsExplorer({
               </ContextMenuItem>
               <ContextMenuSeparator />
               <ContextMenuItem
-                disabled={connectorMode === 'mock'}
+                disabled={openTarget === null || openLocation.isPending}
                 title={
-                  connectorMode === 'mock' ? t('results.context.openLocationMock') : undefined
+                  openTarget === null ? t('results.context.openLocationMissing') : undefined
                 }
+                onClick={() => {
+                  if (!openTarget) return;
+                  openLocation.mutate(openTarget.id, {
+                    onError: (err) => {
+                      const reasonKey = (err as { reasonKey?: string }).reasonKey;
+                      toast.error(reasonKey ? t(reasonKey) : err.message);
+                    },
+                  });
+                }}
               >
                 <FolderTreeIcon aria-hidden />
                 {t('results.context.openLocation')}
