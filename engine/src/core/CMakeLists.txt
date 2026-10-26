@@ -54,12 +54,15 @@ add_library(cr_core STATIC
     recovery/cr_report.cpp
     recovery/cr_dict.cpp
     recovery/cr_dict_data.cpp
+    orchestrator/cr_filterfolder.cpp
+    orchestrator/cr_filterfolder_data.cpp
     preview/cr_preview.cpp
     query/cr_query.cpp
     query/cr_filefilter_data.cpp
     repair/cr_rawfixer.cpp
     apply/cr_apply.cpp
     reghive/cr_reghive.cpp
+    pwddict/cr_pwddict.cpp
     refs/cr_refs_engine.cpp
     orchestrator/cr_scan.cpp
     tree/cr_node.cpp

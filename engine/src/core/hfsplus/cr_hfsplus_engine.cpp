@@ -1165,6 +1165,12 @@ journal_harvest_pass(Volume& v, CancelToken* cancel,
         props->times.changed = mac_to_filetime(cr.attr_date ? cr.attr_date : cr.mod_date);
         props->times.accessed = mac_to_filetime(cr.access_date);
         props->record_ref = cr.cnid;
+        /* N-059: the record's own u16 flags + the Finder file type — the
+         * og's HFS+ "+0xE mode/flags secondary" and "+0x74 type id"
+         * (part2 :46-48; semantics census-level, the carriers are the
+         * engine's read of the catalog record). */
+        props->hfs_secondary_flags = cr.flags;
+        props->hfs_type_id = cr.finder_file_type;
         for (const auto& ex : resolve_file_extents(v, cr.cnid, 0, cr.data_fork, v.total_bytes()))
             props->extents.push_back({ex.first, ex.second});
         /* og fallback: extents-branch images supply the data runs when the
@@ -1452,6 +1458,12 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
         props->times.changed = mac_to_filetime(r.attr_date ? r.attr_date : r.mod_date);
         props->times.accessed = mac_to_filetime(r.access_date);
         props->record_ref = r.cnid;
+        /* N-059: the record's own u16 flags + the Finder file type — the
+         * og's HFS+ "+0xE mode/flags secondary" and "+0x74 type id"
+         * (part2 :46-48; semantics census-level, the carriers are the
+         * engine's read of the catalog record). */
+        props->hfs_secondary_flags = r.flags;
+        props->hfs_type_id = r.finder_file_type;
         if (!is_dir)
             for (const auto& ex : resolve_file_extents(v, r.cnid, rsrc_marked ? 0xFF : 0,
                                                        content_fork, v.total_bytes()))
@@ -1718,6 +1730,12 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
                 props->times.created = mac_to_filetime(cr.create_date);
                 props->times.modified = mac_to_filetime(cr.mod_date);
                 props->record_ref = cr.cnid;
+        /* N-059: the record's own u16 flags + the Finder file type — the
+         * og's HFS+ "+0xE mode/flags secondary" and "+0x74 type id"
+         * (part2 :46-48; semantics census-level, the carriers are the
+         * engine's read of the catalog record). */
+        props->hfs_secondary_flags = cr.flags;
+        props->hfs_type_id = cr.finder_file_type;
                 if (cr.rec_type == REC_FILE && !o_dir)
                     for (const auto& ex : resolve_file_extents(v, cr.cnid, o_rsrc_marked ? 0xFF : 0,
                                                                o_fork, v.total_bytes()))
