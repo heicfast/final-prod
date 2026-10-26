@@ -12513,3 +12513,22 @@ Work Log:
 Stage Summary:
 - DFX29 open on the MINOR middle band. Tally so far (this lane): N-009
   group + M-057. First fix: N-036 (ReFS data-run recognizer).
+---
+Task ID: DFX28-T2 (lane claim refresh — the N-025 lane; disjoint from DFX29 middle band + the 2adfb51 rear-first claim)
+Agent: main engineer (MINOR-first mandate lane; N-025 landed as e2b4549)
+Task: Lane claim for the MINOR FRONT BAND after the 5-lane window shake-out.
+
+Lane claim (disjoint set, posting before further finding work):
+- N-026 (ReFS page/gate group) — IN PROGRESS
+- N-027 (carve/writer group) — next
+- N-031 (carve dispatch deltas)
+- N-032 (health transports CSMI/USB)
+- N-019 (13 regression-test scenarios)
+- N-007 (ReFS detection strictness)
+DFX29 owns the middle band (N-036/N-049/N-050/N-033/N-064); the 2adfb51
+lane owns the rear (N-075/N-072/N-071/N-066/N-065/N-059); DFX26/27 own
+MAJOR. No overlap with any posted claim.
+
+Stage Summary:
+- Lane re-based at 0a9b19e post-merge; N-025 FIXED (e2b4549); front band
+  claimed; proceeding to N-026.
