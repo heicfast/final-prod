@@ -2553,3 +2553,34 @@ list would be missed — no such device class is documented in the corpus
 (the QA host's own Storage-Spaces census ran WITHOUT producing an
 extra device). The merge is the engine scope; the UI shell may layer
 its own stacks later.
+
+### D-80 — the carve read model: window-resident validation via a stateless view, not the og's pending-object continuation (M-025, REGISTERED DIVERGENCE — architecture)
+
+The og's block scan keeps an 8 MiB ping-pong buffer per searcher
+(RAWSearchDLL FUN_18000beb0 :9184-9209, `read_size = blocks x sector x 2`
+stored at searcher+0xd8; chunk reads fill the back half :9434-9438, the
+front half keeps the previous chunk as left context, memmove rotates
+:9620-9622) and serves candidate headers from the resident bytes (:9496).
+Open-ended formats live as pending CRawFileInfo objects re-fed every
+sector through analyser slot 4 ContinueScan (:10114-10116) until done.
+
+The core keeps its stateless single-shot validator contract (a fixed
+`CarveResult (*)(IStorageDevice*, u64 hit, u64 max_size)` — no per-file
+state survives the window loop) and now serves every validator probe,
+M-051 checksum read, small-file hash read, raw-sign tail-walk chunk, and
+post-processor feed through a WindowView wrapper: reads intersecting the
+already-scanned 1 MiB window come from the in-memory buffer; only the
+cross-window tails touch the device. Measured (scripts/bench_m025.cpp,
+64 MiB / 1280 candidates): read_at calls 20,544 -> 2,080 (9.88x), device
+bytes 2.20 GB -> 1.06 GB (2.08x).
+
+Why not the pending-object port: the byte-granular dispatch (I-009's
+mid-sector-start superset) means a candidate can start anywhere, and the
+validators' bounded-read contract is what the whole grammar registry is
+typed against; a pending model would rewrite every validator for the
+continuation feed. The view delivers the og's buffer-residency BENEFIT
+(no device re-reads for window-resident data) without changing any
+validator. If a future analyser genuinely needs incremental state (the
+og's MovAnalyzer/MTS family), it should be ported as a stateful
+post-processor behind the M-021 CarvePostProcessor seam, not by
+rewriting the core scan loop.

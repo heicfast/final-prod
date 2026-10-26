@@ -13880,3 +13880,84 @@ Stage Summary:
 - OQ-Z4 RESOLVED (engine set empty; core = evidenced superset). Session
   tally: OQ-FLT-1, OQ-Z5, OQ-Z2->S-034, OQ-Z1, OQ-E1, OQ-Z3, OQ-Z4.
   Next: OQ-FLT-2 (AdvanceFilterCondition layout — gates N-028).
+
+---
+Task ID: DFX32-T2 (session 32 — the pushed-red N-064 union repair)
+Agent: main engineer (diff-to-fix fix session 32 — DFX32)
+Task: Repair the pushed-red main: a parallel convergent merge left
+UNRESOLVED conflict markers in 6 files (win layer uncompilable).
+
+Work Log:
+- The red: win_syntax_check FAIL on the pulled union (conflict markers in
+  include/cr/win/cr_bitlocker.h + src/app/rrecov.cpp +
+  docs/CAPABILITY-MATRIX.md + docs/PARITY-DELTAS.md + RESOLVED-INDEX.md;
+  src/win/cr_bitlocker.cpp referencing cr::dict whose module files were
+  lost in the merge). Two parallel N-064 landings collided: 817740c
+  (try_password_unlock + cr/pwddict + --bitlocker-pwddict) vs 5a29dbd
+  (unlock_with_dictionary + cr::dict + --bitlocker-dict).
+- Union resolution (b00c02f): cr/pwddict is the canonical module (its
+  files survived; complete parse/seed/try_passwords + caps);
+  unlock_with_dictionary re-implemented as its ABI-shaped adapter (seed
+  first, then the user wide strings, non-ASCII rejected); the
+  dictionary_unlock_seam retyped onto pwddict (include_seed flag +
+  attempts_made); BOTH CLI consent flags kept with the locked-volume flow
+  + Unknown-gate + usage text carrying both; the Windows contract tests
+  rewritten onto the seam (+ DictionaryUserOnlySkipsSeed); docs
+  keep-both. Suite 825/825 (win_syntax_check green again).
+
+Stage Summary:
+- Main green again. The N-064 convergence recorded as the union (both
+  surfaces, one module). No finding status change (N-064 was already
+  FIXED by both lanes; this repair reconciles them).
+
+---
+Task ID: DFX32-T3 (session 32, MAJOR lane — M-025)
+Agent: main engineer (diff-to-fix fix session 32 — DFX32)
+Task: M-025 — the carve read model (validator probe re-reads + hash
+re-reads vs the og's buffer-resident validation).
+
+Work Log:
+- Corpus re-verified first-hand: RAWSearchDLL FUN_18000beb0 :9184-9209
+  (the 8 MiB ping-pong allocation), :9434-9438 (back-half chunk fill),
+  :9496 (candidate = buffer + half + sector offset — buffer-resident
+  dispatch), :9620-9622 (the rotate), :9541-9605 + :10114-10144 (the
+  pending-object Continue model). CONFIRMED-DIVERGENCE (the core re-reads
+  probe blocks + checksums + hashes through the device).
+- Fix (0e838a3, the plan's steps 2a+2b): the WindowView — an
+  IStorageDevice wrapper serving reads intersecting the already-scanned
+  window from the in-memory buffer; split-read for cross-window tails
+  (in-window prefix memcpy + device tail). Wired at all 8 device-read
+  sites in scan_one_window across BOTH emit layers. Validators keep
+  their contract — the window rides underneath.
+- Step 1 (the measurement harness): scripts/bench_m025.cpp. BENCH
+  LESSON: the first LCG-random fill was abandoned — random FF-Ex sync
+  bytes send the raw-sign tail walk into the gigabytes (11.2 GB read),
+  measuring the tail-scan budget instead of the window-reuse delta; the
+  sign-quiet 0xAA fill isolates this fix's effect (the realism duty
+  stays with the mixed-content unit fixture).
+- MEASURED before/after (same fixture/machine): read_at calls
+  20,544 → 2,080 (9.88x fewer); device bytes 2.20 GB (32.78x vol) →
+  1.06 GB (15.78x vol) (2.08x fewer); wall 3,936 → 3,818 ms on the
+  memcpy device (no regression — the real-transport gain is ~18.5K fewer
+  read round trips per 64 MiB).
+- Step 3 (the 4-8 MiB geometry) evaluated and NOT taken: dispatch is
+  byte-granularity-dominated (the I-009 superset); the window size only
+  affects the re-read margin the view already removed; no bench evidence
+  supports a change. Step 4: PARITY-DELTAS D-80 (the
+  stateless-view-vs-pending-object architecture; future stateful
+  analysers port behind the M-021 seam — which also resolves the
+  finding's M-021 dependency note: the landed hook is a per-candidate
+  feed and never needed continuation state).
+- Tests: CarveEngine.WindowBufferReusedByValidatorChecksumAndHash
+  (fail-before RED EXECUTED on the device-direct tree: 82 reads vs 1
+  expected; GREEN after) + CarveEngine.BoundaryStraddlingCandidate-
+  SplitsReadsCorrectly (the split-read correctness pin). 46/46 carve
+  tests green through the view; suite 825/825.
+- Audit trail: Resolution + FIXED/ move, RESOLVED-INDEX row, matrix
+  P47-P53/X47/X50 row -> FIXED, modules/carve.md verdict, SUMMARY
+  session-32 part-2 delta, PARITY-DELTAS D-80.
+
+Stage Summary:
+- M-025 FIXED (session tally: M-029 + M-025 + the N-064 repair). MAJOR 9
+  remain. Next: M-039 (the cross-engine occupancy bitmap feed) or M-052
+  (the FAT/exFAT recycle-bin pairing).
