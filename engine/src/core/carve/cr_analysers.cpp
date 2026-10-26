@@ -702,7 +702,11 @@ static std::u16string mp4_og_name(IStorageDevice* s, u64 hit, u64 cap) {
      * the og's _localtime64 is the registered divergence) */
     std::time_t tt = std::time_t(raw_time);
     std::tm tmv{};
+#if defined(_WIN32)
+    gmtime_s(&tmv, &tt); /* MSVC: inverted arg order, same UTC semantics */
+#else
     gmtime_r(&tt, &tmv);
+#endif
     char tb[40];
     snprintf(tb, sizeof(tb), "%04d:%02d:%02d %02d:%02d:%02d", tmv.tm_year + 1900,
              tmv.tm_mon + 1, tmv.tm_mday, tmv.tm_hour, tmv.tm_min, tmv.tm_sec);

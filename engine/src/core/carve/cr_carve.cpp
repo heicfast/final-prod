@@ -454,7 +454,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 ci.format_ext = sig.ext;
                 ci.offset = cand_abs;
                 ci.length = file_len;
-                ci.confidence = props->carve_confidence;
+                ci.confidence = u16(props->carve_confidence); /* 0..1000: fits u16 */
                 ctx.flags->post_processor->on_candidate(ctx.slice, ci);
             }
             tree::FileNode* n = ctx.tree->add_file(ctx.carve_root, props);
@@ -824,7 +824,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 ci.format_ext = fmt.ext;
                 ci.offset = start_abs;
                 ci.length = len;
-                ci.confidence = props->carve_confidence;
+                ci.confidence = u16(props->carve_confidence); /* 0..1000: fits u16 */
                 ctx.flags->post_processor->on_candidate(ctx.slice, ci);
             }
             tree::FileNode* n = ctx.tree->add_file(ctx.carve_root, props);
