@@ -448,7 +448,6 @@ typedef struct cr_ui_scan_config {
                                              * Warn line through the cr::log
                                              * seam at/above the threshold.
                                              * Zero-init safe (0 = off). */
-<<<<<<< Updated upstream
     const char* raw_category_name_utf8;     /* v2-era append (M-029): the
                                              * display name for the raw/carve
                                              * category root - the og's
@@ -456,7 +455,6 @@ typedef struct cr_ui_scan_config {
                                              * naming surface. NULL/"" = the
                                              * default "Other Deleted Files
                                              * (Carved)" role. */
-=======
     uint32_t pre_scan_check; /* v2-era append (M-041): 1 = run the
                               * read-only damage-audit check phase
                               * (the og's FileSystemCheck error set,
@@ -467,7 +465,6 @@ typedef struct cr_ui_scan_config {
                               * cr_ui_scan_stats' check_* fields, the
                               * FsCheck event and the session record.
                               * Zero-init safe (0 = off). */
->>>>>>> Stashed changes
 } cr_ui_scan_config;
 
 CR_UI_API uint32_t cr_ui_scan_create(const cr_ui_scan_config* cfg, cr_ui_scan** out);

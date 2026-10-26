@@ -15507,3 +15507,28 @@ Stage Summary:
 - N-066 + N-080 FIXED (session tally: N-064, N-071, N-059, N-066, N-080
   + three main repairs). Next: N-065 or N-072 (the MINOR tail end),
   pulling first.
+
+---
+Task ID: DFX23-T5 (343e206 window repair)
+Agent: session-23 (this lane)
+Task: absorb 343e206 (N-066/N-080 + the M-041 ABI field) + repair the
+remote's own marker residue
+
+Work Log:
+- Union with 343e206: N-066 identity-card v4 tail, N-080, the M-041
+  pre_scan_check ABI field (the DFX35 lane's finding landed while we
+  held the claim - their lane wins M-041; this lane's M-030 claim
+  stands), build-tree hygiene.
+- Pushed-red repaired (proven on the remote's own tree): include/cr/
+  cr_ui.h carried committed stash-pop conflict markers dropping BOTH
+  the M-029 raw_category_name_utf8 and the M-041 pre_scan_check fields
+  while src/ui/cr_ui.cpp consumed both (the linux build was red on
+  origin/main). Union: both fields restored, marker residue dropped.
+- The N-066/N-080 test block re-braced after the append-union (the
+  dropped closing brace between tests).
+- Verification: 848/848 linux-release exit 0; ctest 887/887
+  (win_syntax_check + fuzz smoke green); zero conflict markers anywhere
+  in src/include/tests (swept).
+
+Stage Summary:
+- Remote green again. M-030 verification starts now (the lane's claim).

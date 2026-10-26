@@ -1764,6 +1764,8 @@ TEST(Orchestrator, LogSinkRegistrySurvivesHeavyChurn) {
     ASSERT_EQ(current.lines.size(), 1u);
     EXPECT_NE(current.lines[0].second.find("revived"), std::string::npos)
         << "the null-publish unregister leaves the registry usable";
+}
+
 TEST(Orchestrator, IdentityCardV4SnapshotAndAxes) {
     /* N-066 end-to-end: run() captures the full 512-byte boot-sector image
      * alongside the CRC32 (the og record-3's +0x518 snapshot) and emits it
