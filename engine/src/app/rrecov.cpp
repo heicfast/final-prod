@@ -468,12 +468,14 @@ bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_
             wprintf(L"[bitlocker] still locked. Unlock with:\n"
                     L"  Unlock-BitLocker -MountPoint %c: -RecoveryPassword <key>\n"
                     L"or re-run with --bitlocker-fvek <hex> (the in-stack decrypt path),\n"
-                    L"or --bitlocker-dict to try the shipped password dictionary.\n",
+                    L"or --bitlocker-dict / --bitlocker-pwddict <path|seed> to try the "
+                    L"password dictionaries.\n",
                     letter);
             return false;
         } else {
             wprintf(L"[bitlocker] auto-unlocked\n");
         }
+        wprintf(L"[bitlocker] auto-unlocked\n");
     }
     if (have_key && (bst == win::bitlocker::Status::Locked ||
                      bst == win::bitlocker::Status::Unknown ||

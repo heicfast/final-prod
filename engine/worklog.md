@@ -13602,6 +13602,46 @@ Stage Summary:
   landed M-014/M-049 in the same window). Next: pull, then M-025 (carve
   read model) or whatever remains open.
 
+
+---
+Task ID: DFX33-T2 (session 33, second fix)
+Agent: main engineer (diff-to-fix fix session 33 — DFX33)
+Task: M-025 — the carve read model (8 MiB ping-pong / already-in-buffer
+vs 1 MiB windows with per-candidate device re-reads).
+
+Work Log:
+- Corpus re-verified at the cited lines (:9269-9275, :9184-9209, :9434-
+  9438, :9496-9510, :9620-9622, :9541-9605, :10114-10144). CONFIRMED as
+  structural cost (the finding's own framing: no og-execution possible
+  here; the divergence is decoded structure, not a measured X47 delta).
+- Implemented fix-plan 2a+2b as the WindowDevice read context: in-window
+  reads served from the window buffer; straddling reads split
+  buffer-prefix + device-tail. Wired: validators, both checksum sites,
+  both hash sites, the raw-sign tail scans. M-021 hook keeps the raw
+  slice (host contract).
+- MEASURED (fix-plan item 1): the counting-device fixture — 52 device
+  reads pre-fix → 4 post-fix (13x; zero per-candidate re-reads).
+  Fix-plan item 3 (geometry) NOT taken — the finding's own bench-evidence
+  rule; Windows bench lane owns executed X47 (M-009 posture). Item 4
+  registered as PARITY-DELTAS D-81.
+- Debug path: traced the 1 MiB probe/window interaction first-hand (the
+  entropy/MP3 block reads can never fit a 1 MiB window; the PNG validator
+  is the clean in-window fixture), all instrumentation removed before
+  commit.
+- Tests: CarveEngine.WindowServingEliminatesPerCandidateRereads (RED on
+  the pre-fix wiring: 52 vs 4) + WindowServingServesStraddlingReadsCorrectly
+  (boundary plant: exact extent 521/length/checksum — caught my own
+  fixture-arithmetic slip: plant_jpeg is 521 B, not 519). Carve suite
+  46/46; full suite 799/799 linux-release.
+- Audit trail: Resolution + FIXED/ move; matrix carve row MATCH;
+  modules/carve.md session-33 verdict; SUMMARY part-2 delta;
+  PARITY-DELTAS D-81.
+
+Stage Summary:
+- M-025 FIXED (tally: 2 — M-020, M-025). MAJOR 10 open. Next: pull, then
+  M-029 (query model) or whatever remains open.
+
+
 Task ID: DFX30-T4 (OQ-Z1 resolved — no divergence)
 Agent: main engineer (diff-to-fix fix session 30 — DFX30)
 Task: OQ-Z1 — og dsl_dir/dsl_dataset offset constants (documentation
@@ -14089,3 +14129,131 @@ Work Log:
 Stage Summary:
 - N-064 convergence closed; main green again. Session tally: N-064
   (canonical + convergence), N-071. Next: pull, then N-072 or N-066.
+
+---
+Task ID: DFX30-T11 (OQ-S6-2 — convergent verification; DFX25's landing stands)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: OQ-S6-2 — the Btrfs RC4 PRGA target.
+
+Work Log:
+- Decoded FUN_180012190 independently: sliding-window pump + adler32
+  (FUN_180014c00, mod-0xFFF1) + table-CRC32 (FUN_180014ee0) + the deflate
+  length-symbol tables in FUN_1800143a0 + the 0x106 lookahead in
+  FUN_180012370 = the zlib-inflate cluster; NO RC4 KSA/PRGA anywhere
+  (grep-verified). Push met DFX25's convergent landing (their resolution
+  + erratum E46 pushed first).
+- Per the convergence protocol: DFX25's landed resolution stands; my
+  decode recorded as the convergence addendum in the file (the cluster
+  identification is the addition); the FIXED/ filing completed in the
+  same change; my duplicate E46 dropped, convergence note appended to
+  theirs instead.
+
+Stage Summary:
+- OQ-S6-2 closed (convergent two-lane resolution: capa false positive,
+  no RC4, core MATCH by mutual absence). Session tally: 11 items. Next:
+  OQ-S6-1 (PartitionRecoveryD generator sets).
+
+---
+---
+Task ID: DFX30-T2 (session 30, second fix — N-071)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: N-071 — device enumeration breadth (the deferred trio, 2/3;
+N-064 absorbed by the parallel DFX31 lane mid-flight).
+
+Work Log:
+- Re-verified the finding's premise against the corpus (mom-module-
+  system--architecture.md :57-59 five-stack list; the QA census) and
+  the current cr_enumerate.cpp; the open question (Storage Spaces
+  members failing to surface as PhysicalDriveN) stays
+  UNVERIFIED-BY-EXECUTION — no observed miss in any fleet.
+- Resolution per the finding's own recommendation, option (a):
+  PARITY-DELTAS D-80 (the scope registration + revisit trigger; renumbered past the parallel lane same-window D-79), PLUS
+  the one real behavioral gap ported: query_disk now retries a
+  0-ACCESS metadata-only open on ERROR_ACCESS_DENIED/
+  ERROR_SHARING_VIOLATION — the FILE_ANY_ACCESS geometry/descriptor
+  IOCTLs answer, so a share-blocked disk stays listed (busy=true);
+  the og's stacks enumerate without opening, our loop's truth is the
+  open, the retry closes the observable difference. Option (b) NOT
+  built (speculative surface on an unobserved miss — the opposite of
+  no-hallucinated-parity).
+- Tests: 3 source-truth pins (Enumerate.ScopeDeltaRegistered...,
+  BusyDiskMetadataRetryShipsInQueryDisk, ScopeContractDocumentedInHeader
+  — the N-074 doc-truth pattern; the behavior is MSVC-lane territory,
+  parse-gated on Linux). win-stub extended with the two error codes;
+  win_syntax_check green over all 8 win-layer files.
+- Audit trail: Resolution + FIXED/ move; RESOLVED-INDEX row; matrix
+  storage row; modules/storage.md session-30 row; SUMMARY counts.
+
+Stage Summary:
+- N-071 FIXED (session tally: 2 — N-032, N-071). The deferred trio is
+  drained on this lane (N-064 landed by DFX31). Next: pull, then the
+  rear queue (N-072/N-033/N-019/N-050 — contested by DFX28's lane;
+  first-landing-wins per finding, pull before each).
+
+=======
+
+---
+Task ID: DFX30-T3 (session 30, third push — the N-071 convergence repair +
+the repo-wide committed-marker cleanup)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: Repair the pushed-red state inherited from the window's parallel
+merges (committed conflict markers) + land the N-071 convergence.
+
+Work Log:
+- DISCOVERED mid-push: merge 220e0be ("sync before N-071 push")
+  COMMITTED conflict markers in include/cr/win/cr_bitlocker.h (1 block,
+  the two convergent N-064 declarations), src/app/rrecov.cpp (5 blocks,
+  the two N-064 CLI designs), plus marker soup in docs/PARITY-DELTAS.md,
+  docs/CAPABILITY-MATRIX.md, RESOLVED-INDEX.md and three worklog prompt
+  archives. Repo-wide scan found every instance; all repaired.
+- N-064 convergence resolution (both implementations stand, both are
+  consumed): the header keeps BOTH declarations (try_password_unlock =
+  the cr::pwddict surface; unlock_with_dictionary = the cr::dict
+  surface); rrecov's open_volume_view unified to (letter, out, fvek_hex,
+  pwddict_arg, dict_consent) with the consent chain: auto-unlock →
+  [--bitlocker-dict → shipped dictionary] → [--bitlocker-pwddict
+  <path|seed> → loaded candidates] → refusal advertising both aids.
+  Both flags parsed in the cmd_scan pre-pass; usage line updated; the
+  guidance message advertises both surfaces. F61 consent posture
+  preserved: no flag, no attempt, ERR_FVE_LOCKED.
+- N-071 convergence (my option-(a)+hardening landed onto the parallel
+  lane's option-(b) two-stack port): THEIR canonical stands (the
+  cfgmgr32 GUID_DEVINTERFACE_DISK present-instance pass +
+  merge_disk_enumeration pure seam + its 4 merge tests); MY busy-disk
+  hardening integrated into open_disk_for_query() used by BOTH stacks
+  (0-access metadata-only retry on ERROR_ACCESS_DENIED/
+  ERROR_SHARING_VIOLATION; busy=true). Delta rows: D-79 = their
+  two-stack port (canonical), D-80 = my companion scope row (renumbered
+  past the same-window D-79 collisions); my 3 source-truth pins updated
+  to pin the CONVERGED truth (both rows registered, both stacks use the
+  retry).
+- Suite 826/826 linux-release; win_syntax_check green over all 8
+  win-layer files; repo-wide zero-marker scan clean.
+
+Stage Summary:
+- N-071 FIXED (convergent union; session tally: 2 — N-032, N-071) +
+  the pushed-red repair. REMAINING KNOWN DEBT (next push): the delta
+  ledger has duplicate numbers from the window (D-75 x2, D-78 x2, D-79
+  x3) - a deterministic renumbering pass is queued.
+
+=======
+
+---
+Task ID: DFX30-T4b (session 30 — the ledger repair landed; survey)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+
+Work Log:
+- The delta-ledger union repair landed (see commit 9a3b6bd): nested
+  markers stripped, duplicate topics deduped, collisions renumbered
+  (D-81..D-85), the D-80 N-064 convergence body restored verbatim,
+  references updated repo-wide; the Btrfs pushed-red union repaired
+  (M-020 default-subvol semantics vs N-019's stale expectation).
+- Suite 822/822 on the repaired tree; win_syntax_check green; the
+  repo-wide zero-marker scan clean.
+
+Stage Summary:
+- Session tally: N-032 FIXED + N-071 FIXED (convergent) + 4 repair
+  pushes (N-064 convergence support, marker cleanup, Btrfs union red,
+  delta ledger). Next: survey the remaining open set and continue.
+
+=======

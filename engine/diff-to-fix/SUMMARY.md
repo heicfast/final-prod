@@ -87,6 +87,35 @@ modified-unit + paging s11; buckets + naming s32).
 
 
 
+## Session-33 delta, part 2 (2026-10-26 — DFX33: M-025 FIXED — the carve read model: window-serving reads, 13x fewer device reads measured)
+
+**M-025 FIXED (MAJOR — the carve scan's read model):** the og's
+already-in-buffer model is now the core's: scan_one_window wraps the
+slice in a WindowDevice for the window's duration — reads inside the
+window are served from the buffer, reads straddling a window edge split
+into buffer-prefix + device-tail (byte-identical by construction). Every
+grammar validator call, both M-051 checksum sites, both hash sites and
+the raw-sign tail scans read through it (the M-021 hook keeps the raw
+slice — host contract clarity). MEASURED, the counting-device execution
+the finding's own test list prescribes: 4 MiB fixture, 4 small PNG
+plants, hashing on — **52 device reads pre-fix → 4 post-fix** (the
+window fills only; zero per-candidate re-reads for in-window
+candidates); straddling probes (1 MiB JPEG/MP3 blocks a 1 MiB window can
+never contain) degrade to prefix+tail, never more bytes than before.
+Geometry (1 MiB windows, byte-granular dispatch) intentionally unchanged
+per the finding's own bench-evidence rule — the I-009 mid-sector
+superset stays; the stateless-vs-pending model difference registered as
+PARITY-DELTAS D-81 (the S-017 porting boundary). Proof:
+CarveEngine.WindowServingEliminatesPerCandidateRereads (fail-before
+EXECUTED: 52 vs 4, RED on the pre-fix wiring) +
+CarveEngine.WindowServingServesStraddlingReadsCorrectly (exact
+extent/length/checksum on a boundary-crossing plant); carve suite 46/46;
+full suite **799/799** linux-release at the fix commit.
+
+**Post-fix counts (this landing):** SEVERE **0** · MAJOR **10** open ·
+MINOR per the live union · INFO **0 open** · tracked-open 11.
+
+
 ## Session-33 delta (2026-10-26 — DFX33: M-020 FIXED — the Btrfs profile machinery + default subvolume)
 
 Baseline 737/737 linux-release verified first-hand at the session's union
@@ -106,7 +135,7 @@ class, the default-subvolume DIR_ITEM pick ((6, 0x54, 0x8dbfc2d2)
 "default" with a ROOT_ITEM located key; root-5 fallback; :3975-4060) with
 the default's children rendering at the volume root (ReFS convention) and
 non-default subvols keeping their N-047 containers. Registered superset
-D-79: RAID0/RAID10 kernel stripe math (the pre-fix stripe-0 read emitted
+D-80: RAID0/RAID10 kernel stripe math (the pre-fix stripe-0 read emitted
 wrong bytes on striped chunks; now mapped correctly or refused+counted —
 `unmappable_extents`), raw extents split at stripe boundaries,
 compressed extents stay atomic. Fix-plan item 3 (error-map) verified
@@ -272,6 +301,29 @@ MAJOR **14** · MINOR **15** · INFO 0 open (22 acknowledged in FIXED/) ·
 (OQ-T6 pushed forward with new evidence). Next on this lane:
 N-050/N-033/N-072 rear-first.
 
+## Session-31 delta, wave 4 (2026-10-26 — DFX31: OQ-S20-1 resolved — the BitLocker derivation premise corrected: no stretch exists in the og; M-033's surface IS the og's surface)
+
+**OQ-S20-1 RESOLVED (premise-corrected, zero code change — the corpus
+wins):** the decode proves the og's BitLockerLib does NOT implement the
+standard recovery-password stretch (no 0x100000/0xFFFFF/0xF4240 loop
+constant; the verified SHA-256 layer — FUN_1800011a0/:1da0/:1ea0 — has
+three non-iterating consumers; the generic KDF framework defaults to
+10000 with only the vendor "BITLOCKER"-labeled KDF at FUN_18003fd80) —
+user-key unlock is DELEGATED TO WINDOWS (PSUnlockBitLocker
+`Unlock-BitLocker -MountPoint`, the manage-bde fallback; the auto path
+applies DRWService's external keys). The og's in-stack surface = the FVE
+metadata parse + protector enumeration (SetProcessProtectorKey's
+protector_t = 36-char GUID/type@+0x25/material@+0x26) + the 64-byte FVEK
+extract (GetFullVolumeEncryptionKey) + the XTS decrypt — **exactly the
+core's M-033 posture; D-75 CONFIRMED**. The KDF/AES-CCM/BEK port is
+registered as a deliberate-superset scope decision (Windows-free unlock —
+valuable where even the og's delegation fails, but an IMPROVEMENT, not
+parity). Evidence: s31-oq-s20-1-bitlocker-derivation-scope.md.
+**Counts after this landing: tracked-open 7** (OQ-Z-E-FLT, OQ-T6-T7,
+OQ-S4-3, OQ-S5-1, OQ-S6-1, OQ-S6-2, OQ-S6-3 — all owned by the parallel
+DFX30 tail lane). My lane's queue is drained; next: OQ-S4-3's
+push-forward addendum, then absorb any orphans the parallel lanes leave.
+
 ## Session-31 delta, wave 3 (2026-10-26 — DFX31: OQ-RS resolved — the ReFS system-table set decoded and FIXED; 6/8 probes closed)
 
 **OQ-RS RESOLVED (RS-2..8 dispositioned; one code fix with fail-before
@@ -432,6 +484,23 @@ for this finding corrected to the integrated N-071.
 
 Counts after this landing: **MINOR 17 open** (N-064, N-071 moved to
 FIXED/), MAJOR 14 open (DFX27/DFX26 lanes), INFO 0, tracked-open 11.
+
+## Session-30 delta, part 2 (2026-10-26 — DFX30: N-071 closed — the deferred trio complete on this lane)
+
+**N-071 FIXED (MINOR — enumeration breadth):** resolved by the finding's
+own recommended option (a) — PARITY-DELTAS **D-80** registers the
+PhysicalDrive-namespace scope with the revisit trigger the open
+question demands — PLUS the ported load-bearing effect: query_disk's
+0-access metadata-only retry on ERROR_ACCESS_DENIED/
+ERROR_SHARING_VIOLATION (a disk share-blocked by backup/AV/imaging
+stays listed with busy=true; the og's stacks get this by enumerating
+without opening). Option (b) deliberately not built: the Storage
+Spaces miss-case is UNVERIFIED-BY-EXECUTION per the finding's own text.
+3 source-truth pins (the N-074 doc-truth pattern); win-stub extended
+(ERROR_ACCESS_DENIED/ERROR_SHARING_VIOLATION); win_syntax_check green
+over all 8 files. (N-064 absorbed by the parallel DFX31 lane
+mid-flight — first-landing-wins; the deferred trio's third member
+landed elsewhere.)
 
 ## Session-30 delta (2026-10-26 — DFX30: the deferred win-layer trio, 1/N-032)
 

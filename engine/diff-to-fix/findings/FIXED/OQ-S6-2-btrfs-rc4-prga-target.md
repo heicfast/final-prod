@@ -51,3 +51,21 @@ N-072 (BtrfsCache.txt — hypothesis (b) makes this OQ a dependency of that find
 Capa-verified primitive, target still undecoded; no new evidence this
 session. The next concrete step stands (the Btrfs dataset-decrypt call
 site in BtrfsSearchDLL).
+
+
+### Convergence addendum (DFX30, 2026-10-26 — independent verification + cluster identification)
+
+A second lane (DFX30, the tracked-open tail) decoded the same function
+independently before discovering DFX25's landing. Per the convergence
+protocol the LANDED resolution above stands; the converging decode is
+recorded here because it carries ONE additional identification: the
+pump's callers/peers complete a **zlib-inflate cluster** — the sibling
+reader FUN_180012370 (min-lookahead 0x106 = 258+4, the DEFLATE max-match
+bound) and the emit path FUN_1800143a0 (16-bit bit accumulator at
++0x1710; the DAT_180019cc0 {code, extra-bits} length table indexed
+[len-1] / [(len>>7)+0x100] = deflate's length-symbol mapping,
+:15770-15795) — i.e. the pump serves the engine's zlib inflate (the
+capability capa's other hit names at 0x180011550), with adler32/CRC32 as
+the verify modes. All other conclusions identical: no RC4, no KSA, no
+encrypted-dataset support, hypotheses (a)/(b)/(c) refuted, core MATCH by
+mutual absence. The FIXED/ filing completed by DFX30 in the same change.
