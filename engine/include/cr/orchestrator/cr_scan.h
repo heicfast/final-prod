@@ -278,6 +278,9 @@ struct ScanStats {
     /* M-005: used-cluster bytes the carve dispatch never offered (the
      * og's block-scan bitmap gate). 0 when no bitmap was available. */
     u64 carve_bitmap_skipped_bytes = 0;
+    /* N-031: all-zero 512-byte strides whose raw-sign probe was skipped
+     * (the og's zero-sector fast-skip analog; diagnostics/telemetry). */
+    u64 carve_zero_strides = 0;
     ReadErrorMap errors;
     std::vector<lost::Candidate> lost_candidates;
 

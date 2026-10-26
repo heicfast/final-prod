@@ -1567,6 +1567,7 @@ u32 ScanController::run_carve_stage(IStorageDevice* slice, CancelToken* cancel,
     stats.carved_found = cs.validated;
     stats.bytes_scanned += cs.bytes_scanned;
     stats.carve_bitmap_skipped_bytes = cs.bitmap_skipped_bytes; /* M-005 */
+    stats.carve_zero_strides = cs.zero_strides_skipped;         /* N-031 */
     if (rc == OK)
         carve_done_ = true;
     tel_stage_end_(2, cancel);

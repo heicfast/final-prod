@@ -87,6 +87,9 @@ struct ScanCtx {
     std::atomic<u64> sign_hits{0};
     std::atomic<u64> sign_validated{0};
     std::atomic<u64> windows_skipped{0}; /* unreadable after retry (FB-C01) */
+    /* N-031: all-zero sign-window strides skipped at the raw-sign layer
+     * (the og's zero-sector fast-skip analog) */
+    std::atomic<u64> zero_strides_skipped{0};
     /* M-005: used-cluster skips at the grammar layer (the og's block-scan
      * cluster gate; counted here, surfaced as bitmap_skipped_clusters) */
     std::atomic<u64> bitmap_skipped_clusters{0};
@@ -431,6 +434,27 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             }
             if (emitted_at.count(start_abs))
                 continue; /* a grammar-validated file starts here */
+            /* N-031: the og's all-zero-sector fast-skip, core shape: no
+             * header sign can live outside the first 47 bytes of the
+             * stride (probe_header's whole offset span), so a stride
+             * whose sign window is all zero skips the 47-lookup
+             * sign-table walk entirely (the og skips the whole sector:
+             * its leading/trailing zero-dword metrics, :9490-9520). The
+             * grammar layer keeps its first-byte dispatch on zeros - it
+             * is near-free there (the finding's own profile rule). */
+            {
+                const u8* zw = win + off;
+                bool all_zero = true;
+                for (u32 zi = 0; zi < 47; ++zi)
+                    if (zw[zi]) {
+                        all_zero = false;
+                        break;
+                    }
+                if (all_zero) {
+                    ctx.zero_strides_skipped.fetch_add(1, std::memory_order_relaxed);
+                    continue;
+                }
+            }
             idx.probe_header(win + off, want - off, matches);
             if (matches.empty())
                 continue;
@@ -784,6 +808,8 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
     stats.sign_hits += ctx.sign_hits.load();
     stats.sign_validated += ctx.sign_validated.load();
     stats.windows_skipped += ctx.windows_skipped.load();
+    /* N-031: the zero-skip telemetry */
+    stats.zero_strides_skipped += ctx.zero_strides_skipped.load();
     /* M-005: gate telemetry */
     stats.bitmap_skipped_clusters += ctx.bitmap_skipped_clusters.load();
     stats.bitmap_skipped_bytes =
