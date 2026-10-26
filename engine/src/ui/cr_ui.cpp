@@ -47,6 +47,7 @@
 #include "cr/win/cr_transport.h"
 #include "cr/storage/cr_decrypt_device.h" /* M-033: in-stack XTS wrapper */
 #include <windows.h>
+#include <psapi.h> /* N-062: PROCESS_MEMORY_COUNTERS/GetProcessMemoryInfo */
 #include <share.h> /* _SH_DENYNO (S-008: shared image opens) */
 #else
 #include <sys/stat.h>
@@ -856,9 +857,6 @@ void scan_event_trampoline_(const orchestrator::event::Event& e, void* user) {
  * (never above a nonzero threshold - a failed sample never warns). */
 static u64 working_set_mb_() {
 #ifdef _WIN32
-    /* PROCESS_MEMORY_COUNTERS/GetProcessMemoryInfo live in psapi.h on the
-     * MSVC lane (Linux pulls them transitively elsewhere) - N-062 */
-#include <psapi.h>
     PROCESS_MEMORY_COUNTERS pmc{};
     if (!GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc)))
         return 0;
