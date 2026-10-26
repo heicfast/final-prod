@@ -75,8 +75,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         if (len >= 32 && len % 32 == 0) {
             (void)cr::exfat::entry_set_checksum(buf, uint32_t(len / 32));
             (void)cr::exfat::entry_set_checksum_dual(buf, uint32_t(len / 32)).raw;
-            (void)cr::exfat::entry_set_checksum_valid(buf, uint32_t(len / 32),
-                                                      uint16_t(len));
+            (void)cr::exfat::entry_set_checksum_valid(buf, uint32_t(len / 32), uint16_t(len));
         }
         break;
     }
@@ -101,10 +100,16 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     }
     case 6: {
         /* NTFS attributes: enum over a record-sized buffer with
-         * parameters from the head bytes */
+         * parameters from the head bytes. The record window starts at
+         * buf+4, so the availability guard must cover the offset too:
+         * `record_size <= len` alone lets a 513-byte input open a
+         * 512-byte window hanging 3 bytes past the buffer end (the
+         * CI smoke campaign's heap-buffer-overflow at u16_from_bytes_le
+         * via the a.flags read - the walker is contract-clean, the
+         * harness handed it a short window). */
         if (len >= 32) {
             const uint32_t record_size = 512u << (buf[0] % 4);
-            if (size_t(record_size) <= len) {
+            if (size_t(record_size) + 4 <= len) {
                 std::vector<cr::ntfs::AttrView> attrs;
                 (void)cr::ntfs::enum_attributes(buf + 4, record_size, attrs);
             }

@@ -1,4 +1,5 @@
-/* fuzz_exfat.cpp - per-parser libFuzzer harness: validate_boot_region + scan_exfat (entry sets, checksums).
+/* fuzz_exfat.cpp - per-parser libFuzzer harness: validate_boot_region + scan_exfat (entry sets,
+ * checksums).
  *
  * Audit row 47 / mandate C: one binary per parser family for focused
  * campaigns with corpus isolation.
