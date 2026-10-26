@@ -1055,16 +1055,116 @@ TEST(CarveEngine, ZipIndexlessLfhChainSalvage) {
             zip = c;
     }
     ASSERT_NE(zip, nullptr) << "indexless archive must still carve";
-    /* chain end = 30 + 21 name + 256 data = 307 bytes */
-    EXPECT_EQ(zip->props()->logical_size, size_t(30 + 21 + 256));
+    /* chain end = 30 + 21 name + 256 data = 307 bytes. N-008: the og's
+     * salvage extension then absorbs data-bearing trailing sectors
+     * (decompile :18492-500) - this multi-format image carries the next
+     * fixture's bytes right after, so the span extends sector-wise
+     * through them until a zero-tailed sector (or the cap); the exact
+     * end is layout-dependent here, the dedicated
+     * ZipSalvageAbsorbsDataSectors test pins the precise semantics. */
+    EXPECT_GE(zip->props()->logical_size, size_t(30 + 21 + 256));
     EXPECT_LE(zip->props()->carve_confidence, 700u); /* low confidence */
 }
 
-TEST(CarveEngine, ZipZeroPaddingAbsorbed) {
-    /* CARVE-2: the og's last-16-bytes-zero test extends the archive over
-     * trailing zero padding (5.24 MB cap) */
+TEST(CarveEngine, ZipSalvageAbsorbsDataSectors) {
+    /* N-008 (decompile :18492-18508): after a BROKEN chain the og
+     * absorbs data-bearing trailing sectors - entry requires the window
+     * at [chain_end, +512) to carry a non-zero tail dword; a window
+     * whose trailing 16 bytes are all zero ends the absorption and is
+     * never absorbed; cap 0x500001. */
+    auto img = std::vector<u8>(1 * 1024 * 1024, 0);
+    const size_t at = 4096;
+    std::memcpy(img.data() + at, "PK\x03\x04", 4);
+    put16(img, at + 26, 5);
+    put16(img, at + 28, 0);
+    put32v(img, at + 18, 64);
+    put32v(img, at + 22, 64);
+    std::memcpy(img.data() + at + 30, "a.bin", 5);
+    std::memset(img.data() + at + 35, 0x5A, 64);
+    const size_t chain_end = at + 99;
+    /* the window [chain_end, chain_end+512) is data-bearing */
+    std::memset(img.data() + chain_end, 0x33, 512);
+    /* the NEXT window is zero-tailed (the image is zero beyond) */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    tree::FileNode* zip = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && !c->props()->extents.empty() &&
+            c->props()->extents.front().offset == at && c->props()->carve_format == FMT_ZIP)
+            zip = c;
+    ASSERT_NE(zip, nullptr) << "the torn indexless zip must carve";
+    EXPECT_EQ(zip->props()->extents.front().length, size_t(99 + 512))
+        << "the chain (99 B) + ONE data-bearing 512 B window absorbed; the zero-tailed window is "
+           "not";
+}
+
+TEST(CarveEngine, Zip64ExtraFieldContinuesChain) {
+    /* N-008: the indexless chain walk continues through ZIP64 entries -
+     * csize 0xFFFFFFFF in the LFH resolves through the extra field's
+     * 0x0001 record (usize then csize, 8 bytes each); the old walk broke
+     * on the sentinel and truncated the archive. */
+    auto img = std::vector<u8>(1 * 1024 * 1024, 0);
+    const size_t at = 4096;
+    std::memcpy(img.data() + at, "PK\x03\x04", 4);
+    put16(img, at + 26, 7);
+    put16(img, at + 28, 24);
+    put32v(img, at + 18, 0xFFFFFFFF);
+    put32v(img, at + 22, 0xFFFFFFFF);
+    std::memcpy(img.data() + at + 30, "z64.bin", 7);
+    {
+        const size_t ex = at + 30 + 7;
+        put16(img, ex, 0x0001);
+        put16(img, ex + 2, 16);
+        put32v(img, ex + 4, 64);
+        put32v(img, ex + 8, 0);
+        put32v(img, ex + 12, 64);
+        put32v(img, ex + 16, 0);
+    }
+    std::memset(img.data() + at + 61, 0x42, 64);
+    const size_t at2 = at + 30 + 7 + 24 + 64;
+    std::memcpy(img.data() + at2, "PK\x03\x04", 4);
+    put16(img, at2 + 26, 7);
+    put16(img, at2 + 28, 0);
+    put32v(img, at2 + 18, 32);
+    put32v(img, at2 + 22, 32);
+    std::memcpy(img.data() + at2 + 30, "z65.bin", 7);
+    std::memset(img.data() + at2 + 37, 0x43, 32);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    tree::FileNode* zip = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && !c->props()->extents.empty() &&
+            c->props()->extents.front().offset == at && c->props()->carve_format == FMT_ZIP)
+            zip = c;
+    ASSERT_NE(zip, nullptr) << "the ZIP64 indexless archive must carve";
+    bool has_first = false, has_second = false;
+    for (tree::FileNode* e = zip->first_child(); e; e = e->next_sibling()) {
+        if (e->props()->name == u"z64.bin")
+            has_first = true;
+        if (e->props()->name == u"z65.bin")
+            has_second = true;
+    }
+    EXPECT_TRUE(has_first) << "entry 1 in the inventory";
+    EXPECT_TRUE(has_second) << "the chain continued past the ZIP64 sentinel into entry 2";
+}
+
+TEST(CarveEngine, ZipCleanArchiveNotInflatedByZeroSlack) {
+    /* N-008/N-027d: the og NEVER extends a CLEAN archive past its EOCD -
+     * the old 16-byte-granular zero-absorption (the pre-N-008 core's
+     * invented behavior) inflated intact ZIPs with trailing zero slack.
+     * A clean archive with 128 bytes of zeros after the EOCD carves to
+     * exactly its EOCD end. */
     auto img = build_carve_image();
-    /* 128 bytes of zero padding right after the plain ZIP's EOCD */
     std::memset(img.data() + 4096 + 140, 0, 128);
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
@@ -1080,7 +1180,7 @@ TEST(CarveEngine, ZipZeroPaddingAbsorbed) {
             zip = c;
     }
     ASSERT_NE(zip, nullptr);
-    EXPECT_EQ(zip->props()->logical_size, size_t(140 + 128)); /* padding absorbed */
+    EXPECT_EQ(zip->props()->logical_size, size_t(140)) << "zero slack must NOT be absorbed";
 }
 
 TEST(CarveEngine, BeTiffAndOrfVariantsCarve) {
@@ -1169,7 +1269,10 @@ TEST(CarveEngine, OverlapScorePrefersHigherConfidence) {
     std::vector<u8> img(2 * 1024 * 1024, 0);
     const size_t at = 1024 * 1024;
     u8* t = img.data() + at;
-    auto w16 = [&](size_t o, u16 v) { t[o] = u8(v); t[o + 1] = u8(v >> 8); };
+    auto w16 = [&](size_t o, u16 v) {
+        t[o] = u8(v);
+        t[o + 1] = u8(v >> 8);
+    };
     auto w32 = [&](size_t o, u32 v) {
         for (int i = 0; i < 4; ++i)
             t[o + i] = u8(v >> (8 * i));
@@ -1177,13 +1280,13 @@ TEST(CarveEngine, OverlapScorePrefersHigherConfidence) {
     std::memcpy(t, "II\x2A\x00", 4);
     w32(4, 16); /* IFD offset */
     t[8] = 'C';
-    t[9] = 'R'; /* CR2 sub-magic (validate_cr2's +8 probe) */
-    w16(16, 1); /* one IFD entry */
+    t[9] = 'R';      /* CR2 sub-magic (validate_cr2's +8 probe) */
+    w16(16, 1);      /* one IFD entry */
     w16(18, 0xC612); /* DNGVersion (validate_dng's accept tag) */
-    w16(20, 1); /* type BYTE */
-    w32(22, 8); /* count > 4: data at the value offset */
-    w32(26, 1200); /* value = data offset */
-    w32(30, 0); /* next IFD = 0 */
+    w16(20, 1);      /* type BYTE */
+    w32(22, 8);      /* count > 4: data at the value offset */
+    w32(26, 1200);   /* value = data offset */
+    w32(30, 0);      /* next IFD = 0 */
     for (int i = 0; i < 8; ++i)
         t[1200 + i] = 0x22;
     MemDevice dev(std::move(img));
@@ -1217,19 +1320,22 @@ TEST(CarveEngine, TiffVsRawTiebreak) {
     std::vector<u8> img(2 * 1024 * 1024, 0);
     const size_t at = 1024 * 1024;
     u8* t = img.data() + at;
-    auto w16 = [&](size_t o, u16 v) { t[o] = u8(v); t[o + 1] = u8(v >> 8); };
+    auto w16 = [&](size_t o, u16 v) {
+        t[o] = u8(v);
+        t[o + 1] = u8(v >> 8);
+    };
     auto w32 = [&](size_t o, u32 v) {
         for (int i = 0; i < 4; ++i)
             t[o + i] = u8(v >> (8 * i));
     };
     std::memcpy(t, "II\x2A\x00", 4);
-    w32(4, 8); /* IFD offset */
-    w16(8, 1); /* one entry */
+    w32(4, 8);       /* IFD offset */
+    w16(8, 1);       /* one entry */
     w16(10, 0x0100); /* ImageWidth */
-    w16(12, 3); /* type SHORT */
-    w32(14, 5); /* count > 4: data at the value offset */
-    w32(18, 1200); /* value = data offset */
-    w32(22, 0); /* next IFD = 0 */
+    w16(12, 3);      /* type SHORT */
+    w32(14, 5);      /* count > 4: data at the value offset */
+    w32(18, 1200);   /* value = data offset */
+    w32(22, 0);      /* next IFD = 0 */
     for (int i = 0; i < 10; ++i)
         t[1200 + i] = 0x33;
     MemDevice dev(std::move(img));
@@ -2969,8 +3075,8 @@ TEST(CarveEngine, FormatDisabledRawSignsToo) {
     auto* root2 = tree2.add_root(u"Lost Files");
     CarveFlags flags2;
     CarveStats stats2;
-    ASSERT_EQ(carve_slice(&dev2, flags2, nullptr, nullptr, nullptr, tree2, root2, nullptr,
-                          nullptr, stats2),
+    ASSERT_EQ(carve_slice(&dev2, flags2, nullptr, nullptr, nullptr, tree2, root2, nullptr, nullptr,
+                          stats2),
               OK);
     EXPECT_GE(stats2.sign_hits, 1u) << "enabled by default: the sample sign fires";
 }

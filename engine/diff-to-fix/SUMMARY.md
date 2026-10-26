@@ -570,6 +570,22 @@ assertions were RED with the validation unwired). Suite 597/597 ASan;
 42/42 UBSan on the touched paths; lint clean. Counts: MINOR 47 · SEVERE 1
 (S-029) · FIXED 82 (incl. S-033 INVALID record).
 
+**Session-11 landing 3 — N-008 FIXED (ZIP padding + ZIP64 chain; gate half via
+N-068):** the salvage extension is now the og's (:18492-18508) — data-bearing
+trailing sectors absorbed sector-strided after a BROKEN chain (cap 0x500001,
+device sector size, 4Kn-aware), while the INVENTED zero-absorption after
+clean EOCDs is REMOVED (intact ZIPs are never inflated with zero slack —
+N-027d's settled reading; the old `ZipZeroPaddingAbsorbed` pin rewritten to
+the correct `ZipCleanArchiveNotInflatedByZeroSlack`). ZIP64 indexless
+archives no longer truncate: the 0xFFFFFFFF csize sentinel resolves through
+the LFH extra field's 0x0001 record. The "admit 0x62" item is REFUTED at
+the dispatch layer (the probe tier's ≤0x13||==0x62 is a pre-filter; the
+dispatch's ≤10 is the final word — 0x62 > 10). Tests: ZipSalvageAbsorbsData
+Sectors + ZipCleanArchiveNotInflatedByZeroSlack + Zip64ExtraFieldContinues
+Chain. Suite 685/685 ASan; 55/55 UBSan carve. Counts: MINOR 28 · FIXED 85
+(the parallel lanes' N-040/N-046/N-057/N-058/N-077/M-002/M-007/M-044/M-047/
+M-050/M-051/M-054/M-056 landings share the window).
+
 # SUMMARY.md — executive summary (diff-fix session 9 on top; earlier sessions below)
 
 ## Session-9 delta (2026-10-26 — baseline repair + the SEVERE/MAJOR/MINOR fix waves)

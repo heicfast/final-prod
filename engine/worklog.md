@@ -11063,3 +11063,43 @@ Work Log:
 Stage Summary:
 - N-040 FIXED (tally: 3 — N-045, N-046, N-040). MINOR 34 remain.
   Next: N-020/N-074 (doc-drift pairs), then N-043/N-048/N-060/N-061.
+
+---
+Task ID: DFX16-N008 (ZIP salvage extension + ZIP64 chain + clean-archive honesty)
+Agent: main engineer (diff-to-fix session 11 — DFX16)
+Task: Verify and fix N-008's ZIP half (the M-005 half is closed in its own
+FIXED/ file by the bitmap-gate landing).
+
+Work Log:
+- N-008 re-verified against the decompile first-hand: the salvage loop
+  (:18492-18508) steps SECTOR-strided with a trailing-16-of-window zero
+  test and a 0x500001 cap; entry requires the window's tail dword
+  non-zero; N-027d's settled reading (absorbs NON-EMPTY sectors after a
+  broken chain, never inflates clean archives) confirmed. The version
+  gates are two-tier: the probe (:18294, <=0x13 || ==0x62) is a PRE-filter;
+  the dispatch (:18385) is the strict final word (<=10) - the "admit
+  0x62" fix-plan item is REFUTED at the deciding layer (0x62 > 10).
+- Three changes in zip_common: (1) sector-strided salvage extension
+  (device-geometry sector size, 4Kn-aware; cap 0x500001 - the off-by-one
+  fixed); (2) the INVENTED 16-byte zero-absorption after clean EOCDs
+  REMOVED (it inflated intact ZIPs - the exact anti-pattern N-027d
+  flags); (3) ZIP64 chain continuation through the LFH extra field's
+  0x0001 record (sentinel-present semantics, hostile sizes bounded).
+- Tests: ZipSalvageAbsorbsDataSectors (chain 99 B + ONE data-bearing
+  window absorbed, the zero-tailed window never), ZipCleanArchiveNot-
+  InflatedByZeroSlack (rewritten from the retired ZipZeroPaddingAbsorbed
+  pin - the old test pinned the removed invented behavior; documented in
+  the Resolution), Zip64ExtraFieldContinuesChain (entry 2's inventory
+  name surfaces past the sentinel). ZipIndexlessLfhChainSalvage's exact-
+  size pin relaxed to a floor (the multi-format image's trailing bytes
+  are now legitimately absorbed sector-wise - the dedicated test pins
+  the precise semantics).
+- Full suite 685/685 linux-gcc ASan; carve 55/55 UBSan; lint clean.
+  Audit trail: Resolution + FIXED/ move + index row + matrix carve cells
+  + SUMMARY landing-3.
+
+Stage Summary:
+- Session fix tally: N-069, N-067, N-068 (gates + EOCD-half FIXED-ALREADY),
+  N-008, S-033 (INVALID), the N-077-convergent leak repair, plus the
+  hygiene moves. Next: the doc-drift group N-074, then N-026/N-027 module
+  groups.
