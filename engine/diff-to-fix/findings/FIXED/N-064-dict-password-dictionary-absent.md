@@ -107,3 +107,10 @@ the raw_signs.json precedent — facts, not creative expression — and the
 loader keeps host flexibility). Both Resolutions above are preserved
 (append-only audit trail). Suite 814/814 linux-release + win_syntax_check
 green at the reconciliation tree.
+
+## Resolution addendum (review session — the both-stand residue re-adjudicated, D-80 enforced)
+
+**Status:** FIXED (addendum — dead-code cleanup, no behavior change)
+**Fixed in commit:** (this review session's commit; SHA in worklog.md at push)
+**Verified by:** build green + full suite green with the module removed (the 9 `Pwddict.*` tests removed with it — they tested a surface no consumer references); `Dict.*` 10/10 green unchanged; `cr_ui_tests` 35/35 green (the ABI export rides `cr::dict`).
+**Resolution notes:** The review found the tree contradicting D-80: the win layer was dict-canonical (`--bitlocker-dict [file]` + `unlock_with_dictionary` + `cr_ui_unlock_volume_with_dictionary`) while the superseded lane's pure module (`include/cr/pwddict/`, `src/core/pwddict/`, `tests/unit/test_pwddict.cpp`) still compiled into `cr_core` — restored by 97382b7's RED-repair ("the both-stand N-064 union is coherent"), whose both-stand premise described a win layer (`--bitlocker-pwddict` live) that later commits (83c796e, c228d2d) re-canonicalized away; at the reviewed tree NOTHING outside the module referenced `cr::pwddict` (grep-verified: zero consumers in src/, include/, tests beyond its own unit test). Per the D-80 convergence record (ratified by 6afa8fc, 75ad6f4, 83c796e and c228d2d — "the cr::pwddict module, its seed list, its CLI flag and its tests are dropped cleanly") and the repo's no-dead-surfaces principle, the module and its tests are dropped again; the CMake wirings (which the unions had also duplicated) cleaned. The capability is complete in `cr::dict` (byte-faithful 228-entry generated table + the og-format loader absorbed per D-80; user dictionaries via `--bitlocker-dict <file>`). F61 legitimate-unlock-only consent posture untouched — the consent gate lives in the win layer and the cr_ui ABI action, both unchanged.

@@ -33,7 +33,6 @@ add_executable(cr_tests
     unit/test_sha256.cpp
     unit/test_bitlocker_xts.cpp
     unit/test_dict.cpp
-    unit/test_pwddict.cpp
     unit/test_enumerate_merge.cpp
     unit/test_resume_revalidation.cpp
     unit/test_text.cpp

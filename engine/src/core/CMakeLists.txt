@@ -56,7 +56,6 @@ add_library(cr_core STATIC
     recovery/cr_report.cpp
     recovery/cr_dict.cpp
     recovery/cr_dict_data.cpp
-    pwddict/cr_pwddict.cpp
     orchestrator/cr_filterfolder.cpp
     orchestrator/cr_filterfolder_data.cpp
     preview/cr_preview.cpp
