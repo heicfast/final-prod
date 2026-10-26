@@ -12262,3 +12262,38 @@ Work Log:
 Stage Summary:
 - Session 24 open on the disjoint MAJOR lane. Baseline green. First
   fix: M-049 (error model divergence).
+
+---
+Task ID: DFX25-T0 (session 25 bootstrap — lane claim)
+Agent: main engineer (diff-to-fix fix session 25 — DFX25)
+Task: Session bootstrap + DISJOINT lane claim (DFX23 owns MINOR, DFX24 owns
+MAJOR; this lane takes the tracked-open queue + the deferred tails).
+
+Work Log:
+- Baseline: HEAD `02b950f` (both parallel claims absorbed; fetch verified
+  before claim — no parallel lane has pushed a fix since the claims).
+  Corpus `03ad46c` unmoved.
+- Baseline suite executed green FIRST-HAND at the claim tree:
+  linux-release **737/737** (ctest, incl. win_syntax_check; 4 pre-existing
+  env skips inside cr_tests — qemu/mkfs absent in container, unchanged).
+- Session prompt saved token-redacted: worklog/session-diff-fix-25-prompt.md.
+- Lane claim (disjoint): the full tracked-open queue — OQ-S3-JPEG
+  (fallback/continuation EOI decode), OQ-FLT-1 (extension-table breadth
+  byte-probe), OQ-S6-2 (Btrfs RC4 target xref), OQ-S6-3 (CRAW reader
+  +0xF4), OQ-S5-1 (CheckVersion consumer sweep), OQ-S6-1 (PartitionRecoveryD
+  generator sets), OQ-Z1/Z2/Z4/Z5 (ZFS decompile residuals), OQ-RS-5/6/7/8
+  (ReFS decompile residuals), OQ-E1 (ext4 orphan semantics), OQ-S2M-2
+  (bonus setter / ZFS pool name / Btrfs conversion anchor), OQ-T6 (ZFS
+  id-map DVA consumers) — each resolved to a fix, an evidence-backed
+  closure, or a precise push-forward with NEW first-hand evidence. Then
+  the deferred queue tails via first-landing-wins with a pull before every
+  landing: N-064/N-071/N-032 (DFX23's last), M-041/M-040/M-034 (DFX24's
+  last). OQ-S4-3 (Windows-hardware bench) expected push-forward — not
+  resolvable from this Linux container.
+- One finding, one verified fix, one push throughout.
+
+Stage Summary:
+- Session 25 open. Baseline 737/737 green at `02b950f`. Tracked-open-first
+  lane claimed. First item: OQ-S3-JPEG (the JPEG fallback/continuation
+  EOI question — the corpus decompile is in-tree).
+
