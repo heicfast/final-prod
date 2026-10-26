@@ -56,12 +56,27 @@ u32 validate_boot_region(IStorageDevice* dev, ExfatParams& out);
  * the 2 checksum bytes at file_dentry+8. */
 u16 entry_set_checksum(const u8* entries, u32 entry_count);
 
+/* M-013 (diff-to-fix): the og's dual-form checksum (FUN_18001eba0):
+ * the raw ROL15 form + the InUse-restored form (0x85/0xC0/0xC1 type-byte
+ * substitutions, computed only for deleted sets whose first byte is
+ * 0x05). Valid iff EITHER equals the stored field. */
+struct SetChecksumForms {
+    u16 raw = 0;
+    u16 restored = 0; /* 0 unless the set's first byte is 0x05 */
+};
+SetChecksumForms entry_set_checksum_dual(const u8* entries, u32 entry_count);
+bool entry_set_checksum_valid(const u8* entries, u32 entry_count, u16 stored);
+
 /* ---- scan ---- */
 struct ExfatScanStats {
     u64 files = 0;
     u64 dirs = 0;
     u64 deleted_entries = 0;
     u64 sets_damaged = 0; /* checksum mismatch (kept, marked damaged) */
+    u64 sets_rejected = 0; /* M-013: deleted sets dropped by the dual-form
+                             * gate (some later recovered by the oracle) */
+    u64 sets_reconstructed = 0; /* M-013: parked sets recovered by the
+                                  * checksum oracle (suffix substitution) */
     u64 no_fat_chains = 0;
     u64 chains_broken = 0;
     u64 assumed_contiguous = 0; /* EXFAT-2: FREE-entry continuation salvage */
@@ -78,13 +93,19 @@ struct ExfatScanStats {
 };
 
 struct ExfatScanFlags {
-    /* N-003 (diff-to-fix): the og exFAT engine has NO entry-set checksum
-     * loop anywhere (verified-absence search over 1,299 decompiled
-     * functions, B-exfat 3.4) - it grades live sets purely structurally.
-     * DEFAULT FALSE = og parity: a live file with a torn SetChecksum
-     * grades normally instead of PartialRisk. TRUE = the honest-recovery
-     * strictness (keep, never drop: the file is still emitted, only
-     * downgraded) - a reviewed deliberate divergence while enabled
+    /* N-003's original claim ("the og exFAT engine has NO entry-set
+     * checksum loop anywhere") was REFUTED by M-013's corpus decode
+     * (FUN_18001eba0's dual ROL15 checksums, wired into set completion
+     * at FUN_18001fef0 :26287-26292) - N-003's session-2 note itself
+     * records the supersession. The og ALWAYS validates entry-set
+     * checksums on DELETED sets (dual form; a failed set is dropped, not
+     * emitted), and that gate is now the core's DEFAULT (M-013, og
+     * parity). What this flag still gates is the LIVE-set behavior:
+     * the og's complete-set path grades a live set with a bad checksum
+     * normally (per-entry validators, no checksum test), so DEFAULT
+     * FALSE = og parity for live sets; TRUE = the honest-recovery
+     * strictness (the file is still emitted, only downgraded to
+     * PartialRisk) - a reviewed deliberate divergence while enabled
      * (registered in docs/PARITY-DELTAS.md). */
     bool validate_entry_sets = false;
 };

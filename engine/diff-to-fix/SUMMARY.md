@@ -43,6 +43,22 @@ Next on this lane: M-043 (NTFS content-proof + backup boot) → M-013/
 M-014 (exFAT) → M-018 → M-029 → M-032 → M-035 → M-049 → M-050 → M-052,
 then unclaimed MINORs.
 
+**M-013 FIXED (MAJOR — the exFAT dual-form deleted-set checksum + the
+reconstruction oracle):** FUN_18001eba0's dual ROL15 checksums (raw +
+InUse-restored with the 0x85/0xC0/0xC1 substitution ladder) decoded
+decompile-exact and landed as the UNCONDITIONAL deleted-set gate (failed
+sets parked, never emitted — the pre-fix core's FP surface closed);
+FUN_1800203a0's parked-set oracle (suffix substitution from
+secondary_count down to 1, dual re-test) reconstructs torn sets from
+parked orphan stream/name runs, re-walking accepted reconstructions
+through the standard emission path. LIVE sets keep the flag-gated
+downgrade (D-47 scope-corrected; N-003's premise recorded REFUTED).
+Fixture truth: deleted sets stamp SetChecksum (the unstamped model
+encoded the refuted premise). 2 fail-before-proven tests + the
+inverse-asymmetry pin; suite **730/730**. M-043/M-032/M-050 landed by
+the parallel lanes in the same window — next on this lane: M-014 →
+M-018 → M-029 → M-035 → M-049 → M-052.
+
 ## Session-22 delta (2026-10-26 — DFX22: win-layer build-integrity M-055 + the MINOR-first queue)
 
 Session lane re-stamped 19→22 (IDs 19/20/21 squatted by parallel legs in

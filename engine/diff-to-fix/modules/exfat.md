@@ -203,3 +203,24 @@ Preceded by the S-033 INVALID record (the constants were verified right
 BEFORE this fix — bitmap=0x81/upcase=0x82/label=0x83 stands).
 
 | N-067 upcase-table validation | **MATCH (grade-not-reject)** | `ExfatEngine.UpcaseTableChecksumValidated`, `ExfatEngine.UpcaseTableValidVolumeUnflagged`, `ExfatEngine.UpcaseLengthSanity` (spec seeded CRC via table::crc32_seeded; ExfatScanStats.upcase_checked/upcase_invalid) |
+
+---
+
+## Session-16 verdict update (M-013 FIXED, 2026-10-26)
+
+**Deleted-set checksum integrity — `M-013` FIXED.** The dual-form
+SetChecksum (FUN_18001eba0: raw ROL15 + the InUse-restored form with
+0x85/0xC0/0xC1 type-byte substitutions, valid iff either matches) is now
+the DELETED-set accept/reject gate in the walk (unconditional og parity —
+a failed set is parked, never emitted as a confident node), and the
+parked-set reconstruction oracle (FUN_1800203a0's suffix substitution,
+re-tested against the stored checksum) recovers torn sets from surviving
+orphan stream/name runs. Torn-at-buffer sets are parked rather than
+discarded; orphan tails are parked rather than silently skipped. LIVE
+sets keep the flag-gated downgrade (D-47, scope-corrected — N-003's
+"no checksum loop anywhere" premise is recorded REFUTED). New stats:
+sets_rejected / sets_reconstructed. Proof:
+`DeletedSetChecksumRejectsTornSet` + `DeletedSetOracleReassembly`
+(fail-before executed) + `LiveCompleteSetBadChecksumUngraded` (the
+asymmetry pin); the dual arithmetic is on the fuzz surface (fuzz_pure
+case 3). Remaining on this module: M-014 (structural entry gates).

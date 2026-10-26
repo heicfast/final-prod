@@ -219,6 +219,22 @@ struct ScanCtx {
     tree::FullNode* root_lost;
     ExfatScanStats* stats;
     std::set<u64> visited_dirs;
+    /* M-013 (diff-to-fix): the reconstruction park - deleted sets dropped
+     * by the dual-form checksum gate (or torn at the buffer end) wait
+     * here for the oracle; orphan stream/name runs (a destroyed set's
+     * surviving tail) are the substitution candidates. The corpus model:
+     * PartitionRecovery's parked-list (FUN_1800203a0's callers iterate
+     * it, trying each parked head against each parked tail). */
+    struct ParkedSet {
+        std::vector<u8> entries; /* the set bytes as found (the prefix) */
+        tree::FileNode* parent = nullptr;
+        u32 depth = 0;
+    };
+    struct ParkedTail {
+        std::vector<u8> entries; /* the orphan stream/name run */
+    };
+    std::vector<ParkedSet> parked_sets;
+    std::vector<ParkedTail> parked_tails;
 };
 
 /* read a directory chain's content */
@@ -420,8 +436,17 @@ void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context
             /* entry set: file + stream + names (attribute_count streams) */
             const FileEntry* fe = reinterpret_cast<const FileEntry*>(f);
             const u8 stream_count = fe->secondary_count;
-            if (i + 1 + stream_count > count)
+            if (i + 1 + stream_count > count) {
+                /* M-013: a torn set is PARKED, not discarded - the og's
+                 * DelexFat path parks the prefix and the oracle may
+                 * complete it from a surviving tail (FUN_1800203a0) */
+                ScanCtx::ParkedSet ps;
+                ps.entries.assign(f, buf.data() + buf.size());
+                ps.parent = parent_host;
+                ps.depth = depth;
+                ctx.parked_sets.push_back(std::move(ps));
                 break; /* torn set */
+            }
             const u8* stream = buf.data() + (i + 1) * 32;
             if (entry_type(stream[0]) != TYPE_STREAM) {
                 ++i;
@@ -449,10 +474,31 @@ void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context
             if (u32(name_entries) > stream_count)
                 name_entries = stream_count;
 
-            /* entry-set checksum (live sets only - deleted sets have
-             * checksum over live values anyway) */
+            /* entry-set checksum. M-013 (diff-to-fix): the og's dual-form
+             * gate on DELETED sets is UNCONDITIONAL og parity - the raw
+             * ROL15 form OR the InUse-restored form (0x85/0xC0/0xC1 type
+             * substitutions, FUN_18001eba0 :25153-25198) must match the
+             * stored field. A failed deleted set is dropped from the
+             * direct emission path (the og's set completion refuses it,
+             * FUN_18001fef0 :26287-26292) and PARKED for the
+             * reconstruction oracle - never emitted as a confident node
+             * (the pre-fix core accepted torn deleted sets unconditionally:
+             * the FP surface this finding closes). LIVE sets keep the
+             * flag-gated downgrade (the registered deliberate divergence
+             * for live sets - see cr_exfat_engine.h). */
             bool set_ok = true;
-            if (ctx.flags.validate_entry_sets && in_use) {
+            if (!in_use) {
+                if (!entry_set_checksum_valid(f, 1 + stream_count, fe->set_checksum)) {
+                    ++ctx.stats->sets_rejected;
+                    ScanCtx::ParkedSet ps;
+                    ps.entries.assign(f, f + size_t(1 + stream_count) * 32);
+                    ps.parent = parent_host;
+                    ps.depth = depth;
+                    ctx.parked_sets.push_back(std::move(ps));
+                    i += 1 + stream_count;
+                    continue; /* parked: the oracle decides */
+                }
+            } else if (ctx.flags.validate_entry_sets) {
                 u16 chk = entry_set_checksum(buf.data() + i * 32, 1 + 1 + name_entries);
                 if (chk != fe->set_checksum) {
                     set_ok = false;
@@ -609,10 +655,84 @@ void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context
             i += 1 + 1 + u32(name_entries);
             continue;
         }
+        if (t == TYPE_STREAM || t == TYPE_NAME) {
+            /* M-013: an orphan stream/name run at a set-head position - a
+             * destroyed set's surviving tail. PARK it as an oracle
+             * candidate (the og's parked-tail pool) instead of silently
+             * skipping entry by entry. */
+            size_t j = i;
+            while (j < count) {
+                const u8 tj = entry_type(buf[size_t(j) * 32]);
+                if (tj != TYPE_STREAM && tj != TYPE_NAME)
+                    break;
+                ++j;
+            }
+            ScanCtx::ParkedTail pt;
+            pt.entries.assign(buf.data() + i * 32, buf.data() + j * 32);
+            ctx.parked_tails.push_back(std::move(pt));
+            i = j;
+            continue;
+        }
         ++i; /* unknown dentry type: skip */
     }
     if (ctx.progress && count)
         (void)ctx.progress(ctx.dentries_done, ctx.dentries_done, ctx.progress_user);
+}
+
+/* M-013 (diff-to-fix): the reconstruction oracle - the og's parked-set
+ * reassembly (FUN_1800203a0 :26539-26830, decoded first-hand this
+ * session). For each parked head, each parked tail, and each
+ * substitution position from the set's SECONDARY COUNT DOWN TO 1
+ * (LAB_18002083f: local_54 = local_54 - 1; uVar8 = local_54 - the FILE
+ * entry is never substituted), the candidate tail is overlaid over the
+ * set's [pos, count) suffix in a scratch copy and the DUAL-form
+ * checksum is re-tested: `if ((uVar19 == stored) || (uVar20 == stored))`
+ * (:26662-26664) - accept on either match. The og's parked-list callers
+ * iterate head x tail pairs with a not-self guard (:26299, :26403) -
+ * same-shape head/tail combinations here. An accepted reconstruction is
+ * re-walked through the standard emission path (the dual gate passes on
+ * the substituted bytes), landing in the tree exactly like a set that
+ * was never damaged. */
+void reconstruct_parked_sets(ScanCtx& ctx) {
+    for (auto& head : ctx.parked_sets) {
+        if (head.entries.empty() || head.entries.size() < 32)
+            continue;
+        const u32 declared = u32(head.entries[1]) + 1; /* secondary_count + 1 */
+        if (declared < 3 || declared > 512)
+            continue; /* no defensible set shape to reconstruct */
+        const u16 stored = u16(head.entries[2]) | u16(head.entries[3]) << 8;
+        bool accepted = false;
+        for (const auto& tail : ctx.parked_tails) {
+            if (tail.entries.empty())
+                continue;
+            const u32 tail_entries = u32(tail.entries.size() / 32);
+            /* substitution position from the declared tail start DOWN to
+             * 1: suffix lengths 1..declared-1 (the file entry stays) */
+            for (u32 pos = declared - 1; pos >= 1; --pos) {
+                const u32 suffix = declared - pos;
+                if (tail_entries < suffix)
+                    continue;
+                std::vector<u8> cand(size_t(declared) * 32, 0);
+                const size_t avail =
+                    std::min(head.entries.size(), size_t(pos) * 32);
+                std::memcpy(cand.data(), head.entries.data(), avail);
+                std::memcpy(cand.data() + size_t(pos) * 32, tail.entries.data(),
+                            size_t(suffix) * 32);
+                if (entry_set_checksum_valid(cand.data(), declared, stored)) {
+                    ++ctx.stats->sets_reconstructed;
+                    /* the re-walk drives the standard emission path: the
+                     * substituted set parses, passes the dual gate, and
+                     * lands in the tree under the parked host */
+                    walk_entries(ctx, cand, true, head.parent, head.depth);
+                    accepted = true;
+                    break;
+                }
+            }
+            if (accepted)
+                break;
+        }
+        head.entries.clear(); /* consumed or unrecoverable */
+    }
 }
 
 } // namespace
@@ -682,6 +802,13 @@ u32 scan_exfat(IStorageDevice* slice, const ExfatScanFlags& flags, CancelToken* 
         recurse_dir(ctx, p.first_cluster_of_root, false, nullptr, 0);
     if (ctx.cancel && ctx.cancel->checkpoint())
         return ERR_CANCELLED;
+
+    /* M-013 (diff-to-fix): the parked-set reconstruction oracle runs
+     * AFTER the whole walk (every directory's orphans are candidates for
+     * every parked head - the og's park is scan-global, its callers
+     * iterate the parked list at set-completion boundaries). */
+    if (!ctx.parked_sets.empty())
+        reconstruct_parked_sets(ctx);
 
     /* S-009 (free overlay): the allocation bitmap dentry walked above is
      * the exFAT allocation truth (bit set = cluster allocated). Invert

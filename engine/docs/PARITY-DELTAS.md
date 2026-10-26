@@ -1002,23 +1002,34 @@ Split verdict — three sub-claims:
 
 ---
 
-### D-47 — exFAT entry-set checksum strictness: honest-mode only (N-003)
+### D-47 — exFAT entry-set checksum strictness: honest-mode LIVE sets only (N-003, scope corrected by M-013)
 
-- **WHAT OG DOES:** the og exFAT engine validates dentry triples
-  structurally only — a verified-absence search over all 1,299 decompiled
-  functions found NO entry-set checksum loop anywhere (B-exfat 3.4); a live
-  file with a torn SetChecksum grades normally.
-- **WHAT WE DO:** `ExfatScanFlags::validate_entry_sets` defaults FALSE
-  (og parity, N-003): torn-checksum live sets grade Excellent. TRUE (the
-  honest-recovery profile) keeps the deliberate strictness — files are
-  NEVER dropped, only downgraded to PartialRisk with a sets_damaged
-  counter.
-- **WHY:** a torn checksum is real corruption evidence the og ignores;
-  strictness that never removes content is a recovery-product improvement.
+- **WHAT OG DOES (CORRECTED BY M-013's corpus decode):** the og DOES
+  validate entry-set checksums — the dual ROL15 form (raw + InUse-restored,
+  FUN_18001eba0 :25153-25198) wired into set completion
+  (FUN_18001fef0 :26287-26292) and the parked-set reconstruction oracle
+  (FUN_1800203a0). N-003's "no checksum loop anywhere" claim is REFUTED
+  (its own session-2 note records the supersession). For DELETED sets the
+  og's gate is unconditional (a failed set is dropped, possibly rebuilt by
+  the oracle) — the core now matches this exactly (M-013). For LIVE sets
+  the og's complete-set path applies per-entry validators WITHOUT a
+  checksum test — a live file with a torn SetChecksum grades normally.
+- **WHAT WE DO:** the deleted-set dual-form gate + the reconstruction
+  oracle are DEFAULT, unconditional og parity (M-013). What
+  `ExfatScanFlags::validate_entry_sets` still gates is the LIVE-set
+  behavior: FALSE (default) = og parity (torn-checksum live sets grade
+  Excellent); TRUE (the honest-recovery profile) = the deliberate
+  strictness — live files are NEVER dropped, only downgraded to
+  PartialRisk with a sets_damaged counter.
+- **WHY:** a torn checksum on a live set is real corruption evidence the
+  og ignores; strictness that never removes content is a
+  recovery-product improvement. (The deleted-set side is now parity, not
+  a divergence: the og itself rejects failed deleted sets.)
 - **RISK:** none while disabled (exact og grading); enabled, grades differ
   from the og by design (the profile is explicit at the call site).
-- **VERDICT: ACCEPTED (default OFF = og parity; the divergence exists
-  only behind the explicit honest-mode flag, registered per N-003).**
+- **VERDICT: ACCEPTED (default OFF = og parity on live sets; the
+  divergence exists only behind the explicit honest-mode flag; the
+  deleted-set gate and oracle are parity, not divergence — M-013).**
 
 ---
 

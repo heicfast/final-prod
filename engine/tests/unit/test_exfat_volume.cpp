@@ -319,7 +319,12 @@ std::vector<u8> build_exfat_image(u8 tz = 0) {
         sb.finish_set(img, set_at);
         at += u32(sb.entries.size());
     }
-    /* gone.dat: DELETED NoFatChain (cluster 30, 512B; bitmap free) */
+    /* gone.dat: DELETED NoFatChain (cluster 30, 512B; bitmap free).
+     * M-013: the checksum IS stamped (finish_set) - a real deleted set
+     * keeps its original SetChecksum field (deletion only clears the
+     * InUse bits; the og's dual-form gate expects the restored form to
+     * match it). The old "no checksum validation" comment encoded
+     * N-003's refuted premise. */
     {
         SetBuilder sb;
         size_t set_at = ROOT + at;
@@ -327,7 +332,7 @@ std::vector<u8> build_exfat_image(u8 tz = 0) {
         sb.stream_entry_deleted(0x03, 8, 30, 512);
         sb.name_entry_deleted(u"gone.dat");
         std::memcpy(img.data() + set_at, sb.entries.data(), sb.entries.size());
-        /* deleted sets: no checksum validation (InUse clear) */
+        sb.finish_set(img, set_at);
         at += u32(sb.entries.size());
     }
     /* over.dat: DELETED NoFatChain (cluster 40; bitmap SET -> Overwritten) */
@@ -338,6 +343,7 @@ std::vector<u8> build_exfat_image(u8 tz = 0) {
         sb.stream_entry_deleted(0x03, 8, 40, 512);
         sb.name_entry_deleted(u"over.dat");
         std::memcpy(img.data() + set_at, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, set_at);
         at += u32(sb.entries.size());
     }
     /* subdir: live dir (FAT chain, cluster 70, 512B) */
@@ -943,6 +949,7 @@ TEST(ExfatEngine, FreeEntryContiguousSalvage) {
     sb.stream_entry_deleted(0x01, 10, 100, 1024); /* 2 clusters expected */
     sb.name_entry_deleted(u"zeroed.dat");
     std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+    sb.finish_set(img, AT); /* M-013: the dual-form gate reads this field */
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
     auto* ra = tree.add_root(u"Found");
@@ -1359,4 +1366,106 @@ TEST(ExfatEngine, StreamReserved1ByteStrictlyZero) {
     ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
               OK);
     EXPECT_GE(stats.sets_damaged, 1u) << "reserved1 != 0 must damage (strict og test)";
+}
+
+/* ---- M-013 (diff-to-fix): the dual-form SetChecksum + the oracle ------ */
+
+TEST(ExfatEngine, DeletedSetChecksumRejectsTornSet) {
+    /* M-013 falsifiable claim (a): a deleted set with a torn
+     * checksum-mismatched entry is REJECTED (the og's dual-form gate,
+     * FUN_18001eba0/FUN_18001fef0) - the pre-fix core accepted it
+     * unconditionally (the FP surface). Fail-before: with the gate
+     * reverted, gone-corrupt IS emitted and sets_rejected stays 0. */
+    auto img = build_exfat_image();
+    const size_t ROOT = 25 * 512;
+    /* gone.dat's set starts after bitmap(1)+upcase(1)+label(1)+photo(3)
+     * +doc(3) = 9 entries */
+    const size_t GONE = ROOT + 9 * 32;
+    /* corrupt the name entry's first name byte ("g" -> "X"): the raw and
+     * restored checksums both fail now */
+    img[GONE + 2 * 32 + 2] = 'X';
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    ExfatScanFlags flags; /* defaults: the deleted gate is unconditional og parity */
+    ExfatScanStats stats;
+    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    EXPECT_EQ(stats.sets_rejected, 1u);
+    EXPECT_EQ(stats.sets_reconstructed, 0u); /* no orphan tail to rebuild from */
+    auto all = collect_all(tree);
+    for (auto* n : all)
+        EXPECT_NE(n->name_utf8(), "Xone.dat") << "the torn deleted set must not be emitted";
+}
+
+TEST(ExfatEngine, DeletedSetOracleReassembly) {
+    /* M-013 falsifiable claim (c): a parked deleted set recoverable only
+     * by oracle-guided reassembly (FUN_1800203a0's suffix substitution
+     * re-tested against the stored checksum). The head's name entry is
+     * torn; the CORRECT name entry survives as an orphan run elsewhere in
+     * the directory - the reconstruction overlays it at the name slot,
+     * the dual checksum matches, the file is emitted. Fail-before: with
+     * the oracle reverted, the file is absent and sets_reconstructed is
+     * 0. */
+    auto img = build_exfat_image();
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576; /* past the fixture's own sets */
+    /* the parked head: the correct set with a TORN name entry */
+    SetBuilder head;
+    head.file_entry_deleted(0x20, 0);
+    head.stream_entry_deleted(0x01, 9, 100, 512); /* "right.dat" = 9 chars */
+    head.name_entry_deleted(u"right.dat");
+    std::memcpy(img.data() + AT, head.entries.data(), head.entries.size());
+    head.finish_set(img, AT); /* stamped over the CORRECT name bytes */
+    img[AT + 2 * 32 + 2] = 'X'; /* tear the name's first byte post-stamp */
+
+    /* the orphan tail: the CORRECT name entry, parked one entry later */
+    SetBuilder tail;
+    tail.name_entry_deleted(u"right.dat");
+    std::memcpy(img.data() + AT + 3 * 32, tail.entries.data(), tail.entries.size());
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    EXPECT_EQ(stats.sets_rejected, 1u); /* the torn head was parked */
+    EXPECT_EQ(stats.sets_reconstructed, 1u); /* the oracle rebuilt it */
+    auto all = collect_all(tree);
+    tree::FileNode* right = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "right.dat")
+            right = n;
+    ASSERT_NE(right, nullptr) << "the oracle must recover the torn set";
+    EXPECT_EQ(right->props()->extents.size(), 1u);
+    EXPECT_EQ(right->props()->logical_size, 512u);
+}
+
+TEST(ExfatEngine, LiveCompleteSetBadChecksumUngraded) {
+    /* M-013 falsifiable claim (b): the inverse asymmetry - a COMPLETE
+     * LIVE set with a bad checksum grades normally in the default (og)
+     * profile: the og's complete-set path applies per-entry validators
+     * without a checksum test. The deleted-set gate NEVER touches live
+     * sets (sets_rejected stays 0). */
+    MemDevice dev(exfat_image_with_torn_doc_checksum());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ExfatScanFlags flags; /* og profile */
+    ExfatScanStats stats;
+    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr,
+                         stats),
+              OK);
+    EXPECT_EQ(stats.sets_rejected, 0u); /* the gate is deleted-sets-only */
+    EXPECT_EQ(stats.sets_damaged, 0u);  /* og profile: no live downgrade either */
+    auto all = collect_all(tree);
+    tree::FileNode* doc = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "doc.txt")
+            doc = n;
+    ASSERT_NE(doc, nullptr);
+    EXPECT_EQ(doc->confidence(), tree::Confidence::Excellent);
 }

@@ -66,11 +66,18 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         break;
     }
     case 3: {
-        /* exFAT checksums: entry-set over the buffer (2-byte entries) */
+        /* exFAT checksums: entry-set over the buffer (2-byte entries).
+         * M-013: the dual-form (raw + InUse-restored) and the validity
+         * test join the fuzzed surface - torn-set / bad-checksum mutants
+         * drive the deleted-set gate's exact arithmetic. */
         (void)cr::exfat::checksum32(buf, uint32_t(len), 0);
         (void)cr::exfat::checksum16(buf, uint32_t(len), 0);
-        if (len >= 32 && len % 32 == 0)
+        if (len >= 32 && len % 32 == 0) {
             (void)cr::exfat::entry_set_checksum(buf, uint32_t(len / 32));
+            (void)cr::exfat::entry_set_checksum_dual(buf, uint32_t(len / 32)).raw;
+            (void)cr::exfat::entry_set_checksum_valid(buf, uint32_t(len / 32),
+                                                      uint16_t(len));
+        }
         break;
     }
     case 4: {

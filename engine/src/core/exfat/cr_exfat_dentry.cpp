@@ -56,6 +56,52 @@ u16 entry_set_checksum(const u8* entries, u32 entry_count) {
     return sum;
 }
 
+/* M-013 (diff-to-fix): the og's DUAL-FORM entry-set checksum
+ * (exFATSearchDLL FUN_18001eba0 :25153-25198, re-verified line-by-line
+ * against the corpus): TWO ROL15 rotate-add sums over the set bytes
+ * (skipping indices 2..3, the stored field itself):
+ *   - the RAW form: the on-disk bytes as they are;
+ *   - the INUSE-RESTORED form, computed ONLY when the set's first byte
+ *     is 0x05 (the File entry's InUse bit cleared - a deleted set):
+ *     byte 0 substituted with 0x85 (File | InUse), byte 0x20 (the
+ *     Stream entry's type) with 0xC0, and every other 32-byte entry
+ *     boundary with 0xC1 (File Name | InUse) - exactly the og's
+ *     uVar5 ladder at :25173-25186.
+ * A set is checksum-VALID iff EITHER form equals the stored field
+ * (entries+2): a live set matches the raw form; a properly deleted set
+ * (InUse bits cleared after the checksum was stamped over the live
+ * bytes) matches the restored form. Used as the deleted-set accept/
+ * reject gate and as the reconstruction oracle's acceptance test
+ * (FUN_18001fef0 :26287-26292 / FUN_1800203a0 :26642-26664). */
+SetChecksumForms entry_set_checksum_dual(const u8* entries, u32 entry_count) {
+    SetChecksumForms out{0, 0};
+    const u32 bytes = entry_count * 32;
+    const bool deleted_set = entries[0] == 0x05;
+    for (u32 i = 0; i < bytes; ++i) {
+        if (i == 2 || i == 3)
+            continue; /* the stored SetChecksum field */
+        out.raw = static_cast<u16>(((out.raw & 1) ? 0x8000u : 0u) + (out.raw >> 1) +
+                                   entries[i]);
+        if (deleted_set) {
+            u16 sub = entries[i];
+            if (i == 0)
+                sub = 0x85; /* File | InUse */
+            else if (i == 0x20)
+                sub = 0xC0; /* Stream | InUse */
+            else if ((i & 0x1F) == 0)
+                sub = 0xC1; /* File Name | InUse */
+            out.restored = static_cast<u16>(((out.restored & 1) ? 0x8000u : 0u) +
+                                            (out.restored >> 1) + sub);
+        }
+    }
+    return out;
+}
+
+bool entry_set_checksum_valid(const u8* entries, u32 entry_count, u16 stored) {
+    const SetChecksumForms forms = entry_set_checksum_dual(entries, entry_count);
+    return forms.raw == stored || forms.restored == stored;
+}
+
 u32 validate_boot_region(IStorageDevice* dev, ExfatParams& out) {
     if (dev == nullptr || dev->geometry().logical_sector > 4096)
         return ERR_BAD_PARAMETER;

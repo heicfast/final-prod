@@ -12168,3 +12168,43 @@ Stage Summary:
   N-048, N-061, N-062). MINOR 28 remain. The Log.mo family is closed
   (N-048 seam + N-061 run-log/auto-naming + N-062 monitor). Next:
   N-064 (Dict password dictionary) or N-049/N-050 (lost-record family).
+
+=======
+
+---
+Task ID: DFX16-M013 (session 16, MAJOR lane)
+Agent: core-parity-fix-agent (main)
+Task: M-013 — exFAT deleted-set dual-form checksum + reconstruction oracle
+
+Work Log:
+- Corpus re-verified LINE BY LINE: FUN_18001eba0 :25153-25198 (dual ROL15:
+  raw + InUse-restored; skip bytes 2..3; the 0x85/0xC0/0xC1 ladder gated on
+  entries[0]==0x05), FUN_18001fef0 :26287-26292 (set-completion refusal),
+  FUN_1800203a0 :26539-26830 (the oracle: suffix position from
+  secondary_count DOWN to 1 - LAB_18002083f; candidate overlay; the dual
+  re-test at :26662-26664; parked-list callers :26299/:26403 with the
+  not-self guard). CONFIRMED-DIVERGENCE.
+- Landed: entry_set_checksum_dual/_valid (decompile-exact); the
+  unconditional deleted-set gate in the walk (failed sets PARKED - the og
+  drops them from emission; torn-at-buffer sets parked too; orphan
+  stream/name runs parked as tails); reconstruct_parked_sets after the
+  whole walk (head x tail x suffix-position; accepted reconstructions
+  re-walked through the standard emission path). Stats:
+  sets_rejected/sets_reconstructed. Flag semantics narrowed: N-003's
+  premise recorded REFUTED (cr_exfat_engine.h + PARITY-DELTAS D-47 scope
+  correction); validate_entry_sets now gates LIVE sets only.
+- Fixture truth: deleted sets stamp SetChecksum via finish_set (the old
+  "no checksum validation (InUse clear)" comment encoded N-003's refuted
+  premise; a real deleted set keeps its original checksum field).
+- Tests: DeletedSetChecksumRejectsTornSet + DeletedSetOracleReassembly
+  (fail-before EXECUTED via temporary gate+oracle disable: both RED on the
+  reverted tree, GREEN after) + LiveCompleteSetBadChecksumUngraded (the
+  inverse-asymmetry pin, holds both states by design). fuzz_pure case 3
+  extended with the dual functions. Suite 730/730 (linux-gcc ASan).
+- Audit trail: Resolution + FIXED/ move; RESOLVED-INDEX row; matrix exfat
+  row; modules/exfat.md session-16 verdict; D-47 scope correction;
+  SUMMARY session note.
+
+Stage Summary:
+- Session tally: S-029 (SEVERE, convergent union) + M-013 (MAJOR) + the
+  M-054 pushed-red repair. Next: M-014 (exFAT structural entry gates).
