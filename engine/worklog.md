@@ -13095,3 +13095,42 @@ Work Log:
 Stage Summary:
 - Tally 4 (N-009 group, M-057, N-036, N-049). MINOR 13 remain. Next:
   N-050 (recognition contract boot-only).
+
+---
+Task ID: DFX29-T3 (session 23 lane, fifth fix — N-050, recognition contract)
+Agent: main engineer (diff-to-fix fix session 29-lane — DFX29)
+Task: N-050 two-stage recognition (the FAT + exFAT content proofs).
+
+Work Log:
+- Corpus re-verified FIRST-HAND: FATFileSystemAnalyser FUN_180002580
+  (:1385-1500 — UDF probe first, classification, then root verification)
+  and FUN_180002180 (:1124-1144 — type 1/2 -> FUN_180001f70 fixed-root
+  scan; type 3 -> FUN_180001d70 root-cluster walk); FUN_180001f70's
+  arithmetic read first-hand (root sector = reserved + nfats*spf,
+  per-sector reads + per-entry scan). The finding's cheap single-read
+  form is its own fix plan's choice.
+- Implementation (probe_family): exFAT = exfat::validate_boot_region as
+  the content proof (OEM-first; structural rc == the engine's own gate —
+  the checksum stays informational on BOTH sides, no recovery-negative
+  strictness); FAT = root-dir first-sector readability (FAT12/16
+  fixed-root and FAT32 root-cluster arithmetic, rootCluster>=2);
+  `recognition: <family> content-verified` lines on the N-048 seam
+  (incl. M-043's NTFS site).
+- Two stale test expectations CORRECTED toward og parity (verified
+  against the decode): spoofed-EXFAT-OEM over FAT16 -> Fat (the og's
+  multi-analyser outcome); the painted-FAT-boot UDF image -> Unknown
+  (no valid FAT geometry — the og's root verification refuses; the old
+  Fat was the spoof-accepting answer).
+- Tests: SpoofedExfatOemRejectedBeforeEngine, SpoofedFatBoot-
+  UnreadableRootRejected, RealExfatBootContentVerified (the positive
+  pin, wire-struct offsets). Fail-before EXECUTED on the
+  git-checkout-reverted probe: 2 RED / 1 positive-pin.
+- Documentation: ground-truth-contracts.md §0 (the two-stage contract,
+  per-family citations, the honest HFS+/Btrfs/ZFS/ReFS gap + the exFAT
+  analyser's unpinned body).
+- Suite 757/757. Audit trail: Resolution, FIXED/ move, index row,
+  matrix note, SUMMARY batch-4 delta + counts.
+
+Stage Summary:
+- Tally 5 (N-009 group, M-057, N-036, N-049, N-050). MINOR 12 remain.
+  Next: N-033 (carve capability ABI).

@@ -205,6 +205,31 @@ open (22 acknowledged in FIXED/) · tracked-open 11 · FIXED/ **178** files
 (177 findings + RESOLVED-INDEX). Next on this lane: N-050 (recognition contract) →
 N-033 → N-064.
 
+## Session-23 delta, batch 4 (2026-10-26 — DFX29: N-050 — the two-stage recognition contract)
+
+**N-050 FIXED:** the recognition contract is now boot gate -> CONTENT PROOF
+-> engine on every family with a corpus-decoded analyser. NEW proofs: exFAT
+(the engine's own validate_boot_region — OEM-first so a spoofed OEM fails the
+MustBeZero sweep; the structural rc equals the engine's own gate, the
+checksum verdict stays informational on both sides, no recovery-negative
+strictness) and FAT (root-dir first-sector readability: FAT12/16 fixed root
+= reserved+numFats*spf16; FAT32 = reserved+numFats*spf32+(rootCluster-2)*spc
+— FUN_180002180's cheap form per the fix plan). NTFS/ext4/UDF content proofs
+were already landed (M-043/S-006/M-044). Every proof emits
+`recognition: <family> content-verified` on the N-048 logging seam; the
+contract is documented as ground-truth-contracts.md §0 (with the honest
+HFS+/Btrfs/ZFS/ReFS recognition-gate gap and the exFAT analyser's unpinned
+body recorded). Fail-before EXECUTED (2 of 3 new tests RED on the reverted
+probe — the third is the positive pin); two pre-existing expectations
+CORRECTED toward og parity (spoofed-EXFAT-OEM -> Fat, the og's
+multi-analyser outcome; the painted-FAT-boot UDF image -> Unknown — the old
+Fat was the spoof-accepting answer). Suite **757/757**.
+
+**Post-fix counts:** SEVERE **0** · MAJOR 14 · MINOR **12** · INFO 0 open ·
+tracked-open 10 (OQ-S2M-2 resolved by the parallel DFX31 lane) · FIXED/
+**179** files (178 findings + RESOLVED-INDEX). Next on this lane: N-033
+(carve capability ABI) -> N-064 (Dict).
+
 <!-- DFX16 note: session 16 ran as a parallel lane in the same window as
      sessions 17-22; its delta is recorded here for chronology. -->
 
