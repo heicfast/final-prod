@@ -96,6 +96,24 @@ non-adopted (PARITY-DELTAS D-58). The question is closed; no residual.
 
 ## OQ-FLT-1 — Is the 170-entry extension table engine-wide or exFAT-only?
 
+**RESOLVED (DFX30, 2026-10-26):** first-hand PE-mapping + byte-search +
+decompile-ref scan (evidence:
+`diff-to-fix/evidence/decompiled-quotes/s30-oq-flt1-extension-table-distribution.md`).
+The table (170 slots x char[9]: 169 populated keys + all-zero slot-169
+sentinel, first key "Raw", flag bytes 0) is byte-identical to DRWUI's grading
+table at 0x141bb0500 (set-equal, 169/169) and is PRESENT in 4 engines:
+NTFSSearchDLL (1 dead .rdata copy, zero code+pointer refs), FATSearchDLL
+(1 dead .rdata + 2 live .data copies: DAT_1800630d0 x5 refs,
+DAT_180067720 x2), exFATSearchDLL (1 dead .rdata + the live DAT_18005a090
+x4), RAWSearchDLL (1 live: DAT_18008f070 x1). ABSENT from
+EXT4/Btrfs/ReFS/HFS+/ZFS. The live FAT/RAW consumers are the
+extension-INDEX vocabulary (record field +0x18, gate < 0xAA ->
+`_strupr(table + idx*9)` -> strstr / name accessor), NOT validation scorers.
+**The M-035 scorer (majority-mismatch + ratio<0.3 reject) is exFAT-ONLY** —
+zero 0.3-compare sites in every other engine decompile. Blast radius
+answer: M-035's fix scope stays exFAT; the shared index vocabulary feeds
+N-049/N-050 (lost-record field richness) and the filter layer.
+
 Byte-search the x9-byte-stride table pattern (DAT_18005a090) in every
 SearchDLL binary (NTFS/FAT/EXT4/RAW/Btrfs/ReFS/HFS+/ZFS). Blast radius of
 M-019 depends on the answer.
