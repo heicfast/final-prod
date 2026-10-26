@@ -12689,3 +12689,54 @@ Work Log:
 
 Stage Summary:
 - Session 31 open. First fix: N-064 (Dict password dictionary absent).
+=======
+---
+Task ID: DFX31-T0 (session 31 bootstrap — lane claim; re-stamped 25→30→31
+through the same-window ID churn — DFX25 squatted by the INFO-closure
+lane, DFX30 by the tracked-open-TAIL lane at 29a8932)
+Agent: main engineer (diff-to-fix fix session 31 — DFX31)
+Task: Session bootstrap + DISJOINT tracked-open lane claim: the HEAD set
+the parallel DFX30 (29a8932, "tracked-open tail queue") does NOT own.
+Their tail: OQ-Z-E-FLT, OQ-T6-T7, OQ-S6-1, OQ-S6-2, OQ-S6-3, OQ-S5-1.
+THIS lane claims: OQ-RS (RS-1..RS-8), OQ-S2M-2 (bonus setter / ZFS pool
+display name / Btrfs name-conversion anchor), OQ-S3-JPEG (fallback +
+continuation no-EOI accept), OQ-S4-3 (Windows bench — likely
+push-forward), OQ-S20-1 (BitLocker FVE metadata grammar + KDF interop).
+First-landing-wins per OQ; pull before each resolution; skip anything a
+parallel lane lands; convergence records per protocol.
+
+Work Log:
+- Pull at bootstrap: HEAD 02b950f (DFX24's claim, the current tip).
+  Parallel-window claims absorbed: DFX23 MINOR queue (354c555), DFX24
+  MAJOR queue (02b950f).
+- Baseline executed first-hand BEFORE the claim on the current tree:
+  linux-release 737/737 green.
+- Corpus 03ad46c unmoved (verified at clone).
+- Session prompt saved token-redacted:
+  worklog/session-diff-fix-25-prompt.md.
+- INFORMATIONAL tier state verified at bootstrap: all 22 findings carry
+  ACKNOWLEDGED resolutions (grep-verified) — the re-verification sweep
+  will spot-check rationale against the corpus as the queue is worked.
+- Lane claim (disjoint from both parallel lanes): the TRACKED-OPEN
+  queue — all 11 OQ files, every sub-question:
+    OQ-Z-E-FLT (Z1 og-quirk doc, Z2 addBlock txg gate, Z3/Z4/Z5, FLT-1
+      table breadth, FLT-2 layout)
+    OQ-RS (RS-1..RS-8)
+    OQ-T6 (vdev id-map read path; T7 already resolved)
+    OQ-S2M-2 (bonus setter serializer, ZFS pool display name, Btrfs
+      name-conversion anchor)
+    OQ-S3-JPEG (fallback/continuation no-EOI accept)
+    OQ-S4-3 (Windows bench — likely push-forward)
+    OQ-S5-1 (CheckVersion consumer)
+    OQ-S6-1 (PartitionRecoveryD generator sets)
+    OQ-S6-2 (Btrfs RC4 PRGA target)
+    OQ-S6-3 (CRAW reader +0xF4/+0x94/+0x56)
+    OQ-S20-1 (BitLocker FVE metadata grammar + KDF interop)
+  Each resolves to: evidence artifact + verdict + code/doc landing, or
+  a precisely-pushed-forward addendum with new evidence. One OQ, one
+  verified resolution, one push throughout.
+
+Stage Summary:
+- Session 31 open on the disjoint tracked-open HEAD lane. Baseline 737/737
+  green. First target: OQ-S2M-2's grep-sized probes, then the OQ-S3-JPEG
+  decompile walk, then OQ-RS, then OQ-S20-1 (the big BitLocker leg).
