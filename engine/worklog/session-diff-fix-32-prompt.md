@@ -1,4 +1,4 @@
-# Session 25 prompt (DFX25) — saved token-redacted at bootstrap, read twice before work
+# Session 32 prompt (DFX32) — saved token-redacted at bootstrap, read twice before work
 
 Mandate: execute the roadmap in `core_recovery/diff-to-fix/`. For every
 finding — ACUTE, SEVERE, MAJOR, MINOR, INFORMATIONAL, and TRACKED-OPEN —
@@ -26,7 +26,7 @@ every FIXED has a proving test; pull frequently, never force-push, leave
 main green; fixed findings moved to findings/FIXED/; commit messages cite
 finding ID + corpus artifact; worklog.md updated every landing.
 
-Session-25 lane (disjoint from DFX23's MINOR queue and DFX24's MAJOR
+Session-32 lane (disjoint from DFX23's MINOR queue and DFX24's MAJOR
 queue, both claimed in the same window): the tracked-open queue first
 (OQ-S3-JPEG, OQ-FLT-1, OQ-S6-2, OQ-S6-3, OQ-S5-1, OQ-S6-1, OQ-Z1/Z2/Z4/
 Z5, OQ-RS-5/6/7/8, OQ-E1, OQ-S2M-2, OQ-T6) — each resolved to a fix, an

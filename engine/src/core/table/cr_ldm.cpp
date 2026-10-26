@@ -912,7 +912,14 @@ bool resolve_one_volume(const LdmInfo& db, const LdmVolumeObj& v, LdmVolumeLayou
         if (v.int_volume_type != LDM_VOLTYPE_GEN) /* libldm: striped requires a "gen" volume */
             return false;
         lay.kind = LdmVolumeKind::Striped;
-        lay.chunk_sectors = c.chunk_size;
+        /* N-012b (MINOR): the og defaults a zero interleave to 64 KiB -
+         * interleave 0 -> 0x10000 bytes (ctor default,
+         * LdmManager_decompiled.c:47665), re-defaulted at use
+         * (:68631-68637), and the sector form falls back to 0x80 = 128
+         * sectors on the 512-LBA grid (:68638-68641). The old core
+         * refused the layout (zero capacity) - a default-geometry
+         * volume the og reads was lost. */
+        lay.chunk_sectors = c.chunk_size != 0 ? c.chunk_size : 128;
         lay.columns = c.n_columns != 0 ? u32(c.n_columns) : u32(ps.size());
         std::stable_sort(members.begin(), members.end(),
                          [](const LdmMember& a, const LdmMember& b) { return a.index < b.index; });
@@ -926,7 +933,8 @@ bool resolve_one_volume(const LdmInfo& db, const LdmVolumeObj& v, LdmVolumeLayou
         if (v.int_volume_type != LDM_VOLTYPE_RAID5) /* libldm: RAID component requires raid5 */
             return false;
         lay.kind = LdmVolumeKind::Raid5;
-        lay.chunk_sectors = c.chunk_size;
+        /* N-012b: same og zero-interleave default on the RAID-5 path. */
+        lay.chunk_sectors = c.chunk_size != 0 ? c.chunk_size : 128;
         lay.columns = c.n_columns != 0 ? u32(c.n_columns) : u32(ps.size());
         if (lay.columns < 3)
             return false; /* RAID-5 needs >= 3 columns */
@@ -1080,6 +1088,16 @@ u32 parse_ldm_database(IStorageDevice* device, LdmInfo& out) {
         if (!have_primary)
             return ERR_BAD_MAGIC;
     }
+    /* N-012a (MINOR): the og's LdmManager rejects a PRIVHEAD whose
+     * config region exceeds 1 MiB - `if (config_size < 0x801) ok; else
+     * "ConfigSize[%I64d] larger than 1m ?." -> rc 0xfffffff8`
+     * (LdmManager_decompiled.c:59748-59759). The spec fixes the region
+     * at 1 MiB; a larger declaration is header corruption and the og
+     * treats the whole disk as non-LDM. The old core clamped the read
+     * to 4 MiB and kept walking - an unregistered superset; parity
+     * closes on the og's gate. */
+    if (ph.config_size >= 0x801)
+        return ERR_BAD_CHECKSUM;
     out.stats.privheads_matched = 1;
 
     /* cross-check the configured backups when the primary came from LBA 6.
@@ -1123,8 +1141,6 @@ u32 parse_ldm_database(IStorageDevice* device, LdmInfo& out) {
         cfg_secs = dev_512 - ph.config_start;
     if (cfg_secs == 0)
         return ERR_TRUNCATED;
-    if (cfg_secs > 8192)
-        cfg_secs = 8192; /* 4 MiB hard cap (spec: 1 MiB) */
     std::vector<u8> cfg(size_t(cfg_secs * 512));
     if (!read_exact(device, ph.config_start * 512, cfg.data(), cfg.size()))
         return ERR_READ_FAILED;

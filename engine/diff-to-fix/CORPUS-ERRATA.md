@@ -136,7 +136,7 @@ candidates below this line.
 ## Main-auditor leg addendum (session 2, 2026-10-25)
 
 This leg's independent errata register is filed as
-`findings/INFORMATIONAL/I-011-corpus-errata-session2-register.md` (8 corrected artifact
+`findings/FIXED/I-011-corpus-errata-session2-register.md` (8 corrected artifact
 claims). Overlaps with the register above are convergent reads; unique to I-011:
 - **NTFS pass-structure + 0x3ff semantics** — both NTFS artifacts describe
   `FUN_18001acc0`'s loop as "the deleted-file pipeline" without noting it parses

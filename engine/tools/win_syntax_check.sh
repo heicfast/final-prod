@@ -46,4 +46,19 @@ for f in "$SRC_DIR"/src/win/*.cpp; do
         echo "win_syntax_check: ok: $name"
     fi
 done
+
+# The app layer (src/app/*.cpp) is Windows-only for the same reason the
+# win layer is (wmain, _wfopen_s, the cr::win surface); N-009c's fix
+# edits it, so the parse gate now covers it too (an app-layer structural
+# break was exactly the M-055 failure class, one directory over).
+for f in "$SRC_DIR"/src/app/*.cpp; do
+    name=$(basename "$f")
+    if ! out=$("$CXX" $CXXFLAGS "$f" 2>&1); then
+        echo "win_syntax_check: FAIL: app/$name does not parse" >&2
+        echo "$out" | grep -E "error:" | head -20 >&2
+        rc=1
+    else
+        echo "win_syntax_check: ok: app/$name"
+    fi
+done
 exit $rc
