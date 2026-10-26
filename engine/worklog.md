@@ -12237,7 +12237,6 @@ Stage Summary:
 - Session 23 open. Baseline 737/737 green at `716d121`. MINOR-first
   queue claimed. First fix: N-009 (grouped minors).
 
-=======
 ---
 Task ID: DFX24-T0 (session 24 bootstrap — lane claim)
 Agent: main engineer (diff-to-fix fix session 24 — DFX24)
@@ -12264,25 +12263,67 @@ Stage Summary:
   fix: M-049 (error model divergence).
 
 ---
-Task ID: DFX25-T0 (session 25 bootstrap — lane claim)
+
+Task ID: DFX25-T0 (session 25 bootstrap — lane claim; re-stamped from the
+local 23 — the parallel MINOR lane owns that ID, DFX24 owns MAJOR)
 Agent: main engineer (diff-to-fix fix session 25 — DFX25)
-Task: Session bootstrap + DISJOINT lane claim (DFX23 holds MINOR, DFX24 holds
-MAJOR — both claims pushed within ~3 min of this session's fetch).
+Task: Session bootstrap + DISJOINT lane claim: the INFORMATIONAL tier +
+the tracked-open queue (the user directive's primary focus).
 
 Work Log:
-- Pull at bootstrap: HEAD `02b950f` (= DFX24's claim tree; DFX23's `354c555`
-  absorbed). Corpus `03ad46c` unmoved (verified at first corpus read).
-- Baseline executed green FIRST-HAND before the claim: linux-release
-  **737/737** at `02b950f`.
+- Pull at first push surfaced the parallel claims (354c555 DFX23 MINOR
+  lane; 02b950f DFX24 MAJOR lane). This lane re-stamps to DFX25 and
+  claims the DISJOINT remainder: INFORMATIONAL (22 open) + tracked-open
+  (11) first — the user directive's focus — then anything the parallel
+  lanes leave behind.
+- Baseline suite executed green FIRST-HAND before any finding work:
+  linux-release **737/737** at `716d121` (full ctest).
+- Corpus `03ad46c` unmoved (verified at first corpus read).
 - Session prompt saved token-redacted: worklog/session-diff-fix-25-prompt.md.
-- Lane claim (disjoint from both active lanes): the INFORMATIONAL tier
-  (24 findings — 15 with no ACKNOWLEDGED resolution: I-006, I-007, I-008,
-  I-012, I-013, I-015..I-024; plus verification depth for the thin rows) and
-  the tracked-open queue (11 OQ items — resolve or push forward with new
-  evidence). Any NEW-FINDING during verification gets filed + fixed.
 - One finding, one verified fix, one push throughout.
 
 Stage Summary:
-- Session 25 open on the disjoint INFORMATIONAL + tracked-open lane.
-  Baseline green. First work: I-006 verification against the corpus.
+- Session 25 open on the disjoint INFO + tracked-open lane. Baseline
+  green. First act: the INFO tier closure (below).
 
+### DFX25-T3: INFO tier closed into FIXED/ (22/22)
+
+- Re-verified on `716d121`: all 22 Resolution sections present; 5 load-bearing
+  pins executed green; 2 first-hand spot-checks (I-001 corpus :21186 blanket
+  `$`-skip; I-022 cr_crsf.cpp :78/:167/:319 decompressed-CRC32 + bomb cap).
+- `git mv` INFORMATIONAL/* → FIXED/; RESOLVED-INDEX session-25 section with
+  22 rows; SUMMARY.md session-25 delta (counts: MAJOR 14 · MINOR 19 · INFO 0
+  open · FIXED/ 171 files · tracked-open 11); CROSS-REF-MATRIX session-25
+  note + the two "stay in INFORMATIONAL/" notes corrected; CORPUS-ERRATA.md
+  I-011 path updated.
+- No code change (INFORMATIONAL safety-hardening rule; deliberate divergences
+  preserved with pin tests).
+
+---
+Task ID: DFX26-T0 (session 26 bootstrap — lane claim; re-stamped from the
+colliding local DFX25 — the parallel INFO lane owns that ID and has CLOSED
+the INFO tier this window)
+Agent: main engineer (diff-to-fix fix session 26 — DFX26)
+Task: Session bootstrap + DISJOINT lane claim + verification of the parallel
+INFO closure (trust-but-verify protocol).
+
+Work Log:
+- Pull at first push surfaced THREE parallel claims: DFX23 (354c555, MINOR
+  tier), DFX24 (02b950f, MAJOR tier), DFX25 (03608d8, INFO tier — closed
+  22/22 into FIXED/ this window). This lane re-stamps to DFX26.
+- Baseline executed green FIRST-HAND before any finding work: linux-release
+  **737/737** at `02b950f` (pre-merge tree; the INFO-closure merge is
+  audit-trail-only — no source change — so the baseline carries).
+- Corpus `03ad46c` unmoved (verified at first corpus read this session).
+- Session prompt saved token-redacted: worklog/session-diff-fix-26-prompt.md.
+- Lane claim (disjoint, split against the DFX25 queue): tracked-open items
+  OQ-S5-1, OQ-S6-1, OQ-S6-2, OQ-S6-3, OQ-T6-T7, OQ-Z-E-FLT (the S5/S6/T/Z
+  tail of the queue — DFX25's natural order starts at the OQ-RS/OQ-S2M/OQ-S3/
+  OQ-S4 head) + independent re-verification of the DFX25 INFO closure + any
+  NEW-FINDING discovered during verification (filed + fixed this session).
+- One finding, one verified fix, one push throughout.
+
+Stage Summary:
+- Session 26 open on the disjoint tracked-open tail + INFO-closure
+  verification lane. Baseline green. First act: verify the INFO closure,
+  then OQ-S5-1.

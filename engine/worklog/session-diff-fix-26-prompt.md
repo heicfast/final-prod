@@ -1,4 +1,7 @@
-# Session 25 prompt (diff-to-fix fix session — DFX25) — saved token-redacted at bootstrap
+# Session 26 prompt (diff-to-fix fix session — DFX26) — saved token-redacted at bootstrap
+
+# (This lane originally bootstrapped as DFX25; re-stamped after a same-window ID
+# collision with the parallel INFO-closure lane, per the first-landing-wins protocol.)
 
 Saved: 2026-10-26 ~05:05 UTC. Baseline: HEAD `02b950f` (origin/main at fetch =
 claim tree; DFX24's MAJOR-lane claim + DFX23's MINOR-lane claim absorbed at
@@ -60,7 +63,7 @@ the corpus, the corpus wins. The audit is a hypothesis; this session is the
 verifier. No shortcuts, no samples, no assumptions, no hallucination,
 production grade only.
 
-## Session-25 lane adaptation (recorded at bootstrap, per the lane protocol)
+## Session-26 lane adaptation (recorded at bootstrap, per the lane protocol)
 
 At fetch, two active lanes hold claims pushed within the last ~3 minutes:
 - DFX23 (`354c555`, 04:57 UTC): the full open MINOR tier.
