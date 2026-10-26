@@ -12262,3 +12262,34 @@ Work Log:
 Stage Summary:
 - Session 24 open on the disjoint MAJOR lane. Baseline green. First
   fix: M-049 (error model divergence).
+
+---
+Task ID: DFX25-T0 (session 25 bootstrap — lane claim)
+Agent: main engineer (diff-to-fix fix session 25 — DFX25)
+Task: Session bootstrap + lane claim BEFORE any finding work (protocol).
+
+Work Log:
+- Baseline: HEAD `02b950f` (origin/main verified unmoved at fetch — the two
+  parallel bootstrap commits DFX23 `354c555` + DFX24 `02b950f` absorbed).
+  Corpus `03ad46c` unmoved.
+- Baseline suite executed green FIRST-HAND at the claim tree:
+  linux-release **737/737** (ctest, incl. cr_ui_abi_check + win_syntax_check).
+- Session prompt saved token-redacted: worklog/session-diff-fix-25-prompt.md.
+- Mandate per prompt: MINOR-first queue (user directive), 20+ fix target,
+  fixed findings moved to findings/FIXED/, all docs/counts/matrices current
+  after each landing.
+- Lane claim (cooperative-disjoint): DFX23 owns the MINOR tier TOP-DOWN
+  (N-009 first); this session (DFX25) works the MINOR tier BOTTOM-UP —
+  N-064, N-071, N-032, N-072, N-033, N-050, N-019, N-075, N-066, N-065,
+  N-059, N-049, N-036, N-031, N-027, N-026, N-025, N-007/I-004, N-009 —
+  meeting DFX23 in the middle; first-landing-wins, pull before every push,
+  landed findings classified FIXED-ALREADY and skipped. DFX24 owns MAJOR.
+  After the MINOR drain: the unclaimed INFORMATIONAL acknowledgment sweep
+  and the tracked-open push-forward queue.
+- One finding, one verified fix, one push throughout.
+
+Stage Summary:
+- Session 25 open. Baseline 737/737 green at `02b950f`. MINOR bottom-up
+  queue claimed. First fix: N-064 (Dict password dictionary absent).
+
+=======
