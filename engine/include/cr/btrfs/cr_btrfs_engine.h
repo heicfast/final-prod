@@ -56,6 +56,8 @@ namespace btrfs {
 
 using WalkProgressLike = bool (*)(u64 done, u64 total, void* user);
 
+struct BtrfsCacheConfig; /* N-072: defined in cr_btrfs_cache.h */
+
 struct BtrfsScanStats {
     u64 files = 0;
     u64 dirs = 0;
@@ -78,6 +80,9 @@ struct BtrfsScanStats {
      * never silently emitted with wrong bytes. */
     u64 unmappable_extents = 0;
     u64 mirror_rotations = 0; /* 2-copy accesses served by the non-first stripe */
+    /* N-072: the re-scan metadata cache (OFF by default - cr_btrfs_cache.h) */
+    u64 cache_hits = 0;   /* chunk map + roots adopted from a valid blob */
+    u64 cache_writes = 0; /* blob persisted for the next scan */
 };
 
 /* One chunk stripe (kernel btrfs_stripe: devid u64, offset u64, uuid[16]). */
@@ -120,7 +125,10 @@ bool validate_superblock(const u8 sb[4096], SuperBlock& out);
 
 u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progress,
                void* progress_user, tree::ResultTree& tree, tree::FullNode* root_active,
-               tree::FullNode* root_deleted, tree::FullNode* root_lost, BtrfsScanStats& stats);
+               tree::FullNode* root_deleted, tree::FullNode* root_lost, BtrfsScanStats& stats,
+               /* N-072: the optional re-scan metadata cache (null/empty dir =
+                * disabled, the default). See cr_btrfs_cache.h. */
+               const BtrfsCacheConfig* cache = nullptr);
 
 /* unix sec+nsec -> 100ns/1601 units: shared fold in cr_types.h
  * (unix_to_filetime_ns; W4 dedup, AUDIT-LINUX-FS DC-13). */

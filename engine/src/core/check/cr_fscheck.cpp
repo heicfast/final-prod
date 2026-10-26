@@ -262,6 +262,20 @@ bool fat_chain(FatCheckCtx& c, u32 start, std::vector<u32>& chain) {
     const u32 cap = u32(c.cluster_count) + 2;
     std::vector<u8> seen(size_t(c.cluster_count) + 2, 0);
     while (true) {
+        /* cross-link (FUN_1800027a0 :1156-1173): entering a cluster the
+         * context's shadow registry (+0x60) already holds — a previous
+         * chain's traversal — reports 0x1002 with the cluster as param.
+         * The walk continues (the og loops on; only the host callback's
+         * stop-decision ends it, and our `visited` array is exactly the
+         * registry's "already claimed" signal). */
+        if (c.visited.size() == cap && c.visited[size_t(cur)] && !c.stop) {
+            CheckIssue is;
+            is.code = CHK_DUPLICATE_ALLOC; /* 0x1002 (the FAT dir-walk form) */
+            is.param = cur;
+            emit(std::move(is), c.cb, *c.rep, c.stop);
+            if (c.stop)
+                return false; /* the og's callback-stop ends the walk */
+        }
         if (seen[size_t(cur)])
             return false; /* cycle */
         seen[size_t(cur)] = 1;

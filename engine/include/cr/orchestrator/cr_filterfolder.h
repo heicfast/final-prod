@@ -43,7 +43,8 @@ namespace cr {
 namespace filterfolder {
 
 /* generated data (cr_filterfolder_data.cpp, scripts/gen_filterfolder.py):
- * semicolon-delimited UTF-8 pools, the og's entry order. Counts are
+ * semicolon-delimited UTF-8 pools, the og's entry order, each pool
+ * NUL-terminated (the consumer reads them as C strings). Counts are
  * pinned by the FilterFolder tests (regeneration-drift guard). */
 namespace data {
 extern const u8 kFolderPool[];
