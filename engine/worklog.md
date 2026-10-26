@@ -12297,3 +12297,36 @@ Stage Summary:
   I-011 path updated.
 - No code change (INFORMATIONAL safety-hardening rule; deliberate divergences
   preserved with pin tests).
+---
+Task ID: DFX26-T0 (session 26 bootstrap — lane claim; re-stamped 24→25→26,
+ two same-window squats absorbed — DFX24 MAJOR lane + DFX25 INFO lane)
+Agent: main engineer (diff-to-fix fix session 26 — DFX26)
+Task: Session bootstrap + lane claim BEFORE any finding work (protocol).
+
+Work Log:
+- Baseline: HEAD `354c555` (DFX23's claim commit, fetched and pulled —
+  the DFX23 lane claimed the MINOR tier front-first 30s before this
+  session's clone; the parallel DFX24 lane claimed the MAJOR tier and
+  the DFX25 lane closed the INFO tier in the same window). This lane
+  re-stamps to DFX26 and works the MINOR queue from the REAR
+  (converging toward DFX23's front-first progress; ALREADY-FIXED
+  classification on collision).
+- Baseline suite executed green FIRST-HAND at the claim tree:
+  linux-release **737/737** (incl. win_syntax_check + cr_ui_abi_check).
+- Session prompt saved token-redacted: worklog/session-diff-fix-26-prompt.md.
+- Mandate per prompt: MINOR-first queue, 20+ fix target, fixed findings
+  moved to findings/FIXED/, all docs/counts/matrices current after each
+  landing.
+- Lane claim (rear-first on the MINOR tier DFX23 works front-first):
+  N-075, N-019, N-050, N-033, N-072, N-066, N-065, N-059, N-049,
+  N-036, N-031, then the win-layer/crypto-heavy N-064/N-071/N-032,
+  then anything left unclaimed after the parallel lanes drain.
+- One finding, one verified fix, one push throughout. Pull before every
+  finding; ALREADY-FIXED classification for anything a parallel lane
+  landed first.
+
+Stage Summary:
+- Session 26 open. Baseline 737/737 green at `354c555`. Rear-first
+  MINOR queue claimed. First fix: N-075 (event-bus query signals —
+  the finding's own "cheapest honest close": busy/stopping query
+  exports + the pull-progress PARITY-DELTAS registration).
