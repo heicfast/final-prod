@@ -161,9 +161,60 @@ struct ScanCtx {
     }
 };
 
+/* M-025: the window-aware read view. The og's validators run against the
+ * ping-pong buffer's resident bytes (RAWSearchDLL :9434-9438 fills the
+ * back half, :9496 serves candidate headers from it); the core's
+ * stateless validators re-read their probe blocks through the device.
+ * This view serves any read intersecting the ALREADY-SCANNED window
+ * [base, base+want) from the in-memory buffer and falls through to the
+ * device for the rest (a read crossing the window's end copies the
+ * in-window prefix and reads only the tail). Validators keep their
+ * IStorageDevice contract - the window rides underneath the validator,
+ * the M-051 checksum, the small-file hash, the tail walk, and the
+ * M-021 post-processor feed alike. */
+class WindowView final : public IStorageDevice {
+public:
+    WindowView(IStorageDevice& dev, const u8* win, u64 base, u64 len)
+        : dev_(&dev), win_(win), base_(base), len_(len) {}
+
+    u32 read_at(u64 off, void* buffer, u32 length) override {
+        if (length == 0)
+            return OK;
+        const u64 lo = off > base_ ? off : base_;
+        const u64 hi = off + length < base_ + len_ ? off + length : base_ + len_;
+        if (lo >= hi)
+            return dev_->read_at(off, buffer, length); /* no window overlap */
+        u8* out = static_cast<u8*>(buffer);
+        if (off < lo) { /* the head before the window */
+            const u32 rc = dev_->read_at(off, out, u32(lo - off));
+            if (rc != OK)
+                return rc;
+        }
+        std::memcpy(out + (lo - off), win_ + (lo - base_), size_t(hi - lo));
+        if (hi < off + length) { /* the tail after the window */
+            const u32 rc = dev_->read_at(hi, out + (hi - off), u32(off + length - hi));
+            if (rc != OK)
+                return rc;
+        }
+        return OK;
+    }
+    const Geometry& geometry() const override { return dev_->geometry(); }
+    u64 absolute_base() const override { return dev_->absolute_base(); }
+
+private:
+    IStorageDevice* dev_;
+    const u8* win_;
+    u64 base_, len_;
+};
+
 /* Scan ONE window [base, base+want) fully (magic dispatch, validation,
  * dedup, emit). Returns OK, or ERR_CANCELLED when aborted mid-way. */
 u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u64>& emitted_at) {
+    /* M-025: every device read below (validator probes, the M-051 checksum,
+     * the small-file hash, the tail walk, the post-processor feed) goes
+     * through the window view - bytes already in the scan window are never
+     * re-read from the device. */
+    WindowView view(*ctx.slice, win, base, want);
     for (u64 off = 0; off + 12 <= want; ++off) {
         if (ctx.aborted.load(std::memory_order_relaxed))
             return ERR_CANCELLED;
@@ -217,7 +268,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
              * into best_sig (N-070) - the winner is emitted after the
              * loop. Position-resolution breaks (already-emitted here, F9
              * dedup) still exit the trial loop immediately. */
-            CarveResult cr = sig.validator(ctx.slice, cand_abs, sig.max_size);
+            CarveResult cr = sig.validator(&view, cand_abs, sig.max_size); /* M-025 */
             if (!cr.ok) {
                 ctx.rejected.fetch_add(1, std::memory_order_relaxed);
                 continue;
@@ -312,7 +363,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             {
                 u8 hdr[512];
                 const u32 hb = u32(file_len < sizeof(hdr) ? file_len : sizeof(hdr));
-                if (hb != 0 && ctx.slice->read_at(cand_abs, hdr, hb) == OK)
+                if (hb != 0 && view.read_at(cand_abs, hdr, hb) == OK) /* M-025 */
                     props->carve_checksum = table::crc32(hdr, hb);
             }
             if (props->carve_confidence > 1000)
@@ -326,7 +377,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             if (ctx.flags->hash_small_files && file_len <= ctx.flags->hash_threshold &&
                 file_len <= MAX_FILE_READ_FOR_HASH) {
                 std::vector<u8> content((size_t(file_len)));
-                if (ctx.slice->read_at(cand_abs, content.data(), u32(file_len)) == OK) {
+                if (view.read_at(cand_abs, content.data(), u32(file_len)) == OK) { /* M-025 */
                     u8 full[32];
                     crypto::Sha256::digest(content.data(), size_t(file_len), full);
                     std::memcpy(props->sha128, full, 16);
@@ -347,7 +398,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 ci.offset = cand_abs;
                 ci.length = file_len;
                 ci.confidence = props->carve_confidence;
-                ctx.flags->post_processor->on_candidate(ctx.slice, ci);
+                ctx.flags->post_processor->on_candidate(&view, ci); /* M-025 */
             }
             tree::FileNode* n = ctx.tree->add_file(ctx.carve_root, props);
             props->release();
@@ -516,8 +567,8 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                                                  ? avail_max
                                                  : chunk_want + rawsigns::kMaxSignBytes;
                         u8* buf = tail_buf.data();
-                        if (ctx.slice->read_at(start_abs + lo + scanned, buf, u32(read_len)) ==
-                            OK) {
+                        if (view.read_at(start_abs + lo + scanned, buf, u32(read_len)) ==
+                            OK) { /* M-025 */
                             if (idx.scan_tail_for_format(buf, read_len, best->fmt, th)) {
                                 len = lo + scanned + th.pos + 512;
                                 /* M-051: anchor B = the tail sign's exact position
@@ -599,7 +650,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             {
                 u8 hdr[512];
                 const u32 hb = u32(len < sizeof(hdr) ? len : sizeof(hdr));
-                if (hb != 0 && ctx.slice->read_at(start_abs, hdr, hb) == OK)
+                if (hb != 0 && view.read_at(start_abs, hdr, hb) == OK) /* M-025 */
                     props->carve_checksum = table::crc32(hdr, hb);
             }
             props->carve_anchor_b = tail_off;
@@ -611,7 +662,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             if (ctx.flags->hash_small_files && len <= ctx.flags->hash_threshold &&
                 len <= MAX_FILE_READ_FOR_HASH) {
                 std::vector<u8> content((size_t(len)));
-                if (ctx.slice->read_at(start_abs, content.data(), u32(len)) == OK) {
+                if (view.read_at(start_abs, content.data(), u32(len)) == OK) { /* M-025 */
                     u8 full[32];
                     crypto::Sha256::digest(content.data(), size_t(len), full);
                     std::memcpy(props->sha128, full, 16);
@@ -629,7 +680,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 ci.offset = start_abs;
                 ci.length = len;
                 ci.confidence = props->carve_confidence;
-                ctx.flags->post_processor->on_candidate(ctx.slice, ci);
+                ctx.flags->post_processor->on_candidate(&view, ci); /* M-025 */
             }
             tree::FileNode* n = ctx.tree->add_file(ctx.carve_root, props);
             props->release();

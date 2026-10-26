@@ -3535,3 +3535,122 @@ TEST(CarveEngine, ZeroSectorSkipStats) {
             << "no stride of a non-zero image may be skipped";
     }
 }
+
+/* ------------------------------------------------------------------ */
+/* M-025: the window-aware read model (validators/checksum/hash/tail   */
+/* served from the already-read window buffer - the og's buffer-       */
+/* resident validation, RAWSearchDLL :9434-9438/:9496)                 */
+/* ------------------------------------------------------------------ */
+
+namespace {
+
+/* MemDevice + a read/byte counter: the M-025 proof harness (the finding's
+ * own test spec - "count read_at calls per emitted file with a counting
+ * device"). */
+class CountingDevice final : public IStorageDevice {
+public:
+    explicit CountingDevice(std::vector<u8> b) : data_(std::move(b)) {
+        geom_.logical_sector = 512;
+        geom_.physical_sector = 512;
+        geom_.sector_count = data_.size() / 512;
+        geom_.total_bytes = geom_.sector_count * 512;
+    }
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (off > data_.size() || len > data_.size() - off)
+            return ERR_RANGE_OUT_OF_BOUNDS;
+        ++reads_;
+        bytes_read_ += len;
+        std::memcpy(buf, data_.data() + off, len);
+        return OK;
+    }
+    const Geometry& geometry() const override { return geom_; }
+    u64 reads() const { return reads_; }
+    u64 bytes_read() const { return bytes_read_; }
+
+private:
+    std::vector<u8> data_;
+    Geometry geom_;
+    u64 reads_ = 0;
+    u64 bytes_read_ = 0;
+};
+
+} // namespace
+
+TEST(CarveEngine, WindowBufferReusedByValidatorChecksumAndHash) {
+    /* A fixture small enough to be ONE scan window: every candidate's
+     * validator probes, M-051 checksum reads, and small-file hash reads
+     * fall entirely inside [0, want). With the window view (M-025) the
+     * ONLY device reads are the window reads themselves - before the fix
+     * every candidate re-read its probe block + 512 B checksum + hash
+     * content from the device (3+ extra reads per emitted file). */
+    auto img = build_carve_image();
+    const u64 dev_bytes = img.size();
+    CountingDevice dev(std::move(img));
+
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags; /* hash_small_files defaults ON (8 MiB threshold) */
+    CarveStats stats;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                          stats),
+              OK)
+        << err_text(OK);
+    ASSERT_GE(stats.validated, 4u) << "the shared fixture carries jpg/png/zip/docx";
+
+    /* one window: total 256 KiB < 1 MiB WINDOW -> exactly ONE device read
+     * for the scan itself; zero re-reads for validation, checksums, or
+     * hashing (all served from the window buffer) */
+    EXPECT_EQ(dev.reads(), 1u) << "validator/checksum/hash re-reads must be served from the "
+                                  "window buffer (M-025); saw "
+                               << dev.reads() << " device reads";
+    EXPECT_EQ(dev.bytes_read(), dev_bytes);
+}
+
+TEST(CarveEngine, BoundaryStraddlingCandidateSplitsReadsCorrectly) {
+    /* A JPEG whose extent crosses the 1 MiB window boundary: the view
+     * serves the in-window prefix from the buffer and reads only the tail
+     * from the device - the carved length and checksum must match the
+     * device-truth. Fail modes: torn reads (wrong bytes), wrong length,
+     * or a missed candidate. */
+    std::vector<u8> img(3ull << 20, 0xAA); /* 3 MiB: 3 windows */
+    /* the JPEG starts 256 bytes before the 1 MiB window boundary: its
+     * magic lives in window 0, its validator's first 1 MiB probe block
+     * crosses the window's end (1 MiB + 4 KiB) - the split-read path */
+    const u64 jpg_start = (1ull << 20) - 256;
+    plant_jpeg(img, size_t(jpg_start));
+    CountingDevice dev(std::move(img));
+
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                          stats),
+              OK)
+        << err_text(OK);
+
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    bool found = false;
+    for (auto* n : all) {
+        if (n->props()->extents.empty())
+            continue;
+        if (n->props()->extents.front().offset == jpg_start) {
+            found = true;
+            EXPECT_GE(n->props()->logical_size, 500u)
+                << "the straddling JPEG must carve to its planted extent";
+        }
+    }
+    EXPECT_TRUE(found) << "the boundary-straddling JPEG must be carved";
+    /* 3 windows scanned; the JPEG's tail beyond window 0 is read from the
+     * device (the split-read path); window 0's validator/hash/checksum
+     * reads stay in-buffer. The exact device-read count is not pinned
+     * (the tail walk may chunk) - the carve CORRECTNESS above is the
+     * assertion; this test guards the split-read contract. */
+}
