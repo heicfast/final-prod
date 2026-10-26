@@ -220,3 +220,23 @@ Function-map additions (per-engine-function-map.md, first-cited): `CFATQuickSear
 threaded quick scan is REGISTERED (PARITY-DELTAS D-30x — not a new finding); `Fat32CalcPartition`
 scorer-class evidence appended to M-017. The `FATFilterName` ini runtime-filter surface belongs
 to M-024's family (no separate finding).
+
+---
+
+## Session-35 verdict update (M-052 FIXED, 2026-10-26)
+
+**Recycle-bin $I/$R pairing — `M-052` FIXED.** The FAT walk recognizes
+the og's four bin roots (_stricmp set verified first-hand,
+FATSearchDLL :1668-1677: Recycler / Recycled / $Recycle.Bin /
+$RECYCLE.BI0) and threads the bin context through the whole subtree.
+In-bin $I<token> files: the v1/v2 record image is read from the chain
+and the original name/size/deletion-FILETIME remembered — the metadata
+file never surfaces. In-bin $R<token> files: emitted under the
+ORIGINAL name with the $I's size/time, forced Deleted (the dentry
+stays live in the bin), content extents untouched. The $I may sit
+later in the walk — the post-walk fixup completes the pair (the og
+pairs "across bin subfolders"). Shared model: cr/cr_recycle.h (with
+the exFAT mirror + the NTFS wrappers). New stats recycle_info /
+recycle_remapped. Proof: RecyclePairingRestoresOriginalName +
+RecycleLegacyRoots + NonRecycleDollarFilesStayRaw (fail-before
+EXECUTED). B4/B5/D11 verdict: MATCH.

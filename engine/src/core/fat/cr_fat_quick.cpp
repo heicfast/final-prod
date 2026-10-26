@@ -7,8 +7,10 @@
  */
 
 #include "cr/fat/cr_fat_engine.h"
+#include "cr/cr_recycle.h" /* M-052: shared $I/$R pairing model */
 
 #include <cstring>
+#include <map>
 #include <set>
 
 namespace cr {
@@ -75,6 +77,16 @@ struct EmitCtx {
     std::set<u64> visited_dirs; /* cycle guard for dir recursion */
     int depth = 0;
     constexpr static int MAX_DEPTH = 64;
+    /* M-052: the recycle-bin pairing state. $I metadata seen during the
+     * walk (token -> info) + $R nodes waiting for a $I that may sit later
+     * in the walk (the bin subfolder's entry order is directory order,
+     * not pair order). The post-walk fixup in scan_fat completes them. */
+    std::map<std::u16string, recycle::Info> recycle_info;
+    struct PendingRecycleR {
+        tree::FileNode* node; /* arena-stable; props mutated post-walk */
+        std::u16string token;
+    };
+    std::vector<PendingRecycleR> pending_recycle_r;
 };
 
 tree::Confidence grade_deleted_chain(const ChainResult& chain, u32 expect_clusters) {
@@ -90,12 +102,13 @@ tree::Confidence grade_deleted_chain(const ChainResult& chain, u32 expect_cluste
 }
 
 void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, bool deleted,
-                tree::FileNode* parent_host, tree::FullNode* deleted_root);
+                tree::FileNode* parent_host, tree::FullNode* deleted_root, bool in_bin);
 
 void walk_dir_entries(EmitCtx& ctx, const DirBuffer& buf, tree::FileNode* host,
-                      tree::FullNode* deleted_host);
+                      tree::FullNode* deleted_host, bool in_bin);
 
-void recurse_dir(EmitCtx& ctx, u32 first_cluster, tree::FileNode* host_node, bool deleted) {
+void recurse_dir(EmitCtx& ctx, u32 first_cluster, tree::FileNode* host_node, bool deleted,
+                 bool in_bin) {
     if (ctx.depth >= EmitCtx::MAX_DEPTH)
         return;
     /* visited-dir cycle guard: use first cluster as identity */
@@ -109,13 +122,13 @@ void recurse_dir(EmitCtx& ctx, u32 first_cluster, tree::FileNode* host_node, boo
     DirBuffer d = read_dir_chain(ctx.dev, ctx.p, *ctx.table, first_cluster, 4u << 20, ctx.cancel);
     if (d.valid) {
         /* '.' self-entry check (corpus): confirms real directory content */
-        walk_dir_entries(ctx, d, host_node, deleted ? ctx.root_lost : nullptr);
+        walk_dir_entries(ctx, d, host_node, deleted ? ctx.root_lost : nullptr, in_bin);
     }
     --ctx.depth;
 }
 
 void walk_dir_entries(EmitCtx& ctx, const DirBuffer& buf, tree::FileNode* host,
-                      tree::FullNode* deleted_host) {
+                      tree::FullNode* deleted_host, bool in_bin) {
     if (!buf.valid || buf.data.empty())
         return;
     /* pause-aware gate + cancel poll per directory (G-07) */
@@ -231,14 +244,14 @@ void walk_dir_entries(EmitCtx& ctx, const DirBuffer& buf, tree::FileNode* host,
             }
         }
 
-        emit_entry(ctx, *e, name, deleted, host, deleted_host);
+        emit_entry(ctx, *e, name, deleted, host, deleted_host, in_bin);
     }
     if (ctx.progress && count)
         (void)ctx.progress(ctx.dentries_done, ctx.dentries_done, ctx.progress_user);
 }
 
 void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, bool deleted,
-                tree::FileNode* parent_host, tree::FullNode* deleted_root) {
+                tree::FileNode* parent_host, tree::FullNode* deleted_root, bool in_bin) {
     const u32 first_cluster = (u32(e.first_cluster_high) << 16) | e.first_cluster_low;
     const bool is_dir = (e.attributes & ATTR_DIRECTORY) != 0;
     const u32 expect_clusters = u32((e.file_size + ctx.p.cluster_bytes - 1) / ctx.p.cluster_bytes);
@@ -272,6 +285,52 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
     }
     if (chain.cancelled)
         return; /* unwinding mid-chain: no partial emission */
+
+    /* M-052: recycle-bin pairing inside the recognized bin roots (the
+     * og's four-name _stricmp set, FATSearchDLL :1668-1677). $I<token>
+     * is bin metadata: parse its content stream, remember the original
+     * name/size/time, and NEVER surface it as a result. $R<token> is
+     * the content: it surfaces under its ORIGINAL name with the $I's
+     * size/time, marked Deleted (the file was deleted from the user's
+     * location; the dentry stays live inside the bin). Out-of-bin
+     * $I/$R-named files are ordinary content (no special casing). */
+    if (in_bin && !is_dir) {
+        const std::u16string tok = recycle::token_of(name);
+        if (!tok.empty()) {
+            if (name[1] == u'I') {
+                /* read the $I record image from the chain (bounded: the
+                 * v1 maximum is 28 + 2*1024 bytes; v2 is 544 fixed) */
+                std::vector<u8> img;
+                u64 want = e.file_size < 2076 ? e.file_size : 2076;
+                if (want >= 30) {
+                    img.resize(size_t(want), 0);
+                    u64 got = 0;
+                    size_t k = 0;
+                    while (k < chain.clusters.size() && got < want) {
+                        const u64 off =
+                            FatTable::cluster_offset(ctx.p, chain.clusters[k]);
+                        const u64 take =
+                            std::min<u64>(std::min<u64>(want - got, ctx.p.cluster_bytes),
+                                          img.size() - got);
+                        if (ctx.dev->read_at(off, img.data() + got, u32(take)) != OK)
+                            break;
+                        got += take;
+                        ++k;
+                    }
+                    recycle::Info ri;
+                    if (got >= 30 && recycle::parse_record(img.data(), u32(got), ri)) {
+                        ctx.recycle_info[tok] = ri;
+                        ++ctx.stats->recycle_info;
+                    }
+                }
+                return; /* bin metadata, not recoverable content */
+            }
+            /* $R: emitted below with the remap applied when the $I was
+             * already seen; otherwise queued for the post-walk fixup
+             * (the $I may sit later in the directory or in a sibling
+             * subfolder - the og pairs "across bin subfolders") */
+        }
+    }
 
     tree::FileProperties* props = new (std::nothrow) tree::FileProperties();
     if (props == nullptr)
@@ -328,6 +387,26 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
     if (n == nullptr)
         return;
     n->set_origin(tree::Origin::Structured);
+    /* M-052: $R recycle remap - the ORIGINAL name/size/time from the $I
+     * sibling (the $R dentry itself stays live inside the bin - it was
+     * deleted from the user's location, so the node is Deleted) */
+    bool recycle_remapped = false;
+    if (in_bin && !is_dir) {
+        const std::u16string tok = recycle::token_of(name);
+        if (!tok.empty() && name[1] == u'R') {
+            auto it = ctx.recycle_info.find(tok);
+            if (it != ctx.recycle_info.end()) {
+                props->name = it->second.orig_name;
+                if (it->second.size != 0)
+                    props->logical_size = it->second.size;
+                props->times.modified = it->second.time;
+                recycle_remapped = true;
+                ++ctx.stats->recycle_remapped;
+            } else {
+                ctx.pending_recycle_r.push_back({n, tok});
+            }
+        }
+    }
     if (deleted) {
         ++ctx.stats->deleted_entries;
         n->set_deleted_state(tree::DeletedState::Deleted);
@@ -345,6 +424,11 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
         n->set_confidence(g);
     } else {
         n->set_confidence(tree::Confidence::Excellent);
+        if (recycle_remapped) {
+            /* recycle-bin content: the dentry is live inside the bin,
+             * but the file was deleted from the user's location */
+            n->set_deleted_state(tree::DeletedState::Deleted);
+        }
     }
     if (is_dir)
         ++ctx.stats->dirs;
@@ -354,9 +438,11 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
     if (chain.broken)
         ++ctx.stats->chains_broken;
 
-    /* recurse into subdirectories (both live and deleted trees) */
+    /* recurse into subdirectories (both live and deleted trees); a bin
+     * root turns the recycle context on for the whole subtree (M-052) */
     if (is_dir && first_cluster >= 2) {
-        recurse_dir(ctx, first_cluster, n, deleted);
+        const bool child_in_bin = in_bin || recycle::is_bin_root(name);
+        recurse_dir(ctx, first_cluster, n, deleted, child_in_bin);
     }
 }
 
@@ -468,13 +554,13 @@ u32 scan_fat(IStorageDevice* slice, const FatScanFlags& flags, CancelToken* canc
         if (slice->read_at(p.root_dir_offset, root.data.data(), u32(len)) != OK)
             return ERR_READ_FAILED;
         root.valid = true;
-        walk_dir_entries(ctx, root, root_active, root_deleted);
+        walk_dir_entries(ctx, root, root_active, root_deleted, false);
         if (ctx.cancel && ctx.cancel->checkpoint())
             return ERR_CANCELLED;
     } else {
         if (p.root_cluster < 2 || p.root_cluster > table.max_cluster())
             return ERR_BAD_PARAMETER;
-        recurse_dir(ctx, p.root_cluster, nullptr, false);
+        recurse_dir(ctx, p.root_cluster, nullptr, false, false);
         /* recurse_dir inserted the root cluster into visited_dirs; children
          * of the volume root attach under root_active directly */
         if (ctx.cancel && ctx.cancel->checkpoint())
@@ -482,6 +568,27 @@ u32 scan_fat(IStorageDevice* slice, const FatScanFlags& flags, CancelToken* canc
     }
     if (progress)
         (void)progress(1, 1, progress_user);
+
+    /* M-052 post-walk fixup: $R files emitted raw during the walk whose
+     * $I sat later in the walk order. Nodes are arena-stable; mutating
+     * props through the node is safe post-emission (the tree's indexes
+     * key on record_ref/extent, never name). Orphan $R files (missing or
+     * unparseable $I) keep their raw bin name - same as the og. */
+    for (const auto& pr : ctx.pending_recycle_r) {
+        auto it = ctx.recycle_info.find(pr.token);
+        if (it == ctx.recycle_info.end())
+            continue;
+        tree::FileProperties* fp = pr.node->props();
+        if (fp == nullptr)
+            continue;
+        fp->name = it->second.orig_name;
+        if (it->second.size != 0)
+            fp->logical_size = it->second.size;
+        fp->times.modified = it->second.time;
+        pr.node->set_deleted_state(tree::DeletedState::Deleted);
+        ++stats.recycle_remapped;
+    }
+
     return OK;
 }
 

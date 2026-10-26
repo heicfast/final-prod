@@ -6,7 +6,7 @@
  *   scan --disk N | --volume C: [--whole-disk] [--quick-only] [--no-carve]
  *         [--threads N] [--out file.crsf] [--resume file.crsf] [--json]
  *         [--log file] [--csv] [--filter s] [--deleted-only]
- *         [--bitlocker-fvek hex] [--bitlocker-dict [file]]
+ *          *         [--bitlocker-fvek hex] [--bitlocker-dict [file]]
  *   tree --in file.crsf [--filter substr] [--deleted-only] [--csv] [--json]
  *   recover --in file.crsf --disk N --to DIR [--deleted-only] [--filter s]
  *         [--report file.json]
@@ -400,6 +400,12 @@ bool load_dict_candidates(const std::wstring& path, std::vector<std::string>& ou
     return true;
 }
 
+/* N-064: open_volume_view carries the ONE consented dictionary surface:
+ * --bitlocker-dict (bare = the shipped 228-entry table; with a file
+ * value = the user's og-format dictionary) - the og's user-initiated
+ * unlock action. It never fires without the flag (F61). */
+bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_hex,
+                      bool dict_consent, const std::vector<std::string>& dict_user) {
 bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_hex,
                        bool dict_consent, const std::vector<std::string>& dict_user) {
     std::vector<u8> fvek;
@@ -410,6 +416,12 @@ bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_
         return false;
     }
     const win::bitlocker::Status bst = win::bitlocker::status(letter);
+    /* N-064's Unknown-state design point (the convergent landing's, kept):
+     * a boot-unreadable volume (typical: a LOCKED volume denying \\.\X:
+     * reads) with the explicit dictionary consent gets the attempt BEFORE
+     * the FB-B01 refusal - a locked volume denying reads is exactly the
+     * dictionary aid's target population. Without consent/key: refuse. */
+    if (bst == win::bitlocker::Status::Unknown && !have_key) {
     if (bst == win::bitlocker::Status::Unknown && !have_key) {
         /* Boot sector unreadable: the BitLocker state cannot be determined
          * (typical for a locked volume denying \\.\X: reads). Never scan
@@ -424,22 +436,29 @@ bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_
             wprintf(L"[bitlocker] %c: boot sector unreadable - trying the password "
                     L"dictionary...\n",
                     letter);
-            if (win::bitlocker::unlock_with_dictionary(letter, dict_user) == OK) {
-                wprintf(L"[bitlocker] dictionary-unlocked\n");
-            } else {
+            if (win::bitlocker::unlock_with_dictionary(letter, dict_user) != OK) {
                 wprintf(L"[bitlocker] still locked. Unlock with:\n"
                         L"  Unlock-BitLocker -MountPoint %c: -RecoveryPassword <key>\n"
+                        L"or re-run with --bitlocker-fvek <hex> (the in-stack decrypt path),\n"
+                        L"or --bitlocker-dict [file] (the consented password-dictionary unlock).\n",
+                        letter);
+                return false;
+            }
+            wprintf(L"[bitlocker] dictionary-unlocked\n");
                         L"or re-run with --bitlocker-fvek <hex> (the in-stack decrypt path).\n",
                         letter);
                 return false;
             }
         } else {
-            wprintf(L"[bitlocker] %c: boot sector unreadable - cannot determine BitLocker "
-                    L"state\n"
+            /* Boot sector unreadable: the BitLocker state cannot be determined.
+             * Never scan blind - refuse with the unlock path (FB-B01). With a
+             * user key the in-stack decrypt path may proceed (M-033): the user
+             * has supplied key material, which is the og's own opt-in. */
+            wprintf(L"[bitlocker] %c: boot sector unreadable - cannot determine BitLocker state\n"
                     L"  (typical for a locked volume). Unlock with:\n"
                     L"  Unlock-BitLocker -MountPoint %c: -RecoveryPassword <key>\n"
                     L"or re-run with --bitlocker-fvek <hex> (the in-stack decrypt path),\n"
-                    L"or --bitlocker-dict to try the shipped password dictionary.\n",
+                    L"or --bitlocker-dict [file] to try a password dictionary.\n",
                     letter, letter);
             return false;
         }
@@ -460,7 +479,8 @@ bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_
             } else {
                 wprintf(L"[bitlocker] dictionary exhausted - still locked. Unlock with:\n"
                         L"  Unlock-BitLocker -MountPoint %c: -RecoveryPassword <key>\n"
-                        L"or re-run with --bitlocker-fvek <hex> (the in-stack decrypt path).\n",
+                        L"or re-run with --bitlocker-fvek <hex> (the in-stack decrypt path),\n"
+                        L"or --bitlocker-dict [file] with a different dictionary.\n",
                         letter);
                 return false;
             }
@@ -468,6 +488,7 @@ bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_
             wprintf(L"[bitlocker] still locked. Unlock with:\n"
                     L"  Unlock-BitLocker -MountPoint %c: -RecoveryPassword <key>\n"
                     L"or re-run with --bitlocker-fvek <hex> (the in-stack decrypt path),\n"
+                    L"or --bitlocker-dict [file] to try a password dictionary.\n",
                     L"or --bitlocker-dict to try the shipped password dictionary.\n",
                     letter);
             return false;
@@ -2275,40 +2296,6 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
 }
 
 } // namespace
-
-/* N-033: render the carve-format enumeration (the cr_ui ABI, \u00a77a) -
- * the CLI/parity-tooling counterpart of the og host's format-config UI
- * built on EUGetAnalyserList/Map/Multimap. Grammar registry rows first
- * (FormatId order), then raw-sign prefilter rows (kFormats order) - the
- * ABI's deterministic append-only order. */
-int print_carve_formats() {
-    const u32 n = cr_ui_carve_format_count();
-    wprintf(L"carve formats: %u (grammar registry first, then raw-sign prefilter)\n", n);
-    wprintf(L"%-4s %-8s %-7s %-16s %-16s %-5s %s\n", L"#", L"layer", L"ext", L"min-bytes",
-            L"max-bytes", L"conf", L"magic (grammar layer)");
-    static const wchar_t kHex[] = L"0123456789abcdef";
-    for (u32 k = 0; k < n; ++k) {
-        cr_ui_carve_format f;
-        if (cr_ui_carve_format_info(k, &f) != 0)
-            break;
-        wchar_t ext[25] = {};
-        for (u32 j = 0; j < 24 && f.ext[j]; ++j)
-            ext[j] = wchar_t(f.ext[j]);
-        wchar_t magic[40] = {};
-        if (f.layer == 0 && f.magic_len != 0) {
-            wchar_t* p = magic;
-            for (u32 j = 0; j < f.magic_len && p + 2 < magic + 39; ++j) {
-                *p++ = kHex[f.magic[j] >> 4];
-                *p++ = kHex[f.magic[j] & 0xF];
-            }
-        }
-        wprintf(L"%-4u %-8s %-7s %-16llu %-16llu %-5u %s\n", k,
-                f.layer == 0 ? L"grammar" : L"raw", ext,
-                static_cast<unsigned long long>(f.min_size),
-                static_cast<unsigned long long>(f.max_size), f.base_confidence, magic);
-    }
-    return 0;
-}
 
 int wmain(int argc, wchar_t** argv) {
     /* Ctrl-C: cooperative cancel of the in-flight scan/recover (the

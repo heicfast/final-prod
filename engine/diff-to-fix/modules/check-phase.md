@@ -64,7 +64,7 @@ through an 8-event host callback contract.
 | P35 error recovery ladder | MATCH (check phase) | audit informs, never gates; boot-repair/WinChkdsk endpoints = M-040 (open) |
 | P42 public surface | MATCH | core config/stats/event + ABI + CLI `--check` |
 
-## Registered deliberate deltas (PARITY-DELTAS D-76)
+## Registered deliberate deltas (PARITY-DELTAS D-87)
 
 1. The og's $Bitmap slack term (checkntfs.cpp :3869-3871,
    CCheckNTFSVolume+0x30) is layout-undecoded — only the firing half
