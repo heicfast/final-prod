@@ -1,0 +1,324 @@
+{
+  "$schema": "contracts/error-codes.schema",
+  "version": 1,
+  "description": "The complete mapping between the engine error numeric space (engine/include/cr/cr_error.h, cr::Err) and the UI connector error vocabulary (ui/src/connector/contract.ts, ConnectorErrorCode). Validate with contracts/validate.mjs. context overrides are keyed by the bridge call-site that can refine a code; 'surface' says where the UI sees it.",
+  "engineSpace": {
+    "header": "engine/include/cr/cr_error.h",
+    "success": 0
+  },
+  "uiVocabulary": "ui/src/connector/contract.ts ConnectorErrorCode",
+  "mappings": [
+    {
+      "code": "ERR_OPEN_FAILED",
+      "value": "0x50020001",
+      "uiCode": "device-permission",
+      "context": {
+        "refinement": "device-gone",
+        "rule": "When the bridge's fresh enumeration no longer lists the device, the bridge surfaces device-gone instead; the engine code alone cannot distinguish."
+      },
+      "surface": "device open during listDevices/startScan/preview/recovery"
+    },
+    {
+      "code": "ERR_READ_FAILED",
+      "value": "0x50020002",
+      "uiCode": "recovery-item-failed",
+      "context": {
+        "refinement": "scan-time reads are NOT errors",
+        "rule": "During scans, read failures arrive as CR_EVT_ERROR_RANGE (badSectorMap) and never as ConnectorError. As a recovery item failure the item row carries it. As a preview read failure: preview-damaged."
+      },
+      "surface": "recovery item / preview"
+    },
+    {
+      "code": "ERR_WRITE_FAILED",
+      "value": "0x50020003",
+      "uiCode": "recovery-item-failed",
+      "surface": "recovery item"
+    },
+    {
+      "code": "ERR_RANGE_OUT_OF_BOUNDS",
+      "value": "0x50020004",
+      "uiCode": "unknown",
+      "context": { "note": "Defensive; indicates a bridge bug if ever seen." },
+      "surface": "any"
+    },
+    {
+      "code": "ERR_CANCELLED",
+      "value": "0x50020005",
+      "uiCode": null,
+      "context": {
+        "rule": "NOT an error: the bridge translates it to scan status 'cancelled' / recovery status 'cancelled' and never throws. The UI's cancel paths resolve, not reject."
+      },
+      "surface": "scan/recovery lifecycle"
+    },
+    {
+      "code": "ERR_RETRY_EXHAUSTED",
+      "value": "0x50020006",
+      "uiCode": "recovery-item-failed",
+      "context": { "note": "Scan-time occurrences are error-range events, not ConnectorErrors." },
+      "surface": "recovery item"
+    },
+    {
+      "code": "ERR_BAD_MAGIC",
+      "value": "0x50030001",
+      "uiCode": "session-corrupt",
+      "context": {
+        "refinement": "session-corrupt only in session-load context",
+        "rule": "session_load on a non-CRSFMT01 container. In image-open context the UI has no surface (the 36 methods never open images)."
+      },
+      "surface": "session load"
+    },
+    {
+      "code": "ERR_BAD_CHECKSUM",
+      "value": "0x50030002",
+      "uiCode": "session-corrupt",
+      "context": { "note": "cr_ui_scan_verify_identity mismatch on resume: the session came from a different volume." },
+      "surface": "session resume"
+    },
+    {
+      "code": "ERR_BAD_PARAMETER",
+      "value": "0x50030003",
+      "uiCode": "scan-scope-invalid",
+      "context": {
+        "refinement": "destination-invalid",
+        "rule": "scan-scope-invalid when the failing parameter was pathScope; destination-invalid when it was a destination path; unknown otherwise (bridge bug)."
+      },
+      "surface": "scan start / destination"
+    },
+    {
+      "code": "ERR_TRUNCATED",
+      "value": "0x50030004",
+      "uiCode": "unknown",
+      "context": { "note": "Buffer-capacity truncation; the bridge sizes buffers via the two-call protocol — seeing this is a bridge bug." },
+      "surface": "any"
+    },
+    {
+      "code": "ERR_FIXUP_FAILED",
+      "value": "0x50030005",
+      "uiCode": "repair-failed",
+      "surface": "pre-scan repair"
+    },
+    {
+      "code": "ERR_CYCLE_LIMIT",
+      "value": "0x50030006",
+      "uiCode": "unknown",
+      "context": { "note": "Engine safety stop; the scan completes with partial results (event/stats surfaces carry the truth); never surfaced as an error dialog." },
+      "surface": "scan (informational)"
+    },
+    {
+      "code": "ERR_DEPTH_LIMIT",
+      "value": "0x50030007",
+      "uiCode": "unknown",
+      "context": { "note": "Same posture as ERR_CYCLE_LIMIT." },
+      "surface": "scan (informational)"
+    },
+    {
+      "code": "ERR_UNSUPPORTED",
+      "value": "0x50030008",
+      "uiCode": "health-unavailable",
+      "context": {
+        "refinement": "preview-unsupported | not-implemented",
+        "rule": "health-unavailable from cr_ui_health_read; preview-unsupported from preview of an unsupported kind; not-implemented only on the three gap methods (dryRunRepair/getUndoLog/undoRepairs) whose surfaces are truthfully disabled (docs/INTEGRATION-GAPS.md G-1)."
+      },
+      "surface": "health / preview / gap methods"
+    },
+    {
+      "code": "ERR_NO_MEMORY",
+      "value": "0x50030009",
+      "uiCode": "unknown",
+      "context": { "note": "Fatal; the bridge logs with cr_ui_last_error text and the UI shows the generic error." },
+      "surface": "any"
+    },
+    {
+      "code": "ERR_SESSION_FORMAT",
+      "value": "0x50040001",
+      "uiCode": "session-corrupt",
+      "surface": "session load"
+    },
+    {
+      "code": "ERR_SESSION_IO",
+      "value": "0x50040002",
+      "uiCode": "session-corrupt",
+      "context": {
+        "refinement": "session-not-found",
+        "rule": "The bridge pre-checks file existence: a missing file is session-not-found (no engine call is made); an I/O failure on an existing file is session-corrupt."
+      },
+      "surface": "session load/save"
+    },
+    {
+      "code": "ERR_SESSION_VERSION",
+      "value": "0x50040003",
+      "uiCode": "session-corrupt",
+      "surface": "session load"
+    },
+    {
+      "code": "ERR_DEST_OVERLAP",
+      "value": "0x50050001",
+      "uiCode": "destination-overlap",
+      "surface": "recovery destination (F12 hard refusal)"
+    },
+    {
+      "code": "ERR_DEST_UNWRITABLE",
+      "value": "0x50050002",
+      "uiCode": "destination-unwritable",
+      "surface": "recovery destination"
+    },
+    {
+      "code": "ERR_HASH_MISMATCH",
+      "value": "0x50050003",
+      "uiCode": "recovery-item-failed",
+      "context": { "note": "Item-level verify failure; the report row carries hash_status='mismatch'; the job completes-partial." },
+      "surface": "recovery item"
+    },
+    {
+      "code": "ERR_DEST_FULL",
+      "value": "0x50050004",
+      "uiCode": "out-of-space",
+      "surface": "recovery (writer fast-fails the remaining queue)"
+    },
+    {
+      "code": "ERR_DEST_NAME_EXHAUSTED",
+      "value": "0x50050005",
+      "uiCode": "recovery-item-failed",
+      "context": { "note": "Rename space exhausted (engine cap): the item FAILS with a truthful reason; no synthesized fallback name." },
+      "surface": "recovery item"
+    },
+    {
+      "code": "ERR_FVE_LOCKED",
+      "value": "0x50060001",
+      "uiCode": "device-permission",
+      "context": {
+        "refinement": "volume status 'locked'",
+        "rule": "During enumeration the volume's status becomes 'locked' (DeviceStatus union member). If a scan is nonetheless started on it, the bridge throws device-permission with detail {bitlocker:true, reasonKey:'errors.volumeLocked'} — the UI's unlock flow (openPath via cr_ui_open_volume_with_key / cr_ui_unlock_volume_with_dictionary consent actions) runs from the volume's status surface."
+      },
+      "surface": "volume enumeration / scan start"
+    },
+    {
+      "code": "ERR_HEALTH_UNAVAILABLE",
+      "value": "0x50070001",
+      "uiCode": "health-unavailable",
+      "surface": "health"
+    },
+    {
+      "code": "ERR_REPAIR_REFUSED",
+      "value": "0x50080001",
+      "uiCode": "repair-failed",
+      "surface": "pre-scan repair"
+    },
+    {
+      "code": "ERR_REPAIR_UNDO_FAILED",
+      "value": "0x50080002",
+      "uiCode": "repair-failed",
+      "surface": "repair undo (CLI-only surface; listed for completeness)"
+    },
+    {
+      "code": "ERR_VOLUME_LOCK_FAILED",
+      "value": "0x50080003",
+      "uiCode": "repair-failed",
+      "context": { "note": "Volume busy, quiesce refused (S-010)." },
+      "surface": "pre-scan repair"
+    },
+    {
+      "code": "ERR_APPLY_CONSENT_DENIED",
+      "value": "0x50080004",
+      "uiCode": "repair-consent-required",
+      "context": { "note": "The consent callback refused (A1). The UI sees repair-consent-required so the About/consent copy explains the denial." },
+      "surface": "lost-partition apply (consent path)"
+    },
+    {
+      "code": "ERR_APPLY_STALE",
+      "value": "0x50080005",
+      "uiCode": "repair-failed",
+      "surface": "lost-partition apply"
+    },
+    {
+      "code": "ERR_APPLY_REFUSED",
+      "value": "0x50080006",
+      "uiCode": "repair-failed",
+      "surface": "lost-partition apply"
+    },
+    {
+      "code": "ERR_APPLY_REFRESH_FAILED",
+      "value": "0x50080007",
+      "uiCode": "repair-failed",
+      "surface": "lost-partition apply"
+    },
+    {
+      "code": "ERR_IMAGE_CORRUPT",
+      "value": "0x500A0001",
+      "uiCode": "unknown",
+      "context": { "note": "No UI surface opens images (the 36 methods never call cr_ui_open_image; it is the ABI-check/test surface). Listed for completeness; mapped for the day a surface exists." },
+      "surface": "image open (unused by the 36)"
+    },
+    {
+      "code": "ERR_INTERNAL",
+      "value": "0x50090001",
+      "uiCode": "unknown",
+      "surface": "any"
+    }
+  ],
+  "bridgeOnlyCodes": [
+    {
+      "uiCode": "scan-not-found",
+      "cause": "scanId not in the bridge registry (unknown or closed id)"
+    },
+    {
+      "uiCode": "session-not-found",
+      "cause": "session file missing on load (bridge pre-check; engine never sees it)"
+    },
+    {
+      "uiCode": "scan-not-running",
+      "cause": "pause/resume/cancel called on a scan that is not running (contract parity with the mock's token misuse errors)"
+    },
+    {
+      "uiCode": "scan-not-paused",
+      "cause": "resume called on a scan that is not paused"
+    },
+    {
+      "uiCode": "scan-scope-invalid",
+      "cause": "pathScope failed the bridge's validity check (absolute path under the target volume; null/omitted = whole volume)"
+    },
+    {
+      "uiCode": "destination-invalid",
+      "cause": "destination path is not under a mount point / is malformed (bridge-side; engine backstops with 0x50030003/0x5005000x)"
+    },
+    {
+      "uiCode": "device-gone",
+      "cause": "device absent from fresh enumeration (engine transport would give 0x50020001; the bridge refines)"
+    },
+    {
+      "uiCode": "preview-too-large",
+      "cause": "preview request exceeds the bridge payload bound (image dataUrl assembly cap; hex reads are capped at 64 KiB per the bounded-payload principle ADR-003)"
+    },
+    {
+      "uiCode": "preview-timeout",
+      "cause": "bounded metadata/read exceeded the bridge time budget (defensive; the engine itself is non-blocking)"
+    },
+    {
+      "uiCode": "preview-missing-data",
+      "cause": "node has no readable content (metadata-only row; e.g. metadata-only items the writer skips)"
+    },
+    {
+      "uiCode": "preview-unsupported",
+      "cause": "engine metadata kind == 'unsupported' (cr_ui_metadata.kind): the engine truthfully declines the preview; metadata is still shown. Engine source: ERR_UNSUPPORTED refinement."
+    },
+    {
+      "uiCode": "preview-encrypted",
+      "cause": "encrypted-class file (engine metadata kind/extension classification): rendered preview refused, metadata shown"
+    },
+    {
+      "uiCode": "preview-damaged",
+      "cause": "preview_unreadable reported zero-filled spans; the payload carries the truth (bounded hex/text with damaged ranges noted)"
+    },
+    {
+      "uiCode": "not-implemented",
+      "cause": "EXACTLY the three gap methods (dryRunRepair, getUndoLog, undoRepairs) — truthful disabled surfaces per docs/INTEGRATION-GAPS.md G-1; no other method may throw it"
+    }
+  ],
+  "uiCodesWithNoEngineSource": [],
+  "invariants": [
+    "Every cr::Err value in engine/include/cr/cr_error.h has exactly one mapping row (context refinements recorded in-row).",
+    "ERR_CANCELLED never reaches the UI as an error.",
+    "Every ConnectorErrorCode in ui/src/connector/contract.ts is either mapped from an engine code or listed in bridgeOnlyCodes with a cause.",
+    "The bridge passes the engine code numerically in ConnectorError.detail.code; the UI renders reasonKey strings only (never string-matches messages)."
+  ]
+}
