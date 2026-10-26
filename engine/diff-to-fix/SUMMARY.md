@@ -426,6 +426,26 @@ runners disable LSan (ptrace), so main stays green in CI.
 FIXED 150 findings. Next on this lane: M-052 (FAT/exFAT recycle-bin
 pairing — the NTFS implementation generalizes) → M-020 (Btrfs chunk
 profiles) → M-035 (lost-partition content validation).
+**A-008 NEW-FINDING (ACUTE) filed + FIXED (OQ-Z1's ACUTE gate was real):**
+the ZFS dsl_dir child zap was read from bonus **+24 — the dd_origin_obj
+slot**; kernel (OpenZFS master dsl_dir.h, fetched verbatim) puts
+dd_child_dir_zapobj at **+32**. On normal pools (origin=0) **no child
+dataset ever enumerated** — every `zfs create` under the pool silently
+missing from results; on clones the origin was followed as a child zap
+(ghost datasets — the clone-shape failure mode PROVEN in the executed
+fail-before, not inferred). The og-side decode this session
+(ZfsSearchDLL :20313-20788) is kernel-exact end-to-end: 256B dsl_dir bonus
+copy / 320B dsl_dataset copy, head-dataset hop @+8, ds_bp@+128, child-zap
+walk skipping `$FREE`/`$ORIGIN` — core==og==kernel after the fix. The
+session-6 refinement's "kernel-correct on all three constants" claim
+corrected in the OQ file (it repeated the engine comment's mis-transcribed
+field list, which dropped dd_parent_obj); the test fixture was
+self-confirming (stamped the same wrong offset) — de-self-referenced now.
+Proof: fail-before RED 3/3 (`Zfs.EndToEndWalk`, `Zfs.ChildDirZapReadsKernelOffset32`,
+`Zfs.OriginObjNotTreatedAsChildZap`), pass-after 16/16 Zfs, **suite
+739/739**. `restamp_zpl_array` extended for the shared-ZPL second dataset.
+OQ-Z1 RESOLVED (tracked-open 11 → the OQ-Z-E-FLT file carries the
+resolution; its Z2..Z5/E1/FLT residues stay open).
 
 ## Session-23 delta, batch 4 (2026-10-26 — DFX29: N-050 — the two-stage recognition contract)
 
