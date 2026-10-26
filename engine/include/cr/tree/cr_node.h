@@ -310,16 +310,6 @@ public:
     /* Move a node to a new parent (link surgery is tree-internal). */
     void reparent(FileNode* node, FileNode* new_parent);
 
-    /* S-034: unlink a NON-ROOT node (and its subtree) from its parent's
-     * child chain and destroy it. The deleted-view prune: containers
-     * created for the ZFS ring-history walk that ended up with no
-     * emitted children (live-dir shadows). Same index/nodes_ discipline
-     * as detach_subtree (hard-link-safe index erasure, arena bytes
-     * reserved); the parent's first/last-child pointers are fixed up so
-     * sibling iteration never sees the removed node. Scan-thread only
-     * (single writer, same handoff discipline as add_file). */
-    void remove_subtree(FileNode* node);
-
     /* M-035: detach a root's subtree from the tree - the rejected-candidate
      * mechanism (the og's engine-side scorer drops a content-inconsistent
      * lost candidate's results entirely; ours walks first, then scores, so

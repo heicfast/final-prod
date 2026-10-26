@@ -346,68 +346,6 @@ void ResultTree::reparent(FileNode* node, FileNode* new_parent) {
     }
 }
 
-void ResultTree::remove_subtree(FileNode* node) {
-    if (node == nullptr || node->parent_ == nullptr)
-        return; /* roots go through detach_subtree, not here */
-    std::lock_guard<std::mutex> lock(mutex_);
-    /* collect the subtree (iterative DFS, detach_subtree discipline) */
-    std::vector<FileNode*> sub;
-    sub.push_back(node);
-    for (size_t i = 0; i < sub.size(); ++i) {
-        for (FileNode* c = sub[i]->first_child_; c != nullptr; c = c->next_sibling_)
-            sub.push_back(c);
-    }
-    std::unordered_set<FileNode*> dead(sub.begin(), sub.end());
-    /* index erasure: only entries this subtree owns (hard-link-safe,
-     * detach_subtree discipline) */
-    for (FileNode* n : sub) {
-        const FileProperties* p = n->props();
-        if (p == nullptr)
-            continue;
-        if (p->record_ref != 0) {
-            const auto it = by_record_.find(p->record_ref);
-            if (it != by_record_.end() && dead.count(it->second) != 0)
-                by_record_.erase(it);
-        }
-        if (!p->extents.empty()) {
-            const u64 first = p->extents.front().offset;
-            const u64 len_class = extent_len_class_(p);
-            const auto it = by_extent_.find({first, len_class});
-            if (it != by_extent_.end() && dead.count(it->second) != 0)
-                by_extent_.erase(it);
-        }
-    }
-    nodes_.erase(std::remove_if(nodes_.begin(), nodes_.end(),
-                                [&dead](FileNode* n) { return dead.count(n) != 0; }),
-                 nodes_.end());
-    /* unlink from the parent's child chain (the parent stays alive:
-     * first/last-child fixups mirror reparent's) */
-    FileNode* p = node->parent_;
-    if (node->prev_sibling_)
-        node->prev_sibling_->next_sibling_ = node->next_sibling_;
-    else
-        p->first_child_ = node->next_sibling_;
-    if (node->next_sibling_)
-        node->next_sibling_->prev_sibling_ = node->prev_sibling_;
-    else
-        p->last_child_ = node->prev_sibling_;
-    /* sever the subtree's own links before destruction (detach_subtree
-     * discipline: destroyed nodes must not be reachable) */
-    for (FileNode* n : sub) {
-        n->first_child_ = nullptr;
-        n->last_child_ = nullptr;
-        n->parent_ = nullptr;
-        n->prev_sibling_ = nullptr;
-        n->next_sibling_ = nullptr;
-    }
-    for (FileNode* n : sub) {
-        if (n->full_)
-            static_cast<FullNode*>(n)->~FullNode();
-        else
-            n->~FileNode();
-    }
-}
-
 void ResultTree::detach_subtree(FileNode* root) {
     if (root == nullptr)
         return;

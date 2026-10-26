@@ -1075,6 +1075,244 @@ TEST(Zfs, NewestTxgAcrossLabelsWins) {
     EXPECT_EQ(u64(TXG + 5), st.txg);
 }
 
+/* ---- S-034: the ring-txg-history fixture family ----
+ * A second, NEWER transaction state (txg 82) over the base pool, built
+ * the way CoW builds it: only the changed chain gets new blocks -
+ *   new rootdir zap (entry set configurable)
+ *   -> new ZPL dnode array (object 2 bp0 retargeted; object 10's bp0
+ *      optionally retargeted at new data with birth 82)
+ *   -> new ZPL objset block (meta bp retargeted)
+ *   -> new MOS dnode array (objects 4/6 ds_bp retargeted)
+ *   -> new MOS objset block (meta bp retargeted)
+ *   -> new uberblock (txg 82) in label-0 ring slot 1.
+ * Everything outside the changed chain (objdir zap, dsl dirs, child
+ * zap, master zap, bigdir zap, file data) stays shared between the
+ * states at its old address - unchanged blocks are not rewritten. */
+constexpr u64 TXG2 = 82;
+constexpr u64 B_ROOTDIR_ZAP2 = 0x94000;
+constexpr u64 B_ZPL_DNODES2 = 0x96000; /* 16K */
+constexpr u64 B_ZPL2 = 0x9A000;        /* 4K */
+constexpr u64 B_MOS_DNODES2 = 0x9C000; /* 4K */
+constexpr u64 B_MOS2 = 0x9E000;        /* 2K */
+constexpr u64 B_FILE_DATA2 = 0xA4000;
+
+struct SecondStateCfg {
+    bool keep_hello = true;    /* hello.txt present in the txg-82 zap? */
+    bool modify_hello = false; /* hello.txt data rewritten (birth 82)? */
+    bool torn = false;         /* corrupt the txg-82 rootbp (hole bp)? */
+};
+
+void stamp_second_state(std::vector<u8>& d, const SecondStateCfg& cfg) {
+    /* 1. the txg-82 root-dir zap */
+    {
+        std::vector<std::pair<std::string, u64>> entries = {
+            {"bigdir", 11},        {"zlefile", 12},  {"embedded.txt", 13},
+            {"legacy.txt", 14},    {"registryfile", 22}};
+        if (cfg.keep_hello)
+            entries.insert(entries.begin(), {"hello.txt", 10});
+        auto z = make_microzap(entries);
+        memcpy(d.data() + B_ROOTDIR_ZAP2, z.data(), z.size());
+    }
+    /* 2. ZPL dnode array copy: object 2 (root dir) -> zap2; optional
+     * object 10 (hello.txt) -> new data block with birth 82 */
+    memcpy(d.data() + B_ZPL_DNODES2, d.data() + B_ZPL_DNODES, 16384);
+    {
+        u8* dn2 = d.data() + B_ZPL_DNODES2 + 2 * 512;
+        u8 bp[128];
+        make_bp(bp, B_ROOTDIR_ZAP2, 512, 512, 0, &d);
+        memcpy(dn2 + 64, bp, 128);
+    }
+    if (cfg.modify_hello) {
+        memcpy(d.data() + B_FILE_DATA2, "Hello, ZFS world! v2", 20);
+        u8* dn10 = d.data() + B_ZPL_DNODES2 + 10 * 512;
+        u8 bp[128];
+        make_bp(bp, B_FILE_DATA2, 512, 512, 0, &d);
+        put64(bp + 72, TXG2); /* blk_birth: rewritten in txg 82 */
+        memcpy(dn10 + 64, bp, 128);
+    }
+    /* 3. ZPL objset copy: meta bp -> array2 (stamps fletcher4 over the
+     * final array2 bytes) */
+    memcpy(d.data() + B_ZPL2, d.data() + B_ZPL, 4096);
+    {
+        u8 bp[128];
+        make_bp(bp, B_ZPL_DNODES2, 16384, 16384, 0, &d);
+        memcpy(d.data() + B_ZPL2 + 64, bp, 128);
+    }
+    /* 4. MOS dnode array copy: objects 4 and 6 ds_bp -> ZPL2 */
+    memcpy(d.data() + B_MOS_DNODES2, d.data() + B_MOS_DNODES, 4096);
+    for (u64 obj : {u64(4), u64(6)}) {
+        u8* dn = d.data() + B_MOS_DNODES2 + obj * 512;
+        u8 bp[128];
+        make_bp(bp, B_ZPL2, 4096, 4096, 0, &d);
+        memcpy(dn + 64 + 128 + 128, bp, 128);
+    }
+    /* 5. MOS objset copy: meta bp -> array2 */
+    memcpy(d.data() + B_MOS2, d.data() + B_MOS, 2048);
+    {
+        u8 bp[128];
+        make_bp(bp, B_MOS_DNODES2, 4096, 4096, 0, &d);
+        memcpy(d.data() + B_MOS2 + 64, bp, 128);
+    }
+    /* 6. the txg-82 uberblock in label-0 ring slot 1 */
+    u8* ub = d.data() + (128ull << 10) + 1024;
+    put64(ub + 0, 0x00BAB10C);
+    put64(ub + 8, 5000);
+    put64(ub + 16, TXG2);
+    put64(ub + 32, 1700000005);
+    u8 bp[128];
+    if (cfg.torn)
+        memset(bp, 0, 128); /* hole rootbp: the state cannot open */
+    else
+        make_bp(bp, B_MOS2, 2048, 2048, 0, &d);
+    memcpy(ub + 40, bp, 128);
+}
+
+/* shared: run a scan and collect {path -> deleted_state} pairs */
+struct WalkEntry {
+    std::string path;
+    tree::DeletedState state;
+};
+std::vector<WalkEntry> collect_entries(tree::FileNode* root) {
+    std::vector<WalkEntry> out;
+    std::function<void(tree::FileNode*, std::string)> walk = [&](tree::FileNode* n,
+                                                                 const std::string& p) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->props())
+                continue;
+            std::string full = p.empty() ? c->name_utf8() : p + "/" + c->name_utf8();
+            out.push_back({full, c->deleted_state()});
+            walk(c, full);
+        }
+    };
+    walk(root, "");
+    return out;
+}
+
+TEST(Zfs, RingWindowDeletedFileRecalled) {
+    /* S-034 fail-before: the file deleted inside the ring's txg window
+     * (present at txg 77, absent at txg 82) must surface as a Deleted
+     * node - the pre-fix engine walked the newest state only and the
+     * file was core-invisible. */
+    auto img = build_pool();
+    SecondStateCfg cfg;
+    cfg.keep_hello = false; /* deleted in txg 82 */
+    stamp_second_state(img, cfg);
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"F");
+    ZfsScanStats st;
+    ASSERT_EQ(OK, scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    EXPECT_EQ(u64(TXG2), st.txg);
+    EXPECT_EQ(u64(2), st.ring_states);
+
+    auto entries = collect_entries(ra);
+    int hello_deleted = 0, hello_active = 0, zlefile_count = 0;
+    for (const auto& e : entries) {
+        if (e.path == "tank/hello.txt" || e.path == "sub/hello.txt") {
+            if (e.state == tree::DeletedState::Deleted)
+                ++hello_deleted;
+            else
+                ++hello_active;
+        }
+        if (e.path == "tank/zlefile")
+            ++zlefile_count;
+    }
+    EXPECT_EQ(2, hello_deleted) << "deleted-in-window file not recalled as Deleted";
+    EXPECT_EQ(0, hello_active) << "deleted-in-window file must not be Active";
+    EXPECT_EQ(1, zlefile_count) << "unchanged entry must emit exactly once";
+}
+
+TEST(Zfs, RingWindowUnchangedEntriesEmitOnce) {
+    /* S-034 dedup pin: every entry present in BOTH states with the same
+     * dnode birth emits exactly once (the newest state's node); the
+     * dataset nodes themselves are not duplicated either. */
+    auto img = build_pool();
+    SecondStateCfg cfg;
+    cfg.keep_hello = true;
+    stamp_second_state(img, cfg);
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"F");
+    ZfsScanStats st;
+    ASSERT_EQ(OK, scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    EXPECT_EQ(u64(2), st.ring_states);
+
+    auto entries = collect_entries(ra);
+    std::map<std::string, int> counts;
+    for (const auto& e : entries)
+        ++counts[e.path];
+    EXPECT_EQ(1, counts["tank"]);
+    EXPECT_EQ(1, counts["sub"]);
+    EXPECT_EQ(1, counts["tank/hello.txt"]);
+    EXPECT_EQ(1, counts["tank/bigdir"]);
+    EXPECT_EQ(1, counts["tank/bigdir/alpha.bin"]);
+    EXPECT_EQ(1, counts["tank/bigdir/beta.bin"]);
+    EXPECT_EQ(1, counts["tank/zlefile"]);
+    EXPECT_EQ(1, counts["tank/registryfile"]);
+    /* and none of the recalled-by-dedup entries is marked Deleted */
+    for (const auto& e : entries) {
+        if (e.path != "tank/hello.txt" && e.path != "sub/hello.txt") {
+            EXPECT_EQ(tree::DeletedState::Active, e.state) << e.path;
+        }
+    }
+}
+
+TEST(Zfs, RingWindowModifiedFilePriorVersionRecalled) {
+    /* S-034 modified-in-window: hello.txt exists in both states but
+     * its dnode bp0 birth differs (rewritten in txg 82) - a distinct
+     * cross-state identity. The newest version owns the Active node;
+     * the prior version recalls as a Deleted sibling (the og emits
+     * every state's ZplNode). */
+    auto img = build_pool();
+    SecondStateCfg cfg;
+    cfg.keep_hello = true;
+    cfg.modify_hello = true;
+    stamp_second_state(img, cfg);
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"F");
+    ZfsScanStats st;
+    ASSERT_EQ(OK, scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+
+    auto entries = collect_entries(ra);
+    int active = 0, deleted = 0;
+    for (const auto& e : entries)
+        if (e.path == "tank/hello.txt") {
+            if (e.state == tree::DeletedState::Active)
+                ++active;
+            else if (e.state == tree::DeletedState::Deleted)
+                ++deleted;
+        }
+    EXPECT_EQ(1, active) << "newest version must own the Active node";
+    EXPECT_EQ(1, deleted) << "prior version must recall as Deleted";
+}
+
+TEST(Zfs, RingTornNewestStateFallsBackToOlder) {
+    /* S-034 torn-state skip: a newest uberblock whose rootbp cannot
+     * open (torn write / checksum loss) is skipped exactly like the
+     * og's FUN_180016c50 tree-open failure - the next state in the
+     * ring serves as the live tree. */
+    auto img = build_pool();
+    SecondStateCfg cfg;
+    cfg.keep_hello = false;
+    cfg.torn = true;
+    stamp_second_state(img, cfg);
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"F");
+    ZfsScanStats st;
+    ASSERT_EQ(OK, scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    EXPECT_EQ(u64(TXG), st.txg) << "the intact older state must serve as live";
+    EXPECT_EQ(u64(1), st.ring_states);
+
+    auto entries = collect_entries(ra);
+    int hello = 0;
+    for (const auto& e : entries)
+        if (e.path == "tank/hello.txt")
+            ++hello;
+    EXPECT_EQ(1, hello) << "hello.txt lives in the txg-77 state (Active)";
+}
+
 /* M-019: re-stamp the ZPL dnode array's enclosing-block checksum after
  * any test mutates a bp INSIDE the array (a real pool writes the whole
  * array block + its checksum together). The checksum chain is
@@ -1093,75 +1331,6 @@ void restamp_zpl_array(std::vector<u8>& img) {
     for (int li = 0; li < 4; ++li) {
         const u64 base = li < 2 ? u64(li) * (256ull << 10) : IMG - (4 - li) * (256ull << 10);
         stamp_fletcher4(img.data() + base + (128ull << 10) + 40, img.data() + B_MOS, 2048);
-    }
-}
-
-/* ---- S-034: the second ring state (txg-history fixture) ----------------
- * Builds a CoW-correct NEWER state (new_txg) whose tree no longer contains
- * hello.txt: the root-dir ZAP is rebuilt without its entry and object 10
- * is freed in the copied dnode array (the real deletion shape - the
- * parent ZAP entry removal plus the dnode free). Everything the state
- * did not change stays shared with the old state's blocks (real ZFS CoW
- * shares unchanged blocks). A new MOS chain lands at the B_*2 offsets
- * and a second uberblock is stamped into label 0's ring slot 1. */
-constexpr u64 B_ROOTDIR_ZAP2 = 0xB0000;
-constexpr u64 B_ZPL_DNODES2 = 0xB2000;  /* 16K */
-constexpr u64 B_ZPL2 = 0xB6000;         /* 4K */
-constexpr u64 B_MOS_DNODES2 = 0xBA000;  /* 4K */
-constexpr u64 B_MOS2 = 0xBC000;         /* 2K */
-
-void stamp_second_state(std::vector<u8>& img, u64 new_txg, bool without_hello) {
-    /* 1. the new root-dir ZAP (without hello.txt when requested) */
-    std::vector<std::pair<std::string, u64>> entries = {
-        {"bigdir", 11}, {"zlefile", 12}, {"embedded.txt", 13}, {"legacy.txt", 14},
-        {"registryfile", 22}};
-    if (!without_hello)
-        entries.insert(entries.begin(), {"hello.txt", 10});
-    auto z = make_microzap(entries);
-    memcpy(img.data() + B_ROOTDIR_ZAP2, z.data(), z.size());
-
-    /* 2. the copied ZPL dnode array: object 2's bp -> the new ZAP;
-     * object 10 freed (dnode zeroed) when the state dropped hello.txt */
-    memcpy(img.data() + B_ZPL_DNODES2, img.data() + B_ZPL_DNODES, 16384);
-    make_bp(img.data() + B_ZPL_DNODES2 + 2 * 512 + 64, B_ROOTDIR_ZAP2, 512, 512, 0, &img);
-    if (without_hello)
-        memset(img.data() + B_ZPL_DNODES2 + 10 * 512, 0, 512);
-
-    /* 3. the copied ZPL objset: meta bp -> the new dnode array */
-    memcpy(img.data() + B_ZPL2, img.data() + B_ZPL, 4096);
-    make_bp(img.data() + B_ZPL2 + 64, B_ZPL_DNODES2, 16384, 16384, 0, &img);
-
-    /* 4. the copied MOS dnode array: head datasets 4 and 6 -> the new
-     * ZPL objset (both datasets moved forward, real CoW) */
-    memcpy(img.data() + B_MOS_DNODES2, img.data() + B_MOS_DNODES, 4096);
-    make_bp(img.data() + B_MOS_DNODES2 + 4 * 512 + 64 + 128 + 128, B_ZPL2, 4096, 4096, 0, &img);
-    make_bp(img.data() + B_MOS_DNODES2 + 6 * 512 + 64 + 128 + 128, B_ZPL2, 4096, 4096, 0, &img);
-
-    /* 5. the copied MOS objset: meta bp -> the new MOS dnode array */
-    memcpy(img.data() + B_MOS2, img.data() + B_MOS, 2048);
-    make_bp(img.data() + B_MOS2 + 64, B_MOS_DNODES2, 4096, 4096, 0, &img);
-
-    /* 6. the second uberblock: label 0 ring slot 1, new txg, rootbp ->
-     * the new MOS (checksum stamped over its final bytes) */
-    u8* ub = img.data() + (128ull << 10) + 1024;
-    put64(ub + 0, 0x00BAB10C);
-    put64(ub + 8, 5000);
-    put64(ub + 16, new_txg);
-    put64(ub + 32, 1700000001);
-    make_bp(ub + 40, B_MOS2, 2048, 2048, 0, &img);
-}
-
-/* S-034: collect (path -> count) over a root - duplicate detection needs
- * counts, not set membership */
-void collect_paths_counted(tree::FileNode* n, const std::string& p,
-                           std::map<std::string, int>& out) {
-    for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
-        if (!c->props())
-            continue;
-        const std::string nm = c->name_utf8();
-        const std::string full = p.empty() ? nm : p + "/" + nm;
-        ++out[full];
-        collect_paths_counted(c, full, out);
     }
 }
 
@@ -1645,150 +1814,6 @@ TEST(Zfs, NonAsciiNamesDecodedNotByteLifted) {
     EXPECT_EQ(names["\xe6\x96\x87x"], std::u16string(u"\u6587x"));
 }
 
-/* ---- S-034: the ring txg-history walk -----------------------------------
- * The og's quick searcher iterates EVERY uberblock slot in the ring and
- * walks each txg state's tree (ZfsSearchDLL FUN_180006b90 -> addBlock
- * FUN_180003150 -> the unbounded from_txg=0 descent). Files deleted
- * within the ring window are og-visible and were core-invisible. */
-
-TEST(Zfs, RingTxgHistorySurfacesInWindowDeletions) {
-    /* state txg 77 contains hello.txt; state txg 78 (ring slot 1) does
-     * not. hello.txt must surface from the 77-state walk as Deleted. */
-    auto img = build_pool();
-    stamp_second_state(img, TXG + 1, /*without_hello=*/true);
-    MemDevice dev(img);
-
-    tree::ResultTree tree;
-    auto* ra = tree.add_root(u"Found");
-    auto* rd = tree.add_root(u"Deleted");
-    ZfsScanStats st;
-    ASSERT_EQ(OK, scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, st));
-    EXPECT_EQ(u64(2), st.ring_states);
-    EXPECT_EQ(u64(TXG + 1), st.txg);
-
-    std::map<std::string, int> live, dead;
-    collect_paths_counted(ra, "", live);
-    collect_paths_counted(rd, "", dead);
-
-    /* live: the 78-state's content, hello.txt absent in BOTH datasets
-     * (they share the moved-forward ZPL chain) */
-    EXPECT_EQ(0, live["tank/hello.txt"]) << "hello.txt must not be live";
-    EXPECT_EQ(0, live["sub/hello.txt"]) << "sub shares the new ZPL: same deletion";
-    EXPECT_EQ(1, live["tank/bigdir"]);
-    EXPECT_EQ(1, live["tank/zlefile"]);
-    EXPECT_EQ(1, live["tank/legacy.txt"]);
-
-    /* deleted: exactly the in-window deletions. The live datasets keep
-     * SHADOW containers under the deleted root (pruned when empty):
-     * tank holds the deleted hello.txt; sub holds its own copy. Live
-     * children never re-emit. */
-    ASSERT_EQ(1, dead["tank/hello.txt"]) << "in-window deletion not surfaced";
-    ASSERT_EQ(1, dead["sub/hello.txt"]) << "sub's in-window deletion not surfaced";
-    EXPECT_EQ(0, dead["tank/bigdir"]) << "live dir must not re-emit as deleted";
-    EXPECT_EQ(0, dead["tank/bigdir/alpha.bin"]) << "live child re-emitted";
-    EXPECT_GE(st.deleted_objects, u64(2));
-}
-
-TEST(Zfs, RingTxgHistoryDeletedNodeCarriesPropsAndMarks) {
-    auto img = build_pool();
-    stamp_second_state(img, TXG + 1, /*without_hello=*/true);
-    MemDevice dev(img);
-
-    tree::ResultTree tree;
-    auto* ra = tree.add_root(u"Found");
-    auto* rd = tree.add_root(u"Deleted");
-    ZfsScanStats st;
-    ASSERT_EQ(OK, scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, st));
-
-    /* locate tank/hello.txt under the deleted root */
-    tree::FileNode* tank = nullptr;
-    for (tree::FileNode* c = rd->first_child(); c; c = c->next_sibling())
-        if (c->name_utf8() == "tank")
-            tank = c;
-    ASSERT_NE(nullptr, tank);
-    tree::FileNode* hello = nullptr;
-    for (tree::FileNode* c = tank->first_child(); c; c = c->next_sibling())
-        if (c->name_utf8() == "hello.txt")
-            hello = c;
-    ASSERT_NE(nullptr, hello);
-    EXPECT_EQ(tree::DeletedState::Deleted, hello->deleted_state());
-    EXPECT_EQ(tree::Origin::Structured, hello->origin());
-    ASSERT_NE(nullptr, hello->props());
-    EXPECT_EQ(u64(18), hello->props()->logical_size);
-    ASSERT_EQ(1u, hello->props()->extents.size());
-    EXPECT_EQ(B_FILE_DATA, hello->props()->extents[0].offset);
-    EXPECT_EQ(u32(FsKindCode::Zfs), hello->props()->fs_kind);
-}
-
-TEST(Zfs, RingHistoryDedupNewestStateWins) {
-    /* both ring states contain identical content (the newer uberblock
-     * points at the same MOS): every object emits exactly once in the
-     * live tree, the deleted view stays empty (shadows pruned). */
-    auto img = build_pool();
-    stamp_second_state(img, TXG + 1, /*without_hello=*/false);
-    MemDevice dev(img);
-
-    tree::ResultTree tree;
-    auto* ra = tree.add_root(u"Found");
-    auto* rd = tree.add_root(u"Deleted");
-    ZfsScanStats st;
-    ASSERT_EQ(OK, scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, st));
-    EXPECT_EQ(u64(2), st.ring_states);
-
-    std::map<std::string, int> live, dead;
-    collect_paths_counted(ra, "", live);
-    collect_paths_counted(rd, "", dead);
-    EXPECT_EQ(1, live["tank/hello.txt"]) << "object present in both states emitted twice";
-    EXPECT_EQ(1, live["tank/bigdir/alpha.bin"]);
-    EXPECT_EQ(1, live["sub/hello.txt"]);
-    EXPECT_TRUE(dead.empty()) << "no deletions: the deleted root must stay empty";
-    EXPECT_EQ(u64(0), st.deleted_objects);
-}
-
-TEST(Zfs, TornNewestUberblockFallsBackToOlderState) {
-    /* the newest uberblock's rootbp is garbage (a torn write): the og's
-     * addBlock no-ops on the unopenable state and the next-newest state
-     * provides the live tree - the scan must not fail. */
-    auto img = build_pool();
-    stamp_second_state(img, TXG + 1, /*without_hello=*/true);
-    /* corrupt the txg-78 uberblock's rootbp: DVA offset beyond the device
-     * (the MOS load fails, the state is skipped) */
-    u8* ub = img.data() + (128ull << 10) + 1024;
-    put64(ub + 48, IMG * 2); /* rootbp DVA0 word 1: offset>>9, far out of range */
-    MemDevice dev(img);
-
-    tree::ResultTree tree;
-    auto* ra = tree.add_root(u"Found");
-    auto* rd = tree.add_root(u"Deleted");
-    ZfsScanStats st;
-    ASSERT_EQ(OK, scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, st))
-        << "a torn newest uberblock must not abort the scan";
-    EXPECT_EQ(u64(TXG + 1), st.txg) << "stats report the newest FOUND txg";
-    EXPECT_EQ(u64(2), st.ring_states);
-
-    std::map<std::string, int> live, dead;
-    collect_paths_counted(ra, "", live);
-    collect_paths_counted(rd, "", dead);
-    /* the 77-state is now the live source: hello.txt is LIVE in both
-     * datasets (the newest WALKABLE state still has them); nothing older
-     * remains for the deleted view (77 is the oldest state) */
-    EXPECT_EQ(1, live["tank/hello.txt"]);
-    EXPECT_EQ(1, live["sub/hello.txt"]);
-    EXPECT_TRUE(dead.empty());
-}
-
-TEST(Zfs, RingStatesCountedAcrossLabels) {
-    /* the stock fixture stamps the SAME txg in all four labels: the
-     * distinct-txg dedup must collapse them to one state (the og's
-     * consecutive-slot memo collapses its label-0 repeats). */
-    auto img = build_pool();
-    MemDevice dev(img);
-    tree::ResultTree tree;
-    auto* ra = tree.add_root(u"F");
-    ZfsScanStats st;
-    ASSERT_EQ(OK, scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
-    EXPECT_EQ(u64(1), st.ring_states);
-}
 
 /* ------------------------------------------------------------------ */
 /* N-072: the delay-execution label retry (live handles only)          */

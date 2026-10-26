@@ -3,20 +3,7 @@
  *
  * Corpus: ZfsSearchDLL (zfs_struct:: namespace: UberData, VdevLoc/VdevDisk,
  * objset, ZplNode/ZplNodeFile; uberblock walk decompile-verified: magic
- * 0x00BAB10C). S-034: the og's quick searcher iterates EVERY uberblock
- * slot in the label-0 ring (FUN_180006b90, 1 KiB stride, txg read at
- * slot+0x10) and walks each txg state's tree through the per-txg UberData
- * registry (FUN_180003150 "addBlock" -> FUN_180017310, consecutive-txg
- * memo, tree-open FUN_180016c50, unbounded from_txg=0 descent
- * FUN_18001ac60/FUN_18001d9a0 - the birth-txg gate `(from_txg < txg) ||
- * from_txg == 0` passes every node at the top level). This engine walks
- * every distinct valid ring txg the same way: newest state first (live
- * tree), then each older state (deleted view, cross-state dedup so the
- * newest state of each object wins and in-window deletions surface as
- * Deleted). Deliberate delta D-89: the og emits per-state duplicates at
- * the engine boundary (the quick searcher's visitor is a bare
- * push_back, FUN_180006b40); we dedup newest-wins - the recovered
- * object UNION is identical.
+ * 0x00BAB10C, rings walked with txg newest-wins).
  *
  * Walks: vdev labels (4 per disk: 0, 256K, end-512K, end-256K) -> nvlist
  * config at label+16K (XDR/big-endian - vdev_label.c packs labels with
@@ -69,7 +56,7 @@ struct ZfsScanStats {
     u64 macrozap_entries = 0;
     u64 damaged_blocks = 0;
     u64 unsupported_vdevs = 0;  /* gang/indirect/mirror/raid multi-vdev */
-    u64 txg = 0;                /* the newest uberblock's txg */
+    u64 txg = 0;                /* the selected uberblock's txg */
     u64 embedded_files = 0;     /* files with embedded-bp content */
     u64 compressed_extents = 0; /* extents carrying a codec */
     u64 foreign_vdev_reads = 0; /* M-019: DVAs naming another vdev id,
@@ -77,10 +64,8 @@ struct ZfsScanStats {
                                  * fallback (the scanned disk) */
     u64 checksum_drops = 0;     /* M-019: blocks dropped after fletcher4
                                  * mismatch on every DVA copy */
-    u64 ring_states = 0;        /* S-034: distinct valid txg states found
-                                 * in the rings (pre-dedup walk set) */
-    u64 deleted_objects = 0;    /* S-034: objects surfaced only from older
-                                 * ring states (in-window deletions) */
+    u64 ring_states = 0;        /* S-034: distinct txg states opened from
+                                 * the uberblock rings (live + recall) */
     u64 label_retries = 0;      /* N-072: delay-execution label re-sweeps
                                  * (live handles only; the og's polling
                                  * import, remaining-engines artifact :86) */
