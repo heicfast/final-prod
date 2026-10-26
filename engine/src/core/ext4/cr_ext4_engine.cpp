@@ -505,6 +505,7 @@ bool read_extent_data(Volume& v, const InodeView& iv, u64 max_bytes, std::vector
 struct DirEntry {
     u32 inode = 0;
     std::u16string name;
+    std::string name_raw; /* N-016b: original bytes when the decode mapped */
     u8 type = 0;
 };
 
@@ -553,6 +554,11 @@ bool parse_dir_block(const u8* p, u64 len, bool filetype, u32 inodes_count,
              * the og keeps the raw bytes) */
             de.name = text::utf8_to_u16_lossless(
                 std::string_view(reinterpret_cast<const char*>(p) + off + 8, name_len));
+            /* N-016b (N-029 residual): when the lossless mapping fired,
+             * carry the ORIGINAL bytes alongside (the og's session keeps
+             * them verbatim; band-unit names are inverse-ambiguous). */
+            if (text::name_has_raw_band(de.name))
+                de.name_raw.assign(reinterpret_cast<const char*>(p) + off + 8, name_len);
             out.push_back(de);
         }
         off += rec_len;
@@ -966,6 +972,7 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
             if (!props)
                 return ERR_NO_MEMORY;
             props->name = de.name;
+            props->name_raw = de.name_raw; /* N-016b */
             props->fs_kind = u32(FsKindCode::Ext4); /* corpus factory code */
             props->logical_size = child.size;
             props->attributes = is_dir ? 0x10 : 0;
@@ -1163,6 +1170,7 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
             if (!props)
                 return;
             props->name = de.name;
+            props->name_raw = de.name_raw; /* N-016b */
             props->fs_kind = u32(FsKindCode::Ext4);
             props->record_ref = de.inode;
             props->attributes = de.type == 2 ? 0x10 : 0;
@@ -1215,6 +1223,7 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
             if (!props)
                 break;
             props->name = de.name;
+            props->name_raw = de.name_raw; /* N-016b */
             props->fs_kind = u32(FsKindCode::Ext4);
             props->record_ref = de.inode;
             props->attributes = de.type == 2 ? 0x10 : 0;

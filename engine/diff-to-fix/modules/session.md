@@ -180,3 +180,20 @@ identical; theirs landed first and stands — this leg's dropped in the union
 per first-landing-wins. Session.CorruptRecordEarlyExitsReleaseProps drives all five
 paths under the sanitizer gate (fail-before EXECUTED: LSan red on main,
 case (4) returned OK=0). Suite 614/614 + 21/21 UI + ABI green.
+
+## Session-17 fix row 2 (2026-10-26, DFX17 — N-029/N-016b closed)
+
+**N-016b FIXED** (findings/FIXED/N-029; N-016a was the parallel DFX12
+lane's): the .crsf container now persists the ORIGINAL on-disk name
+bytes for raw-byte-engine names whose decode introduced lossless
+mappings — nflags bit 32 (u16 byte-length + bytes, N-058/N-077-class
+bounds-checked). FileProperties.name_raw rides from the ext4/Btrfs
+engines (populated only when text::name_has_raw_band — the E000..E0FF
+band where mapped-byte and genuine private-use codepoint are
+inverse-ambiguous), through clone/hard-links and SnapNode, into the
+writer: restore filenames derive from the RAW bytes via the
+maximal-subpart policy (= the og's MultiByteToWideChar(CP_UTF8, 0)
+restore semantics, DRWUI :264664-694/:357529) — FFFD-substituted names
+on disk, lossless D-53 display in the tree/report. ZFS untouched (FFFD
+baked at scan = the pinned engine asymmetry). 6 tests, fail-before
+4/6 RED. B10/D12 verdicts → MATCH for the N-029 surface.

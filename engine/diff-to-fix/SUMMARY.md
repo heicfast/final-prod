@@ -257,6 +257,22 @@ Bootstrap `ff734d7` (union of the parallel lanes' claims: DFX18 on the MINOR
 tier, this leg on the unclaimed MAJOR batch); baseline suite **594/594**
 Linux RelWithDebInfo + ASan. Corpus `03ad46c` unmoved.
 
+**M-017 FIXED (fourth landing):** lost-partition scoring — the core's
+absolute structural points are replaced by the og's content model:
+every surviving candidate is materialized and walked by its engine
+(progress-budgeted), the count is weighted per FS (f+50·d NTFS /
+f+10·d HFS+ / (f+d)·50 FAT) plus the observed bonus (NTFS 60/30, FAT
+20) plus the +500 table-match — the old model's overlap penalties were
+the polarity INVERSION of exactly this bonus. Score = ln(count)/
+ln(max) in permille with the og's edge cases (count<=1 identity
+quirk); structural points tie-break. AdjustPartitionInfoOrder ported:
+containment-in-known drop (table-matched candidates exempt), stable
+sort, and the :842776-93 size-match promotion re-decoded first-hand
+(the iVar16 counter — an adjacent matcher takes the break path the
+naive reading misses). 4 fail-before tests incl. the CalcPartition
+log-row parity test. Suite 691/691. findings/FIXED/M-017; matrix
+lost-partition A30 MATCH.
+
 **M-038 FIXED (third landing):** ZFS SA registry-driven decode — the
 core's SA decode was layout-1-hardcoded (`layout != 1 -> nullptr`,
 dropping every object with a registered non-1 layout). Now: the og's

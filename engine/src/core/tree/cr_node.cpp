@@ -57,6 +57,7 @@ FileProperties* FileProperties::clone() const {
     p->attributes = attributes;
     p->flags = flags;
     p->name = name;
+    p->name_raw = name_raw; /* N-016b: hard links keep the raw bytes too */
     p->resident_data = resident_data;
     p->extents = extents;
     p->carve_format = carve_format;

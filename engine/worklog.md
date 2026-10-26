@@ -11425,7 +11425,6 @@ Stage Summary:
   M-017 (lost partition scoring).
 
 ---
-<<<<<<< HEAD
 Task ID: DFX22-T6 (N-035 — lost-candidate data-area extents)
 Agent: main engineer (diff-to-fix minors-first session 22)
 Task: N-035 — lost-candidate extent anchoring at the data area.
@@ -11451,7 +11450,6 @@ Work Log:
 Stage Summary:
 - Session tally: 8 resolutions. MINOR live count 30. Next: N-014 (stage
   checkpoint atomicity).
-=======
 Task ID: DFX16-HANDOFF (session 11 close-out — the DFX16 leg)
 Agent: main engineer (diff-to-fix session 11 — DFX16)
 Task: Close the leg: final counts, deliverable mapping, remaining scope,
@@ -11532,6 +11530,7 @@ Stage Summary:
   every push. The audit is NOT closed - the MAJOR 18 + MINOR 27 remain,
   with the lane map above. No release tag (honest: the tier is not
   closed).
+<<<<<<< HEAD
 >>>>>>> 99f45aecd6f48aca32dad902c9adb4ae029f1d61
 
 ---
@@ -11564,3 +11563,93 @@ Work Log:
 Stage Summary:
 - Session tally: 9 resolutions. MINOR live count 29. Next: N-059
   (Btrfs/ZFS session extras) or N-071 (device enumeration breadth).
+=======
+Task ID: DFX17-F3 (session 17, finding 3 — N-029/N-016b)
+Agent: main engineer (diff-to-fix fix session 17 — DFX17, MINOR-first mandate)
+Task: N-016b — the open half of the N-029 group (N-016a landed with the
+DFX12 lane): raw name bytes persisted in sessions + og-parity restore
+naming. Verified, fixed, fail-before executed, pushed.
+
+Work Log:
+- Corpus re-verified: DRWUI_decompiled.c:264664-694 (MultiByteToWideChar
+  CP_UTF8 flags=0 restore conversion) invoked at :357529; EXT4/Btrfs
+  imports carry zero conversion APIs (M-010's evidence re-read) - the
+  og's .rsf keeps ORIGINAL on-disk name bytes; substitution happens at
+  display/restore. ZFS bakes FFFD in-engine (FUN_18001c630) - the core's
+  ZFS path is already og-parity, untouched.
+- Design decision (recorded in the Resolution): the raw bytes are needed
+  EXACTLY on the U+E000..U+E0FF band - elsewhere the decoded name
+  round-trips; on the band, "mapped invalid byte" and "genuinely-encoded
+  private-use codepoint" are inverse-ambiguous, so verbatim bytes (not
+  the inverse map) are the only faithful carrier.
+- Implementation: FileProperties::name_raw (std::string, populated only
+  when text::name_has_raw_band(name)); ext4 (3 attach sites) + Btrfs
+  engines stash the original bytes at the decode site; clone() and
+  SnapNode carry them; serialize_tree writes nflags bit 32 (u16 length +
+  bytes), deserialize_tree restores with the N-058/N-077-class
+  bounds-check; SafeWriter::enqueue_common derives the restore filename
+  from raw via text::utf8_to_u16 (the N-016a maximal-subpart policy =
+  the og's conversion semantics) - restored files carry FFFD-substituted
+  names exactly as the og's restore creates them; the tree/report/UI
+  keep the lossless D-53 display form (deliberate, unchanged).
+- Tests (6): Ext4Engine.InvalidUtf8NameCarriesRawBytes,
+  Btrfs.Latin1NameRoundTripsRawBytes (extended),
+  Session.RawNameRoundTrip, Session.OldFormatWithoutRawNameStillLoads
+  (forward-compat), SafeWriter.InvalidUtf8NameRestoredFromRaw, plus the
+  name_has_raw_band helper exercised through them.
+- Fail-before EXECUTED: hook-disabled pre-fix simulation (engine stash +
+  serialize flag + writer derivation compiled out) -> 4/6 RED (the two
+  no-raw controls pass both states by design). Pass-after: 659/659 +
+  24/24 UI, LeakSanitizer clean.
+- Audit trail: N-016b Resolution appended to the N-029 finding (N-016a
+  section already there from DFX12), moved MINOR/ -> FIXED/,
+  RESOLVED-INDEX row, matrix session B10/D12 cell, modules/session.md
+  session-17 fix row 2.
+- Observation for a follow-up (NOT fixed here, separate concern):
+  SafeWriter.ResidentPrefixNotOverwritten's content assertions are
+  vacuous - its if-branches compare final_name against the FULL path
+  ("R:\out\mixed.bin") while resolve_collision returns the BASENAME, so
+  neither branch ever fires. Filed as a test-quality follow-up in this
+  worklog; fixing it may expose whether the resident-prefix regression
+  coverage is real.
+
+Stage Summary:
+- N-029 group fully closed (N-016a DFX12 + N-016b this leg). Session
+  tally: N-078 + N-016b (2 findings) + 2 baseline repairs + 1
+  convergence. Next: N-063 (carve default naming), N-056 (windestio
+  temp leak), N-046, N-043.Task ID: DFX19-M017 (session 19, fourth MAJOR fix)
+Agent: main engineer (diff-to-fix fix session 19 — DFX19)
+Task: M-017 — lost-partition scoring model (the CalcPartition parity).
+
+Work Log:
+- Corpus re-verified FIRST-HAND: FUN_14050fda0 weights/bonus/+500/
+  ln-formula per the finding; AdjustPartitionInfoOrder FUN_140510410
+  re-decoded directly (:842756-842870) — the :842776-93 size-match
+  loop carries the iVar16 counter (a NON-matching candidate must
+  precede the promoted match; an adjacent matcher breaks) — a
+  structural detail the finding's summary missed.
+- Fix: content probe per candidate (materialize + family engine walk
+  over a scratch tree, 200k progress-call budget); og weights f+50d /
+  HFS+ f+10d / FAT (f+d)*50; bonuses NTFS 60/30 (census-decoded
+  accumulator family) + FAT 20; +500 table-match; score = ln/ln in
+  permille with the og's exact edge cases; structural_points =
+  tie-break; containment-in-known drop with table-match exemption
+  (replaces the inverted -10/-20 penalties); std::stable_sort; the
+  iVar16 size-match promotion.
+- Candidate.score semantics changed to permille (session wire stays
+  u32); CLI display unchanged structurally.
+- Fixture bugs found + fixed in-session: 2048-sector FAT16 volumes
+  decode as FAT12 (< 4085 clusters — 16384-sector volumes now); dentry
+  dates must be valid; permille expectations are int-truncated (537,
+  831, 244).
+- Fail-before PROVEN by temporary revert (old model + adapted fields):
+  all 4 new tests RED (FileRich/TableMatch/OverLarge/LogRows).
+- Suite 691/691 (linux-gcc RelWithDebInfo + ASan/LSan).
+- Audit trail: Resolution, finding -> FIXED/, RESOLVED-INDEX row,
+  matrix lost-partition A30 -> FIXED (s19), modules/lost-partition.md
+  verdict, SUMMARY session-19 section extended.
+
+Stage Summary:
+- M-017 FIXED (session tally: 4 MAJORs + 2 CI repairs). Next: M-020
+  (btrfs profile machinery + default subvol).
+>>>>>>> e1b5dcf06e81ec4ae860e34548e8f7a2e06230cc

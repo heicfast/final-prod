@@ -80,6 +80,16 @@ public:
      * the record has no distinct DOS-namespace $FILE_NAME (modern
      * volumes usually carry one WIN32_AND_DOS name that serves both). */
     std::u16string short_name; /* 8.3 DOS name when distinct from `name` */
+    /* N-016b (N-029 residual, s17): the ORIGINAL on-disk name bytes for
+     * raw-byte engines (ext4/Btrfs) whose decode introduced lossless
+     * U+E000+byte mappings - the og's .rsf keeps the original bytes
+     * (substitution happens at display/restore: DRWUI converts via
+     * MultiByteToWideChar(CP_UTF8, 0), corpus :264664-694). Populated
+     * only when the decoded name carries band units (text::name_has_raw_band)
+     * - clean UTF-8 names round-trip without it. The session container
+     * persists it (nflags bit 32); the writer derives restore filenames
+     * from it (the og's restore semantics - FFFD, not private-use). */
+    std::string name_raw; /* original on-disk bytes when the decode mapped */
     /* resident content: NTFS resident $DATA / ADS streams, ZFS embedded
      * block-pointer payloads, Btrfs inline extents. Present only when the
      * content lives in metadata instead of disk extents (or alongside
