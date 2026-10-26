@@ -16172,3 +16172,44 @@ Next steps (in priority order):
    it; check their landings first).
 3. A tagged release once M-040 closes (the audit's clean-close
    condition) — SUMMARY.md's counts are current at this commit.
+
+---
+Task ID: DFX33b-T6 (M-040 — the boot-chain family completed)
+Agent: main engineer (diff-to-fix fix session 33b — DFX33b)
+
+Work Log:
+- Merged the DFX34 close (M-040 stage a: the cr/bcdfix pure rewriter,
+  5 tests; N-007/N-072 landed by the same window).
+- Stage (b) implemented decode-first: EFIBoot FUN_1800046f0 (the
+  matcher) + FUN_180004840 (the state-4 update) read first-hand —
+  the og patches the PartitionNumber (u32@+4) of every HARDDRIVE node
+  with SignatureType != 0 in matched Boot#### options; MBR mode's
+  signature + geometry flags ride the WHOLE walk; the audit's
+  "patch partition start" was imprecise (the start is the MATCH key) —
+  corrected in the finding's Resolution.
+- cr/nvramfix: pure module over the injected IFirmwareVarStore
+  (not-found/absent vs API-broken folded into the get() contract —
+  the og's separate pre-probe is documented as the difference);
+  9 tests incl. the finding's NvramPatchUpdatesLoadOption; the
+  abort-on-missing-Boot#### posture mirrored + pinned.
+- The win runtime (src/win/cr_bootfix.cpp): FwVarStore (dynamic
+  Get/SetFirmwareEnvironmentVariableW + SeSystemEnvironmentPrivilege),
+  bcd_rewrite_file (consent-gated execute + flush tail),
+  unload_bcd_hive (SeBackup/SeRestore + ZwUnloadKey, ntdll dynamic —
+  no new PE import; Win7 gate untouched). The win-stub grew the
+  consumed surface (M-055 discipline).
+- The S-029 wiring: rrecov apply --boot-fix <old-lba> (opt-in;
+  --boot-fix-bcd override) — BCD offsets + NVRAM renumber after a
+  successful apply, advisory failures; the dry-run message tells the
+  truth.
+- Verified: 927/927 ctest (win_syntax_check green over the grown
+  stub + the CLI); suite was 906 pre-M-040-completion.
+- Audit trail: finding → FIXED/ (the final Resolution); matrix cell;
+  modules/boot-repair.md P25/P42 → MATCH; SUMMARY part-2 delta;
+  CAPABILITY-MATRIX boot-chain row DONE.
+
+Stage Summary:
+- M-040 CLOSED. Board: SEVERE 0 · MAJOR 0 · MINOR 0 · tracked-open 2
+  (OQ-S4-3, OQ-FLT-2) · FIXED/ 222. The findings board is EMPTY at
+  every severity tier; the remaining work is the two tracked-open
+  questions.
