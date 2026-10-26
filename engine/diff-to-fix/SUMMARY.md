@@ -1,4 +1,83 @@
-# SUMMARY.md — executive summary (the M-040 close on top; earlier sessions below)
+# SUMMARY.md — executive summary (the review-validate close-out on top; earlier sessions below)
+
+## Review-and-validate session delta (2026-10-26 — the post-fix audit: every fix-lane landing and collision independently re-verified; the audit trail reconciled; the documentation suite created)
+
+**The mandate:** review and validate the fix sessions' work — the
+collision/union commits, the major removal commits, every Resolution's
+claims — revert invalid removals, fix hallucinations, reopen
+incorrectly-fixed findings, and overhaul the documentation.
+
+**Removal-commit adjudications (all named and found):**
+- `53b7d68` (M-052 convergence #1): VALID intent; its c33c64b engine
+  choice superseded by `234bf0b`'s better-informed 76d4878 set (the
+  N-079 defect its own test pins) — no revert needed (the convergence
+  protocol had already corrected it). The .bak files it committed
+  vanished via later merges; the tree is .bak-free.
+- `83c796e` (the D-80 re-assertion): VALID. Follow-on finding:
+  `97382b7`'s later "both-stand" restore re-introduced the superseded
+  pwddict module as DEAD CODE (zero consumers at the reviewed tree) —
+  **adjudicated: dropped again per D-80** (commit 28e9510).
+- `a433c69` (dropped FatCheck tests): **PARTIALLY INVALID** — "the
+  canonical covers the same behaviors" was false for two behaviors: the
+  entry-hole half of 0x1006 (pin lost) and the FAT dir-walk cross-link
+  0x1002 (pin lost AND the gate itself missing from the canonical
+  module). Corpus re-verified first-hand (FUN_1800027a0 :1117-1230, the
+  +0x60 shadow-registry re-entry :1156-1173). **FIXED: the gate
+  implemented + FatCrossLinkedChainReported (fail-before EXECUTED) +
+  FatEntryHoleReported** (commit 0a9f2aa; M-041 Resolution addendum).
+- `5f2e2ad`/`7ec5446` union damage (the FatScanStats fields + the N-079
+  scope test): found by this session AND repaired in-window by the
+  parallel lane — verified restored.
+- Junk committed by accident removed: `name` (a grep dump, b1f9210) and
+  `cr_ui_abi_check.img.dest2/` (a test artifact, ca0a19e).
+
+**The hallucination sweep:** every test name claimed in every
+Resolution cross-checked against the actual suite (928 TEST sites) and
+full git history (scripts/hallucination_sweep*.py, kept for future
+audits). 162 claimed-but-missing tokens, ALL resolved as plan-section
+names, re-suited landings, or word-order variants — every
+behavior spot-checked has a live pin. Two evidence-wording overclaims
+corrected in the trail (M-030's "Windows CI surface this fix wires";
+M-044's convergence addendum citing plan names). **No hallucinated
+fixes found.** One LOST HALF recovered: the canonical M-041 Resolution
+claimed `scan --check` but it never existed in any commit — **landed
+now** (the flag + the per-finding report; addendum 2).
+
+**The CI-red wave:** the parallel lanes had pushed through red CI since
+24ba1e7. All four gates diagnosed and fixed at the source: the ~100-file
+clang-format drift, fuzz_image.cpp's born-broken map::insert (never
+compiled since its S-030 landing), MSVC portability (gmtime_r, the
+u32→u16 casts, the missing <algorithm>), and the TSan race in the test
+event recorder (the product contract at cr_scan.h :110-113 explicitly
+documents non-serialized worker delivery — the TEST now locks). TSan
+870/870 + zero warnings across 5 stress runs.
+
+**The ledger reconciliation (the DFX35 KNOWN DEBT, paid):** 12
+same-number D-row collisions resolved per the errata convention
+(D-91..D-102), 4 superseded copies dropped with the errata note, 7 live
+references updated repo-wide, the CAPABILITY-MATRIX's four stacked S-014
+paragraphs collapsed to the canonical dict-only posture. Ledger: 97
+rows, zero collisions.
+
+**Safety-hardening + first-class inventory verified intact**
+post-collisions: destination-overlap refusal, BitLocker
+legitimate-unlock-only, RawFixer consent, 4Kn gates, SDDL (driver-side
+divergence), ReFS/LDM full engines.
+
+**The documentation suite (the mandate's deliverable):** NEW
+docs/API.md (the full CLI + 78-export ABI + C++ layers + threading
+contract), docs/FORMATS.md (every format), docs/PARAMETERS.md (every
+tunable), docs/CONNECTION-GUIDE.md (binding/devices/consent); README
+refreshed; RELEASE-NOTES rewritten for v0.4.0-parity (referencing this
+board + PARITY-DELTAS per the release mandate).
+
+**Live counts after this session:** ACUTE 0 · SEVERE 0 · MAJOR 0 ·
+MINOR 0 · INFO 0 open · tracked-open 1 (OQ-S4-3 — one live Windows
+harness run) · FIXED/ 226 files (the two review addenda counted in the
+M-041/N-064 files). **The findings board is EMPTY and now
+independently reviewed.**
+
+
 
 ## Session-37 delta (2026-10-26 — DFX37: M-040 stages (b) + the win layer FIXED; the SEVERE/MINOR tiers closed by the convergent lanes; the ASan pushed-reds repaired)
 
