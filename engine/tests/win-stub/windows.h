@@ -242,6 +242,12 @@ inline BOOL GetVolumeInformationW(const wchar_t*, wchar_t*, DWORD, DWORD*, DWORD
 inline BOOL GetVolumeNameForVolumeMountPointW(const wchar_t*, wchar_t*, DWORD) {
     return 1;
 }
+inline BOOL SetVolumeMountPointW(const wchar_t*, const wchar_t*) {
+    return 1;
+}
+inline UINT GetSystemDirectoryA(char*, UINT) {
+    return 0;
+}
 inline BOOL GetVolumePathNameW(const wchar_t*, wchar_t*, DWORD) {
     return 1;
 }

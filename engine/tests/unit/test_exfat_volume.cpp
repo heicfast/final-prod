@@ -1875,13 +1875,15 @@ TEST(ExfatEngine, RecyclePairingMirrored) {
         put32v(img, IREC + 16, 0);           /* FILETIME lo */
         put32v(img, IREC + 20, 29);          /* FILETIME hi */
         put32v(img, IREC + 24, 15);          /* pathlen */
-        /* ASan red fix (pushed-red repair): a real $I record NUL-pads
-         * the path tail - write the literal's 12 units then zeros; the
-         * pre-fix loop read 15 units straight out of the 13-unit global
-         * literal (global-buffer-overflow on the ASan lane) */
+        /* N-082 (NEW-FINDING, the M-052 landing's ASan red): the $I path
+         * fixture copied 15 units from a 14-unit literal (13 chars +
+         * NUL) - one past the terminator under ASan. The copy is now
+         * bounded by the string; the field's remaining units stay zero
+         * (the image is zero-initialized) - the on-disk shape a real
+         * formatter writes. */
         const std::u16string path = u"C:\\photo.jpg";
-        for (u32 i = 0; i < 15; ++i)
-            put16(img, IREC + 28 + i * 2, i < path.size() ? u16(path[i]) : u16(0));
+        for (size_t i = 0; i < path.size() && i < 15; ++i)
+            put16(img, IREC + 28 + i * 2, path[i]);
     }
     /* $R content marker at cluster 19 (sector 42) */
     std::memcpy(img.data() + 25 * 512 + (19 - 2) * 512, "EXFAT-RECYCLED", 14);

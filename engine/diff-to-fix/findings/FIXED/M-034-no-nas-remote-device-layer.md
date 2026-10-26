@@ -55,3 +55,11 @@ M-033 (BitLocker — the other §8 transport sibling), I-017 (slice supersets), 
 ## Open questions
 
 Whether the og's NAS scan actually recovers deleted files from shares (server-side undelete semantics differ from raw block access) — a product-level question the corpus does not answer; the RTTI proves the scan-path plumbing only.
+
+
+## Resolution
+
+**Status:** FIXED (scope registration — the finding's fix plan step 3)
+**Fixed in commit:** (this session's M-034 commit — DFX24)
+**Verified by:** `Storage.ParityDeltasListsNasExclusion` — the doc-truth pin (fail-before by construction: neither the D-88 row nor the cr_device.h block existed); suite 893/893 linux-release post-union.
+**Resolution notes:** The product decision the finding demanded: NAS scanning is OUT of core scope, REGISTERED as PARITY-DELTAS D-88. The registration records the og's evidence (CRemoteDevice/CDoScanRemoteDevice RTTI, the EuMrx redirector, architecture/05 §8), the core's posture (five local-device layers; the IStorageDevice contract is transport-agnostic — a host MAY layer an SMB-backed device; the win layer's volume path reads mapped drives through the OS redirector for file-level recovery), and the rationale: the EuMrx interop is og-internal plumbing (the finding's own fix plan: "the device contract is the parity surface"); the corpus proves scan-path plumbing only — whether the og's NAS scan actually recovers deleted files from shares is undecoded (the finding's own open question, now the row's REVISIT TRIGGER); a network stack (credentials, timeouts, offline caching) is host policy, not pure-core surface. The finding existed to force exactly this disposition — the capability was never registered anywhere before.

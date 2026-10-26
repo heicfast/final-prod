@@ -285,6 +285,20 @@ CR_UI_API uint32_t cr_ui_open_image(const char* utf8_path, uint64_t offset, uint
 CR_UI_API uint32_t cr_ui_open_disk(uint32_t disk, cr_ui_device** out);
 CR_UI_API uint32_t cr_ui_open_volume(char letter, cr_ui_device** out);
 
+/* M-030 (diff-to-fix; ABI-since 2.2, additive - compatible per the ABI
+ * policy, no version bump): the transport-open diagnostic. The og's ABI
+ * surface reports WHY the driver transport was not used; the pre-fix
+ * core silently fell back RDA -> direct and overwrote the RDA leg's
+ * error (the finding's claim (f)). Returns the surviving transport
+ * leg's error code from the LAST cr_ui_open_disk on this process:
+ *   0                  the last open succeeded (or none was attempted)
+ *   CR_UI_ERR_*        the failed leg's code (e.g. the RDA open's error
+ *                      when the direct fallback then succeeded - a
+ *                      degraded-but-working transport is diagnosable as
+ *                      such). Advisory only: never gates an open's own
+ *                      return code; never clears; process-global. */
+CR_UI_API uint32_t cr_ui_last_transport_error(void);
+
 /* M-033 (additive export - compatible per the ABI policy, no version bump):
  * locked-volume open with a user-supplied FVEK - the in-stack XTS-AES
  * decrypt path the reference implements below its engines (FVE keys ->

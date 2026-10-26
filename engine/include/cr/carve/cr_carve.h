@@ -31,6 +31,9 @@ struct CarveStats {
     u64 duplicates = 0; /* deduped vs structured/carved */
     u64 hashed = 0;
     u64 bytes_scanned = 0;
+    /* M-039: positions suppressed by the occupancy interval gate (the
+     * cross-engine FS-accounted-extent skip; both layers count). */
+    u64 occupancy_skipped = 0;
     u64 sign_hits = 0;       /* raw-sign layer-1 candidates (row 32) */
     u64 sign_validated = 0;  /* header+tail paired hits */
     u64 windows_skipped = 0; /* unreadable windows (post-retry); their bytes
@@ -65,6 +68,21 @@ struct CarveFlags {
      * everything (raw disks unchanged). SLICE-RELATIVE basis (the
      * orchestrator rebases stats.free_map from the absolute basis). */
     const storage::FreeMap* free_map = nullptr;
+    /* M-039 (diff-to-fix): the cross-engine occupancy gate - the og's
+     * per-volume bitmap every FS engine fills from its walk (EXT4
+     * FUN_180012040 :14892-93 device-sized init :2763 fill-from-every-
+     * extent :6866-6869; Btrfs per-node :2547-2551; Zfs :40576/:40599),
+     * available to the raw phase to skip FS-accounted regions. The
+     * core's shape (the finding's fix plan step 3: "interval set
+     * first"): a sorted, coalesced [start, end) interval vector of
+     * every STRUCTURED node's extents (slice-relative), built by the
+     * orchestrator from the result tree after the engine passes. A
+     * candidate position inside any interval is suppressed from
+     * dispatch (the interval end is the jump target at the grammar
+     * layer, like the M-005 cluster jump). null/empty -> no gate (the
+     * og's no-bitmap behavior). The dedup tree stays as the safety
+     * net (the finding's own requirement). */
+    const std::vector<std::pair<u64, u64>>* occupied_ranges = nullptr;
     /* M-024 (diff-to-fix): runtime per-format enable/disable — the og's
      * RawConfig.ini [Filter] + IAnalyserFilter registry rebuild
      * (RAWSearchDLL FUN_180006b30 :4386-4434; 37 named toggles, STL/VPJ

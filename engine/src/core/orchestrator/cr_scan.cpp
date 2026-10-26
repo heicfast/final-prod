@@ -13,6 +13,9 @@
  */
 
 #include "cr/orchestrator/cr_scan.h"
+
+#include <algorithm>
+#include <functional>
 #include "cr/cr_log.h"
 #include "cr/cr_bits.h"
 #include "cr/cr_text.h"
@@ -1039,6 +1042,7 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
         publish_owner_module_(errmod::kOrchestrator);
         cfg_.fs_hint = probe_family(pipe);
     }
+
     /* volume facts for the session VolumeInfo (G-14) - recorded from the
      * caller's slice before the pipe wrapped it */
     vol_offset_ = slice->absolute_base();
@@ -1721,6 +1725,56 @@ u32 ScanController::run_carve_stage(IStorageDevice* slice, CancelToken* cancel,
     };
     carve::CarveFlags cf;
     cf.threads = threads;
+    /* M-039 (diff-to-fix): the cross-engine occupancy gate - the og's
+     * per-volume bitmap every FS engine fills from its walk (EXT4
+     * fill-from-every-extent :6866-6869; Btrfs per-node :2547-2551;
+     * Zfs :40576/:40599), available to the raw phase. The core's shape:
+     * the orchestrator aggregates every STRUCTURED node's extents from
+     * the result tree (the emit path already built them per file - the
+     * fix plan's step 1 verbatim) into a sorted, coalesced interval set,
+     * rebased slice-relative, and hands it to the carve as a skip gate
+     * alongside the M-005 allocation-bitmap gate. Carved nodes never
+     * feed the gate (their regions are the carve's own output; feeding
+     * them would suppress re-carve on resume - the og's bitmap is
+     * FS-engine-fed only). The dedup tree stays as the safety net. */
+    std::vector<std::pair<u64, u64>> occupied;
+    {
+        std::vector<std::pair<u64, u64>> raw;
+        std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+                if (c->origin() == tree::Origin::Structured && c->props() != nullptr) {
+                    for (const auto& ex : c->props()->extents) {
+                        if (ex.length > 0)
+                            raw.push_back({ex.offset, ex.offset + ex.length});
+                    }
+                }
+                collect(c);
+            }
+        };
+        for (auto* r : tree_.roots())
+            collect(r);
+        if (!raw.empty()) {
+            std::sort(raw.begin(), raw.end());
+            occupied.push_back(raw[0]);
+            for (size_t k = 1; k < raw.size(); ++k) {
+                if (raw[k].first <= occupied.back().second)
+                    occupied.back().second =
+                        std::max(occupied.back().second, raw[k].second);
+                else
+                    occupied.push_back(raw[k]);
+            }
+            /* absolute -> slice-relative (the F-1 tree basis; the carve's
+             * positions are slice-relative like the M-005 rebase below) */
+            const u64 ab = slice->absolute_base();
+            if (ab != 0) {
+                for (auto& iv : occupied) {
+                    iv.first = iv.first >= ab ? iv.first - ab : 0;
+                    iv.second = iv.second >= ab ? iv.second - ab : 0;
+                }
+            }
+            cf.occupied_ranges = &occupied;
+        }
+    }
     /* M-005: gate the sweep with the engine pass's allocation truth (the
      * S-009 FreeMap). stats.free_map is on the ABSOLUTE basis (F-1 rebase
      * at the engine dispatch tail); the carve works slice-relative - copy
@@ -1752,6 +1806,7 @@ u32 ScanController::run_carve_stage(IStorageDevice* slice, CancelToken* cancel,
     stats.bytes_scanned += cs.bytes_scanned;
     stats.carve_bitmap_skipped_bytes = cs.bitmap_skipped_bytes; /* M-005 */
     stats.carve_zero_strides = cs.zero_strides_skipped;         /* N-031 */
+    stats.carve_occupancy_skipped = cs.occupancy_skipped;      /* M-039 */
     if (rc == OK)
         carve_done_ = true;
     tel_stage_end_(2, cancel);

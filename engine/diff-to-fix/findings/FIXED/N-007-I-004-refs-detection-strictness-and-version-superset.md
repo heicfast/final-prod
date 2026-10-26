@@ -60,3 +60,18 @@ structure walk"; the og gate (major==3 && minor>3 + major==1 path) is
 corpus-documented; the rationale holds. Registered this session: PARITY-DELTAS
 D-48b (first row; parity benches must not count ReFS 2.x / 3.0–3.3 yield
 against the og). No code change — future work must PRESERVE the superset.
+
+## N-007 Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-007 commit — `git log` "fix(N-007)")
+**Verified by:** `RefsDetect.PartialSignaturePageDetectedAndFlagged` + `RefsDetect.FullSignaturePageNotFlaggedPartial` (both green; fail-before EXECUTED: with the fix stashed the test unit does not compile — `'struct cr::refs::RefsInfo' has no member named 'signature_partial'` — the discovery width and the grading flag did not exist); full suite **893/893** linux-release.
+**Resolution notes:** CONFIRMED-DIVERGENCE, corpus re-verified first-hand this session before the change (ReFSSearchDLL_decompiled.c :11689-11720: `param_4==1/2/3` selects "SUPBMSB+ReFSFSRS"/"CHKPSUPBMSB+ReFSFSRS"/"MSB+ReFSFSRS", the gate is `*param_2 == *(int*)pcVar4` — FIRST DWORD only; the page's remaining bytes are validated downstream by the ref-parser FUN_18000ff60). Fixed per the finding's own plan: detect_refs's page loop now dispatches on the first DWORD (the engine's own page acceptance — cr_refs_engine.cpp:152 — was ALREADY first-DWORD og-exact; the gap was this probe, which the lost-partition discovery path consumes at cr_candidates.cpp:456, so a lost ReFS partition whose pages carry late-byte corruption was missed at candidate time); the full-width memcmp survives as a GRADING signal (`RefsInfo::signature_partial` — found + flagged, never rejected). The three first-DWORD keys ("SUPB"/"CHKP"/"MSB+") are distinct, so no variant masking exists at 4 bytes; the last-hit-wins msb_offset order and the checkpointed mapping are unchanged. The I-004 half of this file stands ACKNOWLEDGED (its Resolution above, D-48b); the file moves to FIXED/ with both halves closed.
+---
+
+## N-007 Resolution
+
+**Status:** FIXED
+**Fixed in commit:** this session's N-007 landing (DFX33; sha in the worklog entry)
+**Verified by:** `RefsDetect.PartialSignaturePageDetected` (fail-before EXECUTED: RED on the full-width-only tree — a corrupt-tail SUPB page returned ERR_BAD_MAGIC; pass-after: found + `signature_partial` graded, a corrupt-tail-only volume found, a clean volume unflagged) + the refs suite 32/32 + full suite **891/891** linux-release.
+**Resolution notes:** Corpus re-verified first-hand (ReFSSearchDLL :11689-11720: the dispatch selects the signature string by page kind then compares `*param_2 == *(int*)pcVar4` — FIRST DWORD ONLY; "SUPB"/"CHKP"/"MSB+" — the page object is constructed and the ref-parser validates further). The core's detect now matches that discovery rule: `page_match` compares the first 4 bytes for discovery, keeps the full-width memcmp as the grading signal, and records `RefsInfo::signature_partial` (first-4 hit, full compare failed) — the volume is still found, exactly the og's corrupt-page tolerance. The full engine's own validation chain (bytenr/identity gates in scan_refs) is unchanged and remains the deeper gate. The I-004 half of this file stays ACKNOWLEDGED (the version-gate superset, D-48b) — no code change, preserved.

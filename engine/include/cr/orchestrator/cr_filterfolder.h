@@ -43,12 +43,20 @@ namespace cr {
 namespace filterfolder {
 
 /* generated data (cr_filterfolder_data.cpp, scripts/gen_filterfolder.py):
- * semicolon-delimited UTF-8 pools, the og's entry order. Counts are
+ * semicolon-delimited UTF-8 pools, the og's entry order, each pool
+ * NUL-terminated (the consumer reads them as C strings). Counts are
  * pinned by the FilterFolder tests (regeneration-drift guard). */
 namespace data {
 extern const u8 kFolderPool[];
 extern const u8 kFilePool[];
 extern const u8 kFatNamePool[];
+/* N-081: the pools are semicolon-delimited with a TRAILING delimiter and
+ * NO NUL terminator - reading them as C strings overruns the arrays
+ * (global-buffer-overflow under ASan, first caught on the linux-gcc
+ * lane). The byte lengths pin the parse to the array bounds. */
+extern const u32 kFolderPoolLen;
+extern const u32 kFilePoolLen;
+extern const u32 kFatNamePoolLen;
 extern const u32 kFolderCount;
 extern const u32 kFileCount;
 extern const u32 kFatNameCount;

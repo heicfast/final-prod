@@ -1,5 +1,20 @@
 # SUMMARY.md — executive summary (diff-fix session 33 on top; earlier sessions below)
 
+## Session-33 delta, part 5 (2026-10-26 — DFX33: N-007 FIXED — ReFS page-signature discovery width)
+
+**N-007 FIXED (MINOR — with the I-004 half staying ACKNOWLEDGED):** the
+corpus was re-verified first-hand (ReFSSearchDLL :11692 — the og's page
+dispatch compares the FIRST DWORD only; corrupt-tail pages open and the
+ref-parser validates further). The core's detect now matches: first-4
+discovery + the full memcmp as the grading signal
+(RefsInfo::signature_partial). Proof: RefsDetect.PartialSignaturePageDetected
+(fail-before EXECUTED RED on the full-width-only tree); refs suite 32/32;
+full suite **891/891**.
+
+**Post-fix counts (this landing):** SEVERE **0** · MAJOR 4 · MINOR 2 ·
+INFO **0 open** · tracked-open 2.
+
+
 ## Session-33 delta, part 4 (2026-10-26 — DFX33: M-048 FIXED — the user-extensible signature database)
 
 **M-048 FIXED (MAJOR — the EUUserData capability):** users can teach the
@@ -203,15 +218,75 @@ gate families — including the raw-disassembly confirmation of
 FUN_180002f90's timestamp gates and the all-zero-FAILS correction —
 converged with the landing and is recorded in the finding file.)
 
+**M-052 FIXED (MAJOR — the FAT/exFAT recycle-bin $I/$R pairing):** the
+NTFS engine's in-repo reference model extracted into the shared
+`cr/recycle` helper (name + content-stream parameterization, the fix
+plan's step 1 verbatim) and wired into both walks: the three corpus
+roots ($RECYCLE.BIN / Recycled / Recycler, case-blind) mark their
+subtree; $I streams parsed (v1/v2 + the Win10+ variable form) and
+never surfaced; $R files remapped to their ORIGINAL name/size/
+deletion-time and marked Deleted (in-use inside the bin, deleted from
+the user's location — the NTFS model); post-walk fixup for late $I
+pairs. NTFS itself now consumes the shared helper through attribute-
+view glue (identical behavior). Fail-before EXECUTED (engine mutation,
+3/4 RED; the over-matching pin green by design). Stats
+recycle_info/recycle_remapped on both engines.
+
+**Baseline repair 2 (pushed-red main, committed conflict markers):** a
+parallel merge (the 9a9340e/196d75a lineage) committed half-eaten
+conflict markers into include/cr/win/cr_bitlocker.h and a structurally
+broken src/app/rrecov.cpp — win_syntax_check RED (the gate's exact
+purpose). Repaired as the canonical union: the 6afa8fc reconciliation's
+cr::dict design (the standing first-landing-wins ruling) + the N-033
+CLI additions (list-carve-formats + the cr_ui include). Fail-before:
+win_syntax_check RED on the marker tree, green post-repair.
+
 **Post-fix counts (live file inventory at this session's push):**
-SEVERE 0 · MAJOR 10 open (M-018, M-025, M-030, M-034, M-035, M-039,
-M-040, M-041, M-048, M-052) · MINOR 5 open (N-007, N-059, N-065,
-N-066, N-072) · INFO 0 actionable (all acknowledged) · FIXED/ grows
-with every parallel landing (live count at the RESOLVED-INDEX).
-Suite **826/826** linux-release; ASan lane green. Next on this lane:
-M-035 (engine-side FileFilter validation) → M-052 (FAT/exFAT recycle
-pairing) → M-018 (FilterFolder junk filter) → M-039 (occupancy
-bitmap) → M-025/M-030 perf legs.
+SEVERE 0 · MAJOR 7 open (M-018, M-030, M-034, M-039, M-040, M-041,
+M-048) · MINOR 5 open (N-007, N-059, N-065, N-066, N-072) · INFO 0
+actionable (all acknowledged) · FIXED/ grows with every parallel
+landing (live count at the RESOLVED-INDEX; the window's parallel lanes
+closed M-014/M-020/M-025/M-029/M-035/M-052 among the MAJORs).
+**M-034 FIXED (MAJOR — resolved by scope registration):** the NAS/
+remote-layer finding existed to force a disposition that had never
+been made anywhere; PARITY-DELTAS D-88 now registers the exclusion
+(what the og does: CRemoteDevice/CDoScanRemoteDevice + EuMrx; what
+the core does: five local-device layers, transport-agnostic contract;
+why: the EuMrx interop is host plumbing, the corpus proves scan-path
+plumbing only — the REVISIT TRIGGER is a decode of the og's actual
+deleted-file yield over SMB). cr_device.h divergence block +
+`Storage.ParityDeltasListsNasExclusion` doc-truth pin.
+
+**Convergence record (M-052):** a parallel lane (DFX35) landed a
+convergent M-052 implementation that hit origin first and is
+corpus-richer on one axis (the og's FOUR-name root set incl. the
+"$RECYCLE.BI0" FAT-mangled form, verified in all three SearchDLLs);
+their inline-header API is canonical after the union, this lane's
+three-root .cpp implementation dropped cleanly. Their landing also
+filed+fixed N-079 (the NTFS bin-scope defect — out-of-bin $I/$R
+handling); this lane's log-seam leak finding renumbered N-079→N-080
+(same-window ID collision, first-landing-wins). Two more pushed-red
+unions repaired this window (the M-052-era source-file markers; the
+re-broken rrecov.cpp/cr_bitlocker.h — the canonical cr::dict design
+restored both times).
+
+**M-039 FIXED (MAJOR — the cross-engine occupancy gate):** the
+orchestrator aggregates every STRUCTURED node's extents into a
+sorted/coalesced interval set (the fix plan's step 1 verbatim — the
+emit path already built the extents) and feeds it to both carve
+dispatch layers: in-interval positions are suppressed, the grammar
+layer jumps to the interval end (the M-005 cluster-jump analog at
+extent granularity), the raw-sign 512-strides suppress the same way.
+Carved nodes never feed the gate (resume re-carve protection); the
+dedup tree stays the safety net; interval-set memory shape (the
+finding's "interval set first"). occupancy_skipped telemetry.
+Fail-before EXECUTED (gate neutralized: 2/3 RED; the straddle pin
+green by design). Suite 895/895.
+
+**Post-fix counts (live file inventory at this session's push):**
+SEVERE 0 · MAJOR 2 open (M-030, M-040) · MINOR 1 open (N-072)
+· INFO 0 actionable · suite **895/895** linux-release. Next on this
+lane: M-030 (transport) → M-040 (boot-chain disposition).
 
 
 ## Session-34 delta (2026-10-26 — DFX34: the N-064 convergent-landing reconciliation + the MINOR-tail lane)
@@ -945,6 +1020,26 @@ open (22 acknowledged in FIXED/) · tracked-open 11 · FIXED/ **178** files
 (177 findings + RESOLVED-INDEX). Next on this lane: N-050 (recognition contract) →
 N-033 → N-064.
 ## Session-35 delta (2026-10-26 — DFX35, re-stamped from 23: the MAJOR-closing wave, M-014 first)
+
+**M-041 FIXED (MAJOR — the damage-audit check phase):** the og's
+FileSystemCheck.mo is now a core module (include/cr/check/cr_fscheck.h):
+a read-only pre-scan audit with the og's error taxonomy in numeric
+parity (0x1001-0x100e). FAT pass in the og's phase order (DBR gates —
+the ceilings CLAMP, the finding's "validator" framing corrected by the
+decompile; hole/duplicate scans; pairwise copy compare; the dir audit
+with `.`/`..`, size-vs-chain, cycles, cross-links; the orphan sweep
+with the BAD-sentinel set). NTFS pass (volume-size gate, the $MFT /
+$MFTMirr payload-name proofs, the version gate {1.2,3.0,3.1}, $Bitmap
+structural, the MFT×$Bitmap cross-check with both og strings). Wired as
+a pre-scan stage (default ON, opt-out, never aborts; reads the raw
+slice so its failures never steal the error map's engine attribution —
+the ErrorRange attribution test caught exactly that during the build).
+New module doc: modules/check-phase.md. 14 tests (fail-before by
+construction — the API did not exist). Suite 877/877.
+
+**Counts after this landing:** MAJOR 5 · MINOR 10 · FIXED 209
+findings. Next on this lane: pull-check, then the remaining MAJORs
+(M-030/M-034/M-039/M-040/M-048) minus whatever the parallel lanes land.
 
 **M-052 FIXED (MAJOR — the FAT/exFAT recycle-bin $I/$R pairing) +
 N-079 NEW-FINDING FIXED (MINOR — the NTFS landing's missing bin
