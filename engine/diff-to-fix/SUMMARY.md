@@ -1,4 +1,44 @@
-# SUMMARY.md — executive summary (diff-fix session 33 on top; earlier sessions below)
+# SUMMARY.md — executive summary (diff-fix session 37 on top; earlier sessions below)
+
+## Session-37 delta, part 1 (2026-10-26 — DFX37 lane opens: the third-merge-storm repair + the count truing; S-034/M-040/N-072 claimed)
+
+**The pushed-red repair (landing `6f0052b` → `c1e3ce5` through three
+parallel-wave absorptions):** main was RED at session start (`875ed25` —
+61/865 tests failing + win_syntax_check failing, the app layer unparsable).
+Five defects verified first-hand and repaired: (1) the M-018 filterfolder
+pools read as C strings with no NUL terminator — ASan global-buffer-overflow
+on every junk-filter consumer (60 test failures; generator-level fix +
+regeneration from the corpus FilterFolder.ini + test-side termination
+pins); convergent with the parallel lane's N-081 length-bounded parse —
+the final union keeps BOTH (terminated pools + bounded parse + both
+guards). (2) the M-052 exFAT `$I` fixture overread (15 units from a
+12-char literal) — convergent with their N-082. (3) cr_bitlocker.h's
+N-064 comment block garbled by the union merge (4 parse errors). (4)
+rrecov.cpp union damage — duplicated `open_volume_view`
+signature/guard/args, tripled call, and `print_carve_formats()` DELETED
+while its call sites survived (restored from the repaired parent
+`cfa4c75`; the merge's genuine M-018 junk-filter gates KEPT). (5) the
+merge union re-introduced the withdrawn cr::pwddict module — resolved to
+the parallel lane's "both surfaces stand" convergence (their tested
+union on origin/main; recorded here as the stable-main choice). Suite
+green through every absorption: 894/894 → 898/898 → 902/902 → **902/902**
+at the lane-claim tree `c1e3ce5`.
+
+**Counts trued at lane claim (file inventory, `c1e3ce5`):** **FIXED 219**
+· SEVERE **1** (S-034 — this lane) · MAJOR **1** (M-040 — this lane) ·
+MINOR **1** (N-072 — this lane) · INFO 0 open · tracked-open **2**
+(OQ-S4-3, OQ-Z-E-FLT/OQ-FLT-2). The parallel-lane waves this window
+landed M-030, M-034 (scope-registered D-88), M-039, M-041, M-048, M-052,
+N-007, N-065, N-066, N-081, N-082 — all absorbed green.
+
+**Lane claim (this session's queue):** S-034 (the ZFS ring txg-history
+walk — the worklog handoff's "highest-value ZFS work on the board"),
+M-040 (the boot-chain family: disposition + the BCD offset rewriter),
+N-072 (Btrfs re-scan cache + ZFS label polling), OQ-S4-3 (Windows bench
+execution or evidenced push-forward), OQ-FLT-2 (the AdvanceFilterCondition
+per-group decode). Session target: 20+ verified fixes — the three open
+findings' sub-items plus the decode-driven NEW-FINDINGs the verification
+pass is expected to surface.
 
 ## Session-33 delta, part 5 (2026-10-26 — DFX33: N-007 FIXED — ReFS page-signature discovery width)
 

@@ -15913,3 +15913,50 @@ Work Log:
 Stage Summary:
 - Main green again. Baseline: 898/898. Next: S-034 decode + fix (the
   only SEVERE), then M-030, M-040, N-072, then the OQ residuals.
+
+---
+Task ID: DFX37-T0 (session 37 bootstrap — the third-merge-storm repair + lane claim)
+
+Task: Repair the pushed-red main (875ed25: 61/865 + win_syntax_check RED),
+absorb three parallel waves, true the counts, claim the session lane.
+
+Work Log:
+- Audited commit at start: 875ed25 (merge union); corpus 03ad46c unmoved.
+- Repair 1 (convergent w/ parallel N-081): the M-018 filterfolder pools
+  had NO NUL terminator while split_into read C strings - ASan
+  global-buffer-overflow, 60 test failures. Generator-level fix
+  (scripts/gen_filterfolder.py emits trailing 0x00) + regeneration from
+  the corpus FilterFolder.ini (byte-identical otherwise) + test-side
+  termination pins in FilterFolder.CorpusListsPinned.
+- Repair 2 (convergent w/ parallel N-082): the M-052 exFAT $I fixture
+  copied 15 UTF-16 units from the 12-char u"C:\\photo.jpg" literal -
+  2-element overread. Bounds-safe copy (their N-082 std::u16string form
+  adopted at the final merge).
+- Repair 3: cr_bitlocker.h N-064 comment garbled by the union merge
+  (orphaned duplicate comment lines parsed as code) - merged the D-80
+  CONVERGENCE paragraph into one coherent comment.
+- Repair 4: rrecov.cpp union damage - duplicated open_volume_view
+  signature, duplicated Unknown-state guard, orphaned wprintf fragment,
+  duplicate wprintf arg, TRIPLED call at cmd_scan, print_carve_formats
+  DELETED with call sites alive. Restored from the repaired parent
+  cfa4c75; the merge's genuine M-018 junk-filter gates kept.
+- Repair 5: the withdrawn cr::pwddict re-added by the union - resolved
+  to the parallel lane's both-stand convergence (their tested union on
+  origin/main; files restored, CMake deduped, FatScanStats recycle
+  fields restored from 234bf0b).
+- Three parallel-wave absorptions (M-041/M-048/N-007/N-065/N-066/M-052
+  collision repairs; M-030/M-039/N-081/N-082; the M-041 marker cleanup),
+  suite green after each: 894/894 -> 898/898 -> 902/902 -> 902/902 at
+  the lane-claim tree c1e3ce5 (pushed).
+- Counts trued in SUMMARY session-37 delta: FIXED 219, SEVERE 1 (S-034),
+  MAJOR 1 (M-040), MINOR 1 (N-072), tracked-open 2.
+- Lane claimed (posted before work, DFX35-T4 protocol): S-034, M-040,
+  N-072, OQ-S4-3, OQ-Z-E-FLT/OQ-FLT-2. Prompt saved token-redacted at
+  worklog/session-diff-fix-37-prompt.md.
+
+Stage Summary:
+- Main green at c1e3ce5 (902/902 linux-gcc ASan incl. win_syntax_check).
+- The S-034 decode begins next: corpus ZfsSearchDLL FUN_180003150/
+  FUN_18001ac60 first-hand read to answer the three open decode items
+  (cross-txg emission/dedup, MOS snapshot re-emit, last_txg role)
+  before any core change.
