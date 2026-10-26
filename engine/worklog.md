@@ -16997,6 +16997,30 @@ Work Log:
 Stage Summary:
 - The review session's remaining deliverable: tag v0.4.0-parity once CI
   is green on the docs push, and the final handoff note.
+---
+Task ID: RV3 (review-validate session — the CI follow-up wave + the release prep)
+Agent: review-and-validate session
+Task: Keep main green through the parallel lanes' continuing landings;
+prepare the v0.4.0-parity release.
+
+Work Log:
+- Follow-ups: the lanes' newest landings re-introduced both failure
+  classes (cr_nvramfix/rrecov format drift; fuzz_image's union-mangled
+  two-arg emplace on the set). Both repaired (f6899fa); the tree is
+  format-clean and the harness syntax-checks.
+- The count_if/<algorithm> MSVC break fixed (be0150e) — the fourth
+  Windows-lane error the api-benchmark log exposed.
+- The SUMMARY close-out recorded (426a6d2); RELEASE-NOTES rewritten for
+  v0.4.0-parity (41a2c56) per the mandate (referencing SUMMARY.md +
+  PARITY-DELTAS.md).
+- CI watch: linux/linux-ubsan/linux-tsan green on 41a2c56 (the TSan
+  race fix proven in CI); windows/fuzz/lint were the parallel waves'
+  post-sweep drift, repaired in the follow-ups.
+
+Stage Summary:
+- Remaining: a green CI confirmation on the latest tree, then the
+  v0.4.0-parity tag + this handoff entry.
+
 
 ---
 Task ID: DFX36-CLOSE (session 36 handoff)
