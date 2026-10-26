@@ -16259,6 +16259,110 @@ Work Log:
 Stage Summary:
 - S-034 closed FIXED on main (canonical cb046ed + union 5f3b2fe).
 - Suites on the union tree: 870/870 linux-release.
+Task ID: DFX37-T0 (session 37 bootstrap — the third-merge-storm repair + lane claim)
+
+Task: Repair the pushed-red main (875ed25: 61/865 + win_syntax_check RED),
+absorb three parallel waves, true the counts, claim the session lane.
+
+Work Log:
+- Audited commit at start: 875ed25 (merge union); corpus 03ad46c unmoved.
+- Repair 1 (convergent w/ parallel N-081): the M-018 filterfolder pools
+  had NO NUL terminator while split_into read C strings - ASan
+  global-buffer-overflow, 60 test failures. Generator-level fix
+  (scripts/gen_filterfolder.py emits trailing 0x00) + regeneration from
+  the corpus FilterFolder.ini (byte-identical otherwise) + test-side
+  termination pins in FilterFolder.CorpusListsPinned.
+- Repair 2 (convergent w/ parallel N-082): the M-052 exFAT $I fixture
+  copied 15 UTF-16 units from the 12-char u"C:\\photo.jpg" literal -
+  2-element overread. Bounds-safe copy (their N-082 std::u16string form
+  adopted at the final merge).
+- Repair 3: cr_bitlocker.h N-064 comment garbled by the union merge
+  (orphaned duplicate comment lines parsed as code) - merged the D-80
+  CONVERGENCE paragraph into one coherent comment.
+- Repair 4: rrecov.cpp union damage - duplicated open_volume_view
+  signature, duplicated Unknown-state guard, orphaned wprintf fragment,
+  duplicate wprintf arg, TRIPLED call at cmd_scan, print_carve_formats
+  DELETED with call sites alive. Restored from the repaired parent
+  cfa4c75; the merge's genuine M-018 junk-filter gates kept.
+- Repair 5: the withdrawn cr::pwddict re-added by the union - resolved
+  to the parallel lane's both-stand convergence (their tested union on
+  origin/main; files restored, CMake deduped, FatScanStats recycle
+  fields restored from 234bf0b).
+- Three parallel-wave absorptions (M-041/M-048/N-007/N-065/N-066/M-052
+  collision repairs; M-030/M-039/N-081/N-082; the M-041 marker cleanup),
+  suite green after each: 894/894 -> 898/898 -> 902/902 -> 902/902 at
+  the lane-claim tree c1e3ce5 (pushed).
+- Counts trued in SUMMARY session-37 delta: FIXED 219, SEVERE 1 (S-034),
+  MAJOR 1 (M-040), MINOR 1 (N-072), tracked-open 2.
+- Lane claimed (posted before work, DFX35-T4 protocol): S-034, M-040,
+  N-072, OQ-S4-3, OQ-Z-E-FLT/OQ-FLT-2. Prompt saved token-redacted at
+  worklog/session-diff-fix-37-prompt.md.
+
+Stage Summary:
+- Main green at c1e3ce5 (902/902 linux-gcc ASan incl. win_syntax_check).
+- The S-034 decode begins next: corpus ZfsSearchDLL FUN_180003150/
+  FUN_18001ac60 first-hand read to answer the three open decode items
+  (cross-txg emission/dedup, MOS snapshot re-emit, last_txg role)
+  before any core change.
+
+---
+Task ID: DFX37-T1 (session 37 — S-034 FIXED: the ZFS ring txg-history walk)
+
+Task: Fix SEVERE S-034 — the og walks every uberblock in the label ring
+(per-txg state recovery); the core read the newest txg only.
+
+Work Log:
+- Corpus decode BEFORE implementation (the finding's three open items):
+  (1a) re-read FUN_180003150 addBlock in full (:1967-2259): registry
+  lookup, ring re-read, record-txg match at +0x10, tree-open, the
+  "from_txg: 0, birth_txg: <txg>" success log + FUN_18001ac60(uberData,
+  0, cb) descent. Emission: FUN_180012450 (ZplNodeFile ctor) is a PLAIN
+  refcounted constructor - no registration map, no dedup; the visitor
+  lambda (lambda_3cb9c924, capturing the controller) bulk-collects. A
+  file present in N states emits N ZplNodes.
+  (1b) the descent recurses the per-state dataset tree with the same
+  from_txg=0 - each state's own snapshot hierarchy is walked inherently;
+  no separate MOS-snapshot-list step exists in the quick searcher.
+  (1c) last_txg: grep = ONE occurrence in the entire binary (the
+  progress-string append ":5703) - display-only, bounds nothing.
+- Fixture first (fail-before discipline): build_ring_pool() - a second
+  complete pool state at txg 76 (MOS2/MOS_DNODES2/ZPL2/ZPL_DNODES2/
+  ROOTDIR_ZAP2 + GONE.TXT object 30), sharing every unchanged block with
+  the live state; uberblock slot 1 stamped txg 76 in all 4 labels.
+  Fail-before EXECUTED: RingWindowDeletedFileSurfaces RED
+  (ring_states_walked 0, tank/GONE.TXT absent).
+- Engine fix (cr_zfs_engine.cpp): the probe collects every valid ring
+  uberblock into a txg-keyed map; the walk factored into walk_state(ub,
+  live); newest state walks live (previous behavior preserved), older
+  states walk newest->oldest into the deleted tree with cross-state
+  identity dedup (head object + object id + logical birth txg @
+  blkptr+80; BP_BIRTH=72 renamed BP_PHYS_BIRTH, BP_LOGICAL_BIRTH=80
+  added - the old constant was unused). Deleted-tree dataset/dir nodes
+  cached by name/(head,obj); live dirs are unmarked containers; files
+  mark DeletedState::Deleted. New stats ring_states_walked +
+  ring_deleted_recovered (append-only). root_deleted=nullptr skips old
+  walks (legacy call shape supported, pinned by test).
+- Fixture lesson (recorded in the Resolution): the first cut placed
+  B_ROOTDIR_ZAP2 (0xB8000) INSIDE the 16K B_ZPL_DNODES2 footprint
+  (0xB6000+0x4000) - the array copy clobbered the ZAP and the walk died
+  at the first read_zap; placement moved past the array end (0xBA000+).
+- Suite 905/905 linux-gcc (ASan) incl. win_syntax_check; all 18
+  pre-existing ZFS tests green.
+
+AUDIT TRAIL: findings/FIXED/S-034 (Resolution: decode answers, the
+registered emission-dedup divergence, the fixture lesson);
+CROSS-REF-MATRIX zfs B/D cells -> MATCH; modules/zfs.md session-37 row +
+B1 detection updated; PARITY-DELTAS D-05 verdict -> closed-with-one-
+registered-divergence (3 unioned instances updated); CAPABILITY-MATRIX
+ZFS row; engine header deleted-file story rewritten; SUMMARY session-37
+part 2.
+
+Stage Summary:
+- SEVERE tier EMPTY. Counts: FIXED 220, MAJOR 1 (M-040), MINOR 1
+  (N-072), tracked-open 2. Next: M-040 (the boot-chain family
+  disposition + the BCD offset rewriter stage), then N-072, then the
+  OQs.
+
 
 Task ID: DFX36-T2 (S-034)
 Agent: main engineer (diff-to-fix fix session 36 — DFX36)

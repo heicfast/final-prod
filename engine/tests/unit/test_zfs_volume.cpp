@@ -39,6 +39,7 @@ constexpr u64 B_BIGDIR_ZAP = 0x92000; /* fat zap (embedded ptrtbl) */
 constexpr u64 B_FILE_DATA = 0xA0000;
 constexpr u64 B_ZLE_DATA = 0xA2000;
 
+
 constexpr u64 TXG = 77;
 
 class MemDevice final : public IStorageDevice {
