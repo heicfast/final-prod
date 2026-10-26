@@ -88,14 +88,11 @@ jobs:
         with:
           toolchain: stable
 
-      - name: Cargo check (bridge + its #[cfg(test)] modules — the T14
-          measurement tests compile-verify here; no link step — engine kit
-          not required)
+      - name: Cargo check --tests (bridge + the T14 measurement modules; no link step)
         working-directory: ui/src-tauri
         run: cargo check --tests
 
-      - name: Clippy (strict; the lib surface — test-only measurement code
-          is compile-checked above, lint-checked where it runs)
+      - name: Clippy (strict; the lib surface)
         working-directory: ui/src-tauri
         run: cargo clippy -- -D warnings
 

@@ -53,13 +53,22 @@ function Invoke-Contracts {
 
 function Invoke-Engine {
     Write-Host "[engine] CMake win-x64-$Configuration (vcpkg manifest: zlib gtest lz4 zstd)"
+    # GitHub Windows runners expose the vcpkg root via VCPKG_INSTALLATION_ROOT
+    # (engine-ci.yml sets the same); manifest mode needs VCPKG_ROOT.
+    if (-not $env:VCPKG_ROOT -and $env:VCPKG_INSTALLATION_ROOT) {
+        $env:VCPKG_ROOT = $env:VCPKG_INSTALLATION_ROOT
+        Write-Host "[engine] VCPKG_ROOT <- $env:VCPKG_ROOT"
+    }
+    # Preset names are lowercase in engine/CMakePresets.json (win-x64-release);
+    # the MSVC config dirs inside the build tree stay capitalized.
+    $preset = "win-x64-$($Configuration.ToLowerInvariant())"
     Push-Location (Join-Path $RepoRoot 'engine')
-    cmake --preset "win-x64-$Configuration"
+    cmake --preset $preset
     if ($LASTEXITCODE -ne 0) { throw 'engine configure failed' }
-    cmake --build --preset "win-x64-$Configuration" --parallel
+    cmake --build --preset $preset --parallel
     if ($LASTEXITCODE -ne 0) { throw 'engine build failed' }
     if (-not $SkipTests -and $Configuration -eq 'Release') {
-        ctest --preset "win-x64-$Configuration" --output-on-failure
+        ctest --preset $preset --output-on-failure
         if ($LASTEXITCODE -ne 0) { throw 'engine tests failed' }
     }
     Pop-Location
@@ -67,9 +76,10 @@ function Invoke-Engine {
     # PE gates: Win7SP1 loader contract (OS stamp + import allowlist), the
     # engine's own release discipline — same tools, same artifact paths, same
     # per-file + --allowlist invocation its release.yml uses
-    # (build/win-x64-<cfg>/src/app/Release/rrecov.exe, src/ui/Release/cr_ui.dll).
-    $appBin = Join-Path $RepoRoot "engine\build\win-x64-$Configuration\src\app\Release"
-    $uiBin  = Join-Path $RepoRoot "engine\build\win-x64-$Configuration\src\ui\Release"
+    # (build/<preset>/src/app/<Config>/rrecov.exe, src/ui/<Config>/cr_ui.dll).
+    $buildDir = Join-Path $RepoRoot "engine\build\win-x64-$($Configuration.ToLowerInvariant())"
+    $appBin = Join-Path $buildDir "src\app\$Configuration"
+    $uiBin  = Join-Path $buildDir "src\ui\$Configuration"
     foreach ($pe in @("$appBin\rrecov.exe", "$uiBin\cr_ui.dll")) {
         if (-not (Test-Path $pe)) { throw "expected engine artifact missing: $pe" }
         python (Join-Path $RepoRoot 'engine\tools\stamp_osversion_um.py') $pe
@@ -106,7 +116,10 @@ function Invoke-Driver {
     $drvBin = Join-Path $RepoRoot "driver\bin\x64\$Configuration"
     python (Join-Path $RepoRoot 'driver\tools\stamp_osversion.py') "$drvBin\rda.sys"
     if ($LASTEXITCODE -ne 0) { throw 'driver PE stamp failed' }
-    python (Join-Path $RepoRoot 'driver\tools\verify_pe.py') "$drvBin\rda.sys"
+    # Explicit allowlist: verify_pe.py's default 'tools/ref_imports.json' is
+    # CWD-relative (driver-ci runs it from driver/; build.ps1 runs from the
+    # repo root, where that relative path does not exist).
+    python (Join-Path $RepoRoot 'driver\tools\verify_pe.py') "$drvBin\rda.sys" --allowlist (Join-Path $RepoRoot 'driver\tools\ref_imports.json')
     if ($LASTEXITCODE -ne 0) { throw 'driver PE verify failed (unsigned/import gates)' }
 
     $driverStage = Join-Path $StageDir 'driver'
