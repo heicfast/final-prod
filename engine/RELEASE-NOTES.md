@@ -1,20 +1,61 @@
-# core_recovery v0.3.0-parity
+# core_recovery v0.4.0-parity
 
-**Scope of this release:** the complete local recovery core, parity-audited
-against the reverse-engineering corpus (`easeus-drw-research`) — all
-filesystem engines (NTFS, FAT12/16/32, exFAT, ext2/3/4, HFS+/HFSX, Btrfs,
-ZFS, ReFS), full LDM dynamic-disk reconstruction, grammar-aware carving
-(30-format registry), lost-partition recovery, RawFixer-class transactional
-repair, durable sessions (.crsf), the safe recovery writer, and the
-in-process UI binding surface (`cr_ui.dll` — the og's C-export factory
-wire, corpus DRWUI-exe §9.2). Out of scope by decision: remote/network
-recovery only (NAS redirector, cloud).
+**Scope of this release:** the complete local recovery core with the
+parity audit **closed** — every filed finding in `diff-to-fix/` is
+dispositioned (FIXED with tests / FIXED-ALREADY / INVALID /
+SUPERSEDED; the board is empty, tracked-open 1: OQ-S4-3's live-harness
+perf measurement). The parity loop — audit (`easeus-drw-research`
+corpus as ground truth) → fix → prove → re-audit — is closed at this
+tag, and this release additionally carries the post-fix **review
+session**: every fix-lane landing and collision was independently
+re-verified, invalid removals reverted, hallucinated claims corrected,
+and the audit trail reconciled (`diff-to-fix/SUMMARY.md` is the board;
+`docs/PARITY-DELTAS.md` the 97-row deliberate-divergence register).
+
+## New since v0.3.0-parity (headline capabilities)
+
+- **Damage-audit check phase** (M-041): the og's FileSystemCheck as a
+  read-only pre-scan stage — FAT (DBR ceilings, hole/duplicate scans,
+  pairwise copy compare, dir-tree audit incl. the FAT cross-link 0x1002
+  gate, orphan sweep) + NTFS ($MFT/$MFTMirr proofs, version gate,
+  $Bitmap structural, MFT×$Bitmap cross-check), taxonomy 0x1001..0x100e
+  in numeric parity, never aborts the scan; `scan --check` CLI +
+  `pre_scan_check` ABI + REC_FS_CHECK session record.
+- **Recycle-bin $I/$R pairing on every engine** (M-052 + N-079): the
+  shared model across NTFS/FAT/exFAT — original name/size/time
+  restoration, the og's four bin-root set, bin-scope guards (out-of-bin
+  `$…` files stay raw).
+- **ZFS uberblock-ring history** (S-034): every txg state walked
+  newest-first with cross-state identity dedup — files deleted inside
+  the ring window are visible, matching the og.
+- **Boot-chain repair** (M-040 stages a+b): BCD partition-offset surgery
+  (`cr/bcdfix`) + the UEFI `Boot####` NVRAM updater (`cr/nvramfix`), both
+  plan/execute/undo with default-deny consent; boot.ini/chkdsk
+  registered dispositions (D-90).
+- **User-extensible signature database** (M-048): `--user-signs` — the
+  og's EUUserData JSON shape, ABI registration surface, built-in-wins
+  collision rule.
+- **Carve efficiency** (M-025 + M-039): the window-aware read view
+  (measured 9.9× fewer device reads) and the cross-engine occupancy gate
+  (structured extents suppress carve re-reads).
+- **Driver-utilization parity** (M-030): the WinPE environment gate, the
+  terminal volume-OFFLINE quiesce step with mount-point restore, the
+  200-disk enumeration bound, and transport-error surfacing on fallback.
+- Plus: Btrfs chunk profiles/default-subvolume + re-scan cache (M-020,
+  N-072), ext4 backup-superblock rescue (S-027), the grading engine
+  (S-023), health grading (S-024), disk-image targets (S-030), UDF
+  recognition (M-044), archive inner-entry inventories (S-032), the
+  BitLocker password-dictionary aid (N-064, consent-gated), overlap
+  scoring + naming parity (N-070/N-063/N-065), and the review-session
+  corrections (the M-041 FAT cross-link gate, the N-064/D-80 dead-module
+  enforcement, the `--check` CLI half the canonical landing had lost).
 
 ## What is in the bundle
 
 ```
-bin/    rrecov.exe            the CLI (scan / tree / recover / health / fix / bench)
-        cr_ui.dll             the UI C-ABI shim (63 exports; bind in-process)
+bin/    rrecov.exe            the CLI (list / list-carve-formats / scan /
+                              tree / recover / health / fix / apply / bench)
+        cr_ui.dll             the UI C-ABI shim (78 exports; bind in-process)
         z.dll, lz4.dll, zstd.dll   vcpkg-built runtime (shipped binaries)
         vcruntime140*.dll, msvcp140*.dll, ucrtbase.dll + api-ms-win-crt-*  app-local CRT
 lib/    cr_ui.lib             import library (link against cr_ui.dll)
@@ -26,69 +67,61 @@ SHA256SUMS                    every file in the bundle
 
 Every shipped PE carries the **Windows 7 SP1 loader contract** (OS/subsystem
 version 6.1, stamped post-link) and passed the **import allowlist gate**
-(`tools/verify_pe_um.py` — kernel32/advapi32 functions must be Win7-safe;
-Windows-8-only APIs like `WaitOnAddress` fail the release by design).
+(`tools/verify_pe_um.py`; Windows-8-only APIs fail the release by design).
 
-## Parity highlights (evidence in docs/)
+## Documentation (new in this release)
 
-- **Recycle-bin remap**: 26/26 name recall on the real-volume benchmark
-  (was 0/26 before the `$I`/`$R` token-convention fix). — BENCHMARK-REPORT §1
-- **NTFS compressed $DATA** now decompresses (LZNT1, MS-XCA vector-proven);
-  compressed streams no longer surface as raw compressed bytes. — GAP-P1-1
-- **GPT two-step salvage** (primary-entries + backup-header) matches the
-  decompiled reference chain; primary-damaged volumes recover.
-- **ReFS**: dual-checkpoint max-clock selection, versioned layouts (0x94/0xA8),
-  next-chain threading — engine tests + regressions.
-- **Writer honesty**: `salvaged` outcome for zero-filled items, per-item error
-  collection, destination-overlap refusal.
-- **EXCEEDS the og** in: deleted-file risk grading (four-tier $Bitmap
-  analysis), session integrity (per-record CRC32, skip-forward),
-  cancellation granularity, report schema. — PARITY-DELTAS D-14/D-01/D-38/D-41
-
-## UI binding surface (new in v0.3)
-
-`cr_ui.h` is a C11 header: opaque handles, `cr_ui_*` exports returning
-`cr::Err`-space u32s, ABI-versioned structs, zero-init-valid configs,
-thread-local last-error. Scan lifecycle (pause/cancel/resume/telemetry,
-auto-checkpoints), mid-scan immutable snapshots (G-02), query/filter/sort/
-paging (G-12), preview, recovery (subtree + rename), report, sessions.
-A plain-C consumer (`tests/ui_abi_check.c`) proves the full lifecycle on
-every CI lane. `rrecov tree --json` emits the frozen G-12 projection.
+- `docs/API.md` — the API reference (CLI grammar + exit codes, the full
+  cr_ui export inventory by lifecycle group, the C++ core layers, the
+  events/threading contract, the error model, stability classes).
+- `docs/CONNECTION-GUIDE.md` — building, binding, the device connections
+  (RDA grammar / direct handles / images / BitLocker), threading rules,
+  and the consent model.
+- `docs/FORMATS.md` — every format read/written: engines, carve layers,
+  the .crsf record inventory, report schema, repair artifacts.
+- `docs/PARAMETERS.md` — every tunable (CLI flags, ScanConfig fields,
+  engine constants, caps, budgets) with defaults, bounds and governing
+  D-row citations.
+- Updated: `README.md` (current scope/status/docs index),
+  `docs/CAPABILITY-MATRIX.md` (per-row truth),
+  `docs/PARITY-DELTAS.md` (97 rows, zero collisions, errata notes),
+  `docs/ABI-CONTRACT.md`, `RELEASE-NOTES.md` (this file).
 
 ## Validation at this tag
 
-- 229/229 tests on Linux, plain + **ASan** (leak-detect) + **TSan** (the scan fans
-  engine work over the thread pool; the UI progress bridge is single-flight
-  and monotonic under TSan); **230/230 on MSVC** `/W4 /WX` (the 230th is the
-  Windows-only WinDestIo contract suite — the drive-letter mkdir defect it
-  caught is fixed in this tag).
-- **Win7 import gate green on every shipped PE** (rrecov.exe 145, cr_tests.exe
-  250, cr_ui.dll 125 imports — all XP-/Vista-era or older; the Windows-8-only
-  `WaitOnAddress` family fails the gate by design and is self-tested to keep
-  biting).
-- libFuzzer smoke campaign green (preview short-window OOB class found by
-  CI fuzzing was fixed with regression tests before this tag).
-- CodeQL clean.
-- Driver-side bench (rda-driver `2b1db5f`): **throughput parity achieved,
-  +52% on hostile dispatch, 64/64 byte-identical reads** against the
-  reference transport contract.
+- **924 tests** green on Linux (885 pass + 4 environment-skipped in the
+  core suite + 35 cr_ui ABI tests), plain + **ASan** + **UBSan** +
+  **TSan** lanes (zero warnings — the event-sink threading contract is
+  pinned by test), MSVC `/W4 /WX` + the C consumer + DLL smoke on the
+  Windows lane, clang-format-18 gate clean, the win-layer parse gate,
+  libFuzzer smoke campaign (13 targets), CodeQL.
+- **Win7 import gate green on every shipped PE.**
+- **The parity audit trail**: 223 dispositioned findings in
+  `diff-to-fix/findings/FIXED/` (each with a Resolution citing its
+  tests), the cross-reference matrix at `MATCH`, and the review
+  session's independent verification of the fix landings recorded in
+  `worklog.md`.
+- Driver-side benchmarks: the API-benchmark lane (alignbench) carries
+  the measured MATCH/EXCEEDS verdicts; see
+  `docs/BENCHMARK-REPORT.md`.
 
 ## Truth documents
 
-- `docs/CORE-GAP-LIST.md` — the closure register (every row cites its fix).
-- `docs/PARITY-DELTAS.md` — deliberate divergences with rationale (D-01…D-45).
-- `docs/BENCHMARK-REPORT.md` — measured MATCH/EXCEEDS verdicts + the
-  blocked-on register for the benchmark-machine runs.
-- `docs/ground-truth-contracts.md` — the anti-hallucination anchor
-  (§11 = the UI binding contracts and the frozen tree --csv/--json schemas).
-- `docs/CAPABILITY-MATRIX.md` — per-capability DONE/PARTIAL/MISSING with
-  honest remaining gaps (HFS+ journal replay, Btrfs tree-log recovery,
-  ZFS multi-vdev reports, NTFS security-attribute surfacing).
+- `diff-to-fix/SUMMARY.md` — **the board** (every finding's disposition
+  and the session history; the authoritative close-out record).
+- `docs/PARITY-DELTAS.md` — deliberate divergences with rationale
+  (D-01…D-102, reconciled this release).
+- `docs/CAPABILITY-MATRIX.md` — per-capability DONE/PARTIAL/MISSING.
+- `docs/CORE-GAP-LIST.md` — the closure register.
+- `docs/ground-truth-contracts.md` — the anti-hallucination anchor.
+- `docs/error-fix-registry.md` — reference defects catalogued and fixed.
 
 ## Known honest gaps (registered, not hidden)
 
-See CAPABILITY-MATRIX. Nothing silently degrades: unimplemented surfaces
-return explicit errors; the benchmark two-leg og comparison
-(`comparison-ours.yml` / `comparison-easeus.yml`) requires the benchmark
-machine and is wired, scoring-valid (GAP-BENCH-1..5 closed), and blocked
-only on runner availability.
+NTFS XPRESS/LZX compressed $DATA (GAP-P1-1 — no corpus surface exists;
+the og is LZNT1-only too), ReFS container-map translation (N-036), ZFS
+multi-vdev topologies (single-vdev only), HFS+ attributes items the
+corpus itself leaves UNVERIFIED, and OQ-S4-3 (the 4-vs-7-MiB chunking
+relative-perf measurement — needs exactly one live Windows harness
+run). Nothing silently degrades: unimplemented surfaces return explicit
+errors.
