@@ -635,3 +635,43 @@ at the pre-fix deployer race). Release run 3 (the rc3 tag) and
 validation run 14 (790bf5b3, already dispatched by the parallel lane)
 run concurrently; rc3's installer = run 14's installer + the facts file
 and the ExecWait hardening.
+## 2026-10-26T23:30Z — run 14: the product matrix is GREEN; the step's own null-check killed it (fixed)
+
+Run 14 (40417511050, 790bf5b3) — the first validation with round 13's four
+fixes — delivered a FULLY GREEN product matrix (t15-runtime-matrix
+artifact, matrix.json):
+
+- install ok — driverService "Stopped" (the RDA service EXISTS now: the
+  elevation-guard fix in install.ps1 works), regVersion "0.5.0-rc2" and
+  installMode "AllUsers" read back from the REAL product key (the two-level
+  registry fix works — the probe and the writer finally agree), files 13
+  (was 17: the gtest/gmock exclusion works)
+- update(reinstall) ok — marker survived
+- repair-over-corruption ok — hash restored
+- uninstall(silent) ok — unKeyGone, swKeyGone, driverGone, sysDriverGone,
+  sessionsKept, zero leftovers (the seed-key cleanup + *.dll catch-all work)
+
+And then the STEP exited 1 with no exception, right after "all rows ok".
+Root cause (reproduced locally with a portable pwsh): the step's
+`if ($LASTEXITCODE -ne 0) { exit 1 }` — the matrix script is cmdlet-only,
+so a fresh pwsh session leaves $LASTEXITCODE $null, and `$null -ne 0` is
+TRUE (PowerShell's null-comparison asymmetry). Runs 1-13 always failed
+INSIDE the matrix (the throw exits the process via the error path), so
+this latent check was never exercised until the first green matrix.
+Fixed in validation-evidence.yml (the check now reads `$?`), and the same
+latent class fixed in build.ps1's Invoke-Portable (standalone
+`-Target portable` from a fresh shell would have thrown on SUCCESS —
+masked in the 'all' lane by earlier native commands).
+
+Audit of every `if ($LASTEXITCODE -ne 0)` in the workflows: all other
+instances follow native-command invocations (cl, build.ps1 which runs
+cmake/pnpm/makensis/python) — correct as-is.
+
+Concurrent-lane note: 719041b2 (rc3) adopted 790bf5b3 as base and added
+the always-on install-facts file + ExecWait verbatim quoting for the
+driver scripts; release run 3 is in flight on the rc3 tag as of this
+entry.
+
+Next: dispatch run 15 on the fixed workflow — expecting the first fully
+green validation-evidence run; then harvest + commit the T15 evidence,
+then the final v0.5.0 tag.

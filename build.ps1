@@ -221,7 +221,12 @@ function Invoke-Installer {
 function Invoke-Portable {
     Write-Host '[installer] portable zip (no driver installed — app + engine only)'
     & (Join-Path $PSScriptRoot 'installer\portable.ps1') -RepoRoot $RepoRoot -Version $Version -StageDir $StageDir -OutDir $OutDir
-    if ($LASTEXITCODE -ne 0) { throw 'portable build failed' }
+    # NOT $LASTEXITCODE: portable.ps1 is cmdlet-only, so a standalone
+    # 'build.ps1 -Target portable' from a fresh shell leaves $LASTEXITCODE
+    # $null and $null -ne 0 is TRUE — the throw fired on SUCCESS. (Masked in
+    # the 'all' lane, where earlier native commands set the variable; the
+    # same bug class killed validation run 14's step after 'all rows ok'.)
+    if (-not $?) { throw 'portable build failed' }
 }
 
 function Invoke-Checksums {

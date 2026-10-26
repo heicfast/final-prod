@@ -153,7 +153,13 @@ jobs:
           ./tools/validation/installer-matrix.ps1 `
             -InstallerPath "build\out\RecoveryWizard-$version-setup.exe" `
             -OutDir t15-evidence
-          if ($LASTEXITCODE -ne 0) { exit 1 }
+          # NOT $LASTEXITCODE: the matrix script is cmdlet-only (no native
+          # command ever runs), so a fresh pwsh session leaves $LASTEXITCODE
+          # $null — and $null -ne 0 is TRUE (the PowerShell null-comparison
+          # asymmetry). Run 14 was the first fully-green matrix and this
+          # check killed it AFTER 'all rows ok' printed, with no exception
+          # output. $? is the script invocation's own success signal.
+          if (-not $?) { exit 1 }
 
       - name: Upload the built installer (for the RC run + manual inspection)
         uses: actions/upload-artifact@v4
