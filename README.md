@@ -1,27 +1,62 @@
 # final-prod — Unified Data Recovery Product
 
 Single production repository containing the native recovery engine
-(`engine/`), the application UI (`ui/`), the kernel driver (`driver/`),
-the shared boundary contracts (`contracts/`), and the combined installer
-(`installer/`).
+(`engine/`), the application UI (`ui/`), the kernel driver (`driver/`), the
+shared boundary contracts (`contracts/`), and the combined installer
+(`installer/`). One product, one install: the NSIS installer puts the
+driver, engine, and UI on the customer's machine in standard locations with
+a surfaced, consent-gated driver step.
 
-**Status: consolidation in progress — see `docs/INTEGRATION-PLAN.md`.**
+**Status: integration shipped** — the UI's simulated backend is gone; the
+UI talks to the real engine through the Rust bridge
+(`ui/src-tauri/src/`). The remaining tracked work lives in
+`docs/INTEGRATION-GAPS.md` (capability gaps with follow-ups) and the
+worklog's next-actions section.
 
-Merged with full history from:
+Merged with full history from (directory-rewriting merges, no squash):
+
 | Component | Source repository | Merged commit |
 |---|---|---|
-| engine/ | heicfast/core_recovery (main) | 5ddccd8912b81d971970f84adf53674d6c6be55d |
-| ui/ | heicfast/recovery-wizard-ui-new (v3) | f4a8f8aebab625e9048d833cd9c3501741d7c436 |
-| driver/ | heicfast/rda-driver (main) | da7efb9e0c94046893c62b25695bb95edf519f8b |
+| engine/ | heicfast/core_recovery (main) | 5ddccd8 → advanced to 22e9657 |
+| ui/ | heicfast/recovery-wizard-ui-new (v3) | f4a8f8a |
+| driver/ | heicfast/rda-driver (main) | da7efb9 |
 
-Layout:
-- `engine/` — C++20 recovery engine, `cr_ui` C ABI (the UI's in-process boundary)
-- `ui/` — React + Tauri application shell
-- `driver/` — rda.sys kernel-mode raw disk transport
-- `contracts/` — the single engine↔UI boundary truth (error map, event map, command surface)
-- `installer/` — NSIS combined installer (+ portable build)
-- `docs/` — unified product documentation
-- `tests/` — cross-component integration tests
-- `build/` — top-level build orchestration (single command product build)
+## Layout
 
-Build (once the consolidation completes): see `docs/BUILD.md`.
+- `engine/` — C++20 recovery engine; `cr_ui` C ABI (`engine/include/cr/cr_ui.h`)
+  is the UI's in-process boundary (78 exports, ABI version 2)
+- `ui/` — React 19 + Tauri 2 shell + the Rust bridge
+  (`ui/src-tauri/src/{bridge,commands}/`, 33 Tauri commands)
+- `driver/` — `rda.sys` kernel-mode raw-disk transport (service `RDA`)
+- `contracts/` — the single engine↔UI boundary truth: command surface,
+  error-code map, event map, type maps — validated by `contracts/validate.mjs`
+- `installer/` — the combined NSIS installer + the portable zip
+- `build.ps1` / `build.sh` — the single-command product build
+- `docs/` — product documentation (see below)
+
+## Build
+
+```powershell
+.\build.ps1                 # full product: driver + engine + ui + installer + portable + checksums
+.\build.ps1 -Target engine  # one lane: contracts | engine | driver | ui | installer | portable | all
+```
+
+Toolchain prerequisites and every sub-build: `docs/BUILD.md`.
+On a clean checkout the dev loop is: engine lane once (stages the engine
+kit), then `pnpm tauri dev` in `ui/`.
+
+## Documentation
+
+| Doc | Contents |
+|---|---|
+| `docs/ARCHITECTURE.md` | The product: driver, engine, bridge, UI, installer — and how they relate |
+| `docs/BUILD.md` | The single build command, every sub-build, toolchain prerequisites |
+| `docs/RELEASE.md` | Tag flow, artifacts, signing truth |
+| `docs/TESTING.md` | The test suites and the validation evidence |
+| `docs/INTEGRATION-PLAN.md` | The ratified gate plan (historical — completion state inside) |
+| `docs/INTEGRATION-GAPS.md` | Every capability gap with precise scope + follow-up |
+| `docs/PARITY-DELTAS.md` | Divergences from the reference layout, with rationale |
+| `docs/INTEGRATION-VALIDATION.md` | Validation evidence index |
+| `docs/MSIX-ASSESSMENT.md` | Why MSIX is not feasible for this product |
+| `contracts/README.md` | The boundary contracts and their validation gate |
+| `worklog.md` | Chronological session record |
