@@ -1570,6 +1570,56 @@ TEST(Ext4Engine, NanosecondsPreservedFromExtraField) {
         << "i_mtime_extra nanoseconds must survive into the 100ns FILETIME";
 }
 
+/* ---- N-016b (N-029 residual): raw name bytes carried on the props ------ */
+
+/* ---- N-016b (N-029 residual): raw name bytes carried on the props ------ */
+
+TEST(Ext4Engine, InvalidUtf8NameCarriesRawBytes) {
+    /* The og's .rsf keeps the ORIGINAL on-disk name bytes verbatim
+     * (EXT4SearchDLL imports no conversion API); the core's display name
+     * is the lossless U+E000+byte mapping (M-010/D-53) - the original
+     * bytes must therefore ride ALONGSIDE (props->name_raw) whenever the
+     * mapping fired, so sessions persist them and the writer can derive
+     * the og-parity restore filename. Fail-before: name_raw stayed empty
+     * (no carrier existed). */
+    auto img = build_volume();
+    {
+        u8* root = img.block(B_ROOTDIR);
+        u32 cur = 76;
+        add_dirent(root, cur, INO_HELLO, "\xff(bad", 1);
+        add_dirent(root, cur, INO_SUB, "caf\xc3\xa9.txt", 1); /* valid: no raw */
+    }
+    MemDevice dev(img.raw());
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    ASSERT_EQ(OK, scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st))
+        << err_text(0);
+
+    tree::FileNode* bad = nullptr;
+    tree::FileNode* cafe = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->props()->name == std::u16string(u"\uE0FF(bad"))
+                bad = c;
+            if (c->props() && c->props()->name == std::u16string(u"caf\u00e9.txt"))
+                cafe = c;
+            find(c);
+        }
+    };
+    find(ra);
+    ASSERT_NE(nullptr, bad) << "the invalid-UTF-8 name must be in the results";
+    ASSERT_NE(nullptr, cafe);
+    /* the raw bytes ride alongside the mapped display name */
+    EXPECT_EQ(bad->props()->name_raw, std::string("\xff(bad"));
+    /* clean UTF-8 names carry NO raw (the decoded name round-trips) */
+    EXPECT_TRUE(cafe->props()->name_raw.empty());
+}
+
 } // namespace
 } // namespace ext4
 } // namespace cr

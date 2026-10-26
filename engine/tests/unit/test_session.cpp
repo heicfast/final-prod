@@ -2,6 +2,7 @@
 #include <gtest/gtest.h>
 #include "cr/session/cr_crsf.h"
 #include "cr/session/cr_records.h"
+#include <algorithm>
 #include "cr/storage/cr_device.h"
 #include <cstring>
 #include <vector>
@@ -800,4 +801,61 @@ TEST(Session, CorruptRecordEarlyExitsReleaseProps) {
         tree::ResultTree t;
         EXPECT_EQ(deserialize_tree(b.data(), b.size(), t), u32(0x50040001));
     }
+}
+
+/* ---- N-016b (N-029 residual): raw name bytes persist in sessions ------ */
+
+TEST(Session, RawNameRoundTrip) {
+    /* The og's .rsf keeps the ORIGINAL on-disk name bytes (substitution
+     * happens at display/restore); the core's .crsf must persist them
+     * alongside the lossless display name (nflags bit 32) so a reloaded
+     * session carries exactly what the og's session would. Fail-before:
+     * the raw field was dropped at serialize (stayed empty post-load). */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Volume");
+    tree::FileProperties* p = new tree::FileProperties();
+    p->name = u"r\uE0E9sum\uE0E9.txt"; /* the lossless display form */
+    p->name_raw = "r\xE9sum\xE9.txt";  /* the original Latin-1 bytes */
+    p->logical_size = 10;
+    auto* f = t.add_file(root, p);
+    p->release();
+    ASSERT_NE(f, nullptr);
+
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), u32(OK));
+    tree::ResultTree t2;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), u32(OK));
+    ASSERT_EQ(t2.roots().size(), 1u);
+    tree::FileNode* found = nullptr;
+    for (tree::FileNode* c = t2.roots()[0]->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->name == std::u16string(u"r\uE0E9sum\uE0E9.txt"))
+            found = c;
+    ASSERT_NE(found, nullptr);
+    EXPECT_EQ(found->props()->name_raw, std::string("r\xE9sum\xE9.txt"))
+        << "the original on-disk bytes must survive the round-trip";
+
+    /* the serialized form actually carries the payload: the ORIGINAL
+     * byte sequence must appear verbatim in the wire blob (node 0 is the
+     * root FullNode, so per-node flag offsets are not fixed-position) */
+    const std::string needle = "r\xE9sum\xE9.txt";
+    const char* hb = reinterpret_cast<const char*>(blob.data());
+    EXPECT_TRUE(std::search(hb, hb + blob.size(), needle.begin(), needle.end()) != hb + blob.size())
+        << "the original on-disk bytes must be embedded in the .crsf wire";
+}
+
+TEST(Session, OldFormatWithoutRawNameStillLoads) {
+    /* forward-compat guard: a session written BEFORE the name_raw field
+     * (bit 32 clear) loads with name_raw empty - the writer then falls
+     * back to the decoded name, exactly as before. */
+    WireNode w;
+    w.name = u"plain.txt";
+    const std::vector<u8> blob = blob_of_nodes({w});
+    tree::ResultTree t2;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), u32(OK));
+    tree::FileNode* found = nullptr;
+    for (tree::FileNode* c = t2.roots()[0]->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->name == std::u16string(u"plain.txt"))
+            found = c;
+    ASSERT_NE(found, nullptr);
+    EXPECT_TRUE(found->props()->name_raw.empty());
 }
