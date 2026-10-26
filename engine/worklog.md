@@ -15886,3 +15886,30 @@ Work Log:
 
 Stage Summary:
 - M-039 FIXED. Remaining MAJOR: M-030, M-040.
+
+---
+Task ID: DFX36-T1 (session 36 start + pushed-red repair)
+Agent: main engineer (diff-to-fix fix session 36 — DFX36)
+Task: Session start protocol; repair the 7ec5446 union regression (build RED on main)
+
+Work Log:
+- Pulled both repos. core_recovery at 7ec5446 (origin/main absorbed);
+  corpus at 03ad46c (unmoved). Session prompt saved token-redacted at
+  worklog/session-diff-fix-36-prompt.md. worklog.md's leftover union
+  conflict markers resolved (the DFX24-T5 M-039 entry kept — the HEAD
+  side; the incoming side was empty).
+- Open findings at start: S-034 (SEVERE), M-030/M-040 (MAJOR), N-072
+  (MINOR); tracked-open: OQ-S4-3, OQ-Z-E-FLT (OQ-FLT-2 residual).
+- Pushed-red repair: the 7ec5446 union dropped the M-052 recycle fields
+  from FatScanStats (include/cr/fat/cr_fat_engine.h, 4 lines) and the
+  N-079 test RecycleBinScopeOutOfBinDollarFilesStayRaw from
+  tests/unit/test_ntfs_volume.cpp (179 lines) — cr_fat_quick.cpp's
+  stats.recycle_info/recycle_remapped references failed to compile.
+  Both files restored verbatim from the coherent 234bf0b repair tree
+  (the exFAT header was intact; the M-039 additions in carve/scan/
+  devmap/tests kept).
+- Verified: full suite 898/898 linux-release.
+
+Stage Summary:
+- Main green again. Baseline: 898/898. Next: S-034 decode + fix (the
+  only SEVERE), then M-030, M-040, N-072, then the OQ residuals.
