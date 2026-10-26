@@ -1,0 +1,16 @@
+USN reason-constant probe (core HEAD 34b3441)
+winioctl.h: USN_REASON_FILE_CREATE=0x00000100 USN_REASON_FILE_DELETE=0x00000200 USN_REASON_CLOSE=0x80000000
+core header: cr_mftwalk.h USN_REASON_FILE_DELETE = 0x00020000
+og decompile: FUN_1800196d0 harvest gate `reason & 0x200` (NTFSSearchDLL_decompiled.c:20098; helper +0x80 harvest-all flag ctor-defaults to 0 at :19371)
+
+walk_mft rc=0
+stats.usn_records = 3  (3 records were written into $J)
+stats.usn_names   = 1
+root_lost children:
+  - fixturesync.txt
+
+  realdelete.txt (REAL deletion record):     NOT HARVESTED
+  fixturesync.txt (test-fixture 0x20100 rec): harvested
+  createonly.txt (FILE_CREATE only):          not harvested (correct)
+
+og NTFSSearchDLL with the same $J would harvest realdelete.txt (gate `reason & 0x200`) and reject fixturesync.txt.

@@ -1,0 +1,54 @@
+
+
+---
+
+## Session-11 fix row (2026-10-26, DFX11 — three M-029 sub-items closed)
+
+- **Type sort CLOSED**: `SortKey::Type` (ABI code 7, append-only) — the
+  og's results-view Type column: category in the FileFilter.xml
+  iconIndex order, then extension, then name (pinned with the full
+  8-row expected sequence).
+- **modified-unit doc lie FIXED**: ground-truth-contracts now says
+  FILETIME 100-ns since 1601 (the engines' native unit; the old "Unix
+  seconds" line was false — 369-year mis-parse for trusting consumers);
+  pinned by Query.ModifiedUnitIsFiletimeEverywhere. The stale Category
+  enum row (Email/Bookmarks) fixed in the same pass.
+- **Paging documented as the deliberate difference**: no og page-size
+  constant exists (UI-layer virtualization, ~1000-item batches); the
+  core's offset+limit is host-side convenience, no parity claimed.
+- REMAINING (decode-blocked, next steps in the finding): the Date/Size
+  bucket-ID translation (the og's buckets select by node+0x89 date TAGS,
+  not ranges — a range translation without the tag decode would invent
+  constants) and the general-raw naming bucket.
+
+---
+
+## Session-32 fix row (2026-10-26, DFX32 — M-029's decode-blocked remainder closed; the finding is fully resolved)
+
+- **Bucket-ID translation CLOSED** (the decode the finding demanded,
+  first-hand from ghidra-drwui/DRWUI_decompiled.c): the CTimeFilterBtn
+  menu FUN_140705c50 (0x100 Today / 0x101 Yesterday / 0x102 "Last 7
+  days" / 0x103 "Last 1 month" / 0x104 SKIPPED / 0x105 Custom) and the
+  CSizeFilterBtn menu FUN_140706060 (0x1000 "< 512KB" / 0x1001
+  "512KB~1MB" / 0x1002 "1MB~512MB" / 0x1003 "512MB~1GB" / 0x1004
+  "> 1GB" / 0x1005 SKIPPED / 0x1006 Custom) — the audit's "<128MB /
+  <1GB / <5GB" class-table approximations are corrected by the decode.
+  The semantics: day-truncated LOCAL windows from the cached
+  today/yesterday/−7d/−30d bounds (FUN_140254670, COleDateTimeSpan
+  arithmetic), exact inclusive size boundaries (FUN_140255820),
+  inclusive local-day custom ranges (FUN_140256830).
+- **API**: `query::apply_date_bucket` / `query::apply_size_bucket`
+  (DateBucket/SizeBucket enums; the skipped IDs 0x104/0x1005 and any
+  unknown value are REJECTED — the core never invents menu semantics) +
+  the `cr_ui_query_apply_buckets` added export (ABI §9 no-bump) so a
+  host can express every og bucket ID incl. Custom.
+- **General-raw naming CLOSED**: `ScanConfig::raw_category_name` +
+  `cr_ui_scan_config.raw_category_name_utf8` — the og's per-scan
+  "filter_generalraw" display-name surface (OQ-S4-2's decode), with
+  resume-safe root matching (default OR configured name).
+- Pinned by Query.DateBucketsTranslateToRanges,
+  Query.SizeBucketsTranslateToRanges, Query.BucketFiltersThroughRun,
+  CrUi.QueryApplyBucketsFillsAndRejects, CrUi.RawCategoryNameNamesTheCarveRoot
+  (all fail-before RED on the neutered tree). M-029 → FIXED/ — every
+  sub-item of the finding is now closed (path group s6; Type sort +
+  modified-unit + paging s11; buckets + naming s32).

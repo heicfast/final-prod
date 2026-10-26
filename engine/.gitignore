@@ -1,0 +1,15 @@
+build/
+out/
+__pycache__/
+*.user
+*.aps
+.vs/
+.vscode/
+.idea/
+vcpkg_installed/
+CMakeUserPresets.json
+*.log
+build-asan/
+build-linux/
+Testing/
+*.img.dest2/

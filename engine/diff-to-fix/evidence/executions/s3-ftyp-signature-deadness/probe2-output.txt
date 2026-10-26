@@ -1,0 +1,8 @@
+rc=0 hits=5 validated=1 rejected=4
+node[0] name=File000000.jpg fmt=0x0 conf=900 size=521 ext=512
+node[1] name=File000001.lrf fmt=0xffff0036 conf=1000 size=51200 ext=1048576
+node[2] name=File000002.lrf fmt=0xffff0036 conf=1000 size=51200 ext=2097152
+node[3] name=File000003.lrf fmt=0xffff0036 conf=1000 size=51200 ext=3145728
+node[4] name=File000004.lrf fmt=0xffff0036 conf=1000 size=51200 ext=4194304
+node[5] name=File000005.lrf fmt=0xffff0036 conf=1000 size=51200 ext=5242880
+total=6

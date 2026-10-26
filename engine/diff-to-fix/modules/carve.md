@@ -1,0 +1,491 @@
+# modules/carve.md — carve module audit verdicts
+
+Reference: RAWSearchDLL per corpus artifacts `SearchDLL/rawsearch-carving--deep-dive.md`,
+`rawsearchdll--analyser-registry-census.md`, `raw-dual-registry--u16-magic-keys.md`,
+`rawsearchdll--family-{brance,bruteforce,rawspeed,filegen,special,xjq}.md`,
+`rawsearchdll--zip-analyser-carving.md`, `analyser-granular-batch1--pst-rar-mkv-heic.md`,
+`CORRECTIONS.md` row 5; og-codebase raw_signs.json (parsed this session).
+
+Core (audited commit `67193b6` + concurrent `03ddcd2` GAP-S6-8 fix in tree):
+`src/core/carve/` (5 files, 2,969 LOC) + `include/cr/carve/` +
+`tests/unit/test_carve.cpp` (14 areas).
+
+## Behavioral
+
+- **B1 detection (carve set)** — **S-007** (missing GIF/BMP/headerless-MP3/AAC-ADTS/
+  RTF/OLE-Office/MPEG-video/DWG + ~10 niche; executed set-comparison vs og registry ∪
+  raw_signs).
+- **B2 recovery correctness** — `M` on the implemented validators (JPEG marker walk with
+  SOF precision-8; PNG IHDR/chunk walk; TIFF family IFD walks; BMFF brand walks; PDF
+  next-%%EOF boundary; ZIP CD-anchor + indexless LFH-chain salvage + zero-padding
+  extension; 7z header math; SQLite page math; RAR4 block walk; RAR5 vint walk
+  (clean-room beyond og); PST !BDN+MS; camera RAW relabeling; MP3 full frame walk;
+  WAV/ASF/FLV/CAB/ISO).
+- **B3 false positives** — `M`-note: raw-sign layer emits **unvalidated** unless
+  tail-paired (by og design — the og's raw_signs.json layer is likewise
+  confidence-scored, not grammar-validated); grammar layer first-format-wins; **M-005**
+  exposes the FP surface to allocated regions the og never carves.
+- **B5 orphan** — `M` carved nodes attach under the carved root ("Other deleted files"
+  analog); structured-wins merge (og IRawDirectoryTreeBuilder parity).
+
+## Constants and formats
+
+- **C19 magics** — `M` on the implemented 31 grammar signatures (spot-verified against
+  og keys: JPEG FFD8FF family incl. e0/e1/db/ee variants — og's four u32 keys; PNG
+  89504E47; ZIP 04034B50 + CD 02014B50 preferred-anchor parity CARVE-2); **S-007**
+  (missing keys); **N-008** (ZIP padding cap/alignment; version-gate 0x13/0x62 vs
+  artifact's wrong "≤ 10" — decompile authoritative, core must admit 0x62).
+- **C20** — `M` (PST size offsets 0xA8/0xB8 + 1 MiB floor CARVE-4; EBML vint ≤ 8; HEIC
+  brand 0x68656963; JPEG marker guard).
+
+## Algorithms
+
+- **A28 carving validator logic** — `M` on implemented validators (several exceed og:
+  PST AMap probe = deliberate hardening CARVE-4-aligned; RAR5 clean-room); **S-007**
+  missing validators; **N-008** ZIP semantics.
+- **A29 merge/dedup** — `M` post-GAP-S6-8: carve emits disk-absolute extents with
+  NODE_FLAG_EXT_SHIFTED; dedup vs structured on the absolute basis (the resume
+  extra-entries bug fixed in-audit-window with fail-before/pass-after tests).
+- **A25** — ~~M-005~~ **FIXED (s14, FIXED/M-005)** (the allocation-bitmap gate: CarveFlags.free_map -> both dispatch layers; used clusters suppressed wholesale, cluster-aligned jumps; absent/invalid map carves everything — the og's raw-disk rule)
+  scans).
+
+## State machine
+
+- **S32** — `M` per-window checkpoints + 50 ms watcher thread; abort flag per byte
+  offset (parallel mode).
+- **S33/S34** — `M` pause-aware worker heads (G-07); no intra-carve checkpointing
+  (stage-level checkpoints cover it).
+
+## Performance
+
+- **X47/X51** — `M` 1 MiB windows + 4 KiB overlap; P1-12 probe blocks (1 MiB windowed
+  field scans replacing per-512B stepping); raw-sign 512-byte strides; SHA-256 hashing
+  of small files (≤8 MiB re-read). **M-005** cost note (whole-slice carving ≈ 2× the og — **CLOSED s14**: the gate halves dispatch on 50%-used volumes; measured 1.88x/1.89x
+  on half-full volumes).
+
+## Safety
+
+- **F60** — `M` unreadable windows skipped + counted (not scanned) — honest fill-rate
+  accounting G-05.
+
+## Quality
+
+- **Q65 tests** — strong (14 areas incl. all og-parity carve fixes). Gaps: the S-007
+  format set (nothing to test yet), ZIP64 extra-field path, 4Kn ZIP padding.
+
+## Findings index (this module)
+
+| ID | Severity | One-line |
+|---|---|---|
+| S-007 | SEVERE | Missing common formats (GIF/BMP/headerless-MP3/AAC/RTF/OLE-Office/MPEG/DWG) |
+| M-005 | MAJOR | Whole-slice carving vs og's bitmap-gated free-space pass — **FIXED (s14: gate in both dispatch layers + telemetry; bench 1.88x/1.89x on 50% used; suite 575/575)** |
+| N-008 | MINOR | ZIP padding cap off-by-one + alignment; v0x62/ZIP64 chain semantics |
+| OQ-T8 | tracked-open | Dispatch order (u16→u32→signs); JPEG full grammar; no-bitmap og behavior |
+
+## Corpus errata candidate
+
+`rawsearchdll--zip-analyser-carving.md` §1 "version_needed ≤ 10" is wrong — decompile
+says ≤ 0x13 or == 0x62 (:18294, agent-B verified). Core's own gate must be checked
+against the corrected value when N-008 is fixed.
+
+---
+
+## Session 2 re-audit (audited commit `5d6da5f`)
+
+No new carve-specific findings in session 2. The session-1 verdicts
+stand. Session 2's parallel agents re-verified the architecture parameters
+(R54-R58) and safety parameters (F60-F64) cross-cuttingly; no new
+carve-specific divergences surfaced.
+## Session-2 update (2026-10-25, core `e93decf`)
+
+**Verdict changes (quotes in `../evidence/decompiled-quotes/carve-rawfixer-bitlocker-session2.md`):**
+- **S-018 RE-FILED CONFIRMED + FIXED (s31, OQ-S3-JPEG resolved — the INVALID
+  above stands for the MODERN tier only):** the legacy FileJPGAnalyser tier
+  salvages no-EOI JPEGs. The dispatcher FUN_18004b170 branches JFIF/Exif/
+  generic; all three sub-analysers' header walks are SOS-gated (SOF0
+  precision-8 gate, SOF2 dims fill-if-empty) and the shared post-SOS walker
+  FUN_18004c480 (:57942-57991) ACCEPTS AT ITS SCAN LIMIT with no EOI
+  (:57958-59 `if (limit <= off || get() == NULL) goto ACCEPT` → the 0x23
+  stamp + size = the offset reached); the limit is h*w*3 from the candidate
+  start (dims from SOF) or 20,000,000 (the 200,000,000 global cap / 10);
+  the sliding getter FUN_180042930 is device-bounded; the census-documented
+  two-generation chain makes one accept sufficient. validate_jpeg now
+  mirrors the salvage on every no-EOI exit (SOS-gated; end = min(hit +
+  h*w*3 | hit + 20,000,000, bound); PartialRisk 600 — the registered
+  grading delta D-79). 2 fail-before tests + the EOI pin; evidence:
+  s31-oq-s3-jpeg-fallback-decode.md.
+- **S-017 FIXED (session 3, diff-fix leg):** the four ftyp-family signatures baked
+  the ISO-BMFF box SIZE (four literal zero bytes) into their magic, so no real
+  MP4/MOV/M4A/HEIC head (size 0x14/0x18/0x20) could ever match — four advertised
+  formats dead, surfacing only as raw-sign .lrf mislabels. Re-keyed on the "ftyp"
+  box TYPE with header_offset 4; candidate now lands on the size field and the
+  brand reads at candidate+8 land where real files carry it. The window-matching
+  primitive is extracted (match_signature, cr_signatures.h) and shared with a NEW
+  F8 load-time self-probe (self_probe_registry): unreachable magics and mis-shifted
+  candidates fail at startup — the probe's synthetic-buffer match alone was proven
+  WEAK during fail-before (it faithfully reproduces a broken magic), so the
+  structural rule (four-zero-byte magic prefixes assert a 32-bit data field is
+  constant) is the gate that catches the class. Conservative naked-moov salvage
+  (FMT_MOV_NAKED, appended id): mirrors the og's list-layer MovAnalyzer
+  (FUN_180004fb0 :2919-4208 — the live registration path; the u16 key at :2748 is
+  dead under the zero-header guard :9954) for ftyp-destroyed files, tried LAST so
+  ftyp-keyed entries claim intact positions first; og accept criteria undecoded —
+  the follow-up surface is documented in S-017's Resolution. Tests:
+  Carve.Mp4RealFtypIsom / MovRealFtypQt / HeicRealFtypHeic / M4aRealFtyp /
+  MovMoovWithoutFtyp / RegistrySelfProbeReachesEveryFormat.
+- **S-015 FIXED (session 3, diff-fix leg):** raw_signs min/max decoded as KiB in the
+  og (`*0x400` gate / `<<10` size / `min<<10` acceptance) — the compiled table now
+  converts once in the generator (zero-max entries refused; the og's 500 MiB default
+  would be a silent divergence); every format's window was 1024x too small and the
+  floor 1024x too low. Tail walk rebuilt: chunked forward scan (1 MiB reads +
+  sign-length overlap), named `kRawSignTailScanLimit` (8 MiB) with the og's true
+  full-window range (up to 200 MiB) documented in cr_rawsigns.h as the bound's
+  rationale. DISCOVERED + fixed in-commit: per-format tail scoping — the og pairs
+  tails within the candidate format's own record; the core's format-agnostic scan
+  fabricated close positions (pinned by RawSignLayerHeaderOnlyAndSharedMagic:
+  fst has no tail signs, stays header-only; RawSignTailPairWithinFormat/TailPairWindowScaled
+  pin in-format far-tail pairing). Units + floor + far-window pinned by
+  RawSigns.UnitsAreKib / CarvesFiveMiBVob / MinFloorOneKib.
+- **OQ-T8 RESOLVED:** og dispatch = sector-aligned probing, 3-layer first-accept-wins
+  (u32 RB-tree → u16 multimap → list sweep), per-key modern→legacy chains, no cross-layer
+  resolution. Core byte-steps = detection superset (registered, I-009).
+- **M-005 now decompile-proven and FIXED (s14):** og bitmap-gates carve (bit test + cluster skip +
+  dispatch suppression); core has no gate — full standalone finding file created.
+- **S-007 evidence completed both directions:** all 8 session-1 formats confirmed +
+  ~26 additional og-only formats (bytes cited); ISO9660 is core-only (og cannot carve ISO).
+- **N-014d filed:** ZIP padding semantic inversion (og salvages non-empty trailing sectors
+  after broken chains, never inflates clean archives; two-tier version gates) — N-008 refined.
+- **M-021 filed → FIXED (s21):** video-repair pre-scan wiring — versioned
+  `CarvePostProcessor` bound through `CarveFlags::post_processor` (null = the og's
+  DLL-absent degrade); fires per validated candidate pre-insertion on BOTH emit
+  layers (grammar + raw-sign); a feed never a gate; findings/FIXED/M-021.
+- **N-014b/c:** N-014b FIXED (s28) — the naming split is closed: the raw-sign layer
+  rides the same namer chain as the grammar layer and the orchestrator's
+  "Carved%06u" lambda is removed; one File%06u family per scan
+  (Orchestrator.CarveSingleNamingFamily, fail-before showed the split). N-014c
+  FIXED-ALREADY via M-024 (CarveFlags.disabled_formats — the RawConfig.ini [Filter]
+  surface). N-014d FIXED-ALREADY via N-008+N-068 (salvage polarity + LFH gates;
+  cap 0x500001). N-014a FIXED-ALREADY via N-016. Group resolved: findings/FIXED/N-027.
+
+---
+
+## Session-3 parallel-leg addendum (S3-CARVE; core `34b3441`, corpus `03ad46c`)
+
+Complements the section above (same session, parallel leg — IDs renumbered past the
+leg that landed first; registry decode evidence: `evidence/decompiled-quotes/s3-rawsearch-inventory.md`):
+
+- **S-017 (SEVERE, executed proof):** the four ISO-BMFF signatures in the core's
+  table encode the ftyp box SIZE as literal zero bytes — real MP4/MOV/M4A/HEIC
+  headers (size 0x14/0x18/0x20) can never match; `cand_abs = match − 4` then puts
+  the brand read on the "ftyp" bytes themselves. Executed comparison: zero grammar
+  hits for four planted real-world BMFF files. The og carves these via its u32
+  4CC layer + MovAnalyzer/HEICAnalyser. (evidence/executions/s3-ftyp-signature-deadness/)
+- **S-018 (SEVERE, re-filed s31 — FIXED):** JPEG accept policy — the modern
+  tier is EOI-gated (the s3 INVALID correction stands for it), but the LEGACY
+  fallback tier accepts tail-truncated JPEGs at its estimate limit; the core
+  now mirrors the salvage (PartialRisk-graded).
+- **M-024 (MAJOR):** no runtime format-filter surface — the og rebuilds its
+  registry per search from `config/RawConfig.ini [Filter]` (37 named toggles,
+  STL/VPJ default-off) and exports three registry projections
+  (**N-033**: consumed by the FS SearchDLLs, which clone the master registry into
+  per-engine state); the core's table is compile-time with no enumeration ABI
+  (A42/A45).
+- **M-025 (MAJOR) — FIXED (session 32, DFX32):** read model — og = 4 MiB device
+  reads into an 8 MiB ping-pong buffer, one dispatch per sector-aligned
+  position, allocated-cluster skip, open-ended formats tracked as pending
+  CRawFileInfo objects extended across chunk boundaries (streaming state
+  machine); core = 1 MiB windows, byte granularity (superset, I-009 kept
+  deliberately), stateless validators. The fix landed the og's
+  buffer-residency BENEFIT without the state machine: a WindowView
+  (IStorageDevice wrapper) serves all 8 device-read sites of the window scan
+  (validator probes, M-051 checksums, small-file hashes, raw-sign tail walks,
+  post-processor feeds — both emit layers) from the already-read window,
+  split-reading only the cross-window tails. MEASURED (scripts/bench_m025.cpp,
+  64 MiB / 1280 candidates, sign-quiet fill): read_at calls 20,544 → 2,080
+  (9.88×), device bytes 2.20 GB → 1.06 GB (2.08×), no wall regression on the
+  memcpy device (the real-transport gain is the ~18.5K fewer read round trips
+  per 64 MiB). Fail-before: the counting-device test (82 reads pre-fix vs 1).
+  The pending-object model itself is registered as PARITY-DELTAS D-80 — future
+  stateful analysers (the og's MovAnalyzer/MTS family) port behind the M-021
+  CarvePostProcessor seam, not by rewriting the scan loop; the M-021 hook as
+  landed is a per-candidate feed and never depended on continuation state
+  (the finding's dependency note is resolved by that shape). The geometry
+  change (4-8 MiB ping-pong) was evaluated and NOT taken: dispatch cost is
+  byte-granularity-dominated (the I-009 superset), and the window size only
+  affects the re-read margin the view already removed.
+- **Dispatch chain semantics (addendum to N-031):** u16 equal_range chains iterate
+  in insertion order; plain-accept-after-special-reject records format id 8
+  (generic) and continues; `00 01 00 00` = TTF (u32 layer) pre-empts MDB (u16).
+- **S-007 correction (this leg, decompile re-verified at :1985/:2156-2177/:3097):**
+  the addendum above carries two wrong rows — C5 D0 D3 C6 is **CEPSAnalyser**
+  (AI/EPS), not dBase (no DBF analyser exists); E4 52 **5C** 7B is **OneNote**
+  (OneAnalyser/FileONEAnalyser), not LZH (LZH = list-layer LZHAnalyser). Errata
+  rows 22-28.
+
+- **N-031 FIXED (s28):** the og's all-zero-sector fast-skip landed at the raw-sign
+  layer (exact form: a stride whose 47-byte sign window is all zero skips the
+  probe_header walk; counted in ScanStats.carve_zero_strides —
+  CarveEngine.ZeroSectorSkipStats with a non-zero control); the 512-vs-device-sector
+  stride superset documented at cr_rawsigns.h; the only_common gate is expressible
+  on M-024's disabled_formats surface (registered); the collision-order pins
+  (TiffVsRawTiebreak et al.) stay green. Resolution in findings/FIXED/N-031.
+---
+
+## Session-3 parallel-leg rows (integration 2026-10-26)
+
+| ID | Severity | One-line |
+|---|---|---|
+| M-039 | MAJOR | Cross-engine occupancy-bitmap feed missing (og fills one per-volume bitmap in EXT4/Btrfs/ZFS engines — Btrfs's is sparse-file-backed — feeding downstream phases; our diskmap is visualization-only) |
+| N-030 addendum | — | Tail-hit size formula (`sec*(cur-start) - tail_off + 50` vs our `lo+pos+512`) + the invented 2 MiB tail cap + 500 MiB default — this leg's decode folded into N-030 |
+
+Evidence: `evidence/decompiled-quotes/s3-rawsigns-consumer-decode.md` (the
+loader/matcher/CommonRawAnalyser decode, complementing the lead leg's
+`s3-rawsigns-units-and-dispatch.md`).
+
+---
+
+## Session-5 addendum (2026-10-26, audited `7cf6754`)
+
+- **M-029 §Gap (b) corrected via OQ-S4-2 resolution**: the RAW naming hook
+  is a single-site category display-name mapping (reserved key
+  "filter_generalraw" → the general-raw filter node's display name via
+  DRWUI's firebase.json map) — NOT a per-file rename/filter gate. Decode:
+  `evidence/decompiled-quotes/s5-oq-s4-2-raw-naming-hook.md`. No carve
+  emission-path change required for parity; the fix narrows to the
+  category-bucket naming surface.
+
+## Session-5 audit (audited commit `7cf6754`) — the never-cited family-artifact wave
+
+All 6 RAWSearchDLL family artifacts + per-engine-function-map were read for the first time
+(any session). Verdict changes and additions:
+
+- **B4 deleted classification — S-031 (SEVERE, NEW):** the og flags every carved record
+  deleted (FLAGS=0x0020 constant, 12,147/12,147 census); the core's carve path never sets
+  deleted state, so `deleted_only` queries and `deleted_count` stats exclude the entire
+  carve set.
+- **B1/B2 archive inventories — S-032 (SEVERE, NEW):** the og's ZIP analyser returns the
+  complete inner-entry inventory (FUN_180045690 + FUN_180007060; LFH/CD/EOCD anchors) and
+  the RAR walker stitches multi-part sets (272-byte name buffer); the core emits one flat
+  node per archive.
+- **A28 validator details — N-051/N-052/N-053/N-054 (MINOR, NEW):** MKV DocType
+  discrimination + element-bounds gate; HEIC brand relabel to L"HEIF"; IIU bound to RW2 in
+  the core vs the og's TIFF/EP chain; RAF 4-byte vs 16-byte magic strictness (miss) and
+  JPEG 4th-byte superset (register).
+- **B10 naming — N-063 (MINOR, NEW):** the core's `File%06u` default namer is an invention
+  (its "corpus policy" comment is false); the og names per-analyser (content-embedded
+  names; MP4/MOV "Lost Name File (...)_EaseUS" template). OQ-S4-2 RESOLVED (the +0x48 hook
+  is a per-scan "filter_generalraw" config fetch).
+- **Runtime extensibility — M-048 (MAJOR, NEW):** EUUserData (111-extension user signature
+  DB, `"offset,hex"` + MIME) has no core counterpart.
+- **D12 provenance — M-051 (MAJOR, NEW):** the og's RAW records carry a timestamp string,
+  analyser checksum (0xFFFFFFFF=invalid marker), note, tail anchor, boolean; the core sets
+  none.
+- S-007 re-confirmed with the family rosters (no new formats beyond its addenda; the
+  census's counts win where the family files conflict — corpus errata row 38).
+
+## Session-4 update (2026-10-26, diff-fix session 4 — the S-007 lane)
+
+**S-007 FIXED (primary set):** the og's hardcoded common formats landed
+with corpus-exact keys — GIF8, BM, the 18-key headerless MPEG-audio
+family (FF E2..E7/F2..F7/FA..FF), AAC ADTS (FF F1/FF F9), {\rt, OLE
+D0CF11E0 (DIFAT + directory-chain walk, CFB (N+1)*ssz rule), MPEG PS/ES
+start codes, DWG AC10 (version gate + bounded extent). 27 registry
+entries + 9 validators; the audio family carries `suppress_overlap`
+(one stream = one node — the og's walker semantics at the core's
+byte-granular grid); the headerless audio gate is 10 consecutive frames
+(byte-granular FP calibration, registered in D-57). 3 new tests
+(S007CommonFormatsCarve / S007ValidatorsRejectNoise /
+S007TruncatedSalvageSemantics), fail-before 3/3; suite 436/436; hostile
+ASan smoke clean. **Remainder (precisely scoped in the finding):** the
+~25 niche og-only formats (CHM/AU/MIDI/APE/EPS-AI/DXF/DMG/... — the
+session-2/3-corrected table in the finding file is the implementation
+list) + the bench seed-matrix extension (Windows runner).
+## Session-6 rows (deep continuation, 2026-10-26 — the never-read family layer)
+
+The six `rawsearchdll--family-*.md` artifacts + the registry census/dual-registry decode were
+first-cited this session (evidence: `evidence/decompiled-quotes/s6-carve-family-layer.md`).
+
+| ID | Severity | One-line |
+|---|---|---|
+| M-042 | MAJOR | Archive inner-file inventories: og analysers return the complete ZIP/RAR entry list; core CarveResult is {end,size} only (cr_signatures.h:75-80) |
+| N-052 | MINOR | ZIP: EOCD (PK\x05\x06) anchor missing (truncated/EOCD-first zips) + LFH sanity gates (version_needed ≤10, extra ∈[1,0x102]) missing |
+| N-053 | MINOR | CAB lowercase `mscf` registry key missing (og registers both cases — deliberate duplicate-key policy) |
+| N-054 | MINOR | Overlap resolution: og ranks by accumulated header+tail confidence + two-generation validator fallback; core trial-order first-wins, one validator per format |
+| S-007 addendum | SEVERE | Roster sharpened: bare-MPEG dispatch (18+ u16 sync keys vs ID3-only — complete recall gap for tagless MP3), the ~45-format family census, family provenance per format |
+
+MATCH/superset registers (no findings): RAR4 fast-accept (core stricter), PST "MS"+AMap gates
+(core superset), RAR5 (core implements; og rejects), tail-scope/8 MiB bound (S-015 FIXED family).
+Runtime registry machinery (EUGetAnalyserList/Map/Multimap refresh, RawConfig 37-toggle gate)
+belongs to M-024/N-033's family.
+
+## Session-9 verdicts (continued — M-051)
+
+| ID | Verdict |
+|---|---|
+| M-051 | **FIXED** — the RAW provenance fields land as the finding's plan scoped: carve_checksum = CRC32(extent's first 512 bytes) at both emit sites (0xFFFFFFFF = the og's invalid marker, the default for non-records incl. the S-032 inner-entry children); carve_anchor_b = the tail sign's exact position on raw-sign tail-paired hits (0 = header-only, the og's 261/12,147 census); carve_note + carve_flag carried and round-tripped (the og's note is "usually empty"; +0xF4's semantics undecoded — OQ-S6-3). Anchor A = the extent start (already carried). Record-4 nflags-bit4 block. 2 fail-before tests. |
+## Session-12 update (2026-10-26, DFX12 — the carve-magic quartet, CONVERGENT with the parallel lane)
+
+**N-051/N-052/N-053/N-054 FIXED by two convergent landings** (this
+session verified the corpus first-hand — analyser-granular-batch1
+:43-80, registry census :53-55, carving deep-dive :28-60 — while the
+parallel lane's `b2f48c6` landed the same four findings in the same
+window; the union takes their landing as canonical per the repo's
+collision convention, and this session's independent verification +
+fail-before execution stand as the second proof set):
+
+- **N-051:** their validate_mkv (bounds gate + DocType webm/matroska
+  discrimination) is canonical; this session's independent decode adds
+  that the artifact's second constant 0x67805318 is the Segment element
+  ID 0x18538067 read little-endian (a decode refinement recorded here
+  for future audits — real matroska files carry both a matroska
+  DocType and a Segment element, so both readings agree on real files).
+- **N-052:** their FMT_HEIF registry row is canonical (heic-proper stays
+  HEIC; siblings relabel HEIF). This session's alternative carrier
+  (per-file CarveResult::ext_override keeping one type-id) is preserved
+  in git history (017d63b) as the rejected design — the finding's
+  "type-id unchanged" guidance vs the registry-row approach was decided
+  by first-landing.
+- **N-053:** same resolution both legs (FMT_TIFF_EP claims the IIU key
+  with validate_tiff; FMT_RW2 = salvage fallback, their D-63a = this
+  session's D-64).
+- **N-054:** same resolution both legs (FUJI 4CC + canonical-string
+  primary + variant path; JPEG prefix registered, their D-64a).
+- **N-076 (S12 NEW-FINDING — THIS session's unique contribution):**
+  discovered while building the N-054 fixtures: the canonical RAF
+  version gate rejected every real-world RAF (the version field at +16
+  is a 4-byte ASCII string "0100"/"0201"; LE-read values ~8e8 far above
+  the 0x2000 binary cap) — the row was dead for real files since
+  introduction, with zero fixture coverage. The parallel landing
+  (b2f48c6) still carries the defect; fixed in this session's follow-up
+  commit with Carve.RafRealAsciiVersionAccepted (fail-before executed
+  on the stash-isolated pre-fix engine: RED).
+
+Fail-before evidence for this session's independent run: 8/10 of this
+leg's tests RED on the stash-isolated pre-fix engine (the parallel leg's
+8 tests carry their own fail-by-absence proofs). Suite post-union:
+549/549 linux-release.
+
+**N-069 (MINOR, S5) — FIXED (s11):** the og's duplicate-key policy for
+case-insensitive formats is now mirrored — FMT_CAB_LC (lowercase `mscf`)
+is its own registry row sharing validate_cab, and the validator's internal
+magic re-check accepts exactly the two registered spellings (census :94,
+policy :127; mixed case never anchors — no row keys it).
+`Carve.CabLowercaseMagic` proves both cases carve; the lowercase node
+carries the distinct format id. B1/C19 verdict for this row: MATCH.
+## Session-12 carve-minors batch (N-030 — N-069 landed by the parallel s11 lane, canonical b8b0318)
+
+- **N-030 (D15/B3/D13) FIXED as the registered deliberate superset:**
+  the raw_signs.json confidence field is DEAD DATA in the og (parser
+  FUN_18001e510 consumes offset + hex body, never part[2] — decompiled
+  :23522-23765; the deep-dive's ranking claim corrected, erratum 19).
+  Option (b) of the finding's own fix plan: cr_rawsigns.h's divergence
+  block now carries the dead-data citation + do-not-remove guidance;
+  PARITY-DELTAS D-66; winner selection and the tail-pair blend pinned
+  by the existing RawSignLayerHeaderOnlyAndSharedMagic /
+  RawSignTailPairWithinFormat tests. Option (a) (table-order parity)
+  stays gated on decoding the og's own emitted grade — FUN_18000d670's
+  result fill — recorded as the revisit precondition.
+
+**N-068 (MINOR, S5) — FIXED (s11; EOCD half FIXED-ALREADY):** the LFH
+anchor now carries the og's two candidate gates (decompile :18385-18388
+byte-exact: u16@+8 <= 10 and the [1, 0x103] window at +0x1a — the
+artifact's labels are off; E44), applied in zip_common so FMT_ZIP and
+FMT_DOCX share them. The EOCD-anchor recall claim is covered by the
+existing FMT_ZIP_CD + EOCD reconciliation (head-destroyed zip
+reproduction passes pre-fix); a registry EOCD row would double-emit or be
+dead code — the analysis is recorded in the finding's Resolution.
+B1/A28 verdicts: MATCH.
+
+## Session-22 carve batch (N-070 + M-056 — the overlap-scoring wave)
+
+- **N-070 (A28/A29/D15/B3) FIXED (half 1 implemented, half 2 registered):**
+  the grammar-layer trial loop now ACCUMULATES every accepting candidate
+  at a magic position and emits the highest `base_confidence + validator
+  confidence` one (ties: registry trial order — deterministic); the og
+  ranks overlapping candidates by accumulated header+tail confidence
+  (searchdll-family--architecture.md:73, re-verified first-hand). Every
+  gate's break/continue semantics preserved exactly (already-emitted
+  break, suppress_overlap mid-stream skip, F9 dedup resolution). The
+  two-generation `File*Analyser` fallback chain is REGISTERED as
+  PARITY-DELTAS **D-75** (legacy bodies undecoded in the corpus; the two
+  fully-decoded legacy grammars — MKV vint walk, RAR4 fast validator —
+  are already the core's validators). Tests:
+  `CarveEngine.OverlapScorePrefersHigherConfidence` (fail-before: trial
+  order emitted CR2 1700 over DNG 1760 — the discriminator fixture),
+  `CarveEngine.TiffVsRawTiebreak` (the census's collision family pinned,
+  deterministic single-acceptor outcome unchanged).
+- **M-056 (NEW-FINDING, filed+fixed in the same batch):** tiff_common's
+  out-of-line-entry end was computed ABSOLUTE but consumed RELATIVE —
+  every TIFF-family carve with count>4 entries (all real multi-strip
+  TIFFs: StripOffsets/StripByteCounts) sized at `hit + real_size`, which
+  on real disks clamped to the 256 MiB cap and absorbed the neighborhood.
+  `data_at = u64(val)` (TIFF-base-relative, matching the inline branch).
+  Both new tests pin exact structural sizes (1208 / 1210); fail-before
+  executed on the stash-isolated pre-fix tree with the hit-inflated
+  values quoted in the finding. A28/B1 verdict: MATCH.
+
+## Session-17 fix row (2026-10-26, DFX17 — N-063 closed)
+
+**N-063 FIXED** (findings/FIXED/): the og's per-analyser carved-file
+naming landed — `CarveResult::embedded_name` carrier with emit
+precedence (embedded_name > namer callback > default). The MP4/MOV
+template is decode-pinned first-hand: "Lost Name File (<time>)_EaseUS"
+with <time> = "%04d:%02d:%02d %02d:%02d:%02d" of the RAW mvhd value
+(v0: BE u32@+0x10; v1: the FIRST FOUR BYTES of the u64@+0x14 — the og's
+high-word quirk, every sane v1 time formats as the epoch) fed as Unix
+seconds with NO 1904-epoch conversion — both og quirks replicated and
+pinned by test, never "corrected". The field is the MODIFICATION time
+under the ISO layout (the finding's "creation" label corrected by the
+decode). The false "corpus policy" comment on default_namer repaired;
+File%06u is now the REGISTERED deliberate default (PARITY-DELTAS D-76,
+with the UTC-vs-host-local template formatting divergence). 4 tests,
+fail-before 3/3 RED. B10/A28 → MATCH for the decoded surface; the
+CZeroEnd-family membership beyond MP4/MOV is the recorded remainder.
+
+
+## Session-33 verdict update (2026-10-26, DFX33 — M-025 FIXED)
+
+**X51/X47 → MATCH (post-fix, the read-model half):** scan_one_window now
+wraps the slice in a window-serving device for the window's duration —
+reads inside [base, base+want) are served from the window buffer, reads
+straddling a window edge split into buffer-prefix + device-tail
+(byte-identical by construction). Validators, both M-051 checksum sites,
+both hash sites and the raw-sign tail scans all read through it. The
+counting-device execution the finding's own test list prescribes:
+**52 → 4 device reads** on the 4 MiB / 4-plant fixture (pre-fix: 4 window
+fills + 48 per-candidate re-reads; post-fix: fills only — 13x fewer,
+zero per-candidate re-reads for in-window candidates). Geometry (1 MiB
+windows + byte-granular dispatch) intentionally unchanged: the finding's
+fix-plan item 3 requires bench evidence for geometry changes, and the
+executed-transport comparison is the Windows bench lane's job (the
+finding itself records no og-execution possible here; M-009 posture).
+The I-009 mid-sector superset stays. Stateless-vs-pending model
+difference registered (PARITY-DELTAS D-81) — the porting boundary the
+S-017 plan must respect.
+
+
+## Session-33 verdict update, part 2 (2026-10-26, DFX33 — M-048 FIXED)
+
+**B1/A28/D16 → MATCH (post-fix):** the user-extensible signature database
+is live: the og's EUUserData JSON shape parses (targeted reader, atomic
+validation), registers through the cr_ui ABI (since 2.1) or the CLI
+--user-signs flag, and probes at the raw-sign stride AFTER the built-in
+layers (built-in-wins collision rule). Emission carries the user's
+extension + MIME (carve_note), tag 0xFFFE0000, confidence 600 (the
+documented fixed value — EUUserData carries none). Source-of-truth
+posture is the og's own: an install-tree config re-read per scan, not
+session state.
+
+## Session-24 verdict update (M-039 FIXED, DFX24, 2026-10-26)
+
+**Cross-engine occupancy feed — `M-039` FIXED.** The orchestrator
+aggregates every STRUCTURED node's extents (post-engine-pass, from
+the result tree) into a sorted, coalesced interval set and feeds it
+to both carve dispatch layers as a skip gate: positions inside an
+interval are suppressed (the grammar layer jumps to the interval
+end); the raw-sign 512-strides suppress the same way; carved nodes
+never feed the gate; the dedup tree stays the safety net.
+`occupancy_skipped` telemetry on CarveStats/ScanStats. A28 (carve
+target policy) / B29 (dedup, net) / O37 (cross-stage data flow)
+verdicts: MATCH (the interval shape is the finding's own sanctioned
+first step; the og's sparse-file mmap stays profiling-gated).

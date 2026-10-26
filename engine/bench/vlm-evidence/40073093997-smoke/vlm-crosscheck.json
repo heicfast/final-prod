@@ -1,0 +1,75 @@
+{
+ "crosschecked_utc": "2026-10-24T08:32:17.141940Z",
+ "protocol": "VLM values cross-checked against .rsf-derived og-found.csv and og-run.json; verdicts: CORROBORATED / CONTRADICTED / UNCROSSCHECKABLE",
+ "scenarios": {
+  "delete_partition": {
+   "vlm_entries": 6,
+   "machine_found_rows": 2399,
+   "og_scan_seconds": 21.3,
+   "inventory_files_seen": 595,
+   "checks": [
+    {
+     "shot": "11_results_baseline.png",
+     "value": "file_count",
+     "vlm": 1247,
+     "machine": 2399,
+     "source": "og-found.csv rows",
+     "verdict": "CONTRADICTED"
+    }
+   ]
+  },
+  "permanent_delete": {
+   "vlm_entries": 6,
+   "machine_found_rows": 714,
+   "og_scan_seconds": 21.3,
+   "inventory_files_seen": 0,
+   "checks": [
+    {
+     "shot": "11_results_baseline.png",
+     "value": "file_count",
+     "vlm": 629,
+     "machine": 714,
+     "source": "og-found.csv rows",
+     "verdict": "CORROBORATED"
+    }
+   ]
+  },
+  "quick_format": {
+   "vlm_entries": 6,
+   "machine_found_rows": 483,
+   "og_scan_seconds": 21.3,
+   "inventory_files_seen": 403,
+   "checks": [
+    {
+     "shot": "11_results_baseline.png",
+     "value": "file_count",
+     "vlm": 403,
+     "machine": 483,
+     "source": "og-found.csv rows",
+     "verdict": "CORROBORATED"
+    },
+    {
+     "shot": "26_recover_end.png",
+     "value": "file_count",
+     "vlm": 403,
+     "machine": 483,
+     "source": "og-found.csv rows",
+     "verdict": "CORROBORATED"
+    },
+    {
+     "shot": "30_cap_gate_candidate.png",
+     "value": "file_count",
+     "vlm": 403,
+     "machine": 483,
+     "source": "og-found.csv rows",
+     "verdict": "CORROBORATED"
+    }
+   ]
+  }
+ },
+ "totals": {
+  "CORROBORATED": 4,
+  "CONTRADICTED": 1,
+  "UNCROSSCHECKABLE": 3
+ }
+}

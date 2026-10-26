@@ -1,0 +1,5 @@
+{
+  "_comment": "Versioned regression baseline for the ours leg. Updated ONLY by human-reviewed commits. Format: scenarios.<scenario>.{recall,precision,perf.<mode>.scan_wall_seconds} as produced by bench/metrics/compute_metrics.py.",
+  "schema": 1,
+  "scenarios": {}
+}

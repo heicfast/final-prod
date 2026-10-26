@@ -1,0 +1,158 @@
+# API & Transport Benchmark (core-api session; docs/PERFORMANCE-BASELINE.md
+# sections 5-7 — the NOT-MEASURED plan made executable).
+#
+#   1. the 4-KiB-vs-64-KiB slow-path demonstration (mandate section 3:
+#      lengths that are 4-KiB-but-not-64-KiB multiples take the documented
+#      ~3.5x slow path; the ratio is RECORDED, hardware may attenuate it on
+#      virtualized runners - the transport enforces the 64 KiB envelope by
+#      construction and test_directalign proves the property)
+#   2. read-size x queue-depth sweep (the plateau the mandate's tuning rule
+#      needs: "increase read size and queue depth only up to the point where
+#      throughput plateaus")
+#   3. the RDA driver grammar-path round-trip with the F11 Information x512
+#      unscale verified on every read, plus a direct-path comparison cell
+#   4. cr_ui cheap-op API latency (late-bound, 2M iterations per op)
+#
+# Runner: windows-2022 (the WDK-compatible lane the driver install needs).
+# Driver: rda-driver release fetched + SHA256SUMS-verified + test-signed with
+#         a job-local cert + installed as service 'rda' (the comparative-bench
+#         flow). The direct-path cells run against \\.\C:; the RDA cells open
+#         \\.\rda\<token>\<disk>\0 (the exact production grammar).
+# Masking policy: none. Any step failure fails the run; artifacts always
+#         upload (if: always()).
+# Results land in bench-artifacts/alignbench.json; numbers are transcribed
+#         into docs/PERFORMANCE-BASELINE.md by the next documentation pass.
+
+name: API Benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      span_mib:
+        description: 'MiB read per measurement (default 512)'
+        default: '512'
+  push:
+    branches: [main]
+    paths:
+      - 'src/win/**'
+      - 'src/core/storage/**'
+      - 'src/ui/**'
+      - 'include/cr/win/**'
+      - 'include/cr/storage/**'
+      - 'include/cr/cr_ui.h'
+      - 'bench/ours/run-alignbench.ps1'
+      - '.github/workflows/api-benchmark.yml'
+  schedule:
+    - cron: '0 4 * * 1' # weekly Monday 04:05 UTC - drift watch on runner hardware
+
+permissions:
+  contents: read
+
+env:
+  RDA_RELEASE_TAG: v0.2.1
+
+jobs:
+  alignbench:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure + build (Release, manifest vcpkg)
+        shell: pwsh
+        run: |
+          $env:VCPKG_ROOT = $env:VCPKG_INSTALLATION_ROOT
+          cmake --preset win-x64-release
+          if ($LASTEXITCODE) { exit 1 }
+          cmake --build --preset win-x64-release
+          if ($LASTEXITCODE) { exit 1 }
+
+      - name: Fetch RDA driver release + verify checksums
+        shell: pwsh
+        run: |
+          $hdr = @{ Authorization = "token ${{ secrets.GITHUB_TOKEN }}" }
+          $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/heicfast/rda-driver/releases/tags/$env:RDA_RELEASE_TAG" -Headers $hdr
+          New-Item -ItemType Directory -Force -Path driver | Out-Null
+          foreach ($asset in $rel.assets) {
+            Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "driver\$($asset.name)" -Headers $hdr
+          }
+          $sums = Get-Content driver\SHA256SUMS
+          foreach ($line in $sums) {
+            $parts = $line -split '\s+', 2
+            if ($parts.Count -ne 2) { continue }
+            $want = $parts[0].Trim().ToLowerInvariant(); $name = $parts[1].Trim()
+            $pp = "driver\$name"
+            if (-not (Test-Path $pp)) { continue }
+            $got = (Get-FileHash $pp -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($got -ne $want) { Write-Host "SHA MISMATCH for $name"; exit 1 }
+          }
+          Get-ChildItem driver | Format-Table Name, Length | Out-String | Write-Host
+
+      - name: Test-sign + install + verify the RDA driver (service 'rda')
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=RRECOV-API-BENCH" `
+            -KeyExportPolicy Exportable -NotAfter (Get-Date).AddDays(2) `
+            -CertStoreLocation Cert:\LocalMachine\My
+          $pw = ConvertTo-SecureString -String 'rrecov-api' -Force -AsPlainText
+          Export-PfxCertificate -Cert $cert -FilePath rda-test.pfx -Password $pw | Out-Null
+          Export-Certificate -Cert $cert -FilePath rda-test.cer | Out-Null
+          Import-Certificate -FilePath rda-test.cer -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
+          Import-Certificate -FilePath rda-test.cer -CertStoreLocation Cert:\LocalMachine\TrustedPublisher | Out-Null
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          & $signtool.FullName sign /fd SHA256 /f rda-test.pfx /p rrecov-api driver\rda.sys
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          powershell -ExecutionPolicy Bypass -File driver\install.ps1 -ServiceName rda -Source "$PWD\driver\rda.sys" -IoctlBase 0
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "install.ps1 failed ($LASTEXITCODE) - manual sc.exe fallback"
+            Copy-Item driver\rda.sys "$env:SystemRoot\System32\drivers\rda.sys" -Force
+            sc.exe create rda type= kernel start= demand binPath= "System32\drivers\rda.sys" group= "FSFilter Boot File System"
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          }
+          sc.exe start rda
+          if ($LASTEXITCODE -ne 0) {
+            sc.exe query rda
+            Get-WinEvent -LogName System -MaxEvents 30 | Format-List | Out-String | Write-Host
+            exit 1
+          }
+          & bench\ours\verify-driver.ps1 -ServiceName rda -Device RDA -OutJson driver-info.json
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Run the alignbench harness (direct + RDA + API latency)
+        shell: pwsh
+        run: |
+          $span = '${{ github.event.inputs.span_mib }}'
+          if (-not $span) { $span = '512' }
+          # cr_ui.dll links the vcpkg runtime (z/zstd/lz4): put the vcpkg bin
+          # tree first on PATH so the harness's LoadLibraryW resolves them
+          # (the first run failed exactly here: LoadLibraryW -> module not
+          # found, run 40227375329)
+          $env:PATH = "build\win-x64-release\vcpkg_installed\x64-windows\bin;$env:PATH"
+          & bench\ours\run-alignbench.ps1 `
+            -Target '\\.\C:' `
+            -RdaService 'rda' -RdaDisk 0 `
+            -CrUiDll 'build\win-x64-release\src\ui\Release\cr_ui.dll' `
+            -SpanMiB ([int]$span) `
+            -OutJson 'alignbench.json'
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Get-Content alignbench.json | Write-Host
+
+      - name: Uninstall the driver (always - leave the runner clean)
+        if: always()
+        shell: pwsh
+        run: |
+          sc.exe stop rda 2>$null | Out-Null
+          sc.exe delete rda 2>$null | Out-Null
+          Remove-Item "$env:SystemRoot\System32\drivers\rda.sys" -Force -ErrorAction SilentlyContinue
+
+      - name: Upload benchmark artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: alignbench-${{ github.run_id }}
+          path: |
+            alignbench.json
+            driver-info.json
+          if-no-files-found: error

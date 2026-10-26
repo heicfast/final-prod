@@ -1,0 +1,137 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build (Release, vcpkg manifest)
+        shell: pwsh
+        run: |
+          $env:VCPKG_ROOT = $env:VCPKG_INSTALLATION_ROOT
+          cmake --preset win-x64-release
+          if ($LASTEXITCODE) { exit 1 }
+          cmake --build --preset win-x64-release
+          if ($LASTEXITCODE) { exit 1 }
+          ctest --preset win-x64-release -C Release
+          if ($LASTEXITCODE) { exit 1 }
+
+      - name: Win7 posture gate (stamp + import allowlist, every shipped PE)
+        # GAP-W6-WIN7 / F-D-4: the machine-enforced contract from the CI
+        # windows lane, applied to the ARTIFACTS. The stamper rewrites the
+        # PE OS/subsystem version fields to 6.1 (the modern toolset links
+        # 10.0 regardless of project flags); the gate then fails on any
+        # kernel32/advapi32 import outside tools/ref_imports_um.json plus
+        # the audited additions (Windows-8-only APIs fail by design).
+        shell: pwsh
+        run: |
+          python tools/stamp_osversion_um.py build/win-x64-release/src/app/Release/rrecov.exe
+          if ($LASTEXITCODE) { exit 1 }
+          python tools/stamp_osversion_um.py build/win-x64-release/src/ui/Release/cr_ui.dll
+          if ($LASTEXITCODE) { exit 1 }
+          python tools/verify_pe_um.py build/win-x64-release/src/app/Release/rrecov.exe --allowlist tools/ref_imports_um.json
+          if ($LASTEXITCODE) { exit 1 }
+          python tools/verify_pe_um.py build/win-x64-release/src/ui/Release/cr_ui.dll --allowlist tools/ref_imports_um.json
+          if ($LASTEXITCODE) { exit 1 }
+
+      - name: Stage the complete SDK + CLI bundle
+        # GAP-W6-RELEASE: rrecov.exe + cr_ui.dll + import/static libs +
+        # headers + docs + the app-local runtime (vcpkg-built z/lz4/zstd
+        # AND the VC/UCRT CRT - Win7 RTM has no UCRT, so the bundle is not
+        # loadable without it). Every required artifact is existence-
+        # checked; a missing one fails the release rather than shipping
+        # a broken zip.
+        shell: pwsh
+        run: |
+          $out = "stage"
+          New-Item -ItemType Directory -Force "$out/bin", "$out/lib" | Out-Null
+
+          # ---- our build products (all paths build-verified) ----
+          $required = @(
+            "build/win-x64-release/src/app/Release/rrecov.exe",
+            "build/win-x64-release/src/ui/Release/cr_ui.dll",
+            "build/win-x64-release/src/ui/Release/cr_ui.lib",
+            "build/win-x64-release/src/core/Release/cr_core.lib",
+            "build/win-x64-release/src/win/Release/cr_win.lib"
+          )
+          foreach ($artifact in $required) {
+            if (-not (Test-Path $artifact -PathType Leaf)) { throw "missing release artifact: $artifact" }
+          }
+          Copy-Item build/win-x64-release/src/app/Release/rrecov.exe "$out/bin/"
+          Copy-Item build/win-x64-release/src/ui/Release/cr_ui.dll "$out/bin/"
+          Copy-Item build/win-x64-release/src/ui/Release/cr_ui.lib "$out/lib/"
+          Copy-Item build/win-x64-release/src/core/Release/cr_core.lib "$out/lib/"
+          Copy-Item build/win-x64-release/src/win/Release/cr_win.lib "$out/lib/"
+
+          # ---- symbols for crash triage (present when the build emits them:
+          #      RelWithDebInfo; the plain Release preset ships stripped) ----
+          foreach ($pdb in @("rrecov.pdb", "cr_ui.pdb")) {
+            $candidate = Get-ChildItem build/win-x64-release/src -Recurse -Filter $pdb -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($candidate) { Copy-Item $candidate.FullName "$out/bin/" }
+          }
+
+          # ---- vcpkg-built runtime deployed next to our binaries. Test-framework
+          #      DLLs (gtest/gmock - deployed by the ctest step's test-tree
+          #      backstop) are NOT SDK content: exclude them explicitly. ----
+          $deployed = @()
+          foreach ($dir in @("build/win-x64-release/src/app/Release", "build/win-x64-release/src/ui/Release")) {
+            if (Test-Path $dir) {
+              $deployed += Get-ChildItem $dir -Filter *.dll -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -notmatch '^(gtest|gmock)' }
+            }
+          }
+          $deployed | Sort-Object Name -Unique |
+            ForEach-Object { Copy-Item $_.FullName "$out/bin/" -Force }
+
+          # ---- app-local VC CRT (redistributable; from the VS redist dir) ----
+          $vcCrt = Get-ChildItem "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Redist/MSVC/*/x64/Microsoft.VC143.CRT" -Directory -ErrorAction SilentlyContinue |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $vcCrt) { throw "VC143 CRT redist dir not found (VS layout changed?)" }
+          Copy-Item "$($vcCrt.FullName)/*.dll" "$out/bin/"
+
+          # ---- app-local UCRT (Win7 RTM ships none). Candidate layouts across
+          #      SDK generations, in preference order; the winner is the first
+          #      directory that ACTUALLY CONTAINS ucrtbase.dll (SDK 26100's
+          #      bin\<ver>\x64\ucrt exists but is EMPTY - a name-sort selected
+          #      it and the copy failed). Fail loudly if none of them carry it.
+          $ucrtCandidates = @()
+          $ucrtCandidates += Get-ChildItem "C:/Program Files (x86)/Windows Kits/10/Redist/*/ucrt/DLLs/x64" -Directory -ErrorAction SilentlyContinue
+          $ucrtCandidates += Get-ChildItem "C:/Program Files (x86)/Windows Kits/10/Redist/*/ucrt/x64" -Directory -ErrorAction SilentlyContinue
+          $ucrtCandidates += Get-ChildItem "C:/Program Files (x86)/Windows Kits/10/Bin/*/x64/ucrt" -Directory -ErrorAction SilentlyContinue
+          $ucrt = $ucrtCandidates | Where-Object { Test-Path "$($_.FullName)/ucrtbase.dll" } | Select-Object -First 1
+          if (-not $ucrt) { throw "no UCRT redist carrying ucrtbase.dll in any SDK layout (Redist ucrt/DLLs/x64, Redist ucrt/x64, Bin x64/ucrt)" }
+          Write-Host "UCRT redist from: $($ucrt.FullName)"
+          Copy-Item "$($ucrt.FullName)/ucrtbase.dll" "$out/bin/"
+          Copy-Item "$($ucrt.FullName)/api-ms-win-crt-*.dll" "$out/bin/"
+
+          # ---- headers, docs, notes, license ----
+          Copy-Item -Recurse include "$out/include"
+          Copy-Item -Recurse docs "$out/docs"
+          Copy-Item README.md, LICENSE, RELEASE-NOTES.md "$out/"
+
+          # ---- the bundle must be self-contained: every exe/dll import
+          #      resolves inside bin/ (or is a system DLL the gate allows) ----
+          $binDlls = Get-ChildItem "$out/bin" -Filter *.dll | Select-Object -ExpandProperty Name
+          Write-Host "staged runtime DLLs: $($binDlls -join ', ')"
+
+          # ---- integrity manifest ----
+          $root = (Resolve-Path $out).Path
+          $sums = Get-ChildItem $out -Recurse -File |
+            Get-FileHash -Algorithm SHA256 |
+            ForEach-Object { "{0}  {1}" -f $_.Hash, $_.Path.Substring($root.Length + 1) }
+          $sums | Set-Content "$out/SHA256SUMS"
+
+          Compress-Archive -Path "$out/*" -DestinationPath "core-recovery-$env:GITHUB_REF_NAME.zip" -Force
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: core-recovery-${{ github.ref_name }}.zip
+          body_path: RELEASE-NOTES.md

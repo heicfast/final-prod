@@ -1,0 +1,175 @@
+# SEVERE S-031 — Carved files are never marked deleted: og flags every carved record deleted (FLAGS=0x0020); core's deleted-filter and deleted-count exclude the entire carve result set
+
+**Severity:** SEVERE
+**Module:** carve (producer) + session/query/tree (consumers)
+**Parameters affected:** B4 (deleted-file classification — the largest single mis-classified population), B1 (detection correctness — presentation set), D11 (node fields — deleted state never set on carved nodes), D12 (session persistence — carved nodes round-trip as Active), A29 (merge/dedup — deleted-set membership feeds grouping)
+**Corpus references:** `re-workspace/artifacts/SaveScan/ifileproperties-part3--btrfs-zfs-raw-generic.md:82` — CRAWFileProperties (RAW record) field table: "FLAGS — **constant 0x0020 for all 12,147 records** (every carved file flagged deleted)"; `:77-90` the full RAW record grammar; `re-workspace/artifacts/UIUX/09-results-phase-deep-dive.md` (carved files presented under the deleted set — "Other deleted files" grouping)
+**Core references:** `src/core/carve/cr_carve.cpp:142-186` (props built and node attached — no deleted-state call), `include/cr/tree/cr_node.h:130` (`set_deleted_state`), `:38` (`DeletedState` enum), `src/core/query/cr_query.cpp:114` (`deleted_only` filter excludes Active), `src/core/tree/cr_node.cpp:287-288` (`refresh_stats` counts `deleted_count` only for non-Active) — audited commit `7cf6754`
+**Status:** READ-ONLY FINDING — no fix applied
+
+## Summary
+
+In the og, **every carved file is flagged deleted** — the RAW session record's FLAGS field is
+the constant 0x0020 (deleted-family bit) across all 12,147 sampled records, because carving
+recovers files that no longer exist in any filesystem structure. Our core's carve path never
+calls `set_deleted_state`, so every carved node is `Active`. The consequence is not cosmetic:
+the query layer's `deleted_only` filter (the product's primary "show me deleted files" view)
+**excludes every carved file**, and the tree's `deleted_count` statistics miss them all.
+
+## What the reference does
+
+The og's CRAWFileProperties serialization (SaveScan part 3, `:77-90`) persists, per carved
+file: the analyser-assigned name, a formatted timestamp string, the file size, and FLAGS —
+**"constant 0x0020 for all 12,147 records (every carved file flagged deleted)"** (`:82`). The
+0x20 bit is the same deleted-family flag used across the node formats (`:16`: "FLAGS (0x10
+children / 0x20 deleted family)"). Downstream, the results UI presents carved files inside the
+deleted set (the "Other deleted files" branch), and any deleted-scoped filter or counter
+includes them.
+
+## What our core does
+
+`cr_carve.cpp:142-186` — the carve emit path builds `FileProperties`, sets
+`fs_kind = Raw`, `logical_size`, `carve_format`, `carve_confidence`, the extent, optionally
+the sha128, then:
+
+```cpp
+tree::FileNode* n = ctx.tree->add_file(ctx.carve_root, props);   // :174
+...
+n->set_origin(tree::Origin::Carved);                              // :180
+n->set_confidence(cr.confidence >= 850 ? ... );                   // :181-182
+```
+
+`set_deleted_state` is never called — and a grep of `src/core/carve/` confirms no call site.
+`DeletedState` defaults to `Active` (`cr_node.h:38`). Every engine EXCEPT carve calls it
+(`cr_mftwalk`, `cr_fat_quick`, `cr_exfat_quick`, `cr_ext4_engine`, `cr_hfsplus_engine`,
+`cr_refs_engine`, `cr_records`). The consumers then act on the wrong state:
+
+- `cr_query.cpp:114`: `if (f.deleted_only && n->deleted_state() == tree::DeletedState::Active)`
+  → skip — a deleted-only query returns zero carved files.
+- `cr_node.cpp:287-288`: `if (c->deleted_state() != DeletedState::Active)
+  ++root->stats_.deleted_count;` → carved files never counted as deleted.
+- The session writer persists `deleted_` as-is (cr_records), so the divergence survives
+  save/load round-trips.
+
+## Gap
+
+Falsifiable claim: scan a disk whose unallocated space contains valid carveable files; in the
+og every carved result carries the deleted flag (FLAGS=0x20, 12,147/12,147 corpus census); in
+the core every carved node has `deleted_state() == Active`, so (a) a `deleted_only` query
+returns no carved files, and (b) `stats().deleted_count` excludes the entire carve result set.
+
+## Impact
+
+The "deleted files" view is the recovery product's core scenario — users who deleted files and
+then scanned filter to the deleted set to find them. Carved files (the ONLY recoverable
+content after metadata destruction, format, or partition loss) silently vanish from that view.
+Statistics shown to the user under-count deleted files by the whole carve population. This is
+a wrong-result divergence on the product's primary workflow, not a presentation nit.
+
+## Reproduction / verification
+
+- Corpus: `ifileproperties-part3--btrfs-zfs-raw-generic.md:82` quoted above (first-hand read
+  this session; the 12,147/12,147 census is the artifact's own byte-level sample).
+- Core: all three cite chains read first-hand this session (carve emit path, query filter,
+  stats counter, and the negative grep over `src/core/carve/`).
+- Executed comparison not run this session (read-only); the fix leg's fail-before test is
+  `Carve.DeletedOnlyQueryIncludesCarvedFiles`.
+
+## Fix plan (for the engineering team)
+
+1. In `cr_carve.cpp`'s emit path (after `add_file`, alongside `set_origin`), add
+   `n->set_deleted_state(tree::DeletedState::Deleted);` — matching the og's constant-0x20
+   FLAGS for every carved record.
+2. Keep the carve root's presentation name ("Other deleted files" branch) unchanged — the
+   og groups by the same deleted family bit, so no separate grouping change is needed.
+3. Verify no double-count: `refresh_stats` counts non-Active children once; carved nodes are
+   direct children of the carve root, so `deleted_count` now includes them (this is the og's
+   semantic — the count SHOULD include them).
+4. Check the session round-trip: cr_records already serializes `deleted_`, so reloaded
+   sessions keep the flag; add a round-trip assertion.
+5. Audit the CLI/report surfaces that print deleted counts (`cr_report`) for the same
+   under-count and update expectations.
+
+## Tests to add
+
+- `Carve.CarvedNodesAreDeleted` (every emitted carved node has `deleted_state() == Deleted`)
+- `Carve.DeletedOnlyQueryIncludesCarvedFiles` (query with `deleted_only=true` over a carved
+  fixture returns the carved files — fails before, passes after)
+- `Carve.DeletedCountIncludesCarved` (root stats after carve reflect the carved population)
+- `Carve.SessionRoundTripPreservesDeletedFlag` (save → load → flag still Deleted)
+
+## Related findings
+
+- S-023 (grading engine — the og's grade bits live at node+0x73 in the same FLAGS-adjacent
+  byte family; a fix leg touching node state should sequence with this)
+- M-050 (session node-model round-trip gaps — the deleted bit is one of the few flags the
+  core DOES carry; this finding closes the producer-side hole)
+- N-058 (session load validation deltas)
+
+## Open questions
+
+None. (Whether the og additionally distinguishes "carved-deleted" from "fs-deleted" in any
+filter is a query-model question already covered by M-029's state-group decode; the flag
+itself is constant 0x20.)
+
+---
+
+## Merged-tree re-verification (session-5 close, after the parallel fix legs' rebase)
+
+The parallel legs' changes (clang-format sweep `591f40c` + the rawsigns regeneration)
+shifted cr_carve.cpp and surfaced a SECOND emit site — the raw-sign tail-paired path at
+`:330-338` (`add_file` → `set_origin(Carved)` → `set_confidence(PartialRisk |
+MetadataOnly)`). Re-verified at the merged tree: **neither emit path calls
+`set_deleted_state`** — the grep over `src/core/carve/` is still empty. The finding's
+claim is therefore STRONGER at HEAD than at the audited `7cf6754`: both the grammar
+layer (:173-182) and the raw-sign layer (:330-338) emit Active carved nodes. The fix
+plan's step 1 must patch BOTH sites (or centralize the emit). Audited-`7cf6754` line
+cites above remain historically accurate; the merged-tree anchors are :173/:330.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's fix commit — `git log` "fix: S-031")
+**Verified by:** `CarveEngine.CarvedNodesAreDeleted` (grammar layer: every carved node `deleted_state() == Deleted`; `deleted_count` equals the carved population), `CarveEngine.RawSignCarvedNodesAreDeleted` (the second emit site — the raw-sign header-only layer), `CarveEngine.DeletedOnlyQueryIncludesCarvedFiles` (THE product-level discriminator: `filter.deleted_only` query over a carved fixture returns the carved rows) — all 3 fail-before proven on the carve-reverted build (0 carved rows in the deleted view, Active states, count 0); full suite **491/491** Linux Release (488 + 3 net-new).
+**Resolution notes:** Corpus re-verified first-hand: `ifileproperties-part3--btrfs-zfs-raw-generic.md` §3 field table — CRAWFileProperties FLAGS u16@serialized is "constant 0x0020 for all 12,147 records (every carved file flagged deleted)", the same 0x20 deleted-family bit documented at :16 ("FLAGS (0x10 children / 0x20 deleted family)"). The fix adds `set_deleted_state(Deleted)` at BOTH emit sites of `cr_carve.cpp` (the grammar layer :207-215 and the raw-sign layer :370-375, per the merged-tree re-verification addendum — the finding's second site confirmed at HEAD), alongside the existing `set_origin(Carved)`. Fix-plan consequences verified: (a) `deleted_only` queries now include the carve set (the discriminator test); (b) `refresh_stats().deleted_count` includes carved nodes (asserted equal to the carved population); (c) the session writer already serializes `deleted_` (cr_records), so round-trips preserve the flag — the producer-side hole was the only missing piece; (d) no double-count: carved nodes are direct children of the carve root, counted once. The carve root's presentation name and grouping are unchanged (the og groups carved files by the same deleted-family bit). No new PARITY-DELTA (this is a pure MATCH move toward the og's constant-0x20 semantics).
+
+---
+
+## Session-6 convergence addendum (2026-10-26 — independent corroboration + the session-round-trip mechanics)
+
+This session independently filed the same divergence (local M-041, dropped in the
+ID reconciliation — the parallel legs' IDs landed first) from the same census table
+(ifileproperties-part3:79-90), and adds three deltas to the record:
+
+1. **Session-persistence mechanics (the round-trip proof):** the session writer
+   faithfully serializes `deleted_state()` and all four times once they are set
+   (`src/core/session/cr_records.cpp:133,139-142`; reload at :195,206-209,273) —
+   the defect is purely upstream at the emission sites this finding already
+   cites. Consequence sharpened: a reloaded session misreports every carved file
+   as live and undated; the report schema's `deleted_count` undercounts; any
+   future grading consumer keyed on deleted-state (S-023's CRecoverability is
+   now landed and reads tree state) mis-grades carved rows.
+2. **The timestamp shape:** the og persists a FORMATTED STRING
+   (`FUN_140c41aa0`, `"%d-%d-%d %d-%d-%d"`, SYSTEMTIME from a FILETIME; the
+   source FILETIME is not persisted — the artifact's own §5 correction). The
+   core's fix should persist the FILETIME (our format allows it); only the
+   timestamp's EXISTENCE is this finding's requirement.
+3. **Adjacent fields in the same census row set** (validator checksum @+0x56
+   with the 0xFFFFFFFF-invalid marker, tail anchor B @+0x94, type-registry ID
+   @+0xF8) are M-051's scope (RAW provenance fields — the parallel session-5
+   leg's filing); the CRAW reader's consumption of the +0xF4 boolean and
+   anchor-B is tracked in OQ-S6-3.
+
+Both emit sites this finding re-verified (grammar :173-182 + raw-sign :330-338)
+were re-read by this session at `022c81d`-lineage: unchanged — `set_deleted_state`
+still absent from both. The finding's fix plan (both sites or centralized emit)
+stands.
+
+---
+
+## Resolution — timestamp residual (session 9, 2026-10-26)
+
+**Status:** FIXED (the scan-timestamp half — the last open item of this finding)
+**Fixed in commit:** (this session's commit — `git log` "fix(S-031 residual)")
+**Verified by:** `CarveEngine.CarvedNodesCarryScanTimestamp` (grammar layer: every carved node's `times.modified` is a nonzero wall-clock value inside the [before, after] window of the run), `CarveEngine.RawSignCarvedNodesCarryScanTimestamp` (the second emit site), `CarveEngine.ScanTimestampSurvivesSessionRoundTrip` (serialize → deserialize → the stamp is bit-identical). Fail-before proven 3/3 by reverting the two stamp lines (all timestamps zero, the round-trip assertion aborts on `stamped == 0`).
+**Resolution notes:** Corpus re-verified first-hand: `ifileproperties-part3--btrfs-zfs-raw-generic.md` §3 CRAWFileProperties row 2 — "formatted timestamp string, written by `FUN_140c41aa0` via `"%d-%d-%d %d-%d-%d"` (wYear, wMonth, ... from a FILETIME arg → SYSTEMTIME)"; the session-6 convergence addendum's item 2 pinned the shape (persist the FILETIME-equivalent, the formatted-string rendering is the display layer's job). Fix: `carve_slice` captures the wall clock ONCE at entry (`std::time(nullptr)` → `unix_to_filetime`, the shared fold in cr_types.h) into `ScanCtx::scan_time`; BOTH emit sites stamp `props->times.modified` (grammar layer + raw-sign layer). The core's persistence carrier is record 4's existing `times.modified` field (cr_records.cpp:141) — no session-format change; the round-trip test pins it. One scan's population shares one stamp (the og formats one scan-time FILETIME per run context). The committed conflict markers left in this file by the 4a3f5d4 rename race are repaired in the same commit (both sides preserved, append-only).

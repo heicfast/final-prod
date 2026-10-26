@@ -1,0 +1,174 @@
+# modules/health.md — disk health audit verdicts
+
+Reference: og DiskHealth subsystem (og-codebase/diskhealth/ + artifacts/DiskHealth/) —
+SMART attribute surfacing with UI presentation; ATA passthrough + legacy ioctl paths.
+
+Core (audited `67193b6`): `src/core/health/cr_nvme.cpp` (113 LOC parser) +
+`src/win/cr_health.cpp` (ATA passthrough IOCTL_ATA_PASS_THROUGH + SMART_RCV_DRIVE_DATA
+0x7C088 legacy fallback — the corpus-carried pair) + `include/cr/win/cr_health.h` +
+`tests/unit/test_nvme_health.cpp` (3 areas — parser only).
+
+## Verdicts
+
+- **B1 detection** — `M`: NVMe Identify/Health-log field extraction; ATA SMART
+  512-byte table (12-byte entries); transport labeling (ata-passthrough / nvme /
+  legacy). Og surface includes threshold/PREDICT FAILURE semantics + attribute naming —
+  presentation-layer features beyond the engine's data contract; core's data layer is
+  field-equivalent for the raw attributes.
+- **C20 field widths** — **N-009a** (percentage_used read as u16; spec u8).
+- **Q65 tests** — thin (parser-only; the win-layer passthrough paths untested — test
+  blind-spot family shared with all win/ code).
+- **F59/F60** — `NA` (health is advisory; no failure policy divergence).
+
+## Findings index
+
+| ID | Severity | One-line |
+|---|---|---|
+| N-009a | MINOR | NVMe percentage_used u16 vs spec u8 |
+
+## Test debt
+
+Win-layer passthrough paths; attribute-row decode vectors.
+
+---
+
+## Session 2 re-audit (audited commit `5d6da5f`)
+
+No new health-specific findings in session 2. The N-009a finding (NVMe
+percentage_used u16 vs spec u8) stands. Health module is otherwise MATCH
+per session 1's verdicts.
+
+### Session 2 findings index (this module)
+
+(No new findings in session 2.)
+## Session-2 update (2026-10-25, core `e93decf`)
+
+- **F61 (BitLocker) — never scored by session 1 — now audited: S-014 (SEVERE)** (wrong live
+  registry path, no offline-hive path, unassociated enumeration). The module's F61 row moves
+  from unscored to S-014.
+- **F59/F60 re-verified MATCH** by the coverage sweep: driver-absent duality (EPRDTDRV probe →
+  direct PhysicalDrive fallback), PID token, 200-disk cap, IOCTL table; DiskHealth semantics
+  covered by the retry-layer error-map model.
+- N-009a unchanged.
+
+## Session-4 remediation update
+
+**S-014 FIXED** (s4 session): the F61 verdict above is now `MATCH` on both halves —
+(1) the live auto-unlock path is `SYSTEM\CurrentControlSet\Control\FVEAutoUnlock`
+(DRWService_decompiled.c:104) with per-volume-GUID subkeys' `Data` REG_BINARY blobs,
+the og's caps applied (50-char GUID / 256-byte blob / 100 records) and the target
+volume's GUID matched first (`GetVolumeNameForVolumeMountPointW` association);
+(2) the offline (dead-system) path exists: a new portable read-only regf parser
+(`cr/reghive`, every structural offset decoded from the og's own
+`RegLib_decompiled.c`) reads `<X>:\Windows\System32\config\SYSTEM` — the og's
+bitlockerhelp flow (:3128-3160, hardcoded `\ControlSet001\Control\FVEAutoUnlock`) —
+both through an explicit `try_auto_unlock_offline(letter, hive_path)` and an
+automatic probe of every other mounted volume inside `try_auto_unlock`. The blind
+all-binary-values enumeration is gone. 11 Linux tests + 5 Windows-lane tests +
+`fuzz/fuzz_reghive.cpp`; Win7 gate additions documented (RegQueryValueExW,
+GetVolumeNameForVolumeMountPointW). See `findings/FIXED/S-014-*.md`.
+
+---
+
+## Session-3 parallel-leg audit (integration 2026-10-26; baseline `7fd00e0`)
+
+The DiskHealth **grading layer** decode (previously UNVERIFIED) and the NVMe
+route verification. Evidence: `evidence/decompiled-quotes/s3-filefilter-health.md`
+Part B. (This leg's local IDs S-017/M-020/I-013 renumbered to S-024/M-036/I-018
+during reconciliation.)
+
+| ID | Severity | One-line |
+|---|---|---|
+| S-024 | SEVERE — **FIXED** (FIXED/S-024) | No grading layer: og Unknown/Good/Caution/Bad with vendor thresholds (SMART 0xD1) + SSD-wear vendor mapping + caution rules (5/197/198 raw>=1, SSD life <=10%, temp 50/60); ours a single failing bit |
+| M-036 | MAJOR | NVMe: host r/w + controller-busy + error-log fields dropped; data units unconverted (og x512,000); folds the N-009a percentage_used width fix |
+| I-018 | INFO | NVMe transport route verified byte-parity MATCH (IOCTL 0x2D1400 + {proto 3, type 2, page 2, 512B}) — upgrades AUDIT-PIPELINE's "corpus silent" row |
+
+## Session-5 audit (audited commit `7cf6754`)
+
+- **N-055 (MINOR, NEW — disposition correction):** ATA SMART thresholds (READ ATTRIBUTE
+  THRESHOLDS 0xD1) are never read; the og's engine reads them and its UI composes
+  threshold-based verdicts (Threshold column, firstCautionIndex — UIUX 19 + the
+  diskhealth companion artifact). This session's correction: the prior "presentation-layer
+  feature" verdict on the threshold semantics was WRONG — the read is an engine-side data
+  gap. NVMe unaffected (`available_spare_threshold` is read, cr_nvme.cpp:30).
+- **N-064 (MINOR, NEW):** the og's Dict password dictionary (228 entries; manage-bde
+  -Password consent-gated attempts) has no core counterpart — capability register, any
+  port must keep the consent gate (parameter F61). **FIXED (s34 DFX34)** — see the
+  Session-34 fix leg below; consent gate preserved (F61), the og's asset not copied
+  (D-78 authored seed + format-compatible loader).
+## Session-6 fix leg (2026-10-26 — the S-024 decoded-truth upgrade)
+
+S-024's engine re-decoded first-hand from DiskHealth_decompiled.c and the
+first landing's analogs replaced with the exact rules (evidence:
+`evidence/decompiled-quotes/s6-health-grading-decode.md`):
+
+| Parameter | Verdict |
+|---|---|
+| B15 grading model | **MATCH** — FUN_0040cdf0 exact: 4 statuses; Unknown gates (data present / ATA side / read error); duplicate-attr-id → Unknown; SSD any-attr-below-threshold vs HDD in-range table (1-13/187-189/191-193/195-209/211-212/220-228/230-231/240/250/254); 5/197/198 raw16 caution with the all-FF raw[0..3] guard (disk-side only); bad-count > caution-flag > graded-signal > Unknown aggregation; family-0x13 NVMe path (critical_warning byte ≠ 0 → Bad; life > 10 Good / == 10 Caution / < 10 Bad; Parallels early-Good); temp NEVER graded (0x1808 unread by the grader — the first landing's temp-Caution rule removed) |
+| D16-vendor classification | **MATCH (decoded set)** — model_says_ssd (the 0x1724 writer list) + classify_family (FUN_0040dad0 cascade: WDC/Seagate/Mtron/JMicron60x/Intel/Samsung/Micron/Crucial/SandForce/OCZ/Vector/Plextor/SanDisk/SKhynix/Kingston/Kioxia/Phison/Apacer + NVMe + fallbacks) with sub-family codes, the raw/invert life forms, the SanDisk G1001 gate and the attr-230 raw16/100 form; exotic-thunk residual = classifier data gap (engine consumes all codes) |
+| C23 thresholds | **MATCH** — 0xD1 read verified against the og's internal mirror (:14108-14118) |
+| Q65 tests | 20 Health tests incl. the family-gate matrix, the FF-guard asymmetry, duplicate-Unknown, the NVMe exact bits, temp-never-grades, is-SSD list, classifier vendors/sigs/forms |
+| F-gate deliberate superset | failing_bit → disk Bad registered as **D-63** (PARITY-DELTAS); per-attr grades stay og-exact |
+
+M-036 is FIXED (the NVMe leg above). N-064 **FIXED (s31 — DFX31)**: the
+Dict password-dictionary unlock aid (cr::dict: generated 228-entry corpus
+table + parse grammar + the consent-gated attempt loop; win-layer
+unlock_with_dictionary on the PowerShell/manage-bde -Password plumbing;
+CLI --bitlocker-dict consent flag; cr_ui_unlock_volume_with_dictionary
+ABI export; index-only logging through the N-048/N-061 seam). The S-027
+lane's Ext4Engine.Backup* reds visible on main mid-session were that
+lane's in-flight state, not health.
+M-036 (NVMe field coverage) landed FIXED (s7, above). N-064 **FIXED
+(s34 DFX34)**: the Dict password-dictionary unlock aid — pure `cr/pwddict`
+(parse in the og's exact format, byte-verified first-hand vs
+og-codebase/Dict: comma-terminated CRLF lines, unterminated final entry,
+space-bearing entries; authored 20-entry seed = REGISTERED DIVERGENCE
+D-78, the og's asset never copied, the loader is format-compatible so the
+og's own file works verbatim) + the consent-gated sequencer (dedup, caps,
+attempt-log lines carry progress+length only, never password text) + win
+`try_password_unlock` (the same unlock() plumbing as a typed password —
+no in-process crypto, F61 legitimate-unlock-only preserved: nothing in
+the scan path references it) + CLI `--bitlocker-pwddict <path|seed>`.
+9 `Pwddict.*` tests; executed fail-before RED; suite 752/752. The S-027 lane's Ext4Engine.Backup* reds visible
+on main mid-session are that lane's in-flight state, not health.
+
+---
+
+## Session-6 rows (deep continuation, 2026-10-26)
+
+| ID | Severity | One-line |
+|---|---|---|
+| S-024 addendum | — | Doc-truth sub-item: cr_health.h:8 claims 0xD1 READ_THRESHOLDS/0xD8 RETURN_STATUS in the issued set; cr_health.cpp issues only 0xEC + 0xB0/D0 (grep-verified). The Threshold/Status/tri-state capability gap itself remains S-024's scope (UIUX/19:26-27 first-cited this session) |
+| N-058 §5 | MINOR | The header-comment fix rides the doc-truth group |
+---
+
+## Session-6 fix leg — M-036 closed (2026-10-26)
+
+| Parameter | Verdict |
+|---|---|
+| B11 NVMe node fields | **MATCH** — host_reads/host_writes/controller_busy_time/num_error_log_entries surfaced (+64/+80/+96/+176, le128); the og's 5-byte unit read is value-equivalent for realistic counts |
+| B13 report units | **MATCH** — data_bytes_read/written = units × 512,000 (the og's exact conversion, :5589-5614); raw counts kept alongside; the cr_ui C-ABI report appends the six fields with ABI v2 (appended fields bump per ABI-CONTRACT §9) |
+| Q65 | FullFieldSurface / DataUnitsConvertedToBytes / PercentageUsedIsU8Width / the 192-byte gate test |
+
+Open health items after this leg: none from this pair — N-064 **FIXED (s31)**
+(the Dict dictionary aid, consent-gated) and N-032 **FIXED (s30)** — the CSMI
+CC-0x19 transport (Intel RST route) wire-decoded from DiskHealth
+FUN_00425450 and landed as the third transport behind ata-passthrough and
+smart-rcv-drive-data, through the new pure chain seam (cr_smart_ata: the og
+CAtaSmart accessor model — first channel answering IDENTIFY serves the whole
+command set); the legacy route now stamps the og's exact SMART IDEREGS
+(count 1, sector 1, cyl 4F/C2 — :14166-14176). Registered remainders in
+PARITY-DELTAS D-78 (RAID-census routing, LSILOGIC sibling, SMART
+auto-enable write). N-042 **FIXED (s7 `3678cbf`; FIXED/
+move s11)** — `NvmeHealthInfo::decidegrees_c()` is the one decidegree
+source for the CLI print and the ABI `temperature_c_x10` (Q65 test set
+covers it).
+
+## Session-30 fix leg — N-032 closed (2026-10-26)
+
+| Parameter | Verdict |
+|---|---|
+| F60-adjacent health availability (CSMI route) | **MATCH** — the og's GetSmartAttributeCsmi transport (IOCTL_SCSI_MINIPORT CC-0x19 "CSMISAS", Register-FIS task file with the SMART magic LBA, response @+0xA4) is reproduced byte-exact (Health.CsmiRequestMatchesOgWireFormat); routing via the og's own IOCTL_SCSI_GET_ADDRESS probe; the census-sourced routing fields are registered D-78 |
+| P42 transport-chain contract | **MATCH** — the og CAtaSmart accessor model (one transport family serves IDENTIFY/READ DATA/READ THRESHOLDS; per-disk accessor pick) is now the pure seam cr::health::read_smart_ata; ERR_HEALTH_UNAVAILABLE stays the clean final fallback |
+| Q65 | 9-test set: wire format pins (request/response/builder guards/error set) + fallback-chain pair + attribute-parse proof + name-table pin |
+

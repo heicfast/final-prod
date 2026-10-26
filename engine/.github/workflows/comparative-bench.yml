@@ -1,0 +1,772 @@
+name: Comparative Bench
+
+# Evidence-grade comparison: core_recovery (rrecov + rda-driver) vs the og EaseUS
+# DRW free build (corpus snapshot), on GitHub-hosted Windows runners.
+#
+#   prepare        -> computes the fs x scenario matrix from inputs/event
+#   bench-ours     -> matrix over (fs, scenario): build, driver install+verify,
+#                     volume -> seed -> deletion -> hash maps -> scans
+#                     quick/deep/deep+carve -> recover --report -> inventory ->
+#                     per-mode metrics. ONE SCENARIO PER JOB so artifacts always
+#                     survive (a per-job timeout can only lose that scenario,
+#                     recorded by compare as a leg-failure incident).
+#   ours-behavior  -> driver-absent probe, cancellation responsiveness, resume
+#                     equivalence (single job, ntfs)
+#   bench-og       -> matrix over (fs, scenario): drives the og UI (DRW.exe
+#                     loader, coordinate driver + log-verified volume selection),
+#                     .rsf harvest, Recover-All funnel with 500 MB free-cap gate
+#   compare        -> COMPARATIVE-BENCHMARK.md + benchmark-summary.json +
+#                     regression gate vs bench/baseline.json
+#
+# Masking policy: NO continue-on-error anywhere. Failed legs fail the run; the
+# compare job records every failure as an incident with artifact references.
+# PRs run ours-only smoke (og UI automation is dispatch/nightly only).
+#
+# Supersedes: benchmark.yml (broken - stray brace, 5 consecutive failed
+# dispatches), comparison-ours.yml, comparison-easeus.yml (both deleted).
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'Matrix profile (smoke = ntfs x 3 scenarios; full = 4 fs x 12 scenarios)'
+        type: choice
+        options: [smoke, full]
+        default: smoke
+      tools:
+        description: 'Legs to run'
+        type: choice
+        options: [ours, og, both]
+        default: both
+      fs_filter:
+        description: 'Comma-separated fs subset (empty = all for the profile), e.g. ntfs,exfat'
+        default: ''
+      scenarios_filter:
+        description: 'Comma-separated scenario subset (empty = all for the profile)'
+        default: ''
+      upload_images:
+        description: 'Also upload compressed VHDX images (milestone runs only)'
+        type: boolean
+        default: false
+      driver_mode:
+        description: 'ours leg: install the RDA driver (present) or run direct-path (absent)'
+        type: choice
+        options: [present, absent]
+        default: present
+      scan_target:
+        description: 'ours leg scan basis: volume (default) or disk (A/B diagnostic for extent basis)'
+        type: choice
+        options: [volume, disk]
+        default: volume
+  pull_request:
+    paths:
+      - 'bench/**'
+      - '.github/workflows/comparative-bench.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'bench/**'
+      - '.github/workflows/comparative-bench.yml'
+  schedule:
+    - cron: '0 3 * * *'   # nightly full both-legs run
+
+concurrency:
+  group: comparative-bench-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  RDA_RELEASE_TAG: 'v0.2.1'
+  RESEARCH_REPO: 'heicfast/easeus-drw-research'
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      ours_matrix: ${{ steps.mk.outputs.ours_matrix }}
+      og_matrix: ${{ steps.mk.outputs.og_matrix }}
+      ours_count: ${{ steps.mk.outputs.ours_count }}
+      og_count: ${{ steps.mk.outputs.og_count }}
+      profile: ${{ steps.mk.outputs.profile }}
+      tools: ${{ steps.mk.outputs.tools }}
+      upload_images: ${{ steps.mk.outputs.upload_images }}
+      driver_mode: ${{ steps.mk.outputs.driver_mode }}
+      scan_target: ${{ steps.mk.outputs.scan_target }}
+      run_label: ${{ steps.mk.outputs.run_label }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # F4 lesson: bench-script defects must surface BEFORE a 90-job matrix
+      # dispatches (the F4a/F4c class surfaced only ~4 min into each Windows
+      # job). Parse-only; pwsh ships on the ubuntu image.
+      - name: Parse-check the bench PS scripts
+        shell: pwsh
+        run: ./scripts/ps_parsecheck.ps1
+
+      - name: Compute matrix
+        id: mk
+        run: |
+          set -euo pipefail
+          EVENT="${{ github.event_name }}"
+          PROFILE="${{ inputs.profile || '' }}"
+          TOOLS="${{ inputs.tools || '' }}"
+          FSF="${{ inputs.fs_filter || '' }}"
+          SCF="${{ inputs.scenarios_filter || '' }}"
+          UPIMG="${{ inputs.upload_images || 'false' }}"
+          DRVMODE="${{ inputs.driver_mode || 'present' }}"
+          SCANTGT="${{ inputs.scan_target || 'volume' }}"
+          [ -z "$PROFILE" ] && PROFILE=smoke
+          [ -z "$TOOLS" ] && TOOLS=both
+          if [ "$EVENT" = "pull_request" ] || [ "$EVENT" = "push" ]; then PROFILE=smoke; TOOLS=ours; fi
+          if [ "$EVENT" = "schedule" ]; then PROFILE=full; TOOLS=both; fi
+
+          if [ "$PROFILE" = "full" ]; then
+            FS='["ntfs","exfat","fat32","refs"]'
+            SC='["recycle_bin","permanent_delete","unlink_native","folder_delete","quick_format","full_format","delete_partition","decay_50","decay_80","decay_100","partial_overwrite","mft_corrupt"]'
+          else
+            FS='["ntfs"]'
+            SC='["permanent_delete","quick_format","delete_partition"]'
+          fi
+          if [ -n "$FSF" ]; then
+            FS=$(echo "$FS" | jq -c --arg f "$FSF" '[.[] | select(. as $x | ($f | split(",")) | index($x))]')
+            if [ "$(echo "$FS" | jq length)" -eq 0 ]; then echo "fs_filter matched nothing" >&2; exit 1; fi
+          fi
+          if [ -n "$SCF" ]; then
+            SC=$(echo "$SC" | jq -c --arg f "$SCF" '[.[] | select(. as $x | ($f | split(",")) | index($x))]')
+            if [ "$(echo "$SC" | jq length)" -eq 0 ]; then echo "scenarios_filter matched nothing" >&2; exit 1; fi
+          fi
+          # fs x scenario pairs; mft_corrupt is NTFS-only (no MFT elsewhere) -
+          # the exclusion reason is recorded in skip-reasons.json and surfaces as
+          # NOT-COMPARABLE in the report
+          PAIRS=$(jq -nc --argjson fs "$FS" --argjson sc "$SC" \
+            '[ $fs[] as $f | $sc[] as $s | select($s != "mft_corrupt" or $f == "ntfs") | {fs: $f, scenario: $s} ]')
+          jq -n '{mft_corrupt_non_ntfs: "NOT-COMPARABLE: mft_corrupt is NTFS-only (no master file table on this fs)"}' > skip-reasons.json
+
+          OURS='[]'; OG='[]'
+          if [ "$TOOLS" = "ours" ] || [ "$TOOLS" = "both" ]; then OURS="$PAIRS"; fi
+          if [ "$TOOLS" = "og" ] || [ "$TOOLS" = "both" ]; then OG="$PAIRS"; fi
+          OC=$(echo "$OURS" | jq length); GC=$(echo "$OG" | jq length)
+
+          {
+            echo "ours_matrix=$OURS"
+            echo "og_matrix=$OG"
+            echo "ours_count=$OC"
+            echo "og_count=$GC"
+            echo "profile=$PROFILE"
+            echo "tools=$TOOLS"
+            echo "upload_images=$UPIMG"
+            echo "driver_mode=$DRVMODE"
+            echo "scan_target=$SCANTGT"
+            echo "run_label=${{ github.run_id }}-$PROFILE"
+          } >> "$GITHUB_OUTPUT"
+          echo "profile=$PROFILE tools=$TOOLS pairs=$(echo "$PAIRS" | jq -c .) ours_jobs=$OC og_jobs=$GC"
+      - name: Upload skip reasons
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: bench-skip-reasons
+          path: skip-reasons.json
+          retention-days: 90
+
+  # ---------------------------------------------------------------- ours leg ---
+  bench-ours:
+    needs: prepare
+    if: needs.prepare.outputs.ours_count != '0'
+    runs-on: windows-2022
+    timeout-minutes: ${{ needs.prepare.outputs.profile == 'full' && 240 || 150 }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.prepare.outputs.ours_matrix) }}
+    name: bench-ours ${{ matrix.fs }} / ${{ matrix.scenario }}
+    env:
+      PROFILE: ${{ needs.prepare.outputs.profile }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Build rrecov (Release)
+        shell: pwsh
+        run: |
+          $env:VCPKG_ROOT = $env:VCPKG_INSTALLATION_ROOT
+          cmake --preset win-x64-release
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          cmake --build --preset win-x64-release -j 2
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          $exe = 'build\win-x64-release\src\app\Release\rrecov.exe'
+          if (-not (Test-Path $exe)) { Write-Host 'rrecov.exe missing'; exit 1 }
+          (Get-FileHash $exe -Algorithm SHA256).Hash | Out-File rrecov-sha.txt -Encoding utf8
+
+      - name: Fetch RDA driver release (v0.2.1) + verify checksums
+        if: needs.prepare.outputs.driver_mode == 'present'
+        shell: pwsh
+        run: |
+          $hdr = @{ Authorization = "token ${{ secrets.GITHUB_TOKEN }}" }
+          $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/heicfast/rda-driver/releases/tags/$env:RDA_RELEASE_TAG" -Headers $hdr
+          New-Item -ItemType Directory -Force -Path driver | Out-Null
+          foreach ($asset in $rel.assets) {
+            Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "driver\$($asset.name)" -Headers $hdr
+          }
+          # verify against the release SHA256SUMS
+          $sums = Get-Content driver\SHA256SUMS
+          foreach ($line in $sums) {
+            $parts = $line -split '\s+', 2
+            if ($parts.Count -ne 2) { continue }
+            $want = $parts[0].Trim().ToLowerInvariant(); $name = $parts[1].Trim()
+            $pp = "driver\$name"
+            if (-not (Test-Path $pp)) { continue }
+            $got = (Get-FileHash $pp -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($got -ne $want) { Write-Host "SHA MISMATCH for $name (want $want got $got)"; exit 1 }
+          }
+          Get-ChildItem driver | Format-Table Name, Length | Out-String | Write-Host
+          (Get-FileHash driver\rda.sys -Algorithm SHA256).Hash | Out-File driver-sha.txt -Encoding utf8
+
+      - name: PE provenance (driver + rrecov)
+        if: needs.prepare.outputs.driver_mode == 'present'
+        shell: pwsh
+        run: |
+          python bench\tools\pe_info.py driver\rda.sys build\win-x64-release\src\app\Release\rrecov.exe |
+            Out-File driver-pe.json -Encoding utf8
+          Get-Content driver-pe.json | Write-Host
+
+      - name: PE provenance (rrecov, driver absent)
+        if: needs.prepare.outputs.driver_mode != 'present'
+        shell: pwsh
+        run: |
+          python bench\tools\pe_info.py build\win-x64-release\src\app\Release\rrecov.exe |
+            Out-File driver-pe.json -Encoding utf8
+          Get-Content driver-pe.json | Write-Host
+
+      - name: Test-sign + install + verify the RDA driver (service 'rda')
+        if: needs.prepare.outputs.driver_mode == 'present'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # hosted runners have SecureBoot off: a job-local self-signed cert in
+          # Root+TrustedPublisher loads the driver without testsigning/reboot
+          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=RRECOV-CMP-BENCH" `
+            -KeyExportPolicy Exportable -NotAfter (Get-Date).AddDays(2) `
+            -CertStoreLocation Cert:\LocalMachine\My
+          $pw = ConvertTo-SecureString -String 'rrecov-cmp' -Force -AsPlainText
+          Export-PfxCertificate -Cert $cert -FilePath rda-test.pfx -Password $pw | Out-Null
+          Export-Certificate -Cert $cert -FilePath rda-test.cer | Out-Null
+          Import-Certificate -FilePath rda-test.cer -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
+          Import-Certificate -FilePath rda-test.cer -CertStoreLocation Cert:\LocalMachine\TrustedPublisher | Out-Null
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          & $signtool.FullName sign /fd SHA256 /f rda-test.pfx /p rrecov-cmp driver\rda.sys
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          # the release's install.ps1 (recorded when it fails; manual fallback is the
+          # proven flow from the superseded comparison-ours.yml runs)
+          powershell -ExecutionPolicy Bypass -File driver\install.ps1 -ServiceName rda -Source "$PWD\driver\rda.sys" -IoctlBase 0
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "install.ps1 failed ($LASTEXITCODE) - manual sc.exe fallback"
+            Copy-Item driver\rda.sys "$env:SystemRoot\System32\drivers\rda.sys" -Force
+            sc.exe create rda type= kernel start= demand binPath= "System32\drivers\rda.sys" group= "FSFilter Boot File System"
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          }
+          sc.exe start rda
+          if ($LASTEXITCODE -ne 0) {
+            sc.exe query rda
+            Get-WinEvent -LogName System -MaxEvents 30 | Format-List | Out-String | Write-Host
+            exit 1
+          }
+          & bench\ours\verify-driver.ps1 -ServiceName rda -Device RDA -OutJson driver-info.json
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Run the scenario (ours)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $fs = '${{ matrix.fs }}'
+          $scen = '${{ matrix.scenario }}'
+          $coreSha = '${{ github.sha }}'
+          $drv = if ('${{ needs.prepare.outputs.driver_mode }}' -eq 'present') { "service=rda;tag=$env:RDA_RELEASE_TAG;verified=rdacli-info;running" } else { "absent;direct-path-expected" }
+          $rrecov = "$PWD\build\win-x64-release\src\app\Release\rrecov.exe"
+          $sizeMB = if ($env:PROFILE -eq 'full') { 3072 } else { 1536 }
+          $resDir = 'benchmark-results'
+          New-Item -ItemType Directory -Force -Path $resDir | Out-Null
+          . "$PWD\bench\volume\volume.ps1"
+          try {
+            Write-Host "=================== ours: fs=$fs scenario=$scen ==================="
+            # working dirs on C: (~170 GB free) - the D: workspace disk is tight
+            # and a dynamic VHDX that cannot grow fails as 'volume out of space'
+            $scenDir = "C:\bench\$scen"
+            New-Item -ItemType Directory -Force -Path $scenDir, $resDir | Out-Null
+            Get-PSDrive -PSProvider FileSystem | Select-Object Name, @{n='FreeGB';e={[math]::Round($_.Free/1GB,1)}} |
+              Format-Table -AutoSize | Out-String | Set-Content "$resDir\disk-free-at-start.txt" -Encoding utf8
+            $vhd = "$scenDir\vol.vhdx"
+            $second = ($scen -eq 'delete_partition')
+            $thisSize = $sizeMB
+            if ($second) { $thisSize = if ($env:PROFILE -eq 'full') { 5120 } else { 3072 } }
+            New-BenchVolume -VhdPath $vhd -SizeMB $thisSize -FileSystem $fs -Label 'BENCH' `
+                -SecondVolume:$second -OutJson "$scenDir\volume.json" | Out-Null
+            $vol = Get-Content "$scenDir\volume.json" -Raw | ConvertFrom-Json
+            Write-Host "volume: disk=$($vol.disk) letter=$($vol.letter) fs=$($vol.fs) bytes=$($vol.volume_bytes)"
+
+            & "$PWD\bench\seed\generate_seed.ps1" -Root "$($vol.letter)\seed" `
+                -ManifestOut "$scenDir\seed-manifest.jsonl" -CsvOut "$scenDir\manifest.csv" `
+                -Profile $env:PROFILE -FileSystem $fs
+            # BENCH-F4a: a .ps1 invoked with & does NOT set $LASTEXITCODE -
+            # with no native command in the step it stays $null and
+            # ($null -ne 0) is $true -> every non-NTFS seed false-failed
+            # (fsutil sparse runs on NTFS only; run 40076073289: 'seeded
+            # 10209 files' printed, then 'seed failed' thrown). Success =
+            # the manifest exists and carries entries.
+            if (-not (Test-Path "$scenDir\seed-manifest.jsonl") -or
+                @((Get-Content "$scenDir\seed-manifest.jsonl")).Count -lt 10) {
+                throw "seed failed - manifest absent or suspiciously small"
+            }
+            $manifest = "$scenDir\seed-manifest.jsonl"
+            if ($second) {
+              & "$PWD\bench\seed\generate_seed.ps1" -Root "$($vol.letters[1])\seed" `
+                  -ManifestOut "$scenDir\seed-manifest-b.jsonl" -CsvOut "$scenDir\manifest-b.csv" `
+                  -Profile $env:PROFILE -FileSystem $fs -DeletableTag 'seedb'
+              if (-not (Test-Path "$scenDir\seed-manifest-b.jsonl") -or
+                  @((Get-Content "$scenDir\seed-manifest-b.jsonl")).Count -lt 10) {
+                  throw "seed-B failed - manifest absent or suspiciously small"
+              }
+              $merged = @(Get-Content $manifest) + @(Get-Content "$scenDir\seed-manifest-b.jsonl" | Select-Object -Skip 1)
+              $merged | Set-Content -Path "$scenDir\seed-manifest-merged.jsonl" -Encoding utf8
+              $manifest = "$scenDir\seed-manifest-merged.jsonl"
+            }
+
+            & "$PWD\bench\scenarios\apply-scenario.ps1" -Mode $scen -Letter $vol.letter.TrimEnd(':') `
+                -Root "$($vol.letter)\seed" -ManifestJsonl $manifest -OutDir $resDir `
+                -VolumeBytes $vol.volume_bytes -KeepRoot "$($vol.letter)\keep" -FileSystem $fs `
+                -VolumeLabel 'BENCH' -DiskNumber $vol.disk -PartitionNumber $vol.partitions
+            if (-not (Test-Path "$resDir\scenario-state.json")) {
+                throw "apply-scenario failed - scenario-state.json absent"
+            }
+
+            $scanTarget = '${{ needs.prepare.outputs.scan_target }}'
+            & "$PWD\bench\ours\run-ours.ps1" -RrecovExe $rrecov -Letter $vol.letter.TrimEnd(':') `
+                -DiskNumber $vol.disk -ManifestJsonl $manifest -OutDir $resDir `
+                -Scenario $scen -ScanModes quick, deep, deepcarve -CoreSha $coreSha -DriverInfo $drv `
+                -TargetMode $scanTarget
+            if (-not (Test-Path "$resDir\ours-run.json")) {
+                throw "run-ours failed - ours-run.json absent"
+            }
+
+            foreach ($mode in @('quick', 'deep', 'deepcarve')) {
+              $rdest = Join-Path $resDir "recovered-$mode"
+              if (-not (Test-Path $rdest)) { New-Item -ItemType Directory -Force -Path $rdest | Out-Null }
+              python bench\metrics\inventory_recovered.py --root $rdest --manifest $manifest `
+                  --out "$resDir\inventory-$mode.json" --tool ours --label "$scen-$mode"
+              if ($LASTEXITCODE -ne 0) { throw "inventory failed for $mode" }
+              python bench\metrics\compute_metrics.py --manifest $manifest `
+                  --scenario "$resDir\scenario-state.json" --inventory "$resDir\inventory-$mode.json" `
+                  --outdir $resDir --tool ours --fs $fs --mode $mode --outname "metrics-$mode.json"
+              if ($LASTEXITCODE -ne 0) { throw "compute_metrics failed for $mode" }
+              # recovered payload is evidenced by hashes; delete per-mode to keep
+              # disk headroom
+              Remove-Item $rdest -Recurse -Force -ErrorAction SilentlyContinue
+            }
+            Copy-Item $manifest "$resDir\seed-manifest.jsonl" -Force
+            Copy-Item "$scenDir\volume.json" "$resDir\" -Force
+
+            if ('${{ needs.prepare.outputs.upload_images }}' -eq 'true') {
+              Compress-Archive -Path $vhd -DestinationPath "$resDir\vol.vhdx.zip" -CompressionLevel Fastest
+            }
+          } finally {
+            Remove-BenchVolume -VhdPath "C:\bench\$scen\vol.vhdx"
+            Remove-Item "C:\bench\$scen" -Recurse -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: Cleanup driver (always)
+        if: always()
+        shell: pwsh
+        run: |
+          sc.exe stop rda 2>$null | Out-Null
+          sc.exe delete rda 2>$null | Out-Null
+          if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 1060 -and $LASTEXITCODE -ne 0) { exit 1 }
+          Remove-Item "$env:SystemRoot\System32\drivers\rda.sys" -Force -ErrorAction SilentlyContinue
+          Get-ChildItem Cert:\LocalMachine\My |
+            Where-Object { $_.Subject -eq 'CN=RRECOV-CMP-BENCH' } |
+            Remove-Item -ErrorAction SilentlyContinue
+          exit 0
+
+      - name: Upload ours artifacts (90d)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: bench-ours-${{ matrix.fs }}-${{ matrix.scenario }}
+          path: |
+            benchmark-results/**/*.json
+            benchmark-results/**/*.jsonl
+            benchmark-results/**/*.csv
+            benchmark-results/**/*.log
+            benchmark-results/**/*.txt
+            benchmark-results/**/*.stdout
+            benchmark-results/**/*.stderr
+            benchmark-results/**/*.png
+            benchmark-results/**/*.zip
+            benchmark-results/sample-recovered/*
+            rrecov-sha.txt
+            driver-sha.txt
+            driver-pe.json
+          retention-days: 90
+          if-no-files-found: error
+
+  # -------------------------------------------------------- ours behavior ---
+  ours-behavior:
+    needs: prepare
+    if: needs.prepare.outputs.ours_count != '0'
+    runs-on: windows-2022
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Build rrecov (Release)
+        shell: pwsh
+        run: |
+          $env:VCPKG_ROOT = $env:VCPKG_INSTALLATION_ROOT
+          cmake --preset win-x64-release
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          cmake --build --preset win-x64-release -j 2
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Behavior probes (driver absent / cancel / resume)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          . "$PWD\bench\volume\volume.ps1"
+          $scenDir = 'C:\bench\behavior'
+          New-Item -ItemType Directory -Force -Path $scenDir, behavior-results | Out-Null
+          New-BenchVolume -VhdPath "$scenDir\vol.vhdx" -SizeMB 1536 -FileSystem NTFS -Label 'BENCH' `
+              -OutJson "$scenDir\volume.json" | Out-Null
+          $vol = Get-Content "$scenDir\volume.json" -Raw | ConvertFrom-Json
+          & "$PWD\bench\seed\generate_seed.ps1" -Root "$($vol.letter)\seed" `
+              -ManifestOut "$scenDir\seed-manifest.jsonl" -CsvOut "$scenDir\manifest.csv" `
+              -Profile smoke -FileSystem NTFS
+          if (-not (Test-Path "$scenDir\seed-manifest.jsonl")) { throw 'seed failed - manifest absent' }
+          & "$PWD\bench\scenarios\apply-scenario.ps1" -Mode permanent_delete -Letter $vol.letter.TrimEnd(':') `
+              -Root "$($vol.letter)\seed" -ManifestJsonl "$scenDir\seed-manifest.jsonl" `
+              -OutDir behavior-results -VolumeBytes $vol.volume_bytes `
+              -KeepRoot "$($vol.letter)\keep" -FileSystem NTFS
+          if (-not (Test-Path 'behavior-results\scenario-state.json')) { throw 'behavior scenario setup failed - scenario-state.json absent' }
+          & "$PWD\bench\ours\run-behavior.ps1" -RrecovExe "$PWD\build\win-x64-release\src\app\Release\rrecov.exe" `
+              -WorkDir "$PWD\behavior-results" -DiskNumber $vol.disk -Letter $vol.letter.TrimEnd(':') `
+              -ManifestJsonl "$scenDir\seed-manifest.jsonl"
+          if (-not (Test-Path 'behavior-results\behavior.json')) { throw 'behavior probes failed - behavior.json absent' }
+          Remove-BenchVolume -VhdPath "$scenDir\vol.vhdx"
+
+      - name: Upload behavior artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ours-behavior
+          path: behavior-results/
+          retention-days: 90
+          if-no-files-found: error
+
+  # ----------------------------------------------------------------- og leg ---
+  bench-og:
+    needs: prepare
+    if: needs.prepare.outputs.og_count != '0'
+    runs-on: windows-2022
+    timeout-minutes: ${{ needs.prepare.outputs.profile == 'full' && 240 || 180 }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.prepare.outputs.og_matrix) }}
+    name: bench-og ${{ matrix.fs }} / ${{ matrix.scenario }}
+    env:
+      PROFILE: ${{ needs.prepare.outputs.profile }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Checkout the research corpus (og-codebase)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: ${{ env.RESEARCH_REPO }}
+          path: research
+          sparse-checkout: |
+            og-codebase
+
+      - name: Record og build identity
+        shell: pwsh
+        run: |
+          Get-Content research\og-codebase\config\version.ini | Out-File og-version.txt -Encoding utf8
+          Get-Content research\og-codebase\log\DRWUI.log -TotalCount 3 | Out-File og-version.txt -Append -Encoding utf8
+          python bench\tools\pe_info.py research\og-codebase\DRW.exe research\og-codebase\DRWUI.exe |
+            Out-File og-pe.json -Encoding utf8
+          Get-Content og-version.txt | Write-Host
+
+      - name: Run the scenario (og)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $fs = '${{ matrix.fs }}'
+          $scen = '${{ matrix.scenario }}'
+          $corpus = "$PWD\research\og-codebase"
+          $rsfPy = "$PWD\scripts\compare_og_rsf.py"
+          $sizeMB = if ($env:PROFILE -eq 'full') { 3072 } else { 1536 }
+          $resDir = 'benchmark-results'
+          New-Item -ItemType Directory -Force -Path $resDir | Out-Null
+          . "$PWD\bench\volume\volume.ps1"
+          try {
+            Write-Host "=================== og: fs=$fs scenario=$scen ==================="
+            $scenDir = "C:\bench\og-$scen"
+            New-Item -ItemType Directory -Force -Path $scenDir, $resDir | Out-Null
+            Get-PSDrive -PSProvider FileSystem | Select-Object Name, @{n='FreeGB';e={[math]::Round($_.Free/1GB,1)}} |
+              Format-Table -AutoSize | Out-String | Set-Content "$resDir\disk-free-at-start.txt" -Encoding utf8
+            $vhd = "$scenDir\vol.vhdx"
+            $second = ($scen -eq 'delete_partition')
+            $thisSize = $sizeMB
+            if ($second) { $thisSize = if ($env:PROFILE -eq 'full') { 5120 } else { 3072 } }
+            New-BenchVolume -VhdPath $vhd -SizeMB $thisSize -FileSystem $fs -Label 'BENCH' `
+                -SecondVolume:$second -OutJson "$scenDir\volume.json" | Out-Null
+            $vol = Get-Content "$scenDir\volume.json" -Raw | ConvertFrom-Json
+
+            & "$PWD\bench\seed\generate_seed.ps1" -Root "$($vol.letter)\seed" `
+                -ManifestOut "$scenDir\seed-manifest.jsonl" -CsvOut "$scenDir\manifest.csv" `
+                -Profile $env:PROFILE -FileSystem $fs
+            # BENCH-F4a: a .ps1 invoked with & does NOT set $LASTEXITCODE -
+            # with no native command in the step it stays $null and
+            # ($null -ne 0) is $true -> every non-NTFS seed false-failed
+            # (fsutil sparse runs on NTFS only; run 40076073289: 'seeded
+            # 10209 files' printed, then 'seed failed' thrown). Success =
+            # the manifest exists and carries entries.
+            if (-not (Test-Path "$scenDir\seed-manifest.jsonl") -or
+                @((Get-Content "$scenDir\seed-manifest.jsonl")).Count -lt 10) {
+                throw "seed failed - manifest absent or suspiciously small"
+            }
+            $manifest = "$scenDir\seed-manifest.jsonl"
+            if ($second) {
+              & "$PWD\bench\seed\generate_seed.ps1" -Root "$($vol.letters[1])\seed" `
+                  -ManifestOut "$scenDir\seed-manifest-b.jsonl" -CsvOut "$scenDir\manifest-b.csv" `
+                  -Profile $env:PROFILE -FileSystem $fs -DeletableTag 'seedb'
+              if (-not (Test-Path "$scenDir\seed-manifest-b.jsonl") -or
+                  @((Get-Content "$scenDir\seed-manifest-b.jsonl")).Count -lt 10) {
+                  throw "seed-B failed - manifest absent or suspiciously small"
+              }
+              $merged = @(Get-Content $manifest) + @(Get-Content "$scenDir\seed-manifest-b.jsonl" | Select-Object -Skip 1)
+              $merged | Set-Content -Path "$scenDir\seed-manifest-merged.jsonl" -Encoding utf8
+              $manifest = "$scenDir\seed-manifest-merged.jsonl"
+            }
+
+            & "$PWD\bench\scenarios\apply-scenario.ps1" -Mode $scen -Letter $vol.letter.TrimEnd(':') `
+                -Root "$($vol.letter)\seed" -ManifestJsonl $manifest -OutDir $resDir `
+                -VolumeBytes $vol.volume_bytes -KeepRoot "$($vol.letter)\keep" -FileSystem $fs `
+                -VolumeLabel 'BENCH' -DiskNumber $vol.disk -PartitionNumber $vol.partitions
+            if (-not (Test-Path "$resDir\scenario-state.json")) {
+                throw "apply-scenario failed - scenario-state.json absent"
+            }
+
+            $target = if ($scen -eq 'delete_partition') { 'disk' } else { 'volume' }
+            & "$PWD\bench\og\run-og.ps1" -CorpusDir $corpus -Letter $vol.letter.TrimEnd(':') `
+                -ManifestJsonl $manifest -OutDir $resDir -Scenario $scen `
+                -CompareOgRsfPy $rsfPy -TargetMode $target
+            if (-not (Test-Path "$resDir\og-run.json")) {
+                throw "run-og failed - og-run.json absent"
+            }
+
+            # inventory over the og recovered destination (roots recorded in og-run.json)
+            $ogr = Get-Content "$resDir\og-run.json" -Raw | ConvertFrom-Json
+            $roots = @($ogr.recovered_roots)
+            if ($roots.Count -eq 0) { $roots = @("$resDir\empty-recovered"); New-Item -ItemType Directory -Force -Path $roots[0] | Out-Null }
+            $argList = @('bench\metrics\inventory_recovered.py')
+            foreach ($r in $roots) { $argList += @('--root', $r) }
+            $argList += @('--manifest', $manifest, '--out', "$resDir\inventory.json", '--tool', 'og', '--label', $scen)
+            python @argList
+            if ($LASTEXITCODE -ne 0) { throw "og inventory failed" }
+            python bench\metrics\compute_metrics.py --manifest $manifest `
+                --scenario "$resDir\scenario-state.json" --inventory "$resDir\inventory.json" `
+                --outdir $resDir --tool og --fs $fs
+            if ($LASTEXITCODE -ne 0) { throw "og compute_metrics failed" }
+            Copy-Item $manifest "$resDir\seed-manifest.jsonl" -Force
+            Copy-Item "$scenDir\volume.json" "$resDir\" -Force
+
+            if ('${{ needs.prepare.outputs.upload_images }}' -eq 'true') {
+              Compress-Archive -Path $vhd -DestinationPath "$resDir\vol.vhdx.zip" -CompressionLevel Fastest
+            }
+            # clean the recovered payload off C:\ (hashes are the evidence)
+            foreach ($r in $roots) {
+              if ($r -like 'C:\*' -and (Test-Path $r)) { Remove-Item $r -Recurse -Force -ErrorAction SilentlyContinue }
+            }
+          } finally {
+            Stop-Process -Name DRWUI, DRW -Force -ErrorAction SilentlyContinue
+            Remove-BenchVolume -VhdPath "C:\bench\og-$scen\vol.vhdx"
+            Remove-Item "C:\bench\og-$scen" -Recurse -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: Cleanup og processes (always)
+        if: always()
+        shell: pwsh
+        run: |
+          Stop-Process -Name DRWUI, DRW -Force -ErrorAction SilentlyContinue
+          # the og installs its own driver (eprdtdrv) on demand; absent = clean
+          sc.exe query eprdtdrv 2>$null | Out-Null
+          if ($LASTEXITCODE -eq 0) {
+            sc.exe stop eprdtdrv
+            sc.exe delete eprdtdrv
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          } else {
+            Write-Host 'eprdtdrv not present (og driver was never needed this run)'
+          }
+          exit 0
+
+      - name: Upload og artifacts (90d)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: bench-og-${{ matrix.fs }}-${{ matrix.scenario }}
+          path: |
+            benchmark-results/**/*.json
+            benchmark-results/**/*.jsonl
+            benchmark-results/**/*.csv
+            benchmark-results/**/*.log
+            benchmark-results/**/*.txt
+            benchmark-results/**/*.stdout
+            benchmark-results/**/*.stderr
+            benchmark-results/**/*.png
+            benchmark-results/**/*.rsf
+            benchmark-results/**/*.zip
+            og-version.txt
+            og-pe.json
+          retention-days: 90
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------- compare ---
+  compare:
+    needs: [prepare, bench-ours, bench-og, ours-behavior]
+    if: always() && !cancelled()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Download leg artifacts
+        if: needs.bench-ours.result != 'skipped' && needs.bench-ours.result != 'cancelled'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: bench-ours-*
+          path: dl-ours
+
+      - name: Download og artifacts
+        if: needs.bench-og.result != 'skipped' && needs.bench-og.result != 'cancelled'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: bench-og-*
+          path: dl-og
+
+      - name: Download behavior artifacts
+        if: needs.ours-behavior.result != 'skipped' && needs.ours-behavior.result != 'cancelled'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: ours-behavior
+          path: dl-behavior
+
+      - name: Download skip reasons
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: bench-skip-reasons
+          path: dl-skip
+
+      - name: Reorganize legs
+        run: |
+          set -euo pipefail
+          mkdir -p ours og behavior
+          for a in dl-ours/bench-ours-*; do
+            [ -d "$a/benchmark-results" ] || continue
+            scen=$(basename "$a" | sed 's/^bench-ours-[a-z0-9]*-//')
+            mkdir -p "ours/$scen"
+            cp -r "$a/benchmark-results/." "ours/$scen/"
+            # driver provenance files sit at the artifact root
+            cp "$a"/driver-*.json "$a"/driver-*.txt "ours/$scen/" 2>/dev/null || true
+          done
+          for a in dl-og/bench-og-*; do
+            [ -d "$a/benchmark-results" ] || continue
+            scen=$(basename "$a" | sed 's/^bench-og-[a-z0-9]*-//')
+            mkdir -p "og/$scen"
+            cp -r "$a/benchmark-results/." "og/$scen/"
+            cp "$a"/og-version.txt "$a"/og-pe.json "og/$scen/" 2>/dev/null || true
+          done
+          cp -r dl-behavior/ours-behavior/behavior-results/* behavior/ 2>/dev/null || true
+          echo '--- ours scenarios:'; ls ours/ 2>/dev/null || true
+          echo '--- og scenarios:'; ls og/ 2>/dev/null || true
+
+      - name: Missing-leg reasons (recorded, never silent)
+        id: reasons
+        run: |
+          set -euo pipefail
+          OM=""; GM=""
+          if [ "${{ needs.bench-ours.result }}" = "failure" ] || [ "${{ needs.bench-ours.result }}" = "cancelled" ]; then
+            OM="ours leg had FAILED matrix jobs (${{ needs.bench-ours.result }}) - see bench-ours-* artifacts and job logs"
+          elif [ "${{ needs.bench-ours.result }}" = "skipped" ]; then
+            OM="ours leg not requested (tools=${{ needs.prepare.outputs.tools }})"
+          fi
+          if [ "${{ needs.bench-og.result }}" = "failure" ] || [ "${{ needs.bench-og.result }}" = "cancelled" ]; then
+            GM="og leg had FAILED matrix jobs (${{ needs.bench-og.result }}) - see bench-og-* artifacts and job logs"
+          elif [ "${{ needs.bench-og.result }}" = "skipped" ]; then
+            GM="og leg not requested (tools=${{ needs.prepare.outputs.tools }})"
+          fi
+          {
+            echo "ours_missing=$OM"
+            echo "og_missing=$GM"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build the comparative report
+        run: |
+          set -euo pipefail
+          python bench/metrics/compare.py \
+            --ours-root ours \
+            --og-root og \
+            --out-md docs/COMPARATIVE-BENCHMARK.md \
+            --out-json docs/benchmark-summary.json \
+            --run-id '${{ needs.prepare.outputs.run_label }}' \
+            --ours-missing-reason "${{ steps.reasons.outputs.ours_missing }}" \
+            --og-missing-reason "${{ steps.reasons.outputs.og_missing }}"
+          cat docs/COMPARATIVE-BENCHMARK.md
+
+      - name: Regression gate (ours vs versioned baseline)
+        if: steps.reasons.outputs.ours_missing == ''
+        run: |
+          set -euo pipefail
+          # full-matrix runs must cover every baseline scenario (no silent
+          # drops); smoke runs are a subset by design - missing ones are notes
+          GATE_ARGS=""
+          if [ "${{ needs.prepare.outputs.profile }}" = "full" ]; then
+            GATE_ARGS="--require-all-baseline"
+          fi
+          python bench/metrics/regression_gate.py \
+            --baseline bench/baseline.json \
+            --ours-root ours \
+            --out docs/regression-gate.json $GATE_ARGS
+
+      - name: Job summary
+        run: |
+          {
+            echo '# Comparative Bench run ${{ needs.prepare.outputs.run_label }}'
+            echo
+            cat docs/COMPARATIVE-BENCHMARK.md
+            echo
+            echo '## Behavior probes'
+            echo
+            cat behavior/behavior.json 2>/dev/null || echo '_behavior artifacts absent_'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Commit the report (dispatch full runs only)
+        if: github.event_name == 'workflow_dispatch' && inputs.profile == 'full'
+        run: |
+          set -euo pipefail
+          git config user.name 'bench-bot'
+          git config user.email 'bench-bot@users.noreply.github.com'
+          git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}"
+          git add docs/COMPARATIVE-BENCHMARK.md docs/benchmark-summary.json docs/regression-gate.json
+          git commit -m "bench: comparative report for run ${{ github.run_id }} (profile=${{ needs.prepare.outputs.profile }})" || echo 'nothing to commit'
+          git push origin "HEAD:refs/heads/main" || echo 'push rejected (report retained as artifact)'
+
+      - name: Upload the combined report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: comparative-report-${{ needs.prepare.outputs.run_label }}
+          path: |
+            docs/COMPARATIVE-BENCHMARK.md
+            docs/benchmark-summary.json
+            docs/regression-gate.json
+          retention-days: 90
+          if-no-files-found: error

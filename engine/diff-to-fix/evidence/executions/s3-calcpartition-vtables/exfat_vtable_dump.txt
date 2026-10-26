@@ -1,0 +1,29 @@
+== /home/z/my-project/audit/easeus-drw-research/og-codebase/exFATSearchDLL.dll (image base 0x180000000) ==
+  ExFatCalcPartition: vftable @ 0x18004b9f0
+    slot 0: 0x180022640  undefined __fastcall FUN_180022640(longlong param_1, undefined8 param_2)
+    slot 1: 0x180022650  undefined __fastcall FUN_180022650(longlong param_1, undefined4 param_2)
+    slot 2: 0x180022d10  undefined __fastcall FUN_180022d10(longlong param_1, undefined8 * param_2)
+    slot 3: 0x180022660  undefined8 __fastcall FUN_180022660(longlong param_1)
+    slot 4: 0x180022670  undefined4 __fastcall FUN_180022670(longlong param_1)
+    slot 5: 0x180023000  undefined __fastcall FUN_180023000(longlong param_1, longlong param_2, undefined8 param_3)
+    slot 6: 0x1800226a0  undefined8 * __fastcall FUN_1800226a0(undefined8 * param_1, uint param_2)
+    slot 7: 0x180021450  undefined8 __fastcall FUN_180021450(longlong param_1)
+    slot 8: 0x1800231b0  undefined __fastcall FUN_1800231b0(longlong param_1)
+    slot 9: 0x180022680  undefined __fastcall FUN_180022680(longlong param_1, undefined1 param_2)
+    slot 10: 0x180022690  undefined1 __fastcall FUN_180022690(longlong param_1)
+    slot 11: 0x180022d40  undefined8 __fastcall FUN_180022d40(longlong param_1, longlong * param_2)
+    slot 12: 0xb000000000  <no Ghidra symbol>
+    slot 13: 0x18004fbc0  <no Ghidra symbol>
+    slot 14: 0x180028d10  undefined __fastcall FUN_180028d10(longlong param_1, uint param_2)
+    slot 15: 0x434f4400454c4f  <no Ghidra symbol>
+  ICalcPartition: vftable @ 0x18004b8f0
+    slot 0: 0x180040556  undefined _purecall(void)
+    slot 1: 0x180040556  undefined _purecall(void)
+    slot 2: 0x180040556  undefined _purecall(void)
+    slot 3: 0x180040556  undefined _purecall(void)
+    slot 4: 0x180040556  undefined _purecall(void)
+    slot 5: 0x180001200  undefined __fastcall _guard_check_icall(void)
+    slot 6: 0x180022570  undefined8 * __fastcall FUN_180022570(undefined8 * param_1, ulonglong param_2)
+    slot 7: 0x18000e160  undefined8 __fastcall FUN_18000e160(void)
+    slot 8: 0x18000e160  undefined8 __fastcall FUN_18000e160(void)
+    slot 9: 0x180001200  undefined __fastcall _guard_check_icall(void)
