@@ -32,11 +32,14 @@ the worklog).
   runner** (T15): installer transcript, before/after directory + registry
   captures, session-preservation proof across update, repair-over-corruption.
 - **Measured latency/throughput vs the retired simulator's documented
-  budgets** (T14): listDevices 180±60 ms, startScan 420±120 ms,
-  queryResults 90±50 ms, preview 240±160 ms, health 280±120 ms (its
-  table was the comparison baseline); plus the G-7 filter cost over the
-  metadata cache at 10^5/10^6 node scales.
-- **Memory bounds**: snapshot O(n) copy, the metadata cache, the bounded
-  event channels (512/64-deep), the 4,096-row bad-sector map cap.
+  budgets** (T14): RECORDED — `t14-measurements/` (run 40385809220 at
+  `55cb76f4`): enumerate p50 9.6 ms vs the 180±60 listDevices budget;
+  preview sub-ms vs 240±160; queryResults within (the scoped+search
+  worst case 137.7 ns/node = 138 ms at 10^6 — the window's top edge,
+  recorded); health unsupported on virtual-disk runners (needs physical
+  hardware); startScan prep timing added to the harness for the next run.
+- **Memory bounds**: RECORDED — same run: NodeMeta cache 213 B/node
+  (213.6 MB at 10^6), harness peak 2.42 GB over the 1.9 M-node tree, the
+  static caps pinned (4,096-row bad-sector map, 512/64-deep channels).
 - **RC release run**: `release.yml` artifacts + SHA256SUMS + the notes
   template rendered from a real tag.

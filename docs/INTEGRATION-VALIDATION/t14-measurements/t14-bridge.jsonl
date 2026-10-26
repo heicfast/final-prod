@@ -1,0 +1,7 @@
+{"leg": "g7-filter-all", "nodes": 100000, "hits": 75000, "totalMs": 0.758, "nsPerNode": 7.6}
+{"leg": "g7-filter-scoped", "nodes": 100000, "hits": 5556, "totalMs": 13.553, "nsPerNode": 135.5}
+{"leg": "g7-filter-all", "nodes": 1000000, "hits": 750000, "totalMs": 7.752, "nsPerNode": 7.8}
+{"leg": "g7-filter-scoped", "nodes": 1000000, "hits": 55556, "totalMs": 137.729, "nsPerNode": 137.7}
+{"leg": "nodemeta-memory", "nodes": 100000, "heapBytes": 21255466, "bytesPerNode": 212, "structSizeBytes": 144}
+{"leg": "nodemeta-memory", "nodes": 1000000, "heapBytes": 213630466, "bytesPerNode": 213, "structSizeBytes": 144}
+{"leg": "static-bounds", "badSectorMapCap": 4096, "scanEventChannel": 512, "recoveryProgressChannel": 64}

@@ -198,7 +198,12 @@ int main(int argc, char** argv) {
                health_supported, s_health.n ? pct(&s_health, 0.5) : -1.0,
                s_health.n ? pct(&s_health, 0.95) : -1.0, s_health.n);
 
-    /* ---- scan (startScan + progress stream + throughput) ------------- */
+    /* ---- scan (startScan prep + progress stream + throughput) -------- */
+    /* PREP = exactly the calls the connector's startScan awaits before it
+     * returns the scanId (open + geometry + create + attach + subscribe;
+     * the bridge spawns run() on its own thread). Timed as one block so
+     * the startScan budget has a direct measurement. */
+    double t_prep0 = now_ms();
     cr_ui_device* dev = NULL;
     uint32_t rc = cr_ui_open_volume(sys_letter, &dev);
     if (rc != 0) fail("open_volume", rc);
@@ -218,6 +223,10 @@ int main(int argc, char** argv) {
     if (rc != 0) fail("scan_attach", rc);
     rc = cr_ui_scan_set_event_fn(scan, measure_event_fn, NULL);
     if (rc != 0) fail("scan_set_event_fn", rc);
+    double prep_ms = now_ms() - t_prep0;
+    phase_json("scan-prep",
+               "{\"prepMs\": %.3f, \"volume\": \"%c\", \"volumeBytes\": %llu}",
+               prep_ms, sys_letter, (unsigned long long)geom.total_bytes);
 
     SIZE_T mem_before_scan = peak_working_set();
     g_scan_start_ms = now_ms();

@@ -1,0 +1,8 @@
+T14-ENGINE enumerate {"disks": 2, "volumes": 2, "p50Ms": 9.583, "p95Ms": 25.202, "iterations": 20}
+T14-ENGINE health {"supported": 0, "p50Ms": -1.000, "p95Ms": -1.000, "iterations": 0}
+T14-ENGINE scan {"runMs": 52572.5, "firstEventMs": 2.8, "events": 404, "filesFound": 1899589, "bytesScanned": 0, "engineElapsedMs": 52569, "throughputBytesPerSecond": 0}
+T14-ENGINE snapshot {"snapshotMs": 1658.5, "nodeCount": 1899819, "dfsMs": 97.3, "rowsPaged500P50Ms": 0.106, "rowsPaged500P95Ms": 0.119, "pages": 32}
+T14-ENGINE preview {"available": 1, "openMs": 0.031, "read64KiBMs": 0.017, "metadataMs": 0.009, "fileSize": 129}
+T14-ENGINE memory {"peakWorkingSetBeforeScanBytes": 4866048, "peakAfterScanBytes": 2046201856, "peakAfterRowsBytes": 2420228096}
+T14-ENGINE context {"abiVersion": 2, "stageMask": 1, "volume": "C", "volumeBytes": 274284396032}
+T14-ENGINE retiredSimulatorBudgetsMs {"listDevices": [120, 240], "startScan": [300, 540], "queryResults": [40, 140], "preview": [80, 400], "health": [160, 400]}
