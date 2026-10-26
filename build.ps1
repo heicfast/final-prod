@@ -9,8 +9,8 @@
 #
 # Version policy: the root VERSION file is the product version source of truth.
 # The app artifacts (package.json / Cargo.toml / tauri.conf.json) and the
-# installer + release tags derive from it; this script stamps them and FAILS if
-# the committed state has drifted. Component wire-visible versions (driver
+# installer + release tags derive from it; the committed state must stay in
+# lockstep and this script FAILS if it has drifted. Component wire-visible versions (driver
 # FILEVERSION reported via IOCTL, engine ABI number 2) are component contracts
 # and are documented as such in docs/BUILD.md — they are NOT restamped (that
 # would be a behavior change, not a version change).
@@ -65,27 +65,33 @@ function Invoke-Engine {
     Pop-Location
 
     # PE gates: Win7SP1 loader contract (OS stamp + import allowlist), the
-    # engine's own release discipline (tools/stamp_osversion_um.py +
-    # tools/verify_pe_um.py; same gates its CI runs).
-    $binDir = Join-Path $RepoRoot "engine\build\win-x64-$Configuration"
-    foreach ($pe in @("$binDir\cr_ui.dll", "$binDir\rrecov.exe")) {
+    # engine's own release discipline — same tools, same artifact paths, same
+    # per-file + --allowlist invocation its release.yml uses
+    # (build/win-x64-<cfg>/src/app/Release/rrecov.exe, src/ui/Release/cr_ui.dll).
+    $appBin = Join-Path $RepoRoot "engine\build\win-x64-$Configuration\src\app\Release"
+    $uiBin  = Join-Path $RepoRoot "engine\build\win-x64-$Configuration\src\ui\Release"
+    foreach ($pe in @("$appBin\rrecov.exe", "$uiBin\cr_ui.dll")) {
         if (-not (Test-Path $pe)) { throw "expected engine artifact missing: $pe" }
+        python (Join-Path $RepoRoot 'engine\tools\stamp_osversion_um.py') $pe
+        if ($LASTEXITCODE -ne 0) { throw "engine PE stamp failed: $pe" }
+        python (Join-Path $RepoRoot 'engine\tools\verify_pe_um.py') $pe --allowlist (Join-Path $RepoRoot 'engine\tools\ref_imports_um.json')
+        if ($LASTEXITCODE -ne 0) { throw "engine PE verify failed (Win7 import gate): $pe" }
     }
-    python (Join-Path $RepoRoot 'engine\tools\stamp_osversion_um.py') "$binDir\cr_ui.dll" "$binDir\rrecov.exe"
-    if ($LASTEXITCODE -ne 0) { throw 'engine PE stamp failed' }
-    python (Join-Path $RepoRoot 'engine\tools\verify_pe_um.py') "$binDir\cr_ui.dll" "$binDir\rrecov.exe"
-    if ($LASTEXITCODE -ne 0) { throw 'engine PE verify failed' }
 
-    # Assemble the engine kit: cr_ui.dll + import lib + vcpkg runtime DLLs.
+    # Assemble the engine kit: cr_ui.dll + import lib + the vcpkg runtime DLLs
+    # the engine's own POST_BUILD deploy step already placed beside cr_ui.dll
+    # (cr_deploy_vcpkg_binaries — engine/CMakeLists.txt:156 — copies every
+    # matching-config DLL next to each target; names vary across vcpkg ports
+    # and configs: zlib1/lz4/liblz4/liblz4d/zstd, so the kit globs the deployed
+    # set instead of hardcoding names).
     $engineKit = Join-Path $StageDir 'engine'
     New-Item -ItemType Directory -Force -Path $engineKit | Out-Null
-    Copy-Item "$binDir\cr_ui.dll", "$binDir\cr_ui.lib" -Destination $engineKit
-    Copy-Item "$binDir\rrecov.exe" -Destination $engineKit
-    $vcpkgBin = Join-Path $RepoRoot 'engine\vcpkg_installed\x64-windows\bin'
-    foreach ($dll in @('z.dll', 'lz4.dll', 'zstd.dll')) {
-        Copy-Item (Join-Path $vcpkgBin $dll) -Destination $engineKit -ErrorAction Stop
-    }
-    Write-Host "[engine] kit staged -> $engineKit"
+    Copy-Item "$uiBin\cr_ui.dll", "$uiBin\cr_ui.lib" -Destination $engineKit
+    Copy-Item "$appBin\rrecov.exe" -Destination $engineKit
+    $deployed = Get-ChildItem $uiBin -Filter '*.dll' | Where-Object { $_.Name -ne 'cr_ui.dll' }
+    if (-not $deployed) { throw "no deployed vcpkg runtime DLLs beside cr_ui.dll in $uiBin - expected the cr_deploy_vcpkg_binaries POST_BUILD output" }
+    $deployed | Copy-Item -Destination $engineKit
+    Write-Host "[engine] kit staged -> $engineKit (runtime DLLs: $($deployed.Name -join ', '))"
 }
 
 function Invoke-Driver {
