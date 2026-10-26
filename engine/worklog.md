@@ -14257,3 +14257,41 @@ Stage Summary:
   delta ledger). Next: survey the remaining open set and continue.
 
 =======
+
+---
+Task ID: DFX25-T4b (session 25 — OQ-S6-1 resolution)
+Agent: main engineer (DFX25)
+Task: Resolve OQ-S6-1 (PartitionRecoveryD generator-set semantics +
+lostpart.dat/partinfo.dat formats) — decode, classify, land.
+
+Work Log:
+- Decode first-hand (PartitionRecoveryD_decompiled.c + byte-level vtable
+  dumps from the .mo binary): CGeneratorSetRegSearch and
+  CGeneratorSetCompleteSearch are behaviorally IDENTICAL (same base ctor
+  FUN_180006d90; vtables 0x18002c1a8/0x18002c2e8 share every method
+  except the dtor) — registration identities in the mode map
+  (FUN_18000d3b0: Complete=4, Reg=1, Fast=2, Fast1M=3). The
+  "registry-driven second pass" hypothesis REFUTED; the name is not the
+  Windows registry.
+- The .dat files decoded: module's own directory; partinfo.dat =
+  0x18-byte "Part"-magic live-table snapshot (delete-both-on-first-use,
+  rewritten per run, memcmp'd at the next run -> layout_changed ->
+  progress reset); lostpart.dat = 0x448-byte "Part"-magic candidate
+  cache (appended per discovery, deduped by {+0x28,+0x30,+8} when the
+  layout is unchanged).
+- Consequences landed: I-020's upgrade condition refuted (stays
+  acknowledged INFO — I-024 addendum recorded); M-042 CONFIRMED at the
+  mechanism level (the same information flow as REC_DISK_LAYOUT type 8
+  + per-candidate revalidation); no core surface added (no .dat files —
+  session-embedded equivalents already landed; the og's
+  delete-on-first-use makes them per-boot scratch). x2 census = two
+  instances of the whole search stack.
+- Evidence file s25-oq-s6-1-generator-sets-and-dat-files.md; OQ resolved
+  in tracked-open; I-024 addendum; landed be3a8a9 (via merge e77c749).
+- Housekeeping: worklog.md.bak (a parallel lane's merge artifact,
+  949KB) removed from the tree — git history preserves all content.
+
+Stage Summary:
+- OQ-S6-1 RESOLVED (no code change — decode-only landing). Session
+  tally: 27 resolutions (22 INFO closures, A-008 ACUTE, OQ-Z1, OQ-S6-3,
+  OQ-S6-2, OQ-S6-1). Next: OQ-S5-1 (CheckVersion's consumer).
