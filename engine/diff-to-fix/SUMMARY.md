@@ -886,6 +886,46 @@ Proof: fail-before RED 3/3 (`Zfs.EndToEndWalk`, `Zfs.ChildDirZapReadsKernelOffse
 OQ-Z1 RESOLVED (tracked-open 11 → the OQ-Z-E-FLT file carries the
 resolution; its Z2..Z5/E1/FLT residues stay open).
 
+**The tracked-open resolution wave (this lane, 6 more OQs):**
+- **OQ-S6-3 RESOLVED** — the CRAW reader decode (FUN_140c40d80 :1875575):
+  +0x56/+0x94/+0xF4 all pass-through at load; +0xF4 = a per-analyser-type
+  marker (set iff type==0xA8, FUN_140c41450), the getters are dead
+  accessors (zero callers, no vtable slot) — M-051's landed design
+  CONFIRMED on all three fields; the decoded semantics documented at the
+  carve_flag carrier; evidence s25-oq-s6-3-craw-reader-decode.md.
+- **OQ-S6-2 RESOLVED — INVALID premise**: the capa "RC4 PRGA" finding
+  (0x180012190) is a FALSE POSITIVE (chunked adler-32/crc32 checksum pump;
+  no RC4 essentials anywhere in the binary); corpus erratum E46; parity
+  by shared absence; evidence s25-oq-s6-2-btrfs-rc4-false-positive.md.
+- **OQ-S6-1 RESOLVED** — the PartitionRecoveryD generator-set decode:
+  RegSearch and CompleteSearch are behaviorally IDENTICAL (byte-level
+  vtable dumps); the .dat files = module-dir cross-run caches
+  (partinfo.dat = 24B "Part" table snapshot → layout_changed;
+  lostpart.dat = 1096B candidate cache + dedup); I-020's upgrade
+  condition REFUTED (stays acknowledged INFO); M-042 CONFIRMED at the
+  mechanism level; evidence s25-oq-s6-1-generator-sets-and-dat-files.md.
+- **OQ-S5-1 RESOLVED — dead-shipped / MATCH-by-omission**: the consumer
+  sweep exhausted (the MOM load contract is on-demand BY NAME; zero
+  name-requests / PE references / config loads / enumeration loaders);
+  CheckVersion.mo's OS-aware recovery never executes in the shipped
+  product; evidence s25-oq-s5-1-checkversion-dead-shipped.md.
+- **OQ-S4-3 pushed forward precisely, prerequisite LANDED**: the
+  alignbench gains the og's 7 MiB volume chunk + cpu_ms + the
+  chunk_strategy_ratios verdict block (the OQ's required engineering,
+  as a runtime variant); the parse gate's file-list gap closed; the
+  remaining step = exactly one Windows execution + transcription.
+- Verification-discipline note (near-miss, recorded): an apparent
+  [m/[M-eating corruption of the bench fleet was REFUTED at byte level —
+  a display-layer artifact (false ANSI SGR stripping); the files use
+  lowercase [math]:: (valid PowerShell) and branches: [main]. No
+  finding filed; no healthy file touched.
+
+**Session-25 lane tally: 29 resolutions** (22 INFO closures into FIXED/,
+A-008 ACUTE NEW-FINDING filed+FIXED with executed fail-before RED 3/3,
+OQ-Z1/S6-3/S6-2/S6-1/S5-1 resolved, OQ-S4-3 prerequisite landed). Suites
+green at every push (737 → 768 → 792 → 827 through the parallel-lane
+union waves; every union tree re-verified full-suite before pushing).
+
 ## Session-23 delta, batch 4 (2026-10-26 — DFX29: N-050 — the two-stage recognition contract)
 
 **N-050 FIXED:** the recognition contract is now boot gate -> CONTENT PROOF

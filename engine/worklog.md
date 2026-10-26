@@ -14824,3 +14824,38 @@ Stage Summary:
 - Main green again (849/849). Session tally stands: N-064 (+convergence),
   N-071, N-059, two pushed-red repairs, one convergence repair. Next:
   pull, then N-066/N-072/N-065 (the MINOR tail) if still open.
+
+---
+Task ID: DFX25-CLOSE (session 25 close-out + handoff)
+Agent: main engineer (DFX25 — the INFO + tracked-open lane)
+
+Work Log:
+- Final verification: linux-release full suite **863/863 green** on the
+  final union tree (the parallel window's landings + this lane's).
+- SUMMARY.md session-25 section completed with the full lane tally and
+  the resolution-wave records.
+- Lane dispositions: A-008 in FIXED/; the resolved OQ files in FIXED/
+  (S6-1/S6-2/S6-3/S5-1 + the earlier-window ones by the parallel lanes);
+  OQ-S4-3 precisely pushed forward (one Windows execution remains);
+  OQ-Z-E-FLT residues remain DFX30's active lane.
+
+Stage Summary:
+- **Session-25 lane tally: 29 resolutions** — 22 INFO closures into
+  FIXED/ (tier now empty), A-008 (ACUTE NEW-FINDING: ZFS
+  child_dir_zapobj read from the dd_origin_obj slot — child datasets
+  silently missing on real pools; fail-before RED 3/3 executed; kernel
+  truth fetched from OpenZFS master + the og decode), OQ-Z1 (resolved
+  by A-008), OQ-S6-3 (CRAW reader decode — M-051 confirmed), OQ-S6-2
+  (capa RC4 false positive — erratum E46), OQ-S6-1 (generator sets +
+  .dat files — I-020's upgrade condition refuted, M-042 confirmed),
+  OQ-S5-1 (CheckVersion dead-shipped — MATCH-by-omission), OQ-S4-3
+  (prerequisite landed: 7 MiB chunk + cpu_ms + verdict block + parse-gate
+  coverage).
+- Handoff to the next session: (1) the OQ-S4-3 Windows execution (one
+  dispatch + transcription into M-030's Resolution addendum and SUMMARY's
+  performance section); (2) the OQ-Z-E-FLT residues (DFX30's lane —
+  Z3/Z4/FLT-1/FLT-2); (3) the remaining MINOR 4 / MAJOR 6 / SEVERE 1
+  (S-034 — DFX30's filing) being drained by the parallel lanes; (4) the
+  verification-discipline lesson: byte-level verification (od/python)
+  BEFORE filing corruption-class findings — the display layer can strip
+  [m/[M pairs as false ANSI codes.
