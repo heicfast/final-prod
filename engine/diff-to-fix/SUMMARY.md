@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-# SUMMARY.md — executive summary (sessions 23+24+25+28 on top; earlier sessions below)
-=======
-# SUMMARY.md — executive summary (sessions 30+31 on top; earlier sessions below)
->>>>>>> a7b4d54 (merge: union with origin/main — the parallel N-064/N-049/N-075 + OQ-S2M-2 landings absorbed; N-032 landing stands (both Resolutions kept, matrix/SUMMARY/health rows unioned))
+# SUMMARY.md — executive summary (sessions 30+31+35 on top; earlier sessions below)
 
 ## Session-28 delta (2026-10-26 — DFX28: the rear-first MINOR lane)
 
@@ -271,7 +267,6 @@ reviewed in the Resolution). Suite **754/754**.
 open (22 acknowledged in FIXED/) · tracked-open 11 · FIXED/ **178** files
 (177 findings + RESOLVED-INDEX). Next on this lane: N-050 (recognition contract) →
 N-033 → N-064.
-
 ## Session-35 delta (2026-10-26 — DFX35, re-stamped from 23: the MAJOR-closing wave, M-014 first)
 
 Baseline `716d121` verified green first-hand (737/737 linux-release);
