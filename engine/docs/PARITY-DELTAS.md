@@ -5603,20 +5603,28 @@ Split verdict — three sub-claims:
   (FID_conflict_sprintf_s, 0x410-wide buffers) with a 10,000-attempt cap
   — the earlier "no collision policy in any artifact" claim (AUDIT-UI
   §5.7) is superseded by the decompile walk.
-- **WHAT WE DO:** Collision naming `name (N).ext` + corpus sanitizer
-  (`cr_safewriter.cpp:29`), atomic temp+rename via DestIo, SHA-256 verify with
-  per-item mismatch accounting, resumable queue (`.part-<id>` suffix, resumed
-  counting), zero-fill Skip policy. The collision SCHEME is the registered
-  deliberate divergence from the now-decoded og policy (`name (N).ext` vs the
-  og's `%s_%d`; our cap is 64 vs the og's 10,000) — see N-065 for the full
-  comparison and the PARITY decision. The atomic-write/hash-verify/resume
-  layers remain REGISTERED SUPERSETS the og lacks. Evidence: F11 registry;
-  AUDIT row 35 + Wave-2 fixes; tests (collisions, hashing, resume) per
-  `docs/testing.md`.
-- **WHY:** safety/correctness-fix.
+- **WHAT WE DO:** Collision policy ALIGNED TO THE OG (N-065, s23):
+  `name_1.ext` / `name_2.ext` (`%s_%d` extensionless / `%s_%d%s` with
+  extension, counter from 1), `rename_attempts` default 10,000 (the og's
+  cap), exhaustion FAILS the item with `ERR_DEST_NAME_EXHAUSTED` (the
+  og's cap-break at DRWUI :357131) — the old `name (N).ext` shape, the
+  64 cap and the og-foreign `_dup` fallback are removed. Kept supersets
+  the og lacks (all registered): atomic temp+rename via DestIo, SHA-256
+  verify with per-item mismatch accounting, resumable queue
+  (`.part-<id>` suffix, resumed counting), zero-fill Skip policy, the
+  corpus name sanitizer (`cr_safewriter.cpp`). mkdir acceptance is the
+  SHCreateDirectoryExW 0/0xB7 contract in semantic form (WinDestIo's
+  exist-as-directory tolerance IS the API's ERROR_ALREADY_EXISTS-on-
+  existing behavior — the finding's ACCESS_DENIED premise mis-modeled
+  the API; the component walk + tolerance replaced a stricter form that
+  broke drive-letter destinations on the MSVC lane, test #227). Evidence:
+  F11 registry; N-065's Resolution + first-hand decompile cites; tests
+  (`CollisionNameUnderscoreFormat`, `CollisionExhaustionFailsTheItem`,
+  `MkdirSemanticsMatchShCreateDirectoryEx`) per `docs/testing.md`.
+- **WHY:** safety/correctness-fix (supersets) + og parity (collision).
 - **RISK:** None negative.
-- **VERDICT: ACCEPTED** (og-side absence documented as "unevidenced", which is
-  itself the honest form of evidence for this delta; our side fully cited).
+- **VERDICT: ACCEPTED** (collision half now og-MATCH by N-065; the
+  atomic-write/hash-verify/resume supersets remain registered).
 
 ### D-20 — UI hard destination gate (ADR-7, defense in depth)
 
@@ -7493,7 +7501,7 @@ destroyed IS objectively degraded, and hiding that from the user would be
 the og's UX weakness, not a parity virtue. Pinned by
 Carve.JpegTruncatedTailSalvagedAtSofEstimate (grade assertion).
 
-### D-78 — progress delivery: push events + telemetry pull, not the og's poll-dominant timer farm (N-075, REGISTERED DIVERGENCE; renumbered from a D-77 collision with the N-009d ACL register landed by the parallel lane in the same window — the errata convention)
+### D-78 — progress delivery: push events + telemetry pull, not the og's poll-dominant timer farm (N-075, REGISTERED DIVERGENCE; renumbered from a D-77 collision with the N-009d ACL register — and now one of three same-window D-78 registrations; cite by finding: N-075)
 
 The og's progress model is predominantly PULL-polled: 38 `timeout()`
 timer consumers call `onGet*Progress` on the UI thread, and the only
@@ -7562,6 +7570,60 @@ applying it via SetSecurityInfo on the win destio layer only — never on
 the POSIX test shims.
 
 ### D-78 — the password-dictionary unlock aid: authored seed + format-compatible loader, the og's Dict asset not copied (N-064, REGISTERED DIVERGENCE)
+
+=======
+### D-80 — the password-dictionary data posture: the corpus Dict converted as generated data (raw_signs precedent), user dictionaries loadable (N-064 convergence record — two parallel landings, first-landing-wins)
+
+**Class:** convergence record (replaces this lane's original D-78
+registration, renumbered per the errata convention — D-78 collided with
+the N-075 progress register and the N-032 CSMI register in the same
+window) · **Finding:** diff-to-fix N-064 (MINOR, FIXED — twice, convergent
+landings `4c475ba` (cr::dict, DFX31, first) and `817740c` (cr::pwddict,
+DFX34)) · **Date:** 2026-10-26
+
+**THE CONVERGENCE:** two parallel lanes landed N-064 independently.
+The DFX34 lane shipped an authored seed list + a loader for the og's
+dictionary FORMAT, refusing to copy the og's 228-entry asset (its D-78).
+The DFX31 lane (first-landing-wins) ships the corpus Dict converted to a
+generated compiled table (scripts/gen_dict.py — the same
+corpus-data-to-generated-source posture as raw_signs.json's 139-format
+table) and absorbs the loader capability. Canonical state after the
+reconciliation commit: **cr::dict** (the generated byte-faithful 228-entry
+table + the parse grammar + the consent-gated attempt loop),
+`--bitlocker-dict [path]` (bare = the shipped table; with a path = the
+shipped table plus a user dictionary in the og's exact file format,
+loaded through cr::dict::parse), the cr_ui_unlock_volume_with_dictionary
+ABI export. The cr::pwddict module, its seed list, its CLI flag and its
+tests are dropped cleanly; both Resolutions stay in the finding file
+(append-only audit trail).
+
+**WHY THE CANONICAL POSTURE (byte-faithful conversion, not an authored
+seed):** (1) The repo's established precedent converts corpus data files
+documented as ground truth into generated source — raw_signs.json (139
+formats) since the carving wave. (2) The Dict entries are facts, not
+creative expression: 228 common passwords (numeric runs, names, words —
+"12345678", "iloveyou") that appear in every public leaked-credential
+corpus; there is no EaseUS-authored expression to avoid copying. (3)
+True parity requires the same list: an authored seed of "universal
+patterns" approximates the capability; the converted table IS the
+capability (the corpus byte-verifies the file — config-data-reference
+:20). (4) The loader keeps the flexibility: a host can still supply any
+og-format dictionary.
+
+**RISK:** none beyond the capability itself; the F61 consent gate is
+structural in both landings and unchanged in the union.
+
+**VERDICT:** ACCEPTED (registered divergence: authored seed +
+format-compatible loader vs the og's copied asset; mechanism parity
+complete; D-78).
+
+<!-- D-number errata (session-28 merge): this same-window landing
+     produced duplicate D-78/D-79 registrations from two parallel lanes
+     (the N-064 pwddict register and the N-032/M-020 pair below). Per
+     the standing errata convention both stand; future sessions cite
+     them by FINDING (N-064 / N-032 / M-020), not by bare D-number. -->
+
+=======
 ### D-78 — CSMI SMART transport: SCSI-address routing, no RAID census; LSILOGIC sibling and SMART auto-enable not ported (N-032, REGISTERED DIVERGENCE — transport scope)
 
 **Class:** registered divergence (health transport scope) · **Finding:**
@@ -7633,6 +7695,177 @@ with wrong bytes. Fixtures: `Btrfs.Raid0StripeMathSplitsAtStripeBoundaries`
 only).
 
 
+
+
+### D-81 — Carve validators are stateless single-shot; no pending-object/ContinueScan streaming state (M-025, REGISTERED ARCHITECTURAL DIVERGENCE)
+
+The og's block scan keeps open-ended formats (MovAnalyzer/MTS and family)
+as pending CRawFileInfo objects re-fed every sector through analyser slot
+4 (ContinueScan, RAWSearchDLL :9541-9605, :10114-10144) until the
+analyser reports done — O(1) per-sector work per open file against
+buffer-resident data. The core's validators are stateless single-shot
+functions (CarveResult (*)(IStorageDevice*, hit, cap)) that walk their
+grammar from the hit; there is no cross-window per-candidate state.
+
+Why kept: (1) the stateless contract is what the existing 46-test carve
+suite pins and what every ported analyser to date (S-007's MPEG family,
+S-017's MOV salvage) has been written against — a pending-object
+migration would touch every validator for no measured coverage gain
+(byte-granular dispatch finds mid-sector starts the og never sees,
+I-009); (2) the read-model half of the finding — the cost profile — is
+now served by the window buffer (M-025's WindowDevice: candidates cost
+zero device re-reads when their reads fit the window, 13x fewer reads
+measured), which was the dominant structural cost; (3) the og's
+continuation machinery exists to serve ITS buffer-resident model — with
+validators reading through the window context the same coverage is
+achieved without per-sector state.
+
+Boundary: any future port of an og analyser that genuinely requires
+incremental continuation (streaming formats whose end cannot be probed
+by a bounded forward walk) must either keep that model in its own layer
+or extend the validator contract — this register is the flag S-017's
+fix-plan step 3 cites.
+### D-79 — disk enumeration: the two-stack merge (PhysicalDrive loop + cfgmgr32 disk interfaces), not the og's five-stack fan-in (N-071, REGISTERED DIVERGENCE — partial port with scope rationale)
+
+**Class:** registered divergence (enumeration breadth) · **Finding:**
+diff-to-fix N-071 (MINOR, fixed with the two-stack merge; residual
+registered here) · **Date:** 2026-10-26
+
+**WHAT OG DOES:** the device discovery fan-in spans five stacks — WMI
+(MSFT_* namespaces), SetupAPI device interfaces, VDS (dynamic-disk
+packs), Storage Spaces, and Function Discovery (mom-module-system
+architecture :57-59; the QA boot census shows `CDiskEnumerator :
+Storage space init` + `GetUsedPhysicalDisks` + `Vds loadservice` running
+alongside the plain `disk enumerate` — vendor-logs :13-29) — merged into
+the device list the UI presents, with hot-plug notification.
+
+**WHAT WE DO:** a two-stack merge: the numbered `\\.\PhysicalDrive0..N`
+loop (geometry/alignment/descriptor/table parse) + the cfgmgr32
+`GUID_DEVINTERFACE_DISK` present-instance pass (every interface opened,
+queried with the same IOCTL family, merged by
+`merge_disk_enumeration` — dedup by disk number, then by instance
+path; N-071's landing). The WMI/VDS/Storage-Spaces/FunctionDiscovery
+stacks are not ported; hot-plug eventing is not ported (the CLI/UI
+re-enumerates on demand).
+
+**WHY:** (1) Every block device Windows exposes for user-mode READ
+surfaces as `\\.\PhysicalDriveN` or a disk-interface instance — the two
+stacks cover the readable-device space the recovery engine consumes;
+the og's extra stacks feed its UI metadata (WMI friendly names, VDS
+dynamic-volume CONFIG — which our LDM engine parses from the disk
+itself — and Storage Spaces pool topology for display). (2) The
+finding's own open question records that Storage Spaces members DO
+surface as PhysicalDrive in practice (the miss-case is
+UNVERIFIED-BY-EXECUTION without a Storage Spaces host; the QA census
+shows the stacks RUNNING, not a disk the numbered namespace lacks). (3)
+FunctionDiscovery and hot-plug notify are product-shell concerns (the
+og's DeviceManager.mo is a UI-facing module); the engine's contract is
+a complete device LIST on demand, which the merge provides. The
+cfgmgr32 pair (`CM_Get_Device_Interface_List_SizeW`/
+`CM_Get_Device_Interface_ListW`) is Win2000-era — the Win7-inclusive
+import gate holds (cfgmgr32 added to the strict allowlist with the
+function pair).
+
+**RISK:** a device reachable ONLY through VDS/Storage-Spaces stacks and
+absent from both the PhysicalDrive namespace AND the disk-interface
+list would be missed — no such device class is documented in the corpus
+(the QA host's own Storage-Spaces census ran WITHOUT producing an
+extra device). The merge is the engine scope; the UI shell may layer
+its own stacks later.
+
+
+### D-82 — the FilterFolder junk-filter policy: applied at emission, sessions re-derive on resume; comparator mode undecoded (M-018, REGISTERED POLICY)
+
+The og pushes FilterFolder.ini's hidden sets per scan-partition at scan
+setup (PushFolderFilter) and its presentation hides OS droppings,
+metadata noise, localized "New Folder" names, System Volume Information
+and BitLocker recovery artifacts. The corpus does NOT decode: (a) the
+comparator (case mode; exact vs prefix — whether "$UsnJrnl:$J" matches
+the "$UsnJrnl" entry), or (b) whether recover-all also skips the hidden
+set (the artifact scopes the filter to "hide ... from results").
+
+The core's registered choices: (1) matching is exact u16 equality with
+ASCII-case-fold (the only sane Windows-name semantics — DESKTOP.INI is
+desktop.ini; the fold is a no-op for the CJK entries); (2) the filter
+applies at EMISSION — query rows, CLI tree and recover-all planning all
+skip flagged nodes, so sessions, reports and recovery agree (the finding's
+own open-question recommendation); (3) sessions do not persist the flag —
+the pass re-runs idempotently on resume (names are stable); (4) children
+of a filtered node are NOT filtered (the og hides entries, not their
+contents). Junk counts surface as ScanStats.junk_filtered.
+
+### D-80 — carve registry consumption: direct compile-time read, no per-scan cross-DLL re-clone (N-033, REGISTERED DIVERGENCE — structural, content-identical)
+
+The og's FS SearchDLLs import RAWSearchDLL.dll at runtime and clone its
+master analyser registry into their own state — `LoadLibraryA
+("RAWSearchDLL.dll")` + `GetProcAddress("EUGetAnalyserList"/"Map"/
+"Multimap")` + a full std::map/multimap/list tree-copy with leftmost/
+rightmost fixups (FATSearchDLL_decompiled.c :13872-13977, into members
++0xb8/+0xd0/+0xe0), and the SAME sequence again per scan (:29290-29361)
+— because the og is a multi-DLL process and the registry lives in
+another module. The core is one static library: `carve::registry()` is a
+compile-time immutable table read directly at every consumption site (the
+F8 gate + the scan loop), so there is nothing to clone and nothing that
+can drift between the scan's start and its per-engine fetches — the same
+content by construction, one less failure surface (a torn LoadLibrary or
+a version-skewed RAWSearchDLL is an og-only hazard). The capability
+question the clone serves ("which formats can we carve") is answered by
+the ABI enumeration (`cr_ui_carve_format_count/info`, ABI-CONTRACT §7a)
+and its CLI projection (`rrecov list-carve-formats`, landed with this
+register). Pinned by `CrUi.CarveFormatRegistryEnumeration`.
+
+
+### D-84 — disk enumeration: the two-stack merge (PhysicalDrive loop + cfgmgr32 disk interfaces), not the og's five-stack fan-in (N-071, REGISTERED DIVERGENCE — partial port with scope rationale)
+
+**Class:** registered divergence (enumeration breadth) · **Finding:**
+diff-to-fix N-071 (MINOR, fixed with the two-stack merge; residual
+registered here) · **Date:** 2026-10-26
+
+**WHAT OG DOES:** the device discovery fan-in spans five stacks — WMI
+(MSFT_* namespaces), SetupAPI device interfaces, VDS (dynamic-disk
+packs), Storage Spaces, and Function Discovery (mom-module-system
+architecture :57-59; the QA boot census shows `CDiskEnumerator :
+Storage space init` + `GetUsedPhysicalDisks` + `Vds loadservice` running
+alongside the plain `disk enumerate` — vendor-logs :13-29) — merged into
+the device list the UI presents, with hot-plug notification.
+
+**WHAT WE DO:** a two-stack merge: the numbered `\\.\PhysicalDrive0..N`
+loop (geometry/alignment/descriptor/table parse) + the cfgmgr32
+`GUID_DEVINTERFACE_DISK` present-instance pass (every interface opened,
+queried with the same IOCTL family, merged by
+`merge_disk_enumeration` — dedup by disk number, then by instance
+path; N-071's landing). The WMI/VDS/Storage-Spaces/FunctionDiscovery
+stacks are not ported; hot-plug eventing is not ported (the CLI/UI
+re-enumerates on demand).
+
+**WHY:** (1) Every block device Windows exposes for user-mode READ
+surfaces as `\\.\PhysicalDriveN` or a disk-interface instance — the two
+stacks cover the readable-device space the recovery engine consumes;
+the og's extra stacks feed its UI metadata (WMI friendly names, VDS
+dynamic-volume CONFIG — which our LDM engine parses from the disk
+itself — and Storage Spaces pool topology for display). (2) The
+finding's own open question records that Storage Spaces members DO
+surface as PhysicalDrive in practice (the miss-case is
+UNVERIFIED-BY-EXECUTION without a Storage Spaces host; the QA census
+shows the stacks RUNNING, not a disk the numbered namespace lacks). (3)
+FunctionDiscovery and hot-plug notify are product-shell concerns (the
+og's DeviceManager.mo is a UI-facing module); the engine's contract is
+a complete device LIST on demand, which the merge provides. The
+cfgmgr32 pair (`CM_Get_Device_Interface_List_SizeW`/
+`CM_Get_Device_Interface_ListW`) is Win2000-era — the Win7-inclusive
+import gate holds (cfgmgr32 added to the strict allowlist with the
+function pair).
+
+**RISK:** a device reachable ONLY through VDS/Storage-Spaces stacks and
+absent from both the PhysicalDrive namespace AND the disk-interface
+list would be missed — no such device class is documented in the corpus
+(the QA host's own Storage-Spaces census ran WITHOUT producing an
+
+> Grafted back (DFX24 union repair, 2026-10-26): the DFX30-T4 delta-ledger
+> renumbering renamed this row D-79 -> D-84 in the ledger comment but the row
+> itself was dropped in the union; restored verbatim from the canonical N-071
+> landing 7ee64fb with the renumbered id (test
+> Enumerate.ScopeDeltaRegisteredWithRevisitTrigger stays red without it).
 
 ### D-85 — device enumeration scope: the PhysicalDrive namespace is the engine's device truth; no WMI/SetupAPI/VDS/StorageSpaces/FunctionDiscovery fan-in (N-071, REGISTERED DIVERGENCE — scope)
 

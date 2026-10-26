@@ -71,3 +71,41 @@ I-024 (the register), M-017 (the core's single-pass scorer), S-006-FIXED / S-019
 Needs the PartitionRecoveryD decompile pass as filed; no new evidence this
 session. I-024's acknowledgement (session-7 INFO wave) already records the
 register's refusal to inflate severity on class/string evidence alone.
+
+
+---
+
+## CORRECTION ADDENDUM (DFX30, 2026-10-26 — one material error in point 1, refuted by the mode-dispatch decode)
+
+Point 1's conclusion "behaviorally IDENTICAL … the name does not refer to
+the Windows registry" is **REFUTED by the generator-ATTACHMENT layer**
+(which sits above the vtable surface both lanes verified identical):
+the per-mode builder **FUN_180022430** (:20851-20895) dispatches on the
+search-mode field (param_1+0x3c — the SAME id space as the factory
+registrations): **mode 1 (RegSearch) attaches CLocationGenFromReg**
+(FUN_1800214c0 :20431-20459: new(0x38) -> FUN_18000f390 ctor ->
+set->vt+0x18 add-generator) **plus the .dat context load**
+(FUN_180025e30 on param_1+0xf0); mode 2/3 (Fast/Fast1M) attach
+FUN_1800215e0/FUN_180021b80; **mode 4 (CompleteSearch) attaches
+FUN_180021d70 and sets a 0x4000 output parameter**.
+
+`CLocationGenFromReg` (:8774, ctor FUN_18000f390) IS a registry reader —
+its loader FUN_18000f5b0 (:8841-8925), decoded first-hand:
+`RegOpenKeyA(root, name)` -> `RegQueryValueExA(hkey, "Data")` ->
+REG_BINARY, size > 0xE7, markers `buf[0xC4]=='#'` && `buf[0xE6]=='#'` ->
+`memcpy(field, buf+0xC6, 0x20)` -> `swscanf(field, "%I64X", &val)` ->
+sector-alignment check -> emit {byte_offset, sector_count}. That is the
+**Windows MountedDevices "Data" encoding** (disk signature + partition
+start offset as #-delimited hex) — hypothesis (a) as originally filed is
+CONFIRMED: RegSearch seeds probe locations from the mounted-devices hive.
+
+What survives of the landed resolution (verified independently by DFX30):
+the four-set factory census (Reg=1/Fast=2/Fast1M=3/Complete=4), the
+identical-vtable observation (correct — the difference is the ATTACHED
+GENERATORS, not the class surface), the full .dat decode (formats,
+module-dir location, delete-on-first-use lifecycle, dedup keys), and —
+with the correction — Q4's conclusion: the registry-seeded positions are
+a subset of the Complete pass's exhaustive sweep, so **no unique recall**
+stands; FromReg is the targeted/latency pass (with the offline-hive
+edge case folded into the same subset argument). The residual
+"which UI surface requests mode 1 vs 4" remains open and unchanged.

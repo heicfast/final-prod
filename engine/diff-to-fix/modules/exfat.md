@@ -249,3 +249,18 @@ check, not an emission gate). Proof: 5 fail-before tests + 1 boundary
 guard; suite 743/743. B3/B4/B10 verdict: MATCH (the empty-file policy
 is the og's own — matched, not diverged). Remaining on this module:
 none from this finding's registry.
+
+## Session-24 completion verdict (M-014 UTF-16 table, DFX24, 2026-10-26)
+
+The session-35 "not implemented" note on the 0xHH00 UTF-16 validity
+table is superseded: the table IS recoverable — the corpus ships
+`og-codebase/exFATSearchDLL.dll`, and the 256 bytes at .rdata RVA
+0x45A00 (file offset 0x44600, PE section map) were extracted
+byte-exact, with the byte order pinned by the raw disassembly at VA
+0x180003030 (invalid iff low byte == 0 AND table[high byte] == 0; the
+zero-flag set is the control/Windows-illegal positions). Wired into
+`name_fragment_gates_ok` (terminator-aware loop over the fragment's 15
+chars); `NameUtf16TableInvalidCharRejected` fail-before EXECUTED (RED
+with the table loop disabled), `NameUtf16TableAllowedCharAccepted`
+pins the U+1A00-passes/U+0100-fails boundary. The B10 (names) cell
+keeps its MATCH verdict — now without the residual-FP asterisk.

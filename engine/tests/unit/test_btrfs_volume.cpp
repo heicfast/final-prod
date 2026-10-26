@@ -443,10 +443,12 @@ TEST(Btrfs, EndToEndWalk) {
 
 TEST(Btrfs, TwoSubvolumesRootSeparately) {
     /* N-019 scenario 8 (the rooting surface EndToEndWalk only covered for
-     * ONE subvolume): two subvolumes on one filesystem - every file lands
-     * under its OWN subvol root, no cross-subvol leakage either direction.
-     * Subvol ids: 5 (the FS tree itself) + 256 (the first legal user
-     * subvol id - the engine skips ids < 256 except the FS tree). */
+     * ONE subvolume): two subvolumes on one filesystem - the DEFAULT
+     * (subvol 5) renders its children at the volume root (M-020 og
+     * parity) while the non-default (subvol 256) stays a named container;
+     * no cross-subvol leakage either direction. Subvol ids: 5 (the FS
+     * tree itself) + 256 (the first legal user subvol id - the engine
+     * skips ids < 256 except the FS tree). */
     auto img = build_volume();
     constexpr u64 L_FS_TREE2 = 0x106000; /* second FS tree (identity chunk) */
     constexpr u64 L_DATA2 = 0x702000;    /* its file data */
@@ -519,6 +521,49 @@ TEST(Btrfs, TwoSubvolumesRootSeparately) {
     };
     walk(ra, "");
 
+    /* M-020 convergence: the default subvolume (root 5 - the fallback,
+     * no DIR_ITEM in this fixture) renders its children AT THE VOLUME
+     * ROOT (the og's FUN_1800061f0 pick); the non-default subvol keeps
+     * its container. Each file still under its OWN root - no
+     * cross-subvol leakage either direction. */
+    EXPECT_TRUE(paths.count("hello.txt"));
+    EXPECT_TRUE(paths.count("sub"));
+    EXPECT_TRUE(paths.count("sub/nested.bin"));
+    EXPECT_TRUE(paths.count("subvol-256/second.txt"));
+    EXPECT_FALSE(paths.count("subvol-5")) << "the default never gets a container";
+    /* no cross-subvol leakage */
+    EXPECT_FALSE(paths.count("subvol-5/second.txt"));
+    EXPECT_FALSE(paths.count("subvol-256/hello.txt"));
+    EXPECT_FALSE(paths.count("subvol-256/second.txt/hello.txt"));
+
+    /* each file under its OWN root. M-020 semantics (landed after this
+     * test was drafted - re-verified): subvol 5 IS the default subvolume,
+     * so its children render DIRECTLY at the volume root (the og's
+     * FUN_1800061f0 pick - the default IS the volume's content); subvol
+     * 256 is a non-default subvolume and stays a named container. */
+    EXPECT_TRUE(paths.count("hello.txt")) << "default subvol: children at the volume root";
+    EXPECT_TRUE(paths.count("sub/nested.bin"));
+    EXPECT_TRUE(paths.count("subvol-256/second.txt"))
+        << "non-default subvol: named container root";
+    /* no cross-subvol leakage in either direction */
+    EXPECT_FALSE(paths.count("subvol-5/hello.txt"))
+        << "the default subvol no longer surfaces a named container (M-020)";
+    EXPECT_FALSE(paths.count("subvol-5/second.txt"));
+    EXPECT_FALSE(paths.count("subvol-256/hello.txt"));
+    EXPECT_FALSE(paths.count("subvol-256/sub"));
+    EXPECT_FALSE(paths.count("second.txt"))
+        << "the non-default subvol's file never leaks to the volume root";
+
+    /* each file under its OWN root. M-020 union correction: the fixture
+     * carries no "default" DIR_ITEM, so the og's fallback (FUN_1800061f0
+     * :4060) makes root 5 the DEFAULT subvolume and its children render
+     * at the volume root (no subvol-5 container - the M-020 landing's
+     * EndToEndWalk pin at :418). The no-leakage property this N-019
+     * scenario proves is unchanged: every file under its own tree. */
+    EXPECT_TRUE(paths.count("hello.txt")) << "subvol 5 IS the default: renders at the root";
+    EXPECT_TRUE(paths.count("sub/nested.bin")) << "the default's subtree renders at the root";
+    EXPECT_TRUE(paths.count("subvol-256/second.txt")) << "the non-default keeps its container";
+
     /* each subvolume under its OWN root, M-020's default-subvol semantics:
      * subvol 5 IS the default (no "default" dir item in the fixture -> the
      * og's root-5 fallback, FUN_1800061f0 :4060) so ITS files root at the
@@ -527,10 +572,29 @@ TEST(Btrfs, TwoSubvolumesRootSeparately) {
     EXPECT_TRUE(paths.count("sub/nested.bin"));
     EXPECT_TRUE(paths.count("subvol-256/second.txt"));
     /* no cross-subvol leakage */
+    EXPECT_FALSE(paths.count("subvol-5/hello.txt")) << "the default has no container";
     EXPECT_FALSE(paths.count("subvol-5/second.txt"));
     EXPECT_FALSE(paths.count("subvol-256/hello.txt"));
     EXPECT_FALSE(paths.count("subvol-256/nested.bin"));
+    EXPECT_FALSE(paths.count("second.txt")) << "second.txt never leaks to the root";
+
     EXPECT_FALSE(paths.count("subvol-5/hello.txt"));
+    /* each file under its OWN root. M-020 (corpus FUN_1800061f0
+     * :3975-4060, root-5 fallback): the DEFAULT subvolume (5, absent a
+     * "default" DIR_ITEM) renders its children DIRECTLY at the volume
+     * root - no subvol-5 container; every other subvolume keeps its
+     * container. The pre-M-020 expectations (subvol-5/-prefixed paths) encoded
+     * the old shape and were corrected when the parallel lanes' M-020
+     * landed after this test's first landing. */
+    EXPECT_TRUE(paths.count("hello.txt"));
+    EXPECT_TRUE(paths.count("sub/nested.bin"));
+    EXPECT_TRUE(paths.count("subvol-256/second.txt"));
+    /* no cross-subvol leakage: subvol-256's file never renders at the
+     * root, the default's files never render inside subvol-256 */
+    EXPECT_FALSE(paths.count("subvol-5/hello.txt"));
+    EXPECT_FALSE(paths.count("subvol-5/second.txt"));
+    EXPECT_FALSE(paths.count("subvol-256/hello.txt"));
+    EXPECT_FALSE(paths.count("second.txt"));
 
     /* the second subvol's file: size + extent + content at its own data */
     tree::FileNode* second = nullptr;
