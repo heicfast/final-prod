@@ -828,6 +828,35 @@ CR_UI_API uint32_t cr_ui_carve_format_count(void);
 /* Row `index` [0, count()) into *out. BAD_PARAMETER on out-of-range. */
 CR_UI_API uint32_t cr_ui_carve_format_info(uint32_t index, cr_ui_carve_format* out);
 
+/* ---- M-048: the user-extensible signature database (ABI-since 2.1) ---------
+ * The og's EUUserData surface: the host registers user-taught file
+ * signatures (the og's JSON shape verbatim:
+ *   { "<ext>": { "signs": ["<offset>,<HEX>"], "mime": "<type>" }, ... }
+ * ). Registered signs are probed by every carve pass at the raw-sign
+ * stride (built-in layers first; a user sign fires only where the
+ * built-ins did not). Re-registration REPLACES the previous set (the
+ * og's config-reload posture - EUUserData is re-read per scan).
+ *
+ * cr_ui_register_user_signs: parse + validate + install atomically.
+ * Returns OK or BAD_PARAMETER (null/empty or a grammar violation - the
+ * registration is atomic, never a silent partial load).
+ * The set is process-global; thread-safe.
+ *
+ * cr_ui_user_sign_count / cr_ui_user_sign_info: enumeration for hosts
+ * that render the active set (the og's UI lists user formats). */
+CR_UI_API uint32_t cr_ui_register_user_signs(const char* json_bytes, uint32_t json_len);
+
+typedef struct cr_ui_user_sign {
+    char ext[9];   /* lowercased, NUL-terminated */
+    char mime[64]; /* NUL-terminated; empty when the entry had none */
+    uint32_t offset;
+    uint32_t sign_len; /* 1..16 */
+    uint8_t bytes[16]; /* the signature bytes */
+} cr_ui_user_sign;
+
+CR_UI_API uint32_t cr_ui_user_sign_count(void);
+CR_UI_API uint32_t cr_ui_user_sign_info(uint32_t index, cr_ui_user_sign* out);
+
 /* ---- disk map (GAP-S6-11; docs/ABI-CONTRACT.md section 7) ------------------
  * The visualization DATA PRODUCER (corpus lineage: AnalysisGridWidget
  * sector grid + the engines' IBuildVolumeBitmap interface): geometry +

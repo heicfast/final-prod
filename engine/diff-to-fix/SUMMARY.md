@@ -1,4 +1,27 @@
-# SUMMARY.md — executive summary (diff-fix sessions 32(+33+34) on top; earlier sessions below)
+# SUMMARY.md — executive summary (diff-fix session 33 on top; earlier sessions below)
+
+## Session-33 delta, part 4 (2026-10-26 — DFX33: M-048 FIXED — the user-extensible signature database)
+
+**M-048 FIXED (MAJOR — the EUUserData capability):** users can teach the
+scanner new file types. The pure parser takes the og's JSON shape
+verbatim (ext -> signs["offset,HEX"] + mime; atomic validation with
+entry/sign/byte/offset caps); the registration surfaces are the cr_ui ABI
+(since 2.1: register/count/info, replace-on-re-register) and the CLI
+--user-signs <file> (honest failure on bad input); the carve layer probes
+user signs at the raw-sign stride after the built-ins (the built-in-wins
+collision rule), emitting with the user's extension, the MIME on
+carve_note, tag 0xFFFE0000 and the documented fixed confidence 600.
+Scope correction registered on fix-plan item 4: the og's EUUserData is
+install-tree config re-read per scan — not session state — and the core
+matches that posture. Proof: UserSigns.ParseTheOgsShape +
+CarveEngine.UserSignatureProbedAtStride (fail-before EXECUTED RED) +
+CarveEngine.UserSignatureYieldsToBuiltInAtSamePosition +
+CrUi.UserSignRegistrationSurface; suite **869/869** linux-release
+(incl. the ABI gates over the new exports).
+
+**Post-fix counts (this landing):** SEVERE **0** · MAJOR **5** open ·
+MINOR per the live union · INFO **0 open** · tracked-open 2.
+
 
 ## Session-32 delta, part 2 (2026-10-26 — DFX32: M-025 FIXED — the carve window-aware read view + the pushed-red N-064 union repair)
 
