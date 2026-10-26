@@ -16120,6 +16120,52 @@ Stage Summary:
 - S-034 stands on the union; N-072's retry preserved verbatim inside the
   ring walk. Remaining open on the whole board: M-040 + tracked-open
   OQ-S4-3/OQ-Z-E-FLT.
+Task ID: DFX34-T9 (session 34, ninth landing — M-040 stage (a): the BCD offset rewriter)
+Agent: main engineer (diff-to-fix fix session 34 — DFX34)
+Task: M-040 stage (a) — the BCD partition-offset rewriter, "the
+narrowest recovery-relevant piece" of the boot-chain repair family.
+
+Work Log:
+- Corpus re-verified FIRST-HAND before any code: FUN_180001980
+  (:499-599 — the 8-byte walk, the 0xffffffa0 allocated-cell marker,
+  the byte-offset u64 at cell+0x24 with LBA = value>>9, the MBR
+  signature u32 at cell+0x3C, the signature+LBA match) and FUN_180002520
+  (:957-992 — the -0x1c seek-back, the 8-byte WriteFile of new<<9, the
+  +0x14/+0x18 advance). CONFIRMED-DIVERGENCE (the family was never
+  dispositioned).
+- Landed (pure core): cr/bcdfix (include/cr/bcdfix + src/core/bcdfix)
+  — plan_rewrites (the cell scan), execute_plan (the injected-writer
+  apply under the P62 consent gate: no callback = DEFAULT-DENY,
+  ERR_REPAIR_REFUSED — the rawfixer S-008 model verbatim), undo_plan
+  (byte-exact original restore = the Bcd_RestoreBcdFile analog
+  :4562-4625).
+- Tests: 5 green — 4 of the finding's 5 named ones
+  (BcdFindsBootPartitionBySignature, BcdOffsetRewriteWritesNewLba,
+  BcdUndoRestoresOffsets, BootfixRefusedWithoutConsent) + the
+  BoundariesNeverPlan set (truncated/misaligned/null buffers, foreign
+  signature/LBA noise cells, writer-error propagation, empty-plan
+  no-op). The 5th named test (NvramPatchUpdatesLoadOption) is stage
+  (b)'s. Fail-before by construction (the module did not exist).
+  Suite 914/914.
+- Dispositions registered (D-90, PARITY-DELTAS): boot.ini SKIPPABLE
+  (Win7 boots BCD — the plan's own envelope note); post-op ChkDsk.exe
+  UI-LAYER (external-binary delegation; the core's contract ends at the
+  byte-exact undo record). Stage (b) NVRAM (EFIBoot state-4 :3860-3960
+  + the injected-resolver test design) + the win-layer file IO (hive
+  force-unload, SeRestore/SeBackup, the DASD 0x90083 + flush tail) +
+  the S-029 post-apply wiring = the precise tracked continuation ON the
+  finding — the finding stays OPEN on the family remainder, no silent
+  leave-behind.
+- Audit trail: the finding's stage-Resolution addendum, the new
+  modules/boot-repair.md module row, the CROSS-REF-MATRIX M-040 row,
+  PARITY-DELTAS D-90, this worklog entry.
+
+Stage Summary:
+- M-040 stage (a) landed (the finding stays open on stages (b) + the
+  win layer, precisely tracked). Session tally: N-007 FIXED, N-065
+  FIXED-ALREADY, N-072 FIXED, M-040 stage-a landed, N-064
+  convergent-absorbed (+5 main-red repairs; the MINOR tier drained to
+  EMPTY with the parallel lanes).
 Task ID: DFX33b-T5b (the N-072/S-034 union repair + push-through)
 Agent: main engineer (diff-to-fix fix session 33b — DFX33b)
 
@@ -16182,3 +16228,374 @@ Stage Summary:
   Resolution + this lane's addendum: the two complements, the tracked
   follow-up on the ordering/Active-Deleted interpretation questions).
   The board after this landing: MAJOR 1 (M-040), MINOR 0, tracked-open 2.
+Task ID: DFX34-HANDOFF (session 34 close — the handoff record)
+Agent: main engineer (diff-to-fix fix session 34 — DFX34)
+
+Session record (2026-10-26, DFX34, the MINOR-tail lane):
+
+- Claim: the MINOR tier tail back-to-front (N-064 → ... → N-032), 20+
+  target; ID re-stamped 27→32→34 across three push races (each squatted
+  pre-landing; first-landing-wins honored throughout).
+- N-064 (convergent two-lane landing): my independent fix (cr/pwddict +
+  --bitlocker-pwddict + D-78, 9 tests, executed fail-before) landed
+  second behind DFX31's cr::dict; per first-landing-wins the canonical
+  surface stands, my duplicate was withdrawn in reconciliation, and the
+  ONE superset capability (the og-format dictionary FILE loader) was
+  absorbed by the canonical lane as --bitlocker-dict [file]. Both
+  Resolutions preserved append-only + the Convergence record in the
+  finding; D-78 tombstoned -> the D-80 convergence record (the D-number
+  errata convention).
+- N-065 FIXED-ALREADY: the parallel lane's collision/mkdir landing
+  verified first-hand (3 proof tests executed green; the two-branch
+  %s_%d shape, cap 10000, fail-on-exhaustion, the semantic mkdir
+  contract, D-19's decode rewrite all read in-source) + the audit-trail
+  closure (Resolution + FIXED/ + index + matrix + module verdicts).
+- N-007/I-004 FIXED: the ReFS first-DWORD discovery + the
+  signature_partial grading flag (corpus :11689-11720 re-verified
+  first-hand; the lost-partition probe was the affected consumer; my
+  2 proof tests are the set — a convergent remote implementation was
+  adopted wholesale per first-landing-wins). I-004 stands ACKNOWLEDGED
+  (D-48b). File closed to FIXED/.
+- N-072 FIXED (both halves): the Btrfs re-scan metadata cache (pure
+  codec + engine wiring, OFF by default, caller-supplied dir, the
+  fsid+generation strict gate; REGISTERED DIVERGENCE D-89) + the ZFS
+  delay-execution label retry (bounded 250/500/1000 ms backoff,
+  cancel-aware, the new is_static_media discriminator — images never
+  retry). 7 tests; fail-before EXECUTED (retry-cap-zeroed RED).
+- M-040 stage (a) LANDED: the BCD partition-offset rewriter (cr/bcdfix
+  — the corpus cell decode re-verified first-hand, the new_lba<<9
+  rewrite, plan/execute/undo, the P62 default-deny consent gate); 5
+  tests (4 of the finding's 5 named); D-90 dispositions (boot.ini
+  skippable, chkdsk UI-layer); stages (b) + the win layer precisely
+  tracked ON the finding — it stays open on the family remainder.
+- Five main-red repairs this session (the parallel-window's union-merge
+  epidemic): the N-064 collision markers (3 rounds), the committed
+  stash-pop conflict in cr_ui.h (both M-029/M-041 config fields kept),
+  the M-052/N-079 wrong-engine-set adoption (the coherent 76d4878 set
+  restored), the silent fat-header auto-merge, the win_syntax_check
+  -D__declspec(x)= hardening + the duplicate print_carve_formats
+  collapse. The union-merge RULE codified (keep-both is for append-only
+  docs; source = side-selection + pre-push full build).
+- Final tree: linux-release 918/918 green; win layer + app parse-clean
+  (gate 0 FAIL); zero conflict markers in src/include/tests; the MINOR
+  tier EMPTY (221 files in FIXED/).
+
+The honest 20+ note: the parallel-lane swarm (DFX23..DFX35) drained the
+shared queue faster than any single lane could close findings — the
+MINOR tier I was assigned went from 19 open at my bootstrap to 0 by
+session end (3 closed by this lane, the rest by the parallel lanes,
+each absorbed per first-landing-wins). This lane's discrete
+contributions: N-007 + N-072 FIXED, N-065 verified-closed, M-040
+stage-a landed, N-064 convergent-absorbed, + the five repairs that kept
+main green through the worst merge-corruption window of the project.
+
+Next steps (in priority order):
+1. M-040 stage (b): the UEFI NVRAM Boot####/BootOrder updater (EFIBoot
+   state-4 path :3860-3960, SeSystemEnvironmentPrivilege, the
+   injected-resolver NvramPatchUpdatesLoadOption test) + the win-layer
+   cr_bootfix.cpp (hive force-unload, SeRestore/SeBackup, the DASD
+   0x90083 + flush tail) + the S-029 post-apply wiring — all tracked on
+   the finding.
+2. The tracked-open queue (9 OQs — the DFX30/DFX31 lanes were working
+   it; check their landings first).
+3. A tagged release once M-040 closes (the audit's clean-close
+   condition) — SUMMARY.md's counts are current at this commit.
+---
+Task ID: RV1 (review-validate session — the collision/removal-commit review wave)
+Agent: review-and-validate session (the post-fix audit of the fix sessions)
+Task: Review the named removal commits (53b7d68, 83c796e), the union/collision
+commits, and the fix landings; validate removals; revert invalid ones; check
+for hallucinations; reopen incorrectly-fixed findings.
+
+Work Log:
+- Baseline recorded: HEAD 7ec5446 -> pulled through the parallel lanes'
+  waves to c1e3ce5 (the DFX36/DFX33b/DFX34 landings: M-030 fixed, S-034
+  fixed, N-072 fixed, M-040 stage-a landed, N-081/N-082 fixed).
+- 53b7d68 (M-052 convergence #1) reviewed: VALID intent (marker/duplicate
+  cleanup); its c33c64b-engine choice was superseded by 234bf0b's better-
+  informed 76d4878 set — no revert needed (the convergence protocol already
+  corrected it). The .bak files it committed vanished via later merges;
+  current tree .bak-free (git ls-files verified).
+- 83c796e (pwddict/D-80 revert) reviewed: VALID — it re-asserted the D-80
+  canonical reconciliation against 26e4147's re-union. Follow-on finding:
+  97382b7 (a later RED-repair) restored the pwddict module files on a
+  "both-stand is coherent" premise that no longer matched the win layer
+  (dict-only after 83c796e/c228d2d) — dead code with zero consumers.
+  ADJUDICATED: dropped again per D-80 (commit 28e9510).
+- 5f2e2ad/7ec5446 union damage (FatScanStats recycle fields + the N-079
+  scope test): independently found by this session AND repaired in-window
+  by the parallel lane (93ef82c/718ef6f) — verified restored at c1e3ce5.
+- a433c69 (dropped FatCheck tests) reviewed: PARTIALLY INVALID — the
+  "canonical covers the same behaviors" claim was false for two behaviors:
+  the entry-hole half of 0x1006 (pin lost) and the FAT dir-walk
+  cross-link 0x1002 (pin lost AND the gate itself missing from the
+  canonical module). Corpus re-verified first-hand (FUN_1800027a0
+  :1117-1230, the +0x60 shadow-registry re-entry at :1156-1173).
+  FIXED: the gate implemented in fat_chain + FsCheck.FatCrossLinked
+  ChainReported (fail-before EXECUTED RED on the reverted tree) +
+  FsCheck.FatEntryHoleReported (commit 0a9f2aa).
+- Junk files removed: 'name' (grep dump, b1f9210) and
+  cr_ui_abi_check.img.dest2/ (test artifact, ca0a19e).
+- Suite after repairs: 870/870 + 4 skipped linux-release; cr_ui_tests
+  35/35; both commits pushed (297661c).
+
+Stage Summary:
+- Two review repairs landed: M-041 addendum (the FAT 0x1002 gate) and
+  N-064/D-80 enforcement (dead pwddict module dropped). Removal commits
+  adjudicated: 53b7d68 valid-superseded, 83c796e valid, 97382b7's module
+  restore invalid (reverted), a433c69 partially invalid (coverage gap
+  closed). Remaining on this session: PARITY-DELTAS triplication dedupe
+  (273 D-rows -> 83 distinct, 14 divergent to reconcile), CAPABILITY-
+  MATRIX stacked S-014 paragraphs (4x), the full hallucination sweep
+  over FIXED findings' claimed tests, the docs overhaul (README/api/
+  formats/parameters/connection guides), CI verify.
+
+---
+Task ID: DFX37-T1 (S-034 lane — converged)
+Agent: main engineer (DFX37)
+Task: S-034 (SEVERE): the ZFS ring txg-history walk.
+
+Work Log:
+- Decode (first-hand, corpus 03ad46c): FUN_180006b90 :5685-5841 (ring
+  slot loop, stride 0x400, txg@slot+0x10); FUN_180003150 :1967-2259
+  (addBlock: registry lookup miss = no-op, record match rec->txg==txg,
+  tree-open FUN_180016c50, "from_txg: 0, birth_txg" log); FUN_180017310
+  :20085+ (the per-txg registry with the consecutive-txg memo at
+  +0x40/+0x48); FUN_18001ac60 :23337-23470 (the state descent); the
+  load-bearing gate FUN_18001d9a0 :26218-26222 `(from_txg < birth) ||
+  from_txg == 0` (unbounded at top level); the visitor FUN_180006b40
+  :5280-5291 = bare push_back (NO engine-side cross-txg dedup);
+  ZplNodeFile ctor FUN_180012450 :16100+ (no registration path).
+  All three fix-plan decode items answered.
+- Implementation (mine, d15e95f): every-valid-uberblock collection with
+  distinct-txg dedup; newest-walkable-state live walk; older states ->
+  root_deleted with (dataset, object-id) newest-wins dedup; shadow
+  containers pruned via a new ResultTree::remove_subtree; 5 tests
+  (fail-before RED 4/4 executed on the stash-neutered tree); standalone
+  ASan+UBSan fuzz smoke (16 structured seeds, gen_zfs_fuzz_seeds.py).
+- CONVERGENCE: the parallel DFX34 lane landed their independent S-034
+  (cb046ed) + their own N-072 union repair (6e7e535) BEFORE my push.
+  Reconciled per first-landing-wins: their engine (deleted-in-place +
+  prior-version recall, StateWalk driver), their tests (incl. the
+  modified-file recall mine lacked); my duplicate remove_subtree dropped
+  (unused by the canonical design); the fuzz-seed generator survives
+  (landed earlier via the ASan repair push). Union commit: 5f3b2fe.
+- Also this window: two ASan pushed-reds repaired (621bcfe, convergent
+  with the lane's N-081/N-082); the cr_ui.h M-029/M-041 union markers
+  repaired (40fc440, convergent with 32f82f3/58557d3); the session-36
+  name collision renumbered to session-37.
+
+Stage Summary:
+- S-034 closed FIXED on main (canonical cb046ed + union 5f3b2fe).
+- Suites on the union tree: 870/870 linux-release.
+Task ID: DFX37-T0 (session 37 bootstrap — the third-merge-storm repair + lane claim)
+
+Task: Repair the pushed-red main (875ed25: 61/865 + win_syntax_check RED),
+absorb three parallel waves, true the counts, claim the session lane.
+
+Work Log:
+- Audited commit at start: 875ed25 (merge union); corpus 03ad46c unmoved.
+- Repair 1 (convergent w/ parallel N-081): the M-018 filterfolder pools
+  had NO NUL terminator while split_into read C strings - ASan
+  global-buffer-overflow, 60 test failures. Generator-level fix
+  (scripts/gen_filterfolder.py emits trailing 0x00) + regeneration from
+  the corpus FilterFolder.ini (byte-identical otherwise) + test-side
+  termination pins in FilterFolder.CorpusListsPinned.
+- Repair 2 (convergent w/ parallel N-082): the M-052 exFAT $I fixture
+  copied 15 UTF-16 units from the 12-char u"C:\\photo.jpg" literal -
+  2-element overread. Bounds-safe copy (their N-082 std::u16string form
+  adopted at the final merge).
+- Repair 3: cr_bitlocker.h N-064 comment garbled by the union merge
+  (orphaned duplicate comment lines parsed as code) - merged the D-80
+  CONVERGENCE paragraph into one coherent comment.
+- Repair 4: rrecov.cpp union damage - duplicated open_volume_view
+  signature, duplicated Unknown-state guard, orphaned wprintf fragment,
+  duplicate wprintf arg, TRIPLED call at cmd_scan, print_carve_formats
+  DELETED with call sites alive. Restored from the repaired parent
+  cfa4c75; the merge's genuine M-018 junk-filter gates kept.
+- Repair 5: the withdrawn cr::pwddict re-added by the union - resolved
+  to the parallel lane's both-stand convergence (their tested union on
+  origin/main; files restored, CMake deduped, FatScanStats recycle
+  fields restored from 234bf0b).
+- Three parallel-wave absorptions (M-041/M-048/N-007/N-065/N-066/M-052
+  collision repairs; M-030/M-039/N-081/N-082; the M-041 marker cleanup),
+  suite green after each: 894/894 -> 898/898 -> 902/902 -> 902/902 at
+  the lane-claim tree c1e3ce5 (pushed).
+- Counts trued in SUMMARY session-37 delta: FIXED 219, SEVERE 1 (S-034),
+  MAJOR 1 (M-040), MINOR 1 (N-072), tracked-open 2.
+- Lane claimed (posted before work, DFX35-T4 protocol): S-034, M-040,
+  N-072, OQ-S4-3, OQ-Z-E-FLT/OQ-FLT-2. Prompt saved token-redacted at
+  worklog/session-diff-fix-37-prompt.md.
+
+Stage Summary:
+- Main green at c1e3ce5 (902/902 linux-gcc ASan incl. win_syntax_check).
+- The S-034 decode begins next: corpus ZfsSearchDLL FUN_180003150/
+  FUN_18001ac60 first-hand read to answer the three open decode items
+  (cross-txg emission/dedup, MOS snapshot re-emit, last_txg role)
+  before any core change.
+
+---
+Task ID: DFX37-T1 (session 37 — S-034 FIXED: the ZFS ring txg-history walk)
+
+Task: Fix SEVERE S-034 — the og walks every uberblock in the label ring
+(per-txg state recovery); the core read the newest txg only.
+
+Work Log:
+- Corpus decode BEFORE implementation (the finding's three open items):
+  (1a) re-read FUN_180003150 addBlock in full (:1967-2259): registry
+  lookup, ring re-read, record-txg match at +0x10, tree-open, the
+  "from_txg: 0, birth_txg: <txg>" success log + FUN_18001ac60(uberData,
+  0, cb) descent. Emission: FUN_180012450 (ZplNodeFile ctor) is a PLAIN
+  refcounted constructor - no registration map, no dedup; the visitor
+  lambda (lambda_3cb9c924, capturing the controller) bulk-collects. A
+  file present in N states emits N ZplNodes.
+  (1b) the descent recurses the per-state dataset tree with the same
+  from_txg=0 - each state's own snapshot hierarchy is walked inherently;
+  no separate MOS-snapshot-list step exists in the quick searcher.
+  (1c) last_txg: grep = ONE occurrence in the entire binary (the
+  progress-string append ":5703) - display-only, bounds nothing.
+- Fixture first (fail-before discipline): build_ring_pool() - a second
+  complete pool state at txg 76 (MOS2/MOS_DNODES2/ZPL2/ZPL_DNODES2/
+  ROOTDIR_ZAP2 + GONE.TXT object 30), sharing every unchanged block with
+  the live state; uberblock slot 1 stamped txg 76 in all 4 labels.
+  Fail-before EXECUTED: RingWindowDeletedFileSurfaces RED
+  (ring_states_walked 0, tank/GONE.TXT absent).
+- Engine fix (cr_zfs_engine.cpp): the probe collects every valid ring
+  uberblock into a txg-keyed map; the walk factored into walk_state(ub,
+  live); newest state walks live (previous behavior preserved), older
+  states walk newest->oldest into the deleted tree with cross-state
+  identity dedup (head object + object id + logical birth txg @
+  blkptr+80; BP_BIRTH=72 renamed BP_PHYS_BIRTH, BP_LOGICAL_BIRTH=80
+  added - the old constant was unused). Deleted-tree dataset/dir nodes
+  cached by name/(head,obj); live dirs are unmarked containers; files
+  mark DeletedState::Deleted. New stats ring_states_walked +
+  ring_deleted_recovered (append-only). root_deleted=nullptr skips old
+  walks (legacy call shape supported, pinned by test).
+- Fixture lesson (recorded in the Resolution): the first cut placed
+  B_ROOTDIR_ZAP2 (0xB8000) INSIDE the 16K B_ZPL_DNODES2 footprint
+  (0xB6000+0x4000) - the array copy clobbered the ZAP and the walk died
+  at the first read_zap; placement moved past the array end (0xBA000+).
+- Suite 905/905 linux-gcc (ASan) incl. win_syntax_check; all 18
+  pre-existing ZFS tests green.
+
+AUDIT TRAIL: findings/FIXED/S-034 (Resolution: decode answers, the
+registered emission-dedup divergence, the fixture lesson);
+CROSS-REF-MATRIX zfs B/D cells -> MATCH; modules/zfs.md session-37 row +
+B1 detection updated; PARITY-DELTAS D-05 verdict -> closed-with-one-
+registered-divergence (3 unioned instances updated); CAPABILITY-MATRIX
+ZFS row; engine header deleted-file story rewritten; SUMMARY session-37
+part 2.
+
+Stage Summary:
+- SEVERE tier EMPTY. Counts: FIXED 220, MAJOR 1 (M-040), MINOR 1
+  (N-072), tracked-open 2. Next: M-040 (the boot-chain family
+  disposition + the BCD offset rewriter stage), then N-072, then the
+  OQs.
+
+
+Task ID: DFX36-T2 (S-034)
+Agent: main engineer (diff-to-fix fix session 36 — DFX36)
+Task: S-034 — the ZFS ring-txg history walk (the last SEVERE)
+
+Work Log:
+- Corpus decode FIRST (all three fix-plan items): (a) the visitor
+  lambda's _Do_call found by binary vtable walk (RVA 0x309b8,
+  MSVC _Func_impl_no_alloc slot layout _Copy/_Move/_Do_call/
+  _Target_type/_Delete at 0/8/0x10/0x18/0x20) = FUN_18000dd40 ->
+  collector FUN_180005940: registry at collector+0x110 keyed by the
+  FULL PATH (FUN_18001afb0 = recursive parent-chain + name), per-path
+  object-id sets (vtable+0x60 identity), files drop on id-hit, folders
+  string-compare (vtable+0x68) and re-emit on change, emission assigns
+  serial=++counter; (b) per-txg tree-open FUN_180016c50 copies the ring
+  record's ub_rootbp (rec+0x28..0xa8) — no separate MOS snapshot-list
+  emission; (c) last_txg = the constant string "0" in the log
+  (local_84 = 0x30, never updated) — cosmetic.
+- Engine: every valid uberblock collected (labels in order, storage
+  order per ring, geometry probe + BE refusal unchanged), deduped by
+  TXG (the syncer mirrors each uberblock to all 4 labels — distinct-
+  txg-once == the og's L0 walk on intact pools; torn L0 slots recover
+  through L1-3). Per-state walk through the existing MOS->dataset->ZPL
+  path; (path, object-id) first-wins registry WITH node reuse (later
+  states attach new ids to existing parents — the og's descent
+  continues through already-emitted subtrees; the registry drop never
+  stops the walk). Dataset identity = dsl_dir obj; new stats
+  ring_states_walked/ring_dedup_skips; stats.txg = newest (pins kept).
+- Fixture bug found during test development: the state-2 blocks
+  initially overlapped the copied dnode array's 16K fletcher4 window
+  (B_ZPL2 at 0xB4000 inside B_ZPL_DNODES2 0xB2000..0xB6000) — a
+  self-referential checksum invalidation; blocks spread to
+  0xB8000/0xBA000/0xBC000.
+- Tests: stamp_second_state() (state txg+1: root dir without hello.txt,
+  or with hello.txt -> NEW id 30) + 3 tests. Fail-before EXECUTED on
+  the stashed pre-fix engine: RingHistorySurfacesDeletedInWindowFile
+  RED ("deleted-in-window file lost", 0 vs 1),
+  RingHistoryDeleteAndRecreateEmitsBothIds RED (1 vs 2),
+  RingHistoryUnchangedFileEmitsOnce green-by-design (the pre-fix
+  single-state walk trivially has no duplicates).
+- Verified: suite 905/905 linux-release; ZFS 19/19 linux-gcc (ASan) +
+  linux-ubsan.
+- Audit trail: finding -> FIXED/ with the full Resolution (decode
+  items (a)/(b)/(c) + the two deliberate deltas registered); matrix
+  zfs B/D cells -> MATCH; modules/zfs.md session-36 verdict; D-05
+  REFUTED -> FIXED (primary + archive pointer); SUMMARY session-36
+  delta; RESOLVED-INDEX row.
+
+Stage Summary:
+- S-034 FIXED. SEVERE count now 0. Remaining: M-040 (MAJOR, boot-chain
+  family), N-072 (MINOR, btrfs cache + zfs label polling), OQ-S4-3
+  (Windows-lane), OQ-FLT-2.
+
+---
+Task ID: DFX36-T3 (S-034 convergence — this lane reconciled to the canonical origin landing)
+Agent: main engineer (diff-to-fix fix session 36 — DFX36)
+Task: Reconcile this lane's independent S-034 landing with the parallel
+DFX33b/DFX37 lineage (first-landing-wins: theirs hit origin first)
+
+Work Log:
+- Their engine stands canonical: newest-first state walk, (dataset,
+  parent, name, obj, birth) identity with newest-claims-live +
+  unclaimed-recalled-as-Deleted, find-or-create datasets, torn-state
+  fallback, ZfsScanStats::ring_states. This lane's convergent
+  implementation (storage-order first-wins (path,id) registry with
+  node reuse) DROPPED cleanly — the membership parity demand is met by
+  both; theirs additionally surfaces the og-absent Deleted marker as a
+  registered improvement.
+- DECODE CORRECTION appended to the canonical finding Resolution (the
+  audit trail must be truthful): their note read the collector as
+  FUN_180006b40 "plain push_back, NO engine-side dedup" (the OQ-Z5
+  census reading). The binary vtable walk proves otherwise: the
+  _Func_impl_no_alloc<lambda_3cb9c924…>::vftable sits at RVA 0x309b8
+  (slots _Copy=0x18000dbc0 @+0x00, _Move=0x18000dbc0 @+0x08,
+  _Do_call=0x18000dd40 @+0x10, _Target_type=0x18000dbb0 @+0x18
+  returning THIS lambda's RTTI, _Delete=0x18000db90 @+0x20 —
+  binary-verified in og-codebase/ZfsSearchDLL.dll), and FUN_18000dd40
+  delegates every node to FUN_180005940: a registry at collector+0x110
+  keyed by the node's FULL PATH (FUN_18001afb0 = the recursive
+  parent-chain concatenation) holding per-path object-id sets
+  (identity at vtable+0x60) — files DROP on id-hit (one emission per
+  file across the ring walk), folders compare a stored display string
+  (vtable+0x68) and re-emit on change, emission assigns serial
+  ++counter; delete+recreate (a new id under the same path) emits
+  BOTH. FUN_180006b40 (reads this+0xa0 — outside the 0x18-byte
+  _Func_impl object) is the OTHER lambda's collector (the quick-search
+  entry's final single-value collect, OQ-Z5's own context).
+  Consequence: the og DOES dedup engine-side, by (path, id)
+  first-wins in storage order; the canonical implementation's
+  newest-first + Deleted-recall is a REGISTERED IMPROVEMENT over that
+  (newest metadata for live content, explicit Deleted marking,
+  prior-version recall) — the deltas re-registered on the finding, no
+  code change required (the membership semantics coincide).
+- Also verified this session, in-source: the parallel lanes' M-030
+  (win_pe_environment, IOCTL_VOLUME_OFFLINE terminal + restore chain,
+  ENUMERATE_DISK_BOUND=200, cr_ui_last_transport_error), M-039
+  (occupancy gate), M-040 stage (a) (cr/bcdfix plan/execute/undo under
+  the consent gate), N-072 (the btrfs cache codec + the zfs label
+  retry) — all present with their proof tests.
+- This lane's session-5b-era union regression repaired early in the
+  session (93ef82c: FatScanStats recycle fields + the N-079 test
+  restored from 234bf0b).
+
+Stage Summary:
+- S-034 converged (their code, my decode correction on the record).
+  Board after the union: MAJOR 1 open (M-040 stages (b) + win layer),
+  tracked-open 2 (OQ-S4-3 Windows-lane, OQ-FLT-2). SEVERE 0, MINOR 0.

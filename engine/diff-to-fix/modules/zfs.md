@@ -16,8 +16,7 @@ largest single-engine file) + `include/cr/zfs/` + `tests/unit/test_zfs_volume.cp
   label-0 ring slot and walks each txg's tree; the old newest-only verdict was a
   refuted premise); vdev label probing (4 labels, front/back); core adds
   shift-probing 10..13 (4 Kn pools) + all-four-labels ring collection — superset,
-  register; BE-pool refusal (`ERR_UNSUPPORTED`) — documented deliberate hardening.
-- **B2 recovery correctness** — `M` nvlist XDR+native decode, micro/fat ZAP, gang blocks
+  register; BE-pool refusal (`ERR_UNSUPPORTED`) — documented deliberate hardening.- **B2 recovery correctness** — `M` nvlist XDR+native decode, micro/fat ZAP, gang blocks
   (3-blkptr headers), BPE (embedded block pointers), per-object compression registry
   (LZJB/LZ4/zle/gzip → codec-tagged extents; lzjb/zle hardened ports in storage module);
   **OQ-T6** multi-vdev (refused, single-disk resolvable only — og extent unknown).
@@ -184,7 +183,6 @@ multivdev-fallback/checksum side.)
 | N-056 | MINOR | Delay-execution label/uberblock import polling missing (og retries with backoff during long walks; core probes once — torn pools fail immediately) |
 | INFO-register | — | Core decompresses lzjb/zle/gzip/lz4/zstd (cr_zfs_engine.cpp:19-21); the og models per-object compression (std::map<int64,zio_compress>, remaining-engines:80). No divergence claimable in either direction (both read compressed pools); recorded for the decode-evidence ledger |
 
-<<<<<<< HEAD
 
 ---
 
@@ -193,10 +191,16 @@ multivdev-fallback/checksum side.)
 | ID | Severity | One-line |
 |---|---|---|
 | S-034 | SEVERE → **FIXED** | Ring txg-history walk: every valid uberblock state walked newest-first, cross-state identity dedup (dataset, parent, name, objid, bp0 birth); deleted-in-window files surface as Deleted in place; modified-in-window recalls the prior version as a Deleted sibling; torn states skipped like the og's tree-open failure. Decode items (1)(2)(3) answered first-hand (collector = plain push_back, no engine dedup; per-state tree walk is the state's own content; last_txg display-only). Tests: RingWindowDeletedFileRecalled / RingWindowUnchangedEntriesEmitOnce / RingWindowModifiedFilePriorVersionRecalled / RingTornNewestStateFallsBackToOlder (all fail-before RED). `ring_states` telemetry added |
-=======
+
 ## Session-34 fix leg (DFX34) — N-072 (the label-retry half)
 
 | Parameter | Verdict |
 |---|---|
 | A25/S35 label import + recovery | **MATCH** — the og's delay-execution import polling (remaining-engines artifact :86) landed as the bounded label retry: the sweep re-runnable, live handles retry 3x with 250/500/1000 ms cancel-aware backoff, static media (image files — the new `is_static_media()` device discriminator, forwarded through every wrapper) never retries; `label_retries` on ZfsScanStats; the BE-pool refusal propagates unchanged |
->>>>>>> origin/main
+
+
+## Session-37 row (DFX37 — the convergent S-034 landing; the DFX33b engine stands)
+
+| ID | Severity | One-line |
+|---|---|---|
+| S-034 | SEVERE → **FIXED** | CONVERGENT second fix the same window (the DFX33b landing above is canonical per first-landing-wins): same corpus decode executed independently (ring iteration FUN_180006b90 :5685-5841, addBlock chain, FUN_180012450 plain ctor = no engine dedup, last_txg display-only :5703); the DFX37 variant (deleted-tree parallel emission, identity = head+objid+logical birth @blkptr+80) superseded — its Resolution preserved in findings/FIXED/S-034 as the convergent record, including the fixture block-placement lesson (a second state's 16K dnode-array footprint spans +0x4000; the root ZAP must sit past its end). |

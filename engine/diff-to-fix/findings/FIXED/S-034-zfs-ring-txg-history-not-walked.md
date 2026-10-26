@@ -198,3 +198,66 @@ the CFileSystemNode add path in FUN_180006110/FUN_180004f00's tail), and
 the og (it only changes which state's version claims a contested identity).
 Corpus sites: ZfsSearchDLL_decompiled.c :3640-3760 (f00 tail), :4553-4610
 (the result-id/parent linkage), the FUN_1800069b1 add block.**
+### Convergent landing record (DFX37 — the same finding fixed in the same window; the DFX33b engine stands)
+
+A second, independent S-034 fix (DFX37) landed in the same window and is preserved here as the convergent record: the same corpus decode was executed independently (FUN_180006b90 :5685-5841 ring iteration; addBlock FUN_180003150's registry/record-match/tree-open/from_txg=0 chain re-read verbatim; FUN_180012450 confirmed a plain refcounted ctor — no engine dedup; `last_txg` display-only — its sole binary occurrence is the progress string at :5703). The DFX37 engine variant (superseded by the DFX33b landing above on first-landing-wins): txg-keyed ring collection in the geometry probe, `walk_state(ub, live)` factoring, a deleted-tree parallel emission (shadow dataset/dir nodes cached by name/(head,obj), live dirs as unmarked containers) with identity dedup on (head object, object id, the dnode's first block pointer's LOGICAL birth txg at blkptr+80), stats `ring_states_walked`/`ring_deleted_recovered`, root_deleted=nullptr skipping the old-state walks. Its proof set (removed with the variant, the DFX33b tests being the superset): `Zfs.RingWindowDeletedFileSurfaces` (fail-before RED EXECUTED on the pre-fix tree), `Zfs.RingUnchangedObjectEmittedOnce`, `Zfs.RingWalkSkippedWithoutDeletedRoot`; suite 905/905 at the variant's tree. The variant's fixture lesson recorded for future fixture authors: a second state's 16K dnode-array footprint spans +0x4000 — placing the state's root ZAP inside that range gets it clobbered by the array copy (the first cut's B_ROOTDIR_ZAP2 0xB8000 sat inside B_ZPL_DNODES2 0xB6000+0x4000 and the walk died at the first read_zap).
+
+---
+
+Two lanes implemented S-034 independently in the same window; the
+canonical landing above hit origin first and stands. This lane's
+independent decode converged on every fix-plan item EXCEPT one
+load-bearing detail in the Resolution's item (1), which the binary
+record corrects:
+
+**The og DOES dedup engine-side.** The Resolution above read the
+collector as FUN_180006b40 — "a plain push_back into the caller's
+vector with NO engine-side dedup". The vtable record proves otherwise:
+the `_Func_impl_no_alloc<lambda_3cb9c92493e028cf5c8b2967fd6ee510, bool,
+shared_ptr<ZplNode>>::vftable` sits at RVA **0x309b8** in
+og-codebase/ZfsSearchDLL.dll, with the MSVC `_Func_base` slot layout
+binary-verified: `_Copy` = 0x18000dbc0 at +0x00 (its body copies the
+vtable + both captures — it serves the +0x08 `_Move` slot too), and
+`_Target_type` = 0x18000dbb0 at +0x18 (returns THIS lambda's RTTI type
+descriptor — the vtable's ownership anchor), which pins `_Do_call` at
+slot +0x10 = **FUN_18000dd40** (the ref at RVA 0x309c8).
+FUN_18000dd40 moves the node shared_ptr and delegates to
+**FUN_180005940** (decompile :4208+): the collector maintains a
+registry at collector+0x110 keyed by the node's FULL PATH
+(FUN_18001afb0 = the recursive parent-chain concatenation — parent
+path first, then a separator, then this node's name), holding
+per-path object-id sets (the identity read at vtable+0x60). A FILE
+whose id is already registered under its path is DROPPED (one
+emission per file across the whole ring walk — first storage-order
+state wins); a FOLDER with the same id compares its stored display
+string (vtable+0x68) and re-emits on change (no recovery-content
+effect — the path already carries the name); emission assigns serial
+= ++counter (collector+0xf0) and registers the id — so
+delete+recreate in-window (a NEW id under the same path) emits BOTH.
+FUN_180006b40 (reads `this+0xa0`, far outside the 0x18-byte
+_Func_impl object) is a DIFFERENT lambda's collector — the
+quick-search ENTRY's final single-value collect (OQ-Z5's own census
+context), not the per-node visitor.
+
+Also from this lane's decode, recorded for completeness: the
+collector polls the device before each node (the `Sleep(1000)`
+until-ready loop, abort on state 3/0 — the N-072 "delay-execution
+import polling" evidence at the collector level), and last_txg is
+the CONSTANT string "0" in the progress log (local_84 = 0x30 '0',
+never updated — display-only, matching the canonical Resolution's
+conclusion via a different evidence path).
+
+**Consequence for the canonical implementation:** none required — the
+membership semantics coincide (a file present in N states emits once;
+deleted-in-window files surface; delete+recreate emits both ids). The
+canonical newest-first ordering + newest-claims-live + unclaimed-
+recalled-as-Deleted is a REGISTERED IMPROVEMENT over the og's
+storage-order first-wins flat records (newest metadata for live
+content; explicit Deleted marking the og's flat records do not
+carry; prior-version recall for modified-in-window entries where the
+og emits only the first-seen state's copy). This lane's convergent
+implementation (storage-order (path, id) first-wins with node reuse,
+`Zfs.RingHistory*` tests, fail-before RED "deleted-in-window file
+lost") was dropped cleanly per first-landing-wins; its decode
+evidence lives in this addendum and in the worklog's DFX36-T2/T3
+entries.
