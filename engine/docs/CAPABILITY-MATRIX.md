@@ -69,6 +69,15 @@ live since M-033 — a user-supplied FVEK, the og's GetFullVolumeEncryptionKey
 output shape, flows through `DecryptingDevice`, the in-stack XTS-AES layer
 matching the og's volume-IO placement: `--bitlocker-fvek` CLI /
 `cr_ui_open_volume_with_key` ABI; detection + legitimate unlock remain the
+<<<<<<< HEAD
+=======
+S-014 posture: live-registry + offline-hive auto-unlock, the N-064
+password-dictionary unlock aid (cr::dict + --bitlocker-dict /
+cr_ui_unlock_volume_with_dictionary — user-consented only, 228-entry
+shipped dictionary + user candidates through the manage-bde/PowerShell
+plumbing), and locked volumes WITHOUT user key material or the explicit
+dictionary consent stay refused — ERR_FVE_LOCKED, no bypass); signing
+>>>>>>> 273dde4fdab4fe324d02a42b1ad5810ce73ec863
 S-014 posture: live-registry + offline-hive auto-unlock; the N-064
 password-dictionary aid (`cr/pwddict` + `bitlocker::try_password_unlock`
 + CLI `--bitlocker-pwddict <path|seed>`) is the og's Dict unlock flow
@@ -78,12 +87,15 @@ copied; the loader is format-compatible so any dictionary in the og's
 format works, including the og's own file); and locked volumes WITHOUT
 user consent or key material stay refused — ERR_FVE_LOCKED, no bypass);
 signing
+<<<<<<< HEAD
 S-014 posture: live-registry + offline-hive auto-unlock, the N-064
 password-dictionary unlock aid (cr::dict + --bitlocker-dict /
 cr_ui_unlock_volume_with_dictionary — user-consented only, 228-entry
 shipped dictionary + user candidates through the manage-bde/PowerShell
 plumbing), and locked volumes WITHOUT user key material or the explicit
 dictionary consent stay refused — ERR_FVE_LOCKED, no bypass); signing
+=======
+>>>>>>> 273dde4fdab4fe324d02a42b1ad5810ce73ec863
 (OSSign disabled); `.rsf` import (G-11, tracked disposition).
 
 ## 4. Open gap register (code-verified)

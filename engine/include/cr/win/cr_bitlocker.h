@@ -56,6 +56,7 @@ u32 try_auto_unlock(wchar_t letter);
  * the hive unlocked the volume, ERR_FVE_LOCKED otherwise. */
 u32 try_auto_unlock_offline(wchar_t letter, const wchar_t* hive_path);
 
+<<<<<<< HEAD
 /* N-064 (the og's Dict unlock aid): the USER-CONSENTED password-dictionary
  * path - the og's BitlockerUnlockDialog -> BitlockerUnlockThread flow
  * (UIUX 15-scenario-flows:33) fed by the shipped Dict file
@@ -72,6 +73,8 @@ u32 try_auto_unlock_offline(wchar_t letter, const wchar_t* hive_path);
  * scan). Returns OK or ERR_FVE_LOCKED. */
 u32 try_password_unlock(wchar_t letter, const std::vector<std::string>& candidates);
 
+=======
+>>>>>>> 273dde4fdab4fe324d02a42b1ad5810ce73ec863
 /* N-064 (diff-to-fix): the password-dictionary unlock aid - the og's Dict
  * flow (228-entry shipped dictionary, config-data-reference.md :20; tried
 
@@ -96,6 +99,13 @@ u32 try_password_unlock(wchar_t letter, const std::vector<std::string>& candidat
 u32 unlock_with_dictionary(wchar_t letter, const wchar_t* const* user_passwords,
 
                            size_t user_count);
+<<<<<<< HEAD
+=======
+
+/* Narrow-candidate overload (the CLI path; UTF-8/ASCII candidates from a
+ * loaded dictionary file ride the same consent loop). */
+u32 unlock_with_dictionary(wchar_t letter, const std::vector<std::string>& user_candidates);
+>>>>>>> 273dde4fdab4fe324d02a42b1ad5810ce73ec863
 
 #ifdef _WIN32
 namespace detail {

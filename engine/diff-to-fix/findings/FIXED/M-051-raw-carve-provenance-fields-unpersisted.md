@@ -104,3 +104,20 @@ the fix leg should carry it as opaque and document it as UNDECODED rather than g
 **Fixed in commit:** (this session's commit — `git log` "fix(M-051)")
 **Verified by:** `CarveEngine.ProvenanceChecksumAndAnchorsPersist` (record rows carry a REAL CRC32 — recomputed-and-compared against the extent's first 512 bytes at test time; the S-032 inner-entry presentation children keep the honest 0xFFFFFFFF marker — nothing analyzed them separately, the og's census counts one record per archive; the session round-trip preserves the population), `CarveEngine.TailAnchorCarriedOnTailPairedHits` (the S-015 sqlite tail-pair fixture: anchor B = the tail sign's EXACT position — stride base + the sign's intra-stride offset; header-only shapes keep 0, the og's 261/12,147 census). Fail-before proven 2/2 with the population sites neutralized.
 **Resolution notes:** Corpus re-verified first-hand: ifileproperties-part3 :77-90 (the CRAWFileProperties field table — checksum +0x56 with the 0xFFFFFFFF invalid marker and the 12,030/12,147 nonzero census, note +0x5A "usually empty", anchor A +0x8C, anchor B +0x94, boolean +0xF4). Fix per the plan's field set: (1) `FileProperties` gains `carve_checksum` (u32, default 0xFFFFFFFF — the invalid marker is the honest default for non-carved nodes), `carve_note` (u16string carrier, empty), `carve_anchor_b` (u64, 0 = none), `carve_flag` (bool carrier) — anchor A IS the extent start (no duplicate carrier); the timestamp field is `times.modified` (landed with S-031's residual); `clone()` copies all four; (2) population at BOTH emit sites: the checksum is CRC32 (the shared table::crc32) over the extent's first 512 bytes when readable — a re-verification value the og's checksum family supports (support/forensics re-check without re-scanning); anchor B is populated ONLY on the raw-sign tail-paired path at the exact tail-sign position; the note stays empty (the og's census: "usually empty; analyser note family" — no analyser emits notes in the current roster, so inventing one would be hallucination); the flag stays false with the og's semantics UNDECODED (OQ-S6-3 tracks the CRAW reader's consumption of +0xF4 — carried and round-tripped, never invented); (3) session record 4 (nflags bit4, append-only after the hash block): checksum u32 + note string + anchor B u64 + flag u8; old readers skip the block, old sessions read back with the honest defaults. The S-023 interaction noted in the finding (the grading path reading the checksum) is future surface: the grading engine reads tree state, and the checksum is now part of it.
+
+### Addendum (session 25, DFX25 — OQ-S6-3 decoded; the flag semantics recorded)
+
+OQ-S6-3's decode (evidence: `../../evidence/decompiled-quotes/s25-oq-s6-3-craw-reader-decode.md`)
+closed the "og semantics undecoded" register on `carve_flag`: the og's +0xF4
+is a **per-analyser-type marker** (set iff the analyser type id == 0xA8/168 —
+the same id space as the persisted +0xF8 type registry; produced in
+FUN_140c41450 `if (iVar5 == 0xa8) *(u32*)(+0xf4) = 1`), loaded opaquely by
+the reader FUN_140c40d80, and never consumed after load (the getter
+FUN_140c41780 has zero callers and no vtable slot). The +0x56 checksum is
+informational-only at load (no reader validation — a core-side load-time
+validator verdict would be invented behavior, none added) and the +0x94
+anchor B is write-only provenance (the dual-anchor getter FUN_140c41430 is
+dead) — both confirming this fix's landed design. The carrier comment in
+include/cr/tree/cr_node.h now carries the decoded semantics. No behavioral
+change; the flag stays a round-tripped carrier (the core has no
+og-analyser-type-id space — inventing a producer would be hallucination).
