@@ -1,0 +1,147 @@
+name: release
+
+# T13 (docs/INTEGRATION-PLAN.md §8.3/§7): a version tag triggers the FULL
+# product build (build.ps1 all lanes: driver → engine → ui+tauri → NSIS
+# installer → portable zip → checksums), runs the whole validation stack,
+# and uploads every artifact with SHA256SUMS + truthful release notes
+# (signing pending: the driver ships unsigned BY DESIGN — the notes state
+# the test-signing path; the engine kit and installer are unsigned until a
+# certificate is provisioned; docs/RELEASE.md carries the procedure).
+#
+# Reproducibility: same tag → same artifacts (byte-identical modulo
+# timestamps); the version source of truth is the root VERSION file and the
+# tag MUST match it (the workflow refuses otherwise).
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write # release upload
+
+jobs:
+  full-product:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version gate — tag must equal the VERSION file
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = (Get-Content VERSION -Raw).Trim()
+          if ($tag -ne "v$version") {
+            Write-Error "tag $tag != VERSION v$version - the version source of truth is the VERSION file"
+            exit 1
+          }
+          Write-Host "version gate: $tag == v$version"
+
+      - name: Contracts gate (boundary truth)
+        run: node contracts/validate.mjs
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.15.0
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Setup NuGet
+        uses: nuget/setup-nuget@v2
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Full product build (all lanes + installer + portable + checksums)
+        shell: pwsh
+        run: |
+          $env:CR_UI_LIB_DIR = ""   # build.ps1 stages the kit and sets this itself
+          ./build.ps1 -Target all
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Verify every expected artifact exists
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          $expected = @(
+            "build\out\RecoveryWizard-$version-setup.exe",
+            "build\out\RecoveryWizard-$version-portable.zip",
+            "build\out\SHA256SUMS"
+          )
+          foreach ($p in $expected) {
+            if (-not (Test-Path $p)) { Write-Error "missing artifact: $p"; exit 1 }
+          }
+          Write-Host "artifacts present:"
+          Get-ChildItem build\out | Select-Object Name, Length | Format-Table | Out-String | Write-Host
+
+      - name: Compose truthful release notes
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          $sums = Get-Content build\out\SHA256SUMS -Raw
+          @"
+          # Recovery Wizard $version
+
+          Combined installer for the recovery product: application (Tauri shell),
+          native recovery engine (cr_ui), and the optional RDA raw-disk kernel
+          driver — one product, one install, standard locations
+          (Program Files / ProgramData / System32\drivers; docs/ARCHITECTURE.md).
+
+          ## Signing status (truthful)
+
+          **Nothing is signed in this release.** The kernel driver ships unsigned
+          by design; stock Secure-Boot Windows 10/11 will not load it. Either:
+
+          - enable test signing (`bcdedit /set testsigning on`), or
+          - install a signed driver when one is provisioned (the installer
+            accepts a signed drop-in later without reinstalling the app).
+
+          The application and engine binaries are unsigned until a code-signing
+          certificate is provisioned; SmartScreen may warn on first run.
+          Signing is pending — this is recorded, not hidden.
+
+          ## Driver install is a surfaced step
+
+          The installer shows the driver step with the full explanation and a
+          checkbox (default on). Without the driver, the app runs in degraded
+          mode (direct-handle transport) — the About/Settings page reports the
+          truthful driver status at any time.
+
+          ## Artifacts
+
+          - ``RecoveryWizard-$version-setup.exe`` — the combined NSIS installer
+            (driver + engine + app; per-machine and per-user modes; uninstall
+            removes everything, sessions kept by default with explicit consent).
+          - ``RecoveryWizard-$version-portable.zip`` — app + engine, NO driver
+            installed (staged only). Run as administrator for raw-disk access.
+
+          ## Checksums
+
+          ``````
+          $sums
+          ``````
+          "@ | Set-Content -Path release-notes.md -Encoding UTF8
+
+      - name: Upload artifacts to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: release-notes.md
+          files: |
+            build/out/RecoveryWizard-*-setup.exe
+            build/out/RecoveryWizard-*-portable.zip
+            build/out/SHA256SUMS
+          fail_on_unmatched_files: true
+
+      - name: Upload build log artifacts (evidence)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-build-evidence
+          path: build/out/
+          retention-days: 14
