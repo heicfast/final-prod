@@ -1,5 +1,32 @@
 # SUMMARY.md — executive summary (diff-fix session 33 on top; earlier sessions below)
 
+## Session-33b delta, part 2 (2026-10-26 — DFX33b: M-040 CLOSED — the boot-chain repair family completed)
+
+**M-040 FIXED (MAJOR — the board's last MAJOR):** stage (a) (the BCD
+offset rewriter, `cr/bcdfix`) landed earlier this window by DFX34; this
+session completed the family: **stage (b)** the UEFI NVRAM Boot####
+updater as the pure `cr/nvramfix` module over an injected
+firmware-variable store (the matcher FUN_1800046f0 decode: MBR
+signature+start+size flags collected across the whole walk / GPT GUID
+match; the state-4 update FUN_180004840 patches the PartitionNumber of
+every HARDDRIVE node in matched options; the audit's "patch partition
+start" was imprecise — the start is the MATCH KEY, the number is the
+patched field; create/delete stays out per the plan); **the win
+runtime** `src/win/cr_bootfix.cpp` (FwVarStore with dynamic
+Get/SetFirmwareEnvironmentVariableW resolution + privilege + the
+GetLastError mapping; bcd_rewrite_file with the consent gate + flush
+tail; unload_bcd_hive SeBackup/SeRestore+ZwUnloadKey, ntdll dynamic —
+no new PE import, the Win7 gate untouched; the win-stub grew the
+consumed surface); **the S-029 post-apply wiring** (`rrecov apply
+--boot-fix <old-lba>` opt-in: BCD offsets + NVRAM renumber after a
+successful apply, boot-repair failures advisory). Proof: 9 new
+NvramFix tests (incl. the finding's `NvramPatchUpdatesLoadOption`),
+fail-before by construction; win_syntax_check green; suite 927/927.
+
+**Board after this landing:** SEVERE 0 · MAJOR 0 · MINOR 0 ·
+tracked-open 2 (OQ-S4-3 Windows bench; OQ-FLT-2 the DRWUI
+AdvanceFilterCondition decode) · FIXED 222 files.
+
 ## Session-33b delta (2026-10-26 — DFX33b: S-034 FIXED — the ZFS ring txg-history walk; lane re-stamped DFX33b after a parallel DFX33 first-landing)
 
 **S-034 FIXED (SEVERE — the board's last SEVERE):** the og's quick searcher

@@ -44,6 +44,7 @@
 #include "cr/win/cr_health.h"
 #include "cr/win/cr_transport.h"
 #include "cr/win/cr_elevate.h"
+#include "cr/win/cr_bootfix.h"
 #include "cr/storage/cr_decrypt_device.h"
 #include "cr/crypto/cr_aes.h"
 #include "cr/cr_text.h" /* N-009c: --filter UTF-8 encoding */
@@ -1903,6 +1904,16 @@ bool apply_cli_consent(const apply::ApplyPlan& plan, void* user) {
     return true;
 }
 
+/* M-040: the bootfix consent (bcdfix::ConsentFn shape) - the operator's
+ * --boot-fix + --apply flags ARE the explicit gate; the callback prints
+ * the action line and allows. Refusal (no --apply) never reaches the
+ * write path at all. */
+bool bootfix_cli_consent(void* user) {
+    ApplyCliCtx* ctx = static_cast<ApplyCliCtx*>(user);
+    wprintf(L"[boot-fix] consent given: rewriting the boot entries now\n");
+    return ctx->apply != 0;
+}
+
 int cmd_apply(int argc, wchar_t** argv, int& i) {
     std::wstring v;
     u32 disk = 0;
@@ -1912,6 +1923,15 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
     bool do_apply = false;
     bool use_rda = true;
     std::wstring undo_path;
+    /* M-040: the post-apply boot-chain repair (the og's MainModule
+     * apply chain FUN_180075580: apply -> Bcd unlock/newpos). Opt-in:
+     * --boot-fix <old-lba> states what the boot configuration (BCD /
+     * NVRAM) currently references; --boot-fix-bcd overrides the two
+     * standard hive locations. Every write under the bootfix consent
+     * gate below. */
+    u64 boot_fix_old_lba = 0;
+    bool boot_fix = false;
+    std::wstring boot_fix_bcd;
     while (i < argc) {
         if (get_opt(argc, argv, i, L"--disk", &v)) {
             disk = u32(wcstoul(v.c_str(), nullptr, 10));
@@ -1938,6 +1958,15 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
         if (wcscmp(argv[i], L"--no-rda") == 0) {
             use_rda = false;
             ++i;
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--boot-fix", &v)) {
+            boot_fix_old_lba = wcstoull(v.c_str(), nullptr, 10);
+            boot_fix = true;
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--boot-fix-bcd", &v)) {
+            boot_fix_bcd = v;
             continue;
         }
         wprintf(L"unknown apply option: %s\n", argv[i]);
@@ -2024,9 +2053,15 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
     for (const auto& a : plan.actions)
         wprintf(L"  [apply] offset=%llu len=%zu : %hs\n",
                 static_cast<unsigned long long>(a.offset), a.after.size(), a.reason.c_str());
+    /* M-040: the boot-chain repair family now exists (bcdfix +
+     * nvramfix + the win runtime); the CORE plan never performs it
+     * (the og's Fixup runs host-side after the layout write too) - the
+     * CLI offers it as the explicit --boot-fix step after a successful
+     * apply. */
     if (!plan.boot_repair_available)
-        wprintf(L"  [apply] boot-chain repair: not available in this build (the entry is "
-                L"written; BCD/boot.ini fixup is separate scope)\n");
+        wprintf(L"  [apply] boot-chain repair: separate opt-in step (re-run with "
+                L"--boot-fix <old-lba> to rewrite the BCD offsets + NVRAM entry after "
+                L"the apply lands)\n");
 
     if (!do_apply) {
         wprintf(L"dry-run only - re-run with --apply to execute (undo log saved automatically)\n");
@@ -2082,6 +2117,76 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
                 undo_path.c_str(), blob.size(), disk, undo_path.c_str());
     } else {
         wprintf(L"WARNING: could not save the undo log to %s\n", undo_path.c_str());
+    }
+
+    /* ---- M-040: the post-apply boot-chain repair (opt-in) ----
+     * The og's chain (MainModule FUN_180075580: apply -> Bcd_Init ->
+     * Bcd_UnlockBcdFile/Bcd_UnlockBcdNewPos; PR:47290-47302) patches the
+     * BCD device elements + the UEFI NVRAM load options after the table
+     * write. Consent model: the operator ran --boot-fix with the LBA
+     * the boot config currently references; every write still rides the
+     * bcdfix consent gate (the shared apply consent - an explicit
+     * --apply was required to get here). */
+    if (boot_fix) {
+        wprintf(L"[boot-fix] running the post-apply boot-chain repair\n");
+        size_t applied = 0;
+        const u32 sig = plan.mbr_signature;
+        const u64 new_lba = plan.start_lba;
+        /* the two standard hive locations (Fixup's own CBcd/CEFIFirstBcd
+         * pair: the legacy boot partition's \Boot\BCD + the ESP's
+         * \EFI\MICROSOFT\BOOT\BCD); --boot-fix-bcd overrides with an
+         * explicit path. The C: system-root guess matches the og's
+         * GetSystemDirectoryA-based probe (FUN_1800017a0). */
+        const wchar_t* paths[2] = {L"C:\\Boot\\BCD",
+                                   L"C:\\EFI\\MICROSOFT\\BOOT\\BCD"};
+        bool any = false;
+        for (const wchar_t* bcd_path : paths) {
+            if (!boot_fix_bcd.empty()) {
+                if (wcscmp(bcd_path, paths[0]) != 0)
+                    continue; /* an explicit path replaces both guesses */
+                bcd_path = boot_fix_bcd.c_str();
+            }
+            const u32 brc = win::bootfix::bcd_rewrite_file(
+                bcd_path, sig, boot_fix_old_lba, new_lba, bootfix_cli_consent, &ctx, &applied);
+            if (brc == OK && applied > 0) {
+                wprintf(L"[boot-fix] %zu device element(s) rewritten in %ls "
+                        L"(LBA %llu -> %llu)\n",
+                        applied, bcd_path, static_cast<unsigned long long>(boot_fix_old_lba),
+                        static_cast<unsigned long long>(new_lba));
+                any = true;
+            } else if (brc == ERR_OPEN_FAILED) {
+                wprintf(L"[boot-fix] %ls not openable (mounted? bootfix::unload_bcd_hive "
+                        L"runs inside the rewrite's retry)\n",
+                        bcd_path);
+            } else if (brc != OK) {
+                wprintf(L"[boot-fix] %ls: rc=%08x %hs\n", bcd_path, brc, err_text(brc));
+            }
+        }
+        /* the NVRAM renumber pass (EFIBoot's state-4 update; the partition
+         * number after apply = the MBR slot + 1). ERR_UNSUPPORTED = BIOS
+         * system - reported, never fatal (the table write already
+         * succeeded; the og's boot-repair failures are advisory too). */
+        nvramfix::Target nt;
+        nt.gpt = false;
+        nt.mbr_signature = sig;
+        nt.old_partition_start = boot_fix_old_lba;
+        nt.partition_size = plan.sector_count;
+        nt.new_partition_number = plan.entry_index + 1;
+        nvramfix::UpdateStats nst;
+        const u32 nrc = win::bootfix::nvram_renumber(nt, &nst);
+        if (nrc == OK && nst.patched > 0) {
+            wprintf(L"[boot-fix] NVRAM: %zu of %zu Boot entry(ies) renumbered to partition "
+                    L"%u\n",
+                    nst.patched, nst.inspected, nt.new_partition_number);
+            any = true;
+        } else if (nrc == ERR_UNSUPPORTED) {
+            wprintf(L"[boot-fix] NVRAM: not a UEFI system (skipped)\n");
+        } else if (nrc != OK) {
+            wprintf(L"[boot-fix] NVRAM: rc=%08x %hs\n", nrc, err_text(nrc));
+        }
+        if (!any)
+            wprintf(L"[boot-fix] nothing needed rewriting (no boot entry referenced the "
+                    L"old position)\n");
     }
     return 0;
 }
@@ -2322,7 +2427,9 @@ int wmain(int argc, wchar_t** argv) {
             L"  rrecov health --disk N\n"
             L"  rrecov fix --disk N [--part P] [--apply] [--undo file] [--undo-apply file]\n"
             L"  rrecov apply --disk N --session file.crsf --candidate N [--apply] [--undo file]\n"
-            L"             (writes a lost-partition candidate's MBR entry; dry-run by default)\n"
+            L"             [--boot-fix old-lba [--boot-fix-bcd path]] (writes a lost-partition\n"
+            L"             candidate's MBR entry; dry-run by default; --boot-fix additionally\n"
+            L"             rewrites the BCD offsets + UEFI NVRAM entry after the apply)\n"
             L"  rrecov bench --disk N [--mode seq|rand|open|read|info] [--mb N] [--block-kb N]\n"
             L"              [--iterations N] [--seed N] [--json] [--no-rda]\n");
         return 0;

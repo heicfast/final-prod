@@ -43,8 +43,15 @@ typedef ULONG* PULONG;
 typedef void* LPVOID;
 
 struct LARGE_INTEGER {
-    long long QuadPart;
+    union {
+        struct {
+            DWORD LowPart;
+            long HighPart;
+        };
+        long long QuadPart;
+    };
 };
+typedef unsigned short USHORT;
 struct ULARGE_INTEGER {
     unsigned long long QuadPart;
 };
@@ -111,6 +118,11 @@ struct FILETIME {
 #define CREATE_NO_WINDOW 0x08000000UL
 #define OPEN_EXISTING 3
 #define FILE_ATTRIBUTE_NORMAL 0x00000080UL
+#define NO_ERROR 0UL
+#define INVALID_SET_FILE_POINTER 0xFFFFFFFFUL
+#define FILE_BEGIN 0UL
+#define FILE_CURRENT 1UL
+#define FILE_END 2UL
 #define FILE_ATTRIBUTE_DIRECTORY 0x00000010UL
 #define FILE_ATTRIBUTE_TEMPORARY 0x00000100UL
 #define FILE_FLAG_BACKUP_SEMANTICS 0x02000000UL
@@ -118,6 +130,8 @@ struct FILETIME {
 
 /* error codes */
 #define ERROR_SUCCESS 0UL
+#define ERROR_INVALID_FUNCTION 1UL
+#define ERROR_FILE_NOT_FOUND 2UL
 #define ERROR_INVALID_HANDLE 6UL
 #define ERROR_CANCELLED 1223UL
 #define ERROR_MORE_DATA 234UL
@@ -196,6 +210,18 @@ inline BOOL MoveFileExW(const wchar_t*, const wchar_t*, DWORD) {
 inline BOOL GetFileSizeEx(HANDLE, LARGE_INTEGER*) {
     return 1;
 }
+inline DWORD SetFilePointer(HANDLE, LONG, LONG*, DWORD) {
+    return 0;
+}
+typedef void* FARPROC;
+typedef void* HMODULE;
+typedef void* HINSTANCE;
+inline HMODULE GetModuleHandleW(const wchar_t*) {
+    return (HMODULE)0;
+}
+inline FARPROC GetProcAddress(HMODULE, const char*) {
+    return (FARPROC)0;
+}
 inline BOOL GetDiskFreeSpaceExW(const wchar_t*, ULARGE_INTEGER*, ULARGE_INTEGER*, ULARGE_INTEGER*) {
     return 1;
 }
@@ -269,6 +295,29 @@ inline BOOL GetVolumePathNamesForVolumeNameW(const wchar_t*, wchar_t*, DWORD, DW
 
 /* ---- process / token ------------------------------------------------- */
 inline BOOL OpenProcessToken(HANDLE, DWORD, HANDLE*) {
+    return 1;
+}
+#define TOKEN_ADJUST_PRIVILEGES 0x0020UL
+#define SE_PRIVILEGE_ENABLED 0x00000002UL
+struct LUID {
+    DWORD LowPart;
+    long HighPart;
+};
+struct LUID_AND_ATTRIBUTES {
+    LUID Luid;
+    DWORD Attributes;
+};
+struct TOKEN_PRIVILEGES {
+    DWORD PrivilegeCount;
+    LUID_AND_ATTRIBUTES Privileges[1];
+};
+#define SE_SYSTEM_ENVIRONMENT_NAME L"SeSystemEnvironmentPrivilege"
+#define SE_BACKUP_NAME L"SeBackupPrivilege"
+#define SE_RESTORE_NAME L"SeRestorePrivilege"
+inline BOOL LookupPrivilegeValueW(const wchar_t*, const wchar_t*, LUID*) {
+    return 1;
+}
+inline BOOL AdjustTokenPrivileges(HANDLE, BOOL, TOKEN_PRIVILEGES*, DWORD, void*, void*) {
     return 1;
 }
 inline BOOL GetTokenInformation(HANDLE, int, void*, DWORD, DWORD*) {
