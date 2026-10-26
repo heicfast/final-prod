@@ -133,12 +133,8 @@ struct NvramRewrite {
  * Errors: ERR_BAD_PARAMETER (null seam), ERR_READ_FAILED (BootOrder
  * unreadable), ERR_BAD_MAGIC (a load option too malformed to walk). */
 std::vector<NvramRewrite> plan_boot_entries(GetVarFn get, void* get_user,
-<<<<<<< HEAD
-                                             const TargetPartition& target, u32* error = nullptr,
-                                             bool* stopped_early = nullptr);
-=======
-                                            const TargetPartition& target, u32* error = nullptr);
->>>>>>> origin/main
+                                            const TargetPartition& target, u32* error = nullptr,
+                                            bool* stopped_early = nullptr);
 
 /* Execute a plan through the injected setter under the consent
  * callback. consent == nullptr = DEFAULT-DENY. Stops at the first
