@@ -1,3 +1,87 @@
+# SUMMARY.md — executive summary (the M-040 close on top; earlier sessions below)
+
+## Session-37 delta (2026-10-26 — DFX37: M-040 stages (b) + the win layer FIXED; the SEVERE/MINOR tiers closed by the convergent lanes; the ASan pushed-reds repaired)
+
+**M-040 FIXED (stages a+b)** — stage (b), the UEFI NVRAM Boot####/BootOrder
+updater, landed as the pure module `cr/nvramfix` + the win layer
+(`src/win/cr_bootfix.cpp`): the FUN_1800046f0 matcher (MBR sig+start+size /
+GPT GUID+start) and the FUN_180004b40 full-position rewrite
+(PartitionNumber/Start/Size/Signature) decoded first-hand; the firmware seam
+resolved dynamically exactly like the og (EFIBoot :3281-3290 — ZERO new
+static imports, the Win7 allowlist gate untouched); SeSystemEnvironmentPrivilege
+via ntdll!RtlAdjustPrivilege (the og's XP path); the stage-a file side
+(OVERLAPPED positional writes + FlushFileBuffers + the BCD00000000
+force-unload retry under SeRestore/SeBackup). 11 NvramFix tests incl. the
+finding's named NvramPatchUpdatesLoadOption. boot.ini + chkdsk stay at their
+D-90 dispositions; the S-029 host wiring is the documented host-layer
+boundary. The finding moved to findings/FIXED/.
+
+**The SEVERE/MINOR tiers closed** — S-034 (the ring walk) FIXED by the
+convergent parallel lane (their cb046ed landing adopted per
+first-landing-wins; this lane's independent decode + implementation
+reconciled and recorded); N-007/N-072/N-065/N-066 FIXED by the parallel
+waves; M-030/M-039 landed. This lane's surviving artifacts: the two ASan
+pushed-red repairs (the exFAT $I fixture overread + the filterfolder pool
+NUL-termination, convergent with the lane's N-081/N-082), the cr_ui.h
+union-marker repair, and the ZFS fuzz-seed generator.
+
+**Live counts after this session:** ACUTE 0 · SEVERE 0 · MAJOR 0 · MINOR 0 ·
+INFO 0 open · tracked-open 2 (OQ-S4-3, OQ-Z-E-FLT residuals) · FIXED/ 224
+files. **The findings board is EMPTY — every filed finding is dispositioned.**
+
+
+## Session delta (2026-10-26 — the SEVERE lane: S-034 FIXED — the ZFS ring walk)
+
+**S-034 (SEVERE, S30 NEW-FINDING) FIXED** — the fix plan's three decode
+items were resolved first-hand from the corpus BEFORE implementing (no
+guessed parity): (a) the visitor's cross-txg registry (FUN_180005940 via
+the lambda `_Do_call` 0x18000dd40; per-parent-path buckets through the
+recursive path builder FUN_18001afb0; objid-keyed set/map helpers
+FUN_180007db0/FUN_180007eb0): same (objid, path) skips, different path
+re-emits under the new location with the registry overwritten — first-seen
+state claims the identity; (b) each txg's walk re-reads the FULL config as
+of that state — destroyed-in-window datasets/snapshots surface from the
+older states' walks; (c) last_txg = progress display only (the previous
+slot's txg string). Two additional decoded behaviors landed: the
+`.Trash-1000/info` child suppression (FUN_180004f00 :3708; the /files
+subtree NOT suppressed — FUN_180004ad0 :3447 verified at the disassembly
+level, `mov $0x1,%al` on the equal path) and the label-0-only ring read
+(FUN_180018220's 128 KiB @ +128 KiB) — the core keeps 4-label probing as
+the registered superset, label 0 walked first for og-parity storage
+order, each UNIQUE txg once. In-window deletions emit as REGULAR results
+(the og has no per-engine deleted bit for ZFS) — the fix plan's "surface
+as Deleted" guess corrected by the decode. Implementation: every valid
+ring slot collected (RingSlot vector, txg-deduped, storage order) —
+per-state `walk_state` (MOS → dataset hierarchy → ZPL) through a scan-wide
+registry (dataset-name bucket → objid → {dataset-relative path, first-seen
+node}); dataset nodes keyed (name, head_obj) — a recreated same-name
+dataset emits a second node (per-objid semantics); a state whose tree
+does not open is skipped (og addBlock no-op), scan fails only when NO
+state opens; the per-txg "zfs: txg = %llu, last_txg = %llu" progression
+rides the N-048 log seam; new trailing stats fields
+ring_states_total/ring_states_walked. Proof: 2 new tests + 1 extended —
+Zfs.RingWalkSurfacesDeletedInWindowFile (a two-state fixture: slot 0
+txg 77 with gone.txt, slot 1 txg 78 without — the second chain built from
+pristine copies with its own zap2/ZPL2/MOS2 blocks and the full
+dependency-ordered fletcher4 re-stamping), Zfs.RingWalkRenameReemitsNewLocation
+(the renamed object surfaces under BOTH locations, unchanged content
+exactly once), NewestTxgAcrossLabelsWins extended (two states, same
+rootbp → hello.txt exactly once + ring_states_walked==2) — ALL THREE
+EXECUTED RED on the pre-fix engine (engine.cpp reverted, tests kept:
+gone.txt count 0 / renamed.txt count 0 / ring_states_walked 0) and GREEN
+after. Suite: 832 tests — 828 pass + 4 env-skips linux-release; 832
+ASan-clean and 832 UBSan-clean (both exit 0) after TWO pre-existing
+pushed-red ASan repairs landed in the same window (the exFAT recycle
+test's past-the-literal path read + the FilterFolder pools' missing
+trailing NUL — filed as N-081).
+
+**Counts after this landing (the union tree, post-merge with the parallel
+window's 70-commit wave — which independently drained M-030/M-034/M-039/
+M-041/M-048, N-007/N-065/N-066/N-072 and landed its own N-081/N-082 ASan
+repairs that this lane's convergent fixes yielded to per first-landing-wins):
+SEVERE 0 · MAJOR 1 (M-040) · MINOR 0 · INFO 0 open · tracked-open 2
+(OQ-S4-3, OQ-Z-E-FLT) · FIXED/ 221 files.**
+# SUMMARY.md — executive summary (diff-fix session 33 on top; earlier sessions below)
 # SUMMARY.md — executive summary (diff-fix session 37 on top; earlier sessions below)
 
 ## Session-37 delta, part 1 (2026-10-26 — DFX37 lane opens: the third-merge-storm repair + the count truing; S-034/M-040/N-072 claimed)
@@ -130,7 +214,6 @@ ENUMERATE_DISK_BOUND=200, cr_ui_last_transport_error). This lane's
 convergent S-034 engine was reconciled to the canonical DFX33b
 landing (first-landing-wins) with the binary-vtable decode correction
 appended to the finding — see the Convergence addendum there.
-
 
 ## Session-33b delta (2026-10-26 — DFX33b: S-034 FIXED — the ZFS ring txg-history walk; lane re-stamped DFX33b after a parallel DFX33 first-landing)
 

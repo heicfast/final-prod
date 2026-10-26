@@ -121,7 +121,6 @@ struct FILETIME {
 /* error codes */
 #define ERROR_SUCCESS 0UL
 #define ERROR_INVALID_HANDLE 6UL
-#define ERROR_INVALID_FUNCTION 1UL
 #define ERROR_CANCELLED 1223UL
 #define ERROR_MORE_DATA 234UL
 #define ERROR_ALREADY_EXISTS 183UL
@@ -274,53 +273,15 @@ inline BOOL GetVolumePathNamesForVolumeNameW(const wchar_t*, wchar_t*, DWORD, DW
 inline BOOL OpenProcessToken(HANDLE, DWORD, HANDLE*) {
     return 1;
 }
-struct LUID {
-    DWORD LowPart;
-    long HighPart;
-};
-struct LUID_AND_ATTRIBUTES {
-    LUID Luid;
-    DWORD Attributes;
-};
-struct TOKEN_PRIVILEGES {
-    DWORD PrivilegeCount;
-    LUID_AND_ATTRIBUTES Privileges[1];
-};
-#define TOKEN_ADJUST_PRIVILEGES 0x0020UL
-#define TOKEN_QUERY 0x0008UL
-#define SE_PRIVILEGE_ENABLED 0x00000002UL
-#define SE_BACKUP_NAME L"SeBackupPrivilege"
-#define SE_RESTORE_NAME L"SeRestorePrivilege"
-#define SE_SYSTEM_ENVIRONMENT_NAME L"SeSystemEnvironmentPrivilege"
-inline BOOL LookupPrivilegeValueW(const wchar_t*, const wchar_t*, LUID*) {
-    return 1;
-}
-inline BOOL AdjustTokenPrivileges(HANDLE, BOOL, TOKEN_PRIVILEGES*, DWORD, void*, void*) {
-    return 1;
-}
-inline HMODULE LoadLibraryW(const wchar_t*) {
-    return nullptr;
-}
+/* M-040 (diff-to-fix): the bootfix win layer's dynamic-resolution seam
+ * (GetModuleHandleW + GetProcAddress, EFIBoot :3281-3290's own pattern).
+ * Declarations only - the parse gate never links them. */
 inline FARPROC GetProcAddress(HMODULE, const char*) {
     return nullptr;
 }
-inline BOOL FreeLibrary(HMODULE) {
-    return 1;
+inline HMODULE GetModuleHandleW(const wchar_t*) {
+    return nullptr;
 }
-inline DWORD GetFirmwareEnvironmentVariableW(const wchar_t*, const wchar_t*, void*, DWORD) {
-    SetLastError(ERROR_INVALID_FUNCTION);
-    return 0;
-}
-inline BOOL SetFirmwareEnvironmentVariableW(const wchar_t*, const wchar_t*, const void*, DWORD) {
-    SetLastError(ERROR_INVALID_FUNCTION);
-    return FALSE;
-}
-typedef long LONG;
-typedef void* HKEY;
-#define HKEY_LOCAL_MACHINE ((HKEY)0)
-#define KEY_READ 0x20019UL
-#define ERROR_SUCCESS 0UL
-
 inline BOOL GetTokenInformation(HANDLE, int, void*, DWORD, DWORD*) {
     return 1;
 }

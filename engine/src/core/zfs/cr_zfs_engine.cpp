@@ -1382,13 +1382,11 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
         u64 parent;
         std::string name;
         u64 obj;
-        u64 birth;
         bool operator<(const EntryKey& o) const {
             if (ds != o.ds) return ds < o.ds;
             if (parent != o.parent) return parent < o.parent;
             if (name != o.name) return name < o.name;
-            if (obj != o.obj) return obj < o.obj;
-            return birth < o.birth;
+            return obj < o.obj;
         }
     };
     std::map<EntryKey, tree::FileNode*> claimed; /* identity -> node */
@@ -1638,9 +1636,14 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
         };
 
         std::set<u64> visited;
-        std::function<void(u64, tree::FileNode*, int)> emit_dir = [&](u64 dir_obj,
-                                                                      tree::FileNode* parent,
-                                                                      int depth) {
+        /* dpath = the dir's dataset-relative path (S-034 complement: the
+         * og's emit chain suppresses children of .Trash-1000/info —
+         * ZfsSearchDLL FUN_180004f00 :3708 builds L".Trash-1000/info"
+         * and the normalized path-compare at :3716 short-circuits the
+         * add; the /files subtree is classified-not-suppressed,
+         * FUN_180004ad0 :3447 returning al=1 while still adding). */
+        std::function<void(u64, tree::FileNode*, int, const std::u16string&)> emit_dir =
+            [&](u64 dir_obj, tree::FileNode* parent, int depth, const std::u16string& dpath) {
             if (depth > MAX_DEPTH || visited.count(dir_obj))
                 return;
             visited.insert(dir_obj);
@@ -1650,32 +1653,39 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
             std::vector<ZapEntry> entries;
             if (!read_zap(v, zpl, dir_obj, entries))
                 return;
+            const bool trash_info_dir = (dpath == u".Trash-1000/info");
             for (const auto& e : entries) {
                 if (cancel && cancel->checkpoint())
                     return;
                 if (e.name == "." || e.name == "..")
                     continue;
+                if (trash_info_dir)
+                    continue; /* the .trashinfo sidecars never enter results */
                 const ObjInfo* ci = load_obj(e.value);
                 if (ci == nullptr)
                     continue;
                 const bool is_dir = ci->dir;
                 /* S-034: cross-state identity — (dataset, parent dir
-                 * object, entry name, object id, dnode bp0 birth). A
-                 * newer state's claim wins the node; an unchanged
-                 * directory is still re-walked per state (against its
-                 * existing node) so deleted-in-window descendants
-                 * surface in place; a same-path different-birth entry
-                 * (modified in-window) is a distinct identity and
-                 * recalls the prior version as a Deleted sibling — the
-                 * og emits every state's ZplNode, newest-wins is a
-                 * tree-level consequence, not an engine-side drop. */
-                const u64 birth =
-                    ci->dn.nblkptr() > 0 ? le64(ci->dn.blkptr(0) + BP_BIRTH) : 0;
-                EntryKey key{dname, dir_obj, e.name, e.value, birth};
+                 * object, entry name, object id). The og's visitor
+                 * registry keys (parent-path bucket, objid) with the
+                 * name compare deciding skip vs re-emit
+                 * (FUN_180007db0 on the objid, FUN_180001a90 on the
+                 * name, equal -> skip, first-seen claims the node) —
+                 * NO birth term: a file modified in-window (same
+                 * objid+name, new data) is SKIPPED by the later state's
+                 * walk, not re-emitted. An unchanged directory is
+                 * still re-walked per state (against its existing node)
+                 * so deleted-in-window descendants surface in place;
+                 * a renamed/moved entry is a distinct key and re-emits
+                 * under its new location. */
+                EntryKey key{dname, dir_obj, e.name, e.value};
                 auto cit = claimed.find(key);
                 if (cit != claimed.end()) {
                     if (is_dir)
-                        emit_dir(e.value, cit->second, depth + 1);
+                        emit_dir(e.value, cit->second, depth + 1,
+                                 dpath.empty()
+                                     ? text::utf8_to_u16(e.name)
+                                     : dpath + u"/" + text::utf8_to_u16(e.name));
                     continue;
                 }
                 auto* p = new (std::nothrow) tree::FileProperties();
@@ -1739,13 +1749,15 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
                 claimed.emplace(key, n);
                 if (is_dir) {
                     ++stats.dirs;
-                    emit_dir(e.value, n, depth + 1);
+                    emit_dir(e.value, n, depth + 1,
+                             dpath.empty() ? text::utf8_to_u16(e.name)
+                                           : dpath + u"/" + text::utf8_to_u16(e.name));
                 } else {
                     ++stats.files;
                 }
             }
         };
-        emit_dir(root_obj, ds_node, 0);
+        emit_dir(root_obj, ds_node, 0, u"");
         if (progress)
             (void)progress(3, 4, progress_user);
     }

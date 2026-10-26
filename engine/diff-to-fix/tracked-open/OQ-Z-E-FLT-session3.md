@@ -326,3 +326,29 @@ vocabulary's source, and the path matching mode.
 
 The session-3 storage/census residuals stand as filed; no new evidence
 this session.
+
+---
+
+## Session-37 disposition (DFX37, 2026-10-26) — OQ-FLT-2 CLOSED-CONSUMED; the file's ledger is complete
+
+**OQ-FLT-2** was pushed forward as "gating M-029". M-029 landed (`f388cad`,
+findings/FIXED/) with its own first-hand decode of exactly the sub-vocabulary
+its fix implemented: the Date bucket IDs 0x100-0x105 (the CTimeFilterBtn
+menu FUN_140705c50), the Size bucket IDs 0x1000-0x1006 (CSizeFilterBtn menu
+FUN_140706060), the custom-range matcher (local-day-truncated, inclusive
+both ends, FUN_140256830), and the node-side tag setters (date tags at
+node+0x89 bits 11-14, size-bucket tags at bits 17-22, FUN_140255820) — plus
+the completeness predicate (FUN_1406f91d0's six-bit AND) decoded in DFX30's
+push-forward. The remaining sub-decode listed there (the per-mode managers'
+vtable+0x10 apply — the type-mask group and the path-string group's
+matching mode) has NO consuming finding on the now-empty board: it was
+M-029's gate, M-029 closed without needing it (the og's apply-side
+type/path semantics are surfaced in the core's query::apply_date_bucket/
+apply_size_bucket + the Type/Path filter surface that DID land). Decoding
+further would be corpus work with no consumer — the audit discipline's own
+boundary. **Disposition: the file closes as RESOLVED (every sub-question
+either resolved, superseded, or consumed by its gating finding's landing).
+Future reference for any new query-model finding: the apply-method decode
+entry points are FUN_1401b61f0(mode) -> mode 0: FUN_1401d4920+8 / mode 1:
+FUN_1401d4930+8 / mode 2: FUN_14031c410+8 (the CAdvanceFileFilterMgr
+singletons; verified this session at DRWUI_decompiled.c :319062-319112).**

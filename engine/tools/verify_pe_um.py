@@ -153,28 +153,6 @@ ALLOWLIST_ADDITIONS = {
     # advapi32 CRT-adjacent
     "RegQueryValueExW": "registry reads (auto-unlock, elevation probe); XP-era",
     "AdjustTokenGroups": "token probe (if linked by elevation path); XP-era",
-    # M-040 stage a/b (diff-to-fix, DFX36): the boot-chain repair win layer.
-    # Every entry is Win7 SP1 x64-available (Minimum supported client is
-    # Vista or earlier for all six).
-    "LookupPrivilegeValueW":
-        "M-040: SeRestore/SeBackup/SeSystemEnvironmentPrivilege LUID lookup "
-        "(Fixup_decompiled.c :243-255, EFIBoot_decompiled.c :3248); Win2000-era",
-    "AdjustTokenPrivileges":
-        "M-040: the privilege enable (EFIBoot_decompiled.c :3251-3256); Win2000-era",
-    "GetFirmwareEnvironmentVariableW":
-        "M-040 stage b: the UEFI NVRAM Boot#### read (EFIBoot_decompiled.c "
-        ":3385/:3518, the EFI global GUID literal); Vista-era (EFI runtime "
-        "services - the og's own readiness probe relies on its "
-        "ERROR_INVALID_FUNCTION behavior on legacy BIOS)",
-    "SetFirmwareEnvironmentVariableW":
-        "M-040 stage b: the UEFI NVRAM Boot#### write-back (EFIBoot_decompiled.c "
-        ":3712); Vista-era; the og resolves it dynamically at :3283-3290 for "
-        "its XP build - the static import is Win7-fine",
-    "LoadLibraryW":
-        "M-040: dynamic ntdll ZwUnloadKey resolution for the BCD hive unload "
-        "(Fixup :533/:542; keeps ntdll OUT of the static import table); XP-era",
-    "FreeLibrary":
-        "M-040: the LoadLibraryW pair; XP-era",
 }
 
 EXPECTED_MACHINE = 0x8664

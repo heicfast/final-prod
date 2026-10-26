@@ -68,6 +68,20 @@ largest single-engine file) + `include/cr/zfs/` + `tests/unit/test_zfs_volume.cp
 - **Q65 tests** — good (8 areas incl. codec round-trips + tail labels). Gaps: multi-vdev
   refusal path, non-ASCII names (S-005).
 
+## Session note (the convergent-union session)
+
+S-034's two-lane convergence closed with two decode-proven repairs on the
+canonical landing (findings/FIXED/S-034's Resolution addendum): the identity
+key dropped its birth term (the og's registry keys (parent-path bucket,
+objid) — FUN_180007db0 + the FUN_180001a90 name compare; a modified-in-window
+file must SKIP, not re-emit) and the `.Trash-1000/info` child suppression
+landed (FUN_180004f00 :3708; the /files subtree classified-not-suppressed,
+FUN_180004ad0 :3447). Pinned by RingWindowModifiedFilePriorVersionNotReemitted,
+TrashInfoSidecarChildrenSuppressed, and RingWindowRenamedEntryRecalledUnderBothNames
+(all fail-before RED on the pre-repair landing). The interpretive residue —
+newest-first ordering and the engine-layer Active/Deleted split — is tracked
+in the finding's addendum with the next corpus sites.
+
 ## Findings index (this module)
 
 | ID | Severity | One-line |

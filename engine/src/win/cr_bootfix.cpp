@@ -1,241 +1,307 @@
-/* cr_bootfix.cpp - the Windows-side boot-chain repair plumbing (M-040
- * stage a's win half + stage b's resolver). Re-implemented from
- * understanding of Fixup.mo / EFIBoot.mo (corpus 03ad46c, gates cited
- * below re-verified first-hand). Never any decompiled text.
+/* cr_bootfix.cpp - the Windows side of the boot-chain repair (M-040
+ * stages a+b). See include/cr/win/cr_bootfix.h for the corpus lineage
+ * and the safety model.
  *
  * Licensed under the MIT license. See LICENSE.
  */
 
 #include "cr/win/cr_bootfix.h"
 #include "cr/cr_error.h"
-#include "cr/cr_log.h"
-
 #include <windows.h>
-
-#include <cstdio>
 #include <cstring>
-#include <vector>
+#include <cstdio>
 
 namespace cr {
 namespace win {
 namespace bootfix {
 
+/* forward: used by open_hive's force-unload retry (defined below) */
+bool force_unload_bcd_hive();
+
 namespace {
 
-/* Fixup :243-255 + EFIBoot :3248-3264: enable a privilege on our own
- * token. Best-effort like the og (a missing privilege logs and the
- * caller decides). */
-bool enable_privilege(const wchar_t* name) {
-    HANDLE tok = INVALID_HANDLE_VALUE;
-    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &tok))
-        return false;
-    LUID luid;
-    if (!LookupPrivilegeValueW(nullptr, name, &luid)) {
-        CloseHandle(tok);
-        return false;
-    }
-    TOKEN_PRIVILEGES tp;
-    tp.PrivilegeCount = 1;
-    tp.Privileges[0].Luid = luid;
-    tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-    const BOOL ok = AdjustTokenPrivileges(tok, FALSE, &tp, 0, nullptr, nullptr);
-    const DWORD rc = GetLastError();
-    CloseHandle(tok);
-    return ok != FALSE && rc == ERROR_SUCCESS;
+/* ntdll entry points, dynamically resolved (the og's own posture:
+ * nothing lands on the static import table - the Win7 allowlist gate
+ * stays untouched). */
+using RtlAdjustPrivilegeFn = LONG(WINAPI*)(unsigned long, int, int, unsigned char*);
+using ZwUnloadKeyFn = LONG(WINAPI*)(const void*);
+
+/* privilege LUIDs (the well-known set; SeBackup 17 / SeRestore 18 /
+ * SeSystemEnvironment 22 - the corpus enables exactly these) */
+constexpr unsigned long kSeBackup = 17;
+constexpr unsigned long kSeRestore = 18;
+constexpr unsigned long kSeSystemEnvironment = 22;
+
+/* documented NT status values */
+constexpr LONG kStatusSuccess = 0;
+constexpr LONG kStatusObjectNameNotFound = 0xC0000034L;
+
+/* ---- the documented NT structures for ZwUnloadKey (public DDK
+ * knowledge, the og's own Fixup :533/:542 call shape) ---- */
+struct NtUnicodeString {
+    unsigned short length; /* bytes, no NUL */
+    unsigned short maximum_length;
+    wchar_t* buffer;
+};
+struct NtObjectAttributes {
+    unsigned long length;
+    void* root_directory;
+    NtUnicodeString* object_name;
+    unsigned long attributes;
+    void* security_descriptor;
+    void* security_quality_of_service;
+};
+
+RtlAdjustPrivilegeFn rtl_adjust_privilege() {
+    const HMODULE nt = GetModuleHandleW(L"ntdll.dll");
+    return nt ? reinterpret_cast<RtlAdjustPrivilegeFn>(
+                    reinterpret_cast<void*>(GetProcAddress(nt, "RtlAdjustPrivilege")))
+              : nullptr;
 }
 
-/* Fixup :533/:542: ZwUnloadKey(HKEY \Registry\Machine\BCD00000000) -
- * the loaded BCD hive shadows the file being patched. ntdll is
- * resolved dynamically (the og's own XP-compat GetProcAddress pattern,
- * EFIBoot :3281-3290) so no static ntdll import enters the PE gate.
- * Best-effort: on WinPE / dead-system repair the target hive is not
- * loaded and the call fails harmlessly - we log and proceed. */
-void unload_bcd_hive_best_effort() {
-    using ZwUnloadKeyFn = LONG (*)(void* key);
-    HMODULE ntdll = LoadLibraryW(L"ntdll.dll");
-    if (ntdll == nullptr)
-        return;
-    auto fn = reinterpret_cast<ZwUnloadKeyFn>(GetProcAddress(ntdll, "ZwUnloadKey"));
-    if (fn == nullptr) {
-        FreeLibrary(ntdll);
-        return;
-    }
-    /* HKEY_PERFORMANCE_NLTEXTEXT-style pre-defined handle shapes are
-     * not used; the og passes the literal registry handle value for
-     * \Registry\Machine\BCD00000000 obtained from a prior open. We open
-     * it read-only to obtain the handle, then unload. */
-    HKEY key = nullptr;
-    const LONG or_ = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"BCD00000000", 0, KEY_READ, &key);
-    if (or_ != ERROR_SUCCESS || key == nullptr) {
-        FreeLibrary(ntdll);
-        return; /* not loaded - the common repair case */
-    }
-    RegCloseKey(key);
-    const LONG rc = fn(key);
-    if (rc != 0)
-        log::write(log::Level::Info, "[bootfix] BCD hive unload rc=%ld (proceeding)", long(rc));
-    FreeLibrary(ntdll);
+bool adjust_privilege(unsigned long privilege, bool enable) {
+    const RtlAdjustPrivilegeFn fn = rtl_adjust_privilege();
+    if (fn == nullptr)
+        return false;
+    unsigned char prev = 0;
+    return fn(privilege, enable ? 1 : 0, 0, &prev) == kStatusSuccess;
 }
 
-/* OVERLAPPED-positioned write (no SetFilePointer import; the M-009
- * envelope precedent). */
-bool write_at(HANDLE h, u64 offset, const void* data, u32 len) {
-    OVERLAPPED ov;
-    std::memset(&ov, 0, sizeof(ov));
-    ov.Offset = DWORD(offset & 0xFFFFFFFFull);
-    ov.OffsetHigh = DWORD(offset >> 32);
-    DWORD done = 0;
-    return WriteFile(h, data, len, &done, &ov) != FALSE && done == len;
+/* the firmware seam (EFIBoot :3281-3290: GetProcAddress on kernel32 -
+ * an XP-era box without the exports still loads) */
+struct FirmwareSeam {
+    unsigned long(WINAPI* get)(const wchar_t*, void*, unsigned long);
+    bool(WINAPI* set)(const wchar_t*, const void*, unsigned long);
+    bool resolved = false;
+};
+
+const FirmwareSeam& firmware_seam() {
+    static FirmwareSeam seam = [] {
+        FirmwareSeam s;
+        const HMODULE k32 = GetModuleHandleW(L"kernel32.dll");
+        if (k32 != nullptr) {
+            s.get = reinterpret_cast<unsigned long(WINAPI*)(const wchar_t*, void*, unsigned long)>(
+                reinterpret_cast<void*>(GetProcAddress(k32, "GetFirmwareEnvironmentVariableW")));
+            s.set = reinterpret_cast<bool(WINAPI*)(const wchar_t*, const void*, unsigned long)>(
+                reinterpret_cast<void*>(GetProcAddress(k32, "SetFirmwareEnvironmentVariableW")));
+        }
+        s.resolved = s.get != nullptr && s.set != nullptr;
+        return s;
+    }();
+    return seam;
+}
+
+/* positional read/write through OVERLAPPED (the codebase's file-IO
+ * discipline - no SetFilePointer anywhere) */
+bool read_whole(HANDLE h, std::vector<u8>* out) {
+    LARGE_INTEGER sz{};
+    if (!GetFileSizeEx(h, &sz) || sz.QuadPart <= 0 || sz.QuadPart > (256ll << 20))
+        return false; /* absent or absurd: a real BCD is < 1 MiB */
+    out->resize(size_t(sz.QuadPart));
+    size_t done = 0;
+    while (done < out->size()) {
+        OVERLAPPED ov{};
+        ov.Offset = u32((u64(done)) & 0xFFFFFFFFull);
+        ov.OffsetHigh = u32((u64(done)) >> 32);
+        DWORD got = 0;
+        const DWORD chunk =
+            DWORD((out->size() - done) > (1u << 20) ? (1u << 20) : (out->size() - done));
+        if (!ReadFile(h, out->data() + done, chunk, &got, &ov) || got == 0)
+            return false;
+        done += got;
+    }
+    return true;
+}
+
+bool write_at(HANDLE h, u64 at, const void* data, u32 len) {
+    OVERLAPPED ov{};
+    ov.Offset = u32(at & 0xFFFFFFFFull);
+    ov.OffsetHigh = u32(at >> 32);
+    DWORD put = 0;
+    return WriteFile(h, data, len, &put, &ov) && put == len;
+}
+
+/* open the hive for read (share-read) or read/write (exclusive; the
+ * write open retries once after the force-unload) */
+HANDLE open_hive(const wchar_t* path, bool writable) {
+    HANDLE h = CreateFileW(path, writable ? (GENERIC_READ | GENERIC_WRITE) : GENERIC_READ,
+                           writable ? 0u : FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+                           FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h != INVALID_HANDLE_VALUE || !writable)
+        return h;
+    if (GetLastError() != ERROR_SHARING_VIOLATION)
+        return h;
+    /* the registry loader holds the file: the og's force-unload + retry
+     * (Fixup :533/:542 - ZwUnloadKey under SeRestore/SeBackup :243-255) */
+    if (!force_unload_bcd_hive())
+        return h;
+    SetLastError(ERROR_SHARING_VIOLATION);
+    return CreateFileW(path, GENERIC_READ | GENERIC_WRITE, 0u, nullptr, OPEN_EXISTING,
+                       FILE_ATTRIBUTE_NORMAL, nullptr);
 }
 
 } // namespace
 
-u32 repair_bcd_file(const wchar_t* bcd_path, u32 mbr_signature, u64 old_start_lba,
-                    u64 new_start_lba, bcdfix::ConsentFn consent, void* consent_user,
-                    size_t* applied) {
-    if (applied != nullptr)
-        *applied = 0;
-    if (bcd_path == nullptr)
+/* ---- the force-unload (exposed; see header) ---- */
+bool force_unload_bcd_hive() {
+    const HMODULE nt = GetModuleHandleW(L"ntdll.dll");
+    if (nt == nullptr)
+        return false;
+    const ZwUnloadKeyFn unload =
+        reinterpret_cast<ZwUnloadKeyFn>(reinterpret_cast<void*>(GetProcAddress(nt, "ZwUnloadKey")));
+    if (unload == nullptr)
+        return false;
+    /* the og enables both before the unload (Fixup :243-255) */
+    const bool had_restore = adjust_privilege(kSeRestore, true);
+    const bool had_backup = adjust_privilege(kSeBackup, true);
+    if (!had_restore && !had_backup)
+        return false; /* no privilege: a clean refusal, not an error */
+    static const wchar_t kName[] = L"\\Registry\\Machine\\BCD00000000";
+    NtUnicodeString us{};
+    us.length = sizeof(kName) - sizeof(wchar_t);
+    us.maximum_length = sizeof(kName);
+    us.buffer = const_cast<wchar_t*>(kName);
+    NtObjectAttributes oa{};
+    oa.length = sizeof(oa);
+    oa.object_name = &us;
+    const LONG st = unload(&oa);
+    /* not-loaded is success for our purpose; privileges restored best
+     * effort (the process is short-lived, the og never restores either) */
+    return st == kStatusSuccess || st == kStatusObjectNameNotFound;
+}
+
+/* ---- stage a ---- */
+u32 bcd_file_plan(const wchar_t* path, u32 mbr_signature, u64 old_start_lba, u64 new_start_lba,
+                  std::vector<bcdfix::BcdRewrite>* out, unsigned long* last_error) {
+    if (last_error)
+        *last_error = 0;
+    if (out == nullptr)
         return ERR_BAD_PARAMETER;
-
-    /* the og's privilege pair for hive surgery (Fixup :243-255) */
-    (void)enable_privilege(SE_BACKUP_NAME);
-    (void)enable_privilege(SE_RESTORE_NAME);
-    unload_bcd_hive_best_effort();
-
-    HANDLE h = CreateFileW(bcd_path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, nullptr,
-                           OPEN_EXISTING, 0, nullptr);
-    if (h == INVALID_HANDLE_VALUE)
-        return ERR_OPEN_FAILED;
-
-    LARGE_INTEGER sz;
-    if (!GetFileSizeEx(h, &sz) || sz.QuadPart <= 0 || sz.QuadPart > (64ll << 20)) {
-        CloseHandle(h);
+    out->clear();
+    HANDLE h = open_hive(path, false);
+    if (h == INVALID_HANDLE_VALUE) {
+        if (last_error)
+            *last_error = GetLastError();
         return ERR_READ_FAILED;
     }
-    std::vector<u8> hive(size_t(sz.QuadPart), 0);
-    DWORD got = 0;
-    if (!ReadFile(h, hive.data(), DWORD(hive.size()), &got, nullptr) || got != hive.size()) {
-        CloseHandle(h);
+    std::vector<u8> hive;
+    bool ok = read_whole(h, &hive);
+    const unsigned long le = ok ? 0 : GetLastError();
+    CloseHandle(h);
+    if (!ok) {
+        if (last_error)
+            *last_error = le;
         return ERR_READ_FAILED;
     }
+    *out = bcdfix::plan_rewrites(hive.data(), hive.size(), mbr_signature, old_start_lba,
+                                 new_start_lba);
+    return OK;
+}
 
-    const std::vector<bcdfix::BcdRewrite> plan =
-        bcdfix::plan_rewrites(hive.data(), hive.size(), mbr_signature, old_start_lba,
-                              new_start_lba);
-    if (plan.empty()) {
-        CloseHandle(h);
-        return OK; /* the hive does not reference the partition - the
-                    * og's silent no-op */
+namespace {
+u32 bcd_file_apply(const wchar_t* path, const std::vector<bcdfix::BcdRewrite>& plan, bool new_bytes,
+                   bcdfix::ConsentFn consent, void* consent_user, size_t* applied,
+                   unsigned long* last_error, bool need_consent) {
+    if (applied)
+        *applied = 0;
+    if (last_error)
+        *last_error = 0;
+    if (plan.empty())
+        return OK;
+    if (need_consent && (consent == nullptr || !consent(consent_user)))
+        return ERR_REPAIR_REFUSED; /* P62 default-deny: zero writes */
+    HANDLE h = open_hive(path, true);
+    if (h == INVALID_HANDLE_VALUE) {
+        if (last_error)
+            *last_error = GetLastError();
+        return ERR_READ_FAILED; /* open failed - nothing written */
     }
-
-    /* the P62 consent gate: default-deny (bcdfix's execute_plan model) */
-    const bool allowed = consent != nullptr ? consent(consent_user) : false;
-    if (!allowed) {
-        CloseHandle(h);
-        return ERR_REPAIR_REFUSED;
-    }
-
-    size_t done = 0;
     u32 rc = OK;
     for (const auto& r : plan) {
-        if (!write_at(h, r.field_offset, r.new_bytes, 8)) {
+        if (!write_at(h, r.field_offset, new_bytes ? r.new_bytes : r.old_bytes, 8)) {
             rc = ERR_WRITE_FAILED;
             break;
         }
-        ++done;
+        if (applied)
+            ++*applied;
     }
-    /* the flush tail (Fixup :263-306: the DASD allow + FlushFileBuffers
-     * on the system partition - the file-handle flush carries the same
-     * guarantee for a file on that volume) */
-    if (done != 0)
-        (void)FlushFileBuffers(h);
+    if (rc == OK && !FlushFileBuffers(h)) {
+        rc = ERR_WRITE_FAILED; /* the og's post-patch durability tail */
+        if (last_error)
+            *last_error = GetLastError();
+    } else if (rc != OK && last_error) {
+        *last_error = GetLastError();
+    }
     CloseHandle(h);
-    if (applied != nullptr)
-        *applied = done;
     return rc;
+}
+} // namespace
+
+u32 bcd_file_execute(const wchar_t* path, const std::vector<bcdfix::BcdRewrite>& plan,
+                     bcdfix::ConsentFn consent, void* consent_user, size_t* applied,
+                     unsigned long* last_error) {
+    return bcd_file_apply(path, plan, /*new_bytes=*/true, consent, consent_user, applied,
+                          last_error, /*need_consent=*/true);
+}
+
+u32 bcd_file_undo(const wchar_t* path, const std::vector<bcdfix::BcdRewrite>& plan, size_t* applied,
+                  unsigned long* last_error) {
+    /* undo is the recovery path - it runs WITHOUT the consent gate
+     * (the consent authorized the transaction; undo restores it) */
+    return bcd_file_apply(path, plan, /*new_bytes=*/false, nullptr, nullptr, applied, last_error,
+                          /*need_consent=*/false);
+}
+
+/* ---- stage b ---- */
+bool firmware_seam_available() {
+    return firmware_seam().resolved;
+}
+
+bool enable_system_environment_privilege() {
+    return adjust_privilege(kSeSystemEnvironment, true);
 }
 
 namespace {
-
-/* EFIBoot :3888-3894: the zero-GUID dummy read must fail with something
- * OTHER than ERROR_INVALID_FUNCTION (=1) - the platform has EFI
- * firmware variables (on legacy BIOS the API reports
- * ERROR_INVALID_FUNCTION). */
-bool firmware_available(void*) {
-    u8 scratch[64];
-    SetLastError(0);
-    const DWORD n = GetFirmwareEnvironmentVariableW(L"", L"{00000000-0000-0000-0000-000000000000}",
-                                                    scratch, sizeof(scratch));
-    if (n != 0)
-        return true;
-    return GetLastError() != ERROR_INVALID_FUNCTION;
+u32 __nvram_get(const char16_t* name, void* buf, u32 cap, void* /*user*/) {
+    const FirmwareSeam& s = firmware_seam();
+    if (!s.resolved)
+        return 0;
+    return s.get(reinterpret_cast<const wchar_t*>(name), buf, cap);
 }
-
-u32 firmware_get(void* user, const char16_t* name, u8* out, u32 cap) {
-    (void)user;
-    /* the EFI global variable GUID every og call carries (EFIBoot
-     * :3385/:3493/:3518/...) */
-    SetLastError(0);
-    return GetFirmwareEnvironmentVariableW(reinterpret_cast<const wchar_t*>(name),
-                                           L"{8BE4DF61-93CA-11d2-AA0D-00E098032B8C}", out, cap);
+bool __nvram_set(const char16_t* name, const void* data, u32 len, void* /*user*/) {
+    const FirmwareSeam& s = firmware_seam();
+    if (!s.resolved)
+        return false;
+    return s.set(reinterpret_cast<const wchar_t*>(name), data, len);
 }
-
-bool firmware_set(void* user, const char16_t* name, const u8* data, u32 len) {
-    (void)user;
-    SetLastError(0);
-    return SetFirmwareEnvironmentVariableW(reinterpret_cast<const wchar_t*>(name),
-                                           L"{8BE4DF61-93CA-11d2-AA0D-00E098032B8C}", data,
-                                           len) != FALSE;
-}
-
 } // namespace
 
-efifix::FirmwareVars make_firmware_vars() {
-    efifix::FirmwareVars fw;
-    fw.available = firmware_available;
-    fw.get = firmware_get;
-    fw.set = firmware_set;
-    fw.user = nullptr;
-    /* EFIBoot :3248-3264: SeSystemEnvironmentPrivilege before any
-     * firmware write. A failed enable keeps the vtable complete - the
-     * og proceeds and the API fails per-call - but we log it. */
-    if (!enable_privilege(SE_SYSTEM_ENVIRONMENT_NAME))
-        log::write(log::Level::Warn, "[bootfix] SeSystemEnvironmentPrivilege not enabled");
-    return fw;
+std::vector<nvramfix::NvramRewrite> nvram_plan(const nvramfix::TargetPartition& target,
+                                               u32* error) {
+    if (!firmware_seam().resolved) {
+        if (error)
+            *error = ERR_UNSUPPORTED;
+        return {};
+    }
+    if (!enable_system_environment_privilege()) {
+        if (error)
+            *error = ERR_REPAIR_REFUSED; /* no privilege: refuse cleanly */
+        return {};
+    }
+    return nvramfix::plan_boot_entries(&__nvram_get, nullptr, target, error);
 }
 
-u32 run_boot_chain_repair(const wchar_t* const* bcd_paths, size_t bcd_path_count,
-                          u32 mbr_signature, u64 old_start_lba, u64 new_start_lba,
-                          const efifix::PartitionRef& nvram_old,
-                          const efifix::PartitionRef& nvram_new, bcdfix::ConsentFn consent,
-                          void* consent_user, BootRepairResult* out) {
-    BootRepairResult r;
-    u32 worst = OK;
+u32 nvram_execute(const std::vector<nvramfix::NvramRewrite>& plan, nvramfix::ConsentFn consent,
+                  void* consent_user, size_t* applied) {
+    if (!firmware_seam().resolved)
+        return ERR_UNSUPPORTED;
+    return nvramfix::execute_plan(plan, &__nvram_set, nullptr, consent, consent_user, applied);
+}
 
-    for (size_t i = 0; i < bcd_path_count; ++i) {
-        size_t cells = 0;
-        const u32 rc = repair_bcd_file(bcd_paths[i], mbr_signature, old_start_lba, new_start_lba,
-                                       consent, consent_user, &cells);
-        if (rc != OK && r.bcd_rc == OK)
-            r.bcd_rc = rc;
-        if (rc == OK && cells != 0)
-            ++r.bcd_files_patched;
-        r.bcd_cells_patched += cells;
-        if (rc != OK)
-            worst = rc; /* reported, does not block the NVRAM leg (the
-                         * og's chain continues past a Bcd failure) */
-    }
-
-    const efifix::FirmwareVars fw = make_firmware_vars();
-    r.nvram_rc = efifix::update_boot_entries(fw, nvram_old, nvram_new, consent, consent_user,
-                                             &r.nvram);
-    if (r.nvram_rc != OK && worst == OK)
-        worst = r.nvram_rc;
-
-    if (out != nullptr)
-        *out = r;
-    return worst;
+u32 nvram_undo(const std::vector<nvramfix::NvramRewrite>& plan, size_t* applied) {
+    if (!firmware_seam().resolved)
+        return ERR_UNSUPPORTED;
+    return nvramfix::undo_plan(plan, &__nvram_set, nullptr, applied);
 }
 
 } // namespace bootfix
