@@ -17089,3 +17089,55 @@ Stage Summary:
   lanes + this lane together closed the board from ~40 open to 0);
   this lane's contributions were the verification, convergence, and
   correction work the cluster needed to close cleanly.
+
+---
+Task ID: DFX33b-HANDOFF (session 33b close — handoff)
+Agent: main engineer (diff-to-fix fix session 33b — DFX33b)
+
+Final state at this lane's last push (5a9ca1f + the follow-up merges;
+suite 926/926 linux-release green at every push; corpus 03ad46c
+unmoved throughout; token hygiene maintained — the remote URL
+tokenless except the push moments).
+
+SESSION LANDINGS (this lane):
+1. **S-034 FIXED** (the board's last SEVERE — the ZFS ring txg-history
+   walk): decode-first (collector = plain push_back, no engine dedup;
+   from_txg=0 unbounded descent; last_txg display-only; per-state tree
+   walk = the state's own content); every valid uberblock state from
+   all four labels' rings, txg-deduped, newest-first; LIVE tree +
+   RECALL walks with the cross-state identity dedup; deleted-in-window
+   → Deleted nodes in place; torn states skipped like the og's
+   tree-open failure. 4 fail-before-RED tests + the CoW second-state
+   fixture family. ring_states telemetry. (The DFX37 lane's deeper
+   visitor-registry decode then corrected the identity — no birth
+   term; modified-in-window SKIPS — absorbed as the convergence.)
+2. **M-040 completed** (stages b + win runtime + the S-029 wiring):
+   the og has TWO update passes (FUN_180004840 number-only +
+   FUN_180004b40 full-position); the recovery-relevant full-position
+   pass landed as the canonical shape (the parallel lane's da46b14
+   first-landing + this lane's decode) with FOUR corpus-proven
+   corrections (GPT match GUID-only; MBR walk-level flags; absent
+   BootOrder silent no-op; missing Boot#### STOPS the walk) +
+   kMaxBootEntries=0xffff; the rrecov apply --boot-fix wiring; 13
+   NvramFix tests.
+3. **OQ-FLT-2 verification + complement**: the apply-method decode
+   completed first-hand (the 7 groups, the tag vocabulary's source =
+   node-flag bit positions, the PATH hypothesis REFUTED).
+4. **The PARITY-DELTAS ledger repair**: 172 merge-storm duplicate rows
+   dropped/reconciled (99 D-rows, one per number).
+5. **Repairs**: the N-072/S-034 union (the label-sweep retry rides the
+   ring collector); the committed-marker reds (twice, incl. the
+   nested-marker residue); the MSVC /W4 reds (C4244 image handles,
+   C4459 the shadowed L_DATA).
+6. Audit trail: S-034 + M-040 findings → FIXED/ with full Resolutions
+   (+ the convergence + correction records); matrix + module verdicts;
+   SUMMARY deltas; D-05 re-verdict; CAPABILITY-MATRIX rows.
+
+BOARD AT CLOSE: SEVERE 0 · MAJOR 0 · MINOR 0 · INFORMATIONAL all
+ACKNOWLEDGED · FIXED/ 223 · tracked-open 1 (OQ-S4-3 — the Windows
+bench EXECUTION, dispatched, the harness verified; the tag's gate is
+one green Windows CI + the bench artifact per the DFX36 close-out).
+
+NEXT (for whoever tags): the CI green + the bench numbers transcribed
+into OQ-S4-3/M-30/SUMMARY's perf section → tag v0.4.0-parity (the
+release notes exist and reference SUMMARY + PARITY-DELTAS).
