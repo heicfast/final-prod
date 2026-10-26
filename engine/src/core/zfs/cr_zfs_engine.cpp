@@ -1398,6 +1398,7 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
 
         struct ObjInfo {
             u64 mode = 0;
+            u64 flags = 0; /* N-059: ZPL_FLAGS (og +0x5A, census-level) */
             u64 size = 0;
             u64 parent = 0;
             u64 links = 0;
@@ -1469,6 +1470,8 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
                                 oi.crtime[0] = v64;
                             else if (nm == "ZPL_MODE")
                                 oi.mode = v64;
+                            else if (nm == "ZPL_FLAGS")
+                                oi.flags = v64; /* N-059: secondary flags */
                             else if (nm == "ZPL_SIZE")
                                 oi.size = v64;
                             else if (nm == "ZPL_PARENT")
@@ -1552,6 +1555,11 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
                                         : (ci->size ? u64(ci->dn.datablksz()) : 0);
                 p->attributes = is_dir ? 0x10 : 0;
                 p->record_ref = e.value;
+                /* N-059: the ZPL_FLAGS low u16 — the og's +0x5A secondary
+                 * flags (census-level semantics; carried opaque). The
+                 * classic znode flag set (immutable/appendonly/...) is the
+                 * low word; extended bits ride the registry only. */
+                p->zfs_secondary_flags = u16(ci->flags);
                 p->times.created = unix_to_filetime(i64(ci->crtime[0]));
                 p->times.modified = unix_to_filetime(i64(ci->mtime[0]));
                 p->times.changed = unix_to_filetime(i64(ci->ctime[0]));

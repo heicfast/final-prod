@@ -579,6 +579,22 @@ TEST(Btrfs, TwoSubvolumesRootSeparately) {
     EXPECT_FALSE(paths.count("second.txt")) << "second.txt never leaks to the root";
 
     EXPECT_FALSE(paths.count("subvol-5/hello.txt"));
+    /* each file under its OWN root. M-020 (corpus FUN_1800061f0
+     * :3975-4060, root-5 fallback): the DEFAULT subvolume (5, absent a
+     * "default" DIR_ITEM) renders its children DIRECTLY at the volume
+     * root - no subvol-5 container; every other subvolume keeps its
+     * container. The pre-M-020 expectations (subvol-5/-prefixed paths) encoded
+     * the old shape and were corrected when the parallel lanes' M-020
+     * landed after this test's first landing. */
+    EXPECT_TRUE(paths.count("hello.txt"));
+    EXPECT_TRUE(paths.count("sub/nested.bin"));
+    EXPECT_TRUE(paths.count("subvol-256/second.txt"));
+    /* no cross-subvol leakage: subvol-256's file never renders at the
+     * root, the default's files never render inside subvol-256 */
+    EXPECT_FALSE(paths.count("subvol-5/hello.txt"));
+    EXPECT_FALSE(paths.count("subvol-5/second.txt"));
+    EXPECT_FALSE(paths.count("subvol-256/hello.txt"));
+    EXPECT_FALSE(paths.count("second.txt"));
 
     /* the second subvol's file: size + extent + content at its own data */
     tree::FileNode* second = nullptr;

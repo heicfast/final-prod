@@ -447,3 +447,24 @@ deleted records at depth 1 too. OQ-S2A-1 resolved by the same evidence;
 OQ-S2A-4 ($MFT bootstrap depth) stays open. 3 tests; suite 593/593.
 
 - **M-043 (s5b):** FIXED (s14) — the recognition content proof landed at probe_family (the og analyser boundary); the "backup-boot fallback missing" half was corpus-disproven (the analyser memcmp-verifies the backup as the repair input only; NTFSSearchDLL never reads it) and corrected in the finding.
+
+
+---
+
+## Session-35 verdict update (N-079 FIXED, 2026-10-26)
+
+**Recycle-bin scope — `N-079` (new finding) FIXED.** The og scopes bin
+handling to the recognized roots via an ancestor-chain walk
+(NTFSSearchDLL :43538-43550 over the four-name recognizer
+:37387-37410). The NTFS landing matched $I/$R NAME PREFIXES anywhere:
+user files named "$Image.txt" vanished (unconditional skip, no parse
+gate) and out-of-bin "$R…" files could mis-pair with an in-bin $I
+(wrong name + wrong Deleted forcing). Fixed with M-052's shared-model
+extraction: parse-gated $I skip + fully post-walk, bin-ancestry-gated
+$R remap. The $I/$R record/token/bin-root primitives moved to
+cr/cr_recycle.h (the NTFS parse wrapper delegates; behavior of the
+in-bin path unchanged — RecycleBinMapping stayed green). Proof:
+RecycleBinScopeOutOfBinDollarFilesStayRaw (fail-before EXECUTED) +
+RecycleBinMapping (regression pin). B1/B4 verdict: MATCH (residual: a
+valid-$I-format file OUTSIDE the bin is still skipped — needs a tree
+node-removal API; documented in the finding).

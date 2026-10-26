@@ -1,3 +1,43 @@
+# SUMMARY.md — executive summary (diff-fix sessions 32(+33+34) on top; earlier sessions below)
+
+## Session-32 delta, part 2 (2026-10-26 — DFX32: M-025 FIXED — the carve window-aware read view + the pushed-red N-064 union repair)
+
+**The pushed-red repair first** (main was RED from a parallel convergent
+merge): the two N-064 landings (try_password_unlock/cr-pwddict vs
+unlock_with_dictionary/cr-dict) merged with UNRESOLVED conflict markers in
+6 files and a cr_bitlocker.cpp referencing the lost cr::dict module —
+win_syntax_check failing, the app uncompilable. Repaired as the convergent
+union (b00c02f): cr/pwddict is the canonical module; unlock_with_dictionary
+re-implemented as its ABI-shaped adapter; BOTH CLI consent flags kept
+(--bitlocker-pwddict <file|seed> + the valueless --bitlocker-dict); the
+Windows contract tests rewritten onto the pwddict seam; docs keep-both.
+Suite green again (win_syntax_check PASS).
+
+**M-025 FIXED (the fix plan's steps 1 + 2a/2b + 4; step 3 evaluated and
+not taken):** the WindowView — an IStorageDevice wrapper serving every
+read intersecting the already-scanned window from the in-memory buffer,
+wired at all 8 device-read sites of the window scan across BOTH emit
+layers (grammar validator + M-051 checksum + small-file hash + M-021
+feed; raw-sign tail walk + checksum + hash + feed); cross-window tails
+split-read (in-window prefix + device tail). Fail-before RED on the
+device-direct tree: the counting-device test saw **82 device reads** for
+a one-window fixture (per-candidate probe + checksum + hash re-reads) vs
+the expected **1**. MEASURED (scripts/bench_m025.cpp — 64 MiB sign-quiet
+fixture + 1280 grammar-validated candidates; the LCG fill abandoned as
+the bench lesson: random FF-sync bytes make the raw-sign tail walk read
+11+ GB, measuring the tail-scan budget instead of this fix's delta):
+device read_at calls 20,544 → 2,080 (**9.88×**), device bytes 2.20 GB →
+1.06 GB (**2.08×**), wall 3,936 → 3,818 ms on the memcpy device (no
+regression; the real-transport gain is ~18.5K fewer read round trips per
+64 MiB). The geometry change (4-8 MiB ping-pong) NOT taken — dispatch is
+byte-granularity-dominated (the I-009 superset) and the view already
+removed the re-read margin. PARITY-DELTAS **D-80** registers the
+stateless-view-vs-pending-object architecture (future stateful analysers
+port behind the M-021 CarvePostProcessor seam).
+
+**Counts after these landings (live tree):** SEVERE 1 · MAJOR **9** ·
+MINOR 8 · INFO 0 open · tracked-open 10 · FIXED/ 191 files. Session tally
+(this lane): M-029 + M-025 + the N-064 union repair.
 # SUMMARY.md — executive summary (diff-fix session 33 on top; earlier sessions below)
 
 ## Session-33 delta, part 3 (2026-10-26 — DFX33: M-018 FIXED — the FilterFolder result-set junk filter)
@@ -352,10 +392,20 @@ scanner (bulk single-value collect; the BIGGER object, 0x120 vs 0xe8). The
 core's orchestrator-layer quick/deep split is the union — no action.
 Evidence: `evidence/decompiled-quotes/s30-oq-z5-zfs-quick-vs-complete.md`.
 
-**Post-filing counts (this session's tree; parallel lanes active):**
-SEVERE **1** (S-034, new) · MAJOR 14 · MINOR 18 · INFO 0 open · FIXED/ 171 ·
-tracked-open 11 files (3 sub-questions resolved this session: OQ-FLT-1,
-OQ-Z5, OQ-Z2→S-034; OQ-E2 and OQ-T7 were already resolved).
+**Post-session counts (DFX30's lane complete at `49eed47`; parallel
+lanes active in the same window):** SEVERE **1** (S-034, new — the
+session's NEW-FINDING, fix queued behind its three decode items) · MAJOR
+14 · MINOR 18 · INFO 0 open · FIXED/ 171+6 (the session's closed OQs:
+T6-T7, S6-3, S6-2, S6-1, S5-1 + the DFX25-index rows) · tracked-open
+reduced to **4 files** (OQ-RS, OQ-S2M-2, OQ-S3, OQ-S4-3 — DFX25's head
+queue; OQ-S20-1 resolved by DFX31; OQ-Z-E-FLT stays open for OQ-FLT-2
+alone, pushed forward with evidence). Session-30 dispositions: 8
+sub-question resolutions, 2 convergent closures (S6-2, S5-1), 1
+convergent closure WITH correction (S6-1 — DFX25's "not the registry"
+refuted by the FUN_180022430 mode dispatch), 1 push-forward with new
+evidence (OQ-FLT-2 → M-029), S-034 filed, D-09 re-verdicted, corpus
+errata E45 + E46-convergence, M-035's blast-radius question answered,
+mom-capabilities.md CheckVersion row closed.
 
 # SUMMARY.md — executive summary (sessions 30+31+35 on top; earlier sessions below)
 
@@ -622,8 +672,22 @@ merge-disabled tree); 4 pure tests; win_syntax_check green (cfgmgr32
 stub pair); suite 769/769. modules/storage.md's stale local N-055 row
 for this finding corrected to the integrated N-071.
 
-Counts after this landing: **MINOR 17 open** (N-064, N-071 moved to
-FIXED/), MAJOR 14 open (DFX27/DFX26 lanes), INFO 0, tracked-open 11.
+**N-059 FIXED (MINOR — the per-FS session extras):** the og's Btrfs
+record (+0x3B/+0x3F secondary ids, +0x81 generation/transid qword), ZFS
+record (+0x5A secondary flags), and — the session-6 addendum's fold —
+HFS+ record (part2 +0xE mode/flags, +0x74 type id) now round-trip:
+FileProperties carriers + engine emission (the btrfs inode generation;
+the znode ZPL_FLAGS low u16; the HFS+ catalog flags + Finder type) + the
+nflags bit-6 fixed 24-byte append-only block. Fail-before EXECUTED (2
+RED on the bit-6-disabled tree); 3 round-trip tests; suite 822/822. The
+same landing repaired the parallel lanes' N-019/M-020 convergence break
+(Btrfs.TwoSubvolumesRootSeparately expectations corrected to the
+corpus-verified default-subvol-at-root contract — the union had left
+main red).
+
+Counts after this landing: **MINOR 4 open** (N-064, N-071, N-059 moved
+to FIXED/; the tier's other findings landed by the parallel lanes),
+MAJOR 10 open, INFO 0, tracked-open 6.
 
 ## Session-30 delta, part 2 (2026-10-26 — DFX30: N-071 closed — the deferred trio complete on this lane)
 
@@ -795,6 +859,32 @@ open (22 acknowledged in FIXED/) · tracked-open 11 · FIXED/ **178** files
 (177 findings + RESOLVED-INDEX). Next on this lane: N-050 (recognition contract) →
 N-033 → N-064.
 ## Session-35 delta (2026-10-26 — DFX35, re-stamped from 23: the MAJOR-closing wave, M-014 first)
+
+**M-052 FIXED (MAJOR — the FAT/exFAT recycle-bin $I/$R pairing) +
+N-079 NEW-FINDING FIXED (MINOR — the NTFS landing's missing bin
+scope):** the recycle model is now shared across all three engines
+(include/cr/cr_recycle.h): the $I v1/v2 record parser (format-dependent
+pathlen, runner-benchmark evidence), the dot-stripped pairing token,
+and the og's FOUR-name bin-root set (Recycler / Recycled /
+$Recycle.Bin / $RECYCLE.BI0 — verified first-hand in all three
+SearchDLLs; the mangled $RECYCLE.BI0 variant is deliberate og
+matching). FAT and exFAT thread the bin context through the directory
+recursion (and the M-013 oracle's re-walks): in-bin $I metadata never
+surfaces; in-bin $R content remaps to the ORIGINAL name with the $I's
+size/deletion-FILETIME, marked Deleted; the post-walk fixup pairs
+across walk order ("across bin subfolders"). Verification of the NTFS
+reference implementation found it matched $I/$R NAME PREFIXES
+everywhere (user files named "$Image.txt" vanished; out-of-bin "$R…"
+mis-paired) — filed as N-079 and fixed in the same change (parse-gated
+skip + ancestor-chain-gated remap, the og's own scope test). New stats
+recycle_info/recycle_remapped on both FAT-family engines. Proof: 3
+fail-before EXECUTED tests + the no-over-match guard + the NTFS scope
+pin (fail-before EXECUTED) + RecycleBinMapping regression green
+throughout; suite 794/794.
+
+**Counts after this landing:** MAJOR 11 · MINOR 10 · FIXED 186
+findings (+ N-079 new). Next on this lane: M-020 (Btrfs chunk
+profiles + default subvol).
 
 Baseline `716d121` verified green first-hand (737/737 linux-release);
 corpus `03ad46c` unmoved. Lane: MAJOR-first per the session mandate,

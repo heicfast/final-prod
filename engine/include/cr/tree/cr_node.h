@@ -140,6 +140,27 @@ public:
     std::u16string carve_note;
     u64 carve_anchor_b = 0;
     bool carve_flag = false;
+    /* N-059 (diff-to-fix): per-FS secondary payload — the og's Btrfs
+     * record (ifileproperties-part3 :23-25: u32 secondary id A +0x3B,
+     * u32 secondary id B +0x3F, qword extra +0x81 "generation/transid
+     * family"), the ZFS record (:52-65: u16 secondary flags +0x5A), and
+     * — the session-6 addendum's fold — the HFS+ record (part2 :46-48:
+     * u16 mode/flags secondary +0xE, u32 type id +0x74). The og field
+     * semantics are census-level; the carriers are named for the ENGINE
+     * data they hold: btrfs_id_a = the owning subvolume's root id (the
+     * naming/N-047 datum), btrfs_id_b = 0 (no decoded source — never
+     * invented), btrfs_generation = the inode item's generation qword,
+     * zfs_secondary_flags = the znode ZPL_FLAGS low u16 (census-level,
+     * carried opaque), hfs_secondary_flags = the catalog record's u16
+     * flags, hfs_type_id = the Finder file type. Zero when the engine
+     * did not populate them; persisted as the nflags bit-6 extras block
+     * (cr_records.cpp) so reloads keep the provenance. */
+    u32 btrfs_id_a = 0;
+    u32 btrfs_id_b = 0;
+    u64 btrfs_generation = 0;
+    u16 zfs_secondary_flags = 0;
+    u16 hfs_secondary_flags = 0;
+    u32 hfs_type_id = 0;
     /* content hash when computed (carve dedup + writer verification) */
     u8 sha128[16] = {0}; /* truncated sha-256 digest, 128-bit id */
     bool hash_valid = false;

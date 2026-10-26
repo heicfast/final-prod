@@ -1,0 +1,93 @@
+# MINOR N-059 — Btrfs/ZFS session extras unpersisted: secondary ids A/B + generation/transid qword (Btrfs) and secondary flags u16 (ZFS); ZfsDataRunlist polymorphism flattened to extents (functional match)
+
+**Severity:** MINOR
+**Module:** session (+ btrfs/zfs engines)
+**Parameters affected:** D11 (node fields), D12 (session persistence), B7/Q68 (field documentation)
+**Corpus references:** `re-workspace/artifacts/SaveScan/ifileproperties-part3--btrfs-zfs-raw-generic.md:23-25` (Btrfs record: "u32 secondary id A (+0x3B)", "u32 secondary id B (+0x3F)", "qword extra (+0x81) — Btrfs-specific: generation/transid family"), `:52-65` (ZFS record: "u16 secondary flags (+0x5A)"; polymorphic `zfs_struct::ZfsDataRunlist` at +0x60 serialized through its own vtable)
+**Core references:** `src/core/session/cr_records.cpp` (props block has no btrfs/zfs secondary fields), `src/core/btrfs/cr_btrfs_engine.cpp` / `src/core/zfs/cr_zfs_engine.cpp` (engines hold the data in-memory during scan; not persisted) — audited commit `7cf6754`
+**Status:** READ-ONLY FINDING — no fix applied
+
+## Summary
+
+The og's Btrfs record carries two secondary ids and a generation/transid qword; the ZFS
+record carries a secondary-flags u16 and serializes a polymorphic ZfsDataRunlist. The core's
+session persists neither the Btrfs nor the ZFS extras — reload loses them. The runlist
+flattening is a functional match (the core's decoded absolute-extent vector expresses the
+same layout, more expressively with codec/psize), so only the flag/id extras are state
+loss.
+
+## What the reference does
+
+Quoted field tables (part3, first full read this session): Btrfs +0x3B/+0x3F secondary ids,
++0x81 generation/transid qword; ZFS +0x5A secondary flags, +0x60 ZfsDataRunlist via its own
+vtable (+0x18 write/+0x20 read).
+
+## What our core does
+
+The btrfs/zfs engines read generation/transid and the secondary identifiers during scan
+(they drive grading/supersets — see I-003/I-007), but the session props block has no
+carriers; on reload the values are gone. The ZFS runlist is persisted as plain extents.
+
+## Gap
+
+Falsifiable: a Btrfs session reloaded in the og retains generation/transid per node; the
+core's reloaded session returns zeros for any equivalent query.
+
+## Impact
+
+Post-resume provenance for Btrfs/ZFS nodes degrades (timestamps-of-change, subvol ids,
+secondary flags). No recovery-correctness impact (extents and names survive). MINOR.
+
+## Reproduction / verification
+
+Part3 field tables read first-hand; core props block enumerated first-hand; negative space
+verified.
+
+## Fix plan
+
+1. Add optional per-node engine-extras block (append-only): {u32 id_a, u32 id_b, u64 gen,
+   u16 zfs_flags} — populated by the btrfs/zfs emit paths, serialized after the props.
+2. Document the mapping in the session contract (which og field each mirrors).
+3. Keep the extent-vector runlist (registered superset — I-022).
+
+## Tests to add
+
+- `Session.BtrfsExtrasRoundTrip`
+- `Session.ZfsSecondaryFlagsRoundTrip`
+
+## Related findings
+
+- M-050 (node-model carrier wave — land together)
+- I-022 (superset registers — codec/psize expressiveness)
+
+## Open questions
+
+The precise semantics of ZFS secondary flags (+0x5A) is census-level; carry opaque and
+document UNDECODED.
+
+---
+
+## Session-6 convergence addendum (2026-10-26 — the HFS+ half + the cross-engine ID space)
+
+This session independently filed the per-FS secondary-payload gap (local N-050,
+dropped in the ID reconciliation — the type-registry-ID half converged with
+M-051, the Btrfs/ZFS half with THIS finding) and adds:
+
+1. **HFS+ mode/type fields are part of the same gap** (ifileproperties-part2 —
+   the HFS+ record carries mode + filetype; the core's HFS+ engine reads both
+   during the walk and drops them at emission, same shape as the Btrfs/ZFS
+   losses this finding documents). Recommend folding HFS+ into this finding's
+   fix-plan step (the per-FS payload slot).
+2. **The cross-engine ID-space fact** for the fix's field design: the RAW
+   type-registry ID (+0xF8) shares the og's single ID space with NTFS (+0x60)
+   and the other engines (part3:88) — one shared `type_id` field across
+   engines, not a per-FS enumeration. (M-051 owns the RAW-side citation; this
+   note is the cross-engine constraint on the fix.)
+
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-059 commit — DFX31)
+**Verified by:** 3 round-trip tests (tests/unit/test_session.cpp: BtrfsExtrasRoundTrip, ZfsSecondaryFlagsRoundTrip, EngineExtrasAbsentWhenUnpopulated) — fail-before EXECUTED on the bit-6-disabled tree (the two carrier tests RED: reload returned zeros; restored -> 3/3 GREEN) — plus the full btrfs/zfs/hfsplus engine suites unchanged (20/20 Btrfs incl. the M-020-convergence repair below). Suite 822/822 linux-release at the landing tree.
+**Resolution notes:** Per the fix plan + the session-6 addendum. (1) The carriers (cr_node.h FileProperties): btrfs_id_a/b, btrfs_generation, zfs_secondary_flags, hfs_secondary_flags, hfs_type_id — named for the ENGINE data they hold (the og field semantics are census-level, documented as such; id_b has no decoded source and stays 0, never invented). (2) The engines: btrfs InodeInfo.generation (the inode item's qword@0, INO_GENERATION) parsed and emitted with the owning subvol root id (sv.id — the N-047 naming datum); zfs ObjInfo.flags from ZPL_FLAGS in the SA registry decode (the "gen/xattr/rdev/flags/uid/gid: carried in the registry, not consumed" comment's gap closed for flags; low u16 = the og's +0x5A); hfs+ emits the catalog record's own u16 flags + the Finder file type (already read for the N-028c 'prdf' gate) at BOTH the live-walk and journal/orphan emission sites. (3) The session: nflags bit 6 + a fixed 24-byte append-only block (old files read back zeros; a plain node's record shape is byte-identical to pre-N-059 — pinned by EngineExtrasAbsentWhenUnpopulated); the ZfsDataRunlist stays the extent-vector superset (I-022, untouched). (4) CONVERGENCE REPAIR in the same landing: the parallel lanes' N-019 test (Btrfs.TwoSubvolumesRootSeparately, expecting subvol-5/* paths) contradicted the M-020 landing's corpus-verified default-subvolume contract (FUN_1800061f0 :3975-4060: the DEFAULT subvol's children render DIRECTLY at the volume root; the og's falsifiable claim (c) in M-020's finding); the test's expectations corrected to the M-020 contract (default's children at root, subvol-256 keeps its container, leakage assertions preserved both directions) — the union of the two parallel landings had left main red.

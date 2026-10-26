@@ -22,7 +22,7 @@
 | NTFS compressed $DATA (LZNT1) | RtlDecompressBuffer-family semantics | full LZNT1 ladder (MS-XCA tagged-group; `cr_decomp.cpp` `lznt1_payload_decode`) + MFT-walk inflation (`expand_compressed_data`, cr_mftwalk.cpp) + codec-tagged extents the writer inflates | **DONE** | N-074 doc-truth fix (was stale MISSING); `NtfsVolume.Lznt1MsXcaDocumentedVector` + the compressed-$DATA recovery tests |
 | NTFS compressed $DATA (XPRESS/LZX) | RtlDecompressBuffer-family semantics | not implemented | **MISSING (GAP-P1-1, SHARED limitation — the og is LZNT1-only too; no XPRESS/LZX surface in any corpus artifact)** | CORE-GAP-LIST GAP-P1-1; tracked, not claimed |
 | NTFS USN journal harvest | USN census (UNVERIFIED specifics) | $J run materialization + V2/V3 parse, DELETE-filtered, re-sync | **DONE (delta D-11)** | test USN harvest cases; UNVERIFIED-1 carried |
-| Recycle Bin $I/$R remap | original names (bench 26/26) | token pairing (dot-stripped) + post-walk remap, both record orders | **DONE** | 632edc4; test RecycleBin* incl. late-remap shape |
+| Recycle Bin $I/$R remap | original names (bench 26/26) | token pairing (dot-stripped) + post-walk remap, both record orders; shared model (cr_recycle.h) across NTFS + FAT + exFAT with bin-root scoping (four-name _stricmp set incl. Recycled/Recycler/$RECYCLE.BI0) | **DONE (all three engines; M-052)** | 632edc4; M-052: test RecyclePairing*/RecycleLegacyRoots/RecycleBinScope* |
 | FAT12/16/32 live+deleted | FATSearchDLL | flavors, LFN (deleted-slot reversal), chain guards, mirrored-FAT salvage | **DONE+** | D-39; test_fat_volume.cpp; FAT-1..10 fixes W2 |
 | FAT backup-boot fallback | none in-engine (RawFixer pre-scan) | FAT32-gated sector-6 fallback, 4Kn stride | **DONE (delta D-44/FAT-8)** | test Fat32BackupBootFallback + Fat16HasNoBackupBootFallback |
 | exFAT | exFATSearchDLL | boot-region checksum, entry-set checksum, NoFatChain, FREE continuation salvage, boot gates | **DONE** | EXFAT-1..6 W2; test_exfat_volume.cpp |
@@ -69,6 +69,7 @@ live since M-033 — a user-supplied FVEK, the og's GetFullVolumeEncryptionKey
 output shape, flows through `DecryptingDevice`, the in-stack XTS-AES layer
 matching the og's volume-IO placement: `--bitlocker-fvek` CLI /
 `cr_ui_open_volume_with_key` ABI; detection + legitimate unlock remain the
+
 S-014 posture: live-registry + offline-hive auto-unlock; the N-064
 password-dictionary aid is the og's Dict unlock flow ported with the
 consent gate intact, in BOTH same-window landing forms — explicit

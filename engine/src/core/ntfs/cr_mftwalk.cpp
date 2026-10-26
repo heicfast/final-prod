@@ -6,6 +6,7 @@
 #include "cr/ntfs/cr_mftwalk.h"
 #include "cr/compress/cr_decomp.h"
 #include "cr/cr_parallel.h"
+#include "cr/cr_recycle.h" /* M-052/N-079: shared $I/$R pairing model */
 #include "cr/ntfs/cr_attributes.h"
 #include "cr/ntfs/cr_fixup.h"
 #include <atomic>
@@ -165,7 +166,10 @@ u32 build_props(NtfsVolume* vol, const std::vector<AttrView>& attrs, u64 record_
 } // namespace
 
 /* ---- $Recycle.Bin mapping (og parity: recycle-bin files surface under
- * their pre-deletion name; $I metadata parsed, $R content remapped) ---- */
+ * their pre-deletion name; $I metadata parsed, $R content remapped) ----
+ * M-052: the record/token/bin-root primitives moved to the shared
+ * cr/cr_recycle.h (the FAT and exFAT engines consume the same model);
+ * the NTFS wrappers below keep this walk's landed shape. */
 struct RecycleInfo {
     u64 size = 0;
     u64 time = 0;
@@ -174,7 +178,8 @@ struct RecycleInfo {
 
 /* $I layout (verified against the shell's writer behavior): shared
  * offsets for v1 (28 + 2*pathlen bytes) and v2 (544 fixed):
- * version u32@0, size u64@8, time u64@16, pathlen u32@24, path@28 */
+ * version u32@0, size u64@8, time u64@16, pathlen u32@24, path@28.
+ * The parse itself is recycle::parse_record (cr_recycle.h). */
 static u32 parse_recycle_info(const std::vector<AttrView>& attrs, RecycleInfo& out) {
     for (const AttrView& a : attrs) {
         if (a.type != ATTR_TYPE_DATA || a.nonresident || a.name_length != 0)
@@ -183,50 +188,12 @@ static u32 parse_recycle_info(const std::vector<AttrView>& attrs, RecycleInfo& o
         u32 dlen = 0;
         if (resident_span(a, d, dlen) != OK)
             continue;
-        if (dlen < 30)
+        recycle::Info ri;
+        if (!recycle::parse_record(d, dlen, ri))
             continue;
-        const u32 ver = u32_from_bytes_le(d);
-        if (ver != 1 && ver != 2)
-            continue;
-        const u64 size = u64_from_bytes_le(d + 8);
-        const u64 t = u64_from_bytes_le(d + 16);
-        /* Path length determination is FORMAT-DEPENDENT (runner benchmark
-         * evidence - every $I parse was rejected on the real volume):
-         * - Vista..Win8 fixed form (dlen==544): pathlen is the u32@0x18
-         *   (the field the old code trusted on ALL forms).
-         * - Windows 10+ variable form (dlen == 28 + 2*pathlen): @0x18 was
-         *   REPURPOSED as a deletion-sequence counter (37, 38, 42... -
-         *   Champlain Forensics, Win10 $I research); the path is the whole
-         *   tail, NUL-padded, terminated by three zero bytes.
-         * Try the @0x18 value first when it validates against dlen, else
-         * derive from the tail length; the string is cut at the first NUL
-         * either way. */
-        const u32 field24 = u32_from_bytes_le(d + 24);
-        const u32 derived = (dlen >= 28 && ((dlen - 28) & 1) == 0) ? u32((dlen - 28) / 2) : 0;
-        u32 plen = 0;
-        if (field24 >= 1 && field24 <= 1024 && 28 + u64(field24) * 2 <= dlen)
-            plen = field24;
-        else if (derived >= 1)
-            plen = derived;
-        if (plen == 0 || plen > 1024)
-            continue;
-        std::u16string path;
-        path.reserve(plen);
-        for (u32 i = 0; i < plen; ++i) {
-            const u16 ch = u16_from_bytes_le(d + 28 + i * 2);
-            if (ch == 0)
-                break; /* NUL-terminated / NUL-padded tail */
-            path.push_back(ch);
-        }
-        if (path.empty())
-            continue;
-        const size_t slash = path.rfind(u'\\');
-        const std::u16string base = slash == std::u16string::npos ? path : path.substr(slash + 1);
-        if (base.empty())
-            continue;
-        out.size = size;
-        out.time = t;
-        out.orig_name = base;
+        out.size = ri.size;
+        out.time = ri.time;
+        out.orig_name = std::move(ri.orig_name);
         return OK;
     }
     return ERR_UNSUPPORTED;
@@ -238,17 +205,9 @@ static u32 parse_recycle_info(const std::vector<AttrView>& attrs, RecycleInfo& o
  * ($R2X9K4L.jpg pairs with $I2X9K4L) - so substr(2) keys never
  * matched and 0/26 recycle deletions surfaced raw-named. The extension
  * is NOT part of the pairing token: strip at the first '.' (the shell
- * token never contains one). */
+ * token never contains one). Shared spelling: recycle::token_of. */
 static std::u16string recycle_token(const std::u16string& n) {
-    if (n.size() < 3 || n[0] != u'$' || (n[1] != u'I' && n[1] != u'R'))
-        return {};
-    std::u16string tok;
-    for (size_t i = 2; i < n.size(); ++i) {
-        if (n[i] == u'.')
-            break;
-        tok.push_back(n[i]);
-    }
-    return tok;
+    return recycle::token_of(n);
 }
 
 /* volume metafiles only - NOT every '$' name (the old blanket skip
@@ -700,7 +659,19 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
          * v2: 544 fixed); $R<rand> is the content. Map $R records back to
          * their ORIGINAL name + $I-recorded size and mark them Deleted
          * (they were deleted from the user's location; the record stays
-         * in-use in the bin). $I metadata files never surface. */
+         * in-use in the bin). $I metadata files never surface.
+         * N-079 (M-052 verification, new finding): the og scopes the
+         * bin handling to the RECOGNIZED bin roots (the ancestor-chain
+         * walk over the four-name _stricmp recognizer,
+         * NTFSSearchDLL :43538-43550/:37387-37410). The old landing
+         * skipped EVERY $I-named record and remapped every $R-named
+         * one regardless of location: user files like "$Image.txt"
+         * vanished (skip with no parse gate) and "$R_notes.txt" could
+         * mis-pair. Now: the $I skip is PARSE-GATED (a record whose
+         * $DATA does not parse as a $I record is ordinary content and
+         * is emitted), and the $R remap defers to the post-walk fixup
+         * which checks the node's bin ancestry - out-of-bin $R-named
+         * files keep their raw name. */
         if (best->name.size() >= 3 && best->name[0] == u'$' &&
             (best->name[1] == u'I' || best->name[1] == u'R')) {
             const std::u16string tok = recycle_token(best->name);
@@ -710,12 +681,13 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                     if (parse_recycle_info(attrs, ri) == OK) {
                         recycle_info[tok] = ri;
                         ++stats.recycle_info;
+                        continue; /* parsed bin metadata, not content */
                     }
+                    /* unparsed $I-named file: ordinary content - falls
+                     * through to normal emission */
                 }
-                continue; /* bin metadata, not recoverable content */
-            }
-            if (!tok.empty()) {
-                recycle_pending = true; /* $R: mapped below if its $I was seen */
+            } else if (!tok.empty()) {
+                recycle_pending = true; /* $R: bin-scoped remap post-walk */
                 recycle_rnd = tok;
             }
         }
@@ -906,27 +878,14 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
          * OFFLINE bit (HSM-migrated files) and the 0x100-0x200 family. */
         props->attributes = (has_si ? u16(si_flags & 0x7FF) : u16(best->dos_flags & 0x7FF)) |
                             (is_dir ? u16(0x10) : 0);
-        /* $R<rand> recycle remap: the ORIGINAL name/size/time from the $I
-         * sibling (the $R record itself stays in-use inside the bin - it
-         * was deleted from the user's location, so the node is Deleted) */
-        bool recycle_remapped = false;
+        /* $R<rand> recycle remap: DEFERRED ENTIRELY to the post-walk
+         * fixup (N-079) - the bin-ancestry check needs the finished
+         * tree, and the $I may sit at a higher record number. The node
+         * is queued below; the fixup remaps only in-bin nodes. */
         bool recycle_missed = false;
         if (recycle_pending) {
             recycle_pending = false;
-            auto it = recycle_info.find(recycle_rnd);
-            if (it != recycle_info.end()) {
-                props->name = it->second.orig_name;
-                if (it->second.size != 0)
-                    props->logical_size = it->second.size;
-                props->times.modified = it->second.time;
-                recycle_remapped = true;
-                ++stats.recycle_remapped;
-            } else {
-                /* GAP-P1-3: the $I may live at a HIGHER record number
-                 * (MFT order is allocation order, not bin-pair order) -
-                 * remember the emitted node for the post-walk fixup */
-                recycle_missed = true;
-            }
+            recycle_missed = true; /* every $R goes through the fixup */
         }
         props->flags = u16(in_use ? PFLAG_IN_USE : 0) | u16(is_dir ? PFLAG_IS_DIR : 0);
 
@@ -1020,11 +979,9 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                 n->set_deleted_state(tree::DeletedState::Deleted);
                 if (conf == tree::Confidence::Overwritten)
                     n->set_deleted_state(tree::DeletedState::PartiallyOverwritten);
-            } else if (recycle_remapped) {
-                /* recycle-bin content: the record is in-use inside the bin,
-                 * but the file was deleted from the user's location */
-                n->set_deleted_state(tree::DeletedState::Deleted);
             }
+            /* N-079: the in-use $R Deleted-state forcing moved to the
+             * post-walk fixup (it now rides the bin-ancestry check) */
             n->set_confidence(conf);
             n->set_origin(tree::Origin::Structured);
             if (first_link_node == nullptr)
@@ -1128,19 +1085,32 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
         }
     }
 
-    /* ---- phase B2: recycle $R fixup (GAP-P1-3, bench: ours 0/26 vs og
-     * 26/26) ----
+    /* ---- phase B: $Recycle.Bin $R fixup (GAP-P1-3 + M-052/N-079) ----
      *
-     * $R records whose $I metadata sits at a HIGHER record number emitted
-     * under their raw bin name during the walk; every $I has been parsed
-     * by now, so the remap can complete. Mutating props through the node
-     * is safe post-emission: nodes are arena-stable, and the tree's hash
+     * $R files were emitted under their raw bin name during the walk;
+     * every $I has been parsed by now, so the remap can complete. The
+     * remap is BIN-SCOPED (N-079): the node's ancestor chain must
+     * contain one of the og's four recognized bin roots
+     * (recycle::is_bin_root; NTFSSearchDLL :37387-37410 + the
+     * ancestor walk :43538-43550) - out-of-bin $R-named user files
+     * keep their raw name. Mutating props through the node is safe
+     * post-emission: nodes are arena-stable, and the tree's hash
      * indexes key on record_ref/extent (never name). Orphan $R records
      * (damaged/missing $I) keep their raw name - same as the og. */
     for (const auto& pr : pending_recycle_r) {
         auto it = recycle_info.find(pr.token);
         if (it == recycle_info.end())
             continue;
+        bool in_bin = false;
+        for (tree::FileNode* a = pr.node->parent(); a != nullptr; a = a->parent()) {
+            const tree::FileProperties* ap = a->props();
+            if (ap != nullptr && recycle::is_bin_root(ap->name)) {
+                in_bin = true;
+                break;
+            }
+        }
+        if (!in_bin)
+            continue; /* out-of-bin $R-named file: ordinary content */
         tree::FileProperties* p = pr.node->props();
         if (p == nullptr)
             continue;

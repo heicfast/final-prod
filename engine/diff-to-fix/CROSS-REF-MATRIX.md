@@ -29,7 +29,10 @@ cr_ui_unlock_volume_with_dictionary additive ABI export. F61 consent gate
 structural; health/bitlocker F61/B1 cells -> MATCH. **N-071** FIXED —
 the two-stack disk enumeration (cfgmgr32 disk-interface pass merged into
 the numbered loop; residual stacks registered as D-79); storage B8/P42/A54
--> MATCH-with-D-79.
+-> MATCH-with-D-79. **N-059** FIXED — the per-FS session extras
+(Btrfs/ZFS/HFS+ secondary payload carriers + engine emission + the
+nflags bit-6 append-only block); session D11/D12 cells -> MATCH; the
+N-019/M-020 convergence break repaired in the same landing.
 
 **Session-25 changes (2026-10-26, DFX25 — INFO tier closed into FIXED/, tracked-open resolution wave):**
 the 22 acknowledged INFORMATIONAL findings (I-001..I-024) moved from
@@ -273,6 +276,7 @@ reading was wrong — corrected in `evidence/decompiled-quotes/fat-exfat-session
 | carve | C19/B1/B2 | **S-017 — FIXED (`1cc08c3`, post-wave-2)** (ftyp re-keyed on box TYPE + F8 structural self-probe; 6 fail-before tests) |
 | carve | A28/B2 | **S-018 — INVALID (`2adfa29`, post-wave-2; refutation independently re-verified by the S3 lead: the `-0x27` signed-char FF D9 sites gate the modern analyser)** — residuals in tracked-open OQ-S3-jpeg-fallback-and-continuation |
 | carve | A42/A45 | ****M-024 FIXED (s10: disabled_formats surface — findings/FIXED/M-024)**** (no runtime format-filter surface vs og RawConfig.ini [Filter], 37 toggles, STL/VPJ default-off) + **N-033** (registry exports consumed by FS engines — no core ABI) |
+| carve | P47–P53/X47/X50 | ~~M-025~~ **FIXED (s32 DFX32: the WindowView — validator probes/checksums/hashes/tail-walks/feeds served from the already-read window; MEASURED 9.88× fewer read_at calls, 2.08× fewer device bytes; the pending-object model registered as D-80, future stateful analysers port behind the M-021 seam; geometry change not taken — byte-granularity dominates, I-009 superset kept)** |
 | carve | P47–P53/X47/X50 | ~~M-025~~ **FIXED (s33)** — the window-serving read context (WindowDevice): validators/checksums/hashes/tail-scans read through the window buffer (the og's already-in-buffer model); MEASURED 52→4 device reads on the 4-plant fixture (13x, zero per-candidate re-reads); geometry unchanged per the finding's bench-evidence rule; stateless-vs-pending registered D-81; findings/FIXED/M-025 |
 | carve | A25/A28/C19 | ~~N-031~~ **FIXED (s28)** — the zero-sector fast-skip landed (all-zero 47-byte sign window skips the raw-sign probe, counted in carve_zero_strides); stride superset + only_common coverage documented; addendum's chain semantics already equivalent (pins green); findings/FIXED/N-031 |
 | lost-partition | A30/B1 | **S-019** (BitLocker "-FVE-FS-" probe family missing — S-006 under-listed the og; distinct from S-014's unlock-path finding) |
@@ -348,8 +352,8 @@ not-BAAD both sides; FAT quick-scan threading — already registered D-30x).
 
 | Module | Parameter(s) | Verdict change (evidence in the finding + `evidence/decompiled-quotes/s6-*`) |
 |---|---|---|
-| fat | B4/B5/D11/A29 | **M-052** (recycle-bin $I/$R pairing missing — og IRecycleBinNode2UI bridge; NTFS-side model exists in-repo) |
-| exfat | B1/A25/S35 | **N-067 FIXED s11** (upcase-table validation — og shape gates + checksum32 stream check, soft stats signal; findings/FIXED/); B4/B5/D11 **M-052** (recycle mirror) |
+| fat | B4/B5/D11/A29 | **M-052 — FIXED (s35)** (the shared $I/$R pairing model — four-root recognition, chain-read $I parse, original-name remap + post-walk fixup; findings/FIXED/M-052) |
+| exfat | B1/A25/S35 | **N-067 FIXED s11** (upcase-table validation — og shape gates + checksum32 stream check, soft stats signal; findings/FIXED/); B4/B5/D11 **M-052 FIXED (s35)** (the FAT-mirrored pairing — bin context through walk + oracle re-walks; findings/FIXED/M-052) |
 | carve | A25/D11/P42 | **S-032 (converged)** (archive inner-file inventories missing) |
 | carve | B1/C19 | **N-069 FIXED s11** (CAB mscf case key — FMT_CAB_LC dual row + two-spelling validator re-check; findings/FIXED/); B1/A28 **N-068 FIXED s11** (LFH sanity gates decompile-exact; EOCD half FIXED-ALREADY — the CD anchor + EOCD reconciliation already cover it; findings/FIXED/) |
 | carve | A28/A29/D15/B3 | **N-070** (overlap scoring + two-generation fallback); **S-007 addendum** (bare-MPEG dispatch gap — 18+ u16 sync keys vs ID3-only; family roster with provenance) |
