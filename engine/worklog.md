@@ -11673,3 +11673,34 @@ Work Log:
 Stage Summary:
 - The union is coherent: N-035's extents feed M-017's rules. Tally
   stands at 4 MAJORs + 2 CI repairs + 1 reconciliation this session.
+
+---
+Task ID: DFX21-M042-CONV (M-042 convergence — ceded to the parallel lane)
+Agent: main engineer (diff-to-fix session 21 — DFX21)
+Task: M-042 session-resume re-validation — executed in full, then ceded
+to the parallel DFX20 lane's landing (first-landing-wins).
+
+Work Log:
+- Implemented the complete M-042 fix (re-validation at run() start on
+  resumed controllers, identity-gated; PartitionContext v2 geometry tail;
+  REC_DISK_LAYOUT; post-discovery forced checkpoint; PARITY-DELTAS D-73;
+  4 tests + geometry pins; fail-before proven by temporary revert; suite
+  697/697 green locally — commit bc718bc, still in this repo's reflog).
+- Push window raced the parallel lane: 63a3a77 ("fix(M-042): resume
+  disk-truth pass") landed on origin first with a RICHER shape
+  (lost::revalidate_candidate dispatching the same per-family probes the
+  discovery uses — closer to the og's FUN_180021080 re-run than my
+  probe_family mapping; load-time revalidate_disk on the device-bearing
+  CLI surfaces; CLI resume warnings; crsf-format.md docs; 6 tests incl.
+  the arbiter edges).
+- Per the first-landing-wins protocol my landing was DROPPED (reset to
+  origin/main; both implementations preserved in git history — mine via
+  this worklog's reference and the reflog). Verified the union tree
+  green first-hand: 712/712 linux-release.
+- Session tally stands at: M-044 FIXED (mine, f71e06c + convergent
+  union), M-028 FIXED (mine), M-021 FIXED (mine, 75a5a29), M-042 FIXED
+  (theirs, ceded).
+
+Stage Summary:
+- Convergence recorded honestly; next queue item: M-048 (user-extensible
+  signature DB), then M-025 (carve read model).
