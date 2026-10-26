@@ -142,8 +142,7 @@ bool cache_parse_validate(const u8 fsid[16], u64 generation, const std::vector<u
         p += 2;
         const u32 nstripes = get32(p);
         p += 4;
-        if (nstripes > kMaxStripesPerChunk ||
-            size_t(p - blob.data()) + u64(nstripes) * 16 > size)
+        if (nstripes > kMaxStripesPerChunk || size_t(p - blob.data()) + u64(nstripes) * 16 > size)
             return false;
         c.stripes.resize(nstripes);
         for (u32 s = 0; s < nstripes; ++s) {

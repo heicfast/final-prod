@@ -182,7 +182,13 @@ TEST(NvramFix, MatchesMbrBySignatureStartSize) {
     EXPECT_EQ(std::u16string(kBoot0000), plan[0].name);
 }
 
-TEST(NvramFix, MatchesGptByGuidOnly) {
+TEST(NvramFix, MatchesGptByGuidAlone) {
+    /* DFX33b correction: the corpus's GPT branch (FUN_1800046f0
+     * :3417-3422) compares ONLY the 16-byte GUID - the two u64 loads
+     * node+0x18/node+0x20 vs ctx+0x34/ctx+0x3c - and breaks with a
+     * match immediately; no start/size compare exists in the GPT
+     * branch. An entry with the right GUID at the WRONG start still
+     * matches (the start is rewritten by the patch, not checked). */
     MockVars vars;
     u8 guid[16];
     for (int i = 0; i < 16; ++i)
@@ -203,19 +209,42 @@ TEST(NvramFix, MatchesGptByGuidOnly) {
     memcpy(bad, guid, 16);
     bad[0] ^= 0xFF;
     vars.put(kBoot0001, build_load_option(u"Wrong GUID", {hd_node(2, 2048, 4096, bad, 2, 2)}));
-    /* wrong start, RIGHT GUID: still matches - the og's GPT branch
-     * (FUN_1800046f0 :3420-3424) compares the two signature u64 halves
-     * only and never the start (the MBR/GPT asymmetry; corrected against
-     * the corpus post-landing). */
+    /* "wrong start": the GUID matches - the corpus matches it (the
+     * start is part of the REWRITE payload, not the match) */
     vars.put(kBoot0002, build_load_option(u"Wrong start", {hd_node(2, 1111, 4096, guid, 2, 2)}));
     vars.put(kBootOrderName, {0x00, 0x00, 0x01, 0x00, 0x02, 0x00});
 
     u32 err = OK;
     auto plan = plan_boot_entries(&MockVars::get, &vars, t, &err);
     ASSERT_EQ(OK, err);
-    ASSERT_EQ(2u, plan.size()); /* Boot0000 AND Boot0002: both carry the GUID */
+    ASSERT_EQ(2u, plan.size());
     EXPECT_EQ(std::u16string(kBoot0000), plan[0].name);
     EXPECT_EQ(std::u16string(kBoot0002), plan[1].name);
+}
+
+TEST(NvramFix, MbrFlagsMayRideDifferentNodes) {
+    /* DFX33b correction: the corpus's MBR verdict is WALK-LEVEL
+     * (FUN_1800046f0 collects the bVar3 signature flag and the bVar4
+     * geometry flag across the WHOLE device path - :3431-3434
+     * `if (MBR && bVar3 && bVar4) matched`); the flags do NOT need to
+     * ride the same node. An entry whose signature node and geometry
+     * node are separate still matches - a per-node all-fields match
+     * would silently drop entries the og patches. */
+    MockVars vars;
+    u8 sig[16];
+    mbr_sig(sig, 0xAABBCCDDu);
+    u8 other[16];
+    mbr_sig(other, 0x55667788u);
+    /* node A: the right disk signature, the wrong position; node B: the
+     * right position, another disk - the flags split across nodes */
+    vars.put(kBoot0000,
+             build_load_option(u"split", {hd_node(2, 0, 0, sig, 1, 1),
+                                          hd_node(2, 2048, 4096, other, 1, 1)}));
+    vars.put(kBootOrderName, {0x00, 0x00});
+    u32 err = OK;
+    auto plan = plan_boot_entries(&MockVars::get, &vars, mbr_target(), &err);
+    ASSERT_EQ(OK, err);
+    ASSERT_EQ(1u, plan.size()) << "the split-flag entry must match (walk-level verdict)";
 }
 
 TEST(NvramFix, PatchUpdatesLoadOption) {
@@ -373,12 +402,40 @@ TEST(NvramFix, NullSeamRejected) {
     EXPECT_EQ(ERR_BAD_PARAMETER, err);
 }
 
-TEST(NvramFix, AbsentBootOrderIsReadFailure) {
+TEST(NvramFix, AbsentBootOrderIsSilentNoop) {
+    /* DFX33b correction: a zero-byte BootOrder read - absent OR failed -
+     * is the og's SILENT no-op (FUN_180004b40 :3629 `if (uVar10 != 0)`
+     * wraps the whole walk; there is no error path) */
     MockVars vars; /* nothing stored */
     u32 err = OK;
-    auto plan = plan_boot_entries(&MockVars::get, &vars, mbr_target(), &err);
+    bool stopped = true;
+    auto plan = plan_boot_entries(&MockVars::get, &vars, mbr_target(), &err, &stopped);
     EXPECT_TRUE(plan.empty());
-    EXPECT_EQ(ERR_READ_FAILED, err);
+    EXPECT_EQ(OK, err) << "no BootOrder is a no-op, not a read failure";
+    EXPECT_FALSE(stopped);
+}
+
+TEST(NvramFix, MissingBootVariableStopsTheWalk) {
+    /* DFX33b correction: a BootOrder id whose Boot#### variable reads
+     * zero bytes STOPS the whole walk (FUN_1800046f0 returns rc=2 on a
+     * zero-byte get; the caller breaks, FUN_180004b40 :3648
+     * `if (iVar8 != 0) break`). Entries planned BEFORE the stop stand;
+     * entries AFTER it are never planned. */
+    MockVars vars;
+    u8 sig[16];
+    mbr_sig(sig, 0xAABBCCDDu);
+    vars.put(kBoot0000, build_load_option(u"first", {hd_node(2, 2048, 4096, sig, 1, 1)}));
+    /* Boot0001 is absent (a stale BootOrder id) */
+    vars.put(kBoot0002, build_load_option(u"third", {hd_node(2, 2048, 4096, sig, 1, 1)}));
+    vars.put(kBootOrderName, {0x00, 0x00, 0x01, 0x00, 0x02, 0x00});
+
+    u32 err = OK;
+    bool stopped = false;
+    auto plan = plan_boot_entries(&MockVars::get, &vars, mbr_target(), &err, &stopped);
+    ASSERT_EQ(OK, err) << "the og signals nothing here either - the stop is not an error";
+    EXPECT_TRUE(stopped);
+    ASSERT_EQ(1u, plan.size()) << "Boot0000 planned before the stop; Boot0002 never reached";
+    EXPECT_EQ(std::u16string(kBoot0000), plan[0].name);
 }
 
 TEST(NvramFix, EmptyPlanIsNoOp) {

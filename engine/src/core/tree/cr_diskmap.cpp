@@ -53,8 +53,8 @@ void mark_extents(const tree::FileProperties::Extent* exts, size_t ext_count, u6
         const u64 last_cell = (ext_end - ov.base - 1) / ov.cell_bytes;
         for (; cell <= last_cell && cell < ov.cells; ++cell) {
             content_cells[size_t(cell)] = 1; /* S-009 hardening: the free
-                                             * pass consults this - found
-                                             * content never paints Free */
+                                              * pass consults this - found
+                                              * content never paints Free */
             if (ov.fnd && (*ov.fnd)[size_t(cell)] < 255)
                 ++(*ov.fnd)[size_t(cell)];
             if (ov.conf && confidence > (*ov.conf)[size_t(cell)])

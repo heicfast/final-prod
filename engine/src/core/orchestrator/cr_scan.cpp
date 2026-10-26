@@ -509,8 +509,7 @@ void ScanController::emit_lost_candidate_(const lost::Candidate& cand) const {
      * section 3): every discovered candidate is a run-log line with the
      * scored truth. */
     if (cr::log::enabled())
-        cr::log::write(cr::log::Level::Info,
-                       "lost candidate: lba=%llu sectors=%llu fs=%u score=%u",
+        cr::log::write(cr::log::Level::Info, "lost candidate: lba=%llu sectors=%llu fs=%u score=%u",
                        cand.start_lba, cand.sector_count, u32(cand.fs), cand.score);
     if (event_fn_ == nullptr)
         return;
@@ -613,8 +612,7 @@ u32 ScanController::emit_checkpoint_() const {
     /* N-048 (the og's stage-boundary/checkpoint trail): every committed
      * checkpoint is a bracket event in the run log. */
     if (cr::log::enabled())
-        cr::log::write(cr::log::Level::Info, "checkpoint %llu committed",
-                       u64(checkpoint_count_));
+        cr::log::write(cr::log::Level::Info, "checkpoint %llu committed", u64(checkpoint_count_));
     if (event_fn_ != nullptr) { /* GAP-S6-10 */
         event::Event e;
         e.type = event::Type::Checkpoint;
@@ -663,12 +661,11 @@ FsFamily ScanController::probe_family(IStorageDevice* slice) {
         const u16 bps = u16_from_bytes_le(sec + 0x0B);
         const u8 spc = sec[0x0D];
         const u64 mft_lcn = le64(sec + 0x30); /* $MFT LCN (0x28 is total_sectors) */
-        if (bps >= 512 && bps <= 0x1000 && (bps % 512) == 0 && spc != 0 &&
-            (spc & (spc - 1)) == 0 && mft_lcn != 0) {
+        if (bps >= 512 && bps <= 0x1000 && (bps % 512) == 0 && spc != 0 && (spc & (spc - 1)) == 0 &&
+            mft_lcn != 0) {
             const u64 at = mft_lcn * u64(spc) * bps;
             u8 rec[512]; /* the USA fields live in record 0's first sector */
-            if (slice->read_at(at, rec, sizeof(rec)) == OK &&
-                std::memcmp(rec, "FILE", 4) == 0) {
+            if (slice->read_at(at, rec, sizeof(rec)) == OK && std::memcmp(rec, "FILE", 4) == 0) {
                 /* spec offsets: USA offset u16@0x04, USA count u16@0x06 (the
                  * og's bounds: count in [1,0x11), offset in [0x2a,0x201) —
                  * FUN_180005180 :4038-4058) */
@@ -752,9 +749,8 @@ FsFamily ScanController::probe_family(IStorageDevice* slice) {
         if (ss >= 512 && ss <= 4096) {
             u8 anchor[4096];
             if (slice->read_at(u64(0x100) * ss, anchor, ss) == OK) {
-                const u32 vds_lba =
-                    u32(anchor[0x14]) | (u32(anchor[0x15]) << 8) | (u32(anchor[0x16]) << 16) |
-                    (u32(anchor[0x17]) << 24);
+                const u32 vds_lba = u32(anchor[0x14]) | (u32(anchor[0x15]) << 8) |
+                                    (u32(anchor[0x16]) << 16) | (u32(anchor[0x17]) << 24);
                 u8 vds[4096];
                 if (slice->read_at(u64(vds_lba) * ss, vds, ss) == OK && vds[0x19] == 'U' &&
                     vds[0x1a] == 'D' && vds[0x1b] == 'F')
@@ -793,13 +789,14 @@ FsFamily ScanController::probe_family(IStorageDevice* slice) {
                 const u32 spf32 = u32_from_bytes_le(sec + 0x24);
                 const u32 root_cluster = u32_from_bytes_le(sec + 0x2C);
                 if (spc != 0 && root_cluster >= 2) {
-                    root_sector = u64(reserved) + u64(sec[0x10]) * spf32 +
-                                  (u64(root_cluster) - 2) * spc;
+                    root_sector =
+                        u64(reserved) + u64(sec[0x10]) * spf32 + (u64(root_cluster) - 2) * spc;
                     root_known = true; /* FAT32 root cluster */
                 }
             }
             u8 root_first[512];
-            if (root_known && slice->read_at(root_sector * bps, root_first, sizeof(root_first)) == OK) {
+            if (root_known &&
+                slice->read_at(root_sector * bps, root_first, sizeof(root_first)) == OK) {
                 log::write(log::Level::Info,
                            "recognition: fat content-verified (root directory readable)");
                 return FsFamily::Fat;
@@ -993,9 +990,8 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
             e.stage = 0xFFFFFFFFu;
             e.timestamp_ms = 0; /* pre-stage: no run clock yet */
             e.check_errors = stats.check_report.errors.size();
-            e.check_family = stats.check_report.family_detected
-                                 ? u32(stats.check_report.family[0])
-                                 : 0;
+            e.check_family =
+                stats.check_report.family_detected ? u32(stats.check_report.family[0]) : 0;
             event_fn_(e, event_user_);
         }
     }
@@ -1271,8 +1267,8 @@ EngineRun run_engine_dispatch(FsFamily fam, IStorageDevice* slice, bool deep_ext
             r.free_map.cluster_count = bm->bit_count();
             r.free_map.bits.assign(size_t((bm->bit_count() + 7) / 8), 0);
             const std::vector<u8>& src = bm->buffer();
-            const size_t n = r.free_map.bits.size() < src.size() ? r.free_map.bits.size()
-                                                                 : src.size();
+            const size_t n =
+                r.free_map.bits.size() < src.size() ? r.free_map.bits.size() : src.size();
             for (size_t i = 0; i < n; ++i)
                 r.free_map.bits[i] = u8(~src[i]); /* invert: free = !in-use */
         }
@@ -1590,10 +1586,10 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                          * standard, and the og's abort-event shape). */
                         CancelPoolWatcher cancel_watcher(pool, cancel);
                         u32 first_err = parallel_for(pool, n, [&](u64 i) -> u32 {
-                            out_arr[i].rc = scan_candidate(items[i].slice.get(), items[i].root,
-                                                           cancel, out_arr[i].files,
-                                                           out_arr[i].deleted, deep_cb, &dbridge,
-                                                           &out_arr[i].content_rejected);
+                            out_arr[i].rc =
+                                scan_candidate(items[i].slice.get(), items[i].root, cancel,
+                                               out_arr[i].files, out_arr[i].deleted, deep_cb,
+                                               &dbridge, &out_arr[i].content_rejected);
                             return OK; /* candidate misses never abort the scan */
                         });
                         cancel_watcher.done();
@@ -1758,8 +1754,7 @@ u32 ScanController::run_carve_stage(IStorageDevice* slice, CancelToken* cancel,
             occupied.push_back(raw[0]);
             for (size_t k = 1; k < raw.size(); ++k) {
                 if (raw[k].first <= occupied.back().second)
-                    occupied.back().second =
-                        std::max(occupied.back().second, raw[k].second);
+                    occupied.back().second = std::max(occupied.back().second, raw[k].second);
                 else
                     occupied.push_back(raw[k]);
             }
@@ -1786,9 +1781,9 @@ u32 ScanController::run_carve_stage(IStorageDevice* slice, CancelToken* cancel,
         carve_fm = stats.free_map;
         if (slice->absolute_base() != 0)
             carve_fm.base_byte = carve_fm.base_byte >= slice->absolute_base()
-                                      ? carve_fm.base_byte - slice->absolute_base()
-                                      : 0; /* defensive: a map starting before
-                                              this slice gates from its start */
+                                     ? carve_fm.base_byte - slice->absolute_base()
+                                     : 0; /* defensive: a map starting before
+                                             this slice gates from its start */
         cf.free_map = &carve_fm;
     }
     carve::CarveStats cs;
@@ -1800,13 +1795,13 @@ u32 ScanController::run_carve_stage(IStorageDevice* slice, CancelToken* cancel,
      * layer "File...") - the split N-014b flagged; the family is one now.
      * Hosts wanting their own policy pass a namer to carve_slice
      * directly (both layers honor it since the N-014b routing). */
-    u32 rc = carve::carve_slice(slice, cf, cancel, carve_cb, &cbridge, tree_, root_carved_,
-                                &tree_, nullptr, cs);
+    u32 rc = carve::carve_slice(slice, cf, cancel, carve_cb, &cbridge, tree_, root_carved_, &tree_,
+                                nullptr, cs);
     stats.carved_found = cs.validated;
     stats.bytes_scanned += cs.bytes_scanned;
     stats.carve_bitmap_skipped_bytes = cs.bitmap_skipped_bytes; /* M-005 */
     stats.carve_zero_strides = cs.zero_strides_skipped;         /* N-031 */
-    stats.carve_occupancy_skipped = cs.occupancy_skipped;      /* M-039 */
+    stats.carve_occupancy_skipped = cs.occupancy_skipped;       /* M-039 */
     if (rc == OK)
         carve_done_ = true;
     tel_stage_end_(2, cancel);
@@ -1819,8 +1814,7 @@ u32 ScanController::run_carve_stage(IStorageDevice* slice, CancelToken* cancel,
 }
 
 u32 ScanController::save_session(session::Writer& w, const ScanStats& stats,
-                                 session::SerializeProgress progress,
-                                 void* progress_user) const {
+                                 session::SerializeProgress progress, void* progress_user) const {
     /* record order: session state, volume info, partition contexts, tree,
      * error map (the writer chains them; ids from the container)
      *
@@ -1920,8 +1914,8 @@ u32 ScanController::save_session(session::Writer& w, const ScanStats& stats,
      * error set). Optional record - emitted only when the check stage
      * ran and produced a report (detected family or findings); sessions
      * saved without the stage lack it and the report reads empty. */
-    if (stats.check_ran && (stats.check_report.family_detected ||
-                            !stats.check_report.errors.empty())) {
+    if (stats.check_ran &&
+        (stats.check_report.family_detected || !stats.check_report.errors.empty())) {
         if (check::serialize_fs_check(stats.check_report, blob) == OK)
             if (u32 rc = w.add_record(session::REC_FS_CHECK, blob.data(), u32(blob.size())))
                 return rc;
@@ -1940,7 +1934,7 @@ u32 ScanController::save_session(session::Writer& w, const ScanStats& stats,
 
     if (session::serialize_error_map(stats.errors, blob) == OK)
         if (u32 rc = w.add_record(session::REC_ERROR_MAP, blob.data(), u32(blob.size())))
-                return rc;
+            return rc;
 
     /* S-009: the downsampled free map (optional record; readers that
      * predate it skip unknown types). The RAW cluster map is never
@@ -1959,7 +1953,7 @@ u32 ScanController::save_session(session::Writer& w, const ScanStats& stats,
 }
 
 u32 ScanController::load_session(session::Reader& r, tree::ResultTree& tree, ScanStats& stats,
-                                IStorageDevice* revalidate_disk) {
+                                 IStorageDevice* revalidate_disk) {
     session::VolumeSessionInfo info;
     return load_session_summary(r, tree, stats, info, revalidate_disk);
 }
@@ -2069,8 +2063,7 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
              * re-run; sessions saved before the record existed carry
              * none and the report reads empty. */
             stats.check_ran = true;
-            (void)check::deserialize_fs_check(rec.data.data(), rec.data.size(),
-                                              stats.check_report);
+            (void)check::deserialize_fs_check(rec.data.data(), rec.data.size(), stats.check_report);
             stats.check_detected = stats.check_report.family_detected;
             break;
         default:

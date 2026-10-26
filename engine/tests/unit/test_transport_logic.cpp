@@ -60,4 +60,3 @@ TEST(Transport, EnumerateBoundMatchesDriverGrammarSpace) {
      * multi-disk LDM population). */
     EXPECT_EQ(ENUMERATE_DISK_BOUND, 200u);
 }
-

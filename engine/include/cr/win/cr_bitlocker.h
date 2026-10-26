@@ -69,8 +69,7 @@ u32 try_auto_unlock_offline(wchar_t letter, const wchar_t* hive_path);
  * through the cr::log seam (index only - password material is never
  * logged). Returns OK when a candidate unlocked the volume,
  * ERR_FVE_LOCKED when the whole set failed. */
-u32 unlock_with_dictionary(wchar_t letter, const wchar_t* const* user_passwords,
-                           size_t user_count);
+u32 unlock_with_dictionary(wchar_t letter, const wchar_t* const* user_passwords, size_t user_count);
 
 /* Narrow-candidate overload (the CLI path; UTF-8/ASCII candidates from a
  * loaded dictionary file ride the same consent loop). */
@@ -82,16 +81,16 @@ namespace detail {
 
 /* The command builder for the password unlock forms (key_type 0 = -Password),
  * exposed for shape tests without spawning PowerShell. */
-std::wstring build_unlock_command(wchar_t letter, int key_type,
-                                  const std::wstring& key_or_path, bool legacy_manage_bde);
+std::wstring build_unlock_command(wchar_t letter, int key_type, const std::wstring& key_or_path,
+                                  bool legacy_manage_bde);
 
 /* The dictionary loop with the attempt seam (the recorder surface for the
  * N-064 contract tests). Candidates are converted to wide and fed to
  * `attempt`; returns the cr::dict::AttemptResult. */
-cr::dict::AttemptResult dictionary_unlock_seam(
-    const std::vector<std::string>& user_candidates,
-    u32 (*attempt)(wchar_t letter, const wchar_t* password, void* user), wchar_t letter,
-    void* user);
+cr::dict::AttemptResult dictionary_unlock_seam(const std::vector<std::string>& user_candidates,
+                                               u32 (*attempt)(wchar_t letter,
+                                                              const wchar_t* password, void* user),
+                                               wchar_t letter, void* user);
 
 /* The og's live registry path constant (ASCII view for tests). */
 const char* fve_live_registry_path_a();

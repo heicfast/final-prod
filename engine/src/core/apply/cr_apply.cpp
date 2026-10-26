@@ -24,8 +24,8 @@ namespace apply {
 namespace {
 
 constexpr size_t kSector = 512;
-constexpr size_t kTableOff = 446;  /* the MBR entry table base */
-constexpr size_t kEntryBytes = 16; /* one partition entry */
+constexpr size_t kTableOff = 446;             /* the MBR entry table base */
+constexpr size_t kEntryBytes = 16;            /* one partition entry */
 constexpr u8 kMaxChs[3] = {0xFE, 0xFF, 0xFF}; /* beyond-cylinder-1023 */
 
 /* LBA -> CHS bytes (255 heads / 63 sectors-per-track, the universal DOS
@@ -191,8 +191,8 @@ u32 plan_apply(IStorageDevice* disk, const lost::Candidate& c, ApplyPlan& out,
         }
         /* A3 containment: the candidate must fit the disk */
         const u64 disk_sectors =
-            disk->size() / (disk->geometry().logical_sector ? disk->geometry().logical_sector
-                                                            : 512);
+            disk->size() /
+            (disk->geometry().logical_sector ? disk->geometry().logical_sector : 512);
         if (disk_sectors != 0 && c.start_lba + c.sector_count > disk_sectors) {
             refuse(out, "candidate extends past the end of the disk");
             return OK;
@@ -312,7 +312,7 @@ u32 plan_apply(IStorageDevice* disk, const lost::Candidate& c, ApplyPlan& out,
         a.reason = "rebuild the MBR table (zero entries, the recovered partition at slot 0, "
                    "0x55AA" +
                    std::string(out.regenerate_signature ? ", regenerated disk signature"
-                                                         : ", preserved disk signature") +
+                                                        : ", preserved disk signature") +
                    ")";
         out.actions.push_back(std::move(a));
         return OK;
@@ -337,10 +337,9 @@ u32 plan_apply(IStorageDevice* disk, const lost::Candidate& c, ApplyPlan& out,
     ApplyAction a;
     a.offset = kTableOff + out.entry_index * kEntryBytes;
     a.after = out.entry_bytes;
-    a.reason = "write the recovered partition entry (slot " +
-               std::to_string(out.entry_index) + ", LBA " + std::to_string(c.start_lba) + ", " +
-               std::to_string(c.sector_count) + " sectors, type " +
-               std::string(type_hex, type_hex + 4) + ")";
+    a.reason = "write the recovered partition entry (slot " + std::to_string(out.entry_index) +
+               ", LBA " + std::to_string(c.start_lba) + ", " + std::to_string(c.sector_count) +
+               " sectors, type " + std::string(type_hex, type_hex + 4) + ")";
     out.actions.push_back(std::move(a));
     return OK;
 }
@@ -383,7 +382,7 @@ u32 execute_apply(IApplyDevice* dev, const ApplyPlan& plan, ApplyConsentFn conse
     const u32 sbytes = dev->sector_bytes() ? dev->sector_bytes() : 512;
     if (sbytes < kSector)
         return ERR_BAD_PARAMETER; /* a sub-512 "sector" device cannot hold
-                                    * an MBR - refuse, never a torn write */
+                                   * an MBR - refuse, never a torn write */
     {
         std::vector<u8> now(size_t(sbytes), 0);
         if (dev->read_at(0, now.data(), u32(kSector)) != OK)
@@ -494,8 +493,7 @@ u32 execute_apply(IApplyDevice* dev, const ApplyPlan& plan, ApplyConsentFn conse
             undo.record(span_start, span_len, span.data());
             recorded_spans.push_back(span_start);
         }
-        std::memcpy(span.data() + size_t(sp.offset - span_start), sp.bytes.data(),
-                    sp.bytes.size());
+        std::memcpy(span.data() + size_t(sp.offset - span_start), sp.bytes.data(), sp.bytes.size());
         if (dev->write_at(span_start, span.data(), span_len) != OK) {
             /* the write never landed; the snapshot is restored with the
              * rest (a no-op write of identical bytes - correct even when

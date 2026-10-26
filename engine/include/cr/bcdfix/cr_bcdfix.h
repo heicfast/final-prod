@@ -50,11 +50,11 @@ namespace cr {
 namespace bcdfix {
 
 /* The hive-cell shape (Fixup :499-599 decode, first-hand this session). */
-constexpr u64 kCellMarker = 0xffffffa0u; /* allocated 96-byte cell */
-constexpr size_t kMarkerSize = 8;        /* the walked 8-byte cell header */
-constexpr size_t kOffsetFieldInCell = 0x24; /* u64 partition BYTE offset */
+constexpr u64 kCellMarker = 0xffffffa0u;       /* allocated 96-byte cell */
+constexpr size_t kMarkerSize = 8;              /* the walked 8-byte cell header */
+constexpr size_t kOffsetFieldInCell = 0x24;    /* u64 partition BYTE offset */
 constexpr size_t kSignatureFieldInCell = 0x3C; /* u32 MBR disk signature */
-constexpr size_t kCellSize = 0x58;       /* 8 header + 0x50 body = 96 */
+constexpr size_t kCellSize = 0x58;             /* 8 header + 0x50 body = 96 */
 
 /* One planned rewrite: the absolute byte offset of the offset-field
  * inside the hive, its original 8 bytes, and the replacement. The undo
@@ -90,8 +90,8 @@ using WriteFn = u32 (*)(u64 field_offset, const u8 bytes[8], void* user);
  * returns it; *applied receives how many rewrites landed. Refused by
  * consent returns ERR_REPAIR_REFUSED (the rawfixer consent family code)
  * with applied == 0. */
-u32 execute_plan(const std::vector<BcdRewrite>& plan, WriteFn write, void* user,
-                 ConsentFn consent, void* consent_user, size_t* applied = nullptr);
+u32 execute_plan(const std::vector<BcdRewrite>& plan, WriteFn write, void* user, ConsentFn consent,
+                 void* consent_user, size_t* applied = nullptr);
 
 /* Undo: restore every original byte the plan recorded (the
  * Bcd_RestoreBcdFile analog, Fixup :4562-4625 - swap old/new back). */

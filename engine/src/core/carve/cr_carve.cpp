@@ -593,14 +593,14 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                         Signature rsig{};
                         rsig.ext = us->ext;
                         rsig.name = us->ext;
-                        props->name = ctx.namer ? ctx.namer(rsig, len, fi)
-                                                : default_namer(rsig, len, fi);
+                        props->name =
+                            ctx.namer ? ctx.namer(rsig, len, fi) : default_namer(rsig, len, fi);
                         props->fs_kind = u32(FsKindCode::Raw);
                         props->logical_size = len;
                         props->carve_format = 0xFFFE0000u; /* M-048: the user-signature tag */
-                        props->carve_confidence = 600; /* user-taught, no og-calibrated
-                                                         * confidence - the fixed documented
-                                                         * value (PARITY-DELTAS) */
+                        props->carve_confidence = 600;     /* user-taught, no og-calibrated
+                                                            * confidence - the fixed documented
+                                                            * value (PARITY-DELTAS) */
                         props->times.modified = ctx.scan_time;
                         {
                             u8 hdr[512];

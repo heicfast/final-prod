@@ -154,36 +154,38 @@ typedef void (*cr_ui_recovery_progress_fn)(void* user, uint64_t bytes_done, uint
         * 1 applied, 2 consent denied,                                                             \
         * 3 failed/unavailable; repair_actions                                                     \
         * carries the planned/applied count. */
-#define CR_EVT_HEARTBEAT 8u /* N-043 liveness heartbeat: fired from the shim's watchdog thread    \
-                             * every 5000 ms while run() is in flight and no                    \
-                             * CR_EVT_SCAN_PROGRESS arrived in the window (the og's 5 s         \
-                             * watchdog, DRWUI_decompiled.c:910565-910585 + CreateThread        \
-                             * :910864) - the HONEST variant: the payload carries the           \
-                             * standing telemetry truth, never a synthetic permille             \
-                             * advance (the og's watchdog bumps its coarse counter +1           \
-                             * instead). stage = 0xFFFFFFFF; bytes_total = 0 (unknown);         \
-                             * overall_permille / stage_permille = the standing values;         \
-                             * timestamp_ms = elapsed_ms; files counters = standing. */
-#define CR_EVT_SAVE_PROGRESS 9u /* N-060 save-path progress: fired from the thread running  \
-                                 * cr_ui_scan_save_session while the session serializes -  \
-                                 * coalesced (first tick, permille steps, terminal);      \
-                                 * stage = 0xFFFFFFFF; stage_permille = the save's own    \
-                                 * 0..1000; overall_permille = 1000 (standing - the scan  \
-                                 * is complete); bytes_done/bytes_total = nodes           \
-                                 * serialized / total nodes. Cancellation: the SAVE-     \
-                                 * SCOPED flag (cr_ui_scan_save_cancel during the save    \
-                                 * aborts it with CR_UI_ERR_CANCELLED and the final path  \
-                                 * keeps its previous content - the save is atomic        \
-                                 * temp-then-rename; the og's per-child IsCancelled is    \
-                                 * the save progress object's own state, NOT the scan     \
-                                 * flag - save-on-scan-cancel stays intact). */
-#define CR_EVT_FS_CHECK                                                                              \
-    10u /* M-041 pre-scan damage-audit phase done (the og's                                       \
-        * FileSystemCheck): fired ONCE per scan after the check phase                            \
-        * completes - check_errors carries the reported issue count                              \
-        * (0x1001..0x100e taxonomy) and check_family the detected                                \
-        * family byte; per-error detail rides the session record.                               \
-        * The report NEVER aborts the scan. */
+#define CR_EVT_HEARTBEAT                                                                           \
+    8u /* N-043 liveness heartbeat: fired from the shim's watchdog thread                          \
+        * every 5000 ms while run() is in flight and no                                            \
+        * CR_EVT_SCAN_PROGRESS arrived in the window (the og's 5 s                                 \
+        * watchdog, DRWUI_decompiled.c:910565-910585 + CreateThread                                \
+        * :910864) - the HONEST variant: the payload carries the                                   \
+        * standing telemetry truth, never a synthetic permille                                     \
+        * advance (the og's watchdog bumps its coarse counter +1                                   \
+        * instead). stage = 0xFFFFFFFF; bytes_total = 0 (unknown);                                 \
+        * overall_permille / stage_permille = the standing values;                                 \
+        * timestamp_ms = elapsed_ms; files counters = standing. */
+#define CR_EVT_SAVE_PROGRESS                                                                       \
+    9u /* N-060 save-path progress: fired from the thread running                                  \
+        * cr_ui_scan_save_session while the session serializes -                                   \
+        * coalesced (first tick, permille steps, terminal);                                        \
+        * stage = 0xFFFFFFFF; stage_permille = the save's own                                      \
+        * 0..1000; overall_permille = 1000 (standing - the scan                                    \
+        * is complete); bytes_done/bytes_total = nodes                                             \
+        * serialized / total nodes. Cancellation: the SAVE-                                        \
+        * SCOPED flag (cr_ui_scan_save_cancel during the save                                      \
+        * aborts it with CR_UI_ERR_CANCELLED and the final path                                    \
+        * keeps its previous content - the save is atomic                                          \
+        * temp-then-rename; the og's per-child IsCancelled is                                      \
+        * the save progress object's own state, NOT the scan                                       \
+        * flag - save-on-scan-cancel stays intact). */
+#define CR_EVT_FS_CHECK                                                                            \
+    10u /* M-041 pre-scan damage-audit phase done (the og's                                        \
+         * FileSystemCheck): fired ONCE per scan after the check phase                             \
+         * completes - check_errors carries the reported issue count                               \
+         * (0x1001..0x100e taxonomy) and check_family the detected                                 \
+         * family byte; per-error detail rides the session record.                                 \
+         * The report NEVER aborts the scan. */
 
 typedef struct cr_ui_event {
     uint32_t type;         /* CR_EVT_* above */
@@ -310,7 +312,7 @@ CR_UI_API uint32_t cr_ui_last_transport_error(void);
  * no-key refusal contract of cr_ui_open_volume is unchanged (locked
  * without a key stays CR_UI_ERR_FVE_LOCKED - legitimate unlock only). */
 CR_UI_API uint32_t cr_ui_open_volume_with_key(char letter, const char* utf8_hex_fvek,
-                                               cr_ui_device** out);
+                                              cr_ui_device** out);
 
 /* N-064 (additive export - compatible per the ABI policy, no version bump):
  * the password-dictionary unlock aid, the og's Dict flow (228-entry shipped
@@ -354,7 +356,8 @@ typedef struct cr_ui_disk_info {
     uint32_t logical_sector;
     uint32_t physical_sector;
     uint32_t removable; /* 1 = USB/SD bus */
-    uint32_t layout;    /* 0 none, 1 MBR, 2 GPT, 3 EBR (N-057 append - extended-chain tables; 0..2 frozen) */
+    uint32_t layout;    /* 0 none, 1 MBR, 2 GPT, 3 EBR (N-057 append - extended-chain tables; 0..2
+                           frozen) */
     uint32_t table_ok;
     char model[128];  /* UTF-8, may be empty */
     char serial[128]; /* UTF-8, may be empty */
@@ -452,33 +455,33 @@ typedef struct cr_ui_scan_config {
                                              * before the stages */
     cr_ui_repair_consent_fn repair_consent; /* NULL = never execute */
     void* repair_consent_user;
-    uint32_t memory_warn_mb;                /* v2-era append (N-062): the
-                                             * memory monitor's threshold in
-                                             * MiB; 0 = OFF (the conservative
-                                             * default). While run() is in
-                                             * flight the shim's watchdog
-                                             * samples the process working
-                                             * set every 5 s and emits a
-                                             * Warn line through the cr::log
-                                             * seam at/above the threshold.
-                                             * Zero-init safe (0 = off). */
-    const char* raw_category_name_utf8;     /* v2-era append (M-029): the
-                                             * display name for the raw/carve
-                                             * category root - the og's
-                                             * per-scan "filter_generalraw"
-                                             * naming surface. NULL/"" = the
-                                             * default "Other Deleted Files
-                                             * (Carved)" role. */
-    uint32_t pre_scan_check; /* v2-era append (M-041): 1 = run the
-                              * read-only damage-audit check phase
-                              * (the og's FileSystemCheck error set,
-                              * codes 0x1001..0x100e) after any
-                              * pre-scan repair and before the
-                              * engines. The report NEVER aborts the
-                              * scan; it surfaces through
-                              * cr_ui_scan_stats' check_* fields, the
-                              * FsCheck event and the session record.
-                              * Zero-init safe (0 = off). */
+    uint32_t memory_warn_mb;            /* v2-era append (N-062): the
+                                         * memory monitor's threshold in
+                                         * MiB; 0 = OFF (the conservative
+                                         * default). While run() is in
+                                         * flight the shim's watchdog
+                                         * samples the process working
+                                         * set every 5 s and emits a
+                                         * Warn line through the cr::log
+                                         * seam at/above the threshold.
+                                         * Zero-init safe (0 = off). */
+    const char* raw_category_name_utf8; /* v2-era append (M-029): the
+                                         * display name for the raw/carve
+                                         * category root - the og's
+                                         * per-scan "filter_generalraw"
+                                         * naming surface. NULL/"" = the
+                                         * default "Other Deleted Files
+                                         * (Carved)" role. */
+    uint32_t pre_scan_check;            /* v2-era append (M-041): 1 = run the
+                                         * read-only damage-audit check phase
+                                         * (the og's FileSystemCheck error set,
+                                         * codes 0x1001..0x100e) after any
+                                         * pre-scan repair and before the
+                                         * engines. The report NEVER aborts the
+                                         * scan; it surfaces through
+                                         * cr_ui_scan_stats' check_* fields, the
+                                         * FsCheck event and the session record.
+                                         * Zero-init safe (0 = off). */
 } cr_ui_scan_config;
 
 CR_UI_API uint32_t cr_ui_scan_create(const cr_ui_scan_config* cfg, cr_ui_scan** out);
@@ -846,10 +849,10 @@ CR_UI_API void cr_ui_query_rows_free(cr_ui_query_row* rows, uint32_t row_count);
  * inclusive after local-day truncation. Size buckets use the og's exact
  * byte boundaries; Custom (0x1006) is inclusive on [size_custom_min,
  * size_custom_max]. */
-CR_UI_API uint32_t cr_ui_query_apply_buckets(
-    cr_ui_query* q, uint32_t date_bucket, uint32_t size_bucket,
-    uint64_t date_custom_from, uint64_t date_custom_to,
-    uint64_t size_custom_min, uint64_t size_custom_max);
+CR_UI_API uint32_t cr_ui_query_apply_buckets(cr_ui_query* q, uint32_t date_bucket,
+                                             uint32_t size_bucket, uint64_t date_custom_from,
+                                             uint64_t date_custom_to, uint64_t size_custom_min,
+                                             uint64_t size_custom_max);
 
 /* ---- carve-format registry (ops #7-#8 parity) ------------------------------
  * The og exposes its analyser-registry views through RAWSearchDLL exports

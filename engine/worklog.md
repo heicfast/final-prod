@@ -16300,6 +16300,48 @@ Next steps (in priority order):
    it; check their landings first).
 3. A tagged release once M-040 closes (the audit's clean-close
    condition) — SUMMARY.md's counts are current at this commit.
+
+---
+Task ID: DFX33b-T6 (M-040 — the boot-chain family completed)
+Agent: main engineer (diff-to-fix fix session 33b — DFX33b)
+
+Work Log:
+- Merged the DFX34 close (M-040 stage a: the cr/bcdfix pure rewriter,
+  5 tests; N-007/N-072 landed by the same window).
+- Stage (b) implemented decode-first: EFIBoot FUN_1800046f0 (the
+  matcher) + FUN_180004840 (the state-4 update) read first-hand —
+  the og patches the PartitionNumber (u32@+4) of every HARDDRIVE node
+  with SignatureType != 0 in matched Boot#### options; MBR mode's
+  signature + geometry flags ride the WHOLE walk; the audit's
+  "patch partition start" was imprecise (the start is the MATCH key) —
+  corrected in the finding's Resolution.
+- cr/nvramfix: pure module over the injected IFirmwareVarStore
+  (not-found/absent vs API-broken folded into the get() contract —
+  the og's separate pre-probe is documented as the difference);
+  9 tests incl. the finding's NvramPatchUpdatesLoadOption; the
+  abort-on-missing-Boot#### posture mirrored + pinned.
+- The win runtime (src/win/cr_bootfix.cpp): FwVarStore (dynamic
+  Get/SetFirmwareEnvironmentVariableW + SeSystemEnvironmentPrivilege),
+  bcd_rewrite_file (consent-gated execute + flush tail),
+  unload_bcd_hive (SeBackup/SeRestore + ZwUnloadKey, ntdll dynamic —
+  no new PE import; Win7 gate untouched). The win-stub grew the
+  consumed surface (M-055 discipline).
+- The S-029 wiring: rrecov apply --boot-fix <old-lba> (opt-in;
+  --boot-fix-bcd override) — BCD offsets + NVRAM renumber after a
+  successful apply, advisory failures; the dry-run message tells the
+  truth.
+- Verified: 927/927 ctest (win_syntax_check green over the grown
+  stub + the CLI); suite was 906 pre-M-040-completion.
+- Audit trail: finding → FIXED/ (the final Resolution); matrix cell;
+  modules/boot-repair.md P25/P42 → MATCH; SUMMARY part-2 delta;
+  CAPABILITY-MATRIX boot-chain row DONE.
+
+Stage Summary:
+- M-040 CLOSED. Board: SEVERE 0 · MAJOR 0 · MINOR 0 · tracked-open 2
+  (OQ-S4-3, OQ-FLT-2) · FIXED/ 222. The findings board is EMPTY at
+  every severity tier; the remaining work is the two tracked-open
+  questions.
+
 ---
 Task ID: RV1 (review-validate session — the collision/removal-commit review wave)
 Agent: review-and-validate session (the post-fix audit of the fix sessions)
@@ -16599,6 +16641,71 @@ Stage Summary:
 - S-034 converged (their code, my decode correction on the record).
   Board after the union: MAJOR 1 open (M-040 stages (b) + win layer),
   tracked-open 2 (OQ-S4-3 Windows-lane, OQ-FLT-2). SEVERE 0, MINOR 0.
+
+
+
+---
+Task ID: RED-REPAIRS-CLOSE (the CI red sweep + OQ-FLT-2 resolved + the OQ-S4-3 bench dispatch)
+Agent: main engineer (the closing parity session)
+
+Work Log:
+- The parallel window's 89196ac push left main CI RED (3 consecutive failed
+  runs): windows build (gmtime_r + two C4244 narrowings), lint (tree-wide
+  format drift), fuzz (fuzz_image.cpp's open_.insert on a map), linux-tsan
+  (unverified locally at that tree). Repairs, all root-cause:
+  * cr_analysers.cpp:705 — the portable gmtime pair (gmtime_s on MSVC,
+    gmtime_r elsewhere; MSVC has no gmtime_r — /W4 /WX clean by
+    construction).
+  * cr_carve.cpp :457/:827 — the confidence u32->u16 narrowing CLAMPED
+    (bounded 0-100 grade; the clamp keeps the narrowing truthful).
+  * fuzz/fuzz_image.cpp:34 — open_.insert(next_) -> open_.emplace(next_, 0)
+    (open_ is a map<u64,u64>; the set-era call survived the type change).
+  * include/cr/storage/cr_device.h:207 — paused() marked override (the
+    fuzz lane's -Winconsistent-missing-override).
+  * The full-tree clang-format-18 sweep (the CI gate's exact find + version
+    pip-installed locally): 106 files re-flowed, zero violations after.
+  * TSan lane replicated locally (the CI's exact configure): 913/913 PASSED.
+  * linux-release suite re-verified post-sweep: 872+4 env-skips.
+- OQ-FLT-2 RESOLVED (tracked-open → findings/FIXED/
+  OQ-Z-E-FLT-session3-resolved.md): its gate (M-029) is FIXED with the
+  Date/Size group decodes; the Type group = M-023's category model; the Path
+  group = the 31-filterbar-family-decode (cr_query.h path_prefix); the
+  completeness predicate + NULL-dispatch recorded (DFX30). The remaining
+  per-mode manager wiring is DRWUI host-side threading (I-015 boundary) with
+  no observable core parity surface. Tracked-open now: OQ-S4-3 alone.
+- OQ-S4-3: the Windows bench EXECUTION dispatched via the API (the API
+  Benchmark workflow, run 40289658166, span 512 MiB) — the exact one-step
+  acceptance path DFX25 defined. Awaiting the chunk_strategy_ratios verdict.
+
+Stage Summary:
+- All four locally-verifiable CI lanes green on this tree (release, ASan,
+  UBSan, TSan 913/913); lint zero-violation; the windows + fuzz legs carry
+  precisely-diagnosed fixes for CI to verify. Tracked-open: OQ-S4-3 alone,
+  its execution in flight.
+
+---
+Task ID: FINAL-MERGE-3 (the M-040 stage-b wave absorbed — the board empties)
+Agent: main engineer (the closing parity session)
+
+Work Log:
+- The newest parallel wave landed M-040's remaining stages while this lane
+  repaired CI: src/core/nvramfix (the stage-b UEFI Boot####/BootOrder
+  updater) + src/win/cr_bootfix.cpp (the stage-a win layer: the hive
+  force-unload + DASD flush tail) + tests — M-040 moved to findings/FIXED
+  (stages (a)+(b) implemented and proven; (c)/(d) registered D-90).
+- Convergent gmtime/C4244 repairs: their 0e6a642 landed first — theirs taken
+  (first-landing-wins), this lane's identical-shape fixes dropped cleanly.
+- The OQ-Z-E-FLT closure record unioned keep-both (both lanes closed it
+  convergently with the same evidence chain).
+- Post-merge verification: build green; NvramFix+BcdFix 16/16; full suite
+  872+4 env-skips linux-release.
+
+Stage Summary:
+- The findings board at this merge: SEVERE 0 · MAJOR 0 · MINOR 0 · INFO 0 ·
+  tracked-open 1 (OQ-S4-3, its Windows bench execution in flight — run
+  40289658166). Every finding file lives in findings/FIXED/ with its
+  Resolution.
+
 
 ---
 Task ID: DFX36-T4 (M-040 stage b + the win layer)

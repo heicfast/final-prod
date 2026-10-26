@@ -77,7 +77,7 @@ struct Fat16Vol {
         put16(img, 0x0B, 512);
         b[0x0D] = 1; /* spc */
         put16(img, 0x0E, 2);
-        b[0x10] = 2; /* fat count */
+        b[0x10] = 2;           /* fat count */
         put16(img, 0x11, 512); /* root entries: 32 sectors; >= 224 = the
                                 * engine open gate (N-010b) */
         put16(img, 0x13, TOT);
@@ -102,8 +102,7 @@ struct Fat16Vol {
     }
     u8* root_entry(size_t i) { return img.data() + ROOT_OFF + i * 32; }
     u8* cluster_data(u32 c) { return img.data() + DATA_OFF + (u64(c) - 2) * 512; }
-    void make_dentry(size_t slot, const char* name8_3, u8 attrs, u32 first_cluster,
-                     u32 size) {
+    void make_dentry(size_t slot, const char* name8_3, u8 attrs, u32 first_cluster, u32 size) {
         u8* e = root_entry(slot);
         std::memset(e, 0, 32);
         for (int i = 0; i < 11; i++)
@@ -312,9 +311,9 @@ namespace {
  * covers them). Geometry: bps 512, spc 1, records 1 KiB. */
 constexpr u64 REC = 1024;
 constexpr u64 CLUSTER = 512;
-constexpr u64 MFT_LCN = 32;    /* $MFT at cluster 32 */
-constexpr u64 MIRR_LCN = 200;  /* $MFTMirr at cluster 200 */
-constexpr u64 BMP_LCN = 64;    /* $Bitmap data at cluster 64 */
+constexpr u64 MFT_LCN = 32;   /* $MFT at cluster 32 */
+constexpr u64 MIRR_LCN = 200; /* $MFTMirr at cluster 200 */
+constexpr u64 BMP_LCN = 64;   /* $Bitmap data at cluster 64 */
 
 struct NtfsVol {
     std::vector<u8> img;
@@ -327,13 +326,13 @@ struct NtfsVol {
         b[0x10] = 0;
         put16(img, 0x11, 0);
         put16(img, 0x13, 0);
-        put32v(img, 0x24, 0x00800080); /* the NTFS BPB's fixed marker */
+        put32v(img, 0x24, 0x00800080);         /* the NTFS BPB's fixed marker */
         put64_at(img, 0x28, img.size() / 512); /* total_sectors (u64 @+0x28) */
         put64_at(img, 0x30, MFT_LCN);
         put64_at(img, 0x38, MIRR_LCN);
         img[0x40] = 0xF6; /* -10 -> 1 KiB records */
         img[0x44] = 1;    /* clusters per index block (the open ladder's
-                          * +0x44 nonzero gate, N-011b) */
+                           * +0x44 nonzero gate, N-011b) */
         b[510] = 0x55;
         b[511] = 0xAA;
     }
@@ -355,10 +354,10 @@ struct NtfsVol {
             buf[2] = 'L';
             buf[3] = 'E';
             put16(img, size_t(buf - img.data()) + 4, 0x30);
-            put16(img, size_t(buf - img.data()) + 6, 3); /* USA count: 2 + 1 */
+            put16(img, size_t(buf - img.data()) + 6, 3);       /* USA count: 2 + 1 */
             put16(img, size_t(buf - img.data()) + 0x14, 0x38); /* attribute offset */
-            put16(img, size_t(buf - img.data()) + 0x16, 0); /* flags: set later */
-            put32v(img, size_t(buf - img.data()) + 0x18, 0); /* bytes in use (patch) */
+            put16(img, size_t(buf - img.data()) + 0x16, 0);    /* flags: set later */
+            put32v(img, size_t(buf - img.data()) + 0x18, 0);   /* bytes in use (patch) */
             /* USA array at 0x30: USN + 2 originals; tails patched below */
             const u16 usn = 0x0BB8;
             u16_from(img, size_t(buf - img.data()) + 0x30, usn);

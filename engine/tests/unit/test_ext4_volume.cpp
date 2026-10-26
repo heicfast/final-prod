@@ -285,23 +285,23 @@ TEST(Ext4Engine, ExtentTreeDepth3) {
     {
         u8* p = img.block(B_INODE_TABLE) + size_t((INO_DEEP - 1) * INO_SZ);
         memset(p, 0, INO_SZ);
-        put16(p + 0x00, 0x8000);   /* regular file */
-        put32(p + 0x04, 4 * BS);   /* size: 4 blocks */
+        put16(p + 0x00, 0x8000); /* regular file */
+        put32(p + 0x04, 4 * BS); /* size: 4 blocks */
         put32(p + 0x0C, 2000);
         put32(p + 0x10, 3000);
-        put16(p + 0x1A, 1);        /* links */
-        put32(p + 0x20, 0x80000);  /* EXTENTS_FL */
+        put16(p + 0x1A, 1);       /* links */
+        put32(p + 0x20, 0x80000); /* EXTENTS_FL */
         u8* ib = p + 0x28;
-        put16(ib + 0, 0xF30A); /* magic */
-        put16(ib + 2, 1);      /* entries */
-        put16(ib + 4, 4);      /* max */
-        put16(ib + 6, 3);      /* depth 3: root -> index -> index -> leaf
-                                * (kernel semantics: depth = levels below
-                                * root; the engine decrements per level) */
-        put32(ib + 8, 0);      /* generation */
-        put32(ib + 12, 0);         /* ei_block: logical 0 */
+        put16(ib + 0, 0xF30A);       /* magic */
+        put16(ib + 2, 1);            /* entries */
+        put16(ib + 4, 4);            /* max */
+        put16(ib + 6, 3);            /* depth 3: root -> index -> index -> leaf
+                                      * (kernel semantics: depth = levels below
+                                      * root; the engine decrements per level) */
+        put32(ib + 8, 0);            /* generation */
+        put32(ib + 12, 0);           /* ei_block: logical 0 */
         put32(ib + 16, u32(B_IDX1)); /* ei_leaf_lo */
-        put16(ib + 20, 0);          /* ei_leaf_hi */
+        put16(ib + 20, 0);           /* ei_leaf_hi */
     }
     /* index level 1 (block 20): own header depth 2, one entry -> block 21 */
     {
@@ -309,8 +309,8 @@ TEST(Ext4Engine, ExtentTreeDepth3) {
         memset(n, 0, BS);
         put16(n + 0, 0xF30A);
         put16(n + 2, 1);
-        put16(n + 4, 340); /* max = (1024-12)/12 */
-        put16(n + 6, 2);   /* own depth: two levels below this node */
+        put16(n + 4, 340);          /* max = (1024-12)/12 */
+        put16(n + 6, 2);            /* own depth: two levels below this node */
         put32(n + 12, 0);           /* ei_block */
         put32(n + 16, u32(B_IDX2)); /* ei_leaf_lo */
     }
@@ -337,9 +337,9 @@ TEST(Ext4Engine, ExtentTreeDepth3) {
         const u64 runs[4] = {B_DATA_A0, B_DATA_A1, B_DATA_B0, B_DATA_B1};
         for (u32 i = 0; i < 4; ++i) {
             u8* e = n + 12 + i * 12;
-            put32(e + 0, i); /* ee_block: logical */
-            put16(e + 4, 1); /* ee_len */
-            put16(e + 6, 0); /* ee_start_hi */
+            put32(e + 0, i);            /* ee_block: logical */
+            put16(e + 4, 1);            /* ee_len */
+            put16(e + 6, 0);            /* ee_start_hi */
             put32(e + 8, u32(runs[i])); /* ee_start_lo */
         }
     }
@@ -691,17 +691,17 @@ TEST(Ext4Engine, CorruptRecLenSkipsEntryNotBlock) {
     ASSERT_EQ(OK, rc) << err_text(rc);
 
     std::set<std::string> found;
-    std::function<void(tree::FileNode*, const std::string&)> collect =
-        [&](tree::FileNode* n, const std::string& p) {
-            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
-                if (!c->props())
-                    continue;
-                const std::string nm = c->name_utf8();
-                const std::string full = p.empty() ? nm : (p == "/" ? "/" + nm : p + "/" + nm);
-                found.insert(full);
-                collect(c, full);
-            }
-        };
+    std::function<void(tree::FileNode*, const std::string&)> collect = [&](tree::FileNode* n,
+                                                                           const std::string& p) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->props())
+                continue;
+            const std::string nm = c->name_utf8();
+            const std::string full = p.empty() ? nm : (p == "/" ? "/" + nm : p + "/" + nm);
+            found.insert(full);
+            collect(c, full);
+        }
+    };
     collect(ra, "");
     EXPECT_FALSE(found.count("/hello.txt")) << "the corrupt entry itself is lost";
     EXPECT_TRUE(found.count("/sub")) << "entries after the corruption must survive";
@@ -734,17 +734,17 @@ TEST(Ext4Engine, InodeZeroHoleContinues) {
     ASSERT_EQ(OK, rc) << err_text(rc);
 
     std::set<std::string> found;
-    std::function<void(tree::FileNode*, const std::string&)> collect =
-        [&](tree::FileNode* n, const std::string& p) {
-            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
-                if (!c->props())
-                    continue;
-                const std::string nm = c->name_utf8();
-                const std::string full = p.empty() ? nm : (p == "/" ? "/" + nm : p + "/" + nm);
-                found.insert(full);
-                collect(c, full);
-            }
-        };
+    std::function<void(tree::FileNode*, const std::string&)> collect = [&](tree::FileNode* n,
+                                                                           const std::string& p) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->props())
+                continue;
+            const std::string nm = c->name_utf8();
+            const std::string full = p.empty() ? nm : (p == "/" ? "/" + nm : p + "/" + nm);
+            found.insert(full);
+            collect(c, full);
+        }
+    };
     collect(ra, "");
     EXPECT_TRUE(found.count("/hello.txt")) << "past-hole live entries survive (our superset)";
     EXPECT_TRUE(found.count("/sub"));
@@ -775,17 +775,17 @@ TEST(Ext4Engine, FileTypeGateSkipsInvalid) {
     ASSERT_EQ(OK, rc) << err_text(rc);
 
     std::set<std::string> found;
-    std::function<void(tree::FileNode*, const std::string&)> collect =
-        [&](tree::FileNode* n, const std::string& p) {
-            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
-                if (!c->props())
-                    continue;
-                const std::string nm = c->name_utf8();
-                const std::string full = p.empty() ? nm : (p == "/" ? "/" + nm : p + "/" + nm);
-                found.insert(full);
-                collect(c, full);
-            }
-        };
+    std::function<void(tree::FileNode*, const std::string&)> collect = [&](tree::FileNode* n,
+                                                                           const std::string& p) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->props())
+                continue;
+            const std::string nm = c->name_utf8();
+            const std::string full = p.empty() ? nm : (p == "/" ? "/" + nm : p + "/" + nm);
+            found.insert(full);
+            collect(c, full);
+        }
+    };
     collect(ra, "");
     EXPECT_FALSE(found.count("/badtype8.txt")) << "type-8 entries are skipped (og gate 1..7)";
     EXPECT_TRUE(found.count("/sub")) << "the block survives the skipped entry";
@@ -844,8 +844,7 @@ TEST(Ext4Engine, NonAsciiNamesDecodedNotByteLifted) {
      * the map key is the tree's UTF-8 projection of U+E0FF (EE 83 BF). */
     ASSERT_TRUE(by_utf8.count("\xee\x83\xbf(bad") != 0)
         << "lossless name absent: " << by_utf8.begin()->first;
-    EXPECT_EQ(by_utf8["\xee\x83\xbf(bad"],
-              std::u16string(u"\uE0FF(bad"));
+    EXPECT_EQ(by_utf8["\xee\x83\xbf(bad"], std::u16string(u"\uE0FF(bad"));
     /* whole-pipeline: the UTF-8 projection of a decoded CJK name equals
      * the original on-disk bytes (this is what tree --json emits) */
     for (tree::FileNode* c = ra->first_child(); c; c = c->next_sibling()) {
@@ -1290,7 +1289,6 @@ TEST(Ext4Engine, BadMagicWithoutBackupsStillRejected) {
     EXPECT_EQ(0u, st.backup_sb_block);
 }
 
-
 /* ---- S-025: journal-salvaged reparenting (the og's two-pass model) ------ */
 
 namespace cr {
@@ -1455,8 +1453,7 @@ TEST(Ext4Engine, TwoPassJournalClaimInteraction) {
  * for the high half. */
 class ExactFaultDevice : public IStorageDevice {
 public:
-    ExactFaultDevice(std::unique_ptr<IStorageDevice> inner,
-                     std::set<std::pair<u64, u32>> dead)
+    ExactFaultDevice(std::unique_ptr<IStorageDevice> inner, std::set<std::pair<u64, u32>> dead)
         : inner_(std::move(inner)), dead_(std::move(dead)) {}
     u32 read_at(u64 off, void* buf, u32 len) override {
         if (dead_.count({off, len}))
@@ -1480,18 +1477,18 @@ namespace {
  * reached: with backtrack ON the main window fires first; with OFF no
  * backtrack runs at all.) */
 const std::set<std::pair<u64, u32>> kN073DeadFull = {
-    {u64(B_ROOTDIR) * BS, u32(BS)},        /* direct window (5120,1024) */
-    {u64(B_ROOTDIR) * BS, 512u},           /* bisect low half (5120,512) */
-    {u64(B_ROOTDIR) * BS + 512, 512u},     /* bisect high half (5632,512) */
+    {u64(B_ROOTDIR) * BS, u32(BS)},    /* direct window (5120,1024) */
+    {u64(B_ROOTDIR) * BS, 512u},       /* bisect low half (5120,512) */
+    {u64(B_ROOTDIR) * BS + 512, 512u}, /* bisect high half (5632,512) */
 };
 } // namespace
 
 TEST(Ext4Engine, CatchBufferBacktrackSalvage) {
     auto img = build_volume();
     auto mem = std::make_unique<MemDevice>(img.raw());
-    auto dev = RetryingDevice::create(
-        std::make_unique<ExactFaultDevice>(std::move(mem), kN073DeadFull),
-        RetryPolicy{3, RetryMode::Skip, /*backtrack=*/true});
+    auto dev =
+        RetryingDevice::create(std::make_unique<ExactFaultDevice>(std::move(mem), kN073DeadFull),
+                               RetryPolicy{3, RetryMode::Skip, /*backtrack=*/true});
     ASSERT_NE(nullptr, dev);
 
     tree::ResultTree tree;
@@ -1503,17 +1500,17 @@ TEST(Ext4Engine, CatchBufferBacktrackSalvage) {
     ASSERT_EQ(OK, rc) << err_text(rc);
 
     std::set<std::string> found;
-    std::function<void(tree::FileNode*, const std::string&)> collect =
-        [&](tree::FileNode* n, const std::string& p) {
-            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
-                if (!c->props())
-                    continue;
-                const std::string nm = c->name_utf8();
-                const std::string full = p.empty() ? nm : (p == "/" ? "/" + nm : p + "/" + nm);
-                found.insert(full);
-                collect(c, full);
-            }
-        };
+    std::function<void(tree::FileNode*, const std::string&)> collect = [&](tree::FileNode* n,
+                                                                           const std::string& p) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->props())
+                continue;
+            const std::string nm = c->name_utf8();
+            const std::string full = p.empty() ? nm : (p == "/" ? "/" + nm : p + "/" + nm);
+            found.insert(full);
+            collect(c, full);
+        }
+    };
     collect(ra, "");
     EXPECT_TRUE(found.count("/hello.txt"));
     EXPECT_TRUE(found.count("/sub"));
@@ -1531,9 +1528,9 @@ TEST(Ext4Engine, BacktrackOffZeroFillsTheWindow) {
      * walk surfaces metadata-only, and the read failure is mapped. */
     auto img = build_volume();
     auto mem = std::make_unique<MemDevice>(img.raw());
-    auto dev = RetryingDevice::create(
-        std::make_unique<ExactFaultDevice>(std::move(mem), kN073DeadFull),
-        RetryPolicy{3, RetryMode::Skip, /*backtrack=*/false});
+    auto dev =
+        RetryingDevice::create(std::make_unique<ExactFaultDevice>(std::move(mem), kN073DeadFull),
+                               RetryPolicy{3, RetryMode::Skip, /*backtrack=*/false});
     ASSERT_NE(nullptr, dev);
 
     tree::ResultTree tree;
@@ -1544,16 +1541,16 @@ TEST(Ext4Engine, BacktrackOffZeroFillsTheWindow) {
     ASSERT_EQ(OK, rc) << err_text(rc);
 
     std::set<std::string> found;
-    std::function<void(tree::FileNode*, const std::string&)> collect =
-        [&](tree::FileNode* n, const std::string& p) {
-            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
-                if (!c->props())
-                    continue;
-                const std::string nm = c->name_utf8();
-                found.insert(p.empty() ? nm : (p == "/" ? "/" + nm : p + "/" + nm));
-                collect(c, p.empty() ? nm : p + "/" + nm);
-            }
-        };
+    std::function<void(tree::FileNode*, const std::string&)> collect = [&](tree::FileNode* n,
+                                                                           const std::string& p) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->props())
+                continue;
+            const std::string nm = c->name_utf8();
+            found.insert(p.empty() ? nm : (p == "/" ? "/" + nm : p + "/" + nm));
+            collect(c, p.empty() ? nm : p + "/" + nm);
+        }
+    };
     collect(ra, "");
     EXPECT_FALSE(found.count("/hello.txt"));
     EXPECT_FALSE(found.count("/sub"));
@@ -1588,9 +1585,9 @@ TEST(Ext4Engine, ZeroFillOnlyWhenBacktrackAlsoFails) {
         std::make_unique<ExactFaultDevice>(
             std::move(mem),
             std::set<std::pair<u64, u32>>{
-                {u64(B_ROOTDIR) * BS, u32(BS)},         /* direct (5120,1024) */
-                {u64(B_ROOTDIR) * BS - 1024, 2048u},    /* main backtrack (4096,2048) */
-                {u64(B_ROOTDIR) * BS + 512, 512u},      /* high half (5632,512) */
+                {u64(B_ROOTDIR) * BS, u32(BS)},            /* direct (5120,1024) */
+                {u64(B_ROOTDIR) * BS - 1024, 2048u},       /* main backtrack (4096,2048) */
+                {u64(B_ROOTDIR) * BS + 512, 512u},         /* high half (5632,512) */
                 {u64(B_ROOTDIR) * BS - 1024 + 512, 1536u}, /* hi's backtrack (4608,1536) */
             }),
         RetryPolicy{3, RetryMode::Skip, /*backtrack=*/true});
@@ -1605,17 +1602,17 @@ TEST(Ext4Engine, ZeroFillOnlyWhenBacktrackAlsoFails) {
     ASSERT_EQ(OK, rc) << err_text(rc);
 
     std::set<std::string> found;
-    std::function<void(tree::FileNode*, const std::string&)> collect =
-        [&](tree::FileNode* n, const std::string& p) {
-            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
-                if (!c->props())
-                    continue;
-                const std::string nm = c->name_utf8();
-                const std::string full = p.empty() ? nm : (p == "/" ? "/" + nm : p + "/" + nm);
-                found.insert(full);
-                collect(c, full);
-            }
-        };
+    std::function<void(tree::FileNode*, const std::string&)> collect = [&](tree::FileNode* n,
+                                                                           const std::string& p) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->props())
+                continue;
+            const std::string nm = c->name_utf8();
+            const std::string full = p.empty() ? nm : (p == "/" ? "/" + nm : p + "/" + nm);
+            found.insert(full);
+            collect(c, full);
+        }
+    };
     collect(ra, "");
     /* the readable half arrived: the fixture dirents (offsets 0..56) live */
     EXPECT_TRUE(found.count("/hello.txt"));
@@ -1678,8 +1675,8 @@ TEST(Ext4Engine, NanosecondsPreservedFromExtraField) {
     put32(ib3 + 12, 0);
     put16(ib3 + 16, 1);
     put32(ib3 + 20, u32(B_HELLO_DATA));
-    put16(r3 + 0x80, 0x2C);         /* i_extra_isize (covers to 0x90) */
-    put32(r3 + 0x88, 0x5DC00000u);  /* i_mtime_extra: nsec = 0x17700000 */
+    put16(r3 + 0x80, 0x2C);        /* i_extra_isize (covers to 0x90) */
+    put32(r3 + 0x88, 0x5DC00000u); /* i_mtime_extra: nsec = 0x17700000 */
 
     MemDevice dev(img.raw());
     tree::ResultTree tree;
@@ -1714,7 +1711,7 @@ TEST(Ext4Engine, NanosecondsPreservedFromExtraField) {
 TEST(Ext4Engine, InvalidUtf8NameCarriesRawBytes) {
     /* The og's .rsf keeps the ORIGINAL on-disk name bytes verbatim
      * (EXT4SearchDLL imports no conversion API); the core's display name
-     * is the lossless U+E000+byte mapping (M-010/D-53) - the original
+     * is the lossless U+E000+byte mapping (M-010/D-92) - the original
      * bytes must therefore ride ALONGSIDE (props->name_raw) whenever the
      * mapping fired, so sessions persist them and the writer can derive
      * the og-parity restore filename. Fail-before: name_raw stayed empty
@@ -1757,8 +1754,8 @@ TEST(Ext4Engine, InvalidUtf8NameCarriesRawBytes) {
     EXPECT_TRUE(cafe->props()->name_raw.empty());
 }
 
-} // namespace
 } // namespace ext4
 } // namespace cr
+} // namespace ext4
 
-} // namespace
+} // namespace cr

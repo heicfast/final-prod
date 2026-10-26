@@ -50,8 +50,9 @@ struct HfsScanStats {
     u64 named_forks = 0;      /* attribute children emitted */
     /* N-028/N-038 (diff-to-fix, minors session) */
     u64 journal_attr_records = 0; /* harvested attribute records kept (S-021 attributes branch) */
-    u64 journal_salvage = 0;     /* header-invalid fallback nodes salvaged (the og's :1715-1760 ladder) */
-    u64 sink_filtered = 0;     /* dotfiles + 'HFS+ Private Data' (og sink) */
+    u64 journal_salvage =
+        0;                 /* header-invalid fallback nodes salvaged (the og's :1715-1760 ladder) */
+    u64 sink_filtered = 0; /* dotfiles + 'HFS+ Private Data' (og sink) */
     u64 prf_folderized = 0;    /* 'prdf' file records folderized (og gate) */
     u64 rsrc_marked_files = 0; /* ownerFlags 0x20: rsrc-fork content path */
 };

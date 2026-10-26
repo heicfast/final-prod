@@ -86,7 +86,8 @@ constexpr size_t kHdNodeSize = 42;       /* the spec's fixed size */
 constexpr size_t kLoadOptDescription = 6;
 
 constexpr size_t kMaxVariableBytes = 1 << 20; /* the og's 0x100000 cap */
-constexpr size_t kMaxBootEntries = 4096;      /* bounded BootOrder walk */
+constexpr size_t kMaxBootEntries = 0xffff;    /* the og's ushort entry-count
+                                            * truncation (FUN_180004b40 :3637) */
 
 /* The moved partition: the OLD identity (the match keys) + the NEW
  * position/signature (the rewrite values). Exactly one of the two
@@ -135,7 +136,12 @@ struct NvramRewrite {
  * Errors: ERR_BAD_PARAMETER (null seam), ERR_READ_FAILED (BootOrder
  * unreadable), ERR_BAD_MAGIC (a load option too malformed to walk). */
 std::vector<NvramRewrite> plan_boot_entries(GetVarFn get, void* get_user,
+<<<<<<< HEAD
+                                             const TargetPartition& target, u32* error = nullptr,
+                                             bool* stopped_early = nullptr);
+=======
                                             const TargetPartition& target, u32* error = nullptr);
+>>>>>>> origin/main
 
 /* Execute a plan through the injected setter under the consent
  * callback. consent == nullptr = DEFAULT-DENY. Stops at the first

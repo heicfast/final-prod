@@ -166,7 +166,7 @@ TEST(DestArming, JunctionResolvesToTargetVolume) {
     ASSERT_TRUE(win::destination_volume_letter(junc, &jletter));
     ASSERT_TRUE(win::destination_volume_letter(L"C:\\Windows", &tletter));
     EXPECT_EQ(jletter, tletter); /* the TARGET's volume, not the host's */
-    DeleteFileW(junc.c_str()); /* junctions delete like files */
+    DeleteFileW(junc.c_str());   /* junctions delete like files */
 }
 
 /* ---------------------------------------------------------------------------

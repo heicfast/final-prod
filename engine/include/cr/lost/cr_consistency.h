@@ -68,9 +68,9 @@ struct ConsistencyVerdict {
     u64 considered = 0;
     u64 filterable = 0;
     u64 matched = 0;
-    double ratio = 0.0;      /* matched / filterable; 0 when filterable == 0 */
-    bool rejected = false;   /* the og reject rule (see header comment) */
-    bool consistent = false; /* matched != 0 (the og's param_6 evidence flag) */
+    double ratio = 0.0;         /* matched / filterable; 0 when filterable == 0 */
+    bool rejected = false;      /* the og reject rule (see header comment) */
+    bool consistent = false;    /* matched != 0 (the og's param_6 evidence flag) */
     bool out_of_bounds = false; /* a data start beyond the volume end */
 };
 
@@ -80,8 +80,8 @@ struct ConsistencyVerdict {
  * a data start is NOT an error here: the og's signature map simply has no
  * entry for unreadable offsets, so the file stays filterable-but-unmatched
  * (the failure itself surfaces through the retry layer's error map). */
-ConsistencyVerdict score_content_consistency(IStorageDevice* slice,
-                                             const ConsistencyFile* files, size_t count);
+ConsistencyVerdict score_content_consistency(IStorageDevice* slice, const ConsistencyFile* files,
+                                             size_t count);
 
 /* ---- pure helpers (unit-testable without a device) ---- */
 
@@ -100,8 +100,7 @@ bool consistency_extension_checkable(const std::string& ext_upper);
  * (:30858-30920 - a name whose extension is JPG or JPEG matches those
  * three families). sig_ext_upper is the registry signature's ext,
  * uppercased by the caller. */
-bool consistency_name_matches_family(const std::u16string& name,
-                                     const std::string& ext_upper,
+bool consistency_name_matches_family(const std::u16string& name, const std::string& ext_upper,
                                      const char* sig_ext_upper);
 
 } // namespace lost

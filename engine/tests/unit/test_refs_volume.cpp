@@ -446,8 +446,9 @@ std::vector<u8> build_volume(bool container_layout = false) {
                 put32(key.data(), 0x00010030);
                 std::vector<u8> nm = u16name(u"vblock.dat");
                 key.insert(key.end(), nm.begin(), nm.end());
-                rows.push_back({key, build_file_node(T_CREATE, T_MODIFY, 0, 4096, 4096, 42, 1,
-                                                     true, 0x0040, 0x0018),
+                rows.push_back({key,
+                                build_file_node(T_CREATE, T_MODIFY, 0, 4096, 4096, 42, 1, true,
+                                                0x0040, 0x0018),
                                 0});
             }
             {
@@ -456,8 +457,9 @@ std::vector<u8> build_volume(bool container_layout = false) {
                 put32(key.data(), 0x00010030);
                 std::vector<u8> nm = u16name(u"pblock.dat");
                 key.insert(key.end(), nm.begin(), nm.end());
-                rows.push_back({key, build_file_node(T_CREATE, T_MODIFY, 0, 4096, 4096, 42, 1,
-                                                     true, 0x0060, 0x0018),
+                rows.push_back({key,
+                                build_file_node(T_CREATE, T_MODIFY, 0, 4096, 4096, 42, 1, true,
+                                                0x0060, 0x0018),
                                 0});
             }
             {
@@ -466,9 +468,10 @@ std::vector<u8> build_volume(bool container_layout = false) {
                 put32(key.data(), 0x00010030);
                 std::vector<u8> nm = u16name(u"low.dat");
                 key.insert(key.end(), nm.begin(), nm.end());
-                rows.push_back({key, build_file_node(T_CREATE, T_MODIFY, 0, 4096, 4096, 5, 1,
-                                                     true, 0x0040, 0x0018),
-                                0});
+                rows.push_back(
+                    {key,
+                     build_file_node(T_CREATE, T_MODIFY, 0, 4096, 4096, 5, 1, true, 0x0040, 0x0018),
+                     0});
             }
         }
         write_page(img, 160, 0x2B42534D, 0x600, build_node(rows));
@@ -1111,8 +1114,8 @@ TEST(Refs, PropertyFlagAndUnknownRowsDoNotBreakDataWalk) {
         }
         /* the data itself: one 2-cluster run */
         frows.push_back(data_attr_row({{260, 2}}));
-        rewrite_root_table(img,
-                           {file_row_key(u"propflag.dat", build_node(frows, gi_block(8192, 8192)))});
+        rewrite_root_table(
+            img, {file_row_key(u"propflag.dat", build_node(frows, gi_block(8192, 8192)))});
     }
     memset(img.data() + 260 * CLUSTER, 'P', 2 * CLUSTER);
     RamDevice dev(img);
@@ -1457,8 +1460,8 @@ TEST(Refs, ProgressMonotonicIntermediateTicks) {
     std::vector<Row> rows;
     for (int i = 0; i < 48; ++i)
         rows.push_back(file_row_key(numbered_name(u"file", i).c_str(),
-                                    build_file_node(0x01D0000000000000ull, 0x01D1000000000000ull,
-                                                    0, 4096, 4096, u64(300 + i), 1, true)));
+                                    build_file_node(0x01D0000000000000ull, 0x01D1000000000000ull, 0,
+                                                    4096, 4096, u64(300 + i), 1, true)));
     rewrite_root_table(img, rows);
     RamDevice dev(img);
 
@@ -1469,8 +1472,7 @@ TEST(Refs, ProgressMonotonicIntermediateTicks) {
     RefsScanFlags flags;
     RefsScanStats stats;
     ProgressRecorder rec;
-    u32 rc = scan_refs(&dev, flags, nullptr, ProgressRecorder::cb, &rec, tree, ra, rd, rl,
-                       stats);
+    u32 rc = scan_refs(&dev, flags, nullptr, ProgressRecorder::cb, &rec, tree, ra, rd, rl, stats);
     ASSERT_EQ(OK, rc) << err_text(rc);
 
     /* intermediate ticks: (done, done+16) pairs; terminal: (n, n) */
@@ -1485,8 +1487,7 @@ TEST(Refs, ProgressMonotonicIntermediateTicks) {
     EXPECT_EQ(1000u, permilles.back());
     /* more than 2 distinct intermediate values (the old engine: 1 tick) */
     const size_t distinct_intermediate =
-        size_t(std::count_if(permilles.begin(), permilles.end() - 1,
-                             [](u64) { return true; }));
+        size_t(std::count_if(permilles.begin(), permilles.end() - 1, [](u64) { return true; }));
     EXPECT_GE(rec.ticks.size(), 4u) << "48 files must produce >= 3 intermediate ticks + terminal";
     EXPECT_GE(distinct_intermediate, 3u);
 }
@@ -1498,8 +1499,8 @@ TEST(Refs, ProgressCancellationMidWalk) {
     std::vector<Row> rows;
     for (int i = 0; i < 48; ++i)
         rows.push_back(file_row_key(numbered_name(u"file", i).c_str(),
-                                    build_file_node(0x01D0000000000000ull, 0x01D1000000000000ull,
-                                                    0, 4096, 4096, u64(300 + i), 1, true)));
+                                    build_file_node(0x01D0000000000000ull, 0x01D1000000000000ull, 0,
+                                                    4096, 4096, u64(300 + i), 1, true)));
     rewrite_root_table(img, rows);
     RamDevice dev(img);
 
@@ -1533,7 +1534,6 @@ TEST(Refs, ProgressCancellationMidWalk) {
     EXPECT_GT(emitted, 0u) << "partial results must survive cancellation";
     EXPECT_LT(emitted, 48u) << "the walk must have been cut short mid-table";
 }
-
 
 /* ---- N-026 group: the og's DBR geometry gates (FUN_180012390) ---- */
 
@@ -1639,7 +1639,6 @@ TEST(Refs, ContainerRelativeRunTranslatedPerOgFormula) {
      * key = ((42/8 >> 1) - 2) * 8 = 0; block' = (42 & 7) | 300 = 302. */
     std::vector<u8> img = build_volume(true);
     RamDevice dev(img);
-
 
     tree::ResultTree tree;
     auto* ra = tree.add_root(u"Found");
@@ -1764,7 +1763,6 @@ TEST(Refs, SingleContainerExtentsUnchanged) {
            "flags 0x10 (not 0x40) never enter the container path";
 }
 
-
 /* ---- N-007: first-DWORD page-signature discovery (the og's dispatch) ---- */
 
 TEST(RefsDetect, PartialSignaturePageDetected) {
@@ -1783,8 +1781,7 @@ TEST(RefsDetect, PartialSignaturePageDetected) {
     RefsInfo info;
     ASSERT_EQ(OK, detect_refs(&dev, info));
     EXPECT_TRUE(info.found) << "the corrupt-tail page is found (the og's rule)";
-    EXPECT_TRUE(info.signature_partial)
-        << "the grading signal marks the corrupt signature tail";
+    EXPECT_TRUE(info.signature_partial) << "the grading signal marks the corrupt signature tail";
 
     /* a volume whose ONLY page has a corrupt tail: still found (the
      * pre-fix core returned ERR_BAD_MAGIC here) */
@@ -1808,7 +1805,5 @@ TEST(RefsDetect, PartialSignaturePageDetected) {
 }
 } // namespace
 } // namespace refs
-
-
 
 } // namespace cr

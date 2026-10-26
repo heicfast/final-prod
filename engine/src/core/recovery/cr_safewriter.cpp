@@ -162,7 +162,7 @@ u32 SafeWriter::enqueue_common(const tree::FileProperties* pr, tree::FileNode* n
      * at :357529 - which is exactly our maximal-subpart utf8_to_u16
      * (N-016a policy match). When the node carries its raw bytes (the
      * lossless U+E000+byte display mapping stays in the tree/report per
-     * D-53), the restore name therefore substitutes FFFD per the og -
+     * D-92), the restore name therefore substitutes FFFD per the og -
      * NOT private-use units in the created filename. Clean names decode
      * identically either way, so only band-unit names change behavior. */
     const std::u16string restore_base =

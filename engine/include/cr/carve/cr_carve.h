@@ -125,17 +125,17 @@ struct CarveFlags {
  * hook may be invoked from worker threads when flags.threads > 1 (the
  * grammar layer fans out); implementations must synchronize themselves. */
 struct CarveCandidateInfo {
-    u32 format_tag = 0;     /* the value the node will carry in
-                             * props->carve_format: the FormatId for
-                             * grammar-layer hits, 0xFFFF0000 + the
-                             * raw-sign format id for raw-sign hits */
+    u32 format_tag = 0;          /* the value the node will carry in
+                                  * props->carve_format: the FormatId for
+                                  * grammar-layer hits, 0xFFFF0000 + the
+                                  * raw-sign format id for raw-sign hits */
     const char* format_ext = ""; /* display extension ("mov", "mp4") */
-    u64 offset = 0;         /* SLICE-relative extent start (the processor
-                             * reads the stream through the slice at this
-                             * offset - the analog of the og feeding the
-                             * candidate object to GetVideoInfo) */
-    u64 length = 0;         /* validated extent length */
-    u16 confidence = 0;     /* the emitted node's carve_confidence */
+    u64 offset = 0;              /* SLICE-relative extent start (the processor
+                                  * reads the stream through the slice at this
+                                  * offset - the analog of the og feeding the
+                                  * candidate object to GetVideoInfo) */
+    u64 length = 0;              /* validated extent length */
+    u16 confidence = 0;          /* the emitted node's carve_confidence */
 };
 
 class CarvePostProcessor {

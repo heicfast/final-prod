@@ -88,7 +88,12 @@ bool enable_system_environment_privilege();
  * resolved Get seam). Returns the plan; *error carries the cr error
  * code. */
 std::vector<nvramfix::NvramRewrite> nvram_plan(const nvramfix::TargetPartition& target,
+<<<<<<< HEAD
+                                                u32* error = nullptr,
+                                                bool* stopped_early = nullptr);
+=======
                                                u32* error = nullptr);
+>>>>>>> origin/main
 
 /* Execute the plan through the live Set seam under the consent
  * callback (default-deny). */

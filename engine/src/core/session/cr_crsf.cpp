@@ -329,7 +329,6 @@ u32 Reader::read_record(u32 index, Record& out) {
     return OK;
 }
 
-
 /* ---- N-061: the session auto-naming convention ---------------------- */
 
 namespace {
@@ -337,8 +336,8 @@ bool name_char_forbidden(char16_t u) {
     /* the Windows name-forbidden set (the corpus sample's ':' -> '_') plus
      * C0 controls; everything else passes through (non-ASCII labels encode
      * through the shared UTF-8 text policy) */
-    return u < 0x20 || u == u'<' || u == u'>' || u == u':' || u == u'"' ||
-           u == u'/' || u == u'\\' || u == u'|' || u == u'?' || u == u'*';
+    return u < 0x20 || u == u'<' || u == u'>' || u == u':' || u == u'"' || u == u'/' ||
+           u == u'\\' || u == u'|' || u == u'?' || u == u'*';
 }
 } // namespace
 
@@ -368,8 +367,8 @@ std::string auto_session_name_at(const std::u16string& label, const std::tm& loc
         }
     }
     char stamp[24];
-    std::snprintf(stamp, sizeof(stamp), "%02d_%02d_%02d_%02d_%02d", local.tm_mon + 1,
-                  local.tm_mday, local.tm_hour, local.tm_min, local.tm_sec);
+    std::snprintf(stamp, sizeof(stamp), "%02d_%02d_%02d_%02d_%02d", local.tm_mon + 1, local.tm_mday,
+                  local.tm_hour, local.tm_min, local.tm_sec);
     out += stamp;
     return out;
 }

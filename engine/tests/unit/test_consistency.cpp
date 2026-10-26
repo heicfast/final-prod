@@ -136,14 +136,13 @@ TEST(Lost, ContentInconsistentGhostRejected) {
      * filterable -> REJECTED. */
     MemDevice dev(scorer_volume());
     std::vector<ConsistencyFile> files;
-    files.push_back(mk_file(u"good.jpg", 512));   /* JPEG content -> matched */
-    files.push_back(mk_file(u"bad1.jpg", 1536));  /* text */
+    files.push_back(mk_file(u"good.jpg", 512));  /* JPEG content -> matched */
+    files.push_back(mk_file(u"bad1.jpg", 1536)); /* text */
     files.push_back(mk_file(u"bad2.jpg", 2048));
     files.push_back(mk_file(u"bad3.jpg", 2560));
     files.push_back(mk_file(u"bad4.jpg", 3072));
     files.push_back(mk_file(u"bad5.jpg", 3584));
-    const ConsistencyVerdict v =
-        score_content_consistency(&dev, files.data(), files.size());
+    const ConsistencyVerdict v = score_content_consistency(&dev, files.data(), files.size());
     EXPECT_EQ(6u, v.considered);
     EXPECT_EQ(6u, v.filterable);
     EXPECT_EQ(1u, v.matched);
@@ -162,8 +161,7 @@ TEST(Lost, ContentConsistentGhostAccepted) {
     files.push_back(mk_file(u"b.jpg", 512));
     files.push_back(mk_file(u"c.png", 1024));
     files.push_back(mk_file(u"d.jpg", 512));
-    const ConsistencyVerdict v =
-        score_content_consistency(&dev, files.data(), files.size());
+    const ConsistencyVerdict v = score_content_consistency(&dev, files.data(), files.size());
     EXPECT_EQ(4u, v.considered);
     EXPECT_EQ(4u, v.filterable);
     EXPECT_EQ(4u, v.matched);
@@ -204,12 +202,11 @@ TEST(Lost, MajorityGateRequiresHalfFilterable) {
     std::vector<ConsistencyFile> files;
     files.push_back(mk_file(u"bad.jpg", 1536));
     files.push_back(mk_file(u"bad2.jpg", 2048));
-    files.push_back(mk_file(u"note.txt", 512));   /* unfilterable */
-    files.push_back(mk_file(u"doc.pdfx", 512));  /* unfilterable */
-    files.push_back(mk_file(u"raw.dat", 512));   /* unfilterable */
-    files.push_back(mk_file(u"x.abc", 512));     /* unfilterable */
-    const ConsistencyVerdict v =
-        score_content_consistency(&dev, files.data(), files.size());
+    files.push_back(mk_file(u"note.txt", 512)); /* unfilterable */
+    files.push_back(mk_file(u"doc.pdfx", 512)); /* unfilterable */
+    files.push_back(mk_file(u"raw.dat", 512));  /* unfilterable */
+    files.push_back(mk_file(u"x.abc", 512));    /* unfilterable */
+    const ConsistencyVerdict v = score_content_consistency(&dev, files.data(), files.size());
     EXPECT_EQ(6u, v.considered);
     EXPECT_EQ(2u, v.filterable);
     EXPECT_EQ(0u, v.matched);
@@ -235,8 +232,7 @@ TEST(Lost, DirectoriesAndExtentlessFilesMirrorOgCounters) {
     extentless.name = &ename;
     extentless.has_extent = false; /* considered, not filterable */
     files.push_back(extentless);
-    const ConsistencyVerdict v =
-        score_content_consistency(&dev, files.data(), files.size());
+    const ConsistencyVerdict v = score_content_consistency(&dev, files.data(), files.size());
     EXPECT_EQ(2u, v.considered) << "directory excluded, extentless included";
     EXPECT_EQ(1u, v.filterable);
     EXPECT_EQ(0u, v.matched);
@@ -250,8 +246,7 @@ TEST(Lost, DataStartOutOfBoundsInvalidatesTheCandidate) {
     MemDevice dev(scorer_volume()); /* 8192 bytes */
     std::vector<ConsistencyFile> files;
     files.push_back(mk_file(u"bad.jpg", 999999)); /* beyond the volume */
-    const ConsistencyVerdict v =
-        score_content_consistency(&dev, files.data(), files.size());
+    const ConsistencyVerdict v = score_content_consistency(&dev, files.data(), files.size());
     EXPECT_TRUE(v.out_of_bounds);
     EXPECT_TRUE(v.rejected);
 }
@@ -271,8 +266,7 @@ TEST(Lost, UnreadableDataStartStaysUnmatched) {
     std::vector<ConsistencyFile> files;
     files.push_back(mk_file(u"bad.jpg", 512));
     files.push_back(mk_file(u"bad2.jpg", 1024));
-    const ConsistencyVerdict v =
-        score_content_consistency(&dev, files.data(), files.size());
+    const ConsistencyVerdict v = score_content_consistency(&dev, files.data(), files.size());
     EXPECT_EQ(2u, v.considered);
     EXPECT_EQ(2u, v.filterable);
     EXPECT_EQ(0u, v.matched);
@@ -500,16 +494,16 @@ ExfatGhostVolume build_exfat_ghost(u32 jpg_count, bool matched_content) {
         const size_t set_at = ROOT + at;
         u8* fe = img.data() + set_at;
         fe[0] = 0x85;
-        fe[1] = 2; /* stream + 1 name */
+        fe[1] = 2;                    /* stream + 1 name */
         put16(img, set_at + 4, 0x20); /* archive attribute */
         put32v(img, set_at + 8, TS);
         put32v(img, set_at + 12, TS);
         put32v(img, set_at + 16, TS);
         u8* se = img.data() + set_at + 32;
         se[0] = 0xC0;
-        se[1] = 0x03; /* AllocPossible | NoFatChain */
-        se[3] = 7;    /* name length */
-        put64(img, set_at + 32 + 8, 256);  /* valid data */
+        se[1] = 0x03;                     /* AllocPossible | NoFatChain */
+        se[3] = 7;                        /* name length */
+        put64(img, set_at + 32 + 8, 256); /* valid data */
         put32v(img, set_at + 32 + 20, cluster);
         put64(img, set_at + 32 + 24, 256); /* data length */
         u8* ne = img.data() + set_at + 64;

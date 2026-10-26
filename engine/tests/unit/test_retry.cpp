@@ -116,8 +116,7 @@ TEST(Retry, UnalignedBadRangeRoundsToWholeSectors) {
  * backtrack exists for (the plain same-window retry can never succeed). */
 class PickyDevice final : public IStorageDevice {
 public:
-    PickyDevice(u64 bytes, u64 fail_at, u32 sector = 512)
-        : fail_at_(fail_at) {
+    PickyDevice(u64 bytes, u64 fail_at, u32 sector = 512) : fail_at_(fail_at) {
         g_.logical_sector = sector;
         g_.physical_sector = sector;
         g_.total_bytes = bytes;

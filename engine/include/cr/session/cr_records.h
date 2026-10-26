@@ -47,7 +47,7 @@ using SerializeProgress = bool (*)(u64 done, u64 total, void* user);
 u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out,
                    SerializeProgress progress = nullptr, void* progress_user = nullptr);
 u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree,
-                      u32* reparented_out = nullptr);
+                     u32* reparented_out = nullptr);
 
 /* ---- read error map (REC_ERROR_MAP payload) ---- */
 u32 serialize_error_map(const ReadErrorMap& map, std::vector<u8>& out);

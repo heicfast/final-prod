@@ -35,7 +35,9 @@ public:
     u32 read_at(u64 offset, void* buffer, u32 length) override;
     const Geometry& geometry() const override { return geom_; }
     u64 absolute_base() const override { return start_; }
-    bool is_static_media() const override { return parent_ != nullptr && parent_->is_static_media(); }
+    bool is_static_media() const override {
+        return parent_ != nullptr && parent_->is_static_media();
+    }
 
     /* N-046 (og FUN_140643870, DRWUI_decompiled.c:1044889-1044895: the
      * virtual volume device re-derives its bytes-per-sector from the

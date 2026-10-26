@@ -57,8 +57,7 @@ AttemptResult try_passwords(u32 (*attempt)(const char* password, void* user), vo
     AttemptResult res;
     if (attempt == nullptr)
         return res;
-    const size_t user_count =
-        user_candidates != nullptr ? user_candidates->size() : size_t(0);
+    const size_t user_count = user_candidates != nullptr ? user_candidates->size() : size_t(0);
     const u32 total = u32(kDictEntryCount) + u32(user_count);
     u32 index = 0;
     /* shipped set first (the og's order), then the user candidates */
@@ -66,8 +65,7 @@ AttemptResult try_passwords(u32 (*attempt)(const char* password, void* user), vo
         const bool user_pass = pass == 1;
         const size_t count = user_pass ? user_count : size_t(kDictEntryCount);
         for (size_t i = 0; i < count; ++i) {
-            const char* pw = user_pass ? (*user_candidates)[i].c_str()
-                                       : kDictEntries[i];
+            const char* pw = user_pass ? (*user_candidates)[i].c_str() : kDictEntries[i];
             ++index;
             log::write(log::Level::Info, "dict unlock attempt %u/%u", index, total);
             const u32 rc = attempt(pw, user);
@@ -76,8 +74,7 @@ AttemptResult try_passwords(u32 (*attempt)(const char* password, void* user), vo
                 res.attempted = index;
                 res.success_index = index;
                 res.from_user_set = user_pass;
-                log::write(log::Level::Info,
-                           "dict unlock: candidate %u succeeded (%s set)", index,
+                log::write(log::Level::Info, "dict unlock: candidate %u succeeded (%s set)", index,
                            user_pass ? "user" : "shipped");
                 return res;
             }

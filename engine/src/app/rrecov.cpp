@@ -44,6 +44,7 @@
 #include "cr/win/cr_health.h"
 #include "cr/win/cr_transport.h"
 #include "cr/win/cr_elevate.h"
+#include "cr/win/cr_bootfix.h"
 #include "cr/storage/cr_decrypt_device.h"
 #include "cr/crypto/cr_aes.h"
 #include "cr/cr_text.h" /* N-009c: --filter UTF-8 encoding */
@@ -135,7 +136,9 @@ FILE* g_log = nullptr;
  * runs on any thread (engine workers); vfprintf on a FILE* is CRT-locked,
  * and the seam serializes deliveries on top. */
 void log_sink(cr::log::Level level, const char* line, void*) {
-    const char* tag = level == cr::log::Level::Error ? "E" : level == cr::log::Level::Warn ? "W" : "I";
+    const char* tag = level == cr::log::Level::Error  ? "E"
+                      : level == cr::log::Level::Warn ? "W"
+                                                      : "I";
     fprintf(g_log, "[%s] %s\n", tag, line);
     fflush(g_log);
 }
@@ -173,16 +176,16 @@ void log_line(const char* fmt, ...) {
  * ------------------------------------------------------------------------- */
 
 struct OpenResult {
-    std::unique_ptr<IStorageDevice> device; /* the view handed to engines */
-    std::unique_ptr<IStorageDevice> hold;   /* parent disk (slices reference it) */
+    std::unique_ptr<IStorageDevice> device;     /* the view handed to engines */
+    std::unique_ptr<IStorageDevice> hold;       /* parent disk (slices reference it) */
     std::unique_ptr<IStorageDevice> slice_hold; /* M-033: the slice under the
                                                  * decrypting device (wrapper is
                                                  * non-owning; kept alive here) */
     u32 disk = 0;
     u64 volume_start = 0; /* 0 = whole-disk view */
     u64 volume_len = 0;
-    bool is_image = false;    /* S-030: the target is a disk-image file */
-    std::wstring image_path;  /* the --image argument (identity + resume) */
+    bool is_image = false;   /* S-030: the target is a disk-image file */
+    std::wstring image_path; /* the --image argument (identity + resume) */
 };
 
 /* ---- S-008 pre-scan repair (scan --repair / --repair-apply) ----
@@ -283,8 +286,8 @@ bool open_image_view(const std::wstring& path, OpenResult& out) {
         return false;
     }
     const storage::ImageFormat fmt = storage::classify_extension(p16);
-    const wchar_t* fmt_name = fmt == storage::ImageFormat::Vmdk ? L"VMDK"
-                              : fmt == storage::ImageFormat::Vhd ? L"VHD"
+    const wchar_t* fmt_name = fmt == storage::ImageFormat::Vmdk   ? L"VMDK"
+                              : fmt == storage::ImageFormat::Vhd  ? L"VHD"
                               : fmt == storage::ImageFormat::Vhdx ? L"VHDX"
                                                                   : L"raw";
     /* LBA0 classification (the og reads 0x1000 bytes and classifies
@@ -293,7 +296,7 @@ bool open_image_view(const std::wstring& path, OpenResult& out) {
     const wchar_t* layout = L"unknown layout";
     if (dev->read_at(0, lba0, sizeof(lba0)) == OK) {
         const storage::Lba0Layout lay = storage::classify_lba0(lba0, sizeof(lba0));
-        layout = lay == storage::Lba0Layout::Mbr  ? L"MBR"
+        layout = lay == storage::Lba0Layout::Mbr   ? L"MBR"
                  : lay == storage::Lba0Layout::Gpt ? L"GPT"
                                                    : L"unknown layout";
     }
@@ -418,7 +421,8 @@ bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_
      * reads) with the explicit dictionary consent gets the attempt BEFORE
      * the FB-B01 refusal - a locked volume denying reads is exactly the
      * dictionary aid's target population. Without consent/key: refuse. */
-    if (bst == win::bitlocker::Status::Unknown && !have_key) {        if (dict_consent) {
+    if (bst == win::bitlocker::Status::Unknown && !have_key) {
+        if (dict_consent) {
             wprintf(L"[bitlocker] %c: boot sector unreadable - trying the password "
                     L"dictionary...\n",
                     letter);
@@ -430,7 +434,8 @@ bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_
                         letter);
                 return false;
             }
-            wprintf(L"[bitlocker] dictionary-unlocked\n");        } else {
+            wprintf(L"[bitlocker] dictionary-unlocked\n");
+        } else {
             /* Boot sector unreadable: the BitLocker state cannot be determined.
              * Never scan blind - refuse with the unlock path (FB-B01). With a
              * user key the in-stack decrypt path may proceed (M-033): the user
@@ -469,15 +474,16 @@ bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_
             wprintf(L"[bitlocker] still locked. Unlock with:\n"
                     L"  Unlock-BitLocker -MountPoint %c: -RecoveryPassword <key>\n"
                     L"or re-run with --bitlocker-fvek <hex> (the in-stack decrypt path),\n"
-                    L"or --bitlocker-dict [file] to try a password dictionary.\n",                    letter);
+                    L"or --bitlocker-dict [file] to try a password dictionary.\n",
+                    letter);
             return false;
         } else {
             wprintf(L"[bitlocker] auto-unlocked\n");
         }
     }
-    if (have_key && (bst == win::bitlocker::Status::Locked ||
-                     bst == win::bitlocker::Status::Unknown ||
-                     bst == win::bitlocker::Status::UnlockedEncrypted)) {
+    if (have_key &&
+        (bst == win::bitlocker::Status::Locked || bst == win::bitlocker::Status::Unknown ||
+         bst == win::bitlocker::Status::UnlockedEncrypted)) {
         wprintf(L"[bitlocker] %c: in-stack XTS-AES decrypt active (%hs key, "
                 L"engines see plaintext)\n",
                 letter, fvek.size() == 32 ? "128-bit" : "256-bit");
@@ -714,8 +720,7 @@ u64 file_tell_cb(void* user) {
     return u64(_ftelli64(static_cast<FILE*>(user)));
 }
 u32 file_seek_cb(void* user, u64 absolute) {
-    return _fseeki64(static_cast<FILE*>(user), static_cast<long long>(absolute),
-                     SEEK_SET) == 0
+    return _fseeki64(static_cast<FILE*>(user), static_cast<long long>(absolute), SEEK_SET) == 0
                ? OK
                : ERR_SESSION_IO;
 }
@@ -796,8 +801,7 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
                         user_signs_path.c_str());
                 return 1;
             }
-            wprintf(L"[user-signs] %u user signature(s) registered\n",
-                    cr_ui_user_sign_count());
+            wprintf(L"[user-signs] %u user signature(s) registered\n", cr_ui_user_sign_count());
         }
     }
     std::vector<std::string> dict_user;
@@ -941,11 +945,10 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
     if (target.is_image) {
         /* S-030: the image identity - format as model, path into the v3
          * tail (the resume path warns when the path changes) */
-        const storage::ImageFormat fmt =
-            storage::classify_extension(std::u16string(target.image_path.begin(),
-                                                       target.image_path.end()));
-        const char* model = fmt == storage::ImageFormat::Vmdk ? "Disk image (VMDK)"
-                            : fmt == storage::ImageFormat::Vhd ? "Disk image (VHD)"
+        const storage::ImageFormat fmt = storage::classify_extension(
+            std::u16string(target.image_path.begin(), target.image_path.end()));
+        const char* model = fmt == storage::ImageFormat::Vmdk   ? "Disk image (VMDK)"
+                            : fmt == storage::ImageFormat::Vhd  ? "Disk image (VHD)"
                             : fmt == storage::ImageFormat::Vhdx ? "Disk image (VHDX)"
                                                                 : "Disk image (raw)";
         for (size_t k = 0; k < sizeof(cfg.volume_model) - 1 && model[k]; ++k)
@@ -1062,8 +1065,8 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         /* M-042: the current target disk is the re-validation arbiter -
          * stale candidates the disk no longer confirms are dropped
          * at load (the og's PRD:20748-20842 search-start semantics). */
-        const u32 rrc = orchestrator::ScanController::resume(r, tree, cfg, stats, info,
-                                                             ctrl, target.device.get());
+        const u32 rrc = orchestrator::ScanController::resume(r, tree, cfg, stats, info, ctrl,
+                                                             target.device.get());
         fclose(fin);
         if (rrc != OK) {
             wprintf(L"resume failed: %hs (0x%08x)\n", err_text(rrc), rrc);
@@ -1175,8 +1178,8 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         }
         session::Writer w(file_write_cb, file_tell_cb, file_seek_cb, f);
         w.set_flags(session::CRSF_FLAG_ABS_EXTENTS); /* F-1: absolute basis */
-        bool ok = w.open(0x52434F56) == OK && ctrl->save_session(w, stats) == OK &&
-                  w.finalize() == OK;
+        bool ok =
+            w.open(0x52434F56) == OK && ctrl->save_session(w, stats) == OK && w.finalize() == OK;
         fclose(f);
         if (ok) {
             std::error_code ec;
@@ -1644,8 +1647,8 @@ int cmd_health(int argc, wchar_t** argv, int& i) {
          * to ~0.55 C; now identical to the ABI spelling to the digit. */
         const u32 dec_c = nv.decidegrees_c();
         wprintf(L"NVMe health: temp=%u.%uC spare=%u%%/threshold=%u%% used=%llu%% - %hs\n",
-                dec_c / 10, dec_c % 10, nv.available_spare,
-                nv.available_spare_threshold, static_cast<unsigned long long>(nv.percentage_used),
+                dec_c / 10, dec_c % 10, nv.available_spare, nv.available_spare_threshold,
+                static_cast<unsigned long long>(nv.percentage_used),
                 cr::health::health_grade_name(cr::health::grade_nvme(nv)));
         wprintf(L"  read=%llu bytes written=%llu bytes (M-036: units x 512,000)\n",
                 static_cast<unsigned long long>(nv.data_bytes_read),
@@ -1903,6 +1906,16 @@ bool apply_cli_consent(const apply::ApplyPlan& plan, void* user) {
     return true;
 }
 
+/* M-040: the bootfix consent (bcdfix::ConsentFn shape) - the operator's
+ * --boot-fix + --apply flags ARE the explicit gate; the callback prints
+ * the action line and allows. Refusal (no --apply) never reaches the
+ * write path at all. */
+bool bootfix_cli_consent(void* user) {
+    ApplyCliCtx* ctx = static_cast<ApplyCliCtx*>(user);
+    wprintf(L"[boot-fix] consent given: rewriting the boot entries now\n");
+    return ctx->apply != 0;
+}
+
 int cmd_apply(int argc, wchar_t** argv, int& i) {
     std::wstring v;
     u32 disk = 0;
@@ -1912,6 +1925,15 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
     bool do_apply = false;
     bool use_rda = true;
     std::wstring undo_path;
+    /* M-040: the post-apply boot-chain repair (the og's MainModule
+     * apply chain FUN_180075580: apply -> Bcd unlock/newpos). Opt-in:
+     * --boot-fix <old-lba> states what the boot configuration (BCD /
+     * NVRAM) currently references; --boot-fix-bcd overrides the two
+     * standard hive locations. Every write under the bootfix consent
+     * gate below. */
+    u64 boot_fix_old_lba = 0;
+    bool boot_fix = false;
+    std::wstring boot_fix_bcd;
     while (i < argc) {
         if (get_opt(argc, argv, i, L"--disk", &v)) {
             disk = u32(wcstoul(v.c_str(), nullptr, 10));
@@ -1938,6 +1960,15 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
         if (wcscmp(argv[i], L"--no-rda") == 0) {
             use_rda = false;
             ++i;
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--boot-fix", &v)) {
+            boot_fix_old_lba = wcstoull(v.c_str(), nullptr, 10);
+            boot_fix = true;
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--boot-fix-bcd", &v)) {
+            boot_fix_bcd = v;
             continue;
         }
         wprintf(L"unknown apply option: %s\n", argv[i]);
@@ -1971,8 +2002,8 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
     orchestrator::ScanStats stats;
     session::VolumeSessionInfo info;
     session::Reader r(file_read_cb, file_seek_cb, file_size_cb, fin);
-    u32 rc = orchestrator::ScanController::load_session_summary(r, tree, stats, info,
-                                                                 apply_view.get());
+    u32 rc =
+        orchestrator::ScanController::load_session_summary(r, tree, stats, info, apply_view.get());
     if (stats.dropped_stale_candidates > 0) {
         wprintf(L"[apply] %llu stale candidate(s) dropped - the disk no longer "
                 L"confirms them (re-scan to rediscover)\n",
@@ -1998,8 +2029,7 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
                 int(k) == candidate - 1 ? L"  <-- selected" : L"");
     }
     if (candidate < 1 || size_t(candidate) > stats.lost_candidates.size()) {
-        wprintf(L"select a candidate with --candidate N (1..%zu)\n",
-                stats.lost_candidates.size());
+        wprintf(L"select a candidate with --candidate N (1..%zu)\n", stats.lost_candidates.size());
         return 1;
     }
     const lost::Candidate& c = stats.lost_candidates[size_t(candidate) - 1];
@@ -2017,16 +2047,27 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
                 L"without --apply)\n");
         return 0;
     }
-    wprintf(L"apply plan: entry slot %u, type 0x%02X, LBA %llu, %llu sectors%s\n",
-            plan.entry_index, plan.mbr_type, static_cast<unsigned long long>(plan.start_lba),
+    wprintf(L"apply plan: entry slot %u, type 0x%02X, LBA %llu, %llu sectors%s\n", plan.entry_index,
+            plan.mbr_type, static_cast<unsigned long long>(plan.start_lba),
             static_cast<unsigned long long>(plan.sector_count),
             plan.restores_signature ? L" + 0x55AA signature restore" : L"");
     for (const auto& a : plan.actions)
+<<<<<<< HEAD
         wprintf(L"  [apply] offset=%llu len=%zu : %hs\n",
                 static_cast<unsigned long long>(a.offset), a.after.size(), a.reason.c_str());
+    /* M-040: the boot-chain repair family now exists (bcdfix +
+     * nvramfix + the win runtime); the CORE plan never performs it
+     * (the og's Fixup runs host-side after the layout write too) - the
+     * CLI offers it as the explicit --boot-fix step after a successful
+     * apply. */
+=======
+        wprintf(L"  [apply] offset=%llu len=%zu : %hs\n", static_cast<unsigned long long>(a.offset),
+                a.after.size(), a.reason.c_str());
+>>>>>>> origin/main
     if (!plan.boot_repair_available)
-        wprintf(L"  [apply] boot-chain repair: not available in this build (the entry is "
-                L"written; BCD/boot.ini fixup is separate scope)\n");
+        wprintf(L"  [apply] boot-chain repair: separate opt-in step (re-run with "
+                L"--boot-fix <old-lba> to rewrite the BCD offsets + NVRAM entry after "
+                L"the apply lands)\n");
 
     if (!do_apply) {
         wprintf(L"dry-run only - re-run with --apply to execute (undo log saved automatically)\n");
@@ -2082,6 +2123,100 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
                 undo_path.c_str(), blob.size(), disk, undo_path.c_str());
     } else {
         wprintf(L"WARNING: could not save the undo log to %s\n", undo_path.c_str());
+    }
+
+    /* ---- M-040: the post-apply boot-chain repair (opt-in) ----
+     * The og's chain (MainModule FUN_180075580: apply -> Bcd_Init ->
+     * Bcd_UnlockBcdFile/Bcd_UnlockBcdNewPos; PR:47290-47302) patches the
+     * BCD device elements + the UEFI NVRAM load options after the table
+     * write. Consent model: the operator ran --boot-fix with the LBA
+     * the boot config currently references; every write still rides the
+     * bcdfix consent gate (the shared apply consent - an explicit
+     * --apply was required to get here). */
+    if (boot_fix) {
+        wprintf(L"[boot-fix] running the post-apply boot-chain repair\n");
+        size_t applied = 0;
+        const u32 sig = plan.mbr_signature;
+        const u64 new_lba = plan.start_lba;
+        /* the two standard hive locations (Fixup's own CBcd/CEFIFirstBcd
+         * pair: the legacy boot partition's \Boot\BCD + the ESP's
+         * \EFI\MICROSOFT\BOOT\BCD); --boot-fix-bcd overrides with an
+         * explicit path. The C: system-root guess matches the og's
+         * GetSystemDirectoryA-based probe (FUN_1800017a0). Plan-only
+         * first (no writes), then the consent-gated execute + flush. */
+        const wchar_t* paths[2] = {L"C:\\Boot\\BCD",
+                                   L"C:\\EFI\\MICROSOFT\\BOOT\\BCD"};
+        bool any = false;
+        for (const wchar_t* bcd_path : paths) {
+            if (!boot_fix_bcd.empty()) {
+                if (wcscmp(bcd_path, paths[0]) != 0)
+                    continue; /* an explicit path replaces both guesses */
+                bcd_path = boot_fix_bcd.c_str();
+            }
+            std::vector<cr::bcdfix::BcdRewrite> bcd_plan;
+            u32 brc = win::bootfix::bcd_file_plan(bcd_path, sig, boot_fix_old_lba, new_lba,
+                                                  &bcd_plan);
+            if (brc != OK || bcd_plan.empty()) {
+                if (brc != OK)
+                    wprintf(L"[boot-fix] %ls: rc=%08x %hs\n", bcd_path, brc, err_text(brc));
+                continue;
+            }
+            applied = 0;
+            brc = win::bootfix::bcd_file_execute(bcd_path, bcd_plan, bootfix_cli_consent, &ctx,
+                                                 &applied);
+            if (brc == OK && applied > 0) {
+                wprintf(L"[boot-fix] %zu device element(s) rewritten in %ls "
+                        L"(LBA %llu -> %llu)\n",
+                        applied, bcd_path, static_cast<unsigned long long>(boot_fix_old_lba),
+                        static_cast<unsigned long long>(new_lba));
+                any = true;
+            } else if (brc == ERR_REPAIR_REFUSED) {
+                wprintf(L"[boot-fix] %ls: consent refused - nothing written\n", bcd_path);
+            } else if (brc != OK) {
+                wprintf(L"[boot-fix] %ls: rc=%08x %hs\n", bcd_path, brc, err_text(brc));
+            }
+        }
+        /* the NVRAM full-position pass (EFIBoot's FUN_180004b40 update;
+         * the new partition number = the MBR slot + 1, the new start =
+         * the applied candidate's LBA). ERR_UNSUPPORTED = BIOS system -
+         * reported, never fatal (the table write already succeeded; the
+         * og's boot-repair failures are advisory too). */
+        nvramfix::TargetPartition nt;
+        nt.gpt_mode = false;
+        nt.old_mbr_signature = sig;
+        nt.old_start = boot_fix_old_lba;
+        nt.old_size = plan.sector_count;
+        nt.new_partition_number = plan.entry_index + 1;
+        nt.new_start = plan.start_lba;
+        nt.new_size = plan.sector_count;
+        nt.new_mbr_signature = sig;
+        u32 nrc = OK;
+        bool stopped_early = false;
+        const auto nplan = win::bootfix::nvram_plan(nt, &nrc, &stopped_early);
+        if (nrc == OK && !nplan.empty()) {
+            size_t napplied = 0;
+            nrc = win::bootfix::nvram_execute(nplan, bootfix_cli_consent, &ctx, &napplied);
+            if (nrc == OK && napplied > 0) {
+                wprintf(L"[boot-fix] NVRAM: %zu Boot entr%s repositioned to partition %u "
+                        L"LBA %llu%s\n",
+                        napplied, napplied == 1 ? L"y" : L"ies", nt.new_partition_number,
+                        static_cast<unsigned long long>(nt.new_start),
+                        stopped_early ? L" (walk stopped at a stale BootOrder id)"
+                                      : L"");
+                any = true;
+            } else if (nrc == ERR_REPAIR_REFUSED) {
+                wprintf(L"[boot-fix] NVRAM: consent refused - nothing written\n");
+            } else if (nrc != OK) {
+                wprintf(L"[boot-fix] NVRAM: rc=%08x %hs\n", nrc, err_text(nrc));
+            }
+        } else if (nrc == ERR_UNSUPPORTED) {
+            wprintf(L"[boot-fix] NVRAM: not a UEFI system (skipped)\n");
+        } else if (nrc != OK) {
+            wprintf(L"[boot-fix] NVRAM: rc=%08x %hs\n", nrc, err_text(nrc));
+        }
+        if (!any)
+            wprintf(L"[boot-fix] nothing needed rewriting (no boot entry referenced the "
+                    L"old position)\n");
     }
     return 0;
 }
@@ -2309,7 +2444,8 @@ int wmain(int argc, wchar_t** argv) {
             L"              the og host's EUGetAnalyserList/Map/Multimap surface)\n"
             L"  rrecov scan --disk N | --volume C: | --image file.vmdk|.vhd|.vhdx|.img [.dmg raw]\n"
             L"             [--whole-disk] [--quick-only] [--no-carve]\n"
-            L"             (deep stage always on; --quick-only disables it; --whole-disk = lost-partition discovery)\n"
+            L"             (deep stage always on; --quick-only disables it; --whole-disk = "
+            L"lost-partition discovery)\n"
             L"             [--threads N] [--out file.crsf] [--resume file.crsf] [--log file]\n"
             L"             [--json] [--csv] [--filter s] [--deleted-only]\n"
             L"             [--repair] [--repair-apply] [--repair-undo file]\n"
@@ -2317,12 +2453,15 @@ int wmain(int argc, wchar_t** argv) {
             L"                                     64/128 hex chars - in-stack XTS-AES\n"
             L"                                     decrypt, engines see plaintext)\n"
             L"  rrecov tree --in file.crsf [--filter s] [--deleted-only] [--csv]\n"
-            L"  rrecov recover --in file.crsf (--disk N | --image file) --to DIR [--deleted-only] [--filter s]\n"
+            L"  rrecov recover --in file.crsf (--disk N | --image file) --to DIR [--deleted-only] "
+            L"[--filter s]\n"
             L"             [--report file.json]\n"
             L"  rrecov health --disk N\n"
             L"  rrecov fix --disk N [--part P] [--apply] [--undo file] [--undo-apply file]\n"
             L"  rrecov apply --disk N --session file.crsf --candidate N [--apply] [--undo file]\n"
-            L"             (writes a lost-partition candidate's MBR entry; dry-run by default)\n"
+            L"             [--boot-fix old-lba [--boot-fix-bcd path]] (writes a lost-partition\n"
+            L"             candidate's MBR entry; dry-run by default; --boot-fix additionally\n"
+            L"             rewrites the BCD offsets + UEFI NVRAM entry after the apply)\n"
             L"  rrecov bench --disk N [--mode seq|rand|open|read|info] [--mb N] [--block-kb N]\n"
             L"              [--iterations N] [--seed N] [--json] [--no-rda]\n");
         return 0;

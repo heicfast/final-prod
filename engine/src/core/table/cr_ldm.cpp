@@ -1017,8 +1017,8 @@ u32 find_privhead(IStorageDevice* dev, u64& ph_byte_off, bool& is_gpt) {
      * the header read mid-sector-0 on 4Kn disks and made LDM-over-GPT
      * undiscoverable. (The MBR path's 6*512 above is the kernel's fixed
      * OFF_PRIV1 BYTE offset - correct for every sector size.) */
-    const u64 ls = dev->geometry().logical_sector != 0 ? u64(dev->geometry().logical_sector)
-                                                       : u64(512);
+    const u64 ls =
+        dev->geometry().logical_sector != 0 ? u64(dev->geometry().logical_sector) : u64(512);
     GptHeader gh{};
     if (dev->read_at(u64(1) * ls, &gh, sizeof(gh)) != OK)
         return ERR_READ_FAILED;

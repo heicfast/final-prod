@@ -404,7 +404,10 @@ TEST(CrUi, ScanBusyStoppingQueries) {
     ASSERT_EQ(cr_ui_scan_pause(u.scan), CR_UI_OK);
     std::atomic<bool> done{false};
     std::atomic<uint32_t> run_rc{0};
-    std::thread runner([&] { run_rc = cr_ui_scan_run(u.scan); done = true; });
+    std::thread runner([&] {
+        run_rc = cr_ui_scan_run(u.scan);
+        done = true;
+    });
     bool saw_busy = false;
     for (int i = 0; i < 300 && !done.load(); ++i) { /* up to ~3 s */
         uint32_t b = 0;
@@ -1220,8 +1223,8 @@ TEST(CrUi, SaveProgressEventsAndAtomicCancel) {
     ASSERT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
 
     namespace fs = std::filesystem;
-    const fs::path dir = fs::temp_directory_path() /
-        (std::string("cr_n060_") + std::to_string(CR_TEST_GETPID()));
+    const fs::path dir =
+        fs::temp_directory_path() / (std::string("cr_n060_") + std::to_string(CR_TEST_GETPID()));
     std::error_code ec;
     fs::remove_all(dir, ec);
     fs::create_directories(dir);
@@ -1369,8 +1372,8 @@ TEST(CrUi, SessionSaveWritesCrsfOnly) {
     ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
     ASSERT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
     namespace fs = std::filesystem;
-    const fs::path dir = fs::temp_directory_path() /
-        (std::string("cr_n040_") + std::to_string(CR_TEST_GETPID()));
+    const fs::path dir =
+        fs::temp_directory_path() / (std::string("cr_n040_") + std::to_string(CR_TEST_GETPID()));
     fs::create_directories(dir);
     const fs::path crsf = dir / "session.crsf";
     ASSERT_EQ(cr_ui_scan_save_session(u.scan, crsf.string().c_str()), CR_UI_OK);
@@ -2179,8 +2182,8 @@ TEST(CrUi, QueryApplyBucketsFillsAndRejects) {
     EXPECT_GT(q.modified_from, 0u);
     EXPECT_GT(q.modified_to, q.modified_from);
     const uint64_t day = 24ull * 3600 * 10'000'000;
-    EXPECT_GE(q.modified_to - q.modified_from, 29 * day);  /* 30 local days */
-    EXPECT_LE(q.modified_to - q.modified_from, 31 * day);  /* DST-tolerant */
+    EXPECT_GE(q.modified_to - q.modified_from, 29 * day); /* 30 local days */
+    EXPECT_LE(q.modified_to - q.modified_from, 31 * day); /* DST-tolerant */
     ASSERT_EQ(cr_ui_query_run(u.sess, &q, &rows, &n, &total), CR_UI_OK);
     EXPECT_EQ(total, 0u) << "1980-dated fixture rows cannot fall in the last month";
     cr_ui_query_rows_free(rows, n);
@@ -2282,16 +2285,13 @@ TEST(CrUi, RawCategoryNameNamesTheCarveRoot) {
     EXPECT_TRUE(saw_custom) << "the carve root carries the configured name";
 }
 
-
-
 /* ---- M-048: the user-signature registration ABI (since 2.1) ---- */
 
 TEST(CrUi, UserSignRegistrationSurface) {
     /* register -> count -> info round-trip; a bad payload is atomic
      * (the previous set survives) */
-    const char* good =
-        "{\"abc\": {\"signs\": [\"0,DEADBEEF\"], \"mime\": \"application/x-abc\"},"
-        " \"zz9\": {\"signs\": [\"16,0011\"], \"mime\": \"application/x-zz9\"}}";
+    const char* good = "{\"abc\": {\"signs\": [\"0,DEADBEEF\"], \"mime\": \"application/x-abc\"},"
+                       " \"zz9\": {\"signs\": [\"16,0011\"], \"mime\": \"application/x-zz9\"}}";
     ASSERT_EQ(0u, cr_ui_register_user_signs(good, cr::u32(std::strlen(good))));
     ASSERT_EQ(2u, cr_ui_user_sign_count());
     cr_ui_user_sign s0{};

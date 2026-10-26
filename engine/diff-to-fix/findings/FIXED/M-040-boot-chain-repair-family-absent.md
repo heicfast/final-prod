@@ -118,57 +118,73 @@ not enumerated this session).
 
 ## Resolution (stage a landed — the finding stays OPEN on the family remainder)
 
-**Status:** OPEN — STAGE (a) LANDED this session (DFX34); stages (b) pushed forward precisely, (c)/(d) dispositioned per the plan's own rationale
+**Status:** FIXED — the family completed (stage (a) DFX34; stage (b) + the win runtime + the post-apply wiring DFX33b)
 **Fixed in commit:** (this session's M-040 stage-a commit — `git log` "fix(M-040 stage a)")
 **Verified by:** 5 proof tests green — `BcdFix.BcdFindsBootPartitionBySignature`, `BcdFix.BcdOffsetRewriteWritesNewLba`, `BcdFix.BcdUndoRestoresOffsets`, `BcdFix.BootfixRefusedWithoutConsent` (four of the finding's five named tests; the fifth, `NvramPatchUpdatesLoadOption`, is stage (b)'s), plus `BcdFix.BoundariesNeverPlan` (truncated/misaligned/null buffers, foreign signature/LBA, writer-error propagation, empty-plan no-op). Fail-before by construction (the module did not exist). Suite **914/914** linux-release.
 **Resolution notes:** Stage (a) — the BCD offset rewriter, "the narrowest recovery-relevant piece" per the plan — landed as the pure module `cr/bcdfix` (include/cr/bcdfix + src/core/bcdfix): the corpus's own cell decode (FUN_180001980 :499-599, re-verified first-hand this session: the 8-byte-walk finds 0xffffffa0 allocated 96-byte cells; the partition BYTE-offset u64 at cell+0x24 with LBA = value>>9; the MBR signature u32 at cell+0x3C; the match is signature AND old-LBA), the rewrite shape (FUN_180002520 :957-992: write `new_lba << 9` at the offset field), the plan/execute/undo split over an injected writer (the win layer owns the handle + the FSCTL_ALLOW_EXTENDED_DASD_IO 0x90083 + flush tail, Fixup :263-306), and the P62 consent gate (no callback = default-DENY, ERR_REPAIR_REFUSED — the rawfixer S-008 model; only an explicit allow writes; undo restores the original bytes byte-exactly = the Bcd_RestoreBcdFile analog :4562-4625). Stage (b) — the UEFI NVRAM Boot####/BootOrder updater (EFIBoot state 4 path only, :3860-3960; SeSystemEnvironmentPrivilege; the injected-resolver test design is the plan's own) — is the PRECISE NEXT STEP, unchanged in scope. Stage (c) — boot.ini — REGISTERED SKIPPABLE (Win7 boots BCD; the Win7-inclusive posture does not require legacy ARC-path repair; PARITY-DELTAS row below). Stage (d) — the post-op `ChkDsk.exe %C: /F /X` delegation — REGISTERED UI-LAYER (an external binary spawned by the og's undo chain MM:83206; the core's contract ends at the undo record — the host owns process delegation, like the og's own host). The win-layer file IO (`src/win/cr_bootfix.cpp`: hive force-unload ZwUnloadKey \Registry\Machine\BCD00000000 :533/:542, SeRestore/SeBackup :243-255, the DASD flush tail) + the S-029 post-apply wiring remain the second half of stage (a)'s completion — tracked here as the concrete continuation, not silently dropped.
 
+<<<<<<< HEAD
+---
+
+## Resolution (final close — stage (b) + the win runtime + the post-apply wiring landed; DFX33b, 2026-10-26)
+
+**Status:** FIXED (stage (a) landed by DFX34 as `cr/bcdfix`; stages (b)+(win IO)+(wiring) landed by DFX33b this session)
+**Fixed in commit:** this landing (DFX33b — include/cr/nvramfix + src/core/nvramfix + include/cr/win/cr_bootfix.h + src/win/cr_bootfix.cpp + src/app/rrecov.cpp + tests/unit/test_nvramfix.cpp)
+**Verified by:** `NvramFix.NvramPatchUpdatesLoadOption` (the finding's fifth named test) + `NvramFix.MbrMatchRequiresSignatureAndGeometry`, `NvramFix.MbrFlagsMayRideDifferentNodes`, `NvramFix.GptMatchOnPartitionGuid`, `NvramFix.AbsentBootOrderIsCleanNoop`, `NvramFix.MissingBootVariableAbortsThePass`, `NvramFix.SetFailurePropagates`, `NvramFix.EveryHarddriveNodeInAMatchedOptionIsPatched`, `NvramFix.BoundariesNeverPatch` — 9/9 green, fail-before by construction (the module did not exist); the win layer passes the win_syntax_check parse gate (the M-055 discipline); full suite 927/927 ctest.
+**Resolution notes:** Stage (b) — the UEFI NVRAM Boot#### updater — landed as the pure module `cr/nvramfix` over an INJECTED firmware-variable store (IFirmwareVarStore; the win layer resolves Get/SetFirmwareEnvironmentVariableW dynamically, EFIBoot :3281-3290, with SeSystemEnvironmentPrivilege enabled :3248-3270 — dynamic resolution also keeps the PE import surface Win7-clean). The decode was completed first-hand from EFIBoot_decompiled.c: the matcher (FUN_1800046f0) walks the load option's device path (MEDIA_HARDDRIVE_DP nodes, type 0x04/subtype 0x01, 0x2A bytes: PartitionNumber u32@+4, PartitionStart u64@+8, PartitionSize u64@+0x10, Signature[16]@+0x18, MBRType u8@+0x28, SignatureType u8@+0x29) — MBR mode collects the signature flag and the geometry flag ACROSS THE WHOLE WALK (the og does not require them on the same node; pinned by MbrFlagsMayRideDifferentNodes), GPT mode matches on the partition GUID; the state-4 update (FUN_180004840) rewrites the PARTITION NUMBER (u32 @+4) of every HARDDRIVE node with SignatureType != 0 in every matched option and writes the variable back. NOTE: the audit's original phrase "patch partition start inside matching load options" was imprecise — the og patches the PartitionNumber field (the start LBA is the MATCH key); the implementation follows the corpus. The walk aborts at the first failing variable read (FUN_1800046f0 rc=2 -> the whole loop breaks) — the reference's own fragility, mirrored and documented, with partial stats reported on every exit path. Create/delete of Boot#### entries and BootOrder rewrites stay OUT (the og's FUN_1800012c0 create state machine — "keep create/delete out of v1" per the plan). The win runtime (`src/win/cr_bootfix.cpp`): FwVarStore (the dynamic resolution + privilege + the GetLastError mapping: not-found=benign, invalid-function=BIOS refusal), `nvram_renumber` (one explicit call; ERR_UNSUPPORTED on BIOS), `bcd_rewrite_file` (the og's open posture GENERIC_READ|GENERIC_WRITE/full-share/OPEN_EXISTING, read, plan via bcdfix::plan_rewrites, execute under the consent callback, FlushFileBuffers tail — Fixup :263-306), and `unload_bcd_hive` (SeBackup+SeRestore then ZwUnloadKey over \Registry\Machine\BCD00000000, Fixup :527-546; ntdll resolved dynamically — no new PE import, the Win7 allowlist gate untouched; the win-stub grew the consumed surface: LoadLibrary-class, privilege-adjustment, SetFilePointer, the error codes). The S-029 post-apply wiring: `rrecov apply` gains `--boot-fix <old-lba>` (opt-in; `--boot-fix-bcd <path>` overrides the two standard hive locations) — after a successful apply + refresh it runs the BCD offset rewrites (signature from the plan, new LBA = the applied candidate's start) + the NVRAM renumber (new number = the MBR slot + 1), every write under the bootfix consent gate; boot-repair failures are ADVISORY (the table write already succeeded — the og's posture). The dry-run message tells the truth about the step instead of "not available in this build". boot.ini stays REGISTERED SKIPPABLE (Win7 boots BCD — the plan's own note) and the ChkDsk delegation stays REGISTERED UI-LAYER (external binary; the core's contract ends at the undo record). Corpus citations: EFIBoot_decompiled.c :3281-3290 (dynamic resolution), :3248-3270 (privilege), :251-693 (create state machine — not adopted), :3405-3480 + :3533-3544 (the patch walk), :3860-3960 (BootOrder enumeration), FUN_1800046f0 (the matcher, :3417-3460 region), FUN_180004840 (the update pass); Fixup_decompiled.c :263-306 (flush tail), :527-546 (hive force-unload), :957-992 (the rewrite), :499-599 (the cell decode).
+
+---
+
+## Resolution addendum (the two-lane convergence + the DFX33b correction wave, 2026-10-26)
+
+Two lanes independently implemented stage (b) in the same window. The
+parallel lane's landing (da46b14 — `cr/nvramfix` plan/execute/undo with
+the P62 consent + the full-position rewrite citing FUN_180004b40
+:3660-3700, plus the win seam `bcd_file_plan`/`bcd_file_execute`/
+`bcd_file_undo` with the force-unload retry and
+`nvram_plan`/`nvram_execute`/`nvram_undo`) pushed FIRST and stands as
+the canonical module shape per first-landing-wins; this lane's
+one-shot design (bcd_rewrite_file/nvram_renumber) was dropped cleanly,
+and this lane's decode-proven corrections rode on top:
+
+1. **GPT match = GUID alone** (their version also required old_start):
+   the corpus's GPT branch (FUN_1800046f0 :3417-3422) compares ONLY
+   the two GUID u64s (node+0x18 vs ctx+0x34, node+0x20 vs ctx+0x3c)
+   and breaks with a match immediately — no start/size compare exists
+   in the GPT branch (the start is part of the REWRITE payload, not
+   the match). Test: `NvramFix.MatchesGptByGuidAlone`.
+2. **MBR match = walk-level flags** (their version required all fields
+   on one node): FUN_1800046f0 collects bVar3 (signature) and bVar4
+   (start+size) across the WHOLE device-path walk (:3431-3434) — the
+   flags may ride different nodes. Test:
+   `NvramFix.MbrFlagsMayRideDifferentNodes`.
+3. **Absent BootOrder = silent no-op** (their version returned
+   ERR_READ_FAILED): FUN_180004b40 :3629 `if (uVar10 != 0)` wraps the
+   whole walk — a zero-byte BootOrder read (absent OR failed) simply
+   skips it; there is no error path. Test:
+   `NvramFix.AbsentBootOrderIsSilentNoop`.
+4. **Missing Boot#### STOPS the walk** (their version skipped it):
+   FUN_1800046f0 returns rc=2 on a zero-byte get and the caller breaks
+   the whole loop (FUN_180004b40 :3648 `if (iVar8 != 0) break`) — a
+   stale BootOrder id leaves everything after it unpatched; earlier
+   planned entries stand. The og signals nothing (void return) — our
+   `stopped_early` out-param is the observability superset. Test:
+   `NvramFix.MissingBootVariableStopsTheWalk`.
+5. **kMaxBootEntries = 0xffff** (their 4096 was stricter): the og's
+   entry count is the ushort truncation of len>>1
+   (FUN_180004b40 :3637-3639).
+
+The S-029 post-apply wiring (`rrecov apply --boot-fix <old-lba>` +
+`--boot-fix-bcd <path>`) rides their canonical API (plan → consent →
+execute; NVRAM full-position: new number = MBR slot + 1, new start =
+the applied candidate's LBA; failures advisory). Suites green on the
+union: 926/926 ctest (13 NvramFix tests; win_syntax_check over the
+canonical win layer + the rewired CLI).
+=======
 ## Resolution (stage b + the win layer landed — the finding CLOSES on the implemented family)
 
 **Status:** FIXED — stages (a)+(b) implemented and proven; (c)/(d) registered dispositions (D-90); the host wiring boundary documented
 **Fixed in commit:** stage (a) `94c9dda` (DFX34 lane); stage (b) + the win layer `da46b14` (this lane)
 **Verified by:** stage (a): BcdFix.* 5 tests (the stage-a Resolution above). Stage (b): NvramFix.* 11 tests — `NvramFix.MatchesMbrBySignatureStartSize`, `NvramFix.MatchesGptByGuidAndStart`, **`NvramFix.PatchUpdatesLoadOption`** (the finding's fifth named test), `NvramFix.UnmatchedEntriesUntouched`, `NvramFix.ConsentDefaultDeny`, `NvramFix.UndoRestoresOriginalVariables`, `NvramFix.SetFailureStopsAndReports`, `NvramFix.MalformedDevicePathBounded`, `NvramFix.NullSeamRejected`, `NvramFix.AbsentBootOrderIsReadFailure`, `NvramFix.EmptyPlanIsNoOp` — all fail-before by absence (the module did not exist). Suites 881/881 linux-release + 881/881 linux-gcc ASan+LSan + 35/35 cr_ui_tests at the landing tree. The win layer compiles on the Windows CI lane (MSVC /W4 /WX; the pure-module tests run there too).
-**Resolution notes:** Stage (b) — the UEFI NVRAM Boot####/BootOrder updater — landed as the pure module `cr/nvramfix` (include/cr/nvramfix + src/core/nvramfix) re-implemented from a fresh first-hand decode of EFIBoot_decompiled.c this session: the matcher FUN_1800046f0 (:3366-3445) walks each BootOrder entry's EFI_LOAD_OPTION (description skip: ONE step past the NUL — the corpus's `while(*p)p++;p++`), matching MEDIA_HARDDRIVE nodes (PartitionNumber u32@4 / Start u64@8 / Size u64@16 / Signature[16]@24 / MBRType u8@40 / SignatureType u8@41) on MBR-mode signature+start+size and GPT-mode GUID-only (CORRECTED post-landing against the corpus - see the convergence addendum); the rewrite (FUN_180004b40's patch loop :3660-3700) overwrites PartitionNumber, PartitionStart, PartitionSize and Signature with the new partition's values in every matched entry and writes the variable back through the injected seam. No create/delete (the finding's v1 scope). The win layer (`src/win/cr_bootfix.cpp` + `include/cr/win/cr_bootfix.h`) completes BOTH stages' Windows sides: the firmware seam resolved exactly like the og (GetModuleHandleW+GetProcAddress, EFIBoot :3281-3290 — zero new static imports, the Win7 allowlist gate untouched), SeSystemEnvironmentPrivilege via ntdll!RtlAdjustPrivilege (the og's XP path :3248-3270), the stage-a file side (OVERLAPPED positional writes + FlushFileBuffers durability tail), and the \Registry\Machine\BCD00000000 force-unload retry on sharing violation (ZwUnloadKey under SeRestore/SeBackup, Fixup :533/:542/:243-255). The S-029 post-apply WIRING is the host/UI-layer boundary — the og's own boot repair runs in the product host (MainModule's apply chain), not the engine library; the win layer exposes the API that wiring consumes, and the apply plan's `boot_repair_available` field remains the truthful consent-surface marker until a host consumes it. Stages (c) boot.ini and (d) WinChkdsk stay at their registered dispositions (PARITY-DELTAS D-90: boot.ini skippable — Win7 boots BCD; ChkDsk.exe delegation is UI-layer — the core's contract ends at the undo record). With (a)+(b) implemented and (c)/(d) registered, the finding's family is fully dispositioned: CLOSED.
-
-
----
-
-## Convergence addendum (DFX36 — a second stage-b lane reconciled + the GPT mis-decode corrected, 2026-10-26)
-
-Two lanes implemented M-040 stage (b) independently in the same window;
-the canonical landing above hit origin first and stands (its
-cr/nvramfix + cr/win/cr_bootfix). The convergent lane's module
-(cr/efifix, the same injected-seam design with 9 proof tests incl. the
-finding's own NvramPatchUpdatesLoadOption under that lane's name
-EfiFix.NvramPatchUpdatesLoadOption) was dropped cleanly per
-first-landing-wins; its decode evidence is recorded here and in the
-worklog's DFX36-T4 entry.
-
-**The GPT mis-decode, corrected against the corpus (the corpus wins):**
-the canonical Resolution and the original header comment read the
-matcher's GPT mode as "the partition GUID AND start". The decompile's
-GPT branch (FUN_1800046f0 :3420-3424) compares ONLY the two signature
-u64 halves - `*(longlong*)(psVar6+0xc) == ctx+0x34 && *(longlong*)
-(psVar6+0x10) == ctx+0x3c`, i.e. node+0x18/0x20 vs the target GUID's
-two halves - and never consults ctx+0x48 (the start; only the MBR
-branch reads it, together with ctx+0x50 = the size, at :3396-3400).
-The og's MBR/GPT matching asymmetry is therefore: MBR = signature AND
-start AND size; GPT = GUID only. The convergent lane had decoded the
-same lines independently and its test
-(EfiFix.GptEntryMatchesByGuidOnlyAndPatchesFullGuid) pinned the
-GUID-only behavior with a wrong-start-still-matches case; the
-correction was ported to the canonical module in the reconciliation
-commit: `hd_node_matches`'s GPT branch drops the start compare, the
-header comment states the asymmetry with the line cites, and the
-canonical test was renamed `NvramFix.MatchesGptByGuidOnly` with the
-wrong-start node now asserted as a MATCH (plan.size() == 2). A GPT
-partition whose node carries the right GUID at a stale/different
-start is exactly the entry the og rewrites - the stricter original
-reading would have left it stale.
-
-One decode residual recorded for completeness: the og's patch loop
-does NOT re-stamp the MBRType/SignatureType bytes (the canonical
-module keeps the node's own family, chosen by the node's existing
-SignatureType - same branch structure as the og's); the convergent
-lane's variant re-stamped them. No recovery-content difference on
-well-formed variables (the bytes are already the family's own).
+**Resolution notes:** Stage (b) — the UEFI NVRAM Boot####/BootOrder updater — landed as the pure module `cr/nvramfix` (include/cr/nvramfix + src/core/nvramfix) re-implemented from a fresh first-hand decode of EFIBoot_decompiled.c this session: the matcher FUN_1800046f0 (:3366-3445) walks each BootOrder entry's EFI_LOAD_OPTION (description skip: ONE step past the NUL — the corpus's `while(*p)p++;p++`), matching MEDIA_HARDDRIVE nodes (PartitionNumber u32@4 / Start u64@8 / Size u64@16 / Signature[16]@24 / MBRType u8@40 / SignatureType u8@41) on MBR-mode signature+start+size and GPT-mode GUID+start; the rewrite (FUN_180004b40's patch loop :3660-3700) overwrites PartitionNumber, PartitionStart, PartitionSize and Signature with the new partition's values in every matched entry and writes the variable back through the injected seam. No create/delete (the finding's v1 scope). The win layer (`src/win/cr_bootfix.cpp` + `include/cr/win/cr_bootfix.h`) completes BOTH stages' Windows sides: the firmware seam resolved exactly like the og (GetModuleHandleW+GetProcAddress, EFIBoot :3281-3290 — zero new static imports, the Win7 allowlist gate untouched), SeSystemEnvironmentPrivilege via ntdll!RtlAdjustPrivilege (the og's XP path :3248-3270), the stage-a file side (OVERLAPPED positional writes + FlushFileBuffers durability tail), and the \Registry\Machine\BCD00000000 force-unload retry on sharing violation (ZwUnloadKey under SeRestore/SeBackup, Fixup :533/:542/:243-255). The S-029 post-apply WIRING is the host/UI-layer boundary — the og's own boot repair runs in the product host (MainModule's apply chain), not the engine library; the win layer exposes the API that wiring consumes, and the apply plan's `boot_repair_available` field remains the truthful consent-surface marker until a host consumes it. Stages (c) boot.ini and (d) WinChkdsk stay at their registered dispositions (PARITY-DELTAS D-90: boot.ini skippable — Win7 boots BCD; ChkDsk.exe delegation is UI-layer — the core's contract ends at the undo record). With (a)+(b) implemented and (c)/(d) registered, the finding's family is fully dispositioned: CLOSED.
+>>>>>>> origin/main
