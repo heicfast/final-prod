@@ -43,6 +43,7 @@
 #include "cr/win/cr_destio.h"
 #include "cr/win/cr_elevate.h"
 #include "cr/win/cr_enumerate.h"
+#include "cr/win/cr_winenv.h" /* win::ENUMERATE_DISK_BOUND: M-030's 200-disk space; MSVC include hygiene */
 #include "cr/win/cr_health.h"
 #include "cr/win/cr_transport.h"
 #include "cr/storage/cr_decrypt_device.h" /* M-033: in-stack XTS wrapper */
