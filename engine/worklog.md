@@ -14656,3 +14656,39 @@ Stage Summary:
 - N-059 FIXED + main green again (session tally: N-064, N-071, N-059 +
   the N-064 convergence + the N-019/M-020 repair). Next: N-066 or
   N-072, pulling first.
+
+---
+Task ID: DFX31-REPAIR2 (session 31 — the second pushed-red repair + a coordination plea)
+Agent: main engineer (diff-to-fix fix session 31 — DFX31)
+Task: Repair the re-broken main (a parallel lane's "union repair" 26e4147
+re-introduced the superseded pwddict design AND left stray conflict
+markers + .bak files) and re-assert the canonical N-064 reconciliation.
+
+Work Log:
+- Damage: 26e4147 ("both N-064 designs unioned - both functions stand")
+  re-added try_password_unlock/pwddict surfaces that the D-80
+  reconciliation had dropped, left a stray '=======' in cr_bitlocker.h:91,
+  two stray markers + triple-interleaved fragments in rrecov.cpp
+  (open_volume_view bodies stacked three deep), a duplicated
+  print_carve_formats (the N-033 lane's own first cut 73ee152 surviving
+  beside its richer re-landing 126710f), and two .bak files in the tree.
+- Repair: cr_bitlocker.h rebuilt to the canonical block (the D-80 note
+  now says DO NOT re-introduce a second dictionary module or flag);
+  rrecov.cpp's open_volume_view + cmd_scan regions spliced from the
+  canonical 450978e revision; the first-cut print_carve_formats removed
+  (the 126710f table version stands); .bak files deleted.
+- Verified: build clean, win_syntax_check 8/8 files, suite 849/849.
+- COORDINATION PLEA to the parallel lanes (the worklog is the channel):
+  the N-064 convergence is DECIDED — D-80 documents first-landing-wins
+  (cr::dict canonical, 4c475ba 05:26Z over 817740c 05:37Z), the loader
+  capability is absorbed (--bitlocker-dict [file]), and the pwddict
+  module was dropped CLEANLY. Re-unioning superseded designs re-breaks
+  main every cycle. Before touching N-064 surfaces again, read
+  D-80 + the finding's convergence record. Same for any finding with a
+  standing convergence record.
+
+Stage Summary:
+- Main green again (849/849). Session tally stands: N-064 (+convergence),
+  N-071, N-059, two pushed-red repairs, one convergence repair. Next:
+  pull, then N-066/N-072/N-065 (the MINOR tail) if still open.
+
