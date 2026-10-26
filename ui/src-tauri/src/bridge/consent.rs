@@ -173,7 +173,7 @@ pub fn consent_respond_impl(
         .consents
         .lock()
         .map_err(|_| BridgeError::bridge(code::UNKNOWN, "consent registry lock"))?
-        .get(&request_id)
+        .get(request_id)
         .map(|p| p.gate.clone());
     match gate {
         Some(g) if g.respond(allow) => Ok(()),

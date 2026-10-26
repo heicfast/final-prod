@@ -95,12 +95,16 @@ test.describe('responsive + DPI', () => {
     });
 
     // Navigate to Disk Health via keyboard (sidebar link), then verify
-    // focus landed on the main landmark — the SPA focus contract.
+    // focus landed on the main landmark — the SPA focus contract. The
+    // locator pins the page h1 exactly: the health page ALSO carries an
+    // h2 "S.M.A.R.T. attributes" section heading, and the old either-name
+    // regex resolved to both under strict mode whenever the data section
+    // mounted before the assertion (a mount-race flake, not two pages).
     const health = page.getByRole('link', { name: /disk health/i });
     await health.focus();
     await page.keyboard.press('Enter');
     await expect(
-      page.getByRole('heading', { name: /disk health|s\.m\.a\.r\.t/i }),
+      page.getByRole('heading', { level: 1, name: /disk health/i }),
     ).toBeVisible();
     const activeId = await page.evaluate(() => document.activeElement?.id);
     expect(activeId, 'focus lands on the main landmark after route change').toBe(

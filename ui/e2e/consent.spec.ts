@@ -79,11 +79,17 @@ test('consent re-hydrates from scan state after navigating away and back', async
   const prompt = consentDialog(page);
   await expect(prompt).toBeVisible({ timeout: 15_000 });
 
-  // Away (the store unsubscribes; the engine stays blocked) and back.
-  await page.goto('/');
+  // Away (HASH-ONLY route change: the hash router navigates without a
+  // document reload, so the in-memory double + the pending consent
+  // survive — exactly the SPA case the re-hydration field exists for;
+  // page.goto() would reset the document and destroy the fixture state).
+  await page.evaluate(() => {
+    location.hash = '#/';
+  });
   await expect(page.getByRole('heading', { name: /choose where to look/i })).toBeVisible({
     timeout: 15_000,
   });
+  // Back (history restores the scan hash — still no document reload).
   await page.goBack();
   await expect(consentDialog(page)).toBeVisible({ timeout: 15_000 });
 
