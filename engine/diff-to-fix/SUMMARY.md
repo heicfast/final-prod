@@ -1,7 +1,5 @@
 # SUMMARY.md — executive summary (diff-fix sessions 32+33+34 on top; earlier sessions below)
 
-# SUMMARY.md — executive summary (session 34 on top; earlier sessions below)
-
 ## Session-34 delta (2026-10-26 — DFX34: the MINOR-tail lane, first landing — N-064)
 
 Bootstrap at `65122f0`-lineage (the window's parallel claim wave absorbed
