@@ -16172,3 +16172,52 @@ Next steps (in priority order):
    it; check their landings first).
 3. A tagged release once M-040 closes (the audit's clean-close
    condition) — SUMMARY.md's counts are current at this commit.
+---
+Task ID: RV1 (review-validate session — the collision/removal-commit review wave)
+Agent: review-and-validate session (the post-fix audit of the fix sessions)
+Task: Review the named removal commits (53b7d68, 83c796e), the union/collision
+commits, and the fix landings; validate removals; revert invalid ones; check
+for hallucinations; reopen incorrectly-fixed findings.
+
+Work Log:
+- Baseline recorded: HEAD 7ec5446 -> pulled through the parallel lanes'
+  waves to c1e3ce5 (the DFX36/DFX33b/DFX34 landings: M-030 fixed, S-034
+  fixed, N-072 fixed, M-040 stage-a landed, N-081/N-082 fixed).
+- 53b7d68 (M-052 convergence #1) reviewed: VALID intent (marker/duplicate
+  cleanup); its c33c64b-engine choice was superseded by 234bf0b's better-
+  informed 76d4878 set — no revert needed (the convergence protocol already
+  corrected it). The .bak files it committed vanished via later merges;
+  current tree .bak-free (git ls-files verified).
+- 83c796e (pwddict/D-80 revert) reviewed: VALID — it re-asserted the D-80
+  canonical reconciliation against 26e4147's re-union. Follow-on finding:
+  97382b7 (a later RED-repair) restored the pwddict module files on a
+  "both-stand is coherent" premise that no longer matched the win layer
+  (dict-only after 83c796e/c228d2d) — dead code with zero consumers.
+  ADJUDICATED: dropped again per D-80 (commit 28e9510).
+- 5f2e2ad/7ec5446 union damage (FatScanStats recycle fields + the N-079
+  scope test): independently found by this session AND repaired in-window
+  by the parallel lane (93ef82c/718ef6f) — verified restored at c1e3ce5.
+- a433c69 (dropped FatCheck tests) reviewed: PARTIALLY INVALID — the
+  "canonical covers the same behaviors" claim was false for two behaviors:
+  the entry-hole half of 0x1006 (pin lost) and the FAT dir-walk
+  cross-link 0x1002 (pin lost AND the gate itself missing from the
+  canonical module). Corpus re-verified first-hand (FUN_1800027a0
+  :1117-1230, the +0x60 shadow-registry re-entry at :1156-1173).
+  FIXED: the gate implemented in fat_chain + FsCheck.FatCrossLinked
+  ChainReported (fail-before EXECUTED RED on the reverted tree) +
+  FsCheck.FatEntryHoleReported (commit 0a9f2aa).
+- Junk files removed: 'name' (grep dump, b1f9210) and
+  cr_ui_abi_check.img.dest2/ (test artifact, ca0a19e).
+- Suite after repairs: 870/870 + 4 skipped linux-release; cr_ui_tests
+  35/35; both commits pushed (297661c).
+
+Stage Summary:
+- Two review repairs landed: M-041 addendum (the FAT 0x1002 gate) and
+  N-064/D-80 enforcement (dead pwddict module dropped). Removal commits
+  adjudicated: 53b7d68 valid-superseded, 83c796e valid, 97382b7's module
+  restore invalid (reverted), a433c69 partially invalid (coverage gap
+  closed). Remaining on this session: PARITY-DELTAS triplication dedupe
+  (273 D-rows -> 83 distinct, 14 divergent to reconcile), CAPABILITY-
+  MATRIX stacked S-014 paragraphs (4x), the full hallucination sweep
+  over FIXED findings' claimed tests, the docs overhaul (README/api/
+  formats/parameters/connection guides), CI verify.
