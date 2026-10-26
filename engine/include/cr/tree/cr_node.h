@@ -116,8 +116,16 @@ public:
      * analyser checksum (0xFFFFFFFF = the invalid/unknown marker; the
      * og's census: 12,030/12,147 nonzero), the note-family string
      * (usually empty), the tail anchor B (0 = none; the header anchor A
-     * IS the extent start), and the boolean flag (the og's semantics
-     * undecoded — OQ-S6-3; carried and round-tripped, never invented). */
+     * IS the extent start), and the boolean flag (OQ-S6-3 decoded: the
+     * og's +0xF4 is a per-analyser-type marker — set iff the og analyser's
+     * type id == 0xA8(168), the same id space as the persisted +0xF8 type
+     * registry; produced in DRWUI FUN_140c41450, loaded opaquely by the
+     * CRAW reader FUN_140c40d80, and NEVER consumed after load — the
+     * getter is a dead accessor with zero callers and no vtable slot.
+     * The core has no og-analyser-type-id space, so the carrier is
+     * round-tripped and never invented; the og's +0x56 checksum and
+     * +0x94 anchor B are likewise informational/write-only at load —
+     * no session-load validator exists in the og, none added here.) */
     u32 carve_checksum = 0xFFFFFFFFu;
     std::u16string carve_note;
     u64 carve_anchor_b = 0;
