@@ -471,3 +471,25 @@ v0.5.0-rc1 was already cut by the entry above — release.yml run 1 is in
 flight on it; the /SD fix does not affect the release BUILD path, which
 compiles the installer without running it, so the RC artifacts are sound.
 The fixed installer ships with the final v0.5.0 tag after T15 lands.)
+
+---
+
+## 2026-10-26T23:05Z — delta on bdf4eb3d: the ask_close dead check goes live; reg-failed DetailPrint
+
+Reconciled with the parallel lane's /SD fix (bdf4eb3d — adopted as base:
+same five boxes fixed, makensis 3.11 cross-compile re-validated exit 0,
+their /SD IDCANCEL refuse-semantics for silent-uninstall-under-a-running-app
+is the right call for a recovery product — never remove the engine under a
+live scan; my earlier ${Silent} guard variant would have proceeded and is
+dropped in favor of theirs). Three deltas they lacked, layered on top:
+
+- ask_close was a DEAD CHECK: FindWindow searched for a window titled
+  "HeicFast Recovery Wizard" (PRODUCT_NAME) — the app window's text is
+  "Recovery Wizard" (tauri.conf.json app.windows[0].title; the frameless
+  window still carries its title as window text). The close-app prompt
+  could never fire, interactive or not. New APP_WINDOW_TITLE define +
+  live lookup; the /SD IDCANCEL semantics now actually mean something.
+- registration-failed branch gained the DetailPrint counterpart (the
+  not-started branch had one; failed needed its own for silent logs).
+- installer/README.md: the stale integrity-check reference
+  'Recovery Wizard.exe' corrected to recovery-wizard-ui.exe.

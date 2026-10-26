@@ -90,6 +90,7 @@ SetCompressor /SOLID lzma
 ;                                              (engine opens \\.\RDA\<token>\...;
 ;                                              device name = UPPERCASE(service name))
 !define APP_EXE             "recovery-wizard-ui.exe" ; the Tauri-built binary name (Cargo package name — 'Built application at: ...\recovery-wizard-ui.exe'; tauri.conf has no mainBinaryName override)
+!define APP_WINDOW_TITLE    "Recovery Wizard"  ; the Tauri main window's TEXT (tauri.conf.json app.windows[0].title) — FindWindow matches window text, not the product name (the frameless window still carries its title)
 !define PROGRAMDATA_ROOT    "$COMMONPROGRAMDATA\HeicFast\Recovery Wizard"
 !define PROGRAMDATA_SESSIONS "${PROGRAMDATA_ROOT}\sessions"
 !define PROGRAMDATA_LOGS     "${PROGRAMDATA_ROOT}\logs"
@@ -282,6 +283,7 @@ Section "RDA raw-disk kernel driver (recommended)" SEC_DRIVER
   ReadRegStr $1 HKLM "SYSTEM\CurrentControlSet\Services\${DRIVER_SERVICE}" "ImagePath"
   ${If} ${Errors}
     StrCpy $DriverResult "failed"
+    DetailPrint "RDA driver registration failed (exit code $0) - degraded mode: Windows direct disk access."
     ; /SD IDOK: a MessageBox WITHOUT /SD is shown (and BLOCKS) even when the
     ; installer runs /S — NSIS manual §4.12 "the script can still display
     ; whatever it wants, use MessageBox's /SD to specify a default for
@@ -522,8 +524,12 @@ Section "Uninstall"
   ${EndIf}
 
   ; ---- 1. Ask the user to close the app ----------------------------------
+  ; APP_WINDOW_TITLE is the window's real text — the previous
+  ; "${PRODUCT_NAME}" lookup never matched any window (the app window is
+  ; titled "Recovery Wizard", tauri.conf.json app.windows[0].title), so the
+  ; close-app prompt could never fire: a dead check. Live now.
   ask_close:
-  FindWindow $0 "" "${PRODUCT_NAME}"
+  FindWindow $0 "" "${APP_WINDOW_TITLE}"
   ${If} $0 != 0
     ; /SD IDCANCEL: in a silent uninstall the box would otherwise BLOCK
     ; (NSIS manual §4.12). The safe silent answer is CANCEL — the app is

@@ -38,7 +38,7 @@ Flow (per-machine; per-user varies as noted):
    consent control; default ON, synced with the components page.
 4. **Directory → Install**:
    - the inner Tauri setup runs `/S /allusers|/currentuser /D=$INSTDIR`
-     (silent; same dir), integrity-checked (`Recovery Wizard.exe` +
+     (silent; same dir), integrity-checked (`recovery-wizard-ui.exe` +
      `uninstall.exe` must exist);
    - engine kit → `$INSTDIR\` (BESIDE the app exe — layout truth: the Rust
      bridge statically imports `cr_ui.dll`, and the loader resolves static
