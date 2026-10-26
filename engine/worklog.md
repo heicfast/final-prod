@@ -12236,3 +12236,29 @@ Work Log:
 Stage Summary:
 - Session 23 open. Baseline 737/737 green at `716d121`. MINOR-first
   queue claimed. First fix: N-009 (grouped minors).
+
+=======
+---
+Task ID: DFX24-T0 (session 24 bootstrap — lane claim)
+Agent: main engineer (diff-to-fix fix session 24 — DFX24)
+Task: Session bootstrap + DISJOINT lane claim (DFX23 took the MINOR tier
+in the same window; first-landing-wins, this lane re-stamped 23→24).
+
+Work Log:
+- Pull at bootstrap absorbed the parallel DFX23 claim (354c555 — the
+  full MINOR-first queue). This lane re-stamps to DFX24 and claims the
+  DISJOINT remainder: the open MAJOR tier + tracked-open push-forward.
+- Baseline executed first-hand BEFORE the claim on the union tree:
+  linux-release 737/737 green at 716d121 (= 354c555 content).
+- Corpus 03ad46c unmoved (verified at first corpus read this session).
+- Session prompt saved token-redacted:
+  worklog/session-diff-fix-24-prompt.md.
+- Lane claim (disjoint from DFX23's MINOR queue): MAJOR tier in this
+  order: M-049 → M-035 → M-052 → M-014 → M-018 → M-020 → M-025 →
+  M-029 → M-030 → M-039 → M-048 → M-034 → M-040 → M-041, then the
+  tracked-open queue if the tier drains.
+- One finding, one verified fix, one push throughout.
+
+Stage Summary:
+- Session 24 open on the disjoint MAJOR lane. Baseline green. First
+  fix: M-049 (error model divergence).
