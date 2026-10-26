@@ -36,6 +36,50 @@ this lane: N-019 (the 12-scenario regression-test gap), then
 N-050/N-033/N-072 rear-first.
 
 
+## Session-31 delta (2026-10-26 — DFX31: the tracked-open HEAD lane opens; OQ-S2M-2's three probes RESOLVED)
+
+Baseline 737/737 green at bootstrap (02b950f lineage through the window's
+parallel claims); corpus `03ad46c` unmoved. Lane: the tracked-open HEAD set
+(OQ-RS, OQ-S2M-2, OQ-S3-JPEG, OQ-S4-3, OQ-S20-1) — disjoint from the
+parallel DFX30's tracked-open tail and every finding-tier lane.
+
+**OQ-S2M-2 RESOLVED (all three probes; zero code change — the decode
+confirms landed behavior):**
+1. **The +0x68 bonus setter located and fully decoded** — per-engine
+   scan-path composers, not the serializer: FAT/exFAT carry a two-factor
+   ladder (`+0x68 = boot_quality + fs_quality`, each ∈ {10,45,50};
+   FATSearchDLL :6946-6969/:7142-7167, exFATSearchDLL :39504-39526; the
+   FAT32 fs bits come from FUN_180009960 with the backup-boot verdict from
+   the classifier at :8004-8052; the boot pair's bit 0x100 has NO setter in
+   the build — its 50-tier is unreachable); NTFS carries the composite
+   (flag-weight base FUN_18000dc70 :10538-73 + boot-validation ±FUN_1800097d0
+   :7229-33 + MFT-run stitching +30 per fragment / +50 one-shot for
+   >3-gap survivals in FUN_180023cb0). The CalcPartition-observed
+   "FAT32 20" = **10+10, both ladders at minimum** — no constant exists
+   (session-14's zero-hit grep is explained: accumulator latches on
+   registers, not immediates). M-017's landed `fs_bonus()` CONFIRMED — the
+   flat values are the honest mapping for the core's single-probe
+   architecture; the 187-row 6-decimal log parity stands.
+2. **The ZFS "pool display name" never exists** — 0 "name"/"pool" hits in
+   ZfsSearchDLL (re-verified); DRWUI's FS-name builder FUN_140510080
+   (:842335-96) has no case 13 → "Unknow" in the XML `filesystem` field and
+   the CalcPartition log; "ZFS partition" (strings:39717) is the GPT
+   type-GUID table. The core's label-`name` read registered as a deliberate
+   display-information superset (modules/zfs.md).
+3. **The Btrfs name-conversion anchor = the DRWUI render layer,
+   CP_UTF8/dwFlags=0** — FUN_140163af0 (:264664-89, restore-path invoke
+   :357529) + the FUN_1400d9ef0 family (:190981-97); the engine is
+   byte-oriented (0 conversion imports, re-verified); S-005 parity holds;
+   the predicted residuals N-016a/N-016b already FIXED (N-029/M-010).
+
+Evidence: `evidence/decompiled-quotes/s31-oq-s2m-2-bonus-setter-zfs-name-btrfs-anchor.md`
+(20 verbatim quotes, three negative greps re-run). OQ → FIXED/ with
+RESOLVED-INDEX row; modules/lost-partition.md + modules/zfs.md updated.
+**Counts after this landing: tracked-open 10** (OQ-Z-E-FLT, OQ-RS, OQ-T6-T7,
+OQ-S3-JPEG, OQ-S4-3, OQ-S5-1, OQ-S6-1, OQ-S6-2, OQ-S6-3, OQ-S20-1; the
+DFX30 tail lane owns the first six of those). Next on this lane: OQ-S3-JPEG
+(the fallback/continuation no-EOI decode).
+
 ## Session-23 delta (2026-10-26 — DFX23: the MINOR-first closing wave, batch 1 — N-009 group closed + M-057)
 
 Baseline `716d121` verified green FIRST-HAND (linux-release **737/737**,
