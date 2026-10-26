@@ -405,6 +405,13 @@ typedef struct cr_ui_scan_config {
                                     * absent the shim fills them from the
                                     * disk enumeration (Windows, CLI parity) */
     const char* volume_serial_utf8;
+    /* N-066 (appended tail, zero-init safe - hosts compiled before this
+     * field pass zeros and the axes stay absent): the og record-3
+     * identity axes; the shim fills them from the enumeration like
+     * model/serial. */
+    const char* volume_firmware_utf8;
+    const char* volume_wwn_utf8;
+    const char* volume_interface_utf8;
     const char* checkpoint_path_utf8; /* optional: stage-boundary auto-
                                        * checkpoints written to this file
                                        * (overwrite-in-place, CLI --out) */

@@ -32,7 +32,11 @@ the numbered loop; residual stacks registered as D-79); storage B8/P42/A54
 -> MATCH-with-D-79. **N-059** FIXED — the per-FS session extras
 (Btrfs/ZFS/HFS+ secondary payload carriers + engine emission + the
 nflags bit-6 append-only block); session D11/D12 cells -> MATCH; the
-N-019/M-020 convergence break repaired in the same landing.
+N-019/M-020 convergence break repaired in the same landing. **N-066**
+FIXED — the identity card's record-3 parity (v4 tail: firmware/WWN/
+interface + the boot snapshot; session D12/B9 -> MATCH) + **N-080**
+(NEW-FINDING) — the descriptor offset transposition fixed (storage D11
+axis -> MATCH).
 
 **Session-25 changes (2026-10-26, DFX25 — INFO tier closed into FIXED/, tracked-open resolution wave):**
 the 22 acknowledged INFORMATIONAL findings (I-001..I-024) moved from

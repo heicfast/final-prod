@@ -14692,3 +14692,43 @@ Stage Summary:
   N-071, N-059, two pushed-red repairs, one convergence repair. Next:
   pull, then N-066/N-072/N-065 (the MINOR tail) if still open.
 
+
+---
+Task ID: DFX31-N066-N080 (session 31, MINOR tail-first lane — findings 4+5)
+Agent: main engineer (diff-to-fix fix session 31 — DFX31)
+Task: N-066 — the identity card's record-3 parity; N-080 — the descriptor
+offset transposition found during it (NEW-FINDING, filed+fixed).
+
+Work Log:
+- Corpus re-verified FIRST-HAND: rsf-format--scan-session.md :228-242
+  (record 3: firmware +0x206, WWN/serial-2 +0x30A, interface +0x414
+  "USB Device", byte[512] boot snapshot +0x518 with the 0x55AA magic —
+  the two stated purposes: same-volume verify + partition-context
+  re-materialization). CONFIRMED-DIVERGENCE.
+- DISCOVERED during the decode work: the win layer read the descriptor's
+  product offset at +24 (SerialNumberOffset — model carried the SERIAL
+  text) and the serial at +36 (inside RawDeviceProperties — garbage).
+  Filed as N-080 (NEW-FINDING, MINOR) per protocol.
+- Landed (both): VolumeInfo v4 tail (firmware[32] + wwn[32] +
+  interface_desc[32] + boot_snapshot[512], append-only, v1/v2/v3 load
+  zeroed); the scanner's existing boot read now captures the image beside
+  the hash (one read, two views — pinned end-to-end); ScanConfig +
+  cr_ui card plumbing (three appended const char* fields, zero-init
+  safe); PURE decoders in cr_enumerate.h — decode_device_descriptor
+  (SDK-exact offsets, the N-080 fix), bus_interface_name, and
+  decode_device_id_descriptor (StorageDeviceIdProperty: first
+  DEVICE-associated identifier, ascii/binary-hex, torn-refusal) — all
+  Linux-lane tested; the win query wired through them for BOTH stacks.
+- Fail-befores EXECUTED: v4-tail-dropped tree -> 3 RED; re-transposed
+  offsets -> DeviceDescriptorFieldsDecode RED (model received the serial
+  text). Restored -> 855/855 green (incl. the updated Crsf size pin and
+  the v4-aware Image round-trip extension).
+- Audit trail: Resolutions + FIXED/ moves for both; RESOLVED-INDEX rows;
+  matrix session note (D12/B9 -> MATCH + storage D11 axis); SUMMARY
+  counts (MINOR 2 open); modules/session.md verdict.
+
+Stage Summary:
+- N-066 + N-080 FIXED (session tally: N-064, N-071, N-059, N-066, N-080
+  + three main repairs). Next: N-065 or N-072 (the MINOR tail end),
+  pulling first.
+

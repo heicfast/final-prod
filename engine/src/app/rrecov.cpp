@@ -264,6 +264,10 @@ void fill_identity_card(u32 disk, orchestrator::ScanConfig& cfg) {
     };
     narrow(disks[disk].model, cfg.volume_model, sizeof(cfg.volume_model));
     narrow(disks[disk].serial, cfg.volume_serial, sizeof(cfg.volume_serial));
+    /* N-066: the record-3 axes from the (N-080-fixed) enumeration. */
+    narrow(disks[disk].firmware, cfg.volume_firmware, sizeof(cfg.volume_firmware));
+    narrow(disks[disk].wwn, cfg.volume_wwn, sizeof(cfg.volume_wwn));
+    narrow(disks[disk].interface_desc, cfg.volume_interface, sizeof(cfg.volume_interface));
 }
 
 /* S-030: open a disk-image file as the scan target (the og's "Import a

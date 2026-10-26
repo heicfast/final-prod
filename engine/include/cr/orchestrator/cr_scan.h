@@ -215,6 +215,14 @@ struct ScanConfig {
     char volume_model[48] = {0};
     char volume_serial[32] = {0};
 
+    /* N-066 (the og record-3 identity axes): firmware revision, WWN /
+     * serial-2, and the interface description from the disk enumeration
+     * (UTF-8 NUL-padded; zero-init = absent - pre-N-066 hosts and image
+     * targets leave them empty and the v4 card fields stay zeros). */
+    char volume_firmware[32] = {0};
+    char volume_wwn[32] = {0};
+    char volume_interface[32] = {0};
+
     /* S-030 (image targets): the image FILE path when the scan target is
      * a disk image (the og's import flow keeps the file identity for the
      * device list and the resume flow). UTF-8, NUL-padded; empty for
@@ -594,6 +602,12 @@ private:
     u32 vol_logical_sector_ = 0;
     u32 vol_physical_sector_ = 0;
     u32 vol_boot_hash_ = 0; /* SESS-2: CRC32 of the slice's first 512 bytes */
+    /* N-066: the full 512-byte boot-sector image behind vol_boot_hash_
+     * (the og record-3's +0x518 snapshot - mismatch diagnostics and the
+     * offline re-materialization datum). valid=false when the read failed
+     * or the session was resumed pre-run. */
+    u8 vol_boot_snapshot_[512] = {0};
+    bool vol_boot_snapshot_valid_ = false;
     u32 session_configured_mask_ = 0;
     /* G-13: the run's stats reference for checkpoint serialization +
      * emitted-checkpoint count (diagnostics) */

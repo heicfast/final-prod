@@ -635,9 +635,20 @@ same landing repaired the parallel lanes' N-019/M-020 convergence break
 corpus-verified default-subvol-at-root contract — the union had left
 main red).
 
-Counts after this landing: **MINOR 4 open** (N-064, N-071, N-059 moved
-to FIXED/; the tier's other findings landed by the parallel lanes),
-MAJOR 10 open, INFO 0, tracked-open 6.
+**N-066 FIXED (MINOR — the identity card's record-3 parity) + N-080
+(NEW-FINDING, filed+fixed in the same landing):** the v4 card tail
+(firmware/WWN/interface axes + the full 512-byte boot snapshot — the og
+record-3's +0x206/+0x30A/+0x414/+0x518) with the scanner capturing the
+sector image beside the hash and the PURE enumeration decoders feeding
+the axes. N-080: the descriptor decode had read the product at +24 (the
+SERIAL offset — model carried the serial text!) and the serial at +36
+(inside RawDeviceProperties); fixed to the SDK-exact offsets with the
+decode factored into a Linux-testable pure function. Fail-befores
+EXECUTED for both (3 RED + 1 RED); suite 855/855.
+
+Counts after this landing: **MINOR 2 open** (N-065, N-072 remain;
+N-007/I-004 taken by the front lane), MAJOR 10 open, INFO 0,
+tracked-open 6.
 
 ## Session-30 delta, part 2 (2026-10-26 — DFX30: N-071 closed — the deferred trio complete on this lane)
 
