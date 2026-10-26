@@ -1,6 +1,16 @@
 # diff-to-fix/findings/FIXED/ — resolved findings (audit trail)
 
+## Resolved findings (session-28 wave: +N-075 (rear-first MINOR lane, DFX28); live file inventory)
+
+| ID | Severity (orig) | Title | Fix commit | Resolution |
+|---|---|---|---|---|
+| N-075 | MINOR (s6, renumbered from the session-6-local N-059 at integration) | Event-bus contract shape: og query-signals (sigIsBusy(bool&) x14, sigIsStopping(bool&) x8 — reference-out queries) + pull-polled progress + typed IUIProgressInfo vs core one-way push | (this session's N-075 commit — file carries the Resolution) | cr_ui_scan_busy + cr_ui_scan_stopping appended (v2-era append, no bump): synchronous query ops — busy = the live run-lifecycle atomic, stopping = the LIVE token cancel request (persists after the one-shot run; distinct from telemetry's post-run cancelled flag). Pull-progress convention REGISTERED as PARITY-DELTAS D-78 (renumbered from the D-77 collision with the parallel lane's N-009d ACL register — errata convention; the og's 38-consumer poll farm vs push + any-thread telemetry pull); the typed IUIProgressInfo mapping documented in ABI-CONTRACT 5 (recovery_progress_fn + queue_count + get_stats + report_json — no parallel interface). Pinned by CrUi.ScanBusyStoppingQueries (mid-run pause-gate proof, fail-before RED at compile — the symbols did not exist) + the plain-C edges in cr_ui_abi_check. Suite 738/738. |
+
+## Resolved findings (session-25 wave: +I-001..I-024 — the INFORMATIONAL tier closed into FIXED/ (22/22 acknowledged, re-verified on `716d121`, pins green 737/737); live file inventory)
+
 ## Resolved findings (session-28 wave on top: +N-025; session-25 wave: +I-001..I-024 — the INFORMATIONAL tier closed into FIXED/ (22/22 acknowledged, re-verified on `716d121`, pins green 737/737); live file inventory)
+
+## Resolved findings (session-28 wave on top: +N-025, +N-026; session-25 wave: +I-001..I-024 — the INFORMATIONAL tier closed into FIXED/ (22/22 acknowledged, re-verified on `716d121`, pins green 737/737); live file inventory)
 
 > The 22 INFORMATIONAL findings were acknowledged across sessions 2-14
 > (each file carries its own `## Resolution` with the verification evidence).
@@ -18,6 +28,7 @@
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |
 |---|---|---|---|---|
+| N-026 | MINOR (S2 group) | ReFS page/gate minors: N-013a dynamic body offset, N-013b two-sided boot gates, N-013c second-copy location, N-013d 4-KiB open read | (this session's N-026 commit — file carries the Resolution) | MIXED: bps ladder {256..4096} + cluster product gate {4K,64K} (FUN_180012390:13544-49 re-verified verbatim) + the og's 4-KiB open read landed (4 fail-before tests + boundary pin); N-013a INVALID (body offset is 0x50 BY CONSTRUCTION — ref parser hardcodes the 0x30 extension, FUN_18000ff60:11875) and N-013c INVALID (the mid-volume formula is N-036's container-map key, FUN_180011e90 full-decode; the og probes NO superblock backup — single metadata base spc*0x1E, :2457). Suite 748/748. |
 | N-025 | MINOR (S2 group) | LDM geometry minors: N-012a config-size gate (og rejects >= 0x801 sectors; core clamped 4 MiB and continued) + N-012b zero-interleave default (og 64 KiB; core refused) | (this session's N-025 commit — file carries the Resolution) | Gate `config_size >= 0x801 -> ERR_BAD_CHECKSUM` in parse_ldm_database (LdmManager_decompiled.c:59748-59759, re-verified first-hand); the unreachable 8192-sector read clamp removed. Zero interleave defaults to 128 sectors (64 KiB) on BOTH the striped and RAID-5 layout paths (og :47665 ctor default, :68631-68641 use-site, re-verified). 3 tests (2 fail-before RED on the stash-isolated pre-fix tree); suite 740/740. |
 | I-001 | INFORMATIONAL | NTFS metafile filter: blanket `$`-skip vs og's known-list (user `$…` files surface + recycle deletions) | `f74a5dd` (ack) — moved FIXED/ this session | ACKNOWLEDGED — deliberate recovery-positive superset; pin UserFileNamedDollarNotHidden green; corpus cite re-verified first-hand this session (:21186); D-12. |
 | I-002 | INFORMATIONAL | FAT12 bad-cluster canonicalized vs og raw-follow | `f74a5dd` (ack) — moved FIXED/ this session | ACKNOWLEDGED — CORRECTIONS row 3 + raw-follow semantics confirmed; pin Fat16BadClusterStillCanonical green (it surfaced N-010, fixed); D-39. |

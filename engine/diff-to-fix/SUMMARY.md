@@ -1,4 +1,40 @@
-# SUMMARY.md — executive summary (sessions 25+28 on top; earlier sessions below)
+# SUMMARY.md — executive summary (sessions 23+25+28 on top; earlier sessions below)
+
+## Session-28 delta (2026-10-26 — DFX28: the rear-first MINOR lane)
+
+Bootstrap: absorbed the window's parallel claims (DFX23 MINOR front-first,
+DFX24 MAJOR, DFX25 INFO-closure 22/22, DFX26 MAJOR-tail, DFX27 MAJOR-head)
+via union merges; this lane works the open MINOR tier from the REAR
+(converging toward DFX23's front-first progress; ALREADY-FIXED
+classification on collision). Baseline **737/737** linux-release green at
+the claim tree (`354c555` content); corpus `03ad46c` unmoved.
+
+**N-075 FIXED (MINOR — the event-bus contract shape):** the finding's own
+"cheapest honest close" executed — `cr_ui_scan_busy` +
+`cr_ui_scan_stopping` synchronous query exports (v2-era append, no bump):
+the og's `sigIsBusy(bool&)` ×14 / `sigIsStopping(bool&)` ×8 reference-out
+query signals surfaced at the ABI boundary (busy = the live run-lifecycle
+atomic; stopping = the LIVE token cancel request, persisting after the
+one-shot run — distinct from telemetry's post-run cancelled flag). The
+pull-polled progress convention registered as PARITY-DELTAS **D-78**
+(renumbered from a D-77 collision with the parallel lane's N-009d ACL
+register — the errata convention; the og's 38-consumer poll farm vs the
+core's coalesced push + any-thread telemetry pull); the typed
+`IUIProgressInfo` mapping documented in ABI-CONTRACT §5
+(recovery_progress_fn + queue_count + get_stats + report_json —
+deliberately no parallel interface). Proof:
+`CrUi.ScanBusyStoppingQueries` (mid-run pause-gate window: busy observed
+live, stopping flips at cancel, one-shot persistence after return) +
+plain-C edges in `cr_ui_abi_check`; fail-before EXECUTED at compile (the
+symbols did not exist). Suite **738/738** at the fix commit.
+
+**Post-merge union counts (session-28 close on the merged tree, absorbing
+the parallel N-009/N-025/M-057 landings):** SEVERE **0** · MAJOR **14** ·
+MINOR **16** · INFO 0 open (22 acknowledged in FIXED/) · **FIXED/ 174
+findings** (175 files incl. RESOLVED-INDEX) · tracked-open 11. Next on
+this lane: N-019 (the 12-scenario regression-test gap), then
+N-050/N-033/N-072 rear-first.
+
 
 ## Session-23 delta (2026-10-26 — DFX23: the MINOR-first closing wave, batch 1 — N-009 group closed + M-057)
 
@@ -34,10 +70,12 @@ exact `'e' was not declared` diagnostic), pass-after 8/8. Q67 buildability
 now covers every Windows-only directory (src/win + src/app).
 
 **Post-fix counts (this batch, union with the parallel lanes' INFO
-closure):** SEVERE **0** · MAJOR 14 open (M-057 filed+fixed same session) ·
-MINOR **18** · INFO **0 open** (22 acknowledged — closed into FIXED/ by the
-parallel DFX25 lane in the same window) · FIXED **173** files (172 findings
-+ RESOLVED-INDEX — mine +2, theirs +22, overlapping base 149) ·
+closure; superseded by the session-28 union below — DFX23's N-025 landing
+and DFX28's N-075 landing both post-date this paragraph):** SEVERE **0** ·
+MAJOR 14 open (M-057 filed+fixed same session) · MINOR **18** · INFO
+**0 open** (22 acknowledged — closed into FIXED/ by the parallel DFX25
+lane in the same window) · FIXED **173** files (172 findings +
+RESOLVED-INDEX — mine +2, theirs +22, overlapping base 149) ·
 tracked-open 11.
 Suite **740/740** linux-release at the fix commit (+3 Text tests, gate
 extended). Next on this lane: N-007/I-004 → N-025 → N-026 → N-027 →
@@ -64,7 +102,7 @@ re-executed (I-001's blanket `$`-skip re-read at NTFSSearchDLL_decompiled.c
 rows; the deliberate divergences they register stay preserved with their pin
 tests (the INFORMATIONAL safety-hardening rule — no code change).
 
-**Post-move counts:** SEVERE **0** · MAJOR 14 · MINOR 19 · INFO **0 open**
+**Post-move counts (session-25 close, pre-session-28):** SEVERE **0** · MAJOR 14 · MINOR 19 · INFO **0 open**
 (22 acknowledged, all in FIXED/) · **FIXED/ 171 files** (170 findings +
 RESOLVED-INDEX) · tracked-open 11 (resolution wave below — see the session's
 worklog entries for the per-OQ dispositions).
@@ -2648,3 +2686,24 @@ MINOR 31 · INFO 18 · tracked-open 12 = **90 active** / **56 files in FIXED/**.
 
 **Live counts (after S-028):** ACUTE 0 · SEVERE 5 · MAJOR 42 ·
 MINOR 44 · INFO 20 · tracked-open 12 = **111 active** / **60 files in FIXED/**.
+
+**N-026 FIXED (the ReFS page/gate group — mixed resolution, 2 fixes + 2 audit
+corrections):** N-013b — the DBR geometry gates now match the og exactly: bps
+ladder {256,512,1024,2048,4096} (FUN_180012390:13544-13546, re-verified
+verbatim) and the cluster product gate {4 KiB, 64 KiB} (:13547-13549); the old
+core REFUSED 256/1024/2048-bps volumes the og opens and ACCEPTED 16/32-KiB
+cluster shapes the og refuses — both directions closed (the 1.x-3.x version
+superset stays: I-004/D-48b). N-013d — the volume open reads the og's 4 KiB
+(:2425-2444). N-013a INVALID (first-hand decode: the og's "dynamic body
+offset" is 0x50 BY CONSTRUCTION — the ref parser hardcodes the 0x30 extension,
+FUN_18000ff60:11875; the audit's `*(uint*)(page+4)` was Ghidra's
+parsed-object view, not a raw-page field). N-013c INVALID (the "mid-volume
+second copy" is a misattribution: the cited formula is the container-map key
+in FUN_180011e90 — N-036's decode, confirmed by the full-function read; the
+og reads the superblock at the SINGLE metadata base spc×0x1E, :2457, and
+probes no backup; the core's {30,n-3,n-2} set stays the superset —
+implementing the audit's "mid-volume probe" would have been hallucinated
+parity). Tests: Refs.Bps256Accepted / Bps1024Accepted / Cluster16KRejected /
+OpenReadIsFourKiB (all fail-before RED) + Cluster64KAccepted boundary pin.
+Suite **748/748**.
+
