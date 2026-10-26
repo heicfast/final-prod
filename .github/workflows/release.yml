@@ -98,7 +98,7 @@ jobs:
           **Nothing is signed in this release.** The kernel driver ships unsigned
           by design; stock Secure-Boot Windows 10/11 will not load it. Either:
 
-          - enable test signing (`bcdedit /set testsigning on`), or
+          - enable test signing (``bcdedit /set testsigning on``), or
           - install a signed driver when one is provisioned (the installer
             accepts a signed drop-in later without reinstalling the app).
 

@@ -675,3 +675,26 @@ entry.
 Next: dispatch run 15 on the fixed workflow — expecting the first fully
 green validation-evidence run; then harvest + commit the T15 evidence,
 then the final v0.5.0 tag.
+
+## 2026-10-26T23:45Z — v0.5.0-rc3 RELEASED (run 3 green, artifacts live); notes-template backtick escape fixed
+
+Release run 3 (40418458268, tag v0.5.0-rc3) completed SUCCESS end to
+end: contracts gate, full product build WITH tests (engine ctest 927
+green via the -C fix; ui vitest; the deployer-race fix held), artifact
+verification, truthful notes, upload. The release is live at
+github.com/heicfast/final-prod/releases/tag/v0.5.0-rc3 with all three
+assets: RecoveryWizard-0.5.0-rc3-setup.exe (3.48 MB),
+-portable.zip (4.35 MB), SHA256SUMS. Operator local testing can begin.
+
+One real notes bug found reading the published body: the template's
+single-backtick code span around bcdedit hit PowerShell's \`b escape
+(BACKSPACE) — the published text read 'cdedit /set testsigning on'.
+Template fixed (double backticks, the same form the other code spans
+already use); the live release body patched via the API (verified:
+'bcdedit /set testsigning on' now correct). rc1/rc2 produced no
+releases, so rc3 is the first operator-testable artifact set.
+
+Also adopted 2be4239a (the parallel lane's \$? fix — better than my
+guard-removal: it catches any invocation failure, and they caught the
+same latent class in build.ps1 Invoke-Portable + audited every other
+guard). My guard-removal commit was dropped for theirs.
