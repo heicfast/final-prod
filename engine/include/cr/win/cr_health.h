@@ -4,16 +4,13 @@
  * Corpus: DiskHealth.exe (DiskSmart; CAtaSmart engine with multi-transport
  * accessors GetSmartAttributeSat/Csmi/Si/NVMeRealtek). DELTA, documented
  * (AUDIT-PIPELINE HEALTH-2): our implementation uses
- * IOCTL_ATA_PASS_THROUGH (ATA_PASS_THROUGH_EX) with the ATA SMART
- * commands this implementation actually issues (0xB0 feature 0xD0
- * READ_DATA / 0xD1 READ_THRESHOLDS [S-024], 0xEC IDENTIFY) - a direct
- * route to the read path the corpus's SAT wrapper
- * (IOCTL_SCSI_PASS_THROUGH 0x4D004) tunnels through the SCSI layer -
- * plus the legacy SMART_RCV_DRIVE_DATA 0x7C088 fallback the corpus also
- * carries. (N-074 doc-truth: the earlier list also claimed 0xD8
- * RETURN_STATUS, which is NOT issued - it is a status-poll command
- * outside the health read path and appears nowhere in the corpus
- * artifacts; the claim was removed rather than the command invented.)
+ * IOCTL_ATA_PASS_THROUGH (ATA_PASS_THROUGH_EX) with the same ATA SMART
+ * command set (0xB0 feature 0xD0 READ_DATA / 0xD1 READ_THRESHOLDS —
+ * issued since S-024's fix, cr_health.cpp:192-200 — / 0xEC IDENTIFY) - an
+ * equivalent direct route to the same
+ * commands where the corpus's SAT wrapper (IOCTL_SCSI_PASS_THROUGH
+ * 0x4D004) tunnels them through the SCSI layer - plus the legacy
+ * SMART_RCV_DRIVE_DATA 0x7C088 fallback the corpus also carries.
  * DRWUI's SSD detection used WMI MSFT_PhysicalDisk MediaType==4; ours
  * uses the seek-penalty IOCTL heuristic (HEALTH-5: one story, documented
  * here). TRIM state: fsutil behavior query disabledeletenotify, first

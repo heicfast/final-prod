@@ -422,18 +422,22 @@ Split verdict — three sub-claims:
 ### D-19 — Recovery queue: collision naming, atomic writes, hash verify, resume (F11)
 
 - **WHAT OG DOES:** Writes recovered files directly to destination via normal
-  file APIs after `CreateDirectoryW` path reconstruction. Collision handling IS
-  evidenced as a rename policy (N-074 doc-truth correction, re-verified
-  first-hand: `DRWUI_decompiled.c:357110-357131` — `FID_conflict_sprintf_s(
-  ..., L"%s_%d", ...)` / the two-argument `L"%s_%d%s"` form, wrapped by a
-  `10000 < attempts` cap that tears the queue down; the earlier "no collision
-  policy in any artifact — AUDIT-UI §5.7" claim predates this decompile and is
-  superseded; see N-065 for the full decode and the mkdir-gate family).
+  file APIs after `CreateDirectoryW` path reconstruction. Collision policy
+  DECODED (N-074/N-065; DRWUI_decompiled.c:357116-357131, re-verified
+  first-hand): the og retries colliding names as `%s_%d` / `%s_%d%s`
+  (FID_conflict_sprintf_s, 0x410-wide buffers) with a 10,000-attempt cap
+  — the earlier "no collision policy in any artifact" claim (AUDIT-UI
+  §5.7) is superseded by the decompile walk.
 - **WHAT WE DO:** Collision naming `name (N).ext` + corpus sanitizer
   (`cr_safewriter.cpp:29`), atomic temp+rename via DestIo, SHA-256 verify with
   per-item mismatch accounting, resumable queue (`.part-<id>` suffix, resumed
-  counting), zero-fill Skip policy. Evidence: F11 registry; AUDIT row 35 + Wave-2
-  fixes; tests (collisions, hashing, resume) per `docs/testing.md`.
+  counting), zero-fill Skip policy. The collision SCHEME is the registered
+  deliberate divergence from the now-decoded og policy (`name (N).ext` vs the
+  og's `%s_%d`; our cap is 64 vs the og's 10,000) — see N-065 for the full
+  comparison and the PARITY decision. The atomic-write/hash-verify/resume
+  layers remain REGISTERED SUPERSETS the og lacks. Evidence: F11 registry;
+  AUDIT row 35 + Wave-2 fixes; tests (collisions, hashing, resume) per
+  `docs/testing.md`.
 - **WHY:** safety/correctness-fix.
 - **RISK:** None negative.
 - **VERDICT: ACCEPTED** (og-side absence documented as "unevidenced", which is
@@ -892,17 +896,15 @@ Split verdict — three sub-claims:
 - **RISK:** Device coverage may differ on exotic SAT layers.
 - **VERDICT: ACCEPTED.**
 
-### D-43 — Cache-coalesced MFT reads (D-D/NTFS-2): coalescing at the cache layer (N-074 doc-truth: block size updated)
+### D-43 — Cache-coalesced MFT reads (D-D/NTFS-2): 64-KiB coalescing at the cache layer
 
 - **WHAT OG DOES:** 64-KiB bootstrap read buffer feeding the MFT batch walk
   (corpus ntfs deep-dive §2).
 - **WHAT WE DO:** Engine reads per-record; the `CachedReader` (8 MiB LRU,
-  **256-KiB blocks** at the live call site — `cr_scan.cpp:732`
-  `CachedReader::create(std::move(retry), 8ull << 20, 256 * 1024)` since
-  a4053c4; this row's earlier "64-KiB blocks" text predated that landing)
-  coalesces — device-read count equals the og's bootstrap buffer behavior
-  (verified: read-count parity in tests). D-51 registers the block-size
-  reality independently; the budget divergence is D-72's (8 vs 4 MiB).
+  **256-KiB blocks** since a4053c4 — D-51 registers the block-size tuning;
+  the budget+algorithm register is D-72) coalesces — device-read count
+  equals the og's bootstrap buffer behavior (verified: read-count parity
+  in tests; this row's old "64-KiB blocks" text predates the tuning wave).
 - **WHY:** layering (one cache serves every engine, not just NTFS).
 - **RISK:** none measured.
 - **VERDICT: ACCEPTED** (contract §2/§3 amended accordingly in W5).

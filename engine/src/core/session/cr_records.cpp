@@ -212,8 +212,7 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out) {
     return OK;
 }
 
-u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree,
-                      u32* reparented_out) {
+u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* reparented_out) {
     Cursor c{data, len};
     const u32 count = c.g32();
     if (c.fail)
@@ -273,7 +272,10 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree,
         auto* props = new (std::nothrow) tree::FileProperties();
         if (!props)
             return 0x50030009;
-        PropsRef props_ref(props); /* N-077: releases on every early break */
+        PropsRef props_ref(props); /* N-077: releases on every early break
+         * (three convergent landings - session-22's PropsRef [canonical,
+         * first-landed], session-19's PropsGuard, DFX17's PropsGuard -
+         * all functionally identical; the PropsRef stands) */
         props->record_ref = c.g64();
         props->fs_kind = c.g32();
         if (props->fs_kind == 12)
@@ -330,8 +332,16 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree,
         if (nflags & 16) { /* M-051: restore the RAW provenance */
             props->carve_checksum = c.g32();
             const u16 nl = c.g16();
-            if (c.left < size_t(nl) * 2u)
+            /* N-078 (NEW-FINDING, filed+fixed this session; the parallel
+             * session-22 lane's N-077 covers the leak half): this break
+             * was the ONLY corrupt-record exit that left c.fail unset -
+             * a truncated carve_note record loaded as OK (silent partial
+             * load, violating N-058's "a failed stream is an error"
+             * rule). Every other length-bomb site sets c.fail. */
+            if (c.left < size_t(nl) * 2u) {
+                c.fail = true;
                 break;
+            }
             props->carve_note.resize(nl);
             for (u16 k = 0; k < nl; ++k)
                 props->carve_note[k] = c.g16();
@@ -393,8 +403,10 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree,
                 n = tree.add_file(parent, props);
             }
         }
+        props_ref.owned = false; /* the tree owns its reference now */
         props->release();
         props_ref.owned = false; /* the tree owns its reference now */
+
         if (!n) {
             break;
         }
@@ -502,7 +514,7 @@ u32 serialize_volume_info(const VolumeInfo& vi, std::vector<u8>& out) {
     out.insert(out.end(), vi.serial, vi.serial + 32);
     put32(out, vi.boot_hash);
     /* S-030 v3 tail: the image file path (empty for disk/volume targets;
-    * old readers stop before it - the record stays loadable) */
+     * old readers stop before it - the record stays loadable) */
     out.insert(out.end(), vi.image, vi.image + 256);
     return OK;
 }

@@ -10933,6 +10933,56 @@ Stage Summary:
 - MINOR live count: 36. Next: N-070 (carve overlap scoring), N-074 (doc
   drift group 2), N-040 (ABI/doc truthfulness).
 
+Task ID: DFX16-N068+leak (ZIP LFH gates + the union-tree session leak)
+Agent: main engineer (diff-to-fix session 11 — DFX16)
+Task: Verify and fix N-068 (ZIP EOCD anchor + LFH sanity gates); repair
+the union-tree ASan red found during the full-suite gate.
+
+Work Log:
+- N-068 verified against the artifact AND the decompile first-hand
+  (RAWSearchDLL :18383-18388): the og's LFH candidate gates are
+  byte-exact `u16@+8 > 10 -> reject` and `0x102 < (u16@+0x1a - 1) ->
+  reject` (accept window [1, 0x103]). Two artifact transcription hazards
+  recorded (erratum E44): the "+8 version_needed" label (+8 is the
+  method field in the spec layout; gating +4 would reject every modern
+  zip) and the off-by-one [1,0x102] range text.
+- Claim 1 (EOCD anchor) reproduced FIRST: ZipTruncatedHeadRecovered PASSES
+  on the pre-fix tree — the FMT_ZIP_CD anchor + EOCD reconciliation
+  already recover the head-destroyed zip (the finding's own "carved via
+  CD" expectation). Marked FIXED-ALREADY with the full architectural
+  analysis in the Resolution: a registry-level FMT_ZIP_EOCD row would
+  double-emit intact zips or decline on every path (dead code); the og's
+  three-way dispatch is analyser-internal per the corpus's own note.
+- Claim 2 (LFH gates) implemented in zip_common (covers FMT_ZIP +
+  FMT_DOCX): fail-before ZipLfhSanityGates RED (the u16@+8=11 candidate
+  walked and carved), pass-after (both gate fixtures rejected; the
+  method-10 boundary pin still carves). Erratum E44 filed.
+- UNION-TREE REPAIR: the full-suite gate found main RED under ASan —
+  Session.TruncatedTailFailsAfterFullCount + HostileNameAndRoleLengthBombs
+  exit nonzero (LeakSanitizer at exit, 2 x 528 B in
+  session::deserialize_tree). Root cause: the parallel lane's N-058
+  hardening added five early-exit breaks between the props allocation and
+  the handoff in cr_records.cpp - every one leaked the caller ref.
+  Fixed with a scoped unique_ptr owner (drops the ref on every exit; the
+  success path releases into the tree's own refs exactly as before).
+  Post-fix: full suite 640/640 ASan green (the count includes the
+  parallel lanes' new tests pulled this window); carve+session UBSan
+  subset clean. CONVERGENCE NOTE (rebase union): the parallel lane found
+  the same leak in the same window and FILED it as N-077 (NEW-FINDING,
+  their `PropsRef` RAII landing `98b7d13`); the union initially
+  double-applied both fixes (over-release hazard) - reconciled to their
+  canonical PropsRef, my duplicate unique_ptr removed, suite 659/659
+  green on the reconciled tree. The leak is formally N-077's; this leg's
+  in-code comment records the convergent discovery.
+
+Stage Summary:
+- Session fix tally: N-069, N-067, N-068 (gates FIXED + EOCD half
+  FIXED-ALREADY), S-033 (filed + refuted INVALID), the N-058-landing
+  leak repaired (main green again). Audit trail: Resolutions, FIXED/
+  moves, index rows, matrix cells, modules/carve verdict, E44 erratum.
+  Next: N-045 (cache budget), N-029 (UTF-8 residuals), then the doc
+  group N-074.
+
 ---
 Task ID: DFX22-T3 (N-070 + M-056 — the carve overlap-scoring wave)
 Agent: main engineer (diff-to-fix minors-first session 22)
@@ -11048,6 +11098,158 @@ Work Log:
   RESOLVED-INDEX row, matrix quality row.
 
 Stage Summary:
-- Session tally: 6 resolutions (M-055, N-077, N-020, N-070, M-056,
-  N-074). MINOR live count 32. Next: N-047 (grouped engine minors) or
-  N-043 (progress liveness watchdog).
+- CONVERGENCE (resolved in this merge): the parallel DFX18 lane landed
+  N-074 FIRST (479b0c7, 23:56) while this leg's push sat behind the
+  rebase - THEIR landing is canonical (all five sub-items equivalent in
+  substance; their pin Health.SmartCommandListMatchesImplementation kept,
+  this leg's duplicate pin SmartCommandListHeaderIsTruthful dropped from
+  test_nvme_health.cpp). This leg's unique session-22 landings (M-055,
+  N-077, N-020, N-070 + M-056) all predate the collision and stand.
+  Session tally: 6 resolutions (5 unique + N-074 convergent). MINOR
+  live count 32. Next: N-047 (grouped engine minors) - N-043 ceded to
+  the DFX17 lane's published queue claim.
+
+Task ID: DFX17-F1 (session 17, finding 1 — N-067 CONVERGENCE RECORD)
+Agent: main engineer (diff-to-fix fix session 17 — DFX17, MINOR-first mandate)
+Task: N-067 — this leg implemented the fix independently, but the parallel
+DFX16 lane landed theirs (6795918) first while this leg's push sat behind
+a rebase conflict. Per the lane protocol: FIRST LANDING WINS. This entry
+records the independent verification of THEIR landing and the honest drop
+of THIS leg's competing implementation.
+
+Work Log:
+- Their landing verified first-hand against the corpus decompile
+  (exFATSearchDLL_decompiled.c :24440-24452, case -0x7e): the og's
+  0x82-dentry shape gates are reserved1@+1..+3 zero, checksum field
+  @+4..+7 FREE (exactly 4 bytes), reserved2@+8..+0xF zero, and the
+  LAB_18001db06 bVar21 gate requiring u32@+0x10..+0x13 zero;
+  first_cluster@+0x14 range-checked [2, 0xFFFFFFF5]; u64@+0x18 in
+  cluster arithmetic. Their UpcaseEntry layout, shape gates, fc>=2,
+  length sanity, chain-read checksum32, soft stats
+  (upcase_validated/upcase_mismatches), and grade-not-reject posture
+  match the decompile on every axis. Their suite claim re-executed:
+  exFAT subset green at the landed tree.
+- This leg's implementation DROPPED (never pushed; recoverable at reflog
+  commit c65672f for the record): its wire layout (u16 table_checksum@+2,
+  u32 table_length@+0x10) came from a FAULTY SPEC RECOLLECTION and is
+  refuted by the og's own field map - the free zone is exactly +4..+7 (a
+  u16@+4 would leave +6/+7 zero-checked; they are not), and +0x10..+0x13
+  is zero-REQUIRED (bVar21), so it can never be a length field; the og's
+  length read is the u64@+0x18 (the bitmap-family tail). Their checksum32
+  choice is family-consistent (the 4-byte free zone admits the 32-bit
+  accumulator the boot region already uses). Lesson registered for all
+  future sessions: THE DECOMPILE IS THE AUTHORITY for og dentry shapes -
+  never trust unverified spec memory against it.
+- This leg's en-route baseline repair (M-054 test expectation 100u ->
+  102u, commit 508bbd0) was also superseded in-window by the parallel
+  lanes' equivalent repairs (eeeccbd + 8c02a57 dedupe) - never reached
+  origin; both attempts preserved in local history only.
+
+Stage Summary:
+- N-067 stands FIXED via the parallel DFX16 landing (6795918); verified
+  by this leg with the decompile read above. Session tally: 0 fixes
+  (convergence verification). Next: N-068, N-063, N-065, N-056, N-029.
+
+---
+Task ID: DFX17-F2 (session 17, finding 2 — baseline LeakSanitizer red CONVERGED + N-078 NEW-FINDING)
+Agent: main engineer (diff-to-fix fix session 17 — DFX17, MINOR-first mandate)
+Task: main was LeakSanitizer-RED at the post-rebase union tree (792 B in
+3 allocations, deserialize_tree cr_records.cpp:253). Root-caused, fixed;
+the parallel session-22 lane landed the SAME leak fix (PropsRef, their
+N-077, 98b7d13) in the same window - CONVERGED, theirs stands (functionally
+identical guards; this leg's PropsGuard dropped in the union per
+first-landing-wins). This leg's five-path regression test then caught a
+SECOND, SEMANTIC defect their landing does not cover -> filed as N-078
+(renumbered from a draft N-077 when their leak finding took that ID) and
+fixed.
+
+Work Log:
+- Root cause: deserialize_tree allocates a FileProperties per record
+  (creation ref); five corrupt-record break sites exit between the
+  allocation and the node attach WITHOUT releasing the ref (name-length
+  bomb, truncated resident data, truncated sha128, truncated carve_note,
+  role-length bomb). The suite's existing corruption tests drove three
+  of them -> 3 x 264 B leaked, LSan fails the ASan lane.
+- Leak fix (CONVERGED with their PropsRef): a scope guard releasing the
+  creation ref on every early exit, the attach path disarming it. Their
+  landing (98b7d13) has the identical shape; union kept theirs.
+- NEW five-path regression test
+  (Session.CorruptRecordEarlyExitsReleaseProps) drives ALL five exits.
+  Case (4) - truncated carve_note - FAILED with rc == OK (0) even ON
+  THE LEAK-ONLY LANDING: that site's break leaves c.fail unset, so a
+  corrupt record loads as a SILENT PARTIAL LOAD (violating N-058's
+  failed-stream rule). Filed as N-078 (findings/FIXED/, in-session
+  file+fix; renumbered past their N-077) and fixed with the one-line
+  root cause: c.fail = true before the break (the pattern every sibling
+  site already used). THE PARALLEL LANE'S N-077 DOES NOT COVER THIS -
+  the new test's case (4) is red against leak-only trees.
+- Fail-before EXECUTED on both defects: (a) LSan red on the pre-fix
+  tree (792 B), (b) case (4) returning OK=0. Pass-after: full suite
+  614/614 (+3 env-skipped qemu-compat tests, qemu-img not installed -
+  documented environment conditionals) + 21/21 cr_ui_tests +
+  cr_ui_abi_check OK, LeakSanitizer CLEAN.
+- Audit trail: N-078 finding file with full template + Resolution
+  (filed directly into FIXED/ per the in-session file+fix convention);
+  RESOLVED-INDEX row; matrix session A35/D12/F35 cell; modules/
+  session.md session-17 fix row; SUMMARY session-17 delta.
+
+Stage Summary:
+- Baseline restored green; N-078 filed+fixed (their N-077 covers the
+  leak half only - the c.fail gap is pinned red by the new test against
+  leak-only trees). Session tally: 1 finding fixed (N-078) + 2 baseline
+  repairs (one converged) + 1 convergence verification (N-067). Next:
+  N-068 (ZIP EOCD anchor + LFH sanity gates), then N-063/N-065/N-056/
+  N-029.
+
+---
+
+---
+Task ID: DFX18-T4 (session 18, fourth fix — N-074)
+Agent: main engineer (diff-to-fix fix session 18 — DFX18)
+Task: N-074 doc-drift group #2 — five stale claims, all doc-truth
+corrections + one pin.
+
+Work Log:
+- All five re-verified on the current tree first (LZNT1 code+tests,
+  GAP-S6-11 surface presence, D-43 call site, D-19 corpus, health
+  command grep). D-19's corpus evidence re-read first-hand:
+  DRWUI_decompiled.c:357116-357131 — FID_conflict_sprintf_s %s_%d /
+  %s_%d%s with the 10,000 cap, exactly as the finding's N-065 decode.
+- Fixes: (1) CAPABILITY-MATRIX row SPLIT (LZNT1 DONE citing
+  lznt1_payload_decode + expand_compressed_data +
+  NtfsVolume.Lznt1MsXcaDocumentedVector; XPRESS/LZX = MISSING as the
+  SHARED limitation, og is LZNT1-only); (2) GAP-S6-11 CLOSED with the
+  S-009 residual note; (3) D-43 → 256 KiB + D-51/D-72 cross-refs;
+  (4) D-19 og-clause rewritten (policy decoded; our scheme the
+  REGISTERED divergence name (N)/cap-64 vs %s_%d/cap-10000; atomic/
+  hash/resume supersets kept); (5) cr_health.h command list corrected
+  (0xD1 kept — ships since S-024 at :192-200; 0xD8 dropped — zero
+  hits in cr_health.cpp).
+- Pin: Health.SmartCommandListMatchesImplementation (the N-040-family
+  doc-lint applied to the health header; fail-before RED EXECUTED on
+  the stash-isolated pre-fix tree). Suite 662/662 linux-release.
+- Audit trail: Resolution + FIXED/ move, index row (99 header), matrix
+  quality cell, SUMMARY counts.
+
+Stage Summary:
+- N-074 FIXED (tally: 4 — N-045, N-046, N-040, N-074). MINOR 33
+  remain. Next: N-043 (progress watchdog) or N-060/N-061 (session
+  save-cancel / runlog).
+Task ID: DFX17-CLAIM (session 17, lane claim — MINOR queue, posted before the next fix)
+Agent: main engineer (diff-to-fix fix session 17 — DFX17, MINOR-first mandate)
+Task: Lane claim against the hot remote. Landed so far this session: the
+N-067 convergence verification, baseline repair 1 (M-054 test expectation,
+converged with the parallel lanes), baseline repair 2 (the deserialize_tree
+leak — three convergent landings, session-22's PropsRef canonical), and
+N-078 (the carve_note silent-OK exit, 3daf1f0 — unique to this leg, not
+covered by any parallel landing; the five-path test's case (4) pins it).
+
+Claim for the next batch (one-finding-one-commit-one-push, MINOR tier):
+N-029 (UTF-8 replacement residuals), N-063 (carve default naming scheme),
+N-056 (windestio temp leak on failed rename), N-046 (no geometry refresh),
+N-043 (progress liveness watchdog). N-068/N-065 are the DFX16 lane's
+published queue (their handoff names them next) — not claimed here to
+avoid duplicate work.
+
+Stage Summary:
+- Claim posted; execution begins with N-029.

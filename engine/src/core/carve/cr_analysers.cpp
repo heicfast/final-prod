@@ -641,6 +641,22 @@ CarveResult validate_pdf(IStorageDevice* s, u64 hit, u64 cap) {
 /* ---- ZIP family: local header + EOCD; DOCX adds [Content_Types].xml ---- */
 static CarveResult zip_common(IStorageDevice* s, u64 hit, u64 cap, bool office) {
     CarveResult r;
+    /* N-068: the og's LFH candidate sanity gates (decompile :18385-18388,
+     * byte-exact: reject when u16@+8 > 10 OR when (u16@+0x1a - 1) > 0x102).
+     * The artifact (rawsearchdll--zip-analyser-carving.md :13-21) names
+     * the +8 field "version_needed"; in the spec LFH layout +8 is the
+     * compression method - the og gates the BYTES, and so do we. The
+     * second gate's accept window is [1, 0x103]: the artifact's
+     * "[1, 0x102]" range text is off-by-one vs the decompile's
+     * `0x102 < field - 1` (erratum filed). Cheap FP suppressors: they
+     * reject the PK\x03\x04 lookalikes the og rejects before any walk. */
+    if (rd16(s, hit + 8) > 10)
+        return r;
+    {
+        const unsigned raw = unsigned(rd16(s, hit + 0x1a)) - 1u;
+        if (raw > 0x102u) /* wrap: 0 - 1 = 0xFFFFFFFF > 0x102 -> reject */
+            return r;
+    }
     if (office) {
         /* first local entry name must be "[Content_Types].xml" */
         u16 name_len = rd16(s, hit + 26);
