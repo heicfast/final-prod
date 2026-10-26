@@ -11804,3 +11804,72 @@ Stage Summary:
   baseline repairs + 1 convergence verification. Next: N-056 (windestio
   temp leak on failed rename), N-046 (geometry refresh), N-043
   (progress liveness watchdog).
+
+  temp leak), N-046, N-043.
+
+Task ID: DFX16-S029 (session 16, the SEVERE close-out)
+Agent: core-parity-fix-agent (main)
+Task: S-029 — lost-partition APPLY path: verify, classify, fix, prove
+
+Work Log:
+- Corpus re-verified LINE BY LINE before any code: FUN_1800566d0
+  (PR:46887-47020 legacy/modern dual path + the 3x Sleep(1000)
+  UPDATE_PROPERTIES retry tail), FUN_180038b10 (:32548-32672), FUN_180039030
+  (:32700-32790 the four-entry wipe), FUN_1800392f0 (:32797-32860 GPT
+  variant). CONFIRMED-DIVERGENCE: zero write-path hits on the pre-fix main
+  (grep re-verified), the finding's falsifiable claim reproduced.
+- CORPUS CORRECTION (recorded in the finding's Resolution): the audit's
+  "GPT_GenerateSignature new disk GUID" is a mis-read — every call site
+  (PR:32805, RM:46338, CM:118357, UL:37590) passes a 4-byte stack slot as
+  ONE register argument (PR's local_24 ulong is immediately followed by
+  the HANDLE local_20; a 16-byte GUID write would corrupt it). The
+  regenerated identity is the 32-bit disk signature (MBR +440 /
+  DRIVE_LAYOUT_INFORMATION.Mbr.Signature); the GPT header GUID is
+  untouched by the og's variant. The fix plan's test name
+  LostApplyGptRegeneratesGuid is realized as
+  LostApply.GptRebuildRegeneratesSignature (names describe proven
+  behavior).
+- Landed the apply module: include/cr/apply/cr_apply.h + src/core/apply/
+  cr_apply.cpp — plan_apply (read-only; refusals: live-entry overlap,
+  table full, GPT single-entry scope v1, zero/beyond-capacity/
+  32-bit-LBA-range extents), execute_apply (apply_consent_fn default-deny
+  AT the core boundary, S-010 quiesce, A6 sector-0 race guard, CRUNDO01
+  snapshot, verified write-back, the corpus device-control sequence per
+  path with the exact legacy order LOCK→DELETE→WRITE→UPDATE→SET_LAYOUT→
+  tail), undo_apply (byte-exact restore + refresh replay). Error facility
+  0x500A (CONSENT_DENIED/REFUSED/TABLE_CHANGED/REFRESH_FAILED) +
+  err_text rows.
+- cr_ui surface (ABI-since 1.3): cr_ui_apply_lost_partition /
+  cr_ui_apply_undo_last / cr_ui_apply_save_undo with the POD
+  plan/result structs and the cr_ui_apply_consent_fn callback — the
+  repair-consent ABI pattern mirrored; image devices reopen r+b (the
+  ImageWriteDevice base is now apply::IApplyDevice — one class serves
+  repair and apply; image files keep the portable no-op device controls).
+- Windows transport: RwDevice base -> apply::IApplyDevice with the real
+  corpus IOCTLs (0x7C100, 0x7C010 with the 0xA8 DLI shape, 0x7C058 with
+  the 0x18-byte record, 0x70140 + settle_refresh Sleep(1000));
+  open_disk_apply_rw factory (shared open path with open_disk_rw — RDA
+  duality preserved). kernel32-only entropy for the signature generator —
+  the Win7-inclusive import allowlist is untouched (no Ole32).
+- Tests: 13 LostApply.* core tests (the fix plan's five named proofs +
+  overlap/GPT-v1/table-full refusals, race guard, refresh honesty,
+  rollback, plan read-only); 2 CrUi.LostApply* C-ABI tests; ui_abi_check.c
+  extended with the plain-C deny→approve→undo→save lifecycle. Fail-before
+  is intrinsic-by-absence (the module cannot exist on the pre-fix tree;
+  the finding's grep claim re-verified pre-change).
+- Suite 610/610 (linux-gcc RelWithDebInfo + ASan) at the fix commit.
+  Also repaired the inherited pushed-red main (M-054's stale
+  cluster_count pin 100→102 — convergent with eeeccbd, both in history).
+- Audit trail: finding Resolution + move to findings/FIXED/;
+  RESOLVED-INDEX row; CROSS-REF-MATRIX lost-partition cell → FIXED;
+  modules/lost-partition.md session-16 verdict; SUMMARY session-16
+  section; PARITY-DELTAS D-72a..d (consent, single-entry preservation,
+  refresh honesty, race guard); CAPABILITY-MATRIX apply row DONE;
+  cr_lostpart.h R3.2 comment superseded.
+
+Stage Summary:
+- SEVERE tier is EMPTY (S-029 closed with the transaction proof set).
+- Session tally so far: 1 SEVERE fixed + 1 pushed-red repair. Next:
+  M-043 (NTFS content-proof + backup boot), then M-013/M-014/M-018/
+  M-029/M-032/M-035/M-049/M-050/M-052 (the unclaimed MAJOR lane).
+=======

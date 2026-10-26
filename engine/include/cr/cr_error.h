@@ -66,9 +66,13 @@ enum Err : u32 {
     ERR_REPAIR_REFUSED = 0x50080001,
     ERR_REPAIR_UNDO_FAILED = 0x50080002,
     ERR_VOLUME_LOCK_FAILED = 0x50080003, /* S-010: volume busy, quiesce refused */
-    /* S-029 apply (consent-gated lost-partition table write) */
+    /* S-029 apply (consent-gated lost-partition table write; the convergent
+     * legs' codes unified into the repair-apply family) */
     ERR_APPLY_CONSENT_DENIED = 0x50080004, /* A1: the consent callback refused */
     ERR_APPLY_STALE = 0x50080005, /* A2: sector 0 changed since planning */
+    ERR_APPLY_REFUSED = 0x50080006, /* A3: plan-level refusal (overlap/scope/capacity) */
+    ERR_APPLY_REFRESH_FAILED = 0x50080007, /* written+verified; the 3x refresh tail
+                                             * failed (the og swallows this silently) */
 
     /* --- image containers (S-030: vmdk/vhd/vhdx scan targets) --- */
     ERR_IMAGE_CORRUPT = 0x500A0001, /* structural nonsense inside the container */

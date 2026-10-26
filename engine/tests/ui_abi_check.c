@@ -24,6 +24,17 @@
 
 static int g_failed = 0;
 
+/* S-029 apply-consent driver: records calls, replies g_apply_reply */
+static unsigned g_apply_reply = 0;
+static cr_ui_apply_plan g_apply_plan;
+
+static uint32_t apply_consent_cb(void* user, const cr_ui_apply_plan* plan) {
+    unsigned* calls = (unsigned*)user;
+    ++*calls;
+    g_apply_plan = *plan;
+    return g_apply_reply;
+}
+
 #define CHECK(cond)                                                                                \
     do {                                                                                           \
         if (!(cond)) {                                                                             \
@@ -831,6 +842,112 @@ int main(int argc, char** argv) {
         }
         cr_ui_scan_close(rscan);
         cr_ui_device_close(rdev);
+    }
+
+    /* ---- S-029: lost-partition apply (consent-gated, C-ABI) ---- */
+    {
+        /* a separate MBR disk image: one live NTFS entry, the lost
+         * candidate at LBA 3200 (clear of the live extent) */
+        static const unsigned long long DISK_SECS = 4096;
+        char apath[640];
+        unsigned char* aimg;
+        cr_ui_device* adev = NULL;
+        cr_ui_apply_candidate cand;
+        cr_ui_apply_result res;
+        unsigned consent_calls = 0;
+        FILE* af;
+        size_t w;
+        snprintf(apath, sizeof(apath), "%s.apply", img);
+        aimg = (unsigned char*)calloc((size_t)DISK_SECS, 512u);
+        CHECK(aimg != NULL);
+        put32(aimg, 440, 0xAABBCCDDul);
+        aimg[446 + 4] = 0x07;
+        put32(aimg, 446 + 8, 2048);
+        put32(aimg, 446 + 12, 1024);
+        aimg[510] = 0x55;
+        aimg[511] = 0xAA;
+        af = fopen(apath, "wb");
+        CHECK(af != NULL);
+        w = fwrite(aimg, 1, (size_t)DISK_SECS * 512u, af);
+        fclose(af);
+        CHECK(w == (size_t)DISK_SECS * 512u);
+        free(aimg);
+
+        CHECK_EQ_U64(cr_ui_open_image(apath, 0, 0, &adev), CR_UI_OK);
+        memset(&cand, 0, sizeof(cand));
+        cand.start_lba = 3200;
+        cand.sector_count = 512;
+        cand.fs = 0; /* NTFS */
+        memset(&res, 0, sizeof(res));
+
+        /* NULL consent = default deny, nothing written */
+        CHECK_EQ_U64(cr_ui_apply_lost_partition(adev, &cand, 0, NULL, NULL, &res),
+                     0x50080004u /* ERR_APPLY_CONSENT_DENIED */);
+        CHECK_EQ_U64(res.outcome, 1u);
+        CHECK_EQ_U64(res.undo_entries, 0u);
+
+        /* deny callback: same refusal */
+        g_apply_reply = 0;
+        CHECK_EQ_U64(
+            cr_ui_apply_lost_partition(adev, &cand, 0, apply_consent_cb, &consent_calls, &res),
+            0x50080004u);
+        CHECK_EQ_U64(consent_calls, 1u);
+        CHECK_EQ_U64(g_apply_plan.mbr_type, 0x07u);
+        CHECK_EQ_U64(g_apply_plan.slot, 1u);
+        CHECK_EQ_U64(g_apply_plan.signature, 0xAABBCCDDu);
+
+        /* approve: the entry lands in the image file */
+        g_apply_reply = 1;
+        CHECK_EQ_U64(
+            cr_ui_apply_lost_partition(adev, &cand, 0, apply_consent_cb, &consent_calls, &res),
+            CR_UI_OK);
+        CHECK_EQ_U64(res.outcome, 0u);
+        CHECK_EQ_U64(res.applied, 1u);
+        CHECK_EQ_U64(res.undo_entries, 1u);
+        {
+            unsigned char sec0[512];
+            FILE* vf = fopen(apath, "rb");
+            CHECK(vf != NULL);
+            CHECK(fread(sec0, 1, 512, vf) == 512);
+            fclose(vf);
+            CHECK(sec0[446 + 16 + 4] == 0x07);
+            CHECK(sec0[446 + 16 + 8] == (3200 & 0xFF));
+            CHECK(sec0[446 + 16 + 9] == ((3200 >> 8) & 0xFF));
+            CHECK(sec0[446 + 4] == 0x07); /* live entry preserved */
+            CHECK(sec0[510] == 0x55 && sec0[511] == 0xAA);
+        }
+
+        /* undo restores, container persists */
+        CHECK_EQ_U64(cr_ui_apply_undo_last(adev, &res), CR_UI_OK);
+        CHECK_EQ_U64(res.outcome, 0u);
+        {
+            unsigned char sec0[512];
+            FILE* vf = fopen(apath, "rb");
+            CHECK(vf != NULL);
+            CHECK(fread(sec0, 1, 512, vf) == 512);
+            fclose(vf);
+            CHECK(sec0[446 + 16 + 4] == 0x00); /* slot 1 empty again */
+            CHECK(sec0[446 + 16 + 8] == 0x00);
+        }
+        {
+            char upath[704]; /* apath (<=639) + ".undo" + NUL, provably untruncated */
+            snprintf(upath, sizeof(upath), "%s.undo", apath);
+            CHECK_EQ_U64(cr_ui_apply_save_undo(adev, upath), CR_UI_OK);
+            remove(upath);
+        }
+
+        /* error paths: bad fs value + null handles */
+        cand.fs = 999;
+        CHECK_EQ_U64(
+            cr_ui_apply_lost_partition(adev, &cand, 0, apply_consent_cb, &consent_calls, &res),
+            0x50080006u /* ERR_APPLY_REFUSED: unknown family */);
+        CHECK_EQ_U64(cr_ui_apply_lost_partition(NULL, &cand, 0, NULL, NULL, &res),
+                     CR_UI_ERR_BAD_PARAMETER);
+        CHECK_EQ_U64(cr_ui_apply_lost_partition(adev, NULL, 0, NULL, NULL, &res),
+                     CR_UI_ERR_BAD_PARAMETER);
+        CHECK_EQ_U64(cr_ui_apply_undo_last(adev, NULL), CR_UI_ERR_BAD_PARAMETER);
+        cr_ui_device_close(adev);
+        remove(apath);
     }
 
     /* ---- platform-truth surfaces ---- */

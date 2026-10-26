@@ -1,5 +1,48 @@
 # SUMMARY.md — executive summary (diff-fix session 22 on top; earlier sessions below)
 
+<!-- DFX16 note: session 16 ran as a parallel lane in the same window as
+     sessions 17-22; its delta is recorded here for chronology. -->
+
+## Session-16 delta (2026-10-26 — DFX16: S-029 closed — the SEVERE tier is empty)
+
+Baseline `53629a3` verified green first-hand (584/584 linux-gcc ASan);
+corpus `03ad46c` unmoved. The session's first act repaired a pushed-red
+main inherited from the window's parallel landings: the M-054 producer pin
+`FreeMapProducerMatchesSpecBitMapping` asserted the pre-hardening
+`cluster_count == 100` while the landed producer (0ba21d8 defect 3 + the
+FreeMap contract + the FAT family's 5002 pin) covers 0..101 — the stale
+pin corrected to 102u with the audit-honesty note in the M-054 finding
+(the convergent DFX17-side correction eeeccbd is in history).
+
+**S-029 FIXED (SEVERE — the lost-partition APPLY path, the recovery
+endgame; the last open SEVERE):** a dedicated apply module
+(`cr/apply/cr_apply.h/.cpp`) with the rawfixer transaction pattern
+extended to the table writer — plan (read-only; refusals: overlap,
+table-full, GPT single-entry v1 scope, capacity/32-bit-LBA-range) →
+execute (core-carried consent callback default-deny, S-010 quiesce, A6
+table-change race guard, CRUNDO01 snapshot, verified write-back, the
+corpus device-control sequence per legacy/modern path — 0x7C100 →
+sector-0 → 0x70140 → 0x7C010 vs the 0x7C058 0x18-byte record, then the
+3x Sleep(1000) refresh tail) → undo (byte-exact + refresh replay). cr_ui
+consent ABI (apply_lost_partition/undo_last/save_undo, ABI-since 1.3);
+the Windows RwDevice carries the real IOCTL chain (kernel32-only — the
+Win7-inclusive import gate untouched). One corpus correction in the
+Resolution: GPT_GenerateSignature = the 32-bit disk signature (MBR +440),
+not the GPT GUID (4-byte stack slot at all four call sites — PR:32805/
+RM:46338/CM:118357/UL:37590). Safety deltas registered D-72a..d. Proof:
+13 `LostApply.*` tests (the fix plan's five named proofs + 7 safety
+pins), 2 `CrUi.LostApply*` C-ABI tests, the extended plain-C
+`ui_abi_check.c` lifecycle; suite **610/610** at the fix commit.
+
+**Post-fix counts (this session's commit, parallel lanes active in the
+same window):** SEVERE **0** · MAJOR 28 · MINOR 41 · INFO 22 (all
+acknowledged) · **FIXED/ 101 findings** (RESOLVED-INDEX current) ·
+tracked-open 16. Parallel-lane landings absorbed this window: M-005,
+M-007, M-008, M-045, M-054, N-030 (+ the M-054 pin correction).
+Next on this lane: M-043 (NTFS content-proof + backup boot) → M-013/
+M-014 (exFAT) → M-018 → M-029 → M-032 → M-035 → M-049 → M-050 → M-052,
+then unclaimed MINORs.
+
 ## Session-22 delta (2026-10-26 — DFX22: win-layer build-integrity M-055 + the MINOR-first queue)
 
 Session lane re-stamped 19→22 (IDs 19/20/21 squatted by parallel legs in

@@ -451,6 +451,68 @@ CR_UI_API uint32_t cr_ui_scan_checkpoint_count(cr_ui_scan* s, uint64_t* out);
  * `rrecov fix --disk N --undo-apply <file>`. */
 CR_UI_API uint32_t cr_ui_scan_repair_save_undo(cr_ui_scan* s, const char* utf8_path);
 
+/* ---- S-029: lost-partition APPLY (consent-gated; ABI-since 1.3) --------
+ * Corpus lineage: the og's RecoveryModule exposes the apply as its own
+ * scenario object (CreateRecoveryPartitionObject vs the scan's
+ * CreateScanLostPartitionObject); PartitionRecovery.dll's rebuild path
+ * (FUN_1800566d0/FUN_180038b10/FUN_1800392f0) executes the IOCTL chain
+ * quoted in cr_apply.h. This is the equivalent surface: plan (read-only)
+ * -> consent callback -> transactional write -> undo. Default-deny: a
+ * NULL consent callback or a zero return writes NOTHING. */
+typedef struct cr_ui_apply_candidate {
+    uint64_t start_lba; /* absolute LBA on the disk */
+    uint64_t sector_count;
+    uint32_t fs; /* lost::CandidateFs serialized values: 0 NTFS, 1 FAT,
+                  * 2 exFAT, 4 GPT-table (refused by the planner), 5
+                  * unknown (refused), 6 ext2, 7 HFS+, 8 Btrfs, 9 ZFS,
+                  * 10 ReFS, 11 BitLocker */
+} cr_ui_apply_candidate;
+
+typedef struct cr_ui_apply_plan {
+    uint32_t refused; /* 1 = planner refused; see reason */
+    uint32_t scope;   /* 0 single-entry, 1 rebuild-table */
+    uint64_t start_lba, sector_count;
+    uint32_t mbr_type;             /* the entry type byte to write */
+    uint32_t slot;                 /* target MBR slot 0..3 */
+    uint32_t regenerate_signature; /* 1 = the rebuild stamps a fresh 32-bit
+                                    * disk signature (corpus GPT variant) */
+    uint32_t signature;            /* effective signature (LE value) */
+    char reason[160];              /* refusal reason, NUL-truncated */
+} cr_ui_apply_plan;
+
+typedef uint32_t (*cr_ui_apply_consent_fn)(void* user, const cr_ui_apply_plan* plan);
+
+typedef struct cr_ui_apply_result {
+    uint32_t applied;      /* 1 = entry written + verified + refreshed */
+    uint32_t outcome;      /* 0 applied; 1 consent denied; 2 refused; 3
+                            * table changed since plan; 4 applied but the
+                            * refresh tail failed (undo valid); 5 error
+                            * (see the return code) */
+    uint64_t undo_entries; /* undo log entries (0 = nothing written) */
+    char reason[160];      /* refusal / failure detail, NUL-truncated */
+} cr_ui_apply_result;
+
+/* Plans + consents + executes one lost-partition apply on a WHOLE-DISK
+ * view (an image opened at offset 0, or a Windows disk device; volume
+ * slices are refused - the table lives at the disk's LBA 0). The consent
+ * callback fires exactly once, with the full POD plan, before any write;
+ * zero/NULL = denied, nothing written (outcome 1). The undo log of the
+ * last apply on this device is retained: cr_ui_apply_undo_last restores
+ * it, cr_ui_apply_save_undo persists it. */
+CR_UI_API uint32_t cr_ui_apply_lost_partition(cr_ui_device* dev, const cr_ui_apply_candidate* cand,
+                                              uint32_t rebuild_table,
+                                              cr_ui_apply_consent_fn consent, void* consent_user,
+                                              cr_ui_apply_result* out);
+
+/* Restores the last apply's undo log on this device (byte-exact sector
+ * restore + properties refresh). Idempotent on bytes. */
+CR_UI_API uint32_t cr_ui_apply_undo_last(cr_ui_device* dev, cr_ui_apply_result* out);
+
+/* S-029 (ABI-since 1.3): persist the last apply's undo log to a file
+ * (the durable CRC-checked container, loadable by `rrecov fix
+ * --undo-apply <file>`). CR_UI_ERR_BAD_PARAMETER when no undo log exists. */
+CR_UI_API uint32_t cr_ui_apply_save_undo(cr_ui_device* dev, const char* utf8_path);
+
 /* Writes the full truthful session (.crsf) - the same record set the CLI
  * emits, loadable by cr_ui_session_load / `rrecov tree`. Valid after run()
  * (including a cancelled one) or after a session-resumed run. */

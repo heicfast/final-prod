@@ -69,6 +69,10 @@ const char* err_text(u32 code) {
         return "apply consent denied (nothing was written)";
     case ERR_APPLY_STALE: /* S-029 */
         return "partition table changed since planning (re-run discovery and replan)";
+    case ERR_APPLY_REFUSED: /* S-029 (the union leg's plan-level refusals) */
+        return "apply refused by policy";
+    case ERR_APPLY_REFRESH_FAILED: /* S-029 (the union leg's refresh honesty) */
+        return "applied but disk properties refresh failed (undo available)";
 
     case ERR_IMAGE_CORRUPT:
         return "image container structurally corrupt";

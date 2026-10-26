@@ -15,6 +15,7 @@
 #include "cr/storage/cr_image.h"
 #include "cr/storage/cr_slice.h"
 #include "cr/repair/cr_rawfixer.h"
+#include "cr/apply/cr_apply.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -64,6 +65,17 @@ std::unique_ptr<cr::repair::IWriteDevice> open_disk_rw(u32 disk, bool prefer_rda
  * itself already succeeded; the refresh is best-effort by contract, the
  * caller reports it, never fails the apply on it). */
 u32 refresh_disk_properties(u32 disk);
+
+/* S-029: the APPLY-capable write view (lost-partition table writes).
+ * Same transport duality and handle posture as open_disk_rw; the
+ * returned device additionally carries the corpus PartitionRecovery
+ * device-control chain (IOCTL_DISK_DELETE_DRIVE_LAYOUT 0x7C100,
+ * IOCTL_DISK_SET_DRIVE_LAYOUT 0x7C010, the 0x7C058 0x18-byte modern
+ * record, IOCTL_DISK_UPDATE_PROPERTIES 0x70140 with the 3x Sleep(1000)
+ * retry tail - decompile cites in cr_apply.h). Open the read view with
+ * open_disk() for planning. */
+std::unique_ptr<cr::apply::IApplyDevice> open_disk_apply_rw(u32 disk, bool prefer_rda,
+                                                            const wchar_t* service, u32* err);
 /* Full extent of the volume containing a drive letter: disk number, byte
  * offset on that disk, byte length (used for recovery-overlap refusal).
  * N-013: reports the FIRST extent only - kept for the source-disk lookup

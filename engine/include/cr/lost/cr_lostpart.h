@@ -140,9 +140,12 @@ u64 weighted_count(int og_fs_code, u64 files, u64 folders);
 
 /* Materialize a candidate as a bounded virtual volume: the READ-ONLY
  * recovery path (scanning a lost volume's content without touching the
- * user's table). S-029 adds the WRITE path as a separate consent-gated
- * module (cr/apply/cr_apply.h: plan_apply/execute_apply - MBR entry,
- * transactional, undoable); this materializer stays read-only by design. */
+ * user's table). S-029 supersedes the old "R3.2: the user's table is
+ * never repaired" blanket read-only contract: the WRITE path exists as a
+ * separate consent-gated module (cr/apply/cr_apply.h - plan_apply /
+ * execute_apply / undo_apply + the cr_ui consent ABI); discovery and
+ * materialization stay read-only by design, and applying a candidate is
+ * never a side effect of scanning. */
 std::unique_ptr<PartitionSlice> materialize(IStorageDevice* disk, const Candidate& c);
 
 /* M-042: resume re-validation (the og's per-record re-read-and-drop,

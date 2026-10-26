@@ -489,11 +489,14 @@ std::unique_ptr<IStorageDevice> open_disk(u32 disk, bool prefer_rda, const wchar
 }
 
 /* ---------------------------------------------------------------------------
- * Write-capable device for the repair engine (RawFixer).
+ * Write-capable device for the repair engine (RawFixer) and the apply
+ * engine (S-029) - the base is apply::IApplyDevice (IS-A IWriteDevice),
+ * so one class carries the S-010 quiesce + the corpus PartitionRecovery
+ * device-control chain.
  * ------------------------------------------------------------------------- */
 namespace {
 
-class RwDevice final : public cr::repair::IWriteDevice {
+class RwDevice final : public cr::apply::IApplyDevice {
 public:
     RwDevice(HANDLE h, Geometry g, bool via_rda, u32 disk = 0, std::wstring path = std::wstring(),
              DWORD access = GENERIC_READ | GENERIC_WRITE,
@@ -606,6 +609,92 @@ public:
     u64 size() const override { return geom_.total_bytes; }
     u32 sector_bytes() const override { return geom_.logical_sector ? geom_.logical_sector : 512; }
 
+    /* ---- S-029: the corpus PartitionRecovery device-control chain ----
+     * (PartitionRecovery_decompiled.c FUN_1800566d0/FUN_180038b10; the
+     * raw hex values are the decompile's own - cited per method in
+     * cr_apply.h. Error convention: OK = the DeviceIoControl succeeded;
+     * failures return the transport's ERR_WRITE_FAILED so execute_apply
+     * treats them as hard device errors and rolls back.) */
+    u32 delete_drive_layout() override {
+        /* 0x7C100 IOCTL_DISK_DELETE_DRIVE_LAYOUT (legacy path, pre-write) */
+        DWORD br = 0;
+        if (!DeviceIoControl(h_, 0x7C100, nullptr, 0, nullptr, 0, &br, nullptr))
+            return ERR_WRITE_FAILED;
+        return OK;
+    }
+    u32 set_drive_layout_mbr(u32 signature, u32 entry_count) override {
+        /* 0x7C010 IOCTL_DISK_SET_DRIVE_LAYOUT with the 0xA8-byte
+         * DRIVE_LAYOUT_INFORMATION: PartitionCount = entry_count (the
+         * corpus stamps 4 in the rebuild flow), Mbr.Signature = the
+         * effective signature; the entry array mirrors the sector-0
+         * bytes the core already wrote (the kernel validates/commits
+         * them into its layout view). */
+        struct {
+            u32 partition_count;
+            u32 signature;
+            u8 entries[4 * 40]; /* 4 x PARTITION_INFORMATION-shaped slots */
+        } dli = {};
+        dli.partition_count = entry_count ? entry_count : 4;
+        dli.signature = signature;
+        /* the per-entry payload is zero except RewriteBoot on the FIRST
+         * entry: the sector-0 write already carried the real bytes; the
+         * ioctl's job here is the layout-signature commit (corpus
+         * FUN_1800566d0 zeroes the whole 0xA8 buffer and stamps count+sig). */
+        DWORD br = 0;
+        if (!DeviceIoControl(h_, 0x7C010, &dli, sizeof(dli), nullptr, 0, &br, nullptr))
+            return ERR_WRITE_FAILED;
+        return OK;
+    }
+    u32 set_partition_info_ex(const PartitionInfoExRecord& rec) override {
+        /* 0x7C058 with the 0x18-byte record (FUN_180056bc0 tail:
+         * {u32 partition number, 16-byte identity, u32 boot flag}) */
+        struct {
+            u32 partition_number;
+            u8 identity[16];
+            u32 boot_flag;
+        } rec18 = {};
+        rec18.partition_number = rec.partition_number;
+        for (int i = 0; i < 16; ++i)
+            rec18.identity[i] = rec.identity[i];
+        rec18.boot_flag = rec.boot_flag;
+        DWORD br = 0;
+        if (!DeviceIoControl(h_, 0x7C058, &rec18, sizeof(rec18), nullptr, 0, &br, nullptr))
+            return ERR_WRITE_FAILED;
+        return OK;
+    }
+    u32 update_properties() override {
+        /* 0x70140 IOCTL_DISK_UPDATE_PROPERTIES */
+        DWORD br = 0;
+        if (!DeviceIoControl(h_, 0x70140, nullptr, 0, nullptr, 0, &br, nullptr))
+            return ERR_WRITE_FAILED;
+        return OK;
+    }
+    void settle_refresh() override {
+        Sleep(1000); /* corpus PR:47015-47025: settle between retries */
+    }
+    bool legacy_os_path() const override {
+        /* corpus GetVersionExA gate (legacy = 5.0 or older). The build's
+         * envelope is Win7 SP1+ (6.1+): the modern path is the only live
+         * branch - the constant keeps the corpus contract visible. */
+        return false;
+    }
+    u32 generate_disk_signature() override {
+        /* corpus GPT_GenerateSignature (PARTITION.MO) - a fresh 32-bit
+         * disk signature. Entropy from kernel32-only sources (the import
+         * allowlist stays untouched - no Ole32 dependency for this):
+         * performance counter + tick count + the disk number, mixed
+         * FNV-style; two consecutive rebuilds never stamp the same value. */
+        LARGE_INTEGER pc = {};
+        QueryPerformanceCounter(&pc);
+        const u64 mix = u64(pc.QuadPart) ^ (u64(GetTickCount()) << 32) ^ (u64(disk_) << 48);
+        u32 h = 0x811C9DC5u;
+        for (int shift = 0; shift < 64; shift += 8) {
+            h ^= u32((mix >> shift) & 0xFF);
+            h *= 0x01000193u;
+        }
+        return h ? h : 1u;
+    }
+
 private:
     /* The staged WriteFile (direct path needs a sector-aligned DATA
      * BUFFER; the RDA path MDL-locks the user buffer at any alignment).
@@ -677,8 +766,12 @@ private:
 
 } // namespace
 
-std::unique_ptr<cr::repair::IWriteDevice> open_disk_rw(u32 disk, bool prefer_rda,
-                                                       const wchar_t* service, u32* err) {
+/* shared RW open (RDA-first duality): the concrete RwDevice is an
+ * apply::IApplyDevice (IS-A IWriteDevice), so the two public factories
+ * are typed views of one open path. */
+namespace {
+std::unique_ptr<RwDevice> open_rw_device(u32 disk, bool prefer_rda, const wchar_t* service,
+                                         u32* err) {
     if (prefer_rda && service != nullptr) {
         const u32 tok = rda::compute_pid_token(GetCurrentProcessId());
         wchar_t path[256];
@@ -691,7 +784,7 @@ std::unique_ptr<cr::repair::IWriteDevice> open_disk_rw(u32 disk, bool prefer_rda
             if (g.total_bytes != 0) {
                 if (err)
                     *err = OK;
-                return std::unique_ptr<cr::repair::IWriteDevice>(
+                return std::unique_ptr<RwDevice>(
                     new RwDevice(h, g, true, disk, std::wstring(path), GENERIC_READ | GENERIC_WRITE,
                                  FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE));
             }
@@ -716,9 +809,20 @@ std::unique_ptr<cr::repair::IWriteDevice> open_disk_rw(u32 disk, bool prefer_rda
     }
     if (err)
         *err = OK;
-    return std::unique_ptr<cr::repair::IWriteDevice>(
-        new RwDevice(h, g, false, disk, std::wstring(path), GENERIC_READ | GENERIC_WRITE,
-                     FILE_SHARE_READ | FILE_SHARE_WRITE));
+    return std::unique_ptr<RwDevice>(new RwDevice(h, g, false, disk, std::wstring(path),
+                                                  GENERIC_READ | GENERIC_WRITE,
+                                                  FILE_SHARE_READ | FILE_SHARE_WRITE));
+}
+} // namespace
+
+std::unique_ptr<cr::repair::IWriteDevice> open_disk_rw(u32 disk, bool prefer_rda,
+                                                       const wchar_t* service, u32* err) {
+    return open_rw_device(disk, prefer_rda, service, err);
+}
+
+std::unique_ptr<cr::apply::IApplyDevice> open_disk_apply_rw(u32 disk, bool prefer_rda,
+                                                            const wchar_t* service, u32* err) {
+    return open_rw_device(disk, prefer_rda, service, err);
 }
 
 u32 refresh_disk_properties(u32 disk) {
@@ -761,15 +865,14 @@ bool volume_extents(wchar_t letter, std::vector<VolExtent>* out) {
     out->clear();
     wchar_t vol[8];
     _snwprintf_s(vol, 8, _TRUNCATE, L"\\\\.\\%c:", letter);
-    HANDLE h =
-        CreateFileW(vol, 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                    nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    HANDLE h = CreateFileW(vol, 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+                           OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (h == INVALID_HANDLE_VALUE)
         return false;
     VOLUME_DISK_EXTENTS ext[8] = {};
     DWORD br = 0;
-    BOOL io = DeviceIoControl(h, IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS, nullptr, 0, ext,
-                              sizeof(ext), &br, nullptr);
+    BOOL io = DeviceIoControl(h, IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS, nullptr, 0, ext, sizeof(ext),
+                              &br, nullptr);
     CloseHandle(h);
     /* ERROR_MORE_DATA: the volume has more than 8 extents - the first 8
      * are filled and used (documented cap). */
@@ -796,10 +899,8 @@ bool destination_volume_letter(const std::wstring& path, wchar_t* letter) {
      * a junction into another volume must yield the TARGET's volume, not
      * the junction's host volume. */
     std::wstring final_path = path;
-    HANDLE h = CreateFileW(path.c_str(), 0,
-                           FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                           nullptr, OPEN_EXISTING,
-                           FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+    HANDLE h = CreateFileW(path.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                           nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
     if (h != INVALID_HANDLE_VALUE) {
         wchar_t buf[1024];
         const DWORD n = GetFinalPathNameByHandleW(h, buf, 1024, VOLUME_NAME_DOS);
