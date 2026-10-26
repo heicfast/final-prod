@@ -1808,6 +1808,8 @@ TEST(ExfatEngine, NameUtf16TableAllowedCharAccepted) {
     EXPECT_NE(names.end(), std::find(names.begin(), names.end(), "tab\xE1\xA8\x80" "ok.dat"))
         << "U+1A00 (table[0x1A] == 1) must survive the gate";
     EXPECT_EQ(stats.sets_gated, 0u);
+}
+
 /* ---- M-052 (diff-to-fix): the exFAT recycle-bin $I/$R pairing -------- */
 
 TEST(ExfatEngine, RecyclePairingMirrored) {
