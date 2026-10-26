@@ -12778,3 +12778,41 @@ Stage Summary:
   green. First target: OQ-S2M-2's grep-sized probes, then the OQ-S3-JPEG
   decompile walk, then OQ-RS, then OQ-S20-1 (the big BitLocker leg).
 >>>>>>> 2928da26fdd823f2686863072f95b13629c3dd4d
+
+---
+Task ID: DFX27-M058 (session 27, MAJOR lane — NEW-FINDING)
+Agent: main engineer (diff-to-fix fix session 27 — DFX27)
+Task: M-058 — run()'s cache-failure fallback UAF (found during M-049 verification)
+
+Work Log:
+- Discovered while reasoning about retry_raw's lifetime for the M-049
+  error-context stamps: CachedReader::create takes inner BY VALUE and destroys
+  it on every failure return, so the old fallback
+  `pipe = cached ? cached.get() : retry_raw` handed engine reads to freed
+  memory whenever cache creation failed (latent: run()'s constants cannot
+  fail; the `: slice` sub-branch was dead). The adjacent comment documented
+  the OPPOSITE (bare-slice) fallback.
+- Fail-before EXECUTED: scripts/m058_uaf_repro.cpp (the original inline shape,
+  failing geometry) under ASan -> heap-use-after-free, freed by
+  RetryingDevice::~RetryingDevice inside create's failure return (evidence:
+  diff-to-fix/evidence/executions/s27-m058-readpipe-uaf-asan.md).
+- Fix: build_read_pipe(slice, cache_bytes, block_bytes) extracted (cr_scan.h
+  ReadPipe + the function); the degraded path is a pinned contract - bare
+  slice, no retry isolation, surfaced in the contract comment. run() consumes
+  ReadPipe rp; tel_retry_ published only when the chain owns the retry device.
+- Tests: ReadPipeBuildsCacheOverRetryForValidGeometry +
+  ReadPipeDegradesToBareSliceWhenCacheCreationFails +
+  ReadPipeZeroCapacityDegradesToBareSlice (all green). The N-045/D-72 budget
+  pin (Cached.ScanCacheBudgetIsTheRegisteredDivergence) re-anchored to the
+  call-site expression `build_read_pipe(slice, 8ull << 20, 256 * 1024)` -
+  same lockstep contract, truth moved with the construction.
+- Suite: linux-release **746/746**.
+- Audit trail: finding filed in MAJOR/ then moved to FIXED/ with Resolution;
+  RESOLVED-INDEX row; modules/orchestration.md session-27 row; SUMMARY
+  session-27 delta.
+
+Stage Summary:
+- M-058 FIXED (NEW-FINDING, filed + fixed same session). M-049's
+  implementation continues on top (the error-context carrier is half-landed
+  in the working tree).
+

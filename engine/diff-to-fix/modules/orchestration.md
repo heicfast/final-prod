@@ -149,3 +149,11 @@ dedup), GAP-S6-13 (64 KiB transport envelope).
 
 | M-044 UDF recognition | **MATCH** (decompile-exact probe, gate a + anchor + LE VDS load + "UDF"@0x19; no engine, carve rides) | `Orchestrator.UdfVolumeRecognized`, `Orchestrator.UdfNotConfusedWithFat`, `Orchestrator.UdfProbeFailsOnMkudffsShapeLikeTheOg`, `Orchestrator.UdfSurfacesAsCarveFamily` |
 | N-076 FsFamily contract | **MATCH** (reserved-5 anchored; documented 6..11 numbering) | `Orchestrator.FsFamilyValuesMatchContract` |
+
+---
+
+## Session-27 row (DFX27 lane, 2026-10-26)
+
+| ID | Severity | One-line |
+|---|---|---|
+| M-058 | MAJOR (NEW-FINDING, fixed same session) | run()'s cache-failure fallback dereferenced the retry device CachedReader::create destroys on failure returns (latent UAF on the defensive path, ASan-proven in the standalone repro) + the adjacent comment documented the opposite (bare-slice) fallback. FIXED: build_read_pipe() extracted — the degraded path is a pinned contract (bare slice, no retry isolation, surfaced), 3 ReadPipe pin tests, N-045 budget pin re-anchored to the call site (lockstep preserved). |

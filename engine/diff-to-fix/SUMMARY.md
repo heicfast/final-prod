@@ -1,4 +1,29 @@
-# SUMMARY.md — executive summary (sessions 25+28 on top; earlier sessions below)
+# SUMMARY.md — executive summary (session 27 on top; sessions 25+28 below; earlier sessions below)
+## Session-27 delta (2026-10-26 — DFX27: the MAJOR-head lane opens; M-058 NEW-FINDING filed + fixed)
+
+Baseline: linux-release **743/743** at `db3de2c` (post-merge with the window's
+parallel claims; suite re-verified after every pull). Corpus `03ad46c` unmoved.
+Lane: the MAJOR tier head (M-049 → M-035 → M-052 → M-014 → …), disjoint from
+the parallel lanes' tail/mid claims.
+
+**M-058 NEW-FINDING (MAJOR) filed + FIXED (found during M-049 verification):**
+reasoning about `retry_raw`'s lifetime on every path (the M-049 error-context
+stamping) exposed that run()'s cache-failure fallback dereferenced the retry
+device `CachedReader::create` destroys on its failure returns — a latent
+use-after-free on the defensive path (unreachable at run()'s constant geometry,
+**executed under ASan** in the standalone repro — evidence/executions/
+s27-m058-readpipe-uaf-asan.md) and the direct contradiction of the adjacent
+comment (which documented the bare-slice fallback). Fixed by extracting
+`build_read_pipe()` with the degraded path as a pinned contract; 3 ReadPipe pin
+tests; the N-045/D-72 budget pin re-anchored to the call site (lockstep
+preserved). Suite **746/746**.
+
+**M-049 (MAJOR) in flight:** the session-11 addendum's remaining scope (the
+engine-side error-context carrier) is implemented in the working tree — the
+err::Module/err::Op vocabulary, the retry layer's record-time context log, the
+ErrorRange event extension (module/op/attempts), and the phase stamps land
+next as the M-049 resolution commit.
+
 
 ## Session-23 delta (2026-10-26 — DFX23: the MINOR-first closing wave, batch 1 — N-009 group closed + M-057)
 

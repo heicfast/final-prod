@@ -14,6 +14,7 @@
 
 #include "cr/tree/cr_grading.h"
 #include "../storage/cr_device.h"
+#include "../storage/cr_cached.h"
 #include "../storage/cr_freemap.h"
 #include "../storage/cr_retry.h"
 #include "../table/cr_ldm.h"
@@ -71,6 +72,27 @@ struct StageWeights {
     u32 deep = 35;
     u32 carve = 25;
 };
+
+/* ---- M-058: the scan read pipe, as a testable unit -----------------------
+ * run()'s inline construction had a defensive-path use-after-free: when
+ * CachedReader::create fails it DESTROYS the retry device it took by
+ * value, so the old fallback `pipe = retry_raw` dereferenced freed memory
+ * (and contradicted its own comment, which documented the bare-slice
+ * fallback). Extracted so the fallback is a pinned, tested contract:
+ * cache-creation failure degrades to the BARE SLICE (retry isolation
+ * lost on that path - unreachable with run()'s constant arguments, but
+ * memory-safe and truthful when taken). */
+struct ReadPipe {
+    std::unique_ptr<CachedReader> chain; /* owns the cache when built; null
+                                            on the degraded bare-slice path */
+    IStorageDevice* pipe = nullptr;      /* what engines read through (the
+                                            slice itself on the degraded path) */
+    RetryingDevice* retry = nullptr;     /* live error-map source (the cache's
+                                            inner device; null on degrade) */
+};
+/* cache_bytes/block_bytes parameterized for the regression test; run()
+ * passes (8 MiB, 256 KiB). slice must outlive the returned pipe. */
+ReadPipe build_read_pipe(IStorageDevice* slice, u64 cache_bytes, u32 block_bytes);
 
 /* ---- typed event stream (GAP-S6-10; ABI-CONTRACT.md section 6) ----
  *
