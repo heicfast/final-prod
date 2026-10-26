@@ -12237,7 +12237,6 @@ Stage Summary:
 - Session 23 open. Baseline 737/737 green at `716d121`. MINOR-first
   queue claimed. First fix: N-009 (grouped minors).
 
-=======
 ---
 Task ID: DFX24-T0 (session 24 bootstrap — lane claim)
 Agent: main engineer (diff-to-fix fix session 24 — DFX24)
@@ -12262,3 +12261,39 @@ Work Log:
 Stage Summary:
 - Session 24 open on the disjoint MAJOR lane. Baseline green. First
   fix: M-049 (error model divergence).
+
+---
+Task ID: DFX25-T0 (session 25 bootstrap — lane claim; re-stamped from the
+local 23 — the parallel MINOR lane owns that ID, DFX24 owns MAJOR)
+Agent: main engineer (diff-to-fix fix session 25 — DFX25)
+Task: Session bootstrap + DISJOINT lane claim: the INFORMATIONAL tier +
+the tracked-open queue (the user directive's primary focus).
+
+Work Log:
+- Pull at first push surfaced the parallel claims (354c555 DFX23 MINOR
+  lane; 02b950f DFX24 MAJOR lane). This lane re-stamps to DFX25 and
+  claims the DISJOINT remainder: INFORMATIONAL (22 open) + tracked-open
+  (11) first — the user directive's focus — then anything the parallel
+  lanes leave behind.
+- Baseline suite executed green FIRST-HAND before any finding work:
+  linux-release **737/737** at `716d121` (full ctest).
+- Corpus `03ad46c` unmoved (verified at first corpus read).
+- Session prompt saved token-redacted: worklog/session-diff-fix-25-prompt.md.
+- One finding, one verified fix, one push throughout.
+
+Stage Summary:
+- Session 25 open on the disjoint INFO + tracked-open lane. Baseline
+  green. First act: the INFO tier closure (below).
+
+### DFX25-T3: INFO tier closed into FIXED/ (22/22)
+
+- Re-verified on `716d121`: all 22 Resolution sections present; 5 load-bearing
+  pins executed green; 2 first-hand spot-checks (I-001 corpus :21186 blanket
+  `$`-skip; I-022 cr_crsf.cpp :78/:167/:319 decompressed-CRC32 + bomb cap).
+- `git mv` INFORMATIONAL/* → FIXED/; RESOLVED-INDEX session-25 section with
+  22 rows; SUMMARY.md session-25 delta (counts: MAJOR 14 · MINOR 19 · INFO 0
+  open · FIXED/ 171 files · tracked-open 11); CROSS-REF-MATRIX session-25
+  note + the two "stay in INFORMATIONAL/" notes corrected; CORPUS-ERRATA.md
+  I-011 path updated.
+- No code change (INFORMATIONAL safety-hardening rule; deliberate divergences
+  preserved with pin tests).
