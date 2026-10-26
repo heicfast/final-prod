@@ -42,6 +42,14 @@ struct RefsInfo {
     u64 msb_offset = 0;        /* first metadata session block hit */
     u32 sequence = 0;          /* ReFS sequence (layout generation) */
     char version[16] = {0};    /* from the identification string */
+    /* N-007 (diff-to-fix): the og's page dispatch compares the FIRST
+     * DWORD of the signature only (ReFSSearchDLL :11692
+     * `*param_2 == *(int*)pcVar4`); a page whose signature tail is
+     * corrupt still opens (the ref-parser validates further). The core
+     * matches that discovery rule and grades the full signature width
+     * here: false = first-4 matched, full memcmp failed (corrupt tail);
+     * the volume is still found. */
+    bool signature_partial = false;
 };
 
 /* Probe the volume start (first MiB) for ReFS pages. Report-only. */

@@ -1,5 +1,20 @@
 # SUMMARY.md — executive summary (diff-fix session 33 on top; earlier sessions below)
 
+## Session-33 delta, part 5 (2026-10-26 — DFX33: N-007 FIXED — ReFS page-signature discovery width)
+
+**N-007 FIXED (MINOR — with the I-004 half staying ACKNOWLEDGED):** the
+corpus was re-verified first-hand (ReFSSearchDLL :11692 — the og's page
+dispatch compares the FIRST DWORD only; corrupt-tail pages open and the
+ref-parser validates further). The core's detect now matches: first-4
+discovery + the full memcmp as the grading signal
+(RefsInfo::signature_partial). Proof: RefsDetect.PartialSignaturePageDetected
+(fail-before EXECUTED RED on the full-width-only tree); refs suite 32/32;
+full suite **891/891**.
+
+**Post-fix counts (this landing):** SEVERE **0** · MAJOR 4 · MINOR 2 ·
+INFO **0 open** · tracked-open 2.
+
+
 ## Session-33 delta, part 4 (2026-10-26 — DFX33: M-048 FIXED — the user-extensible signature database)
 
 **M-048 FIXED (MAJOR — the EUUserData capability):** users can teach the
@@ -203,15 +218,38 @@ gate families — including the raw-disassembly confirmation of
 FUN_180002f90's timestamp gates and the all-zero-FAILS correction —
 converged with the landing and is recorded in the finding file.)
 
+**M-052 FIXED (MAJOR — the FAT/exFAT recycle-bin $I/$R pairing):** the
+NTFS engine's in-repo reference model extracted into the shared
+`cr/recycle` helper (name + content-stream parameterization, the fix
+plan's step 1 verbatim) and wired into both walks: the three corpus
+roots ($RECYCLE.BIN / Recycled / Recycler, case-blind) mark their
+subtree; $I streams parsed (v1/v2 + the Win10+ variable form) and
+never surfaced; $R files remapped to their ORIGINAL name/size/
+deletion-time and marked Deleted (in-use inside the bin, deleted from
+the user's location — the NTFS model); post-walk fixup for late $I
+pairs. NTFS itself now consumes the shared helper through attribute-
+view glue (identical behavior). Fail-before EXECUTED (engine mutation,
+3/4 RED; the over-matching pin green by design). Stats
+recycle_info/recycle_remapped on both engines.
+
+**Baseline repair 2 (pushed-red main, committed conflict markers):** a
+parallel merge (the 9a9340e/196d75a lineage) committed half-eaten
+conflict markers into include/cr/win/cr_bitlocker.h and a structurally
+broken src/app/rrecov.cpp — win_syntax_check RED (the gate's exact
+purpose). Repaired as the canonical union: the 6afa8fc reconciliation's
+cr::dict design (the standing first-landing-wins ruling) + the N-033
+CLI additions (list-carve-formats + the cr_ui include). Fail-before:
+win_syntax_check RED on the marker tree, green post-repair.
+
 **Post-fix counts (live file inventory at this session's push):**
-SEVERE 0 · MAJOR 10 open (M-018, M-025, M-030, M-034, M-035, M-039,
-M-040, M-041, M-048, M-052) · MINOR 5 open (N-007, N-059, N-065,
-N-066, N-072) · INFO 0 actionable (all acknowledged) · FIXED/ grows
-with every parallel landing (live count at the RESOLVED-INDEX).
-Suite **826/826** linux-release; ASan lane green. Next on this lane:
-M-035 (engine-side FileFilter validation) → M-052 (FAT/exFAT recycle
-pairing) → M-018 (FilterFolder junk filter) → M-039 (occupancy
-bitmap) → M-025/M-030 perf legs.
+SEVERE 0 · MAJOR 7 open (M-018, M-030, M-034, M-039, M-040, M-041,
+M-048) · MINOR 5 open (N-007, N-059, N-065, N-066, N-072) · INFO 0
+actionable (all acknowledged) · FIXED/ grows with every parallel
+landing (live count at the RESOLVED-INDEX; the window's parallel lanes
+closed M-014/M-020/M-025/M-029/M-035/M-052 among the MAJORs).
+Suite **848/848** linux-release; ASan lane green. Next on this lane:
+M-018 (FilterFolder junk filter) → M-039 (occupancy bitmap) → M-048
+(signature DB) → M-030/M-034/M-040/M-041.
 
 
 ## Session-34 delta (2026-10-26 — DFX34: the N-064 convergent-landing reconciliation + the MINOR-tail lane)

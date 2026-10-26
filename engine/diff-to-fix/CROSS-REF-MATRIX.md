@@ -270,6 +270,7 @@ F safety · Q quality (definitions in `PARAMETERS.md`).
 | zfs | B11 (SA registry) | ~~M-038~~ **FIXED (s19)** — registry-driven SA decode; findings/FIXED/M-038 |
 | zfs | B1/B2/A25/D15 | ~~M-019~~ **FIXED (s19)** — first-entry fallback for every DVA (foreign reads counted), fletcher4 {7,0} gate over raw bytes + 32-byte compare + next-DVA retry, L0 extents planned at the fallback position; fixtures now checksum-carrying; 2 fail-before + 1 pin; findings/FIXED/M-019 |
 | refs | B1/C19/C20/A25 | ~~N-026~~ **FIXED (s28, mixed)** — boot gates aligned (bps ladder + cluster product {4K,64K}, og :13544-49) + 4-KiB open read; N-013a/N-013c INVALID on first-hand decode (0x50 body is by-construction — hardcoded 0x30 ref extension; the mid-volume formula is N-036's container key, og probes NO superblock backup); findings/FIXED/N-026 |
+| refs | B1/C19 (N-007) | ~~N-007~~ **FIXED (s33)** — first-DWORD page-signature discovery (og :11692 `*param_2 == *(int*)pcVar4`), full-width memcmp as the grading signal (signature_partial); I-004 half stays ACKNOWLEDGED (D-48b); findings/FIXED/N-007-I-004 |
 | table+ldm | B1/C20 | ~~M-016~~ **FIXED (s19)** — candidate list {2,0,1,2045,2046} = og probe order + tail superset behind; config+0 disk parses, +2 wins conflicts (committed_seq proof); 3 tests, findings/FIXED/M-016 |
 | table+ldm | B1/A27/X49 | ~~N-025~~ **FIXED (s23)** — 1 MiB config gate (>= 0x801 -> ERR_BAD_CHECKSUM, og :59748-59759) + zero-interleave 64 KiB default on stripe/RAID-5 (og :47665/:68631-68641); 2 fail-before tests + boundary pin; findings/FIXED/N-025 |
 | lost-partition | B3/A30/B16 (engine-side filter validation) | **M-035 — FIXED (s27 DFX27)** (the exFAT-only content-consistency scorer: considered/filterable/matched counters + the reject rule decompile-exact (strict < 0.3), substring classifier + MOV/MP4/JPG specials, out-of-bounds invalidation; scan_candidate wiring + detach_subtree; ScanStats::lost_content_rejected; 15 tests + fail-before; findings/FIXED/M-035) |
@@ -375,8 +376,13 @@ not-BAAD both sides; FAT quick-scan threading — already registered D-30x).
 
 | Module | Parameter(s) | Verdict change (evidence in the finding + `evidence/decompiled-quotes/s6-*`) |
 |---|---|---|
+<<<<<<< HEAD
+| fat | B4/B5/D11/A29 | **M-052 FIXED (s24 DFX24)** (recycle-bin $I/$R pairing — the shared cr/recycle model wired into the dentry walk; findings/FIXED/M-052) |
+| exfat | B1/A25/S35 | **N-067 FIXED s11** (upcase-table validation — og shape gates + checksum32 stream check, soft stats signal; findings/FIXED/); B4/B5/D11 **M-052 FIXED (s24 DFX24)** (recycle mirror — the shared cr/recycle pairing; findings/FIXED/M-052) |
+=======
 | fat | B4/B5/D11/A29 | **M-052 — FIXED (s35)** (the shared $I/$R pairing model — four-root recognition, chain-read $I parse, original-name remap + post-walk fixup; findings/FIXED/M-052) |
 | exfat | B1/A25/S35 | **N-067 FIXED s11** (upcase-table validation — og shape gates + checksum32 stream check, soft stats signal; findings/FIXED/); B4/B5/D11 **M-052 FIXED (s35)** (the FAT-mirrored pairing — bin context through walk + oracle re-walks; findings/FIXED/M-052) |
+>>>>>>> 880e2a1b1429859df8d575aa53e835d1d65fe01f
 | carve | A25/D11/P42 | **S-032 (converged)** (archive inner-file inventories missing) |
 | carve | B1/C19 | **N-069 FIXED s11** (CAB mscf case key — FMT_CAB_LC dual row + two-spelling validator re-check; findings/FIXED/); B1/A28 **N-068 FIXED s11** (LFH sanity gates decompile-exact; EOCD half FIXED-ALREADY — the CD anchor + EOCD reconciliation already cover it; findings/FIXED/) |
 | carve | A28/A29/D15/B3 | **N-070** (overlap scoring + two-generation fallback); **S-007 addendum** (bare-MPEG dispatch gap — 18+ u16 sync keys vs ID3-only; family roster with provenance) |

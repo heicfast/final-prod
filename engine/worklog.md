@@ -14830,6 +14830,21 @@ Stage Summary:
 - OQ-S5-1 closed (convergent two-lane). MY CLAIMED QUEUE IS COMPLETE.
 
 ---
+Task ID: DFX24-T3 (M-052 + baseline repairs)
+Agent: DFX24 (session 24, the MAJOR lane)
+Task: M-052 FAT/exFAT recycle-bin pairing; union-red repairs
+
+Work Log:
+- M-052: verified the finding's corpus citations (fat-exfat-engine-internals.md :21/:37-40/:71/:101) and the NTFS reference implementation (cr_mftwalk.cpp:162-250 + the GAP-P1-3 post-walk fixup); extracted the model into include/cr/cr_recycle.h + src/core/recovery/cr_recycle.cpp (name + content-stream parameterization); NTFS refactored to consume it (identical behavior); FAT + exFAT walks wired (bin-root subtree marking, $I parse-and-remember, $R remap + Deleted state, post-walk fixup, new stats).
+- 4 tests added (FAT pairing, legacy roots, non-recycle over-matching pin, exFAT mirror); fail-before EXECUTED as an engine mutation (bin-root marker neutralized: 3/4 RED; the pin green by design); suite 848/848 linux-release + ASan lane green.
+- Baseline repair 2: the 9a9340e/196d75a parallel-merge lineage committed conflict markers into cr_bitlocker.h + a structurally broken rrecov.cpp (win_syntax_check RED — the gate did its job). Repaired as the canonical union: 6afa8fc's cr::dict ruling + the N-033 CLI additions. Green post-repair.
+- Audit trail: M-052 finding -> FIXED/ with Resolution; RESOLVED-INDEX row; fat/exfat matrix rows -> MATCH; module verdict updates; SUMMARY session-24 delta extended.
+
+Stage Summary:
+- M-052 FIXED (the audit's engine-consistency finding closed; the shared helper is the fix plan's architecture).
+- Pushed-red main repaired twice this session (D-84 ledger row; win-layer markers).
+- Remaining MAJOR: M-018, M-030, M-034, M-039, M-040, M-041, M-048.
+
 Task ID: DFX33-T4 (session 33 — pushed-red REPAIR, protocol)
 Agent: main engineer (diff-to-fix fix session 33 — DFX33)
 Task: Repair the 667c2d2 union: the N-064 multi-lane collision had left
@@ -15303,6 +15318,7 @@ Stage Summary:
   remains in a non-resolved state; the audit trail for M-029 and M-025
   is complete with both Resolutions, the convergence records, and the
   measured numbers.
+
 ---
 Task ID: DFX30-HANDOFF (session 30 close — lane complete, main green)
 Agent: main engineer (diff-to-fix fix session 30 — DFX30)
@@ -15564,6 +15580,28 @@ Stage Summary:
   pulling first.
 
 ---
+Task ID: DFX33-T6 (session 33, fifth fix)
+Agent: main engineer (diff-to-fix fix session 33 — DFX33)
+Task: N-007 — ReFS page-signature discovery width (the I-004 half of the
+combined file stays ACKNOWLEDGED).
+
+Work Log:
+- Corpus re-verified first-hand: ReFSSearchDLL :11689-11720 — the page
+  dispatch selects the signature string then compares the FIRST DWORD
+  only; corrupt-tail pages open, the ref-parser validates further.
+- Implemented: page_match (first-4 discovery + full-width grading) in
+  cr_refs_detect.cpp; RefsInfo::signature_partial added; the engine's own
+  validation chain untouched.
+- Tests: RefsDetect.PartialSignaturePageDetected (fail-before EXECUTED
+  RED: the corrupt-tail-only volume was ERR_BAD_MAGIC pre-fix). Refs
+  suite 32/32; full suite 891/891 linux-release.
+- Audit trail: N-007 Resolution appended (I-004's stays as-is); file
+  moved to FIXED/; matrix row; modules/refs.md verdict; SUMMARY part-5.
+
+Stage Summary:
+- N-007 FIXED (tally: 5 — M-020, M-025, M-018, M-048, N-007 — plus the
+  T4 repair). MAJOR 4, MINOR 2 open. Next: N-065 or the queue head.
+
 Task ID: DFX34-T5 (session 34, fifth landing — N-065 closed FIXED-ALREADY)
 Agent: main engineer (diff-to-fix fix session 34 — DFX34)
 Task: N-065 (writer destination-policy minors) — verify the parallel
@@ -15648,3 +15686,25 @@ Stage Summary:
 - N-007 FIXED (session tally: N-065 verified-closure + N-007 fixed).
   MINOR open: N-072 only. Next: N-072 (Btrfs cache + ZFS label retry),
   then the MAJOR tier.
+Task ID: DFX36-CLAIM (session 36 — lane claim, posted before work)
+Agent: main engineer (DFX36 — diff-to-fix execution session 36)
+Task: Lane claim (protocol): S-034 (SEVERE — the ZFS ring txg-history walk,
+the three decode items + the behavioral fix) → N-007 (ReFS first-DWORD
+discovery match) → N-072 (btrfs rescan cache + zfs label polling) →
+OQ-S4-3/OQ-FLT-2 dispositions → audit-trail completeness sweep
+(CROSS-REF-MATRIX/SUMMARY/modules vs the live tree). M-030 is claimed by
+the DFX23 lane (their entry "M-030 verification starts now"); M-039/M-040
+signaled by other lanes — will verify their landings when they arrive and
+take up any remainder they leave.
+
+Work Log:
+- Baseline established at ea1a3c7-pull: BUILD RED on main repaired
+  (cr_ui.h union markers, 40fc440 — convergent with the parallel lanes'
+  32f82f3/58557d3 repairs; mine rode the same union); suite green
+  841/845 (4 env-skips) + cr_ui_tests 33/33 after repair; pushed.
+- Parallel-lane landings absorbed (M-048 21ea6c2, N-066+N-080 4d3f040,
+  N-065 3be045d + the N-079-family unions).
+
+Stage Summary:
+- Lane open. S-034 decode starts now (corpus: ZfsSearchDLL_decompiled.c
+  ring walk + addBlock + the ZplNode visitor path).
