@@ -1,5 +1,11 @@
 # diff-to-fix/findings/FIXED/ — resolved findings (audit trail)
 
+## Resolved findings (session-28 wave 3: +N-033 (the CLI half + the D-80 register; the ABI half landed s6); live file inventory)
+
+| ID | Severity (orig) | Title | Fix commit | Resolution |
+|---|---|---|---|---|
+| N-033 | MINOR (S3) | EUGetAnalyserList/Map/Multimap consumed by the FS engines (registry clone); the core exposes no carve-capability ABI | `1f08c20` (ABI half, s6) + this session's CLI-close commit | ABI half landed session 6 (cr_ui_carve_format_count/info, added-export rule). This session: the CLI half (`rrecov list-carve-formats` — subcommand form, one row per format over both layers, FB-K01 exit discipline) + the per-scan registry-refresh divergence REGISTERED as D-80 (the og's per-scan LoadLibrary/clone is multi-DLL machinery; the core reads its compile-time immutable registry directly — same content by construction) + ABI-CONTRACT 7a's CLI projection note. Pinned by CarveFormatRegistryEnumeration + the win_syntax_check parse gate (extended with the -D__declspec(x)= parse-neutralization for ELF g++). |
+
 ## Resolved findings (session-28 wave 2: +N-019 — the 13-scenario regression-test gap closed after full per-scenario re-verification; live file inventory)
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |

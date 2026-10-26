@@ -26,6 +26,7 @@
  */
 
 #include "cr/cr_log.h"
+#include "cr/cr_ui.h" /* N-033 CLI half: the carve-format enumeration ABI */
 #include "cr/orchestrator/cr_scan.h"
 #include "cr/pwddict/cr_pwddict.h"
 #include "cr/recovery/cr_safewriter.h"
@@ -592,6 +593,42 @@ int print_disks() {
                         v.label.c_str(), v.bytes >> 20, v.bitlocker ? L"[BitLocker]" : L"");
             }
         }
+    }
+    return 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * list-carve-formats (N-033's CLI half: the og host enumerates carvers
+ * through EUGetAnalyserList/Map/Multimap to build its "which formats can
+ * we carve" UI; the ABI counterpart cr_ui_carve_format_count/info landed
+ * session 6 — this is the CLI projection of the same surface).
+ * ------------------------------------------------------------------------- */
+
+int print_carve_formats() {
+    const uint32_t n = cr_ui_carve_format_count();
+    if (n == 0) {
+        wprintf(L"carve registry is empty\n");
+        return 1; /* never exit-0 on an empty registry - scripts must not
+                     mistake a broken table for "nothing to carve" */
+    }
+    wprintf(L"%u carve format(s)\n", n);
+    for (uint32_t i = 0; i < n; ++i) {
+        cr_ui_carve_format f{};
+        if (cr_ui_carve_format_info(i, &f) != 0) {
+            wprintf(L"row %u: enumeration failed\n", i);
+            return 1; /* FB-K01 family: a broken row is a failure, not a
+                         silent skip */
+        }
+        wchar_t magic[16 * 2 + 1] = L"";
+        if (f.magic_len > 0) {
+            for (uint32_t k = 0; k < f.magic_len && k < 16; ++k)
+                swprintf(magic + k * 2, 3, L"%02x", f.magic[k]);
+        }
+        wprintf(L"  [%2u] %-7s %-8hs min %10llu B  max %-10llu  conf %4u  %s%s\n", i,
+                f.layer == 0 ? L"grammar" : L"rawsign", f.ext,
+                static_cast<unsigned long long>(f.min_size),
+                static_cast<unsigned long long>(f.max_size), f.base_confidence,
+                f.magic_len ? L"magic " : L"", f.magic_len ? magic : L"-");
     }
     return 0;
 }
@@ -2236,6 +2273,9 @@ int wmain(int argc, wchar_t** argv) {
             L"rrecov - core_recovery CLI\n"
             L"usage:\n"
             L"  rrecov list\n"
+            L"  rrecov list-carve-formats\n"
+            L"             (the carve-capability projection of the ABI registry —\n"
+            L"              the og host's EUGetAnalyserList/Map/Multimap surface)\n"
             L"  rrecov scan --disk N | --volume C: | --image file.vmdk|.vhd|.vhdx|.img [.dmg raw]\n"
             L"             [--whole-disk] [--quick-only] [--no-carve]\n"
             L"             (deep stage always on; --quick-only disables it; --whole-disk = lost-partition discovery)\n"
@@ -2260,6 +2300,8 @@ int wmain(int argc, wchar_t** argv) {
     int i = 2;
     if (cmd == L"list")
         return print_disks();
+    if (cmd == L"list-carve-formats")
+        return print_carve_formats();
     if (cmd == L"scan")
         return cmd_scan(argc, argv, i);
     if (cmd == L"tree")

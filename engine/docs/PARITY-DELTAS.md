@@ -2559,3 +2559,23 @@ list would be missed — no such device class is documented in the corpus
 (the QA host's own Storage-Spaces census ran WITHOUT producing an
 extra device). The merge is the engine scope; the UI shell may layer
 its own stacks later.
+
+### D-80 — carve registry consumption: direct compile-time read, no per-scan cross-DLL re-clone (N-033, REGISTERED DIVERGENCE — structural, content-identical)
+
+The og's FS SearchDLLs import RAWSearchDLL.dll at runtime and clone its
+master analyser registry into their own state — `LoadLibraryA
+("RAWSearchDLL.dll")` + `GetProcAddress("EUGetAnalyserList"/"Map"/
+"Multimap")` + a full std::map/multimap/list tree-copy with leftmost/
+rightmost fixups (FATSearchDLL_decompiled.c :13872-13977, into members
++0xb8/+0xd0/+0xe0), and the SAME sequence again per scan (:29290-29361)
+— because the og is a multi-DLL process and the registry lives in
+another module. The core is one static library: `carve::registry()` is a
+compile-time immutable table read directly at every consumption site (the
+F8 gate + the scan loop), so there is nothing to clone and nothing that
+can drift between the scan's start and its per-engine fetches — the same
+content by construction, one less failure surface (a torn LoadLibrary or
+a version-skewed RAWSearchDLL is an og-only hazard). The capability
+question the clone serves ("which formats can we carve") is answered by
+the ABI enumeration (`cr_ui_carve_format_count/info`, ABI-CONTRACT §7a)
+and its CLI projection (`rrecov list-carve-formats`, landed with this
+register). Pinned by `CrUi.CarveFormatRegistryEnumeration`.

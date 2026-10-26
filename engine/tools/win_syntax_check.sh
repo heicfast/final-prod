@@ -33,7 +33,13 @@ fi
 #   wchar_t buffers must have the same width the MSVC lane sees.
 # -D_WIN32: the layer's #ifdef _WIN32 branches (e.g. cr_bitlocker's
 #   registry detail namespace) must parse exactly as MSVC sees them.
-CXXFLAGS="-std=c++20 -fshort-wchar -D_WIN32 -fsyntax-only -I$STUB_DIR -I$SRC_DIR/include"
+# -D__declspec(x)=: ELF-target g++ rejects __declspec (it is a Windows
+#   target extension); neutralize it for the PARSE ONLY (N-033's CLI
+#   landing made src/app include cr/cr_ui.h, whose _WIN32 export branch
+#   uses __declspec(dllimport) - MSVC-legal, ELF-g++-unparseable). The
+#   gate checks STRUCTURE, not import semantics; the real macro is
+#   exercised by the MSVC lane on Windows CI.
+CXXFLAGS="-std=c++20 -fshort-wchar -D_WIN32 -D__declspec(x)= -fsyntax-only -I$STUB_DIR -I$SRC_DIR/include"
 
 rc=0
 for f in "$SRC_DIR"/src/win/*.cpp; do

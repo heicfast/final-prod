@@ -13964,3 +13964,43 @@ Work Log:
 Stage Summary:
 - Pushed-red repaired (the M-055/M-057 family discipline). The N-033
   CLI landing follows on the clean base.
+
+---
+Task ID: DFX28-T4 (session 28, third fix — N-033)
+Agent: main engineer (diff-to-fix fix session 28 — DFX28)
+Task: N-033's remaining scope: the CLI listing sub-item + the per-scan
+registry-refresh divergence (the ABI half landed session 6).
+
+Work Log:
+- Corpus re-verified: the EUGetAnalyserList/Map/Multimap exports
+  (RAWSearchDLL :72170-72208) + the FAT engine's clone sequence
+  (:13872-13977 LoadLibrary/GetProcAddress + tree-copy; per-scan
+  re-fetch :29290-29361) re-read first-hand; the deep-dive's host-
+  enumeration role confirmed. CLI absence re-verified on the current
+  tree (grep rrecov.cpp: 0 hits).
+- CLI landed: `rrecov list-carve-formats` subcommand (the grammar's
+  subcommand shape, not the fix plan's option form - the finding's
+  impact section asks for the list surface) - one row per format over
+  BOTH layers (layer tag, ext, min/max, base confidence, grammar magic
+  hex); FB-K01 exit discipline (empty registry / failed row = exit 1);
+  usage text updated.
+- D-80 registered (per-scan refresh divergence: the og's cross-DLL
+  clone is multi-DLL machinery; the core reads its compile-time
+  immutable registry directly - same content by construction); ABI-
+  CONTRACT 7a gains the CLI projection note + the D-80 pointer.
+- Gate extension: win_syntax_check now parses app files that include
+  cr/cr_ui.h via -D__declspec(x)= (ELF g++ rejects __declspec; the
+  gate checks structure, MSVC CI exercises the real macro) - the
+  fail-before executed (parse errors -> neutralization -> green).
+- Tests: the ABI half's CarveFormatRegistryEnumeration covers every
+  print-safety invariant the CLI loop consumes (re-cited); the parse
+  gate covers the new command's structure; Windows CI smoke runs the
+  runtime surface.
+- Suite 827/827 linux-release. Audit trail: Resolution + FIXED/ move,
+  RESOLVED-INDEX row, matrix abi row -> MATCH, SUMMARY delta + counts,
+  D-80, ABI-CONTRACT 7a.
+
+Stage Summary:
+- N-033 FIXED (session tally: 3 — N-075, N-019, N-033 — + the pushed-red
+  repair). MINOR 5 open (N-007, N-059, N-065, N-066, N-072). Next:
+  N-066 (session identity card).
