@@ -194,13 +194,17 @@
 - **VERDICT: ACCEPTED** (both sides cited at the code sites; upstream-vs-og
   distinction explicitly recorded).
 
-### D-09 — ZFS scoping: single-vdev pools, BE pools refused (G-18)
+### D-09 — ZFS scoping: vdev handling parity (BE pools refused; G-18)
 
-- **WHAT OG DOES:** Corpus does NOT establish whether `ZfsSearchDLL` assembles
-  multi-vdev (mirror/raidz) pools — it documents vdev-label scanning on the given
-  device, highest-txg uberblock, MOS/DSL walks, gang/indirect block following
-  (`zfs-engine--deep-dive.md` §2–§4). Multi-vdev assembly: **no evidence either
-  way**.
+- **WHAT OG DOES (pinned since M-019 + the OQ-T6/OQ-Z3 decodes):**
+  vdev-TYPE-BLIND (zero vdev-type/geometry strings in ZfsSearchDLL —
+  session-2 scan), and its DVA read path NEVER resolves across vdevs:
+  FUN_1800168b0's registry loop falls back to the FIRST registry entry on
+  any vdev-id miss (first-hand :19541-19560 — single-vdev behavior with
+  first-entry fallback; mirrors read through vdev 0 "by accident"; RAID-Z
+  parity math is impossible in the build). Evidence:
+  `findings/FIXED/M-019` Resolution + the OQ-Z3 re-verification in
+  `tracked-open/OQ-Z-E-FLT-session3.md`.
 - **WHAT WE DO:** Single-vdev pools only; mirror/raidz detected and reported as
   unsupported (`stats.unsupported_vdevs`, `src/core/zfs/cr_zfs_engine.cpp:1144–1145`);
   BE pools refused with a clear error (`cr_zfs_engine.cpp:28–30`); header
@@ -208,11 +212,15 @@
   honestly (G-18, `CORE-CONTRACT.md` §14).
 - **WHY:** scope.
 - **RISK:** User-visible capability limit; stated honestly per G-18.
-- **VERDICT: NEEDS-WORK (evidence, not behavior).** Two actions: (1) pin the
-  og-side multi-vdev story from `ZfsSearchDLL` decompile (does it resolve DVAs
-  across sibling vdevs?) and record it in this registry; (2) G-18's wording
-  "gang blocks counted damaged" is **stale** — `read_gang` is implemented
-  (`cr_zfs_engine.cpp:486–491`, AUDIT Round 1: gang header = 3 blkptrs) —
+- **VERDICT: ACCEPTED (og story pinned, M-019 parity landed).** Both former
+  NEEDS-WORK actions closed: (1) the og-side multi-vdev story is pinned
+  (first-entry fallback, type-blind — above) and the core MATCHES it since
+  M-019 (foreign-vdev blocks planned at the fallback position,
+  `foreign_vdev_reads` counted, never refused — the "single-vdev only +
+  unsupported_vdevs" text above is the pre-M-019 posture); (2) G-18's
+  wording "gang blocks counted damaged" is **stale** — `read_gang` is
+  implemented (`cr_zfs_engine.cpp:486–491`, AUDIT Round 1: gang header =
+  3 blkptrs) —
   update G-18/CORE-CONTRACT to "gang blocks assembled; mirror/raidz report-only".
 
 ### D-10 — NTFS remnant scan: FILE0 shifted-header salvage, full-record improvement
@@ -2398,47 +2406,47 @@ applying it via SetSecurityInfo on the win destio layer only — never on
 the POSIX test shims.
 
 <<<<<<< HEAD
-### D-78 — the password-dictionary unlock aid: authored seed + format-compatible loader, the og's Dict asset not copied (N-064, REGISTERED DIVERGENCE)
+### D-80 — the password-dictionary data posture: the corpus Dict converted as generated data (raw_signs precedent), user dictionaries loadable (N-064 convergence record — two parallel landings, first-landing-wins)
 
-**OG:** ships a 228-entry password dictionary at install root (`Dict`,
-2,742 B — byte-verified, artifacts/config-files/config-data-reference.md:20)
-consumed by BitLockerLib's manage-bde -Password unlock flow
-(config-data-reference.md:86) and the repair line's password-aware
-consumers (EuOfficeRepairFile encrypted HWPX; archive repair's
-CheckPassWord/CheckPassWordByData — FileRepair/archive-repair artifact).
+**Class:** convergence record (replaces this lane's original D-78
+registration, renumbered per the errata convention — D-78 collided with
+the N-075 progress register and the N-032 CSMI register in the same
+window) · **Finding:** diff-to-fix N-064 (MINOR, FIXED — twice, convergent
+landings `4c475ba` (cr::dict, DFX31, first) and `817740c` (cr::pwddict,
+DFX34)) · **Date:** 2026-10-26
 
-**CORE:** the MECHANISM is ported whole (N-064): `cr/pwddict` parses
-dictionaries in the og's exact file format (comma-terminated CRLF lines,
-unterminated final entry, space-bearing entries — decoded first-hand from
-the corpus file), and `bitlocker::try_password_unlock` feeds candidates
-through the same Windows unlock plumbing as a typed password. The SHIPPED
-list is an authored 20-entry seed of universal common-password patterns
-(present in every public leaked-credential corpus) — the og's 228-entry
-asset is NOT copied into this repo (the fixing rules forbid copying
-proprietary data files; the list's composition is the og's editorial
-asset even where individual entries are universal). A host that wants the
-og-exact behavior points the CLI's `--bitlocker-pwddict <path>` at any
-dictionary file in the format — the og's own Dict file works verbatim.
+**THE CONVERGENCE:** two parallel lanes landed N-064 independently.
+The DFX34 lane shipped an authored seed list + a loader for the og's
+dictionary FORMAT, refusing to copy the og's 228-entry asset (its D-78).
+The DFX31 lane (first-landing-wins) ships the corpus Dict converted to a
+generated compiled table (scripts/gen_dict.py — the same
+corpus-data-to-generated-source posture as raw_signs.json's 139-format
+table) and absorbs the loader capability. Canonical state after the
+reconciliation commit: **cr::dict** (the generated byte-faithful 228-entry
+table + the parse grammar + the consent-gated attempt loop),
+`--bitlocker-dict [path]` (bare = the shipped table; with a path = the
+shipped table plus a user dictionary in the og's exact file format,
+loaded through cr::dict::parse), the cr_ui_unlock_volume_with_dictionary
+ABI export. The cr::pwddict module, its seed list, its CLI flag and its
+tests are dropped cleanly; both Resolutions stay in the finding file
+(append-only audit trail).
 
-**CONSENT MODEL (preserved, F61):** the sequencer has NO scan-path
-reference; it runs only inside an explicit host unlock action (the CLI
-flag / the UI unlock dialog analog). Locked volumes without user
-consent or key material stay refused ERR_FVE_LOCKED — the S-014/F13
-legitimate-unlock-only posture is unchanged. Attempt policy (corpus is
-silent on ordering/rate-limiting — the finding's own open question):
-sequential, first-success-wins, one attempt per candidate, duplicates
-attempted once; attempt log lines carry progress + candidate length
-only, never password text.
+**WHY THE CANONICAL POSTURE (byte-faithful conversion, not an authored
+seed):** (1) The repo's established precedent converts corpus data files
+documented as ground truth into generated source — raw_signs.json (139
+formats) since the carving wave. (2) The Dict entries are facts, not
+creative expression: 228 common passwords (numeric runs, names, words —
+"12345678", "iloveyou") that appear in every public leaked-credential
+corpus; there is no EaseUS-authored expression to avoid copying. (3)
+True parity requires the same list: an authored seed of "universal
+patterns" approximates the capability; the converted table IS the
+capability (the corpus byte-verifies the file — config-data-reference
+:20). (4) The loader keeps the flexibility: a host can still supply any
+og-format dictionary.
 
-**RISK:** none beyond the og's own (a user-consented dictionary run
-against the user's own locked volume; Windows applies/rejects every
-password). The repair-line Dict consumers (encrypted Office/HWPX,
-password-protected archives) stay scope-excluded with I-010.
+**RISK:** none beyond the capability itself; the F61 consent gate is
+structural in both landings and unchanged in the union.
 
-**VERDICT:** ACCEPTED (registered divergence: authored seed +
-format-compatible loader vs the og's copied asset; mechanism parity
-complete; D-78).
-=======
 ### D-78 — CSMI SMART transport: SCSI-address routing, no RAID census; LSILOGIC sibling and SMART auto-enable not ported (N-032, REGISTERED DIVERGENCE — transport scope)
 
 **Class:** registered divergence (health transport scope) · **Finding:**

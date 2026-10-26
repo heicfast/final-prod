@@ -565,6 +565,62 @@ TEST(Refs, FullScanHierarchy) {
     EXPECT_EQ(230 * 4096ull, inner->props()->extents[0].offset);
 }
 
+TEST(Refs, FallbackRootSkipsOgSystemFamilies) {
+    /* OQ-RS-7 (s31): the og's system-table handlers are EXACTLY {0x500,
+     * 0x600, 0x701} (ReFSSearchDLL_decompiled.c:600-620, the
+     * RefsQuickSearchFilesImpl ctor registrations) and any table id >
+     * 0x700 is NORMALIZED to the 0x701 family (:1150-1154). The old
+     * core excluded only a fabricated 0x520 - on a volume without the
+     * 0x600 root, the fallback elected the 0x500 SYSTEM table as the
+     * user root. Here: 0x500 points at the subdir page (180) and the
+     * real user root is 0x650 -> the root-content page (160) whose
+     * hello.txt row exists only there. Pre-fix the walk rooted at the
+     * 0x500 table (first non-child in map order) and hello.txt was
+     * absent; post-fix the system family is skipped and the 0x650
+     * table is elected. */
+    std::vector<u8> img = build_volume();
+    {
+        std::vector<u8> r500(0x50, 0), r650(0x50, 0), r700(0x50, 0);
+        for (int i = 0; i < 4; ++i) {
+            put64(r500.data() + 0x30 + i * 8, 180 + i); /* subdir page */
+            put64(r650.data() + 0x30 + i * 8, 160 + i); /* root content */
+            put64(r700.data() + 0x30 + i * 8, 180 + i);
+        }
+        std::vector<u8> k500(16, 0), k650(16, 0), k700(16, 0);
+        put64(k500.data(), 0x500);
+        put64(k650.data(), 0x650);
+        put64(k700.data(), 0x700);
+        write_page(img, 120, 0x2B42534D, 1,
+                   build_node({Row{k500, r500, 0}, Row{k650, r650, 0}, Row{k700, r700, 0}}));
+    }
+    {
+        std::vector<u8> key(16, 0), val(16, 0);
+        put64(key.data(), 0x650);
+        put64(key.data() + 8, 0x700);
+        put64(val.data(), 0x650);
+        put64(val.data() + 8, 0x700);
+        write_page(img, 140, 0x2B42534D, 3, build_node({Row{key, val}}));
+    }
+    RamDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    u32 rc = scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+
+    std::vector<tree::FileNode*> act;
+    collect(ra, act);
+    const tree::FileNode* hello = nullptr;
+    for (const auto* n : act)
+        if (n->name_utf8() == "hello.txt")
+            hello = n;
+    ASSERT_NE(nullptr, hello)
+        << "the fallback root must skip the og's system families (0x500, >0x700)";
+    EXPECT_EQ(200 * 4096ull, hello->props()->extents[0].offset);
+}
+
 TEST(Refs, DeletedGradingAndId2) {
     std::vector<u8> img = build_volume();
     RamDevice dev(img);

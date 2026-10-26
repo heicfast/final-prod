@@ -180,7 +180,7 @@ Complements M-022/I-012 above (same session, parallel leg; full inventory:
 | ID | Severity | One-line |
 |---|---|---|
 | M-031 | MAJOR | Progress — **FIXED (s10)**: intermediate per-16-file ticks with growing-estimate totals + terminal (n,n); monotonic; cancel preserves partials. findings/FIXED/M-031 |
-| OQ-RS-2..8 | OPEN | Container-map construction; ADS fold question; .mo deleted evidence; CRefsAppDataRunItem; system tables 0x500/0x701; volume-sig cross-check — `tracked-open/OQ-RS-refs-session3.md` |
+| OQ-RS-2..8 | **RESOLVED (s31)** | RS-2/3 superseded (S-020/N-036 landed); RS-5 the .mo is structural-only (no deleted harvest — parity-safe); RS-6 CRefsAppDataRunItem is a data-run item, not ADS; RS-7 FIXED (the og's system set {0x500, 0x600, 0x701} + the >0x700 normalizer; the fabricated 0x520 replaced — fail-before Refs.FallbackRootSkipsOgSystemFamilies); RS-8 the og checks only the MSB+ magic per page — the core's dual validation registered superset; RS-1/4 pushed forward (real-ReFS-volume-gated, Windows bench stage) — `findings/FIXED/OQ-RS-refs-session3.md` + `evidence s31-oq-rs-refs-residuals.md` |
 
 (This leg's ReFS decode corroborates S-020/M-022/M-026; its local A-004/S-012/
 S-013/M-011/M-013/N-023/N-024/I-009 were superseded by the lead leg's filings —
