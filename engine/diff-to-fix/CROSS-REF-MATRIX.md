@@ -1,5 +1,16 @@
 # CROSS-REF-MATRIX.md — module × parameter verdict matrix (post-rebase with parallel leg)
 
+**Session-30 changes (2026-10-26, DFX30 — tracked-open tail lane):** OQ-FLT-1
+RESOLVED (the 169-entry extension table = a 4-engine shared vocabulary, live in
+FAT/exFAT/RAW, dead copy in NTFS, absent in 5 engines; the M-035 scorer is
+exFAT-only — its Open-questions cell answered); OQ-Z5 RESOLVED (ZFS quick/
+complete = the IQuick/ICompleteFileSystemSearchController plugin split, 16 vs
+34 vtable slots — core orchestrator is the union, no action); OQ-Z2 RESOLVED
+with NEW-FINDING **S-034** (SEVERE — the og walks EVERY uberblock in the
+label-0 ring per txg through a per-txg VdevLoc::UberData registry; the core's
+newest-txg-only premise REFUTED; D-05 re-verdicted; corpus erratum E45). The
+zfs B/D cells carry S-034 pending its fix.
+
 **Session-25 changes (2026-10-26, DFX25 — INFO tier closed into FIXED/, tracked-open resolution wave):**
 the 22 acknowledged INFORMATIONAL findings (I-001..I-024) moved from
 `findings/INFORMATIONAL/` to `findings/FIXED/` — the directory is now empty
@@ -94,7 +105,7 @@ dispositions is the surviving one).
 | hfsplus | S-002 FIXED, **S-003 FIXED (s5 + closing-session verification: JIB layout corrected, gates, strict validator, fallback salvage)**, **S-021 FIXED (s5 + closing-session verification: attributes branch + marker derivation resolved)**, N-005 FIXED, N-038 FIXED, **A-007 FIXED**; I-007 (S2) | M; I-007 (S2) | M | M | M | NA | NA | M | M | M | M (S-021 tests; THIN closed) **N-047 (S3) FIXED s22** (volume-node naming = registered partition-layer divergence, modules/hfsplus.md) |
 | ext4 | S-004 FIXED, S-025 FIXED (journal reparenting: orphan map + iNode naming + claim interaction), S-026 FIXED (meta_bg resolver, D-58), S-027 FIXED (backup-SB rescue, D-59); **M-010**, I-006 (S2), I-007 (S2) | ok; **M-010**, I-006 (S2), I-007 (S2) | M (S-026 meta-group desc blocks; S-027 backup-SB positions + s_block_group_nr) | S-004 FIXED, S-025 FIXED (two-pass realized as harvest+claim checks; parent map + topo anchors) | N-004 | NA | NA | M | M | N-004 | M (debt) |
 | hfsplus | S-002 FIXED, **S-003 FIXED (s5)**, **S-021 FIXED (s5 — journal harvest)**, N-005 FIXED, N-038 FIXED; I-007 (S2) | M; I-007 (S2) | M | M | M | NA | NA | M | M | M | M (S-021 tests; THIN closed) || btrfs | I-003 ack, M (S-005 fixed), N-006; **M-010 FIXED (lossless mapping)**, I-007 (S2) | M; **M-010 FIXED**, I-007 (S2); **S-028 FIXED** (xattrs: DOSATTRIB bits + user.* records + the compression-property tag) | M | M | M | NA | NA | M | M | M | M |
-| zfs | OQ-T6, M (S-005 fixed); I-007 (S2) | ok | OQ-T6 | M | M | NA | NA | M | M | M | M |
+| zfs | OQ-T6, M (S-005 fixed); I-007 (S2); **S-034 (S30 NEW-FINDING — og walks EVERY ring txg, core newest-only; findings/SEVERE/S-034)** | **S-034 (S30: deleted-in-window content og-visible, core carving-only)** | OQ-T6 | M | M | NA | NA | M | M | M | M |
 | refs | N-007, I-004 ack, **M-022 FIXED (s4)**, I-012 (S3: GAP-ADS resolved); **S-020 FIXED (s4)**; **M-026/M-027 FIXED (s4: stale-page sweep + identity keep-one + recycle routing)** | M | M | **M-022 FIXED (s4)** | M | NA | NA | M | M | M | M |
 | table+ldm | M (A-002 FIXED — real Microsoft GUIDs restored), M-002 | M | M (A-002 FIXED; A-001 fixed) | M-002, M (OQ-T7 resolved — I-008) | ok | NA | NA | M | M | M | M (debt) |
 | carve | S-031 FIXED (carved nodes flag Deleted - og FLAGS=0x20 const); S-007 (primary FIXED s5), M-005 | M | S-007, **N-008 FIXED s11** (sector-strided salvage + no clean-archive inflation + ZIP64 chain; gate half via N-068); M (S-015 units FIXED), M (S-017 ftyp magics FIXED) | S-007, N-008, M-005 | M | NA | NA | M (S-015 tail-walk FIXED: named 8 MiB bound, og range documented) | M | M | M |
@@ -114,7 +125,7 @@ dispositions is the surviving one).
 | ext4 | S-003 FIXED (HFS+ journal differential harvest, landed with S-021), S-004 FIXED, S-026 FIXED (meta_bg resolver, D-58); **M-010**, I-006 (S2), I-007 (S2); **M-037 FIXED (s10: resync-slide damage model — findings/FIXED/M-037)** | ok; **M-010**, I-006 (S2), I-007 (S2) | M (S-026 fixed: meta-group desc blocks) | S-025 OPEN (theirs: journal reparenting), S-004 FIXED | N-004 | NA | NA | M | M | N-004 | M (debt) |
 | hfsplus | S-002 FIXED, S-003 FIXED, S-021 FIXED (s5 — journal harvest, the og's PRIMARY deleted surface), N-005 FIXED, N-038 FIXED; I-007 (S2) | M; I-007 (S2) | M | M | M | NA | NA | M | M | M | M (S-021 tests; THIN closed) |
 | btrfs | I-003 ack, M (S-005 fixed), N-006; **M-010**, I-007 (S2) | M; **M-010**, I-007 (S2) | M | M | M | NA | NA | M | M | M | M **N-047 (S3) FIXED s22** (ROOT_REF subvol names + 0x80 file attribute base, corpus :3574-3577; both fail-before-proven) |
-| zfs | OQ-T6, M (S-005 fixed); I-007 (S2) | ok | OQ-T6 | M | M | NA | NA | M | M | M | M |
+| zfs | OQ-T6, M (S-005 fixed); I-007 (S2); **S-034 (S30 NEW-FINDING — og walks EVERY ring txg, core newest-only; findings/SEVERE/S-034)** | **S-034 (S30: deleted-in-window content og-visible, core carving-only)** | OQ-T6 | M | M | NA | NA | M | M | M | M |
 | refs | N-007, I-004 ack, **M-022 FIXED (s4)**, I-012 (S3: GAP-ADS resolved — parity); **S-020 FIXED (s4: resident+all-rows+paged+granularity)** | M | M | **M-022 FIXED (s4: dual grammar + gen tag)** | M | NA | NA | M | **M-031 FIXED (s10: per-file progress ticks — findings/FIXED/M-031)** | M | M |
 | table+ldm | M (A-002 FIXED — real Microsoft GUIDs restored), **M-002 FIXED (s10: torn chain keeps walked prefix — findings/FIXED/M-002)** | M | M (A-002 FIXED; A-001 fixed), **M-046 (S5: LDM GPT-path 512-hardcodes)** | M (OQ-T7 resolved — I-008) | ok | NA | NA | M | M | M | M (debt) |
 | carve | S-007, ~~M-005~~ **FIXED** (FIXED/M-005, s14: the allocation-bitmap gate in both dispatch layers + telemetry; bench 1.88x on 50% used), **S-031 (S5: carved nodes never marked deleted)**, **S-032 (S5: archive inner-entry inventories)** | **S-031 (S5)**, **M-051 FIXED (s9)** (checksum/anchor/note/flag carriers; nflags-bit4 round-trip) | S-007, N-008, **N-051/N-052/N-053/N-054 S12 FIXED (convergent landings: the parallel session-11/7 lane's b2f48c6 canonical + this session's N-076 add-on)**; M (S-015 units FIXED), M (S-017 ftyp magics FIXED) | S-007, N-008, M-005, S-032 (S5: multi-part stitching) | S-007, N-008, M-005 | M | NA | NA | M (S-015 tail-walk FIXED: named 8 MiB bound, og range documented) | M | **N-063 FIXED s17 (og per-analyser names; File%06u = registered default)**, **M-048 (S5: user-signature extensibility)** | M |

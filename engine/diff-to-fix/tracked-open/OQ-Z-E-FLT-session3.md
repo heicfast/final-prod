@@ -50,6 +50,26 @@ path.
 
 ## OQ-Z2 — `ZfsDecider::addBlock` from_txg/birth_txg gate (:2162-2170)
 
+**RESOLVED (DFX30, 2026-10-26) — the answer filed as NEW-FINDING S-034:**
+the og DOES implement txg-history walking — but per-UBERBLOCK STATE, not
+per-block attribution. The quick-searcher run loop (FUN_180006b90
+:5685-5841) iterates EVERY slot in the label-0 ring (loader FUN_180018930:
+read 128 KiB @ 0x20000, hardcoded 1 KiB slots) and feeds each slot's txg to
+FUN_180003150 ("addBlock"): per-txg `VdevLoc::UberData` registry
+(FUN_180017310), record match on `txg@+0x10`, tree-open FUN_180016c50, and
+on success the "from_txg: 0, birth_txg: <txg>" log + the UNBOUNDED
+from_txg=0 recursive descent (FUN_18001ac60 → FUN_18001d9a0, recursing at
+:23457). Our newest-txg-only rule (cr_zfs_engine.cpp, D-05) LOSES
+og-visible content: files deleted within the ring's txg window are
+og-visible (per-state tree walks) and core-invisible (RAW carving only).
+Filed as findings/SEVERE/S-034 with the full decode + doc-truth corrections
+(engine comment, D-05 re-verdict, PARITY-CORE-FS2 row, corpus erratum E45);
+the behavioral fix is queued behind three decode items (S-034 fix plan
+step 1). The snapshot/clone attribution hypothesis as originally framed
+(per-block birth-txg gating in addBlock) is REFUTED — the gate is
+uberblock-state-level, and from_txg is a descent bound that is 0 (unbounded)
+at the top level.
+
 Determine whether the og implements snapshot/clone block attribution
 (txg-gated). If yes, decide whether our newest-txg-only rule
 (cr_zfs_engine.cpp:24-26) loses og-visible content.

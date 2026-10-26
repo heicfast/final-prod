@@ -13030,3 +13030,56 @@ Stage Summary:
 - OQ-Z5 RESOLVED (interface split named; complete adds streaming emission
   + restart + config channels; quick is a real one-shot scanner). Next on
   this lane: OQ-Z2 (addBlock from_txg/birth_txg gate).
+
+---
+Task ID: DFX30-T3 (OQ-Z2 resolved -> NEW-FINDING S-034 filed + doc-truth)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: OQ-Z2 — the addBlock from_txg/birth_txg gate: does the og implement
+snapshot/clone block attribution, and does the core's newest-txg-only rule
+lose og-visible content?
+
+Work Log:
+- First-hand decode with a brace-depth-annotated control-flow extraction of
+  FUN_180003150 (ZfsSearchDLL :1967-2259) and its complete caller context:
+  - The caller is the QUICK searcher's run loop (FUN_180006b90 :5312-5918):
+    ring-slot iteration (pvVar18 += 0x400) reading txg = *(u64*)(slot+0x10)
+    per slot, building the "\n\ntxg = %llu, last_txg = %llu" progression
+    log, and calling FUN_180003150 per slot with the
+    bool(shared_ptr<ZplNode>) visitor lambda installed at :5812-5815.
+  - The ring loader (FUN_180018930 :21323+) reads 128 KiB at offset
+    0x20000 = label-0's uberblock ring, HARDCODED 1 KiB slots (the og
+    cannot read ashift>10 pools' full rings; the core's shifts-10..13 probe
+    is the registered superset, OQ-T6.3).
+  - addBlock: per-txg VdevLoc::UberData registry (FUN_180017310's
+    txg->_Ref_count_obj<VdevLoc::UberData> map), record match on
+    txg@+0x10, tree-open FUN_180016c50, and on success "from_txg: 0,
+    birth_txg: <txg>" (:2162-2170 — the OQ's cited lines) +
+    FUN_18001ac60(uberData, 0, cb) — the from_txg=0 UNBOUNDED recursive
+    descent (FUN_18001d9a0, recursion at :23457 propagates param).
+- CONCLUSION: the og walks EVERY uberblock in the ring (per-txg state
+  recovery), NOT newest-only, and NOT per-block txg attribution. The core's
+  parity premise (engine header :24-26 + D-05 + AUDIT.md row-26 citation)
+  is REFUTED. Files deleted within the ring window are og-visible,
+  core-invisible.
+- NEW-FINDING S-034 filed (SEVERE): findings/SEVERE/
+  S-034-zfs-ring-txg-history-not-walked.md — full decode, falsifiable gap,
+  fix plan with the three decode items that gate implementation (no
+  guessed parity): (a) cross-txg emission/dedup semantics, (b) MOS
+  snapshot re-emission, (c) last_txg's role.
+- Doc-truth landed at filing: engine header comment corrected (the refuted
+  premise replaced with the S-034 pointer); PARITY-DELTAS D-05 re-verdicted
+  REFUTED-PREMISE -> open gap (with the why: D-05's corpus citation
+  over-read plVar12[-0x7e] <= plVar12[2] — a NEIGHBOR-txg ring comparison —
+  as newest-only selection); docs/parity/PARITY-CORE-FS2.md zfs
+  Deleted-classification row -> DIVERGENCE-SEVERE (S-034); corpus erratum
+  E45 appended (the zfs-engine--deep-dive §2 label);
+  CROSS-REF-MATRIX zfs B/D cells + session-30 note; SUMMARY session-30
+  delta.
+- Verified: suite 749/749 linux-release green at the filing tree (the
+  source change is comment-only; full re-run executed, not assumed).
+
+Stage Summary:
+- OQ-Z2 RESOLVED via S-034 (SEVERE NEW-FINDING, doc-truth landed; behavioral
+  fix queued behind decode items). Session tally: OQ-FLT-1 + OQ-Z5 + OQ-Z2
+  resolved, S-034 filed. Next on this lane: OQ-Z1 (og dsl_dir/dsl_dataset
+  offsets — the MOS-walk documentation question).
