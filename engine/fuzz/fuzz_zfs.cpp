@@ -1,4 +1,5 @@
-/* fuzz_zfs.cpp - per-parser libFuzzer harness: scan_zfs (labels, uberblocks, ZAP, dnodes, compressed extents).
+/* fuzz_zfs.cpp - per-parser libFuzzer harness: scan_zfs (labels, uberblocks, ZAP, dnodes,
+ * compressed extents).
  *
  * Audit row 47 / mandate C: one binary per parser family for focused
  * campaigns with corpus isolation.

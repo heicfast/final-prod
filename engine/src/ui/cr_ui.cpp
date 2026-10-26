@@ -43,6 +43,7 @@
 #include "cr/win/cr_destio.h"
 #include "cr/win/cr_elevate.h"
 #include "cr/win/cr_enumerate.h"
+#include "cr/win/cr_winenv.h" /* win::ENUMERATE_DISK_BOUND: M-030's 200-disk space; MSVC include hygiene */
 #include "cr/win/cr_health.h"
 #include "cr/win/cr_transport.h"
 #include "cr/win/cr_winenv.h" /* M-030: ENUMERATE_DISK_BOUND (the 200-disk grammar bound) */

@@ -1,4 +1,5 @@
-/* fuzz_ntfs.cpp - per-parser libFuzzer harness: NtfsVolume::open + record reads (fragmented MFT, attrlist, mirror fallback).
+/* fuzz_ntfs.cpp - per-parser libFuzzer harness: NtfsVolume::open + record reads (fragmented MFT,
+ * attrlist, mirror fallback).
  *
  * Audit row 47 / mandate C: one binary per parser family for focused
  * campaigns with corpus isolation.
@@ -30,8 +31,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         (void)VolumeBitmap::load(vol.get(), bm);
         WalkerFlags wf;
         WalkStats ws;
-        (void)walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, s.tree, s.ra, s.rd,
-                       s.rl, ws);
+        (void)walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, s.tree, s.ra, s.rd, s.rl,
+                       ws);
         for (u64 r = 0; r < 8 && r < vol->max_record_no(); ++r) {
             std::vector<u8> rec;
             (void)vol->read_record(r, rec);
