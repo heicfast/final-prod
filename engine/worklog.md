@@ -16221,3 +16221,42 @@ Stage Summary:
   MATRIX stacked S-014 paragraphs (4x), the full hallucination sweep
   over FIXED findings' claimed tests, the docs overhaul (README/api/
   formats/parameters/connection guides), CI verify.
+
+---
+Task ID: DFX37-T1 (S-034 lane — converged)
+Agent: main engineer (DFX37)
+Task: S-034 (SEVERE): the ZFS ring txg-history walk.
+
+Work Log:
+- Decode (first-hand, corpus 03ad46c): FUN_180006b90 :5685-5841 (ring
+  slot loop, stride 0x400, txg@slot+0x10); FUN_180003150 :1967-2259
+  (addBlock: registry lookup miss = no-op, record match rec->txg==txg,
+  tree-open FUN_180016c50, "from_txg: 0, birth_txg" log); FUN_180017310
+  :20085+ (the per-txg registry with the consecutive-txg memo at
+  +0x40/+0x48); FUN_18001ac60 :23337-23470 (the state descent); the
+  load-bearing gate FUN_18001d9a0 :26218-26222 `(from_txg < birth) ||
+  from_txg == 0` (unbounded at top level); the visitor FUN_180006b40
+  :5280-5291 = bare push_back (NO engine-side cross-txg dedup);
+  ZplNodeFile ctor FUN_180012450 :16100+ (no registration path).
+  All three fix-plan decode items answered.
+- Implementation (mine, d15e95f): every-valid-uberblock collection with
+  distinct-txg dedup; newest-walkable-state live walk; older states ->
+  root_deleted with (dataset, object-id) newest-wins dedup; shadow
+  containers pruned via a new ResultTree::remove_subtree; 5 tests
+  (fail-before RED 4/4 executed on the stash-neutered tree); standalone
+  ASan+UBSan fuzz smoke (16 structured seeds, gen_zfs_fuzz_seeds.py).
+- CONVERGENCE: the parallel DFX34 lane landed their independent S-034
+  (cb046ed) + their own N-072 union repair (6e7e535) BEFORE my push.
+  Reconciled per first-landing-wins: their engine (deleted-in-place +
+  prior-version recall, StateWalk driver), their tests (incl. the
+  modified-file recall mine lacked); my duplicate remove_subtree dropped
+  (unused by the canonical design); the fuzz-seed generator survives
+  (landed earlier via the ASan repair push). Union commit: 5f3b2fe.
+- Also this window: two ASan pushed-reds repaired (621bcfe, convergent
+  with the lane's N-081/N-082); the cr_ui.h M-029/M-041 union markers
+  repaired (40fc440, convergent with 32f82f3/58557d3); the session-36
+  name collision renumbered to session-37.
+
+Stage Summary:
+- S-034 closed FIXED on main (canonical cb046ed + union 5f3b2fe).
+- Suites on the union tree: 870/870 linux-release.
