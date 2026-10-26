@@ -66,6 +66,7 @@ add_library(cr_core STATIC
     apply/cr_apply.cpp
     reghive/cr_reghive.cpp
     bcdfix/cr_bcdfix.cpp
+    nvramfix/cr_nvramfix.cpp
     refs/cr_refs_engine.cpp
     orchestrator/cr_scan.cpp
     tree/cr_node.cpp
