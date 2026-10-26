@@ -27,6 +27,64 @@ implementation was mid-flight. The duplicate was dropped; the landing was
 reviewed sound on the merged tree (suite green below). This lane proceeds to
 M-035 — also named as DFX24's next target; first-landing-wins on the pull.
 
+
+## Session-30 delta (2026-10-26 — DFX30: the tracked-open tail lane — OQ resolutions + NEW-FINDING S-034)
+
+Bootstrap: absorbed the window's parallel claims (DFX23 MINOR, DFX24 MAJOR,
+DFX25 INFO-closure, DFX26 MAJOR-tail, DFX27 MAJOR-head, DFX28 MINOR-rear)
+via union merges; this lane claimed the DISJOINT tracked-open TAIL.
+Baseline **737/737** linux-release green at the claim tree (re-verified
+**749/749** after absorbing the parallel lanes' test additions, before this
+session's first source-touching commit); corpus `03ad46c` unmoved.
+
+**S-034 NEW-FINDING filed (SEVERE — from OQ-Z2's verification):** the og's
+ZFS quick-searcher walks EVERY uberblock slot in the label-0 ring — per-slot
+`txg` fed to `FUN_180003150` ("addBlock") with a per-txg
+`VdevLoc::UberData` registry (`FUN_180017310`), per-state tree walks, and
+`ZplNode` emission via a `bool(shared_ptr<ZplNode>)` visitor; "from_txg: 0"
+descends unbounded. The core reads the newest txg only, on a parity premise
+("the og reads the newest txg's live state only" — engine header + D-05)
+that this session REFUTED first-hand (D-05's corpus citation over-read a
+neighbor-txg ring comparison as newest-only selection; corpus erratum E45
+filed). Files deleted within the ring's txg window are og-visible and
+core-invisible (RAW carving is the core's only coverage — a strict subset).
+Doc-truth landed at filing: engine header comment corrected, D-05
+re-verdicted REFUTED-PREMISE→open gap, PARITY-CORE-FS2 zfs deleted row →
+DIVERGENCE-SEVERE, matrix B/D cells updated. The behavioral fix is queued
+behind three decode items (cross-txg emission/dedup semantics in
+`ZplNodeFile`'s registration path; MOS snapshot re-emission; `last_txg`'s
+role) — no guessed parity. Suite 749/749 at the filing commit.
+
+**OQ-FLT-1 RESOLVED (M-035's blast-radius question):** the 169-entry
+extension table (char[9], "Raw" first, all-zero sentinel slot 169) is
+byte-identical to DRWUI's grading set and present in 4 engines — live in
+FAT (2 consumer sites: the `< 0xAA` index-gate strstr filter path +
+whole-table category iteration), exFAT (M-035's classifier+scorer), RAW
+(index→name accessor); a DEAD .rdata copy in NTFS (zero code+pointer refs);
+absent in EXT4/Btrfs/ReFS/HFS+/ZFS. The validation scorer
+(majority-mismatch + ratio<0.3 reject) is exFAT-ONLY (zero 0.3-compare
+sites elsewhere). M-035's fix scope stays exFAT; the shared extension-INDEX
+vocabulary recorded for N-049/N-050. Evidence:
+`evidence/decompiled-quotes/s30-oq-flt1-extension-table-distribution.md`.
+
+**OQ-Z5 RESOLVED:** ZFS quick/complete = the product-wide
+`IQuickFileSystemSearchController` (16 slots) vs
+`ICompleteFileSystemSearchController` (34 slots) plugin split (RTTI-walked
+first-hand). Complete adds streaming per-hit emission (std::function +
+sector math + the ub-magic/ZEC_MAGIC label probe — zec at +0x1d8 = the
+512-byte-slot assumption vs the core's kernel-correct shifts-10..13 ring
+probe), a restart entry, and five config channels; quick is a real one-shot
+scanner (bulk single-value collect; the BIGGER object, 0x120 vs 0xe8). The
+core's orchestrator-layer quick/deep split is the union — no action.
+Evidence: `evidence/decompiled-quotes/s30-oq-z5-zfs-quick-vs-complete.md`.
+
+**Post-filing counts (this session's tree; parallel lanes active):**
+SEVERE **1** (S-034, new) · MAJOR 14 · MINOR 18 · INFO 0 open · FIXED/ 171 ·
+tracked-open 11 files (3 sub-questions resolved this session: OQ-FLT-1,
+OQ-Z5, OQ-Z2→S-034; OQ-E2 and OQ-T7 were already resolved).
+
+# SUMMARY.md — executive summary (sessions 30+31+35 on top; earlier sessions below)
+
 ## Session-28 delta (2026-10-26 — DFX28: the rear-first MINOR lane)
 
 Bootstrap: absorbed the window's parallel claims (DFX23 MINOR front-first,

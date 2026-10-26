@@ -111,19 +111,30 @@
 - **RISK:** User-visible improvement on 4Kn media; none on 512-byte media.
 - **VERDICT: ACCEPTED** (both sides cited; F1 markers in code+tests).
 
-### D-05 — ZFS deleted-file story: newest-txg live state only (parity decision)
+### D-05 — ZFS deleted-file story: newest-txg live state only — PREMISE REFUTED (S-034, DFX30 2026-10-26)
 
-- **WHAT OG DOES:** Reads the newest valid uberblock's live state; deleted content
-  left to RAW carving (CoW "copy-on-everything" semantics). Evidence: corpus
-  `SearchDLL/zfs-engine--deep-dive.md` §2 ("selects the highest-transaction-g
-  valid uberblock — exactly how ZFS import finds the newest pool state").
-- **WHAT WE DO:** Same policy, documented in the engine header.
-  Evidence: `src/core/zfs/cr_zfs_engine.cpp:24–26` ("Deleted-file story (parity
-  decision, AUDIT.md row 26): … the og reads the newest txg's live state only and
-  lets RAW carving cover deleted content. We do the same."); AUDIT.md row 26.
-- **WHY:** scope (parity with og; old-txg walk out of scope).
-- **RISK:** Deleted-ZFS recall equals og (carving-only) — honest parity.
-- **VERDICT: ACCEPTED** (both sides cited, documented at the engine).
+- **WHAT OG DOES (re-decoded first-hand):** walks EVERY uberblock slot in the
+  label-0 ring (quick-searcher run loop FUN_180006b90 :5685-5841: per-slot
+  `txg = *(u64*)(slot+0x10)` -> FUN_180003150 "addBlock" with a per-txg
+  `VdevLoc::UberData` registry (FUN_180017310) and a per-state tree walk
+  emitting ZplNodes via a `bool(shared_ptr<ZplNode>)` visitor; "from_txg: 0,
+  birth_txg: <txg>" on the success path, unbounded descent). Files deleted
+  within the ring's txg window ARE og-visible.
+- **WHAT WE DO:** newest-txg live state only; deleted content left to RAW
+  carving. Evidence: `src/core/zfs/cr_zfs_engine.cpp` (best_txg ring walk;
+  the header comment — corrected at S-034's filing — previously asserted the
+  refuted premise).
+- **WHY THE ORIGINAL D-05 WAS WRONG:** its corpus citation
+  (`zfs-engine--deep-dive.md` §2 "selects the highest-transaction-group valid
+  uberblock") over-read a NEIGHBOR-txg comparison inside the ring scan
+  (`plVar12[-0x7e] <= plVar12[2]` = slot-1KiB-back vs current) as a
+  newest-only SELECTION; the caller-level semantics (which the deep-dive did
+  not decode) iterate every slot per txg.
+- **RISK:** Deleted-ZFS recall strictly BELOW og inside the ring window.
+- **VERDICT: REFUTED PREMISE — open gap S-034** (diff-to-fix/findings/SEVERE/
+  S-034-zfs-ring-txg-history-not-walked.md). Not a parity decision anymore;
+  the fix (per-txg ring walk with cross-txg dedup) is queued behind the
+  three decode items in S-034's fix plan.
 
 ### D-06 — Btrfs deleted recovery: newest-generation tree only (row 20) — CLOSED
 

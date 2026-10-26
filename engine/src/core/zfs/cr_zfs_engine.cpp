@@ -21,9 +21,16 @@
  * Compression: off/lzjb/zle/gzip via zlib, lz4, zstd (cr::compress).
  * Extents carry {codec, psize} so the writer decodes at stream time.
  *
- * Deleted-file story (parity decision, AUDIT.md row 26): ZFS is CoW with
- * copy-on-everything semantics; the og reads the newest txg's live state
- * only and lets RAW carving cover deleted content. We do the same.
+ * Deleted-file story (S-034, DFX30): ZFS is CoW with copy-on-everything
+ * semantics. The PREMISE this engine was built on — "the og reads the
+ * newest txg's live state only" — is REFUTED by first-hand decode of the
+ * og's quick-searcher run loop (ZfsSearchDLL FUN_180006b90 :5685-5841
+ * iterates EVERY uberblock slot in the label-0 ring and walks each txg's
+ * tree through a per-txg VdevLoc::UberData registry, FUN_180003150/
+ * FUN_180017310, emitting ZplNodes per state). This engine currently
+ * walks the newest txg only — a REGISTERED GAP (diff-to-fix findings/
+ * SEVERE/S-034) until the fix lands; deleted content meanwhile surfaces
+ * via RAW carving only (a strict subset of the og's ring-window recall).
  *
  * Big-endian pools (SPARC/POWER writers) are detected and refused with a
  * clear error code rather than misparsed (bit 63 of blk_prop marks the
