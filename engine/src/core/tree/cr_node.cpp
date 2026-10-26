@@ -4,6 +4,7 @@
  */
 
 #include "cr/tree/cr_node.h"
+#include <algorithm>
 #include <cstring>
 
 namespace cr {
@@ -342,6 +343,66 @@ void ResultTree::reparent(FileNode* node, FileNode* new_parent) {
         t->next_sibling_ = node;
         node->prev_sibling_ = t;
         new_parent->last_child_ = node;
+    }
+}
+
+void ResultTree::detach_subtree(FileNode* root) {
+    if (root == nullptr)
+        return;
+    std::lock_guard<std::mutex> lock(mutex_);
+    /* collect the subtree (iterative DFS - candidate roots can hold
+     * millions of nodes, same discipline as rebase_subtree_extents) */
+    std::vector<FileNode*> sub;
+    sub.push_back(root);
+    for (size_t i = 0; i < sub.size(); ++i) {
+        for (FileNode* c = sub[i]->first_child_; c != nullptr; c = c->next_sibling_)
+            sub.push_back(c);
+    }
+    /* membership set for the index-guard below */
+    std::unordered_set<FileNode*> dead(sub.begin(), sub.end());
+
+    /* indexes: erase ONLY entries this subtree owns - hard links and
+     * duplicate record refs may legitimately map to surviving nodes. */
+    for (FileNode* n : sub) {
+        const FileProperties* p = n->props();
+        if (p == nullptr)
+            continue;
+        if (p->record_ref != 0) {
+            const auto it = by_record_.find(p->record_ref);
+            if (it != by_record_.end() && dead.count(it->second) != 0)
+                by_record_.erase(it);
+        }
+        if (!p->extents.empty()) {
+            const u64 first = p->extents.front().offset;
+            const u64 len_class = extent_len_class_(p);
+            const auto it = by_extent_.find({first, len_class});
+            if (it != by_extent_.end() && dead.count(it->second) != 0)
+                by_extent_.erase(it);
+        }
+    }
+    /* nodes_: remove every subtree node (order-preserving remove_if over
+     * the membership set; detached nodes must not survive in nodes_ or
+     * file_count()/total_logical()/refresh_stats() would still see them) */
+    nodes_.erase(std::remove_if(nodes_.begin(), nodes_.end(),
+                                [&dead](FileNode* n) { return dead.count(n) != 0; }),
+                 nodes_.end());
+    /* roots_: remove the root itself (a detached root always is one; the
+     * loop guards against a future non-root call shape). */
+    roots_.erase(std::remove(roots_.begin(), roots_.end(), root), roots_.end());
+    /* sever the root's child links BEFORE the destructors run: a detached
+     * root must look EMPTY to any later subtree walker (the orchestrator's
+     * per-candidate extent rebase, snapshot DFS) - the nodes below are
+     * about to be destructed and must not be reachable through links. */
+    root->first_child_ = nullptr;
+    root->last_child_ = nullptr;
+    /* run the destructors (props references released once per node; the
+     * FullNode's u16string freed) - the arena bytes stay reserved until
+     * reset(), mirroring reset()'s own per-node destruction discipline. */
+    for (FileNode* n : sub) {
+        if (n->full_)
+            static_cast<FullNode*>(n)->~FullNode();
+        else
+            n->~FileNode();
     }
 }
 

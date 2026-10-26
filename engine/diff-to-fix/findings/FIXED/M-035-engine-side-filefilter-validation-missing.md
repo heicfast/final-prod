@@ -68,3 +68,50 @@ extension-INDEX -> name mapping, gate `< 0xAA`; dead copy in NTFS; absent in
 EXT4/Btrfs/ReFS/HFS+/ZFS) and is set-identical to DRWUI's grading table —
 the core's single shared table (`cr_grading.cpp kGradingExtensions`) can
 serve the index mapping too if the fix needs index->name resolution.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's `fix(M-035)` push)
+**Verified by:** 15 new tests (test_consistency.cpp): the finding's three named
+tests (Lost.ContentInconsistentGhostRejected, Lost.ContentConsistentGhostAccepted,
+Lost.RatioBoundaryThirtyPercent) + 9 scorer/helper unit tests + 2 tree-detach
+tests + the two end-to-end whole-disk scans. Fail-before EXECUTED (the reject
+wiring temporarily gated off: Lost.WholeDiskScanDropsContentInconsistentExfatGhost
+RED — the ghost's 6 files surfaced; restored → GREEN). Suite 808/808
+linux-release. Corpus re-verified FIRST-HAND this session before implementing:
+FUN_180025390 :30973-31156 (the scorer loop, counters, data-start math, the
+out-of-bounds invalidation, the reject compare), FUN_180024fe0 :30785-30960
+(classifier: the 170-entry table strstr + MOV/MP4/JPG prefix specials + the two
+memicmp literals), FUN_180025d60 :31566-31680 (the extension extraction +
+filter-set membership + TIFF/JPEG specials), and the call site :38340-38380
+(ExFatCalcPartition: accept iff valid && ratio > 0.3).
+**Resolution notes:** Landed the engine-side content-consistency validation as
+`cr::lost` scorer (cr_consistency.h/.cpp): per candidate file — considered
+(non-directory, the og's 0x10 skip), filterable (extension in the checkable
+vocabulary = the carve registry's families + the TIFF/JPEG specials — the
+shared-vocabulary decision OQ-FLT-1 blessed, camera-RAW families without a core
+signature stay uncheckable, bounded vocabulary registered), matched (the
+first registry signature whose magic matches at the file's data start, registry
+order = the carve dispatch precedence; classifier = substring strstr over the
+uppercase ASCII name projection + the MOV/MP4/JPG family specials). Reject rule
+verbatim from the decompile: considered/2 <= filterable && ratio < 0.3 &&
+filterable != 0 — CORRECTION to the finding text: the decompile's
+`<= 0.3 && != 0.3` is a STRICT less-than; ratio == 0.3 does NOT reject (pinned
+by Lost.RatioBoundaryThirtyPercent). A data start beyond the volume end
+invalidates outright (the og's *param_3 path). Wiring: scan_candidate scores
+the walked files after the engine dispatch (the og scores inside the walk; ours
+emit-then-score is the same observable outcome) and on reject detaches the
+candidate's subtree (ResultTree::detach_subtree — new: removes nodes/roots/
+indexes, releases props refs once per node, severs the root's links so later
+subtree walkers are safe), zeroes the file counts, bumps
+ScanStats::lost_content_rejected, logs through the N-048 seam. The candidate
+itself stays listed (the og's per-hit persistence — M-042; the reject drops the
+candidate's FILES, exactly the CalcPartition accept/reject observable).
+ExFAT-only per OQ-FLT-1; applied uniformly at the candidate-shaped seam (lost
+fan-out + LDM volume scans — the og's LDM-path wiring is corpus-UNVERIFIED,
+documented). Fix-plan fidelity: step 1 (content pass over the quick-scan tree
+walk) done; step 2 (reject rule verbatim) done with the strict-< correction;
+step 3 (substring semantics kept, og-faithful — the "exact is safer" option was
+NOT taken: the decompile says substring, substring it is, with the
+family-specials decoded). No safety hardenings touched.

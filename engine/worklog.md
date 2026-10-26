@@ -13554,6 +13554,55 @@ Stage Summary:
   offsets — the MOS-walk documentation question).
 
 ---
+Task ID: DFX27-M035 (session 27, MAJOR lane — second fix)
+Agent: main engineer (diff-to-fix fix session 27 — DFX27)
+Task: M-035 — the engine-side FileFilter content-consistency validation for
+lost-partition candidates.
+
+Work Log:
+- Corpus re-verified LINE BY LINE first-hand (not from the finding text):
+  FUN_180025390 :30973-31156 (scorer: counters iVar11/iVar14/iVar15/iVar17,
+  data-start cluster math :31057-31063, the out-of-bounds invalidation
+  :31077-31083, the reject compare `<= 0.3 && != 0.3` = STRICT <), the
+  classifier FUN_180024fe0 :30785-30960 (170-entry table strstr + MOV/MP4/JPG
+  prefix checks + the two memicmp literals), the filter-set helper
+  FUN_180025d60 :31566-31680 (ext extraction + set membership + TIFF/JPEG
+  specials), the call site :38340-38380 (ExFatCalcPartition: accept iff
+  valid && ratio > 0.3). CONFIRMED-DIVERGENCE. Two finding-text corrections,
+  corpus-wins: reject is strict < 0.3 (ratio == 0.3 does NOT reject); iVar17
+  is the CHECKABLE count, not "failed".
+- Landed: cr::lost scorer (cr_consistency.h/.cpp — ConsistencyFile/Verdict +
+  score_content_consistency + the pure helpers); scan_candidate wiring (score
+  after the engine dispatch; reject -> detach + zero counts +
+  lost_content_rejected + N-048 log line); ResultTree::detach_subtree (the
+  drop mechanism: nodes/roots/indexes removed, props refs released once per
+  node, root links severed BEFORE destruction so later subtree walkers are
+  safe; the rebase skips rejected candidates). ScanStats.lost_content_rejected
+  added; the parallel fan-out's Out struct carries per-candidate rejections.
+- Vocabulary decision (OQ-FLT-1's implementer note): checkable = the carve
+  registry's families + TIFF/JPEG; camera-RAW families without a core
+  signature stay uncheckable (bounded vocabulary, registered). Classification
+  = first registry signature at the data start (registry order = the carve
+  dispatch precedence), substring classifier + family specials, og-faithful.
+- Tests: 15 in test_consistency.cpp — the finding's three named tests
+  (ContentInconsistentGhostRejected / ContentConsistentGhostAccepted /
+  RatioBoundaryThirtyPercent pinning the strict-< correction) + helpers +
+  scorer counters (directories/extentless mirror the og; unreadable stays
+  unmatched; out-of-bounds invalidates) + 2 detach tests (index removal +
+  hard-link refcount survival) + 2 end-to-end whole-disk ghost scans.
+  Fail-before EXECUTED (reject wiring gated off: the E2E drop test RED with
+  the ghost's 6 files surfacing; restored -> GREEN). Suite 808/808
+  linux-release.
+- Audit trail: Resolution + FIXED/ move; RESOLVED-INDEX row; matrix
+  session-27 header + the lost-partition B3/A30/B16 detail row;
+  modules/lost-partition.md session-27 verdict; SUMMARY session-27 delta.
+
+Stage Summary:
+- Session tally: M-058 (NEW-FINDING) + M-035. MAJOR open: 10 (M-049/M-014
+  landed from parallel lanes; M-052/M-018/M-020/M-025/M-029/M-030/M-034/
+  M-039/M-040/M-041/M-048 remain). Next: pull-check, then the highest-value
+  unclaimed-open MAJOR (M-039 occupancy bitmap or M-048 signature db).
+
 Task ID: DFX33-T1 (session 33, first fix)
 Agent: main engineer (diff-to-fix fix session 33 — DFX33)
 Task: M-020 — Btrfs chunk-profile machinery (RAID10 gates, 2-copy rotating
