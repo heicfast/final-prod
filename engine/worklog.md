@@ -12208,3 +12208,28 @@ Work Log:
 Stage Summary:
 - Session tally: S-029 (SEVERE, convergent union) + M-013 (MAJOR) + the
   M-054 pushed-red repair. Next: M-014 (exFAT structural entry gates).
+
+---
+Task ID: DFX23-T1 (session 23 bootstrap)
+Agent: core-parity-fix-agent (main)
+Task: Session 23 bootstrap — pull, record commits, save prompt, baseline verify
+
+Work Log:
+- Pulled both repos. Core HEAD: 716d121 (DFX16-M013 lineage + N-062 landing).
+  Corpus HEAD: 03ad46c (unmoved since session 1). Audited-commit lineage for
+  this session's start: diff-to-fix README session-5b/6 records; last fix
+  session recorded = 22 (win-layer M-055 + MINOR queue) + parallel lanes
+  16-21 absorbed; RESOLVED-INDEX current with 149 FIXED findings.
+- Session prompt saved (token redacted) to worklog/session-diff-fix-23-prompt.md.
+- Open inventory at bootstrap: SEVERE 0 · MAJOR 13 · MINOR 19 · INFO 24 ·
+  tracked-open 11 OQs. Mandate: MAJOR-first, 20+ fixes, all docs/counts.
+- Baseline build+test executed first-hand: linux-release preset, suite
+  737/737 green (incl. win_syntax_check) at 716d121.
+
+Stage Summary:
+- Baseline verified green. Next: read all 13 open MAJOR findings, verify
+  each against corpus + code, fix in impact order (M-014 exFAT gates →
+  M-018 junk filter → M-035 FileFilter → M-039 occupancy → M-049 error
+  model → M-052 recycle bin → M-020 Btrfs → M-025 carve streaming →
+  M-029 query → M-034 NAS → M-040 boot chain → M-041 damage audit →
+  M-048 signature DB → M-030 driver util).
