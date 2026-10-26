@@ -1737,6 +1737,35 @@ TEST(Orchestrator, ReadPipeZeroCapacityDegradesToBareSlice) {
     EXPECT_EQ(nullptr, rp.retry);
 }
 
+TEST(Orchestrator, LogSinkRegistrySurvivesHeavyChurn) {
+    /* N-079 additive pin (the DFX23 convergent landing's test, ported
+     * onto the canonical deque-pool fix): the seam must keep delivery
+     * on the CURRENT sink through heavy registration churn, superseded
+     * registrations must go silent, and the null-unregister path must
+     * leave the registry usable without burning pool capacity. The
+     * canonical fix's pool is unbounded so 20 registrations exercise the
+     * swap bookkeeping; the pin holds for either registry design. */
+    LogRecorder current, stale;
+    cr::log::set_sink(&LogRecorder::sink, &stale);
+    for (int i = 0; i < 20; ++i) /* heavy churn past any small pool */
+        cr::log::set_sink(&LogRecorder::sink, &current);
+    EXPECT_TRUE(cr::log::enabled());
+    cr::log::write(cr::log::Level::Info, "after churn %d", 1);
+    cr::log::set_sink(nullptr, nullptr);
+    EXPECT_FALSE(cr::log::enabled());
+    EXPECT_EQ(stale.lines.size(), 0u) << "superseded registrations go silent";
+    ASSERT_FALSE(current.lines.empty());
+    EXPECT_NE(current.lines[0].second.find("after churn"), std::string::npos)
+        << "delivery follows the CURRENT sink through the churn";
+    current.lines.clear();
+    cr::log::set_sink(&LogRecorder::sink, &current);
+    cr::log::write(cr::log::Level::Warn, "revived");
+    cr::log::set_sink(nullptr, nullptr);
+    ASSERT_EQ(current.lines.size(), 1u);
+    EXPECT_NE(current.lines[0].second.find("revived"), std::string::npos)
+        << "the null-publish unregister leaves the registry usable";
+}
+
 TEST(Orchestrator, IdentityCardV4SnapshotAndAxes) {
     /* N-066 end-to-end: run() captures the full 512-byte boot-sector image
      * alongside the CRC32 (the og record-3's +0x518 snapshot) and emits it
