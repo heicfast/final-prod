@@ -62,7 +62,7 @@ fn auto_name(label: &str, dir: &PathBuf) -> PathBuf {
     let tod = secs.rem_euclid(86_400);
     let (_y, mo, d) = crate::bridge::util::civil_parts(days);
     let (h, mi, s) = (tod / 3600, (tod % 3600) / 60, tod % 60);
-    dir.join(format!("auto_{label}_{}_{mo:02}_{d:02}_{h:02}_{mi:02}_{s:02}.crsf"))
+    dir.join(format!("auto_{label}_{mo:02}_{d:02}_{h:02}_{mi:02}_{s:02}.crsf"))
 }
 
 #[tauri::command]

@@ -161,7 +161,7 @@ pub fn list_devices(state: &BridgeState) -> BridgeResult<Vec<Value>> {
                 "id": volume_id(v),
                 "deviceId": disk_id(d.number),
                 "label": label,
-                "letter": if v.letter != 0 { json!(format!("{}:", v.letter as char)) } else { Value::Null },
+                "letter": (if v.letter != 0 { json!(format!("{}:", v.letter as char)) } else { Value::Null }),
                 "fs": map_fs(&fixed_str(&v.fs_name)),
                 "capacity": {
                     "totalBytes": v.bytes,
@@ -204,8 +204,8 @@ pub fn list_devices(state: &BridgeState) -> BridgeResult<Vec<Value>> {
             "id": disk_id(d.number),
             // G-9: the engine struct has no bus type — removable is the only
             // signal; 'sd'/'optical' are indistinguishable (INTEGRATION-GAPS).
-            "kind": if d.removable != 0 { "usb" } else { "internal" },
-            "model": if model.is_empty() { format!("Hard Disk #{}", d.number) } else { model },
+            "kind": (if d.removable != 0 { "usb" } else { "internal" }),
+            "model": (if model.is_empty() { format!("Hard Disk #{}", d.number) } else { model }),
             "label": label,
             "serial": serial,
             "capacity": {
@@ -371,8 +371,8 @@ fn compose_single_disk(
     };
     Ok(json!({
         "id": disk_id(d.number),
-        "kind": if d.removable != 0 { "usb" } else { "internal" },
-        "model": if model.is_empty() { format!("Hard Disk #{}", d.number) } else { model },
+        "kind": (if d.removable != 0 { "usb" } else { "internal" }),
+        "model": (if model.is_empty() { format!("Hard Disk #{}", d.number) } else { model }),
         "label": label,
         "serial": serial,
         "capacity": {
@@ -397,7 +397,7 @@ fn compose_volume_row(v: &abi::CrUiVolumeInfo, d: &abi::CrUiDiskInfo) -> Value {
         "id": volume_id(v),
         "deviceId": disk_id(d.number),
         "label": fixed_str(&v.label),
-        "letter": if v.letter != 0 { json!(format!("{}:", v.letter as char)) } else { Value::Null },
+        "letter": (if v.letter != 0 { json!(format!("{}:", v.letter as char)) } else { Value::Null }),
         "fs": map_fs(&fixed_str(&v.fs_name)),
         "capacity": {
             "totalBytes": v.bytes,
@@ -407,7 +407,7 @@ fn compose_volume_row(v: &abi::CrUiVolumeInfo, d: &abi::CrUiDiskInfo) -> Value {
         "status": "ok",
         "quickScanAvailable": true,
         "sectorSize": d.logical_sector,
-        "bitlocker": if v.bitlocker != 0 { json!("unlocked") } else { json!(false) },
+        "bitlocker": (if v.bitlocker != 0 { json!("unlocked") } else { json!(false) }),
     })
 }
 

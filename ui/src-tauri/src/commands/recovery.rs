@@ -59,7 +59,7 @@ pub async fn recovery_start(
     })
     .await
     .map_err(|e| BridgeError::bridge(code::UNKNOWN, format!("blocking join: {e}")))??;
-    let recovery_ptr = job_entry.recovery.get();
+    let recovery_ptr = crate::bridge::util::SendPtr::new(job_entry.recovery.get());
     let live = job_entry.live.clone();
     let finished = Arc::new(AtomicBool::new(false));
     spawn_job_emitter(rx, app.clone(), job_id.clone(), live.clone(), recovery_ptr, finished.clone());
@@ -118,9 +118,6 @@ fn recovery_start_blocking(
             .map_err(|_| BridgeError::bridge(code::UNKNOWN, "snapshot lock"))?;
         snap.handle.get()
     };
-    let scope_ok = entry.path_scope.is_none();
-    let _ = scope_ok;
-
     let mut node_ids: Vec<String> = Vec::new();
     match selection.get("kind").and_then(|k| k.as_str()) {
         Some("nodes") => {
@@ -217,8 +214,6 @@ fn recovery_start_blocking(
 
     let job_id = state.mint_job_id();
     let started_at = now_iso();
-    let entry_live = entry.live.clone();
-    let _ = entry_live;
     let job = Arc::new(JobEntry {
         job_id: job_id.clone(),
         scan_id: scan_id.clone(),
@@ -474,16 +469,16 @@ pub async fn recovery_report(
                 "name": item.get("name").and_then(|n| n.as_str()).unwrap_or(""),
                 "sizeBytes": item.get("bytes").and_then(|b| b.as_u64()).unwrap_or(0),
                 "state": state_word,
-                "error": if state_word == "failed" {
+                "error": (if state_word == "failed" {
                     json!({ "code": "recovery-item-failed", "reasonKey": "recovery.itemFailedReason" })
                 } else {
                     Value::Null
-                },
-                "savedAs": if state_word == "done" {
+                }),
+                "savedAs": (if state_word == "done" {
                     item.get("path").and_then(|p| p.as_str()).map(String::from)
                 } else {
                     None
-                },
+                }),
             });
             match state_word {
                 "done" => succeeded.push(row),

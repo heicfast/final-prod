@@ -138,8 +138,8 @@ pub fn compose_scan_progress(
     serde_json::json!({
         "scanId": scan_id,
         "status": status,
-        "stage": if terminal.is_some() { "done" } else { live.stage },
-        "stageProgress": if terminal.is_some() { 1.0 } else { live.stage_progress },
+        "stage": (if terminal.is_some() { "done" } else { live.stage }),
+        "stageProgress": (if terminal.is_some() { 1.0 } else { live.stage_progress }),
         "overallProgress": overall,
         "bytesScanned": live.bytes_scanned,
         "bytesTotal": live.bytes_total,
@@ -147,7 +147,7 @@ pub fn compose_scan_progress(
         "dataFoundBytes": data_found,
         "errors": live.errors,
         "badSectorMap": bad_sectors,
-        "etaSeconds": if terminal.is_some() { serde_json::json!(0) } else { serde_json::json!(live.last_eta_seconds) },
+        "etaSeconds": (if terminal.is_some() { serde_json::json!(0) } else { serde_json::json!(live.last_eta_seconds) }),
         "throughputBytesPerSecond": live.last_throughput,
         "recoverableDuringScan": snapshot_exists,
         "deviceConnected": device_connected(live, terminal, now),
@@ -208,9 +208,10 @@ pub fn spawn_scan_emitter(
     scan_id: String,
     live: Arc<Mutex<ScanLive>>,
     snapshot_exists: Arc<AtomicBool>,
-    scan_ptr: *mut abi::CrUiScan,
+    scan_ptr: super::util::SendPtr<abi::CrUiScan>,
 ) {
     std::thread::spawn(move || {
+        let scan_ptr = scan_ptr.get();
         for evt in rx {
             let Ok(live) = live.lock() else { break };
             let mut emit = false;
@@ -337,10 +338,11 @@ pub fn spawn_job_emitter(
     app: AppHandle<impl tauri::Runtime>,
     job_id: String,
     live: Arc<Mutex<JobLive>>,
-    recovery_ptr: *mut abi::CrUiRecovery,
+    recovery_ptr: super::util::SendPtr<abi::CrUiRecovery>,
     finished: Arc<AtomicBool>,
 ) {
     std::thread::spawn(move || {
+        let recovery_ptr = recovery_ptr.get();
         let mut prev_bytes: u64 = 0;
         let mut prev_sample_ms: i64 = 0;
         let mut last_report_ms: i64 = 0;

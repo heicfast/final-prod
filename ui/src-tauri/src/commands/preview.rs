@@ -24,7 +24,7 @@ use serde_json::{json, Value};
 use crate::bridge::abi;
 use crate::bridge::error::{code, check, BridgeError, BridgeResult};
 use crate::bridge::state::{metas_snapshot, BridgeState, ScanEntry};
-use crate::bridge::util::{base64_encode, fixed_str, SendPtr};
+use crate::bridge::util::{base64_encode, fixed_str};
 
 const IMAGE_CAP: u64 = 16 * 1024 * 1024;
 const THUMBNAIL_CAP: u64 = 8 * 1024 * 1024;

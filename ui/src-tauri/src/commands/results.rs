@@ -24,7 +24,7 @@ use crate::bridge::abi::CR_UI_SNAP_NONE;
 use crate::bridge::error::{code, BridgeError, BridgeResult};
 use crate::bridge::filefilter::{category_bit, category_label};
 use crate::bridge::state::{extension_of, metas_snapshot, BridgeState, NodeMeta, ScanEntry};
-use crate::bridge::util::{iso_from_filetime, now_unix_ms};
+use crate::bridge::util::iso_from_filetime;
 
 /// The UI's category-chip order (mock CATEGORY_IDS parity) → engine bits.
 const CATEGORY_ORDER: [&str; 8] = [
@@ -315,29 +315,32 @@ fn matches_pred(m: &NodeMeta, p: &Pred) -> bool {
 
 /// The ResultNode row (contract shape; type-maps §4 field maps).
 fn result_node(m: &NodeMeta, idx: usize, scan_id: &str) -> Value {
+    let extension = extension_of(&m.name);
+    let extension_json = if extension.is_empty() {
+        Value::Null
+    } else {
+        json!(format!(".{extension}"))
+    };
     json!({
         "id": format!("f{idx}"),
         "scanId": scan_id,
         "kind": "file",
         "name": m.name,
-        "path": if m.origin == 1 { Value::Null } else { json!(m.path) },
+        "path": (if m.origin == 1 { Value::Null } else { json!(m.path) }),
         "sizeBytes": m.size,
         "modifiedAt": m.modified_iso(),
-        "extension": {
-            let e = extension_of(&m.name);
-            if e.is_empty() { Value::Null } else { json!(format!(".{e}")) }
-        },
+        "extension": extension_json,
         "category": category_label(m.category),
         "confidence": m.confidence_label(),
         "origin": m.origin_label(),
         "childCount": Value::Null,
         // G-4: no renderer exists for video thumbnails — graphics only.
         "thumbnailAvailable": m.category == 1,
-        "parentId": if m.parent == CR_UI_SNAP_NONE {
+        "parentId": (if m.parent == CR_UI_SNAP_NONE {
             Value::Null
         } else {
             json!(format!("d{}", m.parent))
-        },
+        }),
     })
 }
 

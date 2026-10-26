@@ -253,7 +253,7 @@ pub fn launch_run_thread(
     let scan_id = entry.scan_id.clone();
     let live = entry.live.clone();
     let snapshot_exists = entry.snapshot_exists.clone();
-    let scan_ptr = entry.scan_handle();
+    let scan_ptr = crate::bridge::util::SendPtr::new(entry.scan_handle());
     spawn_scan_emitter(rx, app.clone(), scan_id.clone(), live.clone(), snapshot_exists.clone(), scan_ptr);
 
     let state_for_run = state.clone();
@@ -342,7 +342,7 @@ fn set_transient(state: &Arc<BridgeState>, scan_id: &str, name: &'static str) ->
             format!("scan {scan_id} has already finished"),
         ));
     }
-    let (busy, _stopping, paused) = scan_flags(entry.scan_handle());
+    let (busy, _stopping, _paused) = scan_flags(entry.scan_handle());
     if !busy {
         return Err(BridgeError::bridge(
             code::SCAN_NOT_RUNNING,

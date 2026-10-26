@@ -3,25 +3,15 @@
 //! health-unavailable refusal. The engine carries NO SMART threshold field —
 //! threshold stays null (truth, never a fabricated vendor threshold).
 
-use std::sync::Arc;
-
 use serde_json::{json, Value};
 
 use crate::bridge::abi;
 use crate::bridge::error::{code, check, BridgeError};
-use crate::bridge::state::BridgeState;
 use crate::bridge::util::fixed_str;
 
 #[tauri::command]
-pub async fn health_read(
-    state: tauri::State<'_, Arc<BridgeState>>,
-    device_id: String,
-) -> Result<Value, BridgeError> {
-    let state = state.inner().clone();
+pub async fn health_read(device_id: String) -> Result<Value, BridgeError> {
     tauri::async_runtime::spawn_blocking(move || {
-        // The registry is not needed for the probe itself, but the entry's
-        // existence check keeps the id vocabulary honest.
-        let _ = &state;
         let n: u32 = device_id
             .strip_prefix("disk-")
             .and_then(|r| r.parse().ok())
@@ -108,12 +98,12 @@ pub async fn health_read(
                 json!({
                     "id": a.id,
                     "name": fixed_str(&a.name),
-                    "current": if a.value != 0 { json!(a.value) } else { Value::Null },
-                    "worst": if a.worst != 0 { json!(a.worst) } else { Value::Null },
+                    "current": (if a.value != 0 { json!(a.value) } else { Value::Null }),
+                    "worst": (if a.worst != 0 { json!(a.worst) } else { Value::Null }),
                     // The engine carries no threshold field: null is truth.
                     "threshold": Value::Null,
                     "raw": a.raw,
-                    "status": if a.failing != 0 { "failing" } else { "ok" },
+                    "status": (if a.failing != 0 { "failing" } else { "ok" }),
                 })
             })
             .collect();
@@ -123,11 +113,11 @@ pub async fn health_read(
             "status": status,
             "temperatureC": temperature,
             "powerOnHours": power_on_hours,
-            "diskClass": if report.ssd_like == 1 { "ssd" } else if report.ssd_like == 0 { "hdd" } else { "unknown" },
+            "diskClass": (if report.ssd_like == 1 { "ssd" } else if report.ssd_like == 0 { "hdd" } else { "unknown" }),
             "wearPercent": wear,
-            "trimEnabled": if report.trim_known != 0 { json!(report.trim_enabled != 0) } else { Value::Null },
-            "reallocatedSectors": if report.reallocated_sectors > 0 { json!(report.reallocated_sectors) } else { json!(0) },
-            "pendingSectors": if report.pending_sectors > 0 { json!(report.pending_sectors) } else { json!(0) },
+            "trimEnabled": (if report.trim_known != 0 { json!(report.trim_enabled != 0) } else { Value::Null }),
+            "reallocatedSectors": (if report.reallocated_sectors > 0 { json!(report.reallocated_sectors) } else { json!(0) }),
+            "pendingSectors": (if report.pending_sectors > 0 { json!(report.pending_sectors) } else { json!(0) }),
             "attributes": rows,
         }))
     })
