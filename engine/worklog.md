@@ -15248,3 +15248,28 @@ REMAINING (for the next session, with owners):
 
 Corpus 03ad46c unmoved throughout. One finding file deleted: NONE. All
 resolutions evidence-cited. Token hygiene maintained.
+
+---
+Task ID: DFX34-T4 (session 34, fourth landing — the third-wave repair + the union-merge rule)
+Agent: main engineer (diff-to-fix fix session 34 — DFX34)
+Task: Repair the 875ed25 regression (my own union loop's fault: keep-both
+is wrong for CODE files) and codify the rule.
+
+Work Log:
+- The 875ed25 union merge resolved rrecov.cpp/cr_bitlocker.h conflicts
+  keep-both, producing line-interleaved duplicates (nested function
+  definitions; the parse gate RED on 3 files). Root cause: the retry
+  loop's union script treated CODE like append-only audit docs. A stale
+  parallel 'both surfaces' variant keeps riding remote waves in; the
+  canonical N-064 state (cfa4c75) is the fixed point.
+- Restored both files verbatim from cfa4c75; the remote wave's other
+  work (21 new tests, audit updates) rides through untouched.
+- RULE (this lane, from here): union/keep-both ONLY for append-only
+  audit docs (worklog/SUMMARY/index/matrix); source files resolve by
+  side-selection (the canonical fixed-point commit for the file), and
+  the parse gate + full suite run BEFORE every push, never after.
+- Suite 865/865 linux-release at the restored tree; gate 0 FAIL.
+
+Stage Summary:
+- Main green again. This lane returns to the queue: N-071 verify →
+  N-072 → N-066 → N-065 → N-059 → N-033 verify → N-007/I-004 → N-019.
