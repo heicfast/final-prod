@@ -792,7 +792,10 @@ TEST(LostDiscovery, LostCandidateReportsDataAreaOffset) {
     EXPECT_EQ(fat_c->data_sector_count, 40000u - 634u);
     /* NTFS: DataAreaStart == StartSec (the corpus log's no-gap shape) */
     EXPECT_EQ(ntfs_c->data_start_lba, ntfs_c->start_lba);
-    EXPECT_EQ(ntfs_c->data_sector_count, ntfs_c->sector_count);/* ---------------------------------------------------------------- */
+    EXPECT_EQ(ntfs_c->data_sector_count, ntfs_c->sector_count);
+}
+
+/* ---------------------------------------------------------------- */
 /* M-017: the og's content-driven scoring (DRWUI FUN_14050fda0,     */
 /* verified to 6 decimals against all 187 CalcPartition.log rows)   */
 /* ---------------------------------------------------------------- */

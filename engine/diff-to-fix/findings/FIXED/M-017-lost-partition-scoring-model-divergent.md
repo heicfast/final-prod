@@ -153,3 +153,8 @@ iVar16 counter — an adjacent matcher takes the break path, which the naive "pr
 size-match" reading would miss). Candidate.score is now permille (0..1000); the session wire
 stays u32; the display cap (top 2; 5 with >=2 adjusted) is the DRWUI presentation layer, not
 the core — registered. OQ-S2M-2 (the bonus setters' provenance) remains the tracked residual.
+Rebase integration note: the parallel lane's N-035 landing (data-area-anchored candidate
+extents) merged with this fix — the containment-drop and the 16-MiB size-match promotion
+now consume the DATA-AREA extents (the og's EndSec = DataAreaStart + totalSec math, and
+the QA log's totalSec field), exactly as N-035's decode demands; reconciled at the union
+with both lanes' tests green (709/709).

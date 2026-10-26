@@ -881,7 +881,7 @@ u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& know
                 c.data_start_lba = c.start_lba;
                 c.data_sector_count = c.sector_count;
             }
-            c.score = pts;            c.structural_points = pts; /* M-017: the primary score is the
+            c.structural_points = pts; /* M-017: the primary score is the
                                           * content model; points tie-break */
             found.push_back(c);
         }
@@ -928,30 +928,23 @@ u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& know
     std::vector<Candidate> adjusted;
     adjusted.reserve(keep.size());
     for (auto& c : keep) {
-        /* N-035: the og's containment/overlap rules operate on the
-         * data-area extent (its 16-MiB size-match and containment-drop
-         * both; the QA log's totalSec is the data-area size) */
-        Overlap ov = classify_overlap(c.data_start_lba, c.data_sector_count, known);
-        switch (ov) {
-        case Overlap::Inside:
-            c.score -= 20; /* a filesystem inside a live partition: damaged
-                              inner volume - still reportable, lower score */
-            break;
-        case Overlap::Overlaps:
-        case Overlap::Contains:
-            c.score -= 10;
-            break;
-        case Overlap::None:
-        default:
-            break;        bool contained = false;
+        /* M-017 (a): the containment-in-known drop — a candidate's DATA
+         * AREA (N-035: the og's EndSec = DataAreaStart + totalSec math)
+         * fully inside a live (used, non-container) partition is dropped
+         * (AdjustPartitionInfoOrder rule (a)). This REPLACES the old
+         * -20/-10 overlap penalties, which were the polarity inversion
+         * of the og's +500 table-match. Containers (extended/protective)
+         * do not count; a table-MATCHED candidate (same start) is exempt
+         * — it takes the +500 instead. */
+        bool contained = false;
         for (const auto& p : known) {
             if (!p.used || p.fs == table::FsKind::Extended || p.fs == table::FsKind::Protective)
                 continue;
             if (c.start_lba == p.start_lba)
                 continue; /* the table-MATCH case ("Found once partition"):
                            * +500 in the count, never a containment drop */
-            if (c.start_lba >= p.start_lba &&
-                c.start_lba + c.sector_count <= p.start_lba + p.sector_count) {
+            if (c.data_start_lba >= p.start_lba &&
+                c.data_start_lba + c.data_sector_count <= p.start_lba + p.sector_count) {
                 contained = true;
                 break;
             }
@@ -1005,8 +998,10 @@ u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& know
         const Candidate& leader = adjusted[0];
         u64 non_matches_before = 0;
         for (size_t i = 1; i < adjusted.size(); ++i) {
-            const u64 a = adjusted[i].sector_count;
-            const u64 b = leader.sector_count;
+            /* N-035: the og's 16-MiB size-match consumes the data-area
+             * totalSec (the QA log's field) */
+            const u64 a = adjusted[i].data_sector_count;
+            const u64 b = leader.data_sector_count;
             const u64 diff = a > b ? a - b : b - a;
             if (diff <= TOL) {
                 if (non_matches_before == 0)
