@@ -1211,31 +1211,27 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
      * cancel-aware in 50 ms slices; static media (image files) never
      * retries - a torn image stays torn. */
     const u64 label_base[4] = {0, LABEL_SIZE, total - 2 * LABEL_SIZE, total - LABEL_SIZE};
-    LabelConfig cfg;
-<<<<<<< HEAD
-    /* S-034: collect EVERY valid uberblock state from the rings — the
-     * og's quick searcher walks the whole label-0 ring (FUN_180006b90
-     * :5685-5841, stride-0x400 slot loop) and opens each slot's txg
+    /* S-034 + N-072 union: the label sweep is a re-runnable unit
+     * (N-072's delay-execution import retry — live handles only, the
+     * og's polling import per remaining-engines artifact :86) that
+     * COLLECTS EVERY valid uberblock state (S-034: the og's quick
+     * searcher walks the whole label-0 ring — FUN_180006b90
+     * :5685-5841, stride-0x400 slot loop — and opens each slot's txg
      * state through the per-txg VdevLoc::UberData registry
-     * (FUN_180003150 "addBlock" -> FUN_180017310). Newest-txg-only was a
-     * refuted premise (see the finding). The core reads all four labels'
-     * rings (the existing geometry superset — labels 2/3 carry the
-     * current txgs on real pools). */
+     * FUN_180003150 "addBlock" -> FUN_180017310; newest-txg-only was a
+     * refuted premise, see findings/FIXED/S-034). The core reads all
+     * four labels' rings (the existing geometry superset — labels 2/3
+     * carry the current txgs on real pools). */
     struct RingState {
         u64 txg;
         std::vector<u8> ub;
     };
+    LabelConfig cfg;
     std::vector<RingState> ring_states;
-    for (int li = 0; li < 4; ++li) {
-=======
-    u64 best_txg = 0;
-    std::vector<u8> best_ub;
     auto run_label_sweep = [&]() -> u32 {
         cfg = LabelConfig{};
-        best_txg = 0;
-        best_ub.clear();
+        ring_states.clear();
         for (int li = 0; li < 4; ++li) {
->>>>>>> origin/main
         if (label_base[li] + LABEL_SIZE > total)
             continue;
         /* config nvlist at label+16K (first 112K is vdev_phys) */
@@ -1333,7 +1329,7 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
 
     /* N-072: bounded label retry with backoff (live handles only) */
     constexpr u32 kLabelBackoffMs[3] = {250, 500, 1000};
-    for (int retry = 0; best_ub.empty() && !slice->is_static_media() && retry < 3; ++retry) {
+    for (int retry = 0; ring_states.empty() && !slice->is_static_media() && retry < 3; ++retry) {
         if (cancel && cancel->checkpoint())
             return ERR_CANCELLED;
         for (u32 slept = 0; slept < kLabelBackoffMs[retry]; slept += 50) {
