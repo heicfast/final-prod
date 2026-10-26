@@ -228,6 +228,7 @@ impl ScanEntry {
         match &self.kind {
             ScanKind::Live { device, .. } => device.get(),
             ScanKind::Session { device, .. } => device
+                .as_ref()
                 .map(|d| d.get())
                 .unwrap_or(std::ptr::null_mut()),
         }
