@@ -376,8 +376,13 @@ not-BAAD both sides; FAT quick-scan threading — already registered D-30x).
 
 | Module | Parameter(s) | Verdict change (evidence in the finding + `evidence/decompiled-quotes/s6-*`) |
 |---|---|---|
+<<<<<<< HEAD
+| fat | B4/B5/D11/A29 | **M-052 FIXED (s24 DFX24)** (recycle-bin $I/$R pairing — the shared cr/recycle model wired into the dentry walk; findings/FIXED/M-052) |
+| exfat | B1/A25/S35 | **N-067 FIXED s11** (upcase-table validation — og shape gates + checksum32 stream check, soft stats signal; findings/FIXED/); B4/B5/D11 **M-052 FIXED (s24 DFX24)** (recycle mirror — the shared cr/recycle pairing; findings/FIXED/M-052) |
+=======
 | fat | B4/B5/D11/A29 | **M-052 — FIXED (s35)** (the shared $I/$R pairing model — four-root recognition, chain-read $I parse, original-name remap + post-walk fixup; findings/FIXED/M-052) |
 | exfat | B1/A25/S35 | **N-067 FIXED s11** (upcase-table validation — og shape gates + checksum32 stream check, soft stats signal; findings/FIXED/); B4/B5/D11 **M-052 FIXED (s35)** (the FAT-mirrored pairing — bin context through walk + oracle re-walks; findings/FIXED/M-052) |
+>>>>>>> 880e2a1b1429859df8d575aa53e835d1d65fe01f
 | carve | A25/D11/P42 | **S-032 (converged)** (archive inner-file inventories missing) |
 | carve | B1/C19 | **N-069 FIXED s11** (CAB mscf case key — FMT_CAB_LC dual row + two-spelling validator re-check; findings/FIXED/); B1/A28 **N-068 FIXED s11** (LFH sanity gates decompile-exact; EOCD half FIXED-ALREADY — the CD anchor + EOCD reconciliation already cover it; findings/FIXED/) |
 | carve | A28/A29/D15/B3 | **N-070** (overlap scoring + two-generation fallback); **S-007 addendum** (bare-MPEG dispatch gap — 18+ u16 sync keys vs ID3-only; family roster with provenance) |
@@ -387,7 +392,7 @@ not-BAAD both sides; FAT quick-scan threading — already registered D-30x).
 | session | D11/D12/B4/B9 | **S-031 (converged)** (carved files: deleted flag + timestamp + validator payload dropped at emission; sessions round-trip the misstatement) |
 | session | D12/S36 | **N-066** (identity card: firmware/WWN/interface + 512-byte boot snapshot vs model/serial/CRC32); A35/D12/F35 **N-078 FIXED s17** (truncated carve_note silent-OK exit — the c.fail-less break; filed+fixed, renumbered past the parallel lane's N-077 leak finding; findings/FIXED/) |
 | session/tree | D11/D12/P42 | **M-051+N-059 (converged)** (type-registry ID + per-FS secondary payload slots missing) |
-| writer | A27/S35/P46 | **N-065** (collision `name_N`/cap 10000 vs ` (N)`/cap 64/`_dup`; mkdir 0/0xB7-only; **D-19 premise refuted** with decompile evidence) |
+| writer | A27/S35/P46 | ~~N-065~~ **FIXED-ALREADY (s34 DFX34 verification — parallel-lane landing: collision = the og's `%s_%d`/`%s_%d%s` two-branch shape, cap 10,000, exhaustion fails the item, `_dup` removed; mkdir = the 0/0xB7 contract in SEMANTIC form as a registered divergence — the literal gate broke drive-root chains, MSVC test #227; D-19's refuted claim superseded; proof tests verified green: CollisionNameUnderscoreFormat / CollisionExhaustionFailsTheItem / MkdirSemanticsMatchShCreateDirectoryEx; findings/FIXED/)** |
 | health | P46/P68 | **S-024 addendum** (cr_health.h claims 0xD1/0xD8 never issued — doc-truth sub-item; capability gap stays S-024) |
 | storage | B8/P42/A54 | MATCH-with-D-84 (N-071 FIXED s31: the two-stack merge — PhysicalDrive loop + cfgmgr32 GUID_DEVINTERFACE_DISK pass, pure merge_disk_enumeration dedup; residual stacks registered) |
 

@@ -6,7 +6,11 @@
 #include "cr/ntfs/cr_mftwalk.h"
 #include "cr/compress/cr_decomp.h"
 #include "cr/cr_parallel.h"
+<<<<<<< HEAD
+#include "cr/cr_recycle.h" /* M-052: the shared $I/$R recycle model */
+=======
 #include "cr/cr_recycle.h" /* M-052/N-079: shared $I/$R pairing model */
+>>>>>>> 880e2a1b1429859df8d575aa53e835d1d65fe01f
 #include "cr/ntfs/cr_attributes.h"
 #include "cr/ntfs/cr_fixup.h"
 #include <atomic>
@@ -166,10 +170,19 @@ u32 build_props(NtfsVolume* vol, const std::vector<AttrView>& attrs, u64 record_
 } // namespace
 
 /* ---- $Recycle.Bin mapping (og parity: recycle-bin files surface under
+<<<<<<< HEAD
+ * their pre-deletion name; $I metadata parsed, $R content remapped).
+ * M-052: the model is extracted into the shared cr/recycle helper
+ * (the FAT/exFAT engines carry the same capability the corpus
+ * documents for all three); the NTFS side keeps only the
+ * attribute-view glue (find the unnamed resident $DATA, hand its
+ * bytes to the shared parse). ---- */
+=======
  * their pre-deletion name; $I metadata parsed, $R content remapped) ----
  * M-052: the record/token/bin-root primitives moved to the shared
  * cr/cr_recycle.h (the FAT and exFAT engines consume the same model);
  * the NTFS wrappers below keep this walk's landed shape. */
+>>>>>>> 880e2a1b1429859df8d575aa53e835d1d65fe01f
 struct RecycleInfo {
     u64 size = 0;
     u64 time = 0;
@@ -188,17 +201,34 @@ static u32 parse_recycle_info(const std::vector<AttrView>& attrs, RecycleInfo& o
         u32 dlen = 0;
         if (resident_span(a, d, dlen) != OK)
             continue;
+<<<<<<< HEAD
+        recycle::RecycleInfo shared;
+        if (!recycle::parse_stream(d, dlen, shared))
+            continue;
+        out.size = shared.size;
+        out.time = shared.time;
+        out.orig_name = std::move(shared.orig_name);
+=======
         recycle::Info ri;
         if (!recycle::parse_record(d, dlen, ri))
             continue;
         out.size = ri.size;
         out.time = ri.time;
         out.orig_name = std::move(ri.orig_name);
+>>>>>>> 880e2a1b1429859df8d575aa53e835d1d65fe01f
         return OK;
     }
     return ERR_UNSUPPORTED;
 }
 
+<<<<<<< HEAD
+/* $Recycle.Bin pairing token: M-052 moved the token shape into the
+ * shared cr/recycle helper (the $R keeps the ORIGINAL EXTENSION while
+ * its $I does not - $R2X9K4L.jpg pairs with $I2X9K4L - so the token
+ * is the marker tail up to the first '.', never including it). */
+static std::u16string recycle_token(const std::u16string& n) {
+    return recycle::token(n);
+=======
 /* $Recycle.Bin pairing token: the random chars after the $I/$R marker.
  * REAL Windows convention (benchmark-volume evidence, GAP-P1-3): the
  * $R keeps the ORIGINAL EXTENSION while its $I does not
@@ -208,6 +238,7 @@ static u32 parse_recycle_info(const std::vector<AttrView>& attrs, RecycleInfo& o
  * token never contains one). Shared spelling: recycle::token_of. */
 static std::u16string recycle_token(const std::u16string& n) {
     return recycle::token_of(n);
+>>>>>>> 880e2a1b1429859df8d575aa53e835d1d65fe01f
 }
 
 /* volume metafiles only - NOT every '$' name (the old blanket skip

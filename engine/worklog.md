@@ -14830,6 +14830,21 @@ Stage Summary:
 - OQ-S5-1 closed (convergent two-lane). MY CLAIMED QUEUE IS COMPLETE.
 
 ---
+Task ID: DFX24-T3 (M-052 + baseline repairs)
+Agent: DFX24 (session 24, the MAJOR lane)
+Task: M-052 FAT/exFAT recycle-bin pairing; union-red repairs
+
+Work Log:
+- M-052: verified the finding's corpus citations (fat-exfat-engine-internals.md :21/:37-40/:71/:101) and the NTFS reference implementation (cr_mftwalk.cpp:162-250 + the GAP-P1-3 post-walk fixup); extracted the model into include/cr/cr_recycle.h + src/core/recovery/cr_recycle.cpp (name + content-stream parameterization); NTFS refactored to consume it (identical behavior); FAT + exFAT walks wired (bin-root subtree marking, $I parse-and-remember, $R remap + Deleted state, post-walk fixup, new stats).
+- 4 tests added (FAT pairing, legacy roots, non-recycle over-matching pin, exFAT mirror); fail-before EXECUTED as an engine mutation (bin-root marker neutralized: 3/4 RED; the pin green by design); suite 848/848 linux-release + ASan lane green.
+- Baseline repair 2: the 9a9340e/196d75a parallel-merge lineage committed conflict markers into cr_bitlocker.h + a structurally broken rrecov.cpp (win_syntax_check RED — the gate did its job). Repaired as the canonical union: 6afa8fc's cr::dict ruling + the N-033 CLI additions. Green post-repair.
+- Audit trail: M-052 finding -> FIXED/ with Resolution; RESOLVED-INDEX row; fat/exfat matrix rows -> MATCH; module verdict updates; SUMMARY session-24 delta extended.
+
+Stage Summary:
+- M-052 FIXED (the audit's engine-consistency finding closed; the shared helper is the fix plan's architecture).
+- Pushed-red main repaired twice this session (D-84 ledger row; win-layer markers).
+- Remaining MAJOR: M-018, M-030, M-034, M-039, M-040, M-041, M-048.
+
 Task ID: DFX33-T4 (session 33 — pushed-red REPAIR, protocol)
 Agent: main engineer (diff-to-fix fix session 33 — DFX33)
 Task: Repair the 667c2d2 union: the N-064 multi-lane collision had left
@@ -15229,6 +15244,38 @@ Stage Summary:
 - Main green at the union (849/849). Audit trail + repairs landed
   together.
 
+---
+Task ID: DFX23-T4 (session-23 continuation — convergence adoption + next-queue claim)
+Agent: session-23 (this lane)
+Task: absorb the merge-storm window (e70cb4d), land the convergence
+record, claim the next unclaimed MAJOR
+
+Work Log:
+- The remote moved twice during this lane's M-014+N-079 work (a2ee86a ->
+  e70cb4d): parallel lanes landed M-052, M-041-claim, the DFX24 M-014
+  table completion, the N-079 log-seam fix (deque pool), and multiple
+  convergent repairs of the same pushed-reds this lane had also fixed
+  locally (btrfs N-019/M-020 expectation, rrecov/bitlocker markers).
+  Local unpushed implementations were tangled by auto-merge; per the
+  first-landing-wins protocol the lane RESET onto the converged origin
+  tree (e70cb4d) and re-lands only unique value:
+  (a) the M-014 convergence record (triple-confirmed constants, the
+  independent table dump, the fail-before matrix, the OOB closure) —
+  committed as an audit-only change;
+  (b) this lane's N-079 churn test ported onto the canonical deque fix
+  (LogSinkRegistrySurvivesHeavyChurn — delivery-follows-current through
+  20 swaps, stale-silent, unregister-reusable).
+- The converged tree verified green first-hand before the re-land:
+  826/826 linux-release exit 0; exFAT suite carries the complete
+  canonical gates incl. the UTF-16 table.
+- Lane claim for the next finding: M-030 (driver utilization: WinPE
+  gate, handle ladder, chunking) — M-041 is claimed by DFX35-T4,
+  M-039/M-048 signaled by another lane; M-034/M-040 remain unclaimed
+  after M-030.
+
+Stage Summary:
+- M-014 + N-079 fully closed across all lanes; the audit trail carries
+  the convergence. Next: M-030 full verification against the corpus.
 
 Task ID: DFX32-TCLOSE (session 32 close — handoff)
 Agent: main engineer (diff-to-fix fix session 32 — DFX32)
@@ -15271,6 +15318,7 @@ Stage Summary:
   remains in a non-resolved state; the audit trail for M-029 and M-025
   is complete with both Resolutions, the convergence records, and the
   measured numbers.
+
 ---
 Task ID: DFX30-HANDOFF (session 30 close — lane complete, main green)
 Agent: main engineer (diff-to-fix fix session 30 — DFX30)
@@ -15553,3 +15601,75 @@ Work Log:
 Stage Summary:
 - N-007 FIXED (tally: 5 — M-020, M-025, M-018, M-048, N-007 — plus the
   T4 repair). MAJOR 4, MINOR 2 open. Next: N-065 or the queue head.
+
+Task ID: DFX34-T5 (session 34, fifth landing — N-065 closed FIXED-ALREADY)
+Agent: main engineer (diff-to-fix fix session 34 — DFX34)
+Task: N-065 (writer destination-policy minors) — verify the parallel
+lane's landing, close the audit trail.
+
+Work Log:
+- Verified in-source on the current tree: collision = the og's two
+  `%s_%d`/`%s_%d%s` branches (cr_safewriter.cpp:47+, last-dot split,
+  extensionless branch, counter from 1), rename_attempts = 10,000
+  (cr_safewriter.h:100), exhaustion FAILS the item (the `_dup` fallback
+  and the ` (N)` shape removed); mkdir = the 0/0xB7 SHCreateDirectoryExW
+  contract in semantic form with the documented drive-root-chain root
+  cause (MSVC test #227: the literal gate failed every drive-letter
+  destination); D-19 rewritten (PARITY-DELTAS:456+).
+- Proof tests executed green FIRST-HAND: CollisionNameUnderscoreFormat,
+  CollisionExhaustionFailsTheItem, MkdirSemanticsMatchShCreateDirectoryEx.
+- Audit trail: Resolution (FIXED-ALREADY) + FIXED/ move, RESOLVED-INDEX
+  row, CROSS-REF-MATRIX writer cell, modules/writer.md session-34
+  verification table.
+
+Stage Summary:
+- N-065 closed FIXED-ALREADY (tally: 1 verified closure this session).
+  MINOR open: N-007/I-004, N-072. Next: N-007 (ReFS first-DWORD
+  discovery), then N-072 (Btrfs cache + ZFS retry).
+Task ID: DFX23-T5 (343e206 window repair)
+Agent: session-23 (this lane)
+Task: absorb 343e206 (N-066/N-080 + the M-041 ABI field) + repair the
+remote's own marker residue
+
+Work Log:
+- Union with 343e206: N-066 identity-card v4 tail, N-080, the M-041
+  pre_scan_check ABI field (the DFX35 lane's finding landed while we
+  held the claim - their lane wins M-041; this lane's M-030 claim
+  stands), build-tree hygiene.
+- Pushed-red repaired (proven on the remote's own tree): include/cr/
+  cr_ui.h carried committed stash-pop conflict markers dropping BOTH
+  the M-029 raw_category_name_utf8 and the M-041 pre_scan_check fields
+  while src/ui/cr_ui.cpp consumed both (the linux build was red on
+  origin/main). Union: both fields restored, marker residue dropped.
+- The N-066/N-080 test block re-braced after the append-union (the
+  dropped closing brace between tests).
+- Verification: 848/848 linux-release exit 0; ctest 887/887
+  (win_syntax_check + fuzz smoke green); zero conflict markers anywhere
+  in src/include/tests (swept).
+
+Stage Summary:
+- Remote green again. M-030 verification starts now (the lane's claim).
+
+---
+Task ID: DFX36-CLAIM (session 36 — lane claim, posted before work)
+Agent: main engineer (DFX36 — diff-to-fix execution session 36)
+Task: Lane claim (protocol): S-034 (SEVERE — the ZFS ring txg-history walk,
+the three decode items + the behavioral fix) → N-007 (ReFS first-DWORD
+discovery match) → N-072 (btrfs rescan cache + zfs label polling) →
+OQ-S4-3/OQ-FLT-2 dispositions → audit-trail completeness sweep
+(CROSS-REF-MATRIX/SUMMARY/modules vs the live tree). M-030 is claimed by
+the DFX23 lane (their entry "M-030 verification starts now"); M-039/M-040
+signaled by other lanes — will verify their landings when they arrive and
+take up any remainder they leave.
+
+Work Log:
+- Baseline established at ea1a3c7-pull: BUILD RED on main repaired
+  (cr_ui.h union markers, 40fc440 — convergent with the parallel lanes'
+  32f82f3/58557d3 repairs; mine rode the same union); suite green
+  841/845 (4 env-skips) + cr_ui_tests 33/33 after repair; pushed.
+- Parallel-lane landings absorbed (M-048 21ea6c2, N-066+N-080 4d3f040,
+  N-065 3be045d + the N-079-family unions).
+
+Stage Summary:
+- Lane open. S-034 decode starts now (corpus: ZfsSearchDLL_decompiled.c
+  ring walk + addBlock + the ZplNode visitor path).

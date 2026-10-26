@@ -4,6 +4,7 @@
  */
 
 #include "cr/exfat/cr_exfat_engine.h"
+#include "cr/cr_recycle.h" /* M-052: the shared $I/$R recycle model */
 #include "cr/fat/cr_fat_wire.h" /* shared FAT-family datetime core (W4 dedup) */
 #include "cr/cr_recycle.h"     /* M-052: shared $I/$R pairing model */
 #include <cstring>
@@ -205,6 +206,15 @@ struct ScanCtx {
     bool (*progress)(u64, u64, void*) = nullptr; /* live progress (G-04) */
     void* progress_user = nullptr;
     u64 dentries_done = 0; /* cumulative dentries examined (progress unit) */
+    /* M-052: the recycle-bin state, mirroring the FAT engine's (the
+     * shared cr/recycle model). */
+    bool in_recycle = false;
+    std::map<std::u16string, recycle::RecycleInfo> recycle_info;
+    struct PendingR {
+        tree::FileNode* node;
+        std::u16string token;
+    };
+    std::vector<PendingR> pending_recycle_r;
     ExfatParams p;
     ExfatFat fat;
     Bitmap bitmap;
@@ -790,6 +800,38 @@ void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context
                 i += 1 + 1 + name_entries;
                 continue;
             }
+
+            /* M-052: inside a recycle-bin subtree, $I<token> streams
+             * carry the ORIGINAL name/size/time of the deletion - parse
+             * and remember, never surface (bin metadata). Small stream
+             * (v1: 28+2*pathlen; v2: 544) read straight off the chain. */
+            if (ctx.in_recycle && !is_dir) {
+                const std::u16string itok = recycle::token(name);
+                if (!itok.empty() && name.size() >= 3 && name[1] == u'I') {
+                    props->release();
+                    std::vector<u8> ibuf;
+                    ibuf.resize(size_t(std::min<u64>(4096, data_len ? data_len : 544)));
+                    u64 filled = 0;
+                    for (u32 c : chain.clusters) {
+                        if (filled >= ibuf.size())
+                            break;
+                        const u32 take =
+                            u32(std::min<u64>(ctx.p.cluster_bytes, ibuf.size() - filled));
+                        if (ctx.dev->read_at(cluster_offset(ctx.p, c), ibuf.data() + filled,
+                                             take) != OK)
+                            break;
+                        filled += take;
+                    }
+                    recycle::RecycleInfo ri;
+                    if (filled >= 30 && recycle::parse_stream(ibuf.data(), u32(filled), ri)) {
+                        ctx.recycle_info[itok] = std::move(ri);
+                        ++ctx.stats->recycle_info;
+                    }
+                    i += 1 + 1 + name_entries;
+                    continue; /* bin metadata: not a result */
+                }
+            }
+
             props->name = name;
             props->fs_kind = u32(FsKindCode::Exfat); /* corpus factory code */
             props->logical_size =
@@ -890,11 +932,48 @@ void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context
             else
                 ++ctx.stats->files;
 
+<<<<<<< HEAD
+            /* M-052: a $R<token> inside the bin surfaces under its
+             * ORIGINAL name/size/time when the $I was already seen
+             * (else deferred to the post-walk fixup), marked Deleted -
+             * in-use inside the bin, deleted from the user's location
+             * (the NTFS/FAT model, shared through cr/recycle). */
+            if (ctx.in_recycle && !is_dir && n) {
+                const std::u16string rtok = recycle::token(name);
+                if (!rtok.empty() && name.size() >= 3 && name[1] == u'R') {
+                    auto it = ctx.recycle_info.find(rtok);
+                    if (it != ctx.recycle_info.end()) {
+                        tree::FileProperties* rp = n->props();
+                        if (rp) {
+                            rp->name = it->second.orig_name;
+                            if (it->second.size != 0)
+                                rp->logical_size = it->second.size;
+                            rp->times.modified = it->second.time;
+                        }
+                        n->set_deleted_state(tree::DeletedState::Deleted);
+                        ++ctx.stats->recycle_remapped;
+                    } else {
+                        ctx.pending_recycle_r.push_back({n, rtok});
+                    }
+                }
+            }
+
+            /* recursion: children of this directory attach under its node;
+             * a bin ROOT marks its subtree as recycle-bin (M-052) */
+            if (is_dir && first_cluster >= 2) {
+                const bool was_in_recycle = ctx.in_recycle;
+                if (!was_in_recycle && recycle::is_root_name(name))
+                    ctx.in_recycle = true;
+                recurse_dir(ctx, first_cluster, deleted, n, depth + 1);
+                ctx.in_recycle = was_in_recycle;
+            }
+=======
             /* recursion: children of this directory attach under its node;
              * a bin root turns the recycle context on for the subtree */
             if (is_dir && first_cluster >= 2)
                 recurse_dir(ctx, first_cluster, deleted, n, depth + 1,
                             in_bin || recycle::is_bin_root(name));
+>>>>>>> 880e2a1b1429859df8d575aa53e835d1d65fe01f
 
             i += 1 + 1 + u32(name_entries);
             continue;
@@ -1058,16 +1137,32 @@ u32 scan_exfat(IStorageDevice* slice, const ExfatScanFlags& flags, CancelToken* 
     if (!ctx.parked_sets.empty())
         reconstruct_parked_sets(ctx);
 
+<<<<<<< HEAD
+    /* M-052: post-walk recycle fixup - $R sets emitted before their $I
+     * was parsed (the $I can sit at a later dentry or a sibling
+     * subfolder of the bin). Nodes are arena-stable; mutating through
+     * the node is safe after the walk. */
+=======
     /* M-052 post-walk fixup: $R sets emitted raw during the walk whose
      * $I sat later in the walk order (or in a sibling bin subfolder).
      * Mutating props through the node is safe post-emission (arena-
      * stable nodes; the tree's indexes key on record_ref/extent). Orphan
      * $R sets (missing/unparseable $I) keep their raw bin name - og
      * parity. */
+>>>>>>> 880e2a1b1429859df8d575aa53e835d1d65fe01f
     for (const auto& pr : ctx.pending_recycle_r) {
         auto it = ctx.recycle_info.find(pr.token);
         if (it == ctx.recycle_info.end())
             continue;
+<<<<<<< HEAD
+        tree::FileProperties* rp = pr.node->props();
+        if (rp == nullptr)
+            continue;
+        rp->name = it->second.orig_name;
+        if (it->second.size != 0)
+            rp->logical_size = it->second.size;
+        rp->times.modified = it->second.time;
+=======
         tree::FileProperties* pp = pr.node->props();
         if (pp == nullptr)
             continue;
@@ -1075,6 +1170,7 @@ u32 scan_exfat(IStorageDevice* slice, const ExfatScanFlags& flags, CancelToken* 
         if (it->second.size != 0)
             pp->logical_size = it->second.size;
         pp->times.modified = it->second.time;
+>>>>>>> 880e2a1b1429859df8d575aa53e835d1d65fe01f
         pr.node->set_deleted_state(tree::DeletedState::Deleted);
         ++stats.recycle_remapped;
     }
