@@ -14830,6 +14830,39 @@ Stage Summary:
 - OQ-S5-1 closed (convergent two-lane). MY CLAIMED QUEUE IS COMPLETE.
 
 ---
+Task ID: DFX33-T4 (session 33 — pushed-red REPAIR, protocol)
+Agent: main engineer (diff-to-fix fix session 33 — DFX33)
+Task: Repair the 667c2d2 union: the N-064 multi-lane collision had left
+rrecov.cpp/cr_bitlocker.h with committed conflict fragments and DROPPED
+the pwddict module; win_syntax_check was RED on origin/main.
+
+Work Log:
+- Root cause: three parallel N-064 designs (cr::dict DFX31, cr::pwddict
+  DFX34, and a third variant) landed through successive unions; the
+  667c2d2 union interleaved their open_volume_view/pre-pass variants and
+  dropped include/cr/pwddict/, src/core/pwddict/, tests/unit/test_pwddict.cpp
+  (present in 26e4147's tree, absent in HEAD).
+- Repairs: (1) open_volume_view reconstructed canonically — the 5-surface
+  signature (fvek_hex, pwddict_arg, dict_consent, dict_user) with both
+  consent surfaces tried in flag order (explicit candidates via
+  try_password_unlock, then the shipped+user dictionary via
+  unlock_with_dictionary), the Unknown-status consent shape, and the
+  F61 never-auto-attempt rule preserved verbatim; (2) the cmd_scan
+  pre-pass reconstructed (fvek/pwddict/dict+optional-value pre-scans,
+  dict_user honest-failure load); (3) load_pwddict_candidates' truncated
+  file-tail restored from 26e4147; (4) cr_bitlocker.h: one
+  try_password_unlock declaration, both unlock_with_dictionary overloads
+  (both implemented in cr_bitlocker.cpp), orphaned comment fragments
+  dropped; (5) the pwddict module + test restored from 26e4147 and
+  re-registered in both CMakeLists; (6) the duplicate print_carve_formats
+  removed (the N-033 rich table projection stands — ABI-contract 7a).
+- Verified: win_syntax_check GREEN; full suite **855/855** linux-release.
+
+Stage Summary:
+- main green again. Session tally: 3 fixes (M-020, M-025, M-018) + this
+  repair. Next: pull, then the live MAJOR queue head.
+
+
 Task ID: DFX34-T3 (session 34, third landing — the post-merge corruption repair, take two)
 Agent: main engineer (diff-to-fix fix session 34 — DFX34)
 Task: Repair the SECOND corruption wave: the 53-commit parallel merge
@@ -15073,6 +15106,39 @@ Stage Summary:
   pull, then N-066/N-072/N-065 (the MINOR tail) if still open.
 
 ---
+Task ID: DFX25-CLOSE (session 25 close-out + handoff)
+Agent: main engineer (DFX25 — the INFO + tracked-open lane)
+
+Work Log:
+- Final verification: linux-release full suite **863/863 green** on the
+  final union tree (the parallel window's landings + this lane's).
+- SUMMARY.md session-25 section completed with the full lane tally and
+  the resolution-wave records.
+- Lane dispositions: A-008 in FIXED/; the resolved OQ files in FIXED/
+  (S6-1/S6-2/S6-3/S5-1 + the earlier-window ones by the parallel lanes);
+  OQ-S4-3 precisely pushed forward (one Windows execution remains);
+  OQ-Z-E-FLT residues remain DFX30's active lane.
+
+Stage Summary:
+- **Session-25 lane tally: 29 resolutions** — 22 INFO closures into
+  FIXED/ (tier now empty), A-008 (ACUTE NEW-FINDING: ZFS
+  child_dir_zapobj read from the dd_origin_obj slot — child datasets
+  silently missing on real pools; fail-before RED 3/3 executed; kernel
+  truth fetched from OpenZFS master + the og decode), OQ-Z1 (resolved
+  by A-008), OQ-S6-3 (CRAW reader decode — M-051 confirmed), OQ-S6-2
+  (capa RC4 false positive — erratum E46), OQ-S6-1 (generator sets +
+  .dat files — I-020's upgrade condition refuted, M-042 confirmed),
+  OQ-S5-1 (CheckVersion dead-shipped — MATCH-by-omission), OQ-S4-3
+  (prerequisite landed: 7 MiB chunk + cpu_ms + verdict block + parse-gate
+  coverage).
+- Handoff to the next session: (1) the OQ-S4-3 Windows execution (one
+  dispatch + transcription into M-030's Resolution addendum and SUMMARY's
+  performance section); (2) the OQ-Z-E-FLT residues (DFX30's lane —
+  Z3/Z4/FLT-1/FLT-2); (3) the remaining MINOR 4 / MAJOR 6 / SEVERE 1
+  (S-034 — DFX30's filing) being drained by the parallel lanes; (4) the
+  verification-discipline lesson: byte-level verification (od/python)
+  BEFORE filing corruption-class findings — the display layer can strip
+  [m/[M pairs as false ANSI codes.
 Task ID: DFX35-T4 (session 35 — M-041 lane claim, posted before work)
 Agent: main engineer (DFX35)
 Task: Lane claim (protocol): M-041 — the damage-audit check phase.
@@ -15163,6 +15229,48 @@ Stage Summary:
 - Main green at the union (849/849). Audit trail + repairs landed
   together.
 
+
+Task ID: DFX32-TCLOSE (session 32 close — handoff)
+Agent: main engineer (diff-to-fix fix session 32 — DFX32)
+Task: Session close: final verification sweep + handoff.
+
+Work Log:
+- Final state verified first-hand: linux-release **865/865 PASS**
+  (win_syntax_check included, 0 errors) on the fully-merged main after
+  the last pull; corpus 03ad46c unmoved throughout the session.
+- Session tally (this lane):
+  * **M-029 FIXED** (the decode-blocked remainder — the Date/Size
+    bucket-ID translation + the general-raw naming surface; the DRWUI
+    first-hand decode of FUN_140705c50/FUN_140706060/FUN_140254670/
+    FUN_140255820/FUN_140256830; 5 fail-before-proven tests; the
+    cr_ui_query_apply_buckets added export; ScanConfig::raw_category_name
+    with resume-safe matching).
+  * **M-025 closed as the convergent complement** (DFX33's WindowDevice
+    canonical; this lane kept scripts/bench_m025.cpp with the MEASURED
+    9.88x read-call / 2.08x device-byte reduction + the sign-quiet bench
+    lesson + the 2 complementary behavior tests; PARITY-DELTAS D-81
+    supplement).
+  * **3 pushed-red repairs** (the N-064 convergent-merge union; the
+    M-025/N-064 ledger reconciliation; the merge-storm reconstruction —
+    the last ceded to a parallel lane's identical first-landing repair)
+    + the PARITY-DELTAS numbering coherence repair (D-80..D-86, one
+    section each; the missed D-84 renumber applied; the logging seam
+    D-86).
+- The window's collective progress (observed at close): MAJOR 14 → 6
+  open (M-030/M-034/M-039/M-040/M-041/M-048 remain; M-039+M-048 and M-041
+  freshly claimed by active lanes), MINOR 19 → 4, tracked-open 11 → 2,
+  FIXED/ 208 files, suite 737 → 865.
+
+Stage Summary:
+- DFX32 closes. Remaining handoff: the open MAJORs all have active lanes
+  (M-039/M-048 lane + M-041 lane per their posted claims; M-030/M-034/
+  M-040 remain for the next window — M-030's four open items are
+  win-layer-heavy (WinPE gate, terminal OFFLINE, LDM 32-disk cap,
+  transport-error surfacing), M-034/M-040 are the two big feature
+  families (NAS layer, boot-chain repair)). No finding this lane touched
+  remains in a non-resolved state; the audit trail for M-029 and M-025
+  is complete with both Resolutions, the convergence records, and the
+  measured numbers.
 ---
 Task ID: DFX30-HANDOFF (session 30 close — lane complete, main green)
 Agent: main engineer (diff-to-fix fix session 30 — DFX30)
@@ -15273,3 +15381,120 @@ Work Log:
 Stage Summary:
 - Main green again. This lane returns to the queue: N-071 verify →
   N-072 → N-066 → N-065 → N-059 → N-033 verify → N-007/I-004 → N-019.
+
+---
+Task ID: DFX30-M041 (session 30b, the MAJOR-tail lane — first MAJOR fix)
+Agent: core-parity-fix-agent (main, DFX30-MAJOR-tail)
+Task: M-041 — the damage-audit check phase (the og's FileSystemCheck)
+
+Work Log:
+- Corpus re-verified LINE BY LINE before any code: the 9,964-line
+  FileSystemCheck_decompiled.c at the cited ranges — FUN_1800015b0's DBR
+  dispatch + validators (:1314-1475: FAT12 "FAT1"+'2' + spf×341.3333333
+  ceiling; FAT16 '6' + spf×0x100; FAT32 "FAT3"+'2'@+0x52 + spf16∈{0,spf32}
+  + root-cluster range + (bps×spf32)>>2), the 0x1001 size floor (NON-
+  terminal, :576-577), the dead-zone FUN_180005fd0 (:4392-4415: value ∈
+  [cc, 0xff6/0xfff6/0xffffff6] fails) + duplicate-ref FUN_180005e90
+  (:4340-4386, TBitmap) scans → terminal 0x1006, the pairwise compare
+  (:743-753 → terminal 0x1005) + entry-0 media mask (silent stop,
+  :667-684), the FAT32 root chain (:803-824), the dir audit FUN_180003360
+  (dot pair :1890-1897 [local_f0[4] = longlong*-indexed byte 32 = entry
+  1's '.'], first-cluster :1937-1948, size-vs-chain :2050-2076 — decoded
+  to round_up(ceil(size/bps), spc) sectors vs the chain run sums, the
+  ancestor-array cycle :2079-2097, per-entry non-terminal), the orphan
+  sweep (:880-949: unvisited + FAT≠0/self/BAD → host decision FUN_180002770
+  → SINGLE terminal 0x1003); NTFS: $MFT proof (:2888-2916 — resident
+  $FILE_NAME, name_len@+0x40, "$MFT"@+0x42, exact-length pin@+0x4a),
+  $MFTMirr (:2944-2979, non-terminal), version {0x102, 3, 0x301}
+  (:2994-3003, param = the word), $Bitmap structural (:3866-3888; the
+  slack term's CCheckNTFSVolume+0x30 is layout-undecoded — registered
+  D-76(a), not guessed), the cross-check FUN_180004d80 (:3061-3249) —
+  gated by $MFT::$BITMAP (FUN_180005900, :3138) AND flags&1 (:3165),
+  per-LCN 0x1003 "Bitmap mark it as free" / 0x1002 "Please use 'Chkdsk'
+  first" with the LCN param. CONFIRMED-DIVERGENCE.
+- Landed: include/cr/check/cr_fscheck.h + src/core/check/cr_fscheck.cpp
+  (the full module, every gate carrying its decompile citation); the
+  orchestrator stage (after repair, before the pipe; never aborts;
+  ScanConfig::pre_scan_check default OFF); REC_FS_CHECK = 9 (serialize/
+  deserialize + save/load wiring); event::Type::FsCheck (wire 10 — 8/9
+  are the shim's CR_EVT values, collision avoided); the cr_ui ABI appends
+  (cr_ui_scan_config.pre_scan_check, stats check_ran/check_errors/
+  check_detected, CR_EVT_FS_CHECK 10 + check_errors/check_family —
+  unioned AFTER the parallel wave's M-049 error-context append); CLI
+  scan --check with the full per-finding report.
+- First-build defects caught by the loop (all mine): the record-builder
+  wrote flags at +0x14 (attribute_offset!) before the +0x16 fix; the
+  fixture's runlist encoder wrote offset-before-length (NTFS is
+  length-first — the MFT 32/32 run decoded by symmetry luck); cpr 0xF2
+  (-14 = 16 KiB) instead of 0xF6 (-10 = 1 KiB); total_sectors at the FAT
+  offset +0x20 instead of NTFS's u64 +0x28; the engine-gate fixture needed
+  root_entries ≥ 224 (N-010b) and a FAT16-bracket cluster count.
+- A SOURCE hardening the loop forced (not fixture): a partial $Bitmap run
+  load must NOT pass as loaded — the zero tail reads "every cluster free"
+  and fires false 0x1003s; registered D-76(c).
+- N-079 CONVERGENCE: this lane independently found + fixed the N-048
+  seam's Site exit-leak (eb3cb6d, fail-before EXECUTED on a clean
+  worktree at f5d4981: 4 LSan-RED tests); the parallel wave landed the
+  same repair first — reconciled to their canonical deque-pool
+  implementation (first-landing-wins), my duplicate finding file dropped,
+  convergence recorded here + the matrix note.
+- Tests: 15 (FatCopyDisagreementReported, FatDuplicateRefDetected,
+  DirDotPairMissingRejected, DirCycleDetected, LiveFileSizeNeChain,
+  OrphanClustersReported, CleanFatVolumeReportsNoErrors,
+  DbrCeilingRejectsOversizedClusterCount, NtfsCleanVolumeReportsNoErrors,
+  NtfsVersionGate, MftRecordNotNamedMft, MftBitmapCrossLink,
+  BitmapFreeButAllocated, CheckNeverAbortsScan, ReportSessionRoundTrip)
+  — each fail-before by absence (the finding's own test-plan mode).
+  Suites 758/758 linux-release AND linux-gcc ASan (the ASan run carried
+  my N-079 repair pre-reconciliation); win_syntax_check green on the
+  modified CLI/ABI files.
+- Audit trail: Resolution + FIXED/ move; RESOLVED-INDEX session-30b row;
+  matrix session-30b note + mom-capabilities cell + the new check-phase
+  module row; modules/check-phase.md (new); SUMMARY session-30b delta;
+  CAPABILITY-MATRIX row; PARITY-DELTAS D-76(a-c).
+
+Stage Summary:
+- M-041 FIXED (lane tally: 1 MAJOR + the N-079 convergence). Open on this
+  lane's claim: M-040 → M-034 → M-048 → M-039 → M-030 → M-052 (the other
+  MAJORs were landed by the parallel waves). NOTE: S-034 (new SEVERE,
+  ZFS ring txg) is open and unfixed — severity order puts it BEFORE the
+  remaining MAJORs; this lane takes it next unless another lane claims.
+
+---
+Task ID: DFX31-N066-N080 (session 31, MINOR tail-first lane — findings 4+5)
+Agent: main engineer (diff-to-fix fix session 31 — DFX31)
+Task: N-066 — the identity card's record-3 parity; N-080 — the descriptor
+offset transposition found during it (NEW-FINDING, filed+fixed).
+
+Work Log:
+- Corpus re-verified FIRST-HAND: rsf-format--scan-session.md :228-242
+  (record 3: firmware +0x206, WWN/serial-2 +0x30A, interface +0x414
+  "USB Device", byte[512] boot snapshot +0x518 with the 0x55AA magic —
+  the two stated purposes: same-volume verify + partition-context
+  re-materialization). CONFIRMED-DIVERGENCE.
+- DISCOVERED during the decode work: the win layer read the descriptor's
+  product offset at +24 (SerialNumberOffset — model carried the SERIAL
+  text) and the serial at +36 (inside RawDeviceProperties — garbage).
+  Filed as N-080 (NEW-FINDING, MINOR) per protocol.
+- Landed (both): VolumeInfo v4 tail (firmware[32] + wwn[32] +
+  interface_desc[32] + boot_snapshot[512], append-only, v1/v2/v3 load
+  zeroed); the scanner's existing boot read now captures the image beside
+  the hash (one read, two views — pinned end-to-end); ScanConfig +
+  cr_ui card plumbing (three appended const char* fields, zero-init
+  safe); PURE decoders in cr_enumerate.h — decode_device_descriptor
+  (SDK-exact offsets, the N-080 fix), bus_interface_name, and
+  decode_device_id_descriptor (StorageDeviceIdProperty: first
+  DEVICE-associated identifier, ascii/binary-hex, torn-refusal) — all
+  Linux-lane tested; the win query wired through them for BOTH stacks.
+- Fail-befores EXECUTED: v4-tail-dropped tree -> 3 RED; re-transposed
+  offsets -> DeviceDescriptorFieldsDecode RED (model received the serial
+  text). Restored -> 855/855 green (incl. the updated Crsf size pin and
+  the v4-aware Image round-trip extension).
+- Audit trail: Resolutions + FIXED/ moves for both; RESOLVED-INDEX rows;
+  matrix session note (D12/B9 -> MATCH + storage D11 axis); SUMMARY
+  counts (MINOR 2 open); modules/session.md verdict.
+
+Stage Summary:
+- N-066 + N-080 FIXED (session tally: N-064, N-071, N-059, N-066, N-080
+  + three main repairs). Next: N-065 or N-072 (the MINOR tail end),
+  pulling first.

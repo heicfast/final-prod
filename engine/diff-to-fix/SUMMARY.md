@@ -40,6 +40,61 @@ MINOR 8 · INFO 0 open · tracked-open 10 · FIXED/ 191 files. Session tally
 (this lane): M-029 + M-025 + the N-064 union repair.
 # SUMMARY.md — executive summary (diff-fix session 33 on top; earlier sessions below)
 
+## Session-30b delta (2026-10-26 — DFX30-MAJOR-tail lane: M-041 FIXED — the damage-audit check phase)
+
+**M-041 FIXED (MAJOR — the og's FileSystemCheck parity, the last big
+unclaimed MAJOR module):** a dedicated pure-core check module
+(`cr/check/cr_fscheck.h/.cpp`) re-implemented from understanding of the
+9,964-line FileSystemCheck.mo decompile (every gate re-verified first-hand
+at corpus 03ad46c before implementation): the error taxonomy 0x1001..0x100e
+in numeric parity (0x100c preserved-unused as in the og); the FAT pass in
+the og's phase order — DBR validators per flavor (signature dispatch
+"FAT1"+digit@+0x36 / "FAT3"+'2'@+0x52, ceilings spf×341.3333333 / spf×0x100
+/ (bps×spf32)>>2, FAT32's spf16∈{0,spf32} + root-cluster range gates), the
+volume-size floor (0x1001, non-terminal), per-copy dead-zone +
+duplicate-reference scans (0x1006, terminal), the entry-by-entry pairwise
+FAT-copy compare with the entry-0 media mask (0x1005, terminal; mask
+mismatch = the og's silent stop), the FAT32 root-chain gate, the dir-tree
+audit ('.'/'..' pair for non-root dirs, first-cluster==1/≥space, the
+cluster-granular size-vs-chain compare — the og's sector-sum round-up
+decoded, ancestor-array cycles; per-entry non-terminal), and the orphan
+sweep (unvisited + FAT≠0/self/BAD → the host decision → single terminal
+0x1003); the NTFS pass — the $MFT record-0 resident-"$MFT" proof (0x1008,
+terminal), $MFTMirr slot-0 proof (0x1009), the version gate {0x102, 3,
+0x301} from $Volume's $VOLUME_INFORMATION with the version word as the
+param (0x100A), the $Bitmap structural floor (0x100B), and the MFT×$Bitmap
+cross-check gated by $MFT::$BITMAP AND record in-use flags (per-LCN 0x1003
+free-but-allocated / 0x1002 duplicate-claim — the two-bitmap decode). The
+og's 8-event host callback surface as optional pointers; wired as the
+optional pre-scan stage AFTER repair and BEFORE the engine pipe
+(ScanConfig::pre_scan_check, default OFF), NEVER aborting the scan (the
+escalation stance, pinned by test); REC_FS_CHECK session record (round-trip
++ load-path restore); the cr_ui ABI appends (cr_ui_scan_config
+.pre_scan_check, stats check_ran/check_errors/check_detected, CR_EVT_FS_CHECK
+= 10 with the M-049 error-context append unioned ahead of it); CLI
+`scan --check` with the full per-finding report. Deliberate deltas
+registered as PARITY-DELTAS D-87: the undecoded $Bitmap slack term
+(checkntfs.cpp :3869-3871, CCheckNTFSVolume+0x30 — only the firing half
+implemented, no constant guessed), the CheckIssue param/record superset
+context, and the partial-bitmap-load refusal (never audit a zero-filled
+tail). Proof: 15 tests (fail-before by absence — the module did not exist);
+suites 758/758 linux-release AND linux-gcc ASan at the landing tree.
+
+**N-079 CONVERGENT (this lane's eb3cb6d vs the parallel wave's canonical
+deque-pool landing):** this lane independently found + fixed the N-048
+seam's Site exit-leak (LSan red on 4 tests, fail-before EXECUTED on a clean
+worktree at f5d4981); the parallel wave landed the same repair minutes
+earlier — reconciled to theirs per first-landing-wins (my delete-under-mutex
+design dropped cleanly; their deque-pool stands; the convergence recorded
+in the worklog and the matrix note).
+
+**Counts after this landing (single-lane view; parallel lanes active):**
+SEVERE 1 open (S-034, filed by the tracked-open lane, unfixed) · MAJOR 6
+open (M-030, M-034, M-039, M-040, M-048, M-052) · MINOR 4 open (N-007,
+N-065, N-066, N-072) · INFO 0 · FIXED/ 208 (M-041 + the parallel wave's
+landings) · tracked-open: OQ-FLT-1/OQ-Z5/OQ-Z2 resolved this window by the
+parallel lanes.
+
 ## Session-33 delta, part 3 (2026-10-26 — DFX33: M-018 FIXED — the FilterFolder result-set junk filter)
 
 **M-018 FIXED (MAJOR — the og's PushFolderFilter result-set policy):**
@@ -682,9 +737,20 @@ same landing repaired the parallel lanes' N-019/M-020 convergence break
 corpus-verified default-subvol-at-root contract — the union had left
 main red).
 
-Counts after this landing: **MINOR 4 open** (N-064, N-071, N-059 moved
-to FIXED/; the tier's other findings landed by the parallel lanes),
-MAJOR 10 open, INFO 0, tracked-open 6.
+**N-066 FIXED (MINOR — the identity card's record-3 parity) + N-080
+(NEW-FINDING, filed+fixed in the same landing):** the v4 card tail
+(firmware/WWN/interface axes + the full 512-byte boot snapshot — the og
+record-3's +0x206/+0x30A/+0x414/+0x518) with the scanner capturing the
+sector image beside the hash and the PURE enumeration decoders feeding
+the axes. N-080: the descriptor decode had read the product at +24 (the
+SERIAL offset — model carried the serial text!) and the serial at +36
+(inside RawDeviceProperties); fixed to the SDK-exact offsets with the
+decode factored into a Linux-testable pure function. Fail-befores
+EXECUTED for both (3 RED + 1 RED); suite 855/855.
+
+Counts after this landing: **MINOR 2 open** (N-065, N-072 remain;
+N-007/I-004 taken by the front lane), MAJOR 10 open, INFO 0,
+tracked-open 6.
 
 ## Session-30 delta, part 2 (2026-10-26 — DFX30: N-071 closed — the deferred trio complete on this lane)
 
@@ -932,6 +998,46 @@ Proof: fail-before RED 3/3 (`Zfs.EndToEndWalk`, `Zfs.ChildDirZapReadsKernelOffse
 739/739**. `restamp_zpl_array` extended for the shared-ZPL second dataset.
 OQ-Z1 RESOLVED (tracked-open 11 → the OQ-Z-E-FLT file carries the
 resolution; its Z2..Z5/E1/FLT residues stay open).
+
+**The tracked-open resolution wave (this lane, 6 more OQs):**
+- **OQ-S6-3 RESOLVED** — the CRAW reader decode (FUN_140c40d80 :1875575):
+  +0x56/+0x94/+0xF4 all pass-through at load; +0xF4 = a per-analyser-type
+  marker (set iff type==0xA8, FUN_140c41450), the getters are dead
+  accessors (zero callers, no vtable slot) — M-051's landed design
+  CONFIRMED on all three fields; the decoded semantics documented at the
+  carve_flag carrier; evidence s25-oq-s6-3-craw-reader-decode.md.
+- **OQ-S6-2 RESOLVED — INVALID premise**: the capa "RC4 PRGA" finding
+  (0x180012190) is a FALSE POSITIVE (chunked adler-32/crc32 checksum pump;
+  no RC4 essentials anywhere in the binary); corpus erratum E46; parity
+  by shared absence; evidence s25-oq-s6-2-btrfs-rc4-false-positive.md.
+- **OQ-S6-1 RESOLVED** — the PartitionRecoveryD generator-set decode:
+  RegSearch and CompleteSearch are behaviorally IDENTICAL (byte-level
+  vtable dumps); the .dat files = module-dir cross-run caches
+  (partinfo.dat = 24B "Part" table snapshot → layout_changed;
+  lostpart.dat = 1096B candidate cache + dedup); I-020's upgrade
+  condition REFUTED (stays acknowledged INFO); M-042 CONFIRMED at the
+  mechanism level; evidence s25-oq-s6-1-generator-sets-and-dat-files.md.
+- **OQ-S5-1 RESOLVED — dead-shipped / MATCH-by-omission**: the consumer
+  sweep exhausted (the MOM load contract is on-demand BY NAME; zero
+  name-requests / PE references / config loads / enumeration loaders);
+  CheckVersion.mo's OS-aware recovery never executes in the shipped
+  product; evidence s25-oq-s5-1-checkversion-dead-shipped.md.
+- **OQ-S4-3 pushed forward precisely, prerequisite LANDED**: the
+  alignbench gains the og's 7 MiB volume chunk + cpu_ms + the
+  chunk_strategy_ratios verdict block (the OQ's required engineering,
+  as a runtime variant); the parse gate's file-list gap closed; the
+  remaining step = exactly one Windows execution + transcription.
+- Verification-discipline note (near-miss, recorded): an apparent
+  [m/[M-eating corruption of the bench fleet was REFUTED at byte level —
+  a display-layer artifact (false ANSI SGR stripping); the files use
+  lowercase [math]:: (valid PowerShell) and branches: [main]. No
+  finding filed; no healthy file touched.
+
+**Session-25 lane tally: 29 resolutions** (22 INFO closures into FIXED/,
+A-008 ACUTE NEW-FINDING filed+FIXED with executed fail-before RED 3/3,
+OQ-Z1/S6-3/S6-2/S6-1/S5-1 resolved, OQ-S4-3 prerequisite landed). Suites
+green at every push (737 → 768 → 792 → 827 through the parallel-lane
+union waves; every union tree re-verified full-suite before pushing).
 
 ## Session-23 delta, batch 4 (2026-10-26 — DFX29: N-050 — the two-stage recognition contract)
 
@@ -1288,7 +1394,7 @@ u64@+0x14): `CarveResult::embedded_name` carrier with emit precedence
 field is the MODIFICATION time; there is NO 1904-epoch conversion in the
 og — both quirks replicated + pinned by test), the false "corpus policy"
 comment repaired, File%06u registered as the deliberate default
-(PARITY-DELTAS D-76 with the UTC-formatting divergence). Fail-before 3/3
+(PARITY-DELTAS D-87 with the UTC-formatting divergence). Fail-before 3/3
 RED; 679/679 + 24/24. The CZeroEnd-family membership beyond MP4/MOV is
 the honestly recorded remainder (decode each of the 22 SetName callers).
 
