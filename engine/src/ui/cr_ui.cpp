@@ -21,6 +21,7 @@
 
 #include "cr/cr_ui.h"
 #include "cr/cr_log.h"
+#include "cr/cr_errmod.h"
 
 #include "cr/apply/cr_apply.h"
 #include "cr/orchestrator/cr_scan.h"
@@ -71,6 +72,26 @@
 #include <vector>
 
 using namespace cr;
+
+/* M-049: the ABI's CR_ERRMOD_ and CR_ERROP_ constants are pinned to the
+ * core's cr_errmod.h attribution set at compile time - the two surfaces
+ * must never drift (the ABI header stays self-contained C; this is the
+ * executable form of that coupling). */
+static_assert(CR_ERRMOD_NONE == cr::errmod::kNone, "ABI/core module id drift");
+static_assert(CR_ERRMOD_ORCHESTRATOR == cr::errmod::kOrchestrator, "ABI/core module id drift");
+static_assert(CR_ERRMOD_NTFS == cr::errmod::kNtfs, "ABI/core module id drift");
+static_assert(CR_ERRMOD_FAT == cr::errmod::kFat, "ABI/core module id drift");
+static_assert(CR_ERRMOD_EXFAT == cr::errmod::kExfat, "ABI/core module id drift");
+static_assert(CR_ERRMOD_EXT4 == cr::errmod::kExt4, "ABI/core module id drift");
+static_assert(CR_ERRMOD_BTRFS == cr::errmod::kBtrfs, "ABI/core module id drift");
+static_assert(CR_ERRMOD_HFSPLUS == cr::errmod::kHfsplus, "ABI/core module id drift");
+static_assert(CR_ERRMOD_REFS == cr::errmod::kRefs, "ABI/core module id drift");
+static_assert(CR_ERRMOD_ZFS == cr::errmod::kZfs, "ABI/core module id drift");
+static_assert(CR_ERRMOD_CARVE == cr::errmod::kCarve, "ABI/core module id drift");
+static_assert(CR_ERRMOD_LOST == cr::errmod::kLost, "ABI/core module id drift");
+static_assert(CR_ERRMOD_LDM == cr::errmod::kLdm, "ABI/core module id drift");
+static_assert(CR_ERROP_NONE == cr::errmod::op_none, "ABI/core operation id drift");
+static_assert(CR_ERROP_READ == cr::errmod::op_read, "ABI/core operation id drift");
 
 /* =========================================================================
  * diagnostics (thread-local last_error; every entry returns through ret_)
@@ -796,6 +817,11 @@ void scan_event_trampoline_(const orchestrator::event::Event& e, void* user) {
     out.err_start_bytes = e.err_start_bytes;
     out.err_len_bytes = e.err_len_bytes;
     out.error_ranges = e.error_ranges;
+    /* M-049: the error-context triple (module/operation/retry state) -
+     * field-for-field like every other payload member. */
+    out.err_module = e.err_module;
+    out.err_operation = e.err_operation;
+    out.err_attempts = e.err_attempts;
     out.checkpoint_index = e.checkpoint_index;
     out.candidate_lba = e.candidate_lba;
     out.repair_actions = u32(e.repair_actions);

@@ -50,12 +50,22 @@ struct ReadErrorRange {
     u64 offset;
     u64 length;
     u32 attempts; /* how many times we retried before giving up */
+    /* M-049: the module attribution recorded when the range failed (the
+     * engine-side subset of the og's per-module error registrars -
+     * cr_errmod.h). NOT serialized: sessions persist the geometric trio
+     * (the wire format predates this field and stays readable both
+     * directions); module attribution is live-scan event metadata, and a
+     * range reloaded from a session is honestly kNone. When runs
+     * coalesce, the NEWEST constituent's attribution wins (the record
+     * keeps the latest failure's context - the og's error-track
+     * semantics). */
+    u32 module = 0;
 };
 
 /* Accumulated read-failure map for one scan pass. Kept sorted by offset. */
 class ReadErrorMap {
 public:
-    void add(u64 offset, u64 length, u32 attempts);
+    void add(u64 offset, u64 length, u32 attempts, u32 module = 0);
     const std::vector<ReadErrorRange>& ranges() const { return ranges_; }
     u64 total_bytes() const;
     void merge(const ReadErrorMap& other);

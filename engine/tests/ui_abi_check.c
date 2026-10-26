@@ -196,6 +196,12 @@ static void event_cb(void* user, const cr_ui_event* evt) {
         break;
     case 4u:
         ++g_evt_err;
+        /* M-049: the error-context triple must be readable from plain C
+         * under /W4 /WX - module id, operation, retry state. The healthy
+         * fixtures produce no error ranges, so this only exercises the
+         * ABI shape; the VALUE proof is the core-level test pair. */
+        if (evt->err_module != CR_ERRMOD_NONE && evt->err_operation != CR_ERROP_READ)
+            ++g_evt_unknown; /* impossible combination - flag as malformed */
         break;
     case 5u:
         ++g_evt_checkpt;

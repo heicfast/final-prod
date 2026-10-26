@@ -12,14 +12,21 @@
 
 namespace cr {
 
-void ReadErrorMap::add(u64 offset, u64 length, u32 attempts) {
+void ReadErrorMap::add(u64 offset, u64 length, u32 attempts, u32 module) {
     if (length == 0)
         return;
     /* W4 (AUDIT-ARCH 8c #6): the old first-merge loop was redundant - the
      * normalize pass below (sort + absorb overlapping/touching runs, max
      * attempts) already produces the identical merged result on its own.
-     * push_back-then-normalize is the whole story. */
-    ranges_.push_back(ReadErrorRange{offset, length, attempts});
+     * push_back-then-normalize is the whole story.
+     *
+     * M-049 module rule: every absorb in this call involves the INCOMING
+     * range (the invariant after each add() is sorted + disjoint, so
+     * pre-existing runs can never absorb each other on their own); the
+     * merged run takes the incoming attribution - the newest failure's
+     * module. merge() feeds ranges in insertion order, so the same rule
+     * holds across merges. */
+    ranges_.push_back(ReadErrorRange{offset, length, attempts, module});
     std::sort(ranges_.begin(), ranges_.end(),
               [](const ReadErrorRange& a, const ReadErrorRange& b) { return a.offset < b.offset; });
     for (size_t i = 0; i + 1 < ranges_.size();) {
@@ -28,6 +35,7 @@ void ReadErrorMap::add(u64 offset, u64 length, u32 attempts) {
                                ranges_[i + 1].offset + ranges_[i + 1].length);
             ranges_[i].length = end - ranges_[i].offset;
             ranges_[i].attempts = std::max(ranges_[i].attempts, ranges_[i + 1].attempts);
+            ranges_[i].module = module;
             ranges_.erase(ranges_.begin() + i + 1);
         } else {
             ++i;
@@ -44,10 +52,14 @@ u64 ReadErrorMap::total_bytes() const {
 
 void ReadErrorMap::merge(const ReadErrorMap& other) {
     for (const auto& r : other.ranges_)
-        add(r.offset, r.length, r.attempts);
+        add(r.offset, r.length, r.attempts, r.module);
 }
 
 void ReadErrorMap::serialize(std::vector<u8>& out) const {
+    /* M-049: the module attribution is deliberately NOT serialized - the
+     * wire format is the geometric trio (offset/length/attempts),
+     * unchanged in both directions; a deserialized range is honestly
+     * unattributed (kNone). See ReadErrorRange's comment. */
     auto put32 = [&out](u32 v) {
         out.push_back(static_cast<u8>(v));
         out.push_back(static_cast<u8>(v >> 8));

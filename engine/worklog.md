@@ -13186,3 +13186,186 @@ Stage Summary:
 - N-031 FIXED (session tally: 4 — N-025, N-026, N-027, N-031). MINOR 10 remain
   (parallel lanes consumed N-036/N-049/N-064/N-075 meanwhile). Next: N-032
   (health transports CSMI/USB) or N-007 (ReFS detection strictness).
+---
+---
+Task ID: DFX24-T1 (session 24, first fix — M-049)
+Agent: main engineer (diff-to-fix fix session 24 — DFX24)
+Task: M-049 — the error model's registered step 2: the engine-side
+error-context subset (module/operation/retry state).
+
+Work Log:
+- Corpus re-verified FIRST-HAND: architecture/05-scan-engine-
+  architecture.md:62 (the two 12-digit documented codes) + re-workspace/
+  artifacts/MOM-modules/Error.md (IErrorModule/IErrorProc/CErrorManager/
+  CErrorTrackManager registrar census). Session-11's half (header truth,
+  err_text test) verified landed in-tree.
+- Design (the finding's own next-step seam — the event family):
+  cr::errmod (cr_errmod.h/.cpp) — the module-id enum (kNone/kOrchestrator/
+  9 engines/kCarve/kLost/kLdm) + op ids + per-THREAD stamp with RAII
+  Guard; RetryingDevice gains the per-DEVICE owner fallback
+  (set_owner_module) + stamps each recorded ReadErrorRange with
+  stamp-else-owner.
+- Wiring: the orchestrator stamps every sub-pass (probe/table =
+  ORCHESTRATOR; engine pass = module_for_family(fs_hint); LDM database
+  block = kLdm; remnant = kNtfs; discovery = kLost; scan_candidate =
+  probe ORCHESTRATOR then per-candidate family — stamped INSIDE the task
+  so the parallel fan-out carries exact per-task attribution with no
+  shared-state race; carve = kCarve) + publish_owner_module_ between
+  sub-passes (engine-internal pools' fallback).
+- Carriers: ReadErrorRange.module (NOT serialized — 44-byte wire pin,
+  reloaded ranges honestly kNone; coalescence keeps the NEWEST
+  attribution, every absorb involves the incoming range by the
+  sorted-disjoint invariant); event::Event + cr_ui_event append
+  err_module/err_operation/err_attempts + alignment pad (8-byte POD pin
+  stands; v2-era append, no bump per §9); CR_ERRMOD_*/CR_ERROP_* ABI
+  constants pinned by 15 static asserts in cr_ui.cpp; trampoline copies
+  the triple; the N-048 read-failure log line carries module=%u.
+- First build caught my own scope error (module declared inside the
+  lock-guard block, used in the log line after it) — fixed before any
+  test run.
+- Fail-before RED EXECUTED at the single retry-device seam (attribution
+  forced kNone): 5/6 RED — ErrorRangeCarriesModuleOperationAttempts,
+  ProbeBlockFailureAttributesToOrchestrator,
+  CarveErrorRangeAttributesToCarveModule,
+  Retry.ThreadStampAttributedToRecordedRange,
+  Retry.OwnerFallbackCoversUnstampedWorkerThreads. Restored → GREEN.
+- Fixture truth discovered en route: the probe's 256 KiB cache-block
+  read is the FIRST reader of every block-0 dead sector (the A-004
+  fixtures' sector-30 failures attribute to ORCHESTRATOR — pinned by its
+  own test, the attribution tracks WHO was reading); the FAT-engine
+  attribution test needed a far subdir (cluster 460 = cache block 1,
+  root slot 2 — slot 3 was past the zero end-of-directory marker).
+- Suite 745/745 linux-release (8 new tests). ui_abi_check.c event_cb
+  extended (plain-C readability of the triple).
+- Audit trail: Resolution + FIXED/ move, RESOLVED-INDEX row, matrix
+  err+abi cell + session-24 header, SUMMARY session-24 delta, D-68
+  updated (subset landed), ABI-CONTRACT §6 constants block,
+  CAPABILITY-MATRIX orchestration row.
+
+Stage Summary:
+- M-049 FIXED (tally: 1). MAJOR 13 remain. Next: M-035 (engine-side
+  FileFilter validation).
+Task ID: DFX35-1 (session 35, first fix — M-014)
+Agent: main engineer (diff-to-fix fix session 35 — DFX35, MAJOR-first)
+Task: M-014 — exFAT structural entry gates (secondary count, timestamps,
+stream non-zero fields, name flags).
+
+Work Log:
+- Baseline verified first-hand: 737/737 linux-release at 716d121; corpus
+  03ad46c unmoved. Session prompt saved (token redacted) to
+  worklog/session-diff-fix-35-prompt.md.
+- Corpus re-verified LINE BY LINE (not from the finding text):
+  FUN_180002f90 :1779-1802 (sc bound + inline create check + modify/
+  access via FUN_180002f40 + reserved1/2 zero), FUN_180002f40 :1762-1777
+  (the five field masks), FUN_180029280 :34562-34564 (stream non-zero
+  gates + next-is-name), FUN_180003030 :1811-1834 (name flags/first
+  char/NUL walk/15-char bound), the per-entry switch :25507-25560 (gates
+  apply to live AND deleted entries), FUN_180003090 :1840-1866 (root
+  triple = empty-dir RECOGNITION signal, not an emission gate —
+  documented out of scope). CONFIRMED-DIVERGENCE.
+- Corrections to the finding, corpus-wins: timestamp sanity covers ALL
+  THREE stamps (finding quoted create/modify only); all-zero timestamp
+  FAILS (day==0) — the fix plan's "treat all-zero as valid" guess
+  refuted by the decompile.
+- Landed: file_entry_structural_ok + fat_datetime_fields_ok +
+  name_fragment_gates_ok (anonymous namespace, walk-internal); three
+  gate insertion points in walk_entries (file head before torn-park;
+  stream after the M-013 deleted-checksum block; name fragments before
+  assembly); oracle declared bound 512→19; new stat sets_gated.
+- Corpus-UNVERIFIED residue documented, not guessed: the 0xHH00 UTF-16
+  validity table (PTR_180045a00 — bytes not recoverable; no raw binary
+  in the corpus, no .rdata dump in any artifact).
+- Fixture truth: six planted sets carried TS=0 (the refuted premise —
+  the og rejects zero-stamp sets); updated to 2025-02-06 12:00. One
+  test needed a root-chain extension (2->3->4->5) for six planted sets.
+- Tests: 5 new gate tests + 1 boundary guard (ValidBoundaryTimestamps
+  first run caught my own name-length miscount in the fixture — fixed).
+  Fail-before EXECUTED: gates neutralized via temporary `false &&`
+  patch, all 5 RED, gates restored, all GREEN. Suite 743/743
+  linux-release.
+- ASan lane: 739/743 — the 4 LSan flags (Orchestrator.Log*/MemoryMonitor
+  + CrUi.HeartbeatDuringStall) verified IDENTICAL at the stashed
+  baseline tree: the N-048 sink's documented immortal allocation
+  (cr_log.cpp:55 "leaked by design"). CI runners disable LSan (ptrace
+  restriction) so main is green in CI; local-only artifact. Recorded
+  for the next session; not this finding's regression.
+- Audit trail: Resolution + FIXED/ move, matrix exfat rows (header cell
+  + B3/B4/B10 detail), modules/exfat.md session-35 verdict, SUMMARY
+  session-35 delta (re-stamped DFX23->DFX35 at the rebase: the parallel
+  lane squatted 23 first).
+
+Stage Summary:
+- M-014 FIXED (session tally: 1). MAJOR 13 remain. Next: M-052 (the
+  FAT/exFAT recycle-bin pairing — NTFS implementation generalizes).
+=======
+
+---
+---
+Task ID: DFX30-T1 (session 30, first fix — N-032)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: N-032 — the CSMI health transport (the deferred trio, 1/3).
+
+Work Log:
+- Corpus DEEPENED before any code: the finding cited the companion
+  artifact census only; the actual wire was decoded first-hand from
+  re-workspace/reversed/ghidra-wave2/DiskHealth_decompiled.c —
+  GetSmartAttributeCsmi = FUN_00425450: IOCTL 0x4D008
+  (IOCTL_SCSI_MINIPORT), SRB_IO_CONTROL {0x1C, "CSMISAS", 60, CC 0x19,
+  Length = data+0x8C} + vendor fixed area {phy@+0x1C, port@+0x1D,
+  SAS@+0x20, FIS 0x8027@+0x2C, cmd@+0x2E, feat@+0x2F, LBA dword@+0x30
+  (SMART 0xA0C24F00 / else 0xA0000000), count@+0x38, 0x11@+0x40,
+  512@+0x44}, request 0x2A8, response data @+0xA4, transport-miss
+  GetLastError set {1, 0x32, 0x37}; the og's IOCTL_SCSI_GET_ADDRESS
+  probe (FUN_00417750 :12254); the og's legacy SMART IDEREGS (count 1,
+  sector 1, cyl 4F/C2 — SendAtaCommandPd :14166-14176); the LSILOGIC
+  sibling (FUN_00426040) and the SMART auto-enable write (0xB0/D8,
+  case 0x16) decoded and deliberately NOT ported.
+- Landed: (1) pure wire module cr_csmi (og-exact builder/parser);
+  (2) pure transport-chain seam cr_smart_ata — the whole read flow
+  moved out of the win layer (og CAtaSmart accessor model: first
+  channel answering IDENTIFY serves READ DATA + THRESHOLDS + parse +
+  grading); (3) win layer = three transports: ata-passthrough →
+  smart-rcv-drive-data (now stamps the og's exact SMART IDEREGS) →
+  CsmiMiniportChannel (SCSI address → \\.\Scsi%u: → CC-0x19).
+  ERR_HEALTH_UNAVAILABLE stays the clean final fallback.
+- Tests: 9 new (wire pins: request/identify-vs-smart LBA/builder
+  guard/response offset/error set; chain: CsmiTransportFallsBack pair;
+  CsmiReadsAttributes full parse; SmartChainEmptyIsBadParameter; the
+  name-table pin). EXECUTED fail-before: the pre-fix two-transport
+  chain shape returns 0x50070001 on the RST-shaped mock (RED), the
+  three-transport chain parses (GREEN). The N-074 doc-truth pin moved
+  with the 0xD1 issuance (now pinned in the seam file). Lint repair in
+  the same push: test_nvme_health.cpp:140 pre-existing format violation
+  (479b0c7) reformatted; clang-format-18 clean over every touched file.
+- Suite 752/752 linux-release (was 743 at the union baseline); win_
+  syntax_check green over the refactored layer. Audit trail:
+  Resolution + FIXED/ move; RESOLVED-INDEX row; matrix health rows
+  (both); modules/health.md session-30 verdict; SUMMARY counts;
+  PARITY-DELTAS D-78 (census routing / LSILOGIC / auto-enable not
+  ported, with rationale).
+
+Stage Summary:
+- N-032 FIXED (session tally: 1). Deferred trio remainder: N-064
+  (Dict password aid), N-071 (enumerate breadth delta). Then N-072/
+  N-033/N-019/N-050 with pull-before-each. MINOR tier now 16 open.
+
+=======
+
+---
+Task ID: DFX35-T2 (session 35 — MAJOR lane claim, posted before finding work)
+Agent: main engineer (diff-to-fix fix session 35 — DFX35, MAJOR-first)
+Task: Lane claim (protocol): the MAJOR tier in this order.
+
+Work Log:
+- Post-merge inventory re-read at 9aa8448: MAJOR 12 · MINOR 10 · INFO 0
+  (all acknowledged, in FIXED/) · tracked-open 11. Parallel lanes
+  absorbed this window: M-049, M-014 (mine), the MINOR wave (N-009
+  group, N-036, N-049, N-025, N-026, N-027, N-064, N-075, N-072,
+  N-071...), OQ-Z5, OQ-S2M-2 partials.
+- LANE CLAIM (disjoint from any observed active claim): M-052 → M-020 →
+  M-035 → M-018 → M-039 → M-025. The remaining MAJORs (M-030 win-layer
+  transport, M-029 decode-blocked buckets, M-048, M-034 scope
+  disposition, M-040, M-041) follow if the window allows.
+
+Stage Summary:
+- Claim posted; starting M-052 (FAT/exFAT recycle-bin pairing).

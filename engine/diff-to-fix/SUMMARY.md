@@ -1,4 +1,8 @@
-# SUMMARY.md — executive summary (sessions 23+25+28 on top; earlier sessions below)
+<<<<<<< HEAD
+# SUMMARY.md — executive summary (sessions 23+24+25+28 on top; earlier sessions below)
+=======
+# SUMMARY.md — executive summary (sessions 30+31 on top; earlier sessions below)
+>>>>>>> a7b4d54 (merge: union with origin/main — the parallel N-064/N-049/N-075 + OQ-S2M-2 landings absorbed; N-032 landing stands (both Resolutions kept, matrix/SUMMARY/health rows unioned))
 
 ## Session-28 delta (2026-10-26 — DFX28: the rear-first MINOR lane)
 
@@ -34,7 +38,6 @@ MINOR **16** · INFO 0 open (22 acknowledged in FIXED/) · **FIXED/ 174
 findings** (175 files incl. RESOLVED-INDEX) · tracked-open 11. Next on
 this lane: N-019 (the 12-scenario regression-test gap), then
 N-050/N-033/N-072 rear-first.
-
 
 ## Session-31 delta (2026-10-26 — DFX31: the tracked-open HEAD lane opens; OQ-S2M-2's three probes RESOLVED)
 
@@ -114,6 +117,35 @@ finding's open question: sequential, no retry, no parallelism.
 
 Counts after this landing: **MINOR 18 open** (N-064 moved to FIXED/),
 MAJOR 14 open (DFX27/DFX26 lanes), INFO 0, tracked-open 11.
+
+## Session-30 delta (2026-10-26 — DFX30: the deferred win-layer trio, 1/N-032)
+
+Lane: the MINOR items every parallel lane deferred to last (N-032/N-064/
+N-071), worked while the front/middle bands drain elsewhere. Baseline
+743/743 at the union tree (737 claim + the parallel N-025/N-009c/d/M-057
+landings absorbed); corpus `03ad46c` unmoved. (N-064 was absorbed by the
+parallel DFX31 lane mid-flight — first-landing-wins; this lane's N-032
+stands.)
+
+**N-032 FIXED (MINOR — the CSMI health transport):** the corpus citation
+was deepened before any code: the companion's actual wire was decoded
+first-hand from DiskHealth_decompiled.c — GetSmartAttributeCsmi =
+FUN_00425450: IOCTL_SCSI_MINIPORT (0x4D008), SRB_IO_CONTROL "CSMISAS"
+CC 0x19, vendor fixed area {phy, port, SAS address, Register-FIS
+(0x8027) task file, SMART magic LBA 0xA0C24F00, vendor field 0x11},
+request 0x2A8, response data @+0xA4, transport-miss GetLastError set
+{1, 0x32, 0x37}; plus the og's IOCTL_SCSI_GET_ADDRESS probe and its
+legacy SMART IDEREGS (count 1, sector 1, cyl 4F/C2). Landed: pure wire
+module (cr_csmi) + the pure transport-chain seam (cr_smart_ata — the
+og's CAtaSmart accessor model: the first channel answering IDENTIFY
+serves the whole command set; the read flow moved out of the win layer)
++ the three-transport win chain (ata-passthrough → legacy with og-exact
+SMART stamping → CsmiMiniportChannel). 9 tests (wire pins + fallback
+pair + parse proof); EXECUTED fail-before: the pre-fix chain shape
+returns ERR_HEALTH_UNAVAILABLE on the RST-shaped mock. Registered
+remainders D-78 (RAID-census routing, LSILOGIC sibling, SMART
+auto-enable write — report-only module). Suite **752/752** at the fix
+commit (754/754 on the post-union tree with the parallel N-064 tests).
 
 ## Session-23 delta (2026-10-26 — DFX23: the MINOR-first closing wave, batch 1 — N-009 group closed + M-057)
 
@@ -240,6 +272,38 @@ open (22 acknowledged in FIXED/) · tracked-open 11 · FIXED/ **178** files
 (177 findings + RESOLVED-INDEX). Next on this lane: N-050 (recognition contract) →
 N-033 → N-064.
 
+## Session-35 delta (2026-10-26 — DFX35, re-stamped from 23: the MAJOR-closing wave, M-014 first)
+
+Baseline `716d121` verified green first-hand (737/737 linux-release);
+corpus `03ad46c` unmoved. Lane: MAJOR-first per the session mandate,
+20+ fixes targeted. Open inventory at start: MAJOR 14 · MINOR 19 ·
+INFO 24 · tracked-open 11 (SEVERE/ACUTE tiers empty).
+
+**M-014 FIXED (MAJOR — the exFAT structural entry gates):** the og's
+four gate families landed decompile-exact (FUN_180002f90 /
+FUN_180002f40 / FUN_180029280 / FUN_180003030, every citation
+re-read first-hand in the corpus, not from the finding text):
+secondary_count ∈ [2,18]; create+modify+access timestamp field sanity
+(day≠0, month∈[1,12], hour≤23, min≤59, 2sec≤29 — all-zero FAILS,
+correcting the fix-plan guess); stream non-zero gates (data_length,
+first_cluster, name_length — empty files never emitted, the og quirk
+inherited as parity); name flags/first-char gates. Gates apply to
+live, deleted and oracle re-walked sets; new stat `sets_gated`; the
+oracle's declared bound tightened 512→19. Corpus-UNVERIFIED residue
+documented, not guessed: the 0xHH00 UTF-16 validity table
+(PTR_180045a00 bytes not recoverable). Six fixtures carried TS=0
+stamps (the refuted premise) — updated to real stamps. Proof: 5
+fail-before EXECUTED tests + 1 boundary guard; suite 743/743
+linux-release. Environment note recorded for the next session: the
+local ASan lane flags 4 LSan items (the N-048 sink's documented
+immortal allocation) — verified identical at the baseline tree; CI
+runners disable LSan (ptrace), so main stays green in CI.
+
+**Counts after this landing (pre-merge with the parallel lanes' window):** MAJOR 13 · MINOR 19 · INFO 24 ·
+FIXED 150 findings. Next on this lane: M-052 (FAT/exFAT recycle-bin
+pairing — the NTFS implementation generalizes) → M-020 (Btrfs chunk
+profiles) → M-035 (lost-partition content validation).
+
 <!-- DFX16 note: session 16 ran as a parallel lane in the same window as
      sessions 17-22; its delta is recorded here for chronology. -->
 
@@ -278,6 +342,45 @@ CarveFlags.disabled_formats), N-014d FIXED-ALREADY (N-008's salvage-polarity
 inversion + N-068's LFH gates; this session's re-read of :18479-18498
 confirmed the direction verbatim and corrected the audit's "~4 GiB" cap to
 the real 0x500001 loop bound). Suite **749/749**.
+## Session-24 delta (2026-10-26 — DFX24: the disjoint MAJOR lane; DFX23 owns the MINOR queue)
+
+Bootstrap: the parallel DFX23 lane claimed the full MINOR tier at 354c555
+in the same window — this lane re-stamped 23→24 and claimed the DISJOINT
+open MAJOR tier (14 findings). Baseline executed first-hand BEFORE the
+claim: linux-release suite **737/737** green at 716d121 (= 354c555
+content); corpus 03ad46c unmoved (re-verified at first read).
+
+**M-049 FIXED (MAJOR — the error model, both halves now closed):** the
+session-11 half (header value-space truth + the err_text coverage test)
+was verified landed; this session closed the finding's registered step 2
+— the engine-side error-context subset of the og's error-object
+architecture (per-module registrars, Error.md census; corpus re-verified
+first-hand: 05-scan-engine-architecture.md:62 + the Error.md RTTI
+census). The error-range event family now carries the
+module/operation/retry-state triple: `err_module`/`err_operation`/
+`err_attempts` on `cr_ui_event` (v2-era append + alignment pad — the
+8-byte-multiple POD pin stands, no ABI bump per §9), new CR_ERRMOD_*
+(NONE/ORCHESTRATOR/9 structured engines/CARVE/LOST/LDM) + CR_ERROP_*
+(READ) ABI constants pinned to the core enum by 15 static asserts. The
+attribution is per-range and recorded at failure time: `cr::errmod`
+(cr_errmod.h) — a per-thread stamp the orchestrator sets around every
+sub-pass (probe/table = orchestrator, engine pass = family, remnant =
+NTFS, discovery = LOST, candidates = per-candidate family stamped inside
+scan_candidate, carve = CARVE, LDM database = LDM) + a per-device owner
+fallback on the retry device covering engine-internal worker pools;
+coalesced ranges keep the NEWEST attribution; sessions persist the
+geometric trio unchanged (44-byte wire pin — reloaded ranges honestly
+kNone). The N-048 read-failure log line carries the module id. D-68
+updated (the subset is no longer the open item). Fail-before RED
+EXECUTED at the single retry-device seam (attribution disabled: 5/6 RED
+— the three event-attribution tests + the two retry-unit tests);
+restored → suite **745/745** linux-release (8 new tests); ui_abi_check.c
+extended (plain-C /W4 /WX readability of the triple).
+
+**Counts after this landing (direct file inventory):** SEVERE 0 · MAJOR
+13 · MINOR 19 (DFX23's queue) · INFO 24 · tracked-open 11 · **FIXED/ 150
+files** (149 findings + RESOLVED-INDEX). Next on this lane: M-035
+(engine-side FileFilter validation) → M-052 → M-014 → M-018.
 
 **N-031 FIXED (the carve dispatch deltas):** the og's all-zero-sector fast-skip
 landed at the raw-sign layer in an exact core form — a 512-byte stride whose

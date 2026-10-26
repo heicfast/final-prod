@@ -48,3 +48,48 @@ None open in health (N-009a covers the report-field side; this is the transport 
 ## Open questions
 
 None for parity. (Product question, not audit: whether the companion-app model itself is in scope for the core project — recorded as a scope note, not a divergence.)
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-032 commit — `git log` "fix(N-032)")
+**Verified by:** Health.CsmiRequestMatchesOgWireFormat, Health.CsmiIdentifyCarriesZeroLbaAndSmartCarriesMagic, Health.CsmiBuilderRejectsUndersizedBuffer, Health.CsmiResponseDataExtractedAtOgOffset, Health.CsmiTransportUnavailableClassifiesTheOgErrorSet, Health.CsmiTransportFallsBack, Health.CsmiReadsAttributes, Health.SmartChainEmptyIsBadParameter, Health.SmartAttrNameTableCoversTheCuratedIds (9 new; suite 752/752 linux-release, was 743/743 at the session baseline); win_syntax_check green over the refactored win layer; EXECUTED fail-before: the pre-fix two-transport chain shape [ata-passthrough, smart-rcv-drive-data] returns ERR_HEALTH_UNAVAILABLE (0x50070001) on the RST-shaped mock — the CSMI leg is what turns it green.
+
+**Resolution notes:** CORPUS DEEPENED BEFORE FIXING: the finding's citation
+was the companion-artifact census only; this session decoded the actual
+transport wire in re-workspace/reversed/ghidra-wave2/DiskHealth_decompiled.c
+first-hand — GetSmartAttributeCsmi = FUN_00425450: IOCTL 0x4D008
+(IOCTL_SCSI_MINIPORT), SRB_IO_CONTROL {len 0x1C, "CSMISAS", timeout 60,
+ControlCode 0x19, Length = data+0x8C} + vendor fixed area {phy@+0x1C,
+port@+0x1D, SAS address@+0x20, FIS 0x8027@+0x2C, command@+0x2E,
+features@+0x2F, LBA/device dword@+0x30 (SMART magic 0xA0C24F00 = cyl
+4F/C2 + device A0; IDENTIFY 0xA0000000), sector count@+0x38,
+vendor field 0x11@+0x40, data length 512@+0x44}, total 0x2A8, response
+data at +0xA4; the transport-unavailable GetLastError set {1, 0x32,
+0x37}; the og's own IOCTL_SCSI_GET_ADDRESS address probe (FUN_00417750
+:12254, 0x41018); and the og's legacy IDEREGS for SMART commands
+(SendAtaCommandPd :14166-14176: dword 0x4F0101D1 + 0xC2 = features D1,
+count 1, sector 1, cyl 4F, cyl high C2, command B0). LANDED: (1) the
+pure wire module include/cr/health/cr_csmi.h + src/core/health/cr_csmi.cpp
+(og-exact builder/parser, byte-pinned by tests); (2) the pure transport
+chain seam include/cr/health/cr_smart_ata.h + cr_smart_ata.cpp — the
+whole read flow (IDENTIFY → first-answering channel serves READ DATA
+0xD0 + READ THRESHOLDS 0xD1 → 30x12 parse → model string → S-024
+grading) moved out of the win layer, matching the og's CAtaSmart
+accessor model (one accessor family serves the whole command set);
+(3) the win layer now supplies three transports: ata-passthrough →
+smart-rcv-drive-data (legacy IDEREGS now carry the og's count-1/
+sector-1/cyl-4F/C2 SMART stamping) → CsmiMiniportChannel (SCSI address
+→ \\.\Scsi%u: → CC-0x19 request). ERR_HEALTH_UNAVAILABLE stays the
+clean final fallback. REGISTERED DELTAS (PARITY-DELTAS D-78): the og's
+RAID-census routing (phy/port/SAS from GET_RAID_INFO/CONFIG/PHY_INFO
+walks incl. AMD rcraid), the LSILOGIC sibling transport, and the og's
+SMART auto-enable write (0xB0/D8 — a device write; this module is
+report-only) are deliberately not ported, with rationale. The USB-bridge
+SAT half of the finding stays as the fix plan's own "only if the product
+targets external-disk health" option — not pursued (the bridge DB is a
+20+-entry vendor maintenance burden the plan flags; health is advisory
+and the ATA-passthrough route already serves most USB bridges through
+SAT translation in the standard stack). Real-hardware validation on an
+Intel RST host remains pending (the finding's inherent
+UNVERIFIED-BY-EXECUTION limit — no RST array in any CI fleet).
