@@ -1,6 +1,12 @@
 # diff-to-fix/findings/FIXED/ — resolved findings (audit trail)
 
-## Resolved findings (session-22 wave: +M-055, +N-077, +N-020, +N-070 +M-056 (NEW-FINDING), +N-074; live file inventory)
+## Resolved findings (session-22 wave: +M-055, +N-077, +N-020, +N-070 +M-056 (NEW-FINDING), +N-074 (convergent), +N-047; live file inventory)
+
+| ID | Severity (orig) | Title | Fix commit | Resolution |
+|---|---|---|---|---|
+| N-047 | MINOR (S3 census) | Grouped engine cosmetics: Btrfs subvol naming (ROOT_REF), HFS+ volume node, file attribute bit 0x80 | (this session's N-047 engine-cosmetics batch — file carries the Resolution) | ROOT_REF names parsed (kernel layout, order-independent application; subvol-<id> fallback stays); Btrfs files carry 0x80 (corpus :3574-3577 verified first-hand; DOSATTRIB still ORs — XattrDosAttribApplied adjusted 0x20→0xA0); HFS+ volume node registered as deliberate partition-layer-naming divergence (modules/hfsplus.md); ext4/HFS+/ZFS stay 0 — undecoded in the corpus, not divergent. Both new tests fail-before executed (2/2 RED pre-fix). |
+
+
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |
 |---|---|---|---|---|

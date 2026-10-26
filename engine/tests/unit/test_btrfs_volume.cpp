@@ -436,6 +436,93 @@ TEST(Btrfs, EndToEndWalk) {
     EXPECT_EQ(2, checked);
 }
 
+
+TEST(Btrfs, SubvolumeNamedFromRootRef) {
+    /* N-047: the og surfaces each subvolume with its ROOT_REF-derived
+     * display name (kernel btrfs_root_ref: dirid@0, sequence@8,
+     * name_len@16, name@18; key.objectid = the child subvol id). The
+     * root tree here carries a ROOT_REF naming subvol 5 "golden" - the
+     * node must take that name; subvol-<id> remains only the fallback
+     * for unnamed subvolumes. */
+    auto img = build_volume();
+    {
+        NodeBuilder nb;
+        Key k5;
+        k5.objectid = 5;
+        k5.type = 132; /* ROOT_ITEM */
+        k5.offset = 0;
+        nb.add(k5, make_root_item(L_FS_TREE, 256));
+        Key k3;
+        k3.objectid = 3;
+        k3.type = 132;
+        k3.offset = 0;
+        nb.add(k3, make_root_item(L_CHUNK_TREE, 0));
+        Key kr;
+        kr.objectid = 5; /* the child this ROOT_REF names */
+        kr.type = 156;  /* ROOT_REF */
+        kr.offset = 0;  /* parent tree id (not consumed for naming) */
+        std::vector<u8> ref(18 + 6, 0);
+        put64(ref.data() + 0, 256);  /* dirid */
+        put64(ref.data() + 8, 1);    /* sequence */
+        put16(ref.data() + 16, 6);   /* name_len */
+        memcpy(ref.data() + 18, "golden", 6);
+        nb.add(kr, ref);
+        auto nd = nb.finish(L_ROOT_TREE, 0);
+        memcpy(img.data() + L_ROOT_TREE, nd.data(), NODESIZE);
+    }
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    BtrfsScanStats st;
+    ASSERT_EQ(OK, scan_btrfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    std::set<std::string> paths;
+    std::function<void(tree::FileNode*, std::string)> walk = [&](tree::FileNode* n,
+                                                                 const std::string& p) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->props())
+                continue;
+            std::string nm = c->name_utf8();
+            std::string full = p.empty() ? nm : p + "/" + nm;
+            paths.insert(full);
+            walk(c, full);
+        }
+    };
+    walk(ra, "");
+    EXPECT_TRUE(paths.count("golden")) << "the ROOT_REF name owns the subvol node";
+    EXPECT_TRUE(paths.count("golden/hello.txt"));
+    EXPECT_TRUE(paths.count("golden/sub/nested.bin"));
+    EXPECT_FALSE(paths.count("subvol-5")) << "the fallback name must not appear when ROOT_REF names it";
+}
+
+TEST(Btrfs, FileAttributeNormalBit) {
+    /* N-047: the og sets FILE_ATTRIBUTE_NORMAL (0x80) on regular files,
+     * 0x10 on directories (BtrfsSearchDLL_decompiled.c :3574-3577 -
+     * uStack_92 = 0x80 default, 0x10 when the type byte == 2). Pre-fix
+     * the core emitted 0 for regular files. */
+    auto img = build_volume();
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    BtrfsScanStats st;
+    ASSERT_EQ(OK, scan_btrfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    tree::FileNode* hello = nullptr;
+    tree::FileNode* subdir = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->name_utf8() == "hello.txt")
+                hello = c;
+            if (c->props() && c->name_utf8() == "sub")
+                subdir = c;
+            find(c);
+        }
+    };
+    find(ra);
+    ASSERT_NE(hello, nullptr);
+    ASSERT_NE(subdir, nullptr);
+    EXPECT_EQ(0x80u, hello->props()->attributes) << "regular files carry FILE_ATTRIBUTE_NORMAL";
+    EXPECT_EQ(0x10u, subdir->props()->attributes) << "directories carry FILE_ATTRIBUTE_DIRECTORY";
+}
+
 TEST(Btrfs, BadMagicRejected) {
     std::vector<u8> d(1ull << 20, 0);
     MemDevice dev(d);
@@ -985,7 +1072,11 @@ TEST(Btrfs, XattrDosAttribApplied) {
     };
     find(ra);
     ASSERT_NE(hello, nullptr);
-    EXPECT_EQ(0x20u, hello->props()->attributes) << "the archive bit lands";
+    /* N-047: regular files carry the og's FILE_ATTRIBUTE_NORMAL base
+     * (0x80, BtrfsSearchDLL :3574-3577) - the DOSATTRIB archive bit ORs
+     * on top: 0x80 | 0x20 = 0xA0. (Pre-N-047 the base was 0 and the
+     * expectation read 0x20.) */
+    EXPECT_EQ(0xA0u, hello->props()->attributes) << "the archive bit lands on the 0x80 file base";
     EXPECT_EQ(0u, st.xattr_records) << "DOSATTRIB is applied, not a record";
 }
 

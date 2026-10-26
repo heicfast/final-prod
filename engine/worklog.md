@@ -11253,3 +11253,36 @@ avoid duplicate work.
 
 Stage Summary:
 - Claim posted; execution begins with N-029.
+
+---
+Task ID: DFX22-T5 (N-047 — grouped engine cosmetics)
+Agent: main engineer (diff-to-fix minors-first session 22)
+Task: N-047 — Btrfs subvol naming, HFS+ volume node, file attribute bit.
+
+Work Log:
+- Corpus verified first-hand: BtrfsSearchDLL :3574-3577 (uStack_92 = 0x80
+  default, 0x10 when type byte == 2 — files carry FILE_ATTRIBUTE_NORMAL);
+  HFSPlusSearchDLL :8798-8813 (FUN_180006720 "HFSPlus" system node);
+  ROOT_REF = kernel btrfs_root_ref layout (the og's naming source).
+- Open question resolved by corpus search: the ext4/HFS+/ZFS attribute
+  constants are NOT decoded in the corpus (ext4's 0x80 hits are
+  inode-size/block arithmetic; ZFS's are allocation sizes) — those
+  engines stay 0 (undecoded, not divergent).
+- Sub-1: ROOT_REF parsed in the root-tree walk (dirid@0/seq@8/name_len@16/
+  name@18, key.objectid = child; buffered order-independently, applied
+  post-walk — the Subvol struct's dead name field is now live); the
+  subvol node takes the ROOT_REF name, subvol-<id> stays the fallback.
+- Sub-2: HFS+ volume node = REGISTERED architectural divergence
+  (modules/hfsplus.md: partition-layer naming; engine-side "HFSPlus"
+  node would duplicate the volume container).
+- Sub-3: Btrfs files 0x80 (is_dir ? 0x10 : 0x80); the S-028 DOSATTRIB
+  OR still applies on top — XattrDosAttribApplied adjusted 0x20 -> 0xA0
+  (the archive-bit application itself unchanged and still asserted).
+- Tests: Btrfs.SubvolumeNamedFromRootRef + Btrfs.FileAttributeNormalBit,
+  both fail-before executed (2/2 RED on the stash-isolated pre-fix
+  engine). Suite 687/687.
+
+Stage Summary:
+- Session tally: 7 resolutions (M-055, N-077, N-020, N-070+M-056,
+  N-074 convergent, N-047). MINOR live count 31. Next: N-035 (lost
+  candidate extent anchoring) or N-014 (stage checkpoint atomicity).
