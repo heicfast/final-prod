@@ -1,0 +1,66 @@
+name: ui-e2e
+
+# The Playwright lane (plan §8.3/§5.4): 12 spec tests against the built
+# bundle served by `vite preview`. The webServer builds in TEST MODE first
+# (`vite build --mode test`) so the bundle carries the labeled test double
+# (tests/fakes/) — the real connector needs the Tauri shell + the engine
+# kit, which is the release lane's business. Step screenshots are kept as
+# visual evidence.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ui/**'
+      - '.github/workflows/ui-e2e.yml'
+  pull_request:
+    paths:
+      - 'ui/**'
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: ui/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run e2e suite (test-mode build + preview server)
+        run: pnpm e2e
+
+      - name: Upload step screenshots (evidence)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-step-screenshots
+          path: ui/test-results/*.png
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Upload traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-traces
+          path: ui/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
