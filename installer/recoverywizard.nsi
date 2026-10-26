@@ -156,6 +156,13 @@ Section "${PRODUCT_NAME} (required)" SEC_APP
   ; ---- 1. Application: drive the Tauri NSIS bundle silently --------------
   ; /S silent; /allusers or /currentuser follows the chosen context; /D=
   ; (last, unquoted by NSIS convention) pins the install dir to OUR dir page.
+  ; ExecWait (NOT nsExec): nsExec re-tokenizes the command line and re-quotes
+  ; the arguments — a QUOTED /D= is IGNORED by the NSIS parser (docs: 'must
+  ; not contain quotes'), so the inner setup silently installed to its own
+  ; default dir and our integrity check failed (validation round 8's
+  ; diagnosis: the app landed in 'C:\Program Files\Recovery Wizard').
+  ; ExecWait hands the string to CreateProcess verbatim; the silent inner
+  ; setup writes no console output, so nothing is lost vs ExecToLog.
   SetDetailsPrint textonly
   DetailPrint "Installing application (Tauri bundle, silent)..."
   SetDetailsPrint both
@@ -163,11 +170,10 @@ Section "${PRODUCT_NAME} (required)" SEC_APP
   File "/oname=$PLUGINSDIR\app-setup.exe" "${APP_BUNDLE}"
 
   ${If} $MultiUser.InstallMode == "AllUsers"
-    nsExec::ExecToLog '"$PLUGINSDIR\app-setup.exe" /S /allusers /D=$INSTDIR'
+    ExecWait '"$PLUGINSDIR\app-setup.exe" /S /allusers /D=$INSTDIR' $0
   ${Else}
-    nsExec::ExecToLog '"$PLUGINSDIR\app-setup.exe" /S /currentuser /D=$INSTDIR'
+    ExecWait '"$PLUGINSDIR\app-setup.exe" /S /currentuser /D=$INSTDIR' $0
   ${EndIf}
-  Pop $0
   ${If} $0 != 0
     StrCpy $1 $0   ; $0 becomes the FileWrite handle inside the macro
     !insertmacro AbortWithReason "Application setup failed (exit code $1). The inner Tauri bundle is at $PLUGINSDIR\app-setup.exe."
