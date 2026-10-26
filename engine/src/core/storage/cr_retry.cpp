@@ -100,9 +100,17 @@ u32 RetryingDevice::read_isolated(u64 offset, u8* buffer, u32 length, u32 depth_
     /* Bisect while a half would still be at least one full sector. */
     if (depth_budget == 0 || length <= sector || length / 2 < sector) {
         /* Cannot or must not bisect further: this range is bad. */
+        /* M-049: per-range module attribution - this thread's stamp when
+         * set (the orchestrator stamps its thread and every pool task it
+         * owns), else the sub-pass owner fallback (engine-internal worker
+         * pools). kNone only outside the orchestrator (direct unit-test
+         * use) or on pre-landing session reloads. */
+        u32 module = errmod::current();
+        if (module == errmod::kNone)
+            module = owner_module();
         {
             std::lock_guard<std::mutex> lock(map_mutex_);
-            map_.add(offset, length, policy_.max_attempts);
+            map_.add(offset, length, policy_.max_attempts, module);
         }
         /* N-048 (the og's clone read-error trail - PartitionRecoveryD
          * PRD:21962/:22121 logs read failures; the og's engines log
@@ -111,8 +119,8 @@ u32 RetryingDevice::read_isolated(u64 offset, u8* buffer, u32 length, u32 depth_
          * fast path is the atomic enabled() check. */
         if (cr::log::enabled())
             cr::log::write(cr::log::Level::Error,
-                           "read failed: off=%llu len=%u attempts=%u", offset, length,
-                           policy_.max_attempts);
+                           "read failed: off=%llu len=%u attempts=%u module=%u", offset, length,
+                           policy_.max_attempts, module);
         if (policy_.mode == RetryMode::Skip) {
             memset(buffer, 0, length);
             return OK;

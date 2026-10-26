@@ -108,9 +108,14 @@ first landing's analogs replaced with the exact rules (evidence:
 | Q65 tests | 20 Health tests incl. the family-gate matrix, the FF-guard asymmetry, duplicate-Unknown, the NVMe exact bits, temp-never-grades, is-SSD list, classifier vendors/sigs/forms |
 | F-gate deliberate superset | failing_bit → disk Bad registered as **D-63** (PARITY-DELTAS); per-attr grades stay og-exact |
 
-M-036 (NVMe field coverage) and N-064 (Dict dictionary) remain open
-(untouched by this leg). The S-027 lane's Ext4Engine.Backup* reds visible
-on main mid-session are that lane's in-flight state, not health.
+M-036 is FIXED (the NVMe leg above). N-064 **FIXED (s31 — DFX31)**: the
+Dict password-dictionary unlock aid (cr::dict: generated 228-entry corpus
+table + parse grammar + the consent-gated attempt loop; win-layer
+unlock_with_dictionary on the PowerShell/manage-bde -Password plumbing;
+CLI --bitlocker-dict consent flag; cr_ui_unlock_volume_with_dictionary
+ABI export; index-only logging through the N-048/N-061 seam). The S-027
+lane's Ext4Engine.Backup* reds visible on main mid-session were that
+lane's in-flight state, not health.
 
 ---
 
@@ -130,8 +135,8 @@ on main mid-session are that lane's in-flight state, not health.
 | B13 report units | **MATCH** — data_bytes_read/written = units × 512,000 (the og's exact conversion, :5589-5614); raw counts kept alongside; the cr_ui C-ABI report appends the six fields with ABI v2 (appended fields bump per ABI-CONTRACT §9) |
 | Q65 | FullFieldSurface / DataUnitsConvertedToBytes / PercentageUsedIsU8Width / the 192-byte gate test |
 
-Open health items after this leg: N-032 (CSMI/USB-bridge transports),
-N-064 (Dict password dictionary). N-042 **FIXED (s7 `3678cbf`; FIXED/
+Open health items after this leg: N-032 (CSMI/USB-bridge transports)
+(N-064 FIXED s31 — the Dict dictionary aid). N-042 **FIXED (s7 `3678cbf`; FIXED/
 move s11)** — `NvmeHealthInfo::decidegrees_c()` is the one decidegree
 source for the CLI print and the ABI `temperature_c_x10` (Q65 test set
 covers it).

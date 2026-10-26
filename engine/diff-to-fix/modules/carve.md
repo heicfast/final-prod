@@ -158,7 +158,13 @@ carve-specific divergences surfaced.
   `CarvePostProcessor` bound through `CarveFlags::post_processor` (null = the og's
   DLL-absent degrade); fires per validated candidate pre-insertion on BOTH emit
   layers (grammar + raw-sign); a feed never a gate; findings/FIXED/M-021.
-- **N-014b/c filed:** carved-name split inside the core; runtime per-format config surface.
+- **N-014b/c:** N-014b FIXED (s28) — the naming split is closed: the raw-sign layer
+  rides the same namer chain as the grammar layer and the orchestrator's
+  "Carved%06u" lambda is removed; one File%06u family per scan
+  (Orchestrator.CarveSingleNamingFamily, fail-before showed the split). N-014c
+  FIXED-ALREADY via M-024 (CarveFlags.disabled_formats — the RawConfig.ini [Filter]
+  surface). N-014d FIXED-ALREADY via N-008+N-068 (salvage polarity + LFH gates;
+  cap 0x500001). N-014a FIXED-ALREADY via N-016. Group resolved: findings/FIXED/N-027.
 
 ---
 

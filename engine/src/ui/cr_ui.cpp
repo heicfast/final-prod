@@ -21,6 +21,7 @@
 
 #include "cr/cr_ui.h"
 #include "cr/cr_log.h"
+#include "cr/cr_errmod.h"
 
 #include "cr/apply/cr_apply.h"
 #include "cr/orchestrator/cr_scan.h"
@@ -71,6 +72,26 @@
 #include <vector>
 
 using namespace cr;
+
+/* M-049: the ABI's CR_ERRMOD_ and CR_ERROP_ constants are pinned to the
+ * core's cr_errmod.h attribution set at compile time - the two surfaces
+ * must never drift (the ABI header stays self-contained C; this is the
+ * executable form of that coupling). */
+static_assert(CR_ERRMOD_NONE == cr::errmod::kNone, "ABI/core module id drift");
+static_assert(CR_ERRMOD_ORCHESTRATOR == cr::errmod::kOrchestrator, "ABI/core module id drift");
+static_assert(CR_ERRMOD_NTFS == cr::errmod::kNtfs, "ABI/core module id drift");
+static_assert(CR_ERRMOD_FAT == cr::errmod::kFat, "ABI/core module id drift");
+static_assert(CR_ERRMOD_EXFAT == cr::errmod::kExfat, "ABI/core module id drift");
+static_assert(CR_ERRMOD_EXT4 == cr::errmod::kExt4, "ABI/core module id drift");
+static_assert(CR_ERRMOD_BTRFS == cr::errmod::kBtrfs, "ABI/core module id drift");
+static_assert(CR_ERRMOD_HFSPLUS == cr::errmod::kHfsplus, "ABI/core module id drift");
+static_assert(CR_ERRMOD_REFS == cr::errmod::kRefs, "ABI/core module id drift");
+static_assert(CR_ERRMOD_ZFS == cr::errmod::kZfs, "ABI/core module id drift");
+static_assert(CR_ERRMOD_CARVE == cr::errmod::kCarve, "ABI/core module id drift");
+static_assert(CR_ERRMOD_LOST == cr::errmod::kLost, "ABI/core module id drift");
+static_assert(CR_ERRMOD_LDM == cr::errmod::kLdm, "ABI/core module id drift");
+static_assert(CR_ERROP_NONE == cr::errmod::op_none, "ABI/core operation id drift");
+static_assert(CR_ERROP_READ == cr::errmod::op_read, "ABI/core operation id drift");
 
 /* =========================================================================
  * diagnostics (thread-local last_error; every entry returns through ret_)
@@ -796,6 +817,11 @@ void scan_event_trampoline_(const orchestrator::event::Event& e, void* user) {
     out.err_start_bytes = e.err_start_bytes;
     out.err_len_bytes = e.err_len_bytes;
     out.error_ranges = e.error_ranges;
+    /* M-049: the error-context triple (module/operation/retry state) -
+     * field-for-field like every other payload member. */
+    out.err_module = e.err_module;
+    out.err_operation = e.err_operation;
+    out.err_attempts = e.err_attempts;
     out.checkpoint_index = e.checkpoint_index;
     out.candidate_lba = e.candidate_lba;
     out.repair_actions = u32(e.repair_actions);
@@ -1246,6 +1272,41 @@ u32 open_volume_with_key_impl(char letter, const char* utf8_hex_fvek, cr_ui_devi
     return ret_ok();
 }
 
+u32 unlock_volume_with_dictionary_impl(char letter, const char* const* utf8_user_passwords,
+                                       uint32_t count) {
+    /* N-064: the og's Dict flow as the host's explicit consent action. */
+    std::vector<std::wstring> wide;
+    wide.reserve(count);
+    for (uint32_t k = 0; k < count; ++k) {
+        if (!utf8_user_passwords[k])
+            continue;
+        /* The dictionary grammar is ASCII (the win layer enforces the same
+         * rule): any non-ASCII candidate is refused, not silently mapped. */
+        std::wstring w;
+        bool ascii = true;
+        for (const char* p = utf8_user_passwords[k]; *p != '\0'; ++p) {
+            if (static_cast<unsigned char>(*p) >= 0x80) {
+                ascii = false;
+                break;
+            }
+            w.push_back(wchar_t(static_cast<unsigned char>(*p)));
+        }
+        if (!ascii)
+            return ret_(ERR_BAD_PARAMETER, "dictionary candidate %u is not ASCII", k);
+        wide.push_back(std::move(w));
+    }
+    std::vector<const wchar_t*> ptrs;
+    ptrs.reserve(wide.size());
+    for (const std::wstring& w : wide)
+        ptrs.push_back(w.c_str());
+    const u32 rc = win::bitlocker::unlock_with_dictionary(
+        wchar_t(letter), ptrs.data(), ptrs.size());
+    if (rc == OK)
+        return ret_ok();
+    return ret_(rc, "dictionary unlock exhausted (%u + %u candidates)",
+                unsigned(228), unsigned(ptrs.size()));
+}
+
 #else /* !_WIN32 */
 
 u32 open_disk_impl(uint32_t disk, cr_ui_device** out) {
@@ -1266,6 +1327,15 @@ u32 open_volume_with_key_impl(char letter, const char* utf8_hex_fvek, cr_ui_devi
     (void)out;
     return ret_(ERR_UNSUPPORTED,
                 "cr_ui_open_volume_with_key requires the Windows platform layer");
+}
+
+u32 unlock_volume_with_dictionary_impl(char letter, const char* const* utf8_user_passwords,
+                                       uint32_t count) {
+    (void)letter;
+    (void)utf8_user_passwords;
+    (void)count;
+    return ret_(ERR_UNSUPPORTED,
+                "cr_ui_unlock_volume_with_dictionary requires the Windows platform layer");
 }
 
 #endif
@@ -1314,6 +1384,10 @@ extern "C" CR_UI_API uint32_t cr_ui_open_volume_with_key(char letter,
                                                         const char* utf8_hex_fvek,
                                                         cr_ui_device** out) {
     return guarded(open_volume_with_key_impl, letter, utf8_hex_fvek, out);
+}
+extern "C" CR_UI_API uint32_t cr_ui_unlock_volume_with_dictionary(
+    char letter, const char* const* utf8_user_passwords, uint32_t count) {
+    return guarded(unlock_volume_with_dictionary_impl, letter, utf8_user_passwords, count);
 }
 extern "C" CR_UI_API void cr_ui_device_close(cr_ui_device* dev) {
     if (!dev)
@@ -1700,6 +1774,29 @@ u32 scan_cancel_impl(cr_ui_scan* scan) {
     if (!scan)
         return ret_(ERR_BAD_PARAMETER, "bad argument: scan");
     reinterpret_cast<CrScan*>(scan)->token.cancel();
+    return ret_ok();
+}
+
+/* N-075: the og's reference-out query signals as synchronous ABI ops.
+ * busy reads the shim's run-lifecycle atomic (set in scan_run_impl
+ * before the controller starts, cleared after the heartbeat join);
+ * stopping reads the LIVE token request — a locked read on
+ * PausableToken, safe from any thread, and true from cr_ui_scan_cancel
+ * until run() returns (it stays true after the run ends: the token is
+ * one-shot by construction, which is the honest "a cancel was
+ * requested on this scan handle" answer the og's isStopping also gives
+ * for its one-shot stop event). */
+u32 scan_busy_impl(cr_ui_scan* scan, uint32_t* out) {
+    if (!scan || !out)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: scan/out");
+    *out = reinterpret_cast<CrScan*>(scan)->running.load(std::memory_order_acquire) ? 1u : 0u;
+    return ret_ok();
+}
+
+u32 scan_stopping_impl(cr_ui_scan* scan, uint32_t* out) {
+    if (!scan || !out)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: scan/out");
+    *out = reinterpret_cast<CrScan*>(scan)->token.cancelled() ? 1u : 0u;
     return ret_ok();
 }
 
@@ -2234,6 +2331,12 @@ extern "C" CR_UI_API uint32_t cr_ui_scan_set_event_fn(cr_ui_scan* scan, cr_ui_ev
 }
 extern "C" CR_UI_API uint32_t cr_ui_scan_cancel(cr_ui_scan* scan) {
     return guarded(scan_cancel_impl, scan);
+}
+extern "C" CR_UI_API uint32_t cr_ui_scan_busy(cr_ui_scan* scan, uint32_t* out) {
+    return guarded(scan_busy_impl, scan, out);
+}
+extern "C" CR_UI_API uint32_t cr_ui_scan_stopping(cr_ui_scan* scan, uint32_t* out) {
+    return guarded(scan_stopping_impl, scan, out);
 }
 extern "C" CR_UI_API uint32_t cr_ui_scan_telemetry(cr_ui_scan* scan, cr_ui_telemetry* out) {
     return guarded(scan_telemetry_impl, scan, out);
