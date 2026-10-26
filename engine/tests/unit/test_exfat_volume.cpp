@@ -11,6 +11,7 @@
 #include <gtest/gtest.h>
 #include "cr/exfat/cr_exfat_engine.h"
 #include "cr/storage/cr_device.h"
+#include <algorithm>
 #include <cstring>
 #include <functional>
 #include <vector>
@@ -1756,4 +1757,55 @@ TEST(ExfatEngine, ValidBoundaryTimestampsStillPass) {
     EXPECT_FALSE(n0.empty()) << "Jan 1 00:00:00 must pass";
     EXPECT_FALSE(n1.empty()) << "Dec 31 23:59:58 must pass";
     EXPECT_FALSE(n2.empty()) << "2sec=29 must pass";
+}
+
+/* ---- M-014 completion (DFX24): the UTF-16 name-validity table ------- */
+/* The first landing left PTR_180045a00's table unimplemented on the
+ * premise that its bytes were "not recoverable from the corpus". The
+ * premise was wrong: og-codebase/exFATSearchDLL.dll ships the binary,
+ * and the 256 bytes at .rdata RVA 0x45A00 (file offset 0x44600 via the
+ * PE section map) are the table FUN_180003030 indexes with the HIGH
+ * byte of any char whose LOW byte is zero (byte order pinned by the
+ * raw disassembly at VA 0x180003030). These two tests prove the
+ * recovered table behaves as the og's gate. */
+
+TEST(ExfatEngine, NameUtf16TableInvalidCharRejected) {
+    /* U+0100 (low byte 0, high byte 0x01 - the table's zero at index 1)
+     * is invalid per FUN_180003030's table check. Fail-before: with the
+     * table check absent (the first landing), this set was emitted. */
+    auto img = build_exfat_image();
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    SetBuilder sb;
+    sb.file_entry(0x20, EXFAT_TEST_TS);
+    sb.stream_entry(0x01, 10, 90, 512);
+    sb.name_entry(u"tab\u0100bad.dat"); /* 10 chars - U+0100 is ONE char */
+    std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+    sb.finish_set(img, AT);
+    ExfatScanStats stats;
+    const auto names = m014_scan_names(std::move(img), &stats);
+    EXPECT_EQ(names.end(), std::find(names.begin(), names.end(), "tab\xE1\x80\x80" "bad.dat"))
+        << "U+0100 (table[0x01] == 0) must reject the set";
+    EXPECT_GE(stats.sets_gated, 1u);
+}
+
+TEST(ExfatEngine, NameUtf16TableAllowedCharAccepted) {
+    /* Boundary pin: U+1A00 (low byte 0, high byte 0x1A - table[0x1A] ==
+     * 1) passes the same gate. Proves the check is the og's table, not
+     * a blanket zero-low-byte reject (U+1A00 and U+0100 differ only in
+     * the table's verdict). */
+    auto img = build_exfat_image();
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    SetBuilder sb;
+    sb.file_entry(0x20, EXFAT_TEST_TS);
+    sb.stream_entry(0x01, 10, 90, 512);
+    sb.name_entry(u"tab\u1A00ok.dat");
+    std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+    sb.finish_set(img, AT);
+    ExfatScanStats stats;
+    const auto names = m014_scan_names(std::move(img), &stats);
+    EXPECT_NE(names.end(), std::find(names.begin(), names.end(), "tab\xE1\xA8\x80" "ok.dat"))
+        << "U+1A00 (table[0x1A] == 1) must survive the gate";
+    EXPECT_EQ(stats.sets_gated, 0u);
 }

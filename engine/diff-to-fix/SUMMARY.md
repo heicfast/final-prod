@@ -1,4 +1,67 @@
-# SUMMARY.md — executive summary (diff-fix sessions 32+33+34 on top; earlier sessions below)
+# SUMMARY.md — executive summary (diff-fix session 24 (DFX24) on top; earlier sessions below)
+
+## Session-24 delta (2026-10-26 — DFX24: the MAJOR lane — baseline repairs + the M-014 UTF-16-table completion + N-079)
+
+Bootstrap: this lane claimed the open MAJOR tier at `02b950f` (baseline
+737/737 linux-release verified green first-hand at the claim tree; corpus
+`03ad46c` unmoved). The window's parallel lanes landed heavily during
+this session's first fix (M-014, M-020, M-029 first landings among
+them); every union was absorbed by pull + first-landing-wins, and this
+lane's convergent M-014 implementation was DROPPED cleanly in favor of
+the parallel landing — except the one piece the landing left open on a
+factually wrong premise, which this lane completed (see below).
+
+**Baseline repair 1 (pushed-red main, D-84 ledger row):** the DFX30-T4
+delta-ledger renumbering renamed the N-071 two-stack row D-79→D-84 in
+the ledger comment but dropped the ROW itself —
+`Enumerate.ScopeDeltaRegisteredWithRevisitTrigger` (landed with the
+N-071 test file) went red on the union. Row restored verbatim from the
+canonical landing `7ee64fb` with the renumbered id. (A convergent
+repair of the BtrfsTwoSubvolumesRootSeparately union-red landed by a
+parallel lane first and was taken as-is.)
+
+**N-079 NEW-FINDING (MINOR) filed + FIXED — the ASan lane back to
+green:** the N-062 landing's `cr::log::set_sink` published each sink
+through a bare `new Site` and never freed — LeakSanitizer red on the
+ASan lane (4 tests: the three Orchestrator log tests +
+CrUi.HeartbeatDuringStall; every report named `cr_log.cpp:55`;
+reproduced first-hand at the baseline tree with the fix stashed). Fixed
+with a `static std::deque<Site>` pool under the existing write mutex —
+deque `push_back` preserves element addresses, so the lock-free
+reader's no-UAF invariant is kept EXACTLY; retired sites stay alive for
+the process (the intentional never-free-while-racing posture) but the
+storage is owned and destroyed at exit. ASan lane 750/750 at the fix
+tree, 826/826 on the post-union tree.
+
+**M-014 completion (MAJOR — on top of the parallel first landing):**
+the first landing left the PTR_180045a00 UTF-16 name-validity table
+unimplemented on the premise "its bytes are not recoverable from the
+corpus (no raw binary ships)". The premise was WRONG —
+`og-codebase/exFATSearchDLL.dll` ships the binary. This session
+extracted the 256 bytes at .rdata RVA 0x45A00 (file offset 0x44600,
+PE section map), pinned the byte order by RAW DISASSEMBLY at VA
+0x180003030 (invalid iff low byte == 0 AND table[high byte] == 0 —
+chars with nonzero low bytes are never table-checked), and wired the
+check into `name_fragment_gates_ok`. Proof:
+`ExfatEngine.NameUtf16TableInvalidCharRejected` fail-before EXECUTED
+(RED with the table loop disabled / GREEN with it);
+`NameUtf16TableAllowedCharAccepted` pins the U+1A00-passes boundary.
+The B10 (names) MATCH verdict now stands without the residual-FP
+asterisk. (This lane's independent verification of the other three
+gate families — including the raw-disassembly confirmation of
+FUN_180002f90's timestamp gates and the all-zero-FAILS correction —
+converged with the landing and is recorded in the finding file.)
+
+**Post-fix counts (live file inventory at this session's push):**
+SEVERE 0 · MAJOR 10 open (M-018, M-025, M-030, M-034, M-035, M-039,
+M-040, M-041, M-048, M-052) · MINOR 5 open (N-007, N-059, N-065,
+N-066, N-072) · INFO 0 actionable (all acknowledged) · FIXED/ grows
+with every parallel landing (live count at the RESOLVED-INDEX).
+Suite **826/826** linux-release; ASan lane green. Next on this lane:
+M-035 (engine-side FileFilter validation) → M-052 (FAT/exFAT recycle
+pairing) → M-018 (FilterFolder junk filter) → M-039 (occupancy
+bitmap) → M-025/M-030 perf legs.
+
 
 ## Session-34 delta (2026-10-26 — DFX34: the MINOR-tail lane, first landing — N-064)
 

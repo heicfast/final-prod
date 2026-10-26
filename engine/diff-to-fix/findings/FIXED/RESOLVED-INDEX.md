@@ -1,5 +1,14 @@
 # diff-to-fix/findings/FIXED/ — resolved findings (audit trail)
 
+## Resolved findings (session-24 wave, DFX24: +N-079 (NEW-FINDING, ASan-lane baseline repair) + M-014 completion (UTF-16 table, on top of the parallel first landing))
+
+| ID | Severity (orig) | Title | Fix commit | Resolution |
+|---|---|---|---|---|
+| N-079 | MINOR (S24 NEW-FINDING, DFX24) | cr::log set_sink leaks the final Site — LeakSanitizer red on the ASan lane since the N-062 landing (4 tests) | (this session's N-079 commit — file carries the Resolution) | static std::deque<Site> pool under the existing write mutex (deque push_back preserves addresses — the lock-free reader's no-UAF invariant kept exactly); retired sites stay alive for the process (the intentional never-free-while-racing posture) but the storage is owned and destroyed at exit. The four ASan-lane tests RED at the pre-fix tree (leak reports naming cr_log.cpp:55, reproduced with the fix stashed) → GREEN after; ASan lane green. |
+| M-014 (completion) | MAJOR (S2; first landing by the parallel DFX23 lane) | exFAT structural entry gates — UTF-16 name-validity table (PTR_180045a00) recovered and wired | (this session's M-014 completion commit — the finding's Resolution addendum carries it) | The first landing left the 0xHH00 table check unimplemented on the premise "its bytes are not recoverable from the corpus (no raw binary ships)" — the premise was WRONG: og-codebase/exFATSearchDLL.dll ships the binary. 256 bytes at .rdata RVA 0x45A00 extracted byte-exact via the PE section map (file offset 0x44600) and the byte order pinned by the raw disassembly at VA 0x180003030 (invalid iff low byte == 0 AND table[high byte] == 0; chars with nonzero low bytes never table-checked). Wired into name_fragment_gates_ok; NameUtf16TableInvalidCharRejected fail-before EXECUTED (RED with the table loop disabled), NameUtf16TableAllowedCharAccepted pins the over-rejection boundary (U+1A00 passes where U+0100 fails). |
+
+
+
 ## Resolved findings (session-31 wave 4: +OQ-S20-1 (premise-corrected — the og delegates user-key unlock to Windows; no stretch exists in its binary); live file inventory)
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |

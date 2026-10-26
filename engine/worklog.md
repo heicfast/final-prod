@@ -14295,3 +14295,23 @@ Stage Summary:
 - OQ-S6-1 RESOLVED (no code change — decode-only landing). Session
   tally: 27 resolutions (22 INFO closures, A-008 ACUTE, OQ-Z1, OQ-S6-3,
   OQ-S6-2, OQ-S6-1). Next: OQ-S5-1 (CheckVersion's consumer).
+
+---
+Task ID: DFX24-T1..T5 (bootstrap + M-014 lane)
+Agent: DFX24 (session 24, the MAJOR lane)
+Task: execute diff-to-fix — MAJOR findings first, 20+ fixes, fixed findings to FIXED/, docs/counts current
+
+Work Log:
+- Bootstrap: repos cloned; audited commit 02b950f (baseline 737/737 linux-release green first-hand); corpus 03ad46c unmoved; lane claim recorded (worklog/session-diff-fix-24-prompt.md, token redacted).
+- Read the 14 open MAJOR findings in full; read diff-to-fix README/SEVERITY-SCALE/matrix/module docs; read the corpus citations for M-014 first-hand (exFATSearchDLL_decompiled.c :1756-1870, :34521-34590, :25507-25620).
+- M-014 independent verification: raw disassembly of FUN_180002f90/FUN_180003030 (objdump on og-codebase/exFATSearchDLL.dll) confirming the timestamp gates, the secondary-count bounds, the byte order of the UTF-16 table check; extracted the 256-byte table at .rdata RVA 0x45A00 byte-exact (PE section map; extraction script + byte-for-byte verification).
+- Implemented the four gate families + 13 tests; fail-before EXECUTED (11/13 RED on the pre-fix engine, 2 boundary-accept guards green by design); suite 750/750.
+- Parallel-window union absorbed: the DFX23 lane landed M-014 first (f0ce492) — convergent implementation dropped cleanly EXCEPT the UTF-16 table, which the landing left unimplemented on the premise "not recoverable from the corpus" (premise wrong: the binary ships). Completed the table on top of their landing: name_fragment_gates_ok table loop + 2 tests; fail-before EXECUTED (table loop disabled -> RED).
+- Baseline repairs: (1) ASan-lane LeakSanitizer red (4 tests, every report naming cr_log.cpp:55 — the N-062 set_sink bare-new leak) — fixed with a static std::deque<Site> pool preserving the no-UAF swap semantics; filed as N-079 NEW-FINDING (FIXED). (2) PARITY-DELTAS D-84 row (the N-071 two-stack registration) dropped by the DFX30-T4 renumbering union — restored verbatim from 7ee64fb; Enumerate.ScopeDeltaRegisteredWithRevisitTrigger red -> green. (3) BtrfsTwoSubvolumesRootSeparately union-red repaired convergently by a parallel lane (taken as-is, first-landing-wins).
+- Audit trail: M-014 Resolution addendum (table provenance + premise correction); N-079 finding filed with Resolution; RESOLVED-INDEX rows; modules/exfat.md session-24 completion verdict; SUMMARY session-24 delta.
+
+Stage Summary:
+- M-014: FIXED (first landing by the parallel lane; this lane's completion closes the UTF-16 table gap with binary-extracted bytes + disasm-pinned semantics).
+- N-079: NEW-FINDING filed + FIXED (ASan lane green again).
+- Suite 826/826 linux-release; ASan lane green at the fix tree.
+- Remaining MAJOR on this lane: M-018, M-025, M-030, M-034, M-035, M-039, M-040, M-041, M-048, M-052.
