@@ -37,7 +37,15 @@ namespace session {
  *   u8 hash_valid + 16B sha128 (when valid)
  *   if full: u16 role_len + role bytes + stats (u64 x4)
  * Container: u32 node_count header + nodes. */
-u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out);
+/* N-060: save-path progress + cancel hook (the og's per-child save
+ * progress window with per-child IsCancelled teardown - rsf-format
+ * --scan-session.md flow section). Called per node during the tree
+ * emission; done/total are NODE counts; returning false cancels the
+ * serialization (ERR_CANCELLED). NULL = silent save (the pre-N-060
+ * behavior). */
+using SerializeProgress = bool (*)(u64 done, u64 total, void* user);
+u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out,
+                   SerializeProgress progress = nullptr, void* progress_user = nullptr);
 u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree,
                       u32* reparented_out = nullptr);
 

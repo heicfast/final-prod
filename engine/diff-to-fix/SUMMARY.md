@@ -202,11 +202,21 @@ comment repaired, File%06u registered as the deliberate default
 RED; 679/679 + 24/24. The CZeroEnd-family membership beyond MP4/MOV is
 the honestly recorded remainder (decode each of the 22 SetName callers).
 
+**N-056 FIXED (MINOR):** the WinDestIo failed-rename temp leak closed at
+both sites the finding's plan named — commit() deletes the staged temp in
+the rename-failure path, and close()'s delete gate is the RENAME STATE
+(Open::temp_renamed) instead of handle liveness (the old gate provably
+never fired after a failed rename: the handle was nulled pre-rename).
+WinDestIo.FailedRenameCleansTemp (structural fail-before pinned in-test)
++ WinDestIo.UncShapedPathsFailCleanly (the UNC-family contracts). The
+Windows/MSVC lane proves execution (Linux cannot exercise WinDestIo —
+the finding's own deferral); Linux suite 684/684 unaffected.
+
 **Counts after this wave (direct file inventory):** SEVERE 0 · MAJOR ~31 ·
-MINOR 26 files · INFO 22 (0 actionable) · tracked-open 16 · FIXED 100
-finding files + RESOLVED-INDEX. Queue head: N-056 (windestio temp leak),
-then N-046/N-043 and the remaining MINOR tier (N-068/N-065 left to the
-DFX16 lane's published queue).
+MINOR 23 files · INFO 22 (0 actionable) · tracked-open 16 · FIXED 101
+finding files + RESOLVED-INDEX. Queue head: N-046 (geometry refresh),
+then N-043 (progress liveness watchdog) and the remaining MINOR tier
+(N-068/N-065 left to the DFX16 lane's published queue).
 
 # SUMMARY.md — executive summary (session 10's close-out on top; earlier sessions below)
 
@@ -247,6 +257,26 @@ with it in the same commit. Suite 686/686. Finding → FIXED/.
 **Counts after this landing (direct file inventory at the N-043 push):**
 SEVERE 0 · MAJOR 24 · MINOR 32 · INFO 22 (0 actionable) · tracked-open
 16 · FIXED 115 files (114 findings + RESOLVED-INDEX).
+
+**N-060 FIXED (save progress + cancel + atomic saves):** the og's save
+window (rsf-format flow section: 40 + 50·processed/(2·remaining) with
+per-child IUIProgressInfo::IsCancelled teardown, re-verified first-hand)
+mapped honestly: per-node `session::SerializeProgress` hook through
+serialize_tree (ERR_CANCELLED on false) + save_session pass-through +
+the shim's coalesced CR_EVT_SAVE_PROGRESS (9u; the save's own 0..1000
+stage_permille, overall stays the standing 1000 — the og's 40→65%
+window would regress our monotonic permille; not adopted, registered)
++ the SAVE-SCOPED cr_ui_scan_save_cancel export (the mid-fix
+correction: the og's IsCancelled is the save object's state, NOT the
+scan flag — save-on-scan-cancel stays intact) + atomic temp-then-rename
+saves (shim + CLI — the N-014 discipline; a torn save never destroys
+the previous good session). Session.SaveEmitsProgress /
+SaveCancelsCleanly + CrUi.SaveProgressEventsAndAtomicCancel; fail-before
+by construction. Suite 716/716. Finding → FIXED/.
+
+**Counts after this landing (direct file inventory at the N-060 push):**
+SEVERE 0 · MAJOR 24 · MINOR 31 · INFO 22 (0 actionable) · tracked-open
+16 · FIXED 116 files (115 findings + RESOLVED-INDEX).
 
 ## Session-10 delta — the SEVERE tier close-out (2026-10-26)
 

@@ -33,6 +33,13 @@ private:
         void* handle = nullptr; /* HANDLE */
         std::u16string temp_path;
         std::u16string final_path;
+        /* N-056: the temp's disposition - false until the atomic rename
+         * SUCCEEDS. close() deletes the temp on every !renamed exit
+         * (write-phase failure, flush failure, failed rename); the old
+         * handle-based gate skipped the delete after commit() had
+         * nulled the handle pre-rename, leaking the temp on every
+         * failed rename. */
+        bool temp_renamed = false;
     };
     std::map<u64, Open> open_;
 };

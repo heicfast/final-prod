@@ -46,6 +46,7 @@
 #include <map>
 #include <chrono>
 #include <cstdarg>
+#include <filesystem>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -945,21 +946,35 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
     }
     log_close();
 
-    /* save helper: full truthful session from the (now quiesced) tree */
+    /* save helper: full truthful session from the (now quiesced) tree.
+     * N-060: atomic temp-then-rename (the N-014 checkpoint discipline) -
+     * a torn save (cancel/failure/crash between truncate and finalize)
+     * never destroys the previous good session file. */
     auto save_session_to = [&](const std::wstring& path) -> bool {
+        const std::wstring tmp = path + L".tmp";
         FILE* f = nullptr;
-        if (_wfopen_s(&f, path.c_str(), L"wb") != 0 || !f) {
-            wprintf(L"cannot create session file %s\n", path.c_str());
+        if (_wfopen_s(&f, tmp.c_str(), L"wb") != 0 || !f) {
+            wprintf(L"cannot create session file %s\n", tmp.c_str());
             return false;
         }
         session::Writer w(file_write_cb, file_tell_cb, file_seek_cb, f);
         w.set_flags(session::CRSF_FLAG_ABS_EXTENTS); /* F-1: absolute basis */
-        if (w.open(0x52434F56) != OK || ctrl->save_session(w, stats) != OK || w.finalize() != OK) {
+        bool ok = w.open(0x52434F56) == OK && ctrl->save_session(w, stats) == OK &&
+                  w.finalize() == OK;
+        fclose(f);
+        if (ok) {
+            std::error_code ec;
+            std::filesystem::rename(tmp, path, ec);
+            ok = !ec;
+        }
+        if (!ok) {
+            /* the staging file is a torn never-committed save - remove it,
+             * never trust it (the final path keeps the previous good one) */
+            std::error_code rm_ec;
+            std::filesystem::remove(tmp, rm_ec);
             wprintf(L"session save failed\n");
-            fclose(f);
             return false;
         }
-        fclose(f);
         return true;
     };
 

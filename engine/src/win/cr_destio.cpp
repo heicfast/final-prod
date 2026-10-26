@@ -76,8 +76,17 @@ u32 WinDestIo::commit(u64 item_id) {
     if (!MoveFileExW(reinterpret_cast<const wchar_t*>(it->second.temp_path.c_str()),
                      reinterpret_cast<const wchar_t*>(it->second.final_path.c_str()),
                      MOVEFILE_REPLACE_EXISTING)) {
+        /* N-056: the rename failed - the staged temp must NOT survive
+         * (the og's recovery funnel leaves no orphaned temps; UIUX 11).
+         * Delete it here; close()'s !temp_renamed gate retries if this
+         * delete itself fails. The old code returned with the handle
+         * already null, so close()'s handle-gated delete never fired -
+         * every failed rename leaked the .part-N temp on the
+         * destination. */
+        DeleteFileW(reinterpret_cast<const wchar_t*>(it->second.temp_path.c_str()));
         return ERR_WRITE_FAILED;
     }
+    it->second.temp_renamed = true;
     return OK;
 }
 
@@ -88,8 +97,13 @@ void WinDestIo::close(u64 item_id) {
     if (it->second.handle)
         CloseHandle(HANDLE(it->second.handle));
     /* an un-committed temp file is removed (atomic semantics: never a
-     * half-written final file) */
-    if (!it->second.temp_path.empty() && it->second.handle) {
+     * half-written final file). N-056: the gate is the RENAME STATE, not
+     * the handle - commit() nulls the handle BEFORE the rename, so the
+     * old handle gate could never fire after a failed rename (the
+     * leaked-temp defect). Covers: write-phase failure, flush failure,
+     * failed rename (commit already deleted; this is the retry), and
+     * never fires after a successful rename (temp_renamed). */
+    if (!it->second.temp_path.empty() && !it->second.temp_renamed) {
         DeleteFileW(reinterpret_cast<const wchar_t*>(it->second.temp_path.c_str()));
     }
     open_.erase(it);

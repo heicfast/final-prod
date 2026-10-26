@@ -168,3 +168,46 @@ TEST(DestArming, JunctionResolvesToTargetVolume) {
     EXPECT_EQ(jletter, tletter); /* the TARGET's volume, not the host's */
     DeleteFileW(junc.c_str()); /* junctions delete like files */
 }
+
+/* ---------------------------------------------------------------------------
+ * N-056: failed-rename temp cleanup + UNC-shaped path contracts.
+ * ------------------------------------------------------------------------- */
+TEST(WinDestIo, FailedRenameCleansTemp) {
+    /* N-056 fail-before trace (the structural proof the Windows lane
+     * executes): commit() nulls the handle BEFORE MoveFileExW; when the
+     * rename fails (here: the final path is occupied by a DIRECTORY -
+     * file->directory rename fails with ACCESS_DENIED), the OLD close()
+     * gate `handle != null` could never fire, so DeleteFileW was
+     * skipped and the .part-N temp leaked on the destination. The final
+     * assertion below fails on that tree; the fix deletes the temp in
+     * commit()'s failure path AND gates close() on the rename state. */
+    const std::string root = cr_test::tmp_path("wdestio", ".f");
+    WinDestIo io;
+    ASSERT_EQ(io.mkdir(u16_from(root)), OK);
+    const std::u16string final_path = u16_from(root + "\\BLOCKED.TXT");
+    /* a DIRECTORY at the final path makes the atomic rename fail */
+    ASSERT_EQ(io.mkdir(final_path), OK);
+    ASSERT_EQ(io.create_temp(9, final_path, u".part-9"), OK);
+    const unsigned char payload[] = {'X'};
+    EXPECT_EQ(io.write(9, 0, payload, 1), OK);
+    EXPECT_EQ(io.commit(9), u32(ERR_WRITE_FAILED));
+    io.close(9);
+    EXPECT_FALSE(io.exists(u16_from(root + "\\BLOCKED.TXT.part-9")))
+        << "the failed-rename temp must be cleaned, not leaked";
+    /* the blocker is untouched and no half-written final appeared */
+    EXPECT_TRUE(io.exists(final_path));
+}
+
+TEST(WinDestIo, UncShapedPathsFailCleanly) {
+    /* N-056 (b): the UNC-shaped destination family behaves cleanly on
+     * an unresolvable share - exists() answers false, mkdir fails
+     * without crashing, create_temp refuses upfront with
+     * ERR_DEST_UNWRITABLE (CreateFileW cannot open
+     * \\?\UNC\nonexistent.invalid\...), and nothing is left behind. */
+    WinDestIo io;
+    const std::u16string unc_final = u16_from("\\\\?\\UNC\\nonexistent.invalid\\share\\out\\F.TXT");
+    EXPECT_FALSE(io.exists(unc_final));
+    EXPECT_NE(io.mkdir(unc_final), u32(OK));
+    EXPECT_EQ(io.create_temp(11, unc_final, u".part-11"), u32(ERR_DEST_UNWRITABLE));
+    io.close(11); /* no handle, no temp, nothing to clean - must no-op */
+}

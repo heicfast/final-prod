@@ -3,6 +3,7 @@
 #include "cr/session/cr_crsf.h"
 #include "cr/session/cr_records.h"
 #include <algorithm>
+#include <functional>
 #include "cr/storage/cr_device.h"
 #include <cstring>
 #include <vector>
@@ -858,4 +859,88 @@ TEST(Session, OldFormatWithoutRawNameStillLoads) {
             found = c;
     ASSERT_NE(found, nullptr);
     EXPECT_TRUE(found->props()->name_raw.empty());
+}
+
+/* ---- N-060: save-path progress + cancel (the og's per-child window) --- */
+
+namespace {
+struct SaveProgressRecorder {
+    std::vector<std::pair<u64, u64>> ticks;
+    bool cancel_at_done_ge = false;
+    u64 threshold = 0;
+    static bool thunk(u64 done, u64 total, void* user) {
+        auto* r = static_cast<SaveProgressRecorder*>(user);
+        r->ticks.push_back({done, total});
+        return !(r->cancel_at_done_ge && done >= r->threshold);
+    }
+};
+} // namespace
+
+TEST(Session, SaveEmitsProgress) {
+    /* N-060: the tree serializer reports per-node progress (done/total in
+     * NODES, the pre-order walk knowing the total up front) with the
+     * terminal (total,total) tick - the og's save window
+     * (rsf-format--scan-session.md flow section: 40% + 50*processed/
+     * (2*remaining), checked after every child) mapped onto our save
+     * path. Pre-fix: serialize_tree had no hook at all. */
+    tree::ResultTree t;
+    tree::FullNode* r = nullptr;
+    build_nested_tree(t, r);
+    t.refresh_stats();
+    /* the pre-order walk emits the root + every node below it */
+    u64 expected = 0;
+    std::function<u64(const tree::FileNode*)> count = [&](const tree::FileNode* n) -> u64 {
+        u64 sum = 1;
+        for (const tree::FileNode* c = n->first_child(); c; c = c->next_sibling())
+            sum += count(c);
+        return sum;
+    };
+    for (const tree::FileNode* root : t.roots())
+        expected += count(root);
+    SaveProgressRecorder rec;
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob, &SaveProgressRecorder::thunk, &rec), u32(OK));
+    ASSERT_FALSE(rec.ticks.empty());
+    /* every tick carries the same total; the first is (0, total) */
+    const u64 total = rec.ticks.front().second;
+    EXPECT_EQ(rec.ticks.front().first, 0u);
+    for (const auto& tk : rec.ticks)
+        EXPECT_EQ(tk.second, total);
+    EXPECT_GT(total, 0u);
+    /* monotonic done, terminal (total,total) */
+    for (size_t i = 1; i < rec.ticks.size(); ++i)
+        EXPECT_GE(rec.ticks[i].first, rec.ticks[i - 1].first);
+    EXPECT_EQ(rec.ticks.back().first, total);
+    /* the total equals the tree's serialized node count (roundtrip the
+     * blob and count - the header carries it) */
+    ASSERT_GE(blob.size(), 4u);
+    const u32 node_count = u32(blob[0]) | (u32(blob[1]) << 8) | (u32(blob[2]) << 16) |
+                           (u32(blob[3]) << 24);
+    EXPECT_EQ(total, u64(node_count));
+    EXPECT_EQ(expected, u64(node_count)); /* the full pre-order walk */
+}
+
+TEST(Session, SaveCancelsCleanly) {
+    /* N-060: a false return from the hook aborts serialization with
+     * ERR_CANCELLED (the og's per-child IsCancelled teardown; the caller
+     * discards the partial output - the writer never sees it). */
+    tree::ResultTree t;
+    tree::FullNode* r = nullptr;
+    build_nested_tree(t, r);
+    t.refresh_stats();
+    SaveProgressRecorder rec;
+    rec.cancel_at_done_ge = true;
+    rec.threshold = 1; /* cancel on the first per-node tick */
+    std::vector<u8> blob;
+    EXPECT_EQ(serialize_tree(t, blob, &SaveProgressRecorder::thunk, &rec),
+              u32(ERR_CANCELLED));
+    EXPECT_FALSE(rec.ticks.empty());
+    /* even the (0,total) entry tick is cancellable */
+    SaveProgressRecorder rec0;
+    rec0.cancel_at_done_ge = true;
+    rec0.threshold = 0;
+    std::vector<u8> blob0;
+    EXPECT_EQ(serialize_tree(t, blob0, &SaveProgressRecorder::thunk, &rec0),
+              u32(ERR_CANCELLED));
+    EXPECT_EQ(blob0.size(), 0u) << "a cancelled entry tick emits nothing";
 }

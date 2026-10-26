@@ -11974,4 +11974,85 @@ Stage Summary:
 - Session tally so far: 1 SEVERE fixed + 1 pushed-red repair. Next:
   M-043 (NTFS content-proof + backup boot), then M-013/M-014/M-018/
   M-029/M-032/M-035/M-049/M-050/M-052 (the unclaimed MAJOR lane).
-=======
+---
+Task ID: DFX17-F5 (session 17, finding 5 — N-056)
+Agent: main engineer (diff-to-fix fix session 17 — DFX17, MINOR-first mandate)
+Task: N-056 — WinDestIo failed-rename temp leak + UNC untested. Verified,
+fixed at both root-cause sites, tests written for the Windows lane.
+
+Work Log:
+- Core source re-read first-hand: the quoted chain is exact — commit()
+  does CloseHandle -> handle=nullptr -> MoveFileExW, so a failed rename
+  returns with the handle null; close()'s old delete gate
+  (`handle != null`) then skipped DeleteFileW — the .part-N temp leaked
+  on every failed rename. The finding's ERROR_IO_PENDING note (withdrawn
+  scratch claim) respected: that branch stays untouched.
+- Fix (both sites from the plan): (a) commit() deletes the staged temp
+  in the rename-failure path before returning ERR_WRITE_FAILED (the og's
+  funnel leaves no orphaned temps, UIUX 11); (b) close()'s gate is now
+  Open::temp_renamed (set ONLY after a successful MoveFileExW) — covers
+  write-phase failure, flush failure, and failed rename (the retry when
+  commit's own delete fails); never fires post-success.
+- Tests (tests/unit/test_destio_win.cpp, the Windows/MSVC lane):
+  WinDestIo.FailedRenameCleansTemp (a DIRECTORY occupying the final path
+  makes the rename fail; asserts the temp is gone and the blocker
+  untouched — the fail-before is STRUCTURAL and pinned in the test
+  comment: the old gate provably never fired) + WinDestIo.UncShaped-
+  PathsFailCleanly (the \\?\UNC\ family: exists false, mkdir fails
+  cleanly, create_temp refuses upfront ERR_DEST_UNWRITABLE, close
+  no-ops).
+- Verification posture (honest): this Linux box has no Windows
+  toolchain (no MSVC/mingw), so execution proof rides the Windows CI
+  lane — the finding itself deferred the executed repro to the Windows
+  lane ("the Linux CI cannot exercise WinDestIo"). The code change was
+  line-reviewed twice (the diff in the commit); the Linux suite is
+  unaffected (684/684 — the change is Windows-only code).
+- Audit trail: Resolution in the finding, moved MINOR/ -> FIXED/,
+  RESOLVED-INDEX row, matrix writer F62/Q65/A35 cell, modules/writer.md
+  session-17 fix row, SUMMARY delta.
+
+Stage Summary:
+- N-056 FIXED (execution proof on the Windows CI lane at push). Session
+  tally: N-078, N-016b (N-029 group), N-063, N-056 (4 findings) + 2
+  baseline repairs + 1 convergence verification. Next: N-046 (geometry
+  refresh), N-043 (progress liveness watchdog).
+
+---
+
+---
+Task ID: DFX18-T6 (session 18, sixth fix — N-060)
+Agent: main engineer (diff-to-fix fix session 18 — DFX18)
+Task: N-060 save_session progress + cancel + atomicity.
+
+Work Log:
+- Corpus re-verified first-hand (rsf-format--scan-session.md flow
+  section): progress = 40 + 50·processed/(2·remaining) via callback;
+  cancel = IUIProgressInfo::IsCancelled checked after EVERY child
+  (writer @186644-186674) — and IsCancelled is the SAVE PROGRESS
+  OBJECT's state, not the scan flag. That decode CORRECTED my initial
+  design mid-fix (gating the save on the scan's PausableToken would
+  have broken save-on-scan-cancel — the CancelSaveAndResume contract);
+  the save-cancel is a separate save-scoped flag + export.
+- Core: session::SerializeProgress (per-node (done,total) ticks, total
+  from the pre-order walk, ERR_CANCELLED on false, terminal tick) +
+  serialize_tree hook + save_session pass-through (NULL = silent).
+- Shim: coalescing adapter → CR_EVT_SAVE_PROGRESS (9u, appended type;
+  first tick, permille steps, terminal; stage_permille = the save's own
+  0..1000, overall = the STANDING 1000 — the og's 40→65% window would
+  regress our monotonic permille; not adopted, registered in
+  ABI-CONTRACT) + cr_ui_scan_save_cancel (appended export) + ATOMIC
+  temp-then-rename save (staging .tmp, commit-by-rename, remove on
+  cancel/failure — the N-014 discipline). CLI save_session_to mirrors.
+- Tests: Session.SaveEmitsProgress + Session.SaveCancelsCleanly (core;
+  my first hand-count of the fixture tree was wrong — replaced with a
+  programmatic walk) + CrUi.SaveProgressEventsAndAtomicCancel (shim;
+  the first run caught my callback cancelling the SUCCESS path too —
+  gated to part 2). Fail-before by construction (the hook/export did
+  not exist).
+- Suite 716/716 linux-release. Audit trail: Resolution + FIXED/ move,
+  index row (101 header), matrix rows (session ×3), SUMMARY counts,
+  ABI-CONTRACT §5 save contract + event table.
+
+Stage Summary:
+- N-060 FIXED (tally: 6 — N-045, N-046, N-040, N-074, N-043, N-060).
+  MINOR 31 remain. Next: N-061 (runlog/auto-naming) or N-062/N-064.

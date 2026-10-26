@@ -365,7 +365,12 @@ public:
             bool (*progress)(u32 overall_permille, void*), void* progress_user, ScanStats& stats);
 
     /* Session integration: emit the standard record set. */
-    u32 save_session(session::Writer& w, const ScanStats& stats) const;
+    /* N-060: optional save-path progress + cancel hook (per-node; false
+     * return aborts with ERR_CANCELLED - the og's per-child IsCancelled
+     * save teardown). NULL = the silent save (pre-N-060 behavior). */
+    u32 save_session(session::Writer& w, const ScanStats& stats,
+                     session::SerializeProgress progress = nullptr,
+                     void* progress_user = nullptr) const;
     /* M-042: revalidate_disk, when non-null, is the CURRENT disk the
      * session is being used against - every restored lost candidate is
      * re-read and re-classified at its start LBA through it, and records

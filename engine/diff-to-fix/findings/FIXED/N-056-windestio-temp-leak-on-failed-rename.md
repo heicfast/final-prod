@@ -64,3 +64,10 @@ to the fix leg (Windows lane; the Linux CI cannot exercise WinDestIo).
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-056 commit, DFX17)
+**Verified by:** `WinDestIo.FailedRenameCleansTemp` + `WinDestIo.UncShapedPathsFailCleanly` (tests/unit/test_destio_win.cpp — the Windows/MSVC lane; the finding itself deferred the executed repro to the Windows lane since Linux CI cannot exercise WinDestIo). The fail-before is STRUCTURAL and pinned in the test's comment: commit() nulls the handle BEFORE the failing MoveFileExW, so the old close() gate `handle != null` provably never fired — the test's temp-gone assertion fails on the pre-fix tree by construction. Linux suite unaffected (684/684 at the landing tree — the change is Windows-only code). Windows CI green required at the push.
+**Resolution notes:** Root cause fixed at BOTH sites the finding's plan named: (a) commit() now deletes the staged temp in the rename-failure path before returning (the og's funnel leaves no orphaned temps — UIUX 11), and (b) close()'s delete gate is the RENAME STATE (`Open::temp_renamed`, set only after a successful MoveFileExW), not the handle liveness — the old gate could never fire after a failed rename because commit() nulls the handle pre-rename. The new gate covers every un-committed exit (write-phase failure, flush failure, failed rename where it acts as the retry when commit()'s own delete fails) and never fires after a successful rename. The UNC-path half: `WinDestIo.UncShapedPathsFailCleanly` covers the `\\?\UNC\...` family on an unresolvable share — exists() false, mkdir fails cleanly, create_temp refuses upfront with ERR_DEST_UNWRITABLE, close() no-ops.
