@@ -155,7 +155,12 @@ TEST(DestArming, JunctionResolvesToTargetVolume) {
     /* a junction into another tree resolves to the TARGET's volume - the
      * og compares the resolved placement, never the junction's host. */
     const std::string root = cr_test::tmp_path("djunc", ".e");
-    std::wstring junc = u16_from(root + "\\to_windows");
+    /* MSVC: u16string != wstring (distinct types even at 16-bit
+     * wchar_t); the _wsystem call below wants the wide form - the
+     * same ASCII byte-lift u16_from does, widened. */
+    std::wstring junc;
+    for (char c : root + "\\to_windows")
+        junc.push_back(wchar_t(unsigned char(c)));
     wchar_t before = 0;
     if (!win::destination_volume_letter(junc, &before)) {
         /* root dir may not exist yet */

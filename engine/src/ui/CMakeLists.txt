@@ -15,6 +15,11 @@ target_compile_definitions(cr_ui PRIVATE CR_UI_BUILD)
 target_include_directories(cr_ui PUBLIC ${CMAKE_SOURCE_DIR}/include)
 
 target_link_libraries(cr_ui PRIVATE cr::core)
+# N-062: GetProcessMemoryInfo (psapi; on MSVC the K32- alias also exists
+# in kernel32, but the explicit lib is the Win7-inclusive form)
+if(WIN32)
+    target_link_libraries(cr_ui PRIVATE Psapi)
+endif()
 if(WIN32)
     target_link_libraries(cr_ui PRIVATE cr::win)
 endif()
