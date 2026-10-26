@@ -113,7 +113,6 @@ T13 ACKNOWLEDGE INFORMATIONALs; T14 resolve/push-forward TRACKED-OPEN; T15
 CROSS-REF-MATRIX; T16 SUMMARY; T17 modules/*.md + docs + TODO removal; T18 full
 CI sweep; T19 discovered tests; T20 tag release + handoff + final sweep.
 
-<<<<<<< HEAD
 # Session 30 prompt (re-stamped from local 25→26→27 bootstraps after same-window ID collisions; queue unchanged: tracked-open tail) (diff-to-fix fix session — DFX27) — saved token-redacted at bootstrap
 
 # (Re-stamped twice from the local DFX25/DFX26 bootstraps after same-window ID
@@ -204,7 +203,6 @@ unowned at fetch:
   session.
 - If the parallel MAJOR/MINOR lanes stall (no landing observed over a long
   window), pull and absorb their remainder per first-landing-wins.
-=======
 # Session DFX25 — diff-to-fix closing session (INFORMATIONAL + tracked-open focus)
 
 Saved at session start, token redacted. Date: 2026-10-26.
@@ -244,7 +242,6 @@ end. Put fixed findings in the fixed directory. Update all docs, counts.
 - Corpus HEAD: 03ad46c (unmoved throughout history)
 - Open: 0 ACUTE, 0 SEVERE, 14 MAJOR, 19 MINOR, 22 INFORMATIONAL, 11 tracked-open
 - FIXED: 149
-=======
 # Session 30 prompt (saved token-redacted at bootstrap; re-stamped 25→30 past same-window squats)
 
 Mandate: execute the roadmap in `core_recovery/diff-to-fix/` — for every
@@ -294,5 +291,3 @@ Key SOPs (unchanged from all prior sessions):
 8. Audit trail is the deliverable: finding files keep their Resolutions,
    CROSS-REF-MATRIX cells go to MATCH, SUMMARY counts updated,
    modules/*.md verdicts updated, worklog.md chronological.
->>>>>>> 540811b (worklog(DFX30): session-25 bootstrap — disjoint MINOR-tail lane claim (back-to-front cursor), baseline 737/737 green)
->>>>>>> 3f23f3fd4172262e0f40a1786d9366308cb62d44

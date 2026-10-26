@@ -519,15 +519,21 @@ TEST(Btrfs, TwoSubvolumesRootSeparately) {
     };
     walk(ra, "");
 
-    /* each file under its OWN root */
-    EXPECT_TRUE(paths.count("subvol-5/hello.txt"));
-    EXPECT_TRUE(paths.count("subvol-5/sub/nested.bin"));
-    EXPECT_TRUE(paths.count("subvol-256/second.txt"));
+    /* each file under its OWN root. M-020 union correction: the fixture
+     * carries no "default" DIR_ITEM, so the og's fallback (FUN_1800061f0
+     * :4060) makes root 5 the DEFAULT subvolume and its children render
+     * at the volume root (no subvol-5 container - the M-020 landing's
+     * EndToEndWalk pin at :418). The no-leakage property this N-019
+     * scenario proves is unchanged: every file under its own tree. */
+    EXPECT_TRUE(paths.count("hello.txt")) << "subvol 5 IS the default: renders at the root";
+    EXPECT_TRUE(paths.count("sub/nested.bin")) << "the default's subtree renders at the root";
+    EXPECT_TRUE(paths.count("subvol-256/second.txt")) << "the non-default keeps its container";
     /* no cross-subvol leakage */
+    EXPECT_FALSE(paths.count("subvol-5/hello.txt")) << "the default has no container";
     EXPECT_FALSE(paths.count("subvol-5/second.txt"));
     EXPECT_FALSE(paths.count("subvol-256/hello.txt"));
-    EXPECT_FALSE(paths.count("second.txt"));
-    EXPECT_FALSE(paths.count("hello.txt"));
+    EXPECT_FALSE(paths.count("subvol-256/nested.bin"));
+    EXPECT_FALSE(paths.count("second.txt")) << "second.txt never leaks to the root";
 
     /* the second subvol's file: size + extent + content at its own data */
     tree::FileNode* second = nullptr;

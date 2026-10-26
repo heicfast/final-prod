@@ -760,7 +760,7 @@ TEST(CrUi, RecoverySubtreeAndRename) {
         EXPECT_EQ(std::memcmp(got, "DOCDATA", 7), 0);
         std::fclose(f);
     }
-    const std::string renamed = dest + "/DOC (2).TXT";
+    const std::string renamed = dest + "/DOC_1.TXT";
     EXPECT_TRUE(std::filesystem::exists(renamed));
 
     /* snapshot-based enqueue (G-02b): same content through the value path */

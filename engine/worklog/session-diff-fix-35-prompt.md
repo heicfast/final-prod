@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Session DFX35 — diff-to-fix closing session (INFORMATIONAL + tracked-open focus)
 
 Saved at session start, token redacted. Date: 2026-10-26.
@@ -38,7 +37,6 @@ end. Put fixed findings in the fixed directory. Update all docs, counts.
 - Corpus HEAD: 03ad46c (unmoved throughout history)
 - Open: 0 ACUTE, 0 SEVERE, 14 MAJOR, 19 MINOR, 22 INFORMATIONAL, 11 tracked-open
 - FIXED: 149
-=======
 # Session 35 (DFX35, re-stamped from 23 — squatted by a parallel lane) — diff-to-fix MAJOR-first closing session
 
 Saved verbatim from the session prompt, token redacted. Read twice before working.
@@ -107,4 +105,3 @@ before session end.
 - Corpus: 03ad46c (unmoved)
 - Open inventory at start: MAJOR 14 · MINOR 19 · INFO 24 · tracked-open 11
 - SEVERE/ACUTE tiers: empty
->>>>>>> c8a0797 (fix(M-014): exFAT structural entry gates — FUN_180002f90/FUN_180029280/FUN_180003030 decompile-exact)

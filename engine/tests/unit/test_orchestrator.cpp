@@ -950,7 +950,7 @@ TEST(SafeWriter, CollisionAndSanitize) {
 
     io.existing.insert(u16_("R:\\out\\photo.jpg"));
     std::u16string n1 = writer.resolve_collision(u16_("R:\\out"), u16_("photo.jpg"));
-    EXPECT_EQ(n1, u16_("photo (2).jpg"));
+    EXPECT_EQ(n1, u16_("photo_1.jpg"));
 
     /* sanitize: forbidden chars replaced (corpus rule) */
     EXPECT_EQ(SafeWriter::sanitize_name(u16_("a<b>:?/|*.txt")), u16_("a_b______.txt"));
