@@ -274,8 +274,8 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* re
             return 0x50030009;
         PropsRef props_ref(props); /* N-077: releases on every early break
          * (three convergent landings - session-22's PropsRef [canonical,
-         * first-landed], session-19's PropsGuard, DFX17's PropsGuard -
-         * all functionally identical; the PropsRef stands) */        PropsRef props_ref(props); /* N-077: releases on every early break */
+         * first-landed], session-19 DFX19's PropsGuard, DFX17's
+         * PropsGuard - all functionally identical; the PropsRef stands) */
 
         /* (Convergent repair note: this session's DFX19 leg found the
          * same leak independently during the s19 ASan/LSan suite sweep
@@ -410,7 +410,7 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* re
                 n = tree.add_file(parent, props);
             }
         }
-        props_ref.owned = false; /* the tree owns its reference now */        props->release();
+        props->release();
         props_ref.owned = false; /* the tree owns its reference now */
 
         if (!n) {
