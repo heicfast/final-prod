@@ -11425,6 +11425,7 @@ Stage Summary:
   M-017 (lost partition scoring).
 
 ---
+<<<<<<< HEAD
 Task ID: DFX22-T6 (N-035 — lost-candidate data-area extents)
 Agent: main engineer (diff-to-fix minors-first session 22)
 Task: N-035 — lost-candidate extent anchoring at the data area.
@@ -11450,3 +11451,85 @@ Work Log:
 Stage Summary:
 - Session tally: 8 resolutions. MINOR live count 30. Next: N-014 (stage
   checkpoint atomicity).
+=======
+Task ID: DFX16-HANDOFF (session 11 close-out — the DFX16 leg)
+Agent: main engineer (diff-to-fix session 11 — DFX16)
+Task: Close the leg: final counts, deliverable mapping, remaining scope,
+next steps. (Session ID history for the auditors: this leg stamped DFX13
+in its bootstrap, was squatted against twice, re-stamped DFX16 after the
+DFX14/DFX15 renames; all three stamps in this worklog refer to the same
+leg.)
+
+Work Log:
+- Final verification on the closing tree (post all unions): linux-gcc
+  (RelWithDebInfo + ASan) 691/691 green; linux-ubsan 640/640 green;
+  lint clean on every file this leg touched. Windows CI runs remotely
+  (MSVC /W4 /WX + the Win7-inclusive import gate) — no Windows-codeable
+  change in this leg's commits (all engine/test/audit-trail files, no
+  new imports).
+- This leg's commits (all pushed, main never left red beyond the
+  windows noted and repaired): 9704769/5ba6b57 (bootstrap + hygiene
+  moves N-013/N-015/N-018/N-042 with RESOLVED-INDEX/matrix/module/SUMMARY
+  updates + the matrix row-corruption repair), b8b0318 (N-069), da2f68f
+  (S-033 INVALID + erratum E43), 6795918 (N-067), 88457ca/cc4fb31
+  (N-068 gates + the N-077-convergent leak repair, reconciled to the
+  parallel lane's canonical PropsRef), cc4fb31 (N-008), plus union merges
+  and the rebase-union repairs recorded in the earlier entries.
+- Deliverable mapping (the mandate's §11): (1) every finding this leg
+  touched carries a Resolution section with fail-before/pass-after or
+  refutation evidence — N-008/N-067/N-068/N-069 FIXED, S-033 INVALID,
+  the EOCD half of N-068 FIXED-ALREADY with the reproduction; (2) no
+  finding file deleted (all moved with git mv, history preserved);
+  (3) CROSS-REF-MATRIX cells updated for every touched finding
+  (carve/exfat rows); (4) SUMMARY counts + deltas current; (5) two
+  corpus errata filed (E43 exFAT dentry-row labels, E44 ZIP entry-point
+  labels/bounds — both decompile-cited); (6) worklog entries for every
+  push.
+- The false-positive protocol worked end to end this session and is part
+  of the record: S-033 was filed from a confident spec recall, the
+  fail-before run "confirmed" it against a rewritten fixture, and the
+  decompile walk (:24380-24460) refuted it BEFORE any push — the local
+  branch was reverted byte-exact, the finding preserved as INVALID with
+  the full evidence chain, and the artifact's garbled labels fed back as
+  E43 so the next session does not repeat it. Corpus bytes over corpus
+  labels over confident recall.
+
+Remaining scope (precise, for the next session's queue; check the OTHER
+lanes' worklog entries for their in-flight claims before taking any):
+- SEVERE: none open (S-029 closed by the parallel lane in this window).
+- MAJOR (18 unresolved files) — the biggest user-impact items first:
+  M-029 (query model), M-030 (transport family), M-040 (BCD/NVRAM boot
+  repair), M-041 (check phase + error taxonomy), M-043 (NTFS content
+  proof + backup boot), M-042 (lostpart.dat resume) — the mom-
+  capabilities family (M-040..M-045) is the og's product endgame and the
+  least-served surface in the core.
+- MINOR (27 fully-unresolved + N-009/N-036 partials): the coherent
+  batches, in module order — (a) carve: N-031 (dispatch/stride deltas —
+  read the resolved OQ-T8 note in N-008's file first), N-027 group
+  (the N-027d ZIP residuals are now closed by N-008's landing - verify
+  the remaining sub-items), N-033 (registry-exports ABI); (b) session:
+  N-014 (checkpoint atomicity - the .tmp+rename design is already
+  documented in emit_checkpoint_'s comment; DFX18's lane is active in
+  that module - coordinate), N-060/N-061/N-066 (progress/save contracts,
+  run-log, identity card); (c) health: N-032 (CSMI/USB-bridge
+  transports); (d) the logging family N-048/N-062 (needs a corpus decode
+  of Log.mo's seam before any implementation - do NOT invent one);
+  (e) N-056 (WinDestIo temp leak - Windows-lane provable only).
+- TRACKED-OPEN (11): each carries its own next step; OQ-S6-2/S6-3 (the
+  CRAW reader F4 boolean + anchor B) are the two with the clearest
+  decompile path.
+
+Next concrete step for the next session: pull, re-baseline on the
+closing tree (691/691 + 640/640), read this entry + the DFX17/DFX18/
+DFX22 queues, then take M-040 (the boot-repair family - largest
+user-impact MAJOR) or the carve batch (a). Do not touch N-029/N-063/
+N-065/N-056 (DFX17's queue) without checking their latest entries.
+
+Stage Summary:
+- Leg closed: 5 finding-level resolutions landed (4 FIXED + 1 INVALID),
+  4 hygiene moves, 2 corpus errata, 3 union-tree repairs (including the
+  root-caused 5aaf044 clobber), 691/691 + 640/640 green, main green at
+  every push. The audit is NOT closed - the MAJOR 18 + MINOR 27 remain,
+  with the lane map above. No release tag (honest: the tier is not
+  closed).
+>>>>>>> 99f45aecd6f48aca32dad902c9adb4ae029f1d61

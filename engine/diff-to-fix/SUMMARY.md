@@ -710,6 +710,24 @@ Chain. Suite 685/685 ASan; 55/55 UBSan carve. Counts: MINOR 28 · FIXED 85
 (the parallel lanes' N-040/N-046/N-057/N-058/N-077/M-002/M-007/M-044/M-047/
 M-050/M-051/M-054/M-056 landings share the window).
 
+**Session-11 close-out (DFX16 leg):** this leg's verified landings —
+**N-069** (CAB dual-key), **N-067** (exFAT upcase integrity), **N-068**
+(ZIP LFH gates; EOCD half FIXED-ALREADY by the CD anchor), **N-008** (ZIP
+salvage extension + clean-archive honesty + ZIP64 chain), **S-033**
+(NEW-FINDING filed during N-067 verification and REFUTED the same session
+by the og's own decompile walk — INVALID with corpus errata E43; the
+exFAT type constants were RIGHT all along), plus the hygiene moves
+(N-013/N-015/N-018/N-042 → FIXED/), corpus erratum E44 (the ZIP
+entry-point table's labels/bounds), the 5aaf044 "style"-clobber
+root-cause + the convergent N-077 leak repair, and multiple union-tree
+repairs during the heavily-parallel window. **Final counts at this leg's
+close (direct file inventory): SEVERE 0 · MAJOR 18 · MINOR 29 (27 fully
+unresolved + N-009/N-036 partials) · INFO 22 (all ACKNOWLEDGED) · FIXED
+135 finding files · tracked-open 11.** Suite 691/691 linux-gcc ASan +
+640/640 linux-ubsan on the closing tree. No release tag: the audit is
+not closed (the MAJOR tier and the session/health/log minor families
+remain — see the worklog handoff for the lane map).
+
 # SUMMARY.md — executive summary (diff-fix session 9 on top; earlier sessions below)
 
 ## Session-9 delta (2026-10-26 — baseline repair + the SEVERE/MAJOR/MINOR fix waves)

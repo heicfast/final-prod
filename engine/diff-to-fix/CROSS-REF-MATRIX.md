@@ -88,13 +88,8 @@ dispositions is the surviving one).
 | zfs | OQ-T6, M (S-005 fixed); I-007 (S2) | ok | OQ-T6 | M | M | NA | NA | M | M | M | M |
 | refs | N-007, I-004 ack, **M-022 FIXED (s4)**, I-012 (S3: GAP-ADS resolved); **S-020 FIXED (s4)**; **M-026/M-027 FIXED (s4: stale-page sweep + identity keep-one + recycle routing)** | M | M | **M-022 FIXED (s4)** | M | NA | NA | M | M | M | M |
 | table+ldm | M (A-002 FIXED — real Microsoft GUIDs restored), M-002 | M | M (A-002 FIXED; A-001 fixed) | M-002, M (OQ-T7 resolved — I-008) | ok | NA | NA | M | M | M | M (debt) |
-<<<<<<< HEAD
-| carve | S-031 FIXED (carved nodes flag Deleted - og FLAGS=0x20 const); S-007 (primary FIXED s5), M-005 | M | S-007, N-008; M (S-015 units FIXED), M (S-017 ftyp magics FIXED) | S-007, N-008, M-005 | M | NA | NA | M (S-015 tail-walk FIXED: named 8 MiB bound, og range documented) | M | M | M |
-| lost-partition | M (S-006 fixed; S-019 FIXED s4 — BitLocker family), OQ-T9 RESOLVED (M-017 formula) | NA | M (S-006 fixed; S-019) | **S-029 FIXED (s10)** (consent-gated apply module + `rrecov apply`; findings/FIXED/S-029) | M | NA | NA | M | M | M | M **N-035 (S2) FIXED s22** (data-area-anchored containment/overlap extents; both extents on Candidate; fail-before executed) |
-=======
 | carve | S-031 FIXED (carved nodes flag Deleted - og FLAGS=0x20 const); S-007 (primary FIXED s5), M-005 | M | S-007, **N-008 FIXED s11** (sector-strided salvage + no clean-archive inflation + ZIP64 chain; gate half via N-068); M (S-015 units FIXED), M (S-017 ftyp magics FIXED) | S-007, N-008, M-005 | M | NA | NA | M (S-015 tail-walk FIXED: named 8 MiB bound, og range documented) | M | M | M |
-| lost-partition | M (S-006 fixed; S-019 FIXED s4 — BitLocker family), OQ-T9 RESOLVED (M-017 formula) | NA | M (S-006 fixed; S-019) | **S-029 FIXED (s10)** (consent-gated apply module + `rrecov apply`; findings/FIXED/S-029) | M | NA | NA | M | M | M | M |
->>>>>>> 6cba849616935dc9810de0306b0dd65e8155e823
+| lost-partition | M (S-006 fixed; S-019 FIXED s4 — BitLocker family), OQ-T9 RESOLVED (M-017 formula) | NA | M (S-006 fixed; S-019) | **S-029 FIXED (s10)** (consent-gated apply module + `rrecov apply`; findings/FIXED/S-029) | M | NA | NA | M | M | M | M **N-035 (S2) FIXED s22** (data-area-anchored containment/overlap extents; both extents on Candidate; fail-before executed) |
 | tree | M | M | NA | M | M | NA | NA | ok | M | NA | M |
 | session | M | M (D12), N-014 (S2) | **M-042 (S5b: lostpart.dat resume re-validation + layout snapshot missing)**; N-049 (S5b: record richness) | NA | M; N-014 (S2) | NA | NA | M | M | I-005.7 ack | M (debt) |
 | writer+report | M | M | NA | M | M | M | NA | ok | M | **N-013 (S2) FIXED s7 (FIXED/ move s11)**, **N-015 (S2) FIXED s9 (`915bce3`; FIXED/ move s11)**, **M-055 (S22 NEW-FINDING) FIXED — the win layer those fixes landed into was uncompilable; four structural repairs + the win_syntax_check gate** , N-009d | M (debt) |
