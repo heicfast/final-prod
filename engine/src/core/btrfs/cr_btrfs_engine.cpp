@@ -36,17 +36,17 @@ constexpr u64 SB_MAGIC_VALUE = 0x4D5F53665248425FULL; /* "_BHRfS_M" */
 constexpr u32 HDR_FSID = 0x20;
 constexpr u32 HDR_BYTENR = 0x30; /* self-referential logical address */
 constexpr u32 HDR_CHUNK_TREE_UUID = 0x40;
-constexpr u32 HDR_GENERATION = 0x50;
-constexpr u32 HDR_OWNER = 0x58;
+[[maybe_unused]] constexpr u32 HDR_GENERATION = 0x50;
+[[maybe_unused]] constexpr u32 HDR_OWNER = 0x58;
 constexpr u32 HDR_NR_ITEMS = 0x60;
 constexpr u32 HDR_LEVEL = 0x64;
 constexpr u32 HDR_ITEM_ARRAY = 0x65; /* offsetof(btrfs_leaf, items) */
 
 /* internal nodes hold btrfs_key_ptr entries (33 bytes), not items:
  * { disk_key(17), blockptr u64@17, generation u64@25 } */
-constexpr u32 KP_KEY = 0;
+[[maybe_unused]] constexpr u32 KP_KEY = 0;
 constexpr u32 KP_BLOCKPTR = 17;
-constexpr u32 KP_GENERATION = 25;
+[[maybe_unused]] constexpr u32 KP_GENERATION = 25;
 constexpr u32 KP_SIZE = 33;
 
 /* btrfs_disk_key (17 bytes) */
@@ -105,7 +105,7 @@ constexpr u32 INO_MIN = 0xA0; /* through otime */
  * back-to-back - iterate until the item is exhausted (corpus parity: the
  * og's walk advances by data_len+30+name_len per record). */
 constexpr u32 DI_LOCATION = 0; /* {objectid u64, type u8, offset u64} */
-constexpr u32 DI_TRANSID = 17;
+[[maybe_unused]] constexpr u32 DI_TRANSID = 17;
 constexpr u32 DI_DATALEN = 25; /* u16 */
 constexpr u32 DI_NAMELEN = 27; /* u16 */
 constexpr u32 DI_TYPE = 29;    /* u8: BTRFS_FT_* */
@@ -113,8 +113,8 @@ constexpr u32 DI_NAME = 30;
 constexpr u32 DI_HEADER = 30; /* fixed part of one dir_item */
 
 /* btrfs_file_extent_item (after key) */
-constexpr u32 FE_GENERATION = 0;
-constexpr u32 FE_RAM_BYTES = 8;
+[[maybe_unused]] constexpr u32 FE_GENERATION = 0;
+[[maybe_unused]] constexpr u32 FE_RAM_BYTES = 8;
 constexpr u32 FE_COMPRESSION = 16;
 constexpr u32 FE_TYPE = 20; /* 0 inline, 1 regular, 2 prealloc */
 constexpr u32 FE_DISK_BYTENR = 21;
@@ -129,7 +129,7 @@ constexpr u64 CHUNK_TYPE_METADATA = 0x04;
 constexpr u32 MAX_NODES = 1u << 20;
 constexpr u32 MAX_ITEMS = 4096;
 constexpr int DIR_DEPTH_LIMIT = 64;
-constexpr u64 MAX_DIR_BYTES = 16ull << 20;
+[[maybe_unused]] constexpr u64 MAX_DIR_BYTES = 16ull << 20;
 
 struct Key {
     u64 objectid = 0;
@@ -809,11 +809,9 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
      * children DIRECTLY at the volume root (the ReFS convention - the
      * default IS the volume's content in the og); every other subvolume
      * stays a named container (ROOT_REF name / subvol-<id>). */
-    u64 subvol_index = 0;
     for (const auto& sv : subvols) {
         if (cancel && cancel->checkpoint())
             return ERR_CANCELLED;
-        ++subvol_index;
         const bool is_default = sv.id == default_subvol;
         tree::FileNode* sv_root = root_active;
         if (!is_default) {

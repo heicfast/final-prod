@@ -1,129 +1,86 @@
-# core_recovery v0.4.0-parity
+# core_recovery v0.4.1-parity
 
-**Scope of this release:** the complete local recovery core with the
-parity audit **closed** — every filed finding in `diff-to-fix/` is
-dispositioned (FIXED with tests / FIXED-ALREADY / INVALID /
-SUPERSEDED; the board is empty, tracked-open 1: OQ-S4-3's live-harness
-perf measurement). The parity loop — audit (`easeus-drw-research`
-corpus as ground truth) → fix → prove → re-audit — is closed at this
-tag, and this release additionally carries the post-fix **review
-session**: every fix-lane landing and collision was independently
-re-verified, invalid removals reverted, hallucinated claims corrected,
-and the audit trail reconciled (`diff-to-fix/SUMMARY.md` is the board;
-`docs/PARITY-DELTAS.md` the 97-row deliberate-divergence register).
+**Scope of this release:** the warnings-hygiene + docs truth pass on top
+of `v0.4.0-parity` (whose release notes — the parity-audit-close
+headline set — remain at the `v0.4.0-parity` tag and in git history).
+Zero behavior change: every engine, CLI, ABI, and test assertion in
+this release is bit-identical to v0.4.0-parity; what changed is the
+warning surface, the CI gate strength, and the documentation truth.
 
-## New since v0.3.0-parity (headline capabilities)
+## New since v0.4.0-parity
 
-- **Damage-audit check phase** (M-041): the og's FileSystemCheck as a
-  read-only pre-scan stage — FAT (DBR ceilings, hole/duplicate scans,
-  pairwise copy compare, dir-tree audit incl. the FAT cross-link 0x1002
-  gate, orphan sweep) + NTFS ($MFT/$MFTMirr proofs, version gate,
-  $Bitmap structural, MFT×$Bitmap cross-check), taxonomy 0x1001..0x100e
-  in numeric parity, never aborts the scan; `scan --check` CLI +
-  `pre_scan_check` ABI + REC_FS_CHECK session record.
-- **Recycle-bin $I/$R pairing on every engine** (M-052 + N-079): the
-  shared model across NTFS/FAT/exFAT — original name/size/time
-  restoration, the og's four bin-root set, bin-scope guards (out-of-bin
-  `$…` files stay raw).
-- **ZFS uberblock-ring history** (S-034): every txg state walked
-  newest-first with cross-state identity dedup — files deleted inside
-  the ring window are visible, matching the og.
-- **Boot-chain repair** (M-040 stages a+b): BCD partition-offset surgery
-  (`cr/bcdfix`) + the UEFI `Boot####` NVRAM updater (`cr/nvramfix`), both
-  plan/execute/undo with default-deny consent; boot.ini/chkdsk
-  registered dispositions (D-90).
-- **User-extensible signature database** (M-048): `--user-signs` — the
-  og's EUUserData JSON shape, ABI registration surface, built-in-wins
-  collision rule.
-- **Carve efficiency** (M-025 + M-039): the window-aware read view
-  (measured 9.9× fewer device reads) and the cross-engine occupancy gate
-  (structured extents suppress carve re-reads).
-- **Driver-utilization parity** (M-030): the WinPE environment gate, the
-  terminal volume-OFFLINE quiesce step with mount-point restore, the
-  200-disk enumeration bound, and transport-error surfacing on fallback.
-- Plus: Btrfs chunk profiles/default-subvolume + re-scan cache (M-020,
-  N-072), ext4 backup-superblock rescue (S-027), the grading engine
-  (S-023), health grading (S-024), disk-image targets (S-030), UDF
-  recognition (M-044), archive inner-entry inventories (S-032), the
-  BitLocker password-dictionary aid (N-064, consent-gated), overlap
-  scoring + naming parity (N-070/N-063/N-065), and the review-session
-  corrections (the M-041 FAT cross-link gate, the N-064/D-80 dead-module
-  enforcement, the `--check` CLI half the canonical landing had lost).
+- **The zero-warning fuzz lane** (commit `095aab5`): the clang
+  libFuzzer lane's entire 48-warning backlog is zeroed and the lane
+  now compiles with `-Werror` — the same zero-warning discipline the
+  gcc and MSVC lanes already enforced. The backlog was fixed at its
+  root, never suppressed: 44 wire-format constants (zfs/hfsplus/
+  btrfs/ext4/refs) are `[[maybe_unused]]`-annotated documentation
+  (zero codegen change), the refs Walker initializer is explicit at
+  its existing effective values (construction byte-identical, verified
+  against the struct's own defaults), the structurally-unreachable
+  `> 4 GiB` RIFF-size ceiling in `validate_avi` is dropped with its
+  contract recorded (a u32 can never reach it), the btrfs
+  `subvol_index` dead store and `cr_fscheck`'s caller-less `rd64` are
+  deleted, and the S-023 merge-storm duplicate of the
+  analysis-adoption block in `cr_ui.cpp` is removed (the live twin
+  executes first; the second guard could never fire).
+- **OQ-S4-3's transport half is now a measured verdict** (not an
+  argument): with the windows link fixes green again, the alignbench
+  harness executed on the live Windows lane (run `40315255368`,
+  win22, `\\.\C:`, 512 MiB span, the og's own qd=1, RDA service
+  RUNNING). The core's 64 KiB direct-I/O envelope **meets/exceeds**
+  the og's 4/7 MiB buffered-synchronous chunking (203.98 vs
+  197.32/196.15 MiB/s — the og trails 3.3–4.0%) at comparable CPU, and
+  the 256 KiB cache block **exceeds** it by 18–19% at lower CPU.
+  Transcribed in the OQ file's closing addendum + M-030's Resolution
+  measurement addendum + `SUMMARY.md` (Session-38 delta). Remaining
+  open: only the acceptance's scan-level time-to-first-result half
+  (a comparative-bench dispatch; no engineering prerequisite).
+- **Driver pin**: the API-benchmark lane now fetches `rda-driver`
+  **v0.2.2** (was v0.2.1) — the driver's current release with the
+  `sc.exe` installer-script fix; `>= v0.2.1` remains the functional
+  floor (the bare-open error-87 fix). Pinning addendum in
+  `docs/DRIVER-UTILIZATION.md`.
 
-## What is in the bundle
+## Documentation truth pass
 
-```
-bin/    rrecov.exe            the CLI (list / list-carve-formats / scan /
-                              tree / recover / health / fix / apply / bench)
-        cr_ui.dll             the UI C-ABI shim (78 exports; bind in-process)
-        z.dll, lz4.dll, zstd.dll   vcpkg-built runtime (shipped binaries)
-        vcruntime140*.dll, msvcp140*.dll, ucrtbase.dll + api-ms-win-crt-*  app-local CRT
-lib/    cr_ui.lib             import library (link against cr_ui.dll)
-        cr_core.lib, cr_win.lib    static core + platform layers
-include/                      the C/C++ surface (cr/cr_ui.h + full internal tree)
-docs/                         the truth documents (see below)
-SHA256SUMS                    every file in the bundle
-```
-
-Every shipped PE carries the **Windows 7 SP1 loader contract** (OS/subsystem
-version 6.1, stamped post-link) and passed the **import allowlist gate**
-(`tools/verify_pe_um.py`; Windows-8-only APIs fail the release by design).
-
-## Documentation (new in this release)
-
-- `docs/API.md` — the API reference (CLI grammar + exit codes, the full
-  cr_ui export inventory by lifecycle group, the C++ core layers, the
-  events/threading contract, the error model, stability classes).
-- `docs/CONNECTION-GUIDE.md` — building, binding, the device connections
-  (RDA grammar / direct handles / images / BitLocker), threading rules,
-  and the consent model.
-- `docs/FORMATS.md` — every format read/written: engines, carve layers,
-  the .crsf record inventory, report schema, repair artifacts.
-- `docs/PARAMETERS.md` — every tunable (CLI flags, ScanConfig fields,
-  engine constants, caps, budgets) with defaults, bounds and governing
-  D-row citations.
-- Updated: `README.md` (current scope/status/docs index),
-  `docs/CAPABILITY-MATRIX.md` (per-row truth),
-  `docs/PARITY-DELTAS.md` (97 rows, zero collisions, errata notes),
-  `docs/ABI-CONTRACT.md`, `RELEASE-NOTES.md` (this file).
+- **New** `CONTRIBUTING.md` (build lanes, gate inventory, commit
+  style, the zero-behavior-change discipline) and `SECURITY.md`
+  (BitLocker **legitimate-unlock-only** policy with no FVEK
+  extraction, the default-deny consent model, the Win7 import floor,
+  the driver-side SDDL boundary).
+- `docs/CONNECTION-GUIDE.md` §8: known host projects — the UI repo
+  currently consumes nothing (MockConnector + the typed TS connector
+  contract mirroring the `cr_ui` ABI, binding session pending); the
+  rda-driver relationship (runtime `\\.\RDA` opens, bench pin).
+- `diff-to-fix/SUMMARY.md`: Session-38 delta appended (the convention:
+  history is never rewritten).
+- Test-count truth: **926 tests** measured (`ctest --preset linux-gcc`,
+  ASan, at this tree) — `docs/testing.md` already matches; the 924 in
+  the v0.4.0-parity notes described the pre-wave tree and stays in
+  that tag's history.
 
 ## Validation at this tag
 
-- **924 tests** green on Linux (885 pass + 4 environment-skipped in the
-  core suite + 35 cr_ui ABI tests), plain + **ASan** + **UBSan** +
-  **TSan** lanes (zero warnings — the event-sink threading contract is
-  pinned by test), MSVC `/W4 /WX` + the C consumer + DLL smoke on the
-  Windows lane, clang-format-18 gate clean, the win-layer parse gate,
-  libFuzzer smoke campaign (15 targets; the S-030 image harness build
-  break that reddened the fuzz lane since it landed is fixed at this tag).
-  CodeQL deferred (if: false - recorded, not silent).
-- **Win7 import gate green on every shipped PE.**
-- **The parity audit trail**: 223 dispositioned findings in
-  `diff-to-fix/findings/FIXED/` (each with a Resolution citing its
-  tests), the cross-reference matrix at `MATCH`, and the review
-  session's independent verification of the fix landings recorded in
-  `worklog.md`.
-- Driver-side benchmarks: the API-benchmark lane (alignbench) carries
-  the measured MATCH/EXCEEDS verdicts; see
-  `docs/BENCHMARK-REPORT.md`.
-
-## Truth documents
-
-- `diff-to-fix/SUMMARY.md` — **the board** (every finding's disposition
-  and the session history; the authoritative close-out record).
-- `docs/PARITY-DELTAS.md` — deliberate divergences with rationale
-  (D-01…D-102, reconciled this release).
-- `docs/CAPABILITY-MATRIX.md` — per-capability DONE/PARTIAL/MISSING.
-- `docs/CORE-GAP-LIST.md` — the closure register.
-- `docs/ground-truth-contracts.md` — the anti-hallucination anchor.
-- `docs/error-fix-registry.md` — reference defects catalogued and fixed.
+- **926/926 tests** green on Linux (plain + **ASan**; the ubsan/tsan
+  CI lanes and the Windows MSVC `/W4 /WX` lane green at the parent
+  commits; this release adds documentation + warning-surface changes
+  only on top).
+- clang-format-18 gate clean; the win-layer parse gate
+  (`win_syntax_check`) green; the fuzz lane green under its new
+  `-Werror` gate; **API-Benchmark (alignbench) green** — the
+  `alignbench.json` artifact and the OQ-S4-3 measurements above come
+  from that run.
+- **Win7 import gate green on every shipped PE** (allowlist extended
+  at v0.4.0-parity for the S-014/S-010/M-033 imports and the N-062
+  `K32GetProcessMemoryInfo` binding — recorded in `tools/verify_pe_um.py`).
 
 ## Known honest gaps (registered, not hidden)
 
 NTFS XPRESS/LZX compressed $DATA (GAP-P1-1 — no corpus surface exists;
 the og is LZNT1-only too), ReFS container-map translation (N-036), ZFS
 multi-vdev topologies (single-vdev only), HFS+ attributes items the
-corpus itself leaves UNVERIFIED, and OQ-S4-3 (the 4-vs-7-MiB chunking
-relative-perf measurement — needs exactly one live Windows harness
-run). Nothing silently degrades: unimplemented surfaces return explicit
-errors.
+corpus itself leaves UNVERIFIED, and OQ-S4-3's **scan-level
+time-to-first-result half** (the transport half is now measured — see
+above). Nothing silently degrades: unimplemented surfaces return
+explicit errors.

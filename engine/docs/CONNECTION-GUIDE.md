@@ -141,3 +141,23 @@ the device identity (boot-sector hash + the disk-layout snapshot) before
 continuing; a changed layout is surfaced (`layout_changed`), stale
 candidates dropped with counts — never silently ignored. Cancelled scans
 exit 3 and still save the session.
+
+
+## 8. Known host projects (binding status, 2026-10-26)
+
+- **recovery-wizard-ui-new** (the product's UI): consumes **nothing yet**.
+  The app runs on its deterministic `MockConnector` behind a typed TS
+  connector contract that mirrors the `cr_ui` C ABI family-for-family
+  (`contract.ts` domains map onto the `cr_ui_*` export groups); the
+  Tauri bridge is a loud throwing stub pending the engine-integration
+  session. The two contracts are kept in lockstep from the UI side —
+  post-ADR-008 the connector surface is `requestPreview(scanId, nodeId)`
+  (connector-inferred kind), `startRecovery(selection)`, filters without
+  `confidence` but with `hideEmptyFiles`, and
+  `pickDirectory({excludeDeviceId})` — so when the binding session lands,
+  the UI's contract documents and this repo's [ABI-CONTRACT.md](ABI-CONTRACT.md)
+  must not contradict each other.
+- **rda-driver** (the kernel transport): not a linker consumer — the
+  core opens `\\.\RDA` at runtime with the service name `"RDA"` (§3); the
+  bench lane pins its release assets (see
+  [DRIVER-UTILIZATION.md](DRIVER-UTILIZATION.md) pinning addendum).

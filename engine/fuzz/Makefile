@@ -20,8 +20,11 @@ LZ4_FLAGS := $(shell pkg-config --exists liblz4 && echo -DCR_HAVE_LZ4=1)
 LZ4_LIBS := $(shell pkg-config --exists liblz4 && echo -llz4)
 ZSTD_FLAGS := $(shell pkg-config --exists libzstd && echo -DCR_HAVE_ZSTD=1)
 ZSTD_LIBS := $(shell pkg-config --exists libzstd && echo -lzstd)
+# Zero-warning gate: -Werror makes the clang fuzz lane fail on any
+# -Wall/-Wextra warning (the same strictness the gcc and MSVC CI lanes
+# already enforce) instead of printing it and moving on.
 CXXFLAGS := -std=c++20 -g -O1 -fsanitize=fuzzer,address,undefined \
-            -fno-omit-frame-pointer -I../include -Wall -Wextra $(LZ4_FLAGS) $(ZSTD_FLAGS)
+            -fno-omit-frame-pointer -I../include -Wall -Wextra -Werror $(LZ4_FLAGS) $(ZSTD_FLAGS)
 LDLIBS := -lz $(LZ4_LIBS) $(ZSTD_LIBS)
 
 BUILD := build

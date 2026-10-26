@@ -3400,24 +3400,12 @@ u32 recovery_enqueue_node_impl(cr_ui_recovery* rec, cr_ui_session* sess, uint64_
         r->analysis.small_result = a.small_result;
         r->have_analysis = true;
     }
-    /* S-023: adopt the session's scan analysis once (the report's block) */
-    if (!r->have_analysis && s->stats.assistant.graded_count) {
-        const tree::grading::AssistantStats& a = s->stats.assistant;
-        r->analysis.total_file_count = a.total_file_count;
-        r->analysis.raw_count = a.raw_count;
-        r->analysis.lost_partition_exist_file_count = a.lost_partition_exist_file_count;
-        r->analysis.lost_partition_delete_file_count = a.lost_partition_delete_file_count;
-        r->analysis.quick_scan_exist_file_count = a.quick_scan_exist_file_count;
-        r->analysis.quick_scan_delete_file_count = a.quick_scan_delete_file_count;
-        r->analysis.deep_scan_file_count = a.deep_scan_file_count;
-        r->analysis.quick_scan_delete_extend = a.quick_scan_delete_extend;
-        for (size_t k = 0; k < 8; ++k)
-            r->analysis.category_counts[k] = a.category_counts[k];
-        r->analysis.matched = a.matched;
-        r->analysis.total = a.total;
-        r->analysis.small_result = a.small_result;
-        r->have_analysis = true;
-    }
+    /* (merge-storm residue removed here: a byte-identical duplicate of the
+     * S-023 adoption block above sat back-to-back with the live one. The
+     * twin above sets have_analysis under the same graded_count condition,
+     * so the second copy's guard could never be true - unreachable code,
+     * deleted with zero behavior change; the live block keeps the
+     * finding's full contract.) */
     const std::u16string dir = r->dest_root + rel_dir_of(node);
     const u32 eq = r->writer->enqueue(node, dir);
     return ret_(eq, "enqueue %s", err_text(eq)); /* overlap callers count by code */

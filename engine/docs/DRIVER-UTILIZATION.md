@@ -236,3 +236,17 @@ to artifacts).
 | Driver-absent fallback | MATCH — verified |
 | Buffering per class | MATCH — verified |
 | 64 KiB envelope on EVERY direct read | **MATCH — unified on both transports, exhaustively unit-proven, CI-benched** |
+
+
+## Driver release pinning (2026-10-26 addendum)
+
+The bench lane's driver pin moved with the driver repo's releases:
+`api-benchmark.yml` `RDA_RELEASE_TAG` is **v0.2.2** (the sc.exe
+installer-script fix + docs truth pass) as of the v0.4.1-parity tree
+(previously v0.2.1). Functional floor for ANY consumed release is
+**>= v0.2.1**: v0.2.0 fails every bare `\\.\RDA` open with error 87 (the
+classifier ordering bug fixed in the driver's `7e88e38`), which silently
+disables the core's whole RDA transport via `rda_available()` probing.
+The runtime wire contract is version-decoupled (driver PE/wire version
+1.0.0.0 by design); the bench harness verifies the service install and
+device open per run (`driver-info.json` in the run artifacts).

@@ -35,9 +35,6 @@ inline u16 rd16(const u8* p) {
 inline u32 rd32(const u8* p) {
     return u32(p[0]) | (u32(p[1]) << 8) | (u32(p[2]) << 16) | (u32(p[3]) << 24);
 }
-inline u64 rd64(const u8* p) {
-    return u64(rd32(p)) | (u64(rd32(p + 4)) << 32);
-}
 
 void emit(CheckIssue issue, const CheckCallbacks& cb, FsCheckReport& out, bool& stop) {
     out.errors.push_back(std::move(issue));

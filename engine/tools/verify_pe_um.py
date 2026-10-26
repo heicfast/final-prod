@@ -173,6 +173,14 @@ ALLOWLIST_ADDITIONS = {
     "SetVolumeMountPointW":
         "S-010 quiesce family: re-create the saved volume mount point after "
         "repair (cr_transport.cpp :842); Win2000-era API",
+    # N-062 (cr_ui.dll's memory monitor): the call is GetProcessMemoryInfo
+    # (cr_ui.cpp :863, the memory_warn_mb watchdog sample), but the modern
+    # SDK's psapi.lib binds the import to kernel32's K32-prefixed forward.
+    # The K32* exports were ADDED in Windows 7 (psapi.dll forwards to them
+    # there) - Win7-inclusive by construction.
+    "K32GetProcessMemoryInfo":
+        "N-062 scan memory monitor (cr_ui.cpp :863 via psapi.h; the SDK "
+        "import lib binds to kernel32's K32 forward); K32* shipped in Win7",
 }
 
 EXPECTED_MACHINE = 0x8664
