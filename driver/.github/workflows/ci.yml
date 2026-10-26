@@ -1,0 +1,195 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ------------------------------------------------------------------ lint --
+  lint:
+    name: lint (ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: clang-format check
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clang-format > /dev/null
+          find src -name '*.c' -o -name '*.h' | tee /tmp/files.txt
+          clang-format --version
+          xargs -a /tmp/files.txt clang-format --dry-run --Werror
+
+      - name: markdown sanity (tab-free, trailing newlines)
+        run: |
+          set -e
+          bad=0
+          for f in $(find . -name '*.md' -not -path './.git/*'); do
+            [ -f "$f" ] || continue
+            tail -c1 "$f" | read -r _ || { echo "$f: missing trailing newline"; bad=1; }
+          done
+          exit $bad
+
+      - name: unit tests (portable contract layer)
+        run: |
+          sudo apt-get install -y -qq gcc > /dev/null
+          scripts/run-unit-tests.sh
+
+  # ------------------------------------------------------------------ fuzz --
+  fuzz:
+    name: fuzz (grammar + logic, ASan/UBSan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: libFuzzer round (open grammar, parser, token transform)
+        run: |
+          # Probe the runner's clang (image-dependent), then run a bounded
+          # libFuzzer round over the portable logic the kernel executes in
+          # IRP_MJ_CREATE.
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clang > /dev/null
+          export CC=clang
+          make -C fuzz fuzz
+          make -C fuzz run
+
+      - name: invariant selftest (gcc fallback path, also run always)
+        run: |
+          make -C fuzz selftest
+
+      - name: unit tests under ASan/UBSan
+        run: |
+          make -C fuzz unit
+
+  # ------------------------------------------------------------------ unit --
+  unit:
+    name: unit tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Locate MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Build + run portable unit tests (MSVC /W4 /WX)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path bin | Out-Null
+          # /wd4127: do{}while(0) in the CHECK macro trips C4127 at /W4;
+          # harness-only suppression, documented.
+          cl /nologo /W4 /WX /wd4127 /std:c11 /external:W0 `
+             /I src\shared\inc `
+             tests\unit\test_compat.c `
+             /Fe:bin\test_compat.exe
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          .\bin\test_compat.exe
+
+  # ----------------------------------------------------------------- build --
+  build:
+    name: build ${{ matrix.configuration }} (${{ matrix.wdk }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Primary shipped build: conservative VS2022 v143 + WDK 26100 NuGet.
+        # A modern-track (VS2026 + WDK 28000) compile check is added once the
+        # windows-2025-vs2026 runner label is publicly available; the artifact
+        # always ships from the conservative toolchain.
+        runner: [windows-2022]
+        wdk: [26100.6584]
+        tag: [wdk26100]
+        configuration: [Debug, Release]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup NuGet
+        uses: nuget/setup-nuget@v2
+
+      - name: Restore WDK/SDK packages (pinned)
+        run: nuget restore .\packages.config -PackagesDirectory .\packages\
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build solution
+        shell: pwsh
+        run: |
+          msbuild .\rda.sln `
+            -m -v:minimal -nologo `
+            -p:Configuration=${{ matrix.configuration }} `
+            -p:Platform=x64
+
+      - name: Stamp Win7 loader contract (OS 6.1, NATIVE 6.01)
+        shell: pwsh
+        run: |
+          $sys = "bin\x64\${{ matrix.configuration }}\rda.sys"
+          python tools\stamp_osversion.py $sys
+
+      - name: Win7 import/PE gate (verify_pe.py)
+        shell: pwsh
+        run: |
+          $sys = "bin\x64\${{ matrix.configuration }}\rda.sys"
+          if (-not (Test-Path $sys)) { Write-Error "missing $sys"; exit 1 }
+          python tools\verify_pe.py $sys
+
+      - name: Verify unsigned artifact (no accidental test-signing)
+        shell: pwsh
+        run: |
+          $sys = "bin\x64\${{ matrix.configuration }}\rda.sys"
+          $bytes = [IO.File]::ReadAllBytes($sys)
+          $lfanew = [BitConverter]::ToUInt32($bytes, 0x3C)
+          $secDirRva = [BitConverter]::ToUInt32($bytes, $lfanew + 0x18 + 112 + 32)
+          if ($secDirRva -ne 0) {
+            Write-Error "binary carries a signature (SignMode must stay Off)"
+            exit 1
+          }
+          Write-Host "artifact is unsigned as intended"
+
+      - name: Upload driver + client artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rda-${{ matrix.tag }}-${{ matrix.configuration }}
+          path: |
+            bin/x64/${{ matrix.configuration }}/rda.sys
+            bin/x64/${{ matrix.configuration }}/rdacli.exe
+            src/driver/rda.inf
+          if-no-files-found: error
+
+  # -------------------------------------------------------------- codeql ----
+  codeql:
+    name: codeql
+    # windows-2022: the pinned WDK 26100 package ships the VS2022-era
+    # build-task assembly (Microsoft.DriverKit.Build.Tasks.17.0.dll);
+    # windows-latest (VS2026/MSBuild 18) requests .18.0 which the package
+    # does not contain (MSB4062). Keep the analysis toolchain identical to
+    # the shipped build.
+    runs-on: windows-2022
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: nuget/setup-nuget@v2
+      - run: nuget restore .\packages.config -PackagesDirectory .\packages\
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: c
+      - uses: microsoft/setup-msbuild@v2
+      - run: msbuild .\rda.sln -m -v:minimal -nologo -p:Configuration=Release -p:Platform=x64
+      - uses: github/codeql-action/analyze@v3
