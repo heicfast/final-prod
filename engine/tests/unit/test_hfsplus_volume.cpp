@@ -831,17 +831,17 @@ std::vector<u8> build_volume_overflow() {
     auto d = build_volume();
     d.resize(20 * BS, 0);
     u8* vh = d.data() + 1024;
-    be32(vh + 0x2C, 20);                         /* totalBlocks */
-    write_fork(vh + 0xC0, 2 * NODE_SIZE, 9, 2);  /* extents overflow fork */
+    be32(vh + 0x2C, 20);                        /* totalBlocks */
+    write_fork(vh + 0xC0, 2 * NODE_SIZE, 9, 2); /* extents overflow fork */
 
     /* overflow header node (block 9): node 1 is the only leaf */
     u8* oh = d.data() + u64(9) * BS;
-    be32(oh + 0, 1);          /* forwardLink -> leaf node 1 */
-    oh[8] = 1;                /* kind = 1 (kBTHeaderNode) */
-    oh[9] = 0;                /* height 0 */
-    be16(oh + 10, 3);         /* numRecords */
-    be32(oh + 14 + 0x0A, 1);  /* firstLeafNode = 1 */
-    be32(oh + 14 + 0x0E, 1);  /* lastLeafNode = 1 */
+    be32(oh + 0, 1);         /* forwardLink -> leaf node 1 */
+    oh[8] = 1;               /* kind = 1 (kBTHeaderNode) */
+    oh[9] = 0;               /* height 0 */
+    be16(oh + 10, 3);        /* numRecords */
+    be32(oh + 14 + 0x0A, 1); /* firstLeafNode = 1 */
+    be32(oh + 14 + 0x0E, 1); /* lastLeafNode = 1 */
     be16(oh + 14 + 0x12, NODE_SIZE);
 
     /* the overflow record: 12-byte key {keyLength u16 = 10 (DATA length -
@@ -849,12 +849,12 @@ std::vector<u8> build_volume_overflow() {
      * startBlock 8} + the 64-byte HFSPlusExtentRecord at key+12 (TN1150) */
     std::vector<u8> orec(12 + 64, 0);
     be16(orec.data(), 10);
-    orec[2] = 0;                 /* forkType: data fork */
-    orec[3] = 0;                 /* pad */
-    be32(orec.data() + 4, 40);   /* fileID = fragmented.dat's cnid */
-    be32(orec.data() + 8, 8);    /* startBlock (fork-relative) */
-    be32(orec.data() + 12, 19);  /* descriptor 0: allocation block 19 */
-    be32(orec.data() + 16, 1);   /* ... count 1 */
+    orec[2] = 0;                /* forkType: data fork */
+    orec[3] = 0;                /* pad */
+    be32(orec.data() + 4, 40);  /* fileID = fragmented.dat's cnid */
+    be32(orec.data() + 8, 8);   /* startBlock (fork-relative) */
+    be32(orec.data() + 12, 19); /* descriptor 0: allocation block 19 */
+    be32(orec.data() + 16, 1);  /* ... count 1 */
     auto oleaf = make_leaf_node({orec}, 0);
     memcpy(d.data() + u64(10) * BS, oleaf.data(), NODE_SIZE);
 
@@ -903,8 +903,7 @@ TEST(HfsPlus, ExtentsOverflowRecordResolvesFragmentedFork) {
         collect(r);
     ASSERT_NE(frag, nullptr) << "the fragmented file must be found";
     EXPECT_EQ(u64(9) * BS, frag->props()->logical_size);
-    ASSERT_EQ(2u, frag->props()->extents.size())
-        << "the overflow-sourced 9th extent must resolve";
+    ASSERT_EQ(2u, frag->props()->extents.size()) << "the overflow-sourced 9th extent must resolve";
     EXPECT_EQ(u64(11) * BS, frag->props()->extents[0].offset);
     EXPECT_EQ(u64(8) * BS, frag->props()->extents[0].length);
     EXPECT_EQ(u64(19) * BS, frag->props()->extents[1].offset);
@@ -940,11 +939,11 @@ void le64j(u8* p, u64 v) {
 void write_journal_info(std::vector<u8>& d, u32 jinfo_block, u64 jbase, u64 jsize, u64 jstart,
                         u32 size_a, u32 size_b) {
     u8* ji = d.data() + u64(jinfo_block) * BS;
-    be32(ji + 0, 1);          /* flags: bit 0 set (the og's gate) */
+    be32(ji + 0, 1); /* flags: bit 0 set (the og's gate) */
     /* +4..+0x23: device_signature[8] = zeros (TN1150; NO magic field) */
-    be64(ji + 0x24, jbase);   /* journal byte offset (the og's decode -
-                               * FUN_18000db70 swaps [0x24..0x2B]) */
-    be64(ji + 0x2C, jsize);   /* journal size ([0x2C..0x33]) */
+    be64(ji + 0x24, jbase); /* journal byte offset (the og's decode -
+                             * FUN_18000db70 swaps [0x24..0x2B]) */
+    be64(ji + 0x2C, jsize); /* journal size ([0x2C..0x33]) */
     u8* jh = d.data() + jbase;
     le32j(jh + 0, 0x4A4E4C78); /* JNLx (jnl.c, LE) */
     le32j(jh + 4, 0x12345678); /* endian marker */
@@ -990,8 +989,8 @@ std::vector<u8> make_index_node() {
 static std::vector<u8> build_volume_journal() {
     auto d = build_volume();
     d.resize(16 * BS, 0);                  /* already 16 blocks */
-be32(d.data() + 1024 + 0x04, 0x2000); /* kHFSVolumeJournaledBit */
-        be32(d.data() + 1024 + 0x0C, B_JINFO); /* VH journalInfoBlock */
+    be32(d.data() + 1024 + 0x04, 0x2000);  /* kHFSVolumeJournaledBit */
+    be32(d.data() + 1024 + 0x0C, B_JINFO); /* VH journalInfoBlock */
 
     const u64 jbase = u64(10) * BS;
     const u64 jsize = u64(4) * BS;
@@ -1098,8 +1097,9 @@ TEST(HfsPlus, JournalBadHeaderGates) {
      * degrade to a no-harvest (never a scan failure) */
     for (int mode = 0; mode < 3; ++mode) {
         auto img = build_volume_journal();
-                if (mode == 0)
-            be32(img.data() + u64(B_JINFO) * BS + 0, 0); /* flags: bit 0 clear (the og's :13513 gate) */
+        if (mode == 0)
+            be32(img.data() + u64(B_JINFO) * BS + 0,
+                 0); /* flags: bit 0 clear (the og's :13513 gate) */
         else if (mode == 1)
             le32j(img.data() + u64(10) * BS + 0, 0xDEADBEEF); /* jnl magic */
         else
@@ -1132,8 +1132,8 @@ TEST(HfsPlus, JournalWrapHandled) {
      * wrapped tail; the jnl header's 44 bytes overlap only the node's
      * free space). */
     auto d = build_volume();
-be32(d.data() + 1024 + 0x04, 0x2000); /* kHFSVolumeJournaledBit */
-        be32(d.data() + 1024 + 0x0C, B_JINFO);
+    be32(d.data() + 1024 + 0x04, 0x2000); /* kHFSVolumeJournaledBit */
+    be32(d.data() + 1024 + 0x0C, B_JINFO);
 
     const u64 jbase = u64(10) * BS;
     const u64 jsize = u64(3) * BS;
@@ -1229,7 +1229,7 @@ TEST(HfsPlus, JournalSameKeyDifferentFileIdBothKept) {
 
 TEST(HfsPlus, JournalAttrDecmpfsFallbackFeedsEmptyForkFile) {
     /* The attributes branch (og :14085-14145, not-found-only differential)
-    * feeds the decmpfs fallback for harvested files (FUN_180009f40): a
+     * feeds the decmpfs fallback for harvested files (FUN_180009f40): a
      * deleted file whose com.apple.decmpfs attribute survives only in the
      * journal resolves its content from the journal image (mode 3: the
      * zlib stream lives inside the attribute value, inside the image). */
@@ -1283,8 +1283,7 @@ TEST(HfsPlus, JournalAttrDecmpfsFallbackFeedsEmptyForkFile) {
     EXPECT_EQ(u64(plain.size()), node->props()->logical_size)
         << "the decmpfs uncompressed size wins over the empty fork";
     ASSERT_EQ(1u, node->props()->extents.size());
-    EXPECT_NE(0u, node->props()->extents[0].codec)
-        << "the content extent is codec-tagged (kZlib)";
+    EXPECT_NE(0u, node->props()->extents[0].codec) << "the content extent is codec-tagged (kZlib)";
     EXPECT_EQ(u64(zbuf.size()), node->props()->extents[0].psize)
         << "the on-disk payload size is the zlib stream inside the attribute value";
     EXPECT_EQ(1u, st.decmpfs_files);
@@ -1360,8 +1359,7 @@ TEST(HfsPlus, JournalNodeImageRejectsInconsistentOffsetTable) {
     HfsScanStats st;
     u32 rc = scan_hfsplus(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
     ASSERT_EQ(OK, rc) << err_text(rc);
-    EXPECT_EQ(0u, st.journal_emitted)
-        << "a corrupt-tail node must be rejected whole (asm-strict)";
+    EXPECT_EQ(0u, st.journal_emitted) << "a corrupt-tail node must be rejected whole (asm-strict)";
 }
 
 TEST(HfsPlus, JournalFallbackSalvageWhenHeaderInvalid) {
@@ -1370,7 +1368,7 @@ TEST(HfsPlus, JournalFallbackSalvageWhenHeaderInvalid) {
      * the size ladder salvages the first validator-passing node and its
      * records reach the deleted tier through the same differential. */
     auto img = build_volume_journal();
-    img.resize(24 * BS, 0); /* the 32 KiB scan window must fit at jbase */
+    img.resize(24 * BS, 0);                           /* the 32 KiB scan window must fit at jbase */
     le32j(img.data() + u64(10) * BS + 0, 0xDEADBEEF); /* corrupt jnl magic */
 
     /* a valid catalog leaf AT the journal start (node-shaped trigger:

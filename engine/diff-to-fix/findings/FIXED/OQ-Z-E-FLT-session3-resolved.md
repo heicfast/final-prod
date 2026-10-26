@@ -329,6 +329,47 @@ this session.
 
 ---
 
+## Session close addendum (the closing parity session, 2026-10-26) — OQ-FLT-2 RESOLVED (converged; no residual gate)
+
+**OQ-FLT-2 is RESOLVED.** The question's purpose — "gates M-029" — is fully
+discharged by the convergent landings, and every group of the 0x48-byte
+AdvanceFilterCondition now has a decoded, implemented counterpart in the
+core:
+
+- **The gate:** M-029 is FIXED (`f388cad`) — its own Resolution carries the
+  first-hand DRWUI decode of the Date/Size group semantics (the CTimeFilterBtn
+  menu 0x100..0x105, the CSizeFilterBtn menu 0x1000..0x1006, the bounds
+  initializer FUN_140254670's day-truncated local arithmetic, the tag setters,
+  and the custom-range matcher) — exactly the per-group mapping this OQ
+  pushed forward for the date/size dwords.
+- **The Type group:** M-023's category model (findings/FIXED/M-023 — the
+  1,481-extension generated table + the category bits) covers the type-mask
+  dword; the core's `query::Filter::category_mask` is the implemented
+  counterpart.
+- **The Path group:** the corpus's own UIUX artifact
+  (`UIUX/31-filterbar-family-decode.md` §3-§6) decoded the path-prefix
+  semantics and the core implements it (`query::Filter::path_prefix` with the
+  subtree-pruning walk, cr_query.h) — the OQ's "path matching mode" question
+  is answered there: a full-path ASCII-case-insensitive prefix match.
+- **The completeness predicate + dispatch semantics** (DFX30's evidence,
+  above): recorded, and consistent with the core's zero-init-safe Filter
+  (empty conditions = no filtering — the og's all-six-bits NULL-dispatch
+  analog).
+- **The remaining per-mode manager wiring** (FUN_1401b61f0's three modes and
+  their vtable+0x10 applies) is DRWUI's own UI-thread dispatch — a host-side
+  surface outside the core library's boundary per the I-015 architecture
+  register (the og's searcher/UI contract lives in the host; the core's cr_ui
+  exposes the filter surface as data, the host owns its threading). No core
+  finding depends on it: the group SEMANTICS are all decoded and implemented;
+  only the og's private wiring order remains, with no observable parity
+  surface.
+
+Disposition: the tracked-open file closes; the evidence chain (DFX30's
+predicate decode + M-029's group decode + M-023's categories + the
+31-filterbar path decode) is the resolution record. No new finding — nothing
+user-observable remains undecoded; the file moves to findings/FIXED/ with
+the tracked-open inventory reduced to OQ-S4-3 alone (whose Windows bench
+execution was dispatched this session).
 ## Session-37 disposition (DFX37, 2026-10-26) — OQ-FLT-2 CLOSED-CONSUMED; the file's ledger is complete
 
 **OQ-FLT-2** was pushed forward as "gating M-029". M-029 landed (`f388cad`,
