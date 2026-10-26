@@ -2052,8 +2052,13 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
             static_cast<unsigned long long>(plan.sector_count),
             plan.restores_signature ? L" + 0x55AA signature restore" : L"");
     for (const auto& a : plan.actions)
+<<<<<<< HEAD
         wprintf(L"  [apply] offset=%llu len=%zu : %hs\n", static_cast<unsigned long long>(a.offset),
                 a.after.size(), a.reason.c_str());
+=======
+        wprintf(L"  [apply] offset=%llu len=%zu : %hs\n",
+                static_cast<unsigned long long>(a.offset), a.after.size(), a.reason.c_str());
+>>>>>>> d6dcc6c3a21f4dc69461e1893ece9a494612f179
     /* M-040: the boot-chain repair family now exists (bcdfix +
      * nvramfix + the win runtime); the CORE plan never performs it
      * (the og's Fixup runs host-side after the layout write too) - the

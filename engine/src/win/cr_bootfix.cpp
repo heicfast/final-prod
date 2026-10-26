@@ -277,7 +277,11 @@ bool __nvram_set(const char16_t* name, const void* data, u32 len, void* /*user*/
 } // namespace
 
 std::vector<nvramfix::NvramRewrite> nvram_plan(const nvramfix::TargetPartition& target,
+<<<<<<< HEAD
                                                u32* error, bool* stopped_early) {
+=======
+                                                u32* error, bool* stopped_early) {
+>>>>>>> d6dcc6c3a21f4dc69461e1893ece9a494612f179
     if (stopped_early)
         *stopped_early = false;
     if (!firmware_seam().resolved) {

@@ -26,7 +26,10 @@
  *        the disk's MBR signature AND node.PartitionStart ==
  *        old_start AND node.PartitionSize == old_size;
  *      GPT mode (SignatureType==2, MBRType==2): node.Signature[0..16] ==
- *        the partition GUID AND node.PartitionStart == old_start.
+ *        the partition GUID ONLY (the GPT branch :3420-3424 compares the
+ *        two signature u64 halves and never the start - the MBR/GPT
+ *        asymmetry is the og's own; corrected post-landing against the
+ *        corpus, see the finding's convergence addendum).
  *    (Node field offsets: PartitionNumber u32@4, PartitionStart u64@8,
  *    PartitionSize u64@16, Signature[16]@24, MBRType u8@40,
  *    SignatureType u8@41 - the UEFI MEDIA_HARDDRIVE_DEVICE_PATH; the
@@ -133,8 +136,8 @@ struct NvramRewrite {
  * Errors: ERR_BAD_PARAMETER (null seam), ERR_READ_FAILED (BootOrder
  * unreadable), ERR_BAD_MAGIC (a load option too malformed to walk). */
 std::vector<NvramRewrite> plan_boot_entries(GetVarFn get, void* get_user,
-                                            const TargetPartition& target, u32* error = nullptr,
-                                            bool* stopped_early = nullptr);
+                                             const TargetPartition& target, u32* error = nullptr,
+                                             bool* stopped_early = nullptr);
 
 /* Execute a plan through the injected setter under the consent
  * callback. consent == nullptr = DEFAULT-DENY. Stops at the first

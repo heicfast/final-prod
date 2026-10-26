@@ -16723,3 +16723,123 @@ Work Log:
 Stage Summary:
 - Board: SEVERE 0 · MAJOR 0 · MINOR 0 · INFO 0 · tracked-open 1 (OQ-S4-3,
   one dispatch deep into its acceptance path, rerun in flight).
+
+Task ID: DFX36-T4 (M-040 stage b + the win layer)
+Agent: main engineer (diff-to-fix fix session 36 — DFX36)
+Task: M-040 stage (b) — the UEFI NVRAM Boot#### updater + the win-layer
+file IO (stage a's second half)
+
+Work Log:
+- Corpus decode FIRST (EFIBoot_decompiled.c, first-hand): the matcher
+  FUN_1800046f0 (:3366-3434 — the EFI_LOAD_OPTION walk, the
+  HARDDRIVE node layout, the MBR signature+start+size vs GPT
+  GUID-only asymmetry, the sticky-flag semantics) and the updater
+  FUN_180004b40 (:3564-3715 — BootOrder walk, patch-every-04/01-node,
+  the new-info struct {signature, partition number, start, size}, the
+  three break sites, BootOrder never rewritten). Readiness probe
+  (:3888-3894), privilege enable (:3248-3264), the XP-compat dynamic
+  resolver (:3281-3290).
+- Stage (b) landed as the pure module cr/efifix: the injected
+  FirmwareVars interface (available/get/set) so the logic tests
+  everywhere; boot_entry_matches + update_boot_entries under the P62
+  consent gate (default-deny, ERR_REPAIR_REFUSED). Bounds-clamped
+  walks (the og overreads hostile variables — registered hardening).
+- The win layer cr/win/cr_bootfix: repair_bcd_file (dynamic-ntdll
+  ZwUnloadKey hive unload under SeRestore/SeBackup, best-effort with
+  log; whole-file read; plan_rewrites; OVERLAPPED-positioned writes —
+  no SetFilePointer import; FlushFileBuffers tail) +
+  make_firmware_vars (the real firmware APIs + the readiness probe) +
+  run_boot_chain_repair (BCD files + NVRAM under one consent; either
+  leg's failure reported, never blocking).
+- The PE allowlist grew 6 audited entries with corpus cites
+  (LookupPrivilegeValueW, AdjustTokenPrivileges,
+  Get/SetFirmwareEnvironmentVariableW, LoadLibraryW, FreeLibrary — all
+  Vista-era or older; the gate's documented conscious-update process).
+  The win-stub SDK grew the matching declarations; win_syntax_check
+  green over all 9 win files.
+- Tests: 9 EfiFix tests incl. the finding's own named
+  NvramPatchUpdatesLoadOption (the injected-resolver design). Fail-
+  before by construction (new module). The -O0 UBSan lane caught a
+  real uninit-tail bug in the Boot%04X name buffer during development
+  — fixed in the landing (the lane working as designed).
+- Verified: suite 920/920 linux-release; EfiFix+BcdFix 14/14 under
+  ASan and UBSan.
+
+Stage Summary:
+- M-040 stages (a)+(b)+win layer landed. The remaining scope is the
+  S-029 post-apply host-side wiring (the cr_ui apply-flow call site
+  feeding run_boot_chain_repair from the applied plan's geometry) —
+  precisely tracked on the finding.
+
+---
+Task ID: DFX36-T5 (M-040 convergence + the GPT mis-decode correction)
+Agent: main engineer (diff-to-fix fix session 36 — DFX36)
+Task: Reconcile the convergent stage-b landing (theirs hit origin
+first) + correct the GPT matcher against the corpus
+
+Work Log:
+- The parallel lane's M-040 stage-b (cr/nvramfix + cr/win/cr_bootfix,
+  zero new static imports — GetModuleHandleW+GetProcAddress seam,
+  ntdll!RtlAdjustPrivilege) hit origin first: canonical. This lane's
+  convergent cr/efifix module + tests DROPPED cleanly (first-landing-
+  wins); its decode evidence recorded in the finding's convergence
+  addendum.
+- THE CORRECTION (corpus wins): the canonical matcher read GPT mode as
+  "GUID AND start". The decompile's GPT branch (FUN_1800046f0
+  :3420-3424) compares ONLY the two signature u64 halves (node+0x18 vs
+  ctx+0x34, node+0x20 vs ctx+0x3c) — ctx+0x48 (the start) is never
+  consulted in the GPT branch (only the MBR branch reads it, with
+  ctx+0x50 = size, at :3396-3400). The og's asymmetry: MBR = signature
+  AND start AND size; GPT = GUID only. Fixed: hd_node_matches's GPT
+  branch drops the start compare; the header comment states the
+  asymmetry with line cites; the test renamed
+  NvramFix.MatchesGptByGuidOnly with the wrong-start node now asserted
+  as a MATCH (plan.size() == 2); the finding's Resolution note +
+  convergence addendum record the correction. A GPT entry whose node
+  carries the right GUID at a stale start is exactly what the og
+  rewrites — the stricter reading left it stale.
+- Pushed-red repair found during reconciliation: the canonical lane's
+  cr_bootfix.cpp landed WITHOUT its win-stub additions (HMODULE/
+  FARPROC/GetProcAddress/GetModuleHandleW) — win_syntax_check RED on
+  origin/main. The stub grew the declarations (the gate's documented
+  process); all 9 win files parse green again.
+- This lane's 6 PE-allowlist additions dropped (the canonical design
+  needs none — zero static imports); the gate stays at its audited
+  minimum.
+- Verified: suite 924/924 linux-release; NvramFix+BcdFix 16/16 under
+  ASan and UBSan; win_syntax_check green.
+
+Stage Summary:
+- M-040 CLOSED (canonical stages a+b, the win layer, the corrected
+  GPT semantics). Board: SEVERE 0, MAJOR 0, MINOR 0; tracked-open:
+  OQ-S4-3 (Windows-lane), OQ-FLT-2 (status to be re-checked — the
+  parallel lane's audit rows mention an OQ-Z-E-FLT closure).
+
+---
+Task ID: DFX36-T6 (the ddb7e1c union repair — origin/main was RED)
+Agent: main engineer (diff-to-fix fix session 36 — DFX36)
+Task: Repair the pushed-red ddb7e1c merge (committed conflict markers in
+8 files + an internally inconsistent API) and land the truthful union
+
+Work Log:
+- Origin/main at ddb7e1c was RED: its merge reverted nvramfix's
+  stopped_early signature while rrecov + the tests still used it
+  (uncompilable), AND committed conflict markers in 8 files (the
+  nvramfix/bootfix sources + headers, rrecov, the win-stub, the M-040
+  finding, the matrix, modules/boot-repair).
+- Repaired as the coherent union: the stopped_early API everywhere
+  (the correction wave's observability superset — bodies, callers,
+  tests consistent); the audit files unioned truthfully (the canonical
+  full-position rewrite FUN_180004b40 + the four correction-wave fixes
+  recorded; the GPT GUID-alone + the absent-BootOrder no-op + the
+  missing-variable walk stop; the 13-test roster); the matrix row's
+  **** formatting glitch fixed; the win-stub deduplicated (the merge
+  had glued both declaration sites).
+- Verified: suite 926/926 linux-release; win_syntax_check green over
+  all 9 win files; the NvramFix 13/13 + BcdFix green under ASan/UBSan
+  (verified at the pre-merge tree; re-verified release here).
+
+Stage Summary:
+- Main green again. M-040 CLOSED with the corrected semantics. Board:
+  SEVERE 0, MAJOR 0, MINOR 0; tracked-open: OQ-S4-3 + OQ-FLT-2
+  (status to re-check against the parallel lanes' closures).
