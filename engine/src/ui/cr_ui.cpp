@@ -828,6 +828,8 @@ void scan_event_trampoline_(const orchestrator::event::Event& e, void* user) {
     out.candidate_lba = e.candidate_lba;
     out.repair_actions = u32(e.repair_actions);
     out.repair_outcome = e.repair_outcome;
+    out.check_errors = e.check_errors;
+    out.check_family = e.check_family;
     /* N-043: every progress arrival resets the heartbeat watchdog's
      * stall clock (the og watches its engine step counter +0x8fc;
      * CR_EVT_SCAN_PROGRESS is that counter's echo on this surface). */
@@ -1080,6 +1082,11 @@ u32 fill_scan_config(const cr_ui_scan_config* in, orchestrator::ScanConfig& out)
     copy_card(out.volume_label, sizeof(out.volume_label), in ? in->volume_label_utf8 : nullptr);
     copy_card(out.volume_model, sizeof(out.volume_model), in ? in->volume_model_utf8 : nullptr);
     copy_card(out.volume_serial, sizeof(out.volume_serial), in ? in->volume_serial_utf8 : nullptr);
+    copy_card(out.volume_firmware, sizeof(out.volume_firmware),
+              in ? in->volume_firmware_utf8 : nullptr);
+    copy_card(out.volume_wwn, sizeof(out.volume_wwn), in ? in->volume_wwn_utf8 : nullptr);
+    copy_card(out.volume_interface, sizeof(out.volume_interface),
+              in ? in->volume_interface_utf8 : nullptr);
     /* M-029: the raw/carve category root's display name (the og's
      * "filter_generalraw" surface); empty = the default role */
     copy_card(out.raw_category_name, sizeof(out.raw_category_name),
@@ -1604,6 +1611,8 @@ u32 scan_create_impl(const cr_ui_scan_config* cfg, cr_ui_scan** out) {
     arm_repair_hooks(s, cfg); /* S-008: pre-scan repair consent gate */
     if (cfg)
         s->memory_warn_mb = cfg->memory_warn_mb; /* N-062 */
+    if (cfg && cfg->pre_scan_check) /* M-041: the damage-audit phase */
+        s->cfg.pre_scan_check = true;
     if (cfg && cfg->progress) {
         s->progress = cfg->progress;
         s->progress_user = cfg->progress_user;
@@ -1624,6 +1633,13 @@ void fill_identity_card(u32 disk, orchestrator::ScanConfig& cfg) {
     const std::string sr = ws_to_u8(disks[disk].serial);
     copy_card(cfg.volume_model, sizeof(cfg.volume_model), m.c_str());
     copy_card(cfg.volume_serial, sizeof(cfg.volume_serial), sr.c_str());
+    /* N-066: the record-3 axes from the (N-080-fixed) enumeration. */
+    const std::string fw = ws_to_u8(disks[disk].firmware);
+    const std::string wwn = ws_to_u8(disks[disk].wwn);
+    const std::string ifc = ws_to_u8(disks[disk].interface_desc);
+    copy_card(cfg.volume_firmware, sizeof(cfg.volume_firmware), fw.c_str());
+    copy_card(cfg.volume_wwn, sizeof(cfg.volume_wwn), wwn.c_str());
+    copy_card(cfg.volume_interface, sizeof(cfg.volume_interface), ifc.c_str());
 }
 
 /* cross-disk LDM resolver (the cmd_scan block, verbatim semantics) */
@@ -1886,6 +1902,10 @@ u32 scan_stats_impl(cr_ui_scan* scan, cr_ui_scan_stats* out) {
     out->repair_planned = st.repair_actions_planned;
     out->repair_applied = st.repair_actions_applied;
     out->repair_denied = (st.repair_consent_denied || st.repair_writer_unavailable) ? 1u : 0u;
+    /* M-041 damage-audit report summary */
+    out->check_ran = st.check_ran ? 1u : 0u;
+    out->check_errors = u32(st.check_report.errors.size());
+    out->check_detected = st.check_detected ? 1u : 0u;
     return ret_ok();
 }
 

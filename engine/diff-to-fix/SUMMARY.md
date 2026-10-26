@@ -63,6 +63,61 @@ MINOR 8 · INFO 0 open · tracked-open 10 · FIXED/ 191 files. Session tally
 (this lane): M-029 + M-025 + the N-064 union repair.
 # SUMMARY.md — executive summary (diff-fix session 33 on top; earlier sessions below)
 
+## Session-30b delta (2026-10-26 — DFX30-MAJOR-tail lane: M-041 FIXED — the damage-audit check phase)
+
+**M-041 FIXED (MAJOR — the og's FileSystemCheck parity, the last big
+unclaimed MAJOR module):** a dedicated pure-core check module
+(`cr/check/cr_fscheck.h/.cpp`) re-implemented from understanding of the
+9,964-line FileSystemCheck.mo decompile (every gate re-verified first-hand
+at corpus 03ad46c before implementation): the error taxonomy 0x1001..0x100e
+in numeric parity (0x100c preserved-unused as in the og); the FAT pass in
+the og's phase order — DBR validators per flavor (signature dispatch
+"FAT1"+digit@+0x36 / "FAT3"+'2'@+0x52, ceilings spf×341.3333333 / spf×0x100
+/ (bps×spf32)>>2, FAT32's spf16∈{0,spf32} + root-cluster range gates), the
+volume-size floor (0x1001, non-terminal), per-copy dead-zone +
+duplicate-reference scans (0x1006, terminal), the entry-by-entry pairwise
+FAT-copy compare with the entry-0 media mask (0x1005, terminal; mask
+mismatch = the og's silent stop), the FAT32 root-chain gate, the dir-tree
+audit ('.'/'..' pair for non-root dirs, first-cluster==1/≥space, the
+cluster-granular size-vs-chain compare — the og's sector-sum round-up
+decoded, ancestor-array cycles; per-entry non-terminal), and the orphan
+sweep (unvisited + FAT≠0/self/BAD → the host decision → single terminal
+0x1003); the NTFS pass — the $MFT record-0 resident-"$MFT" proof (0x1008,
+terminal), $MFTMirr slot-0 proof (0x1009), the version gate {0x102, 3,
+0x301} from $Volume's $VOLUME_INFORMATION with the version word as the
+param (0x100A), the $Bitmap structural floor (0x100B), and the MFT×$Bitmap
+cross-check gated by $MFT::$BITMAP AND record in-use flags (per-LCN 0x1003
+free-but-allocated / 0x1002 duplicate-claim — the two-bitmap decode). The
+og's 8-event host callback surface as optional pointers; wired as the
+optional pre-scan stage AFTER repair and BEFORE the engine pipe
+(ScanConfig::pre_scan_check, default OFF), NEVER aborting the scan (the
+escalation stance, pinned by test); REC_FS_CHECK session record (round-trip
++ load-path restore); the cr_ui ABI appends (cr_ui_scan_config
+.pre_scan_check, stats check_ran/check_errors/check_detected, CR_EVT_FS_CHECK
+= 10 with the M-049 error-context append unioned ahead of it); CLI
+`scan --check` with the full per-finding report. Deliberate deltas
+registered as PARITY-DELTAS D-87: the undecoded $Bitmap slack term
+(checkntfs.cpp :3869-3871, CCheckNTFSVolume+0x30 — only the firing half
+implemented, no constant guessed), the CheckIssue param/record superset
+context, and the partial-bitmap-load refusal (never audit a zero-filled
+tail). Proof: 15 tests (fail-before by absence — the module did not exist);
+suites 758/758 linux-release AND linux-gcc ASan at the landing tree.
+
+**N-079 CONVERGENT (this lane's eb3cb6d vs the parallel wave's canonical
+deque-pool landing):** this lane independently found + fixed the N-048
+seam's Site exit-leak (LSan red on 4 tests, fail-before EXECUTED on a clean
+worktree at f5d4981); the parallel wave landed the same repair minutes
+earlier — reconciled to theirs per first-landing-wins (my delete-under-mutex
+design dropped cleanly; their deque-pool stands; the convergence recorded
+in the worklog and the matrix note).
+
+**Counts after this landing (single-lane view; parallel lanes active):**
+SEVERE 1 open (S-034, filed by the tracked-open lane, unfixed) · MAJOR 6
+open (M-030, M-034, M-039, M-040, M-048, M-052) · MINOR 4 open (N-007,
+N-065, N-066, N-072) · INFO 0 · FIXED/ 208 (M-041 + the parallel wave's
+landings) · tracked-open: OQ-FLT-1/OQ-Z5/OQ-Z2 resolved this window by the
+parallel lanes.
+
 ## Session-33 delta, part 3 (2026-10-26 — DFX33: M-018 FIXED — the FilterFolder result-set junk filter)
 
 **M-018 FIXED (MAJOR — the og's PushFolderFilter result-set policy):**
@@ -705,9 +760,20 @@ same landing repaired the parallel lanes' N-019/M-020 convergence break
 corpus-verified default-subvol-at-root contract — the union had left
 main red).
 
-Counts after this landing: **MINOR 4 open** (N-064, N-071, N-059 moved
-to FIXED/; the tier's other findings landed by the parallel lanes),
-MAJOR 10 open, INFO 0, tracked-open 6.
+**N-066 FIXED (MINOR — the identity card's record-3 parity) + N-080
+(NEW-FINDING, filed+fixed in the same landing):** the v4 card tail
+(firmware/WWN/interface axes + the full 512-byte boot snapshot — the og
+record-3's +0x206/+0x30A/+0x414/+0x518) with the scanner capturing the
+sector image beside the hash and the PURE enumeration decoders feeding
+the axes. N-080: the descriptor decode had read the product at +24 (the
+SERIAL offset — model carried the serial text!) and the serial at +36
+(inside RawDeviceProperties); fixed to the SDK-exact offsets with the
+decode factored into a Linux-testable pure function. Fail-befores
+EXECUTED for both (3 RED + 1 RED); suite 855/855.
+
+Counts after this landing: **MINOR 2 open** (N-065, N-072 remain;
+N-007/I-004 taken by the front lane), MAJOR 10 open, INFO 0,
+tracked-open 6.
 
 ## Session-30 delta, part 2 (2026-10-26 — DFX30: N-071 closed — the deferred trio complete on this lane)
 
@@ -1351,7 +1417,7 @@ u64@+0x14): `CarveResult::embedded_name` carrier with emit precedence
 field is the MODIFICATION time; there is NO 1904-epoch conversion in the
 og — both quirks replicated + pinned by test), the false "corpus policy"
 comment repaired, File%06u registered as the deliberate default
-(PARITY-DELTAS D-76 with the UTC-formatting divergence). Fail-before 3/3
+(PARITY-DELTAS D-87 with the UTC-formatting divergence). Fail-before 3/3
 RED; 679/679 + 24/24. The CZeroEnd-family membership beyond MP4/MOV is
 the honestly recorded remainder (decode each of the 22 SetName callers).
 

@@ -119,6 +119,10 @@ Core (audited `67193b6`): `src/core/session/` (721 LOC) + `include/cr/session/` 
 - **N-060 (MINOR, NEW):** save_session has no progress/cancel contract (og 40%→65%
   per-node + per-child IsCancelled).
 - **N-061 (MINOR, partial):** no session auto-naming (`auto_<label><M><D><H><m><s>`).
+- **N-066 FIXED (s31 — DFX31):** the identity card's record-3 parity —
+  the v4 tail (firmware/WWN/interface + the 512-byte boot snapshot),
+  the scanner capturing the sector beside the hash, the PURE enumeration
+  decoders. (was: no firmware/WWN/interface fields, CRC32 boot hash only)
 - S-031 cross-module: carved nodes round-trip Active (the deleted flag's producer-side
   gap is carve's; the carrier exists).
 ## Session-6 rows (deep continuation, 2026-10-26 — the never-cited SaveScan artifacts consumed)

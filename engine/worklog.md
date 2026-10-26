@@ -15271,7 +15271,6 @@ Stage Summary:
   remains in a non-resolved state; the audit trail for M-029 and M-025
   is complete with both Resolutions, the convergence records, and the
   measured numbers.
-=======
 ---
 Task ID: DFX30-HANDOFF (session 30 close — lane complete, main green)
 Agent: main engineer (diff-to-fix fix session 30 — DFX30)
@@ -15390,3 +15389,144 @@ Work Log:
 Stage Summary:
 - M-048 FIXED (tally: 4 — M-020, M-025, M-018, M-048 — plus the T4
   pushed-red repair). MAJOR 5 open. Next: pull, then the live queue.
+
+Task ID: DFX34-T4 (session 34, fourth landing — the third-wave repair + the union-merge rule)
+Agent: main engineer (diff-to-fix fix session 34 — DFX34)
+Task: Repair the 875ed25 regression (my own union loop's fault: keep-both
+is wrong for CODE files) and codify the rule.
+
+Work Log:
+- The 875ed25 union merge resolved rrecov.cpp/cr_bitlocker.h conflicts
+  keep-both, producing line-interleaved duplicates (nested function
+  definitions; the parse gate RED on 3 files). Root cause: the retry
+  loop's union script treated CODE like append-only audit docs. A stale
+  parallel 'both surfaces' variant keeps riding remote waves in; the
+  canonical N-064 state (cfa4c75) is the fixed point.
+- Restored both files verbatim from cfa4c75; the remote wave's other
+  work (21 new tests, audit updates) rides through untouched.
+- RULE (this lane, from here): union/keep-both ONLY for append-only
+  audit docs (worklog/SUMMARY/index/matrix); source files resolve by
+  side-selection (the canonical fixed-point commit for the file), and
+  the parse gate + full suite run BEFORE every push, never after.
+- Suite 865/865 linux-release at the restored tree; gate 0 FAIL.
+
+Stage Summary:
+- Main green again. This lane returns to the queue: N-071 verify →
+  N-072 → N-066 → N-065 → N-059 → N-033 verify → N-007/I-004 → N-019.
+
+---
+Task ID: DFX30-M041 (session 30b, the MAJOR-tail lane — first MAJOR fix)
+Agent: core-parity-fix-agent (main, DFX30-MAJOR-tail)
+Task: M-041 — the damage-audit check phase (the og's FileSystemCheck)
+
+Work Log:
+- Corpus re-verified LINE BY LINE before any code: the 9,964-line
+  FileSystemCheck_decompiled.c at the cited ranges — FUN_1800015b0's DBR
+  dispatch + validators (:1314-1475: FAT12 "FAT1"+'2' + spf×341.3333333
+  ceiling; FAT16 '6' + spf×0x100; FAT32 "FAT3"+'2'@+0x52 + spf16∈{0,spf32}
+  + root-cluster range + (bps×spf32)>>2), the 0x1001 size floor (NON-
+  terminal, :576-577), the dead-zone FUN_180005fd0 (:4392-4415: value ∈
+  [cc, 0xff6/0xfff6/0xffffff6] fails) + duplicate-ref FUN_180005e90
+  (:4340-4386, TBitmap) scans → terminal 0x1006, the pairwise compare
+  (:743-753 → terminal 0x1005) + entry-0 media mask (silent stop,
+  :667-684), the FAT32 root chain (:803-824), the dir audit FUN_180003360
+  (dot pair :1890-1897 [local_f0[4] = longlong*-indexed byte 32 = entry
+  1's '.'], first-cluster :1937-1948, size-vs-chain :2050-2076 — decoded
+  to round_up(ceil(size/bps), spc) sectors vs the chain run sums, the
+  ancestor-array cycle :2079-2097, per-entry non-terminal), the orphan
+  sweep (:880-949: unvisited + FAT≠0/self/BAD → host decision FUN_180002770
+  → SINGLE terminal 0x1003); NTFS: $MFT proof (:2888-2916 — resident
+  $FILE_NAME, name_len@+0x40, "$MFT"@+0x42, exact-length pin@+0x4a),
+  $MFTMirr (:2944-2979, non-terminal), version {0x102, 3, 0x301}
+  (:2994-3003, param = the word), $Bitmap structural (:3866-3888; the
+  slack term's CCheckNTFSVolume+0x30 is layout-undecoded — registered
+  D-76(a), not guessed), the cross-check FUN_180004d80 (:3061-3249) —
+  gated by $MFT::$BITMAP (FUN_180005900, :3138) AND flags&1 (:3165),
+  per-LCN 0x1003 "Bitmap mark it as free" / 0x1002 "Please use 'Chkdsk'
+  first" with the LCN param. CONFIRMED-DIVERGENCE.
+- Landed: include/cr/check/cr_fscheck.h + src/core/check/cr_fscheck.cpp
+  (the full module, every gate carrying its decompile citation); the
+  orchestrator stage (after repair, before the pipe; never aborts;
+  ScanConfig::pre_scan_check default OFF); REC_FS_CHECK = 9 (serialize/
+  deserialize + save/load wiring); event::Type::FsCheck (wire 10 — 8/9
+  are the shim's CR_EVT values, collision avoided); the cr_ui ABI appends
+  (cr_ui_scan_config.pre_scan_check, stats check_ran/check_errors/
+  check_detected, CR_EVT_FS_CHECK 10 + check_errors/check_family —
+  unioned AFTER the parallel wave's M-049 error-context append); CLI
+  scan --check with the full per-finding report.
+- First-build defects caught by the loop (all mine): the record-builder
+  wrote flags at +0x14 (attribute_offset!) before the +0x16 fix; the
+  fixture's runlist encoder wrote offset-before-length (NTFS is
+  length-first — the MFT 32/32 run decoded by symmetry luck); cpr 0xF2
+  (-14 = 16 KiB) instead of 0xF6 (-10 = 1 KiB); total_sectors at the FAT
+  offset +0x20 instead of NTFS's u64 +0x28; the engine-gate fixture needed
+  root_entries ≥ 224 (N-010b) and a FAT16-bracket cluster count.
+- A SOURCE hardening the loop forced (not fixture): a partial $Bitmap run
+  load must NOT pass as loaded — the zero tail reads "every cluster free"
+  and fires false 0x1003s; registered D-76(c).
+- N-079 CONVERGENCE: this lane independently found + fixed the N-048
+  seam's Site exit-leak (eb3cb6d, fail-before EXECUTED on a clean
+  worktree at f5d4981: 4 LSan-RED tests); the parallel wave landed the
+  same repair first — reconciled to their canonical deque-pool
+  implementation (first-landing-wins), my duplicate finding file dropped,
+  convergence recorded here + the matrix note.
+- Tests: 15 (FatCopyDisagreementReported, FatDuplicateRefDetected,
+  DirDotPairMissingRejected, DirCycleDetected, LiveFileSizeNeChain,
+  OrphanClustersReported, CleanFatVolumeReportsNoErrors,
+  DbrCeilingRejectsOversizedClusterCount, NtfsCleanVolumeReportsNoErrors,
+  NtfsVersionGate, MftRecordNotNamedMft, MftBitmapCrossLink,
+  BitmapFreeButAllocated, CheckNeverAbortsScan, ReportSessionRoundTrip)
+  — each fail-before by absence (the finding's own test-plan mode).
+  Suites 758/758 linux-release AND linux-gcc ASan (the ASan run carried
+  my N-079 repair pre-reconciliation); win_syntax_check green on the
+  modified CLI/ABI files.
+- Audit trail: Resolution + FIXED/ move; RESOLVED-INDEX session-30b row;
+  matrix session-30b note + mom-capabilities cell + the new check-phase
+  module row; modules/check-phase.md (new); SUMMARY session-30b delta;
+  CAPABILITY-MATRIX row; PARITY-DELTAS D-76(a-c).
+
+Stage Summary:
+- M-041 FIXED (lane tally: 1 MAJOR + the N-079 convergence). Open on this
+  lane's claim: M-040 → M-034 → M-048 → M-039 → M-030 → M-052 (the other
+  MAJORs were landed by the parallel waves). NOTE: S-034 (new SEVERE,
+  ZFS ring txg) is open and unfixed — severity order puts it BEFORE the
+  remaining MAJORs; this lane takes it next unless another lane claims.
+
+---
+Task ID: DFX31-N066-N080 (session 31, MINOR tail-first lane — findings 4+5)
+Agent: main engineer (diff-to-fix fix session 31 — DFX31)
+Task: N-066 — the identity card's record-3 parity; N-080 — the descriptor
+offset transposition found during it (NEW-FINDING, filed+fixed).
+
+Work Log:
+- Corpus re-verified FIRST-HAND: rsf-format--scan-session.md :228-242
+  (record 3: firmware +0x206, WWN/serial-2 +0x30A, interface +0x414
+  "USB Device", byte[512] boot snapshot +0x518 with the 0x55AA magic —
+  the two stated purposes: same-volume verify + partition-context
+  re-materialization). CONFIRMED-DIVERGENCE.
+- DISCOVERED during the decode work: the win layer read the descriptor's
+  product offset at +24 (SerialNumberOffset — model carried the SERIAL
+  text) and the serial at +36 (inside RawDeviceProperties — garbage).
+  Filed as N-080 (NEW-FINDING, MINOR) per protocol.
+- Landed (both): VolumeInfo v4 tail (firmware[32] + wwn[32] +
+  interface_desc[32] + boot_snapshot[512], append-only, v1/v2/v3 load
+  zeroed); the scanner's existing boot read now captures the image beside
+  the hash (one read, two views — pinned end-to-end); ScanConfig +
+  cr_ui card plumbing (three appended const char* fields, zero-init
+  safe); PURE decoders in cr_enumerate.h — decode_device_descriptor
+  (SDK-exact offsets, the N-080 fix), bus_interface_name, and
+  decode_device_id_descriptor (StorageDeviceIdProperty: first
+  DEVICE-associated identifier, ascii/binary-hex, torn-refusal) — all
+  Linux-lane tested; the win query wired through them for BOTH stacks.
+- Fail-befores EXECUTED: v4-tail-dropped tree -> 3 RED; re-transposed
+  offsets -> DeviceDescriptorFieldsDecode RED (model received the serial
+  text). Restored -> 855/855 green (incl. the updated Crsf size pin and
+  the v4-aware Image round-trip extension).
+- Audit trail: Resolutions + FIXED/ moves for both; RESOLVED-INDEX rows;
+  matrix session note (D12/B9 -> MATCH + storage D11 axis); SUMMARY
+  counts (MINOR 2 open); modules/session.md verdict.
+
+Stage Summary:
+- N-066 + N-080 FIXED (session tally: N-064, N-071, N-059, N-066, N-080
+  + three main repairs). Next: N-065 or N-072 (the MINOR tail end),
+  pulling first.
