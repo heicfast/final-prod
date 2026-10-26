@@ -1,5 +1,49 @@
 # SUMMARY.md — executive summary (sessions 25+28 on top; earlier sessions below)
+# SUMMARY.md — executive summary (diff-fix session 23 on top; earlier sessions below)
 
+## Session-23 delta (2026-10-26 — DFX23: the MINOR-first closing wave, batch 1 — N-009 group closed + M-057)
+
+Baseline `716d121` verified green FIRST-HAND (linux-release **737/737**,
+incl. win_syntax_check) before any change; corpus `03ad46c` unmoved; lane
+claim pushed before finding work (protocol). Mandate: MINOR-first queue,
+20+ fixes, fixed findings to FIXED/, docs/counts current after every landing.
+
+**N-009 CLOSED (the group's last two halves):**
+**N-009c** — the CLI `--filter` ASCII-mangling fixed for real: the new pure
+`cr::text::wide_to_utf8` (locale-independent wide→UTF-8; lone surrogate
+halves → one U+FFFD per the shared text policy; both wchar_t widths) feeds
+all three filter sites (scan print / tree / recover), and the recover path's
+match was aligned to the shared ASCII-case-insensitive contract
+(`name_contains_ci` factored out of `name_matches` — the query layer's
+`name_substring` semantics; the old recover match was case-SENSITIVE, an
+internal inconsistency removed). 3 proof tests (`Text.WideToUtf8*` +
+`Text.CliFilterUtf8MatchesDecodedNames` — the CJK-filter-matches-decoded-name
+byte property, with the old `'?'` polarity pinned to never match).
+**N-009d** — resolved by **D-77 registration** (inherit-destination ACL
+posture; the finding's own optional-port text; `preserve_dacl` recorded as
+the next step, not silently dropped). Finding → FIXED/ (a/b halves were
+already fixed in the s2 wave; the group is now fully closed).
+
+**M-057 NEW-FINDING (MAJOR) filed + FIXED (the gate extension's first
+catch):** extending `win_syntax_check` to `src/app` (same M-055 rationale —
+the app is equally Windows-only) immediately surfaced that **`rrecov.exe`
+has been MSVC-uncompilable since `0a68937`** — `cmd_apply` (the S-029 apply
+union landing) references `&e` with no `u32 e` declaration. Fixed (the
+declaration, matching the sibling cmd_fix/cmd_undo shape) + the gate now
+parses all 8 Windows-only files permanently; fail-before EXECUTED (the
+exact `'e' was not declared` diagnostic), pass-after 8/8. Q67 buildability
+now covers every Windows-only directory (src/win + src/app).
+
+**Post-fix counts (this batch, union with the parallel lanes' INFO
+closure):** SEVERE **0** · MAJOR 14 open (M-057 filed+fixed same session) ·
+MINOR **18** · INFO **0 open** (22 acknowledged — closed into FIXED/ by the
+parallel DFX25 lane in the same window) · FIXED **173** files (172 findings
++ RESOLVED-INDEX — mine +2, theirs +22, overlapping base 149) ·
+tracked-open 11.
+Suite **740/740** linux-release at the fix commit (+3 Text tests, gate
+extended). Next on this lane: N-007/I-004 → N-025 → N-026 → N-027 →
+N-031 → N-036 → N-049 → N-059 → N-065 → N-066 → N-075 → N-019 → N-050 →
+N-033 → N-072, then the win-layer/crypto-heavy N-032/N-071/N-064.
 ## Session-25 delta (2026-10-26 — DFX25: the INFORMATIONAL tier closed into FIXED/; tracked-open resolution wave)
 
 Baseline `716d121` verified green first-hand (737/737 linux-release, full
@@ -25,6 +69,7 @@ tests (the INFORMATIONAL safety-hardening rule — no code change).
 (22 acknowledged, all in FIXED/) · **FIXED/ 171 files** (170 findings +
 RESOLVED-INDEX) · tracked-open 11 (resolution wave below — see the session's
 worklog entries for the per-OQ dispositions).
+
 
 <!-- DFX16 note: session 16 ran as a parallel lane in the same window as
      sessions 17-22; its delta is recorded here for chronology. -->

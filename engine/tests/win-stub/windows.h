@@ -55,6 +55,13 @@ struct FILETIME { DWORD dwLowDateTime; DWORD dwHighDateTime; };
 #define INVALID_HANDLE_VALUE ((HANDLE)(long long)-1)
 #define INVALID_FILE_ATTRIBUTES ((DWORD)0xFFFFFFFF)
 
+/* calling convention + console control (app layer: rrecov's Ctrl-C).
+ * WINAPI: on x64 the convention is ignored by MSVC too, so an empty
+ * definition is ABI-faithful for the parse gate. */
+#define WINAPI
+#define CTRL_C_EVENT 0
+#define CTRL_BREAK_EVENT 1
+
 /* create/share/flags (values as the SDK defines them) */
 #define GENERIC_READ 0x80000000UL
 #define GENERIC_WRITE 0x40000000UL
@@ -130,6 +137,7 @@ inline void Sleep(DWORD) {}
 inline unsigned long long GetTickCount64() { return 0; }
 inline DWORD GetTickCount() { return 0; }
 inline BOOL QueryPerformanceCounter(LARGE_INTEGER*) { return 1; }
+inline BOOL QueryPerformanceFrequency(LARGE_INTEGER*) { return 1; }
 
 /* ---- CRT-adjacent formatting (MSVC secure CRT) ----------------------- */
 #define _TRUNCATE ((size_t)-1)
@@ -176,6 +184,11 @@ inline ULONG RtlNtStatusToDosError(long) { return 0; }
 
 /* ---- MSVC CRT surface (parse-gate only) ------------------------------- */
 typedef int errno_t;
+#define __int64 long long /* MSVC builtin 64-bit type; width-faithful */
+inline errno_t _wfopen_s(FILE**, const wchar_t*, const wchar_t*) { return 0; }
+inline int _fseeki64(FILE*, __int64, int) { return 0; }
+inline __int64 _ftelli64(FILE*) { return 0; }
+inline BOOL SetConsoleCtrlHandler(BOOL (WINAPI*)(DWORD), BOOL) { return 1; }
 inline wchar_t* _wcsdup(const wchar_t*) { return nullptr; }
 inline errno_t wcsncpy_s(wchar_t*, size_t, const wchar_t*, size_t) { return 0; }
 inline errno_t wcscpy_s(wchar_t*, size_t, const wchar_t*) { return 0; }
