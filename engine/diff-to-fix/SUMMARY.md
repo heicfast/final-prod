@@ -1,5 +1,20 @@
 # SUMMARY.md — executive summary (diff-fix session 33 on top; earlier sessions below)
 
+## Session-33 delta, part 5 (2026-10-26 — DFX33: N-007 FIXED — ReFS page-signature discovery width)
+
+**N-007 FIXED (MINOR — with the I-004 half staying ACKNOWLEDGED):** the
+corpus was re-verified first-hand (ReFSSearchDLL :11692 — the og's page
+dispatch compares the FIRST DWORD only; corrupt-tail pages open and the
+ref-parser validates further). The core's detect now matches: first-4
+discovery + the full memcmp as the grading signal
+(RefsInfo::signature_partial). Proof: RefsDetect.PartialSignaturePageDetected
+(fail-before EXECUTED RED on the full-width-only tree); refs suite 32/32;
+full suite **891/891**.
+
+**Post-fix counts (this landing):** SEVERE **0** · MAJOR 4 · MINOR 2 ·
+INFO **0 open** · tracked-open 2.
+
+
 ## Session-33 delta, part 4 (2026-10-26 — DFX33: M-048 FIXED — the user-extensible signature database)
 
 **M-048 FIXED (MAJOR — the EUUserData capability):** users can teach the

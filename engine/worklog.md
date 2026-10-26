@@ -15530,3 +15530,26 @@ Stage Summary:
 - N-066 + N-080 FIXED (session tally: N-064, N-071, N-059, N-066, N-080
   + three main repairs). Next: N-065 or N-072 (the MINOR tail end),
   pulling first.
+
+---
+Task ID: DFX33-T6 (session 33, fifth fix)
+Agent: main engineer (diff-to-fix fix session 33 — DFX33)
+Task: N-007 — ReFS page-signature discovery width (the I-004 half of the
+combined file stays ACKNOWLEDGED).
+
+Work Log:
+- Corpus re-verified first-hand: ReFSSearchDLL :11689-11720 — the page
+  dispatch selects the signature string then compares the FIRST DWORD
+  only; corrupt-tail pages open, the ref-parser validates further.
+- Implemented: page_match (first-4 discovery + full-width grading) in
+  cr_refs_detect.cpp; RefsInfo::signature_partial added; the engine's own
+  validation chain untouched.
+- Tests: RefsDetect.PartialSignaturePageDetected (fail-before EXECUTED
+  RED: the corrupt-tail-only volume was ERR_BAD_MAGIC pre-fix). Refs
+  suite 32/32; full suite 891/891 linux-release.
+- Audit trail: N-007 Resolution appended (I-004's stays as-is); file
+  moved to FIXED/; matrix row; modules/refs.md verdict; SUMMARY part-5.
+
+Stage Summary:
+- N-007 FIXED (tally: 5 — M-020, M-025, M-018, M-048, N-007 — plus the
+  T4 repair). MAJOR 4, MINOR 2 open. Next: N-065 or the queue head.
