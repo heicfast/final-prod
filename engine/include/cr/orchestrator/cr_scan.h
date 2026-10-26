@@ -14,6 +14,7 @@
 
 #include "cr/tree/cr_grading.h"
 #include "../storage/cr_device.h"
+#include "../storage/cr_cached.h"
 #include "../storage/cr_freemap.h"
 #include "../storage/cr_retry.h"
 #include "../table/cr_ldm.h"
@@ -72,6 +73,27 @@ struct StageWeights {
     u32 carve = 25;
 };
 
+/* ---- M-058: the scan read pipe, as a testable unit -----------------------
+ * run()'s inline construction had a defensive-path use-after-free: when
+ * CachedReader::create fails it DESTROYS the retry device it took by
+ * value, so the old fallback `pipe = retry_raw` dereferenced freed memory
+ * (and contradicted its own comment, which documented the bare-slice
+ * fallback). Extracted so the fallback is a pinned, tested contract:
+ * cache-creation failure degrades to the BARE SLICE (retry isolation
+ * lost on that path - unreachable with run()'s constant arguments, but
+ * memory-safe and truthful when taken). */
+struct ReadPipe {
+    std::unique_ptr<CachedReader> chain; /* owns the cache when built; null
+                                            on the degraded bare-slice path */
+    IStorageDevice* pipe = nullptr;      /* what engines read through (the
+                                            slice itself on the degraded path) */
+    RetryingDevice* retry = nullptr;     /* live error-map source (the cache's
+                                            inner device; null on degrade) */
+};
+/* cache_bytes/block_bytes parameterized for the regression test; run()
+ * passes (8 MiB, 256 KiB). slice must outlive the returned pipe. */
+ReadPipe build_read_pipe(IStorageDevice* slice, u64 cache_bytes, u32 block_bytes);
+
 /* ---- typed event stream (GAP-S6-10; ABI-CONTRACT.md section 6) ----
  *
  * Corpus lineage: the reference pipes engine events to the UI through a
@@ -119,6 +141,15 @@ struct Event {
     /* ErrorRange: the newest appended span (absolute device bytes) */
     u64 err_start_bytes = 0, err_len_bytes = 0;
     u32 error_ranges = 0; /* cumulative count after the append */
+    /* ErrorRange context (M-049 - the engine-side subset of the og's
+     * error objects): the module that was reading (cr_errmod.h ids; the
+     * newest range's attribution, exact for every orchestrator-stamped
+     * sub-pass), the operation (read - this family is read failures) and
+     * the retry state (attempts spent before giving up). Zero on other
+     * event types. */
+    u32 err_module = 0;
+    u32 err_operation = 0;
+    u32 err_attempts = 0;
     /* Checkpoint */
     u64 checkpoint_index = 0;
     /* LostCandidate */
@@ -247,6 +278,9 @@ struct ScanStats {
     /* M-005: used-cluster bytes the carve dispatch never offered (the
      * og's block-scan bitmap gate). 0 when no bitmap was available. */
     u64 carve_bitmap_skipped_bytes = 0;
+    /* N-031: all-zero 512-byte strides whose raw-sign probe was skipped
+     * (the og's zero-sector fast-skip analog; diagnostics/telemetry). */
+    u64 carve_zero_strides = 0;
     ReadErrorMap errors;
     std::vector<lost::Candidate> lost_candidates;
 
@@ -489,6 +523,13 @@ private:
     void emit_progress_event_(u32 stage) const;
     void emit_boundary_events_(u32 stage) const;
     void emit_lost_candidate_(const lost::Candidate& cand) const;
+    /* M-049: publish the sub-pass owner module on the retry device (the
+     * fallback engine-internal worker pools attribute to). No-op before
+     * the pipe exists (tel_retry_ null). */
+    void publish_owner_module_(u32 module) const {
+        if (RetryingDevice* rd = tel_retry_.load(std::memory_order_acquire))
+            rd->set_owner_module(module);
+    }
     mutable std::atomic<u32> evt_last_overall_{0xFFFFFFFFu};
     mutable std::atomic<u32> evt_last_errors_{0};
     /* the live sink (constructed from cfg_; overridable pre-run so the

@@ -108,9 +108,14 @@ first landing's analogs replaced with the exact rules (evidence:
 | Q65 tests | 20 Health tests incl. the family-gate matrix, the FF-guard asymmetry, duplicate-Unknown, the NVMe exact bits, temp-never-grades, is-SSD list, classifier vendors/sigs/forms |
 | F-gate deliberate superset | failing_bit → disk Bad registered as **D-63** (PARITY-DELTAS); per-attr grades stay og-exact |
 
-M-036 (NVMe field coverage) and N-064 (Dict dictionary) remain open
-(untouched by this leg). The S-027 lane's Ext4Engine.Backup* reds visible
-on main mid-session are that lane's in-flight state, not health.
+M-036 is FIXED (the NVMe leg above). N-064 **FIXED (s31 — DFX31)**: the
+Dict password-dictionary unlock aid (cr::dict: generated 228-entry corpus
+table + parse grammar + the consent-gated attempt loop; win-layer
+unlock_with_dictionary on the PowerShell/manage-bde -Password plumbing;
+CLI --bitlocker-dict consent flag; cr_ui_unlock_volume_with_dictionary
+ABI export; index-only logging through the N-048/N-061 seam). The S-027
+lane's Ext4Engine.Backup* reds visible on main mid-session were that
+lane's in-flight state, not health.
 
 ---
 
@@ -130,8 +135,25 @@ on main mid-session are that lane's in-flight state, not health.
 | B13 report units | **MATCH** — data_bytes_read/written = units × 512,000 (the og's exact conversion, :5589-5614); raw counts kept alongside; the cr_ui C-ABI report appends the six fields with ABI v2 (appended fields bump per ABI-CONTRACT §9) |
 | Q65 | FullFieldSurface / DataUnitsConvertedToBytes / PercentageUsedIsU8Width / the 192-byte gate test |
 
-Open health items after this leg: N-032 (CSMI/USB-bridge transports),
-N-064 (Dict password dictionary). N-042 **FIXED (s7 `3678cbf`; FIXED/
+Open health items after this leg: none from this pair — N-064 **FIXED (s31)**
+(the Dict dictionary aid, consent-gated) and N-032 **FIXED (s30)** — the CSMI
+CC-0x19 transport (Intel RST route) wire-decoded from DiskHealth
+FUN_00425450 and landed as the third transport behind ata-passthrough and
+smart-rcv-drive-data, through the new pure chain seam (cr_smart_ata: the og
+CAtaSmart accessor model — first channel answering IDENTIFY serves the whole
+command set); the legacy route now stamps the og's exact SMART IDEREGS
+(count 1, sector 1, cyl 4F/C2 — :14166-14176). Registered remainders in
+PARITY-DELTAS D-78 (RAID-census routing, LSILOGIC sibling, SMART
+auto-enable write). N-042 **FIXED (s7 `3678cbf`; FIXED/
 move s11)** — `NvmeHealthInfo::decidegrees_c()` is the one decidegree
 source for the CLI print and the ABI `temperature_c_x10` (Q65 test set
 covers it).
+
+## Session-30 fix leg — N-032 closed (2026-10-26)
+
+| Parameter | Verdict |
+|---|---|
+| F60-adjacent health availability (CSMI route) | **MATCH** — the og's GetSmartAttributeCsmi transport (IOCTL_SCSI_MINIPORT CC-0x19 "CSMISAS", Register-FIS task file with the SMART magic LBA, response @+0xA4) is reproduced byte-exact (Health.CsmiRequestMatchesOgWireFormat); routing via the og's own IOCTL_SCSI_GET_ADDRESS probe; the census-sourced routing fields are registered D-78 |
+| P42 transport-chain contract | **MATCH** — the og CAtaSmart accessor model (one transport family serves IDENTIFY/READ DATA/READ THRESHOLDS; per-disk accessor pick) is now the pure seam cr::health::read_smart_ata; ERR_HEALTH_UNAVAILABLE stays the clean final fallback |
+| Q65 | 9-test set: wire format pins (request/response/builder guards/error set) + fallback-chain pair + attribute-parse proof + name-table pin |
+

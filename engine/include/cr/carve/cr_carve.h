@@ -43,6 +43,14 @@ struct CarveStats {
     u64 bitmap_skipped_clusters = 0;
     u64 bitmap_skipped_bytes = 0; /* skipped_clusters x cluster_bytes (0 when
                                      no map was supplied) */
+    /* N-031: the og's all-zero-sector fast-skip (leading/trailing
+     * zero-dword metrics feed its block-scan skip, :9490-9520). Counted
+     * at the raw-sign layer: strides whose sign window (first 47 bytes
+     * - the whole probe_header span) is all zero skip the 47-lookup
+     * sign-table walk. The grammar layer's first-byte dispatch is
+     * near-free on zeros and keeps running (the finding's own profile
+     * rule). */
+    u64 zero_strides_skipped = 0;
 };
 
 struct CarveFlags {
