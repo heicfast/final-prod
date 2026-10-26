@@ -173,11 +173,4 @@ New rows on this module's surface (full detail in
   in the og; `CFatxBlockParser` is the FAT12/16/32 boot parser ("Fatx" =
   FAT-x), and its accept gates diverge from the core's on six specific
   points → `M-045` (the gate deltas now carry the surface).
-- **lostpart.dat/partinfo.dat persistence semantics** — `M-042` (the
-  session-module's resume re-validation row) + `N-049` (record richness).
-## Session-6 rows (deep continuation, 2026-10-26)
-
-| ID | Severity | One-line |
-|---|---|---|
-| I-020 | INFO | PartitionRecoveryD MOM module: two-generator-set architecture (CGeneratorSetCompleteSearch ×2 / CGeneratorSetRegSearch ×2) + lostpart.dat/partinfo.dat persistence — capability register; semantics tracked in OQ-S6-1 |
-| M-017 addendum | — | CalcPartition scorer-class evidence (Fat32CalcPartition ×39 / ExFatCalcPartition ×54 RTTI refs) appended; decode order for the fix leg: OQ-S6-1 first |
+- **lostpart.dat/partinfo.dat persistence semantics** — **FIXED (DFX20 / M-042, findings/FIXED/)**: the candidates' session records now carry the og's per-record geometry payload (probe-captured bps/SPC/hidden + tail-fallback flag); revalidate_candidate re-probes the persisted start LBA through the current disk at resume (both the listing and the run-start surfaces) and drops records the disk no longer confirms; the whole-disk layout snapshot round-trips as REC_DISK_LAYOUT and surfaces the layout_changed signal. The core's per-hit persistence rides the session checkpoint (forced on discovery), not a module-local .dat — the sink-less residue is registered with the finding. 6 tests; suite 685/685.

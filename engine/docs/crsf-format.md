@@ -25,7 +25,8 @@ additions: explicit versioning, per-record CRC32, corruption skip-forward.
 ```
 +0x00 magic[4] "CRSR"
 +0x04 type u32     1 SESSION_STATE | 2 VOLUME_INFO | 3 PARTITION_CONTEXT
-                    4 RESULT_TREE   | 5 ERROR_MAP
+                    4 RESULT_TREE   | 5 ERROR_MAP | 6 ASSISTANT_STATS
+                    7 ALLOC_MAP     | 8 DISK_LAYOUT (M-042)
 +0x08 session_id u64
 +0x10 chain u32    on-disk bytes after the header (patched on finalize)
 +0x14 crc32 u32    CRC32 of the DECOMPRESSED payload
@@ -66,3 +67,30 @@ u32 carve_format, u16 carve_confidence
 u8  hash_valid + 16B sha-128 id (when valid)
 full nodes add: u16 role_len + role (UTF-16LE) + 4x u64 stats
 ```
+
+## PARTITION_CONTEXT payload (M-042 v2)
+
+```
+v1 (25 bytes): u64 start_lba, u64 sector_count, u32 fs_kind,
+               u32 score, u8 kind
+v2 (41 bytes): v1 + u32 bytes_per_sector, u32 sectors_per_cluster,
+               u32 hidden_sectors, u32 flags
+               (flags bit 0 = size_from_device_end, bit 1 = geometry valid;
+               the og's per-record CSearchedPartitionInfo payload,
+               PartitionRecoveryD lostpart.dat +0x38 bps / +0x444 SPC)
+the record LENGTH carries the version: v1 sessions (25 B) load with the
+extras zeroed and stay re-validatable by classification only.
+```
+
+## DISK_LAYOUT payload (M-042)
+
+```
+u32 count, then per entry: u64 start_lba, u64 sector_count, u32 mbr_type
+```
+
+The og's partinfo.dat semantics: the live whole-disk table at save time.
+On the next search the freshly enumerated layout is compared against it
+("layout changed" - surfaced as a resume warning, never enforced); every
+restored lost candidate is re-read at its start LBA against the CURRENT
+disk and stale records are DROPPED before they reach the UI (the og's
+PRD:20748-20842 search-start re-validation).

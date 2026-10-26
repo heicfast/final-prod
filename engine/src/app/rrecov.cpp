@@ -842,7 +842,11 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         }
         session::Reader r(file_read_cb, file_seek_cb, file_size_cb, fin);
         session::VolumeSessionInfo info;
-        const u32 rrc = orchestrator::ScanController::resume(r, tree, cfg, stats, info, ctrl);
+        /* M-042: the current target disk is the re-validation arbiter -
+         * stale candidates the disk no longer confirms are dropped
+         * at load (the og's PRD:20748-20842 search-start semantics). */
+        const u32 rrc = orchestrator::ScanController::resume(r, tree, cfg, stats, info,
+                                                             ctrl, target.device.get());
         fclose(fin);
         if (rrc != OK) {
             wprintf(L"resume failed: %hs (0x%08x)\n", err_text(rrc), rrc);
@@ -900,6 +904,14 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         log_line("  read-error range: @%llu +%llu (attempts %u)",
                  static_cast<unsigned long long>(er.offset),
                  static_cast<unsigned long long>(er.length), er.attempts);
+    /* M-042: the og's search-start disk-truth signals (surfaced, never
+     * enforced - the drop of stale records already happened at load/run) */
+    if (stats.layout_changed)
+        wprintf(L"[resume] WARNING: the disk layout changed since the session was saved\n");
+    if (stats.dropped_stale_candidates > 0)
+        wprintf(L"[resume] %llu stale lost-partition candidate(s) dropped "
+                L"(the disk no longer confirms them)\n",
+                static_cast<unsigned long long>(stats.dropped_stale_candidates));
 
     /* S-008 pre-scan repair summary (visible even when the plan was empty,
      * refused, or consent-denied - the operator always sees the truth) */
@@ -1154,20 +1166,22 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
     session::Reader r(file_read_cb, file_seek_cb, file_size_cb, fin);
     tree::ResultTree tree;
     orchestrator::ScanStats stats;
-    u32 rc = orchestrator::ScanController::load_session(r, tree, stats);
-    fclose(fin);
-    if (rc != OK) {
-        wprintf(L"session load failed: %hs\n", err_text(rc));
-        return 1;
-    }
-
-    /* open the SOURCE (extents in sessions are absolute): the disk the
-     * session ran on, or the image file it ran over (--image) */
+    /* M-042: open the SOURCE (extents in sessions are absolute) BEFORE the
+     * load so the restored lost candidates are re-validated against the
+     * current disk (the og's search-start drop of stale records); the
+     * recover content reads use the same disk the session is now bound to.
+     * The disk the session ran on, or the image file it ran over (--image). */
     OpenResult src;
     if (have_image) {
         if (!open_image_view(image_path, src))
             return 1;
     } else if (!open_disk_view(disk, src)) {
+        return 1;
+    }
+    u32 rc = orchestrator::ScanController::load_session(r, tree, stats, src.device.get());
+    fclose(fin);
+    if (rc != OK) {
+        wprintf(L"session load failed: %hs\n", err_text(rc));
         return 1;
     }
 
@@ -1699,6 +1713,18 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
         return 1;
     }
 
+    /* open the target disk FIRST: the candidate listing below is
+     * re-validated against it (M-042 - the og re-reads every persisted
+     * lostpart record before re-applying, PRD:20748-20842, so the listing
+     * shows only what the CURRENT disk still confirms) and the same view
+     * serves plan_apply below. */
+    u32 open_err = 0;
+    auto apply_view = win::open_disk(disk, use_rda, use_rda ? L"RDA" : nullptr, &open_err);
+    if (!apply_view) {
+        wprintf(L"cannot open disk %u (rc=%08x)\n", disk, open_err);
+        return 2;
+    }
+
     /* load the session's lost candidates (the discovery results the scan
      * scored - apply never invents geometry, it transcribes a candidate) */
     FILE* fin = nullptr;
@@ -1710,7 +1736,13 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
     orchestrator::ScanStats stats;
     session::VolumeSessionInfo info;
     session::Reader r(file_read_cb, file_seek_cb, file_size_cb, fin);
-    u32 rc = orchestrator::ScanController::load_session_summary(r, tree, stats, info);
+    u32 rc = orchestrator::ScanController::load_session_summary(r, tree, stats, info,
+                                                                 apply_view.get());
+    if (stats.dropped_stale_candidates > 0) {
+        wprintf(L"[apply] %llu stale candidate(s) dropped - the disk no longer "
+                L"confirms them (re-scan to rediscover)\n",
+                static_cast<unsigned long long>(stats.dropped_stale_candidates));
+    }
     fclose(fin);
     if (rc != OK) {
         wprintf(L"session load failed (rc=%08x %hs)\n", rc, err_text(rc));
@@ -1737,15 +1769,9 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
     }
     const lost::Candidate& c = stats.lost_candidates[size_t(candidate) - 1];
 
-    /* plan (read-only) */
-    u32 e = 0;
-    auto view = win::open_disk(disk, use_rda, use_rda ? L"RDA" : nullptr, &e);
-    if (!view) {
-        wprintf(L"cannot open disk %u (rc=%08x)\n", disk, e);
-        return 2;
-    }
+    /* plan (read-only) - the SAME view the listing was re-validated on */
     apply::ApplyPlan plan;
-    rc = apply::plan_apply(view.get(), c, plan);
+    rc = apply::plan_apply(apply_view.get(), c, plan);
     if (rc != OK) {
         wprintf(L"plan failed: rc=%08x %hs\n", rc, err_text(rc));
         return 2;

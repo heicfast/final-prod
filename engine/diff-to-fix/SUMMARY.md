@@ -284,14 +284,33 @@ separation, plaintext reads through the wrapper, byte-exact
 unaligned/cross-sector reads, transport-error propagation, and the
 M-033 acceptance (an XTS-encrypted FAT16 volume is opaque to the raw
 engine and scans correctly through the decrypt device with the key).
-Suite **608/608** after.
+Suite 608/608 at the M-033 landing; **685/685** after M-042.
+
+**M-042 FIXED (the resume disk-truth pass):** CONFIRMED-DIVERGENCE on all
+three falsifiable deltas (blind restore, no partinfo equivalent,
+config-gated candidate persistence, thin per-record payload), fixed per
+the finding's own 5-step plan. lost::revalidate_candidate re-runs the
+SAME per-family probe the discovery uses, at the persisted start LBA,
+through the CURRENT disk, at both device-bearing surfaces (the listing
+loads gained revalidate_disk - cmd_recover now opens the source disk
+BEFORE the session load; cmd_apply's candidate listing is re-validated on
+the once-opened view it reuses for plan_apply - and run() start for the
+resume flows, whole-disk basis only). REC_PARTITION_CONTEXT v2
+(append-only, length-versioned like SessionState v2) carries
+bps/SPC/hidden/flags; REC_DISK_LAYOUT (type 8) is the partinfo.dat
+equivalent with the layout_changed signal surfaced at resume (CLI warns;
+never enforced); a checkpoint is FORCED the moment discovery produces
+candidates (sink-gated - the no-.dat-side-channel residue registered, not
+papered over). **Executed fail-before**: the re-validation gates disabled
+-> ResumeDropsStaleCandidateAfterRelayout RED on both surfaces; restored
+-> green. 6 tests in test_resume_revalidation.cpp; suite 685/685.
 
 **Counts after this push (direct file inventory):** SEVERE **1** (S-029,
-DFX10's claim) · MAJOR **27** (M-005/M-007/M-008/M-037/M-045/M-046/
-M-054 landed by parallel lanes since session-15's count; M-033 this push)
+DFX10's claim) · MAJOR **26** (M-005/M-007/M-008/M-037/M-045/M-046/
+M-054 landed by parallel lanes since session-15's count; M-033 + M-042 this push)
 · MINOR **41** (parallel lanes landed N-041/N-069/N-030 since the
 session-15 count) · INFO 22 (all ACKNOWLEDGED) · FIXED/ family
-**102 files** (incl. RESOLVED-INDEX; +M-033 this push; the parallel waves'
+**103 files** (incl. RESOLVED-INDEX; +M-033 +M-042 this push; the parallel waves'
 M-005/M-007/M-008/M-045/M-054/N-041/N-069/N-030 already inside) ·
 tracked-open **17** (+OQ-S20-1 this push). Top remaining risks: S-029 (the last SEVERE), then
 the MAJOR tier by user impact — M-042 (session-resume revalidation),

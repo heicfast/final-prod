@@ -269,6 +269,22 @@ struct ScanStats {
      * Filled by the grading pass at scan completion; the per-node grades
      * live on the tree nodes (tree::Grade) and persist with the session. */
     tree::grading::AssistantStats assistant;
+
+    /* ---- M-042: resume-time disk-truth signals ----
+     * layout_changed: the persisted REC_DISK_LAYOUT snapshot differs from
+     * the freshly enumerated table at run start (the og's partinfo
+     * "disk changed" flag, PRD:20998-21039). Surfaced, never enforced.
+     * revalidated_candidates / dropped_stale_candidates: the per-record
+     * re-validation bookkeeping (the og re-reads every persisted record
+     * and drops stale ones before the UI sees them).
+     * persisted_layout: the session's REC_DISK_LAYOUT entries (empty on
+     * sessions saved before the record existed). Filled by
+     * load_session_summary; consumed (and cleared) by the run-start
+     * compare — a per-search-start signal, exactly the og's timing. */
+    bool layout_changed = false;
+    u64 revalidated_candidates = 0;
+    u64 dropped_stale_candidates = 0;
+    std::vector<session::DiskLayoutEntry> persisted_layout;
 };
 
 /* ---- live scan observability (G-04/G-05/G-06) ----
@@ -339,8 +355,16 @@ public:
 
     /* Session integration: emit the standard record set. */
     u32 save_session(session::Writer& w, const ScanStats& stats) const;
+    /* M-042: revalidate_disk, when non-null, is the CURRENT disk the
+     * session is being used against - every restored lost candidate is
+     * re-read and re-classified at its start LBA through it, and records
+     * the disk no longer confirms are DROPPED (the og's resume
+     * re-validation, PRD:20748-20842). nullptr = device-less listing
+     * (the og has no device-less surface; candidates restore as-is -
+     * the drop is a search-start behavior, not a listing one). */
     static u32 load_session(session::Reader& r, tree::ResultTree& tree,
-                            ScanStats& stats /*summary only*/);
+                            ScanStats& stats /*summary only*/,
+                            IStorageDevice* revalidate_disk = nullptr);
 
     /* ---- resume support (G-07) ----
      * Full flow: load the session (tree + stats + summary), validate the
@@ -355,14 +379,19 @@ public:
      * no-op run - they claim completion by construction. */
     static u32 resume(session::Reader& r, tree::ResultTree& tree, const ScanConfig& original_cfg,
                       ScanStats& stats, session::VolumeSessionInfo& info,
-                      std::unique_ptr<ScanController>& out);
+                      std::unique_ptr<ScanController>& out,
+                      IStorageDevice* revalidate_disk = nullptr);
 
     /* Load with the full restored summary (G-14/G-23): tree + stats +
      * volume info + lost candidates + completion masks, with the same
      * integrity validation as resume(). Use for session-info queries
-     * without continuing the scan. */
+     * without continuing the scan. M-042: revalidate_disk (nullable) is
+     * the device-bearing resume/listing surfaces' current disk - the
+     * per-record re-validation runs when the caller has one, matching
+     * the og's at-search-start drop of stale records. */
     static u32 load_session_summary(session::Reader& r, tree::ResultTree& tree, ScanStats& stats,
-                                    session::VolumeSessionInfo& info);
+                                    session::VolumeSessionInfo& info,
+                                    IStorageDevice* revalidate_disk = nullptr);
 
     /* ---- live telemetry (G-04/G-05/G-06) ----
      * Thread-safe snapshot of the running scan's state; callable from any
@@ -486,6 +515,15 @@ private:
      * emitted-checkpoint count (diagnostics) */
     mutable ScanStats* checkpoint_stats_ = nullptr;
     mutable u64 checkpoint_count_ = 0;
+    /* M-042: the live whole-disk table captured at run() start (saved as
+     * REC_DISK_LAYOUT at save/checkpoint time - the og's partinfo.dat
+     * semantics; empty for volume-basis views where parse_disk_table has
+     * no whole-disk table). resumed_whole_disk_: the session being
+     * resumed ran on a whole-disk view (slice_offset == 0) - the run-start
+     * candidate re-validation runs only then (the persisted LBAs are
+     * disk-relative; a volume-basis re-read would be the wrong arbiter). */
+    std::vector<session::DiskLayoutEntry> disk_layout_;
+    bool resumed_whole_disk_ = false;
 };
 
 } // namespace orchestrator

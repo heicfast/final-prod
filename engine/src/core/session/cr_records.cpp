@@ -574,6 +574,13 @@ u32 serialize_partition_context(const PartitionContext& pc, std::vector<u8>& out
     put32(out, pc.fs_kind);
     put32(out, pc.score);
     out.push_back(pc.kind);
+    /* v2 tail (M-042): the og's per-record geometry payload + flags. The
+     * record length itself carries the version (25 = v1, 41 = v2) — the
+     * same length-detection the SessionState v2 tail uses. */
+    put32(out, pc.bytes_per_sector);
+    put32(out, pc.sectors_per_cluster);
+    put32(out, pc.hidden_sectors);
+    put32(out, pc.flags);
     return OK;
 }
 
@@ -584,6 +591,47 @@ u32 deserialize_partition_context(const u8* data, size_t len, PartitionContext& 
     pc.fs_kind = c.g32();
     pc.score = c.g32();
     pc.kind = c.g8();
+    /* v1 sessions (25 bytes) keep the v2 extras zeroed; v2 (41) carries
+     * the geometry payload + flags (M-042). */
+    if (!c.fail && len >= 41) {
+        pc.bytes_per_sector = c.g32();
+        pc.sectors_per_cluster = c.g32();
+        pc.hidden_sectors = c.g32();
+        pc.flags = c.g32();
+    }
+    return c.fail ? u32(0x50040001) : u32(OK);
+}
+
+/* ---- M-042: whole-disk layout snapshot (REC_DISK_LAYOUT) ---- */
+
+u32 serialize_disk_layout(const std::vector<DiskLayoutEntry>& entries, std::vector<u8>& out) {
+    out.clear();
+    if (entries.size() > 0xFFFF)
+        return ERR_BAD_PARAMETER; /* a partition table never has 65k entries;
+                                     a hostile record never round-trips */
+    put32(out, u32(entries.size()));
+    for (const auto& e : entries) {
+        put64(out, e.start_lba);
+        put64(out, e.sector_count);
+        put32(out, e.mbr_type);
+    }
+    return OK;
+}
+
+u32 deserialize_disk_layout(const u8* data, size_t len, std::vector<DiskLayoutEntry>& out) {
+    out.clear();
+    Cursor c{data, len};
+    const u32 count = c.g32();
+    if (c.fail || count > 0xFFFF)
+        return u32(0x50040001);
+    out.reserve(count);
+    for (u32 i = 0; i < count; i++) {
+        DiskLayoutEntry e;
+        e.start_lba = c.g64();
+        e.sector_count = c.g64();
+        e.mbr_type = c.g32();
+        out.push_back(e);
+    }
     return c.fail ? u32(0x50040001) : u32(OK);
 }
 
