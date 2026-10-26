@@ -92,3 +92,11 @@ envelope had NO row and is registered this session as D-48c; Btrfs/ReFS/
 bounds/session supersets are cross-registered (D-48a, D-48b, D-38). The audit
 verified every code comment documents its divergence — re-confirmed. No code
 change — future work must PRESERVE all of them.
+
+## Resolution (session 23 — N-009c + N-009d; the group is now fully closed)
+
+**Status:** FIXED (N-009c code fix; N-009d resolved by deliberate-divergence registration D-77)
+**Fixed in commit:** (this session's N-009/M-057 batch — the commit carrying this file)
+**Verified by:** `Text.WideToUtf8EncodesNonAscii` + `Text.WideToUtf8SurrogatePairAndLoneHalf` + `Text.CliFilterUtf8MatchesDecodedNames` (the CLI-seam property: a CJK `--filter` encoded by `wide_to_utf8` is a byte substring of `name_utf8()` output; the old `'?'` mangled form is pinned to never match) — fail-before by construction (the encoder did not exist); the extended `win_syntax_check` gate proves the app wiring parses (8/8 files: 7 win-layer + rrecov.cpp). Suite **740/740** linux-release at the fix commit.
+**Resolution notes:** N-009c: `cr::text::wide_to_utf8` (locale-independent wide→UTF-8, lone surrogate halves → one U+FFFD per the shared text policy) added to cr_text.h; all three `--filter` sites (scan print, tree, recover) now encode once through it, and the recover path's match was aligned to the shared ASCII-case-insensitive contract (`name_contains_ci`, factored out of `name_matches` — the query layer's `name_substring` semantics that the tree command already used; the old recover-path match was case-SENSITIVE `find`, an internal inconsistency now removed). N-009d: the capability is deliberately not ported — **D-77 registered** (recovered files inherit destination DACL defaults; re-applying source ACLs can re-create unreadable files and the $SDH/$SII decode surface is a feature-sized port with no current consumer; the finding's own fix text marks the port optional and asks for the registration). The optional `preserve_dacl` flag is recorded as D-77's next step, not silently dropped. BONUS (same batch): the parse-gate extension for the app layer surfaced **M-057** (cmd_apply's undeclared `&e` — the app has been MSVC-uncompilable since `0a68937`); fixed in the same commit with its own finding file.
+

@@ -226,3 +226,64 @@ TEST(Text, ZfsDecoderStaysReplacement) {
     EXPECT_EQ(u"\uFFFD", utf8_to_u16("\xE9"));
     EXPECT_EQ(u"r\uFFFDsum\uFFFD.txt", utf8_to_u16("r\xE9sum\xE9.txt"));
 }
+
+/* ---- N-009c: wide host argument -> UTF-8 (the CLI --filter seam) ------- */
+
+TEST(Text, WideToUtf8EncodesNonAscii) {
+    /* "日本" - U+65E5 U+672C. On a 32-bit wchar_t host each unit is a
+     * codepoint; on Windows (16-bit) the same two units arrive from
+     * wmain. Either way the UTF-8 bytes must be E6 97 A5 E6 9C AC -
+     * the exact byte sequence the engine-side decoders produce/consume
+     * (the query layer compares filters against name_utf8() bytes). */
+    const std::wstring wide = {wchar_t(0x65E5), wchar_t(0x672C)};
+    EXPECT_EQ(std::string("\xE6\x97\xA5\xE6\x9C\xAC"), cr::text::wide_to_utf8(wide));
+    /* ASCII passes through untouched */
+    EXPECT_EQ(std::string("report.docx"), cr::text::wide_to_utf8(L"report.docx"));
+    /* accented Latin: U+00E9 -> C3 A9 */
+    const std::wstring wide_e9 = {wchar_t(0x00E9)};
+    EXPECT_EQ(std::string("\xC3\xA9"), cr::text::wide_to_utf8(wide_e9));
+    /* the old narrow() polarity: non-ASCII units must NEVER become '?'
+     * (0x3F) - that mangling is the defect N-009c fixes */
+    EXPECT_EQ(std::string::npos, cr::text::wide_to_utf8(wide).find('?'));
+}
+
+TEST(Text, WideToUtf8SurrogatePairAndLoneHalf) {
+    /* U+1F600 as an explicit surrogate pair (D83D DE00) - the exact
+     * units a Windows wmain argv carries for an emoji filter */
+    const std::wstring pair = {wchar_t(0xD83D), wchar_t(0xDE00)};
+    EXPECT_EQ(std::string("\xF0\x9F\x98\x80"), cr::text::wide_to_utf8(pair));
+    /* lone halves each collapse to one U+FFFD (EF BF BD) - the shared
+     * text policy, consistent with utf8_to_u16's maximal-subpart rule */
+    EXPECT_EQ(std::string("\xEF\xBF\xBD"), cr::text::wide_to_utf8(std::wstring{wchar_t(0xD83D)}));
+    EXPECT_EQ(std::string("\xEF\xBF\xBD\xEF\xBF\xBD"),
+              cr::text::wide_to_utf8(std::wstring({wchar_t(0xD83D), wchar_t(0xD83D)})));
+    /* lead followed by a non-trailing unit: no pair, both halves FFFD'd */
+    EXPECT_EQ(std::string("a\xEF\xBF\xBD" "b"),
+              cr::text::wide_to_utf8(std::wstring({wchar_t(L'a'), wchar_t(0xD83D), wchar_t(L'b')})));
+}
+
+TEST(Text, CliFilterUtf8MatchesDecodedNames) {
+    /* the N-009c CLI seam end-to-end at the byte level: a node name
+     * "写真_日本.docx" reaches the tree as UTF-16 (engines decode via
+     * utf8_to_u16); the CLI filter for "日本" arrives wide. The filter
+     * must match the name's UTF-8 form (name_utf8()) - before the fix,
+     * narrow() turned the filter into "??" and never matched. */
+    const std::string name_on_disk = "\xE5\x86\x99\xE7\x9C\x9F_\xE6\x97\xA5\xE6\x9C\xAC.docx";
+    const std::u16string name_u16 = cr::text::utf8_to_u16(name_on_disk);
+    const std::wstring filter_wide = {wchar_t(0x65E5), wchar_t(0x672C)};
+
+    /* name_utf8() = the u16 name re-encoded to UTF-8; the round trip
+     * through utf8_to_u16 must be stable for well-formed input */
+    const std::string name_u8 = cr::text::wide_to_utf8(
+        std::wstring(name_u16.begin(), name_u16.end()));
+    EXPECT_EQ(name_on_disk, name_u8);
+
+    /* the filter's UTF-8 is a byte substring of the name's UTF-8: the
+     * exact comparison the CLI performs (ASCII-case-insensitive; the
+     * non-ASCII bytes fold as themselves) */
+    const std::string filter_u8 = cr::text::wide_to_utf8(filter_wide);
+    EXPECT_NE(std::string::npos, name_u8.find(filter_u8));
+    /* and the mangled-'?' form the old narrow() produced does NOT match:
+     * pinning the polarity so the defect cannot return silently */
+    EXPECT_EQ(std::string::npos, name_u8.find("??"));
+}

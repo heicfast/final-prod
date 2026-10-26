@@ -2291,3 +2291,47 @@ policy the og baked into its transports: file placement, rollover,
 compaction, async). The og's per-line timestamp/process decoration is
 its transports' job; the core emits the message text. Pinned by
 `Orchestrator.LogSilentByDefault` + `Orchestrator.LogSinkReceivesScanBrackets`.
+
+### D-77 — recovered files inherit destination ACL defaults; no source-descriptor re-application (N-009d, REGISTERED DIVERGENCE — capability not ported)
+
+**Class:** registered divergence (writer security posture) · **Finding:**
+diff-to-fix N-009d (MINOR, resolved by registration) · **Date:** 2026-10-26
+
+**WHAT OG DOES:** the pending-operation engine's copy paths preserve
+source security descriptors — epmpublic carries CAccessControlList /
+CAccessEntry / CFileDaclProc / CFileSecurityInfo classes that capture the
+source stream's ACL and re-apply it on the recovered copy (corpus
+`re-workspace/artifacts/PartitionRecovery/pending-operation-engine.md`;
+the same surface also carries IOCTL_DISK_DELETE_DRIVE_LAYOUT for its
+destructive ops). On NTFS sources the descriptor stream is the $SDH/$SII
+security-index pair; on FAT-family sources there is no descriptor to
+carry and the og's classes no-op.
+
+**WHAT WE DO:** `cr_safewriter` / `cr_destio` create every recovered
+file as a NEW file that inherits the destination volume's default DACL
+(grep SDDL/SetSecurityInfo/ACL across src/ + include/: zero hits). No
+descriptor is captured on the source side and none is applied on the
+destination side.
+
+**WHY:** (1) For a recovery product the recovered file IS a new file —
+the destination's owner policy should govern it, not the (often corrupt,
+often attacker-influenced) source metadata; re-applying a source DACL
+verbatim can re-create an unreadable file at the destination (a
+recovery-negative outcome the og's users hit with inherited-deny ACEs).
+(2) The NTFS $SDH/$SII decode surface does not exist in the core engine
+today; porting it would be a feature-sized effort whose only consumer
+would be this flag. (3) The finding's own fix text marks the port
+"optional" and asks for the default-OFF decision to be registered here.
+The risk is accepted: ACL fidelity is lost on cross-ACL-tree recovery,
+content is never lost.
+
+**RISK:** user-observable only when recovering NTFS→NTFS with
+non-default source ACLs and expecting them to travel: they do not.
+Recovery content, names, timestamps and hashing are unaffected.
+
+**VERDICT:** ACCEPTED (default: inherit-destination). If a future host
+needs descriptor transport, the recorded next step is: NTFS $SDH/$SII
+index decode in the engine → descriptor carrier on
+FileProperties → a WriterConfig `preserve_dacl` flag (default OFF)
+applying it via SetSecurityInfo on the win destio layer only — never on
+the POSIX test shims.
