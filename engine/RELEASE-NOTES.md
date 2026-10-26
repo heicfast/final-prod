@@ -94,7 +94,9 @@ version 6.1, stamped post-link) and passed the **import allowlist gate**
   **TSan** lanes (zero warnings — the event-sink threading contract is
   pinned by test), MSVC `/W4 /WX` + the C consumer + DLL smoke on the
   Windows lane, clang-format-18 gate clean, the win-layer parse gate,
-  libFuzzer smoke campaign (13 targets), CodeQL.
+  libFuzzer smoke campaign (15 targets; the S-030 image harness build
+  break that reddened the fuzz lane since it landed is fixed at this tag).
+  CodeQL deferred (if: false - recorded, not silent).
 - **Win7 import gate green on every shipped PE.**
 - **The parity audit trail**: 223 dispositioned findings in
   `diff-to-fix/findings/FIXED/` (each with a Resolution citing its

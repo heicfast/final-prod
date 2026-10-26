@@ -10,7 +10,6 @@ add_executable(cr_tests
     unit/test_runlist.cpp
     unit/test_crc32_gpt.cpp
     unit/test_slice_devmap.cpp
-    unit/test_image.cpp
     unit/test_cached.cpp
     unit/test_directalign.cpp
     unit/test_retry.cpp
@@ -56,7 +55,6 @@ add_executable(cr_tests
     unit/test_apply.cpp
     unit/test_rawfixer.cpp
     unit/test_consistency.cpp
-    unit/test_apply.cpp
     unit/test_refs_volume.cpp
 )
 
