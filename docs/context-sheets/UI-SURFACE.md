@@ -1,3 +1,9 @@
+> **HISTORICAL SNAPSHOT (T2, pre-integration).** This sheet records the UI
+> repository's state AS MERGED — including the simulated backend this tree
+> arrived with. The simulator is GONE (worklog 2026-10-26T16:00Z;
+> docs/INTEGRATION-GAPS.md carries the live truth about the real bridge).
+> Kept verbatim as integration evidence per docs/INTEGRATION-PLAN.md §1.
+
 # UI-SURFACE — recovery-wizard-ui-new exhaustive context sheet
 
 > Produced by Agent B (task 2-b) from a line-by-line read of

@@ -1,11 +1,11 @@
 # Recovery Wizard UI
 
 Production-grade **Tauri 2 + React 19 + TypeScript (strict) + Vite** desktop
-UI for a data-recovery wizard — a clean-room re-implementation driven
-entirely by a **Mock Connector** that implements the same command/event
-contract the real recovery engine will expose. Swapping the simulator for a
-real IPC bridge is a one-line environment change; no component or view
-changes.
+UI for a data-recovery wizard — wired to the REAL recovery engine through
+the Rust bridge (`src-tauri/src/`, manifest: `contracts/command-surface.json`
+at the repository root). The simulated backend this UI was born with is
+gone; a small labeled test double (`tests/fakes/`) serves the component and
+e2e suites through a test-mode-only build alias and never ships.
 
 > Clean-room notice: all code, UI copy, and assets in this repository are
 > original. The visual/interaction design was reconstructed from factual
@@ -17,27 +17,32 @@ changes.
 
 ```bash
 pnpm install          # pnpm 12.15.0, Node 24
-pnpm dev              # browser dev mode (mock connector, port 1420 / 3000)
-pnpm test             # 145 unit/contract/component/governance tests (22 test files)
+pnpm dev              # browser dev mode (port 1420 / 3000; the real connector
+                      # needs the Tauri shell + the engine kit - use tauri dev)
+pnpm test             # 127 unit/contract/component/governance tests (21 files)
 pnpm test:coverage    # unit tests with enforced v8 coverage thresholds
-pnpm e2e              # 12 Playwright e2e tests (serves dist/ via preview)
+pnpm e2e              # 12 Playwright e2e tests (builds in test mode - the
+                      # labeled double - then serves dist/ via preview)
 pnpm visual:compare   # verify captured e2e step screenshots against corpus geometry
 pnpm build            # production bundle (budget-gated)
 pnpm tauri dev        # full Tauri shell (needs Rust toolchain)
 pnpm tauri build      # NSIS installer (unsigned; see release workflow)
 ```
 
-## Connector mode
+## The connector
 
-- `VITE_CONNECTOR=mock` (default) — deterministic simulator: 2 TB NTFS with
-  1.2 M result nodes, 64 GB SD card, 4 TB Btrfs, lost-partition scenario,
-  100–250 ms progress ticks, error injection via the DEV-only dev panel
-  (`src/features/dev-panel/`, toggled through the UI store).
-- `VITE_CONNECTOR=tauri` — the real adapter. Currently a **loud stub** that
-  throws `not-implemented` on every method, per the no-silent-fallback rule.
+The UI talks to exactly ONE backend: `src/connector/tauri/tauri-connector.ts`
+over the 33 Tauri commands of `contracts/command-surface.json`. The Rust
+bridge (`src-tauri/src/{bridge,commands}/`) binds those commands to the
+cr_ui engine ABI (`engine/include/cr/cr_ui.h` at the repository root). Test
+suites run against the labeled double (`tests/fakes/test-connector.ts`)
+through a Vite alias that activates ONLY in test mode (`vitest` runs and
+`vite build --mode test`) — production builds can never reach it
+(enforced by arch-lint A7 + verified in CI).
 
 The contract is specified in `src/connector/contract.ts` and documented in
-`docs/CONNECTOR-CONTRACT.md`.
+`docs/CONNECTOR-CONTRACT.md`; integration gaps are recorded truthfully in
+`docs/INTEGRATION-GAPS.md` at the repository root.
 
 ## Documentation
 
@@ -56,7 +61,7 @@ The contract is specified in `src/connector/contract.ts` and documented in
 | `docs/adr/`                   | Seven accepted architecture decisions                               |
 | `docs/TESTING.md`             | Test strategy + verification evidence                               |
 | `docs/INTERIM-ASSETS.md`      | Interim assets + replacement plan                                   |
-| `docs/ROADMAP.md`             | Next: wiring the real engine                                        |
+| `docs/ROADMAP.md`             | Roadmap (engine integration: shipped)                               |
 
 The visual identity comes from the adopted theme pair (`src/theme/adopted/`,
 ADR-007 — five palettes + derived high-contrast, every color token-driven).
