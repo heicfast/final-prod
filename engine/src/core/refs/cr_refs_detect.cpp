@@ -33,23 +33,42 @@ u32 detect_refs(IStorageDevice* slice, RefsInfo& out) {
 
     /* "MSB+ReFSFSRS" appears at the start of metadata session pages; the
      * checkpoint variant embeds "CHKPSUPBMSB+ReFSFSRS". Both start with
-     * the 16-byte ReFSFSRS page identity at offset 8. */
+     * the 16-byte ReFSFSRS page identity at offset 8.
+     *
+     * N-007 (diff-to-fix): the og's dispatch matches the FIRST DWORD
+     * only (ReFSSearchDLL :11689-11720: `*param_2 == *(int*)pcVar4`
+     * against "SUPB"/"CHKP"/"MSB+") - a page with a corrupt signature
+     * tail is still opened and left to the ref-parser's validation. The
+     * core now matches that discovery rule; the full-width memcmp stays
+     * as the grading signal (signature_partial = first-4 hit, full
+     * compare failed). */
+    auto page_match = [&](const char* sig, u32 sig_len, const u8* p) -> int {
+        /* returns: 0 = no match, 1 = full match, 2 = first-dword only */
+        if (std::memcmp(p, sig, 4) != 0)
+            return 0;
+        if (std::memcmp(p, sig, sig_len) == 0)
+            return 1;
+        return 2;
+    };
     for (u32 off = 0; off + 32 <= probe; off += 512) {
         const u8* p = buf.data() + off;
-        if (std::memcmp(p, "SUPBMSB+ReFSFSRS", 16) == 0) {
+        if (const int m = page_match("SUPBMSB+ReFSFSRS", 16, p)) {
             out.found = true;
             out.msb_offset = off;
+            out.signature_partial = (m == 2);
             continue;
         }
-        if (std::memcmp(p, "CHKPSUPBMSB+ReFSFSRS", 20) == 0) {
+        if (const int m = page_match("CHKPSUPBMSB+ReFSFSRS", 20, p)) {
             out.found = true;
             out.checkpointed = true;
             out.msb_offset = off;
+            out.signature_partial = (m == 2);
             continue;
         }
-        if (std::memcmp(p, "MSB+ReFSFSRS", 12) == 0) {
+        if (const int m = page_match("MSB+ReFSFSRS", 12, p)) {
             out.found = true;
             out.msb_offset = off;
+            out.signature_partial = (m == 2);
         }
     }
     if (!out.found) {

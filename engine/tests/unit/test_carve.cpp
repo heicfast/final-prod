@@ -3,6 +3,7 @@
 #include "cr/carve/cr_carve.h"
 #include "cr/query/cr_query.h"
 #include "cr/carve/cr_rawsigns.h"
+#include "cr/carve/cr_usersigns.h"
 #include "cr/storage/cr_device.h"
 #include "cr/storage/cr_slice.h"
 #include "cr/session/cr_records.h"
@@ -3652,6 +3653,146 @@ TEST(CarveEngine, ZeroSectorSkipStats) {
 /* ------------------------------------------------------------------ */
 
 namespace {
+
+/* ---- M-048: the user-extensible signature database (EUUserData) ---- */
+
+TEST(UserSigns, ParseTheOgsShape) {
+    /* the og's EUUserData JSON shape, real entries from the corpus file
+     * (123/cpl/epub) plus the compact form */
+    const char* json =
+        "{"
+        "\"123\": { \"signs\": [\"0,00001A00051004\"], \"mime\": \"application/vnd.lotus-1-2-3\" },"
+        "\"cpl\": { \"signs\": [\"0,DCDC\"], \"mime\": \"application/cpl+xml\" },"
+        "\"epub\": { \"signs\": [\"0,504B03040A000200\"], \"mime\": \"application/epub+zip\" }"
+        "}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    EXPECT_TRUE(set.valid);
+    ASSERT_EQ(3u, set.signs.size());
+    EXPECT_STREQ("123", set.signs[0].ext);
+    EXPECT_STREQ("application/vnd.lotus-1-2-3", set.signs[0].mime);
+    EXPECT_EQ(0u, set.signs[0].offset);
+    EXPECT_EQ(7u, set.signs[0].len);
+    EXPECT_EQ(0x00, set.signs[0].bytes[0]);
+    EXPECT_EQ(0x04, set.signs[0].bytes[6]);
+    EXPECT_STREQ("epub", set.signs[2].ext);
+    EXPECT_EQ(8u, set.signs[2].len);
+    EXPECT_EQ(0x50, set.signs[2].bytes[0]); /* PK */
+
+    /* validation rejects, atomically (no partial load) */
+    auto reject = [](const char* bad) {
+        carve::usersigns::UserSignSet s;
+        EXPECT_EQ(ERR_BAD_PARAMETER, carve::usersigns::parse(bad, std::strlen(bad), s))
+            << bad;
+        EXPECT_FALSE(s.valid);
+    };
+    reject("{\"x\":{\"signs\":[\"99999,AA\"],\"mime\":\"m\"}}"); /* offset over cap */
+    reject("{\"x\":{\"signs\":[\"0,AAB\"],\"mime\":\"m\"}}");     /* odd hex */
+    reject("{\"x\":{\"signs\":[\"0,GG\"],\"mime\":\"m\"}}");      /* not hex */
+    reject("{\"x\":{\"signs\":[\"0,AA\"],\"extra\":1}}");          /* unknown key */
+    reject("{\"x\":{\"mime\":\"m\"}}");                        /* no signs */
+    reject("{\"bad-ext!\":{\"signs\":[\"0,AA\"],\"mime\":\"m\"}}"); /* charset */
+    reject("{\"x\":{\"signs\":[\"0,AA\"],\"mime\":\"m\"}} trailing"); /* garbage */
+    reject("");                                                  /* empty */
+    reject("[]");                                                /* not an object */
+    /* empty signs array is dead config */
+    reject("{\"x\":{\"signs\":[],\"mime\":\"m\"}}");
+}
+
+TEST(CarveEngine, UserSignatureProbedAtStride) {
+    /* a device whose only content is a user-taught magic at a 512-byte
+     * stride: DEADBEEF at 0x2000 is no built-in magic - without the
+     * registration nothing is carved; with it exactly one .xyz record */
+    std::vector<u8> img(2ull << 20, 0);
+    img[0x2000] = 0xDE;
+    img[0x2001] = 0xAD;
+    img[0x2002] = 0xBE;
+    img[0x2003] = 0xEF;
+
+    /* pre-condition: no user signs installed -> nothing carved */
+    ASSERT_EQ(0u, carve::usersigns::active_count());
+    {
+        MemDevice dev(img);
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Carved");
+        CarveFlags fl;
+        fl.hash_small_files = false;
+        CarveStats st;
+        ASSERT_EQ(OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr,
+                                  nullptr, st));
+        EXPECT_EQ(0u, st.sign_hits) << "DEADBEEF is not a built-in magic";
+    }
+
+    /* register and re-carve */
+    const char* json =
+        "{\"xyz\": {\"signs\": [\"0,DEADBEEF\"], \"mime\": \"application/x-xyz\"}}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(set)));
+    ASSERT_EQ(1u, carve::usersigns::active_count());
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Carved");
+    CarveFlags fl;
+    fl.hash_small_files = false;
+    CarveStats st;
+    ASSERT_EQ(OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              st));
+    EXPECT_EQ(1u, st.sign_hits);
+    tree::FileNode* hit = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->name.find(u".xyz") != std::u16string::npos)
+            hit = c;
+    ASSERT_NE(hit, nullptr) << "the user-taught extension surfaces";
+    EXPECT_EQ(0xFFFE0000u, hit->props()->carve_format);
+    EXPECT_EQ(600u, hit->props()->carve_confidence);
+    EXPECT_EQ(std::u16string(u"application/x-xyz"), hit->props()->carve_note);
+    ASSERT_EQ(1u, hit->props()->extents.size());
+    EXPECT_EQ(0x2000u, hit->props()->extents[0].offset);
+
+    /* teardown: clear the registry for the other tests (replace with an
+     * empty-but-valid set is not possible - install requires signs; the
+     * registry is per-process, so this test owns it) */
+}
+
+TEST(CarveEngine, UserSignatureYieldsToBuiltInAtSamePosition) {
+    /* collision rule: a user sign whose magic ALSO matches a built-in at
+     * the same stride defers - the built-in layer probes first and the
+     * position is claimed (the og's compiled tables win). A PNG magic at
+     * a stride: PNG (built-in) carves it; a user sign for the same bytes
+     * must not double-emit. */
+    std::vector<u8> img(2ull << 20, 0);
+    plant_png(img, 0x2000);
+    const char* json =
+        "{\"png2\": {\"signs\": [\"0,89504E47\"], \"mime\": \"application/x-png2\"}}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(set)));
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Carved");
+    CarveFlags fl;
+    fl.hash_small_files = false;
+    CarveStats st;
+    ASSERT_EQ(OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              st));
+    /* the built-in PNG owns the position: exactly one record, and it is
+     * the grammar-layer PNG (not the user tag) */
+    u32 png_records = 0, user_records = 0;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        if (!c->props())
+            continue;
+        if (c->props()->carve_format == 0xFFFE0000u)
+            ++user_records;
+        else if (c->props()->carve_format == FMT_PNG)
+            ++png_records;
+    }
+    EXPECT_EQ(1u, png_records) << "the built-in PNG claims the position";
+    EXPECT_EQ(0u, user_records) << "no user-sign double emission";
+}
+
 } // namespace
 
 TEST(CarveEngine, WindowBufferReusedByValidatorChecksumAndHash) {
@@ -3731,4 +3872,95 @@ TEST(CarveEngine, BoundaryStraddlingCandidateSplitsReadsCorrectly) {
      * reads stay in-buffer. The exact device-read count is not pinned
      * (the tail walk may chunk) - the carve CORRECTNESS above is the
      * assertion; this test guards the split-read contract. */
+}
+
+/* ---- M-039 (diff-to-fix): the occupancy interval gate --------------- */
+
+TEST(CarveEngine, SkipsFsAllocatedRegions) {
+    /* M-039 falsifiable claim: a signature inside an FS-accounted
+     * extent produces NO carve candidate (the og's per-volume bitmap
+     * every FS engine fills is the raw phase's skip input). Fail-before:
+     * with the gate absent, the JPEG at 512 carves normally. */
+    auto img = build_carve_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    /* the structured walk accounted [512, 1033) - the JPEG plant's
+     * extent. Everything inside is FS-accounted space. */
+    std::vector<std::pair<u64, u64>> occupied = {{512, 1033}};
+    flags.occupied_ranges = &occupied;
+    CarveStats stats;
+    u32 rc =
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_EQ(stats.validated, 3u) << "the in-extent JPEG must be suppressed (jpg/png/zip/docx -> 3)";
+    EXPECT_GE(stats.occupancy_skipped, 1u) << "the gate must count its suppression";
+    bool jpg_at_512 = false;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->props()->extents.empty() && c->props()->extents[0].offset == 512)
+                jpg_at_512 = true;
+            collect(c);
+        }
+    };
+    collect(root);
+    EXPECT_FALSE(jpg_at_512) << "no carve candidate at the occupied offset";
+}
+
+TEST(CarveEngine, StructuredBoundaryPartialOverlap) {
+    /* M-039 boundary pin: a signature STRADDLING an occupied interval's
+     * start still dispatches (the gate suppresses positions INSIDE the
+     * interval, exactly like the og's bitmap gate checks the candidate
+     * position; a candidate beginning before accounted space is not
+     * accounted space). The dedup tree remains the safety net for the
+     * overlap itself - the finding's own requirement. */
+    auto img = build_carve_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    /* the interval starts INSIDE the JPEG plant (candidate at 512,
+     * interval from 516): the 512 start dispatches. */
+    std::vector<std::pair<u64, u64>> occupied = {{516, 1033}};
+    flags.occupied_ranges = &occupied;
+    CarveStats stats;
+    u32 rc =
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_EQ(stats.validated, 4u) << "the straddling JPEG still carves";
+    bool jpg_at_512 = false;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->props()->extents.empty() && c->props()->extents[0].offset == 512)
+                jpg_at_512 = true;
+            collect(c);
+        }
+    };
+    collect(root);
+    EXPECT_TRUE(jpg_at_512) << "the before-interval start is not suppressed";
+}
+
+TEST(CarveEngine, OccupancyGateJumpsWholeInterval) {
+    /* M-039 mechanics: the grammar layer jumps to the interval END (the
+     * M-005 cluster-jump analog) - the raw-sign stride positions inside
+     * the interval are never probed (occupancy_skipped counts the
+     * grammar entry only... both layers count; assert >= 1 and that the
+     * scan still completes the whole device). */
+    auto img = build_carve_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    std::vector<std::pair<u64, u64>> occupied = {{0, 8192}}; /* first 8 KiB accounted */
+    flags.occupied_ranges = &occupied;
+    CarveStats stats;
+    u32 rc =
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    /* the JPEG@512, PNG@2048 and ZIP@4096 are inside [0, 8192); the
+     * DOCX@8192 sits exactly on the excluded boundary end and carves */
+    EXPECT_EQ(stats.validated, 1u);
+    EXPECT_GE(stats.occupancy_skipped, 2u);
+    EXPECT_TRUE(stats.bytes_scanned >= 256 * 1024 - 4096) << "the scan still covers the device";
 }

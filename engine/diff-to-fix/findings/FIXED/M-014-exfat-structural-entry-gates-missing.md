@@ -89,3 +89,39 @@ This session extracted the table and wired the check:
 
 The residual FP surface noted above (names containing 0xHH00-form
 chars) is closed. Everything else in the Resolution stands as written.
+
+### Convergence record (the DFX23 lane's landing — kept per the M-017 protocol)
+
+A third lane (DFX23) independently verified and implemented M-014 in the
+same window as the DFX35 landing, and was absorbed through the merge
+storm with the DFX35/DFX24 canonical standing. Both lanes' first-hand
+verifications agree on every decoded constant — the convergence is
+triple-confirmed corpus truth: secondary_count ∈ [2,18] via the
+`(byte)(x-2)<0x11` idiom; ALL THREE timestamps field-valid AND non-zero
+(both lanes' decompile reads refute the fix plan's "treat all-zero as
+valid" note: day≠0 fails an all-zero timestamp); reserved1 (+6..+7) and
+reserved2 (+0x19..+0x1F) zero with attribute/10ms/tz deliberately
+unchecked; stream data_length/first_cluster/name_length nonzero (empty
+files suppressed, live and deleted — the og quirk inherited as parity);
+name flags&3==0, flags<4, first unit≠0, and the low-zero/high-byte
+UTF-16 table. The DFX23 lane's independent .rdata dump (via
+`og-codebase/exFATSearchDLL.dll`, .rdata VA 0x180045a00 = file offset
+0x44600, PE section map) matches the DFX24 completion's 256-byte table
+byte-for-byte, including the same high-byte ≥ 0x80 pinned-invalid
+boundary decision (the og's 0x80-byte table read is out-of-bounds into
+adjacent .rdata — undefined data neither lane reproduces) and the same
+0xFF rejection. The DFX23 lane additionally pinned the next-entry-name-
+typed condition (FUN_180029280's fourth check, the `(next+0x3F)&0x7F==0`
+idiom reading the RAW follower byte) in its landing; the canonical walk
+achieves the same observable (a non-name follower yields an empty
+assembled name and no emission — positional assembly is the
+architectural equivalent), documented above. DFX23's fail-before matrix:
+8/8 RED with the four walk gates disabled, 8/8 GREEN re-enabled, plus
+the no-over-rejection control (sets_gated == 0 across the standard
+fixture) and the field-matrix unit pin; its zero-timestamp fixture
+alignment (7 pre-existing tests stamped valid TS with in-fixture notes)
+matches the canonical landing's six-set alignment. The DFX23 lane also
+proved the count-bound-before-stream-deref ordering closes the gap
+claim's OOB-shaped walk (count==0 at the last entry read
+one-past-end pre-fix) — the canonical walk's file gate runs before the
+stream deref, same closure.

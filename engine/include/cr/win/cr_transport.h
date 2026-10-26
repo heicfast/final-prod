@@ -113,6 +113,16 @@ bool destination_volume_letter(const std::wstring& path, wchar_t* letter);
  * unopenable). */
 bool rda_available(const wchar_t* service_name, u32* last_error = nullptr);
 
+/* M-030 (diff-to-fix): the og's WinPE environment gate. TRUE inside a
+ * WinPE-style environment (GetSystemDirectoryA's first byte is 'X'/'x'
+ * - Device.mo FUN_1800577e0, Device_decompiled.c :50943-50992; the
+ * decision predicate lives in cr_winenv.h, shared with the Linux-lane
+ * regression pins). The driver-grammar transport is never attempted
+ * first where the og goes direct by design (its callers branch to
+ * \\.\PhysicalDrive%d / \\.\HarddiskVolume%d on a nonzero return -
+ * :352/:7816/:50653/:52437). */
+bool win_pe_environment();
+
 } // namespace win
 } // namespace cr
 

@@ -2281,3 +2281,56 @@ TEST(CrUi, RawCategoryNameNamesTheCarveRoot) {
     EXPECT_TRUE(saw_found) << "the standard Found root is unaffected";
     EXPECT_TRUE(saw_custom) << "the carve root carries the configured name";
 }
+
+
+
+/* ---- M-048: the user-signature registration ABI (since 2.1) ---- */
+
+TEST(CrUi, UserSignRegistrationSurface) {
+    /* register -> count -> info round-trip; a bad payload is atomic
+     * (the previous set survives) */
+    const char* good =
+        "{\"abc\": {\"signs\": [\"0,DEADBEEF\"], \"mime\": \"application/x-abc\"},"
+        " \"zz9\": {\"signs\": [\"16,0011\"], \"mime\": \"application/x-zz9\"}}";
+    ASSERT_EQ(0u, cr_ui_register_user_signs(good, cr::u32(std::strlen(good))));
+    ASSERT_EQ(2u, cr_ui_user_sign_count());
+    cr_ui_user_sign s0{};
+    ASSERT_EQ(0u, cr_ui_user_sign_info(0, &s0));
+    EXPECT_STREQ("abc", s0.ext);
+    EXPECT_STREQ("application/x-abc", s0.mime);
+    EXPECT_EQ(0u, s0.offset);
+    EXPECT_EQ(4u, s0.sign_len);
+    EXPECT_EQ(0xDE, s0.bytes[0]);
+    EXPECT_EQ(0xEF, s0.bytes[3]);
+    cr_ui_user_sign s1{};
+    ASSERT_EQ(0u, cr_ui_user_sign_info(1, &s1));
+    EXPECT_STREQ("zz9", s1.ext);
+    EXPECT_EQ(16u, s1.offset);
+    EXPECT_EQ(2u, s1.sign_len);
+    /* out of range + null out */
+    cr_ui_user_sign dummy{};
+    EXPECT_NE(0u, cr_ui_user_sign_info(2, &dummy));
+    EXPECT_NE(0u, cr_ui_user_sign_info(0, nullptr));
+    /* bad payload: atomic (the good set survives) */
+    EXPECT_NE(0u, cr_ui_register_user_signs("{not json", 9));
+    EXPECT_EQ(2u, cr_ui_user_sign_count());
+    /* null/empty */
+    EXPECT_NE(0u, cr_ui_register_user_signs(nullptr, 0));
+    /* re-registration replaces (the og's config-reload posture) */
+    const char* one = "{\"q\": {\"signs\": [\"0,AA\"]}}";
+    ASSERT_EQ(0u, cr_ui_register_user_signs(one, cr::u32(std::strlen(one))));
+    EXPECT_EQ(1u, cr_ui_user_sign_count());
+}
+
+TEST(CrUi, TransportErrorAdvisoryZeroOnCleanState) {
+    /* M-030 claim (f): the ABI can now report the transport-open
+     * diagnostic (ABI-since 2.2, additive). On the Linux stub the open
+     * path is UNSUPPORTED and records the clean state, so the advisory
+     * reads 0 - the ABI contract pin; the Windows lane's
+     * Abi.TransportErrorSurfaced exercises the recorded-error path
+     * (RDA leg fails with X -> the direct fallback succeeds -> the
+     * advisory reports X). Fail-before: the export did not exist. */
+    cr_ui_device* d = nullptr;
+    EXPECT_EQ(cr_ui_open_disk(0, &d), CR_UI_ERR_UNSUPPORTED);
+    EXPECT_EQ(cr_ui_last_transport_error(), 0u);
+}

@@ -220,7 +220,8 @@ TEST(Crsf, VolumeInfoIdentityCardRoundTrip) {
     std::snprintf(vi.image, sizeof(vi.image), "/vm/disks/qemu.img"); /* S-030 v3 tail */
     std::vector<u8> blob;
     ASSERT_EQ(serialize_volume_info(vi, blob), OK);
-    EXPECT_EQ(blob.size(), 80u + 84u + 256u) << "v3 layout: v2 + the S-030 image tail";
+    EXPECT_EQ(blob.size(), 80u + 84u + 256u + 608u)
+        << "v4 layout: v2 + the S-030 image tail + the N-066 axes/snapshot";
 
     VolumeInfo out;
     ASSERT_EQ(deserialize_volume_info(blob.data(), blob.size(), out), OK);
@@ -1079,4 +1080,55 @@ TEST(Session, EngineExtrasAbsentWhenUnpopulated) {
     std::vector<u8> blob2;
     ASSERT_EQ(serialize_tree(t2, blob2), u32(OK));
     EXPECT_EQ(blob, blob2) << "no extras block: the record shape is unchanged";
+}
+
+TEST(Session, IdentityCardFirmwareWwnInterface) {
+    /* N-066 (diff-to-fix): the og record-3's identity axes — firmware
+     * revision (+0x206), WWN/serial-2 (+0x30A), interface description
+     * (+0x414) — round-trip through the v4 tail; the CRC32 boot_hash
+     * stays the fast verify path. */
+    session::VolumeInfo vi;
+    vi.fs_kind = 3;
+    std::memcpy(vi.model, "WDC WD40EFRX", 12);
+    std::memcpy(vi.serial, "WD-WCC4E1234567", 15);
+    std::memcpy(vi.firmware, "82.00A82", 8);
+    std::memcpy(vi.wwn, "50014ee2b8a1c2d3", 16);
+    std::memcpy(vi.interface_desc, "SATA", 4);
+    vi.boot_hash = 0xABCD1234u;
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_volume_info(vi, blob), u32(OK));
+    session::VolumeInfo vo;
+    ASSERT_EQ(deserialize_volume_info(blob.data(), blob.size(), vo), u32(OK));
+    EXPECT_EQ(0, std::strcmp(vo.firmware, "82.00A82"));
+    EXPECT_EQ(0, std::strcmp(vo.wwn, "50014ee2b8a1c2d3"));
+    EXPECT_EQ(0, std::strcmp(vo.interface_desc, "SATA"));
+    EXPECT_EQ(vo.boot_hash, 0xABCD1234u);
+    EXPECT_EQ(0, std::strcmp(vo.model, "WDC WD40EFRX"));
+}
+
+TEST(Session, BootSnapshotRoundTrip) {
+    /* N-066: the og record-3's +0x518 datum — the full 512-byte
+     * first-sector image (MBR/BOOT incl. the partition table) round-trips
+     * byte-exact; v1/v2/v3-length records leave it zeroed. */
+    session::VolumeInfo vi;
+    for (size_t i = 0; i < 512; ++i)
+        vi.boot_snapshot[i] = u8(i * 7 + 3);
+    vi.boot_snapshot[510] = 0x55;
+    vi.boot_snapshot[511] = 0xAA;
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_volume_info(vi, blob), u32(OK));
+    session::VolumeInfo vo;
+    ASSERT_EQ(deserialize_volume_info(blob.data(), blob.size(), vo), u32(OK));
+    EXPECT_EQ(0, std::memcmp(vo.boot_snapshot, vi.boot_snapshot, 512));
+
+    /* the v3-length prefix (everything before the v4 tail) loads with a
+     * zeroed snapshot — the pre-N-066 file contract */
+    const size_t v3_len = blob.size() - (32 + 32 + 32 + 512);
+    session::VolumeInfo v3;
+    ASSERT_EQ(deserialize_volume_info(blob.data(), v3_len, v3), u32(OK));
+    const session::VolumeInfo zero;
+    EXPECT_EQ(0, std::memcmp(v3.boot_snapshot, zero.boot_snapshot, 512));
+    EXPECT_EQ(0, v3.firmware[0]);
+    EXPECT_EQ(0, v3.wwn[0]);
+    EXPECT_EQ(0, v3.interface_desc[0]);
 }

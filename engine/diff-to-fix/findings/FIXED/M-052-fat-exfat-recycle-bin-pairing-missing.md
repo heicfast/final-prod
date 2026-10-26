@@ -55,9 +55,34 @@ S-019-fixed lineage (lost BitLocker probes — same "probe family" layering site
 
 None — the corpus states the behavior directly and the NTFS side proves the model in-repo.
 
+### Resolution (DFX24 lane, first implementation — superseded in part by the convergent landing)
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's M-052 commit — DFX24)
+**Verified by:** `FatEngine.RecyclePairingRestoresOriginalName`, `FatEngine.RecycleLegacyRoots`, `FatEngine.NonRecycleDollarFilesStayRaw`, `ExfatEngine.RecyclePairingMirrored` — fail-before EXECUTED as an engine mutation (the bin-root marker neutralized: 3/4 RED — the pairing and both engines' mirrors fail, the raw-named $R surfaces; the over-matching pin stays green by design), reverted-green; suite 848/848 linux-release, ASan lane 848/848.
+**Resolution notes:** The NTFS engine's in-repo reference implementation (cr_mftwalk.cpp: $I parse, extension-stripped pairing token, $R remap + post-walk fixup) is extracted into the shared `cr/recycle` helper (include/cr/cr_recycle.h + src/core/recovery/cr_recycle.cpp) parameterized by name + content-stream bytes, exactly as the fix plan specified; the NTFS side now consumes it through thin attribute-view glue (behavior identical, the refactor is the plan's step 1). Wired into the FAT dentry walk (cr_fat_quick.cpp) and the exFAT entry-set walk (cr_exfat_quick.cpp): the three corpus roots ($RECYCLE.BIN / Recycled / Recycler, case-blind — the byte-exact _stricmp family, fat-exfat-engine-internals.md :37-40) mark their whole subtree; $I<token> streams (v1: 28+2*pathlen, v2: 544 fixed — the shared parse honors both forms incl. the Win10+ variable form's repurposed @0x18) are parsed for the original name/size/deletion-time and never surface; $R<token> files surface under their ORIGINAL name and $I-recorded size/time, marked Deleted (in-use inside the bin, deleted from the user's location — the NTFS model); a $R whose $I appears later is fixed post-walk (the NTFS GAP-P1-3 pattern). New stats `recycle_info` / `recycle_remapped` on both engines. The corpus's dedicated UI flow (IRecycleBinNode2UI / CRecycleBinRecoveryController) is host-layer surface — the core contract (original name + metadata restoration) is what the engines provide. No safety hardening touched; the deleted-$I limitation (0xE5-mangled FAT names lose the token) matches the NTFS side's deleted-record posture and is recorded here as the known edge.
+
+### Resolution (DFX35 convergent landing — CANONICAL, first at origin; the four-root set + the NTFS bin-scope defect N-079)
+
 ## Resolution
 
 **Status:** FIXED
 **Fixed in commit:** (this session's M-052/N-079 landing — DFX35; SHA in worklog.md at push)
 **Verified by:** `FatEngine.RecyclePairingRestoresOriginalName`, `FatEngine.RecycleLegacyRoots`, `ExfatEngine.RecyclePairingMirrored` (all three fail-before EXECUTED on the stashed pre-fix engine: RED with the raw `$R…`/`$I…` names, GREEN after), `FatEngine.NonRecycleDollarFilesStayRaw` (the no-over-match guard — green on both trees by design, like the prior findings' inverse-asymmetry pins); the NTFS side's `RecycleBinMapping` regression pin stayed green through the shared-model refactor, and the N-079 scope pin `RecycleBinScopeOutOfBinDollarFilesStayRaw` (fail-before EXECUTED) landed with it. Suite 794/794 linux-release (+6 tests).
 **Resolution notes:** The shared model lives in `include/cr/cr_recycle.h`: `parse_record` (the $I v1/v2 record parser — the NTFS landing's format-dependent pathlen logic, runner-benchmark evidence, moved verbatim), `token_of` (the dot-stripped pairing token — GAP-P1-3's extension rule) and `is_bin_root` (the og's FOUR-name `_stricmp` set, verified first-hand in all three SearchDLLs this session: FAT :1668-1677, exFAT :40583-40592, NTFS :37387-37410 — including the "$RECYCLE.BI0" FAT-mangled variant the og matches deliberately). The FAT walk threads the bin context through the directory recursion (`in_bin` turns on entering a recognized root and covers the whole subtree, live and deleted); in-bin `$I` sets read their record image from the cluster chain (bounded at 2076 B = the v1 maximum) and never surface; in-bin `$R` sets remap at emission when the $I was seen, else queue for the post-walk fixup (the og pairs "across bin subfolders" — the $I may sit later in the walk); remapped nodes carry the original name/size/deletion-FILETIME and the Deleted state (the dentry stays live inside the bin). The exFAT walk mirrors the same model (ScanCtx carries the pairing state; the M-013 parked sets carry `in_bin` through the oracle re-walk). New stats: `recycle_info`/`recycle_remapped` on both engines. The NTFS walk now consumes the shared helpers (its wrappers delegate), and the verification uncovered N-079 — the NTFS landing's missing bin-scope (user files named `$I…` vanished; out-of-bin `$R…` could mis-pair) — filed as a new finding and fixed in the same change (parse-gated `$I` skip + ancestry-gated post-walk `$R` remap). Out of scope, documented: the legacy INFO/INFO2 metadata format (Win9x/NT4 `Recycled`/`Recycler` bins) — the corpus artifact documents the RECOGNITION of those roots (which this fix honors for pairing) but not any INFO2 parse behavior for the FAT engines; no INFO2 handling existed in the og's documented surface beyond the root recognition. No safety hardening touched.
+
+### Convergence record (DFX24, this union)
+
+Both lanes implemented the shared-helper architecture independently (the
+finding's own fix plan step 1). The DFX35 landing won the canonical-file
+race at origin and is corpus-richer on one axis the DFX24 lane missed:
+the og's root recognition matches FOUR names (including the
+"$RECYCLE.BI0" FAT-short-name mangled form, verified in all three
+SearchDLLs), not the artifact's three. The DFX24 lane's contributions
+that survive in the union: the win-layer marker repairs (rrecov.cpp /
+cr_bitlocker.h — the canonical cr::dict design restored), the M-014
+UTF-16 table completion, and the N-080 log-seam leak fix. The DFX24
+lane's three-root `cr_recycle.cpp` implementation was dropped cleanly
+in favor of the canonical inline header (first-landing-wins).

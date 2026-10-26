@@ -220,6 +220,21 @@ Function-map additions (per-engine-function-map.md, first-cited): `CFATQuickSear
 threaded quick scan is REGISTERED (PARITY-DELTAS D-30x — not a new finding); `Fat32CalcPartition`
 scorer-class evidence appended to M-017. The `FATFilterName` ini runtime-filter surface belongs
 to M-024's family (no separate finding).
+<<<<<<< HEAD
+## Session-24 verdict update (M-052 FIXED, DFX24, 2026-10-26)
+
+**Recycle-bin pairing — `M-052` FIXED.** The fat engine carries the
+$I/$R pairing through the shared `cr/recycle` helper (the NTFS
+engine's reference model extracted to its engine-neutral form): the
+three corpus roots ($RECYCLE.BIN / Recycled / Recycler, case-blind)
+mark the subtree; `$I<token>` streams are parsed (v1 28+2*pathlen, v2
+544 fixed, the Win10+ variable form's repurposed @0x18 honored) and
+never surface; `$R<token>` files surface under their ORIGINAL
+name/size/deletion-time, marked Deleted, with the post-walk fixup for
+late-ordered pairs. Stats `recycle_info` / `recycle_remapped`.
+B4/B5/D11 verdict: MATCH. Fail-before EXECUTED (engine mutation:
+3/4 RED; the over-matching pin green by design).
+=======
 
 ---
 
@@ -240,3 +255,4 @@ the exFAT mirror + the NTFS wrappers). New stats recycle_info /
 recycle_remapped. Proof: RecyclePairingRestoresOriginalName +
 RecycleLegacyRoots + NonRecycleDollarFilesStayRaw (fail-before
 EXECUTED). B4/B5/D11 verdict: MATCH.
+>>>>>>> 880e2a1b1429859df8d575aa53e835d1d65fe01f

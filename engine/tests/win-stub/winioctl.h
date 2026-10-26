@@ -18,7 +18,7 @@ struct DISK_GEOMETRY { LARGE_INTEGER Cylinders; DWORD TracksPerCylinder; DWORD S
 struct DISK_PARTITION_INFORMATION { LARGE_INTEGER PartitionOffset; LARGE_INTEGER PartitionLength; DWORD HiddenSectors; DWORD PartitionNumber; };
 struct DISK_GEOMETRY_EX { DISK_GEOMETRY Geometry; LARGE_INTEGER DiskSize; unsigned char Data[1]; };
 
-enum STORAGE_PROPERTY_ID { StorageDeviceProperty = 0, StorageAccessAlignmentProperty = 6, StorageDeviceSeekPenaltyProperty = 7, StorageDeviceProtocolSpecificProperty = 49 };
+enum STORAGE_PROPERTY_ID { StorageDeviceProperty = 0, StorageDeviceIdProperty = 1, StorageAccessAlignmentProperty = 6, StorageDeviceSeekPenaltyProperty = 7, StorageDeviceProtocolSpecificProperty = 49 };
 enum STORAGE_QUERY_TYPE { PropertyStandardQuery = 0, PropertyExistsQuery = 1 };
 struct STORAGE_PROPERTY_QUERY { STORAGE_PROPERTY_ID PropertyId; STORAGE_QUERY_TYPE QueryType; unsigned char AdditionalParameters[1]; };
 
@@ -36,6 +36,9 @@ struct VOLUME_DISK_EXTENTS { DWORD NumberOfDiskExtents; DISK_EXTENT Extents[1]; 
 #define FSCTL_LOCK_VOLUME 0x00090018UL
 #define FSCTL_DISMOUNT_VOLUME 0x00090020UL
 #define FSCTL_IS_VOLUME_MOUNTED 0x00090048UL
+#define FSCTL_UNLOCK_VOLUME 0x0009001CUL
+#define IOCTL_VOLUME_OFFLINE 0x0056C00CUL
+#define IOCTL_VOLUME_ONLINE 0x0056C008UL
 
 inline BOOL DeviceIoControl(HANDLE, DWORD, void*, DWORD, void*, DWORD, DWORD*, OVERLAPPED*) { return 1; }
 
