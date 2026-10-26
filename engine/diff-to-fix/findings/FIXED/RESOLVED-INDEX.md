@@ -1,10 +1,17 @@
 # diff-to-fix/findings/FIXED/ — resolved findings (audit trail)
 
+## Resolved findings (session-31 wave 3: +OQ-RS (RS-2..8 dispositioned, RS-7 FIXED); live file inventory)
+
+| ID | Severity (orig) | Title | Fix commit | Resolution |
+|---|---|---|---|---|
+| OQ-RS | tracked-open (s3 ReFS residuals) — **RESOLVED (s31, 6/8; RS-1/4 pushed forward)** | The session-3 ReFS residual probes (container map, ADS fold, .mo deleted evidence, AppDataRunItem, system tables, volume-sig cross-check) | (the RS-7 commit — cr_refs_engine.cpp system-set fix) | RS-2 superseded (S-020's resident decode); RS-3 superseded (N-036's container-map decode); RS-5: the .mo is structural-only (0 deleted-evidence hits in 42,013 lines — the deleted superset parity-safe); RS-6: CRefsAppDataRunItem = a data-run item (no ADS recovery anywhere); RS-7 FIXED: the og's system set = {0x500, 0x600, 0x701} with >0x700 normalized to 0x701 (ctor :600-620, clamp :1150-54), 0x520 fabricated → replaced by {0x500, >0x700} exclusions in the fallback root + orphan sweep, Refs.FallbackRootSkipsOgSystemFamilies fail-before RED/GREEN, suite 755/755; RS-8: the og checks only the MSB+ magic per page (:2904/:12625 — the only two 0x2b42534d sites; no volume-GUID cross-check) — the core's dual validation registered superset. RS-1/RS-4: fixture-gated (no real ReFS volume in corpus; the cited run 40079065019 is an NTFS scenario) — precise next steps recorded. Evidence: s31-oq-rs-refs-residuals.md. |
+
 ## Resolved findings (session-28 wave 2: +N-019 — the 13-scenario regression-test gap closed after full per-scenario re-verification; live file inventory)
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |
 |---|---|---|---|---|
 | N-019 | MINOR (S2) | Missing per-parameter regression tests: 13 edge-case scenarios not pinned | (this session's N-019 commit — file carries the Resolution) | Re-verified per scenario on the current tree: 6 ALREADY-FIXED with covering tests re-cited (ADS boundary, sparse ratio, FAT cross-link, HFS+ rsrc, LDM stripe/mirror); 1 SUPERSEDED (overlap-scoring premise — M-017's content model replaced the penalties); 1 N/A (exFAT multi-fork); 1 BLOCKED→OQ-T6 (ZFS snapshot, NEW corpus capa evidence added: the og surfaces DSL snapshot roots, core negative-space verified); 4 tests WRITTEN with executed mutation fail-befores (HardLinkDestroyRuleInteraction — destroy is per-RECORD upstream of the fan-out; Ext4ExtentTreeDepth3 — root d3→idx→idx→leaf byte-exact; BtrfsTwoSubvolumesRootSeparately — no cross-subvol leakage; RefsPropertyFlagAndUnknownRowsDoNotBreakDataWalk — the honest rescope of the corpus-silent integrity-stream scenario). Suite 753/753. |
+)
 
 ## Resolved findings (session-31 wave 2: +S-018 RE-FILED (the legacy-tier salvage decode) + OQ-S3-JPEG; live file inventory)
 

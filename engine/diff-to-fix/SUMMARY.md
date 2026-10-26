@@ -272,6 +272,39 @@ MAJOR **14** · MINOR **15** · INFO 0 open (22 acknowledged in FIXED/) ·
 (OQ-T6 pushed forward with new evidence). Next on this lane:
 N-050/N-033/N-072 rear-first.
 
+## Session-31 delta, wave 3 (2026-10-26 — DFX31: OQ-RS resolved — the ReFS system-table set decoded and FIXED; 6/8 probes closed)
+
+**OQ-RS RESOLVED (RS-2..8 dispositioned; one code fix with fail-before
+proof):**
+- **RS-7 FIXED:** the og registers system-table handlers for EXACTLY
+  {0x500, 0x600, 0x701} (ReFSSearchDLL ctor :600-620) and NORMALIZES any
+  id > 0x700 to the 0x701 family (:1150-1154). 0x520 appears nowhere in
+  the engine — the core's FSMETADATA_TABLE=0x520 was an uncited T10-era
+  guess. The fallback root-detection and the orphan sweep now exclude
+  the og's system families {0x500, >0x700}.
+  `Refs.FallbackRootSkipsOgSystemFamilies` fail-before RED (the 0x500
+  system table elected as the user root — hello.txt absent from the
+  walk) / GREEN post-fix; suite 755/755.
+- **RS-5 RESOLVED:** the .mo ReFS analyser is structural-only (zero
+  deleted-evidence handling in 42,013 lines) — the core's deleted
+  surfacing is NOT double-counted; I-009's registration parity-safe.
+- **RS-6 RESOLVED:** CRefsAppDataRunItem is a data-run item family
+  member (sibling of CRefsFileDataRunItem), not ADS recovery — I-012's
+  shared-limitation stands.
+- **RS-8 RESOLVED:** the og validates only the MSB+ magic per page (the
+  two 0x2b42534d sites); no volume-GUID cross-check — the core's dual
+  validation registered as a deliberate superset.
+- **RS-2/RS-3 SUPERSEDED** by the landed S-020 (resident rows) and
+  N-036 (container map) decodes they gated.
+- **RS-1/RS-4 PUSHED FORWARD** precisely: fixture-gated (no real ReFS
+  volume in corpus; the cited run 40079065019 is an NTFS scenario) —
+  the Windows bench stage's real-volume probe is the recorded next step.
+
+Evidence: `s31-oq-rs-refs-residuals.md`; OQ → FIXED/. **Counts after
+this landing: tracked-open 8** (OQ-Z-E-FLT, OQ-T6-T7, OQ-S4-3, OQ-S5-1,
+OQ-S6-1, OQ-S6-2, OQ-S6-3, OQ-S20-1). Next on this lane: OQ-S20-1 (the
+BitLocker FVE metadata grammar + KDF interop leg).
+
 ## Session-31 delta, wave 2 (2026-10-26 — DFX31: OQ-S3-JPEG resolved — S-018 RE-FILED CONFIRMED and FIXED: the truncated-JPEG salvage)
 
 **S-018 RE-FILED + FIXED (SEVERE — the canonical damaged-disk photo
