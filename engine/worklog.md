@@ -15000,3 +15000,72 @@ Work Log:
 Stage Summary:
 - Claim posted; starting M-041 (full corpus re-read of
   FileSystemCheck_decompiled.c first).
+
+
+
+
+---
+Task ID: DFX30-T14 (pushed-red repair: D-84 ledger row + the N-064 win-layer markers)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: The final CI sweep found main RED (2 failures). Fix every red,
+leave main green.
+
+Work Log:
+- Failure 1 (Enumerate.ScopeDeltaRegisteredWithRevisitTrigger): the
+  parallel-window D-numbering collisions left PARITY-DELTAS.md with the
+  D-84 row (the N-071 two-stack enumeration registration) LOST from the
+  ledger (the renumber note says "enumeration two-stack D-79->D-84" but
+  no D-84 row existed) plus TRIPPLICATED rows from stacked union merges
+  (D-80 password-dictionary x3, D-81 carve-validators x3). Repair: the
+  D-84 row restored verbatim from its last-good source (7ee64fb's D-79
+  text, retitled per the ledger note) + exact-header dedupe (first
+  kept). Test green.
+- Failure 2 (win_syntax_check): the stacked N-064 union merges committed
+  conflict-marker residue into two source files (the M-055 failure
+  class — invisible to the Linux build because rrecov.cpp is Windows-app
+  code only the parse gate covers):
+  - include/cr/win/cr_bitlocker.h: a bare '=======' + a duplicated
+    try_password_unlock declaration — deduped, marker removed.
+  - src/app/rrecov.cpp: (a) load_pwddict_candidates truncated mid-body
+    calling the DROPPED cr::pwddict::seed_dictionary (6afa8fc removed
+    that namespace) + the orphaned load_dict_candidates — merged into
+    ONE coherent loader (seed -> cr::dict::kDictEntries; file -> the
+    256 KiB cap + cr::dict::parse, honest-failure diagnostics);
+    (b) open_volume_view's triple-garbled signature + three interleaved
+    consent-flow copies — rewritten as the documented union design
+    (auto-unlock -> shipped dictionary [dict_consent] -> file/seed
+    candidates [pwddict_arg] -> refuse-with-guidance; the Unknown+
+    consent path tries the dictionaries BEFORE refusing; one missing
+    brace restored); (c) cmd_scan's triple-stacked pre-pass — one
+    coherent pre-pass (--bitlocker-fvek / valueless --bitlocker-dict /
+    --bitlocker-pwddict <file|seed>); (d) the triple call site — one
+    call; (e) a DUPLICATE print_carve_formats (an anonymous-namespace
+    copy stacked against N-033's global copy = ambiguous overload) —
+    the N-033 canonical copy stands.
+- Verified: win_syntax_check green file-by-file; FULL SUITE **842/842**
+  green (the fail-before is the recorded ctest run above: 840/842 with
+  the exact failures).
+
+Stage Summary:
+- Main green again (842/842). The audit-trail commits + this repair are
+  ready to push as one landing.
+
+---
+Task ID: DFX30-T14b (the repair converged; union landed at 842+7 tests)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+
+Work Log:
+- Push met the parallel lane's convergent repair (83c796e — the same
+  pushed-red fixed independently). Per first-landing-wins: THEIR source
+  repairs adopted (rrecov.cpp + cr_bitlocker.h clean: no markers, one
+  print_carve_formats, the D-80 canonical reconciliation); my repair
+  discarded for those two files.
+- The ledger: their D-84 row present; the triplicated D-80/D-81 rows
+  NOT deduped by their landing — my exact-header dedupe applied on top
+  (D-8x rows: 9 distinct, D-84 verified present once).
+- The union tree verified: **849/849** green (their N-059 test additions
+  absorbed, +7 over my 842).
+
+Stage Summary:
+- Main green at the union (849/849). Audit trail + repairs landed
+  together.

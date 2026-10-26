@@ -392,10 +392,20 @@ scanner (bulk single-value collect; the BIGGER object, 0x120 vs 0xe8). The
 core's orchestrator-layer quick/deep split is the union — no action.
 Evidence: `evidence/decompiled-quotes/s30-oq-z5-zfs-quick-vs-complete.md`.
 
-**Post-filing counts (this session's tree; parallel lanes active):**
-SEVERE **1** (S-034, new) · MAJOR 14 · MINOR 18 · INFO 0 open · FIXED/ 171 ·
-tracked-open 11 files (3 sub-questions resolved this session: OQ-FLT-1,
-OQ-Z5, OQ-Z2→S-034; OQ-E2 and OQ-T7 were already resolved).
+**Post-session counts (DFX30's lane complete at `49eed47`; parallel
+lanes active in the same window):** SEVERE **1** (S-034, new — the
+session's NEW-FINDING, fix queued behind its three decode items) · MAJOR
+14 · MINOR 18 · INFO 0 open · FIXED/ 171+6 (the session's closed OQs:
+T6-T7, S6-3, S6-2, S6-1, S5-1 + the DFX25-index rows) · tracked-open
+reduced to **4 files** (OQ-RS, OQ-S2M-2, OQ-S3, OQ-S4-3 — DFX25's head
+queue; OQ-S20-1 resolved by DFX31; OQ-Z-E-FLT stays open for OQ-FLT-2
+alone, pushed forward with evidence). Session-30 dispositions: 8
+sub-question resolutions, 2 convergent closures (S6-2, S5-1), 1
+convergent closure WITH correction (S6-1 — DFX25's "not the registry"
+refuted by the FUN_180022430 mode dispatch), 1 push-forward with new
+evidence (OQ-FLT-2 → M-029), S-034 filed, D-09 re-verdicted, corpus
+errata E45 + E46-convergence, M-035's blast-radius question answered,
+mom-capabilities.md CheckVersion row closed.
 
 # SUMMARY.md — executive summary (sessions 30+31+35 on top; earlier sessions below)
 

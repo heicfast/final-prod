@@ -67,7 +67,6 @@
   stated in one sentence in `crsf-format.md` — recommend adding a "why not .rsf"
   paragraph at finalization.
 
-
 ### D-02 — fs_kind canonical factory map + legacy remap (F16)
 
 - **WHAT OG DOES:** Two coexisting numbering maps — the factory/FS-type map
@@ -86,7 +85,6 @@
 - **RISK:** Wire-visible only in our own sessions (self-inflicted v0.1 issue).
 - **VERDICT: ACCEPTED** (both sides cited; this is a defect WE introduced and
   fixed, with og-side map evidence recorded).
-
 
 ### D-03 — Session auto-save naming + report export
 
@@ -108,7 +106,6 @@
 
 ## B. Engine semantics
 
-
 ### D-04 — Byte-anchored geometry everywhere; 4Kn first-class (F1)
 
 - **WHAT OG DOES:** `eprdtdrv.sys` READ/WRITE complete with
@@ -128,7 +125,6 @@
 - **WHY:** correctness-fix.
 - **RISK:** User-visible improvement on 4Kn media; none on 512-byte media.
 - **VERDICT: ACCEPTED** (both sides cited; F1 markers in code+tests).
-
 
 ### D-05 — ZFS deleted-file story: newest-txg live state only — PREMISE REFUTED (S-034, DFX30 2026-10-26)
 
@@ -155,7 +151,6 @@
   the fix (per-txg ring walk with cross-txg dedup) is queued behind the
   three decode items in S-034's fix plan.
 
-
 ### D-06 — Btrfs deleted recovery: newest-generation tree only (row 20) — CLOSED
 
 - **WHAT OG DOES:** Superblock selection = max(generation) across mirrors; only the
@@ -171,7 +166,6 @@
 - **VERDICT: CLOSED (ACCEPTED).** W2 additionally landed BTR-2/3/4 (chunk-root
   uuid from the node header, inline-extent content, compressed extents) — all
   decompile-cited engine parity, not deltas.
-
 
 ### D-07 — ext4 jbd2 journal salvage: ALL blocks surfaced, og-exact — CLOSED (was: revoked-blocks divergence)
 
@@ -194,7 +188,6 @@
   NEEDS-WORK action (pin og revoke handling) resolved the opposite way the draft
   expected — the decompile showed no revoke semantics exist engine-side.
 
-
 ### D-08 — LDM recovery-grade divergences (clamp-not-abort family)
 
 - **WHAT OG DOES / GROUND TRUTH:** kernel `block/partitions/ldm.c` aborts on
@@ -215,7 +208,6 @@
   never silent.
 - **VERDICT: ACCEPTED** (both sides cited at the code sites; upstream-vs-og
   distinction explicitly recorded).
-
 
 ### D-09 — ZFS scoping: vdev handling parity (BE pools refused; G-18)
 
@@ -246,7 +238,6 @@
   3 blkptrs) —
   update G-18/CORE-CONTRACT to "gang blocks assembled; mirror/raidz report-only".
 
-
 ### D-10 — NTFS remnant scan: FILE0 shifted-header salvage, full-record improvement
 
 - **WHAT OG DOES:** `'FILE'+0x30` probe at +0x58/+0x60, record parsed from the
@@ -265,7 +256,6 @@
 - **RISK:** Strictly more salvage than og; graded Lost/MetadataOnly — safe.
 - **VERDICT: ACCEPTED** (both sides cited incl. the og buffer-artifact analysis).
 
-
 ### D-11 — NTFS $UsnJrnl harvest + dedup refinements
 
 - **WHAT OG DOES:** Complete scan cross-checks `$Extend/$UsnJrnl:$J` for
@@ -282,7 +272,6 @@
 - **RISK:** Journal-evidenced names surface as MetadataOnly/Deleted under
   root_lost — matches og intent, exceeds og robustness.
 - **VERDICT: ACCEPTED** (both sides cited; our refinements each carry evidence).
-
 
 ### D-12 — $Recycle.Bin $I/$R mapping (incl. Win10 $I pathlen format-dependence)
 
@@ -306,7 +295,6 @@
   evidenced by external research + our benchmark, **not** by the corpus (og's own
   Win10-$I handling is unrecorded) — if the og comparison leg shows og mishandling
   Win10 recycle deletions, add the og-side observation here (feeds §I U-7).
-
 
 ### D-13 — Carving deltas: RAR5 addition, PST hardening, MP3/ZIP/PDF semantics
 
@@ -336,7 +324,6 @@ Split verdict — three sub-claims:
   construction). Residual: the multi-EOCD tie-break inside a single corrupted
   archive remains ours-by-necessity (the corpus documents parse-and-continue,
   not the selection rule) — tracked as the narrow remainder of this entry.
-
 
 ### D-14 — Engine hardening family F4–F9 (fixup mandatory, viability grading, depth/cycle limits, validator gate, merge dedup)
 
@@ -375,7 +362,6 @@ Split verdict — three sub-claims:
   code cite, and at least one test carrying the F-marker (F-marker census:
   `grep -r "fix F"` over src/ + tests/).
 
-
 ### D-15 — Error-code taxonomy: 0x5003–0x5009 families beyond og's 0x5002
 
 - **WHAT OG DOES:** "engine error codes are HRESULT-style `0x5002xxxx` (e.g.
@@ -392,7 +378,6 @@ Split verdict — three sub-claims:
 - **RISK:** Codes are internal + CLI/log surface only; no wire contract with og.
 - **VERDICT: ACCEPTED** (og side cited; "og 0x5002-only" is an absence claim —
   acceptable as the corpus is exhaustive on engine codes — note recorded).
-
 
 ### D-16 — BitLocker: detect + legitimate unlock only, no decryption (F13)
 
@@ -412,7 +397,6 @@ Split verdict — three sub-claims:
   decrypt them in-process; we require the OS unlock and scan through it. Locked
   volumes are honestly reported.
 - **VERDICT: ACCEPTED** (both sides cited; directive documented in R8/F13).
-
 
 ### D-17 — SafeWriter: hard destination-overlap refusal in code (F12)
 
@@ -439,7 +423,6 @@ Split verdict — three sub-claims:
   same-volume branch (trace @354990–355155, `DRWUI-subsystems--assistant-grading-preview.md`
   §3) to establish refuse-vs-warn + granularity, then correct F12's wording and
   this entry. Keep the hard refusal regardless (safety stance stands on its own).
-
 
 ### D-18 — Cancellation first-class + pool-parallel scans (F3)
 
@@ -470,7 +453,6 @@ Split verdict — three sub-claims:
 
 ## C. Safety (product-level)
 
-
 ### D-19 — Recovery queue: collision naming, atomic writes, hash verify, resume (F11)
 
 - **WHAT OG DOES:** Writes recovered files directly to destination via normal
@@ -495,7 +477,6 @@ Split verdict — three sub-claims:
 - **VERDICT: ACCEPTED** (og-side absence documented as "unevidenced", which is
   itself the honest form of evidence for this delta; our side fully cited).
 
-
 ### D-20 — UI hard destination gate (ADR-7, defense in depth)
 
 - **WHAT OG DOES:** Destination funnel is monetization-first: the destination
@@ -518,7 +499,6 @@ Split verdict — three sub-claims:
 
 ## D. Architecture / build
 
-
 ### D-21 — In-process engine registry; no engine DLLs (F14)
 
 - **WHAT OG DOES:** 9 `*SearchDLL.dll` engine binaries in the build tree
@@ -535,7 +515,6 @@ Split verdict — three sub-claims:
 - **WHY:** modernization/build hygiene (kills the per-DLL duplication F14).
 - **RISK:** None user-visible (og's DLL-per-engine is a build-tree property).
 - **VERDICT: ACCEPTED** (both sides cited).
-
 
 ### D-22 — rda-driver: three reference drivers merged into one; wire preserved; defects fixed (read-only notes)
 
@@ -571,7 +550,6 @@ Split verdict — three sub-claims:
   (any process can compute its own token); recommend softening the wording at
   finalization.
 
-
 ### D-23 — Win7-inclusive posture with machine-verified import allowlist
 
 - **WHAT OG DOES:** `eprdtdrv.sys` built 2022 with a modern toolchain, PE OS 6.1,
@@ -588,7 +566,6 @@ Split verdict — three sub-claims:
   deployment trick.
 - **RISK:** None; the allowlist converts an assumption into a gate.
 - **VERDICT: ACCEPTED** (both sides cited).
-
 
 ### D-24 — Wizard architecture: CLI-subprocess now, native shim later (ADR-1); truthful-degradation ADRs 2–6
 
@@ -626,7 +603,6 @@ Split verdict — three sub-claims:
 
 ## E. UI / UX
 
-
 ### D-25 — WizardStepper 3-step rail (ADR-12)
 
 - **WHAT OG DOES:** No stepper; `DrwMainViewManagerWizard` is a QStackedWidget
@@ -641,7 +617,6 @@ Split verdict — three sub-claims:
 - **WHY:** modernization/UX.
 - **RISK:** Navigation-model difference, deliberate.
 - **VERDICT: ACCEPTED** (both sides cited; explicitly not claimed as parity).
-
 
 ### D-26 — Omitted surfaces (cloud/NAS/RAID/WeChat/WinPE-builder/AI/monetization/telemetry/OEM/multi-language)
 
@@ -662,7 +637,6 @@ Split verdict — three sub-claims:
 - **RISK:** Feature-set reduction vs og — all enumerated, none silent.
 - **VERDICT: ACCEPTED** (every omission carries its corpus cite in UI-MAP §13).
 
-
 ### D-27 — Design-system adaptations (a11y, contrast, grid, motion)
 
 - **WHAT OG DOES:** `outline:none` in QSS (L18) — suppressed focus outlines;
@@ -680,7 +654,6 @@ Split verdict — three sub-claims:
 - **RISK:** Visual identity differs from og by design.
 - **VERDICT: ACCEPTED** (the `[ADAPTATION]` discipline is exactly what this
   registry wants elsewhere).
-
 
 ### D-28 — Preview subsystem: temp-materialization + managed decoders (ADR-8)
 
@@ -709,7 +682,6 @@ Split verdict — three sub-claims:
   (worker-safety vs og free-tier pressure, same numbers) and add the
   `UIUX/10-preview-subsystem.md` §3 cite. U-2 stays tracked there.
 
-
 ### D-29 — Filters client-side over the loaded tree (ADR-9)
 
 - **WHAT OG DOES:** FileFilter.xml classification — 8 categories / 1,489
@@ -736,7 +708,6 @@ Split verdict — three sub-claims:
 - **VERDICT: REFRESHED (ACCEPTED).** Both sides cited; core gap closed; the
   taxonomy-fidelity issue remains split out as D-30 (wizard-side).
 
-
 ### D-30 — File-category taxonomy: 7 categories vs og's 8 — comment over-claims parity
 
 - **WHAT OG DOES:** 8 classify tabs (Audio/Document/Photo/Video/Archives/Emails/
@@ -760,7 +731,6 @@ Split verdict — three sub-claims:
 
 ## F. Licensing / assets
 
-
 ### D-31 — MIT license; original strings/icons/fonts; no proprietary assets
 
 - **WHAT OG DOES:** ~7,400 RCC images/SVGs, DIN-Black/DINCond-Black OTFs,
@@ -776,7 +746,6 @@ Split verdict — three sub-claims:
 - **WHY:** licensing.
 - **RISK:** None (clean-room discipline).
 - **VERDICT: ACCEPTED** (both sides cited; policy documented at the point of use).
-
 
 ### D-32 — No monetization/license gates, no telemetry, no Aliyun/EuShare surfaces
 
@@ -799,7 +768,6 @@ Split verdict — three sub-claims:
 ---
 
 ## G. Benchmarking
-
 
 ### D-33 — Comparison methodology: two independent legs, same methodology; og driven through its real UI
 
@@ -824,7 +792,6 @@ Split verdict — three sub-claims:
 - **VERDICT: ACCEPTED** (methodology fully documented; og-side driving recipe is
   corpus-derived).
 
-
 ### D-34 — Driver benchmark: cross-driver byte-equality proof
 
 - **WHAT OG DOES:** Ships the reference binaries (WHQL-counter-signed eprdtdrv
@@ -842,7 +809,6 @@ Split verdict — three sub-claims:
 ---
 
 ## H. Error-fix registry integrity (cross-cutting)
-
 
 ### D-35 — F15 (capability report before every scan): registry claim not backed by code
 
@@ -873,7 +839,6 @@ Split verdict — three sub-claims:
 
 ## I. Session-5 parity-refactor waves (D-36..D-44, W1–W4 + parallel-agent waves)
 
-
 ### D-36 — Single-pass quick+deep (ARCH-3): one walk where og runs two generations
 
 - **WHAT OG DOES:** Quick scan = `EUCreate<FS>QuickSearcher`; Advanced = a
@@ -894,7 +859,6 @@ Split verdict — three sub-claims:
 - **VERDICT: ACCEPTED** (registered this session; previously an unregistered
   divergence — "a delta not in this registry is a bug").
 
-
 ### D-37 — Transport fallback superset (D-H/FB-T02): grammar-open failure falls back to direct
 
 - **WHAT OG DOES:** Device.mo duality — `\\.\PhysicalDriveN` direct vs
@@ -907,7 +871,6 @@ Split verdict — three sub-claims:
   scanned direct by us. Bounded: the fallback only fires on open failure, not
   on probe mismatch.
 - **VERDICT: ACCEPTED (remark).**
-
 
 ### D-38 — Skip-mode zero-fill retry mechanism (D-I/FB-O03): transport-wide bisection + ReadErrorMap
 
@@ -923,7 +886,6 @@ Split verdict — three sub-claims:
 - **RISK:** none — strictly more information than og.
 - **VERDICT: ACCEPTED.**
 
-
 ### D-39 — Mirrored-FAT salvage (D-E/FAT-2): FAT1 BAD + FAT2 valid chains are salvaged
 
 - **WHAT OG DOES:** CDoubleFATTable consults the mirror per-entry — but drops
@@ -937,7 +899,6 @@ Split verdict — three sub-claims:
 - **VERDICT: ACCEPTED.** FAT12 BAD-cluster canonicalization (D-F/FAT-4: we stop
   the chain where og follows raw 4087) rides the same rationale.
 
-
 ### D-40 — Carved-node naming strings (CARVE-5)
 
 - **WHAT OG DOES:** RAWSearcher naming callback produces og-specific lost-file
@@ -947,7 +908,6 @@ Split verdict — three sub-claims:
 - **WHY:** licensing + honesty (our evidence notes travel with the node).
 - **RISK:** cosmetic divergence only.
 - **VERDICT: ACCEPTED.**
-
 
 ### D-41 — Report JSON (ours-only, FB-R02-adjacent): machine-readable recovery report
 
@@ -960,7 +920,6 @@ Split verdict — three sub-claims:
 - **RISK:** none.
 - **VERDICT: ACCEPTED (ours-only feature, documented).**
 
-
 ### D-42 — ATA-passthrough health delta (HEALTH-2): ATA_PASS_THROUGH vs og's SAT wrapper
 
 - **WHAT OG DOES:** SMART via a SAT wrapper layer (corpus DRWUI health path).
@@ -970,7 +929,6 @@ Split verdict — three sub-claims:
 - **WHY:** API availability + explicitness.
 - **RISK:** Device coverage may differ on exotic SAT layers.
 - **VERDICT: ACCEPTED.**
-
 
 ### D-43 — Cache-coalesced MFT reads (D-D/NTFS-2): 64-KiB coalescing at the cache layer
 
@@ -984,7 +942,6 @@ Split verdict — three sub-claims:
 - **WHY:** layering (one cache serves every engine, not just NTFS).
 - **RISK:** none measured.
 - **VERDICT: ACCEPTED** (contract §2/§3 amended accordingly in W5).
-
 
 ### D-44 — Removed dead surface (W4 appendix) + W4-introduced hardening deltas
 
@@ -1017,7 +974,6 @@ Split verdict — three sub-claims:
 - **VERDICT: ACCEPTED (appendix).**
 
 ---
-
 
 ### D-45 — cr_ui C-ABI shim: the og's in-process UI-engine binding, flat-C adapted (G-01)
 
@@ -1057,7 +1013,6 @@ Split verdict — three sub-claims:
 
 ---
 
-
 ### D-46 — HFS+ attributes surfaced as named-fork children (S-002 superset)
 
 - **WHAT OG DOES:** the og reads the Attributes B-tree (CNID 8) for
@@ -1080,7 +1035,6 @@ Split verdict — three sub-claims:
   instruction.**
 
 ---
-
 
 ### D-47 — exFAT entry-set checksum strictness: honest-mode LIVE sets only (N-003, scope corrected by M-013)
 
@@ -1113,7 +1067,6 @@ Split verdict — three sub-claims:
 
 ---
 
-
 ### D-48 — Audit-acknowledged supersets (diff-to-fix I-003 / I-004 / I-005.4)
 
 Rows registered here had no prior PARITY-DELTAS entry (per the I-batch fix
@@ -1141,7 +1094,6 @@ files.
 
 ---
 
-
 ### D-56 — NTFS pass-2 dump scan: og heap-overrun read + >512b claim-index ambiguity not replicated (S-012)
 
 - **WHAT OG DOES:** the pass-2 GUID-dump record loop scans a chunk with bound
@@ -1161,7 +1113,6 @@ files.
   dump records the og's under-claiming map would keep — the conservative side.
 - **VERDICT: ACCEPTED** (S-012 session-4 convergence addendum; corpus re-read
   first-hand; pinned by NtfsVolume.GuidDumpDestroyRules).
-
 
 ### D-57 — NTFS pass-2 membership: dual-source duplicates kept (og parity; finding premise corrected)
 
@@ -1235,7 +1186,6 @@ NOT registered here — see docs/DRIVER-UTILIZATION.md's checklist.
 
 Deliberate divergences introduced or pinned while closing the audit roadmap.
 
-
 ### D-58 — ext4 meta_bg descriptor resolution: kernel/e2fsprogs-correct arithmetic, two og defects NOT adopted (S-026)
 
 - **WHAT OG DOES:** seeds its meta-group stride from `s_desc_size`
@@ -1262,7 +1212,6 @@ Deliberate divergences introduced or pinned while closing the audit roadmap.
   configuration).
 - **VERDICT: ACCEPTED** (pinned by `Ext4Engine.MetaBg*` — 5 tests, 4
   fail-before proven on the engine-reverted build).
-
 
 ### D-59 — ext4 backup-SB rescue: canonical-position grid + exact s_block_group_nr rebasing (S-027)
 
@@ -1403,7 +1352,6 @@ parity-refactor session. Cross-check against the engine-semantics,
 orchestration/CLI, UI, and architecture parity reports before promoting to
 `docs/PARITY-DELTAS.md`.*
 
-
 ### D-49 — exFAT timestamps: on-disk time carried as-UTC, tz bytes not applied (S-011 parity)
 
 **Class:** parity-over-spec (engine semantics) · **Finding:** diff-to-fix S-011 (SEVERE, FIXED) · **Date:** 2026-10-26
@@ -1451,7 +1399,6 @@ spec-correct timestamps.
 `ExfatEngine.TimestampsZeroTzPassThrough` (tz = 0x00),
 `ExfatEngine.TimestampsMatchExplorerDisplay` (tz = 0x20).
 
-
 ### D-51 — NTFS two-pass scan model (S-012, ACCEPTED as og parity)
 
 - **WHAT OG DOES:** pass 1 walks the live $MFT and emits EVERY record (deleted
@@ -1494,7 +1441,6 @@ spec-correct timestamps.
   MainWalkKeepsSystemFlaggedUserFile} on top of the original five pins.
 - **STATUS:** ACCEPTED (og parity; diff-to-fix S-012 FIXED).
 
-
 ### D-56 — HFS+ journal differential harvest: the og's primary deleted surface (S-021/S-003)
 
 **Class:** parity (mechanism) + deliberate hardening · **Findings:** diff-to-fix S-021 (SEVERE, FIXED) + S-003 (SEVERE, FIXED — outcome parity; "replay" premise corrected) · **Date:** 2026-10-26
@@ -1534,7 +1480,6 @@ place).
 **RISK:** none beyond the tracked constant question.
 **VERDICT: ACCEPTED** (decompile cited; fail-before/pass-after in
 `diff-to-fix/evidence/executions/s021-failbefore-journal.md`; 423/423 ASan).
-
 
 ### D-50 — Lost-partition superblock probes: ext parity + HFS+/Btrfs/ZFS/ReFS superset anchors (S-006)
 
@@ -1579,7 +1524,6 @@ FUN_180004070/FUN_180004610 chain entered but unresolved). No invented gates.
 `Ext4BlockGroupCopyNotACandidateStart`, `HfsPlusVolumeHeaderAnchorsDeletedPartition`,
 `BtrfsSuperblockAnchorsDeletedPartition`, `ZfsLabelAnchorsDeletedPartition`,
 `RefsBootAnchorsDeletedPartition`, `SuperblockNoiseRejected`.
-
 
 ### D-56 — FAT/exFAT engine-open + lost-scan gates: og parity with three registered core deltas (N-010b/N-010c/N-022/N-034)
 
@@ -1662,7 +1606,6 @@ gate stated and pinned. N-010d (exFAT tz) was already fixed by S-011
 `ExfatEngine.StreamReservedAllBytesNonzeroStillDamaged`,
 `ExfatEngine.StreamReserved1ByteStrictlyZero`.
 
-
 ### D-52 — NTFS boot-ladder, attribute source, USN gate: og parity with registered deltas (N-011/N-012/N-024/N-039)
 
 **Class:** parity + registered superset (engine semantics) · **Findings:** diff-to-fix N-011, N-012, N-024 (N-011a..e), N-039 (MINOR, FIXED 2026-10-26) · **Date:** 2026-10-26
@@ -1706,7 +1649,6 @@ gate stated and pinned. N-010d (exFAT tz) was already fixed by S-011
 `UsnHarvestTrueDeleteReason0x80020000`, `UsnHarvestRejectsCompressionChangeOnly`,
 `UsnHarvestCapMinesTail`.
 
-
 ### D-53 — HFS+ sink filter, fork selection, prdf folderization, block-size bound (N-028/N-038/N-005)
 
 **Class:** parity + registered superset (engine semantics) · **Findings:** diff-to-fix N-028 (N-015a/b/c), N-038, N-005 (MINOR, FIXED 2026-10-26) · **Date:** 2026-10-26
@@ -1736,7 +1678,6 @@ gate stated and pinned. N-010d (exFAT tz) was already fixed by S-011
 
 **Pin tests:** `HfsPlus.DotfileAndPrivateDataFiltered`, `PrdfRecordFolderized`,
 `RecordBit29SelectsResourceFork`, `LargeBlockSizeAccepted`.
-
 
 ### D-54 — Orchestrator/health/writer quick wins (N-016/N-017/N-009a/N-009b)
 
@@ -1799,7 +1740,6 @@ HFSPlusSearchDLL CHFSPlusJournal (`hfsplusjournal.cpp` trace strings)
 `HfsPlus.JournalHarvestDisabledByFlag`, `HfsPlus.LeafNodeLayoutMatchesOnDiskFormat`
 (the A-005 convention guard).
 
-
 ### D-59 — Audit-acknowledged supersets and registers, session-7 INFO tier (I-006..I-020 batch)
 
 Rows registered here had no prior PARITY-DELTAS entry; every rationale was
@@ -1861,7 +1801,6 @@ unless the row itself is first re-audited against the corpus.
   verified). S-029 (apply path) is deliberately NOT covered by this
   exclusion.
 
-
 ### D-60 — Session-5 scope/superset registers (I-021/I-022, session-7 verification)
 
 Verified against corpus 03ad46c and the running core before acknowledgment.
@@ -1894,7 +1833,6 @@ Verified against corpus 03ad46c and the running core before acknowledgment.
   fields with no og carrier.
 - **D-60l — Core-only carve anchors (I-022-6, ACCEPTED).** ISO9660, RAR5,
   M4A, ZIP-CD/naked-MOV (S-007's register).
-
 
 ### D-57 — Carve common formats: the og's hardcoded dual-registry set (S-007 primary)
 
@@ -1935,7 +1873,6 @@ bounded extent now) + the bench seed-matrix extension (Windows runner).
 **Pin tests:** `Carve.S007CommonFormatsCarve`, `Carve.S007ValidatorsRejectNoise`,
 `Carve.S007TruncatedSalvageSemantics`.
 
-
 ### D-53 — ext4/Btrfs lossless invalid-UTF-8 name mapping (M-010)
 
 **Session:** diff-to-fix remediation (M-010). **Corpus:** EXT4SearchDLL /
@@ -1960,7 +1897,6 @@ FUN_18001c630 :24995+ (CP_UTF8, flags 0 — replacement).
 `Text.LosslessRoundTripRecoversRawBytes`, `Btrfs.Latin1NameRoundTripsRawBytes`,
 the updated `Ext4Engine`/`Btrfs` `NonAsciiNamesDecodedNotByteLifted` (lossless
 assertions).
-
 
 ### D-61 — RawFixer 4Kn sector-parametric buffers + sector-correct restore plans (A-005)
 
@@ -2103,7 +2039,6 @@ same way. Pinned by `RawFixer.NtfsPrimaryDamaged4Kn`,
 
 ## S. diff-to-fix session 15 (MAJOR lane, 2026-10-26)
 
-
 ### D-70 — FAT engine bps ceiling 32768 (M-045)
 
 The og's classifier accepts ANY 512-multiple bytes-per-sector with no
@@ -2115,7 +2050,6 @@ past 32768 (512 through 32768 covers every FAT spec geometry and every
 known formatter), and the bound only cuts absurd-volume noise the og's
 own engine would fail on anyway. Documented deliberate bound; pinned by
 `FatEngine.FatBps32768CeilingAndNonMultipleRejected`.
-
 
 ### D-71 — ext4 valid-entry advance by rec_len (M-037)
 
@@ -2144,7 +2078,6 @@ across the fan-out nodes, and the hardlinks WalkStats counter is nonzero
 only in this mode (the og's scan has no such counter). Pinned by
 `NtfsVolume.HardLinkFanOutOptIn` (per-link names, per-parent nodes) and
 `NtfsVolume.HardLinkSingleLinkMatchesOg` (the parity default).
-
 
 ### D-73 — Attrlist chase depth: the multi-hop BFS default (M-008, REGISTERED SUPERSET — the default)
 
@@ -2215,7 +2148,6 @@ If a future engine needs the og contract, the documented next step is the
 opt-in clamped-read primitive from the finding's path (2) — added THEN,
 not as dead code now.
 
-
 (The original session-10 D-64 draft was folded into the converged entry above.)
 
 ### D-72 — scan cache: 8 MiB reactive LRU vs og 4 MiB prefetch read-ahead (N-045, REGISTERED DIVERGENCE — budget + algorithm)
@@ -2242,7 +2174,6 @@ scans. Pinned by `Cached.ScanCacheBudgetIsTheRegisteredDivergence`
 (doc-truth pin: source constant + this row + the cr_cached.h divergence
 block must stay in lockstep).
 
-
 ### D-73 — NTFS scan-path volume-end backup fallback (M-043, session 14; renumbered from a D-72 collision with the scan-cache register — the errata convention)
 
 **Deliberate recovery SUPERSET — not og parity (corpus-proven).** The og
@@ -2260,7 +2191,6 @@ reconciling the concurrent M-043 landing (1468393 + this leg).
 D-72 in this leg's push; the parallel leg's scan-cache register (N-045)
 landed as D-72 in the same window. The FAT-entry precedent applies — the
 later landing renumbers; this one is now D-73. All references updated.)*
-
 
 ### D-72 — carve default-off formats are host policy, not engine constants (M-024)
 
@@ -2590,7 +2520,6 @@ Intel RST host is pending for both implementations' claims (the finding
 records this as inherent: UNVERIFIED-BY-EXECUTION on this hardware).
 Recovery correctness is unaffected (health is advisory).
 
-
 ### D-83 — Btrfs RAID0/RAID10 chunk reads: kernel stripe math vs the og's read failure (M-020, REGISTERED SUPERSET)
 
 The og's logical→physical node reader (BtrfsSearchDLL FUN_1800042a0,
@@ -2615,7 +2544,6 @@ with wrong bytes. Fixtures: `Btrfs.Raid0StripeMathSplitsAtStripeBoundaries`
 (the spanning split + the in-stripe offset), `Btrfs.Raid10GeometryGate`
 (the og's parse-time gate stays og-exact — the superset is read-side
 only).
-
 
 ### D-81 — Carve validators are stateless single-shot; no pending-object/ContinueScan streaming state (M-025, REGISTERED ARCHITECTURAL DIVERGENCE)
 
@@ -3908,7 +3836,6 @@ Deliberate divergences introduced or pinned while closing the audit roadmap.
 - **VERDICT: ACCEPTED** (pinned by `Ext4Engine.MetaBg*` — 5 tests, 4
   fail-before proven on the engine-reverted build).
 
-
 ### D-59 — ext4 backup-SB rescue: canonical-position grid + exact s_block_group_nr rebasing (S-027)
 
 - **WHAT OG DOES:** its engine-side walker (EXT4SearchDLL FUN_180001b00,
@@ -4529,7 +4456,6 @@ Verified against corpus 03ad46c and the running core before acknowledgment.
 - **D-60l — Core-only carve anchors (I-022-6, ACCEPTED).** ISO9660, RAR5,
   M4A, ZIP-CD/naked-MOV (S-007's register).
 
-
 ### D-57 — Carve common formats: the og's hardcoded dual-registry set (S-007 primary)
 
 **Class:** parity + two registered calibration deltas · **Finding:** diff-to-fix S-007 (SEVERE, primary set FIXED; niche tail scoped in the finding) · **Date:** 2026-10-26
@@ -4826,9 +4752,7 @@ If a future engine needs the og contract, the documented next step is the
 opt-in clamped-read primitive from the finding's path (2) — added THEN,
 not as dead code now.
 
-
 (The original session-10 D-64 draft was folded into the converged entry above.)
-
 
 ### D-72 — scan cache: 8 MiB reactive LRU vs og 4 MiB prefetch read-ahead (N-045, REGISTERED DIVERGENCE — budget + algorithm)
 
@@ -4854,7 +4778,6 @@ scans. Pinned by `Cached.ScanCacheBudgetIsTheRegisteredDivergence`
 (doc-truth pin: source constant + this row + the cr_cached.h divergence
 block must stay in lockstep).
 
-
 ### D-73 — NTFS scan-path volume-end backup fallback (M-043, session 14; renumbered from a D-72 collision with the scan-cache register — the errata convention)
 
 **Deliberate recovery SUPERSET — not og parity (corpus-proven).** The og
@@ -4873,7 +4796,6 @@ D-72 in this leg's push; the parallel leg's scan-cache register (N-045)
 landed as D-72 in the same window. The FAT-entry precedent applies — the
 later landing renumbers; this one is now D-73. All references updated.)*
 
-
 ### D-72 — carve default-off formats are host policy, not engine constants (M-024)
 
 The og's RawConfig.ini [Filter] ships STL and VPJ default-DISABLED — its
@@ -4884,7 +4806,6 @@ mirror the og's shipped defaults by passing "stl vpj"). Rationale: an
 engine constant would bake one vendor's config into the library; the og
 itself separates engine (compiled analysers) from policy (the ini). Pinned
 by `CarveEngine.AllFormatsEnabledByDefault`.
-
 
 ### D-68 — Error value space: family-prefix convention only; numeric values core-internal (M-049, ACCEPTED; context subset LANDED)
 
@@ -4915,7 +4836,6 @@ architecture). Pinned by ScanEvents.ErrorRangeCarriesModuleOperation-
 Attempts + CarveErrorRangeAttributesToCarveModule + ProbeBlockFailure-
 AttributesToOrchestrator + the Retry/DevMap/Errmod unit trio.
 
-
 ### D-75 — carve validator chain: single modern validator per format, no legacy File*Analyser fallback generation (N-070, REGISTERED SIMPLIFICATION — deliberately not ported)
 
 The og's analyser registry wires every magic key to a two-generation chain:
@@ -4937,7 +4857,6 @@ future corpus decode of any legacy File*Analyser body makes its port
 evidenced — until then this stays a registered simplification, pinned by
 CarveEngine.OverlapScorePrefersHigherConfidence (which proves the scoring
 half) and the absence of any fallback path in cr_registry.cpp.
-
 
 ### D-76 — carved-file naming: the File%06u deliberate default + the MP4/MOV template's UTC formatting (N-063)
 
@@ -4979,7 +4898,6 @@ membership decode is the recorded next step in the finding.
 `CarveEngine.MovV1MvhdHighWordQuirkReplicated` (the quirk pin),
 `CarveEngine.FallbackNamerDocumented` (the deliberate default).
 
-
 ### D-72 — Lost-partition APPLY: the safety registers around the og's table writer (S-029)
 
 The S-029 apply module reproduces the og's write-path architecture
@@ -5019,7 +4937,6 @@ argument (PR:32805 local_24 ulong; RM:46338; CM:118357; UL:37590), and the
 GPT header GUID is untouched by FUN_1800392f0. The core stamps the
 regenerated 32-bit signature on the GPT rebuild exactly as the corpus does.
 
-
 ### D-79 — salvaged (no-EOI) JPEGs graded PartialRisk, not stamped identically to complete files (S-018 re-file, s31; REGISTERED DIVERGENCE)
 
 The og's legacy FileJPGAnalyser tier accepts tail-truncated JPEGs at its
@@ -5033,7 +4950,6 @@ it ("fallback-salvage(no-EOI,...)") — a recovered file whose tail is
 destroyed IS objectively degraded, and hiding that from the user would be
 the og's UX weakness, not a parity virtue. Pinned by
 Carve.JpegTruncatedTailSalvagedAtSofEstimate (grade assertion).
-
 
 ### D-78 — progress delivery: push events + telemetry pull, not the og's poll-dominant timer farm (N-075, REGISTERED DIVERGENCE; renumbered from a D-77 collision with the N-009d ACL register landed by the parallel lane in the same window — the errata convention)
 
@@ -5058,7 +4974,6 @@ the writer's report/queue item-state surfaces (documented in
 ABI-CONTRACT §5a) rather than a parallel ABI interface. Pinned by
 `CrUi.ScanBusyStoppingQueries` + the plain-C edges in
 `cr_ui_abi_check`.
-
 
 ### D-77 — recovered files inherit destination ACL defaults; no source-descriptor re-application (N-009d, REGISTERED DIVERGENCE — capability not ported)
 
@@ -5103,7 +5018,25 @@ index decode in the engine → descriptor carrier on
 FileProperties → a WriterConfig `preserve_dacl` flag (default OFF)
 applying it via SetSecurityInfo on the win destio layer only — never on
 the POSIX test shims.
+### D-81 — the logging seam: one host sink, no cross-process transport (N-048, REGISTERED DIVERGENCE)
 
+The og runs a three-layer logging architecture: Log.mo's EPMLOG.log
+(64 KiB cross-process shared staging + named mutex + 10 MB
+truncate-rollover, line format `[%Y-%m-%d %H:%M:%S:%ms] (T:%d/P:%d)
+msg`), PubLog's 2 MB ring for the UI-family binaries, and Logger.dll's
+async queue + worker with keep-second-half compaction
+(Log_decompiled.c :159-176/:193/:604-621/:699, PubLog_decompiled.c
+:119-135, Logger_decompiled.c :1630-1696/:1962-2015). The core is a
+SINGLE-PROCESS library: there is no second process to share a mapping
+with, no UI-family binary set for the ring, and an async worker queue
+buys nothing at the core's line volumes (diagnostic brackets, not
+traces). The seam is therefore the SINK, not the transport
+(`cr::log::set_sink` — default NULL = silent, zero formatting
+overhead; serialized synchronous deliveries; the host owns every
+policy the og baked into its transports: file placement, rollover,
+compaction, async). The og's per-line timestamp/process decoration is
+its transports' job; the core emits the message text. Pinned by
+`Orchestrator.LogSilentByDefault` + `Orchestrator.LogSinkReceivesScanBrackets`.
 
 ### D-82 — CSMI SMART transport: SCSI-address routing, no RAID census; LSILOGIC sibling and SMART auto-enable not ported (N-032, REGISTERED DIVERGENCE — transport scope)
 
@@ -5149,7 +5082,6 @@ Intel RST host is pending for both implementations' claims (the finding
 records this as inherent: UNVERIFIED-BY-EXECUTION on this hardware).
 Recovery correctness is unaffected (health is advisory).
 
-
 ### D-83 — Btrfs RAID0/RAID10 chunk reads: kernel stripe math vs the og's read failure (M-020, REGISTERED SUPERSET)
 
 The og's logical→physical node reader (BtrfsSearchDLL FUN_1800042a0,
@@ -5174,8 +5106,6 @@ with wrong bytes. Fixtures: `Btrfs.Raid0StripeMathSplitsAtStripeBoundaries`
 (the spanning split + the in-stripe offset), `Btrfs.Raid10GeometryGate`
 (the og's parse-time gate stays og-exact — the superset is read-side
 only).
-
-
 
 ### D-81 — Carve validators are stateless single-shot; no pending-object/ContinueScan streaming state (M-025, REGISTERED ARCHITECTURAL DIVERGENCE)
 
@@ -6459,7 +6389,6 @@ Deliberate divergences introduced or pinned while closing the audit roadmap.
 - **VERDICT: ACCEPTED** (pinned by `Ext4Engine.MetaBg*` — 5 tests, 4
   fail-before proven on the engine-reverted build).
 
-
 ### D-59 — ext4 backup-SB rescue: canonical-position grid + exact s_block_group_nr rebasing (S-027)
 
 - **WHAT OG DOES:** its engine-side walker (EXT4SearchDLL FUN_180001b00,
@@ -7080,7 +7009,6 @@ Verified against corpus 03ad46c and the running core before acknowledgment.
 - **D-60l — Core-only carve anchors (I-022-6, ACCEPTED).** ISO9660, RAR5,
   M4A, ZIP-CD/naked-MOV (S-007's register).
 
-
 ### D-57 — Carve common formats: the og's hardcoded dual-registry set (S-007 primary)
 
 **Class:** parity + two registered calibration deltas · **Finding:** diff-to-fix S-007 (SEVERE, primary set FIXED; niche tail scoped in the finding) · **Date:** 2026-10-26
@@ -7376,7 +7304,6 @@ If a future engine needs the og contract, the documented next step is the
 opt-in clamped-read primitive from the finding's path (2) — added THEN,
 not as dead code now.
 
-
 (The original session-10 D-64 draft was folded into the converged entry above.)
 
 ### D-72 — scan cache: 8 MiB reactive LRU vs og 4 MiB prefetch read-ahead (N-045, REGISTERED DIVERGENCE — budget + algorithm)
@@ -7403,7 +7330,6 @@ scans. Pinned by `Cached.ScanCacheBudgetIsTheRegisteredDivergence`
 (doc-truth pin: source constant + this row + the cr_cached.h divergence
 block must stay in lockstep).
 
-
 ### D-73 — NTFS scan-path volume-end backup fallback (M-043, session 14; renumbered from a D-72 collision with the scan-cache register — the errata convention)
 
 **Deliberate recovery SUPERSET — not og parity (corpus-proven).** The og
@@ -7421,7 +7347,6 @@ reconciling the concurrent M-043 landing (1468393 + this leg).
 D-72 in this leg's push; the parallel leg's scan-cache register (N-045)
 landed as D-72 in the same window. The FAT-entry precedent applies — the
 later landing renumbers; this one is now D-73. All references updated.)*
-
 
 ### D-72 — carve default-off formats are host policy, not engine constants (M-024)
 
@@ -7622,50 +7547,6 @@ ABI-CONTRACT §5a) rather than a parallel ABI interface. Pinned by
 `CrUi.ScanBusyStoppingQueries` + the plain-C edges in
 `cr_ui_abi_check`.
 
-### D-77 — recovered files inherit destination ACL defaults; no source-descriptor re-application (N-009d, REGISTERED DIVERGENCE — capability not ported)
-
-**Class:** registered divergence (writer security posture) · **Finding:**
-diff-to-fix N-009d (MINOR, resolved by registration) · **Date:** 2026-10-26
-
-**WHAT OG DOES:** the pending-operation engine's copy paths preserve
-source security descriptors — epmpublic carries CAccessControlList /
-CAccessEntry / CFileDaclProc / CFileSecurityInfo classes that capture the
-source stream's ACL and re-apply it on the recovered copy (corpus
-`re-workspace/artifacts/PartitionRecovery/pending-operation-engine.md`;
-the same surface also carries IOCTL_DISK_DELETE_DRIVE_LAYOUT for its
-destructive ops). On NTFS sources the descriptor stream is the $SDH/$SII
-security-index pair; on FAT-family sources there is no descriptor to
-carry and the og's classes no-op.
-
-**WHAT WE DO:** `cr_safewriter` / `cr_destio` create every recovered
-file as a NEW file that inherits the destination volume's default DACL
-(grep SDDL/SetSecurityInfo/ACL across src/ + include/: zero hits). No
-descriptor is captured on the source side and none is applied on the
-destination side.
-
-**WHY:** (1) For a recovery product the recovered file IS a new file —
-the destination's owner policy should govern it, not the (often corrupt,
-often attacker-influenced) source metadata; re-applying a source DACL
-verbatim can re-create an unreadable file at the destination (a
-recovery-negative outcome the og's users hit with inherited-deny ACEs).
-(2) The NTFS $SDH/$SII decode surface does not exist in the core engine
-today; porting it would be a feature-sized effort whose only consumer
-would be this flag. (3) The finding's own fix text marks the port
-"optional" and asks for the default-OFF decision to be registered here.
-The risk is accepted: ACL fidelity is lost on cross-ACL-tree recovery,
-content is never lost.
-
-**RISK:** user-observable only when recovering NTFS→NTFS with
-non-default source ACLs and expecting them to travel: they do not.
-Recovery content, names, timestamps and hashing are unaffected.
-
-**VERDICT:** ACCEPTED (default: inherit-destination). If a future host
-needs descriptor transport, the recorded next step is: NTFS $SDH/$SII
-index decode in the engine → descriptor carrier on
-FileProperties → a WriterConfig `preserve_dacl` flag (default OFF)
-applying it via SetSecurityInfo on the win destio layer only — never on
-the POSIX test shims.
-
 ### D-78 — the password-dictionary unlock aid: authored seed + format-compatible loader, the og's Dict asset not copied (N-064, REGISTERED DIVERGENCE)
 
 ### D-80 — the password-dictionary data posture: the corpus Dict converted as generated data (raw_signs precedent), user dictionaries loadable (N-064 convergence record — two parallel landings, first-landing-wins)
@@ -7763,7 +7644,6 @@ Intel RST host is pending for both implementations' claims (the finding
 records this as inherent: UNVERIFIED-BY-EXECUTION on this hardware).
 Recovery correctness is unaffected (health is advisory).
 
-
 ### D-83 — Btrfs RAID0/RAID10 chunk reads: kernel stripe math vs the og's read failure (M-020, REGISTERED SUPERSET)
 
 The og's logical→physical node reader (BtrfsSearchDLL FUN_1800042a0,
@@ -7788,9 +7668,6 @@ with wrong bytes. Fixtures: `Btrfs.Raid0StripeMathSplitsAtStripeBoundaries`
 (the spanning split + the in-stripe offset), `Btrfs.Raid10GeometryGate`
 (the og's parse-time gate stays og-exact — the superset is read-side
 only).
-
-
-
 
 ### D-81 — Carve validators are stateless single-shot; no pending-object/ContinueScan streaming state (M-025, REGISTERED ARCHITECTURAL DIVERGENCE)
 
@@ -7868,7 +7745,6 @@ list would be missed — no such device class is documented in the corpus
 extra device). The merge is the engine scope; the UI shell may layer
 its own stacks later.
 
-
 ### D-82 — the FilterFolder junk-filter policy: applied at emission, sessions re-derive on resume; comparator mode undecoded (M-018, REGISTERED POLICY)
 
 The og pushes FilterFolder.ini's hidden sets per scan-partition at scan
@@ -7908,59 +7784,6 @@ question the clone serves ("which formats can we carve") is answered by
 the ABI enumeration (`cr_ui_carve_format_count/info`, ABI-CONTRACT §7a)
 and its CLI projection (`rrecov list-carve-formats`, landed with this
 register). Pinned by `CrUi.CarveFormatRegistryEnumeration`.
-
-
-### D-84 — disk enumeration: the two-stack merge (PhysicalDrive loop + cfgmgr32 disk interfaces), not the og's five-stack fan-in (N-071, REGISTERED DIVERGENCE — partial port with scope rationale)
-
-**Class:** registered divergence (enumeration breadth) · **Finding:**
-diff-to-fix N-071 (MINOR, fixed with the two-stack merge; residual
-registered here) · **Date:** 2026-10-26
-
-**WHAT OG DOES:** the device discovery fan-in spans five stacks — WMI
-(MSFT_* namespaces), SetupAPI device interfaces, VDS (dynamic-disk
-packs), Storage Spaces, and Function Discovery (mom-module-system
-architecture :57-59; the QA boot census shows `CDiskEnumerator :
-Storage space init` + `GetUsedPhysicalDisks` + `Vds loadservice` running
-alongside the plain `disk enumerate` — vendor-logs :13-29) — merged into
-the device list the UI presents, with hot-plug notification.
-
-**WHAT WE DO:** a two-stack merge: the numbered `\\.\PhysicalDrive0..N`
-loop (geometry/alignment/descriptor/table parse) + the cfgmgr32
-`GUID_DEVINTERFACE_DISK` present-instance pass (every interface opened,
-queried with the same IOCTL family, merged by
-`merge_disk_enumeration` — dedup by disk number, then by instance
-path; N-071's landing). The WMI/VDS/Storage-Spaces/FunctionDiscovery
-stacks are not ported; hot-plug eventing is not ported (the CLI/UI
-re-enumerates on demand).
-
-**WHY:** (1) Every block device Windows exposes for user-mode READ
-surfaces as `\\.\PhysicalDriveN` or a disk-interface instance — the two
-stacks cover the readable-device space the recovery engine consumes;
-the og's extra stacks feed its UI metadata (WMI friendly names, VDS
-dynamic-volume CONFIG — which our LDM engine parses from the disk
-itself — and Storage Spaces pool topology for display). (2) The
-finding's own open question records that Storage Spaces members DO
-surface as PhysicalDrive in practice (the miss-case is
-UNVERIFIED-BY-EXECUTION without a Storage Spaces host; the QA census
-shows the stacks RUNNING, not a disk the numbered namespace lacks). (3)
-FunctionDiscovery and hot-plug notify are product-shell concerns (the
-og's DeviceManager.mo is a UI-facing module); the engine's contract is
-a complete device LIST on demand, which the merge provides. The
-cfgmgr32 pair (`CM_Get_Device_Interface_List_SizeW`/
-`CM_Get_Device_Interface_ListW`) is Win2000-era — the Win7-inclusive
-import gate holds (cfgmgr32 added to the strict allowlist with the
-function pair).
-
-**RISK:** a device reachable ONLY through VDS/Storage-Spaces stacks and
-absent from both the PhysicalDrive namespace AND the disk-interface
-list would be missed — no such device class is documented in the corpus
-(the QA host's own Storage-Spaces census ran WITHOUT producing an
-
-> Grafted back (DFX24 union repair, 2026-10-26): the DFX30-T4 delta-ledger
-> renumbering renamed this row D-79 -> D-84 in the ledger comment but the row
-> itself was dropped in the union; restored verbatim from the canonical N-071
-> landing 7ee64fb with the renumbered id (test
-> Enumerate.ScopeDeltaRegisteredWithRevisitTrigger stays red without it).
 
 ### D-85 — device enumeration scope: the PhysicalDrive namespace is the engine's device truth; no WMI/SetupAPI/VDS/StorageSpaces/FunctionDiscovery fan-in (N-071, REGISTERED DIVERGENCE — scope)
 
@@ -8006,7 +7829,6 @@ from `rrecov list` / `cr_ui_enumerate_disks` reopens this row with a
 live probe (the SetupAPI disk-interface pass is the designed extension
 point — enumerate_via_setupapi() merging dedup'd by device instance
 path per the finding's fix plan option b).
-
 
 ### D-86 — the logging seam: one host sink, no cross-process transport (N-048, REGISTERED DIVERGENCE)
 
