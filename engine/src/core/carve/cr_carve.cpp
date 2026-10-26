@@ -18,6 +18,7 @@
 #include "cr/carve/cr_carve.h"
 #include "cr/cr_text.h" /* S-032: entry names UTF-8 -> u16 */
 #include "cr/carve/cr_rawsigns.h"
+#include "cr/carve/cr_usersigns.h"
 #include "cr/cr_parallel.h"
 #include "cr/crypto/cr_sha256.h"
 #include "cr/table/cr_table_wire.h" /* M-051: crc32 for the analyser checksum */
@@ -127,6 +128,40 @@ struct ScanCtx {
      * map; the core's FreeMap is inverted (bit set = free) - the gate
      * inverts: clear = used. ---- */
     const storage::FreeMap* free_map = nullptr;
+
+    /* M-039: the occupancy interval gate (sorted, coalesced, non-empty
+     * [start, end) pairs, SLICE-relative). Positions inside an interval
+     * are suppressed from dispatch; the grammar layer jumps to the
+     * interval end (the M-005 cluster-jump analog at extent
+     * granularity). Binary search per probe (the set is sorted). */
+    const std::vector<std::pair<u64, u64>>* occupied = nullptr;
+    std::atomic<u64> occupancy_skipped{0}; /* positions suppressed by the
+                                              interval gate (telemetry) */
+
+    /* Position inside an occupied interval? Returns the interval end
+     * (the jump target) via `end_out` when suppressed. */
+    bool occupancy_used(u64 pos, u64* end_out = nullptr) const {
+        if (occupied == nullptr || occupied->empty())
+            return false;
+        /* upper_bound on start: the candidate interval is the one before */
+        size_t lo = 0, hi = occupied->size();
+        while (lo < hi) {
+            const size_t mid = lo + (hi - lo) / 2;
+            if ((*occupied)[mid].first <= pos)
+                lo = mid + 1;
+            else
+                hi = mid;
+        }
+        if (lo == 0)
+            return false; /* before every interval */
+        const auto& iv = (*occupied)[lo - 1];
+        if (pos < iv.second) {
+            if (end_out)
+                *end_out = iv.second;
+            return true;
+        }
+        return false;
+    }
 
     /* Position suppressed by the gate? (slice-relative pos) */
     bool gate_used(u64 pos) const {
@@ -240,6 +275,18 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             } else if (ctx.gate_used(base + off)) {
                 continue; /* used mid-cluster: this position only */
             }
+        }
+        /* M-039: the occupancy interval gate - a position inside a
+         * structured node's extent is FS-accounted space: suppress (and
+         * jump to the interval end - the same window-coords convention
+         * as the M-005 jump; extents coalesce, so the jump skips whole
+         * files). */
+        if (u64 occ_end = 0; ctx.occupancy_used(base + off, &occ_end)) {
+            ctx.occupancy_skipped.fetch_add(1, std::memory_order_relaxed);
+            const u64 rel = occ_end - base;
+            if (rel > off)
+                off = rel - 1; /* lands past the interval */
+            continue;
         }
         const u8 c = win[off];
         /* first-byte dispatch: only formats whose magic starts with c.
@@ -483,6 +530,13 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
              * probes (the og's single block-scan loop gates all dispatch;
              * skip counting stays with the grammar layer - no double
              * count). */
+            /* M-039: the occupancy gate rides the same stride - a sign
+             * inside FS-accounted space is the og's skip case (its
+             * per-volume bitmap covers every engine's extents). */
+            if (ctx.occupancy_used(start_abs)) {
+                ctx.occupancy_skipped.fetch_add(1, std::memory_order_relaxed);
+                continue;
+            }
             if (ctx.free_map) {
                 if (const u64 jump = ctx.gate_check_and_skip(start_abs, false); jump != 0) {
                     const u64 rel = jump - base;
@@ -495,6 +549,88 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             }
             if (emitted_at.count(start_abs))
                 continue; /* a grammar-validated file starts here */
+            /* M-048: the user-extensible signature layer (the og's
+             * EUUserData consumer) - probed at the same stride, after
+             * the grammar layer's claims, before the built-in raw-sign
+             * table (a user sign for an already-probed position is a
+             * duplicate by construction; a user sign colliding with a
+             * BUILT-IN fires only when the built-ins did not match -
+             * built-in-first, the collision rule the finding specifies).
+             * A user-sign hit emits directly: no tail walk (user signs
+             * carry no tail semantics), the user's extension and MIME in
+             * the record, extent to the device end (the og's user signs
+             * are header-only markers - no size grammar). */
+            if (usersigns::active_count() != 0) {
+                if (const carve::usersigns::UserSign* us =
+                        usersigns::match_at(win + off, want - off)) {
+                    const u64 len = ctx.total - start_abs;
+                    /* F9 dedup (extent class) - the same shape as the
+                     * grammar/raw-sign layers */
+                    u64 len_class = 0;
+                    if (len >= (1 << 20)) {
+                        while ((1ULL << len_class) < len)
+                            ++len_class;
+                        len_class += 64;
+                    } else {
+                        len_class = len / 65536;
+                    }
+                    bool dup = false;
+                    if (ctx.dedup_tree &&
+                        ctx.dedup_tree->find_by_extent(start_abs + ctx.ext_base, len_class))
+                        dup = true;
+                    if (!dup && ctx.tree->find_by_extent(start_abs + ctx.ext_base, len_class))
+                        dup = true;
+                    if (dup) {
+                        ctx.duplicates.fetch_add(1, std::memory_order_relaxed);
+                        emitted_at.insert(start_abs);
+                    } else {
+                        tree::FileProperties* props = new (std::nothrow) tree::FileProperties();
+                        if (props == nullptr) {
+                            ctx.aborted.store(true, std::memory_order_relaxed);
+                            return ERR_NO_MEMORY;
+                        }
+                        const u32 fi = ctx.file_index.fetch_add(1, std::memory_order_relaxed);
+                        Signature rsig{};
+                        rsig.ext = us->ext;
+                        rsig.name = us->ext;
+                        props->name = ctx.namer ? ctx.namer(rsig, len, fi)
+                                                : default_namer(rsig, len, fi);
+                        props->fs_kind = u32(FsKindCode::Raw);
+                        props->logical_size = len;
+                        props->carve_format = 0xFFFE0000u; /* M-048: the user-signature tag */
+                        props->carve_confidence = 600; /* user-taught, no og-calibrated
+                                                         * confidence - the fixed documented
+                                                         * value (PARITY-DELTAS) */
+                        props->times.modified = ctx.scan_time;
+                        {
+                            u8 hdr[512];
+                            const u32 hb = u32(len < sizeof(hdr) ? len : sizeof(hdr));
+                            if (hb != 0 && wdev.read_at(start_abs, hdr, hb) == OK)
+                                props->carve_checksum = table::crc32(hdr, hb);
+                        }
+                        props->extents.push_back({start_abs + ctx.ext_base, len});
+                        if (ctx.ext_base != 0)
+                            props->flags = u16(props->flags | tree::NODE_FLAG_EXT_SHIFTED);
+                        /* the MIME rides the note (the og's EUUserData
+                         * classification field) */
+                        if (us->mime[0] != 0)
+                            for (const char* mp = us->mime; *mp; ++mp)
+                                props->carve_note.push_back(u16(u8(*mp)));
+                        tree::FileNode* n = ctx.tree->add_file(ctx.carve_root, props);
+                        props->release();
+                        if (n == nullptr) {
+                            ctx.aborted.store(true, std::memory_order_relaxed);
+                            return ERR_NO_MEMORY;
+                        }
+                        n->set_origin(tree::Origin::Carved);
+                        n->set_deleted_state(tree::DeletedState::Deleted);
+                        n->set_confidence(tree::Confidence::PartialRisk);
+                        ctx.sign_hits.fetch_add(1, std::memory_order_relaxed);
+                        emitted_at.insert(start_abs);
+                        continue;
+                    }
+                }
+            }
             /* N-031: the og's all-zero-sector fast-skip, core shape: no
              * header sign can live outside the first 47 bytes of the
              * stride (probe_header's whole offset span), so a stride
@@ -778,6 +914,7 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
     /* M-005: the allocation-bitmap gate (nullable; slice-relative basis -
      * the orchestrator rebases stats.free_map before the call) */
     ctx.free_map = flags.free_map;
+    ctx.occupied = flags.occupied_ranges;
     /* M-024: build the per-format disable maps from the host list (one
      * pass; the hot loops then test a single bool). The grammar layer
      * gates by trial slot; the raw-sign layer gates by format index. */
@@ -872,6 +1009,8 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
     stats.zero_strides_skipped += ctx.zero_strides_skipped.load();
     /* M-005: gate telemetry */
     stats.bitmap_skipped_clusters += ctx.bitmap_skipped_clusters.load();
+    /* M-039: occupancy-gate telemetry */
+    stats.occupancy_skipped += ctx.occupancy_skipped.load();
     stats.bitmap_skipped_bytes =
         (flags.free_map && flags.free_map->valid())
             ? stats.bitmap_skipped_clusters * u64(flags.free_map->cluster_bytes)

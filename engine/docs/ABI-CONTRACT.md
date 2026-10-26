@@ -546,3 +546,38 @@ s5-oq-s4-2-raw-naming-hook.md): the raw/carve category root's role name.
 NULL/"" = the default "Other Deleted Files (Carved)". Resume recognizes
 both the default and the configured name, so a re-run never spawns a
 duplicate raw root.
+
+
+### 7d. The user-signature registration surface (M-048, ABI-since 2.1)
+
+`cr_ui_register_user_signs(json, len)` installs the og's EUUserData-shaped
+signature database atomically (parse + validate + install; a bad payload
+leaves the previous set). `cr_ui_user_sign_count/info` enumerate the
+active set. Registered signs ride every carve pass at the raw-sign
+stride, after the built-in layers (built-in-wins). The tag space for
+user-sign records is 0xFFFE0000 (distinct from raw-sign 0xFFFF0000+fmt).
+Re-registration replaces — the og's config-reload posture (EUUserData is
+re-read per scan, never session state).
+
+### 7e. The transport-open diagnostic (M-030, ABI-since 2.2)
+
+`cr_ui_last_transport_error()` reports WHY the last `cr_ui_open_disk`
+ended on the transport it did. The og's ABI surface reports the
+driver-vs-direct decision's failure reason; the pre-fix core silently
+fell back RDA -> direct and overwrote the RDA leg's error code, so a
+degraded-but-working transport was indistinguishable from a healthy
+one. The advisory is process-global, advisory-only (never gates an
+open's own return code), never cleared by reads:
+
+- `0` — the last open succeeded on its first-choice leg (or no open was
+  attempted; the unsupported-platform stub records the clean state).
+- `CR_UI_ERR_*` — the surviving leg's error: when the RDA leg fails and
+  the direct fallback succeeds, the advisory carries the RDA error (the
+  degraded transport is diagnosable); when both legs fail, the open's
+  return code and the advisory agree.
+
+The WinPE environment gate (M-030's other half of the open path) rides
+the same surface implicitly: in a PE environment the RDA leg is skipped
+entirely (the og's callers go `\\.\PhysicalDrive%d` direct -
+Device_decompiled.c :50653-50663), so the advisory never reports a
+driver-leg error that was never attempted.

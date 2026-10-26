@@ -150,3 +150,16 @@ wrong bytes), `mirror_rotations` (non-first-stripe 2-copy accesses).
 Error-map integration verified already-by-construction (the Skip-mode
 RetryingDevice pipe records sector-granular failures for every engine
 read; no per-engine duplicate).
+
+## Session-34 fix leg (DFX34) — N-072 (the re-scan cache half)
+
+| Parameter | Verdict |
+|---|---|
+| P47/P48 re-scan throughput | **MATCH (mechanism; format REGISTERED as ours)** — the og's BtrfsCache.txt (string evidence :66-67, format undecoded) is answered by `cr_btrfs_cache.h`: OFF by default, caller-supplied dir (the og's beside-the-DLL placement is a documented hazard NOT copied), fsid-keyed single size-bounded file, generation inside as the strict match-or-discard gate; a valid blob skips the chunk chase/walk + root probe (warm-scan nodes_read strictly lower, tree output identical) |
+| S36 cross-scan lifecycle | **MATCH** — the cache spans scans via the host seam (BtrfsCacheIo), never beside the engine; trees are re-read and re-validated every scan |
+
+## Session-34 fix leg (DFX34) — N-072 (the ZFS retry half)
+
+| Parameter | Verdict |
+|---|---|
+| A25 label import steps | **MATCH** — the og's delay-execution import polling (:86) = the bounded label retry: live handles only (is_static_media discriminator), 250/500/1000 ms backoff, cancel-aware in 50 ms slices, label_retries counted, 3-retry bound then ERR_BAD_MAGIC |

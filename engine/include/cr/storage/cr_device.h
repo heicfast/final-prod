@@ -13,6 +13,15 @@
  *   - errors are strong: every failed region lands in the ReadErrorMap carried
  *     by the scan result and session (R1.6).
  *
+ * REGISTERED DIVERGENCE (M-034, PARITY-DELTAS D-88): NAS/remote scanning
+ * is EXCLUDED from the core's device scope. The og wraps an EuMrx
+ * redirector (CRemoteDevice/CDoScanRemoteDevice) to scan shares; the
+ * core's device layers are local-only by design — the EuMrx interop is
+ * host-layer surface, the corpus proves the scan-path plumbing only
+ * (deleted-file yield over SMB is undecoded), and a network stack is not
+ * pure-core surface. The IStorageDevice contract itself is transport-
+ * agnostic: a host MAY layer an SMB-backed device.
+ *
  * Licensed under the MIT license. See LICENSE.
  */
 
@@ -115,6 +124,13 @@ public:
      * (PartitionSlice overrides); 0 for whole-device views. Feeds the
      * session VolumeInfo (G-14) and destination-overlap math. */
     virtual u64 absolute_base() const { return 0; }
+    /* N-072 (ZFS label retry): true when this device is STATIC MEDIA - an
+     * image file (or a window over one). Static media cannot heal: a torn
+     * label stays torn, so robustness retries (the og's delay-execution
+     * import polling) are skipped for it. Default false = a live handle
+     * (a real disk/volume); the image devices and every wrapper forward
+     * accordingly. */
+    virtual bool is_static_media() const { return false; }
 };
 
 /* Cancellation token consulted at loop heads (R6.2; reference cancel

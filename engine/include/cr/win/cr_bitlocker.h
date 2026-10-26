@@ -69,17 +69,6 @@ u32 try_auto_unlock_offline(wchar_t letter, const wchar_t* hive_path);
  * through the cr::log seam (index only - password material is never
  * logged). Returns OK when a candidate unlocked the volume,
  * ERR_FVE_LOCKED when the whole set failed. */
- * first (corpus order), then the user-provided strings. Every attempt
- * is logged through the cr::log seam (index only - password material is
- * never logged). Returns OK when a candidate unlocked the volume,
- * ERR_FVE_LOCKED when the whole set failed.
- *
- * CONVERGENCE (D-80, first-landing-wins): the parallel DFX34 lane's
- * cr::pwddict design was reconciled away in this session's N-064
- * convergence commit - its loader capability is absorbed here
- * (--bitlocker-dict [file]: the shipped table plus an og-format
- * dictionary file). Do NOT re-introduce a second dictionary module or
- * flag; extend THIS surface. */
 u32 unlock_with_dictionary(wchar_t letter, const wchar_t* const* user_passwords,
                            size_t user_count);
 

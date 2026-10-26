@@ -982,6 +982,11 @@ int main(int argc, char** argv) {
         uint32_t ac = 0;
         CHECK_EQ_U64(cr_ui_open_disk(0, &d), CR_UI_ERR_UNSUPPORTED);
         CHECK_EQ_U64(cr_ui_open_volume('C', &d), CR_UI_ERR_UNSUPPORTED);
+        /* M-030 (ABI-since 2.2): the transport-open diagnostic is an
+         * advisory read - callable on every platform, never gates an
+         * open's return code. On the unsupported-transport stub nothing
+         * records, so the advisory reads 0 (clean state). */
+        CHECK_EQ_U64(cr_ui_last_transport_error(), 0u);
         CHECK_EQ_U64(cr_ui_enumerate_disks(&di, &ac), CR_UI_ERR_UNSUPPORTED);
         CHECK_EQ_U64(cr_ui_enumerate_volumes(NULL, &ac), CR_UI_ERR_UNSUPPORTED);
         CHECK_EQ_U64(cr_ui_health_read(0, &hr, NULL, 0, &ac), CR_UI_ERR_UNSUPPORTED);

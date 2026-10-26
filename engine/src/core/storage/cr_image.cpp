@@ -155,6 +155,9 @@ std::unique_ptr<IStorageDevice> open_image_impl(ImageFileIo& io, const std::u16s
 
 class FlatImageDevice final : public IStorageDevice {
 public:
+    /* N-072: image files are static media - a torn label cannot heal */
+    bool is_static_media() const override { return true; }
+
     FlatImageDevice(HeldFile file, u32 logical_sector) : file_(std::move(file)) {
         geom_.logical_sector = logical_sector;
         geom_.physical_sector = logical_sector;
@@ -415,6 +418,9 @@ VmdkDescriptor parse_vmdk_descriptor(const std::string& text, const std::u16stri
 
 class VmdkDevice final : public IStorageDevice {
 public:
+    /* N-072: image files are static media - a torn label cannot heal */
+    bool is_static_media() const override { return true; }
+
     VmdkDevice(std::vector<VmdkExtent> extents, u64 total_sectors,
                std::unique_ptr<IStorageDevice> parent)
         : extents_(std::move(extents)), parent_(std::move(parent)) {
@@ -674,6 +680,9 @@ VhdFooter parse_vhd_footer(const u8* p) {
 
 class VhdDevice final : public IStorageDevice {
 public:
+    /* N-072: image files are static media - a torn label cannot heal */
+    bool is_static_media() const override { return true; }
+
     VhdDevice(HeldFile file, u32 disk_type, u64 current_size, u32 block_size,
               std::vector<u32> bat, std::unique_ptr<IStorageDevice> parent)
         : file_(std::move(file)), disk_type_(disk_type), block_size_(block_size),
@@ -961,6 +970,9 @@ struct LogOverlayRange {
 
 class VhdxDevice final : public IStorageDevice {
 public:
+    /* N-072: image files are static media - a torn label cannot heal */
+    bool is_static_media() const override { return true; }
+
     VhdxDevice(HeldFile file, u64 virt_size, u32 block_size, u32 logical_sector,
                std::vector<u64> bat, u32 chunk_ratio_bits,
                std::vector<LogOverlayRange> overlay)

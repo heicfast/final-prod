@@ -7,6 +7,7 @@
  */
 
 #include "cr/btrfs/cr_btrfs_engine.h"
+#include "cr/btrfs/cr_btrfs_cache.h" /* N-072 */
 #include "cr/cr_text.h"
 #include <gtest/gtest.h>
 #include <zlib.h>
@@ -1860,6 +1861,219 @@ TEST(Btrfs, DefaultDirItemNonSubvolumeLocationFallsBack) {
     EXPECT_TRUE(paths.count("hello.txt")) << "the root-5 fallback keeps the default at the root";
     EXPECT_FALSE(paths.count("subvol-5"));
     EXPECT_EQ(1u, st.subvolumes);
+}
+
+
+/* ------------------------------------------------------------------ */
+/* N-072: the re-scan metadata cache                                   */
+/* ------------------------------------------------------------------ */
+
+class RecordingCacheIo final : public BtrfsCacheIo {
+public:
+    bool read_blob(const std::u16string& dir, const u8 fsid[16],
+                   std::vector<u8>& out) override {
+        ++reads;
+        (void)dir;
+        (void)fsid;
+        if (stored.empty())
+            return false;
+        out = stored;
+        return true;
+    }
+    bool write_blob(const std::u16string& dir, const u8 fsid[16],
+                    const std::vector<u8>& bytes) override {
+        ++writes;
+        (void)dir;
+        (void)fsid;
+        stored = bytes;
+        return true;
+    }
+    int reads = 0;
+    int writes = 0;
+    std::vector<u8> stored;
+};
+
+TEST(Btrfs, CacheRoundTripAndInvalidation) {
+    /* the codec: serialize -> parse-adopt is byte-equal on every field;
+     * stale generation / foreign fsid / corrupt CRC each discard */
+    u8 fsid[16] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+    BtrfsCacheData d;
+    d.generation = 77;
+    d.chunk_root = 0x100000;
+    d.root_tree = 0x102000;
+    ChunkMap c1;
+    c1.logical_start = 0x100000;
+    c1.logical_len = 0x8000;
+    c1.physical_start = 0x100000;
+    c1.type = 4; /* METADATA */
+    c1.num_stripes = 1;
+    c1.stripes.push_back({1, 0x100000});
+    ChunkMap c2;
+    c2.logical_start = 0x700000;
+    c2.logical_len = 0x100000;
+    c2.physical_start = 0x700000;
+    c2.type = 1; /* DATA */
+    c2.num_stripes = 2;
+    c2.sub_stripes = 2;
+    c2.stripes.push_back({1, 0x700000});
+    c2.stripes.push_back({2, 0x900000});
+    d.chunks = {c1, c2};
+
+    std::vector<u8> blob;
+    ASSERT_TRUE(cache_serialize(fsid, d, 1u << 20, blob));
+    EXPECT_LE(blob.size(), size_t(1u << 20));
+
+    BtrfsCacheData back;
+    ASSERT_TRUE(cache_parse_validate(fsid, 77, blob, back));
+    ASSERT_EQ(back.chunks.size(), 2u);
+    EXPECT_EQ(back.generation, 77u);
+    EXPECT_EQ(back.chunk_root, 0x100000u);
+    EXPECT_EQ(back.root_tree, 0x102000u);
+    EXPECT_EQ(back.chunks[0].logical_start, 0x100000u);
+    EXPECT_EQ(back.chunks[0].type, 4u);
+    ASSERT_EQ(back.chunks[1].stripes.size(), 2u);
+    EXPECT_EQ(back.chunks[1].stripes[1].devid, 2u);
+    EXPECT_EQ(back.chunks[1].stripes[1].offset, 0x900000u);
+    EXPECT_EQ(back.chunks[1].sub_stripes, 2u);
+
+    /* stale generation: discarded, out untouched */
+    BtrfsCacheData stale;
+    EXPECT_FALSE(cache_parse_validate(fsid, 78, blob, stale));
+
+    /* foreign volume: discarded */
+    u8 other[16] = {};
+    EXPECT_FALSE(cache_parse_validate(other, 77, blob, stale));
+
+    /* corrupt tail byte: CRC mismatch, discarded */
+    std::vector<u8> corrupt = blob;
+    corrupt[corrupt.size() / 2] ^= 0xFF;
+    EXPECT_FALSE(cache_parse_validate(fsid, 77, corrupt, stale));
+
+    /* truncated blob: discarded */
+    std::vector<u8> trunc(blob.begin(), blob.begin() + 20);
+    EXPECT_FALSE(cache_parse_validate(fsid, 77, trunc, stale));
+
+    /* over-cap serialization refused */
+    std::vector<u8> tiny;
+    EXPECT_FALSE(cache_serialize(fsid, d, 32, tiny));
+}
+
+TEST(Btrfs, CacheDisabledByDefault) {
+    /* no config at all: the recorder is never touched (the default scan
+     * writes nothing anywhere - the og's unconditional beside-the-DLL
+     * write is deliberately not copied) */
+    auto img = build_volume();
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    BtrfsScanStats st;
+    ASSERT_EQ(OK, scan_btrfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    EXPECT_EQ(st.cache_hits, 0u);
+    EXPECT_EQ(st.cache_writes, 0u);
+
+    /* empty dir (or null io) = still disabled */
+    RecordingCacheIo io;
+    BtrfsCacheConfig cfg; /* dir empty */
+    cfg.io = &io;
+    BtrfsScanStats st2;
+    tree::ResultTree tree2;
+    auto* ra2 = tree2.add_root(u"Found");
+    ASSERT_EQ(OK,
+              scan_btrfs(&dev, nullptr, nullptr, nullptr, tree2, ra2, nullptr, nullptr, st2, &cfg));
+    EXPECT_EQ(io.reads, 0);
+    EXPECT_EQ(io.writes, 0);
+    BtrfsCacheConfig cfg2;
+    cfg2.dir = u"cache";
+    /* io null */
+    BtrfsScanStats st3;
+    tree::ResultTree tree3;
+    auto* ra3 = tree3.add_root(u"Found");
+    ASSERT_EQ(OK,
+              scan_btrfs(&dev, nullptr, nullptr, nullptr, tree3, ra3, nullptr, nullptr, st3, &cfg2));
+    EXPECT_EQ(st3.cache_writes, 0u);
+}
+
+TEST(Btrfs, CacheWarmScanSkipsChunkDerivation) {
+    /* cold scan: derives + WRITES the blob; warm scan: ADOPTS it - same
+     * tree output, the chunk-tree walk skipped (nodes_read strictly
+     * lower), no rewrite on a hit. The plan's acceptance criterion: the
+     * re-scan of a cached volume skips the tree re-parse. */
+    auto img = build_volume();
+    MemDevice dev(img);
+    RecordingCacheIo io;
+    BtrfsCacheConfig cfg;
+    cfg.dir = u"cache";
+    cfg.io = &io;
+
+    tree::ResultTree t1;
+    auto* ra1 = t1.add_root(u"Found");
+    BtrfsScanStats st1;
+    ASSERT_EQ(OK, scan_btrfs(&dev, nullptr, nullptr, nullptr, t1, ra1, nullptr, nullptr, st1, &cfg));
+    EXPECT_EQ(st1.cache_hits, 0u);
+    EXPECT_EQ(st1.cache_writes, 1u);
+    EXPECT_EQ(io.writes, 1);
+    const u64 cold_nodes_read = st1.nodes_read;
+
+    /* warm: the SAME image (same fsid + generation) */
+    MemDevice dev2(img);
+    tree::ResultTree t2;
+    auto* ra2 = t2.add_root(u"Found");
+    BtrfsScanStats st2;
+    ASSERT_EQ(OK,
+              scan_btrfs(&dev2, nullptr, nullptr, nullptr, t2, ra2, nullptr, nullptr, st2, &cfg));
+    EXPECT_EQ(st2.cache_hits, 1u);
+    EXPECT_EQ(st2.cache_writes, 0u) << "a hit never rewrites";
+    EXPECT_EQ(st2.chunks, st1.chunks);
+    EXPECT_LT(st2.nodes_read, cold_nodes_read)
+        << "the cached chunk map skips the chunk-tree derivation reads";
+
+    /* identical tree output (same files at the same paths) */
+    std::set<std::string> p1, p2;
+    std::function<void(tree::FileNode*, std::set<std::string>&)> collect =
+        [&](tree::FileNode* n, std::set<std::string>& out) {
+            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+                if (!c->props())
+                    continue;
+                out.insert(c->name_utf8());
+                collect(c, out);
+            }
+        };
+    collect(ra1, p1);
+    collect(ra2, p2);
+    EXPECT_EQ(p1, p2);
+    EXPECT_FALSE(p1.empty());
+}
+
+TEST(Btrfs, CacheStaleGenerationDiscardedOnVolumeRewrite) {
+    /* the volume's generation ADVANCED (a live rewrite): the blob keys to
+     * the old generation, the strict gate discards it, the scan re-derives
+     * and overwrites the cache. This is the plan's invalidation rule. */
+    auto img = build_volume();
+    MemDevice dev(img);
+    RecordingCacheIo io;
+    BtrfsCacheConfig cfg;
+    cfg.dir = u"cache";
+    cfg.io = &io;
+    tree::ResultTree t;
+    auto* ra = t.add_root(u"Found");
+    BtrfsScanStats st;
+    ASSERT_EQ(OK, scan_btrfs(&dev, nullptr, nullptr, nullptr, t, ra, nullptr, nullptr, st, &cfg));
+    ASSERT_EQ(st.cache_writes, 1u);
+
+    /* tamper the stored blob's generation field (offset: magic 8 + ver 4
+     * + fsid 16 = 28) to a future generation - as if the volume moved on */
+    ASSERT_GT(io.stored.size(), 40u);
+    io.stored[28] = 0xEE;
+
+    MemDevice dev2(img);
+    tree::ResultTree t2;
+    auto* ra2 = t2.add_root(u"Found");
+    BtrfsScanStats st2;
+    ASSERT_EQ(OK,
+              scan_btrfs(&dev2, nullptr, nullptr, nullptr, t2, ra2, nullptr, nullptr, st2, &cfg));
+    EXPECT_EQ(st2.cache_hits, 0u) << "the stale-generation blob is discarded";
+    EXPECT_EQ(st2.cache_writes, 1u) << "and replaced with the fresh derivation";
+    EXPECT_EQ(io.writes, 2);
 }
 
 } // namespace btrfs

@@ -806,11 +806,20 @@ TEST(Image, SessionRoundTripPersistsImagePath) {
     ASSERT_EQ(session::deserialize_volume_info(blob.data(), blob.size(), back), OK);
     EXPECT_STREQ(back.image, "/evidence/evidence.img");
     /* v2 records (no tail) reload with an empty path - old sessions stay
-     * loadable and simply skip the image-mismatch warning */
-    std::vector<u8> v2(blob.begin(), blob.end() - 256);
+     * loadable and simply skip the image-mismatch warning. The v2 prefix
+     * sits under the v3 image tail (256) AND the N-066 v4 tail (608). */
+    std::vector<u8> v2(blob.begin(), blob.end() - 256 - 608);
     session::VolumeInfo old;
     ASSERT_EQ(session::deserialize_volume_info(v2.data(), v2.size(), old), OK);
     EXPECT_EQ(old.image[0], '\0');
+    /* a v3-length record (with image, without the N-066 axes) also loads:
+     * the v4 fields stay zeroed - the pre-N-066 file contract */
+    std::vector<u8> v3(blob.begin(), blob.end() - 608);
+    session::VolumeInfo oldv3;
+    ASSERT_EQ(session::deserialize_volume_info(v3.data(), v3.size(), oldv3), OK);
+    EXPECT_STREQ(oldv3.image, "/evidence/evidence.img");
+    EXPECT_EQ(oldv3.firmware[0], '\0');
+    EXPECT_EQ(oldv3.boot_snapshot[0], 0);
 }
 
 /* ------------------------------------------------------------------ */

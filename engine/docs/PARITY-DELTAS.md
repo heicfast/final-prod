@@ -7900,6 +7900,47 @@ live probe (the SetupAPI disk-interface pass is the designed extension
 point — enumerate_via_setupapi() merging dedup'd by device instance
 path per the finding's fix plan option b).
 
+### D-87 — the damage-audit check phase: three bounded divergences from the og's FileSystemCheck (M-041, REGISTERED; renumbered from a D-76 collision with the parallel lanes' N-063 register — the errata convention)
+
+**CONTEXT:** M-041 landed the og's chkdsk-grade audit layer
+(`cr/check/cr_fscheck.h/.cpp`, corpus ghidra-mo/FileSystemCheck_decompiled.c,
+every load-bearing gate decompile-cited in the header). Three points could
+not be decoded to byte-parity and are registered here rather than guessed.
+
+**(a) The $Bitmap slack term is not implemented.** The og's structural
+check (checkntfs.cpp :3866-3888, inside FUN_180005590) fires 0x100b when
+`bitmap_bits < mft_record_count` OR when
+`mft_record_size × (CCheckNTFSVolume+0x30) × 8 <= bitmap_bits − mft_record_count`.
+The first half is implemented exactly. The second half's constant lives in
+an object-field layout the decompile does not resolve (+0x30 is not read
+anywhere else in the module): every well-formed volume stores exactly
+one bit per cluster, and no fixed slack constant can both fire on
+corruption and stay silent on healthy volumes under the field's plausible
+readings — the term is layout-undecoded and deliberately NOT approximated.
+
+**(b) CheckIssue carries superset context the og's callback does not.** The
+og's FAT-path 0x1003 (orphan sweep) reports `(code, 0)`; the NTFS
+cross-check reports `(code, LCN)` and the record number only in its log
+line. The core's `CheckIssue` carries the orphan CLUSTER, the NTFS LCN,
+the claiming record number, and a path hint for the dir audit. Hosts
+consuming the report get strictly more context; the numeric codes and
+their meanings are unchanged.
+
+**(c) A partial $Bitmap run load fails the load (0x100b), never a
+zero-tail audit.** The og's LoadVolumeBitmap allocates the declared
+$DATA size and reads the runs; a short/failed read leaves the og's log
+line and a bitmap whose tail content depends on its allocator. The core
+refuses to cross-check against a partially-loaded bitmap (the zero-filled
+tail would read as "every cluster free" and fire false 0x1003 verdicts) —
+the structural 0x100b is reported instead. The og's
+"Call LoadVolumeBitmap() failed!" path is the closest analogue.
+
+**RISK:** none user-observable beyond the og's own coverage; (a) may miss
+a corruption class the og's slack term catches (undecodable which), (b) is
+additive, (c) is stricter-than-og on a pathological shape. REVISIT
+TRIGGER: any future decode of CCheckNTFSVolume's field layout (+0x30)
+reopens (a) with the exact constant.
+
 ### D-86 — the logging seam: one host sink, no cross-process transport (N-048, REGISTERED DIVERGENCE)
 
 The og runs a three-layer logging architecture: Log.mo's EPMLOG.log
@@ -7919,3 +7960,75 @@ policy the og baked into its transports: file placement, rollover,
 compaction, async). The og's per-line timestamp/process decoration is
 its transports' job; the core emits the message text. Pinned by
 `Orchestrator.LogSilentByDefault` + `Orchestrator.LogSinkReceivesScanBrackets`.
+
+### D-88 — NAS/remote scanning: excluded from the core's device scope; the EuMrx redirector is host-layer surface (M-034, REGISTERED DIVERGENCE — scope)
+
+**Class:** registered divergence (scope exclusion) · **Finding:**
+diff-to-fix M-034 (MAJOR, resolved by registration — the disposition
+the finding demanded) · **Date:** 2026-10-26
+
+**WHAT OG DOES:** the product scans NAS shares through a remote-device
+layer — `CRemoteDevice`/`CDoScanRemoteDevice` (rtti_classes.json,
+DRWUI census) wrapping an EuMrx redirector that mounts shares as
+drive paths (`X:\EuShare.com\…`, architecture/05-scan-engine-
+architecture.md §8; DRWUI-exe--main-ui-architecture.md :214-215
+documents the EuMrx/NAS scan flow).
+
+**WHAT WE DO:** the five local-device storage layers only (device,
+slice, cached, retry, devmap — physical, slice-bounded, cached,
+retrying, and image views). No remote transport, no EuMrx equivalent,
+no share-mounting. A HOST may layer an SMB-backed `IStorageDevice` —
+the device contract (cr_device.h) is intentionally transport-agnostic,
+and the win layer's volume path (`\\.\C:`) reads mapped network drives
+through the OS redirector for file-level recovery.
+
+**WHY:** (1) The EuMrx interop is og-internal plumbing — the finding's
+own fix plan records that "the device contract is the parity surface",
+not the redirector. (2) The corpus proves the scan-path plumbing only
+(RTTI + architecture docs); whether the og's NAS scan actually
+recovers deleted files from shares — server-side undelete semantics
+differ fundamentally from raw block access — is a product-level
+question the corpus does not answer (the finding's own open question).
+(3) A network stack is not pure-core surface: the core deliberately
+owns no OS facilities below the device contract, and SMB client
+behavior (credentials, timeouts, offline caching) is host policy. (4)
+The capability was never previously dispositioned anywhere — this row
+is the registration the finding existed to force.
+
+**RISK:** users needing NAS recovery must go through the host layer's
+mapped-drive path (file-level, whatever the OS redirector exposes) —
+no raw-block carving over SMB. No such device class is documented in
+the corpus as recoverable-by-block-access; the exclusion is scope, not
+capability loss. REVISIT TRIGGER: a corpus decode of the EuMrx scan's
+actual recovery semantics (deleted-file yield on shares) would reopen
+the row.
+
+### D-89 — the Btrfs re-scan cache: our own format, caller-supplied directory, OFF by default (N-072, REGISTERED DIVERGENCE)
+
+**OG:** BtrfsSearchDLL persists a relative-path `BtrfsCache.txt` beside the
+engine DLL to speed re-scans of the same volume — subvolume/chunk trees
+cached (artifacts/SearchDLL/remaining-engines artifact :66-67). STRING
+EVIDENCE ONLY: the og's cache format, keying and invalidation rule are not
+decoded anywhere in the corpus.
+
+**CORE (N-072):** the mechanism is ported with three deliberate deltas, each
+required by the finding's own fix plan: (1) the format is OUR OWN — a
+versioned binary blob ("CRBTC001", zlib CRC32, fsid + generation strict
+match-or-discard, hostile-blob caps, 1 MiB size bound) documented in
+`cr_btrfs_cache.h`; no og format exists to match, so none is claimed. (2)
+The placement is a CALLER-SUPPLIED cache directory (the og's beside-the-DLL
+write breaks under Program Files / readonly media / multi-user contexts —
+the finding's own hazard note). (3) The cache is OFF by default (the og
+writes unconditionally); a host opts in per scan with a directory + IO seam.
+What is cached: the derived chunk map + the chunk-root/root-tree bytenrs —
+exactly the re-scan's repeated derivations; the trees themselves are NEVER
+cached (every scan re-reads and re-validates them — recovery-honest).
+
+**RISK:** a warm scan adopts the cached chunk map when fsid AND generation
+match; a volume whose generation advanced (any live write) invalidates
+cleanly (re-derive + rewrite). A corrupt/foreign/truncated blob is
+discarded, never adopted.
+
+**VERDICT:** ACCEPTED (registered divergence: own format + placement +
+default-off vs the og's undecoded beside-the-DLL write; the capability gap
+N-072 filed is closed).

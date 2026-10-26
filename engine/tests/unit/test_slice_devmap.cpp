@@ -3,6 +3,7 @@
 #include "cr/storage/cr_slice.h"
 #include "cr/cr_errmod.h"
 #include <cstring>
+#include "test_tmpdir.hpp" /* cr_test::read_repo_file (doc-truth pin) */
 
 using namespace cr;
 
@@ -259,4 +260,31 @@ TEST(Slice, GeometryRefreshRefusesInvalidatingChange) {
     dev.set_geometry(0, 0, u64(100) * 4096);
     EXPECT_EQ(slice->refresh_geometry(), ERR_BAD_PARAMETER);
     EXPECT_EQ(slice->geometry().logical_sector, 512u);
+}
+
+/* ---- M-034 doc-truth pin: the NAS scope exclusion ---------------------- */
+
+TEST(Storage, ParityDeltasListsNasExclusion) {
+    /* M-034's disposition: NAS/remote scanning is EXCLUDED from the core's
+     * device scope, registered as PARITY-DELTAS D-88 (the finding existed
+     * to force exactly this registration - the capability was never
+     * dispositioned anywhere before). This pin fails when either artifact
+     * drifts: the D-88 row or the cr_device.h divergence block. Reopening
+     * the row (a corpus decode of the EuMrx scan's deleted-file yield)
+     * must update both in one commit. */
+    const auto deltas = cr_test::read_repo_file("docs/PARITY-DELTAS.md");
+    ASSERT_FALSE(deltas.empty());
+    EXPECT_NE(std::string::npos, deltas.find("D-88"))
+        << "PARITY-DELTAS must keep the NAS-scope-exclusion row";
+    EXPECT_NE(std::string::npos, deltas.find("excluded from the core's device scope"))
+        << "D-88 must state the exclusion plainly";
+    EXPECT_NE(std::string::npos, deltas.find("CRemoteDevice"))
+        << "D-88 must cite the og's remote-device layer (the M-034 evidence)";
+    EXPECT_NE(std::string::npos, deltas.find("EuMrx"))
+        << "D-88 must cite the redirector (the M-034 evidence)";
+
+    const auto hdr = cr_test::read_repo_file("include/cr/storage/cr_device.h");
+    ASSERT_FALSE(hdr.empty());
+    EXPECT_NE(std::string::npos, hdr.find("REGISTERED DIVERGENCE (M-034, PARITY-DELTAS D-88)"))
+        << "cr_device.h must carry the M-034 divergence block";
 }

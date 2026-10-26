@@ -33,21 +33,23 @@ add_executable(cr_tests
     unit/test_sha256.cpp
     unit/test_bitlocker_xts.cpp
     unit/test_dict.cpp
+    unit/test_pwddict.cpp
     unit/test_enumerate_merge.cpp
     unit/test_resume_revalidation.cpp
     unit/test_text.cpp
     unit/test_carve.cpp
     unit/test_session.cpp
     unit/test_orchestrator.cpp
+    unit/test_transport_logic.cpp
     unit/test_pause_resume.cpp
     unit/test_telemetry.cpp
     unit/test_writer_dirs.cpp
     unit/test_report.cpp
     unit/test_reghive.cpp
-    unit/test_pwddict.cpp
     unit/test_preview.cpp
     unit/test_snapshot.cpp
     unit/test_query.cpp
+    unit/test_fscheck.cpp
     unit/test_query_perf.cpp
     unit/test_diskmap.cpp
     unit/test_apply.cpp

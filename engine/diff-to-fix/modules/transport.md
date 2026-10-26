@@ -74,3 +74,43 @@ with silent fallback; `enumerate_disks(32, ...)` bounds enumeration.
   installer-only (WM_COPYDATA dwData=999 → "DRW_Installer" window; no engine contract);
   the boot chain confirms M-030's environment-gate evidence (ebrntdrv/epmdkdrv
   demand-load, EUDCPEPM boot-time filter, PENetwork SMB destinations — registered I-021).
+
+---
+
+## Session-23 verdict (M-030 FIXED)
+
+All four open items landed with the finding's three open questions
+resolved by first-hand decode (the full map is in
+findings/FIXED/M-030's Resolution):
+
+- **P51/P47** — the 64 KiB direct-I/O envelope stays the registered
+  deliberate improvement (OQ-S4-3's relative-perf measurement remains
+  the tracked-open remainder); no behavior change from this fix.
+- **P35** — the stale-handle ladder was the prior leg's landing,
+  verified present (read_at + write_at ERROR_INVALID_HANDLE heal-and-
+  retry, reopen_handle).
+- **P59/P43 (the WinPE gate)** — FIXED: `win::win_pe_environment()`
+  (GetSystemDirectoryA first byte 'X'/'x' - FUN_1800577e0 :50943-50992;
+  OQ-3's polarity resolved by the four callers' branch patterns) gates
+  BOTH `open_disk`'s RDA preference and the ABI's `open_disk_impl`:
+  in PE the core opens `\\.\\PhysicalDrive%d` direct like the og's
+  callers. The probe is kernel32-only (Win7-inclusive gate intact).
+- **P60-adjacent (the quiesce chain)** — FIXED: the terminal
+  IOCTL_VOLUME_OFFLINE (0x56C00C, RecoveryModule :60440) after DISMOUNT,
+  plus the corpus RESTORE chain on release (OQ-2 decoded: reopen by
+  GUID, IOCTL_VOLUME_ONLINE 0x56C008 :34484, SetVolumeMountPointW with
+  the saved letter, Sleep(1000)) - closing the letterless-after-repair
+  hole. The stale :44686-44720 cite corrected to :60401-60447; the
+  mislabeled FSCTL hex comments fixed (DISMOUNT=0x90020,
+  UNLOCK=0x9001c).
+- **P8 (multi-disk)** — FIXED: the LDM resolver's enumeration raised
+  32 -> 200 (`win::ENUMERATE_DISK_BOUND`, eprdtdrv :184 grammar space).
+- **P62-adjacent (diagnosability)** — FIXED:
+  `cr_ui_last_transport_error()` (ABI-since 2.2, additive) surfaces the
+  surviving transport leg's error; the RDA leg's failure is preserved
+  on the direct fallback (the silent swallow is gone).
+
+The corpus constants + the probe decision are pinned in
+`include/cr/win/cr_winenv.h` (platform-independent: both CI lanes
+compile them; `Transport.*` pins in the Linux suite, the real-chain
+behavior tests on the Windows lane).

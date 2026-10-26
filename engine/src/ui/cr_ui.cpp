@@ -27,6 +27,7 @@
 #include "cr/orchestrator/cr_scan.h"
 #include "cr/carve/cr_signatures.h"
 #include "cr/carve/cr_rawsigns.h"
+#include "cr/carve/cr_usersigns.h"
 #include "cr/tree/cr_diskmap.h"
 #include "cr/preview/cr_preview.h"
 #include "cr/query/cr_query.h"
@@ -827,6 +828,8 @@ void scan_event_trampoline_(const orchestrator::event::Event& e, void* user) {
     out.candidate_lba = e.candidate_lba;
     out.repair_actions = u32(e.repair_actions);
     out.repair_outcome = e.repair_outcome;
+    out.check_errors = e.check_errors;
+    out.check_family = e.check_family;
     /* N-043: every progress arrival resets the heartbeat watchdog's
      * stall clock (the og watches its engine step counter +0x8fc;
      * CR_EVT_SCAN_PROGRESS is that counter's echo on this surface). */
@@ -1079,6 +1082,11 @@ u32 fill_scan_config(const cr_ui_scan_config* in, orchestrator::ScanConfig& out)
     copy_card(out.volume_label, sizeof(out.volume_label), in ? in->volume_label_utf8 : nullptr);
     copy_card(out.volume_model, sizeof(out.volume_model), in ? in->volume_model_utf8 : nullptr);
     copy_card(out.volume_serial, sizeof(out.volume_serial), in ? in->volume_serial_utf8 : nullptr);
+    copy_card(out.volume_firmware, sizeof(out.volume_firmware),
+              in ? in->volume_firmware_utf8 : nullptr);
+    copy_card(out.volume_wwn, sizeof(out.volume_wwn), in ? in->volume_wwn_utf8 : nullptr);
+    copy_card(out.volume_interface, sizeof(out.volume_interface),
+              in ? in->volume_interface_utf8 : nullptr);
     /* M-029: the raw/carve category root's display name (the og's
      * "filter_generalraw" surface); empty = the default role */
     copy_card(out.raw_category_name, sizeof(out.raw_category_name),
@@ -1126,13 +1134,29 @@ u32 open_image_impl(const char* utf8_path, uint64_t offset, uint64_t bytes, cr_u
     return ret_ok();
 }
 
+
+/* M-030 (diff-to-fix): the transport-open diagnostic. The pre-fix ABI
+ * could not distinguish "driver absent" from "driver open failed with
+ * X" - the silent RDA->direct fallback overwrote the RDA leg's error
+ * (the finding's claim (f)). open_disk_impl records the surviving leg's
+ * error here; cr_ui_last_transport_error() reads it. 0 = the last open
+ * succeeded (or no open was attempted on this process). */
+std::atomic<uint32_t> g_last_transport_error{0};
+void set_last_transport_error_(uint32_t e) {
+    g_last_transport_error.store(e, std::memory_order_release);
+}
+
 #ifdef _WIN32
 
 u32 open_disk_impl(uint32_t disk, cr_ui_device** out) {
     if (!out)
         return ret_(ERR_BAD_PARAMETER, "bad argument: out");
     u32 err = 0, gle = 0;
-    if (win::rda_available(L"RDA", &gle)) {
+    /* M-030: the og's WinPE gate - in a PE environment the corpus
+     * callers open \\.\PhysicalDrive%d directly and never attempt the
+     * service grammar (Device_decompiled.c :50653-50663); the core's
+     * RDA driver is not present on PE media either. */
+    if (!win::win_pe_environment() && win::rda_available(L"RDA", &gle)) {
         if (auto dev = win::open_rda_partition(L"RDA", disk, 0, &err)) {
             auto* d = new CrDevice();
             d->dev = std::move(dev);
@@ -1142,11 +1166,36 @@ u32 open_disk_impl(uint32_t disk, cr_ui_device** out) {
             *out = reinterpret_cast<cr_ui_device*>(d);
             return ret_ok();
         }
+        /* M-030: the RDA leg's failure reason is now PRESERVED - the
+         * pre-fix code let the direct leg overwrite *err, so the ABI
+         * could never distinguish "driver absent" from "driver open
+         * failed with X" (the finding's silent-fallback claim). The
+         * final failure reports the RDA leg's error when the direct leg
+         * has nothing more specific; cr_ui_last_transport_error()
+         * surfaces the diagnostic either way. */
+        u32 rda_err = err;
+        auto dev = win::open_physical_drive(disk, &err);
+        if (!dev) {
+            set_last_transport_error_(rda_err ? rda_err : err);
+            return ret_(err ? err : u32(ERR_OPEN_FAILED),
+                        "cannot open disk %u (RDA and direct paths failed)", disk);
+        }
+        set_last_transport_error_(rda_err);
+        auto* d = new CrDevice();
+        d->dev = std::move(dev);
+        d->disk = disk;
+        d->disk_known = true;
+        d->transport = "direct";
+        *out = reinterpret_cast<cr_ui_device*>(d);
+        return ret_ok();
     }
     auto dev = win::open_physical_drive(disk, &err);
-    if (!dev)
+    if (!dev) {
+        set_last_transport_error_(err);
         return ret_(err ? err : u32(ERR_OPEN_FAILED),
                     "cannot open disk %u (RDA and direct paths failed)", disk);
+    }
+    set_last_transport_error_(0);
     auto* d = new CrDevice();
     d->dev = std::move(dev);
     d->disk = disk;
@@ -1317,6 +1366,10 @@ u32 unlock_volume_with_dictionary_impl(char letter, const char* const* utf8_user
 u32 open_disk_impl(uint32_t disk, cr_ui_device** out) {
     (void)disk;
     (void)out;
+    /* M-030: no transport leg runs on the platform stub - the advisory
+     * reads clean (0) for the attempt (nothing recorded, nothing lost).
+     */
+    set_last_transport_error_(0);
     return ret_(ERR_UNSUPPORTED, "cr_ui_open_disk requires the Windows platform layer");
 }
 
@@ -1372,7 +1425,6 @@ u32 device_transport_impl(cr_ui_device* dev, char* buf, uint32_t cap, uint32_t* 
     const bool fit = copy_bstr(buf, cap, t);
     return ret_(fit ? OK : u32(ERR_TRUNCATED), "%s", d->transport);
 }
-
 } // namespace
 
 extern "C" CR_UI_API uint32_t cr_ui_open_image(const char* utf8_path, uint64_t offset,
@@ -1381,6 +1433,14 @@ extern "C" CR_UI_API uint32_t cr_ui_open_image(const char* utf8_path, uint64_t o
 }
 extern "C" CR_UI_API uint32_t cr_ui_open_disk(uint32_t disk, cr_ui_device** out) {
     return guarded(open_disk_impl, disk, out);
+}
+extern "C" CR_UI_API uint32_t cr_ui_last_transport_error(void) {
+    /* M-030: the transport-open diagnostic read side. The value is the
+     * surviving transport leg's error code from the LAST cr_ui_open_disk
+     * call on this process (0 = the last open succeeded / none yet).
+     * Advisory only: never gates a return code, never clears state - the
+     * open calls' own return codes stay authoritative. */
+    return g_last_transport_error.load(std::memory_order_acquire);
 }
 extern "C" CR_UI_API uint32_t cr_ui_open_volume(char letter, cr_ui_device** out) {
     return guarded(open_volume_impl, letter, out);
@@ -1603,6 +1663,8 @@ u32 scan_create_impl(const cr_ui_scan_config* cfg, cr_ui_scan** out) {
     arm_repair_hooks(s, cfg); /* S-008: pre-scan repair consent gate */
     if (cfg)
         s->memory_warn_mb = cfg->memory_warn_mb; /* N-062 */
+    if (cfg && cfg->pre_scan_check) /* M-041: the damage-audit phase */
+        s->cfg.pre_scan_check = true;
     if (cfg && cfg->progress) {
         s->progress = cfg->progress;
         s->progress_user = cfg->progress_user;
@@ -1623,6 +1685,13 @@ void fill_identity_card(u32 disk, orchestrator::ScanConfig& cfg) {
     const std::string sr = ws_to_u8(disks[disk].serial);
     copy_card(cfg.volume_model, sizeof(cfg.volume_model), m.c_str());
     copy_card(cfg.volume_serial, sizeof(cfg.volume_serial), sr.c_str());
+    /* N-066: the record-3 axes from the (N-080-fixed) enumeration. */
+    const std::string fw = ws_to_u8(disks[disk].firmware);
+    const std::string wwn = ws_to_u8(disks[disk].wwn);
+    const std::string ifc = ws_to_u8(disks[disk].interface_desc);
+    copy_card(cfg.volume_firmware, sizeof(cfg.volume_firmware), fw.c_str());
+    copy_card(cfg.volume_wwn, sizeof(cfg.volume_wwn), wwn.c_str());
+    copy_card(cfg.volume_interface, sizeof(cfg.volume_interface), ifc.c_str());
 }
 
 /* cross-disk LDM resolver (the cmd_scan block, verbatim semantics) */
@@ -1632,8 +1701,13 @@ void arm_ldm_resolver(CrScan* s) {
     table::LdmInfo probe;
     if (table::parse_ldm_database(s->dev->dev.get(), probe) != OK || !probe.found)
         return;
+    /* M-030: the LDM resolver enumerates the og's full 200-disk space
+     * (the driver CREATE grammar accepts disk# <= 199 - eprdtdrv_
+     * decompiled.c :184; the pin lives in cr_winenv.h). The pre-fix 32
+     * cap was exactly wrong here: cross-disk LDM resolution is the
+     * multi-disk path where hosts beyond 32 disks matter most. */
     win::PhysicalDiskList list;
-    if (win::enumerate_disks(32, list) != OK)
+    if (win::enumerate_disks(win::ENUMERATE_DISK_BOUND, list) != OK)
         return;
     auto guid_map = std::make_shared<std::map<table::LdmGuid, IStorageDevice*>>();
     for (const auto& pd : list) {
@@ -1885,6 +1959,10 @@ u32 scan_stats_impl(cr_ui_scan* scan, cr_ui_scan_stats* out) {
     out->repair_planned = st.repair_actions_planned;
     out->repair_applied = st.repair_actions_applied;
     out->repair_denied = (st.repair_consent_denied || st.repair_writer_unavailable) ? 1u : 0u;
+    /* M-041 damage-audit report summary */
+    out->check_ran = st.check_ran ? 1u : 0u;
+    out->check_errors = u32(st.check_report.errors.size());
+    out->check_detected = st.check_detected ? 1u : 0u;
     return ret_ok();
 }
 
@@ -3684,4 +3762,45 @@ extern "C" CR_UI_API uint32_t cr_ui_health_read(uint32_t disk, cr_ui_smart_repor
                                                 cr_ui_smart_attr* attrs, uint32_t attr_cap,
                                                 uint32_t* attr_count) {
     return guarded(health_read_impl, disk, rep, attrs, attr_cap, attr_count);
+}
+
+/* ---- M-048: the user-extensible signature database (ABI-since 2.1) ---- */
+
+extern "C" CR_UI_API uint32_t cr_ui_register_user_signs(const char* json_bytes,
+                                                       uint32_t json_len) {
+    if (json_bytes == nullptr || json_len == 0)
+        return ERR_BAD_PARAMETER;
+    carve::usersigns::UserSignSet set;
+    if (u32 rc = carve::usersigns::parse(json_bytes, size_t(json_len), set))
+        return rc;
+    return carve::usersigns::install_set(std::move(set));
+}
+
+extern "C" CR_UI_API uint32_t cr_ui_user_sign_count(void) {
+    return carve::usersigns::active_count();
+}
+
+extern "C" CR_UI_API uint32_t cr_ui_user_sign_info(uint32_t index, cr_ui_user_sign* out) {
+    if (out == nullptr)
+        return ERR_BAD_PARAMETER;
+    std::memset(out, 0, sizeof(*out));
+    /* snapshot under the registry's own lock discipline: match_at/count
+     * are the guarded surfaces; the info walk takes one consistent copy */
+    const u32 n = carve::usersigns::active_count();
+    if (index >= n)
+        return ERR_BAD_PARAMETER;
+    /* one consistent copy under the registry's lock (the count-then-read
+     * window is closed by re-validating against the snapshot) */
+    carve::usersigns::UserSignSet snap;
+    if (u32 rc = carve::usersigns::snapshot(snap))
+        return rc;
+    if (index >= snap.signs.size())
+        return ERR_BAD_PARAMETER; /* the set changed between calls */
+    const carve::usersigns::UserSign& s = snap.signs[index];
+    std::memcpy(out->ext, s.ext, sizeof(out->ext));
+    std::memcpy(out->mime, s.mime, sizeof(out->mime));
+    out->offset = s.offset;
+    out->sign_len = s.len;
+    std::memcpy(out->bytes, s.bytes, sizeof(out->bytes));
+    return OK;
 }

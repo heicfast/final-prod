@@ -68,6 +68,9 @@ struct ZfsScanStats {
                                  * mismatch on every DVA copy */
     u64 ring_states_total = 0;   /* S-034: distinct txgs found in the rings */
     u64 ring_states_walked = 0;  /* S-034: states whose tree opened and walked */
+    u64 label_retries = 0;      /* N-072: delay-execution label re-sweeps
+                                 * (live handles only; the og's polling
+                                 * import, remaining-engines artifact :86) */
 };
 
 /* Parsed label config (nvlist subset we need). */
