@@ -279,6 +279,22 @@ inversion + N-068's LFH gates; this session's re-read of :18479-18498
 confirmed the direction verbatim and corrected the audit's "~4 GiB" cap to
 the real 0x500001 loop bound). Suite **749/749**.
 
+**N-031 FIXED (the carve dispatch deltas):** the og's all-zero-sector fast-skip
+landed at the raw-sign layer in an exact core form — a 512-byte stride whose
+sign window (the first 47 bytes, probe_header's whole offset span) is all zero
+skips the 47-lookup sign-table walk and is counted
+(ScanCtx→CarveStats.zero_strides_skipped→ScanStats.carve_zero_strides); the
+grammar layer's first-byte dispatch keeps running on zeros (the finding's own
+profile rule). The 512-vs-device-sector stride difference is documented at
+cr_rawsigns.h (the core's probe positions are a strict superset on 4Kn — bench
+comparability registered); the only_common whole-map restrict is expressible on
+M-024's landed disabled_formats surface (registered as host policy, no engine
+constant); the collision-order equivalence pins (TiffVsRawTiebreak et al.) stay
+green. Tests: CarveEngine.ZeroSectorSkipStats (zero-heavy image: >200 strides
+skipped, the JPEG behind the zeros still carves; non-zero control skips 0) +
+the pins re-run. Suite **766/766** (fail-before by construction — the counter
+did not exist).
+
 ## Session-16 delta (2026-10-26 — DFX16: S-029 closed — the SEVERE tier is empty)
 
 Baseline `53629a3` verified green first-hand (584/584 linux-gcc ASan);

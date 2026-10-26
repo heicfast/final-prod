@@ -205,6 +205,13 @@ leg that landed first; registry decode evidence: `evidence/decompiled-quotes/s3-
   (OneAnalyser/FileONEAnalyser), not LZH (LZH = list-layer LZHAnalyser). Errata
   rows 22-28.
 
+- **N-031 FIXED (s28):** the og's all-zero-sector fast-skip landed at the raw-sign
+  layer (exact form: a stride whose 47-byte sign window is all zero skips the
+  probe_header walk; counted in ScanStats.carve_zero_strides —
+  CarveEngine.ZeroSectorSkipStats with a non-zero control); the 512-vs-device-sector
+  stride superset documented at cr_rawsigns.h; the only_common gate is expressible
+  on M-024's disabled_formats surface (registered); the collision-order pins
+  (TiffVsRawTiebreak et al.) stay green. Resolution in findings/FIXED/N-031.
 ---
 
 ## Session-3 parallel-leg rows (integration 2026-10-26)

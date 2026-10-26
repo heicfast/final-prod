@@ -13159,3 +13159,30 @@ Work Log:
 Stage Summary:
 - N-064 FIXED (session tally: 1). Next: N-071 (device enumeration
   breadth), pulling first — parallel lanes are active on the MINOR tier.
+---
+Task ID: DFX28-T5 (session 28, fourth fix — N-031)
+Agent: main engineer (diff-to-fix fix session — MINOR front band)
+Task: N-031 the carve dispatch deltas (zero-sector skip, stride, only_common,
+collision order).
+
+Work Log:
+- Zero-skip: raw-sign strides with an all-zero 47-byte sign window (the exact
+  probe_header span — the skip is exact, not heuristic) skip the 47-lookup
+  sign walk; counted through ScanCtx -> CarveStats -> ScanStats.carve_zero_strides.
+- Stride: cr_rawsigns.h probe_header doc note (og device-sector stride vs core
+  512 — strict superset on 4Kn; bench comparability).
+- only_common: registered as expressible on M-024's disabled_formats surface
+  (the og's STL/VPJ ship defaults are host policy per the CarveFlags comment).
+- Collision order: TiffVsRawTiebreak + GrammarValidationAndSpecificity pins
+  re-run green (kTrialOrder stays the functionally-equivalent form).
+- Test: CarveEngine.ZeroSectorSkipStats (>200 skipped on a zero-heavy image,
+  the plant behind the zeros still carves; non-zero control skips 0).
+  Fail-before by construction (the counter did not exist — N-046 convention).
+  Suite 766/766.
+- Audit trail: Resolution + FIXED/ move, RESOLVED-INDEX row, matrix carve row,
+  carve.md verdict + status line, SUMMARY delta.
+
+Stage Summary:
+- N-031 FIXED (session tally: 4 — N-025, N-026, N-027, N-031). MINOR 10 remain
+  (parallel lanes consumed N-036/N-049/N-064/N-075 meanwhile). Next: N-032
+  (health transports CSMI/USB) or N-007 (ReFS detection strictness).
