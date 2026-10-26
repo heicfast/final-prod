@@ -13984,3 +13984,34 @@ Stage Summary:
   method = next target, feeds M-029). The OQ-Z-E-FLT file is now 7/8
   sub-questions resolved. Next on this lane: OQ-T6 residual (uberblock
   geometry + checksum-verify depth), then OQ-S6-3/S6-2/S6-1/S5-1.
+
+---
+Task ID: DFX30-T9 (OQ-T6-T7 closed to FIXED/)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: OQ-T6 residuals (uberblock geometry registration, multi-vdev,
+checksum depth) + OQ-T7 (already resolved) — close the file.
+
+Work Log:
+- T6.2 (multi-vdev DVA): RESOLVED — M-019's landing + DFX30's first-hand
+  re-verification (OQ-Z3): the og's registry loop falls back to the FIRST
+  entry on any vdev-id miss; core MATCHES since M-019.
+- T6.3 (uberblock geometry): RESOLVED as a registered superset — D-04
+  already carries "ZFS uberblock ring auto-probes ashift shifts 10-13";
+  the og's hardcoded 1 KiB slots re-confirmed first-hand (FUN_180018930's
+  128 KiB read at 0x20000 with fixed 0x400 stride, the S-034 decode).
+- T6.4 (checksum-verify depth): RESOLVED — M-019's decode: the
+  fletcher4-family gate (checksum-type bits 40-47, zc in {7,0}), the
+  interleaved 4-accumulator fletcher4 + 32-byte compare + next-DVA retry;
+  core MATCHES since M-019 (ChecksumFailDropsAndRetriesNextDva).
+- D-09 registry row updated NEEDS-WORK -> ACCEPTED with the pinned og
+  story (type-blind + first-entry fallback; the "single-vdev only +
+  unsupported_vdevs" text was the pre-M-019 posture; gang-wording note
+  preserved).
+- File header stamped ALL-RESOLVED; git mv tracked-open/ ->
+  findings/FIXED/ (the OQ-S003 precedent).
+
+Stage Summary:
+- OQ-T6-T7 CLOSED (2 files remain in tracked-open from this lane's queue:
+  OQ-S6-3, OQ-S6-2, OQ-S6-1, OQ-S5-1 + DFX25's head items). Session
+  tally: 8 items (7 resolutions + 1 push-forward) + S-034 + D-09 re-verdict
+  + OQ-T6-T7 closure. Next: OQ-S6-3 (CRAW reader F4 boolean).
