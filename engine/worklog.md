@@ -12532,3 +12532,37 @@ MAJOR. No overlap with any posted claim.
 Stage Summary:
 - Lane re-based at 0a9b19e post-merge; N-025 FIXED (e2b4549); front band
   claimed; proceeding to N-026.
+
+---
+Task ID: DFX30-T0 (session 30 bootstrap — lane claim)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: Session bootstrap + DISJOINT lane claim (the tracked-open OQ queue is
+unclaimed by any active lane; the mid-MAJOR cluster is reached last by both
+MAJOR lanes).
+
+Work Log:
+- Pull at bootstrap absorbed the 5-lane window shake-out (DFX26 MAJOR-tail,
+  DFX27 MAJOR-head, DFX28 MINOR front band, DFX29 MINOR middle band + the
+  N-009/M-057 landings, the rear-first MINOR lane, N-025 e2b4549).
+- Baseline verified green FIRST-HAND this session: linux-release 737/737
+  PASS (17 s) at the pre-union tree 02b950f; re-verified on the merged tree
+  before the first fix.
+- Corpus 03ad46c unmoved (verified at first corpus read this session).
+- Session prompt saved token-redacted: worklog/session-diff-fix-30-prompt.md.
+- Lane claim (disjoint from every posted claim):
+  (1) the tracked-open OQ queue — OQ-S2M-2, OQ-S3-JPEG, OQ-S6-3, OQ-S5-1,
+      OQ-S6-1, OQ-S6-2, OQ-Z-E-FLT (FLT-1 leg), OQ-RS, OQ-T6-T7 —
+      resolve to answers/fixes where the corpus can answer, precise
+      push-forward where it cannot; OQ-S4-3 (Windows bench) and OQ-S20-1
+      (out-of-corpus crypto) get honest re-scoping;
+  (2) M-029's decode-blocked remainder (Date/Size bucket IDs + tag
+      derivation — corpus decode work no lane has landed);
+  (3) the mid-MAJOR cluster M-025 → M-039 → M-020 → M-048 → M-018 (both
+      MAJOR lanes reach these 7th+; first-landing-wins, pull before every
+      landing).
+- One finding, one verified fix, one push throughout.
+
+Stage Summary:
+- DFX30 open. Baseline green. First work: the OQ queue's corpus-decode
+  resolutions (OQ-S3-JPEG first — it gates S-018's residual), then M-029's
+  bucket decode.
