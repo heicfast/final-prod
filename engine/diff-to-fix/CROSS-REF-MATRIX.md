@@ -1,5 +1,14 @@
 # CROSS-REF-MATRIX.md — module × parameter verdict matrix (post-rebase with parallel leg)
 
+**Session-25 changes (2026-10-26, DFX25 — INFO tier closed into FIXED/, tracked-open resolution wave):**
+the 22 acknowledged INFORMATIONAL findings (I-001..I-024) moved from
+`findings/INFORMATIONAL/` to `findings/FIXED/` — the directory is now empty
+and the `ack` cells below denote acknowledged-and-filed-in-FIXED deliberate
+divergences (each file carries its ACKNOWLEDGED Resolution; pin tests green on
+`716d121`, 737/737). No verdict changed — `ack` was and remains MATCH-by-
+deliberate-divergence; only the filing location moved per the user directive.
+Tracked-open dispositions recorded per-OQ in the session's worklog entries.
+
 **Session-22 changes (2026-10-26, DFX22 — build-integrity NEW-FINDING + the carve overlap/scoring wave):** **M-055**
 (MAJOR) — the `src/win` platform layer was UNCOMPILABLE since `3b5397a`/`915bce3`/
 `d8f6808` (four structural breaks; see the finding for the per-commit decomposition);
@@ -69,7 +78,7 @@ dispositions is the surviving one).
   de-self-referenced)**, S-001, S-004, S-005, S-008,
   M-001, M-006 (combined with S-009 — split tracked in N-020), N-002, N-003,
   N-010-theirs, OQ-T1.
-- Acknowledged (stay in INFORMATIONAL/ with pin tests): I-001..I-005.
+- Acknowledged (filed in FIXED/ since session 25, with pin tests): I-001..I-005.
 - S-009 partially FIXED (disk-map visualization via GAP-S6-11); the combined
   S-009/M-006 finding file remains in SEVERE/ pending split (tracked in N-020).
 
@@ -150,7 +159,7 @@ A cell reading `M (X-n fixed)` or `X-n FIXED` marks a finding the remediation se
 underlying parameter is MATCH as of that fix. Cells with finding IDs marked **(S2)** are new
 session-2 findings; the previous `M` verdict was refuted by first-hand decompile + core
 source read. Cells marked `ack` are ACKNOWLEDGED informational findings (deliberate supersets
-with pin tests, stay in INFORMATIONAL/).
+with pin tests, filed in FIXED/ since session 25).
 
 **Session-3 changes (this leg):** S-015 (rawsigns KiB units, SEVERE), M-022 (ReFS
 file-value grammar), M-023 (filter model — replaces the old GAP-cats note), N-030

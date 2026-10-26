@@ -1,23 +1,39 @@
-# Session DFX-23 — diff-to-fix roadmap execution (MINOR-first mandate)
+# Session DFX23 — diff-to-fix closing session (INFORMATIONAL + tracked-open focus)
 
-Saved at session start (2026-10-26). Token redacted. Full mandate as issued:
-execute the roadmap in core_recovery/diff-to-fix/ — for every finding
-(ACUTE/SEVERE/MAJOR/MINOR/INFORMATIONAL/TRACKED-OPEN): independently verify
-against corpus + running code, classify (CONFIRMED-DIVERGENCE / ALREADY-FIXED /
-FALSE-POSITIVE / OUTDATED-EVIDENCE / NEW-FINDING), fix with paired fail-before/
-pass-after tests, prove, and mark in the audit trail with evidence. False
-findings are corrected in the audit trail, not "fixed" by breaking good code.
+Saved at session start, token redacted. Date: 2026-10-26.
 
-Session-specific mandate from the operator:
-- Focus on MINOR findings initially; one finding, one verified fix, one push.
-- Target at least 20+ fixes before session end.
-- Fixed findings move to diff-to-fix/findings/FIXED/ (existing convention).
-- Update all docs, counts, CROSS-REF-MATRIX, SUMMARY, modules/*.md properly.
-- Two repos only: heicfast/core_recovery (fix) + heicfast/easeus-drw-research
-  (ground truth, read-only, corpus 03ad46c). No other repos.
-- Re-implement from understanding; never paste decompiled code; cite corpus
-  artifacts in commits. Safety hardenings preserved. No stubs/mocks/TODOs.
-- Pull frequently; never force-push; keep main green; never commit the token.
+## Mandate (abridged, token redacted)
 
-Baseline at session start: core 716d121 (DFX16-M013 rebase reconciliation
-worklog commit; N-062 was the last fix landing). Corpus 03ad46c unmoved.
+Senior systems engineer role. Execute the roadmap in `core_recovery/diff-to-fix/`.
+For every finding — ACUTE, SEVERE, MAJOR, MINOR, INFORMATIONAL, TRACKED-OPEN —
+independently verify the finding, fix it, prove the fix with tests, and mark it
+in the audit trail with evidence.
+
+Two repos in scope only:
+- Core (modified): github.com/heicfast/core_recovery
+- Research corpus (ground truth, read-only): github.com/heicfast/easeus-drw-research
+- GitHub token: REDACTED (env/git config only, never committed, never logged)
+
+User directive for this session: focus on INFORMATIONAL and tracked-open
+initially, then continue one by one. Target at least 20+ fixes before session
+end. Put fixed findings in the fixed directory. Update all docs, counts.
+
+## Core SOPs
+
+- Verify → Reproduce → Classify → Fix → Re-review → Test → Benchmark → Document → Push → Loop.
+- One finding, one verified fix, one push.
+- No shortcuts, no fallbacks masking failure, no stubs/mocks/TODOs.
+- Every fix paired with a test that fails before, passes after.
+- Safety hardenings preserved (dest overlap refusal, BitLocker legit-unlock-only,
+  RawFixer consent, 4Kn, cancellable IRP, SDDL gating).
+- Pull frequently, never force-push, keep main green.
+- INFORMATIONAL: verify deliberate-difference rationale, mark ACKNOWLEDGED, no
+  code change unless rationale wrong.
+- Track open items: resolve or push forward with precise next step + evidence.
+
+## Session start state
+
+- Core HEAD: 716d121 (worklog(DFX16-M013): rebase reconciliation)
+- Corpus HEAD: 03ad46c (unmoved throughout history)
+- Open: 0 ACUTE, 0 SEVERE, 14 MAJOR, 19 MINOR, 22 INFORMATIONAL, 11 tracked-open
+- FIXED: 149
