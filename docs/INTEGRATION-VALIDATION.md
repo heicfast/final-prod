@@ -20,11 +20,11 @@ the worklog).
 
 | Lane | State at | Notes |
 |---|---|---|
-| contracts-ci | every push since `a790cf9b` | validate.mjs phase 1+2 + filefilter freshness |
-| ui-ci | `4c9f115a` (green) | typecheck, eslint, prettier, arch-lint A1–A7, ast-grep ×2, knip, jscpd, vitest 127/127, coverage 96.4/84.4/100/98.6, build + bundle budget, cargo check + clippy -D warnings |
+| contracts-ci | every push since `a790cf9b` | validate.mjs phase 1+2 + filefilter freshness (34 commands / 33 invoked since `f47463ec`) |
+| ui-ci | `b671348f` (green) | typecheck, eslint, prettier, arch-lint A1–A7, ast-grep ×2, knip, jscpd, vitest 130/130, coverage gates, build + bundle budget, cargo check --tests (incl. the T14 measurement modules) + clippy -D warnings |
 | driver-ci | `a790cf9b` (green, first run) | lint, fuzz, unit MSVC /W4 /WX, WDK Debug+Release matrix + unsigned assertion |
-| engine-ci | `a790cf9b` (5/6 green at press; tsan in flight) | lint, Linux ASan full suite, UBSan, fuzz, Windows MSVC + Win7 PE gates + ctest |
-| ui-e2e | first run pending | Playwright 12 specs on the test-mode build |
+| engine-ci | `a790cf9b` (6/6 green) | lint, Linux ASan full suite, UBSan, fuzz, Windows MSVC + Win7 PE gates + ctest, **TSan** — the original job wedged >9h on one step and was cancelled; the fresh attempt completed GREEN (same tree, no code change) |
+| ui-e2e | `b671348f` (green) | Playwright 14 specs on the test-mode build (the G-1 consent prompt suite included; the keyboard-flow spec's latent mount-race fixed — its either-name regex now pins the page h1) |
 
 ## Pending evidence (tracked, not claimed)
 
