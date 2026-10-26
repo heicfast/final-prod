@@ -14620,3 +14620,36 @@ Work Log:
 
 Stage Summary:
 - OQ-S5-1 closed (convergent two-lane). MY CLAIMED QUEUE IS COMPLETE.
+
+---
+Task ID: DFX33-T4 (session 33 — pushed-red REPAIR, protocol)
+Agent: main engineer (diff-to-fix fix session 33 — DFX33)
+Task: Repair the 667c2d2 union: the N-064 multi-lane collision had left
+rrecov.cpp/cr_bitlocker.h with committed conflict fragments and DROPPED
+the pwddict module; win_syntax_check was RED on origin/main.
+
+Work Log:
+- Root cause: three parallel N-064 designs (cr::dict DFX31, cr::pwddict
+  DFX34, and a third variant) landed through successive unions; the
+  667c2d2 union interleaved their open_volume_view/pre-pass variants and
+  dropped include/cr/pwddict/, src/core/pwddict/, tests/unit/test_pwddict.cpp
+  (present in 26e4147's tree, absent in HEAD).
+- Repairs: (1) open_volume_view reconstructed canonically — the 5-surface
+  signature (fvek_hex, pwddict_arg, dict_consent, dict_user) with both
+  consent surfaces tried in flag order (explicit candidates via
+  try_password_unlock, then the shipped+user dictionary via
+  unlock_with_dictionary), the Unknown-status consent shape, and the
+  F61 never-auto-attempt rule preserved verbatim; (2) the cmd_scan
+  pre-pass reconstructed (fvek/pwddict/dict+optional-value pre-scans,
+  dict_user honest-failure load); (3) load_pwddict_candidates' truncated
+  file-tail restored from 26e4147; (4) cr_bitlocker.h: one
+  try_password_unlock declaration, both unlock_with_dictionary overloads
+  (both implemented in cr_bitlocker.cpp), orphaned comment fragments
+  dropped; (5) the pwddict module + test restored from 26e4147 and
+  re-registered in both CMakeLists; (6) the duplicate print_carve_formats
+  removed (the N-033 rich table projection stands — ABI-contract 7a).
+- Verified: win_syntax_check GREEN; full suite **855/855** linux-release.
+
+Stage Summary:
+- main green again. Session tally: 3 fixes (M-020, M-025, M-018) + this
+  repair. Next: pull, then the live MAJOR queue head.
