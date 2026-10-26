@@ -102,7 +102,16 @@ extern const u32 kTailSignCount;
 class SignIndex {
 public:
     /* sector-stride probe at `p` (points at the candidate file start):
-     * fills out with every header sign matching at p. */
+     * fills out with every header sign matching at p.
+     *
+     * N-031 stride-semantics note: the og probes raw-sign candidates at
+     * DEVICE-SECTOR stride (4096 on 4Kn volumes - the scan loop reads
+     * the sector size from the storage device vtable, :9490-9520); the
+     * core deliberately probes every 512 bytes regardless of geometry.
+     * On 4Kn the core's probe positions are a strict SUPERSET of the
+     * og's (every 4096-boundary is also a 512-boundary) - never a
+     * recall loss, a behavioral and cost difference only, registered
+     * here so 4Kn benches compare like-for-like. */
     void probe_header(const u8* p, u64 avail, std::vector<const RawSign*>& out) const;
 
     /* stride-scan [buf, buf+len) for tail signs; returns the first hit

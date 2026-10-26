@@ -80,10 +80,16 @@ refs-specific divergences surfaced.
 ## Session-2 update (2026-10-25, core `e93decf`)
 
 **Verdict changes (quotes in `../evidence/decompiled-quotes/btrfs-zfs-refs-session2.md`):**
-- **N-026 filed (new):** checkpoint body offset — og dynamic (`*(uint*)(page+4)`) vs core
-  hardcoded 0x50/0x56/0xA8; boot gates two-sided (og bps {256..4096} + cluster ∈ {4K,64K}
-  ONLY vs core bps {512,4096} + pow2 cluster); second-copy location og START+MID vs core
-  START+TAIL; volume-open read size (informational).
+- **N-026 FIXED (s28, mixed resolution):** boot gates aligned to the og (bps ladder
+  {256,512,1024,2048,4096} + cluster product gate {4 KiB, 64 KiB}, FUN_180012390:13544-49)
+  and the volume open now reads the og's 4 KiB — 4 fail-before tests + the 64-KiB boundary
+  pin. Two sub-items INVALID on this session's first-hand decode: the "dynamic body
+  offset" is 0x50 BY CONSTRUCTION (the ref parser hardcodes the 0x30 extension,
+  FUN_18000ff60:11875 — the core's hardcode IS parity), and the "mid-volume second copy"
+  is a misattribution of N-036's container-map key (FUN_180011e90 full-decode: identity /
+  binary-search / rewrite; the og probes NO superblock backup — single metadata base
+  spc×0x1E at :2457, checkpoint A/B from sb fields). The core's {30, n-3, n-2} probe set
+  stays the superset. Resolution in findings/FIXED/N-026.
 - **N-007/I-004 re-confirmed verbatim:** first-DWORD page dispatch (`:11701`); 3.4+ version
   gate; SUPB/CHKP constants byte-exact.
 - **GAP-S6-3 (landed fix) verified og-parity:** body-minor gate source (`minor >= 0xE →
@@ -150,7 +156,8 @@ Complements M-022/I-012 above (same session, parallel leg; full inventory:
   mismatch (damaged-record FP guard); core accepts any in-bounds parse.
 - **I-013 (INFO):** host-OS runtime gate — og's DLL refuses hosts < Win8 (6.2);
   core is host-agnostic (deliberate portability; parity benches on Linux are not
-  og-divergent). On-disk gates remain I-004 + N-026/N-013b.
+  og-divergent). On-disk gates: I-004 (registered superset) + the s28 og-exact
+  geometry gates (N-026/N-013b FIXED).
 - **Convergence with the leg above:** my agent's row-grammar findings
   (directory rows 0x10 / 0x30+subtype; `0x00010030` packed markers ≡ og key+0
   type/key+2 subtype) independently match the M-022 convergence checks ✓; the
@@ -173,7 +180,7 @@ Complements M-022/I-012 above (same session, parallel leg; full inventory:
 | ID | Severity | One-line |
 |---|---|---|
 | M-031 | MAJOR | Progress — **FIXED (s10)**: intermediate per-16-file ticks with growing-estimate totals + terminal (n,n); monotonic; cancel preserves partials. findings/FIXED/M-031 |
-| OQ-RS-2..8 | OPEN | Container-map construction; ADS fold question; .mo deleted evidence; CRefsAppDataRunItem; system tables 0x500/0x701; volume-sig cross-check — `tracked-open/OQ-RS-refs-session3.md` |
+| OQ-RS-2..8 | **RESOLVED (s31)** | RS-2/3 superseded (S-020/N-036 landed); RS-5 the .mo is structural-only (no deleted harvest — parity-safe); RS-6 CRefsAppDataRunItem is a data-run item, not ADS; RS-7 FIXED (the og's system set {0x500, 0x600, 0x701} + the >0x700 normalizer; the fabricated 0x520 replaced — fail-before Refs.FallbackRootSkipsOgSystemFamilies); RS-8 the og checks only the MSB+ magic per page — the core's dual validation registered superset; RS-1/4 pushed forward (real-ReFS-volume-gated, Windows bench stage) — `findings/FIXED/OQ-RS-refs-session3.md` + `evidence s31-oq-rs-refs-residuals.md` |
 
 (This leg's ReFS decode corroborates S-020/M-022/M-026; its local A-004/S-012/
 S-013/M-011/M-013/N-023/N-024/I-009 were superseded by the lead leg's filings —

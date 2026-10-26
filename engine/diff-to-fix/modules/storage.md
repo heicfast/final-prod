@@ -69,7 +69,7 @@ storage devices audited here). Findings: M-032/M-033/M-034/N-045/N-046/I-017
 | ID | Severity | One-line |
 |---|---|---|
 | N-045 addendum → **FIXED (session 18, DFX18)** | — | Algorithm divergence added: og CStorageDeviceWithCache is a prefetch read-ahead engine (prefetch thread, 10-run window, 1000-sector runs) vs core reactive true-LRU; cite refreshed to cr_scan.cpp:647 / 256 KiB blocks. **Resolution:** budget + algorithm REGISTERED as PARITY-DELTAS D-75 (corpus cites re-verified first-hand: DRWUI_decompiled.c:919080-:919092 `0x400000/sector` + fallback 0x2000; ctor :962250-:962597); divergence block in cr_cached.h; benchmarking.md §4 intent note; doc-truth pin `Cached.ScanCacheBudgetIsTheRegisteredDivergence` (fail-before RED on the pre-fix tree, suite 592/592 after). Finding file in FIXED/. |
-| N-055 | MINOR | Enumeration breadth: og spans WMI+SetupAPI+VDS+StorageSpaces+FunctionDiscovery; core is the PhysicalDrive CreateFileW loop (cr_enumerate.cpp:15-60) |
+| N-071 (was this leg's local N-055; renumbered at integration) | MINOR — **FIXED (s31 — DFX31)** | Enumeration breadth: og spans WMI+SetupAPI+VDS+StorageSpaces+FunctionDiscovery; core is the PhysicalDrive CreateFileW loop. Two-stack merge landed (cfgmgr32 GUID_DEVINTERFACE_DISK pass + pure merge_disk_enumeration); residual stacks registered as PARITY-DELTAS D-79 |
 
 MATCH/verified registers from the never-cited-files read: cr_elevate's probe is a byte-shape
 twin of DRWUI's elevation check (elevation ACTION is host-side — deliberate, no finding);
@@ -89,3 +89,12 @@ journal ring reads are bounded within the ring; everything else is
 explicitly bounded; refusals degrade via the damage counters). The
 opt-in clamped-read primitive (path 2) is the documented next step WHEN
 an engine needs it. I-017's register is unchanged; M-033 untouched.
+
+## Session-30 fix row (2026-10-26 — N-071 closed by scope registration + the busy-disk hardening)
+
+| Parameter | Verdict |
+|---|---|
+| B8 device discovery (enumeration breadth) | **MATCH-by-scope-registration (D-80)** — the engine's device truth stays the PhysicalDrive namespace + volume-letter companion; the og's five-stack fan-in is MOM UI machinery. The load-bearing observable (a busy disk stays listed) is ported: query_disk retries a 0-access metadata-only open on ERROR_ACCESS_DENIED/ERROR_SHARING_VIOLATION (busy=true on the row). Revisit trigger in D-80: a live miss-case (disk in Disk Management but absent from `rrecov list`) reopens the row |
+| P42/A54 | the scope contract documented at the surface (cr_enumerate.h SCOPE note); the SetupAPI disk-interface pass named as the designed extension point |
+
+Q65: Enumerate.{ScopeDeltaRegisteredWithRevisitTrigger, BusyDiskMetadataRetryShipsInQueryDisk, ScopeContractDocumentedInHeader} (source-truth pins; win-layer behavior parse-gated on Linux, exercised on the MSVC lane).

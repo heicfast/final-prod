@@ -87,6 +87,9 @@ struct ScanCtx {
     std::atomic<u64> sign_hits{0};
     std::atomic<u64> sign_validated{0};
     std::atomic<u64> windows_skipped{0}; /* unreadable after retry (FB-C01) */
+    /* N-031: all-zero sign-window strides skipped at the raw-sign layer
+     * (the og's zero-sector fast-skip analog) */
+    std::atomic<u64> zero_strides_skipped{0};
     /* M-005: used-cluster skips at the grammar layer (the og's block-scan
      * cluster gate; counted here, surfaced as bitmap_skipped_clusters) */
     std::atomic<u64> bitmap_skipped_clusters{0};
@@ -158,9 +161,70 @@ struct ScanCtx {
     }
 };
 
+/* M-025: window-serving read context - the og's already-in-buffer model
+ * (RAWSearchDLL :9195-9209 the 8 MiB ping-pong buffer; :9434-9438 chunk
+ * fills; candidates validated from the buffer :9496). Wraps the slice
+ * for the duration of ONE window scan: reads fully inside
+ * [base, base+len) are served from the window buffer (memcpy, zero
+ * device traffic); reads straddling a window edge serve the in-window
+ * part from the buffer and read only the remainder from the device.
+ * This removes the per-candidate device re-reads the finding prices
+ * (validator marker-walk/probe re-reads + the <=8 MiB hash re-read +
+ * the 512 B checksum re-read) while keeping byte-identical content -
+ * the buffer IS the device's bytes for that range (read once at window
+ * fill). Thread-safe by construction: one instance per window scan,
+ * private to the worker that owns the window. */
+class WindowDevice final : public IStorageDevice {
+public:
+    WindowDevice(IStorageDevice* inner, u64 base, const u8* win, u64 len)
+        : inner_(inner), base_(base), win_(win), len_(len) {}
+
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (len == 0)
+            return OK;
+        u8* out = static_cast<u8*>(buf);
+        /* head: the read starts before the window - front from the device */
+        if (off < base_) {
+            const u32 head = u32(std::min<u64>(len, base_ - off));
+            if (u32 rc = inner_->read_at(off, out, head))
+                return rc;
+            out += head;
+            off += head;
+            len -= head;
+            if (len == 0)
+                return OK;
+        }
+        /* middle: the in-window span - served from the buffer */
+        if (off >= base_ && off < base_ + len_) {
+            const u32 mid = u32(std::min<u64>(len, base_ + len_ - off));
+            std::memcpy(out, win_ + (off - base_), size_t(mid));
+            out += mid;
+            off += mid;
+            len -= mid;
+            if (len == 0)
+                return OK;
+        }
+        /* tail: past the window end - from the device */
+        return inner_->read_at(off, out, len);
+    }
+
+    const Geometry& geometry() const override { return inner_->geometry(); }
+    u64 size() const override { return inner_->size(); }
+
+private:
+    IStorageDevice* inner_;
+    u64 base_;
+    const u8* win_;
+    u64 len_;
+};
+
 /* Scan ONE window [base, base+want) fully (magic dispatch, validation,
  * dedup, emit). Returns OK, or ERR_CANCELLED when aborted mid-way. */
 u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u64>& emitted_at) {
+    /* M-025: validators, checksums, hashes and tail scans read through
+     * the window-serving device for this window (per-candidate device
+     * re-reads eliminated - see WindowDevice above). */
+    WindowDevice wdev(ctx.slice, base, win, want);
     for (u64 off = 0; off + 12 <= want; ++off) {
         if (ctx.aborted.load(std::memory_order_relaxed))
             return ERR_CANCELLED;
@@ -214,7 +278,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
              * into best_sig (N-070) - the winner is emitted after the
              * loop. Position-resolution breaks (already-emitted here, F9
              * dedup) still exit the trial loop immediately. */
-            CarveResult cr = sig.validator(ctx.slice, cand_abs, sig.max_size);
+            CarveResult cr = sig.validator(&wdev, cand_abs, sig.max_size);
             if (!cr.ok) {
                 ctx.rejected.fetch_add(1, std::memory_order_relaxed);
                 continue;
@@ -309,7 +373,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             {
                 u8 hdr[512];
                 const u32 hb = u32(file_len < sizeof(hdr) ? file_len : sizeof(hdr));
-                if (hb != 0 && ctx.slice->read_at(cand_abs, hdr, hb) == OK)
+                if (hb != 0 && wdev.read_at(cand_abs, hdr, hb) == OK)
                     props->carve_checksum = table::crc32(hdr, hb);
             }
             if (props->carve_confidence > 1000)
@@ -323,7 +387,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             if (ctx.flags->hash_small_files && file_len <= ctx.flags->hash_threshold &&
                 file_len <= MAX_FILE_READ_FOR_HASH) {
                 std::vector<u8> content((size_t(file_len)));
-                if (ctx.slice->read_at(cand_abs, content.data(), u32(file_len)) == OK) {
+                if (wdev.read_at(cand_abs, content.data(), u32(file_len)) == OK) {
                     u8 full[32];
                     crypto::Sha256::digest(content.data(), size_t(file_len), full);
                     std::memcpy(props->sha128, full, 16);
@@ -431,6 +495,27 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             }
             if (emitted_at.count(start_abs))
                 continue; /* a grammar-validated file starts here */
+            /* N-031: the og's all-zero-sector fast-skip, core shape: no
+             * header sign can live outside the first 47 bytes of the
+             * stride (probe_header's whole offset span), so a stride
+             * whose sign window is all zero skips the 47-lookup
+             * sign-table walk entirely (the og skips the whole sector:
+             * its leading/trailing zero-dword metrics, :9490-9520). The
+             * grammar layer keeps its first-byte dispatch on zeros - it
+             * is near-free there (the finding's own profile rule). */
+            {
+                const u8* zw = win + off;
+                bool all_zero = true;
+                for (u32 zi = 0; zi < 47; ++zi)
+                    if (zw[zi]) {
+                        all_zero = false;
+                        break;
+                    }
+                if (all_zero) {
+                    ctx.zero_strides_skipped.fetch_add(1, std::memory_order_relaxed);
+                    continue;
+                }
+            }
             idx.probe_header(win + off, want - off, matches);
             if (matches.empty())
                 continue;
@@ -492,8 +577,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                                                  ? avail_max
                                                  : chunk_want + rawsigns::kMaxSignBytes;
                         u8* buf = tail_buf.data();
-                        if (ctx.slice->read_at(start_abs + lo + scanned, buf, u32(read_len)) ==
-                            OK) {
+                        if (wdev.read_at(start_abs + lo + scanned, buf, u32(read_len)) == OK) {
                             if (idx.scan_tail_for_format(buf, read_len, best->fmt, th)) {
                                 len = lo + scanned + th.pos + 512;
                                 /* M-051: anchor B = the tail sign's exact position
@@ -551,12 +635,18 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 return ERR_NO_MEMORY;
             }
             const u32 fi = ctx.file_index.fetch_add(1, std::memory_order_relaxed);
-            char nbuf[40];
-            snprintf(nbuf, sizeof(nbuf), "File%06u.%s", fi, fmt.ext);
-            std::u16string uname;
-            for (const char* p = nbuf; *p; ++p)
-                uname.push_back(u16(u8(*p)));
-            props->name = uname;
+            /* N-014b: ONE naming family per scan - the raw-sign layer
+             * rides the SAME chain as the grammar layer (the caller's
+             * namer, then the registered File%06u default) instead of
+             * its own hardcoded scheme. The og has no FileNNNN/Carved
+             * scheme at all (corpus erratum, OQ-S4-2's decode; naming is
+             * the host callback's job - N-063), so the callback contract
+             * reads only ext/name; a partial Signature view of the
+             * raw-sign format is the honest projection of that contract. */
+            Signature rsig{};
+            rsig.ext = fmt.ext;
+            rsig.name = fmt.ext;
+            props->name = ctx.namer ? ctx.namer(rsig, len, fi) : default_namer(rsig, len, fi);
             props->fs_kind = u32(FsKindCode::Raw);
             props->logical_size = len;
             props->carve_format = 0xFFFF0000u + best->fmt; /* raw-sign tag */
@@ -569,7 +659,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             {
                 u8 hdr[512];
                 const u32 hb = u32(len < sizeof(hdr) ? len : sizeof(hdr));
-                if (hb != 0 && ctx.slice->read_at(start_abs, hdr, hb) == OK)
+                if (hb != 0 && wdev.read_at(start_abs, hdr, hb) == OK)
                     props->carve_checksum = table::crc32(hdr, hb);
             }
             props->carve_anchor_b = tail_off;
@@ -581,7 +671,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             if (ctx.flags->hash_small_files && len <= ctx.flags->hash_threshold &&
                 len <= MAX_FILE_READ_FOR_HASH) {
                 std::vector<u8> content((size_t(len)));
-                if (ctx.slice->read_at(start_abs, content.data(), u32(len)) == OK) {
+                if (wdev.read_at(start_abs, content.data(), u32(len)) == OK) {
                     u8 full[32];
                     crypto::Sha256::digest(content.data(), size_t(len), full);
                     std::memcpy(props->sha128, full, 16);
@@ -778,6 +868,8 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
     stats.sign_hits += ctx.sign_hits.load();
     stats.sign_validated += ctx.sign_validated.load();
     stats.windows_skipped += ctx.windows_skipped.load();
+    /* N-031: the zero-skip telemetry */
+    stats.zero_strides_skipped += ctx.zero_strides_skipped.load();
     /* M-005: gate telemetry */
     stats.bitmap_skipped_clusters += ctx.bitmap_skipped_clusters.load();
     stats.bitmap_skipped_bytes =

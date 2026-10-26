@@ -135,7 +135,11 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out,
          *   bit4: M-051 RAW provenance follows the hash flag
          *   bit5: N-016b name_raw follows the short name (u16 byte
          *         length + raw bytes - the og's .rsf keeps original
-         *         on-disk name bytes verbatim) */
+         *         on-disk name bytes verbatim)
+         *   bit6: N-059 per-FS secondary payload follows (u32 id_a,
+         *         u32 id_b, u64 generation, u16 zfs_flags, u16 hfs_flags,
+         *         u32 hfs_type - the og's Btrfs +0x3B/+0x3F/+0x81, ZFS
+         *         +0x5A, HFS+ part2 +0xE/+0x74) */
         u16 nflags = 0;
         if (pr) {
             for (const auto& e : pr->extents)
@@ -155,6 +159,10 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out,
                 nflags |= 16; /* M-051: RAW provenance follows */
             if (pr && !pr->name_raw.empty())
                 nflags |= 32; /* N-016b: original name bytes follow */
+            if (pr && (pr->btrfs_id_a != 0 || pr->btrfs_id_b != 0 ||
+                       pr->btrfs_generation != 0 || pr->zfs_secondary_flags != 0 ||
+                       pr->hfs_secondary_flags != 0 || pr->hfs_type_id != 0))
+                nflags |= 64; /* N-059: per-FS secondary payload follows */
         }
         put32(out, parent_ids[i]);
         put16(out, nflags);
@@ -219,6 +227,18 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out,
                 put16(out, ch);
             put64(out, pr->carve_anchor_b);
             out.push_back(pr->carve_flag ? 1 : 0);
+        }
+        /* N-059 (nflags bit6): the per-FS secondary payload — the og's
+         * Btrfs secondary ids + generation/transid qword, the ZFS
+         * secondary flags, the HFS+ mode/flags + type id (the field map
+         * in cr_node.h). Fixed 24-byte block, append-only. */
+        if (nflags & 64) {
+            put32(out, pr->btrfs_id_a);
+            put32(out, pr->btrfs_id_b);
+            put64(out, pr->btrfs_generation);
+            put16(out, pr->zfs_secondary_flags);
+            put16(out, pr->hfs_secondary_flags);
+            put32(out, pr->hfs_type_id);
         }
         if (n->is_full()) {
             const tree::FullNode* f = static_cast<const tree::FullNode*>(n);
@@ -390,6 +410,18 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* re
                 props->carve_note[k] = c.g16();
             props->carve_anchor_b = c.g64();
             props->carve_flag = c.g8() != 0;
+        }
+        if (nflags & 64) { /* N-059: the per-FS secondary payload */
+            /* fixed 24-byte block; a truncated tail is the N-058
+             * corrupt-record error (c.fail set by the exhausted reads) */
+            props->btrfs_id_a = c.g32();
+            props->btrfs_id_b = c.g32();
+            props->btrfs_generation = c.g64();
+            props->zfs_secondary_flags = c.g16();
+            props->hfs_secondary_flags = c.g16();
+            props->hfs_type_id = c.g32();
+            if (c.fail)
+                break;
         }
         tree::FileNode* n = nullptr;
         if (marker == 1) {

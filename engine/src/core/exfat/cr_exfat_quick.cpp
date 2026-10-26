@@ -278,6 +278,115 @@ void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context
 
 constexpr u32 EXFAT_MAX_DEPTH = 64; /* P0-6: stack-exhaustion guard */
 
+/* M-014 (diff-to-fix): the og's structural entry gates, decoded from
+ * FUN_180002f90 (exFATSearchDLL_decompiled.c :1779-1802), its timestamp
+ * helper FUN_180002f40 (:1762-1777), the stream emission gates in
+ * FUN_180029280 (:34562-34564) and the name-fragment gates in
+ * FUN_180003030 (:1811-1834). The og's per-entry switch applies them to
+ * live AND deleted entries side by side (case 0x85/5, 0xC0/0x40,
+ * 0xC1/0x41 - :25507-25560), so they run here for live sets, deleted
+ * sets and oracle re-walks alike. A failing set-head is SKIPPED - no
+ * park, no emission (the og's case handlers fall straight through). */
+
+/* FAT-family date/time field sanity (FUN_180002f40, applied to the
+ * create (+8), modify (+0xC) AND access (+0x10) words of the file
+ * dentry):
+ *   day   (bits 16-20) != 0       - a zero/all-zero date FAILS
+ *   month (bits 21-24) in [1,12]  - ((month - 1) < 12)
+ *   hour  (bits 11-15) <= 23      - (v & 0xF800) < 0xB801
+ *   min   (bits  5-10) <= 59      - (v & 0x7E0)  < 0x761
+ *   2sec  (bits  0- 4) <= 29      - second value <= 58
+ * The finding's fix-plan guess ("treat all-zero as valid") is corrected
+ * by the decompile: day==0 fails, so an unstamped entry is rejected. */
+bool fat_datetime_fields_ok(u32 ts) {
+    return ((ts & 0x1f0000u) != 0) && (((ts >> 21) & 0xfu) - 1u < 12u) &&
+           ((ts & 0xf800u) < 0xb801u) && ((ts & 0x7e0u) < 0x761u) &&
+           ((ts & 0x1fu) < 0x1eu);
+}
+
+/* File-dentry structural gates (FUN_180002f90, param_1 = file entry +1):
+ *   secondary_count (byte +1) in [2,18]   ((u8)(sc - 2) < 0x11)
+ *   create/modify/access timestamps all pass fat_datetime_fields_ok
+ *   reserved1 (u16 +6) == 0
+ *   reserved2 (bytes +0x19..+0x1F) == 0   (the tz bytes +0x16..+0x18
+ *                                          are NOT zero-checked - S-011)
+ * The secondary-count bound is also the walk's OOB-shape guard: a
+ * corrupt sc=40 header used to drag the walker through arbitrary
+ * following entries; the og refuses the set at the head. */
+bool file_entry_structural_ok(const FileEntry* fe) {
+    if (u8(fe->secondary_count - 2) >= 0x11u)
+        return false;
+    if (!fat_datetime_fields_ok(fe->create_timestamp) ||
+        !fat_datetime_fields_ok(fe->modify_timestamp) ||
+        !fat_datetime_fields_ok(fe->access_timestamp))
+        return false;
+    if (fe->reserved1 != 0)
+        return false;
+    for (u8 b : fe->reserved2)
+        if (b != 0)
+            return false;
+    return true;
+}
+
+/* Name-fragment gates (FUN_180003030, param_1 = name entry +1):
+ *   flags (byte +1): (flags & 3) == 0 && flags < 4
+ *   the fragment's first UTF-16 char (+2) must be nonzero
+ *   each char whose LOW byte is zero must pass the 256-entry validity
+ *   table indexed by its HIGH byte (PTR_180045a00, :1821-1823)
+ *
+ * Table provenance (DFX24 completion, correcting the first landing's
+ * "not recoverable" note): the corpus DOES ship the raw binary -
+ * easeus-drw-research/og-codebase/exFATSearchDLL.dll. The 256 bytes at
+ * .rdata RVA 0x45A00 (file offset 0x44600 via the PE section map:
+ * .rdata vaddr 0x45000 / rawptr 0x43C00) are the table FUN_180003030
+ * indexes; dumped byte-exact and cross-checked against the raw
+ * disassembly at VA 0x180003030 (cmp BYTE [rcx+r8*1+0x1],0 -> the LOW
+ * byte zero test; movzx ecx,[rcx+r8*1+0x2]; cmp BYTE [rcx+r10*1],0 ->
+ * table[HIGH byte]) - the zero-flag positions are the control /
+ * Windows-illegal set {0x00-0x19, 0x22, 0x2A, 0x2F, 0x3A, 0x3C, 0x3E,
+ * 0x3F, 0x5C, 0x7C, 0xFF}. Chars with a nonzero low byte are never
+ * table-checked (the og's exact wiring, quirk included). */
+const u8* exfat_utf16_name_validity() {
+    static const u8 table[256] = {
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01,
+        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+        0x00, 0x01, 0x01, 0x01, 0x01, 0x00, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+        0x01, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x01, 0x01, 0x01, 0x01, 0x01,
+        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x01,
+        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+        0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+        0x01, 0x01, 0x01, 0x00,
+    };
+    return table;
+}
+
+bool name_fragment_gates_ok(const u8* nf, bool first_needed) {
+    if ((nf[1] & 3) != 0 || nf[1] >= 4)
+        return false;
+    const u8* table = exfat_utf16_name_validity();
+    for (int c = 0; c < 15; ++c) {
+        const u16 ch = u16(nf[2 + c * 2]) | u16(nf[3 + c * 2]) << 8;
+        if (ch == 0)
+            break; /* terminator: the og's loop returns valid here */
+        if ((ch & 0xFF) == 0 && table[ch >> 8] == 0)
+            return false; /* zero-low-byte char the og's table rejects */
+    }
+    if (first_needed && (u16(nf[2]) | u16(nf[3]) << 8) == 0)
+        return false;
+    return true;
+}
+
 void recurse_dir(ScanCtx& ctx, u32 first, bool deleted, tree::FileNode* host_node, u32 depth = 0) {
     if (depth > EXFAT_MAX_DEPTH) {
         ++ctx.stats->chains_broken;
@@ -436,6 +545,19 @@ void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context
             /* entry set: file + stream + names (attribute_count streams) */
             const FileEntry* fe = reinterpret_cast<const FileEntry*>(f);
             const u8 stream_count = fe->secondary_count;
+            /* M-014: the og's file-dentry structural gates run BEFORE set
+             * completion (case 0x85/5: FUN_180002f90 first, then
+             * FUN_18001fef0) - a set-head with an out-of-range secondary
+             * count, garbage timestamps or nonzero reserved fields is
+             * skipped outright: no park, no emission, no oracle
+             * candidacy. The og advances per entry, so the surviving
+             * stream/name runs fall to the per-entry cases (the M-013
+             * orphan-tail pool here). */
+            if (!file_entry_structural_ok(fe)) {
+                ++ctx.stats->sets_gated;
+                ++i;
+                continue;
+            }
             if (i + 1 + stream_count > count) {
                 /* M-013: a torn set is PARKED, not discarded - the og's
                  * DelexFat path parks the prefix and the oracle may
@@ -506,7 +628,54 @@ void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context
                 }
             }
 
+            /* M-014: the og's stream emission gates (FUN_180029280
+             * :34562-34564): data_length, first_cluster and name_length
+             * must ALL be nonzero, and the entry after the stream must be
+             * a name entry. ZERO-LENGTH FILES ARE NOT EMITTED - the og's
+             * documented quirk (an empty file carries no recoverable
+             * content and never appeared in og results; the core matched
+             * the og by inheriting it). The next-entry-is-name half is
+             * already enforced by the name-assembly path below (a
+             * non-name successor yields an empty name and no emission).
+             * A failing set does not emit; the stream/name entries park
+             * as orphan tails (the M-013 pool) and the oracle re-applies
+             * these gates on any reconstruction. */
+            if (se->data_length == 0 || se->first_cluster == 0 || se->name_length == 0) {
+                ++ctx.stats->sets_gated;
+                ++i;
+                continue;
+            }
+
             /* assemble name from fragments */
+            /* M-014: name-fragment gates (FUN_180003030) run over the
+             * needed fragments before assembly: flags & 3 == 0, flags < 4,
+             * and the first needed fragment carries a nonzero first char.
+             * A failing set does not emit (the og's early-fragment path
+             * skips the fragment; its uVar6>=5 late-fragment tolerance
+             * only covers padding fragments beyond the needed count,
+             * which this walk never consumes - the conservative reject
+             * is documented in the finding's Resolution). */
+            {
+                bool name_gates_ok = true;
+                size_t chars_in = 0;
+                for (u32 ne = 0; ne < name_entries; ++ne) {
+                    const u8* nf = buf.data() + (i + 2 + ne) * 32;
+                    if (entry_type(nf[0]) != TYPE_NAME)
+                        break;
+                    if (!name_fragment_gates_ok(nf, ne == 0)) {
+                        name_gates_ok = false;
+                        break;
+                    }
+                    chars_in += 15;
+                    if (chars_in >= name_len)
+                        break;
+                }
+                if (!name_gates_ok) {
+                    ++ctx.stats->sets_gated;
+                    ++i;
+                    continue;
+                }
+            }
             std::u16string name;
             name.reserve(name_len);
             for (u32 ne = 0; ne < name_entries && name.size() < name_len; ++ne) {
@@ -698,7 +867,11 @@ void reconstruct_parked_sets(ScanCtx& ctx) {
         if (head.entries.empty() || head.entries.size() < 32)
             continue;
         const u32 declared = u32(head.entries[1]) + 1; /* secondary_count + 1 */
-        if (declared < 3 || declared > 512)
+        /* M-014: parked heads pass the file gates before parking, so
+         * secondary_count is in [2,18] and declared in [3,19]; the old
+         * 512 sanity cap is tightened to the gated bound (a wider
+         * candidate can never re-pass the gates in the re-walk). */
+        if (declared < 3 || declared > 19)
             continue; /* no defensible set shape to reconstruct */
         const u16 stored = u16(head.entries[2]) | u16(head.entries[3]) << 8;
         bool accepted = false;

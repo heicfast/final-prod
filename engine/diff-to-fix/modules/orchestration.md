@@ -144,8 +144,32 @@ dedup), GAP-S6-13 (64 KiB transport envelope).
 
 | ID | Severity | One-line |
 |---|---|---|
-| N-059 | MINOR | Event-bus shape: og query-signals (sigIsBusy(bool&) ×14, sigIsStopping ×8 — reference-out-param queries) + pull-polled progress convention + typed IUIProgressInfo vs core one-way push + telemetry pull. Cheapest close: two query exports or a deliberate-difference registration |
+| N-075 (renumbered from the session-6-local N-059 at integration) | MINOR | Event-bus shape: og query-signals (sigIsBusy(bool&) ×14, sigIsStopping ×8 — reference-out-param queries) + pull-polled progress convention + typed IUIProgressInfo vs core one-way push + telemetry pull. FIXED session 28: the two query exports (`cr_ui_scan_busy`/`cr_ui_scan_stopping`, synchronous) + D-78 registration + the ABI-CONTRACT 5 mapping — pinned by `CrUi.ScanBusyStoppingQueries` + plain-C edges |
 | I-019 | INFO | DRWCfg.bin persistent config channel — scope register (host-owned settings; the scan-affecting subset is M-024's family) |
 
 | M-044 UDF recognition | **MATCH** (decompile-exact probe, gate a + anchor + LE VDS load + "UDF"@0x19; no engine, carve rides) | `Orchestrator.UdfVolumeRecognized`, `Orchestrator.UdfNotConfusedWithFat`, `Orchestrator.UdfProbeFailsOnMkudffsShapeLikeTheOg`, `Orchestrator.UdfSurfacesAsCarveFamily` |
 | N-076 FsFamily contract | **MATCH** (reserved-5 anchored; documented 6..11 numbering) | `Orchestrator.FsFamilyValuesMatchContract` |
+
+| N-075 event-bus query signals | **MATCH** (busy/stopping query exports + D-78 pull-progress register + ABI-CONTRACT 5 mapping) | `CrUi.ScanBusyStoppingQueries`, plain-C edges in `cr_ui_abi_check` |
+---
+
+## Session-27 row (DFX27 lane, 2026-10-26)
+
+| ID | Severity | One-line |
+|---|---|---|
+| M-058 | MAJOR (NEW-FINDING, fixed same session) | run()'s cache-failure fallback dereferenced the retry device CachedReader::create destroys on failure returns (latent UAF on the defensive path, ASan-proven in the standalone repro) + the adjacent comment documented the opposite (bare-slice) fallback. FIXED: build_read_pipe() extracted — the degraded path is a pinned contract (bare slice, no retry isolation, surfaced), 3 ReadPipe pin tests, N-045 budget pin re-anchored to the call site (lockstep preserved). |
+
+
+## Session-33 verdict update (2026-10-26, DFX33 — M-018 FIXED)
+
+**B1/D16 → MATCH (post-fix):** the og's PushFolderFilter junk filter is
+now the core's — `filterfolder::apply()` runs post-walk (pre-grading,
+pre-session-capture) marking the FilterFolder.ini hidden sets on the
+nodes (NODE_FLAG_JUNK_FILTERED); query rows, the CLI tree and recover-all
+planning all skip flagged nodes (sessions re-derive on resume). The lists
+ship as generated data (scripts/gen_filterfolder.py from the corpus
+config, byte-exact — the file's `._.DS_Store` and `新建資料夾` correct the
+finding's typos); matching is exact u16 equality with ASCII-fold
+(comparator mode undecoded in the corpus — registered D-82).
+`ScanStats.junk_filtered` added. TxtViewFiles/SumaryFileType stay
+out-of-scope (preview/count-unification surfaces, not the hidden set).

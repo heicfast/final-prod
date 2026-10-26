@@ -122,4 +122,31 @@ cross-engine gap is M-039. This leg's local S-021 renumbered to S-028.)
 | ID | Severity | One-line |
 |---|---|---|
 | N-056 | MINOR | Re-scan metadata cache (og persists BtrfsCache.txt subvolume/chunk-tree cache; core cold every scan) + ZFS-side polling in the same file |
-| OQ-S6-2 | tracked | The RC4 PRGA target (encrypted-dataset support claim — capa-verified primitive, undecoded role; possibly the cache obfuscation itself) |
+| OQ-S6-2 | RESOLVED (s25) — **INVALID premise**: capa false positive (0x180012190 = adler32/crc32 chunk pump, no RC4 essentials anywhere in the binary); erratum E46; no divergence — parity by shared absence |
+
+
+## Session-33 verdict update (2026-10-26, DFX33 — M-020 FIXED)
+
+**B1/B2 → MATCH (post-fix):** `parse_chunk` decodes the full stripe array
++ geometry; `logical_to_physical` is profile-aware with the og's rotating
+mirror for the 2-copy class (SINGLE/DUP/RAID1) — og-exact :2534-2540 — and
+the RAID10 geometry gate og-exact :2162-2168. RAID0/RAID10 stripe math is
+the REGISTERED SUPERSET (D-79): the og's read path fails both classes
+(class 8/0x40 fall to LAB_1800043fe, verified :2521-2583 first-hand —
+the session-2 module text's "2-copy (DUP/RAID1/RAID10) rotating-mirror"
+phrasing carried the audit's decode error; RAID10 is class 0x40, FAILED
+by the og). Raw extents on striped profiles split at stripe boundaries;
+compressed extents stay atomic (refused + counted when spanning).
+
+**A26/B5 → MATCH (post-fix):** the default subvolume is picked og-exactly
+(the root tree's DIR_ITEM (6, 0x54, 0x8dbfc2d2) spelling "default" with a
+ROOT_ITEM located key; fallback root 5) and renders its children directly
+at the volume root (ReFS root convention); non-default subvolumes keep the
+N-047 containers. `subvol-<id>` remains only the unnamed-non-default
+fallback.
+
+**Stats surface:** `unmappable_extents` (profile-refused extents — never
+wrong bytes), `mirror_rotations` (non-first-stripe 2-copy accesses).
+Error-map integration verified already-by-construction (the Skip-mode
+RetryingDevice pipe records sector-granular failures for every engine
+read; no per-engine duplicate).

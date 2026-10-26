@@ -82,7 +82,9 @@ lost-partition-specific divergences surfaced.
   multi-candidate fixture.
 - **M-017 FIXED (s19):** the og's content-driven scoring landed end to end — weighted
   count (f+50·d NTFS family / f+10·d HFS+ / (f+d)·50 FAT) + the observed per-FS bonus
-  (NTFS 60/30, FAT 20; OQ-S2M-2 residual) + the +500 table-match (the old overlap
+  (NTFS 60/30, FAT 20 — s31 decode: generator outputs of the og's per-engine
+  +0x68 composer ladders; the core's flat values are the verified-against-187-rows
+  mapping for its single-probe architecture; OQ-S2M-2 RESOLVED) + the +500 table-match (the old overlap
   penalties' polarity inversion repaired), ln(count)/ln(max) in permille with the og's
   edge cases, the containment-in-known drop (table-matched candidates exempt), the
   stable descending sort, and the :842776-93 iVar16 size-match promotion re-decoded
@@ -93,7 +95,10 @@ lost-partition-specific divergences surfaced.
   counterpart.
 - **S-006 stays open** (probe families); its scoring half is now decoded — implement M-017
   together with the probe-family wiring so candidate content probes feed the og formula.
-- **OQ-T9 residue:** bonus (+0x68) setter in the SearchDLLs unpinned → OQ-S2M-2.
+- **OQ-T9 residue CLOSED (s31):** the +0x68 setter decoded — per-engine scan-path
+  composers (FAT/exFAT two-factor ladders boot+fs ∈ {10,45,50}; NTFS flag-base +
+  boot-validation ± + stitching +30/+50); "FAT32 20" = 10+10 minimum tier; see
+  findings/FIXED/OQ-S2M-2 + evidence s31-oq-s2m-2.
 
 ---
 
@@ -217,3 +222,27 @@ Resolution: GPT_GenerateSignature regenerates the 32-bit disk signature
 (MBR +440), not the GPT disk GUID. Remaining on this module: M-017 (the
 scoring model) is DFX19's claimed lane; the GPT entry-array writer
 (FUN_180039470 protective conversion) stays v2 scope per the fix plan.
+
+## Session-27 verdict update (M-035 FIXED, 2026-10-26)
+
+**M-035 — FIXED:** the engine-side content-consistency validation (the og's
+exFAT-only scorer, FUN_180025390) is now `cr::lost` scorer machinery
+(cr_consistency.h/.cpp): per walked candidate file — considered (non-directory),
+filterable (checkable extension vocabulary = the carve registry's families +
+TIFF/JPEG specials, the OQ-FLT-1 shared-vocabulary decision; camera-RAW families
+without a core signature stay uncheckable — bounded vocabulary registered),
+matched (first registry signature at the file's data start, registry order =
+carve dispatch precedence; classifier = substring strstr + the MOV/MP4/JPG
+family specials). Reject rule decompile-exact: considered/2 <= filterable &&
+ratio < 0.3 && filterable != 0 (STRICT < — the finding text's `<= 0.3`
+corrected from the `<= 0.3 && != 0.3` decode); out-of-bounds data start
+invalidates outright. Wiring: scan_candidate scores after the engine dispatch;
+a reject detaches the candidate's subtree (the new
+ResultTree::detach_subtree — nodes/roots/indexes removed, props refs released
+once per node, root links severed), zeroes the counts, bumps
+ScanStats::lost_content_rejected, logs the verdict (N-048 seam). The candidate
+stays listed (per-hit persistence, M-042) — the reject drops its FILES, the
+CalcPartition observable. ExFAT-only (OQ-FLT-1); uniform at the candidate seam
+(lost fan-out + LDM volume scans; the og's LDM-path wiring corpus-UNVERIFIED,
+documented). 15 tests incl. two end-to-end whole-disk scans; fail-before
+executed; suite 808/808.

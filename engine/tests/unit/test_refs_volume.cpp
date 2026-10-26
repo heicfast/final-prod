@@ -152,9 +152,14 @@ std::vector<u8> u16name(const char16_t* s) {
     return out;
 }
 
-/* File row value: embedded file-table root node (general info + $DATA). */
+/* File row value: embedded file-table root node (general info + $DATA).
+ * run_flags/run_refsize build the data-run entry's og-grammar form
+ * (N-036 tests): 0x40 + refsize 0x18 = og recognizer (block reference);
+ * +0x20 marks a physical LCN (no container translation). Default
+ * (0x0010, 0) keeps the historical thesis-grammar fixtures byte-identical. */
 std::vector<u8> build_file_node(u64 create, u64 modify, u32 flags, u64 size, u64 alloc,
-                                u64 data_lcn, u32 data_clusters, bool with_data) {
+                                u64 data_lcn, u32 data_clusters, bool with_data,
+                                u16 run_flags = 0x0010, u16 run_refsize = 0) {
     std::vector<u8> var(0x40, 0);
     put64(var.data() + 0x00, create);
     put64(var.data() + 0x08, modify);
@@ -173,7 +178,8 @@ std::vector<u8> build_file_node(u64 create, u64 modify, u32 flags, u64 size, u64
             [&] {
                 std::vector<u8> v(0x18, 0);
                 put64(v.data() + 0x00, data_lcn);
-                put16(v.data() + 0x08, with_data ? 0x0010 : 0x0000);
+                put16(v.data() + 0x08, with_data ? run_flags : u16(0x0000));
+                put16(v.data() + 0x0a, run_refsize);
                 put32(v.data() + 0x14, data_clusters);
                 return v;
             }()},
@@ -200,7 +206,7 @@ std::vector<u8> build_dirlink_value(u64 child_tid, u64 create, u64 modify) {
     return v;
 }
 
-std::vector<u8> build_volume() {
+std::vector<u8> build_volume(bool container_layout = false) {
     std::vector<u8> img(N_CLUSTERS * CLUSTER, 0);
     const u64 T_CREATE = 0x01D0000000000000ull;
     const u64 T_MODIFY = 0x01D1000000000000ull;
@@ -222,6 +228,8 @@ std::vector<u8> build_volume() {
         b[0x29] = 10;                           /* minor */
         put64(b + 0x38, 0xDAB891EFB891CA81ull); /* serial */
         put64(b + 0x40, 64ull << 20);           /* bytes per container */
+        if (container_layout)
+            put32(b + 0x34, 8); /* N-036: container span = 8 clusters (DBR +0x34) */
         b[510] = 0x55;
         b[511] = 0xAA;
     }
@@ -333,7 +341,20 @@ std::vector<u8> build_volume() {
         std::vector<u8> k600(16, 0), k700(16, 0);
         put64(k600.data(), 0x600);
         put64(k700.data(), 0x700);
-        write_page(img, 120, 0x2B42534D, 1, build_node({Row{k600, r600_val}, Row{k700, r700_val}}));
+        std::vector<Row> oid_rows;
+        if (container_layout) {
+            /* N-036: a system-directory container record (og
+             * FUN_180002a60): 0xa0-length key, base cluster 300 @+0x90,
+             * span 8 @+0x98 (== DBR +0x34). First row -> container
+             * counter 0 -> map key 0. */
+            std::vector<u8> ck(0xa0, 0);
+            put64(ck.data() + 0x90, 300);
+            put64(ck.data() + 0x98, 8);
+            oid_rows.push_back({ck, std::vector<u8>(8, 0), 0});
+        }
+        oid_rows.push_back({k600, r600_val, 0});
+        oid_rows.push_back({k700, r700_val, 0});
+        write_page(img, 120, 0x2B42534D, 1, build_node(oid_rows));
     }
 
     /* ---- parent-child table at cluster 140 ---- */
@@ -408,6 +429,46 @@ std::vector<u8> build_volume() {
             put16(val.data() + 0x0A, u16(nm.size()));
             memcpy(val.data() + 0x0C, nm.data(), nm.size());
             rows.push_back({key, val, 0x4 /* deleted */});
+        }
+        if (container_layout) {
+            /* N-036 proof files (og run grammar: flags 0x40 + refsize 0x18):
+             * "vblock.dat" - container-relative block 42 (>= span 8;
+             *   (42/8 >> 1) - 2 = 0 -> container 0 @base 300 ->
+             *   (42 & 7) | 300 = 302)
+             * "pblock.dat" - same block with flag 0x20: physical, used
+             *   as-is -> 42
+             * "low.dat" - container-relative block 5 (< span): the og's
+             *   below-span identity -> 5 */
+            {
+                std::vector<u8> key;
+                key.resize(4);
+                put32(key.data(), 0x00010030);
+                std::vector<u8> nm = u16name(u"vblock.dat");
+                key.insert(key.end(), nm.begin(), nm.end());
+                rows.push_back({key, build_file_node(T_CREATE, T_MODIFY, 0, 4096, 4096, 42, 1,
+                                                     true, 0x0040, 0x0018),
+                                0});
+            }
+            {
+                std::vector<u8> key;
+                key.resize(4);
+                put32(key.data(), 0x00010030);
+                std::vector<u8> nm = u16name(u"pblock.dat");
+                key.insert(key.end(), nm.begin(), nm.end());
+                rows.push_back({key, build_file_node(T_CREATE, T_MODIFY, 0, 4096, 4096, 42, 1,
+                                                     true, 0x0060, 0x0018),
+                                0});
+            }
+            {
+                std::vector<u8> key;
+                key.resize(4);
+                put32(key.data(), 0x00010030);
+                std::vector<u8> nm = u16name(u"low.dat");
+                key.insert(key.end(), nm.begin(), nm.end());
+                rows.push_back({key, build_file_node(T_CREATE, T_MODIFY, 0, 4096, 4096, 5, 1,
+                                                     true, 0x0040, 0x0018),
+                                0});
+            }
         }
         write_page(img, 160, 0x2B42534D, 0x600, build_node(rows));
     }
@@ -502,6 +563,62 @@ TEST(Refs, FullScanHierarchy) {
     ASSERT_NE(nullptr, inner);
     EXPECT_EQ(1u, inner->props()->extents.size());
     EXPECT_EQ(230 * 4096ull, inner->props()->extents[0].offset);
+}
+
+TEST(Refs, FallbackRootSkipsOgSystemFamilies) {
+    /* OQ-RS-7 (s31): the og's system-table handlers are EXACTLY {0x500,
+     * 0x600, 0x701} (ReFSSearchDLL_decompiled.c:600-620, the
+     * RefsQuickSearchFilesImpl ctor registrations) and any table id >
+     * 0x700 is NORMALIZED to the 0x701 family (:1150-1154). The old
+     * core excluded only a fabricated 0x520 - on a volume without the
+     * 0x600 root, the fallback elected the 0x500 SYSTEM table as the
+     * user root. Here: 0x500 points at the subdir page (180) and the
+     * real user root is 0x650 -> the root-content page (160) whose
+     * hello.txt row exists only there. Pre-fix the walk rooted at the
+     * 0x500 table (first non-child in map order) and hello.txt was
+     * absent; post-fix the system family is skipped and the 0x650
+     * table is elected. */
+    std::vector<u8> img = build_volume();
+    {
+        std::vector<u8> r500(0x50, 0), r650(0x50, 0), r700(0x50, 0);
+        for (int i = 0; i < 4; ++i) {
+            put64(r500.data() + 0x30 + i * 8, 180 + i); /* subdir page */
+            put64(r650.data() + 0x30 + i * 8, 160 + i); /* root content */
+            put64(r700.data() + 0x30 + i * 8, 180 + i);
+        }
+        std::vector<u8> k500(16, 0), k650(16, 0), k700(16, 0);
+        put64(k500.data(), 0x500);
+        put64(k650.data(), 0x650);
+        put64(k700.data(), 0x700);
+        write_page(img, 120, 0x2B42534D, 1,
+                   build_node({Row{k500, r500, 0}, Row{k650, r650, 0}, Row{k700, r700, 0}}));
+    }
+    {
+        std::vector<u8> key(16, 0), val(16, 0);
+        put64(key.data(), 0x650);
+        put64(key.data() + 8, 0x700);
+        put64(val.data(), 0x650);
+        put64(val.data() + 8, 0x700);
+        write_page(img, 140, 0x2B42534D, 3, build_node({Row{key, val}}));
+    }
+    RamDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    u32 rc = scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+
+    std::vector<tree::FileNode*> act;
+    collect(ra, act);
+    const tree::FileNode* hello = nullptr;
+    for (const auto* n : act)
+        if (n->name_utf8() == "hello.txt")
+            hello = n;
+    ASSERT_NE(nullptr, hello)
+        << "the fallback root must skip the og's system families (0x500, >0x700)";
+    EXPECT_EQ(200 * 4096ull, hello->props()->extents[0].offset);
 }
 
 TEST(Refs, DeletedGradingAndId2) {
@@ -956,6 +1073,76 @@ TEST(Refs, MultipleDataAttributesMerged) {
     EXPECT_EQ(m->props()->extents[1].offset, 250 * CLUSTER);
 }
 
+TEST(Refs, PropertyFlagAndUnknownRowsDoNotBreakDataWalk) {
+    /* N-019 scenario 10, honestly scoped: the corpus is SILENT on ReFS
+     * integrity streams (0 hits across the refs artifacts - verified this
+     * session), so neither side's integrity behavior is corpus-pinned and
+     * an "integrity-stream parity" test would freeze a guess. The closest
+     * HONEST surface - and the real robustness property - is the attribute
+     * walk's tolerance: a file whose embedded table carries the og's
+     * property-flag marker rows (0x108 / 0xf8 - the property-flag surface
+     * an integrity-enabled or attributed file rides) and an UNKNOWN-type
+     * row (forward layout) must still recover its data byte-exact: the
+     * flag rows are tracked (og prop bits), unknown rows are skipped, and
+     * neither takes down the data-run walk or trips the granularity
+     * discard. */
+    std::vector<u8> img = build_volume();
+    {
+        std::vector<Row> frows;
+        /* og property-flag marker A (type 0x108 -> prop bit 1) */
+        {
+            std::vector<u8> k(4, 0);
+            put16(k.data(), 0x108);
+            frows.push_back({k, std::vector<u8>(4, 0)});
+        }
+        /* og property-flag marker B (type 0xf8 -> prop bits 1|2) */
+        {
+            std::vector<u8> k(4, 0);
+            put16(k.data(), 0xf8);
+            frows.push_back({k, std::vector<u8>(4, 0)});
+        }
+        /* an UNKNOWN row type (0x199, 4-byte key - matches no dispatch
+         * arm): forward-compat tolerance, walked past */
+        {
+            std::vector<u8> k(4, 0);
+            put16(k.data(), 0x199);
+            frows.push_back({k, std::vector<u8>(8, 0xAB)});
+        }
+        /* the data itself: one 2-cluster run */
+        frows.push_back(data_attr_row({{260, 2}}));
+        rewrite_root_table(img,
+                           {file_row_key(u"propflag.dat", build_node(frows, gi_block(8192, 8192)))});
+    }
+    memset(img.data() + 260 * CLUSTER, 'P', 2 * CLUSTER);
+    RamDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    ASSERT_EQ(OK, scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    std::vector<tree::FileNode*> act;
+    collect(ra, act);
+    const tree::FileNode* pf = nullptr;
+    for (auto* n : act)
+        if (n->name_utf8() == "propflag.dat")
+            pf = n;
+    ASSERT_NE(pf, nullptr) << "the attributed file must still surface";
+    ASSERT_NE(pf->props(), nullptr);
+    EXPECT_EQ(u64(8192), pf->props()->logical_size);
+    ASSERT_EQ(1u, pf->props()->extents.size())
+        << "the data row must fully resolve around the flag/unknown rows";
+    EXPECT_EQ(u64(260) * CLUSTER, pf->props()->extents[0].offset);
+    EXPECT_EQ(u64(2) * CLUSTER, pf->props()->extents[0].length);
+    /* byte-exact content through the resolved extent */
+    std::vector<u8> buf(2 * CLUSTER, 0);
+    ASSERT_EQ(OK, dev.read_at(pf->props()->extents[0].offset, buf.data(), u32(buf.size())));
+    EXPECT_EQ(buf, std::vector<u8>(2 * CLUSTER, u8('P')));
+    /* the walk never tripped the garbage-runlist guard on this file */
+    EXPECT_EQ(0u, stats.granularity_discards);
+}
+
 TEST(Refs, PagedRunTableFollowed) {
     /* S-020: an INNER (paged) $DATA value node is followed to its child
      * page (og FUN_18000cf30) - the old code rejected inner nodes and the
@@ -1344,6 +1531,236 @@ TEST(Refs, ProgressCancellationMidWalk) {
     count(ra);
     EXPECT_GT(emitted, 0u) << "partial results must survive cancellation";
     EXPECT_LT(emitted, 48u) << "the walk must have been cut short mid-table";
+}
+
+
+/* ---- N-026 group: the og's DBR geometry gates (FUN_180012390) ---- */
+
+TEST(Refs, Bps256Accepted) {
+    /* N-013b: the og's bps ladder is {256,512,1024,2048,4096}
+     * (:13544-13546). A 256-bps DBR (spc 16 -> 4-KiB cluster) must open;
+     * the old core refused every bps except 512/4096. */
+    std::vector<u8> img = build_volume();
+    put32(img.data() + 0x20, 256);
+    put32(img.data() + 0x24, 16);
+    RefsBoot b;
+    ASSERT_TRUE(validate_boot(img.data(), b));
+    EXPECT_EQ(256u, b.bytes_per_sector);
+    EXPECT_EQ(4096ull, b.cluster_bytes);
+    EXPECT_TRUE(b.valid);
+}
+
+TEST(Refs, Bps1024Accepted) {
+    /* N-013b: 1024 bps (spc 4 -> 4-KiB cluster) - refused by the old
+     * core, opened by the og. */
+    std::vector<u8> img = build_volume();
+    put32(img.data() + 0x20, 1024);
+    put32(img.data() + 0x24, 4);
+    RefsBoot b;
+    ASSERT_TRUE(validate_boot(img.data(), b));
+    EXPECT_EQ(1024u, b.bytes_per_sector);
+    EXPECT_EQ(4096ull, b.cluster_bytes);
+}
+
+TEST(Refs, Cluster16KRejected) {
+    /* N-013b: the og gates the cluster PRODUCT to {4 KiB, 64 KiB}
+     * (:13547-13549); a 16-KiB cluster (bps 512 x spc 32) is not a shape
+     * ReFS formats carry - the og refuses it and so must we (the old
+     * core accepted any pow2 cluster). */
+    std::vector<u8> img = build_volume();
+    put32(img.data() + 0x24, 32);
+    RefsBoot b;
+    EXPECT_FALSE(validate_boot(img.data(), b));
+}
+
+TEST(Refs, Cluster64KAccepted) {
+    /* N-013b boundary pin: 64 KiB (bps 512 x spc 128) is the og's other
+     * legal cluster size. */
+    std::vector<u8> img = build_volume();
+    put32(img.data() + 0x24, 128);
+    put64(img.data() + 0x18, 1024 * 128); /* keep sector count coherent */
+    RefsBoot b;
+    ASSERT_TRUE(validate_boot(img.data(), b));
+    EXPECT_EQ(65536ull, b.cluster_bytes);
+    EXPECT_EQ(128u, b.sectors_per_cluster);
+}
+
+TEST(Refs, OpenReadIsFourKiB) {
+    /* N-013d: the og opens the volume with a 4-KiB read
+     * (alloc(0x1000) + FUN_180012390(buf, 0x1000), :2425-2444). A
+     * recording device pins the scan's first read length at 4096 (the
+     * old core read 512). */
+    std::vector<u8> img = build_volume();
+    class LenProbe final : public IStorageDevice {
+    public:
+        explicit LenProbe(std::vector<u8>& d) : d_(d.data()), n_(d.size()) {
+            g_.logical_sector = 512;
+            g_.physical_sector = 512;
+            g_.total_bytes = n_;
+            g_.sector_count = n_ / 512;
+        }
+        u32 read_at(u64 off, void* buf, u32 len) override {
+            if (off > n_ || len > n_ - off)
+                return ERR_RANGE_OUT_OF_BOUNDS;
+            if (first_len_ == 0)
+                first_len_ = len;
+            memcpy(buf, d_ + off, len);
+            return OK;
+        }
+        const Geometry& geometry() const override { return g_; }
+        u32 first_len() const { return first_len_; }
+
+    private:
+        Geometry g_{};
+        u8* d_;
+        u64 n_;
+        u32 first_len_ = 0;
+    };
+    LenProbe dev(img);
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    const u32 rc = scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats);
+    if (rc == OK || rc == ERR_BAD_MAGIC)
+        SUCCEED() << "scan ran to a verdict";
+    EXPECT_EQ(4096u, dev.first_len()) << "the volume-open read must be the og's 4 KiB";
+}
+
+/* ---- N-036: container translation (og FUN_180011e90/FUN_180004820) ---- */
+
+TEST(Refs, ContainerRelativeRunTranslatedPerOgFormula) {
+    /* og grammar run (flags 0x40 + refsize 0x18, flag 0x20 CLEAR) at
+     * virtual block 42, span 8, container 0 @base 300:
+     * key = ((42/8 >> 1) - 2) * 8 = 0; block' = (42 & 7) | 300 = 302. */
+    std::vector<u8> img = build_volume(true);
+    RamDevice dev(img);
+
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    ASSERT_EQ(OK, scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats))
+        << err_text(OK);
+
+    std::vector<tree::FileNode*> act;
+    collect(ra, act);
+    const tree::FileNode* vblock = nullptr;
+    for (const auto* n : act)
+        if (n->name_utf8() == "vblock.dat")
+            vblock = n;
+    ASSERT_NE(nullptr, vblock) << "the og-grammar (0x40) run must be recognized";
+    ASSERT_EQ(1u, vblock->props()->extents.size());
+    EXPECT_EQ(302 * 4096ull, vblock->props()->extents[0].offset)
+        << "container-relative block 42 must translate to (42 & 7) | 300";
+    EXPECT_EQ(4096ull, vblock->props()->extents[0].length);
+}
+
+TEST(Refs, PhysicalRunFlag20Untranslated) {
+    /* same virtual block 42, but flag 0x20 set: physical LCN, used as-is
+     * even though the container map exists (og FUN_18000c790 :8893). */
+    std::vector<u8> img = build_volume(true);
+    RamDevice dev(img);
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    ASSERT_EQ(OK, scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+
+    std::vector<tree::FileNode*> act;
+    collect(ra, act);
+    const tree::FileNode* pblock = nullptr;
+    for (const auto* n : act)
+        if (n->name_utf8() == "pblock.dat")
+            pblock = n;
+    ASSERT_NE(nullptr, pblock);
+    ASSERT_EQ(1u, pblock->props()->extents.size());
+    EXPECT_EQ(42 * 4096ull, pblock->props()->extents[0].offset)
+        << "flag 0x20 = physical: no container translation";
+}
+
+TEST(Refs, ContainerBlockBelowSpanStaysPhysical) {
+    /* og identity rule (FUN_180011e90 :13237-13242): block < span is the
+     * low physical area - never translated, map or no map. Block 5 < 8. */
+    std::vector<u8> img = build_volume(true);
+    RamDevice dev(img);
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    ASSERT_EQ(OK, scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+
+    std::vector<tree::FileNode*> act;
+    collect(ra, act);
+    const tree::FileNode* low = nullptr;
+    for (const auto* n : act)
+        if (n->name_utf8() == "low.dat")
+            low = n;
+    ASSERT_NE(nullptr, low);
+    ASSERT_EQ(1u, low->props()->extents.size());
+    EXPECT_EQ(5 * 4096ull, low->props()->extents[0].offset)
+        << "block < span stays physical (the og's below-span identity)";
+}
+
+TEST(Refs, SingleContainerExtentsUnchanged) {
+    /* the N-036 single-container coincidence, pinned: with no container
+     * records (and/or no DBR +0x34 span) the map is empty and EVERY run -
+     * thesis grammar or og grammar - lands at its raw block. The base
+     * fixture volumes carry no container rows, so hello.txt/inner.dat
+     * extents are the pre-N-036 values. */
+    std::vector<u8> img = build_volume(false);
+    RamDevice dev(img);
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    ASSERT_EQ(OK, scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+
+    std::vector<tree::FileNode*> act;
+    collect(ra, act);
+    const tree::FileNode* hello = nullptr;
+    for (const auto* n : act)
+        if (n->name_utf8() == "hello.txt")
+            hello = n;
+    ASSERT_NE(nullptr, hello);
+    ASSERT_EQ(1u, hello->props()->extents.size());
+    EXPECT_EQ(200 * 4096ull, hello->props()->extents[0].offset);
+    /* and the container volume's thesis-grammar files are untouched too:
+     * the container fixture only changes the og-grammar runs' targets */
+    std::vector<u8> img2 = build_volume(true);
+    RamDevice dev2(img2);
+    tree::ResultTree tree2;
+    auto* ra2 = tree2.add_root(u"Found");
+    auto* rd2 = tree2.add_root(u"Deleted");
+    auto* rl2 = tree2.add_root(u"Lost");
+    RefsScanStats stats2;
+    ASSERT_EQ(OK, scan_refs(&dev2, flags, nullptr, nullptr, nullptr, tree2, ra2, rd2, rl2, stats2));
+    std::vector<tree::FileNode*> act2;
+    collect(ra2, act2);
+    const tree::FileNode* hello2 = nullptr;
+    for (const auto* n : act2)
+        if (n->name_utf8() == "hello.txt")
+            hello2 = n;
+    ASSERT_NE(nullptr, hello2);
+    ASSERT_EQ(1u, hello2->props()->extents.size());
+    EXPECT_EQ(200 * 4096ull, hello2->props()->extents[0].offset)
+        << "thesis-grammar runs on the container volume: block 200 >= span 8 but "
+           "flags 0x10 (not 0x40) never enter the container path";
 }
 
 } // namespace

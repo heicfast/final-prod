@@ -74,6 +74,11 @@ constexpr u8 KEY_XATTR = 24; /* S-028: BTRFS_XATTR_ITEM_KEY (og type 0x18) */
 /* objectids */
 constexpr u64 OID_CHUNK_TREE = 3;
 constexpr u64 OID_FS_TREE = 5;
+constexpr u64 OID_ROOT_TREE_DIR = 6; /* M-020: BTRFS_ROOT_TREE_DIR_OBJECTID
+                                      * - the root tree dir that holds the
+                                      * "default" DIR_ITEM (kernel ctree.h;
+                                      * the og reads the objectid from its
+                                      * volume context +0x80, kernel value 6) */
 constexpr u64 OID_FIRST_SUBVOL = 256;
 
 /* btrfs_inode_item (160 bytes = 0xA0, kernel include/uapi/linux/btrfs_tree.h):
@@ -149,15 +154,118 @@ struct Volume {
     u8 chunk_tree_uuid[16] = {0};
     bool have_chunk_tree_uuid = false;
 
-    bool logical_to_physical(u64 logical, u64 len, u64& physical) const {
-        for (const auto& c : chunks) {
-            if (logical >= c.logical_start && logical + len <= c.logical_start + c.logical_len) {
-                physical = c.physical_start + (logical - c.logical_start);
-                return true;
-            }
-        }
-        return false;
+    /* M-020: find the chunk covering [logical, logical+len). */
+    const ChunkMap* find_chunk(u64 logical, u64 len) const {
+        for (const auto& c : chunks)
+            if (logical >= c.logical_start && logical - c.logical_start < c.logical_len &&
+                c.logical_len - (logical - c.logical_start) >= len)
+                return &c;
+        return nullptr;
     }
+
+    /* M-020 profile classes - the og's decode at :2498-2543, first-hand:
+     * DUP(&0x20), RAID1(&0x10) and SINGLE(no profile bits) all fall into
+     * the 0x20 class served by the rotating mirror; RAID0(&8) is class 8;
+     * RAID10(&0x40) is class 0x40. The og's read path serves ONLY the
+     * 0x20 class (class 8/0x40 fall to LAB_1800043fe = read failure);
+     * our RAID0/RAID10 math is the registered superset. */
+    static bool class_2copy(u64 t) {
+        return (t & (0x20u | 0x10u | 8u | 0x40u | 0x80u | 0x100u)) == 0 || (t & 0x20u) != 0 ||
+               (t & 0x10u) != 0;
+    }
+
+    /* Map one logical read to its physical target. Single-piece only:
+     * on striped profiles the piece must not cross a stripe boundary
+     * (the extent path splits first; node reads never span in practice
+     * and a spanning request is refused rather than mis-mapped).
+     * Non-const: 2-copy/RAID10 access advances the per-chunk rotating
+     * mirror state exactly like the og (:2534-2537). */
+    bool logical_to_physical(u64 logical, u64 len, u64& physical) {
+        const ChunkMap* c = find_chunk(logical, len);
+        if (c == nullptr)
+            return false;
+        const u64 rel = logical - c->logical_start;
+        const u64 n = c->stripes.size();
+        if (n == 0)
+            return false;
+        if (class_2copy(c->type)) {
+            /* og :2534-2540: index = saved; saved = (index+1) % num_stripes;
+             * physical = stripes[index].offset + (logical - chunk_start) */
+            ChunkMap& cm = const_cast<ChunkMap&>(*c);
+            const u64 idx = cm.mirror_index % n;
+            cm.mirror_index = u16((cm.mirror_index + 1) % n);
+            if (idx != 0)
+                ++mirror_rotations;
+            physical = c->stripes[idx].offset + rel;
+            return true;
+        }
+        if ((c->type & (8u | 0x40u)) == 0)
+            return false; /* classes &0x80/&0x100: refused like the og's failing read path */
+        if (c->stripe_len == 0)
+            return false;
+        if (rel / c->stripe_len != (rel + len - 1) / c->stripe_len)
+            return false; /* crosses a stripe boundary - split first */
+        const u64 stripe_nr = rel / c->stripe_len;
+        const u64 in_stripe = rel % c->stripe_len;
+        ChunkMap& cm = const_cast<ChunkMap&>(*c);
+        if (c->type & 8u) {
+            /* RAID0 (REGISTERED SUPERSET - the og fails class 8): kernel
+             * stripe math - device i holds every n-th stripe unit. */
+            const u64 idx = stripe_nr % n;
+            physical = c->stripes[idx].offset + (stripe_nr / n) * c->stripe_len + in_stripe;
+            return true;
+        }
+        /* RAID10 (REGISTERED SUPERSET - the og fails class 0x40): mirror
+         * sets of sub_stripes; any member of the correct set holds the
+         * bytes (read-only recovery), the member rotates og-style. The
+         * parse gate guarantees sub_stripes >= 1 and n >= sub_stripes. */
+        const u64 s = c->sub_stripes ? c->sub_stripes : 1;
+        const u64 sets = n / s;
+        if (sets == 0)
+            return false;
+        const u64 set = (stripe_nr % sets) * s;
+        const u64 member = cm.mirror_index % s;
+        cm.mirror_index = u16((cm.mirror_index + 1) % s);
+        if (member != 0)
+            ++mirror_rotations;
+        physical = c->stripes[set + member].offset + (stripe_nr / sets) * c->stripe_len + in_stripe;
+        return true;
+    }
+
+    /* Map a whole (uncompressed) extent, splitting at stripe boundaries on
+     * striped profiles: out receives (physical, length) pieces in logical
+     * order. 2-copy chunks map whole (copies mirror the full chunk). */
+    bool map_extent_pieces(u64 logical, u64 len, std::vector<std::pair<u64, u64>>& out) {
+        const ChunkMap* c = find_chunk(logical, len);
+        if (c == nullptr)
+            return false;
+        const bool striped = (c->type & (8u | 0x40u)) != 0;
+        if (!striped) {
+            u64 phys = 0;
+            if (!logical_to_physical(logical, len, phys))
+                return false;
+            out.push_back({phys, len});
+            return true;
+        }
+        if (c->stripe_len == 0)
+            return false;
+        u64 done = 0;
+        while (done < len) {
+            const u64 rel = (logical - c->logical_start) + done;
+            const u64 in_stripe = rel % c->stripe_len;
+            const u64 piece = std::min<u64>(len - done, c->stripe_len - in_stripe);
+            u64 phys = 0;
+            if (!logical_to_physical(c->logical_start + rel, piece, phys)) {
+                out.clear();
+                return false;
+            }
+            out.push_back({phys, piece});
+            done += piece;
+        }
+        return true;
+    }
+
+    u64 mirror_rotations = 0; /* stats tap: served-by-non-first-stripe accesses */
 
     /* read a tree node by logical address (self-validating: header.bytenr
      * must equal the logical address, header.fsid must equal the
@@ -195,28 +303,49 @@ struct Volume {
     }
 };
 
-/* Parse one chunk item (48-byte head + stripes). */
+/* Parse one chunk item (48-byte head + stripes).
+ * M-020: the full stripe array is decoded; the RAID10 geometry gate
+ * rejects sub_stripes==0 / num_stripes<sub_stripes chunks exactly like
+ * the og's parse (:2162-2168 - the free+reject path). */
 bool parse_chunk(const u8* p, u32 len, ChunkMap& out) {
     if (len < 48)
         return false;
     const u64 length = le64(p + 0);
+    const u64 stripe_len = le64(p + 0x10);
     const u64 type = le64(p + 0x18);
     const u16 num_stripes = le16(p + 0x2C);
+    const u16 sub_stripes = le16(p + 0x2E);
     if (num_stripes == 0 || num_stripes > 16)
         return false;
     if (u32(48 + u32(num_stripes) * 32) > len)
         return false;
-    /* single-device recovery: use stripe 0 (multi-device/RAID is out of
-     * scope for single-volume scanning; the first stripe still carries
-     * valid data for single-disk profiles) */
-    const u64 physical = le64(p + 48 + 8); /* stripe0: devid u64, offset u64 */
+    /* og :2162-2168: RAID10 geometry gate (type bit 0x40) */
+    if ((type & 0x40) != 0 && (sub_stripes == 0 || num_stripes < sub_stripes))
+        return false;
     if (length == 0)
         return false;
-    (void)type;
-    const u64 logical = 0; /* set by caller via key.offset */
+    /* striped profiles divide by stripe_len (the og never gets there - its
+     * read path fails classes 8/0x40 - so this gate is ours: a zero
+     * stripe_len on a striped chunk is unmappable, refuse the chunk) */
+    if ((type & (8u | 0x40u)) != 0 && stripe_len == 0)
+        return false;
+    out.stripes.clear();
+    out.stripes.reserve(num_stripes);
+    for (u16 i = 0; i < num_stripes; ++i) {
+        const u8* st = p + 48 + u32(i) * 32;
+        ChunkStripe cs;
+        cs.devid = le64(st);
+        cs.offset = le64(st + 8);
+        out.stripes.push_back(cs);
+    }
     out.logical_len = length;
-    out.physical_start = physical;
-    out.type = le64(p + 0x18);
+    out.physical_start = out.stripes[0].offset;
+    out.type = type;
+    out.stripe_len = stripe_len;
+    out.num_stripes = num_stripes;
+    out.sub_stripes = sub_stripes;
+    out.mirror_index = 0;
+    const u64 logical = 0; /* set by caller via key.offset */
     out.logical_start = logical;
     return true;
 }
@@ -554,6 +683,7 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
         std::u16string name; /* from DIR_INDEX in the root tree when present */
     };
     std::vector<Subvol> subvols;
+    u64 default_subvol = 5; /* M-020: og fallback (FUN_1800061f0 :4060) */
     {
         /* N-047: ROOT_REF names arrive in the same root-tree walk; they
          * are buffered (item order between ROOT_ITEM 132 and ROOT_REF 156
@@ -569,6 +699,24 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
                     if (!w.empty())
                         ref_names[k.objectid] = std::move(w);
                 }
+                return true;
+            }
+            /* M-020 default-subvolume pick (og FUN_1800061f0 :3975-4060):
+             * the root tree's DIR_ITEM at
+             * (ROOT_TREE_DIR_OBJECTID 6, 0x54, crc32c("default")=0x8dbfc2d2)
+             * names the default subvolume; the record must spell
+             * "default" (len 7) and its located key must be a ROOT_ITEM
+             * (0x84) - the og's exact gates with its error strings
+             * ("root DIR_ITEM had same CRC32, but was not \"default\"",
+             * "expected subvolume"). */
+            if (k.type == KEY_DIR_ITEM && k.objectid == OID_ROOT_TREE_DIR &&
+                k.offset == 0x8dbfc2d2ULL && len >= DI_HEADER + 7) {
+                const u16 nl = le16(data + DI_NAMELEN);
+                const u16 dl = le16(data + DI_DATALEN);
+                if (nl == 7 && dl == 0 &&
+                    std::memcmp(data + DI_NAME, "default", 7) == 0 &&
+                    data[DI_LOCATION + 8] == KEY_ROOT_ITEM)
+                    default_subvol = le64(data + DI_LOCATION);
                 return true;
             }
             if (k.type != KEY_ROOT_ITEM || len < 0xB8)
@@ -592,6 +740,17 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
             if (it != ref_names.end())
                 s.name = it->second;
         }
+        /* the DIR_ITEM target must exist among the collected roots; the
+         * og logs "could not find root %I64x, using default instead" and
+         * falls back to root 5 */
+        bool have_default = false;
+        for (const auto& s : subvols)
+            if (s.id == default_subvol) {
+                have_default = true;
+                break;
+            }
+        if (!have_default)
+            default_subvol = 5;
     }
     if (progress)
         (void)progress(3, 4, progress_user);
@@ -599,45 +758,52 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
     if (subvols.empty())
         return ERR_BAD_MAGIC;
 
-    /* 5. per-subvolume FS tree walk: inodes + dir entries + extents */
+    /* 5. per-subvolume FS tree walk: inodes + dir entries + extents.
+     * M-020: the default subvolume (og FUN_1800061f0's pick) renders its
+     * children DIRECTLY at the volume root (the ReFS convention - the
+     * default IS the volume's content in the og); every other subvolume
+     * stays a named container (ROOT_REF name / subvol-<id>). */
     u64 subvol_index = 0;
     for (const auto& sv : subvols) {
         if (cancel && cancel->checkpoint())
             return ERR_CANCELLED;
         ++subvol_index;
-        /* N-047: the ROOT_REF-derived name when the root tree carries one
-         * (the og's per-subvol display name); subvol-<id> stays as the
-         * fallback for unnamed subvolumes */
-        std::u16string role16;
-        if (!sv.name.empty()) {
-            role16 = sv.name;
-        } else {
-            char role[32];
-            snprintf(role, sizeof(role), "subvol-%llu", static_cast<unsigned long long>(sv.id));
-            for (const char* p = role; *p; ++p)
-                role16.push_back(u16(u8(*p)));
+        const bool is_default = sv.id == default_subvol;
+        tree::FileNode* sv_root = root_active;
+        if (!is_default) {
+            /* N-047: the ROOT_REF-derived name when the root tree carries
+             * one (the og's per-subvol display name); subvol-<id> stays as
+             * the fallback for unnamed subvolumes */
+            std::u16string role16;
+            if (!sv.name.empty()) {
+                role16 = sv.name;
+            } else {
+                char role[32];
+                snprintf(role, sizeof(role), "subvol-%llu",
+                         static_cast<unsigned long long>(sv.id));
+                for (const char* p = role; *p; ++p)
+                    role16.push_back(u16(u8(*p)));
+            }
+            auto* sv_props = new (std::nothrow) tree::FileProperties();
+            if (!sv_props)
+                continue;
+            sv_props->name = role16;
+            sv_props->fs_kind = u32(FsKindCode::Btrfs); /* factory 11 (row 45: 7 collided with exFAT) */
+            sv_props->attributes = 0x10;
+            sv_props->record_ref = sv.id;
+            sv_root = tree.add_file(root_active, sv_props);
+            sv_props->release();
+            if (!sv_root)
+                continue;
         }
-        /* subvolumes live under root_active like every other engine
-         * (single merged tree; the corpus builder renders subvols as
-         * separate result roots - we nest them for one canonical tree) */
-        auto* sv_props = new (std::nothrow) tree::FileProperties();
-        if (!sv_props)
-            continue;
-        sv_props->name = role16;
-        sv_props->fs_kind = u32(FsKindCode::Btrfs); /* factory 11 (row 45: 7 collided with exFAT) */
-        sv_props->attributes = 0x10;
-        sv_props->record_ref = sv.id;
-        tree::FileNode* sv_root = tree.add_file(root_active, sv_props);
-        sv_props->release();
-        if (!sv_root)
-            continue;
-        ++stats.dirs; /* the subvol node is the root directory */
+        ++stats.dirs; /* the subvol node / the default's root dir is the root directory */
 
         /* phase 1: inode items */
         struct InodeInfo {
             u64 size = 0;
             u32 mode = 0;
             u32 nlink = 0;
+            u64 generation = 0; /* N-059: inode-item qword@0 (og +0x81) */
             u64 atime = 0, ctime = 0, mtime = 0, crtime = 0;
             struct Ext {
                 u64 off, len; /* slice bytes */
@@ -656,6 +822,7 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
         auto on_item = [&](const Key& k, const u8* data, u32 len) {
             if (k.type == KEY_INODE_ITEM && len >= INO_MIN) {
                 InodeInfo& ii = inodes[k.objectid];
+                ii.generation = le64(data + INO_GENERATION); /* N-059 */
                 ii.size = le64(data + INO_SIZE);
                 ii.nlink = le32(data + INO_NLINK);
                 ii.mode = le32(data + INO_MODE);
@@ -692,25 +859,46 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
                     const u64 num = le64(data + FE_NUM_BYTES);
                     if (disk_bytenr == 0 || disk_num == 0)
                         return true; /* hole */
-                    u64 phys = 0;
-                    if (v.logical_to_physical(disk_bytenr + offset_in, num, phys)) {
+                    const u64 extent_logical = disk_bytenr + offset_in;
+                    if (comp == 0) {
+                        /* M-020: raw extents map through the profile-aware
+                         * splitter - striped profiles (RAID0/RAID10) yield
+                         * per-stripe pieces; 2-copy chunks rotate copies
+                         * og-style per access. */
+                        std::vector<std::pair<u64, u64>> pieces;
+                        if (v.map_extent_pieces(extent_logical, num, pieces)) {
+                            for (const auto& pr : pieces)
+                                ii.extents.push_back({pr.first, pr.second, 0, 0});
+                        } else {
+                            ++stats.unmappable_extents;
+                        }
+                    } else {
                         /* BTR-4 (AUDIT-LINUX-FS): compressed extents carry
                          * psize bytes on disk that decode to `num` logical
                          * bytes - map them ZFS-style {codec, psize} so the
-                         * writer decodes at recovery time. Btrfs compression
-                         * ids: 1 zlib (raw deflate -> kGzip), 2 lzo (no
-                         * codec in our layer - counted, extent left unmapped
-                         * rather than emitting wrong raw bytes), 3 zstd. */
-                        if (comp == 1)
-                            ii.extents.push_back(
-                                {phys, num, u32(compress::Codec::kGzip), disk_num});
-                        else if (comp == 3)
-                            ii.extents.push_back(
-                                {phys, num, u32(compress::Codec::kZstd), disk_num});
-                        else if (comp == 2)
+                         * writer decodes at recovery time. A compressed
+                         * extent is atomic (no stripe splitting) - on
+                         * striped profiles a spanning one is refused and
+                         * counted, never emitted with wrong bytes.
+                         * Btrfs compression ids: 1 zlib (raw deflate ->
+                         * kGzip), 2 lzo (no codec in our layer - counted,
+                         * extent left unmapped rather than emitting wrong
+                         * raw bytes), 3 zstd. */
+                        u64 phys = 0;
+                        if (v.logical_to_physical(extent_logical, num, phys)) {
+                            if (comp == 1)
+                                ii.extents.push_back(
+                                    {phys, num, u32(compress::Codec::kGzip), disk_num});
+                            else if (comp == 3)
+                                ii.extents.push_back(
+                                    {phys, num, u32(compress::Codec::kZstd), disk_num});
+                            else if (comp == 2)
+                                ++stats.lzo_extents;
+                        } else if (comp == 2) {
                             ++stats.lzo_extents;
-                        else
-                            ii.extents.push_back({phys, num, 0, 0});
+                        } else {
+                            ++stats.unmappable_extents;
+                        }
                         if (comp != 0)
                             ++stats.compressed_extents;
                     }
@@ -848,6 +1036,13 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
                     cp->times.changed = cit->second.ctime;
                     cp->times.accessed = cit->second.atime;
                     cp->record_ref = de.child;
+                    /* N-059: the per-FS secondary payload — the owning
+                     * subvol root id (the naming/N-047 datum; og +0x3B
+                     * census-level) and the inode generation (og +0x81
+                     * "generation/transid family"). id_b has no decoded
+                     * source; it stays 0 (never invented). */
+                    cp->btrfs_id_a = u32(sv.id);
+                    cp->btrfs_generation = cit->second.generation;
                     for (const auto& e : cit->second.extents)
                         cp->extents.push_back({e.off, e.len, e.codec, e.psize});
                     if (!cit->second.inline_bytes.empty()) {
@@ -925,6 +1120,7 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
 
     if (progress)
         (void)progress(4, 4, progress_user);
+    stats.mirror_rotations = v.mirror_rotations;
     return OK;
 }
 

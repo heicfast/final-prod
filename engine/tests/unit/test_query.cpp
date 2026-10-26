@@ -473,3 +473,278 @@ TEST(Error, ErrTextCoversEveryCode) {
     EXPECT_STRNE(cr::err_text(0xDEADBEEFu), "");
     EXPECT_EQ(cr::err_text(0), std::string("OK")) << "0 is OK by contract";
 }
+
+/* ------------------------------------------------------------------ */
+/* M-029: the og filter-bar's Date/Size bucket IDs (the DRWUI menus)   */
+/* ------------------------------------------------------------------ */
+
+#include <cstdlib>
+#include <ctime>
+
+namespace {
+
+/* Pin the process zone to UTC for one test so the expected day bounds are
+ * computable (the og's buckets are day-truncated LOCAL windows; with
+ * TZ=UTC local == UTC). Restores the previous zone on scope exit. */
+struct TzUtc {
+    std::string prev;
+    bool had = false;
+    TzUtc() {
+        if (const char* t = std::getenv("TZ")) {
+            prev = t;
+            had = true;
+        }
+#ifdef _WIN32
+        _putenv("TZ=UTC");
+        _tzset();
+#else
+        setenv("TZ", "UTC", 1);
+        tzset();
+#endif
+    }
+    ~TzUtc() {
+#ifdef _WIN32
+        _putenv(had ? ("TZ=" + prev).c_str() : "TZ=");
+        _tzset();
+#else
+        if (had)
+            setenv("TZ", prev.c_str(), 1);
+        else
+            unsetenv("TZ");
+        tzset();
+#endif
+    }
+};
+
+/* FILETIME of local (== UTC under the pin) midnight of a date. */
+u64 day_ft(int year, int mon, int mday) {
+    std::tm t{};
+    t.tm_year = year - 1900;
+    t.tm_mon = mon - 1;
+    t.tm_mday = mday;
+    return u64(std::mktime(&t) + 11'644'473'600LL) * 10'000'000ULL;
+}
+
+/* FILETIME of a local (== UTC) wall-clock instant. */
+u64 at_ft(int year, int mon, int mday, int hour, int min, int sec) {
+    std::tm t{};
+    t.tm_year = year - 1900;
+    t.tm_mon = mon - 1;
+    t.tm_mday = mday;
+    t.tm_hour = hour;
+    t.tm_min = min;
+    t.tm_sec = sec;
+    return u64(std::mktime(&t) + 11'644'473'600LL) * 10'000'000ULL;
+}
+
+} // namespace
+
+TEST(Query, DateBucketsTranslateToRanges) {
+    TzUtc tz;
+    /* the og's cached "today" derivation: day-truncated local now
+     * (2026-10-26 12:34:56 UTC under the pin) */
+    const u64 now = at_ft(2026, 10, 26, 12, 34, 56);
+
+    /* Today == today (one local day, inclusive ends against the Filter's
+     * closed range compare) */
+    {
+        Filter f;
+        EXPECT_TRUE(apply_date_bucket(f, DateBucket_Today, now));
+        EXPECT_EQ(day_ft(2026, 10, 26), f.modified_from);
+        EXPECT_EQ(day_ft(2026, 10, 27) - 1, f.modified_to);
+    }
+    /* Yesterday == today-1d */
+    {
+        Filter f;
+        EXPECT_TRUE(apply_date_bucket(f, DateBucket_Yesterday, now));
+        EXPECT_EQ(day_ft(2026, 10, 25), f.modified_from);
+        EXPECT_EQ(day_ft(2026, 10, 26) - 1, f.modified_to);
+    }
+    /* Last 7 days: the og's (today-7d, today] = local days today-6..today
+     * (7 calendar days, Today/Yesterday included) */
+    {
+        Filter f;
+        EXPECT_TRUE(apply_date_bucket(f, DateBucket_Last7Days, now));
+        EXPECT_EQ(day_ft(2026, 10, 20), f.modified_from);
+        EXPECT_EQ(day_ft(2026, 10, 27) - 1, f.modified_to);
+    }
+    /* Last 1 month: (today-30d, today] = 30 calendar days */
+    {
+        Filter f;
+        EXPECT_TRUE(apply_date_bucket(f, DateBucket_Last1Month, now));
+        EXPECT_EQ(day_ft(2026, 9, 27), f.modified_from);
+        EXPECT_EQ(day_ft(2026, 10, 27) - 1, f.modified_to);
+    }
+    /* Custom: both bounds day-truncated locally, inclusive */
+    {
+        Filter f;
+        EXPECT_TRUE(apply_date_bucket(f, DateBucket_Custom, now,
+                                      at_ft(2026, 1, 5, 18, 0, 0), at_ft(2026, 3, 10, 9, 30, 0)));
+        EXPECT_EQ(day_ft(2026, 1, 5), f.modified_from);
+        EXPECT_EQ(day_ft(2026, 3, 11) - 1, f.modified_to);
+    }
+    /* bucket 0 = no-op success (the filter's ranges untouched) */
+    {
+        Filter f;
+        f.modified_from = 123;
+        f.modified_to = 456;
+        EXPECT_TRUE(apply_date_bucket(f, DateBucket_None, now));
+        EXPECT_EQ(u64(123), f.modified_from);
+        EXPECT_EQ(u64(456), f.modified_to);
+    }
+    /* the skipped ID 0x104 and unknown values: rejected, filter untouched
+     * (no invented semantics) */
+    for (u16 bad : {u16(0x104), u16(0x106), u16(0x99), u16(0xFF)}) {
+        Filter f;
+        f.modified_from = 123;
+        f.modified_to = 456;
+        EXPECT_FALSE(apply_date_bucket(f, bad, now));
+        EXPECT_EQ(u64(123), f.modified_from);
+        EXPECT_EQ(u64(456), f.modified_to);
+    }
+}
+
+TEST(Query, SizeBucketsTranslateToRanges) {
+    /* the og FUN_140255820 boundaries: inclusive upper bounds, mutually
+     * exclusive buckets (else-chain), exact +1 lower bounds */
+    {
+        Filter f;
+        EXPECT_TRUE(apply_size_bucket(f, SizeBucket_To512KiB));
+        EXPECT_EQ(u64(0), f.size_min);
+        EXPECT_EQ(u64(512 * 1024), f.size_max);
+    }
+    {
+        Filter f;
+        EXPECT_TRUE(apply_size_bucket(f, SizeBucket_To1MiB));
+        EXPECT_EQ(u64(512 * 1024 + 1), f.size_min);
+        EXPECT_EQ(u64(1024 * 1024), f.size_max);
+    }
+    {
+        Filter f;
+        EXPECT_TRUE(apply_size_bucket(f, SizeBucket_To512MiB));
+        EXPECT_EQ(u64(1024 * 1024 + 1), f.size_min);
+        EXPECT_EQ(u64(512 * 1024 * 1024), f.size_max);
+    }
+    {
+        Filter f;
+        EXPECT_TRUE(apply_size_bucket(f, SizeBucket_To1GiB));
+        EXPECT_EQ(u64(512 * 1024 * 1024 + 1), f.size_min);
+        EXPECT_EQ(u64(1024 * 1024 * 1024), f.size_max);
+    }
+    {
+        Filter f;
+        EXPECT_TRUE(apply_size_bucket(f, SizeBucket_Over1GiB));
+        EXPECT_EQ(u64(1024 * 1024 * 1024 + 1), f.size_min);
+        EXPECT_EQ(~u64(0), f.size_max);
+    }
+    /* Custom: inclusive both ends, verbatim */
+    {
+        Filter f;
+        EXPECT_TRUE(apply_size_bucket(f, SizeBucket_Custom, 100, 200));
+        EXPECT_EQ(u64(100), f.size_min);
+        EXPECT_EQ(u64(200), f.size_max);
+    }
+    /* no-op */
+    {
+        Filter f;
+        f.size_min = 7;
+        f.size_max = 9;
+        EXPECT_TRUE(apply_size_bucket(f, SizeBucket_None));
+        EXPECT_EQ(u64(7), f.size_min);
+        EXPECT_EQ(u64(9), f.size_max);
+    }
+    /* the skipped 0x1005 and unknown values: rejected, untouched */
+    for (u16 bad : {u16(0x1005), u16(0x1007), u16(0x0FFF), u16(0x2000)}) {
+        Filter f;
+        f.size_min = 7;
+        f.size_max = 9;
+        EXPECT_FALSE(apply_size_bucket(f, bad));
+        EXPECT_EQ(u64(7), f.size_min);
+        EXPECT_EQ(u64(9), f.size_max);
+    }
+}
+
+TEST(Query, BucketFiltersThroughRun) {
+    TzUtc tz;
+    const u64 now = at_ft(2026, 10, 26, 12, 0, 0);
+
+    tree::ResultTree t;
+    auto* found = t.add_root(u"Found");
+    /* five files at known instants + sizes spanning three size buckets */
+    add_file(t, found, "today.txt", 100, at_ft(2026, 10, 26, 10, 0, 0), 1, false,
+             tree::Origin::Structured);
+    add_file(t, found, "yesterday.txt", 600'000, at_ft(2026, 10, 25, 10, 0, 0), 1, false,
+             tree::Origin::Structured);
+    add_file(t, found, "threedays.txt", 2'000'000, at_ft(2026, 10, 23, 10, 0, 0), 1, false,
+             tree::Origin::Structured);
+    add_file(t, found, "tendays.txt", 50, at_ft(2026, 10, 16, 10, 0, 0), 1, false,
+             tree::Origin::Structured);
+    add_file(t, found, "fortydays.txt", 50, at_ft(2026, 9, 16, 10, 0, 0), 1, false,
+             tree::Origin::Structured);
+    t.refresh_stats();
+
+    /* Today: only today.txt */
+    {
+        Query q;
+        ASSERT_TRUE(apply_date_bucket(q.filter, DateBucket_Today, now));
+        const Result r = run(t, q);
+        ASSERT_EQ(u64(1), r.total_matched);
+        EXPECT_EQ("today.txt", r.rows[0].name_utf8);
+    }
+    /* Yesterday: only yesterday.txt */
+    {
+        Query q;
+        ASSERT_TRUE(apply_date_bucket(q.filter, DateBucket_Yesterday, now));
+        const Result r = run(t, q);
+        ASSERT_EQ(u64(1), r.total_matched);
+        EXPECT_EQ("yesterday.txt", r.rows[0].name_utf8);
+    }
+    /* Last 7 days (today-6..today): today/yesterday/threedays */
+    {
+        Query q;
+        ASSERT_TRUE(apply_date_bucket(q.filter, DateBucket_Last7Days, now));
+        const Result r = run(t, q);
+        EXPECT_EQ(u64(3), r.total_matched);
+    }
+    /* Last 1 month (today-29..today): + tendays */
+    {
+        Query q;
+        ASSERT_TRUE(apply_date_bucket(q.filter, DateBucket_Last1Month, now));
+        const Result r = run(t, q);
+        EXPECT_EQ(u64(4), r.total_matched);
+    }
+    /* Custom covering Sep 1..Sep 30: only fortydays.txt (day-truncated
+     * inclusive bounds) */
+    {
+        Query q;
+        ASSERT_TRUE(apply_date_bucket(q.filter, DateBucket_Custom, now,
+                                      at_ft(2026, 9, 1, 23, 0, 0), at_ft(2026, 9, 30, 1, 0, 0)));
+        const Result r = run(t, q);
+        ASSERT_EQ(u64(1), r.total_matched);
+        EXPECT_EQ("fortydays.txt", r.rows[0].name_utf8);
+    }
+    /* Size bucket < 512KB: today.txt + tendays.txt + fortydays.txt */
+    {
+        Query q;
+        ASSERT_TRUE(apply_size_bucket(q.filter, SizeBucket_To512KiB));
+        const Result r = run(t, q);
+        EXPECT_EQ(u64(3), r.total_matched);
+    }
+    /* Size 512KB~1MB: yesterday.txt (600000 bytes) */
+    {
+        Query q;
+        ASSERT_TRUE(apply_size_bucket(q.filter, SizeBucket_To1MiB));
+        const Result r = run(t, q);
+        ASSERT_EQ(u64(1), r.total_matched);
+        EXPECT_EQ("yesterday.txt", r.rows[0].name_utf8);
+    }
+    /* Combined: Last-7-days AND < 512KB -> only today.txt */
+    {
+        Query q;
+        ASSERT_TRUE(apply_date_bucket(q.filter, DateBucket_Last7Days, now));
+        ASSERT_TRUE(apply_size_bucket(q.filter, SizeBucket_To512KiB));
+        const Result r = run(t, q);
+        ASSERT_EQ(u64(1), r.total_matched);
+        EXPECT_EQ("today.txt", r.rows[0].name_utf8);
+    }
+}

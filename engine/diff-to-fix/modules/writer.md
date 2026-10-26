@@ -90,7 +90,7 @@ Core (audited `67193b6` + concurrent GAP-S6-7 in tree): `src/core/recovery/` (77
 - Observation (owner note for N-009b/d): og restore-name sanitizer replaces `:?\|*><"`
   including backslash → `#` (`:357536-545`); core's `sanitize_name` replaces 8 chars with `_`
   and does NOT sanitize backslash — fold into the N-009 group when touched.
-- N-014b: carved-name split (`Carved%06u` vs `File%06u` inside one scan) — writer-visible.
+- N-014b: carved-name split — RESOLVED (s28; one File%06u family per scan, both carve layers).
 
 ---
 

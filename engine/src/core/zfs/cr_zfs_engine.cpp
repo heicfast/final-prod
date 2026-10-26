@@ -21,9 +21,16 @@
  * Compression: off/lzjb/zle/gzip via zlib, lz4, zstd (cr::compress).
  * Extents carry {codec, psize} so the writer decodes at stream time.
  *
- * Deleted-file story (parity decision, AUDIT.md row 26): ZFS is CoW with
- * copy-on-everything semantics; the og reads the newest txg's live state
- * only and lets RAW carving cover deleted content. We do the same.
+ * Deleted-file story (S-034, DFX30): ZFS is CoW with copy-on-everything
+ * semantics. The PREMISE this engine was built on — "the og reads the
+ * newest txg's live state only" — is REFUTED by first-hand decode of the
+ * og's quick-searcher run loop (ZfsSearchDLL FUN_180006b90 :5685-5841
+ * iterates EVERY uberblock slot in the label-0 ring and walks each txg's
+ * tree through a per-txg VdevLoc::UberData registry, FUN_180003150/
+ * FUN_180017310, emitting ZplNodes per state). This engine currently
+ * walks the newest txg only — a REGISTERED GAP (diff-to-fix findings/
+ * SEVERE/S-034) until the fix lands; deleted content meanwhile surfaces
+ * via RAW carving only (a strict subset of the og's ring-window recall).
  *
  * Big-endian pools (SPARC/POWER writers) are detected and refused with a
  * clear error code rather than misparsed (bit 63 of blk_prop marks the
@@ -305,11 +312,18 @@ struct SaRegistry {
     bool has_layout(u64 n) const { return layouts.count(n) != 0; }
 };
 
-/* ---- dsl_dir / dsl_dataset bonus (OpenZFS include/sys/dsl_dir.h:
- * dsl_dir_phys_s {creation_time@0, head_dataset_obj@8, origin_obj@16,
- * child_dir_zapobj@24, ...}; dsl_dataset.h: ds_bp@128) ---- */
+/* ---- dsl_dir / dsl_dataset bonus (OpenZFS include/sys/dsl_dir.h,
+ * dsl_dir_phys_s: creation_time@0, head_dataset_obj@8, parent_obj@16,
+ * origin_obj@24, child_dir_zapobj@32, used_bytes@40, ... props_zapobj@80,
+ * deleg_zapobj@88, flags@96, used_breakdown@104, clones@144, pad->256B;
+ * dsl_dataset.h: ds_dir_obj@0, prev_snap_obj@8, prev_snap_txg@16,
+ * next_snap_obj@24, snapnames_zapobj@32, ..., flags@120, ds_bp@128,
+ * pad->320B. A-008: the @24 child-zap misread (origin_obj slot) corrected
+ * to the kernel's @32 — verified against OpenZFS master dsl_dir.h and the
+ * og's ZfsSearchDLL decode (256B dsl_dir bonus copy; head-dataset hop at +8;
+ * child-zap enumeration skipping $FREE/$ORIGIN entries).) ---- */
 constexpr u32 DD_HEAD_DATASET_OBJ = 8;
-constexpr u32 DD_CHILD_DIR_ZAPOBJ = 24;
+constexpr u32 DD_CHILD_DIR_ZAPOBJ = 32;
 constexpr u32 DS_BP = 128;
 
 /* ---- ZAP (OpenZFS zap_impl.h / zap_leaf.h) ---- */
@@ -1384,6 +1398,7 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
 
         struct ObjInfo {
             u64 mode = 0;
+            u64 flags = 0; /* N-059: ZPL_FLAGS (og +0x5A, census-level) */
             u64 size = 0;
             u64 parent = 0;
             u64 links = 0;
@@ -1455,6 +1470,8 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
                                 oi.crtime[0] = v64;
                             else if (nm == "ZPL_MODE")
                                 oi.mode = v64;
+                            else if (nm == "ZPL_FLAGS")
+                                oi.flags = v64; /* N-059: secondary flags */
                             else if (nm == "ZPL_SIZE")
                                 oi.size = v64;
                             else if (nm == "ZPL_PARENT")
@@ -1538,6 +1555,11 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
                                         : (ci->size ? u64(ci->dn.datablksz()) : 0);
                 p->attributes = is_dir ? 0x10 : 0;
                 p->record_ref = e.value;
+                /* N-059: the ZPL_FLAGS low u16 — the og's +0x5A secondary
+                 * flags (census-level semantics; carried opaque). The
+                 * classic znode flag set (immutable/appendonly/...) is the
+                 * low word; extended bits ride the registry only. */
+                p->zfs_secondary_flags = u16(ci->flags);
                 p->times.created = unix_to_filetime(i64(ci->crtime[0]));
                 p->times.modified = unix_to_filetime(i64(ci->mtime[0]));
                 p->times.changed = unix_to_filetime(i64(ci->ctime[0]));

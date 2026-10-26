@@ -511,14 +511,16 @@ std::vector<u8> build_pool(const char* vdev_type = "disk") {
             make_bp(dn + 64, B_OBJDIR_ZAP, 512, 512, 0, &d);
             memcpy(blk.data() + 512, dn, 512);
         }
-        /* object 2 at slot 2: dsl_dir dnode (dsl_dir_phys: head_dataset_obj
-         * u64@8, child_dir_zapobj u64@24 - dsl_dir.h) */
+        /* object 2 at slot 2: dsl_dir dnode (dsl_dir_phys per OpenZFS
+         * dsl_dir.h: head_dataset_obj u64@8, parent_obj@16, origin_obj@24,
+         * child_dir_zapobj u64@32 — A-008 kernel layout; origin left 0) */
         {
             u8 dn[512];
             make_dnode(dn, 12 /* DSL_DIR */, 12, 1, 1, 1, 256);
             u8* bonus = dn + 64 + 128;
             put64(bonus + 8, 4);  /* head_dataset_obj */
-            put64(bonus + 24, 3); /* child_dir_zapobj */
+            put64(bonus + 24, 0); /* origin_obj (NOT the child zap) */
+            put64(bonus + 32, 3); /* child_dir_zapobj */
             memcpy(blk.data() + 2 * 512, dn, 512);
         }
         /* object 3 at slot 3: child-dir ZAP ("sub" -> dsl dir 5); its
@@ -552,13 +554,19 @@ std::vector<u8> build_pool(const char* vdev_type = "disk") {
             make_dnode(dn, 12, 12, 1, 1, 1, 256);
             u8* bonus = dn + 64 + 128;
             put64(bonus + 8, 6);  /* head_dataset_obj */
-            put64(bonus + 24, 0); /* child_dir_zapobj */
+            put64(bonus + 24, 0); /* origin_obj */
+            put64(bonus + 32, 0); /* child_dir_zapobj */
         }
-        /* object 6 at slot 6: nested head dataset (bp -> bad, skip) */
+        /* object 6 at slot 6: nested head dataset (bp -> the same ZPL
+         * objset block; A-008: resolvable so the child-dataset walk is
+         * observable end-to-end) */
         {
             u8* dn = d.data() + B_MOS_DNODES + 6 * 512;
             make_dnode(dn, 16, 16, 1, 1, 1, 256);
-            /* bp zeros: load fails -> dataset skipped cleanly */
+            u8* bonus = dn + 64 + 128;
+            u8 bp[128];
+            make_bp(bp, B_ZPL, 4096, 4096, 0); /* same ZPL content as tank */
+            memcpy(bonus + 128, bp, 128);
         }
     }
 
@@ -849,6 +857,11 @@ std::vector<u8> build_pool(const char* vdev_type = "disk") {
     {
         stamp_fletcher4(d.data() + B_MOS_DNODES + 4 * 512 + 64 + 128 + 128, d.data() + B_ZPL,
                         4096);
+        /* A-008: object 6 (the nested "sub" head dataset) also points at
+         * the ZPL objset block; stamped before the enclosing array's own
+         * bp so the chain closes */
+        stamp_fletcher4(d.data() + B_MOS_DNODES + 6 * 512 + 64 + 128 + 128, d.data() + B_ZPL,
+                        4096);
         stamp_fletcher4(d.data() + B_MOS + 64, d.data() + B_MOS_DNODES, 4096);
     }
 
@@ -923,6 +936,10 @@ TEST(Zfs, EndToEndWalk) {
     EXPECT_TRUE(paths.count("tank/zlefile"));
     EXPECT_TRUE(paths.count("tank/embedded.txt"));
     EXPECT_TRUE(paths.count("tank/legacy.txt"));
+    /* A-008: the child dataset (dsl_dir 5, head 6) enumerated through the
+     * kernel-offset child zap — same ZPL content under "sub" */
+    EXPECT_TRUE(paths.count("sub"));
+    EXPECT_TRUE(paths.count("sub/hello.txt"));
 
     /* verify props: hello.txt size + extent (raw) */
     for (tree::FileNode* c = ra->first_child(); c; c = c->next_sibling())
@@ -956,6 +973,75 @@ TEST(Zfs, EndToEndWalk) {
                           f->props()->times.modified);
             }
         }
+}
+
+/* A-008: the child_dir_zapobj offset. OpenZFS dsl_dir.h puts
+ * dd_child_dir_zapobj at bonus+32 (dd_origin_obj at +24); the engine
+ * read +24 — on kernel-layout pools a normal dsl_dir's origin is 0, so
+ * NO child dataset ever enumerated (every zfs create under the pool
+ * silently missing from results); on clones the non-zero origin was
+ * followed as if it were the child zap. The fixture stamps the kernel
+ * layout only — the pre-fix engine fails both tests below. */
+TEST(Zfs, ChildDirZapReadsKernelOffset32) {
+    auto img = build_pool();
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"F");
+    ZfsScanStats st;
+    ASSERT_EQ(OK, scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    std::set<std::string> paths;
+    std::function<void(tree::FileNode*, std::string)> walk = [&](tree::FileNode* n,
+                                                                 const std::string& p) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->props())
+                continue;
+            std::string nm = c->name_utf8();
+            std::string full = p.empty() ? nm : p + "/" + nm;
+            paths.insert(full);
+            walk(c, full);
+        }
+    };
+    walk(ra, "");
+    EXPECT_TRUE(paths.count("sub")) << "child dataset missing - child zap read from wrong slot";
+    EXPECT_TRUE(paths.count("sub/hello.txt"));
+}
+
+TEST(Zfs, OriginObjNotTreatedAsChildZap) {
+    /* the root dsl_dir carries a NON-ZERO origin (clone shape): origin@24
+     * points at the objdir zap (object 1, entries {"root_dataset": 2}).
+     * The child set must come from +32 ONLY — the pre-fix engine treated
+     * the origin as the child zap and enumerated "root_dataset" as a
+     * dataset (recursing into the root dir itself). */
+    auto img = build_pool();
+    put64(img.data() + B_MOS_DNODES + 2 * 512 + 64 + 128 + 24, 1); /* origin_obj -> objdir zap */
+    /* re-stamp the enclosing-block chain (MOS meta bp, then uberblocks) */
+    stamp_fletcher4(img.data() + B_MOS + 64, img.data() + B_MOS_DNODES, 4096);
+    for (int li = 0; li < 4; ++li) {
+        const u64 base = li < 2 ? u64(li) * (256ull << 10) : IMG - (4 - li) * (256ull << 10);
+        stamp_fletcher4(img.data() + base + (128ull << 10) + 40, img.data() + B_MOS, 2048);
+    }
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"F");
+    ZfsScanStats st;
+    ASSERT_EQ(OK, scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    std::set<std::string> paths;
+    std::function<void(tree::FileNode*, std::string)> walk = [&](tree::FileNode* n,
+                                                                 const std::string& p) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->props())
+                continue;
+            std::string nm = c->name_utf8();
+            std::string full = p.empty() ? nm : p + "/" + nm;
+            paths.insert(full);
+            walk(c, full);
+        }
+    };
+    walk(ra, "");
+    EXPECT_TRUE(paths.count("sub")) << "kernel-offset child zap lost";
+    EXPECT_TRUE(paths.count("sub/hello.txt"));
+    EXPECT_FALSE(paths.count("root_dataset"))
+        << "origin_obj followed as a child zap - ghost dataset from the wrong slot";
 }
 
 TEST(Zfs, LabelPositionsRecoveredFromTail) {
@@ -999,6 +1085,9 @@ TEST(Zfs, NewestTxgAcrossLabelsWins) {
 void restamp_zpl_array(std::vector<u8>& img) {
     stamp_fletcher4(img.data() + B_ZPL + 64, img.data() + B_ZPL_DNODES, 16384);
     stamp_fletcher4(img.data() + B_MOS_DNODES + 4 * 512 + 64 + 128 + 128, img.data() + B_ZPL,
+                    4096);
+    /* A-008: object 6 (the "sub" head dataset) shares the ZPL block */
+    stamp_fletcher4(img.data() + B_MOS_DNODES + 6 * 512 + 64 + 128 + 128, img.data() + B_ZPL,
                     4096);
     stamp_fletcher4(img.data() + B_MOS + 64, img.data() + B_MOS_DNODES, 4096);
     for (int li = 0; li < 4; ++li) {

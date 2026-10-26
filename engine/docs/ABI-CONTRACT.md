@@ -132,9 +132,31 @@ recover:     recovery_create -> recovery_set_destination
              -> recovery_enqueue_[node|subtree][_snapshot]* -> recovery_process
              -> recovery_report_json -> recovery_close
 events:      (any time after create) scan_set_event_fn — see §6
+state query: (any time after create, any thread) scan_busy / scan_stopping —
+             the og's sigIsBusy(bool&) ×14 / sigIsStopping(bool&) ×8
+             reference-out query signals (corpus UIUX/25-connect-wiring-graph.md
+             :125-144) as synchronous ops; busy = run() in flight, stopping =
+             the live cancel request (persists after the one-shot run ends —
+             a cancel WAS requested on this handle; telemetry's cancelled flag
+             is the post-run state, busy/stopping are the live answers)
 carve formats: carve_format_count / carve_format_info — see §7a
 disk map:    cr_ui_disk_map (session OR snapshot) — see §7
 ```
+
+**Recovery-progress mapping (N-075 / D-78).** The og's typed
+`IUIProgressInfo` per-item recovery-progress interface
+(`RecoverProgressUISink::sigUpdateProgress(const IUIProgressInfo*)` —
+corpus UIUX/20-moc-surface-sink-architecture.md :145) maps onto surfaces
+this ABI already ships, deliberately (D-78: no parallel interface):
+`cr_ui_recovery_progress_fn` is the progress edge (cumulative bytes
+done/total across the queue), `cr_ui_recovery_queue_count` the live queue
+depth, `cr_ui_recovery_get_stats` the per-outcome counters (done, refused,
+errors, hash_mismatch, resumed, salvaged, dirs, nothing_to_recover), and
+`cr_ui_recovery_report_json` the per-item truth (every item reports its
+state — recovered/pending/failed-with-reason — valid at any time, not
+just at completion). A host porting the og's per-item progress reads
+report_json on its own cadence, exactly as the og's 38 timer consumers
+poll `onGet*Progress`.
 
 Cancellation semantics: `cancel()` makes `run()`/`process()` return
 `ERR_CANCELLED` with all completed work intact (tree browsable, committed
@@ -211,6 +233,18 @@ typedef struct cr_ui_event {
      * 3 failed or writer unavailable). stage stays 0xFFFFFFFF. */
     uint32_t repair_actions;
     uint32_t repair_outcome;
+    /* error context (CR_EVT_ERROR_RANGE; M-049 v2-era append): the
+     * module/operation/retry-state triple - the engine-side subset of
+     * the og's error-object architecture (per-module registrars; the
+     * MOM-bus manager/track-manager layer stays out of core scope).
+     * Module ids: CR_ERRMOD_* below (per-range attribution recorded at
+     * failure time - WHO was reading when the sector died; kNone for
+     * ranges reloaded from pre-M-049 sessions). The trailing pad keeps
+     * the POD an 8-byte multiple (transport bridges); always zero. */
+    uint32_t err_module;
+    uint32_t err_operation;  /* CR_ERROP_* (READ for this family) */
+    uint32_t err_attempts;   /* retries spent before the range was given up */
+    uint32_t err_context_pad;
     /* (CR_EVT_HEARTBEAT reuses the payload fields above: the standing
        permille/counters + timestamp_ms = elapsed_ms; stage = 0xFFFFFFFF
        when no stage is in flight; bytes_total = 0 = unknown.) */
@@ -220,6 +254,31 @@ typedef void (*cr_ui_event_fn)(void* user, const cr_ui_event* evt);
 
 CR_UI_API uint32_t cr_ui_scan_set_event_fn(cr_ui_scan* s, cr_ui_event_fn fn,
                                            void* user);
+```
+
+Error-context constants (M-049; `CR_EVT_ERROR_RANGE` payload) — the
+module ids mirror the core's `cr_errmod.h` attribution set (engine-side
+subset of the og's per-module error registrars, Error.md census); the
+numeric values are core-internal per the D-68 value-space policy,
+append-only, pinned to the core enum by compile-time asserts in
+cr_ui.cpp:
+
+```c
+#define CR_ERRMOD_NONE 0u         /* unattributed (pre-M-049 session reloads) */
+#define CR_ERRMOD_ORCHESTRATOR 1u /* the scan layer's own reads (probe/table) */
+#define CR_ERRMOD_NTFS 2u
+#define CR_ERRMOD_FAT 3u
+#define CR_ERRMOD_EXFAT 4u
+#define CR_ERRMOD_EXT4 5u
+#define CR_ERRMOD_BTRFS 6u
+#define CR_ERRMOD_HFSPLUS 7u
+#define CR_ERRMOD_REFS 8u
+#define CR_ERRMOD_ZFS 9u
+#define CR_ERRMOD_CARVE 10u /* the carve stage's grammar sweep */
+#define CR_ERRMOD_LOST 11u  /* lost-partition discovery */
+#define CR_ERRMOD_LDM 12u   /* dynamic-disk (LDM) database parse + volumes */
+#define CR_ERROP_NONE 0u
+#define CR_ERROP_READ 1u
 ```
 
 Contract:
@@ -363,6 +422,34 @@ Contract:
   core carves the full registry (matching the og engine, whose toggles are
   applied by its UI when it configures the searcher); a host filters this
   enumeration to build the same config surface.
+- **CLI projection (N-033's close):** `rrecov list-carve-formats` prints the
+  full enumeration (one row per format: layer, ext, min/max, base
+  confidence, grammar magic) — the CLI shape of the og host's
+  EUGetAnalyserList-driven "formats we can recover" surface. Exit 0 only on
+  a complete walk; an empty registry or a failed row is exit 1 (the FB-K01
+  family: scripts must never mistake a broken table for "nothing to
+  carve").
+- The og's FS engines re-clone the RAWSearchDLL registry per scan
+  (FATSearchDLL :13872-13977 LoadLibrary/GetProcAddress + the per-scan
+  re-fetch :29290-29361); the core's registry is compile-time immutable
+  and read directly — PARITY-DELTAS D-80 registers the difference (same
+  content by construction; the clone pattern exists only because the og
+  is multi-DLL).
+
+- Per-scan refresh divergence (N-033, registered): the og's FS engines
+  RE-CLONE the RAWSearchDLL registry per scan
+  (FATSearchDLL_decompiled.c :29290-29361 — LoadLibrary +
+  GetProcAddress + std-container copy on every search) because the master
+  registry lives in another DLL and may have been reconfigured between
+  scans. The core's registry is compile-time immutable (both tables
+  append-only, §7a), so there is nothing to re-fetch: the enumeration is
+  valid for the library's lifetime and no refresh hook exists. If a host
+  ever ships runtime-configurable carve tables, the refresh seam becomes
+  a versioned ABI question (a bumped count between calls), not a silent
+  re-clone.
+- CLI rendering: `rrecov --list-carve-formats` prints the whole table
+  (layer, ext, size bounds, base confidence, grammar-layer magic) — the
+  parity-tooling surface (N-033's step 2).
 
 ## 8. SQLite session index — REJECTED-BY-REFERENCE (closed GAP-S6-12)
 
@@ -436,3 +523,26 @@ against it; this is a registered deliberate difference. Sort code 7 (Type)
 mirrors the og's results-view Type column: category in the FileFilter.xml
 iconIndex order (Graphic/Document/Email/Audio/Video/Other/Archive/
 Bookmarks), then extension, then name.
+
+### Query bucket translation + the raw-category name (M-029, session 32)
+
+`cr_ui_query_apply_buckets` (added export, §9 no-bump) translates the og
+filter-bar's stable bucket IDs — the exact action-ID set the DRWUI menus
+build (CTimeFilterBtn/CSizeFilterBtn): Date 0x100/0x101/0x102/0x103 +
+0x105 Custom, Size 0x1000..0x1004 + 0x1006 Custom — into the query's
+`modified_from/to` and `size_min/max` range fields, in place. Date
+windows are day-truncated LOCAL windows derived from the host clock
+exactly like the og's cached bounds (today / yesterday / (today−7d,
+today] / (today−30d, today], COleDateTimeSpan day arithmetic); Custom is
+inclusive on local-day-truncated bounds. Size buckets use the og's exact
+byte boundaries (≤512 KiB, ≤1 MiB, ≤512 MiB, ≤1 GiB, >1 GiB); Custom is
+inclusive. The SKIPPED IDs (0x104, 0x1005) and any unknown value are
+rejected with `CR_UI_ERR_BAD_PARAMETER` — the core never invents menu
+semantics the og does not have.
+
+`cr_ui_scan_config.raw_category_name_utf8` (tail append) is the og's
+per-scan "filter_generalraw" display-name surface (corpus
+s5-oq-s4-2-raw-naming-hook.md): the raw/carve category root's role name.
+NULL/"" = the default "Other Deleted Files (Carved)". Resume recognizes
+both the default and the configured name, so a re-run never spawns a
+duplicate raw root.
