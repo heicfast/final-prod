@@ -11,31 +11,24 @@ largest single-engine file) + `include/cr/zfs/` + `tests/unit/test_zfs_volume.cp
 ## Behavioral
 
 - **B1 detection** — `M` uberblock magic 0x00BAB10C (4 decompile sites verified), txg at
-  UB+0x10, **S-034 FIXED (ring-walk session): every valid ring slot's txg is walked in
-  storage order — label 0 first (the og reads only its ring), tail labels after (the
-  registered superset) — each UNIQUE txg once, through the scan-wide identity registry
-  (findings/FIXED/S-034)**; vdev label probing (4 labels, front/back); core adds
-  shift-probing 10..13 (4 Kn pools) — superset, register; BE-pool refusal
-  (`ERR_UNSUPPORTED`) — documented deliberate hardening.
+  UB+0x10, ring-walk: EVERY valid uberblock state is walked newest-first with
+  cross-state identity dedup (S-034 FIXED — the og's quick searcher iterates every
+  label-0 ring slot and walks each txg's tree; the old newest-only verdict was a
+  refuted premise); vdev label probing (4 labels, front/back); core adds
+  shift-probing 10..13 (4 Kn pools) + all-four-labels ring collection — superset,
+  register; BE-pool refusal (`ERR_UNSUPPORTED`) — documented deliberate hardening.
 - **B2 recovery correctness** — `M` nvlist XDR+native decode, micro/fat ZAP, gang blocks
   (3-blkptr headers), BPE (embedded block pointers), per-object compression registry
   (LZJB/LZ4/zle/gzip → codec-tagged extents; lzjb/zle hardened ports in storage module);
   **OQ-T6** multi-vdev (refused, single-disk resolvable only — og extent unknown).
 - **B3** — `M` checksum-aware reads at blkptr level.
-- **B4 deleted classification** — **`M` (S-034 FIXED): the og's deleted-ZFS surface IS the
-  ring walk** — every uberblock slot's txg state is walked and the union emitted (the
-  visitor's identity registry dedups by parent-path+objid, same-path skip / different-path
-  re-emit; ZfsSearchDLL FUN_180005940). In-window deletions surface as regular results
-  (the og has no per-engine deleted bit for ZFS). The core matches: `scan_zfs` walks every
-  valid ring state and emits through the same identity model; the pre-fix "documented
-  no-deleted-recovery, CoW rationale" note (the B4 `NA` verdict) was the refuted premise's
-  residue — D-05 re-verdicted. The `.Trash-1000/info` child suppression (FUN_180004f00
-  :3708) is part of the landed walk.
+- **B4 deleted classification** — `M` (S-034 FIXED): the ring-txg-history walk recalls
+  deleted-in-window files as Deleted nodes (the og walks every ring state; the old
+  "no-deleted-recovery, CoW rationale" note was the refuted newest-only premise —
+  deleted content beyond the ring window still surfaces via RAW carving only, same
+  posture as Btrfs).
 - **B5 orphan** — `M` snapshots surfaced as roots when present in the DSL tree (og
-  deep-dive §3 parity; core snapshot surfacing implemented). **S-034**: an in-window
-  DESTROYED dataset/snapshot also surfaces — the older state's config re-walk emits it
-  (the per-(name, head_obj) dataset node registry keeps the first-seen; a same-name
-  recreation emits a second node, the og's per-objid semantics).
+  deep-dive §3 parity; core snapshot surfacing implemented).
 - **B7 sparse** — `M` holes via blkptr l0==0 and gang leaders.
 - **B8 multi-volume** — **OQ-T6.2** (multi-vdev).
 - **B9 timestamps** — `M`-note: core uses `unix_to_filetime` (sub-second dropped) —
@@ -76,13 +69,26 @@ largest single-engine file) + `include/cr/zfs/` + `tests/unit/test_zfs_volume.cp
 - **Q65 tests** — good (8 areas incl. codec round-trips + tail labels). Gaps: multi-vdev
   refusal path, non-ASCII names (S-005).
 
+## Session note (the convergent-union session)
+
+S-034's two-lane convergence closed with two decode-proven repairs on the
+canonical landing (findings/FIXED/S-034's Resolution addendum): the identity
+key dropped its birth term (the og's registry keys (parent-path bucket,
+objid) — FUN_180007db0 + the FUN_180001a90 name compare; a modified-in-window
+file must SKIP, not re-emit) and the `.Trash-1000/info` child suppression
+landed (FUN_180004f00 :3708; the /files subtree classified-not-suppressed,
+FUN_180004ad0 :3447). Pinned by RingWindowModifiedFilePriorVersionNotReemitted,
+TrashInfoSidecarChildrenSuppressed, and RingWindowRenamedEntryRecalledUnderBothNames
+(all fail-before RED on the pre-repair landing). The interpretive residue —
+newest-first ordering and the engine-layer Active/Deleted split — is tracked
+in the finding's addendum with the next corpus sites.
+
 ## Findings index (this module)
 
 | ID | Severity | One-line |
 |---|---|---|
 | OQ-T6 | tracked-open | nvlist anchor; multi-vdev DVA resolution; uberblock geometry; checksum depth |
 | S-005 | SEVERE | (cross-engine) Names byte-lifted → mojibake — **FIXED (diff-to-fix session)** |
-| S-034 | SEVERE | (S30 NEW-FINDING) ZFS ring txg history not walked — deleted-in-window content lost — **FIXED (ring-walk session: every slot's txg + the identity registry + the .Trash-1000/info suppression; findings/FIXED/S-034)** |
 
 ---
 
@@ -178,8 +184,19 @@ multivdev-fallback/checksum side.)
 | N-056 | MINOR | Delay-execution label/uberblock import polling missing (og retries with backoff during long walks; core probes once — torn pools fail immediately) |
 | INFO-register | — | Core decompresses lzjb/zle/gzip/lz4/zstd (cr_zfs_engine.cpp:19-21); the og models per-object compression (std::map<int64,zio_compress>, remaining-engines:80). No divergence claimable in either direction (both read compressed pools); recorded for the decode-evidence ledger |
 
+<<<<<<< HEAD
+
+---
+
+## Session-33b row (S-034 fixed, 2026-10-26)
+
+| ID | Severity | One-line |
+|---|---|---|
+| S-034 | SEVERE → **FIXED** | Ring txg-history walk: every valid uberblock state walked newest-first, cross-state identity dedup (dataset, parent, name, objid, bp0 birth); deleted-in-window files surface as Deleted in place; modified-in-window recalls the prior version as a Deleted sibling; torn states skipped like the og's tree-open failure. Decode items (1)(2)(3) answered first-hand (collector = plain push_back, no engine dedup; per-state tree walk is the state's own content; last_txg display-only). Tests: RingWindowDeletedFileRecalled / RingWindowUnchangedEntriesEmitOnce / RingWindowModifiedFilePriorVersionRecalled / RingTornNewestStateFallsBackToOlder (all fail-before RED). `ring_states` telemetry added |
+=======
 ## Session-34 fix leg (DFX34) — N-072 (the label-retry half)
 
 | Parameter | Verdict |
 |---|---|
 | A25/S35 label import + recovery | **MATCH** — the og's delay-execution import polling (remaining-engines artifact :86) landed as the bounded label retry: the sweep re-runnable, live handles retry 3x with 250/500/1000 ms cancel-aware backoff, static media (image files — the new `is_static_media()` device discriminator, forwarded through every wrapper) never retries; `label_retries` on ZfsScanStats; the BE-pool refusal propagates unchanged |
+>>>>>>> origin/main

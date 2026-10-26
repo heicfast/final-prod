@@ -135,9 +135,66 @@ the subset), M-023 (ZFS SA decode — shared by every per-txg walk).
 
 The three decode items in Fix plan step 1.
 
+---
+
 ## Resolution
 
 **Status:** FIXED
-**Fixed in commit:** (this session's S-034 commit — the commit carrying cr_zfs_engine.cpp's ring walk, the header fields, and the Zfs.* ring tests)
-**Verified by:** Zfs.RingWalkSurfacesDeletedInWindowFile + Zfs.RingWalkRenameReemitsNewLocation + the extended Zfs.NewestTxgAcrossLabelsWins (all three EXECUTED RED on the pre-fix engine — engine.cpp reverted to HEAD with the new tests kept: gone.txt count 0 "in-window deletion lost", renamed.txt count 0, ring_states_walked 0 — and GREEN after the fix); the full suite 828 passed / 4 env-skips on linux-release, 832/832-clean under ASan and UBSan (both lanes exit 0).
-**Resolution notes:** All three fix-plan decode items were resolved first-hand from the corpus before implementing (no guessed parity). (a) Cross-txg emission/dedup: the visitor (lambda_3cb9c924's `_Do_call` at 0x18000dd40 → FUN_180005940) keeps a scan-wide registry — per-parent-full-path buckets (FUN_180007f50 on the map at ctx+0x110; the path built RECURSIVELY by FUN_18001afb0 up the ZplNode chain), objid-keyed (the u64 from node vt+0x60; the set/map helpers FUN_180007db0/FUN_180007eb0); same (objid, path) → SKIP (children still descend under the first-seen node via the registered result-id linkage), same objid + different path → RE-EMIT under the new location with the registry entry OVERWRITTEN (FUN_180001d30 + `*puVar8 = id`), so a moved/renamed object surfaces under both its first-seen and its new location. (b) Per-txg walks re-walk the ENTIRE config as of each state (the descent re-reads that txg's dataset/snapshot hierarchy); datasets and folders dedup through the same (path, objid) registry — a dataset present in N ring states emits once (first-seen), an in-window-destroyed dataset surfaces from the older state's walk. (c) `last_txg` is progress-display only — the run loop's string formatting of the PREVIOUS slot's txg (the "\n\ntxg = %llu, last_txg = %llu" log at :5703-5724), not a walk bound. Two additional behaviors decoded during verification and implemented: the emit chain's regular-add path SUPPRESSES children of `.Trash-1000/info` (FUN_180004f00 :3708 builds L".Trash-1000/info", the normalized path-compare at :3716 short-circuits the add) while the `.Trash-1000/files` subtree is classified-not-suppressed (FUN_180004ad0 :3447 returns TRUE — the file still adds; verified at the disassembly level: `mov $0x1,%al` at 0x180004dbb on the equal path); and the run loop reads ONLY label-0's ring (FUN_180018220(dev,&buf,0x20000,0x20000) = 128 KiB @ +128 KiB) — the core keeps its 4-label + shift-probe geometry as the REGISTERED SUPERSET (D-04/I-017 lineage), walking label 0 first for og-parity storage order and the tail labels after, each UNIQUE txg once (the og's per-txg UberData registry keys txg). The core implementation (cr_zfs_engine.cpp): every valid ring slot collected in storage order into a RingSlot vector (txg-deduped), per-state `walk_state` (MOS → dataset hierarchy → ZPL) emitting through a scan-wide registry keyed (dataset-name bucket → objid → {dataset-relative path, first-seen node}), dataset nodes claimed per (name, head_obj) — a destroyed-and-recreated same-name dataset emits a second node, matching the per-objid registry; a state whose tree does not open is skipped (og addBlock's tree-open-failure no-op) and the scan fails only when NO state opens. In-window deletions emit as REGULAR results — the og has no per-engine deleted bit for ZFS (its ring walk IS the deleted-content surface), correcting the fix plan's "surface as Deleted" guess. New stats fields ring_states_total/ring_states_walked (trailing, aggregate-init safe). Two fixture corrections made during test construction, both verified against the fixture's own shapes: SA-bonus dnodes use bonustype 44 (DMU_OT_SA) with the bonus after blkptr 0; the per-txg "zfs: txg = %llu, last_txg = %llu" progression rides the N-048 log seam. The finding's AUDIT.md-row-26 citation is CORRECTED in passing: row 26 (the decompression/indirect/BPE row) does NOT carry the newest-only premise — the premise lived in the engine header comment (updated), D-05 (re-verdicted below), and modules/zfs.md B1/B5 (updated). PARITY-DELTAS D-05 re-verdicted CLOSED (all three ledger copies updated; the ledger's own triplication is filed as a separate NEW-FINDING). No finding-adjacent safety hardening was touched: BE-pool refusal and the fletcher4 gates stay exactly as landed (M-019); the checksum-drop/foreign-vdev counters now accumulate across ALL walked states.
+**Fixed in commit:** this landing (DFX33b; the S-034 lane — engine `src/core/zfs/cr_zfs_engine.cpp`, header `include/cr/zfs/cr_zfs_engine.h`, tests `tests/unit/test_zfs_volume.cpp`)
+**Verified by:** `Zfs.RingWindowDeletedFileRecalled`, `Zfs.RingWindowUnchangedEntriesEmitOnce`, `Zfs.RingWindowModifiedFilePriorVersionRecalled`, `Zfs.RingTornNewestStateFallsBackToOlder` — all four executed fail-before RED on the pre-fix engine (best_txg-only) and pass-after; full suite 903/903 green post-merge (linux-release + ctest incl. win_syntax_check + cr_ui_abi_check).
+**Resolution notes:** The three decode items in Fix plan step 1 were answered first-hand from the corpus before implementing: **(1) cross-txg emission/dedup** — the quick searcher's collector (FUN_180006b40, the lambda body behind the `_Func_impl_no_alloc<lambda_3cb9c924…,bool,shared_ptr<ZplNode>>` vtable) is a plain `push_back` into the caller's vector with NO engine-side dedup, and the walk's only emission gate (FUN_18001d9a0 :26210) is `from_txg < birth_txg || from_txg == 0` — always true at the top level because addBlock descends with from_txg=0 (the literal 0 at FUN_180003150's FUN_18001ac60 call, propagated by both recursions at :23457/:26307); so every ring state's ZplNodes reach the host, and dedup is host-side tree semantics. **(2) MOS snapshot re-emission** — each addBlock opens the txg's own state from its matching ring record (record match `*(u64*)(rec+0x10) == txg`, tree-open FUN_180016c50 which itself re-ensures the registry when the record's txg differs from the current one) and descends that state's dataset/ZPL tree; there is no separate MOS snapshot-list re-emission — the per-state dataset hierarchy IS the state's content. **(3) `last_txg`** — display-only: the run loop builds the `"\n\ntxg = <txg>, last_txg = <last_txg>"` progress string from the PREVIOUS iteration's txg; no skip/bound consults it. The fix implements the decode: the engine collects every valid uberblock state from all four labels' rings (the established geometry superset; the og reads label-0's ring only), txg-dedupes (a closed txg's rootbp is 1:1 per vdev_label.c; the og's same-txg duplicate slots are the same state and its re-walk is result-neutral), sorts newest-first, and walks: the first state whose MOS chain opens is the LIVE tree; each older state is a RECALL walk emitting only entries whose cross-state identity — (dataset, parent dir object, entry name, object id, dnode bp0 birth), the finding's object-id+birth key extended with the entry path so hard links are not collapsed — no newer state claimed: deleted-in-window files surface as Deleted nodes in place (an unchanged directory is re-walked per state against its EXISTING node so deleted-in-window descendants surface under it), and modified-in-window entries recall the prior version as a Deleted sibling (the og emits every state's node; newest-wins is a tree-level consequence, not an engine-side drop). Torn states (MOS chain fails to open) are skipped exactly like the og's FUN_180016c50 tree-open failure — the ring walk continues, and if the newest state is torn the next one serves as live (pinned by the fallback test). Datasets are find-or-created by name (a dataset only an older state knows surfaces as Deleted). New telemetry: `ZfsScanStats::ring_states`. The identity dedup is a deliberate improvement over the og's raw N-per-state emission (a recovery result tree cannot hold N duplicate paths; the og's dedup lives host-side) — registered in PARITY-DELTAS D-05's resolution note. D-05's verdict updated to FIXED; the D-05/D-06-family merge-storm triplicates in PARITY-DELTAS.md were deduplicated in the same landing (content-identical rows dropped, divergent rows reconciled keeping the extended body — 99 D-rows remain, one per number). No safety hardening touched (BE-pool refusal and ashift-13 geometry probes stay green — the existing pins). Corpus citations: ZfsSearchDLL_decompiled.c :5312-5918 (run loop), :1967-2259 (addBlock), :20085-20340 (UberData registry), :26173-26320 (emission walk + gate), :5280-5311 (collector), :19758-19790 (tree-open re-ensure).
+
+## Resolution addendum — the convergent-union session (two lanes, one finding)
+
+Two lanes fixed S-034 independently in the same window. The DFX33b lane's
+landing (`cb046ed` lineage, pushed first — first-landing-wins) stands as the
+canonical implementation: newest-first ring walk, the first state that opens
+serves as the LIVE tree, older states are recall walks emitting unclaimed
+identities as Deleted, EntryKey-claimed map, torn-state skip — with 4
+fail-before tests. This lane's independently-decoded implementation ceded,
+and this session verified the canonical landing against this lane's
+first-hand decode of the visitor (FUN_180005940) — which found TWO
+decode-proven divergences in the first landing, both repaired on top
+(fail-before RED on the pre-repair engine for each, GREEN after):
+
+1. **The identity key must not carry the dnode birth.** The og's registry
+   keys (parent-path bucket, objid) with the name/path compare deciding
+   skip vs re-emit (FUN_180007db0 objid find; FUN_180001a90 name compare;
+   equal → skip, first-seen claims) — the ZplNodeFile ctor (FUN_180012450)
+   reads no bp0 birth anywhere. The first landing's birth term made a
+   modified-in-window file (same objid+name, new data) a distinct identity
+   and recalled its prior version as a Deleted sibling — the og's registry
+   SKIPS it. `EntryKey.birth` removed; the landing's
+   `RingWindowModifiedFilePriorVersionRecalled` test rewritten as
+   `RingWindowModifiedFilePriorVersionNotReemitted` (active==1, deleted==0).
+2. **`.Trash-1000/info` child suppression** (FUN_180004f00 :3708 builds
+   L".Trash-1000/info", the normalized path-compare at :3716 short-circuits
+   the add; the /files subtree is classified-not-suppressed, FUN_180004ad0
+   :3447, al=1 verified at 0x180004dbb): implemented via the dataset-relative
+   dpath threaded through emit_dir; pinned by
+   `TrashInfoSidecarChildrenSuppressed` (a .Trash-1000/info/files fixture
+   family: the .trashinfo sidecar suppressed, the /files child present, the
+   trash root itself a normal directory).
+
+Plus one decode-verified branch the canonical landing already covered, now
+pinned by `RingWindowRenamedEntryRecalledUnderBothNames`: a renamed entry
+(same objid, different name — the registry's not-equal branch, the emit path
+re-runs and the registry entry is overwritten) surfaces under BOTH its
+first-seen (recall) and new (live) locations.
+
+Verified: 878 tests — 874 pass + 4 env-skips on linux-release; 878/878-clean
+under ASan and UBSan (both exit 0). The interpretive residue both lanes
+share — newest-first ordering (the og walks storage order) and the
+engine-layer Active/Deleted split (the og's add path sets no per-engine
+deleted bit; its classification layer is undecoded) — is recorded below as
+the tracked follow-up; neither is corpus-disproven, and the canonical
+landing's tests pin the interpretation.
+
+**Tracked follow-up (in this finding, not tracked-open/): the next ZFS
+decode pass should settle (a) the og's result-classification layer for
+ring-walk entries (is there a deleted marking downstream of the visitor —
+the CFileSystemNode add path in FUN_180006110/FUN_180004f00's tail), and
+(b) whether storage-order vs newest-first ordering is user-observable in
+the og (it only changes which state's version claims a contested identity).
+Corpus sites: ZfsSearchDLL_decompiled.c :3640-3760 (f00 tail), :4553-4610
+(the result-id/parent linkage), the FUN_1800069b1 add block.**
