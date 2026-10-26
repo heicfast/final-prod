@@ -194,13 +194,17 @@
 - **VERDICT: ACCEPTED** (both sides cited at the code sites; upstream-vs-og
   distinction explicitly recorded).
 
-### D-09 — ZFS scoping: single-vdev pools, BE pools refused (G-18)
+### D-09 — ZFS scoping: vdev handling parity (BE pools refused; G-18)
 
-- **WHAT OG DOES:** Corpus does NOT establish whether `ZfsSearchDLL` assembles
-  multi-vdev (mirror/raidz) pools — it documents vdev-label scanning on the given
-  device, highest-txg uberblock, MOS/DSL walks, gang/indirect block following
-  (`zfs-engine--deep-dive.md` §2–§4). Multi-vdev assembly: **no evidence either
-  way**.
+- **WHAT OG DOES (pinned since M-019 + the OQ-T6/OQ-Z3 decodes):**
+  vdev-TYPE-BLIND (zero vdev-type/geometry strings in ZfsSearchDLL —
+  session-2 scan), and its DVA read path NEVER resolves across vdevs:
+  FUN_1800168b0's registry loop falls back to the FIRST registry entry on
+  any vdev-id miss (first-hand :19541-19560 — single-vdev behavior with
+  first-entry fallback; mirrors read through vdev 0 "by accident"; RAID-Z
+  parity math is impossible in the build). Evidence:
+  `findings/FIXED/M-019` Resolution + the OQ-Z3 re-verification in
+  `tracked-open/OQ-Z-E-FLT-session3.md`.
 - **WHAT WE DO:** Single-vdev pools only; mirror/raidz detected and reported as
   unsupported (`stats.unsupported_vdevs`, `src/core/zfs/cr_zfs_engine.cpp:1144–1145`);
   BE pools refused with a clear error (`cr_zfs_engine.cpp:28–30`); header
@@ -208,11 +212,15 @@
   honestly (G-18, `CORE-CONTRACT.md` §14).
 - **WHY:** scope.
 - **RISK:** User-visible capability limit; stated honestly per G-18.
-- **VERDICT: NEEDS-WORK (evidence, not behavior).** Two actions: (1) pin the
-  og-side multi-vdev story from `ZfsSearchDLL` decompile (does it resolve DVAs
-  across sibling vdevs?) and record it in this registry; (2) G-18's wording
-  "gang blocks counted damaged" is **stale** — `read_gang` is implemented
-  (`cr_zfs_engine.cpp:486–491`, AUDIT Round 1: gang header = 3 blkptrs) —
+- **VERDICT: ACCEPTED (og story pinned, M-019 parity landed).** Both former
+  NEEDS-WORK actions closed: (1) the og-side multi-vdev story is pinned
+  (first-entry fallback, type-blind — above) and the core MATCHES it since
+  M-019 (foreign-vdev blocks planned at the fallback position,
+  `foreign_vdev_reads` counted, never refused — the "single-vdev only +
+  unsupported_vdevs" text above is the pre-M-019 posture); (2) G-18's
+  wording "gang blocks counted damaged" is **stale** — `read_gang` is
+  implemented (`cr_zfs_engine.cpp:486–491`, AUDIT Round 1: gang header =
+  3 blkptrs) —
   update G-18/CORE-CONTRACT to "gang blocks assembled; mirror/raidz report-only".
 
 ### D-10 — NTFS remnant scan: FILE0 shifted-header salvage, full-record improvement
@@ -2315,6 +2323,20 @@ compaction, async). The og's per-line timestamp/process decoration is
 its transports' job; the core emits the message text. Pinned by
 `Orchestrator.LogSilentByDefault` + `Orchestrator.LogSinkReceivesScanBrackets`.
 
+### D-79 — salvaged (no-EOI) JPEGs graded PartialRisk, not stamped identically to complete files (S-018 re-file, s31; REGISTERED DIVERGENCE)
+
+The og's legacy FileJPGAnalyser tier accepts tail-truncated JPEGs at its
+scan limit (h*w*3 from the candidate start, or the 200,000,000 global cap
+/ 10) and stamps them with the SAME format code (0x23) and no reduced
+grade as complete files (FUN_18004c480 :57958-59, RAWSearchDLL_decompiled.c;
+evidence diff-to-fix/evidence/decompiled-quotes/s31-oq-s3-jpeg-fallback-decode.md).
+The core mirrors the salvage's accept/sizing exactly but grades the result
+PartialRisk (validator confidence 600 < the 850 Excellent band) and notes
+it ("fallback-salvage(no-EOI,...)") — a recovered file whose tail is
+destroyed IS objectively degraded, and hiding that from the user would be
+the og's UX weakness, not a parity virtue. Pinned by
+Carve.JpegTruncatedTailSalvagedAtSofEstimate (grade assertion).
+
 ### D-78 — progress delivery: push events + telemetry pull, not the og's poll-dominant timer farm (N-075, REGISTERED DIVERGENCE; renumbered from a D-77 collision with the N-009d ACL register landed by the parallel lane in the same window — the errata convention)
 
 The og's progress model is predominantly PULL-polled: 38 `timeout()`
@@ -2382,6 +2404,48 @@ index decode in the engine → descriptor carrier on
 FileProperties → a WriterConfig `preserve_dacl` flag (default OFF)
 applying it via SetSecurityInfo on the win destio layer only — never on
 the POSIX test shims.
+
+<<<<<<< HEAD
+### D-80 — the password-dictionary data posture: the corpus Dict converted as generated data (raw_signs precedent), user dictionaries loadable (N-064 convergence record — two parallel landings, first-landing-wins)
+
+**Class:** convergence record (replaces this lane's original D-78
+registration, renumbered per the errata convention — D-78 collided with
+the N-075 progress register and the N-032 CSMI register in the same
+window) · **Finding:** diff-to-fix N-064 (MINOR, FIXED — twice, convergent
+landings `4c475ba` (cr::dict, DFX31, first) and `817740c` (cr::pwddict,
+DFX34)) · **Date:** 2026-10-26
+
+**THE CONVERGENCE:** two parallel lanes landed N-064 independently.
+The DFX34 lane shipped an authored seed list + a loader for the og's
+dictionary FORMAT, refusing to copy the og's 228-entry asset (its D-78).
+The DFX31 lane (first-landing-wins) ships the corpus Dict converted to a
+generated compiled table (scripts/gen_dict.py — the same
+corpus-data-to-generated-source posture as raw_signs.json's 139-format
+table) and absorbs the loader capability. Canonical state after the
+reconciliation commit: **cr::dict** (the generated byte-faithful 228-entry
+table + the parse grammar + the consent-gated attempt loop),
+`--bitlocker-dict [path]` (bare = the shipped table; with a path = the
+shipped table plus a user dictionary in the og's exact file format,
+loaded through cr::dict::parse), the cr_ui_unlock_volume_with_dictionary
+ABI export. The cr::pwddict module, its seed list, its CLI flag and its
+tests are dropped cleanly; both Resolutions stay in the finding file
+(append-only audit trail).
+
+**WHY THE CANONICAL POSTURE (byte-faithful conversion, not an authored
+seed):** (1) The repo's established precedent converts corpus data files
+documented as ground truth into generated source — raw_signs.json (139
+formats) since the carving wave. (2) The Dict entries are facts, not
+creative expression: 228 common passwords (numeric runs, names, words —
+"12345678", "iloveyou") that appear in every public leaked-credential
+corpus; there is no EaseUS-authored expression to avoid copying. (3)
+True parity requires the same list: an authored seed of "universal
+patterns" approximates the capability; the converted table IS the
+capability (the corpus byte-verifies the file — config-data-reference
+:20). (4) The loader keeps the flexibility: a host can still supply any
+og-format dictionary.
+
+**RISK:** none beyond the capability itself; the F61 consent gate is
+structural in both landings and unchanged in the union.
 
 ### D-78 — CSMI SMART transport: SCSI-address routing, no RAID census; LSILOGIC sibling and SMART auto-enable not ported (N-032, REGISTERED DIVERGENCE — transport scope)
 
@@ -2482,3 +2546,51 @@ incremental continuation (streaming formats whose end cannot be probed
 by a bounded forward walk) must either keep that model in its own layer
 or extend the validator contract — this register is the flag S-017's
 fix-plan step 3 cites.
+### D-79 — disk enumeration: the two-stack merge (PhysicalDrive loop + cfgmgr32 disk interfaces), not the og's five-stack fan-in (N-071, REGISTERED DIVERGENCE — partial port with scope rationale)
+
+**Class:** registered divergence (enumeration breadth) · **Finding:**
+diff-to-fix N-071 (MINOR, fixed with the two-stack merge; residual
+registered here) · **Date:** 2026-10-26
+
+**WHAT OG DOES:** the device discovery fan-in spans five stacks — WMI
+(MSFT_* namespaces), SetupAPI device interfaces, VDS (dynamic-disk
+packs), Storage Spaces, and Function Discovery (mom-module-system
+architecture :57-59; the QA boot census shows `CDiskEnumerator :
+Storage space init` + `GetUsedPhysicalDisks` + `Vds loadservice` running
+alongside the plain `disk enumerate` — vendor-logs :13-29) — merged into
+the device list the UI presents, with hot-plug notification.
+
+**WHAT WE DO:** a two-stack merge: the numbered `\\.\PhysicalDrive0..N`
+loop (geometry/alignment/descriptor/table parse) + the cfgmgr32
+`GUID_DEVINTERFACE_DISK` present-instance pass (every interface opened,
+queried with the same IOCTL family, merged by
+`merge_disk_enumeration` — dedup by disk number, then by instance
+path; N-071's landing). The WMI/VDS/Storage-Spaces/FunctionDiscovery
+stacks are not ported; hot-plug eventing is not ported (the CLI/UI
+re-enumerates on demand).
+
+**WHY:** (1) Every block device Windows exposes for user-mode READ
+surfaces as `\\.\PhysicalDriveN` or a disk-interface instance — the two
+stacks cover the readable-device space the recovery engine consumes;
+the og's extra stacks feed its UI metadata (WMI friendly names, VDS
+dynamic-volume CONFIG — which our LDM engine parses from the disk
+itself — and Storage Spaces pool topology for display). (2) The
+finding's own open question records that Storage Spaces members DO
+surface as PhysicalDrive in practice (the miss-case is
+UNVERIFIED-BY-EXECUTION without a Storage Spaces host; the QA census
+shows the stacks RUNNING, not a disk the numbered namespace lacks). (3)
+FunctionDiscovery and hot-plug notify are product-shell concerns (the
+og's DeviceManager.mo is a UI-facing module); the engine's contract is
+a complete device LIST on demand, which the merge provides. The
+cfgmgr32 pair (`CM_Get_Device_Interface_List_SizeW`/
+`CM_Get_Device_Interface_ListW`) is Win2000-era — the Win7-inclusive
+import gate holds (cfgmgr32 added to the strict allowlist with the
+function pair).
+
+**RISK:** a device reachable ONLY through VDS/Storage-Spaces stacks and
+absent from both the PhysicalDrive namespace AND the disk-interface
+list would be missed — no such device class is documented in the corpus
+(the QA host's own Storage-Spaces census ran WITHOUT producing an
+extra device). The merge is the engine scope; the UI shell may layer
+its own stacks later.
+>>>>>>> dd7a3ebb170a4d5231552584e615ea9a7ae878f8

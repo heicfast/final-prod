@@ -70,6 +70,10 @@ u32 try_auto_unlock_offline(wchar_t letter, const wchar_t* hive_path);
 u32 unlock_with_dictionary(wchar_t letter, const wchar_t* const* user_passwords,
                            size_t user_count);
 
+/* Narrow-candidate overload (the CLI path; UTF-8/ASCII candidates from a
+ * loaded dictionary file ride the same consent loop). */
+u32 unlock_with_dictionary(wchar_t letter, const std::vector<std::string>& user_candidates);
+
 #ifdef _WIN32
 namespace detail {
 /* ---- test seams (Windows lane only; see test_bitlocker_win.cpp) ---- */
