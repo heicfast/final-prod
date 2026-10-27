@@ -172,6 +172,19 @@ fail-before/pass-after engine tests pin it
 the modal (Deny) if one ever appears and records its plan text verbatim
 (`tools/forensic/drive-ui.mjs`).
 
+**Confirmation run (40484181472, the same v0.6.0-rc1 build, probe fixed to
+answer):** the modal appeared at t≈0 and the probe denied it at **128 ms**
+— the scan then UNBLOCKED and progressed through the advanced stage to
+**76%** over the 28-minute window (vs. 0% frozen in 40470191039). This is
+the controlled pair that proves the blocking consent gate was the entire
+S3 stall: identical build, identical seed disk, the only variable is
+answering the prompt. The crawl past 40% on that old build is the separate
+NG-2/NG-3 progress-liveness defects (fixed in batch 2); the false offer
+itself is NG-21 (fixed in batch 4). The v0.6.0-rc2 validation run
+(forensic-repro against the tagged release) is the end-to-end after: no
+modal on the healthy disk, live progress, results against the seed
+manifest.
+
 ## S4 — other surfaces: dead or fake (screenshots 09-13)
 
 - **Lost Partition page: 100% canned** — fake partition specs, a fake
