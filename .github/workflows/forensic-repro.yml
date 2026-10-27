@@ -65,7 +65,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'setup.exe download failed' }
           curl.exe -sSL -o C:\forensic\SHA256SUMS "$base/SHA256SUMS"
           $sums = Get-Content C:\forensic\SHA256SUMS -Raw
-          $expect = [regex]::Match($sums, '([0-9a-f]{64})\s+\*?RecoveryWizard-0\.6\.0-rc1-setup\.exe').Groups[1].Value
+          $expect = [regex]::Match($sums, '([0-9a-fA-F]{64})\s+\*?RecoveryWizard-0\.6\.0-rc1-setup\.exe').Groups[1].Value
           if (-not $expect) { throw 'setup.exe checksum not found in SHA256SUMS' }
           $actual = (Get-FileHash C:\forensic\setup.exe -Algorithm SHA256).Hash.ToLower()
           "setup sha256 expect=$expect actual=$actual"
@@ -94,9 +94,9 @@ jobs:
       - name: Start IO/child-process probe in the background
         shell: pwsh
         run: |
-          $pid = [int](Get-Content C:\forensic\evidence\app-pid.txt -Raw).Trim()
-          "app pid: $pid"
-          $p = Start-Process pwsh -ArgumentList '-NoProfile','-File','tools\forensic\io-probe.ps1','-AppPid',"$pid",'-OutDir','C:\forensic\evidence','-DurationSec','3000' -PassThru
+          $appPid = [int](Get-Content C:\forensic\evidence\app-pid.txt -Raw).Trim()
+          "app pid: $appPid"
+          $p = Start-Process pwsh -ArgumentList '-NoProfile','-File','tools\forensic\io-probe.ps1','-AppPid',"$appPid",'-OutDir','C:\forensic\evidence','-DurationSec','3000' -PassThru
           $p.Id | Set-Content C:\forensic\evidence\io-probe-pid.txt
 
       - name: Drive the real UI - health, scan, every surface (S2 S3 S4)

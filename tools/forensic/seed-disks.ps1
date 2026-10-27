@@ -98,7 +98,7 @@ function New-TxtBytes([string]$seedText, [int]$kb) {
 function New-Vhd([string]$file, [int]$gb, [string]$style, [string]$fs, [string]$label, [string]$letter) {
     $script = Join-Path $WorkDir ("dp-" + [IO.Path]::GetFileNameWithoutExtension($file) + ".txt")
     $lines = @(
-        "create vdisk file=`"$file`" parent=`"`" type=expandable maximum=$($gb * 1024)",
+        "create vdisk file=`"$file`" type=expandable maximum=$($gb * 1024)",
         "select vdisk file=`"$file`"",
         "attach vdisk",
         "convert $style",
@@ -110,7 +110,8 @@ function New-Vhd([string]$file, [int]$gb, [string]$style, [string]$fs, [string]$
     $out = & diskpart /s $script 2>&1 | Out-String
     Write-Log "diskpart for $file ->`n$out"
     if ($LASTEXITCODE -ne 0) { throw "diskpart failed for $file (exit $LASTEXITCODE)" }
-    if ($out -notmatch 'DiskPart successfully') { throw "diskpart did not report success for $file" }
+    $okCount = ([regex]::Matches($out, 'DiskPart successfully')).Count
+    if ($okCount -lt 5) { throw "diskpart for $file reported only $okCount successes (expected >= 5): $out" }
 }
 
 Write-Log "creating disk1.vhdx ($Disk1GB GB GPT NTFS -> X:) and disk2.vhdx ($Disk2GB GB MBR exFAT -> Y:)"
