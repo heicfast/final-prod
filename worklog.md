@@ -849,3 +849,22 @@ fixed, now FAST and REPRODUCIBLY GREEN):**
 
 Every claim above cites its run URL or committed artifact. main is
 green across all seven lanes. Good hunting on the hardware.
+
+## 2026-10-27T00:35Z — v0.5.0 FINAL: the release run is GREEN and the artifacts are live
+
+Release run 4 (40424585905, tag v0.5.0) completed SUCCESS in ~24 min:
+full product build with the complete test suite, artifact verification,
+truthful unsigned notes (the bcdedit fix confirmed in the published
+body), upload. The final release is live with all three assets:
+
+- RecoveryWizard-0.5.0-setup.exe (3.48 MB) — the combined installer
+- RecoveryWizard-0.5.0-portable.zip (4.35 MB)
+- SHA256SUMS
+
+The v0.5.0 installer carries the complete fix set: /SD silent
+discipline, plan-exact registry layout, working driver registration
+(elevation guards + exit codes + verbatim quoting), curated kit, zero-
+leftover uninstall, and the lifecycle facts file. Operator testing on
+real hardware is the remaining acceptance; rc3 stays available for
+A/B comparison. The mandate's deliverables 1-12 are all in the tree and
+cited by evidence.
