@@ -60,7 +60,7 @@ param(
     [string]$Action,
 
     [string]$StageDir = '',
-    [string]$File = '',
+    [string[]]$File = @(),
     [string]$CerPath = '',
     [string]$Thumbprint = '',
     [switch]$Force
@@ -154,7 +154,7 @@ switch ($Action) {
 
     'sign' {
         $StageDir = Assert-Stage
-        if (-not $File) { throw '-File is required for sign' }
+        if (-not $File -or $File.Count -eq 0) { throw '-File is required for sign' }
         $cert = Get-StageCert
         $signtool = Find-Signtool
         foreach ($f in @($File)) {
