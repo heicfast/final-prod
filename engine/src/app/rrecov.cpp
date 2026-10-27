@@ -406,8 +406,8 @@ bool open_disk_view(u32 n, OpenResult& out) {
         return true;
     }
     /* driver Ready but the TARGET would not open: a target error, never a
-     * silent transport switch */
-    wprintf(L"[transport] cannot open disk %u through RDA (rc=%08x %hs): %hs\n", n, err,
+     * silent transport switch (%ls: the guidance literals are wchar_t) */
+    wprintf(L"[transport] cannot open disk %u through RDA (rc=%08x %hs): %ls\n", n, err,
             err_text(err),
             cr::win::is_elevated() ? L"write/device access denied even elevated - device busy, "
                                      L"locked, protected or the disk number is out of range"
