@@ -121,3 +121,19 @@ registered as D-72 in PARITY-DELTAS. During verification this session's own firs
 implementation crashed on an OOB trial-slot array (kTrialCount=65 > a magic 64) —
 caught by the new tests, fixed with a static_assert-bounded array (the defect
 never landed on main).
+
+---
+
+## Addendum (dev-sign session, 2026-10-28 — CORRECTIONS #5 propagation)
+
+The corpus errata (`easeus-drw-research/re-workspace/artifacts/CORRECTIONS.md`,
+row 5) corrected the RawConfig.ini `[Filter]` toggle count: **34, not 37**
+(recounted first-hand this session: 34 keys — HEIC, VCF, WEBM, WEBP, M1V, M2T,
+M2TS, JP2, STL, M4P, XMIND, RVT, MOBI, MMAP, POS, EDDX, WFP, VPJ, OSP, HFP,
+DRP, HIK, ODP, ODT, ODS, 7Z, INSP, INSV, GPX, CRM, AEP, FFF, DPX, MUSX).
+The finding's mechanism is unaffected (the per-extension runtime filter
+surface, the mask/callback rebuild, the STL/VPJ default-off observation all
+stand); only the count was pre-correction RE output. The count references in
+the living trail (CROSS-REF-MATRIX carve row, SUMMARY table, the s3 evidence
+quote) carry the corrected figure with this addendum as the provenance. The
+FIXED status is unchanged.

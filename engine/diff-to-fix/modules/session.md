@@ -201,3 +201,28 @@ restore semantics, DRWUI :264664-694/:357529) — FFFD-substituted names
 on disk, lossless D-53 display in the tree/report. ZFS untouched (FFFD
 baked at scan = the pinned engine asymmetry). 6 tests, fail-before
 4/6 RED. B10/D12 verdicts → MATCH for the N-029 surface.
+
+---
+
+## Dev-sign session wave (2026-10-28, audited `dd82db9` — ifileproperties-part1's first full read)
+
+The part1 artifact (the NTFS/FAT/exFAT field schemas + the 23-slot
+IFileProperties interface) was cited once (N-024) vs parts 2/3 (×6/×8); the
+field-level comparison this session:
+
+- Interface: 23 slots — 16 MATCH/equivalent, 1 MISSING (+0x20 type-registry
+  id getter — the registered N-050/N-059 residual), 1 UNDETERMINED, 5 N/A
+  both sides.
+- Fields: NTFS 12→10 matched, FAT 10→9, exFAT 10→8 — the core's carriers are
+  in places richer than the og (4-state deleted model, 4th timestamp,
+  allocated_size, codec/psize extents, resident_data, record_ref).
+- **N-087 (MINOR)** — FAT 8.3 names: the og persists raw OEM-codepage bytes
+  (part1:121); the core identity-maps each byte to U+00XX (`cr_lfn.cpp:113-129`)
+  — non-ASCII 8.3 names display/restore with different glyphs. B10/D11 → MINOR.
+- The anchor-datum slots (FAT +0x3e first-cluster — lost for chainless files
+  where the og keeps the origin; exFAT +0x50, NTFS +0x64 — semantics
+  undecoded in part1) → `tracked-open/OQ-SA-1-anchor-datum-fields.md` with
+  the resolution probes (rsf_field_census.py correlation; og-on-exFAT run;
+  FUN_14058c870 decompile).
+- Test debt noted: no end-to-end FAT/exFAT persisted-field round-trip test
+  exists to pin the MATCH columns (fix-plan item in OQ-SA-1).

@@ -390,7 +390,7 @@ M1V/JP2/MOBI/AAC missing (S-007); the rest missing (N-026).
 
 ## 6. Runtime format filter (RawConfig.ini) — the working-registry gate
 
-`og-codebase/config/RawConfig.ini` `[Filter]` section (read: 37 toggles, e.g.
+`og-codebase/config/RawConfig.ini` `[Filter]` section (read: 37 toggles — **CORRECTED to 34 by CORRECTIONS.md #5, recounted first-hand 2026-10-28; see M-024's addendum**, e.g.
 `HEIC=1 VCF=1 WEBM=1 WEBP=1 M1V=1 M2T=1 M2TS=1 JP2=1 STL=0 M4P=1 XMIND=1 RVT=1
 MOBI=1 MMAP=1 POS=1 EDDX=1 WFP=1 VPJ=0 OSP=1 HFP=1 DRP=1 HIK=1 ODP=1 ODT=1 ODS=1
 7Z=1 INSP=1 INSV=1 GPX=1 CRM=1 AEP=1 FFF=1 DPX=1 MUSX=1 …`) — per-format

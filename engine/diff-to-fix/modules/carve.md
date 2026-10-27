@@ -489,3 +489,37 @@ never feed the gate; the dedup tree stays the safety net.
 target policy) / B29 (dedup, net) / O37 (cross-stage data flow)
 verdicts: MATCH (the interval shape is the finding's own sanctioned
 first step; the og's sparse-file mmap stays profiling-gated).
+
+---
+
+## Dev-sign session wave (2026-10-28, audited `dd82db9` — the never-cited family artifacts' first read)
+
+The session's corpus inventory found the six RAWSearchDLL family artifacts
+(bruteforce/filegen/rawspeed/xjq/special/brance — 131 analyser classes)
+NEVER-CITED by any prior finding; S-007's format additions were evidenced from
+the registry census, not the family semantics. The class-by-class comparison
+(evidence in this wave's findings):
+
+- **A-010 (ACUTE)** — `validate_asf` ends the carve extent at the ASF **Header
+  Object's** size field; the og's CAsfAnalyser is a BruteForce walker ("keeps
+  consuming until the grammar breaks, then reports the last valid position as
+  the file size" — rawsearch-carving--deep-dive.md:87-91). Every ASF/WMV/WMA
+  carve is a header-only fragment. A28/B2 cells → ACUTE.
+- **S-037 (SEVERE)** — two formats escaped every format list: FreeHand 11
+  (CFH11Analyser, key 0x11C = bytes `1C 01 00 00`, registry id 0x1d,
+  decompile:1952-1961) and Corel PhotoPaint 3 generations (CPT7/8/9 =
+  0x37545043/38545043/39545043, census:93/:128). Core: FH11 exists only in
+  grading/filter tables; CPT absent entirely. A28/C19 cells → SEVERE.
+- **N-086 (MINOR)** — the base signature table is compiled-in generated code
+  where the og loads install-tree raw_signs.json at engine init
+  (deep-dive:54-59); unregistered posture divergence. R56/Q68 cells → MINOR.
+- Class disposition: 131 classes — 34 MATCH, 3 DIVERGENT (all registered
+  deliberate deltas: ADTS/MP3 D-57, DWG D-80), 67 NOT-IMPLEMENTED (64 covered
+  by S-007's open remainder), 1 UNDETERMINED (CFCPEvt attribution →
+  tracked-open OQ-SA-2), 26 N/A (infrastructure/harness). No new semantic
+  divergence among the implemented validators — every evidenced difference
+  maps to an existing finding.
+- Residual decode questions (AAC/M1V/RIFF tier roles, WPG size stamp,
+  CNeedRawMgr gating, CFCPEvt) → `tracked-open/OQ-SA-2-carve-family-decode-candidates.md`.
+- CORRECTIONS #5 propagated: the RawConfig [Filter] count is 34, not 37
+  (M-024 addendum; matrix/SUMMARY/evidence notes updated).

@@ -42,6 +42,41 @@ itself — the thing Phase 1 set out to validate — **works and is documented**
 PREBUILT-ARTIFACTS §2 / DRIVER-RELEASE §7); `tools/dev-sign/` was correctly
 NOT created (the mandate's precondition for creating it is absent).
 
+## Dev-sign session delta — waves 1-2 (2026-10-28 — the never-cited corpus artifacts' first read: the carve family wave + the session field-schema wave; audited `dd82db9`)
+
+**The method:** the session's corpus inventory (SURFACE-INVENTORY.md) found
+204 of 282 corpus docs never cited; the highest-impact in-scope gaps were the
+six RAWSearchDLL family artifacts (131 analyser classes — the carve module's
+capability claims rested on the registry census, never the family semantics)
+and ifileproperties-part1 (the NTFS/FAT/exFAT persisted-field schemas, cited
+once vs parts 2/3's ×6/×8). Both were read in full and compared class-by-class
+/ field-by-field, every load-bearing claim verified first-hand (including the
+registry-key decodes from the og decompile: FH11 = key 0x11C id 0x1d; ASF =
+key 0x75b22630 id 6).
+
+**Findings filed (4 + 2 tracked-open):**
+
+| ID | Severity | One-liner |
+|---|---|---|
+| A-010 | ACUTE | ASF/WMV/WMA carves end at the ASF **Header Object's** size field — every carved file of the family is a header-only fragment; the og's CAsfAnalyser walks to grammar break ("no premature truncation", deep-dive:87-91) |
+| S-037 | SEVERE | FreeHand 11 (key 0x11C) + Corel PhotoPaint 3 generations (CPT7/8/9) escaped every format list — the core recognizes the FH11 *extension* (grading/filter tables) but can never produce a result; CPT absent entirely |
+| N-086 | MINOR | the base signature table is compiled-in generated code vs the og's engine-init load of install-tree raw_signs.json — unregistered posture divergence |
+| N-087 | MINOR | FAT 8.3 names identity-mapped to U+00XX vs the og's raw OEM-codepage bytes — non-ASCII 8.3 names display/restore with different glyphs |
+| OQ-SA-1 | tracked-open | the part1 anchor-datum fields (FAT +0x3e lost for chainless files; exFAT +0x50, NTFS +0x64 undecoded) — probes specified (rsf_field_census.py correlation, og-on-exFAT run, FUN_14058c870 decompile) |
+| OQ-SA-2 | tracked-open | four carve-family decode candidates (CFCPEvt attribution, AAC/M1V/RIFF tier roles, WPG size stamp, CNeedRawMgr gating) — vtable→Analyse probes specified |
+
+**Also propagated:** CORRECTIONS.md #5 — the RawConfig [Filter] count is 34,
+not 37 (recounted first-hand; 7 of the 8 corpus corrections were already
+clean; M-024 addendum + matrix/SUMMARY/evidence notes). The class-by-class
+disposition: 131 classes → 34 MATCH, 3 registered deltas, 64 covered by
+S-007's open remainder, 26 N/A, 1 UNDETERMINED — **no new semantic divergence
+among the implemented validators** (every evidenced difference maps to an
+existing finding). Session-field disposition: 23 slots → 16 MATCH, 28 of 32
+per-FS fields MATCH with the core's carriers richer in places.
+
+**Board after waves 1-2:** 12 active (1 ACUTE · 2 SEVERE · 4 MAJOR · 4 MINOR ·
+1 INFO) · 223 FIXED · tracked-open 3 (OQ-S4-3, OQ-SA-1, OQ-SA-2).
+
 ## Review-and-validate session delta (2026-10-26 — the post-fix audit: every fix-lane landing and collision independently re-verified; the audit trail reconciled; the documentation suite created)
 
 **The mandate:** review and validate the fix sessions' work — the
@@ -4081,7 +4116,7 @@ superseded constant set. Final disposition:
 | S-018 | SEVERE | carve | JPEG EOI policy: neither og analyser generation requires EOI (size = SOF arithmetic); core requires EOI+SOF+SOS → truncated photos salvaged by og, dropped by core |
 | S-019 | SEVERE | lost-partition | BitLocker "-FVE-FS-" lost-partition probe family missing (S-006 under-listed the og; executed string-probe evidence; distinct from S-014's win-layer unlock-path finding) |
 | S-020 | SEVERE | refs | ReFS resident/inline content never materialized: FUN_18000e490/ea30 build CRefsResidentDataRunList (lead re-verified first-hand at :10413-10462); core's resident_data never populated + val_len ≥ 0x28 gate drops resident rows → inline files metadata-only. Answers M-022's fix-plan step 4; needs M-022's grammar walk first |
-| M-024 | MAJOR | carve | No runtime format-filter surface vs og RawConfig.ini [Filter] (37 toggles, STL/VPJ default-off) — registry rebuilt per search |
+| M-024 | MAJOR | carve | No runtime format-filter surface vs og RawConfig.ini [Filter] (34 toggles — CORRECTIONS #5 recount; was 37, M-024 addendum; STL/VPJ default-off) — registry rebuilt per search |
 | M-025 | MAJOR | carve | Read model: og 8 MiB ping-pong + sector dispatch + pending-CRawFileInfo streaming across chunks; core 1 MiB byte-granularity stateless + extent re-reads. M-021's hook fix depends on this state machine |
 | M-026 | MAJOR | refs | ReFS deleted-recovery model: og stale-"MSB+"-page sweep (FUN_180005330) force-marks unreachable-page records deleted; core harvests row-flag 0x4 + ID2 rows — different on-disk premise (CoW medium favors the og's model) |
 | M-027 | MAJOR | refs | ReFS object-identity keep-one + Recycle-Bin routing ($R*/S-*/SVI collection, $I resident read) missing; core emits hard-linked objects N times |

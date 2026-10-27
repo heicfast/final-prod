@@ -312,7 +312,7 @@ reading was wrong — corrected in `evidence/decompiled-quotes/fat-exfat-session
 |---|---|---|
 | carve | C19/B1/B2 | **S-017 — FIXED (`1cc08c3`, post-wave-2)** (ftyp re-keyed on box TYPE + F8 structural self-probe; 6 fail-before tests) |
 | carve | A28/B2 | **S-018 — INVALID (`2adfa29`, post-wave-2; refutation independently re-verified by the S3 lead: the `-0x27` signed-char FF D9 sites gate the modern analyser)** — residuals in tracked-open OQ-S3-jpeg-fallback-and-continuation |
-| carve | A42/A45 | ****M-024 FIXED (s10: disabled_formats surface — findings/FIXED/M-024)**** (no runtime format-filter surface vs og RawConfig.ini [Filter], 37 toggles, STL/VPJ default-off) + **N-033** (registry exports consumed by FS engines — no core ABI) |
+| carve | A42/A45 | ****M-024 FIXED (s10: disabled_formats surface — findings/FIXED/M-024)**** (no runtime format-filter surface vs og RawConfig.ini [Filter], 34 toggles (CORRECTIONS #5 — was miscounted 37; M-024 addendum), STL/VPJ default-off) + **N-033** (registry exports consumed by FS engines — no core ABI) |
 | carve | P47–P53/X47/X50 | ~~M-025~~ **FIXED (s32 DFX32: the WindowView — validator probes/checksums/hashes/tail-walks/feeds served from the already-read window; MEASURED 9.88× fewer read_at calls, 2.08× fewer device bytes; the pending-object model registered as D-80, future stateful analysers port behind the M-021 seam; geometry change not taken — byte-granularity dominates, I-009 superset kept)** |
 | carve | P47–P53/X47/X50 | ~~M-025~~ **FIXED (s33)** — the window-serving read context (WindowDevice): validators/checksums/hashes/tail-scans read through the window buffer (the og's already-in-buffer model); MEASURED 52→4 device reads on the 4-plant fixture (13x, zero per-candidate re-reads); geometry unchanged per the finding's bench-evidence rule; stateless-vs-pending registered D-81; findings/FIXED/M-025 |
 | carve | A25/A28/C19 | ~~N-031~~ **FIXED (s28)** — the zero-sector fast-skip landed (all-zero 47-byte sign window skips the raw-sign probe, counted in carve_zero_strides); stride superset + only_common coverage documented; addendum's chain semantics already equivalent (pins green); findings/FIXED/N-031 |
@@ -465,3 +465,17 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | dev-sign · load/round-trip behavior | MATCH | run 40549660074: RUNNING + control-device open + GET_INFO/GET_VERSION ready + grammar-path refusal class — the verified core of Phase 1 |
 
 (No prior module file exists for this surface — a `modules/driver-install.md` lands with the Phase-2 wave that owns the packaging surfaces.)
+
+## Dev-sign session detail rows — waves 1-2 (2026-10-28, audited `dd82db9`; corpus: the never-cited family/part1 artifacts)
+
+| Surface × parameter | Verdict | Finding / evidence |
+|---|---|---|
+| carve · ASF/WMV/WMA end-of-file determination (A28/B2) | DIVERGENCE-ACUTE | **A-010** — extent ends at the ASF Header Object vs the og's walk-to-grammar-break (deep-dive:87-91); `cr_analysers.cpp:1855-1858` |
+| carve · FH11 format presence (A28/C19) | DIVERGENCE-SEVERE | **S-037** — CFH11Analyser key 0x11C id 0x1d (decompile:1952-1961); core: extension in grading/filter tables only, no validator |
+| carve · CPT format presence, 3 generations (A28/C19) | DIVERGENCE-SEVERE | **S-037** — CPT7/8/9 keys (census:93,:128); core: zero occurrences |
+| carve · 131 family classes — presence/semantics vs the 6 family artifacts | 34 MATCH · 3 registered-delta · 64 S-007-remainder · 26 N/A · 1 UNDETERMINED | the wave's class-by-class table (agent sheet, scratch); residuals → **OQ-SA-2** |
+| carve · signature-table packaging (R56/Q68) | DIVERGENCE-MINOR | **N-086** — compiled-in generated table vs og's engine-init ifstream load of raw_signs.json (deep-dive:54-59) |
+| session · FAT 8.3 name encoding (B10/D11) | DIVERGENCE-MINOR | **N-087** — raw OEM bytes vs identity-mapped U+00XX (part1:121 vs `cr_lfn.cpp:113-129`) |
+| session · IFileProperties 23-slot interface | 16 MATCH · 1 registered-residual · 1 UNDETERMINED · 5 N/A | the +0x20 getter = the N-050/N-059 type-registry residual (registered); +0x30 → OQ-SA-1 |
+| session · NTFS/FAT/exFAT persisted fields | 28 of 32 MATCH (10/12, 9/10, 8/10) | carriers richer in places (4-state deleted, 4th timestamp, allocated_size); the 4 unmatched → **OQ-SA-1** (anchor datums + ids) |
+| carve · RawConfig [Filter] count (doc truth) | CORRECTION PROPAGATED | CORRECTIONS #5: 34 not 37 — M-024 addendum; matrix/SUMMARY/evidence notes updated this session |

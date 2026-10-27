@@ -17308,3 +17308,40 @@ Work Log:
 Stage Summary:
 - Gate documents committed; Phase-2 finding waves may begin. The corpus
   inventory shows ~50 in-scope NEVER/PARTIAL docs to disposition this session.
+
+---
+Task ID: SA-3 (Phase 2 waves 1-2 — carve families + session field schemas)
+Agent: main engineer + agents D1/D2 (comparison sheets in scratch/, not committed)
+
+Work Log:
+- Wave 1 (carve families): all 6 RAWSearchDLL family artifacts read in full
+  (131 classes) vs the core's carve implementation. Verified first-hand: the
+  og registry static-initializer decodes (FH11 = key 0x11C id 0x1d at
+  decompile:1952-1961; ASF = key 0x75b22630 id 6; DXF 0x19; APE 0x51), the
+  BruteForce family walk contract (deep-dive:87-91 "walks forward to EOF...
+  last valid position as file size"), and the core-side facts (validate_asf
+  ends at the Header Object size; FH11 only in grading/filter tables; CPT
+  absent; short_name_to_u16 identity map; the compiled-in rawsigns table).
+- Filed: A-010 (ACUTE — ASF carves truncated to header object), S-037
+  (SEVERE — FH11 + CPT7/8/9 formats missing entirely), N-086 (MINOR —
+  compiled-in vs file-loaded signature table), tracked-open OQ-SA-2 (4
+  decode candidates with vtable->Analyse probes).
+- Wave 2 (session schemas): ifileproperties-part1 first full read — 23-slot
+  interface + NTFS/FAT/exFAT field schemas vs the core's carriers. Filed:
+  N-087 (MINOR — FAT 8.3 OEM bytes identity-mapped), tracked-open OQ-SA-1
+  (anchor-datum fields with resolution probes). The +0x20 getter residual
+  confirmed as the registered N-050/N-059 trail (no new finding).
+- CORRECTIONS #5 propagated (34 not 37 RawConfig toggles — recounted
+  first-hand; M-024 addendum + living-doc notes). M-060 prose precision
+  fixed per A2's accuracy note (regdrv.reg has no eprdtdrv entry —
+  eprdtdrv is live-only).
+- Updated: modules/carve.md + modules/session.md session sections,
+  CROSS-REF-MATRIX wave rows, SUMMARY delta + board.
+
+Stage Summary:
+- Board after waves 1-2: 12 active (1 ACUTE · 2 SEVERE · 4 MAJOR · 4 MINOR ·
+  1 INFO) + 223 FIXED + 3 tracked-open. The never-cited family artifacts'
+  first read produced one ACUTE (ASF truncation — recovery-correctness) and
+  one SEVERE (two missing formats). Next: wave 3 (installer surface — the 27
+  NEW-ground parameters), wave 4 (preview subsystem), wave 5 (user-signature
+  DB grammar), wave 6 (WinPE payload census), wave 7 (MOM stubs).
