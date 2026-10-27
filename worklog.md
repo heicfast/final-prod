@@ -1225,3 +1225,34 @@ Stage Summary:
   (elevation for the required driver), and on Secure-Boot-ON machines
   run `bcdedit /set testsigning on` + reboot first (the release notes
   and the installer's driver page state this).
+
+## 2026-10-27T04:50Z — SECOND-LANE INDEPENDENT VERIFICATION of the live v0.6.0-rc1 release (the signature-parse proof; rebase reconciliation note)
+
+This lane (the release-verification continuation) independently verified
+the live release from a clean download, complementing the first lane's
+checksum pass with a deeper signature-structure proof:
+
+- All four assets fetched; `sha256sum` re-computed against the published
+  `SHA256SUMS` — all three payloads MATCH (setup.exe 41f610bc…,
+  portable.zip d8e0273a…, testsigning.cer c8f5ee1b…).
+- Raw PE certificate-table parse of `RecoveryWizard-0.6.0-rc1-setup.exe`:
+  a WinCertificate entry (file offset 0x37b4d0, 1,488 B, revision 0x0200,
+  **certType 0x0002 = PKCS_SIGNED_DATA**, i.e. an Authenticode embedded
+  signature) whose signature blob CONTAINS the exact DER bytes of the
+  published `RecoveryWizard-0.6.0-rc1-testsigning.cer` — the release's
+  public certificate asset is byte-identical to the certificate that
+  signed the installer.
+- Same parse inside the portable zip: the staged `driver/rda.sys`
+  (50,640 B) carries the same PKCS#7 entry embedding the same DER.
+- The certificate itself: `CN=HeicFast Recovery Wizard Development
+  Signing`, self-signed, notBefore 2026-10-27T04:06:50Z, notAfter
+  2029-10-27 (3-year validity), SHA-1 fingerprint 86:A4:DC:F5:D7:01:CF:
+  2B:1E:D7:52:DF:B9:F6:9C:AB:63:C7:A3:8B.
+
+Rebase reconciliation: this lane's post-release docs commit landed
+after the first lane's a83484a2/608758e4 (both lanes independently
+verified the same release — their sha256sum pass and this lane's PE
+signature-parse are recorded as complementary evidence, both kept; the
+landed CI-table/release-row forms win, this lane's unique PKCS#7-parse
+facts merged in as the addendum). No code changed; no lane re-triggered
+beyond the docs paths.

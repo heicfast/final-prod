@@ -30,7 +30,7 @@ the worklog).
 | engine-ci | green at `1a7d05d5` (the latest commit touching engine/ — the mandatory-driver rewrite tree) | lint, Linux ASan full suite (926 tests), UBSan, fuzz, Windows MSVC + Win7 PE gates + ctest — RDA-only transport, `ERR_DRIVER_REQUIRED` refusal covered |
 | ui-e2e | green at `b9d1a366` | Playwright specs on the test-mode build (the G-1 consent prompt suite included) |
 | validation-evidence | **run 40442056802 at `9e188154` GREEN — the first fully-green validation on the mandatory-driver tree** (every earlier round root-caused: the devsign `-File` param, the WOW64 redirection that had broken EVERY driver start, the `0x80000000` literal, the dropped msvc-dev-cmd step) | T14 + T15 end to end on the same tree the release cuts from: driver dev-signed and RUNNING on the runner, measurements through it, full installer matrix green |
-| release | **`v0.5.0` run 4 GREEN** (unsigned era, history); **`v0.6.0-rc1` — the first DEVELOPMENT TEST-SIGNED release, cut on the run-23-validated tree (tag at `2cc3c501`, code `9e188154`)** | the full build WITH tests, artifact verification (the setup.exe AND the staged `rda.sys` must carry the build certificate — `devsign.ps1 -Action verify` throws on absence), truthful dev-signing notes (mandatory driver, Secure Boot guidance, testsigning.cer asset), upload with SHA256SUMS + the public `-testsigning.cer` |
+| release | **`v0.5.0` run 4 GREEN** (unsigned era, history); **`v0.6.0-rc1` — the first DEVELOPMENT TEST-SIGNED release, cut on the run-23-validated tree (tag at `2cc3c501`, code `9e188154`; run 40448678863 GREEN)** | the full build WITH tests, artifact verification (the setup.exe AND the staged `rda.sys` must carry the build certificate — `devsign.ps1 -Action verify` throws on absence), truthful dev-signing notes (mandatory driver, Secure Boot guidance, testsigning.cer asset), upload with SHA256SUMS + the public `-testsigning.cer`; independently re-verified post-upload (SHA256 match + the PE certificate-table parse: the setup.exe AND the portable zip's staged `rda.sys` each carry a WinCertificate entry, certType 0x0002 PKCS_SIGNED_DATA, whose signature blob embeds the EXACT DER of the published `.cer`) |
 
 ## Pending evidence (tracked, not claimed)
 
@@ -43,4 +43,8 @@ The `v0.6.0-rc1` release run (tag at `2cc3c501`) is the first
 installer all carry the build certificate; the public certificate ships
 as a release asset; the notes state the Secure-Boot/testsigning
 requirement truthfully. The v0.5.0 rows above read as history (the
-unsigned era).
+unsigned era). Post-publish verification ran twice from two lanes
+(checksums both times; additionally a raw PE certificate-table parse
+proving the signature blobs in the setup.exe and the portable zip's
+staged `rda.sys` embed the exact DER of the published `.cer` — the
+asset and the signer are byte-identical).
