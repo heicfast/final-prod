@@ -780,3 +780,25 @@ Release state: run 3 (v0.5.0-rc3) GREEN — setup.exe + portable.zip +
 SHA256SUMS on the GitHub release (prerelease-labeled). Next: the FINAL
 v0.5.0 tag on the evidence-committed tree (VERSION lockstep
 0.5.0-rc3 -> 0.5.0), then the release run, then the handoff entry.
+
+## 2026-10-27T00:15Z — T18 complete: the FINAL v0.5.0 tag cut on the validated tree
+
+The RC discipline (docs/RELEASE.md) is satisfied: rc1 failed at the
+engine test gate (fixed: ctest -C), rc2 failed at the deployer race
+(fixed: single deployer + retries), rc3 ran GREEN end to end — full
+build with tests, artifact verification, truthful unsigned notes,
+SHA256SUMS upload — and the T15 matrix evidence (run 17, GREEN) proves
+the installed product's install/update/repair/uninstall lifecycle on a
+clean Windows runner. The final tag follows on the tree that carries
+every fix plus the committed evidence.
+
+The cut: VERSION 0.5.0-rc3 -> 0.5.0 in the Assert-VersionConsistency
+lockstep set (VERSION, ui/package.json, ui/src-tauri/Cargo.toml,
+ui/src-tauri/tauri.conf.json — one line each, surgical edits, no
+reformats). Tag v0.5.0 -> release.yml run 4: version gate, contracts
+gate, build.ps1 -Target all (WITH tests), artifact verification, notes,
+upload. The v0.5.0 installer ships every round-13/15 fix: the /SD
+silent-mode discipline, the plan-exact registry layout, the live driver
+elevation guards (registration + teardown both proven by run 17's facts
+files), the curated kit (zero test runtimes), the complete uninstall
+(zero leftovers), and the lifecycle facts file.
