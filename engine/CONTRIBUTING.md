@@ -7,6 +7,40 @@ code is fixed instead. Evidence-citing docs (`diff-to-fix/`) are the
 audit spine; when you change behavior deliberately, register the
 divergence in `docs/PARITY-DELTAS.md` first.
 
+## The local gate — never push a red commit
+
+**Run the single entry point before every push** (CI's first job runs the
+same script on the runner image — the local-mirror rule, docs/CI-LOCAL.md):
+
+```
+./ci-local.sh          # Unix (add --san / --fuzz / --all for the CI matrix lanes)
+.\ci-local.ps1         # Windows (the exact script the CI local-mirror job runs)
+```
+
+It runs every check CI runs, in the same order, with the same strictness:
+format check, the dead-surface + driver-only architecture lints, the
+warnings-as-errors build, the full unit + contract test suite, the repo
+truth self-tests, dependency pinning, the doc link check, the secrets scan
+of your diff, and the commit message convention. Every failure prints the
+exact files and the fix command. **Green locally, then push.** If the gate
+passes locally but CI's `local-mirror` job fails, that is a
+runner-vs-developer environment difference — diagnose and close it, do not
+just re-push.
+
+Install the hooks (one-time):
+
+```
+git config core.hooksPath .githooks
+```
+
+- `pre-commit` runs the fast subset (staged secrets + staged-file format —
+  seconds).
+- `pre-push` runs the full gate.
+
+**Bypassing the hooks with `--no-verify` is a contributor violation.** The
+remote never accommodates a red push; CI does not retry your way around the
+gate. The full component→CI mapping is auditable in docs/CI-LOCAL.md.
+
 ## Build lanes
 
 | Lane | Command | Notes |
@@ -19,24 +53,27 @@ divergence in `docs/PARITY-DELTAS.md` first.
 Deps on Linux: zlib1g-dev, liblz4-dev, libzstd-dev (GTest is
 FetchContent'd when absent). See `docs/build.md` for details.
 
-## Tests and gates (all must be green before a push)
+## Tests and gates (all green — via the local entry point above)
 
 ```
-ctest --preset linux-gcc      # full suite, ASan (926 tests at HEAD)
-bash tools/win_syntax_check.sh   # Windows-only sources parse gate (also runs as a ctest)
+ctest --preset linux-gcc         # full suite, ASan
+bash tools/win_syntax_check.sh   # Windows-only sources parse gate (also a ctest)
 ```
 
-CI additionally runs, per push: clang-format-18
-(`--dry-run --Werror` over src/include/tests — format your edits),
-linux + linux-tsan + linux-ubsan + the windows MSVC build and test
-lane, the libFuzzer campaign (`make -C fuzz`, now `-Werror`) and the
-Win7 PE import gate (`tools/verify_pe_um.py`). CodeQL is present but
-deferred (`if: false` — recorded, not silent).
+CI (the validation lane, docs/CI-LOCAL.md's cost table): the
+`local-mirror` job (your gate, verbatim), Linux + TSan + UBSan + the ONE
+Windows MSVC Release build and test lane, the libFuzzer campaign
+(`make -C fuzz`, `-Werror`) and the Win7 PE import gate
+(`tools/verify_pe_um.py). CodeQL is present but deferred (`if: false` —
+recorded, not silent). The correctness workflows (driver-install,
+core-install, staged scenarios) consume **prebuilt releases only**
+(docs/PREBUILT-ARTIFACTS.md) — nothing but the validation lane and the
+release workflow ever builds from source.
 
-Local sanity for an edit: configure+build the lane you touched, run
-`ctest --preset linux-gcc`, and clang-format the files you changed.
-Formatting must match clang-format-18 — do not blanket-reformat
-unrelated lines.
+Local sanity for an edit: run the local gate. Formatting must match
+clang-format — do not blanket-reformat unrelated lines. No warning
+suppression without a docs/BUILD-SUPPRESSIONS.md row (currently zero
+entries).
 
 ## The audit trail
 
@@ -51,10 +88,10 @@ unrelated lines.
   anti-hallucination anchor. Verify claimed corpus facts at the cited
   line numbers before relying on them.
 
-## Commit style
+## Releases
 
-Evidence-citing subject lines in the imperative, lowercase family
-(`fix(warnings): the clang fuzz lane's 48-warning backlog zeroed`),
-with the body explaining the *why* and the proof (what was measured,
-what test pins the behavior, what failed before). Look at recent
-`git log` before writing yours.
+Tag pushes (`vX.Y.Z`) run the combined release workflow — the sole source
+of builds, gated by the full validation suite (docs/RELEASE.md). The
+cadence policy: **release on every green milestone**; the current release
+is the substrate CI consumes. After a landed fix-group, tag and let the
+workflow produce the release — never build artifacts by hand.

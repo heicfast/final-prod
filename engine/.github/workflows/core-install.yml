@@ -1,0 +1,99 @@
+# core-install.yml - the prebuilt CORE lane (no build). Fetches the latest
+# core release by the documented convention, verifies checksums + MANIFEST,
+# stages the binaries, and smokes them with NON-DISK operations only (the
+# classification-(b) surface - the driver is deliberately NOT installed in
+# this workflow, which doubles as the standing refusal-contract regression
+# probe: `rrecov driver` must exit 4 with the ABSENT class).
+# docs/PREBUILT-ARTIFACTS.md section 3 is the convention; the staged
+# evidence + smoke logs are the workflow's only outputs.
+name: Core install (prebuilt)
+
+on:
+  workflow_dispatch:
+    inputs:
+      core_tag:
+        description: 'explicit core tag pin (empty = latest by convention)'
+        default: ''
+  schedule:
+    - cron: '10 5 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  stage-and-smoke:
+    strategy:
+      matrix:
+        runner: [windows-2022, windows-latest]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch + verify the latest prebuilt core release (convention-enforced)
+        shell: pwsh
+        run: |
+          $hdr = @{ Authorization = "token ${{ secrets.GITHUB_TOKEN }}" }
+          if ('${{ inputs.core_tag }}') {
+            $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/heicfast/core_recovery/releases/tags/${{ inputs.core_tag }}" -Headers $hdr
+          } else {
+            $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/heicfast/core_recovery/releases/latest" -Headers $hdr
+          }
+          $zip = ($rel.assets | Where-Object { $_.name -like 'core-recovery-*.zip' } | Select-Object -First 1).name
+          if (-not $zip) { Write-Host "::error::no core-recovery zip in $($rel.tag_name)"; exit 1 }
+          & .github/scripts/fetch-release.ps1 -Repo heicfast/core_recovery -OutDir core `
+            -Required @($zip, 'MANIFEST.json', 'SHA256SUMS') `
+            $(if ('${{ inputs.core_tag }}') { @('-Tag', '${{ inputs.core_tag }}') })
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Expand-Archive "core\$zip" -DestinationPath core-staged -Force
+          "CORE_TAG=$($rel.tag_name)" | Add-Content -Path $env:GITHUB_ENV -Encoding utf8
+
+      - name: Stage check + NON-DISK smoke (classification (b) surface)
+        shell: pwsh
+        run: |
+          $rrecov = "core-staged\bin\rrecov.exe"
+          foreach ($f in @($rrecov, 'core-staged\bin\cr_ui.dll', 'core-staged\include\cr\cr_ui.h')) {
+            if (-not (Test-Path $f)) { Write-Host "::error::staged release missing: $f"; exit 1 }
+          }
+          $env:PATH = "$PWD\core-staged\bin;$env:PATH"
+
+          # (b)-class verb: enumeration never needs the driver (og evidence,
+          # DRIVER-REQUIRED.md section 1) - exit 0
+          & $rrecov list
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::list verb failed on the staged core"; exit 1 }
+
+          # the refusal-contract regression probe: the driver is NOT installed
+          # in this workflow -> exit 4 + the ABSENT class, always
+          $drv = & $rrecov driver --json 2>&1
+          $code = $LASTEXITCODE
+          $drv | Write-Host
+          if ($code -ne 4) { Write-Host "::error::expected the ABSENT refusal (exit 4), got $code"; exit 1 }
+          if (-not ($drv -match '"state":"absent"')) { Write-Host "::error::expected state absent"; exit 1 }
+
+          # usage text: exit 0 (a help surface is a non-disk operation)
+          & $rrecov > usage.txt
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::usage print failed"; exit 1 }
+          Get-Content usage.txt | Write-Host
+          Write-Host "staged core $env:CORE_TAG smoked: list OK, driver-refusal OK, usage OK"
+
+      - name: Evidence + env manifest
+        if: always()
+        shell: pwsh
+        run: |
+          [ordered]@{
+            runner_image = $env:ImageOS
+            core_tag     = $env:CORE_TAG
+            staged_files = @(Get-ChildItem core-staged\bin | ForEach-Object Name)
+          } | ConvertTo-Json | Set-Content env-manifest.json
+          Get-Content env-manifest.json | Write-Host
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-install-evidence-${{ matrix.runner }}-${{ github.run_id }}
+          path: |
+            env-manifest.json
+            core\resolved-release.json
+            usage.txt
+          if-no-files-found: error

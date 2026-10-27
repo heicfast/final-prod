@@ -1,0 +1,95 @@
+# install-driver/action.yml - the shared composite: fetch the latest prebuilt
+# rda-driver release by the documented convention, verify checksums, test-sign
+# with a job-local cert, install + start the service, and leave evidence.
+# Extracted from the api-benchmark lane's proven mechanism (runs
+# 40227375329 / 40315255368) - PLAN-CI-REBUILD section 3.2.
+#
+# Inputs:
+#   service      - the service name to install under (default 'rda')
+#   driver_dir   - where the release is fetched + verified (default 'driver')
+#   tag          - explicit tag pin (empty = latest by convention)
+#
+# Outputs:
+#   driver-tag   - the resolved release tag (for the env-manifest)
+#   driver-dir   - the verified artifact directory
+#
+# The composite installs and STARTS the driver; the caller performs the
+# core-based verification (rrecov driver --json -> state ready) after staging
+# the core release, and MUST run the uninstall step (always) at job end:
+#   sc.exe stop rda; sc.exe delete rda;
+#   Remove-Item "$env:SystemRoot\System32\drivers\rda.sys" -Force
+name: 'install-prebuilt-rda-driver'
+description: >
+  Fetch the latest prebuilt rda-driver release by the documented convention,
+  verify SHA256SUMS, test-sign with a job-local certificate, install as a
+  kernel service and start it. No build. Loud failure on convention violation.
+inputs:
+  service:
+    description: 'service name to install under'
+    default: 'rda'
+  driver_dir:
+    description: 'directory for the fetched release'
+    default: 'driver'
+  tag:
+    description: 'explicit tag pin (empty = latest by convention)'
+    default: ''
+outputs:
+  driver-tag:
+    description: 'the resolved release tag'
+    value: ${{ steps.resolve.outputs.tag }}
+
+runs:
+  using: 'composite'
+  steps:
+    - id: resolve
+      name: Fetch + verify the prebuilt driver release (convention-enforced)
+      shell: pwsh
+      run: |
+        $args = @('-Repo', 'heicfast/rda-driver', '-OutDir', '${{ inputs.driver_dir }}',
+                  '-Required', 'rda.sys', 'rda.inf', 'install.ps1', 'uninstall.ps1', 'SHA256SUMS',
+                  '-FloorVersion', 'v0.2.1')
+        if ('${{ inputs.tag }}') { $args += @('-Tag', '${{ inputs.tag }}') }
+        & .github/scripts/fetch-release.ps1 @args
+        if ($LASTEXITCODE -ne 0) { exit 1 }
+        $rec = Get-Content '${{ inputs.driver_dir }}\resolved-release.json' -Raw | ConvertFrom-Json
+        "tag=$($rec.tag)" >> $env:GITHUB_OUTPUT
+
+    - name: Test-sign + install + start the driver (service '${{ inputs.service }}')
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = 'Stop'
+        # job-local code-signing cert (the proven runner mechanism: no
+        # test-signing boot mode required on windows-2022)
+        $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=RRECOV-CI" `
+          -KeyExportPolicy Exportable -NotAfter (Get-Date).AddDays(2) `
+          -CertStoreLocation Cert:\LocalMachine\My
+        $pw = ConvertTo-SecureString -String 'rrecov-ci' -Force -AsPlainText
+        Export-PfxCertificate -Cert $cert -FilePath rda-ci.pfx -Password $pw | Out-Null
+        Export-Certificate -Cert $cert -FilePath rda-ci.cer | Out-Null
+        Import-Certificate -FilePath rda-ci.cer -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
+        Import-Certificate -FilePath rda-ci.cer -CertStoreLocation Cert:\LocalMachine\TrustedPublisher | Out-Null
+        $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" |
+          Sort-Object FullName -Descending | Select-Object -First 1
+        & $signtool.FullName sign /fd SHA256 /f rda-ci.pfx /p rrecov-ci '${{ inputs.driver_dir }}\rda.sys'
+        if ($LASTEXITCODE -ne 0) { exit 1 }
+        # the release's own installer (sc create type= kernel start= demand)
+        powershell -ExecutionPolicy Bypass -File '${{ inputs.driver_dir }}\install.ps1' `
+          -ServiceName '${{ inputs.service }}' -Source "$PWD\${{ inputs.driver_dir }}\rda.sys" -IoctlBase 0
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "install.ps1 failed ($LASTEXITCODE) - manual sc.exe fallback (the proven path from the api-benchmark lane)"
+          Copy-Item '${{ inputs.driver_dir }}\rda.sys' "$env:SystemRoot\System32\drivers\${{ inputs.service }}.sys" -Force
+          sc.exe create ${{ inputs.service }} type= kernel start= demand binPath= "System32\drivers\${{ inputs.service }}.sys" group= "FSFilter Boot File System"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+        }
+        sc.exe start ${{ inputs.service }}
+        if ($LASTEXITCODE -ne 0) {
+          sc.exe query ${{ inputs.service }}
+          Get-WinEvent -LogName System -MaxEvents 30 | Format-List | Out-String | Write-Host
+          exit 1
+        }
+        # layer-1 evidence: service RUNNING + control device opens
+        $svc = sc.exe query ${{ inputs.service }} | Select-String 'RUNNING'
+        if (-not $svc) { Write-Host "service not RUNNING after start"; exit 1 }
+        $h = [IO.File]::Open('\\.\${{ inputs.service }}', 'Open', 'Read', 'ReadWrite')
+        $h.Close()
+        Write-Host "driver installed: service RUNNING + control device open OK"

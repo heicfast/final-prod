@@ -1,18 +1,52 @@
-name: Release
+# release.yml - the COMBINED release workflow (the sole source of builds).
+#
+# docs/RELEASE.md is the convention document; docs/PREBUILT-ARTIFACTS.md is
+# the artifact contract this workflow produces. Mandate section 5:
+#   - triggered by a tag push matching the plain-semver convention (vX.Y.Z)
+#   - gated by the FULL pre-merge validation suite (a red validation blocks
+#     the release - no release without green)
+#   - builds the core from the tagged commit (the one from-scratch build)
+#   - fetches the driver at the compatibility tier (prebuilt = the default
+#     and preferred path; source-build ONLY when the tier release does not
+#     exist, stamped built-from-source in MANIFEST.json)
+#   - produces the full artifact set: core zip + headers/symbols + driver
+#     assets + MANIFEST.json + top-level SHA256SUMS
+#   - signing posture is TEST-SIGNED driver artifacts / unsigned core
+#     binaries this session, stated truthfully in the release notes
+#
+# Cadence policy (docs/RELEASE.md): release on every green milestone; the
+# current release is the substrate for CI; there is no external schedule.
+name: Release (combined core + driver)
 
 on:
   push:
-    tags: ['v*']
+    tags: ['v[0-9]+.[0-9]+.[0-9]+'] # plain semver only - the new convention
+  workflow_dispatch:
+    inputs:
+      skip_validation:
+        description: 'DRILL ONLY: skip the validation gate (never for a real release)'
+        default: false
+        type: boolean
 
 permissions:
   contents: write
 
 jobs:
-  release:
+  # ---- gate: the full pre-merge validation suite (no release without green) ----
+  validate:
+    if: ${{ !inputs.skip_validation }}
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  build-core:
+    needs: [validate]
+    if: ${{ !cancelled() && (needs.validate.result == 'success' || inputs.skip_validation) }}
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
-      - name: Build (Release, vcpkg manifest)
+
+      - name: Build the core from the tagged commit (Release, manifest vcpkg)
         shell: pwsh
         run: |
           $env:VCPKG_ROOT = $env:VCPKG_INSTALLATION_ROOT
@@ -24,12 +58,6 @@ jobs:
           if ($LASTEXITCODE) { exit 1 }
 
       - name: Win7 posture gate (stamp + import allowlist, every shipped PE)
-        # GAP-W6-WIN7 / F-D-4: the machine-enforced contract from the CI
-        # windows lane, applied to the ARTIFACTS. The stamper rewrites the
-        # PE OS/subsystem version fields to 6.1 (the modern toolset links
-        # 10.0 regardless of project flags); the gate then fails on any
-        # kernel32/advapi32 import outside tools/ref_imports_um.json plus
-        # the audited additions (Windows-8-only APIs fail by design).
         shell: pwsh
         run: |
           python tools/stamp_osversion_um.py build/win-x64-release/src/app/Release/rrecov.exe
@@ -41,19 +69,12 @@ jobs:
           python tools/verify_pe_um.py build/win-x64-release/src/ui/Release/cr_ui.dll --allowlist tools/ref_imports_um.json
           if ($LASTEXITCODE) { exit 1 }
 
-      - name: Stage the complete SDK + CLI bundle
-        # GAP-W6-RELEASE: rrecov.exe + cr_ui.dll + import/static libs +
-        # headers + docs + the app-local runtime (vcpkg-built z/lz4/zstd
-        # AND the VC/UCRT CRT - Win7 RTM has no UCRT, so the bundle is not
-        # loadable without it). Every required artifact is existence-
-        # checked; a missing one fails the release rather than shipping
-        # a broken zip.
+      - name: Stage the complete SDK + CLI bundle (the proven packaging)
         shell: pwsh
         run: |
           $out = "stage"
           New-Item -ItemType Directory -Force "$out/bin", "$out/lib" | Out-Null
 
-          # ---- our build products (all paths build-verified) ----
           $required = @(
             "build/win-x64-release/src/app/Release/rrecov.exe",
             "build/win-x64-release/src/ui/Release/cr_ui.dll",
@@ -70,16 +91,11 @@ jobs:
           Copy-Item build/win-x64-release/src/core/Release/cr_core.lib "$out/lib/"
           Copy-Item build/win-x64-release/src/win/Release/cr_win.lib "$out/lib/"
 
-          # ---- symbols for crash triage (present when the build emits them:
-          #      RelWithDebInfo; the plain Release preset ships stripped) ----
           foreach ($pdb in @("rrecov.pdb", "cr_ui.pdb")) {
             $candidate = Get-ChildItem build/win-x64-release/src -Recurse -Filter $pdb -ErrorAction SilentlyContinue | Select-Object -First 1
             if ($candidate) { Copy-Item $candidate.FullName "$out/bin/" }
           }
 
-          # ---- vcpkg-built runtime deployed next to our binaries. Test-framework
-          #      DLLs (gtest/gmock - deployed by the ctest step's test-tree
-          #      backstop) are NOT SDK content: exclude them explicitly. ----
           $deployed = @()
           foreach ($dir in @("build/win-x64-release/src/app/Release", "build/win-x64-release/src/ui/Release")) {
             if (Test-Path $dir) {
@@ -90,38 +106,24 @@ jobs:
           $deployed | Sort-Object Name -Unique |
             ForEach-Object { Copy-Item $_.FullName "$out/bin/" -Force }
 
-          # ---- app-local VC CRT (redistributable; from the VS redist dir) ----
           $vcCrt = Get-ChildItem "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Redist/MSVC/*/x64/Microsoft.VC143.CRT" -Directory -ErrorAction SilentlyContinue |
             Sort-Object FullName -Descending | Select-Object -First 1
           if (-not $vcCrt) { throw "VC143 CRT redist dir not found (VS layout changed?)" }
           Copy-Item "$($vcCrt.FullName)/*.dll" "$out/bin/"
 
-          # ---- app-local UCRT (Win7 RTM ships none). Candidate layouts across
-          #      SDK generations, in preference order; the winner is the first
-          #      directory that ACTUALLY CONTAINS ucrtbase.dll (SDK 26100's
-          #      bin\<ver>\x64\ucrt exists but is EMPTY - a name-sort selected
-          #      it and the copy failed). Fail loudly if none of them carry it.
           $ucrtCandidates = @()
           $ucrtCandidates += Get-ChildItem "C:/Program Files (x86)/Windows Kits/10/Redist/*/ucrt/DLLs/x64" -Directory -ErrorAction SilentlyContinue
           $ucrtCandidates += Get-ChildItem "C:/Program Files (x86)/Windows Kits/10/Redist/*/ucrt/x64" -Directory -ErrorAction SilentlyContinue
           $ucrtCandidates += Get-ChildItem "C:/Program Files (x86)/Windows Kits/10/Bin/*/x64/ucrt" -Directory -ErrorAction SilentlyContinue
           $ucrt = $ucrtCandidates | Where-Object { Test-Path "$($_.FullName)/ucrtbase.dll" } | Select-Object -First 1
-          if (-not $ucrt) { throw "no UCRT redist carrying ucrtbase.dll in any SDK layout (Redist ucrt/DLLs/x64, Redist ucrt/x64, Bin x64/ucrt)" }
-          Write-Host "UCRT redist from: $($ucrt.FullName)"
+          if (-not $ucrt) { throw "no UCRT redist carrying ucrtbase.dll in any SDK layout" }
           Copy-Item "$($ucrt.FullName)/ucrtbase.dll" "$out/bin/"
           Copy-Item "$($ucrt.FullName)/api-ms-win-crt-*.dll" "$out/bin/"
 
-          # ---- headers, docs, notes, license ----
           Copy-Item -Recurse include "$out/include"
           Copy-Item -Recurse docs "$out/docs"
           Copy-Item README.md, LICENSE, RELEASE-NOTES.md "$out/"
 
-          # ---- the bundle must be self-contained: every exe/dll import
-          #      resolves inside bin/ (or is a system DLL the gate allows) ----
-          $binDlls = Get-ChildItem "$out/bin" -Filter *.dll | Select-Object -ExpandProperty Name
-          Write-Host "staged runtime DLLs: $($binDlls -join ', ')"
-
-          # ---- integrity manifest ----
           $root = (Resolve-Path $out).Path
           $sums = Get-ChildItem $out -Recurse -File |
             Get-FileHash -Algorithm SHA256 |
@@ -130,8 +132,181 @@ jobs:
 
           Compress-Archive -Path "$out/*" -DestinationPath "core-recovery-$env:GITHUB_REF_NAME.zip" -Force
 
-      - name: Create GitHub release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: core-bundle
+          path: core-recovery-${{ github.ref_name }}.zip
+          if-no-files-found: error
+
+  driver-tier:
+    needs: [validate]
+    if: ${{ !cancelled() && (needs.validate.result == 'success' || inputs.skip_validation) }}
+    runs-on: windows-2022
+    outputs:
+      source: ${{ steps.tier.outputs.source }}
+      tag: ${{ steps.tier.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: tier
+        name: Fetch the prebuilt driver at the compatibility tier (preferred path)
+        shell: pwsh
+        run: |
+          # Compatibility tier (docs/RELEASE.md): core 1.x <-> driver wire
+          # major 1 -> the latest rda-driver release by convention. Preferred
+          # path is the prebuilt release; the source-build fallback below
+          # runs ONLY when no tier release exists, and is stamped in
+          # MANIFEST.json (consumed vs built is the manifest's own field).
+          & .github/scripts/fetch-release.ps1 -Repo heicfast/rda-driver -OutDir driver `
+            -Required rda.sys, rda.inf, install.ps1, uninstall.ps1, SHA256SUMS -FloorVersion v0.2.1
+          if ($LASTEXITCODE -eq 0) {
+            $rec = Get-Content driver\resolved-release.json -Raw | ConvertFrom-Json
+            "source=consumed" >> $env:GITHUB_OUTPUT
+            "tag=$($rec.tag)" >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+          Write-Host "::warning::no consumable rda-driver tier release (or verification failed) - BUILDING THE DRIVER FROM SOURCE at the tier per the mandate's fallback; this use is stamped built-from-source in MANIFEST.json"
+          "source=built-from-source" >> $env:GITHUB_OUTPUT
+          "tag=<source-build>" >> $env:GITHUB_OUTPUT
+
+      - name: Source-build fallback (ONLY when the tier release is missing)
+        if: steps.tier.outputs.source == 'built-from-source'
+        shell: pwsh
+        run: |
+          # the driver repo's own build (docs/build.md of rda-driver): MSBuild
+          # the solution, Release x64; artifacts land in the driver-tiers' own
+          # layout - normalized here to the release asset names.
+          git clone --depth 1 https://github.com/heicfast/rda-driver.git rda-driver-src
+          $msbuild = Get-ChildItem "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe" | Select-Object -First 1
+          & $msbuild.FullName rda-driver-src\rda.sln /p:Configuration=Release /p:Platform=x64 /m
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          New-Item -ItemType Directory -Force driver | Out-Null
+          $sys = Get-ChildItem rda-driver-src -Recurse -Filter rda.sys | Where-Object { $_.FullName -match 'x64\\Release' } | Select-Object -First 1
+          if (-not $sys) { Write-Host "::error::source build produced no rda.sys"; exit 1 }
+          Copy-Item $sys.FullName driver\rda.sys -Force
+          Copy-Item rda-driver-src\src\driver\rda.inf driver\rda.inf -Force
+          Copy-Item rda-driver-src\scripts\install.ps1 driver\install.ps1 -Force
+          Copy-Item rda-driver-src\scripts\uninstall.ps1 driver\uninstall.ps1 -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: driver-tier
+          path: |
+            driver/rda.sys
+            driver/rda.inf
+            driver/install.ps1
+            driver/uninstall.ps1
+          if-no-files-found: error
+
+  assemble-and-publish:
+    needs: [build-core, driver-tier]
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: core-bundle
+      - uses: actions/download-artifact@v4
+        with:
+          name: driver-tier
+          path: driver
+
+      - name: Assemble the combined artifact set (MANIFEST.json + SHA256SUMS)
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          if (-not $tag) { $tag = "v0.0.0-drill" }   # workflow_dispatch drill
+          $coreZip = "core-recovery-$tag.zip"
+          if (-not (Test-Path $coreZip)) { throw "core zip missing: $coreZip (did build-core run?)" }
+
+          # the release asset set: core zip + the driver tier mates
+          $assets = @($coreZip, 'driver\rda.sys', 'driver\rda.inf',
+                      'driver\install.ps1', 'driver\uninstall.ps1')
+          foreach ($a in $assets) {
+            $p = if ($a -like 'driver\*') { $a } else { $a }
+            if (-not (Test-Path $p)) { throw "missing release asset: $p" }
+          }
+          # normalize driver assets to the release root (flat names)
+          Copy-Item driver\rda.sys, driver\rda.inf, driver\install.ps1, driver\uninstall.ps1 . -Force
+
+          $coreVersion = (Get-Content vcpkg.json -Raw | ConvertFrom-Json).'version-string'
+          $driverSource = '${{ needs.driver-tier.outputs.source }}'
+          $driverTag = '${{ needs.driver-tier.outputs.tag }}'
+          if (-not $driverTag) { $driverTag = '<none>' }
+
+          # ---- MANIFEST.json: every artifact, version, checksum, source tier ----
+          $manifest = [ordered]@{
+            release_tag   = $tag
+            core_version  = $coreVersion
+            created_utc   = (Get-Date).ToUniversalTime().ToString('o')
+            driver_tier   = [ordered]@{
+              repo     = 'heicfast/rda-driver'
+              tag      = $driverTag
+              source   = $driverSource     # consumed | built-from-source
+              wire_major_required = 1      # core's compatibility contract
+            }
+            signing_posture = 'test-signed driver artifacts (job-local certificate at install time); core binaries unsigned - this session''s documented posture (docs/RELEASE.md)'
+            artifacts     = @()
+          }
+          $top = @('rda.sys', 'rda.inf', 'install.ps1', 'uninstall.ps1', $coreZip)
+          $sums = @()
+          foreach ($name in $top) {
+            $hash = (Get-FileHash $name -Algorithm SHA256).Hash
+            $sums += "{0}  {1}" -f $hash, $name
+            $manifest.artifacts += [ordered]@{
+              name        = $name
+              sha256      = $hash
+              version     = if ($name -eq $coreZip) { $coreVersion } else { $driverTag }
+              source_tier = if ($name -eq $coreZip) { 'core-build-from-tag' } else { $driverSource }
+            }
+          }
+          $manifest | ConvertTo-Json -Depth 5 | Set-Content MANIFEST.json
+          $sums | Set-Content SHA256SUMS
+          Get-Content MANIFEST.json | Write-Host
+          Get-Content SHA256SUMS | Write-Host
+
+      - name: Upload the assembled set (drill evidence / pre-publish artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: combined-release-set
+          path: |
+            core-recovery-${{ github.ref_name }}.zip
+            rda.sys
+            rda.inf
+            install.ps1
+            uninstall.ps1
+            MANIFEST.json
+            SHA256SUMS
+          if-no-files-found: error
+
+      - name: Create the combined GitHub release (tag pushes only)
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: core-recovery-${{ github.ref_name }}.zip
-          body_path: RELEASE-NOTES.md
+          files: |
+            core-recovery-${{ github.ref_name }}.zip
+            rda.sys
+            rda.inf
+            install.ps1
+            uninstall.ps1
+            MANIFEST.json
+            SHA256SUMS
+          body: |
+            # core_recovery ${{ github.ref_name }} — combined core + driver release
+
+            **Read the manifest first:** `MANIFEST.json` lists every artifact with
+            version, SHA256 and source tier (consumed vs built-from-source for the
+            driver tier). `SHA256SUMS` covers every top-level asset.
+
+            - **Core** built from the tagged commit (the release workflow is the
+              sole source of builds — docs/PREBUILT-ARTIFACTS.md).
+            - **Driver tier:** ${{ needs.driver-tier.outputs.source == 'consumed' && format('consumed prebuilt from rda-driver {0}', needs.driver-tier.outputs.tag) || 'BUILT FROM SOURCE (no consumable tier release existed; stamped in MANIFEST.json)' }}.
+            - **Signing posture (truthful):** driver artifacts are test-signed at
+              install time with a job-local certificate; core binaries are
+              unsigned. This is this session's documented posture — see
+              docs/RELEASE.md.
+            - **Compatibility:** core 1.x requires driver wire major 1
+              (query with `rrecov driver --json`; refusal taxonomy in
+              docs/DRIVER-REQUIRED.md).
+            - Full context: RELEASE-NOTES.md (in the core zip), the applicable
+              PARITY-DELTAS.md entries (D-DRV-1..6 this era), and
+              docs/CI-SCENARIOS.md for how CI consumes this release.
