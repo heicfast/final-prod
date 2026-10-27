@@ -477,6 +477,9 @@ extern "C" {
     pub fn cr_ui_abi_version() -> u32;
     pub fn cr_ui_last_error() -> *const i8;
     pub fn cr_ui_string_free(s: *mut i8);
+    /// NG-15: the host's operational-log sink (see cr_ui.h; levels 0/1/2 =
+    /// Error/Warn/Info; fires on ANY engine thread; must be cheap).
+    pub fn cr_ui_set_log_sink(fn_: Option<unsafe extern "C" fn(level: u32, line: *const i8, user: *mut c_void)>, user: *mut c_void);
 
     // devices
     pub fn cr_ui_open_image(utf8_path: *const i8, offset: u64, bytes: u64, out: *mut *mut CrUiDevice) -> u32;

@@ -106,6 +106,17 @@ CR_UI_API const char* cr_ui_last_error(void);
 /* Frees a heap string returned by this API (also valid to call free()). */
 CR_UI_API void cr_ui_string_free(char* s);
 
+/* ---- logging (NG-15): the host's operational-log sink ---------------------
+ * The engine's diagnostic seam (cr/cr_log.h — scan brackets, stage
+ * boundaries, read failures, memory warnings) is silent by default; the
+ * host registers ONE sink here and owns every policy (placement, rollover,
+ * async). level: 0 Error, 1 Warn, 2 Info (cr_log.h). The callback may fire
+ * from ANY engine thread and MUST be cheap or internally deferred (the
+ * cr_log.h threading contract: a blocking sink blocks the emitting worker).
+ * fn == NULL restores silence. */
+typedef void (*cr_ui_log_fn)(uint32_t level, const char* line, void* user);
+CR_UI_API void cr_ui_set_log_sink(cr_ui_log_fn fn, void* user);
+
 /* ---- progress callbacks --------------------------------------------------
  * Fired on the worker thread only. Must not block. NO cancellation
  * semantics - returning is the only contract (cancel via the token

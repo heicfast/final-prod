@@ -1106,6 +1106,24 @@ extern "C" CR_UI_API uint32_t cr_ui_abi_version(void) {
     return CR_UI_ABI_VERSION;
 }
 
+/* NG-15: the host log sink (see cr_ui.h). The host fn/user pair is kept in
+ * file-scope statics because cr::log::set_sink takes a plain fn+user and
+ * the user slot carries the trampoline's context. */
+namespace {
+cr_ui_log_fn g_host_log_fn = nullptr;
+void* g_host_log_user = nullptr;
+void host_log_trampoline(cr::log::Level level, const char* line, void* /*user*/) {
+    if (g_host_log_fn != nullptr)
+        g_host_log_fn(u32(level), line, g_host_log_user);
+}
+} // namespace
+
+extern "C" CR_UI_API void cr_ui_set_log_sink(cr_ui_log_fn fn, void* user) {
+    g_host_log_fn = fn;
+    g_host_log_user = user;
+    cr::log::set_sink(fn != nullptr ? host_log_trampoline : nullptr, user);
+}
+
 extern "C" CR_UI_API const char* cr_ui_last_error(void) {
     return g_last_error.c_str();
 }

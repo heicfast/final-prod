@@ -1457,3 +1457,24 @@ model; the T15-verified choreography survives. The rebuild
 Compile proof (makensis 3.12, cross-compiled like the committed
 compile-check): dev-signed posture exit 0 ZERO warnings; production
 posture (no .cer staged) exit 0. Runtime validation dispatched next.
+
+---
+## NG-15 CLOSED — the operational log seam (bridge + engine)
+
+The shipped app wrote NO log anywhere (eprintln to a lost stderr — the
+forensic probe captured empty app-stderr.log). Now:
+
+- ABI append: cr_ui_set_log_sink (cr_ui.h; the host registers ONE sink;
+  levels 0/1/2; fires on any engine thread; must be cheap). The engine's
+  cr::log seam (N-048: scan brackets, stage boundaries, read failures,
+  memory warnings) finally crosses the ABI.
+- bridge/logging.rs: ProgramData\HeicFast\Recovery Wizard\logs\app.log
+  (portable fallback .\logs beside the exe), dedicated writer thread +
+  channel (honors the engine's cheap-sink contract), 1 MiB rotation
+  (app.log.old, one generation), UTC timestamps, engine lines tagged
+  [engine] with level.
+- lib.rs: init() first in run(); the ABI gate result LOGGED (not just
+  eprintln); shell start/exit lines. scan.rs: run() entry + return code
+  lines per scan.
+
+Engine 926/926 green with the export; win parse gate green.

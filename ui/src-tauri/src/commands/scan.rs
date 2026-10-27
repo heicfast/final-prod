@@ -298,7 +298,13 @@ pub fn launch_run_thread(
     let app_for_run = app.clone();
     let scan_id_for_run = scan_id.clone();
     std::thread::spawn(move || {
+        crate::bridge::logging::info(&format!(
+            "scan {scan_id_for_run} starting (run() entered)"
+        ));
         let rc = unsafe { abi::cr_ui_scan_run(entry_for_run.scan_handle()) };
+        crate::bridge::logging::info(&format!(
+            "scan {scan_id_for_run} run() returned rc=0x{rc:08x}"
+        ));
 
         // The consent pipe's single reader (the engine) is gone once run()
         // returns — the callback fires only inside run (cr_ui.h). Free the

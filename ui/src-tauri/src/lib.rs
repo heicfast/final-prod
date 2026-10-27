@@ -17,6 +17,14 @@ use bridge::state::BridgeState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // NG-15: the operational log FIRST — every later fact (the ABI gate,
+    // scan lifecycle, engine diagnostics) lands in
+    // %ProgramData%\HeicFast\Recovery Wizard\logs\app.log. The shipped
+    // app previously wrote NOTHING (eprintln to a lost stderr) — an
+    // installed-app failure left no evidence trail.
+    bridge::logging::init();
+    bridge::logging::info("shell starting");
+
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
@@ -75,14 +83,22 @@ pub fn run() {
             // frontend's getAppInfo also surfaces the state truthfully.
             let abi_v = unsafe { bridge::abi::cr_ui_abi_version() };
             if abi_v != bridge::abi::CR_UI_ABI_VERSION {
+                bridge::logging::error(&format!(
+                    "cr_ui ABI version {abi_v} != expected {}; the shipped engine kit is \
+                     incompatible with this build (reinstall or rebuild the engine lane)",
+                    bridge::abi::CR_UI_ABI_VERSION
+                ));
                 eprintln!(
                     "cr_ui ABI version {abi_v} != expected {}; the shipped engine kit is \
                      incompatible with this build (reinstall or rebuild the engine lane)",
                     bridge::abi::CR_UI_ABI_VERSION
                 );
+            } else {
+                bridge::logging::info("ABI gate: engine kit version matches");
             }
             Ok(())
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+    bridge::logging::info("shell exited");
 }
