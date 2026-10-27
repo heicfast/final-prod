@@ -67,13 +67,14 @@ jobs:
           # PATH for the app-local runtime (vcpkg dlls sit beside the exe)
           $env:PATH = "$PWD\core-staged\bin;$env:PATH"
 
-          # the driver verb: exit 4, the ABSENT class, facets all false
+          # the driver verb: exit 4, the ABSENT class, facets all false.
+          # (error_code prints DECIMAL in the JSON: 1342898177 == 0x500B0001)
           $out = & $rrecov driver --json 2>&1
           $code = $LASTEXITCODE
           $out | Write-Host
           if ($code -ne 4) { Write-Host "::error::driver verb: expected exit 4 (absent), got $code"; exit 1 }
           if (-not ($out -match '"state":"absent"')) { Write-Host "::error::driver verb: expected state absent"; exit 1 }
-          if (-not ($out -match '0x500B0001')) { Write-Host "::error::driver verb: expected ERR_DRIVER_ABSENT class surfaced"; exit 1 }
+          if (-not ($out -match '"error_code":1342898177')) { Write-Host "::error::driver verb: expected ERR_DRIVER_ABSENT (0x500B0001) class surfaced"; exit 1 }
 
           # the scan verb: refusal is the WHOLE response (stderr, exit 4,
           # no scan output, no progress)
@@ -134,7 +135,7 @@ jobs:
           $out | Write-Host
           if ($code -ne 4) { Write-Host "::error::driver verb: expected exit 4 (not-started), got $code"; exit 1 }
           if (-not ($out -match '"state":"not-started"')) { Write-Host "::error::expected state not-started"; exit 1 }
-          if (-not ($out -match '0x500B0002')) { Write-Host "::error::expected ERR_DRIVER_NOT_STARTED class surfaced"; exit 1 }
+          if (-not ($out -match '"error_code":1342898178')) { Write-Host "::error::expected ERR_DRIVER_NOT_STARTED (0x500B0002) class surfaced"; exit 1 }
           Write-Host "PHASE 3 (NOT_STARTED): refusal class verified"
 
       - name: Evidence + env manifest

@@ -29,6 +29,13 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 
+# -Required tolerance: a comma-joined string binds as a ONE-element
+# [string[]] (param conversion does not split) - normalize it to the array
+# form; true arrays pass through untouched.
+if ($Required.Count -eq 1 -and $Required[0] -match ',') {
+    $Required = @($Required[0] -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+}
+
 if (-not $GithubToken) { $GithubToken = $env:GITHUB_TOKEN }
 $headers = @{}
 if ($GithubToken) { $headers = @{ Authorization = "token $GithubToken" } }

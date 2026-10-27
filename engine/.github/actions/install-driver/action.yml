@@ -45,11 +45,17 @@ runs:
       name: Fetch + verify the prebuilt driver release (convention-enforced)
       shell: pwsh
       run: |
-        $args = @('-Repo', 'heicfast/rda-driver', '-OutDir', '${{ inputs.driver_dir }}',
-                  '-Required', 'rda.sys', 'rda.inf', 'install.ps1', 'uninstall.ps1', 'SHA256SUMS',
-                  '-FloorVersion', 'v0.2.1')
-        if ('${{ inputs.tag }}') { $args += @('-Tag', '${{ inputs.tag }}') }
-        & .github/scripts/fetch-release.ps1 @args
+        # expression-bound parameters (the $args-array token form binds
+        # -Required's values positionally and fails); -Required accepts the
+        # comma-joined string form in the script
+        $req = 'rda.sys,rda.inf,install.ps1,uninstall.ps1,SHA256SUMS'
+        if ('${{ inputs.tag }}') {
+          & .github/scripts/fetch-release.ps1 -Repo heicfast/rda-driver -OutDir '${{ inputs.driver_dir }}' `
+            -Required $req -FloorVersion v0.2.1 -Tag '${{ inputs.tag }}'
+        } else {
+          & .github/scripts/fetch-release.ps1 -Repo heicfast/rda-driver -OutDir '${{ inputs.driver_dir }}' `
+            -Required $req -FloorVersion v0.2.1
+        }
         if ($LASTEXITCODE -ne 0) { exit 1 }
         $rec = Get-Content '${{ inputs.driver_dir }}\resolved-release.json' -Raw | ConvertFrom-Json
         "tag=$($rec.tag)" >> $env:GITHUB_OUTPUT
