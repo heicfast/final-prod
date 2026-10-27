@@ -77,6 +77,60 @@ per-FS fields MATCH with the core's carriers richer in places.
 **Board after waves 1-2:** 12 active (1 ACUTE · 2 SEVERE · 4 MAJOR · 4 MINOR ·
 1 INFO) · 223 FIXED · tracked-open 3 (OQ-S4-3, OQ-SA-1, OQ-SA-2).
 
+## Dev-sign session delta — waves 3-7 (2026-10-28 — the installer surface + preview + user-signature DB + the honest-zero waves; audited `dd82db9`)
+
+**Wave 3 (installer):** the corpus's app-installer contract, verified from
+the unins000/SetupUE/InfoForSetup string tables first-hand (every quoted
+string re-read this session): the og ships a silent-capable Inno Setup
+install/uninstall surface (ARP `QuietUninstallString` ending `" /SILENT"`,
+/VERYSILENT, /SUPPRESSMSGBOXES, /NORESTART, admin-required uninstall,
+`unins%03d` multi-uninstallers) wrapped by SetupUE (16-entry OS gate,
+`SOFTWARE\EASEUS\DRW\Version`) + InfoForSetup (/SendInfo /SendInfoEx
+/UninstallStart /UninstallEnd — uninstall is an instrumented lifecycle
+event). The core has no app-installer surface at all → **S-038 (SEVERE, the
+13-parameter contract on the board for the packaging milestone)**. The
+driver deployer's versioned/verified contract (deepening-batch1 §3: -Uninstall
+mode, `%s%d` versioned coexistence, Services write+verify, per-call SCM
+errors) → **M-064 (MAJOR)**.
+
+**Wave 5 (user-signature DB):** the grammar artifact + a first-hand
+measurement of the og's own 16,891-byte EUUserData (111 entries) →
+**S-039 (SEVERE)**: the core's caps reject the og's own DB — 15/111 entries
+violate (44-byte signs vs the 16-byte cap, 11 signs vs 8, offset 526 vs 512,
+mime 73 vs 63), the parse is atomic, ZERO entries load, and the CLI aborts
+the scan with an error message that names "the og's EUUserData JSON shape";
+the header's "the og's longest entry is 8 bytes" justification is factually
+false → **M-065 (MAJOR)**: no default set ships (79 of the og's 111 default
+extensions absent from every core stock source); severity calibrates on
+**OQ-SA-3** (consumption mode: capability vs secondary typing).
+
+**Wave 4 (preview):** UIUX/10's 19 parameters — 6 MATCH, 6 deliberate
+UI-scope, 6 prior-covered (I-015/S-023/M-021/M-028) → **M-066 (MAJOR)**:
+preview-time archive-content enumeration exists only on the carve path
+(S-032's children); FS-origin archives preview opaque where the og's
+ArchivePreviewModel browses damaged zips → **N-088 (MINOR)**: M-028's
+IInWindowStream correction never reached cr_ui.h:1035 +
+API-SURFACE-AUDIT.md:94, and cr_preview.h:116 lists a never-produced `mov`.
+
+**Waves 6-7 (the honest-zero waves):** the WinPE payload census DISPOSITIONED
+(the PE capability boundary — zero .mo = no lost-partition search in the
+bootable edition, FREE-by-construction, installer-stamped version.ini —
+recorded as the boot-media builder's design input; roadmap.md:71; no defect
+in shipped code). The MOM-stubs spot-check: **zero new parameters** (13
+ROLLUP-COVERED + 4 INFRASTRUCTURE-ONLY of 17 never-cited stubs), with an
+honest correction of this session's own inventory (22→17 of 30 — five stubs
+were cited in brace-group form). Decode candidates registered (CWindowsFS
+×3, the DeviceManager offline-OS strings) as future-probe notes, not gaps.
+
+**Board after waves 3-7 (authoritative, by findings/ tree inventory):**
+**18 active — 1 ACUTE (A-010) · 4 SEVERE (S-036, S-037, S-038, S-039) ·
+7 MAJOR (M-060..M-066) · 5 MINOR (N-084..N-088) · 1 INFO (I-026)** —
+plus 223 FIXED unchanged and tracked-open 4 (OQ-S4-3 + this session's
+OQ-SA-1, OQ-SA-2, OQ-SA-3). The session's remaining open material is
+precisely the four tracked-open files' probes; every other in-scope corpus
+surface is dispositioned to a finding, a MATCH, a registered exclusion, or
+an honest zero per SURFACE-INVENTORY.md.
+
 ## Review-and-validate session delta (2026-10-26 — the post-fix audit: every fix-lane landing and collision independently re-verified; the audit trail reconciled; the documentation suite created)
 
 **The mandate:** review and validate the fix sessions' work — the

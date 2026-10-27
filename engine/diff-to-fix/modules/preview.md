@@ -63,3 +63,23 @@ audited this module (zero matrix row, zero findings) — session 4 is the first 
 The "mov" format is documented in `cr_preview.h:88`'s comment but never produced by
 any parser path (only "mp4" is; MP4 brand detection covers qt brands) — cosmetic doc
 drift, folded into M-028's doc-fix step.
+
+---
+
+## Dev-sign session wave 4 (2026-10-28, audited `dd82db9` — UIUX/10-preview-subsystem.md's first read)
+
+19 parameters from the never-cited preview artifact: 6 MATCH (mid-scan
+preview via live snapshot, streaming range-read semantics, failure-surface
+truthfulness, plus 3), 6 NOT-IMPLEMENTED as deliberate UI/host scope, 6
+already covered (I-015 socket protocol + 100 MB/15 s caps, S-023
+Recovery-Chances grading, M-021/I-010 repair bridge, M-028 IInWindowStream).
+NEW:
+
+- **M-066 (MAJOR)** — archive-content enumeration at preview time: the og's
+  ArchivePreviewModel family browses damaged zips in preview; the core's
+  zip branch hunts only `word/document.xml` (`cr_preview.cpp:685-715`), and
+  S-032's children are carve-path/tree-level only — FS-origin archives
+  preview opaque.
+- **N-088 (MINOR)** — M-028's IInWindowStream correction didn't reach
+  `cr_ui.h:1035` / `docs/API-SURFACE-AUDIT.md:94`; `cr_preview.h:116` lists
+  a never-produced `mov` format.

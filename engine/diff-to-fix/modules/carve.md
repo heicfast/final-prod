@@ -523,3 +523,20 @@ the registry census, not the family semantics. The class-by-class comparison
   CNeedRawMgr gating, CFCPEvt) → `tracked-open/OQ-SA-2-carve-family-decode-candidates.md`.
 - CORRECTIONS #5 propagated: the RawConfig [Filter] count is 34, not 37
   (M-024 addendum; matrix/SUMMARY/evidence notes updated).
+
+## Dev-sign session waves 3+5 additions (2026-10-28, audited `dd82db9`)
+
+- **S-039 (SEVERE)** — the user-signature caps reject the og's own EUUserData
+  (15/111 violate: 44-byte signs vs 16, 11 signs vs 8, offset 526 vs 512,
+  mime 73 vs 63 — measured first-hand); the atomic parse loads 0 entries and
+  the CLI aborts the scan (`rrecov.cpp:922-931`), in an error message naming
+  "the og's EUUserData JSON shape". The header's "og's longest" comments are
+  factually false.
+- **M-065 (MAJOR)** — no default user-sign set ships (the og consults 111
+  install-tree defaults; 79 extensions stock-absent from every core source);
+  severity calibrates on OQ-SA-3 (consumption mode).
+- **M-064 (MAJOR)** — the driver deployer's versioned/verified contract
+  absent (see modules/driver-install.md).
+- Wave 6 (WinPE payload census): the PE capability boundary (zero .mo = no
+  lost-partition search in the bootable edition; FREE-by-construction) is
+  DISPOSITIONED as the boot-media builder's design input — no carve defect.

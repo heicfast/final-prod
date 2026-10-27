@@ -479,3 +479,18 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | session · IFileProperties 23-slot interface | 16 MATCH · 1 registered-residual · 1 UNDETERMINED · 5 N/A | the +0x20 getter = the N-050/N-059 type-registry residual (registered); +0x30 → OQ-SA-1 |
 | session · NTFS/FAT/exFAT persisted fields | 28 of 32 MATCH (10/12, 9/10, 8/10) | carriers richer in places (4-state deleted, 4th timestamp, allocated_size); the 4 unmatched → **OQ-SA-1** (anchor datums + ids) |
 | carve · RawConfig [Filter] count (doc truth) | CORRECTION PROPAGATED | CORRECTIONS #5: 34 not 37 — M-024 addendum; matrix/SUMMARY/evidence notes updated this session |
+
+## Dev-sign session detail rows — waves 3-7 (2026-10-28, audited `dd82db9`; corpus: the Installer/ + config-files + UIUX/10 + pe-payload + MOM-stub materials)
+
+| Surface × parameter | Verdict | Finding / evidence |
+|---|---|---|
+| app-installer · K74 silent surface (13 params) | DIVERGENCE-SEVERE | **S-038** — Inno /SILENT//VERYSILENT//SUPPRESSMSGBOXES//NORESTART, ARP QuietUninstallString, unins%03d, admin-required — all absent (string tables verified) |
+| app-installer · K77 registry + telemetry contract | DIVERGENCE-SEVERE | **S-038** — SetupUE 16-entry OS gate, `SOFTWARE\EASEUS\DRW\Version`, /SendInfo//SendInfoEx//UninstallStart//UninstallEnd |
+| driver-install · K71/K72/K76 versioned/verified deployer contract | DIVERGENCE-MAJOR | **M-064** — no -Uninstall verb, no %s%d coexistence, no write+verify, no per-call SCM errors (deepening-batch1 §3) |
+| carve · user-sign caps vs the og's own DB | DIVERGENCE-SEVERE | **S-039** — 15/111 EUUserData entries violate (44B/11-signs/526-off/73-mime measured); atomic parse → 0 load → CLI abort |
+| carve · default user-sign set | DIVERGENCE-MAJOR | **M-065** — 111 og defaults, 79 stock-absent; severity calibrates on **OQ-SA-3** |
+| preview · archive-content enumeration (FS-origin) | DIVERGENCE-MAJOR | **M-066** — ArchivePreviewModel family vs the docx-only hunt (`cr_preview.cpp:685-715`) |
+| preview · doc truth (M-028 propagation) | DIVERGENCE-MINOR | **N-088** — cr_ui.h:1035 + API-SURFACE-AUDIT:94 + the never-produced mov |
+| packaging · WinPE payload census (K78) | DISPOSITIONED-MATCH-at-plan | the PE capability boundary recorded as the boot-media builder's design input; roadmap.md:71 |
+| MOM stubs · 17 never-cited per-module censuses | MATCH (zero new parameters) | wave-7 spot-check: 13 ROLLUP-COVERED + 4 INFRASTRUCTURE-ONLY; decode candidates noted (CWindowsFS ×3, DeviceManager offline-OS strings) |
+| inventory truth · citation-count correction | CORRECTED | SURFACE-INVENTORY "22 of 32" → 17 of 30 (5 stubs cited in brace-group form at s5-session5-corpus-quotes.md:64) |

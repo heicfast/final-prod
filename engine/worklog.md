@@ -17345,3 +17345,50 @@ Stage Summary:
   one SEVERE (two missing formats). Next: wave 3 (installer surface — the 27
   NEW-ground parameters), wave 4 (preview subsystem), wave 5 (user-signature
   DB grammar), wave 6 (WinPE payload census), wave 7 (MOM stubs).
+
+---
+Task ID: SA-4 (Phase 2 waves 3-7 — installer, preview, user-signs, the honest zeros)
+Agent: main engineer + agents D3/D4 (comparison sheets in scratch/, not committed)
+
+Work Log:
+- Wave 3 (installer, own lane): verified the unins000/SetupUE/InfoForSetup
+  string tables first-hand (QuietUninstallString " /SILENT", VerySilent,
+  SuppressMsgBoxes, unins%.3d, "Uninstaller requires administrator",
+  the 16-entry OS table, SOFTWARE\EASEUS\DRW\Version, /SendInfo /SendInfoEx
+  /UninstallStart /UninstallEnd) + deepening-batch1 §3 (-Uninstall mode,
+  %s%d versioned coexistence, write+verify, per-call SCM errors) + the
+  DRWService AUTO_START decode. Filed S-038 (SEVERE — the app-installer
+  13-parameter contract absent) + M-064 (MAJOR — the versioned/verified
+  deployer contract absent).
+- Wave 5 (user-signature DB): measured the og's own EUUserData first-hand
+  (111 entries; max sign 44 B, 11 signs/entry, offset 526, mime 73; 15/111
+  violate the core caps) + verified the atomic parse + the CLI abort path.
+  Filed S-039 (SEVERE — the caps reject the og's own DB; 0 entries load;
+  scan aborts) + M-065 (MAJOR — no default set; 79 extensions stock-absent)
+  + OQ-SA-3 (the consumption-mode probe).
+- Wave 4 (preview, agent D3 + lead verification): 19 parameters dispositioned
+  (6 MATCH / 6 UI-scope / 6 prior-covered). Filed M-066 (MAJOR — FS-origin
+  archive preview enumeration absent vs the og's ArchivePreviewModel) +
+  N-088 (MINOR — M-028's IInWindowStream propagation tail + the never-
+  produced mov).
+- Wave 6 (WinPE payload census, own lane): DISPOSITIONED — the PE capability
+  boundary (zero .mo = no lost-partition search in the bootable edition,
+  FREE-by-construction, installer-stamped version.ini) recorded as the
+  boot-media builder's design input (roadmap.md:71 + S-038's K78); no
+  defect in shipped code.
+- Wave 7 (MOM stubs, agent D4): the honest zero — 17 (corrected from the
+  inventory's 22; 5 stubs were brace-group-cited at s5-session5-corpus-
+  quotes.md:64) never-cited stubs all ROLLUP-COVERED (13) or
+  INFRASTRUCTURE-ONLY (4); zero new parameters; decode candidates noted
+  (CWindowsFS x3, DeviceManager offline-OS strings). SURFACE-INVENTORY
+  corrected 22->17 of 30.
+- Updated: modules/{carve,preview,driver-install}.md (the new packaging
+  module row), SURFACE-INVENTORY statuses, CROSS-REF-MATRIX wave rows,
+  SUMMARY delta.
+
+Stage Summary:
+- Board: 18 active (1 ACUTE A-010 · 4 SEVERE S-036/S-037/S-038/S-039 ·
+  7 MAJOR M-060..M-066 · 5 MINOR N-084..N-088 · 1 INFO I-026) + 223 FIXED
+  + 4 tracked-open (OQ-S4-3, OQ-SA-1/2/3). Every in-scope corpus surface
+  is now dispositioned per SURFACE-INVENTORY. Next: the session close
+  (handoff, README audited-commit refresh, final verification sweep, push).
