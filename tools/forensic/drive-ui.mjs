@@ -166,9 +166,10 @@ async function main() {
     await shot(page, 'scan-0-home');
 
     // select the seeded 64GB NTFS vdisk by its deterministic volume label
-    // (run 40465852724: the home card renders 'SeedNTFS(X:)63.85 GB/64 GB' —
-    // the cards are role=radio buttons)
-    const card = page.getByRole('button', { name: /SeedNTFS/i }).first();
+    // (run 40465852724: the home card renders 'SeedNTFS(X:)63.85 GB/64 GB';
+    // the cards are role=radio, NOT role=button — run 40468386932's
+    // getByRole('button') timeout taught this)
+    const card = page.getByRole('radio', { name: /SeedNTFS/i }).first();
     await card.click({ timeout: 15000 });
     log('scan: clicked the SeedNTFS card');
     await page.waitForTimeout(1500);
