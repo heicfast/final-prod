@@ -9,7 +9,7 @@
 //! - `consent` the pre-scan repair consent gate (S-008, plan §4.5, G-1 (a))
 //! - `filefilter` GENERATED extension→category mirror of the engine table
 //! - `logging`  the operational log: bridge lifecycle + the engine's
-//!              diagnostic seam (NG-15; ProgramData ...\logs\app.log)
+//!   diagnostic seam (NG-15; ProgramData ...\logs\app.log)
 //!
 //! The command modules under `crate::commands` implement the manifest in
 //! contracts/command-surface.json; contracts/validate.mjs phase 2 cross-checks
