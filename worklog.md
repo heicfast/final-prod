@@ -926,3 +926,74 @@ G-1 (b)/(c) follow-ups and the ABI appends per INTEGRATION-GAPS.md;
 (d) the bare-metal health measurement when hardware exists. The unified
 repository is the only tree — there is no fallback to the old
 repositories.
+---
+
+## 2026-10-27T00:20Z — session start: driver MANDATORY (remove all fallbacks) + test/development signing on driver + installer + new release
+
+Session directive (user, verbatim intent): the current release treats the
+driver as OPTIONAL (the core carries a direct \\.\PhysicalDriveN fallback;
+the installer carries a skippable driver section + per-user mode without it).
+REMOVE all of it: the driver is the only way, mandatory. Then research and
+implement TEST/DEVELOPMENT SIGNING on both the driver and the installer,
+verify the installer lays down every file and module, test everything, and
+cut a new release.
+
+Baseline adopted: 10da4cd6 — validation runs 16/17 BOTH GREEN on it
+(40421835198, 40422119022; the concurrent lane's goal reached: first
+fully-green validation-evidence runs, 13-file install inventory, driver
+service registered). [Rebase note: while this session worked, the
+concurrent lane closed the 0.5.0 line — v0.5.0 FINAL tagged + released,
+runs 16/17 evidence committed, the plan marked COMPLETE (652b6f1e). This
+session's changes rebase on top of that handoff; the version bump below
+therefore reads 0.5.0 -> 0.6.0-rc1.]
+
+Research (test signing, primary sources):
+- actions/runner-images build.windows-2022.pkr.hcl: `bcdedit.exe /set
+  TESTSIGNING ON` runs at IMAGE BUILD TIME (since PR #4098, Sept 2021);
+  WindowsFeatures.Tests.ps1 asserts `testsigning Yes`. The stale 2020
+  issue #1497 ("hosted runners can't load test drivers") is DEAD.
+- microsoft/msquic loads a test-signed kernel driver on hosted
+  windows-2022 TODAY (scripts/sign.ps1: signtool sign /f cert.pfx
+  /fd SHA256 *.sys; the PFX lives in their CI assets).
+- Windows policy: with testsigning ON, any embed-signed driver loads.
+  With testsigning OFF + Secure Boot OFF, an embed-signed driver whose
+  cert is in LocalMachine Root + TrustedPublisher loads. With Secure
+  Boot ON + no Microsoft signature, nothing loads (the truthful
+  documented boundary for customer dev machines).
+- Design: EPHEMERAL per-build self-signed CodeSigning cert (no secrets,
+  nothing committed), embed-sign rda.sys post-build (WDK SignMode stays
+  Off; the driver-ci "unsigned artifact" assertion keeps guarding the
+  BARE build; the signature is applied at product packaging), sign the
+  installer + app binaries with the same cert, stage the public .cer in
+  the kit, installer imports it to Root + TrustedPublisher (removes on
+  uninstall by thumbprint).
+
+Plan (this session):
+- Engine: ERR_DRIVER_REQUIRED (0x50020007, transport family, additive);
+  open_disk/open_disk_rw/open_disk_apply_rw drop prefer_rda and go
+  RDA-only; DirectDevice/open_path/open_physical_drive/open_harddisk_
+  volume/win_pe_environment DELETED (zero callers after the rewrite);
+  cr_ui.cpp open_disk_impl/open_volume_impl/open_volume_with_key_impl/
+  repair/fix/apply views RDA-only; rrecov.cpp --no-rda flag removed (x3),
+  open_disk_view RDA-only, LDM member probe RDA-only; cr_enumerate.cpp
+  table parses ride the RDA grammar (geometry/SMART IOCTL metadata stays
+  on the storage stack — enumeration metadata is not sector reads; the
+  og lists disks the same way; registered in PARITY-DELTAS).
+- Installer: per-user mode REMOVED (AllUsers only; MultiUser.nsh out),
+  driver section REQUIRED (SectionIn RO; the driver page becomes an
+  information page — surfaced + explained, no checkbox), cert import
+  step before service create, registration failure = Abort (no broken
+  product), start-policy failure = truthful message + service stays
+  registered (demand-start; the app requires it RUNNING for scans).
+  Uninstall removes the service + files + the cert it installed.
+- UI: system.rs UNSIGNED_NOTE + i18n driverMissing strings tell the
+  mandatory-driver truth.
+- CI: driver-ci gains a dev-sign smoke leg (sign a copy + assert the
+  PE security directory appears); release.yml + validation-evidence.yml
+  carry the signed-driver install + load verification (T14 harness runs
+  its real-volume scan THROUGH THE DRIVER now); T15 matrix expects the
+  service RUNNING + the cert in the stores + 14 files.
+- Docs: DEV-SIGNING.md (new), RELEASE.md/README/ARCHITECTURE/BUILD/
+  TESTING/PARITY-DELTAS + engine DRIVER-UTILIZATION §1.9 updated to the
+  mandatory posture; INTEGRATION-VALIDATION gets the new evidence.
+- Version: 0.5.0 (final) -> 0.6.0-rc1 (behavior change: driver mandatory).
