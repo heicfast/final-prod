@@ -64,12 +64,18 @@ jobs:
           # TESTSIGNING ON (actions/runner-images; verified by the bcdedit
           # evidence below), so the embed-signed driver loads here. Record
           # everything - the evidence must show WHY any step could fail.
+          # (try/catch is a STATEMENT - it cannot sit inside a hash-literal
+          # value; compute first, then build the record. Run 40434938050's
+          # ParserError taught this.)
           $version = (Get-Content VERSION -Raw).Trim()
           $stage = "build\out\stage-$version"
+          $sbState = try { Confirm-SecureBootUEFI } catch { "unavailable: $($_.Exception.Message)" }
+          $tsState = (bcdedit | Select-String 'testsigning') -join '; '
+          $osCaption = (Get-CimInstance Win32_OperatingSystem).Caption
           $info = [ordered]@{
-            secureBoot   = try { Confirm-SecureBootUEFI } catch { "unavailable: $($_.Exception.Message)" }
-            testSigning = ((bcdedit | Select-String 'testsigning') -join '; ')
-            os          = (Get-CimInstance Win32_OperatingSystem).Caption
+            secureBoot   = "$sbState"
+            testSigning = "$tsState"
+            os          = "$osCaption"
           }
           & "installer\devsign.ps1" -Action install-cert -CerPath "$stage\driver\rda-testcert.cer"
           if (-not $?) { Write-Error "certificate import failed"; exit 1 }

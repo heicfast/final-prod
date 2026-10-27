@@ -34,8 +34,37 @@ if ($service) {
     Write-Warning "Service '$ServiceName' not found."
 }
 
+# --- WOW64 truth (2026-10-27): the uninstaller is spawned by the 32-bit
+# NSIS uninstaller, so this script may run as a WOW64 process - in which
+# case File System Redirection rewrites System32 -> SysWOW64 for file
+# operations and the delete would MISS the real driver file (install.ps1
+# has the full story). Disable redirection around the removal; verify
+# against the Sysnative alias when it applies.
 $destPath = Join-Path $env:SystemRoot "System32\drivers\$ServiceName.sys"
-if (Test-Path $destPath) {
-    Remove-Item $destPath -Force -ErrorAction SilentlyContinue
-    Write-Host "Removed $destPath"
+$wow64sig = @"
+[DllImport("kernel32.dll", SetLastError = true)]
+public static extern bool Wow64DisableWow64FsRedirection(ref IntPtr oldValue);
+[DllImport("kernel32.dll", SetLastError = true)]
+public static extern bool Wow64RevertWow64FsRedirection(IntPtr oldValue);
+"@
+Add-Type -MemberDefinition $wow64sig -Name Wow64 -Namespace RdaRemove | Out-Null
+$wow64old = [IntPtr]::Zero
+$wow64disabled = [RdaRemove.Wow64]::Wow64DisableWow64FsRedirection([ref]$wow64old)
+try {
+    if (Test-Path $destPath) {
+        Remove-Item $destPath -Force -ErrorAction SilentlyContinue
+        Write-Host "Removed $destPath"
+    }
+} finally {
+    if ($wow64disabled) {
+        [RdaRemove.Wow64]::Wow64RevertWow64FsRedirection($wow64old) | Out-Null
+    }
+}
+$realPath = if ($wow64disabled) {
+    Join-Path $env:SystemRoot "Sysnative\drivers\$ServiceName.sys"
+} else {
+    $destPath
+}
+if (Test-Path $realPath) {
+    Write-Error "uninstall verification failed: '$realPath' still exists after removal"
 }

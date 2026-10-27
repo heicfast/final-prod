@@ -619,11 +619,22 @@ Section "Uninstall"
       Pop $0
       Sleep 500
     ${EndIf}
-    ; Belt and braces: the .sys must be gone (delete-on-reboot if in use).
-    ${If} ${FileExists} "$SYSDIR\drivers\${DRIVER_SERVICE}.sys"
-      Delete /REBOOTOK "$SYSDIR\drivers\${DRIVER_SERVICE}.sys"
+    ; Belt and braces: the .sys must be gone from the REAL System32.
+    ; This installer is a 32-bit process (makensis output PE32), so
+    ; $SYSDIR resolves to SysWOW64 and file operations on System32 paths
+    ; get WOW64-redirected; the Sysnative alias is the 32-bit process's
+    ; view of the real System32 (the driver's uninstall.ps1 carries the
+    ; full story + the canonical removal). Delete BOTH views: Sysnative
+    ; when this is a WOW64 run, the literal path if a future 64-bit
+    ; build makes Sysnative invisible (the alias does not exist for
+    ; 64-bit callers - Delete on it is a harmless no-op then).
+    ${If} ${FileExists} "$WINDIR\Sysnative\drivers\${DRIVER_SERVICE}.sys"
+      Delete /REBOOTOK "$WINDIR\Sysnative\drivers\${DRIVER_SERVICE}.sys"
     ${EndIf}
-    DetailPrint "RDA driver removed (service + $SYSDIR\drivers\${DRIVER_SERVICE}.sys)."
+    ${If} ${FileExists} "$WINDIR\System32\drivers\${DRIVER_SERVICE}.sys"
+      Delete /REBOOTOK "$WINDIR\System32\drivers\${DRIVER_SERVICE}.sys"
+    ${EndIf}
+    DetailPrint "RDA driver removed (service + System32\\drivers\\${DRIVER_SERVICE}.sys)."
   ${EndIf}
 
   ; ---- 2b. The development certificate we imported --------------------------
