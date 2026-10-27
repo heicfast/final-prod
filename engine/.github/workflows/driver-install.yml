@@ -87,6 +87,7 @@ jobs:
             Write-Host "::error::the refusal must be the whole response - no scan-phase output allowed"; exit 1
           }
           Write-Host "PHASE 1 (ABSENT): refusal contract verified - exit 4, ERR_DRIVER_ABSENT, no scan output"
+          exit 0   # explicit: the probe commands exit 4 by design; the STEP verdict is this script's own
 
       # ---- phase 2: READY (install via the shared composite) ----
       - name: Install the prebuilt driver (fetch + verify + test-sign + service)
@@ -121,6 +122,7 @@ jobs:
           $scan | Write-Host
           if ($scanCode -eq 4) { Write-Host "::error::scan refused with a DRIVER class on a Ready driver - a target error was expected"; exit 1 }
           Write-Host "PHASE 2 (READY): all facets green; scan proceeds past the driver gate (target rc=$scanCode)"
+          exit 0   # explicit: the facet probes + the target-error scan exit non-zero BY DESIGN
 
       # ---- phase 3: NOT_STARTED (service stopped) ----
       - name: 'Phase 3 (NOT_STARTED): the stopped-service refusal class'
@@ -137,6 +139,7 @@ jobs:
           if (-not ($out -match '"state":"not-started"')) { Write-Host "::error::expected state not-started"; exit 1 }
           if (-not ($out -match '"error_code":1342898178')) { Write-Host "::error::expected ERR_DRIVER_NOT_STARTED (0x500B0002) class surfaced"; exit 1 }
           Write-Host "PHASE 3 (NOT_STARTED): refusal class verified"
+          exit 0
 
       - name: Evidence + env manifest
         if: always()

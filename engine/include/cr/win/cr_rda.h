@@ -37,15 +37,24 @@ namespace rda {
  * ------------------------------------------------------------------------- */
 constexpr u32 kDeviceType = 0x600;
 
-/* Reference identity IOCTLs (EPMNtDrv contract - exact codes). */
+/* Reference identity IOCTLs (EPMNtDrv contract - RAW values in the driver
+ * header: #define IOCTL_RDA_GET_PROC_NAME 0x60002400UL etc., byte-exact to
+ * the reference wire; they are NOT CTL_CODE_RDA macro derivations despite
+ * the derivation-styled comment beside them). NOTE (wire-truth fix,
+ * 2026-10-27): only the EXTENDED codes below are CTL_CODE_RDA(fn) =
+ * (0x600 << 16) | (fn << 2) macros - the driver header's "0x600024xx"
+ * comments for them carried a phantom extra zero and this mirror inherited
+ * it; the macros evaluate to 0x6002440/0x6002444/0x6002448 (verified
+ * against rda_ioctl.c's dispatch cases + the runner's GLE-87 refusal of
+ * the mistyped codes - the classifier caught the mismatch as Errored). */
 constexpr u32 kIoctlGetProcName = 0x60002400u;
 constexpr u32 kIoctlGetFileObjName = 0x60002404u;
 constexpr u32 kIoctlGetDiskContextMode = 0x60002408u;
 
-/* RDA extended IOCTLs. */
-constexpr u32 kIoctlGetInfo = 0x60002440u;    /* fn 0x910 */
-constexpr u32 kIoctlOpenTarget = 0x60002444u; /* fn 0x911 */
-constexpr u32 kIoctlGetVersion = 0x60002448u; /* fn 0x912 */
+/* RDA extended IOCTLs - CTL_CODE_RDA(fn) macro derivations. */
+constexpr u32 kIoctlGetInfo = 0x6002440u;    /* fn 0x910 */
+constexpr u32 kIoctlOpenTarget = 0x6002444u; /* fn 0x911 */
+constexpr u32 kIoctlGetVersion = 0x6002448u; /* fn 0x912 */
 
 /* Identity IOCTL length gates. */
 constexpr u32 kIdentInLen = 4u;

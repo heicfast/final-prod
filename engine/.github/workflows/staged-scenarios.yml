@@ -80,6 +80,7 @@ jobs:
           $out | Write-Host
           if ($LASTEXITCODE -ne 0) { Write-Host "::error::driver not Ready for the scenario matrix"; exit 1 }
           if (-not ($out -match '"state":"ready"')) { Write-Host "::error::driver state not ready"; exit 1 }
+          exit 0   # explicit: the driver-verb probe exits 0 only when ready; the step needs its own verdict
 
       - name: Record the env manifest (runner, toolchain, resolved tags)
         shell: pwsh

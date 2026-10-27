@@ -102,9 +102,9 @@ Gate failures on all three return `STATUS_INVALID_PARAMETER` (`src/driver/rda_id
 
 | IOCTL | Code | In / Out | Semantics |
 |---|---|---|---|
-| `IOCTL_RDA_GET_INFO` | `0x60002440` (`CTL_CODE_RDA(0x910)`, `src/shared/inc/rda_ioctl.h:74`) | in: none; out ≥ 24 bytes | `RDA_DRIVER_INFO` (below). `Information = sizeof(RDA_DRIVER_INFO)` — `src/driver/rda_ioctl.c:75-98`. |
-| `IOCTL_RDA_OPEN_TARGET` | `0x60002444` (`:75`) | in ≥ 24 (`RDA_OPEN_TARGET_IN`); out == 0 | Structured open; binds target on the current (global) handle. See below — `src/driver/rda_ioctl.c:115-184`. |
-| `IOCTL_RDA_GET_VERSION` | `0x60002448` (`:76`) | out ≥ 8 | Writes `ULONG64 = (Major << 32) \| Minor`; `Information = 8` — `src/driver/rda_ioctl.c:100-110`. |
+| `IOCTL_RDA_GET_INFO` | `0x6002440` (wire-truth fix 2026-10-27: the extended codes are CTL_CODE_RDA(fn) = (0x600 << 16) | (fn << 2) macros evaluating to 0x600244x - the driver header's own comments carried a phantom extra zero, which this doc and the core's cr_rda.h inherited; the identity codes 0x600024xx are RAW EPMNtDrv-exact values, correctly NOT derivations) (`CTL_CODE_RDA(0x910)`, `src/shared/inc/rda_ioctl.h:74`) | in: none; out ≥ 24 bytes | `RDA_DRIVER_INFO` (below). `Information = sizeof(RDA_DRIVER_INFO)` — `src/driver/rda_ioctl.c:75-98`. |
+| `IOCTL_RDA_OPEN_TARGET` | `0x6002444` (`:75`) | in ≥ 24 (`RDA_OPEN_TARGET_IN`); out == 0 | Structured open; binds target on the current (global) handle. See below — `src/driver/rda_ioctl.c:115-184`. |
+| `IOCTL_RDA_GET_VERSION` | `0x6002448` (`:76`) | out ≥ 8 | Writes `ULONG64 = (Major << 32) \| Minor`; `Information = 8` — `src/driver/rda_ioctl.c:100-110`. |
 
 **`RDA_DRIVER_INFO`** (all `UINT32`, 24 bytes — `src/shared/inc/rda_ioctl.h:79-86`):
 

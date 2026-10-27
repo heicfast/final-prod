@@ -75,6 +75,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { Write-Host "::error::usage print failed"; exit 1 }
           Get-Content usage.txt | Write-Host
           Write-Host "staged core $env:CORE_TAG smoked: list OK, driver-refusal OK, usage OK"
+          exit 0   # explicit: the refusal probe exits 4 BY DESIGN; the step verdict is this script's own
 
       - name: Evidence + env manifest
         if: always()
