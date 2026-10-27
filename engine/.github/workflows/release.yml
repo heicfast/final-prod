@@ -37,7 +37,13 @@ jobs:
     if: ${{ !inputs.skip_validation }}
     uses: ./.github/workflows/ci.yml
     permissions:
+      # superset of every permission the called lane's jobs request (the
+      # codeql job - if:false, never runs - still statically requires
+      # security-events: write; the caller must cover it or the workflow
+      # fails at startup with "The nested job 'codeql' is requesting
+      # 'security-events: write'")
       contents: read
+      security-events: write
 
   build-core:
     needs: [validate]
