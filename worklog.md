@@ -1580,3 +1580,25 @@ release.yml builds the full product and publishes setup.exe + portable +
 cer + SHA256SUMS with the truthful test-signed notes. The RC validation
 run (forensic-repro against v0.6.0-rc2, seeded disks, the probe now
 ANSWERS any consent modal) is dispatched once the release assets exist.
+
+---
+## T18 status — v0.6.0-rc2 is LIVE; the RC validation run is in flight
+
+- Release run 40488329640 (tag e7cec9bd): GREEN — full product built,
+  artifacts verified dev-signed, release published with SHA256SUMS:
+  https://github.com/heicfast/final-prod/releases/tag/v0.6.0-rc2
+  (setup.exe 3.65 MB, portable.zip 4.57 MB, testsigning.cer, SHA256SUMS).
+- The controlled S3 pair is complete and documented (FORENSIC-PROBE.md):
+  rc1 unanswered = 0% frozen 28 min (run 40470191039); rc1 answered
+  (Deny @128ms) = unblocked, advanced 76% (run 40484181472). The modal
+  was the entire stall; NG-21 removes the false offer at the source.
+- INTEGRATION-VALIDATION.md carries the session evidence table (T17).
+- RC end-to-end validation DISPATCHED: forensic-repro run 40490926558
+  against v0.6.0-rc2 (seeded VHDs, install of the tagged release,
+  S1-S4 probe with consent-answering, results vs seed manifest).
+  Expected on the fixed build: NO consent modal on the healthy disk,
+  quick->advanced with live progress, real results in the tree.
+  Outcome to be curated into FORENSIC-PROBE.md + the validation table.
+- Cosmetic: run 40488313774 (forensic auto-trigger on the workflow-file
+  commit) failed on the release-not-yet-existing race — expected, and
+  the dispatched run supersedes it.
