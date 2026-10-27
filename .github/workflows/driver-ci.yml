@@ -173,9 +173,13 @@ jobs:
       - name: Dev-sign smoke leg (the packaging-time signature)
         shell: pwsh
         run: |
+          # this job's defaults run with working-directory: driver - the
+          # built binary is RELATIVE to it (bin\x64\...), everything else
+          # is absolute (run 40428507738's lesson: driver\bin\... resolved
+          # to driver\driver\bin\...).
           $stage = Join-Path $env:RUNNER_TEMP "devsign-smoke"
           New-Item -ItemType Directory -Force -Path $stage | Out-Null
-          Copy-Item "driver\bin\x64\${{ matrix.configuration }}\rda.sys" -Destination (Join-Path $stage 'rda.sys') -Force
+          Copy-Item "bin\x64\${{ matrix.configuration }}\rda.sys" -Destination (Join-Path $stage 'rda.sys') -Force
           $devsign = Join-Path $env:GITHUB_WORKSPACE 'installer\devsign.ps1'
           & $devsign -Action new-cert -StageDir $stage
           if (-not $?) { Write-Error "devsign new-cert failed"; exit 1 }
