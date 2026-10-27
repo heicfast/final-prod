@@ -28,11 +28,15 @@ component contracts, documented as such — they are NOT restamped.
 VERSION gate (all consumers in lockstep)
 ├── contracts: node contracts/validate.mjs          (boundary truth: phase 1 + 2)
 ├── driver:   nuget restore (WDK 10.0.26100.6584 pinned) → msbuild rda.sln x64
-│             → stamp_osversion.py → verify_pe.py (+ unsigned assertion)
+│             → stamp_osversion.py → verify_pe.py (PE/import gates; the msbuild
+│             output stays unsigned — driver-ci asserts it)
+│             → devsign.ps1: the ephemeral build certificate + the embed
+│             signature on rda.sys (PACKAGING step, docs/DEV-SIGNING.md)
 ├── engine:   cmake --preset win-x64-<cfg> (vcpkg manifest: zlib/gtest/lz4/zstd)
 │             → ctest → stamp_osversion_um.py + verify_pe_um.py (Win7 gates)
 │             → engine kit staged: cr_ui.dll + cr_ui.lib + rrecov.exe + the
 │               vcpkg runtime DLLs the engine's own POST_BUILD step deployed
+│             → devsign.ps1 embed-signs the staged cr_ui.dll + rrecov.exe
 └── ui:       pnpm install → typecheck/lint/test → stage the engine kit into
               src-tauri/target/{release,debug} + CR_UI_LIB_DIR → pnpm tauri build
               (beforeBuildCommand runs pnpm build; cargo links cr_ui.lib —
@@ -74,7 +78,8 @@ The bridge statically imports `cr_ui.dll`:
 `contracts-ci.yml` (validate.mjs + the filefilter freshness gate),
 `ui-ci.yml` (every TS gate + cargo check/clippy — no kit needed),
 `engine-ci.yml` (lint/ASan/TSan/UBSan/MSVC + Win7 PE gates/fuzz),
-`driver-ci.yml` (lint/fuzz/unit/WDK matrix + unsigned assertion),
+`driver-ci.yml` (lint/fuzz/unit/WDK matrix + unsigned-output assertion +
+the dev-sign smoke leg proving the packaging signature),
 `ui-e2e.yml` (Playwright against the test-mode build),
 `release.yml` (tag → full build → artifacts + SHA256SUMS + truthful notes).
 Every lane is paths-filtered so a component break cannot red another lane.

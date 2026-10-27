@@ -19,8 +19,13 @@ drivers: `EPMNtDrv` (`eprdtdrv.sys`), `EUEDKEPM` (`EuDskAcs.sys`), and `EUDCPEPM
 > reverse-engineered wire contracts this driver honors, and
 > [worklog.md](worklog.md) for the engineering journal.
 >
-> **Signing**: the release signing pipeline is present but **disabled** pending certificate
-> onboarding (see [docs/signing.md](docs/signing.md)).
+> **Signing**: production (release) signing is present but **disabled** pending
+> certificate onboarding (see [docs/signing.md](docs/signing.md)). Development
+> test signing is LIVE in the unified product: `build.ps1` embed-signs rda.sys
+> with the ephemeral build certificate at packaging time
+> (`installer/devsign.ps1` in the unified repo; design: `docs/DEV-SIGNING.md`
+> there). The WDK build itself stays SignMode=Off — the signature is a
+> packaging step.
 
 ## Why
 

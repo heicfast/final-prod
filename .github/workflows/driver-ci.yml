@@ -8,10 +8,12 @@ on:
     branches: [main]
     paths:
       - 'driver/**'
+      - 'installer/devsign.ps1'
       - '.github/workflows/driver-ci.yml'
   pull_request:
     paths:
       - 'driver/**'
+      - 'installer/devsign.ps1'
 
 permissions:
   contents: read
@@ -146,7 +148,7 @@ jobs:
           if (-not (Test-Path $sys)) { Write-Error "missing $sys"; exit 1 }
           python tools\verify_pe.py $sys
 
-      - name: Verify unsigned artifact (no accidental test-signing)
+      - name: Verify unsigned artifact (no accidental build-time signing)
         shell: pwsh
         working-directory: driver
         run: |
@@ -160,6 +162,36 @@ jobs:
           }
           Write-Host "artifact is unsigned as intended"
 
+
+      # DEVELOPMENT TEST-SIGNING smoke leg (mandatory-driver session,
+      # 2026-10-27): the product packaging signs rda.sys POST-build with the
+      # ephemeral build certificate (installer/devsign.ps1). This leg proves
+      # that tooling works on every driver-ci run: generate a certificate,
+      # embed-sign a COPY of the just-built driver, verify the signer and
+      # the PE security directory. The bare msbuild output above stays
+      # unsigned - the signature is a PACKAGING step, never a build step.
+      - name: Dev-sign smoke leg (the packaging-time signature)
+        shell: pwsh
+        run: |
+          $stage = Join-Path $env:RUNNER_TEMP "devsign-smoke"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item "driver\bin\x64\${{ matrix.configuration }}\rda.sys" -Destination (Join-Path $stage 'rda.sys') -Force
+          $devsign = Join-Path $env:GITHUB_WORKSPACE 'installer\devsign.ps1'
+          & $devsign -Action new-cert -StageDir $stage
+          if (-not $?) { Write-Error "devsign new-cert failed"; exit 1 }
+          & $devsign -Action sign -StageDir $stage -File (Join-Path $stage 'rda.sys')
+          if (-not $?) { Write-Error "devsign sign failed"; exit 1 }
+          & $devsign -Action verify -File (Join-Path $stage 'rda.sys')
+          if (-not $?) { Write-Error "devsign verify failed"; exit 1 }
+          # the PE security directory must be non-zero on the SIGNED copy
+          $bytes = [IO.File]::ReadAllBytes((Join-Path $stage 'rda.sys'))
+          $lfanew = [BitConverter]::ToUInt32($bytes, 0x3C)
+          $secDirRva = [BitConverter]::ToUInt32($bytes, $lfanew + 0x18 + 112 + 32)
+          if ($secDirRva -eq 0) {
+            Write-Error "the signed copy carries no PE security directory"
+            exit 1
+          }
+          Write-Host "dev-sign smoke leg: rda.sys development-signed + verified (packaging path proven)"
       - name: Upload driver + client artifacts
         uses: actions/upload-artifact@v4
         with:

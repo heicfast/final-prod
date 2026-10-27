@@ -16,12 +16,19 @@
 ## Artifacts (per release)
 
 - `RecoveryWizard-<version>-setup.exe` — the combined NSIS installer:
-  app + engine kit + optional RDA driver (surfaced, explained, consent-
-  gated step); per-machine and per-user modes; complete uninstall (sessions
-  kept by default with explicit consent); update = stop/delete/recreate the
-  driver service + in-place app upgrade (ProgramData preserved).
-- `RecoveryWizard-<version>-portable.zip` — app + engine beside the exe,
-  driver STAGED not installed; run as administrator for raw-disk access.
+  app + engine kit + the REQUIRED RDA driver (surfaced, explained,
+  `SectionIn RO` — there is no product without it; per-user installs do
+  not exist); all-users install; complete uninstall including the imported
+  development certificate (sessions kept by default with explicit
+  consent); update = stop/delete/recreate the driver service + in-place
+  app upgrade (ProgramData preserved).
+- `RecoveryWizard-<version>-portable.zip` — app + engine + the STAGED
+  (not installed) development-signed driver; the engine refuses raw-disk
+  work until the driver runs (install via the staged scripts or use the
+  installer).
+- `RecoveryWizard-<version>-testsigning.cer` — the build's public
+  development certificate (embedded in the installer's flow; published
+  for transparency and manual provisioning).
 - `SHA256SUMS` — every artifact, published with the release.
 
 MSIX is not produced: a Windows kernel driver cannot be installed from an
@@ -31,21 +38,27 @@ portable zip serves the no-installer need.
 
 ## Signing status (current, stated plainly)
 
-**Nothing is signed.**
+**Development TEST-SIGNED; production signing pending.**
 
-- `rda.sys` ships unsigned by design (the CI asserts an empty certificate
-  directory). Stock Secure-Boot Windows 10/11 will not load it: enable
-  test signing (`bcdedit /set testsigning on`) or provision a signed
-  driver (the installer accepts a signed drop-in later without reinstall).
-- The app/engine binaries are unsigned until a code-signing certificate is
-  provisioned; SmartScreen may warn on first run.
+- `build.ps1` embed-signs `rda.sys`, the engine kit (`cr_ui.dll`,
+  `rrecov.exe`) and the installer with an **ephemeral self-signed
+  development certificate** generated per build (nothing private committed
+  or shipped; `installer/devsign.ps1`, design in `docs/DEV-SIGNING.md`).
+- The installer imports the certificate into `LocalMachine` Root +
+  Trusted Publishers before creating the driver service, so the driver
+  loads out of the box on Secure-Boot-OFF machines. On Secure-Boot-ON
+  machines, enable test signing (`bcdedit /set testsigning on`) and
+  reboot, or disable Secure Boot; the registered demand-start driver then
+  loads.
+- The Tauri application bundle is not signed yet (production gap,
+  `docs/DEV-SIGNING.md` §5); SmartScreen may warn on the app's first run.
+- The msbuild driver output stays unsigned by design (`driver-ci.yml`
+  asserts it): the signature is a packaging step, never a build step.
 
-The release notes carry this section verbatim. When a certificate is
-provisioned: sign the driver via Hardware Dev Center / attestation, sign
-the app + installer with signtool, and update this document + the notes
-template — the pipeline (release.yml) is structured so signing slots in
-before the upload step.
-
+The release notes carry this section verbatim. When a production
+certificate is provisioned: sign the driver via Hardware Dev Center /
+attestation, sign the app + installer with signtool, and update this
+document + the notes
 ## Reproducibility
 
 The same tag rebuilds the same artifacts (byte-identical modulo signing

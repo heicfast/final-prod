@@ -3,7 +3,8 @@
 # docs/BUILD.md documents every sub-build this drives.
 #
 # Usage:
-#   .\build.ps1                 # full product: engine + ui + installer + portable + checksums
+#   .\build.ps1                 # full product: driver + engine + ui + installer + portable
+#                                # + checksums - all development test-signed (installer/devsign.ps1)
 #   .\build.ps1 -Target engine  # one lane: engine | driver | ui | installer | portable | contracts | all
 #   .\build.ps1 -Configuration Debug
 #
@@ -117,10 +118,21 @@ function Invoke-Engine {
     if (-not $deployed) { throw "no deployed vcpkg runtime DLLs beside cr_ui.dll in $uiBin - expected the cr_deploy_vcpkg_binaries POST_BUILD output" }
     $deployed | Copy-Item -Destination $engineKit
     Write-Host "[engine] kit staged -> $engineKit (runtime DLLs: $($deployed.Name -join ', '))"
+
+    # DEVELOPMENT TEST-SIGNING on the staged kit modules (the ABI dll + the
+    # CLI): the PE gates above ran on the build-tree files; the signature
+    # lands on the STAGED copies (what ships). The engine lane alone never
+    # built the driver, so the stage certificate may not exist yet - create
+    # it (idempotent) so '-Target engine' is self-contained.
+    $devsign = Join-Path $RepoRoot 'installer\devsign.ps1'
+    & $devsign -Action new-cert -StageDir $StageDir
+    if (-not $?) { throw 'devsign new-cert failed' }
+    & $devsign -Action sign -StageDir $StageDir -File "$engineKit\cr_ui.dll", "$engineKit\rrecov.exe"
+    if (-not $?) { throw 'devsign sign (engine kit) failed' }
 }
 
 function Invoke-Driver {
-    Write-Host '[driver] WDK build (rda.sln x64 Release) + PE gates'
+    Write-Host '[driver] WDK build (rda.sln x64 Release) + PE gates + DEVELOPMENT SIGNING'
     Push-Location (Join-Path $RepoRoot 'driver')
     nuget restore packages.config -SolutionDirectory . -NonInteractive
     if ($LASTEXITCODE -ne 0) { throw 'driver nuget restore failed' }
@@ -137,12 +149,35 @@ function Invoke-Driver {
     python (Join-Path $RepoRoot 'driver\tools\verify_pe.py') "$drvBin\rda.sys" --allowlist (Join-Path $RepoRoot 'driver\tools\ref_imports.json')
     if ($LASTEXITCODE -ne 0) { throw 'driver PE verify failed (unsigned/import gates)' }
 
+    # DEVELOPMENT TEST-SIGNING (mandatory-driver session, 2026-10-27):
+    # the WDK build above stays SignMode=Off (driver-ci asserts the BARE
+    # msbuild output is unsigned); the embed signature is applied HERE, at
+    # product-packaging time, with the ephemeral build certificate
+    # (installer/devsign.ps1 - docs/DEV-SIGNING.md). A bare unsigned driver
+    # does not load even under test signing; the signed one loads on every
+    # machine with testsigning ON (CI runners are built that way) and on
+    # Secure-Boot-off machines whose stores carry the staged certificate
+    # (the installer imports it - recoverywizard.nsi SEC_DRIVER).
+    $devsign = Join-Path $RepoRoot 'installer\devsign.ps1'
+    & $devsign -Action new-cert -StageDir $StageDir
+    if (-not $?) { throw 'devsign new-cert failed' }
+    & $devsign -Action sign -StageDir $StageDir -File "$drvBin\rda.sys"
+    if (-not $?) { throw 'devsign sign (rda.sys) failed' }
+
     $driverStage = Join-Path $StageDir 'driver'
     New-Item -ItemType Directory -Force -Path $driverStage | Out-Null
     Copy-Item "$drvBin\rda.sys", "$drvBin\rdacli.exe" -Destination $driverStage
     Copy-Item (Join-Path $RepoRoot 'driver\src\driver\rda.inf') -Destination $driverStage
     Copy-Item (Join-Path $RepoRoot 'driver\scripts\install.ps1'), (Join-Path $RepoRoot 'driver\scripts\uninstall.ps1') -Destination $driverStage
-    Write-Host "[driver] staged (unsigned by design; docs/RELEASE.md) -> $driverStage"
+    # the public certificate rides WITH the driver: the installer imports it
+    # into LocalMachine Root + TrustedPublisher before the service create;
+    # the uninstaller removes it by thumbprint.
+    Copy-Item (Join-Path $StageDir 'rda-testcert.cer'), (Join-Path $StageDir 'rda-testcert-thumbprint.txt') -Destination $driverStage
+    # the public certificate is also a first-class build artifact: the
+    # release publishes it next to the installer (transparency + manual
+    # provisioning), and Invoke-Checksums folds it into SHA256SUMS.
+    Copy-Item (Join-Path $StageDir 'rda-testcert.cer') -Destination (Join-Path $OutDir "RecoveryWizard-$Version-testsigning.cer") -Force
+    Write-Host "[driver] staged (development test-signed; docs/DEV-SIGNING.md) -> $driverStage"
 }
 
 function Invoke-Ui {
@@ -215,7 +250,17 @@ function Invoke-Installer {
         "/DDRIVER_STAGE=$(Join-Path $StageDir 'driver')" `
         "/DOUT_DIR=$OutDir" "/DPATHSEP=\\" (Join-Path $RepoRoot 'installer\recoverywizard.nsi')
     if ($LASTEXITCODE -ne 0) { throw 'installer build failed' }
-    Write-Host "[installer] -> $OutDir\RecoveryWizard-$Version-setup.exe"
+
+    # DEVELOPMENT TEST-SIGNING on the artifact the customer runs first: the
+    # outer installer exe (the payloads inside - rda.sys, the engine kit -
+    # carry their own embed signatures from their lanes; the Tauri app
+    # bundle's signature is the production-signing gap documented in
+    # docs/DEV-SIGNING.md).
+    $setupExe = Join-Path $OutDir "RecoveryWizard-$Version-setup.exe"
+    $devsign = Join-Path $RepoRoot 'installer\devsign.ps1'
+    & $devsign -Action sign -StageDir $StageDir -File $setupExe
+    if (-not $?) { throw 'devsign sign (installer) failed' }
+    Write-Host "[installer] -> $setupExe (development test-signed)"
 }
 
 function Invoke-Portable {

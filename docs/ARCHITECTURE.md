@@ -24,17 +24,23 @@ the `cr_ui` C ABI — no subprocess, no IPC on the UI↔engine leg.
                           │ C ABI v2 (78 exports)
               engine/  C++20 recovery core (scan/recover/repair/health,
                        sessions .crsf, the query layer)
-                          │ RDA transport first, direct handles fallback
+                          │ RDA transport — the ONLY raw-disk path (mandatory)
               driver/   rda.sys (kernel raw-disk transport, service `RDA`,
-                        \\.\RDA\<token>\<disk>\<part> grammar)
+                        \\.\RDA\<token>\<disk>\<part> grammar,
+                        development test-signed; docs/DEV-SIGNING.md)
 ```
 
 ## Component responsibilities
 
 - **driver/** (`rda.sys`): raw sector access under admin/SYSTEM DACL;
-  demand-start, no auto service; unsigned by design (release notes state
-  the test-signing path). The engine falls back to direct handles
-  (`\\.\PhysicalDriveN`) without it — degraded but functional.
+  demand-start, no auto service; **development test-signed** (the build
+  embed-signs it per `docs/DEV-SIGNING.md`; the installer imports the
+  certificate so Secure-Boot-off machines load it out of the box).
+  **REQUIRED**: it is the engine's only raw-disk transport — every open,
+  scan, repair and apply rides `\\.\RDA`, and a missing driver is the
+  distinct `ERR_DRIVER_REQUIRED` (0x50020007) refusal. There is no
+  direct-handle fallback and no degraded mode (the deliberate divergence
+  from the reference's duality is `docs/PARITY-DELTAS.md` D-FALL).
 - **engine/**: the recovery domain — staged scans (quick/deep/carve),
   lost-partition discovery + apply, pre-scan repair behind the consent
   callback (the scan-page prompt approves; deny/cancel/teardown all

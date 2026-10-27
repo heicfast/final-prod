@@ -6,6 +6,15 @@ name: validation-evidence
 # bounds, and the installer runtime matrix (install / uninstall / update /
 # repair) on a clean Windows runner.
 #
+# MANDATORY DRIVER + DEVELOPMENT TEST-SIGNING (2026-10-27): the T14 lane
+# now builds, development-signs, and LOADS the RDA driver on the runner
+# (hosted Windows images are built with `bcdedit /set TESTSIGNING ON` -
+# actions/runner-images build.windows-2022.pkr.hcl - so an embed-signed
+# driver loads after the certificate import), then the harness measures the
+# REAL product path: every open/scan rides \.\RDA. The T15 matrix expects
+# the installed product's driver service RUNNING with the certificate in
+# Root + TrustedPublisher, and expects the uninstall to remove it.
+#
 # workflow_dispatch ONLY: the numbers are runner-dependent, so every run is
 # recorded deliberately — the artifacts are downloaded, reviewed, and
 # committed under docs/INTEGRATION-VALIDATION/ by hand (the workflow itself
@@ -30,16 +39,75 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Engine kit (build.ps1 -Target engine; contracts gate runs inside)
+      # The driver lane needs the WDK build stack (the engine lane needs
+      # only cmake + vcpkg, which the runner image carries).
+      - uses: nuget/setup-nuget@v2
+
+      - uses: microsoft/setup-msbuild@v2
+
+      - name: Engine kit + driver (build.ps1 lanes; contracts gate runs inside)
         shell: pwsh
         run: |
-          ./build.ps1 -Target engine -SkipTests   # engine tests are engine-ci's lane
+          # engine tests are engine-ci's lane; the driver lane is here so
+          # the harness can run against the REAL mandatory transport.
+          ./build.ps1 -Target engine -SkipTests
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          ./build.ps1 -Target driver
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
-      - name: Compile the measurement harness (cl /std:c17 against the staged kit)
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
+      - name: Load the development-signed RDA driver (the mandatory transport)
+        shell: pwsh
+        run: |
+          # The mandatory-driver product path: import the build certificate,
+          # register the service via the driver's own install.ps1, start it,
+          # and PROVE \\.\RDA opens. Hosted Windows runners are imaged with
+          # TESTSIGNING ON (actions/runner-images; verified by the bcdedit
+          # evidence below), so the embed-signed driver loads here. Record
+          # everything - the evidence must show WHY any step could fail.
+          $version = (Get-Content VERSION -Raw).Trim()
+          $stage = "build\out\stage-$version"
+          $info = [ordered]@{
+            secureBoot   = try { Confirm-SecureBootUEFI } catch { "unavailable: $($_.Exception.Message)" }
+            testSigning = ((bcdedit | Select-String 'testsigning') -join '; ')
+            os          = (Get-CimInstance Win32_OperatingSystem).Caption
+          }
+          & "installer\devsign.ps1" -Action install-cert -CerPath "$stage\driver\rda-testcert.cer"
+          if (-not $?) { Write-Error "certificate import failed"; exit 1 }
+          $info.certImported = $true
+          if (Get-Service -Name RDA -ErrorAction SilentlyContinue) {
+            & "driver\scripts\uninstall.ps1" -ServiceName RDA
+          }
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$stage\driver\install.ps1" -ServiceName RDA -Source "$stage\driver\rda.sys"
+          if ($LASTEXITCODE -ne 0) { Write-Error "driver install.ps1 failed ($LASTEXITCODE)"; exit 1 }
+          Start-Sleep -Seconds 2
+          $svc = Get-Service -Name RDA -ErrorAction SilentlyContinue
+          $info.serviceStatus = if ($svc) { "$($svc.Status)" } else { 'missing' }
+          if (-not $svc -or $svc.Status -ne 'Running') {
+            # the load refused: record the kernel-side reason from the System log
+            $info.systemLog = Get-WinEvent -FilterHashtable @{LogName='System'; StartTime=(Get-Date).AddMinutes(-5)} `
+              -ErrorAction SilentlyContinue | Where-Object { $_.Message -match 'RDA|driver' } |
+              Select-Object -First 5 TimeCreated, Id, Message | Format-List | Out-String
+            $info | ConvertTo-Json -Depth 4 | Set-Content t14-driver-info.json
+            Write-Host ($info | ConvertTo-Json -Depth 4)
+            Write-Error "the mandatory driver is not Running - the harness cannot measure the real transport"
+            exit 1
+          }
+          # PROVE the control device opens - the engine's own probe semantics
+          # (cr_transport.cpp rda_available: a bare CreateFileW on \\.\RDA).
+          Add-Type -Namespace Win32 -Name Native -MemberDefinition '[DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)] public static extern IntPtr CreateFileW(string name, uint access, uint share, IntPtr sa, uint disp, uint flags, IntPtr tmpl); [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr h);'
+          $INVALID = [IntPtr]::new(-1)
+          $h = [Win32.Native]::CreateFileW('\\.\RDA', 0x80000000, 3, [IntPtr]::Zero, 3, 0, [IntPtr]::Zero)
+          if ($h -eq $INVALID) {
+            $info.rdaOpenGLE = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+            $info | ConvertTo-Json -Depth 4 | Set-Content t14-driver-info.json
+            Write-Host ($info | ConvertTo-Json -Depth 4)
+            Write-Error "\\.\RDA does not open (GLE $($info.rdaOpenGLE)) - the service is Running but the device is absent"
+            exit 1
+          }
+          [Win32.Native]::CloseHandle($h) | Out-Null
+          $info.rdaOpens = $true
+          $info | ConvertTo-Json -Depth 4 | Set-Content t14-driver-info.json
+          Write-Host ($info | ConvertTo-Json -Depth 4)
 
       - name: Compile + run the harness
         shell: pwsh

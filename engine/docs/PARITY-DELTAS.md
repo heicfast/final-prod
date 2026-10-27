@@ -877,16 +877,24 @@ Split verdict — three sub-claims:
 
 ### D-37 — Transport fallback superset (D-H/FB-T02): grammar-open failure falls back to direct
 
+> **SUPERSEDED 2026-10-27 (the mandatory-driver directive):** every
+> direct-handle fallback is REMOVED — `open_disk()` rides the RDA grammar
+> exclusively and refuses with `ERR_DRIVER_REQUIRED` (0x50020007) when the
+> driver is absent; a grammar-open failure is a hard open error, never a
+> direct leg. Registered in the unified repo as `docs/PARITY-DELTAS.md`
+> D-FALL. The historical entry below is the pre-directive record.
+
 - **WHAT OG DOES:** Device.mo duality — `\\.\PhysicalDriveN` direct vs
   `\\.\EPRDTDRV` grammar; the og gates the fallback on the RDA probe only.
-- **WHAT WE DO:** `open_disk()` falls back to the direct path when the grammar
-  open FAILS (broader condition than og's probe-only gate).
-- **WHY:** robustness — an unopenable grammar path must not kill a scan of an
-  unlocked volume; direct access is sufficient there (plan ruling D-H).
-- **RISK:** A volume og would refuse (driver present but grammar broken) is
-  scanned direct by us. Bounded: the fallback only fires on open failure, not
-  on probe mismatch.
-- **VERDICT: ACCEPTED (remark).**
+- **WHAT WE DID (pre-2026-10-27):** `open_disk()` fell back to the direct path
+  when the grammar open FAILED (broader condition than og's probe-only gate).
+- **WHY (historical):** robustness — an unopenable grammar path must not kill
+  a scan of an unlocked volume; direct access is sufficient there (plan
+  ruling D-H).
+- **RISK (historical):** A volume og would refuse (driver present but grammar
+  broken) was scanned direct by us.
+- **VERDICT: SUPERSEDED — the directive wins over both the og duality and
+  this superset.**
 
 ### D-38 — Skip-mode zero-fill retry mechanism (D-I/FB-O03): transport-wide bisection + ReadErrorMap
 

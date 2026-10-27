@@ -57,19 +57,24 @@ HeicFast Recovery Wizard $Version — PORTABLE BUILD
 
 This is the no-installer build. Differences from the installed product:
 
-  * NO DRIVER IS INSTALLED. The RDA raw-disk kernel driver is staged in
-    .\driver\ (rda.sys + install.ps1) but NOT registered. The application
-    uses Windows direct disk access, which requires running as Administrator.
-    To install the driver manually (elevated PowerShell):
-        cd driver
-        .\install.ps1 -ServiceName RDA -Source .\rda.sys
-    NOTE: this build's driver is UNSIGNED (release signing is pending).
-    Windows 10/11 with Driver Signature Enforcement will not load it until
-    it is properly signed (or test signing is enabled). The app works
-    without it via direct disk access.
+  * NO DRIVER IS INSTALLED - AND THE PRODUCT REQUIRES IT. The RDA raw-disk
+    kernel driver is the ONLY raw-disk transport: the engine refuses every
+    scan, repair and recovery operation with an explicit 'driver required'
+    error (ERR_DRIVER_REQUIRED) until the driver runs. There is no
+    fallback mode. The driver is staged in .\driver\ (development
+    test-signed rda.sys + its public certificate rda-testcert.cer) - to
+    install it manually (elevated PowerShell):
+        certutil -addstore -f Root .\driver\rda-testcert.cer
+        certutil -addstore -f TrustedPublisher .\driver\rda-testcert.cer
+        .\driver\install.ps1 -ServiceName RDA -Source .\driver\rda.sys
+    The certificate import is what lets the test-signed driver load on
+    Secure-Boot-OFF machines; with Secure Boot ON, also enable test
+    signing (bcdedit /set testsigning on) and reboot. For the full
+    experience use the installer (RecoveryWizard-$Version-setup.exe),
+    which does all of this for you.
 
-  * RUN AS ADMINISTRATOR. Raw disk/partition access (both the driver path
-    \\.\RDA and the direct \\.\PhysicalDriveN path) requires elevation.
+  * RUN AS ADMINISTRATOR. The driver path (\\.\RDA) and the app's
+    elevated operations require elevation.
 
   * Sessions and logs are written BESIDE THIS EXECUTABLE (.\\sessions,
     .\\logs) — nothing is written to ProgramData or the registry.

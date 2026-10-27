@@ -156,20 +156,30 @@ recovery. Core: no driver polling, no driver events; progress/events are
 engine-side pushes to the host. Nothing to add — matching the reference means
 not inventing driver events.
 
-### 1.9 Driver-absent behavior — **MATCH**
+### 1.9 Driver-absent behavior — **SUPERSEDED by the mandatory-driver directive (2026-10-27)**
 
-Reference: every EPRDTDRV open first probes (`FUN_1800577e0`); on probe
-failure the SAME code path opens `\\.\HarddiskVolume%d` /
-`\\.\PhysicalDrive%d` directly — silent fallback, "the 'no-admin' degraded
-mode" (`epmntdrv-trio §6`; sites `Device_decompiled.c:352-359, 7816-7823,
-50653-50660, 52437-52444, 54667-54673`). Missing service → probe returns 0,
-no refusal (`PartitionRecovery_decompiled.c:2606-2611`).
-
-Core: `cr_ui_open_disk` → `rda_available` (bare CreateFile probe — same probe
-semantics as the og; no GET_INFO) → grammar open → direct PhysicalDrive
-fallback (cr_ui.cpp:885-911; cr_transport.cpp:718-728). The fallback is
-observable via `cr_ui_device_transport` ("rda"/"direct"/"image") — a
-truthfulness superset, same refusal semantics (none) as the reference.
+> Historical record (the pre-2026-10-27 state, kept for the audit trail):
+> the reference probes first (`FUN_1800577e0`); on probe failure the SAME
+> code path opens `\\.\HarddiskVolume%d` / `\\.\PhysicalDrive%d`
+> directly — silent fallback ("the 'no-admin' degraded mode";
+> `epmntdrv-trio §6`; sites `Device_decompiled.c:352-359, 7816-7823,
+> 50653-50660, 52437-52444, 54667-54673`), and our core MATCHED that
+> duality (grammar open → direct PhysicalDrive fallback, observable via
+> `cr_ui_device_transport` "rda"/"direct").
+>
+> CURRENT state (the user directive that supersedes the parity):
+> **the driver is MANDATORY. Every direct-handle fallback is REMOVED** —
+> the reference's duality is deliberately not reproduced
+> (`docs/PARITY-DELTAS.md` D-FALL, registered in the unified repo). The
+> engine rides the RDA grammar exclusively: `open_disk` /
+> `open_disk_rw` / `open_disk_apply_rw` probe `rda_available` and return
+> the distinct `ERR_DRIVER_REQUIRED` (0x50020007) when the control device
+> is absent; `DirectDevice`/`open_path`/`open_physical_drive`/
+> `open_harddisk_volume`/`win_pe_environment` are deleted (zero callers);
+> `cr_ui_device_transport` reports "rda" or "image" only. Enumeration
+> geometry/metadata IOCTLs and SMART/BitLocker probes stay on the OS
+> storage stack (the disk LIST works without the driver; the SECTORS
+> never do — `table_ok=false` is the truthful no-driver listing state).
 
 ### 1.10 Buffering — **MATCH**
 
@@ -233,7 +243,7 @@ to artifacts).
 | Access control (SDDL) | DELIBERATE DIVERGENCE — keep, documented |
 | Read granularity | **MATCHED to og class** — 256 KiB blocks + unified envelope; sweep measures the plateau |
 | Push/pull events | MATCH — verified (pull on both sides) |
-| Driver-absent fallback | MATCH — verified |
+| Driver-absent fallback | **SUPERSEDED** — the mandatory-driver directive (2026-10-27) removed every fallback; `ERR_DRIVER_REQUIRED` is the refusal (`docs/PARITY-DELTAS.md` D-FALL) |
 | Buffering per class | MATCH — verified |
 | 64 KiB envelope on EVERY direct read | **MATCH — unified on both transports, exhaustively unit-proven, CI-benched** |
 

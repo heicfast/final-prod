@@ -3,14 +3,21 @@ name: release
 # T13 (docs/INTEGRATION-PLAN.md §8.3/§7): a version tag triggers the FULL
 # product build (build.ps1 all lanes: driver → engine → ui+tauri → NSIS
 # installer → portable zip → checksums), runs the whole validation stack,
-# and uploads every artifact with SHA256SUMS + truthful release notes
-# (signing pending: the driver ships unsigned BY DESIGN — the notes state
-# the test-signing path; the engine kit and installer are unsigned until a
-# certificate is provisioned; docs/RELEASE.md carries the procedure).
+# and uploads every artifact with SHA256SUMS + truthful release notes.
+#
+# DEVELOPMENT TEST-SIGNING (mandatory-driver session, 2026-10-27): the
+# driver is a REQUIRED component; build.ps1 embed-signs rda.sys + the
+# engine kit + the installer with the EPHEMERAL build certificate
+# (installer/devsign.ps1 - a fresh certificate per build, nothing
+# committed, docs/DEV-SIGNING.md). The staged public certificate ships as
+# the -testsigning.cer release asset; the installer imports it into
+# LocalMachine Root + TrustedPublisher. PRODUCTION signing (EV/OSSign +
+# Hardware Dev Center attestation) remains pending - the notes state it.
 #
 # Reproducibility: same tag → same artifacts (byte-identical modulo
-# timestamps); the version source of truth is the root VERSION file and the
-# tag MUST match it (the workflow refuses otherwise).
+# timestamps and the per-run certificate); the version source of truth is
+# the root VERSION file and the tag MUST match it (the workflow refuses
+# otherwise).
 on:
   push:
     tags:
@@ -65,19 +72,28 @@ jobs:
           ./build.ps1 -Target all
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
-      - name: Verify every expected artifact exists
+      - name: Verify every expected artifact exists + carries the dev signature
         shell: pwsh
         run: |
           $version = (Get-Content VERSION -Raw).Trim()
           $expected = @(
             "build\out\RecoveryWizard-$version-setup.exe",
             "build\out\RecoveryWizard-$version-portable.zip",
+            "build\out\RecoveryWizard-$version-testsigning.cer",
             "build\out\SHA256SUMS"
           )
           foreach ($p in $expected) {
             if (-not (Test-Path $p)) { Write-Error "missing artifact: $p"; exit 1 }
           }
-          Write-Host "artifacts present:"
+          # The development signature is a PRODUCT requirement now: the
+          # installer and the staged driver must carry the build cert.
+          $stage = "build\out\stage-$version"
+          $devsign = "installer\devsign.ps1"
+          & $devsign -Action verify -File "build\out\RecoveryWizard-$version-setup.exe"
+          if (-not $?) { Write-Error "the installer carries no development signature"; exit 1 }
+          & $devsign -Action verify -File "$stage\driver\rda.sys"
+          if (-not $?) { Write-Error "rda.sys carries no development signature"; exit 1 }
+          Write-Host "artifacts present + development-signed:"
           Get-ChildItem build\out | Select-Object Name, Length | Format-Table | Out-String | Write-Host
 
       - name: Compose truthful release notes
@@ -89,37 +105,55 @@ jobs:
           # Recovery Wizard $version
 
           Combined installer for the recovery product: application (Tauri shell),
-          native recovery engine (cr_ui), and the optional RDA raw-disk kernel
+          native recovery engine (cr_ui), and the REQUIRED RDA raw-disk kernel
           driver — one product, one install, standard locations
           (Program Files / ProgramData / System32\drivers; docs/ARCHITECTURE.md).
 
+          ## The driver is MANDATORY
+
+          The RDA kernel driver is the product's ONLY raw-disk transport: every
+          scan, repair and recovery operation requires it, and the engine
+          refuses with an explicit ``ERR_DRIVER_REQUIRED`` message until it
+          runs. There is no fallback mode and no degraded mode. The installer
+          installs it as a required, surfaced, explained component (all-users
+          install; per-user installs do not exist in this release).
+
           ## Signing status (truthful)
 
-          **Nothing is signed in this release.** The kernel driver ships unsigned
-          by design; stock Secure-Boot Windows 10/11 will not load it. Either:
+          This release is **DEVELOPMENT TEST-SIGNED**, not production-signed:
 
-          - enable test signing (``bcdedit /set testsigning on``), or
-          - install a signed driver when one is provisioned (the installer
-            accepts a signed drop-in later without reinstalling the app).
-
-          The application and engine binaries are unsigned until a code-signing
-          certificate is provisioned; SmartScreen may warn on first run.
-          Signing is pending — this is recorded, not hidden.
-
-          ## Driver install is a surfaced step
-
-          The installer shows the driver step with the full explanation and a
-          checkbox (default on). Without the driver, the app runs in degraded
-          mode (direct-handle transport) — the About/Settings page reports the
-          truthful driver status at any time.
+          - The driver (``rda.sys``), the engine kit (``cr_ui.dll``,
+            ``rrecov.exe``) and the installer (``-setup.exe``) are embed-signed
+            with an ephemeral self-signed development certificate generated at
+            build time (docs/DEV-SIGNING.md). Nothing private is shipped or
+            committed.
+          - The installer imports the public certificate
+            (``RecoveryWizard-$version-testsigning.cer``) into the machine's
+            Root and Trusted Publishers stores — on machines with Secure Boot
+            OFF the test-signed driver then loads out of the box.
+          - On machines with Secure Boot ON, enable test signing and reboot
+            (elevated: ``bcdedit /set testsigning on``) or disable Secure
+            Boot; the registered driver starts on the next boot. Windows
+            production-driver policy requires a Microsoft attestation
+            signature to load kernel drivers under Secure Boot without test
+            signing — that is PRODUCTION signing, still pending.
+          - The Tauri application bundle is not signed yet (the
+            production-signing gap documented in docs/DEV-SIGNING.md);
+            SmartScreen may warn on first run.
 
           ## Artifacts
 
           - ``RecoveryWizard-$version-setup.exe`` — the combined NSIS installer
-            (driver + engine + app; per-machine and per-user modes; uninstall
-            removes everything, sessions kept by default with explicit consent).
-          - ``RecoveryWizard-$version-portable.zip`` — app + engine, NO driver
-            installed (staged only). Run as administrator for raw-disk access.
+            (driver + engine + app; all-users; the driver is a required
+            component; uninstall removes everything including the imported
+            certificate, sessions kept by default with explicit consent).
+          - ``RecoveryWizard-$version-portable.zip`` — app + engine + the
+            STAGED (not installed) driver. The engine refuses raw-disk
+            work without the running driver — install it via the staged
+            scripts or use the installer for the full product.
+          - ``RecoveryWizard-$version-testsigning.cer`` — the build's public
+            development certificate (already embedded in the installer's
+            flow; provided for transparency and manual provisioning).
 
           ## Checksums
 
@@ -135,6 +169,7 @@ jobs:
           files: |
             build/out/RecoveryWizard-*-setup.exe
             build/out/RecoveryWizard-*-portable.zip
+            build/out/RecoveryWizard-*-testsigning.cer
             build/out/SHA256SUMS
           fail_on_unmatched_files: true
 

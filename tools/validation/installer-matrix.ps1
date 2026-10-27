@@ -12,17 +12,19 @@
     Matrix rows (in order):
       1. baseline    — pre-install registry + Program Files + ProgramData
       2. install     — setup.exe /S /allusers (exit code, duration, uninstall
-                       registry values, installed-file inventory, driver
-                       service state — the graceful-degradation row)
+                       registry values, the EXACT 15-module inventory, driver
+                       service RUNNING, the development certificate in
+                       LocalMachine Root + TrustedPublisher — the
+                       mandatory-driver row: a non-running service FAILS)
       3. session-preservation — a marker written into the REAL sessions dir
                        survives a reinstall-over-install (the update row)
       4. repair      — corrupt an installed engine DLL, rerun setup.exe /S,
                        verify the hash is restored (the NoRepair=1 rerun path,
                        documented in installer/README.md)
       5. uninstall   — HeicFastUninstall.exe /S: app dir + registry + driver
-                       service removed; ProgramData sessions PRESERVED (the
-                       .nsi's silent-keeps-state contract — the interactive
-                       Only consent can delete)
+                       service + the imported CERTIFICATE removed; ProgramData
+                       sessions PRESERVED (the .nsi's silent-keeps-state
+                       contract — only interactive consent can delete)
 
     Honest notes: the update row exercises reinstall-over-same-version (the
     NSIS overwrite semantics are version-independent; the version-bump update
@@ -184,6 +186,9 @@ if ($regInstallDir -and $regInstallDir.InstallDir) {
 
 $appExe = Join-Path $InstallDir $AppExeName
 $crUi = Join-Path $InstallDir 'cr_ui.dll'
+# read BEFORE the hash literal (a hash literal cannot carry statements, and
+# $installed does not exist while its own initializer runs)
+$regCertTp = (Get-RegSnapshot -Path $SwKey).DriverCertThumbprint
 $installed = [ordered]@{
     appExePresent = Test-Path $appExe
     crUiPresent   = Test-Path $crUi
@@ -195,6 +200,11 @@ $installed = [ordered]@{
     inventory     = Get-DirInventory -Path $InstallDir -Hash
     testDllsShipped = @(Get-ChildItem $InstallDir -Filter '*.dll' -ErrorAction SilentlyContinue |
         Where-Object { $_.Name -like 'gtest*' -or $_.Name -like 'gmock*' }).Name
+    # mandatory-driver evidence: the imported development certificate.
+    certInRoot            = [bool](Get-ChildItem Cert:\LocalMachine\Root -ErrorAction SilentlyContinue | Where-Object Thumbprint -eq $regCertTp)
+    certInTrustedPublisher = [bool](Get-ChildItem Cert:\LocalMachine\TrustedPublisher -ErrorAction SilentlyContinue | Where-Object Thumbprint -eq $regCertTp)
+    # the staged driver must carry the development signature
+    driverSigned = $null -ne (Get-AuthenticodeSignature -FilePath (Join-Path $InstallDir 'driver\rda.sys') -ErrorAction SilentlyContinue).SignerCertificate
 }
 Write-Evidence -Name '03-after-install.json' -Content ($installed | ConvertTo-Json -Depth 5)
 Add-Row -Phase 'install' -Result 'ok' -Facts @{
@@ -206,6 +216,9 @@ Add-Row -Phase 'install' -Result 'ok' -Facts @{
     installMode   = $installed.swKey.InstallMode
     files         = @($installed.inventory).Count
     driverService = "$($installed.driverService)"
+    driverSigned  = $installed.driverSigned
+    certInRoot    = $installed.certInRoot
+    certInTP      = $installed.certInTrustedPublisher
     # Truthful count: the collection is .Name (null on a clean kit — the
     # null IS the dirt signal for the guard below); @($null).Count would
     # report 1 for a PERFECTLY CLEAN kit (run 15's facts row said 1 while
@@ -215,6 +228,59 @@ Add-Row -Phase 'install' -Result 'ok' -Facts @{
 
 if (-not ($installed.appExePresent -and $installed.crUiPresent)) {
     throw 'install verification failed: app exe or cr_ui.dll missing'
+}
+# captured BEFORE any uninstall step: the uninstaller deletes the SW key
+# carrying DriverCertThumbprint, and the uninstall row needs the value to
+# prove the certificate stores were cleaned.
+$DriverCertThumbprint = $installed.swKey.DriverCertThumbprint
+if (-not $DriverCertThumbprint) {
+    throw 'install verification failed: DriverCertThumbprint missing from the product registry key'
+}
+
+# MANDATORY DRIVER (2026-10-27): the service must be RUNNING and the
+# certificate must be in both machine stores. The runner image is built
+# with TESTSIGNING ON and the driver is development test-signed, so
+# anything less is a REAL product failure — the engine refuses every
+# scan without the running driver.
+if ($installed.driverService -ne 'Running') {
+    throw "install verification failed: the RDA service is '$($installed.driverService)' - the mandatory driver must be RUNNING (install facts: $FactsFile)"
+}
+if (-not $installed.certInRoot -or -not $installed.certInTrustedPublisher) {
+    throw 'install verification failed: the development certificate is not in LocalMachine Root + TrustedPublisher'
+}
+if (-not $installed.driverSigned) {
+    throw 'install verification failed: the staged rda.sys carries no development signature'
+}
+
+# EXACT MODULE SET: the installer lays down every product file. The
+# product-owned files are asserted BY NAME (any missing module = a broken
+# kit; any extra product-owned leak = a failure). The vcpkg runtime DLLs
+# are asserted as a CLASS (count >= 1 beside cr_ui.dll - the exact names
+# vary by vcpkg port naming: zlib1/z/lz4/liblz4/zstd; the .nsi itself
+# refuses a kit with zero runtime DLLs).
+$expectedModules = @(
+    'recovery-wizard-ui.exe', 'uninstall.exe', 'HeicFastUninstall.exe',
+    'cr_ui.dll', 'rrecov.exe',
+    'driver\rda.sys', 'driver\rdacli.exe', 'driver\rda.inf',
+    'driver\install.ps1', 'driver\uninstall.ps1',
+    'driver\rda-testcert.cer', 'driver\rda-testcert-thumbprint.txt'
+)
+$actualModules = @($installed.inventory | ForEach-Object { $_.rel })
+$missing = @($expectedModules | Where-Object { $_ -notin $actualModules })
+if ($missing.Count -gt 0) {
+    throw "install verification failed: product modules missing from the layout: [$($missing -join ', ')]"
+}
+$driverCount = @($actualModules | Where-Object { $_ -like 'driver\*' }).Count
+if ($driverCount -ne 7) {
+    throw "install verification failed: driver dir must carry exactly 7 files (sys/cli/inf/2 scripts/cer/thumbprint) - found $driverCount : [$($actualModules | Where-Object { $_ -like 'driver\*' } | Join-String -Separator ', ')]"
+}
+$engineDlls = @($actualModules | Where-Object { $_ -notlike 'driver\*' -and $_ -like '*.dll' -and $_ -ne 'cr_ui.dll' })
+if ($engineDlls.Count -lt 1) {
+    throw 'install verification failed: no vcpkg runtime DLL beside cr_ui.dll (the loader-truth kit contract)'
+}
+$extraRoot = @($actualModules | Where-Object { $_ -notlike 'driver\*' -and $_ -notin $expectedModules -and $_ -notlike '*.dll' })
+if ($extraRoot.Count -gt 0) {
+    throw "install verification failed: unexpected non-DLL files in the root layout: [$($extraRoot -join ', ')]"
 }
 # NOT @(...).Count: when the kit is clean, .Name on the empty pipeline is
 # $null, and @($null).Count is 1 (array-wrapping a null yields a one-element
@@ -282,6 +348,8 @@ if (Test-Path $FactsFile) {
     Write-Evidence -Name '08-uninstall-facts.txt' -Content (Get-Content $FactsFile -Raw)
 }
 
+# the thumbprint was captured at install time (above) - the SW key is gone now
+$uninstallThumbprint = $DriverCertThumbprint
 $after = [ordered]@{
     exitCode          = $p.ExitCode
     durationMs        = $sw.ElapsedMilliseconds
@@ -295,10 +363,16 @@ $after = [ordered]@{
     sysDriverFile     = Test-Path "$env:SystemRoot\System32\drivers\$DriverSvc.sys"
     markerSurvived    = Test-Path $marker
     sessionsKept      = Test-Path $SessionsDir
+    # the certificate the installer imported must be GONE (no orphaned
+    # trust anchor). The registry value is read BEFORE the key deletion
+    # check below - snapshot order matters.
+    certGoneFromRoot = if ($uninstallThumbprint) { -not (Get-ChildItem Cert:\LocalMachine\Root -ErrorAction SilentlyContinue | Where-Object Thumbprint -eq $uninstallThumbprint) } else { $false }
+    certGoneFromTP   = if ($uninstallThumbprint) { -not (Get-ChildItem Cert:\LocalMachine\TrustedPublisher -ErrorAction SilentlyContinue | Where-Object Thumbprint -eq $uninstallThumbprint) } else { $false }
 }
 Write-Evidence -Name '08-after-uninstall.json' -Content ($after | ConvertTo-Json -Depth 4)
 $uninstallOk = ($after.exitCode -eq 0) -and (-not $after.swKeyExists) -and (-not $after.uninstallKeyExists) -and
-    ($after.driverService -eq 'gone') -and $after.markerSurvived
+    ($after.driverService -eq 'gone') -and $after.markerSurvived -and
+    $after.certGoneFromRoot -and $after.certGoneFromTP
 Add-Row -Phase 'uninstall(silent)' -Result $(if ($uninstallOk) { 'ok' } else { 'CHECK-LEFTOVERS' }) -Facts @{
     exitCode      = $after.exitCode
     leftoverFiles = $after.leftovers
@@ -306,6 +380,8 @@ Add-Row -Phase 'uninstall(silent)' -Result $(if ($uninstallOk) { 'ok' } else { '
     unKeyGone     = -not $after.uninstallKeyExists
     driverGone    = $after.driverService -eq 'gone'
     sysDriverGone = -not $after.sysDriverFile
+    certGoneRoot  = $after.certGoneFromRoot
+    certGoneTP    = $after.certGoneFromTP
     sessionsKept  = $after.sessionsKept
 }
 
