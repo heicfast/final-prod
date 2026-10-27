@@ -1256,3 +1256,33 @@ signature-parse are recorded as complementary evidence, both kept; the
 landed CI-table/release-row forms win, this lane's unique PKCS#7-parse
 facts merged in as the addendum). No code changed; no lane re-triggered
 beyond the docs paths.
+
+---
+## Session start (debug & integration) — T1 complete: repositories cloned, prompt saved, prior-state read
+
+Repos recorded: final-prod @ af5c838ab71d37a129f81e327e632dff6a717e4e (this
+repository, main); research corpus heicfast/easeus-drw-research @
+03ad46ccd6086000e53d7d3871ef43cd7f32e462 (read-only ground truth). The session
+prompt is saved token-redacted at `worklog/session-debug-integration-prompt.md`.
+
+Reported symptoms to reproduce (from the user, not hypotheses): installer
+PowerShell popup; SMART one-drive/percentage-only; scan dead at ~40% with no
+results; every other surface dead or fake. The driver installs and runs.
+
+Source-level confirmations already made before any runner work:
+- `installer/recoverywizard.nsi:342-349` — `ExecWait 'powershell.exe
+  -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\driver\install.ps1" ...'`
+  (and the uninstall twin at :608): a visible console window during install —
+  the PowerShell-popup root cause, to be fixed in the installer replacement.
+- `ui/src-tauri/src/lib.rs` — the shipped shell has NO file logging (eprintln
+  only): an installed-app failure leaves no evidence trail. A diagnostic log
+  seam is required for honest reproduction.
+- Prior validation evidence review (`docs/INTEGRATION-VALIDATION.md`): ui-e2e
+  ran on the test-mode build (test double, not the engine); T14 measured the
+  bridge/engine directly; health/SMART was never validated (no physical
+  hardware). The installed UI surfaces the user reports broken were never
+  exercised end-to-end.
+
+Next: T2 (reproduce every symptom on a real Windows runner with the installed
+v0.6.0-rc1 product), T3 (INTEGRATION-GAPS.md current-reality commit), T4
+(parallel reading agents A-E).
