@@ -24,6 +24,8 @@
 
 #ifdef _WIN32
 #include <windows.h> /* the \\.\RDA presence probe in TransportErrorAdvisoryZeroOnCleanState */
+#undef small         /* rpcndr.h (via windows.h) #defines 'small' as char -                        \
+                        the suite uses 'small' as a variable name at :479 */
 #endif
 
 #include <atomic>
@@ -2281,9 +2283,8 @@ TEST(CrUi, TransportErrorAdvisoryZeroOnCleanState) {
 #ifdef _WIN32
     bool rda_present = false;
     {
-        HANDLE probe = CreateFileW(L"\\\\.\\RDA", GENERIC_READ,
-                                   FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING,
-                                   0, nullptr);
+        HANDLE probe = CreateFileW(L"\\\\.\\RDA", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                   nullptr, OPEN_EXISTING, 0, nullptr);
         if (probe != INVALID_HANDLE_VALUE) {
             CloseHandle(probe);
             rda_present = true;

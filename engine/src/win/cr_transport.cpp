@@ -21,8 +21,8 @@
 #include "cr/win/cr_transport.h"
 #include "cr/win/cr_rda.h"
 #include "cr/win/cr_enumerate.h" /* S-010: volume enumeration for the lock sequence */
-#include "cr/win/cr_winenv.h"    /* the S-010 quiesce-chain pins (the PE gate died with the fallback) */
-#include "cr/cr_log.h"           /* N-048 seam: the OFFLINE failure line */
+#include "cr/win/cr_winenv.h" /* the S-010 quiesce-chain pins (the PE gate died with the fallback) */
+#include "cr/cr_log.h"        /* N-048 seam: the OFFLINE failure line */
 #include "cr/table/cr_table_parse.h"
 #include "cr/storage/cr_directalign.h"
 #include <windows.h>
@@ -406,7 +406,6 @@ bool rda_available(const wchar_t* service_name, u32* last_error) {
     CloseHandle(h);
     return true;
 }
-
 
 bool volume_extent(wchar_t letter, u32* disk, u64* start, u64* len) {
     wchar_t vol[8];
