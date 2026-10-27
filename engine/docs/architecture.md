@@ -31,8 +31,10 @@ bounded storage views (cr::storage)
    ▼
 platform transports (cr::win)               [Windows]
    RDA driver client (\\.\RDA\<token>\<d>\<p> | Volume\<n>) - PID-token handshake
-   direct handles (\\.\PhysicalDriveN / HarddiskVolumeN) - reference duality
-   enumeration (geometry 4Kn/512e, GPT/MBR via pure core)
+   DRIVER-ONLY data path (docs/DRIVER-REQUIRED.md): classified ERR_DRIVER_*
+   refusals replace the removed direct fallback + WinPE gate
+   enumeration (geometry 4Kn/512e, GPT/MBR via pure core) - control path,
+   driver-independent by og evidence
    BitLocker detect + legitimate unlock (fix F13) + in-stack XTS-AES
    decrypt for user-key opt-in (M-033: DecryptingDevice wraps the volume
    slice, per-sector LE-index tweaks; FVEK input surface; locked-without-

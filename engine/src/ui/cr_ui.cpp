@@ -1152,58 +1152,39 @@ void set_last_transport_error_(uint32_t e) {
 u32 open_disk_impl(uint32_t disk, cr_ui_device** out) {
     if (!out)
         return ret_(ERR_BAD_PARAMETER, "bad argument: out");
-    u32 err = 0, gle = 0;
-    /* M-030: the og's WinPE gate - in a PE environment the corpus
-     * callers open \\.\PhysicalDrive%d directly and never attempt the
-     * service grammar (Device_decompiled.c :50653-50663); the core's
-     * RDA driver is not present on PE media either. */
-    if (!win::win_pe_environment() && win::rda_available(L"RDA", &gle)) {
-        if (auto dev = win::open_rda_partition(L"RDA", disk, 0, &err)) {
-            auto* d = new CrDevice();
-            d->dev = std::move(dev);
-            d->disk = disk;
-            d->disk_known = true;
-            d->transport = "rda";
-            *out = reinterpret_cast<cr_ui_device*>(d);
-            return ret_ok();
+    /* Driver-only (docs/DRIVER-REQUIRED.md; PLAN-DRIVER-ONLY R4/R12): the
+     * WinPE gate, the availability probe and the direct fallback are all
+     * REMOVED. A non-Ready driver state is a classified refusal - the
+     * ERR_DRIVER_* code is the return value, the diagnostic channel
+     * (cr_ui_last_transport_error) and the UI presentation contract. */
+    win::DriverStatus st;
+    if (win::query_driver_status(win::kDefaultDriverService, &st) == OK) {
+        const win::DriverState ds = win::driver_state(st);
+        if (ds != win::DriverState::Ready) {
+            const u32 rc = win::driver_state_error(ds);
+            set_last_transport_error_(rc);
+            return ret_(rc, "driver prerequisite not met (state %s) - see "
+                         "docs/DRIVER-REQUIRED.md",
+                        win::driver_state_name(ds));
         }
-        /* M-030: the RDA leg's failure reason is now PRESERVED - the
-         * pre-fix code let the direct leg overwrite *err, so the ABI
-         * could never distinguish "driver absent" from "driver open
-         * failed with X" (the finding's silent-fallback claim). The
-         * final failure reports the RDA leg's error when the direct leg
-         * has nothing more specific; cr_ui_last_transport_error()
-         * surfaces the diagnostic either way. */
-        u32 rda_err = err;
-        auto dev = win::open_physical_drive(disk, &err);
-        if (!dev) {
-            set_last_transport_error_(rda_err ? rda_err : err);
-            return ret_(err ? err : u32(ERR_OPEN_FAILED),
-                        "cannot open disk %u (RDA and direct paths failed)", disk);
-        }
-        set_last_transport_error_(rda_err);
+    }
+    u32 err = 0;
+    if (auto dev = win::open_rda_partition(win::kDefaultDriverService, disk, 0, &err)) {
         auto* d = new CrDevice();
         d->dev = std::move(dev);
         d->disk = disk;
         d->disk_known = true;
-        d->transport = "direct";
+        d->transport = "rda";
         *out = reinterpret_cast<cr_ui_device*>(d);
+        set_last_transport_error_(0);
         return ret_ok();
     }
-    auto dev = win::open_physical_drive(disk, &err);
-    if (!dev) {
-        set_last_transport_error_(err);
-        return ret_(err ? err : u32(ERR_OPEN_FAILED),
-                    "cannot open disk %u (RDA and direct paths failed)", disk);
-    }
-    set_last_transport_error_(0);
-    auto* d = new CrDevice();
-    d->dev = std::move(dev);
-    d->disk = disk;
-    d->disk_known = true;
-    d->transport = "direct";
-    *out = reinterpret_cast<cr_ui_device*>(d);
-    return ret_ok();
+    /* driver Ready but the TARGET would not open: a target error, never a
+     * silent transport switch (the pre-driver-only code fell back to
+     * \\.\PhysicalDriveN here - CORE-DISK-ACCESS F5/F6). */
+    set_last_transport_error_(err);
+    return ret_(err ? err : u32(ERR_OPEN_FAILED),
+                "cannot open disk %u through the RDA driver path", disk);
 }
 
 u32 open_volume_impl(char letter, cr_ui_device** out) {
@@ -1226,16 +1207,29 @@ u32 open_volume_impl(char letter, cr_ui_device** out) {
     u64 start = 0, len = 0;
     if (!win::volume_extent(wchar_t(letter), &disk, &start, &len))
         return ret_(ERR_OPEN_FAILED, "cannot map %c: to a disk extent", letter);
-    u32 err = 0, gle = 0;
-    std::unique_ptr<IStorageDevice> whole;
-    const char* transport = "direct";
-    if (win::rda_available(L"RDA", &gle)) {
-        if ((whole = win::open_rda_partition(L"RDA", disk, 0, &err)))
-            transport = "rda";
+    /* Driver-only (PLAN-DRIVER-ONLY R5/R6): classified refusal - no probe,
+     * no whole-disk direct fallback (CORE-DISK-ACCESS F7/F8). */
+    win::DriverStatus st;
+    if (win::query_driver_status(win::kDefaultDriverService, &st) == OK) {
+        const win::DriverState ds = win::driver_state(st);
+        if (ds != win::DriverState::Ready) {
+            const u32 rc = win::driver_state_error(ds);
+            set_last_transport_error_(rc);
+            return ret_(rc, "driver prerequisite not met (state %s) - see "
+                         "docs/DRIVER-REQUIRED.md",
+                        win::driver_state_name(ds));
+        }
     }
-    if (!whole && !(whole = win::open_physical_drive(disk, &err)))
-        return ret_(err ? err : u32(ERR_OPEN_FAILED), "cannot open disk %u for volume %c:", disk,
+    u32 err = 0;
+    std::unique_ptr<IStorageDevice> whole =
+        win::open_rda_partition(win::kDefaultDriverService, disk, 0, &err);
+    if (!whole) {
+        set_last_transport_error_(err);
+        return ret_(err ? err : u32(ERR_OPEN_FAILED),
+                    "cannot open disk %u for volume %c: through the RDA driver path", disk,
                     letter);
+    }
+    const char* transport = "rda";
     auto slice = PartitionSlice::create(whole.get(), start, len, nullptr);
     if (!slice)
         return ret_(ERR_OPEN_FAILED, "slice creation failed for %c: (@%llu +%llu)", letter,
@@ -1297,16 +1291,29 @@ u32 open_volume_with_key_impl(char letter, const char* utf8_hex_fvek, cr_ui_devi
     u64 start = 0, len = 0;
     if (!win::volume_extent(wchar_t(letter), &disk, &start, &len))
         return ret_(ERR_OPEN_FAILED, "cannot map %c: to a disk extent", letter);
-    u32 err = 0, gle = 0;
-    std::unique_ptr<IStorageDevice> whole;
-    const char* transport = "direct";
-    if (win::rda_available(L"RDA", &gle)) {
-        if ((whole = win::open_rda_partition(L"RDA", disk, 0, &err)))
-            transport = "rda";
+    /* Driver-only (PLAN-DRIVER-ONLY R5/R6): classified refusal - no probe,
+     * no whole-disk direct fallback (CORE-DISK-ACCESS F7/F8). */
+    win::DriverStatus st;
+    if (win::query_driver_status(win::kDefaultDriverService, &st) == OK) {
+        const win::DriverState ds = win::driver_state(st);
+        if (ds != win::DriverState::Ready) {
+            const u32 rc = win::driver_state_error(ds);
+            set_last_transport_error_(rc);
+            return ret_(rc, "driver prerequisite not met (state %s) - see "
+                         "docs/DRIVER-REQUIRED.md",
+                        win::driver_state_name(ds));
+        }
     }
-    if (!whole && !(whole = win::open_physical_drive(disk, &err)))
-        return ret_(err ? err : u32(ERR_OPEN_FAILED), "cannot open disk %u for volume %c:", disk,
+    u32 err = 0;
+    std::unique_ptr<IStorageDevice> whole =
+        win::open_rda_partition(win::kDefaultDriverService, disk, 0, &err);
+    if (!whole) {
+        set_last_transport_error_(err);
+        return ret_(err ? err : u32(ERR_OPEN_FAILED),
+                    "cannot open disk %u for volume %c: through the RDA driver path", disk,
                     letter);
+    }
+    const char* transport = "rda";
     auto slice = PartitionSlice::create(whole.get(), start, len, nullptr);
     if (!slice)
         return ret_(ERR_OPEN_FAILED, "slice creation failed for %c: (@%llu +%llu)", letter,
@@ -1362,6 +1369,56 @@ u32 unlock_volume_with_dictionary_impl(char letter, const char* const* utf8_user
                 unsigned(ptrs.size()));
 }
 
+/* The driver-status surface (docs/DRIVER-REQUIRED.md section 3; ABI-since
+ * 2.x, additive): fills every facet from the platform query and maps the
+ * classified state to the C enum. The QUERY itself never fails on a driver
+ * condition - it reports it (out->state carries the class); only a null
+ * argument or a query-machinery failure returns non-zero. */
+u32 driver_status_impl(cr_ui_driver_status_t* out) {
+    if (!out)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: out");
+    std::memset(out, 0, sizeof(*out));
+    win::DriverStatus st;
+    const u32 qrc = win::query_driver_status(win::kDefaultDriverService, &st);
+    if (qrc != OK)
+        return ret_(qrc, "driver status query failed");
+    const win::DriverState ds = win::driver_state(st);
+    switch (ds) {
+    case win::DriverState::Ready:
+        out->state = CR_UI_DRIVER_STATE_READY;
+        break;
+    case win::DriverState::Absent:
+        out->state = CR_UI_DRIVER_STATE_ABSENT;
+        break;
+    case win::DriverState::NotStarted:
+        out->state = CR_UI_DRIVER_STATE_NOT_STARTED;
+        break;
+    case win::DriverState::Unauthorized:
+        out->state = CR_UI_DRIVER_STATE_UNAUTHORIZED;
+        break;
+    case win::DriverState::VersionMismatch:
+        out->state = CR_UI_DRIVER_STATE_VERSION_MISMATCH;
+        break;
+    case win::DriverState::Errored:
+    default:
+        out->state = CR_UI_DRIVER_STATE_ERRORED;
+        break;
+    }
+    out->service_present = st.service_present ? 1u : 0u;
+    out->service_running = st.service_running ? 1u : 0u;
+    out->device_openable = st.device_openable ? 1u : 0u;
+    out->authorized = st.authorized ? 1u : 0u;
+    out->info_valid = st.info_valid ? 1u : 0u;
+    out->major = st.major;
+    out->minor = st.minor;
+    out->required_major = win::kDriverWireMajorRequired;
+    out->flags = st.flags;
+    out->max_disks = st.max_disks;
+    out->ioctl_base = st.ioctl_base;
+    out->last_gle = st.last_gle;
+    return ret_ok();
+}
+
 #else /* !_WIN32 */
 
 u32 open_disk_impl(uint32_t disk, cr_ui_device** out) {
@@ -1394,6 +1451,16 @@ u32 unlock_volume_with_dictionary_impl(char letter, const char* const* utf8_user
     (void)count;
     return ret_(ERR_UNSUPPORTED,
                 "cr_ui_unlock_volume_with_dictionary requires the Windows platform layer");
+}
+
+u32 driver_status_impl(cr_ui_driver_status_t* out) {
+    if (!out)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: out");
+    /* No platform layer on this lane: the surface is honestly unsupported
+     * (the classifier itself is platform-independent and unit-pinned in
+     * tests/unit/test_driver_status.cpp; the Windows runner proves the real
+     * query - PLAN-DRIVER-ONLY section 7). */
+    return ret_(ERR_UNSUPPORTED, "cr_ui_driver_status requires the Windows platform layer");
 }
 
 #endif
@@ -1448,6 +1515,9 @@ extern "C" CR_UI_API uint32_t cr_ui_open_volume(char letter, cr_ui_device** out)
 extern "C" CR_UI_API uint32_t cr_ui_open_volume_with_key(char letter, const char* utf8_hex_fvek,
                                                          cr_ui_device** out) {
     return guarded(open_volume_with_key_impl, letter, utf8_hex_fvek, out);
+}
+extern "C" CR_UI_API uint32_t cr_ui_driver_status(cr_ui_driver_status_t* out) {
+    return guarded(driver_status_impl, out);
 }
 extern "C" CR_UI_API uint32_t cr_ui_unlock_volume_with_dictionary(
     char letter, const char* const* utf8_user_passwords, uint32_t count) {
@@ -1622,9 +1692,8 @@ repair::IWriteDevice* ui_repair_open_writer(void* user) {
 #ifdef _WIN32
     if (d->disk_known) {
         u32 err = OK;
-        auto w = win::open_disk_rw(d->disk, true, L"RDA", &err);
-        if (!w)
-            w = win::open_disk_rw(d->disk, false, nullptr, &err);
+        /* driver-only (PLAN-DRIVER-ONLY R9): the direct RW retry is gone */
+        auto w = win::open_disk_rw(d->disk, win::kDefaultDriverService, &err);
         if (!w)
             return nullptr;
         s->repair_writer = std::move(w);
@@ -1711,9 +1780,9 @@ void arm_ldm_resolver(CrScan* s) {
     auto guid_map = std::make_shared<std::map<table::LdmGuid, IStorageDevice*>>();
     for (const auto& pd : list) {
         u32 oerr = 0;
-        auto dev = win::open_disk(pd.number, true, L"RDA", &oerr);
-        if (!dev)
-            dev = win::open_disk(pd.number, false, L"RDA", &oerr);
+        /* driver-only (PLAN-DRIVER-ONLY R8): the direct retry is gone - a
+         * member that will not open through RDA simply does not resolve */
+        auto dev = win::open_disk(pd.number, win::kDefaultDriverService, &oerr);
         if (!dev)
             continue;
         u8 sec[512];
@@ -2054,11 +2123,10 @@ std::unique_ptr<apply::IApplyDevice> ui_apply_open_writer(CrDevice* d) {
 #ifdef _WIN32
     if (d->disk_known) {
         u32 err = OK;
-        if (auto w = win::open_disk_apply_rw(d->disk, true, L"RDA", &err))
-            return w;
-        if (auto w2 = win::open_disk_apply_rw(d->disk, false, nullptr, &err))
-            return w2;
-        return nullptr;
+        /* driver-only (PLAN-DRIVER-ONLY R9): the direct apply-view retry is
+         * gone; the S-029 device-control chain issues through the RDA bound
+         * handle (the driver passes non-session IOCTLs through) */
+        return win::open_disk_apply_rw(d->disk, win::kDefaultDriverService, &err);
     }
 #endif
     return nullptr;

@@ -156,7 +156,7 @@ recovery. Core: no driver polling, no driver events; progress/events are
 engine-side pushes to the host. Nothing to add — matching the reference means
 not inventing driver events.
 
-### 1.9 Driver-absent behavior — **MATCH**
+### 1.9 Driver-absent behavior — **REMOVED (deliberate divergence, driver-only session)**
 
 Reference: every EPRDTDRV open first probes (`FUN_1800577e0`); on probe
 failure the SAME code path opens `\\.\HarddiskVolume%d` /
@@ -165,11 +165,19 @@ mode" (`epmntdrv-trio §6`; sites `Device_decompiled.c:352-359, 7816-7823,
 50653-50660, 52437-52444, 54667-54673`). Missing service → probe returns 0,
 no refusal (`PartitionRecovery_decompiled.c:2606-2611`).
 
-Core: `cr_ui_open_disk` → `rda_available` (bare CreateFile probe — same probe
-semantics as the og; no GET_INFO) → grammar open → direct PhysicalDrive
-fallback (cr_ui.cpp:885-911; cr_transport.cpp:718-728). The fallback is
-observable via `cr_ui_device_transport` ("rda"/"direct"/"image") — a
-truthfulness superset, same refusal semantics (none) as the reference.
+Core (driver-only session): **the fallback is gone**. The data path is the
+RDA grammar path ONLY; a non-Ready driver state is a classified refusal
+(`ERR_DRIVER_*` family 0x500B: absent / not-started / unauthorized /
+version-mismatch / errored) returned by every driver-requiring open and
+surfaced by the CLI as exit 4 with per-condition stderr (docs/DRIVER-REQUIRED.md).
+`rda_available` (the boolean probe) is deleted — superseded by
+`query_driver_status` + the pure `driver_state` classifier
+(cr/win/cr_driver_status.h; pinned on the Linux lane by
+tests/unit/test_driver_status.cpp). The WinPE gate is removed with it (the
+driver is required in PE too; rda-driver ships scripts/winpe/regdrv-rda.reg).
+This is a registered divergence (PARITY-DELTAS): the product does not market
+a non-driver path, and silent degradation was the direct cause of the
+"product installed, nothing works" failure class.
 
 ### 1.10 Buffering — **MATCH**
 
@@ -233,7 +241,7 @@ to artifacts).
 | Access control (SDDL) | DELIBERATE DIVERGENCE — keep, documented |
 | Read granularity | **MATCHED to og class** — 256 KiB blocks + unified envelope; sweep measures the plateau |
 | Push/pull events | MATCH — verified (pull on both sides) |
-| Driver-absent fallback | MATCH — verified |
+| Driver-absent behavior | **REMOVED (deliberate divergence)** — driver-only, classified refusals (docs/DRIVER-REQUIRED.md) |
 | Buffering per class | MATCH — verified |
 | 64 KiB envelope on EVERY direct read | **MATCH — unified on both transports, exhaustively unit-proven, CI-benched** |
 

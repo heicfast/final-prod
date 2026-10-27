@@ -101,13 +101,14 @@ rrecov CLI ──────────────── cr_ui C-ABI shim (cr
 │   FAT chains, GPT/MBR/EBR/LDM tables, signature tables — unit-     │
 │   tested on Linux, sanitizer-clean (ASan/UBSan/TSan)               │
 ├────────────────────────────────────────────────────────────────────┤
-│ platform (Windows): enumeration, geometry, RDA grammar + direct    │
-│   PhysicalDrive/HarddiskVolume handles (WinPE gate), retry pipe +  │
-│   error map, BitLocker (unlock + XTS decrypt), images, quiesce     │
+│ platform (Windows): enumeration, geometry, the DRIVER-ONLY RDA     │
+│   grammar path (classified ERR_DRIVER_* refusals, docs/             │
+│   DRIVER-REQUIRED.md), retry pipe + error map, BitLocker (unlock     │
+│   + XTS decrypt), images, quiesce                                   │
 └────────────────────────────────────────────────────────────────────┘
                           │
                           ▼
-        rda-driver (\\.\RDA\<token>\<disk>\<part>) or direct handles
+        rda-driver (\\.\RDA\<token>\<disk>\<part>) - the only data path
 ```
 
 ## Status

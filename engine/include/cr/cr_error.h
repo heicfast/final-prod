@@ -83,6 +83,20 @@ enum Err : u32 {
 
     /* --- generic engine failure (task exceptions, defensive) --- */
     ERR_INTERNAL = 0x50090001,
+
+    /* --- driver precondition (docs/DRIVER-REQUIRED.md; the driver-only
+     * mandate's refusal taxonomy - each condition a distinct class, every
+     * driver-requiring operation fails fast with exactly one of them;
+     * classification state machine in cr/win/cr_driver_status.h) --- */
+    ERR_DRIVER_ABSENT = 0x500B0001,           /* service not installed */
+    ERR_DRIVER_NOT_STARTED = 0x500B0002,      /* installed, not running */
+    ERR_DRIVER_UNAUTHORIZED = 0x500B0003,     /* device DACL denied the open */
+    ERR_DRIVER_VERSION_MISMATCH = 0x500B0004, /* GET_INFO major != required */
+    ERR_DRIVER_ERRORED = 0x500B0005,          /* running but unusable (the
+                                               * v0.2.0 error-87 class, a
+                                               * GET_INFO failure on an
+                                               * opened device, or an
+                                               * inconsistent version pair) */
 };
 
 /* Human-readable text for codes used in CLI output and logs. */

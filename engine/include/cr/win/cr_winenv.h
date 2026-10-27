@@ -25,7 +25,14 @@ namespace win {
  * return: 0 (live Windows) -> the PID-token service grammar;
  * nonzero (PE) -> \\.\PhysicalDrive%d / \\.\HarddiskVolume%d DIRECT.
  * The decompiler typed the probe void (OQ-3 of the finding) - the four
- * caller branch patterns pin the polarity: NONZERO = WinPE. */
+ * caller branch patterns pin the polarity: NONZERO = WinPE.
+ *
+ * DRIVER-ONLY SESSION NOTE (2026-10-27): the core's win_pe_environment()
+ * gate (the og-parity M-030 port) was REMOVED with the direct fallback -
+ * the driver is now required everywhere, PE included (docs/DRIVER-
+ * REQUIRED.md; PARITY-DELTAS D-DRV-2). This predicate survives as the
+ * corpus pin the tests assert against (the evidence of what the og did),
+ * not as a transport decision in this core. */
 inline bool pe_environment_by_system_drive(char system_drive_letter) {
     return system_drive_letter == 'X' || system_drive_letter == 'x';
 }

@@ -277,29 +277,85 @@ CR_UI_API uint32_t cr_ui_open_image(const char* utf8_path, uint64_t offset, uint
 /* bytes == 0: from offset to end of file. Exposed as a 512-byte-sector
  * read-only device bounded to [offset, offset+bytes). */
 
-/* Windows only (platform layer): ERR_UNSUPPORTED elsewhere. open_disk
- * prefers the RDA driver transport, falling back to \\.\PhysicalDriveN
- * (the reference duality; the chosen transport is reported by
- * cr_ui_device_transport). open_volume mirrors the CLI: BitLocker state
- * is probed first - a locked volume is refused with CR_UI_ERR_FVE_LOCKED
- * (0x50060001) unless auto-unlock succeeds; the returned device is the
- * volume's slice on its parent disk (kept alive internally). */
+/* Windows only (platform layer): ERR_UNSUPPORTED elsewhere. DRIVER-ONLY
+ * (docs/DRIVER-REQUIRED.md): open_disk/open_volume/open_volume_with_key
+ * REFUSE with the classified ERR_DRIVER_* code (0x500B0001..0x500B0005)
+ * when the RDA driver is absent, not started, unauthorized,
+ * version-incompatible, or errored - there is NO direct-handle fallback
+ * (the reference duality was removed by deliberate divergence,
+ * PLAN-DRIVER-ONLY; the chosen transport is always "rda" and is reported
+ * by cr_ui_device_transport). A failure with a Ready driver is a target
+ * error (ERR_OPEN_FAILED et al). open_volume mirrors the CLI: BitLocker
+ * state is probed first - a locked volume is refused with
+ * CR_UI_ERR_FVE_LOCKED (0x50060001) unless auto-unlock succeeds; the
+ * returned device is the volume's slice on its parent disk (kept alive
+ * internally). */
 CR_UI_API uint32_t cr_ui_open_disk(uint32_t disk, cr_ui_device** out);
 CR_UI_API uint32_t cr_ui_open_volume(char letter, cr_ui_device** out);
 
 /* M-030 (diff-to-fix; ABI-since 2.2, additive - compatible per the ABI
- * policy, no version bump): the transport-open diagnostic. The og's ABI
- * surface reports WHY the driver transport was not used; the pre-fix
- * core silently fell back RDA -> direct and overwrote the RDA leg's
- * error (the finding's claim (f)). Returns the surviving transport
- * leg's error code from the LAST cr_ui_open_disk on this process:
- *   0                  the last open succeeded (or none was attempted)
- *   CR_UI_ERR_*        the failed leg's code (e.g. the RDA open's error
- *                      when the direct fallback then succeeded - a
- *                      degraded-but-working transport is diagnosable as
- *                      such). Advisory only: never gates an open's own
- *                      return code; never clears; process-global. */
+ * policy, no version bump): the transport-open diagnostic. With the
+ * driver-only architecture (docs/DRIVER-REQUIRED.md) this carries the
+ * classified ERR_DRIVER_* refusal code from the LAST open call (or the
+ * surviving target error): the presentation contract for hosts that
+ * surface transport diagnostics. Advisory only: never gates an open's
+ * own return code; never clears; process-global. */
 CR_UI_API uint32_t cr_ui_last_transport_error(void);
+
+/* ---- The driver-status surface (docs/DRIVER-REQUIRED.md; ABI-since 2.x,
+ * additive - compatible per the ABI policy, no version bump) ----
+ *
+ * The single synchronous query answering every mandated facet: present /
+ * loaded / started / authorized / healthy / version. Registered as a
+ * deliberate product-scope divergence (PARITY-DELTAS): the reference
+ * product exposes NO driver-status surface to its UI (the service-start
+ * result is discarded; failed driver opens are silent NULL devices -
+ * REFERENCE-DRIVER-BEHAVIOR section 2-3); this core refuses silently-
+ * degrading instead, and the status surface is how a host shows the user
+ * exactly which prerequisite is unmet.
+ *
+ * Facet -> mechanism (DRIVER-CONTRACT section 8; the driver's entire
+ * user-mode surface is the control-device open + GET_INFO):
+ *   service_present  SCM OpenService        (installed)
+ *   service_running  SCM QueryServiceStatus (loaded)
+ *   device_openable  CreateFile on the control device (started)
+ *   authorized       the open is not ERROR_ACCESS_DENIED (device DACL)
+ *   info_valid       GET_INFO + GET_VERSION consistent round-trip
+ *                    (healthy) - there is no health/heartbeat IOCTL
+ *   major/minor      GET_INFO, cross-checked against GET_VERSION
+ *
+ * Threading: synchronous, thread-safe, stateless between calls. Lifecycle:
+ * none (a standalone query). Errors: 0 on a completed query (the state is
+ * in *out - including non-Ready states); CR_UI_ERR_BAD_PARAMETER on null;
+ * CR_UI_ERR_UNSUPPORTED off-Windows. state == CR_UI_DRIVER_STATE_READY
+ * means every driver-requiring operation may proceed; each other state
+ * maps 1:1 to the ERR_DRIVER_* family (driver_state_error in
+ * cr/win/cr_driver_status.h). */
+#define CR_UI_DRIVER_STATE_READY 0u
+#define CR_UI_DRIVER_STATE_ABSENT 1u
+#define CR_UI_DRIVER_STATE_NOT_STARTED 2u
+#define CR_UI_DRIVER_STATE_UNAUTHORIZED 3u
+#define CR_UI_DRIVER_STATE_VERSION_MISMATCH 4u
+#define CR_UI_DRIVER_STATE_ERRORED 5u
+
+typedef struct cr_ui_driver_status_t {
+    uint32_t state;           /* CR_UI_DRIVER_STATE_* */
+    uint32_t service_present; /* 0/1 */
+    uint32_t service_running; /* 0/1 */
+    uint32_t device_openable; /* 0/1 */
+    uint32_t authorized;      /* 0/1 */
+    uint32_t info_valid;      /* 0/1 (healthy) */
+    uint32_t major;           /* driver wire version, from GET_INFO */
+    uint32_t minor;
+    uint32_t required_major; /* the core's compatibility requirement */
+    uint32_t flags;          /* DriverInfo capability echo */
+    uint32_t max_disks;
+    uint32_t ioctl_base;
+    uint32_t last_gle; /* diagnostic: last Win32 error from the
+                        * probe that failed (0 when green) */
+} cr_ui_driver_status_t;
+
+CR_UI_API uint32_t cr_ui_driver_status(cr_ui_driver_status_t* out);
 
 /* M-033 (additive export - compatible per the ABI policy, no version bump):
  * locked-volume open with a user-supplied FVEK - the in-stack XTS-AES

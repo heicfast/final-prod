@@ -2960,3 +2960,64 @@ the og's exact undo chain spawns chkdsk itself from the undo record.
 **VERDICT:** ACCEPTED (registered dispositions: (c) skippable per the
 Win7-boots-BCD envelope; (d) UI-layer responsibility; stages (a) landed +
 (b) tracked on M-040).
+
+## U. Driver-only session (2026-10-27) — the architecture divergences
+
+Evidence base: REFERENCE-DRIVER-BEHAVIOR.md (the corpus's own picture of the
+og's driver posture), CORE-DISK-ACCESS.md (the pre-change fallback map),
+PLAN-DRIVER-ONLY.md (the removal plan), DRIVER-REQUIRED.md (the new contract).
+The user mandate for this session is the product decision behind every row.
+
+**D-DRV-1 — the direct-access fallback is REMOVED (data path is driver-only).**
+REFERENCE: the og's duality is environment-gated, not failure-gated
+(Device.mo FUN_1800577e0; a failed EPRDTDRV open is a silent NULL device — no
+site retries the other transport), and our core had ADDED a failure-gated
+fallback superset on top (CORE-DISK-ACCESS F1-F12). CORE: the superset is
+deleted; every driver-requiring open refuses with its ERR_DRIVER_* class
+(0x500B family); the CLI refuses with exit 4 + per-condition stderr before any
+other output. RATIONALE: the product does not market a non-driver path, and
+silent degradation was the direct cause of the "product installed, nothing
+works" failure the user experienced. RISK: a user who could previously scan an
+unlocked, healthy volume without the driver now gets a refusal — the refusal
+is actionable (install/start/elevate/update/reinstall) and the driver ships in
+the installer. VERDICT: ACCEPTED (deliberate divergence; mandate §2).
+
+**D-DRV-2 — the WinPE gate is REMOVED (driver required in WinPE too).**
+REFERENCE: the og opens \\.\PhysicalDrive%d directly inside WinPE by design
+(cr_winenv.h pins; M-030). CORE: no PE exemption — the driver is the
+prerequisite everywhere; rda-driver ships scripts/winpe/regdrv-rda.reg so PE
+media can register it (DRIVER-RELEASE §6). RATIONALE: a driverless PE mode is
+exactly the silent-degradation posture the product is eliminating; WinPE
+signing is relaxed for registered drivers. VERDICT: ACCEPTED (deliberate
+divergence; mandate §2 "no user-visible phase proceeds without the driver").
+
+**D-DRV-3 — the driver-status surface is ADDED (product scope, not parity).**
+REFERENCE: the og exposes NO driver-status surface to its UI — the
+service-start result is discarded (PartitionRecovery_decompiled.c:2611), no
+version negotiation, no per-facet queries (REFERENCE-DRIVER-BEHAVIOR §3;
+REFERENCE-API-GAP R-84 + corpus-silence list). CORE: present/loaded/started/
+authorized/healthy/version facets via win::query_driver_status +
+cr_ui_driver_status + the `rrecov driver` verb (exit 0/4). RATIONALE: the
+session mandate requires the per-facet surface; a product that refuses must
+also say WHY, which the og never did. This is a truthfulness superset in the
+D-24/ADR-5 family. VERDICT: ACCEPTED (product-scope divergence, mandate §3).
+
+**D-DRV-4 — the core does NOT demand-start the driver service.**
+REFERENCE: the og calls StartServiceA at every enumeration refresh and treats
+ERROR_SERVICE_ALREADY_RUNNING as success (PartitionRecovery_decompiled.c:
+2620-2622). CORE: a stopped service is a NotStarted refusal naming `sc start
+RDA` / the installer. RATIONALE: the installer owns service lifecycle
+(DRIVER-REQUIRED §5); surprise service starts from a user-mode core are a
+privilege and state-management hazard the product explicitly declines.
+VERDICT: ACCEPTED (deliberate divergence; mandate §2's refusal contract).
+
+**D-DRV-5 — GET_INFO/GET_VERSION are now issued (the wire contract goes live).**
+REFERENCE: the og issues only GetDiskContextMode (0x60002408) — the extended
+RDA IOCTLs postdate the reference binaries (DRIVER-CONTRACT §5; the core's own
+cr_rda.h documented them as documentation-only, "no core code issues them",
+N-041). CORE: query_driver_status issues GET_INFO (0x60002440) + GET_VERSION
+(0x60002448) on the global control-device handle; the version-compatibility
+contract is major-match/minor-informative. RATIONALE: the status surface's
+version/healthy facets need them; the driver serves both on global handles.
+VERDICT: ACCEPTED (wire-contract activation, our own driver's documented
+surface — no og behavior is contradicted because the og never had them).

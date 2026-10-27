@@ -155,7 +155,10 @@ Proven scheme we re-implement in our own .crsf format:
   2-segment `\<token>\<disk>`; token = b0|(b0+b1)<<8|(b1+b2)<<16|(b2+b3)<<24.
 - READ contract: byte lengths/offsets; Information = length * 512 (legacy scale);
   clients divide by sector size (verified both sides).
-- Direct fallbacks (reference duality): `\\.\PhysicalDriveN`, `\\.\HarddiskVolumeN`.
+- Direct fallbacks: **REMOVED** (driver-only architecture, docs/DRIVER-REQUIRED.md —
+  the failure-gated fallback superset was ours, not the og's; the og's own duality is
+  environment-gated WinPE-direct, REFERENCE-DRIVER-BEHAVIOR §4, and is itself diverged
+  from: the driver is required everywhere, PE included).
 
 ## 11. UI binding surface (our contracts, G-01/G-02/G-12 - the og-parity wire)
 
