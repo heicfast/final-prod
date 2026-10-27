@@ -17179,3 +17179,53 @@ Stage Summary:
   1 tracked-open. The unaudited delta = the driver-only era + any never-dispositioned
   corpus surfaces (to be enumerated by the corpus inventory agents before any finding
   is written). Gate documents SURFACE-INVENTORY.md + PARAMETERS.md extension come first.
+---
+Task ID: SA-0 (session open — merged-product dev-sign + full parity re-audit)
+Agent: main engineer (session: audit + dev-sign validation)
+
+COORDINATION NOTE (parallel lane): the S7 lane above (parity audit of the
+driver-only era) and this SA lane opened concurrently at the same pins
+(core 3bda8e2 / corpus 03ad46c). Division of labor per the two mandates:
+- SA lane (this one) owns Phase 1 dev-sign validation on real Windows
+  runners (worklog/DEV-SIGN.md + devsign findings) — NOT in S7's mandate.
+- Phase 2 audit: SA lane will read the S7 lane's pushes before writing any
+  finding, use the next-available IDs AFTER S7's claimed block, and extend
+  (never duplicate) whatever S7 lands first. Driver-only-era IOCTL probes
+  S7 flagged stay S7's; SA's Phase-2 waves start from the corpus inventory
+  cross-check (which surfaces S7 has NOT dispositioned).
+
+Setup:
+- Cloned both candidates. CONFIRMED merged repository =
+  https://github.com/heicfast/core_recovery @ 3bda8e2cabcdab0ef77045b922c007f5ad53707f
+  ("fix(wire): the extended IOCTL constants' phantom zero...", 2026-10-27).
+  It contains the core engine (src/core, include/cr), the win layer
+  (src/win), the driver-consuming transport + CI + the full diff-to-fix
+  audit trail. easeus-drw-research is the research corpus (1.3G:
+  architecture/, og-codebase/, re-workspace/) @ 03ad46c.
+- Driver posture discovered: core_recovery contains NO driver source; the
+  driver is a PREBUILT release asset (rda.sys/rda.inf/install.ps1/
+  uninstall.ps1/SHA256SUMS) from heicfast/rda-driver, consumed per
+  docs/PREBUILT-ARTIFACTS.md. Documented dev-sign path EXISTS:
+  .github/actions/install-driver/action.yml (New-SelfSignedCertificate
+  CodeSigningCert CN=RRECOV-CI -> LocalMachine\Root + TrustedPublisher ->
+  signtool sign /fd SHA256 -> install.ps1 -> sc start), documented in
+  PREBUILT-ARTIFACTS.md §2 + DRIVER-RELEASE.md §7, exercised by
+  .github/workflows/driver-install.yml (workflow_dispatch, windows-2022).
+  Per the mandate, tools/dev-sign/ is NOT created (documented path exists);
+  Phase 1 = verify it works on a real Windows runner + record evidence.
+- Prior board state (worklog tail): SEVERE 0 · MAJOR 0 · MINOR 0 ·
+  INFORMATIONAL all ACKNOWLEDGED · FIXED/ 223 · tracked-open 1 (OQ-S4-3).
+  Fresh unaudited surfaces identified for this session: (a) the driver-only
+  era changes (win-lane transport, wire/IOCTL constants, driver-status
+  verbs), (b) corpus additions since the last audit close (driver v11
+  reference atlas, uiux-6 63-shot library + artifact-35 v5, CORRECTIONS.md
+  errata with 8 RE-output corrections), (c) any corpus surfaces prior
+  sessions skipped.
+- Session prompt saved token-redacted to worklog/session-audit-prompt.md.
+- Token hygiene: token lives in the git remote URL only, never in any
+  committed file; will be rotated by the user after the session.
+
+Stage Summary:
+- Merged repo confirmed + commits recorded. Phase 1 starts next: dispatch
+  driver-install.yml on a real Windows runner and capture the install/
+  uninstall/load evidence, then worklog/DEV-SIGN.md + any gap findings.
