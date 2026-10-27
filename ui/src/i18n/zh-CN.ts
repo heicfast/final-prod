@@ -362,6 +362,8 @@ export const zhCN: TranslationSchema = {
     statusGood: '良好',
     statusCaution: '警告',
     statusBad: '较差',
+    statusUnknown: '未知',
+    lifeUnknown: '不适用',
     temperature: '温度',
     powerOnHours: '通电时间',
     class: '类型',
@@ -385,6 +387,11 @@ export const zhCN: TranslationSchema = {
     smartFailing: '异常',
     notAvailable: '此设备不支持健康数据读取。',
     cautionNote: '此磁盘出现警告迹象，请尽快备份数据。',
+    unknownNote:
+      '此磁盘未上报 S.M.A.R.T. 属性数据，无法评估健康状态。虚拟磁盘和部分 USB 桥接设备常见此情况。',
+    noSmartRows: '此磁盘未上报 S.M.A.R.T. 属性行。上方的健康状态来自磁盘实际提供的数据。',
+    noSmartRowsNvme:
+      'NVMe 硬盘不提供 ATA S.M.A.R.T. 属性表；上方的 NVMe 健康日志指标即为此盘的健康数据。',
   },
   repair: {
     title: '修复损坏的视频、照片和文档',

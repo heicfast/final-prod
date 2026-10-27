@@ -1090,6 +1090,17 @@ typedef struct cr_ui_smart_attr {
     char name[40];
 } cr_ui_smart_attr;
 
+/* NG-9 / reference-parity (the HEALTH table's "Current + Threshold" mode):
+ * the extended attribute row carrying the VENDOR THRESHOLD the engine
+ * already parses (0xD1 READ_THRESHOLDS; 0 = not reported by the drive).
+ * A separate struct + export because cr_ui_smart_attr is an ARRAY element
+ * whose stride is part of the ABI and cannot grow in place. Appended
+ * within ABI version 2 per the append-only policy (new exports only). */
+typedef struct cr_ui_smart_attr_ex {
+    cr_ui_smart_attr base;
+    uint32_t threshold; /* vendor threshold; 0 = not reported */
+} cr_ui_smart_attr_ex;
+
 typedef struct cr_ui_smart_report {
     uint32_t available; /* SMART table decoded */
     char transport[24]; /* "ata-passthrough" / "nvme" / "legacy" */
@@ -1123,6 +1134,12 @@ typedef struct cr_ui_smart_report {
 CR_UI_API uint32_t cr_ui_health_read(uint32_t disk, cr_ui_smart_report* rep,
                                      cr_ui_smart_attr* attrs, uint32_t attr_cap,
                                      uint32_t* attr_count);
+
+/* Same contract as cr_ui_health_read, with per-attribute vendor thresholds
+ * (cr_ui_smart_attr_ex rows). The base call stays for ABI stability. */
+CR_UI_API uint32_t cr_ui_health_read_ex2(uint32_t disk, cr_ui_smart_report* rep,
+                                         cr_ui_smart_attr_ex* attrs, uint32_t attr_cap,
+                                         uint32_t* attr_count);
 
 #ifdef __cplusplus
 } /* extern "C" */

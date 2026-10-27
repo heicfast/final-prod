@@ -59,6 +59,7 @@ enum STORAGE_PROPERTY_ID {
     StorageDeviceIdProperty = 1,
     StorageAccessAlignmentProperty = 6,
     StorageDeviceSeekPenaltyProperty = 7,
+    StorageDeviceTrimProperty = 8,
     StorageDeviceProtocolSpecificProperty = 49
 };
 enum STORAGE_QUERY_TYPE { PropertyStandardQuery = 0, PropertyExistsQuery = 1 };
@@ -72,6 +73,11 @@ struct DEVICE_SEEK_PENALTY_DESCRIPTOR {
     DWORD Version;
     DWORD Size;
     BOOLEAN IncursSeekPenalty;
+};
+struct DEVICE_TRIM_DESCRIPTOR {
+    DWORD Version;
+    DWORD Size;
+    BOOLEAN TrimEnabled;
 };
 struct STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR {
     DWORD Version;

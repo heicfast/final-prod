@@ -3620,7 +3620,22 @@ namespace {
 
 #ifdef _WIN32
 
-u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, cr_ui_smart_attr* attrs,
+/* Template over the attribute row: cr_ui_smart_attr (base ABI) and
+ * cr_ui_smart_attr_ex (NG-9: carries the vendor threshold). The fill is
+ * identical except the threshold tail, selected at compile time. */
+static void fill_smart_attr_base(cr_ui_smart_attr& dst,
+                                 const win::health::SmartAttribute& a) {
+    dst.id = a.id;
+    dst.value = a.value;
+    dst.worst = a.worst;
+    dst.raw = u64(a.raw[0]) | (u64(a.raw[1]) << 8) | (u64(a.raw[2]) << 16) |
+              (u64(a.raw[3]) << 24) | (u64(a.raw[4]) << 32) | (u64(a.raw[5]) << 40);
+    dst.failing = a.failing ? 1u : 0u;
+    copy_bstr(dst.name, sizeof(dst.name), a.name);
+}
+
+template <typename TAttr>
+u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, TAttr* attrs,
                      uint32_t attr_cap, uint32_t* attr_count) {
     if (!rep || !attr_count)
         return ret_(ERR_BAD_PARAMETER, "bad argument: rep/attr_count");
@@ -3656,13 +3671,12 @@ u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, cr_ui_smart_attr* a
         const u32 n = rep->attribute_count < attr_cap ? rep->attribute_count : attr_cap;
         for (u32 i = 0; i < n; ++i) {
             const win::health::SmartAttribute& a = sm.attributes[i];
-            attrs[i].id = a.id;
-            attrs[i].value = a.value;
-            attrs[i].worst = a.worst;
-            attrs[i].raw = u64(a.raw[0]) | (u64(a.raw[1]) << 8) | (u64(a.raw[2]) << 16) |
-                           (u64(a.raw[3]) << 24) | (u64(a.raw[4]) << 32) | (u64(a.raw[5]) << 40);
-            attrs[i].failing = a.failing ? 1u : 0u;
-            copy_bstr(attrs[i].name, sizeof(attrs[i].name), a.name);
+            if constexpr (std::is_same_v<TAttr, cr_ui_smart_attr_ex>) {
+                fill_smart_attr_base(attrs[i].base, a);
+                attrs[i].threshold = a.vendor_threshold; /* 0 = not reported */
+            } else {
+                fill_smart_attr_base(attrs[i], a);
+            }
         }
         *attr_count = rep->attribute_count; /* needed size either way */
     }
@@ -3689,7 +3703,7 @@ u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, cr_ui_smart_attr* a
     }
     rep->ssd_like = win::health::looks_like_ssd(h) ? 1u : 0u;
     bool trim = false;
-    if (win::health::query_trim_state(trim) == OK) {
+    if (win::health::query_trim_state(h, trim) == OK) {
         rep->trim_known = 1;
         rep->trim_enabled = trim ? 1u : 0u;
     }
@@ -3703,7 +3717,8 @@ u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, cr_ui_smart_attr* a
 
 #else
 
-u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, cr_ui_smart_attr* attrs,
+template <typename TAttr>
+u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, TAttr* attrs,
                      uint32_t attr_cap, uint32_t* attr_count) {
     (void)disk;
     (void)rep;
@@ -3720,7 +3735,13 @@ u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, cr_ui_smart_attr* a
 extern "C" CR_UI_API uint32_t cr_ui_health_read(uint32_t disk, cr_ui_smart_report* rep,
                                                 cr_ui_smart_attr* attrs, uint32_t attr_cap,
                                                 uint32_t* attr_count) {
-    return guarded(health_read_impl, disk, rep, attrs, attr_cap, attr_count);
+    return guarded(health_read_impl<cr_ui_smart_attr>, disk, rep, attrs, attr_cap, attr_count);
+}
+
+extern "C" CR_UI_API uint32_t cr_ui_health_read_ex2(uint32_t disk, cr_ui_smart_report* rep,
+                                                    cr_ui_smart_attr_ex* attrs, uint32_t attr_cap,
+                                                    uint32_t* attr_count) {
+    return guarded(health_read_impl<cr_ui_smart_attr_ex>, disk, rep, attrs, attr_cap, attr_count);
 }
 
 /* ---- M-048: the user-extensible signature database (ABI-since 2.1) ---- */

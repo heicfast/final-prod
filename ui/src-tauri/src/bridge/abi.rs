@@ -419,6 +419,16 @@ pub struct CrUiSmartAttr {
     pub name: [u8; 40],
 }
 
+/// NG-9: extended row with the vendor threshold (engine ABI append — new
+/// export `cr_ui_health_read_ex2`; the base struct is an array element whose
+/// stride is part of the ABI and cannot grow in place).
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct CrUiSmartAttrEx {
+    pub base: CrUiSmartAttr,
+    pub threshold: u32, /* 0 = not reported by the drive */
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct CrUiSmartReport {
@@ -545,4 +555,5 @@ extern "C" {
 
     // health (Windows platform layer)
     pub fn cr_ui_health_read(disk: u32, rep: *mut CrUiSmartReport, attrs: *mut CrUiSmartAttr, attr_cap: u32, attr_count: *mut u32) -> u32;
+    pub fn cr_ui_health_read_ex2(disk: u32, rep: *mut CrUiSmartReport, attrs: *mut CrUiSmartAttrEx, attr_cap: u32, attr_count: *mut u32) -> u32;
 }

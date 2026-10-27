@@ -97,15 +97,15 @@ export function HealthPage(): React.JSX.Element {
     );
   }
 
-  const status = health.data?.status ?? 'good';
-  const healthScore =
-    status === 'good'
-      ? Math.max(88, 100 - (health.data?.wearPercent ?? 4))
-      : status === 'caution'
-        ? 72
-        : 38;
+  const status = health.data?.status ?? 'unknown';
+  // NG-5: NO fabricated percentage. The only real life number is wear-derived
+  // (NVMe percentage_used / SSD wear-level): 100 - wear. Drives without a
+  // wear metric show NO number (the reference shows '*' when unavailable) -
+  // the status chip carries the verdict instead.
+  const wear = health.data?.wearPercent ?? null;
+  const lifePercent = wear != null ? Math.max(1, Math.min(100, 100 - Math.round(wear))) : null;
   const ringCircumference = 2 * Math.PI * 34;
-  const ringOffset = ringCircumference * (1 - healthScore / 100);
+  const ringOffset = ringCircumference * (1 - (lifePercent ?? 0) / 100);
 
   return (
     <div className="h-full overflow-y-auto px-8 py-6">
@@ -232,7 +232,9 @@ export function HealthPage(): React.JSX.Element {
                     ? 'border-[#DCE8FF] bg-gradient-to-br from-[#F4F8FF] via-white to-[#EEF5FF] dark:border-border dark:from-surface-elevated dark:via-surface dark:to-surface-tint'
                     : status === 'caution'
                       ? 'border-warning/40 bg-warning-muted/60'
-                      : 'border-danger/40 bg-danger-muted/60',
+                      : status === 'bad'
+                        ? 'border-danger/40 bg-danger-muted/60'
+                        : 'border-border bg-surface',
                 )}
               >
                 <div className="flex items-center gap-4">
@@ -257,7 +259,9 @@ export function HealthPage(): React.JSX.Element {
                             ? '#10B981'
                             : status === 'caution'
                               ? '#F59E0B'
-                              : '#EF4444'
+                              : status === 'bad'
+                                ? '#EF4444'
+                                : '#94A3B8'
                         }
                         strokeWidth="6.5"
                         strokeLinecap="round"
@@ -268,8 +272,13 @@ export function HealthPage(): React.JSX.Element {
                     </svg>
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
                       <span className="text-[18px] font-bold text-[#1E293B] tabular dark:text-foreground">
-                        {healthScore}%
+                        {lifePercent != null ? `${lifePercent}%` : '—'}
                       </span>
+                      {lifePercent == null ? (
+                        <span className="text-[9px] font-medium uppercase text-[#94A3B8] dark:text-foreground-secondary">
+                          {t('health.lifeUnknown')}
+                        </span>
+                      ) : null}
                     </div>
                   </div>
 
@@ -282,7 +291,9 @@ export function HealthPage(): React.JSX.Element {
                             ? 'bg-[#DCFCE7] text-[#15803D] dark:bg-success/20 dark:text-success'
                             : status === 'caution'
                               ? 'bg-[#FEF3C7] text-[#B45309] dark:bg-warning/20 dark:text-warning'
-                              : 'bg-[#FEE2E2] text-[#B91C1C] dark:bg-danger/20 dark:text-danger',
+                              : status === 'bad'
+                                ? 'bg-[#FEE2E2] text-[#B91C1C] dark:bg-danger/20 dark:text-danger'
+                                : 'bg-[#F1F5F9] text-[#475569] dark:bg-surface-tint dark:text-foreground-secondary',
                         )}
                       >
                         <ShieldCheckIcon className="size-3.5" aria-hidden />
@@ -290,7 +301,9 @@ export function HealthPage(): React.JSX.Element {
                           ? t('health.statusGood')
                           : status === 'caution'
                             ? t('health.statusCaution')
-                            : t('health.statusBad')}
+                            : status === 'bad'
+                              ? t('health.statusBad')
+                              : t('health.statusUnknown')}
                       </span>
                     </div>
                     <div className="mt-1.5 truncate text-[15px] font-bold text-[#1E293B] dark:text-foreground">
@@ -302,9 +315,13 @@ export function HealthPage(): React.JSX.Element {
                   </div>
                 </div>
 
-                {status !== 'good' ? (
+                {status === 'caution' || status === 'bad' ? (
                   <p className="mt-3 text-[12px] leading-relaxed text-[#B45309] dark:text-warning">
                     {t('health.cautionNote')}
+                  </p>
+                ) : status === 'unknown' ? (
+                  <p className="mt-3 text-[12px] leading-relaxed text-[#64748B] dark:text-foreground-secondary">
+                    {t('health.unknownNote')}
                   </p>
                 ) : null}
 
@@ -400,7 +417,10 @@ export function HealthPage(): React.JSX.Element {
                           : '—'}
                     </div>
                     <div className="mt-1 text-[11px] text-[#64748B] uppercase dark:text-foreground-secondary">
-                      {selectedDevice?.volumes[0]?.fs ?? 'NTFS'} · 512B
+                      {selectedDevice?.volumes[0]?.fs ?? '—'} ·{' '}
+                      {selectedDevice?.volumes[0]?.sectorSize != null
+                        ? `${selectedDevice.volumes[0].sectorSize}B`
+                        : '—'}
                     </div>
                   </div>
                 </div>
@@ -431,7 +451,7 @@ export function HealthPage(): React.JSX.Element {
                       {t('health.wear')}:{' '}
                       {health.data.wearPercent != null
                         ? formatPercent(health.data.wearPercent / 100, i18n.language)
-                        : '2%'}
+                        : '—'}
                     </div>
                   </div>
                 </div>
@@ -482,54 +502,67 @@ export function HealthPage(): React.JSX.Element {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {health.data.attributes.map((a) => (
-                    <TableRow
-                      key={a.id}
-                      className="border-b border-[#F1F5F9] transition-colors hover:bg-[#F4F8FF] dark:border-border dark:hover:bg-surface-hover"
-                    >
-                      <TableCell className="pl-5 font-mono text-[12px] text-[#64748B] tabular dark:text-foreground-secondary">
-                        {String(a.id).padStart(2, '0')}
-                      </TableCell>
-                      <TableCell className="text-[12.5px] font-medium text-[#1E293B] dark:text-foreground">
-                        {a.name}
-                      </TableCell>
-                      <TableCell className="text-right text-[12.5px] text-[#334155] tabular dark:text-foreground">
-                        {a.current ?? '—'}
-                      </TableCell>
-                      <TableCell className="text-right text-[12.5px] text-[#334155] tabular dark:text-foreground">
-                        {a.worst ?? '—'}
-                      </TableCell>
-                      <TableCell className="text-right text-[12.5px] text-[#64748B] tabular dark:text-foreground-secondary">
-                        {a.threshold ?? '—'}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-[12px] text-[#334155] tabular dark:text-foreground">
-                        {formatInteger(a.raw, i18n.language)}
-                      </TableCell>
-                      <TableCell className="pr-5 text-right">
-                        <span
-                          className={cn(
-                            'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold',
-                            a.status === 'ok'
-                              ? 'bg-[#DCFCE7] text-[#15803D] dark:bg-success/20 dark:text-success'
-                              : a.status === 'failing'
-                                ? 'bg-[#FEE2E2] text-[#B91C1C] dark:bg-danger/20 dark:text-danger'
-                                : 'bg-[#F1F5F9] text-[#64748B] dark:bg-surface-tint dark:text-foreground-secondary',
-                          )}
-                        >
-                          {a.status === 'ok' ? (
-                            <CheckCircle2Icon className="size-3" aria-hidden />
-                          ) : a.status === 'failing' ? (
-                            <CircleAlertIcon className="size-3" aria-hidden />
-                          ) : null}
-                          {a.status === 'ok'
-                            ? t('health.smartOk')
-                            : a.status === 'failing'
-                              ? t('health.smartFailing')
-                              : '—'}
-                        </span>
+                  {health.data.attributes.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={7}
+                        className="py-10 text-center text-[12.5px] text-[#64748B] dark:text-foreground-secondary"
+                      >
+                        {health.data.transport === 'nvme'
+                          ? t('health.noSmartRowsNvme')
+                          : t('health.noSmartRows')}
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    health.data.attributes.map((a) => (
+                      <TableRow
+                        key={a.id}
+                        className="border-b border-[#F1F5F9] transition-colors hover:bg-[#F4F8FF] dark:border-border dark:hover:bg-surface-hover"
+                      >
+                        <TableCell className="pl-5 font-mono text-[12px] text-[#64748B] tabular dark:text-foreground-secondary">
+                          {String(a.id).padStart(2, '0')}
+                        </TableCell>
+                        <TableCell className="text-[12.5px] font-medium text-[#1E293B] dark:text-foreground">
+                          {a.name}
+                        </TableCell>
+                        <TableCell className="text-right text-[12.5px] text-[#334155] tabular dark:text-foreground">
+                          {a.current ?? '—'}
+                        </TableCell>
+                        <TableCell className="text-right text-[12.5px] text-[#334155] tabular dark:text-foreground">
+                          {a.worst ?? '—'}
+                        </TableCell>
+                        <TableCell className="text-right text-[12.5px] text-[#64748B] tabular dark:text-foreground-secondary">
+                          {a.threshold ?? '—'}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-[12px] text-[#334155] tabular dark:text-foreground">
+                          {formatInteger(a.raw, i18n.language)}
+                        </TableCell>
+                        <TableCell className="pr-5 text-right">
+                          <span
+                            className={cn(
+                              'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold',
+                              a.status === 'ok'
+                                ? 'bg-[#DCFCE7] text-[#15803D] dark:bg-success/20 dark:text-success'
+                                : a.status === 'failing'
+                                  ? 'bg-[#FEE2E2] text-[#B91C1C] dark:bg-danger/20 dark:text-danger'
+                                  : 'bg-[#F1F5F9] text-[#64748B] dark:bg-surface-tint dark:text-foreground-secondary',
+                            )}
+                          >
+                            {a.status === 'ok' ? (
+                              <CheckCircle2Icon className="size-3" aria-hidden />
+                            ) : a.status === 'failing' ? (
+                              <CircleAlertIcon className="size-3" aria-hidden />
+                            ) : null}
+                            {a.status === 'ok'
+                              ? t('health.smartOk')
+                              : a.status === 'failing'
+                                ? t('health.smartFailing')
+                                : '—'}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </div>

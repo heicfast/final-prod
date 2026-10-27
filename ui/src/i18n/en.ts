@@ -372,6 +372,8 @@ export const en = {
     statusGood: 'Good',
     statusCaution: 'Caution',
     statusBad: 'Poor',
+    statusUnknown: 'Unknown',
+    lifeUnknown: 'n/a',
     temperature: 'Temperature',
     powerOnHours: 'Powered on',
     class: 'Type',
@@ -395,6 +397,12 @@ export const en = {
     smartFailing: 'Failing',
     notAvailable: 'Health data is not available for this device.',
     cautionNote: 'This disk reports warning signs. Copy important data off it soon.',
+    unknownNote:
+      'This drive reports no S.M.A.R.T. attribute data, so its health cannot be graded. This is common for virtual and some USB bridge devices.',
+    noSmartRows:
+      'This drive reports no S.M.A.R.T. attribute rows. Health status above comes from the data the drive did provide.',
+    noSmartRowsNvme:
+      'NVMe drives do not expose the ATA S.M.A.R.T. attribute table; the NVMe health-log metrics above are this drive\u2019s health data.',
   },
   repair: {
     title: 'Repair Corrupted Videos, Photos and Documents',

@@ -530,7 +530,7 @@ export interface RecoveryDomain {
 // Health
 // ---------------------------------------------------------------------------
 
-export type HealthStatus = 'good' | 'caution' | 'bad';
+export type HealthStatus = 'good' | 'caution' | 'bad' | 'unknown';
 
 export interface SmartAttribute {
   readonly id: number;
@@ -553,6 +553,10 @@ export interface DiskHealth {
   readonly reallocatedSectors: number | null;
   readonly pendingSectors: number | null;
   readonly attributes: readonly SmartAttribute[];
+  /** Transport that produced the data (e.g. 'ata-passthrough' / 'nvme'); null when none. */
+  readonly transport: string | null;
+  /** True when the SMART table was readable but carried zero attribute rows. */
+  readonly tableEmpty: boolean;
 }
 
 export interface HealthDomain {

@@ -1318,3 +1318,47 @@ unchanged, which are compounded by the new findings. The forensic
 reproduction run against the shipped v0.6.0-rc1 is in flight
 (forensic-repro workflow; run 1 failed at the checksum gate — uppercase
 hex, fixed and re-pushed at 55cbf735).
+
+---
+## Fix batch 1 — the SMART/health surface (NG-5/6/7/9/10) + the fsutil console flash (NG-8) + Home's hidden removable devices (NG-7)
+
+Break points cited from the gap register (docs/INTEGRATION-GAPS.md Part 2);
+every change pairs with the new tests/health-truth.test.tsx (5 assertions
+that fail on the pre-fix surfaces) and the engine's 926-test suite.
+
+- NG-8 engine/src/win/cr_health.cpp: `query_trim_state` no longer spawns
+  `fsutil` via _popen (a VISIBLE console per health read, twice per drive).
+  Native IOCTL_STORAGE_QUERY_PROPERTY / StorageDeviceTrimProperty(8) ->
+  DEVICE_TRIM_DESCRIPTOR on the disk handle; failure = unknown, never a
+  fallback to a spawned process. Signature now takes the handle; call sites
+  cr_ui.cpp + rrecov.cpp updated; win-stub grown (the parse gate demanded
+  it - that is the gate working).
+- NG-9/ABI: cr_ui_smart_attr_ex { base, threshold } + NEW EXPORT
+  cr_ui_health_read_ex2 (append-only within ABI v2; the base struct is an
+  array element whose stride cannot grow in place). The engine already
+  parsed vendor thresholds (S-024 0xD1 READ_THRESHOLDS) - now they reach
+  the UI. cr_ui.cpp health_read_impl is now a template over the row type.
+- NG-6 ui/src-tauri/src/commands/health.rs: rewritten. `available==0` no
+  longer refuses the report - NVMe-only drives (nvme_available=1, the
+  common modern-laptop shape) are VALID; refusal only when both sources
+  are absent. Empty ATA table => status "unknown" + truthful empty-table
+  payload + null derived counters (0 would be a fabrication). Uses ex2 for
+  thresholds; payload carries transport + tableEmpty.
+- NG-5 ui/src/features/health/health-page.tsx: the fabricated gauge
+  (good>=96 / caution 72 / bad 38, rendered even with zero attributes) is
+  REMOVED. The gauge now shows ONLY the real wear-derived life
+  (100 - wearPercent) and '—' with an n/a caption when the drive reports
+  no wear metric (the reference shows '*' when unavailable). 'unknown'
+  status added to the contract with a neutral chip + honest note. The
+  attribute table gains a truthful empty state (NVMe vs empty-table
+  messages).
+- NG-10 health-page: hard-coded "512B" -> the real volume sectorSize from
+  the bridge (4096B on 4K natives); hard-coded wear fallback "2%" -> '—'.
+- NG-7 home-page.tsx: the ?media URL-param toggle that NO affordance ever
+  set (every USB/SD/external disk permanently invisible on Home) is
+  replaced by both groups always rendered: Internal drives (N) then
+  Removable media (N).
+
+Evidence: tests/health-truth.test.tsx (5/5 green; each assertion targets
+a pre-fix fake: no-%-when-no-data, 100-wear derivation, 4096B, threshold
+column, removable-visible). Full suites: UI 135/135, engine 926/926.

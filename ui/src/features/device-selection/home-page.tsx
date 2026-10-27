@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { Device, Volume } from '@/connector/contract';
 import {
@@ -55,7 +55,6 @@ const DESKTOP_TARGET = 'vol-desktop';
 export function HomePage(): React.JSX.Element {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const [params] = useSearchParams();
   const devicesQuery = useDevices();
   const refresh = useRefreshDevices();
   const sessionsQuery = useSessions();
@@ -72,15 +71,23 @@ export function HomePage(): React.JSX.Element {
     'vol-sys': true,
     'vol-data': true,
   });
-  const showRemovable = params.has('media');
 
   const devices = devicesQuery.data ?? [];
   const physical = devices.filter((d) => d.kind !== 'virtual');
+  // NG-7: BOTH groups are always listed — internal first, then removable
+  // (the old `?media` query-param toggle had NO affordance anywhere in the
+  // UI, so every USB/external/SD disk was permanently invisible on Home;
+  // the reference lists every physical disk, grouped).
   const internal = physical.filter((d) => d.kind === 'internal');
   const removable = physical.filter((d) => d.kind !== 'internal');
-  const visible = showRemovable ? removable : internal;
+  const visible = internal.length > 0 ? internal : removable;
 
-  const effectiveSelectedId = selectedId ?? visible[0]?.id ?? null;
+  const effectiveSelectedId =
+    selectedId ??
+    physical.find((d) => d.id === selectedId)?.id ??
+    internal[0]?.id ??
+    removable[0]?.id ??
+    null;
   const selected = devices.find((d) => d.id === effectiveSelectedId) ?? null;
 
   /** Direct start (ADR-008): device selection → scan, no config step. */
@@ -239,8 +246,8 @@ export function HomePage(): React.JSX.Element {
 
         {/* Internal drives (N) */}
         <h2 className="mb-3.5 text-[14px] font-bold text-[#1E293B] dark:text-foreground">
-          {showRemovable ? t('home.removableGroup') : t('home.internalGroup')} ({visible.length}
-          )
+          {internal.length > 0 ? t('home.internalGroup') : t('home.removableGroup')} (
+          {visible.length})
         </h2>
 
         <div
@@ -259,6 +266,31 @@ export function HomePage(): React.JSX.Element {
             />
           ))}
         </div>
+
+        {/* Removable drives (N) — always visible (NG-7) */}
+        {internal.length > 0 && removable.length > 0 ? (
+          <>
+            <h2 className="mb-3.5 mt-8 text-[14px] font-bold text-[#1E293B] dark:text-foreground">
+              {t('home.removableGroup')} ({removable.length})
+            </h2>
+            <div
+              className="grid grid-cols-1 gap-4 sm:grid-cols-2"
+              role="radiogroup"
+              aria-label={t('home.removableGroup')}
+            >
+              {removable.map((device) => (
+                <DeviceCard
+                  key={device.id}
+                  device={device}
+                  selected={effectiveSelectedId === device.id}
+                  onSelect={() => setSelectedId(device.id)}
+                  onScan={() => beginScan(device.id)}
+                  onScanVolume={(volumeId) => beginScan(volumeId)}
+                />
+              ))}
+            </div>
+          </>
+        ) : null}
 
         {/* Specify a location */}
         <h2 className="mb-3.5 mt-8 text-[14px] font-bold text-[#1E293B] dark:text-foreground">

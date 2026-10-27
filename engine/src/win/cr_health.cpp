@@ -298,28 +298,33 @@ u32 read_nvme_health(void* disk_handle, NvmeHealth& out) {
     return cr::health::parse_nvme_health_page(d, sizeof(req.data), out);
 }
 
-u32 query_trim_state(bool& enabled) {
-    /* fsutil behavior query disabledeletenotify: 0 = TRIM on (corpus
-     * DRWUI:178742-178749 parsing: takes the FIRST "= " match -
-     * HEALTH-6: our last-line-wins could read a trailing NTFS line on
-     * localized/multi-line output) */
-    FILE* fp = _popen("fsutil behavior query disabledeletenotify 2>nul", "r");
-    if (fp == nullptr)
+u32 query_trim_state(void* disk_handle, bool& enabled) {
+    /* NG-8: the native per-device TRIM query. The previous implementation
+     * spawned `fsutil behavior query disabledeletenotify` through _popen -
+     * a VISIBLE CONSOLE WINDOW per health read (twice per drive from the
+     * bridge's two-call size protocol) and locale-fragile output parsing.
+     * DEVICE_TRIM_DESCRIPTOR.TrimEnabled carries the same fact fsutil
+     * prints (DisableDeleteNotify == 0 means TRIM on). Any failure means
+     * the state is UNKNOWN (trim_known stays 0) - never a fallback to a
+     * spawned process. */
+    HANDLE h = static_cast<HANDLE>(disk_handle);
+    if (h == nullptr || h == INVALID_HANDLE_VALUE)
         return ERR_HEALTH_UNAVAILABLE;
-    char line[256];
-    enabled = false;
-    bool known = false;
-    while (fgets(line, sizeof(line), fp)) {
-        const char* eq = std::strchr(line, '=');
-        if (eq == nullptr)
-            continue;
-        const long v = strtol(eq + 1, nullptr, 10);
-        enabled = (v == 0);
-        known = true;
-        break; /* first match wins (og parity) */
-    }
-    _pclose(fp);
-    return known ? OK : ERR_HEALTH_UNAVAILABLE;
+    STORAGE_PROPERTY_QUERY q = {};
+    q.PropertyId = StorageDeviceTrimProperty;
+    q.QueryType = PropertyStandardQuery;
+    struct {
+        DEVICE_TRIM_DESCRIPTOR d;
+        u8 pad[16];
+    } r = {};
+    DWORD br = 0;
+    if (!DeviceIoControl(h, IOCTL_STORAGE_QUERY_PROPERTY, &q, sizeof(q), &r, sizeof(r), &br,
+                         nullptr))
+        return ERR_HEALTH_UNAVAILABLE;
+    if (br < offsetof(DEVICE_TRIM_DESCRIPTOR, TrimEnabled) + sizeof(r.d.TrimEnabled))
+        return ERR_HEALTH_UNAVAILABLE;
+    enabled = r.d.TrimEnabled != FALSE;
+    return OK;
 }
 
 bool looks_like_ssd(void* disk_handle) {

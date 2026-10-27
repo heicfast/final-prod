@@ -85,6 +85,19 @@ const DEVICE: Device = {
   canScanWholeDisk: true,
 };
 
+/**
+ * TEST-ONLY override seam (labeled test double, never ships): component
+ * tests swap the fixture device list / health payload per case. Set to
+ * null to fall back to the default fixtures.
+ */
+export const testOverrides: {
+  devices: Device[] | null;
+  health: DiskHealth | null;
+} = {
+  devices: null,
+  health: null,
+};
+
 type FixtureFile = {
   id: string;
   name: string;
@@ -282,14 +295,18 @@ class TestConnector implements RecoveryConnector {
   private sessionStore: SessionMeta[] = [];
 
   readonly devices = {
-    listDevices: (): Promise<Device[]> => Promise.resolve([DEVICE]),
+    listDevices: (): Promise<Device[]> => Promise.resolve(testOverrides.devices ?? [DEVICE]),
     getDeviceInfo: (deviceId: string): Promise<Device> => {
-      if (deviceId === DEVICE.id || deviceId === VOLUME_C.id) {
-        return Promise.resolve(DEVICE);
+      const list = testOverrides.devices ?? [DEVICE];
+      const hit = list.find(
+        (d) => d.id === deviceId || d.volumes.some((v) => v.id === deviceId),
+      );
+      if (hit) {
+        return Promise.resolve(hit);
       }
       return Promise.reject(connError('device-gone', `device ${deviceId} not found`));
     },
-    refreshDevices: (): Promise<Device[]> => Promise.resolve([DEVICE]),
+    refreshDevices: (): Promise<Device[]> => Promise.resolve(testOverrides.devices ?? [DEVICE]),
   };
 
   readonly scan = {
@@ -857,6 +874,9 @@ class TestConnector implements RecoveryConnector {
 
   readonly health = {
     getHealth: (deviceId: string): Promise<DiskHealth> => {
+      if (testOverrides.health) {
+        return Promise.resolve({ ...testOverrides.health, deviceId });
+      }
       if (deviceId !== DEVICE.id) {
         return Promise.reject(connError('device-gone', `device ${deviceId} not found`));
       }
@@ -870,6 +890,8 @@ class TestConnector implements RecoveryConnector {
         trimEnabled: true,
         reallocatedSectors: 0,
         pendingSectors: 0,
+        transport: 'ata-passthrough',
+        tableEmpty: false,
         attributes: [
           {
             id: 5,
