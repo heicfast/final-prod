@@ -802,7 +802,6 @@ silent-mode discipline, the plan-exact registry layout, the live driver
 elevation guards (registration + teardown both proven by run 17's facts
 files), the curated kit (zero test runtimes), the complete uninstall
 (zero leftovers), and the lifecycle facts file.
-=======
 ---
 
 ## 2026-10-27T00:15Z — T20 HANDOFF: everything the mandate asked for this phase is shipped and green
@@ -850,4 +849,3 @@ fixed, now FAST and REPRODUCIBLY GREEN):**
 
 Every claim above cites its run URL or committed artifact. main is
 green across all seven lanes. Good hunting on the hardware.
->>>>>>> ed41b5ee (docs(T20): the handoff — plan marked COMPLETE, the release live, validation green x2)
