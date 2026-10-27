@@ -122,6 +122,11 @@ jobs:
           $info | ConvertTo-Json -Depth 4 | Set-Content t14-driver-info.json
           Write-Host ($info | ConvertTo-Json -Depth 4)
 
+      - name: MSVC dev environment (cl for the harness build)
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
       - name: Compile + run the harness
         shell: pwsh
         run: |
