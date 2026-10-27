@@ -446,6 +446,8 @@ export const en = {
     title: 'That did not work',
     deviceGone: 'The selected device is no longer connected.',
     devicePermission: 'The system denied access to this device.',
+    driverRequired:
+      'The RDA disk driver is required and not running. Install or start it, then retry — the product has no fallback mode.',
     scanScopeInvalid: 'That folder was not found on the selected drive.',
     sessionNotFound: 'That scan session could not be found.',
     sessionCorrupt: 'The saved search could not be read.',

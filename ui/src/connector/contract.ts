@@ -55,6 +55,7 @@ export interface ConnectorError extends Error {
 export type ConnectorErrorCode =
   | 'device-gone'
   | 'device-permission'
+  | 'driver-required'
   | 'scan-not-found'
   | 'scan-not-paused'
   | 'scan-not-running'

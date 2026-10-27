@@ -57,6 +57,7 @@ import type {
 export const REASON_KEYS: Readonly<Record<ConnectorErrorCode, string>> = {
   'device-gone': 'errors.deviceGone',
   'device-permission': 'errors.devicePermission',
+  'driver-required': 'errors.driverRequired',
   'scan-not-found': 'errors.scanNotFound',
   'scan-not-paused': 'errors.scanNotPaused',
   'scan-not-running': 'errors.scanNotRunning',
@@ -89,6 +90,7 @@ const ENGINE_CODE_MAP: Readonly<Record<number, ConnectorErrorCode>> = {
   0x50020003: 'recovery-item-failed', // ERR_WRITE_FAILED
   0x50020004: 'unknown', // ERR_RANGE_OUT_OF_BOUNDS (defensive)
   0x50020006: 'recovery-item-failed', // ERR_RETRY_EXHAUSTED
+  0x50020007: 'driver-required', // ERR_DRIVER_REQUIRED (mandatory transport; docs/PARITY-DELTAS.md D-FALL)
   0x50030001: 'session-corrupt', // ERR_BAD_MAGIC
   0x50030002: 'session-corrupt', // ERR_BAD_CHECKSUM
   0x50030003: 'scan-scope-invalid', // ERR_BAD_PARAMETER (context-refined)

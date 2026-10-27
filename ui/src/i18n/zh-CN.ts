@@ -434,6 +434,8 @@ export const zhCN: TranslationSchema = {
     title: '操作未成功',
     deviceGone: '所选设备已断开连接。',
     devicePermission: '系统拒绝访问此设备。',
+    driverRequired:
+      'RDA 磁盘驱动程序是必需组件但未运行。请安装或启动它后重试 —— 产品没有备用模式。',
     scanScopeInvalid: '所选磁盘上找不到该文件夹。',
     sessionNotFound: '找不到该搜索会话。',
     sessionCorrupt: '无法读取已保存的搜索。',

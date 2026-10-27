@@ -38,7 +38,9 @@
       "code": "ERR_RANGE_OUT_OF_BOUNDS",
       "value": "0x50020004",
       "uiCode": "unknown",
-      "context": { "note": "Defensive; indicates a bridge bug if ever seen." },
+      "context": {
+        "note": "Defensive; indicates a bridge bug if ever seen."
+      },
       "surface": "any"
     },
     {
@@ -54,8 +56,20 @@
       "code": "ERR_RETRY_EXHAUSTED",
       "value": "0x50020006",
       "uiCode": "recovery-item-failed",
-      "context": { "note": "Scan-time occurrences are error-range events, not ConnectorErrors." },
+      "context": {
+        "note": "Scan-time occurrences are error-range events, not ConnectorErrors."
+      },
       "surface": "recovery item"
+    },
+    {
+      "code": "ERR_DRIVER_REQUIRED",
+      "value": "0x50020007",
+      "uiCode": "driver-required",
+      "context": {
+        "rule": "Mandatory-driver session (2026-10-27): every raw-disk open/scan/repair/apply refuses with this code when \\\\.\\RDA is absent. The bridge passes the engine's message verbatim (it names the remedy: install or start the driver); the UI surfaces it as a hard, actionable failure — never a fallback, never silent.",
+        "refinement": "distinct from ERR_OPEN_FAILED: ERR_DRIVER_REQUIRED means the DRIVER is missing (probe failure), ERR_OPEN_FAILED means a live driver's grammar open failed"
+      },
+      "surface": "disk/volume open (every scan, repair, apply)"
     },
     {
       "code": "ERR_BAD_MAGIC",
@@ -71,7 +85,9 @@
       "code": "ERR_BAD_CHECKSUM",
       "value": "0x50030002",
       "uiCode": "session-corrupt",
-      "context": { "note": "cr_ui_scan_verify_identity mismatch on resume: the session came from a different volume." },
+      "context": {
+        "note": "cr_ui_scan_verify_identity mismatch on resume: the session came from a different volume."
+      },
       "surface": "session resume"
     },
     {
@@ -88,7 +104,9 @@
       "code": "ERR_TRUNCATED",
       "value": "0x50030004",
       "uiCode": "unknown",
-      "context": { "note": "Buffer-capacity truncation; the bridge sizes buffers via the two-call protocol — seeing this is a bridge bug." },
+      "context": {
+        "note": "Buffer-capacity truncation; the bridge sizes buffers via the two-call protocol — seeing this is a bridge bug."
+      },
       "surface": "any"
     },
     {
@@ -101,14 +119,18 @@
       "code": "ERR_CYCLE_LIMIT",
       "value": "0x50030006",
       "uiCode": "unknown",
-      "context": { "note": "Engine safety stop; the scan completes with partial results (event/stats surfaces carry the truth); never surfaced as an error dialog." },
+      "context": {
+        "note": "Engine safety stop; the scan completes with partial results (event/stats surfaces carry the truth); never surfaced as an error dialog."
+      },
       "surface": "scan (informational)"
     },
     {
       "code": "ERR_DEPTH_LIMIT",
       "value": "0x50030007",
       "uiCode": "unknown",
-      "context": { "note": "Same posture as ERR_CYCLE_LIMIT." },
+      "context": {
+        "note": "Same posture as ERR_CYCLE_LIMIT."
+      },
       "surface": "scan (informational)"
     },
     {
@@ -125,7 +147,9 @@
       "code": "ERR_NO_MEMORY",
       "value": "0x50030009",
       "uiCode": "unknown",
-      "context": { "note": "Fatal; the bridge logs with cr_ui_last_error text and the UI shows the generic error." },
+      "context": {
+        "note": "Fatal; the bridge logs with cr_ui_last_error text and the UI shows the generic error."
+      },
       "surface": "any"
     },
     {
@@ -166,7 +190,9 @@
       "code": "ERR_HASH_MISMATCH",
       "value": "0x50050003",
       "uiCode": "recovery-item-failed",
-      "context": { "note": "Item-level verify failure; the report row carries hash_status='mismatch'; the job completes-partial." },
+      "context": {
+        "note": "Item-level verify failure; the report row carries hash_status='mismatch'; the job completes-partial."
+      },
       "surface": "recovery item"
     },
     {
@@ -179,7 +205,9 @@
       "code": "ERR_DEST_NAME_EXHAUSTED",
       "value": "0x50050005",
       "uiCode": "recovery-item-failed",
-      "context": { "note": "Rename space exhausted (engine cap): the item FAILS with a truthful reason; no synthesized fallback name." },
+      "context": {
+        "note": "Rename space exhausted (engine cap): the item FAILS with a truthful reason; no synthesized fallback name."
+      },
       "surface": "recovery item"
     },
     {
@@ -214,14 +242,18 @@
       "code": "ERR_VOLUME_LOCK_FAILED",
       "value": "0x50080003",
       "uiCode": "repair-failed",
-      "context": { "note": "Volume busy, quiesce refused (S-010)." },
+      "context": {
+        "note": "Volume busy, quiesce refused (S-010)."
+      },
       "surface": "pre-scan repair"
     },
     {
       "code": "ERR_APPLY_CONSENT_DENIED",
       "value": "0x50080004",
       "uiCode": "repair-consent-required",
-      "context": { "note": "The consent callback refused (A1). The UI sees repair-consent-required so the About/consent copy explains the denial." },
+      "context": {
+        "note": "The consent callback refused (A1). The UI sees repair-consent-required so the About/consent copy explains the denial."
+      },
       "surface": "lost-partition apply (consent path)"
     },
     {
@@ -246,7 +278,9 @@
       "code": "ERR_IMAGE_CORRUPT",
       "value": "0x500A0001",
       "uiCode": "unknown",
-      "context": { "note": "No UI surface opens images (the 36 methods never call cr_ui_open_image; it is the ABI-check/test surface). Listed for completeness; mapped for the day a surface exists." },
+      "context": {
+        "note": "No UI surface opens images (the 36 methods never call cr_ui_open_image; it is the ABI-check/test surface). Listed for completeness; mapped for the day a surface exists."
+      },
       "surface": "image open (unused by the 36)"
     },
     {
