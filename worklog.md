@@ -1421,3 +1421,39 @@ note), engine 926/926.
 
 Suites: UI 135/135 (the repair/lost-partition assertions now pin the
 truthful surfaces), engine 926/926, clang-format clean.
+
+---
+## T11+T12 — the installer rebuilt to production standard (NG-16 CLOSED), decision evidence-recorded
+
+docs/INSTALLER-DECISION.md records the research (NSIS-fixed vs WiX/MSI vs
+Inno vs custom bootstrapper) and the evidence-based decision: KEEP NSIS —
+the defects were three ExecWait calls on console programs, not technology
+defects; MSI's driver story (DIFxApp) is deprecated for our SCM-service
+model; the T15-verified choreography survives. The rebuild
+(docs/INSTALLER.md documents the shipped contract):
+
+- ZERO powershell.exe spawns across install/abort/update/repair/uninstall
+  (was: install.ps1 via ExecWait — the ~10s VISIBLE console the forensic
+  probe captured; uninstall.ps1 the same).
+- Driver registration is NATIVE: WOW64-safe copy to System32\drivers
+  (x64.nsh redirection control + fatal verification — the SysWOW64 trap
+  that broke 0.5.0-rc3/0.6.0-rc1 handled explicitly), sc.exe create via
+  nsExec (hidden + logged) with the reference profile, Parameters as
+  registry writes, truthful start branch.
+- Every certutil call hidden + logged (nsExec::ExecToLog) — install,
+  abort-path, and uninstall.
+- Persistent, user-discoverable install log:
+  %ProgramData%\HeicFast\Recovery Wizard\logs\install.log (every phase,
+  every child exit code, every registry read-back) + the T15 %TEMP% facts
+  contract unchanged.
+- The abort path removes the imported certificate — no orphan trust
+  anchor (the defect agent B found).
+- Uninstall removes the installer-placed log (complete-uninstall;
+  sessions stay behind explicit consent).
+- Signing-posture independent: the cert stage + import are /nonfatal +
+  presence-gated — a production-signed driver drops in with ZERO script
+  changes.
+
+Compile proof (makensis 3.12, cross-compiled like the committed
+compile-check): dev-signed posture exit 0 ZERO warnings; production
+posture (no .cer staged) exit 0. Runtime validation dispatched next.

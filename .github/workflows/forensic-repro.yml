@@ -26,6 +26,11 @@ name: forensic-repro
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'The release tag whose setup.exe the run installs (default: the shipped v0.6.0-rc1)'
+        required: false
+        default: 'v0.6.0-rc1'
   push:
     branches: [main]
     paths:
@@ -60,12 +65,14 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force -Path C:\forensic | Out-Null
-          $base = 'https://github.com/heicfast/final-prod/releases/download/v0.6.0-rc1'
-          curl.exe -sSL -o C:\forensic\setup.exe "$base/RecoveryWizard-0.6.0-rc1-setup.exe"
-          if ($LASTEXITCODE -ne 0) { throw 'setup.exe download failed' }
+          $tag = "${{ github.event.inputs.release_tag || 'v0.6.0-rc1' }}"
+          $ver = $tag.TrimStart('v')
+          $base = "https://github.com/heicfast/final-prod/releases/download/$tag"
+          curl.exe -sSL -o C:\forensic\setup.exe "$base/RecoveryWizard-$ver-setup.exe"
+          if ($LASTEXITCODE -ne 0) { throw "setup.exe download failed for $tag" }
           curl.exe -sSL -o C:\forensic\SHA256SUMS "$base/SHA256SUMS"
           $sums = Get-Content C:\forensic\SHA256SUMS -Raw
-          $expect = [regex]::Match($sums, '([0-9a-fA-F]{64})\s+\*?RecoveryWizard-0\.6\.0-rc1-setup\.exe').Groups[1].Value
+          $expect = [regex]::Match($sums, "([0-9a-fA-F]{64})\s+\*?RecoveryWizard-$([regex]::Escape($ver))-setup\.exe").Groups[1].Value
           if (-not $expect) { throw 'setup.exe checksum not found in SHA256SUMS' }
           $actual = (Get-FileHash C:\forensic\setup.exe -Algorithm SHA256).Hash.ToLower()
           "setup sha256 expect=$expect actual=$actual"

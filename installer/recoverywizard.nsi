@@ -94,17 +94,26 @@ SetCompressor /SOLID lzma
   Abort "${REASON}"
 !macroend
 
-; InstallFact — append one line to the ALWAYS-ON install facts file
-; (%TEMP%\HeicFastRecoveryWizard-install-facts.txt). The T15 matrix copies
-; it into its evidence; a support request can attach it. Silent installs
-; leave no other trace (no UI, no console), so the lifecycle records its
-; own ground truth: resolved mode, child-process exit codes (the round-13
+; InstallFact — append one line to the ALWAYS-ON install log. TWO sinks:
+;   1. the PERSISTENT, user-discoverable log (the mandate's diagnostic
+;      requirement): ${PROGRAMDATA_ROOT}\install.log — survives the install,
+;      alongside the sessions the product itself writes; uninstall.log on
+;      the uninstall side. A user's support request attaches THIS file.
+;   2. the %TEMP% facts file (HeicFastRecoveryWizard-install-facts.txt —
+;      the T15 evidence contract reads it; unchanged).
+; Silent installs leave no UI trace, so the lifecycle records its own
+; ground truth: resolved mode, child-process exit codes (the round-13
 ; driver lesson: install.ps1's failure left NO surviving exit code), and
-; read-backs of every product-key write. Dedicated handle variable so fact
-; lines can reference $0/$1/$2 freely; no commas in fact lines (NSIS macro
-; parameter separators).
+; read-backs of every product-key write. Dedicated handle variables so
+; fact lines can reference $0/$1/$2 freely; no commas in fact lines
+; (NSIS macro parameter separators).
 Var FactsHandle
 !macro InstallFact LINE
+  CreateDirectory "${PROGRAMDATA_LOGS}"
+  FileOpen $FactsHandle "${PROGRAMDATA_LOGS}\install.log" a
+  FileSeek $FactsHandle 0 END
+  FileWrite $FactsHandle "${LINE}$\r$\n"
+  FileClose $FactsHandle
   FileOpen $FactsHandle "$TEMP\HeicFastRecoveryWizard-install-facts.txt" a
   FileSeek $FactsHandle 0 END
   FileWrite $FactsHandle "${LINE}$\r$\n"
@@ -145,6 +154,7 @@ InstallDir "$PROGRAMFILES64\HeicFast\Recovery Wizard"
 !include "LogicLib.nsh"
 !include "FileFunc.nsh"
 !include "StrFunc.nsh"
+!include "x64.nsh"
 ${Using:StrFunc} StrStr
 
 ; Per-user installs are REMOVED (mandatory driver: machine-level state -
@@ -280,14 +290,18 @@ Section "RDA raw-disk kernel driver (required)" SEC_DRIVER
 
   ; Stage the driver files (kept in <app>\driver — the signed-drop-in surface
   ; for later: replace .sys + reinstall without touching the app).
+  ; /nonfatal on the certificate pair: a PRODUCTION-signed build stages no
+  ; development certificate, and the import below is gated on its presence —
+  ; the same script serves both signing postures unchanged (docs/INSTALLER.md
+  ; "Signing posture").
   SetOutPath "$INSTDIR\driver"
   File "${DRIVER_STAGE}${PATHSEP}rda.sys"
   File "${DRIVER_STAGE}${PATHSEP}rdacli.exe"
   File "${DRIVER_STAGE}${PATHSEP}rda.inf"
   File "${DRIVER_STAGE}${PATHSEP}install.ps1"
   File "${DRIVER_STAGE}${PATHSEP}uninstall.ps1"
-  File "${DRIVER_STAGE}${PATHSEP}rda-testcert.cer"
-  File "${DRIVER_STAGE}${PATHSEP}rda-testcert-thumbprint.txt"
+  File /nonfatal "${DRIVER_STAGE}${PATHSEP}rda-testcert.cer"
+  File /nonfatal "${DRIVER_STAGE}${PATHSEP}rda-testcert-thumbprint.txt"
 
   ; ---- Development-certificate import (BEFORE the service create) --------
   ; The build embed-signed rda.sys with the ephemeral build certificate
@@ -295,20 +309,33 @@ Section "RDA raw-disk kernel driver (required)" SEC_DRIVER
   ; is ON (the CI runners are imaged that way) or (b) the machine's
   ; LocalMachine Root + TrustedPublisher stores carry the certificate -
   ; THIS import. certutil needs the same elevation the service create does
-  ; (the installer is admin-manifest), and ExecWait hands the command line
-  ; to CreateProcess verbatim (the round-8 lesson; $INSTDIR has spaces).
+  ; (the installer is admin-manifest).
+  ; PRODUCTION UX (NG-16, the PowerShell-popup fix): nsExec::ExecToLog -
+  ; NO console window (the old ExecWait spawned a VISIBLE certutil console
+  ; per import; forensic run 40465852724 captured them) and the output is
+  ; captured into the details view + the install log. certutil has NO
+  ; re-tokenization hazard here (unlike the old powershell -File call):
+  ; one quoted path argument, no nested quotes.
   DetailPrint "Importing the development signing certificate (Root + TrustedPublisher)..."
-  ExecWait 'certutil -addstore -f Root "$INSTDIR\driver\rda-testcert.cer"' $0
-  !insertmacro InstallFact "cert Root addstore exit=$0"
-  ${If} $0 != 0
-    StrCpy $1 $0
-    !insertmacro AbortWithReason "Certificate import failed (certutil Root exit code $1). The development certificate must be importable for the driver to load on this machine."
-  ${EndIf}
-  ExecWait 'certutil -addstore -f TrustedPublisher "$INSTDIR\driver\rda-testcert.cer"' $0
-  !insertmacro InstallFact "cert TrustedPublisher addstore exit=$0"
-  ${If} $0 != 0
-    StrCpy $1 $0
-    !insertmacro AbortWithReason "Certificate import failed (certutil TrustedPublisher exit code $1). The development certificate must be importable for the driver to load on this machine."
+  ${If} ${FileExists} "$INSTDIR\driver\rda-testcert.cer"
+    nsExec::ExecToLog 'certutil -addstore -f Root "$INSTDIR\driver\rda-testcert.cer"'
+    Pop $0
+    !insertmacro InstallFact "cert Root addstore exit=$0"
+    ${If} $0 != 0
+      StrCpy $1 $0
+      !insertmacro AbortWithReason "Certificate import failed (certutil Root exit code $1). The development certificate must be importable for the driver to load on this machine."
+    ${EndIf}
+    nsExec::ExecToLog 'certutil -addstore -f TrustedPublisher "$INSTDIR\driver\rda-testcert.cer"'
+    Pop $0
+    !insertmacro InstallFact "cert TrustedPublisher addstore exit=$0"
+    ${If} $0 != 0
+      StrCpy $1 $0
+      !insertmacro AbortWithReason "Certificate import failed (certutil TrustedPublisher exit code $1). The development certificate must be importable for the driver to load on this machine."
+    ${EndIf}
+  ${Else}
+    ; Production-signed driver: no development certificate staged - nothing
+    ; to import (the flow is posture-independent by design).
+    !insertmacro InstallFact "cert import skipped (no staged development certificate - production-signed posture)"
   ${EndIf}
   ; remember the thumbprint for the uninstaller (the staged file carries it)
   ClearErrors
@@ -335,34 +362,75 @@ Section "RDA raw-disk kernel driver (required)" SEC_DRIVER
     Sleep 500
   ${EndUnless}
 
-  ; Register via the driver's own install.ps1 — the exact SCM semantics
-  ; (type= kernel start= demand error= normal group= "Boot File System",
-  ; file renamed to <ServiceName>.sys under System32\drivers, Parameters
-  ; {IoctlBase=0, MaxDisks=200, DebugLevel=1, SessionsEnabled=1}).
-  ; ExecWait (NOT nsExec): the command line must reach powershell VERBATIM —
-  ; nsExec re-tokenizes and re-quotes arguments (the round-8 /D= lesson),
-  ; and $INSTDIR ALWAYS contains spaces (C:\Program Files\...). The
-  ; round-13 root cause was the dead elevation guard (fixed in the scripts
-  ; themselves); ExecWait removes the quoting failure mode as a class. The
-  ; console flash is the honest cost; the exit code lands in the facts file.
-  DetailPrint "Registering the RDA service (driver install.ps1)..."
-  ExecWait 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\driver\install.ps1" -ServiceName ${DRIVER_SERVICE} -Source "$INSTDIR\driver\rda.sys"' $0
-  !insertmacro InstallFact "driver install.ps1 exit=$0 instdir=$INSTDIR"
+  ; ---- Register the service NATIVELY (NG-16: no PowerShell, no console) ----
+  ; The exact SCM semantics the old install.ps1 carried, as native NSIS
+  ; operations + hidden, LOGGED sc.exe calls:
+  ;   1. copy rda.sys -> System32\drivers\RDA.sys with WOW64 redirection
+  ;      DISABLED (this installer is a 32-bit process; without this the
+  ;      copy lands in SysWOW64\drivers and StartService fails with
+  ;      ERROR_FILE_NOT_FOUND before any signature check - the 0.5.0-rc3 /
+  ;      0.6.0-rc1 T15 lesson);
+  ;   2. sc.exe create (kernel / demand-start / error=normal / group
+  ;      "Boot File System" - the reference's eprdtdrv profile);
+  ;   3. Parameters {IoctlBase=0, MaxDisks=200, DebugLevel=1,
+  ;      SessionsEnabled=1} - plain registry writes (HKLM\SYSTEM is not
+  ;      WOW64-redirected);
+  ;   4. sc.exe start (a start refusal is the signing-policy WARNING, not
+  ;      a registration failure - the truthful branch below).
+  ; No powershell.exe anywhere in the install path anymore: the forensic
+  ; probe captured a ~10-second VISIBLE console window per install
+  ; (install-process-events.jsonl, run 40465852724).
+  DetailPrint "Copying the driver to System32\drivers..."
+  ${DisableX64FSRedirection}
+  ClearErrors
+  CopyFiles /SILENT "$INSTDIR\driver\rda.sys" "$SYSDIR\drivers\${DRIVER_SERVICE}.sys"
+  ${If} ${Errors}
+  ${AndIfNot} ${FileExists} "$SYSDIR\drivers\${DRIVER_SERVICE}.sys"
+    ${EnableX64FSRedirection}
+    !insertmacro AbortWithReason "The driver file could not be copied to System32\drivers (in use from a previous install - reboot and rerun or remove the ${DRIVER_SERVICE} service first)."
+  ${EndIf}
+  ${IfNot} ${FileExists} "$SYSDIR\drivers\${DRIVER_SERVICE}.sys"
+    ${EnableX64FSRedirection}
+    !insertmacro AbortWithReason "Driver copy verification failed: $SYSDIR\drivers\${DRIVER_SERVICE}.sys is not present - the service would fail to start with ERROR_FILE_NOT_FOUND."
+  ${EndIf}
+  !insertmacro InstallFact "driver copy verified=$SYSDIR\drivers\${DRIVER_SERVICE}.sys"
+  ${EnableX64FSRedirection}
+
+  DetailPrint "Registering the ${DRIVER_SERVICE} service (kernel / demand / Boot File System)..."
+  nsExec::ExecToLog 'sc.exe create ${DRIVER_SERVICE} binPath= "$SYSDIR\drivers\${DRIVER_SERVICE}.sys" type= kernel start= demand error= normal group= "Boot File System"'
+  Pop $0
+  !insertmacro InstallFact "driver sc create exit=$0"
+
+  ; The Parameters block (the driver's documented profile).
+  WriteRegDWORD HKLM "SYSTEM\CurrentControlSet\Services\${DRIVER_SERVICE}\Parameters" "IoctlBase" 0
+  WriteRegDWORD HKLM "SYSTEM\CurrentControlSet\Services\${DRIVER_SERVICE}\Parameters" "MaxDisks" 200
+  WriteRegDWORD HKLM "SYSTEM\CurrentControlSet\Services\${DRIVER_SERVICE}\Parameters" "DebugLevel" 1
+  WriteRegDWORD HKLM "SYSTEM\CurrentControlSet\Services\${DRIVER_SERVICE}\Parameters" "SessionsEnabled" 1
+  !insertmacro InstallFact "driver Parameters written IoctlBase=0 MaxDisks=200 DebugLevel=1 SessionsEnabled=1"
 
   ClearErrors
   ReadRegStr $1 HKLM "SYSTEM\CurrentControlSet\Services\${DRIVER_SERVICE}" "ImagePath"
   !insertmacro InstallFact "driver ImagePath readback=$1"
   ${If} ${Errors}
     StrCpy $DriverResult "failed"
-    DetailPrint "RDA driver registration failed (exit code $0) - aborting the install."
+    DetailPrint "RDA driver registration failed (sc create exit code $0) - aborting the install."
     ; MANDATORY component: a product without its driver is a broken
-    ; product - the install STOPS here (no degraded-mode fiction).
+    ; product - the install STOPS here (no degraded-mode fiction). The
+    ; certificate imported minutes ago must not strand as an orphan trust
+    ; anchor: best-effort removal before the abort.
+    ${If} $DriverCertThumbprint != ""
+      nsExec::ExecToLog 'certutil -delstore Root $DriverCertThumbprint'
+      Pop $2
+      !insertmacro InstallFact "abort-path cert Root delstore exit=$2"
+      nsExec::ExecToLog 'certutil -delstore TrustedPublisher $DriverCertThumbprint'
+      Pop $2
+      !insertmacro InstallFact "abort-path cert TrustedPublisher delstore exit=$2"
+    ${EndIf}
     StrCpy $1 $0
-    !insertmacro AbortWithReason "The RDA driver service could not be registered (installer exit code $1). The driver is a REQUIRED component - the product is not installed half-way; correct the problem and rerun (see the Service event log)."
+    !insertmacro AbortWithReason "The RDA driver service could not be registered (sc create exit code $1). The driver is a REQUIRED component - the product is not installed half-way; correct the problem and rerun (see the install log and the Service event log)."
   ${Else}
-    ; Start (idempotent): install.ps1 already tried; 0 = started,
-    ; 1056 = already running, anything else = did not load (usually the
-    ; unsigned-driver policy on stock Win10/11).
+    ; Start (idempotent): 0 = started, 1056 = already running, anything
+    ; else = did not load (usually the signing policy on stock Win10/11).
     nsExec::ExecToLog 'sc.exe start ${DRIVER_SERVICE}'
     Pop $0
     !insertmacro InstallFact "driver sc start exit=$0"
@@ -597,35 +665,30 @@ Section "Uninstall"
   closed:
 
   ; ---- 2. Driver teardown (only if a service is present) ------------------
+  ; NATIVE (NG-16: no PowerShell, no console): stop + delete via hidden,
+  ; logged sc.exe; Parameters + service key removal; the .sys deleted from
+  ; the REAL System32 (WOW64-safe: Sysnative from this 32-bit process,
+  ; literal path for any future 64-bit build).
   ClearErrors
   ReadRegStr $0 HKLM "SYSTEM\CurrentControlSet\Services\${DRIVER_SERVICE}" "ImagePath"
   ${IfNot} ${Errors}
-    ${If} ${FileExists} "$INSTDIR\driver\uninstall.ps1"
-      ; ExecWait — same verbatim-quoting rule as the install side (nsExec
-      ; re-tokenizes; $INSTDIR always has spaces; the round-8 /D= lesson
-      ; applied to the uninstall direction too).
-      DetailPrint "Removing the RDA service (driver uninstall.ps1)..."
-      ExecWait 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\driver\uninstall.ps1" -ServiceName ${DRIVER_SERVICE}' $0
-      !insertmacro InstallFact "uninstall driver uninstall.ps1 exit=$0"
-    ${Else}
-      StrCpy $0 1
-    ${EndIf}
-    ; Fallback (script missing/failed): stop, delete, remove the file.
-    ${If} $0 != 0
-      nsExec::ExecToLog 'sc.exe stop ${DRIVER_SERVICE}'
-      Pop $0
-      Sleep 1500
-      nsExec::ExecToLog 'sc.exe delete ${DRIVER_SERVICE}'
-      Pop $0
-      Sleep 500
-    ${EndIf}
-    ; Belt and braces: the .sys must be gone from the REAL System32.
-    ; This installer is a 32-bit process (makensis output PE32), so
-    ; $SYSDIR resolves to SysWOW64 and file operations on System32 paths
-    ; get WOW64-redirected; the Sysnative alias is the 32-bit process's
-    ; view of the real System32 (the driver's uninstall.ps1 carries the
-    ; full story + the canonical removal). Delete BOTH views: Sysnative
-    ; when this is a WOW64 run, the literal path if a future 64-bit
+    DetailPrint "Removing the ${DRIVER_SERVICE} service..."
+    nsExec::ExecToLog 'sc.exe stop ${DRIVER_SERVICE}'
+    Pop $0
+    !insertmacro InstallFact "uninstall sc stop exit=$0"
+    Sleep 1500
+    nsExec::ExecToLog 'sc.exe delete ${DRIVER_SERVICE}'
+    Pop $0
+    !insertmacro InstallFact "uninstall sc delete exit=$0"
+    Sleep 500
+    ; Belt and braces: the service key + Parameters block go even if the
+    ; service was already absent (a torn earlier uninstall leaves them).
+    DeleteRegKey HKLM "SYSTEM\CurrentControlSet\Services\${DRIVER_SERVICE}"
+    ; The .sys must be gone from the REAL System32. This installer is a
+    ; 32-bit process (makensis output PE32), so file operations on
+    ; System32 paths get WOW64-redirected; the Sysnative alias is the
+    ; 32-bit process's view of the real System32. Delete BOTH views: the
+    ; alias when this is a WOW64 run, the literal path if a future 64-bit
     ; build makes Sysnative invisible (the alias does not exist for
     ; 64-bit callers - Delete on it is a harmless no-op then).
     ${If} ${FileExists} "$WINDIR\Sysnative\drivers\${DRIVER_SERVICE}.sys"
@@ -640,15 +703,19 @@ Section "Uninstall"
   ; ---- 2b. The development certificate we imported --------------------------
   ; The installer added rda-testcert.cer to LocalMachine Root +
   ; TrustedPublisher; the thumbprint was recorded at install. Removing the
-  ; product removes the trust anchor it brought in - no orphans.
+  ; product removes the trust anchor it brought in - no orphans. nsExec:
+  ; hidden + logged (the old ExecWait certutil consoles were VISIBLE -
+  ; NG-16's uninstall-side half).
   ClearErrors
   ReadRegStr $0 SHCTX "${PRODUCT_SWKEY}" "DriverCertThumbprint"
   ${IfNot} ${Errors}
   ${AndIf} $0 != ""
     DetailPrint "Removing the development signing certificate ($0)..."
-    ExecWait 'certutil -delstore Root $0' $1
+    nsExec::ExecToLog "certutil -delstore Root $0"
+    Pop $1
     !insertmacro InstallFact "uninstall cert Root delstore exit=$1 tp=$0"
-    ExecWait 'certutil -delstore TrustedPublisher $0' $1
+    nsExec::ExecToLog "certutil -delstore TrustedPublisher $0"
+    Pop $1
     !insertmacro InstallFact "uninstall cert TrustedPublisher delstore exit=$1 tp=$0"
   ${EndIf}
 
@@ -729,6 +796,12 @@ Section "Uninstall"
   ${EndIf}
 
   ; ---- 7. Final tidy -------------------------------------------------------
+  ; The installer-placed diagnostic log goes too (complete uninstall - no
+  ; orphans): ${PROGRAMDATA_LOGS}\install.log is OUR artifact, unlike the
+  ; sessions which are user data behind explicit consent above. The logs
+  ; dir itself removes when empty.
+  Delete "${PROGRAMDATA_LOGS}\install.log"
+  RMDir "${PROGRAMDATA_LOGS}"
   Delete /REBOOTOK "$INSTDIR\HeicFastUninstall.exe"
   RMDir "$INSTDIR"
   RMDir "$PROGRAMFILES64\HeicFast"
