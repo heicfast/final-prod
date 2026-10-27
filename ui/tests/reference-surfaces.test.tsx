@@ -96,7 +96,7 @@ describe('reference UI surfaces and sidebar', () => {
     expect(screen.getByRole('button', { name: /repair all/i })).toBeVisible();
   });
 
-  it('renders Lost Partition Rescue directly on Disk Selection -> Smart Partition Scan Completed', async () => {
+  it('renders Lost Partition Rescue as a REAL launcher (no canned results)', async () => {
     wrap(<LostPartitionPage />, '/lost-partition');
     expect(
       await screen.findByRole('heading', { name: /lost partition rescue/i }),
@@ -104,11 +104,14 @@ describe('reference UI surfaces and sidebar', () => {
     expect(
       screen.getByText(/choose a disk to start searching for lost partition\(s\)/i),
     ).toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: /search for lost partition/i }));
-    expect(
-      screen.getByRole('heading', { name: /smart partition scan completed/i }),
-    ).toBeVisible();
-    expect(screen.getByRole('button', { name: /try data recovery/i })).toBeVisible();
+    // the honest apply deferral note (the CLI ships beside the app)
+    expect(screen.getByText(/rrecov apply/i)).toBeVisible();
+    // the real devices come from the connector (the double's device)
+    expect(screen.getByText(/TestDisk 512G/i)).toBeVisible();
+    // the canned completed table NEVER renders without a real scan (NG-11)
+    expect(screen.queryByText(/smart partition scan completed/i)).toBeNull();
+    expect(screen.queryByText(/double click the partition/i)).toBeNull();
+    expect(screen.queryByText(/CONSISTENT M\.2/i)).toBeNull();
   });
 
   it('renders Scan Snapshot page', () => {

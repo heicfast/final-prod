@@ -553,6 +553,9 @@ pub async fn scan_state(
             "progress": progress,
             "failure": failure,
             "pendingConsent": pending_consent,
+            // NG-11: live lost-partition candidate count (whole-disk scans;
+            // engine events, never synthesized).
+            "lostCandidates": live.lost_candidates,
         }))
     })
     .await

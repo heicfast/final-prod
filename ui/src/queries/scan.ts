@@ -30,6 +30,13 @@ function getScanStore(scanId: string, qc: () => QueryClient): ScanProgressStore 
   const listeners = new Set<() => void>();
   let lastStatus: string | null = null;
   let lastBucket = -1;
+  // NG-2: a time floor on results refetch while running. Bucket-only
+  // refresh left the ENTIRE 40-50% band (the whole deep stage on large
+  // volumes) without a single tree/results/count update even as nodes
+  // arrived — the reference shows live-growing results during the scan.
+  // 15 s bounds bridge load; bucket jumps still refresh immediately.
+  const REFRESH_INTERVAL_MS = 15_000;
+  let lastRefreshAt = 0;
   const emit = (): void => {
     for (const l of listeners) l();
   };
@@ -52,8 +59,12 @@ function getScanStore(scanId: string, qc: () => QueryClient): ScanProgressStore 
         void invalidate.invalidateQueries({ queryKey: ['scan', scanId, 'count'] });
         void invalidate.invalidateQueries({ queryKey: queryKeys.sessions });
       }
-    } else if (event.status === 'running' && bucket > lastBucket) {
-      lastBucket = bucket;
+    } else if (
+      event.status === 'running' &&
+      (bucket > lastBucket || Date.now() - lastRefreshAt >= REFRESH_INTERVAL_MS)
+    ) {
+      if (bucket > lastBucket) lastBucket = bucket;
+      lastRefreshAt = Date.now();
       void invalidate.invalidateQueries({ queryKey: ['scan', scanId, 'tree'] });
       void invalidate.invalidateQueries({ queryKey: ['scan', scanId, 'results'] });
       void invalidate.invalidateQueries({ queryKey: ['scan', scanId, 'count'] });

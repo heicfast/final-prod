@@ -1362,3 +1362,34 @@ that fail on the pre-fix surfaces) and the engine's 926-test suite.
 Evidence: tests/health-truth.test.tsx (5/5 green; each assertion targets
 a pre-fix fake: no-%-when-no-data, 100-wear derivation, 4096B, threshold
 column, removable-visible). Full suites: UI 135/135, engine 926/926.
+
+---
+## Fix batch 2 — scan liveness (NG-2/NG-3), the lost-partition surface made real (NG-11), real sector counts (NG-13b)
+
+- NG-3 engine/src/core/ntfs/cr_mftwalk.cpp: the deep remnant sweep now
+  reports progress from an aggregated per-block cursor (atomic scanned
+  bytes across all worker threads, reported every 64 MiB against the
+  whole-sweep denominator, monotonic through tel_publish_'s stage clamp).
+  Previously: the parallel path ticked only when a total/threads CHUNK
+  finished and the single-threaded path NEVER ticked during the sweep —
+  hours at a standing permille on large volumes (the user's 40.2/40.4
+  crawl). The old per-chunk reporter is removed.
+- NG-2 ui/src/queries/scan.ts: results/tree/count refetch now has a 15 s
+  time floor while running (bucket-only refresh left the entire 40-50%
+  band — the whole deep stage — without a single update).
+- NG-11: the Lost Partition page is REAL. The canned spec table (fake
+  disks, fake partitions, fake 'Smart Partition Scan Completed' step
+  without any scan) is REPLACED by: real disk cards from enumeration, a
+  real whole-disk scan launch (the bridge already arms whole_disk for
+  disk targets — scan.rs:185), an honest explainer of what the search
+  does, and a truthful apply note (partition-table restore ships via the
+  `rrecov apply` CLI beside the app; the UI apply flow is the recorded
+  follow-up). The bridge now emits lost-candidate:<scanId> events with
+  the real LBA (events.rs) and scan_state carries lostCandidates.
+- NG-13b scan-progress-page: sector counts divide by the target's REAL
+  sector size (volume.sectorSize / first volume of disk targets), not a
+  hard-coded 512.
+
+Suites: UI 135/135 (incl. the rewritten reference-surfaces lost-partition
+assertions: no canned completed table, real device cards, the honest CLI
+note), engine 926/926.

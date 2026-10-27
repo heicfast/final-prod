@@ -147,6 +147,15 @@ export const zhCN: TranslationSchema = {
     title: '丢失分区救援',
     subtitle: '选择磁盘以开始搜索丢失的分区',
     diskList: '选择要搜索的磁盘',
+    noDisksTitle: '未找到磁盘',
+    noDisksBody: '当前没有可整盘搜索的设备。请连接磁盘后刷新。',
+    noVolumes: '无可见分区',
+    explainer:
+      '搜索将通过恢复驱动器读取整块磁盘：找出 Windows 已不再列出的分区（删除、损坏或分区表被覆盖），扫描其上的文件系统，并在结果的“丢失文件”下列出其中的文件。找到的文件可像普通扫描一样在结果页中恢复。',
+    searchCta: '搜索丢失分区',
+    searching: '正在启动搜索…',
+    applyNote:
+      '将找到的分区写回磁盘分区表的功能暂未集成到本窗口——目前可通过随应用安装的 rrecov 命令行工具完成（rrecov apply），它会列出找到的分区并带撤销日志地写入分区表。',
   },
   scan: {
     filesFoundWithSize: '已找到文件：{{count}}（{{size}}）',

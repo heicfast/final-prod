@@ -215,6 +215,9 @@ export interface ScanState {
    *  consent-request event; null when nothing pends (answered, denied,
    *  cancelled). The prompt renders from either source. */
   readonly pendingConsent?: ConsentRequestEvent | null;
+  /** Live lost-partition candidate count on whole-disk scans (engine
+   *  events, never synthesized). Null when the engine has not reported. */
+  readonly lostCandidates?: number | null;
 }
 
 /** The engine's repair-plan POD (cr_ui_repair_plan), translated 1:1. */

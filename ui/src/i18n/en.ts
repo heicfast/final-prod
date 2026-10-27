@@ -149,6 +149,15 @@ export const en = {
     title: 'Lost Partition Rescue',
     subtitle: 'Choose a disk to start searching for lost partition(s)',
     diskList: 'Choose a disk to search',
+    noDisksTitle: 'No disks found',
+    noDisksBody: 'No whole-disk capable device is present. Connect a disk and refresh.',
+    noVolumes: 'no visible volumes',
+    explainer:
+      'The search reads the WHOLE disk through the recovery driver: it finds partitions that Windows no longer lists (deleted, damaged, or overwritten partition tables), scans the filesystems on them, and lists their files under Lost Files in the results. Found files are recoverable from the results page like any other scan.',
+    searchCta: 'Search for Lost Partition',
+    searching: 'Starting the search…',
+    applyNote:
+      'Restoring a found partition back into the disk\u2019s partition table is not available in this window yet — it ships today through the rrecov command-line tool installed beside the app (rrecov apply), which lists the found partitions and writes the table with an undo log.',
   },
   scan: {
     filesFoundWithSize: 'Files Found: {{count}} ({{size}})',

@@ -238,9 +238,18 @@ pub fn spawn_scan_emitter(
                 }
                 abi::CR_EVT_CHECKPOINT => { /* internal truth; no UI emission */ }
                 abi::CR_EVT_LOST_CANDIDATE => {
-                    // Badge surface is future page wiring (plan §3.2 #9): the
-                    // bridge keeps the truthful count, fabricates nothing.
+                    // NG-11: a REAL lost-partition candidate was found at
+                    // this LBA during the whole-disk search. The count stays
+                    // truthful (never fabricated); the event carries the LBA
+                    // for the lost-partition surface's live list.
                     live.lost_candidates += 1;
+                    let _ = app.emit(
+                        &format!("lost-candidate:{scan_id}"),
+                        serde_json::json!({
+                            "lba": evt.candidate_lba,
+                            "count": live.lost_candidates,
+                        }),
+                    );
                 }
                 abi::CR_EVT_REPAIR => {
                     // Outcome record (G-1): the consent prompt (bridge::consent)

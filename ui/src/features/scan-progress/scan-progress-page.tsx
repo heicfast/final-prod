@@ -125,8 +125,16 @@ export function ScanProgressPage(): React.JSX.Element {
     return <ResultsPageFallback />;
   }
 
-  const sectorsScanned = Math.floor((progress?.bytesScanned ?? 0) / 512);
-  const sectorsTotal = Math.floor((progress?.bytesTotal ?? 0) / 512);
+  // Real sector size from the scan target (NG-13b: the divisor was a
+  // hard-coded 512 — wrong on 4Kn natives). Volume targets carry it
+  // directly; whole-disk targets carry it on their first volume.
+  const scanTarget = scanState.data?.target;
+  const sectorSize =
+    (scanTarget && 'sectorSize' in scanTarget ? scanTarget.sectorSize : undefined) ??
+    (scanTarget && 'volumes' in scanTarget ? scanTarget.volumes[0]?.sectorSize : undefined) ??
+    512;
+  const sectorsScanned = Math.floor((progress?.bytesScanned ?? 0) / sectorSize);
+  const sectorsTotal = Math.floor((progress?.bytesTotal ?? 0) / sectorSize);
 
   const onRecover = (): void => {
     if (selection.mode === 'all' || selection.ids.size === 0) {

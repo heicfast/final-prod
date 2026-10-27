@@ -1584,7 +1584,23 @@ struct RemnantCtx {
     std::atomic<u64> emitted{0};
     std::atomic<u64> dup_skipped{0};
     std::atomic<bool> aborted{false};
+    /* NG-3: live deep-sweep progress. `scanned` aggregates bytes swept
+     * across ALL worker threads (monotonic); the callback fires at most
+     * every PROGRESS_STEP bytes per reporting thread - previously the
+     * parallel path ticked only when a whole total/threads chunk finished
+     * and the single-threaded path NEVER ticked during the sweep (hours at
+     * a standing permille on large volumes). false from the callback is
+     * the cancel request (same contract as the chunk reporter it replaces). */
+    std::atomic<u64> scanned{0};
+    WalkProgress progress = nullptr;
+    void* progress_user = nullptr;
+    u64 progress_total = 0; /* the whole-sweep denominator (device size) */
 };
+
+/* NG-3: report deep-sweep progress every 64 MiB of aggregated sweep (per
+ * reporting thread) - bounded callback rate, sector-linear liveness like
+ * the reference's "Reading sector X/Y" ticker. */
+static constexpr u64 REMNANT_PROGRESS_STEP = 64u << 20;
 
 /* GAP-S6-4: extract the remnant record's unnamed $DATA into recoverable
  * content - resident streams travel in the props, non-resident runlists
@@ -2092,6 +2108,7 @@ u32 remnant_range_scan(RemnantCtx& ctx, u64 start, u64 end) {
      * window edge are torn (the og carries an 8-sector window for the
      * same reason - FUN_18000b4c0's split-block reassembly). */
     const u64 overlap = ctx.record_size > 0x2000 ? ctx.record_size : 0x2000;
+    u64 local_reported = 0;
     while (base < end) {
         if (ctx.aborted.load(std::memory_order_relaxed))
             return ERR_CANCELLED;
@@ -2108,6 +2125,23 @@ u32 remnant_range_scan(RemnantCtx& ctx, u64 start, u64 end) {
         }
         scan_remnant_buffer(ctx, buf.data(), want);
         base += REMNANT_BLOCK;
+        /* NG-3: aggregate + report the sweep cursor (both the parallel and
+         * the single-threaded path flow through here now). */
+        if (ctx.progress) {
+            const u64 global =
+                ctx.scanned.fetch_add(REMNANT_BLOCK, std::memory_order_relaxed) + REMNANT_BLOCK;
+            if (global - local_reported >= REMNANT_PROGRESS_STEP || base >= end) {
+                local_reported = global;
+                /* every worker reports the SAME aggregated cursor against the
+                 * whole-sweep denominator: monotonic done/total semantics
+                 * regardless of which thread's range finished */
+                const u64 done = global > ctx.progress_total ? ctx.progress_total : global;
+                if (!ctx.progress(done, ctx.progress_total, ctx.progress_user)) {
+                    ctx.aborted.store(true, std::memory_order_relaxed);
+                    return ERR_CANCELLED;
+                }
+            }
+        }
     }
     return OK;
 }
@@ -2130,25 +2164,26 @@ u32 scan_mft_remnants(IStorageDevice* slice, u32 sector_bytes, u32 cluster_bytes
     ctx.record_size = record_size;
     ctx.tree = &tree;
     ctx.root_lost = root_lost;
+    ctx.progress = progress;
+    ctx.progress_user = progress_user;
+    ctx.progress_total = total;
 
     u32 rc = OK;
     if (threads > 1 && total > REMNANT_BLOCK * 2) {
-        /* fan out chunk ranges over the pool; the tree serializes emission */
+        /* fan out chunk ranges over the pool; the tree serializes emission.
+         * Progress is reported from the per-block aggregator inside
+         * remnant_range_scan (NG-3) - the old per-chunk reporter ticked
+         * only when a whole total/threads range finished. */
         ThreadPool pool(threads);
         PoolCancelToken pool_cancel(&pool);
         const u64 chunk = ((total / threads) + 511) & ~u64(511);
         const u64 nchunks = (total + chunk - 1) / chunk;
-        std::atomic<u64> done_chunks{0};
         rc = parallel_for(pool, nchunks, [&](u64 ci) -> u32 {
             if (cancel && cancel->checkpoint())
                 return ERR_CANCELLED;
             const u64 cstart = ci * chunk;
             const u64 cend = (ci + 1) * chunk < total ? (ci + 1) * chunk : total;
-            const u32 prc = remnant_range_scan(ctx, cstart, cend);
-            const u64 d = done_chunks.fetch_add(1, std::memory_order_relaxed) + 1;
-            if (progress && !progress(d * chunk > total ? total : d * chunk, total, progress_user))
-                return ERR_CANCELLED;
-            return prc;
+            return remnant_range_scan(ctx, cstart, cend);
         });
         if (cancel && cancel->cancelled() && rc == OK)
             rc = ERR_CANCELLED;
