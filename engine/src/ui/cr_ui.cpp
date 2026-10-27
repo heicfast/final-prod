@@ -1797,9 +1797,9 @@ u32 scan_run_impl(cr_ui_scan* scan) {
     if (s->ck_sink) {
         if (s->ck_sink->f)
             std::fclose(s->ck_sink->f);
-            /* the staging file is transient: the final path holds the last
-             * COMMITTED checkpoint; a leftover .tmp is a torn never-committed
-             * emit (N-014's crash window) - remove it, never trust it. */
+        /* the staging file is transient: the final path holds the last
+         * COMMITTED checkpoint; a leftover .tmp is a torn never-committed
+         * emit (N-014's crash window) - remove it, never trust it. */
 #ifdef _WIN32
         DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
 #else
@@ -2345,8 +2345,8 @@ extern "C" CR_UI_API void cr_ui_scan_close(cr_ui_scan* scan) {
         if (s->ck_sink) {
             if (s->ck_sink->f)
                 std::fclose(s->ck_sink->f);
-                /* N-014: the staging file is transient (a torn never-committed
-                 * emit); the final path holds the last committed checkpoint. */
+            /* N-014: the staging file is transient (a torn never-committed
+             * emit); the final path holds the last committed checkpoint. */
 #ifdef _WIN32
             DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
 #else
@@ -3623,20 +3623,19 @@ namespace {
 /* Template over the attribute row: cr_ui_smart_attr (base ABI) and
  * cr_ui_smart_attr_ex (NG-9: carries the vendor threshold). The fill is
  * identical except the threshold tail, selected at compile time. */
-static void fill_smart_attr_base(cr_ui_smart_attr& dst,
-                                 const win::health::SmartAttribute& a) {
+static void fill_smart_attr_base(cr_ui_smart_attr& dst, const win::health::SmartAttribute& a) {
     dst.id = a.id;
     dst.value = a.value;
     dst.worst = a.worst;
-    dst.raw = u64(a.raw[0]) | (u64(a.raw[1]) << 8) | (u64(a.raw[2]) << 16) |
-              (u64(a.raw[3]) << 24) | (u64(a.raw[4]) << 32) | (u64(a.raw[5]) << 40);
+    dst.raw = u64(a.raw[0]) | (u64(a.raw[1]) << 8) | (u64(a.raw[2]) << 16) | (u64(a.raw[3]) << 24) |
+              (u64(a.raw[4]) << 32) | (u64(a.raw[5]) << 40);
     dst.failing = a.failing ? 1u : 0u;
     copy_bstr(dst.name, sizeof(dst.name), a.name);
 }
 
 template <typename TAttr>
-u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, TAttr* attrs,
-                     uint32_t attr_cap, uint32_t* attr_count) {
+u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, TAttr* attrs, uint32_t attr_cap,
+                     uint32_t* attr_count) {
     if (!rep || !attr_count)
         return ret_(ERR_BAD_PARAMETER, "bad argument: rep/attr_count");
     std::memset(rep, 0, sizeof(*rep));
@@ -3718,8 +3717,8 @@ u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, TAttr* attrs,
 #else
 
 template <typename TAttr>
-u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, TAttr* attrs,
-                     uint32_t attr_cap, uint32_t* attr_count) {
+u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, TAttr* attrs, uint32_t attr_cap,
+                     uint32_t* attr_count) {
     (void)disk;
     (void)rep;
     (void)attrs;
