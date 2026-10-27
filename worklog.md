@@ -736,3 +736,47 @@ re-compile-checked clean (makensis 3.11, exit 0, 7-section PE32).
 Next: dispatch run 16 — expecting the first fully green
 validation-evidence run (matrix green on 790bf5b3's tree minus the two
 step-level bugs).
+
+## 2026-10-27T00:10Z — VALIDATION GREEN: runs 16 + 17; evidence committed; the final v0.5.0 cut follows
+
+Validation-evidence run 17 (40422119022, 10da4cd6) is GREEN end to end —
+and run 16 (40421835198, f97a8964) went green in parallel on the
+concurrent lane's commit. The matrix's twelve-round failure history is
+closed, every round root-caused for cause:
+
+- rounds 1-10: installer build issues (NSIS defines, PATHSEP, glob
+  forms, the inner's install location — the registry seed)
+- round 11-12: silent installs BLOCKED on MessageBox without /SD
+  (NSIS manual §4.12; cancelled runs harvested the baseline-only
+  artifacts as proof)
+- round 13: four product bugs from the first complete matrix evidence
+  (registry-key form vs plan §7, dead elevation guards in both driver
+  scripts, gtest/gmock shipped in the kit + 4 uninstall leftovers)
+- round 14: the product matrix green; the STEP's own $LASTEXITCODE null
+  check killed it after 'all rows ok'
+- round 15: the concurrent lane's gtest hard-fail guard fired on an
+  EMPTY list (@($null).Count is 1); + their -File exit-code propagation
+  fix for install.ps1 and the Write-Warning concatenation fix
+- round 16/17: GREEN. matrix.json: baseline clean; install ok
+  (driverService Stopped, regVersion + installMode read back, testDlls
+  0, files 13, 5.7 s); update ok (marker survives); repair ok (hash
+  restored); uninstall ok (unKeyGone, swKeyGone, driverGone,
+  sysDriverGone, sessionsKept, leftoverFiles 0).
+
+Committed under docs/INTEGRATION-VALIDATION/ this window:
+- t15-runtime-matrix/ — the full run-17 evidence set (per-phase JSON,
+  transcripts, the installer's lifecycle facts files, matrix.json, the
+  .md transcript)
+- t14-measurements/ — refreshed to run 17 (the scan-prep row: 4.1 ms;
+  the prep-timer gap CLOSED; enumerate/preview/queryResults updated;
+  the honest gaps section reflects the cross-run data)
+- INTEGRATION-VALIDATION.md — the T15/T14/memory rows moved from
+  "Pending" to "Committed evidence" with the run citations; the CI
+  green table updated (validation-evidence run 17, release run 3 at
+  v0.5.0-rc3); the pending section now holds only the final-tag run and
+  the bare-metal health gap.
+
+Release state: run 3 (v0.5.0-rc3) GREEN — setup.exe + portable.zip +
+SHA256SUMS on the GitHub release (prerelease-labeled). Next: the FINAL
+v0.5.0 tag on the evidence-committed tree (VERSION lockstep
+0.5.0-rc3 -> 0.5.0), then the release run, then the handoff entry.

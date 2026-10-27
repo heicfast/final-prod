@@ -1,0 +1,58 @@
+[
+  {
+    "phase": "baseline",
+    "result": "clean",
+    "atUtc": "2026-10-27T00:01:28.0898401Z",
+    "facts": {
+      "driverServicePresent": false
+    }
+  },
+  {
+    "phase": "install",
+    "result": "ok",
+    "atUtc": "2026-10-27T00:01:33.9013551Z",
+    "facts": {
+      "crUi": true,
+      "durationMs": 5652,
+      "files": 13,
+      "regVersion": "0.5.0-rc3",
+      "driverService": "Stopped",
+      "installMode": "AllUsers",
+      "testDlls": 0,
+      "exitCode": 0,
+      "appExe": true
+    }
+  },
+  {
+    "phase": "update(reinstall)",
+    "result": "ok",
+    "atUtc": "2026-10-27T00:01:37.6727290Z",
+    "facts": {
+      "markerSurvived": true,
+      "exitCode": 0
+    }
+  },
+  {
+    "phase": "repair-over-corruption",
+    "result": "ok",
+    "atUtc": "2026-10-27T00:01:41.3271841Z",
+    "facts": {
+      "restored": true,
+      "exitCode": 0
+    }
+  },
+  {
+    "phase": "uninstall(silent)",
+    "result": "ok",
+    "atUtc": "2026-10-27T00:01:47.3972668Z",
+    "facts": {
+      "sysDriverGone": true,
+      "driverGone": true,
+      "exitCode": 0,
+      "swKeyGone": true,
+      "leftoverFiles": 0,
+      "unKeyGone": true,
+      "sessionsKept": true
+    }
+  }
+]
