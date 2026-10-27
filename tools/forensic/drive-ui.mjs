@@ -76,7 +76,16 @@ function extractScanState(text) {
 
 async function main() {
   log(`connecting to CDP 127.0.0.1:${CDP_PORT}`);
-  const browser = await chromium.connectOverCDP(`http://127.0.0.1:${CDP_PORT}`);
+  let browser = null;
+  for (let attempt = 1; attempt <= 10 && !browser; attempt++) {
+    try {
+      browser = await chromium.connectOverCDP(`http://127.0.0.1:${CDP_PORT}`);
+    } catch (e) {
+      log(`connect attempt ${attempt} failed: ${e.message.split('\n')[0]}`);
+      await new Promise(r => setTimeout(r, 3000));
+    }
+  }
+  if (!browser) throw new Error('could not connect to CDP after 10 attempts');
   const ctx = browser.contexts()[0];
   let page = ctx.pages()[0];
   if (!page) page = await ctx.waitForEvent('page', { timeout: 30000 });

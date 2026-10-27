@@ -87,39 +87,38 @@ jobs:
         shell: pwsh
         run: .\tools\forensic\collect-facts.ps1 -OutDir C:\forensic\evidence -Label postinstall
 
-      - name: Launch the installed app with CDP (real shipped UI)
-        shell: pwsh
-        run: .\tools\forensic\launch-app.ps1 -OutDir C:\forensic\evidence
-
-      - name: Start IO/child-process probe in the background
+      - name: Launch app + probes + drive the real UI - health, scan, every surface (S2 S3 S4)
         shell: pwsh
         run: |
+          # ONE step on purpose: the Windows runner's job object kills
+          # step-spawned processes when the step ends (run 40464495050: the
+          # app launched in step 10 was dead by step 12 - ECONNREFUSED on the
+          # CDP port the same second). App, IO probe, and the CDP driver must
+          # share one step lifetime; teardown in finally.
+          $ErrorActionPreference = 'Stop'
+          .\tools\forensic\launch-app.ps1 -OutDir C:\forensic\evidence
+
           $appPid = [int](Get-Content C:\forensic\evidence\app-pid.txt -Raw).Trim()
           "app pid: $appPid"
-          $p = Start-Process pwsh -ArgumentList '-NoProfile','-File','tools\forensic\io-probe.ps1','-AppPid',"$appPid",'-OutDir','C:\forensic\evidence','-DurationSec','3000' -PassThru
-          $p.Id | Set-Content C:\forensic\evidence\io-probe-pid.txt
+          $io = $null
+          try {
+            $io = Start-Process pwsh -ArgumentList '-NoProfile','-File','tools\forensic\io-probe.ps1','-AppPid',"$appPid",'-OutDir','C:\forensic\evidence','-DurationSec','3000' -PassThru
+            $io.Id | Set-Content C:\forensic\evidence\io-probe-pid.txt
 
-      - name: Drive the real UI - health, scan, every surface (S2 S3 S4)
-        shell: pwsh
-        run: |
-          $env:OUT_DIR = 'C:\forensic\evidence'
-          Set-Location tools\forensic
-          node drive-ui.mjs
-          if ($LASTEXITCODE -ne 0) { exit 1 }
+            $env:OUT_DIR = 'C:\forensic\evidence'
+            Set-Location tools\forensic
+            node drive-ui.mjs
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          } finally {
+            Set-Location D:\a\final-prod\final-prod
+            if ($io -and -not $io.HasExited) { Stop-Process -Id $io.Id -Force -ErrorAction SilentlyContinue }
+            if (Get-Process -Id $appPid -ErrorAction SilentlyContinue) { Stop-Process -Id $appPid -Force -ErrorAction SilentlyContinue }
+            Start-Sleep -Seconds 2
+          }
 
-      - name: Stop probes + app, final facts
+      - name: Final facts (postrun)
         shell: pwsh
-        run: |
-          if (Test-Path C:\forensic\evidence\io-probe-pid.txt) {
-            $ioPid = [int](Get-Content C:\forensic\evidence\io-probe-pid.txt -Raw).Trim()
-            Stop-Process -Id $ioPid -Force -ErrorAction SilentlyContinue
-          }
-          if (Test-Path C:\forensic\evidence\app-pid.txt) {
-            $appPid = [int](Get-Content C:\forensic\evidence\app-pid.txt -Raw).Trim()
-            Stop-Process -Id $appPid -Force -ErrorAction SilentlyContinue
-          }
-          Start-Sleep -Seconds 2
-          .\tools\forensic\collect-facts.ps1 -OutDir C:\forensic\evidence -Label postrun
+        run: .\tools\forensic\collect-facts.ps1 -OutDir C:\forensic\evidence -Label postrun
 
       - name: Upload all forensic evidence
         if: always()
