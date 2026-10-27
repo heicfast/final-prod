@@ -1142,3 +1142,27 @@ integration sessions recorded in `worklog.md`. State of the §12 task table:
 
 The plan text above stays frozen as the historical gate document; the
 worklog and docs/INTEGRATION-VALIDATION.md carry the shipped truth.
+
+---
+
+## Post-completion amendment — 2026-10-27 (recorded, plan text above stays frozen)
+
+The 2026-10-27 operator directive superseded two postures this plan
+recorded, after the v0.5.0 completion above:
+
+1. **The driver is MANDATORY** — this plan's transport sections described
+   the corpus-observed EPRDTDRV-first / direct-fallback duality to
+   preserve. The directive removed every fallback (`PARITY-DELTAS.md`
+   D-FALL); `ERR_DRIVER_REQUIRED` (0x50020007) is the driver-absent
+   truth. §7.4's per-user install mode is retired with it (a per-user
+   install cannot install the required driver).
+2. **Signing posture** — this plan recorded "unsigned by default,
+   signing disabled." The directive replaced it with DEVELOPMENT
+   TEST-SIGNING (docs/DEV-SIGNING.md): the ephemeral build certificate
+   embed-signs rda.sys + the engine kit + the installer; the public
+   certificate ships as a release asset; production signing (attestation)
+   remains pending.
+
+The shipped truth lives in `docs/INTEGRATION-VALIDATION.md` (run
+40442056802 evidence) and `worklog.md`. The v0.6.0-rc1 release is the
+first cut under these postures.

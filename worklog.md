@@ -1172,3 +1172,56 @@ Stage Summary:
   setup.exe, the public .cer shipped as a release asset, truthful notes.
 - Watching the release run; the four assets (setup.exe, portable.zip,
   testsigning.cer, SHA256SUMS) must land on the release page.
+
+---
+
+## 2026-10-27T04:35Z — v0.6.0-rc1 SHIPPED: the first development TEST-SIGNED release is LIVE and byte-verified
+
+The release run (40448678863, tag `v0.6.0-rc1` at `2cc3c501`): GREEN in
+16.7 minutes, every gate passed for the correct reason —
+
+- Version gate (tag == VERSION) + contracts gate: pass.
+- Full product build (build.ps1 all lanes: contracts -> driver (WDK +
+  devsign embed-sign) -> engine (cmake + kit + devsign) -> ui (tauri) ->
+  NSIS installer (devsign) -> portable zip -> SHA256SUMS): pass.
+- Artifact verification: all four expected artifacts present AND both
+  signature gates real (`devsign.ps1 -Action verify` on the setup.exe
+  AND the staged rda.sys — throws on absence, so a green step proves the
+  signatures landed).
+- Upload: every asset on the release with fail_on_unmatched_files.
+
+Independent post-publish verification (this lane, from a clean
+download): the four assets fetched via the API with
+`Accept: application/octet-stream` (the first loop attempt saved JSON
+metadata blobs — re-download with the header is the correct method);
+sizes match the API-reported sizes exactly; `sha256sum -c SHA256SUMS`
+verifies all three payload files OK. Release notes body confirmed
+truthful (mandatory-driver section, development test-signed section
+with the Secure-Boot `bcdedit /set testsigning on` guidance, the .cer
+asset, checksums block).
+
+Also this closing pass:
+- INTEGRATION-VALIDATION.md: release row updated to the v0.6.0-rc1
+  truth (first dev-signed release, cut on the run-23-validated tree);
+  the CI table carries the current per-lane green states.
+- INTEGRATION-PLAN.md: post-completion amendment appended (the plan
+  text stays frozen) recording the two superseded postures — the
+  mandatory-driver directive (D-FALL) and the dev-signing posture
+  replacing "signing disabled".
+- PARITY-DELTAS.md D-FALL confirmed complete (it records the directive,
+  the removed fallbacks, and what legitimately stays on the storage
+  stack as metadata/policy IOCTLs).
+
+Stage Summary:
+- The session directive is fully shipped: driver mandatory (no
+  fallbacks anywhere), development test-signing on driver + engine kit +
+  installer (Windows runners, ephemeral per-build certificate, nothing
+  committed), installer puts every file and module down (15 modules +
+  the 7-file driver dir, proven by the T15 matrix), everything tested
+  (all lanes green + the full validation run green with the driver
+  RUNNING), and the new release v0.6.0-rc1 is live with the test
+  signature for machine-level testing.
+- The user's test path: download setup.exe from the release, run it
+  (elevation for the required driver), and on Secure-Boot-ON machines
+  run `bcdedit /set testsigning on` + reboot first (the release notes
+  and the installer's driver page state this).
