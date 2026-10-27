@@ -1,7 +1,7 @@
-{"leg": "g7-filter-all", "nodes": 100000, "hits": 75000, "totalMs": 0.394, "nsPerNode": 3.9}
-{"leg": "g7-filter-scoped", "nodes": 100000, "hits": 5556, "totalMs": 14.059, "nsPerNode": 140.6}
-{"leg": "g7-filter-all", "nodes": 1000000, "hits": 750000, "totalMs": 4.241, "nsPerNode": 4.2}
-{"leg": "g7-filter-scoped", "nodes": 1000000, "hits": 55556, "totalMs": 149.643, "nsPerNode": 149.6}
+{"leg": "g7-filter-all", "nodes": 100000, "hits": 75000, "totalMs": 0.362, "nsPerNode": 3.6}
+{"leg": "g7-filter-scoped", "nodes": 100000, "hits": 5556, "totalMs": 11.671, "nsPerNode": 116.7}
+{"leg": "g7-filter-all", "nodes": 1000000, "hits": 750000, "totalMs": 4.178, "nsPerNode": 4.2}
+{"leg": "g7-filter-scoped", "nodes": 1000000, "hits": 55556, "totalMs": 123.943, "nsPerNode": 123.9}
 {"leg": "nodemeta-memory", "nodes": 100000, "heapBytes": 21255466, "bytesPerNode": 212, "structSizeBytes": 144}
 {"leg": "nodemeta-memory", "nodes": 1000000, "heapBytes": 213630466, "bytesPerNode": 213, "structSizeBytes": 144}
 {"leg": "static-bounds", "badSectorMapCap": 4096, "scanEventChannel": 512, "recoveryProgressChannel": 64}

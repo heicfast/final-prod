@@ -1,9 +1,9 @@
-T14-ENGINE enumerate {"disks": 2, "volumes": 2, "p50Ms": 6.570, "p95Ms": 19.018, "iterations": 20}
+T14-ENGINE enumerate {"disks": 2, "volumes": 2, "p50Ms": 7.856, "p95Ms": 130.917, "iterations": 20}
 T14-ENGINE health {"supported": 0, "p50Ms": -1.000, "p95Ms": -1.000, "iterations": 0}
-T14-ENGINE scan-prep {"prepMs": 4.068, "volume": "C", "volumeBytes": 274284396032}
-T14-ENGINE scan {"runMs": 64620.3, "firstEventMs": 1.5, "events": 404, "filesFound": 1899588, "bytesScanned": 0, "engineElapsedMs": 64617, "throughputBytesPerSecond": 0}
-T14-ENGINE snapshot {"snapshotMs": 1779.7, "nodeCount": 1899818, "dfsMs": 110.7, "rowsPaged500P50Ms": 0.115, "rowsPaged500P95Ms": 0.128, "pages": 32}
-T14-ENGINE preview {"available": 1, "openMs": 0.037, "read64KiBMs": 0.017, "metadataMs": 0.010, "fileSize": 129}
-T14-ENGINE memory {"peakWorkingSetBeforeScanBytes": 4861952, "peakAfterScanBytes": 2046820352, "peakAfterRowsBytes": 2419421184}
+T14-ENGINE scan-prep {"prepMs": 5.504, "volume": "C", "volumeBytes": 274284396032}
+T14-ENGINE scan {"runMs": 72076.8, "firstEventMs": 12.5, "events": 404, "filesFound": 1899582, "bytesScanned": 0, "engineElapsedMs": 72074, "throughputBytesPerSecond": 0}
+T14-ENGINE snapshot {"snapshotMs": 1695.6, "nodeCount": 1899812, "dfsMs": 98.8, "rowsPaged500P50Ms": 0.097, "rowsPaged500P95Ms": 0.116, "pages": 32}
+T14-ENGINE preview {"available": 1, "openMs": 0.033, "read64KiBMs": 0.014, "metadataMs": 0.009, "fileSize": 129}
+T14-ENGINE memory {"peakWorkingSetBeforeScanBytes": 4837376, "peakAfterScanBytes": 2042724352, "peakAfterRowsBytes": 2416599040}
 T14-ENGINE context {"abiVersion": 2, "stageMask": 1, "volume": "C", "volumeBytes": 274284396032}
 T14-ENGINE retiredSimulatorBudgetsMs {"listDevices": [120, 240], "startScan": [300, 540], "queryResults": [40, 140], "preview": [80, 400], "health": [160, 400]}

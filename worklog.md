@@ -1083,3 +1083,55 @@ Validation rounds 2->3->4->5: each failure root-caused, never masked:
 - round 4 (40438494245): probe hex literal (1c3eeedc).
 - round 5 (in flight): expecting the first fully-green validation run
   with the driver RUNNING on both lanes.
+
+## 2026-10-27T04:15Z — TEST-SIGNED RELEASE SESSION (operator directive: "figure out test signing, use windows runners, add release with test sign"): run-23 evidence harvested; the v0.6.0-rc1 tag cut
+
+Operator directive (verbatim intent): implement test signing on the
+Windows runners, sign everything, and publish a release carrying the
+test signature so the machine-level testing can begin.
+
+State found on pull (the parallel mandatory-driver/dev-signing lane had
+landed, `9e1881541` = HEAD): the development TEST-SIGNING apparatus is
+complete and already validated — `installer/devsign.ps1` (new-cert /
+sign / verify / install-cert / remove-cert), `docs/DEV-SIGNING.md` (the
+policy matrix + primary-source research), `build.ps1` embed-signing the
+engine kit + `rda.sys` + the setup.exe, the NSIS installer importing the
+certificate into `LocalMachine\Root` + `TrustedPublisher` with the
+uninstaller removing it by thumbprint, all Windows lanes on Windows
+runners (release + validation-evidence on windows-2022, ui-ci/ui-e2e on
+windows-latest, driver-ci/engine-ci Windows legs), the WOW64
+redirection bug FIXED (every prior driver start had failed
+file-not-found behind SysWOW64 redirection — `00f5cae5`), and
+validation-evidence run 23 (40442056802) GREEN on both lanes: the
+development test-signed driver INSTALLED + RUNNING on the hosted runner
+(testsigning ON at image build — the research premise validated in
+production).
+
+This session's work:
+- Harvested run 23's evidence artifacts (t14-measurements +
+  t15-runtime-matrix) into `docs/INTEGRATION-VALIDATION/` — the t15
+  matrix now cites the green run (driver `Running`, `driverSigned:
+  true`, cert in both stores, uninstall removes cert + the REAL
+  System32\drivers\RDA.sys, zero leftovers, sessions kept) and the t14
+  measurements carry run 23's numbers (enumerate p50 7.9 / p95 130.9 ms;
+  scan prep 5.5 ms — 4.1–5.9 across four runs; G-7 filter 4.2 / 123.9
+  ns per node; rows 0.097 ms/500; snapshot 1.70 s; the same 213 B/node
+  and 2.04/2.42 GB memory bounds).
+- `docs/INTEGRATION-VALIDATION.md` re-indexed: the T15 row's stale
+  "registers Stopped: unsigned" claim replaced with the RUNNING truth,
+  the CI-lane table current (driver-ci run 7 at the WOW64 fix incl. the
+  dev-sign smoke leg; engine-ci run 6; validation run 23), the release
+  row now describes the v0.6.0-rc1 test-signed release.
+- Cut the tag `v0.6.0-rc1` (VERSION = 0.6.0-rc1 — the gate's
+  requirement) on the evidence-refreshed tree: the release workflow
+  builds the full product on windows-2022 with the complete test suite,
+  embed-signs the driver + engine kit + installer with the build's
+  ephemeral certificate, VERIFIES the signatures on the setup.exe and
+  the staged rda.sys before upload, and publishes setup.exe +
+  portable.zip + the public `-testsigning.cer` + SHA256SUMS with
+  truthful development-test-signed notes.
+
+Operator test path (stated in the release notes, the installer's driver
+page, and docs/DEV-SIGNING.md §2): Secure Boot OFF — install and the
+driver loads (the installer imports the certificate); Secure Boot ON —
+`bcdedit /set testsigning on` + reboot once, then install.

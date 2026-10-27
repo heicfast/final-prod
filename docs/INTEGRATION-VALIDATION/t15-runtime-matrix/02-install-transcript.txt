@@ -1,5 +1,5 @@
 installer: build\out\RecoveryWizard-0.6.0-rc1-setup.exe
 args: /S /allusers
 exitCode: 0
-durationMs: 8804
-ranAtUtc: 2026-10-27T02:25:07.3307673Z
+durationMs: 9384
+ranAtUtc: 2026-10-27T03:19:19.4577330Z
