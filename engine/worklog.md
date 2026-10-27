@@ -17279,3 +17279,32 @@ Stage Summary:
   Board: 8 active / 223 FIXED / 1 tracked-open. Phase 2 (corpus-driven
   parity re-audit) begins next; coordination with the S7 lane (driver-only
   era) per the SA-0 note.
+
+---
+Task ID: SA-2 (Phase 2 wave 0 — parallel corpus/product reads + gate documents)
+Agent: main engineer (session: audit + dev-sign validation) + agents A1/A2/C (scratch sheets only)
+
+Work Log:
+- Spawned the parallel read agents (context sheets in /home/z/my-project/scratch/,
+  NOT committed): A1 (282-doc corpus inventory + citation cross-ref: 78 cited /
+  204 never-cited; top-10 in-scope under-covered ranked), A2 (CORRECTIONS.md
+  8-correction sweep: 7 APPLIED-CLEAN, 1 AFFECTED — M-024's "37 toggles" is
+  actually 34 per the correction + own RawConfig.ini recount; + the installer-
+  surface inventory: 27 NEW-ground parameters), C (product surface map: 80
+  headers, 10 CLI verbs, 80 ABI exports, 8 driver-era-stale surfaces, exact
+  IOCTL/error-taxonomy values, 3 doc-code contradictions).
+- Authored + pushed the GATE documents per the mandate:
+  diff-to-fix/SURFACE-INVENTORY.md (the full corpus-derived surface inventory
+  with coverage statuses + the session wave order + the S7-lane flags) and
+  diff-to-fix/PARAMETERS.md Group K (K71-K78, the corpus-derived packaging/
+  installer parameters) + application notes (driver-install module row;
+  CORRECTIONS #5 note).
+- Wave order (corpus-determined): 1 carve families, 2 session field schemas,
+  3 installer surface, 4 preview subsystem, 5 user-signature DB grammar,
+  6 WinPE payload census, 7 MOM stubs spot-check, 8 corrections propagation.
+  Driver-era wire/IOCTL audit stays with the S7 lane (no pushes from them yet;
+  the two NEVER-CITED driver docs are flagged to S7 in the inventory §1).
+
+Stage Summary:
+- Gate documents committed; Phase-2 finding waves may begin. The corpus
+  inventory shows ~50 in-scope NEVER/PARTIAL docs to disposition this session.
