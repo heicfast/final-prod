@@ -997,3 +997,40 @@ Plan (this session):
   TESTING/PARITY-DELTAS + engine DRIVER-UTILIZATION §1.9 updated to the
   mandatory posture; INTEGRATION-VALIDATION gets the new evidence.
 - Version: 0.5.0 (final) -> 0.6.0-rc1 (behavior change: driver mandatory).
+
+## 2026-10-27T01:00Z — the mandatory-driver tree lands on main; CI round 1-2
+
+Pushed (rebased on the concurrent lane's v0.5.0 handoff 652b6f1e): the
+engine mandate commit, the UI truth commit, the installer+devsign commit,
+the version bump (0.5.0 -> 0.6.0-rc1), and the round-1/round-2 fixes.
+The rebase's only conflicts were the worklog (both chronologies kept)
+and the four version files (0.6.0-rc1 wins over the lane's final 0.5.0
+bump — our tree is the next line).
+
+CI round 1 (ef8cd49c):
+- contracts-ci RED at the gate's exact purpose: the NEW engine code
+  ERR_DRIVER_REQUIRED (35th code, 34 mapped). Fixed by the full boundary
+  chain (commit b9d1a366): contracts/error-codes.json row, the NEW
+  'driver-required' ConnectorErrorCode (contract.ts union +
+  REASON_KEYS + ENGINE_CODE_MAP[0x50020007]), and i18n errors.
+  driverRequired (en + zh) naming the remedy + the no-fallback truth.
+  contracts validate.mjs green locally AND on the runner.
+- ui-ci + ui-e2e GREEN on the first push (system.rs + connector + i18n
+  all typecheck, test, lint, e2e clean).
+- driver-ci RED: the smoke leg's Copy-Item doubled the driver path (the
+  job's working-directory is already driver/ -> driver\driver\bin\...).
+  Fixed (20152872): relative bin\x64\... like every other step in that
+  job. Re-run GREEN: the dev-sign smoke leg works on BOTH WDK matrix
+  legs — cert generation + embed-signature + signer verification on the
+  real freshly-built rda.sys, per push.
+- engine-ci RED in two lanes (first MSVC compile of the rewrite):
+  (a) rpcndr.h's '#define small char' poisoned test_cr_ui.cpp:479 via the
+  new <windows.h> include — #undef small with the reason at the include;
+  (b) clang-format violations in the touched files — clang-format -i over
+  all nine, --dry-run --Werror clean. Local re-validation after the fix:
+  win_syntax_check green (full src/win set), the g++ -D_WIN32 parse gate
+  green, the full Linux suite 926/926 green (2f4695ce).
+
+Next: engine-ci green on 2f4695ce -> dispatch validation-evidence (T14
+with the driver LOADED on the runner; T15 with the mandatory-driver
+matrix) -> harvest evidence -> tag v0.6.0-rc1.
