@@ -2263,25 +2263,35 @@ TEST(CrUi, UserSignRegistrationSurface) {
 
 TEST(CrUi, TransportErrorAdvisoryZeroOnCleanState) {
     /* M-030 claim (f): the ABI can now report the transport-open
-     * diagnostic (ABI-since 2.2, additive). The clean-state contract:
-     * 0 = the last open succeeded (or no open was attempted), and the
-     * Linux stub's UNSUPPORTED open records nothing. Both legs hold on
-     * the CI lanes: Linux answers UNSUPPORTED (no platform layer);
-     * the Windows runner has no RDA service, so the DIRECT leg opens
-     * PhysicalDrive0 clean and a successful open resets the advisory
-     * to 0 (open_disk_impl :1199). The recorded-error leg - RDA
-     * present and failing, direct fallback succeeding - needs a
-     * driver-attached host (the M-030 contract is surfaced either way
-     * by cr_ui_last_transport_error). Fail-before: the export did not
-     * exist. */
+     * diagnostic (ABI-since 2.2, additive). DRIVER-ONLY SESSION UPDATE:
+     * the clean-state-zero premise is stale - there is no direct leg on
+     * Windows anymore. The current contract (docs/DRIVER-REQUIRED.md
+     * section 6): on a driverless host the open REFUSES with the
+     * classified ERR_DRIVER_ABSENT code and the advisory carries that
+     * class (the presentation channel for hosts that surface transport
+     * diagnostics); on a driver-attached host the grammar open succeeds
+     * and a successful open resets the advisory to 0. The Linux stub
+     * still answers UNSUPPORTED and records nothing. Fail-before (this
+     * session): the pre-driver-only Windows leg asserted the direct-open
+     * clean state that no longer exists. */
     cr_ui_device* d = nullptr;
     const uint32_t rc = cr_ui_open_disk(0, &d);
 #ifdef _WIN32
-    EXPECT_EQ(rc, 0u) << "elevated runner, no RDA service: the direct leg opens clean";
-    ASSERT_NE(d, nullptr);
-    cr_ui_device_close(d);
+    cr_ui_driver_status_t st;
+    ASSERT_EQ(cr_ui_driver_status(&st), 0u) << "the status query itself must succeed";
+    if (st.state == CR_UI_DRIVER_STATE_READY) {
+        EXPECT_EQ(rc, 0u) << "driver-attached host: the grammar open succeeds";
+        ASSERT_NE(d, nullptr);
+        cr_ui_device_close(d);
+        EXPECT_EQ(cr_ui_last_transport_error(), 0u) << "success resets the advisory";
+    } else {
+        EXPECT_EQ(rc, 0x500B0001u) << "driverless host: the classified ERR_DRIVER_ABSENT refusal";
+        EXPECT_EQ(d, nullptr);
+        EXPECT_EQ(cr_ui_last_transport_error(), 0x500B0001u)
+            << "the advisory carries the refusal class (DRIVER-REQUIRED.md section 6)";
+    }
 #else
     EXPECT_EQ(rc, CR_UI_ERR_UNSUPPORTED);
-#endif
     EXPECT_EQ(cr_ui_last_transport_error(), 0u);
+#endif
 }

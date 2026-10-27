@@ -34,6 +34,15 @@ ALLOWLIST_ADDITIONS = {
     # volume's drive letter before dismounting (RecoveryModule_decompiled.c:44699,
     # DeleteVolumeMountPointA there; W variant is the same syscall). Available
     # since Windows 2000 - Win7-inclusive by construction.
+    # Driver-only session (2026-10-27): the driver-status query's SCM
+    # surface (query_driver_status, cr_transport.cpp) - the present/loaded
+    # facets. All four are NT-era advapi32 service-control APIs (documented
+    # since Windows 2000; the service-control API set predates Win7 by a
+    # decade) - Win7-inclusive by construction.
+    "OpenSCManagerW": "driver-status present facet (SCM connect); NT-era API",
+    "OpenServiceW": "driver-status present facet (service open); NT-era API",
+    "QueryServiceStatus": "driver-status loaded facet (running state); NT-era API",
+    "CloseServiceHandle": "SCM/service handle cleanup; NT-era API",
     "DeleteVolumeMountPointW": "S-010 repair quiesce (corpus :44699); Win2000-era API",
     # S-014 (diff-to-fix): the live auto-unlock read needs the per-volume
     # "Data" value (DRWService_decompiled.c:121 RegQueryValueExA there; W
