@@ -1163,8 +1163,9 @@ u32 open_disk_impl(uint32_t disk, cr_ui_device** out) {
         if (ds != win::DriverState::Ready) {
             const u32 rc = win::driver_state_error(ds);
             set_last_transport_error_(rc);
-            return ret_(rc, "driver prerequisite not met (state %s) - see "
-                         "docs/DRIVER-REQUIRED.md",
+            return ret_(rc,
+                        "driver prerequisite not met (state %s) - see "
+                        "docs/DRIVER-REQUIRED.md",
                         win::driver_state_name(ds));
         }
     }
@@ -1183,8 +1184,8 @@ u32 open_disk_impl(uint32_t disk, cr_ui_device** out) {
      * silent transport switch (the pre-driver-only code fell back to
      * \\.\PhysicalDriveN here - CORE-DISK-ACCESS F5/F6). */
     set_last_transport_error_(err);
-    return ret_(err ? err : u32(ERR_OPEN_FAILED),
-                "cannot open disk %u through the RDA driver path", disk);
+    return ret_(err ? err : u32(ERR_OPEN_FAILED), "cannot open disk %u through the RDA driver path",
+                disk);
 }
 
 u32 open_volume_impl(char letter, cr_ui_device** out) {
@@ -1215,8 +1216,9 @@ u32 open_volume_impl(char letter, cr_ui_device** out) {
         if (ds != win::DriverState::Ready) {
             const u32 rc = win::driver_state_error(ds);
             set_last_transport_error_(rc);
-            return ret_(rc, "driver prerequisite not met (state %s) - see "
-                         "docs/DRIVER-REQUIRED.md",
+            return ret_(rc,
+                        "driver prerequisite not met (state %s) - see "
+                        "docs/DRIVER-REQUIRED.md",
                         win::driver_state_name(ds));
         }
     }
@@ -1226,8 +1228,7 @@ u32 open_volume_impl(char letter, cr_ui_device** out) {
     if (!whole) {
         set_last_transport_error_(err);
         return ret_(err ? err : u32(ERR_OPEN_FAILED),
-                    "cannot open disk %u for volume %c: through the RDA driver path", disk,
-                    letter);
+                    "cannot open disk %u for volume %c: through the RDA driver path", disk, letter);
     }
     const char* transport = "rda";
     auto slice = PartitionSlice::create(whole.get(), start, len, nullptr);
@@ -1299,8 +1300,9 @@ u32 open_volume_with_key_impl(char letter, const char* utf8_hex_fvek, cr_ui_devi
         if (ds != win::DriverState::Ready) {
             const u32 rc = win::driver_state_error(ds);
             set_last_transport_error_(rc);
-            return ret_(rc, "driver prerequisite not met (state %s) - see "
-                         "docs/DRIVER-REQUIRED.md",
+            return ret_(rc,
+                        "driver prerequisite not met (state %s) - see "
+                        "docs/DRIVER-REQUIRED.md",
                         win::driver_state_name(ds));
         }
     }
@@ -1310,8 +1312,7 @@ u32 open_volume_with_key_impl(char letter, const char* utf8_hex_fvek, cr_ui_devi
     if (!whole) {
         set_last_transport_error_(err);
         return ret_(err ? err : u32(ERR_OPEN_FAILED),
-                    "cannot open disk %u for volume %c: through the RDA driver path", disk,
-                    letter);
+                    "cannot open disk %u for volume %c: through the RDA driver path", disk, letter);
     }
     const char* transport = "rda";
     auto slice = PartitionSlice::create(whole.get(), start, len, nullptr);
@@ -1889,9 +1890,9 @@ u32 scan_run_impl(cr_ui_scan* scan) {
     if (s->ck_sink) {
         if (s->ck_sink->f)
             std::fclose(s->ck_sink->f);
-            /* the staging file is transient: the final path holds the last
-             * COMMITTED checkpoint; a leftover .tmp is a torn never-committed
-             * emit (N-014's crash window) - remove it, never trust it. */
+        /* the staging file is transient: the final path holds the last
+         * COMMITTED checkpoint; a leftover .tmp is a torn never-committed
+         * emit (N-014's crash window) - remove it, never trust it. */
 #ifdef _WIN32
         DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
 #else
@@ -2440,8 +2441,8 @@ extern "C" CR_UI_API void cr_ui_scan_close(cr_ui_scan* scan) {
         if (s->ck_sink) {
             if (s->ck_sink->f)
                 std::fclose(s->ck_sink->f);
-                /* N-014: the staging file is transient (a torn never-committed
-                 * emit); the final path holds the last committed checkpoint. */
+            /* N-014: the staging file is transient (a torn never-committed
+             * emit); the final path holds the last committed checkpoint. */
 #ifdef _WIN32
             DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
 #else

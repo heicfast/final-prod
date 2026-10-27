@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# pre-commit - the FAST subset of the local gate (seconds, not minutes).
+# Install (one-time): git config core.hooksPath .githooks
+# The FULL gate (./ci-local.sh / ci-local.ps1) runs before every push
+# (pre-push hook or trained manual step) - docs/CONTRIBUTING.md.
+# Bypassing with --no-verify is a contributor violation.
+set -u
+cd "$(dirname "$0")/.."
+RED='\033[0;31m'; GRN='\033[0;32m'; RST='\033[0m'
+fail() { echo -e "${RED}[pre-commit FAIL]${RST} $1"; exit 1; }
+
+# staged secrets scan (the one class that must never reach the object DB)
+STAGED=$(git diff --cached 2>/dev/null)
+if echo "$STAGED" | grep -qE "ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----"; then
+  fail "secrets in staged content - remove, rotate, never commit (docs/SECURITY.md)"
+fi
+
+# staged-file format check (fast subset: only what is being committed)
+if command -v clang-format >/dev/null 2>&1; then
+  FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(h|hpp|cpp|c)$' | head -200)
+  if [ -n "$FILES" ]; then
+    BAD=$(echo "$FILES" | xargs -r clang-format --dry-run -Werror 2>&1 | grep -c "error:" || true)
+    if [ "$BAD" != "0" ]; then
+      echo "$FILES" | xargs -r clang-format --dry-run -Werror 2>&1 | grep "error:" | head -10
+      fail "$BAD format violations in staged files - run: clang-format -i <files>"
+    fi
+  fi
+fi
+
+echo -e "${GRN}[pre-commit ok]${RST} fast gate clean (secrets + format) - full gate: ./ci-local.sh"
+exit 0

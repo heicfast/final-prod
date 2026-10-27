@@ -430,9 +430,8 @@ u32 query_driver_status(const wchar_t* service_name, DriverStatus* out) {
      * posture rda_available used, minus the boolean collapse). */
     const std::wstring path = rda::control_device_path(service_name);
     SetLastError(0);
-    HANDLE h =
-        CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
-                    OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    HANDLE h = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                           OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (h == INVALID_HANDLE_VALUE) {
         out->last_gle = GetLastError();
         return OK; /* absent/not-started/unauthorized/errored - classified upstream */
@@ -452,8 +451,8 @@ u32 query_driver_status(const wchar_t* service_name, DriverStatus* out) {
         u64 wire = 0;
         if (DeviceIoControl(h, rda::kIoctlGetVersion, nullptr, 0, &wire, sizeof(wire), &br,
                             nullptr) &&
-            br >= sizeof(wire) &&
-            u32(wire >> 32) == info.major_version && u32(wire) == info.minor_version) {
+            br >= sizeof(wire) && u32(wire >> 32) == info.major_version &&
+            u32(wire) == info.minor_version) {
             out->info_valid = true;
             out->major = info.major_version;
             out->minor = info.minor_version;
@@ -963,8 +962,7 @@ std::unique_ptr<RwDevice> open_rw_device(u32 disk, const wchar_t* service, u32* 
 }
 } // namespace
 
-std::unique_ptr<cr::repair::IWriteDevice> open_disk_rw(u32 disk, const wchar_t* service,
-                                                       u32* err) {
+std::unique_ptr<cr::repair::IWriteDevice> open_disk_rw(u32 disk, const wchar_t* service, u32* err) {
     return open_rw_device(disk, service, err);
 }
 

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# pre-push - the FULL local gate before anything reaches the remote.
+# Install (one-time): git config core.hooksPath .githooks
+# Bypassing with --no-verify is a contributor violation (docs/CONTRIBUTING.md):
+# the remote never accommodates a red push.
+set -u
+cd "$(dirname "$0")/.."
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) exec pwsh -NoProfile -File ci-local.ps1 ;;
+  *) exec ./ci-local.sh ;;
+esac

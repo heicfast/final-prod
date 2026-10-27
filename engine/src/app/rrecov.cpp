@@ -2619,10 +2619,10 @@ int cmd_driver(int argc, wchar_t** argv, int& i) {
     const u32 rc = win::driver_state_error(ds);
     const auto yn = [](bool b) { return b ? "yes" : "no"; };
     if (json) {
-        wprintf(L"{\"service\":\"%s\",\"state\":\"%hs\",\"present\":\"%hs\"," \
-                L"\"loaded\":\"%hs\",\"started\":\"%hs\",\"authorized\":\"%hs\"," \
-                L"\"healthy\":\"%hs\",\"major\":%u,\"minor\":%u,\"required_major\":%u," \
-                L"\"flags\":%u,\"max_disks\":%u,\"ioctl_base\":%u,\"last_gle\":%lu," \
+        wprintf(L"{\"service\":\"%s\",\"state\":\"%hs\",\"present\":\"%hs\","
+                L"\"loaded\":\"%hs\",\"started\":\"%hs\",\"authorized\":\"%hs\","
+                L"\"healthy\":\"%hs\",\"major\":%u,\"minor\":%u,\"required_major\":%u,"
+                L"\"flags\":%u,\"max_disks\":%u,\"ioctl_base\":%u,\"last_gle\":%lu,"
                 L"\"error\":\"%hs\",\"error_code\":%u}\n",
                 service.c_str(), win::driver_state_name(ds), yn(st.service_present),
                 yn(st.service_running), yn(st.device_openable), yn(st.authorized),
