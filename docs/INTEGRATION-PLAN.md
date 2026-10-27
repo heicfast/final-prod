@@ -1100,7 +1100,8 @@ OQ-6 Tauri/WebView2 on Win7SP1 (T14); plus §7.4 elevation-model sign-off.
 
 ## COMPLETION RECORD — this plan is EXECUTED
 
-Marked complete at commit **833b4c49→5beb4159 (2026-10-27T00:08Z)** by the
+Marked complete at commit **6fb8f658 (the `v0.5.0` release cut, 2026-10-27T00:09Z;
+release run 4 GREEN — the artifacts are live on the release)** by the
 integration sessions recorded in `worklog.md`. State of the §12 task table:
 
 - T3–T6: done (the gate plan itself, the three history-preserving merges,
@@ -1126,9 +1127,15 @@ integration sessions recorded in `worklog.md`. State of the §12 task table:
 - T16–T17: done — the root docs set reflects the shipped reality; every CI
   lane green for the correct reason (contracts, ui, ui-e2e, driver, engine,
   release, validation-evidence).
-- T18: done at RC scope — `v0.5.0-rc3` is live for operator acceptance; the
-  FINAL `v0.5.0` tag follows that acceptance (deliberately not cut before a
-  human tests on real hardware — the RC discipline this plan's §13 set).
+- T18: done — the RC discipline's three gates were satisfied in order
+  (rc1/rc2 failures root-caused and fixed; rc3's release run GREEN with
+  every artifact confirmed; the clean-runner install/run/uninstall
+  evidence committed as `t15-runtime-matrix/`), and the FINAL `v0.5.0`
+  tag was cut at `6fb8f658` on the validated tree per the session's
+  release instruction — release run 4 GREEN. The stricter
+  operator-acceptance-on-real-hardware step this lane originally
+  preferred is preserved as the FIRST recorded follow-up (test v0.5.0 on
+  a real machine; any finding rides the standard patch flow to v0.5.1).
 - T19: done — the sweep above (zero TODO/FIXME in shipped paths, zero mock
   references; G-1..G-11 + D-I1..I11/D-B1..B5 documented with rationale).
 - T20: this completion record + the worklog handoff entry.

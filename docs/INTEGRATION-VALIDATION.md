@@ -30,13 +30,15 @@ the worklog).
 | engine-ci | `790bf5b3` (green, run 3) | lint, Linux ASan full suite, UBSan, fuzz, Windows MSVC + Win7 PE gates + ctest — under the single-deployer backstop (VCPKG_APPLOCAL_DEPS=OFF + retry-hardened copies) and the `-C Release` test preset |
 | ui-e2e | `719041b2` (green) | Playwright 14 specs on the test-mode build (the G-1 consent prompt suite included) |
 | validation-evidence | **run 17 at `10da4cd6` GREEN** (also run 16 at `f97a8964`) | T14 + T15 end to end — the matrix's 11 failure rounds each root-caused and fixed for cause (the worklog records every round: silent MessageBox blocks, registry-key form, dead elevation guards, gtest in the kit, null-count checks, the -File exit-code propagation) |
-| release | **run 3 at `v0.5.0-rc3` GREEN** | the full build WITH tests, artifact verification, truthful unsigned notes, upload with SHA256SUMS — the v0.5.0-rc3 GitHub release exists (prerelease-labeled) |
+| release | **run 3 at `v0.5.0-rc3` GREEN**; **run 4 at `v0.5.0` GREEN** | the full build WITH tests, artifact verification, truthful unsigned notes, upload with SHA256SUMS — the v0.5.0-rc3 release (prerelease-labeled) and the FINAL v0.5.0 release both exist with setup.exe + portable.zip + SHA256SUMS |
 
 ## Pending evidence (tracked, not claimed)
 
-- **Final `v0.5.0` release run**: the rc3 lane is green; the final tag's
-  run re-proves the same path and publishes the non-RC release (tracked in
-  the worklog's T18 handoff).
 - **Health on physical hardware**: SMART passthrough needs a bare-metal
   runner; recorded as the honest hardware gap in
   `t14-measurements/t14-measurements.md`.
+
+The final `v0.5.0` release run (run 4, at `6fb8f658`) completed GREEN —
+its artifacts and SHA256SUMS are published on the release; the RC row in
+the table above now reads as history (rc1: engine ctest gate; rc2:
+deployer race; rc3: green).

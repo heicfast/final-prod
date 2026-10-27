@@ -868,3 +868,61 @@ leftover uninstall, and the lifecycle facts file. Operator testing on
 real hardware is the remaining acceptance; rc3 stays available for
 A/B comparison. The mandate's deliverables 1-12 are all in the tree and
 cited by evidence.
+## 2026-10-27T00:35Z — T19/T20 HANDOFF: v0.5.0 SHIPPED; all lanes green; session closed
+
+**The exact commit**: `6fb8f658` (tag `v0.5.0`) — the final release cut on
+the validated tree. Release run 4 GREEN; the GitHub release carries
+`RecoveryWizard-0.5.0-setup.exe` (3,651,561 B),
+`RecoveryWizard-0.5.0-portable.zip` (4,563,617 B), `SHA256SUMS`.
+
+**Every lane green at close** (verified via the API at 00:28Z):
+contracts-ci (run 14), driver-ci (run 3), engine-ci (run 3), ui-ci (run
+23), ui-e2e (run 11), release (run 4, on the tag), validation-evidence
+(runs 16 + 17). No continue-on-error, no skipped stages, no
+suppressions — every failure across the session was root-caused and
+fixed for cause; the twelve validation rounds and three release attempts
+(rc1, rc2, rc3) each leave a named lesson in this worklog.
+
+**This session's contribution** (the continuation window): diagnosed and
+fixed the wedged validation pipeline (silent MessageBox /SD blocks;
+registry-key form vs plan §7; dead elevation guards in both driver
+scripts — verified with a portable pwsh; gtest/gmock shipped in the
+kit; uninstall completeness via the *.dll catch-all + seed-key cleanup;
+the z-applocal deployer race via VCPKG_APPLOCAL_DEPS=OFF + retry
+hardening; the ctest -C multi-config gap + the testPreset
+configuration; the $LASTEXITCODE null-check class in the matrix step
+and Invoke-Portable; the @(null).Count facts row). Drove the
+validation-evidence workflow from 10 consecutive failures to
+GREEN (runs 16/17); harvested and committed the T14 (scan-prep closed)
++ T15 (full lifecycle matrix) evidence; marked INTEGRATION-PLAN.md
+COMPLETE; cut the final v0.5.0 tag and drove its release run green.
+Operated alongside a parallel release-engineering lane (the rc1-rc3
+cuts, the lifecycle facts file, the ask_close/window-title and -File
+exit-code fixes) — every overlap reconciled by rebase with the landed
+form kept.
+
+**Remaining tracked items** (honest gaps with follow-up plans — none is
+a dead surface; all documented):
+1. `docs/INTEGRATION-GAPS.md` G-1 follow-ups (b)/(c): the deeper consent
+   surfacing and the consent-telemetry polish; the ABI appends (repair
+   surface, engine version, snapshot query, folder scope) recorded with
+   their exact shapes.
+2. Signing: NOTHING is signed (driver by design; app/engine until a
+   certificate is provisioned) — the release notes state it; the
+   pipeline is structured to slot signing in before upload
+   (docs/RELEASE.md).
+3. Health-on-hardware measurement: needs a bare-metal or
+   passthrough-enabled runner (the virtual-disk truthfully reports
+   unsupported; recorded in t14-measurements.md).
+4. MSIX: not produced — the kernel-driver impossibility is documented
+   in docs/MSIX-ASSESSMENT.md; the portable zip serves the no-installer
+   need.
+
+**Next actions for any successor session**: (a) operator tests the
+v0.5.0 setup.exe on a real machine (the rc3 artifacts were already
+in hand for that; v0.5.0 supersedes them); (b) provision the
+code-signing certificate and enable the signing slot; (c) execute the
+G-1 (b)/(c) follow-ups and the ABI appends per INTEGRATION-GAPS.md;
+(d) the bare-metal health measurement when hardware exists. The unified
+repository is the only tree — there is no fallback to the old
+repositories.
