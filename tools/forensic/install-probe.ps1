@@ -26,8 +26,8 @@ using System.Runtime.InteropServices;
 using System.Collections.Generic;
 public static class WinEnum {
     [DllImport("user32.dll")] static extern bool EnumWindows(EnumWindowsProc cb, IntPtr lp);
-    [DllImport("user32.dll")] static extern int GetWindowTextW(IntPtr hWnd, StringBuilder sb, int max);
-    [DllImport("user32.dll")] static extern int GetClassNameW(IntPtr hWnd, StringBuilder sb, int max);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowTextW(IntPtr hWnd, StringBuilder sb, int max);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassNameW(IntPtr hWnd, StringBuilder sb, int max);
     [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
     [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hWnd);
     [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr hWnd, out RECT r);
@@ -74,9 +74,10 @@ $installerPid = $p.Id
 # children; wait for the outer process itself, then a settle period).
 while (-not $p.HasExited) {
     $now = Get-Date
-    # child processes of interest created since install start
-    $procs = Get-CimInstance Win32_Process -Filter "CreationDate >= '$($t0.ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss'))'" -ErrorAction SilentlyContinue |
-        Where-Object { $watchNames -contains $_.Name.ToLower() -or ($_.Name -like 'setup*.tmp') }
+    # child processes of interest created since install start (client-side
+    # date filter - WQL datetime literals proved unreliable on the runner)
+    $procs = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+        Where-Object { ($_.CreationDate -ge $t0) -and ( $watchNames -contains $_.Name.ToLower() -or ($_.Name -like 'setup*.tmp') ) })
     foreach ($pr in $procs) {
         Write-Jsonl $procLog ([ordered]@{
             t = $now.ToString('o'); pid = $pr.ProcessId; name = $pr.Name
@@ -96,8 +97,8 @@ while (-not $p.HasExited) {
 
 # a final settle sample (late children, e.g. the uninstaller registration)
 Start-Sleep -Seconds 3
-$procs2 = Get-CimInstance Win32_Process -Filter "CreationDate >= '$($t0.ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss'))'" -ErrorAction SilentlyContinue |
-    Where-Object { $watchNames -contains $_.Name.ToLower() -or ($_.Name -like 'setup*.tmp') }
+$procs2 = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+    Where-Object { ($_.CreationDate -ge $t0) -and ( $watchNames -contains $_.Name.ToLower() -or ($_.Name -like 'setup*.tmp') ) })
 foreach ($pr in $procs2) {
     Write-Jsonl $procLog ([ordered]@{
         t = (Get-Date).ToString('o'); pid = $pr.ProcessId; name = $pr.Name

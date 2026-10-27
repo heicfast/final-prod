@@ -42,3 +42,8 @@ $f = [ordered]@{
 $dest = Join-Path $OutDir "facts-$Label.json"
 $f | ConvertTo-Json -Depth 6 | Set-Content $dest -Encoding UTF8
 Write-Host "[collect-facts] $Label -> $dest"
+# NOTE: rdacli and other native probes inside Safe{} may leave $LASTEXITCODE
+# nonzero; pwsh -command propagates the last native exit code, which would
+# fail the CI step spuriously. The step's contract is "the facts file was
+# written" - per-field errors are recorded IN the file.
+if (Test-Path $dest) { exit 0 } else { Write-Error "facts file was not written"; exit 1 }
