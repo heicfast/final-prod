@@ -1286,3 +1286,35 @@ Source-level confirmations already made before any runner work:
 Next: T2 (reproduce every symptom on a real Windows runner with the installed
 v0.6.0-rc1 product), T3 (INTEGRATION-GAPS.md current-reality commit), T4
 (parallel reading agents A-E).
+
+---
+## T3 — INTEGRATION-GAPS.md rewritten as the current-reality register (first substantive commit before any fix)
+
+The exhaustive read (agents A-D, context sheets committed at 5cb10f29)
+found the product broken at the seams in ways the prior validation could
+not see: its e2e lane ran the UI against the TEST DOUBLE and its T14 lane
+measured the bridge directly — the installed UI was never exercised against
+the real engine. The new register (docs/INTEGRATION-GAPS.md Part 2) records
+20 new gaps, all source-cited, severity-scoped, and scheduled for fix this
+session. The killers:
+
+- NG-1 [C] the results tree can NEVER render against the real engine
+  (virtual roots carry attributes=0; the bridge tests attributes&0x10 at
+  state.rs:636 — an empty tree on every completed scan; tests green only
+  via the test double).
+- NG-5 [C] the SMART percentage is UI-fabricated (health-page.tsx:100-106).
+- NG-6 [C] NVMe drives refused via an available==0 misread (health.rs:43-48
+  vs cr_ui.cpp:3697-3701) — health dead on NVMe-only machines.
+- NG-7 [C] only one drive listed (Home filters kind==='internal'; volumes
+  never shown; unlettered volumes never enumerate).
+- NG-8 [H] every health_read spawns fsutil via _popen (runtime console
+  flash, twice per drive).
+- NG-11/NG-12 [C] Lost-Partition and Repair pages render canned fakes.
+- NG-16 [C] the installer spawns six visible consoles (2x certutil +
+  powershell on install; the trio again on uninstall).
+
+Part 1 records the prior register's honest status (G-1..G-11): which are
+unchanged, which are compounded by the new findings. The forensic
+reproduction run against the shipped v0.6.0-rc1 is in flight
+(forensic-repro workflow; run 1 failed at the checksum gate — uppercase
+hex, fixed and re-pushed at 55cbf735).
