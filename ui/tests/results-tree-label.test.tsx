@@ -37,7 +37,7 @@ afterEach(() => {
 });
 
 describe('results tree root label (NG-22)', () => {
-  it('labels the existing-files root with the scan target\'s real name', async () => {
+  it("labels the existing-files root with the scan target's real name", async () => {
     const { scanId } = await connector.scan.startScan({ targetId: 'vol-C' });
     // let the fixture walk land (the fake completes the scan on a timer)
     await waitFor(
