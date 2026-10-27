@@ -1,15 +1,43 @@
 # diff-to-fix/ — parity audit roadmap (core_recovery vs easeus-drw-research)
 
+**Merged product repository (audit + dev-sign target):**
+**https://github.com/heicfast/core_recovery** — confirmed by inspection (core
+engine `src/core`+`include/cr`, win layer `src/win`, driver-consuming transport,
+CI, and this audit trail in one tree; the driver itself ships as a prebuilt
+`rda.sys` release asset from `heicfast/rda-driver` per `docs/PREBUILT-ARTIFACTS.md`).
+Research corpus (ground truth): https://github.com/heicfast/easeus-drw-research.
+
 **This directory is the deliverable of a read-only parity audit.** No source
 code was modified to produce it. It is the roadmap future sessions execute
 against.
 
 | | |
 |---|---|
+| **Audited core commit (dev-sign session, 2026-10-27/28)** | **`dd82db9`** (lineage `3bda8e2` — the driver-only-era wire/IOCTL-constant fixes; the dev-sign validation run 40549660074 executed the workflow content of `3bda8e2`). Corpus `03ad46c` (unmoved). The SA lane (this session) validated the dev-sign/install/uninstall path on windows-2022 and filed the installer-posture findings **S-036, M-060..M-063, N-084, N-085, I-026** (see `worklog/DEV-SIGN.md` + `evidence/executions/devsign-run-40549660074/`); the parallel S7 lane audits the driver-only-era parity delta. |
 | **Audited core commit** | **session 5b (this leg): `7cf6754`-lineage rebased onto `c75f646`** (the S-019 fix leg verified first-hand in-source this session; the parallel fix legs' landings visible at rebase time: S-012 `c69a790`+`5f1a212`, S-022 `cdd340b`, S-020/M-022/N-037 `9af8014`, S-026 `0c1f58e`, S-021+S-003 `c75f646`, M-023 `d80a52e`, the N-batches and MSVC/bench legs). Session 4: `204137b` (lineage `63a9167` rebased onto `ed00020` — S-013 `d2d9b03` + S-014 `ed00020` included; suite 306/306 + C-ABI check green at that tree). Session 3 (all legs, close at `43149ff` + continuation): baselines `34b3441`→`e6d5b01`→`abe8e36`→`1f08c20`; mid-session landings verified by the audit legs: S-010 `3e34ed2`, M-009 `7fd00e0`, A-002 `7f2c83e`(+`abe26b8`), A-004+S-016 `c33236f`, S-017 `1cc08c3`, S-018 INVALID `2adfa29`, S-006 `abe8e36`, S-011, S-015 `021e2e6`, N-021 `6fc8c0e`, S-013 `d2d9b03`, S-014 `ed00020`. Sessions 1-2 baselines: `67193b6`/`5d6da5f`/`8574039`/`5f638a3`. Corpus `03ad46c` throughout. |
 
 | **Audited core commit** | **session 5: `7cf6754`** (the S-019 landing, one commit past session-4 close `d870dd3`; suite 366/366 executed green at this tree — `evidence/executions/s5-baseline-suite-green.md`). **session 4: `204137b`** (this leg's wave-1 commit; lineage `63a9167` rebased onto `ed00020` — the fix legs' S-013 `d2d9b03` + S-014 `ed00020` included; suite 306/306 + C-ABI check executed green at this tree). Session 3 (all legs, close at `43149ff` + continuation): baselines `34b3441`→`e6d5b01`→`abe8e36`→`1f08c20`; mid-session landings verified by the audit legs: S-010 `3e34ed2`, M-009 `7fd00e0`, A-002 `7f2c83e`(+`abe26b8`), A-004+S-016 `c33236f`, S-017 `1cc08c3`, S-018 INVALID `2adfa29`, S-006 `abe8e36`, S-011, S-015 `021e2e6`, N-021 `6fc8c0e`, S-013 `d2d9b03`, S-014 `ed00020`. Sessions 1-2 baselines: `67193b6`/`5d6da5f`/`8574039`/`5f638a3`. Corpus `03ad46c` throughout. |
 | **Corpus (ground truth) commit** | `03ad46c` (`easeus-drw-research` main, unmoved) |
+
+**Dev-sign validation session (2026-10-27/28, SA lane, audited `dd82db9`/workflow content `3bda8e2`)** —
+Phase 1 of the merged-product validation: the documented dev-sign path
+(`.github/actions/install-driver/action.yml` + `driver-install.yml`) was
+execution-verified on a real GitHub windows-2022 runner (run 40549660074:
+sign → install → RUNNING → 5-facet ready → control round-trip → uninstall),
+`worklog/DEV-SIGN.md` records the reproduction, and the installer-posture
+gaps became findings **S-036** (the release `install.ps1` crashes at its
+elevation guard; only the undocumented composite fallback installs),
+**M-060** (the fallback configures the service differently — invented group
+name, no Parameters), **M-061** (release `uninstall.ps1` never exercised +
+silent-failure semantics), **M-062** (install.ps1 start-failure exits 0),
+**M-063** (single-environment validation; HVCI/SecureBoot constraint + OS
+matrix undocumented), **N-084** (no timestamp server in the sign step),
+**N-085** (elevated-console installer posture vs the og's silent
+setupdrvx64.exe), **I-026** (unsigned-by-design posture — deliberate,
+documented, now execution-proven). Evidence:
+`evidence/executions/devsign-run-40549660074/`. `tools/dev-sign/` was NOT
+created — the repo already documents a dev-sign path (the mandate's
+condition for creating it).
 
 **Session-3 storage/census parallel leg (integrated 2026-10-26, post-S4)** added
 19 renumbered findings (S-024..S-028, M-031..M-039, N-045..N-047, I-017/I-018)

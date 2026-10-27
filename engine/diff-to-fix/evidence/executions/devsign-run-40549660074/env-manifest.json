@@ -1,0 +1,7 @@
+{
+  "runner_image": "win22",
+  "toolchain": "MSVC on runner; core v0.5.1",
+  "driver_tag": "v0.2.2",
+  "core_tag": "v0.5.1",
+  "phases": "absent -> ready -> not-started (S-DRV-REFUSE)"
+}

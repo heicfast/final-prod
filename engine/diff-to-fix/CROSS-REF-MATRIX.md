@@ -1,5 +1,20 @@
 # CROSS-REF-MATRIX.md — module × parameter verdict matrix (post-rebase with parallel leg)
 
+**Dev-sign session changes (2026-10-27/28, SA lane — Phase 1, audited `dd82db9`):**
+NEW module row **driver-install/dev-sign** (the packaging surface the corpus
+documents via 02-kernel-driver-architecture.md §5 + regdrv.reg — prior
+sessions never audited install/uninstall/signing posture):
+executability **S-036** (installer crash — the cell is the live divergence),
+service-configuration **M-060** (group/Parameters/binPath divergence),
+uninstall-behavior **M-061**, install-error-semantics **M-062**,
+environment-matrix/HVCI **M-063**, signature-lifetime **N-084**,
+installer-interaction-model **N-085**, signing-posture **I-026** (deliberate,
+MATCH-equivalent). The corpus's other installer parameters — copy destination
+(`System32\Drivers`), service shape (Type=1/Start=3/ErrorControl=1),
+product-orchestrated lifecycle — are **MATCH** (install.ps1/composite comply;
+see the per-cell detail at the bottom). Evidence:
+evidence/executions/devsign-run-40549660074/.
+
 **Session-27 changes (2026-10-26, DFX27 — the MAJOR-head lane):** **M-035
 FIXED** (engine-side FileFilter validation — the exFAT-only content-consistency
 scorer, reject rule decompile-exact with the strict-< correction; scan_candidate
@@ -425,7 +440,28 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 
 ## Session-25 detail rows (2026-10-26 — DFX25, the INFO+tracked-open lane)
 
+
 | Module | Parameter(s) | Verdict change |
 |---|---|---|
 | zfs | B1/B8 (dataset hierarchy constants) | **OQ-Z1 RESOLVED → A-008 (ACUTE, NEW-FINDING) FIXED** — child_dir_zapobj was read from dsl_dir bonus+24 (the dd_origin_obj slot; kernel +32 per OpenZFS master dsl_dir.h fetched verbatim + the og's own decode: 256B dsl_dir copy / 320B dsl_dataset copy, head hop @+8, ds_bp@+128, child zap walk skipping $FREE/$ORIGIN). Normal pools: NO child dataset ever enumerated (every zfs create silently missing); clones: origin followed as a child zap (ghost datasets — proven in the executed fail-before). Fail-before RED 3/3 (EndToEndWalk, ChildDirZapReadsKernelOffset32, OriginObjNotTreatedAsChildZap); pass-after 16/16 Zfs; suite 739/739. Fixture de-self-referenced (kernel layout). findings/FIXED/A-008. |
 | (info tier) | all | **22/22 acknowledged INFORMATIONAL findings moved INFORMATIONAL/ → FIXED/** (resolutions verified on `716d121`, pins green; two first-hand spot-checks re-executed). No verdict changes — `ack` cells now denote filed-in-FIXED. |
+
+## Dev-sign session detail rows (2026-10-27/28, SA lane — driver-install/dev-sign module; corpus: 02-kernel-driver-architecture.md §5 + regdrv.reg)
+
+| Surface × parameter | Verdict | Finding / evidence |
+|---|---|---|
+| driver-install · installer executability | DIVERGENCE-SEVERE | **S-036** — documented installer crashes at elevation guard; fallback installs (run 40549660074 :232-237) |
+| driver-install · service group | DIVERGENCE-MAJOR | **M-060** — live path `FSFilter Boot File System` vs corpus/install.ps1 `Boot File System` (regdrv.reg ebrntdrv) |
+| driver-install · Parameters registry (IoctlBase/MaxDisks/DebugLevel/SessionsEnabled) | DIVERGENCE-MAJOR | **M-060** — written by install.ps1/INF, by neither in the live path; compiled defaults observed (max_disks=200, flags=2) |
+| driver-install · ImagePath form | DIVERGENCE-MAJOR | **M-060** — relative vs absolute (folded into the same finding; same fix) |
+| driver-install · copy destination | MATCH | install.ps1:50-54/composite → `System32\drivers\<svc>.sys`; corpus §5.1 `%SystemRoot%\System32\Drivers\%s.sys` |
+| driver-install · service shape (Type/Start/ErrorControl) | MATCH | `type= kernel start= demand error= normal` = regdrv.reg Type=1/Start=3/ErrorControl=1 (both paths) |
+| driver-install · install-error semantics (start failure) | DIVERGENCE-MAJOR | **M-062** — warning + exit 0 vs the og's definite create+start lifecycle step |
+| driver-uninstall · teardown behavior | DIVERGENCE-MAJOR | **M-061** — unexercised script + silent-failure semantics vs corpus §5.3 "stopped and deleted" |
+| dev-sign · environment matrix / HVCI constraint | DIVERGENCE-MAJOR | **M-063** — single windows-2022 data point; constraint undocumented |
+| dev-sign · signature timestamp | DIVERGENCE-MINOR | **N-084** — no `/tr`; rule for longer-lived certs undocumented |
+| dev-sign · installer interaction model | DIVERGENCE-MINOR | **N-085** — elevated console script vs og's silent product-orchestrated setupdrvx64.exe (SCM APIs) |
+| dev-sign · signing posture (release artifact state) | DIVERGENCE-INFORMATIONAL | **I-026** — unsigned-by-design + consumption-time sign (execution-proven); og: vendor Authenticode (corpus :19) |
+| dev-sign · load/round-trip behavior | MATCH | run 40549660074: RUNNING + control-device open + GET_INFO/GET_VERSION ready + grammar-path refusal class — the verified core of Phase 1 |
+
+(No prior module file exists for this surface — a `modules/driver-install.md` lands with the Phase-2 wave that owns the packaging surfaces.)

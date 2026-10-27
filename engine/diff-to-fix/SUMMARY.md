@@ -1,5 +1,47 @@
 # SUMMARY.md — executive summary (the review-validate close-out on top; earlier sessions below)
 
+## Dev-sign validation session delta (2026-10-27/28 — SA lane: Phase-1 driver dev-sign/install/uninstall validation on a real Windows runner, audited `dd82db9` / workflow content `3bda8e2`; corpus `03ad46c` unmoved)
+
+**The mandate:** validate the merged product's driver under development
+signing on real Windows environments, confirm the install/uninstall/load path
+is production-shaped, capture the evidence, and file the installer-posture
+gaps as findings audited against the corpus's documented reference installer
+behavior. (Phase 2 of the same session — the corpus-driven parity re-audit —
+follows; the parallel S7 lane owns the driver-only-era parity delta.)
+
+**Execution evidence:** workflow `driver-install.yml` run **40549660074**
+(windows-2022, `workflow_dispatch`, **success**) — the first green run of the
+lane ever (the three prior dispatches failed on pre-install workflow-step
+defects since fixed): unsigned rda.sys v0.2.2 fetched + SHA256SUMS-verified →
+job-local cert (`CN=RRECOV-CI`) → `signtool /fd SHA256` → install → service
+RUNNING → `\\.\RDA` control-device round-trip → `rrecov driver --json` 5-facet
+`ready` (GET_INFO + GET_VERSION; version 1.0, flags=2, max_disks=200) →
+grammar-path round-trip (`scan --disk 99` past the driver gate, transport
+rc=50020001) → Phase-3 `not-started` class → teardown. Full transcript +
+assets: `evidence/executions/devsign-run-40549660074/`; reproduction record:
+`worklog/DEV-SIGN.md`.
+
+**Findings filed (8 — all installer/dev-sign posture; no engine findings in
+this phase):**
+
+| ID | Severity | One-liner |
+|---|---|---|
+| S-036 | SEVERE | the documented installer (release `install.ps1`) crashes at its elevation guard (`InvokeMethodOnNull`) before installing anything; every green install on record went through the composite's undocumented `sc.exe` fallback |
+| M-060 | MAJOR | the live install path configures the service differently from the documented one — invented group `FSFilter Boot File System` (corpus + install.ps1: `Boot File System`), no `Parameters` registry values, relative binPath |
+| M-061 | MAJOR | the release `uninstall.ps1` is never exercised by any CI lane, carries the same broken elevation guard, stops with an unverified 1 s sleep, and prints `Removed` even when the locked-file delete silently fails |
+| M-062 | MAJOR | `install.ps1` start-failure is a warning with exit 0 (success semantics on the canonical dev failure — signature rejection) + malformed concat in the message |
+| M-063 | MAJOR | dev-sign validation is a single-environment data point (GitHub windows-2022, HVCI off); the HVCI/SecureBoot constraint and any Win7/Win10/Win11 matrix are undocumented while the release claims "Win7 SP1 → Win11" on PE-header evidence only |
+| N-084 | MINOR | the sign step uses no timestamp server and the rationale (or the rule for when `/tr` is required) is undocumented in the copyable recipe |
+| N-085 | MINOR | the documented install path requires an elevated interactive PowerShell console vs the og's product-orchestrated silent `setupdrvx64.exe` (SCM APIs) — installer-posture gap recorded for the packaging milestone |
+| I-026 | INFORMATIONAL | unsigned-by-design driver + consumption-time signing (CI test-sign now execution-proven; OSSign production pipeline prepared-but-disabled) — deliberate divergence vs the og's vendor Authenticode chain, documented and verified |
+
+**Board after Phase 1:** 8 active (1 SEVERE · 4 MAJOR · 2 MINOR · 1 INFO) ·
+223 FIXED unchanged · tracked-open 1 (OQ-S4-3, unchanged). The dev-sign path
+itself — the thing Phase 1 set out to validate — **works and is documented**
+(`.github/actions/install-driver/action.yml` + `driver-install.yml`,
+PREBUILT-ARTIFACTS §2 / DRIVER-RELEASE §7); `tools/dev-sign/` was correctly
+NOT created (the mandate's precondition for creating it is absent).
+
 ## Review-and-validate session delta (2026-10-26 — the post-fix audit: every fix-lane landing and collision independently re-verified; the audit trail reconciled; the documentation suite created)
 
 **The mandate:** review and validate the fix sessions' work — the

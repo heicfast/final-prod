@@ -17229,3 +17229,53 @@ Stage Summary:
 - Merged repo confirmed + commits recorded. Phase 1 starts next: dispatch
   driver-install.yml on a real Windows runner and capture the install/
   uninstall/load evidence, then worklog/DEV-SIGN.md + any gap findings.
+
+---
+Task ID: SA-1 (Phase 1 — dev-sign validation complete)
+Agent: main engineer (session: audit + dev-sign validation)
+
+Work Log:
+- Determined the repo HAS a documented dev-sign path (composite action +
+  driver-install.yml; PREBUILT-ARTIFACTS.md §2 + DRIVER-RELEASE.md §7) →
+  per the mandate, tools/dev-sign/ NOT created; the path was verified by
+  execution instead.
+- Dispatched driver-install.yml at HEAD (run 40549660074, windows-2022,
+  workflow_dispatch): SUCCESS — the lane's first green run (3 prior
+  dispatches failed on since-fixed workflow-step defects; the install phase
+  had never executed before). Captured the full job log + the evidence
+  artifact + the exact v0.2.2 release scripts.
+- Evidence highlights: SHA256-verified fetch; CN=RRECOV-CI job-local cert
+  (2-day, CodeSigningCert, Root+TrustedPublisher); signtool /fd SHA256
+  (no timestamp); install.ps1 CRASHED (InvokeMethodOnNull at the elevation
+  guard — no 'Installing...' output precedes it, the only method call
+  before first output) → composite's undocumented sc.exe fallback is the
+  live installer; CreateService SUCCESS; sc query RUNNING; \\.\\RDA control
+  device open OK; rrecov driver --json 5-facet ready (v1.0, flags=2,
+  max_disks=200, ioctl_base=0); scan --disk 99 proceeds past the driver
+  gate (transport rc=50020001 — grammar-path round-trip); Phase-3
+  not-started class verified; teardown via raw sc.exe (uninstall.ps1 never
+  executed).
+- Cross-referenced the corpus's reference installer behavior
+  (02-kernel-driver-architecture.md §5 + BUILDPE/x64/regdrv.reg):
+  setupdrvx64.exe silent SCM install; ebrntdrv Group="Boot File System";
+  no Parameters on the eprdtdrv family; teardown "stopped and deleted".
+- Filed 8 findings (IDs past the S7 lane's claimed block): S-036 (SEVERE,
+  installer crash), M-060 (fallback config divergence: invented group, no
+  Parameters, relative binPath), M-061 (uninstall.ps1 unexercised +
+  silent-failure semantics), M-062 (install.ps1 start-failure exit 0 +
+  malformed warning), M-063 (single-environment validation; HVCI/SecureBoot
+  + OS matrix undocumented), N-084 (no timestamp server), N-085 (elevated
+  console posture vs og's silent installer), I-026 (unsigned-by-design
+  posture — deliberate, execution-proven).
+- Wrote worklog/DEV-SIGN.md (reproduction, cert details, evidence, posture
+  assessment, environments, gaps) + evidence/executions/devsign-run-40549660074/
+  (job log + artifact + verbatim release scripts) + README/SUMMARY/MATRIX
+  updates (merged-repo URL + audited commit dd82db9 recorded in README).
+
+Stage Summary:
+- Phase 1 CLOSED: the dev-sign path exists, is documented, and is now
+  execution-verified on a real Windows runner; the installer-posture gaps
+  are on the board as 8 findings (1 SEVERE, 4 MAJOR, 2 MINOR, 1 INFO).
+  Board: 8 active / 223 FIXED / 1 tracked-open. Phase 2 (corpus-driven
+  parity re-audit) begins next; coordination with the S7 lane (driver-only
+  era) per the SA-0 note.
