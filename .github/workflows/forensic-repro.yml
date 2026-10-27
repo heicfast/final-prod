@@ -1,0 +1,134 @@
+name: forensic-repro
+
+# T2 (the session mandate §1): reproduce EVERY reported symptom of the
+# installed v0.6.0-rc1 product on a real Windows runner, with captured
+# evidence at every layer - before any diagnosis or fix.
+#
+# What this run captures:
+#   S1  installer PowerShell/console popups  -> install-process-events.jsonl
+#       + install-window-events.jsonl (every child spawn + top-level window
+#       sampled at 400ms during the whole install)
+#   S2  SMART surface on the installed app    -> driven via WebView2 CDP
+#       (the real shipped UI, no code changes): per-drive DOM state +
+#       screenshots; multiple seeded virtual disks exist so "only one drive
+#       reported" is directly testable
+#   S3  scan of a seeded 64GB NTFS vdisk      -> full timeline (stage,
+#       percentage, sector counts, found counters) up to 28 min + end state +
+#       results tree capture; app IO counters + child processes (fsutil
+#       flashes) sampled every 2s; rdacli liveness during the scan
+#   S4  every other surface                   -> DOM dump + screenshot
+#   plus machine facts before/after (services, driver file, certs, registry,
+#   secure boot / testsigning, System event log).
+#
+# workflow_dispatch so every run is deliberate and recorded; artifacts are
+# downloaded and curated into docs/FORENSIC-PROBE.md by hand. No masking:
+# every failure fails the run (evidence is still uploaded via if: always()).
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/forensic-repro.yml'
+      - 'tools/forensic/**'
+
+permissions:
+  contents: read
+
+jobs:
+  repro:
+    name: Reproduce all reported symptoms (installed v0.6.0-rc1)
+    runs-on: windows-2022
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install playwright-core (CDP client only - no browser download)
+        shell: pwsh
+        run: |
+          Set-Location tools/forensic
+          npm init -y *> $null
+          npm install playwright-core@1.49.1
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Download the shipped v0.6.0-rc1 release assets
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force -Path C:\forensic | Out-Null
+          $base = 'https://github.com/heicfast/final-prod/releases/download/v0.6.0-rc1'
+          curl.exe -sSL -o C:\forensic\setup.exe "$base/RecoveryWizard-0.6.0-rc1-setup.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'setup.exe download failed' }
+          curl.exe -sSL -o C:\forensic\SHA256SUMS "$base/SHA256SUMS"
+          $sums = Get-Content C:\forensic\SHA256SUMS -Raw
+          $expect = [regex]::Match($sums, '([0-9a-f]{64})\s+\*?RecoveryWizard-0\.6\.0-rc1-setup\.exe').Groups[1].Value
+          if (-not $expect) { throw 'setup.exe checksum not found in SHA256SUMS' }
+          $actual = (Get-FileHash C:\forensic\setup.exe -Algorithm SHA256).Hash.ToLower()
+          "setup sha256 expect=$expect actual=$actual"
+          if ($actual -ne $expect.ToLower()) { throw 'setup.exe checksum mismatch' }
+
+      - name: Machine facts (pre-install)
+        shell: pwsh
+        run: .\tools\forensic\collect-facts.ps1 -OutDir C:\forensic\evidence -Label preinstall
+
+      - name: Seed disks (64GB NTFS + 8GB exFAT vdisks, real signatures, deletions)
+        shell: pwsh
+        run: .\tools\forensic\seed-disks.ps1 -WorkDir C:\forensic
+
+      - name: Install the product with full process/window capture (S1)
+        shell: pwsh
+        run: .\tools\forensic\install-probe.ps1 -SetupExe C:\forensic\setup.exe -OutDir C:\forensic\evidence -Silent
+
+      - name: Machine facts (post-install)
+        shell: pwsh
+        run: .\tools\forensic\collect-facts.ps1 -OutDir C:\forensic\evidence -Label postinstall
+
+      - name: Launch the installed app with CDP (real shipped UI)
+        shell: pwsh
+        run: .\tools\forensic\launch-app.ps1 -OutDir C:\forensic\evidence
+
+      - name: Start IO/child-process probe in the background
+        shell: pwsh
+        run: |
+          $pid = [int](Get-Content C:\forensic\evidence\app-pid.txt -Raw).Trim()
+          "app pid: $pid"
+          $p = Start-Process pwsh -ArgumentList '-NoProfile','-File','tools\forensic\io-probe.ps1','-AppPid',"$pid",'-OutDir','C:\forensic\evidence','-DurationSec','3000' -PassThru
+          $p.Id | Set-Content C:\forensic\evidence\io-probe-pid.txt
+
+      - name: Drive the real UI - health, scan, every surface (S2 S3 S4)
+        shell: pwsh
+        run: |
+          $env:OUT_DIR = 'C:\forensic\evidence'
+          Set-Location tools\forensic
+          node drive-ui.mjs
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Stop probes + app, final facts
+        shell: pwsh
+        run: |
+          if (Test-Path C:\forensic\evidence\io-probe-pid.txt) {
+            $ioPid = [int](Get-Content C:\forensic\evidence\io-probe-pid.txt -Raw).Trim()
+            Stop-Process -Id $ioPid -Force -ErrorAction SilentlyContinue
+          }
+          if (Test-Path C:\forensic\evidence\app-pid.txt) {
+            $appPid = [int](Get-Content C:\forensic\evidence\app-pid.txt -Raw).Trim()
+            Stop-Process -Id $appPid -Force -ErrorAction SilentlyContinue
+          }
+          Start-Sleep -Seconds 2
+          .\tools\forensic\collect-facts.ps1 -OutDir C:\forensic\evidence -Label postrun
+
+      - name: Upload all forensic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: forensic-repro-evidence
+          path: |
+            C:\forensic\evidence\**
+            C:\forensic\seed-manifest.json
+            C:\forensic\disk-map.json
+          if-no-files-found: error
+          retention-days: 30
