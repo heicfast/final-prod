@@ -416,22 +416,16 @@ export const en = {
   repair: {
     title: 'Repair Corrupted Videos, Photos and Documents',
     introBody: 'Add corrupted files to easily repair them.',
-    findings: 'Findings',
-    noFindings: 'No repairable problems were found.',
-    fix: 'Repair {{count}} problem',
-    fix_other: 'Repair {{count}} problems',
-    consentTitle: 'Confirm the repair',
-    consentBody:
-      'The repair writes corrections to the volume’s structural records on disk. An undo log is kept so the changes can be rolled back.',
-    consentAcknowledge: 'I understand this writes to the disk and want to continue',
-    consentTypeHere: 'Type REPAIR to confirm',
+    workbenchUnavailableTitle: 'The standalone repair workbench is not available yet',
+    workbenchUnavailableBody:
+      'Picking individual corrupted files and repairing them here is not part of this build. This page will not pretend otherwise: when the workbench ships, it will appear here with the same flow.',
+    availableTodayTitle: 'What repair this build really ships',
+    availableTodayBody:
+      'When a scan finds file-system damage it can repair, the scan page asks for your approval first (the pre-scan repair prompt). Approve it and the repair runs as one transaction before the scan continues \u2014 the search for your files works without it too.',
+    undoNote:
+      'Every approved pre-scan repair saves an undo log beside the scan session; the rrecov command-line tool installed with the app can replay or undo it (rrecov fix --undo-apply).',
     consentRequired: 'Type REPAIR in the confirmation box to apply repairs.',
     finding: {},
-    appliedCount: 'Applied {{count}} repairs.',
-    rolledBackCount: 'Rolled back {{count}} repairs.',
-    undoLog: 'Undo log',
-    nothingToUndo: 'No repairs have been applied in this session.',
-    rollback: 'Undo repairs',
   },
   settings: {
     title: 'Settings',

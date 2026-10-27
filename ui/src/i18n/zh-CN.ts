@@ -405,21 +405,16 @@ export const zhCN: TranslationSchema = {
   repair: {
     title: '修复损坏的视频、照片和文档',
     introBody: '添加损坏的文件即可轻松修复。',
-    findings: '发现的问题',
-    noFindings: '未发现可修复的问题。',
-    fix: '修复 {{count}} 个问题',
-    fix_other: '修复 {{count}} 个问题',
-    consentTitle: '确认修复',
-    consentBody: '修复会将更正写入磁盘上的卷结构记录。系统会保留撤销日志，以便回滚这些修改。',
-    consentAcknowledge: '我了解此操作会写入磁盘，并确认继续',
-    consentTypeHere: '输入 REPAIR 以确认',
+    workbenchUnavailableTitle: '独立修复工作台尚未提供',
+    workbenchUnavailableBody:
+      '在本窗口中挑选损坏文件并修复的功能尚未包含在此版本中。本页面不会假装它已存在：工作台发布后将在此处呈现完整流程。',
+    availableTodayTitle: '此版本真正提供的修复能力',
+    availableTodayBody:
+      '当扫描发现可修复的文件系统损坏时，扫描页面会先征求您的同意（扫描前修复提示）。批准后，修复将以事务方式在扫描继续前执行——不批准也同样可以继续搜索文件。',
+    undoNote:
+      '每次获批的扫描前修复都会在扫描会话旁保存撤销日志；随应用安装的 rrecov 命令行工具可重放或撤销它（rrecov fix --undo-apply）。',
     consentRequired: '请在确认框中输入 REPAIR 后再应用修复。',
     finding: {},
-    appliedCount: '已应用 {{count}} 项修复。',
-    rolledBackCount: '已回滚 {{count}} 项修复。',
-    undoLog: '撤销日志',
-    nothingToUndo: '本次会话尚未应用任何修复。',
-    rollback: '撤销修复',
   },
   settings: {
     title: '设置',

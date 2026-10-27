@@ -1,5 +1,5 @@
 import { describe, expect, it, afterEach } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '@/app/theme';
@@ -81,19 +81,21 @@ describe('reference UI surfaces and sidebar', () => {
     expect(await screen.findByText(/s\.m\.a\.r\.t\. attributes/i)).toBeVisible();
   });
 
-  it('renders File Repair directly on Add Files Dropzone -> Queue & Repair All', () => {
+  it('renders File Repair as a TRUTHFUL unavailable surface (no fake queue)', () => {
     wrap(<RepairPage />, '/repair');
     expect(
       screen.getByRole('heading', {
         name: /repair corrupted videos, photos and documents/i,
       }),
     ).toBeVisible();
-    expect(
-      screen.getByText(/click or drag files from your local disk to start the repair/i),
-    ).toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: /add files/i }));
-    expect(screen.getByText('WinMemoryCleaner (1).exe')).toBeVisible();
-    expect(screen.getByRole('button', { name: /repair all/i })).toBeVisible();
+    // the honest unavailable state (NG-12: the canned queue is gone)
+    expect(screen.getByText(/standalone repair workbench is not available yet/i)).toBeVisible();
+    // the REAL capability this build ships is stated
+    expect(screen.getByText(/pre-scan repair prompt/i)).toBeVisible();
+    // the fake queue never renders
+    expect(screen.queryByText(/WinMemoryCleaner/i)).toBeNull();
+    expect(screen.queryByRole('button', { name: /repair all/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /add files/i })).toBeNull();
   });
 
   it('renders Lost Partition Rescue as a REAL launcher (no canned results)', async () => {

@@ -7,7 +7,7 @@
  *
  *   rdacli info                     GET_INFO + GET_VERSION (global handles)
  *   rdacli grammar <disk#>           open all 3 grammar forms + identity checks
- *   rdacli read <disk> <off> <len>  raw read via \\.\EPRDTDRV\<token>\<disk>
+ *   rdacli read <disk> <off> <len>  raw read via \\.\<base>\<token>\<disk>
  *   rdacli write <disk> <off> <hex> raw write (data = hex string)
  *   rdacli ident <pid>               IOCTL 0x60002400 GetProcName
  *   rdacli session <disk> <start> <secs>
@@ -30,6 +30,15 @@
 #define RDA_OPEN_FMT       L"\\\\.\\%ws\\%u\\%u\\%u"
 #define RDA_MAX_PATH_W     256
 
+/* The control-device base name. The shipped driver service is RDA and the
+ * driver derives \\.\<base> from ITS SERVICE NAME (rda_control.c: the
+ * service name, else Parameters\\DeviceName, else the EPMNTDRV fallback)
+ * - the previous hard-coded L"EPRDTDRV" could never open the installed
+ * device (forensic run 40465852724: rdacli info failed gle=2 while the
+ * engine talked to \\.\\RDA fine). The -device flag overrides for
+ * custom-named installs. */
+static const WCHAR *g_DeviceBase = L"RDA";
+
 static int Fail(const char *what, DWORD err) {
     printf("FAIL %s (gle=%lu, 0x%08lX)\n", what, err, err);
     return 2;
@@ -41,7 +50,7 @@ static ULONG TokenFromPid(void) {
 
 static HANDLE OpenDevice(DWORD access) {
     WCHAR path[RDA_MAX_PATH_W];
-    _snwprintf_s(path, RDA_MAX_PATH_W, _TRUNCATE, L"\\\\.\\%ws", L"EPRDTDRV");
+    _snwprintf_s(path, RDA_MAX_PATH_W, _TRUNCATE, L"\\\\.\\%ws", g_DeviceBase);
     return CreateFileW(path, access, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
                        FILE_ATTRIBUTE_NORMAL, NULL);
 }
@@ -50,19 +59,19 @@ static HANDLE OpenGlobal(DWORD access) {
     return OpenDevice(access);
 }
 
-/* Opens \\.\EPRDTDRV\<token>\<disk> (the EPMNtDrv 3-segment grammar). */
+/* Opens \\.\<base>\<token>\<disk> (the EPMNtDrv 3-segment grammar). */
 static HANDLE OpenDisk(DWORD access, ULONG disk) {
     WCHAR path[RDA_MAX_PATH_W];
-    _snwprintf_s(path, RDA_MAX_PATH_W, _TRUNCATE, RDA_OPEN_FMT, L"EPRDTDRV", TokenFromPid(), disk,
+    _snwprintf_s(path, RDA_MAX_PATH_W, _TRUNCATE, RDA_OPEN_FMT, g_DeviceBase, TokenFromPid(), disk,
                  0);
     return CreateFileW(path, access, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
                        FILE_ATTRIBUTE_NORMAL, NULL);
 }
 
-/* Opens \\.\EPRDTDRV\<token>\Volume\<n>. */
+/* Opens \\.\<base>\<token>\Volume\<n>. */
 static HANDLE OpenVolume(DWORD access, ULONG volume) {
     WCHAR path[RDA_MAX_PATH_W];
-    _snwprintf_s(path, RDA_MAX_PATH_W, _TRUNCATE, L"\\\\.\\%ws\\%u\\Volume\\%u", L"EPRDTDRV",
+    _snwprintf_s(path, RDA_MAX_PATH_W, _TRUNCATE, L"\\\\.\\%ws\\%u\\Volume\\%u", g_DeviceBase,
                  TokenFromPid(), volume);
     return CreateFileW(path, access, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
                        FILE_ATTRIBUTE_NORMAL, NULL);
@@ -136,7 +145,7 @@ static int CmdGrammar(ULONG disk) {
     /* 2-segment EUEDKEPM grammar. */
     {
         WCHAR path[RDA_MAX_PATH_W];
-        _snwprintf_s(path, RDA_MAX_PATH_W, _TRUNCATE, L"\\\\.\\%ws\\%u\\%u", L"EPRDTDRV",
+        _snwprintf_s(path, RDA_MAX_PATH_W, _TRUNCATE, L"\\\\.\\%ws\\%u\\%u", g_DeviceBase,
                      TokenFromPid(), disk);
         h = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
                         FILE_ATTRIBUTE_NORMAL, NULL);
@@ -150,7 +159,7 @@ static int CmdGrammar(ULONG disk) {
     /* Wrong-token open must fail. */
     {
         WCHAR path[RDA_MAX_PATH_W];
-        _snwprintf_s(path, RDA_MAX_PATH_W, _TRUNCATE, L"\\\\.\\%ws\\%u\\%u\\%u", L"EPRDTDRV",
+        _snwprintf_s(path, RDA_MAX_PATH_W, _TRUNCATE, L"\\\\.\\%ws\\%u\\%u\\%u", g_DeviceBase,
                      TokenFromPid() ^ 0x5A5A, disk, 0);
         h = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
                         FILE_ATTRIBUTE_NORMAL, NULL);
@@ -403,7 +412,11 @@ static int CmdBenchRead(ULONG disk, unsigned long long secs, ULONG chunkSectors)
 /* ------------------------------------------------------------------ main -- */
 
 static void Usage(void) {
-    printf("usage: rdacli <command> [args]\n"
+    printf("usage: rdacli [-device <name>] <command> [args]\n"
+           "  -device <name>  control-device base name (default: RDA - the\n"
+           "                 service this product installs; the driver derives\n"
+           "                 its device name from the service name,\n"
+           "                 driver/src/driver/rda_control.c)\n"
            "  info\n"
            "  grammar <disk>\n"
            "  read <disk> <offset> <len>\n"
@@ -413,30 +426,38 @@ static void Usage(void) {
 }
 
 int __cdecl wmain(int argc, wchar_t **argv) {
-    if (argc < 2) {
+    int argBase = 1;
+    if (argc >= 4 && wcscmp(argv[1], L"-device") == 0) {
+        g_DeviceBase = argv[2];
+        argBase = 3;
+    }
+    if (argc <= argBase) {
         Usage();
         return 1;
     }
-    if (wcscmp(argv[1], L"info") == 0) {
+    const WCHAR *cmd = argv[argBase];
+    if (wcscmp(cmd, L"info") == 0) {
         return CmdInfo();
     }
-    if (wcscmp(argv[1], L"grammar") == 0 && argc >= 3) {
-        return CmdGrammar((ULONG)_wtoi(argv[2]));
+    if (wcscmp(cmd, L"grammar") == 0 && argc >= argBase + 2) {
+        return CmdGrammar((ULONG)_wtoi(argv[argBase + 1]));
     }
-    if (wcscmp(argv[1], L"read") == 0 && argc >= 5) {
-        return CmdRead((ULONG)_wtoi(argv[2]), _wcstoui64(argv[3], NULL, 10),
-                       (unsigned long)_wcstoui64(argv[4], NULL, 10));
+    if (wcscmp(cmd, L"read") == 0 && argc >= argBase + 4) {
+        return CmdRead((ULONG)_wtoi(argv[argBase + 1]), _wcstoui64(argv[argBase + 2], NULL, 10),
+                       (unsigned long)_wcstoui64(argv[argBase + 3], NULL, 10));
     }
-    if (wcscmp(argv[1], L"ident") == 0 && argc >= 3) {
-        return CmdIdent((ULONG)_wtoi(argv[2]));
+    if (wcscmp(cmd, L"ident") == 0 && argc >= argBase + 2) {
+        return CmdIdent((ULONG)_wtoi(argv[argBase + 1]));
     }
-    if (wcscmp(argv[1], L"session") == 0 && argc >= 5) {
-        return CmdSession((ULONG)_wtoi(argv[2]), _wcstoui64(argv[3], NULL, 10),
-                          _wcstoui64(argv[4], NULL, 10));
+    if (wcscmp(cmd, L"session") == 0 && argc >= argBase + 4) {
+        return CmdSession((ULONG)_wtoi(argv[argBase + 1]), _wcstoui64(argv[argBase + 2], NULL, 10),
+                          _wcstoui64(argv[argBase + 3], NULL, 10));
     }
-    if (wcscmp(argv[1], L"bench") == 0 && argc >= 5 && wcscmp(argv[2], L"read") == 0) {
-        ULONG chunk = (argc >= 6) ? (ULONG)_wtoi(argv[5]) : 128;
-        return CmdBenchRead((ULONG)_wtoi(argv[3]), _wcstoui64(argv[4], NULL, 10), chunk);
+    if (wcscmp(cmd, L"bench") == 0 && argc >= argBase + 4 &&
+        wcscmp(argv[argBase + 1], L"read") == 0) {
+        ULONG chunk = (argc >= argBase + 5) ? (ULONG)_wtoi(argv[argBase + 4]) : 128;
+        return CmdBenchRead((ULONG)_wtoi(argv[argBase + 2]),
+                            _wcstoui64(argv[argBase + 3], NULL, 10), chunk);
     }
     Usage();
     return 1;

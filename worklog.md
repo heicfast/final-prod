@@ -1393,3 +1393,31 @@ column, removable-visible). Full suites: UI 135/135, engine 926/926.
 Suites: UI 135/135 (incl. the rewritten reference-surfaces lost-partition
 assertions: no canned completed table, real device cards, the honest CLI
 note), engine 926/926.
+
+---
+## Fix batch 3 — the fake surfaces removed or made real (NG-12/13/14, G-9), rdacli fixed, PFX leak closed (NG-17)
+
+- NG-12 repair page: the canned queue (hard-coded 'WinMemoryCleaner'
+  sample files with a stranger's home path, a 'Repair All' that flipped
+  statuses without doing anything) is REPLACED by the truthful surface:
+  the standalone workbench is honestly unavailable (G-1 (b) open — the
+  ABI trio), and the page states what repair this build REALLY ships
+  (the wired pre-scan repair consent flow) + the rrecov undo-log path.
+- NG-13a Home folder dialog: the hard-coded fake subfolder tree is
+  REMOVED — 'Select Folder' now opens the REAL native directory picker
+  directly (connector system_pick_directory, already wired), resolves the
+  owning volume from the picked path, and starts the scoped scan.
+- G-9/NG-14 CLOSED at the ABI: cr_ui_disk_info gains the tail field
+  bus_type (raw STORAGE_BUS_TYPE; the enumerate layer already read it for
+  the N-066 interface axis — now kept on the entry). The bridge maps
+  kind: SD/MMC -> 'sd', USB/removable -> 'usb', else 'internal'. The
+  SD-card page is reachable for real SD hardware; its empty state is the
+  honest display elsewhere.
+- rdacli (shipped client tool) fixed: it opened \\\\.\\EPRDTDRV and could
+  never talk to the installed driver (forensic run 40465852724: gle=2);
+  it now derives \\\\.\\RDA like the engine, with a -device override.
+- NG-17: release.yml no longer uploads build/out wholesale — the
+  ephemeral devsign.pfx + password never enter a workflow artifact.
+
+Suites: UI 135/135 (the repair/lost-partition assertions now pin the
+truthful surfaces), engine 926/926, clang-format clean.

@@ -202,9 +202,13 @@ pub fn list_devices(state: &BridgeState) -> BridgeResult<Vec<Value>> {
             });
         out.push(json!({
             "id": disk_id(d.number),
-            // G-9: the engine struct has no bus type — removable is the only
-            // signal; 'sd'/'optical' are indistinguishable (INTEGRATION-GAPS).
-            "kind": (if d.removable != 0 { "usb" } else { "internal" }),
+            // G-9/NG-14 CLOSED: the engine now carries the raw bus type —
+            // 'sd' maps from SD/MMC (the reference's SD-card surface),
+            // 'usb' from the USB bus, else 'internal' (with the removable
+            // flag as the pre-bus_type fallback).
+            "kind": (if d.bus_type == 12 || d.bus_type == 13 { "sd" }
+                     else if d.bus_type == 7 || d.removable != 0 { "usb" }
+                     else { "internal" }),
             "model": (if model.is_empty() { format!("Hard Disk #{}", d.number) } else { model }),
             "label": label,
             "serial": serial,

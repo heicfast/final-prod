@@ -1481,6 +1481,7 @@ u32 enumerate_disks_impl(cr_ui_disk_info* out, uint32_t* count) {
         o.logical_sector = d.logical_sector;
         o.physical_sector = d.physical_sector;
         o.removable = d.removable ? 1u : 0u;
+        o.bus_type = d.bus_type; /* G-9/NG-14: the raw STORAGE_BUS_TYPE */
         o.table_ok = d.table_ok ? 1u : 0u;
         if (d.table_ok) {
             if (d.table.layout == table::TableLayout::Gpt)

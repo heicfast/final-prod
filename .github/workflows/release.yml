@@ -178,5 +178,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: release-build-evidence
-          path: build/out/
+          # NG-17: EXCLUDE the ephemeral signing material — the previous
+          # `path: build/out/` uploaded stage-<v>/devsign.pfx + its password
+          # file into a 14-day workflow artifact (never published to the
+          # release, but the secret has no business in any artifact).
+          path: |
+            build/out/*
+            !build/out/stage-*/
+            !build/out/devsign.*
           retention-days: 14

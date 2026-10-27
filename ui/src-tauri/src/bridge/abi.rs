@@ -142,6 +142,9 @@ pub struct CrUiDiskInfo {
     pub table_ok: u32,
     pub model: [u8; 128],
     pub serial: [u8; 128],
+    /// G-9/NG-14 tail append: raw STORAGE_BUS_TYPE (0 unknown, 7 USB,
+    /// 11 SATA, 12 SD, 13 MMC, 14 virtual, 17 NVMe).
+    pub bus_type: u32,
 }
 
 #[repr(C)]

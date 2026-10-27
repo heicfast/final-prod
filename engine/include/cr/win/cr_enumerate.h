@@ -42,6 +42,9 @@ struct PhysicalDisk {
     u32 logical_sector = 0;
     u32 physical_sector = 0;
     bool removable = false; /* BusType USB/SD */
+    u32 bus_type = 0;       /* G-9/NG-14: raw STORAGE_BUS_TYPE (0 unknown, 7 USB,
+                               11 SATA, 12 SD, 13 MMC, 14 virtual, 17 NVMe) - the
+                               SD-card surface keys off SD/MMC */
     bool busy = false;      /* N-071: metadata-only open (share-blocked data
                                open) - listed, scans re-open later */
     table::DiskTable table; /* parsed layout */

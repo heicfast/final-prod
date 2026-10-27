@@ -361,6 +361,12 @@ typedef struct cr_ui_disk_info {
     uint32_t table_ok;
     char model[128];  /* UTF-8, may be empty */
     char serial[128]; /* UTF-8, may be empty */
+    /* G-9/NG-14 tail append (ABI append-only; zero-init safe): the raw
+     * STORAGE_BUS_TYPE from the device descriptor (0 unknown, 7 USB,
+     * 11 SATA, 12 SD, 13 MMC, 14 virtual, 17 NVMe). Lets hosts
+     * distinguish SD cards from USB sticks (the reference's SD-card
+     * surface). */
+    uint32_t bus_type;
 } cr_ui_disk_info;
 
 typedef struct cr_ui_volume_info {

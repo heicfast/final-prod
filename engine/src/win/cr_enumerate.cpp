@@ -67,8 +67,10 @@ bool query_disk_handle(HANDLE h, PhysicalDisk& d) {
             /* N-066: the interface axis from the bus type (the og's
              * +0x414 "USB Device" family) + the WWN/serial-2 axis from
              * the device-id descriptor (the first DEVICE-associated
-             * identifier, ascii or hex). */
+             * identifier, ascii or hex). G-9/NG-14: the RAW bus value is
+             * kept on the entry too (the SD-card surface keys off MMC). */
             const u32 bus = u32_from_bytes_le(buf + 28);
+            d.bus_type = bus;
             if (const wchar_t* name = bus_interface_name(bus))
                 if (*name)
                     d.interface_desc = name;
