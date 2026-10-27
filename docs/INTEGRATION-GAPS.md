@@ -187,6 +187,37 @@ before and passes after.
   `cr_ui_last_transport_error`). Not user-visible defects by themselves, but
   `cr_ui_last_transport_error` is the missing diagnostics hook for NG-15.
   Fold into the respective fixes where they close gaps.
+- **NG-21 [CRITICAL, CLOSED this session] The pre-scan repair analysis ran
+  on the WHOLE DISK — a catastrophic false offer on every healthy
+  GPT/MBR disk, and the S3 smoking gun.** Forensic run 40470191039: a
+  whole-disk scan of the healthy 64 GiB seed disk handed the DISK slice to
+  `repair::analyze()`; a GPT protective MBR is "no recognizable family,"
+  and the family-agnostic FixByScanSector terminal then proposed writing
+  the partition's healthy NTFS boot sector at **disk offset 0 — over the
+  partition table** — blocking the run thread in the consent callback
+  ("Quick Scanning 0%" for 28 minutes, IO flat at zero; modal captured
+  verbatim, VLM-verified visible). The corpus contract is partition-scoped
+  (`CRawFixer::CheckPartition` → per-FS fixers on damaged VOLUMES,
+  rawfixer-fs-repair.md:13-16). **Fix (batch 4):** the orchestrator
+  analyzes per-partition on whole-disk scans (merged plans, per-partition
+  rebasing, caller-declared `whole_disk` as the discriminator so a
+  FAT-volume-misparsed-as-MBR can never misroute); `analyze()` gained an
+  independent partition-table guard (protective entry 0xEE / "EFI PART" at
+  LBA 1 / plausible MBR entries ⇒ S3 clean refusal, never a write). Five
+  fail-before/pass-after engine tests pin both layers
+  (`WholeDiskHealthyPartitionsNeverOfferRepair` — the S3 regression,
+  `WholeDiskDamagedPartitionOfferedInPlaceNeverAtTable`,
+  `GptDiskNeverOfferedBootRestore`, `MbrDiskNeverOfferedBootRestore`,
+  `GptHeaderAloneRefusesEvenWithoutProtectiveEntry`). See
+  `docs/FORENSIC-PROBE.md` §S3 smoking gun.
+- **NG-22 [M, CLOSED this session] The results-tree root label was the
+  hard-coded fake `'Windows (C:)'`** (`ui/src/i18n/en.ts
+  results.tree.existingFiles`) — every scan target's tree root claimed to
+  be the Windows volume (captured: a SeedNTFS(X:) scan labeled "Windows
+  (C:)", run 40470191039 end-state). **Fix (batch 4):** the explorer passes
+  scan state's `target.label` into the tree; the neutral translated
+  "Existing Files" is only the unresolved-target fallback. Pinned by
+  `ui/tests/results-tree-label.test.tsx`.
 
 ### Not gaps (verified this session, for the record)
 

@@ -15,6 +15,7 @@ Reproduction runs (chronological):
 | 40463774709 / 40464046107 / 40464495050 | 5cb10f29→7517866b | probe-tooling iterations (checksum hex case; Unicode window text; step job-object kill) — S1 captured from run 3 on |
 | **40465852724** | 7517866b | **GREEN — the full S1/S2/S4 capture; S3 scan phase re-run below** |
 | (scan-phase rerun) | 1f45b88c | the scan capture (quick→advanced, the 40% crawl, the results tree) |
+| **40470191039** | a6e9e470 | **GREEN — the definitive S3 capture: the blocking consent modal on the HEALTHY seed disk (the smoking gun below); probe did not answer it (probe defect, fixed)** |
 
 The probe suite is `tools/forensic/` + `.github/workflows/forensic-repro.yml`
 (diagnostic tooling only — no product code is modified; the UI is driven
@@ -113,6 +114,63 @@ phase capture is the run at 1f45b88c):
 5. Quick-pass probe failures yield an empty-but-OK quick stage
    (`cr_scan.cpp:1345-1348`) and driver read failures degrade to silent
    bad-sector ranges — neither surfaces to the UI.
+
+### S3 smoking gun — the false repair offer that blocks every whole-disk scan
+(run 40470191039, evidence `evidence.json` phases.scan.result.bodyText +
+screenshots 09→65 byte-identical for 28 minutes; modal verified visible by
+VLM inspection of `09-scan-poll-0s.png`)
+
+The scan of the **healthy, freshly-formatted 64 GiB GPT seed disk** (disk-2,
+SeedNTFS X:) never entered the quick stage at all: within a second of
+"Search for Lost Data" the engine's **pre-scan repair analysis** proposed a
+repair and the run thread **blocked in the consent callback** — the UI showed
+"Quick Scanning 0%" behind a centered modal for 28 minutes (IO flat at zero
+the entire window, io-timeline.jsonl). The captured modal text:
+
+> Pre-scan repair request … File system: ntfs, Repair actions: 1,
+> Report-only findings: 2 — *"no recognizable family in the primary or
+> backups; rebuild the DBR from the only boot-shaped sector in the 64 MiB
+> window (FixByScanSector)"*
+
+Root cause chain (source-verified, each link cited):
+
+1. **The analysis unit was the DISK, not the partition.**
+   `cr_scan.cpp` run() handed the whole-disk slice to
+   `repair::analyze()` (`engine/src/core/orchestrator/cr_scan.cpp:918`
+   pre-fix) — while the corpus contract is partition-scoped:
+   `CRawFixer::CheckPartition → per-FS fixers on damaged VOLUMES`
+   (`easeus-drw-research/re-workspace/artifacts/PartitionRecovery/
+   rawfixer-fs-repair.md:13-16, :23-24`).
+2. **A GPT disk's LBA 0 is a protective MBR** — no NTFS/exFAT/FAT boot
+   shape, no family. The family-agnostic **FixByScanSector terminal**
+   (`cr_rawfixer.cpp:868-912` pre-fix) then scanned the first 64 MiB of the
+   DISK, found the NTFS volume boot sector at ~1 MiB (the partition's
+   healthy boot), and proposed **writing it at disk offset 0 — over the
+   GPT protective MBR**. On a healthy disk. Approving it would have
+   destroyed the partition table.
+3. **The consent gate is blocking by design** (S-008: the engine's run
+   thread waits in the callback) — the modal was visible and correctly
+   rendered (VLM-verified: title, plan details, both buttons), but a user
+   who misses it sees a "scan" at 0% forever, and the forensic probe (which
+   never answered) reproduced exactly the reported symptom shape: no
+   results, no progress, nothing completes.
+4. The **tree root was mislabeled** "Windows (C:)" during the disk-2 scan —
+   the label was hard-coded in `ui/src/i18n/en.ts`
+   (`results.tree.existingFiles: 'Windows (C:)'`), not derived from the
+   scan target (NG-22, fixed with the target's real label).
+
+Fixes (batch 4): the orchestrator now analyzes **per-partition** on
+whole-disk scans (the corpus unit) with per-partition rebasing;
+`analyze()` gained an independent **partition-table guard** (protective-MBR
+entry / GPT header at LBA 1 / plausible MBR entries ⇒ clean S3 refusal,
+never a write); the tree root label comes from scan state's target. Five
+fail-before/pass-after engine tests pin it
+(`WholeDiskHealthyPartitionsNeverOfferRepair`,
+`WholeDiskDamagedPartitionOfferedInPlaceNeverAtTable`,
+`GptDiskNeverOfferedBootRestore`, `MbrDiskNeverOfferedBootRestore`,
+`GptHeaderAloneRefusesEvenWithoutProtectiveEntry`); the probe now ANSWERS
+the modal (Deny) if one ever appears and records its plan text verbatim
+(`tools/forensic/drive-ui.mjs`).
 
 ## S4 — other surfaces: dead or fake (screenshots 09-13)
 

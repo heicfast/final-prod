@@ -915,7 +915,63 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
      * return; an early return here would leave telemetry running). */
     if (cfg_.pre_scan_repair && !(cancel && cancel->checkpoint())) {
         repair::RepairPlan rplan;
-        u32 rrc = repair::analyze(slice, rplan);
+        /* NG-21 (forensic run 40470191039): the corpus repair unit is the
+         * PARTITION (CRawFixer::CheckPartition -> per-FS fixers on damaged
+         * VOLUMES; rawfixer-fs-repair.md:13-16). The pre-fix code analyzed
+         * the scan's slice as-is: a whole-disk scan handed analyze() the
+         * DISK, whose LBA 0 holds the protective MBR/MBR table - "no
+         * recognizable family" - and the family-agnostic FixByScanSector
+         * terminal then proposed writing the first volume boot sector in
+         * the 64 MiB window over the disk's LBA 0 (the partition table):
+         * a catastrophic false offer on a HEALTHY disk, captured verbatim
+         * as the blocking consent modal in the forensic evidence. When the
+         * slice carries a partition table (disk_layout_ was just parsed
+         * above - a volume slice's LBA 0 never parses as one), analyze
+         * each PARTITION slice instead and merge the plans rebased to each
+         * partition's absolute base; the merged offsets are then already
+         * parent-absolute (the whole-disk slice's own base is 0, so the
+         * execute-side rebase below is a no-op for them). A slice with NO
+         * recognizable table (a volume, or a blank/tableless disk) keeps
+         * the single-slice analyze; a tableless disk refuses inside
+         * analyze (no family), and lost-partition discovery owns it.
+         * The caller-declared cfg_.whole_disk basis (the bridge arms it
+         * for disk targets, rrecov --whole-disk; volume targets never)
+         * is the discriminator - NOT disk_layout_ alone: a FAT-family
+         * volume boot sector carries 0x55AA + nonzero code bytes in the
+         * entry region, so parse_disk_table can misparse a VOLUME as a
+         * garbage MBR; the config flag keeps volume scans on the
+         * volume-slice analyze path regardless. */
+        u32 rrc = OK;
+        if (cfg_.whole_disk && !disk_layout_.empty()) {
+            const u32 psec =
+                slice->geometry().logical_sector ? slice->geometry().logical_sector : 512;
+            for (const auto& pe : disk_layout_) {
+                if (pe.sector_count == 0)
+                    continue;
+                auto pslice = PartitionSlice::create(slice, pe.start_lba * u64(psec),
+                                                     pe.sector_count * u64(psec), nullptr);
+                if (!pslice)
+                    continue; /* malformed entry: not a repair candidate */
+                repair::RepairPlan pp;
+                const u32 prc = repair::analyze(pslice.get(), pp);
+                if (prc != OK || pp.refused || pp.actions.empty())
+                    continue; /* clean partition: nothing to offer */
+                if (!rplan.detected) {
+                    rplan.detected = true;
+                    rplan.fs_family = pp.fs_family;
+                }
+                for (auto& adv : pp.advisories)
+                    rplan.advisories.push_back(std::move(adv));
+                /* rebase THIS partition's slice-relative offsets to the
+                 * parent-absolute base before merging (A-002 semantics -
+                 * the undo log must carry parent-absolute offsets). */
+                repair::rebase_plan(pp, pslice->absolute_base());
+                for (auto& act : pp.actions)
+                    rplan.actions.push_back(std::move(act));
+            }
+        } else {
+            rrc = repair::analyze(slice, rplan);
+        }
         stats.repair_ran = true;
         stats.repair_detected = rplan.detected;
         std::snprintf(stats.repair_family, sizeof(stats.repair_family), "%s",

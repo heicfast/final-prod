@@ -1478,3 +1478,54 @@ forensic probe captured empty app-stderr.log). Now:
   lines per scan.
 
 Engine 926/926 green with the export; win parse gate green.
+
+---
+## Batch 4 — the S3 smoking gun fixed: whole-disk repair scope (NG-21) + the fake tree-root label (NG-22) + the T9 delta manifest
+
+The definitive S3 capture (forensic run 40470191039, downloaded + analyzed
+this segment): the scan of the HEALTHY 64 GiB GPT seed disk never entered
+quick scan — the pre-scan repair analysis ran on the WHOLE-DISK slice, read
+the GPT protective MBR as "no recognizable family," and the family-agnostic
+FixByScanSector terminal proposed writing the partition's healthy NTFS boot
+sector at DISK OFFSET 0 (over the partition table). The consent callback
+then BLOCKED the run thread for 28 minutes at "Quick Scanning 0%" with IO
+flat at zero; the modal was visible and correctly rendered (VLM-verified on
+the screenshot) but the probe never answered it (probe defect — the probe
+now answers Deny and records the plan text verbatim).
+
+- NG-21 CLOSED, two independent layers:
+  (a) orchestrator: whole-disk scans analyze PER-PARTITION (the corpus
+      unit — CRawFixer::CheckPartition -> per-FS fixers on damaged
+      VOLUMES, rawfixer-fs-repair.md:13-16), merging plans rebased to each
+      partition's absolute base; the caller-declared cfg_.whole_disk flag
+      is the discriminator (parse_disk_table alone can misparse a
+      FAT-family volume boot as a garbage MBR — 0x55AA + boot-code bytes
+      in the entry region — the flag keeps volume scans on the volume
+      path);
+  (b) analyze(): an independent partition-table guard (protective entry
+      0xEE / "EFI PART" at LBA 1 / plausible MBR entries => S3 clean
+      refusal, never a write) — safe against ANY caller.
+- NG-22 CLOSED: the results-tree root label was the hard-coded fake
+  'Windows (C:)' (i18n en.ts) — now the scan target's real label from scan
+  state (explorer -> tree), neutral 'Existing Files' only as the
+  unresolved-target fallback.
+- Five fail-before/pass-after engine tests (verified BOTH directions via
+  git stash): WholeDiskHealthyPartitionsNeverOfferRepair (the S3
+  regression), WholeDiskDamagedPartitionOfferedInPlaceNeverAtTable,
+  GptDiskNeverOfferedBootRestore, MbrDiskNeverOfferedBootRestore,
+  GptHeaderAloneRefusesEvenWithoutProtectiveEntry. + the UI pin
+  results-tree-label.test.tsx.
+- docs/FORENSIC-PROBE.md: the S3 smoking-gun section with the captured
+  modal text, the cited root-cause chain, and the fixes.
+- docs/INTEGRATION-GAPS.md: NG-21 (CRITICAL, CLOSED) + NG-22 (CLOSED)
+  registered.
+- docs/INSTALL-FOOTPRINT-DELTA.md (T9): the complete categorized manifest
+  — the functional core is consolidated (one cr_ui.dll covers the claimed
+  surface), the numeric gap is unclaimed features (WinPE, viewers, cloud,
+  NAS, 37 language packs); exactly two real Missing entries, both already
+  truthfully surfaced with follow-ups recorded.
+
+Suites: engine 931/931 (926 + 5 new), UI 136/136 (135 + the NG-22 pin),
+clang-format-18 gate clean locally, tsc clean. CI note: the local knip run
+crashes on sandbox memory (Array buffer allocation failed — environment,
+not code; the CI runner has the headroom and was green on 6c3aa9f6).

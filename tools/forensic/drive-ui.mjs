@@ -185,7 +185,34 @@ async function main() {
     const CAP_MS = 28 * 60 * 1000;
     let lastShot = 0;
     let advancedSeenAt = null;
+    // NG-21: the pre-scan repair consent gate. Run 40470191039 sat at
+    // 'Quick Scanning 0%' for 28 minutes because the probe never answered
+    // the (visible, verified-by-VLM) modal. Two behaviors now:
+    //  (a) if the modal appears, the probe ANSWERS it (Deny - stay
+    //      read-only, the conservative choice for a forensic run) and
+    //      records the plan text verbatim;
+    //  (b) on the HEALTHY seed disks the fixed engine must never offer a
+    //      repair at all - consentSeen records which world we are in.
+    evidence.phases.scan.consent = { seen: false, planText: null, answeredAtMs: null, deniedAtMs: null };
+    const answerConsentIfPresent = async () => {
+      const dlg = page.getByText(/Pre-scan repair request/i);
+      if (await dlg.count().catch(() => 0)) {
+        if (!evidence.phases.scan.consent.seen) {
+          evidence.phases.scan.consent.seen = true;
+          const bodyText = await page.evaluate(() => (document.body.innerText || '').slice(0, 5000)).catch(() => '');
+          evidence.phases.scan.consent.planText = (bodyText.match(/Pre-scan repair request[\s\S]{0,900}/) || [null])[0];
+          await shot(page, 'scan-consent-modal').catch(() => {});
+          log('scan: consent modal APPEARED - answering Deny (stay read-only)');
+        }
+        const deny = page.getByRole('button', { name: /Deny|stay read-only/i }).first();
+        if (await deny.count().catch(() => 0)) {
+          await deny.click({ timeout: 5000 }).catch(e => log('consent deny click failed: ' + e.message));
+          evidence.phases.scan.consent.deniedAtMs = Date.now() - t0;
+        }
+      }
+    };
     while (Date.now() - t0 < CAP_MS) {
+      await answerConsentIfPresent();
       const st = await page.evaluate(() => ({
         url: location.href,
         text: (document.body.innerText || '').slice(0, 5000),

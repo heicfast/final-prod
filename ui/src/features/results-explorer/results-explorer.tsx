@@ -19,6 +19,7 @@ import {
   XIcon,
 } from 'lucide-react';
 import { useCountResults, useResultsPages, useResultTree } from '@/queries/results';
+import { useScanState } from '@/queries/scan';
 import { useSaveSession } from '@/queries/sessions';
 import { useOpenLocation } from '@/queries/system';
 import { useFilterStore, useSortStore, resolveFilter } from '@/stores/filter-store';
@@ -89,6 +90,13 @@ export function ResultsExplorer({
     () => ({ ...resolveFilter(), nodeId: filter.treeNodeId, treeMode: filter.treeMode }),
     [filter],
   );
+
+  // NG-22 — the tree root's "existing files" label is the scan TARGET's
+  // real name — the pre-fix hard-coded 'Windows (C:)' showed the wrong
+  // volume for every other target (captured in forensic run 40470191039:
+  // a SeedNTFS(X:) scan labeled "Windows (C:)").
+  const scanState = useScanState(scanId);
+  const existingLabel = scanState.data?.target.label ?? null;
 
   const sort = { field: sortStore.field, direction: sortStore.direction };
   const pages = useResultsPages(scanId, filterPayload, sort);
@@ -389,6 +397,7 @@ export function ResultsExplorer({
               setActiveNodeId(null);
               filter.setTreeNode(nodeId);
             }}
+            existingLabel={existingLabel}
           />
         </aside>
 

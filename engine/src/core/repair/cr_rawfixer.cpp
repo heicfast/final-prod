@@ -865,6 +865,55 @@ u32 analyze(IStorageDevice* slice, RepairPlan& plan) {
     /* exFAT with a destroyed primary OEM is handled above via the backup
      * boot sector probe (exfat_via_backup); nothing further here. */
 
+    /* ---- NG-21 (forensic run 40470191039): partition-table primary guard.
+     * A primary that did not parse as ANY volume boot shape but DOES parse
+     * as a partition table means the slice is a DISK (or a whole-disk
+     * image), not a volume. The corpus repair unit is the PARTITION -
+     * CRawFixer::CheckPartition dispatches per-FS fixers on damaged
+     * VOLUMES (rawfixer-fs-repair.md:13-16, :23-24); the og never runs a
+     * DBR rebuild against a disk's LBA 0. Without this guard, the
+     * family-agnostic FixByScanSector terminal below would find the first
+     * volume's boot sector inside the 64 MiB window and propose writing it
+     * over the disk's partition table - a catastrophic false offer the
+     * forensic probe captured verbatim on a healthy GPT disk (the consent
+     * modal: "no recognizable family in the primary or backups; rebuild
+     * the DBR from the only boot-shaped sector in the 64 MiB window").
+     * Recognition (any one fires): a GPT protective entry (type 0xEE at
+     * 0x1C2), a GPT header at LBA 1 ("EFI PART"), or a plausible MBR
+     * entry (nonzero type, start inside the slice, nonzero count). A
+     * misjudged damaged volume merely falls through to carving - the
+     * corpus posture for volumes that resist RawFixer - never a write.
+     * (S3: ambiguity refuses.) */
+    {
+        const u8* const mbr = primary.data();
+        bool is_table = mbr[0x1C2] == 0xEE; /* GPT protective MBR */
+        if (!is_table) {
+            u8 lba1[8] = {};
+            if (slice->read_at(sector, lba1, sizeof(lba1)) == OK &&
+                std::memcmp(lba1, "EFI PART", 8) == 0)
+                is_table = true; /* GPT header one sector in */
+        }
+        if (!is_table && fat_sig) { /* 0x55AA at 510/511 - MBR candidates */
+            for (u32 i = 0; i < 4 && !is_table; i++) {
+                const u8* e = mbr + 0x1BE + u64(i) * 16;
+                if (e[4] == 0) /* type 0 = empty entry */
+                    continue;
+                const u64 start = le32(e + 8);
+                const u64 count = le32(e + 12);
+                if (count != 0 && start < total / sector)
+                    is_table = true;
+            }
+        }
+        if (is_table) {
+            plan.refused = true;
+            plan.refusal_reason =
+                "the slice's first sector is a partition table (MBR/GPT), not a volume boot "
+                "sector - filesystem repair is partition-scoped, never disk-scoped (corpus "
+                "RawFixer::CheckPartition; S3 clean refusal)";
+            return OK;
+        }
+    }
+
     /* ---- FixByScanSector, family-agnostic terminal (S-008): every
      * family probe failed, but a single boot-shaped sector in the
      * bounded 64 MiB window rebuilds the primary DBR. Distinct multiple

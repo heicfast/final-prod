@@ -190,10 +190,19 @@ function TreeIcon({ node }: { node: TreeNode }): React.JSX.Element {
   );
 }
 
-function treeLabel(node: TreeNode, t: (k: string) => string): string {
+function treeLabel(
+  node: TreeNode,
+  t: (k: string) => string,
+  existingLabel?: string | null,
+): string {
   if (node.special === 'lost-path') return t('results.tree.lostPaths');
   if (node.special === 'raw-found') return t('results.tree.rawFound');
-  if (node.id === 'root') return t('results.tree.existingFiles');
+  /* NG-22 (forensic run 40470191039): the root's "existing files" label
+     is the SCAN TARGET's real name (from scan state) — the pre-fix
+     hard-coded 'Windows (C:)' showed the wrong volume for every other
+     target. The neutral translated string is the fallback when the
+     target is unresolved (session view without state). */
+  if (node.id === 'root') return existingLabel || t('results.tree.existingFiles');
   if (node.icon === 'category') return t(`categories.${node.label}`);
   if (node.icon === 'group' && node.label === 'raw') return t('results.tree.rawFound');
   return node.label;
@@ -208,6 +217,7 @@ function TreeRow({
   onSelect,
   expanded,
   onToggleExpand,
+  existingLabel,
 }: {
   node: TreeNode;
   depth: number;
@@ -217,12 +227,13 @@ function TreeRow({
   onSelect: (nodeId: string | null) => void;
   expanded: ReadonlySet<string>;
   onToggleExpand: (id: string) => void;
+  existingLabel?: string | null;
 }): React.JSX.Element {
   const { t, i18n } = useTranslation();
   const hasKids = (mode === 'path' || mode === 'type') && node.childCount > 0;
   const isExpanded = expanded.has(node.id);
   const isSelected = selectedId === node.id || (selectedId === null && node.id === 'root');
-  const label = treeLabel(node, t);
+  const label = treeLabel(node, t, existingLabel);
 
   return (
     <>
@@ -281,6 +292,7 @@ function TreeRow({
           onSelect={onSelect}
           expanded={expanded}
           onToggleExpand={onToggleExpand}
+          existingLabel={existingLabel}
         />
       ) : null}
     </>
@@ -296,6 +308,7 @@ function TreeLevel({
   onSelect,
   expanded,
   onToggleExpand,
+  existingLabel,
 }: {
   scanId: string;
   parentId: string | null;
@@ -305,6 +318,7 @@ function TreeLevel({
   onSelect: (nodeId: string | null) => void;
   expanded: ReadonlySet<string>;
   onToggleExpand: (id: string) => void;
+  existingLabel?: string | null;
 }): React.JSX.Element {
   const query = useResultTree(scanId, parentId, mode);
   if (query.isLoading) {
@@ -343,6 +357,7 @@ function TreeLevel({
           onSelect={onSelect}
           expanded={expanded}
           onToggleExpand={onToggleExpand}
+          existingLabel={existingLabel}
         />
       ))}
     </>
@@ -355,12 +370,14 @@ export function ResultsTree({
   selectedId,
   onSelect,
   className,
+  existingLabel,
 }: {
   scanId: string;
   mode: ResultTreeMode;
   selectedId: string | null;
   onSelect: (nodeId: string | null) => void;
   className?: string;
+  existingLabel?: string | null;
 }): React.JSX.Element {
   const { t } = useTranslation();
   // Expanded set is derived per mode; toggling writes the current mode's set.
@@ -394,6 +411,7 @@ export function ResultsTree({
         onSelect={onSelect}
         expanded={expanded}
         onToggleExpand={toggleExpand}
+        existingLabel={existingLabel}
       />
     </div>
   );

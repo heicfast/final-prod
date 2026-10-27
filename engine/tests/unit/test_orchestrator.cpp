@@ -1380,6 +1380,148 @@ TEST(Orchestrator, PreScanRepairWithoutHooksNeverWrites) {
     EXPECT_EQ(0xAB, dev.raw()[TornFatFixture::FAT1 + 0]);
 }
 
+/* ---- NG-21 (forensic run 40470191039): whole-disk repair scope ----
+ * The corpus repair unit is the PARTITION (RawFixer::CheckPartition ->
+ * per-FS fixers on damaged VOLUMES; rawfixer-fs-repair.md:13-16). The
+ * pre-fix orchestrator ran analyze() on the whole-DISK slice: a healthy
+ * GPT/MBR disk's LBA 0 is a partition table ("no recognizable family"),
+ * and the family-agnostic FixByScanSector terminal then proposed writing
+ * the first volume boot sector in the 64 MiB window over the disk's LBA
+ * 0 - the catastrophic false offer the forensic probe captured as the
+ * blocking consent modal on the healthy 64 GiB seed disk. */
+struct MbrDiskFixture {
+    std::vector<u8> img;
+    static constexpr u64 PART_START = 2048;
+    static constexpr u64 PART_SIZE = 5074;
+    static constexpr u64 FAT1 = PART_START * 512 + 2 * 512;             /* parent-absolute */
+    explicit MbrDiskFixture(bool tear_fat1) : img(u64(8192) * 512, 0) { /* 4 MiB disk */
+        auto fat = build_fat16();
+        std::memcpy(img.data() + PART_START * 512, fat.data(), fat.size());
+        u8* mbr = img.data();
+        mbr[510] = 0x55;
+        mbr[511] = 0xAA;
+        u8* e = mbr + 446; /* entry 0 */
+        e[0] = 0x80;       /* bootable */
+        e[4] = 0x07;       /* NTFS/IFS */
+        put32v(img, 446 + 8, u32(PART_START));
+        put32v(img, 446 + 12, u32(PART_SIZE));
+        if (tear_fat1)
+            std::memset(img.data() + FAT1, 0xAB, 512); /* torn FAT1 sector 0 */
+    }
+};
+
+TEST(Orchestrator, WholeDiskHealthyPartitionsNeverOfferRepair) {
+    /* the S3 regression: a healthy disk scanned whole must surface NO
+     * repair offer at all. Fail-before: the pre-fix single whole-disk
+     * analyze found "no family" at the MBR, then FixByScanSector offered
+     * the FAT boot at 1 MiB as a DBR rebuild AT DISK OFFSET 0 - the
+     * consent hook fired on a healthy disk with a table-destroying
+     * proposal. */
+    MbrDiskFixture fx(false); /* healthy partition */
+    MemDevice dev(std::move(fx.img));
+    SharedRamWrite wdev(dev);
+    RepairCtx ctx;
+    ctx.consent = false; /* must never be asked; deny if it ever is */
+    ctx.dev = &wdev;
+
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = true; /* the real whole-disk UI flow arms both stages */
+    cfg.run_carve = false;
+    cfg.whole_disk = true;
+    cfg.pre_scan_repair = true;
+    cfg.repair.consent = test_consent;
+    cfg.repair.open_writer = test_open_writer;
+    cfg.repair.close_writer = test_close_writer;
+    cfg.repair.user = &ctx;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_EQ(0, ctx.consent_calls); /* NO offer on a healthy disk */
+    EXPECT_TRUE(stats.repair_ran);
+    EXPECT_EQ(0u, stats.repair_actions_planned);
+    EXPECT_FALSE(stats.repair_detected);
+    EXPECT_EQ(0u, wdev.writes);
+    /* the disk's partition table is byte-identical after the scan */
+    EXPECT_EQ(0x55, dev.raw()[510]);
+    EXPECT_EQ(0xAA, dev.raw()[511]);
+    EXPECT_EQ(0x07, dev.raw()[446 + 4]);
+    /* the scan itself still worked (the partition's files were found) */
+    EXPECT_GE(stats.files_found, 1u);
+}
+
+TEST(Orchestrator, WholeDiskDamagedPartitionOfferedInPlaceNeverAtTable) {
+    /* a genuinely damaged partition on a whole-disk scan IS offered - at
+     * the partition-absolute offset, never at the disk's LBA 0. The merged
+     * per-partition plan carries parent-absolute offsets (A-002 undo-log
+     * contract). Fail-before: the pre-fix whole-disk analyze proposed a
+     * DeepScanBootRestore at DISK offset 0 (over the MBR) instead of the
+     * torn FAT sector inside the partition. */
+    MbrDiskFixture fx(true); /* torn FAT1 signature sector */
+    MemDevice dev(std::move(fx.img));
+    SharedRamWrite wdev(dev);
+    /* capturing hook set (one user pointer for all three hooks - the
+     * RepairHooks contract shares `user` across consent/open/close) */
+    struct CapturingCtx {
+        bool consent = true;
+        int consent_calls = 0;
+        SharedRamWrite* dev = nullptr;
+        repair::RepairPlan captured;
+    } ctx;
+    ctx.dev = &wdev;
+    auto capturing_consent = [](const repair::RepairPlan& plan, void* user) -> bool {
+        auto* c = static_cast<CapturingCtx*>(user);
+        ++c->consent_calls;
+        c->captured = plan;
+        return c->consent;
+    };
+    auto capturing_open = [](void* user) -> repair::IWriteDevice* {
+        return static_cast<CapturingCtx*>(user)->dev;
+    };
+    auto capturing_close = [](repair::IWriteDevice*, void*) {};
+
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = true; /* the real whole-disk UI flow arms both stages */
+    cfg.run_carve = false;
+    cfg.whole_disk = true;
+    cfg.pre_scan_repair = true;
+    cfg.repair.consent = capturing_consent;
+    cfg.repair.open_writer = capturing_open;
+    cfg.repair.close_writer = capturing_close;
+    cfg.repair.user = &ctx;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+
+    /* the offer: exactly one action, AT THE PARTITION (parent-absolute),
+     * never at the disk's LBA 0 */
+    ASSERT_EQ(1, ctx.consent_calls);
+    ASSERT_EQ(1u, ctx.captured.actions.size());
+    EXPECT_EQ(repair::ActionKind::RestoreFatSectorFromMirror, ctx.captured.actions[0].kind);
+    EXPECT_EQ(MbrDiskFixture::FAT1, ctx.captured.actions[0].offset);
+    EXPECT_NE(0u, ctx.captured.actions[0].offset); /* never the table */
+    EXPECT_EQ("fat", std::string(stats.repair_family));
+    EXPECT_EQ(1u, stats.repair_actions_applied);
+
+    /* executed: FAT1's sector restored from the sibling, AT the partition */
+    EXPECT_EQ(0xF8, dev.raw()[MbrDiskFixture::FAT1 + 0]);
+    EXPECT_EQ(0xFF, dev.raw()[MbrDiskFixture::FAT1 + 1]);
+    /* the partition table untouched */
+    EXPECT_EQ(0x55, dev.raw()[510]);
+    EXPECT_EQ(0xAA, dev.raw()[511]);
+    EXPECT_EQ(0x07, dev.raw()[446 + 4]);
+    /* the undo log carries parent-absolute offsets (A-002 contract) */
+    ASSERT_EQ(1u, stats.repair_undo.entries.size());
+    EXPECT_EQ(MbrDiskFixture::FAT1, stats.repair_undo.entries[0].offset);
+    /* the scan completed on the repaired partition */
+    EXPECT_GE(stats.files_found, 1u);
+}
+
 } // namespace
 
 /* ---- A-004: ErrorRange must fire through the LIVE sink (set_event_sink),

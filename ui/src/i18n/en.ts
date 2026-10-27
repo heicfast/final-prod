@@ -257,7 +257,11 @@ export const en = {
       unknown: 'Unknown',
     },
     tree: {
-      existingFiles: 'Windows (C:)',
+      // Neutral fallback (NG-22, forensic run 40470191039) — the root label
+      // is the scan target's real name (results-explorer passes it); this
+      // string only shows when the target is unresolved (e.g. a session
+      // view without scan state).
+      existingFiles: 'Existing Files',
       rawFound: 'Reconstructed',
       lostPaths: 'File Path Lost',
     },
