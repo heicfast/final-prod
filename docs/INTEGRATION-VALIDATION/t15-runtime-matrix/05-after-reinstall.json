@@ -1,11 +1,11 @@
 {
   "exitCode": 0,
-  "durationMs": 3746,
+  "durationMs": 4003,
   "markerSurvived": true,
-  "regVersion": "0.5.0-rc3",
+  "regVersion": "0.6.0-rc1",
   "uninstallKey": {
     "DisplayName": "HeicFast Recovery Wizard",
-    "DisplayVersion": "0.5.0-rc3",
+    "DisplayVersion": "0.6.0-rc1",
     "Publisher": "HeicFast",
     "InstallLocation": "C:\\Program Files\\HeicFast\\Recovery Wizard",
     "UninstallString": "\"C:\\Program Files\\HeicFast\\Recovery Wizard\\HeicFastUninstall.exe\"",

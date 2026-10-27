@@ -1,6 +1,6 @@
 {
   "exitCode": 0,
-  "durationMs": 1020,
+  "durationMs": 1976,
   "installDirExists": false,
   "leftovers": 0,
   "leftoverNames": [],
@@ -9,5 +9,7 @@
   "driverService": "gone",
   "sysDriverFile": false,
   "markerSurvived": true,
-  "sessionsKept": true
+  "sessionsKept": true,
+  "certGoneFromRoot": true,
+  "certGoneFromTP": true
 }

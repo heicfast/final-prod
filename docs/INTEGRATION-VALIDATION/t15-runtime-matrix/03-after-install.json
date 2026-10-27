@@ -2,17 +2,18 @@
   "appExePresent": true,
   "crUiPresent": true,
   "rrecovPresent": true,
-  "driverDirFiles": 5,
+  "driverDirFiles": 7,
   "swKey": {
     "(default)": "C:\\Program Files\\HeicFast\\Recovery Wizard",
     "DriverInstalled": "1",
     "InstallDir": "C:\\Program Files\\HeicFast\\Recovery Wizard",
-    "Version": "0.5.0-rc3",
-    "InstallMode": "AllUsers"
+    "Version": "0.6.0-rc1",
+    "InstallMode": "AllUsers",
+    "DriverCertThumbprint": "B950040F35ACB5FAF22AB32D734E131D92F22A85"
   },
   "uninstallKey": {
     "DisplayName": "HeicFast Recovery Wizard",
-    "DisplayVersion": "0.5.0-rc3",
+    "DisplayVersion": "0.6.0-rc1",
     "Publisher": "HeicFast",
     "InstallLocation": "C:\\Program Files\\HeicFast\\Recovery Wizard",
     "UninstallString": "\"C:\\Program Files\\HeicFast\\Recovery Wizard\\HeicFastUninstall.exe\"",
@@ -20,52 +21,62 @@
     "NoModify": "1",
     "NoRepair": "1"
   },
-  "driverService": 1,
+  "driverService": 4,
   "inventory": [
     {
       "rel": "cr_ui.dll",
-      "size": 1193984,
-      "sha256": "3C3A388FE3C2643DD6A45F4C6A938B27B483B031B9FD05E0FB11795F9C44D44A"
+      "size": 1192912,
+      "sha256": "0D21C166599446743D822574B5C304EBFB27436C6BA2BCB15DA7A385CAA5BDFE"
     },
     {
       "rel": "HeicFastUninstall.exe",
-      "size": 63084,
-      "sha256": "4372713585C599E8B0F2D3928A1BEFBFB0F877DBF1BE110A40823562AAC2C924"
+      "size": 61973,
+      "sha256": "479427DC0FE4918C916039319B040D8BC7C72F3546CFA9210F77BA092E62C62E"
     },
     {
       "rel": "lz4.dll",
       "size": 126464,
-      "sha256": "88C560CDC6254C726F013E0358A39388A0DC6ED070063FE238B986B0D44B9055"
+      "sha256": "30AAE8151D52B937B0E20804CB919E22C31318203D9DB287D2F85FA83DA6A3FC"
     },
     {
       "rel": "recovery-wizard-ui.exe",
-      "size": 5188096,
-      "sha256": "D7CE82A67E899E93C77876F8D09B1180E1F315EA03A536FBD14F803952A02BC4"
+      "size": 5188608,
+      "sha256": "918987AC1FAE02FE9046D984CC446CA6EEEF2E1773EB6752FE6311111A6116FF"
     },
     {
       "rel": "rrecov.exe",
-      "size": 1231360,
-      "sha256": "14B5B936DCBBCB43CEA793A444A3A8A806726F71AB3B67774830D355DF42F472"
+      "size": 1230288,
+      "sha256": "2B87DB3EF82EE516C250AA99AB0F999CE6E90331553F60FDC532ABF2C251D2BF"
     },
     {
       "rel": "uninstall.exe",
       "size": 87737,
-      "sha256": "7819EFD2DED0F9248189B39776A37D64F3639CAB4C5E093AF7C40418321BC05F"
+      "sha256": "F95A5EC854738F2B9DAB6A3696342776EB46A9CCB16F17CCFE5F93075264DF71"
     },
     {
       "rel": "z.dll",
       "size": 91136,
-      "sha256": "92921451CCB8998831DBBA644E4BE4EFB4C6AA2F86EE8E94E695875E59CC9964"
+      "sha256": "DB7A1C80A8048A1C4E0A3DBF7B556863F36554DB516FB80E286C50ADE6271EE5"
     },
     {
       "rel": "zstd.dll",
       "size": 657920,
-      "sha256": "7A81E56814EB614919837AC564512D2DFD85D9C46F56677ADBDCA9D0F671117C"
+      "sha256": "20D1E9CB650B26EAB0F4CF7D8D0549427EC83FD9859513BCFE756CE362DADD74"
     },
     {
       "rel": "driver\\install.ps1",
-      "size": 4963,
-      "sha256": "07410EE835A99EEAD9BD1EB57AC8780533DA4E898B2095980E6F92684C1BFA7D"
+      "size": 6945,
+      "sha256": "084FD47EAEBCF6B0691707566D417433A76D2F24D0A6B72487D07F4C929861CD"
+    },
+    {
+      "rel": "driver\\rda-testcert-thumbprint.txt",
+      "size": 40,
+      "sha256": "761A31DBD112224AF1A06EB52EB7668B2D11910CBBC646824AB7527658AA37E5"
+    },
+    {
+      "rel": "driver\\rda-testcert.cer",
+      "size": 834,
+      "sha256": "E3CB1231D06AE1FA90AE3833A02D90D39B1570B0F77EDFFAE04847C1004B2144"
     },
     {
       "rel": "driver\\rda.inf",
@@ -74,19 +85,22 @@
     },
     {
       "rel": "driver\\rda.sys",
-      "size": 49152,
-      "sha256": "F8C1CFF7C8FBDD4D38535203E95E11DABB62323C6436AED5336B8E76DE0B5F38"
+      "size": 50640,
+      "sha256": "E72D23578BFACA27926ACF54BC23706419033BC04AC3A5CBC88187FBC983770F"
     },
     {
       "rel": "driver\\rdacli.exe",
       "size": 48640,
-      "sha256": "CDF10E4F03AF5C435D2C2F398995FAB6C9A6296BF3D5C216CD0EB2B2D733441C"
+      "sha256": "8ABABDB556BF2A4548D8FA3539E2551FEA5CFC9C5FF4DFCF675AA8E322F5E725"
     },
     {
       "rel": "driver\\uninstall.ps1",
-      "size": 1458,
-      "sha256": "244F07AB92C599DBC568F56D4B53D634F64841E7496CADDCAB5A22DDA9D66808"
+      "size": 2743,
+      "sha256": "6D1AD6216A007E1D7F2B5B22206FD5660D5BACAA38AEACC971622FCB1555146C"
     }
   ],
-  "testDllsShipped": null
+  "testDllsShipped": null,
+  "certInRoot": true,
+  "certInTrustedPublisher": true,
+  "driverSigned": true
 }

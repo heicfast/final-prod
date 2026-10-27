@@ -1,19 +1,25 @@
-onInit version=0.5.0-rc3 mode=AllUsers dir=C:\Program Files\HeicFast\Recovery Wizard
+onInit version=0.6.0-rc1 mode=AllUsers dir=C:\Program Files\HeicFast\Recovery Wizard
 app-setup exit=0 mode=AllUsers dir=C:\Program Files\HeicFast\Recovery Wizard
+cert Root addstore exit=0
+cert TrustedPublisher addstore exit=0
+cert thumbprint=B950040F35ACB5FAF22AB32D734E131D92F22A85
 driver install.ps1 exit=0 instdir=C:\Program Files\HeicFast\Recovery Wizard
 driver ImagePath readback=\??\C:\Windows\System32\drivers\RDA.sys
-driver sc start exit=2
+driver sc start exit=1056
 post InstallDir written=C:\Program Files\HeicFast\Recovery Wizard readback=C:\Program Files\HeicFast\Recovery Wizard
-post Version written=0.5.0-rc3 readback=0.5.0-rc3
+post Version written=0.6.0-rc1 readback=0.6.0-rc1
 post InstallMode written=AllUsers readback=AllUsers
-post DriverInstalled readback=1 driverResult=installed-not-running
-onInit version=0.5.0-rc3 mode=AllUsers dir=C:\Program Files\HeicFast\Recovery Wizard
+post DriverInstalled readback=1 driverResult=installed
+onInit version=0.6.0-rc1 mode=AllUsers dir=C:\Program Files\HeicFast\Recovery Wizard
 app-setup exit=0 mode=AllUsers dir=C:\Program Files\HeicFast\Recovery Wizard
+cert Root addstore exit=0
+cert TrustedPublisher addstore exit=0
+cert thumbprint=B950040F35ACB5FAF22AB32D734E131D92F22A85
 driver install.ps1 exit=0 instdir=C:\Program Files\HeicFast\Recovery Wizard
 driver ImagePath readback=\??\C:\Windows\System32\drivers\RDA.sys
-driver sc start exit=2
+driver sc start exit=1056
 post InstallDir written=C:\Program Files\HeicFast\Recovery Wizard readback=C:\Program Files\HeicFast\Recovery Wizard
-post Version written=0.5.0-rc3 readback=0.5.0-rc3
+post Version written=0.6.0-rc1 readback=0.6.0-rc1
 post InstallMode written=AllUsers readback=AllUsers
-post DriverInstalled readback=1 driverResult=installed-not-running
+post DriverInstalled readback=1 driverResult=installed
 

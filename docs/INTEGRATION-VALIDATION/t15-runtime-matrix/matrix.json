@@ -2,7 +2,7 @@
   {
     "phase": "baseline",
     "result": "clean",
-    "atUtc": "2026-10-27T00:01:28.0898401Z",
+    "atUtc": "2026-10-27T02:24:58.5166132Z",
     "facts": {
       "driverServicePresent": false
     }
@@ -10,23 +10,26 @@
   {
     "phase": "install",
     "result": "ok",
-    "atUtc": "2026-10-27T00:01:33.9013551Z",
+    "atUtc": "2026-10-27T02:25:07.5329694Z",
     "facts": {
-      "crUi": true,
-      "durationMs": 5652,
-      "files": 13,
-      "regVersion": "0.5.0-rc3",
-      "driverService": "Stopped",
-      "installMode": "AllUsers",
+      "appExe": true,
+      "regVersion": "0.6.0-rc1",
       "testDlls": 0,
+      "files": 15,
       "exitCode": 0,
-      "appExe": true
+      "certInRoot": true,
+      "crUi": true,
+      "durationMs": 8804,
+      "driverService": "Running",
+      "certInTP": true,
+      "driverSigned": true,
+      "installMode": "AllUsers"
     }
   },
   {
     "phase": "update(reinstall)",
     "result": "ok",
-    "atUtc": "2026-10-27T00:01:37.6727290Z",
+    "atUtc": "2026-10-27T02:25:11.5587930Z",
     "facts": {
       "markerSurvived": true,
       "exitCode": 0
@@ -35,7 +38,7 @@
   {
     "phase": "repair-over-corruption",
     "result": "ok",
-    "atUtc": "2026-10-27T00:01:41.3271841Z",
+    "atUtc": "2026-10-27T02:25:15.0308151Z",
     "facts": {
       "restored": true,
       "exitCode": 0
@@ -44,15 +47,17 @@
   {
     "phase": "uninstall(silent)",
     "result": "ok",
-    "atUtc": "2026-10-27T00:01:47.3972668Z",
+    "atUtc": "2026-10-27T02:25:22.0724819Z",
     "facts": {
-      "sysDriverGone": true,
       "driverGone": true,
+      "certGoneTP": true,
       "exitCode": 0,
+      "sessionsKept": true,
       "swKeyGone": true,
       "leftoverFiles": 0,
-      "unKeyGone": true,
-      "sessionsKept": true
+      "sysDriverGone": true,
+      "certGoneRoot": true,
+      "unKeyGone": true
     }
   }
 ]
