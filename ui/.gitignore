@@ -9,3 +9,6 @@ test-results/
 .vite/
 .aistudio/
 bun.lock
+
+# tsc incremental build info (local artifacts)
+tsconfig.tsbuildinfo
