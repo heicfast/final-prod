@@ -165,20 +165,12 @@ async function main() {
     evidence.phases.scan = { home, timeline: [], result: null };
     await shot(page, 'scan-0-home');
 
-    // find the device card for the 64GB virtual disk (disk1.vhdx)
-    const cardIdx = await page.evaluate(() => {
-      const els = [...document.querySelectorAll('div, section, article, button')];
-      for (let i = els.length - 1; i >= 0; i--) {
-        const t = els[i].textContent || '';
-        if (/Virtual Disk/i.test(t) && /64\s*GB/i.test(t) && t.length < 900) return i;
-      }
-      return -1;
-    });
-    log(`scan: 64GB vdisk card index ${cardIdx}`);
-    if (cardIdx < 0) throw new Error('64GB virtual-disk card not found on home page');
-    await page.evaluate((i) => {
-      [...document.querySelectorAll('div, section, article, button')][i].click();
-    }, cardIdx);
+    // select the seeded 64GB NTFS vdisk by its deterministic volume label
+    // (run 40465852724: the home card renders 'SeedNTFS(X:)63.85 GB/64 GB' —
+    // the cards are role=radio buttons)
+    const card = page.getByRole('button', { name: /SeedNTFS/i }).first();
+    await card.click({ timeout: 15000 });
+    log('scan: clicked the SeedNTFS card');
     await page.waitForTimeout(1500);
 
     const scanBtn = page.getByRole('button', { name: /Search for Lost Data/i }).first();
