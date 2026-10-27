@@ -1135,3 +1135,40 @@ Operator test path (stated in the release notes, the installer's driver
 page, and docs/DEV-SIGNING.md §2): Secure Boot OFF — install and the
 driver loads (the installer imports the certificate); Secure Boot ON —
 `bcdedit /set testsigning on` + reboot once, then install.
+---
+## Session resume (post-restart lane) — round-6/23 evidence: both lanes harvested the same GREEN run; reconciled, the transport before/after nailed down
+
+Task: continue after the infrastructure restart — harvest round-6
+evidence, update the docs, cut the test-signed release. On pull, the
+parallel lane (entry above, 04:15Z) had landed the IDENTICAL harvest
+from the same run 40442056802 and cut v0.6.0-rc1. Reconciled rather
+than duplicated — the rebase conflict resolved by keeping their pushed
+base with this lane's additions layered on.
+
+This lane's independent contributions on top:
+- Verified via `git show 10da4cd6:.github/workflows/validation-evidence.yml`
+  that the OLD T14 lane (run 17, 40422119022, at 10da4cd6) NEVER loaded
+  the driver — its measurements rode the now-REMOVED direct transport.
+  Run 23 (40442056802) measured the same surfaces through the RUNNING
+  development-signed RDA driver on the RDA-only engine. The numbers land
+  within shared-runner noise: **the mandatory RDA transport performs on
+  par with the retired direct path** — the honest before/after, now
+  stated in `t14-measurements.md`.
+- Refreshed the CI-table citations to the current green states:
+  contracts-ci / ui-ci / ui-e2e at `b9d1a366` (the ERR_DRIVER_REQUIRED
+  vocabulary commit), driver-ci at `00f5cae5`, engine-ci at `1a7d05d5`
+  (the mandatory-driver tree; the paths-filtered lanes skip the
+  docs/workflow-only commits that followed — correct-reason green).
+- Verified the release gate chain before the tag cut: release.yml runs
+  `devsign.ps1 -Action verify` on BOTH the setup.exe AND the staged
+  rda.sys (verify throws on a missing signature -> non-zero exit -> the
+  gate is real, not cosmetic); build.ps1 stages the
+  `RecoveryWizard-<v>-testsigning.cer` public certificate into build/out
+  and SHA256SUMS folds it in.
+
+Stage Summary:
+- v0.6.0-rc1 (tag at 2cc3c501, code tree 9e188154) is the first
+  development TEST-SIGNED release: dev-signed rda.sys + engine kit +
+  setup.exe, the public .cer shipped as a release asset, truthful notes.
+- Watching the release run; the four assets (setup.exe, portable.zip,
+  testsigning.cer, SHA256SUMS) must land on the release page.
