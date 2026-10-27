@@ -17141,3 +17141,41 @@ one green Windows CI + the bench artifact per the DFX36 close-out).
 NEXT (for whoever tags): the CI green + the bench numbers transcribed
 into OQ-S4-3/M-30/SUMMARY's perf section → tag v0.4.0-parity (the
 release notes exist and reference SUMMARY + PARITY-DELTAS).
+
+---
+Task ID: S7-T1 (session 7 parity audit — bootstrap)
+Agent: lead parity auditor (read-only audit session 7)
+Task: Clone both repositories, confirm the merged-product URL, record commits, save the
+prompt (token redacted), open the session's worklog record.
+
+Work Log:
+- Merged product CONFIRMED: https://github.com/heicfast/core_recovery — branch `main`,
+  audited commit **`3bda8e2`** ("fix(wire): the extended IOCTL constants' phantom zero...").
+  Corpus CONFIRMED: https://github.com/heicfast/easeus-drw-research — branch `main`,
+  commit `03ad46c` (unmoved since session 1; matches every prior session's pin).
+- Prior state inventoried: findings/FIXED/ holds 223 files (board closed at DFX36:
+  0 ACUTE · 0 SEVERE · 0 MAJOR · 0 MINOR · 0 INFO open); tracked-open/ holds 1 file
+  (OQ-S4-3 — whose verdict commit 22e9657 claims transcribed; to be re-checked this
+  session). Next available finding IDs: **A-009, S-035, M-059, N-083, I-025**.
+- The delta this session must audit (identified from git log, NOT from the prompt):
+  the post-board **driver-only era** — dda4ed4 (driver-only mandate context sheets),
+  0f26ed2 (three surgical plans), e58bde1 (feat(driver-only)!: direct-access fallback
+  REMOVED, RDA driver a hard prerequisite, ERR_DRIVER_* 0x500B taxonomy, driver-status
+  surface, CLI exit 4), 583ca9a (ci-local), cbdd46c (fake-scan read-truth gate),
+  8943993 (prebuilt-artifact CI), 7c03c96, 94b4465, 086ba08, be124d3 (CAPABILITY-MATRIX
+  section 0 driver-only rows), 84aab4d, b95763e, e44b715, 3bda8e2 (wire IOCTL
+  constants). None of these have been parity-audited against the corpus.
+- Corpus driver ground truth located for that lane: architecture/02-kernel-driver-architecture.md,
+  re-workspace/reversed/ghidra-drivers/ (eprdtdrv/ebrntdrv/epmdkdrv/eprdtdrv_win7older/
+  EUDCPEPM/EUEDKEPM/EuMrx full decompiles), artifacts/PartitionRecovery/eprdtdrv-sys--
+  driver-internals.md + eudcpepm-euedkepm--hook-drivers.md, artifacts/EuShare/*.
+  NOTE: the architecture doc's IOCTL table (0x60002400/04/08) vs the wire fix commit's
+  0x600244x — the eprdtdrv decompile must adjudicate; flagged as a session-7 probe.
+- Prompt saved token-redacted to worklog/session-audit-prompt.md. Read twice.
+- Audit remains strictly read-only: only diff-to-fix/ and worklog* writes.
+
+Stage Summary:
+- Session 7 opened at core `3bda8e2` / corpus `03ad46c`. Prior board: 223 FIXED,
+  1 tracked-open. The unaudited delta = the driver-only era + any never-dispositioned
+  corpus surfaces (to be enumerated by the corpus inventory agents before any finding
+  is written). Gate documents SURFACE-INVENTORY.md + PARAMETERS.md extension come first.
