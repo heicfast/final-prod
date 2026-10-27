@@ -1034,3 +1034,52 @@ CI round 1 (ef8cd49c):
 Next: engine-ci green on 2f4695ce -> dispatch validation-evidence (T14
 with the driver LOADED on the runner; T15 with the mandatory-driver
 matrix) -> harvest evidence -> tag v0.6.0-rc1.
+
+## 2026-10-27T02:50Z — THE WOW64 BUG (found by the mandatory-driver validation): every driver start in this product's history failed file-not-found; now FIXED and the driver RUNS
+
+Validation round 3 (40437334177) is the milestone run, and its failure
+mode taught the real bug:
+
+- T15 GREEN end to end — the mandatory-driver installer matrix passes:
+  15 modules laid down (13 prior + the 2 certificate files), the dev
+  certificate in Root + TrustedPublisher (both certutil exits 0), the
+  driver REGISTERED + RUNNING (sc start exit=1056 already-running:
+  install.ps1's own start succeeded), update/repair/uninstall all ok,
+  uninstall removes the service + the REAL System32 file + the
+  certificate from both stores, zero leftovers, sessions kept. Evidence
+  committed under docs/INTEGRATION-VALIDATION/t15-runtime-matrix/ (this
+  supersedes the rc3 evidence).
+- T14: 'Service RDA started.' — the development test-signed driver LOADS
+  on the hosted runner (testsigning ON at image build; the research
+  premise validated in production). The step then failed on its own
+  CreateFileW probe twice more (hex-literal signedness), fixed at
+  [uint32]2147483648 with the local probe verified 0x80000000 UInt32.
+
+THE BUG the sc start exit=2 exposed (present since the FIRST combined
+installer, masked by the 'graceful degradation' era): the installer is a
+32-bit NSIS executable; its powershell.exe child is WOW64, and FILE
+SYSTEM REDIRECTION silently rewrote install.ps1's Copy-Item into
+SysWOW64\drivers while sc create recorded the literal System32\drivers
+ImagePath. StartService: ERROR_FILE_NOT_FOUND, exit 2 — BEFORE any
+signature check, identically on the unsigned 0.5.0-rc3 baseline (run
+15's facts re-read: same exit=2) and the test-signed 0.6.0-rc1. The old
+'sysDriverGone' uninstall evidence was vacuously true (the file was
+never in the real System32), and the old 'start refused: unsigned
+policy' narrative was wrong — the start never reached code integrity.
+
+Fixes (00f5cae5): install.ps1/uninstall.ps1 disable Wow64FsRedirection
+around the file ops + verify through the Sysnative alias (wrong-location
+installs now fail loudly at install time); the .nsi belt-and-braces
+Delete targets both views. The validation harness (T14) gained the
+inline-script parse gate locally (try/catch cannot sit in a hash-literal
+value — the round-2 parser error), and ALL 7 workflows' inline pwsh
+blocks are now locally parse-checked with ${{ }} substituted.
+
+Validation rounds 2->3->4->5: each failure root-caused, never masked:
+- round 2 (40433851904): devsign -File was [string]; build.ps1's
+  engine-kit call passes TWO files -> [string[]] (2e8d6acd).
+- round 3 (40437334177): the WOW64 discovery + fix (00f5cae5) + the
+  T15 evidence harvest (759fecba).
+- round 4 (40438494245): probe hex literal (1c3eeedc).
+- round 5 (in flight): expecting the first fully-green validation run
+  with the driver RUNNING on both lanes.
