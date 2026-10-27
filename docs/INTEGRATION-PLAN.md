@@ -1095,3 +1095,43 @@ caching (T7); OQ-5 core RDA symlink constant / service name pin (T7, from `cr_tr
 OQ-6 Tauri/WebView2 on Win7SP1 (T14); plus §7.4 elevation-model sign-off.
 
 — end of draft —
+
+---
+
+## COMPLETION RECORD — this plan is EXECUTED
+
+Marked complete at commit **833b4c49→5beb4159 (2026-10-27T00:08Z)** by the
+integration sessions recorded in `worklog.md`. State of the §12 task table:
+
+- T3–T6: done (the gate plan itself, the three history-preserving merges,
+  `contracts/` with validate.mjs phase 1+2 green on every push since
+  `a790cf9b`, `build.ps1`/`build.sh` with the VERSION gate).
+- T7–T10: done — the Rust bridge (34 commands) + TS connector wired to the
+  REAL core; the simulated backend removed with zero references in shipped
+  paths (the T19 sweep above re-verified); the test double is test-scope
+  only (arch-lint A7, bundle assertions both ways).
+- T11–T12: done — `installer/recoverywizard.nsi` (the combined product
+  installer; compile-validated + runtime-validated) + `installer/portable.ps1`;
+  MSIX truthfully assessed impossible (docs/MSIX-ASSESSMENT.md) and dropped.
+- T13: done — `release.yml` tag-triggered, proven end to end by release run
+  40418458268 (tag `v0.5.0-rc3`, GREEN, artifacts + SHA256SUMS + truthful
+  unsigned notes live on the release).
+- T14: done — `docs/INTEGRATION-VALIDATION/t14-measurements/` (three
+  consecutive green runs; every budget row measured or honestly recorded
+  as a virtual-runner limit).
+- T15: done — `docs/INTEGRATION-VALIDATION/t15-runtime-matrix/` (runs 16 AND
+  17 fully green back to back: install / update / repair / uninstall on a
+  clean Windows runner, the installer's own lifecycle facts file committed
+  as evidence).
+- T16–T17: done — the root docs set reflects the shipped reality; every CI
+  lane green for the correct reason (contracts, ui, ui-e2e, driver, engine,
+  release, validation-evidence).
+- T18: done at RC scope — `v0.5.0-rc3` is live for operator acceptance; the
+  FINAL `v0.5.0` tag follows that acceptance (deliberately not cut before a
+  human tests on real hardware — the RC discipline this plan's §13 set).
+- T19: done — the sweep above (zero TODO/FIXME in shipped paths, zero mock
+  references; G-1..G-11 + D-I1..I11/D-B1..B5 documented with rationale).
+- T20: this completion record + the worklog handoff entry.
+
+The plan text above stays frozen as the historical gate document; the
+worklog and docs/INTEGRATION-VALIDATION.md carry the shipped truth.

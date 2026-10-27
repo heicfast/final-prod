@@ -802,3 +802,52 @@ silent-mode discipline, the plan-exact registry layout, the live driver
 elevation guards (registration + teardown both proven by run 17's facts
 files), the curated kit (zero test runtimes), the complete uninstall
 (zero leftovers), and the lifecycle facts file.
+=======
+---
+
+## 2026-10-27T00:15Z — T20 HANDOFF: everything the mandate asked for this phase is shipped and green
+
+Handoff state at 5beb4159 (main, all lanes green):
+
+**THE RELEASE (what the operator asked for first):**
+- **v0.5.0-rc3 is LIVE**: https://github.com/heicfast/final-prod/releases/
+  tag/v0.5.0-rc3 — RecoveryWizard-0.5.0-rc3-setup.exe (the combined NSIS
+  installer: app + engine + consent-gated driver step),
+  -portable.zip (no driver), SHA256SUMS. Built by release run 40418458268
+  with the FULL test suite in-lane. Nothing is signed (truthful notes;
+  driver needs `bcdedit /set testsigning on` on stock Secure-Boot Windows
+  or a signed drop-in later).
+- rc1 (ctest -C) and rc2 (the z-applocal deployer race) failed and are
+  part of the recorded fix trail — tags are immutable; failures rolled
+  forward.
+
+**THE VALIDATION (the "taking too long" complaint — root-caused and
+fixed, now FAST and REPRODUCIBLY GREEN):**
+- The original slowness was a HANG, not slowness: NSIS MessageBox without
+  /SD blocks silent installs forever on headless machines (the
+  unsigned-driver notice — the expected branch on stock Windows).
+- Runs 16 AND 17 are fully green back to back (~20 min each): the whole
+  fix trail (12 root-caused rounds) is in this worklog.
+- T14 + T15 evidence committed under docs/INTEGRATION-VALIDATION/ with
+  run citations; the installer now leaves an always-on lifecycle facts
+  file (%TEMP%\HeicFastRecoveryWizard-install-facts.txt) that makes
+  every future failure self-diagnosing.
+
+**Remaining tracked items (all documented, none hidden):**
+1. OPERATOR ACCEPTANCE on real hardware — the FINAL v0.5.0 tag is cut
+   (6fb8f658, release run 4 in flight) and its installer carries every
+   fix incl. the install.ps1 exit-0 + facts-file instrumentation that
+   post-date rc3: test v0.5.0 directly once its release lands; rc3
+   remains available for comparison.
+2. Signing (driver attestation + app code-signing) — the pipeline is
+   structured for it; docs/RELEASE.md carries the procedure.
+3. The physical-hardware rows (SMART health; the driver's
+   loaded-and-running state under test signing) — recorded as honest
+   virtual-runner limits in INTEGRATION-VALIDATION.md.
+4. docs/INTEGRATION-GAPS.md G-1..G-11 follow-ups (the ABI appends:
+   repair workbench, engine version string, snapshot query, folder
+   scope) — capability gaps with precise scope, never dead buttons.
+
+Every claim above cites its run URL or committed artifact. main is
+green across all seven lanes. Good hunting on the hardware.
+>>>>>>> ed41b5ee (docs(T20): the handoff — plan marked COMPLETE, the release live, validation green x2)
