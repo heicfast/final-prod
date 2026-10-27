@@ -7,6 +7,15 @@
 > landed (FB-K01 exit codes, FB-B01 Unknown status, FB-X01 required codecs, N-041 RdaClient
 > deletion which moots FB-T06/FB-T07).
 
+>
+> **POST-REMOVAL STATE (driver-only session, commit e58bde1+):** the fallback
+> map sections below are the HISTORICAL pre-change census (the mandate's
+> deliverable). The driver-only architecture has since REMOVED the
+> direct-access data path entirely (F1-F12 are dead; `rda_available` /
+> `open_harddisk_volume` / the WinPE gate / `--no-rda` are deleted;
+> classified ERR_DRIVER_* refusals replaced them) - the CURRENT contract is
+> [DRIVER-REQUIRED.md](DRIVER-REQUIRED.md). Sections (e) images and (b) the
+> grammar path survive unchanged.
 ---
 
 ## (a) Overview — the layers, as text

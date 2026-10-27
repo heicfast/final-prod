@@ -37,9 +37,16 @@ rrecov recover --in file.crsf --disk N --to DIR [--deleted-only] [--filter s]
 rrecov health  --disk N
 rrecov fix     --disk N [--part P] [--apply] [--undo file] [--undo-apply file]
 rrecov bench   --disk N [--mode seq|rand|open|read|info] [--mb N]
-               [--block-kb N] [--iterations N] [--seed N] [--json] [--no-rda]
-rrecov info    --disk N [--part P] | --image file
+               [--block-kb N] [--iterations N] [--seed N] [--json]
+rrecov driver  [--service NAME] [--json]
 ```
+
+(The historical `rrecov info` line above was doc drift - no such verb ever
+existed; `bench --mode info` is the geometry/transport report. `--no-rda`
+is REMOVED with the driver-only architecture: bench requires the driver.)
+The `driver` verb is the driver-status surface (docs/DRIVER-REQUIRED.md):
+present/loaded/started/authorized/healthy/version facets; exit 0 = ready,
+4 = the prerequisite is not met.
 
 **Exit codes**
 
@@ -48,6 +55,8 @@ rrecov info    --disk N [--part P] | --image file
 | 0 | success |
 | 1 | failure (scan failure, enumeration failure, …) |
 | 2 | recover: partial — item errors or hash mismatch in the write set |
+| 3 | scan cancelled (session saved when --out was given) / health all-unavailable |
+| 4 | the DRIVER prerequisite is not met — scan/recover/fix/apply/bench refuse before any other output with the ERR_DRIVER_* class on stderr (docs/DRIVER-REQUIRED.md) |
 | 3 | cancelled (scan; the session file is still saved when `--out` was given) / health: every source unavailable |
 
 Every command logs stage timings, per-stage counts and error maps

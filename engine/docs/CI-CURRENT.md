@@ -39,6 +39,13 @@
 - **Test scale:** 926 tests on the Linux lanes at this tree
   (docs/testing.md:4-5; RELEASE-NOTES.md:58-61).
 
+>
+> **POST-REBUILD STATE (driver-only session, commit 8943993+):** this sheet
+> is the pre-rebuild census. comparative-bench.yml and api-benchmark.yml are
+> WIPED; ci.yml is rebuilt as the validation lane (local-mirror first, one
+> Windows build); driver-install.yml / core-install.yml / staged-scenarios.yml
+> consume PREBUILT releases by [PREBUILT-ARTIFACTS.md](PREBUILT-ARTIFACTS.md);
+> release.yml is the combined sole-source-of-builds workflow ([RELEASE.md](RELEASE.md)).
 ---
 
 ## 1. Workflow-by-workflow dump

@@ -11,6 +11,14 @@
 (rrecov.cpp:2534-2551); error codes **34 + OK**; errmod modules **13**; ABI event types
 **10** (2 shim-side); core event types **8**.
 
+>
+> **POST-EXPANSION STATE (driver-only session, commit e58bde1+):** this sheet
+> is the pre-change census. Added since: the ERR_DRIVER_* family (0x500B),
+> the `cr_ui_driver_status` ABI export + `cr_ui_scan_stats` truth fields
+> (bytes_unreadable / probe_unreadable), the `rrecov driver` verb, exit code
+> 4 (driver prerequisite), and the read-truth scan verdict (ERR_READ_FAILED
+> on total blindness). Current contracts: [DRIVER-REQUIRED.md](DRIVER-REQUIRED.md),
+> [cr_ui.h](../include/cr/cr_ui.h).
 ---
 
 ## (a) C++ API inventory (grouped by module; one line per public operation)
