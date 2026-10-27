@@ -32,6 +32,13 @@ enum Err : u32 {
     ERR_RANGE_OUT_OF_BOUNDS = 0x50020004,
     ERR_CANCELLED = 0x50020005,
     ERR_RETRY_EXHAUSTED = 0x50020006,
+    /* Mandatory-driver session (2026-10-27): the RDA kernel driver is a
+     * REQUIRED product component — every raw-disk read/write path rides
+     * it and there is no direct-handle fallback (the user directive that
+     * supersedes the reference's duality; docs/PARITY-DELTAS.md D-FALL).
+     * Returned when the \\.\{service} control device cannot be opened
+     * (driver not installed, not started, or blocked by signing policy). */
+    ERR_DRIVER_REQUIRED = 0x50020007,
 
     /* --- format / parse --- */
     ERR_BAD_MAGIC = 0x50030001,

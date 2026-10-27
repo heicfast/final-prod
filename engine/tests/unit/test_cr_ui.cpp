@@ -22,6 +22,10 @@
 
 #include "test_tmpdir.hpp"
 
+#ifdef _WIN32
+#include <windows.h> /* the \\.\RDA presence probe in TransportErrorAdvisoryZeroOnCleanState */
+#endif
+
 #include <atomic>
 #include <chrono>
 #include <cstdio>
@@ -2262,26 +2266,42 @@ TEST(CrUi, UserSignRegistrationSurface) {
 }
 
 TEST(CrUi, TransportErrorAdvisoryZeroOnCleanState) {
-    /* M-030 claim (f): the ABI can now report the transport-open
-     * diagnostic (ABI-since 2.2, additive). The clean-state contract:
-     * 0 = the last open succeeded (or no open was attempted), and the
-     * Linux stub's UNSUPPORTED open records nothing. Both legs hold on
-     * the CI lanes: Linux answers UNSUPPORTED (no platform layer);
-     * the Windows runner has no RDA service, so the DIRECT leg opens
-     * PhysicalDrive0 clean and a successful open resets the advisory
-     * to 0 (open_disk_impl :1199). The recorded-error leg - RDA
-     * present and failing, direct fallback succeeding - needs a
-     * driver-attached host (the M-030 contract is surfaced either way
-     * by cr_ui_last_transport_error). Fail-before: the export did not
-     * exist. */
+    /* M-030 claim (f), REWRITTEN by the mandatory-driver session
+     * (2026-10-27): the ABI reports the transport-open diagnostic
+     * (ABI-since 2.2, additive). The driver is now the ONLY transport -
+     * there is no direct leg. Two deterministic machine states:
+     *  - no \\.\RDA (the CI runners: no service installed): the open
+     *    REFUSES with ERR_DRIVER_REQUIRED (0x50020007) and the advisory
+     *    records exactly that code - the refusal is the product's
+     *    truthful "install/start the driver" surface.
+     *  - a live \\.\RDA (a driver-attached dev host): the open rides the
+     *    RDA grammar and the advisory resets to 0 on success. */
     cr_ui_device* d = nullptr;
     const uint32_t rc = cr_ui_open_disk(0, &d);
 #ifdef _WIN32
-    EXPECT_EQ(rc, 0u) << "elevated runner, no RDA service: the direct leg opens clean";
-    ASSERT_NE(d, nullptr);
-    cr_ui_device_close(d);
+    bool rda_present = false;
+    {
+        HANDLE probe = CreateFileW(L"\\\\.\\RDA", GENERIC_READ,
+                                   FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING,
+                                   0, nullptr);
+        if (probe != INVALID_HANDLE_VALUE) {
+            CloseHandle(probe);
+            rda_present = true;
+        }
+    }
+    if (!rda_present) {
+        EXPECT_EQ(rc, 0x50020007u) << "no RDA service: ERR_DRIVER_REQUIRED, never a direct leg";
+        EXPECT_EQ(cr_ui_last_transport_error(), 0x50020007u);
+    } else {
+        ASSERT_NE(d, nullptr); /* the grammar open owns the device on success */
+        EXPECT_NE(rc, 0x50020007u) << "driver present: no driver-required refusal";
+        if (rc == 0) {
+            cr_ui_device_close(d);
+            EXPECT_EQ(cr_ui_last_transport_error(), 0u);
+        }
+    }
 #else
     EXPECT_EQ(rc, CR_UI_ERR_UNSUPPORTED);
-#endif
     EXPECT_EQ(cr_ui_last_transport_error(), 0u);
+#endif
 }

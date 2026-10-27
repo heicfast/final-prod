@@ -1153,57 +1153,34 @@ u32 open_disk_impl(uint32_t disk, cr_ui_device** out) {
     if (!out)
         return ret_(ERR_BAD_PARAMETER, "bad argument: out");
     u32 err = 0, gle = 0;
-    /* M-030: the og's WinPE gate - in a PE environment the corpus
-     * callers open \\.\PhysicalDrive%d directly and never attempt the
-     * service grammar (Device_decompiled.c :50653-50663); the core's
-     * RDA driver is not present on PE media either. */
-    if (!win::win_pe_environment() && win::rda_available(L"RDA", &gle)) {
-        if (auto dev = win::open_rda_partition(L"RDA", disk, 0, &err)) {
-            auto* d = new CrDevice();
-            d->dev = std::move(dev);
-            d->disk = disk;
-            d->disk_known = true;
-            d->transport = "rda";
-            *out = reinterpret_cast<cr_ui_device*>(d);
-            return ret_ok();
-        }
-        /* M-030: the RDA leg's failure reason is now PRESERVED - the
-         * pre-fix code let the direct leg overwrite *err, so the ABI
-         * could never distinguish "driver absent" from "driver open
-         * failed with X" (the finding's silent-fallback claim). The
-         * final failure reports the RDA leg's error when the direct leg
-         * has nothing more specific; cr_ui_last_transport_error()
-         * surfaces the diagnostic either way. */
-        u32 rda_err = err;
-        auto dev = win::open_physical_drive(disk, &err);
-        if (!dev) {
-            set_last_transport_error_(rda_err ? rda_err : err);
-            return ret_(err ? err : u32(ERR_OPEN_FAILED),
-                        "cannot open disk %u (RDA and direct paths failed)", disk);
-        }
-        set_last_transport_error_(rda_err);
+    /* Mandatory-driver session (2026-10-27): the RDA grammar is the ONLY
+     * raw-disk transport - the direct \\.\PhysicalDriveN leg is
+     * removed (docs/PARITY-DELTAS.md D-FALL). An absent driver is the
+     * distinct ERR_DRIVER_REQUIRED refusal; cr_ui_last_transport_error()
+     * surfaces the probe's CreateFile error either way. */
+    if (!win::rda_available(L"RDA", &gle)) {
+        set_last_transport_error_(u32(ERR_DRIVER_REQUIRED));
+        return ret_(ERR_DRIVER_REQUIRED,
+                    "cannot open disk %u: the RDA raw-disk driver is required and not "
+                    "available (\\\\.\\RDA CreateFile error %lu) - install or start the "
+                    "driver and retry",
+                    disk, gle);
+    }
+    if (auto dev = win::open_rda_partition(L"RDA", disk, 0, &err)) {
         auto* d = new CrDevice();
         d->dev = std::move(dev);
         d->disk = disk;
         d->disk_known = true;
-        d->transport = "direct";
+        d->transport = "rda";
         *out = reinterpret_cast<cr_ui_device*>(d);
+        set_last_transport_error_(0);
         return ret_ok();
     }
-    auto dev = win::open_physical_drive(disk, &err);
-    if (!dev) {
-        set_last_transport_error_(err);
-        return ret_(err ? err : u32(ERR_OPEN_FAILED),
-                    "cannot open disk %u (RDA and direct paths failed)", disk);
-    }
-    set_last_transport_error_(0);
-    auto* d = new CrDevice();
-    d->dev = std::move(dev);
-    d->disk = disk;
-    d->disk_known = true;
-    d->transport = "direct";
-    *out = reinterpret_cast<cr_ui_device*>(d);
-    return ret_ok();
+    set_last_transport_error_(err);
+    return ret_(err ? err : u32(ERR_OPEN_FAILED),
+                "cannot open disk %u through the RDA driver (the driver is present; the "
+                "grammar open failed)",
+                disk);
 }
 
 u32 open_volume_impl(char letter, cr_ui_device** out) {
@@ -1228,12 +1205,14 @@ u32 open_volume_impl(char letter, cr_ui_device** out) {
         return ret_(ERR_OPEN_FAILED, "cannot map %c: to a disk extent", letter);
     u32 err = 0, gle = 0;
     std::unique_ptr<IStorageDevice> whole;
-    const char* transport = "direct";
-    if (win::rda_available(L"RDA", &gle)) {
-        if ((whole = win::open_rda_partition(L"RDA", disk, 0, &err)))
-            transport = "rda";
-    }
-    if (!whole && !(whole = win::open_physical_drive(disk, &err)))
+    const char* transport = "rda";
+    if (!win::rda_available(L"RDA", &gle))
+        return ret_(ERR_DRIVER_REQUIRED,
+                    "cannot open volume %c: the RDA raw-disk driver is required and not "
+                    "available (\\\\.\\RDA CreateFile error %lu) - install or start the "
+                    "driver and retry",
+                    letter, gle);
+    if (!(whole = win::open_rda_partition(L"RDA", disk, 0, &err)))
         return ret_(err ? err : u32(ERR_OPEN_FAILED), "cannot open disk %u for volume %c:", disk,
                     letter);
     auto slice = PartitionSlice::create(whole.get(), start, len, nullptr);
@@ -1299,12 +1278,14 @@ u32 open_volume_with_key_impl(char letter, const char* utf8_hex_fvek, cr_ui_devi
         return ret_(ERR_OPEN_FAILED, "cannot map %c: to a disk extent", letter);
     u32 err = 0, gle = 0;
     std::unique_ptr<IStorageDevice> whole;
-    const char* transport = "direct";
-    if (win::rda_available(L"RDA", &gle)) {
-        if ((whole = win::open_rda_partition(L"RDA", disk, 0, &err)))
-            transport = "rda";
-    }
-    if (!whole && !(whole = win::open_physical_drive(disk, &err)))
+    const char* transport = "rda";
+    if (!win::rda_available(L"RDA", &gle))
+        return ret_(ERR_DRIVER_REQUIRED,
+                    "cannot open volume %c: the RDA raw-disk driver is required and not "
+                    "available (\\\\.\\RDA CreateFile error %lu) - install or start the "
+                    "driver and retry",
+                    letter, gle);
+    if (!(whole = win::open_rda_partition(L"RDA", disk, 0, &err)))
         return ret_(err ? err : u32(ERR_OPEN_FAILED), "cannot open disk %u for volume %c:", disk,
                     letter);
     auto slice = PartitionSlice::create(whole.get(), start, len, nullptr);
@@ -1622,11 +1603,9 @@ repair::IWriteDevice* ui_repair_open_writer(void* user) {
 #ifdef _WIN32
     if (d->disk_known) {
         u32 err = OK;
-        auto w = win::open_disk_rw(d->disk, true, L"RDA", &err);
+        auto w = win::open_disk_rw(d->disk, L"RDA", &err);
         if (!w)
-            w = win::open_disk_rw(d->disk, false, nullptr, &err);
-        if (!w)
-            return nullptr;
+            return nullptr; /* mandatory driver: ERR_DRIVER_REQUIRED - no write fallback */
         s->repair_writer = std::move(w);
         return s->repair_writer.get();
     }
@@ -1711,11 +1690,9 @@ void arm_ldm_resolver(CrScan* s) {
     auto guid_map = std::make_shared<std::map<table::LdmGuid, IStorageDevice*>>();
     for (const auto& pd : list) {
         u32 oerr = 0;
-        auto dev = win::open_disk(pd.number, true, L"RDA", &oerr);
+        auto dev = win::open_disk(pd.number, L"RDA", &oerr);
         if (!dev)
-            dev = win::open_disk(pd.number, false, L"RDA", &oerr);
-        if (!dev)
-            continue;
+            continue; /* mandatory driver: a member without it is unresolvable */
         u8 sec[512];
         if (dev->read_at(6 * 512, sec, sizeof(sec)) == OK && std::memcmp(sec, "PRIVHEAD", 8) == 0) {
             table::LdmGuid g{};
@@ -2054,11 +2031,7 @@ std::unique_ptr<apply::IApplyDevice> ui_apply_open_writer(CrDevice* d) {
 #ifdef _WIN32
     if (d->disk_known) {
         u32 err = OK;
-        if (auto w = win::open_disk_apply_rw(d->disk, true, L"RDA", &err))
-            return w;
-        if (auto w2 = win::open_disk_apply_rw(d->disk, false, nullptr, &err))
-            return w2;
-        return nullptr;
+        return win::open_disk_apply_rw(d->disk, L"RDA", &err); /* mandatory driver - no fallback */
     }
 #endif
     return nullptr;

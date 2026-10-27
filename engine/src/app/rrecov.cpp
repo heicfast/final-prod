@@ -13,7 +13,7 @@
  *   health --disk N
  *   fix --disk N [--part P] [--apply] [--undo file] [--undo-apply file]
  *   bench --disk N [--mode seq|rand|open|read|info] [--mb N] [--block-kb N]
- *         [--iterations N] [--seed N] [--json] [--no-rda]
+ *         [--iterations N] [--seed N] [--json]
  *
  * Exit codes: scan 0 ok / 1 failure / 3 cancelled (session saved when --out
  * was given); list 1 on enumeration failure; health 3 when every health
@@ -231,9 +231,7 @@ bool scan_repair_consent(const repair::RepairPlan& plan, void* user) {
 repair::IWriteDevice* scan_repair_open_writer(void* user) {
     auto* c = static_cast<RepairCliCtx*>(user);
     u32 e = 0;
-    auto w = win::open_disk_rw(c->disk, true, L"RDA", &e);
-    if (!w)
-        w = win::open_disk_rw(c->disk, false, nullptr, &e);
+    auto w = win::open_disk_rw(c->disk, L"RDA", &e);
     if (!w) {
         wprintf(L"[repair] cannot open disk %u for write (rc=%08x): %hs\n", c->disk, e,
                 cr::win::is_elevated()
@@ -312,31 +310,24 @@ bool open_image_view(const std::wstring& path, OpenResult& out) {
 
 bool open_disk_view(u32 n, OpenResult& out) {
     u32 err = 0;
-    /* RDA first when present (locked volumes, damaged media), direct
-     * fallback - the reference Device.mo duality. */
+    /* Mandatory-driver session (2026-10-27): the RDA grammar is the ONLY
+     * raw-disk transport - the direct PhysicalDriveN leg is removed
+     * (docs/PARITY-DELTAS.md D-FALL). */
     u32 rda_gle = 0;
-    if (win::rda_available(L"RDA", &rda_gle)) {
-        if (auto dev = win::open_rda_partition(L"RDA", n, 0, &err)) {
-            wprintf(L"[transport] RDA driver path (\\\\.\\RDA)\n");
-            out.device = std::move(dev);
-            out.disk = n;
-            return true;
-        }
-        wprintf(L"[transport] RDA open failed (%hs) - direct path\n", err_text(err));
-    } else {
-        /* evidence line for the runner mystery: the service runs but the
-         * control device open fails - surface the exact CreateFile error */
-        wprintf(L"[transport] RDA not available (\\\\.\\RDA CreateFile error %lu) - direct path\n",
+    if (!win::rda_available(L"RDA", &rda_gle)) {
+        wprintf(L"[transport] the RDA raw-disk driver is required and not available "
+                L"(\\\\.\\RDA CreateFile error %lu) - install/start the driver and retry\n",
                 rda_gle);
-    }
-    out.device = win::open_physical_drive(n, &err);
-    if (!out.device) {
-        wprintf(L"[transport] cannot open disk %u: %hs (elevate?)\n", n, err_text(err));
         return false;
     }
-    wprintf(L"[transport] direct path (\\\\.\\PhysicalDrive%u)\n", n);
-    out.disk = n;
-    return true;
+    if (auto dev = win::open_rda_partition(L"RDA", n, 0, &err)) {
+        wprintf(L"[transport] RDA driver path (\\\\.\\RDA)\n");
+        out.device = std::move(dev);
+        out.disk = n;
+        return true;
+    }
+    wprintf(L"[transport] RDA grammar open failed for disk %u: %hs\n", n, err_text(err));
+    return false;
 }
 
 bool parse_fvek_hex(const std::wstring& hex, std::vector<u8>& out) {
@@ -1055,11 +1046,9 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
                 auto guid_map = std::make_shared<std::map<table::LdmGuid, IStorageDevice*>>();
                 for (const auto& pd : list) {
                     u32 oerr = 0;
-                    auto dev = win::open_disk(pd.number, true, L"RDA", &oerr);
+                    auto dev = win::open_disk(pd.number, L"RDA", &oerr);
                     if (!dev)
-                        dev = win::open_disk(pd.number, false, L"RDA", &oerr);
-                    if (!dev)
-                        continue;
+                        continue; /* mandatory driver: no member reads without it */
                     u8 sec[512];
                     if (dev->read_at(6 * 512, sec, sizeof(sec)) == OK &&
                         std::memcmp(sec, "PRIVHEAD", 8) == 0) {
@@ -1755,7 +1744,6 @@ int cmd_bench(int argc, wchar_t** argv, int& i) {
     std::wstring v;
     u32 disk = 0;
     bool have_disk = false;
-    bool use_rda = true;
     std::wstring mode = L"seq";
     u32 mb = 256;
     u32 block_kb = 1024;
@@ -1788,11 +1776,6 @@ int cmd_bench(int argc, wchar_t** argv, int& i) {
             seed = u32(wcstoul(v.c_str(), nullptr, 10));
             continue;
         }
-        if (wcscmp(argv[i], L"--no-rda") == 0) {
-            use_rda = false;
-            ++i;
-            continue;
-        }
         if (wcscmp(argv[i], L"--json") == 0) {
             json = true;
             ++i;
@@ -1806,18 +1789,22 @@ int cmd_bench(int argc, wchar_t** argv, int& i) {
         return 1;
     }
 
-    /* transport: RDA when available (the full stack), direct fallback */
-    const bool rda = use_rda && win::rda_available(L"RDA");
+    /* transport: the MANDATORY RDA driver - no direct fallback */
     u32 err = 0;
-    auto dev = win::open_disk(disk, use_rda, L"RDA", &err);
+    auto dev = win::open_disk(disk, L"RDA", &err);
     if (!dev) {
-        wprintf(L"cannot open disk %u (rc=%08x): %hs\n", disk, err,
-                cr::win::is_elevated() ? "access denied even elevated (device busy or locked)"
-                                       : "administrator rights required (elevate and retry)");
+        if (err == ERR_DRIVER_REQUIRED)
+            wprintf(L"cannot open disk %u: the RDA raw-disk driver is required and not "
+                    L"available - install/start it (rc=%08x)\n",
+                    disk, err);
+        else
+            wprintf(L"cannot open disk %u (rc=%08x): %hs\n", disk, err,
+                    cr::win::is_elevated() ? "access denied even elevated (device busy or locked)"
+                                           : "administrator rights required (elevate and retry)");
         return 2;
     }
     const Geometry& g = dev->geometry();
-    const char* transport = rda && win::rda_available(L"RDA") ? "rda" : "direct";
+    const char* transport = "rda";
 
     auto qpc = []() -> double {
         LARGE_INTEGER c;
@@ -1873,7 +1860,7 @@ int cmd_bench(int argc, wchar_t** argv, int& i) {
         const double t0 = qpc();
         for (u32 k = 0; k < n; ++k) {
             u32 e2 = 0;
-            auto d2 = win::open_disk(disk, use_rda, L"RDA", &e2);
+            auto d2 = win::open_disk(disk, L"RDA", &e2);
         }
         const double dt = (qpc() - t0) / freq;
         const double mean_ns = dt > 0 ? dt * 1e9 / n : 0;
@@ -1993,7 +1980,6 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
     std::wstring in_path;
     int candidate = -1; /* 1-based, the session's lost-candidate index */
     bool do_apply = false;
-    bool use_rda = true;
     std::wstring undo_path;
     /* M-040: the post-apply boot-chain repair (the og's MainModule
      * apply chain FUN_180075580: apply -> Bcd unlock/newpos). Opt-in:
@@ -2027,11 +2013,6 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
             ++i;
             continue;
         }
-        if (wcscmp(argv[i], L"--no-rda") == 0) {
-            use_rda = false;
-            ++i;
-            continue;
-        }
         if (get_opt(argc, argv, i, L"--boot-fix", &v)) {
             boot_fix_old_lba = wcstoull(v.c_str(), nullptr, 10);
             boot_fix = true;
@@ -2055,9 +2036,14 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
      * shows only what the CURRENT disk still confirms) and the same view
      * serves plan_apply below. */
     u32 open_err = 0;
-    auto apply_view = win::open_disk(disk, use_rda, use_rda ? L"RDA" : nullptr, &open_err);
+    auto apply_view = win::open_disk(disk, L"RDA", &open_err);
     if (!apply_view) {
-        wprintf(L"cannot open disk %u (rc=%08x)\n", disk, open_err);
+        if (open_err == ERR_DRIVER_REQUIRED)
+            wprintf(L"cannot open disk %u: the RDA raw-disk driver is required and not "
+                    L"available - install/start it (rc=%08x)\n",
+                    disk, open_err);
+        else
+            wprintf(L"cannot open disk %u (rc=%08x)\n", disk, open_err);
         return 2;
     }
 
@@ -2146,12 +2132,18 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
     u32 e = 0; /* M-057: was referenced (&e) but never declared - the apply
                 * path could not compile on MSVC since it landed (the app
                 * layer had no parse gate until this session) */
-    auto wdev = win::open_disk_apply_rw(disk, use_rda, use_rda ? L"RDA" : nullptr, &e);
+    auto wdev = win::open_disk_apply_rw(disk, L"RDA", &e);
     if (!wdev) {
-        wprintf(L"cannot open disk %u for write (rc=%08x): %hs\n", disk, e,
-                cr::win::is_elevated()
-                    ? "write access denied even elevated (device busy, locked or protected)"
-                    : "administrator rights required (elevate and retry)");
+        if (e == ERR_DRIVER_REQUIRED) {
+            wprintf(L"cannot open disk %u for write: the RDA raw-disk driver is required "
+                    L"and not available - install/start it (rc=%08x)\n",
+                    disk, e);
+        } else {
+            wprintf(L"cannot open disk %u for write (rc=%08x): %hs\n", disk, e,
+                    cr::win::is_elevated()
+                        ? "write access denied even elevated (device busy, locked or protected)"
+                        : "administrator rights required (elevate and retry)");
+        }
         return 2;
     }
     ApplyCliCtx ctx;
@@ -2290,7 +2282,6 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
     bool have_disk = false;
     int part = -1; /* -1 = whole disk (LBA0 view, superfloppy/lost FS) */
     bool apply = false;
-    bool use_rda = true;
     std::wstring undo_path, undo_apply_path;
     while (i < argc) {
         if (get_opt(argc, argv, i, L"--disk", &v)) {
@@ -2312,11 +2303,6 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
         }
         if (wcscmp(argv[i], L"--apply") == 0) {
             apply = true;
-            ++i;
-            continue;
-        }
-        if (wcscmp(argv[i], L"--no-rda") == 0) {
-            use_rda = false;
             ++i;
             continue;
         }
@@ -2355,7 +2341,7 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
         }
         wprintf(L"undo log: %zu sector(s)\n", log.entries.size());
         u32 e = 0;
-        auto wdev = win::open_disk_rw(disk, use_rda, use_rda ? L"RDA" : nullptr, &e);
+        auto wdev = win::open_disk_rw(disk, L"RDA", &e);
         if (!wdev) {
             wprintf(L"cannot open disk %u for write (rc=%08x): %hs\n", disk, e,
                     cr::win::is_elevated()
@@ -2374,9 +2360,14 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
 
     /* ---- analyze (read-only) ---- */
     u32 e = 0;
-    auto view = win::open_disk(disk, use_rda, use_rda ? L"RDA" : nullptr, &e);
+    auto view = win::open_disk(disk, L"RDA", &e);
     if (!view) {
-        wprintf(L"cannot open disk %u (rc=%08x)\n", disk, e);
+        if (e == ERR_DRIVER_REQUIRED)
+            wprintf(L"cannot open disk %u: the RDA raw-disk driver is required and not "
+                    L"available - install/start it (rc=%08x)\n",
+                    disk, e);
+        else
+            wprintf(L"cannot open disk %u (rc=%08x)\n", disk, e);
         return 2;
     }
     IStorageDevice* slice = view.get();
@@ -2455,12 +2446,18 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
     }
 
     /* ---- execute (transactional writes) ---- */
-    auto wdev = win::open_disk_rw(disk, use_rda, use_rda ? L"RDA" : nullptr, &e);
+    auto wdev = win::open_disk_rw(disk, L"RDA", &e);
     if (!wdev) {
-        wprintf(L"cannot open disk %u for write (rc=%08x): %hs\n", disk, e,
-                cr::win::is_elevated()
-                    ? "write access denied even elevated (device busy, locked or protected)"
-                    : "administrator rights required for repairs (elevate and retry)");
+        if (e == ERR_DRIVER_REQUIRED) {
+            wprintf(L"cannot open disk %u for write: the RDA raw-disk driver is required "
+                    L"and not available - install/start it (rc=%08x)\n",
+                    disk, e);
+        } else {
+            wprintf(L"cannot open disk %u for write (rc=%08x): %hs\n", disk, e,
+                    cr::win::is_elevated()
+                        ? "write access denied even elevated (device busy, locked or protected)"
+                        : "administrator rights required for repairs (elevate and retry)");
+        }
         return 2;
     }
     repair::UndoLog log;
@@ -2526,7 +2523,7 @@ int wmain(int argc, wchar_t** argv) {
             L"             candidate's MBR entry; dry-run by default; --boot-fix additionally\n"
             L"             rewrites the BCD offsets + UEFI NVRAM entry after the apply)\n"
             L"  rrecov bench --disk N [--mode seq|rand|open|read|info] [--mb N] [--block-kb N]\n"
-            L"              [--iterations N] [--seed N] [--json] [--no-rda]\n");
+            L"              [--iterations N] [--seed N] [--json]\n");
         return 0;
     }
     const std::wstring cmd = argv[1];

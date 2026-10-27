@@ -1,9 +1,15 @@
 /*
- * cr_transport.h - Windows transports: RDA driver client + direct handles.
+ * cr_transport.h - Windows transport: the RDA kernel driver, REQUIRED.
  *
- * Reference duality (corpus Device.mo): \\.\EPRDTDRV\<d>\<p> driver path for
- * locked/damaged volumes + direct \\.\PhysicalDriveN / HarddiskVolumeN
- * fallbacks. Our RDA driver speaks the same grammar under its service name.
+ * Mandatory-driver session (2026-10-27, user directive): the RDA driver
+ * is the ONLY raw-disk transport. The reference's duality (Device.mo:
+ * driver path + direct \\.\PhysicalDriveN fallback) is DELIBERATELY NOT
+ * reproduced — every read/write path rides the driver grammar, and its
+ * absence is the distinct ERR_DRIVER_REQUIRED refusal (see
+ * docs/PARITY-DELTAS.md D-FALL for the rationale and the divergence
+ * registration). Enumeration/geometry/health METADATA IOCTLs stay on
+ * the OS storage stack (cr_enumerate/cr_health) — the disk LIST is
+ * stack metadata, not sector reads; the og lists disks the same way.
  *
  * Licensed under the MIT license. See LICENSE.
  */
@@ -29,7 +35,8 @@ namespace win {
  * the 2-segment and Volume\<n> variants are separate grammar functions,
  * TRANSPORT-CONTRACT §2.1; the structured-open RdaClient was deleted by
  * N-041 - zero callers since introduction). Returns null + err when the
- * driver is unavailable (caller falls back to direct handles). */
+ * grammar open fails (probe rda_available first to distinguish an absent
+ * driver from an open failure). */
 std::unique_ptr<IStorageDevice> open_rda_partition(const wchar_t* service_name, u32 disk, u32 part,
                                                    u32* err);
 std::unique_ptr<IStorageDevice> open_rda_volume(const wchar_t* service_name, u32 volume, u32* err);
@@ -38,24 +45,23 @@ std::unique_ptr<IStorageDevice> open_rda_volume(const wchar_t* service_name, u32
  * used by rrecov --image; feeds cr::storage::open_image. */
 storage::ImageFileIo& image_file_io();
 
-/* Direct Win32 handles: \\.\PhysicalDriveN (whole disk, read-only share) and
- * \\.\HarddiskVolumeN (volume handle). */
-std::unique_ptr<IStorageDevice> open_physical_drive(u32 disk, u32* err);
-std::unique_ptr<IStorageDevice> open_harddisk_volume(u32 volume, u32* err);
-
-/* Whole-disk view with probed geometry + optional RDA preference. */
-std::unique_ptr<IStorageDevice> open_disk(u32 disk, bool prefer_rda, const wchar_t* service,
-                                          u32* err);
+/* Whole-disk view through the RDA grammar with probed geometry. THE
+ * product transport - there is no direct-handle fallback. When the
+ * driver's control device cannot be opened (not installed / not
+ * started / blocked by signing policy) returns null with
+ * *err = ERR_DRIVER_REQUIRED; a grammar-open failure on a live driver
+ * returns the open error (ERR_OPEN_FAILED et al). */
+std::unique_ptr<IStorageDevice> open_disk(u32 disk, const wchar_t* service, u32* err);
 
 /* Write-capable whole-disk view for the repair engine (RawFixer): an RDA
- * handle opened GENERIC_READ|GENERIC_WRITE when the driver is available
- * (the driver forwards IRP_MJ_WRITE with byte-offset semantics), else a
- * direct \\.\PhysicalDriveN handle. Writes are staged through a
- * sector-aligned buffer (raw direct-handle writes require buffer
- * alignment); reads honor the F11 Information=Length*512 contract on the
- * RDA path. Open the read view separately with open_disk() for analyze(). */
-std::unique_ptr<cr::repair::IWriteDevice> open_disk_rw(u32 disk, bool prefer_rda,
-                                                       const wchar_t* service, u32* err);
+ * handle opened GENERIC_READ|GENERIC_WRITE (the driver forwards
+ * IRP_MJ_WRITE with byte-offset semantics; the F11 Information=
+ * Length*512 contract is honored on reads and writes). THE product
+ * write transport - no direct fallback: an absent driver refuses with
+ * ERR_DRIVER_REQUIRED, never a silently degraded write path. Writes
+ * are staged through a sector-aligned buffer. Open the read view
+ * separately with open_disk() for analyze(). */
+std::unique_ptr<cr::repair::IWriteDevice> open_disk_rw(u32 disk, const wchar_t* service, u32* err);
 
 /* S-029 (apply): IOCTL_DISK_UPDATE_PROPERTIES on \\.\PhysicalDriveN with
  * the corpus settle pattern (3 x Sleep(1000) retries, PartitionRecovery
@@ -67,15 +73,15 @@ std::unique_ptr<cr::repair::IWriteDevice> open_disk_rw(u32 disk, bool prefer_rda
 u32 refresh_disk_properties(u32 disk);
 
 /* S-029: the APPLY-capable write view (lost-partition table writes).
- * Same transport duality and handle posture as open_disk_rw; the
+ * Same mandatory-RDA transport and handle posture as open_disk_rw; the
  * returned device additionally carries the corpus PartitionRecovery
  * device-control chain (IOCTL_DISK_DELETE_DRIVE_LAYOUT 0x7C100,
  * IOCTL_DISK_SET_DRIVE_LAYOUT 0x7C010, the 0x7C058 0x18-byte modern
  * record, IOCTL_DISK_UPDATE_PROPERTIES 0x70140 with the 3x Sleep(1000)
  * retry tail - decompile cites in cr_apply.h). Open the read view with
  * open_disk() for planning. */
-std::unique_ptr<cr::apply::IApplyDevice> open_disk_apply_rw(u32 disk, bool prefer_rda,
-                                                            const wchar_t* service, u32* err);
+std::unique_ptr<cr::apply::IApplyDevice> open_disk_apply_rw(u32 disk, const wchar_t* service,
+                                                            u32* err);
 /* Full extent of the volume containing a drive letter: disk number, byte
  * offset on that disk, byte length (used for recovery-overlap refusal).
  * N-013: reports the FIRST extent only - kept for the source-disk lookup
@@ -107,21 +113,12 @@ bool volume_extents(wchar_t letter, std::vector<VolExtent>* out);
  * itself without reparse resolution. */
 bool destination_volume_letter(const std::wstring& path, wchar_t* letter);
 
-/* Device existence probes used by enumeration. When the control-device
- * open fails, *last_error (if given) receives the CreateFile GetLastError
- * code - the diagnostic for the runner mystery (service running, \\.\Rda
- * unopenable). */
+/* Device existence probe - the mandatory-driver gate. When the
+ * control-device open fails, *last_error (if given) receives the
+ * CreateFile GetLastError code (the diagnostic for a service that is
+ * registered but not started: signing policy, missing binary, driver
+ * load failure - the System event log carries the kernel-side reason). */
 bool rda_available(const wchar_t* service_name, u32* last_error = nullptr);
-
-/* M-030 (diff-to-fix): the og's WinPE environment gate. TRUE inside a
- * WinPE-style environment (GetSystemDirectoryA's first byte is 'X'/'x'
- * - Device.mo FUN_1800577e0, Device_decompiled.c :50943-50992; the
- * decision predicate lives in cr_winenv.h, shared with the Linux-lane
- * regression pins). The driver-grammar transport is never attempted
- * first where the og goes direct by design (its callers branch to
- * \\.\PhysicalDrive%d / \\.\HarddiskVolume%d on a nonzero return -
- * :352/:7816/:50653/:52437). */
-bool win_pe_environment();
 
 } // namespace win
 } // namespace cr

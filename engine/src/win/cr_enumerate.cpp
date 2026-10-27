@@ -143,9 +143,14 @@ u32 enumerate_disks(u32 max_disks, std::vector<PhysicalDisk>& out) {
         PhysicalDisk d;
         if (!query_disk(n, d))
             continue;
-        /* parse the on-disk table through the pure core */
+        /* parse the on-disk table through the pure core - the table READ
+         * is sector data, so it rides the MANDATORY RDA transport (the
+         * direct open_physical_drive leg is removed; 2026-10-27). The
+         * disk still lists when the driver is absent (geometry/metadata
+         * are storage-stack IOCTLs, not sector reads) - its table simply
+         * reads as unknown, which is the truthful state. */
         u32 err = 0;
-        auto view = open_physical_drive(n, &err);
+        auto view = open_rda_partition(L"RDA", n, 0, &err);
         if (view) {
             d.table_ok = table::parse_disk_table(view.get(), d.table) == OK;
         }
@@ -197,8 +202,11 @@ u32 enumerate_disk_interfaces(PhysicalDiskList& out) {
                     /* no table parse possible without a drive number */
                     d.table_ok = false;
                 } else {
+                    /* same mandatory-RDA table read as stack 1 (see the
+                     * comment there): geometry stays on the stack, the
+                     * partition-table READ rides the driver. */
                     u32 err = 0;
-                    auto view = open_physical_drive(d.number, &err);
+                    auto view = open_rda_partition(L"RDA", d.number, 0, &err);
                     if (view)
                         d.table_ok = table::parse_disk_table(view.get(), d.table) == OK;
                 }

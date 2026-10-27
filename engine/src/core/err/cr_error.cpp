@@ -23,6 +23,8 @@ const char* err_text(u32 code) {
         return "cancelled";
     case ERR_RETRY_EXHAUSTED:
         return "retries exhausted";
+    case ERR_DRIVER_REQUIRED:
+        return "RDA raw-disk driver required (not installed or not started)";
     case ERR_BAD_MAGIC:
         return "bad magic";
     case ERR_BAD_CHECKSUM:
