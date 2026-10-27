@@ -17392,3 +17392,97 @@ Stage Summary:
   + 4 tracked-open (OQ-S4-3, OQ-SA-1/2/3). Every in-scope corpus surface
   is now dispositioned per SURFACE-INVENTORY. Next: the session close
   (handoff, README audited-commit refresh, final verification sweep, push).
+
+---
+Task ID: SA-5 (session close — handoff)
+Agent: main engineer (session: audit + dev-sign validation)
+
+HANDOFF AT: core_recovery @ 832b390 (the session's audit commits; the
+product code itself is UNCHANGED from the audited commit 3bda8e2 — the
+read-only sweep proves every changed file lives under diff-to-fix/ (41),
+worklog/ (3), worklog.md (1); tools/dev-sign/ was correctly never created).
+Corpus 03ad46c throughout. The S7 lane (driver-only-era parity) remained
+silent the whole session — its territory (the wire/IOCTL constants, the
+ERR_DRIVER_* taxonomy, the driver-status surface, the epmntdrv-internals-v2
++ naming-pid-handshake artifacts flagged to it in SURFACE-INVENTORY §1)
+is UNCLAIMED by this session and still open for it (or the next session
+if S7 is dead — the two flagged NEVER-CITED driver docs are the entry
+points).
+
+SESSION LANDINGS:
+- Phase 1 (dev-sign): the documented dev-sign path verified by execution
+  (run 40549660074 — the lane's first green run: sign -> install -> RUNNING
+  -> 5-facet ready -> control round-trip -> uninstall); worklog/DEV-SIGN.md
+  is the reproduction record; 8 installer-posture findings.
+- Phase 2 (parity): the corpus inventory (SURFACE-INVENTORY.md — 282 docs,
+  78 cited, coverage statuses, honest corrections) + PARAMETERS Group K
+  (K71-K78); 7 waves executed; 10 more findings + 3 tracked-open; CORRECTIONS
+  #5 propagated (M-024's 37->34); M-060's prose precision fixed.
+
+BOARD AT CLOSE: 18 active (1 ACUTE A-010 · 4 SEVERE S-036/S-037/S-038/
+S-039 · 7 MAJOR M-060..M-066 · 5 MINOR N-084..N-088 · 1 INFO I-026) ·
+223 FIXED · 4 tracked-open (OQ-S4-3 + OQ-SA-1/2/3). Every in-scope corpus
+surface dispositioned per SURFACE-INVENTORY.md.
+
+COVERAGE STATISTICS (the session's surfaces):
+- carve families: 131/131 classes dispositioned (34 MATCH · 3 registered ·
+  64 S-007-remainder · 26 N/A · 1 UNDETERMINED->OQ-SA-2 · 3 NEW findings)
+- session schemas: 23 slots + 32 per-FS fields (28 MATCH; 4 -> OQ-SA-1)
+- installer: 27 corpus parameters enumerated; 13+4 filed (S-038/M-064);
+  the rest Phase-1-covered or dispositioned as design input
+- preview: 19/19 parameters (6 MATCH · 6 UI-scope · 6 prior · 2 NEW)
+- user-signs: 18 grammar elements (11 MATCH · 2 prior · 5 NEW->S-039/M-065/
+  OQ-SA-3) + the og's own DB measured first-hand
+- WinPE census + MOM stubs: honest zeros (dispositioned, corrected count)
+- corrections: 8/8 corpus corrections verified against the trail (7 clean,
+  1 propagated)
+
+THE RECOMMENDED FIRST 20 FIXES (priority order — the next fix session's queue):
+1. A-010 — the ASF object walker (recovery correctness for the whole
+   ASF/WMV/WMA family; every carve is a header-only fragment today).
+2. S-039 — the user-sign caps (the feature aborts the scan on the og's own
+   DB; raise to the measured maxima + fix the false comments + the fixture
+   test).
+3. S-036 — install.ps1 elevation guard (upstream rda-driver v0.2.3; then
+   flip the composite to fail-loud on installer failure).
+4. S-037 — FH11 (key 0x11C, id 0x1d) + CPT7/8/9 validators (two missing
+   carve formats; the corpus keys are decoded in the finding).
+5. S-038 step 1 — the PACKAGING.md contract doc (design work, no code; the
+   13 parameters with citations — everything downstream hangs off it).
+6. M-064 — the deployer's versioned/verified contract (same v0.2.3 batch:
+   -Uninstall verb, %s%d layouts, write+verify, per-call SCM errors).
+7. M-065 — the default user-sign set (BLOCKED BY #2's caps; generate from
+   the og's measured DB; 79 stock-absent extensions).
+8. M-060 — the composite fallback's config parity (group + Parameters +
+   absolute binPath; the sc qc/reg query assertions).
+9. M-061 — uninstall.ps1 verified teardown + the CI lane executing it (the
+   post-state evidence assertions).
+10. M-062 — install.ps1 start-failure fatal + the malformed warning (same
+    v0.2.3 batch).
+11. M-063 — the environments table (HVCI/SecureBoot/testsigning + the
+    validated-environment links) + a second runner-class dispatch.
+12. M-066 — preview archive enumeration (the central-directory walk exists;
+    collect the entry list into Metadata with a hostile-archive cap).
+13. OQ-SA-3 — the EUUserData consumption-mode decode (calibrates M-065's
+    severity; one decompile read of GetRawUserInfoMap's consumers).
+14. OQ-SA-1 — the anchor-datum probes (rsf_field_census.py correlation +
+    the og-on-exFAT/FAT runs; decides 3 session-field carriers).
+15. OQ-SA-2 — the four family-decode probes (CFCPEvt attribution first —
+    one vtable resolution each).
+16. N-087 — the FAT 8.3 OEM-codepage decode (CP437 default; fixture test).
+17. N-086 — the rawsigns posture registration (PARITY-DELTAS row or the
+    data-file move; a decision + one row).
+18. N-088 — the M-028 propagation sweep (cr_ui.h + API-SURFACE-AUDIT + the
+    mov comment; a grep-guard test).
+19. N-084 — the timestamp note (one sentence in two docs + optional
+    composite input).
+20. N-085 + I-026 — the console-posture note absorbed into S-038's
+    milestone; I-026 needs no action (deliberate, recorded).
+
+TOKEN HYGIENE: the token lived only in the git remote URL and process env;
+never in any committed file (verified per-commit by grep before every
+push); the user rotates it after this session as stated.
+
+NEXT (for whoever continues): the S7 lane's unclaimed driver-era territory
+(see above); the v0.2.3 rda-driver release batching fixes 3/6/9/10; the
+OQ probes are all one-session bounded.
