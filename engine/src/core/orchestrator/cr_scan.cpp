@@ -1036,7 +1036,41 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
          * orchestrator's failure, not an engine's). */
         errmod::Guard g(errmod::kOrchestrator);
         publish_owner_module_(errmod::kOrchestrator);
+        /* read-truth (the fake-scan fix): snapshot the pipe's error map
+         * around the probe read so a BLIND probe (Skip-mode zero-fill
+         * returned OK with zeros - the retry pipe's contract) is
+         * distinguishable from a readable sector with no filesystem
+         * signature. probe_family alone cannot tell the two apart; without
+         * this flag every fully-unreadable volume cascades into
+         * family=Unknown -> no engines -> instant stage completes -> the
+         * "scan complete, 0 files, exit 0" fake verdict (the exact
+         * appears-alive-while-blind failure class the mandate kills). */
+        const u64 errors_before = rp.retry ? rp.retry->error_map_copy().total_bytes() : u64(0);
         cfg_.fs_hint = probe_family(pipe);
+        if (rp.retry) {
+            const ReadErrorMap after = rp.retry->error_map_copy();
+            /* the probe was blind IFF a recorded range COVERS OFFSET 0 -
+             * the probe's own bytes. Map growth alone is the wrong
+             * predicate: the cache's 256 KiB block-fill around the probe
+             * read can record failures in regions far beyond the probe's
+             * 512 bytes (partial damage elsewhere) without the header
+             * itself being dead. Ranges are sorted; a range covering 0
+             * must start at exactly 0. */
+            bool covers_zero = false;
+            for (const ReadErrorRange& r : after.ranges())
+                if (r.offset == 0 && r.length > 0) {
+                    covers_zero = true;
+                    break;
+                }
+            if (covers_zero) {
+                stats.probe_unreadable = true;
+                cr::log::write(
+                    cr::log::Level::Warn,
+                    "recognition: volume header unreadable - family unknown because the "
+                    "probe reads failed (%llu error bytes total)",
+                    static_cast<unsigned long long>(after.total_bytes() - errors_before));
+            }
+        }
     }
 
     /* volume facts for the session VolumeInfo (G-14) - recorded from the
@@ -1179,6 +1213,50 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
         slot.fs_kind = 0; /* per-node props->fs_kind is the truth source */
         gctx.devices.push_back(slot);
         tree::grading::grade_tree(tree_, gctx, stats.assistant);
+    }
+    /* ---- read-truth completion gate (the fake-scan fix; docs/
+     * DRIVER-REQUIRED.md section 7, PARITY-DELTAS D-DRV-6) ----
+     *
+     * A scan that could read (essentially) NOTHING must not report
+     * success: Skip-mode zero-fill makes every failing read look like an
+     * empty region downstream, the stages complete over zeroed data, and
+     * the pre-fix verdict was "scan complete, 0 files, exit 0" - the
+     * product appeared to work while being blind. The truth line: when
+     * the retry pipe's recorded failure coverage spans the whole slice
+     * (with one carve-window tail of slack for rounding) and nothing was
+     * found, the run REFUSES with ERR_READ_FAILED. Partial damage keeps
+     * the salvage semantics exactly as before (og parity: skip bad
+     * sectors, surface the map); the zero-success line is the only new
+     * refusal. A second, narrower gate: probe_unreadable + zero bytes
+     * scanned + nothing found (no engine ran, no carve window read) -
+     * the nothing-was-ever-attempted fake. */
+    if (RetryingDevice* rd = tel_retry_.load(std::memory_order_acquire))
+        stats.errors.merge(rd->error_map_copy()); /* idempotent (S-016) */
+    stats.bytes_unreadable = stats.errors.total_bytes();
+    {
+        constexpr u64 kBlindnessSlack = 64ull * 1024; /* one carve window tail */
+        const bool fully_blind = vol_bytes_ > 0 &&
+                                 stats.bytes_unreadable + kBlindnessSlack >= vol_bytes_ &&
+                                 stats.files_found == 0 && stats.carved_found == 0;
+        const bool nothing_read = stats.probe_unreadable && stats.bytes_scanned == 0 &&
+                                  stats.files_found == 0 && stats.carved_found == 0 &&
+                                  stats.deleted_found == 0;
+        if (fully_blind || nothing_read) {
+            cr::log::write(cr::log::Level::Error,
+                           "scan refused: %llu of %llu bytes unreadable (%u error range(s)) "
+                           "- nothing on this volume could be read",
+                           static_cast<unsigned long long>(stats.bytes_unreadable),
+                           static_cast<unsigned long long>(vol_bytes_),
+                           u32(stats.errors.ranges().size()));
+            return stamp(ERR_READ_FAILED);
+        }
+        if (stats.bytes_unreadable > 0)
+            cr::log::write(cr::log::Level::Warn,
+                           "read truth: %llu of %llu bytes unreadable (%u range(s)) - "
+                           "those regions were NOT scanned",
+                           static_cast<unsigned long long>(stats.bytes_unreadable),
+                           static_cast<unsigned long long>(vol_bytes_),
+                           u32(stats.errors.ranges().size()));
     }
     return stamp(OK);
 }

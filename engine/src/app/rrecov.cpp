@@ -1369,15 +1369,46 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
             }
             return 3; /* cancelled is distinct from failure (0/1/3) */
         }
-        wprintf(L"scan failed: %hs (0x%08x)\n", cr::err_text(rc), rc);
+        /* read-truth refusal (the fake-scan fix): the volume was (essentially)
+         * fully unreadable - the scan did NOT scan. The specific text names
+         * the coverage; the generic branch keeps the code. */
+        if (rc == ERR_READ_FAILED && stats.bytes_unreadable > 0) {
+            wprintf(L"scan REFUSED: %llu of %llu byte(s) on this target were unreadable "
+                    L"(%u error range(s)) - nothing could actually be read, so nothing was "
+                    L"scanned\n",
+                    static_cast<unsigned long long>(stats.bytes_unreadable),
+                    static_cast<unsigned long long>(
+                        target.volume_len != 0 ? target.volume_len
+                                               : (target.device ? target.device->size() : 0)),
+                    u32(stats.errors.ranges().size()));
+            wprintf(L"check the transport before retrying: `rrecov driver` reports the RDA "
+                    L"driver prerequisite; a green driver + these errors means the media "
+                    L"itself (cabling, health, encryption) is refusing reads\n");
+        } else {
+            wprintf(L"scan failed: %hs (0x%08x)\n", cr::err_text(rc), rc);
+        }
         return 1;
     }
+    /* read-truth summary: ALWAYS visible on completion (the error map used
+     * to live only in the log - a scan with unreadable regions looked
+     * perfectly healthy). The zero-fill salvage semantics are unchanged;
+     * the truth is no longer optional output. */
+    if (stats.probe_unreadable)
+        wprintf(L"[scan] volume header unreadable - filesystem family unknown because "
+                L"sector 0 could not be read (raw/deep recovery mode)\n");
+    if (!stats.errors.ranges().empty())
+        wprintf(L"[scan] read errors: %u range(s), %.1f MiB unreadable - those regions were "
+                L"NOT scanned; recovered content may be incomplete\n",
+                u32(stats.errors.ranges().size()),
+                double(stats.bytes_unreadable) / (1024.0 * 1024.0));
     prog.done();
     if (json) {
         wprintf(L"{\"files\":%llu,\"deleted\":%llu,\"carved\":%llu,\"lost_partitions\":%llu,"
-                L"\"bytes_scanned\":%llu,\"elapsed_ms\":%llu}\n",
+                L"\"bytes_scanned\":%llu,\"bytes_unreadable\":%llu,\"error_ranges\":%u,"
+                L"\"probe_unreadable\":%hs,\"elapsed_ms\":%llu}\n",
                 stats.files_found, stats.deleted_found, stats.carved_found, stats.lost_partitions,
-                stats.bytes_scanned, stats.elapsed_ms);
+                stats.bytes_scanned, stats.bytes_unreadable, u32(stats.errors.ranges().size()),
+                stats.probe_unreadable ? "true" : "false", stats.elapsed_ms);
     } else {
         wprintf(L"scan complete: %llu file(s), %llu deleted, %llu carved, %llu lost partition(s) "
                 L"in %llu.%01u s\n",

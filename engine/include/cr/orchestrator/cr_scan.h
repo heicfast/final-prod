@@ -348,6 +348,26 @@ struct ScanStats {
     ReadErrorMap errors;
     std::vector<lost::Candidate> lost_candidates;
 
+    /* ---- read-truth accounting (the fake-scan fix; docs/DRIVER-REQUIRED.md
+     * section 7, PARITY-DELTAS D-DRV-6) ----
+     *
+     * bytes_unreadable: total bytes the retry pipe recorded as hard read
+     * failures (the error map's coverage). Skip-mode zero-fill makes those
+     * reads LOOK successful downstream (engines see zeros); this field is
+     * the truth the scan must never hide: coverage is surfaced in the CLI
+     * summary, the JSON output and the log, and a scan whose coverage is
+     * (essentially) the whole slice REFUSES with ERR_READ_FAILED instead
+     * of fake-completing with "0 files found" and exit 0.
+     *
+     * probe_unreadable: sector 0 of the slice could not be read - the
+     * family is Unknown BECAUSE the probe was blind, not because a
+     * filesystem was absent (probe_family cannot distinguish the two by
+     * itself: the retry pipe returns OK with a zeroed buffer). Surfaced
+     * so the host/CLI can say "volume header unreadable - raw/deep
+     * recovery mode" instead of silently implying "no filesystem". */
+    u64 bytes_unreadable = 0;
+    bool probe_unreadable = false;
+
     /* ---- S-009: the engine allocation bitmap (the og's shared
      * IBuildVolumeBitmap truth - "which clusters are free/used",
      * searchdll-family--architecture.md section 2). Filled by the main

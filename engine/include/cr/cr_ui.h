@@ -611,6 +611,17 @@ typedef struct cr_ui_scan_stats {
     uint32_t check_ran;      /* the check phase executed at all */
     uint32_t check_errors;   /* reported issue count (the 0x1001..0x100e set) */
     uint32_t check_detected; /* family identified (fat/ntfs) */
+    /* driver-only session append (the fake-scan fix; read-truth
+     * accounting - docs/DRIVER-REQUIRED.md section 7): the host must be
+     * able to present "these regions were NOT scanned" and "family
+     * unknown because the header was unreadable" without reading the
+     * log. bytes_unreadable = the error map's coverage (Skip-mode
+     * zero-fill hides failures from engines, never from this field);
+     * a scan that could read (essentially) nothing REFUSES with
+     * ERR_READ_FAILED instead of fake-completing. */
+    uint64_t bytes_unreadable;
+    uint32_t probe_unreadable; /* sector 0 read failed (family=Unknown is
+                                * BLIND, not filesystem-absent) */
 } cr_ui_scan_stats;
 
 CR_UI_API uint32_t cr_ui_scan_get_stats(cr_ui_scan* s, cr_ui_scan_stats* out);

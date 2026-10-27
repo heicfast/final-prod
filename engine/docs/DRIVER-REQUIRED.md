@@ -175,3 +175,15 @@ The UI never sees a partial or "working-but-degraded" data path. Its contract:
   divergence — the driver is required in PE too, and ships a PE registration
   file).
 - Every refusal names its class and code; every remediation is actionable.
+- **The scan cannot fake-complete on an unreadable target** (the read-truth
+  gate, PARITY-DELTAS D-DRV-6): Skip-mode zero-fill still hides individual
+  read failures from the engines (og-parity salvage — bad sectors are
+  skipped, the map records them), but the VERDICT is truthful —
+  `ScanStats.bytes_unreadable` (the error map's coverage) and
+  `probe_unreadable` (family Unknown because sector 0 was unreadable, not
+  because a filesystem was absent) are surfaced in the CLI summary, the JSON
+  output, the ABI stats (`cr_ui_scan_stats`) and the log; and a scan whose
+  recorded failure coverage spans (essentially) the whole slice with nothing
+  found **REFUSES with ERR_READ_FAILED** instead of printing
+  "scan complete: 0 file(s)" and exiting 0. There is no state in which the
+  scan appears to have scanned data it could not read.

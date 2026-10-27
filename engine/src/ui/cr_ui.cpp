@@ -2032,6 +2032,11 @@ u32 scan_stats_impl(cr_ui_scan* scan, cr_ui_scan_stats* out) {
     out->check_ran = st.check_ran ? 1u : 0u;
     out->check_errors = u32(st.check_report.errors.size());
     out->check_detected = st.check_detected ? 1u : 0u;
+    /* read-truth accounting (the fake-scan fix): the coverage + probe
+     * blindness flags - the host's "these regions were NOT scanned"
+     * presentation surface */
+    out->bytes_unreadable = st.bytes_unreadable;
+    out->probe_unreadable = st.probe_unreadable ? 1u : 0u;
     return ret_ok();
 }
 
@@ -2592,6 +2597,13 @@ u32 session_stats_impl(cr_ui_session* sess, cr_ui_scan_stats* out) {
     out->bytes_scanned = st.bytes_scanned;
     out->elapsed_ms = st.elapsed_ms;
     out->error_ranges = u32(st.errors.ranges().size());
+    /* read-truth (the fake-scan fix): the session record persists the error
+     * map (not the derived fields) - recompute the coverage from the
+     * restored map so a loaded session tells the same truth a live run
+     * would. probe_unreadable is 0 for loaded sessions (the flag is
+     * live-probe metadata, honestly absent - the map's coverage at offset 0
+     * remains visible through error_ranges/bytes_unreadable). */
+    out->bytes_unreadable = st.errors.total_bytes();
     return ret_ok();
 }
 

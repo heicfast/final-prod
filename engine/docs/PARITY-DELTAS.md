@@ -3021,3 +3021,26 @@ contract is major-match/minor-informative. RATIONALE: the status surface's
 version/healthy facets need them; the driver serves both on global handles.
 VERDICT: ACCEPTED (wire-contract activation, our own driver's documented
 surface — no og behavior is contradicted because the og never had them).
+
+**D-DRV-6 — the read-truth completion gate (fake scans refuse; the og
+fake-completes).**
+REFERENCE: on a fully unreadable volume the og's engines log read errors and the
+scan still "completes" with an empty result (the CErrorManager surfaces errors
+to the UI, but the scan verdict is completion, not refusal); our pre-fix core
+did the same class of thing WORSE: Skip-mode zero-fill made every failing read
+look like an empty region, the Unknown-family cascade (blind probe -> no
+engines -> instant stage completes -> carve over zero-filled windows) ended in
+"scan complete: 0 file(s)" + exit 0 with the error truth only in the log. CORE
+(this fix): ScanStats.bytes_unreadable (the error map's coverage) +
+probe_unreadable (family=Unknown BECAUSE the header was unreadable, not
+because a filesystem was absent); a scan whose coverage spans (essentially)
+the whole slice with nothing found REFUSES with ERR_READ_FAILED (exit 1, the
+coverage named in the CLI output); partial damage keeps the exact og-parity
+salvage semantics with the coverage surfaced ALWAYS (CLI summary line + JSON
+fields + ABI stats fields + log). RATIONALE: the user's report - "the scan
+never works and starts from 40% and shows no progress, it looks like fake
+scanning" - is precisely this class: the quick stage's 40% weight lands
+instantly with zero real work when the family is Unknown, and the product
+appeared alive while reading nothing. The mandate's rule: the product is
+either working or explicitly refusing. VERDICT: ACCEPTED (deliberate
+divergence; truthfulness superset in the D-24/ADR-5 family).
