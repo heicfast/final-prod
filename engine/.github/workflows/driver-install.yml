@@ -141,10 +141,14 @@ jobs:
         if: always()
         shell: pwsh
         run: |
+          $driverTag = '<not-fetched>'
+          if (Test-Path driver\resolved-release.json) {
+            $driverTag = (Get-Content driver\resolved-release.json -Raw | ConvertFrom-Json).tag
+          }
           [ordered]@{
             runner_image  = $env:ImageOS
             toolchain     = "MSVC on runner; core $env:CORE_TAG"
-            driver_tag    = (if (Test-Path driver\resolved-release.json) { (Get-Content driver\resolved-release.json -Raw | ConvertFrom-Json).tag } else { '<not-fetched>' })
+            driver_tag    = $driverTag
             core_tag      = $env:CORE_TAG
             phases        = 'absent -> ready -> not-started (S-DRV-REFUSE)'
           } | ConvertTo-Json | Set-Content env-manifest.json

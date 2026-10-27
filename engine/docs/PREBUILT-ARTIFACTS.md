@@ -78,6 +78,10 @@ semver — new convention from the combined-release era; the historical
 | `SHA256SUMS` | top-level, covering every asset above |
 
 **Verification procedure** (`.github/scripts/fetch-release.ps1 -Repo core_recovery`):
+0. Self-referential note: `SHA256SUMS` and `MANIFEST.json` are computed OVER the
+   asset set and therefore carry no hash of themselves — their EXISTENCE is
+   enforced (the required list), and the manifest's own cross-check anchors
+   every artifact it lists; no scheme can hash its own index.
 1. Resolve the release (or honor an explicit pin), download all assets.
 2. Top-level `SHA256SUMS` check for every asset — mismatch → exit non-zero,
    naming the asset and the resolved tag.

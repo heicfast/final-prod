@@ -95,7 +95,14 @@ if (Test-Path $sumsPath) {
 }
 
 # ---- required-asset enforcement ----
+# SHA256SUMS and MANIFEST.json are self-referential: they are computed OVER
+# the asset set and cannot contain their own hash (the convention documents
+# this - PREBUILT-ARTIFACTS.md section 3). Their EXISTENCE is still enforced
+# (above / by the caller's -Required list); every OTHER required asset must
+# carry a verified sums line.
+$sumsExempt = @('SHA256SUMS', 'MANIFEST.json')
 foreach ($req in $Required) {
+    if ($sumsExempt -contains $req) { continue }
     if ($req -eq 'SHA256SUMS') { continue } # checked above
     if (-not ($names -contains $req)) {
         Fail "required asset '$req' MISSING from $Repo @ $resolvedTag (assets: $($names -join ', ')). For core releases predating the combined era this is expected - publish the first combined release (docs/RELEASE.md) and re-run"
