@@ -173,11 +173,16 @@ before and passes after.
   `release.yml:176-182` uploads all of `build/out` including the ephemeral
   signing PFX (14-day retention, not published to the release).
   **Fix:** exclude the PFX from artifacts (security hygiene).
-- **NG-18 [M] Portable builds claim an app-dir session probe that does not
-  exist.** `state.rs:513-522` checks only the ProgramData env var (always
-  set), so portable builds write sessions to ProgramData; README/portable
-  docs claim otherwise. **Fix:** implement the real probe or fix the docs;
-  portable behavior must match its contract.
+- **NG-18 [M, CLOSED this session] Portable builds claimed a session probe
+  that did not exist.** `state.rs:513-522` checked only the ProgramData env
+  var (always set on Windows), so portable builds silently wrote sessions to
+  ProgramData while README-PORTABLE promised beside-the-exe placement.
+  **Fix (batch 5):** the deterministic marker probe — `portable.ps1` writes
+  `recovery-wizard.portable` beside the exe (never in installed builds);
+  `sessions_dir()`/`logs_dir()` check it first (bridge `util::portable_mode`,
+  unit-tested). A marker beats the previously documented writability probe
+  (which would misdetect elevated installs); contracts/README-PORTABLE now
+  describe the marker. Portable zip gains exactly one file.
 - **NG-19 [M] Orphan paths in the current uninstaller.**
   Abort path strands the imported cert + inner uninstall entry; `%TEMP%`
   lifecycle files remain; empty ProgramData tree survives. Folded into the

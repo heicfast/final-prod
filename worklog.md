@@ -1529,3 +1529,24 @@ Suites: engine 931/931 (926 + 5 new), UI 136/136 (135 + the NG-22 pin),
 clang-format-18 gate clean locally, tsc clean. CI note: the local knip run
 crashes on sandbox memory (Array buffer allocation failed — environment,
 not code; the CI runner has the headroom and was green on 6c3aa9f6).
+
+---
+## Batch 5 — NG-18 CLOSED: the portable-mode probe that finally exists
+
+The docs always claimed portable builds write sessions/logs beside the exe;
+the code checked the ProgramData env var — always set on Windows — so the
+portable build silently behaved like the installed one. Fix: the
+deterministic marker probe.
+
+- bridge util.rs: `portable_mode_in(dir)` / `portable_mode()` — the marker
+  file `recovery-wizard.portable` beside the exe decides (unit-tested:
+  marker present/absent/re-removed).
+- state.rs sessions_dir + logging.rs logs_dir check the probe FIRST;
+  installed builds (no marker) keep ProgramData, portable builds resolve
+  beside the exe exactly as README-PORTABLE promises.
+- portable.ps1 writes the marker (zip gains one file); header + contracts
+  README updated to describe the marker (the previously documented
+  writability probe would misdetect elevated installs — recorded why).
+- INSTALL-FOOTPRINT-CURRENT: the portable defect row, the stale-probe
+  bullet, and the runtime-mismatch summary all updated to current reality;
+  the stale hard-coded VERSION in contracts README de-hard-coded.

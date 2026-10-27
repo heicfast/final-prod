@@ -281,7 +281,7 @@ Repair = identical reinstall-over (`NoRepair=1`, `recoverywizard.nsi:430`; docum
 | `System32\drivers\RDA.sys` at the ImagePath | `install.ps1:58-59, 83` | copied + renamed, WOW64-safe | ✅ (T15 `sysDriverFile: false` after uninstall) |
 | Sessions dir `%ProgramData%\HeicFast\Recovery Wizard\sessions` (created on demand) | `ui/src-tauri/src/bridge/state.rs:513-530` | pre-created by installer (`recoverywizard.nsi:391`) | ✅ match |
 | **Logs dir** `%ProgramData\HeicFast\Recovery Wizard\logs` — contracts claim a "bridge logger" writes it | claim: `contracts/README.md:49`; plan `docs/INTEGRATION-PLAN.md:836` | installer creates it (`recoverywizard.nsi:392`) | ❌ **MISMATCH**: the shipped app has NO file logger — `lib.rs` only `eprintln!`s the ABI mismatch (`lib.rs:78-82`); nothing in `ui/src-tauri/src/**` ever writes the logs dir (grep: zero `logs` path references). The installer places a directory no runtime consumer exists for; the contracts row is stale. |
-| **Portable mode: sessions beside the exe** — README-PORTABLE claims "nothing is written to ProgramData"; contracts claim an "app-dir writability probe at startup" decides | claims: `installer/portable.ps1:79-80` (README text), `contracts/README.md:53-58`, `docs/INTEGRATION-PLAN.md:936-939` | n/a (portable) | ❌ **MISMATCH/DEFECT**: `sessions_dir()` (`state.rs:513-522`) prefers `%ProgramData%\HeicFast\Recovery Wizard\sessions` whenever the `ProgramData` env var is non-empty — it is ALWAYS set on Windows. There is no writability probe and no install-mode detection: the portable build writes sessions to ProgramData exactly like the installed build. The README-PORTABLE statement and the contracts/plan prose are both false for the shipped code. |
+| **Portable mode: sessions beside the exe** — README-PORTABLE claims "nothing is written to ProgramData" | claims: `installer/portable.ps1` (README text), `contracts/README.md` (portable-mode override) | n/a (portable) | ✅ **FIXED (NG-18)**: the probe is now the deterministic marker file `recovery-wizard.portable` (written by `portable.ps1` beside the exe, never in installed builds); `state.rs sessions_dir()` / `logging.rs logs_dir()` check it first (bridge `util::portable_mode`) — portable sessions/logs land beside the exe, installed builds keep ProgramData. The pre-fix `ProgramData` env-var check never detected portable mode (the variable is always set on Windows). |
 | `rrecov.exe` beside the app | no runtime consumer (engine CLI) | placed (`recoverywizard.nsi` via kit; `build.ps1:114`) | ➖ informational (diagnostic surface) |
 | `cr_ui.lib` | link-time only | excluded from install; included in portable zip | ➖ inconsistency (B.3) |
 | `DriverCertThumbprint` in the product SW key | uninstaller only (`recoverywizard.nsi:645-653`) | written `:404` | ✅ |
@@ -352,9 +352,10 @@ these windows were never seen/verified by the matrix.)
    (`recoverywizard.nsi:154`), recorded as deviation #1 (`installer/README.md:109`).
 5. **`contracts/README.md:49`** — "Logs directory … bridge logger" — no bridge logger
    exists in the shipped code (see E). Stale contract row.
-6. **`contracts/README.md:53-58`, `INTEGRATION-PLAN.md §7.5`, `portable.ps1:79-80`** — the
-   portable-mode "app-dir writability probe" does not exist; `state.rs:513-522` is a
-   `ProgramData`-env-var check, so the portable build writes sessions to ProgramData (see E).
+6. **Portable-mode probe — FIXED (NG-18)**: the documented probe now exists as the
+   deterministic marker file `recovery-wizard.portable` (bridge `util::portable_mode`;
+   `portable.ps1` writes it beside the exe) — the old `ProgramData`-env-var check never
+   detected portable mode. Contracts/README-PORTABLE/plan prose all describe the marker.
 7. **`contracts/README.md:50`** — still cites `VERSION` = `0.5.0`; actual `0.6.0-rc1`.
 8. **`docs/context-sheets/DRIVER-DEPLOYMENT.md` §5.1** — describes `install.ps1` with a
    plain `Copy-Item` to System32 (§5.1 step 3, sheet line ~253) and §7 states "rda.sys
@@ -403,6 +404,7 @@ these windows were never seen/verified by the matrix.)
   stage + README), nothing installed, driver manual.
 - **Visible windows during install (interactive):** 3 consoles (certutil ×2, PowerShell ×1);
   during uninstall: 3 (PowerShell ×1, certutil ×2).
-- **Runtime mismatches (defects to route):** (1) no bridge logger vs contracts/`logs` dir;
-  (2) portable sessions still go to ProgramData (no writability probe) vs README/contracts/
-  plan claims; (3) `cr_ui.lib` ships in the zip but not the install (cosmetic).
+- **Runtime mismatches — RESOLVED (batches 1-5):** (1) bridge logger shipped (NG-15,
+  `logging.rs` writes the logs dir the installer creates); (2) portable sessions/logs land
+  beside the exe via the marker probe (NG-18); (3) `cr_ui.lib` ships in the zip but not the
+  install (cosmetic, unchanged — link-time only).

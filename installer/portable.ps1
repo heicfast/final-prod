@@ -15,11 +15,14 @@
 #   │                              install/uninstall scripts — STAGED, NOT
 #   │                              INSTALLED. Manual, consent-explicit install
 #   │                              (elevated PowerShell) if the user wants it.
+#   ├── portable marker            'recovery-wizard.portable' beside the exe —
+#   │                              the bridge's portable-mode probe (NG-18):
+#   │                              sessions/logs resolve beside the exe
 #   └── README-PORTABLE.txt        the truthful label
 #
 # Portable mode behavior (contracts/README.md): the bridge writes sessions and
-# logs BESIDE THE EXECUTABLE (.\sessions, .\logs) — the app-dir-writability
-# probe at startup decides; there is no configuration surface.
+# logs BESIDE THE EXECUTABLE (.\sessions, .\logs) — decided by the portable
+# marker file written below (NG-18); there is no configuration surface.
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)] [string]$RepoRoot,
@@ -85,6 +88,12 @@ For the full product (installer, driver step, ProgramData state, Start Menu
 shortcuts, complete uninstall), use RecoveryWizard-$Version-setup.exe.
 "@
 Set-Content -Path (Join-Path $portableRoot 'README-PORTABLE.txt') -Value $readme -Encoding UTF8
+
+# NG-18: the portable-mode marker. The bridge probes for this file beside the
+# exe (bridge util::portable_mode): present => sessions/logs resolve beside
+# the executable; absent (installed builds) => ProgramData. Deterministic -
+# the pre-fix ProgramData env-var probe never detected portable mode.
+Set-Content -Path (Join-Path $portableRoot 'recovery-wizard.portable') -Value "portable build $Version" -Encoding ASCII
 
 $zip = Join-Path $OutDir "RecoveryWizard-$Version-portable.zip"
 if (Test-Path $zip) { Remove-Item $zip -Force }

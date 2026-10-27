@@ -47,12 +47,16 @@ Ownership model (no duplication):
 | Driver service name | `RDA` (device `\\.\RDA`; installer pins; matches `engine`'s RDA transport probe and `driver`'s service-name-derived device grammar with `UPPER(SN)`) | installer (§installer/recoverywizard.nsi), bridge `get_driver_status`, `contracts/command-surface.json` |
 | Sessions directory | `%ProgramData%\HeicFast\Recovery Wizard\sessions\` | bridge `session_save`/`sessions_list`/`session_load`, installer (creates + ACLs) |
 | Logs directory | `%ProgramData%\HeicFast\Recovery Wizard\logs\` | bridge logger, installer (creates + ACLs) |
-| Product version | root `VERSION` file (`0.5.0`) — the ONLY version constant; engine CMake, ui Cargo/tauri.conf/package.json, driver rda_version.h/INF, and the NSIS installer all derive from it and `build.ps1` fails on drift | everything |
+| Product version | root `VERSION` file — the ONLY version constant; engine CMake, ui Cargo/tauri.conf/package.json, driver rda_version.h/INF, and the NSIS installer all derive from it and `build.ps1` fails on drift | everything |
 | Required `cr_ui` ABI version | `2` (`CR_UI_ABI_VERSION` in `engine/include/cr/cr_ui.h`) — the bridge refuses to bind on any other value | bridge `abi.rs` startup gate |
 
 Portable-mode override (documented deviation, `docs/PARITY-DELTAS.md`): when
-the app directory is not the installed Program Files tree (portable zip), the
-sessions/logs directories resolve beside the executable (`.\sessions`, `.\logs`)
-— matching the reference's module-relative model for its portable/boot-media
-modes. The probe is an app-dir writability check at startup; there is no
-configuration surface for it (one behavior, decided by install mode).
+the portable marker (`recovery-wizard.portable`, written by
+`installer/portable.ps1` beside the exe — never present in installed builds)
+sits in the app directory, the sessions/logs directories resolve beside the
+executable (`.\sessions`, `.\logs`) — matching the reference's module-relative
+model for its portable/boot-media modes. The probe is the marker file
+(bridge `util::portable_mode`); there is no configuration surface for it
+(one behavior, decided by install mode). A marker is deterministic — a
+writability probe would misdetect elevated installs whose Program Files tree
+happens to be writable.

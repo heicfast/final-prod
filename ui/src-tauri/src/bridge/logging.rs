@@ -29,8 +29,17 @@ const ROTATE_BYTES: u64 = 1024 * 1024;
 static SENDER: OnceLock<Sender<String>> = OnceLock::new();
 
 /// The logs directory: ProgramData in installed mode, beside the exe in
-/// portable mode (mirrors `state::sessions_dir`'s contract).
+/// portable mode (mirrors `state::sessions_dir`'s contract — the shared
+/// marker probe, util::portable_mode, NG-18).
 fn logs_dir() -> PathBuf {
+    if crate::bridge::util::portable_mode() {
+        let local = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|d| d.join("logs")))
+            .unwrap_or_else(|| PathBuf::from("logs"));
+        let _ = std::fs::create_dir_all(&local);
+        return local;
+    }
     if let Ok(pd) = std::env::var("ProgramData") {
         if !pd.is_empty() {
             let dir = PathBuf::from(pd)

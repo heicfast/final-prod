@@ -256,3 +256,52 @@ impl Drop for OwnedCrString {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Portable-mode probe (NG-18: the probe the docs always claimed)
+// ---------------------------------------------------------------------------
+
+/// The marker file the PORTABLE zip ships beside the exe
+/// (`installer/portable.ps1` writes it; the installed product never has it).
+pub const PORTABLE_MARKER: &str = "recovery-wizard.portable";
+
+/// Portable-mode decision for an explicit directory — the testable core of
+/// the probe: `true` iff the portable marker sits in `dir`.
+pub fn portable_mode_in(dir: &std::path::Path) -> bool {
+    dir.join(PORTABLE_MARKER).exists()
+}
+
+/// Portable-mode decision for THIS process: `true` iff the exe's directory
+/// carries the portable marker. Installed builds (NSIS) never place the
+/// marker, so they resolve ProgramData; the portable zip carries it, so
+/// sessions/logs land beside the executable (`.\sessions`, `.\logs`) — the
+/// contract `contracts/README.md` and `installer/portable.ps1` document.
+/// (NG-18: the pre-fix probe read the `ProgramData` env var, which is ALWAYS
+/// set on Windows — portable builds silently wrote to ProgramData and the
+/// documented beside-the-exe behavior never happened. A marker file is
+/// deterministic; a writability probe would misdetect elevated installs.)
+pub fn portable_mode() -> bool {
+    std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(portable_mode_in))
+        .unwrap_or(false)
+}
+
+#[cfg(test)]
+mod portable_tests {
+    use super::*;
+
+    #[test]
+    fn marker_decides_portable_mode() {
+        let tmp = std::env::temp_dir().join(format!("hf-rw-portable-{}", std::process::id()));
+        std::fs::create_dir_all(&tmp).unwrap();
+        // no marker: installed mode
+        assert!(!portable_mode_in(&tmp));
+        // marker present: portable mode
+        std::fs::write(tmp.join(PORTABLE_MARKER), b"").unwrap();
+        assert!(portable_mode_in(&tmp));
+        std::fs::remove_file(tmp.join(PORTABLE_MARKER)).unwrap();
+        assert!(!portable_mode_in(&tmp));
+        std::fs::remove_dir(&tmp).unwrap();
+    }
+}

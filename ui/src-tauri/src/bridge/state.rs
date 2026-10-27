@@ -508,9 +508,19 @@ fn poisoned() -> BridgeError {
 }
 
 /// Session store (contracts/README.md §6): ProgramData in installed mode;
-/// `.\sessions\` beside the exe when ProgramData is absent (portable mode,
-/// docs/INTEGRATION-PLAN.md §7.5).
+/// `.\sessions\` beside the exe in portable mode — decided by the portable
+/// marker probe (util::portable_mode, NG-18; the pre-fix ProgramData env-var
+/// check never detected portable builds — the variable is always set on
+/// Windows, so portable sessions silently landed in ProgramData).
 fn sessions_dir() -> PathBuf {
+    if super::util::portable_mode() {
+        let local = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|d| d.join("sessions")))
+            .unwrap_or_else(|| PathBuf::from("sessions"));
+        let _ = std::fs::create_dir_all(&local);
+        return local;
+    }
     if let Ok(pd) = std::env::var("ProgramData") {
         if !pd.is_empty() {
             let dir = PathBuf::from(pd)
