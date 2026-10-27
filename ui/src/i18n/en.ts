@@ -13,7 +13,7 @@ export const en = {
     driverOk: 'Installed ({{version}}) — {{running}}',
     driverRunning: 'running',
     driverStopped: 'stopped',
-    driverMissing: 'Not installed',
+    driverMissing: 'Required — not installed',
     platform: 'Platform',
   },
   activation: {

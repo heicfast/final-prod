@@ -15,7 +15,7 @@ export const zhCN: TranslationSchema = {
     driverOk: '已安装（{{version}}）——{{running}}',
     driverRunning: '运行中',
     driverStopped: '已停止',
-    driverMissing: '未安装',
+    driverMissing: '必需组件 — 未安装',
     platform: '平台',
   },
   activation: {

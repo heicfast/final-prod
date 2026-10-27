@@ -3,8 +3,9 @@
 //! Driver status probes the SCM service `RDA` (OQ-5 pinned: the engine's
 //! cr_transport.h default service name, matching the deployed driver), then
 //! opens `\\.\RDA` and reads IOCTL_RDA_GET_VERSION (0x60002448 — u64
-//! (Major<<32)|Minor). The note carries the truthful unsigned/test-signing
-//! posture (docs/RELEASE.md; PARITY-DELTAS).
+//! (Major<<32)|Minor). The note carries the truthful test-signing posture
+//! (docs/DEV-SIGNING.md; PARITY-DELTAS): the driver is a REQUIRED component
+//! - the engine refuses every raw-disk open without it (ERR_DRIVER_REQUIRED).
 //!
 //! validateDestination mirrors the connector contract: same-letter source →
 //! 'overlap' (the engine backstops with 0x50050001 at enqueue); non-mount →
@@ -19,13 +20,14 @@ use crate::bridge::util::enumerate_volumes;
 const RDA_SERVICE: &str = "RDA";
 const RDA_DEVICE: &str = "\\\\.\\RDA";
 const IOCTL_RDA_GET_VERSION: u32 = 0x6000_2448;
-const UNSIGNED_NOTE: &str =
-    "installed unsigned (release signing pending — docs/RELEASE.md); stock \
-     Secure-Boot systems require test signing (bcdedit /set testsigning on) or a \
-     signed driver to load; the app falls back to direct handles without it";
+const DRIVER_REQUIRED_NOTE: &str =
+    "required component - the engine refuses raw-disk access without it; \
+     this build is development test-signed (docs/DEV-SIGNING.md): stock \
+     Secure-Boot machines must enable test signing (bcdedit /set \
+     testsigning on) or disable Secure Boot to load it";
 
 // ---------------------------------------------------------------------------
-// Driver probe (Windows; truthful degraded answer elsewhere)
+// Driver probe (Windows; truthful answer elsewhere)
 // ---------------------------------------------------------------------------
 
 #[cfg(windows)]
@@ -83,9 +85,9 @@ fn driver_probe() -> (bool, bool, Option<String>, String) {
     };
     if dev == INVALID_HANDLE_VALUE {
         let note = if service_running {
-            format!("service is running but {RDA_DEVICE} does not open (driver not loaded — {UNSIGNED_NOTE})")
+            format!("service is running but {RDA_DEVICE} does not open (driver not loaded — it is required for every scan; {DRIVER_REQUIRED_NOTE})")
         } else {
-            format!("service is stopped; {UNSIGNED_NOTE}")
+            format!("service is stopped; the driver is required for every scan; {DRIVER_REQUIRED_NOTE}")
         };
         return (true, false, None, note);
     }
@@ -109,7 +111,7 @@ fn driver_probe() -> (bool, bool, Option<String>, String) {
     } else {
         None
     };
-    (true, true, version, format!("running; {UNSIGNED_NOTE}"))
+    (true, true, version, format!("running; development test-signed build; {DRIVER_REQUIRED_NOTE}"))
 }
 
 #[cfg(not(windows))]
