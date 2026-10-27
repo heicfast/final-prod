@@ -1550,3 +1550,33 @@ deterministic marker probe.
 - INSTALL-FOOTPRINT-CURRENT: the portable defect row, the stale-probe
   bullet, and the runtime-mismatch summary all updated to current reality;
   the stale hard-coded VERSION in contracts README de-hard-coded.
+
+---
+## T18 — the v0.6.0-rc2 release cut (the fixes-confirmed build for user testing)
+
+Session fix state at this tag (all lanes green on a4dbcfc1; the new
+installer's runtime matrix GREEN on b93e6be8 = validation-evidence run
+40474514493):
+
+- S1 installer: REBUILT to production standard (NG-16) — zero PowerShell,
+  zero visible consoles, native SCM driver install, persistent install
+  log, orphan-free abort/uninstall, signing-posture independent.
+- S2 SMART/health: truthful across all layers (NG-5/6/7/8/9/10) — every
+  drive enumerated, per-attribute table with vendor thresholds, NVMe
+  accepted, unknown states honest, no fsutil console flash.
+- S3 scan: THE SMOKING GUN fixed (NG-21) — whole-disk scans analyze
+  per-partition (corpus CheckPartition scope) + the analyze-side
+  partition-table guard; deep-scan progress liveness (NG-3); live results
+  refetch (NG-2); real tree-root labels (NG-22).
+- S4 surfaces: every fake removed or made real (NG-11/12/13a) —
+  lost-partition real search, repair truthful, native folder picker.
+- Diagnostics: app.log seam (NG-15), rdacli talks to the shipped driver,
+  PFX leak closed (NG-17), portable marker probe (NG-18).
+
+Version lockstep bumped: VERSION + ui/package.json + Cargo.toml +
+tauri.conf.json + Cargo.lock -> 0.6.0-rc2 (build.ps1 gate enforces).
+forensic-repro default release_tag -> v0.6.0-rc2. Tag v0.6.0-rc2 pushed;
+release.yml builds the full product and publishes setup.exe + portable +
+cer + SHA256SUMS with the truthful test-signed notes. The RC validation
+run (forensic-repro against v0.6.0-rc2, seeded disks, the probe now
+ANSWERS any consent modal) is dispatched once the release assets exist.

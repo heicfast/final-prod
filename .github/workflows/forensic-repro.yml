@@ -1,7 +1,7 @@
 name: forensic-repro
 
 # T2 (the session mandate §1): reproduce EVERY reported symptom of the
-# installed v0.6.0-rc1 product on a real Windows runner, with captured
+# installed release product on a real Windows runner, with captured
 # evidence at every layer - before any diagnosis or fix.
 #
 # What this run captures:
@@ -28,9 +28,9 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'The release tag whose setup.exe the run installs (default: the shipped v0.6.0-rc1)'
+        description: 'The release tag whose setup.exe the run installs (default: the current RC, v0.6.0-rc2)'
         required: false
-        default: 'v0.6.0-rc1'
+        default: 'v0.6.0-rc2'
   push:
     branches: [main]
     paths:
@@ -42,7 +42,7 @@ permissions:
 
 jobs:
   repro:
-    name: Reproduce all reported symptoms (installed v0.6.0-rc1)
+    name: Reproduce all reported symptoms (installed release)
     runs-on: windows-2022
     timeout-minutes: 90
     steps:
@@ -60,12 +60,12 @@ jobs:
           npm install playwright-core@1.49.1
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
-      - name: Download the shipped v0.6.0-rc1 release assets
+      - name: Download the shipped release assets
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force -Path C:\forensic | Out-Null
-          $tag = "${{ github.event.inputs.release_tag || 'v0.6.0-rc1' }}"
+          $tag = "${{ github.event.inputs.release_tag || 'v0.6.0-rc2' }}"
           $ver = $tag.TrimStart('v')
           $base = "https://github.com/heicfast/final-prod/releases/download/$tag"
           curl.exe -sSL -o C:\forensic\setup.exe "$base/RecoveryWizard-$ver-setup.exe"
