@@ -156,6 +156,11 @@ struct WIN32_FIND_DATAW {
 #define ERROR_HANDLE_DISK_FULL 39UL
 #define ERROR_IO_PENDING 998UL
 #define ERROR_INSUFFICIENT_BUFFER 122UL
+/* M-074's destination-validation codes (winerror.h values, SDK-faithful):
+ * 206 = filename/exceed-range, 123 = invalid name syntax, 161 = bad pathname */
+#define ERROR_FILENAME_EXCED_RANGE 206UL
+#define ERROR_INVALID_NAME 123UL
+#define ERROR_BAD_PATHNAME 161UL
 
 /* wait codes */
 #define WAIT_OBJECT_0 0UL
