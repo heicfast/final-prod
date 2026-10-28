@@ -42,9 +42,13 @@
     the core, unregistered); **M-129** (carve P23-adjacent — the og's tolerant
     EUUserData loader (skip-and-continue) vs the core's all-or-nothing reject);
     **M-130** (fat P1/P3/P26 — the dentry shape-validator family (ext-tail, size/chain
-    XOR, dir, >9-repeat histogram gates + walk-stop semantics) unported); **M-131**
-    (cli/session P34 — the in-run checkpoint is truncate-in-place, the N-014 shape
-    cr_ui fixed; A-013's general case); **M-132** (table P1/P35 — GPT backup probe:
+    XOR, dir, >9-repeat histogram gates + walk-stop semantics) unported); **M-131 FIXED-ALREADY
+    (4f0fc160, the parallel A-013 landing — verified at c98eb7a7: the CliCkSink
+    tmp+commit+rename reproduction; the sink never opens the final path for
+    truncation; CrUi.CliResumeSinkNeverTruncatesTheSessionSource green;
+    findings/FIXED/M-131)** (cli/session P34 — the in-run checkpoint's
+    truncate-in-place shape, the N-014 class at the CLI layer — closed by the
+    A-013 landing); **M-132** (table P1/P35 — GPT backup probe:
     og device-last always + full bail on dead LBA1; core probes declared backup_lba +
     recovers from dev-last — divergent both directions, unregistered).
   - **MINOR (18):** **N-161** (table — GPT entry span underflow, no first≤last gate);
@@ -838,7 +842,7 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 |---|---|---|
 | ldm/recovery · multi-disk extent basis (span/striped/mirror/RAID-5 recovery) | **MATCH** (S-052 FIXED, f4e500de — session-11 fix lane) | the per-root basis-id tree model + the controller's surviving device registry + the SafeWriter's LdmBasisTable routing + the physical-span overlap mapping + REC_LDM_LAYOUTS session persistence; recovery/preview/thumbnail read through the same virtual devices the scan read through (byte-exact by test); GAP-S6-15 CLOSED; proof set `LdmRecovery.*` + `Orchestrator.DynamicDiskScanStampsBasisAndSessionRoundTrips`; the two registered divergences: PARITY-DELTAS D-106/D-107 |
 | packaging/health · the K71-K73 DRWService slice | **DIVERGENCE-MAJOR** | **M-105** — the og's transient SCM service lifecycle ("Read FVE Server": AUTO_START/LocalSystem/OWN_PROCESS, /install replace-on-install + StartServiceA, the stop-gated delete, per-call SCM error strings, DRWUI's per-use uninstall→install→harvest→2s→uninstall orchestration) decoded at the decompile level; the core has no counterpart (greps clean) and R-83's disposition note is false ("install lives in driver-repo CI scripts" — those install the RDA driver only) |
-| carve · ONE/3DS size walks (school-1 follow-ups) | **DIVERGENCE-MAJOR** | **M-106** — the walks are DECODED (s8-batch2-formats.md:29,:31: ONE chunk-chain u64@+0xC4 max 500,000,000; 3DS section-walk stride u16@+2 max 200,000,000) but the landing shipped the DWG-pattern 64 MiB stand-in (cr_analysers.cpp:3849-3850/:3939-3940) — the M-090/M-091 truncation class on the two school-1 formats |
+| carve · ONE/3DS size walks (school-1 follow-ups) | **MATCH** (FIXED — the S42 fix lane, `M-106` FIXED at `<this push>`; the Resolution + the 4-test proof set in `findings/FIXED/M-106-one-3ds-size-walks-decoded-but-standing-in.md`) — both walks landed from the first-hand re-read (ONE: the GUID-recheck chain, the 0xC4/0x64 size fields, the 2x-device gate, the break-point size, the 500,000,000 clamp; 3DS: the MM branch's section walk — the 0x58 shortcut, the stride u16@+2, the 5x-device cap; the NCSD/CCI branch keeps its bounded stand-in, the deviation documented in the Resolution); RED pre-fix by the stashed-engine rebuild (the 68 MiB chain truncated at the 64 MiB stand-in) |
 | carve · the batch-1 stand-in residue | **DIVERGENCE-MAJOR** | **M-107** — ten sites still carry "recorded follow-up"/"stands in" comments (X3F :3084, CRW :3108, WPG :3197, WPD :3214, PSP :3236, SIT :3253, APE :3329, EPS :3702, DXF :3741, DWG :2644, SWF-RECT :3914) — S-007's promised follow-ups never owned until now; the X3F section-directory grammar corroborated by the never-cited FileRepair artifact (x3f-repair--section-checkers-walk.md:9-33); MDB resolved mid-flight (M-091), DMG too (M-090) |
 | docs/CI · CAPABILITY-MATRIX prebuilt-CI row truth | DIVERGENCE-MINOR | **N-128** — the row cites four workflows + an actions/ dir that do not exist at HEAD (only checks/installer/release/test-benchmark) and buries the unowned ext4/HFS+/Btrfs/ZFS/ReFS staging follow-up inside a DONE verdict; M-088's fix did not touch this row |
 | ldm/writer/tree · ID-collision repair (process) | — | **S-050→S-051 renumber** — the wave-2 lane's wholedisk scan-target S-050 collided with SA-10B's file-repair S-050 (both live on main); per the SA-9 rule the earlier push keeps the ID, the wave-2 file renumbers to S-051 (its orchestration/CROSS-REF/SUMMARY refs updated) |

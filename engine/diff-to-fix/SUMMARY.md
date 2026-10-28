@@ -671,6 +671,21 @@ commit = one push):**
   the name L"AEP" dumped from the og binary (DAT_180067008:
   41 00 45 00 50 00). RawConfig AEP=1 shipped. Proof: Carve.Aep* (4
   tests) + the stashed-engine RED; suite 1181/1181 green post-fix.
+- **M-106 (MAJOR — the ONE/3DS size walks, decoded but standing in) →
+  FIXED.** Both walks landed from the first-hand re-read: ONE's
+  GUID-recheck chunk chain (size u64@+0xC4 fallback +0x64, the
+  0<size≤2x-device gate, the break-point size, the 500,000,000
+  clamp), 3DS's MM-branch section walk (the 0x58 shortcut on the
+  u16@+0x58 MM marker, the stride u16@+2, the 5x-device cap). A
+  documented finding-text deviation: the NCSD/CCI branch KEEPS its
+  bounded stand-in (the fix plan's "both stand-ins" step overreached —
+  the MM-marked walk would reject every CCI file; the comment
+  registers the stand-in). RED pre-fix by the stashed-engine rebuild:
+  a 68 MiB ONE chain carved TRUNCATED at the 64 MiB stand-in pre-fix.
+  The two school-1 fixtures updated to walk-valid forms with the SAME
+  extents (the under-cap agreement the acceptance requires). Proof:
+  Carve.OneChunkChain* / ThreeDsSectionWalk* (3 tests) +
+  S007NicheBatch2School1Carve green; suite 1187/1187 green.
 
 **Board at this lane's M-117 landing (post-rebase over the parallel lanes'
 S-048/S-049/S-054/S-053/N-115/N-126/N-148/INFO-tier landings): 39 active on

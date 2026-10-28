@@ -5668,6 +5668,18 @@ CarveResult validate_chm(IStorageDevice* s, u64 hit, u64 cap) {
  * The chunk-chain size walk (FUN_180044e30) is the recorded follow-up;
  * the DWG-pattern bounded extent stands in. */
 CarveResult validate_one(IStorageDevice* s, u64 hit, u64 cap) {
+    /* M-106: the chunk-chain size walk (FUN_180044e30 :52316-52358,
+     * decoded in the trail's own evidence - s8-batch2-formats.md:29).
+     * From the hit, iterate chunks: each re-checks the GUID pair
+     * (u64@+4 == 0x7853B1AE4DA7D88C, u32@+0xC == 0xD39629D0); the
+     * chunk size is the u64@+0xC4 (fallback the u64@+0x64 when the
+     * primary is 0); a size of 0 or a size > 2x the device breaks the
+     * chain; the cursor advances by the size. The og's size is the
+     * cursor at the chain's break point (uVar5 - the end of the last
+     * FULLY-VALID chunk); the FileInfo bound is 500,000,000
+     * (FUN_180016080 :17203 - the row's own cap). Replaces the
+     * DWG-pattern 64 MiB stand-in (the M-090/M-091 truncation class
+     * on the school-1 formats). */
     CarveResult r;
     u8 h[0x10];
     if (!rd(s, hit, h, sizeof(h)))
@@ -5676,11 +5688,32 @@ CarveResult validate_one(IStorageDevice* s, u64 hit, u64 cap) {
         return r; /* the registry key, re-checked */
     if (u64_from_bytes_le(h + 4) != 0x7853b1ae4da7d88cull ||
         u32_from_bytes_le(h + 0xc) != 0xd32969d0u)
-        return r; /* the GUID tail */
+        return r;                   /* the GUID tail */
+    const u64 dev2 = s->size() * 2; /* the og's 2x-device chunk-size bound */
+    const u64 limit = probe_limit(s, hit, cap);
+    u64 pos = 0;  /* the relative cursor */
+    u64 size = 0; /* the end of the last fully-valid chunk */
+    u8 c[0xcc];   /* the chunk head: the fields live at +4/+0xC/+0x64/+0xC4 */
+    while (pos <= dev2) {
+        if (!rd(s, hit + pos, c, sizeof(c)))
+            break; /* the window miss: the size keeps (the og's exit) */
+        if (u64_from_bytes_le(c + 4) != 0x7853b1ae4da7d88cull ||
+            u32_from_bytes_le(c + 0xc) != 0xd32969d0u)
+            break; /* the per-chunk GUID re-check */
+        u64 sz = u64_from_bytes_le(c + 0xc4);
+        if (sz == 0)
+            sz = u64_from_bytes_le(c + 0x64); /* the fallback field */
+        if (sz == 0 || sz > dev2)
+            break; /* the 0<size<=2x-device gate */
+        pos += sz;
+        size = pos; /* the end of this valid chunk - the break keeps it */
+    }
+    if (size > 500000000ull)
+        size = 500000000ull; /* the FileInfo ctor's own max */
     r.ok = true;
-    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
+    r.end = std::min(hit + size, limit);
     r.confidence = 620;
-    r.note = "one-guid+bounded-extent";
+    r.note = "one-guid+chunk-chain-walk";
     return r;
 }
 
@@ -5759,14 +5792,51 @@ CarveResult validate_swf(IStorageDevice* s, u64 hit, u64 cap) {
  * DWG-pattern bounded extent stands in. Row max = S-041's census
  * bound (200 MB). */
 CarveResult validate_3ds(IStorageDevice* s, u64 hit, u64 cap) {
+    /* M-106: the MM branch carries the section walk (FUN_180042ff0
+     * :50921-50971, decoded in s8-batch2-formats.md:31): per chunk at
+     * the cursor - the 0x58 SHORTCUT when the u16 at chunk+0x58 is
+     * 0x4D4D (the next chunk's MM marker); else the chunk must start
+     * MM (u16@0), the u16@+0x58 must be non-zero, and the stride is
+     * the u16@+2 (non-zero); the cursor advances by the stride; the
+     * walk caps at 5x the device (the og's while bound) and sizes at
+     * the cursor (the row's 200 MB cap is the trial-loop bound). The
+     * NCSD/CCI branch KEEPS the bounded stand-in: the walk's chunk
+     * grammar is MM-marked, and the CCI form's first 0x100 bytes (the
+     * CCI header before the NCSD magic) are not MM-marked - applying
+     * the MM walk there would reject every CCI file (a regression the
+     * finding's "both stand-ins" step did not intend; the CCI-leg
+     * stand-in is registered here). */
     CarveResult r;
     u8 h[0x12];
     if (rd(s, hit, h, sizeof(h)) && std::memcmp(h, "MM", 2) == 0 &&
         u16_from_bytes_le(h + 0x10) == 0x3D3Du) {
+        const u64 dev5 = s->size() * 5; /* the og's 5x-device walk cap */
+        const u64 limit = probe_limit(s, hit, cap);
+        u64 pos = 0; /* the relative cursor */
+        u8 c[0x5a];  /* the chunk head: the fields live at +0/+2/+0x58 */
+        for (;;) {
+            if (!rd(s, hit + pos, c, sizeof(c)))
+                return r; /* the og's fetch miss: the walk returns 0 (no size) */
+            u64 stride = 0;
+            if (u16_from_bytes_le(c + 0x58) == 0x4D4Du) {
+                stride = 0x58; /* the shortcut: the next chunk's MM marker */
+            } else {
+                if (u16_from_bytes_le(c) != 0x4D4Du)
+                    break; /* the chunk must start MM */
+                if (u16_from_bytes_le(c + 0x58) == 0)
+                    break; /* the non-zero next-marker gate */
+                stride = u16_from_bytes_le(c + 2);
+                if (stride == 0)
+                    break; /* the degenerate stride */
+            }
+            pos += stride;
+            if (pos > dev5)
+                break; /* the 5x-device cap */
+        }
         r.ok = true;
-        r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
+        r.end = std::min(hit + pos, limit);
         r.confidence = 620;
-        r.note = "3ds-mm-chunk-gate+bounded-extent";
+        r.note = "3ds-mm-chunk-gate+section-walk";
         return r;
     }
     u8 a[8];

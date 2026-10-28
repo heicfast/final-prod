@@ -2579,6 +2579,12 @@ size_t plant_one(std::vector<u8>& img, size_t at) {
     put32v(img, at + 0xC, 0xD32969D0);                   /* the final GUID dword */
     for (size_t i = 0x10; i < 0x100; ++i)
         img[at + i] = u8(i & 0xFF);
+    /* M-106: the chunk-chain walk - ONE chunk of size 0x100 (the u64
+     * at +0xC4), so the walk ends at 0x100 (the next chunk's GUID
+     * re-check fails on the zero gap) - the same 0x100 extent the
+     * stand-in produced */
+    put32v(img, at + 0xC4, 0x100);
+    put32v(img, at + 0xC8, 0);
     return 0x100;
 }
 
@@ -2616,6 +2622,12 @@ size_t plant_3ds(std::vector<u8>& img, size_t at, bool ncsd = false) {
         std::memcpy(img.data() + at + 0x10, "==", 2); /* the chunk gate */
         for (size_t i = 0x12; i < 0x40; ++i)
             img[at + i] = u8((i * 3) & 0xFF);
+        /* M-106: the section walk - the stride u16@+2 = 0x40 and the
+         * non-zero next-marker u16@+0x58; the walk ends at 0x40 (the
+         * next chunk position fails the MM re-check) - the same 0x40
+         * extent the stand-in produced */
+        put16(img, at + 2, 0x40);
+        put16(img, at + 0x58, 0x0101);
     } else {
         for (size_t i = 0; i < 0x100; ++i)
             img[at + i] = u8((i * 3) & 0xFF);
@@ -10135,4 +10147,187 @@ TEST(Carve, AepCapThirtyMiB) {
     std::vector<const Signature*> bad;
     EXPECT_EQ(validate_registry(&bad), 0u);
     EXPECT_EQ(self_probe_registry(&bad), 0u);
+}
+
+/* ---- M-106: the ONE chunk-chain walk + the 3DS section walk ---- */
+
+namespace {
+
+/* an ONE chunk chain: chunks of `chunk` bytes each (the u64 size at
+ * +0xC4), the GUID re-checked per chunk; `n` chunks then a zero gap */
+void plant_one_chain(std::vector<u8>& img, size_t at, u64 chunk, u32 n) {
+    for (u32 k = 0; k < n; ++k) {
+        const size_t p = at + size_t(k * chunk);
+        std::memcpy(img.data() + p, "\xE4\x52\x5C\x7B", 4);
+        put32v(img, p + 4, 0x4DA7D88C);
+        put32v(img, p + 8, 0x7853B1AE);
+        put32v(img, p + 0xC, 0xD32969D0);
+        put32v(img, p + 0xC4, u32(chunk));
+        put32v(img, p + 0xC8, u32(chunk >> 32));
+    }
+}
+
+} // namespace
+
+TEST(Carve, OneChunkChainWalksPastTheStandInCap) {
+    /* M-106: a chunk chain summing PAST the old 64 MiB stand-in cap (a
+     * 68 MiB chain: 17 x 4 MiB chunks, within the og's 500,000,000)
+     * carves at the chain's true end - the stand-in truncated at 64 MiB
+     * (the M-090/M-091 truncation class). */
+    const u64 chunk = 4ull << 20;
+    const u32 n = 17; /* 68 MiB total - past the 64 MiB stand-in */
+    std::vector<u8> img(size_t((n + 1) * chunk) + 4096, 0);
+    const size_t at = 512;
+    plant_one_chain(img, at, chunk, n);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* nd = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            nd = c;
+    ASSERT_NE(nd, nullptr) << "the chain carves";
+    EXPECT_EQ(nd->props()->carve_format, u64(FMT_ONE));
+    EXPECT_EQ(nd->props()->logical_size, size_t(n * chunk))
+        << "the chain's true end (68 MiB) - not the 64 MiB stand-in cap";
+}
+
+TEST(Carve, OneChunkChainHostileVariantsSalvageAndRefuse) {
+    /* M-106: the walk-break semantics - a broken GUID mid-chain
+     * salvages at the last valid chunk; a chunk size of 0 or > 2x the
+     * device breaks the chain the same way (the og's gates); the
+     * fallback size field (+0x64) serves when +0xC4 is 0. */
+    {
+        /* 3 chunks then a broken-GUID 4th: salvage at 3*chunk */
+        const u64 chunk = 0x1000;
+        std::vector<u8> img(64 * 1024, 0);
+        const size_t at = 512;
+        plant_one_chain(img, at, chunk, 3);
+        /* the 4th chunk: the right position, the WRONG GUID tail */
+        const size_t p = at + size_t(3 * chunk);
+        std::memcpy(img.data() + p, "\xE4\x52\x5C\x7B", 4);
+        put32v(img, p + 4, 0xDEADBEEF);
+        put32v(img, p + 8, 0x7853B1AE);
+        put32v(img, p + 0xC, 0xD32969D0);
+        put32v(img, p + 0xC4, u32(chunk));
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
+                  u32(OK));
+        std::vector<tree::FileNode*> all;
+        collect_children(root, all);
+        tree::FileNode* nd = nullptr;
+        for (tree::FileNode* c : all)
+            if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+                nd = c;
+        ASSERT_NE(nd, nullptr);
+        EXPECT_EQ(nd->props()->logical_size, size_t(3 * chunk))
+            << "the broken-GUID 4th chunk salvages at the last valid chunk";
+    }
+    {
+        /* the fallback size field: +0xC4 == 0 -> the u64@+0x64 serves */
+        std::vector<u8> img(64 * 1024, 0);
+        const size_t at = 512;
+        plant_one_chain(img, at, 0x1000, 1);
+        put32v(img, at + 0xC4, 0); /* zero the primary */
+        put32v(img, at + 0x64, 0x800);
+        put32v(img, at + 0x68, 0);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
+                  u32(OK));
+        std::vector<tree::FileNode*> all;
+        collect_children(root, all);
+        tree::FileNode* nd = nullptr;
+        for (tree::FileNode* c : all)
+            if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+                nd = c;
+        ASSERT_NE(nd, nullptr);
+        EXPECT_EQ(nd->props()->logical_size, size_t(0x800))
+            << "the fallback size field (+0x64) serves when +0xC4 is 0";
+    }
+    {
+        /* a chunk size > 2x the device: the chain breaks at the gate -
+         * the size keeps the last valid end (the first chunk's 0) and
+         * the row's min rejects the degenerate candidate */
+        std::vector<u8> img(64 * 1024, 0);
+        const size_t at = 512;
+        plant_one_chain(img, at, 1, 1);
+        put32v(img, at + 0xC4, 0xFFFFFFFFu); /* way past 2x the 64 KiB device */
+        put32v(img, at + 0xC8, 0);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
+                  u32(OK));
+        std::vector<tree::FileNode*> all;
+        collect_children(root, all);
+        for (tree::FileNode* c : all)
+            EXPECT_NE(c->props()->carve_format, u64(FMT_ONE))
+                << "the over-2x-device chunk size breaks the chain at chunk 0 (size 0 rejects)";
+    }
+}
+
+TEST(Carve, ThreeDsSectionWalkUsesTheStrideFields) {
+    /* M-106: the 3DS section walk - the stride u16@+2 (not the stand-in
+     * cap) carries the extent: a two-chunk chain (strides 0x40 and
+     * 0x1234) ends at 0x40+0x1234; the 0x58 shortcut fires when the
+     * u16@chunk+0x58 is MM. */
+    std::vector<u8> img(128 * 1024, 0);
+    const size_t at = 512;
+    /* chunk 1: MM@0, ==@+0x10, stride 0x40 (u16@+2), the next-marker
+     * gate u16@+0x58 non-zero */
+    std::memcpy(img.data() + at, "MM", 2);
+    std::memcpy(img.data() + at + 0x10, "==", 2);
+    put16(img, at + 2, 0x40);
+    put16(img, at + 0x58, 0x0101);
+    /* chunk 2 at +0x40: the 0x58 SHORTCUT (the u16@+0x58 == MM marks
+     * the next chunk 0x58 away) */
+    const size_t c2 = at + 0x40;
+    std::memcpy(img.data() + c2, "MM", 2);
+    std::memcpy(img.data() + c2 + 0x10, "==", 2);
+    std::memcpy(img.data() + c2 + 0x58, "MM", 2);
+    const size_t c3 = c2 + 0x58;
+    /* chunk 3 at +0x98: the stride field carries a bigger jump */
+    std::memcpy(img.data() + c3, "MM", 2);
+    std::memcpy(img.data() + c3 + 0x10, "==", 2);
+    put16(img, c3 + 2, 0x1234);
+    put16(img, c3 + 0x58, 0x0101);
+    const size_t expected = (c3 + 0x1234) - at;
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* nd = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            nd = c;
+    ASSERT_NE(nd, nullptr) << "the section chain carves";
+    EXPECT_EQ(nd->props()->carve_format, u64(FMT_3DS));
+    EXPECT_EQ(nd->props()->logical_size, expected)
+        << "the stride fields carry the extent (0x40 + the 0x58 shortcut + 0x1234)";
 }

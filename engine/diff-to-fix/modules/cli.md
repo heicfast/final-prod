@@ -4,7 +4,7 @@
 
 New active findings on this module: **A-013** (ACUTE — the --resume-without---out
 truncate-before-read; the save-on-cancel flow prints the destructive command);
-**M-131** (the checkpoint sink's truncate-in-place); **N-178** (no pause verb — the
+**M-131 FIXED-ALREADY (4f0fc160 — the parallel A-013 landing's CliCkSink covered the scope in full; verified at c98eb7a7)** (the checkpoint sink's truncate-in-place); **N-178** (no pause verb — the
 ABI pair exists, the CLI never exposes it).
 
 
