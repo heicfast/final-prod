@@ -316,7 +316,7 @@ reconciliation. See S-051's Resolution addendum in `findings/FIXED/`.
 
 ## S42 continuation lane (2026-10-29 — the scan-mode semantics focus battery; core `b26017a7`)
 
-- **O31/O38 (the auto-advance state machine) — REGISTER, I-044**: decoded engine-side
+- **O31/O38 (the auto-advance state machine) — REGISTERED (I-044, ACKNOWLEDGED — landed `f0163182`)**: decoded engine-side
   (CDoScanPartition::DoScan pushes state 1 unconditionally, DRWUI:567875-892; the
   ScanThread pops states with telemetry events 0-3; controllers 0/1/5/4 = quick/
   advanced/recycle-bin; the recoverability grade only selects coaching text) — the
@@ -324,7 +324,7 @@ reconciliation. See S-051's Resolution addendum in `findings/FIXED/`.
   default-on stages are confirmed as the correct parity translation. Also
   registered: settings+0x60/+0x6c are hardwired constants (:947721-22), the
   4 MiB all-allocated chunk skip (FUN_140585150), the FUN_140581500-vs-FUN_140580720
-  citation erratum, and ZFS compiled out of the shipped og (version.ini scanzfs absent).
+  citation erratum, and ZFS compiled out of the shipped og (version.ini scanzfs absent). **The register's doc-side fix plan landed at `f0163182`** (C1/A1/A5 annotations + D-36 citation correction + the CORPUS-ERRATA row); the citation erratum's corpus-side twin is recorded for the corpus doc's own errata list.
 - **O37 (stage order) — DIVERGENCE-MINOR, N-181**: the og starts the RAW carve
   controllers before the FS deep engines (:916484-916509); the core's carve stage
   is strictly last — time-to-first-carved-result diverges, result sets identical.
