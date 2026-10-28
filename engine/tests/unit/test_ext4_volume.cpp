@@ -4,6 +4,7 @@
  */
 
 #include "cr/ext4/cr_ext4_engine.h"
+#include "cr/session/cr_records.h"
 #include "cr/storage/cr_retry.h"
 #include <utility>
 #include <gtest/gtest.h>
@@ -135,6 +136,9 @@ void write_inode(Img& img, u32 ino, u16 mode, u64 size, u64 extent_block, u32 ex
     put32(p + 0x10, 3000); /* mtime */
     put32(p + 0x14, dtime);
     put16(p + 0x1A, links);
+    /* N-177: i_blocks_lo (512-byte units) - real volumes always carry
+     * the coverage word; the fixture now reflects that. */
+    put32(p + 0x1C, u32(u64(extent_blocks) * (BS / 512)));
     put32(p + 0x20, 0x80000); /* EXTENTS_FL */
     /* extent root inline in i_block: header + 1 extent */
     u8* ib = p + 0x28;
@@ -527,6 +531,65 @@ TEST(Ext4Engine, UnixTimeConversion) {
  * ifmt(mode)==0x8000) is the registered deliberate non-adoption
  * (PARITY-DELTAS D-123). This pin refuses a future "fix" down to the
  * defect. */
+/* ---- N-177: the size-exceeds-blocks damaged flag ---------------------- */
+
+TEST(Ext4Engine, SizeExceedsBlocksSetsDamagedFlag) {
+    /* the og marks a regular file whose i_size exceeds its block
+     * coverage with FLAGS bit 0x200 (FUN_180007510 :5455-5467's
+     * i_blocks < size>>9 + the :6300-6303 set, files only). The clean
+     * file carries no bit; the truncated file carries it; a directory
+     * whose size exceeds blocks stays unflagged (the files-only gate). */
+    auto img = build_volume();
+    /* INO_HELLO: size 14, one 1 KiB extent = 2 sectors of coverage */
+    u8* hello = img.block(B_INODE_TABLE) + size_t((INO_HELLO - 1) * INO_SZ);
+    put32(hello + 0x1C, 2); /* i_blocks_lo: 2 x 512B covers the 14-byte file */
+    /* INO_SUB: size 22 -> make it the truncated one: 100 KiB declared,
+     * the same single-block extent (i_blocks stays 2 sectors) */
+    u8* sub = img.block(B_INODE_TABLE) + size_t((INO_SUB - 1) * INO_SZ);
+    put32(sub + 0x04, 100 * 1024); /* i_size_lo = 100 KiB */
+    put32(sub + 0x1C, 2);          /* i_blocks_lo: 1 KiB of coverage */
+    /* INO_DIR: a DIRECTORY whose size exceeds its blocks - stays clean
+     * (the og's param_6 == 0 files-only gate) */
+    u8* diri = img.block(B_INODE_TABLE) + size_t((INO_DIR - 1) * INO_SZ);
+    put32(diri + 0x04, 512 * 1024); /* 512 KiB declared over a 1 KiB extent */
+    put32(diri + 0x1C, 2);
+
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    ASSERT_EQ(OK, scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st))
+        << err_text(0);
+
+    tree::FileNode *hello_n = nullptr, *sub_n = nullptr, *dir_n = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props()) {
+                if (c->props()->name == std::u16string(u"hello.txt"))
+                    hello_n = c;
+                if (c->props()->name == std::u16string(u"nested.bin"))
+                    sub_n = c;
+                if (c->props()->name == std::u16string(u"sub"))
+                    dir_n = c;
+            }
+            find(c);
+        }
+    };
+    find(ra);
+    ASSERT_NE(nullptr, hello_n);
+    ASSERT_NE(nullptr, sub_n);
+    ASSERT_NE(nullptr, dir_n);
+    EXPECT_EQ(0, int(hello_n->props()->flags & tree::FileProperties::PFLAG_SIZE_EXCEEDS_BLOCKS))
+        << "the covered file carries no damaged bit";
+    EXPECT_NE(0, int(sub_n->props()->flags & tree::FileProperties::PFLAG_SIZE_EXCEEDS_BLOCKS))
+        << "the 100-KiB-declared/1-KiB-covered file carries the 0x200 bit";
+    EXPECT_EQ(0, int(dir_n->props()->flags & tree::FileProperties::PFLAG_SIZE_EXCEEDS_BLOCKS))
+        << "directories never take the files-only damage bit";
+}
+
 TEST(Ext4Engine, LegacyAclDirSizeClean) {
     auto img = build_volume();
     /* the legacy dir-ACL pointer lives in i_size_high's slot for
@@ -615,6 +678,129 @@ TEST(Ext4Engine, SizeHighFoldIsRegularOnlyNotTheOgUnconditionalDefect) {
     ASSERT_NE(nullptr, hello);
     EXPECT_EQ(u64(1024), sub->props()->logical_size); /* NOT 0x300_00000400 */
     EXPECT_EQ((u64(1) << 32) | 0xFFFFFFFFu, hello->props()->logical_size);
+}
+
+TEST(Ext4Engine, SizeExceedsBlocksSetsDamagedFlag) {
+    /* N-177 (diff-to-fix): the og's truncation-damage marker (node FLAGS
+     * 0x200, EXT4SearchDLL :6300-6303 - FUN_180007510's
+     * i_blocks < size>>9 verdict) lands as NODE_FLAG_SIZE_EXCEEDS_BLOCKS
+     * (the same numeric bit 9), FILES only, clean 64-bit compute (the
+     * og's +0x1F sign-extension on i_size_high NOT adopted - the
+     * I-040/D-123 defect family). */
+    auto img = build_volume();
+    /* hello.txt: size 14, 1-block extent -> coverage 1024 >= 14: CLEAN.
+     * Inflate the size beyond coverage to make it damaged. */
+    u8* hello = img.block(B_INODE_TABLE) + size_t((INO_HELLO - 1) * INO_SZ);
+    put32(hello + 0x04, 4096); /* i_size 4096 > coverage 1024 */
+    /* gone (deleted file): size 512, coverage 1024: clean control in the
+     * deleted path - then damage it too by zeroing coverage. */
+    u8* gone = img.block(B_INODE_TABLE) + size_t((INO_GONE - 1) * INO_SZ);
+    put32(gone + 0x1C, 0); /* i_blocks 0 < 512: damaged */
+
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    ASSERT_EQ(OK, scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st))
+        << err_text(0);
+
+    const tree::FileNode* hello_node = nullptr;
+    const tree::FileNode* sub_node = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->props())
+                continue;
+            if (c->name_utf8() == "hello.txt")
+                hello_node = c;
+            if (c->name_utf8() == "sub")
+                sub_node = c;
+            find(c);
+        }
+    };
+    find(ra);
+    ASSERT_NE(nullptr, hello_node) << "the damaged file must still surface";
+    ASSERT_NE(nullptr, sub_node) << "the clean dir must still surface";
+    EXPECT_EQ(u16(tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS),
+              u16(hello_node->props()->flags & tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS))
+        << "i_size 4096 > i_blocks coverage 1024 -> the damaged bit set";
+    EXPECT_EQ(u16(0), u16(sub_node->props()->flags & tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS))
+        << "directories never carry the marker (the og's files-only gate)";
+
+    /* the deleted path: gone.dat's zeroed coverage marks it too */
+    ASSERT_NE(nullptr, rd->first_child());
+    const tree::FileNode* gone_node = rd->first_child();
+    EXPECT_EQ(u16(tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS),
+              u16(gone_node->props()->flags & tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS))
+        << "the deleted-inode path carries the same compute";
+}
+
+TEST(Ext4Engine, DamagedFlagCleanFilesCarryNoBit) {
+    /* N-175-family regression pin: the pristine fixture (every inode's
+     * coverage >= its size) sets the bit on NOTHING. */
+    auto img = build_volume();
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    ASSERT_EQ(OK, scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st))
+        << err_text(0);
+    std::function<void(tree::FileNode*)> walk = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props()) {
+                EXPECT_EQ(u16(0), u16(c->props()->flags & tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS))
+                    << "node " << c->name_utf8();
+            }
+            walk(c);
+        }
+    };
+    walk(ra);
+    walk(rd);
+    walk(rl);
+}
+
+TEST(Ext4Engine, DamagedFlagSessionRoundTrip) {
+    /* N-177: the marker persists - FileProperties::flags rides the
+     * session record's put16/g16 pair (cr_records.cpp), so a save/load
+     * cycle must preserve the bit. */
+    auto img = build_volume();
+    u8* hello = img.block(B_INODE_TABLE) + size_t((INO_HELLO - 1) * INO_SZ);
+    put32(hello + 0x04, 4096); /* damaged: size beyond coverage */
+
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    ASSERT_EQ(OK, scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st))
+        << err_text(0);
+
+    /* serialize the tree, reload it, compare */
+    std::vector<u8> blob;
+    ASSERT_EQ(OK, session::serialize_tree(tree, blob));
+    tree::ResultTree tree2;
+    ASSERT_EQ(OK, session::deserialize_tree(blob.data(), blob.size(), tree2));
+    const tree::FileNode* hello2 = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->name_utf8() == "hello.txt")
+                hello2 = c;
+            find(c);
+        }
+    };
+    for (auto* r : tree2.roots())
+        find(r);
+    ASSERT_NE(nullptr, hello2) << "the damaged file survives the round-trip";
+    EXPECT_EQ(u16(tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS),
+              u16(hello2->props()->flags & tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS))
+        << "the damaged bit round-trips the session container";
 }
 
 TEST(Ext4Engine, JournalSalvage) {
@@ -1013,6 +1199,9 @@ void mbg_write_inode(Img& img, u32 ino, u16 mode, u64 size, u64 extent_block, u3
     put32(p + 0x10, 3000);
     put32(p + 0x14, dtime);
     put16(p + 0x1A, links);
+    /* N-177: i_blocks_lo (512-byte units) - real volumes always carry
+     * the coverage word; the fixture now reflects that. */
+    put32(p + 0x1C, u32(u64(extent_blocks) * (BS / 512)));
     put32(p + 0x20, 0x80000); /* EXTENTS_FL */
     u8* ib = p + 0x28;
     put16(ib + 0, 0xF30A);

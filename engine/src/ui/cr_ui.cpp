@@ -2174,8 +2174,6 @@ u32 scan_attach_impl(cr_ui_scan* scan, cr_ui_device* dev) {
     return ret_ok();
 }
 
-
-
 /* W1c (R-52): defined below (after the N-060 adapter block); the
  * completion auto-save in scan_run_impl calls it. */
 u32 write_session_atomic(CrScan* s, const std::string& final_path,
@@ -2329,20 +2327,15 @@ u32 scan_run_impl(cr_ui_scan* scan) {
      * auto-saves, and since S-057 so does a user-STOPPED run with
      * results (the og's stop-organize feeds the same completion
      * handler - see the cancel branch above; the decoded og truth, not
-     * the completion-window-only claim the pre-fix comment asserted). Silent write, ONE outcome event
-     * (never silent failure), the stats flag. The name is the N-061
-     * corpus convention: auto_<label>_<M>_<D>_<H>_<m>_<s> with the
-     * name-forbidden-char sanitizer.
-     * S-044: the og's THREE trigger-site gates, decoded at
-     * FUN_1402857c0's call sites (:612583/:615166/:616764, evidence
-     * s8-autosave-and-stamps.md): not-import (+0x1c8==0 - a resumed
-     * session never re-auto-saves), results-found
-     * (FUN_1403964b0 != 0 - an empty scan never auto-saves; no session
-     * file for a nothing-found run), and not-already-saved (+0x388==0,
-     * 2 of 3 sites - an explicit save suppresses the auto save). An
-     * empty scan writes no file, fires no event, and stats.autosaved
-     * stays 0 - the og's W1a session list never sees nothing-found
-     * runs. */
+     * the completion-window-only claim the pre-fix comment asserted). Silent write, ONE outcome
+     * event (never silent failure), the stats flag. The name is the N-061 corpus convention:
+     * auto_<label>_<M>_<D>_<H>_<m>_<s> with the name-forbidden-char sanitizer. S-044: the og's
+     * THREE trigger-site gates, decoded at FUN_1402857c0's call sites (:612583/:615166/:616764,
+     * evidence s8-autosave-and-stamps.md): not-import (+0x1c8==0 - a resumed session never
+     * re-auto-saves), results-found (FUN_1403964b0 != 0 - an empty scan never auto-saves; no
+     * session file for a nothing-found run), and not-already-saved (+0x388==0, 2 of 3 sites - an
+     * explicit save suppresses the auto save). An empty scan writes no file, fires no event, and
+     * stats.autosaved stays 0 - the og's W1a session list never sees nothing-found runs. */
     autosave_if_due_(s);
     return ret_ok();
 }
@@ -3234,7 +3227,12 @@ u32 session_regrade_impl(cr_ui_session* sess, const uint64_t* node_ids, uint32_t
             continue;
         for (uint32_t i = 0; i < count; ++i) {
             if (nd->node_id() == node_ids[i]) {
-                if (tree::grading::regrade_node(nd, gctx))
+                /* M-134: the full-tree re-grade (twin lookup included -
+                 * the og's FUN_14038ac90 can set ANOTHER node's grade);
+                 * the session is device-decoupled by design, so the deep
+                 * read's reader is absent here - the content half runs at
+                 * the completion pass, the registered seam */
+                if (tree::grading::regrade_node(nd, gctx, &s->tree))
                     ++n;
                 break;
             }

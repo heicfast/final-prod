@@ -177,3 +177,12 @@ read; no per-engine duplicate).
 |---|---|
 | A25/A26 descent filter — the `@eaDir` subtree suppression | **MATCH — M-110 FIXED (session 39B)** (the og's FUN_180001cd0 walk :704-711 skips the child walk for a directory named EXACTLY `@eaDir` — the compare is 7 bytes INCLUDING the literal's NUL terminator, instruction-verified against the binary: `@eaDirBackup` descends normally; the finding's prefix-match decode corrected. The core's populate() now emits the @eaDir node EMPTY and never walks its children — Synology EA directories match the og's tree shape; the M-018 boundary pinned by the not-in-pools guard test) |
 | class surface — CBtrfsQuickSearch / CBtrfsFileProerties / CBtrfsNoResidentDataRunList / CBtrfsQuickTreeBuilder | **MATCH (semantic)** — the T3b class pass: the quick controller's vtable + walk (FUN_180002120 :843-928, the only og controller per I-003), the props field set (N-059: no og field unpersisted; id_b always-0 registered), the non-resident extent adapter (chunk-map resolve + rotating mirror, M-020), the DRWUI-side tree builder (B5) — evidence s10f-product-frame-register.md §5 |
+
+## S50 convergence note (2026-10-29 — the continuation audit lane)
+
+The lane's independent OQ-S42-2 probe CONVERGED with the winning 355472c4
+decode (FOLD: nsec/100 + (sec+0x2b6109100)*10^7 at :4435-4443; the core's
+unix_to_filetime_ns identical). This lane's additional nuance: the core's
+`unix_sec <= -EPOCH_DELTA -> 0` guard refuses pre-1601 times where the og
+would wrap — benign hardening, no finding, no code change owed. Evidence:
+`evidence/decompiled-quotes/s50-ntfs-btrfs-time-precedence-decodes.md` §2.

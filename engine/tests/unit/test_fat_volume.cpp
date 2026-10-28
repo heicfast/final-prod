@@ -1153,6 +1153,68 @@ TEST(FatEngine, DeletedUnlinkedChainGetsContiguousRun) {
     EXPECT_EQ(victim->confidence(), tree::Confidence::PartialRisk);
 }
 
+TEST(FatEngine, TruncatedVolumeOverflowChainStance) {
+    /* N-165: the og destroys out-of-volume runlists at SCAN time (both
+     * FAT factories gate each run's end against the volume sector limit
+     * and ReleaseTrace "File overflows partition!" + release the runlist,
+     * FATSearchDLL :10873-10903 / :28045-28070). The core's REGISTERED
+     * deliberate superset (PARITY-DELTAS D-136): a volume truncated
+     * mid-FAT (BPB claims more clusters than the device holds — the
+     * truncated-tail recovery target validate_boot deliberately allows)
+     * keeps the file LISTED with its extents; the readable prefix
+     * recovers and the beyond-device tail fails per-read (the FB-R02
+     * Salvaged family - deferred honest failure over scan-time
+     * destruction). This pin names the stance; do NOT "fix" it toward
+     * the og without re-registering. */
+    auto img = build_fat16_image();
+    /* a deleted file whose chain runs past the device cut: clusters
+     * 100->101->102->103->104 EOC (sector 172..176, one sector per
+     * cluster in this fixture); the device ends at sector 176, so the
+     * LAST cluster's sector is entirely beyond the cut */
+    const size_t FAT1 = 2 * 512, FAT2 = 22 * 512;
+    auto link16 = [&](u32 c, u16 v) {
+        set_fat16_entry(img, FAT1, c, v);
+        set_fat16_entry(img, FAT2, c, v);
+    };
+    link16(100, 101);
+    link16(101, 102);
+    link16(102, 103);
+    link16(103, 104);
+    link16(104, 0xFFFF);
+    u8* root = img.data() + 42 * 512;
+    make_dentry(root + 6 * 32, "OVER    TXT", 0x20, 100, 2560, 0x5A46, 0x6000, true);
+    /* THE CUT: the BPB still claims 5074 sectors; the device holds 176
+     * (sectors 0..175) - cluster 104 = sector 176 is past the cut */
+    img.resize(u64(176) * 512);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats), OK);
+
+    auto all = collect_all(tree);
+    tree::FileNode* victim = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "#VER.TXT")
+            victim = n;
+    ASSERT_NE(victim, nullptr)
+        << "the core stance: the overflow-tail file stays LISTED (the og destroys the runlist)";
+    /* the chain's extents emit UNGUARDED - the readable prefix (sectors
+     * 172..175) plus the beyond-device tail the recovery layer surfaces
+     * as Salvaged (FB-R02) instead of scan-time destruction */
+    ASSERT_EQ(victim->props()->extents.size(), 1u);
+    EXPECT_EQ(victim->props()->extents[0].offset, u64(172) * 512);
+    EXPECT_EQ(victim->props()->extents[0].length, u64(5) * 512);
+    /* the scan-time grade is the chain's OWN (FAT-verified, intact:
+     * Excellent) - the beyond-device tail is a recovery-time disclosure
+     * (Salvaged), never a scan-time destruction; the honest-partial
+     * truth rides the recovery report, not a silently dropped file */
+    EXPECT_EQ(victim->confidence(), tree::Confidence::Excellent);
+}
+
 TEST(FatEngine, DeletedUnlinkedChainTruncatesAtReusedCluster) {
     auto img = build_fat16_image();
     u8* root = img.data() + 42 * 512;

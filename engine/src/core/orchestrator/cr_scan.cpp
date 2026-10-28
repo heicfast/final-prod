@@ -1350,6 +1350,13 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
         slot.disk_ordinal = 0;
         slot.fs_kind = 0; /* per-node props->fs_kind is the truth source */
         gctx.devices.push_back(slot);
+        /* M-134: the deep-read grade validation's bounded reader - the
+         * scan device the extents are rebased to (the og resolves its
+         * reader through the global manager chain, FUN_14038c470
+         * :606319-331; the completion pass's device is our equivalent).
+         * One sector per not-in-table no-twin node, content-gated. */
+        gctx.reader.dev = slice; /* the run() scan device - the extents are rebased to it */
+        gctx.reader.sector_size = 0; /* derive from the device geometry */
         tree::grading::grade_tree(tree_, gctx, stats.assistant);
     }
     /* ---- read-truth completion gate (the fake-scan fix; docs/

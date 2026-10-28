@@ -219,7 +219,7 @@ modules (§a). Corpus-side refs use the R-numbers above.
 | R-25 selection/state queries | selection is caller-owned; no by-ref query | PRESENT (n/a) | Selection state is UI-owned by design in our ABI; no engine state to query. |
 | R-26 recoverability grading + re-grade | S-023: `grade_tree`, `cr_ui_scan_assistant`, `cr_ui_session_regrade` (per-selection re-grade, §b.6) | PRESENT | Direct parity incl. the re-grade-on-selection behavior (runtime-verified og behavior). |
 | R-27 RecoveryAssistant stats | `ScanStats` + assistant stats + report `ScanAnalysis` (§a/b) | PRESENT | Category counts via query totals. |
-| R-28 thumbnails | engine landed (`cr_thumbnail`, 05e6786: JPEG/PNG/BMP/GIF/TIFF + PSD/PNM/HDR; dims-first bomb guard; named refusals incl. WMF/EMF/ICO per N-092; EXIF orientation per S-043; 32 MiB default budget per M-080); `cr_ui_preview_read` remains the read seam; no cr_ui thumbnail export yet | PARTIAL (engine PRESENT; ABI open) | The cr_ui ABI exposure is the tracked handoff (**M-102**); async per-row fetch is host-side by design (the og's dedicated thread is UI-side; cr_ui is free-threaded per ABI rules — PLAN-API-EXPANSION:81). |
+| R-28 thumbnails | engine landed (`cr_thumbnail`, 05e6786: JPEG/PNG/BMP/GIF/TIFF + PSD/PNM/HDR; dims-first bomb guard; named refusals incl. WMF/EMF/ICO per N-092; EXIF orientation per S-043; 200 MB (0xC800000) max_read default per M-109); `cr_ui_preview_read` remains the read seam; the cr_ui thumbnail ABI export LANDED (cr_ui.h:1233-1297: `cr_ui_thumbnail_format_supported`/`_generate`/`_dimensions`, cr_ui.cpp:3873-3975) | PRESENT (N-180 re-truth: engine + ABI) | async per-row fetch is host-side by design (the og's dedicated thread is UI-side; cr_ui is free-threaded per ABI rules — PLAN-API-EXPANSION:81). |
 | R-29 AI recommend/dedup/insight | none | GAP | Product feature; engine side would need a ranking/dedup pass — nothing in core. |
 | R-30 freeze/unfreeze | n/a (UI protocol; our model is immutable snapshots — G-02 makes freezing unnecessary) | PRESENT (by design) | Snapshot immutability replaces the freeze protocol's purpose (model safety during mutation). |
 | R-31 config layer | `filefilter_entry_count`/`category_for_extension` (FileFilter equivalent); `cr_ui_register_user_signs` (M-048, EUUserData JSON) (§a/b.8); RawConfig 34 carve toggles (`cr_carve` CarveFlags, M-024 + D-97); PriorityDisplayType ordering (the query/filefilter data layers, API-DELTA row 45) | PRESENT | The one dispositioned remainder: usefullostfiles.xml whitelist promotion is OOS-UI (verified — PARITY-OG-CORE-INVENTORY:64 carries the row). |
@@ -230,7 +230,7 @@ modules (§a). Corpus-side refs use the R-numbers above.
 |---|---|---|---|
 | R-32 preview open per type | `cr_ui_preview_open_snapshot/_session` + `cr_ui_preview_metadata` (capped kind/format/EXIF/codec/text) (§b.10) | PRESENT | Engine-level equivalent; rendering is UI. |
 | R-33 streaming preview | `cr_ui_preview_read` w/ `read_at`, 4 MiB/call cap, unreadable-span map (§b.10) | PRESENT | Range reads + truthful failure map. |
-| R-34 preview caps | `Caps` config in `cr_preview.h:108` (§a) | PARTIAL | A caps seam exists but no shipped 100 MB size cap / 15 s video cap defaults; trial gating = licensing (absent by scope). |
+| R-34 preview caps | `Caps` config in `cr_preview.h:108` (§a) with shipped defaults (N-180 re-truth per M-077: `max_file_bytes = 100 MiB` / `max_decode_ms = 15000`, cr_preview.h:125-126) | PRESENT | The 100 MB / 15 s lines ship as defaults (M-077); trial gating = licensing (absent by scope). |
 | R-35 damage-aware grading | node `Grade`/`Confidence` survives preview failure; `cr_ui_preview_unreadable` (§b.10) | PRESENT | Same bridge (grade + failure coexist). |
 | R-36 preview during scan | `cr_ui_preview_open_snapshot` mid-scan (§b.10) | PRESENT | G-02 designed for this. |
 | R-37 archive browse-inside preview | none — preview reads file bytes only | GAP | No archive-content enumeration (would need an archive-listing preview mode). |
@@ -373,13 +373,13 @@ process/UI concerns deliberately out of core scope — flagged below).
 | state queries (R-25) | UIUX/09:20 | caller-owned selection | PRESENT (n/a) | — |
 | grading + re-grade (R-26) | DRWUI-subsystems:33-52 | S-023 + session_regrade | PRESENT | — |
 | assistant stats (R-27) | DRWUI-subsystems:9-31 | ScanStats/assistant/ScanAnalysis | PRESENT | — |
-| thumbnails (R-28) | UIUX/13:50 | cr_thumbnail engine landed (05e6786; S-043/N-092/M-080-era updates); cr_ui exposure = M-102 | PARTIAL (engine PRESENT; ABI open) | async per-row fetch is host-side by design (free-threaded ABI) |
+| thumbnails (R-28) | UIUX/13:50 | cr_thumbnail engine landed (05e6786; S-043/N-092/M-109-era updates: 200 MB max_read); cr_ui thumbnail ABI landed (cr_ui.h:1233-1297) | PRESENT (N-180 re-truth) | async per-row fetch is host-side by design (free-threaded ABI) |
 | AI recommend/dedup (R-29) | UIUX/09:55 | none | GAP | product feature; no ranking/dedup pass |
 | freeze protocol (R-30) | UIUX/20:176-192 | immutable snapshots (G-02) | PRESENT (by design) | — |
 | config layer (R-31) | UIUX/09:44-45; CORRECTIONS:5 | filefilter_entry_count + user signs; RawConfig 34 carve toggles (M-024); PriorityDisplayType + SumaryFileType (N-132's query data layers) | PRESENT (agrees with the primary row) | the one dispositioned remainder: usefullostfiles whitelist = OOS-UI (PARITY-OG-CORE-INVENTORY:64) |
 | preview open (R-32) | UIUX/10:8 | preview_open_* + metadata | PRESENT | — |
 | streaming preview (R-33) | UIUX/10:33-34 | preview_read (read_at, 4 MiB) | PRESENT | — |
-| preview caps (R-34) | UIUX/10:22-27 | Caps seam | PARTIAL | no shipped 100 MB/15 s defaults |
+| preview caps (R-34) | UIUX/10:22-27 | Caps seam + shipped 100 MB/15 s defaults (cr_preview.h:125-126, M-077) | PRESENT (N-180 re-truth) | — |
 | damage grading (R-35) | UIUX/10:29-30 | node Grade + unreadable spans | PRESENT | — |
 | preview during scan (R-36) | UIUX/10:37-38 | preview_open_snapshot | PRESENT | — |
 | archive preview (R-37) | UIUX/10:17 | none | GAP | no archive-content enumeration |
