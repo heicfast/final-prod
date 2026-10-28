@@ -1,4 +1,33 @@
 
+## Fix session 40 — the diff-to-fix board execution (2026-10-29, T1 baseline: core `4a6a5164`, corpus `be0cfe9`; prompt saved to worklog/session-40-diff-fix-prompt.md; SEVERE-first order; board at open: 6 SEVERE · 18 MAJOR · 21 MINOR · 5 INFO active + 3 tracked-open; suites 1003 + 59 green at open)
+
+- **S-051 FIXED** — the whole-disk scan target set. Evidence reproduced
+  verbatim on current main FIRST (the audit's own probe: RUN 2 = rc=0,
+  files_found=0 on the healthy two-volume fixture — the silent empty
+  verdict), corpus re-read first-hand (architecture/04 §2 routing table +
+  §3.4 "reads the partition list, inserts lost partitions as ADDITIONAL
+  scan targets"). The fix: `run_engine_pass` builds one scan target per
+  used, non-container partition when the slice basis is whole-disk and
+  a table parses — a PartitionSlice per target over the same retry/cache
+  pipe, per-target probe_family, per-volume tree root, F-1 subtree
+  rebase, honest skip accounting (ScanStats.table_volumes*). Gates: LDM
+  precedence kept; host-forced fs_hint keeps the single dispatch
+  (host_fs_hint_ captured pre-probe); probed families (incl. the FAT
+  alias on MBR boot code) route to the table flow. Discovery reconciles
+  against the primary target set (table-match candidates dropped before
+  persistence — no double scan, lost list never carries in-table
+  volumes). Fixtures: the evidence's exact two-volume MBR disk + a GPT
+  twin (CRCs exact) + mixed FAT16/exFAT + damaged-skip + superfloppy
+  regression pins. The exFAT builder extracted to test_fixtures.hpp
+  (shared, no drift). Tests: WholeDiskScansTableVolumes (RUN 2's exact
+  flip to files=4/deleted=2 proven by the re-run probe),
+  WholeDiskGptTwin, WholeDiskMixedFamilies,
+  WholeDiskDamagedVolumeSkippedHonestly, WholeDiskSuperfloppyUnchanged,
+  WholeDiskNoDoubleScan. Suite 1009/1009 + 59 green. Docs:
+  CORE-API-CURRENT/API.md (cr_ui_open_disk semantics), rrecov
+  --whole-disk note. Audit trail: Resolution in the finding, retire +
+  ledger row in the follow-up trail commit.
+
 ## Fix session — the parity close (2026-10-29, T1 baseline: core `84a1832`, corpus `be0cfe9`; prompt saved to worklog/session-diff-fix-parity-close-prompt.md)
 
 - **S-042 FIXED** — the WMF placeable grammar. Re-read FUN_1800264d0

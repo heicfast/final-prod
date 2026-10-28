@@ -441,6 +441,24 @@ struct ScanStats {
     u64 revalidated_candidates = 0;
     u64 dropped_stale_candidates = 0;
     std::vector<session::DiskLayoutEntry> persisted_layout;
+
+    /* ---- S-051: whole-disk target-set accounting ----
+     * The plain whole-disk flow (cr_ui_open_disk + default config, the CLI
+     * `scan --disk N` / `scan --image <whole-disk image>`) reads the
+     * partition list at scan setup and makes every used, non-container
+     * partition a scan target - the og's CDoScanPartition /
+     * CGenericRecoveryController flow (architecture/04-recovery-workflow.md
+     * section 3.4: "reads the partition list, inserts lost partitions as
+     * additional scan targets"). table_volumes: targets built from the
+     * table. table_volumes_scanned: targets whose per-volume probe
+     * identified a family and an engine pass ran. table_volumes_skipped:
+     * targets the probe could not identify (damaged/unformatted) -
+     * skipped HONESTLY (counted here, logged, never fatal, never silent);
+     * the --whole-disk discovery stays the ADDITIONAL lost-partition
+     * flow (a table volume is a primary target, not a lost partition). */
+    u64 table_volumes = 0;
+    u64 table_volumes_scanned = 0;
+    u64 table_volumes_skipped = 0;
 };
 
 /* ---- live scan observability (G-04/G-05/G-06) ----
@@ -722,6 +740,21 @@ private:
      * disk-relative; a volume-basis re-read would be the wrong arbiter). */
     std::vector<session::DiskLayoutEntry> disk_layout_;
     bool resumed_whole_disk_ = false;
+    /* S-051: whether the HOST asserted a family (cfg_.fs_hint != Unknown
+     * at run() entry, BEFORE the LBA-0 probe mutates it). A host-forced
+     * family keeps the single dispatch (the explicit slice assertion -
+     * the RUN 3 control's honest ERR_OPEN_FAILED); a probe result (or a
+     * probe ALIAS - the FAT heuristic can fire on MBR boot-code bytes at
+     * +0x0B on a table-bearing LBA 0, which by definition is not a
+     * volume) routes to the whole-disk table-target flow. */
+    bool host_fs_hint_ = false;
+    /* S-051: the whole-disk target set's start LBAs (used, non-container
+     * partitions the engine pass made scan targets of). The --whole-disk
+     * discovery reconciles against this set: a candidate whose start LBA
+     * matches an already-scanned table volume is a duplicate - each
+     * volume enters the tree exactly once, and the in-table volumes are
+     * presented as primary targets, not as lost partitions. */
+    std::vector<u64> table_target_lbas_;
 };
 
 } // namespace orchestrator

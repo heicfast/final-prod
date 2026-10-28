@@ -8,6 +8,7 @@
 #define CR_TEST_FIXTURES_HPP_
 
 #include "cr/table/cr_ldm.h"
+#include "cr/exfat/cr_exfat_engine.h"
 #include <gtest/gtest.h>
 #include <cstring>
 #include <vector>
@@ -378,6 +379,361 @@ struct StripeDisk {
         fx.finish();
     }
 };
+
+} // namespace testfixture
+} // namespace cr
+
+/* ------------------------------------------------------------------ */
+/* Shared exFAT volume builder (extracted from test_exfat_volume.cpp  */
+/* for S-051's mixed-family whole-disk fixtures; the original TU      */
+/* consumes the same code via using-declarations - one builder, no    */
+/* drift).                                                            */
+/* ------------------------------------------------------------------ */
+
+namespace cr {
+namespace testfixture {
+
+inline void fx_put16(std::vector<u8>& v, size_t at, u16 x) {
+    v[at] = u8(x);
+    v[at + 1] = u8(x >> 8);
+}
+inline void fx_put32v(std::vector<u8>& v, size_t at, u32 x) {
+    v[at] = u8(x);
+    v[at + 1] = u8(x >> 8);
+    v[at + 2] = u8(x >> 16);
+    v[at + 3] = u8(x >> 24);
+}
+inline void fx_put64(std::vector<u8>& v, size_t at, u64 x) {
+    for (int i = 0; i < 8; ++i)
+        v[at + i] = u8(x >> (8 * i));
+}
+
+inline constexpr u32 EXFAT_TEST_TS = (0x5A46u << 16) | 0x6000u; /* 2025-02-06 12:00:
+    every field in range - M-014's timestamp gates reject zero-day/garbage
+    stamps, so planted sets carry a realistic stamp like real media */
+
+struct SetBuilder {
+    std::vector<u8> entries;
+    size_t name_entry_first_ = 0; /* S-013: first name-entry offset (multi-chunk flip) */
+
+    void file_entry(u16 attribute, u32 ts, u8 tz = 0) {
+        u8* e = add();
+        e[0] = 0x85;
+        e[1] = 2;                         /* secondary count: stream + 1 name */
+        fx_put16(entries, cur_off() + 2, 0); /* checksum filled later */
+        fx_put16(entries, cur_off() + 4, attribute);
+        fx_put32v(entries, cur_off() + 8, ts);  /* create */
+        fx_put32v(entries, cur_off() + 12, ts); /* modify */
+        fx_put32v(entries, cur_off() + 16, ts); /* access */
+        e[20] = 0;
+        e[21] = 0; /* 10ms */
+        /* tz bytes at +0x16/+0x17/+0x18 (create/modify/access). S-011
+         * fixtures set them to prove the engine does NOT apply them (og
+         * parity: the bytes are parsed but ignored). */
+        e[22] = tz;
+        e[23] = tz;
+        e[24] = tz;
+    }
+    void file_entry_deleted(u16 attribute, u32 ts) {
+        file_entry(attribute, ts);
+        entries[cur_off()] = 0x05;
+    }
+    void stream_entry(u8 flags, u8 name_len, u32 first_cluster, u64 data_len) {
+        u8* e = add();
+        e[0] = 0xC0;
+        e[1] = flags;
+        e[3] = name_len;
+        fx_put64(entries, cur_off() + 8, data_len); /* valid data len */
+        fx_put32v(entries, cur_off() + 20, first_cluster);
+        fx_put64(entries, cur_off() + 24, data_len);
+    }
+    void stream_entry_deleted(u8 flags, u8 name_len, u32 first_cluster, u64 data_len) {
+        stream_entry(flags, name_len, first_cluster, data_len);
+        entries[cur_off()] = 0x40;
+    }
+    void name_entry(const char16_t* nm) {
+        std::u16string n = nm;
+        /* S-013 fixture: names longer than 15 chars span ceil(len/15)
+         * name entries (spec 7.6.3 chunked UTF-16), 15 chars each */
+        const size_t chunks = (n.size() + 14) / 15;
+        name_entry_first_ = entries.size();
+        for (size_t c = 0; c < chunks; ++c) {
+            u8* e = add();
+            e[0] = 0xC1;
+            for (size_t i = 0; i < 15; ++i) {
+                const size_t idx = c * 15 + i;
+                fx_put16(entries, cur_off() + 2 + i * 2,
+                         idx < n.size() ? u16(n[idx]) : 0);
+            }
+        }
+    }
+    void name_entry_deleted(const char16_t* nm) {
+        name_entry(nm);
+        /* flip EVERY name entry of this name (multi-chunk sets) */
+        for (size_t o = name_entry_first_; o < entries.size(); o += 32)
+            entries[o] = 0x41;
+    }
+    /* fill SetCheckSum over the built set (excluding the +2 field) */
+    void finish_set(std::vector<u8>& root, size_t set_at) {
+        /* normalize the secondary-count byte to the real entry count
+         * (S-013: multi-name sets change the count; single-name callers
+         * are unaffected: 2 == 3 entries - 1) */
+        entries[1] = u8(entries.size() / 32 - 1);
+        /* compute over the set bytes, skipping the +2 checksum field */
+        u16 sum = 0;
+        for (size_t b = 0; b < entries.size() * 32; ++b) {
+            if (b >= 2 && b < 4)
+                continue;
+            sum = static_cast<u16>(((sum & 1) ? 0x8000u : 0u) + (sum >> 1) +
+                                   *(root.data() + set_at + b));
+        }
+        fx_put16(root, set_at + 2, sum);
+    }
+
+    size_t set_off = 0; /* offset within entries where the SET starts */
+
+private:
+    u8* add() {
+        entries.resize(entries.size() + 32, 0);
+        return entries.data() + entries.size() - 32;
+    }
+    size_t cur_off() const { return entries.size() - 32; }
+};
+
+/* N-067 helper: the fixture's 64-entry upcase table (a-z folded) and its
+ * exact checksum32 stamp - the dentry and the stream stay consistent by
+ * construction. Mirrors the bytes build_exfat_image plants at cluster 60. */
+inline u32 exfat_test_upcase_table_checksum() {
+    std::vector<u8> tbl(128, 0);
+    for (u32 i = 0; i < 64; ++i) {
+        const u32 ch = (i >= 'a' && i <= 'z') ? (i - 0x20) : i;
+        tbl[i * 2] = u8(ch);
+        tbl[i * 2 + 1] = u8(ch >> 8);
+    }
+    return exfat::checksum32(tbl.data(), u32(tbl.size()), 0);
+}
+
+inline std::vector<u8> build_exfat_image(u8 tz = 0) {
+    /* 2048 sectors (1MB) - spec minimum volume size; layout keeps the
+     * small fixture geometry inside (heap 25..124, rest unused) */
+    std::vector<u8> img(u64(2048) * 512, 0);
+
+    /* ---- boot sector (main at 0, backup at 12) ---- */
+    u8* b = img.data();
+    b[0] = 0xEB;
+    b[1] = 0x76;
+    b[2] = 0x90;
+    std::memcpy(b + 3, "EXFAT   ", 8);
+    /* MustBeZero 11..63 stays zero */
+    fx_put64(img, 64, 0);    /* partition offset */
+    fx_put64(img, 72, 2048); /* volume length (spec min 1MB) */
+    fx_put32v(img, 80, 24);  /* fat offset */
+    fx_put32v(img, 84, 1);   /* fat length */
+    fx_put32v(img, 88, 25);  /* cluster heap offset */
+    fx_put32v(img, 92, 100); /* cluster count */
+    fx_put32v(img, 96, 2);   /* root first cluster */
+    fx_put32v(img, 100, 0x12345678);
+    fx_put16(img, 104, 0x0100); /* fs revision 1.00 */
+    fx_put16(img, 106, 0);      /* volume flags */
+    b[108] = 9;                 /* 512B sectors */
+    b[109] = 0;                 /* 1 sector per cluster */
+    b[110] = 1;                 /* 1 FAT */
+    b[111] = 0x80;
+    b[112] = 0xFF; /* percent in use: n/a */
+    b[510] = 0x55;
+    b[511] = 0xAA;
+    std::memcpy(img.data() + 12 * 512, b, 512); /* backup copy */
+
+    /* extended boot sectors 1..8 / 13..20: 0xAA550000 at +508 */
+    for (u32 s = 1; s <= 8; ++s) {
+        img[s * 512 + 508] = 0x00;
+        img[s * 512 + 509] = 0x00;
+        img[s * 512 + 510] = 0x55;
+        img[s * 512 + 511] = 0xAA;
+        img[(12 + s) * 512 + 508] = 0x00;
+        img[(12 + s) * 512 + 509] = 0x00;
+        img[(12 + s) * 512 + 510] = 0x55;
+        img[(12 + s) * 512 + 511] = 0xAA;
+    }
+    /* boot-region checksum: over sectors 0..10, bytes 106/107/112 of
+     * sector 0 skipped entirely (spec 3.1.14.1); FILL-REPEATED at 11/23 */
+    u32 chk = 0;
+    for (u32 s = 0; s <= 10; ++s) {
+        for (u32 i = 0; i < 512; ++i) {
+            if (s == 0 && ((i >= 106 && i < 108) || i == 112))
+                continue;
+            chk = ((chk & 1) ? 0x80000000u : 0u) + (chk >> 1) + img[s * 512 + i];
+        }
+    }
+    for (u32 k = 0; k < 128; ++k) {
+        fx_put32v(img, 11 * 512 + k * 4, chk);
+        fx_put32v(img, 23 * 512 + k * 4, chk);
+    }
+
+    /* ---- FAT (sector 24) ---- */
+    const size_t FAT = 24 * 512;
+    fx_put32v(img, FAT + 2 * 4, 3);          /* root chain: 2 -> 3 */
+    fx_put32v(img, FAT + 3 * 4, 0xFFFFFFFF); /* root EOC */
+    fx_put32v(img, FAT + 20 * 4, 21);
+    fx_put32v(img, FAT + 21 * 4, 22);
+    fx_put32v(img, FAT + 22 * 4, 0xFFFFFFFF); /* doc.txt 20-22 */
+    fx_put32v(img, FAT + 50 * 4, 0xFFFFFFFF); /* bitmap */
+    fx_put32v(img, FAT + 60 * 4, 0xFFFFFFFF); /* upcase table */
+    fx_put32v(img, FAT + 70 * 4, 0xFFFFFFFF); /* subdir */
+
+    /* ---- allocation bitmap at cluster 50 (sector 75) ----
+     * M-054: the on-disk bitmap's bit i describes cluster i+2 (MS exFAT
+     * spec section 7.1) - setbit(c) writes the bit FOR cluster c. */
+    {
+        const size_t BM = 25 * 512 + (50 - 2) * 512;
+        auto setbit = [&](u32 c) {
+            const u32 bit = c - 2; /* cluster c -> bit c-2 (spec) */
+            img[BM + bit / 8] |= u8(1u << (bit % 8));
+        };
+        setbit(2);
+        setbit(3); /* root (2-cluster chain) */
+        setbit(10);
+        setbit(11); /* photo.jpg */
+        setbit(20);
+        setbit(21);
+        setbit(22); /* doc.txt */
+        setbit(50); /* bitmap itself */
+        setbit(60); /* upcase table */
+        setbit(70); /* subdir */
+        setbit(80); /* inner.txt */
+        setbit(40); /* over.dat's cluster: REUSED */
+        /* 30 (gone.dat) NOT set */
+    }
+
+    /* ---- root dir at cluster 2 (sector 25) ---- */
+    const size_t ROOT = 25 * 512;
+    size_t at = 0;
+    const u32 TS = (0x5A46u << 16) | 0x6000u; /* 2025-02-06 12:00 local */
+
+    /* 0x81 bitmap dentry */
+    {
+        u8* e = img.data() + ROOT;
+        std::memset(e, 0, 32);
+        e[0] = 0x81;
+        e[1] = 0;
+        fx_put32v(img, ROOT + 20, 50);
+        fx_put64(img, ROOT + 24, 13); /* (100+7)/8 */
+        at += 32;
+    }
+    /* 0x82 upcase: a REAL 64-entry table at cluster 60 with its exact
+     * checksum32 stamp (N-067: the volume-integrity pass validates this
+     * stream; corrupt-checksum variants mutate the dentry/bytes). */
+    {
+        u8* e = img.data() + ROOT + at;
+        std::memset(e, 0, 32);
+        e[0] = 0x82;
+        fx_put32v(img, ROOT + at + 4, exfat_test_upcase_table_checksum());
+        fx_put32v(img, ROOT + at + 20, 60);
+        fx_put64(img, ROOT + at + 24, 128);
+        /* the table bytes at cluster 60 = sector 83: 64 u16 upcase
+         * entries, ASCII a-z folded (identical bytes to the checksum
+         * helper above) */
+        for (u32 i = 0; i < 64; ++i) {
+            const u32 ch = (i >= 'a' && i <= 'z') ? (i - 0x20) : i;
+            fx_put16(img, 83 * 512 + i * 2, u16(ch));
+        }
+        at += 32;
+    }
+    /* 0x83 volume label - M-079 spec-repair: the label chars live at
+     * +4 (exFAT spec 7.2: EntryType@0, CharacterCount@1, Reserved@2-3,
+     * VolumeLabel@4-33); the old +2 write overlapped the reserved field
+     * (a spec-invalid entry - invisible to the skip-only tests that
+     * consumed it before, wrong for anything that reads the label). */
+    {
+        u8* e = img.data() + ROOT + at;
+        std::memset(e, 0, 32);
+        e[0] = 0x83;
+        e[1] = 7;
+        const char16_t* lbl = u"TESTVOL";
+        for (int i = 0; i < 7; ++i)
+            fx_put16(img, ROOT + at + 4 + i * 2, u16(lbl[i]));
+        at += 32;
+    }
+    /* photo.jpg: live NoFatChain (clusters 10-11, 1024B). Carries the
+     * caller's tz bytes (S-011: non-zero values prove the engine leaves
+     * them unapplied). */
+    {
+        SetBuilder sb;
+        size_t set_at = ROOT + at;
+        sb.file_entry(0x20, TS, tz);
+        sb.stream_entry(0x03 /*AllocPossible|NoFatChain*/, 9, 10, 1024);
+        sb.name_entry(u"photo.jpg");
+        std::memcpy(img.data() + set_at, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, set_at);
+        at += u32(sb.entries.size());
+    }
+    /* doc.txt: live FAT chain 20-22 (1536B) */
+    {
+        SetBuilder sb;
+        size_t set_at = ROOT + at;
+        sb.file_entry(0x20, TS);
+        sb.stream_entry(0x01 /*AllocPossible, FAT chain*/, 7, 20, 1536);
+        sb.name_entry(u"doc.txt");
+        std::memcpy(img.data() + set_at, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, set_at);
+        at += u32(sb.entries.size());
+    }
+    /* gone.dat: DELETED NoFatChain (cluster 30, 512B; bitmap free).
+     * M-013: the checksum IS stamped (finish_set) - a real deleted set
+     * keeps its original SetChecksum field (deletion only clears the
+     * InUse bits; the og's dual-form gate expects the restored form to
+     * match it). The old "no checksum validation" comment encoded
+     * N-003's refuted premise. */
+    {
+        SetBuilder sb;
+        size_t set_at = ROOT + at;
+        sb.file_entry_deleted(0x20, TS);
+        sb.stream_entry_deleted(0x03, 8, 30, 512);
+        sb.name_entry_deleted(u"gone.dat");
+        std::memcpy(img.data() + set_at, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, set_at);
+        at += u32(sb.entries.size());
+    }
+    /* over.dat: DELETED NoFatChain (cluster 40; bitmap SET -> Overwritten) */
+    {
+        SetBuilder sb;
+        size_t set_at = ROOT + at;
+        sb.file_entry_deleted(0x20, TS);
+        sb.stream_entry_deleted(0x03, 8, 40, 512);
+        sb.name_entry_deleted(u"over.dat");
+        std::memcpy(img.data() + set_at, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, set_at);
+        at += u32(sb.entries.size());
+    }
+    /* subdir: live dir (FAT chain, cluster 70, 512B) */
+    {
+        SetBuilder sb;
+        size_t set_at = ROOT + at;
+        sb.file_entry(0x10 /*Directory*/, TS);
+        sb.stream_entry(0x01, 6, 70, 512);
+        sb.name_entry(u"subdir");
+        std::memcpy(img.data() + set_at, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, set_at);
+        at += u32(sb.entries.size());
+    }
+    /* end of directory: a zero entry follows (image is zero-filled) */
+
+    /* ---- subdir content at cluster 70 (sector 93) ---- */
+    {
+        const size_t SUB = 25 * 512 + (70 - 2) * 512;
+        SetBuilder sb;
+        size_t set_at = SUB;
+        sb.file_entry(0x20, TS);
+        sb.stream_entry(0x03, 9, 80, 256);
+        sb.name_entry(u"inner.txt");
+        std::memcpy(img.data() + set_at, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, set_at);
+    }
+    /* content markers */
+    std::memcpy(img.data() + 25 * 512 + (10 - 2) * 512, "PHOTODATA", 9);
+    std::memcpy(img.data() + 25 * 512 + (80 - 2) * 512, "INNERDATA", 9);
+    return img;
+}
 
 } // namespace testfixture
 } // namespace cr
