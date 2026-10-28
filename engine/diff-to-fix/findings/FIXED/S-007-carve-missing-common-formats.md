@@ -206,3 +206,57 @@ absent), **N-070** (overlap scoring + two-generation fallback — mechanism-leve
 format coverage), and **S-032** (archive inventories). The addendum's roster value
 stands: it converts the aggregate claim into per-family provenance for the remainder
 work.
+
+---
+
+## Niche batch 1 addendum (SCAN-2f, 2026-10-28 — 27 more og-only formats landed; every key re-read first-hand at its registration site)
+
+Landed in `e018bf4`: 31 registry rows / 27 formats / 26 validators, all keys
+verified at the retdec static initializer (:5450-6600) + the u16 layer
+(:6205-6590) + the analyser bodies (WPG :20515-20550, MDB :21290-21330, HLP
+:6029-6077, CHM-region reads) BEFORE the rows landed. Falsifiable claim now
+satisfied for: MID OGG RM MXF DMG(BZh1 — the og keys the LEVEL-1 bzip2
+stream exactly; cap mirrors the og's own 0xBEBC200) X3F MRW(II1A/MM1A/\0MRM)
+WPG(bounds {20, 0x5F5E100} carried exactly — the type-0x45 stamp is the
+format-ID, erratum E48) WPD PSP SIT GZ(APE) AU AIFF HLP(DBA5/94A6/3F5F03 —
+E49) ICO CUR WMF(placeable — the stored checksum is the XOR of words 0..8,
+the +18 word included in neither side) WMF(std) TTF MDB(u16 0x0100 chain —
+E51/E52; bounds {0x1000, 0xBEBC200}; the shared 00 01 00 00 key with TTF
+discriminates by table-directory vs Jet-signature grammar, trial order TTF
+first) TAR(ustar@+257 + the classic checksum verification) EPS(%! + the
+%!PS covenant) AI(CEPS — no dBase analyser exists, none implemented) DXF
+(KEYED u32 "  0\r", E50) 3GP(ftyp brand-gated + BMFF walk).
+
+**Mechanical gates that shipped with the batch:** `static_assert(kTrialCount
+== FMT_COUNT)` (a FormatId absent from kTrialOrder was SILENTLY never
+scanned — the F8/self-probe gates never covered trial-order membership);
+kMaxTrialSlots 96→160; the DMG footer-scan seam made forward-progress-safe
+(a ≤5-byte tail window could loop forever pre-fix — caught by the first test
+run, fixed before landing).
+
+**Verification:** S007NicheBatch1Carve (27 plants) / RejectsNoise (21 hostile
+variants) / SalvageSemantics (torn MIDI/OGG at the last complete unit;
+footer-less BZh1 + header-clean GZ bound at the cap) /
+SharedKeyDiscriminates (TTF-vs-MDB) — fail-before PROVEN (validators
+neutralized → 3/3 positive RED, the noise test green by design; restored
+4/4). Full suite 941/0 (gcc ASan). Hostile ASan smoke extended with the
+walk-heavy niche families: 400 mutated iterations, zero findings.
+
+**Formats whose og size-walk is undecoded** (WPG WPD PSP SIT APE X3F MRW HLP
+MDB EPS AI DXF) use the DWG-pattern bounded extent (conf ≤ 650, the note
+names the heuristic); the per-format size-decoding walks are the recorded
+follow-ups, exactly like DWG's section walk before them.
+
+**The batch-2 remainder (with causes — zero-invention bar held):** CHM (the
+u64-widened GUID compares at :22635 conflict with the canonical ITSF v3
+GUID byte layout — needs an asm-level compare-width read); MNY (2-byte MS
+key, the analyser's follow-up gates undecoded — implementing a 2-byte key
+without them would be FP-unsafe); EMF (no keyed registration found — 01 00
+00 00's first-2 u16 is 0x0001, no such key; FileEMFAnalyser's chain
+membership undecoded); ONE (analyser gates undecoded); MPEG-TS (numeric key
+284/0x11C semantics undecoded); 3DS (MM u16 collides with TIFF-BE — needs
+the multimap-equivalent treatment decoded); SWF/JP2/MOBI (no key sites
+decoded first-hand); HTML/XML/SVG + LZH + FCPEvt + OfficeTagFromXML + CRW +
+VCF/GPX/HIK/OSP/POS/AEP/CHFP (the list-layer/text school — per-analyser
+decompile reads required). NO DBF: no dBase analyser exists in the og
+(session-3 correction stands).

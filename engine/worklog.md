@@ -273,6 +273,30 @@ Stage Summary:
   execution-bound TTFR half; F-lane work = the NTFS origin-LCN carrier.
   Fixes land next in the mandated order: A-lane batch -> F-lane carrier.
 
+Fix landings (same session):
+- A-lane S-007 NICHE BATCH 1 LANDED (e018bf4): 27 og-only formats / 31
+  registry rows / 26 validators - MID OGG RM MXF DMG(BZh1) X3F MRW(x3)
+  WPG WPD PSP SIT GZ APE AU AIFF HLP(x3) ICO CUR WMF-PL WMF-STD TTF MDB
+  TAR EPS AI DXF 3GP. Every key re-read first-hand at its RAWSearchDLL
+  registration site before the row landed; WPG bounds {20, 0x5F5E100} and
+  MDB bounds {0x1000, 0xBEBC200} verified at their FileInfo ctors; the
+  WMF-placeable checksum convention decoded (the stored word = XOR of
+  words 0..8). Three census corrections: errata E49 (3F5F03 = Windows
+  Help, not NEF), E50 (DXF is a keyed u32 format), E51/E52 (MDB rides the
+  u16 0x0100 chain shared with TTF). Shipped mechanical gates:
+  static_assert(kTrialCount == FMT_COUNT) (trial-order membership was
+  silently unverified), kMaxTrialSlots 96->160, the DMG footer-scan seam
+  made forward-progress-safe (an infinite-loop class caught by the first
+  test run). Fail-before proven (validators neutralized: 3/3 positive
+  RED; restored 4/4); full suite 941/0 gcc-ASan; hostile ASan smoke
+  extended with the walk-heavy niche families, 400 mutated iters, zero
+  findings. Batch-2 remainder pinned with causes in the S-007 addendum
+  (CHM/MNY/EMF/ONE/MPEG-TS/3DS/SWF/JP2/MOBI + the list-layer text
+  school). handoff: Agent 1 - the CLI's list-carve-formats surface
+  enumerates the registry, so the 27 new formats surface automatically;
+  no API-contract change required on your side (the carve_format values
+  are append-only stable).
+
 
 ---
 Task ID: PARITY-FIX-2 (S-038 steps 2-3 — the app installer + the three gates)

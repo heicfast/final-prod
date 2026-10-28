@@ -296,27 +296,23 @@ detected extensions into the +0x60 set (FUN_18000ed00 sites :19626/:20222/:20892
 1. **Quick scan (Q1-Q11)**: re-verified via the context legs — zero open defects; the only
    Q-lane change is the Q11 NTFS +0x64 decode (above). No code fix required in the quick
    lane.
-2. **Advanced/deep (A-lane) — THE S-007 NICHE BATCH (the session's main engineering item)**:
-   implement the keyed og-only formats with corpus-verified magics + grammars, in the house
-   S-007 pattern (append-only enum + kTable row + kTrialOrder slot + validator + triplet
-   tests). Batch scope = the keyed set with instruction-decisive registrations: MID (MThd),
-   OGG (OggS), RM (.RMF), MXF (06 0E 2B 34), DMG (BZh1), X3F (FOVb), MRW (II1A/MM1A/\0MRM),
-   WPG ("wpg\0" + 20..100,000,000 bounds), WPD (\xFF WPC), PSP (Pain), SIT (Stuf), GZ (1F 8B),
-   APE (MAC ), AU (.snd), AIFF (FORM), CHM (ITSF + field gates), HLP (three keys), ICO/CUR,
-   WMF/EMF, TTF, MDB (+Jet DB gates), MNY (MS + Jet gate), ONE (E4 52 5C 7B), EPS/AI
-   (%! + C5 D0 D3 C6), TAR (ustar@+257), 3GP (ftyp brand), MPEG-TS (MTS/M2TS — key semantics
-   to be first-hand-verified before implementation). Every magic re-read at its cited
-   registration site BEFORE the row lands (the S-007 primary batch's discipline). NO DBF
-   (no og analyser — session-3 correction). Deferred to batch 2 with cause: 3DS (MM u16
-   collision with TIFF-BE needs the multimap-equivalent treatment), SWF/JP2/MOBI (key sites
-   not yet decoded first-hand), HTML/XML/SVG + DXF + LZH + FCPEvt + OfficeTagFromXML +
-   CRW + VCF/GPX/HIK/OSP/POS/AEP/CHFP (list-layer/text school — needs per-analyser decompile
-   reads), thumbcache/Dbx (attribution unresolved in corpus).
-   ⚠ Mechanical prerequisite: kTrialCount grows past the trial_disabled[96] array +
-   `static_assert(kTrialCount <= 96)` — raise both (the array is sized to the trial order,
-   no behavior change); ADD `static_assert(kTrialCount == FMT_COUNT)` (the missing link —
-   a new FormatId absent from kTrialOrder is today silently never scanned; the F8
-   validate_registry + self-probe gates check everything EXCEPT trial-order membership).
+2. **Advanced/deep (A-lane) — THE S-007 NICHE BATCH — BATCH 1 LANDED (`e018bf4`)**: 27
+   og-only formats / 31 rows / 26 validators, every key re-read first-hand at its
+   RAWSearchDLL registration site (retdec :5450-6600 + u16 layer :6205-6590 + the WPG/MDB
+   analyser bodies) before the rows landed: MID OGG RM MXF DMG X3F MRW(x3) WPG WPD PSP SIT
+   GZ APE AU AIFF HLP(x3) ICO CUR WMF-PL WMF-STD TTF MDB TAR EPS AI DXF 3GP. Fail-before
+   proven (validators neutralized: 3/3 positive RED); suite 941/0 ASan; hostile smoke 400
+   iters zero findings. Three census corrections landed as errata E49-E52 (3F5F03=HLP not
+   NEF; DXF is keyed-u32 not list-layer; MDB is the u16 0x0100 chain shared with TTF).
+   Shipped mechanical gates: `static_assert(kTrialCount == FMT_COUNT)` (a FormatId absent
+   from kTrialOrder was silently never scanned — the F8/self-probe gates never covered
+   trial-order membership); kMaxTrialSlots 96→160; the DMG seam made
+   forward-progress-safe. **Batch-2 remainder with causes pinned in the S-007 addendum:**
+   CHM (u64-widened GUID compares vs canonical ITSF layout — needs asm-level width read),
+   MNY (MS key's gates undecoded — FP-unsafe without), EMF (no keyed registration found),
+   ONE, MPEG-TS (numeric key 284), 3DS (MM/TIFF-BE multimap treatment), SWF/JP2/MOBI, the
+   list-layer/text school (HTML/XML/SVG/LZH/FCPEvt/OfficeTagFromXML/CRW/VCF/GPX/HIK/OSP/
+   POS/AEP/CHFP). NO DBF by design (no og analyser).
 3. **Combination lane (C-lane)**: no engine-side defect open; C9 TTFR stays
    execution-bound (see row C9).
 4. **Formats & parameters (F-lane) — OQ-SA-1 closure**: the NTFS `ntfs_origin_lcn`
