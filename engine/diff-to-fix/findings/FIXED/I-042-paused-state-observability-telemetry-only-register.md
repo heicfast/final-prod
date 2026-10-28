@@ -52,3 +52,10 @@ Both sides read first-hand (lane D).
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED (ACKNOWLEDGED — deliberate shape difference registered)
+**Fixed in commit:** (this session's I-042 landing, S48 INFO-first lane — SHA recorded in the worklog entry)
+**Verified by:** corpus re-read first-hand this session: DRWUI:208944-208950 (the paused-state handler with CUIScanProgressInfo RTTI dynamic-cast), :1098851-59 (the nStatus==2 branch region), :1098139 (`QString::operator==(this,"paused")` — the paused widget property), :1098406 (`QVariant(local_158,"paused")` — the strip), :1323035 (the `sigTaskBarPaused(bool)` connect) — all five sites confirmed on-disk. Core side re-read: `ScanTelemetrySnapshot.paused` at include/cr/orchestrator/cr_scan.h:520, the cr_ui.h:689 paused/running/cancelled triple, and the busy/stopping-only query pair at src/ui/cr_ui.cpp:2274/2281 — the finding's core description confirmed current at HEAD. Module doc registered (modules/orchestration.md:10) — `grep -c "I-042 (ACKNOWLEDGED" modules/orchestration.md` = 1 post-landing.
+**Resolution notes:** Registered in modules/orchestration.md per the finding's one-line fix plan: the og's four pause surfaces (master enum states 2/6, nStatus==2, the "Scanning Paused." strip + paused widget, sigTaskBarPaused) vs the core's telemetry-only exposure (`ScanTelemetrySnapshot.paused`; no dedicated `cr_ui_scan_paused` query; the taskbar a host concern). A library-appropriate subset — hosts render pause from telemetry; the optional dedicated query stays declined unless a host requests it (the finding's own option). No code change; the telemetry pause path is already tested via test_pause_resume.cpp. The related actionable legs live on N-178 (open); I-041 remains open on its own file; I-043 landed as PARITY-DELTAS D-122.

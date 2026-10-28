@@ -508,3 +508,20 @@ remote rows stand. **One distinct row the remote set does not carry:**
    `artifacts/config-files/userdata-remoteconfig--signature-and-flags.md`
    so the framing is never re-derived. (Core-side impact: none — the
    core consumes none of it; registered I-027 #2/#5 + OQ-S4-2.)
+
+## Session-48 rows (2026-10-29 — the S48 INFO-first lane; I-044's citation-correction leg)
+
+1. **The arch/04 §3.3 + D-36 searcher-creation citation** — the corpus doc
+   `architecture/04-*.md` §3.3 (and the trail's PARITY-DELTAS D-36 quoting it)
+   cites `FUN_140580720` as building the advanced-phase complete searcher set.
+   First-hand re-read (S48, I-044 verification): the **creation** site is
+   `FUN_140581500` (DRWUI_decompiled.c:917015-917040 — the function whose body
+   constructs `EUCreate{NTFS,FAT,EXFAT,ZFS,HFS,ReFS}Searcher` +
+   `EUCreateRAWSearcher` in order and installs the RAW naming callback at
+   vt+0x48 = FUN_140161fb0); `FUN_140580720` (DRWUI:916443+) is the **run**
+   phase that consumes the already-created set. The corpus doc carries the
+   same number and owes the same one-word correction; recorded here so no
+   future lane re-derives the creation site from the run site. The
+   settings+0x60/+0x6c "gates" cited alongside are hardwired init constants
+   (1/0 at DRWUI:947721-947722, no runtime writer in the shipped binary —
+   they never gate anything).

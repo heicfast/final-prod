@@ -121,3 +121,28 @@ family (one-line boundary guards).
 
 None — the og's boundary set is fully decoded (three slots, zero-on-fail), and the core's
 gap is a single missing condition.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** `<this push>` (session-45 fix lane, 2026-10-29)
+**Verified by:** fail-before/pass-after executed both sides: `FatEngine.TimeWordHour24YieldsZeroFileTime`, `TimeWordMinute60YieldsZeroFileTime`, `TimeWordSecondField30YieldsZeroFileTime`, `ValidTimeWordBoundaryUnchanged`, and the end-to-end `InvalidTimeStampsPersistAsZeroInTree` all RED at `98079347` (the fabricated FileTime 133833168600000000 = the date+1-day shift reproduced on the HOUR24 dentry) and GREEN post-fix; full suite 1278/1278 (1273 pre-existing + 5 new).
+**Resolution notes:** CONFIRMED-DIVERGENCE, re-verified first-hand before fixing: the corpus re-read at `re-workspace/reversed/ghidra-searchdll/FATSearchDLL_decompiled.c:32135-32154` confirms all three zero-on-fail `DosDateTimeToFileTime` slots exactly as cited. The fix is the finding's own plan — the shared gate in `fat_datetime_to_unix_seconds` (cr_fat_wire.h) now rejects `hour > 23 || minute > 59 || (time & 0x1F) > 29`, matching the DosDateTimeToFileTime accept set exactly; month/day gating (N-021 lineage) unchanged, the N-173 u64 no-clamp path unchanged. The exFAT sibling is verified unaffected: `fat_datetime_fields_ok` (cr_exfat_quick.cpp:313, the M-014 gate over FUN_180002f40) rejects this component class upstream of the shared helper, so the tightened helper is a no-op on surviving exFAT inputs — the full exFAT test family stays green. The helper's own comment ("0 on invalid/out-of-range fields") is now truthful. No safety hardening touched (the fix is a boundary guard, the same class as N-021).
+
+### Convergence addendum (session-51 severe-first lane, 2026-10-29)
+
+The S45 lane's landing (`862d79ef`) wins the seat per SA-9 (earlier push). This lane
+independently verified the finding (the same three corpus slots re-read first-hand),
+built the byte-equivalent gate, and proved it RED→GREEN with three supplementary
+tests now riding the merged tree: `FatEngine.TimeWordOutOfRangeYieldsZeroTimestamp`
+(all six boundary words), `FatEngine.ValidTimeWordBoundaryConvertsUnchanged`
+(23:59:58 / 00:00:00 / the 58 s last-legal-second pin), and
+`FatEngine.InvalidTimeStampsPersistAsZero` — the stronger end-to-end shape with
+DISTINCT create (valid 12:00) vs write (hour 24) times on one dentry, pinning the
+og's PER-SLOT zeroing (the failing slot zeroes while the valid sibling slot stays
+real, FAT :32144-48 vs :32135-38; the S45 lane's fixture stamps both times
+identically, so per-slot independence was unpinned there). One finding erratum this
+lane records: the finding's worked-example date word 0x65C4 decodes month 14 — an
+invalid date (the N-021 class; the og zeroes that slot regardless of the time word),
+so the example never isolated the time-word class; the clean word for the intended
+example is 0x58CC (2024-06-12) or the S45 tests' 0x5A46 (2022-01-06).

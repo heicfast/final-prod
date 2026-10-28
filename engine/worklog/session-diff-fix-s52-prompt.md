@@ -1,4 +1,4 @@
-# Session-47 diff-to-fix prompt (token redacted)
+# Session-52 diff-to-fix prompt (renumbered from the S47 draft at the hot-window merge per SA-9) (token redacted)
 
 ## IM Chat Context (gateway metadata)
 - session_id: web-07f0814c-6a17-45cd-97f8-39a458cf3454

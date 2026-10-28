@@ -113,3 +113,10 @@ for 0x85/"Linux extended" across diff-to-fix + PARITY-DELTAS: zero hits (never c
 None on 0x85. Adjacent undecoded: whether the og treats 0x93 (Linux extended-mixed) the
 same — no corpus evidence either way this session (no 0x93 in the walk); out of scope
 until cited.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** `dcb123dd` (the S47 MAJOR-first fix lane)
+**Verified by:** Ebr.LinkType085WalksChain (RED pre-fix: 4 partitions expected, 1 surfaced + chain lost) · Ebr.LinkType085SameBasisAs05 (RED pre-fix: the 0x85 copy surfaced 1 of 2 volumes) · Mbr.Extended085NotEmittedAsVolume (RED pre-fix: the bogus Other-volume at the container LBA surfaced) — all three rebuilt on the pre-fix tree and FAILED, then PASSED post-fix; the full suite 1164/1164 green (1161 baseline + the 3 new); the existing 0x05/0x0F chain tests (Mbr.PlainWithExtended, Mbr.EbrLayoutAssignedAndPlainMbrStaysMbr, Mbr.EbrCycleGuard, Mbr.TornLink*) stayed green.
+**Resolution notes:** One case label, as the finding's own fix plan demanded: `case 0x85:` joined the Extended arm of `mbr_type_to_kind` (cr_table_parse.cpp:116-125), with the corpus cite in the comment (Partition_decompiled.c:1006 — the `-0x7b` signed-char compare jumps to LAB_180002348, the same link path as 0x05/0x0F; re-verified first-hand this session against the corpus at `re-workspace/reversed/ghidra-mo/Partition_decompiled.c:989-1010` before the fix). The corpus was re-read line-by-line: 0x85 takes the identical `next = base + rel` link handling, so mapping it to Extended reproduces the og's container semantics in both the MBR (no bogus opaque volume) and the EBR walk (link followed, chain continues). 0x42 stays on the LDM path (the og's separate `'B'` branch) and 0x93 was NOT added (no corpus cite — the finding's own open-question note; the decoded set is exactly {05, 0F, 85}). No safety hardening touched. No benchmark (correctness-only, per the fix plan).
