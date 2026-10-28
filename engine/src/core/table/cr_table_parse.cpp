@@ -117,6 +117,15 @@ FsKind mbr_type_to_kind(u8 type) {
     switch (type) {
     case 0x05:
     case 0x0F:
+    case 0x85:
+        /* M-124: 0x85 (Linux extended - the fdisk/dual-boot convention)
+         * follows the SAME EBR link path as 0x05/0x0F in the og
+         * (Partition_decompiled.c :1006: `local_128 == -0x7b` goto
+         * LAB_180002348, the shared `next = base + rel` handler).
+         * Before this case, a 0x85 link fell to FsKind::Other, was
+         * emitted as a bogus VOLUME on the wrong basis (links are
+         * base-relative, volumes EBR-relative), and the chain stopped -
+         * every later logical volume in the container vanished. */
         return FsKind::Extended;
     case 0x07:
         /* HPFS/NTFS/exFAT share 0x07 - disambiguated later by boot-sector

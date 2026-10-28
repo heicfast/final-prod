@@ -113,3 +113,10 @@ for 0x85/"Linux extended" across diff-to-fix + PARITY-DELTAS: zero hits (never c
 None on 0x85. Adjacent undecoded: whether the og treats 0x93 (Linux extended-mixed) the
 same — no corpus evidence either way this session (no 0x93 in the walk); out of scope
 until cited.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this push; S47 lane)
+**Verified by:** `Mbr.LinuxExtended085LinksFollowTheChain` (FAILED pre-fix: partitions.size()==2 with the link emitted as a bogus volume and EBR2's FAT32 volume invisible; PASSES post-fix: 3 partitions, chain followed, no bogus link volume, layout Ebr), full suite 1212/1170/0-fail.
+**Resolution notes:** One case label: 0x85 joins 0x05/0x0F in mbr_type_to_kind's Extended arm (cr_table_parse.cpp), so both the MBR-level container walk (the ebr_base discovery loop) and the EBR-level link walk (base + rel) treat the Linux-extended convention as a chain link, exactly as the og's shared LAB_180002348 handler does (Partition_decompiled.c :1006, `local_128 == -0x7b` -> the same goto; re-verified first-hand this session). The test plants BOTH the 0x85-typed container and a 0x85-typed next-link to pin the two consumption sites. No behavior change for any other type byte; the existing 0x05/0x0F chain tests stay green.
