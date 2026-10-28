@@ -1699,3 +1699,42 @@ verb table) + API-DELTA §0's own "10 verbs" scope line corrected to 11. Suite
 1024/1024 green, format clean. Audit trail: finding moved to findings/FIXED/ with
 Resolution; RESOLVED-INDEX session-38 table opened; CROSS-REF-MATRIX row -> MATCH;
 SUMMARY session-38 delta opened.
+
+---
+Task ID: FIX-T1/T2 (the closing-fix lane — M-071)
+Agent: lead fix session (two-repo grant: core_recovery + corpus only)
+
+Work Log:
+- Baseline re-set after the parallel lanes' pushes (b478a4b read; product
+  tip b92ebef): suite 1023/1023 linux-release green before any change.
+- M-071 verified first-hand at HEAD: `rg -c NODE_FLAG_JUNK_FILTERED src/`
+  → 3 hits, all core (filterfolder set/query gate) — 0 in rrecov.cpp;
+  the cr_scan.cpp:1200 comment claims three gated surfaces; git
+  archaeology re-confirmed (`69507cb` 2 gates → `cfa4c75` 0).
+  CONFIRMED-DIVERGENCE.
+- Fix: both rrecov.cpp gates restored byte-exact from the M-018 form
+  (print_tree walk + recover-all plan lambda, continue-before-descent);
+  the cr_ui bulk walks gated identically (plan_enqueue_session + the
+  snapshot subtree plan — the W-lane surfaces postdate M-018 and never
+  carried the gate; SnapNode.flags persists the flag for the value
+  path). SafeWriter::enqueue deliberately NOT gated — the og's filter is
+  a results-set default, not a hard block (explicit selection of a junk
+  node stays possible; pinned by test). The cr_scan comment now names
+  every gated surface truthfully.
+- Tests: build_fat16_junk fixture (DESKTOP.INI + LFN "System Volume
+  Information" with KEEP.ME inside) + scan_junk_to_session helper +
+  RecoverAllSkipsJunkFlaggedNodes / RecoverAllSnapshotWalkSkipsJunk-
+  FlaggedNodes / RecoverExplicitSelectionStillAllowsJunk. Fail-before
+  EXECUTED: with src/ui/cr_ui.cpp stashed out, the two bulk-walk tests
+  run RED (junk written), the explicit-selection test stays green;
+  with the fix, 3/3 green. Full ctest 1026/1026, clang-format 18.1.8
+  clean.
+- Audit trail: M-071 Resolution recorded, file moved to findings/FIXED/;
+  CROSS-REF-MATRIX D16/B2 row → MATCH; modules/writer.md M-071 → FIXED;
+  SUMMARY opening section added (board 74 active / 251 FIXED).
+
+Stage Summary:
+- M-071 closed with the regression-proof pair the original M-018
+  landing lacked. Next: the SEVERE tier (S-042 first — the WMF grammar
+  contradiction, then S-043/S-044/S-045/S-040/S-047 and the S-041
+  children).

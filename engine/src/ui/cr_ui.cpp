@@ -3699,12 +3699,17 @@ u32 recovery_set_destination_impl(cr_ui_recovery* rec, const char* utf8_path) {
 }
 
 /* the CLI's recursive plan(): dirs enqueue as structure items, files as
- * content items; empty leaves survive because every dir is enqueued */
+ * content items; empty leaves survive because every dir is enqueued.
+ * M-018/M-071: bulk walks skip junk-flagged nodes — the og's
+ * FilterFolder hidden set never reaches the recovery queue through a
+ * result-set surface (explicit single-node selection stays allowed). */
 u32 plan_enqueue_session(CrRecovery* r, tree::FileNode* node, const std::u16string& path,
                          u64* queued) {
     for (auto* c = node->first_child(); c; c = c->next_sibling()) {
         if (!c->props())
             continue;
+        if ((c->props()->flags & tree::NODE_FLAG_JUNK_FILTERED) != 0)
+            continue; /* M-018/M-071: the hidden junk set */
         const bool is_dir = (c->props()->attributes & 0x10) != 0;
         const u32 eq = r->writer->enqueue(c, path);
         if (eq == OK)
@@ -3844,6 +3849,9 @@ u32 recovery_enqueue_subtree_snapshot_impl(cr_ui_recovery* rec, cr_ui_snapshot* 
             if (!cn.full && cn.name.empty() && cn.logical_size == 0 && cn.extents.empty() &&
                 (cn.attributes & 0x10) == 0)
                 continue; /* defensive: the CLI's !props() skip */
+            if ((cn.flags & tree::NODE_FLAG_JUNK_FILTERED) != 0)
+                continue; /* M-018/M-071: the hidden junk set (snapshot rows
+                           * carry the flag the same way live nodes do) */
             const bool cdir = (cn.attributes & 0x10) != 0;
             const u32 eq = r->writer->enqueue(s, c, path);
             if (eq == OK)

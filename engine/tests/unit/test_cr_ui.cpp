@@ -135,6 +135,77 @@ std::vector<unsigned char> build_fat16() {
     return img;
 }
 
+/* M-071: the junk-carrying variant — the og's FilterFolder hidden set
+ * planted beside real files, so the bulk-walk gates are provable at the
+ * ABI surface: DESKTOP.INI (file list) + an LFN "System Volume
+ * Information" dir (fat-name list, with KEEP.ME inside — the M-018
+ * record's "entries, not contents" case: the child stays a query row
+ * while the bulk walks skip the flagged dir's subtree). */
+std::vector<unsigned char> build_fat16_junk() {
+    auto img = build_fat16();
+    /* free clusters for the new entries: 40 (desktop.ini), 50 (SVI dir),
+     * 51 (KEEP.ME inside it) */
+    put16(img, kFAT1 + 40 * 2, 0xFFFF);
+    put16(img, kFAT2 + 40 * 2, 0xFFFF);
+    put16(img, kFAT1 + 50 * 2, 0xFFFF);
+    put16(img, kFAT2 + 50 * 2, 0xFFFF);
+    put16(img, kFAT1 + 51 * 2, 0xFFFF);
+    put16(img, kFAT2 + 51 * 2, 0xFFFF);
+    /* slot 3: DESKTOP.INI (hidden junk file, 29 bytes) */
+    dentry(img, 3, "DESKTOP INI", 0x20, 40, 29, false);
+    std::memcpy(img.data() + kDATA + (40 - 2) * 512, "[.ShellClassInfo]", 17);
+    /* slot 4+: LFN "System Volume Information" -> SYSTEM~1 (dir) */
+    {
+        const std::u16string name = u"System Volume Information";
+        unsigned char alias[11];
+        const char* a11 = "SYSTEM~1   ";
+        std::memcpy(alias, a11, 11);
+        cr::u32 sum = 0;
+        for (int i = 0; i < 11; ++i)
+            sum = ((sum & 1) << 7) + (sum >> 1) + cr::u32(alias[i]);
+        const cr::u8 chk = cr::u8(sum & 0xFF);
+        const size_t frags = (name.size() + 12) / 13;
+        /* fragments physically DESCENDING (last first), checksum ties to
+         * the 8.3 alias that follows (the engine's lfn_assemble contract,
+         * test_orchestrator's writer) */
+        for (size_t f = frags; f >= 1; --f) {
+            cr::u8* e = img.data() + kROOT + (4 + (frags - f)) * 32u;
+            std::memset(e, 0xFF, 32);
+            e[0] = cr::u8(f == frags ? 0x40 | f : f);
+            e[11] = 0x0F; /* LFN */
+            e[12] = 0;
+            e[13] = chk;
+            e[26] = 0;
+            e[27] = 0;
+            static const size_t off[3] = {1, 14, 28};
+            static const int cnt[3] = {5, 6, 2};
+            size_t pos = (f - 1) * 13;
+            for (int pi = 0; pi < 3; ++pi) {
+                for (int ci = 0; ci < cnt[pi]; ++ci) {
+                    const cr::u16 ch =
+                        pos < name.size() ? name[pos] : (pos == name.size() ? 0x0000 : 0xFFFF);
+                    e[off[pi] + 2 * size_t(ci)] = cr::u8(ch & 0xFF);
+                    e[off[pi] + 2 * size_t(ci) + 1] = cr::u8(ch >> 8);
+                    ++pos;
+                }
+            }
+        }
+        /* the alias dentry after the LFN chain: the directory, cluster 50 */
+        dentry(img, 4 + frags, "SYSTEM~1   ", 0x10, 50, 0, false);
+        /* KEEP.ME inside the SVI dir (cluster 51, 6 bytes) */
+        cr::u8* sub = img.data() + kDATA + (50 - 2) * 512;
+        std::memset(sub, 0, 512);
+        for (int i = 0; i < 11; ++i)
+            sub[i] = cr::u8("KEEP    ME "[i]);
+        sub[11] = 0x20; /* plain file */
+        put16(img, kDATA + (50 - 2) * 512 + 20, 51 >> 16);
+        put16(img, kDATA + (50 - 2) * 512 + 26, 51 & 0xFFFFu);
+        put32v(img, kDATA + (50 - 2) * 512 + 28, 6);
+        std::memcpy(img.data() + kDATA + (51 - 2) * 512, "KEEPME", 6);
+    }
+    return img;
+}
+
 std::string write_fixture(const char* tag) {
     const std::string path = cr_test::tmp_path("cr_ui", tag);
     FILE* f = std::fopen(path.c_str(), "wb");
@@ -181,6 +252,40 @@ struct Ui {
 bool scan_to_session(const char* tag, Ui& u, std::string& img_out, std::string& crsf_out) {
     img_out = write_fixture(tag);
     if (img_out.empty())
+        return false;
+    if (cr_ui_open_image(img_out.c_str(), 0, 0, &u.dev) != CR_UI_OK)
+        return false;
+    cr_ui_scan_config cfg{};
+    cfg.progress = progress_cb;
+    cfg.progress_user = &g_progress_calls;
+    if (cr_ui_scan_create(&cfg, &u.scan) != CR_UI_OK)
+        return false;
+    if (cr_ui_scan_attach_device(u.scan, u.dev) != CR_UI_OK)
+        return false;
+    if (cr_ui_scan_run(u.scan) != CR_UI_OK)
+        return false;
+    crsf_out = img_out + ".crsf";
+    if (cr_ui_scan_save_session(u.scan, crsf_out.c_str()) != CR_UI_OK)
+        return false;
+    cr_ui_scan_close(u.scan);
+    u.scan = nullptr;
+    if (cr_ui_session_load(crsf_out.c_str(), &u.sess) != CR_UI_OK)
+        return false;
+    return true;
+}
+
+/* M-071: the junk-fixture scan (the scan_to_session shape over
+ * build_fat16_junk) — the og's FilterFolder hidden set planted beside
+ * real files so the bulk recovery walks are provable at the ABI. */
+bool scan_junk_to_session(const char* tag, Ui& u, std::string& img_out, std::string& crsf_out) {
+    img_out = cr_test::tmp_path("cr_ui", tag);
+    FILE* f = std::fopen(img_out.c_str(), "wb");
+    if (!f)
+        return false;
+    const auto img = build_fat16_junk();
+    const size_t n = std::fwrite(img.data(), 1, img.size(), f);
+    std::fclose(f);
+    if (n != img.size())
         return false;
     if (cr_ui_open_image(img_out.c_str(), 0, 0, &u.dev) != CR_UI_OK)
         return false;
@@ -1068,6 +1173,162 @@ TEST(CrUi, RecoverySubtreeAndRename) {
         cr_ui_recovery_close(r2);
         std::error_code ec;
         std::filesystem::remove_all(dest2, ec);
+    }
+
+    std::error_code ec;
+    std::filesystem::remove_all(dest, ec);
+}
+
+/* M-071: recover-all never writes the og's hidden junk set — the exact
+ * regression the N-064 rrecov.cpp reconstruction caused at the CLI, pinned
+ * here at the ABI on the same walk class (cr_ui's session plan is the
+ * W-lane's recover-all surface; the CLI plan() carries the identical gate,
+ * restored verbatim from the M-018 landing 69507cb). */
+TEST(CrUi, RecoverAllSkipsJunkFlaggedNodes) {
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_junk_to_session("junkra", u, img, crsf));
+
+    /* precondition: the query surface hides the junk set (M-018,
+     * unregressed) while SVI's child stays a row (entries, not contents) */
+    {
+        cr_ui_query q{};
+        q.limit = 100;
+        cr_ui_query_row* rows = nullptr;
+        uint32_t n = 0;
+        uint64_t total = 0;
+        ASSERT_EQ(cr_ui_query_run(u.sess, &q, &rows, &n, &total), CR_UI_OK);
+        auto has = [&](const char* name) {
+            for (uint32_t i = 0; i < n; ++i)
+                if (std::strcmp(rows[i].name, name) == 0)
+                    return true;
+            return false;
+        };
+        EXPECT_FALSE(has("DESKTOP.INI"));
+        EXPECT_FALSE(has("System Volume Information"));
+        EXPECT_TRUE(has("DOC.TXT"));
+        EXPECT_TRUE(has("KEEP.ME")) << "SVI's child stays a query row (M-018: entries, "
+                                       "not contents)";
+        cr_ui_query_rows_free(rows, n);
+    }
+
+    /* the bulk walk from the session root: junk file skipped, junk dir
+     * skipped with its subtree, real files written */
+    const std::string dest = cr_test::tmp_path("cr_ui", ".junkdest");
+    cr_ui_recovery_config rcfg{};
+    ASSERT_EQ(cr_ui_recovery_create(u.dev, &rcfg, &u.rec), CR_UI_OK);
+    ASSERT_EQ(cr_ui_recovery_set_destination(u.rec, dest.c_str()), CR_UI_OK);
+    ASSERT_EQ(cr_ui_session_snapshot(u.sess, &u.snap), CR_UI_OK);
+    {
+        uint32_t count = 0;
+        ASSERT_EQ(cr_ui_snapshot_node_count(u.snap, &count), CR_UI_OK);
+        uint64_t root_with_kids = 0;
+        bool found = false;
+        for (uint32_t i = 0; i < count && !found; ++i) {
+            cr_ui_node_info info{};
+            char name[512];
+            ASSERT_EQ(cr_ui_snapshot_node(u.snap, i, &info, name, sizeof(name)), CR_UI_OK);
+            if (info.is_full && info.first_child != CR_UI_SNAP_NONE) {
+                root_with_kids = info.node_id;
+                found = true;
+            }
+        }
+        ASSERT_TRUE(found);
+        ASSERT_EQ(cr_ui_recovery_enqueue_subtree(u.rec, u.sess, root_with_kids), CR_UI_OK);
+    }
+    ASSERT_EQ(cr_ui_recovery_process(u.rec), CR_UI_OK);
+
+    EXPECT_TRUE(std::filesystem::exists(dest + "/DOC.TXT"));
+    EXPECT_TRUE(std::filesystem::exists(dest + "/PHOTO.JPG"));
+    EXPECT_FALSE(std::filesystem::exists(dest + "/DESKTOP.INI"))
+        << "the hidden junk file must not be written by a bulk walk";
+    EXPECT_FALSE(std::filesystem::exists(dest + "/System Volume Information"))
+        << "the hidden junk dir must not be written by a bulk walk";
+    EXPECT_FALSE(std::filesystem::exists(dest + "/System Volume Information/KEEP.ME"))
+        << "the skipped junk dir takes its subtree with it (the M-018 gate "
+           "form: continue before descent)";
+
+    std::error_code ec;
+    std::filesystem::remove_all(dest, ec);
+}
+
+/* M-071: the snapshot bulk walk carries the same gate — snapshot rows
+ * persist the junk flag and the value-path plan skips them. */
+TEST(CrUi, RecoverAllSnapshotWalkSkipsJunkFlaggedNodes) {
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_junk_to_session("junksnap", u, img, crsf));
+    ASSERT_EQ(cr_ui_session_snapshot(u.sess, &u.snap), CR_UI_OK);
+
+    /* find the full root's snapshot index */
+    uint32_t count = 0;
+    ASSERT_EQ(cr_ui_snapshot_node_count(u.snap, &count), CR_UI_OK);
+    uint32_t root_idx = CR_UI_SNAP_NONE;
+    for (uint32_t i = 0; i < count && root_idx == CR_UI_SNAP_NONE; ++i) {
+        cr_ui_node_info info{};
+        char name[512];
+        ASSERT_EQ(cr_ui_snapshot_node(u.snap, i, &info, name, sizeof(name)), CR_UI_OK);
+        if (info.is_full && info.first_child != CR_UI_SNAP_NONE)
+            root_idx = i;
+    }
+    ASSERT_NE(root_idx, CR_UI_SNAP_NONE);
+
+    const std::string dest = cr_test::tmp_path("cr_ui", ".junksnap");
+    cr_ui_recovery_config rcfg{};
+    ASSERT_EQ(cr_ui_recovery_create(u.dev, &rcfg, &u.rec), CR_UI_OK);
+    ASSERT_EQ(cr_ui_recovery_set_destination(u.rec, dest.c_str()), CR_UI_OK);
+    ASSERT_EQ(cr_ui_recovery_enqueue_subtree_snapshot(u.rec, u.snap, root_idx), CR_UI_OK);
+    ASSERT_EQ(cr_ui_recovery_process(u.rec), CR_UI_OK);
+
+    EXPECT_TRUE(std::filesystem::exists(dest + "/DOC.TXT"));
+    EXPECT_FALSE(std::filesystem::exists(dest + "/DESKTOP.INI"));
+    EXPECT_FALSE(std::filesystem::exists(dest + "/System Volume Information"));
+
+    std::error_code ec;
+    std::filesystem::remove_all(dest, ec);
+}
+
+/* M-071: the og's filter is a results-set default, not a hard block —
+ * explicitly-selected junk is still recoverable (single-node enqueue,
+ * both the live and the snapshot path). */
+TEST(CrUi, RecoverExplicitSelectionStillAllowsJunk) {
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_junk_to_session("junkexp", u, img, crsf));
+    ASSERT_EQ(cr_ui_session_snapshot(u.sess, &u.snap), CR_UI_OK);
+
+    /* the junk rows are not query rows (that is the point); find them in
+     * the snapshot's value capture, which preserves every node */
+    uint32_t count = 0;
+    ASSERT_EQ(cr_ui_snapshot_node_count(u.snap, &count), CR_UI_OK);
+    uint32_t junk_idx = CR_UI_SNAP_NONE;
+    for (uint32_t i = 0; i < count && junk_idx == CR_UI_SNAP_NONE; ++i) {
+        cr_ui_node_info info{};
+        char name[512];
+        ASSERT_EQ(cr_ui_snapshot_node(u.snap, i, &info, name, sizeof(name)), CR_UI_OK);
+        if (std::strcmp(name, "DESKTOP.INI") == 0)
+            junk_idx = i;
+    }
+    ASSERT_NE(junk_idx, CR_UI_SNAP_NONE) << "the snapshot preserves junk rows";
+
+    const std::string dest = cr_test::tmp_path("cr_ui", ".junkexp");
+    cr_ui_recovery_config rcfg{};
+    ASSERT_EQ(cr_ui_recovery_create(u.dev, &rcfg, &u.rec), CR_UI_OK);
+    ASSERT_EQ(cr_ui_recovery_set_destination(u.rec, dest.c_str()), CR_UI_OK);
+    ASSERT_EQ(cr_ui_recovery_enqueue_snapshot(u.rec, u.snap, junk_idx), CR_UI_OK);
+    ASSERT_EQ(cr_ui_recovery_process(u.rec), CR_UI_OK);
+
+    EXPECT_TRUE(std::filesystem::exists(dest + "/DESKTOP.INI"))
+        << "explicit selection is not a bulk surface - the og's filter "
+           "hides junk from results, it does not forbid recovering it";
+    /* the bytes are the real ones (not a truncated/garbage write) */
+    FILE* f = std::fopen((dest + "/DESKTOP.INI").c_str(), "rb");
+    ASSERT_NE(f, nullptr);
+    if (f) {
+        char got[18] = {0};
+        EXPECT_EQ(std::fread(got, 1, 17, f), 17u);
+        EXPECT_EQ(std::memcmp(got, "[.ShellClassInfo]", 17), 0);
+        std::fclose(f);
     }
 
     std::error_code ec;

@@ -1,12 +1,34 @@
-# SUMMARY.md — executive summary (session 38's minor-first closing lane on top: the session-8 third lane + the parallel session-8 legs + earlier sessions below)
+# SUMMARY.md — executive summary (the combined closing-fix lanes on top: session-38's minor-first wave, the parallel S-042/M-071 fix lanes, the session-8/9 audit lanes below)
 
-## Session-38 delta (2026-10-28/29 — the minor-first fixing session; user directive: clear the MINOR tier first)
+## Closing-fix wave delta (2026-10-28/29 — the fix mandate over the 75-active board, three concurrent lanes reconciled)
 
-**Session start:** core `84a1832` (main, up to date), corpus `be0cfe9` (read-only), suite 1023/1023 green at open (linux-release, gcc Werror). **Scope:** the 76-active board's MINOR tier first (35 open at start), then INFORMATIONAL acknowledgements, then SEVERE/MAJOR as the session's runway allows; two-repo grant only (core + corpus — the rda-driver repo findings N-107/N-127 and the driver-file halves of M-086..M-089 are out of this session's write scope and get precise push-forwards, not silent fixes). **Method per finding:** re-verify at current main (line cites re-pinned where the tree moved), re-check the corpus citation first-hand, classify, fix, prove RED→GREEN, update this trail.
+**Opening baseline: `84a1832`-lineage (product tip `b92ebef`), corpus `be0cfe9`; board 75
+active (7 SEVERE · 28 MAJOR · 35 MINOR · 5 INFO) / 250 FIXED / 2 tracked-open; suite
+1023/1023 linux-release green at every lane's open.** Scope (all lanes): the two-repo
+grant (core + corpus only) — the driver-repo findings get dispositioned/pushed forward,
+not driver-repo edits. Session-38 lane: MINOR tier first per its user directive; the
+M-071/S-042 lanes: regression + SEVERE tier first.
 
-**Fixed this wave (1):** **N-094** — the `-h` usage text omitted the `sessions` verb (RED reproduced: the only missing verb of 11; one usage line + the CORE-API-CURRENT cite/count repair + the verb lock grown to four sites with a both-directions regression pin; suite 1024/1024).
+**Fixed in this window (3, by lane):**
+- **N-094** (MINOR → FIXED, session-38 lane `26da616`) — the `-h` usage text omitted
+  the `sessions` verb; usage line + CORE-API-CURRENT count repair + the verb lock
+  grown to four sites with a both-directions regression pin (suite 1024/1024).
+- **S-042** (SEVERE → FIXED, parallel lane `f6e303e`) — the WMF placeable+standard
+  validators re-derived from the og grammar (FUN_1800264d0): the disjoint
+  accept-sets closed (checksum word@+20 == XOR words 0..9, zero dword@+16, tail
+  word, exact size std_words*2+22).
+- **M-071** (MAJOR → FIXED, closing-fix lane `dd0ffd5`) — the M-018 regression:
+  both rrecov.cpp gates restored byte-exact from the `69507cb` form; the cr_ui
+  session/snapshot bulk walks (the W-lane surfaces that postdate M-018 and never
+  carried the gate) gated identically; the explicit-selection semantic (junk stays
+  recoverable when individually selected — the og's filter is a results-set
+  default, not a hard block) pinned by `CrUi.RecoverExplicitSelectionStillAllowsJunk`;
+  `SafeWriter::enqueue` stays un-gated by that same decision (the finding's open
+  question settled). Proven fail-before/fail-after at the ABI surface (2 RED without
+  the gate, 3 green with). Suite 1026/1026.
 
-**Board after this wave:** 75 active (7 SEVERE · 28 MAJOR · 34 MINOR · 5 INFORMATIONAL) + 2 tracked-open (OQ-S4-3, OQ-S8-1) + 251 FIXED.
+**Board after this window:** 72 active (6 SEVERE · 27 MAJOR · 34 MINOR · 5 INFO) /
+**253 FIXED** / 2 tracked-open (OQ-S4-3, OQ-S8-1).
 
 ## Fix session (2026-10-29 — the parity close: every tier executed against corpus `be0cfe9`, core `84a1832`-lineage)
 

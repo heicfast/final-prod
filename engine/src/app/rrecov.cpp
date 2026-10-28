@@ -822,6 +822,10 @@ void print_tree(tree::ResultTree& tree, const TreePrintFlags& f) {
             for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
                 if (!c->props())
                     continue;
+                if ((c->props()->flags & tree::NODE_FLAG_JUNK_FILTERED) != 0)
+                    continue; /* M-018/M-071: the og's FilterFolder hidden
+                               * set never prints (the gate the N-064
+                               * reconstruction dropped) */
                 const std::string name = c->name_utf8();
                 const std::string full = path.empty() ? name : path + "\\" + name;
                 const bool is_dir = (c->props()->attributes & 0x10) != 0;
@@ -1963,6 +1967,10 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
             for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
                 if (!c->props())
                     continue;
+                if ((c->props()->flags & tree::NODE_FLAG_JUNK_FILTERED) != 0)
+                    continue; /* M-018/M-071: recover-all never writes the
+                               * og's hidden junk set (the gate the N-064
+                               * reconstruction dropped) */
                 const bool is_dir = (c->props()->attributes & 0x10) != 0;
                 const bool deleted = c->deleted_state() != tree::DeletedState::Active;
                 if (is_dir) {

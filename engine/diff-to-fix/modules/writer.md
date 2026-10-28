@@ -135,9 +135,13 @@ F62/A35/Q65 → MATCH.
 
 ## Session-8 section (2026-10-28, audited `35adcb9`)
 
-**M-071** (MAJOR — the M-018 regression: recover-all and the CLI tree print
+**M-071** (**FIXED** — the M-018 regression: recover-all and the CLI tree print
 lost their junk-filter gates in the N-064 rrecov.cpp reconstruction;
-`69507cb` → `cfa4c75`; the stale cr_scan.cpp:1200 comment). **M-074**
+`69507cb` → `cfa4c75`; the stale cr_scan.cpp:1200 comment. Fixed by the
+closing-fix session: both gates restored byte-exact from the M-018 form +
+the cr_ui session/snapshot bulk walks gated the same way + the
+explicit-selection semantic pinned by test — see the finding's Resolution).
+**M-074**
 (MAJOR — destination validation classification: path-too-long/invalid/network
 collapse to ERR_DEST_UNWRITABLE vs the og's distinct outcomes
 ("Might be invalid path to save." / "The recovery path is too long." /

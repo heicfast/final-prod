@@ -1197,8 +1197,13 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
      * sets, pushed per scan-partition at scan setup - applog
      * :22:57:57.920 "run to CDoScanPartition::PushFolderFilter:84").
      * Post-walk, pre-grading, pre-session-capture: query rows, the CLI
-     * tree and recover-all planning all skip flagged nodes, so
-     * sessions/reports/recovery agree with the og's presented tree. */
+     * tree and every bulk recovery walk (rrecov's recover-all plan, the
+     * cr_ui session/snapshot subtree plans) skip flagged nodes, so
+     * sessions/reports/recovery agree with the og's presented tree
+     * (M-071 restored the rrecov pair the N-064 reconstruction dropped
+     * and extended the gate to the cr_ui walks that postdate M-018;
+     * explicit single-node selection stays allowed - the og's filter is
+     * a results-set default, not a hard block). */
     stats.junk_filtered = filterfolder::apply(tree_);
     /* S-023: the post-scan CRecoverability grading pass - the og runs its
      * two "Recoverability analyze" jobs at scan completion (DRWUI

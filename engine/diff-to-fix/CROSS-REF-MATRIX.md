@@ -512,7 +512,7 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | session/CLI · auto-save volume label (D12/B10) | DIVERGENCE-MAJOR | **M-079** — no fill site; CLI auto-saves always `auto_<ts>` |
 | preview(thumb) · default read budget vs ordinary photos (X47/X48) | DIVERGENCE-MAJOR | **M-080** — 6 MiB 12-MP JPEG → BudgetExceeded (fast path gated on pixels only) |
 | mom-capabilities · DeviceManager offline-OS identification (A54-58) | DIVERGENCE-MAJOR + disposition re-scope | **M-082** — live-module machinery (IsBootVolume chain); CheckVersion verdict covered only the dead copy |
-| writer/query/CLI · M-018 junk gates (D16/B2) | **REGRESSION (PARTIAL-FIXED)** | **M-071** — rrecov.cpp reconstruction dropped the CLI tree + recover-all gates (git-proven `69507cb`→`cfa4c75`) |
+| writer/query/CLI · M-018 junk gates (D16/B2) | **MATCH (gate restored + extended)** | **M-071 FIXED** — the rrecov pair restored byte-exact from `69507cb` + the cr_ui session/snapshot bulk walks gated (the W-lane surfaces that postdate M-018); explicit-selection stays open (the og's default-not-block semantic, pinned by test) |
 | session · list scope + row shape (D12/B10/P42) | DIVERGENCE-MINOR | **N-090** — no `auto_` filter; 1 s save time; label[32]; no device-type |
 | docs · PARITY-DELTAS registration gaps (Q68) | DIVERGENCE-MINOR | **N-091** — load-progress model, thumbnail superset, auto-save posture unregistered |
 | preview(thumb) · refusal matrix + cache (Q68/X47) | DIVERGENCE-MINOR | **N-092** — WMF/EMF/ICO unnamed; no cache scope |
