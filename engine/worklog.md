@@ -3005,3 +3005,23 @@ S-050/S-051/S-052 · MAJOR M-072..M-078/M-083/M-086/M-087/M-089/M-098/M-099/
 M-101..M-110 · MINOR N-090/N-093/N-096/N-107/N-111/N-112/N-113/N-115/N-121/
 N-122/N-125..N-134/N-135 · INFO I-026..I-030 · OQ-S4-3/OQ-S8-1/OQ-S10-1/
 OQ-S10-2.
+
+**Session-39 T1 addendum (the push-window rebase, recorded per the
+coordination contract):** while the T1 hygiene repairs were being prepared,
+the remote moved +3 (the parallel fix lane's N-093 landing + its
+cr_registry.cpp marker sweep; the M-072 landing + retirement; the
+driver-lane's M-086/M-087/M-089 → tracked-open OQ-S10-2 disposition — all
+three findings' fix surfaces live in heicfast/rda-driver, outside this
+session's core+corpus grant, so that disposition is accepted verbatim).
+The rebase over them surfaced two convergences: session-11B had ALSO
+repaired the FIXED-LEDGER counts conflict and ALSO renumbered the wave-3
+N-129 → N-135 (their push wins; session-39's versions dropped to history
+snapshots + the b5da834-provenance NOTE addendum kept in the N-135 file);
+and origin/main itself carried a SECOND committed-marker occurrence (the
+N-136/N-093 ledger-row collision at the table tail) — repaired here, both
+rows kept. The ledger truth line re-counted post-rebase: **287 rows = 267
+main-pattern + 20 OQ, no duplicate IDs**. M-072/M-102/M-083/N-093/N-136 are
+off the active board via the parallel lanes — the session-39 board is
+**50 active (6 SEVERE · 20 MAJOR · 19 MINOR · 5 INFO) + 5 tracked-open**
+(OQ-S4-3, OQ-S8-1, OQ-S10-1, OQ-S10-2 now carrying M-086/M-087/M-089 +
+N-107/N-127's driver halves). The MINOR lane starts next per the mandate.
