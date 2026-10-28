@@ -110,6 +110,8 @@ CarveResult validate_pos(IStorageDevice* s, u64 hit, u64 cap);      /* N-113 */
 CarveResult validate_chfp(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_office_zip(IStorageDevice* s, u64 hit, u64 cap); /* N-115: the typed rows */
 CarveResult validate_dbx(IStorageDevice* s, u64 hit, u64 cap);        /* M-121 */
+CarveResult validate_dbx(IStorageDevice* s, u64 hit, u64 cap);        /* M-117 */
+CarveResult validate_hik(IStorageDevice* s, u64 hit, u64 cap);        /* M-098 */
 
 namespace {
 const Signature kTable[] = {
@@ -1516,6 +1518,28 @@ const Signature kTable[] = {
      700,
      validate_dbx,
      "Outlook Express Dbx"},
+    /* M-098: HIK (Hikvision surveillance) - the og's CHIKAnalyser
+     * (id 0x92, list-layer, RawConfig HIK=1 shipped). Keyed on the
+     * MPEG-PS pack magic; the trial order tries this row BEFORE
+     * FMT_MPEGPS so the private-stream discriminator claims the vendor
+     * layout first and the generic stream row keeps everything else.
+     * The probe's own floor: pack (14) + the BD PES head (6); the cap
+     * is the og's walk cap 0x40000000 (1 GiB). Base confidence 700:
+     * the N-070 accumulated-score contest (base + validator) must
+     * rank the SPECIFIC private-stream discriminator (700+650=1350)
+     * over the generic MPEG-PS stream row (650+650=1300) - the
+     * finding's own precedence rule (HIK before MPEGPS) encoded in
+     * the score model, not just the trial order. */
+    {FMT_HIK,
+     "hik",
+     {0x00, 0x00, 0x01, 0xBA},
+     4,
+     0,
+     20,
+     0x40000000ull,
+     700,
+     validate_hik,
+     "Hikvision recording"},
 };
 } // namespace
 

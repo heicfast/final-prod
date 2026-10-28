@@ -444,6 +444,26 @@ commit = one push):**
   message-truth record (the "1096/1096 green" claim that could not have
   executed against the pushed tree) stands in the filing lane's
   `evidence/executions/s42-build-at-head.md`.
+- **M-098 (MAJOR — the HIK/Hikvision private_stream_1 discriminator) →
+  FIXED, with N-156 discovered+fixed in the same landing.** The full
+  analyser landed: the BB→BD skip path (the og's LE-u32 skip length at
+  +4 with the exact < 0x40000001 / < 0x400001 bounds), the direct-BD
+  form, the 0x1A + gated-BE16 pack advance, the 6 + BE16 PES advance,
+  the cap-exact 1 GiB walk, and the analyser's own name L"HIK"
+  (DAT_18006b428 dumped from the og binary: 48 00 49 00 4B 00). The
+  N-070 accumulated-score contest is encoded in the row constants
+  (base 700: the specific discriminator 1350 outranks the generic
+  MPEG-PS 1300 — the trial order alone cannot express the precedence
+  under the accumulate-highest-score emission). Proof: Carve.Hik* (4
+  tests) + the stashed-engine RED; suite 1157/1157 green.
+  **N-156 (discovered during M-098's verification, per §8):**
+  validate_mpegps read the BE-u16 MPEG-PS system-header/PES lengths as
+  LE — every real PS stream (PES payloads > 255 bytes) walked to a
+  byte-swapped extent (the HIK fixture's generic fallback carved 8234
+  bytes instead of 136; a 0x0123 PES walked 0x2301). Both reads →
+  rdbe16; the S-007 fixture's LE length plants → the BE wire form (the
+  fixture could never have been a real stream);
+  Carve.MpegPsPesLengthsAreBigEndian pins the decode.
 
 **Board at this lane's M-117 landing (post-rebase over the parallel lanes'
 S-048/S-049/S-054/S-053/N-115/N-126/N-148/INFO-tier landings): 39 active on

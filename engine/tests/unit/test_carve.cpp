@@ -2036,16 +2036,16 @@ size_t plant_mpegps(std::vector<u8>& img, size_t at) {
     img[p + 0] = 0;
     img[p + 1] = 0;
     img[p + 2] = 1;
-    img[p + 3] = 0xBB;    /* system header */
-    put16(img, p + 4, 6); /* length */
+    img[p + 3] = 0xBB;      /* system header */
+    putbe16(img, p + 4, 6); /* length - N-156: the BE u16 wire form */
     for (int i = 0; i < 6; ++i)
         img[p + 6 + size_t(i)] = 0;
     p += 6 + 6;
     img[p + 0] = 0;
     img[p + 1] = 0;
     img[p + 2] = 1;
-    img[p + 3] = 0xE0;    /* video packet */
-    put16(img, p + 4, 8); /* PES length */
+    img[p + 3] = 0xE0;      /* video packet */
+    putbe16(img, p + 4, 8); /* PES length - N-156: the BE u16 wire form */
     for (int i = 0; i < 8; ++i)
         img[p + 6 + size_t(i)] = u8(0x20 + i);
     p += 6 + 8;
@@ -6135,8 +6135,8 @@ TEST(CarveEngine, FilterExemptSetCoversTypedRows) {
         if (carve_format_always_on(sig.id))
             continue;
         EXPECT_FALSE(carve_format_listed("zip, wav, avi, webp, docx, xlsx, pptx, odt, ods, "
-                                        "odp, epub, cdr",
-                                        sig))
+                                         "odp, epub, cdr",
+                                         sig))
             << sig.name << " must not be caught by the exempt families' tokens";
     }
     /* the token split pin: "doc" addresses BOTH the exempt OLE row and
@@ -9009,7 +9009,7 @@ TEST(Carve, DbxPlainMagicCarvesWithDeclaredSize) {
     const u32 declared = 0x30000; /* 192 KiB mail store */
     for (u32 i = 16; i < declared; ++i)
         img[at + i] = u8(0x41 + (i % 26)); /* payload FIRST (keep 0x7C clear) */
-    plant_dbx_guid(img, at, 0, declared);   /* then the header + size field */
+    plant_dbx_guid(img, at, 0, declared);  /* then the header + size field */
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
     auto* root = tree.add_root(u"Lost Files");
@@ -9060,7 +9060,8 @@ TEST(Carve, DbxJmf6VariantCarves) {
      * 0x0100003_36464d4a) */
     std::vector<u8> img(512 * 1024, 0);
     const size_t at = 8192;
-    std::memcpy(img.data() + at, "JMF6\x03\x00\x10\x00", 8); /* the disasm-verified word (0x00100003) */
+    std::memcpy(img.data() + at, "JMF6\x03\x00\x10\x00",
+                8); /* the disasm-verified word (0x00100003) */
     put32v(img, at + 0x7C, 0x8000);
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
@@ -9258,7 +9259,7 @@ TEST(Carve, CslSizeFieldExtendsPastCap) {
     img[at + 0] = 0xCD;
     img[at + 1] = 0x01;
     img[at + 2] = 0x00;
-    img[at + 3] = 0x00; /* the CD01 key */
+    img[at + 3] = 0x00;                       /* the CD01 key */
     const char early_svg[] = "<svg>xx</svg>"; /* a marker the walk would find */
     std::memcpy(img.data() + at + 0x10, early_svg, sizeof(early_svg) - 1);
     put32v(img, at + 0x44C, 0x0F0000); /* the size field: 0xF0480 total */
@@ -9292,7 +9293,7 @@ TEST(Carve, CslSizeFieldDeclinesOutOfCap) {
     img[at + 1] = 0x01;
     img[at + 2] = 0x00;
     img[at + 3] = 0x00;
-    put32v(img, at + 0x44C, 0x200000); /* + 0x480 > 0x100000: out of cap */
+    put32v(img, at + 0x44C, 0x200000);         /* + 0x480 > 0x100000: out of cap */
     const char body[] = "<svg>yyyyyyyy</svg>"; /* the walk's marker */
     std::memcpy(img.data() + at + 0x20, body, sizeof(body) - 1);
     MemDevice dev(std::move(img));
@@ -9371,4 +9372,229 @@ TEST(Carve, SvgLegUnaffectedByCslBranch) {
     EXPECT_EQ(n->props()->logical_size, sizeof(doc) - 1)
         << "the declaration leg sizes by the </svg> walk, never the field";
     EXPECT_EQ(n->props()->carve_format, u32(FMT_SVG));
+}
+
+/* ---- M-098: HIK (Hikvision surveillance, CHIKAnalyser id 0x92) ---- */
+
+namespace {
+
+/* an MPEG-2 PS pack header (00 00 01 BA, 14 bytes, stuffing 0 - the
+ * SCR marker nibble 0x44 at +4 is what validate_mpegps's own MPEG-2
+ * discriminator reads) */
+size_t plant_ps_pack(std::vector<u8>& img, size_t at) {
+    img[at] = 0x00;
+    img[at + 1] = 0x00;
+    img[at + 2] = 0x01;
+    img[at + 3] = 0xBA;
+    img[at + 4] = 0x44; /* the MPEG-2 SCR marker (0010 0100) */
+    for (size_t i = 5; i < 13; ++i)
+        img[at + i] = 0x0F;
+    img[at + 13] = 0xF8; /* the stuffing byte: (0xF8 & 7) = 0 -> pack length 0xE */
+    return 14;
+}
+
+/* a PES packet with the given start-code byte and BE-u16 length (the
+ * N-156 wire form) */
+size_t plant_pes(std::vector<u8>& img, size_t at, u8 code, u16 len) {
+    img[at] = 0x00;
+    img[at + 1] = 0x00;
+    img[at + 2] = 0x01;
+    img[at + 3] = code;
+    img[at + 4] = u8(len >> 8);
+    img[at + 5] = u8(len & 0xFF);
+    for (u16 i = 0; i < len; ++i)
+        img[at + 6 + i] = u8((i * 13) & 0xFF);
+    return size_t(6) + len;
+}
+
+} // namespace
+
+TEST(Carve, HikPackSystemHeaderPrivateStreamAccepted) {
+    /* M-098: the BB->BD sequence carves as FMT_HIK - the pack, the
+     * system-header skip (the LE-u32 at +4), then the private_stream_1
+     * PES; the walk continues over the following PS structure. */
+    std::vector<u8> img(128 * 1024, 0);
+    const size_t at = 512;
+    size_t p = at + plant_ps_pack(img, at);
+    /* the system header: 00 00 01 BB + the LE-u32 skip length at +4;
+     * the skip 0x10 lands the BD at pack_len + 6 + 0x10 */
+    img[p] = 0x00;
+    img[p + 1] = 0x00;
+    img[p + 2] = 0x01;
+    img[p + 3] = 0xBB;
+    put32v(img, p + 4, 0x10);
+    p += 6 + 0x10;
+    p += plant_pes(img, p, 0xBD, 0x20); /* private_stream_1, 32-byte payload */
+    /* the walk: one more pack (advance 0x1A), then a video PES */
+    const size_t pack2 = p;
+    p += plant_ps_pack(img, p);
+    /* the pack's +0x14 low half zero + byte@+0x16 == 1 -> extra = the
+     * BE-u16 at +0x18 (put16 stores LE - the 0x2301 word reads BE as
+     * 0x0123) */
+    img[pack2 + 0x16] = 1;
+    put16(img, pack2 + 0x18, 0x2301);
+    p = pack2 + 0x1A + 0x0123;
+    p += plant_pes(img, p, 0xE0, 0x40);
+    const size_t expected_end = p;
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr) << "the BB->BD HIK layout must carve";
+    EXPECT_EQ(n->props()->carve_format, u64(FMT_HIK));
+    EXPECT_EQ(n->props()->logical_size, expected_end - at) << "the probe + walk extent";
+    std::string note;
+    ASSERT_TRUE(cr::text::lossless_u16_to_utf8(n->props()->carve_note, note));
+    EXPECT_EQ(note, "hik-ps-private-stream-1");
+    /* the analyser's own name prefix (DAT_18006b428 = L"HIK") */
+    std::string nm = n->name_utf8();
+    EXPECT_NE(nm.find("HIK_"), std::string::npos) << "the HIK name prefix";
+    EXPECT_NE(nm.find(".HIK"), std::string::npos);
+}
+
+TEST(Carve, HikDirectPrivateStreamAccepted) {
+    /* M-098: the direct 00 00 01 BD after the pack carves with the size
+     * from the PES BE-u16 length (pack_len + 6 + len). */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    size_t p = at + plant_ps_pack(img, at);
+    p += plant_pes(img, p, 0xBD, 0x18); /* direct private_stream_1 */
+    const size_t expected_end = p;
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr) << "the direct-BD HIK form must carve";
+    EXPECT_EQ(n->props()->carve_format, u64(FMT_HIK));
+    EXPECT_EQ(n->props()->logical_size, expected_end - at);
+}
+
+TEST(Carve, HikGenericPsNotShadowed) {
+    /* M-098: a plain PS stream (pack + video PES + pack + PES, no
+     * private_stream_1) stays the generic FMT_MPEGPS - the HIK probe
+     * rejects and the trial order falls through. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    size_t p = at + plant_ps_pack(img, at);
+    p += plant_pes(img, p, 0xE0, 0x30);
+    p += plant_ps_pack(img, p);
+    p += plant_pes(img, p, 0xE0, 0x30);
+    const size_t expected_end = p;
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr) << "the generic stream still carves";
+    EXPECT_EQ(n->props()->carve_format, u64(FMT_MPEGPS))
+        << "the generic PS stream is not shadowed by the HIK row";
+    EXPECT_NE(n->props()->carve_format, u64(FMT_HIK));
+    EXPECT_EQ(n->props()->logical_size, expected_end - at)
+        << "the N-156 BE length walk (the LE misread would inflate by 0x2FD0)";
+}
+
+TEST(Carve, HikOneGiBCapIsTheRowCap) {
+    /* M-098: the walk cap 0x40000000 (1 GiB) is the registry row's own
+     * cap - the og's cap-exit size is the cap exact. The trial order
+     * (HIK before the generic MPEGPS row) is proven behaviorally by
+     * HikPackSystemHeaderPrivateStreamAccepted (the HIK row claims the
+     * 00 00 01 BA key first) and HikGenericPsNotShadowed (the reject
+     * falls through to the generic row). */
+    const Signature* reg = registry();
+    const Signature* hik = nullptr;
+    for (size_t i = 0; i < registry_size(); ++i)
+        if (reg[i].id == FMT_HIK)
+            hik = &reg[i];
+    ASSERT_NE(hik, nullptr);
+    EXPECT_EQ(hik->max_size, 0x40000000ull) << "the og's 1 GiB walk cap";
+    EXPECT_EQ(hik->min_size, 20u) << "the probe's own floor (pack 14 + PES head 6)";
+    EXPECT_EQ(std::string(hik->ext), "hik");
+    EXPECT_EQ(hik->base_confidence, 700u) << "the N-070 score contest: specific > generic";
+    std::vector<const Signature*> bad;
+    EXPECT_EQ(validate_registry(&bad), 0u);
+    EXPECT_EQ(self_probe_registry(&bad), 0u);
+}
+
+TEST(Carve, MpegPsPesLengthsAreBigEndian) {
+    /* N-156 (discovered during M-098's verification): the MPEG-PS
+     * system-header and PES length fields are BE u16 on the wire (ISO
+     * 13818-1; the og's HIK walk reads them byte-swapped). The pre-fix
+     * validate_mpegps read them LE - a PES length 0x0123 walked as
+     * 0x2301 and the extent inflated 8 KiB past the stream's end. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    size_t p = at;
+    p += plant_ps_pack(img, p);
+    /* the system header: BE u16 length 6 */
+    img[p] = 0;
+    img[p + 1] = 0;
+    img[p + 2] = 1;
+    img[p + 3] = 0xBB;
+    img[p + 4] = 0x00;
+    img[p + 5] = 0x06;
+    p += 6 + 6;
+    /* the video PES: BE u16 length 0x0123 (LE would read 0x2301) */
+    img[p] = 0;
+    img[p + 1] = 0;
+    img[p + 2] = 1;
+    img[p + 3] = 0xE0;
+    img[p + 4] = 0x01;
+    img[p + 5] = 0x23;
+    for (int i = 0; i < 0x123; ++i)
+        img[p + 6 + size_t(i)] = u8(0x40 + (i & 0x3F));
+    p += 6 + 0x123;
+    /* the end code */
+    img[p] = 0;
+    img[p + 1] = 0;
+    img[p + 2] = 1;
+    img[p + 3] = 0xB9;
+    p += 4;
+    const size_t expected = p - at;
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr) << "the BE-length stream carves";
+    EXPECT_EQ(n->props()->carve_format, u64(FMT_MPEGPS));
+    EXPECT_EQ(n->props()->logical_size, expected)
+        << "the BE u16 lengths walked exactly (the LE misread would inflate by 0x21DE)";
 }

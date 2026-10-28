@@ -5700,3 +5700,26 @@ stand, M-119/N-155/M-118-MountPoints2/the SEVERE pair/the minors first):
    the trail (after M-104/FIXED-ALREADY class); any future §8-discovery-by-fix-lane
    must file BEFORE the trail bookkeeping, not after (the S12 lane's twice-interrupted
    Wave-1 is the cautionary tale: three windows, three seat collisions).
+
+**M-098 FIXED (the HIK/Hikvision private_stream_1 discriminator) + N-156
+discovered+fixed in the same landing — commit `<this push>`:** the full
+analyser decoded first-hand: the BB→BD skip (the LE-u32 at +4, bounds
+< 0x40000001 / total < 0x400001), the direct-BD form, the probe's
+BE-u16 PES size, the walk (packs advance 0x1A + the gated BE16 at
++0x18; other PES advance 6 + BE16@+4; the cap exit sets the size to
+0x40000000 exact), and the name DAT_18006b428 = L"HIK" (dumped from
+og-codebase/RAWSearchDLL.dll at VA 0x18006b428: 48 00 49 00 4B 00).
+RawConfig HIK=1 (shipped, og-codebase/config/RawConfig.ini:23). The
+FMT_HIK row keys the MPEG-PS pack magic and rides BEFORE FMT_MPEGPS in
+kTrialOrder; base_confidence 700 encodes the N-070 precedence (the
+specific 1350 > the generic 1300). **N-156 (§8): validate_mpegps's
+rd16 LE reads of the BE-u16 MPEG-PS lengths** — the HIK fixture's
+generic fallback carved 8234 bytes (the 0x20 PES walked 0x2000); both
+reads → rdbe16, the S-007 fixture's length plants → putbe16 (the wire
+form), Carve.MpegPsPesLengthsAreBigEndian pins a 0x0123-length PES
+(the LE misread inflates by 0x21DE). Tests: Carve.Hik* (4) +
+Carve.MpegPsPesLengthsAreBigEndian; RED by the stashed-engine rebuild
+(FMT_HIK not declared pre-fix); suite 1157/1157 green post-fix;
+format clean. Trail: both findings in findings/FIXED/ with
+Resolutions; ledger rows; matrix cells (the S-041 children rows);
+modules/carve.md; SUMMARY's S42 block.

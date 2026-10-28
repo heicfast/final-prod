@@ -164,20 +164,20 @@ enum FormatId : u32 {
                 E49) */
     FMT_ICO, /* 00 00 01 00 0x00010000 -> FileICOAnalyser, idx 34 */
     FMT_CUR, /* 00 00 02 00 0x00020000 -> FileICOAnalyser (cursor dir) */
-    FMT_WMF_PL, /* D7 CD C6 9A 0x9ac6cdd7 -> placeable-WMF node, idx 70 */
-    FMT_WMF,    /* 01 00 09 00 0x00090001 -> standard-WMF node, idx 70 */
-    FMT_TTF,    /* 00 01 00 00 (u16-key 0x0100 chain with MDB) -> FileTTF */
-    FMT_MDB,    /* 00 01 00 00 (u16-key 0x0100) + "Standard Jet DB" ->
-                 * CMDBAnalyser, type-id 39, bounds {0x1000, 0xBEBC200} */
-    FMT_TAR,    /* "ustar" @+257 list-layer probe (strncmp, TARAnalyser) */
-    FMT_EPS,    /* u16 "%!" 0x2125 -> CEPS-family PostScript chain */
-    FMT_AI,     /* C5 D0 D3 C6 0xc6d3d0c5 -> CEPSAnalyser (Illustrator), idx 27 */
-    FMT_DXF,    /* "  0\r" 0x0d302020 -> CDXF chain (g146+g144), idx 25 */
+    FMT_WMF_PL,   /* D7 CD C6 9A 0x9ac6cdd7 -> placeable-WMF node, idx 70 */
+    FMT_WMF,      /* 01 00 09 00 0x00090001 -> standard-WMF node, idx 70 */
+    FMT_TTF,      /* 00 01 00 00 (u16-key 0x0100 chain with MDB) -> FileTTF */
+    FMT_MDB,      /* 00 01 00 00 (u16-key 0x0100) + "Standard Jet DB" ->
+                   * CMDBAnalyser, type-id 39, bounds {0x1000, 0xBEBC200} */
+    FMT_TAR,      /* "ustar" @+257 list-layer probe (strncmp, TARAnalyser) */
+    FMT_EPS,      /* u16 "%!" 0x2125 -> CEPS-family PostScript chain */
+    FMT_AI,       /* C5 D0 D3 C6 0xc6d3d0c5 -> CEPSAnalyser (Illustrator), idx 27 */
+    FMT_DXF,      /* "  0\r" 0x0d302020 -> CDXF chain (g146+g144), idx 25 */
     FMT_DXF_C999, /* u16 "99" 0x3939 -> the SAME CDXF chain, idx 25
                    * (N-152: RAWSearchDLL :2722-2733 - the 999-comment
                    * entry key; comment-led CAD exports dispatch through
                    * the u16 map, the probe's comment branch accepts them) */
-    FMT_3GP,    /* ftyp brand 3gp (the og's File3GP legacy row) */
+    FMT_3GP,      /* ftyp brand 3gp (the og's File3GP legacy row) */
     /* ---- S-041 niche batch 2, school 1 (SCAN-4): og grammars verified
      * first-hand (the session-5 decode table in SCAN-ENGINE-DELTA). ---- */
     FMT_CHM,      /* "ITSF" 0x46535449 -> FileCHMAnalyser, id 0x0e */
@@ -355,13 +355,12 @@ enum FormatId : u32 {
      * the JMF6+03 00 10 00 form (u64 0x0010000336464D4A, disasm-settled:
      * movl $0x36464d4a + movl $0x00100003 at 0x180016766/0x18001676f -
      * the parallel lane's reading CONFIRMED, my first landing's
-     * 03 00 01 00 was a literal-expansion error, corrected), one of FOUR OE store GUIDs, or the marked 16-byte pattern
-     * {2c3489f7, 6deef0f7, d18922af, b0f0ff00} (the 0x6deef0f7 dword
-     * is F7 F0 EE 6D on disk - the parallel lane's F7 F0 DE 6D read
-     * was a byte error, corrected here). Plain forms size from
-     * u32@+0x7C (disasm `mov 0x7c(%rdx),%eax` at 0x180016ac0); the
-     * marked form walks sector windows to zero termination with
-     * FUN_180042b30's extent (the non-zero prefix rounded UP TO EVEN
+     * 03 00 01 00 was a literal-expansion error, corrected), one of FOUR OE store GUIDs, or the
+     * marked 16-byte pattern {2c3489f7, 6deef0f7, d18922af, b0f0ff00} (the 0x6deef0f7 dword is F7
+     * F0 EE 6D on disk - the parallel lane's F7 F0 DE 6D read was a byte error, corrected here).
+     * Plain forms size from u32@+0x7C (disasm `mov 0x7c(%rdx),%eax` at 0x180016ac0); the marked
+     * form walks sector windows to zero termination with FUN_180042b30's extent (the non-zero
+     * prefix rounded UP TO EVEN
      * - the bisection's mid+1 landing; Ghidra+retdec+simulation
      * cross-pinned). The marked form's 272-byte name buffer is
      * memset-0-then-copied (disasm 0x180016a16 memset ->
@@ -370,6 +369,23 @@ enum FormatId : u32 {
     FMT_DBX_JMF6,   /* "JMF6" - the versioned container key */
     FMT_DBX,        /* CF AD 12 FE - the classic OE store key (GUID family) */
     FMT_DBX_MARKED, /* F7 89 34 2C - the marked/folder variant key */
+    /* M-098 (diff-to-fix): the og's HIK (Hikvision surveillance) analyser
+     * (CHIKAnalyser id 0x92 - list-layer, the RawConfig "HIK" token
+     * :3823-3894, shipped HIK=1/enabled). The probe (FUN_1800272a0
+     * :30412-30484) discriminates the vendor's private_stream_1 PES
+     * inside an MPEG-PS pack: the 00 00 01 BA pack header, the pack
+     * length (buf[0xD]&7)+0xE, then EITHER the system-header path
+     * (00 00 01 BB at the pack end -> the LE-u32 skip length at +4,
+     * bounded < 0x40000001 and total < 0x400001 -> 00 00 01 BD at the
+     * skip end) OR the direct 00 00 01 BD at the pack end; the size
+     * starts at the PES's BE-u16 length; the walk (FUN_180027480
+     * :30489-30524) continues the PS structure with the 0x40000000
+     * (1 GiB) cap; the analyser names its files L"HIK" (DAT_18006b428,
+     * dumped from the binary: 48 00 49 00 4B 00). Keyed on the MPEG-PS
+     * pack magic - the trial order puts this row BEFORE FMT_MPEGPS so
+     * the generic stream never shadows the HIK discriminator. Id
+     * APPENDED (serialized carve_format values stay stable). */
+    FMT_HIK,
     FMT_COUNT
 };
 
