@@ -5,7 +5,7 @@
 **Parameters affected:** B10 (filename/Unicode handling — 8.3 OEM-codepage semantics), D11 (node fields — the short-name carrier)
 **Corpus references:** `easeus-drw-research/re-workspace/artifacts/SaveScan/ifileproperties-part1--ntfs-fat-exfat.md:121` — the FAT name field: "8.3 name, **OEM-codepage bytes** — observed mangled control-byte names (`\x05\x01\x04\x01…`) = recovered deleted dir entries whose first char(s) were 0xE5/0x05-marked" (the og persists the raw bytes; the UI's codepage does the interpretation)
 **Core references:** `src/core/fat/cr_lfn.cpp:113-129` (audited commit `dd82db9`) — `short_name_to_u16`: `s.push_back(u16(name[i]))` — a byte→U+00XX identity map for both the 8-char base and the 3-char extension; no OEM codepage conversion exists in the FAT name path (`rg -i "oem|cp437|codepage" src/core/fat/` → zero hits)
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** FIXED — see Resolution below
 **Prior audit check:** not in prior scope (N-029/FIXED covered UTF-8 replacement residuals on other engines' names; the FAT 8.3 OEM-bytes semantics were never dispositioned — part1 was cited once, for N-024, not the name field)
 
 ## Summary
@@ -55,3 +55,33 @@ Corpus doc evidence (strength-3): part1:121 quoted above. Core evidence (strengt
 ## Open questions
 
 Which OEM codepage the og's UI actually applies (CP437 vs CP1252 vs system-default) is not decoded in part1 — the fix's step 1 default (CP437) may need a one-probe verification against the og UI's rendering before shipping; the divergence itself does not depend on it.
+
+## Resolution (FIXED — the CP437 boundary decode; fail-before proven)
+
+`short_name_to_u16` (`src/core/fat/cr_lfn.cpp`) now widens high-half
+bytes through a full standard-verified CP437 table (128 entries,
+byte-exact against the reference mapping; 0x20..0x7E pass through so
+ASCII names are byte-identical) instead of the identity map — the
+finding's step-1 semantics: the og defers to the mounting codepage; the
+core's UTF-16 carrier gets the conversion at the boundary. The
+0x05-first-byte KANJI escape and the deleted-marker rewrite are caller
+behavior (cr_fat_quick.cpp:202-203, unchanged) — a 0x05-led live dentry
+now decodes as 0xE5 → CP437 sigma (U+03C3), not the pre-fix U+00E5.
+
+**Tests (fail-before PROVEN on the stash-reverted pre-fix build — both
+behavior tests RED):**
+- `FatEngine.ShortNameOemBytesDecoded` — byte 0x93 decodes to
+  o-circumflex U+00F4 (the finding's own example); no name contains the
+  identity-mapped U+0093.
+- `FatEngine.ShortNameAsciiUnchanged` — DEL/INNER byte-identical.
+- `FatEngine.ShortNameKaniMarkerPathUnchanged` — the full 0x05 → 0xE5 →
+  CP437 U+03C3 path (the pre-fix identity map produced U+00E5).
+- Suite after the fix: fully green (see the commit message for counts).
+
+The open question (which codepage the og's UI applies) is preserved in
+the code comment — CP437 is the corpus-observable default and the
+divergence fix does not depend on it; a UI-rendering probe against the
+og remains a future refinement if a non-CP437 target market appears.
+
+**Landed:** commit "fix(fat): N-087 - the 8.3 short-name CP437 boundary
+decode (the og's raw OEM bytes -> the core's UTF-16 carrier)".

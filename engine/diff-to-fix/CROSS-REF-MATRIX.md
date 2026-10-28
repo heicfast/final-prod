@@ -475,7 +475,7 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | carve · CPT format presence, 3 generations (A28/C19) | **MATCH (FIXED)** | **S-037** RESOLVED — three duplicate-key rows (the og's registry policy) sharing validate_cpt |
 | carve · 131 family classes — presence/semantics vs the 6 family artifacts | 34 MATCH · 3 registered-delta · 64 S-007-remainder · 26 N/A · 1 UNDETERMINED | the wave's class-by-class table (agent sheet, scratch); residuals → **OQ-SA-2** |
 | carve · signature-table packaging (R56/Q68) | DIVERGENCE-MINOR | **N-086** — compiled-in generated table vs og's engine-init ifstream load of raw_signs.json (deep-dive:54-59) |
-| session · FAT 8.3 name encoding (B10/D11) | DIVERGENCE-MINOR | **N-087** — raw OEM bytes vs identity-mapped U+00XX (part1:121 vs `cr_lfn.cpp:113-129`) |
+| session · FAT 8.3 name encoding (B10/D11) | **MATCH (FIXED)** | **N-087** RESOLVED — the full CP437 boundary decode (standard-verified table); 3 tests fail-before-proven | |
 | session · IFileProperties 23-slot interface | 16 MATCH · 1 registered-residual · 1 UNDETERMINED · 5 N/A | the +0x20 getter = the N-050/N-059 type-registry residual (registered); +0x30 → OQ-SA-1 |
 | session · NTFS/FAT/exFAT persisted fields | 28 of 32 MATCH (10/12, 9/10, 8/10) | carriers richer in places (4-state deleted, 4th timestamp, allocated_size); the 4 unmatched → **OQ-SA-1** (anchor datums + ids) |
 | carve · RawConfig [Filter] count (doc truth) | CORRECTION PROPAGATED | CORRECTIONS #5: 34 not 37 — M-024 addendum; matrix/SUMMARY/evidence notes updated this session |

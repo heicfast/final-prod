@@ -17697,3 +17697,33 @@ Stage Summary:
   M-064-rem · 2 MINOR N-086/N-087 · 1 INFO I-026) · 235 FIXED ·
   tracked-open 3. Next: N-087 (FAT 8.3 OEM codepage), N-086 (rawsigns
   posture registration).
+
+---
+Task ID: FIX-8 (N-087 — the FAT 8.3 OEM-codepage decode)
+Agent: main engineer
+
+Work Log:
+- short_name_to_u16 (src/core/fat/cr_lfn.cpp): the identity byte-widening
+  replaced with the full CP437 table (128 entries, verified byte-exact
+  against the standard mapping via a Python cross-check; ASCII bytes
+  pass through). The finding's step-1 semantics: the og persists raw
+  OEM bytes (part1:121) and the mounting codepage supplies the glyphs;
+  the core's UTF-16 carrier gets the conversion at the boundary.
+- The 0x05 KANJI escape + the deleted 0xE5 marker remain caller-side
+  (cr_fat_quick.cpp:202-203): a live 0x05-led name now decodes as
+  0xE5 -> CP437 sigma U+03C3 (the debug pass caught my own wrong first
+  expectation of U+00D1 - the Latin-1 identity assumption the finding
+  itself documents). Byte 0x93 now yields o-circumflex U+00F4, not the
+  C1 control U+0093.
+- Tests: ShortNameOemBytesDecoded (0x93 -> U+00F4; no U+0093 anywhere),
+  ShortNameAsciiUnchanged (_EL.TXT + INNER.TXT byte-identical; the
+  deleted entry carries the undelete '_' convention), ShortName-
+  KaniMarkerPathUnchanged (0x05 -> 0xE5 -> U+03C3). Fail-before PROVEN
+  on the stash-reverted build (both behavior tests RED: U+0093/U+00E5).
+- Trail: N-087 -> FIXED (Resolution), matrix row -> MATCH (FIXED),
+  modules/fat.md delta, SUMMARY board (5 -> 4 active, 235 -> 236 FIXED).
+
+Stage Summary:
+- N-087 CLOSED. Board: 4 active (1 SEVERE S-038 · 1 MAJOR M-064-rem ·
+  1 MINOR N-086 · 1 INFO I-026) · 236 FIXED · tracked-open 3. Next:
+  N-086 (the rawsigns posture registration - a decision + one row).

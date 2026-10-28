@@ -12,6 +12,8 @@
 #include <gtest/gtest.h>
 #include "cr/fat/cr_fat_engine.h"
 #include "cr/storage/cr_device.h"
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <vector>
@@ -319,6 +321,106 @@ TEST(FatEngine, LfnCorruptFallsBackToShort) {
         if (n->name_utf8() == "README~1.TXT")
             readme = n;
     ASSERT_NE(readme, nullptr); /* 8.3 fallback survived the corrupt LFN */
+}
+
+TEST(FatEngine, ShortNameOemBytesDecoded) {
+    /* N-087: an 8.3 name with high-half OEM bytes decodes through CP437
+     * at the boundary - byte 0x93 is 'o'-circumflex (U+00F4), not the
+     * identity-mapped U+0093 control the pre-fix code produced. The
+     * og's own behavior: the raw bytes persist and the mounting
+     * codepage supplies the glyphs (ifileproperties-part1:121); the
+     * core's UTF-16 carrier needs the conversion. */
+    auto img = build_fat16_image();
+    /* a new dentry: bytes {0x93, 'A', 'B'} + ext "TXT", chain 15 (EOO) */
+    u8* root = img.data() + 42 * 512;
+    u8 oem[11] = {0x93, 'A', 'B', ' ', ' ', ' ', ' ', ' ', 'T', 'X', 'T'};
+    make_dentry(root + 6 * 32, reinterpret_cast<const char*>(oem), 0x20, 15, 100, 0x5A46,
+                0x6000, false);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    auto all = collect_all(tree);
+    /* CP437 0x93 = U+00F4 (o-circumflex) + "AB.TXT" */
+    bool found = false;
+    for (auto* n : all) {
+        if (n->props() == nullptr)
+            continue;
+        const std::u16string& nm = n->props()->name;
+        if (nm.size() == 7 && nm[0] == 0xF4 && nm[1] == u'A' && nm[2] == u'B' &&
+            nm[3] == u'.' && nm[4] == u'T' && nm[5] == u'X' && nm[6] == u'T') {
+            found = true;
+            /* and NOT the identity-mapped control U+0093 */
+            EXPECT_NE(u16(0x93), nm[0]);
+        }
+        for (u16 c : nm)
+            ASSERT_NE(u16(0x93), c) << "the pre-fix identity map must be gone";
+    }
+    EXPECT_TRUE(found) << "the OEM name must decode through CP437";
+}
+
+TEST(FatEngine, ShortNameAsciiUnchanged) {
+    /* N-087: ASCII 8.3 names are byte-identical before/after (the
+     * conversion touches only the high half) */
+    auto img = build_fat16_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    auto all = collect_all(tree);
+    bool saw_del = false, saw_inner = false;
+    for (auto* n : all) {
+        if (n->name_utf8() == "_EL.TXT") /* the undelete convention */
+            saw_del = true;
+        if (n->name_utf8() == "INNER.TXT")
+            saw_inner = true;
+    }
+    EXPECT_TRUE(saw_del);
+    EXPECT_TRUE(saw_inner);
+}
+
+TEST(FatEngine, ShortNameKaniMarkerPathUnchanged) {
+    /* N-087: the 0x05-first-byte KANJI escape (cr_fat_quick.cpp:202-203
+     * rewrites 0x05 -> 0xE5 before the name build) and the deleted
+     * 0xE5 first byte both still reach the marker logic - the decode
+     * happens after, so 0xE5-as-name (CP437 alpha) decodes to U+00D1
+     * when the marker was consumed. A live 0x05-led dentry name */
+    auto img = build_fat16_image();
+    u8* root = img.data() + 42 * 512;
+    /* 0x05 lead byte (the KANJI lead-in for a real 0xE5 first char) */
+    u8 kani[11] = {0x05, 'X', ' ', ' ', ' ', ' ', ' ', ' ', 'T', 'X', 'T'};
+    make_dentry(root + 6 * 32, reinterpret_cast<const char*>(kani), 0x20, 15, 100, 0x5A46,
+                0x6000, false);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    auto all = collect_all(tree);
+    bool saw_kani = false;
+    for (auto* n : all) {
+        if (n->props() == nullptr || n->props()->name.empty())
+            continue;
+        if (n->props()->name[0] == 0x05) {
+            ADD_FAILURE() << "the KANJI escape must be consumed (rewritten to 0xE5)";
+        }
+        /* the caller rewrites 0x05 -> 0xE5; CP437 0xE5 = U+03C3 (sigma)
+         * - the decoded name is sigma + "X.TXT" (the Latin-1 identity
+         * map would have produced U+00E5 - the pre-fix bug) */
+        const std::u16string& nm = n->props()->name;
+        if (nm.size() == 6 && nm[0] == 0x3C3 && nm[1] == u'X' && nm[2] == u'.' &&
+            nm[3] == u'T' && nm[4] == u'X' && nm[5] == u'T')
+            saw_kani = true;
+    }
+    EXPECT_TRUE(saw_kani) << "0x05 -> 0xE5 -> CP437 U+00D1, the full marker path";
 }
 
 TEST(FatEngine, Fat32RootChainAndBackupBoot) {

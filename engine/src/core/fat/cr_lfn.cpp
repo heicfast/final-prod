@@ -110,20 +110,55 @@ bool lfn_deleted_checksum_recover(const std::vector<const LfnEntry*>& slots,
     return true;
 }
 
+/* N-087: the OEM-codepage decode for 8.3 short names. The og persists
+ * the raw OEM bytes (ifileproperties-part1:121 - control-byte names
+ * from deleted entries survive verbatim; the mounting system's
+ * codepage supplies the glyphs). The core's name carrier is UTF-16, so
+ * the faithful boundary conversion is OEM -> Unicode at the name-build
+ * site; CP437 is the corpus-observable default (the US-market boot
+ * tables; the og's exact UI codepage is not decoded in part1 - the
+ * open-question note in the finding). 0x20..0x7E pass through (ASCII
+ * names are byte-identical); the high half maps through the table; the
+ * 0x05-first-byte KANJI escape and the 0xE5 deleted marker are
+ * consumed by the CALLER before this point (cr_fat_quick.cpp:202-203),
+ * so 0xE5 arriving here is a genuine name byte (CP437 alpha). */
+static const u16 kCp437[128] = {
+    0x00C7, 0x00FC, 0x00E9, 0x00E2, 0x00E4, 0x00E0, 0x00E5, 0x00E7, /* 80-87 */
+    0x00EA, 0x00EB, 0x00E8, 0x00EF, 0x00EE, 0x00EC, 0x00C4, 0x00C5, /* 88-8F */
+    0x00C9, 0x00E6, 0x00C6, 0x00F4, 0x00F6, 0x00F2, 0x00FB, 0x00F9, /* 90-97 */
+    0x00FF, 0x00D6, 0x00DC, 0x00A2, 0x00A3, 0x00A5, 0x20A7, 0x0192, /* 98-9F */
+    0x00E1, 0x00ED, 0x00F3, 0x00FA, 0x00F1, 0x00D1, 0x00AA, 0x00BA, /* A0-A7 */
+    0x00BF, 0x2310, 0x00AC, 0x00BD, 0x00BC, 0x00A1, 0x00AB, 0x00BB, /* A8-AF */
+    0x2591, 0x2592, 0x2593, 0x2502, 0x2524, 0x2561, 0x2562, 0x2556, /* B0-B7 */
+    0x2555, 0x2563, 0x2551, 0x2557, 0x255D, 0x255C, 0x255B, 0x2510, /* B8-BF */
+    0x2514, 0x2534, 0x252C, 0x251C, 0x2500, 0x253C, 0x255E, 0x255A, /* C0-C7 */
+    0x2554, 0x2569, 0x2566, 0x2560, 0x2550, 0x256C, 0x2567, 0x2568, /* C8-CF */
+    0x2564, 0x2565, 0x2559, 0x2558, 0x2552, 0x2553, 0x256B, 0x256A, /* D0-D7 */
+    0x2518, 0x250C, 0x2588, 0x2584, 0x258C, 0x2590, 0x2580, 0x03A9, /* D8-DF */
+    0x03B1, 0x00DF, 0x0393, 0x03C0, 0x03A3, 0x03C3, 0x00B5, 0x03C4, /* E0-E7 */
+    0x03A6, 0x0398, 0x03A9, 0x03B4, 0x221E, 0x2205, 0x2208, 0x2204, /* E8-EF */
+    0x2264, 0x2265, 0x03C0, 0x2260, 0x00A4, 0x03B1, 0x2248, 0x222B, /* F0-F7 */
+    0x00A0, 0x00B7, 0x221A, 0x0192, 0x2248, 0x2202, 0x25A0, 0x00A0, /* F8-FF */
+};
+
 std::u16string short_name_to_u16(const u8 name[11]) {
     std::u16string s;
     int base_end = 8;
     while (base_end > 0 && name[base_end - 1] == ' ')
         --base_end;
-    for (int i = 0; i < base_end; ++i)
-        s.push_back(u16(name[i]));
+    for (int i = 0; i < base_end; ++i) {
+        const u8 c = name[i];
+        s.push_back(c >= 0x80 ? kCp437[c - 0x80] /* N-087: OEM -> Unicode */ : u16(c));
+    }
     int ext_end = 3;
     while (ext_end > 0 && name[8 + ext_end - 1] == ' ')
         --ext_end;
     if (ext_end > 0) {
         s.push_back(u'.');
-        for (int i = 0; i < ext_end; ++i)
-            s.push_back(u16(name[8 + i]));
+        for (int i = 0; i < ext_end; ++i) {
+            const u8 c = name[8 + i];
+            s.push_back(c >= 0x80 ? kCp437[c - 0x80] : u16(c));
+        }
     }
     return s;
 }

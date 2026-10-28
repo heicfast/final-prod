@@ -242,3 +242,13 @@ NonRecycleDollarFilesStayRaw (fail-before EXECUTED — engine mutation
 3/4 RED; the over-matching pin green by design). B4/B5/D11 verdict:
 MATCH.
 
+
+## Fix-session delta (N-087 closed — 2026-10-28)
+
+- **N-087 → FIXED**: short_name_to_u16 decodes high-half 8.3 bytes
+  through the standard-verified CP437 table (the og persists raw OEM
+  bytes, ifileproperties-part1:121; the core's UTF-16 carrier converts
+  at the boundary). ASCII unchanged; the 0x05 KANJI escape + the
+  deleted-marker rewrite are caller behavior (unchanged) — 0x05 → 0xE5
+  → CP437 sigma. 3 tests (2 fail-before-proven RED on the reverted
+  build).

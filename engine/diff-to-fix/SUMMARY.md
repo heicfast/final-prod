@@ -18,6 +18,23 @@ findings/FIXED/S-039-*.md for the Resolution.
 7 MAJOR M-060..M-066 · 5 MINOR N-084..N-088 · 1 INFO I-026) · **225 FIXED**
 · tracked-open 4 unchanged.
 
+## Fix-session delta (2026-10-28 — N-087, the FAT 8.3 OEM decode)
+
+**N-087 (MINOR) FIXED**: `short_name_to_u16`'s identity byte-widening
+replaced with the full standard-verified CP437 table (128 entries,
+byte-exact; ASCII passes through unchanged). The og persists raw OEM
+bytes and lets the mounting codepage supply glyphs; the core's UTF-16
+name carrier now gets the faithful boundary conversion (the finding's
+step-1 semantics). The 0x05 KANJI escape and deleted-marker paths are
+caller-side and unchanged — a live 0x05-led name decodes 0xE5 → CP437
+sigma (U+03C3), where the pre-fix identity map produced U+00E5 (and
+byte 0x93 produced the C1 control U+0093 instead of o-circumflex).
+3 tests; the two behavior tests fail-before PROVEN on the
+stash-reverted build.
+
+**Board after N-087:** 4 active (1 SEVERE S-038 · 1 MAJOR M-064-rem ·
+1 MINOR N-086 · 1 INFO I-026) · **236 FIXED** · tracked-open 3.
+
 ## Fix-session delta (2026-10-28 — M-066 + N-088, the preview parity pair)
 
 **M-066 (MAJOR) FIXED**: preview-time archive-content enumeration —
