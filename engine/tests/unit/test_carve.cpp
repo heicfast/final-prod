@@ -8131,7 +8131,13 @@ TEST(Carve, TsM2TsCapIsTheOg200MB) {
     const Signature* reg = registry();
     ASSERT_NE(reg, nullptr);
     const Signature *ts = nullptr, *m2ts = nullptr;
-    for (const Signature* s = reg; s->ext; ++s) {
+    /* count-based iteration: the registry is a FIXED table (one entry per
+     * FormatId, order = FormatId - cr_signatures.h's own contract); it has
+     * NO null terminator. The `for (s = reg; s->ext; ++s)` form walks past
+     * kTable's end (the ASan lane's global-buffer-overflow, the M-133
+     * red-main class). */
+    for (size_t i = 0; i < registry_size(); ++i) {
+        const Signature* s = reg + i;
         if (s->id == FMT_TS)
             ts = s;
         else if (s->id == FMT_M2TS)
@@ -8165,7 +8171,10 @@ TEST(Carve, TsStreamClampedAt200MB) {
      * is a semicolon-delimited ext list (M-024 contract) - build it
      * from the registry itself */
     std::string disabled;
-    for (const Signature* s = registry(); s->ext; ++s) {
+    /* count-based iteration (the M-133 class): kTable has no null
+     * terminator - the ext-terminated form walks off the end. */
+    for (size_t i = 0; i < registry_size(); ++i) {
+        const Signature* s = registry() + i;
         if (s->id == FMT_TS || s->id == FMT_M2TS)
             continue;
         if (!disabled.empty())
