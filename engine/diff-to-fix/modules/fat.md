@@ -2,9 +2,10 @@
 
 ## S12 addendum (2026-10-29 — the session-2 deep-dive; lane sheets at ../evidence/s12-lane-sheets/)
 
-New active findings on this module: **A-014** (ACUTE — time-word validation:
+New active findings on this module: **A-014** (FIXED session-47 — time-word validation:
 hour/min/2s unchecked in `fat_datetime_to_unix_seconds`, shifted plausible timestamps
-where the og zeroes the slot, FAT:32135-54); **M-127** (the O(n^2) visited-vector
+where the og zeroes the slot, FAT:32135-54; the gate now carries the full
+DosDateTimeToFileTime accept set, the end-to-end per-slot zeroing pinned); **M-127** (the O(n^2) visited-vector
 cycle guard vs the og's range tree — stall-class); **M-130** (the dentry
 shape-validator family unported: ext-tail, size/chain-XOR, dir, >9-repeat histogram
 gates + walk-stop semantics); **N-162** (the og's 32-bit cluster-math wrap registered

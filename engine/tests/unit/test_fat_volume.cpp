@@ -2155,6 +2155,86 @@ TEST(FatEngine, Date2107ConvertsFullyNoClamp) {
     EXPECT_EQ(fat_date_to_unix(0x0020, 0x6000, 0), 0u); /* day 0 */
 }
 
+TEST(FatEngine, TimeWordOutOfRangeYieldsZeroTimestamp) {
+    /* A-014: the og's DosDateTimeToFileTime (FATSearchDLL
+     * :32135-32154, three zero-on-fail slots) rejects hour >= 24,
+     * minute >= 60 and second >= 60; the rejected slot becomes the
+     * zero FileTime. The core's shared converter used to fold those
+     * into the epoch math - fabricating shifted plausible timestamps
+     * (time 0xC000 = hour 24 = exactly +1 day). Every out-of-range
+     * time word on a valid date now yields 0 (the invalid class). */
+    /* hour 24 (0xC000): the finding's worked example - was date+1 day.
+     * (The finding's example date word 0x65C4 decodes month 14 - an
+     * invalid date; the clean 2024-06-12 word 0x58CC is used here so
+     * the test isolates the TIME-word class exactly.) */
+    EXPECT_EQ(fat_date_to_unix(0x58CC, 0xC000, 0), 0u) << "hour 24";
+    /* hour 31 (0xF800): the 5-bit field's maximum */
+    EXPECT_EQ(fat_date_to_unix(0x58CC, 0xF800, 0), 0u) << "hour 31";
+    /* minute 60 (0x0780): the 6-bit field past the bound */
+    EXPECT_EQ(fat_date_to_unix(0x58CC, 0x0780, 0), 0u) << "minute 60";
+    /* minute 63 (0x07E0): the 6-bit field's maximum */
+    EXPECT_EQ(fat_date_to_unix(0x58CC, 0x07E0, 0), 0u) << "minute 63";
+    /* 2s field 30 (0x001E) = 60 s: the >59 second class */
+    EXPECT_EQ(fat_date_to_unix(0x58CC, 0x001E, 0), 0u) << "second field 30";
+    /* 2s field 31 (0x001F) = 62 s: the field's maximum */
+    EXPECT_EQ(fat_date_to_unix(0x58CC, 0x001F, 0), 0u) << "second field 31";
+}
+
+TEST(FatEngine, ValidTimeWordBoundaryConvertsUnchanged) {
+    /* A-014 regression edge: the boundary-legal values 23:59:58
+     * (0xBF7D) and 00:00:00 (0x0000) still convert - the gate accepts
+     * exactly the DosDateTimeToFileTime range. */
+    /* 2024-06-12 23:59:58 */
+    EXPECT_EQ(fat_date_to_unix(0x58CC, 0xBF7D, 0), 1718236798ULL);
+    /* midnight on the same date */
+    EXPECT_EQ(fat_date_to_unix(0x58CC, 0x0000, 0), 1718150400ULL);
+    /* 2s field 29 (0x001D) = 58 s is the last legal second */
+    EXPECT_EQ(fat_date_to_unix(0x58CC, 0x001D, 0), 1718150458ULL);
+}
+
+TEST(FatEngine, InvalidTimeStampsPersistAsZero) {
+    /* A-014 end-to-end: a live dentry whose write time word carries
+     * hour 24 gets the ZERO FileTime on the record (the og's
+     * zero-on-fail slot), not a day-shifted plausible value. */
+    auto img = build_fat16_image();
+    u8* root = img.data() + 42 * 512;
+    /* plant a dentry whose CREATE time is valid (12:00) but whose WRITE
+     * time carries hour 24 - the og zeroes the failing slot only
+     * (per-slot zeroing, FATSearchDLL :32144-:32148 vs :32135-:32138) */
+    /* slot 6 = the first free slot (0-5 used; a zero slot would end the
+     * directory walk before this dentry is reached) */
+    DirEntry* bad = reinterpret_cast<DirEntry*>(root + 6 * 32);
+    const char nm[11] = {'B','A','D','T','I','M','E',' ','T','X','T'};
+    for (int i = 0; i < 11; ++i)
+        bad->name[i] = u8(nm[i]);
+    bad->attributes = 0x20;
+    bad->nt_reserved = 0;
+    bad->creation_tenths = 0;
+    bad->creation_time = 0x6000;  /* 12:00 - valid */
+    bad->creation_date = 0x58CC;  /* 2024-06-12 */
+    bad->access_date = 0x58CC;
+    bad->first_cluster_high = 0;
+    bad->first_cluster_low = 15;
+    bad->write_time = 0xC000;     /* hour 24 - invalid */
+    bad->write_date = 0x58CC;
+    bad->file_size = 100;
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    tree::FileNode* z = find_node(tree, "BADTIME.TXT");
+    ASSERT_NE(z, nullptr) << "the invalid-time dentry is still a result";
+    EXPECT_EQ(z->props()->times.modified, 0u)
+        << "hour 24 persists as the zero FileTime, not date+1 day";
+    /* creation (time 0x6000 = 12:00 valid) stays real: only the
+     * failing slot is zeroed - the og zeroes per-slot, not per-file */
+    EXPECT_NE(z->props()->times.created, 0u);
+}
+
 TEST(FatEngine, Date2107EndToEndFileTimeIsReal) {
     /* N-173 end-to-end: a live dentry dated 2107-12-31 carries the REAL
      * FileTime (unix 4354776000 * 1e7 + the epoch), not the zero/1601

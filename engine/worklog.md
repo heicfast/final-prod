@@ -1,3 +1,20 @@
+**Session-47 severe-first lane — A-014 landed (2026-10-29).**
+
+**A-014 FIXED (ACUTE — the FAT time-word fabrication).** Corpus re-verified first-hand
+(the three zero-on-fail DosDateTimeToFileTime slots at FATSearchDLL :32135-32154);
+the core's month/day-only gate confirmed live at the current HEAD (cr_fat_wire.h).
+Fix: the gate extended to the full Win32 accept set — hour > 23 || minute > 59 ||
+(time & 0x1F) > 29 → 0 (the 2s field > 29 = ≥ 60 s). RED proven pre-fix
+(TimeWordOutOfRangeYieldsZeroTimestamp: all six boundary words returned shifted
+plausible values; InvalidTimeStampsPersistAsZero: hour-24 write-time produced
+date+1-day on the record); GREEN post-fix; the boundary regression pin
+(23:59:58/00:00:00/58s) and the N-021/N-173 families re-run green (FAT/exFAT
+94 passed/1 env-skip). exFAT unaffected (the M-014 dentry gate rejects the class
+upstream — verified by reading fat_datetime_fields_ok). Finding erratum recorded:
+the example date word 0x65C4 decodes month 14 (invalid — the og zeroes that slot
+by the N-021 class regardless); tests use the clean 0x58CC. Trail: findings/FIXED/
+A-014 + ledger row + matrix cell (fat P9/P2 → MATCH) + fat.md row + this entry.
+
 **Session-46 lane territory claim (coordination contract, 2026-10-28 22:22 UTC):** this lane
 (MINOR-first per the user's explicit session directive — the parallel S45 lane's own saved
 mandate is ACUTE-first, so the natural division is: S45 takes ACUTE/SEVERE, this lane takes
