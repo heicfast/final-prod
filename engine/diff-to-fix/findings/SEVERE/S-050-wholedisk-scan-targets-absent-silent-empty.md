@@ -55,4 +55,6 @@ M-104 (the presentation half — the same flow's tree shape when discovery is on
 
 ## Open questions
 
-The og's per-volume progress weighting when multiple volume targets run in one scan (the corpus's stage-weight decode is single-volume; the multi-volume weighting is a fix-time corpus probe — the qa-logs channel artifacts are the first source to check). Whether the og persists one record-2 VOLUME_INFO per volume in multi-volume sessions (the G session's record-2 count vs its two volume trees — a compare-script extension answers it).
+The og's per-volume progress weighting when multiple volume targets run in one scan (the corpus's stage-weight decode is single-volume; the multi-volume weighting is a fix-time corpus probe — the qa-logs channel artifacts are the first source to check).
+
+RESOLVED (session-10 record census, evidence addendum): the og persists ONE record-2 VOLUME_INFO per session — the two-volume G session's single record-2 names the PRIMARY volume ("Local Disk (G:)", the artifact's exact 147-byte layout confirmed first-hand); the multi-volume registry is record-1's special-partition list (the G session carries ONE entry: System Reserved @ start LBA 2048, fieldB=204,799; the single-volume H/I sessions carry entryCount=0). Our singular VolumeSessionInfo is record-level equivalent for the primary volume; the fix needs no session-model change.

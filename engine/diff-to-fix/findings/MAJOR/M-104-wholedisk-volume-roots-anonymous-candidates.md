@@ -55,3 +55,5 @@ S-050 (the same flow's silent-empty half — the target builder this finding's p
 ## Open questions
 
 The og's exact lost-partition display-name template for the tree (the insertion trace proves a name; the rendered form — e.g. whether it carries size/FS — is a UIUX decode the fix session should pin; `DrwLostDiskPage` decode and the results-phase UIUX/09 rows are the sources). Whether the og's `NTFS` FS-type marker row is per-volume or per-session (the G session shows ONE `NTFS` row for two NTFS volumes — per-session by FS family, but a one-session sample; the H/I sessions are single-FS too — a corpus probe on multi-FS disks would settle it).
+
+RESOLVED (session-10 record census, evidence addendum): the session persists ONE record-2 naming the primary volume; the second volume's identity lives ONLY in the tree (its display-name root) plus record-1's special-partition entry (System Reserved @ LBA 2048 in the G session — the resume-time re-attachment registry). The per-volume display-name roots this finding asks for ARE the og's persistence mechanism for multi-volume identity — no new session record is needed.

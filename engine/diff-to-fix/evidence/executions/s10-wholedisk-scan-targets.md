@@ -169,3 +169,46 @@ g++ -std=c++20 -O1 -I include -I tests/win-stub \
 python3 scripts/compare_og_rsf.py \
     "../easeus-drw-research/og-codebase/SaveScan/auto_Local Disk (G_)10_15_00_44_10.rsf" /tmp/g.csv
 ```
+
+## Addendum — the record-level census (the multi-volume session's persistence contract, first-hand this lane)
+
+Record census over all three real sessions (chain-walk per the validated
+grammar; payloads de-chunked + zlib-decompressed; the record-2 layout
+verified against rsf-format--scan-session.md §5.1/§5.2 — the artifact's
+147-byte record-2 confirmed exactly):
+
+```
+=== record chain (all three sessions) ===
+G: rec0 state   25B compressed -> 45B decompressed
+   rec1 volinfo 65B -> 147B   label "Local Disk (G:)"  deviceType=6
+   rec2 partctx 588B
+   rec3 tree    7,365,723B
+H: rec0 state   13B -> 12B (all zero)      rec1 147B "Local Disk (H:)"
+   rec2 590B    rec3 52,743,051B
+I: rec0 state   13B -> 12B (all zero)      rec1 147B "Local Disk (I:)"
+   rec2 588B    rec3 8,995,756B
+```
+
+**One record-2 (volume info) per session — even in the two-volume G
+session** — and it names the PRIMARY volume ("Local Disk (G:)"). The
+multi-volume identity is NOT a second record-2.
+
+**The multi-volume registry is record-1's special-partition list** (the
+artifact §5.1: `entryCount` + entries copied from the scan device's
+0xA8-stride partition-info objects — the SAME objects the scan-setup
+insertion loop iterates at DRWUI_decompiled.c:904198). The G session's
+45-byte state decodes as: `entryCount=1`, one entry
+`fieldA=2048` (start LBA — System Reserved, the non-primary volume),
+`fieldB=0x31FFF=204,799` (extent end / size-1 form), `fieldC=3`,
+`nameLen=0`, then `trailerLen=0` + the four flag bytes (all 0 — the
+is-whole-disk boolean among them reads 0 in this sample). The
+single-volume H/I sessions carry `entryCount=0` (12 zero bytes).
+
+Parity note for the fix plans: our crsf persists the table SNAPSHOT
+(`DiskLayoutEntry[]` — every table row) where the og persists the
+session's SELECTED additional partitions (record-1's list) — adjacent
+but not equivalent; the primary-volume identity (record-2) maps to our
+singular `VolumeSessionInfo`. S-050/M-104's fixes need no session-model
+change for the primary volume; the per-volume tree identity (M-104)
+should ride the existing record fields (the tree node names), not a new
+record type.
