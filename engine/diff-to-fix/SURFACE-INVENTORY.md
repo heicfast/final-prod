@@ -15,19 +15,31 @@
 > citation status cross-checked per artifact against the entire `diff-to-fix/`
 > trail (78 cited / 204 never-cited by basename; context-verified). Corpus
 > `03ad46c`; core `dd82db9`-lineage (see README).
+>
+> **Session-9 currency pass (2026-10-28, SA-9 lane):** corpus pin advanced to
+> `be0cfe9` (CORRECTIONS.md #9 — unchanged from session-8's T1; every citation
+> above remains valid at that tree). The session-9 full rewalk corrected this
+> header's own bookkeeping: 274 artifact files / 244 unique basenames (30
+> shared between MOM-modules/ and per-binary/); **92 cited by literal
+> basename / 110 in any form / 134 never-cited in any form**; the EuShare
+> row's "5 artifacts" was wrong (2, both dir-shorthand-cited); the
+> raw-signs/family-layer globs matched no artifact basename (corrected in
+> place to the real artifacts). The never-audited EPMNtDrv v2 + trio rows
+> are **AUDITED this session (MATCH)**; the carve row gains S-040/S-041/
+> S-042/N-092; the WinPE pre-registration row is now OWNED by M-072.
 
 ## 1. Kernel-driver / transport surfaces
 
 | Surface | Corpus sources | What it does | Status |
 |---|---|---|---|
 | EPMNtDrv raw-disk engine (eprdtdrv/ebrntdrv/epmdkdrv/win7older) | `architecture/02-kernel-driver-architecture.md`; `artifacts/PartitionRecovery/eprdtdrv-sys--driver-internals.md` (v1, cited ×2); `re-workspace/reversed/ghidra-drivers/` | The raw-disk proxy driver family: grammar, device namespace, read flow, PID checks | AUDITED (modules/transport.md) — **driver-only era re-audit in S7 lane** |
-| EPMNtDrv identity IOCTLs + async completion engine (**v2 internals**) | `artifacts/PartitionRecovery/epmntdrv-internals-v2--completion-engine-identity-ioctls.md` | The identity-IOCTL contract (GET_INFO/GET_VERSION-class), async completion engine, `\Volume\{N}` resolution chain | **NEVER-AUDITED (NEVER-CITED)** — ground truth for the S7 lane's identity-IOCTL adjudication; flagged to S7 |
-| EPMNtDrv trio naming + PID handshake | `artifacts/PartitionRecovery/epmntdrv-trio--naming-pid-handshake.md` | Runtime-composed device naming + the full two-sided PID-token handshake | **NEVER-AUDITED (NEVER-CITED)** — S7 lane (transport territory) |
+| EPMNtDrv identity IOCTLs + async completion engine (**v2 internals**) | `artifacts/PartitionRecovery/epmntdrv-internals-v2--completion-engine-identity-ioctls.md` | The identity-IOCTL contract (GET_INFO/GET_VERSION-class), async completion engine, `\Volume\{N}` resolution chain | **AUDITED (session 9) — MATCH** (C-sheet corpus decode vs E-sheet code read, cross-verified: 0x60002400 GetProcName in==4/out>0x207, 0x60002404 GetFileObjName, 0x60002408 GetDiskContextMode out==4, method-aware pass-through, ×512 Information; corpus-internal V1-§4 mislabel noted for errata) |
+| EPMNtDrv trio naming + PID handshake | `artifacts/PartitionRecovery/epmntdrv-trio--naming-pid-handshake.md` | Runtime-composed device naming + the full two-sided PID-token handshake | **AUDITED (session 9) — MATCH** (the PID-token byte-sum transform re-derived at CREATE, mismatch → STATUS_INVALID_PARAMETER; `\Device\<UPPERCASED service name>` + EPMNTDRV fallback; DO_DIRECT_IO; benchmark-proven 64/64) |
 | EPMNtDrv trio byte-diff | `artifacts/PartitionRecovery/epmntdrv-trio--byte-diff-verification.md` | ebrntdrv ≡ eprdtdrv_win7older byte identity etc. | AUDITED (M-030 ×1) |
 | EUDCPEPM/EUEDKEPM WinPE hook pair | `architecture/02` §3; `artifacts/PartitionRecovery/eudcpepm-euedkepm--hook-drivers.md`; `--hook-framework-urgent-cache.md` | Disk-stack hook + named raw-disk door (WinPE) | AUDITED (M-030/I-021 context; S7 lane active on driver family) |
-| EuMrx NAS redirector | `architecture/02` §4; `artifacts/EuShare/*` (5 artifacts, cited) | RDBSS mini-redirector for NAS scan | OUT-OF-SCOPE (network/NAS exclusion) — install scripts noted in §6 below |
+| EuMrx NAS redirector | `architecture/02` §4; `artifacts/EuShare/*` (2 artifacts — `eumrx-nas-architecture.md`, `eumrx-rdbss-internals--minirdr-dispatch.md`; dir-shorthand-cited; the earlier "5 artifacts" was a miscount) | RDBSS mini-redirector for NAS scan | OUT-OF-SCOPE (network/NAS exclusion) — install scripts noted in §6 below |
 | Driver install lifecycle (live) | `architecture/02` §5; `per-binary/setupdrvx64.md`; `deepening-batch1--japanese-winchkdsk-setupdrv-legacy.md` §3 | setupdrvx64 copy+create+start; `-Uninstall` mode; `%s%d` versioned coexistence; write+verify; per-call SCM errors | **AUDITED this session** (Phase 1: S-036/M-060/M-062/N-085; wave 3: **M-064** the versioned/verified contract absent) |
-| Driver pre-registration (WinPE) | `og-codebase/BUILDPE/x64/regdrv.reg`; `artifacts/WinPE/boot-config--winpeshl-autobat-regdrv.md` | Offline-hive service matrix (4 services + disk-class UpperFilters), eprdtdrv absent from PE | **PARTIAL** — M-030 evidence cites; no dedicated finding owns the UpperFilters write / Start-split / eprdtdrv-absence parameters |
+| Driver pre-registration (WinPE) | `og-codebase/BUILDPE/x64/regdrv.reg`; `artifacts/WinPE/boot-config--winpeshl-autobat-regdrv.md` | Offline-hive service matrix (4 services + volume-class UpperFilters), eprdtdrv absent from PE | **AUDITED (session 9)** — the UpperFilters write / Start-split / eprdtdrv-absence parameters OWNED by **M-072** (regdrv-rda.reg: unparseable hex(7) + DISKDRIVE-vs-VOLUME class + the Start posture; the D4 handoff expanded with two new parameters) |
 | DRWService (BitLocker FVE service) | `architecture/02` §5.2; `artifacts/DRWService-exe--bitlocker-service.md` | On-demand service: `/install` `/uninstall`; AUTO_START "Read FVE Server", LocalSystem | **PARTIAL** — data path AUDITED (S-014, modules/health.md); **install lifecycle NEVER-AUDITED** |
 | RDA driver contract (our driver) | core-side: `docs/DRIVER-CONTRACT.md`, `docs/DRIVER-RELEASE.md`, `docs/PREBUILT-ARTIFACTS.md` | The merged product's own driver + prebuilt conventions | Phase-1 AUDITED this session (S-036..I-026); wire-constant parity = S7 lane |
 
@@ -52,11 +64,11 @@
 
 | Surface | Corpus sources | What it does | Status |
 |---|---|---|---|
-| Raw-signature table + dispatch | `artifacts/SearchDLL/rawsearchdll--raw-signs*` (cited ×13 census) | The signature registry | AUDITED (modules/carve.md) — **the six family artifacts AUDITED this session** (wave 1: 131 classes → A-010/S-037/N-086 + OQ-SA-2) |
+| Raw-signature table + dispatch | `artifacts/SearchDLL/rawsearchdll--analyser-registry-census.md` + `raw-dual-registry--u16-magic-keys.md` (the census pair; the earlier `rawsearchdll--raw-signs*` glob matched no artifact basename — corrected session 9) | The signature registry | AUDITED (modules/carve.md) — **the six family artifacts AUDITED (SA wave 1)** (131 classes → A-010/S-037/N-086 + OQ-SA-2); **session 9: S-040 (WMF placeable layout), S-041 (CRW/MRW key attribution), S-042 (the batch-2 remainder — ~20 formats + the OOXML id split, every gate decoded), N-092 (MID/GZ caps); corpus errata E53/E54; the CHM/MPEG-TS/EMF/LZH deferral causes RESOLVED** |
 | **BruteForce frame-walker family (23 classes)** | `artifacts/SearchDLL/rawsearchdll--family-bruteforce.md` | MP3/ADTS/APE/ASF/M2TS/MTS/PDF/TIFF/DWG/DXF/EPS/FH11/FCPEvt/GIF/JPEG frame-sync validators | **AUDITED this session** (wave 1: A-010 ASF walk semantics + S-037 FH11; the family contract decoded from deep-dive:87-91) |
 | **First-generation File*Analyser family (47 classes)** | `artifacts/SearchDLL/rawsearchdll--family-filegen.md` | Primary+fallback dual-role validators | **AUDITED this session** (wave 1: presence/absence dispositioned; semantics map to existing findings; residuals in OQ-SA-2) |
 | **RawSpeed/xjq/special/Brance families (61 classes)** | `artifacts/SearchDLL/rawsearchdll--family-{rawspeed,xjq,special,brance}.md` | HEIC, RAR4, registry infrastructure, ForCellTest + the rest | **AUDITED this session** (wave 1: S-037 CPT7/8/9 from the RawSpeed roster; 64 of 67 absences covered by S-007's remainder) |
-| Carve family layer (two-generation chains) | `artifacts/SearchDLL/rawsearchdll--family-layer*.md` (cited) | The generation/fallback architecture | AUDITED (S-007 family) |
+| Carve family layer (two-generation chains) | `artifacts/SearchDLL/searchdll-family--architecture.md` + the `rawsearchdll--family-{filegen,brance,rawspeed,special}.md` set (the earlier `family-layer*` glob matched no basename — corrected session 9) | The generation/fallback architecture | AUDITED (S-007 family; session 9's S-042 completes the recorded remainder) |
 
 ## 4. Orchestration / product-capability surfaces
 

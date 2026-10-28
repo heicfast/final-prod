@@ -9,7 +9,14 @@ Every applicable parameter that is not `MATCH`/`DIVERGENCE-INFORMATIONAL`
 generates a finding file under `findings/`.
 
 **Audited core commit:** `67193b6` (baseline includes concurrent fixes through
-`9fc82b0`). **Corpus commit:** `03ad46c`.
+`9fc82b0`). **Corpus commit:** `03ad46c`. **Session-9 currency note
+(2026-10-28):** corpus pin advanced to `be0cfe9` (CORRECTIONS.md #9 — the
+EUUserData/GetRawUserInfoMap corrections, already absorbed as CORPUS-ERRATA
+E-A/E-B + D-104; the taxonomy below is unchanged by that commit). The
+session-9 findings (S-040..S-042, M-071/M-072, N-090..N-092) score against
+B1/A28/C19/P29 (carve) and P47/P-inst-15/16 + the doc-truth parameters
+(transport/driver-install) — all existing taxonomy rows; no new parameters
+were invented.
 
 ## Group B — Behavioral parameters
 

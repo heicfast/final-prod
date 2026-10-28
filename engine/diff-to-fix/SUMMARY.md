@@ -1,5 +1,68 @@
 # SUMMARY.md — executive summary (the review-validate close-out on top; earlier sessions below)
 
+## Session-9 delta (2026-10-28 — the SA-9 lane: the wave-2 continuation executed; two-repo scope incl. the driver handoffs)
+
+**Audited:** core product code `35adcb9` · rda-driver `323e75a` (v0.2.4) ·
+corpus `be0cfe9`. **8 new findings filed** (the board's first active rows
+since the PARITY-FIX-9 close):
+
+- **SEVERE ×3 (carve):** **S-040** — the placeable-WMF validator reads a
+  wrong header layout (inch@+16 = the Reserved field; checksum@+18 vs the
+  og's +20; XOR-9 vs XOR-10 words; no HWmf gate) and **rejects every real
+  placeable WMF**; the test plant mirrors the wrong convention, so the
+  suite cannot catch it. **S-041** — Canon CRW is not carved at all: the
+  og keys II/MM 1A 00 to Brance::CRWAnalyser id 0x12 (CIFF gate) while our
+  rows on those keys are MRW validators whose PRD-anchor gate no real file
+  passes (two dead rows occupying the CRW key space; FileMRWAnalyser rides
+  \0MRM only — instruction-decisive, census erratum E53). **S-042** — the
+  S-007 batch-2 remainder as a fully-decoded finding: CHM (the deferred
+  GUID-compare puzzle RESOLVED at the instruction level — capstone on the
+  og binary; the canonical ITSF layout puts GUID1@+0x18/GUID2@+0x28),
+  MNY, EMF, ONE, MPEG-TS (the "key 284" deferral resolved: that is
+  FreeHand 11), 3DS, SWF, JP2, MOBI, LZH, HTML, SVG/XML, the text school
+  (VCF/GPX/HIK/OSP/POS/AEP/HFP) + the OfficeTagFromXML DOCX/XLSX/PPTX
+  id-split — every gate now decoded, no further RE required.
+- **MAJOR ×2 (driver-install):** **M-071** — rda-driver's FileVersion is
+  pinned 1.0.0.0 across v0.x releases, so the M-064 versioned-coexistence
+  scheme is functionally inert (every release computes `<name>10.sys`;
+  the upgrade branch is unreachable; every reinstall exits 2). **M-072** —
+  the WinPE profile regdrv-rda.reg: unparseable hex(7) UpperFilters data
+  (the D4 handoff), plus two new parameters (DISKDRIVE class vs the og's
+  VOLUME class; Start=3 + filter active vs the og's boot-start filter).
+- **MINOR ×3:** **N-090** (the D3 stale-count prose expanded to 12+ sites
+  with the reference-vs-served nuance), **N-091** (the driver repo's
+  doc-vs-code truthfulness: the claimed admin gate has no code; stale
+  sector-length prose; the S12 dead-code claim false; unreachable default;
+  the undocumented 57th check), **N-092** (MID/GZ batch-1 caps drift: 64
+  MiB vs 10 MB; 512 MiB/min-18 vs 400 MB/min-20).
+
+**MATCH verdicts recorded (no findings):** the never-audited EPMNtDrv v2
+internals + trio naming/PID-handshake surfaces (our driver byte-exact:
+identity IOCTLs, PID-token transform, naming, DO_DIRECT_IO, ×512
+Information); the V-lane landings (W1a/W1b/W1c session surfaces, the NTFS
+origin-LCN carrier, the thumbnail engine, installer S-038 steps 2-3, the
+CI rebuild); the G-lane gap-hunt candidates (all covered by existing
+module rows — the specific citations recorded in the matrix).
+
+**Corpus errata E53-E55** (the census's MRW/CRW key attribution; RetDec's
+mis-fused stack constants in the CHM gate — with the general lesson for
+future citations; part1:85's refuted "+0x64 secondary ID" label per the
+SCAN-2f queue). **Gate docs:** corpus pin `03ad46c` → `be0cfe9`;
+SURFACE-INVENTORY's own bookkeeping corrected (the EuShare miscount, the
+dead citation globs, the citation counts) + the EPMNtDrv/trio/WinPE rows
+flipped; CROSS-REF-MATRIX gained the session-9 block; PARAMETERS carries
+the currency note.
+
+**Board after session 9:** **8 active** (S-040, S-041, S-042, M-071,
+M-072, N-090, N-091, N-092) · 249 FIXED · 1 INFORMATIONAL (I-026) ·
+1 tracked-open (OQ-S4-3 — the TTFR half, execution-bound, unchanged).
+**Recommended fix order (first 8):** S-040 → S-041 (both small,
+format-correctness, user-visible recall) → M-071 (one define + a CI gate)
+→ S-042 in the batches its fix plan orders (MPEG-TS → HTML/SVG → SWF →
+EMF → CHM → JP2/MOBI/LZH → ONE/MNY/3DS → text school → OOXML split) →
+M-072 (one file + a parser gate) → N-092 (two one-liners) → N-090/N-091
+(one doc pass + one posture decision).
+
 ## Fix-session delta (2026-10-28 — the PARITY-FIX-9 close-out: S-038 FULLY FIXED — the board's last active SEVERE)
 
 **S-038 (SEVERE) FIXED — steps 1-4 complete.** The installer lane's first

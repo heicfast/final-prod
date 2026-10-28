@@ -285,3 +285,43 @@ per-key analyser attributions.*
 - **E50** (rawsearchdll--analyser-registry-census.md + raw-dual-registry--u16-magic-keys.md, the DXF row): DXF is a KEYED u32 format — key `0x0D302020` (bytes "  0\r") at retdec :5555, node idx 25, a TWO-analyser chain (g146 + g144). The census/u16 artifacts' "list-layer" label is wrong (the ID-conflict note that paired 0x19 with "MPEG-audio" was mis-attributed: 25 = 0x19 = DXF). Consequence: the core keys DXF on the 4-byte magic + the "  0\r\nSECTION" covenant (FMT_DXF).
 - **E51** (rawsearchdll--analyser-registry-census.md, the MDB row): the MDB analyser is reached through the U16 registry, key 0x0100 (bytes `00 01`, the first two Jet header bytes) — NOT a u32-keyed format. The full gate is the 20-byte "Standard Jet DB\0" signature (FUN_180015260: key re-check + "dard" u64 @+8 + " DB\0" u32 @+0x10), type-id 39, FileInfo bounds {0x1000, 0xBEBC200} (ctor :21316-21318). The census's "key 0x100 (00 01 00 00)" conflates the u16 key with the full first-dword.
 - **E52** (rawsearchdll--analyser-registry-census.md, the TTF row): FileTTFAnalyser rides the SAME u16 0x0100 chain as MDB (a genuine two-analyser multimap on one key — the sfnt version word 00 01 00 00 and the Jet header 00 01 00 00 share their first two bytes). The census's "0x10000/0x100 key space" phrasing mixed the ICO u32 key (0x00010000, bytes 00 00 01 00) with this u16 0x0100 chain.
+
+## Session-9 rows (2026-10-28 — the batch-2 decode + the instruction-level verifications; same evidence bar)
+
+- **E53** (rawsearchdll--analyser-registry-census.md:56, the MRW row): the
+  keys `II\x1a\x00` / `MM\x1a\x00` (0x1a4949 / 0x1a4d4d) are bound to the
+  **Canon CRW** chain — `Brance::CRWAnalyser` (id 0x12) wrapping
+  `FileCRWAnalyser` (registration ghidra RAWSearchDLL_decompiled.c:1746-1762,
+  ctor FUN_18003c9f0 :46100-46121, CIFF gate FUN_18003cb10 :46148-46185:
+  `\x00\x00HEAP` + type {CCDR, TIFP, ARCH} + length byte 2). The census's
+  "Minolta MRW (both byte orders) | FileMRWAnalyser" label is wrong;
+  `FileMRWAnalyser` (id 0x66) rides `\x00MRM` (0x4d524d00) ONLY
+  (:2500-2511). This is the decode the SCAN-ENGINE-DELTA A4 row already
+  carries ("CRW … NOT MRW") — the census text itself still carries the
+  wrong attribution. Consequence filed as S-041 (the product's dead MRW
+  rows on those keys).
+- **E54** (ci-multitool retdec_decompiled.c:22635, the CHM gate
+  function_180016b40): RetDec mis-fused the stack-built GUID constants —
+  it prints `!= 0x7c01fd10` and `!= -0x5ffff362` where the actual
+  instruction stream (verified with capstone on og-codebase/RAWSearchDLL.dll
+  at 0x180016b9d-0x180016bc3) compares full u64s against 0x11D07BAA7C01FD10
+  / 0xECE622C9A0000C9E. Ghidra's rendering is correct. General lesson for
+  future citations: stack-materialized 64-bit constants in RetDec output
+  must be instruction-verified. The prior session's "u64-widened GUID
+  compares conflict with canonical ITSF layout" puzzle is RESOLVED — no
+  anomaly: the canonical ITSF file layout (Russotto spec) places the
+  timestamp DWORD at +0x10, the language ID at +0x14, GUID1 at +0x18 and
+  GUID2 at +0x28 (the +0x20/+0x30 expectation came from reimplementations'
+  in-memory structs, e.g. chmlib's, not the on-disk layout). The og's CHM
+  gate is canonical: ITSF + hdr_len 0x60 + both full GUIDs + HS0 0x1FE@+0x60
+  + zeros + size u64@+0x68.
+- **E55** (SaveScan/ifileproperties-part1--ntfs-fat-exfat.md:85): the
+  "+0x64 | 4 | secondary ID [CENSUS: 35..199,008,480]" label is refuted by
+  the SCAN-2f/SCAN-3 instruction-decisive decode (both lanes, convergent):
+  +0x64 = the low u32 of the FIRST $DATA run's start LCN (the
+  location-anchor family; DRWUI_decompiled.c:853462-853464 persists it
+  immediately before the type id). The erratum was queued by the SCAN-2f
+  lane's worklog ("corpus erratum row queued (part1:85 'secondary ID')")
+  and is recorded here per that queue. (Companion context: +0x60 = total
+  $DATA clusters — the census multiplicity is allocated-clusters
+  behavior.)

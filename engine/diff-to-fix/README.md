@@ -6,6 +6,30 @@ engine `src/core`+`include/cr`, win layer `src/win`, driver-consuming transport,
 CI, and this audit trail in one tree; the driver itself ships as a prebuilt
 `rda.sys` release asset from `heicfast/rda-driver` per `docs/PREBUILT-ARTIFACTS.md`).
 Research corpus (ground truth): https://github.com/heicfast/easeus-drw-research.
+Driver repo (in the audit scope when a session's grant covers both repos —
+session 9's did): https://github.com/heicfast/rda-driver.
+
+**Session 9 (2026-10-28, SA-9 lane — the wave-2 continuation executed):**
+audited **core product code `35adcb9`** (the last code commit; the trail-only
+commits above it verified to touch nothing outside `diff-to-fix/`+`worklog*`),
+**rda-driver `323e75a` (v0.2.4)**, **corpus `be0cfe9`**. Two-repo scope: the
+session-8 T2 lanes (V/R/G/C) executed **plus the D-lane** (the driver-repo
+handoffs D3/D4 + FileVersion, newly in scope). Findings filed: **S-040** (WMF
+placeable validator reads a wrong layout — rejects every real placeable WMF;
+the test plant mirrors the bug), **S-041** (Canon CRW not carved; the II/MM
+1A 00 keys occupied by dead MRW rows — instruction-decisive), **S-042** (the
+batch-2 remainder as a fully-decoded finding: CHM/MNY/EMF/ONE/MPEG-TS/3DS/
+SWF/JP2/MOBI/LZH/HTML/SVG + the text school + the OfficeTagFromXML id split),
+**M-071** (rda-driver FileVersion pinned 1.0.0.0 → the M-064 versioned
+coexistence is inert), **M-072** (regdrv-rda.reg: unparseable hex(7) +
+DISKDRIVE-vs-VOLUME class + the Start posture), **N-090/N-091** (the driver
+repo's stale counts + doc-vs-code truthfulness), **N-092** (MID/GZ cap
+drift). The never-audited EPMNtDrv v2 + trio surfaces resolved **MATCH**;
+the V-lane landings verified; corpus errata E53-E55; evidence under
+`evidence/decompiled-quotes/s9-*` + `evidence/executions/s9-*`. Board at
+close: **8 active** (S-040..S-042, M-071, M-072, N-090..N-092) · 249 FIXED
+· 1 INFORMATIONAL (I-026) · 1 tracked-open (OQ-S4-3 — unchanged, execution-
+bound). Next IDs: A-012+, S-043+, M-073+, N-093+, I-027+.
 
 **This directory is the deliverable of a read-only parity audit.** No source
 code was modified to produce it. It is the roadmap future sessions execute

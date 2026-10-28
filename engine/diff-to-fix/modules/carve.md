@@ -583,3 +583,35 @@ the registry census, not the family semantics. The class-by-class comparison
 - Wave 6 (WinPE payload census): the PE capability boundary (zero .mo = no
   lost-partition search in the bootable edition; FREE-by-construction) is
   DISPOSITIONED as the boot-media builder's design input — no carve defect.
+
+## Session-9 addendum (2026-10-28, SA-9 lane — audited product code `35adcb9`, corpus `be0cfe9`)
+
+New findings (the S-007 lineage's continuation + the batch-1 verification gaps):
+
+- **S-040 (SEVERE)** — the placeable-WMF validator reads a wrong header
+  layout (inch@+16 = Reserved — always 0 in real files → every real
+  placeable WMF rejected; checksum@+18 vs the og's +20; XOR-9 vs XOR-10
+  words; no HWmf/+38 gates; extent = 64 MiB probe vs size@+28*2+22). The
+  test plant mirrors the wrong convention. The std-WMF validator also adds
+  gates the og lacks (version/objects/maxrec — a stricter-than-og subset).
+- **S-041 (SEVERE)** — Canon CRW not carved: the og keys II/MM 1A 00 to
+  Brance::CRWAnalyser id 0x12 (CIFF gate: `\x00\x00HEAP` + {CCDR,TIFP,
+  ARCH} + length byte 2); our FMT_MRW/FMT_MRW_MM rows on those keys gate
+  on a PRD anchor no real file passes behind those keys (dead rows);
+  FileMRWAnalyser rides `\0MRM` only (our FMT_MRW_MRM is the correct
+  mirror). Census erratum E53.
+- **S-042 (SEVERE)** — the batch-2 remainder, fully decoded: CHM (GUID
+  compares instruction-verified — the canonical ITSF layout GUID1@+0x18/
+  GUID2@+0x28, HS0 0x1FE@+0x60, size u64@+0x68), MNY, EMF, ONE, MPEG-TS
+  (CMTS 0x76/CM2TS 0x74), 3DS, SWF, JP2, MOBI, LZH, HTML, SVG/XML, the
+  text school (VCF/GPX/HIK/OSP/POS/AEP/HFP), + the OfficeTagFromXML
+  DOCX/XLSX/PPTX id split (0x49/0x4A/0x4B vs our single FMT_DOCX).
+- **N-092 (MINOR)** — MID/GZ batch-1 caps drift (64 MiB vs 10 MB; 512
+  MiB/min-18 vs 400 MB/min-20 — the og ctors decoded).
+- Corpus errata E53 (the census's MRW/CRW attribution) + E54 (RetDec's
+  mis-fused CHM constants — instruction-verify stack-materialized u64s
+  before citing).
+
+Evidence: `evidence/decompiled-quotes/s9-{wmf-placeable-gate,crw-mrw-
+registrations,chm-gate-asm,batch2-registrations,mid-gz-bounds}.md` +
+`evidence/executions/s9-carve-registry-inventory.md`.

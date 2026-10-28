@@ -90,3 +90,22 @@ S-038/M-064.
   leftover sweep); the CI PowerShell AST parse gate (the v0.2.3 lesson).
   The core's driver-status discovery needed no change (the service carries
   the binPath; the composite's assertions are dynamic).
+
+## Session-9 addendum (2026-10-28, SA-9 lane — rda-driver @ `323e75a` v0.2.4)
+
+- **M-071 (MAJOR)** — the FileVersion pin: `rda_version.h`/`rda.rc`/
+  `rda.inf` carry 1.0.0.0 across all v0.x releases, so `-Layout Versioned`
+  always computes `<name>10.sys` and the M-064 in-place-upgrade branch
+  (`$imagePath -ne $destPath`) is unreachable — every reinstall exits 2.
+  The M-064 feature is inert until the resource is un-pinned (release-tag
+  mirror + a CI gate asserting tag == resource).
+- **M-072 (MAJOR)** — the WinPE profile `scripts/winpe/regdrv-rda.reg`:
+  unparseable `hex(7):r,d,a,\,0` (the og's own regdrv.reg demonstrates
+  the UTF-16LE form `72,00,64,00,61,00,00,00,00,00`); the UpperFilters
+  write targets GUID_DEVCLASS_DISKDRIVE where the og's file writes
+  GUID_DEVCLASS_VOLUME; Start=3 + FilterMode=1 + UpperFilters cannot
+  attach at stack-build (the og's filter service is Start=0 BOOT_START).
+  The D4 handoff + two newly-verified parameters; the SURFACE-INVENTORY
+  WinPE row now owns them here.
+- The EPMNtDrv-v2/trio MATCH records and the D3/D2 doc-truth findings
+  live in modules/transport.md's addendum (wire-side).
