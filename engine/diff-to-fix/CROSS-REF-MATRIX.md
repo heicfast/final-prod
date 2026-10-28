@@ -1,14 +1,17 @@
 # CROSS-REF-MATRIX.md — module × parameter verdict matrix (the S12 session-2 deep-dive lane on top: sector math / scan-progress math / local database / state management / detection-calculation; the prior lanes below)
 
-**Session-47 S47 fix lane (2026-10-29 — the parity-fix lane over the standing board at core `fa654673`, corpus `be0cfe9`; baseline proven green 1273/1273 before the first change):**
+**Session-52 S52 fix lane (2026-10-29 — the parity-fix lane over the standing board; opened at core `fa654673`, corpus `be0cfe9`, the green baseline proven 1273/1273 BEFORE the first change; rebranded S47-draft -> S52 at the hot-window arbitration — the remote's S45..S51 lanes pushed first):**
 
-- **A-014 FIXED** (fat P9/P2 — the time-word gate `hour > 23 || minute > 59 || (time & 0x1F) > 29`
-  landed in `fat_datetime_to_unix_seconds`, the exact DosDateTimeToFileTime accept set; corpus
-  re-verified first-hand this session at FATSearchDLL:32131-32154 + the exFAT twin
-  exFATSearchDLL:45174-45194 before any change; exFAT provably unperturbed — the M-014 gate
-  rejects the class upstream; RED→GREEN: the fabricated date+1day FileTime 134377920000000000
-  pinned pre-fix, the zeroed slot post-fix, access slot (time word 0) keeps the real date;
-  3 new tests + full suite 1276/1276; findings/FIXED/A-014 carries the Resolution).
+- **A-014 CONVERGENT** (fat P9/P2 — this lane independently re-verified the corpus
+  first-hand (FATSearchDLL:32131-32154 + the exFAT twin exFATSearchDLL:45174-45194),
+  confirmed the divergence at the pre-window HEAD, built the byte-equivalent gate and
+  proved it RED->GREEN with a 3-test family BEFORE the window's landings were visible;
+  per SA-9 the remote's 862d79ef wins, this lane's duplicate family withdrawn at the
+  merge). This lane's unique residue riding the merged tree: the convergence addendum #2
+  in findings/FIXED/A-014 (the access-slot-stays-real + changed-mirrors-modified pin —
+  `FatEngine.InvalidTimeWordAccessSlotStaysReal`, neither remote family asserted the
+  accessed slot; plus the corpus-side FUN_180002f40/f90 gate-cite cross-check confirmed
+  first-hand at exFATSearchDLL:1756-1794).
 
 **Session-12 S12 lane changes (2026-10-29 — the session-2 continuation audit per the user's second-session directive: remove-the-fixed + go-deeper with special focus on sector numbers, scanning, accurate detection, calculation/mathematics, no-stuck-or-freeze, the local database, state management; opened on core `869da779` (rebased to the window's closes), corpus `be0cfe9`; five deep-dive lanes' context sheets + three liveness batteries at `evidence/s12-lane-sheets/` + `evidence/s12-liveness/`; the findings push `f85def0f`):**
 
@@ -28,10 +31,12 @@
   every load-bearing cite before filing):**
   - **ACUTE (2):** **A-013** (cli/session P32/P34/P35 — the `--resume`-without-`--out`
     `"wb"` truncate-before-read: the printed resume command destroys the session);
-    **A-014** (fat P9/P2 — `fat_datetime_to_unix_seconds` validates month/day only;
-    hour≥24/min≥60/2s≥30 fabricate shifted plausible timestamps where the og zeroes
-    the slot, FAT:32135-54 ⇔ cr_fat_wire.h:123-142) **— FIXED by the S47 fix lane
-    (the time-word gate + 3-test proof set; findings/FIXED/A-014)**.
+    **A-014 FIXED** (fat P9/P2 — `fat_datetime_to_unix_seconds` validated month/day only;
+    hour≥24/min≥60/2s≥30 fabricated shifted plausible timestamps where the og zeroes
+    the slot, FAT:32135-54 ⇔ cr_fat_wire.h — the time-word gate landed by the S45
+    lane (862d79ef) with the S51 severe-first lane's convergence addendum (the
+    per-slot zeroing pin + the 0x65C4 example-date erratum), findings/FIXED/A-014,
+    MATCH).
   - **SEVERE (3):** **S-055** (carve P28/P1/P3 — the user-sign layer probes BEFORE the
     built-in table, inverting the M-048/D-104 collision rule; 8 overlap formats flip to
     device-end extents); **S-056** (carve P16/P28 — `disabled_formats` gates grammar +
@@ -42,8 +47,11 @@
     auto-saves a cancelled run, and its comment mis-states the og).
   - **MAJOR (10):** **M-123** (table P1/P20 — GPT header laxity: no reserved==0 /
     exact-92 / position / usable-range gates, og `FUN_1800078d0` vs
-    `load_gpt_side`); **M-124** (table P1/P26 — EBR link set {05,0F,**85**} vs the
-    core's {05,0F}: 0x85 chains vanish); **M-125 FIXED (S42 fix
+    `load_gpt_side`); **M-124 FIXED** (S47 MAJOR-first fix lane, `dcb123dd` — findings/FIXED/M-124:
+    the EBR link set {05,0F,**85**} — `case 0x85:` joined the Extended arm of
+    mbr_type_to_kind per Partition_decompiled.c:1006; whole 0x85 chains walk,
+    the bogus Other-volume at the link target gone; 3 RED-then-green tests,
+    suite 1164/1164; P1/P26 → MATCH); **M-125 FIXED (S42 fix
     lane — findings/FIXED/M-125: the query-layer helper family
     `progress_display_remap/_percent/_publish` (FUN_1401af820/:950/:a60 verbatim,
     the constants re-verified against the corpus — the finding's test table

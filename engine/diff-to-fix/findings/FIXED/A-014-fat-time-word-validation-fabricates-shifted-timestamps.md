@@ -125,6 +125,46 @@ gap is a single missing condition.
 ## Resolution
 
 **Status:** FIXED
-**Fixed in commit:** (the S47 lane's first landing; the ledger row carries the SHA)
-**Verified by:** FatEngine.TimeWordOutOfRangeComponentsYieldZeroTimestamp (RED pre-fix: every reject-line case returned the shifted value) + FatEngine.TimeWordValidBoundariesStillConvert (regression pin: 23:59:58 / hour 23 / minute 59 / 2s-field 29 / 12:00:00 convert identically) + FatEngine.InvalidTimeWordPersistsAsZeroFileTime (end-to-end: a 2026-10-29 dentry with time word 0xC000 persisted created/modified/changed = 134377920000000000 (date+1day, the fabricated FileTime) pre-fix; post-fix all three are the zero FileTime while the access slot (time word 0) keeps the real date — the per-slot semantics of FATSearchDLL :32135-32154). Full suite 1276/1276 green (Linux release, the 1273 baseline + these 3).
-**Resolution notes:** The corpus re-verified first-hand this session before any change: the three zero-on-fail DosDateTimeToFileTime slots at FATSearchDLL_decompiled.c:32131-32154 read live (quotes in the finding stand), and the exFAT twin at exFATSearchDLL_decompiled.c:45174-45194 carries the same pattern. The fix is the finding's own plan step 1 exactly: the gate in fat_datetime_to_unix_seconds (cr_fat_wire.h) extended to `hour > 23 || minute > 59 || (time & 0x1F) > 29` — the exact DosDateTimeToFileTime accept set; no algorithm change. The exFAT path is provably unperturbed: its M-014 dentry gate fat_datetime_fields_ok (cr_exfat_quick.cpp:313-315) already rejects hour>=24 / minute>=60 / 2s>=30 per timestamp upstream of the shared helper, so no exFAT input class changes behavior (verified by the full-suite run — zero exFAT regressions). Finding-text corrections recorded: the worked example's date word 0x65C4 decodes month 14 (an invalid date that already returned 0 pre-fix via the N-021 gate) — the tests use the genuinely valid 0x5D5D (2026-10-29) with the finding's own falsifier time word 0xC000; the fabricated pre-fix value was confirmed live as unix 1343779200 = the date + exactly one day. The helper's :118-122 comment contract ("0 on invalid/out-of-range fields") is now truthful for the time word.
+**Fixed in commit:** `<this push>` (session-45 fix lane, 2026-10-29)
+**Verified by:** fail-before/pass-after executed both sides: `FatEngine.TimeWordHour24YieldsZeroFileTime`, `TimeWordMinute60YieldsZeroFileTime`, `TimeWordSecondField30YieldsZeroFileTime`, `ValidTimeWordBoundaryUnchanged`, and the end-to-end `InvalidTimeStampsPersistAsZeroInTree` all RED at `98079347` (the fabricated FileTime 133833168600000000 = the date+1-day shift reproduced on the HOUR24 dentry) and GREEN post-fix; full suite 1278/1278 (1273 pre-existing + 5 new).
+**Resolution notes:** CONFIRMED-DIVERGENCE, re-verified first-hand before fixing: the corpus re-read at `re-workspace/reversed/ghidra-searchdll/FATSearchDLL_decompiled.c:32135-32154` confirms all three zero-on-fail `DosDateTimeToFileTime` slots exactly as cited. The fix is the finding's own plan — the shared gate in `fat_datetime_to_unix_seconds` (cr_fat_wire.h) now rejects `hour > 23 || minute > 59 || (time & 0x1F) > 29`, matching the DosDateTimeToFileTime accept set exactly; month/day gating (N-021 lineage) unchanged, the N-173 u64 no-clamp path unchanged. The exFAT sibling is verified unaffected: `fat_datetime_fields_ok` (cr_exfat_quick.cpp:313, the M-014 gate over FUN_180002f40) rejects this component class upstream of the shared helper, so the tightened helper is a no-op on surviving exFAT inputs — the full exFAT test family stays green. The helper's own comment ("0 on invalid/out-of-range fields") is now truthful. No safety hardening touched (the fix is a boundary guard, the same class as N-021).
+
+### Convergence addendum (session-51 severe-first lane, 2026-10-29)
+
+The S45 lane's landing (`862d79ef`) wins the seat per SA-9 (earlier push). This lane
+independently verified the finding (the same three corpus slots re-read first-hand),
+built the byte-equivalent gate, and proved it RED→GREEN with three supplementary
+tests now riding the merged tree: `FatEngine.TimeWordOutOfRangeYieldsZeroTimestamp`
+(all six boundary words), `FatEngine.ValidTimeWordBoundaryConvertsUnchanged`
+(23:59:58 / 00:00:00 / the 58 s last-legal-second pin), and
+`FatEngine.InvalidTimeStampsPersistAsZero` — the stronger end-to-end shape with
+DISTINCT create (valid 12:00) vs write (hour 24) times on one dentry, pinning the
+og's PER-SLOT zeroing (the failing slot zeroes while the valid sibling slot stays
+real, FAT :32144-48 vs :32135-38; the S45 lane's fixture stamps both times
+identically, so per-slot independence was unpinned there). One finding erratum this
+lane records: the finding's worked-example date word 0x65C4 decodes month 14 — an
+invalid date (the N-021 class; the og zeroes that slot regardless of the time word),
+so the example never isolated the time-word class; the clean word for the intended
+example is 0x58CC (2024-06-12) or the S45 tests' 0x5A46 (2022-01-06).
+
+### Convergence addendum #2 (session-52 lane, 2026-10-29)
+
+A third independent verification (this lane opened at core `fa654673` before the window's
+landings were visible): the same three corpus slots re-read first-hand
+(FATSearchDLL:32131-32154 verbatim; the exFAT twin exFATSearchDLL:45174-45194), the
+divergence confirmed unchanged at the pre-window HEAD, the byte-equivalent gate built,
+and RED→GREEN proven with a three-test family before the arbitration — the remote's S45
+landing (`862d79ef`) plus the S51 addendum tests win the seat per SA-9; this lane's
+duplicate family is withdrawn at the merge. The 0x65C4 example-date erratum was found
+convergently by both lanes (recorded above by S51). Two supplementary pins ride from
+this lane's proof set (the only assertions neither remote family carries):
+`FatEngine.InvalidTimeWordAccessSlotStaysReal` — the og always passes time word 0 for
+the access slot (FATSearchDLL :32151-32154), so a dentry with an invalid write time
+keeps a REAL accessed timestamp while created/modified/changed zero out — and the
+`changed`-mirrors-`modified` propagation (cr_fat_quick.cpp:362) pinned in the same test.
+The corpus-side cross-check this lane adds over both prior records: the exFAT
+structural-gate cite verified at the decompile — `FUN_180002f40` is the per-timestamp
+datetime-fields predicate (the exact 0x1f0000/month/0xf800/0x7e0/0x1f checks the core's
+`fat_datetime_fields_ok` mirrors, exFATSearchDLL:1756-1775), with `FUN_180002f90` the
+file-dentry wrapper calling it per timestamp — the S51 record's `FUN_180002f40` cite and
+the repo's own cr_exfat_quick.cpp:318 wrapper cite are both confirmed correct.

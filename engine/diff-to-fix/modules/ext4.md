@@ -3,7 +3,7 @@
 ## S12 addendum (2026-10-29 — the session-2 deep-dive)
 
 New active findings on this module: **N-177** (the size-exceeds-blocks damaged flag
-FLAGS 0x200 not carried); **I-040** registers the og's i_size_high legacy-ACL
+FLAGS 0x200 not carried); **I-040 (ACKNOWLEDGED — PARITY-DELTAS D-123 + the two anti-down-fix pins landed)** registers the og's i_size_high legacy-ACL
 pollution non-adoption. Verified-MATCH: block-group math, groups math, blocks_hi.
 
 

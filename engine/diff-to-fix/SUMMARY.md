@@ -1,8 +1,9 @@
-# SUMMARY.md — executive summary (the S47 parity-fix lane on top; the prior lanes below, newest-first)
+# SUMMARY.md — executive summary (the S52 parity-fix lane on top; the prior lanes below, newest-first)
+# SUMMARY.md — executive summary (the S47 MAJOR-first fix lane on top; the prior lanes below, newest-first)
 # SUMMARY.md — executive summary (the S42 diff-to-fix lane's convergence on top; the prior lanes below, newest-first)
 # SUMMARY.md — executive summary (the S12 session-2 deep-dive lane on top — sector math / scan-progress math / local database / state management / detection-calculation; the prior lanes below, newest-first)
 
-## Session-47 S47 fix-lane delta (2026-10-29 — the parity-fix lane over the standing board; core `fa654673` at open, corpus `be0cfe9`; the green baseline proven before the first change: linux-release build clean + full suite 1273/1273)
+## Session-52 S52 fix-lane delta (2026-10-29 — the parity-fix lane over the standing board; core `fa654673` at open, corpus `be0cfe9`; the green baseline proven before the first change: linux-release build clean + full suite 1273/1273; rebranded S47-draft -> S52 at the hot-window arbitration — the remote's S45..S51 lanes pushed first)
 
 **Method:** the full SOP loop per finding — corpus cite re-read first-hand, current-tree
 re-verification, classification, RED test, fix, GREEN proof, full-suite regression sweep,
@@ -10,23 +11,46 @@ trail update, push. One finding, one push. This block grows as the lane lands.
 
 **Landings this lane:**
 
-- **A-014 FIXED (ACUTE — the FAT time-word gate).** Corpus re-verified live
-  (FATSearchDLL:32131-32154, three zero-on-fail DosDateTimeToFileTime slots; exFAT twin
-  exFATSearchDLL:45174-45194) before any change; the divergence confirmed unchanged at
-  HEAD. The gate `hour > 23 || minute > 59 || (time & 0x1F) > 29` landed in
-  `fat_datetime_to_unix_seconds` (the exact Win32 accept set — the finding's own plan,
-  one condition, no algorithm change). exFAT provably unperturbed (the M-014 dentry gate
-  rejects the class upstream of the shared helper). RED→GREEN proof set:
-  TimeWordOutOfRangeComponentsYieldZeroTimestamp / TimeWordValidBoundariesStillConvert /
-  InvalidTimeWordPersistsAsZeroFileTime (the fabricated date+1day FileTime
-  134377920000000000 pinned pre-fix on the finding's own falsifier time word 0xC000;
-  the zeroed slot post-fix; the access slot — time word 0 — keeps the real date).
-  Full suite 1276/1276. Finding-text errata recorded in the Resolution: the example date
-  word 0x65C4 decodes month 14 (already-rejected class); tests use the valid 0x5D5D.
-  ACUTE board: **0 active**.
+- **A-014 CONVERGENT (ACUTE — the FAT time-word gate).** This lane independently
+  re-verified the corpus first-hand (FATSearchDLL:32131-32154, the three zero-on-fail
+  DosDateTimeToFileTime slots; the exFAT twin exFATSearchDLL:45174-45194), confirmed the
+  divergence unchanged at the pre-window HEAD, built the byte-equivalent gate
+  `hour > 23 || minute > 59 || (time & 0x1F) > 29`, and proved it RED→GREEN with a
+  3-test family BEFORE the window's landings became visible (the fabricated date+1day
+  FileTime 134377920000000000 pinned pre-fix on the finding's own falsifier time word
+  0xC000). Per SA-9 the remote's `862d79ef` (S45) wins the seat; this lane's duplicate
+  family withdrawn at the merge; the unique residue riding the merged tree:
+  `FatEngine.InvalidTimeWordAccessSlotStaysReal` (the access slot — always time word 0,
+  FATSearchDLL :32151-32154 — keeps its real date while created/modified/changed zero
+  out, and changed mirrors modified; neither remote family asserted the accessed slot)
+  + convergence addendum #2 in findings/FIXED/A-014 (incl. the FUN_180002f40/f90
+  exFAT-gate cite cross-check, verified first-hand at exFATSearchDLL:1756-1794).
 
-**Board after this landing (filesystem truth):** 76 active (0 ACUTE · 9 SEVERE ·
-28 MAJOR · 32 MINOR · 7 INFO) / 65 FIXED / 6 tracked-open.
+**Board after this merge (filesystem truth): 69 active — 0 ACUTE · 9 SEVERE · 27 MAJOR ·
+32 MINOR · 1 INFO / 72 FIXED / 6 tracked-open** (the window's A-014 + M-124 + I-036 +
+I-040..I-044 retirements absorbed; both sides' records kept). Next free IDs: S-062+,
+M-138+, N-186+, I-045+, A-015+.
+
+## Session-47 S47 lane delta (2026-10-29 — the MAJOR-first parity-FIX lane per the user's explicit directive; core `fa654673` at open → merged through the S48/S49/S50 windows; corpus `be0cfe9`)
+
+**Lane scope:** the unclaimed MAJOR board (25 in-tree findings claimed at open; M-086/
+M-087/M-089 stay tracked-OQ per OQ-S10-3 — their fix surfaces live in heicfast/rda-driver,
+out of this session's two-repo grant, re-verified before claiming). One finding, one
+verified fix, one push; every fix RED-test-first; every corpus cite re-read first-hand
+before the change.
+
+**Landings this lane so far:**
+
+- **M-124 FIXED** (`dcb123dd`) — the EBR link type 0x85 (Linux extended) joined the
+  Extended arm of `mbr_type_to_kind`: whole 0x85-stamped chains no longer vanish, the
+  bogus Other-volume at the link target is gone (Partition_decompiled.c:1006's `-0x7b`
+  compare re-read first-hand — the same link path as 0x05/0x0F). Tests:
+  Ebr.LinkType085WalksChain / Ebr.LinkType085SameBasisAs05 / Mbr.Extended085NotEmittedAsVolume
+  (all RED pre-fix); suite 1164/1164.
+
+**Board after this push (filesystem truth): 71 active — 0 ACUTE · 9 SEVERE · 27 MAJOR ·
+32 MINOR · 3 INFO** (the parallel lanes' A-014 + I-041..I-044 retirements absorbed at the
+merge; both sides' records kept). Next free IDs unchanged: S-062+, M-138+, N-186+, I-045+.
 
 ## Session-12 S12 lane delta (2026-10-29 — the session-2 continuation audit per the user's second-session directive: remove-the-fixed + go-deeper, special focus on sector numbers / scanning / accurate detection / calculation / no-stuck-or-freeze / local database / state management; core `869da779` at open → rebased through the parallel windows to push at `f85def0f`, corpus `be0cfe9`)
 

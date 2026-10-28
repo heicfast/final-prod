@@ -127,18 +127,16 @@ inline u64 fat_datetime_to_unix_seconds(u16 date, u16 time) {
     const u32 hour = (time >> 11) & 0x1F;
     const u32 minute = (time >> 5) & 0x3F;
     const u32 second = (time & 0x1F) * 2;
-    /* A-014: the time-word gate - the og's DosDateTimeToFileTime
-     * (FATSearchDLL_decompiled.c:32135-32154, the three zero-on-fail
-     * slots; exFAT twin exFATSearchDLL:45174-45194) rejects hour>=24,
-     * minute>=60 and seconds>=60 (2s field >= 30) and zeroes the slot;
-     * the pre-fix core validated month/day only and fabricated shifted
-     * plausible timestamps (hour 24..31 = +1 day..+7.5 h). This gate is
-     * the exact Win32 accept set; the exFAT path is unchanged (its
-     * M-014 dentry gate fat_datetime_fields_ok rejects the class
-     * upstream before the shared helper). */
-    if (month < 1 || month > 12 || day < 1 || day > 31)
-        return 0;
-    if (hour > 23 || minute > 59 || (time & 0x1F) > 29)
+    /* A-014: the TIME word is range-gated exactly like DosDateTimeToFileTime
+     * (FATSearchDLL :32135/:32144/:32151 - zero-on-fail): hour > 23, minute
+     * > 59, or a 2-second field > 29 (>= 60 s) is the failure class the og
+     * zeroes the slot for. Month/day were already gated (N-021); the time
+     * word used to flow unvalidated and fabricate day-shifted plausible
+     * timestamps on exactly the corrupt-dentry population recovery targets.
+     * The exFAT sibling is unaffected: its M-014 structural gate
+     * (fat_datetime_fields_ok, FUN_180002f40) rejects this class upstream. */
+    if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 || minute > 59 ||
+        (time & 0x1F) > 29)
         return 0;
     /* days since 1970-01-01 (Howard Hinnant civil algorithm) */
     const i64 y = i64(year) - (month <= 2 ? 1 : 0);

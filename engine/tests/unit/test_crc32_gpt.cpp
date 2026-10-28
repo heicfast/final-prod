@@ -271,6 +271,145 @@ TEST(Mbr, EbrCycleGuard) {
 }
 
 /* ===================================================================== */
+/* M-124 (diff-to-fix): the og's EBR chain walker treats link type 0x85  */
+/* (Linux extended, the fdisk/dual-boot convention) IDENTICALLY to      */
+/* 0x05/0x0F - Partition_decompiled.c:989-1010: the -0x7b (== 0x85)     */
+/* comparison jumps to LAB_180002348, the same link path. The core's    */
+/* mbr_type_to_kind mapped only 0x05/0x0F, so a 0x85-stamped chain      */
+/* emitted a bogus Other-volume at the link target and lost every later */
+/* logical volume.                                                      */
+/* ===================================================================== */
+
+TEST(Ebr, LinkType085WalksChain) {
+    /* MBR extended container stamped 0x85 + a 3-EBR chain whose links are
+     * all 0x85: all three logical volumes must surface with correct
+     * EBR-relative bases. Fail-before: only the first volume surfaced plus
+     * one bogus Other volume; volumes 2 and 3 vanished. */
+    std::vector<u8> disk(u64(8192) * 512, 0);
+    disk[510] = 0x55;
+    disk[511] = 0xAA;
+    /* primary NTFS + Linux-extended container at LBA 1024 (type 0x85) */
+    disk[446 + 4] = 0x07;
+    put32(disk, 446 + 8, 128);
+    put32(disk, 446 + 12, 512);
+    disk[446 + 16 + 4] = 0x85;
+    put32(disk, 446 + 16 + 8, 1024);
+    put32(disk, 446 + 16 + 12, 6000);
+
+    /* EBR1 at 1024: vol at +63 len 500; next EBR at base+1024=2048 (0x85) */
+    put32(disk, 1024 * 512 + 446 + 0 * 16 + 4, 0x07);
+    put32(disk, 1024 * 512 + 446 + 0 * 16 + 8, 63);
+    put32(disk, 1024 * 512 + 446 + 0 * 16 + 12, 500);
+    put32(disk, 1024 * 512 + 446 + 1 * 16 + 4, 0x85);
+    put32(disk, 1024 * 512 + 446 + 1 * 16 + 8, 1024);
+    disk[1024 * 512 + 510] = 0x55;
+    disk[1024 * 512 + 511] = 0xAA;
+
+    /* EBR2 at 2048: vol at +63 len 700; next EBR at base+2048=3072 (0x85) */
+    put32(disk, 2048 * 512 + 446 + 0 * 16 + 4, 0x0B);
+    put32(disk, 2048 * 512 + 446 + 0 * 16 + 8, 63);
+    put32(disk, 2048 * 512 + 446 + 0 * 16 + 12, 700);
+    put32(disk, 2048 * 512 + 446 + 1 * 16 + 4, 0x85);
+    put32(disk, 2048 * 512 + 446 + 1 * 16 + 8, 2048);
+    disk[2048 * 512 + 510] = 0x55;
+    disk[2048 * 512 + 511] = 0xAA;
+
+    /* EBR3 at 3072: vol at +63 len 800; chain end */
+    put32(disk, 3072 * 512 + 446 + 0 * 16 + 4, 0x83);
+    put32(disk, 3072 * 512 + 446 + 0 * 16 + 8, 63);
+    put32(disk, 3072 * 512 + 446 + 0 * 16 + 12, 800);
+    disk[3072 * 512 + 510] = 0x55;
+    disk[3072 * 512 + 511] = 0xAA;
+
+    MemDevice dev(std::move(disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_EQ(t.layout, TableLayout::Ebr) << "0x85 container is an extended chain";
+    ASSERT_EQ(t.partitions.size(), 4u) << "primary + all three logical volumes";
+    EXPECT_EQ(t.partitions[0].start_lba, 128u);
+    EXPECT_EQ(t.partitions[1].start_lba, 1024u + 63u);
+    EXPECT_EQ(t.partitions[1].fs, FsKind::Ntfs);
+    EXPECT_EQ(t.partitions[2].start_lba, 2048u + 63u);
+    EXPECT_EQ(t.partitions[2].fs, FsKind::Fat32);
+    EXPECT_EQ(t.partitions[3].start_lba, 3072u + 63u);
+    EXPECT_EQ(t.partitions[3].fs, FsKind::Linux);
+}
+
+TEST(Ebr, LinkType085SameBasisAs05) {
+    /* The same physical chain stamped 0x05 vs 0x85 must yield IDENTICAL
+     * volume bases - the og feeds both through the same link path, so the
+     * basis arithmetic (links base-relative, volumes EBR-relative) cannot
+     * differ between the two stamps. */
+    auto build = [](u8 link_type) {
+        std::vector<u8> disk(u64(4096) * 512, 0);
+        disk[510] = 0x55;
+        disk[511] = 0xAA;
+        disk[446 + 16 + 4] = link_type;
+        put32(disk, 446 + 16 + 8, 2048);
+        put32(disk, 446 + 16 + 12, 2040);
+        put32(disk, 2048 * 512 + 446 + 0 * 16 + 4, 0x07);
+        put32(disk, 2048 * 512 + 446 + 0 * 16 + 8, 63);
+        put32(disk, 2048 * 512 + 446 + 0 * 16 + 12, 500);
+        put32(disk, 2048 * 512 + 446 + 1 * 16 + 4, link_type);
+        put32(disk, 2048 * 512 + 446 + 1 * 16 + 8, 1024);
+        disk[2048 * 512 + 510] = 0x55;
+        disk[2048 * 512 + 511] = 0xAA;
+        put32(disk, 3072 * 512 + 446 + 0 * 16 + 4, 0x0B);
+        put32(disk, 3072 * 512 + 446 + 0 * 16 + 8, 63);
+        put32(disk, 3072 * 512 + 446 + 0 * 16 + 12, 700);
+        disk[3072 * 512 + 510] = 0x55;
+        disk[3072 * 512 + 511] = 0xAA;
+        return disk;
+    };
+    DiskTable t5, t85;
+    {
+        MemDevice dev(build(0x05));
+        ASSERT_EQ(parse_disk_table(&dev, t5), OK);
+    }
+    {
+        MemDevice dev(build(0x85));
+        ASSERT_EQ(parse_disk_table(&dev, t85), OK);
+    }
+    ASSERT_EQ(t5.partitions.size(), 2u);
+    ASSERT_EQ(t85.partitions.size(), 2u) << "0x85 chain must surface the same volumes";
+    for (size_t i = 0; i < 2; ++i) {
+        EXPECT_EQ(t85.partitions[i].start_lba, t5.partitions[i].start_lba)
+            << "volume " << i << " basis differs between 0x85 and 0x05 stamps";
+        EXPECT_EQ(t85.partitions[i].sector_count, t5.partitions[i].sector_count);
+        EXPECT_EQ(t85.partitions[i].fs, t5.partitions[i].fs);
+    }
+}
+
+TEST(Mbr, Extended085NotEmittedAsVolume) {
+    /* A 0x85 container in the MBR must NOT surface as one opaque Other-
+     * volume spanning the container - it is a container, and its content
+     * comes from the walked logical volumes. Fail-before: the unmapped
+     * 0x85 fell to FsKind::Other and was emitted as a bogus volume at the
+     * container LBA. */
+    std::vector<u8> disk(u64(4096) * 512, 0);
+    disk[510] = 0x55;
+    disk[511] = 0xAA;
+    disk[446 + 16 + 4] = 0x85;
+    put32(disk, 446 + 16 + 8, 2048);
+    put32(disk, 446 + 16 + 12, 2040);
+    /* one EBR with one volume, no link */
+    put32(disk, 2048 * 512 + 446 + 0 * 16 + 4, 0x07);
+    put32(disk, 2048 * 512 + 446 + 0 * 16 + 8, 63);
+    put32(disk, 2048 * 512 + 446 + 0 * 16 + 12, 500);
+    disk[2048 * 512 + 510] = 0x55;
+    disk[2048 * 512 + 511] = 0xAA;
+
+    MemDevice dev(std::move(disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    ASSERT_EQ(t.partitions.size(), 1u)
+        << "exactly the logical volume - no bogus container-volume row";
+    EXPECT_EQ(t.partitions[0].start_lba, 2048u + 63u);
+    EXPECT_NE(t.partitions[0].start_lba, 2048u)
+        << "the container LBA itself must not surface as a volume";
+}
+
+/* ===================================================================== */
 /* M-002 (diff-to-fix): a torn EBR link must NOT discard the volumes the */
 /* chain already walked (salvage-over-purity; the og's deep-scan block    */
 /* parsers re-find volumes independently of the EBR chain — corpus       */

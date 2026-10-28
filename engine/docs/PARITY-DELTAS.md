@@ -858,10 +858,18 @@ Split verdict — three sub-claims:
 ### D-36 — Single-pass quick+deep (ARCH-3): one walk where og runs two generations
 
 - **WHAT OG DOES:** Quick scan = `EUCreate<FS>QuickSearcher`; Advanced = a
-  SEPARATE complete-searcher generation (`FUN_140580720` builds
-  `EUCreate{NTFS,FAT,EXFAT,ZFS,HFS,ReFS}Searcher` + `EUCreateRAWSearcher`,
-  DRWUI_decompiled.c:916443+); quick results carry into Advanced
-  (dynamic-ground-truth: "Advanced Scanning 9% … 1.11M files").
+  SEPARATE complete-searcher generation (**`FUN_140581500`** (DRWUI:917015-917040)
+  is the creation site — I-044 citation correction; the earlier-cited
+  `FUN_140580720` (DRWUI:916443+) is the run phase — builds
+  `EUCreate{NTFS,FAT,EXFAT,ZFS,HFS,ReFS}Searcher` + `EUCreateRAWSearcher`;
+  the ZFS leg is `scanzfs`-gated and the shipped product has the key absent
+  from config/version.ini, so ZFS recognition is compiled out at runtime);
+  quick results carry into Advanced
+  (dynamic-ground-truth: "Advanced Scanning 9% … 1.11M files"). The
+  quick→deep auto-advance itself is an ENGINE-side state machine
+  (`CDoScanPartition::DoScan` pushes states 0/1 unconditionally,
+  DRWUI:567875-567892; I-044 decode) — the core's default-on stage model is
+  the correct parity translation.
 - **WHAT WE DO:** Single-pass-with-deep-settings: the quick stage runs the
   engine pass with deep flags when deep is configured ("single walk" design,
   `src/core/orchestrator/cr_scan.cpp`); the deep stage adds the remnant sweep +
@@ -3238,8 +3246,12 @@ output, not input.
 **WHAT CORE DOES:** the user-signature surface (cr_usersigns, M-048; caps
 S-039) installs user-taught signs into the carve registry — capability-
 creating by construction — and since 37c48c6 the release ships the og's own
-111-entry/190-sign DB as `data/userdata-defaults.json`, loaded at engine
-init when no explicit `--user-signs` is given.
+111-entry/190-sign DB as `data/userdata-defaults.json`. Load posture (I-036's
+precision registration): the CLI app loads the executable-adjacent default at
+startup when no explicit `--user-signs` is given (rrecov.cpp, the single load
+site); the LIBRARY default is off — an engine, orchestrator, or cr_ui ABI host
+gets user signs only via the explicit `cr_ui_register_user_signs` op. D-104's
+prior "loaded at engine init" phrasing overstated the surface.
 
 **WHY REGISTERED AS A SUPERSET, NOT A PARITY GAP:** the landed behavior
 exceeds the og's scan engine (the og's engine cannot consume user signs at
@@ -3669,3 +3681,53 @@ oracle); the placeholder alignment keeps name-set benches comparable without
 normalization. Evidence: N-172's cites; the pins FatEngine.DeletedFirstChar
 PlaceholderIsHash + FatEngine.DeletedLfnChecksumRecoversOriginalByte + the re-pinned
 #EL.TXT/#ONE.TXT/#OLD.TXT family.
+
+### D-122 — scan-state ownership: single-owner + mutexed telemetry snapshots, not the og's unlocked master enum (I-043 registration, REGISTERED IMPROVEMENT — data-race-free by construction)
+
+- **WHAT OG DOES:** the master scan-state variable — a 14-value enum
+  (`notstarted…quickscanpaused/stopped/finish…advancedscanning…repairvideo_pause`)
+  at the service singleton +0x78 (`DRWUI_decompiled.c:208243-296`) — is
+  written by the scan flow and read cross-thread **without its own lock**.
+  The og itself carries a parallel *locked* carrier beside it
+  (`CUIScanProgressInfo::nStatus` +0x44 with its own mutex at +0x90) —
+  i.e. the og's own mitigation acknowledges the race surface.
+- **WHAT WE DO:** the authoritative scan state is single-owner (the
+  controller owns it; no cross-thread unsynchronized reads exist by
+  construction), and every cross-thread observation goes through mutexed
+  telemetry snapshots (`src/core/orchestrator/cr_scan.cpp:319-376` publish
+  paths; the parallel-scan test family + TSan CI pin it).
+- **WHY:** thread-safety hardening (the same family as D-18's cancellation
+  first-class): a recovery library must not expose racy state to hosts.
+- **RISK:** none — the observable state surface (stage masks, progress,
+  pause/stop/finish) is equivalent or richer; only the internal ownership
+  shape differs.
+- **VERDICT: ACCEPTED** (deliberate improvement, registered I-043; the
+  telemetry mutex is already covered by the parallel-scan tests; no
+  additional test owed).
+
+### D-123 — og-defect non-adoption batch #2: ext4 i_size_high unconditional poll + _gmtime32_s post-2038 garbage (I-040 registration, REGISTERED IMPROVEMENT — the D-58/D-59/N-162 [D-119] class)
+
+- **WHAT OG DOES (defect 1):** EXT4SearchDLL's size compute (FUN_180007510,
+  `EXT4SearchDLL_decompiled.c:5455-5467`) CONCATs the +0x6c dword with the
+  +0x04 dword **unconditionally for every inode** — but +0x6c (i_size_high)
+  is meaningful only for regular files; for directories it is the legacy
+  dir-ACL pointer, so legacy-ACL directories surface polluted garbage
+  sizes (e.g. an ACL/xattr block number 0x3039 reads as a ~51 PiB size).
+- **WHAT OG DOES (defect 2):** the SearchDLL family converts unix times
+  through `_gmtime32_s` (EXT4SearchDLL.dll import,
+  api-ms-win-crt-time-l1-1-0.dll) — the 32-bit time_t path produces
+  garbage for timestamps past 2038-01-19.
+- **WHAT WE DO:** (1) the clean conditional — the high half folds in only
+  when `ifmt(mode) == 0x8000` (regular), directories keep their true
+  32-bit size (`src/core/ext4/cr_ext4_engine.cpp:404-407`); (2) full-u64
+  time paths end-to-end (`unix_to_filetime_ns`, cr_types.h — i64 seconds,
+  no 32-bit cliff anywhere).
+- **WHY:** both og behaviors are arithmetic defects, not parity surface —
+  adopting them would corrupt recovered metadata.
+- **RISK:** none — the core's outputs are strictly more correct.
+- **VERDICT: ACCEPTED** (deliberate non-adoption, registered I-040;
+  anti-down-fix pins: `Ext4Engine.LegacyAclDirSizeClean` (a dir inode with
+  a nonzero +0x6c ACL pointer keeps its true 32-bit size) + the extended
+  `Ext4Engine.UnixTimeConversion` (exact post-2038/2100 filetimes, ns
+  variant) — future sessions must not "fix" the core down to either
+  defect).
