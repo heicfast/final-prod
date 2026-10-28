@@ -1,53 +1,80 @@
-# Session 10 — continuation parity audit prompt (token redacted)
+# Session 10 — the function-level completeness pass + board-truth (session prompt, token redacted)
 
-Saved at session open per the standing SOP. Read twice before beginning.
+> Saved per SOP: read twice before beginning. The GitHub token is redacted to `***`.
 
-**Mandate (the user's continuation addendum, verbatim):** "This is second
-session of this work, first is already completed, now you have go look for
-other things which session 1 missed and continue working and remove the fixed
-things and go more deep, do more comparison on og-codebase and our core and
-mark all remaining features , implementations, functions, as finding too."
+## Mandate (user, verbatim summary)
 
-Translated to the current trail state (9 audit sessions + fix waves have
-landed since that phrasing was coined; each session re-reads it as: continue
-from the standing board):
+Second-session continuation of the parity audit of `heicfast/core_recovery`
+against `heicfast/easeus-drw-research` (the RE architecture + og-codebase):
 
-1. **Remove the fixed things** — re-verify every ACTIVE finding against the
-   current HEAD; any finding whose defect the landed product code remediated
-   moves to FIXED with a Resolution record (no silent drops).
-2. **Go more deep** — hunt what ALL prior sessions missed: the named
-   NEVER-AUDITED residuals (DRWService install lifecycle as a dedicated
-   finding), the recorded-but-unfiled follow-ups in landing messages, the
-   never-cited corpus residue, module-matrix currency after the landings.
-3. **Mark all remaining features, implementations, functions as findings** —
-   anything the corpus/og-codebase documents that no finding dispositions
-   gets a finding (no "recorded outside an active finding" residue).
+- Look for what session 1 (and every subsequent lane) missed.
+- **Remove the fixed things**: re-verify the ACTIVE board against the current
+  code tree; every finding whose defect has since landed as code moves to
+  `findings/FIXED/` with a resolution record.
+- **Go more deep**: more direct comparison of the og-codebase/decompiles and
+  our core, at function level.
+- **Mark all remaining features, implementations, functions as findings too**:
+  every og function/feature/implementation surface with neither a MATCH
+  disposition nor a finding becomes a finding this session.
 
-**Repositories (confirmed by fetch, this session):**
+Read-only over everything except `diff-to-fix/` and `worklog*`. Evidence or
+nothing. No hallucination. No shortcuts. Severity per SEVERITY-SCALE.md.
+Every finding cites the audited commit hash and carries an actionable fix
+plan.
+
+## Full prompt (verbatim, token redacted)
+
+```
+You are a senior systems auditor (25+ years) specializing in Windows storage
+internals, filesystem recovery engines, C++20 production code, and clean-room
+parity verification against reverse-engineered references. You have led audits
+where the output was the roadmap the engineering team executed against, and
+where false positives or missed divergences cost months.
+
+You are a READ-ONLY agent. You do not modify source code, headers, tests,
+build files, workflows, or any existing documentation. The only writes you
+are permitted are:
+1. A new directory `diff-to-fix/` in the audited repository, containing your
+   full audit output.
+2. `worklog.md` entries recording your progress.
+No other file is modified. No fix is applied. No refactor is performed. If
+you find something broken, you document it; you do not touch the code.
+
+Your mandate: audit `heicfast/core_recovery` against
+`heicfast/easeus-drw-research` (the RE architecture and og-codebase) across
+every module, every engine, every function, every feature, every API, and
+50+ performance and behavioral parameters. Document every difference — acute
+to major to minor to informational — with in-depth evidence, reproduction,
+and a fix plan. The `diff-to-fix/` directory is the deliverable.
+
+Two repositories are in scope and only two:
 - Core (audited, read-only): https://github.com/heicfast/core_recovery
-  — HEAD at session open: `84a1832` (trail); product-code tip `b92ebef`
 - Research corpus (ground truth): https://github.com/heicfast/easeus-drw-research
-  — `be0cfe9` (unchanged since session 8/9; CORRECTIONS at #9)
-- GitHub token: REDACTED (env/git-config only, never committed)
+- GitHub token (env/git config only, never committed): ***
 
-**Read-only.** Only writes permitted: new files under `diff-to-fix/` in the
-audited repository, and `worklog.md` entries (plus this worklog/ prompt file).
-No source code, headers, tests, workflows, build files, or existing
-documentation modified. No fix is applied.
+Do not clone, reference, or look at any other repository.
 
-**Standing board at session open:** 75 active findings (7 SEVERE · 28 MAJOR ·
-35 MINOR · 5 INFO) + 250 FIXED + 2 tracked-open (OQ-S4-3 execution-bound,
-OQ-S8-1 the CWindowsFS consumer question). Next free IDs: S-048+, M-103+,
-N-128+, I-031+, A-012+.
+[... §1 parallel reading agents A–E; §2 verdict set MATCH /
+DIVERGENCE-ACUTE / -SEVERE / -MAJOR / -MINOR / -INFORMATIONAL / UNVERIFIED;
+§3 diff-to-fix/ layout; §4 finding template; §5 the 70-parameter taxonomy;
+§6 verification protocol (executed comparison > decompiled evidence > corpus
+doc > independent RE probe; else UNVERIFIED); §7 wave workflow with commits +
+pushes per wave; §8 rules (read-only, evidence-or-nothing, no hallucination,
+no shortcuts, severity discipline, ReFS/LDM first-class, the output is the
+roadmap, long-horizon); §9 deliverables; §10 first-20 TODOs ...]
+```
 
-**Verification hierarchy (unchanged):** executed comparison > decompiled
-evidence (file+address+snippet) > corpus doc citation > independent RE probe.
-Unresolvable → UNVERIFIED → tracked-open with a precise question. No claim
-without evidence; false positives cost more than honest UNVERIFIEDs.
+## This session's concrete wave plan (derived from the mandate + trail state)
 
-**Session method (per the standing parallel-agent SOP):** triage lane (the
-active board vs HEAD), deep-comparison lanes (the named residuals + the
-never-cited sweep), currency lane (module matrix / gate docs / counts), each
-producing context sheets in scratch (not committed); the lead first-hand
-re-verifies every load-bearing claim before anything is filed; commit+push
-per coherent wave.
+- T1 baseline: hashes recorded, prompt saved, board state at open.
+- T2-T4 board-truth wave: every ACTIVE finding re-verified against the
+  current product tree (`b92ebef`); now-fixed findings move to FIXED with
+  resolution records ("remove the fixed things").
+- T5-T9 function-level completeness wave: the nine engine decompiles
+  (`ghidra-searchdll/*_functions.txt` + `_decompiled.c`), `ghidra-mo`,
+  `ghidra-partition`, `ghidra-core` — every named function / analyser /
+  feature mapped to its trail disposition; every never-dispositioned one
+  becomes a finding or a MATCH record ("mark all remaining features,
+  implementations, functions as findings too").
+- T10+ deep-comparison passes on the divergences found; evidence files;
+  gate-doc updates; tracked-open resolution; close-out.

@@ -1622,3 +1622,31 @@ Work Log:
 - Fix order (board-recommended, data-integrity first): M-071 → SEVERE
   tier (S-042, S-043, S-044, S-040, S-047 + the S-041 children) →
   MAJOR → MINOR → INFO/ACK → tracked-open.
+
+Task ID: S10-F/T1 (session-10, the FUNCTION-LEVEL COMPLETENESS lane — opens in parallel with SA-10)
+Agent: session-10 function-level completeness audit (lead lane S10-F)
+
+LANE SPLIT (the push-time-reconciliation SOP applied at open, not at close —
+the parallel SA-10 lane pushed its T1 first; this lane declares complementary
+territory to avoid duplicate filings and ID collisions):
+- SA-10 (theirs, kept above): TRIAGE (the 75-active flip-fixed re-verify),
+  the DRWService install lifecycle deep-dive, the recorded-but-unfiled
+  follow-ups, the never-cited residue re-sweep, gate-doc currency.
+- S10-F (this lane): the FUNCTION-LEVEL COMPLETENESS pass — the mandate's
+  "mark all remaining features, implementations, functions as finding too"
+  taken literally against the corpus's own function inventories:
+  ghidra-searchdll/*_functions.txt (9 engines, ~9,900 functions; the named
+  behavioural set dispositioned first), ghidra-mo (30 .mo decompiles),
+  ghidra-partition (19), ghidra-core (5), ghidra-drivers (7), ghidra-misc/
+  ghidra-wave2/ghidra-repair (40) — every named function/class/feature
+  mapped to its trail disposition (MATCH verdict, finding, FIXED record, or
+  module coverage); the never-dispositioned residue becomes findings or
+  explicit MATCH records this session. Deep first-hand comparison of each
+  candidate before filing; evidence files under evidence/decompiled-quotes/
+  s10f-*.
+
+Baseline (identical to SA-10's, recorded independently): core HEAD 84a1832
+(trail-only) / product-code tip b92ebef / corpus be0cfe9. Board at open: 75
+active (7 SEVERE · 28 MAJOR · 35 MINOR · 5 INFO) / 250 FIXED / 2 tracked-open.
+Next free IDs coordinated at push time: S-048+, M-103+, N-128+, I-031+,
+A-012+.
