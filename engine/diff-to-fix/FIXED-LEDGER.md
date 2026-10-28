@@ -318,6 +318,7 @@
 | N-091 | MINOR | (session-38 registration batch D; D-108/D-109/D-110 landed — Resolution in history at the batch D commit) | (this session) | `findings/MINOR/N-091-parity-deltas-registration-gaps.md` |
 | N-098 | MINOR | (session-38 batch D; the contract sentence + mirrors + the `EnumerationRefreshContractPinned` pin, RED→GREEN proven) | (this session) | `findings/MINOR/N-098-enum-refresh-contract-sentence.md` |
 | N-105 | MINOR | (FIXED-ALREADY — classified session 38: D-106 is the demanded deferral record; reproduction in the Resolution) | (parallel S-044 lane's rider) | `findings/MINOR/N-105-autosave-folder-suffix-naming.md` |
+| N-100 | MINOR | (session-38; the +0x60 carrier landed as nflags bit-9 with the sparse-zeroing rule — Resolution + RED/GREEN proof in history at the N-100 commit) | (this session) | `findings/MINOR/N-100-ntfs-0x60-total-clusters-not-persisted.md` |
 
 ## Go-forward convention (established by this purge, per the user instruction)
 

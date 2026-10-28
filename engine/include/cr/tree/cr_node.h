@@ -205,15 +205,30 @@ public:
      * serializer FUN_140520d20 persists the engine values verbatim).
      * Carrier semantics: PASSIVE datum — stamped from the first decoded
      * $DATA run at emission (sparse first run -> 0xFFFFFFFF, the og's
-     * stored-start read; resident / no-runs -> 0, the og's zeroed raw
-     * block — the resident wrapper's synthetic pair is NOT reproduced);
-     * never consumed by the read/recovery paths. The og's +0x60 twin
-     * (total clusters) is NOT carried - derivable from allocated_size +
-     * extents, and its vtable getter is a 0-stub for 8/10 classes. The
+     * stored-start read; resident / no-runs -> 0 — the og's resident
+     * wrapper stamps a synthetic {record-anchor, 1} pair, and core's 0 is
+     * the honest deliberate no-runs value, a REGISTERED divergence, not
+     * "the og's zeroed raw block");
+     * never consumed by the read/recovery paths. The
      * og's degraded contiguous-READ use of the anchor is NOT decoded and
      * NOT reproduced. Persisted as the nflags bit-8 block
      * (cr_records.cpp). */
     u32 ntfs_origin_lcn = 0;
+    /* N-100: the og's +0x60 twin — the $DATA stream's TOTAL cluster
+     * count, stamped beside the anchor at every site (the copier
+     * FUN_180003020 :1987-1988 writes +0x64 <- raw+0x53 AND +0x60 <-
+     * raw+0x4f; the GUID-dump twin FUN_18001c660 :22470-22471 the same;
+     * rsf record-4 persists u32(+0x64) then u32(+0x60), rsf-format
+     * :398). Semantics: the sum of the run lengths in clusters, ZEROED
+     * when ANY run is sparse (FUN_1800336f0 :41096-98 — a sparse
+     * anywhere means the total is not a contiguous allocation figure, so
+     * the og zeroes it rather than lie; a sparse file therefore carries
+     * total 0 while its allocated_size stays nonzero - the two are NOT
+     * derivable from each other, which is why this field exists).
+     * Resident / no-runs -> 0 (the deliberate no-runs value, as the
+     * anchor above). PASSIVE datum, never consumed by read/recovery.
+     * Persisted as the nflags bit-9 block (cr_records.cpp). */
+    u32 ntfs_total_clusters = 0;
     /* content hash when computed (carve dedup + writer verification) */
     u8 sha128[16] = {0}; /* truncated sha-256 digest, 128-bit id */
     bool hash_valid = false;

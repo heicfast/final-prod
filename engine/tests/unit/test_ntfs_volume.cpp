@@ -1569,6 +1569,19 @@ TEST(NtfsVolume, OriginLcnCarriedFromFirstDataRun) {
     /* non-resident unnamed $DATA (LCN 250) + resident named ADS: the anchor
      * follows the UNNAMED stream's first run */
     EXPECT_EQ(adsnode->props()->ntfs_origin_lcn, 250u);
+
+    /* N-100: the +0x60 twin — total $DATA clusters stamped beside the
+     * anchor at the same sites. Fixture truth (sectors_per_cluster = 1):
+     * readme 2 clusters (LCN 200 len 2), deleted 4 (LCN 210 len 4),
+     * holes ALL-SPARSE => 0 (the sparse-anywhere rule, FUN_1800336f0
+     * :41096-98), dirdel no-$DATA-runs => 0, ads 1 (LCN 250 len 1). */
+    EXPECT_EQ(readme->props()->ntfs_total_clusters, 2u);
+    EXPECT_EQ(deleted->props()->ntfs_total_clusters, 4u);
+    EXPECT_EQ(holes->props()->ntfs_total_clusters, 0u)
+        << "sparse-anywhere zeroes the total while allocated stays nonzero";
+    EXPECT_GT(holes->props()->allocated_size, 0ull) << "the not-derivable pair's allocation half";
+    EXPECT_EQ(dirdel->props()->ntfs_total_clusters, 0u);
+    EXPECT_EQ(adsnode->props()->ntfs_total_clusters, 1u);
 }
 
 /* ------------------------------------------------------------------ */

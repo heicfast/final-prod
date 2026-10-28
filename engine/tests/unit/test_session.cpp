@@ -1230,6 +1230,75 @@ TEST(Session, NtfsOriginLcnRoundTrip) {
     EXPECT_EQ(q2->props()->ntfs_origin_lcn, 0u);
 }
 
+TEST(Session, NtfsTotalClustersRoundTrip) {
+    /* N-100: the og's +0x60 twin — the $DATA stream's TOTAL cluster
+     * count, persisted beside the origin LCN (rsf record-4 writes
+     * u32(+0x64) then u32(+0x60), rsf-format :398; the og's copier
+     * FUN_180003020 :1987-1988 stamps both). The semantics that make
+     * the field NON-DERIVABLE: sparse-anywhere zeroes the total
+     * (FUN_1800336f0 :41096-98) while allocated_size stays nonzero — a
+     * sparse file's session row carries total 0 beside a nonzero
+     * allocation, which no allocated_size/extents derivation can
+     * reproduce. RED pre-fix: the carrier did not exist (compile-error
+     * on the reverted tree — the field itself is the fix). */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Volume N");
+    /* non-sparse: 7 clusters across two runs — the total persists */
+    tree::FileProperties* p = new tree::FileProperties();
+    p->name = u"contiguous.dat";
+    p->fs_kind = u32(FsKindCode::Ntfs);
+    p->ntfs_origin_lcn = 0x000C1234u;
+    p->ntfs_total_clusters = 7;
+    p->allocated_size = 7 * 4096;
+    p->extents.push_back({0x000C1234ull * 4096, 5 * 4096});
+    p->extents.push_back({0x000D5678ull * 4096, 2 * 4096});
+    auto* f = t.add_file(root, p);
+    (void)f;
+    p->release();
+    /* the sparse shape: total 0 (sparse-anywhere rule) BESIDE a nonzero
+     * allocated_size — the og's session-row truth for sparse files, and
+     * exactly the pair no derivation reproduces */
+    tree::FileProperties* p2 = new tree::FileProperties();
+    p2->name = u"sparseholes.dat";
+    p2->fs_kind = u32(FsKindCode::Ntfs);
+    p2->ntfs_origin_lcn = 0xFFFFFFFFu; /* sparse first run */
+    p2->ntfs_total_clusters = 0;       /* sparse-anywhere => 0 */
+    p2->allocated_size = 64 * 4096;    /* ...while allocation stays */
+    auto* f2 = t.add_file(root, p2);
+    (void)f2;
+    p2->release();
+    /* the gate: a zero-total NTFS node must stay shape-identical to a
+     * pre-N-100 record (bit-9 fires only when nonzero) */
+    tree::FileProperties* p3 = new tree::FileProperties();
+    p3->name = u"plain.txt";
+    p3->fs_kind = u32(FsKindCode::Ntfs);
+    auto* f3 = t.add_file(root, p3);
+    (void)f3;
+    p3->release();
+    t.refresh_stats();
+
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), u32(OK));
+    tree::ResultTree t2;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), u32(OK));
+    tree::FileNode* g2 = t2.roots()[0]->first_child();
+    ASSERT_NE(g2, nullptr);
+    ASSERT_NE(g2->props(), nullptr);
+    EXPECT_EQ(g2->props()->ntfs_total_clusters, 7u);
+    EXPECT_EQ(g2->props()->ntfs_origin_lcn, 0x000C1234u); /* both anchors ride */
+    tree::FileNode* h2 = g2->next_sibling();
+    ASSERT_NE(h2, nullptr);
+    ASSERT_NE(h2->props(), nullptr);
+    EXPECT_EQ(h2->props()->ntfs_total_clusters, 0u);
+    EXPECT_EQ(h2->props()->allocated_size, 64ull * 4096)
+        << "the not-derivable pair: sparse total 0 beside nonzero allocation";
+    tree::FileNode* q2 = h2->next_sibling();
+    ASSERT_NE(q2, nullptr);
+    ASSERT_NE(q2->props(), nullptr);
+    EXPECT_EQ(q2->props()->ntfs_total_clusters, 0u);
+    EXPECT_EQ(q2->props()->ntfs_origin_lcn, 0u);
+}
+
 TEST(Session, IdentityCardFirmwareWwnInterface) {
     /* N-066 (diff-to-fix): the og record-3's identity axes — firmware
      * revision (+0x206), WWN/serial-2 (+0x30A), interface description

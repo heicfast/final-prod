@@ -899,6 +899,22 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
              * whenever the datastream attaches, compressed or not). */
             const DataRun& r0 = data_runs.runs().front();
             props->ntfs_origin_lcn = r0.sparse ? 0xFFFFFFFFu : u32(r0.lcn);
+            /* N-100: the +0x60 twin — total $DATA clusters, zeroed when
+             * ANY run is sparse (FUN_1800336f0 :41096-98; a sparse file
+             * carries total 0 while allocated_size stays nonzero, which
+             * is exactly why the field is not derivable). */
+            {
+                u64 data_clusters = 0;
+                bool any_sparse = false;
+                for (const DataRun& r : data_runs.runs()) {
+                    if (r.sparse) {
+                        any_sparse = true;
+                        break;
+                    }
+                    data_clusters += r.length;
+                }
+                props->ntfs_total_clusters = any_sparse ? 0 : u32(data_clusters);
+            }
             if (data_compressed && !is_dir) {
                 /* GAP-P1-1: expand the compression-unit envelope into
                  * codec-tagged per-block extents; raw runlist extents
@@ -1492,6 +1508,21 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                              * encoder outputs). */
                             const DataRun& dr0 = data_runs2.runs().front();
                             dp->ntfs_origin_lcn = dr0.sparse ? 0xFFFFFFFFu : u32(dr0.lcn);
+                            /* N-100: the same +0x60 twin on the dump-recovered
+                             * record (the og's GUID-dump twin FUN_18001c660
+                             * :22470-22471 stamps both fields). */
+                            {
+                                u64 data_clusters = 0;
+                                bool any_sparse = false;
+                                for (const DataRun& r : data_runs2.runs()) {
+                                    if (r.sparse) {
+                                        any_sparse = true;
+                                        break;
+                                    }
+                                    data_clusters += r.length;
+                                }
+                                dp->ntfs_total_clusters = any_sparse ? 0 : u32(data_clusters);
+                            }
                             std::vector<RunList::Extent> ex;
                             data_runs2.extents(ex);
                             for (const auto& e : ex)

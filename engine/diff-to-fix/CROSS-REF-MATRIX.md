@@ -589,7 +589,7 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | session · auto-save naming folder variant | **N-105** — "Folder" suffix absent (deferred; cross-ref M-079's volume-label gap) |
 | session · crsf reader robustness (S35) | **MATCH** — per-chunk raw fallback == og's raw-memcpy-on-inflate-failure (md :98) |
 | session · light summary read (D12) | **MATCH** — SESSION_STATE+VOLUME_INFO == the og's record-1-then-record-2 list read (phrasing corrected E64; complements N-090's scope/shape rows) |
-| ntfs · session-wire field set (D11/D12) | **N-100** — og persists +0x60 (total clusters, sparse-zeroed) beside +0x64; core carries +0x64 only |
+| ntfs · session-wire field set (D11/D12) | **MATCH** | **N-100 — FIXED (session 38)**: `ntfs_total_clusters` carried as the nflags bit-9 block with the sparse-anywhere zeroing at both stamp sites + the clone; the resident-comment truth repair landed; `NtfsTotalClustersRoundTrip` + the walk-test half prove it |
 | ntfs · origin-LCN stamp chain (C20) | **MATCH** (semantics) — chain cites corrected (+0x53/+0x4f first hop; FUN_180003250) |
 | orchestration · device enumeration sixth source | **MATCH** | **N-106 — FIXED-ALREADY (classified session 38)**: the SI:86 disposition row with corpus cites + the N-071 sixth-source note (landed by the session-8 wave-2 lane) |
 | audit-trail · SURFACE-INVENTORY arithmetic + classification rows | **MATCH** | **N-101 — FIXED (session 38, `13245c0`)**: one live residue (per-binary 112/114) + the rest FIXED-ALREADY with reproductions |

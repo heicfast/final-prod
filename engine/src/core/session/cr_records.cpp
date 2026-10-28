@@ -171,6 +171,8 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
                 nflags |= 128; /* OQ-SA-1: the FAT-family origin cluster */
             if (pr && pr->ntfs_origin_lcn != 0)
                 nflags |= 256; /* OQ-SA-1: the NTFS first-$DATA-run LCN anchor */
+            if (pr && pr->ntfs_total_clusters != 0)
+                nflags |= 512; /* N-100: the NTFS total-$DATA-clusters twin (+0x60) */
         }
         put32(out, parent_ids[i]);
         put16(out, nflags);
@@ -267,6 +269,13 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
          * nonzero and therefore persists. */
         if (nflags & 256)
             put32(out, pr->ntfs_origin_lcn);
+        /* N-100: the +0x60 twin (total $DATA clusters, sparse-anywhere => 0
+         * per FUN_1800336f0 :41096-98) — the same 4-byte append-only block
+         * shape as the anchor, firing only when nonzero (pre-fix sessions
+         * stay shape-identical; the og's rsf record-4 persists the pair in
+         * the same order, rsf-format :398). */
+        if (nflags & 512)
+            put32(out, pr->ntfs_total_clusters);
         if (n->is_full()) {
             const tree::FullNode* f = static_cast<const tree::FullNode*>(n);
             put16(out, u16(f->role.size()));
@@ -459,6 +468,11 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* re
         }
         if (nflags & 256) { /* OQ-SA-1: the NTFS origin LCN anchor */
             props->ntfs_origin_lcn = c.g32();
+            if (c.fail)
+                break;
+        }
+        if (nflags & 512) { /* N-100: the NTFS total-clusters twin (+0x60) */
+            props->ntfs_total_clusters = c.g32();
             if (c.fail)
                 break;
         }

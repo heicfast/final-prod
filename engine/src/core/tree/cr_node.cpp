@@ -72,6 +72,9 @@ FileProperties* FileProperties::clone() const {
      * carriers of the non-cloning engines need no line here by
      * construction). */
     p->ntfs_origin_lcn = ntfs_origin_lcn;
+    /* N-100: the +0x60 total-clusters twin rides the same clone (the og's
+     * clone copies the whole props block; the fan-out keeps both anchors). */
+    p->ntfs_total_clusters = ntfs_total_clusters;
     std::memcpy(p->sha128, sha128, sizeof(sha128));
     p->hash_valid = hash_valid;
     return p;

@@ -2693,3 +2693,19 @@ whole-disk pass — the LDM volumes ride the same candidate machinery.
   all-upper, never mixed). scan_tag_two_case landed; the M-092 HTML
   scanner refined to the og-exact semantics in the same change.
 - Tests: 5 new Carve.* (Svg*/GenericXml*/XmlNo*); suite 1081/1081.
+---
+---
+N-100 FIXED (the NTFS +0x60 total-clusters persistence): re-verified at current main first
+(bit-8-only persistence at cr_records.cpp:172/:268/:460; both stamp sites origin-only;
+the "derivable" rationale refuted by the sparse rule). The fix (option 1):
+FileProperties::ntfs_total_clusters with the sparse-anywhere zeroing (FUN_1800336f0
+:41096-98) stamped at BOTH walk sites + the GUID-dump twin; nflags bit-9 4-byte block
+(fires only when nonzero - pre-fix sessions shape-identical; the og's rsf record-4
+persists the pair in the same order); the hard-link clone carries it. The addendum's
+comment repair landed too (the resident prose now states the decoded truth - the og's
+resident wrapper stamps the synthetic record-anchor pair; core's 0 is the honest
+deliberate no-runs value). Tests: Session.NtfsTotalClustersRoundTrip (the
+not-derivable pair - sparse total 0 beside nonzero allocated_size - round-trips; the
+zero-total gate keeps old records shape-identical) + the walk-test's total half
+(readme 2 / deleted 4 / holes 0 / dirdel 0 / ads 1). Compile-RED on the reverted tree
+(field-addition precedent). Suite 1077/1077; format clean.
