@@ -1085,14 +1085,6 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                          * insert-or-increment). */
                         ctx.validated.fetch_add(1, std::memory_order_relaxed);
                         ctx.sign_hits.fetch_add(1, std::memory_order_relaxed);
-                        /* N-171 (re-landed on the merged S-055/S-056
-                         * shape): the record IS validated (the sign
-                         * matched); carved_found is assigned from
-                         * cs.validated (cr_scan.cpp), so the headline
-                         * carved count now includes the user-sign
-                         * channel instead of silently omitting the
-                         * whole default-on set. */
-                        ctx.validated.fetch_add(1, std::memory_order_relaxed);
                         emitted_at.insert(start_abs);
                         continue;
                     }
