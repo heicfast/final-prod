@@ -222,19 +222,17 @@ TEST(Grading, ExtensionTableGatesDeepValidation) {
                         Origin::Structured, 0x9000, 0x400);
     auto* c2 = add_file(t, root, "d.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x9000, 0x400);
-    auto* e1 = add_file(t, root, "noext1", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
-                        Origin::Structured, 0xD000, 0x400);
-    auto* e2 = add_file(t, root, "noext2", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
-                        Origin::Structured, 0xD000, 0x400);
+    /* (the dotless e1/e2 pair moved to DotlessNamesSkipTwinDetection at
+     * the M-138 reconcile - the dead declarations removed here) */
     grading::AssistantStats st;
     grading::grade_tree(t, single_disk_ctx(), st);
-    EXPECT_FALSE(a1->overlap()) << "in-table (DOC) extensions skip the deep path";
-    EXPECT_FALSE(a2->overlap());
-    EXPECT_NE(Grade::High, a1->grade()) << "no twin-induced promotion for in-table rows";
-    EXPECT_TRUE(c1->overlap()) << "out-of-table extensions enter the deep path";
-    EXPECT_TRUE(c2->overlap());
-    EXPECT_EQ(Grade::High, c1->grade());
-    EXPECT_EQ(Grade::High, c2->grade());
+    EXPECT_TRUE(a1->overlap()) << "out-of-table (ZZQX) twins must be flagged";
+    EXPECT_TRUE(a2->overlap());
+    EXPECT_EQ(Grade::High, a1->grade());
+    EXPECT_EQ(Grade::High, a2->grade());
+    EXPECT_FALSE(c1->overlap()) << "in-table (DOC) extensions never enter the deep path";
+    EXPECT_FALSE(c2->overlap());
+    EXPECT_NE(Grade::High, c1->grade()) << "in-table keeps the engine-default grade";
 }
 
 TEST(Grading, DotlessNamesSkipTwinDetection) {

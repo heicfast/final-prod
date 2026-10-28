@@ -3258,22 +3258,12 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
         return 2;
     }
     IStorageDevice* slice = view.get();
-<<<<<<< HEAD
-    /* M-119 (the S57 lane's repair): the unique_ptr must hold the DERIVED
-     * PartitionSlice - the clamp-surface members (was_clamped/clamp_delta)
-     * exist only there, and the upcast-to-base declaration left the Windows
-     * app lane unparseable (the win_syntax_check gate, the M-055 class: the
-     * app layer compiles only under MSVC, so a base-typed declaration is
-     * invisible to the Linux suite). slice keeps the base pointer. */
-    std::unique_ptr<PartitionSlice> part_slice;
-=======
     /* M-119 repair (win_syntax_check red at the landing; CONVERGENT with
      * the S53 lane's N-188 fix - byte-equivalent retype): the concrete
      * type - the clamp-delta surface (was_clamped/length/clamp_delta) is
      * PartitionSlice's own, not IStorageDevice's; .get() still feeds the
      * base-typed slice below. */
     std::unique_ptr<cr::PartitionSlice> part_slice;
->>>>>>> 994e0bb0bf9d80c69e7c47ace4e7541ecb4255f1
     u64 part_base = 0; /* A-002: partition base in DISK bytes (0 = whole disk) */
     if (part >= 1) {
         table::DiskTable t;

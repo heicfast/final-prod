@@ -7850,3 +7850,23 @@ unchanged);
 (two sites, Win32-guarded - invisible to the Linux build).
 win_syntax_check 1347/1347 re-verified green with the full suite.
 
+
+## Session-57 lane — the second red-main repair (the window's stacked landings) (2026-10-29)
+
+The hot-window merges stacked four defects on main (all invisible to the pushing lanes'
+own suites, all caught by this lane's post-merge full-suite runs):
+(1) cr_carve.cpp: the two lanes' identical N-171 landings STACKED - two back-to-back
+validated.fetch_add blocks (the merge kept both); carved_found double-counted the whole
+user-sign channel (UserSignFilesCountInCarvedFound x2 + DisabledFormatGatesUserSignLayer
+RED at 2x) - deduplicated to the single increment, comments folded;
+(2) test_fat_volume.cpp: the M-130 family's tests spliced INSIDE the S57 supplementary
+test's body (the 09490fea/12c2f09e rebase-splice class) - both families reconstructed
+self-contained (8 M-130 tests + InvalidTimeWordAccessSlotStaysReal intact);
+(3) test_grading.cpp: ExtensionTableGatesDeepValidation carried the PRE-M-138 inverted
+assertion polarity against its own zzqx/doc fixtures (the M-138 reconcile's assertion
+swap lost at the merge) - restored to the landed truth (out-of-table ZZQX twins flag +
+High; in-table DOC never enters the deep path; the dead e1/e2 declarations dropped -
+their pins live in DotlessNamesSkipTwinDetection);
+(4) rrecov.cpp: the window's own merge left raw conflict markers at the convergent
+N-188/M-119 retype (both sides byte-equivalent) - resolved taking the remote side.
+Suite 1384/1384 green post-repair.

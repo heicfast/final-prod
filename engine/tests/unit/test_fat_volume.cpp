@@ -2460,19 +2460,35 @@ TEST(FatEngine, InvalidTimeStampsPersistAsZero) {
     EXPECT_NE(z->props()->times.created, 0u);
 }
 
-<<<<<<< HEAD
 TEST(FatEngine, InvalidTimeWordAccessSlotStaysReal) {
-    /* A-014 convergence pin (the S52 lane's supplementary): the og
+    /* A-014 convergence pin (the S57 lane's supplementary): the og
      * passes time word 0 for the access slot (FATSearchDLL
      * :32151-32154 - access has no time field in FAT), so a dentry
      * whose write/create time words carry hour 24 keeps a REAL
      * accessed timestamp while created/modified/changed zero out;
      * changed mirrors modified (cr_fat_quick.cpp:362). Neither remote
-     * test family asserted the accessed slot. */
+     * family asserted the accessed slot. */
     auto img = build_fat16_image();
     u8* root = img.data() + 42 * 512;
     make_dentry(root + 6 * 32, "ACCREAL TXT", 0x20, 15, 100, 0x58CC, 0xC000, false);
-=======
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    tree::FileNode* n = find_node(tree, "ACCREAL.TXT");
+    ASSERT_NE(n, nullptr) << "the invalid-time dentry is still a result";
+    EXPECT_EQ(n->props()->times.created, 0u) << "hour 24 -> the zeroed slot";
+    EXPECT_EQ(n->props()->times.modified, 0u) << "hour 24 -> the zeroed slot";
+    EXPECT_EQ(n->props()->times.changed, 0u) << "changed mirrors modified";
+    EXPECT_EQ(n->props()->times.accessed,
+              fat_date_to_unix(0x58CC, 0, 0) * 10000000ULL + 116444736000000000ULL)
+        << "access (time word 0) keeps the real date";
+}
+
 /* ---- M-130: the dentry shape-validator family -------------------------- */
 
 namespace {
@@ -2509,7 +2525,6 @@ TEST(FatEngine, DentryAttrReservedBitsStopWalk) {
     make_dentry(root + 6 * 32, "GOOD1   TXT", 0x20, 10, 100, 0x58CC, 0x6000, false);
     plant_raw(img, 7, raw_dentry("RESERVEDTXT", 0x40, 0, 10, 100));
     make_dentry(root + 8 * 32, "AFTER   TXT", 0x20, 10, 100, 0x58CC, 0x6000, false);
->>>>>>> 994e0bb0bf9d80c69e7c47ace4e7541ecb4255f1
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
     auto* ra = tree.add_root(u"Found");
@@ -2518,16 +2533,6 @@ TEST(FatEngine, DentryAttrReservedBitsStopWalk) {
     FatScanFlags flags;
     FatScanStats stats;
     ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
-<<<<<<< HEAD
-    tree::FileNode* n = find_node(tree, "ACCREAL.TXT");
-    ASSERT_NE(n, nullptr) << "the invalid-time dentry is still a result";
-    EXPECT_EQ(n->props()->times.created, 0u) << "hour 24 -> the zeroed slot";
-    EXPECT_EQ(n->props()->times.modified, 0u) << "hour 24 -> the zeroed slot";
-    EXPECT_EQ(n->props()->times.changed, 0u) << "changed mirrors modified";
-    EXPECT_EQ(n->props()->times.accessed,
-              fat_date_to_unix(0x58CC, 0, 0) * 10000000ULL + 116444736000000000ULL)
-        << "access (time word 0) keeps the real date";
-=======
     EXPECT_NE(find_node(tree, "GOOD1.TXT"), nullptr) << "before the corrupt slot";
     EXPECT_EQ(find_node(tree, "AFTER.TXT"), nullptr) << "the walk stopped at the 0x40 attr";
     EXPECT_EQ(find_node(tree, "RESERVED.TXT"), nullptr);
@@ -2699,7 +2704,6 @@ TEST(FatEngine, DirSizeAndHighClusterSkipped) {
     ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
     EXPECT_EQ(find_node(tree, "BADDIR"), nullptr) << "the corrupt dir shape: skipped";
     EXPECT_NE(find_node(tree, "AFTER.TXT"), nullptr) << "the walk continued";
->>>>>>> 994e0bb0bf9d80c69e7c47ace4e7541ecb4255f1
 }
 
 TEST(FatEngine, Date2107EndToEndFileTimeIsReal) {
