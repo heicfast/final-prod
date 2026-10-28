@@ -96,3 +96,10 @@ Core comment read directly at `include/cr/carve/cr_usersigns.h:46`.
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-179 landing — post-push SHA in the ledger row and worklog entry)
+**Verified by:** `UserSigns.ManifestEightCharExtParses` (the og's longest stock key "manifest" at exactly 8 parses with its cache-manifest mime; "class" at 5 parses; a 9-char ext rejects with ERR_BAD_PARAMETER — the exact-fit boundary pinned from both sides) + the existing `UserSigns.ParseOgShippedExtremes`/`DefaultSetShipsAndLoads` stay green (the 111-key stock DB round-trip, 0 diffs). Suite green at the landing tree.
+**Resolution notes:** Corpus re-verified first-hand this session: `python3 -c "import json; d=json.load(open('og-codebase/EUUserData')); ..."` → 111 keys / 190 signs, the length top `[(8,'manifest'), (5,'class'), (4,'xlsx'), (4,'pptx'), (4,'mpeg')]`, the >4 set exactly `{"class","manifest"}` — the finding's measurement reproduced exactly. The fix is comment-only as the finding's own plan specifies (step 2's exact wording adopted, extended with the boundary-test pointer): `kMaxExtLen = 8` stays (the exact fit — zero headroom, unlike the neighboring caps; the no-headroom fact is now stated), the false "longest ext is 4 ("epub", "hqx")" provenance replaced with the measured truth. No behavioral change (the finding's own "zero behavioral divergence" verdict — the cap admits every stock entry; the pin test now holds the boundary so a future caps-tightening pass cannot silently break og-stock-DB compatibility).

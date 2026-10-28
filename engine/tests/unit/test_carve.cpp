@@ -7353,6 +7353,41 @@ TEST(UserSigns, ParseOgShippedExtremes) {
     EXPECT_TRUE(saw_pptx);
 }
 
+TEST(UserSigns, ManifestEightCharExtParses) {
+    /* N-179: the ext-length cap's boundary, measured over the og's own
+     * EUUserData (111 keys; the >4 set = {"class", "manifest"} exactly;
+     * max len = 8). "manifest" at exactly 8 (the og's longest stock key)
+     * parses; a 9-char ext rejects with the caps error - kMaxExtLen = 8
+     * is an exact fit with NO headroom (the neighboring caps all carry
+     * explicit headroom; this one is boundary-tight by the og's own
+     * data). The pre-N-179 comment claimed the longest was 4 - the
+     * false provenance that would mislead a future caps audit into
+     * breaking og-stock-DB compatibility. */
+    const char* ok_json =
+        "{\"manifest\": { \"signs\": [\"0,0D0A4D414E4946455354\"], "
+        "\"mime\": \"text/cache-manifest\" },"
+        " \"class\": { \"signs\": [\"0,CAFEBABE\"], "
+        "\"mime\": \"application/java-vm\" }}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(ok_json, std::strlen(ok_json), set))
+        << "the og's longest stock ext (manifest, 8 chars) parses at the exact-fit cap";
+    EXPECT_TRUE(set.valid);
+    ASSERT_EQ(2u, set.signs.size());
+    bool saw_manifest = false;
+    for (const auto& s : set.signs)
+        if (std::strcmp(s.ext, "manifest") == 0)
+            saw_manifest = true;
+    EXPECT_TRUE(saw_manifest) << "the 8-char boundary key survives the round trip";
+    /* the 9-char reject: one past the boundary */
+    const char* bad_json =
+        "{\"123456789\": { \"signs\": [\"0,41424344\"], "
+        "\"mime\": \"application/x-test\" }}";
+    carve::usersigns::UserSignSet bad;
+    EXPECT_EQ(ERR_BAD_PARAMETER,
+              carve::usersigns::parse(bad_json, std::strlen(bad_json), bad))
+        << "a 9-char ext is past the exact-fit cap: the legitimate reject";
+}
+
 TEST(UserSigns, HostileBlobStillAtomic) {
     /* S-039: honest caps raised, but the atomic hostile-input posture is
      * unchanged - a 65,536-hex-digit sign (32 KiB of bytes) still

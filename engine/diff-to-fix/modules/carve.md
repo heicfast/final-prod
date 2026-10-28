@@ -926,3 +926,14 @@ Evidence: `evidence/decompiled-quotes/s42-ogg-zip-typing-and-report-decodes.md` 
 - The window's S-048/M-117/N-152 landings (verified LIVE at this lane's pin,
   landed by the parallel lanes mid-window) acknowledged: the pin-time liveness
   rows are historical; the reconciled tree carries their Resolutions.
+
+- **N-179 FIXED** (MINOR — the S-039 cap-annotation set's false data claim):
+  the EUUserData length distribution re-measured first-hand (111 keys / 190
+  signs; the >4 set = {"class","manifest"} exactly; max = 8). The
+  cr_usersigns.h comment re-truthed with the measured provenance (the exact
+  wording: the longest is 8 "manifest", "class" is 5 — 8 = exact fit, NO
+  headroom, the boundary fact stated); kMaxExtLen = 8 unchanged (zero
+  behavioral divergence — the finding's own verdict).
+  UserSigns.ManifestEightCharExtParses pins the boundary from both sides
+  (manifest@8 parses; a 9-char ext rejects) so a future caps-tightening
+  pass cannot silently break og-stock-DB compatibility.

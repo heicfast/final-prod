@@ -391,6 +391,17 @@ row's no-delete mandate + the user's put-fixed-in-fixed-directory directive):
 
 
 
+
+**N-179 FIXED — the S-039 cap-annotation false claim.** The EUUserData distribution
+re-measured first-hand (111 keys; the >4 set exactly {"class","manifest"}; max = 8)
+— the finding's measurement reproduced. The cr_usersigns.h provenance comment
+re-truthed (kMaxExtLen = 8 stays: the exact fit, no headroom — now stated);
+UserSigns.ManifestEightCharExtParses pins the boundary from both sides.
+
+ the active MINOR set drops N-179
+(the full board recount rides the session close); the FIXED archive at 28 files.
+
+
 ## Session-43 minors-lane delta (2026-10-29 — the minor-first diff-fix execution lane, per the user's operative directive; opened on `b00118b5` (post the S12/S42/S-054/N-125/INFO-tier windows), corpus `be0cfe9`)
 
 **Hygiene repairs at open (three rounds, all merge-window classes):** (1) the b26017a7

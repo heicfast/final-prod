@@ -6029,3 +6029,16 @@ Row: FMT_AEP keyed "RIFX", ext "aep", floor 8, cap 0x1e00000. Tests:
 Carve.Aep* (4); RED by the stashed-engine rebuild; suite 1181/1181
 green; format clean. Trail: findings/FIXED/ with the Resolution;
 ledger row; matrix cell; modules/carve.md; SUMMARY's S42 block.
+
+## Session-43 minors lane — N-179 landed (2026-10-29)
+
+**N-179 FIXED (MINOR — the S-039 cap-annotation set's false data claim).** The
+corpus re-measured first-hand (the EUUserData JSON parse: 111 keys / 190 signs, the
+length top [(8,'manifest'), (5,'class'), ...], the >4 set exactly {"class",
+"manifest"}). The cr_usersigns.h:46 comment re-truthed per the finding's own step-2
+wording (extended with the boundary-test pointer); kMaxExtLen = 8 unchanged — the
+exact fit with no headroom, now stated. UserSigns.ManifestEightCharExtParses pins
+the boundary from both sides (manifest@8 + class@5 parse; a 9-char ext rejects
+with ERR_BAD_PARAMETER). Trail: findings/FIXED/N-179 + ledger row + carve.md row +
+this entry (no dedicated matrix cell exists for the S42-wave filings - the SUMMARY
+board blocks carry them; noted here for the trail truth).
