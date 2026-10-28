@@ -721,3 +721,26 @@ clean. Board: API-DELTA §5.2 row S3-W1a flipped DONE. Next: W1b
 (R-54 the session load progress + cancel - the corpus contract is
 SaveScan:344-376, restore 40+50*done/(total+done) + per-child
 IUIProgressInfo cancel; the N-060 save mirror).
+
+---
+Task ID: API-EXP-1 (W1b landing record — R-54 the session load progress + cancel)
+Agent: api-exp lane (this session)
+
+- Landed `ce6bcb0` (feat(session)): the load-side twin of the N-060 save
+  machinery, corpus contract SaveScan:344-376 verified first-hand (the
+  restore progress window + the per-child IUIProgressInfo IsCancelled
+  teardown). Core: session::DeserializeProgress per attached node,
+  ERR_CANCELLED propagating through the container layer (the
+  REC_RESULT_TREE case explicitly refuses to flatten a cancel into
+  SESSION_FORMAT). ABI: cr_ui_session_load_with_events (the caller-owned
+  zero-init cancel flag IS the og's polled progress object - set from
+  any thread; *out untouched on abort) + CR_EVT_SESSION_LOAD_PROGRESS
+  (type 11, coalesced). Docs: ABI-CONTRACT §7g + the §6 event row +
+  81-export counts + the cr_ui.h cite set re-mechanized for the +15/+21
+  header inserts (all anchors grep-verified). Tests: 2 unit + 1 ABI +
+  the C-gate NULL/NULL contract smoke; suite 1012/1012.
+- Board: API-DELTA §5.2 row S3-W1b flipped DONE. Next: W1c (R-52 the
+  auto-save-on-completion) - the corpus contract is SaveScan:443-451 +
+  section 5.5 (auto_<vol>_<M>_<D>_<H>_<m>_<s> naming, the N-061
+  auto_session_name already landed; what is missing is the ScanConfig
+  trigger + the completion write + the event/stats surfacing).
