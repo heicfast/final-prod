@@ -679,7 +679,12 @@ per-method strides from the .data constant dump (the binary read that settled th
 DAT_ labels), the ext-flag CRC suppression, the -2/+2 step-back dance, size = pos+1,
 cap 200 MiB; the -lh5 hdr-only quirk PINNED as decoded; tests Carve.Lzh*;
 findings/FIXED/N-112) ·
-**N-113** the text school (VCF/GPX/OSP/POS/CHFP) · **N-115** OfficeTagFromXML.
+**N-113 FIXED session-39** (the six-row text school: VCF's END:VCARD walk with the
+multi-card continuation, GPX's declaration+<gpx window + </gpx> walk (cap 100 MiB),
+OSP's libopenshot needle with the unique reject-on-missing, POS's needle settled
+from FUN_18001a470 ("ProcessOn Schema File"), CHFP's +0x28 BiffProject anchor;
+the per-chunk find quirk ported exactly; tests Carve.TextSchool*;
+findings/FIXED/N-113) · **N-115** OfficeTagFromXML.
 The school-1 formats (CHM/ONE/MNY/EMF/SWF/3DS) landed via `b92ebef`; FCPEvt closed
 as covered — the lead lane's duplicate filings dropped, its decodes convergent with the
 remote errata E56-E66.

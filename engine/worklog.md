@@ -4066,3 +4066,36 @@ Work Log:
 Stage Summary:
 - Next: Wave 1 (the ledger repair + verification sweep), then the parallel
   deep-read agents for Waves 2–4, then filings + the close.
+
+### Session-39 fix log — N-113 landed (the text school)
+
+**Finding:** MINOR N-113 (five text-format list probes absent: VCF/GPX/OSP/
+POS/CHFP).
+**Classification:** CONFIRMED-DIVERGENCE (all five probes + walks re-verified
+first-hand at the corpus cites before any code; the POS open question
+settled by the demanded read of FUN_18001a470: the walk needle is
+"ProcessOn Schema File", extent = find + 21 + 0x13, cap 100 MiB).
+**Fix:** FMT_VCF/FMT_GPX/FMT_GPX_BOM/FMT_OSP/FMT_POS/FMT_CHFP. Decoded
+grammars ported exactly: VCF (the END:VCARD\r\n walk in 0x400 chunks with
+the 10-byte over-read, the multi-card BEGIN:VCARD continuation, cap 20 MiB);
+GPX (the declaration at 0 or +3, the <gpx u32 window [+0x16,+0x216) — a
+root before +0x16 rejects, the og's own window semantics, pinned by test;
+the </gpx> walk in 0x200 chunks, cap 100 MiB — the id!=0xa0 branch decode);
+OSP (the 10-byte prefix gate, the libopenshot needle, extent = find+14+0xF,
+cap 2 MiB, the family's unique REJECT-ON-MISSING — the og's size-0 exit,
+ported as ok=false); POS (the needle settled, extent = find+21+0x13, cap
+100 MiB); CHFP (the case-sensitive declaration + the case-insensitive
+<BiffProject at +0x28 — position-sensitive, pinned by test; the
+</BiffProject> walk, cap 100 MiB). The per-chunk find quirk (needles
+straddling a 512-byte boundary are missed by the og's chunked find) ported
+exactly via chunk_find; the trailing-NUL trim adapted as the bounded
+fallback (the M-092/M-093 convention). The case-insensitive og gates carry
+canonical-case magics — the exotic-case subset registered (the M-092 class).
+**Tests:** Carve.TextSchoolVcfAcceptedAndExtent / VcfMultiCardContinuation /
+VcfNoEndTagFallsBackBounded / GpxAcceptedAndExtent / GpxRootBeforeWindowRejects
+/ OspAcceptedAndRejectOnMissing / PosAcceptedAndExtent / ChfpAcceptedAndExtent
+/ ChfpRootOffAnchorRejects. Suite 1073/1073 (1031 / 42 Win-only skipped / 0
+failed); clang-format clean; F8 + self-probe green.
+**Trail:** findings/FIXED/N-113 with Resolution; ledger row (270 main + 20
+OQ = 290); CROSS-REF-MATRIX cell → MATCH; modules/carve.md; SUMMARY (board
+47 active).

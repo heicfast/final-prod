@@ -271,6 +271,47 @@ enum FormatId : u32 {
     FMT_LZH5, /* the "-lh5-" key (the dominant compressed method) */
     FMT_LZHD, /* the "-lhd-" key (directory entries) */
     FMT_LZH7, /* the "-lh7-" key (newer compressed method) */
+    /* N-113 (diff-to-fix): the og's small text-format list probes, the
+     * five-grammar school (every probe + walk re-verified first-hand this
+     * session; the POS open question settled by reading FUN_18001a470):
+     *   VCF  (id 0x88, :3390-3453): _memicmp(buf,"BEGIN:VCARD",11)==0
+     *        (case-insensitive - the registry magic carries the canonical
+     *        uppercase form, the RFC-universal writer shape); the walk
+     *        scans 0x400 chunks for the exact-case "END:VCARD\r\n" (the
+     *        u64/u16/byte compare chain), extent += find+11, then the
+     *        MULTI-CARD continuation (the next 11 bytes memicmp
+     *        "BEGIN:VCARD" again -> keep walking); cap 0x1400000 (20 MiB).
+     *   GPX  (id 0x97, :3947-4074): memcmp(buf,"<?xml version=\"",15) at
+     *        0 OR +3 (the UTF-8 BOM form), then a u32 "<gpx" scan in
+     *        [+0x16, +0x216) (the root element window); the walk scans
+     *        0x200 chunks for "</gpx>", extent = find+6; cap 0x6400000
+     *        (100 MiB - the id!=0xa0 branch of the shared walk).
+     *   OSP  (id 0x8f, :3695-3758): the 10-byte prefix u64+u16 compare
+     *        ('{\r\n "di": '); the walk scans 0x200 chunks for
+     *        "\"libopenshot\":" within 2 MiB; extent = find+14+0xF; the
+     *        needle NOT FOUND -> size 0 -> REJECT (the family's only
+     *        reject-on-missing - the og sets the size field to 0).
+     *   POS  (id 0x8b, :3631-3694): _memicmp(buf,"{\"diagram\":",11)==0;
+     *        the walk needle (the finding's open question, settled from
+     *        FUN_18001a470): "ProcessOn Schema File" (21 bytes); 0x200
+     *        chunks, extent = find+21+0x13; cap 0x6400000.
+     *   CHFP (id 0x90, :3759-3822): the XML declaration (case-SENSITIVE
+     *        memcmp) AND _memicmp(buf+0x28,"<BiffProject",12)==0; the
+     *        walk scans 0x200 chunks for "</BiffProject>", extent =
+     *        find+14; cap 0x6400000.
+     * The 0x200-chunk finds are PER-CHUNK (a needle straddling a 512-byte
+     * boundary is missed by the og's own chunked std::string find -
+     * ported exactly); VCF's 0x401-position loop over-reads 10 bytes past
+     * the 0x400 advance (the u64 compare chain - also ported). The og's
+     * 64 KiB sliding-window trailing-NUL trim (the >16-zero tail check) is
+     * adapted as the family's bounded fallback at the slice cap (the
+     * M-092/M-093 convention for this school's walks). Ids APPENDED. */
+    FMT_VCF,     /* "BEGIN:VCARD" - the vCard key */
+    FMT_GPX,     /* "<?xm" + the <gpx window - the GPX key */
+    FMT_GPX_BOM, /* EF BB BF 3C - the BOM-form GPX key */
+    FMT_OSP,     /* '{\r\n "di": ' - the OpenShot key */
+    FMT_POS,     /* '{"diagram":' - the ProcessOn key */
+    FMT_CHFP,    /* "<?xm" + <BiffProject@0x28 - the CHFP key */
     FMT_COUNT
 };
 

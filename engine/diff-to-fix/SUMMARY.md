@@ -238,7 +238,13 @@ bookkeeping file renumbers to N-135, convergent with session-11B's own renumber)
   `findings/FIXED/` (the user's "put fixed findings in fixed directory"
   instruction; the ledger is the index — see the amended go-forward section).
 
-**Board now: 48 active (6 SEVERE · 20 MAJOR · 17 MINOR · 5 INFO) · 289 resolved
+- **N-113** (MINOR — carve): the text school landed — six rows
+  (VCF/GPX/GPX-BOM/OSP/POS/CHFP), every decoded grammar ported including the
+  multi-card continuation, the per-chunk find quirk, OSP's reject-on-missing,
+  and the POS needle settled first-hand from FUN_18001a470 (the finding's open
+  question); 9 tests.
+
+**Board now: 47 active (6 SEVERE · 20 MAJOR · 16 MINOR · 5 INFO) · 290 resolved
 ledger rows · 5 tracked-open.**
 
 ## Session-10 lane-B delta (2026-10-29 — the continuation deep audit, RECONCILED AT THE SECOND PUSH with the SA-10 lead close + the truth batches + the fix lanes)

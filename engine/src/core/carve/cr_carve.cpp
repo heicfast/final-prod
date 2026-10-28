@@ -99,6 +99,10 @@ constexpr u32 kTrialOrder[] = {
     /* N-112: the LZH method keys (distinct 5-byte magics at +2, one
      * shared validator - the og stamps one id regardless of key) */
     FMT_LZH, FMT_LZH5, FMT_LZHD, FMT_LZH7,
+    /* N-113: the text school (distinct magics except the "<?xm" GPX/CHFP
+     * forms, which the M-093 XML rows also key - the grammars reject each
+     * other's content) */
+    FMT_VCF, FMT_GPX, FMT_GPX_BOM, FMT_OSP, FMT_POS, FMT_CHFP,
     /* S-017: ftyp-destroyed MOV salvage (og MovAnalyzer list layer) -
      * LAST: the ftyp-keyed entries must claim the position first */
     FMT_MOV_NAKED};

@@ -7363,3 +7363,226 @@ TEST(Carve, LzhWrongDashByteRejects) {
         u32(OK));
     EXPECT_EQ(find_carved_at(tree, at), nullptr) << "the wrong-dash form must not carve";
 }
+
+/* ---- N-113: the text school (VCF / GPX / OSP / POS / CHFP) ---- */
+
+TEST(Carve, TextSchoolVcfAcceptedAndExtent) {
+    /* N-113: a canonical vCard carves with the END:VCARD\r\n extent. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    const std::string card = "BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Alice\r\nTEL:+1234\r\nEND:VCARD\r\n";
+    std::memcpy(img.data() + at, card.data(), card.size());
+    const size_t end = at + card.size();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    tree::FileNode* n = find_carved_at(tree, at);
+    ASSERT_NE(n, nullptr) << "the canonical vCard must carve";
+    EXPECT_EQ(n->props()->logical_size, end - at) << "the END:VCARD extent";
+    std::string name;
+    ASSERT_TRUE(cr::text::lossless_u16_to_utf8(n->props()->name, name));
+    EXPECT_NE(name.find(".vcf"), std::string::npos);
+}
+
+TEST(Carve, TextSchoolVcfMultiCardContinuation) {
+    /* N-113: the multi-card continuation - after END:VCARD\r\n, a second
+     * BEGIN:VCARD resumes the walk; the extent covers BOTH cards. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    const std::string card1 = "BEGIN:VCARD\r\nFN:A\r\nEND:VCARD\r\n";
+    const std::string card2 = "BEGIN:VCARD\r\nFN:B\r\nEND:VCARD\r\n";
+    std::memcpy(img.data() + at, card1.data(), card1.size());
+    std::memcpy(img.data() + at + card1.size(), card2.data(), card2.size());
+    const size_t end = at + card1.size() + card2.size();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    tree::FileNode* n = find_carved_at(tree, at);
+    ASSERT_NE(n, nullptr);
+    EXPECT_EQ(n->props()->logical_size, end - at) << "both cards in the extent";
+}
+
+TEST(Carve, TextSchoolVcfNoEndTagFallsBackBounded) {
+    /* N-113: no END:VCARD within the 20 MiB cap - the bounded fallback. */
+    std::vector<u8> img(16 * 1024, 0);
+    const size_t at = 512;
+    std::memcpy(img.data() + at, "BEGIN:VCARD\r\nFN:A\r\n", 20); /* no end tag */
+    const size_t img_size = img.size();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    tree::FileNode* n = find_carved_at(tree, at);
+    ASSERT_NE(n, nullptr) << "the unterminated card still carves (the fallback)";
+    EXPECT_EQ(n->props()->logical_size, img_size - at);
+}
+
+TEST(Carve, TextSchoolGpxAcceptedAndExtent) {
+    /* N-113: the declaration + the <gpx window gate, the </gpx> extent.
+     * The root element must sit past +0x16 (the og's window start) - the
+     * encoding attribute pushes it there (a short declaration without it
+     * puts <gpx at 21 and REJECTS - the og's own window semantics). */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    const std::string doc =
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n<gpx version=\"1.1\"><trk><name>t</name>"
+        "</trk></gpx>";
+    std::memcpy(img.data() + at, doc.data(), doc.size());
+    const size_t end = at + doc.size();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    tree::FileNode* n = find_carved_at(tree, at);
+    ASSERT_NE(n, nullptr) << "the canonical GPX must carve";
+    EXPECT_EQ(n->props()->logical_size, end - at) << "the </gpx> extent";
+    std::string name;
+    ASSERT_TRUE(cr::text::lossless_u16_to_utf8(n->props()->name, name));
+    EXPECT_NE(name.find(".gpx"), std::string::npos);
+}
+
+TEST(Carve, TextSchoolGpxRootBeforeWindowRejects) {
+    /* N-113: the og's window semantics - a <gpx root BEFORE +0x16 (the
+     * short-declaration form) rejects: the scan window is [+0x16, +0x216). */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    const std::string doc = "<?xml version=\"1.0\"?><gpx></gpx>"; /* <gpx at 21 < 22 */
+    std::memcpy(img.data() + at, doc.data(), doc.size());
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    EXPECT_EQ(find_carved_at(tree, at), nullptr) << "the early-root form must reject";
+}
+
+TEST(Carve, TextSchoolOspAcceptedAndRejectOnMissing) {
+    /* N-113: OSP - the needle found (extent = needle + 0xF) and the
+     * family's unique reject-on-missing (no needle -> no carve). */
+    const std::string needle = "\"libopenshot\":";
+    for (const bool with_needle : {true, false}) {
+        std::vector<u8> img(64 * 1024, 0);
+        const size_t at = 512;
+        std::string doc = "{\r\n \"di\": 1,\r\n \"clips\": []";
+        if (with_needle)
+            doc += ",\r\n " + needle + " 12345}";
+        std::memcpy(img.data() + at, doc.data(), doc.size());
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
+                  u32(OK));
+        tree::FileNode* n = find_carved_at(tree, at);
+        if (with_needle) {
+            ASSERT_NE(n, nullptr) << "the needle form must carve";
+            const size_t ndl_at = at + doc.find(needle);
+            EXPECT_EQ(n->props()->logical_size, (ndl_at + 14 + 0xF) - at)
+                << "the needle + 0xF extent";
+            std::string name;
+            ASSERT_TRUE(cr::text::lossless_u16_to_utf8(n->props()->name, name));
+            EXPECT_NE(name.find(".osp"), std::string::npos);
+        } else {
+            EXPECT_EQ(n, nullptr) << "the missing needle must REJECT (the og's size-0 posture)";
+        }
+    }
+}
+
+TEST(Carve, TextSchoolPosAcceptedAndExtent) {
+    /* N-113: POS - the walk needle settled first-hand from FUN_18001a470:
+     * "ProcessOn Schema File"; extent = find + 21 + 0x13. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    const std::string doc = "{\"diagram\":{\"page\":{\"shapes\":[]}},\"meta\":\"ProcessOn "
+                            "Schema File v2\",\"tail\":1}";
+    std::memcpy(img.data() + at, doc.data(), doc.size());
+    const size_t ndl_at = at + doc.find("ProcessOn Schema File");
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    tree::FileNode* n = find_carved_at(tree, at);
+    ASSERT_NE(n, nullptr) << "the ProcessOn form must carve";
+    EXPECT_EQ(n->props()->logical_size, (ndl_at + 21 + 0x13) - at) << "the needle + 0x13 extent";
+    std::string name;
+    ASSERT_TRUE(cr::text::lossless_u16_to_utf8(n->props()->name, name));
+    EXPECT_NE(name.find(".pos"), std::string::npos);
+}
+
+TEST(Carve, TextSchoolChfpAcceptedAndExtent) {
+    /* N-113: CHFP - the declaration + <BiffProject@0x28 gate, the
+     * </BiffProject> extent. The 0x28 offset forces the padded header. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    const std::string decl = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
+    const std::string body = "<BiffProject name=\"p\"><track/></BiffProject>";
+    /* the root must sit EXACTLY at +0x28 (40): the declaration is 38
+     * bytes; pad with 2 spaces to reach the offset */
+    ASSERT_EQ(decl.size(), size_t(38));
+    std::memcpy(img.data() + at, decl.data(), decl.size());
+    img[at + 38] = ' ';
+    img[at + 39] = ' ';
+    std::memcpy(img.data() + at + 0x28, body.data(), body.size());
+    const size_t end = at + 0x28 + body.size();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    tree::FileNode* n = find_carved_at(tree, at);
+    ASSERT_NE(n, nullptr) << "the BiffProject form must carve";
+    EXPECT_EQ(n->props()->logical_size, end - at) << "the </BiffProject> extent";
+    std::string name;
+    ASSERT_TRUE(cr::text::lossless_u16_to_utf8(n->props()->name, name));
+    EXPECT_NE(name.find(".hfp"), std::string::npos);
+}
+
+TEST(Carve, TextSchoolChfpRootOffAnchorRejects) {
+    /* N-113: the root at an offset other than +0x28 rejects (the og's
+     * _memicmp(buf+0x28, ...) gate - position-sensitive). */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    const std::string decl = "<?xml version=\"1.0\"?>";
+    const std::string body = "<BiffProject></BiffProject>";
+    std::memcpy(img.data() + at, decl.data(), decl.size()); /* 21 bytes */
+    std::memcpy(img.data() + at + 21, body.data(), body.size());
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    EXPECT_EQ(find_carved_at(tree, at), nullptr) << "the off-anchor root must reject";
+}
