@@ -7511,3 +7511,17 @@ end-to-end fixture's NTRes=0 mixed-case "READMe.TXT" now renders the og's folded
 "README.TXT" (re-pinned in the same commit; the finding's own predicted
 case-sensitive-bench divergence). Suite 1190/1190 (linux-release). Trail:
 findings/FIXED/N-175 + ledger row + matrix A10/B-naming row + fat.md list + this entry.
+
+## Session-46 minors lane — N-176 landed (2026-10-29)
+
+**N-176 FIXED (MINOR — the FAT LFN illegal-char fallback).** The corpus cite re-read
+first-hand (FATSearchDLL :32084-32099 — the strncpy of the 9-byte set "?*|\/:\"<>" +
+the nested compare; a match diverts to FUN_180036350, the same 8.3-fallback builder
+a checksum failure takes). The gate landed inside lfn_assemble beside the checksum
+check; the caller's existing fallback path serves the alias. LfnIllegalCharFallsBackTo83
+(RED pre-fix: each of the 9 chars surfaced in the result name; GREEN: the alias serves,
+no illegal char in any result) + LfnValidNameUnchanged (the regression pin). One
+implementation bug caught in self-review before commit: the end-of-name NUL must keep
+its early-return (an intermediate `break` would have continued to further slots).
+Suite 1218/1218 (linux-release). Trail: findings/FIXED/N-176 + ledger row + matrix row
++ fat.md list + this entry.

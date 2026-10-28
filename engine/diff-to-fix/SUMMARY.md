@@ -126,7 +126,13 @@ first-hand; every fix RED-test-first.
   5-path RED→GREEN pin + `NtResFoldLeavesLfnCaseUntouched`; the BitLocker NTRes=0
   fixture caught and re-pinned — the finding's own predicted bench-divergence class).
 
-**Board (filesystem truth, running): 66 active — 0 ACUTE · 9 SEVERE · 27 MAJOR · 30 MINOR · 0 INFO / 72 FIXED files / 6 tracked-open (the S45..S51 window's A-014/M-124/INFO-board landings absorbed at the rebase).**
+- **N-176 FIXED** — the FAT LFN illegal-char fallback (FATSearchDLL :32084-32099
+  re-read first-hand; the 9-char gate `?*|\/:"<>` inside lfn_assemble beside the
+  checksum — a match takes the same 8.3-fallback path; `LfnIllegalCharFallsBackTo83`
+  the 9-iteration RED→GREEN pin + `LfnValidNameUnchanged`; the NUL early-return
+  subtlety preserved in self-review).
+
+**Board (filesystem truth, running): 65 active — 0 ACUTE · 9 SEVERE · 27 MAJOR · 29 MINOR · 0 INFO / 73 FIXED files / 6 tracked-open (the parallel windows' landings absorbed at each rebase).**
 
 # SUMMARY.md — executive summary (the S42 diff-to-fix lane's convergence on top; the prior lanes below, newest-first)
 # SUMMARY.md — executive summary (the S46 MINOR-first fix lane on top — the user's priority-to-minor directive; the prior lanes below, newest-first)
