@@ -1,3 +1,18 @@
+- **N-115 + N-153 FIXED** — the OfficeTagFromXML typing pass: the rels-path map (word/xl/ppt +
+  the word-prefix fallback, office-gated per the decompile's param_3), the mimetype/[Content_Types]
+  content tags (stored or deflated ≤10 KiB through compress::kGzip), and the name-tag set (iWork/
+  EPUB/CDR) — nine override rows appended (XLSX/PPTX at the og's ids 0x4a/0x4b; ODT/ODS/ODP/EPUB/
+  IWORK/HWP/CDR at the family granularity — the og's ids undecoded, documented). The damaged-zip
+  tolerance: the rels path matches ANYWHERE (the old first-entry requirement gone; the fast path
+  preserved). The metadata half is the recorded follow-up per the finding's own open question (no
+  tree metadata channel; the og's office naming rule undecoded). **N-153 discovered during the
+  verification**: multi-entry zips double-carved every inner LFH (the M-117 no-jump design's dedup
+  gap — reproduced: the outer + a phantom at the second entry's LFH through the shared EOCD);
+  suppress_overlap on the ZIP family's twelve rows (the S-032 inventory presents the entries as
+  children — the og's own model). Tests: five N-115 tests + MultiEntryZipCarvesOnce (all RED
+  pre-fix) + the GrammarValidationAndSpecificity duplicates expectation updated to the new truth.
+  Suite 1119/1119 (1077/42/0). (This trail commit completes the landing's bookkeeping — the fix
+  commit 67de3276 preceded it when a chain step failed mid-window.)
 **Session-40 lane B territory claim (coordination contract, 2026-10-29):** this lane
 (MINOR-first per the user directive) continues on the UNCLAIMED MINOR set: N-115
 (OfficeTagFromXML typing), N-126 (the Unsaved File category), N-125 (the disconnect-state
