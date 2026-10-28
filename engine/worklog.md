@@ -5417,3 +5417,17 @@ the chain; the master Resolution (both fix lanes' records, the two disasm-settle
 byte corrections, the even-rounding pin) lives at
 findings/FIXED/M-121-outlook-express-dbx-analyser-absent.md. Code comments, ledger
 row, matrix cell, carve.md verdict, SUMMARY: all re-pointed. 9/9 Carve.Dbx* GREEN.
+## Session-43 minors lane — N-149 landed (2026-10-29)
+
+**N-149 FIXED (MINOR — the carve filter's always-on set).** Corpus re-verified
+first-hand (FUN_180006b30's removal-loop keep-condition + the mask 0x1000801 arithmetic
++ the three analyser ids at their builders + the shipped RawConfig.ini [Filter]).
+Landing: carve_format_always_on() (the og's 0x30/0x3b/0x48 → the core's 16-row family
+mapping: OLE; AVI/WAV/WEBP; ZIP/ZIP_CD + the typed office/ODF rows — the N-115
+in-analyser typing decode), the disabled_formats fill-path guard, the raw-sign list
+layer untouched (outside the mask range). The "doc" token-split (OLE exempt vs LOWDOC
+disableable) decoded and pinned during verification. Tests:
+CarveEngine.FilterExemptSetAlwaysOn (RED pre-fix: all three families dropped under a
+naming list; jpg control disabled) + FilterExemptSetCoversTypedRows (the mapping +
+complement + split). Suite 1223/1223. Trail: findings/FIXED/N-149 + ledger + matrix →
+MATCH (D16) + carve.md row + this entry.

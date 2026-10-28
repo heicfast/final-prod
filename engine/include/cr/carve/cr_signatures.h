@@ -475,6 +475,13 @@ size_t registry_size();
 bool carve_token_listed(const char* disabled_list, const char* ext, const char* name);
 bool carve_format_listed(const char* disabled_list, const Signature& sig);
 
+/* N-149: the og's exempt set - OLE/RIFF/ZIP never leave the working analyser
+ * list (the removal loop's mask 0x1000801 over id-0x30, RAWSearchDLL
+ * :4412-4418). Every grammar row of the three families reports true; the
+ * disable surface refuses to switch them off (the raw-sign list layer is
+ * outside the mask's range and stays disableable). */
+bool carve_format_always_on(FormatId id);
+
 /* F8 gate: validate every entry; returns 0 = OK, else the count of rejects
  * (with a diagnostic list in `bad`). */
 u32 validate_registry(std::vector<const Signature*>* bad);

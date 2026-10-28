@@ -1235,7 +1235,14 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
                       "every FormatId must appear in kTrialOrder exactly once - "
                       "a missing id is silently never scanned");
         for (u32 ti = 0; ti < kTrialCount; ++ti)
+            /* N-149: the og's exempt set - OLE/RIFF/ZIP never leave the
+             * working analyser list (the removal loop's mask 0x1000801
+             * over id-0x30, RAWSearchDLL :4412-4418; the ids re-pinned at
+             * the registry builders :2337/:2304-2310/:2243). The disable
+             * surface refuses to switch those families off; every other
+             * format disables as before. */
             ctx.trial_disabled[ti] =
+                !carve_format_always_on(ctx.reg[kTrialOrder[ti]].id) &&
                 carve_format_listed(flags.disabled_formats, ctx.reg[kTrialOrder[ti]]);
         const rawsigns::SignIndex& idx = rawsigns::SignIndex::get();
         ctx.rawsign_disabled.assign(rawsigns::kFormatCount, false);

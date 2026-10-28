@@ -6000,6 +6000,124 @@ TEST(CarveEngine, FormatDisabledRawSignsToo) {
     EXPECT_GE(stats2.sign_hits, 1u) << "enabled by default: the sample sign fires";
 }
 
+TEST(CarveEngine, FilterExemptSetAlwaysOn) {
+    /* N-149: the og's per-search filter rebuild NEVER removes the
+     * OLE/RIFF/ZIP analysers (the removal loop FUN_180006b30's
+     * keep-condition carries the exempt mask 0x1000801 over id-0x30 -
+     * RAWSearchDLL :4412-4418, the ids 0x30/0x3b/0x48 pinned at the
+     * registry builders). A disable list naming those families leaves
+     * them carving; a non-exempt format on the same list still disables
+     * (the control). */
+    std::vector<u8> img(256 * 1024, 0);
+    plant_jpeg(img, 512);
+    plant_zip(img, 4096, "exempt_archive_v1.txt", 21);
+    plant_ole(img, 16384);
+    /* WAV: the RIFF family's audio form (RIFF....WAVE + fmt + data;
+     * validate_wav requires riff_len >= 36) */
+    std::memcpy(img.data() + 24576, "RIFF", 4);
+    {
+        const u32 total = 4 /*WAVE*/ + 8 + 16 /*fmt*/ + 8 + 2 /*data*/; /* 38 */
+        img[24576 + 4] = u8(total);
+        img[24576 + 5] = u8(total >> 8);
+        img[24576 + 6] = u8(total >> 16);
+        img[24576 + 7] = u8(total >> 24);
+    }
+    std::memcpy(img.data() + 24584, "WAVE", 4);
+    std::memcpy(img.data() + 24588, "fmt ", 4);
+    img[24592] = 16; /* fmt chunk size */
+    img[24596] = 1;  /* PCM */
+    img[24598] = 1;  /* channels */
+    img[24600] = 0x44;
+    img[24601] = 0xAC; /* 44100 LE */
+    img[24604] = 0x10;
+    img[24605] = 0xB1;
+    img[24608] = 2;
+    img[24610] = 16;
+    img[24612] = 'd';
+    img[24613] = 'a';
+    img[24614] = 't';
+    img[24615] = 'a';
+    img[24616] = 2; /* the data chunk's size */
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    flags.disabled_formats = "zip, wav, avi, webp, doc, docx, jpg";
+    CarveStats stats;
+    u32 rc =
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+
+    int zip = 0, ole = 0, wav = 0, jpg = 0;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->origin() == tree::Origin::Carved) {
+                const u32 f = c->props()->carve_format;
+                if (f == u32(FMT_ZIP) || f == u32(FMT_DOCX))
+                    ++zip;
+                if (f == u32(FMT_OLE))
+                    ++ole;
+                if (f == u32(FMT_WAV))
+                    ++wav;
+                if (f == u32(FMT_JPG))
+                    ++jpg;
+            }
+            collect(c);
+        }
+    };
+    collect(root);
+    EXPECT_GE(zip, 1) << "zip is NAMED on the disabled list but is exempt (the og's mask "
+                         "0x1000801 keeps id 0x48 in the working set)";
+    EXPECT_GE(ole, 1) << "doc/OLE is named but exempt (id 0x30)";
+    EXPECT_GE(wav, 1) << "wav is named but exempt (the RIFF family, id 0x3b)";
+    EXPECT_EQ(jpg, 0) << "jpg is named and NOT exempt: it must disable (the control)";
+}
+
+TEST(CarveEngine, FilterExemptSetCoversTypedRows) {
+    /* N-149's family mapping: the og's one FileZIPAnalyser (id 0x48) is
+     * the core's row set ZIP + the typed office/ODF rows (the typing is
+     * in-analyser per the N-115 decode) - the exemption is per-family,
+     * not per-row. The unit surface pins the mapping directly. */
+    EXPECT_TRUE(carve_format_always_on(FMT_OLE));
+    EXPECT_TRUE(carve_format_always_on(FMT_AVI));
+    EXPECT_TRUE(carve_format_always_on(FMT_WAV));
+    EXPECT_TRUE(carve_format_always_on(FMT_WEBP));
+    EXPECT_TRUE(carve_format_always_on(FMT_ZIP));
+    EXPECT_TRUE(carve_format_always_on(FMT_ZIP_CD));
+    EXPECT_TRUE(carve_format_always_on(FMT_DOCX));
+    EXPECT_TRUE(carve_format_always_on(FMT_XLSX));
+    EXPECT_TRUE(carve_format_always_on(FMT_PPTX));
+    EXPECT_TRUE(carve_format_always_on(FMT_ODT));
+    EXPECT_TRUE(carve_format_always_on(FMT_ODS));
+    EXPECT_TRUE(carve_format_always_on(FMT_ODP));
+    EXPECT_TRUE(carve_format_always_on(FMT_EPUB));
+    EXPECT_TRUE(carve_format_always_on(FMT_IWORK));
+    EXPECT_TRUE(carve_format_always_on(FMT_HWP));
+    EXPECT_TRUE(carve_format_always_on(FMT_CDR));
+    /* every OTHER format stays disableable (the exhaustive complement -
+     * only tokens UNIQUE to the exempt families; "doc" is LOWDOC's own
+     * ext too, and the og's mask protects only id 0x30: the legacy rows
+     * stay disableable through it) */
+    for (size_t i = 0; i < carve::registry_size(); ++i) {
+        const Signature& sig = carve::registry()[i];
+        if (carve_format_always_on(sig.id))
+            continue;
+        EXPECT_FALSE(carve_format_listed("zip, wav, avi, webp, docx, xlsx, pptx, odt, ods, "
+                                        "odp, epub, cdr",
+                                        sig))
+            << sig.name << " must not be caught by the exempt families' tokens";
+    }
+    /* the token split pin: "doc" addresses BOTH the exempt OLE row and
+     * the non-exempt legacy rows - the exemption is row-level, so the
+     * legacy family stays disableable through the shared token (the og's
+     * mask protects the OLE analyser only, never the legacy rows) */
+    EXPECT_TRUE(carve_format_listed("doc", carve::registry()[FMT_LOWDOC]))
+        << "the legacy .doc rows are outside the mask: their own token disables them";
+    EXPECT_TRUE(carve_format_always_on(FMT_OLE))
+        << "while the OLE row sharing the token stays always-on";
+}
+
 TEST(CarveEngine, AllFormatsEnabledByDefault) {
     /* null/empty list = every format enabled (the og's compiled-in set;
      * its STL/VPJ default-off is HOST policy expressed through

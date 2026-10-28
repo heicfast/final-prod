@@ -840,3 +840,21 @@ The carve surface's size-walk residue now has owners:
   exactly the og's dispatch) / `Dxf999InteriorCommentOfCanonicalFileDoesNotDoubleCarve`.
   Fail-before: 3 of 4 RED (stashed-validator rebuild; the near-miss
   re-pin documented in the Resolution). Suite 1215/1215 (linux-release).
+
+- **N-149 FIXED** (MINOR — the filter's always-on set): the mask 0x1000801
+  over id−0x30 (RAWSearchDLL :4412-4418, re-read first-hand — set bits 0/11/24
+  → ids 0x30 FileOLEAnalyser / 0x3b FileRIFFAnalyser / 0x48 FileZIPAnalyser,
+  the ids re-pinned at the registry builders :2337/:2304-2310/:2243) lands as
+  `carve_format_always_on()`: the disable surface refuses to switch the three
+  families off (FMT_OLE; FMT_AVI/FMT_WAV/FMT_WEBP — the RIFF key's per-form
+  rows; FMT_ZIP/FMT_ZIP_CD + the typed office/ODF rows — the ZIP analyser's
+  in-analyser typing, the N-115 decode). The raw-sign LIST layer stays
+  disableable (its formats sit outside the og's mask range — the shipped
+  [Filter] targets exactly that layer; no raw-sign row exists for the three
+  families). The token-split pin: "doc" addresses both the exempt OLE row
+  and the non-exempt legacy LOWDOC rows — the exemption is row-level, the
+  legacy family stays disableable (the mask protects the OLE analyser only).
+  Tests: `CarveEngine.FilterExemptSetAlwaysOn` (RED pre-fix: zip/wav/ole all
+  dropped under a naming list; the jpg control still disabled),
+  `CarveEngine.FilterExemptSetCoversTypedRows` (the 16-row family mapping +
+  the exhaustive complement + the LOWDOC split). Suite 1223/1223.
