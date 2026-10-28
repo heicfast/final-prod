@@ -63,6 +63,13 @@ before the change.
 
 **Landings this lane so far:**
 
+- **M-115 FIXED** (`1d7a761b`) — the thumbnail grade-promotion is now READ-gated,
+  not decode-gated (Thumbnail::read_ok disclosed by the engine; the ABI promotes on
+  the clean recovery read per DRWUI :422507-514; the og's 0x14 work-item floor at
+  the ABI gate). The damaged-but-readable population grades 2 like the og; tiny
+  decodables no longer over-promote. The TxtView/media triggers ride N-144/OQ-S10-1
+  (the module row records the gaps). 2 RED-pre-fix tests (stashed-engine proof);
+  suites 71/71 + 1228/1228.
 - **M-119 FIXED** (`033b9cdb`) — the og's tolerant partition-boundary semantics at
   both halves: create clamps an over-long declared window to the device end (delta
   surfaced; N-046's start-past-device refusal kept), read implements the og ladder
@@ -100,8 +107,9 @@ before the change.
   Ebr.LinkType085WalksChain / Ebr.LinkType085SameBasisAs05 / Mbr.Extended085NotEmittedAsVolume
   (all RED pre-fix); suite 1164/1164.
 
-**Board after this push (filesystem truth): 66 active — 0 ACUTE · 9 SEVERE · 22 MAJOR ·
-32 MINOR · 3 INFO** (the parallel lanes' A-014 + I-041..I-044 retirements absorbed at the
+**Board after this push (filesystem truth, post the parallel lanes' S-055/S-056 +
+N-175/I-board retirements absorbed at the merges): 61 active — 0 ACUTE · 7 SEVERE ·
+21 MAJOR · 28 MINOR · 0 INFO** (the parallel lanes' A-014 + I-041..I-044 retirements absorbed at the
 merge; both sides' records kept). Next free IDs unchanged: S-062+, M-138+, N-186+, I-045+.
 
 # SUMMARY.md — executive summary (the S46 MINOR-first parity-fix lane on top; the prior lanes below, newest-first)

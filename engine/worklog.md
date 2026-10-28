@@ -170,6 +170,18 @@ OQ-S10-3's grant boundary). Pulled-before-pushed discipline; one finding, one pu
 fix RED-test-first; corpus cites re-read first-hand. The S48/S49/S50 windows absorbed at
 the merge (A-014 + I-041..I-044 retired by the parallel lanes; both sides' records kept).
 
+- **M-115 FIXED** (`1d7a761b`) — the thumbnail grade promotion re-based on READ
+  evidence: Thumbnail::read_ok disclosed by the engine (make_thumbnail_status sets
+  it on Ok + DecodeFailed when no unreadable span was gained — the og's
+  FUN_1403eba50 verdict-0 semantics; the -3 data-but-failed class does not
+  promote); the ABI promotes on read_ok before the status check; the og's 0x14
+  work-item floor at the ABI gate (DRWUI :421391-421403); the stale :422498-518
+  cite repaired. Corpus re-read first-hand: the four-condition guard at
+  DRWUI_decompiled.c:422500-422514. Tests: ThumbnailPromotesOnReadNotDecode (the
+  damaged-but-readable PNG, RED pre-fix) / ThumbnailTinyFileDoesNotPromote (the
+  8-byte PBM, RED pre-fix) / ThumbnailUnreadableSpanNeverPromotes (the pin);
+  suites 71/71 + 1228/1228. D15/B2/A42 → MATCH; the TxtView/media triggers ride
+  N-144/OQ-S10-1 per the fix plan's own routing.
 - **M-119 FIXED** (`033b9cdb`) — the partition-boundary tolerant pair: create-clamp
   (was_clamped/clamp_delta; N-046's start-past-device refusal kept) + the og read
   ladder (offset>=length/count>length refuse; straddle clamps + FULL-tail zero-fill +

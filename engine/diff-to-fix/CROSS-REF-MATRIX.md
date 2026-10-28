@@ -84,6 +84,10 @@
     malformed signs skip-and-continue, over-cap still atomic per S-039,
     D-126 registered, the verbatim corpus fixture ships as a test];
     P1/P3 detection + P23 error-semantics → MATCH);
+  - **M-115 FIXED** (S47 MAJOR-first fix lane, `1d7a761b` — findings/FIXED/M-115:
+    the grade promotion is READ-gated, not decode-gated [DRWUI :422507-514 —
+    Thumbnail::read_ok disclosed by the engine, the ABI promotes on the clean
+    read, the 0x14 dispatcher floor added]; D15/B2/A42 → MATCH);
   - **MINOR (18):** **N-161** (table — GPT entry span underflow, no first≤last gate);
   - **MINOR (18):** **N-161 FIXED (Session-44 minors lane — `emit_gpt_entries` first≤last gate
     + `DiskTable`/`ScanStats::gpt_invalid_entries` counter; RED→GREEN proven; findings/FIXED/N-161)**
