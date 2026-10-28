@@ -1356,7 +1356,16 @@ typedef struct cr_ui_thumbnail_info {
  * 0x50030008 ERR_UNSUPPORTED for the named phase-2 refusals
  * (info->source_format carries the family), other codes as the error
  * table. caps == NULL = the defaults above. The device is the scan's
- * device (the same pairing rule as cr_ui_preview_open_session). */
+ * device (the same pairing rule as cr_ui_preview_open_session).
+ *
+ * M-115 (grading side effects, decoded at DRWUI :422507-514 + :421400-402):
+ * (1) nodes of size <= 20 (0x14) are refused 0x50030008 - the og's
+ * dispatcher never creates work items that small, so no attempt and NO
+ * grade promotion happen; (2) a decode REFUSAL (0x50030004) whose reads
+ * were clean still promotes the node's grade to 2 - the og promotes on
+ * READ evidence (readVerdict==0 with payload, decode-independent, the
+ * decode's failure never retracts) - while span-damaged, budget-exhausted
+ * and unsupported attempts never promote. */
 CR_UI_API uint32_t cr_ui_thumbnail_generate(cr_ui_device* dev, cr_ui_session* sess,
                                             uint64_t node_id, const cr_ui_thumbnail_caps* caps,
                                             uint8_t* rgba, uint32_t rgba_cap,

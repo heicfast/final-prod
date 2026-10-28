@@ -44,6 +44,32 @@
   N-158 `78b9b7aa`, N-159 `035508fa`, N-163 `142a7f40` — each with the full
   trail; this entry repairs the summary bookkeeping the hot-window
   rebase orphaned.)
+**M-115 CONVERGENT + the window's pushed reds closed (S47 INFO-first lane,
+2026-10-29).** M-115 (the thumbnail grade-promotion read/decode gate): this
+lane built the identical fix independently (the same Thumbnail::read_ok
+disclosure, promote-on-read placement, 0x14 dispatcher floor — the corpus
+guard at DRWUI :422507-514 re-verified first-hand before either push); the
+S47-MAJOR-first lane's landing (1d7a761b) wins per SA-9. This lane's unique
+supplements folded into the merged tree: the dims-seam refusal pin
+(CrUi.ThumbnailPromotesOnReadNotDecodeDimsRefusal — the no-SOF JPEG
+exercises the native_dims DecodeFailed exit the landing's damaged-PNG
+fixture doesn't), the CrUi.PreviewPaneNeverPromotes doctrine pin, and the
+ABI-contract doc block in cr_ui.h. Family 11/11; suite 1385/1385.
+
+**The same window's pushed reds closed (main-green duty):** (1) the N-171
+hot-window merge kept BOTH convergent landings' ctx.validated increments —
+a literal double-count the suite caught (1-vs-2/2-vs-4); deduped to one tick
+per record, the three user-sign tests green again; (2) the
+Grading.ExtensionTableGatesDeepValidation assertions sat on the PRE-S-058
+polarity (a1/a2 .zzqx = out-of-table must ENTER the deep path per the
+FUN_1401bebe0 inequality-comparator decode — the engine was right, the test
+inverted); flipped to match the decode, grading 25/25; (3) test_grading's
+e1/e2 unused-variable reds (void)-cast; (4) rrecov.cpp's part_slice retyped
+to PartitionSlice — convergent with the S53 lane's byte-equivalent N-188
+repair, their comment kept; (5) cr_ui.cpp's Level::Warning x2 -> Warn;
+(6) the carve pair's + this lane's format drift swept per the 72a17b7c
+precedent. Trail: findings/FIXED/M-115's convergence addendum + the ledger
+row note + this entry.
 
 **Session-51 severe-first lane — S-057 landed (2026-10-29).**
 

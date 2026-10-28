@@ -3697,6 +3697,41 @@ std::vector<unsigned char> build_fat16_tiny_pbm() {
     return img;
 }
 
+/* M-115 (the S47 lane's convergence supplement): a JPEG-shaped file with
+ * clean extents but NO SOF - the marker walk (jpeg_dims) fails
+ * deterministically at the first non-marker byte, so the decode is refused
+ * while every read is clean. Exercises the DIMS-seam of the read-evidence
+ * promotion (the parallel lane's damaged-PNG fixture exercises the
+ * entropy-seam - together the two refusal classes cover both DecodeFailed
+ * exits the promotion consumes). */
+static const unsigned char kJpgNoSof[] = {
+    255, 216, 255, 224, 0, 16, 74, 70, 73, 70, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 255, 254, 0, 4, 65, 66,
+    0,   0,   0,   0,   0, 0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0,   0, 0, 0,  0,
+    0,   0,   0,   0,   0, 0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0,   0, 0, 0,  0,
+    0,   0,   0,   0,   0, 0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0,   0, 0, 0,  0,
+    0,   0,   0,   0,   0, 0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0,   0, 0, 0,  0,
+    0,   0,   0,   0,   0, 0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0,   0, 0, 0,  0,
+    0,   0,   0,   0,   0, 0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0,   0, 0, 0,  0,
+    0,   0,   0,   0,   0, 0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0,   0, 0, 0,  0,
+    0,   0,   0,   0,   0, 0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0,   0, 0, 0,  0,
+    0,   0,   0,   0,   0, 0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0,   0, 0, 0,  0,
+    0,   0,   0,   0,   0, 0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0,   0, 0, 0,  0,
+    0,   0,   0,   0,   0, 0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0,
+};
+
+/* the no-SOF JPEG as a DELETED entry (0xE5 -> '#'): deleted non-carved files
+ * grade below 2, so the read-evidence promotion is observable */
+std::vector<unsigned char> build_fat16_jpg_corrupt() {
+    auto img = build_fat16();
+    const size_t need = (sizeof(kJpgNoSof) + 511) / 512;
+    for (size_t i = 0; i < need; ++i)
+        put16(img, kFAT1 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i),
+            put16(img, kFAT2 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i);
+    dentry(img, 3, "BAD     JPG", 0x20, 40, (unsigned long)sizeof(kJpgNoSof), true);
+    std::memcpy(img.data() + kDATA + (40 - 2) * 512, kJpgNoSof, sizeof(kJpgNoSof));
+    return img;
+}
+
 bool scan_img_to_session(const char* tag, const std::vector<unsigned char>& bytes, Ui& u,
                          std::string& img_out, std::string& crsf_out) {
     img_out = cr_test::tmp_path("cr_ui", tag);
@@ -4389,8 +4424,7 @@ TEST(CrUi, ThumbnailPromotesOnReadNotDecode) {
     /* the decode refuses the corrupt stream: ERR_TRUNCATED is the
      * honest refusal - but the READ was clean, so the promotion fired */
     EXPECT_EQ(0x50030004u, rc) << "the damaged stream still refuses the decode";
-    EXPECT_EQ(2u, grade_of(u.sess, dname))
-        << "M-115: the clean read promotes - decode-independent";
+    EXPECT_EQ(2u, grade_of(u.sess, dname)) << "M-115: the clean read promotes - decode-independent";
 }
 
 TEST(CrUi, ThumbnailTinyFileDoesNotPromote) {
@@ -4435,4 +4469,56 @@ TEST(CrUi, ThumbnailUnreadableSpanNeverPromotes) {
     EXPECT_EQ(src.find("if (st == preview::ThumbStatus::Ok) {\n        node->set_grade"),
               std::string::npos)
         << "the decode-gated promotion shape must stay gone";
+}
+
+TEST(CrUi, ThumbnailPromotesOnReadNotDecodeDimsRefusal) {
+    /* M-115 (the S47 lane's convergence supplement to the parallel lane's
+     * landing): the same read-evidence promotion proven at the DIMS seam -
+     * a JPEG-shaped file with clean extents but NO SOF refuses at
+     * jpeg_dims (native_dims), the other DecodeFailed exit; the og's
+     * promote-on-read (FUN_1403eba50 verdict==0, the guard :422507-514)
+     * fires identically. */
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_img_to_session("m115dims", build_fat16_jpg_corrupt(), u, img, crsf));
+    const uint64_t bad = query_node_id(u.sess, "#AD.JPG");
+    ASSERT_NE(bad, 0u) << "the deleted no-SOF JPEG must be a result row";
+    const uint32_t g0 = grade_of(u.sess, "#AD.JPG");
+    ASSERT_NE(g0, 0xFFFFFFFFu);
+    ASSERT_LT(g0, 2u) << "precondition: the deleted non-carved node starts below 2";
+
+    cr_ui_thumbnail_info info{};
+    EXPECT_EQ(cr_ui_thumbnail_generate(u.dev, u.sess, bad, nullptr, nullptr, 0, &info), 0x50030004u)
+        << "the decoder refusal still returns ERR_TRUNCATED";
+    EXPECT_EQ(1u, info.truncated);
+    EXPECT_EQ(2u, grade_of(u.sess, "#AD.JPG"))
+        << "M-115: the clean-read dims-seam refusal promotes exactly like the og";
+}
+
+TEST(CrUi, PreviewPaneNeverPromotes) {
+    /* M-115 doctrine pin: the og's category-3 "PreViewFile" request never
+     * promotes through the thumbnail path (the != 3 clause at
+     * :422507-514, the cat-3 early return at :652280-281); the core's ABI
+     * has no category channel - the PREVIEW surface is the pane
+     * equivalent and must leave grades untouched. */
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_img_to_session("m115prev", build_fat16_jpg_corrupt(), u, img, crsf));
+    const uint64_t bad = query_node_id(u.sess, "#AD.JPG");
+    ASSERT_NE(bad, 0u);
+    const uint32_t g0 = grade_of(u.sess, "#AD.JPG");
+    ASSERT_NE(g0, 0xFFFFFFFFu);
+    ASSERT_LT(g0, 2u) << "precondition: below 2 before the preview reads";
+
+    cr_ui_preview* pv = nullptr;
+    ASSERT_EQ(cr_ui_preview_open_session(u.dev, u.sess, bad, &pv), CR_UI_OK);
+    uint64_t size = 0;
+    ASSERT_EQ(cr_ui_preview_size(pv, &size), CR_UI_OK);
+    EXPECT_EQ(sizeof(kJpgNoSof), size_t(size));
+    std::vector<char> buf(64, 0);
+    uint32_t placed = 0;
+    ASSERT_EQ(cr_ui_preview_read(pv, 0, buf.data(), 32, &placed), CR_UI_OK);
+    EXPECT_EQ(32u, placed);
+    EXPECT_EQ(g0, grade_of(u.sess, "#AD.JPG"))
+        << "the preview surface never promotes - the pane doctrine";
 }

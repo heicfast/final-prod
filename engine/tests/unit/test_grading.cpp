@@ -222,19 +222,19 @@ TEST(Grading, ExtensionTableGatesDeepValidation) {
                         Origin::Structured, 0x9000, 0x400);
     auto* c2 = add_file(t, root, "d.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x9000, 0x400);
-    auto* e1 = add_file(t, root, "noext1", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
-                        Origin::Structured, 0xD000, 0x400);
-    auto* e2 = add_file(t, root, "noext2", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
-                        Origin::Structured, 0xD000, 0x400);
+    (void)add_file(t, root, "noext1", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+                   Origin::Structured, 0xD000, 0x400);
+    (void)add_file(t, root, "noext2", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+                   Origin::Structured, 0xD000, 0x400);
     grading::AssistantStats st;
     grading::grade_tree(t, single_disk_ctx(), st);
-    EXPECT_FALSE(a1->overlap()) << "in-table (DOC) extensions skip the deep path";
-    EXPECT_FALSE(a2->overlap());
-    EXPECT_NE(Grade::High, a1->grade()) << "no twin-induced promotion for in-table rows";
-    EXPECT_TRUE(c1->overlap()) << "out-of-table extensions enter the deep path";
-    EXPECT_TRUE(c2->overlap());
-    EXPECT_EQ(Grade::High, c1->grade());
-    EXPECT_EQ(Grade::High, c2->grade());
+    EXPECT_TRUE(a1->overlap()) << "out-of-table (.zzqx) extensions enter the deep path";
+    EXPECT_TRUE(a2->overlap());
+    EXPECT_EQ(Grade::High, a1->grade()) << "the twin pair promotes";
+    EXPECT_EQ(Grade::High, a2->grade());
+    EXPECT_FALSE(c1->overlap()) << "in-table (DOC) extensions skip the deep path";
+    EXPECT_FALSE(c2->overlap());
+    EXPECT_NE(Grade::High, c1->grade()) << "no twin-induced promotion for in-table rows";
 }
 
 TEST(Grading, DotlessNamesSkipTwinDetection) {
@@ -262,8 +262,7 @@ TEST(Grading, RefsDeletedFilesGradeHigh) {
      * precisely because insert already graded it. */
     ResultTree t;
     auto* root = t.add_root(u"Found");
-    auto* dead = add_file(t, root, "notes.txt", 500, u32(FsKindCode::Refs),
-                          DeletedState::Deleted);
+    auto* dead = add_file(t, root, "notes.txt", 500, u32(FsKindCode::Refs), DeletedState::Deleted);
     grading::AssistantStats st;
     grading::grade_tree(t, single_disk_ctx(), st);
     EXPECT_EQ(Grade::High, dead->grade()) << "deleted ReFS rows grade High at insert";
@@ -274,8 +273,7 @@ TEST(Grading, BtrfsDeletedFilesGradeHigh) {
      * (:605485-489). */
     ResultTree t;
     auto* root = t.add_root(u"Found");
-    auto* dead = add_file(t, root, "photo.raw", 500, u32(FsKindCode::Btrfs),
-                          DeletedState::Deleted);
+    auto* dead = add_file(t, root, "photo.raw", 500, u32(FsKindCode::Btrfs), DeletedState::Deleted);
     grading::AssistantStats st;
     grading::grade_tree(t, single_disk_ctx(), st);
     EXPECT_EQ(Grade::High, dead->grade()) << "deleted Btrfs rows grade High at insert";
@@ -287,8 +285,7 @@ TEST(Grading, RefsExistingStillHigh) {
      * observable outcome, pinned so the rule ordering cannot regress. */
     ResultTree t;
     auto* root = t.add_root(u"Found");
-    auto* live = add_file(t, root, "live.txt", 500, u32(FsKindCode::Refs),
-                          DeletedState::Active);
+    auto* live = add_file(t, root, "live.txt", 500, u32(FsKindCode::Refs), DeletedState::Active);
     grading::AssistantStats st;
     grading::grade_tree(t, single_disk_ctx(), st);
     EXPECT_EQ(Grade::High, live->grade());
