@@ -28,6 +28,66 @@ contract (handoffs, boundary items, convergence records).
 
 
 ---
+
+## Fix session 39B — the MAJOR preview/query parity pass (2026-10-29, T1 baseline: core `7990a86d`, corpus `be0cfe9`; prompt: worklog/session-diff-fix-39-minors-prompt.md; a parallel instance of the same user mandate — this lane rebrands 39B after the lead 39 instance's T2-claim landed first)
+
+**T1 trail-repair (pre-work, the N-135 class discharged first) — DU-RECONCILED
+at push with the parallel session-11B lane** (their convergent repairs landed on
+main first and STAND: the conflict-marker sweep, the N-129→N-135 renumber, and
+the M-083/M-102 retirement; this lane's landing KEEPS the unique content — the
+phantom-SHA row sweep, the M-082/S-045 missing rows, the extended counts):
+- **The phantom-SHA row sweep (this lane's unique product)**: 19 landing-cite
+  repairs in FIXED-LEDGER.md, every one verified by `git cat-file -t` + `git
+  log --grep` first-hand — A-005 604bd2cd (was the FUN_ 180010720 mis-paste),
+  A-011 c8999987 (18002e2b0), M-017 48a6c099 (140510a0e), M-020 f830db90
+  (8dbfc2d2), M-064 dfb2761 (6b50bb8; fix itself = rda-driver v0.2.4 323e75a,
+  cross-repo), M-079 0b76757c (f43b747), M-090 9daa787 (180053de0), N-054
+  b2f48c64 (494a5546), S-031 the 26d842b6 arc + 7514368a (140c41aa0), S-034
+  79ca47ba (180006b40), M-084/M-091 8a7055ea (16475b8), N-116 9445627f
+  (632d21e), M-093 ca701711 (d1dc51a), M-096 6e37dc21 (7ca83f5), M-085
+  fb7cf30, S-041's cites, the purge header's 9496f3c/771e2ec.
+- **M-082 + S-045 rows added** — both findings were retired from the tree
+  without ledger rows (M-082: fix 1f714884, the f8bb4d21 retirement's "ledger
+  row" claim never landed; S-045: real fix 021ae079, the 06cd56e4 retirement
+  cites the phantom 3aba383) — the N-135 item-4 completion. Row count after:
+  **287 (267 main + 20 OQ)**.
+- **Ledger row-count truth**: 264 rows at the 7990a86d baseline; +2 missing rows
+  added (M-082 — retired at f8bb4d21 whose "ledger row" claim never landed, fix
+  1f714884; S-045 — retired at 06cd56e4 citing the phantom 3aba383, real fix
+  021ae079) = **266 rows**. The 270-282 headline claims were push-window narrative
+  arithmetic (claimed landings, never rows) — the snapshots keep as dated history
+  with every phantom SHA replaced by the post-rebase real commit.
+- **Phantom-SHA sweep (N-135 item 3 extended)**: 16 mis-cited landing records
+  repaired — A-005 604bd2cd (was the FUN_ 180010720 mis-paste), A-011 c8999987
+  (18002e2b0), M-017 48a6c099 (140510a0e), M-020 f830db90 (8dbfc2d2), M-064
+  dfb2761 (6b50bb8), M-090 9daa787 (180053de0), N-054 b2f48c64 (494a5546), S-031
+  the 26d842b6-arc + 7514368a (140c41aa0), S-034 79ca47ba (180006b40), M-084/M-091
+  8a7055ea (16475b8), N-116 9445627f (632d21e), M-093 ca701711 (d1dc51a), M-096
+  6e37dc21 (7ca83f5), M-079 0b76757c (f43b747), M-085 fb7cf30, S-041 row's cites,
+  the purge header's S-044 7b7e095e (9496f3c) + M-090 cites. All verified via
+  `git cat-file -t` + `git log --grep` first-hand.
+- **N-129 ID collision + M-083/M-102 retirement**: convergent with session-11B
+  (bc4513db) — their landing stands (this lane's local drafts dropped at the
+  DU resolution; the collision analysis agrees: lane-B's inventory finding keeps
+  N-129, the wave-3 bookkeeping batch renumbers N-135; M-083/M-102 both FIXED at
+  e56baac7 with the retirement completed by their lane).
+- Board after the repair: **50 active (6 SEVERE · 20 MAJOR · 19 MINOR · 5 INFO)
+  + 5 tracked-open** (OQ-S10-2 now carrying M-086/M-087/M-089 + N-107/N-127's
+  driver halves, per the driver lane's 0a08cb3c disposition — accepted verbatim:
+  those fix surfaces live in heicfast/rda-driver, outside this session's
+  two-repo grant).
+
+**Session-39B territory claim (coordination contract):** the lead 39 instance
+claimed MINOR + INFO; 11D claimed SEVERE; 11C/11D the MAJOR orchestration/carve
+cluster. **39B takes the unclaimed MAJOR preview/query/ABI cluster:
+M-108 (preview text eligibility — the board's own recommended first fix),
+M-109 (thumbnail 200 MB eligibility anchor), M-110 (Btrfs @eaDir subtree
+suppression), M-101 (results-tree Versions/Tags branches), M-077 (preview caps
+defaults), M-074 (destination validation codes), M-076 (trim facet enum rows)**
+— none overlap the claimed territories. Pull-before-push discipline active;
+one finding, one verified fix, one push.
+
+
 Task ID: SCAN-2e-recon (Agent 2 — the S-090/A-011 + N-089 convergent-landing reconciliation)
 Agent: Agent 2 (scan-engine lane)
 

@@ -3,7 +3,7 @@
 > **What this is:** the user-mandated purge (session SA-10B / L-A) removed
 > the 259 per-finding files under `findings/FIXED/` from the working tree
 > (250 at the session-9 board-truth pass + the parallel fix lanes' five
-> landings since: S-042 f6e303e, S-044 9496f3c, M-071, M-090 771e2ec,
+> landings since: S-042 f6e303e, S-044 7b7e095e (the 9496f3c token was a pre-rebase phantom, repaired session 39), M-071, M-090 9daa787 (the 771e2ec token likewise),
 > N-094 26da616 — counts re-verified at purge time; the A-005/A-006
 > renumber pair retires BOTH files, the renumber note lives in the
 > A-005-named file's heading, a deliberate historical record).
@@ -19,7 +19,7 @@
 > blocks carry the resolution narrative; the per-file Resolution sections
 > live in history.
 
-**Counts (row-count truth, session-39 post-rebase re-count at `cd428a4b`, 2026-10-29): 287 resolved rows — 267 main-pattern (A/S/M/N/I) + 20 OQ-prefixed**, each row one retired file (no duplicate IDs; the A-005/A-006 renumber pair counts both IDs by design). The filesystem is the truth (the whole table re-counted twice this window — session-11B's 285/265+20 pass, then session-39's 287/267+20 after the M-072 row landing and the N-136/N-093 committed-marker repair at the table tail kept both rows; the prior top lines' 276–282 figures were push-window estimates that never re-counted the table — the drift is the N-129(numeric-defects) class applied to the ledger's own top line; the `b5da834` repair commit left the second occurrence of the conflict markers unswept — both sides preserved as dated history below).
+**Counts (row-count truth, session-39 post-rebase re-count + the phantom-SHA sweep, 2026-10-29): 289 resolved rows — 269 main-pattern (A/S/M/N/I; +M-082/+S-045, both retired-from-tree-without-row until the sweep — the N-135 item-4 completion) + 20 OQ-prefixed**, each row one retired file (no duplicate IDs; the A-005/A-006 renumber pair counts both IDs by design). The filesystem is the truth (the whole table re-counted twice this window — session-11B's 285/265+20 pass, then session-39's 287/267+20 after the M-072 row landing and the N-136/N-093 committed-marker repair at the table tail kept both rows; the prior top lines' 276–282 figures were push-window estimates that never re-counted the table — the drift is the N-129(numeric-defects) class applied to the ledger's own top line; the `b5da834` repair commit left the second occurrence of the conflict markers unswept — both sides preserved as dated history below).
 
 **(history, HEAD side of the b5da834 conflict):** 282-claim — 280 rows at `e56baac` + M-100 (the batch-C-conform 276 `0872ac2`/`64a3b18` + S-041 resolved-as-umbrella by the SA-10 lane) · 98 with a fix-commit recorded in-file
 **(history, b5da834 side):** 281-claim — the same lineage with the rebase-rewritten batch SHAs (e4f3184 / 995ba5d / 32ef33b)
@@ -45,12 +45,12 @@
 | A-002 | ACUTE |  | 1cb6a43 | `findings/FIXED/A-002-a001-fix-corrupted-ldm-gpt-guids-real-dynamic-disks-fail.md` |
 | A-003 | ACUTE |  | — | `findings/FIXED/A-003-fix-part-writes-at-disk-lba0-slice-offsets-never-rebased.md` |
 | A-004 | ACUTE |  | — | `findings/FIXED/A-004-eventrange-fires-through-config-sink.md` |
-| A-005 | ACUTE |  | 180010720 | `findings/FIXED/A-005-hfsplus-btree-record-span-inverted.md` |
+| A-005 | ACUTE |  | 604bd2cd (the 180010720 token was the FUN_ mis-paste — repaired session 39, the phantom-SHA sweep) | `findings/FIXED/A-005-hfsplus-btree-record-span-inverted.md` |
 | A-006 | ACUTE |  | — | `findings/FIXED/A-005-rawfixer-4kn-stack-buffer-overflow.md` |
 | A-007 | ACUTE |  | bddf4df | `findings/FIXED/A-007-extents-overflow-descriptors-off-by-two.md` |
 | A-008 | ACUTE |  | — | `findings/FIXED/A-008-zfs-child-dir-zapobj-offset.md` |
 | A-010 | ACUTE |  | — | `findings/FIXED/A-010-asf-carve-truncated-to-header-object.md` |
-| A-011 | ACUTE |  | 18002e2b0 | `findings/FIXED/A-011-sqlite-header-endianness.md` |
+| A-011 | ACUTE |  | c8999987 (the 18002e2b0 token was the FUN_ mis-paste — repaired session 39) | `findings/FIXED/A-011-sqlite-header-endianness.md` |
 | I-001 | INFORMATIONAL |  | — | `findings/FIXED/I-001-ntfs-metafile-filter-known-list-vs-blanket-dollar-skip.md` |
 | I-002 | INFORMATIONAL |  | — | `findings/FIXED/I-002-fat12-bad-cluster-canonicalized-vs-og-raw-follow.md` |
 | I-003 | INFORMATIONAL |  | — | `findings/FIXED/I-003-btrfs-core-exceeds-og-deep-scan-and-mirror-probing.md` |
@@ -86,10 +86,10 @@
 | M-014 | MAJOR |  | 180002f90 | `findings/FIXED/M-014-exfat-structural-entry-gates-missing.md` |
 | M-015 | MAJOR |  | 6dc1e32 | `findings/FIXED/M-015-fat-table-validation-absent.md` |
 | M-016 | MAJOR |  | — | `findings/FIXED/M-016-ldm-tocblock-candidates-diverge.md` |
-| M-017 | MAJOR |  | 140510a0e | `findings/FIXED/M-017-lost-partition-scoring-model-divergent.md` |
+| M-017 | MAJOR |  | 48a6c099 (the 140510a0e token was the FUN_ mis-paste — repaired session 39) | `findings/FIXED/M-017-lost-partition-scoring-model-divergent.md` |
 | M-018 | MAJOR |  | — | `findings/FIXED/M-018-junk-filter-filterfolder-absent.md` |
 | M-019 | MAJOR |  | 1800168b0 | `findings/FIXED/M-019-zfs-multivdev-fallback-and-checksum-verify-missing.md` |
-| M-020 | MAJOR |  | 8dbfc2d2 | `findings/FIXED/M-020-btrfs-profile-machinery-and-default-subvol.md` |
+| M-020 | MAJOR |  | f830db90 (the 8dbfc2d2 token was the FUN_ mis-paste — repaired session 39) | `findings/FIXED/M-020-btrfs-profile-machinery-and-default-subvol.md` |
 | M-021 | MAJOR |  | 18000beb0 | `findings/FIXED/M-021-carve-video-repair-wiring-absent.md` |
 | M-022 | MAJOR |  | 9af8014 | `findings/FIXED/M-022-refs-file-value-grammar-divergent.md` |
 | M-023 | MAJOR |  | — | `findings/FIXED/M-023-filter-model-categories-and-coverage.md` |
@@ -132,7 +132,7 @@
 | M-061 | MAJOR |  | — | `findings/FIXED/M-061-devsign-uninstall-silent-failure-unexercised.md` |
 | M-062 | MAJOR |  | — | `findings/FIXED/M-062-devsign-install-ps1-start-failure-exit-zero.md` |
 | M-063 | MAJOR |  | — | `findings/FIXED/M-063-devsign-environment-matrix-hvci-undocumented.md` |
-| M-064 | MAJOR |  | 6b50bb8 | `findings/FIXED/M-064-driver-deployer-versioned-verified-contract-absent.md` |
+| M-064 | MAJOR |  | dfb2761 (the core-side FIXED move; the fix itself = rda-driver v0.2.4 323e75a, cross-repo — the 6b50bb8 token was a pre-rebase phantom, repaired session 39) | `findings/FIXED/M-064-driver-deployer-versioned-verified-contract-absent.md` |
 | M-065 | MAJOR |  | — | `findings/FIXED/M-065-no-default-user-sign-set.md` |
 | M-066 | MAJOR |  | — | `findings/FIXED/M-066-preview-archive-enumeration-fs-origin-missing.md` |
 | M-067 | MAJOR |  | b07ee9d | `findings/FIXED/M-067-user-sign-abi-truncates-s039-widths.md` |
@@ -140,12 +140,13 @@
 | M-069 | MAJOR |  | — | `findings/FIXED/M-069-staged-scenarios-never-green.md` |
 | M-070 | MAJOR |  | — | `findings/FIXED/M-070-stage-disk-param-type-coercion.md` |
 | M-071 | MAJOR |  | 69507cb | `findings/FIXED/M-071-m018-regression-junk-gates-lost.md` |
-| M-079 | MAJOR | session/CLI | f43b747 | `findings/MAJOR/M-079-cli-autosave-volume-label-unfilled.md` — **S10-F addendum (2026-10-29): the fix's image-target leg (the image-stem fallback) is a registered divergence** — the og's image-scan label is the ENGINE-side on-disk decode (NTFS $Volume $VOLUME_NAME; ext4 s_volume_name), not the filename; the engine-decode absence + the completion path = **N-133** (evidence: s10f-engine-volume-labels.md) |
+| M-079 | MAJOR | session/CLI | 0b76757c (f43b747 was a pre-rebase phantom, repaired session 39) | `findings/MAJOR/M-079-cli-autosave-volume-label-unfilled.md` — **S10-F addendum (2026-10-29): the fix's image-target leg (the image-stem fallback) is a registered divergence** — the og's image-scan label is the ENGINE-side on-disk decode (NTFS $Volume $VOLUME_NAME; ext4 s_volume_name), not the filename; the engine-decode absence + the completion path = **N-133** (evidence: s10f-engine-volume-labels.md) |
 | M-080 | MAJOR | preview | 5ccc0da | `findings/FIXED/M-080-thumbnail-budget-starves-photos.md` |
 | M-083 | MAJOR | preview/abi | e56baac7 (thumbnail ABI two-call) | `findings/MAJOR/M-083-thumbnail-grade-promotion-absent.md` (deleted by the parallel fix lane fce38c3d; Resolution in-file — content recoverable there) |
 | M-102 | MAJOR | abi/preview | e56baac7 (cr_ui_thumbnail_generate) | `findings/MAJOR/M-102-thumbnail-abi-export-absent-engine-landed.md` (deleted by the parallel fix lane fce38c3d; Resolution in-file — content recoverable there) |
 | M-081 | MAJOR |  | 9e5dedc | `findings/FIXED/M-081-crw-misattributed-mrw-prd-gate.md` |
-| M-090 | MAJOR |  | 180053de0 | `findings/FIXED/M-090-dmg-footer-walk-and-cap-diverge-from-og.md` |
+| M-082 | MAJOR | (the offline Windows OS profile — the og DeviceManager's CPartitionBootInfo hive walk; FIXED at 1f714884, retired at f8bb4d21 whose "ledger row" claim never landed — the row added by the session-39 truth repair, the N-135 item-4 completion) | 1f714884 | `findings/MAJOR/M-082-device-manager-offline-os-identification.md` |
+| M-090 | MAJOR |  | 9daa787 (the 180053de0 token was the FUN_ mis-paste — repaired session 39; the N-135 item-4 original) | `findings/FIXED/M-090-dmg-footer-walk-and-cap-diverge-from-og.md` |
 | M-088 | MAJOR | ci/packaging (the FloorVersion pin split + the CI-shape doc cluster) | (this landing, DFX-38) | `findings/FIXED/M-088-floorversion-pin-split-and-stale-ci-docs.md` (full Resolution preserved in the retired file; the landing record + the doc_truth_gate evidence in worklog.md DFX-38/M-088) |
 | N-001 | MINOR |  | — | `findings/FIXED/N-001-STALE-DUPLICATE-REMOVED.md` |
 | N-002 | MINOR |  | — | `findings/FIXED/N-002-fat-alternate-eoc-families-mark-chains-broken.md` |
@@ -198,7 +199,7 @@
 | N-051 | MINOR |  | 6D626577 | `findings/FIXED/N-051-mkv-doctype-discrimination-absent.md` |
 | N-052 | MINOR |  | — | `findings/FIXED/N-052-heic-brand-relabel-absent.md` |
 | N-053 | MINOR |  | — | `findings/FIXED/N-053-iiu-magic-labeled-rw2-vs-og-tiff-ep.md` |
-| N-054 | MINOR |  | 494a5546 | `findings/FIXED/N-054-raf-jpeg-magic-strictness-both-directions.md` |
+| N-054 | MINOR |  | b2f48c64 (the 494a5546 token was the FUN_ mis-paste — repaired session 39) | `findings/FIXED/N-054-raf-jpeg-magic-strictness-both-directions.md` |
 | N-055 | MINOR |  | — | `findings/FIXED/N-055-smart-thresholds-0xd1-never-read.md` |
 | N-056 | MINOR |  | — | `findings/FIXED/N-056-windestio-temp-leak-on-failed-rename.md` |
 | N-057 | MINOR |  | — | `findings/FIXED/N-057-tablelayout-ebr-dead-enum-and-diskmap-debt.md` |
@@ -285,10 +286,10 @@
 | S-028 | SEVERE |  | — | `findings/FIXED/S-028-btrfs-xattr-recovery-missing.md` |
 | S-029 | SEVERE |  | 1800566d0 | `findings/FIXED/S-029-lost-partition-apply-table-write-path-missing.md` |
 | S-030 | SEVERE |  | 140178250 | `findings/FIXED/S-030-disk-image-scan-targets-missing.md` |
-| S-031 | SEVERE |  | 140c41aa0 | `findings/FIXED/S-031-carved-files-never-marked-deleted.md` |
+| S-031 | SEVERE |  | the N-015/S-031/msvc arc, converged at 26d842b6 + the residual 7514368a (the 140c41aa0 token was the FUN_ mis-paste — repaired session 39) | `findings/FIXED/S-031-carved-files-never-marked-deleted.md` |
 | S-032 | SEVERE |  | 180012d00 | `findings/FIXED/S-032-archive-carve-inner-entry-inventory-absent.md` |
 | S-033 | SEVERE |  | — | `findings/FIXED/S-033-exfat-root-dentry-type-constants-shifted-real-bitmap-skipped.md` |
-| S-034 | SEVERE |  | 180006b40 | `findings/FIXED/S-034-zfs-ring-txg-history-not-walked.md` |
+| S-034 | SEVERE |  | 79ca47ba (the 180006b40 token was the FUN_ mis-paste — repaired session 39) | `findings/FIXED/S-034-zfs-ring-txg-history-not-walked.md` |
 | S-036 | SEVERE |  | — | `findings/FIXED/S-036-devsign-install-ps1-elevation-guard-crash.md` |
 | S-037 | SEVERE |  | — | `findings/FIXED/S-037-carve-fh11-cpt-formats-missing.md` |
 | S-038 | SEVERE |  | — | `findings/FIXED/S-038-app-installer-surface-absent.md` |
@@ -296,19 +297,20 @@
 | S-042 | SEVERE |  | f6e303e | `findings/FIXED/S-042-wmf-placeable-grammar-contradicts-og.md` |
 | S-043 | SEVERE | preview | d0787e9 (base) + the closing-fix riders | `findings/FIXED/S-043-thumbnail-exif-orientation-not-applied.md` |
 | S-044 | SEVERE |  | 7b7e095 | `findings/FIXED/S-044-autosave-gates-missing.md` |
+| S-045 | SEVERE | preview (the TIFF-RAW half FIXED at 021ae079; the codec-bound halves — HEIC via libheif+libde265, WebP via libwebp, PDF via pdfium, video key-frames — spun out as tracked-open OQ-S10-1 with named vendoring dependencies; the row added by the session-39 truth repair — the file's 06cd56e4 retirement cites the phantom 3aba383, the real fix is 021ae079) | 021ae079 | `findings/SEVERE/S-045-thumbnail-format-coverage-video-raw-heic.md` (retired to history; Resolution at 06cd56e4) |
 | S-047 | SEVERE | carve | a3abfbe | `findings/FIXED/S-047-mpeg-ts-m2ts-analyser-absent-sync-scanners-decoded.md` |
-| M-084 | MAJOR | (mid-flight landing) | 16475b8 | `findings/FIXED/M-084-mdb-accdb-second-signature-missing.md` |
-| M-085 | MAJOR | preview | (the parallel lane) | `findings/FIXED/M-085-tiff-lzw-refused.md` |
-| M-091 | MAJOR | (mid-flight landing) | 16475b8 | `findings/FIXED/M-091-mdb-page-chain-size-walk-decoded-bounded-extent-stands-in.md` |
+| M-084 | MAJOR | (mid-flight landing) | 8a7055ea (16475b8 was a pre-rebase phantom, repaired session 39) | `findings/FIXED/M-084-mdb-accdb-second-signature-missing.md` |
+| M-085 | MAJOR | preview | fb7cf30 | `findings/FIXED/M-085-tiff-lzw-refused.md` |
+| M-091 | MAJOR | (mid-flight landing) | 8a7055ea (16475b8 was a pre-rebase phantom, repaired session 39) | `findings/FIXED/M-091-mdb-page-chain-size-walk-decoded-bounded-extent-stands-in.md` |
 | M-092 | MAJOR | carve (the HTML four-key chain) | eb1f116 | `findings/FIXED/M-092-html-carve-absent-u16-keys-and-endtag-walk-decoded.md` |
-| M-093 | MAJOR | carve (the XML/SVG chain; "csl"+0x1cd decoded) | d1dc51a* | `findings/FIXED/M-093-xml-svg-carve-absent-four-u32-keys-one-chain.md` |
-| M-096 | MAJOR | carve (the MOBI salvage gate + end-tag walk) | 7ca83f5* | `findings/FIXED/M-096-mobi-carve-absent-bookmobi-gate-endtag-walk-decoded.md` |
+| M-093 | MAJOR | carve (the XML/SVG chain; "csl"+0x1cd decoded) | ca701711 (d1dc51a was a pre-rebase phantom, repaired session 39) | `findings/FIXED/M-093-xml-svg-carve-absent-four-u32-keys-one-chain.md` |
+| M-096 | MAJOR | carve (the MOBI salvage gate + end-tag walk) | 6e37dc21 (7ca83f5 was a pre-rebase phantom, repaired session 39) | `findings/FIXED/M-096-mobi-carve-absent-bookmobi-gate-endtag-walk-decoded.md` |
 | M-100 | MAJOR | preview | closed-as-covered — `6d0f16c` (M-066+N-088, an ancestor of the finding's own baselines; the session-10 lane-B verification: `evidence/s10-verification-pass-b.md`) | `findings/MAJOR/M-100-archive-browse-inside-preview-absent.md` (retired by the session-10 lane-B push; never lived in FIXED/ — the capability predated the filing) |
 | M-072 | MAJOR | query/abi | bf17e55 | `findings/MAJOR/M-072-query-axes-path-substring-state-mask.md` |
 | M-074 | MAJOR | writer/abi | 09b311d | `findings/MAJOR/M-074-destination-validation-codes-undifferentiated.md` |
 | N-092 | MINOR | (mid-flight landing) | 5ed862f | `findings/FIXED/N-092-thumbnail-refusal-matrix-and-cache.md` |
 | N-124 | MINOR | (mid-flight landing) | c75755d | `findings/FIXED/N-124-transport-module-rows-superseded-by-ddrv-wave.md` |
-| N-116 | MINOR | (session-38 minor-first lane; the Resolution + RED->GREEN proof live in the retired file and worklog.md's S38 block) | 632d21e | `findings/FIXED/N-116-session-list-row-ordering-diverges-og-time-sort.md` |
+| N-116 | MINOR | (session-38 minor-first lane; the Resolution + RED->GREEN proof live in the retired file and worklog.md's S38 block) | 9445627f (632d21e was a pre-rebase phantom, repaired session 39) | `findings/FIXED/N-116-session-list-row-ordering-diverges-og-time-sort.md` |
 | N-117 | MINOR | (session-38 doc-truth batch A; doc-only per the audit's own plan — Resolution in history at e4f3184) | e4f3184 | `findings/MINOR/N-117-w1abc-adjacent-doc-drift-plan-shape-and-cite-lines.md` |
 | N-118 | MINOR | (session-38 doc-truth batch A; doc-only — Resolution in history at e4f3184) | e4f3184 | `findings/MINOR/N-118-reference-api-gap-rows-stale-after-w1-landings.md` |
 | N-103 | MINOR | (session-38 doc-truth batch A; doc-only — Resolution in history at e4f3184, incl. the first-hand EURawImg/EUImgRepairFile import-table verification) | e4f3184 | `findings/MINOR/N-103-thumbnail-api-rows-stale.md` |
@@ -340,4 +342,4 @@ archive; this ledger is the index. A finding moved into a re-created
 `findings/FIXED/` directory violates the convention and the next audit
 lane will retire it again.
 
-| S-041 | SEVERE | carve (the batch-2 umbrella) | school-1 `b92ebef` + M-081 `9e5dedc` + M-090 `771e2ec` + M-084/M-091 `16475b8` | `findings/SEVERE/S-041-s007-batch2-carve-remainder.md` (FIXED-as-umbrella, SA-10 — school 1 landed as code `b92ebef`; CRW/MRW/LowDoc/HLP `9e5dedc`; DMG `771e2ec` + MDB `16475b8` + MTS/M2TS `a3abfbe` resolved mid-flight; the still-open school-2/3 formats child-filed: M-092, M-093, M-096, M-098, M-099, N-111, N-112, N-113, N-115; the ONE/3DS walk follow-ups owned by M-106. The S-007 precedent: the umbrella closes when every remainder has its own owner. Full Resolution record in the retired file.) |
+| S-041 | SEVERE | carve (the batch-2 umbrella) | school-1 `b92ebef` + M-081 `9e5dedc` + M-090 `9daa787` + M-084/M-091 `8a7055ea` (the 771e2ec/16475b8 tokens were pre-rebase phantoms, repaired session 39) | `findings/SEVERE/S-041-s007-batch2-carve-remainder.md` (FIXED-as-umbrella, SA-10 — school 1 landed as code `b92ebef`; CRW/MRW/LowDoc/HLP `9e5dedc`; DMG `9daa787` + MDB `8a7055ea` + MTS/M2TS `a3abfbe` resolved mid-flight; the still-open school-2/3 formats child-filed: M-092, M-093, M-096, M-098, M-099, N-111, N-112, N-113, N-115; the ONE/3DS walk follow-ups owned by M-106. The S-007 precedent: the umbrella closes when every remainder has its own owner. Full Resolution record in the retired file.) |
