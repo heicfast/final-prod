@@ -376,3 +376,11 @@ deleted-state AFTER the attach — the finding's "already atomics" premise
 corrected in the Resolution. The header contract re-truthed (cr_scan.h).
 TelemetryCountersMoveDuringCarveStage RED pre-fix (the frozen mid-stage
 counts), GREEN post; suite 1312.
+- **Grading cells (the recovery-chances battery)**: S-058 **FIXED** (the
+  extension-table gate polarity righted — the S52 winning landing ea405392 with
+  the S57/S56 convergence records; this lane's in-place s5 erratum + the
+  CORPUS-ERRATA row ride the S56 commit), S-061 **FIXED** (the S52 lane's
+  same-commit ReFS/Btrfs insert-time High), M-138 — FIXED (session-52: the
+  twin-key device family narrowed to the og's {FAT16} shift, the ext2/3 leg
+  registered OQ-S52-1; renumbered M-133→M-138 at the N-160 doc-truth repair),
+  M-134 (the deep-read  validation + full-tree re-grade), N-183 (the gauge population/score/QSDE batch).
