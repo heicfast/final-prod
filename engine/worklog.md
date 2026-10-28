@@ -3632,3 +3632,49 @@ Stage Summary:
   then the audit-doc read (SEVERITY-SCALE/PARAMETERS/CROSS-REF-MATRIX/the 15 queued finding files +
   their cited corpus artifacts), then the per-finding loop: verify → reproduce → classify → fix →
   test → trail → push.
+
+Task ID: S11B/T2-T4 + T10 (the re-triage wave, the landing-parity verification, the filings — RECONCILED AT PUSH over the hottest parallel window of the trail)
+Agent: session-11 lane B (the continuation audit)
+
+Work Log:
+- **T2/T3 (the full re-triage)**: all 55 active-at-open findings verified at HEAD by
+  three parallel agents + lead spot-verification. Verdicts: 6 SEVERE all still-active
+  (S-040/S-049/S-052 stale-cites with corrected line maps; S-050 PARTIAL — its
+  false-citation leg fixed at ea2f3ea7); 21 MAJOR verified (M-102/M-083 already
+  conformed; M-107's all-eleven sites standing with three in-file corrections);
+  21 MINOR + 5 INFO verified (N-134 FIXED-ALREADY — see below; I-026 stale-content;
+  I-027/I-028/I-029 accurate). The T4 landing-parity wave found the five recent
+  landings' CODE corpus-faithful (M-096/N-100/thumbnail-ABI PARITY-VERIFIED; M-093
+  one residual; M-079's image-stem divergence already owned by N-133).
+- **T10 (this lane's filings, renumbered at push per the SA-9 rule)**:
+  - **M-112** (MAJOR, filed M-111): the CSL 0x44c size branch — decoded-but-unported
+    with NO active owner (the M-107 class's twelfth site); corpus FUN_180041950
+    :49749+ re-read first-hand (the +0x480 arithmetic quoted); core grep: only the
+    comment cites 0x44c. M-107's addendum extended with the site + three in-file
+    corrections (AI own validator since e018bf4f; EPS/AI at 16 MiB; SWF FileLength).
+  - **N-142** (MINOR, filed N-137): the dropped thumbnail variant's dead wiring —
+    CrPreview::src_session/src_node_id written at cr_ui.cpp:3581-3582, read nowhere;
+    the promotion runs off cr_ui_thumbnail_generate's own args.
+  - **N-134 RETIRED (FIXED-ALREADY)**: all six "never-dispositioned" register rows
+    pre-existed at b202f9ed (11:12:59Z) — 6.5h before the finding's filing; present
+    verbatim at the finding's own audited 44f043a5 (verified `git show`). The sfc
+    addenda preserved in the retired file's Resolution.
+- **The phantom-SHA truth repairs** (convergent with session-39's census — both lanes
+  repaired the recent rows with git-cat-file-verified commits; their census
+  quantified deeper: 73-of-285 rows): this lane's verified repair map — M-084/M-091→
+  8a7055ea, M-090→9daa787 (+the 180053de0 mis-paste), S-044→7b7e095e, N-116→9445627f,
+  M-093→ca701711, M-096→6e37dc21, M-079→0b76757c+b82ea173, M-082→1f714884 (the missing
+  row), M-071→ce2405a, N-100→faa547f7, 954c386→e4f3184.
+- **The addenda batch** (16 files): N-135 (the complementary per-item status +
+  recurrence table, merged over the session-11 census addendum), N-133 (+the
+  registration leg: D-03 stale, no image-stem D-row), N-131 (the N-100-precedent
+  refresh), N-132 (the :225 propagating aggravation), S-050 (leg-2-fixed), N-096
+  (the extended-IOCTL nuance), I-026 (the persistent dev-cert cite-refresh), + 10
+  cite-refreshes (S-040/S-049/S-052/M-073/M-076/N-090/N-121/I-028). The M-072/N-093
+  addenda DROPPED at the push reconciliation — both findings retired by the parallel
+  fix lanes mid-flight.
+- **Board after this push: 56 active (7 SEVERE · 18 MAJOR · 24 MINOR · 7 INFO) /
+  298 resolved rows (276 main + 22 OQ, whole-table re-count) / 3 tracked-open.**
+  Next free IDs: S-054+, M-113+, N-143+, I-033+, A-012+.
+- The N-129→N-135 renumber and the M-102/M-083 retirement from this lane's earlier
+  push stand (743d7b8d lineage; the remote lanes' truth commits cite them).

@@ -56,3 +56,10 @@ Efficiency/consistency gap (the user-visible outcome — "show me only files und
 ## Open questions
 
 None.
+
+
+---
+
+## Session-11B cite-refresh addendum (2026-10-29, re-triage at `743d7b8d`)
+
+ScanConfig now closes at cr_scan.h:332 (grew by M-079 label fields — still no filter_folders); ABI twin cr_ui.h:531-608; the junk blocklist pass now cr_scan.cpp:1196-1207 (apply at :1207).

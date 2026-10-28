@@ -77,3 +77,55 @@ LIVE encrypted engine-init database** (" cfs" magic, 16-byte XOR key with
 ctor load + rebuild-on-failure at `VideoFileRepairer_decompiled.c:245536`/
 `:246921-246931`) — repair-family OOS per I-010/D-26 (class unchanged,
 reason corrected). See **N-138** + `evidence/decompiled-quotes/s11-sfc-payload-decode.md`.
+
+
+---
+
+## Resolution (session-11B, 2026-10-29): FIXED-ALREADY — the finding's central claim was false at its own audited tree
+
+The session-11B re-triage (T3b agent + lead first-hand verification) found that
+**every one of the six "never-dispositioned" binaries already carried a full
+disposition row in `docs/PARITY-OG-CORE-INVENTORY.md` at the finding's own
+audited tree (`44f043a5`)**:
+
+- CloneModule.dll — FEATURE-OOS (registered): the byte-verified master workflow
+  is FILE-LEVEL EXPORT; the byte-clone step has no UIUX flow (row cites
+  per-binary/CloneModule.md:52 + architecture/04 §7)
+- legacy.dll — RUNTIME: OpenSSL-3 legacy crypto provider (sole export
+  `OSSL_provider_init`); the .rsf-decryption hypothesis REFUTED
+- EuDownloader.exe — INSTALLER: the WAIK/agent/holiday-res resumable downloader
+  for the media-builder chain (NOT the update checker — 3-C correction)
+- Boot.dll — INSTALLER/tool-op OOS: the EPM legacy mod.boot PREOS BOOT-ITEM
+  INSTALLER; NOT part of M-040's repair family (reclassified)
+- BootDriver.dll — INSTALLER OOS: the BOOT MEDIA BUILDER ("Create Recovery
+  USB/CD", CBurnBootCD callbacks)
+- peformat.dll — INSTALLER OOS: USB-boot volume formatter (46 exports); the
+  "PE format handler" hypothesis REFUTED (per-binary/peformat.md +
+  Boot_decompiled.c:4755/4784)
+
+Plus the telemetry name-absent set (AliyunWrap*, EuUserRate, firebase*,
+send_dmp_with_aliyun — rows :52/:85/:88/:106) and the media-builder family note
+(:226-227).
+
+**The archaeology (verified first-hand this session):** the rows landed at
+`b202f9ed` ("agent3 inventory v2.1 re-landed", 2026-10-28 **11:12:59Z**) —
+**6.5 hours BEFORE** this finding's filing commit `deea0241` (17:42:40Z). The
+rows are present verbatim at `44f043a5` (the finding's own "Core references"
+baseline — verified via `git show 44f043a5:docs/PARITY-OG-CORE-INVENTORY.md`).
+The S10-F lane's "zero trail hits" greps must have run against a pre-11:12
+snapshot of the working tree (the lane's own push-time note records a
+mid-flight rebase over the parallel lanes' sprint — the inventory re-land was
+in that window).
+
+**Residual (recorded):** PARITY-DELTAS/SURFACE-INVENTORY still carry no rows
+for these six names — but the fix plan named PARITY-OG-CORE-INVENTORY as the
+primary target and the trail's completeness convention is satisfied there.
+The legacy.dll open decode question is ANSWERED in-row (better than the fix
+plan demanded). No engineering action remains.
+
+**The addenda above (the sfc registration + its S11-lane correction) are
+PRESERVED in this retired file** — the corrected sfc disposition
+(VideoFileRepairer.exe's live encrypted engine-init DB) lives on in **N-138**
++ `evidence/decompiled-quotes/s11-sfc-payload-decode.md`; this retirement
+does not touch it (convergent closures: this lane's FIXED-ALREADY retirement
+and the S11 lane's addendum both stand).

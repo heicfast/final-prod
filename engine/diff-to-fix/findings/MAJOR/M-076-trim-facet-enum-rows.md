@@ -53,3 +53,10 @@ A product-behavior gap at the decision moment (before scanning an SSD, the user 
 ## Open questions
 
 The per-row latency of the fsutil query across many disks (the DEFERRED-if-slow trigger) — measure at landing; if >tens of ms/disk aggregate, the plan's fallback is a parallel query or an explicit `cr_ui_disk_trim(disk)` accessor instead of row fields.
+
+
+---
+
+## Session-11B cite-refresh addendum (2026-10-29, re-triage at `743d7b8d`)
+
+cr_ui_disk_info now cr_ui.h:449-460; health facet cr_ui.h:1387, filled cr_ui.cpp:4251-4252; query_trim_state still cr_health.cpp:301 (exact); CLI TRIM still health-only rrecov.cpp:2254-2257.

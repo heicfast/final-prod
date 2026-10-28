@@ -59,3 +59,12 @@ Falsifiable claims: (a) an ext4 image with `s_volume_name = "myvol"` — the og'
 ## Open questions
 
 None. (The FAT/HFS+ label offsets in fix-plan step 3 are the standard well-known offsets; an implementation pass should re-verify them against the corpus boot-sector schemas before landing — one grep each in the fat/exfat/hfsplus deep-dives.)
+
+
+---
+
+## Session-11B addendum (2026-10-29, re-triage at `743d7b8d`): still-active, verified; + the registration leg (R3)
+
+All three claims re-verified first-hand at HEAD: `fill_volume_label` at rrecov.cpp:331-362 (the image-stem leg at :334-348 with the refuted-premise comment at :328-330 — the comment also cites "the S-030-registered divergence's naming half", which grep shows S-030's retired file never registered); the ext4 `volume_name` memcpy still dead (cr_ext4_engine.cpp:200-201, zero consumers); the NTFS walk still skips $Volume without reading $VOLUME_NAME (cr_mftwalk.cpp:218/:247).
+
+**Registration leg (new, from the T4 landing-parity wave):** PARITY-DELTAS **D-03 is stale** — it still claims "our own naming scheme; the concrete naming scheme is not yet written down anywhere", false since the W1c corpus-exact naming landing, and M-079 now feeds the `<vol>` half corpus-exact for volume targets; and the **image-stem leg has no D-row** (it is registered only via the M-079 ledger addendum + this finding). This finding's fix plan step 5 should add: rewrite D-03 with the corpus-exact naming + register the image-stem divergence as a D-row pointing here (docs/ changes — the fix lane's).

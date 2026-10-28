@@ -60,3 +60,10 @@ User-observable missing feature (the og's default landing page carries it). Oper
 ## Open questions
 
 The og's exact written format (flat vs VMDK-first) is not decoded in the corpus (ToolsModule internals not decompiled to that depth). The fix plan scopes to flat (the reader's own accepted floor). If a future corpus decode shows the og's default writer emits VMDK, file the follow-up then.
+
+
+---
+
+## Session-11B cite-refresh addendum (2026-10-29, re-triage at `743d7b8d`)
+
+rrecov.cpp's verb table drifted to :3127-3148 (was :3027-3048); the CR_UI_API export census is now 86 (was 81 — the thumbnail ABI additions); the absence itself unchanged (zero image_create symbols; cr_image_win.cpp:37 still reader-only GENERIC_READ)

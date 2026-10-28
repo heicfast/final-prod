@@ -65,3 +65,10 @@ label, the summary surface) — all four stand. Current cites: `list_crsf_files`
 `:391-393`; `label[32]`/`save_unix` at `cr_ui.h:889-890`. The N-116 ordering sibling was
 resolved mid-flight (`9445627` — the save-time sort landed); the scope/row-shape deltas here
 are untouched by it.
+
+
+---
+
+## Session-11B cite-refresh addendum (2026-10-29, re-triage at `743d7b8d`)
+
+drift map: save_unix stamp now cr_scan.cpp:1960 (was 1955); cr_ui_session_row now cr_ui.h:910-921 (label[32] at :919); the 740d9b56 CWD fix touched only the path-composition lines — all four legs stand

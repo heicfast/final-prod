@@ -48,3 +48,10 @@ Corpus-derived (the decompile site + REFERENCE-DRIVER-BEHAVIOR:95); core first-h
 ## Open questions
 
 Whether any og branch beyond the informational read consumes the mode value — undecoded; the fix plan's option 2 is safe regardless.
+
+
+---
+
+## Session-11B addendum (2026-10-29): still-active, with a partial-rehabilitation nuance
+
+The identity family (kIoctlGetProcName/GetFileObjName/GetDiskContextMode = 0x60002400/04/08, cr_rda.h:50-52) is still issued zero times — the open paths (cr_transport.cpp:472+) CreateFileW and probe geometry without any 0x600024xx. **Nuance:** the EXTENDED family (kIoctlGetInfo/GetVersion, 0x6002440/48) IS now issued at cr_transport.cpp:449/:452 — a different code family from this finding's identity trio, but it partially rehabilitates the "wire-matched" framing: the transport now talks to the driver beyond open/read. The finding's scope (the identity family) is untouched. DRIVER-UTILIZATION.md:64's MATCH-row overstatement stands.

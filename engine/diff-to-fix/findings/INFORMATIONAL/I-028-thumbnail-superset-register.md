@@ -67,3 +67,10 @@ og WebP/SVG/AVIF thumbnail decode (repair-UI strings only); the
 purpose of the 200×200 GDI surface in the work item (:422448); the
 consumer of the :828027 format-group registry. All tracked here as
 context, none blocking.
+
+
+---
+
+## Session-11B cite-refresh addendum (2026-10-29, re-triage at `743d7b8d`)
+
+benign cite drift: the RGBA8/both-axes contract now at cr_thumbnail.h:24-27 (exact); PSD/PNM/HDR :42-43; test count grew 21→30; the anticipated ABI documentation landed (ABI-CONTRACT §7i). Register content fully accurate.

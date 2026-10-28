@@ -77,3 +77,10 @@ All first-hand this session (lead verification, SA-10): the five-step chain abov
 
 1. Whether SIMPLE single-disk dynamic volumes read correctly through the physical-disk basis in every case (the layout-relative → physical identity assumption) — the fix plan's basis descriptor makes this explicit either way; a dedicated `Ldm.SimpleVolumeRecoveryRoundTrip` test should pin it during the same landing.
 2. Whether the .crsf session format already persists the LDM layout (the crsf VOLUME_INFO record's current fields were not audited for LDM content this session) — fix-plan step 6 flags it as a check-then-extend.
+
+
+---
+
+## Session-11B cite-refresh addendum (2026-10-29, re-triage at `743d7b8d`)
+
+cite-refresh map: cr_node.h F-1 block :403-425 (exclusion :420-421); recovery_create_impl cr_ui.cpp:3800-3847 (src selection :3841-3843, no LDM path); preview twins :3535-3590; arm_ldm_resolver cr_ui.cpp:1881-1917; CLI twin rrecov.cpp:1478-1510; cr_scan.cpp:1500 the stack-object death (exact); cr_safewriter.cpp:379/:409/:132-138 (exact); CORE-GAP-LIST.md:139 GAP-S6-15 PARTIAL (exact). All five chain links verified standing.

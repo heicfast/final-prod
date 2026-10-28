@@ -54,3 +54,17 @@ Per format (in the decode-then-land order): `plant_<fmt>_over_cap` (true size > 
 1. AI (Adobe Illustrator): served by the EPS-family validator's stand-in — whether the og's AI walk differs from EPS's trailer scan is undecoded (the EPS landing read only the EPS analyser); the AI row should be re-read at its own registration site during the EPS landing.
 2. DWG's R2004+ compressed section map: likely its own follow-up even after the R13-R2000 map lands (the landing-time comment already splits the two eras).
 3. SWF's RECT bit-walk: the landing gated on FileLength (u32@4) which IS the og's size source; the RECT walk's marginal value is validation depth (rejecting corrupt FileLengths), not extent — verify at FUN_180026940 during the landing whether the og's RECT parse changes the extent or only the accept/reject decision, and scope the fix accordingly (it may downgrade to a validation-only change).
+
+
+---
+
+## Session-11B addendum (2026-10-29, re-triage at `743d7b8d`): all eleven sites verified standing; three in-file details corrected; + the enumeration extended by M-111
+
+**All eleven sites re-verified standing** (cites drifted ~+300-400 lines after the M-092/M-093/M-096 landings; every site re-located by its comment): X3F :3465-3478, CRW :3490-3512, WPG :3578-3590, WPD :3595-3612, PSP :3617-3629, SIT :3634-3646, APE :3710-3725, EPS :4083-4095, DXF :4122-4134, DWG :3020-3056, SWF :4295-4312 (all in src/core/carve/cr_analysers.cpp). The M-093/M-096 landings cleared NONE of them (their hunks confined to the HTML/XML/SVG/MOBI validators).
+
+**Three in-file corrections (the verdict is unaffected):**
+1. The "no separate AI validator exists" note is stale — `validate_ai` has existed since the S-007 batch-1 commit `e018bf4f` (`git log -S'validate_ai'` shows only that commit); AI stands in via its OWN validator's 16 MiB bounded extent (comment :4097-4100, cap :4112), not the EPS validator's.
+2. EPS and AI stand at **16 MiB**, not 64 MiB (`16 << 20` at :4091 and :4112) — the finding's "64 MiB" figure covers the other nine sites only.
+3. SWF's site takes its size from FileLength (:4308) with no 64 MiB cap — as the finding's own open question 3 anticipated.
+
+**Enumeration extended:** the M-093 landing's own residual — the CSL 0x44c size branch (dword@0x44c + 0x480, corpus FUN_180041950 :49749+) — is the same unowned-stand-in class; filed as **M-112** this session (this lane filed it as M-111; renumbered at the push-time reconciliation over the parallel S11 lane's explorer-browse M-111) (it was recorded only in a code comment + the retired M-093 Resolution). The class now has twelve member sites across two findings (M-107's eleven + M-112's CSL).

@@ -54,3 +54,10 @@ Decision-first, then build or re-register:
 ## Open questions
 
 The exact product boundary of "Fixo line inside DRW" vs "separately-sold product" (the artifacts show the Fixo tree as a distinct source line bundled by the og installer) — the decision in fix-plan step 1 is the product owner's; the audit records the capability gap either way.
+
+
+---
+
+## Session-11B addendum (2026-10-29, re-triage at `743d7b8d`): PARTIAL — the false-citation leg was fixed at filing; the capability leg stands
+
+Leg 2 (the false registration) was repaired by `ea2f3ea7` in the finding's own session: the SURFACE-INVENTORY row now truthfully reads "AUDITED this session (SA-10B): S-050 — unimplemented AND the prior row's OUT-OF-SCOPE (CAPABILITY-MATRIX §3) citation was FALSE". The title's "unregistered" clause is half-stale: the FALSE registration is gone, but the FORMAL disposition (implement vs a truthful §3 exclusion row) still pends — CAPABILITY-MATRIX §3 (:77-92) still lists only Cloud/NAS/remote, BitLocker FVE-key derivation, signing, .rsf import. Leg 1 (the capability gap) verified still-active: src/core/repair/ holds only cr_rawfixer.cpp; zero imgrepair/docrepair/videorepair symbols repo-wide; no CLI verb (rrecov.cpp:3127-3148), no ABI op.

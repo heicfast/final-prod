@@ -69,3 +69,10 @@ See fix plan step 5 — nine named scenarios, each derived from the real-session
 ## Open questions
 
 The exact precedence when a JPEG carries BOTH EXIF Model and Software (real sessions show both families; no observed co-occurrence sample settles order) — the fix lane should pin with a fixture that mirrors the og's behaviour, decoded at the analyser if ambiguous. The MP4/MOV template-vs-EXT interplay (fix plan step 4).
+
+
+---
+
+## Session-11B cite-refresh addendum (2026-10-29, re-triage at `743d7b8d`)
+
+cr_carve.cpp cites drifted: default_namer now :934-951 (was :907-921), the format literal at :944; the precedence chain now :451-459 (was :429-432); the only two embedded_name producers remain cr_analysers.cpp:727/:736 (MP4/MOV) — the M-093/M-096 landings ADDED formats (XML/SVG/MOBI) without prefix extractors, so this finding's scope GREW: every newly-carved format also defaults to File%06u

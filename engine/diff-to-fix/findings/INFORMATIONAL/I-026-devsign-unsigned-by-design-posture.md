@@ -49,3 +49,10 @@ None (the existing release-assert-unsigned gate + the CI load lane are the tests
 ## Open questions
 
 None.
+
+
+---
+
+## Session-11B cite-refresh addendum (2026-10-29): the posture stands; the mechanism record is stale
+
+The deliberate divergence (no vendor Authenticode; OSSign prepared-but-disabled) remains the true posture: docs/DRIVER-RELEASE.md §7 "Test-signing posture" + docs/PREBUILT-ARTIFACTS.md:66 both still register it. **But the finding's mechanism record has aged out:** (1) the cited `.github/actions/install-driver/action.yml:44-64` was deleted by the CI-rebuild consolidation `566c4832` (one day after this finding's audited tree); (2) "signs at consumption time (job-local cert in CI)" was superseded by the persistent dev-cert model: `.github/workflows/release.yml:318-345` ("Test-development-sign the driver (persistent dev certificate)", DEV_SIGN secrets, CN=RRECOV-DEV-SIGN) + the `rda-test-sign.cer` release asset + `.github/scripts/Install-ReleaseDriver.ps1:6-11` ("the release's rda.sys arrives ALREADY signed with the repo's persistent dev certificate… No bcdedit/testsigning, no reboot"). The informational verdict is unchanged (still a deliberate, documented difference); the mechanism narrative should be refreshed at the next doc-truth pass (docs/ — the fix lane's). The historical execution evidence (run 40549660074) remains intact under evidence/executions/devsign-run-40549660074/.

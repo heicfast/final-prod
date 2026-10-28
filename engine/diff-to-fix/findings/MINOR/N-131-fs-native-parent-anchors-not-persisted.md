@@ -49,3 +49,10 @@ Corpus-doc (part1's serialized grammar tables, cited) + core-source + grep (both
 ## Open questions
 
 The exFAT +0x54 semantics (anchor twin vs type-registry ID) rest on the family-pattern inference — the serializer trace that would settle it is the same trace E69 queues. The carrier should land only after that trace (fix-plan step 1's (a) path is gated on it).
+
+
+---
+
+## Session-11B addendum (2026-10-29): cite refresh + the N-100 framing update
+
+The write site drifted to `src/core/session/cr_records.cpp:177` (was :175 — N-100's landing added the bit-9 block at :174-175). The nflags ladder now ends at bit 512 — no 1024/2048 parent-anchor bits; the finding's defect is unchanged. **Framing refresh:** the file's "N-100 (ACTIVE)" cross-reference is stale — N-100 is FIXED (faa547f7, ledger-conformed b6b012af) and its landed bit-9 carrier is now the PRECEDENT for this finding's fix plan (the same flag-gated block pattern extends to the parent-anchor fields).

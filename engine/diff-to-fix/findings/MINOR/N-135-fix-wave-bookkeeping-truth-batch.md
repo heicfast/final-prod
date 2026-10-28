@@ -77,3 +77,22 @@ now ALSO stale in the thumbnail direction — "no cr_ui thumbnail export yet …
 open" is false at HEAD since `e56baac7`) + PLAN-API-EXPANSION:81 + PARITY-DELTAS:3229
 (discovered by the S11/T2 verification; see `evidence/s11-board-truth.md` §1
 residual 3).
+
+
+---
+
+## Session-11B addendum (2026-10-29, lane B — complementary to the session-11 census above; the per-item status + the items the census did not reach)
+
+**Convergence note:** the session-11 truth pass above (the 73-row census) and this lane's phantom-SHA repairs were concurrent — both repaired the recent rows with `git cat-file`-verified commits; their census quantified the class deeper (the 40 decompile-address cells + 14 magic-constant cells + the 54 ancient rows), and this lane contributes the per-item status for the finding's seven items plus the two items no pass has reached:
+
+Per-item state at HEAD:
+1. R-28 `:376` — **RESOLVED** (5fecdae1; both rows now agree). New adjacent drift: the agreeing rows still say "ABI open / cr_ui exposure = M-102" though M-102 landed (740d9b56) and retired (session-11B) — the R-28 rows need the landed-state refresh (docs/ — the fix lane's).
+2. `:379` vs `:225` R-31 — **OPEN** (the self-contradiction stands; `:225`'s PRESENT now leans on N-132's false API-DELTA row-45 claim — the aggravation recorded in N-132's addendum).
+3. Phantom SHAs — **HALF-REPAIRED, CLASS RECURRED**: 5fecdae1 repaired the doc-batch cells, but seven NEW pre-rebase SHAs entered live cells post-filing: `d1dc51a*`/`7ca83f5*` (M-093/M-096 rows), `f43b747` (M-079 row), `16475b8` (M-084/M-091 rows + S-041 row + carve.md), `632d21e` (N-116 row), `9496f3c` (S-044, ledger :6), `b3938c8` (S-043 snapshot lines) — all verified absent from the object store (`git cat-file -t` fails). **Session-11B repaired every live cell** (M-093→ca701711, M-096→6e37dc21, M-079→0b76757c+b82ea173, M-084/M-091→8a7055ea, N-116→9445627f, S-044→7b7e095e, M-090→9daa787, M-082→1f714884, M-071→ce2405a, 954c386→e4f3184, M-090's 180053de0 mis-paste→9daa787; every replacement `git cat-file`-verified) + the `*` suffix had no legend (now moot — the cells carry real SHAs). The guard script this finding's fix plan proposes is **promoted from optional to required** — the class recurs every rebase window.
+4. `180053de0` mis-paste — **RESOLVED this session** (the M-090 row's cell now carries 9daa787).
+5. Missing ledger rows — **RESOLVED except M-082**: M-080/S-043/M-085 rows landed (261c6046/29630f99); M-102/M-083 (session-11B); **M-082 still has no row** (its only board record is SUMMARY's block, which carried the phantom 95122bd — repaired this session). The re-created FIXED/ dir is gone (the convention held through session-11B's own two-phase retirements).
+6. §7g cite overshoot — **OPEN, shape shifted**: ABI-CONTRACT.md:525 still cites `cr_ui.h:916-944`; the W1b block moved to :926-945 with the M-079/N-116 insertions — the range is now wrong at both ends.
+7. cr_thumbnail.cpp file-top matrix — **OPEN** (the .cpp's docstring still lists uncompressed/PackBits/Deflate without LZW; the header and decoder have it).
+
+Plus (from the same verification): N-100's fix-commit cell said "(this session)" — repaired to faa547f7 this session.
+

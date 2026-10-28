@@ -48,3 +48,10 @@ M-040 (the landed stages this extends); D-90 (the boot-family registration this 
 ## Open questions
 
 CUpdateGptSystemBootPartition's behavioral decode is trace-string-level (the corpus carries the class name + method strings, not the mount semantics) — the corpus lane should decode DeviceManager_decompiled.c:49956 before the implementation lands; the capability's existence is the pinned fact here.
+
+
+---
+
+## Session-11B cite-refresh addendum (2026-10-29, re-triage at `743d7b8d`)
+
+corpus cite path drift: mo-module-map.md now at re-workspace/artifacts/PartitionRecovery/mo-module-map.md:56-57 (was MOM-modules/); core state unchanged (rrecov.cpp:23 host-supplied path; no discovery/mount code); D-90 still lacks the ESP row
