@@ -3036,3 +3036,11 @@ orchestration/carve cluster likewise. Session-39 will NOT touch
 S-040/S-048..S-052 or the 11D-claimed MAJORs; if a MINOR finding's fix
 collides with a parallel lane's territory (e.g. a driver-side MINOR), it is
 left to that lane and noted here. Pull-before-push discipline active.
+
+### M-074's Resolution record (session-10, this lane — retired per the purge convention)
+
+**Status:** FIXED · **Commit:** 09b311d · **Verified by:** WinDestIo.M074DestinationCodesDifferentiated (Windows lane; RED pre-fix — the codes did not exist) + the Linux family/text compile (1033/1033). **Notes:** ERR_DEST_PATH_TOO_LONG/PATH_INVALID/NETWORK (0x50050006..8, append-only) + err_text rows in the og's wording + the shared classify_dest_error seam in create_temp + mkdir; the mapped-drive dynamic half is the documented limitation.
+
+### The F8 gate restore (session-10, this lane)
+
+The parallel M-093 lane's mid-flight push (enum + trial order without the kTable row) made every carve_slice call fail the runtime registry-size gate while the build stayed green (the kTrialOrder static_assert counts the trial array, not the table) — ParallelCarve.MatchesSingleThreaded red at 1342373891. The missing FMT_SVG row landed in FormatId order; suite 1033/1033 green; the green-restore commit cites the root cause (the table/count asymmetry between the two build-time gates — a static_assert on kTable size vs FMT_COUNT would have caught this at build time; noted for the carve lane as a hardening candidate).
