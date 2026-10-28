@@ -5,7 +5,7 @@
 **Parameters affected:** C19 (magic bytes/signatures), A28 (validator logic), B1 (detection correctness)
 **Corpus references:** `RAWSearchDLL_decompiled.c` `FUN_180015260` :16497-16543 — the u16 0x0100-chain validator gates BOTH signatures: `00 01 00 00` + `"Standard Jet DB\0"` at +4 → type 0x27 (MDB) at :16509-11, and `"Standard ACE DB"` → type 0x4C (ACCDB) at :16515-17; bounds {0x1000 min, 0xBEBC200 max} at :16539-41 (field order differs from WPG's ctor — see N-099); `+0x124 = 1` at :16543
 **Core references:** audited `ff879f9` — `src/core/carve/cr_analysers.cpp:3484-3505` (`validate_mdb` gates `00 01 00 00` + `"Standard Jet DB\0"` only — the ACCDB branch is absent), `cr_registry.cpp` MDB row, landed by S-007 batch-1 `e018bf4`
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** FIXED (session-10 parallel lane)
 
 ## Summary
 
@@ -69,3 +69,11 @@ correction), N-099 (batch-1 citation truth pass).
 ## Open questions
 
 None.
+
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** 16475b8
+**Verified by:** Carve.M084AccdbSecondSignatureCarves (the ACE signature carved nothing pre-fix - the branch was absent; post-fix it carves as FMT_ACCDB with the page-chain extent; the Jet/ACE discrimination pinned on the shared key); full suite 962/962 green (gcc linux-release), clang-format 18.1.8 clean.
+**Resolution notes:** The og validator FUN_180015260 (:16497-16529, re-read first-hand this session) gates BOTH signatures on the same u32-key prefix + FileInfo bounds {0x1000, 0xBEBC200} (:16532-16546): "Standard Jet DB\0" -> type 0x27 and "Standard ACE DB\0" -> type 0x4C. Landed as FMT_ACCDB (enum APPENDED per the append-only policy, table order = FormatId order, kTrialOrder gains the row after FMT_MDB - the og branch order Jet-first) sharing the u16-key 0x0100 chain, ext "accdb", same bounds, same page-chain walk via the shared validate_mdb_common.

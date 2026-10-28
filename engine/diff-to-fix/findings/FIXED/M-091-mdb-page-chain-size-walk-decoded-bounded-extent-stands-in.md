@@ -5,7 +5,7 @@
 **Parameters affected:** A2-adjacent (carve extent correctness), A28-adjacent (the size-decoding walk), 65-adjacent (the recorded follow-up now actionable)
 **Corpus references:** `easeus-drw-research/re-workspace/reversed/ghidra-searchdll/RAWSearchDLL_decompiled.c:52001-52039` (FUN_1800447c0, the MDB CalculateSize walk — **read verbatim this session**): starts at 0x1000, strides 0x1000, reads the page-type word via the device read helper, requires it nonzero and **<= 0x901** (`if ((0x901 < *puVar3) || (uVar4 = uVar4 + 0x1000, 0x63fffff < uVar4)) break;`), caps at 0x6400000, and stamps size = the walked offset; the keyed gates (:16509-16517: 00 01 00 00 + "Standard Jet DB\0" 20-byte signature, type-id 0x27=39; the "dard ACE" variant → 0x4c) and ctor bounds {0x1000, 0xBEBC200, step 0x1000} (:16538-16541) — all verified this session and matching core.
 **Core references:** audited commit `ff879f9` — `src/core/carve/cr_analysers.cpp:3488-3502` (`validate_mdb`): keyed gates correct (00 01 00 00 + "Standard Jet DB\x00"), but `r.end = std::min(hit + (64 << 20), probe_limit(...))` — a 64 MiB bounded extent — with the comment "page-chain walk is undecoded — the Jet header + the og's own bounds carry the row, bounded extent stands in" (:3488-3489). The og cap is 0x6400000 = 100 MiB (not 64 MiB), and the walk is now decoded.
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** FIXED (session-10 parallel lane)
 **Prior audit check:** the S-007 batch-1 landing (e018bf4) registered the bounded-extent stand-in under the recorded-follow-up convention ("formats whose og size-walk is undecoded use the DWG-pattern bounded extent … the size-decoding walks are the recorded follow-ups") — the follow-up decode is this session's contribution; no prior finding carries it.
 
 ## Summary
@@ -50,3 +50,11 @@ S-007 (batch-1 parent; the recorded follow-up now executed); S-042/M-081/M-090 (
 ## Open questions
 
 None — the walk is fully decoded; the only un-decoded MDB tail (the og's "dard ACE" variant analyzer, id 0x4c at :16515-16517) is a separate keyed row decision (it is a distinct ACE-signature database family the og also carves — recorded here as a potential batch-3 candidate, out of this finding's scope).
+
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** 16475b8
+**Verified by:** Carve.M091MdbPageChainWalk (pre-fix: every MDB carved as the flat 64 MiB bounded extent; post-fix: the 4-page chain carves as 0x4000, the 0x902 gate page ends the run at that page, the unbroken run walks to the probe limit); full suite 962/962 green (gcc linux-release), clang-format 18.1.8 clean.
+**Resolution notes:** The og walk FUN_1800447c0 (:52001-52039, read verbatim this session before the fix): 0x1000 strides from the first page, the page-type u16 at each page start must be nonzero and <= 0x901 (the Jet b-tree/data page-type family), the run ends at the first breaking page (zero or out-of-family word), cap 0x6400000 (the 0x63fffff inner check), also bounded by the row ctor global 0xBEBC200 and the probe limit. The "page-chain walk is undecoded" comment premise is falsified and removed.
