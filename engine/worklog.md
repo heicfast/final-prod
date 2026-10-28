@@ -60,6 +60,15 @@ Every push pulls first and skips anything the sibling lanes already landed; conv
 resolves per earlier-push-wins with this lane's independent verification documented.
 Pulled-before-pushed discipline; one finding, one push; every fix RED-test-first.
 Target: 20+ dispositions this session. Audited pin: core `d872452c`, corpus `be0cfe9`.
+**I-036 ACKNOWLEDGED-RETIRED (S47 lane, 2026-10-28 — the INFO tier opens).** The
+user-sign default-load posture register verified first-hand at core `d872452c`: the
+load-site census re-executed (rrecov.cpp:1269-1310 the single CLI default site,
+line-drifted from the audited :1228-1264; cr_ui.cpp:4615 the only ABI path,
+drifted from :4509; engine/orchestrator census-zero). The finding's demanded
+precision edits applied: PARITY-DELTAS D-104 + PARITY-OG-CORE-INVENTORY.md:84 now
+read "CLI-app startup load; the library default is off (cr_ui_register_user_signs)".
+No code change — the register is the truthful scoping record for S-055/S-056/M-128/
+N-171. Trail: findings/FIXED/I-036 + ledger row + this entry.
 
 **Session-47 lane territory claim (coordination contract, 2026-10-28 22:30 UTC):** this lane
 (INFORMATIONAL-first per the user's explicit session directive — the parallel S45 lane's

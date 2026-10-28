@@ -3246,8 +3246,12 @@ output, not input.
 **WHAT CORE DOES:** the user-signature surface (cr_usersigns, M-048; caps
 S-039) installs user-taught signs into the carve registry — capability-
 creating by construction — and since 37c48c6 the release ships the og's own
-111-entry/190-sign DB as `data/userdata-defaults.json`, loaded at engine
-init when no explicit `--user-signs` is given.
+111-entry/190-sign DB as `data/userdata-defaults.json`. Load posture (I-036's
+precision registration): the CLI app loads the executable-adjacent default at
+startup when no explicit `--user-signs` is given (rrecov.cpp, the single load
+site); the LIBRARY default is off — an engine, orchestrator, or cr_ui ABI host
+gets user signs only via the explicit `cr_ui_register_user_signs` op. D-104's
+prior "loaded at engine init" phrasing overstated the surface.
 
 **WHY REGISTERED AS A SUPERSET, NOT A PARITY GAP:** the landed behavior
 exceeds the og's scan engine (the og's engine cannot consume user signs at
