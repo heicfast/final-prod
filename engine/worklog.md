@@ -5001,3 +5001,26 @@ landed target builder is the seam to extend, not a parallel design); (4) the
 standing board order after the window: S-048 (the S40 lane's claimed next),
 S-050's product decision (now carrying BOTH the parallel addenda and this lane's
 video-engine amendment), S-040, then the M-tier (M-073/M-075/M-076/M-078...).
+
+## Session-42 S42 lane (2026-10-29 — the continuation audit lane opens; the user's continuing second-session directive at the post-S40-severe board)
+
+Agent: session-42 continuation audit lane (S42)
+Baselines at open: core `869da779` (the N-153 retirement-bookkeeping tip; the S-049/S-052/N-115/N-132/N-133 fix landings absorbed), corpus `be0cfe9` (unmoved since session 8).
+REBASED at the first push over the parallel S12 window (through `25e408b8`): the S12 continuation lane's product absorbed (S-054 + M-118/M-119 + N-154 + I-035 + the N-142 rsf-descriptor row + the N-126 fix landing); both sides' records kept per the convention. The S12 lane's liveness sweep (41 live at their tree) and suite execution (1117/1117) are ACKNOWLEDGED — this lane's W1 becomes the board-truth VERIFICATION of their claims at the post-rebase HEAD rather than a blind redo, and W4's suite run rides theirs unless the tree moves again this window.
+Prompt saved token-redacted: `worklog/session-42-continuation-audit-prompt.md`.
+
+Lane plan (the directive's four readings):
+- W1 remove-the-fixed: the liveness battery over every then-active finding at `869da779` (the board
+  re-truth first — the filesystem is the truth per the S41 convention).
+- W2 the UNVERIFIED residuals: N-038's HFS+ fork-selection field name, I-014's allocation-bitmap
+  grading residue, the stale OQ-S10-2 matrix cell (:681 — N-138 resolved the payload, the cell
+  still reads UNVERIFIED).
+- W3 the un-dispositioned surface batch (the T1 probe already found three): config/shellexe.ini
+  (zero trail hits — the shell-tool launch list), config/version.ini's `TreeType` gate (zero trail
+  hits — the DRWUI FUN_140a09c40 view-layout boolean + the FUN_1401d1ef0 data-model site),
+  config/themdark.ini (zero trail hits — Qt theme table, likely OOS-UI), log/DRWLog.log (a 0-byte
+  channel). I-034's "no undispositioned product surface" census claim gets its correction addendum.
+- W4 executed verification at HEAD: the independent build + full-suite run (the fix lanes' green
+  claims verified audit-side), CLI smoke if the build allows.
+
+Read-only guarantee: this lane touches nothing outside diff-to-fix/ + worklog* (per-commit).
