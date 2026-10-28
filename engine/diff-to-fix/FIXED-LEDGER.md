@@ -331,6 +331,7 @@
 | N-098 | MINOR | (session-38 batch D; the contract sentence + mirrors + the `EnumerationRefreshContractPinned` pin, RED→GREEN proven) | (this session) | `findings/MINOR/N-098-enum-refresh-contract-sentence.md` |
 | N-105 | MINOR | (FIXED-ALREADY — classified session 38: D-106 is the demanded deferral record; reproduction in the Resolution) | (parallel S-044 lane's rider) | `findings/MINOR/N-105-autosave-folder-suffix-naming.md` |
 | N-100 | MINOR | (session-38; the +0x60 carrier landed as nflags bit-9 with the sparse-zeroing rule — Resolution + RED/GREEN proof in history at the N-100 commit) | (this session) | `findings/MINOR/N-100-ntfs-0x60-total-clusters-not-persisted.md` |
+| N-128 | MINOR | session/abi | 745c042-lineage (the rebased landing) | `findings/MINOR/N-128-session-list-cwd-dir-composes-prefixed-paths.md` |
 
 ## Go-forward convention (established by this purge, per the user instruction)
 
