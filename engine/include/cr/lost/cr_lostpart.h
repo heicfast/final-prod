@@ -100,6 +100,24 @@ struct Candidate {
     u32 sectors_per_cluster = 0;
     u32 hidden_sectors = 0;
     u8 have_geometry = 0;
+    /* M-137 (diff-to-fix): the og's found-partition row context - the
+     * candidate presentation metadata the UIUX/08 §2 rows carry
+     * (Disk / Basic / Dynamic / MBR / GPT / File System). The label is
+     * the boot-sector volume label where the family carries one in the
+     * boot sector (the FAT12/16 +0x2B 11-byte old-style label - the only
+     * on-disk label the discovery pass reads without running a full
+     * engine probe; NTFS/exFAT labels live in metadata the discovery
+     * never touches, and the register-channel names are M-118's open
+     * scope). Empty = unnamed (the naming template's counter path).
+     * The disk_* trio is the scan-target context stamped by the
+     * orchestrator at discovery time (the table parse + LDM probe that
+     * already ran in the engine pass) and persisted per-record (v3
+     * tail). */
+    char volume_label[12] = {0}; /* NUL-padded FAT12/16 boot label */
+    u32 disk_layout = 0;         /* table::TableLayout: 0 none, 1 MBR,
+                                  * 2 EBR, 3 GPT, 4 GPT-damaged */
+    u8 disk_dynamic = 0;         /* 1 = LDM database detected on target */
+    u8 disk_table_ok = 0;        /* 1 = the target's table parsed */
 };
 
 /* The full result set of one discovery pass. */
