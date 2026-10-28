@@ -3447,3 +3447,47 @@ directory" line; the FIXED-LEDGER go-forward section amended); ledger row
 N-111 added (268 main-pattern + 20 OQ = 288); CROSS-REF-MATRIX: the
 carve·JP2-family cell → MATCH + the batch-2 row updated; modules/carve.md
 verdict updated; SUMMARY session-39 delta block added (board 49 active).
+---
+Task ID: S11/T1 (session-11 continuation lane — the open, second-of-its-kind session per the user: "look for what session 1 missed, remove the fixed things, go more deep, mark all remaining features, implementations, functions, as finding too")
+Agent: session-11 continuation audit lane (S11)
+
+Session open at core `8365956e` (main; the S10-F close), corpus `be0cfe9` (unmoved).
+Prompt saved redacted at worklog/session-11-continuation-audit-prompt.md. Repos cloned
+fresh; the audit-ctx scratch is /home/z/my-project/audit-ctx/ (outside both repos).
+
+OPENING FINDS (first-hand, before any lane spawns):
+- **N-129 ID collision on the board**: TWO N-129 files live in findings/MINOR/ —
+  `N-129-parity-og-core-inventory-numeric-defects.md` (S10-B lane, landed 0e279e43
+  17:26) and `N-129-fix-wave-bookkeeping-truth-batch.md` (session-10 wave-3 lane,
+  landed f6c00177 17:32, itself renumbered N-128→N-129 without seeing S10-B's push).
+  Per the SA-9 rule (earlier push wins) the S10-B inventory finding keeps N-129; the
+  wave-3 bookkeeping batch renumbers to **N-135** (next free MINOR after S10-F's
+  N-133/N-134). Repair queued this session.
+- **The bookkeeping batch triaged at HEAD 8365956e** (remove-the-fixed applied to its
+  own items): item 1 (REFERENCE-API-GAP:376 R-28 row) FIXED by 5fecdae1; item 6 (the
+  re-created findings/FIXED/ dir) RESOLVED (dir gone). Still standing at HEAD: item 2
+  (R-31 :379 PARTIAL vs :225 PRESENT self-contradiction), item 3 (five phantom SHAs —
+  all five re-verified ABSENT via git cat-file at this session; the ledger header
+  block + the S-041 row still cite phantom `771e2ec` as M-090's landing), item 4 (the
+  M-090 ledger row's `180053de0` decompile-name-as-SHA mis-paste at FIXED-LEDGER:154),
+  item 5 (M-082's ledger row still missing — M-080/S-043/M-085 have rows, M-082 does
+  not), item 7 MUTATED (ABI-CONTRACT:525 §7g cites cr_ui.h:916-944; the W1b block has
+  since grown — the decl now ENDS at :946, the cite now undershoots), item 8
+  (cr_thumbnail.cpp:11-12 file-top matrix still lacks LZW while the header's
+  include/cr/preview/cr_thumbnail.h:40 matrix carries it).
+- **Last-10-commits liveness**: the three freshest fix landings (0b76757c M-079,
+  ca701711 M-093, faa547f7 N-100) all targeted ALREADY-RETIRED findings — no active
+  finding's defect site is known-fixed by them; N-133 was already re-verified
+  post-landing by S10-F. Full active-board liveness sweep assigned to a lane.
+
+SESSION LANES (spawned in parallel; scratch sheets under /home/z/my-project/audit-ctx/):
+- L1 RAWINFRA — the RAWSearchDLL infrastructure function-level walk (the trail's own
+  named wave-2 candidate, never executed: the S10-F 122-domain-function disposition
+  never landed as evidence — its scripts lived in the wiped scratch area).
+- L2 ZFSREFS-FN — ZfsSearchDLL + ReFSSearchDLL function-level walks (the two engine
+  trees the S10-F class pass's read-agents did not cover; module docs are
+  behavior-level from the corpus deep-dives, not per-function).
+- L3 OQTRACE — OQ-S8-1 (CWindowsFS consumer trace in the MOM decompiles) + OQ-S10-2
+  (the sfc payload probe) + OQ-S4-3 scoping (chunking-relative-perf).
+- L4 TRIAGE — the 56 active findings' cited core-side defect sites re-verified at
+  8365956e (remove-the-fixed sweep) + the S10-B N-129's six register items re-check.
