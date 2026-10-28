@@ -271,8 +271,8 @@ TEST(Orchestrator, WholeDiskScansTableVolumes) {
     ASSERT_EQ(rc, OK) << err_text(rc);
     EXPECT_EQ(stats.files_found, 4u) << "both volumes' DOC.TXT + the deleted files' entries";
     EXPECT_GE(stats.deleted_found, 2u);
-    EXPECT_EQ(stats.table_volume_targets, 2u);
-    EXPECT_EQ(stats.table_volume_skipped, 0u);
+    EXPECT_EQ(stats.table_volumes, 2u);
+    EXPECT_EQ(stats.table_volumes_skipped, 0u);
     /* each volume's DOC.TXT found exactly once - under its own root */
     EXPECT_EQ(count_named(tree, "DOC.TXT"), 2u);
 }
@@ -342,8 +342,8 @@ TEST(Orchestrator, WholeDiskMixedFamilies) {
     ScanStats stats;
     u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
     ASSERT_EQ(rc, OK) << err_text(rc);
-    EXPECT_EQ(stats.table_volume_targets, 2u);
-    EXPECT_EQ(stats.table_volume_skipped, 0u);
+    EXPECT_EQ(stats.table_volumes, 2u);
+    EXPECT_EQ(stats.table_volumes_skipped, 0u);
     EXPECT_GE(stats.files_found, 2u) << "the FAT volume's DOC.TXT + deleted file";
     const auto names = root_names(tree);
     EXPECT_NE(std::find(names.begin(), names.end(), "FATSIDE"), names.end());
@@ -355,7 +355,7 @@ TEST(Orchestrator, WholeDiskMixedFamilies) {
 
 TEST(Orchestrator, WholeDiskDamagedVolumeSkippedHonestly) {
     /* one healthy volume + one table entry whose boot sector is dead: the
-     * damaged target is skipped HONESTLY (counted in table_volume_skipped,
+     * damaged target is skipped HONESTLY (counted in table_volumes_skipped,
      * rc stays OK, no root emitted) - never silently nor fatally. */
     u64 s1 = 0, s2 = 0;
     auto img = testfixture::build_two_volume_mbr_disk("HEALTHY", "DEADBOOT", &s1, &s2);
@@ -369,8 +369,8 @@ TEST(Orchestrator, WholeDiskDamagedVolumeSkippedHonestly) {
     ScanStats stats;
     u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
     ASSERT_EQ(rc, OK) << err_text(rc);
-    EXPECT_EQ(stats.table_volume_targets, 2u);
-    EXPECT_EQ(stats.table_volume_skipped, 1u);
+    EXPECT_EQ(stats.table_volumes, 2u);
+    EXPECT_EQ(stats.table_volumes_skipped, 1u);
     EXPECT_GE(stats.files_found, 2u) << "the healthy volume still scans";
     EXPECT_EQ(count_named(tree, "DOC.TXT"), 1u);
 }
@@ -389,7 +389,7 @@ TEST(Orchestrator, WholeDiskSuperfloppyUnchanged) {
     ScanStats stats;
     u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
     ASSERT_EQ(rc, OK) << err_text(rc);
-    EXPECT_EQ(stats.table_volume_targets, 0u) << "no table: no per-volume targets";
+    EXPECT_EQ(stats.table_volumes, 0u) << "no table: no per-volume targets";
     EXPECT_GE(stats.files_found, 1u);
     /* the volume-target path did not fire: DOC.TXT sits under Found */
     bool doc_under_found = false;

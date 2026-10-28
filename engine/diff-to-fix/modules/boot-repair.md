@@ -17,3 +17,7 @@ tool) against the core's staged port.
 ## Session-8 lead-lane wave (audited `ff879f9`)
 - **N-121**: the ESP auto-mount half (CUpdateGptSystemBootPartition) — undispositioned.
 - **N-122**: the NVRAM create/delete exclusion — recorded only in M-040's resolution text.
+
+### Session-11-lead rows (2026-10-29)
+
+- **M-113** (MAJOR): the recovered-OS boot-environment write-side surgery absent + unregistered — the og's genuefisystemfile.cpp chain (TempSystem MountedDevices rewrite; TmpBCD {9dea862c...}->23000003->device-element 12000004 re-pointing; TmpSoftWare CurrentVersion; SystemSetup/SystemPartition/bootstat). R-69's "PRESENT (bcdfix/nvramfix)" verdict covers only BCD-cell + NVRAM — a different, smaller mechanism. The BIOS twin (CGenBIOSSystemFile) is the fix lane's open decode.

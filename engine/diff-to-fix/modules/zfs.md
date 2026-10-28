@@ -201,3 +201,6 @@ multivdev-fallback/checksum side.)
 | ID | Severity | One-line |
 |---|---|---|
 | S-034 | SEVERE → **FIXED** | CONVERGENT second fix the same window (the DFX33b landing above is canonical per first-landing-wins): same corpus decode executed independently (ring iteration FUN_180006b90 :5685-5841, addBlock chain, FUN_180012450 plain ctor = no engine dedup, last_txg display-only :5703); the DFX37 variant (deleted-tree parallel emission, identity = head+objid+logical birth @blkptr+80) superseded — its Resolution preserved in findings/FIXED/S-034 as the convergent record, including the fixture block-placement lesson (a second state's 16K dnode-array footprint spans +0x4000; the root ZAP must sit past its end). |
+### Session-11-lead row (2026-10-29)
+
+- **N-148 item 2** (MINOR): cr_zfs_engine.h:58's vdev comment contradicts D-09's corrected posture (gang blocks ARE assembled at cr_zfs_engine.cpp:594-621; only mirror/raidz are report-only).

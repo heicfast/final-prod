@@ -1,4 +1,67 @@
-# SUMMARY.md — executive summary (the S11 deep-audit lane on top; the prior lanes below, newest-first)
+# SUMMARY.md — executive summary (the session-40 fix lane on top; the prior lanes below, newest-first)
+## Session-40 delta (2026-10-29 — the diff-to-fix board execution: SEVERE-first)
+
+**Audited/fixed: core `4a6a5164` at open, corpus `be0cfe9`; suites 1003 + 59 green
+at open.** The fix session's board at open: **50 active (6 SEVERE · 18 MAJOR ·
+21 MINOR · 5 INFO) + 3 tracked-open (OQ-S4-3, OQ-S10-1, OQ-S10-3) / 294
+resolved rows.** Every finding is re-verified against the corpus and the running
+code before any change (the S-051 evidence probe re-executed verbatim at open —
+the RUN 2 silent-empty verdict reproduced on current main, then flipped by the
+fix). Resolutions land per the retire convention (Resolution rides the fix
+commit; the file retires to history with a ledger row).
+
+- **S-051 FIXED at `6ecd6bb4`** — the whole-disk target set (the session's
+  first SEVERE). The plain disk scan reads the partition list at scan setup and
+  makes every used, non-container partition a scan target (the og's
+  CDoScanPartition flow); the evidence probe's RUN 2 flipped to files=4/
+  deleted=2; six whole-disk tests; the discovery no-double-scan reconciliation;
+  honest skip accounting (table_volumes*). Matrix cell → MATCH; the retired
+  file's Resolution carries the full record.
+
+**Board after S-051, at the rebase reconciliation over the concurrent lanes
+(the S11-lead/S11B audit lanes' 11 new findings; the parallel fix lanes'
+M-109 + N-112 retirements): 63 active (7 SEVERE · 20 MAJOR · 29 MINOR · 7
+INFO) + 3 tracked-open / 300 resolved rows (the S-051 row included).** The
+SEVERE board this session continues on: S-052 (LDM span recovery — silently
+wrong bytes), S-054 (the 10x TS/M2TS cap), S-053 (ReFS unnamed rows), S-049
+(the carved naming contract), S-048 (Reconstructed per-volume grouping),
+S-050 (the file-repair registration), S-040 (image create).
+
+---
+
+# SUMMARY.md — executive summary
+
+## Session-11 lane B delta (2026-10-29 — the continuation re-triage + landing-parity audit, RECONCILED at every push over the S11/S39/S40 parallel lanes)
+
+**Audited: core `7990a86d` at open → `620f4497`-lineage at close** (the lane's
+verification baseline `743d7b8d` incl. the `740d9b56` thumbnail ABI) · **corpus
+`be0cfe9`**. The user's three asks, executed:
+
+1. **Remove-the-fixed** — all 55 active-at-open findings re-verified (three parallel
+   agents + lead spot-verification). This lane's moves: **M-102/M-083 conformed**
+   (the e56baac7 landing's missed purge step 3), **N-134 retired FIXED-ALREADY**
+   (the b202f9ed archaeology: all six register rows pre-dated the finding's own
+   filing by 6.5h — verified `git show 44f043a5:...`), **I-030 resolved** (the
+   module map completed: reghive.md + apply.md written per its own packaging plan).
+2. **Go-deeper** — the T4 landing-parity wave: M-096/N-100/thumbnail-ABI
+   PARITY-VERIFIED; M-093's residual filed; M-079's image-stem divergence confirmed
+   N-133-owned (+ the registration leg: D-03 stale, no D-row); the phantom-SHA
+   truth class repaired (11 cells, git-cat-file-verified; convergent with
+   session-39's 73-row census).
+3. **Mark-all-remaining** — **M-112** (MAJOR: the CSL 0x44c size branch
+   decoded-but-unported with NO active owner — the M-107 class's twelfth site;
+   renumbered from M-111 over the parallel lane's explorer-browse M-111),
+   **N-142** (MINOR: the dropped thumbnail variant's dead CrPreview wiring;
+   renumbered from N-137 over the parallel lane's thumbnail-header N-137),
+   + 16 addenda (N-135's per-item status; N-133's registration leg; ten
+   cite-refreshes; M-107's three in-file corrections).
+
+**Board at this lane's close: 55 active (7 SEVERE · 18 MAJOR · 24 MINOR · 6 INFO) /
+299 resolved rows (277 main + 22 OQ, whole-table re-count) / 3 tracked-open.**
+The recommended first-20 fix order is in the worklog's S11B close entry (S-052
+first — silently wrong recovery bytes; then the mechanical MAJORs M-109/M-103/M-112).
+
+ (the S11 deep-audit lane on top; the prior lanes below, newest-first)
 
 ## S11 lane delta (2026-10-29 — the second continuation lane: the named-never-done walks EXECUTED — the RAWSearchDLL infrastructure function-level walk, the ZFS/ReFS function-level walk, the OQ traces, the 56-finding liveness triage; one FALSE RESOLUTION refuted by decode)
 
@@ -73,6 +136,8 @@ reconcile extend-don't-refile against N-139/N-140/I-031 +
 wave-1 remains yours); wave-3's non-searchdll trees do not collide with this
 lane's ZFS/ReFS searchdll walk.
 
+---
+
 ## Session-11 delta (2026-10-29 — the user's session-2 continuation: remove-the-fixed + go-deeper + mark-all-remaining)
 
 **Audited: core `7990a86d` at open (the M-096 mid-session landing absorbed), corpus
@@ -109,10 +174,31 @@ retirement verification (engine executed standalone, 40/40, zero ASan) rides the
 ledger cells + `evidence/s11-board-truth.md`; the S11-lead adds to the session-39B
 phantom sweep the four rows it missed (M-041's corpus-SHA cell, M-088's placeholder +
 fictional path, the M-083/M-102 verification annotations, the 54-row
-as-recorded-in-file census erratum). Waves 2-3 (the go-deeper lanes — RAWSearchDLL
-infrastructure function-level walk, the og config/data assets, the seven
-non-searchdll ghidra trees' never-cited space, the core stand-in register) file
-below this block as they land.
+as-recorded-in-file census erratum). **Waves 2-3 (the five go-deeper lanes) LANDED at the session-11-lead close:**
+12 findings filed — **S-054** (SEVERE: the S-047 landing's TS/M2TS cap is 10×
+the og's 200 MB clamp, the "×10" provenance refuted — 2e9 appears nowhere in the
+og binary, no test pins it), **M-115** (MAJOR: the thumbnail grade-promotion
+trigger is mis-modeled — the og promotes on clean recovery-READ success,
+decode-independent, tier-gated, preview-pane-excluded; core promotes only on
+decode Ok and UNDER-promotes damaged-but-readable images; OQ-S11-1 RESOLVED by
+decode, binary-verified at 0x140263b2c-b9a), **M-113** (MAJOR: the recovered-OS
+boot-environment write-side surgery absent — the TempSystem/TmpBCD/TmpSoftWare
+chain; R-69's "PRESENT" verdict is over-coarse), **M-114** (MAJOR: MainModule's
+silent System-Restore purge absent + undecided + undocumented), **N-149, N-143..N-146, N-148**
+(MINOR: the filter's always-on OLE/RIFF/ZIP set; the ISpecial two-step dispatch;
+the TxtView text-snapshot thumbnails; the pendingMarkedDisk cross-run marker; the
+FH11 unowned stand-in; the seven-item comment-truth batch; the CSL 0x44c formula
+converged with the S11B lane's M-112 — this lane's draft dropped per
+extend-don't-refile),
+**I-033** (INFO: the config/data-asset completeness pass — every engine-behavior
+asset byte-identity re-verified; the register corrections; legacy.dll closed; the
+tree bookkeeping) — plus the S-050 wiring addendum (the per-chunk repair feed),
+the N-134 decode closure, and seven CORPUS-ERRATA rows. The negative results are
+recorded (the 17-row infrastructure MATCH table, the 40-asset N/A inventory, the
+19-behavior interaction map, the binary-level CLEAN re-confirmation, the
+no-TODO/no-stub census). Evidence: `evidence/s11-lead-deep-lanes.md`. The board's
+counts at this lane's close ride the next truth pass (the parallel lanes were
+still landing).
 
 # SUMMARY.md — executive summary (the session-11D fix lane on top: the diff-TO-FIX execution)
 ## Session-11D fix lane (2026-10-29 — lane D, the diff-TO-FIX execution session; first landings)
@@ -185,11 +271,16 @@ bookkeeping file renumbers to N-135, convergent with session-11B's own renumber)
   the len==1 extended form, the len==0 FF D9 EOC scan with the 16-zero back-off,
   the jp2c-consecutive end rule, cap 500 MB; 7 tests; one finding correction:
   "corrupt-length still carves" is gate-level truth, extent-level false).
+- **N-112** (MINOR — carve): the LZH family landed (the four method-key rows
+  "-lh0-/-lh5-/-lhd-/-lh7-" at +2; the entry-chain walk fully decoded INCLUDING
+  the .data method-constant dump from the corpus binary that settled the
+  DAT_-label mapping; the -lh5 hdr-only stride quirk ported exactly and PINNED
+  by its own test; cap 200 MiB byte-exact; 6 tests).
 - **Session-39 convention amendment:** resolved findings now live in
   `findings/FIXED/` (the user's "put fixed findings in fixed directory"
   instruction; the ledger is the index — see the amended go-forward section).
 
-**Board now: 49 active (6 SEVERE · 20 MAJOR · 18 MINOR · 5 INFO) · 288 resolved
+**Board now: 48 active (6 SEVERE · 20 MAJOR · 17 MINOR · 5 INFO) · 289 resolved
 ledger rows · 5 tracked-open.**
 
 ## Session-10 lane-B delta (2026-10-29 — the continuation deep audit, RECONCILED AT THE SECOND PUSH with the SA-10 lead close + the truth batches + the fix lanes)

@@ -177,3 +177,7 @@ the wrong basis. GAP-S6-15 (CORE-GAP-LIST.md:139, PARTIAL) is the product-side
 registration; S-052 is its audit-board owner. The og contrast: the
 LdmManager.mo volume-storage family (SpanVolumeStorage et al., cr_ldm.h:17-24)
 serves these reads for the product's whole lifetime.
+
+### Session-11-lead row (2026-10-29)
+
+- **N-148 item 1** (MINOR): cr_ldm.h:30-32 still claims the RAID-5 rotation is UNDECODED — OQ-T7 resolved it as a hardwired left-symmetric MATCH (evidence/decompiled-quotes/ldm-raid5-and-scoring.md:8-34); the header's hedge is now false.

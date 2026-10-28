@@ -3177,6 +3177,137 @@ CarveResult validate_jp2(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
+/* ---- LZH family (N-112): the og's entry-chain walk, the full decode ----
+ * Brance::LZHAnalyser + FileLZHAnalyser (id 0x24, LIST-layer; erratum
+ * E53 - no u32 key, the E4 52 5C 7B census row binds OneNote). The
+ * probe (FUN_18003db20 :46937-46973) gates the level-1 method field:
+ * *(u32*)(buf+2) in {"-lh0" 0x30686c2d, "-lh5" 0x35686c2d, "-lhd"
+ * 0x64686c2d, "-lh7" 0x37686c2d} AND buf[6] == '-' (the registry magic
+ * carries the 5-byte "-lh?-" form of this gate).
+ *
+ * The size walk (FUN_18003dd70 :47045-47138, decoded first-hand; the
+ * .data method constants dumped from the binary at RVA 0x9388c -
+ * "-lh0"/"-", "-lh5"/"-", "-lhd"/"-", "-lh7"/"-"):
+ *   -lh0 / -lhd : pos += hdr_u8@0 + comp_u32@7 + 2 (the CRC; the +2
+ *                 suppressed once the ext flag latched), CRC flag set
+ *   -lh5        : pos += hdr_u8@0 ONLY, ext flag latched
+ *   -lh7        : pos += hdr_u8@0 + comp_u32@7, ext flag latched
+ *   no match    : the -2/+2 step-back dance (a latched CRC flag steps
+ *                 pos back 2 and re-examines; the restore path adds it
+ *                 back), then the chain ends with size = pos + 1 (the
+ *                 single 0x00 end-marker byte - the level-1 archive
+ *                 terminator)
+ *   0x401 iterations per window (the counter is a local - reset per
+ *   call; the walk state persists across the og's scan windows); the
+ *   FileInfo ctor bound 0xC800000 (200 MiB).
+ * The per-method strides are the og's EXACT behavior as decoded -
+ * including the -lh5 hdr-only stride (a deliberate port-not-fix: the
+ * og's walk lands on the CRC field after a -lh5 entry in a level-1
+ * archive and breaks the chain there; parity means porting it, and the
+ * LzhLh5HeaderOnlyStridePinned test pins the quirk against future
+ * "fixes"). Single-pass adaptation: the chain runs to the slice cap; a
+ * chain that never breaks takes the bounded fallback (the family
+ * convention); the iteration bound is the defensive 2M (the og's own
+ * total is bounded only by the 200 MiB cap amortized across windows -
+ * no real archive approaches either bound; the guard exists so
+ * degenerate crafted strides cannot spin the single-pass walk). */
+CarveResult validate_lzh(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    const u64 limit = probe_limit(s, hit, cap); /* cap = 200 MiB, the og ctor bound */
+    /* block-buffered entry reads: one 64 KiB window covers ~6K entries;
+     * refill when the 11-byte entry header is not fully in-buffer (the
+     * step-back dance may re-read behind the buffer - refill handles it) */
+    constexpr u32 kEntryHdr = 11; /* hdr u8@0, method@2..6, comp u32@7 */
+    std::vector<u8> buf(1u << 16);
+    u64 buf_base = ~(u64)0;
+    u32 buf_len = 0;
+    auto entry_at = [&](u64 pos, u8* out) -> bool {
+        if (pos + kEntryHdr > limit)
+            return false;
+        if (pos < buf_base || pos + kEntryHdr > buf_base + buf_len) {
+            const u64 want = std::min<u64>(limit - pos, buf.size());
+            if (want < kEntryHdr)
+                return false;
+            if (!rd(s, pos, buf.data(), u32(want)))
+                return false;
+            buf_base = pos;
+            buf_len = u32(want);
+        }
+        std::memcpy(out, buf.data() + (pos - buf_base), kEntryHdr);
+        return true;
+    };
+    u64 pos = hit;
+    bool ext = false;  /* the og's flag +0x120: latched by -lh5/-lh7 */
+    bool crcf = false; /* the og's flag +0x124: the +2 stride latched */
+    bool back = false; /* the og's bVar3: a step-back happened */
+    u64 iters = 0;
+    constexpr u32 kLh0 = 0x30686c2du, kLh5 = 0x35686c2du, kLhd = 0x64686c2du, kLh7 = 0x37686c2du;
+    u8 e[kEntryHdr];
+    while (true) {
+        if (++iters > 2000000ull)
+            break; /* the defensive bound (see the header comment) */
+        if (!entry_at(pos, e))
+            break; /* the chain runs off the cap/slice edge - the fallback */
+        const u32 method = u32_from_bytes_le(e + 2);
+        const u32 comp = u32_from_bytes_le(e + 7);
+        const u32 hdr = e[0];
+        /* the probe's second gate (buf[6]=='-') re-run per entry, then the
+         * per-method dispatch: 1 = -lh0/-lhd, 2 = -lh5, 3 = -lh7 */
+        int kind = 0;
+        if (e[6] == '-') {
+            if (method == kLh0 || method == kLhd)
+                kind = 1;
+            else if (method == kLh5)
+                kind = 2;
+            else if (method == kLh7)
+                kind = 3;
+        }
+        if (kind == 0) {
+            /* the chain-break dance (the og's else branch) */
+            if (crcf) {
+                /* the step-back: the latched +2 may have overshot the last
+                 * entry's CRC - re-examine 2 bytes earlier */
+                pos -= 2;
+                crcf = false;
+                back = true;
+                continue;
+            }
+            if (back)
+                pos += 2; /* the restore */
+            r.ok = true;
+            r.end = pos + 1; /* the end-marker byte included */
+            r.confidence = 700;
+            r.note = "lzh-entry-chain";
+            return r;
+        }
+        if (kind == 1) {
+            if (!ext) {
+                crcf = true;
+                pos += u64(hdr) + comp + 2;
+            } else {
+                pos += u64(hdr) + comp;
+            }
+        } else if (kind == 2) {
+            pos += hdr;
+            ext = true;
+        } else { /* kind == 3 */
+            pos += u64(hdr) + comp;
+            ext = true;
+        }
+        if (pos > limit) {
+            /* the chain passed the cap mid-walk (the og's per-window
+             * return-1 path): the bounded fallback */
+            break;
+        }
+    }
+    /* no chain break: the bounded fallback (the family convention) */
+    r.ok = true;
+    r.end = limit;
+    r.confidence = 450;
+    r.note = "lzh-chain-cap";
+    return r;
+}
+
 CarveResult validate_ts(IStorageDevice* s, u64 hit, u64 cap) {
     /* 188-byte MPEG transport stream packets (CMTS, id 0x76) */
     return validate_ts_common(s, hit, cap, 188, 0, 700, "ts-packet-walk-188",

@@ -417,3 +417,45 @@ remote rows stand. **One distinct row the remote set does not carry:**
      core's nvlist-driven vdev offset is identical on whole-disk pools (the
      registered superset; the note pins the og's constant for future
      multi-vdev fixtures).
+
+## S11-lead additions (2026-10-29 — the deep-lanes wave; session-11-lead)
+
+1. **rawsearchdll--analyser-registry-census.md :20-23 ("all three exports …
+   expose three projections of the same data") is wrong in one half** — the
+   exports (EUGetAnalyserList/Map/Multimap, `RAWSearchDLL_decompiled.c:72170-72208`)
+   project the **STATIC** triplet only (+0x30/+0x40/+0x50); the **WORKING**
+   triplet (+0x00/+0x10/+0x20) is rebuilt and IAnalyserFilter-filtered per search
+   (`FUN_180006b30`, :4386-4434). The census's M-024-era refinement (the module
+   map carries it) supersedes the artifact's sentence.
+2. **The census's undecoded ":82" row ("Windows thumbnail/repair variant") is
+   resolved** — the key `F7 89 34 2C` registers the SAME dual-vtable
+   FileZIPAnalyser (id 0x48) as `PK\x03\x04` (`:2231-2247`). If real-world files
+   carry this magic the og carves them as ZIP; core has no such signature row
+   (flagged to the carve board — no fixture evidence either way this session).
+3. **rawsearch-carving--deep-dive.md §1's ZIP gate table conflated the probe and
+   walk tiers** — the PROBE gate (`FUN_1800176b0`, `:18294-18302`) admits version
+   `u16@+8 ≤ 0x13 or == 0x62`; the WALK gate (`FUN_1800176e0`, `:18385-18386`)
+   requires `≤ 10`. Core implements the walk gate (`cr_analysers.cpp:839-845`) —
+   the og's NET admission (probe AND walk) is ≤10, matching core; the artifact's
+   single-gate table misled N-008-era analysis.
+4. **ghidra-repair/REPORT.md lists three phantom binaries** — `EUZipRepairFile.exe`,
+   `EURarRepairFile.exe`, `EUVideoRepairFile.exe` ("NO OUTPUT") do not exist
+   anywhere in og-codebase (find: zero); the shipped EUFileRepair bundle is 5
+   exes (EUAdobeRepair, EUArchiveRepair, EUImgRepairFile, EuOfficeRepairFile,
+   EuPDFRepairFile — all register-dispositioned). The REPORT rows are decompile-
+   batch phantoms, not a corpus blind spot.
+5. **ghidra-local/NTFSSearchDLL is a byte-identical duplicate** of
+   ghidra-searchdll/NTFSSearchDLL (md5 `4d6ac40b…` both decompiles) — the S10-F
+   function-level sweep's coverage extends to it for free; censuses should count
+   it once. Likewise ghidra-misc/EUVideoRepair ≡ ghidra-repair/EUVideoRepair
+   (md5 `613ad879…`).
+6. **MainModule's System-Restore purge is absent from every corpus artifact** —
+   the srclient/SRRemoveRestorePoint chain (`MainModule_decompiled.c:138378-138420`,
+   the WQL enumerate-all at `:138773`, the both-drives caller at `:71496/:71511`)
+   is not even string-listed in per-binary/MainModule.md; filed core-side as
+   M-114 (the corpus-side gap recorded here for the maintainers).
+7. **The genuefisystemfile.cpp boot-surgery family is absent from every corpus
+   artifact** — the TempSystem/TmpBCD/TmpSoftWare chains
+   (`RecoveryModule_decompiled.c:73731-73786`, `:74837-74887`, `:73610-73621`) —
+   the READ side appears in MOM-modules/DeviceManager.md:55's string list only;
+   filed core-side as M-113 (the corpus-side gap recorded here).

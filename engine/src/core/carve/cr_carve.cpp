@@ -96,6 +96,9 @@ constexpr u32 kTrialOrder[] = {
      * at the same start; the earlier trial order wins and the validator's
      * override stamps the brand id) */
     FMT_JP2, FMT_JPX, FMT_JPM,
+    /* N-112: the LZH method keys (distinct 5-byte magics at +2, one
+     * shared validator - the og stamps one id regardless of key) */
+    FMT_LZH, FMT_LZH5, FMT_LZHD, FMT_LZH7,
     /* S-017: ftyp-destroyed MOV salvage (og MovAnalyzer list layer) -
      * LAST: the ftyp-keyed entries must claim the position first */
     FMT_MOV_NAKED};

@@ -249,6 +249,28 @@ enum FormatId : u32 {
     FMT_JP2, /* brand "jp2 " (the og id 0x80) - the jP-box scan key */
     FMT_JPX, /* brand "jpx " (the og id 0x81) - the brand-position key */
     FMT_JPM, /* brand "jpm " (the og id 0x82) - the brand-position key */
+    /* N-112 (diff-to-fix): the og's LZH (LHARC/LHA) archive family
+     * (Brance::LZHAnalyser + FileLZHAnalyser, id 0x24, LIST-layer
+     * registration only - no u32 key; erratum E53: the census's E4 52 5C
+     * 7B key binds OneNote). The probe (FUN_18003db20 :46937-46973) gates
+     * the level-1 method field: *(u32*)(buf+2) in {"-lh0" 0x30686c2d,
+     * "-lh5" 0x35686c2d, "-lhd" 0x64686c2d, "-lh7" 0x37686c2d} AND
+     * buf[6]=='-'. The size walk (FUN_18003dd70 :47045+, decoded
+     * first-hand + the .data method constants dumped from the binary at
+     * RVA 0x9388c: -lh0/-lhd pair, -lh5, -lh7) chains entries with
+     * PER-METHOD strides: -lh0/-lhd advance hdr_u8@0 + comp_u32@7 + 2
+     * (the CRC; the +2 suppressed once the ext flag latched), -lh5
+     * advances hdr_u8@0 only and latches the ext flag, -lh7 advances
+     * hdr_u8@0 + comp_u32@7 and latches it; a non-matching position
+     * triggers the -2/+2 CRC step-back dance and ends the chain with
+     * size = pos + 1 (the single end-marker byte); 0x401 iterations per
+     * window; the FileInfo ctor bound 0xC800000 (200 MiB). One row per
+     * method key (the M-092 duplicate-key policy), all ext "lzh" - the
+     * og stamps one id (0x24) regardless of key. Ids APPENDED. */
+    FMT_LZH,  /* the "-lh0-" key (stored) */
+    FMT_LZH5, /* the "-lh5-" key (the dominant compressed method) */
+    FMT_LZHD, /* the "-lhd-" key (directory entries) */
+    FMT_LZH7, /* the "-lh7-" key (newer compressed method) */
     FMT_COUNT
 };
 

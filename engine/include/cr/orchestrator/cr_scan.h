@@ -363,18 +363,6 @@ struct ScanStats {
      * files are detached from the tree and its counts report zero. */
     u64 lost_content_rejected = 0;
 
-    /* S-051 (diff-to-fix): the whole-disk flow's partition-list targets.
-     * table_volume_targets = table entries dispatched as scan targets
-     * (the og's CDoScanPartition flow reads the partition list at scan
-     * setup and makes every table volume a target - architecture/04
-     * §3.4); table_volume_skipped = targets whose content probe found no
-     * filesystem (MSR/bare metadata areas, damaged boot sectors) - skipped
-     * honestly and counted, never silently nor fatally (the og's
-     * per-target probe bails the same way; the plain whole-disk target
-     * previously completed rc=0 with ZERO files on this exact shape - the
-     * executed RUN 2). */
-    u64 table_volume_targets = 0;
-    u64 table_volume_skipped = 0;
     ReadErrorMap errors;
     std::vector<lost::Candidate> lost_candidates;
 
@@ -454,6 +442,24 @@ struct ScanStats {
     u64 revalidated_candidates = 0;
     u64 dropped_stale_candidates = 0;
     std::vector<session::DiskLayoutEntry> persisted_layout;
+
+    /* ---- S-051: whole-disk target-set accounting ----
+     * The plain whole-disk flow (cr_ui_open_disk + default config, the CLI
+     * `scan --disk N` / `scan --image <whole-disk image>`) reads the
+     * partition list at scan setup and makes every used, non-container
+     * partition a scan target - the og's CDoScanPartition /
+     * CGenericRecoveryController flow (architecture/04-recovery-workflow.md
+     * section 3.4: "reads the partition list, inserts lost partitions as
+     * additional scan targets"). table_volumes: targets built from the
+     * table. table_volumes_scanned: targets whose per-volume probe
+     * identified a family and an engine pass ran. table_volumes_skipped:
+     * targets the probe could not identify (damaged/unformatted) -
+     * skipped HONESTLY (counted here, logged, never fatal, never silent);
+     * the --whole-disk discovery stays the ADDITIONAL lost-partition
+     * flow (a table volume is a primary target, not a lost partition). */
+    u64 table_volumes = 0;
+    u64 table_volumes_scanned = 0;
+    u64 table_volumes_skipped = 0;
 };
 
 /* ---- live scan observability (G-04/G-05/G-06) ----
@@ -735,19 +741,26 @@ private:
      * disk-relative; a volume-basis re-read would be the wrong arbiter). */
     std::vector<session::DiskLayoutEntry> disk_layout_;
     bool resumed_whole_disk_ = false;
-    /* S-051 (diff-to-fix): the start LBAs of table volumes the whole-disk
-     * flow ALREADY scanned as primary partition-list targets (the og's
-     * CDoScanPartition flow - architecture/04 §3.4). The deep stage's
-     * lost-partition discovery re-finds in-table boot sectors as +500
-     * table-match candidates (cr_candidates.cpp's "Found once partition"
-     * bonus); since the primary pass now owns those volumes, a candidate
-     * whose start matches a scanned target is dropped BEFORE materializing
-     * it - each volume is scanned exactly once (the no-double-scan
-     * acceptance). A target that was skipped honestly (probe found no FS)
-     * is NOT recorded here, so discovery still gets its chance on the
-     * damaged volume (the og's lost partitions are ADDITIONAL targets,
-     * never replacements). */
-    std::vector<u64> table_targets_scanned_;
+    /* S-051: whether the HOST asserted a family (cfg_.fs_hint != Unknown
+     * at run() entry, BEFORE the LBA-0 probe mutates it). A host-forced
+     * family keeps the single dispatch (the explicit slice assertion -
+     * the RUN 3 control's honest ERR_OPEN_FAILED); a probe result (or a
+     * probe ALIAS - the FAT heuristic can fire on MBR boot-code bytes at
+     * +0x0B on a table-bearing LBA 0, which by definition is not a
+     * volume) routes to the whole-disk table-target flow. */
+    bool host_fs_hint_ = false;
+    /* S-051: the start LBAs of table volumes the whole-disk flow ALREADY
+     * SCANNED as primary partition-list targets (the og's CDoScanPartition
+     * flow - architecture/04 §3.4). The deep stage's lost-partition
+     * discovery re-finds in-table boot sectors as +500 table-match
+     * candidates (cr_candidates.cpp's "Found once partition" bonus); a
+     * candidate whose start matches a scanned target is dropped BEFORE
+     * materializing it - each volume is scanned exactly once (the
+     * no-double-scan acceptance). MERGE NOTE (this lane's semantics kept):
+     * a target skipped honestly (probe found no FS) is NOT recorded here,
+     * so discovery still gets its chance on the damaged volume (the og's
+     * lost partitions are ADDITIONAL targets, never replacements). */
+    std::vector<u64> table_target_lbas_;
 };
 
 } // namespace orchestrator

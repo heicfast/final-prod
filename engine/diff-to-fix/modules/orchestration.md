@@ -224,7 +224,7 @@ CLI flag + session round-trip). The W1a/W1b/W1c orchestration claims verified
 
 ## Session-10 wave-2 addendum (2026-10-29, continuation lane — audited `84a1832`; EXECUTED evidence)
 
-- **S-051 (SEVERE — renumbered from the lane's S-050; the remote SA-10 close performed the same repair convergently)** — the whole-disk scan target never consults the
+- **S-051 (SEVERE — FIXED at `6ecd6bb4`, session 40)** — the whole-disk scan target now consults the
   partition list: `cr_ui_open_disk` + scan (the CLI `scan --disk N` without
   `--whole-disk`) probes LBA 0 (the MBR), dispatches Unknown, and returns
   rc=0 with ZERO files on a healthy multi-volume disk. The og's
@@ -243,6 +243,11 @@ CLI flag + session round-trip). The W1a/W1b/W1c orchestration claims verified
   fix order resolves the family coherently.
 
 ## Session-11D fix lane (2026-10-29 — lane D; S-051 + M-104 FIXED, this session)
+
+**DU-merge note:** the S40 lane's block above documents THEIR convergent
+landing (`6ecd6bb4`); the merged tree keeps the union — their host-hint
+gate + stats names, this lane's display names/skip accounting/scanned-only
+reconciliation. See S-051's Resolution addendum in `findings/FIXED/`.
 
 - **S-051 → FIXED** (`run_engine_pass`'s partition-list target block): a
   whole-disk-basis scan with an unforced hint now parses the partition
@@ -269,3 +274,8 @@ CLI flag + session round-trip). The W1a/W1b/W1c orchestration claims verified
 - Residuals recorded in the Resolutions: the og's FS-type marker ROW
   (corpus-ambiguous per the finding's own open question) and the
   standard-root narrowing stay the S-048/M-103 wave's scope.
+### Session-11-lead rows (2026-10-29)
+
+- **M-114** (MAJOR): MainModule's silent System-Restore purge (srclient SRRemoveRestorePoint via WMI enumerate-all, 510-index fallback, BOTH drives of a copy/repartition pair) — absent, undecided, undocumented even in the corpus. The posture decision (host-consent plan item vs registered decline) is the fix lane's.
+- **N-145** (MINOR): the cross-run apply-interruption marker (the og's pendingMarkedDisk; core's CRUNDO01-only posture) — the in-flight journal recommendation.
+- **N-148 item 6** (MINOR): the ReFS og_prop_flags decoded-but-unconsumed datum (the consumer decode or the passive-datum registration).

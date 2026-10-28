@@ -95,6 +95,17 @@ og's undecoded promotion guard). **Board at the S11-lead rebase point: 51 active
 (6 SEVERE · 19 MAJOR · 21 MINOR · 5 INFO) / 289 resolved rows (FIXED-LEDGER) /
 5 tracked-open. Next free IDs: S-053+, M-111+, N-138+, I-031+, A-012+.**
 
+**Session-11-lead waves 2-3 (the five go-deeper lanes, landed):** 12 findings —
+S-054 (SEVERE: the TS/M2TS cap 10× the og's 200 MB clamp), M-115 (MAJOR: the
+promotion trigger read-gated-not-decode-gated — OQ-S11-1 resolved), M-113 (MAJOR:
+the recovered-OS boot surgery absent), M-114 (MAJOR: the System-Restore purge
+undecided), M-115 + N-149/N-143..N-146/N-148 (the six MINORs; the CSL 0x44c finding converged with the S11B lane's M-112 and was dropped per extend-don't-refile), I-033 (the asset-register batch) —
+plus the S-050/N-134 addenda and 7 CORPUS-ERRATA rows. The lane's ID space was
+re-coordinated at filing time against the concurrent lanes' takings (S-053/N-138..
+141/I-031..032 were consumed mid-wave by the parallel S11/S40 lanes; the
+filings cite the current tree). See `evidence/s11-lead-deep-lanes.md` and the
+SUMMARY's session-11 head block.
+
 
 **Merged product repository (audit + dev-sign target):**
 **https://github.com/heicfast/core_recovery** — confirmed by inspection (core

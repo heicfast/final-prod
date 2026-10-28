@@ -73,19 +73,28 @@ namespace preview {
 
 /* Bounding policy for one thumbnail generation. Defaults follow the corpus
  * anchors: max_edge 256 (the og UI-side GDI+ convention), max_pixels 64 MP
- * (keeps worst-case decode memory at 256 MiB RGBA), max_read 32 MiB (M-080:
- * the og's GDI+ path has no input cap; the cap only gates I/O), max_work
+ * (keeps worst-case decode memory at 256 MiB RGBA), max_read 200 MB
+ * (0xC800000 — M-109: the og's still-image eligibility gate, DRWUI
+ * FUN_1402636e0 :422425-429 'if (0xc800000 < size) skip'; the M-080-era
+ * 32 MiB default refused the og-served 32–200 MB band), max_work
  * 1<<22 fetch units (the extract_metadata work-guard scale). */
 struct ThumbnailCaps {
     u32 max_edge = 256;
     u64 max_pixels = 64ull * 1024 * 1024;
-    /* M-080: 32 MiB - the og's GDI+ thumbnail path has NO input byte cap
-     * (FUN_1403d7840 :652377-419); the byte cap only gates I/O here, decode
+    /* M-109: 200 MB = 0xC800000 — the og's still-image eligibility gate
+     * (DRWUI_decompiled.c:422425-429, re-verified first-hand: the size
+     * read FUN_140089170 then 'if (0xc800000 < size) skip the item'; the
+     * 100 MB UIUX/10:23 cap is the PREVIEW panel, a different surface —
+     * not conflated). Below the gate the og decodes and thumbnails
+     * everything; above it the item is skipped (our BudgetExceeded is the
+     * named, honest refusal equivalent). The byte cap gates I/O; decode
      * memory stays bounded by max_pixels (64 MP = 256 MiB RGBA worst
-     * case), and the pre-fix 4 MiB default refused the ordinary 6 MiB
-     * 12-MP photo. Byte-oversized JPEGs still take the embedded fast path
-     * first (a few KiB of reads). */
-    u32 max_read = 32u << 20;
+     * case) — a raised INPUT bound cannot OOM the decode path. The
+     * M-080 comment's "the og's GDI+ path has no input cap" doctrine is
+     * the refuted premise this re-pin replaces (the gate is the cap).
+     * Byte-oversized JPEGs still take the embedded fast path first (a
+     * few KiB of reads). */
+    u32 max_read = 0xC800000;
     u32 max_work = 1u << 22;
     bool allow_embedded = true;
 };
