@@ -99,6 +99,7 @@ CarveResult validate_3ds_ncsd(IStorageDevice* s, u64 hit, u64 cap); /* the list-
 CarveResult validate_ts(IStorageDevice* s, u64 hit, u64 cap);       /* S-047: CMTS, 188-byte */
 CarveResult validate_m2ts(IStorageDevice* s, u64 hit, u64 cap);     /* S-047: CM2TS, 192-byte */
 CarveResult validate_html(IStorageDevice* s, u64 hit, u64 cap);     /* M-092: the four-key chain */
+CarveResult validate_xmlsvg(IStorageDevice* s, u64 hit, u64 cap); /* M-093: the shared chain */
 
 namespace {
 const Signature kTable[] = {
@@ -1052,6 +1053,19 @@ const Signature kTable[] = {
      620,
      validate_html,
      "HTML document"},
+    /* M-093: the XML/SVG chain - four u32 keys, one shared validator;
+     * the probe stamps FMT_XML (the "csl" generic marker) or FMT_SVG
+     * (svg content) via CarveResult::format_override (the og's id is
+     * content-decided, not key-decided). SVGRawFileInfo bounds
+     * {0, 0x100000}. */
+    {FMT_XML, "xml", {'<', '?', 'x', 'm'}, 4, 0, 0, 0x100000ull, 620, validate_xmlsvg,
+     "XML document"},
+    {FMT_XML_BOM, "xml", {0xEF, 0xBB, 0xBF, 0x3C}, 4, 0, 0, 0x100000ull, 620, validate_xmlsvg,
+     "XML document"},
+    {FMT_SVG_CD01, "svg", {0xCD, 0x01, 0x00, 0x00}, 4, 0, 0, 0x100000ull, 620, validate_xmlsvg,
+     "SVG image"},
+    {FMT_SVG, "svg", {'<', 's', 'v', 'g'}, 4, 0, 0, 0x100000ull, 620, validate_xmlsvg,
+     "SVG image"},
 };
 } // namespace
 

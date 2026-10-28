@@ -211,6 +211,16 @@ enum FormatId : u32 {
     FMT_HTML_H,     /* u16 "<H" 0x483c */
     FMT_HTML_BANG,  /* u16 "<!" 0x213c */
     FMT_HTML_UTF16, /* u16 FF FE 0xfeff - the BOM chain */
+    /* M-093 (diff-to-fix): the og's XML/SVG chain - four u32 keys
+     * (<?xm / UTF-8 BOM+'<' / the numeric dword 0x1CD / <svg), one
+     * shared validator, the probe stamping id 0x13 (generic XML, the
+     * "csl" marker) or 0x5b (SVG) by CONTENT (carried by
+     * CarveResult::format_override). Ids APPENDED (serialized
+     * carve_format values stay stable). */
+    FMT_XML,        /* u32 "<?xm" - the declaration path */
+    FMT_XML_BOM,    /* u32 EF BB BF 3C - the UTF-8 BOM path */
+    FMT_SVG_CD01,   /* u32 CD 01 00 00 (the decoded numeric key 0x1cd) */
+    FMT_SVG,        /* u32 "<svg" - the direct SVG path + the probe's override target */
     FMT_COUNT
 };
 
@@ -242,6 +252,14 @@ struct CarveResult {
      * format -> the emit site falls back to the namer callback / the
      * documented File%06u deliberate default. */
     std::u16string embedded_name;
+    /* M-093: the og stamps the FORMAT ID at the probe, not at the
+     * dispatch key - the SVG chain yields 0x5b for svg-content and 0x13
+     * for the generic-XML marker regardless of which of its four keys
+     * fired. When a validator sets this (default 0xFFFFFFFF = none),
+     * the emit site uses it for carve_format and resolves the effective
+     * Signature (ext/name/base-confidence) from the registry row of the
+     * overridden id. */
+    u32 format_override = 0xFFFFFFFFu;
 };
 
 /*

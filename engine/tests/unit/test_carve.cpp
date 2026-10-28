@@ -3972,6 +3972,196 @@ TEST(Carve, HtmlNonHtmlPrefixesRejected) {
     }
 }
 
+
+TEST(Carve, SvgDeclaredSvgAccepted) {
+    /* M-093: the declaration + <svg ...> + </svg> form carves as SVG
+     * (id 0x5b semantics - the probe stamps the id by CONTENT via the
+     * format override) with the end-tag extent. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    const char doc[] =
+        "<?xml version=\"1.0\"?><svg xmlns=\"http://www.w3.org/2000/svg\">BODY</svg>";
+    std::memcpy(img.data() + at, doc, sizeof(doc) - 1);
+    const size_t doc_len = sizeof(doc) - 1;
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr) << "the declared SVG must carve (M-093)";
+    EXPECT_EQ(n->props()->carve_format, u64(FMT_SVG)) << "the content-decided id (0x5b)";
+    EXPECT_EQ(n->props()->logical_size, doc_len) << "the </svg> end-tag extent, exact";
+    std::string name;
+    ASSERT_TRUE(cr::text::lossless_u16_to_utf8(n->props()->name, name));
+    EXPECT_NE(name.find(".svg"), std::string::npos) << "the effective row's extension";
+}
+
+TEST(Carve, SvgBomFormAccepted) {
+    /* M-093: the UTF-8 BOM + '<' key path - the declaration read at +3,
+     * the <svg window hit -> SVG. The needle grammar needs a trailing
+     * char after '>' (the decoded needle set: "<svg>\n" among them). */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    const char doc[] = "<?xml version=\"1.0\"?><svg>\nBODY</svg>";
+    img[at] = 0xEF;
+    img[at + 1] = 0xBB;
+    img[at + 2] = 0xBF;
+    std::memcpy(img.data() + at + 3, doc, sizeof(doc) - 1);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr) << "the BOM-keyed SVG must carve";
+    EXPECT_EQ(n->props()->carve_format, u64(FMT_SVG));
+}
+
+TEST(Carve, SvgDirectKeysAccepted) {
+    /* M-093: the two direct paths - "<svg " (with the space) and the
+     * decoded numeric key CD 01 00 00 (0x1cd) - both stamp SVG with no
+     * declaration needed. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t svg_at = 512;
+    const char svg_doc[] = "<svg xmlns=\"x\">BODY</svg>";
+    std::memcpy(img.data() + svg_at, svg_doc, sizeof(svg_doc) - 1);
+    const size_t cd_at = 4096;
+    img[cd_at] = 0xCD;
+    img[cd_at + 1] = 0x01;
+    img[cd_at + 2] = 0x00;
+    img[cd_at + 3] = 0x00;
+    std::memcpy(img.data() + cd_at + 4, "</svg>", 6); /* a marker for a bounded size */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    auto find_at = [&](size_t off) -> tree::FileNode* {
+        for (tree::FileNode* n : all)
+            if (!n->props()->extents.empty() && n->props()->extents.front().offset == off)
+                return n;
+        return nullptr;
+    };
+    tree::FileNode* s1 = find_at(svg_at);
+    ASSERT_NE(s1, nullptr) << "the \"<svg \" direct path must carve";
+    EXPECT_EQ(s1->props()->carve_format, u64(FMT_SVG));
+    EXPECT_EQ(s1->props()->logical_size, sizeof(svg_doc) - 1);
+    tree::FileNode* s2 = find_at(cd_at);
+    ASSERT_NE(s2, nullptr) << "the numeric-key (CD 01 00 00) direct path must carve";
+    EXPECT_EQ(s2->props()->carve_format, u64(FMT_SVG));
+}
+
+TEST(Carve, GenericXmlFallbackId) {
+    /* M-093: a declaration with the "csl" marker (and no svg needle)
+     * stamps the generic-XML id (0x13 semantics) - the FMT_XML row via
+     * the override. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    const char doc[] = "<?xml version=\"1.0\"?><csl-config>BODY</csl-config>";
+    std::memcpy(img.data() + at, doc, sizeof(doc) - 1);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr) << "the csl-marked XML must carve";
+    EXPECT_EQ(n->props()->carve_format, u64(FMT_XML)) << "the generic-XML id (0x13)";
+    std::string name;
+    ASSERT_TRUE(cr::text::lossless_u16_to_utf8(n->props()->name, name));
+    EXPECT_NE(name.find(".xml"), std::string::npos);
+}
+
+TEST(Carve, XmlNoMarkerNoSvgRejected) {
+    /* M-093: a declaration with NEITHER an svg needle NOR the csl
+     * marker in the 512-byte window rejects - the probe's acceptance
+     * set is exactly {svg needles, csl}. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    const char doc[] = "<?xml version=\"1.0\"?><ordinary><data/></ordinary>";
+    std::memcpy(img.data() + at, doc, sizeof(doc) - 1);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    for (tree::FileNode* c : all)
+        EXPECT_FALSE(c->props()->extents.front().offset == at &&
+                     (c->props()->carve_format == u64(FMT_XML) ||
+                      c->props()->carve_format == u64(FMT_SVG)))
+            << "an ordinary declaration without svg/csl must reject";
+}
+
 TEST(Carve, S007NicheBatch1SalvageSemantics) {
     /* Torn-stream salvage: MIDI with a declared-but-torn track salvages
      * at the last COMPLETE track; Ogg without an EOS page salvages at

@@ -2774,38 +2774,49 @@ static bool ci_wide(const u8* p, const wchar_t* want, size_t n) {
     return true;
 }
 
-static u64 scan_html_end_tag(IStorageDevice* s, u64 start, u64 limit) {
-    /* the chunked "</html>" scan: 1 MiB probe blocks, overlap of
-     * needle-1 bytes so a marker straddling a block edge is found. */
-    static const char kNeedle[7] = {'<', '/', 'H', 'T',
-                                    'M', 'L', '>'}; /* upper - the
-                scan normalizes the buffer up before compare */
+/* The og's shared end-marker scan (FUN_180054470 :64131-64160) is
+ * TWO-VARIANT case-aware: it lowercases the needle (_mbslwr_s) and
+ * scans, then uppercases it (_mbsupr_s) and scans again - it finds the
+ * all-lowercase and the all-uppercase forms, never mixed case. The
+ * chunked walk: probe blocks, needle-1 overlap so a marker straddling
+ * a block edge is found. `needle` arrives lowercase; the upper twin is
+ * derived here. Returns the offset just past the FIRST matching
+ * variant, 0 when none is found within the limit. */
+static u64 scan_tag_two_case(IStorageDevice* s, u64 start, u64 limit, const char* needle) {
+    const size_t n = std::strlen(needle);
+    if (n == 0 || limit <= start + n)
+        return 0;
+    char up[16];
+    if (n > sizeof(up) - 1)
+        return 0; /* the family's needles are short; guard anyway */
+    for (size_t i = 0; i < n; ++i)
+        up[i] = (needle[i] >= 'a' && needle[i] <= 'z') ? char(needle[i] - 'a' + 'A') : needle[i];
+    up[n] = 0;
     std::vector<u8> buf(kProbeBlock);
     u64 block = start;
     while (block < limit) {
         const u64 remain = limit - block;
         const u32 take = u32(std::min<u64>(remain, kProbeBlock));
-        if (take < 7)
+        if (take < n)
             break;
         if (!rd(s, block, buf.data(), take))
             break;
-        for (u32 i = 0; i + 7 <= take; ++i) {
-            bool hit = true;
-            for (u32 b = 0; b < 7; ++b) {
-                char c = char(buf[i + b]);
-                if (c >= 'a' && c <= 'z')
-                    c = char(c - 'a' + 'A');
-                if (c != kNeedle[b]) {
-                    hit = false;
+        for (u32 i = 0; i + n <= take; ++i) {
+            bool hit_l = true, hit_u = true;
+            for (u32 b = 0; b < n; ++b) {
+                if (buf[i + b] != u8(needle[b]))
+                    hit_l = false;
+                if (buf[i + b] != u8(up[b]))
+                    hit_u = false;
+                if (!hit_l && !hit_u)
                     break;
-                }
             }
-            if (hit)
-                return block + i + 7; /* just past the marker */
+            if (hit_l || hit_u)
+                return block + i + n; /* just past the marker */
         }
         if (block + take >= limit)
             break;
-        block += u64(take) - 6; /* needle-1 overlap */
+        block += u64(take) - (n - 1); /* needle-1 overlap */
     }
     return 0; /* not found within the cap */
 }
@@ -2825,7 +2836,7 @@ CarveResult validate_html(IStorageDevice* s, u64 hit, u64 cap) {
         return r; /* the probe's three acceptance forms (plus the wide-'!' form) */
     }
     const u64 limit = probe_limit(s, hit, cap); /* cap = 1 MiB */
-    const u64 marker_end = scan_html_end_tag(s, hit, limit);
+    const u64 marker_end = scan_tag_two_case(s, hit, limit, "</html>");
     /* FUN_180042e60's sector round-up (:50880-50884): the size rounds up
      * to the storage cell's logical sector (512 when the device reports
      * none) - applied to both the marker walk and the cap fallback,
@@ -2850,6 +2861,82 @@ CarveResult validate_html(IStorageDevice* s, u64 hit, u64 cap) {
     r.end = end;
     r.confidence = 500;
     r.note = wide ? "html-bounded-cap+utf16" : "html-bounded-cap";
+    return r;
+}
+
+
+/* ---- XML / SVG (M-093): one og chain, four u32 keys, two probe ids ----
+ * The four registrations (:1806-1837) all construct the
+ * Brance::SVGAnalyser chain: "<?xm" 0x6d783f3c, the UTF-8 BOM+'<'
+ * 0x3cbfbbef (EF BB BF 3C), the numeric key 0x000001cd (bytes CD 01 00
+ * 00 - decoded from .data DAT_180093940 this session; the census's
+ * "undecoded semantics" resolved: it is a raw dword magic whose files
+ * stamp SVG directly), and "<svg" 0x6776733c. The probe
+ * (FUN_180041670 :49622-49703): a CASE-SENSITIVE declaration gate
+ * ("<?xml version=\"" 15 bytes, at +0 or +3 for the BOM form), then
+ * the first 512 bytes are strstr'd for the six <svg needles (decoded
+ * from .data: "<svg " / "<svg\n " / "<svg\r " / "<svg> " / "<svg>\n"
+ * / "<svg>\r") -> SVG id 0x5b; else the "csl" marker (DAT_180093968 =
+ * the Corel symbol-library string) -> generic XML id 0x13. Direct key
+ * paths (no declaration): dword@0 == 0x1cd, or "<svg " (dword "<svg"
+ * + byte ' ') -> SVG. SVGRawFileInfo bounds {0, 0x100000} (:49721+
+ * FUN_180041880). Size: the </svg> family end-tag walk (the
+ * .data 0x180093950 string) - the two-case scan, 1 MiB cap, NO sector
+ * round-up (FUN_180041950's tail sets the size verbatim; the HTML twin
+ * FUN_180042e60 is the round-up exception). Residual (recorded, the
+ * M-106 stand-in discipline): the walker's 0x44c branch (the CSL
+ * size = dword@0x44c + 0x480 for files long enough to span it) is
+ * decoded only partially and stays unported. */
+CarveResult validate_xmlsvg(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 win[513];
+    u64 n = 0;
+    if (s->size() > hit) {
+        n = std::min<u64>(512, s->size() - hit);
+        if (!rd(s, hit, win, u32(n)))
+            return r;
+    }
+    win[n] = 0;
+    bool svg = false, generic_xml = false;
+    const bool decl0 = n >= 15 && std::memcmp(win, "<?xml version=\"", 15) == 0;
+    const bool decl3 = n >= 18 && std::memcmp(win + 3, "<?xml version=\"", 15) == 0;
+    if (decl0 || decl3) {
+        static const char* const kSvgNeedles[6] = {
+            "<svg ", "<svg\n ", "<svg\r ", "<svg> ", "<svg>\n", "<svg>\r",
+        };
+        for (const char* nd : kSvgNeedles) {
+            if (std::strstr(reinterpret_cast<const char*>(win), nd) != nullptr) {
+                svg = true;
+                break;
+            }
+        }
+        if (!svg && std::strstr(reinterpret_cast<const char*>(win), "csl") != nullptr)
+            generic_xml = true; /* the Corel marker -> id 0x13 */
+    } else if (n >= 4 && u32_from_bytes_le(win) == 0x000001cdu) {
+        svg = true; /* the numeric key's direct path */
+    } else if (n >= 5 && std::memcmp(win, "<svg", 4) == 0 && win[4] == ' ') {
+        svg = true; /* the "<svg " direct path */
+    }
+    if (!svg && !generic_xml)
+        return r;
+    const u64 limit = probe_limit(s, hit, cap); /* cap = 1 MiB */
+    const u64 marker_end = scan_tag_two_case(s, hit, limit, "</svg>");
+    /* the og stamps the FORMAT ID at the probe (id 0x5b vs 0x13 depends
+     * on CONTENT, not on the dispatch key) - carried via the override */
+    r.format_override = svg ? u32(FMT_SVG) : u32(FMT_XML);
+    if (marker_end != 0) {
+        r.ok = true;
+        r.end = marker_end;
+        r.confidence = 700;
+        r.note = svg ? "svg-endtag-walk" : "xml-csl-endtag-walk";
+        return r;
+    }
+    /* no marker within the cap: the bounded fallback (the family
+     * convention), the heuristic note */
+    r.ok = true;
+    r.end = limit;
+    r.confidence = 500;
+    r.note = svg ? "svg-bounded-cap" : "xml-bounded-cap";
     return r;
 }
 

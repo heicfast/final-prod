@@ -85,6 +85,10 @@ constexpr u32 kTrialOrder[] = {
     /* M-092: the HTML keys (distinct 2-byte magics; one shared
      * validator - first-key-first is deterministic) */
     FMT_HTML, FMT_HTML_H, FMT_HTML_BANG, FMT_HTML_UTF16,
+    /* M-093: the XML/SVG keys (distinct 4-byte magics, one shared
+     * validator; FMT_SVG first so a direct svg-start document wins the
+     * tie against the <?xm row's interior <svg re-match) */
+    FMT_SVG, FMT_SVG_CD01, FMT_XML, FMT_XML_BOM,
     /* S-017: ftyp-destroyed MOV salvage (og MovAnalyzer list layer) -
      * LAST: the ftyp-keyed entries must claim the position first */
     FMT_MOV_NAKED};
@@ -431,6 +435,17 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 return ERR_NO_MEMORY;
             }
             const u32 idx = ctx.file_index.fetch_add(1, std::memory_order_relaxed);
+            /* M-093: the og stamps the FORMAT ID at the probe (the SVG
+             * chain's 0x5b-vs-0x13 split is content-decided, not
+             * key-decided). The override resolves the EFFECTIVE
+             * Signature (ext/name/base-confidence) from the overridden
+             * row; the dispatch row's bounds already gated the
+             * candidate. Registry rows are FormatId-indexed (one per
+             * id), so ctx.reg[id] is the effective row. */
+            const Signature& eff =
+                (cr.format_override != 0xFFFFFFFFu && cr.format_override < FMT_COUNT)
+                    ? ctx.reg[cr.format_override]
+                    : sig;
             /* N-063: the og's per-analyser name first (the analyser's
              * own SetName - e.g. MP4/MOV's "Lost Name File (...)_EaseUS"
              * template), then the caller's namer callback, then the
@@ -438,13 +453,13 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
              * formats with no decoded og naming rule). */
             props->name = !cr.embedded_name.empty()
                               ? cr.embedded_name
-                              : (ctx.namer ? ctx.namer(sig, file_len, idx)
-                                           : default_namer(sig, file_len, idx));
+                              : (ctx.namer ? ctx.namer(eff, file_len, idx)
+                                           : default_namer(eff, file_len, idx));
             props->fs_kind =
                 u32(FsKindCode::Raw); /* carved (row 45: was invented 0xFF; factory RAW=6) */
             props->logical_size = file_len;
-            props->carve_format = sig.id;
-            props->carve_confidence = u16((sig.base_confidence + cr.confidence) / 2);
+            props->carve_format = eff.id;
+            props->carve_confidence = u16((eff.base_confidence + cr.confidence) / 2);
             /* N-089: the analyser's evidence note rides the node (the og's
              * CRAW second-string field +0x5A): the per-family evidence
              * ("page-math", "RIFF+AVI+hdrl", ...) and the FCP-event-database
@@ -491,8 +506,8 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
              * DLL-absent degrade). */
             if (ctx.flags->post_processor) {
                 CarveCandidateInfo ci;
-                ci.format_tag = sig.id;
-                ci.format_ext = sig.ext;
+                ci.format_tag = eff.id;
+                ci.format_ext = eff.ext;
                 ci.offset = cand_abs;
                 ci.length = file_len;
                 ci.confidence = u16(props->carve_confidence); /* 0..1000: fits u16 */
