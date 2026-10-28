@@ -104,7 +104,7 @@ UI/UX layer: owned by the downstream project, not in scope — covers DRWUI.exe 
 | recoveryFree.ini | OOS-LICENSING | 128-byte free-edition quota state, read only by DRWUI's trial registry family; the quota gate lives in DRWUI's CRecoveryMgr upsell flow (3-C) | none | OOS (verified) |
 | SaveScan/*.rsf | WRAPPER-VERIFIED | Scan-session persistence, format FULLY REVERSED + byte-exact-validated (`rsf-format--scan-session.md`); core `cr_crsf` + `docs/crsf-format.md` (D-60g robustness supersets) | `cr_crsf` | VERIFIED |
 | send_dmp_with_aliyun.exe | REPORTING-OOS | Crash-dump uploader (`DRWReport-exe--crash-reporter.md:21-28`) | none | OOS (verified) |
-| EaseUS_MediaGraph.dll + VideoViewer/ffmpeg.exe + avcodec-62/avformat-62/avutil-60/... | FEATURE (TRIAGE-UI-AMBIGUOUS resolved) | The og's media decode path: MediaGraph = full ffmpeg pipeline (open_input → find_stream_info → decoder → frame → DIB) hosted by the UI viewer over zmq/TCP; the og's engines never decode. Per session-owner directive the DECODE capability is engine-side FEATURE (cr_thumbnail); viewer/protocol/process stays UI. ffmpeg also appears repair-side (AVIF shell-out) — repair stays OOS (3-D) | `cr_thumbnail` (new; video key-frames = phase 2 with the ffmpeg dependency decision) | DONE (v1 still images, commit eeedc43; see Section C.2) |
+| EaseUS_MediaGraph.dll + VideoViewer/ffmpeg.exe + avcodec-62/avformat-62/avutil-60/... | FEATURE (TRIAGE-UI-AMBIGUOUS resolved) | The og's media decode path: MediaGraph = full ffmpeg pipeline (open_input → find_stream_info → decoder → frame → DIB) hosted by the UI viewer over zmq/TCP; the og's engines never decode. Per session-owner directive the DECODE capability is engine-side FEATURE (cr_thumbnail); viewer/protocol/process stays UI. ffmpeg also appears repair-side (AVIF shell-out) — repair stays OOS (3-D) | `cr_thumbnail` (new; video key-frames = phase 2 with the ffmpeg dependency decision) | DONE (v1 still images, commit 05e6786; see Section C.2) |
 | EURawImg.exe | SIDECAR-OOS | DRWUI's hidden RAW-decode sidecar (LibRaw static, 467 exports; mutex/event protocol, ~200 MiB request bound; 3-B/3-D) — the DECODE capability maps to cr_thumbnail phase-2 RAW (LibRaw thumbnail API) | none (phase-2 cross-ref) | OOS (verified) |
 | EuSendMessage.exe | INSTALLER | PE-only one-shot WM_COPYDATA messenger to the "DRW_Installer" wizard window (cmd 999) — scripted builder/installer flows (`WinPE/eusendmessage--wm-copydata-messenger.md:9-33`) | none | skip (verified; reclassified from SIDECAR-TRIAGE) |
 | EuICloudRecovery.dll | EXCLUDED-NAS | iCloud client (`esicloud`) | none | skip |
@@ -178,7 +178,7 @@ UI/UX layer: owned by the downstream project, not in scope — covers DRWUI.exe 
    GdipGetImageThumbnail; MediaGraph/ffmpeg → BMP ≤1 MiB over zmq; EURawImg for
    RAW; libheif embedded thumbnails; pdfium for PDF); the core's in-process
    doctrine makes the engine-side capability a deliberate documented superset
-   (I-015 lineage). **DONE (commit eeedc43): v1 still images — JPEG
+   (I-015 lineage). **DONE (commit 05e6786): v1 still images — JPEG
    (baseline+progressive), PNG, BMP/DIB, GIF (first frame), PSD/PNM/HDR via the
    vendored public-domain decoder (third_party/stb, LICENSE + BUILD-SUPPRESSIONS
    S-1) + native baseline TIFF (uncompressed/PackBits/Deflate strips, 8/16-bit,
