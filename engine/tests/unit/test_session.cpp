@@ -1444,7 +1444,9 @@ struct LoadHookState {
     u64 calls = 0;
     u64 last_done = 0;
     u64 total_seen = 0;
-    bool cancel_at_done = 0; /* cancel once done >= cancel_at_done */
+    u64 cancel_at_done = 0; /* cancel once done >= cancel_at_done (a
+                             * threshold, not a flag - MSVC C4804/C4305
+                             * under /W4 /WX, run 40690974024) */
 };
 bool load_progress_counter(u64 done, u64 total, void* user) {
     auto* st = static_cast<LoadHookState*>(user);
