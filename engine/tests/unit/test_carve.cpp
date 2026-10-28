@@ -7667,6 +7667,42 @@ TEST(UserSigns, RegistrationRoundTripProceedsToScan) {
     }
 }
 
+TEST(UserSigns, ShortFragmentMatchesInCore) {
+    /* N-168: the og's sign matcher guards at offset + hex-STRING length -
+     * TWICE the bytes it actually reads (a 4-byte sign demands >= 8 bytes;
+     * DRWUI :1003371/:1003545, re-read first-hand: the guard compares
+     * size < offset + hexstrlen while the matcher uses hexstrlen >> 1).
+     * Fragments in [offset+bytes, offset+2*bytes) are never tested by
+     * the og; the core uses the correct decoded-byte bound and matches
+     * them - the registered deliberate SUPERSET (PARITY-DELTAS D-117:
+     * adopting the og's 2x guard would LOSE matches; the og's guard is
+     * an og defect). */
+    const char* json =
+        "{\"frag\": { \"signs\": [\"0,DEADBEEF\"], \"mime\": \"application/x-frag\" }}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(set)));
+    /* a 5-byte fragment: past the 4 decoded bytes, BELOW the og's 2x=8
+     * guard - the core's byte bound matches, the og never tests it */
+    const u8 frag5[5] = {0xDE, 0xAD, 0xBE, 0xEF, 0x00};
+    const carve::usersigns::UserSign* hit = carve::usersigns::match_at(frag5, 5);
+    ASSERT_NE(hit, nullptr) << "the core's decoded-byte bound matches the short fragment";
+    EXPECT_EQ(0u, hit->offset);
+    EXPECT_EQ(4u, hit->len) << "4 bytes read (the og's guard would demand 8)";
+    /* the true reject: below the DECODED bound */
+    const u8 frag3[3] = {0xDE, 0xAD, 0xBE};
+    EXPECT_EQ(nullptr, carve::usersigns::match_at(frag3, 3))
+        << "below the byte bound still rejects (the correct bound, not none)";
+    /* restore the prevailing installed state (the round-trip test's zip
+     * set) so later scan-based tests see the same world */
+    const char* zip_json =
+        "{\"zip\": { \"signs\": [\"0,504B0304\",\"526,504B537058\"], "
+        "\"mime\": \"application/zip\" }}";
+    carve::usersigns::UserSignSet zset;
+    ASSERT_EQ(OK, carve::usersigns::parse(zip_json, std::strlen(zip_json), zset));
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(zset)));
+}
+
 TEST(UserSigns, DefaultSetShipsAndLoads) {
     /* M-065: the shipped default set (data/userdata-defaults.json, the
      * og's own 111-entry install-tree EUUserData, byte-measured in the

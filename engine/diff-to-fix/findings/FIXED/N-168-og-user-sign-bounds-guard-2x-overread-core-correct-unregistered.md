@@ -57,3 +57,10 @@ directly). Registry: no row.
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-168 landing — post-push SHA in the ledger row and worklog entry)
+**Verified by:** `UserSigns.ShortFragmentMatchesInCore` (the 5-byte fragment vs the 4-byte sign: matched in core, never tested by the og — the og's 2× guard would demand 8; the below-decoded-bound reject still holds; the prevailing installed state restored after the test). Suite green at the landing tree.
+**Resolution notes:** Corpus re-verified first-hand: both guard sites re-read (DRWUI :1003371 — `local_d0 < local_d8 + uVar2` with uVar2 the hex-string length; :1003545 — `param_3 < param_5[2] + param_4` with the matcher at the same site using `param_5[2] >> 1`); the core's bound re-read live (cr_usersigns.cpp's decoded-byte check). The fix followed the finding's plan: the superset registered as PARITY-DELTAS D-117 with the og-defect rationale (adopting the 2× guard would lose matches — the CHK-repair identify flow's short-fragment population), NO code change (the core is correct), and the optional pin test landed as the stance's executable documentation.

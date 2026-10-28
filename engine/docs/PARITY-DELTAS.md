@@ -3573,3 +3573,20 @@ recovery-relevant salvage. Evidence: N-164's corpus cites (re-read first-hand
 this session: the saturation alloc at :4530-4541, the 32-bit product read at
 :4541, the 0x80 stride at :4703); the core's guards at cr_table_parse.cpp
 :38/:40/:76-81/:100.
+
+### D-117 — the user-sign availability bound is the decoded-byte length, not the og's 2× hex-string guard (N-168 registration, REGISTERED SUPERSET — the og's guard is an og defect)
+
+The og's sign matcher refuses to test any file whose length is below
+`offset + hexStringLength` — twice the bytes it actually reads (the guard at
+DRWUI_decompiled.c:1003371 and :1003545 compares against the hex TEXT length
+while the matcher at the same sites uses `hexstrlen >> 1`, the decoded byte
+count). A 16-byte sign at offset 0 therefore demands a ≥32-byte file; fragments
+in [offset+bytes, offset+2·bytes) are never tested. The core's
+`cr_usersigns.cpp` bound is the correct decoded-byte length
+(`s.offset + s.len > avail`), and it matches those fragments — a deliberate
+superset: adopting the og's 2× guard would LOSE matches on short fragments (the
+CHK-repair identify flow's exact population); the og's guard is an og defect,
+not a parity contract. Evidence: N-168's cites (both og sites re-read
+first-hand this session); the pin test `UserSigns.ShortFragmentMatchesInCore`
+(the 5-byte fragment vs the 4-byte sign: matched in core, never tested by the
+og; the below-byte-bound reject still holds).

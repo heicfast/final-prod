@@ -937,3 +937,12 @@ Evidence: `evidence/decompiled-quotes/s42-ogg-zip-typing-and-report-decodes.md` 
   UserSigns.ManifestEightCharExtParses pins the boundary from both sides
   (manifest@8 parses; a 9-char ext rejects) so a future caps-tightening
   pass cannot silently break og-stock-DB compatibility.
+
+- **N-168 FIXED** (MINOR — the user-sign bounds-guard superset registered):
+  both og guard sites re-read first-hand (DRWUI :1003371/:1003545 — the guard
+  demands offset + hex-STRING length while the matcher reads hexstrlen >> 1).
+  The core's decoded-byte bound is the deliberate SUPERSET, registered as
+  PARITY-DELTAS D-117 (the og's 2× guard is an og defect — adopting it would
+  lose the CHK-repair short-fragment matches). No code change;
+  UserSigns.ShortFragmentMatchesInCore pins the stance (the 5-byte fragment
+  matched, the below-byte-bound reject held, the prevailing state restored).

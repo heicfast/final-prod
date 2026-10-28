@@ -6131,3 +6131,11 @@ default retired, the N-063 carve-path half superseded); SUMMARY's S42 block.
 **Next (the lane continues):** S-048 (the per-volume `Reconstructed/<vol>`
 grouping — same evidence file, same wave), then S-040 (image create) and
 S-050 (the repair-line registration decision), then the MAJOR tier.
+## Session-43 minors lane — N-168 landed (2026-10-29)
+
+**N-168 FIXED (MINOR — the user-sign bounds-guard superset registered).** Both og
+guard sites re-read first-hand (the 2× hex-string guard vs the >> 1 matcher);
+the core's decoded-byte bound registered as PARITY-DELTAS D-117 with the
+og-defect rationale. UserSigns.ShortFragmentMatchesInCore pins the stance from
+both sides and restores the prevailing installed state. Trail: findings/FIXED/
+N-168 + ledger row + carve.md row + this entry.
