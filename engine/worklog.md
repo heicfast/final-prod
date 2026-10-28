@@ -3176,3 +3176,6 @@ Stage Summary:
   the remaining two (OQ-S4-3 execution-bound; OQ-S10-1 the fix lanes') stay
   tracked. Next: close-out (README currency, final counts, the read-only
   guarantee verification, final push).
+### M-077's Resolution record (session-10, this lane — retired per the purge convention)
+
+**Status:** FIXED · **Commit:** af5ca4d · **Verified by:** Preview.M077SizeGate100MiB (RED pre-fix) + Preview.M077TimeGuardDefaultsOnAndOverridable; suite 1035/1035. **Notes:** Caps::max_file_bytes = 100 MiB (the eligibility gate, refuses before any read, truncated-disclosed) + Caps::max_decode_ms = 15000 (the fetch-heartbeat steady-clock deadline; UINT32_MAX disables); zero-init = ON (product policy); the ABI inherits through the existing Caps{} call site; M-028's 4 MiB read/work budgets unchanged beneath.

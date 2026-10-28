@@ -327,6 +327,7 @@ belongs to the fix lane; this census is the audit-side truth record.
 | M-100 | MAJOR | preview | closed-as-covered — `6d0f16c` (M-066+N-088, an ancestor of the finding's own baselines; the session-10 lane-B verification: `evidence/s10-verification-pass-b.md`) | `findings/MAJOR/M-100-archive-browse-inside-preview-absent.md` (retired by the session-10 lane-B push; never lived in FIXED/ — the capability predated the filing) |
 | M-072 | MAJOR | query/abi | bf17e55 | `findings/MAJOR/M-072-query-axes-path-substring-state-mask.md` |
 | M-074 | MAJOR | writer/abi | 09b311d | `findings/MAJOR/M-074-destination-validation-codes-undifferentiated.md` |
+| M-077 | MAJOR | preview | af5ca4d | `findings/MAJOR/M-077-preview-caps-defaults-absent.md` |
 | N-092 | MINOR | (mid-flight landing) | 5ed862f | `findings/FIXED/N-092-thumbnail-refusal-matrix-and-cache.md` |
 | N-124 | MINOR | (mid-flight landing) | c75755d | `findings/FIXED/N-124-transport-module-rows-superseded-by-ddrv-wave.md` |
 | N-116 | MINOR | (session-38 minor-first lane; the Resolution + RED->GREEN proof live in the retired file and worklog.md's S38 block) | 9445627f (632d21e was a pre-rebase phantom, repaired session 39) | `findings/FIXED/N-116-session-list-row-ordering-diverges-og-time-sort.md` |
