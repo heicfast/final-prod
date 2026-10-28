@@ -290,3 +290,16 @@ and uniquely recovers partitions whose on-disk remnants are destroyed — the ex
 lost-partition use case. B1 verdict: **DIVERGENCE-MAJOR** pending the channel seam
 (the fix plan's CandidateSource feed + the win-layer walk; S-051's fix plan gains
 the channel merge). Evidence: `evidence/decompiled-quotes/s12-lostpart-register-channel.md`.
+
+## S42 continuation lane (2026-10-29 — the partition-recovery focus battery; core `b26017a7`)
+
+- **A30/D12/D13 (the surfaced shape) — DIVERGENCE-MAJOR, M-137**: the og names
+  unnamed candidates `"Lost Partition %d(%s)"` via the per-scan counter
+  (FUN_1403b9330, DRWUI:634817-838 — **resolving M-104's deferred open question 1**),
+  relabels leftovers "Unallocated" (:525588-98), presents Disk/Basic/Dynamic/MBR/GPT/FS
+  rows (UIUX/08 §2), caps insertion at 10 targets and registers each candidate for a
+  "Quick" search (:904229-240), and falls back to 512-byte sectors on a failed
+  geometry query (:904185-87). The core: `Candidate @ <LBA>` roots
+  (cr_scan.cpp:1933-1939), no cap, always-deep candidates, ERR_BAD_PARAMETER
+  refusal on zero sector size, LBA/size/fs-only listing surfaces. Worksheet:
+  `../evidence/decompiled-quotes/s42-lostpart-surface-batch.md`.

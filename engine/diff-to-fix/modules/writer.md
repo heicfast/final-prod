@@ -184,3 +184,32 @@ destinations — the write-proceeds-onto-source-disk window); Q65: the suite is 
 over the regression (1117/1117) because no test pins the wiring. Fix: re-land the
 `3b5397a1` shape + the wiring-fence tests. Evidence:
 `evidence/decompiled-quotes/s12-destarming-regression.md`.
+
+## S42 continuation lane (2026-10-29 — the file-reconstruction focus battery; core `b26017a7`)
+
+Four new rows, all first-hand verified (worksheet:
+`../evidence/decompiled-quotes/s42-reconstruction-export-chain.md`):
+
+- **B2/F60 (recovery correctness under holes) — DIVERGENCE-SEVERE, S-059**: the og
+  writes zero chunks for sparse runs and always produces the full logical size
+  (DRWUI:875661-673 runlist path, :875062-75 chunked path); the core drops sparse
+  runs (`cr_runlist.cpp:190`), has no per-extent logical offset
+  (`cr_node.h:109-120`), left-shifts interior holes, and refuses with
+  ERR_TRUNCATED (`cr_safewriter.cpp:440-444`) — NTFS sparse files and
+  compressed-with-hole-unit files are lost or shifted; the mftwalk comments
+  claim a zero-fill the writer cannot perform.
+- **B9 (timestamp restoration) — DIVERGENCE-SEVERE, S-060**: the og restores DOS
+  attributes + the mask-gated SetFileTime creation/access/write trio after every
+  item (DRWUI:874686-718 — the binary's only SetFileTime; **the N-009d row above
+  ("og never calls SetFileTime") is REFUTED**); the core's DestIo has no metadata
+  surface and zero restoration calls tree-wide — every recovered file carries
+  "now" times and default attributes.
+- **E35 (read-failure policy) — DIVERGENCE-MAJOR, M-135**: the og truncates at the
+  failing run, logs the StartSector/LCN/SPC + ReadCount trio, records error 9,
+  keeps the partial file, and surfaces six numbered causes; the core
+  zero-fills-and-continues (Salvaged) and deletes failed items wholesale; the
+  per-node runtime failure mark (+0x73 bit 1) has no analog.
+- **E35/R51 (the recovery read pipeline) — DIVERGENCE-MAJOR, M-136**: recovery
+  hands the writer the raw device (`rrecov.cpp:2080-2082`, `cr_ui.cpp:4027`)
+  while the scan's Retry(3×)+Cache pipe (`cr_scan.cpp:155-194`) goes unused —
+  one transient read error becomes a permanent zero span.

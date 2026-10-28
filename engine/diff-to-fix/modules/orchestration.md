@@ -299,3 +299,27 @@ reconciliation. See S-051's Resolution addendum in `findings/FIXED/`.
 - **M-114** (MAJOR): MainModule's silent System-Restore purge (srclient SRRemoveRestorePoint via WMI enumerate-all, 510-index fallback, BOTH drives of a copy/repartition pair) — absent, undecided, undocumented even in the corpus. The posture decision (host-consent plan item vs registered decline) is the fix lane's.
 - **N-145** (MINOR): the cross-run apply-interruption marker (the og's pendingMarkedDisk; core's CRUNDO01-only posture) — the in-flight journal recommendation.
 - **N-148 item 6** (MINOR): the ReFS og_prop_flags decoded-but-unconsumed datum (the consumer decode or the passive-datum registration).
+
+## S42 continuation lane (2026-10-29 — the scan-mode semantics focus battery; core `b26017a7`)
+
+- **O31/O38 (the auto-advance state machine) — REGISTER, I-044**: decoded engine-side
+  (CDoScanPartition::DoScan pushes state 1 unconditionally, DRWUI:567875-892; the
+  ScanThread pops states with telemetry events 0-3; controllers 0/1/5/4 = quick/
+  advanced/recycle-bin; the recoverability grade only selects coaching text) — the
+  C1 disposition's "UI-layer state machine" rationale is corrected; the core's
+  default-on stages are confirmed as the correct parity translation. Also
+  registered: settings+0x60/+0x6c are hardwired constants (:947721-22), the
+  4 MiB all-allocated chunk skip (FUN_140585150), the FUN_140581500-vs-FUN_140580720
+  citation erratum, and ZFS compiled out of the shipped og (version.ini scanzfs absent).
+- **O37 (stage order) — DIVERGENCE-MINOR, N-181**: the og starts the RAW carve
+  controllers before the FS deep engines (:916484-916509); the core's carve stage
+  is strictly last — time-to-first-carved-result diverges, result sets identical.
+- **O31/A2 (the deep range) — DIVERGENCE-MINOR, N-182**: the og's deep-only resolver
+  (FUN_14035a6d0: device-type-6 sub-ranges, the 300 MB small-volume rule,
+  neighbor-entry extension); the core reuses the quick slice — D-36's "same
+  StartSector" is the common case, not an invariant.
+- **Grading cells (the recovery-chances battery)**: S-058 (SEVERE — the extension-
+  table gate polarity inverted; the s5 erratum), S-061 (SEVERE — ReFS/Btrfs
+  insert-time High absent), M-133 (the twin-key device family), M-134 (the deep-read
+  validation + full-tree re-grade), N-183 (the gauge population/score/QSDE batch).
+  Worksheet: `../evidence/decompiled-quotes/s42-grading-gate-polarity.md`.
