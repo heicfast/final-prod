@@ -1,3 +1,9 @@
+- **N-129 FIXED** — the og-tree disposition register's six numeric/cite defects, every count
+  re-run against the corpus this session (40 api-ms / 24 CORE_RL / 30 .mo / the :97 DRWReport
+  cite / the on-disk EuOfficeTools casing / the stale self-nested row deleted). Doc-only; the
+  re-runs ARE the acceptance. One self-correction mid-fix: this lane's first pass dropped the
+  EuOfficeTools entry (misreading item 5 as non-existence); the tree re-verification restored
+  it with the correct casing — the finding's text was right.
 - **N-137 FIXED** — the thumbnail ABI header's two contract-truth defects: (1) the section
   comment's "0x50030004 ERR_TRUNCATED never returned" denial replaced with the truth the
   implementation, ABI-CONTRACT §7i, and the existing test already carried (a decode REFUSAL
