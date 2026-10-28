@@ -61,3 +61,10 @@ stride cites). Registry grep: no GPT-strictness row.
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-164 landing — post-push SHA in the ledger row and worklog entry)
+**Verified by:** The registration itself is the fix (registry-truth class): the D-116 row in docs/PARITY-DELTAS.md carries the full record (the og's saturation alloc at :4530-4541, the 32-bit product read at :4541, the hardcoded 0x80 stride at :4703 — all re-read first-hand this session; the core's guards at cr_table_parse.cpp :38/:40/:76-81/:100 re-read live). The existing GPT test family (the table parse suite) stays green — no behavioral change (the finding's own "registry-only" gap verdict).
+**Resolution notes:** The corpus cites re-verified first-hand before registering: the og allocates entry_count × 0x80 with 64-bit saturation and reads entry_size × entry_count as a 32-bit product while its consumers stride the hardcoded 0x80 — the og's "acceptance" of non-128 entry_size is a mis-walk producing wrong data, never salvage. The core's refusal + 1 MiB cap + salvage entries_lba bounds check registered as PARITY-DELTAS D-116 with the refuse-with-code rationale (a library whose callers branch on rc); the modules/ldm.md GPT-salvage cell annotated with the D-116 pointer (the N-154 fix-plan pattern for this row). This closes the registration gap the finding owned; the code was already correct and deliberate.

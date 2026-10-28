@@ -3553,3 +3553,23 @@ standalone product could; the diagnostic preserves the og's
 field-diagnosability intent at the core's logging seam. Evidence: the
 N-139 Resolution + `Carve.OomWindowBufferReturnsCode` /
 `Carve.OomTailBufferReturnsCode` / `Carve.OomNoExceptionEscapesEngine`.
+
+### D-116 — the GPT deliberate strictness: entry_size==128 refusal + the 1 MiB entries-read cap + the salvage entries_lba bounds check (N-164 registration, REGISTERED DIVERGENCE — validation strength over the og's mis-walk)
+
+The og's GPT reader accepts whatever entry_size the (possibly corrupt) header
+declares: it allocates `entry_count × 0x80` with 64-bit saturation
+(Partition_decompiled.c:4530-4541), reads `entry_size × entry_count` bytes as a
+32-bit product, and its consumers stride a HARDCODED 0x80 (:4703) — a non-128
+entry_size produces an og MIS-WALK of the entry array rather than a refusal,
+and there is no entry-count cap. The core refuses (`entry_size != 128 →
+ERR_BAD_PARAMETER`, cr_table_parse.cpp:38 and the salvage twin), caps the
+entries read at 1 MiB (~8192 entries), and bounds-checks the salvage path's
+entries_start_lba — deliberate strictness registered here per the registry's
+own rule (an unregistered delta is a bug, not a delta): a mis-sized array on a
+corrupt header is refuse-with-code territory for a library whose callers
+branch on rc, not silent mis-parse territory. Rationale: the og's hardcoded
+stride means its acceptance of non-128 arrays yields WRONG data, never
+recovery-relevant salvage. Evidence: N-164's corpus cites (re-read first-hand
+this session: the saturation alloc at :4530-4541, the 32-bit product read at
+:4541, the 0x80 stride at :4703); the core's guards at cr_table_parse.cpp
+:38/:40/:76-81/:100.

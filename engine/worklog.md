@@ -6042,3 +6042,14 @@ the boundary from both sides (manifest@8 + class@5 parse; a 9-char ext rejects
 with ERR_BAD_PARAMETER). Trail: findings/FIXED/N-179 + ledger row + carve.md row +
 this entry (no dedicated matrix cell exists for the S42-wave filings - the SUMMARY
 board blocks carry them; noted here for the trail truth).
+
+## Session-43 minors lane — N-164 landed (2026-10-29)
+
+**N-164 FIXED (MINOR — the GPT deliberate strictness registered).** The corpus
+cites re-read first-hand (the saturation alloc :4530-4541, the 32-bit product read
+:4541, the hardcoded 0x80 consumer stride :4703 — the og's acceptance of non-128
+entry_size is a mis-walk, never salvage); the core's guards re-read live
+(cr_table_parse.cpp :38/:40/:76-81/:100). PARITY-DELTAS D-116 registered with the
+refuse-with-code rationale; the modules/ldm.md GPT-salvage cell annotated with the
+D-116 pointer (the N-154 fix-plan pattern). No behavioral change — the finding's
+own registry-only verdict. Trail: findings/FIXED/N-164 + ledger row + this entry.
