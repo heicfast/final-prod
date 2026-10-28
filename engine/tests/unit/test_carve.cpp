@@ -10404,3 +10404,71 @@ TEST(Carve, ThreeDsSectionWalkUsesTheStrideFields) {
     EXPECT_EQ(nd->props()->logical_size, expected)
         << "the stride fields carry the extent (0x40 + the 0x58 shortcut + 0x1234)";
 }
+
+/* ===================================================================== */
+/* M-128 (diff-to-fix): the og's EUUserData consumer converts candidate */
+/* bytes to UPPERCASE hex TEXT (%02X — FUN_140604090:1003619, zero %02x */
+/* in DRWUI.exe) and memcmps against the stored sign string — so the    */
+/* 11 lowercase-hex signs in the og's own shipped file are DEAD         */
+/* configuration in the og. The core decodes hex case-insensitively     */
+/* and compares BYTES: all 190 default signs are live. Registered as    */
+/* PARITY-DELTAS D-125 (deliberate superset, the D-117 class — the      */
+/* og's %02X-only text compare is an og machinery defect, not a         */
+/* semantic contract).                                                  */
+/* ===================================================================== */
+
+TEST(UserSigns, LowercaseHexSignLiveAndRegistered) {
+    /* the og-dead class pinned LIVE: the shipped mpeg sign
+     * "0,000001b321000100" (lowercase b) fires on the bytes it
+     * describes - the byte-decode channel the D-125 registration
+     * protects. Fail-state: any future "og-faithful" case-folding
+     * makes this sign dead and the test fails. */
+    const char* json =
+        "{\"mpeg\": {\"signs\": [\"0,000001b321000100\"], \"mime\": \"video/mpeg\"}}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    ASSERT_EQ(1u, set.signs.size());
+    EXPECT_EQ(8u, set.signs[0].len);
+    EXPECT_EQ(0x00u, set.signs[0].bytes[0]);
+    EXPECT_EQ(0xB3u, set.signs[0].bytes[3])
+        << "the lowercase 'b3' decodes to the same byte as 'B3'";
+    EXPECT_EQ(0x00u, set.signs[0].bytes[7]);
+}
+
+TEST(UserSigns, UppercaseHexSignMatches) {
+    /* the regression pin: uppercase signs (the only og-live form) keep
+     * matching - identical bytes to the lowercase twin */
+    const char* json =
+        "{\"mpeg\": {\"signs\": [\"0,000001B321000100\"], \"mime\": \"video/mpeg\"}}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    ASSERT_EQ(1u, set.signs.size());
+    const u8 want[8] = {0x00, 0x00, 0x01, 0xB3, 0x21, 0x00, 0x01, 0x00};
+    EXPECT_EQ(0, std::memcmp(want, set.signs[0].bytes, 8));
+}
+
+TEST(UserSigns, DefaultSetEffectiveCount) {
+    /* the D-125 census: the shipped default set's EFFECTIVE count is 190
+     * live signs - all 11 lowercase-hex members (10 pure-lowercase mpeg
+     * + 1 mixed-case img, the corrected census; the finding's text said
+     * 12) load and fire in the core where 11 are dead in the og. */
+    std::ifstream in(std::string(CR_SOURCE_DIR) + "/data/userdata-defaults.json",
+                     std::ios::binary);
+    ASSERT_TRUE(in.good());
+    std::string json((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json.data(), json.size(), set));
+    EXPECT_EQ(190u, set.signs.size()) << "the effective count under D-125: all live";
+    /* the og-dead subset is present in the live set: count signs whose
+     * textual form carried lowercase hex - proven by decoding both the
+     * file and the loaded set: the mpeg signs starting 00 00 01 B3/BA
+     * with the 8-byte shapes are the lowercase family */
+    u32 mpeg_ps = 0;
+    for (const auto& s : set.signs) {
+        if (std::strcmp(s.ext, "mpeg") == 0 && s.len >= 4 && s.bytes[0] == 0x00 &&
+            s.bytes[1] == 0x00 && s.bytes[2] == 0x01 &&
+            (s.bytes[3] == 0xB3 || s.bytes[3] == 0xBA))
+            ++mpeg_ps;
+    }
+    EXPECT_GE(mpeg_ps, 10u) << "the og-dead mpeg family is loaded live";
+}

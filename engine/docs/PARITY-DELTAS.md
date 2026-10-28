@@ -3773,3 +3773,36 @@ fold-direction pin `Ext4Engine.SizeHighFoldIsRegularOnlyNotTheOgUnconditionalDef
 (hi=1/lo=0xFFFFFFFF surfaces the full 8 GiB-1 size — the direction
 `LegacyAclDirSizeClean` leaves unpinned) plus
 `Ext4Engine.Post2038FileTimeConversionStays64Bit`. Both lanes' records kept.
+
+### D-125 — user-sign hex-case semantics: case-insensitive byte-decode, not the og's %02X-only text compare (M-128 registration, REGISTERED IMPROVEMENT — the D-117 class)
+
+- **WHAT OG DOES:** the EUUserData consumer converts candidate file bytes
+  to UPPERCASE hexadecimal text (`%02X` — FUN_140604090 at
+  `DRWUI_decompiled.c:1003619`; zero `%02x` anywhere in DRWUI.exe) and
+  memcmps against the stored sign string (`:1003452`/`:1003555`). Any
+  sign containing lowercase hex can never match: the og's own shipped
+  EUUserData carries **11** such signs (10 pure-lowercase MPEG-PS
+  `000001b3…`/`000001ba…` family + 1 mixed-case img sign — the census
+  re-counted first-hand this session at `og-codebase/EUUserData`;
+  corrects the finding's "12" per the corpus-wins rule) — dead
+  configuration in the og.
+- **WHAT WE DO:** `cr_usersigns.cpp` decodes both hex cases to BYTES and
+  compares bytes (`hex_nibble` accepts 0-9/a-f/A-F, `match_at` memcmps
+  decoded bytes) — all 190 signs of the shipped default set are live,
+  including the 11 og-dead ones.
+- **WHY:** the og's %02X-only text compare is a string-handling defect of
+  its UI-layer identify flow (the vendor's own DB ships signs its matcher
+  can never fire), not a semantic contract; comparing decoded bytes is
+  the architecturally right channel (the core's user-sign channel is
+  itself the D-104-registered superset — the og's scan engine has no
+  user-sign channel at all). Folding case to match the defect would
+  break good code to reproduce an og weakness.
+- **RISK:** parity benches on the user-sign channel must normalize for
+  D-104 (the channel) + this row (the 11-sign subset): core-only carve
+  records in the MPEG-PS free-space class are expected and explained.
+- **VERDICT: ACCEPTED** (deliberate superset, registered M-128; pins:
+  `UserSigns.LowercaseHexSignLiveAndRegistered` (the og-dead class fires)
+  + `UserSigns.UppercaseHexSignMatches` (the og-live form unchanged) +
+  `UserSigns.DefaultSetEffectiveCount` (190 live, the og-dead mpeg family
+  present) — future sessions must not case-fold the decoder down to the
+  og's dead-configuration semantics).
