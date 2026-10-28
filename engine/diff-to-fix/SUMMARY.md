@@ -7066,3 +7066,25 @@ Both resolvable tracked-open questions closed this wave:
 
 **Board after wave 2:** 58 active (6 SEVERE · 27 MAJOR · 21 MINOR · 5 INFO)
 + the two OQ closures in the ledger.
+
+# SUMMARY.md — executive summary (the S57 severe-first fix lane's convergence records on top; the prior lanes below, newest-first)
+
+## Session-57 S57 fix-lane delta (2026-10-29 — the user's severe-first directive; core `fa654673` at open, corpus `be0cfe9`; the lane seat rebranded S47-draft → S57 across the S45..S56 hot window per SA-9)
+
+**A-014 CONVERGENT (the ACUTE tier is CLOSED at the merged tree):** this lane's
+independent verification + fix collided with the S45 lane's winning landing
+`862d79ef` (byte-equivalent gate: the identical DosDateTimeToFileTime reject set on
+the shared converter). This lane's unique evidence preserved as the finding file's
+Convergence addendum II: the RAW-DISASSEMBLY verification of the corpus binary itself
+(the four KERNEL32!DosDateTimeToFileTime call sites at exact addresses — IAT
+0x18004d088; the three dentry-stamp sites 0x1800289d1/:a1f/:a51, each carrying the
+`test eax,eax; jne <skip>; mov rdi,[slot]` zero-on-fail tail; the fourth site
+0x180032c38 outside the dentry path) — the strongest verification grade for the
+finding's central claim, confirming the decompiled quote against the shipped binary.
+The independent 6-test RED battery reproduced the fabrication on pre-fix main before
+the pull; the redundant tests were DROPPED per the superset rule (the merged S45+S51
+battery covers the full boundary set incl. the per-slot zeroing shape). **Board at
+the merged tree (filesystem truth, this lane's re-count): 0 ACUTE · 9 SEVERE · 25
+MAJOR · 30 MINOR · 0 INFO active (the S48 INFO retirements closed the tier) /
+77 FIXED files / 6 tracked-open (OQ-S42-2's Btrfs-nsec decode landed; its finding
+file's retirement pending its own lane's trail sweep).**

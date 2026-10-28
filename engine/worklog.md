@@ -7378,3 +7378,52 @@ collide iff the kind shifts), TwinKeyFat16StillShifts (the pin), TwinKeyExt4Ntfs
 draft's NTFS neighbor was vacuous, caught live). Suite 1290/1290 (linux-release).
 Trail: findings/FIXED/M-133 + ledger row + matrix cell + orchestration.md row + this
 entry + OQ-S52-1.
+## Session-57 severe-first fix lane — A-014 CONVERGENT (2026-10-29)
+
+**Lane territory (the user's severe-first directive; this lane's draft seat S47 was
+consumed by the remote MAJOR-first S47 lane across the hot window — rebranded S57 per
+SA-9 earlier-push-wins):** A-014 first, then the SEVERE tier
+S-040/S-050/S-055..S-061, then the MAJOR tier, 20+ fixes targeted. Audited pin: core
+`fa654673`, corpus `be0cfe9`. Baseline: suite 1203/1203 green at pin (42 thumbnail
+fixture skips, 0 failed).
+
+**A-014 FIXED (ACUTE — the FAT time-word fabrication):** independently verified before
+any change: (1) the corpus binary itself disassembled first-hand — og-codebase/
+FATSearchDLL.dll (PE32+) imports KERNEL32!DosDateTimeToFileTime at IAT 0x18004d088
+with exactly three clustered call sites (0x1800289d1 create time@+0x0E/date@+0x10 →
+node+0x25; 0x180028a1f write time@+0x16/date@+0x18 → node+0x2D; 0x180028a51 access
+date@+0x12/time=0 → node+0x35), each followed by `test eax,eax; jne skip; mov
+rdi,[slot]` — the zero-on-fail the decompiled quote :32131-32154 documents, confirmed
+against the raw binary; (2) the core's gap reproduced RED on main (6 failing tests:
+time 0xC000 with valid date returned date+1day; minute 60 returned +60min; 2s-field 30
+returned +60s — all fabricated plausibles); (3) the exFAT sibling's own gate
+FUN_180002f40 (already in-tree as `fat_datetime_fields_ok`) pins the identical
+boundary set hour≤23/min≤59/2s≤29 — the shared-helper fix cannot diverge exFAT (its
+M-014 gate rejects the class upstream). 
+**A-014 CONVERGENT per SA-9:** the pull revealed the S45 lane's winning landing
+`862d79ef` (pushed mid-flight with the S51 convergence addendum already recorded) —
+byte-equivalent gate, the identical DosDateTimeToFileTime reject set. Their landing
+stands; this lane's commit resolves to the convergence record: the raw-disassembly
+addendum II in the finding file (the four call-site addresses pinned in the corpus
+binary — IAT 0x18004d088, dentry sites 0x1800289d1/:a1f/:a51, the zero-on-fail tail
+`test eax,eax; jne; mov rdi,[slot]` at each), and this lane's 7 supplementary tests
+DROPPED as redundant (the merged S45+S51 battery — incl. the per-slot zeroing pin —
+is the superset; the shared fixture helper name would have collided). The trail
+edits resolve keep-both-sides: the S47 MAJOR-first lane's fat.md/SUMMARY blocks stand,
+this lane's ledger row lands as the convergent-record II row, the matrix cell keeps
+the remote's MATCH wording. Suite at the merged tree re-verified below before push.
+
+This lane's pre-pull verification (kept for the record): the corpus binary itself
+was disassembled first-hand — the evidence that anchors addendum II. The fix built
+locally: the gate in
+`fat_datetime_to_unix_seconds` (cr_fat_wire.h) extended to
+`hour > 23 || minute > 59 || (time & 0x1F) > 29 → 0` — the full DosDateTimeToFileTime
+reject set; the N-021 zero-FileTime mapping in cr_fat_quick.cpp carries the class with
+no change. Finding exemplar corrected: 0x65C4 is month 14 (invalid), the valid
+June-4-2030 word is 0x64C4. Tests: `FatEngine.TimeWordHour24/Hour31/Minute60/
+Minute63/SecondField30YieldsZeroTimestamp` (5, RED pre-fix), `FatEngine.
+ValidTimeWordBoundaryUnchanged` (23:59:58/midnight/N-173-pin regression guard),
+`FatEngine.InvalidTimeWordPersistsAsZeroFileTime` (end-to-end zero FileTime in the
+result tree, modified+created). Suite 1210/1210 linux-release; UBSan clean on the
+FAT/exFAT battery (98/98). Trail: findings/FIXED/A-014 + ledger row + matrix cell +
+fat.md S47 addendum + B9 row + SUMMARY block + this entry.
