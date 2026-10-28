@@ -949,7 +949,7 @@ const Signature kTable[] = {
      4,
      0,
      8,
-     16ull << 20,
+     64ull << 20, /* N-148: the M-107-verified 64 MiB stand-in (was 16) */
      620,
      validate_ai,
      "Adobe Illustrator"},

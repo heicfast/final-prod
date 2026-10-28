@@ -5376,7 +5376,10 @@ CarveResult validate_eps(IStorageDevice* s, u64 hit, u64 cap) {
     if (h[0] != '%' || h[1] != '!' || h[2] != 'P' || h[3] != 'S')
         return r;
     r.ok = true;
-    r.end = std::min(hit + u64(16 << 20), probe_limit(s, hit, cap));
+    /* N-148: 64 MiB - the M-107-verified stand-in shape (the registry
+     * row and the finding's "all eleven at 64 MiB"; the 16 MiB drift
+     * made the validator 4x tighter than its own row) */
+    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
     r.confidence = 620;
     r.note = "postscript-covenant+bounded-extent";
     return r;
@@ -5397,7 +5400,9 @@ CarveResult validate_ai(IStorageDevice* s, u64 hit, u64 cap) {
     if (v < 1 || v > 64)
         return r; /* AI format versions 2..10 */
     r.ok = true;
-    r.end = std::min(hit + u64(16 << 20), probe_limit(s, hit, cap));
+    /* N-148: 64 MiB - the M-107-verified stand-in shape (the row
+     * re-pinned with it; was 16 MiB) */
+    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
     r.confidence = 620;
     r.note = "ai-version-gate+bounded-extent";
     return r;

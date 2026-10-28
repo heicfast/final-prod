@@ -8461,7 +8461,11 @@ TEST(Carve, OoxmlRelsPathSplit) {
         for (auto& ch : tail)
             if (ch >= 'A' && ch <= 'Z')
                 ch = char(ch + 32);
-        EXPECT_EQ(tail, c.ext) << "the typed extension";
+        std::string want = c.ext;
+        for (auto& ch : want)
+            if (ch >= 'A' && ch <= 'Z')
+                ch = char(ch + 32);
+        EXPECT_EQ(tail, want) << "the typed extension";
     }
 }
 

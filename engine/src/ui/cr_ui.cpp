@@ -3931,7 +3931,7 @@ u32 thumbnail_generate_impl(cr_ui_device* dev, cr_ui_session* sess, uint64_t nod
     }
 
     /* M-083: the og's grading side-effect - thumbnail success promotes
-     * the node to grade 2 (FUN_1402636e0 :422498-518: grade != 2 ->
+     * the node to grade 2 (FUN_1402636e0 :422507-514: grade != 2 ->
      * FUN_140089630(node, 2)); the node setter's monotonic-max + sticky-2
      * semantics ARE the og's, so a no-op for already-high nodes */
     if (node->grade() != tree::Grade::High)

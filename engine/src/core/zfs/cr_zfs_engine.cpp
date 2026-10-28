@@ -1218,7 +1218,8 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
      * :5685-5841, stride-0x400 slot loop — and opens each slot's txg
      * state through the per-txg VdevLoc::UberData registry
      * FUN_180003150 "addBlock" -> FUN_180017310; newest-txg-only was a
-     * refuted premise, see findings/FIXED/S-034). The core reads all
+     * refuted premise, see the FIXED-LEDGER's S-034 row - the Resolution
+             * is in history at the row's commit, per the purge convention). The core reads all
      * four labels' rings (the existing geometry superset — labels 2/3
      * carry the current txgs on real pools). */
     struct RingState {

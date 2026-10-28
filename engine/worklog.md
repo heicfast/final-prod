@@ -1,3 +1,10 @@
+- **N-148 FIXED** — the comment-truth batch, all seven items: the LDM RAID-5 UNDECODED hedge
+  replaced with the OQ-T7 resolved MATCH; D-09's demanded ZFS wording landed verbatim; the M-112
+  promotion cite tightened to :422507-514; the EPS/AI stand-in caps restored to the M-107-verified
+  64 MiB (the AI ROW's own 16 MiB drift — a second defect the filing missed — found and fixed in
+  the same pass); the two surviving dangling findings/FIXED/ pointers swept to the ledger+history
+  convention (four already repaired by parallel lanes); the og_prop_flags passive-datum registered
+  in the orchestration grading row. Acceptance greps all clean; suite 1138/1138.
 - **N-125 FIXED** — the drive-disconnect states: ERR_DEVICE_DISCONNECTED 0x50020007 (the
   device-gone GLE family: 55/21/1110/1112/1619) classified at both transport read sites; the
   CLI maps it to exit 5 with the reattach-resume instruction; D-121 registers the host-loop
