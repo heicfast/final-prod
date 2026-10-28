@@ -117,9 +117,9 @@ struct Caps {
  * about). Same shape as the carve path's S-032 CarveEntry plus the
  * CRC flag the preview surface reports. */
 struct ArchiveEntry {
-    std::string name; /* entry name (archive-native bytes, UTF-8 pass-through) */
-    u64 size = 0;         /* uncompressed size */
-    u64 compressed = 0;  /* compressed size */
+    std::string name;         /* entry name (archive-native bytes, UTF-8 pass-through) */
+    u64 size = 0;             /* uncompressed size */
+    u64 compressed = 0;       /* compressed size */
     bool crc_present = false; /* CD CRC-32 != 0 (the damaged-entry marker) */
 };
 
@@ -131,7 +131,8 @@ constexpr u32 kMaxPreviewArchiveEntries = 512;
 
 struct Metadata {
     std::string kind;   /* image|video|audio|document|archive|text|unsupported */
-    std::string format; /* jpeg|png|gif|bmp|tiff|webp|mp4|wav|pdf|docx|zip|txt (N-088: no mov - no producer) */
+    std::string format; /* jpeg|png|gif|bmp|tiff|webp|mp4|wav|pdf|docx|zip|txt (N-088: no mov - no
+                           producer) */
     u32 width = 0, height = 0;
     std::string orientation;  /* EXIF orientation as "N" (1..8), "" when absent */
     std::string datetime;     /* EXIF DateTimeOriginal (YYYY:MM:DD HH:MM:SS) */

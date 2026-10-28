@@ -948,7 +948,10 @@ std::vector<u8> build_multi_zip(const std::vector<std::string>& names, u32 body_
         zip.insert(zip.end(), size_t(body_len), u8('z' + i));
         /* the CD record (built later, offsets need lho first) */
         std::vector<u8> cd;
-        const auto p16 = [&cd](u16 v) { cd.push_back(u8(v)); cd.push_back(u8(v >> 8)); };
+        const auto p16 = [&cd](u16 v) {
+            cd.push_back(u8(v));
+            cd.push_back(u8(v >> 8));
+        };
         const auto p32 = [&cd](u32 v) {
             cd.push_back(u8(v));
             cd.push_back(u8(v >> 8));
@@ -998,8 +1001,8 @@ TEST(PreviewMeta, ArchiveEnumeratesEntries) {
     /* M-066: a plain multi-entry zip (the FS-origin case - not a carve
      * child) previews with the full content inventory: names, sizes,
      * compressed sizes, per-entry CRC presence. */
-    const std::vector<u8> zip = build_multi_zip({"readme.txt", "dir/photo.jpg", "data.bin"},
-                                                100, {0, 2});
+    const std::vector<u8> zip =
+        build_multi_zip({"readme.txt", "dir/photo.jpg", "data.bin"}, 100, {0, 2});
     MemDevice dev{std::vector<u8>(zip)};
     const u64 zlen = dev.geometry().total_bytes;
     tree::FileProperties* pr =
@@ -1070,7 +1073,10 @@ TEST(PreviewMeta, ArchiveDocxUpgradeCoexistsWithEnumeration) {
         deflateEnd(&zs);
     }
     std::vector<u8> zip;
-    const auto put16 = [&zip](u16 v) { zip.push_back(u8(v)); zip.push_back(u8(v >> 8)); };
+    const auto put16 = [&zip](u16 v) {
+        zip.push_back(u8(v));
+        zip.push_back(u8(v >> 8));
+    };
     const auto put32 = [&zip](u32 v) {
         zip.push_back(u8(v));
         zip.push_back(u8(v >> 8));
@@ -1174,8 +1180,7 @@ TEST(PreviewDocs, NoIInWindowStreamDriftAndNoMovGhost) {
     for (const char* f : files) {
         std::ifstream in(std::string(CR_SOURCE_DIR) + "/" + f, std::ios::binary);
         ASSERT_TRUE(in.good()) << f;
-        std::string txt((std::istreambuf_iterator<char>(in)),
-                        std::istreambuf_iterator<char>());
+        std::string txt((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
         size_t pos = 0;
         while ((pos = txt.find("IInWindowStream", pos)) != std::string::npos) {
             const std::string around = txt.substr(pos > 40 ? pos - 40 : 0, 80);
@@ -1190,10 +1195,9 @@ TEST(PreviewDocs, NoIInWindowStreamDriftAndNoMovGhost) {
      * producer - N-088's third site) */
     {
         std::ifstream in(std::string(CR_SOURCE_DIR) + "/include/cr/preview/cr_preview.h",
-                        std::ios::binary);
+                         std::ios::binary);
         ASSERT_TRUE(in.good());
-        std::string txt((std::istreambuf_iterator<char>(in)),
-                        std::istreambuf_iterator<char>());
+        std::string txt((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
         const size_t fmt = txt.find("std::string format;");
         ASSERT_NE(std::string::npos, fmt);
         const std::string comment = txt.substr(fmt, 200);

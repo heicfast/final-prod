@@ -37,13 +37,14 @@ namespace usersigns {
  * (16,891-byte file, 111 entries, census in the finding) plus honest
  * hostile-blob headroom - the og's DB must parse clean; anything beyond
  * these bounds is hostile input, rejected atomically. */
-constexpr u32 kMaxSignBytes = 48; /* the og's longest sign is 44 bytes (hqx/img/eps); 48 = 44 + headroom */
-constexpr u32 kMaxEntries = 256;  /* the og ships 111; 2.3x headroom, hostile-blob bound */
+constexpr u32 kMaxSignBytes =
+    48; /* the og's longest sign is 44 bytes (hqx/img/eps); 48 = 44 + headroom */
+constexpr u32 kMaxEntries = 256;      /* the og ships 111; 2.3x headroom, hostile-blob bound */
 constexpr u32 kMaxSignsPerEntry = 12; /* the og's max is 11 signs (mpeg); 12 = 11 + headroom */
-constexpr u32 kMaxOffset = 1024;  /* the og's max offset is 526 (zip "526,504B537058"); the og has no
-                                    * probe-stride bound - 1024 keeps a hostile-input bound */
-constexpr u32 kMaxExtLen = 8;   /* the og's longest ext is 4 ("epub", "hqx") */
-constexpr u32 kMaxMimeLen = 80; /* the og's longest mime is 73 chars (the OOXML pptx string) */
+constexpr u32 kMaxOffset = 1024; /* the og's max offset is 526 (zip "526,504B537058"); the og has no
+                                  * probe-stride bound - 1024 keeps a hostile-input bound */
+constexpr u32 kMaxExtLen = 8;    /* the og's longest ext is 4 ("epub", "hqx") */
+constexpr u32 kMaxMimeLen = 80;  /* the og's longest mime is 73 chars (the OOXML pptx string) */
 
 struct UserSign {
     char ext[kMaxExtLen + 1] = {};   /* lowercased */

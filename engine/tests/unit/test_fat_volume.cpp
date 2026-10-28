@@ -334,8 +334,8 @@ TEST(FatEngine, ShortNameOemBytesDecoded) {
     /* a new dentry: bytes {0x93, 'A', 'B'} + ext "TXT", chain 15 (EOO) */
     u8* root = img.data() + 42 * 512;
     u8 oem[11] = {0x93, 'A', 'B', ' ', ' ', ' ', ' ', ' ', 'T', 'X', 'T'};
-    make_dentry(root + 6 * 32, reinterpret_cast<const char*>(oem), 0x20, 15, 100, 0x5A46,
-                0x6000, false);
+    make_dentry(root + 6 * 32, reinterpret_cast<const char*>(oem), 0x20, 15, 100, 0x5A46, 0x6000,
+                false);
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
     auto* ra = tree.add_root(u"Found");
@@ -350,8 +350,8 @@ TEST(FatEngine, ShortNameOemBytesDecoded) {
         if (n->props() == nullptr)
             continue;
         const std::u16string& nm = n->props()->name;
-        if (nm.size() == 7 && nm[0] == 0xF4 && nm[1] == u'A' && nm[2] == u'B' &&
-            nm[3] == u'.' && nm[4] == u'T' && nm[5] == u'X' && nm[6] == u'T') {
+        if (nm.size() == 7 && nm[0] == 0xF4 && nm[1] == u'A' && nm[2] == u'B' && nm[3] == u'.' &&
+            nm[4] == u'T' && nm[5] == u'X' && nm[6] == u'T') {
             found = true;
             /* and NOT the identity-mapped control U+0093 */
             EXPECT_NE(u16(0x93), nm[0]);
@@ -395,8 +395,8 @@ TEST(FatEngine, ShortNameKaniMarkerPathUnchanged) {
     u8* root = img.data() + 42 * 512;
     /* 0x05 lead byte (the KANJI lead-in for a real 0xE5 first char) */
     u8 kani[11] = {0x05, 'X', ' ', ' ', ' ', ' ', ' ', ' ', 'T', 'X', 'T'};
-    make_dentry(root + 6 * 32, reinterpret_cast<const char*>(kani), 0x20, 15, 100, 0x5A46,
-                0x6000, false);
+    make_dentry(root + 6 * 32, reinterpret_cast<const char*>(kani), 0x20, 15, 100, 0x5A46, 0x6000,
+                false);
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
     auto* ra = tree.add_root(u"Found");
@@ -416,8 +416,8 @@ TEST(FatEngine, ShortNameKaniMarkerPathUnchanged) {
          * - the decoded name is sigma + "X.TXT" (the Latin-1 identity
          * map would have produced U+00E5 - the pre-fix bug) */
         const std::u16string& nm = n->props()->name;
-        if (nm.size() == 6 && nm[0] == 0x3C3 && nm[1] == u'X' && nm[2] == u'.' &&
-            nm[3] == u'T' && nm[4] == u'X' && nm[5] == u'T')
+        if (nm.size() == 6 && nm[0] == 0x3C3 && nm[1] == u'X' && nm[2] == u'.' && nm[3] == u'T' &&
+            nm[4] == u'X' && nm[5] == u'T')
             saw_kani = true;
     }
     EXPECT_TRUE(saw_kani) << "0x05 -> 0xE5 -> CP437 U+00D1, the full marker path";

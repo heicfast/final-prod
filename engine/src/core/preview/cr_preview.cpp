@@ -718,8 +718,7 @@ void docx_sniff(Window& w, Metadata& m) {
                 } else if (m.entries.size() >= kMaxPreviewArchiveEntries) {
                     entries_capped = true; /* hostile archive: cap + flag */
                 }
-                if (nlen == want_len &&
-                    std::memcmp(cd.data() + o + 46, want, want_len) == 0) {
+                if (nlen == want_len && std::memcmp(cd.data() + o + 46, want, want_len) == 0) {
                     lho = le32(cd.data() + o + 42);
                     found = true;
                     /* the hunt continues: the upgrade needs the walk, the

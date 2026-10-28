@@ -184,7 +184,8 @@ u32 parse(const char* bytes, size_t len, UserSignSet& out) {
                         return ERR_BAD_PARAMETER;
                     if (sign_count >= kMaxSignsPerEntry)
                         return ERR_BAD_PARAMETER;
-                    char sig[8 + 1 + kMaxSignBytes * 2 + 8] = {}; /* "offset," + 96 hex digits max */
+                    char sig[8 + 1 + kMaxSignBytes * 2 + 8] =
+                        {}; /* "offset," + 96 hex digits max */
                     if (!r.read_string(sig, sizeof(sig) - 1))
                         return ERR_BAD_PARAMETER;
                     UserSign us;
