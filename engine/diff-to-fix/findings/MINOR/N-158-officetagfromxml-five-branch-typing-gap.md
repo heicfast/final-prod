@@ -66,7 +66,7 @@ Corpus-derived, verified first-hand this session (the S42 SOP — both the decom
 
 ## Related findings
 
-N-115 (FIXED — the parent surface; its Resolution's uncovered tail is this finding); N-152 (the same walk's DXF key gap — FIXED by the parallel window at `4f8fa661`); M-117-dbx (the same registry-key-residue class — FIXED by the parallel window at `1d4c96b6`); N-140 (the per-extension stats surface that the typed ids feed); S-049 (FIXED — the naming contract's per-format counters key on format ids).
+N-115 (FIXED — the parent surface; its Resolution's uncovered tail is this finding); N-152 (the same walk's DXF key gap — FIXED by the parallel window at `4f8fa661`); M-121-dbx (the same registry-key-residue class — FIXED by the parallel window, final ID M-121 per the renumber chain `1d4c96b6`/`3ac4b99c`/`5a84b63c`); N-140 (the per-extension stats surface that the typed ids feed); S-049 (FIXED — the naming contract's per-format counters key on format ids).
 
 ## Open questions
 

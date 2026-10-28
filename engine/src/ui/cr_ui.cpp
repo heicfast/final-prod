@@ -1689,7 +1689,7 @@ namespace {
 
 #ifdef _WIN32
 
-u32 enumerate_disks_impl(cr_ui_disk_info* out, uint32_t* count) {
+u32 enumerate_disks_impl(cr_ui_disk_info* out, uint32_t* count, uint32_t flags) {
     if (!count)
         return ret_(ERR_BAD_PARAMETER, "bad argument: count");
     win::PhysicalDiskList list;
@@ -1701,6 +1701,17 @@ u32 enumerate_disks_impl(cr_ui_disk_info* out, uint32_t* count) {
         *count = needed;
         return ret_ok();
     }
+    /* M-076: the opt-in TRIM datum - one fresh query per invocation (the
+     * datum is OS-global: fsutil behavior query disabledeletenotify, the
+     * same primitive the og's home page and our health facet read; a
+     * per-disk re-query would run the identical process N times for the
+     * same answer). No cache, no retained state - calling again IS the
+     * refresh (N-098). A failed query leaves trim_known == 0 everywhere:
+     * unknown, never a guessed value. */
+    bool trim_on = false;
+    bool trim_known = false;
+    if (flags & CR_ENUM_FLAG_TRIM)
+        trim_known = (win::health::query_trim_state(trim_on) == OK);
     const u32 cap = *count;
     const u32 n = needed < cap ? needed : cap;
     for (u32 i = 0; i < n; ++i) {
@@ -1726,6 +1737,10 @@ u32 enumerate_disks_impl(cr_ui_disk_info* out, uint32_t* count) {
         }
         copy_bstr(o.model, sizeof(o.model), ws_to_u8(d.model));
         copy_bstr(o.serial, sizeof(o.serial), ws_to_u8(d.serial));
+        if (trim_known) {
+            o.trim_known = 1;
+            o.trim_on = trim_on ? 1u : 0u;
+        }
     }
     *count = n;
     return ret_(n == needed ? OK : u32(ERR_TRUNCATED), "%s", "");
@@ -1763,9 +1778,10 @@ u32 enumerate_volumes_impl(cr_ui_volume_info* out, uint32_t* count) {
 
 #else
 
-u32 enumerate_disks_impl(cr_ui_disk_info* out, uint32_t* count) {
+u32 enumerate_disks_impl(cr_ui_disk_info* out, uint32_t* count, uint32_t flags) {
     (void)out;
     (void)count;
+    (void)flags;
     return ret_(ERR_UNSUPPORTED, "cr_ui_enumerate_disks requires the Windows platform layer");
 }
 u32 enumerate_volumes_impl(cr_ui_volume_info* out, uint32_t* count) {
@@ -1779,7 +1795,20 @@ u32 enumerate_volumes_impl(cr_ui_volume_info* out, uint32_t* count) {
 } // namespace
 
 extern "C" CR_UI_API uint32_t cr_ui_enumerate_disks(cr_ui_disk_info* out, uint32_t* count) {
-    return guarded(enumerate_disks_impl, out, count);
+    return guarded(enumerate_disks_impl, out, count, uint32_t(0));
+}
+extern "C" CR_UI_API uint32_t cr_ui_enumerate_disks_ex(cr_ui_disk_info* out, uint32_t* count,
+                                                       uint32_t flags) {
+    /* M-076: unknown flag bits are refused BEFORE the platform check, so
+     * every lane observes the same grammar (a host must not learn about an
+     * ignored flag from a platform-dependent success). */
+    if (flags & ~CR_ENUM_FLAG_TRIM)
+        return guarded(
+            [](cr_ui_disk_info*, uint32_t*, uint32_t bad) {
+                return ret_(ERR_BAD_PARAMETER, "unknown enumeration flag bits: 0x%x", bad);
+            },
+            out, count, flags);
+    return guarded(enumerate_disks_impl, out, count, flags);
 }
 extern "C" CR_UI_API uint32_t cr_ui_enumerate_volumes(cr_ui_volume_info* out, uint32_t* count) {
     return guarded(enumerate_volumes_impl, out, count);

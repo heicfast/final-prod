@@ -991,6 +991,31 @@ TEST(CrUi, EnumerationRefreshContractPinned) {
         << "R-86's row must carry the pull-model equivalence statement";
 }
 
+TEST(CrUi, EnumerationExFlagGrammarRefusesUnknownBits) {
+    /* M-076: the _ex enumeration grammar - unknown flag bits are refused
+     * with CR_UI_ERR_BAD_PARAMETER BEFORE the platform check (every lane
+     * observes the same grammar; a host must not learn about an ignored
+     * flag from a platform-dependent success). Known bits proceed to the
+     * platform truth (ERR_UNSUPPORTED here). */
+    cr_ui_disk_info di;
+    uint32_t ac = 0;
+    EXPECT_EQ(cr_ui_enumerate_disks_ex(&di, &ac, 0xDEADBEEFu), 0x50030003u)
+        << "unknown flag bits must be refused, not ignored";
+    EXPECT_NE(std::strstr(cr_ui_last_error(), "unknown enumeration flag bits"), nullptr)
+        << "the refusal must name the grammar violation";
+    EXPECT_EQ(cr_ui_enumerate_disks_ex(&di, &ac, CR_ENUM_FLAG_TRIM | 0x10u), 0x50030003u)
+        << "a known bit plus an unknown bit is still refused";
+#ifndef _WIN32
+    /* platform truth: the valid-grammar call reaches the win-backed
+     * surface and answers ERR_UNSUPPORTED, never a silent fake */
+    EXPECT_EQ(cr_ui_enumerate_disks_ex(&di, &ac, 0u), 0x50030008u);
+    EXPECT_EQ(cr_ui_enumerate_disks_ex(&di, &ac, CR_ENUM_FLAG_TRIM), 0x50030008u);
+    EXPECT_NE(std::strstr(cr_ui_last_error(), "Windows platform layer"), nullptr);
+#endif
+    /* the header contract sentences (the opt-in + the never-guessed rule)
+     * are pinned by Enumerate.TrimChipOptInShipsInAbiAndCli */
+}
+
 TEST(CrUi, SessionListCliAndAbiOrderAgree) {
     /* N-116's CLI half: rrecov's `sessions` verb must enumerate in the
      * SAME order the ABI returns (save time first, path tie-break) - the

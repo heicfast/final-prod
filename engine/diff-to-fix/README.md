@@ -36,10 +36,11 @@ window, convergent); EUFileRepair = 87 files,
 owner claim); the 1,470-file census's
 "no undispositioned product surface" verdict SURVIVES the independent re-walk.
 OQ-S4-3 unchanged (the TTFR half unmeasured — no committed value exists).
-**Board after the S42-B merge (filesystem truth): 42 active (2 SEVERE · 22 MAJOR ·
-18 MINOR; the INFO tier folded into FIXED/, I-037 acknowledged-at-filing) / 37
-FIXED files / 3 tracked-open.** Next free IDs: S-055+,
-M-121+, N-161+, I-038+, A-013+. Evidence:
+**Board after the S42-B second merge (filesystem truth): 41 active (2 SEVERE · 21
+MAJOR · 18 MINOR; the INFO tier folded into FIXED/, I-037 acknowledged-at-filing) /
+39 FIXED files / 3 tracked-open.** Next free IDs: S-055+, M-122+, N-161+, I-038+,
+A-013+ (M-121 = the DBX finding's final ID per the remote's renumber chain,
+adopted here). Evidence:
 `evidence/decompiled-quotes/s42-ogg-zip-typing-and-report-decodes.md`.
 
 **Session-41 S41 lane (2026-10-29 — the continuation audit lane, the user's second-session

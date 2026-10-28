@@ -138,6 +138,14 @@ resume:      session_load -> session_resume -> scan_attach_device
 browse:      session_load -> session_snapshot -> snapshot_node/dfs
              -> preview_open_snapshot -> preview_read/metadata -> preview_close
              -> snapshot_close -> session_close
+device rows: cr_ui_enumerate_disks[_ex] (the census; the _ex form's
+             CR_ENUM_FLAG_TRIM opt-in adds the per-row TRIM chip datum —
+             trim_known/trim_on appended to cr_ui_disk_info, the og's
+             home-page SSD recovery-chance indicator UIUX/07:17; one fresh
+             fsutil read per invocation, the OS-global datum stamped on
+             every row, a failed query leaves trim_known == 0 — never a
+             guessed value; unknown flag bits are refused before the
+             platform check so the grammar is lane-uniform) — M-076
 recover:     recovery_create -> recovery_set_destination
              -> recovery_enqueue_[node|subtree][_snapshot]* -> recovery_process
              -> recovery_report_json -> recovery_close

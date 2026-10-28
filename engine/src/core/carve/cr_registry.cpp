@@ -109,7 +109,7 @@ CarveResult validate_osp(IStorageDevice* s, u64 hit, u64 cap);      /* N-113 */
 CarveResult validate_pos(IStorageDevice* s, u64 hit, u64 cap);      /* N-113 */
 CarveResult validate_chfp(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_office_zip(IStorageDevice* s, u64 hit, u64 cap); /* N-115: the typed rows */
-CarveResult validate_dbx(IStorageDevice* s, u64 hit, u64 cap);        /* M-117 */
+CarveResult validate_dbx(IStorageDevice* s, u64 hit, u64 cap);        /* M-121 */
 
 namespace {
 const Signature kTable[] = {
@@ -1471,49 +1471,51 @@ const Signature kTable[] = {
      validate_office_zip,
      "CorelDRAW Drawing",
      true},
-    /* M-117: Outlook Express Dbx - the og's RawSpeed::DbxAnalyser
-     * (idx 0x15) under three magic keys (:2192-2232, the og's
-     * registration order). The probe gates the identity (the four OE
-     * store GUIDs / the JMF6 version word / the marked pattern -
-     * FUN_180016740); the size pass reads the self-declared u32@+0x7C
-     * (the plain forms) or trims at the zero end (the marked form -
-     * FUN_180042b30's nonzero-prefix block computation). No raw_signs
-     * entry exists in EITHER implementation (the og's own
-     * raw_signs.json carries no dbx - the analyser is the only path),
-     * so the row carries the probe's own 16-byte floor and the u32
-     * size field's own range as the cap surface (the og registers no
-     * bound). The og's ext table: id 21 = "DBX"
-     * (s5-grading-extension-table-dump.md:56). */
+    /* M-121: Outlook Express Dbx (RawSpeed::DbxAnalyser id 0x15) -
+     * three keys, one shared validator (the og's duplicate-key
+     * policy, the CAB/CPT precedent). RENUMBERED from the S41 lane's
+     * M-117 filing per SA-9, then to M-121 (the parallel lostpart
+     * finding consumed the M-118 mid-flight).
+     * Bounds: the plain forms' size field at +0x7C sets the honest
+     * floor 0x80 (the parallel lane's uniform 16 never rejects a
+     * short-header candidate the read bound itself refuses); the
+     * marked form's whole gate is the 16-byte pattern (floor 0x10);
+     * max = the og engine default 0xBEBC200 (the user-info
+     * singleton's 200,000,000 reset, the MDB family precedent - the
+     * parallel lane's 0xFFFFFFFF cap surface would let the marked
+     * walk run 4 GiB per candidate, far past every og bound).
+     * Confidence: the GUID/JMF6 forms are exact 16-byte identity
+     * matches (800); the marked form keys the pattern alone (700). */
     {FMT_DBX_JMF6,
      "dbx",
      {'J', 'M', 'F', '6'},
      4,
      0,
-     16,
-     0xFFFFFFFFull,
-     620,
+     0x80,
+     0xBEBC200ull,
+     800,
      validate_dbx,
-     "Outlook Express DBX"},
+     "Outlook Express Dbx"},
     {FMT_DBX,
      "dbx",
      {0xCF, 0xAD, 0x12, 0xFE},
      4,
      0,
-     16,
-     0xFFFFFFFFull,
-     620,
+     0x80,
+     0xBEBC200ull,
+     800,
      validate_dbx,
-     "Outlook Express DBX"},
+     "Outlook Express Dbx"},
     {FMT_DBX_MARKED,
      "dbx",
      {0xF7, 0x89, 0x34, 0x2C},
      4,
      0,
-     16,
-     0xFFFFFFFFull,
-     620,
+     0x10,
+     0xBEBC200ull,
+     700,
      validate_dbx,
-     "Outlook Express DBX"},
+     "Outlook Express Dbx"},
 };
 } // namespace
 

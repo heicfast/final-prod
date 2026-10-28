@@ -4847,10 +4847,11 @@ N-156→N-160, I-035→I-037); the M-117→M-118 renumber REVERTED (their fix-un
 M-117 pushed first — the dual-ID recorded in FIXED/M-117's collision addendum);
 the liveness battery's STILL verdicts stand as pinned truth at 869da779 (the
 remote's retirements landed after the pin — convergent, the S41 precedent).
-The merged board: 42 active (2 SEVERE · 22 MAJOR · 18 MINOR; the INFO tier folded
-into FIXED/ per their convention, I-037 acknowledged-at-filing) / 37 FIXED /
-3 tracked-open. Their entries follow below (both sides' worklog records kept
-per the house convention).]
+The merged board after the SECOND merge window (+ their M-076 TRIM-chip fix and
+the DBX M-117→M-118→M-121 renumber chain): 41 active (2 SEVERE · 21 MAJOR ·
+18 MINOR; the INFO tier folded into FIXED/ per their convention, I-037
+acknowledged-at-filing) / 39 FIXED / 3 tracked-open. Their entries follow below
+(both sides' worklog records kept per the house convention).]
 ---
 
 ## Fix session 42 — the continuation audit lane (2026-10-29, the user's second-session directive: remove-the-fixed + go-deeper + mark-all-remaining; T1 pins: core `869da779` at HEAD (a quiet window — zero concurrent pushes), corpus `be0cfe9`; prompt saved token-redacted at worklog/session-42-continuation-audit-prompt.md)
@@ -5453,3 +5454,57 @@ Dxf999InteriorCommentOfCanonicalFileDoesNotDoubleCarve. Fail-before 3/4 RED
 + matrix cell → MATCH (P1/P19/P28) + the M-117 residue note + carve.md session row +
 this entry. Fixture note for future lanes: "$ACADVER/AC1027" in a DXF fixture
 self-carves as DWG ("AC1027" is that family's magic) — the pins use $INSBASE.
+
+### S42-W1b: the M-118 convergent correction (over the parallel lane's 1d4c96b6)
+
+The rebase over the parallel fix lane's identical Dbx landing surfaced a two-byte
+disagreement between the lanes; the raw disassembly settled BOTH directions (the
+ground-truth discipline working exactly as designed):
+
+- **JMF6 version word: `03 00 10 00` — THEIR reading was right.** Disasm
+  0x180016766/0x18001676f (`movl $0x36464d4a` + `movl $0x00100003`): the probe's u64
+  is 0x0010000336464D4A. My first landing's `03 00 01 00` was a literal-expansion
+  error on Ghidra's 14-digit literal; the finding's own prose carried the same wrong
+  transcription. Fixed here; the wrong word is now the hostile fixture
+  (Carve.DbxJmf6WrongVersionWordRejected — the error itself became a pin).
+- **Marked pattern byte 6: `0xEE` — MY reading was right.** Disasm 0x18001698b
+  (`movl $0x6deef0f7`): F7 F0 EE 6D on disk. Their kMarked's 0xDE meant their marked
+  form never matched a real og file (registry key fires, identity re-check fails).
+  Corrected by replacing their validate_dbx with the byte-exact form.
+- **FUN_180042b30's even rounding — disasm-pinned.** 0x180042bb0-0x180042c07: the
+  `sar $1` bisection + `lea 0x1(%rsi),%eax` return; prefix 1→2, 3→4 … 511→512, 0 on
+  all-zero. Their plain-prefix walk was off-by-one on odd extents.
+
+Renumber: M-117 was triple-consumed (session-40 suppress-overlap ledger row 442 / the
+S41 filing / the parallel lane's commit message) — the Dbx finding is **M-118** per
+SA-9; the stub at findings/FIXED/M-117-* preserves the path (A-005/A-006 precedent);
+the master Resolution (both lanes' records merged, theirs preserved verbatim) lives in
+findings/FIXED/M-118-*. Bounds re-truthed (min 0x80/0x10, max 0xBEBC200). Tests: 9/9
+Carve.Dbx* GREEN; full suite green at the merged tree. The matrix cell, ledger row,
+carve.md verdict, and this worklog carry the convergent record.
+
+### S42-W1c: the M-118 → M-121 renumber (the parallel lostpart lane consumed M-118)
+
+The renumber chain completes: M-117 (the S41 filing; triple-consumed — session-40
+suppress-overlap ledger row 442 keeps it) → M-118 (my first renumber, never landed:
+the parallel lanes' lostpart three-source-assembly finding consumed the ID while this
+push was in rebase) → **M-121** (final). The stub at findings/FIXED/M-117-* carries
+the chain; the master Resolution (both fix lanes' records, the two disasm-settled
+byte corrections, the even-rounding pin) lives at
+findings/FIXED/M-121-outlook-express-dbx-analyser-absent.md. Code comments, ledger
+row, matrix cell, carve.md verdict, SUMMARY: all re-pointed. 9/9 Carve.Dbx* GREEN.
+
+## S42-B second-merge record (2026-10-29, post-c9b9d094)
+
+The first S42-B push hit the STILL-HOT window: the remote landed `3ac4b99c`
+(the DBX fix re-committed under M-118), `5a84b63c` (the renumber M-118 → **M-121**
+— the parallel lostpart lane had consumed M-118; "the chain M-117 -> M-118 ->
+M-121 recorded in the stub + master"), and `4bd5ee7a` (M-076 FIXED — the per-row
+TRIM chip: the opt-in _ex enumeration, the append-only fields, the list --trim
+projection). The second merge adopts their M-121 chain wholesale: the FIXED/M-117
+file is now THEIR collision stub (this lane's independent detection rides the
+appended S42-B convergence note); N-160's item 7 points at the chain; N-158's
+DBX reference updated to M-121. Board after the second merge (filesystem):
+**41 active (2 SEVERE · 21 MAJOR · 18 MINOR) / 39 FIXED / 3 tracked-open**;
+next free: S-055+, M-122+, N-161+, I-038+, A-013+. Read-only guarantee
+re-verified: my delta vs origin/main = diff-to-fix/ + worklog* only.

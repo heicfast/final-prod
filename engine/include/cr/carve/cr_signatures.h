@@ -341,24 +341,35 @@ enum FormatId : u32 {
     FMT_IWORK, /* Index/[*].iwa + index.apxl */
     FMT_HWP,   /* mimetype/[Content_Types]: application/hwp+zip */
     FMT_CDR,   /* content/riffData.cdr */
-    /* M-117 (diff-to-fix): the og's Outlook Express Dbx analyser
-     * (RawSpeed::DbxAnalyser, idx 0x15 - one of the highest-code-weight
-     * classes in the RAW engine, rawsearchdll--family-rawspeed.md) is
-     * registered under THREE magic keys (RAWSearchDLL :2192-2232, three
-     * 0x18 chain nodes each stamped idx 0x15, the og's registration
-     * order): "JMF6" 0x36464d4a, the classic OE store magic 0xfe12adcf
-     * (bytes CF AD 12 FE), and the marked/folder variant 0x2c3489f7
-     * (bytes F7 89 34 2C). The identity probe (FUN_180016740
-     * :17509-17562) gates the 16-byte window: one of FOUR Outlook
-     * Express store GUIDs (the CF12ADFE family's three generations +
-     * the fourth variant), or "JMF6" + the version word 03 00 10 00
-     * (the u64 0x0010000336464D4A), or the 16-byte marked pattern. One
-     * row per key, shared validator (the M-092 duplicate-key policy);
-     * the og stamps id 0x15 for all three entry forms. Ids APPENDED
+    /* M-121 (diff-to-fix; the renumber chain M-117 -> M-118 -> M-121
+     * per SA-9: M-117 was triple-consumed [the session-40
+     * suppress-overlap landing keeps it, FIXED-LEDGER row 442; the
+     * S41 filing; the parallel fix lane's 1d4c96b6 message], then the
+     * parallel lostpart finding consumed the M-118 this renumber
+     * first took): the og's Outlook Express Dbx analyser
+     * (RawSpeed::DbxAnalyser, idx 0x15=21) - three registry keys
+     * (RAWSearchDLL_decompiled.c:2192-2232, first-hand + disassembly-
+     * verified): "JMF6" 0x36464d4a,
+     * CF AD 12 FE 0xfe12adcf, F7 89 34 2C 0x2c3489f7. The identity
+     * probe (FUN_180016740 :17509-17562) gates the 16-byte window:
+     * the JMF6+03 00 10 00 form (u64 0x0010000336464D4A, disasm-settled:
+     * movl $0x36464d4a + movl $0x00100003 at 0x180016766/0x18001676f -
+     * the parallel lane's reading CONFIRMED, my first landing's
+     * 03 00 01 00 was a literal-expansion error, corrected), one of FOUR OE store GUIDs, or the marked 16-byte pattern
+     * {2c3489f7, 6deef0f7, d18922af, b0f0ff00} (the 0x6deef0f7 dword
+     * is F7 F0 EE 6D on disk - the parallel lane's F7 F0 DE 6D read
+     * was a byte error, corrected here). Plain forms size from
+     * u32@+0x7C (disasm `mov 0x7c(%rdx),%eax` at 0x180016ac0); the
+     * marked form walks sector windows to zero termination with
+     * FUN_180042b30's extent (the non-zero prefix rounded UP TO EVEN
+     * - the bisection's mid+1 landing; Ghidra+retdec+simulation
+     * cross-pinned). The marked form's 272-byte name buffer is
+     * memset-0-then-copied (disasm 0x180016a16 memset ->
+     * 0x180016a1b walk): the embedded name is EMPTY. Ids APPENDED
      * (serialized carve_format values stay stable). */
-    FMT_DBX_JMF6,   /* "JMF6" - the container-variant key */
-    FMT_DBX,        /* CF AD 12 FE - the classic OE store key */
-    FMT_DBX_MARKED, /* F7 89 34 2C - the marked/folder-variant key */
+    FMT_DBX_JMF6,   /* "JMF6" - the versioned container key */
+    FMT_DBX,        /* CF AD 12 FE - the classic OE store key (GUID family) */
+    FMT_DBX_MARKED, /* F7 89 34 2C - the marked/folder variant key */
     FMT_COUNT
 };
 

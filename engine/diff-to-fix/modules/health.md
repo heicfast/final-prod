@@ -176,9 +176,17 @@ covers it).
 
 ## Session-8 section (2026-10-28, audited `35adcb9`)
 
-**M-076** (MAJOR — the TRIM facet's row-shape gap: the datum is
-health-facet-only (`cr_ui_smart_report.trim_known/trim_enabled`); the og's
-per-row chip needs opt-in row fields or an `_ex` flag; R-63). **M-078**
+**M-076 — FIXED (session-42 main lane)**: the per-row TRIM chip datum
+landed in the opt-in shape — `cr_ui_disk_info` carries `trim_known`/`trim_on`
+(append-only, zero-init = unknown), `cr_ui_enumerate_disks_ex` +
+`CR_ENUM_FLAG_TRIM` is the opt-in (unknown bits refused `ERR_BAD_PARAMETER`
+before the platform check — lane-uniform grammar), one fresh fsutil read per
+invocation (the OS-global datum; per-disk re-query would run the identical
+process N times), the CLI `list --trim` renders the chip + the unknown form.
+Tests: `CrUi.EnumerationExFlagGrammarRefusesUnknownBits` (runtime, all lanes)
++ `Enumerate.TrimChipOptInShipsInAbiAndCli` (the three-layer source pin);
+the failed-query rule (trim_known == 0, never guessed) is contract text +
+pin. R-63's row closed. **M-078**
 (MAJOR — BitLocker turn-off absent: the og's CBitlockerTurnOffOperation
 pending-op + bitlockerhelp.mo/BitLockerLib.dll decrypt flows vs the core's
 unlock-only surface; the legitimate-only stance D-16 is untouched — turn-off

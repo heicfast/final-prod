@@ -691,14 +691,22 @@ multi-card continuation, GPX's declaration+<gpx window + </gpx> walk (cap 100 Mi
 OSP's libopenshot needle with the unique reject-on-missing, POS's needle settled
 from FUN_18001a470 ("ProcessOn Schema File"), CHFP's +0x28 BiffProject anchor;
 the per-chunk find quirk ported exactly; tests Carve.TextSchool*;
-findings/FIXED/N-113) · **N-115** OfficeTagFromXML. · **M-117 FIXED
-(S42 fix lane)** (the Outlook Express Dbx analyser — the og's 3-key registry [S42-B note: the ID M-117 is dual-use history — the retired suppress_overlap row and this DBX finding; the fix landed under M-117 per SA-9; see FIXED/M-117's collision addendum.]
-[JMF6/CFAD12FE/F789342C → RawSpeed::DbxAnalyser idx 0x15] + the 4-GUID identity probe +
-the u32@+0x7C size pass + the marked form's zero-end block walk (FUN_180042b30 decoded:
-the non-zero-prefix binary search; the extent to the last non-zero byte); the JMF6 version
-word corrected to `03 00 10 00` by the corpus u64 literal; the 272-byte name buffer
-decoded dead (always empty); the never-filed session-3 "MISSING (N-026)" residue — now
-filed and fixed; tests Carve.Dbx*; findings/FIXED/M-117) ·
+findings/FIXED/N-113) · **N-115** OfficeTagFromXML. · **M-121 FIXED — CONVERGENT (the renumber chain M-117 → M-118 [never landed] → M-121
+per SA-9: M-117 was triple-consumed — session-40 suppress-overlap row 442 keeps it;
+the parallel fix lane's 1d4c96b6 landing + this lane's correction push)** — the Outlook Express Dbx
+analyser LANDED: FMT_DBX_JMF6 ("JMF6") / FMT_DBX (CF AD 12 FE) / FMT_DBX_MARKED
+(F7 89 34 2C), one shared validator; the identity probe ported exactly (the
+JMF6+`03 00 10 00` u64 0x0010000336464D4A — disasm-settled at 0x180016766/0x18001676f,
+the parallel lane's reading confirmed over my first landing's 03 00 01 00 expansion
+error; the four OE store GUIDs; the marked 16-byte pattern with byte 6 = 0xEE — the
+parallel lane's 0xDE corrected, disasm 0x18001698b `movl $0x6deef0f7`); the plain-form
+size u32@+0x7C (clamped per the PST family precedent, rejected below the 0x80 read
+bound); the marked-form FUN_180042b30 zero-walk (0 on an all-zero window, else the
+non-zero prefix ROUNDED UP TO EVEN — disasm 0x180042bb0-0x180042c07, the `sar $1`
+bisection + `lea 0x1(%rsi),%eax` return; the pending-object recompute adapted to the
+one-shot validator per D-101); the og's embedded name provably EMPTY (both lanes
+converged); tests Carve.Dbx* (9, RED pre-fix — the formats did not exist); the s3
+"MISSING (N-026)" markers re-pointed at M-121; findings/FIXED/M-121) ·
 **N-152** (S41: the DXF 999-comment entry key — the og's u16 key 0x3939 → CDXFAnalyser +
 the probe's "999\n"/"999\r\n" leading-comment acceptance; the core keys "  0\r" only;
 renumbered twice at the push-time reconciliations per SA-9 — the local N-142 lost to the
