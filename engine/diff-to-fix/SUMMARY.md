@@ -161,10 +161,11 @@ purge) / 2 tracked-open (OQ-S4-3, OQ-S8-1).
   the time-ordered prefix; the CLI `sessions` verb re-sorts by the same key;
   `SessionListOgTimeOrdering` RED→GREEN; suite 1041/1041.
 
-**Board after this window (filesystem truth, N-116 folded into the purge-era
-counts):** 68 active (8 SEVERE · 24 MAJOR · 31 MINOR · 5 INFO) / **262 resolved**
-(FIXED-LEDGER.md + the session-38 lane's Resolution records) / 2 tracked-open
-(OQ-S4-3, OQ-S8-1).
+**Board after this window (filesystem truth, doc-truth batch A folded in):** 63
+active (7 SEVERE · 23 MAJOR · 28 MINOR · 5 INFO — the window's parallel landings
+M-080/S-043/M-084/M-091 + the SA-10B new filings S-048..S-050/M-103 all reconciled
+in the counts above; the purge-era rows carry their own snapshots) / **265 resolved**
+(FIXED-LEDGER.md is the index) / 2 tracked-open (OQ-S4-3, OQ-S8-1).
 
 ## Fix session (2026-10-29 — the parity close: every tier executed against corpus `be0cfe9`, core `84a1832`-lineage)
 

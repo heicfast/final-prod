@@ -2199,3 +2199,8 @@ import tables re-read first-hand (heif_image_handle_get_thumbnail = EUImgRepairF
 ONLY at ghidra-repair/EUImgRepairFile_imports.txt:6; EURawImg carries the decode set,
 no get_thumbnail) - the two R-28 rows, the PLAN-API-EXPANSION:81 row, and the OGI
 heif.dll attribution line corrected; M-102 remains the tracked ABI handoff.
+
+Doc-truth batch A conform (the ledger convention): N-117/N-118/N-103 retired into
+history (their Resolution sections preserved at 954c386) with ledger rows appended;
+matrix + SUMMARY board updated. Filesystem truth: 63 active (7 SEVERE · 23 MAJOR ·
+28 MINOR · 5 INFO) / 265 resolved / 2 tracked-open.

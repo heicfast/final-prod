@@ -574,7 +574,7 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | orchestration · device enumeration sixth source | **N-106** — GetDriverInfo.dll dispositioned OUT-OF-SCOPE by lineage (complements M-082's DeviceManager decode) |
 | audit-trail · SURFACE-INVENTORY arithmetic + classification rows | **N-101** |
 | audit-trail · M-024 count propagation (finding file itself) | **N-102** (cross-ref N-095's PARITY-CORE-REC site) |
-| audit-trail · thumbnail API rows + heif attribution | **N-103** |
+| audit-trail · thumbnail API rows + heif attribution | **N-103 — FIXED (session 38, `954c386`)**: R-28 rows engine-PRESENT + M-102 the tracked ABI handoff; the heif.dll attribution corrected per the import tables re-read first-hand |
 | audit-trail · ldm.md dangling ref + CAPABILITY-MATRIX HFS+ row | **N-104** (cross-ref N-095's five other sites) |
 
 ### Session-8 third lane (2026-10-28 — the driver lane + the merge/repair wave; audited core `35adcb9`, driver `323e75a`, corpus `be0cfe9`)
@@ -598,7 +598,7 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | Module | Lead-lane findings (final IDs; the parallel lanes' rows are in their own sections) |
 |---|---|
 | carve | **M-090** (DMG koly walk + DMG-specific cap — erratum E67), **M-091** (the MDB page-chain walk decoded), **S-047** (MPEG-TS/M2TS), **M-092/M-093/M-096/M-098/M-099** (HTML / XML+SVG / MOBI / HIK / AEP), **N-111..N-113, N-115** (JP2 / LZH / text school / OfficeTagFromXML) — school-2/3 children of S-041 |
-| session + ABI | **N-116 — FIXED (session 38)**: rows newest-first by save_unix (the og's FUN_140273550 !(ftA<ftB) = newest-first, settled first-hand; TRUNCATED = the time-ordered prefix; CLI re-sorted by the same key; `SessionListOgTimeOrdering` RED→GREEN), **N-117/N-118** (W1 doc drifts), **I-029** (driver-code provenance) |
+| session + ABI | **N-116 — FIXED (session 38)**: rows newest-first by save_unix (the og's FUN_140273550 !(ftA<ftB) = newest-first, settled first-hand; TRUNCATED = the time-ordered prefix; CLI re-sorted by the same key; `SessionListOgTimeOrdering` RED→GREEN), **N-117/N-118 — FIXED (session 38, `954c386` doc-truth batch A)**: the plan's W1b shape + the 7f/7g cites re-pinned; the R-52/54/56/R-31 gap rows flipped to PRESENT with landing cites, **I-029** (driver-code provenance) |
 | query | **M-101** (Versions/Tags branches), **N-126** (Unsaved File) |
 | preview | **M-100** (browse-inside), **M-102** (thumbnail ABI) |
 | boot repair | **N-121** (ESP automount), **N-122** (NVRAM create/delete) |
