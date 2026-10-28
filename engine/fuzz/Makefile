@@ -9,6 +9,8 @@
 #   fuzz_preview   G-10 preview reader + all metadata extractors
 #   fuzz_container CRSF reader + record codecs
 #   fuzz_image    S-030 disk-image parsers (VMDK/VHD/flat)
+#   fuzz_thumbnail cr_thumbnail engine (stb adapter + native TIFF/EXIF/
+#                  dims parsers + downscaler)
 #
 # Build:  make CXX=clang++ (requires clang with libFuzzer)
 # Run:    make run       (45 s smoke round per target)
@@ -24,7 +26,8 @@ ZSTD_LIBS := $(shell pkg-config --exists libzstd && echo -lzstd)
 # -Wall/-Wextra warning (the same strictness the gcc and MSVC CI lanes
 # already enforce) instead of printing it and moving on.
 CXXFLAGS := -std=c++20 -g -O1 -fsanitize=fuzzer,address,undefined \
-            -fno-omit-frame-pointer -I../include -Wall -Wextra -Werror $(LZ4_FLAGS) $(ZSTD_FLAGS)
+            -fno-omit-frame-pointer -I../include -I../third_party/stb \
+            -Wall -Wextra -Werror $(LZ4_FLAGS) $(ZSTD_FLAGS)
 LDLIBS := -lz $(LZ4_LIBS) $(ZSTD_LIBS)
 
 BUILD := build
@@ -37,7 +40,8 @@ TARGETS := $(BUILD)/fuzz_pure $(BUILD)/fuzz_engines $(BUILD)/fuzz_carve \
            $(BUILD)/fuzz_container $(BUILD)/fuzz_ntfs $(BUILD)/fuzz_fat \
            $(BUILD)/fuzz_exfat $(BUILD)/fuzz_ext4 $(BUILD)/fuzz_hfsplus \
            $(BUILD)/fuzz_btrfs $(BUILD)/fuzz_zfs $(BUILD)/fuzz_refs \
-           $(BUILD)/fuzz_preview $(BUILD)/fuzz_reghive $(BUILD)/fuzz_image
+           $(BUILD)/fuzz_preview $(BUILD)/fuzz_reghive $(BUILD)/fuzz_image \
+           $(BUILD)/fuzz_thumbnail
 
 all: $(TARGETS)
 
@@ -80,6 +84,7 @@ run: $(TARGETS) corpus
 	$(BUILD)/fuzz_refs corpus/refs -max_total_time=20 -max_len=1048576 -timeout=25 -rss_limit_mb=2560
 	$(BUILD)/fuzz_preview corpus/preview -max_total_time=45 -max_len=1048576 -timeout=25 -rss_limit_mb=2560
 	$(BUILD)/fuzz_image corpus/image -max_total_time=45 -max_len=1048576 -timeout=25 -rss_limit_mb=2560
+	$(BUILD)/fuzz_thumbnail corpus/thumbnail -max_total_time=45 -max_len=1048576 -timeout=25 -rss_limit_mb=2560
 
 run-long: $(TARGETS) corpus
 	$(BUILD)/fuzz_pure      corpus/pure      -max_total_time=120 -max_len=65536 -timeout=25 -rss_limit_mb=2560
@@ -95,6 +100,7 @@ run-long: $(TARGETS) corpus
 	$(BUILD)/fuzz_zfs corpus/zfs -max_total_time=60 -max_len=2097152 -timeout=25 -rss_limit_mb=2560
 	$(BUILD)/fuzz_refs corpus/refs -max_total_time=60 -max_len=1048576 -timeout=25 -rss_limit_mb=2560
 	$(BUILD)/fuzz_preview corpus/preview -max_total_time=120 -max_len=1048576 -timeout=25 -rss_limit_mb=2560
+	$(BUILD)/fuzz_thumbnail corpus/thumbnail -max_total_time=120 -max_len=1048576 -timeout=25 -rss_limit_mb=2560
 
 clean:
 	rm -rf $(BUILD)

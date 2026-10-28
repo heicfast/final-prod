@@ -49,6 +49,7 @@ add_executable(cr_tests
     unit/test_bcdfix.cpp
     unit/test_nvramfix.cpp
     unit/test_preview.cpp
+    unit/test_thumbnail.cpp
     unit/test_snapshot.cpp
     unit/test_query.cpp
     unit/test_fscheck.cpp
@@ -71,6 +72,11 @@ add_custom_command(TARGET cr_tests POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/data/exfat
             $<TARGET_FILE_DIR:cr_tests>/data/exfat)
+# cr_thumbnail fixtures (scripts/gen_thumbnail_fixtures.py output)
+add_custom_command(TARGET cr_tests POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/data/thumbnails
+            $<TARGET_FILE_DIR:cr_tests>/data/thumbnails)
 
 # N-045 doc-truth pin lane: the register-vs-source consistency tests
 # (e.g. Cached.ScanCacheBudgetIsTheRegisteredDivergence) read repo files

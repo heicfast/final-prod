@@ -97,3 +97,57 @@ NEW:
   7-Zip/LZMA SDK input interface, M-028); the mov ghost removed from
   the format comment; the PreviewDocs grep guard holds the three
   contract sites.
+
+---
+
+## Thumbnail engine (Agent 3, 2026-10-28 — session-owner directive, engine-side superset)
+
+The og generates thumbnails entirely on the UI side (I-015 register): GDI+
+`GdipGetImageThumbnail` at 256 px (width-derived scale), the MediaGraph/ffmpeg
+media agent returning BMP payloads bounded (0, 1 MiB], EURawImg/LibRaw for RAW,
+libheif embedded thumbnails for HEIC, pdfium for PDF page pixmaps — the recovery
+engines never decode. The session owner mandated an ENGINE-SIDE thumbnail
+capability; per the I-015 in-process doctrine this lands as a deliberate,
+documented superset: `cr_thumbnail` (`include/cr/preview/cr_thumbnail.h` +
+`src/core/preview/cr_thumbnail.cpp`).
+
+**v1 surface (all corpus anchors in docs/PARITY-OG-CORE-INVENTORY.md C.2):**
+- Formats: JPEG (baseline+progressive), PNG, BMP/DIB, GIF (first frame), PSD,
+  PNM, HDR via the vendored public-domain decoder (`third_party/stb`,
+  STBI_NO_STDIO, fed through a budget-gated callback adapter — the engine never
+  opens files); TIFF baseline NATIVE (uncompressed / PackBits / Deflate strips,
+  8/16-bit, gray / palette / RGB / RGBA, both endians; predictor-2, tiled TIFF
+  and JPEG-in-TIFF honestly refused). The PackBits count is the TIFF6 signed
+  form `1-n` (the 257-n unsigned-byte reading is a classic off-by-256 — pinned
+  by the packbits fixture test).
+- Dims-first bomb guard: NATIVE header parses for every format (never
+  `stbi_info` — stb's own header scan refuses x*y*n ~ 2^30 shapes as "corrupt",
+  which would misreport bombs as decode failures); oversized inputs are
+  refused before any decode allocation, proven by device-byte accounting.
+- EXIF embedded-thumbnail fast path (native APP1 walk, IFD0→IFD1, tags
+  0x201/0x202) for oversized JPEGs — the og-parity strategy (GDI+/LibRaw/
+  libheif all prefer embedded thumbs).
+- Bounded doctrine: every logical byte is accounted against
+  `ThumbnailCaps.max_read` BEFORE it moves (M-028 cost lineage) + work-unit
+  guard; no wall-clock bound.
+- Truth gate: a thumbnail is NEVER decoded over zero-filled unreadable spans
+  (UnreadableSpan status); truncated streams are disclosed (truncated flag on
+  failures AND on Ok — stb's JPEG zero-fill leniency is surfaced, never
+  silent); unsupported formats are named (webp/heic = documented phase-2).
+- Output: straight-alpha RGBA8, aspect-preserving premultiplied box downscale,
+  max_edge on BOTH axes (the og's width-only GDI+ quirk corrected), never
+  upscaled.
+
+**Deferred phases (named deps, honest `thumbnail_format_supported` = false):**
+WebP (libwebp), HEIC (libheif+libde265, embedded-first), RAW (LibRaw thumbnail
+API), video key-frames (ffmpeg — the biggest dependency decision), PDF page
+pixmaps (pdfium), JPEG-in-TIFF / tiled TIFF. Out of scope: SVG rasterization
+(og ships qsvg for UI assets), post-repair enhancement (EUImageEnhance domain),
+thumbcache recovery (separate feature row — carve signatures 01 00 09 00 /
+F7 89 34 2C already known).
+
+**Tests:** `tests/unit/test_thumbnail.cpp` (20 tests incl. the 6-variant TIFF
+suite; fixtures via `scripts/gen_thumbnail_fixtures.py` into
+`tests/data/thumbnails/` with SHA256SUMS) + `fuzz/fuzz_thumbnail.cpp` (every
+parser over hostile bytes, resident + extent-backed + tight-budget lanes).
+ABI exposure of the thumbnail surface is the registered Agent 1 handoff.

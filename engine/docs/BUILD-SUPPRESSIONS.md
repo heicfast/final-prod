@@ -16,4 +16,4 @@ warning under a new toolchain), it lands here with:
 
 | ID | Suppression (file:line / flag) | Rationale | Scope | Deferred-fix tracking |
 |---|---|---|---|---|
-| — | — | — | — | — |
+| S-1 | `src/core/preview/cr_thumbnail.cpp` — `#pragma warning`/`#pragma GCC diagnostic` push-ignored (`-Wmaybe-uninitialized`, `-Wunused-but-set-variable`, `-Wshadow`, `-Wpedantic`; MSVC 4100/4189/4244/4245/4267/4456/4457/4701/4702/4706) wrapping ONLY the vendored `third_party/stb/stb_image.h` include+implementation | The public-domain stb decoder is vendored upstream code: it must compile byte-identical to upstream (no local edits), and its internal warnings under our global Werror gates are upstream-known, not defects. The pragma scope closes immediately after the include; all first-party code in the file compiles under full strictness. `STBI_NO_STDIO` + `STBI_MAX_DIMENSIONS=32768` are upstream-supported configuration macros, not edits. | One include block in one file; the first-party API/impl in the same TU is outside the push/pop | None — pinned configuration, re-evaluated on stb version bumps (upstream upgrades re-run the fuzz + test suites) |

@@ -58,6 +58,7 @@ add_library(cr_core STATIC
     orchestrator/cr_filterfolder.cpp
     orchestrator/cr_filterfolder_data.cpp
     preview/cr_preview.cpp
+    preview/cr_thumbnail.cpp
     query/cr_query.cpp
     query/cr_filefilter_data.cpp
     check/cr_fscheck.cpp
@@ -80,6 +81,10 @@ add_library(cr::core ALIAS cr_core)
 set_target_properties(cr_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(cr_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include)
+# cr_thumbnail's vendored public-domain decoder (third_party/stb) - a
+# PRIVATE include: the stb header never appears in any public cr/ header.
+target_include_directories(cr_core PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/stb)
 # G-09: the engine version baked into every recovery report
 target_compile_definitions(cr_core PRIVATE
     CR_ENGINE_VERSION="${PROJECT_VERSION}")
