@@ -2,7 +2,9 @@
  * rrecov - the core_recovery CLI (Windows).
  *
  * Commands:
- *   list                                  enumerate disks/volumes
+ *   list [--trim]                         enumerate disks/volumes; --trim adds the
+ *                                         per-row TRIM chip datum (the og's home-page
+ *                                         SSD recovery-chance indicator, UIUX/07:17)
  *   list-carve-formats                    the two-layer carve registry
  *   sessions [--dir D] [--json]          the saved-session list (light
  *                                         summary per file; the og's
@@ -730,7 +732,7 @@ bool has_flag(int argc, wchar_t** argv, int& i, const wchar_t* name) {
  * list
  * ------------------------------------------------------------------------- */
 
-int print_disks() {
+int print_disks(bool with_trim) {
     win::PhysicalDiskList list;
     if (win::enumerate_disks(200, list) != OK) {
         wprintf(L"enumeration failed\n");
@@ -739,9 +741,19 @@ int print_disks() {
     }
     win::VolumeEntryList vols;
     win::enumerate_volumes(vols);
-    wprintf(L"%zu disk(s), %zu volume(s)\n", list.size(), vols.size());
+    /* M-076: the --trim chip datum - one fresh fsutil query per run (the
+     * datum is OS-global; the ABI's CR_ENUM_FLAG_TRIM opt-in is the same
+     * primitive and the same one-query shape). A failed query prints the
+     * unknown form - never a guessed value. */
+    bool trim_on = false;
+    const bool trim_known =
+        with_trim && win::health::query_trim_state(trim_on) == OK;
+    wprintf(L"%zu disk(s), %zu volume(s)%s\n", list.size(), vols.size(),
+            with_trim ? (trim_known ? (trim_on ? L" [TRIM ON]" : L" [TRIM OFF]")
+                                    : L" [TRIM ?]")
+                      : L"");
     for (const auto& d : list) {
-        wprintf(L"  Disk %u: %llu MiB (%s) %s [%s] %s\n", d.number, d.size_bytes >> 20,
+        wprintf(L"  Disk %u: %llu MiB (%s) %s [%s] %s%s\n", d.number, d.size_bytes >> 20,
                 d.model.c_str(), d.serial.c_str(), d.removable ? L"removable" : L"fixed",
                 d.table_ok
                     ? (d.table.layout == table::TableLayout::Gpt
@@ -749,7 +761,8 @@ int print_disks() {
                            : (d.table.layout == table::TableLayout::Mbr
                                   ? L"MBR"
                                   : (d.table.layout == table::TableLayout::Ebr ? L"EBR" : L"-")))
-                    : L"no-table");
+                    : L"no-table",
+                trim_known ? (trim_on ? L" TRIM:ON" : L" TRIM:OFF") : L"");
         for (const auto& v : vols) {
             if (v.disk == d.number) {
                 wprintf(L"    %c: %s %s %llu MiB %s\n", v.letter, v.fs_name.c_str(),
@@ -3191,7 +3204,9 @@ int wmain(int argc, wchar_t** argv) {
         wprintf(
             L"rrecov - core_recovery CLI\n"
             L"usage:\n"
-            L"  rrecov list\n"
+            L"  rrecov list [--trim]\n"
+            L"             (--trim: the per-row TRIM chip - the SSD recovery-chance\n"
+            L"              indicator; the datum is the OS-global fsutil state)\n"
             L"  rrecov list-carve-formats\n"
             L"             (the carve-capability projection of the ABI registry -\n"
             L"              the og host's EUGetAnalyserList/Map/Multimap surface)\n"
@@ -3234,8 +3249,20 @@ int wmain(int argc, wchar_t** argv) {
     }
     const std::wstring cmd = argv[1];
     int i = 2;
-    if (cmd == L"list")
-        return print_disks();
+    if (cmd == L"list") {
+        /* M-076: the --trim opt-in (the og's per-row chip; the datum is the
+         * OS-global fsutil state - refused-unknown, never guessed) */
+        bool with_trim = false;
+        while (i < argc) {
+            if (has_flag(argc, argv, i, L"--trim"))
+                with_trim = true;
+            else {
+                wprintf(L"unknown list flag: %s\n", argv[i]);
+                return 1;
+            }
+        }
+        return print_disks(with_trim);
+    }
     if (cmd == L"list-carve-formats")
         return print_carve_formats();
     if (cmd == L"sessions")

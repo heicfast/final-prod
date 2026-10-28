@@ -63,3 +63,49 @@ TEST(Enumerate, ScopeContractDocumentedInHeader) {
 }
 
 } // namespace
+
+/* M-076: the TRIM chip datum ships in all three layers, in the opt-in
+ * shape the finding demanded - the ABI fields + the _ex flag, the impl's
+ * one-fresh-query-per-invocation stamp (the datum is OS-global; a failed
+ * query leaves trim_known == 0 - never a guessed value), and the CLI's
+ * --trim (three sites: the Commands header, the usage text, the flag
+ * parse + the print). */
+TEST(Enumerate, TrimChipOptInShipsInAbiAndCli) {
+    const std::string hdr = cr_test::read_repo_file("include/cr/cr_ui.h");
+    ASSERT_FALSE(hdr.empty());
+    EXPECT_NE(hdr.find("CR_ENUM_FLAG_TRIM"), std::string::npos)
+        << "the opt-in flag must be defined";
+    EXPECT_NE(hdr.find("cr_ui_enumerate_disks_ex"), std::string::npos)
+        << "the _ex export must be declared";
+    EXPECT_NE(hdr.find("never a guessed value"), std::string::npos)
+        << "the failed-query rule must be stated in the contract";
+    EXPECT_NE(hdr.find("uint32_t trim_known;"), std::string::npos)
+        << "the per-row TRIM fields must exist (append-only)";
+    const std::string src = cr_test::read_repo_file("src/ui/cr_ui.cpp");
+    ASSERT_FALSE(src.empty());
+    const size_t at = src.find("u32 enumerate_disks_impl(");
+    ASSERT_NE(std::string::npos, at);
+    const size_t end = src.find("\nu32 ", at + 10);
+    const std::string body =
+        src.substr(at, (end == std::string::npos ? src.size() : end) - at);
+    EXPECT_NE(std::string::npos, body.find("flags & CR_ENUM_FLAG_TRIM"))
+        << "the TRIM query must be gated by the opt-in flag";
+    EXPECT_NE(std::string::npos, body.find("win::health::query_trim_state"))
+        << "the chip datum must come from the health facet's primitive";
+    /* the unknown-bits refusal precedes the platform check */
+    const size_t ex = src.find("cr_ui_enumerate_disks_ex(");
+    ASSERT_NE(std::string::npos, ex);
+    const std::string exsrc = src.substr(ex, 700);
+    EXPECT_NE(std::string::npos, exsrc.find("~CR_ENUM_FLAG_TRIM"))
+        << "unknown flag bits must be refused";
+    const std::string cli = cr_test::read_repo_file("src/app/rrecov.cpp");
+    ASSERT_FALSE(cli.empty());
+    EXPECT_NE(std::string::npos, cli.find("rrecov list [--trim]"))
+        << "the usage text must carry --trim";
+    EXPECT_NE(std::string::npos, cli.find("L\"--trim\""))
+        << "the flag must be parsed by the list verb";
+    EXPECT_NE(std::string::npos, cli.find("TRIM:ON"))
+        << "the chip must render in the row output";
+    EXPECT_NE(std::string::npos, cli.find("TRIM ?"))
+        << "the unknown form must render on a failed query (never guessed)";
+}
