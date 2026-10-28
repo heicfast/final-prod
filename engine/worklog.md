@@ -1002,3 +1002,37 @@ prose, seven driver-repo sites) and D4 (regdrv-rda.reg hex(7) UpperFilters
 still invalid).
 
 No source code modified. Every changed path is under diff-to-fix/ + worklog*.
+Task ID: SCAN-4/A2 (session open — the scan-engine context-recovery re-run; the Delta
+Report refreshed; the two batch-1 misattributions fixed; the batch-2 decode filed)
+Agent: scan-engine lane (A2, this session)
+
+- Baselines (cloned fresh this session): core 0058271 (main), corpus be0cfe9 (main),
+  rda-driver 323e75a (v0.2.4). Four read legs per protocol (corpus spec; corpus
+  decompile — a narrowed retry after the first attempt hit a container deadline, both
+  read-only; core state; driver). Driver leg: v0.2.4 wire byte-stable, NAS/Cloud zero
+  code paths re-proven by full-repo grep.
+- Q1-Q11, A1-A3/A5-A6, M1-M5, F1-F7 re-verified: zero open defects outside the A4
+  batch-2 remainder. C9/OQ-S4-3 stays Windows-execution-bound (unchanged).
+- TWO live batch-1 misattribution defects found by the legs and verified first-hand
+  at the registration sites, then FIXED (registry rows relabeled + validators
+  rewritten to the og grammar; FormatId values untouched — append-only discipline):
+  (a) II/MM 1A 00 = CRW (Brance::CRWAnalyser id 0x12, HEAP + {CCDR,TIFP,ARCH} +
+  ver-2 grammar, RAWSearchDLL :1746-1761 + FUN_180052000 :62333-62353) — the landed
+  "Minolta MRW" rows' invented PRD gate rejected every real CRW file; MRW is \0MRM
+  only (id 0x66) with the og size formula (FUN_180012100 :14233-14258); (b)
+  DB A5 2D 00 / 94 A6 2E 00 = FileLowDocAnalyser id 0x17 (old-Word .doc;
+  formula-only validator FUN_18001b650 :21167-21188) — the landed "Windows Help"
+  rows relabeled to ext "doc"; HLP = 3F 5F 03 00 only with the og size gate
+  (FUN_180041c50 :49883-49895).
+- Batch-2 remainder: DECODED at validator level (all 17 items — the session-5 grammar
+  table in SCAN-ENGINE-DELTA is the record); the S-007 causes re-pinned (CHM's
+  :22635 pin invalid → real ITSF grammar :17705-17740; MPEG-TS's 0x11C cause stale
+  = FH11; FCPEvt has NO XML side — covered by FMT_SQLITE + N-089; SWF ZWS rejected /
+  ver∈[3,20]; JP2 ids are brand mappings). Per-school fix batches in flight.
+- Errata E53/E54 filed (census's "!BDN = Bentley" → FilePSTAnalyser id 0x38;
+  dual-registry's "0x4449 ID = AIFF" → the MP3/ID3 chain, AIFF = FORM id 0x50) —
+  both verified first-hand at the registration sites.
+- handoff (API lane): the carve registry's mislabeled rows corrected in place —
+  FormatId VALUES unchanged (append-only held); the ext/name surface changed on 4
+  rows (mrw→crw x2, hlp→doc x2, both corrections of WRONG labels to og truth);
+  list-carve-formats reads the registry automatically, no API change needed.

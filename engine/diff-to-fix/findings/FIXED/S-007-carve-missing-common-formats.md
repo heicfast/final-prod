@@ -260,3 +260,71 @@ decoded first-hand); HTML/XML/SVG + LZH + FCPEvt + OfficeTagFromXML + CRW +
 VCF/GPX/HIK/OSP/POS/AEP/CHFP (the list-layer/text school — per-analyser
 decompile reads required). NO DBF: no dBase analyser exists in the og
 (session-3 correction stands).
+
+---
+
+## Niche batch-2 decode addendum (SCAN-4, 2026-10-28 — the causes re-pinned; every grammar below first-hand in the decompile)
+
+The context-recovery re-run decoded the ENTIRE batch-2 remainder at validator
+level; the prior causes are re-pinned where the decode refuted them:
+
+- **CHM**: the ":22635 GUID-grammar" pin was INVALID (:22560-22719 is std::_Tree
+  rebalance code). The real validator is FUN_180016b40 :17705-17740: ITSF@0 ∧
+  u32@+8==0x60 ∧ the two ITSF GUIDs as qword pairs (@0x18/@0x20 ==
+  0x11d07baa7c01fd10/0xecee620ca0000c9e; @0x28/@0x30 ==
+  0x11d07baa7c01fd11/0xecee620ca0000c9e) ∧ u32@0x60==0x1FE (the directory-header
+  entry magic) ∧ u32@0x70==0 ∧ u32@0x74==0 → size = u64@0x68. No og min/max.
+- **MNY**: the u16 `MS` key (:2909) + validator FUN_180041dd0 :49956-49981:
+  15-byte memcmp `"MSISAM Database"` @+4 → claimed size 0x100000. The "follow-up
+  gates undecoded" cause is CLOSED (that memcmp IS the whole gate).
+- **EMF**: list-only (:3194-3222); validator FUN_180012080 :14204-14214:
+  " EMF"@+0x28 (u32 0x464d4520) ∧ u16@0x3a==0 ∧ nBytes u32@0x30!=0 → size=nBytes.
+  The "no keyed registration" cause stands as the og's own posture (list-layer by
+  design); the "record-type-1 header" phrasing is CORRECTED — the og does NOT
+  check iType.
+- **ONE**: key E4 52 5C 7B + the 16-byte GUID tail (qword@+4==0x7853b1ae4da7d88c ∧
+  dword@0xc==0xd3296930, FUN_180044db0 :52303); ctor bounds {20, 500,000,000}
+  (FUN_180016080 :17191-17209). Cause CLOSED.
+- **MPEG-TS**: the "numeric key 284/0x11C" cause was STALE — 0x11C was FreeHand-11
+  (landed as FMT_FH11 in the S-037 batch). MTS/M2TS are list-only brute-force
+  scanners: CMTS (id 0x76) 0x47-sync walk, stride 188/192 chosen by the sync's
+  position (@+0 → 188, @+4 → 192), second-byte gate {0x41, 0x42, 0x50, 0x10},
+  ≥0x200 guard, ≤100 packets per pass; CM2TS (id 0x74) the two-consecutive-syncs
+  proof, min span 0x5000, ext M2TS.
+- **3DS**: u16 `MM` + u16@0x10==0x3d3d (the "==@+16 chunk gate" CONFIRMED,
+  FUN_180042fa0 :50906-50916) OR (u32@0x100==DAT_180093978 ∧ u32@0x104==0x200000)
+  — the alt-magic constant is .rdata, to extract from the og DLL before that
+  branch lands. The TIFF-BE collision disambiguates by the == gate (TIFF-BE rides
+  the u32 MM\0\* key only).
+- **SWF/JP2/MOBI**: fully decoded (FWS/CWS only — ZWS rejected — version@3 ∈
+  [3,20], FileLength@4 > 8, size=u32@4; jP  /0x0D0A870A/ftyp + brand ids
+  {jp2 →0x80, jpx →0x81, jpm →0x82} with jp2c as the size-walk box; BE32
+  BOOK@0x3c ∧ MOBI@0x40 + end-tag 0A 0D 8E E9 size). The "no key sites decoded"
+  cause is CLOSED — all three are list-layer by og design.
+- **HTML/SVG/LZH**: decoded (see the session-5 grammar table in
+  SCAN-ENGINE-DELTA.md; the HTML 4th key is the UTF-16LE BOM FE FF, the SVG 4th
+  key 0x1cd stays purpose-UNRESOLVED).
+- **FCPEvt**: NO XML side exists — the analyser is the SQLite container validator
+  (SQLi key, BE u16 page size@0x10, page-type mask 0x2536, ≤5 trailing zero pages
+  trimmed). The core's FMT_SQLITE + the N-089 subtype relabel ALREADY cover it;
+  no standalone row required. The batch-2 "text school" cause line for FCPEvt is
+  CLOSED as already-covered.
+- **OfficeTagFromXML**: decoded as the ZIP-entry classifier
+  (word/_rels/document.xml.rels ⇒ 0x49, xl/_rels/workbook.xml.rels ⇒ 0x4a,
+  ppt/_rels/presentation.xml.rels ⇒ 0x4b + the ODF/iWork/epub/XMIND/MMAP/EDDX/
+  ProjectFolder/MediaPool id set, FUN_180046120 :53155-53195) consumed at the ZIP
+  [Content_Types].xml/docProps path (:18874-:19176 callers) — an archive-lane
+  classification surface riding S-032's inner-entry inventory, not a standalone
+  registry row. Filed for the archive lane.
+- **Text school** (VCF/GPX/HIK/OSP/POS/AEP/CHFP): every one-liner validator
+  decoded (see the session-5 table). Implementable as keyed rows.
+- **NO DBF** stands (no dBase analyser exists in the og).
+
+**Two batch-1 misattribution corrections (fixed in the registry this session,
+causes recorded in the session-5 log):** the II/MM 1A 00 rows are CRW
+(Brance::CRWAnalyser id 0x12, HEAP + {CCDR,TIFP,ARCH} + ver-2 — the landed
+"Minolta MRW" labels and the invented PRD gate were wrong; MRW is \0MRM only
+with the og size formula); the DB A5 2D 00 / 94 A6 2E 00 rows are
+FileLowDocAnalyser id 0x17 (old-Word .doc, formula-only validator — the landed
+"Windows Help" labels were wrong; HLP is 3F 5F 03 00 only with the og size
+gate).
