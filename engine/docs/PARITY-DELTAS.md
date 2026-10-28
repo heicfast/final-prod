@@ -3043,8 +3043,8 @@ VERDICT: ACCEPTED (deliberate divergence; mandate §2's refusal contract).
 REFERENCE: the og issues only GetDiskContextMode (0x60002408) — the extended
 RDA IOCTLs postdate the reference binaries (DRIVER-CONTRACT §5; the core's own
 cr_rda.h documented them as documentation-only, "no core code issues them",
-N-041). CORE: query_driver_status issues GET_INFO (0x60002440) + GET_VERSION
-(0x60002448) on the global control-device handle; the version-compatibility
+N-041). CORE: query_driver_status issues GET_INFO (0x6002440) + GET_VERSION
+(0x6002448) on the global control-device handle; the version-compatibility
 contract is major-match/minor-informative. RATIONALE: the status surface's
 version/healthy facets need them; the driver serves both on global handles.
 VERDICT: ACCEPTED (wire-contract activation, our own driver's documented

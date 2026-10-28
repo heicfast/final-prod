@@ -1,0 +1,142 @@
+# API INVENTORY / DELTA — core_recovery vs the research corpus (API scope)
+
+> Session: api-fix (2026-10-28). Method per the context-recovery protocol:
+> three parallel read-legs (corpus CTX-1, core CTX-2, driver CTX-3) produced
+> `/home/z/my-project/api-ctx/{corpus-api-context,core-api-surface,driver-api-surface}.md`;
+> this report consolidates them into the present|missing|inconsistent|hallucinated
+> board and is then executed item-by-item. Corpus commit `03ad46c`; core at
+> `d1fba5d` → synced through `025dee7` (parallel lanes landing concurrently).
+
+## 0. Surfaces in scope (API layer only)
+
+1. **cr_ui C ABI** — `include/cr/cr_ui.h` (79 exports, `CR_UI_ABI_VERSION 3`
+   after the M-067 landing) + `src/ui/cr_ui.cpp`.
+2. **rrecov CLI** — 10 verbs, exit codes, machine-readable JSON shapes.
+3. **Session/report formats** — CRSF v1 (`docs/crsf-format.md`),
+   recovery-report JSON v1 (`docs/recovery-report-schema.md`).
+4. **Driver transport contract** — `include/cr/win/cr_rda.h`,
+   `src/win/cr_transport.cpp`, `docs/DRIVER-CONTRACT.md`,
+   `docs/DRIVER-REQUIRED.md` (user-mode half of the rda-driver wire).
+5. **Normative API docs** — `docs/ABI-CONTRACT.md`, `docs/API.md`,
+   `docs/API-SURFACE-AUDIT.md`, `docs/CORE-API-CURRENT.md` (claims, not truth).
+
+Out of scope: engine internals, driver internals, packaging/deployer scripts
+(except where a doc's claim about an API is falsifiable), UI.
+
+## 1. Board — every corpus API surface vs core status
+
+Legend: MATCH = contract-equivalent | INCONSISTENT = present but drifting
+(doc vs code vs corpus) | MISSING = no counterpart | HALLUCINATED = claimed
+but not real (invented) | SUPERSET = documented deliberate divergence.
+
+### 1.1 Engine factories & scan lifecycle
+
+| # | Corpus surface | Core equivalent | Status | Evidence |
+|---|---|---|---|---|
+| 1 | `EUCreate<FS>{Quick,}Searcher` pair × 9 DLLs; FS-code dispatch 0-2/3/4-5/7/8/9/10/13 (+Btrfs); Btrfs "Complate" typo | `cr_ui_scan_create` `stage_mask`/`fs_hint` (1/2/3/4/6/7/8/9/11 valid) | **MATCH** (binding-model equivalence documented) | corpus-api-context §1.1; core-api-surface b.4 |
+| 2 | RAWSearchDLL extra exports: `EUGetAnalyserList/Map/Multimap`, `GetRawUserInfoMap`, `EUCreateRAWSearcherForCellTest` | `cr_ui_carve_format_count/_info` (both layers, append-only) | **MATCH** (enumeration ops #7/#8 landed prior session); `GetRawUserInfoMap` = per-scan carve-statistics map (OQ-SA-3 RESOLVED) — telemetry only, no gap | driver-agnostic; corpus-api-context §2.2 item 11 |
+| 3 | `RegisterCarvedFileNamer` (RAW vt+0x48, UI-side naming policy) | not exposed; names synthesized; host can rename post-hoc via node_info | **MATCH (registered divergence D-API-1)** | API-SURFACE-AUDIT §2.1 #5 |
+| 4 | `SetScanMode(int)` | `whole_disk` + stage weights in scan config | **MATCH** | audit #6 |
+| 5 | Engine pause/resume interface | **NOT IN CORPUS** (UI-level only) | **MATCH+ (documented superset D-18)** | corpus-api-context §6 Q1 |
+| 6 | Event bus `(int msg, void* data, int&)` MOM/Qt | `cr_ui_scan_set_event_fn` + 10 typed events | **MATCH+** (typed superset, ABI-CONTRACT §6) | audit #15 |
+| 7 | Progress: pull-polled + sigPercentChange; emission throttle NOT IN CORPUS | push `cr_ui_progress_fn` + pull `cr_ui_scan_telemetry`, permille-CAS throttle | **MATCH+** | audit #16 |
+| 8 | StopScan (manual-reset event + reason) | `cr_ui_scan_cancel` (PausableToken, tree intact) | **MATCH** | audit #13 |
+
+### 1.2 Node metadata, query, filter
+
+| # | Corpus surface | Core equivalent | Status | Evidence |
+|---|---|---|---|---|
+| 9 | IFileProperties 23-slot vtable; 10 persisted type codes; FLAGS 0x10/0x20; DataRunList | `cr_ui_node_info` (name/sizes/4 ts/attrs/extents/deleted/origin/confidence/carve format/hash) | **MATCH** (field set ⊇ persisted set) | audit #18 |
+| 10 | FileFilter.xml: 8 categories (Graphic/Document/Email/Audio/Video/Other/Archive/Bookmarks), 1,489 Extention elements / 1,481 unique | 6 hard-coded categories / ~90 ext (M-023 engine scope) | **MISSING (engine-scope taxonomy, tracked M-023; the audit's row is stale on counts: "1,481" = unique, 1,489 = elements)** | corpus-api-context §2.1 #19 (mechanically verified) |
+| 11 | AdvanceFilterCondition 7 groups (type/time/size/state/tag/path/search); date buckets 0x100-0x103/0x105, size 0x1000-0x1004/0x1006 | `cr_ui_query` + `cr_ui_query_apply_buckets` (og bucket IDs exact; skipped/unknown rejected) | **MATCH on 6/7** (tag NOT-EXPOSED, UI state) | core-api-surface b.7; corpus-api-context §1.11 |
+| 12 | Search dropdown "Optional Type" 8 classes | `name_substring` | **MATCH** | audit #21 |
+| 13 | Sort (Name/Size/Type/Date + recovery-chance) | query sort 0..7 (7=Type) | **MATCH** | audit #22 |
+| 14 | Tree branches: Tags Extracted / File Name Lost / File Path Lost / Versions / Unimportant | origin/confidence grading + roots | **PARTIAL — engine taxonomy scope (M-023 lineage)** | corpus-api-context §2.2 item 16 |
+
+### 1.3 Preview, recovery, session
+
+| # | Corpus surface | Core equivalent | Status | Evidence |
+|---|---|---|---|---|
+| 15 | Preview open per-type; **IInWindowStream = LZMA SDK name, NOT a preview contract** (M-028 falsified the audit's attribution); caps 100 MB/15 s = UI policy; 1 MiB payload gate | `cr_ui_preview_*` family, 4 MiB/call cap, short only at EOF | **MATCH + doc tail FIXED this session** (6d0f16c landed the enumeration; N-088 tail swept) | corpus-api-context §1.9/§2.1 #26 |
+| 16 | ArchivePreviewModel browse-inside-damaged-zip | preview ArchiveEntry inventory (512 cap + truncated flag) | **MATCH — landed (6d0f16c, M-066)** | M-066 finding → FIXED |
+| 17 | Media thumbnail IPC TCP 20171/20172 + zmq | n/a — UI-process internals | **N/A-by-layer** | corpus-api-context §1.9 |
+| 18 | Recovery: `\\.\X:` same-volume block; 0x5c→0x2f path normalization; ACL preservation; overwrite policy NOT IN CORPUS | `cr_ui_recovery_*`; `ERR_DEST_OVERLAP`; conflict modes rename/skip/overwrite; ACL = N-009d tracked | **MATCH+** | audit #28/#29 |
+| 19 | .rsf container (16-B magic, GUID-keyed records 1-4, chunked zlib lvl 5, fallback memcpy) | CRSF v1 (8 record types, chunked zlib, CRC32, skip-forward) | **MATCH (container semantics equivalent; G-09/F10 supersets)** | audit #32/#33 |
+| 20 | Auto-save orchestration (Freeze→save→Unfreeze) | host-side/CLI save | **N/A-by-layer** | audit #34 |
+| 21 | Recovery log FILE format | JSON report schema v1 | **MATCH (clean-room equivalent; og format NOT IN CORPUS)** | audit #37 |
+
+### 1.4 Lost partitions, health, disk map
+
+| # | Corpus surface | Core equivalent | Status | Evidence |
+|---|---|---|---|---|
+| 22 | Lost-partition: insert-as-scan-target; `CPartitionVirtualVolumeDevice`; partition engine modules | `whole_disk` + `CR_EVT_LOST_CANDIDATE` + lostpart engine + `cr_ui_apply_lost_partition/_undo_last/_save_undo` | **MATCH (API surface complete; scoring parity M-017 engine scope)** | audit #35 |
+| 23 | `IBuildVolumeBitmap` | `cr_ui_disk_map` (4 overlays) | **MATCH+ (GAP-S6-11)** | audit §2.5 |
+| 24 | DiskHealth companion app (SMART SAT/CSMI/NVMe) | `cr_ui_health_read` (SMART+NVMe+SSD heuristic+TRIM; ABI v2 NVMe tail) | **MATCH+** | audit §2.5 |
+| 25 | BitLocker: FVEAutoUnlock registry + `\\.\Pipe\DRWBitlocker` (0x138-stride, ≤100 records, one-shot push); manage-bde fallback | `cr_ui_open_volume_with_key` (FVEK XTS-AES) + `cr_ui_unlock_volume_with_dictionary` (228-entry Dict) | **MATCH+ (documented divergences: explicit-consent unlock vs service pipe — the pipe contract is corpus ground truth for the SERVICE shape, not required in-core)** | corpus-api-context §1.14 |
+
+### 1.5 Driver transport (user-mode contract)
+
+| # | Corpus surface | Core equivalent | Status | Evidence |
+|---|---|---|---|---|
+| 26 | Open grammar `\\.\{SYM}\<pidtoken>\Volume\<N>` / `\<disk>\<part>`; PID-token both-sides-exact; disk#≤199 (disk.sys-verified walk) | `src/win/cr_transport.cpp` same grammar + token transform | **MATCH** | driver-api-surface §2; core-api-surface §4 |
+| 27 | 512-byte-sector semantics; `Information` legacy ×512 unscale (F11) | F11 unscale mirrored `cr_rda.h` | **MATCH** | driver-api-surface §5 |
+| 28 | Identity IOCTLs 0x60002400/04/08 (RAW values); extended GET_INFO/OPEN_TARGET/GET_VERSION = `0x600244x` (CTL_CODE_RDA) | `cr_rda.h` constants correct; **INCONSISTENT (doc tail)**: `DRIVER-REQUIRED.md:64-65`, `PLAN-DRIVER-ONLY.md:63-64`, `CORE-API-CURRENT.md:499-500`, `CORE-DISK-ACCESS.md:313-314`, `PARITY-DELTAS.md:3046-47`, `CAPABILITY-MATRIX.md:19`, `DRIVER-RELEASE.md:196`, `cr_driver_status.h:42-43`, `cr_transport.cpp:392-393` still carry the phantom-zero `0x6000244x` literals | **FIX ITEM 1** | this session's grep; commit 3bda8e2 fixed the wire, not the doc tail |
+| 29 | Driver-status classifier (absent/not-started/unauthorized/version-mismatch/errored → 0x500B) | `cr_ui_driver_status` + 8-step classifier + CLI exit 4 | **MATCH** | DRIVER-REQUIRED.md §4 |
+| 30 | EPMNtDrv pass-through IOCTLs on bound handles | method-aware pass-through (F10) | **MATCH** | driver-api-surface §3.3 |
+| 31 | EUDCPEPM 19-code copy-session protocol; EUEDKEPM 2-segment door | merged in rda-driver; core consumes grammar path only (copy-session = documented wire surface, no in-core consumer — correct: the og's consumer is the WinPE copy chain, not DRW's engine) | **MATCH (scope-correct)** | driver-api-surface §3.4 |
+
+### 1.6 ABI infrastructure (the C ABI's own contract)
+
+| # | Claim site | Status | Evidence |
+|---|---|---|---|
+| 32 | `cr_ui.h:916` names `CR_UI_ERR_INVALID_PARAM` — **macro does not exist** (impl returns `ERR_BAD_PARAMETER`) | **INCONSISTENT (hallucinated identifier in a normative header comment) — FIX ITEM 2** | grep: single site; cr_ui.cpp:3108-3117 |
+| 33 | `cr_ui.h:407` documents transport `"rda", "direct" or "image"` — `"direct"` unreachable since driver-only | **INCONSISTENT (stale doc) — FIX ITEM 2** | cr_ui.cpp sets only "rda"/"image" |
+| 34 | `ABI-CONTRACT.md §4` error table lacks the `ERR_DRIVER_*` 0x500B family ABI opens return | **INCONSISTENT — FIX ITEM 3** | ABI-CONTRACT.md:72-88 vs cr_error.h:91-99 |
+| 35 | `ABI-CONTRACT.md §6` event block stops at type 9 (no `CR_EVT_FS_CHECK` 10 / M-041 struct tail) | **INCONSISTENT — FIX ITEM 3** | ABI-CONTRACT.md:202-257 vs cr_ui.h:168-233 |
+| 36 | `ABI-CONTRACT.md §7e` still documents the removed RDA→direct fallback + WinPE gate | **INCONSISTENT — FIX ITEM 3** | ABI-CONTRACT.md:562-600 vs cr_ui.cpp:1152-1189 (driver-only) |
+| 37 | `API.md` says 78 exports (actual 79); omits `cr_ui_driver_status`/`cr_ui_last_error`/`cr_ui_snapshot_close`; §2.2 fallback-era wording | **INCONSISTENT — FIX ITEM 3** | core-api-surface §7 item 6 |
+| 38 | `CORE-API-CURRENT.md` pre-driver-only census body (§e/§f, b.2 row) describes removed mechanisms as current | **INCONSISTENT (historical census banner'd; body not rewritten) — FIX ITEM 3 (point edits)** | core-api-surface §7 item 7 |
+| 39 | `API-SURFACE-AUDIT.md` headline "61 exports" (now 79) + counts | **INCONSISTENT (stale headline) — FIX ITEM 3** | audit :31-36 |
+| 40 | `ABI-CONTRACT.md §3` "progress callbacks fire on the thread running run()/process()" vs §6 worker-thread events | **Clarify (one sentence) — FIX ITEM 3** | core-api-surface §7 item 12 |
+
+### 1.7 Data assets behind API surfaces
+
+| # | Corpus asset | Core status | Evidence |
+|---|---|---|---|
+| 41 | EUUserData 111-entry default user-sign DB | **landed (37c48c6, M-065)**; consumption mode resolved (CHK repair chain; core's load = SUPERSET D-104) | 025dee7 board |
+| 42 | raw_signs.json 139-extension table (engine-init `std::ifstream` load) | compiled-in table (D-103 registered, reproducibility-over-mutability decision) | e81b98f |
+| 43 | Dict 228-entry password dictionary | shipped (cr_dict_data.cpp) | corpus-api-context §4 |
+| 44 | FilterFolder.ini noise blocklist + FatFilterName 10 locales + TxtViewFiles 119 ext | landed (cr_filterfolder_data.cpp) | corpus-api-context §4 |
+| 45 | PriorityDisplayType.xml / usefullostfiles.xml / SumaryFileType groups | landed (query/filefilter data layers) | corpus-api-context §4 |
+
+### 1.8 Deliberate divergences (registered, no action)
+
+D-01/F10 session hardening, D-14 grade-at-scan, D-16 BitLocker legitimate-unlock
+only, D-18 pause/resume superset, D-29 client-side filtering, D-53 tag not exposed,
+D-104 default user-sign set, D-103 compiled-in raw-signs, D-DRV-1..5 driver-only
+transport + classifier, D-API-1 host-side naming. All documented in
+docs/PARITY-DELTAS.md lineage.
+
+## 2. Executed this session (fix ledger)
+
+| Item | Action | Commit |
+|---|---|---|
+| 0 | CI-red repair: MSVC C4244 (FH11 extent check) + clang-format sweep (9 files) — the parallel lanes' two breakages; 965/965 green on gcc-13+ASan (CI lane's exact config) | `1117ac9` |
+| 1 | Phantom-zero IOCTL literal doc tail (DRIVER-REQUIRED, PLAN-DRIVER-ONLY, CORE-API-CURRENT, CORE-DISK-ACCESS, PARITY-DELTAS, CAPABILITY-MATRIX, DRIVER-RELEASE, cr_driver_status.h, cr_transport.cpp) → `0x600244x` | this session |
+| 2 | cr_ui.h:916 phantom macro → ERR_BAD_PARAMETER; :407 "direct" removal | this session |
+| 3 | ABI-CONTRACT §4 (0x500B family rows), §6 (FS_CHECK type 10 + struct tail), §7e (driver-only rewrite), §3 sentence; API.md (79 exports, 3 missing rows, driver-era §2.2); CORE-API-CURRENT point edits; API-SURFACE-AUDIT headline | this session |
+
+## 3. Remaining board (after parallel-lane landings + this session)
+
+- **S-038** app-installer surface (packaging milestone; step 1 = PACKAGING.md
+  landed `e75d4df`; steps 2-4 = installer implementation + tests — a
+  Windows-lane deliverable, queued for the packaging lane).
+- **M-064** driver deployer versioned/verified contract (rda-driver scripts
+  lane — S-036 batch landed the core side; the upstream v0.2.3 deployer batch
+  remains).
+- **N-089** FCP-event subtype relabel (MINOR, labeling-only — carve lane).
+- **I-026** unsigned-by-design posture (INFO, deliberate).
+- **OQ-SA-1** anchor-datum fields probe (tracked-open, engine scope).
+- **OQ-S4-3** chunking perf probe (tracked-open, engine scope).
+- **A-ABI-6** codeql lane `if: false` vs RELEASE-NOTES claim (policy decision
+  for the repo owner, flagged in the audit).

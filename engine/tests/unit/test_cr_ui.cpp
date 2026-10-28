@@ -2325,3 +2325,86 @@ TEST(CrUi, TransportErrorAdvisoryZeroOnCleanState) {
     EXPECT_EQ(cr_ui_last_transport_error(), 0u);
 #endif
 }
+
+/* ---- api-fix session: ABI doc-truth pins (the driver-era drift batch) ---- */
+
+TEST(CrUi, AbiHeaderNamesNoPhantomErrorMacros) {
+    /* api-fix: cr_ui.h once documented `CR_UI_ERR_INVALID_PARAM` in the
+     * query_apply_buckets comment - a macro that never existed (the
+     * implementation returns ERR_BAD_PARAMETER, 0x50030003). No
+     * phantom identifier may return to the header. */
+    const std::string hdr = cr_test::read_repo_file("include/cr/cr_ui.h");
+    ASSERT_FALSE(hdr.empty());
+    EXPECT_EQ(hdr.find("CR_UI_ERR_INVALID_PARAM"), std::string::npos)
+        << "the header must not name a macro that does not exist";
+}
+
+TEST(CrUi, TransportDocCarriesNoDirectValue) {
+    /* api-fix: the cr_ui_device_transport comment once listed "direct"
+     * as a third value - unreachable since PLAN-DRIVER-ONLY (the code
+     * only ever sets "rda"/"image"). The stale value must not return. */
+    const std::string hdr = cr_test::read_repo_file("include/cr/cr_ui.h");
+    ASSERT_FALSE(hdr.empty());
+    const size_t at = hdr.find("cr_ui_device_transport");
+    ASSERT_NE(at, std::string::npos);
+    /* the contract comment block sits just above the declaration */
+    const std::string around = hdr.substr(at > 600 ? at - 600 : 0, 700);
+    EXPECT_EQ(around.find("\"rda\", \"direct\""), std::string::npos)
+        << "the transport contract must not advertise the removed direct value";
+}
+
+TEST(CrUi, AbiContractCarriesDriverEraTruth) {
+    /* api-fix: ABI-CONTRACT's normative error table (section 4) must
+     * carry the ERR_DRIVER_* family the ABI opens actually return, and
+     * the event block (section 6) must carry CR_EVT_FS_CHECK (type 10)
+     * with the M-041 struct tail. The section 7e rewrite must not
+     * resurrect the removed RDA->direct fallback story. */
+    const std::string doc = cr_test::read_repo_file("docs/ABI-CONTRACT.md");
+    ASSERT_FALSE(doc.empty());
+    EXPECT_NE(doc.find("ERR_DRIVER_ABSENT"), std::string::npos)
+        << "section 4 must list the driver-prerequisite refusal family";
+    EXPECT_NE(doc.find("CR_EVT_FS_CHECK"), std::string::npos)
+        << "section 6 must list event type 10";
+    EXPECT_NE(doc.find("check_errors"), std::string::npos)
+        << "section 6's struct sketch must carry the M-041 tail fields";
+    EXPECT_NE(doc.find("0x500B0005"), std::string::npos)
+        << "the full 0x500B family belongs in the error table";
+    /* the removed fallback story must stay gone */
+    const size_t s7e = doc.find("### 7e.");
+    ASSERT_NE(s7e, std::string::npos);
+    const std::string tail = doc.substr(s7e, 2200);
+    EXPECT_EQ(tail.find("direct fallback succeeds"), std::string::npos)
+        << "section 7e must describe the driver-only advisory, not the removed fallback";
+    EXPECT_EQ(tail.find("WinPE environment gate"), std::string::npos)
+        << "the WinPE gate was removed with the fallback";
+}
+
+TEST(CrUi, DriverWireCodesFreeOfPhantomZeroInDocs) {
+    /* api-fix: the extended IOCTL codes are 0x6002440/0x6002444/0x6002448
+     * (CTL_CODE_RDA(fn), wire-truth fix commit 3bda8e2). The
+     * phantom-zero 0x6000244x literals were swept from the normative
+     * docs and code comments; this pin keeps them out. The identity
+     * codes 0x60002400/0x60002404/0x60002408 are RAW values and stay. */
+    const char* const files[] = {
+        "docs/DRIVER-REQUIRED.md",
+        "docs/DRIVER-CONTRACT.md",
+        "docs/DRIVER-RELEASE.md",
+        "docs/PLAN-DRIVER-ONLY.md",
+        "docs/CORE-API-CURRENT.md",
+        "docs/CORE-DISK-ACCESS.md",
+        "docs/CAPABILITY-MATRIX.md",
+        "docs/PARITY-DELTAS.md",
+        "include/cr/win/cr_driver_status.h",
+        "src/win/cr_transport.cpp",
+    };
+    for (const char* f : files) {
+        const std::string txt = cr_test::read_repo_file(f);
+        ASSERT_FALSE(txt.empty()) << f;
+        EXPECT_EQ(txt.find("0x60002440"), std::string::npos)
+            << f << ": phantom-zero GET_INFO literal";
+        EXPECT_EQ(txt.find("0x60002444"), std::string::npos)
+            << f << ": phantom-zero OPEN_TARGET literal";
+        EXPECT_EQ(txt.find("0x60002448"), std::string::npos)
+            << f << ": phantom-zero GET_VERSION literal";
+    }
+}

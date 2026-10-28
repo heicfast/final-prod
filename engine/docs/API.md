@@ -72,9 +72,9 @@ unlock-side ever fires implicitly. See [CONNECTION-GUIDE.md](CONNECTION-GUIDE.md
 
 ## 2. The `cr_ui` C ABI (`cr_ui.dll` / `libcr_ui.so`)
 
-Version: `cr_ui_abi_version()` returns `CR_UI_ABI_VERSION` (**2**).
+Version: `cr_ui_abi_version()` returns `CR_UI_ABI_VERSION` (**3**).
 Call it first and refuse to bind on mismatch. The surface is
-append-only-flat-C: 78 exported functions in the current header, all
+append-only-flat-C: 79 exported functions in the current header, all
 `cr_ui_*`, opaque handles, C callbacks, no exceptions across the boundary,
 thread-safety class documented per group ([ABI-CONTRACT.md](ABI-CONTRACT.md)).
 
@@ -83,6 +83,7 @@ thread-safety class documented per group ([ABI-CONTRACT.md](ABI-CONTRACT.md)).
 | Export | Purpose |
 |---|---|
 | `cr_ui_abi_version` | the ABI version gate (call first) |
+| `cr_ui_last_error` | thread-local text for the last failing call on that thread (never NULL) |
 | `cr_ui_string_free` | free every returned string |
 
 ### 2.2 Device layer
@@ -92,8 +93,10 @@ thread-safety class documented per group ([ABI-CONTRACT.md](ABI-CONTRACT.md)).
 | `cr_ui_enumerate_disks` / `cr_ui_enumerate_volumes` | the device census (PhysicalDrive namespace, ≤ 200 disks, D-85 scope) |
 | `cr_ui_open_disk` / `cr_ui_open_volume` / `cr_ui_open_image` | open by number / letter / image file (flat, VMDK, VHD, VHDX) |
 | `cr_ui_open_volume_with_key` | open a BitLocker volume with a user-supplied FVEK (in-stack XTS-AES decrypt, M-033) |
-| `cr_ui_device_geometry` / `cr_ui_device_transport` / `cr_ui_device_close` | geometry (4Kn-aware), transport name (`rda`/`direct`), close |
-| `cr_ui_last_transport_error` | the surviving transport leg's error after an RDA→direct fallback (M-030; the silent-fallback closure) |
+| `cr_ui_unlock_volume_with_dictionary` | explicit-consent BitLocker password unlock (N-064; shipped 228-entry dict + user candidates) |
+| `cr_ui_driver_status` | the 6-facet driver-status query (present/loaded/started/authorized/healthy + version pair + last GLE) |
+| `cr_ui_device_geometry` / `cr_ui_device_transport` / `cr_ui_device_close` | geometry (4Kn-aware), transport name (`rda`/`image` — driver-only, no direct fallback), close |
+| `cr_ui_last_transport_error` | the last open's surviving/classified transport error (M-030; advisory-only, never gates a return code) |
 
 ### 2.3 Scanning
 
@@ -118,7 +121,7 @@ thread-safety class documented per group ([ABI-CONTRACT.md](ABI-CONTRACT.md)).
 |---|---|
 | `cr_ui_session_load` / `cr_ui_session_close` / `cr_ui_session_resume` | session container lifecycle |
 | `cr_ui_session_get_info` / `cr_ui_session_stats` / `cr_ui_session_regrade` / `cr_ui_session_snapshot` | summary, per-root stats, re-grading, snapshotting |
-| `cr_ui_snapshot_*` (7) | the read-only result view: DFS walk, node detail, partial window |
+| `cr_ui_snapshot_*` (7) | the read-only result view: DFS walk, node detail, partial window (`cr_ui_snapshot_close` releases) |
 | `cr_ui_query_run` / `cr_ui_query_rows_free` / `cr_ui_query_apply_buckets` | the server-side query (filter/sort/page/bucket IDs, M-029) |
 | `cr_ui_preview_open_session` / `cr_ui_preview_open_snapshot` / `cr_ui_preview_read` / `cr_ui_preview_size` / `cr_ui_preview_metadata` / `cr_ui_preview_close` / `cr_ui_preview_unreadable` | budgeted content preview (caps honest, M-028) |
 

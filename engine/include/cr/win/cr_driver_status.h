@@ -39,8 +39,8 @@ namespace win {
 constexpr const wchar_t* kDefaultDriverService = L"RDA";
 
 /* Wire-compatibility contract with the driver (cr_rda.h kVersionMajor; the
- * driver reports (major<<32|minor) via GET_VERSION 0x60002448 and the same
- * pair in GET_INFO 0x60002440's DriverInfo). The driver side has no ABI
+ * driver reports (major<<32|minor) via GET_VERSION 0x6002448 and the same
+ * pair in GET_INFO 0x6002440's DriverInfo). The driver side has no ABI
  * enforcement (DRIVER-CONTRACT section 5) - the consumer probes, which is
  * exactly what query_driver_status does. Major must match; minor is
  * informational (additive). */

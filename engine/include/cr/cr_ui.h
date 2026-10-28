@@ -404,8 +404,10 @@ typedef struct cr_ui_geometry {
 
 CR_UI_API uint32_t cr_ui_device_geometry(cr_ui_device* dev, cr_ui_geometry* out);
 
-/* Transport truth (the CLI's "[transport]" lines): "rda", "direct" or
- * "image", NUL-terminated into buf (cap bytes incl. NUL). Two-call: pass
+/* Transport truth (the CLI's "[transport]" lines): "rda" or "image",
+ * NUL-terminated into buf (cap bytes incl. NUL) — the driver-only
+ * architecture has no "direct" value (PLAN-DRIVER-ONLY removed the
+ * fallback; the value never appears in code). Two-call: pass
  * buf==NULL to learn the needed size from *needed. */
 CR_UI_API uint32_t cr_ui_device_transport(cr_ui_device* dev, char* buf, uint32_t cap,
                                           uint32_t* needed);
@@ -913,7 +915,7 @@ CR_UI_API void cr_ui_query_rows_free(cr_ui_query_row* rows, uint32_t row_count);
  * 0x102 Last 7 days, 0x103 Last 1 month, 0x105 Custom; Size 0x1000 < 512KB,
  * 0x1001 512KB~1MB, 0x1002 1MB~512MB, 0x1003 512MB~1GB, 0x1004 > 1GB,
  * 0x1006 Custom. 0 leaves that axis untouched. The skipped IDs (0x104,
- * 0x1005) and any unknown value are REJECTED with CR_UI_ERR_INVALID_PARAM
+ * 0x1005) and any unknown value are REJECTED with ERR_BAD_PARAMETER
  * - the core never invents semantics the og's menu does not have.
  *
  * Date windows are computed from the host clock as day-truncated LOCAL

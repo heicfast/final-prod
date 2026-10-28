@@ -54,7 +54,7 @@ with silent fallback; `enumerate_disks(32, ...)` bounds enumeration.
   `volume_extent` only (same data the og's preflight uses); `volume_letter_to_disk`
   was the intended richer preflight (N-041).
 - **C22 (IOCTL/ABI numbers)** — `M`-equivalent: the core's RDA wire (identity IOCTLs
-  0x60002400/04/08 mirrored, extended 0x60002440/44/48, session codes 0x800C2AC0+)
+  0x60002400/04/08 mirrored, extended 0x6002440/44/48, session codes 0x800C2AC0+)
   is its own driver's contract — grammar shape + token pattern match the og pattern;
   numbers deliberately differ (own driver). Register **I-016**.
 

@@ -60,8 +60,8 @@ New family, following the registered core-internal value-space convention (D-68;
 | `ERR_DRIVER_ABSENT` | `0x500B0001` | `OpenServiceW(service)` fails (service not installed) |
 | `ERR_DRIVER_NOT_STARTED` | `0x500B0002` | service exists, `QueryServiceStatus.dwCurrentState != SERVICE_RUNNING` |
 | `ERR_DRIVER_UNAUTHORIZED` | `0x500B0003` | control-device CreateFile fails with `ERROR_ACCESS_DENIED` (DACL SDDL `D:P(A;;GA;;;BA)(A;;GA;;;SY)` — DRIVER-CONTRACT §7) |
-| `ERR_DRIVER_VERSION_MISMATCH` | `0x500B0004` | `GET_INFO` (0x60002440) reports `major != kVersionMajor` (1) — cr_rda.h:221 |
-| `ERR_DRIVER_ERRORED` | `0x500B0005` | service RUNNING + control-device open fails with any other GLE (the v0.2.0 error-87 class), or `GET_INFO` fails / `struct_size != 24` / `GET_VERSION` (0x60002448) disagrees with `GET_INFO` (FB-T06's contract: GET_INFO failure on an opened device = wrong/ancient driver) |
+| `ERR_DRIVER_VERSION_MISMATCH` | `0x500B0004` | `GET_INFO` (0x6002440) reports `major != kVersionMajor` (1) — cr_rda.h:221 |
+| `ERR_DRIVER_ERRORED` | `0x500B0005` | service RUNNING + control-device open fails with any other GLE (the v0.2.0 error-87 class), or `GET_INFO` fails / `struct_size != 24` / `GET_VERSION` (0x6002448) disagrees with `GET_INFO` (FB-T06's contract: GET_INFO failure on an opened device = wrong/ancient driver) |
 
 `err_text()` gains one line per code (cr_error.cpp). Every code is user-facing: CLI stderr, ABI return,
 `cr_ui_last_error` string.

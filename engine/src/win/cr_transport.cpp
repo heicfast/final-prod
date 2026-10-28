@@ -389,8 +389,8 @@ std::wstring control_device_path(const wchar_t* service_name) {
  *   authorized      CreateFileW on \\.\RDA (the bare control device;
  *                    ERROR_ACCESS_DENIED = the DACL denial)
  *   healthy/
- *   version         GET_INFO 0x60002440 (24-byte DriverInfo) +
- *                    GET_VERSION 0x60002448 (u64 (major<<32)|minor),
+ *   version         GET_INFO 0x6002440 (24-byte DriverInfo) +
+ *                    GET_VERSION 0x6002448 (u64 (major<<32)|minor),
  *                    cross-checked against each other
  *
  * The query never fails on a driver CONDITION - it reports it; the caller

@@ -29,9 +29,13 @@ boundary is:
    (corpus `architecture/04-recovery-workflow.md` §7).
 
 The core's equivalent product surface is the **`cr_ui` C ABI** (`cr_ui.dll` /
-`libcr_ui.so`): 61 exports, `CR_UI_ABI_VERSION = 2` (v2: M-036 appended cr_ui_smart_report fields), opaque handles, `cr_error`
+`libcr_ui.so`): 79 exports as of the driver-only + user-sign era
+(`CR_UI_ABI_VERSION = 3` — v2: M-036 appended cr_ui_smart_report fields; v3:
+M-067 the cr_ui_user_sign field resize; the audit-time counts were 61 exports
+@ ABI 2), opaque handles, `cr_error`
 returns, UTF-8 strings with documented ownership, no exceptions across the
-boundary (verified: `include/cr/cr_ui.h:69-705`, all `CR_UI_API` decls; the
+boundary (verified against `include/cr/cr_ui.h` `CR_UI_API` decls;
+the
 in-proc single-library binding model is the documented equivalent of the og's
 in-proc factory model — `docs/architecture.md`, "the shim binds, not hosts").
 

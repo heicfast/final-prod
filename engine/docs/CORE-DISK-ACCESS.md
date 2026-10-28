@@ -310,7 +310,7 @@ open failures with elevate guidance (rrecov.cpp:237-249, 2149-2156, 2358-2365, 2
    distinguished from absent today: a stopped service, an SDDL-denied open, or a foreign
    driver all collapse into "probe CreateFile failed → direct" (the GLE is the only
    differentiator, surfaced in the CLI print and `rda_available`'s `*last_error`).
-   The wire structs that COULD distinguish them (`kIoctlGetInfo` 0x60002440 /
-   `kIoctlGetVersion` 0x60002448, `DriverInfo` with major/minor/flags —
+   The wire structs that COULD distinguish them (`kIoctlGetInfo` 0x6002440 /
+   `kIoctlGetVersion` 0x6002448, `DriverInfo` with major/minor/flags —
    include/cr/win/cr_rda.h:46-73) are documentation-only: "no core code issues them"
    (cr_rda.h:109-114; the querying client was deleted by N-041, cr_rda.h:77-82).

@@ -67,7 +67,12 @@ is internally reference-counted across threads — see §3 for the thread rules.
   `partial=1` and is safe to browse AND to recover from (value semantics).
 - All other entry points: call from one thread at a time per handle.
 - The library never calls back on a thread the caller didn't hand it:
-  progress callbacks fire on the thread running `run()`/`process()`.
+  progress callbacks fire on the thread running `run()`/`process()`;
+  EVENT callbacks (`cr_ui_scan_set_event_fn`) may additionally fire from
+  engine worker threads and the heartbeat watchdog thread (§6; the
+  header's contract block is the thread-provisioning reference — a host
+  reading only this section should still provision for worker-thread
+  event delivery).
 
 ## 4. Error model
 
@@ -85,6 +90,11 @@ Single numeric space, shared with `cr_error.h`. Selected codes:
 | 0x50030009 | ERR_NO_MEMORY | allocation failure |
 | 0x50050001 | ERR_DEST_OVERLAP | destination overlaps the source (F12 refusal) |
 | 0x50060001 | ERR_FVE_LOCKED | BitLocker volume locked (legitimate unlock failed) |
+| 0x500B0001 | ERR_DRIVER_ABSENT | driver service not installed (prerequisite gate, DRIVER-REQUIRED.md §4) |
+| 0x500B0002 | ERR_DRIVER_NOT_STARTED | driver installed, service not RUNNING |
+| 0x500B0003 | ERR_DRIVER_UNAUTHORIZED | device DACL denied the control-device open |
+| 0x500B0004 | ERR_DRIVER_VERSION_MISMATCH | GET_INFO (0x6002440) wire major != required |
+| 0x500B0005 | ERR_DRIVER_ERRORED | service RUNNING but unusable (open/GET_INFO/GET_VERSION failure class) |
 | 0x50090001 | CR_UI_ERR_INTERNAL | internal invariant failure (bug — report it) |
 
 Diagnostics: `cr_ui_last_error()` returns thread-local text for the LAST
@@ -209,6 +219,7 @@ typed stream.
 #define CR_EVT_REPAIR           7u  /* pre-scan repair lifecycle (S-008) */
 #define CR_EVT_HEARTBEAT        8u  /* N-043 liveness heartbeat (5 s watchdog) */
 #define CR_EVT_SAVE_PROGRESS    9u  /* N-060 save-path progress (coalesced) */
+#define CR_EVT_FS_CHECK         10u /* M-041 pre-scan damage-audit phase done (fired ONCE per scan; check_errors = reported issue count 0x1001..0x100e, check_family = detected family byte; the report NEVER aborts the scan) */
 
 typedef struct cr_ui_event {
     uint32_t type;            /* CR_EVT_* above */
@@ -245,6 +256,15 @@ typedef struct cr_ui_event {
     uint32_t err_operation;  /* CR_ERROP_* (READ for this family) */
     uint32_t err_attempts;   /* retries spent before the range was given up */
     uint32_t err_context_pad;
+    /* v2-era append (M-041, CR_EVT_FS_CHECK): the damage-audit phase's
+       summary - reported issue count (the 0x1001..0x100e set; full
+       detail rides the session record + stats) and the detected
+       family byte ('f' fat / 'n' ntfs / 0 undetected). stage stays
+       0xFFFFFFFF (pre-scan). check_pad keeps the POD an 8-byte
+       multiple; always zero. */
+    uint64_t check_errors;
+    uint32_t check_family;
+    uint32_t check_pad;
     /* (CR_EVT_HEARTBEAT reuses the payload fields above: the standing
        permille/counters + timestamp_ms = elapsed_ms; stage = 0xFFFFFFFF
        when no stage is in flight; bytes_total = 0 = unknown.) */
@@ -572,25 +592,25 @@ full widths since v3 — `bytes[48]`, `mime[81]`, `sign_len` 1..48, `offset`
 memcpy of a 73-char MIME with no terminator inside the field — a host
 string read ran past it; the v3 resize is the completing half.
 
-### 7e. The transport-open diagnostic (M-030, ABI-since 2.2)
+### 7e. The transport-open diagnostic (M-030; driver-only since PLAN-DRIVER-ONLY)
 
-`cr_ui_last_transport_error()` reports WHY the last `cr_ui_open_disk`
-ended on the transport it did. The og's ABI surface reports the
-driver-vs-direct decision's failure reason; the pre-fix core silently
-fell back RDA -> direct and overwrote the RDA leg's error code, so a
-degraded-but-working transport was indistinguishable from a healthy
-one. The advisory is process-global, advisory-only (never gates an
-open's own return code), never cleared by reads:
+`cr_ui_last_transport_error()` reports WHY the last `cr_ui_open_disk` /
+`cr_ui_open_volume`-family call ended as it did. The advisory is
+process-global, advisory-only (never gates an open's own return code),
+never cleared by reads — the open calls' own return codes stay
+authoritative:
 
-- `0` — the last open succeeded on its first-choice leg (or no open was
-  attempted; the unsupported-platform stub records the clean state).
-- `CR_UI_ERR_*` — the surviving leg's error: when the RDA leg fails and
-  the direct fallback succeeds, the advisory carries the RDA error (the
-  degraded transport is diagnosable); when both legs fail, the open's
-  return code and the advisory agree.
-
-The WinPE environment gate (M-030's other half of the open path) rides
-the same surface implicitly: in a PE environment the RDA leg is skipped
-entirely (the og's callers go `\\.\PhysicalDrive%d` direct -
-Device_decompiled.c :50653-50663), so the advisory never reports a
-driver-leg error that was never attempted.
+- `0` — the last open succeeded (or no open was attempted yet; the
+  unsupported-platform stub records the clean state).
+- `ERR_DRIVER_*` (`0x500B0001..0x500B0005`) — the last open refused at
+  the driver-prerequisite gate: the driver state was not Ready
+  (`absent` / `not_started` / `unauthorized` / `version_mismatch` /
+  `errored`), and the returned code equals the advisory
+  (`cr_ui.cpp` sets both from the same `driver_state_error()` value).
+- Any other `cr_error` — the driver was **Ready** but the TARGET would
+  not open (`ERR_OPEN_FAILED` etc.): a target error, never a silent
+  transport switch. There is no fallback leg anymore — the driver-only
+  architecture removed the RDA→direct fallback and the WinPE gate
+  entirely (DRIVER-REQUIRED.md; PLAN-DRIVER-ONLY R4/R12), so the
+  advisory never reports "the surviving leg" — it reports the one leg
+  there is.

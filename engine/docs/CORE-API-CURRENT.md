@@ -19,6 +19,20 @@
 > 4 (driver prerequisite), and the read-truth scan verdict (ERR_READ_FAILED
 > on total blindness). Current contracts: [DRIVER-REQUIRED.md](DRIVER-REQUIRED.md),
 > [cr_ui.h](../include/cr/cr_ui.h).
+>
+> **SUPERSEDED SECTIONS (do not read as current):** §(e) items 1-7 and §(f)
+> in their entirety describe the PRE-driver-only status surface —
+> `rda_available`/`win_pe_environment` were REMOVED by PLAN-DRIVER-ONLY
+> (probe → `win::query_driver_status`); `cr_ui_device_transport` reports
+> "rda"/"image" only (no "direct"); `cr_ui_last_transport_error` is the
+> driver-only advisory (ABI-CONTRACT §7e); the wire IOCTLs are now ISSUED
+> (D-DRV-5, GET_INFO 0x6002440 + GET_VERSION 0x6002448); every §(f) gap is
+> closed by the 8-step classifier + `cr_ui_driver_status` + the ABI error
+> family. The b.2 row "RDA-first with direct fallback" is likewise
+> superseded (classified ERR_DRIVER_* refusal, no fallback). Current
+> counts: 79 exports / 10 verbs / 39+OK error codes.
+> Current contract docs: [ABI-CONTRACT.md](ABI-CONTRACT.md),
+> [DRIVER-REQUIRED.md](DRIVER-REQUIRED.md), [API.md](API.md).
 ---
 
 ## (a) C++ API inventory (grouped by module; one line per public operation)
@@ -496,8 +510,8 @@ boundaries via CheckpointSink (cr_scan.h:272-299); `--resume` revalidation (M-04
    (rrecov.cpp:317-340) and bench's `transport` field (rrecov.cpp:1820).
 5. **`win_pe_environment`** gate (cr_transport.h:116-124) + `cr_winenv.h` pins.
 6. **Wire contract documentation** (cr_rda.h): identity IOCTLs 0x60002400/04/08,
-   `kIoctlGetInfo` 0x60002440 / `kIoctlOpenTarget` 0x60002444 / `kIoctlGetVersion`
-   0x60002448, `DriverInfo` (major/minor/flags/max_disks/ioctl_base), `OpenTargetIn`,
+   `kIoctlGetInfo` 0x6002440 / `kIoctlOpenTarget` 0x6002444 / `kIoctlGetVersion`
+   0x6002448, `DriverInfo` (major/minor/flags/max_disks/ioctl_base), `OpenTargetIn`,
    PID-token transform, the 18-code session protocol, F11 scale — all mirrored,
    static_assert-frozen, **and issued by nothing** (N-041 deleted the client;
    cr_rda.h:77-82, 109-114).

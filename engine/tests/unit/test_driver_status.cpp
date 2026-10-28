@@ -161,6 +161,6 @@ TEST(DriverStatus, DefaultStatusIsAbsentNotReady) {
 
 TEST(DriverStatus, RequiredWireMajorMatchesDriverContract) {
     /* cr_rda.h kVersionMajor == 1; the driver reports (major<<32)|minor
-     * via GET_VERSION 0x60002448 - the core requires the major match */
+     * via GET_VERSION 0x6002448 - the core requires the major match */
     EXPECT_EQ(kDriverWireMajorRequired, 1u);
 }

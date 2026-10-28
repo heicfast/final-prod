@@ -193,7 +193,7 @@ There is no formal ABI-tier registry; compatibility is expressed through these c
 | Contract tier | Driver-side surface | Consumer-side check |
 |---|---|---|
 | Identity/grammar tier (EPMNtDrv + EUEDKEPM) | Open grammar + PID token; identity IOCTLs `0x60002400/04/08`; byte-length READ/WRITE with ×512 Information; IOCTL pass-through | Open `\\.\RDA`, `IOCTL_RDA_GET_VERSION` == `(1<<32)\|0`; grammar round-trip via `rdacli grammar` |
-| Extended tier (RDA-native) | `IOCTL_RDA_GET_INFO` (`0x60002440`) reporting Major/Minor + `Flags` (FILTER_MODE/SESSIONS) + `MaxDisks` + `IoctlBase`; `IOCTL_RDA_OPEN_TARGET` (`0x60002444`) | `GET_INFO`, compare `StructSize`/version/flags |
+| Extended tier (RDA-native) | `IOCTL_RDA_GET_INFO` (`0x6002440`) reporting Major/Minor + `Flags` (FILTER_MODE/SESSIONS) + `MaxDisks` + `IoctlBase`; `IOCTL_RDA_OPEN_TARGET` (`0x6002444`) | `GET_INFO`, compare `StructSize`/version/flags |
 | Session tier (EUDCPEPM) | 19 IoctlBase-normalized codes; session `GET_VERSION` dword `0x00010100`; `SessionsEnabled` parameter (default on) | Issue session `GET_VERSION`, expect `0x00010100` + product string |
 | File/INF identity | PE version resource `1.0.0.0`; INF `DriverVer 01/01/2026,1.0.0.0` | (informational only) |
 
