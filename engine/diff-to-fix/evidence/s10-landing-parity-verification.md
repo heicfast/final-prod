@@ -1,3 +1,5 @@
+# (Renumber note, session-11B: this file's "N-128" filing was renumbered N-129 at the wave-3 push-time reconciliation, then N-129→N-135 at session-11B — the renumber landed on lane-B's already-pushed N-129; the object-graph proof is in the session-11B worklog. Every N-129 reference below this note means N-135.)
+
 # s10-landing-parity-verification.md — the session-10 fix-wave verification pass (nine landings independently verified against their findings' og-decodes, the corpus, and the current tree)
 
 **Lane:** session-10 continuation audit (wave 3) · **Date:** 2026-10-29 ·

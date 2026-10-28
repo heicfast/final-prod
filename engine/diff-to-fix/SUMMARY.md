@@ -313,8 +313,9 @@ cap; M-082's CPartitionBootInfo walk corpus-exact incl. the %03d re-check
 against the .mo binary; M-071's gates byte-exact to 69507cb; N-117's
 cites). **Two residuals filed: M-108** (the M-080 landing stopped at
 32 MiB — the og's 200 MB anchor not adopted, the 32–200 MB band refused,
-the test still citing the refuted no-cap doctrine) and **N-129** (the
-bookkeeping truth batch: N-103's cited :376 site missed while its
+the test still citing the refuted no-cap doctrine) and **N-135** (the
+bookkeeping truth batch — renumbered N-128→N-129 at the wave-3 push, then
+N-129→N-135 at session-11B: the renumber had landed on lane-B's occupied ID; N-103's cited :376 site missed while its
 Resolution claims both fixed; the gap-board's :379/:225 self-contradiction;
 five phantom pre-rebase SHAs in landing records; the FIXED-LEDGER's own
 gaps). Full-suite 1005/1005 at HEAD (independent run). Evidence:

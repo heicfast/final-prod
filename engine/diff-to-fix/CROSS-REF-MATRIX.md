@@ -581,7 +581,7 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | preview/thumbnail · EXIF orientation (B2/A25) | ~~**S-043**~~ **MATCH** (fixed this session — the 8-case RotateFlip-then-thumbnail order for JPEG APP1/IFD0 0x112 + TIFF tag 274, before the 256-px pass; the embedded fast path's spec-derived rule registered D-105; Resolution in findings/FIXED/S-043) |
 | preview/thumbnail · input eligibility (B1/P48) | **M-080 + wave-2 addendum** — the parallel lane's budget finding gains the og's 200 MB eligibility gate decode (:422428), correcting its "no input cap" claim; severity discussion recorded (SEVERE recommended) |
 | preview/thumbnail · format coverage (B1) | **S-045** — video-keyframe/RAW/HEIC/PDF pipelines absent (og ships them); complements N-092's unnamed-trio + cache gaps |
-| preview/thumbnail · grading side-effect (D15) | **M-083** — og promotes to grade 2 on thumbnail success (:422505-13) |
+| preview/thumbnail · grading side-effect (D15) | **M-083 — FIXED (`e56baac7`, session-11B conformed)**: the grade-2 promotion wired at the thumbnail success path |
 | preview/thumbnail · TIFF LZW (B1/A28) | **M-085** — compression-5 refused (mainstream variant) |
 | preview/thumbnail · superset posture (A25) | **I-028** — both-axis scaling, RGBA8, PSD/PNM/HDR, bomb guard, truth gates: deliberate, registered |
 | preview/thumbnail · still-image families + bounded-read doctrine + never-upscale + honest refusals | **MATCH** |
@@ -620,7 +620,7 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | carve | **M-090** (DMG koly walk + DMG-specific cap — erratum E67), **M-091** (the MDB page-chain walk decoded), **S-047** (MPEG-TS/M2TS), **M-092/M-093/M-096/M-098/M-099** (HTML / XML+SVG / MOBI / HIK / AEP), **N-111..N-113, N-115** (JP2 / LZH / text school / OfficeTagFromXML) — school-2/3 children of S-041 |
 | session + ABI | **N-116 — FIXED (session 38)**: rows newest-first by save_unix (the og's FUN_140273550 !(ftA<ftB) = newest-first, settled first-hand; TRUNCATED = the time-ordered prefix; CLI re-sorted by the same key; `SessionListOgTimeOrdering` RED→GREEN), **N-117/N-118 — FIXED (session 38, `954c386` doc-truth batch A)**: the plan's W1b shape + the 7f/7g cites re-pinned; the R-52/54/56/R-31 gap rows flipped to PRESENT with landing cites, **I-029** (driver-code provenance) |
 | query | **M-101** (Versions/Tags branches), **N-126** (Unsaved File) |
-| preview | **M-100** (browse-inside), **M-102** (thumbnail ABI) |
+| preview | **M-100 — closed-as-covered**, **M-102 — FIXED (`e56baac7`: cr_ui_thumbnail_generate two-call + format probe)** |
 | boot repair | **N-121** (ESP automount), **N-122** (NVRAM create/delete) |
 | CLI / transport | **N-123 — FIXED (session 38, `13245c0`)**: the 11-verb recount + exit 4; N-124 FIXED session 10 — the transport.md SUPERSEDED annotation landed in 2025554; see evidence/s10-reverification-sweep.md |
 | orchestration / docs / structure | **N-125** (disconnect states), **N-119 — FIXED (session 38, `e1e5124`): D-88 re-adjudicated against the EuShare decode (leg 2 struck, trigger FIRED-and-adjudicated, the exclusion stands on scope)**, **N-120** (pointer drifts), **I-030** (module-map holes) |
@@ -676,7 +676,7 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | Surface · parameter | Verdict | Cell |
 |---|---|---|
 | preview · thumbnail input budget (the og 200 MB eligibility anchor) | **DIVERGENCE-MAJOR** | **M-109** (renumbered from the M-108 collision, S10-F) — the M-080 landing stopped at 32 MiB; the 32–200 MB band without an embedded thumb refused where the og thumbnails; the pinning test still cites the refuted "no input cap" doctrine (test_thumbnail.cpp:187); no D-row registers the bound |
-| board-truth · the fix-wave bookkeeping | **DIVERGENCE-MINOR** | **N-129** — N-103's cited :376 site missed while its Resolution claims both fixed; the gap-board's :379-vs-:225 self-contradiction; five phantom SHAs (edee513/771e2ec/dd0ffd5/95122bd/954c386 — all absent from the object store); the FIXED-LEDGER's missing rows + the 180053de0 mis-paste + the re-created FIXED/ dir; the §7g cite overshoot; the .cpp matrix comment |
+| board-truth · the fix-wave bookkeeping | **DIVERGENCE-MINOR** | **N-135** (renumbered from N-129 at session-11B — lane-B's earlier-pushed inventory-defects file keeps the ID) — N-103's cited :376 site missed while its Resolution claims both fixed; the gap-board's :379-vs-:225 self-contradiction; five phantom SHAs (edee513/771e2ec/dd0ffd5/95122bd/954c386 — all absent from the object store); the FIXED-LEDGER's missing rows + the 180053de0 mis-paste + the re-created FIXED/ dir; the §7g cite overshoot; the .cpp matrix comment |
 | (verification records, no findings) | **MATCH ×8** | S-044, N-116, M-085, S-042, M-090, M-082, M-071, N-117 — every landing's parity claims verified first-hand against the findings' og-decodes + the corpus/decompile + the current tree (evidence/s10-landing-parity-verification.md; the full suite 1005/1005 at HEAD) |
 
 **Session-10 S10-F lane (2026-10-29 — the function-level completeness pass; audited `44f043a5`, corpus `be0cfe9`; evidence: evidence/decompiled-quotes/s10f-*.md):**

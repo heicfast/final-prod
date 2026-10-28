@@ -19,17 +19,10 @@
 > blocks carry the resolution narrative; the per-file Resolution sections
 > live in history.
 
-<<<<<<< HEAD
-**Counts:** 282 resolved findings (280 rows at `e56baac` — the top line said 279, the filesystem is the truth — + M-100 closed-as-covered at the session-10 lane-B push) (the batch-C-conform 276 `0872ac2`/`64a3b18` + **S-041 resolved-as-umbrella by the SA-10 lane** — the purge's 255 + every mid-flight landing through batch C + the convention conformances + S-041/N-101) · 98 with a fix-commit recorded in-file ·  *(the dated counts snapshots below are the parallel lanes' push-window history, kept per the 64a3b18 sweep)*
+**Counts (row-count truth, session-11B re-count 2026-10-29): 285 resolved rows** — 265 main-pattern (A/S/M/N/I) + 20 OQ-prefixed, each row one retired file; the filesystem is the truth (the whole table re-counted this session; the prior top lines' 276–282 figures were push-window estimates that never re-counted the table — the drift is the N-129(numeric-defects) class applied to the ledger's own top line; the parallel lanes' counts-block additions since `64a3b18` and the `b5da834` repair commit left the second occurrence of the conflict markers unswept — both sides preserved as dated history below).
 
-**Counts:** 280 resolved findings (the batch-C-conform 276 `0872ac2`/`64a3b18` + **S-041 resolved-as-umbrella by the SA-10 lane** — the purge's 255 + every mid-flight landing through batch C + the convention conformances + S-041/N-101) · 98 with a fix-commit recorded in-file ·  *(the dated counts snapshots below are the parallel lanes' push-window history, kept per the 64a3b18 sweep)*
-**Counts:** 276 resolved findings (255 at the purge commit + the mid-flight parallel landings + the session-38 waves: N-116 `632d21e`, N-117/N-118/N-103 `954c386`, N-095/N-108/N-119 `e1e5124`, batch C N-104/N-097/N-102/N-123/N-101/N-120 fixed + N-099/N-106 FIXED-ALREADY `13245c0`; S-043 `b3938c8` moved its file into the re-created FIXED/ dir BEFORE this convention was readable - its row is pending, the next audit lane retires the file) · 98 with a fix-commit recorded in-file ·
-**Counts:** 280 resolved findings (…prior waves…; the session-38 registration batch D adds N-091/N-098 fixed + N-105 FIXED-ALREADY) · 98 with a fix-commit recorded in-file ·
-=======
-**Counts:** 281 resolved findings (280 rows at `e56baac` — the top line said 279, the filesystem is the truth — + M-100 closed-as-covered at the session-10 lane-B push) (the batch-C-conform 276 `0872ac2`/`64a3b18` + **S-041 resolved-as-umbrella by the SA-10 lane** — the purge's 255 + every mid-flight landing through batch C + the convention conformances + S-041/N-101) · 98 with a fix-commit recorded in-file ·  *(the dated counts snapshots below are the parallel lanes' push-window history, kept per the 64a3b18 sweep)*
-**Counts:** 276 resolved findings (255 at the purge commit + the mid-flight parallel landings + the session-38 waves: N-116 `632d21e`, N-117/N-118/N-103 `e4f3184`, N-095/N-108/N-119 `995ba5d`, batch C N-104/N-097/N-102/N-123/N-101/N-120 fixed + N-099/N-106 FIXED-ALREADY `32ef33b`; S-043 `b3938c8` moved its file into the re-created FIXED/ dir BEFORE this convention was readable - its row is pending, the next audit lane retires the file) · 98 with a fix-commit recorded in-file ·
-**Counts:** 279 resolved findings (…prior waves…; the session-38 registration batch D adds N-091/N-098 fixed + N-105 FIXED-ALREADY) · 98 with a fix-commit recorded in-file ·
->>>>>>> b5da834 (repair(trail): the N-129-flagged residuals from this session's own landings - the missed R-28:376 site and the phantom pre-rebase ledger SHAs)
+**(history, HEAD side of the b5da834 conflict):** 282-claim — 280 rows at `e56baac` + M-100 (the batch-C-conform 276 `0872ac2`/`64a3b18` + S-041 resolved-as-umbrella by the SA-10 lane) · 98 with a fix-commit recorded in-file
+**(history, b5da834 side):** 281-claim — the same lineage with the rebase-rewritten batch SHAs (e4f3184 / 995ba5d / 32ef33b)
 
 **Counts:** 270 resolved findings (255 at the purge commit + the mid-flight parallel landings absorbed at rebase: M-084/M-091 `16475b8`, N-092 `5ed862f`, N-124 `c75755d`, M-088 DFX-38, N-116 `632d21e`, N-117/N-118/N-103 `e4f3184`, N-095/N-108/N-119 `995ba5d` session-38 doc-truth batches A+B; S-043 `b3938c8` moved its file into the re-created FIXED/ dir BEFORE this convention was readable - its row is pending, the next audit lane retires the file) · 98 with a fix-commit recorded in-file ·
 
@@ -148,8 +141,8 @@
 | M-071 | MAJOR |  | 69507cb | `findings/FIXED/M-071-m018-regression-junk-gates-lost.md` |
 | M-079 | MAJOR | session/CLI | f43b747 | `findings/MAJOR/M-079-cli-autosave-volume-label-unfilled.md` — **S10-F addendum (2026-10-29): the fix's image-target leg (the image-stem fallback) is a registered divergence** — the og's image-scan label is the ENGINE-side on-disk decode (NTFS $Volume $VOLUME_NAME; ext4 s_volume_name), not the filename; the engine-decode absence + the completion path = **N-133** (evidence: s10f-engine-volume-labels.md) |
 | M-080 | MAJOR | preview | 5ccc0da | `findings/FIXED/M-080-thumbnail-budget-starves-photos.md` |
-| M-083 | MAJOR | preview/abi | (this landing) | `findings/MAJOR/M-083-thumbnail-grade-promotion-absent.md` |
-| M-102 | MAJOR | abi/preview | (this landing) | `findings/MAJOR/M-102-thumbnail-abi-export-absent-engine-landed.md` |
+| M-083 | MAJOR | preview/abi | e56baac7 (thumbnail ABI two-call) | `findings/FIXED/M-083-thumbnail-grade-promotion-absent.md` |
+| M-102 | MAJOR | abi/preview | e56baac7 (cr_ui_thumbnail_generate) | `findings/FIXED/M-102-thumbnail-abi-export-absent-engine-landed.md` |
 | M-081 | MAJOR |  | 9e5dedc | `findings/FIXED/M-081-crw-misattributed-mrw-prd-gate.md` |
 | M-090 | MAJOR |  | 180053de0 | `findings/FIXED/M-090-dmg-footer-walk-and-cap-diverge-from-og.md` |
 | M-088 | MAJOR | ci/packaging (the FloorVersion pin split + the CI-shape doc cluster) | (this landing, DFX-38) | `findings/FIXED/M-088-floorversion-pin-split-and-stale-ci-docs.md` (full Resolution preserved in the retired file; the landing record + the doc_truth_gate evidence in worklog.md DFX-38/M-088) |

@@ -154,8 +154,9 @@ engine-side thumbnail cache. The og caches UI-side (`ThumbnailFactory::ClearCach
 UIUX/30:62); the core's in-process doctrine keeps `make_thumbnail` stateless
 across calls — repeated renders are the host's layer (a session-scoped LRU keyed
 by node id becomes the candidate IF the ABI export ever lands one, per M-102's
-handoff). Recorded here + in `include/cr/preview/cr_thumbnail.h`'s contract
-comment; the decision is deliberate, not an omission.
+handoff — **landed `e56baac7`; the cache question re-opens with it**). Recorded
+here + in `include/cr/preview/cr_thumbnail.h`'s contract comment; the decision
+is deliberate, not an omission.
 
 **Tests:** `tests/unit/test_thumbnail.cpp` (21 tests incl. the 6-variant TIFF
 suite and the metafile/icon named-refusal pin; fixtures via
@@ -196,8 +197,9 @@ Scored against the og's thumbnail pipeline (decode evidence:
   (heif.dll embedded-first), PDF (pdfium) pipelines; the core refuses all
   by name (the registered phase-2 deps). Complements N-092's unnamed
   WMF/EMF/ICO trio + cache gaps.
-- **M-083 (MAJOR)** — thumbnail success promotes the node to grade 2 in
-  the og (:422505-13); the core's engine is grade-agnostic (S-023 family).
+- **M-083 — FIXED (`e56baac7`; session-11B conformed)** — thumbnail success
+  promotes the node to grade 2 in the og (:422505-13); landed with the
+  cr_ui_thumbnail_generate success path.
 - **M-085 (MAJOR)** — TIFF LZW (compression 5) refused; a mainstream
   scanner/Photoshop variant the og's GDI+ decodes.
 - **M-080 addendum** — this lane decoded the og's still-image eligibility
@@ -207,8 +209,8 @@ Scored against the og's thumbnail pipeline (decode evidence:
   (og is width-derived — portrait thumbs exceed 256 on height),
   straight-alpha RGBA8 (og white-flattens), PSD/PNM/HDR, dims-first bomb
   guard, UnreadableSpan truth gate. Deliberate; do not "fix" away.
-- **N-103 (MINOR)** — R-28/PLAN-API-EXPANSION still read "no dedicated
-  thumbnail op"; the cr_ui ABI exposure remains the open Agent-1 handoff.
+- **N-103 — FIXED (session 38, `e4f3184`)** — R-28/PLAN-API-EXPANSION rows;
+  the cr_ui ABI exposure landed as M-102's `cr_ui_thumbnail_generate`.
 - MATCH rows: still-image family coverage (JPEG/PNG/BMP/GIF + TIFF
   baseline), bounded range-read doctrine, never-upscale-below-threshold,
   honest named refusals, the EXIF embedded fast-path strategy.
@@ -221,8 +223,10 @@ Scored against the og's thumbnail pipeline (decode evidence:
 ## Session-8 lead-lane wave (audited `ff879f9`)
 - **M-100**: archive browse-inside preview (ArchivePreviewModel — the in-place damaged-zip
   entry browse) — absent; reuses the S-032 parser; formalized from R-37.
-- **M-102**: the thumbnail ABI export — the 05e6786 engine has no cr_ui symbol; the
-  recorded Agent-1 handoff formalized as a work item.
+- **M-102 — FIXED (`e56baac7`; session-11B conformed)**: the thumbnail ABI
+  export — `cr_ui_thumbnail_generate` (two-call) + the format probe landed;
+  the file retired to history per the purge convention (the retirement the
+  e56baac7 landing itself missed — session-11B/T5 executed it).
 
 ---
 
