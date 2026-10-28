@@ -234,8 +234,13 @@ struct ScanConfig {
     bool pre_scan_check = false;
 
     /* Volume label for the session VolumeInfo (G-14). Supplied by the
-     * caller (the CLI/win layer reads it from the volume entry; engines
-     * never own it). UTF-8, NUL-padded into the session record. */
+     * caller; engines never own it. The CLI fills it at scan setup
+     * (M-079): the explicit `--label S` override wins, else the --volume
+     * target's GetVolumeInformationW label, else the --image filename
+     * stem; whole-disk scans leave it empty (the timestamp-only
+     * auto_<ts> shape - the og has no whole-disk scan to mirror). ABI
+     * hosts supply it via cr_ui_open_volume's identity card. UTF-8,
+     * NUL-padded into the session record. */
     char volume_label[32] = {0};
 
     /* Device identity card (SESS-2/GAP-W3-9a): model/serial from the disk

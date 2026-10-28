@@ -3304,7 +3304,6 @@ TEST(CrUi, CliHelpListsEveryDispatchedVerb) {
     }
 }
 
-
 /* ---- M-102/M-083: the thumbnail ABI ---- */
 
 namespace {
@@ -3314,34 +3313,36 @@ namespace {
  * embedded so the cr_ui suite is self-contained (the thumbnail engine's
  * file fixtures are staged beside cr_tests, not cr_ui_tests) */
 static const unsigned char kQuad32x24Png[] = {
-    137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,32,
-    0,0,0,24,8,2,0,0,0,20,49,104,99,0,0,0,55,73,68,65,
-    84,120,156,99,252,207,64,26,96,36,81,3,19,137,230,147,12,70,45,24,
-    181,96,212,130,225,96,1,35,3,3,105,133,203,255,255,140,36,169,31,250,
-    65,52,106,193,168,5,163,22,208,193,2,0,9,177,5,44,229,141,103,181,
-    0,0,0,0,73,69,78,68,174,66,96,130,
+    137, 80,  78,  71,  13,  10,  26,  10,  0,   0,  0,   13, 73,  72,  68,  82,  0,   0,   0,
+    32,  0,   0,   0,   24,  8,   2,   0,   0,   0,  20,  49, 104, 99,  0,   0,   0,   55,  73,
+    68,  65,  84,  120, 156, 99,  252, 207, 64,  26, 96,  36, 81,  3,   19,  137, 230, 147, 12,
+    70,  45,  24,  181, 96,  212, 130, 225, 96,  1,  35,  3,  3,   105, 133, 203, 255, 255, 140,
+    36,  169, 31,  250, 65,  52,  106, 193, 168, 5,  163, 22, 208, 193, 2,   0,   9,   177, 5,
+    44,  229, 141, 103, 181, 0,   0,   0,   0,   73, 69,  78, 68,  174, 66,  96,  130,
 };
 
-/* the same image as JPEG-90, cut at 45%: 344 of 766 bytes - stb's zero-fill leniency decodes it Ok; the contract REQUIRES the truncated disclosure */
+/* the same image as JPEG-90, cut at 45%: 344 of 766 bytes - stb's zero-fill leniency decodes it Ok;
+ * the contract REQUIRES the truncated disclosure */
 static const unsigned char kQuad32x24JpgTrunc[] = {
-    255,216,255,224,0,16,74,70,73,70,0,1,1,0,0,1,0,1,0,0,
-    255,219,0,67,0,3,2,2,3,2,2,3,3,3,3,4,3,3,4,5,
-    8,5,5,4,4,5,10,7,7,6,8,12,10,12,12,11,10,11,11,13,
-    14,18,16,13,14,17,14,11,11,16,22,16,17,19,20,21,21,21,12,15,
-    23,24,22,20,24,18,20,21,20,255,219,0,67,1,3,4,4,5,4,5,
-    9,5,5,9,20,13,11,13,20,20,20,20,20,20,20,20,20,20,20,20,
-    20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,
-    20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,255,192,
-    0,17,8,0,24,0,32,3,1,34,0,2,17,1,3,17,1,255,196,0,
-    31,0,0,1,5,1,1,1,1,1,1,0,0,0,0,0,0,0,0,1,
-    2,3,4,5,6,7,8,9,10,11,255,196,0,181,16,0,2,1,3,3,
-    2,4,3,5,5,4,4,0,0,1,125,1,2,3,0,4,17,5,18,33,
-    49,65,6,19,81,97,7,34,113,20,50,129,145,161,8,35,66,177,193,21,
-    82,209,240,36,51,98,114,130,9,10,22,23,24,25,26,37,38,39,40,41,
-    42,52,53,54,55,56,57,58,67,68,69,70,71,72,73,74,83,84,85,86,
-    87,88,89,90,99,100,101,102,103,104,105,106,115,116,117,118,119,120,121,122,
-    131,132,133,134,135,136,137,138,146,147,148,149,150,151,152,153,154,162,163,164,
-    165,166,167,168,
+    255, 216, 255, 224, 0,   16,  74,  70,  73,  70,  0,   1,   1,   0,   0,   1,   0,   1,   0,
+    0,   255, 219, 0,   67,  0,   3,   2,   2,   3,   2,   2,   3,   3,   3,   3,   4,   3,   3,
+    4,   5,   8,   5,   5,   4,   4,   5,   10,  7,   7,   6,   8,   12,  10,  12,  12,  11,  10,
+    11,  11,  13,  14,  18,  16,  13,  14,  17,  14,  11,  11,  16,  22,  16,  17,  19,  20,  21,
+    21,  21,  12,  15,  23,  24,  22,  20,  24,  18,  20,  21,  20,  255, 219, 0,   67,  1,   3,
+    4,   4,   5,   4,   5,   9,   5,   5,   9,   20,  13,  11,  13,  20,  20,  20,  20,  20,  20,
+    20,  20,  20,  20,  20,  20,  20,  20,  20,  20,  20,  20,  20,  20,  20,  20,  20,  20,  20,
+    20,  20,  20,  20,  20,  20,  20,  20,  20,  20,  20,  20,  20,  20,  20,  20,  20,  20,  20,
+    20,  20,  20,  20,  20,  20,  255, 192, 0,   17,  8,   0,   24,  0,   32,  3,   1,   34,  0,
+    2,   17,  1,   3,   17,  1,   255, 196, 0,   31,  0,   0,   1,   5,   1,   1,   1,   1,   1,
+    1,   0,   0,   0,   0,   0,   0,   0,   0,   1,   2,   3,   4,   5,   6,   7,   8,   9,   10,
+    11,  255, 196, 0,   181, 16,  0,   2,   1,   3,   3,   2,   4,   3,   5,   5,   4,   4,   0,
+    0,   1,   125, 1,   2,   3,   0,   4,   17,  5,   18,  33,  49,  65,  6,   19,  81,  97,  7,
+    34,  113, 20,  50,  129, 145, 161, 8,   35,  66,  177, 193, 21,  82,  209, 240, 36,  51,  98,
+    114, 130, 9,   10,  22,  23,  24,  25,  26,  37,  38,  39,  40,  41,  42,  52,  53,  54,  55,
+    56,  57,  58,  67,  68,  69,  70,  71,  72,  73,  74,  83,  84,  85,  86,  87,  88,  89,  90,
+    99,  100, 101, 102, 103, 104, 105, 106, 115, 116, 117, 118, 119, 120, 121, 122, 131, 132, 133,
+    134, 135, 136, 137, 138, 146, 147, 148, 149, 150, 151, 152, 153, 154, 162, 163, 164, 165, 166,
+    167, 168,
 };
 
 /* sizes: png=112 jpg=766 trunc=344 */
@@ -3387,7 +3388,7 @@ std::vector<unsigned char> build_fat16_jpg_trunc() {
 }
 
 bool scan_img_to_session(const char* tag, const std::vector<unsigned char>& bytes, Ui& u,
-                          std::string& img_out, std::string& crsf_out) {
+                         std::string& img_out, std::string& crsf_out) {
     img_out = cr_test::tmp_path("cr_ui", tag);
     FILE* f = std::fopen(img_out.c_str(), "wb");
     if (!f)
@@ -3446,8 +3447,7 @@ TEST(CrUi, ThumbnailTwoCallPattern) {
 
     /* call 1: the size probe (rgba NULL) */
     cr_ui_thumbnail_info info{};
-    ASSERT_EQ(cr_ui_thumbnail_generate(u.dev, u.sess, logo, nullptr, nullptr, 0, &info),
-              CR_UI_OK);
+    ASSERT_EQ(cr_ui_thumbnail_generate(u.dev, u.sess, logo, nullptr, nullptr, 0, &info), CR_UI_OK);
     EXPECT_EQ(32u, info.width);
     EXPECT_EQ(24u, info.height);
     EXPECT_EQ(32u * 24u * 4u, info.bytes_needed);
@@ -3465,13 +3465,11 @@ TEST(CrUi, ThumbnailTwoCallPattern) {
     /* call 2: the fill - the quadrant corners are exact (PNG, lossless) */
     std::vector<uint8_t> px(info.bytes_needed, 0);
     cr_ui_thumbnail_info info3{};
-    ASSERT_EQ(cr_ui_thumbnail_generate(u.dev, u.sess, logo, nullptr, px.data(),
-                                       uint32_t(px.size()), &info3),
+    ASSERT_EQ(cr_ui_thumbnail_generate(u.dev, u.sess, logo, nullptr, px.data(), uint32_t(px.size()),
+                                       &info3),
               CR_UI_OK);
     ASSERT_EQ(px.size(), size_t(info3.width) * info3.height * 4u);
-    auto at = [&](uint32_t x, uint32_t y) {
-        return px.data() + (size_t(y) * info3.width + x) * 4;
-    };
+    auto at = [&](uint32_t x, uint32_t y) { return px.data() + (size_t(y) * info3.width + x) * 4; };
     EXPECT_EQ(255, at(2, 2)[0]);
     EXPECT_EQ(0, at(2, 2)[1]);
     EXPECT_EQ(0, at(29, 2)[0]);
@@ -3479,7 +3477,7 @@ TEST(CrUi, ThumbnailTwoCallPattern) {
     EXPECT_EQ(255, at(2, 21)[2]); /* BL quadrant is BLUE */
     EXPECT_EQ(255, at(29, 21)[0]);
     EXPECT_EQ(255, at(29, 21)[1]);
-    EXPECT_EQ(255, at(2, 2)[3]);  /* opaque */
+    EXPECT_EQ(255, at(2, 2)[3]); /* opaque */
 
     /* the caps pass-through: max_edge 8 downscale to 8x6 */
     {
@@ -3500,8 +3498,7 @@ TEST(CrUi, ThumbnailTruncationDisclosed) {
     const uint64_t logo = query_node_id(u.sess, "LOGO2.JPG");
     ASSERT_NE(logo, 0u);
     cr_ui_thumbnail_info info{};
-    const uint32_t rc =
-        cr_ui_thumbnail_generate(u.dev, u.sess, logo, nullptr, nullptr, 0, &info);
+    const uint32_t rc = cr_ui_thumbnail_generate(u.dev, u.sess, logo, nullptr, nullptr, 0, &info);
     /* stb's zero-fill leniency: Ok + truncated=1, or the honest refusal -
      * either way the truncation is NEVER silent (both carry the flag/row) */
     if (rc == CR_UI_OK) {
@@ -3562,13 +3559,45 @@ TEST(CrUi, ThumbnailSuccessPromotesGradeTo2) {
     /* M-083: the og's grading side-effect - thumbnail success promotes
      * the node to grade 2 (FUN_1402636e0 :422498-518), never downgrades,
      * and leaves other nodes alone */
-    ASSERT_EQ(cr_ui_thumbnail_generate(u.dev, u.sess, logo, nullptr, nullptr, 0, &info),
-              CR_UI_OK);
+    ASSERT_EQ(cr_ui_thumbnail_generate(u.dev, u.sess, logo, nullptr, nullptr, 0, &info), CR_UI_OK);
     EXPECT_EQ(2u, grade_of(u.sess, "_OGO.PNG"));
     EXPECT_EQ(gdoc, grade_of(u.sess, "DOC.TXT")) << "unrelated nodes keep their grade";
 
     /* idempotence: already-grade-2 nodes are a no-op (the != 2 guard) */
-    ASSERT_EQ(cr_ui_thumbnail_generate(u.dev, u.sess, logo, nullptr, nullptr, 0, &info),
-              CR_UI_OK);
+    ASSERT_EQ(cr_ui_thumbnail_generate(u.dev, u.sess, logo, nullptr, nullptr, 0, &info), CR_UI_OK);
     EXPECT_EQ(2u, grade_of(u.sess, "_OGO.PNG"));
+}
+
+/* M-079: the auto-save volume-label fill (the CLI is MSVC-only; this is
+ * the established source-truth pin pattern - N-074/N-071 - with the
+ * behavior itself proven on the Windows lane + the naming half pinned
+ * in test_session). The fill site, the --label override, the letter
+ * capture, and the truthed config comment must all stay shipped. */
+TEST(CrUi, CliScanFillsAutoSaveVolumeLabel) {
+    const std::string rrecov = cr_test::read_repo_file("src/app/rrecov.cpp");
+    ASSERT_FALSE(rrecov.empty());
+    /* the fill site exists and rides the identity-card fill */
+    EXPECT_NE(rrecov.find("fill_volume_label(target, cfg)"), std::string::npos)
+        << "the M-079 fill call must ship at scan setup";
+    /* the derivation sources: the volume letter + GetVolumeInformationW,
+     * and the image-stem fallback */
+    EXPECT_NE(rrecov.find("target.volume_letter = v[0]"), std::string::npos)
+        << "the --volume target's letter must be captured for the derivation";
+    EXPECT_NE(rrecov.find("GetVolumeInformationW(root, label,"), std::string::npos)
+        << "the label query (the og's GetVolumeName, rsf-format:167)";
+    /* the explicit override flag + the usage line */
+    EXPECT_NE(rrecov.find("L\"--label\""), std::string::npos) << "the --label override must parse";
+    EXPECT_NE(rrecov.find("[--label s]"), std::string::npos) << "the usage text must show the flag";
+    /* the config comment is truthful (the session-10 addendum's step 0:
+     * the false 'the CLI/win layer reads it from the volume entry' claim
+     * without the wiring - now the wiring exists, the comment names it) */
+    const std::string scan_h = cr_test::read_repo_file("include/cr/orchestrator/cr_scan.h");
+    ASSERT_FALSE(scan_h.empty());
+    EXPECT_NE(scan_h.find("The CLI fills it at scan setup"), std::string::npos)
+        << "the volume_label comment must describe the real wiring";
+    EXPECT_NE(scan_h.find("M-079"), std::string::npos)
+        << "the comment cites the finding that wired the fill";
+    EXPECT_EQ(scan_h.find("the CLI/win layer reads it from the volume entry; engines"),
+              std::string::npos)
+        << "the pre-fix false-claim sentence (unwired) must stay gone";
 }

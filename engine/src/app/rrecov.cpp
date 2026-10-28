@@ -9,7 +9,8 @@
  *                                         LastScanRecordView surface)
  *   scan --disk N | --volume C: | --image file [--whole-disk] [--deep]
  *         [--quick-only] [--no-carve] [--threads N] [--out file.crsf]
- *         [--resume file.crsf] [--autosave-dir D] [--json] [--log file] [--csv]
+ *         [--resume file.crsf] [--autosave-dir D] [--label s] [--json]
+ *         [--log file] [--csv]
  *         [--filter s] [--deleted-only] [--bitlocker-fvek hex]
  *         [--bitlocker-dict [file]] [--user-signs file] [--repair]
  *         [--repair-apply] [--repair-undo file] [--check]
@@ -228,8 +229,11 @@ struct OpenResult {
     u32 disk = 0;
     u64 volume_start = 0; /* 0 = whole-disk view */
     u64 volume_len = 0;
-    bool is_image = false;   /* S-030: the target is a disk-image file */
-    std::wstring image_path; /* the --image argument (identity + resume) */
+    wchar_t volume_letter = 0; /* M-079: the --volume target's letter (the
+                                * label derivation's source; 0 = not a
+                                * letter-addressed volume) */
+    bool is_image = false;     /* S-030: the target is a disk-image file */
+    std::wstring image_path;   /* the --image argument (identity + resume) */
 };
 
 /* ---- S-008 pre-scan repair (scan --repair / --repair-apply) ----
@@ -312,6 +316,47 @@ void fill_identity_card(u32 disk, orchestrator::ScanConfig& cfg) {
     };
     narrow(disks[disk].model, cfg.volume_model, sizeof(cfg.volume_model));
     narrow(disks[disk].serial, cfg.volume_serial, sizeof(cfg.volume_serial));
+}
+
+/* M-079: the volume label for the session record + the auto-save name
+ * (the og's GetVolumeName - rsf-format:167; the auto_<vol>_ naming
+ * :443-451 with every corpus sample labeled). The og derives it from
+ * the scanned volume itself; the CLI asks the win layer by letter. An
+ * explicit --label always wins (checked by the caller: empty = derive,
+ * nonempty = the user's). Whole-disk targets have no volume name (the
+ * og has no whole-disk scan; the timestamp-only shape is the documented
+ * fallback). Image targets derive the label half from the image
+ * filename stem (the og has no image-scan naming semantics - the
+ * S-030-registered divergence's naming half, documented here). */
+void fill_volume_label(OpenResult& target, orchestrator::ScanConfig& cfg) {
+    if (cfg.volume_label[0] != 0)
+        return; /* the explicit --label override */
+    if (target.is_image) {
+        /* the image filename's stem: "disk.img" -> "disk" */
+        const wchar_t* path = target.image_path.c_str();
+        const wchar_t* base = wcsrchr(path, L'\\');
+        base = base ? base + 1 : path;
+        const wchar_t* dot = wcsrchr(base, L'.');
+        size_t n = dot ? size_t(dot - base) : wcslen(base);
+        if (n == 0)
+            return;
+        if (n > sizeof(cfg.volume_label) - 1)
+            n = sizeof(cfg.volume_label) - 1;
+        for (size_t k = 0; k < n && base[k] < 0x80; ++k)
+            cfg.volume_label[k] = char(base[k]);
+        cfg.volume_label[n] = 0;
+        return;
+    }
+    if (target.volume_letter == 0)
+        return; /* whole-disk: no volume name (documented fallback) */
+    wchar_t root[4] = {target.volume_letter, L':', L'\\', 0};
+    wchar_t label[64] = {};
+    if (!GetVolumeInformationW(root, label, 64, nullptr, nullptr, nullptr, nullptr, 0))
+        return; /* unformatted/locked/label-less: the timestamp-only shape */
+    size_t k = 0;
+    for (; k + 1 < sizeof(cfg.volume_label) && label[k] && label[k] < 0x80; ++k)
+        cfg.volume_label[k] = char(label[k]);
+    cfg.volume_label[k] = 0;
 }
 
 /* S-030: open a disk-image file as the scan target (the og's "Import a
@@ -1238,6 +1283,7 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
                 return 1;
             if (!open_volume_view(v[0], target, fvek_hex, dict_consent, dict_user))
                 return 1;
+            target.volume_letter = v[0]; /* M-079: the label source */
             have_target = true;
             continue;
         }
@@ -1314,6 +1360,16 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
             continue;
         if (get_opt(argc, argv, i, L"--log", &log_path))
             continue;
+        if (get_opt(argc, argv, i, L"--label", &v)) {
+            /* M-079: the explicit volume-label override (the auto-save
+             * name's <vol> half + the session record); empty = derive from
+             * the target (volume letter / image stem) */
+            size_t k = 0;
+            for (; k + 1 < sizeof(cfg.volume_label) && k < v.size() && v[k] < 0x80; ++k)
+                cfg.volume_label[k] = char(v[k]);
+            cfg.volume_label[k] = 0;
+            continue;
+        }
         if (get_opt(argc, argv, i, L"--filter", &v)) {
             print_flags.filter = text::wide_to_utf8(v); /* N-009c: UTF-8, not '?' */
             continue;
@@ -1368,6 +1424,9 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
              cfg.threads, int(cfg.run_quick), int(cfg.run_deep), int(cfg.run_carve),
              int(cfg.whole_disk), int(repair), int(repair_apply));
     fill_identity_card(target.disk, cfg); /* SESS-2: model/serial into the card */
+    fill_volume_label(target, cfg);       /* M-079: the <vol> half of the
+                                           * auto-save name + the session
+                                           * record (derive unless --label) */
     if (target.is_image) {
         /* S-030: the image identity - format as model, path into the v3
          * tail (the resume path warns when the path changes) */
