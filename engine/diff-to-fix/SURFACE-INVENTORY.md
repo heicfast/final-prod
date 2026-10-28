@@ -25,7 +25,7 @@
 | EPMNtDrv trio naming + PID handshake | `artifacts/PartitionRecovery/epmntdrv-trio--naming-pid-handshake.md` | Runtime-composed device naming + the full two-sided PID-token handshake | **NEVER-AUDITED (NEVER-CITED)** — S7 lane (transport territory) |
 | EPMNtDrv trio byte-diff | `artifacts/PartitionRecovery/epmntdrv-trio--byte-diff-verification.md` | ebrntdrv ≡ eprdtdrv_win7older byte identity etc. | AUDITED (M-030 ×1) |
 | EUDCPEPM/EUEDKEPM WinPE hook pair | `architecture/02` §3; `artifacts/PartitionRecovery/eudcpepm-euedkepm--hook-drivers.md`; `--hook-framework-urgent-cache.md` | Disk-stack hook + named raw-disk door (WinPE) | AUDITED (M-030/I-021 context; S7 lane active on driver family) |
-| EuMrx NAS redirector | `architecture/02` §4; `artifacts/EuShare/*` (5 artifacts, cited) | RDBSS mini-redirector for NAS scan | OUT-OF-SCOPE (network/NAS exclusion) — install scripts noted in §6 below |
+| EuMrx NAS redirector | `architecture/02` §4; `artifacts/EuShare/*` (2 artifacts, **never-cited** — N-101 correction; the exclusion stands on arch/05:124 + DRWUI-main-ui:214-15 + rtti_classes.json) | RDBSS mini-redirector for NAS scan | OUT-OF-SCOPE (network/NAS exclusion) — install scripts noted in §6 below |
 | Driver install lifecycle (live) | `architecture/02` §5; `per-binary/setupdrvx64.md`; `deepening-batch1--japanese-winchkdsk-setupdrv-legacy.md` §3 | setupdrvx64 copy+create+start; `-Uninstall` mode; `%s%d` versioned coexistence; write+verify; per-call SCM errors | **AUDITED this session** (Phase 1: S-036/M-060/M-062/N-085; wave 3: **M-064** the versioned/verified contract absent) |
 | Driver pre-registration (WinPE) | `og-codebase/BUILDPE/x64/regdrv.reg`; `artifacts/WinPE/boot-config--winpeshl-autobat-regdrv.md` | Offline-hive service matrix (4 services + disk-class UpperFilters), eprdtdrv absent from PE | **PARTIAL** — M-030 evidence cites; no dedicated finding owns the UpperFilters write / Start-split / eprdtdrv-absence parameters |
 | DRWService (BitLocker FVE service) | `architecture/02` §5.2; `artifacts/DRWService-exe--bitlocker-service.md` | On-demand service: `/install` `/uninstall`; AUTO_START "Read FVE Server", LocalSystem | **PARTIAL** — data path AUDITED (S-014, modules/health.md); **install lifecycle NEVER-AUDITED** |
@@ -65,12 +65,13 @@
 | Scan orchestration, progress, stages | `architecture/01/05/06`; MOM roll-ups (cited) | AUDITED (modules/orchestration.md) |
 | MOM module system (PartitionRecovery .mo) | `artifacts/MOM-modules/` roll-ups (mo-module-map ×16, mom-module-system ×6, censuses) | AUDITED (modules/mom-capabilities.md) — **17 of 30 per-module stubs never-cited by basename, but the wave-7 spot-check verified every one is rollup-covered or infrastructure-only — zero new parameters** (correction: 5 of the inventory's "never-cited 22" — Common, Config, CheckVersion, bitlockerhelp, FileSystemCheck — are cited in brace-group form at s5-session5-corpus-quotes.md:64; the honest count is 17 of 30). Decode candidates registered: CWindowsFS ×3, the DeviceManager offline-OS-detection strings |
 | Writer / apply / report | `artifacts/MOM-modules/{apply,write,...}` (cited) | AUDITED (modules/writer.md) |
-| Boot repair (BCD/NVRAM) | `artifacts/MOM-modules/EFIBoot*` (cited) | AUDITED (modules/boot-repair.md) |
+| Boot repair (BCD/NVRAM) | `artifacts/MOM-modules/EFIBoot*` (EFIBoot.md itself never-cited — M-040 cites the decompile; N-101) | AUDITED (modules/boot-repair.md) |
 | Health grading (SMART/NVMe) | `artifacts/DiskHealth/` (1/1 cited) | AUDITED (modules/health.md) |
 | Preview subsystem | `artifacts/UIUX/10-preview-subsystem.md` | **AUDITED this session** (wave 4: 19 parameters — 6 MATCH, 6 deliberate-UI-scope, 6 prior-covered; NEW: M-066 archive enumeration for FS-origin archives, N-088 the M-028 propagation tail; OQ-SA-3-adjacent EXIF probe noted in the wave sheet) |
 | Query / filter / tree | `artifacts/UIUX/*` (partially cited) | AUDITED (modules/query.md) — UIUX docs beyond the cited set are UI-pure (no UI in the merged product) |
 | Imaging (disk images) | cited set | AUDITED (modules/imaging.md) |
 | Check phase (damage audit) | `artifacts/MOM-modules/FileSystemCheck` (roll-up cited) | AUDITED (modules/check-phase.md; M-041) |
+| GetDriverInfo.dll (TB-lineage drive-letter topology) | `artifacts/PartitionRecovery/getdriverinfo--tb-module-decode.md` + `per-binary/GetDriverInfo.md`; `architecture/00-INDEX.md:64` | **REGISTERED session-8 wave-2 (N-106)** — the one surface the corpus index carried with zero trail disposition: GetLogicalDrives/GetDriveTypeW letter-topology MOM module (TB lineage). OUT-OF-SCOPE by lineage for the recovery engine (the DRW flow's own enumeration = the N-071 census); the sixth-source note added to N-071's row |
 
 ## 5. Product-frame surfaces
 
@@ -104,10 +105,21 @@ From the corpus (A2's extraction, this session): (1) Inno Setup + bootstrap pair
 
 ## 8. Coverage arithmetic (this inventory)
 
-282 docs inventoried · 78 cited (73 artifacts + 5 architecture) · 204 never-cited,
-of which: OUT-OF-SCOPE ≈ 152 (per-binary 113, runtime-families 10, FileRepair 8,
-UI-pure UIUX ~11, Cloud/Licensing/Languages remainder) · S7-flagged 2 ·
-IN-SCOPE NEVER/PARTIAL ≈ 50 (the §2–§6 rows above). The §7 waves target them.
+282 docs inventoried (283 incl. CORRECTIONS.md meta) · **~95 cited (90
+artifacts + 5 architecture — corrected session-8 wave-2, N-101: brace-group,
+alias and short-stem citation forms were not folded into the original 78)**
+· ~187 never-cited, of which: OUT-OF-SCOPE ≈ 164 (per-binary **112** —
+deepening-batch1 is cited by M-064; runtime-families 10, FileRepair 8, UI-pure
+UIUX ~23, MOM stubs 17 rollup-covered, Languages 2, EuShare **2 never-cited**
+(exclusion stands on architecture/05:124 + DRWUI-exe--main-ui:214-15 +
+rtti_classes.json, not on the EuShare deep-dives), Cloud/Licensing remainder,
+launcher/crash-reporter) · S7-flagged 2 · IN-SCOPE NEVER/PARTIAL ≈ 50 (the
+§2–§6 rows; waves 1-8 landed on them). **Session-8 registrations (both lanes):
+the deep-audit lane's I-027 owns the data-asset register (DataFile.ini row 67,
+DRWReport.ini row 73, Upgrade.ini row 78, auto.txt → N-097); the wave-2 lane
+adds the Eaolog.log 4th-log-channel note (extends N-048's census) and the
+log\BuildRaw.log + log\DelFat.log engine run-log channels (telemetry-equivalent,
+OUT). GetDriverInfo.dll gets its own row below (N-106).**
 
 ## 9. Session-8 currency update (2026-10-28 — the second-session deep audit)
 

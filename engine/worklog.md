@@ -1036,3 +1036,66 @@ Agent: scan-engine lane (A2, this session)
   FormatId VALUES unchanged (append-only held); the ext/name surface changed on 4
   rows (mrw→crw x2, hlp→doc x2, both corrections of WRONG labels to og truth);
   list-carve-formats reads the registry automatically, no API change needed.
+
+
+---
+Task ID: SA-8/W2 (session-8 wave 2 — the continuation lane, executed;
+RECONCILED at push time over the parallel deep-audit lane's same-session
+commits)
+Agent: session-8 full parity audit (continuation lane, this session)
+
+Method: five parallel read agents (keyed batch-2 decode, list-layer/
+text-school decode, landings verification, core capability inventory,
+corpus never-cited sweep, thumbnail parity) + first-hand re-reads by the
+lead of every acute candidate (WMF FUN_1800264d0 :29807-45; thumbnail
+FUN_1402fcc30 :521694-725 / FUN_1403d7840 :652383-412 / the grade
+promotion :422498-518; the core validators/autosave/thumbnail code; the
+FMT_ absence sweep; both WPG-ctor regions to settle the :15700-vs-:20542
+cite conflict — :15700-01 wins, erratum E63).
+
+Reconciliation record (the push-time rebase over 370d659..ffa7a7d): the
+parallel deep-audit lane filed the plan-of-record R-rows + the batch-2
+owner (S-041) + the CRW misattribution (M-081) + the thumbnail budget
+(M-080) + the data-asset register (I-027) with IDs S-040/S-041, M-071..
+M-082, N-090..N-098, I-027. This lane's IDs were renumbered past that
+set (S-042..S-045, M-083..M-085, N-099..N-106, I-028, errata E55-E64)
+and the two content-duplicates were MERGED, not duplicated: the batch-2
+full decode -> the S-041 addendum (7 text-school grammars, the
+config-gated zone, registry geometry, the BOM battery, FCPEvt
+end-to-end); the thumbnail budget og-side evidence (the 200 MB
+eligibility gate :422428, which CORRECTS M-080's "no input cap" claim,
+plus the wrong-anchor test pin) -> the M-080 addendum with the severity
+discussion (SEVERE recommended, first-filed MAJOR stands per the
+extend-never-overwrite rule).
+
+Findings filed (16): S-042 WMF placeable grammar (disjoint accept-sets;
+batch-1 claim refuted) · S-043 thumbnail EXIF orientation · S-044
+auto-save gates (results-found, not-already-saved; byte-flag config) ·
+S-045 thumbnail format coverage (video/RAW/HEIC/PDF) · M-083 grade-2
+promotion · M-084 ACCDB second signature · M-085 TIFF LZW · N-099
+batch-1 citation truth pass (incl. the N-093 WPG-cite correction) ·
+N-100 +0x60 persistence + OQ-SA-1 chain corrections · N-101 inventory
+arithmetic + classification rows · N-102 M-024 count propagation in
+the finding file itself · N-103 thumbnail API rows + heif attribution ·
+N-104 ldm.md/CAPABILITY-MATRIX truth defects · N-105 Folder-suffix
+naming · N-106 GetDriverInfo disposition · I-028 thumbnail superset
+register. Errata E55-E64. Evidence: decompiled-quotes/
+s8-{wmf-placeable-grammar,thumbnail-pipeline,autosave-and-stamps,
+batch2-formats}.md.
+
+Verification lane results: W1a/W1b CONFIRMED (scanTime, restore
+progress formula + per-child cancel, record-1+2 list read); W1c PARTIAL
+(naming CONFIRMED, trigger placement CONFIRMED, gates MISSING = S-044);
+OQ-SA-1 carrier semantics CONFIRMED, chain + resident caveats corrected
+(N-100); batch-1 constants verified correct except WMF (S-042) + ACCDB
+(M-084); registry regions corrected (N-099/E55). Thumbnail engine:
+first-ever parameter verdicts (this lane: 4 defects + 1 register + 5
+MATCH + 6 UNVERIFIED-tracked; the parallel lane's M-080/N-092 complete
+the set). Progressive carve emission: MATCH. No unregistered core
+superset; no undispositioned src/core module; driver D3/D4 out of this
+session's two-repo scope (remain the rda-driver lane's items).
+
+Board after both session-8 legs: 41 active (S-040..S-045, M-071..M-085,
+N-090..N-106, I-026/I-027/I-028) + 249 FIXED + OQ-S4-3/OQ-S8-1
+tracked-open. The S-007 batch-2 remainder is no longer "outside an
+active finding" — S-041 owns it with the decode complete.

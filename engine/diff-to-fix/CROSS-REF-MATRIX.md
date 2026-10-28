@@ -526,3 +526,32 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | mom-capabilities · CWindowsFS live-FS adapter | OPEN QUESTION | **OQ-S8-1** — decoded; og-side consumer untraced |
 | landing verification · W1a/W1b/W1c + thumbnail + carrier | MATCH at load-bearing points | worklog session-8 record (cancel-per-node; ERR_CANCELLED-never-flattened; cancelled-never-autosaves; 27/27 batch-1 magics; carrier all-parameters) |
 | FIXED-truth spot-check · 10 sampled findings | 9 CONFIRMED · 1 PARTIAL | M-018 → **M-071**; the rest verified in-code (worklog record) |
+
+
+## Session-8 wave-2 rows (audited `ff879f9` lineage, corpus `be0cfe9` — the continuation lane, IDs reconciled past the parallel deep-audit lane's set)
+
+| Module · parameter (cell) | Verdict |
+|---|---|
+| carve · batch-2 format coverage (C19/A28/B1) | **S-041 + wave-2 addendum** — the parallel lane's owner finding gains the full decode: 7 text-school grammars, the 18-site config-gated zone, registry geometry (59+35), the BOM battery, FCPEvt end-to-end |
+| carve · WMF placeable validator grammar (A28/C19) | **S-042** — core grammar contradicts the og (checksum word@+20/XOR 0..9/reserved-dword/exact-size vs inch-gate/checksum@18/XOR 0..8/probe-extent); disjoint accept-sets |
+| carve · MDB family second signature (C19/B1) | **M-084** — "Standard ACE DB" (ACCDB 0x4C) missing |
+| carve · batch-1 evidence citations (C65-adj) | **N-099** — registry regions/ctor lines/byte-order corrected (truth pass; constants shipped correct except WMF; also corrects N-093's WPG-ctor cite per erratum E63) |
+| carve · progressive result emission (A31/S38-adj) | **MATCH** — carve_slice streams nodes live during the pass (cr_scan.cpp:1877-88); og live-growth equivalent (UIUX/30:14) |
+| preview/thumbnail · EXIF orientation (B2/A25) | **S-043** — og rotates per tag 0x112 pre-thumbnail; core does not |
+| preview/thumbnail · input eligibility (B1/P48) | **M-080 + wave-2 addendum** — the parallel lane's budget finding gains the og's 200 MB eligibility gate decode (:422428), correcting its "no input cap" claim; severity discussion recorded (SEVERE recommended) |
+| preview/thumbnail · format coverage (B1) | **S-045** — video-keyframe/RAW/HEIC/PDF pipelines absent (og ships them); complements N-092's unnamed-trio + cache gaps |
+| preview/thumbnail · grading side-effect (D15) | **M-083** — og promotes to grade 2 on thumbnail success (:422505-13) |
+| preview/thumbnail · TIFF LZW (B1/A28) | **M-085** — compression-5 refused (mainstream variant) |
+| preview/thumbnail · superset posture (A25) | **I-028** — both-axis scaling, RGBA8, PSD/PNM/HDR, bomb guard, truth gates: deliberate, registered |
+| preview/thumbnail · still-image families + bounded-read doctrine + never-upscale + honest refusals | **MATCH** |
+| session · auto-save trigger gates (A31/D12) | **S-044** — results-found + not-already-saved gates missing; og's enable = byte flag |
+| session · auto-save naming folder variant | **N-105** — "Folder" suffix absent (deferred; cross-ref M-079's volume-label gap) |
+| session · crsf reader robustness (S35) | **MATCH** — per-chunk raw fallback == og's raw-memcpy-on-inflate-failure (md :98) |
+| session · light summary read (D12) | **MATCH** — SESSION_STATE+VOLUME_INFO == the og's record-1-then-record-2 list read (phrasing corrected E64; complements N-090's scope/shape rows) |
+| ntfs · session-wire field set (D11/D12) | **N-100** — og persists +0x60 (total clusters, sparse-zeroed) beside +0x64; core carries +0x64 only |
+| ntfs · origin-LCN stamp chain (C20) | **MATCH** (semantics) — chain cites corrected (+0x53/+0x4f first hop; FUN_180003250) |
+| orchestration · device enumeration sixth source | **N-106** — GetDriverInfo.dll dispositioned OUT-OF-SCOPE by lineage (complements M-082's DeviceManager decode) |
+| audit-trail · SURFACE-INVENTORY arithmetic + classification rows | **N-101** |
+| audit-trail · M-024 count propagation (finding file itself) | **N-102** (cross-ref N-095's PARITY-CORE-REC site) |
+| audit-trail · thumbnail API rows + heif attribution | **N-103** |
+| audit-trail · ldm.md dangling ref + CAPABILITY-MATRIX HFS+ row | **N-104** (cross-ref N-095's five other sites) |

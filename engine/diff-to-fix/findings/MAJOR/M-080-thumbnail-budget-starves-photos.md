@@ -55,3 +55,40 @@ Presentation-quality regression users see constantly once hosts bind the thumbna
 ## Open questions
 
 None.
+
+## Session-8 wave-2 addendum (the parallel continuation lane — the og's eligibility gate decoded; severity discussion)
+
+First-hand decode of the og's thumbnail work item `FUN_1402636e0`
+(:422375-560) corrects one claim in this finding's reference section and
+sharpens its fix target:
+
+1. **The og DOES bound still-image input — at 200 MB, not "no cap."** The
+   work item skips still images with `size > 0xc800000` (200 MB) at
+   :422428, and skips media (video/audio categories) below 64 KiB
+   (0x10000) at :422464; the RAW sidecar path carries its own ≈200 MB
+   bound (0xc800014, :760183). The GDI+ path itself is uncapped (the
+   body's reading stands), but the pipeline's eligibility gate is the
+   corpus anchor: **still images ≤ 200 MB thumbnail; > 200 MB skipped.**
+   Evidence: `../../evidence/decompiled-quotes/s8-thumbnail-pipeline.md` §4.
+2. **The wrong anchor is pinned by a test.** `CapsDefaultsPinTheCorpusAnchors`
+   (test_thumbnail.cpp:131-138) pins `max_read = 4 MiB` citing "corpus
+   anchors" — the value was borrowed from M-028's PreviewReader cost
+   doctrine, a different surface. The re-pin belongs in this finding's
+   fix (step 2): the og-side anchor for thumbnail input is the 200 MB
+   eligibility gate.
+3. **Severity discussion (recorded, not escalated):** this lane graded
+   the same divergence SEVERE on first filing (the modal modern photo —
+   12-48 MP, 5-15 MB — fails under shipped defaults; the thumbnail
+   surface produces nothing for the majority of its intended input
+   class). The first-filed MAJOR stands on the board per the extend-
+   never-overwrite rule; the recommendation to re-grade SEVERE is
+   recorded here for the fix-order owner: the two readings differ on
+   whether "presentation quality with no recovery effect" (MAJOR) or
+   "user-observable capability loss on the modal input" (SEVERE) is the
+   right lens for a surface whose entire purpose is presentation.
+4. The embedded-EXIF fast path's role is confirmed on the og side
+   (EUImgRepairFile's `heif_image_handle_get_thumbnail` is the
+   embedded-first precedent; GDI+ `GetThumbnailImage`'s internals stay
+   UNVERIFIED — tracked in I-028).
+
+**Status:** READ-ONLY — no fix applied.

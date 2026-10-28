@@ -8,8 +8,10 @@ This is the parameter taxonomy every module is scored against. A module may be
 Every applicable parameter that is not `MATCH`/`DIVERGENCE-INFORMATIONAL`
 generates a finding file under `findings/`.
 
-**Audited core commit:** `67193b6` (baseline includes concurrent fixes through
-`9fc82b0`). **Corpus commit:** `03ad46c`.
+**Audited core commit:** session-8 wave-2 `ff879f9` (this wave's rows in
+CROSS-REF-MATRIX); the taxonomy itself is commit-independent. **Corpus
+commit:** `be0cfe9` (was `03ad46c`; the one-commit move is CORRECTIONS #9,
+absorbed). Historical: `67193b6`/`9fc82b0` baseline.
 
 ## Group B — Behavioral parameters
 

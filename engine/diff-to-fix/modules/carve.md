@@ -597,3 +597,27 @@ undocumented supersets; PSP/SIT under the recorded heuristic but their og
 bounds were present at the ctors). Verification: batch-1's 27 magics
 re-checked byte-exact at 12 representative registration sites. The
 `modules/carve.md:546-548` stale OQ-SA-3 text → **N-095** item 3.
+
+
+## Session-8 wave-2 (audited `ff879f9` lineage, corpus `be0cfe9`; IDs reconciled past the parallel deep-audit lane)
+
+- **S-041 addendum (SEVERE)** — this lane completed the batch-2 decode the
+  deep-audit lane's owner finding pinned: the seven text-school grammars
+  (VCF/GPX/HIK/OSP/POS/AEP/CHFP), the 18-site config-gated registration
+  zone, registry geometry (59 u32 + 35 u16 bindings), the u16 BOM battery,
+  FCPEvt end-to-end. Evidence:
+  `../evidence/decompiled-quotes/s8-batch2-formats.md`.
+- **S-042 (SEVERE)** — WMF placeable grammar contradicts the og (checksum
+  word@+20 == XOR(words 0..9), reserved dword@16-19, tail word, exact size
+  std_words*2+22 vs the core's inch-gate/checksum@18/XOR 0..8/probe-extent)
+  — disjoint accept-sets; the batch-1 landing's checksum claim refuted.
+- **M-084 (MAJOR)** — the MDB family's second signature "Standard ACE DB"
+  (ACCDB, type 0x4C) missing.
+- **N-099 (MINOR)** — batch-1 citation truth pass (registry regions
+  :1728-2509/:2536-2911 with 59+35 bindings; WPG ctor at :15700-01 — also
+  correcting N-093's inherited cite, erratum E63; the WPG constant is
+  0x00677077 LE).
+- Progressive carve-tree growth (UIUX/30:14) dispositioned MATCH this
+  session: the core's carve stage attaches nodes live during carve_slice
+  (cr_scan.cpp:1877-88) and counters refresh at progress ticks — same
+  live-growth behavior as the og's advanced pass.

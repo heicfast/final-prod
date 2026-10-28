@@ -164,3 +164,38 @@ readable (6 MiB > 4 MiB) → BudgetExceeded; fix = fast-path on byte-oversize or
 raise the byte default), **M-077** (the og's 100 MB eligibility / 15 s time
 caps — R-34's shipped-defaults half), **N-092** (WMF/EMF/ICO unnamed in the
 refusal matrix + no cache scope).
+
+
+## Session-8 wave-2 — the thumbnail engine's parameter verdicts (audited `ff879f9` lineage, corpus `be0cfe9`; this lane's half — see the deep-audit lane's M-080/N-092 rows for the budget/refusal-matrix halves)
+
+Scored against the og's thumbnail pipeline (decode evidence:
+`../evidence/decompiled-quotes/s8-thumbnail-pipeline.md`):
+
+- **S-043 (SEVERE)** — EXIF orientation not applied (og rotates per tag
+  0x112 before the 256-px pass, FUN_1402fcc30 :521694-725 + call order
+  :652307-309; the core has zero orientation code).
+- **S-045 (SEVERE)** — format coverage: og ships video-keyframe (ffmpeg
+  agent, ports 20171/2), RAW (LibRaw/EURawImg, 1/8-downscale+PNG), HEIC
+  (heif.dll embedded-first), PDF (pdfium) pipelines; the core refuses all
+  by name (the registered phase-2 deps). Complements N-092's unnamed
+  WMF/EMF/ICO trio + cache gaps.
+- **M-083 (MAJOR)** — thumbnail success promotes the node to grade 2 in
+  the og (:422505-13); the core's engine is grade-agnostic (S-023 family).
+- **M-085 (MAJOR)** — TIFF LZW (compression 5) refused; a mainstream
+  scanner/Photoshop variant the og's GDI+ decodes.
+- **M-080 addendum** — this lane decoded the og's still-image eligibility
+  gate (200 MB, :422428) correcting that finding's "no input cap" claim;
+  severity discussion (SEVERE recommended) recorded in the addendum.
+- **I-028 (INFORMATIONAL)** — the superset register: both-axis scaling
+  (og is width-derived — portrait thumbs exceed 256 on height),
+  straight-alpha RGBA8 (og white-flattens), PSD/PNM/HDR, dims-first bomb
+  guard, UnreadableSpan truth gate. Deliberate; do not "fix" away.
+- **N-103 (MINOR)** — R-28/PLAN-API-EXPANSION still read "no dedicated
+  thumbnail op"; the cr_ui ABI exposure remains the open Agent-1 handoff.
+- MATCH rows: still-image family coverage (JPEG/PNG/BMP/GIF + TIFF
+  baseline), bounded range-read doctrine, never-upscale-below-threshold,
+  honest named refusals, the EXIF embedded fast-path strategy.
+- UNVERIFIED (corpus silent, tracked in I-028): og bomb policy,
+  unreadable-span behavior, GdipGetImageThumbnail internals, og
+  WebP/SVG/AVIF thumbnail paths, the 200×200 GDI surface, the
+  :828027 format-group registry's consumer.

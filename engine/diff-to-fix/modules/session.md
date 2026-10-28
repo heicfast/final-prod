@@ -239,3 +239,28 @@ save time; label[32]; no device-type), **M-079** (MAJOR — the CLI never fills
 field but the label; CLI auto-saves are always `auto_<ts>`), **N-091** (the
 load-progress model + auto-save posture + thumbnail superset unregistered in
 PARITY-DELTAS).
+
+
+## Session-8 wave-2 (audited `ff879f9` lineage, corpus `be0cfe9`; complements the deep-audit lane's N-090/M-079 rows)
+
+- **S-044 (SEVERE)** — the W1c auto-save diverges from the og's trigger
+  contract: the og's three call sites gate on results-found
+  (FUN_1403964b0), not-already-saved (+0x388, 2 of 3 sites), and
+  not-import (+0x1c8); the entry gate is a byte flag on a config
+  singleton (FUN_1400b5270 :165951-5), not a directory field. The core
+  fires on every completed scan with autosave_dir set — empty scans and
+  post-explicit-save duplicates land. Evidence:
+  `../evidence/decompiled-quotes/s8-autosave-and-stamps.md` §1-§3.
+- **N-105 (MINOR)** — the og's folder-scan "Folder" name suffix
+  (:442883-86) has no core equivalent (deferred until a folder-scan
+  mode exists; cross-ref M-079's volume-label gap).
+- **N-100 (MINOR)** — the og persists the NTFS +0x60 twin (total $DATA
+  clusters, sparse-zeroed) beside +0x64 in record-4 (rsf-format :398);
+  the core carries +0x64 only (nflags bit-8). Register or carry as
+  bit-9 with the sparse-zeroing rule.
+- Verified MATCH this wave: the crsf reader's per-chunk raw fallback
+  (F10) mirrors the og's raw-memcpy-on-inflate-failure (md :98);
+  read_summary's SESSION_STATE+VOLUME_INFO light read matches the og's
+  actual list behavior (record 1 THEN record 2 — the W1a phrasing
+  corrected, erratum E64; the og's WinPE variant and size gates are
+  .rsf-format internals, not core divergences).

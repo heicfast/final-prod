@@ -1,4 +1,4 @@
-# SUMMARY.md — executive summary (the session-8 deep-audit on top; earlier sessions below)
+# SUMMARY.md — executive summary (the session-8 wave-2 continuation on top; the parallel deep-audit below; earlier sessions further below)
 
 ## Session-8 delta (2026-10-28 — the second-session deep audit: missed-surface sweep + remaining-feature filing + landing verification + FIXED-truth spot-check)
 
@@ -70,6 +70,94 @@ doc-truth minors N-094/N-095 batch-able in one pass. The driver-lane handoffs
 recorded not fixed (READ-length semantics nuance; the disk.sys-comparison
 field reading) belong to the rda-driver repo — noted in the worklog for that
 lane, out of this audit's two-repo scope.
+
+## Session-8 wave-2 delta (2026-10-28 — the continuation lane: batch-2 full decode, WMF grammar refutation, thumbnail verdicts, auto-save gates; reconciled over the parallel deep-audit lane)
+
+**Audited `ff879f9` lineage against corpus `be0cfe9` (read-only).** This lane
+ran in parallel with the deep-audit lane below (its 25 items are in the next
+section); the push-time reconciliation renumbered this lane's IDs past that
+lane's set and MERGED the two content-duplicate findings (the batch-2 decode
+→ **S-041 addendum**; the thumbnail budget → **M-080 addendum** with the
+og-side 200 MB eligibility gate that corrects that finding's "no input cap"
+claim). **This lane's net: 16 new findings + 2 merges** — board after both
+legs: **41 active (6 SEVERE · 15 MAJOR · 17 MINOR · 3 INFO) + 249 FIXED +
+OQ-S4-3/OQ-S8-1 tracked-open.**
+
+**Top risks added by this lane (fix order contribution):**
+1. **S-042** (SEVERE) — the WMF-placeable validator contradicts the og on
+   every gate (checksum word@+20 == XOR words 0..9, reserved dword@16-19,
+   tail word, exact size std_words*2+22) — the two engines accept DISJOINT
+   file sets; the batch-1 landing's "XOR of words 0..8" claim about the og
+   is refuted first-hand (FUN_1800264d0 :29826-37).
+2. **S-043** (SEVERE) — thumbnails are not EXIF-oriented: the og reads GDI+
+   property 0x112 and RotateFlips BEFORE the 256-px pass (:521694-725,
+   call order :652307-309); portrait phone photos thumbnail sideways in
+   the core.
+3. **S-044** (SEVERE) — auto-save gating: the og's three trigger sites gate
+   on results-found (empty scans never auto-save), not-already-saved (2 of
+   3), and not-import; the entry gate is a byte flag on a config singleton
+   — the core fires on every completed scan with a dir set.
+4. **S-045** (SEVERE) — thumbnail format coverage: the og ships
+   video-keyframe (ffmpeg agent, ports 20171/2), RAW (LibRaw/EURawImg,
+   ⅛-downscale→PNG), HEIC (heif.dll embedded-first), PDF (pdfium)
+   pipelines; the core refuses all four by name.
+5. **M-083/M-084/M-085** — the og promotes nodes to grade 2 on thumbnail
+   success (:422505-13); the MDB family's "Standard ACE DB" (ACCDB 0x4C)
+   second signature is missing; TIFF LZW (compression 5) refused.
+6. **The S-041 addendum** — the batch-2 decode completed: the seven
+   text-school grammars (VCF/GPX/HIK/OSP/POS/AEP/CHFP), the 18-site
+   config-gated registration zone, the registry geometry (59 u32 + 35 u16
+   bindings), the u16 BOM battery, FCPEvt end-to-end — the fix plan's
+   decode preconditions are all discharged.
+
+**The verification lane (new landings):** W1a/W1b CONFIRMED (scanTime
++0x6C; restore progress 40+50·done/(total+done); per-child IsCancelled;
+the list's record-1-then-record-2 read — the W1a "record 2" phrasing
+corrected, erratum E64); W1c PARTIAL (naming CONFIRMED, trigger placement
+CONFIRMED, the gating chain MISSING = S-044); OQ-SA-1 carrier semantics
+CONFIRMED with chain corrections (**N-100**: +0x53/+0x4f first hop, the
+FUN_180033250 typo, and the og PERSISTS the +0x60 twin — sparse-zeroed,
+not derivable — which the core does not carry); batch-1 constants verified
+correct EXCEPT the WMF grammar (S-042) and the ACCDB branch (M-084); the
+landing's registry-region cites corrected (**N-099**, erratum E55 — also
+correcting the parallel lane's N-093 WPG-ctor cite: the bounds live at
+:15700-01, not :20542-48, verified first-hand both regions this session).
+
+**Errata E55-E64** (census corrections, all first-hand): registry
+geometry; 0x11C=FreeHand-11 (MPEG-TS is unkeyed brute — corroborates the
+parallel lane's resolution); E4 52 5C 7B=OneNote not "LZH arc";
+II/MM+0x1A=CRW (corroborates M-081); New3DS=Autodesk not Nintendo; the
+XML four-key router through the SVG analyser; the WMF checksum
+convention; MDB's ACE second signature; the auto-save gates; the
+session-list record-1 role.
+
+**Thumbnail parameter verdicts rendered for the first time** (the engine
+landed post-audit): 4 SEVERE/MAJOR defects + the superset register
+(**I-028**: both-axis scaling vs the og's width-derived quirk — og
+portrait thumbs exceed 256px on height — straight-alpha RGBA8 vs
+white-flattened HBITMAPs, PSD/PNM/HDR, dims-first bomb guard,
+UnreadableSpan truth gate) + 5 MATCH rows + 6 UNVERIFIED corpus-silent
+residuals tracked in I-028's Open questions.
+
+**Never-cited sweep (N-101):** the trail's citation arithmetic corrected
+(~95 cited / ~187 never-cited, not 78/204 — brace-group/alias/short-stem
+forms unfolded); per-binary 112/114; EuShare 2 never-cited (exclusion
+re-anchored); EFIBoot.md never-cited (the decompile is the cite);
+GetDriverInfo.dll — the one corpus-indexed surface with zero disposition
+anywhere — registered OUT-by-lineage (**N-106**); the four data-asset
+registrations this lane drafted defer to the parallel lane's I-027/N-097
+deeper reads.
+
+**Coverage:** no src/core module is without audit disposition; no
+unregistered core superset; progressive carve emission dispositioned MATCH
+(live tree growth in both engines — carve_slice streams nodes during the
+pass, cr_scan.cpp:1877-88).
+
+**Recommended fix-order additions from this lane:** S-042 (small, sharp,
+wrong results) → S-043 (orientation) → M-084 (ACCDB) → S-044 gates →
+M-083 (grade seam) → M-085 (TIFF LZW) → the S-041 batch plan (decode
+complete) → S-045 phase-2 deps → N-100 (bit-9 or register) → the
+N-101..N-106 truth batch.
 
 ## Fix-session delta (2026-10-28 — the PARITY-FIX-9 close-out: S-038 FULLY FIXED — the board's last active SEVERE)
 

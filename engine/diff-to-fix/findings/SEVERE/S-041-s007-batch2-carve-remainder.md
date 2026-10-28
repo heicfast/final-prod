@@ -69,3 +69,62 @@ User-observable recall loss on common file types (HTML/SWF/EMF/CHM/MTS are mains
 ## Open questions
 
 The MPEG-TS numeric-key-284 claim conflicts with the s3 census's FH11 tie (0x11C) — resolve at the decompile before implementing (the fix plan's step 1 covers it). The og's per-format size-walk decodes remain the recorded follow-ups for WPG-class formats (the batch-1 addendum's DWG-pattern note).
+
+## Session-8 wave-2 addendum (the parallel continuation lane — the full grammar decode, cross-verified)
+
+This lane's independent decode of every batch-2 format at its registration
+and validator site **confirms the roster above and completes the decode**
+(the fix plan's step-1 preconditions are now discharged — every grammar is
+first-hand). Full per-format table with citations:
+`../../evidence/decompiled-quotes/s8-batch2-formats.md`. What this addendum
+adds beyond the body and the SCAN-4 log:
+
+1. **The seven text-school grammars the SCAN-4 list did not enumerate**:
+   VCF (config-gated ext "vcf", `_memicmp "BEGIN:VCARD"` 11 bytes, tail
+   walk for "END:VCARD" in sector<<7 windows, :45316-99); GPX (gated,
+   `<?xml version="` probe then a u32 `<gpx` scan from +0x16, :20860-90);
+   HIK (gated, **not text** — MPEG-PS: pack header 00 00 01 BA, system
+   header/private-stream gates, <4 MB, :30429-52); OSP (gated, the JSON
+   probe `{\r\n "di": ` as u64+u16 literals, :50104-25); POS (gated,
+   `_memicmp "{\"diagram\":"`, :20203-17); AEP (gated, 'RIFX', chunk-tree
+   walk, :11550-69); CHFP (gated, `<?xml version="` + `<BiffProject` at
+   fixed +0x28, :19939-66).
+2. **The config-gated registration zone, enumerated**: the list layer's
+   gated zone (:3356-4110) registers an analyser only when
+   `FUN_180010f50(config, ext)` finds the extension enabled in
+   RawConfig.ini — **18 gated sites** (JP2 MOBI VCF GPX HIK OSP POS AEP
+   CHFP M1V HEIC among them). The core has no config-gated registration
+   surface at all (build-time registry only) — the fix plan's step 4
+   (M-024 `disabled_formats`) is the right ride; note the og's default
+   posture per extension is undecoded for most of the 18 (the RawConfig
+   artifact's 34 toggles name the surface, not per-analyser defaults).
+3. **Registry geometry, corrected for all future work**: u32 block
+   entries :1728-2509 (**59 bindings**), u16 block :2536-2911 (**35**,
+   including the Unicode-BOM battery that routes UTF-16 text), list
+   layer :2919-4214 (unconditional ~2930-3350 + gated 3356-4110);
+   total **94 keyed bindings** (erratum E55). The batch-1 landing's
+   cited regions ":5450-6600"/":6205-6590" are INI/streambuf code
+   (N-099).
+4. **The u16 layer's BOM battery** (0xfeff, 0xe2ff-0xe7ff, 0xf1ff-0xf7ff,
+   0xfaff-0xfdff, 0xffff, 0x100 — every Unicode BOM maps to text
+   analysers) — the HTML UTF-16 variant rides it; a core port must
+   decide whether the BOM keys are in scope (the og's text dispatch is
+   encoding-aware from byte 0).
+5. **FCPEvt**, decode-complete: u32 key `SQLi` (:1972) →
+   BruteForce::CFCPEvtAnalyser id 0x73; the deep walk's
+   "tableactiveactive" memcmp (:35461) relabels subtype 0x75; cap
+   200,000,000 (:35507). The core's N-089 relabel covers the SQLite
+   detection; the standalone 0x73/0x75 split remains open per the body.
+6. **Census-corroborating corrections** (this lane's errata E56-E60):
+   `E4 52 5C 7B` = ONE not "LZH arc" (E56); II/MM+0x1A = the CRW chain,
+   corroborating **M-081** (E57); New3DS = Autodesk 3D Studio, not the
+   console (E58); the four XML keys route through one SVG analyser whose
+   probes discriminate SVG (0x5b) from GPX-class XML (0x13) (E59); LZH
+   probes u32@+2 + byte@+6 (no u8 '-' key) (E60).
+
+The two batch-1 defects this lane verified at the registration sites that
+the body does not carry: the WMF-placeable grammar contradiction
+(**S-042** — the batch-1 checksum claim is refuted) and the missing
+"Standard ACE DB" ACCDB branch (**M-084**).
+
+**Severity:** unchanged (SEVERE). **Status:** READ-ONLY — no fix applied.
