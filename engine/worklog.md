@@ -1796,3 +1796,36 @@ origin's worklog was never touched by them.
 
 Prompt saved redacted: worklog/session-10-parity-audit-prompt.md (the
 remote lanes' copy — same mandate — kept). Read twice.
+
+---
+Task ID: DFX-38/recon-1 (the M-071 convergent-landing reconciliation + the CLI execution proof)
+Agent: lead (DFX-38)
+
+Work Log:
+- Convergence: this lane's M-071 fix (10fde58, prepared in the same
+  window) and the parallel lane's landing (ce2405a) were semantically
+  identical — the four bulk surfaces gated, explicit selection ungated,
+  the comment truthful; both lanes independently discovered the ABI
+  twins. The parallel lane landed first; this lane's overlapping code
+  was discarded at rebase (kept on branch dfx38-local for the record).
+- Donated on top (the landed Resolution's own proof gap - "the
+  rrecov.cpp pair cannot execute on Linux"): tools/gen_fat16_junk_
+  fixture.py (deterministic FAT16 fixture with the og's FileName-pool
+  junk set; verified against the real orchestrator first-hand:
+  5 files, junk_filtered==2, controls clean) + the checks.yml "CLI
+  junk-gate probes" step (Windows-lane execution proof: scan/tree
+  never print DESKTOP.INI and always print DOC.TXT; recover --all
+  never writes the junk set, always writes DOC.TXT - driverless via
+  the classification-(b) image path).
+- Resolution addendum added to the FIXED finding (the convergence
+  record + the new artifacts).
+- Board re-read after the parallel lane's landings (S-042 f6e303e,
+  N-094 26da616, M-071 ce2405a all FIXED): this session's SEVERE queue
+  loses S-042; the MINOR queue loses N-094. Suite on the merged tree:
+  1031/1031 green (linux-release).
+
+Stage Summary:
+- M-071 fully closed by convergence with the execution-proof gap
+  filled. The DFX-38 queue continues at the SEVERE tier: S-043
+  (thumbnail EXIF orientation) next - the parallel lane has not
+  touched it.

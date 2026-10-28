@@ -61,3 +61,32 @@ Whether `SafeWriter::enqueue` should carry the gate (defense-in-depth) or the pl
 **Fixed in commit:** <filled at push>
 **Verified by:** `CrUi.RecoverAllSkipsJunkFlaggedNodes` + `CrUi.RecoverAllSnapshotWalkSkipsJunkFlaggedNodes` (both executed RED with the cr_ui gate stashed out — the fail-before record — and green with it in), `CrUi.RecoverExplicitSelectionStillAllowsJunk` (pins the og's filter-is-a-default semantic: an explicitly-selected junk node stays recoverable through the single-node enqueue), plus full ctest **1026/1026** linux-release (gcc -Wall -Wextra -Werror -Wshadow) including the win-stub parse gate that compiles the restored rrecov.cpp gates; clang-format 18.1.8 clean.
 **Resolution notes:** The two rrecov.cpp gates were restored byte-exact in the M-018 landing's form (`git show 69507cb`): `if ((c->props()->flags & tree::NODE_FLAG_JUNK_FILTERED) != 0) continue;` — one in `print_tree`'s walk, one in the recover-all `plan` lambda, both before descent (the landed M-018 semantic: a flagged dir takes its subtree with it; the child stays a query row because `passes()` checks the node's own flag — "entries, not contents", re-pinned by the new precondition assertion). The fix went beyond the finding's minimum in one direction the finding's own D16 parameter ("the junk blocklist must gate every result surface") demanded: the cr_ui recover-all surfaces that POSTDATE M-018 (the W-lane landings) carried the same defect — `plan_enqueue_session` (session subtree walks) and the snapshot subtree `plan` lambda had zero junk gates. Both now gate identically (the snapshot rows persist the flag via `SnapNode.flags`, so the value path gates the same way the live path does). `SafeWriter::enqueue` stays un-gated by deliberate decision, settling the finding's open question: the og's filter is a results-set default, not a hard block (corpus `og-codebase/config/FilterFolder.ini` via the M-018 chain; `re-workspace/artifacts/UIUX/31-filterbar-family-decode.md:140-143` — the filter constrains the presented tree, the recoverable set), so explicit single-node selection of a junk node remains possible and is now pinned by test; gating `enqueue` itself would have made the filter a hard block the og does not have. The `cr_scan.cpp:1200` comment now names every gated surface truthfully (query rows, CLI tree, rrecov recover-all plan, the cr_ui session/snapshot plans) and records the explicit-selection carve-out. The rrecov.cpp pair cannot execute on Linux (the app layer is MSVC-only); the proof for it is the exact-form restoration (the git-archaeology this finding itself proved: `69507cb` → dropped in `cfa4c75` → restored now), the parse gate compiling it, and the identical walk class proven behaviorally at the cr_ui surface in the same commit. No corpus re-interpretation was needed; the finding's evidence reproduced exactly at HEAD (`rg -c NODE_FLAG_JUNK_FILTERED src/` → 3 pre-fix, all in core; 0 in rrecov.cpp).
+
+## Resolution addendum (DFX-38 reconciliation — the parallel convergent landing + the CLI execution proof)
+
+A parallel lane (DFX-38, this session) independently verified the finding at
+HEAD `84a1832`, independently discovered the same ABI-twin extension
+(`plan_enqueue_session` + the snapshot subtree walk never carried the gate),
+and prepared the identical fix in the same push window (commit `10fde58`,
+discarded at rebase). The landed fix above is the converged truth — the two
+lanes' code changes were semantically identical (the four bulk surfaces
+gated, explicit single-node selection ungated, the cr_scan comment truthful)
+and both executed the fail-before proof against the cr_ui gate stashed out.
+
+What the DFX-38 lane donates on top of the landing (the resolution's own
+recorded proof gap — "the rrecov.cpp pair cannot execute on Linux"):
+
+1. **`tools/gen_fat16_junk_fixture.py`** — a deterministic, dependency-free
+   generator for a FAT16 image planted with the og's FileName-pool junk set
+   (DESKTOP.INI + `$USNJRNL`) beside the DOC.TXT/DELFILE.TXT/PHOTO.JPG
+   negative controls; verified first-hand against the real orchestrator
+   (5 files found, `junk_filtered == 2`, both plants flagged, controls
+   clean, exit-proven with a standalone harness before landing).
+2. **The `checks.yml` "CLI junk-gate probes" step** — the actual Windows-lane
+   execution proof for the rrecov.cpp gates the resolution could only
+   restore-by-archaeology: `scan --image` (driverless, classification (b))
+   → its printed tree must never contain DESKTOP.INI and must contain
+   DOC.TXT; `tree --in <session>` the same; `recover --in … --image … --to`
+   must never write DESKTOP.INI/`$UsnJrnl` and must write DOC.TXT. The
+   rrecov.cpp gate pair is now pinned by execution on every Windows CI run,
+   not only by exact-form restoration.
