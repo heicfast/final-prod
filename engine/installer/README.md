@@ -28,7 +28,7 @@ pwsh -File installer\build-installer.ps1 -Version 1.2.3
 # -> dist\core-recovery-setup.exe
 ```
 
-Requires Inno Setup 6.3+ (`x64compatible`); CI pins 6.4.3 via choco.
+Requires Inno Setup 6.3+ (`x64compatible`); the windows-2022 runner image ships 6.7.1 preinstalled (build-installer autodetects; choco is the fallback).
 
 ## The three test gates (PACKAGING.md §11)
 

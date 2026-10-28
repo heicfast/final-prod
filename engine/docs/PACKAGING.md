@@ -90,8 +90,8 @@ merged product:
 
 **DECISION: Inno Setup** — the contract's default recommendation, adopted by
 the implementing session (evidence-pinned; the 13-parameter contract maps
-1:1). The implementation: `installer/core-recovery.iss` (Inno 6.3+, CI pins
-6.4.3 via choco).
+1:1). The implementation: `installer/core-recovery.iss` (Inno 6.3+; the windows-2022
+runner image ships 6.7.1 preinstalled, choco is the fallback).
 
 ## 3. The ARP contract (parameters 7-8)
 

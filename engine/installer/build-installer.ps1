@@ -84,7 +84,7 @@ if (-not $Iscc) {
     }
 }
 if (-not (Test-Path $Iscc)) {
-    Fail 2 "ISCC.exe not found at '$Iscc' - install Inno Setup 6.3+ (CI: choco install innosetup --version=6.4.3)"
+    Fail 2 "ISCC.exe not found at '$Iscc' - install Inno Setup 6.3+ (the runner image ships it; choco fallback: choco install innosetup)"
 }
 
 # ---- compile ----

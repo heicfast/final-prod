@@ -32,7 +32,11 @@
 ; line below is the sync pin tools/test_installer_osgate.py enforces.
 ;
 ; Build: installer/build-installer.ps1 (stages the payload, runs ISCC).
-; Requires Inno Setup 6.3+ (x64compatible); CI pins 6.4.3 via choco.
+; Requires Inno Setup 6.3+ (x64compatible); the windows-2022 runner image
+; ships 6.7.1 preinstalled (build-installer autodetects, choco is the
+; fallback).
+; Requires Inno Setup 6.3+ (x64compatible); the windows-2022 runner image
+; ships 6.7.1 preinstalled (build-installer autodetects; choco fallback).
 
 #define AppName "core_recovery"
 #ifndef AppVersion

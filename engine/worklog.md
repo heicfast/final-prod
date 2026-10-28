@@ -322,7 +322,6 @@ Stage Summary:
   the three gates; then the M-068 hygiene move + testing.md count truth +
   OQ-SA-1 NTFS +0x64 decompile probe.
 
-<<<<<<< HEAD
 
 ---
 Task ID: PARITY-FIX-3 (CI red repair + the installer-lane YAML fix)
@@ -370,6 +369,7 @@ Stage Summary:
   NTFS origin-LCN carrier if the SCAN-2f lane has not landed it.
 
 ---
+<<<<<<< HEAD
 Task ID: API-EXP-1 (api-fix session 3 — the corpus-parity expansion: context recovery + the plan-of-record board)
 Agent: api-exp lane (this session)
 
@@ -409,4 +409,21 @@ Stage Summary:
   list + summary). This lane's queue: S3-1 (the A-ABI-6 audit-row truth
   pass) then Waves 1-5; NOT touching S-038's installer lane, SCAN-2f's
   engine probes, or API-FIX-4's CI lane.
+
+Task ID: PARITY-FIX-5 (installer-lane retry fix + OQ-S4-3's TTFR harness)
+Agent: main session
+
+Work Log:
+- installer.yml choco step: the windows-2022 image ships Inno Setup 6.7.1
+  PREINSTALLED - the pinned 6.4.3 install downgrade-failed (run
+  40682340640). Now detects ISCC first, choco unpinned only when absent;
+  the 6.4.3 references swept from ISS/build-installer/README/PACKAGING.
+  Gate 3 (InstallerOSGateMatrix) was GREEN on that run - the sync pin +
+  the full envelope matrix passed on the runner.
+- Next: the OQ-S4-3 TTFR harness on the staged-scenarios lane (option 1
+  of the 97cc3b2 probe-target correction - no engineering prerequisite,
+  the event stream carries the timestamps).
+
+Stage Summary:
+- Retrying the round-trip job; TTFR extraction next.
 

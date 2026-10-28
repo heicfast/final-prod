@@ -21,8 +21,10 @@
 # docs/PACKAGING.md section 10 / DRIVER-RELEASE), and runs the round trip on
 # the elevated runner.
 #
-# Inno Setup is pinned via choco (6.4.3; the ISS requires 6.3+ for
-# x64compatible).
+# Inno Setup: the ISS requires 6.3+ (x64compatible); the windows-2022
+# runner image ships 6.7.1 preinstalled - the lane detects it and only
+# falls back to choco when absent (a pinned install would downgrade-fail,
+# run 40682340640).
 name: Installer gates (S-038)
 
 on:
@@ -71,11 +73,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Inno Setup 6.4.3 (the ISS requires 6.3+)
+      - name: "Inno Setup 6.3+ (use the runner image's copy; choco fallback)"
         shell: pwsh
         run: |
-          choco install innosetup --version=6.4.3 -y --no-progress
-          if ($LASTEXITCODE) { exit 1 }
+          # the windows-2022 image ships Inno Setup 6.7.1 preinstalled; a
+          # pinned choco install would try to DOWNGRADE and fail (run
+          # 40682340640) - detect first, install only when absent (6.3+ is
+          # the ISS's x64compatible floor; anything newer is fine)
+          $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $iscc)) { $iscc = Join-Path $env:ProgramFiles 'Inno Setup 6\ISCC.exe' }
+          if (Test-Path $iscc) {
+            Write-Host "Inno Setup present: $iscc"
+          } else {
+            choco install innosetup -y --no-progress
+            if ($LASTEXITCODE) { exit 1 }
+          }
 
       - name: Configure + build (Release, manifest vcpkg)
         shell: pwsh
