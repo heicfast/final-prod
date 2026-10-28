@@ -254,12 +254,17 @@ commit; the file retires to history with a ledger row).
   reorder only; the post-emission jump variant REJECTED by the full-suite gate
   (the og ranks overlapping candidates — the S007 AAC ADTS lesson).
 
-**Board after S-051/S-053/S-054/M-117 (the parallel lanes' S-053/N-141/N-113/N-142/N-151/M-109/M-112 landings absorbed at the rebase): 56 active (5 SEVERE · 17 MAJOR · 27 MINOR · 7
-7 INFO) + 3 tracked-open / 302 resolved rows.** The SEVERE board this session
-continues on: S-052 (LDM span recovery — silently wrong bytes), S-053 (ReFS
-unnamed rows), S-049 (the carved naming contract), S-048 (Reconstructed
-per-volume grouping), S-050 (the file-repair registration), S-040 (image
-create).
+**Board at the session-40 close (the multi-lane truth): 42 active (3 SEVERE · 23
+MAJOR · 16 MINOR · 0 INFO) + 3 tracked-open / 317 resolved rows.** The remaining
+SEVERE set (S-048 carve grouping, S-050 the file-repair registration, S-040 image
+create) is CLAIMED by the session-40-severe lane (worklog territory claim
+75dd2c96: S-048 first, then S-050/S-040); the S-054 class (regressions) stays
+zero-tolerance with the DestArming wiring fence landed. This lane's session-40
+landings: S-051 (the whole-disk target set), S-054-the-TS-cap + M-117 (the
+discovered-and-fixed quadratic re-walk), S-054-the-N-013-restore (the regression
++ the fence), the INFORMATIONAL tier (9 acknowledged), the tracked-open
+dispositions, and the S-052 convergence (the remote lane's complete landing
+stands; this lane's in-flight duplicate was dropped per earlier-push-wins).
 
 ---
 
