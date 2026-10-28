@@ -68,11 +68,11 @@ TEST(Transport, DisconnectClassifiedDistinctly) {
      * distinct code, never a read-failure storm; the og's "Drive
      * Disconnected" Retry/Cancel dialog (UIUX/08:39-47) drives the same
      * flow from its UI layer. */
-    EXPECT_TRUE(disconnect::gle_is_disconnect(disconnect::kDevNotExist));    /* 55 */
-    EXPECT_TRUE(disconnect::gle_is_disconnect(disconnect::kNotReady));       /* 21 */
-    EXPECT_TRUE(disconnect::gle_is_disconnect(disconnect::kMediaChanged));   /* 1110 */
-    EXPECT_TRUE(disconnect::gle_is_disconnect(disconnect::kNoMedia));        /* 1112 */
-    EXPECT_TRUE(disconnect::gle_is_disconnect(disconnect::kDeviceRemoved));  /* 1619 */
+    EXPECT_TRUE(disconnect::gle_is_disconnect(disconnect::kDevNotExist));   /* 55 */
+    EXPECT_TRUE(disconnect::gle_is_disconnect(disconnect::kNotReady));      /* 21 */
+    EXPECT_TRUE(disconnect::gle_is_disconnect(disconnect::kMediaChanged));  /* 1110 */
+    EXPECT_TRUE(disconnect::gle_is_disconnect(disconnect::kNoMedia));       /* 1112 */
+    EXPECT_TRUE(disconnect::gle_is_disconnect(disconnect::kDeviceRemoved)); /* 1619 */
 }
 
 TEST(Transport, MediaErrorsStillReadFailed) {

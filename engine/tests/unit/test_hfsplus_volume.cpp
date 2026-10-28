@@ -1419,7 +1419,6 @@ TEST(HfsPlus, JournalFallbackRequiresNodeShapedStart) {
     EXPECT_EQ(0u, st.journal_emitted);
 }
 
-
 TEST(HfsPlus, ZeroLogicalSizeFallsBackToTotalBlocks) {
     /* N-155: the og's zero-logical-size fallback (FUN_180009940
      * :7666-7671) - a data-fork record with logicalSize == 0 and

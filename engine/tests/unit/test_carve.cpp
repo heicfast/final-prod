@@ -7578,11 +7578,10 @@ TEST(UserSigns, ManifestEightCharExtParses) {
      * data). The pre-N-179 comment claimed the longest was 4 - the
      * false provenance that would mislead a future caps audit into
      * breaking og-stock-DB compatibility. */
-    const char* ok_json =
-        "{\"manifest\": { \"signs\": [\"0,0D0A4D414E4946455354\"], "
-        "\"mime\": \"text/cache-manifest\" },"
-        " \"class\": { \"signs\": [\"0,CAFEBABE\"], "
-        "\"mime\": \"application/java-vm\" }}";
+    const char* ok_json = "{\"manifest\": { \"signs\": [\"0,0D0A4D414E4946455354\"], "
+                          "\"mime\": \"text/cache-manifest\" },"
+                          " \"class\": { \"signs\": [\"0,CAFEBABE\"], "
+                          "\"mime\": \"application/java-vm\" }}";
     carve::usersigns::UserSignSet set;
     ASSERT_EQ(OK, carve::usersigns::parse(ok_json, std::strlen(ok_json), set))
         << "the og's longest stock ext (manifest, 8 chars) parses at the exact-fit cap";
@@ -7594,12 +7593,10 @@ TEST(UserSigns, ManifestEightCharExtParses) {
             saw_manifest = true;
     EXPECT_TRUE(saw_manifest) << "the 8-char boundary key survives the round trip";
     /* the 9-char reject: one past the boundary */
-    const char* bad_json =
-        "{\"123456789\": { \"signs\": [\"0,41424344\"], "
-        "\"mime\": \"application/x-test\" }}";
+    const char* bad_json = "{\"123456789\": { \"signs\": [\"0,41424344\"], "
+                           "\"mime\": \"application/x-test\" }}";
     carve::usersigns::UserSignSet bad;
-    EXPECT_EQ(ERR_BAD_PARAMETER,
-              carve::usersigns::parse(bad_json, std::strlen(bad_json), bad))
+    EXPECT_EQ(ERR_BAD_PARAMETER, carve::usersigns::parse(bad_json, std::strlen(bad_json), bad))
         << "a 9-char ext is past the exact-fit cap: the legitimate reject";
 }
 
@@ -7695,9 +7692,8 @@ TEST(UserSigns, ShortFragmentMatchesInCore) {
         << "below the byte bound still rejects (the correct bound, not none)";
     /* restore the prevailing installed state (the round-trip test's zip
      * set) so later scan-based tests see the same world */
-    const char* zip_json =
-        "{\"zip\": { \"signs\": [\"0,504B0304\",\"526,504B537058\"], "
-        "\"mime\": \"application/zip\" }}";
+    const char* zip_json = "{\"zip\": { \"signs\": [\"0,504B0304\",\"526,504B537058\"], "
+                           "\"mime\": \"application/zip\" }}";
     carve::usersigns::UserSignSet zset;
     ASSERT_EQ(OK, carve::usersigns::parse(zip_json, std::strlen(zip_json), zset));
     ASSERT_EQ(OK, carve::usersigns::install_set(std::move(zset)));
@@ -9886,14 +9882,16 @@ TEST(Carve, MpegPsPesLengthsAreBigEndian) {
 }
 
 /* ---- N-139: the carve OOM policy - the graceful code, never an escaped
- * exception, with the og-shaped one-line diagnostic ---- */
-/* ===================================================================== */
-/* N-139: the carve OOM policy - the graceful code, never an escaped     */
-/* exception, with the og-shaped one-line diagnostic (the parallel lane's */
-/* landing at 133cced9, re-assembled by the session-43 lane: the pushed  */
-/* rebase had spliced these bodies inside the HIK/MpegPs tests' bodies - */
-/* main was unbuildable at HEAD; the intended content is identical).     */
-/* ===================================================================== */
+ * exception, with the og-shaped one-line diagnostic ----
+ *
+ * (Reconstructed by session-44's main-red repair: the 133cced9 landing's
+ * patch applied with fuzzy offsets over the concurrent c0efacc3 HIK family
+ * and interleaved the two test families mid-body - each OOM test had
+ * stolen a HIK fixture block and each HIK test lost its assertions to the
+ * neighbor's scope (the committed-main-red class, M-120's own precedent).
+ * The base here is c0efacc3's intact HIK family; the OOM family below is
+ * the N-139 landing's own content reassembled self-contained - every test
+ * owns its fixture, the same 4 tests the landing message names.) */
 
 namespace {
 

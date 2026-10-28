@@ -79,7 +79,7 @@
 #include "cr/win/cr_bootfix.h"
 #include "cr/storage/cr_decrypt_device.h"
 #include "cr/crypto/cr_aes.h"
-#include "cr/cr_text.h" /* N-009c: --filter UTF-8 encoding */
+#include "cr/cr_text.h"            /* N-009c: --filter UTF-8 encoding */
 #include "cr/preview/cr_preview.h" /* M-116: the archive-list verb surfaces the inventory */
 #include <windows.h>
 #include <map>
@@ -750,11 +750,9 @@ int print_disks(bool with_trim) {
      * primitive and the same one-query shape). A failed query prints the
      * unknown form - never a guessed value. */
     bool trim_on = false;
-    const bool trim_known =
-        with_trim && win::health::query_trim_state(trim_on) == OK;
+    const bool trim_known = with_trim && win::health::query_trim_state(trim_on) == OK;
     wprintf(L"%zu disk(s), %zu volume(s)%s\n", list.size(), vols.size(),
-            with_trim ? (trim_known ? (trim_on ? L" [TRIM ON]" : L" [TRIM OFF]")
-                                    : L" [TRIM ?]")
+            with_trim ? (trim_known ? (trim_on ? L" [TRIM ON]" : L" [TRIM OFF]") : L" [TRIM ?]")
                       : L"");
     for (const auto& d : list) {
         wprintf(L"  Disk %u: %llu MiB (%s) %s [%s] %s%s\n", d.number, d.size_bytes >> 20,
@@ -2148,8 +2146,7 @@ int cmd_archive_list(int argc, wchar_t** argv, int& i) {
             }
             wprintf(L"%s{\"name\": \"%hs\", \"size\": %llu, \"compressed\": %llu, "
                     L"\"crc_present\": %s}",
-                    e ? L", " : L"", esc.c_str(),
-                    static_cast<unsigned long long>(en.size),
+                    e ? L", " : L"", esc.c_str(), static_cast<unsigned long long>(en.size),
                     static_cast<unsigned long long>(en.compressed),
                     en.crc_present ? L"true" : L"false");
         }
@@ -2349,8 +2346,7 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
                     wprintf(L"[F12] WARNING: destination is on the SOURCE disk %u\n", disk);
                 else
                     wprintf(L"[dest] %c: disk %u @%llu +%llu (%zu extent(s))\n", dletter,
-                            ve.front().disk,
-                            static_cast<unsigned long long>(ve.front().start),
+                            ve.front().disk, static_cast<unsigned long long>(ve.front().start),
                             static_cast<unsigned long long>(ve.front().len), ve.size());
                 std::vector<std::pair<u64, u64>> spans;
                 spans.reserve(ve.size());

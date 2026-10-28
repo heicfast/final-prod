@@ -3492,7 +3492,9 @@ u32 query_run_impl(cr_ui_session* sess, const cr_ui_query* q, cr_ui_query_row** 
         return ret_(ERR_BAD_PARAMETER, "bad argument: sess/q/rows/row_count/total_matched");
     auto* s = reinterpret_cast<CrSession*>(sess);
     query::Query cq;
-    cq.filter.category_mask = q->category_mask ? q->category_mask : 0x3FFu; /* N-126: Unsaved widens the default (9 -> 10 bits) */
+    cq.filter.category_mask = q->category_mask
+                                  ? q->category_mask
+                                  : 0x3FFu; /* N-126: Unsaved widens the default (9 -> 10 bits) */
     cq.filter.size_min = q->size_min;
     cq.filter.size_max = q->size_max ? q->size_max : ~u64(0);
     cq.filter.modified_from = q->modified_from;
@@ -3928,7 +3930,7 @@ extern "C" CR_UI_API uint32_t cr_ui_archive_entry_count(cr_ui_preview* pv, uint3
     return guarded(archive_entry_count_impl, pv, out);
 }
 extern "C" CR_UI_API uint32_t cr_ui_archive_entry_at(cr_ui_preview* pv, uint32_t index,
-                                                       cr_ui_archive_entry* out) {
+                                                     cr_ui_archive_entry* out) {
     return guarded(archive_entry_impl, pv, index, out);
 }
 /* =========================================================================

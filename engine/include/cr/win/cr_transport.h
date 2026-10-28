@@ -170,11 +170,11 @@ namespace disconnect {
  * DEVICE(1117)/ERROR_CRC(23) and friends stay read failures (the
  * dying-disk storm keeps the old semantics - the classification must
  * be precise, not a catch-all). */
-constexpr unsigned kDevNotExist = 55;       /* ERROR_DEV_NOT_EXIST */
-constexpr unsigned kNotReady = 21;          /* ERROR_NOT_READY */
-constexpr unsigned kMediaChanged = 1110;    /* ERROR_MEDIA_CHANGED */
-constexpr unsigned kNoMedia = 1112;         /* ERROR_NO_MEDIA_IN_DRIVE */
-constexpr unsigned kDeviceRemoved = 1619;   /* ERROR_DEVICE_REMOVED */
+constexpr unsigned kDevNotExist = 55;     /* ERROR_DEV_NOT_EXIST */
+constexpr unsigned kNotReady = 21;        /* ERROR_NOT_READY */
+constexpr unsigned kMediaChanged = 1110;  /* ERROR_MEDIA_CHANGED */
+constexpr unsigned kNoMedia = 1112;       /* ERROR_NO_MEDIA_IN_DRIVE */
+constexpr unsigned kDeviceRemoved = 1619; /* ERROR_DEVICE_REMOVED */
 
 inline bool gle_is_disconnect(unsigned gle) {
     return gle == kDevNotExist || gle == kNotReady || gle == kMediaChanged || gle == kNoMedia ||
@@ -184,7 +184,5 @@ inline bool gle_is_disconnect(unsigned gle) {
 
 } // namespace win
 } // namespace cr
-
-
 
 #endif // CR_TRANSPORT_H_

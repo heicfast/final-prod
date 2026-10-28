@@ -86,8 +86,7 @@ TEST(Enumerate, TrimChipOptInShipsInAbiAndCli) {
     const size_t at = src.find("u32 enumerate_disks_impl(");
     ASSERT_NE(std::string::npos, at);
     const size_t end = src.find("\nu32 ", at + 10);
-    const std::string body =
-        src.substr(at, (end == std::string::npos ? src.size() : end) - at);
+    const std::string body = src.substr(at, (end == std::string::npos ? src.size() : end) - at);
     EXPECT_NE(std::string::npos, body.find("flags & CR_ENUM_FLAG_TRIM"))
         << "the TRIM query must be gated by the opt-in flag";
     EXPECT_NE(std::string::npos, body.find("win::health::query_trim_state"))
@@ -104,8 +103,7 @@ TEST(Enumerate, TrimChipOptInShipsInAbiAndCli) {
         << "the usage text must carry --trim";
     EXPECT_NE(std::string::npos, cli.find("L\"--trim\""))
         << "the flag must be parsed by the list verb";
-    EXPECT_NE(std::string::npos, cli.find("TRIM:ON"))
-        << "the chip must render in the row output";
+    EXPECT_NE(std::string::npos, cli.find("TRIM:ON")) << "the chip must render in the row output";
     EXPECT_NE(std::string::npos, cli.find("TRIM ?"))
         << "the unknown form must render on a failed query (never guessed)";
 }

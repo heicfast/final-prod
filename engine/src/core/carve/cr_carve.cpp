@@ -22,7 +22,7 @@
 #include "cr/cr_parallel.h"
 #include "cr/crypto/cr_sha256.h"
 #include "cr/table/cr_table_wire.h" /* M-051: crc32 for the analyser checksum */
-#include "cr/cr_log.h" /* N-139: the OOM diagnostic seam (the og's 5-line
+#include "cr/cr_log.h"              /* N-139: the OOM diagnostic seam (the og's 5-line
                           PUBLOG memory dump is the reference shape; one
                           line sized to this seam) */
 
@@ -1028,18 +1028,15 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                     std::vector<u8> tail_buf;
                     try {
                         if (detail::oom_test_hook != nullptr &&
-                            detail::oom_test_hook(size_t(kTailScanChunk) +
-                                                  rawsigns::kMaxSignBytes))
+                            detail::oom_test_hook(size_t(kTailScanChunk) + rawsigns::kMaxSignBytes))
                             throw std::bad_alloc(); /* the N-139 seam */
-                        tail_buf.resize(size_t(kTailScanChunk) +
-                                        rawsigns::kMaxSignBytes);
+                        tail_buf.resize(size_t(kTailScanChunk) + rawsigns::kMaxSignBytes);
                     } catch (const std::bad_alloc&) {
                         ctx.aborted.store(true, std::memory_order_relaxed);
                         if (cr::log::enabled())
-                            cr::log::write(cr::log::Level::Error,
-                                           "carve oom: tail buffer %llu bytes",
-                                           (unsigned long long)(kTailScanChunk +
-                                                                rawsigns::kMaxSignBytes));
+                            cr::log::write(
+                                cr::log::Level::Error, "carve oom: tail buffer %llu bytes",
+                                (unsigned long long)(kTailScanChunk + rawsigns::kMaxSignBytes));
                         return ERR_NO_MEMORY;
                     }
                     u64 scanned = 0;
@@ -1212,15 +1209,13 @@ u32 scan_window_index(ScanCtx& ctx, u64 wi, std::set<u64>& emitted_at) {
      * the registered deliberate divergence, PARITY-DELTAS D-115). */
     std::vector<u8> win;
     try {
-        if (detail::oom_test_hook != nullptr &&
-            detail::oom_test_hook(static_cast<size_t>(want)))
+        if (detail::oom_test_hook != nullptr && detail::oom_test_hook(static_cast<size_t>(want)))
             throw std::bad_alloc(); /* the N-139 seam */
         win.resize(static_cast<size_t>(want));
     } catch (const std::bad_alloc&) {
         ctx.aborted.store(true, std::memory_order_relaxed);
         if (cr::log::enabled())
-            cr::log::write(cr::log::Level::Error,
-                           "carve oom: window %llu buffer %llu bytes",
+            cr::log::write(cr::log::Level::Error, "carve oom: window %llu buffer %llu bytes",
                            (unsigned long long)wi, (unsigned long long)want);
         return ERR_NO_MEMORY;
     }
@@ -1300,147 +1295,147 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
      * library must not kill the host process. */
     try {
 
-    ScanCtx ctx;
-    ctx.slice = slice;
-    ctx.reg = registry();
-    ctx.flags = &flags;
-    ctx.tree = &tree;
-    ctx.carve_root = carve_root;
-    ctx.dedup_tree = dedup_tree;
-    ctx.namer = namer;
-    /* S-048: the volume grouping (copies - the flags object is const&
-     * and the caller's stack frame may not outlive the parallel scan) */
-    ctx.groups = flags.volume_groups;
-    ctx.default_group_name = flags.volume_group_name;
-    ctx.total = slice->size();
-    ctx.ext_base = slice->absolute_base(); /* GAP-S6-8: disk-absolute basis */
-    /* M-005: the allocation-bitmap gate (nullable; slice-relative basis -
-     * the orchestrator rebases stats.free_map before the call) */
-    ctx.free_map = flags.free_map;
-    ctx.occupied = flags.occupied_ranges;
-    /* M-024: build the per-format disable maps from the host list (one
-     * pass; the hot loops then test a single bool). The grammar layer
-     * gates by trial slot; the raw-sign layer gates by format index. */
-    if (flags.disabled_formats != nullptr && *flags.disabled_formats != 0) {
-        static_assert(kTrialCount <= sizeof(((ScanCtx*)0)->trial_disabled),
-                      "grow trial_disabled with the trial table");
-        static_assert(kTrialCount == FMT_COUNT,
-                      "every FormatId must appear in kTrialOrder exactly once - "
-                      "a missing id is silently never scanned");
-        for (u32 ti = 0; ti < kTrialCount; ++ti)
-            /* N-149: the og's exempt set - OLE/RIFF/ZIP never leave the
-             * working analyser list (the removal loop's mask 0x1000801
-             * over id-0x30, RAWSearchDLL :4412-4418; the ids re-pinned at
-             * the registry builders :2337/:2304-2310/:2243). The disable
-             * surface refuses to switch those families off; every other
-             * format disables as before. */
-            ctx.trial_disabled[ti] =
-                !carve_format_always_on(ctx.reg[kTrialOrder[ti]].id) &&
-                carve_format_listed(flags.disabled_formats, ctx.reg[kTrialOrder[ti]]);
-        const rawsigns::SignIndex& idx = rawsigns::SignIndex::get();
-        ctx.rawsign_disabled.assign(rawsigns::kFormatCount, false);
-        for (u32 fi = 0; fi < rawsigns::kFormatCount; ++fi)
-            ctx.rawsign_disabled[fi] =
-                carve_token_listed(flags.disabled_formats, idx.format(fi).ext, nullptr);
-    }
-    /* S-031 residual: stamp the scan time once per run — every carved
-     * record carries it (the og's per-record formatted timestamp). */
-    ctx.scan_time = unix_to_filetime(i64(std::time(nullptr)));
-
-    const u64 window_count = (ctx.total + WINDOW - 1) / WINDOW;
-    const bool multi = flags.threads > 1 && window_count > 1 && ctx.total > 0;
-
-    if (!multi) {
-        /* single-threaded path: identical semantics to the original scan */
-        std::set<u64> emitted_at;
-        for (u64 wi = 0; wi < window_count; ++wi) {
-            if (cancel && cancel->checkpoint())
-                return ERR_CANCELLED;
-            if (progress && !progress(wi * WINDOW, ctx.total, progress_user))
-                return ERR_CANCELLED;
-            if (u32 rc = scan_window_index(ctx, wi, emitted_at))
-                return rc;
+        ScanCtx ctx;
+        ctx.slice = slice;
+        ctx.reg = registry();
+        ctx.flags = &flags;
+        ctx.tree = &tree;
+        ctx.carve_root = carve_root;
+        ctx.dedup_tree = dedup_tree;
+        ctx.namer = namer;
+        /* S-048: the volume grouping (copies - the flags object is const&
+         * and the caller's stack frame may not outlive the parallel scan) */
+        ctx.groups = flags.volume_groups;
+        ctx.default_group_name = flags.volume_group_name;
+        ctx.total = slice->size();
+        ctx.ext_base = slice->absolute_base(); /* GAP-S6-8: disk-absolute basis */
+        /* M-005: the allocation-bitmap gate (nullable; slice-relative basis -
+         * the orchestrator rebases stats.free_map before the call) */
+        ctx.free_map = flags.free_map;
+        ctx.occupied = flags.occupied_ranges;
+        /* M-024: build the per-format disable maps from the host list (one
+         * pass; the hot loops then test a single bool). The grammar layer
+         * gates by trial slot; the raw-sign layer gates by format index. */
+        if (flags.disabled_formats != nullptr && *flags.disabled_formats != 0) {
+            static_assert(kTrialCount <= sizeof(((ScanCtx*)0)->trial_disabled),
+                          "grow trial_disabled with the trial table");
+            static_assert(kTrialCount == FMT_COUNT,
+                          "every FormatId must appear in kTrialOrder exactly once - "
+                          "a missing id is silently never scanned");
+            for (u32 ti = 0; ti < kTrialCount; ++ti)
+                /* N-149: the og's exempt set - OLE/RIFF/ZIP never leave the
+                 * working analyser list (the removal loop's mask 0x1000801
+                 * over id-0x30, RAWSearchDLL :4412-4418; the ids re-pinned at
+                 * the registry builders :2337/:2304-2310/:2243). The disable
+                 * surface refuses to switch those families off; every other
+                 * format disables as before. */
+                ctx.trial_disabled[ti] =
+                    !carve_format_always_on(ctx.reg[kTrialOrder[ti]].id) &&
+                    carve_format_listed(flags.disabled_formats, ctx.reg[kTrialOrder[ti]]);
+            const rawsigns::SignIndex& idx = rawsigns::SignIndex::get();
+            ctx.rawsign_disabled.assign(rawsigns::kFormatCount, false);
+            for (u32 fi = 0; fi < rawsigns::kFormatCount; ++fi)
+                ctx.rawsign_disabled[fi] =
+                    carve_token_listed(flags.disabled_formats, idx.format(fi).ext, nullptr);
         }
-        if (progress)
-            (void)progress(ctx.total, ctx.total, progress_user);
-    } else {
-        /* parallel path: fan window indices out over a bounded pool */
-        ThreadPool pool(flags.threads);
-        PoolCancelToken pool_cancel(&pool);
-        std::atomic<u64> windows_done{0};
-        const u64 total = ctx.total;
+        /* S-031 residual: stamp the scan time once per run — every carved
+         * record carries it (the og's per-record formatted timestamp). */
+        ctx.scan_time = unix_to_filetime(i64(std::time(nullptr)));
 
-        auto worker_job = [&](u64 wi) -> u32 {
-            /* pause-aware gate (G-07): a PausableToken freezes carve workers
-             * here; plain tokens behave exactly like the old poll. */
-            if (cancel && cancel->checkpoint())
-                return ERR_CANCELLED;
-            if (pool.aborted())
-                return ERR_CANCELLED;
-            /* N-139: same contract on the worker threads - a worker's
-             * allocation failure returns the code, never an exception
-             * through the pool */
-            try {
-            std::set<u64> emitted_at; /* per-worker overlap set */
-            u32 rc = scan_window_index(ctx, wi, emitted_at);
-            const u64 done = windows_done.fetch_add(1, std::memory_order_relaxed) + 1;
-            if (progress &&
-                !progress(done * WINDOW > total ? total : done * WINDOW, total, progress_user)) {
-                pool.abort();
-                return ERR_CANCELLED;
-            }
-            return rc;
-            } catch (const std::bad_alloc&) {
-                if (cr::log::enabled())
-                    cr::log::write(cr::log::Level::Error,
-                                   "carve oom: window %llu worker allocation failed",
-                                   (unsigned long long)wi);
-                return ERR_NO_MEMORY;
-            }
-        };
+        const u64 window_count = (ctx.total + WINDOW - 1) / WINDOW;
+        const bool multi = flags.threads > 1 && window_count > 1 && ctx.total > 0;
 
-        /* main-thread watch loop: submit all windows, watch external cancel */
-        u32 first_err = OK;
-        if (cancel) {
-            /* poll cancel while submitting/running (N-017: the factored
-             * CancelPoolWatcher - identical 50 ms abort semantics) */
-            CancelPoolWatcher watcher(pool, cancel);
-            first_err = parallel_for(pool, window_count, worker_job);
-            watcher.done();
-            if (cancel->cancelled() && first_err == OK)
-                first_err = ERR_CANCELLED;
+        if (!multi) {
+            /* single-threaded path: identical semantics to the original scan */
+            std::set<u64> emitted_at;
+            for (u64 wi = 0; wi < window_count; ++wi) {
+                if (cancel && cancel->checkpoint())
+                    return ERR_CANCELLED;
+                if (progress && !progress(wi * WINDOW, ctx.total, progress_user))
+                    return ERR_CANCELLED;
+                if (u32 rc = scan_window_index(ctx, wi, emitted_at))
+                    return rc;
+            }
+            if (progress)
+                (void)progress(ctx.total, ctx.total, progress_user);
         } else {
-            first_err = parallel_for(pool, window_count, worker_job);
-        }
-        if (first_err != OK)
-            return first_err;
-        if (progress)
-            (void)progress(total, total, progress_user);
-    }
+            /* parallel path: fan window indices out over a bounded pool */
+            ThreadPool pool(flags.threads);
+            PoolCancelToken pool_cancel(&pool);
+            std::atomic<u64> windows_done{0};
+            const u64 total = ctx.total;
 
-    stats.hits += ctx.hits.load();
-    stats.validated += ctx.validated.load();
-    stats.rejected += ctx.rejected.load();
-    stats.duplicates += ctx.duplicates.load();
-    stats.hashed += ctx.hashed.load();
-    stats.bytes_scanned += ctx.bytes_scanned.load();
-    /* PARITY-AUDIT F-A3-6: sign_hits/sign_validated were each added TWICE
-     * (copy-paste duplicate lines) — every raw-sign statistic reported
-     * double its true value. */
-    stats.sign_hits += ctx.sign_hits.load();
-    stats.sign_validated += ctx.sign_validated.load();
-    stats.windows_skipped += ctx.windows_skipped.load();
-    /* N-031: the zero-skip telemetry */
-    stats.zero_strides_skipped += ctx.zero_strides_skipped.load();
-    /* M-005: gate telemetry */
-    stats.bitmap_skipped_clusters += ctx.bitmap_skipped_clusters.load();
-    /* M-039: occupancy-gate telemetry */
-    stats.occupancy_skipped += ctx.occupancy_skipped.load();
-    stats.bitmap_skipped_bytes =
-        (flags.free_map && flags.free_map->valid())
-            ? stats.bitmap_skipped_clusters * u64(flags.free_map->cluster_bytes)
-            : 0;
-    return OK;
+            auto worker_job = [&](u64 wi) -> u32 {
+                /* pause-aware gate (G-07): a PausableToken freezes carve workers
+                 * here; plain tokens behave exactly like the old poll. */
+                if (cancel && cancel->checkpoint())
+                    return ERR_CANCELLED;
+                if (pool.aborted())
+                    return ERR_CANCELLED;
+                /* N-139: same contract on the worker threads - a worker's
+                 * allocation failure returns the code, never an exception
+                 * through the pool */
+                try {
+                    std::set<u64> emitted_at; /* per-worker overlap set */
+                    u32 rc = scan_window_index(ctx, wi, emitted_at);
+                    const u64 done = windows_done.fetch_add(1, std::memory_order_relaxed) + 1;
+                    if (progress && !progress(done * WINDOW > total ? total : done * WINDOW, total,
+                                              progress_user)) {
+                        pool.abort();
+                        return ERR_CANCELLED;
+                    }
+                    return rc;
+                } catch (const std::bad_alloc&) {
+                    if (cr::log::enabled())
+                        cr::log::write(cr::log::Level::Error,
+                                       "carve oom: window %llu worker allocation failed",
+                                       (unsigned long long)wi);
+                    return ERR_NO_MEMORY;
+                }
+            };
+
+            /* main-thread watch loop: submit all windows, watch external cancel */
+            u32 first_err = OK;
+            if (cancel) {
+                /* poll cancel while submitting/running (N-017: the factored
+                 * CancelPoolWatcher - identical 50 ms abort semantics) */
+                CancelPoolWatcher watcher(pool, cancel);
+                first_err = parallel_for(pool, window_count, worker_job);
+                watcher.done();
+                if (cancel->cancelled() && first_err == OK)
+                    first_err = ERR_CANCELLED;
+            } else {
+                first_err = parallel_for(pool, window_count, worker_job);
+            }
+            if (first_err != OK)
+                return first_err;
+            if (progress)
+                (void)progress(total, total, progress_user);
+        }
+
+        stats.hits += ctx.hits.load();
+        stats.validated += ctx.validated.load();
+        stats.rejected += ctx.rejected.load();
+        stats.duplicates += ctx.duplicates.load();
+        stats.hashed += ctx.hashed.load();
+        stats.bytes_scanned += ctx.bytes_scanned.load();
+        /* PARITY-AUDIT F-A3-6: sign_hits/sign_validated were each added TWICE
+         * (copy-paste duplicate lines) — every raw-sign statistic reported
+         * double its true value. */
+        stats.sign_hits += ctx.sign_hits.load();
+        stats.sign_validated += ctx.sign_validated.load();
+        stats.windows_skipped += ctx.windows_skipped.load();
+        /* N-031: the zero-skip telemetry */
+        stats.zero_strides_skipped += ctx.zero_strides_skipped.load();
+        /* M-005: gate telemetry */
+        stats.bitmap_skipped_clusters += ctx.bitmap_skipped_clusters.load();
+        /* M-039: occupancy-gate telemetry */
+        stats.occupancy_skipped += ctx.occupancy_skipped.load();
+        stats.bitmap_skipped_bytes =
+            (flags.free_map && flags.free_map->valid())
+                ? stats.bitmap_skipped_clusters * u64(flags.free_map->cluster_bytes)
+                : 0;
+        return OK;
 
     } catch (const std::bad_alloc&) {
         if (cr::log::enabled())

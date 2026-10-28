@@ -502,8 +502,7 @@ typedef struct cr_ui_volume_info {
  * (IOCTL_DISK_UPDATE_PROPERTIES, S-029), documented as such at
  * REFERENCE-API-GAP R-86. */
 CR_UI_API uint32_t cr_ui_enumerate_disks(cr_ui_disk_info* out, uint32_t* count);
-CR_UI_API uint32_t cr_ui_enumerate_disks_ex(cr_ui_disk_info* out, uint32_t* count,
-                                            uint32_t flags);
+CR_UI_API uint32_t cr_ui_enumerate_disks_ex(cr_ui_disk_info* out, uint32_t* count, uint32_t flags);
 CR_UI_API uint32_t cr_ui_enumerate_volumes(cr_ui_volume_info* out, uint32_t* count);
 
 /* M-076 opt-in contract (cr_ui_enumerate_disks_ex above): the TRIM chip
@@ -1274,16 +1273,16 @@ CR_UI_API uint32_t cr_ui_preview_metadata(cr_ui_preview* pv, cr_ui_metadata* out
  * capacity (names are archive-native UTF-8 pass-through, never
  * re-encoded). */
 typedef struct cr_ui_archive_entry {
-    char name[260];      /* archive-native bytes, NUL-terminated */
-    uint64_t size;       /* uncompressed size */
-    uint64_t compressed; /* compressed size */
+    char name[260];       /* archive-native bytes, NUL-terminated */
+    uint64_t size;        /* uncompressed size */
+    uint64_t compressed;  /* compressed size */
     uint32_t crc_present; /* CD CRC-32 != 0 (the damaged-entry marker) */
     uint32_t name_truncated;
 } cr_ui_archive_entry;
 
 CR_UI_API uint32_t cr_ui_archive_entry_count(cr_ui_preview* pv, uint32_t* out);
 CR_UI_API uint32_t cr_ui_archive_entry_at(cr_ui_preview* pv, uint32_t index,
-                                            cr_ui_archive_entry* out);
+                                          cr_ui_archive_entry* out);
 
 /* Truthful failure map: device spans that could not be read and were
  * zero-filled. *total_bytes = sum of span lengths. */

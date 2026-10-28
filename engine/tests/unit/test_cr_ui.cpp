@@ -322,7 +322,8 @@ std::string write_fixture_zip(const char* tag) {
     for (unsigned c = 0; c < need; ++c)
         put16(img, kFAT2 + (first_free + c) * 2, first_free + c + 1);
     put16(img, kFAT2 + (first_free + need - 1) * 2, 0xFFFF);
-    dentry(img, 3, "STASH   ZIP", 0x20, first_free, unsigned(zip.size()), false); /* slot 3: the first free slot (a zero entry ends the FAT dir walk) */
+    dentry(img, 3, "STASH   ZIP", 0x20, first_free, unsigned(zip.size()),
+           false); /* slot 3: the first free slot (a zero entry ends the FAT dir walk) */
     std::memcpy(img.data() + kDATA + (first_free - 2) * 512, zip.data(), zip.size());
     const size_t n = std::fwrite(img.data(), 1, img.size(), f);
     std::fclose(f);
@@ -338,8 +339,6 @@ void progress_cb(void* user, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, u
 void recovery_progress_cb(void* user, uint64_t, uint64_t) {
     ++*static_cast<unsigned*>(user);
 }
-
-
 
 struct Ui {
     cr_ui_device* dev = nullptr;
@@ -4187,7 +4186,8 @@ TEST(CrUi, CliResumeSinkNeverTruncatesTheSessionSource) {
         << "the replace-rename commit (the og's fresh-file crash safety)";
 
     /* the staging open targets the TMP path */
-    EXPECT_NE(std::string::npos, src.find("_wfopen_s(&ck_sink.f, ck_sink.tmp_path.c_str(), L\"wb\")"))
+    EXPECT_NE(std::string::npos,
+              src.find("_wfopen_s(&ck_sink.f, ck_sink.tmp_path.c_str(), L\"wb\")"))
         << "the sink's truncating open lands on the staging tmp only";
 
     /* the destructive pattern is GONE: no truncating open of the final

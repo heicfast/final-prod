@@ -71,8 +71,7 @@ u32 overlapped_read(HANDLE h, u64 off, void* buf, u32 len, bool rda_scaled, DWOR
             const DWORD e2 = GetLastError();
             if (gle_out)
                 *gle_out = e2;
-            return disconnect::gle_is_disconnect(e2) ? ERR_DEVICE_DISCONNECTED
-                                                     : ERR_READ_FAILED;
+            return disconnect::gle_is_disconnect(e2) ? ERR_DEVICE_DISCONNECTED : ERR_READ_FAILED;
         }
     }
     if (got == len)

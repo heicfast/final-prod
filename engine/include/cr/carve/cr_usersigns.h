@@ -43,12 +43,11 @@ constexpr u32 kMaxEntries = 256;      /* the og ships 111; 2.3x headroom, hostil
 constexpr u32 kMaxSignsPerEntry = 12; /* the og's max is 11 signs (mpeg); 12 = 11 + headroom */
 constexpr u32 kMaxOffset = 1024; /* the og's max offset is 526 (zip "526,504B537058"); the og has no
                                   * probe-stride bound - 1024 keeps a hostile-input bound */
-constexpr u32 kMaxExtLen =
-    8; /* N-179: the og's longest ext is 8 ("manifest"; "class" is 5 - the
-       * >4 set measured over og-codebase/EUUserData's 111 keys) - 8 = exact
-       * fit, no headroom: a 9-char ext is a legitimate reject, and manifest
-       * at exactly 8 is the boundary case UserSigns.ManifestEightCharExtParses
-       * pins */
+constexpr u32 kMaxExtLen = 8;    /* N-179: the og's longest ext is 8 ("manifest"; "class" is 5 - the
+                                  * >4 set measured over og-codebase/EUUserData's 111 keys) - 8 = exact
+                                  * fit, no headroom: a 9-char ext is a legitimate reject, and manifest
+                                  * at exactly 8 is the boundary case
+                                  * UserSigns.ManifestEightCharExtParses    pins */
 constexpr u32 kMaxMimeLen = 80;  /* the og's longest mime is 73 chars (the OOXML pptx string) */
 
 struct UserSign {

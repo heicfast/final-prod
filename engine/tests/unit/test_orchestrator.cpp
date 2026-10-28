@@ -2734,7 +2734,6 @@ TEST(Orchestrator, LostRootNamedFilePathLost) {
      * old session) */
     const std::string src = cr_test::read_repo_file("src/core/orchestrator/cr_scan.cpp");
     ASSERT_FALSE(src.empty());
-    EXPECT_NE(std::string::npos,
-              src.find("role == u\"File Path Lost\" || role == u\"Lost Files\""))
+    EXPECT_NE(std::string::npos, src.find("role == u\"File Path Lost\" || role == u\"Lost Files\""))
         << "the resume path must recognize BOTH names";
 }
