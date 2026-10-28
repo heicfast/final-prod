@@ -1829,3 +1829,29 @@ Stage Summary:
   filled. The DFX-38 queue continues at the SEVERE tier: S-043
   (thumbnail EXIF orientation) next - the parallel lane has not
   touched it.
+
+
+---
+Task ID: DFX-38/T-territory (the lane's declared territory — no overlap with the active lanes)
+Agent: lead (DFX-38)
+
+Territory (observed at origin/main 1e7c963; complementary to FIX-T3's
+thumbnail/auto-save/image-create claim, the S-042/M-090 carve-grammar
+lane, SA-10B's purge/mining/census, and S10-F's completeness lane):
+
+- M-088 (FloorVersion pin split + the stale CI-shape doc cluster)
+- M-082 (DeviceManager offline-OS/boot-volume identification)
+- M-101 (Versions + Tags Extracted tree branches)
+- M-100 (archive browse-inside preview)
+- The doc-truth/config MINORs NOT in the other lanes' families:
+  N-090, N-091, N-093, N-095, N-096, N-097, N-098, N-099, N-100,
+  N-101, N-102, N-104, N-106, N-108, N-116..N-126 (skipping N-092/N-103
+  thumbnails, N-105 auto-save, the carve children N-111..N-115, and the
+  out-of-grant driver findings N-107/N-127)
+- The INFORMATIONAL dispositions (I-026..I-030) and the tracked-open
+  items (OQ-S4-3, OQ-S8-1)
+
+Order: M-088 (docs, quick) -> M-082 -> M-101 -> M-100 -> the MINOR
+batch -> INFO/tracked-open. Re-pull before every push; convergences
+reconciled per the M-071 pattern (the landed fix stands; unique
+evidence donated on top).
