@@ -11,7 +11,7 @@
 
 1. **cr_ui C ABI** — `include/cr/cr_ui.h` (79 exports, `CR_UI_ABI_VERSION 3`
    after the M-067 landing) + `src/ui/cr_ui.cpp`.
-2. **rrecov CLI** — 10 verbs, exit codes, machine-readable JSON shapes.
+2. **rrecov CLI** — 11 verbs, exit codes, machine-readable JSON shapes.
 3. **Session/report formats** — CRSF v1 (`docs/crsf-format.md`),
    recovery-report JSON v1 (`docs/recovery-report-schema.md`).
 4. **Driver transport contract** — `include/cr/win/cr_rda.h`,
@@ -190,6 +190,14 @@ reconciled by the remote lane (`fc74677`).
 change must land docs/API.md §1, CORE-API-CURRENT §c AND the rrecov.cpp
 header comment in the same change (the three sites this session proved
 drift independently).
+
+**Pin grown (N-094, session 38): the lock is FOUR-site now** — the `-h`
+usage block in `wmain` (rrecov.cpp) is the fourth locked site. The W1a
+sessions wave proved the three sites can move together while the fourth
+(the usage text a user actually sees) drifts invisibly; the regression
+pin `CrUi.CliHelpListsEveryDispatchedVerb` (tests/unit/test_cr_ui.cpp)
+now fails on any verb that is dispatched but missing from the usage
+block or the header table — and on any usage verb the dispatch lacks.
 
 ---
 

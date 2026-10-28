@@ -315,8 +315,8 @@ err_attempts M-049 triple), `CHECKPOINT` 5, `LOST_CANDIDATE` 6, `REPAIR` 7,
 
 ## (c) CLI grammar — every verb, flag, exit code (src/app/rrecov.cpp)
 
-Verbs dispatched in `wmain` (rrecov.cpp:2993-3018): **list, list-carve-formats, sessions, scan,
-tree, recover, health, fix, apply, bench, driver** (10). `rrecov` with no args prints usage, exit 0.
+Verbs dispatched in `wmain` (rrecov.cpp:3043-3063): **list, list-carve-formats, sessions, scan,
+tree, recover, health, fix, apply, bench, driver** (11). `rrecov` with no args prints usage, exit 0.
 Unknown verb → `unknown command: %s`, exit 1. All output is wprintf (stdout); errors are
 printed to stdout too — the ONE deliberate stderr surface is the driver-refusal path
 (`require_driver`'s `fwprintf(stderr)` lines, rrecov.cpp:332-383: exit 4 carries the

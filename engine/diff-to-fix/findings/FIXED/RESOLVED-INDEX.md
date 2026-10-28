@@ -1,5 +1,11 @@
 # diff-to-fix/findings/FIXED/ — resolved findings (audit trail)
 
+## Resolved findings (session 38 — the minor-first closing lane; live file inventory)
+
+| ID | Severity (orig) | Title | Fix commit | Resolution |
+|---|---|---|---|---|
+| N-094 | MINOR (session-8 deep-audit lane) | The `-h` usage text omitted the `sessions` verb (10 listed vs 11 dispatched) + CORE-API-CURRENT's dispatch cite/count drifted | (this session's N-094 commit; file carries the full Resolution) | The sessions usage line landed (W1a form, after list-carve-formats per dispatch order); CORE-API-CURRENT:318 re-pinned to rrecov.cpp:3043-3063 with the count fixed 10→11 (a second defect the finding missed); the verb lock grown THREE→FOUR sites (API-DELTA rule box + the `CrUi.CliHelpListsEveryDispatchedVerb` regression pin enforcing both directions: dispatched⇒listed AND listed⇒dispatched). Fail-before EXECUTED RED on `84a1832` ("verb 'sessions' is dispatched but has no -h usage line" — the only red verb of 11), GREEN after; suite 1024/1024 (linux-release, gcc Werror), clang-format 18.1.8 clean. API-DELTA §0's "10 verbs" scope line corrected to 11 in the same change. |
+
 ## Resolved findings (the SA-6 fix lane, wave 2 — the ledger reconciliation + M-067: the S-039 convergence residue; this block also back-fills the 10 index rows the parallel fix lane's landings left unwritten)
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |

@@ -517,7 +517,7 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | docs · PARITY-DELTAS registration gaps (Q68) | DIVERGENCE-MINOR | **N-091** — load-progress model, thumbnail superset, auto-save posture unregistered |
 | preview(thumb) · refusal matrix + cache (Q68/X47) | DIVERGENCE-MINOR | **N-092** — WMF/EMF/ICO unnamed; no cache scope |
 | carve · batch-1 bounds MID/GZ (A28/C19) | DIVERGENCE-MINOR | **N-093** — 64 MiB/512 MiB vs og 10 MB/400 MB, undocumented |
-| cli · `-h` usage text + stale cite (C24/Q68) | DIVERGENCE-MINOR | **N-094** — sessions verb invisible in help; 4th lock site |
+| cli · `-h` usage text + stale cite (C24/Q68) | **MATCH** | **N-094 — FIXED (session 38)**: the sessions usage line landed + CORE-API-CURRENT re-pinned (3043-3063, count 11) + the verb lock grown to four sites with the `CrUi.CliHelpListsEveryDispatchedVerb` regression pin (both directions) |
 | docs · five stale texts (Q68) | DIVERGENCE-MINOR | **N-095** — 0x60002400 label; 37-toggles tail; carve.md superseded verdict; transport.md grammar; ABI-CONTRACT cites |
 | transport · identity IOCTL issuance (S35/P42) | DIVERGENCE-MINOR | **N-096** — og issues GET_DISK_CONTEXT_MODE per open; core never issues any |
 | health/docs · auto.txt classification (F61/Q68) | DIVERGENCE-MINOR | **N-097** — it is the FVE auto-unlock key snapshot (plaintext persistence datum) |

@@ -49,3 +49,12 @@ First-hand: the `-h` block read (rrecov.cpp:2985-3022 — the sessions line abse
 ## Open questions
 
 None.
+
+---
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-094 commit — the session-38 minor-first lane)
+**Verified by:** `CrUi.CliHelpListsEveryDispatchedVerb` (new, in tests/unit/test_cr_ui.cpp) — EXECUTED RED on pre-fix main at `84a1832` ("verb 'sessions' is dispatched but has no -h usage line" — the exact filed gap, reproduced; the only red verb of 11), GREEN after the fix; full suite 1024/1024 green (linux-release, gcc Werror); clang-format 18.1.8 clean.
+**Resolution notes:** Re-verified at current main before fixing (usage block now at rrecov.cpp:2996-3041, dispatch at :3043-3063 — the finding's line cites had drifted but the defect stood: 10 usage lines vs 11 dispatched verbs; the sessions dispatch case at :3043 confirmed present, the `-h` block confirmed absent of any sessions line — one line was the whole code delta). The fix: (1) the `sessions [--dir D] [--json]` usage line landed in the `-h` block (after list-carve-formats, matching dispatch order) with the W1a-form parenthetical (LastScanRecordView, per-row error semantics); (2) `docs/CORE-API-CURRENT.md:318` re-pinned to rrecov.cpp:3043-3063 AND its verb count corrected (10 → 11 — the finding missed that the site also miscounted the 11 verbs it listed as "(10)"); (3) the three-site verb lock grew its fourth site per the fix plan: the pin rule box in `diff-to-fix/API-DELTA.md` now names the `-h` usage block as a locked site, and the new test enforces all four sites mechanically (every dispatched verb must appear in the usage block AND the header verb table; every listed usage verb must be dispatched — both directions, so no future verb wave can drift the help again). API-DELTA §0's stale "10 verbs" scope line corrected to 11 in the same change (a count site W1a's landing missed). The test name describes the behavior (help lists every dispatched verb), not the finding ID, per the SOP.

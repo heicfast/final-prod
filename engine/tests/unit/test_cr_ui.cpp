@@ -22,7 +22,9 @@
 
 #include "test_tmpdir.hpp"
 
+#include <algorithm> /* N-094 verb-lock pin: std::find over the dispatched set */
 #include <atomic>
+#include <cctype> /* N-094 verb-lock pin: isalnum over usage tokens */
 #include <chrono>
 #include <cstdio>
 #include <cstring>
@@ -2681,5 +2683,73 @@ TEST(CrUi, DriverWireCodesFreeOfPhantomZeroInDocs) {
             << f << ": phantom-zero OPEN_TARGET literal";
         EXPECT_EQ(txt.find("0x60002448"), std::string::npos)
             << f << ": phantom-zero GET_VERSION literal";
+    }
+}
+
+TEST(CrUi, CliHelpListsEveryDispatchedVerb) {
+    /* N-094: the -h usage text omitted the sessions verb while wmain
+     * dispatched it (10 lines listed vs 11 verbs reachable) - a verb
+     * invisible in the product's own help. The exe is Windows-only, so
+     * this pin asserts the same invariant at the source level: every
+     * verb the dispatch accepts must appear in the usage block AND in
+     * the header's verb table (the lock's fourth site, so the
+     * three-site verb lock cannot drift again). */
+    const std::string src = cr_test::read_repo_file("src/app/rrecov.cpp");
+    ASSERT_FALSE(src.empty());
+
+    /* the dispatched set: every `if (cmd == L"<verb>")` after wmain */
+    const size_t wmain = src.find("int wmain(");
+    ASSERT_NE(std::string::npos, wmain) << "wmain not found";
+    std::vector<std::string> verbs;
+    const std::string dispatch_pat = "if (cmd == L\"";
+    for (size_t pos = wmain; (pos = src.find(dispatch_pat, pos)) != std::string::npos;) {
+        const size_t start = pos + dispatch_pat.size();
+        const size_t end = src.find('"', start);
+        ASSERT_NE(std::string::npos, end);
+        verbs.push_back(src.substr(start, end - start));
+        pos = end;
+    }
+    ASSERT_GE(verbs.size(), 8u) << "dispatch extraction broke (found " << verbs.size() << ")";
+
+    /* the usage block: between `usage:` and the driver-prerequisite note */
+    const size_t usage_at = src.find("usage:");
+    ASSERT_NE(std::string::npos, usage_at);
+    const size_t usage_end = src.find("driver prerequisite:", usage_at);
+    ASSERT_NE(std::string::npos, usage_end);
+    const std::string usage = src.substr(usage_at, usage_end - usage_at);
+
+    /* the header's verb table: between "Commands:" and "Exit codes:" */
+    const size_t hdr_cmds = src.find("Commands:");
+    ASSERT_NE(std::string::npos, hdr_cmds);
+    const size_t hdr_end = src.find("Exit codes:", hdr_cmds);
+    ASSERT_NE(std::string::npos, hdr_end);
+    const std::string header = src.substr(hdr_cmds, hdr_end - hdr_cmds);
+
+    for (const std::string& v : verbs) {
+        /* the usage source lines end with either a flag (`rrecov scan --disk`)
+         * or the literal `\n` escape - accept both spellings */
+        const bool in_usage = usage.find("rrecov " + v + " ") != std::string::npos ||
+                              usage.find("rrecov " + v + "\\n") != std::string::npos;
+        EXPECT_TRUE(in_usage) << "verb '" << v << "' is dispatched but has no -h usage line";
+        /* the header table's lines read ` *   <verb> [flags]` */
+        const std::string needle = "\n *   " + v + " ";
+        EXPECT_NE(std::string::npos, header.find(needle))
+            << "verb '" << v << "' is dispatched but missing from the header verb table";
+    }
+    /* and the block lists nothing the dispatch lacks (a usage line for an
+     * unimplemented verb is just as false) */
+    size_t line = 0;
+    while ((line = usage.find("  rrecov ", line)) != std::string::npos) {
+        const size_t start = line + strlen("  rrecov ");
+        size_t end = start;
+        while (end < usage.size() && (isalnum(static_cast<unsigned char>(usage[end])) ||
+                                      usage[end] == '-' || usage[end] == '_'))
+            ++end;
+        const std::string listed = usage.substr(start, end - start);
+        if (!listed.empty()) {
+            EXPECT_NE(verbs.end(), std::find(verbs.begin(), verbs.end(), listed))
+                << "the -h block lists '" << listed << "' but wmain never dispatches it";
+        }
+        line = end;
     }
 }

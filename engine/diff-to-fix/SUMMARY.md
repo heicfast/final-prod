@@ -1,4 +1,12 @@
-# SUMMARY.md — executive summary (the session-8 third lane on top: the driver lane + merge/repair wave; the parallel session-8 legs below; earlier sessions further below)
+# SUMMARY.md — executive summary (session 38's minor-first closing lane on top: the session-8 third lane + the parallel session-8 legs + earlier sessions below)
+
+## Session-38 delta (2026-10-28/29 — the minor-first fixing session; user directive: clear the MINOR tier first)
+
+**Session start:** core `84a1832` (main, up to date), corpus `be0cfe9` (read-only), suite 1023/1023 green at open (linux-release, gcc Werror). **Scope:** the 76-active board's MINOR tier first (35 open at start), then INFORMATIONAL acknowledgements, then SEVERE/MAJOR as the session's runway allows; two-repo grant only (core + corpus — the rda-driver repo findings N-107/N-127 and the driver-file halves of M-086..M-089 are out of this session's write scope and get precise push-forwards, not silent fixes). **Method per finding:** re-verify at current main (line cites re-pinned where the tree moved), re-check the corpus citation first-hand, classify, fix, prove RED→GREEN, update this trail.
+
+**Fixed this wave (1):** **N-094** — the `-h` usage text omitted the `sessions` verb (RED reproduced: the only missing verb of 11; one usage line + the CORE-API-CURRENT cite/count repair + the verb lock grown to four sites with a both-directions regression pin; suite 1024/1024).
+
+**Board after this wave:** 75 active (7 SEVERE · 28 MAJOR · 34 MINOR · 5 INFORMATIONAL) + 2 tracked-open (OQ-S4-3, OQ-S8-1) + 251 FIXED.
 
 ## Fix session (2026-10-29 — the parity close: every tier executed against corpus `be0cfe9`, core `84a1832`-lineage)
 
