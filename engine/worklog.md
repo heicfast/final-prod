@@ -2903,6 +2903,42 @@ registry: the pin test failed on all four pairs AND the 10,000,001-byte MIDI CAR
 the 64 MiB row (the finding's exact falsifiable, reproduced behaviorally); GREEN after.
 Suite 1090/1090; format clean. (PSP/SIT behavioral at/over-max tests are pin-level only -
 20/200 MB fixtures are not unit-test scale; the 10 MB MID pair proves the gate mechanics.)
+
 ### M-072's Resolution record (session-10, this lane — retired per the purge convention)
 
 **Status:** FIXED · **Commit:** bf17e55 · **Verified by:** Query.M072PathSubstringAndStateMask (all buckets + the sugar-equivalence pin + the zero-mask default), suite 1030/1030 + cr_ui_tests 59/59. **Notes:** path_substring (contains over the materialized full path, active-axis-only materialization incl. the root segment) + state_mask (DeletedState bits, deleted_only kept as sugar) + the ABI append (cr_ui_query path_substring/state_mask, zero-init defaults). The og's own state-bucket values remain undecoded — the four-bit mapping is the registered interpretation.
+
+---
+## Session 11C — the diff-fix lane (2026-10-29 — the user's fix mandate: verify every finding, fix, prove, mark)
+
+Task ID: S11C/T1 (setup + baselines)
+Agent: session-11 fix lane (the diff-to-fix execution session)
+
+Baselines recorded at open:
+- **Core at open: `35bee726`** (main; session-11/T1 setup commit — the continuation
+  lane's open flags recorded there are this lane's first work items) · **corpus
+  `be0cfe9`** (unmoved, verified).
+- **Build: Linux gcc 14.2 Release + Ninja; full ctest 1090/1090 GREEN at the
+  baseline tree** (cr_tests 1029: 987 pass / 42 skip / 0 fail; cr_ui_tests 59/59;
+  cr_ui_abi_check green via its ctest-registered absolute-path invocation;
+  win_syntax_check green). Prompt saved redacted at
+  `worklog/session-11-diff-fix-prompt.md`.
+- Board at open (filesystem truth): **55 active files** (6 SEVERE · 24 MAJOR ·
+  21 MINOR with the N-129 ID collision · 5 INFO) · FIXED-LEDGER ~285 data rows
+  with a COMMITTED MERGE CONFLICT (lines 22-32) and a 281/282-vs-~285 count drift ·
+  4 tracked-open.
+
+Session plan (per the fix mandate's SOP order — no ACUTE active, so SEVERE first):
+0. Board hygiene repairs (the S11B/T1 flags): the FIXED-LEDGER conflict + count
+   truth; the N-129 collision (wave-3's file renumbers to N-135 per the
+   earlier-push-wins rule); the M-102/M-083 un-retired files (resolutions
+   landed in e56baac7 — the retirement conform + the "(this landing)" ledger
+   cells get the real SHA).
+1. SEVERE: S-040, S-048, S-049, S-050, S-051, S-052 — verify → classify → fix →
+   test → push, one finding per push.
+2. MAJOR: M-072..M-078, M-086, M-087, M-089, M-098..M-101, M-103..M-110.
+3. MINOR: N-090..N-134 (the N-135 renumber included).
+4. INFO: I-026..I-030 — acknowledge with rationale verification.
+5. TRACKED-OPEN: OQ-S4-3, OQ-S8-1, OQ-S10-1, OQ-S10-2 — resolve or push forward.
+6. Gate docs (CROSS-REF-MATRIX, SUMMARY, modules/*, PARITY-DELTAS) kept current
+   with every landing.
