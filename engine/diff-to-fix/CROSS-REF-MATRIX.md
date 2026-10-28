@@ -670,3 +670,11 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | session · FS-native parent anchors (NTFS +0x40 / FAT +0x42 / exFAT +0x54) | DIVERGENCE-MINOR | **N-131** (the og persists the FS-native parent datum per node; the core keeps structural parent_id only — reload-time lineage cross-validation lost; the N-100 precedent class) |
 | og-tree register · VideoViewer/sfc | UNVERIFIED (tracked-open) | **OQ-S10-2** (lane-B — 211,614 B opaque " cfs-"/FAN. payload; no consumer string, no corpus characterization; the VideoFileRepairer.exe Ghidra magic-search is the queued probe) |
 | corpus · ifileproperties-part2 ReFS FLAGS | CORPUS-ERRATA | **E69** (part2 §4's "invariant incl. FLAGS" contradicts part2's own ReFS table; the +0x39 [INFERRED] objectId reading weakened by the population-site read — serializer trace queued; core unaffected either way) |
+
+**Session-10 continuation-lane wave 3 (2026-10-29 — the fix-wave landing-parity verification, audited `2beb555`):**
+
+| Surface · parameter | Verdict | Cell |
+|---|---|---|
+| preview · thumbnail input budget (the og 200 MB eligibility anchor) | **DIVERGENCE-MAJOR** | **M-108** — the M-080 landing stopped at 32 MiB; the 32–200 MB band without an embedded thumb refused where the og thumbnails; the pinning test still cites the refuted "no input cap" doctrine (test_thumbnail.cpp:187); no D-row registers the bound |
+| board-truth · the fix-wave bookkeeping | **DIVERGENCE-MINOR** | **N-129** — N-103's cited :376 site missed while its Resolution claims both fixed; the gap-board's :379-vs-:225 self-contradiction; five phantom SHAs (edee513/771e2ec/dd0ffd5/95122bd/954c386 — all absent from the object store); the FIXED-LEDGER's missing rows + the 180053de0 mis-paste + the re-created FIXED/ dir; the §7g cite overshoot; the .cpp matrix comment |
+| (verification records, no findings) | **MATCH ×8** | S-044, N-116, M-085, S-042, M-090, M-082, M-071, N-117 — every landing's parity claims verified first-hand against the findings' og-decodes + the corpus/decompile + the current tree (evidence/s10-landing-parity-verification.md; the full suite 1005/1005 at HEAD) |

@@ -149,7 +149,7 @@ Candidate @ 18531 [size=0 del=0 conf=0 origin=0]
 
 ## What this evidence changes
 
-- Filed **S-050**: the plain whole-disk target flow (no partition-list
+- Filed **S-051** (filed as S-050, renumbered at the push-time reconciliation): the plain whole-disk target flow (no partition-list
   targets) — the silent empty verdict of RUN 2.
 - Filed **M-104**: the anonymous `Candidate @ <LBA>` presentation of
   table-matched volumes (RUN 1) — no display-name volume roots, no FS-type
@@ -208,7 +208,7 @@ Parity note for the fix plans: our crsf persists the table SNAPSHOT
 (`DiskLayoutEntry[]` — every table row) where the og persists the
 session's SELECTED additional partitions (record-1's list) — adjacent
 but not equivalent; the primary-volume identity (record-2) maps to our
-singular `VolumeSessionInfo`. S-050/M-104's fixes need no session-model
+singular `VolumeSessionInfo`. S-051/M-104's fixes need no session-model
 change for the primary volume; the per-volume tree identity (M-104)
 should ride the existing record fields (the tree node names), not a new
 record type.

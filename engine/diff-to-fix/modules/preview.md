@@ -239,3 +239,16 @@ is absent from the core (API-DELTA row 44's "landed" claim is false — N-132).
 (Post-rebase note: the parallel lanes landed S-043/M-080/M-085/S-045-partial — the
 thumbnail family moved; M-108 completes the PREVIEW text-eligibility surface, which
 no prior finding owned.)
+
+## Session-10 wave-3 addendum (2026-10-29, landing-parity verification)
+
+- **M-108 (MAJOR)** — the M-080 landing's residual: the og's 200 MB
+  thumbnail-eligibility anchor (DRWUI FUN_1402636e0, :422428-area) not
+  adopted; the 32–200 MB band without an embedded EXIF thumb still
+  BudgetExceeded; the pinning test cites the refuted "no input cap"
+  doctrine. Filed from the landing-parity pass (evidence/
+  s10-landing-parity-verification.md).
+- Verified PARITY-CLEAN this wave: M-085's LZW (every semantic, incl. the
+  early-change growth point — independently reproduced against a
+  from-scratch reference decode), M-080's two mechanics (the residual is
+  M-108's), S-043's landing was verified in the earlier sweep batches.

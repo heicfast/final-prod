@@ -299,6 +299,32 @@ probe committed beside it; the G session re-parsed first-hand this lane).
 Board after wave 2: **77 active (8 SEVERE · 29 MAJOR · 34 MINOR · 5 INFO)
 / 255 FIXED-files / 2 tracked-open.**
 
+**Wave 3 — the fix-wave landing-parity verification (the second half of the
+user's remove-the-fixed mandate: verify the fixed):** three parallel agents
+independently verified nine fresh landings (S-044, N-116, M-080, M-085,
+S-042, M-090, M-082, M-071, N-117/N-118/N-103) against their findings'
+og-decodes, the corpus/decompile, and the current tree — every
+load-bearing claim re-verified by the lead. **Eight PARITY-VERIFIED** (S-044's
+three og gates on both surfaces; N-116's newest-first order with the og
+comparator re-read; M-085's early-change LZW independently reproduced
+against a from-scratch reference; S-042 gate-for-gate vs FUN_1800264d0;
+M-090's koly walk re-derived term-for-term with the ctor's own 0xC800000
+cap; M-082's CPartitionBootInfo walk corpus-exact incl. the %03d re-check
+against the .mo binary; M-071's gates byte-exact to 69507cb; N-117's
+cites). **Two residuals filed: M-108** (the M-080 landing stopped at
+32 MiB — the og's 200 MB anchor not adopted, the 32–200 MB band refused,
+the test still citing the refuted no-cap doctrine) and **N-129** (the
+bookkeeping truth batch: N-103's cited :376 site missed while its
+Resolution claims both fixed; the gap-board's :379/:225 self-contradiction;
+five phantom pre-rebase SHAs in landing records; the FIXED-LEDGER's own
+gaps). Full-suite 1005/1005 at HEAD (independent run). Evidence:
+evidence/s10-landing-parity-verification.md.
+
+Board after wave 3 (this lane's ledger; the parallel lanes' concurrent
+movements reconcile at push): +2 active from this wave's filings, minus
+the lanes' concurrent fixes — see the FINAL-COUNTS section at the worklog
+close for the push-time truth.
+
 **Push-time reconciliation (the moving-target SOP executing):** while this
 sweep ran, four concurrent fix lanes landed `26da616` (N-094 — the `-h`
 usage line + the verb lock's fourth site), `f6e303e` (S-042 — the WMF
