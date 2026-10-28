@@ -141,9 +141,10 @@ blocks** (CachedReader, 8 MiB LRU = 32 blocks — was 64 KiB); carve 1 MiB
 windows; writer 1 MiB chunks; preview ≤4 MiB; probes ride the unified 64 KiB
 envelope. Sequential transitions per GiB: 64 KiB blocks ≈ 16,384 →
 256 KiB blocks ≈ 4,096 (the og's device cadence is 256-512/GiB). The
-`alignbench` sweep (`bench/ours/run-alignbench.ps1`, workflow
-`api-benchmark.yml`) measures the size/QD plateau on Windows CI with the
-driver loaded; further tuning rides its data. CachedReader still serializes
+`alignbench` sweep (`bench/ours/run-alignbench.ps1`, historically the
+`api-benchmark.yml` workflow — deleted by the CI consolidation; re-run it
+via ci-local or a test-benchmark dispatch) measures the size/QD plateau on
+Windows with the driver loaded; further tuning rides its data. CachedReader still serializes
 engine reads under its mutex (P2-5 contract) — the queue-depth sweep records
 what QD>1 would buy before any architectural change.
 
@@ -248,9 +249,10 @@ to artifacts).
 
 ## Driver release pinning (2026-10-26 addendum)
 
-The bench lane's driver pin moved with the driver repo's releases:
-`api-benchmark.yml` `RDA_RELEASE_TAG` is **v0.2.2** (the sc.exe
-installer-script fix + docs truth pass) as of the v0.4.1-parity tree
+The historical bench lane's driver pin moved with the driver repo's
+releases (pre-consolidation `api-benchmark.yml`): `RDA_RELEASE_TAG` was
+**v0.2.2** (the sc.exe installer-script fix + docs truth pass) as of the
+v0.4.1-parity tree
 (previously v0.2.1). Functional floor for ANY consumed release is
 **>= v0.2.1**: v0.2.0 fails every bare `\\.\RDA` open with error 87 (the
 classifier ordering bug fixed in the driver's `7e88e38`), which silently

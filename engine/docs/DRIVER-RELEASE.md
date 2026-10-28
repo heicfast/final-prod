@@ -51,7 +51,7 @@
    ```
    The release body (`release.yml:87-95`) states verbatim: *"RDA Raw Disk Access Driver - ${{ github.ref_name }}"* / *"Unsigned build. Windows kernel-mode code signing applies before production deployment - see docs/signing.md (the OSSign pipeline is prepared but DISABLED until certificate onboarding completes)."* / *"Win7 SP1 -> Win11 x64, single binary. Verified by the CI PE gate (import allowlist + OS 6.1 header contract)."*
 
-**Asset names on the GitHub Release — EXACT.** There is **no zip** (nothing like `rda-driver-vX.Y.Z.zip` exists anywhere in the workflow). The Release carries 7 individual files. Empirically (core_recovery's working fetcher, `.github/workflows/api-benchmark.yml` "Fetch RDA driver release" step, which downloads every `$rel.assets` and then runs `driver\install.ps1` flat), the attached asset **names are flat basenames**:
+**Asset names on the GitHub Release — EXACT.** There is **no zip** (nothing like `rda-driver-vX.Y.Z.zip` exists anywhere in the workflow). The Release carries 7 individual files. Empirically (the working fetcher pattern — historically `.github/workflows/api-benchmark.yml`'s "Fetch RDA driver release" step, now `release.yml`'s driver tier and `installer.yml`'s fetch, all of which download every `$rel.assets` and run `driver\install.ps1` flat), the attached asset **names are flat basenames**:
 `rda.sys`, `rdacli.exe`, `rda.inf`, `SHA256SUMS`, `install.ps1`, `uninstall.ps1`, `run-integration.ps1`.
 
 **Checksum caveat for consumers**: the `SHA256SUMS` lines use *dist-relative* paths (`rda.sys`, `rdacli.exe`, `rda.inf`, `scripts/install.ps1`, `scripts/uninstall.ps1`, `scripts/run-integration.ps1`, `LICENSE`, `README.md`, `docs/signing.md`, `docs/testing.md`, `docs/win7-compat.md`), while only 7 files are attached (LICENSE/README/docs are not attached). So 6 of the 11 lines are verifiable against downloaded assets, and the three script lines carry a `scripts/` prefix that does not match the flattened asset names — a fetcher must map `scripts/install.ps1` → downloaded `install.ps1` (or skip with an explicit allow-list of unattached files, which is what core's current fetcher does). A deterministic verifier should:
@@ -83,7 +83,7 @@
 
 ## 3. Deterministically fetching the LATEST prebuilt release
 
-The driver repo has exactly one release-producing workflow (§1), semver `v*` tags, and flat asset names. Recommended deterministic procedure (matches the already-working pattern in core's `api-benchmark.yml` / `comparative-bench.yml`):
+The driver repo has exactly one release-producing workflow (§1), semver `v*` tags, and flat asset names. Recommended deterministic procedure (matches the already-working pattern in core's current lanes — `release.yml`'s driver tier / `installer.yml` — historically `api-benchmark.yml` / `comparative-bench.yml`):
 
 **Pinned (recommended for CI):** query the release by tag:
 ```
@@ -102,7 +102,7 @@ GET https://api.github.com/repos/heicfast/rda-driver/releases/latest
 **Checksum verification** — SHA-256, procedure in §1 (note the `scripts/` prefix mapping). Generation side: `Get-FileHash -Algorithm SHA256` (`release.yml:62-66`). The repo's own verification tooling patterns: the release workflow's PE-level assertions (`release.yml:34-41`) and `tools/verify_pe.py` (import allowlist + header contract) can additionally be run on the fetched `rda.sys` for a stronger gate — `scripts/verify/verify_reference_binaries.py` is a Capstone/pefile disassembly verifier for the *reference* binaries, not a release-asset verifier (`scripts/verify/verify_reference_binaries.py:2-34`), but it demonstrates the project's SHA-256-logging discipline (`benchmark.yml` records reference-binary hashes the same way — `.github/workflows/benchmark.yml:65-69`).
 
 **Current consumer pins in core_recovery** (for cross-reference; read from core repo):
-- `api-benchmark.yml`: `RDA_RELEASE_TAG: v0.2.2` with the comment "v0.2.2 = the driver's current release (the sc.exe installer fix). Functional floor is >= v0.2.1 (the error-87 fix); pinned to the newest." (`.github/workflows/api-benchmark.yml` env block).
+- (historical, pre-consolidation) `api-benchmark.yml`: `RDA_RELEASE_TAG: v0.2.2` with the comment "v0.2.2 = the driver's current release (the sc.exe installer fix). Functional floor is >= v0.2.1 (the error-87 fix); pinned to the newest." (`.github/workflows/api-benchmark.yml` env block).
 - `comparative-bench.yml`: `RDA_RELEASE_TAG: 'v0.2.1'` (older lane).
 
 **Functional floor for consumers: ≥ v0.2.1** (the bare-open error-87 fix, tag `v0.2.1` message; regression locked by `tests/unit/test_compat.c:147-165`). v0.2.2 adds only script/doc fixes on top of the identical binary (tag message: "No binary change from v0.2.1").
@@ -136,7 +136,7 @@ The shipped binary is unsigned (§1), so loading it requires one of:
 - a provisioned test certificate for the driver (`install.ps1:11-12`); or
 - signing it yourself (Authenticode) — which covers Win7/8/8.1-class chains and WinPE, but NOT Win10/11 retail kernel loading (Microsoft attestation/HLK required — `docs/signing.md:5-9,62-75`).
 
-Hosted CI runners cannot reboot into test-signing; the established CI pattern (driver `benchmark.yml` and core's `api-benchmark.yml`) is a **job-local self-signed code-signing certificate** imported into `LocalMachine\Root` + `TrustedPublisher`, then `signtool sign /fd SHA256` the fetched `rda.sys` for the session — valid on hosted runners because SecureBoot is off there (`.github/workflows/benchmark.yml:71-90` with the rationale at `:12-15`; `docs/benchmarking.md:19-22`).
+Hosted CI runners cannot reboot into test-signing; the established CI pattern (driver `benchmark.yml`; core's current job-local-cert consumers are `installer.yml` and the release lane's dev-sign tier — historically `api-benchmark.yml`) is a **job-local self-signed code-signing certificate** imported into `LocalMachine\Root` + `TrustedPublisher`, then `signtool sign /fd SHA256` the fetched `rda.sys` for the session — valid on hosted runners because SecureBoot is off there (`.github/workflows/benchmark.yml:71-90` with the rationale at `:12-15`; `docs/benchmarking.md:19-22`).
 
 ### WinPE deployment profile (no installer)
 

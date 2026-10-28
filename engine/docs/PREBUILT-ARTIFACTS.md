@@ -33,8 +33,10 @@ Resolved from `heicfast/rda-driver`. Tag convention: `vX.Y.Z` (semver).
 
 Optional consumers: `rdacli.exe`, `run-integration.ps1`.
 
-**Verification procedure** (every consumer runs it, in the shared composite
-action `.github/actions/install-driver/action.yml`):
+**Verification procedure** (every consumer runs it, via
+`.github/scripts/fetch-release.ps1` — the shared composite action of the
+pre-consolidation era was deleted with its three workflows; the fetcher is
+the one convention enforcer now):
 1. Download every asset of the resolved release.
 2. Parse `SHA256SUMS`: each line is `<UPPERCASE_SHA256>  <path>`; the path may
    carry a `scripts/` prefix that does not match the flat asset name (a
@@ -55,32 +57,29 @@ regardless — belt and suspenders).
 (`New-SelfSignedCertificate -Type CodeSigningCert` → `LocalMachine\Root` +
 `LocalMachine\TrustedPublisher` → `signtool sign /fd SHA256`), installed via
 the release's own `install.ps1 -ServiceName rda -Source rda.sys` — the
-mechanism proven by the api-benchmark lane's real runs (40227375329,
-40315255368) on windows-2022, which requires no test-signing boot mode.
+mechanism proven on windows-2022 by the historical api-benchmark lane's
+real runs (40227375329, 40315255368; that lane was deleted by the
+consolidation — the current provers are `test-benchmark.yml`'s
+Install-ReleaseDriver.ps1 stage and `installer.yml`'s round trip, e.g. run
+40549660074's sign → install → RUNNING → control round-trip → uninstall
+transcript) — no test-signing boot mode required.
 Signing posture is documented truthfully per release (DRIVER-RELEASE §7:
 unsigned-by-design artifacts, CI test-signs for load).
 
-**The v0.2.3 deployer contract (S-036/M-060/M-061/M-062/M-064 closed):** the
-composite pins `FloorVersion v0.2.3` — the release whose `install.ps1`
-actually runs on a stock host (the pre-v0.2.3 elevation guard died as
-`InvokeMethodOnNull` before any install action) and whose start-failure is
-fatal (exit 6 + the testsigning guidance). The installer's exit-code contract:
+**The v0.2.4 deployer contract (S-036/M-060/M-061/M-062/M-064 closed):** both
+live fetch sites (`release.yml`'s driver tier and `installer.yml`) pin
+`FloorVersion v0.2.4` — the versioned-layout era (the `%s%d` image names +
+the versioned-aware uninstall the M-061 teardown contract asserts). The
+installer's exit-code contract:
 0 installed+started · 1 not elevated · 2 name exists · 3 copy failed ·
 4 CreateService SCM error · 5 Parameters read-back mismatch · 6 StartService
 failed · 7 not RUNNING. `uninstall.ps1`: 0 clean · 1 not elevated · 2 stop
 error · 3 no STOPPED within 5 s · 4 delete error · 5 still registered ·
 6 locked image — the CI teardown runs the script and asserts the post-state
-(service gone, image gone). The composite's manual `sc.exe` fallback is
-**disabled by default** (`allow_fallback: 'true'` opts in); when taken it now
-configures the service exactly like `install.ps1` (group `Boot File System`,
-absolute binPath, the four Parameters values) and both paths end with the
-`sc qc` group + Parameters assertions (M-060).
-
-**Timestamps (N-084):** the sign step uses no `/tr` by default — the job-local
-cert outlives the job and the signature dies with it, so a timestamp server is
-unnecessary in CI. Pass `timestamp_server: <TSA>` to the composite for any
-cert whose signature must remain verifiable past its validity window (add
-`/tr <TSA> /td SHA256` by hand for out-of-CI signing — DRIVER-RELEASE §7).
+(service gone, versioned image gone). The pre-consolidation composite's
+manual `sc.exe` fallback no longer exists in any current path: the two live
+consumers run the release's own `install.ps1` verbatim (the S-036 lesson —
+the composite fallback was where the M-060 divergence lived).
 
 **Operator posture (N-085):** these are operator-run scripts for dev/CI
 machines (elevated console, visible window). The customer-shaped silent
@@ -147,7 +146,13 @@ subject IS the source) — both documented by charter in CI-LOCAL.md.
 
 | Workflow | Consumes | Via |
 |---|---|---|
-| `driver-install.yml` | latest rda-driver release + latest core release (for the `rrecov driver` verification) | composite action + fetch-release.ps1 |
-| `core-install.yml` | latest core release | fetch-release.ps1 |
-| `staged-scenarios.yml` | BOTH, pinned by the setup job's recorded manifest | composite action + fetch-release.ps1 |
-| `release.yml` (driver-tier job) | the rda-driver release at the compatibility tier (fetch; source-build only when the tier release does not exist, stamped `built-from-source` in MANIFEST.json) | fetch-release.ps1 |
+| `release.yml` (driver-tier job) | the rda-driver release at the compatibility tier (`-FloorVersion v0.2.4`; source-build only when the tier release does not exist, stamped `built-from-source` in MANIFEST.json) | fetch-release.ps1 |
+| `installer.yml` (S-038 gates) | the rda-driver release at the same tier (`-FloorVersion v0.2.4`), job-local test-signed | fetch-release.ps1 |
+| `test-benchmark.yml` | the LATEST combined core release (which embeds the tier-mate `rda.sys` + `rda-test-sign.cer` + install/uninstall scripts) | fetch-release.ps1 + `.github/scripts/Install-ReleaseDriver.ps1` |
+
+The historical consumers (`driver-install.yml`, `core-install.yml`,
+`staged-scenarios.yml` and the `.github/actions/install-driver` composite)
+were deleted by the 3-lane consolidation (566c483); their contracts live on
+in the lanes above (the refusal contract in checks.yml's driverless probes;
+the install chain in test-benchmark's Install-ReleaseDriver stage; the
+pinned-matrix truth in benchmark-matrix.json).

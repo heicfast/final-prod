@@ -19,7 +19,7 @@
 > blocks carry the resolution narrative; the per-file Resolution sections
 > live in history.
 
-**Counts:** 259 resolved findings (255 at the purge commit + the 4 mid-flight parallel landings absorbed at rebase: M-084/M-091 `16475b8`, N-092 `5ed862f`, N-124 `c75755d`) · 98 with a fix-commit recorded in-file ·
+**Counts:** 260 resolved findings (255 at the purge commit + the 4 mid-flight parallel landings absorbed at rebase: M-084/M-091 `16475b8`, N-092 `5ed862f`, N-124 `c75755d` + M-088, DFX-38) · 98 with a fix-commit recorded in-file ·
 **Ledger generated:** session SA-10B (2026-10-29), tree `62074bf`-lineage.
 
 | ID | Severity | Module | Fix commit (as recorded in-file) | Retired file (history path) |
@@ -127,6 +127,7 @@
 | M-071 | MAJOR |  | 69507cb | `findings/FIXED/M-071-m018-regression-junk-gates-lost.md` |
 | M-081 | MAJOR |  | 9e5dedc | `findings/FIXED/M-081-crw-misattributed-mrw-prd-gate.md` |
 | M-090 | MAJOR |  | 180053de0 | `findings/FIXED/M-090-dmg-footer-walk-and-cap-diverge-from-og.md` |
+| M-088 | MAJOR | ci/packaging (the FloorVersion pin split + the CI-shape doc cluster) | (this landing, DFX-38) | `findings/FIXED/M-088-floorversion-pin-split-and-stale-ci-docs.md` (full Resolution preserved in the retired file; the landing record + the doc_truth_gate evidence in worklog.md DFX-38/M-088) |
 | N-001 | MINOR |  | — | `findings/FIXED/N-001-STALE-DUPLICATE-REMOVED.md` |
 | N-001 | ? |  | — | `findings/FIXED/N-001-ntfs-mftmirr-fallback-hardcodes-4-records.md` |
 | N-002 | MINOR |  | — | `findings/FIXED/N-002-fat-alternate-eoc-families-mark-chains-broken.md` |

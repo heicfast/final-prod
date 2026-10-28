@@ -1,5 +1,12 @@
 # PLAN-CI-REBUILD — prebuilt-artifact CI, combined release, local-first validation
 
+> **Superseded in part (2026-10-28 consolidation + M-088):** the lanes this
+> plan specified in §3.2–§3.4 (`driver-install.yml`, `core-install.yml`,
+> `staged-scenarios.yml`) were never created as separate workflows — the
+> consolidation folded their contracts into the 4-lane set (checks /
+> release / test-benchmark / installer; docs/CI-CURRENT.md). Read those
+> sections as the historical design record; the contracts live on.
+
 > Session: driver-only mandate §4–§6. Current state: [CI-CURRENT.md](CI-CURRENT.md). Artifact shapes:
 > [DRIVER-RELEASE.md](DRIVER-RELEASE.md) (driver: tag `v*`, 7 flat assets), core release shape below.
 > Non-negotiables inherited verbatim from the mandate: **no from-scratch build in the correctness path**
@@ -71,7 +78,7 @@ Jobs (all consume the repo, none consume releases; this is the ONLY from-source 
 Ordering: `local-mirror` first (fail-fast); heavy lanes after. Path filters on `pull_request` are added
 (docs-only PRs skip the build lanes — documented).
 
-### 3.2 `driver-install.yml` — the prebuilt driver lane (no build)
+### 3.2 `driver-install.yml` — the prebuilt driver lane (no build; HISTORICAL — folded into test-benchmark.yml)
 
 windows-2022. Steps: resolve latest rda-driver release by convention (§2) → download + SHA256SUMS-verify →
 test-sign with a job-local cert (the api-benchmark mechanism, verbatim: New-SelfSignedCertificate
@@ -83,7 +90,7 @@ convention (§2), stage rrecov.exe (+runtime from the zip), run `rrecov driver -
 (driver-info.json equivalent: the --json output + install log + resolved tag). The workflow produces no
 artifact other than the evidence bundle.
 
-### 3.3 `core-install.yml` — the prebuilt core lane (no build)
+### 3.3 `core-install.yml` — the prebuilt core lane (no build; HISTORICAL — folded into test-benchmark.yml)
 
 windows-2022 (and `windows-latest` as a secondary matrix cell — documents where the runner supports it).
 Steps: resolve latest core release by convention → download + SHA256SUMS + MANIFEST cross-check → unzip →
@@ -92,7 +99,7 @@ stage → smoke the staged binaries with NON-disk operations only (per PLAN-DRIV
 this workflow; this doubles as the refusal-contract regression probe) → upload evidence (resolved tag,
 SHA256 outputs, smoke logs). No artifact other than staged-binaries evidence.
 
-### 3.4 `staged-scenarios.yml` — the truth matrix (no build; consumes both prebuilt releases)
+### 3.4 `staged-scenarios.yml` — the truth matrix (no build; HISTORICAL — folded into test-benchmark.yml + benchmark-matrix.json)
 
 windows-2022. Job graph: `setup` (installs driver per §3.2 mechanics + stages core per §3.3, uploads a
 `env-manifest.json` recording runner image, toolchain versions, resolved tags, asset hashes) →
@@ -191,7 +198,7 @@ and README's CI section.
    live in `.github/actions/install-driver/action.yml` (shared composite) — grep proves no correctness
    workflow builds the core or driver from source (only ci.yml lanes and release.yml do, each documented
    by charter).
-2. driver-install.yml + core-install.yml + staged-scenarios.yml green on windows-2022, each consuming
+2. (historical acceptance criteria; the 4-lane equivalents are green) driver-install.yml + core-install.yml + staged-scenarios.yml green on windows-2022, each consuming
    releases by the §2 convention, each uploading evidence artifacts; a missing-asset drill proves the
    loud-failure path (workflow_dispatch input to point at a bogus tag).
 3. release.yml produces a combined release (MANIFEST.json + SHA256SUMS + core zip + driver assets +

@@ -161,6 +161,18 @@ jobs:
           python -c "import sys, yaml; [yaml.safe_load(open(p, encoding='utf-8')) for p in sys.argv[1:]]; print('YAML parse gate clean:', len(sys.argv)-1, 'workflow(s)')" $yamls
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
+      - name: 'CI-shape doc-truth gate (M-088)'
+        shell: pwsh
+        run: |
+          # The consolidation's own drift prevention: (1) every live
+          # -FloorVersion pin is one set at one floor (the installer lane
+          # shipped at v0.2.3 for an era because nothing compared the
+          # pins); (2) deleted CI surfaces (the composite action, the
+          # three deleted workflows, api-benchmark) are cited only with a
+          # historical marker - never as a current mechanism.
+          python tools/doc_truth_gate.py
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::doc-truth gate failed (FloorVersion discipline or stale-lane citations)'; exit 1 }
+
   build-and-test:
     name: Build + test (MSVC Release, vcpkg cache)
     needs: lint

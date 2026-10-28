@@ -138,8 +138,8 @@ The second measured run (40228880804) also re-confirms legs 1-3 within noise
 recorded as `checksum_match` telemetry since the live OS volume legitimately
 mutates between passes).
 
-Tooling: `bench/ours/run-alignbench.ps1` +
-`.github/workflows/api-benchmark.yml` (windows-2022; driver from the
+Tooling: `bench/ours/run-alignbench.ps1` (historically driven by the
+deleted `.github/workflows/api-benchmark.yml`; windows-2022; driver from the
 rda-driver release, SHA256SUMS-verified, test-signed, installed as `rda`,
 verified via verify-driver.ps1; no continue-on-error; artifacts always).
 

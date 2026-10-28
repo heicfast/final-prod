@@ -23,7 +23,7 @@ The driver creates **one named control device** plus a symbolic link; both names
 | `ebrntdrv` / `epmdkdrv` | `\Device\EBRNTDRV` / `\Device\EPMDKDRV` | WinPE spare instances |
 | `rda` | `\Device\RDA` | `\\.\RDA` (neutral default) |
 
-The shipped client hard-codes `\\.\EPRDTDRV` (`src/client/rdacli.c:44`); the format templates are `L"\\\\.\\%ws"` and `L"\\\\.\\%ws\\%u\\%u\\%u"` (`src/client/rdacli.c:29-30`). Any service name works — the same `rda.sys` binary answers whatever name it is installed under, and `%s%d` hot-upgrade variants coexist (`src/driver/rda_control.c:8-10`). The core's CI installs it as service `rda` → `\\.\RDA` (cross-ref: core `.github/workflows/api-benchmark.yml` header comment).
+The shipped client hard-codes `\\.\EPRDTDRV` (`src/client/rdacli.c:44`); the format templates are `L"\\\\.\\%ws"` and `L"\\\\.\\%ws\\%u\\%u\\%u"` (`src/client/rdacli.c:29-30`). Any service name works — the same `rda.sys` binary answers whatever name it is installed under, and `%s%d` hot-upgrade variants coexist (`src/driver/rda_control.c:8-10`). The core's CI installs it as service `rda` → `\\.\RDA` (cross-ref: core's current driver-attached lane (`.github/workflows/test-benchmark.yml`; historically `api-benchmark.yml`)).
 
 Sub-device opens are expressed **in the file name relative to the control device**, not as separate devices: `\\.\EPRDTDRV\<PID-TOKEN>\<disk>\<part>` etc. (`src/client/rdacli.c:53-69`, `src/bench/rdabench.c:61-71`).
 

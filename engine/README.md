@@ -122,13 +122,18 @@ UNVERIFIED-in-corpus items — every one registered with evidence, none
 hidden. The parity board (every finding fixed/invalid/superseded with
 proofs) is [`diff-to-fix/SUMMARY.md`](diff-to-fix/SUMMARY.md).
 
-CI runs the full matrix on every push: Ubuntu (gcc -Werror; ASan, UBSan,
-TSan lanes; fuzz smoke; the win-layer parse gate), Windows (MSVC /W4 /WX,
-the Win7 SP1 loader/import gate on every shipped PE, DLL smoke, C
-consumer, seeded integration), the libFuzzer smoke campaign (15
-structure-aware harnesses, 45 s per target, zero-crash gate), the release
-pipeline, and the driver-attached API benchmark lane. CodeQL is
-deliberately deferred (`if: false` — recorded, not silent; rationale in
+CI runs on every push (docs-path-filtered): the **Checks** lane (MSVC /W4
+/WX build, the full ctest incl. the cr_ui ABI C consumer, the Win7 SP1
+loader/import gate on every shipped PE, G-09 report-schema validation, the
+driverless refusal-contract probes, the CLI junk-gate probes), the
+**Release** lane (tag-driven, calls Checks, test-dev-signs the driver), the
+**Test & Benchmark** lane (dispatched per publish: driver load + the
+10-scenario matrix through CLI and API over staged VHDX disks), and the
+**Installer gates** lane (the S-038 silent round-trip + version-key +
+OS-gate matrix). The pre-consolidation Ubuntu sanitizer/fuzz lanes were
+dropped by the owner's windows-only directive — that coverage stays local
+via `./ci-local.sh --san` / `--fuzz` (recorded, not silent; see
+docs/CI-CURRENT.md). CodeQL remains deliberately deferred (rationale in
 docs/testing.md).
 
 ## Documentation
@@ -145,6 +150,7 @@ docs/testing.md).
 | [docs/architecture.md](docs/architecture.md) | layering rules and module boundaries |
 | [docs/ABI-CONTRACT.md](docs/ABI-CONTRACT.md) | the ABI wire contract |
 | [docs/testing.md](docs/testing.md) · [docs/build.md](docs/build.md) | test philosophy · build details |
+| [docs/CI-CURRENT.md](docs/CI-CURRENT.md) · [docs/PREBUILT-ARTIFACTS.md](docs/PREBUILT-ARTIFACTS.md) · [docs/PACKAGING.md](docs/PACKAGING.md) | the 4-lane CI · the release-consumption convention · the app-installer milestone (S-038) |
 | [diff-to-fix/README.md](diff-to-fix/README.md) | the parity audit trail (findings → fixes → proofs) |
 | [worklog/](worklog/) | the session-prompt archive (the chronological worklog.md was retired 2026-10-28) |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | build lanes, test/gate inventory, commit style, the zero-behavior-change discipline |

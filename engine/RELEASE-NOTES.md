@@ -2,6 +2,10 @@
 
 ## vNext (CI consolidation, 2026-10-28)
 
+- *(Corrected 2026-10-29, M-088: the lane set is FOUR, not three — the
+  S-038 `installer.yml` gates lane postdates the consolidation and the
+  original text omitted it; the FloorVersion floor is pinned at TWO live
+  sites (release.yml + installer.yml), both v0.2.4.)*
 - CI rebuilt as the windows-only 3-lane set: **Checks** (format, lints,
   /W4 /WX build, ctest, Win7 posture, report schema, driverless refusal
   probes - vcpkg binary-cached), **Release** (validate -> build core +

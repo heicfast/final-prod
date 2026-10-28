@@ -1,5 +1,13 @@
 # CI-LOCAL — the local validation entry point and its CI mirror
 
+> **CI-shape note (M-088, 2026-10-29):** the CI this document mirrors is
+> the 4-lane windows-only set (checks / release / test-benchmark /
+> installer — docs/CI-CURRENT.md). Where the tables below still name the
+> pre-consolidation lanes (ci.yml's local-mirror job, driver-install /
+> core-install / staged-scenarios), read them as the historical mapping
+> the local gate was built against; the component-level contract (what
+> the local gate proves) is unchanged.
+
 > The never-push-a-red-commit rule (docs/CONTRIBUTING.md) needs ONE local
 > entry point that runs every check CI runs, in the same order, with the
 > same strictness. `./ci-local.sh` (Unix) and `.\ci-local.ps1` (Windows) are
@@ -64,4 +72,4 @@ mirror gate.
 |---|---|---|
 | `ci.yml` validation lane | YES (one MSVC Release config + the Linux/sanitizer lanes) | its subject IS the source being merged (Werror/sanitizer/unit truth) |
 | `release.yml` | YES (the core, from the tag) | the release is defined by the tag — the sole source of builds |
-| `driver-install.yml` / `core-install.yml` / `staged-scenarios.yml` | **NO** | they consume prebuilt releases by the documented convention (PREBUILT-ARTIFACTS.md) |
+| `test-benchmark.yml` / `installer.yml` (historically driver-install / core-install / staged-scenarios) | **NO** (test-benchmark consumes the prebuilt combined release; installer builds ONLY the installer's own subject from source — its charter) | they consume prebuilt releases by the documented convention (PREBUILT-ARTIFACTS.md) |

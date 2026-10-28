@@ -32,8 +32,10 @@ the core (and drove the og leg) from source per run - the exact waste the
 prebuilt-artifact mandate removes. Their surviving value lives on:
 
 - the DRIVER-install mechanics (fetch release + SHA256SUMS verify +
-  test-sign + service install + verification) are the shared composite
-  `.github/actions/install-driver/action.yml`;
+  test-sign + service install + verification) historically rode the shared
+  composite `.github/actions/install-driver/action.yml` (deleted by the CI
+  consolidation — the mechanism now lives in
+  `.github/scripts/Install-ReleaseDriver.ps1`);
 - the end-to-end recall/precision role is superseded by
   `staged-scenarios.yml` (docs/CI-SCENARIOS.md): seeded VHD + scripted
   deletion + scan + expected-vs-observed + recovery + SHA256 verification,

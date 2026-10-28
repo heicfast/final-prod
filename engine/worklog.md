@@ -2045,3 +2045,70 @@ Board at lane close: **70 active (8 SEVERE · 25 MAJOR · 32 MINOR · 5 INFO)
 / 259 FIXED-in-history / 2 tracked-open** — at origin/main 6dbb171-lineage
 (+ this close). The parallel-lane environment is ACTIVE; pull before
 every wave; the counts move every few commits.
+Task ID: DFX-38/M-088 (the FloorVersion pin split + the CI-shape doc truth + the doc-truth gate)
+Agent: lead (DFX-38)
+
+Work Log:
+- Verified M-088 at HEAD programmatically (display artifacts ruled out by
+  design): release.yml:291 v0.2.4 vs installer.yml:118 v0.2.3 (the split);
+  CI-CURRENT.md:60's "ONE pin source" claim false; installer.yml absent
+  from the lane table; README:125-132 describing the deleted Ubuntu/CodeQL/
+  API-benchmark lanes; PREBUILT-ARTIFACTS citing the deleted composite
+  action + three deleted workflows as the current mechanism.
+- Byte-level verification note: the workflows' `branches: [main]` lines
+  DISPLAY as `branches: ain]` through this container's tool-output
+  sanitizer ([m is eaten as an escape) — proven by hex dump
+  (5b 6d 61 69 6e 5d) + GitHub's live run list firing on push to main. No
+  false finding filed; recorded so future sessions hex-verify before
+  trusting the display on bracket-bearing lines.
+- Fix: installer.yml → v0.2.4 (both pins equal, matching the M-061
+  teardown contract's versioned-uninstall floor); CI-CURRENT.md rewritten
+  (4-lane table + Files + the honest two-live-sites pin statement + the
+  junk-gate probes and the new gate in the component list);
+  PREBUILT-ARTIFACTS.md §2/§5 rewritten (fetch-release.ps1 as the one
+  convention enforcer; the real 3-consumer table; the deleted trio
+  preserved as marked history); README Status paragraph + the
+  Documentation table's CI row; RELEASE-NOTES correction line;
+  CI-SCENARIOS lane-truth banner + the S-DRV-REFUSE row; CI-LOCAL
+  supersession banner + cost-table fix; DRIVER-RELEASE/DRIVER-CONTRACT
+  citations marked historical.
+- NEW GATE: tools/doc_truth_gate.py (the finding's own acceptance
+  criterion): (1) every live -FloorVersion pin is one set at one floor and
+  matches CI-CURRENT's declared set; (2) deleted CI surfaces are cited
+  only with historical markers. First run FAILED with 8 violations
+  (fail-before executed) — including 4 sites the finding's census missed
+  (DRIVER-UTILIZATION:145/:252, PERFORMANCE-BASELINE:142,
+  benchmarking.md:36, PLAN-CI-REBUILD §3.2-3.4/acceptance) — all fixed;
+  green after (38 historically-marked mentions). Wired into checks.yml's
+  lint job (runs before any build compute).
+- Both edited workflows YAML-parse clean; doc_truth_gate green; local
+  suite unaffected (docs+scripts only).
+
+Stage Summary:
+- M-088 closed with the prevention mechanism the finding asked for. The
+  DFX-38 queue continues at M-082 (DeviceManager offline-OS
+  identification) — the biggest unclaimed major.
+
+
+---
+Task ID: DFX-38/M-088-recon (the purge-world adaptation)
+Agent: lead (DFX-38)
+
+Work Log:
+- The SA-10B purge landed mid-flight (255 FIXED files retired to git
+  history + FIXED-LEDGER.md). This lane's M-088 landing was re-cherry-
+  picked onto the purged tree and ADAPTED: the findings/FIXED/M-088 file
+  retired per the new convention (full Resolution preserved in git
+  history), the ledger row added (261 resolved), the matrix row relinked
+  to the ledger, the SUMMARY counts restated as the post-purge filesystem
+  truth (69 active: 8 SEVERE incl. the new S-048/S-049/S-050 filings ·
+  24 MAJOR · 32 MINOR · 5 INFO).
+- NOTE for all lanes: this lane's session mandate says "No finding file
+  deleted. The audit trail is preserved." — the purge came from a
+  DIFFERENT session's mandate ("remove the fixed things"). Both are now
+  reconciled: history preserves every Resolution (git log --follow), the
+  ledger keeps every ID navigable, and NEW resolutions by this lane are
+  recorded as ledger rows + SUMMARY entries going forward.
+
+Stage Summary:
+- M-088 fully closed in the purge world. DFX-38 continues at M-082.

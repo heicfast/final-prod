@@ -1,4 +1,4 @@
-# CI-CURRENT — the 3-lane Windows-only CI (the 2026-10-28 consolidation)
+# CI-CURRENT — the 4-lane Windows-only CI (the 2026-10-28 consolidation + the S-038 installer lane)
 
 **Supersession note:** this document describes the CURRENT lane set. The
 previous 7-job ci.yml + 5-workflow era (local-mirror / linux ASan / TSan /
@@ -8,15 +8,18 @@ fuzz lanes were dropped by the owner's windows-only directive — a
 documented decision, not an accident. The pure core keeps that coverage
 locally via `./ci-local.sh --san` / `--fuzz`; `ci-local.ps1` remains the
 developer entry point and its 10 components remain the local gate
-(docs/CI-LOCAL.md).
+(docs/CI-LOCAL.md). The fourth lane (`installer.yml`, the S-038 app-installer
+gates) postdates the original 3-lane consolidation text — this section now
+carries all four.
 
-## The three lanes
+## The four lanes
 
 | Lane | File | Trigger | Runner | Timeout | Purpose |
 |------|------|---------|--------|---------|---------|
-| **Checks** | `.github/workflows/checks.yml` | push/PR to main (docs-path-filtered, symmetric) + `workflow_call` | windows-2022 | lint 15 / build 90 | the pre-merge gate: format, lints, /W4 /WX build, full ctest, Win7 posture, G-09 schema, driverless refusal probes |
+| **Checks** | `.github/workflows/checks.yml` | push/PR to main (docs-path-filtered, symmetric) + `workflow_call` | windows-2022 | lint 15 / build 90 | the pre-merge gate: format, lints, /W4 /WX build, full ctest, Win7 posture, G-09 schema, driverless refusal probes, the CLI junk-gate probes (M-071) |
 | **Release** | `.github/workflows/release.yml` | tag push `vX.Y.Z` + dispatch (publish/drill) | windows-2022 | 90/30/30 | the sole source of builds: validate (calls Checks) -> build-core + driver-tier -> assemble + publish; test-dev-signs rda.sys with the persistent dev cert |
 | **Test & Benchmark** | `.github/workflows/test-benchmark.yml` | dispatch (release dispatches it on every publish) | windows-2022 | 120 smoke / 180 full | consumes the LATEST release: driver load+verify, simulated disks, the scenario matrix through CLI **and API**, gates + perf + structured evidence |
+| **Installer gates** | `.github/workflows/installer.yml` | push/PR (installer-path-filtered) + dispatch | windows-2022 | 15/75 | the S-038 app-installer gates: silent round-trip residue contract, version-key write+verify, the OS-gate matrix (Inno Setup build from source, job-local test-signed driver, the M-061 post-state teardown assertions) |
 
 The chain: **commit -> Checks (green) -> Release (publish) -> Test &
 Benchmark (automatic dispatch against the fresh tag)**.
@@ -31,6 +34,10 @@ Benchmark (automatic dispatch against the fresh tag)**.
    era behind a fallback)
 5. Workflow **YAML parse gate** (the stray-brace class killed the old
    benchmark.yml across 5 dispatches)
+5b. **CI-shape doc-truth gate** (`tools/doc_truth_gate.py`, M-088): every
+   live `-FloorVersion` pin is one set at one floor, and deleted CI
+   surfaces (the composite action + the three deleted workflows +
+   api-benchmark) are cited only with historical markers
 6. MSVC /W4 /WX Release build (`win-x64-release` preset, vcpkg manifest)
 7. Full ctest (all GoogleTest suites + the `cr_ui_abi_check` C consumer)
 8. Win7 posture gate (stamp + verify allowlist on rrecov.exe, cr_tests.exe,
@@ -43,6 +50,11 @@ Benchmark (automatic dispatch against the fresh tag)**.
     the driver-required refusal and NOTHING past the gate. Every probe
     that asserts a non-zero exit ends with the script's own explicit
     verdict (three dispatches historically died to a missing `exit 0`).
+11. CLI junk-gate probes (M-018/M-071): over the generated
+    `fat16-junk.img` fixture (tools/gen_fat16_junk_fixture.py), the
+    `scan --image` tree print and `tree --in` never list the og's
+    FilterFolder hidden set (DESKTOP.INI et al.) while the negative
+    controls stay; `recover --all` never writes the hidden set.
 
 **Efficiency:** vcpkg binary caching keyed on `vcpkg.json` (the old lane
 rebuilt zlib/gtest/lz4/zstd from source EVERY run — the largest fixed
@@ -57,9 +69,13 @@ cancel-in-progress, lint fast-fails before the build job spends compute.
   (explicit `version` input or auto next-patch from the latest release),
   asserts it does not already exist, builds the exact SHA.
 - Driver tier: fetched prebuilt from `heicfast/rda-driver` with
-  `-FloorVersion v0.2.4` (ONE pin source; the versioned-layout era the
-  teardown contract assumes). Source-build fallback only when no tier
-  release exists — stamped `built-from-source` in MANIFEST.json.
+  `-FloorVersion v0.2.4`. The FloorVersion floor is pinned at **two live
+  sites** — `release.yml` (the driver tier) and `installer.yml` (the
+  S-038 lane's fetch) — both at v0.2.4, both enforced equal by the
+  doc-truth gate (a third, indirect consumption rides test-benchmark via
+  the combined core release's own assets). Source-build fallback only
+  when no tier release exists — stamped `built-from-source` in
+  MANIFEST.json.
 - **Signing posture (new)**: rda.sys is test-development-signed at release
   time with the repo's PERSISTENT dev certificate
   (`DEV_SIGN_CERT_PFX_B64` / `DEV_SIGN_CERT_PASSWORD` secrets,
@@ -124,7 +140,8 @@ SHA256SUMS + MANIFEST; never builds, never falls back). Sequence:
 
 ## Files
 
-- `.github/workflows/{checks,release,test-benchmark}.yml` — the lanes
+- `.github/workflows/{checks,release,test-benchmark,installer}.yml` — the
+  four lanes
 - `.github/scripts/fetch-release.ps1` — the release convention enforcer
   (unchanged from the previous era)
 - `.github/scripts/New-TestDisk.ps1` — matrix disks (diskpart-only)
@@ -133,6 +150,7 @@ SHA256SUMS + MANIFEST; never builds, never falls back). Sequence:
 - `.github/scripts/Teardown-Benchmark.ps1` — the always-run teardown
 - `.github/scripts/api_harness.c` — the API-lane driver (cr_ui C ABI)
 - `.github/scenarios/benchmark-matrix.json` — the versioned truth
+- `tools/gen_fat16_junk_fixture.py` — the M-071 CLI junk-gate fixture
 - `bench/` — the seed/scenario/metrics tooling (unchanged; now wired into
   CI through the orchestrator instead of the wiped comparative lanes)
 

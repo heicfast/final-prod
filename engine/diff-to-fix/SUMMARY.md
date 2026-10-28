@@ -119,8 +119,21 @@ M-071/S-042 lanes: regression + SEVERE tier first.
   all five forms, GREEN after (`MetafileAndIconFamiliesAreNamedRefusals`); suite
   1029/1029.
 
-**Board after this window:** 71 active (6 SEVERE · 27 MAJOR · 33 MINOR · 5 INFO) /
-**254 FIXED** / 2 tracked-open (OQ-S4-3, OQ-S8-1).
+- **M-088** (MAJOR → FIXED, DFX-38 lane) — the FloorVersion pin split closed:
+  installer.yml bumped to v0.2.4 (both live pins equal, the M-061 teardown
+  contract's own floor); CI-CURRENT/PREBUILT-ARTIFACTS/README/RELEASE-NOTES/
+  CI-SCENARIOS/CI-LOCAL/DRIVER-RELEASE/DRIVER-CONTRACT rewritten to the
+  4-lane truth; the same-class sweep went BEYOND the finding's census (the
+  gate found 4 more stale sites: DRIVER-UTILIZATION ×2, PERFORMANCE-BASELINE,
+  benchmarking.md, PLAN-CI-REBUILD); and `tools/doc_truth_gate.py` wired
+  into checks.yml's lint job enforces both invariants forever (first run:
+  8 named violations — the fail-before; green after).
+
+**Board after this window (post-purge filesystem truth):** 69 active (8
+SEVERE — incl. the session-10 lanes' new S-048/S-049/S-050 filings · 24
+MAJOR · 32 MINOR · 5 INFO) / **261 resolved** (FIXED-LEDGER.md is the
+index; the per-finding files are retired to git history per the SA-10B
+purge) / 2 tracked-open (OQ-S4-3, OQ-S8-1).
 
 ## Fix session (2026-10-29 — the parity close: every tier executed against corpus `be0cfe9`, core `84a1832`-lineage)
 
