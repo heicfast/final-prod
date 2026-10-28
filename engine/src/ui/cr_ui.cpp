@@ -788,6 +788,9 @@ struct CrScan {
     bool has_ctrl = false; /* fresh-run or resumed controller exists */
     bool is_resumed = false;
     bool autosaved = false; /* W1c (R-52): the completion auto-save landed */
+    bool user_saved = false; /* S-044: the og's +0x388 not-already-saved gate - an
+                              * explicit cr_ui_scan_save_session suppresses the
+                              * completion auto-save (2 of the og's 3 trigger sites) */
     /* S-008 pre-scan repair: the C-ABI consent callback + the lazily
      * opened write view (image: same file r+b; Windows disk/volume: the
      * RW transport mapped through the device slice). */
@@ -2013,8 +2016,19 @@ u32 scan_run_impl(cr_ui_scan* scan) {
      * cr_ui_scan_save_session surface). Silent write, ONE outcome event
      * (never silent failure), the stats flag. The name is the N-061
      * corpus convention: auto_<label>_<M>_<D>_<H>_<m>_<s> with the
-     * name-forbidden-char sanitizer. */
-    if (s->cfg.autosave_dir[0] != 0) {
+     * name-forbidden-char sanitizer.
+     * S-044: the og's THREE trigger-site gates, decoded at
+     * FUN_1402857c0's call sites (:612583/:615166/:616764, evidence
+     * s8-autosave-and-stamps.md): not-import (+0x1c8==0 - a resumed
+     * session never re-auto-saves), results-found
+     * (FUN_1403964b0 != 0 - an empty scan never auto-saves; no session
+     * file for a nothing-found run), and not-already-saved (+0x388==0,
+     * 2 of 3 sites - an explicit save suppresses the auto save). An
+     * empty scan writes no file, fires no event, and stats.autosaved
+     * stays 0 - the og's W1a session list never sees nothing-found
+     * runs. */
+    if (s->cfg.autosave_dir[0] != 0 && !s->is_resumed && !s->user_saved &&
+        (s->stats.files_found != 0 || s->stats.lost_partitions != 0)) {
         const std::string dir(s->cfg.autosave_dir);
         const std::string sep = (!dir.empty() && (dir.back() == '/' || dir.back() == '\\')) ? "" :
 #ifdef _WIN32
@@ -2510,8 +2524,10 @@ u32 scan_save_session_impl(cr_ui_scan* scan, const char* utf8_path) {
     SaveProgressState spst;
     spst.s = s;
     const u32 rc = write_session_atomic(s, std::string(utf8_path), save_progress_adapter_, &spst);
-    if (rc == OK)
+    if (rc == OK) {
+        s->user_saved = true; /* S-044: suppress the completion auto-save */
         return ret_ok();
+    }
     return ret_(rc, "session save failed (%s)", err_text(rc));
 }
 

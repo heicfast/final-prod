@@ -544,7 +544,7 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | preview/thumbnail · TIFF LZW (B1/A28) | **M-085** — compression-5 refused (mainstream variant) |
 | preview/thumbnail · superset posture (A25) | **I-028** — both-axis scaling, RGBA8, PSD/PNM/HDR, bomb guard, truth gates: deliberate, registered |
 | preview/thumbnail · still-image families + bounded-read doctrine + never-upscale + honest refusals | **MATCH** |
-| session · auto-save trigger gates (A31/D12) | **S-044** — results-found + not-already-saved gates missing; og's enable = byte flag |
+| session · auto-save trigger gates (A31/D12) | ~~**S-044**~~ **MATCH** (fixed this session — results-found / not-import / not-already-saved gates landed on the ABI + CLI twins; the byte-flag config shape registered as D-105; findings/FIXED/S-044) |
 | session · auto-save naming folder variant | **N-105** — "Folder" suffix absent (deferred; cross-ref M-079's volume-label gap) |
 | session · crsf reader robustness (S35) | **MATCH** — per-chunk raw fallback == og's raw-memcpy-on-inflate-failure (md :98) |
 | session · light summary read (D12) | **MATCH** — SESSION_STATE+VOLUME_INFO == the og's record-1-then-record-2 list read (phrasing corrected E64; complements N-090's scope/shape rows) |

@@ -1712,8 +1712,14 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
     /* W1c (R-52): the completion auto-save (the og's SaveScan window;
      * cancelled runs return before this point, so ONLY completed runs
      * auto-save). The N-061 corpus naming + sanitizer; silent write,
-     * one printed outcome line - never silent failure. */
-    if (cfg.autosave_dir[0] != '\0') {
+     * one printed outcome line - never silent failure.
+     * S-044: the og's trigger-site gates (FUN_1402857c0's call sites,
+     * evidence s8-autosave-and-stamps.md): results-found (an empty
+     * scan never auto-saves) and not-already-saved (--out/--resume is
+     * the explicit save - effective_out non-empty means the session was
+     * saved, which also covers the not-import case for resumed runs). */
+    if (cfg.autosave_dir[0] != '\0' && effective_out.empty() &&
+        (stats.files_found != 0 || stats.lost_partitions != 0)) {
         const std::string name8 =
             session::auto_session_name(text::utf8_to_u16(cfg.volume_label)) + ".crsf";
         std::wstring dir;

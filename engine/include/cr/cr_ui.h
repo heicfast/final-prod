@@ -215,7 +215,12 @@ typedef void (*cr_ui_recovery_progress_fn)(void* user, uint64_t bytes_done, uint
          * (session::auto_session_name, the N-061 corpus convention                                \
          * with the name-forbidden-char sanitizer; the og's completion                             \
          * SaveScan flow, rsf-format section 5.5). A CANCELLED run never                           \
-         * auto-saves and never fires this event. */
+         * auto-saves and never fires this event. S-044: an EMPTY run                             \
+         * (no files, no lost partitions), a RESUMED run and a run whose                           \
+         * session was already saved explicitly (cr_ui_scan_save_session)                          \
+         * never auto-save either - the og's trigger-site gates                                    \
+         * (FUN_1402857c0 call sites: results-found / not-import /                                  \
+         * not-already-saved). */
 
 typedef struct cr_ui_event {
     uint32_t type;         /* CR_EVT_* above */
@@ -584,7 +589,12 @@ typedef struct cr_ui_scan_config {
                                          * N-061 corpus naming + sanitizer),
                                          * fires CR_EVT_AUTOSAVED once and
                                          * sets stats.autosaved; a cancelled
-                                         * run never auto-saves. */
+                                         * run never auto-saves. S-044: an
+                                         * empty run (nothing found), a
+                                         * resumed run and an already-
+                                         * explicitly-saved run never
+                                         * auto-save either (the og's
+                                         * trigger-site gates). */
 } cr_ui_scan_config;
 
 CR_UI_API uint32_t cr_ui_scan_create(const cr_ui_scan_config* cfg, cr_ui_scan** out);
@@ -672,7 +682,9 @@ typedef struct cr_ui_scan_stats {
     /* W1c (R-52) append: the completion auto-save outcome (the og's
      * auto_<vol>_<ts> SaveScan flow). 1 = the auto session landed in
      * ScanConfig.autosave_dir under session::auto_session_name; 0 =
-     * off (the zero-init default) or the run did not complete. The
+     * off (the zero-init default), the run did not complete, the run
+     * found nothing, the run was resumed, or the session was already
+     * saved explicitly (S-044 - the og's trigger-site gates). The
      * per-attempt rc rides CR_EVT_AUTOSAVED. */
     uint32_t autosaved;
 } cr_ui_scan_stats;

@@ -561,6 +561,161 @@ TEST(CrUi, AutoSaveOnCompletion) {
     std::filesystem::remove_all(adir);
 }
 
+TEST(CrUi, AutoSaveSkipsEmptyResults) {
+    /* S-044: the og's results-found gate (FUN_1403964b0 != 0 at every
+     * trigger site) - a scan that found NOTHING never auto-saves: no
+     * session file, no CR_EVT_AUTOSAVED, stats.autosaved stays 0. The
+     * W1a session list never sees nothing-found runs. */
+    const std::string dir = cr_test::tmp_path("cr_ui", "s044_empty");
+    std::filesystem::create_directories(dir);
+    const std::string blank = dir + "/blank.img";
+    {
+        /* an all-zero image: no FS, no partition table, no carve keys -
+         * a completed scan with zero results */
+        std::vector<unsigned char> zeros(2 * 1024 * 1024, 0);
+        FILE* f = std::fopen(blank.c_str(), "wb");
+        ASSERT_NE(f, nullptr);
+        ASSERT_EQ(std::fwrite(zeros.data(), 1, zeros.size(), f), zeros.size());
+        std::fclose(f);
+    }
+    const std::string adir = dir + "/autosave";
+    std::filesystem::create_directories(adir);
+    g_autosave_events = 0;
+    g_autosave_rc = 1;
+    Ui u;
+    ASSERT_EQ(cr_ui_open_image(blank.c_str(), 0, 0, &u.dev), CR_UI_OK);
+    cr_ui_scan_config cfg{};
+    cfg.autosave_dir_utf8 = adir.c_str();
+    ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_set_event_fn(u.scan, autosave_event_cb, nullptr), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+    cr_ui_scan_stats st{};
+    ASSERT_EQ(cr_ui_scan_get_stats(u.scan, &st), CR_UI_OK);
+    EXPECT_EQ(st.files_found, 0u) << "the blank image must find nothing";
+    EXPECT_EQ(st.lost_partitions, 0u);
+    EXPECT_EQ(st.autosaved, 0u) << "an empty scan never auto-saves";
+    EXPECT_EQ(g_autosave_events, 0u) << "no event for a nothing-found run";
+    uint32_t n = 99;
+    ASSERT_EQ(cr_ui_session_list(adir.c_str(), nullptr, &n), CR_UI_OK);
+    EXPECT_EQ(n, 0u) << "no auto session file for a nothing-found run";
+    std::filesystem::remove_all(dir);
+}
+
+TEST(CrUi, AutoSaveSkipsAfterExplicitSave) {
+    /* S-044: the og's not-already-saved gate (+0x388 == 0 at 2 of 3
+     * trigger sites) - a session saved explicitly mid-scan (the pause
+     * window is the og's own mid-scan save posture: the engine is
+     * parked at a checkpoint, the tree is consistent) suppresses the
+     * completion auto-save: exactly ONE file total (the explicit one),
+     * no CR_EVT_AUTOSAVED, stats.autosaved == 0. */
+    const std::string img = write_fixture("s044_saved");
+    ASSERT_FALSE(img.empty());
+    const std::string dir = std::filesystem::path(img).parent_path().string();
+    const std::string adir = dir + "/s044_autosave_" + std::to_string(CR_TEST_PID());
+    std::filesystem::create_directories(adir);
+    const std::string explicit_path = dir + "/s044_explicit_" + std::to_string(CR_TEST_PID()) +
+                                      ".crsf";
+    g_autosave_events = 0;
+    g_autosave_rc = 1;
+    Ui u;
+    ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+    cr_ui_scan_config cfg{};
+    cfg.autosave_dir_utf8 = adir.c_str();
+    ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_set_event_fn(u.scan, autosave_event_cb, nullptr), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+
+    /* park the scan mid-run, save explicitly from the main thread (the
+     * engine is blocked at its checkpoint - no concurrent tree access),
+     * then let it complete */
+    ASSERT_EQ(cr_ui_scan_pause(u.scan), CR_UI_OK);
+    std::atomic<bool> done{false};
+    std::thread runner([&] {
+        EXPECT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+        done.store(true);
+    });
+    bool saw_paused = false;
+    for (int i = 0; i < 200 && !done.load(); ++i) {
+        cr_ui_telemetry tel{};
+        if (cr_ui_scan_telemetry(u.scan, &tel) == CR_UI_OK && tel.paused == 1u)
+            saw_paused = true;
+        if (saw_paused)
+            break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    ASSERT_TRUE(saw_paused) << "the scan must reach the parked state";
+    ASSERT_EQ(cr_ui_scan_save_session(u.scan, explicit_path.c_str()), CR_UI_OK)
+        << "the mid-scan explicit save (the pause window)";
+    ASSERT_EQ(cr_ui_scan_resume(u.scan), CR_UI_OK);
+    runner.join();
+    ASSERT_TRUE(done.load());
+
+    cr_ui_scan_stats st{};
+    ASSERT_EQ(cr_ui_scan_get_stats(u.scan, &st), CR_UI_OK);
+    EXPECT_NE(st.files_found, 0u) << "the fixture has files (the gate is the save, not emptiness)";
+    EXPECT_EQ(st.autosaved, 0u) << "an already-explicitly-saved run never auto-saves";
+    EXPECT_EQ(g_autosave_events, 0u) << "no event after an explicit save";
+    uint32_t n = 99;
+    ASSERT_EQ(cr_ui_session_list(adir.c_str(), nullptr, &n), CR_UI_OK);
+    EXPECT_EQ(n, 0u) << "no auto file - exactly the ONE explicit session total";
+    /* the explicit file itself is a valid session */
+    cr_ui_session* sess = nullptr;
+    ASSERT_EQ(cr_ui_session_load(explicit_path.c_str(), &sess), CR_UI_OK);
+    cr_ui_session_close(sess);
+    std::filesystem::remove_all(adir);
+    std::filesystem::remove(explicit_path);
+}
+
+TEST(CrUi, AutoSaveSkipsResumedRun) {
+    /* S-044: the og's not-import gate (+0x1c8 == 0 at every trigger
+     * site) - a RESUMED run never re-auto-saves: the session already
+     * exists (it was imported); completion of the continuation writes
+     * no second auto file. */
+    const std::string img = write_fixture("s044_resume");
+    ASSERT_FALSE(img.empty());
+    const std::string dir = std::filesystem::path(img).parent_path().string();
+    const std::string adir = dir + "/s044_resume_as_" + std::to_string(CR_TEST_PID());
+    std::filesystem::create_directories(adir);
+    const std::string crsf = img + ".crsf";
+    g_autosave_events = 0;
+    g_autosave_rc = 1;
+
+    /* first run: explicitly saved (no autosave configured) */
+    {
+        Ui u;
+        ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+        cr_ui_scan_config cfg{};
+        ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_cancel(u.scan), CR_UI_OK);
+        EXPECT_EQ(cr_ui_scan_run(u.scan), 0x50020005u); /* ERR_CANCELLED */
+        ASSERT_EQ(cr_ui_scan_save_session(u.scan, crsf.c_str()), CR_UI_OK);
+    }
+    /* resume with autosave configured: completion writes NO auto file */
+    {
+        Ui u;
+        ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+        ASSERT_EQ(cr_ui_session_load(crsf.c_str(), &u.sess), CR_UI_OK);
+        cr_ui_scan_config rcfg{};
+        rcfg.autosave_dir_utf8 = adir.c_str();
+        ASSERT_EQ(cr_ui_session_resume(u.sess, &rcfg, &u.scan), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_set_event_fn(u.scan, autosave_event_cb, nullptr), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+        cr_ui_scan_stats st{};
+        ASSERT_EQ(cr_ui_scan_get_stats(u.scan, &st), CR_UI_OK);
+        EXPECT_NE(st.files_found, 0u);
+        EXPECT_EQ(st.autosaved, 0u) << "a resumed run never re-auto-saves";
+        EXPECT_EQ(g_autosave_events, 0u);
+        uint32_t n = 99;
+        ASSERT_EQ(cr_ui_session_list(adir.c_str(), nullptr, &n), CR_UI_OK);
+        EXPECT_EQ(n, 0u) << "no auto file for an imported/resumed session";
+    }
+    std::filesystem::remove_all(adir);
+    std::filesystem::remove(crsf);
+}
+
 TEST(CrUi, SessionListTwoCallPatternAndRowTruth) {
     /* W1a (R-56): the LastScanRecordView surface - the capacity probe,
      * the under-capacity TRUNCATED answer, and per-row truth

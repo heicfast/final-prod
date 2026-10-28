@@ -202,11 +202,11 @@ CLI flag + session round-trip). The W1a/W1b/W1c orchestration claims verified
 
 ## Session-8 wave-2 (audited `ff879f9` lineage, corpus `be0cfe9`; complements the deep-audit lane's rows)
 
-- **S-044 (SEVERE)** — the completion auto-save's gating chain (see
-  modules/session.md): results-found and not-already-saved gates
-  missing; the og's enable surface is a singleton byte flag. The
-  not-import gate (+0x1c8) maps to the core's resume/import path —
-  check suppression there when implementing.
+- **S-044 (FIXED this session)** — the completion auto-save's gating chain
+  (see modules/session.md): results-found, not-already-saved AND
+  not-import gates all landed (the resume path suppresses via the
+  is_resumed flag, as this row suggested); the og's singleton byte-flag
+  enable surface is the registered delta D-105.
 - Progressive result emission dispositioned MATCH: the core's carve
   stage attaches nodes live (carve_slice streams into the tree during
   the pass, cr_scan.cpp:1877-88) with counters refreshing at progress

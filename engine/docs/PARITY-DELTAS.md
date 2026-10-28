@@ -3117,3 +3117,37 @@ own data — both recorded here so no parity table re-derives the wrong
 of the core's product scope (file-repair lane; handoff logged); the corpus
 artifacts carry the correction (CORPUS-ERRATA E-A/E-B + the corpus's
 CORRECTIONS.md #9).
+
+## V. The parity-close fix session (2026-10-29)
+
+### D-105 — the auto-save enable surface is a config DIRECTORY field, not the og's config-singleton byte flag (S-044 resolution rider, REGISTERED DIVERGENCE — functionally equivalent enable semantics)
+
+**WHAT OG DOES:** the auto-save entry gate is a one-byte flag on a global
+config singleton (`FUN_1400b5270` :165951-5 = `return *(u8*)(param_1+0x10)`,
+0 = enabled; read at FUN_1402857c0 :442822-24). The save PATH is composed at
+each call site; no directory field exists in the scan context (the
+`"SaveResultPath = %S"` string is a trace log).
+
+**WHAT CORE DOES:** `cr_ui_scan_config::autosave_dir_utf8` (cr_ui.h) carries
+the destination directory; empty = off (zero-init). The trigger-site gates
+landed with S-044 (results-found / not-import / not-already-saved) are
+behavioral parity and are NOT part of this delta.
+
+**WHY REGISTERED:** the enable/destination semantics are functionally
+equivalent (off by default, one destination per run, host-settable), but the
+SHAPE differs (composed-at-call-site vs carried-in-config). Rewiring the
+core to a byte flag + composed path would change the public ABI surface for
+zero behavioral gain; the directory form is also strictly more expressive
+for the CLI (`--autosave-dir`). Verdict: ACCEPTED.
+
+### D-106 — the auto-save Folder-scan naming variant (`Folder` suffix) is unimplementable until a folder-scan mode exists (S-044/N-105 deferral, REGISTERED GAP — surface absent on both engine sides)
+
+**WHAT OG DOES:** the auto-save volume-name builder appends `L"Folder"`
+when `vtable+0x110` is set (:442883-886) — folder scans (the og's
+folder-recovery mode) name their auto sessions `auto_<vol>Folder_<ts>`.
+
+**WHAT CORE DOES:** the core has no folder-scan mode (device/image targets
+only), so the naming variant has no trigger surface. N-105 owns the row.
+
+**WHY REGISTERED:** recorded so a future folder-scan landing knows the
+naming contract. Verdict: NEEDS-WORK (only when folder-scan lands).

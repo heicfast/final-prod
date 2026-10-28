@@ -243,13 +243,18 @@ PARITY-DELTAS).
 
 ## Session-8 wave-2 (audited `ff879f9` lineage, corpus `be0cfe9`; complements the deep-audit lane's N-090/M-079 rows)
 
-- **S-044 (SEVERE)** — the W1c auto-save diverges from the og's trigger
-  contract: the og's three call sites gate on results-found
+- **S-044 (FIXED this session)** — the W1c auto-save diverged from the og's
+  trigger contract: the og's three call sites gate on results-found
   (FUN_1403964b0), not-already-saved (+0x388, 2 of 3 sites), and
   not-import (+0x1c8); the entry gate is a byte flag on a config
-  singleton (FUN_1400b5270 :165951-5), not a directory field. The core
-  fires on every completed scan with autosave_dir set — empty scans and
-  post-explicit-save duplicates land. Evidence:
+  singleton (FUN_1400b5270 :165951-5), not a directory field. **FIXED:
+  all three trigger-site gates landed (results-found / not-import via
+  the resume flag / not-already-saved via the explicit-save flag), on
+  both the ABI completion window and the CLI twin; the byte-flag config
+  shape is the registered deliberate delta D-105; the Folder suffix is
+  D-106/N-105's deferral. Tests: CrUi.AutoSaveSkipsEmptyResults /
+  AutoSaveSkipsAfterExplicitSave / AutoSaveSkipsResumedRun; TSan clean
+  on the pause-window save. findings/FIXED/S-044.** Evidence:
   `../evidence/decompiled-quotes/s8-autosave-and-stamps.md` §1-§3.
 - **N-105 (MINOR)** — the og's folder-scan "Folder" name suffix
   (:442883-86) has no core equivalent (deferred until a folder-scan
