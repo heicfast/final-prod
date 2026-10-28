@@ -7322,3 +7322,24 @@ surface — one fixture bug caught during the RED pass: `_notes.txt` is 10
 chars, an 11 name_len pulled the padding NUL into the name). exFAT battery
 36/36 (1 env-skip). Trail: findings/FIXED/N-174 + ledger row + matrix B3/A1/B6
 cell + exfat.md rows + this entry. Suite at the landing: full cr_tests green.
+
+---
+
+**Session-56 lane territory claim (coordination contract, 2026-10-29):** this
+lane (ACUTE-first per the user's session directive — the parallel S46 lane's
+saved mandate is MINOR-first, so the natural division stands) claims:
+**A-014 (the ACUTE), then the SEVERE board S-055, S-056, S-057, S-058, S-059,
+S-060, S-061, S-040, S-050, then the MAJOR tier M-073..M-137 as capacity
+allows, then the INFORMATIONAL acknowledgments I-035..I-044.** The driver-repo
+pair (M-086/M-087/M-089/N-107/N-127 + OQ-S10-3) stays tracked-OQ per the S48
+boundary disposition (re-verified at `dce44e4d`). Pulled-before-pushed
+discipline; one finding, one push; every fix RED-test-first. Target: 20+
+fixes this session. Audited pin: core `fa654673` (rebased through the
+windows to `f8f01513`), corpus `be0cfe9`.
+
+- **Red main repaired at lane open (`f8f01513`)** — the S-054 TS-pin tests
+  (`Carve.TsM2TsCapIsTheOg200MB` + `Carve.TsStreamClampedAt200MB`) walked off
+  `kTable`'s end with terminator-style iteration (ASan global-buffer-overflow,
+  the M-133 class residue); both converted to count-based `registry_size()`
+  form. Suite 1273/1273 green (ASan lane). No retirement — the class is
+  FIXED/M-133's own.
