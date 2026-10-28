@@ -91,6 +91,13 @@ The .trashinfo content-parse consumer (entry 6): a DRWUI-side walk of the
 ZFS result consumers would resolve whether the og's UI offers a
 trash-restore affordance the maps feed; no core behavior attaches today.
 
+## Resolution
+
+**Status:** FIXED-ALREADY (the finding's documentation-only fix plan was executed by the filing/reconciliation lanes; this session re-verified every item on the current tree)
+**Fixed in commit:** (the S11/S11-R/S40 lanes' own landings; re-verified at session-42 — no new commit required)
+**Verified by:** reproduction on the current tree: modules/zfs.md's OQ-T6 row reads "RESOLVED (session-11, I-032)" with the first-registry-entry-fallback decode + the MATCH verdict; B8 reads "MATCH (OQ-T6.2 resolved with OQ-T6 — I-032)"; B9 reads "closed MATCH, session-11 — I-032" with the 8-byte-cap decode and the refuted nanosecond note; modules/refs.md's B4 row carries the 2-bit grade-byte decode (node+0x70, 2=deleted, record+0x59, the host re-grade hook) and B5 carries the S-053 resolution + the N-141 companion; diff-to-fix/CORPUS-ERRATA.md §items 6-7 of the S11 batch carry the two decode refinements (the fixed 1000 ms unbounded device poll refuting N-056/N-072's "backoff" wording; the fixed +4 MiB DVA translate). The two defect-class outcomes carry their own landings: S-053 + N-141 (session-40 main lane, `e10ec381`) and the M-019 multi-vdev convergence the register confirms.
+**Resolution notes:** Every fix-plan item verified present on the current tree — the module-doc verdict flips cite this register exactly as the plan specified, and the CORPUS-ERRATA refinements landed in the S11 batch. The walk's one open decode (the .trashinfo content-parse consumer, entry 6) remains registered as the open note with no core behavior attaching — the DRWUI-side consumer walk is the recorded next step if ever prioritized. No code change; no new divergence found on re-verification (the grade byte, the no-fallback naming, the 8-byte time cap, and both engines' dead/absent label paths all re-checked against the register's cites).
+---
 ---
 
 ## Resolution (session-42, 2026-10-29 — RETIRED to FIXED/)

@@ -276,7 +276,7 @@
 ## 5. Deliberate-delta candidates (register for the parity ledger)
 1. **Single engine pass shared by quick+deep** (cr_scan.cpp:188-192) vs og's two searcher generations (Quick then Complete re-walk) — output-equivalent, half the walking; documented in-code.
 2. **CRSF vs .rsf** — clean-room session format (magic "CRSFMT01", 24-byte "CRSR" records, CRC32+deflate, 4-byte constant session id `0x52434F56` vs og's per-record 16-byte session ids, 36-byte headers, `EA F4 B3 1B`); no import (G-11).
-3. **Root naming**: `Found/Deleted/Lost Files/Other Deleted Files (Carved)` vs og's `Windows (C:) / File Path Lost / Reconstructed` (+ "&Other deleted files", "&Lost data not found") — concept mapping: Lost Files↔File Path Lost, Carved root↔Reconstructed/Other-deleted-files (dynamic-ground-truth §3; 04 §5.1).
+3. **Root naming**: `Found/Deleted/Lost Files/Reconstructed` vs og's `Windows (C:) / File Path Lost / Reconstructed` (+ "&Other deleted files", "&Lost data not found") — concept mapping: Lost Files↔File Path Lost, Carved root↔Reconstructed (S-048: the carve root carries the og's own name, the per-volume group children + the 7 category skeleton folders beneath it; dynamic-ground-truth §3; 04 §5.1).
 4. **Grading vs destroying** fully-overwritten deleted records (F-B-20, fix F5).
 5. **`scan_mft_remnants`** whole-slice stride (F-B-19) — capability superset, no og counterpart located.
 6. **No pause** (F-B-7, G-07) vs og's Pause control.

@@ -303,3 +303,17 @@ fields, the complete ABSENT enumeration — is `evidence/s10-field-parity-table.
 session — the corpus container grammar byte-confirmed (magic, 0x8C header, 0x24
 record header, 4 KiB chunked zlib), the strongest-evidence-class backing for the
 session-format MATCH verdict (`evidence/executions/s10-rsf-ground-truth.md`).
+
+---
+
+## Session-12 continuation row (2026-10-29, audited `c7fa527c`, corpus `be0cfe9`)
+
+**N-142 (MINOR — NEW):** the og's variant-save device-descriptor record (the 5th
+GUID `76a672b048058b46ba9e91093a63b517`, FUN_1403f1180 = [552-B struct] + [5400-B
+volumeDevice blob]; rsf-format--scan-session.md:70-75 + :225-233) persists the full
+device identity: bus type, model, serial, **firmware revision, WWN, interface
+string, and the complete 512-byte boot-sector snapshot**. The core's identity card
+(`VolumeSessionInfo` v2 tail, cr_records.h:190-210) carries model/serial/boot_hash
+only — firmware/WWN/interface and the boot-sector content have no equivalent
+(D12 field-parity gap on a variant path not seen in the shipped samples). Evidence:
+`evidence/decompiled-quotes/s12-rsf-fifth-record.md`.

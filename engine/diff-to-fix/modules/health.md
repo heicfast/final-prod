@@ -176,12 +176,37 @@ covers it).
 
 ## Session-8 section (2026-10-28, audited `35adcb9`)
 
-**M-076** (MAJOR — the TRIM facet's row-shape gap: the datum is
-health-facet-only (`cr_ui_smart_report.trim_known/trim_enabled`); the og's
-per-row chip needs opt-in row fields or an `_ex` flag; R-63). **M-078**
+**M-076 — FIXED (session-42 main lane)**: the per-row TRIM chip datum
+landed in the opt-in shape — `cr_ui_disk_info` carries `trim_known`/`trim_on`
+(append-only, zero-init = unknown), `cr_ui_enumerate_disks_ex` +
+`CR_ENUM_FLAG_TRIM` is the opt-in (unknown bits refused `ERR_BAD_PARAMETER`
+before the platform check — lane-uniform grammar), one fresh fsutil read per
+invocation (the OS-global datum; per-disk re-query would run the identical
+process N times), the CLI `list --trim` renders the chip + the unknown form.
+Tests: `CrUi.EnumerationExFlagGrammarRefusesUnknownBits` (runtime, all lanes)
++ `Enumerate.TrimChipOptInShipsInAbiAndCli` (the three-layer source pin);
+the failed-query rule (trim_known == 0, never guessed) is contract text +
+pin. R-63's row closed. **M-078**
 (MAJOR — BitLocker turn-off absent: the og's CBitlockerTurnOffOperation
 pending-op + bitlockerhelp.mo/BitLockerLib.dll decrypt flows vs the core's
 unlock-only surface; the legitimate-only stance D-16 is untouched — turn-off
 is a consented destructive op). **N-097**: auto.txt's true semantics (the FVE
 auto-unlock key snapshot DRWUI persists — the security datum for hosts; core
 never persists key material, the safer posture, now stated).
+
+### Session-42-C rows (2026-10-29 — the S42-C continuation lane, post-third-reconciliation) (2026-10-29 — the S42-C continuation lane, post-reconciliation)
+
+- **I-038** (INFO, acknowledged-retired): the diskhealth companion tree
+  registered — the 818-file never-walked surface censused this lane (the
+  EaseUS DiskHealth / *DiskSmart* Qt-QML companion product, CrystalDiskInfo
+  lineage; RENUMBERED TWICE: draft I-035 → I-037, both seats consumed by the remote lanes). 13 COVERED (the
+  engine surface re-verified: SMART chain, 0xD1 thresholds, the 4-status
+  grading, vendor classification, CSMI CC-0x19, the NVMe STORAGE_QUERY route +
+  fields/units/grade — all MATCH against the core's pinned tests), 12
+  NOT-CORE-SCOPE, 5 never-dispositioned transport surfaces REGISTERED (the 6
+  vendor-NVMe CMD_TYPE routes, the USB-bridge quirk table, the AAM/APM
+  device-write setters, the `sc config Winmgmt` mutation, the diskHealthIndex=
+  launch contract — D-82/I-027 extensions), 4 U-datums with next artifacts
+  (evidence/s42c-diskhealth-walk.md). M-076's retirement by the window (4bd5ee7a) leaves the module with NO active divergence. No core code changes proposed. The remote S12 lane's I-035
+  "DiskHealth resident shell" row is the shallow complement this walk supersedes
+  in depth.

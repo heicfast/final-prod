@@ -173,6 +173,10 @@ enum FormatId : u32 {
     FMT_EPS,    /* u16 "%!" 0x2125 -> CEPS-family PostScript chain */
     FMT_AI,     /* C5 D0 D3 C6 0xc6d3d0c5 -> CEPSAnalyser (Illustrator), idx 27 */
     FMT_DXF,    /* "  0\r" 0x0d302020 -> CDXF chain (g146+g144), idx 25 */
+    FMT_DXF_C999, /* u16 "99" 0x3939 -> the SAME CDXF chain, idx 25
+                   * (N-152: RAWSearchDLL :2722-2733 - the 999-comment
+                   * entry key; comment-led CAD exports dispatch through
+                   * the u16 map, the probe's comment branch accepts them) */
     FMT_3GP,    /* ftyp brand 3gp (the og's File3GP legacy row) */
     /* ---- S-041 niche batch 2, school 1 (SCAN-4): og grammars verified
      * first-hand (the session-5 decode table in SCAN-ENGINE-DELTA). ---- */
@@ -322,14 +326,12 @@ enum FormatId : u32 {
      * corpus (the floss strings :6699-6729 + the strings table
      * :768-905): the ODF trio by the mimetype entry's content
      * (application/vnd.oasis.opendocument.{text,spreadsheet,
-     * presentation}), EPUB (application/epub+zip + the OPS/ chapter1.html name tag), Apple iWork (Index/[*].iwa +
-     * index.apxl), Hangul (application/hwp+zip), CorelDRAW
-     * (content/riffData.cdr). All rows share the LFH dispatch key and
-     * are OVERRIDE TARGETS (the typing walk stamps the id by content;
-     * the FMT_DOCX row wins the registry-order tie). The og's id
-     * mapping for the non-OOXML families is undecoded - the family
-     * granularity here is the tag strings' own. Ids APPENDED
-     * (serialized carve_format values stay stable). */
+     * presentation}), EPUB (application/epub+zip + the OPS/ chapter1.html name tag), Apple iWork
+     * (Index/[*].iwa + index.apxl), Hangul (application/hwp+zip), CorelDRAW (content/riffData.cdr).
+     * All rows share the LFH dispatch key and are OVERRIDE TARGETS (the typing walk stamps the id
+     * by content; the FMT_DOCX row wins the registry-order tie). The og's id mapping for the
+     * non-OOXML families is undecoded - the family granularity here is the tag strings' own. Ids
+     * APPENDED (serialized carve_format values stay stable). */
     FMT_XLSX,  /* xl/_rels/workbook.xml.rels (the og id 0x4a) */
     FMT_PPTX,  /* ppt/_rels/presentation.xml.rels (the og id 0x4b) */
     FMT_ODT,   /* mimetype: ...opendocument.text */
@@ -339,6 +341,35 @@ enum FormatId : u32 {
     FMT_IWORK, /* Index/[*].iwa + index.apxl */
     FMT_HWP,   /* mimetype/[Content_Types]: application/hwp+zip */
     FMT_CDR,   /* content/riffData.cdr */
+    /* M-121 (diff-to-fix; the renumber chain M-117 -> M-118 -> M-121
+     * per SA-9: M-117 was triple-consumed [the session-40
+     * suppress-overlap landing keeps it, FIXED-LEDGER row 442; the
+     * S41 filing; the parallel fix lane's 1d4c96b6 message], then the
+     * parallel lostpart finding consumed the M-118 this renumber
+     * first took): the og's Outlook Express Dbx analyser
+     * (RawSpeed::DbxAnalyser, idx 0x15=21) - three registry keys
+     * (RAWSearchDLL_decompiled.c:2192-2232, first-hand + disassembly-
+     * verified): "JMF6" 0x36464d4a,
+     * CF AD 12 FE 0xfe12adcf, F7 89 34 2C 0x2c3489f7. The identity
+     * probe (FUN_180016740 :17509-17562) gates the 16-byte window:
+     * the JMF6+03 00 10 00 form (u64 0x0010000336464D4A, disasm-settled:
+     * movl $0x36464d4a + movl $0x00100003 at 0x180016766/0x18001676f -
+     * the parallel lane's reading CONFIRMED, my first landing's
+     * 03 00 01 00 was a literal-expansion error, corrected), one of FOUR OE store GUIDs, or the marked 16-byte pattern
+     * {2c3489f7, 6deef0f7, d18922af, b0f0ff00} (the 0x6deef0f7 dword
+     * is F7 F0 EE 6D on disk - the parallel lane's F7 F0 DE 6D read
+     * was a byte error, corrected here). Plain forms size from
+     * u32@+0x7C (disasm `mov 0x7c(%rdx),%eax` at 0x180016ac0); the
+     * marked form walks sector windows to zero termination with
+     * FUN_180042b30's extent (the non-zero prefix rounded UP TO EVEN
+     * - the bisection's mid+1 landing; Ghidra+retdec+simulation
+     * cross-pinned). The marked form's 272-byte name buffer is
+     * memset-0-then-copied (disasm 0x180016a16 memset ->
+     * 0x180016a1b walk): the embedded name is EMPTY. Ids APPENDED
+     * (serialized carve_format values stay stable). */
+    FMT_DBX_JMF6,   /* "JMF6" - the versioned container key */
+    FMT_DBX,        /* CF AD 12 FE - the classic OE store key (GUID family) */
+    FMT_DBX_MARKED, /* F7 89 34 2C - the marked/folder variant key */
     FMT_COUNT
 };
 
@@ -443,6 +474,13 @@ size_t registry_size();
  * names + enabled state in one stable order (N-033's surface). */
 bool carve_token_listed(const char* disabled_list, const char* ext, const char* name);
 bool carve_format_listed(const char* disabled_list, const Signature& sig);
+
+/* N-149: the og's exempt set - OLE/RIFF/ZIP never leave the working analyser
+ * list (the removal loop's mask 0x1000801 over id-0x30, RAWSearchDLL
+ * :4412-4418). Every grammar row of the three families reports true; the
+ * disable surface refuses to switch them off (the raw-sign list layer is
+ * outside the mask's range and stays disableable). */
+bool carve_format_always_on(FormatId id);
 
 /* F8 gate: validate every entry; returns 0 = OK, else the count of rejects
  * (with a diagnostic list in `bad`). */

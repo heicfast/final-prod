@@ -302,3 +302,21 @@ no prior finding owned.)
 - **N-144** (MINOR): the TxtView text-snapshot thumbnails (<=100 bytes, Arial 13, 200x200 BMP; TxtViewFiles-gated) absent — core refuses text outright.
 - **N-148 item 3** (MINOR): cr_ui.cpp:3754's og cite is 9 lines loose (the guard is :422507-514).
 - Verified MATCH this session: the 19-behavior results-phase interaction map (filter/sort/search/preview/recover/session/regrade families; the rest host-side by doctrine) — §Lane-C Section B.
+
+### Session-42-C rows (2026-10-29 — the S42-C continuation lane, post-third-reconciliation) (2026-10-29 — the S42-C continuation lane, post-reconciliation)
+
+- **M-121** (MAJOR, retroactively filed + retired at FIXED/): the StbioSource
+  single-shot read vs the reader's 4 MiB clamp — every photo-scale PNG (>4 MiB
+  IDAT) failed `outofdata` once M-109 raised the band to the og's 200 MB; the
+  landing's own band test caught it and the same commit (`76e2d351`) fixed it
+  with the read loop (cr_thumbnail.cpp:163-181) — but the finding was never
+  filed under any ID (the S12 lane's twice-interrupted Wave-1 duty; the S42-C
+  retroactive filing; RENUMBERED TWICE at the hot-window reconciliations: the
+  collision-draft M-112 [the ACTIVE CSL finding owns it] → the S12-planned M-118
+  [consumed by the remote S12 lane's MountPoints2] → M-122 [the DBX chain owns M-121]). The phantom-SHA
+  ledger rows repaired with it. The one live code-side residual: the loop's
+  comment at cr_thumbnail.cpp:163 still cites "N-112" — one-line repair for the
+  next code-touching lane (carried in M-121's fix plan; verified standing at
+  the reconciled tree).
+- The `Thumbnail.*` pin family re-verified green at the pin by the landing-parity
+  pass (evidence/s42c-landing-parity.md §8).

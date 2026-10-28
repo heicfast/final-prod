@@ -55,7 +55,10 @@ struct ZfsScanStats {
     u64 microzap_entries = 0;
     u64 macrozap_entries = 0;
     u64 damaged_blocks = 0;
-    u64 unsupported_vdevs = 0;  /* gang/indirect/mirror/raid multi-vdev */
+    u64 unsupported_vdevs = 0;  /* D-09's registered posture (N-148 re-pinned):
+                            * mirror/raidz multi-vdev: REPORT-ONLY; gang
+                            * blocks ARE assembled (cr_zfs_engine.cpp:594-621);
+                            * indirect vdevs unsupported */
     u64 txg = 0;                /* the selected uberblock's txg */
     u64 embedded_files = 0;     /* files with embedded-bp content */
     u64 compressed_extents = 0; /* extents carrying a codec */

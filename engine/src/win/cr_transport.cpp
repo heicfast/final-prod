@@ -62,12 +62,17 @@ u32 overlapped_read(HANDLE h, u64 off, void* buf, u32 len, bool rda_scaled, DWOR
         if (e != ERROR_IO_PENDING) {
             if (gle_out)
                 *gle_out = e;
-            return ERR_READ_FAILED;
+            /* N-125: the device-gone family classifies distinctly (the
+             * reattach-then-resume contract); media errors stay
+             * ERR_READ_FAILED (the dying-disk storm keeps its semantics) */
+            return disconnect::gle_is_disconnect(e) ? ERR_DEVICE_DISCONNECTED : ERR_READ_FAILED;
         }
         if (!GetOverlappedResult(h, &ov, &got, TRUE)) {
+            const DWORD e2 = GetLastError();
             if (gle_out)
-                *gle_out = GetLastError();
-            return ERR_READ_FAILED;
+                *gle_out = e2;
+            return disconnect::gle_is_disconnect(e2) ? ERR_DEVICE_DISCONNECTED
+                                                     : ERR_READ_FAILED;
         }
     }
     if (got == len)

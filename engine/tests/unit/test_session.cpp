@@ -7,6 +7,7 @@
 #include <functional>
 #include "cr/storage/cr_device.h"
 #include <cstring>
+#include "cr/cr_text.h"
 #include <vector>
 
 using namespace cr;
@@ -208,6 +209,81 @@ TEST(Crsf, TinyChunkDeflatesWhenSmaller) {
 /* SESS-2 (GAP-W3-9a): the volume identity card round-trips, and v1 records
  * (52-byte payloads, pre-identity layout) deserialize with a zero card -
  * zeros mean "unverifiable", never "verified". */
+TEST(Crsf, ReconstructedCarveTreeRoundTrip) {
+    /* S-048: the carve tree's intermediate folders round-trip - the
+     * "Reconstructed" root, the 7 empty category skeleton folders, the
+     * lazy per-volume group child, and the empty per-extension folders
+     * all survive serialize/deserialize with their tree shape intact
+     * (the marker-2 child-folder record; roots stay marker-1 so old
+     * readers load old files unchanged). */
+    tree::ResultTree t;
+    auto* rec = t.add_root(u"Reconstructed");
+    static const char* const kCats[] = {"Pictures", "Documents", "Archives", "Videos",
+                                        "Audio",    "Emails",    "Others"};
+    for (const char* cat : kCats)
+        (void)t.add_folder(rec, text::utf8_to_u16(cat));
+    auto* grp = t.add_folder(rec, u" (H:)");
+    ASSERT_NE(grp, nullptr);
+    auto* jpgf = t.add_folder(grp, u"jpg");
+    ASSERT_NE(jpgf, nullptr);
+    tree::FileProperties* p1 = new tree::FileProperties();
+    p1->name = u"JPG_192x144_000001.JPG";
+    p1->logical_size = 519;
+    p1->carve_format = 0;
+    p1->carve_confidence = 900;
+    p1->extents.push_back({4096, 519});
+    auto* f1 = t.add_file(grp, p1);
+    p1->release();
+    f1->set_origin(tree::Origin::Carved);
+    f1->set_deleted_state(tree::DeletedState::Deleted);
+
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), OK);
+    EXPECT_GT(blob.size(), 100u);
+
+    tree::ResultTree t2;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), OK);
+    EXPECT_EQ(t2.node_count(), t.node_count());
+    tree::FullNode* rec2 = nullptr;
+    for (tree::FileNode* r : t2.roots())
+        if (r->is_full() && static_cast<tree::FullNode*>(r)->role == u"Reconstructed")
+            rec2 = static_cast<tree::FullNode*>(r);
+    ASSERT_NE(rec2, nullptr) << "the Reconstructed root reloads as a root";
+    /* the 7 skeleton folders + the group child + the ext folder + the file */
+    int folders = 0, files = 0;
+    tree::FullNode* grp2 = nullptr;
+    tree::FullNode* jpgf2 = nullptr;
+    for (tree::FileNode* c = rec2->first_child(); c; c = c->next_sibling()) {
+        if (c->is_full()) {
+            ++folders;
+            tree::FullNode* f = static_cast<tree::FullNode*>(c);
+            if (f->role == u" (H:)")
+                grp2 = f;
+        } else {
+            ++files;
+            ADD_FAILURE() << "no file directly under Reconstructed in this fixture";
+        }
+    }
+    EXPECT_EQ(folders, 8) << "7 skeleton folders + the volume group child";
+    ASSERT_NE(grp2, nullptr) << "the group child reloads as a CHILD (marker 2)";
+    int g_files = 0, g_folders = 0;
+    for (tree::FileNode* c = grp2->first_child(); c; c = c->next_sibling()) {
+        if (c->is_full()) {
+            ++g_folders;
+            if (static_cast<tree::FullNode*>(c)->role == u"jpg")
+                jpgf2 = static_cast<tree::FullNode*>(c);
+        } else {
+            ++g_files;
+            EXPECT_EQ(c->name_utf8(), "JPG_192x144_000001.JPG");
+            EXPECT_EQ(c->origin(), tree::Origin::Carved);
+        }
+    }
+    EXPECT_EQ(g_files, 1) << "the carved file stays under its volume group";
+    EXPECT_EQ(g_folders, 1) << "the empty per-ext folder survives";
+    ASSERT_NE(jpgf2, nullptr);
+    EXPECT_EQ(jpgf2->first_child(), nullptr) << "the ext folder stays EMPTY";
+}
+
 TEST(Crsf, VolumeInfoIdentityCardRoundTrip) {
     VolumeInfo vi;
     vi.fs_kind = 3;
@@ -1632,4 +1708,54 @@ TEST(Session, LoadSessionSummaryPropagatesProgressAndCancel) {
                                                                  load_progress_counter, &st2),
               u32(ERR_CANCELLED));
     EXPECT_LT(st2.calls, nodes2);
+}
+
+TEST(Crsf, LostDirFoldersRoundTrip) {
+    /* M-103: the synthetic LostDir folders persist as ordinary child
+     * nodes (the marker-2 record) and reload with the tree shape intact
+     * - the og's real sessions carry them as real nodes (398 folders in
+     * the H session), so the round-trip must preserve the grouping. */
+    tree::ResultTree t;
+    auto* lost = t.add_root(u"File Path Lost");
+    ASSERT_NE(lost, nullptr);
+    auto* d5000 = t.add_folder(lost, u"LostDir5000");
+    auto* d7000 = t.add_folder(lost, u"LostDir7000");
+    ASSERT_NE(d5000, nullptr);
+    ASSERT_NE(d7000, nullptr);
+    const char* names[] = {"orphan-a1.txt", "orphan-a2.txt", nullptr};
+    for (const char** p = names; *p; ++p) {
+        tree::FileProperties* fp = new tree::FileProperties();
+        fp->name = text::utf8_to_u16(*p);
+        fp->logical_size = 100;
+        fp->fs_kind = u32(FsKindCode::Ntfs);
+        auto* f = t.add_file(d5000, fp);
+        fp->release();
+        ASSERT_NE(f, nullptr);
+        f->set_origin(tree::Origin::Lost);
+        f->set_deleted_state(tree::DeletedState::Deleted);
+    }
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), OK);
+    tree::ResultTree t2;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), OK);
+    EXPECT_EQ(t2.node_count(), t.node_count());
+    tree::FullNode* lost2 = nullptr;
+    for (tree::FileNode* r : t2.roots())
+        if (r->is_full() && static_cast<tree::FullNode*>(r)->role == u"File Path Lost")
+            lost2 = static_cast<tree::FullNode*>(r);
+    ASSERT_NE(lost2, nullptr) << "the renamed root reloads";
+    int folders = 0, files = 0;
+    tree::FullNode* d5000_2 = nullptr;
+    for (tree::FileNode* c = lost2->first_child(); c; c = c->next_sibling()) {
+        if (c->is_full()) {
+            ++folders;
+            if (static_cast<tree::FullNode*>(c)->role == u"LostDir5000")
+                d5000_2 = static_cast<tree::FullNode*>(c);
+        }
+    }
+    EXPECT_EQ(folders, 2) << "both LostDir folders survive the round-trip";
+    ASSERT_NE(d5000_2, nullptr);
+    for (tree::FileNode* c = d5000_2->first_child(); c; c = c->next_sibling())
+        ++files;
+    EXPECT_EQ(files, 2) << "the grouped children stay under their folder";
 }

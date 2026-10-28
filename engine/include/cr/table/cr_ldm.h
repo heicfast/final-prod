@@ -27,9 +27,12 @@
  *     class family is CONFIRMED PRESENT (SimpleVolumeStorage,
  *     SpanVolumeStorage, StripeVolumeStorage, MirrorVolumeStorage,
  *     Raid5VolumeStorage incl. ComputeDataWithOtherDisk - a crash-site
- *     string). LDM-1 honesty note: `WriteParityDisk` is NOT findable in
- *     the decompile, and the og's RAID-5 parity rotation is UNDECODED -
- *     our raid5_ls layout is the libldm verdict, not an og-parity claim.
+ *     string). LDM-1 note (OQ-T7 RESOLVED, N-148 re-pinned): the RAID-5
+ *     parity rotation was decoded - left-symmetric, hardwired, IDENTICAL
+ *     to our raid5_ls layout (the evidence record:
+ *     diff-to-fix/evidence/decompiled-quotes/ldm-raid5-and-scoring.md
+ *     :8-34; the comparison at cr_ldm.cpp:1346-59). The layout is both
+ *     the libldm verdict AND an og-parity MATCH.
  *
  * Divergences (documented, deliberate):
  *   - The kernel's cmp3 "chunksize" reads the first vnum after the

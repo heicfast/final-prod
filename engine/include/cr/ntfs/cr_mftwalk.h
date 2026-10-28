@@ -11,7 +11,8 @@
  *     gets the viability walk (corpus gate), graded per fix F5
  *   - hard links: node per parent ref, shared props (corpus refcount model)
  *   - named $DATA -> ADS child nodes
- *   - orphan parents -> "Lost Files" root (post-format salvage, R2.5)
+ *   - orphan parents -> the "File Path Lost" root, grouped per dead parent under
+ *   synthetic LostDir<record> folders (M-103; post-format salvage, R2.5)
  *
  * Licensed under the MIT license. See LICENSE.
  */

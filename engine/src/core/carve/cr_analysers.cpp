@@ -1368,8 +1368,8 @@ static CarveResult zip_common(IStorageDevice* s, u64 hit, u64 cap, bool office) 
         u8 nmbuf[512];
         u64 pos = hit;
         const u64 wl = probe_limit(s, hit, cap);
-            const u64 wb = hit + (u64(256) << 10);
-            const u64 walk_limit = wb < wl ? wb : wl;
+        const u64 wb = hit + (u64(256) << 10);
+        const u64 walk_limit = wb < wl ? wb : wl;
         for (int ent = 0; ent < 32 && pos + 30 <= walk_limit; ++ent) {
             u8 lfh[30];
             if (!rd(s, pos, lfh, 30) || std::memcmp(lfh, "PK\x03\x04", 4) != 0)
@@ -1377,10 +1377,10 @@ static CarveResult zip_common(IStorageDevice* s, u64 hit, u64 cap, bool office) 
             const u16 method = u16(lfh[8]) | (u16(lfh[9]) << 8);
             const u16 nlen = u16(lfh[26]) | (u16(lfh[27]) << 8);
             const u16 elen = u16(lfh[28]) | (u16(lfh[29]) << 8);
-            u32 csize = u32(lfh[18]) | (u32(lfh[19]) << 8) | (u32(lfh[20]) << 16) |
-                        (u32(lfh[21]) << 24);
-            u32 usize = u32(lfh[22]) | (u32(lfh[23]) << 8) | (u32(lfh[24]) << 16) |
-                        (u32(lfh[25]) << 24);
+            u32 csize =
+                u32(lfh[18]) | (u32(lfh[19]) << 8) | (u32(lfh[20]) << 16) | (u32(lfh[21]) << 24);
+            u32 usize =
+                u32(lfh[22]) | (u32(lfh[23]) << 8) | (u32(lfh[24]) << 16) | (u32(lfh[25]) << 24);
             if (nlen == 0 || nlen > sizeof(nmbuf))
                 break; /* not a name-bearing entry the walk understands */
             if (!rd(s, pos + 30, nmbuf, nlen))
@@ -1398,14 +1398,13 @@ static CarveResult zip_common(IStorageDevice* s, u64 hit, u64 cap, bool office) 
                 typed = FMT_XLSX;
             else if (std::strcmp(nm, "ppt/_rels/presentation.xml.rels") == 0)
                 typed = FMT_PPTX;
-            else if (nlen >= 5 && std::memcmp(nm, "word", 4) == 0 && typed == 0 &&
-                     content_types)
+            else if (nlen >= 5 && std::memcmp(nm, "word", 4) == 0 && typed == 0 && content_types)
                 typed = FMT_DOCX; /* the og's word-prefix fallback */
             /* the name-tag set (no decompression needed) */
             else if (std::strcmp(nm, "content/riffData.cdr") == 0)
                 typed = FMT_CDR;
-            else if ((nlen > 6 && std::memcmp(nm, "Index/", 6) == 0 &&
-                      nlen > 10 && std::memcmp(nm + nlen - 4, ".iwa", 4) == 0) ||
+            else if ((nlen > 6 && std::memcmp(nm, "Index/", 6) == 0 && nlen > 10 &&
+                      std::memcmp(nm + nlen - 4, ".iwa", 4) == 0) ||
                      std::strcmp(nm, "index.apxl") == 0)
                 typed = FMT_IWORK;
             else if (std::strcmp(nm, "OPS/chapter1.html") == 0)
@@ -1419,12 +1418,11 @@ static CarveResult zip_common(IStorageDevice* s, u64 hit, u64 cap, bool office) 
                 if (method == 0 && csize <= sizeof(content)) {
                     if (csize != 0 && rd(s, dpos, content, csize))
                         got = csize;
-                } else if (method == 8 && csize <= 0x2800 && usize != 0 &&
-                           usize <= 0x2800 && csize != 0xFFFFFFFFu) {
+                } else if (method == 8 && csize <= 0x2800 && usize != 0 && usize <= 0x2800 &&
+                           csize != 0xFFFFFFFFu) {
                     u8 comp[0x2800];
                     if (rd(s, dpos, comp, csize) &&
-                        compress::decompress_block(compress::kGzip, comp, csize, content,
-                                                   usize))
+                        compress::decompress_block(compress::kGzip, comp, csize, content, usize))
                         got = usize;
                 }
                 content[got] = 0;
@@ -3627,10 +3625,9 @@ CarveResult validate_html(IStorageDevice* s, u64 hit, u64 cap) {
  * FUN_180041880). Size: the </svg> family end-tag walk (the
  * .data 0x180093950 string) - the two-case scan, 1 MiB cap, NO sector
  * round-up (FUN_180041950's tail sets the size verbatim; the HTML twin
- * FUN_180042e60 is the round-up exception). Residual (recorded, the
- * M-106 stand-in discipline): the walker's 0x44c branch (the CSL
- * size = dword@0x44c + 0x480 for files long enough to span it) is
- * decoded only partially and stays unported. */
+ * FUN_180042e60 is the round-up exception). The walker's 0x44c branch
+ * (the CD01-key leg's own size field, dword@0x44c + 0x480 within the
+ * cap) LANDED with M-112 - see the branch below. */
 CarveResult validate_xmlsvg(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
     u8 win[513];
@@ -3663,6 +3660,39 @@ CarveResult validate_xmlsvg(IStorageDevice* s, u64 hit, u64 cap) {
     }
     if (!svg && !generic_xml)
         return r;
+    /* M-112: the og's CSL size branch (FUN_180041950 :49749-49828, the
+     * Brance::SVGAnalyser walker's CD 01 00 00 leg - the DAT_180093918
+     * latch, first-hand + binary-dumped this session: the constant IS
+     * 0x1CD): when the file spans offset 0x44c with the full dword
+     * in-window, the LE dword there + 0x480 IS the extent (assigned
+     * verbatim at +0x10), gated by the family cap (the SVGRawFileInfo
+     * ctor's +0x118 = 0x100000, FUN_180041880 :17291-17306 - the
+     * finding's open question closed by the ctor read). FINDING-TEXT
+     * CORRECTION: the branch belongs to the CD 01 00 00 KEY leg, which
+     * the PROBE stamps 0x5b (DAT_180093940 = 0x1CD, the same dword) -
+     * NOT to the "csl"-content strstr leg (id 0x13, whose first dword
+     * is "<?xm" and never fires the walker's latch). The override keeps
+     * the probe's stamp. Declination (short file / out-of-cap / zero
+     * result) falls to the end-tag walk exactly as the og's pending
+     * model retries other sizing. */
+    if (n >= 4 && u32_from_bytes_le(win) == 0x000001cdu) {
+        const u64 avail = s->size() > hit ? s->size() - hit : 0;
+        if (avail >= 0x450) {
+            u8 f[4];
+            if (rd(s, hit + 0x44c, f, sizeof(f))) {
+                const u64 field_size = u64(u32_from_bytes_le(f)) + 0x480;
+                if (field_size != 0 && field_size <= cap) {
+                    const u64 limit0 = probe_limit(s, hit, cap);
+                    r.ok = true;
+                    r.end = std::min(hit + field_size, limit0);
+                    r.format_override = u32(FMT_SVG); /* the probe's stamp for the CD01 key: 0x5b */
+                    r.confidence = 700;
+                    r.note = "csl-sizefield@0x44c";
+                    return r;
+                }
+            }
+        }
+    }
     const u64 limit = probe_limit(s, hit, cap); /* cap = 1 MiB */
     const u64 marker_end = scan_tag_two_case(s, hit, limit, "</svg>");
     /* the og stamps the FORMAT ID at the probe (id 0x5b vs 0x13 depends
@@ -4374,7 +4404,11 @@ CarveResult validate_fh11(IStorageDevice* s, u64 hit, u64 cap) {
     r.ok = true;
     r.confidence = 700;
     /* CZeroEndRawFileInfo: no size grammar - bounded extent (the
-     * family's salvage posture over the zero-end semantics) */
+     * family's salvage posture over the zero-end semantics). N-146: the
+     * stand-in is REGISTERED (M-107's enumeration, the twelfth site - the
+     * zero-end class; the D-101 stateless-architecture decline covers the
+     * og's pending-object zero-end metric) and PINNED
+     * (Carve.Fh11BoundedExtentPinned holds the exact 32 MiB). */
     const u64 limit = probe_limit(s, hit, cap);
     u64 end = hit + (32ull << 20); /* FH11 documents are small-to-medium */
     if (end > limit)
@@ -5376,7 +5410,10 @@ CarveResult validate_eps(IStorageDevice* s, u64 hit, u64 cap) {
     if (h[0] != '%' || h[1] != '!' || h[2] != 'P' || h[3] != 'S')
         return r;
     r.ok = true;
-    r.end = std::min(hit + u64(16 << 20), probe_limit(s, hit, cap));
+    /* N-148: 64 MiB - the M-107-verified stand-in shape (the registry
+     * row and the finding's "all eleven at 64 MiB"; the 16 MiB drift
+     * made the validator 4x tighter than its own row) */
+    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
     r.confidence = 620;
     r.note = "postscript-covenant+bounded-extent";
     return r;
@@ -5397,7 +5434,9 @@ CarveResult validate_ai(IStorageDevice* s, u64 hit, u64 cap) {
     if (v < 1 || v > 64)
         return r; /* AI format versions 2..10 */
     r.ok = true;
-    r.end = std::min(hit + u64(16 << 20), probe_limit(s, hit, cap));
+    /* N-148: 64 MiB - the M-107-verified stand-in shape (the row
+     * re-pinned with it; was 16 MiB) */
+    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
     r.confidence = 620;
     r.note = "ai-version-gate+bounded-extent";
     return r;
@@ -5406,18 +5445,63 @@ CarveResult validate_ai(IStorageDevice* s, u64 hit, u64 cap) {
 /* DXF: "  0\r" key 0x0d302020 (:5555) -> CDXF chain (g146+g144, idx
  * 25) - first-hand: DXF is a KEYED u32 format (the census's list-layer
  * label corrected). The ASCII group-code covenant "  0\r\nSECTION"
- * extends the key; bounded extent stands in for the text walk. */
+ * extends the key; bounded extent stands in for the text walk.
+ * N-152: the og's probe (FUN_1800376f0 :42240-42290, re-read first-hand)
+ * ALSO enters through the u16 "99" key 0x3939 (the 999-comment entry -
+ * :2722-2733's registry binding, the same CDXF chain idx 0x19): a file
+ * starting "999\n" or "999\r\n" (the DXF group-code-999 free-form
+ * comment convention) is accepted when the section pattern follows -
+ * the LF form "  0\nSECTION\n  " (14 bytes) after "999\n", the CRLF
+ * form "  0\r\nSECTION\r\n  " (16 bytes) after "999\r\n". The scan
+ * walks forward from the comment (the og's byte-by-byte memcmp loop
+ * :42277-42293) and breaks at the first NUL byte (the og's loop
+ * guard). The scan window here is bounded at 4 KiB (the comment-to-
+ * SECTION span in real CAD exports is tens of bytes; the og scans its
+ * full probe window - the bound is this port's documented posture). */
 CarveResult validate_dxf(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
-    u8 h[12];
+    u8 h[8];
     if (!rd(s, hit, h, sizeof(h)))
         return r;
-    if (std::memcmp(h, "  0\r\nSECTION", 8) != 0)
+    bool ok = std::memcmp(h, "  0\r\nSECTION", 8) == 0;
+    const char* note = "dxf-group-code-covenant+bounded-extent";
+    if (!ok) {
+        /* the 999-comment entry key's branch */
+        u8 c[5];
+        if (!rd(s, hit, c, sizeof(c)))
+            return r;
+        const bool lf_comment = c[0] == '9' && c[1] == '9' && c[2] == '9' && c[3] == '\n';
+        const bool crlf_comment =
+            c[0] == '9' && c[1] == '9' && c[2] == '9' && c[3] == '\r' && c[4] == '\n';
+        if (lf_comment || crlf_comment) {
+            static const char kPatLf[] = "  0\nSECTION\n  ";
+            static const char kPatCrLf[] = "  0\r\nSECTION\r\n  ";
+            const char* pat = lf_comment ? kPatLf : kPatCrLf;
+            const size_t plen = lf_comment ? sizeof(kPatLf) - 1 : sizeof(kPatCrLf) - 1;
+            constexpr u64 kScan = 4096;
+            u8 win[kScan];
+            const u64 avail =
+                std::min<u64>(kScan, s->size() > hit ? s->size() - hit : 0);
+            if (avail >= plen && rd(s, hit, win, u32(avail))) {
+                for (u64 i = 0; i + plen <= avail; ++i) {
+                    if (win[i] == 0)
+                        break; /* the og's NUL guard */
+                    if (std::memcmp(win + i, pat, plen) == 0) {
+                        ok = true;
+                        break;
+                    }
+                }
+            }
+            if (ok)
+                note = "dxf-999-comment-entry+section-scan";
+        }
+    }
+    if (!ok)
         return r;
     r.ok = true;
     r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
     r.confidence = 620;
-    r.note = "dxf-group-code-covenant+bounded-extent";
+    r.note = note;
     return r;
 }
 
@@ -5647,6 +5731,125 @@ CarveResult validate_3ds_ncsd(IStorageDevice* s, u64 hit, u64 cap) {
     r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
     r.confidence = 620;
     r.note = "3ds-ncsd-list-layer+bounded-extent";
+    return r;
+}
+
+/* ---- M-121: Outlook Express Dbx (RawSpeed::DbxAnalyser, id 0x15=21; the
+ * renumber chain M-117 -> M-118 -> M-121 per SA-9) ----
+ * The og registers THREE magic keys (the static initializer
+ * RAWSearchDLL_decompiled.c:2192-2232, each node stamped idx 0x15):
+ *   "JMF6" 0x36464d4a / CF AD 12 FE 0xfe12adcf / F7 89 34 2C 0x2c3489f7.
+ * The identity probe (FUN_180016740 :17509-17562) stamps id 0x15 iff
+ * the 16-byte window is one of:
+ *   - the JMF6 versioned form: first u64 == 0x0100003_36464d4a
+ *     ("JMF6" + 03 00 10 00);
+ *   - one of FOUR Outlook Express store GUIDs (the stack table
+ *     :17529-17541): {fe12adcf, 6f74fdc5|c6|c7, 11d1e366, c0004e9a}
+ *     (three generations) or {fe12adcf, 26fe9d30, 11d21a8f, 6000bfaa};
+ *   - the marked 16-byte pattern {2c3489f7, 6deef0f7, d18922af,
+ *     b0f0ff00}.
+ * The size pass (FUN_180016950, disassembly-verified at
+ * 0x180016950-0x180016ac0): the FIRST Analyse call re-checks the marked
+ * pattern and latches it (the ctor's u16@+0x118 = 0x100 = the probe-once
+ * flag pair); the plain forms size from u32@+0x7C (`mov 0x7c(%rdx),%eax`);
+ * the marked form (gate: >8 valid window bytes) walks
+ * size = (cur_sector - match_sector) * sector + FUN_180042b30(window,
+ * sector) - the pending-object recompute adapted to the core's one-shot
+ * validator as the walk below (D-101's registered stateless convention).
+ * FUN_180042b30 (Ghidra + retdec + simulation cross-pinned this session):
+ * 0 on an all-zero window, else the non-zero prefix ROUNDED UP TO EVEN
+ * (prefix 1->2, 2->2, 3->4 ... 511->512; the bisection's mid+1 landing).
+ * The marked form's 272-byte name buffer is memset-0-then-copied
+ * (disasm 0x180016a16 memset -> 0x180016a1b walk): the embedded name is
+ * EMPTY - the og emits no content prefix, and the S-049 default names
+ * the row (DBX_%06d.DBX). */
+CarveResult validate_dbx(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[16];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    const u64 lo = u64_from_bytes_le(h);
+    const u64 hi = u64_from_bytes_le(h + 8);
+    enum Form { FORM_NONE, FORM_JMF6, FORM_PLAIN, FORM_MARKED } form = FORM_NONE;
+    if (lo == 0x0010000336464d4aULL) { /* "JMF6"+03 00 10 00 (disasm 0x180016766/0x18001676f: movl $0x36464d4a + movl $0x00100003 - the parallel lane's reading, confirmed; my first landing's 03 00 01 00 was a literal-expansion error) */
+        form = FORM_JMF6; /* "JMF6" + 03 00 10 00 */
+    } else {
+        /* the four OE store GUIDs (the probe's stack table) */
+        static const u64 kGuids[4][2] = {
+            {0x6f74fdc5fe12adcfULL, 0xc0004e9a11d1e366ULL},
+            {0x6f74fdc6fe12adcfULL, 0xc0004e9a11d1e366ULL},
+            {0x6f74fdc7fe12adcfULL, 0xc0004e9a11d1e366ULL},
+            {0x26fe9d30fe12adcfULL, 0x6000bfaa11d21a8fULL},
+        };
+        for (const auto& g : kGuids) {
+            if (lo == g[0] && hi == g[1]) {
+                form = FORM_PLAIN;
+                break;
+            }
+        }
+        if (form == FORM_NONE && lo == 0x6deef0f72c3489f7ULL && hi == 0xb0f0ff00d18922afULL)
+            form = FORM_MARKED;
+    }
+    if (form == FORM_NONE)
+        return r; /* magic without a table identity: the probe rejects */
+    if (form == FORM_JMF6 || form == FORM_PLAIN) {
+        /* size = the DBX's own self-declared u32 @ +0x7C */
+        u8 sz[4];
+        if (!rd(s, hit + 0x7C, sz, sizeof(sz)))
+            return r; /* the og's >=512-byte window always covers it */
+        u64 size = u64(u32_from_bytes_le(sz));
+        if (size < 0x80)
+            return r; /* below the size field's own read bound */
+        const u64 limit = probe_limit(s, hit, cap);
+        if (size > limit - hit)
+            size = limit - hit; /* the PST family precedent: clamp, not drop */
+        r.ok = true;
+        r.end = hit + size;
+        r.confidence = form == FORM_JMF6 ? 780 : 800;
+        r.note = form == FORM_JMF6 ? "dbx-jmf6+size@0x7c" : "dbx-guid+size@0x7c";
+        return r;
+    }
+    /* the marked form: FUN_180016950's walk, one-shot form. The og
+     * recomputes size per scan window; the terminal value is the
+     * distance to the first all-zero sector (FUN_180042b30 -> 0), or
+     * distance + the even-rounded non-zero prefix while content runs.
+     * Walk sector windows from the hit; keep the last computed extent;
+     * bound by the row cap (probe_limit). */
+    const u64 ssz =
+        s->geometry().logical_sector >= 512 ? s->geometry().logical_sector : 512;
+    const u64 limit = probe_limit(s, hit, cap);
+    std::vector<u8> win(size_t(ssz), 0);
+    u64 end = hit + 16; /* the pattern itself: the first window's floor */
+    u64 p = hit;
+    while (p + ssz <= limit) {
+        if (!rd(s, p, win.data(), u32(ssz)))
+            break; /* keep the last computed extent (the og's window miss) */
+        /* FUN_180042b30: all-zero window -> 0; else the non-zero prefix
+         * rounded up to even (the bisection's mid+1 landing) */
+        size_t last = 0;
+        bool any = false;
+        for (size_t i = 0; i < win.size(); ++i)
+            if (win[i] != 0) {
+                any = true;
+                last = i;
+            }
+        if (!any) {
+            end = p; /* the all-zero window: size = the distance alone */
+            break;
+        }
+        size_t ext = last + 1;
+        ext += ext & 1; /* round up to even (FUN_180042b30's landing) */
+        if (ext > win.size())
+            ext = win.size();
+        end = p + ext;
+        p += ssz;
+    }
+    if (end <= hit)
+        return r;
+    r.ok = true;
+    r.end = std::min(end, limit);
+    r.confidence = 700;
+    r.note = "dbx-marked-zero-walk";
     return r;
 }
 

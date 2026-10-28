@@ -45,17 +45,11 @@ std::string ext_of(const std::string& name) {
 }
 
 Category cat_of(const std::string& name) {
-    const std::string e = ext_of(name);
-    if (e.empty())
-        return Category::Other;
-    const filefilter_data::ExtCat* first = filefilter_data::kEntries;
-    const filefilter_data::ExtCat* last = first + filefilter_data::kCount;
-    const filefilter_data::ExtCat* it = std::lower_bound(
-        first, last, e.c_str(),
-        [](const filefilter_data::ExtCat& m, const char* key) { return strcmp(m.ext, key) < 0; });
-    if (it != last && strcmp(it->ext, e.c_str()) == 0)
-        return it->cat;
-    return Category::Other;
+    /* N-126: delegate to category_for_extension - ONE source of truth
+     * for the extension -> category mapping (the pre-fix duplicate
+     * lookup desynced the moment the overlay landed: the filter path
+     * missed the Unsaved rows the public classifier returned). */
+    return category_for_extension(ext_of(name));
 }
 
 bool contains_ci(const std::string& hay, const std::string& needle) {
@@ -136,7 +130,7 @@ bool passes(const Filter& f, const tree::FileNode* n, const tree::FileProperties
         return false;
     if ((f.origin_mask & (1u << u32(n->origin()))) == 0)
         return false;
-    if (f.category_mask != 0x1FF || !f.extensions.empty() || !f.name_substring.empty()) {
+    if (f.category_mask != 0x3FF || !f.extensions.empty() || !f.name_substring.empty()) {
         const std::string name = n->name_utf8();
         cat_out = cat_of(name);
         if ((f.category_mask & (1u << u32(cat_out))) == 0)
@@ -195,6 +189,19 @@ Category category_for_extension(const std::string& ext_utf8) {
     const std::string e = lower_ascii(ext_utf8);
     if (e.empty())
         return Category::Other;
+    /* N-126: the og's "Unsaved File" category - the office
+     * unsaved-document family. The corpus decodes the Word autosave/
+     * backup pair (.asd/.wbk); the og's full membership table (the
+     * office tmp forms, the ~-prefixed locks) is not decoded anywhere
+     * in the corpus (the R-27 assistant space carries only the six
+     * 5-0xB categories; the UI's type-mask bit 6 owns the axis) - the
+     * overlay carries the decoded subset ahead of the generated
+     * FileFilter table (which has no autosave rows: the og's
+     * FileFilter.xml carries none either - the category is a UI-layer
+     * classification over engine results, which is why the overlay -
+     * not the generated table - is the right seam). */
+    if (e == "asd" || e == "wbk")
+        return Category::Unsaved;
     const filefilter_data::ExtCat* first = filefilter_data::kEntries;
     const filefilter_data::ExtCat* last = first + filefilter_data::kCount;
     const filefilter_data::ExtCat* it = std::lower_bound(

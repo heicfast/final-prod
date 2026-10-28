@@ -110,3 +110,49 @@ divergence block; `Storage.ParityDeltasListsNasExclusion` pins both
 artifacts. The IStorageDevice contract itself is transport-agnostic
 and remains open to an SMB-backed host device — the Q54/Q55/A8
 verdicts: MATCH-by-registered-scope-exclusion.
+
+---
+
+## Session-12 continuation row (2026-10-29, audited `c7fa527c`, corpus `be0cfe9`)
+
+**M-119 (MAJOR — NEW; renumbered from this lane's M-113 filing at the post-rebase ID reconciliation):** partition-boundary read semantics — the og's
+CBasicPartitionDevice read wrapper (RTTI-confirmed, DRWUI_decompiled.c:183633-183666)
+CLAMPS a past-end read to the in-bounds prefix, ZERO-FILLS the tail, and returns
+success (the `"i64CountofSectors - i64RealReadSector = %I64d"` diagnostic fired in
+the real-run log at DRWUI.log:638 — the probe continued and the partition was
+found). The core's `PartitionSlice::read_at` (cr_slice.cpp:46-49) returns
+ERR_RANGE_OUT_OF_BOUNDS, and `PartitionSlice::create` (:25-28) REFUSES the whole
+slice on declared-length overrun — which the CLI partition open (rrecov.cpp:2973-2978,
+raw table length → "cannot slice partition" abort) and both cr_ui volume opens
+(:1372/:1456, ERR_OPEN_FAILED) pass raw. The discovery's own `materialize()`
+(cr_candidates.cpp:493-501) already clamps ragged tails — the internal
+inconsistency. F60/B6/E23/X51 verdict: **DIVERGENCE-MAJOR** pending the
+create-clamp + read-clamp pass (read-side only; the write path keeps hard bounds —
+the fix plan's fence test). Evidence:
+`evidence/decompiled-quotes/s12-partition-read-clamp.md`.
+
+---
+
+## Session-42 S42 addendum (2026-10-29 — the bad-sector skip constants + the Ldq ladder; the DefaultLog real-run decode)
+
+`evidence/decompiled-quotes/s42-defaultlog-ldq-decode.md` (the three classes DefaultLog.txt
+carries that no prior lane had dispositioned — zero trail hits at this lane's open):
+
+- **The Ldq read-parameter ladder** (DRWUI :180139-180160): three refuse classes
+  (negative start/count; count ≥ 4 GiB-of-sectors; start ≥ device size) + the over-long
+  CLAMP + the error-path zero-fill — **M-119's addendum** (its finding file carries the
+  sharpened acceptance; the 393 real-run refusals corroborate that the og's scan layers
+  over-read routinely and the transport's refuse-with-log is normal operation).
+- **The bad-sector skip machinery's constants** (:179930-180080): 2 MiB initial span,
+  read size doubling every 3 steps capped 64 MiB, inner per-granularity skip above
+  4 MiB, ERROR_CRC (0x163) trigger, the 80 MiB-skipped UI-message gate (once-only),
+  skip-range recording into the device's bad map, 1 GiB total-skip break. **REGISTER —
+  mechanism-divergent (skip-forward-with-backoff) vs the core's bisection
+  (`cr_retry.h`), outcome-equivalent** (sector-granularity isolation, zero-fill, the
+  recorded map, the BadSectorTip state per FB-O03). No finding: the user-observable
+  matches.
+- **The recovery-write failure observable**: one real-run
+  `Failed to write file! CFileRecoverWorker::ReadAndWriteDataRunList 1515` — the
+  per-file failure log with function+line; the core's SafeWriter records per-item
+  per-extent failures into the report (the S-052 model). Register datum (the N-048
+  log-census family).

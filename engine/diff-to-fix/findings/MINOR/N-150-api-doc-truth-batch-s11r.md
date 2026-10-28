@@ -52,3 +52,69 @@ N-132 (the false-landed triplet — same sweep; its R-31:225 item is NOT re-file
 ## Open questions
 
 None. Every site verified read-level at the current HEAD.
+
+## Session-42 addendum (2026-10-29, audited `869da779` — the fix-wave-stale extension)
+
+The fix wave since N-150's last verification (M-072/M-074/M-077/N-098/M-109/M-023's
+full-taxonomy landing/S-038 installer/OQ-SA-1 dwords + the S-051/S-052/S-053/S-054
+engine landings) re-staled the register in BOTH directions faster than the finding's
+original fix plan (never executed) could land. The S42 core-currency pass re-verified
+the board first-hand; the newly-stale set:
+
+**Newly-stale in the underclaiming direction (feature landed, register says absent):**
+
+1. **API-DELTA §5.2 S3-W2a (:252)** — "substring/state axes ABSENT" → **landed (M-072)**:
+   `cr_ui.h:1026` (`path_substring`) / `:1028` (`state_mask`), verified this session.
+2. **API-DELTA §5.2 S3-W3a (:254)** — "`ERR_DEST_*` family has no path-too-long /
+   invalid-path / network-classification codes" → **landed (M-074)**:
+   `cr_error.h:67-69` (ERR_DEST_PATH_TOO_LONG/_PATH_INVALID/_NETWORK).
+3. **API-DELTA §5.2 S3-W4a (:258)** — preview Caps "no shipped defaults
+   (zero-init = uncapped today)" → **landed (M-077)**: `cr_preview.h`'s shipped
+   100 MiB/15 s defaults (FIXED-LEDGER :348).
+4. **API-DELTA §5.2 S3-W3c (:256)** — "the header contract sentence" → **landed (N-098)**:
+   the refresh-contract sentence at `cr_ui.h:476-482`.
+5. **API-DELTA row 10 (:50)** — the "6 hard-coded categories / ~90 ext (M-023 engine
+   scope)" caveat → stale: the full FileFilter.xml taxonomy landed
+   (`cr_filefilter_data.cpp`, 8 categories / 1,481 unique extensions).
+6. **API-DELTA row 22 (:73)** — the "scoring parity M-017 engine scope" caveat →
+   stale (M-017 FIXED, FIXED-LEDGER :120).
+7. **§3 S-038 (:132-134)** — "steps 2-4 queued for the packaging lane" → stale: the
+   installer landed (`installer/core-recovery.iss`, `run-gates.ps1`).
+8. **§3 OQ-SA-1 (:140)** — listed as remaining → stale: the NTFS/FAT dwords landed
+   (`cr_node.h:188` `fat_origin_cluster`, `:216` `ntfs_origin_lcn`).
+
+**Newly-found defect sites (the original filing's classes, new instances post-dating it):**
+
+9. **The phantom macro** — `cr_ui.h:328/:407/:418/:421` cite
+   `CR_UI_ERR_FVE_LOCKED (0x50060001)` in four comment contracts; the macro is never
+   `#define`d anywhere (the real name is `ERR_FVE_LOCKED`, `cr_error.h:72`). The same
+   class as the fixed `cr_ui.h:916` `CR_UI_ERR_INVALID_PARAM` instance (API-DELTA
+   row 32).
+10. **The dead duplicate `--label` handler** — `src/app/rrecov.cpp` parses `--label`
+    at `:1398` (the N-016b U+FFFD-rule copy) AND again at `:1411-1420` (an
+    ASCII-truncating variant, dead because the first `continue`s). The rebase-leftover
+    class (the fixed N-142's sibling); the two copies' semantics DIVERGE (ASCII-only
+    truncation vs the U+FFFD rule), so a future reorder would silently change
+    behavior.
+11. **ABI-CONTRACT §7i (:616)** — "max_read **32 MiB (M-080)**" → stale: M-109
+    re-pinned all four sites to 200 MB; §7i was missed (the finding's own
+    per-site-sweep class).
+12. **The test census** — `docs/testing.md:4` still says "1,014 TEST/TEST_F macros"
+    (the PARITY-FIX-3 count); the actual at HEAD is **1,199** across 61 files (the
+    disclaimer line :5 covers the drift direction but 185 macros of drift is beyond
+    its intent).
+13. **The count sites re-staled** — `docs/API.md:92` "81 exported functions" and
+    `docs/CORE-API-CURRENT.md:12` "78 exports / 34+OK error codes / 10 event types"
+    vs the file's OWN `:38` banner "83 exports" and the actual 83/42+OK/12
+    (`cr_ui.h`'s 86 `CR_UI_API` hits − 3 `#define`s; ABI v3 at `:81`): the M-074
+    +3-error-codes and the M-102 thumbnail exports post-date both docs' last bumps.
+14. **bench/README.md:7-8/:50-53** — cites the deleted
+    `.github/workflows/comparative-bench.yml` in the present tense and names two
+    nonexistent report files (`docs/COMPARATIVE-BENCHMARK.md`,
+    `benchmark-summary.json`); the `doc_truth_gate` scans only docs/ + root README so
+    bench/ escapes it (OQ-S4-3:250-254 registered the same sites).
+
+The fix plan is unchanged (items 1-4 of the original); the sweep's scope grows by
+items 9-14 and the row-annotation set grows by items 1-8. Row 16's overclaim
+(archive-browse MATCH while M-116 is open) is unchanged and still the only
+overclaiming row.

@@ -4587,3 +4587,139 @@ TEST(NtfsVolume, RecycleBinScopeOutOfBinDollarFilesStayRaw) {
     EXPECT_EQ(real_bin->props()->logical_size, 2048u);
     EXPECT_EQ(real_bin->deleted_state(), tree::DeletedState::Deleted);
 }
+
+/* ---- M-103: the og's per-parent-record orphan grouping ---- */
+
+namespace {
+
+/* M-103 fixture helper: the standard image plus orphan records at free
+ * slots (10/11 point at dead parent 5000; 26/27 at dead parent 7000) -
+ * the post-format salvage population (the og's "File Path Lost" branch,
+ * H-session 62.6% of rows). */
+void add_orphan_records(Image& img) {
+    {
+        RecBuilder r;
+        r.header(10, RECORD_IN_USE);
+        r.attr_si(0x20);
+        r.attr_file_name(5000, u"orphan-a1.txt", FILE_NAME_WIN32, 0x20, 100, 512);
+        r.attr_data_resident(u"", 2);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 20), r.buf.data(), RECORD_SIZE);
+    }
+    {
+        RecBuilder r;
+        r.header(11, RECORD_IN_USE);
+        r.attr_si(0x20);
+        r.attr_file_name(5000, u"orphan-a2.txt", FILE_NAME_WIN32, 0x20, 200, 512);
+        r.attr_data_resident(u"", 2);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 22), r.buf.data(), RECORD_SIZE);
+    }
+    {
+        RecBuilder r;
+        r.header(26, RECORD_IN_USE);
+        r.attr_si(0x20);
+        r.attr_file_name(7000, u"orphan-b1.txt", FILE_NAME_WIN32, 0x20, 300, 512);
+        r.attr_data_resident(u"", 2);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 52), r.buf.data(), RECORD_SIZE);
+    }
+    {
+        RecBuilder r;
+        r.header(27, RECORD_IN_USE);
+        r.attr_si(0x20);
+        r.attr_file_name(7000, u"orphan-b2.txt", FILE_NAME_WIN32, 0x20, 400, 512);
+        r.attr_data_resident(u"", 2);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 54), r.buf.data(), RECORD_SIZE);
+    }
+}
+
+tree::FileNode* find_child_by_name(tree::FileNode* parent, const char* utf8) {
+    for (tree::FileNode* c = parent->first_child(); c; c = c->next_sibling())
+        if (c->name_utf8() == utf8)
+            return c;
+    return nullptr;
+}
+
+} // namespace
+
+TEST(NtfsVolume, LostDirGroupsOrphansByParentRecord) {
+    /* M-103: files whose $FILE_NAME parent points at a dead record group
+     * per dead parent under synthetic LostDir<NNNN> folders - ex-siblings
+     * stay together (the og's "LostDir%d", NTFSSearchDLL :48915-24; the
+     * real sessions' File Path Lost/LostDir7206/... shape). Fail-before:
+     * the flat "Lost Files" pool. */
+    Image img;
+    build_image(img);
+    add_orphan_records(img);
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << err_text(err);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"a");
+    auto* rd = tree.add_root(u"d");
+    auto* rl = tree.add_root(u"l");
+    WalkerFlags wf;
+    WalkStats stats;
+    ASSERT_EQ(walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
+              OK);
+    EXPECT_EQ(stats.orphans, 4u) << "all four dead-parent records are orphans";
+    tree::FileNode* d5000 = find_child_by_name(rl, "LostDir5000");
+    tree::FileNode* d7000 = find_child_by_name(rl, "LostDir7000");
+    ASSERT_NE(d5000, nullptr) << "the dead parent 5000 gets its LostDir folder";
+    ASSERT_NE(d7000, nullptr) << "the dead parent 7000 gets its LostDir folder";
+    EXPECT_EQ(find_child_by_name(rl, "orphan-a1.txt"), nullptr)
+        << "no orphan sits FLAT on the lost root (the grouping is mandatory)";
+    EXPECT_EQ(find_child_by_name(rl, "orphan-b1.txt"), nullptr)
+        << "no orphan sits FLAT on the lost root (the grouping is mandatory)";
+    EXPECT_NE(find_child_by_name(d5000, "orphan-a1.txt"), nullptr);
+    EXPECT_NE(find_child_by_name(d5000, "orphan-a2.txt"), nullptr);
+    size_t n5000 = 0;
+    for (tree::FileNode* c = d5000->first_child(); c; c = c->next_sibling())
+        ++n5000;
+    EXPECT_EQ(n5000, size_t(2)) << "ex-siblings stay together";
+    EXPECT_NE(find_child_by_name(d7000, "orphan-b1.txt"), nullptr);
+    EXPECT_NE(find_child_by_name(d7000, "orphan-b2.txt"), nullptr);
+    size_t n7000 = 0;
+    for (tree::FileNode* c = d7000->first_child(); c; c = c->next_sibling())
+        ++n7000;
+    EXPECT_EQ(n7000, size_t(2));
+    EXPECT_EQ(d5000->props()->logical_size, 0u) << "the folder carries no size";
+}
+
+TEST(NtfsVolume, LostDirNameIsRecordNumber) {
+    /* M-103: the og's %d is the dead parent's MFT record number, unpadded
+     * (the real sessions' LostDir7206/LostDir1707/LostDir7507 - record
+     * numbers, never zero-padded). */
+    Image img;
+    build_image(img);
+    {
+        RecBuilder r;
+        r.header(10, RECORD_IN_USE);
+        r.attr_si(0x20);
+        r.attr_file_name(7206, u"pin.txt", FILE_NAME_WIN32, 0x20, 42, 512);
+        r.attr_data_resident(u"", 2);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 20), r.buf.data(), RECORD_SIZE);
+    }
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << err_text(err);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"a");
+    auto* rd = tree.add_root(u"d");
+    auto* rl = tree.add_root(u"l");
+    WalkerFlags wf;
+    WalkStats stats;
+    ASSERT_EQ(walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
+              OK);
+    tree::FileNode* d = find_child_by_name(rl, "LostDir7206");
+    ASSERT_NE(d, nullptr) << "the og's exact real-session name form";
+    EXPECT_EQ(d->name_utf8(), std::string("LostDir7206")) << "unpadded %d form";
+    EXPECT_EQ(find_child_by_name(d, "pin.txt") != nullptr, true);
+    EXPECT_EQ(find_child_by_name(rl, "LostDir07206"), nullptr) << "never zero-padded";
+    EXPECT_EQ(find_child_by_name(rl, "LostDir7206 "), nullptr) << "never suffixed";
+}

@@ -4565,6 +4565,37 @@ TEST(Carve, Fh11RejectsBareKeyBytes) {
     }
 }
 
+TEST(Carve, Fh11BoundedExtentPinned) {
+    /* N-146: the FH11 zero-end stand-in is REGISTERED (M-107's
+     * enumeration + the D-101 stateless-architecture decline) and PINNED:
+     * the og's FUN_180029f30 stamps the CZeroEndRawFileInfo id 0x1d with
+     * NO size walk (re-read first-hand :32612-32633) - the pending-object
+     * engine's zero-end metric carries the extent, a D-101-registered
+     * architecture core deliberately does not port. The stand-in is the
+     * honest 32 MiB cap; this pin holds the constant so it cannot drift
+     * silently (the M-107 pin pattern). */
+    std::vector<u8> img(40ull << 20, 0); /* > 32 MiB past the hit: unclamped */
+    const size_t at = 0x2000;
+    plant_fh11(img, at);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    flags.hash_small_files = false;
+    CarveStats stats;
+    ASSERT_EQ(OK, carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats));
+    tree::FileNode* hit = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->name_utf8().find(".FH11") != std::string::npos)
+            hit = c;
+    ASSERT_NE(hit, nullptr) << "the FH11 header must carve";
+    ASSERT_GE(hit->props()->extents.size(), 1u);
+    EXPECT_EQ(hit->props()->extents[0].length, u64(32ull << 20))
+        << "the zero-end family's stand-in extent is exactly 32 MiB (the registered cap)";
+    EXPECT_EQ(hit->props()->extents[0].offset, u64(at));
+}
+
 TEST(Carve, CptGenerationsDetected) {
     /* all three PhotoPaint generation keys (CPT7/CPT8/CPT9) reach the
      * shared validator; each carves with the pointer-chase extent */
@@ -6000,6 +6031,124 @@ TEST(CarveEngine, FormatDisabledRawSignsToo) {
     EXPECT_GE(stats2.sign_hits, 1u) << "enabled by default: the sample sign fires";
 }
 
+TEST(CarveEngine, FilterExemptSetAlwaysOn) {
+    /* N-149: the og's per-search filter rebuild NEVER removes the
+     * OLE/RIFF/ZIP analysers (the removal loop FUN_180006b30's
+     * keep-condition carries the exempt mask 0x1000801 over id-0x30 -
+     * RAWSearchDLL :4412-4418, the ids 0x30/0x3b/0x48 pinned at the
+     * registry builders). A disable list naming those families leaves
+     * them carving; a non-exempt format on the same list still disables
+     * (the control). */
+    std::vector<u8> img(256 * 1024, 0);
+    plant_jpeg(img, 512);
+    plant_zip(img, 4096, "exempt_archive_v1.txt", 21);
+    plant_ole(img, 16384);
+    /* WAV: the RIFF family's audio form (RIFF....WAVE + fmt + data;
+     * validate_wav requires riff_len >= 36) */
+    std::memcpy(img.data() + 24576, "RIFF", 4);
+    {
+        const u32 total = 4 /*WAVE*/ + 8 + 16 /*fmt*/ + 8 + 2 /*data*/; /* 38 */
+        img[24576 + 4] = u8(total);
+        img[24576 + 5] = u8(total >> 8);
+        img[24576 + 6] = u8(total >> 16);
+        img[24576 + 7] = u8(total >> 24);
+    }
+    std::memcpy(img.data() + 24584, "WAVE", 4);
+    std::memcpy(img.data() + 24588, "fmt ", 4);
+    img[24592] = 16; /* fmt chunk size */
+    img[24596] = 1;  /* PCM */
+    img[24598] = 1;  /* channels */
+    img[24600] = 0x44;
+    img[24601] = 0xAC; /* 44100 LE */
+    img[24604] = 0x10;
+    img[24605] = 0xB1;
+    img[24608] = 2;
+    img[24610] = 16;
+    img[24612] = 'd';
+    img[24613] = 'a';
+    img[24614] = 't';
+    img[24615] = 'a';
+    img[24616] = 2; /* the data chunk's size */
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    flags.disabled_formats = "zip, wav, avi, webp, doc, docx, jpg";
+    CarveStats stats;
+    u32 rc =
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+
+    int zip = 0, ole = 0, wav = 0, jpg = 0;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->origin() == tree::Origin::Carved) {
+                const u32 f = c->props()->carve_format;
+                if (f == u32(FMT_ZIP) || f == u32(FMT_DOCX))
+                    ++zip;
+                if (f == u32(FMT_OLE))
+                    ++ole;
+                if (f == u32(FMT_WAV))
+                    ++wav;
+                if (f == u32(FMT_JPG))
+                    ++jpg;
+            }
+            collect(c);
+        }
+    };
+    collect(root);
+    EXPECT_GE(zip, 1) << "zip is NAMED on the disabled list but is exempt (the og's mask "
+                         "0x1000801 keeps id 0x48 in the working set)";
+    EXPECT_GE(ole, 1) << "doc/OLE is named but exempt (id 0x30)";
+    EXPECT_GE(wav, 1) << "wav is named but exempt (the RIFF family, id 0x3b)";
+    EXPECT_EQ(jpg, 0) << "jpg is named and NOT exempt: it must disable (the control)";
+}
+
+TEST(CarveEngine, FilterExemptSetCoversTypedRows) {
+    /* N-149's family mapping: the og's one FileZIPAnalyser (id 0x48) is
+     * the core's row set ZIP + the typed office/ODF rows (the typing is
+     * in-analyser per the N-115 decode) - the exemption is per-family,
+     * not per-row. The unit surface pins the mapping directly. */
+    EXPECT_TRUE(carve_format_always_on(FMT_OLE));
+    EXPECT_TRUE(carve_format_always_on(FMT_AVI));
+    EXPECT_TRUE(carve_format_always_on(FMT_WAV));
+    EXPECT_TRUE(carve_format_always_on(FMT_WEBP));
+    EXPECT_TRUE(carve_format_always_on(FMT_ZIP));
+    EXPECT_TRUE(carve_format_always_on(FMT_ZIP_CD));
+    EXPECT_TRUE(carve_format_always_on(FMT_DOCX));
+    EXPECT_TRUE(carve_format_always_on(FMT_XLSX));
+    EXPECT_TRUE(carve_format_always_on(FMT_PPTX));
+    EXPECT_TRUE(carve_format_always_on(FMT_ODT));
+    EXPECT_TRUE(carve_format_always_on(FMT_ODS));
+    EXPECT_TRUE(carve_format_always_on(FMT_ODP));
+    EXPECT_TRUE(carve_format_always_on(FMT_EPUB));
+    EXPECT_TRUE(carve_format_always_on(FMT_IWORK));
+    EXPECT_TRUE(carve_format_always_on(FMT_HWP));
+    EXPECT_TRUE(carve_format_always_on(FMT_CDR));
+    /* every OTHER format stays disableable (the exhaustive complement -
+     * only tokens UNIQUE to the exempt families; "doc" is LOWDOC's own
+     * ext too, and the og's mask protects only id 0x30: the legacy rows
+     * stay disableable through it) */
+    for (size_t i = 0; i < carve::registry_size(); ++i) {
+        const Signature& sig = carve::registry()[i];
+        if (carve_format_always_on(sig.id))
+            continue;
+        EXPECT_FALSE(carve_format_listed("zip, wav, avi, webp, docx, xlsx, pptx, odt, ods, "
+                                        "odp, epub, cdr",
+                                        sig))
+            << sig.name << " must not be caught by the exempt families' tokens";
+    }
+    /* the token split pin: "doc" addresses BOTH the exempt OLE row and
+     * the non-exempt legacy rows - the exemption is row-level, so the
+     * legacy family stays disableable through the shared token (the og's
+     * mask protects the OLE analyser only, never the legacy rows) */
+    EXPECT_TRUE(carve_format_listed("doc", carve::registry()[FMT_LOWDOC]))
+        << "the legacy .doc rows are outside the mask: their own token disables them";
+    EXPECT_TRUE(carve_format_always_on(FMT_OLE))
+        << "while the OLE row sharing the token stays always-on";
+}
+
 TEST(CarveEngine, AllFormatsEnabledByDefault) {
     /* null/empty list = every format enabled (the og's compiled-in set;
      * its STL/VPJ default-off is HOST policy expressed through
@@ -6264,6 +6413,131 @@ TEST(CarveEngine, MovV1MvhdDurationRead) {
     ASSERT_NE(mp4, nullptr);
     EXPECT_EQ(mp4->props()->name, std::u16string(u"MP4_06s_000001.MP4"))
         << "the v1 duration field must be read from its proper layout";
+}
+
+TEST(CarveEngine, ReconstructedMultiVolumeGrouping) {
+    /* S-048: the per-volume carve grouping - two VolumeGroups in one
+     * slice, each lazily getting its own group child under the carve
+     * root with its files attached DIRECTLY to it and one empty
+     * per-extension folder beside them (the og's persisted shape:
+     * "Reconstructed/ (I:)/jpg" + "Reconstructed/ (I:)/PNG_000001.PNG";
+     * the multi-volume whole-disk scans' every carved row, 100% of
+     * 189,115 real rows across the three og sessions). */
+    std::vector<u8> img(256 * 1024, 0);
+    plant_jpeg(img, 4096);      /* group A ("Data (D:)") */
+    plant_png(img, 132 * 1024); /* group B ("System Reserved") */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Reconstructed");
+    CarveFlags flags;
+    VolumeGroup ga;
+    ga.start = 0;
+    ga.end = 128 * 1024;
+    ga.name = u"Data (D:)";
+    VolumeGroup gb;
+    gb.start = 128 * 1024;
+    gb.end = 256 * 1024;
+    gb.name = u"System Reserved";
+    flags.volume_groups.push_back(ga);
+    flags.volume_groups.push_back(gb);
+    CarveStats st;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st),
+              OK);
+    tree::FullNode* grpA = nullptr;
+    tree::FullNode* grpB = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->is_full()) {
+            tree::FullNode* f = static_cast<tree::FullNode*>(c);
+            if (f->role == u"Data (D:)")
+                grpA = f;
+            else if (f->role == u"System Reserved")
+                grpB = f;
+        }
+    ASSERT_NE(grpA, nullptr) << "group A's child exists";
+    ASSERT_NE(grpB, nullptr) << "group B's child exists";
+    /* every file under its OWN volume; the ext folders empty beside */
+    int a_files = 0, b_files = 0;
+    for (tree::FileNode* c = grpA->first_child(); c; c = c->next_sibling()) {
+        if (!c->is_full()) {
+            ++a_files;
+            EXPECT_EQ(c->props()->carve_format, u32(FMT_JPG)) << "the JPEG is group A's";
+        } else {
+            EXPECT_EQ(static_cast<tree::FullNode*>(c)->role, u"jpg");
+            EXPECT_EQ(c->first_child(), nullptr) << "the ext folder is empty";
+        }
+    }
+    for (tree::FileNode* c = grpB->first_child(); c; c = c->next_sibling()) {
+        if (!c->is_full()) {
+            ++b_files;
+            EXPECT_EQ(c->props()->carve_format, u32(FMT_PNG)) << "the PNG is group B's";
+        } else {
+            EXPECT_EQ(static_cast<tree::FullNode*>(c)->role, u"png");
+            EXPECT_EQ(c->first_child(), nullptr) << "the ext folder is empty";
+        }
+    }
+    EXPECT_EQ(a_files, 1);
+    EXPECT_EQ(b_files, 1);
+}
+
+TEST(CarveEngine, ReconstructedUnattributedPositionStaysAtRoot) {
+    /* S-048: a candidate OUTSIDE every volume group attaches to the
+     * carve root DIRECTLY - never mis-attributed to a wrong volume (the
+     * gap position: the og's real sessions never sample one; the honest
+     * form is unattributed-at-root). */
+    std::vector<u8> img(256 * 1024, 0);
+    plant_png(img, 4096);        /* inside group A */
+    plant_jpeg(img, 200 * 1024); /* OUTSIDE both groups (the gap) */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Reconstructed");
+    CarveFlags flags;
+    VolumeGroup ga;
+    ga.start = 0;
+    ga.end = 128 * 1024;
+    ga.name = u"Data (D:)";
+    flags.volume_groups.push_back(ga);
+    CarveStats st;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st),
+              OK);
+    tree::FullNode* grpA = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->is_full() && static_cast<tree::FullNode*>(c)->role == u"Data (D:)")
+            grpA = static_cast<tree::FullNode*>(c);
+    ASSERT_NE(grpA, nullptr);
+    int a_files = 0, root_files = 0;
+    for (tree::FileNode* c = grpA->first_child(); c; c = c->next_sibling())
+        if (!c->is_full())
+            ++a_files;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (!c->is_full())
+            ++root_files;
+    EXPECT_EQ(a_files, 1) << "the in-group PNG is attributed to the volume";
+    EXPECT_EQ(root_files, 1) << "the gap JPEG stays at the root (unattributed)";
+}
+
+TEST(CarveEngine, ReconstructedSingleDefaultGroupName) {
+    /* S-048: the single-volume scan shape - one default group name over
+     * the whole slice (no ranges), the common case (" (H:)" - the H
+     * session's 94,057-row form). */
+    auto img = build_carve_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Reconstructed");
+    CarveFlags flags;
+    flags.volume_group_name = u" (H:)";
+    CarveStats st;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st),
+              OK);
+    tree::FullNode* grp = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->is_full() && static_cast<tree::FullNode*>(c)->role == u" (H:)")
+            grp = static_cast<tree::FullNode*>(c);
+    ASSERT_NE(grp, nullptr) << "the single default group child exists";
+    int files = 0;
+    for (tree::FileNode* c = grp->first_child(); c; c = c->next_sibling())
+        if (!c->is_full())
+            ++files;
+    EXPECT_GE(files, 4) << "every carved file attaches to the volume child";
 }
 
 TEST(CarveEngine, OgNamingUniversalExtCounter) {
@@ -7498,7 +7772,8 @@ TEST(Carve, TsM2TsCapIsTheOg200MB) {
     }
     ASSERT_NE(ts, nullptr);
     ASSERT_NE(m2ts, nullptr);
-    EXPECT_EQ(ts->max_size, 200000000ull) << "the og's TS clamp (:35507-35509), not the refuted x10";
+    EXPECT_EQ(ts->max_size, 200000000ull)
+        << "the og's TS clamp (:35507-35509), not the refuted x10";
     EXPECT_EQ(m2ts->max_size, 200000000ull) << "the og's M2TS clamp, same global";
     EXPECT_EQ(ts->min_size, 0x5000u);
     EXPECT_EQ(m2ts->min_size, 0x5000u);
@@ -8356,6 +8631,111 @@ TEST(Carve, GpxBomFormCarvesOnce) {
 }
 
 /* ===================================================================== */
+/* N-152: the DXF 999-comment entry key - the u16 "99" 0x3939 dispatch  */
+/* (RAWSearchDLL :2722-2733) and the probe's leading-comment acceptance */
+/* (:42240-42290).                                                       */
+/* ===================================================================== */
+
+TEST(Carve, Dxf999CommentHeaderLfCarves) {
+    /* N-152: a comment-led DXF with LF line endings - the og's u16 "99"
+     * key dispatches to CDXFAnalyser and the probe's comment branch
+     * scans forward for the LF section form "  0\nSECTION\n  ". The
+     * interior "  0\r"-key re-match never fires (the same document -
+     * suppress_overlap). */
+    const char* doc = "999\nFree-form comment line\n"
+                      "  0\nSECTION\n  2\nHEADER\n  9\n$INSBASE\n  10\n0.0\n  20\n0.0\n"
+                      "  0\nENDSEC\n  0\nEOF\n";
+    std::vector<u8> img(256 * 1024, 0);
+    std::memcpy(img.data() + 4096, doc, std::strlen(doc));
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    ASSERT_EQ(all.size(), 1u) << "ONE comment-led document, ONE file";
+    EXPECT_EQ(all[0]->props()->carve_format, u32(FMT_DXF_C999))
+        << "the u16 0x3939 key's row owns the comment-led candidate";
+    EXPECT_EQ(all[0]->props()->extents.front().offset, u64(4096))
+        << "the candidate starts at the 999 comment, not the interior header";
+}
+
+TEST(Carve, Dxf999CommentHeaderCrLfCarves) {
+    /* N-152: the CRLF form - "999\r\n" then the canonical CRLF section
+     * pattern "  0\r\nSECTION\r\n  " (the og's _Size=0x10 branch). */
+    const char* doc = "999\r\nFree-form comment line\r\n"
+                      "  0\r\nSECTION\r\n  2\r\nHEADER\r\n  9\r\n$INSBASE\r\n"
+                      "  10\r\n0.0\r\n  20\r\n0.0\r\n  0\r\nENDSEC\r\n  0\r\nEOF\r\n";
+    std::vector<u8> img(256 * 1024, 0);
+    std::memcpy(img.data() + 8192, doc, std::strlen(doc));
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    ASSERT_EQ(all.size(), 1u) << "ONE comment-led document, ONE file";
+    EXPECT_EQ(all[0]->props()->carve_format, u32(FMT_DXF_C999));
+    EXPECT_EQ(all[0]->props()->extents.front().offset, u64(8192));
+}
+
+TEST(Carve, Dxf999RejectsNonCommentContinuation) {
+    /* N-152: the hostile near-miss - "99x" is not the 999 comment line;
+     * the probe's variant branch requires the full "999" + line ending,
+     * so the u16 key's candidate REJECTS (the comment row claims
+     * nothing). The og-faithful outcome on this fixture: the interior
+     * u32 "  0\r" key still fires and the canonical pattern matches
+     * there - the headless canonical salvage carves ONE DXF at the
+     * interior position (the og's u32 map dispatches the same way). */
+    const char* doc = "99x\r\n  0\r\nSECTION\r\n  2\r\nHEADER\r\n  0\r\nENDSEC\r\n";
+    std::vector<u8> img(256 * 1024, 0);
+    std::memcpy(img.data() + 4096, doc, std::strlen(doc));
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    ASSERT_EQ(all.size(), 1u) << "the near-miss comment claims nothing; ONE salvage";
+    EXPECT_EQ(all[0]->props()->carve_format, u32(FMT_DXF))
+        << "the claim is the canonical row's (the interior position), never the comment row's";
+    EXPECT_EQ(all[0]->props()->extents.front().offset, u64(4096 + 5))
+        << "the headless salvage starts at the interior section header";
+}
+
+TEST(Carve, Dxf999InteriorCommentOfCanonicalFileDoesNotDoubleCarve) {
+    /* N-152: the reverse direction - a CANONICAL DXF carrying an interior
+     * 999 comment (group code 999 mid-body): the canonical row owns the
+     * position; the interior "99" re-match is the same file. */
+    const char* doc = "  0\r\nSECTION\r\n  2\r\nHEADER\r\n"
+                      "999\r\ninterior comment\r\n"
+                      "  0\r\nENDSEC\r\n  0\r\nEOF\r\n";
+    std::vector<u8> img(256 * 1024, 0);
+    std::memcpy(img.data() + 4096, doc, std::strlen(doc));
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    ASSERT_EQ(all.size(), 1u) << "the canonical document carves once";
+    EXPECT_EQ(all[0]->props()->carve_format, u32(FMT_DXF));
+    EXPECT_EQ(all[0]->props()->extents.front().offset, u64(4096));
+}
+
+/* ===================================================================== */
 /* N-115: the OfficeTagFromXML typing pass - the rels-path split, the    */
 /* reordered-zip tolerance, and the wider tag corpus.                    */
 /* ===================================================================== */
@@ -8410,7 +8790,6 @@ size_t plant_zip_entries(std::vector<u8>& img, size_t at,
 
 } // namespace
 
-
 /* N-115/N-153: the carved ARCHIVE count - direct children of the carve
  * root only (the S-032 inventory presents the inner entries as CHILD
  * nodes of the archive; collect_children would count them too). */
@@ -8423,7 +8802,11 @@ static size_t direct_carved_count(tree::FileNode* root) {
 
 TEST(Carve, OoxmlRelsPathSplit) {
     /* N-115: the og's per-entry rels-path map (word/xl/ppt) types the
-     * OOXML trio - each form stamps its own id and extension. */
+     * OOXML trio - each form stamps its own id and extension. The
+     * extension is asserted case-insensitively (the S-049 naming
+     * contract emits the UPPERCASE form, DOCX_000001.DOCX - the
+     * GZ_000001.GZ real-session pin - but the typed extension identity
+     * is the case-folded tail, per the N-126 lane's earlier push). */
     const struct {
         const char* rels;
         u32 fmt;
@@ -8435,22 +8818,39 @@ TEST(Carve, OoxmlRelsPathSplit) {
     };
     for (const auto& c : cases) {
         std::vector<u8> img(256 * 1024, 0);
-        plant_zip_entries(img, 4096, {{"[Content_Types].xml", "<Types/>"},
-                                      {c.rels, "<Relationships/>"},
-                                      {"doc.xml", "body"}});
+        plant_zip_entries(img, 4096,
+                          {{"[Content_Types].xml", "<Types/>"},
+                           {c.rels, "<Relationships/>"},
+                           {"doc.xml", "body"}});
         MemDevice dev(std::move(img));
         tree::ResultTree tree;
         auto* root = tree.add_root(u"Lost Files");
         CarveFlags flags;
         CarveStats s;
-        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
-                              s),
-                  u32(OK));
+        ASSERT_EQ(
+            carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+            u32(OK));
         ASSERT_EQ(direct_carved_count(root), 1u) << "the rels path " << c.rels;
         tree::FileNode* n0 = root->first_child();
         EXPECT_EQ(n0->props()->carve_format, c.fmt) << "the rels-path split";
+        /* the S-049 naming contract: <PREFIX>_<counter>.<UPPERCASE-EXT>.
+         * The table carries the lowercase forms, the emitted name the
+         * uppercase ones - both sides fold to lowercase so the comparison
+         * is case-insensitive (the b26017a7/59bd5208 re-pin chain each
+         * folded only one side; this is the both-sides form, and the
+         * 59bd5208 push's conflict-marker residue is what this repair
+         * removed - the marker failed the -Werror build outright). */
         const std::string nm = n0->name_utf8();
-        EXPECT_EQ(nm.compare(nm.size() - 5, 5, c.ext), 0) << "the typed extension";
+        ASSERT_GE(nm.size(), size_t(5));
+        std::string tail = nm.substr(nm.size() - 5);
+        for (auto& ch : tail)
+            if (ch >= 'A' && ch <= 'Z')
+                ch = char(ch + 32);
+        std::string want = c.ext;
+        for (auto& ch : want)
+            if (ch >= 'A' && ch <= 'Z')
+                ch = char(ch + 32);
+        EXPECT_EQ(tail, want) << "the typed extension";
     }
 }
 
@@ -8459,9 +8859,10 @@ TEST(Carve, ZipEntriesReorderedStillTyped) {
      * damaged/reordered zip whose [Content_Types].xml is NOT the literal
      * first entry still types (the old first-entry gate missed it). */
     std::vector<u8> img(256 * 1024, 0);
-    plant_zip_entries(img, 4096, {{"docProps/app.xml", "<app/>"},
-                                  {"[Content_Types].xml", "<Types/>"},
-                                  {"xl/_rels/workbook.xml.rels", "<Relationships/>"}});
+    plant_zip_entries(img, 4096,
+                      {{"docProps/app.xml", "<app/>"},
+                       {"[Content_Types].xml", "<Types/>"},
+                       {"xl/_rels/workbook.xml.rels", "<Relationships/>"}});
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
     auto* root = tree.add_root(u"Lost Files");
@@ -8496,12 +8897,11 @@ TEST(Carve, OdfEpubTypedByMimetype) {
         auto* root = tree.add_root(u"Lost Files");
         CarveFlags flags;
         CarveStats s;
-        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
-                              s),
-                  u32(OK));
+        ASSERT_EQ(
+            carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+            u32(OK));
         ASSERT_EQ(direct_carved_count(root), 1u) << "mimetype " << c.mime;
-        EXPECT_EQ(root->first_child()->props()->carve_format, c.fmt)
-            << "the mimetype content tag";
+        EXPECT_EQ(root->first_child()->props()->carve_format, c.fmt) << "the mimetype content tag";
     }
 }
 
@@ -8524,9 +8924,9 @@ TEST(Carve, IworkAndCdrTypedByEntryName) {
         auto* root = tree.add_root(u"Lost Files");
         CarveFlags flags;
         CarveStats s;
-        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
-                              s),
-                  u32(OK));
+        ASSERT_EQ(
+            carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+            u32(OK));
         ASSERT_EQ(direct_carved_count(root), 1u) << "entry " << c.entry;
         EXPECT_EQ(root->first_child()->props()->carve_format, c.fmt) << "the name tag";
     }
@@ -8563,8 +8963,8 @@ TEST(Carve, MultiEntryZipCarvesOnce) {
      * children). Pre-fix: the outer node + one phantom per inner LFH
      * whose tail-to-EOCD span cleared the 128-byte floor. */
     std::vector<u8> img(256 * 1024, 0);
-    plant_zip_entries(img, 4096, {{"a.txt", std::string(200, 'a')},
-                                  {"b.txt", std::string(200, 'b')}});
+    plant_zip_entries(img, 4096,
+                      {{"a.txt", std::string(200, 'a')}, {"b.txt", std::string(200, 'b')}});
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
     auto* root = tree.add_root(u"Lost Files");
@@ -8577,4 +8977,398 @@ TEST(Carve, MultiEntryZipCarvesOnce) {
     EXPECT_EQ(az->props()->extents.front().offset, u64(4096));
     EXPECT_EQ(az->props()->carve_format, u32(FMT_ZIP));
     EXPECT_GT(az->props()->logical_size, u64(500)) << "the full archive extent";
+}
+
+/* ---- M-121: Outlook Express Dbx (RawSpeed::DbxAnalyser, id 0x15; the
+ * renumber chain M-117 -> M-118 -> M-121 per SA-9) ----
+ * The og's three-key registry + the GUID/JMF6/marked identity probe +
+ * the u32@+0x7C plain size + FUN_180042b30's marked-form zero-walk
+ * (the non-zero prefix rounded up to even). Every fixture derives from
+ * the decode, never from the implementation. */
+namespace {
+/* the four OE store GUIDs from the probe's stack table
+ * (FUN_180016740 :17529-17541) - dwords LE on disk */
+constexpr u32 kOeGuid[4][4] = {
+    {0xfe12adcf, 0x6f74fdc5, 0x11d1e366, 0xc0004e9a},
+    {0xfe12adcf, 0x6f74fdc6, 0x11d1e366, 0xc0004e9a},
+    {0xfe12adcf, 0x6f74fdc7, 0x11d1e366, 0xc0004e9a},
+    {0xfe12adcf, 0x26fe9d30, 0x11d21a8f, 0x6000bfaa},
+};
+void plant_dbx_guid(std::vector<u8>& img, size_t at, size_t guid_idx, u32 declared) {
+    for (int w = 0; w < 4; ++w)
+        put32v(img, at + size_t(w) * 4, kOeGuid[guid_idx][w]);
+    put32v(img, at + 0x7C, declared);
+}
+} // namespace
+
+TEST(Carve, DbxPlainMagicCarvesWithDeclaredSize) {
+    /* the classic CFAD12FE store: the OE GUID at +0 gates, u32@+0x7C
+     * sizes - the og's plain branch (disasm `mov 0x7c(%rdx),%eax`) */
+    std::vector<u8> img(512 * 1024, 0);
+    const size_t at = 4096;
+    const u32 declared = 0x30000; /* 192 KiB mail store */
+    for (u32 i = 16; i < declared; ++i)
+        img[at + i] = u8(0x41 + (i % 26)); /* payload FIRST (keep 0x7C clear) */
+    plant_dbx_guid(img, at, 0, declared);   /* then the header + size field */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr) << "the plain OE-GUID Dbx must carve";
+    EXPECT_EQ(n->props()->carve_format, u32(FMT_DBX));
+    EXPECT_EQ(n->props()->logical_size, u64(declared)) << "size = the self-declared u32@0x7C";
+}
+
+TEST(Carve, DbxAllFourGuidsCarve) {
+    /* the probe's whole identity table: every generation must pass */
+    std::vector<u8> img(4 * 512 * 1024, 0);
+    const size_t base = 4096, stride = 512 * 1024;
+    for (int g = 0; g < 4; ++g)
+        plant_dbx_guid(img, base + size_t(g) * stride, size_t(g), 0x4000);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    for (int g = 0; g < 4; ++g) {
+        const u64 at = base + u64(g) * stride;
+        bool found = false;
+        for (tree::FileNode* c : all)
+            if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+                found = true;
+        EXPECT_TRUE(found) << "OE GUID generation " << g << " must carve";
+    }
+}
+
+TEST(Carve, DbxJmf6VariantCarves) {
+    /* the JMF6 + 03 00 01 00 versioned form (probe u64 compare
+     * 0x0100003_36464d4a) */
+    std::vector<u8> img(512 * 1024, 0);
+    const size_t at = 8192;
+    std::memcpy(img.data() + at, "JMF6\x03\x00\x10\x00", 8); /* the disasm-verified word (0x00100003) */
+    put32v(img, at + 0x7C, 0x8000);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr) << "the JMF6 variant must carve";
+    EXPECT_EQ(n->props()->carve_format, u32(FMT_DBX_JMF6));
+    EXPECT_EQ(n->props()->logical_size, 0x8000u);
+}
+
+TEST(Carve, DbxJmf6WrongVersionWordRejected) {
+    /* the probe gates the version word exactly: "JMF6" with any other
+     * trailing dword (here 03 00 01 00 - my first landing's erroneous
+     * reading, kept as the hostile fixture) must NOT carve */
+    std::vector<u8> img(512 * 1024, 0);
+    const size_t at = 8192;
+    std::memcpy(img.data() + at, "JMF6\x03\x00\x01\x00", 8);
+    put32v(img, at + 0x7C, 0x8000);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    for (tree::FileNode* c : all)
+        EXPECT_FALSE(!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            << "the wrong version word must NOT carve";
+}
+
+TEST(Carve, DbxMarkedFormZeroSectorWalk) {
+    /* the marked F789342C 16-byte pattern + FUN_180042b30's walk:
+     * content runs one full sector (512 bytes all non-zero -> prefix
+     * 512, even), the next sector carries 99 non-zero bytes (prefix 99
+     * -> EVEN-ROUNDED to 100), the third sector is ALL ZERO -> the
+     * walk's terminal size = the distance to it (1024). */
+    std::vector<u8> img(512 * 1024, 0);
+    const size_t at = 4096;
+    const u8 marked[16] = {0xF7, 0x89, 0x34, 0x2C, 0xF7, 0xF0, 0xEE, 0x6D,
+                           0xAF, 0x22, 0x89, 0xD1, 0x00, 0xFF, 0xF0, 0xB0};
+    std::memcpy(img.data() + at, marked, 16);
+    for (size_t i = 16; i < 512; ++i)
+        img[at + i] = 0x5A; /* the rest of sector 0: non-zero */
+    for (size_t i = 0; i < 99; ++i)
+        img[at + 512 + i] = 0x33; /* sector 1: 99-byte prefix (odd) */
+    /* sector 2: all zero (the img is zero-initialized) */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr) << "the marked form must carve";
+    EXPECT_EQ(n->props()->carve_format, u32(FMT_DBX_MARKED));
+    EXPECT_EQ(n->props()->logical_size, u64(1024))
+        << "the all-zero sector terminates the extent at the sector distance";
+}
+
+TEST(Carve, DbxMarkedFormOddPrefixRoundsEven) {
+    /* FUN_180042b30's landing: the non-zero prefix rounds UP TO EVEN -
+     * a marked pattern alone in its sector (16 non-zero bytes -> prefix
+     * 16, even, stays 16) followed by a zero sector: the FIRST window's
+     * own computation is distance 0 + 16; the zero sector terminates at
+     * distance 512. The terminal value (512) wins. */
+    std::vector<u8> img(512 * 1024, 0);
+    const size_t at = 4096;
+    const u8 marked[16] = {0xF7, 0x89, 0x34, 0x2C, 0xF7, 0xF0, 0xEE, 0x6D,
+                           0xAF, 0x22, 0x89, 0xD1, 0x00, 0xFF, 0xF0, 0xB0};
+    std::memcpy(img.data() + at, marked, 16);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr);
+    EXPECT_EQ(n->props()->logical_size, u64(512))
+        << "the zero sector right after the pattern: extent = one sector";
+}
+
+TEST(Carve, DbxRejectsWrongGuid) {
+    /* CF AD 12 FE with a continuation OUTSIDE the four-GUID table: the
+     * probe's identity gate rejects (no row) */
+    std::vector<u8> img(512 * 1024, 0);
+    const size_t at = 4096;
+    put32v(img, at, 0xfe12adcf);
+    put32v(img, at + 4, 0xdeadbeef); /* not any table continuation */
+    put32v(img, at + 8, 0x11d1e366);
+    put32v(img, at + 12, 0xc0004e9a);
+    put32v(img, at + 0x7C, 0x4000);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    for (tree::FileNode* c : all)
+        EXPECT_FALSE(!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            << "a non-table GUID must NOT carve";
+}
+
+TEST(Carve, DbxRejectsTruncatedMarkedPattern) {
+    /* F7 89 34 2C with a wrong continuation: the marked re-check fails */
+    std::vector<u8> img(512 * 1024, 0);
+    const size_t at = 4096;
+    const u8 half[8] = {0xF7, 0x89, 0x34, 0x2C, 0xF7, 0xF0, 0xEE, 0x6D};
+    std::memcpy(img.data() + at, half, 8);
+    std::memset(img.data() + at + 8, 0xAA, 8); /* wrong tail */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    for (tree::FileNode* c : all)
+        EXPECT_FALSE(!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            << "a broken marked pattern must NOT carve";
+}
+
+TEST(Carve, DbxRegistryCarriesAllThreeKeys) {
+    /* the F8 gate's table: every Dbx row present, keyed, validated */
+    const Signature* tab = registry();
+    const size_t n = registry_size();
+    ASSERT_EQ(n, size_t(FMT_COUNT));
+    int keys = 0;
+    for (size_t i = 0; i < n; ++i) {
+        const Signature& s = tab[i];
+        if (s.header_len == 4 && std::memcmp(s.header, "JMF6", 4) == 0 && s.validator != nullptr)
+            ++keys;
+        if (s.header_len == 4 && s.header[0] == 0xCF && s.header[1] == 0xAD &&
+            s.header[2] == 0x12 && s.header[3] == 0xFE && s.validator != nullptr)
+            ++keys;
+        if (s.header_len == 4 && s.header[0] == 0xF7 && s.header[1] == 0x89 &&
+            s.header[2] == 0x34 && s.header[3] == 0x2C && s.validator != nullptr)
+            ++keys;
+    }
+    EXPECT_EQ(keys, 3) << "all three Dbx registry keys present (JMF6 / CFAD12FE / F789342C)";
+    std::vector<const Signature*> bad;
+    EXPECT_EQ(validate_registry(&bad), 0u);
+    EXPECT_EQ(self_probe_registry(&bad), 0u);
+}
+
+/* ---- M-112: the CSL size branch (the CD 01 00 00 key leg's own size
+ * field at +0x44c, dword + 0x480, gated by the 1 MiB family cap). Every
+ * fixture derives from the FUN_180041950 decode, never from the
+ * implementation. ---- */
+TEST(Carve, CslSizeFieldExtendsPastCap) {
+    /* dword@0x44c sizes the file past the 1 MiB cap the bounded fallback
+     * would impose: 0x0C0000 + 0x480 = 0xC0480 (~786 KiB < cap)... use a
+     * value BETWEEN the </svg>-less fallback and the cap: dword 0x0F0000
+     * -> 0xF0480 (~984 KiB, within cap, > any marker-less walk result the
+     * old code would produce at the same position). RED pre-fix: the old
+     * code falls to the bounded 1 MiB cap only when NO </svg> exists;
+     * with a </svg> planted EARLY the old code truncates there - the new
+     * code must ignore the marker and take the field. */
+    std::vector<u8> img(2 * 1024 * 1024, 0);
+    const size_t at = 4096;
+    img[at + 0] = 0xCD;
+    img[at + 1] = 0x01;
+    img[at + 2] = 0x00;
+    img[at + 3] = 0x00; /* the CD01 key */
+    const char early_svg[] = "<svg>xx</svg>"; /* a marker the walk would find */
+    std::memcpy(img.data() + at + 0x10, early_svg, sizeof(early_svg) - 1);
+    put32v(img, at + 0x44C, 0x0F0000); /* the size field: 0xF0480 total */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr) << "the CD01-keyed CSL file must carve";
+    EXPECT_EQ(n->props()->logical_size, 0xF0480ull)
+        << "the size field wins over both the marker walk and the cap";
+    EXPECT_EQ(n->props()->carve_format, u32(FMT_SVG))
+        << "the probe's stamp for the CD01 key is 0x5b";
+}
+
+TEST(Carve, CslSizeFieldDeclinesOutOfCap) {
+    /* dword + 0x480 > the 1 MiB cap: the branch declines, the end-tag
+     * walk sizes the file (the marker at a known offset) */
+    std::vector<u8> img(2 * 1024 * 1024, 0);
+    const size_t at = 4096;
+    img[at + 0] = 0xCD;
+    img[at + 1] = 0x01;
+    img[at + 2] = 0x00;
+    img[at + 3] = 0x00;
+    put32v(img, at + 0x44C, 0x200000); /* + 0x480 > 0x100000: out of cap */
+    const char body[] = "<svg>yyyyyyyy</svg>"; /* the walk's marker */
+    std::memcpy(img.data() + at + 0x20, body, sizeof(body) - 1);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr);
+    EXPECT_EQ(n->props()->logical_size, 0x20 + sizeof(body) - 1)
+        << "declination falls to the end-tag walk";
+}
+
+TEST(Carve, CslShortFileFallsToWalk) {
+    /* a candidate whose readable span is SHORTER than 0x450 never reads
+     * the field: place the CD01 magic < 0x450 from the DEVICE END so the
+     * field read cannot succeed - the end-tag walk sizes the file */
+    std::vector<u8> img(512 * 1024, 0);
+    const size_t at = img.size() - 0x300; /* 0x300 < 0x450: no field read */
+    img[at + 0] = 0xCD;
+    img[at + 1] = 0x01;
+    img[at + 2] = 0x00;
+    img[at + 3] = 0x00;
+    const char body[] = "<svg>z</svg>";
+    std::memcpy(img.data() + at + 0x8, body, sizeof(body) - 1);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr);
+    EXPECT_EQ(n->props()->logical_size, 0x8 + sizeof(body) - 1)
+        << "the unreadable field declines; the walk owns the extent";
+}
+
+TEST(Carve, SvgLegUnaffectedByCslBranch) {
+    /* the <?xm + <svg content leg keeps the end-tag walk sizing - the
+     * 0x44c branch never fires for a non-CD01 first dword */
+    std::vector<u8> img(2 * 1024 * 1024, 0);
+    const size_t at = 4096;
+    const char doc[] = "<?xml version=\"1.0\"?><svg xmlns=\"x\"></svg>";
+    std::memcpy(img.data() + at, doc, sizeof(doc) - 1);
+    put32v(img, at + 0x44C, 0x0F0000); /* a field the branch must IGNORE */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr);
+    EXPECT_EQ(n->props()->logical_size, sizeof(doc) - 1)
+        << "the declaration leg sizes by the </svg> walk, never the field";
+    EXPECT_EQ(n->props()->carve_format, u32(FMT_SVG));
 }

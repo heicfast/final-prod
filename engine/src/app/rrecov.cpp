@@ -2,7 +2,9 @@
  * rrecov - the core_recovery CLI (Windows).
  *
  * Commands:
- *   list                                  enumerate disks/volumes
+ *   list [--trim]                         enumerate disks/volumes; --trim adds the
+ *                                         per-row TRIM chip datum (the og's home-page
+ *                                         SSD recovery-chance indicator, UIUX/07:17)
  *   list-carve-formats                    the two-layer carve registry
  *   sessions [--dir D] [--json]          the saved-session list (light
  *                                         summary per file; the og's
@@ -730,7 +732,7 @@ bool has_flag(int argc, wchar_t** argv, int& i, const wchar_t* name) {
  * list
  * ------------------------------------------------------------------------- */
 
-int print_disks() {
+int print_disks(bool with_trim) {
     win::PhysicalDiskList list;
     if (win::enumerate_disks(200, list) != OK) {
         wprintf(L"enumeration failed\n");
@@ -739,9 +741,19 @@ int print_disks() {
     }
     win::VolumeEntryList vols;
     win::enumerate_volumes(vols);
-    wprintf(L"%zu disk(s), %zu volume(s)\n", list.size(), vols.size());
+    /* M-076: the --trim chip datum - one fresh fsutil query per run (the
+     * datum is OS-global; the ABI's CR_ENUM_FLAG_TRIM opt-in is the same
+     * primitive and the same one-query shape). A failed query prints the
+     * unknown form - never a guessed value. */
+    bool trim_on = false;
+    const bool trim_known =
+        with_trim && win::health::query_trim_state(trim_on) == OK;
+    wprintf(L"%zu disk(s), %zu volume(s)%s\n", list.size(), vols.size(),
+            with_trim ? (trim_known ? (trim_on ? L" [TRIM ON]" : L" [TRIM OFF]")
+                                    : L" [TRIM ?]")
+                      : L"");
     for (const auto& d : list) {
-        wprintf(L"  Disk %u: %llu MiB (%s) %s [%s] %s\n", d.number, d.size_bytes >> 20,
+        wprintf(L"  Disk %u: %llu MiB (%s) %s [%s] %s%s\n", d.number, d.size_bytes >> 20,
                 d.model.c_str(), d.serial.c_str(), d.removable ? L"removable" : L"fixed",
                 d.table_ok
                     ? (d.table.layout == table::TableLayout::Gpt
@@ -749,7 +761,8 @@ int print_disks() {
                            : (d.table.layout == table::TableLayout::Mbr
                                   ? L"MBR"
                                   : (d.table.layout == table::TableLayout::Ebr ? L"EBR" : L"-")))
-                    : L"no-table");
+                    : L"no-table",
+                trim_known ? (trim_on ? L" TRIM:ON" : L" TRIM:OFF") : L"");
         for (const auto& v : vols) {
             if (v.disk == d.number) {
                 wprintf(L"    %c: %s %s %llu MiB %s\n", v.letter, v.fs_name.c_str(),
@@ -1472,9 +1485,15 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
              cfg.threads, int(cfg.run_quick), int(cfg.run_deep), int(cfg.run_carve),
              int(cfg.whole_disk), int(repair), int(repair_apply));
     fill_identity_card(target.disk, cfg); /* SESS-2: model/serial into the card */
-    fill_volume_label(target, cfg);       /* M-079: the <vol> half of the
-                                           * auto-save name + the session
-                                           * record (derive unless --label) */
+    fill_volume_label(target, cfg);
+    /* S-048: the volume's drive letter rides the scan config (the og's
+     * carve-tree volume grouping names the group child "<label> (<L>:)" -
+     * the real-session " (H:)" form). Uppercased; 0 for disk/image
+     * targets. */
+    cfg.volume_letter = target.volume_letter ? char(toupper(unsigned(target.volume_letter)))
+                                             : 0; /* M-079: the <vol> half of the
+                                                   * auto-save name + the session
+                                                   * record (derive unless --label) */
     if (target.is_image) {
         /* S-030: the image identity - format as model, path into the v3
          * tail (the resume path warns when the path changes) */
@@ -1772,6 +1791,23 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
                 wprintf(L"(pass --out file.crsf to save a resumable session on cancel)\n");
             }
             return 3; /* cancelled is distinct from failure (0/1/3) */
+        }
+        /* N-125: the disconnect case - the target went away mid-scan
+         * (yanked USB, ejected media). Exit 5, distinct from failure (1)
+         * and cancel (3); the reattach-then-resume contract: the session
+         * checkpoint (if --out was given) resumes the scan after the
+         * device returns. */
+        if (rc == ERR_DEVICE_DISCONNECTED) {
+            wprintf(L"target device DISCONNECTED mid-scan - the scan stopped at the device-"
+                    L"loss boundary\n");
+            if (!out_path.empty())
+                wprintf(L"reattach the device, then resume: `rrecov resume %ls` continues "
+                        L"from the session checkpoint\n",
+                        out_path.c_str());
+            else
+                wprintf(L"re-run the scan with --out file.crsf so a disconnect becomes a "
+                        L"resumable checkpoint instead of a restart\n");
+            return 5;
         }
         /* read-truth refusal (the fake-scan fix): the volume was (essentially)
          * fully unreadable - the scan did NOT scan. The specific text names
@@ -2080,11 +2116,41 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
     win::WinDestIo io;
     recovery::WriterConfig wcfg;
     recovery::SafeWriter writer(io, src.device.get(), wcfg);
-    if (to_dir.size() >= 2 && to_dir[1] == L':') {
-        u64 dstart = 0, dlen = 0;
-        u32 ddisk = 0;
-        if (win::volume_extent(to_dir[0], &ddisk, &dstart, &dlen))
-            writer.set_destination(dstart, dlen);
+
+    /* destination validation + overlap refusal (F12 + N-013, restored per
+     * S-054 after the 1ebd1bcc clobber): any path that resolves to a
+     * volume is evaluated (the og opens \\.\X: for every local
+     * destination - a drive-letter gate misses UNC/relative/junction
+     * destinations; junctions resolve to the TARGET's volume). Arming
+     * uses ALL extents (spanned/RAID destinations have more than one -
+     * first-extent-only missed overlap on the second+ spans, silently
+     * defeating the F12 refusal for destinations whose later spans live
+     * on the source disk). */
+    {
+        wchar_t dletter = 0;
+        if (win::destination_volume_letter(to_dir, &dletter)) {
+            std::vector<win::VolExtent> ve;
+            if (win::volume_extents(dletter, &ve)) {
+                bool on_source = false;
+                for (const auto& v : ve)
+                    if (v.disk == disk) {
+                        on_source = true;
+                        break;
+                    }
+                if (on_source)
+                    wprintf(L"[F12] WARNING: destination is on the SOURCE disk %u\n", disk);
+                else
+                    wprintf(L"[dest] %c: disk %u @%llu +%llu (%zu extent(s))\n", dletter,
+                            ve.front().disk,
+                            static_cast<unsigned long long>(ve.front().start),
+                            static_cast<unsigned long long>(ve.front().len), ve.size());
+                std::vector<std::pair<u64, u64>> spans;
+                spans.reserve(ve.size());
+                for (const auto& v : ve)
+                    spans.push_back({v.start, v.len});
+                writer.set_destination_spans(spans);
+            }
+        }
     }
 
     /* normalize the destination dir (trailing backslash) */
@@ -3138,7 +3204,9 @@ int wmain(int argc, wchar_t** argv) {
         wprintf(
             L"rrecov - core_recovery CLI\n"
             L"usage:\n"
-            L"  rrecov list\n"
+            L"  rrecov list [--trim]\n"
+            L"             (--trim: the per-row TRIM chip - the SSD recovery-chance\n"
+            L"              indicator; the datum is the OS-global fsutil state)\n"
             L"  rrecov list-carve-formats\n"
             L"             (the carve-capability projection of the ABI registry -\n"
             L"              the og host's EUGetAnalyserList/Map/Multimap surface)\n"
@@ -3181,8 +3249,20 @@ int wmain(int argc, wchar_t** argv) {
     }
     const std::wstring cmd = argv[1];
     int i = 2;
-    if (cmd == L"list")
-        return print_disks();
+    if (cmd == L"list") {
+        /* M-076: the --trim opt-in (the og's per-row chip; the datum is the
+         * OS-global fsutil state - refused-unknown, never guessed) */
+        bool with_trim = false;
+        while (i < argc) {
+            if (has_flag(argc, argv, i, L"--trim"))
+                with_trim = true;
+            else {
+                wprintf(L"unknown list flag: %s\n", argv[i]);
+                return 1;
+            }
+        }
+        return print_disks(with_trim);
+    }
     if (cmd == L"list-carve-formats")
         return print_carve_formats();
     if (cmd == L"sessions")

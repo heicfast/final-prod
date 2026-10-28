@@ -145,11 +145,18 @@ u32 weighted_progress(const StageWeights& w, u32 quick_pm, u32 deep_pm, u32 carv
 
 std::u16string ScanController::raw_root_name_() const {
     /* M-029: the configured display name when present (the og's
-     * "filter_generalraw" naming surface), the default role otherwise. */
+     * "filter_generalraw" naming surface), the default role otherwise.
+     * S-048: the default is the og's own root name "Reconstructed"
+     * (DRWUI's type==7 branch - FUN_1400563c0(local_558,"Reconstructed")
+     * at DRWUI_decompiled.c:320992 + :357713 + :611618 + :642786; the
+     * three REAL og sessions persist every carved row under it). The
+     * legacy core default "Other Deleted Files (Carved)" stays a
+     * recognized resume role so old sessions never spawn a duplicate
+     * carve root on resume. */
     for (const char c : cfg_.raw_category_name)
         if (c != '\0')
             return text::utf8_to_u16(cfg_.raw_category_name);
-    return u"Other Deleted Files (Carved)";
+    return u"Reconstructed";
 }
 
 ReadPipe build_read_pipe(IStorageDevice* slice, u64 cache_bytes, u32 block_bytes) {
@@ -193,6 +200,106 @@ ReadPipe build_read_pipe(IStorageDevice* slice, u64 cache_bytes, u32 block_bytes
     return rp;
 }
 
+namespace {
+/* S-048: the og's carve-tree category skeleton - the 7 empty category
+ * folders every real og session persists directly under the
+ * "Reconstructed" root (session G/H/I all carry exactly these, in this
+ * order, all empty: Pictures, Documents, Archives, Videos, Audio,
+ * Emails, Others - the raw-view's category grouping names, distinct
+ * from FileFilter.xml's Graphic/Document/... iconIndex set). */
+const char* const kCarveCategorySkeleton[] = {"Pictures", "Documents", "Archives", "Videos",
+                                              "Audio",    "Emails",    "Others"};
+} // namespace
+
+/* S-048: the scan target volume's display name for the carve tree's
+ * volume grouping - the og's composition (the real-session forms):
+ * "<label> (<L>:" + ")" when a letter exists (an empty label keeps the
+ * leading space: " (H:)"), the bare label when it does not ("System
+ * Reserved"). Both absent (an unlabeled, unlettered target - the image
+ * case): the M-104 tier-3 FS-marker form, so the group node is never an
+ * empty name. */
+std::u16string ScanController::carve_volume_display_name_(FsFamily fam) const {
+    std::u16string label;
+    for (const char c : cfg_.volume_label)
+        if (c != 0)
+            label.push_back(u16(u8(c)));
+    if (cfg_.volume_letter != 0) {
+        std::u16string out = label;
+        out.push_back(u' ');
+        out.push_back(u'(');
+        out.push_back(
+            u16(u8(cfg_.volume_letter >= 'a' && cfg_.volume_letter <= 'z' ? cfg_.volume_letter - 32
+                                                                          : cfg_.volume_letter)));
+        out.push_back(u':');
+        out.push_back(u')');
+        return out;
+    }
+    if (!label.empty())
+        return label;
+    const char* fs = "Raw";
+    switch (fam) {
+    case FsFamily::Ntfs:
+        fs = "NTFS";
+        break;
+    case FsFamily::Fat:
+        fs = "FAT";
+        break;
+    case FsFamily::Exfat:
+        fs = "exFAT";
+        break;
+    case FsFamily::Ext4:
+        fs = "EXT";
+        break;
+    case FsFamily::Hfsplus:
+        fs = "HFS+";
+        break;
+    case FsFamily::Btrfs:
+        fs = "Btrfs";
+        break;
+    case FsFamily::Refs:
+        fs = "ReFS";
+        break;
+    case FsFamily::Zfs:
+        fs = "ZFS";
+        break;
+    case FsFamily::Udf:
+        fs = "UDF";
+        break;
+    case FsFamily::BitLocker:
+        fs = "BitLocker";
+        break;
+    case FsFamily::Unknown:
+    case FsFamily::Reserved5:
+        fs = "Raw";
+        break;
+    }
+    char ascii[48];
+    snprintf(ascii, sizeof(ascii), "%s @ %llu", fs, static_cast<unsigned long long>(vol_offset_));
+    return text::utf8_to_u16(ascii);
+}
+
+/* S-048: the 7 empty category folders under the Reconstructed root (the
+ * og's persisted skeleton - every real session carries exactly these).
+ * Idempotent: a folder whose role already exists is reused (the resume
+ * path re-runs this after root recovery, never duplicating). */
+void ScanController::add_carve_skeleton_() {
+    if (root_carved_ == nullptr)
+        return;
+    for (const char* cat : kCarveCategorySkeleton) {
+        std::u16string role;
+        for (const char* p = cat; *p; ++p)
+            role.push_back(u16(u8(*p)));
+        bool have = false;
+        for (tree::FileNode* c = root_carved_->first_child(); c; c = c->next_sibling())
+            if (c->is_full() && static_cast<tree::FullNode*>(c)->role == role) {
+                have = true;
+                break;
+            }
+        if (!have)
+            (void)tree_.add_folder(root_carved_, role);
+    }
+}
+
 ScanController::ScanController(tree::ResultTree& tree, ScanConfig cfg)
     : tree_(tree), cfg_(std::move(cfg)) {
     event_fn_ = cfg_.event_fn; /* GAP-S6-10: config seed, setter overrides */
@@ -200,10 +307,15 @@ ScanController::ScanController(tree::ResultTree& tree, ScanConfig cfg)
     if (cfg_.run_quick || cfg_.run_deep) {
         root_found_ = tree_.add_root(u"Found");
         root_deleted_ = tree_.add_root(u"Deleted");
-        root_lost_ = tree_.add_root(u"Lost Files");
+        /* M-103: the og's persisted-session branch name (DRWUI :319865/
+         * :321001; the real sessions' "File Path Lost" root - G: 13,420
+         * rows, H: 938,982, I: 12,903) */
+        root_lost_ = tree_.add_root(u"File Path Lost");
     }
-    if (cfg_.run_carve)
+    if (cfg_.run_carve) {
         root_carved_ = tree_.add_root(raw_root_name_());
+        add_carve_skeleton_();
+    }
 }
 
 ScanController::ScanController(tree::ResultTree& tree, ScanConfig cfg,
@@ -230,22 +342,30 @@ ScanController::ScanController(tree::ResultTree& tree, ScanConfig cfg,
                 root_found_ = static_cast<tree::FullNode*>(r);
             else if (role == u"Deleted")
                 root_deleted_ = static_cast<tree::FullNode*>(r);
-            else if (role == u"Lost Files")
+            else if (role == u"File Path Lost" || role == u"Lost Files")
+                /* M-103: the og-contract name; the legacy pre-M-103 name
+                 * stays recognized so an old session resumes without
+                 * spawning a duplicate lost root (the S-048 precedent) */
                 root_lost_ = static_cast<tree::FullNode*>(r);
             /* M-029: the raw root may carry the ORIGINAL run's configured
-             * display name (persisted as its role); recognize both the
-             * default and the current config so a resume never spawns a
-             * duplicate raw root. */
-            else if (role == u"Other Deleted Files (Carved)" || role == raw_root_name_())
+             * display name (persisted as its role); recognize the current
+             * config, the S-048 default ("Reconstructed"), and the legacy
+             * default so a resume never spawns a duplicate raw root. */
+            else if (role == u"Other Deleted Files (Carved)" || role == u"Reconstructed" ||
+                     role == raw_root_name_())
                 root_carved_ = static_cast<tree::FullNode*>(r);
         }
     } else if (cfg_.run_quick || cfg_.run_deep) {
         root_found_ = tree_.add_root(u"Found");
         root_deleted_ = tree_.add_root(u"Deleted");
-        root_lost_ = tree_.add_root(u"Lost Files");
+        root_lost_ = tree_.add_root(u"File Path Lost"); /* M-103: the og name */
     }
-    if (cfg_.run_carve && root_carved_ == nullptr)
+    if (cfg_.run_carve && root_carved_ == nullptr) {
         root_carved_ = tree_.add_root(raw_root_name_());
+        add_carve_skeleton_();
+    } else if (cfg_.run_carve) {
+        add_carve_skeleton_(); /* resume: idempotent - existing folders reused */
+    }
     /* M-042: a whole-disk-basis resume (the only basis persisted lost
      * candidates exist on - whole_disk scans) enables the run-start
      * re-validation; volume-basis resumes keep the candidates as-is
@@ -2105,6 +2225,59 @@ u32 ScanController::run_carve_stage(IStorageDevice* slice, CancelToken* cancel,
     };
     carve::CarveFlags cf;
     cf.threads = threads;
+    /* S-048: the carve tree's volume grouping - the og's persisted shape
+     * (Reconstructed/<volume-display>/<files> with the per-ext skeleton
+     * folders; the three REAL og sessions: " (I:)" x12,147,
+     * "System Reserved" x82,911, " (H:)" x94,057 - 100% of carved rows).
+     * Whole-disk basis with a partition table: one group per used table
+     * volume, named by the SAME M-104 tier machinery the structured
+     * volume roots use (label/GPT/FS-marker - the og's one display name
+     * per volume, both trees). Single-volume basis: the one whole-slice
+     * group named by the composed label+letter form (" (H:)" /
+     * "System Reserved" / "<label> (<L>:)" / the FS-marker fallback).
+     * A position outside every group attaches to the Reconstructed root
+     * directly (unattributable - never mis-attributed). */
+    {
+        bool grouped = false;
+        if (slice->absolute_base() == 0) {
+            table::DiskTable t;
+            if (table::parse_disk_table(slice, t) == OK && t.layout != table::TableLayout::None) {
+                const u64 ls = slice->geometry().logical_sector;
+                for (const auto& p : t.partitions) {
+                    if (!p.used || p.sector_count == 0 || p.fs == table::FsKind::Extended ||
+                        p.fs == table::FsKind::Protective || p.fs == table::FsKind::Ldm)
+                        continue;
+                    auto tgt = PartitionSlice::create(slice, p.start_lba * ls, p.sector_count * ls);
+                    if (!tgt)
+                        continue;
+                    FsFamily fam;
+                    {
+                        errmod::Guard probe_guard(errmod::kOrchestrator);
+                        fam = probe_family(tgt.get());
+                    }
+                    if (fam == FsFamily::Unknown)
+                        continue; /* not a group: the carve still sweeps it
+                                     (attribution to no volume) */
+                    carve::VolumeGroup g;
+                    g.start = p.start_lba * ls;
+                    g.end = (p.start_lba + p.sector_count) * ls;
+                    g.name = volume_target_name(tgt.get(), fam, p.start_lba, p);
+                    cf.volume_groups.push_back(std::move(g));
+                    grouped = true;
+                }
+            }
+        }
+        if (!grouped) {
+            /* single-volume basis (or a tableless disk - the superfloppy
+             * posture: the whole slice IS the volume) */
+            FsFamily fam = cfg_.fs_hint;
+            if (fam == FsFamily::Unknown) {
+                errmod::Guard probe_guard(errmod::kOrchestrator);
+                fam = probe_family(slice);
+            }
+            cf.volume_group_name = carve_volume_display_name_(fam);
+        }
+    }
     /* M-039 (diff-to-fix): the cross-engine occupancy gate - the og's
      * per-volume bitmap every FS engine fills from its walk (EXT4
      * fill-from-every-extent :6866-6869; Btrfs per-node :2547-2551;

@@ -151,7 +151,40 @@ bool volume_extents(wchar_t letter, std::vector<VolExtent>* out);
  * itself without reparse resolution. */
 bool destination_volume_letter(const std::wstring& path, wchar_t* letter);
 
+/* ---- N-125: the drive-disconnect classification ----
+ * The og detects target removal and offers a reconnect-then-continue
+ * flow ("Drive Disconnected - Unable to continue scanning. Reconnect
+ * your drive and try again." Retry/Cancel; UIUX/08:39-47 - the same
+ * triad for NAS/Linux/Cloud offline). The core's engine-side contract:
+ * the device-gone Win32 GLE family classifies as
+ * ERR_DEVICE_DISCONNECTED (a distinct code, not a read-failure storm),
+ * and the documented reattach flow is the session-checkpoint resume
+ * (the machinery exists; hosts detect the code, wait for reattach in
+ * their own loop, then resume). The classification is a pure predicate
+ * over the numeric GLE so BOTH CI lanes compile and test it (the
+ * M-030 cr_winenv.h pattern); the engine retry window stays a
+ * registered deliberate difference (PARITY-DELTAS D-121). */
+namespace disconnect {
+/* Win32 GLEs (numeric - no windows.h dependency): the device-gone set.
+ * ERROR_NOT_READY(21) covers not-ready removable media; ERROR_IO_
+ * DEVICE(1117)/ERROR_CRC(23) and friends stay read failures (the
+ * dying-disk storm keeps the old semantics - the classification must
+ * be precise, not a catch-all). */
+constexpr unsigned kDevNotExist = 55;       /* ERROR_DEV_NOT_EXIST */
+constexpr unsigned kNotReady = 21;          /* ERROR_NOT_READY */
+constexpr unsigned kMediaChanged = 1110;    /* ERROR_MEDIA_CHANGED */
+constexpr unsigned kNoMedia = 1112;         /* ERROR_NO_MEDIA_IN_DRIVE */
+constexpr unsigned kDeviceRemoved = 1619;   /* ERROR_DEVICE_REMOVED */
+
+inline bool gle_is_disconnect(unsigned gle) {
+    return gle == kDevNotExist || gle == kNotReady || gle == kMediaChanged || gle == kNoMedia ||
+           gle == kDeviceRemoved;
+}
+} // namespace disconnect
+
 } // namespace win
 } // namespace cr
+
+
 
 #endif // CR_TRANSPORT_H_

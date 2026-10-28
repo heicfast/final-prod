@@ -1453,6 +1453,24 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
         props->fs_kind = u32(FsKindCode::Hfsplus); /* corpus factory code */
         props->attributes = is_dir ? 0x10 : 0;
         props->logical_size = is_dir ? 0 : content_fork.logical_size;
+        /* N-155: the og's zero-logical-size fallback - a data-fork record
+         * with logicalSize == 0 and totalBlocks > 0 sizes as
+         * totalBlocks << 12 (FUN_180009940 :7666-7671: the size read at
+         * ushort +0x2c [dataFork.logicalSize] with the fallback
+         * *(uint*)(+0x32) << 0xc [dataFork.totalBlocks]). The og
+         * HARDCODES 4096 - the volume's real allocation-block size is not
+         * consulted (an og quirk; the observable on 4096-blocksize
+         * volumes - the overwhelmingly common case - is exact, so the
+         * observable is the parity target, registered in the test).
+         * Data-fork path ONLY: the og's rsrc path (ownerFlags 0x20) has
+         * no fallback (evidence s42-hfs-forkfield-resolution.md §2) - a
+         * zero-size rsrc fork stays 0 (the decmpfs completion path
+         * supplies the size for compressed files). The affected
+         * population is the journal/deleted path's stale records
+         * (zeroed size field, intact block count). */
+        if (!is_dir && !rsrc_marked && content_fork.logical_size == 0 &&
+            content_fork.total_blocks > 0)
+            props->logical_size = u64(content_fork.total_blocks) << 12;
         props->times.created = mac_to_filetime(r.create_date);
         props->times.modified = mac_to_filetime(r.mod_date);
         props->times.changed = mac_to_filetime(r.attr_date ? r.attr_date : r.mod_date);

@@ -108,7 +108,8 @@ CarveResult validate_gpx(IStorageDevice* s, u64 hit, u64 cap);      /* N-113 */
 CarveResult validate_osp(IStorageDevice* s, u64 hit, u64 cap);      /* N-113 */
 CarveResult validate_pos(IStorageDevice* s, u64 hit, u64 cap);      /* N-113 */
 CarveResult validate_chfp(IStorageDevice* s, u64 hit, u64 cap);
-CarveResult validate_office_zip(IStorageDevice* s, u64 hit, u64 cap); /* N-115: the typed rows */     /* N-113 */
+CarveResult validate_office_zip(IStorageDevice* s, u64 hit, u64 cap); /* N-115: the typed rows */
+CarveResult validate_dbx(IStorageDevice* s, u64 hit, u64 cap);        /* M-121 */
 
 namespace {
 const Signature kTable[] = {
@@ -949,7 +950,7 @@ const Signature kTable[] = {
      4,
      0,
      8,
-     16ull << 20,
+     64ull << 20, /* N-148: the M-107-verified 64 MiB stand-in (was 16) */
      620,
      validate_ai,
      "Adobe Illustrator"},
@@ -962,7 +963,33 @@ const Signature kTable[] = {
      64ull << 20,
      620,
      validate_dxf,
-     "AutoCAD DXF"},
+     "AutoCAD DXF",
+     /* N-152: a comment-led DXF re-matches "  0\r" strictly inside the
+      * emitted comment-led stream (the SAME document - the u16 "99" key
+      * claims the position first, the section header sits inside); the
+      * N-151/N-153 repeating-key family rule. */
+     true},
+    /* N-152: the og's second DXF entry key - u16 "99" 0x3939 ->
+     * BruteForce::CDXFAnalyser (RAWSearchDLL :2722-2733, the 0x18-byte
+     * node stamped idx 0x19 inserted under the u16 magic map). The
+     * validator's comment branch (the probe FUN_1800376f0 :42240-42290)
+     * accepts the leading "999\n"/"999\r\n" comment line and scans
+     * forward for the section pattern (LF form after "999\n", CRLF form
+     * after "999\r\n", NUL-terminated scan). */
+    {FMT_DXF_C999,
+     "dxf",
+     {'9', '9'},
+     2,
+     0,
+     32,
+     64ull << 20,
+     620,
+     validate_dxf,
+     "AutoCAD DXF (999 comment)",
+     /* the same-family rule from the sibling row: a canonical DXF's
+      * interior "99" bytes (coordinates, comments) never re-carve inside
+      * an emitted stream */
+     true},
     {FMT_3GP, "3gp", {'f', 't', 'y', 'p'}, 4, 4, 128, 4ull << 30, 780, validate_3gp, "3GP Video"},
     /* ---- S-041 niche batch 2, school 1 (SCAN-4): every grammar
      * re-verified first-hand at the analyser body (the session-5 log in
@@ -1345,15 +1372,150 @@ const Signature kTable[] = {
      * effective ext/name for the override. The og's ids for the
      * non-OOXML families are undecoded (the family granularity is the
      * tag strings' own). */
-    {FMT_XLSX, "xlsx", {'P', 'K', 0x03, 0x04}, 4, 0, 128, 512ull << 20, 800, validate_office_zip, "Excel Workbook", true},
-    {FMT_PPTX, "pptx", {'P', 'K', 0x03, 0x04}, 4, 0, 128, 512ull << 20, 800, validate_office_zip, "PowerPoint Presentation", true},
-    {FMT_ODT, "odt", {'P', 'K', 0x03, 0x04}, 4, 0, 128, 512ull << 20, 620, validate_office_zip, "OpenDocument Text", true},
-    {FMT_ODS, "ods", {'P', 'K', 0x03, 0x04}, 4, 0, 128, 512ull << 20, 620, validate_office_zip, "OpenDocument Spreadsheet", true},
-    {FMT_ODP, "odp", {'P', 'K', 0x03, 0x04}, 4, 0, 128, 512ull << 20, 620, validate_office_zip, "OpenDocument Presentation", true},
-    {FMT_EPUB, "epub", {'P', 'K', 0x03, 0x04}, 4, 0, 128, 512ull << 20, 620, validate_office_zip, "EPUB e-book", true},
-    {FMT_IWORK, "iwa", {'P', 'K', 0x03, 0x04}, 4, 0, 128, 512ull << 20, 620, validate_office_zip, "Apple iWork", true},
-    {FMT_HWP, "hwp", {'P', 'K', 0x03, 0x04}, 4, 0, 128, 512ull << 20, 620, validate_office_zip, "Hangul Document", true},
-    {FMT_CDR, "cdr", {'P', 'K', 0x03, 0x04}, 4, 0, 128, 512ull << 20, 620, validate_office_zip, "CorelDRAW Drawing", true},
+    {FMT_XLSX,
+     "xlsx",
+     {'P', 'K', 0x03, 0x04},
+     4,
+     0,
+     128,
+     512ull << 20,
+     800,
+     validate_office_zip,
+     "Excel Workbook",
+     true},
+    {FMT_PPTX,
+     "pptx",
+     {'P', 'K', 0x03, 0x04},
+     4,
+     0,
+     128,
+     512ull << 20,
+     800,
+     validate_office_zip,
+     "PowerPoint Presentation",
+     true},
+    {FMT_ODT,
+     "odt",
+     {'P', 'K', 0x03, 0x04},
+     4,
+     0,
+     128,
+     512ull << 20,
+     620,
+     validate_office_zip,
+     "OpenDocument Text",
+     true},
+    {FMT_ODS,
+     "ods",
+     {'P', 'K', 0x03, 0x04},
+     4,
+     0,
+     128,
+     512ull << 20,
+     620,
+     validate_office_zip,
+     "OpenDocument Spreadsheet",
+     true},
+    {FMT_ODP,
+     "odp",
+     {'P', 'K', 0x03, 0x04},
+     4,
+     0,
+     128,
+     512ull << 20,
+     620,
+     validate_office_zip,
+     "OpenDocument Presentation",
+     true},
+    {FMT_EPUB,
+     "epub",
+     {'P', 'K', 0x03, 0x04},
+     4,
+     0,
+     128,
+     512ull << 20,
+     620,
+     validate_office_zip,
+     "EPUB e-book",
+     true},
+    {FMT_IWORK,
+     "iwa",
+     {'P', 'K', 0x03, 0x04},
+     4,
+     0,
+     128,
+     512ull << 20,
+     620,
+     validate_office_zip,
+     "Apple iWork",
+     true},
+    {FMT_HWP,
+     "hwp",
+     {'P', 'K', 0x03, 0x04},
+     4,
+     0,
+     128,
+     512ull << 20,
+     620,
+     validate_office_zip,
+     "Hangul Document",
+     true},
+    {FMT_CDR,
+     "cdr",
+     {'P', 'K', 0x03, 0x04},
+     4,
+     0,
+     128,
+     512ull << 20,
+     620,
+     validate_office_zip,
+     "CorelDRAW Drawing",
+     true},
+    /* M-121: Outlook Express Dbx (RawSpeed::DbxAnalyser id 0x15) -
+     * three keys, one shared validator (the og's duplicate-key
+     * policy, the CAB/CPT precedent). RENUMBERED from the S41 lane's
+     * M-117 filing per SA-9, then to M-121 (the parallel lostpart
+     * finding consumed the M-118 mid-flight).
+     * Bounds: the plain forms' size field at +0x7C sets the honest
+     * floor 0x80 (the parallel lane's uniform 16 never rejects a
+     * short-header candidate the read bound itself refuses); the
+     * marked form's whole gate is the 16-byte pattern (floor 0x10);
+     * max = the og engine default 0xBEBC200 (the user-info
+     * singleton's 200,000,000 reset, the MDB family precedent - the
+     * parallel lane's 0xFFFFFFFF cap surface would let the marked
+     * walk run 4 GiB per candidate, far past every og bound).
+     * Confidence: the GUID/JMF6 forms are exact 16-byte identity
+     * matches (800); the marked form keys the pattern alone (700). */
+    {FMT_DBX_JMF6,
+     "dbx",
+     {'J', 'M', 'F', '6'},
+     4,
+     0,
+     0x80,
+     0xBEBC200ull,
+     800,
+     validate_dbx,
+     "Outlook Express Dbx"},
+    {FMT_DBX,
+     "dbx",
+     {0xCF, 0xAD, 0x12, 0xFE},
+     4,
+     0,
+     0x80,
+     0xBEBC200ull,
+     800,
+     validate_dbx,
+     "Outlook Express Dbx"},
+    {FMT_DBX_MARKED,
+     "dbx",
+     {0xF7, 0x89, 0x34, 0x2C},
+     4,
+     0,
+     0x10,
+     0xBEBC200ull,
+     700,
+     validate_dbx,
+     "Outlook Express Dbx"},
 };
 } // namespace
 
@@ -1499,6 +1661,45 @@ bool carve_token_listed(const char* disabled_list, const char* ext, const char* 
 
 bool carve_format_listed(const char* disabled_list, const Signature& sig) {
     return carve_token_listed(disabled_list, sig.ext, sig.name);
+}
+
+/* N-149 (diff-to-fix): the og's per-search filter rebuild NEVER removes the
+ * OLE/RIFF/ZIP analysers - the removal loop FUN_180006b30's keep-condition
+ * carries the exempt mask 0x1000801 over id-0x30 (RAWSearchDLL :4412-4418,
+ * re-read first-hand: set bits 0/11/24 -> ids 0x30 FileOLEAnalyser /
+ * 0x3b FileRIFFAnalyser / 0x48 FileZIPAnalyser; the ids pinned at the
+ * registry builders :2337 / :2304-2310 / :2243, all three re-read this
+ * session). The core's row set splits the og's three analysers into
+ * per-form rows (AVI/WAV/WEBP under the RIFF key; the office/ODF-typed
+ * family and the CD-salvage anchor under the ZIP key) - every row of
+ * those families is always-on through the disable surface. The raw-sign
+ * LIST layer is NOT exempt: its formats sit outside the og's mask range
+ * (the og's shipped [Filter] targets exactly that layer - STL/VPJ ship
+ * disabled - and no raw-sign row exists for zip/avi/wav/webp/doc). */
+bool carve_format_always_on(FormatId id) {
+    switch (id) {
+    case FMT_OLE: /* the og's 0x30 */
+    case FMT_AVI:
+    case FMT_WAV:
+    case FMT_WEBP: /* the og's 0x3b RIFF family */
+    case FMT_ZIP:
+    case FMT_ZIP_CD:
+    case FMT_DOCX:
+    case FMT_XLSX:
+    case FMT_PPTX:
+    case FMT_ODT:
+    case FMT_ODS:
+    case FMT_ODP:
+    case FMT_EPUB:
+    case FMT_IWORK:
+    case FMT_HWP:
+    case FMT_CDR: /* the og's 0x48 ZIP family (the CD row is the
+                     analyser's preferred anchor; the typed rows are its
+                     in-analyser typing pass - the N-115 decode) */
+        return true;
+    default:
+        return false;
+    }
 }
 
 } // namespace carve
