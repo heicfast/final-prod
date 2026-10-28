@@ -1251,7 +1251,7 @@ CR_UI_API uint32_t cr_ui_preview_unreadable(cr_ui_preview* pv, uint64_t* total_b
 typedef struct cr_ui_thumbnail_caps {
     uint32_t max_edge;       /* 0 = 256 (the og's GDI+ convention) */
     uint64_t max_pixels;     /* 0 = 64 MP (decode-memory bomb guard) */
-    uint32_t max_read;       /* 0 = 32 MiB (input byte budget, M-080) */
+    uint32_t max_read;       /* 0 = 200 MB / 0xC800000 (the og's still-image eligibility gate, M-109) */
     uint32_t max_work;       /* 0 = 4 Mi fetch units (decoder work bound) */
     uint32_t allow_embedded; /* 0 = ON (the EXIF fast path, M-080/D-105) */
 } cr_ui_thumbnail_caps;

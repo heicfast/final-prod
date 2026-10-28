@@ -277,6 +277,14 @@ no prior finding owned.)
 
 ## Session-10 wave-3 addendum (2026-10-29, landing-parity verification)
 
+- **M-109 → MATCH (session 39B, FIXED)**: max_read = 0xC800000 (the og's
+  still-image eligibility gate, DRWUI :422425-429 re-verified first-hand);
+  the refuted "no input cap" doctrine replaced at all four sites; the band
+  proof a real 34 MiB in-test-built PNG (build_large_png); the past-gate
+  refusal pinned at 200 MB+1. DISCOVERED during the band test:
+  **M-112** (the StbioSource single-shot read defect — every PNG with a
+  > 4 MiB IDAT failed outofdata; the read_cb loop landed with the band
+  test as the shared regression proof; filed per the §8 duty).
 - **M-108 (MAJOR)** — the M-080 landing's residual: the og's 200 MB
   thumbnail-eligibility anchor (DRWUI FUN_1402636e0, :422428-area) not
   adopted; the 32–200 MB band without an embedded EXIF thumb still

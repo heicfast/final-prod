@@ -10,6 +10,7 @@
  * Licensed under the MIT license. See LICENSE.
  */
 #include <gtest/gtest.h>
+#include <zlib.h>
 #include "cr/preview/cr_thumbnail.h"
 
 #include <atomic>
@@ -183,7 +184,7 @@ TEST(Thumbnail, CapsDefaultsPinTheCorpusAnchors) {
     ThumbnailCaps c;
     EXPECT_EQ(256u, c.max_edge);          /* the og UI-side GDI+ convention */
     EXPECT_EQ(64ull << 20, c.max_pixels); /* 256 MiB worst-case RGBA decode */
-    EXPECT_EQ(32u << 20, c.max_read);     /* M-080: the og GDI+ path has no input cap */
+    EXPECT_EQ(0xC800000u, c.max_read);     /* M-109: the og's 200 MB still-image gate (DRWUI :422428) */
     EXPECT_EQ(1u << 22, c.max_work);      /* extract_metadata work scale */
     EXPECT_TRUE(c.allow_embedded);
 }
@@ -350,7 +351,7 @@ TEST(Thumbnail, OrdinaryPhotoDefaultBudget) {
     EXPECT_EQ(192u, t.height);
     /* the default pin: the raised cap is the ABI contract hosts inherit */
     ThumbnailCaps dflt;
-    EXPECT_EQ(32u << 20, dflt.max_read) << "M-080: the raised I/O bound";
+    EXPECT_EQ(0xC800000u, dflt.max_read) << "M-109: the og 200 MB eligibility gate (the refuted no-cap doctrine re-pinned)";
     EXPECT_EQ(64ull * 1024 * 1024, dflt.max_pixels) << "the pixel guard unchanged";
 }
 
@@ -828,4 +829,124 @@ TEST(Thumbnail, ExtentBackedDecodesLikeResident) {
     expect_pixel(t, 2, 2, 255, 0, 0, 0);
     expect_pixel(t, 13, 9, 255, 255, 0, 0);
     EXPECT_GT(n.dev.bytes(), 0u); /* proof the bytes really crossed the device */
+}
+
+/* ---- M-109: the og's 200 MB still-image eligibility band ---- */
+
+namespace {
+
+/* a real PNG built in-test with zlib: 'w' x 'h' RGB rows of PRNG bytes
+ * (incompressible by construction, so the FILE exceeds 32 MiB at
+ * ~11.5 MP - inside the og's band and under the 64 MP pixel guard) */
+std::vector<u8> build_large_png(u32 w, u32 h) {
+    std::vector<u8> raw; /* the filtered scanline stream: filter byte 0 + row */
+    raw.reserve(size_t(h) * (size_t(w) * 3 + 1));
+    u64 s = 0x2545F4914F6CDD1Dull;
+    auto next = [&s]() {
+        s ^= s >> 12;
+        s ^= s << 25;
+        s ^= s >> 27;
+        return s * 2685821657736338717ull;
+    };
+    for (u32 y = 0; y < h; ++y) {
+        raw.push_back(0); /* PNG filter type 0 (None) */
+        for (u32 x = 0; x < w; ++x) {
+            const u64 v = next();
+            raw.push_back(u8(v));
+            raw.push_back(u8(v >> 16));
+            raw.push_back(u8(v >> 32));
+        }
+    }
+    uLongf cl = compressBound(uLong(raw.size()));
+    std::vector<u8> comp(cl);
+    {
+        z_stream zs{};
+        if (deflateInit(&zs, 1) != Z_OK) /* fast level; random data stores */
+            return {};
+        zs.next_in = raw.data();
+        zs.avail_in = uInt(raw.size());
+        zs.next_out = comp.data();
+        zs.avail_out = uInt(comp.size());
+        if (deflate(&zs, Z_FINISH) != Z_STREAM_END) {
+            deflateEnd(&zs);
+            return {};
+        }
+        comp.resize(zs.total_out);
+        deflateEnd(&zs);
+    }
+    std::vector<u8> png;
+    const auto chunk = [&png](const char* type, const std::vector<u8>& data) {
+        const u32 len = u32(data.size());
+        png.push_back(u8(len >> 24));
+        png.push_back(u8(len >> 16));
+        png.push_back(u8(len >> 8));
+        png.push_back(u8(len));
+        u32 crc = crc32(0, reinterpret_cast<const Bytef*>(type), 4);
+        for (int i = 0; i < 4; ++i)
+            png.push_back(u8(type[i]));
+        png.insert(png.end(), data.begin(), data.end());
+        crc = data.empty() ? crc : crc32(crc, data.data(), uInt(data.size()));
+        png.push_back(u8(crc >> 24));
+        png.push_back(u8(crc >> 16));
+        png.push_back(u8(crc >> 8));
+        png.push_back(u8(crc));
+    };
+    png.insert(png.end(), {0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n'});
+    std::vector<u8> ihdr(13);
+    ihdr[0] = u8(w >> 24);
+    ihdr[1] = u8(w >> 16);
+    ihdr[2] = u8(w >> 8);
+    ihdr[3] = u8(w);
+    ihdr[4] = u8(h >> 24);
+    ihdr[5] = u8(h >> 16);
+    ihdr[6] = u8(h >> 8);
+    ihdr[7] = u8(h);
+    ihdr[8] = 8;  /* bit depth */
+    ihdr[9] = 2;  /* color type: truecolor RGB */
+    chunk("IHDR", ihdr);
+    chunk("IDAT", comp);
+    chunk("IEND", {});
+    return png;
+}
+
+} // namespace
+
+TEST(Thumbnail, LargeStillImageWithinOgBand) {
+    /* M-109: a >32 MiB, <200 MB still image decodes Ok - the og's band.
+     * Pre-fix (the 32 MiB default): BudgetExceeded for every such file
+     * without an embedded EXIF thumb. The fixture: a real ~34 MiB PNG at
+     * 3500x3200 RGB (11.2 MP, under the 64 MP guard). */
+    const auto png = build_large_png(3500, 3200);
+    ASSERT_FALSE(png.empty()) << "the PNG builder failed";
+    ASSERT_GT(png.size(), size_t(32u << 20)) << "the fixture must exceed the OLD 32 MiB default";
+    ASSERT_LT(png.size(), size_t(0xC800000)) << "and stay inside the og's 200 MB gate";
+    Node n(png, false);
+    auto r = n.reader();
+    Thumbnail t;
+    ThumbnailCaps c; /* the shipped defaults */
+    ASSERT_EQ(ThumbStatus::Ok, make_thumbnail(r, c, t))
+        << "the 32-200 MB band is the og's served band (DRWUI :422428)";
+    EXPECT_EQ("png", t.source_format);
+    EXPECT_EQ(256u, t.width); /* 3500 > 3200: the edge axis downscales */
+    EXPECT_EQ(235u, t.height); /* box_downscale's ceiling: 3200*256/3500 = 234.06 -> 235 */
+    EXPECT_FALSE(t.from_embedded);
+}
+
+TEST(Thumbnail, OversizePastOgGateRefused) {
+    /* M-109: past the og's 200 MB gate the item is SKIPPED (the og's
+     * 'if (0xc800000 < size) goto skip'); our named equivalent is
+     * BudgetExceeded - a real PNG head with a declared logical size one
+     * byte past the gate (the gate reads the SIZE, never the body) */
+    const auto png = build_large_png(64, 48);
+    ASSERT_FALSE(png.empty()) << "the PNG builder failed";
+    Node n(png, false);
+    n.props.logical_size = 0xC800000ull + 1; /* 200 MB + 1: past the gate */
+    /* the extent covers the real head only - the gate refuses on size */
+    n.props.extents[0].length = png.size();
+    auto r = n.reader();
+    Thumbnail t;
+    ThumbnailCaps c;
+    ASSERT_EQ(ThumbStatus::BudgetExceeded, make_thumbnail(r, c, t))
+        << "past the og's 200 MB gate: the honest refusal";
+    EXPECT_TRUE(t.rgba.empty());
 }

@@ -122,6 +122,26 @@ implementation) / EaDirNotInFilterfolderPools. ctest 1110/1110. The
 finding + the evidence file's prefix paragraph corrected in the
 Resolution; the module row + matrix cell -> MATCH.
 
+**T4 (M-109 + M-112 FIXED — a NEW finding discovered and closed in the
+same test):** the thumbnail 200 MB eligibility anchor + the latent
+large-IDAT decode defect. M-109: the og's gate re-verified first-hand
+(DRWUI :422425-429 'if (0xc800000 < size) skip'); max_read default
+32 MiB -> 0xC800000; the refuted "no input cap" doctrine replaced at
+all four sites (cr_thumbnail.h x2, cr_thumbnail.cpp, cr_ui.h, the test
+pins); the band proof build_large_png (a genuine in-test PNG encoder —
+zlib over incompressible PRNG scanlines, 3500x3200 = 34 MB); the
+past-gate refusal at 200 MB+1; mutation-proven fail-before (the 32 MiB
+default restored: the band test AND the anchor pin RED). M-112
+(NEW-FINDING, §8 duty): the band test's outofdata failure isolated a
+latent engine defect — StbioSource::read_cb issued a single
+read_at (clamped by PreviewReader::kMaxRead to 4 MiB) while stb's PNG
+loader demands the full IDAT in one getn — every photo-scale PNG (>4
+MiB IDAT) was silently DecodeFailed since the engine's landing; no
+prior fixture exceeded the clamp. The fix: the read loop (each
+iteration budget-spent, true-EOF on a 0-byte return). The band test is
+the shared regression proof (RED outofdata pre-loop, green post).
+ctest 1119/1119.
+
 **Session-39B territory claim (coordination contract):** the lead 39 instance
 claimed MINOR + INFO; 11D claimed SEVERE; 11C/11D the MAJOR orchestration/carve
 cluster. **39B takes the unclaimed MAJOR preview/query/ABI cluster:

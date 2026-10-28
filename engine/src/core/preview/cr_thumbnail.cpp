@@ -160,8 +160,21 @@ private:
             return 0;
         }
         u32 want = u32(size) < s->b_.read_left ? u32(size) : s->b_.read_left;
-        const u32 got = s->pr_.read_at(s->pos_, data, want);
-        s->b_.spend_read(got);
+        /* N-112 (discovered during M-109's band test): LOOP the read -
+         * PreviewReader::read_at clamps every call to kMaxRead (4 MiB),
+         * so a single-shot read satisfied only the first 4 MiB of stb's
+         * IDAT request and every PNG with an IDAT larger than that (any
+         * real-world photo-scale PNG) failed with outofdata. The loop
+         * assembles the full request (each iteration budget-spent) until
+         * true EOF. */
+        u32 got = 0;
+        while (got < want) {
+            const u32 n = s->pr_.read_at(s->pos_ + got, data + got, want - got);
+            if (n == 0)
+                break; /* true EOF (or unreadable - the span map carries it) */
+            s->b_.spend_read(n);
+            got += n;
+        }
         if (got < want)
             s->eof_ = true;
         s->pos_ += got;
@@ -1216,13 +1229,14 @@ ThumbStatus thumbnail_stb(PreviewReader& pr, const ThumbnailCaps& caps, Thumbnai
             out.truncated = !b.over;
             return b.over ? ThumbStatus::BudgetExceeded : ThumbStatus::DecodeFailed;
         }
-        /* M-080: the byte-oversized middle class - a byte-heavy but
-         * pixel-benign photo (the common case: a 6 MiB 12-MP JPEG) - also
-         * takes the embedded fast path: it reads only the embedded thumb
-         * (a few KiB), never the max_read body. The og's GDI+ path has no
-         * input byte cap at all (FUN_1403d7840 :652377-419); the raised
-         * 32 MiB default keeps the I/O bound while the pixel guard bounds
-         * decode memory. */
+        /* M-080/M-109: the byte-oversized middle class - a byte-heavy
+         * but pixel-benign photo (the common case: a 6 MiB 12-MP JPEG) -
+         * also takes the embedded fast path: it reads only the embedded
+         * thumb (a few KiB), never the max_read body. The input bound is
+         * the og's still-image eligibility gate - 200 MB (0xC800000,
+         * DRWUI FUN_1402636e0 :422425-429, M-109's re-pin of M-080's
+         * refuted no-cap doctrine); the pixel guard (64 MP) bounds decode
+         * memory, so the raised I/O bound cannot OOM the decode path. */
         const bool pixel_oversized = u64(w) * u64(h) > caps.max_pixels;
         const bool byte_oversized = pr.size() > caps.max_read;
         if (pixel_oversized || byte_oversized) {
