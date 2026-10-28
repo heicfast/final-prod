@@ -8536,7 +8536,6 @@ size_t plant_zip_entries(std::vector<u8>& img, size_t at,
 
 } // namespace
 
-
 /* N-115/N-153: the carved ARCHIVE count - direct children of the carve
  * root only (the S-032 inventory presents the inner entries as CHILD
  * nodes of the archive; collect_children would count them too). */
@@ -8565,17 +8564,18 @@ TEST(Carve, OoxmlRelsPathSplit) {
     };
     for (const auto& c : cases) {
         std::vector<u8> img(256 * 1024, 0);
-        plant_zip_entries(img, 4096, {{"[Content_Types].xml", "<Types/>"},
-                                      {c.rels, "<Relationships/>"},
-                                      {"doc.xml", "body"}});
+        plant_zip_entries(img, 4096,
+                          {{"[Content_Types].xml", "<Types/>"},
+                           {c.rels, "<Relationships/>"},
+                           {"doc.xml", "body"}});
         MemDevice dev(std::move(img));
         tree::ResultTree tree;
         auto* root = tree.add_root(u"Lost Files");
         CarveFlags flags;
         CarveStats s;
-        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
-                              s),
-                  u32(OK));
+        ASSERT_EQ(
+            carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+            u32(OK));
         ASSERT_EQ(direct_carved_count(root), 1u) << "the rels path " << c.rels;
         tree::FileNode* n0 = root->first_child();
         EXPECT_EQ(n0->props()->carve_format, c.fmt) << "the rels-path split";
@@ -8605,9 +8605,10 @@ TEST(Carve, ZipEntriesReorderedStillTyped) {
      * damaged/reordered zip whose [Content_Types].xml is NOT the literal
      * first entry still types (the old first-entry gate missed it). */
     std::vector<u8> img(256 * 1024, 0);
-    plant_zip_entries(img, 4096, {{"docProps/app.xml", "<app/>"},
-                                  {"[Content_Types].xml", "<Types/>"},
-                                  {"xl/_rels/workbook.xml.rels", "<Relationships/>"}});
+    plant_zip_entries(img, 4096,
+                      {{"docProps/app.xml", "<app/>"},
+                       {"[Content_Types].xml", "<Types/>"},
+                       {"xl/_rels/workbook.xml.rels", "<Relationships/>"}});
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
     auto* root = tree.add_root(u"Lost Files");
@@ -8642,12 +8643,11 @@ TEST(Carve, OdfEpubTypedByMimetype) {
         auto* root = tree.add_root(u"Lost Files");
         CarveFlags flags;
         CarveStats s;
-        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
-                              s),
-                  u32(OK));
+        ASSERT_EQ(
+            carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+            u32(OK));
         ASSERT_EQ(direct_carved_count(root), 1u) << "mimetype " << c.mime;
-        EXPECT_EQ(root->first_child()->props()->carve_format, c.fmt)
-            << "the mimetype content tag";
+        EXPECT_EQ(root->first_child()->props()->carve_format, c.fmt) << "the mimetype content tag";
     }
 }
 
@@ -8670,9 +8670,9 @@ TEST(Carve, IworkAndCdrTypedByEntryName) {
         auto* root = tree.add_root(u"Lost Files");
         CarveFlags flags;
         CarveStats s;
-        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
-                              s),
-                  u32(OK));
+        ASSERT_EQ(
+            carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+            u32(OK));
         ASSERT_EQ(direct_carved_count(root), 1u) << "entry " << c.entry;
         EXPECT_EQ(root->first_child()->props()->carve_format, c.fmt) << "the name tag";
     }
@@ -8709,8 +8709,8 @@ TEST(Carve, MultiEntryZipCarvesOnce) {
      * children). Pre-fix: the outer node + one phantom per inner LFH
      * whose tail-to-EOCD span cleared the 128-byte floor. */
     std::vector<u8> img(256 * 1024, 0);
-    plant_zip_entries(img, 4096, {{"a.txt", std::string(200, 'a')},
-                                  {"b.txt", std::string(200, 'b')}});
+    plant_zip_entries(img, 4096,
+                      {{"a.txt", std::string(200, 'a')}, {"b.txt", std::string(200, 'b')}});
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
     auto* root = tree.add_root(u"Lost Files");

@@ -322,14 +322,12 @@ enum FormatId : u32 {
      * corpus (the floss strings :6699-6729 + the strings table
      * :768-905): the ODF trio by the mimetype entry's content
      * (application/vnd.oasis.opendocument.{text,spreadsheet,
-     * presentation}), EPUB (application/epub+zip + the OPS/ chapter1.html name tag), Apple iWork (Index/[*].iwa +
-     * index.apxl), Hangul (application/hwp+zip), CorelDRAW
-     * (content/riffData.cdr). All rows share the LFH dispatch key and
-     * are OVERRIDE TARGETS (the typing walk stamps the id by content;
-     * the FMT_DOCX row wins the registry-order tie). The og's id
-     * mapping for the non-OOXML families is undecoded - the family
-     * granularity here is the tag strings' own. Ids APPENDED
-     * (serialized carve_format values stay stable). */
+     * presentation}), EPUB (application/epub+zip + the OPS/ chapter1.html name tag), Apple iWork
+     * (Index/[*].iwa + index.apxl), Hangul (application/hwp+zip), CorelDRAW (content/riffData.cdr).
+     * All rows share the LFH dispatch key and are OVERRIDE TARGETS (the typing walk stamps the id
+     * by content; the FMT_DOCX row wins the registry-order tie). The og's id mapping for the
+     * non-OOXML families is undecoded - the family granularity here is the tag strings' own. Ids
+     * APPENDED (serialized carve_format values stay stable). */
     FMT_XLSX,  /* xl/_rels/workbook.xml.rels (the og id 0x4a) */
     FMT_PPTX,  /* ppt/_rels/presentation.xml.rels (the og id 0x4b) */
     FMT_ODT,   /* mimetype: ...opendocument.text */

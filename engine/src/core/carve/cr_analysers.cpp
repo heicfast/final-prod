@@ -1368,8 +1368,8 @@ static CarveResult zip_common(IStorageDevice* s, u64 hit, u64 cap, bool office) 
         u8 nmbuf[512];
         u64 pos = hit;
         const u64 wl = probe_limit(s, hit, cap);
-            const u64 wb = hit + (u64(256) << 10);
-            const u64 walk_limit = wb < wl ? wb : wl;
+        const u64 wb = hit + (u64(256) << 10);
+        const u64 walk_limit = wb < wl ? wb : wl;
         for (int ent = 0; ent < 32 && pos + 30 <= walk_limit; ++ent) {
             u8 lfh[30];
             if (!rd(s, pos, lfh, 30) || std::memcmp(lfh, "PK\x03\x04", 4) != 0)
@@ -1377,10 +1377,10 @@ static CarveResult zip_common(IStorageDevice* s, u64 hit, u64 cap, bool office) 
             const u16 method = u16(lfh[8]) | (u16(lfh[9]) << 8);
             const u16 nlen = u16(lfh[26]) | (u16(lfh[27]) << 8);
             const u16 elen = u16(lfh[28]) | (u16(lfh[29]) << 8);
-            u32 csize = u32(lfh[18]) | (u32(lfh[19]) << 8) | (u32(lfh[20]) << 16) |
-                        (u32(lfh[21]) << 24);
-            u32 usize = u32(lfh[22]) | (u32(lfh[23]) << 8) | (u32(lfh[24]) << 16) |
-                        (u32(lfh[25]) << 24);
+            u32 csize =
+                u32(lfh[18]) | (u32(lfh[19]) << 8) | (u32(lfh[20]) << 16) | (u32(lfh[21]) << 24);
+            u32 usize =
+                u32(lfh[22]) | (u32(lfh[23]) << 8) | (u32(lfh[24]) << 16) | (u32(lfh[25]) << 24);
             if (nlen == 0 || nlen > sizeof(nmbuf))
                 break; /* not a name-bearing entry the walk understands */
             if (!rd(s, pos + 30, nmbuf, nlen))
@@ -1398,14 +1398,13 @@ static CarveResult zip_common(IStorageDevice* s, u64 hit, u64 cap, bool office) 
                 typed = FMT_XLSX;
             else if (std::strcmp(nm, "ppt/_rels/presentation.xml.rels") == 0)
                 typed = FMT_PPTX;
-            else if (nlen >= 5 && std::memcmp(nm, "word", 4) == 0 && typed == 0 &&
-                     content_types)
+            else if (nlen >= 5 && std::memcmp(nm, "word", 4) == 0 && typed == 0 && content_types)
                 typed = FMT_DOCX; /* the og's word-prefix fallback */
             /* the name-tag set (no decompression needed) */
             else if (std::strcmp(nm, "content/riffData.cdr") == 0)
                 typed = FMT_CDR;
-            else if ((nlen > 6 && std::memcmp(nm, "Index/", 6) == 0 &&
-                      nlen > 10 && std::memcmp(nm + nlen - 4, ".iwa", 4) == 0) ||
+            else if ((nlen > 6 && std::memcmp(nm, "Index/", 6) == 0 && nlen > 10 &&
+                      std::memcmp(nm + nlen - 4, ".iwa", 4) == 0) ||
                      std::strcmp(nm, "index.apxl") == 0)
                 typed = FMT_IWORK;
             else if (std::strcmp(nm, "OPS/chapter1.html") == 0)
@@ -1419,12 +1418,11 @@ static CarveResult zip_common(IStorageDevice* s, u64 hit, u64 cap, bool office) 
                 if (method == 0 && csize <= sizeof(content)) {
                     if (csize != 0 && rd(s, dpos, content, csize))
                         got = csize;
-                } else if (method == 8 && csize <= 0x2800 && usize != 0 &&
-                           usize <= 0x2800 && csize != 0xFFFFFFFFu) {
+                } else if (method == 8 && csize <= 0x2800 && usize != 0 && usize <= 0x2800 &&
+                           csize != 0xFFFFFFFFu) {
                     u8 comp[0x2800];
                     if (rd(s, dpos, comp, csize) &&
-                        compress::decompress_block(compress::kGzip, comp, csize, content,
-                                                   usize))
+                        compress::decompress_block(compress::kGzip, comp, csize, content, usize))
                         got = usize;
                 }
                 content[got] = 0;
