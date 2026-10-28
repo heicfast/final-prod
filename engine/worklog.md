@@ -6159,3 +6159,16 @@ OneChunkChainHostileVariantsSalvageAndRefuse / ThreeDsSectionWalkUsesTheStrideFi
 suite 1187/1187 green; format clean. Trail: findings/FIXED/ with the
 Resolution; ledger row; matrix cell → MATCH; modules/carve.md;
 SUMMARY's S42 block.
+
+**M-131 FIXED-ALREADY (the CLI's in-run checkpoint truncate-in-place
+shape) — verified at HEAD `c98eb7a7`:** the parallel lane's A-013
+landing (4f0fc160) covered the finding's whole scope: the `CliCkSink`
+(rrecov.cpp:991-1058) stages every emit into `<path>.tmp` and commits
+by `MoveFileExW` rename (the sink never opens the final path for
+truncation — the prior session at `--out` survives byte-identical
+until the first SUCCESSFUL checkpoint), `emit_checkpoint_`
+(cr_scan.cpp:705-739) carries the commit hook (the tmp+commit shape),
+and the acceptance test
+CrUi.CliResumeSinkNeverTruncatesTheSessionSource is green. The finding
+moved to findings/FIXED/ with the FIXED-ALREADY Resolution (no code
+change needed); ledger row; matrix cell; modules/cli.md.

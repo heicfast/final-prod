@@ -42,9 +42,13 @@
     the core, unregistered); **M-129** (carve P23-adjacent — the og's tolerant
     EUUserData loader (skip-and-continue) vs the core's all-or-nothing reject);
     **M-130** (fat P1/P3/P26 — the dentry shape-validator family (ext-tail, size/chain
-    XOR, dir, >9-repeat histogram gates + walk-stop semantics) unported); **M-131**
-    (cli/session P34 — the in-run checkpoint is truncate-in-place, the N-014 shape
-    cr_ui fixed; A-013's general case); **M-132** (table P1/P35 — GPT backup probe:
+    XOR, dir, >9-repeat histogram gates + walk-stop semantics) unported); **M-131 FIXED-ALREADY
+    (4f0fc160, the parallel A-013 landing — verified at c98eb7a7: the CliCkSink
+    tmp+commit+rename reproduction; the sink never opens the final path for
+    truncation; CrUi.CliResumeSinkNeverTruncatesTheSessionSource green;
+    findings/FIXED/M-131)** (cli/session P34 — the in-run checkpoint's
+    truncate-in-place shape, the N-014 class at the CLI layer — closed by the
+    A-013 landing); **M-132** (table P1/P35 — GPT backup probe:
     og device-last always + full bail on dead LBA1; core probes declared backup_lba +
     recovers from dev-last — divergent both directions, unregistered).
   - **MINOR (18):** **N-161** (table — GPT entry span underflow, no first≤last gate);
