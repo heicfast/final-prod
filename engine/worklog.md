@@ -6914,3 +6914,38 @@ the 0xFFFFFFFE exact boundary; the 0x100000000 regression step) +
 Date2107EndToEndFileTimeIsReal. The finding's example word 0xFFBF corrected (decodes
 the invalid 2107-11-31; 0xFF9F is the true 2107-12-31) — recorded in the Resolution.
 Suite 1273/1273. Trail: findings/FIXED/N-173 + ledger + fat.md row + this entry.
+
+## Session-49 continuation audit lane — territory claim (2026-10-29)
+
+**Lane type:** the fourth continuation audit lane of the same user second-session
+mandate (remove-the-fixed + go-deeper + mark-all-remaining), following the
+S42/S42-B/S42-C/S12 precedent. **READ-ONLY** — the delta vs origin/main will be
+`diff-to-fix/` + `worklog*` only, verified per commit. The fix lanes' territory
+division respected: S45 keeps ACUTE/SEVERE, S46 keeps the MINOR set, S47/S48 keep
+the INFO + tracked-open + MAJOR tiers (top-down/bottom-up mirrors).
+
+**Pins:** core `0d7b1d9d` (HEAD at open, post the S45-S48 claim commits), corpus
+`be0cfe9`. This lane's claimed territory (no overlap with the fix lanes' fix work):
+
+1. **The liveness battery** — all active board findings + tracked-open re-verified
+   at the pin; falsely-active findings retired with Resolution addenda (the
+   remove-the-fixed ask; verification bookkeeping, not fix work).
+2. **The tracked-open probes** — OQ-S42-1 (NTFS $SI/$FN time precedence decode),
+   OQ-S42-2 (Btrfs nsec treatment decode), OQ-S42-3 (grading deep-read subgates):
+   each has an exact next-probe instruction this lane will execute against the
+   corpus decompiles.
+3. **The newest-landings corpus-parity sweep** — the 25-landing window since the
+   last battery pin `869da779` (N-172/N-173/M-125/N-162/N-143/M-106/N-164/N-179/
+   M-099/A-013/N-139/M-116/M-098/N-155/M-103/N-146/M-112/N-149/S-049/M-076/M-121/
+   N-152/S-048/S-054 + the registry rows): each landing's og-parity re-read
+   first-hand (the regression watch — new code is the newest divergence source;
+   the S42-C sweep's pin predates these).
+4. **The remaining-surface census** — the under-cited artifacts flagged by the
+   inventory's own rows (ifileproperties-part1 on four module rows), the active
+   findings' open questions enumerated, and any never-dispositioned og-codebase
+   behavior surfaced by the probes: every gap filed (mark-all-remaining).
+
+Mandate saved token-redacted: `worklog/session-49-continuation-audit-prompt.md`.
+Next free IDs at open (per the S42 focus-battery close): S-062+, M-138+, N-186+,
+I-045+, A-015+. Board at open (filesystem truth): 77 active (1 ACUTE · 9 SEVERE ·
+28 MAJOR · 32 MINOR · 7 INFO) / 64 FIXED / 6 tracked-open.
