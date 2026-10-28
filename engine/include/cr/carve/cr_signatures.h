@@ -217,10 +217,10 @@ enum FormatId : u32 {
      * "csl" marker) or 0x5b (SVG) by CONTENT (carried by
      * CarveResult::format_override). Ids APPENDED (serialized
      * carve_format values stay stable). */
-    FMT_XML,        /* u32 "<?xm" - the declaration path */
-    FMT_XML_BOM,    /* u32 EF BB BF 3C - the UTF-8 BOM path */
-    FMT_SVG_CD01,   /* u32 CD 01 00 00 (the decoded numeric key 0x1cd) */
-    FMT_SVG,        /* u32 "<svg" - the direct SVG path + the probe's override target */
+    FMT_XML,      /* u32 "<?xm" - the declaration path */
+    FMT_XML_BOM,  /* u32 EF BB BF 3C - the UTF-8 BOM path */
+    FMT_SVG_CD01, /* u32 CD 01 00 00 (the decoded numeric key 0x1cd) */
+    FMT_SVG,      /* u32 "<svg" - the direct SVG path + the probe's override target */
     /* M-096 (diff-to-fix): the og's MOBI analyser (id 0x85, the RawConfig
      * "MOBI" toggle - shipped =1/enabled) - the full-salvage PalmDB gate
      * (the BOOKMOBI pair at +0x3C, NOTHING before it validated) + the

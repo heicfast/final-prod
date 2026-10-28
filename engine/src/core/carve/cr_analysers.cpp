@@ -2864,7 +2864,6 @@ CarveResult validate_html(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
-
 /* ---- XML / SVG (M-093): one og chain, four u32 keys, two probe ids ----
  * The four registrations (:1806-1837) all construct the
  * Brance::SVGAnalyser chain: "<?xm" 0x6d783f3c, the UTF-8 BOM+'<'
@@ -2940,7 +2939,6 @@ CarveResult validate_xmlsvg(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
-
 /* ---- MOBI (M-096): the og's full-salvage PalmDB gate ----
  * MOBIAnalyser (id 0x85), list-registered behind the RawConfig "MOBI"
  * token (:3600-3615 - the SHIPPED RawConfig.ini carries MOBI=1, the
@@ -2961,7 +2959,7 @@ CarveResult validate_mobi(IStorageDevice* s, u64 hit, u64 cap) {
     if (!rd(s, hit + 0x3C, pair, sizeof(pair)))
         return r;
     if (std::memcmp(pair, "BOOKMOBI", 8) != 0)
-        return r; /* the PalmDB type/creator pair - the ONLY gate */
+        return r;                               /* the PalmDB type/creator pair - the ONLY gate */
     const u64 limit = probe_limit(s, hit, cap); /* cap = 500 MB */
     /* the 512-step end-tag walk, block-buffered (kProbeBlock is an
      * exact multiple of the step, so every block starts step-aligned

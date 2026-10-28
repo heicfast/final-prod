@@ -4171,7 +4171,6 @@ TEST(Carve, XmlNoMarkerNoSvgRejected) {
             << "an ordinary declaration without svg/csl must reject";
 }
 
-
 TEST(Carve, MobiBookMobiPairAccepted) {
     /* M-096: the PalmDB BOOKMOBI pair at +0x3C is the whole gate - the
      * 0x3C bytes before it are garbage and the book still carves (the

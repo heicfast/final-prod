@@ -644,7 +644,6 @@ TEST(Thumbnail, SmallJpegWithEmbeddedThumbPrefersFullDecode) {
  * surfaces as property 0x112 for TIFF inputs) and the embedded fast
  * path's D-105 orientation rule ---------------- */
 
-
 TEST(Thumbnail, TiffOrientationApplied) {
     /* tag 274 = GDI+ property 0x112 for TIFF inputs; lossless fixture so
      * the corner colors are exact */
