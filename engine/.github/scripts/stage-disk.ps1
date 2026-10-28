@@ -26,7 +26,12 @@ $ErrorActionPreference = 'Stop'
 function Fail($msg) { Write-Host "::error::$msg"; exit 1 }
 
 New-Item -ItemType Directory -Force $OutDir | Out-Null
-$manifest = Get-Content $Manifest -Raw | ConvertFrom-Json
+# M-070 (the M-069 root cause, the second blocker): `$manifest is
+# `$Manifest case-insensitively - the SAME variable as the [string]
+# param, whose TYPE CONSTRAINT persists on the variable: the parsed
+# PSCustomObject was coerced to a STRING on assignment (files -> null,
+# version -> null; every scenario seeded 0 files). Renamed.
+$seedManifest = Get-Content $Manifest -Raw | ConvertFrom-Json
 
 # ---- deterministic content generator (FNV-seeded LCG over the payload) ----
 function Get-SeedBytes([string]$name, [long]$size, [string]$category) {
@@ -77,7 +82,7 @@ Write-Host "formatted: disk=$disk letter=$letter fs=$Fs format-deletion=$([bool]
 $seedHashes = [ordered]@{}
 $deep = "$root\deep\nested"
 New-Item -ItemType Directory -Force $deep | Out-Null
-foreach ($f in $manifest.files) {
+foreach ($f in $seedManifest.files) {
     $target = if ($f.name -like 'del_deep_*') { Join-Path $deep $f.name } else { Join-Path $root $f.name }
     $bytes = Get-SeedBytes $f.name ([long]$f.size) $f.category
     [IO.File]::WriteAllBytes($target, $bytes)
@@ -94,10 +99,10 @@ if ($QuickFormat) {
     # S-FMT-*: the quick format IS the deletion method - re-format the
     # SEEDED volume (metadata rebuilt; every seeded file is deleted)
     Format-Volume -DriveLetter $letter -FileSystem $Fs -Force -Confirm:$false
-    foreach ($f in @($manifest.files | Where-Object { $_.size -gt 0 })) { $deleted += $f.name }
+    foreach ($f in @($seedManifest.files | Where-Object { $_.size -gt 0 })) { $deleted += $f.name }
     Write-Host "deletion method: quick-format over the seeded volume ($($deleted.Count) file(s) deleted)"
 } else {
-    foreach ($f in @($manifest.files | Where-Object { $_.deleted })) {
+    foreach ($f in @($seedManifest.files | Where-Object { $_.deleted })) {
         $target = if ($f.name -like 'del_deep_*') { Join-Path $deep $f.name } else { Join-Path $root $f.name }
         # readonly files must clear the bit before deletion (the recorded method)
         Set-ItemProperty $target -Name IsReadOnly -Value $false -ErrorAction SilentlyContinue
@@ -113,9 +118,9 @@ if ($QuickFormat) {
 # the deep/carve layers). Zero-byte files are the documented exclusion (no
 # data extent to prove recovery by hash).
 $expected = if ($QuickFormat) {
-    @($manifest.files | Where-Object { $_.size -gt 0 } | ForEach-Object { $_.name })
+    @($seedManifest.files | Where-Object { $_.size -gt 0 } | ForEach-Object { $_.name })
 } else {
-    @($manifest.files | Where-Object { $_.deleted -and $_.size -gt 0 } | ForEach-Object { $_.name })
+    @($seedManifest.files | Where-Object { $_.deleted -and $_.size -gt 0 } | ForEach-Object { $_.name })
 }
 
 [ordered]@{
@@ -127,7 +132,7 @@ $expected = if ($QuickFormat) {
     deleted = $deleted
     expected_recoverable = $expected
     seed_hashes = $seedHashes
-    manifest_version = $manifest.version
+    manifest_version = $seedManifest.version
 } | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $OutDir 'staged-truth.json')
 Write-Host "staged truth: $($expected.Count) expected recoverable of $($deleted.Count) deleted"
 exit 0
