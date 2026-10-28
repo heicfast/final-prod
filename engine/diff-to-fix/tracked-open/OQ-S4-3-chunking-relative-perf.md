@@ -172,3 +172,24 @@ operative question ("meets, beats, or trails": meets at 64 KiB, beats
 at 256 KiB), so the M-030 divergence registration stands confirmed with
 numbers; the scan-level TTFR transcription is the only remaining step
 to move this file to FIXED/.
+
+## Probe-target correction (2026-10-28, the SA-6 probe lane)
+
+The file's remaining probe ("dispatch `comparative-bench.yml`") is STALE:
+the CI rebuild (`8943993`, "the prebuilt-artifact CI lands — benchmark
+lanes wiped, the correctness path never builds from source") deleted the
+comparative-bench lane deliberately — the measurement surface this OQ's
+TTFR half pointed at no longer exists. The remaining half's options:
+
+1. **Ride the staged-scenarios lane** (the surviving truth matrix — daily
+   cron + dispatch): its scan jobs run the real stack on seeded VHDs; a
+   TTFR metric (the scan event stream's first FilesFound timestamp vs the
+   scan start) would close the half with the same evidence strength.
+2. **Restore a bounded bench lane** — but the CI rebuild's own decision
+   ("the correctness path never builds from source; benchmark lanes
+   wiped") makes that an owner-level call, not an audit one.
+
+The transport-chunking half stays MEASURED-and-closed (the alignbench
+numbers above); only the TTFR half remains open, now with a corrected
+target. No engineering prerequisite exists for option 1 (the event stream
+already carries the timestamps).
