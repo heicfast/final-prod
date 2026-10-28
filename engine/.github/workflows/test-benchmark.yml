@@ -247,6 +247,12 @@ jobs:
           $buildCmdPath = "$env:WORKROOT\build-harness.cmd"
           $buildCmd | Set-Content -Path $buildCmdPath -Encoding ascii
           $out = cmd /d /s /c $buildCmdPath 2>&1
+          # this step writes evidence BEFORE Run-Benchmark.ps1 creates the
+          # full tree (run 40710818026: Tee-Object under
+          # $ErrorActionPreference='Stop' is fatal when the parent is
+          # missing) - create this step's own subdir, never rely on the
+          # later matrix step to have made it
+          New-Item -ItemType Directory -Force -Path "$env:EVIDENCE\05-feature-probes" | Out-Null
           $out | Tee-Object -FilePath "$env:EVIDENCE\05-feature-probes\harness-build.log"
           if ($LASTEXITCODE -ne 0 -or -not (Test-Path "$env:STAGED\bin\api_harness.exe")) {
             Write-Host '::error::api_harness compile failed (log above)'

@@ -468,3 +468,14 @@ RecycleBinScopeOutOfBinDollarFilesStayRaw (fail-before EXECUTED) +
 RecycleBinMapping (regression pin). B1/B4 verdict: MATCH (residual: a
 valid-$I-format file OUTSIDE the bin is still skipped — needs a tree
 node-removal API; documented in the finding).
+## Session-8 wave-2 (audited `ff879f9`, corpus `be0cfe9`)
+
+- **N-100 (MINOR)** — the origin-LCN landing's chain corrected: the
+  :5126-27 stamps are +0x53/+0x4f on the internal struct, mapped to
+  CNTFSFileProperties +0x64/+0x60 one hop later (FUN_180003020
+  :1987-88); the GUID-dump twin is FUN_18001c660 :22470-71 (both
+  fields); the serializer twin is FUN_180003250 :2264-65 (the landing's
+  "FUN_180033250" is a typo). The og PERSISTS +0x60 (total $DATA
+  clusters, sparse-anywhere-zeroed :41096-98) — the core carries +0x64
+  only. Resident semantics decode-confirmed: the og stamps the
+  synthetic-run value, the core stamps 0 (documented deviation).

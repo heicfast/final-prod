@@ -861,6 +861,500 @@ corpus be0cfe9 (CORRECTIONS #9 absorbed per T1). Board at open: 0 active /
 next A-012+, S-040+, M-071+, N-090+, I-027+.
 
 ---
+Task ID: CI-REL-1 (the CI-red repair + the v0.5.2 release cut)
+Agent: senior-dev session (this session)
+
+Work Log:
+- Context: every Checks run since c95335f red on the MSVC lane; the
+  release lane red at validate since 40690974024 (three separate
+  build breaks fixed by 66404ae/6ab676f/35adcb9 - C4305/C4804,
+  clang-format pin drift, getpid C4996); the test-benchmark lane red
+  at fetch (40684560877: v0.5.1 predates the combined era, no
+  rda-test-sign.cer asset).
+- The last remaining red: run 40694592245 (35adcb9), test 980
+  CrUi.AutoSaveOnCompletion at test_cr_ui.cpp:396 - the FIRST block's
+  cr_ui_session_list on the just-created EMPTY autosave dir returns
+  0x50020001 (ERR_OPEN_FAILED) on MSVC. Root cause: the Windows
+  list_crsf_files maps FindFirstFileExW's INVALID_HANDLE_VALUE to
+  false unconditionally; on an empty directory the API fails with
+  ERROR_FILE_NOT_FOUND ('searched, nothing matched') which is the
+  empty-list SUCCESS - POSIX opendir on the same dir succeeds, hence
+  gcc-green/msvc-red (the dominant msvc-only-red class).
+- The fix (both surfaces of the seam): cr_ui.cpp's list_crsf_files
+  returns GetLastError()!=ERROR_FILE_NOT_FOUND on the invalid handle
+  (ERROR_PATH_NOT_FOUND/access-denied stay failures); rrecov.cpp's
+  print_sessions takes the same branch - an empty dir prints zero
+  rows and exits 0 (mirroring the ABI contract), a genuinely missing
+  directory stays FB-K01 exit 1.
+- Verification in this container: gcc 14.2 linux-release build clean
+  (-Wall -Wextra -Werror), full suite 1020/1020 green including the
+  win_syntax_check parse gate (7.05s - the _WIN32 branches of both
+  edited files parse against the win-stub SDK) and the AutoSave test
+  itself; clang-format 18.1.8 (the pinned CI version) dry-run clean
+  on both files.
+- RELEASE-NOTES.md vNext gains the fix bullet (the honest surface for
+  the v0.5.2 consumer).
+
+Stage Summary:
+- Next: push, watch Checks go green (the last known red), then cut
+  v0.5.2 (the first release of the combined era with the persistent
+  dev-sign: rda-test-sign.cer ships, which is exactly the asset the
+  test-benchmark lane's fetch demands), and the release's own dispatch
+  continues the test+benchmark pass.
+
+---
+Task ID: CI-REL-1b (the 40700058960 correction - the error-code theory died on real windows)
+Agent: senior-dev session (this session, second leg)
+
+Work Log:
+- The first fix (ERROR_FILE_NOT_FOUND -> empty success) was WRONG on
+  real windows-2022: run 40700058960 came back with the observed
+  matrix INVERTED from the documented one - the nonexistent
+  no-such-dir-w1a/no-such-dir-cgate dirs report ERROR_FILE_NOT_FOUND
+  (my key wrongly mapped them to success, breaking test 981 :514 and
+  the abi C-gate :570, both pinning ERR_OPEN_FAILED) while the
+  existing EMPTY autosave dir reports a DIFFERENT code (test 980
+  stayed red at :396). 3 red, worse than the 1 we started with.
+- The lesson recorded in the code comment: the FindFirstFileExW error
+  code is NOT a reliable empty-vs-missing axis across real systems;
+  the version-proof discriminator is the DIRECTORY-EXISTS probe. The
+  landed fix (dd225da): on a failed enumeration, GetFileAttributesW
+  decides - existing directory = the empty-list success (POSIX opendir
+  semantics, the W1c first-block contract OK + n==0), missing path or
+  a plain file handed as a dir (POSIX ENOTDIR) = the genuine
+  ERR_OPEN_FAILED. Known accepted divergence noted in the comment: a
+  dir with denied-list-but-readable-attributes (a rare ACL shape)
+  reports empty where POSIX opendir would fail.
+- Both surfaces again: the ABI seam and the CLI sessions verb (missing
+  dir stays FB-K01 exit 1). Local: gcc 1020/1020 incl. the parse gate,
+  format 18.1.8 clean. RELEASE-NOTES vNext bullet corrected to the
+  final truth.
+
+Stage Summary:
+- Watching run for dd225da; on green, cut v0.5.2 (the combined-era
+  release with the persistent dev-sign) - the release dispatch then
+  continues the test+benchmark lane against the fresh tag.
+---
+Task ID: SA-8/T2-EXEC (the T2 plan's execution record — the five lanes ran in this
+session; the entries below are the results. The product tree moved under the
+audit mid-flight (the CI-REL lane's dd225da et al.); every load-bearing absence
+claim was RE-VERIFIED on the final rebased tree before push — see the entry's
+tail and the s8 evidence file.)
+Task ID: SA-8 (the session-8 deep audit — the second-session continuation; findings filed, boards updated, close-out)
+Agent: session-8 full parity audit (this session)
+
+Scope executed (the T1-determined plan + the user's second-session mandate:
+find what session 1+ missed, verify/remove the fixed things, go deeper on the
+og-codebase comparison, mark all remaining features as findings):
+
+1. **Five parallel read lanes** (og-codebase never-audited asset sweep; the
+   W1a/W1b/W1c/thumbnail landing verification; S-007 batch-1 + NTFS carrier +
+   FIXED-truth spot-check; the 9 R-row evidence packages; the two NEVER-CITED
+   driver docs + the MOM decode candidates). Every load-bearing claim
+   re-verified FIRST-HAND by the lead before filing (the M-018 regression
+   grep census, the volume_label fill-site census, the CRW registry+validator
+   read, the thumbnail budget guards, the session-list filter read, the CLI
+   -h block, the batch-2 absence loop, the DeviceManager decompile greps).
+   Evidence: diff-to-fix/evidence/s8-verification-records.md.
+
+2. **25 items filed** (the session's diff-to-fix/ output):
+   SEVERE: S-040 (image create absent, R-93), S-041 (the S-007 batch-2
+   remainder, ~24 formats — previously recorded outside an active finding).
+   MAJOR: M-071 (the M-018 regression — the N-064 rrecov.cpp reconstruction
+   dropped the junk gates; git-proven), M-072..M-078 (the R-row remainder:
+   query axes, scan-time folder filter, dest codes, chkdsk, TRIM facet,
+   preview caps, BitLocker turn-off), M-079 (auto-save label never filled),
+   M-080 (thumbnail budget starves ordinary photos), M-081 (CRW
+   misattribution + the PRD gate rejects genuine CRW), M-082 (DeviceManager
+   offline-OS identification — the CheckVersion verdict re-scoped).
+   MINOR: N-090..N-098. INFORMATIONAL: I-027 (the data-asset ground-truth
+   register). TRACKED-OPEN: OQ-S8-1 (CWindowsFS consumer).
+
+3. **Landing verification results** (the T1 scope items): W1a/W1b/W1c TRUE
+   at the load-bearing points; the NTFS origin-LCN carrier TRUE on all
+   parameters; batch-1 27/27 magics byte-exact (bounds → N-093); the
+   installer steps 2-3 verified by the lane's own green dispatch record (run
+   40684304129); the CI rebuild docs-only. FIXED spot-check: 9/10 CONFIRMED,
+   M-018 PARTIAL → M-071.
+
+4. **Boards updated:** SUMMARY (the session-8 delta + the new counts + the
+   recommended fix order), CROSS-REF-MATRIX (the session-8 detail rows),
+   API-DELTA §5.2 (row→finding map), SCAN-ENGINE-DELTA A4 (the batch-1
+   landed/batch-2-owned correction), SURFACE-INVENTORY (the corpus-currency
+   + the driver-doc discharge + the decode-candidate dispositions), README
+   (the session-8 audited-commit row), 13 module files (session-8 sections).
+
+Board at close: **25 active** (2 SEVERE · 12 MAJOR · 9 MINOR · I-027; I-026
+informational) · 249 FIXED · tracked-open 2 (OQ-S4-3 unchanged; OQ-S8-1
+new). Recommended first fixes: M-071 (2 lines, a regression), M-081 (small,
+self-contained), then S-041's batches, M-079 (one function), M-080 (decide
+before the ABI handoff), S-040 (the largest feature).
+
+Driver-lane handoffs (recorded not fixed — the rda-driver repo is out of
+this audit's two-repo scope; for that lane): (a) the READ-length semantics
+nuance (og Length = sectors vs rda Length = bytes; the Information×512
+invariant holds — an og-style client through rda.sys would under-read; no
+in-product effect, core is rda's only client); (b) the disk.sys-comparison
+field reading (trio artifact's DriverName vs DRIVER-CONTRACT's ServiceKeyName
+— the decompile's `*(DO->DriverObject+0x30)+0x18` chase matches neither
+cleanly; flagged to S7); plus the standing D3 (the 15/18-vs-19 session-code
+prose, seven driver-repo sites) and D4 (regdrv-rda.reg hex(7) UpperFilters
+still invalid).
+
+No source code modified. Every changed path is under diff-to-fix/ + worklog*.
+Task ID: SCAN-4/A2 (session open — the scan-engine context-recovery re-run; the Delta
+Report refreshed; the two batch-1 misattributions fixed; the batch-2 decode filed)
+Agent: scan-engine lane (A2, this session)
+
+- Baselines (cloned fresh this session): core 0058271 (main), corpus be0cfe9 (main),
+  rda-driver 323e75a (v0.2.4). Four read legs per protocol (corpus spec; corpus
+  decompile — a narrowed retry after the first attempt hit a container deadline, both
+  read-only; core state; driver). Driver leg: v0.2.4 wire byte-stable, NAS/Cloud zero
+  code paths re-proven by full-repo grep.
+- Q1-Q11, A1-A3/A5-A6, M1-M5, F1-F7 re-verified: zero open defects outside the A4
+  batch-2 remainder. C9/OQ-S4-3 stays Windows-execution-bound (unchanged).
+- TWO live batch-1 misattribution defects found by the legs and verified first-hand
+  at the registration sites, then FIXED (registry rows relabeled + validators
+  rewritten to the og grammar; FormatId values untouched — append-only discipline):
+  (a) II/MM 1A 00 = CRW (Brance::CRWAnalyser id 0x12, HEAP + {CCDR,TIFP,ARCH} +
+  ver-2 grammar, RAWSearchDLL :1746-1761 + FUN_180052000 :62333-62353) — the landed
+  "Minolta MRW" rows' invented PRD gate rejected every real CRW file; MRW is \0MRM
+  only (id 0x66) with the og size formula (FUN_180012100 :14233-14258); (b)
+  DB A5 2D 00 / 94 A6 2E 00 = FileLowDocAnalyser id 0x17 (old-Word .doc;
+  formula-only validator FUN_18001b650 :21167-21188) — the landed "Windows Help"
+  rows relabeled to ext "doc"; HLP = 3F 5F 03 00 only with the og size gate
+  (FUN_180041c50 :49883-49895).
+- Batch-2 remainder: DECODED at validator level (all 17 items — the session-5 grammar
+  table in SCAN-ENGINE-DELTA is the record); the S-007 causes re-pinned (CHM's
+  :22635 pin invalid → real ITSF grammar :17705-17740; MPEG-TS's 0x11C cause stale
+  = FH11; FCPEvt has NO XML side — covered by FMT_SQLITE + N-089; SWF ZWS rejected /
+  ver∈[3,20]; JP2 ids are brand mappings). Per-school fix batches in flight.
+- Errata E53/E54 filed (census's "!BDN = Bentley" → FilePSTAnalyser id 0x38;
+  dual-registry's "0x4449 ID = AIFF" → the MP3/ID3 chain, AIFF = FORM id 0x50) —
+  both verified first-hand at the registration sites.
+- handoff (API lane): the carve registry's mislabeled rows corrected in place —
+  FormatId VALUES unchanged (append-only held); the ext/name surface changed on 4
+  rows (mrw→crw x2, hlp→doc x2, both corrections of WRONG labels to og truth);
+  list-carve-formats reads the registry automatically, no API change needed.
+
+
+---
+Task ID: SA-8/W2 (session-8 wave 2 — the continuation lane, executed;
+RECONCILED at push time over the parallel deep-audit lane's same-session
+commits)
+Agent: session-8 full parity audit (continuation lane, this session)
+
+Method: five parallel read agents (keyed batch-2 decode, list-layer/
+text-school decode, landings verification, core capability inventory,
+corpus never-cited sweep, thumbnail parity) + first-hand re-reads by the
+lead of every acute candidate (WMF FUN_1800264d0 :29807-45; thumbnail
+FUN_1402fcc30 :521694-725 / FUN_1403d7840 :652383-412 / the grade
+promotion :422498-518; the core validators/autosave/thumbnail code; the
+FMT_ absence sweep; both WPG-ctor regions to settle the :15700-vs-:20542
+cite conflict — :15700-01 wins, erratum E63).
+
+Reconciliation record (the push-time rebase over 370d659..ffa7a7d): the
+parallel deep-audit lane filed the plan-of-record R-rows + the batch-2
+owner (S-041) + the CRW misattribution (M-081) + the thumbnail budget
+(M-080) + the data-asset register (I-027) with IDs S-040/S-041, M-071..
+M-082, N-090..N-098, I-027. This lane's IDs were renumbered past that
+set (S-042..S-045, M-083..M-085, N-099..N-106, I-028, errata E55-E64)
+and the two content-duplicates were MERGED, not duplicated: the batch-2
+full decode -> the S-041 addendum (7 text-school grammars, the
+config-gated zone, registry geometry, the BOM battery, FCPEvt
+end-to-end); the thumbnail budget og-side evidence (the 200 MB
+eligibility gate :422428, which CORRECTS M-080's "no input cap" claim,
+plus the wrong-anchor test pin) -> the M-080 addendum with the severity
+discussion (SEVERE recommended, first-filed MAJOR stands per the
+extend-never-overwrite rule).
+
+Findings filed (16): S-042 WMF placeable grammar (disjoint accept-sets;
+batch-1 claim refuted) · S-043 thumbnail EXIF orientation · S-044
+auto-save gates (results-found, not-already-saved; byte-flag config) ·
+S-045 thumbnail format coverage (video/RAW/HEIC/PDF) · M-083 grade-2
+promotion · M-084 ACCDB second signature · M-085 TIFF LZW · N-099
+batch-1 citation truth pass (incl. the N-093 WPG-cite correction) ·
+N-100 +0x60 persistence + OQ-SA-1 chain corrections · N-101 inventory
+arithmetic + classification rows · N-102 M-024 count propagation in
+the finding file itself · N-103 thumbnail API rows + heif attribution ·
+N-104 ldm.md/CAPABILITY-MATRIX truth defects · N-105 Folder-suffix
+naming · N-106 GetDriverInfo disposition · I-028 thumbnail superset
+register. Errata E55-E64. Evidence: decompiled-quotes/
+s8-{wmf-placeable-grammar,thumbnail-pipeline,autosave-and-stamps,
+batch2-formats}.md.
+
+Verification lane results: W1a/W1b CONFIRMED (scanTime, restore
+progress formula + per-child cancel, record-1+2 list read); W1c PARTIAL
+(naming CONFIRMED, trigger placement CONFIRMED, gates MISSING = S-044);
+OQ-SA-1 carrier semantics CONFIRMED, chain + resident caveats corrected
+(N-100); batch-1 constants verified correct except WMF (S-042) + ACCDB
+(M-084); registry regions corrected (N-099/E55). Thumbnail engine:
+first-ever parameter verdicts (this lane: 4 defects + 1 register + 5
+MATCH + 6 UNVERIFIED-tracked; the parallel lane's M-080/N-092 complete
+the set). Progressive carve emission: MATCH. No unregistered core
+superset; no undispositioned src/core module; driver D3/D4 out of this
+session's two-repo scope (remain the rda-driver lane's items).
+
+Board after both session-8 legs: 41 active (S-040..S-045, M-071..M-085,
+N-090..N-106, I-026/I-027/I-028) + 249 FIXED + OQ-S4-3/OQ-S8-1
+tracked-open. The S-007 batch-2 remainder is no longer "outside an
+active finding" — S-041 owns it with the decode complete.
+
+---
+Task ID: CI-REL-2 (the v0.5.2 cut - the first combined-era release + the dev-sign cert repair)
+Agent: senior-dev session (this session, third leg)
+
+Work Log:
+- dd225da went green (run 40702251898 - lint + MSVC build + the full
+  1021-test ctest, the first fully green Checks since c95335f); tag
+  v0.5.2 cut at 99eddb0 and pushed; release run 40704304307: validate
+  GREEN, build-core GREEN, driver-tier RED at the sign step.
+- The dev-sign failure was the CERT, not the workflow: signtool signed
+  fine but Get-AuthenticodeSignature returned UnknownError - "a
+  certificate's basic constraint extension has not been observed" -
+  the stored cert lacked Basic Constraints, and a self-signed cert is
+  its own issuer, so the chain engine demands the extension.
+  Regenerated the cert to the documented shape (CN=RRECOV-DEV-SIGN,
+  RSA-2048 SHA-256, 3-year, BC critical CA:FALSE, KU critical
+  digitalSignature, EKU codeSigning; AES-256 PFX) and updated BOTH
+  repo secrets via the sealed-box API. Full rerun (attempt 2): every
+  job green, v0.5.2 PUBLISHED with the 8-asset set incl. rda-test-
+  sign.cer - exactly the asset the benchmark fetch demanded.
+- The auto-dispatched benchmark (40710818026) died at the harness
+  compile: Tee-Object into evidence/05-feature-probes which only
+  Run-Benchmark.ps1 creates LATER (step 6 vs step 5), fatal under
+  ErrorActionPreference=Stop. Fixed the step to self-create its
+  subdir (9cb098c, rebased over the parallel session-8 audit lane's
+  3 commits - no conflict), re-dispatched against v0.5.2
+  (40712214950, reason release-v0.5.2-retry-after-evidence-dir-fix).
+- Security note: the new PFX password is NOT in the repo anywhere -
+  it lives in the repo secrets and one local file outside git
+  (scripts/devsign.pw pattern); the public cert ships as the release
+  asset for consumers.
+
+Stage Summary:
+- Watching 40712214950 (smoke matrix, up to 120 min). On green: the
+  owner's full pipeline is restored end-to-end - commit -> checks ->
+  release (dev-signed) -> test+benchmark. Remaining known-open: the
+  parallel lanes' session-8 findings (their own worklog entries).
+Task ID: SA-8/T2 (session-8 third lane — the read waves)
+Agent: session-8 full parity audit, lead (this session)
+
+Five parallel read agents (A: corpus contracts for the new landings —
+SaveScan/rsf-format read fully end-to-end, UIUX/10+30, the batch-2 evidence;
+B: corpus coverage/citation sweep — all 274 artifacts + 9 architecture docs
+vs the trail; C: new-landing parity verification — W1a/W1b/W1c,
+ntfs_origin_lcn, S-007 batch-1, thumbnail, installer; D: board-truth sweep;
+E: driver + RE tooling audit), then first-hand re-verification by the lead of
+every load-bearing claim before filing: both WMF decompile sites re-read
+personally (ghidra :29820-29845 + retdec :38495-38515 — the term-by-term XOR
+word-list mapping resolved), the core WMF validator re-read (cr_analysers.cpp),
+CI-CURRENT/FloorVersion/README/PREBUILT sites re-read, regdrv-rda.reg decoded
+byte-level, rda_version.h read.
+
+Key verified results feeding the filings:
+- WMF placeable grammar: og checksum word@+20 over words 0..9 + zero-dword@+16
+  vs core checksum@+18 over words 0..8 + inch 1..14400 — DISJOINT accept sets.
+  (Independently and convergently decoded by the continuation lane's S-042 —
+  merged; two lanes, two decompilers, one conclusion.)
+- CHM: the ":22635 u64-widened GUID conflict" is a retdec constant-print
+  artifact (erratum E66); the real gates are the canonical ITSF v3 GUID pair
+  as genuine u64 compares at +0x18/+0x28 + hdr-len 0x60 + chunk magic 0x1FE +
+  zeros, size u64@+0x68, NO bounds. Key 284/0x11C = FreeHand 11 (erratum E65);
+  MTS/M2TS are list-only. Convergent with SCAN-4's decode; donated to S-041.
+- W1a/W1b/W1c parity: verified MATCH-with-registered-divergences (the
+  load-permille window mapping, default-off auto-save, .crsf extension —
+  the parallel lanes filed the registration/threshold items as N-091/S-044/
+  N-105; this lane's residual doc nits folded into the merges).
+- ntfs_origin_lcn + S-007 batch-1 keys: verified landed and corpus-conformant
+  (both walk stamps, clone carry, bit-8; the batch-1 key set byte-exact vs
+  the registration sites — EXCEPT the WMF validator grammar and the two
+  misattributions the parallel lanes already fixed at 9e5dedc, verified gone
+  in-source).
+- Driver lane (this lane's unique territory): M-086 FileVersion pin, M-087
+  regdrv hex(7), M-088 FloorVersion/CI-docs cluster, M-089 rdabench phantom-
+  zero fuzz gap, N-107 the 14 stale count sites; wire contract re-verified
+  MATCH (identity IOCTLs raw-exact, Information x512, LBA scaling, 19 session
+  codes binary-probed, NAS/Cloud exclusion holds).
+- Board truth: docs/PARAMETERS.md §3 rows STILL STALE (the SCAN-2f "fixed"
+  claim false — N-108, claim corrected in SCAN-ENGINE-DELTA); A-007 dangling
+  cites repaired; SURFACE-INVENTORY gained §9 (the DRWService §5-claim
+  correction, EuShare/glob/MOM-count fixes, coverage verdict CLEAN).
+
+Parallel-lane reconciliation: the deep-audit lane (S-040/S-041 + M-071..M-082
++ N-090..N-098 + I-027, 14:31) and the continuation lane (S-042..S-045 +
+M-083..M-085 + N-099..N-106 + I-028, 14:52) filed first; this lane's
+duplicate S-040/S-041 filings merged into their owner files as convergence
+addenda (the no-duplication rule), and this lane's unique findings took
+M-086..M-089 / N-107 / N-108. Board after all legs: 46 active + 249 FIXED +
+OQ-S4-3/OQ-S8-1 tracked.
+
+---
+Task ID: SA-8/T3 (session-8 third lane — the CLOSE-OUT handoff)
+Agent: session-8 full parity audit, lead (this session)
+
+Audited commits (this lane): core product code `35adcb9` (trail commits
+rebased through the parallel lanes to `7748254`; the parallel fix lanes moved
+the product tree to `9e5dedc`+ mid-session — every load-bearing absence claim
+re-verified on the final rebased tree); driver `323e75a` (v0.2.4); corpus
+`be0cfe9`. Read-only discipline verified: this lane's two commits
+(`8ac5211`, `5553216`) touch ONLY diff-to-fix/ + worklog* — zero product
+files (the product-file changes between 35adcb9 and HEAD belong to the
+parallel CI-REL/scan-engine fix lanes).
+
+Coverage statistics (this lane's waves):
+- Corpus: 274 artifacts + 9 architecture docs enumerated; citation state
+  re-swept against the entire trail; coverage verdict CLEAN (zero in-scope
+  un-dispositioned engine parameters; SURFACE-INVENTORY §9 records the
+  corrections: DRWService §5-claim, EuShare parenthetical, §3 glob names,
+  MOM 17->16, per-binary 3/114, SearchDLL 30/30, SaveScan 5/5).
+- New landings verified: W1a/W1b/W1c (MATCH with registered divergences),
+  ntfs_origin_lcn (both stamps + clone + bit-8 verified), S-007 batch-1 keys
+  (byte-exact vs registration sites; WMF grammar = S-042; misattributions
+  fixed by the parallel lane at 9e5dedc, verified gone), thumbnail (the
+  registration/threshold items filed by the parallel lanes: I-028/N-091/
+  M-080/S-043/S-045), installer S-038 (13/13 parameters contract-faithful).
+- Driver (this lane's unique territory, fully dispositioned): wire contract
+  MATCH (identity IOCTLs raw-exact vs eprdtdrv-internals:81-83, Information
+  x512, LBA scaling, 19 session codes binary-probed in EUDCPEPM.sys, NAS/
+  Cloud exclusion holds); M-086..M-089 + N-107 filed; D2/D3/D4 handoffs all
+  owned; v0.2.4's M-064 claims verified implemented (with the FileVersion
+  caveat = M-086).
+- Board truth: N-108 (docs/PARAMETERS.md stale constants + the SCAN-2f false
+  "fixed" claim, corrected in place); A-007 cite repair; errata E65/E66;
+  CROSS-REF-MATRIX/README/SUMMARY current.
+
+Board at this lane's close (all session-8 legs combined): **47 active**
+(6 SEVERE: S-040 S-041 S-042 S-043 S-044 S-045 · 19 MAJOR: M-071..M-089 ·
+19 MINOR: N-090..N-108 · I-026/I-027/I-028) + 249 FIXED + tracked-open
+OQ-S4-3 (Windows-execution-bound) + OQ-S8-1. No UNVERIFIED items remain
+untracked: every open decode question lives inside a finding's fix plan
+(the zero-invention bar held), and the two tracked-open questions carry
+precise probes.
+
+Recommended first 20 fixes (cross-lane priority order, this lane's vote):
+1. S-042 WMF placeable validator (wrong-results class; the grammar is fully
+   decoded; one function)
+2. S-041 batch-2a CHM + MTS/M2TS (grammars decoded; CHM's blocker refuted)
+3. M-071 the M-018 regression (junk-filter gates lost — recover-all writes
+   the og's hidden junk; user-data pollution class)
+4. S-044 auto-save gates (results-found + not-already-saved; the og never
+   auto-saves an empty/already-saved scan)
+5. M-080 thumbnail budget + the 200 MB eligibility gate (starves ordinary
+   photos)
+6. M-086 driver FileVersion stamping (defeats upgrades; one release-lane
+   decision + the drill)
+7. M-087 regdrv-rda.reg one-line fix + the hex(7) CI gate
+8. M-084 ACCDB second signature + M-085 TIFF LZW (small, decoded, high-value)
+9. S-043 thumbnail EXIF orientation (wrong-aspect output class)
+10. M-088 FloorVersion single-sourcing + the CI-shape doc sweep (the
+    "ONE pin source" lesson)
+11. M-089 rdabench probe-list derivation + the phantom-zero sweep
+12. N-108 docs/PARAMETERS.md two rows (5-minute fix; integrator-facing)
+13. M-082 DeviceManager offline-OS identification (decode work scoped)
+14. M-072..M-078 the R-row batch (query axes, folder filter, dest codes,
+    chkdsk, TRIM, preview caps, BitLocker turn-off — the API-EXP plan of
+    record)
+15. N-107 driver 15/18-command prose sweep (one commit)
+16. S-045 thumbnail format coverage phase 2 (video/RAW/HEIC/PDF)
+17. M-079 CLI autosave volume-label fill site
+18. M-083 thumbnail grade promotion
+19. N-090..N-106 the MINOR batch (doc-truth + propagation rows)
+20. OQ-S4-3 the TTFR measurement (rides the next green Windows dispatch —
+    execution-bound, stays tracked)
+
+Handoff notes for the next session:
+- The parallel-lane environment is ACTIVE (three session-8 audit lanes + two
+  fix lanes landed mid-audit). Pull before every wave; re-verify absence
+  claims on the final tree (the N-090 cite-drift lesson).
+- The corpus remains at be0cfe9 (one errata line past 03ad46c — absorbed).
+  Watch the corpus repo for new CORRECTIONS rows; each is a scope delta.
+- Driver findings file HERE (core trail, the M-064 precedent) with fix plans
+  pointing at rda-driver; single-repo commit discipline holds.
+- The remaining "executed-comparison" verification class (Windows-only paths:
+  the driver install drills, reg import, WMF fixture carve) is out of this
+  container's reach — the findings carry the static evidence and the drills
+  are the fix lanes' acceptance criteria.
+Task ID: SCAN-4/A2 (landing record — the Delta Report, M-081 + its twin, S-041 school 1)
+Agent: scan-engine lane (A2, this session)
+
+- Landed (rebased onto the session-8 audit's tree): `ffa7a7d` — the Delta
+  Report refresh (SCAN-ENGINE-DELTA session-5 resolution log: the full
+  batch-2 validator-grammar decode, all 17 items first-hand; the two
+  misattribution defects filed; A4 phrasing corrections for CHM/JP2/EMF/
+  FCPEvt/OfficeTagFromXML), the S-007 batch-2 causes re-pinned (CHM's
+  :22635 = std::_Tree rebalance code, the real ITSF gate at :17705-17740;
+  MPEG-TS's 0x11C = the landed FH11; FCPEvt has NO XML side - covered by
+  FMT_SQLITE + N-089), errata E53 (census's !BDN "Bentley" = wrong; it is
+  FilePSTAnalyser id 0x38, verified :2324-2330) + E54 (dual-registry's
+  0x4449 "ID" = AIFF wrong; it chains MP3/ID3 id 0x2b, AIFF = FORM id 0x50),
+  and this session's worklog baseline entry.
+- Landed `9e5dedc`: M-081 RESOLVED (MAJOR -> FIXED, the finding file's
+  resolution record lists every fix-plan step) + the LowDoc/HLP twin —
+  FMT_CRW/FMT_CRW_MM (the og HEAP grammar), FMT_MRW (the og size formula),
+  FMT_LOWDOC/FMT_LOWDOC2 (FileLowDoc id 0x17, ext "doc"), FMT_HLP (the og
+  size gate); the retired II1A+PRD synthetic asserted NOT carved;
+  S007M081CiwMrmLowdocHlpOgGrammar pins every gate + exact formula sizes +
+  the corrected row labels. Suite 1017->1021 green.
+- Landed `b92ebef`: S-041 batch-2 school 1 — CHM ONE MNY EMF SWF(FWS+CWS)
+  3DS(MM + FMT_3DS_NCSD, the list-layer twin; the NCSD constant 0x4453434e
+  extracted from the og DLL .data VA 0x180093978) — 8 rows, enum values
+  appended (append-only held), S007NicheBatch2School1Carve/RejectsNoise
+  (1023/1023 green). ONE/3DS carry the bounded-extent stand-in; their
+  size-walks are the recorded follow-ups.
+- Convergence with the session-8 audit: M-081 = this lane's defect (a);
+  S-041's decode precondition = the session-5 table; N-093 (batch-1 bounds
+  deviations) noted - the relabeled rows keep their landed bounds.
+- F-lane doc truth: cr_rawsigns.h's "(30 formats)" stale count -> the
+  per-FormatId phrasing; cr_signatures.h M-024 comment's "[Filter] (37 named
+  toggles" -> the shipped file's 34 (CORRECTIONS #5).
+- Open for the next A2 leg: S-041 school 2/3 (HTML SVG LZH MTS/M2TS MOBI JP2
+  + the text school; the session-5 grammar table is the work list) +
+  OfficeTagFromXML's archive-lane classification surface + the ONE/3DS
+  size-walks + C9/OQ-S4-3 (Windows-execution-bound, unchanged).
+
+---
+Task ID: SA-8/T10b (session-8 lead-lane close-out — the FINAL three-window reconciliation)
+Agent: session-8 full parity audit (the lead lane; three concurrent lanes reconciled)
+
+The push was rejected twice by concurrent lanes landing first — the reconciliation
+ran three times, each past the new max IDs:
+- Window 1 (the deep-audit lane): 13 duplicates merged (WMF -> their S-042 by
+  addendum; CRW/MRW -> their M-081, already FIXED by 9e5dedc; the API-queue items
+  -> their S-040/M-072..M-078; the registration gaps -> their N-091; +0x60 ->
+  their N-100); the lead's 35 kept findings renumbered S-046../M-086../N-107...
+- Window 2 (the fix lane + the third driver lane): school 1 of S-041 LANDED
+  (b92ebef: CHM ONE MNY EMF SWF 3DS — the lead's 7 duplicate per-format filings
+  dropped, its decodes convergent with the remote errata E56-E66); FCPEvt
+  closed-as-covered; the third lane's M-086..M-089/N-107/N-108 taken; the final
+  renumber: 28 kept (S-047, M-090..M-102, N-111..N-126, I-029/I-030).
+- Errata: the lead's census corrections were ALL duplicates (remote E53-E66 +
+  the older rows 19/23) except ONE — E67 (the DMG bound/walk, filed as M-090).
+
+The kept set's headline additions the parallel waves did NOT have:
+- M-090: the DMG koly-trailer walk + DMG-specific 0xC800000 cap (:49436-49440/
+  :63806) vs core's bzip2-EOS+10/global cap — carved DMGs truncated before the
+  mandatory UDIF footer (erratum E67).
+- M-091: the MDB page-chain size-walk decode (:52001-52039) — the landed row's
+  "undecoded" comment falsifiable; complements M-084.
+- N-116: the session-list row-ORDERING divergence (the og's FILETIME time-sort
+  :432112-432142) — distinct from N-090's scope axis.
+- The school-2/3 per-format fix units (S-047 MTS/M2TS, M-092 HTML, M-093 XML/SVG,
+  M-096 MOBI, M-098 HIK, M-099 AEP, N-111 JP2, N-112 LZH, N-113 text school,
+  N-115 OfficeTagFromXML) — children of S-041 per its addendum #2.
+- M-100/M-101/M-102 (browse-inside, Versions/Tags branches, the thumbnail ABI),
+  N-119..N-126 (D-88's stale premise, the pointer drifts, ESP automount, NVRAM
+  create/delete, cli/transport staleness, the disconnect states, Unsaved File),
+  I-029/I-030 (driver-code provenance, module-map holes).
+- The fixture-regeneration requirement on S-042: landed tests must derive
+  fixtures from spec, never from the implementation — the class behind S-042
+  and the M-081 fix.
+
+Board after the final merge: 75 active (7 SEVERE · 29 MAJOR · 34 MINOR · 5 INFO
+incl. I-026) / 249 FIXED / 1 tracked-open (OQ-S4-3). No source code modified —
+diff-to-fix/ + worklog only. Every kept finding cites audited commit ff879f9;
+the three-window merge map is recorded in the addenda, the boards, and
+diff-to-fix/evidence/sa8-context-sheets.md.
 Task ID: SA-9/T1 (session-9 open — baseline record)
 Agent: session-9 full parity audit (this session)
 

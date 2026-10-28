@@ -187,3 +187,37 @@ never feed the gate; the dedup tree stays the safety net.
 target policy) / B29 (dedup, net) / O37 (cross-stage data flow)
 verdicts: MATCH (the interval shape is the finding's own sanctioned
 first step; the og's sparse-file mmap stays profiling-gated).
+
+
+## Session-8 section (2026-10-28, audited `35adcb9`)
+
+**M-073** (MAJOR — the scan-time folder filter absent: the og pushes the
+AdvanceFilterCondition into the scan controller at start (PushFolderFilter,
+UIUX/31:142, runtime-verified), constraining incremental tree insertion; the
+core's ScanConfig has no filter input — post-hoc query only. Fix = a
+`filter_folders` vector + post-parse pre-insertion prune + the ABI twin + the
+CLI flag + session round-trip). The W1a/W1b/W1c orchestration claims verified
+(load progress threading, cancel propagation, the completion auto-save leg).
+
+
+## Session-8 wave-2 (audited `ff879f9` lineage, corpus `be0cfe9`; complements the deep-audit lane's rows)
+
+- **S-044 (SEVERE)** — the completion auto-save's gating chain (see
+  modules/session.md): results-found and not-already-saved gates
+  missing; the og's enable surface is a singleton byte flag. The
+  not-import gate (+0x1c8) maps to the core's resume/import path —
+  check suppression there when implementing.
+- Progressive result emission dispositioned MATCH: the core's carve
+  stage attaches nodes live (carve_slice streams into the tree during
+  the pass, cr_scan.cpp:1877-88) with counters refreshing at progress
+  ticks — the og's live tree growth (UIUX/30:14) has its equivalent.
+- **N-106 (MINOR)** — GetDriverInfo.dll (the TB-lineage drive-letter
+  topology MOM module) dispositioned: OUT-OF-SCOPE by lineage; the
+  og's recovery-flow enumeration remains the N-071 census (WMI/
+  setupapi/VDS/StorageSpaces/FunctionDiscovery).
+
+
+## Session-8 lead-lane wave (audited `ff879f9`)
+- **N-125**: the drive-disconnect mid-scan states (the "Drive Disconnected" Retry/Cancel
+  flow, UIUX/08:39-47) — no classification, no reattach-continue model, no registration;
+  from R-16, never formalized through every prior session.

@@ -226,3 +226,52 @@ field-level comparison this session:
   FUN_14058c870 decompile).
 - Test debt noted: no end-to-end FAT/exFAT persisted-field round-trip test
   exists to pin the MATCH columns (fix-plan item in OQ-SA-1).
+
+
+## Session-8 section (2026-10-28, audited `35adcb9`)
+
+W1a/W1b/W1c verified at the load-bearing points (cancel-per-node;
+ERR_CANCELLED-never-flattened; cancelled-never-auto-saves; light-record
+summary; atomic write; the v5 tail round-trip). New findings: **N-090** (list
+scope/row shape — no `auto_` filter vs the og's home-list enumeration; 1 s
+save time; label[32]; no device-type), **M-079** (MAJOR — the CLI never fills
+`volume_label`: no fill site exists, `fill_identity_card` covers every identity
+field but the label; CLI auto-saves are always `auto_<ts>`), **N-091** (the
+load-progress model + auto-save posture + thumbnail superset unregistered in
+PARITY-DELTAS).
+
+
+## Session-8 wave-2 (audited `ff879f9` lineage, corpus `be0cfe9`; complements the deep-audit lane's N-090/M-079 rows)
+
+- **S-044 (SEVERE)** — the W1c auto-save diverges from the og's trigger
+  contract: the og's three call sites gate on results-found
+  (FUN_1403964b0), not-already-saved (+0x388, 2 of 3 sites), and
+  not-import (+0x1c8); the entry gate is a byte flag on a config
+  singleton (FUN_1400b5270 :165951-5), not a directory field. The core
+  fires on every completed scan with autosave_dir set — empty scans and
+  post-explicit-save duplicates land. Evidence:
+  `../evidence/decompiled-quotes/s8-autosave-and-stamps.md` §1-§3.
+- **N-105 (MINOR)** — the og's folder-scan "Folder" name suffix
+  (:442883-86) has no core equivalent (deferred until a folder-scan
+  mode exists; cross-ref M-079's volume-label gap).
+- **N-100 (MINOR)** — the og persists the NTFS +0x60 twin (total $DATA
+  clusters, sparse-zeroed) beside +0x64 in record-4 (rsf-format :398);
+  the core carries +0x64 only (nflags bit-8). Register or carry as
+  bit-9 with the sparse-zeroing rule.
+- Verified MATCH this wave: the crsf reader's per-chunk raw fallback
+  (F10) mirrors the og's raw-memcpy-on-inflate-failure (md :98);
+  read_summary's SESSION_STATE+VOLUME_INFO light read matches the og's
+  actual list behavior (record 1 THEN record 2 — the W1a phrasing
+  corrected, erratum E64; the og's WinPE variant and size gates are
+  .rsf-format internals, not core divergences).
+
+
+## Session-8 lead-lane wave (audited `ff879f9` — the W1a/W1b/W1c verification, final numbering)
+
+The load-bearing halves verified MATCH (light records; per-node load progress + cancel +
+the partial-tree discard; the completion trigger + the byte-exact naming). Filed:
+**N-116** (the row-ORDERING divergence — the og's FILETIME time-sort :432112-432142 vs
+the path-byte sort; a distinct axis from N-090's scope/row-shape finding), **N-117**
+(the plan's un-landed W1b shape + the ABI-CONTRACT line-cite drift), **N-118** (the stale
+R-52/54/56 gap rows). The registration-class deltas ride the parallel N-091 + the lead
+addendum (the sanitizer superset).

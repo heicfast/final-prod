@@ -1,0 +1,55 @@
+# MAJOR M-079 — CLI auto-saves never carry the volume label: the `auto_<vol>_` naming half is unreachable from the only shipped driver
+
+**Severity:** MAJOR
+**Module:** session / CLI / orchestrator
+**Parameters affected:** D12 (session persistence — the auto-save name shape), B10 (filename/path handling), Q68 (contract text — the ABI field exists but the CLI cannot fill it)
+**Corpus references:** `re-workspace/artifacts/SaveScan/rsf-format--scan-session.md:167` (record-2 `volumeName[100]` — "`GetVolumeName()`" of the scanned volume, always present in the corpus samples); `rsf-format:443-451` (§5.5: the auto-save naming `auto_<volume>_<MM>_<DD>_<HH>_<MM>_<SS>.rsf`, volume-name sanitizer `/ * : ? " < > |` → `_`, folder derived from the module dir); the live samples `og-codebase/log/DRWUI.log` (`SaveResultPath = …\SaveScan\auto_Local Disk (I_)10_14_23_13_21.rsf` ×3 — every auto-save labeled); `re-workspace/artifacts/UIUX/30-interaction-driver-ground-truth.md:66-67`
+**Core references:** audited `35adcb9`. The naming: `src/core/session/cr_crsf.cpp:363-404` (`auto_session_name` — `auto_` + sanitized label + `%02d` stamp, byte-exact vs the shipped samples; test-pinned `test_session.cpp:1012`). The config field: `include/cr/orchestrator/cr_scan.h:239` `char volume_label[32] = {0};` — caller-supplied; ABI in-card `cr_ui.cpp:1163` copies from `in->volume_label_utf8`. **No fill site derives it**: `rg -n "volume_label"` → `cr_scan.h:239` (decl), `cr_ui.cpp:1163` (ABI copy), `cr_ui.cpp:2008` + `rrecov.cpp:1702` (the two naming reads — `auto_session_name(... cfg.volume_label)`). `fill_identity_card` (cr_ui.cpp:1829-1844) fills model/serial/firmware/wwn/interface but **not** the label. The CLI never sets it.
+**Status:** READ-ONLY FINDING — no fix applied
+
+## Summary
+
+W1c landed auto-save-on-completion with og-exact naming (`auto_<vol>_<M>_<D>_<H>_<m>_<s>`) — but the `<vol>` half depends on `ScanConfig.volume_label`, which is caller-supplied and has no fill site: the CLI (the only shipped driver of the feature) never populates it, and the ABI's `fill_identity_card` fills every other identity field except the label. CLI auto-saves are always `auto_<timestamp>` with an empty volume half; the og's `auto_Local Disk (I_)10_14_23_13_21` shape is unreachable from the CLI surface.
+
+## What the reference does
+
+The og derives the volume name from the scanned volume itself (`GetVolumeName()`, rsf-format:167 — every corpus auto-save sample carries a real label), sanitizes it (`/ * : ? " < > |` → `_`), and composes `auto_<volume>_<MM>_<DD>_<HH>_<MM>_<SS>.rsf` unconditionally on completion into the module-adjacent SaveScan folder (rsf-format:443-451).
+
+## What our core does
+
+The naming helper is corpus-exact when a label is present (verified: `cr_crsf.cpp:363-393`, empty-label → the `auto_<ts>` form). But the label only enters via `ScanConfig.volume_label` (cr_scan.h:239) or the ABI card's `volume_label_utf8` — and nothing fills either from the volume: `fill_identity_card` (cr_ui.cpp:1829-1844) populates model/serial/firmware/wwn/interface only; the CLI has no `--label` flag and no auto-derivation. Verified first-hand: the only two reads are the naming sites.
+
+## Gap
+
+`rrecov scan --image X --autosave-dir D` (or any CLI scan with autosave) produces `auto_10_28_...crsf` — the volume half is empty. Falsifiable: no CLI invocation can produce an auto-save filename containing a volume label, while every og auto-save sample does.
+
+## Impact
+
+Session-list fidelity (the W1a list shows the label-less names), and the product behavior diverges from the corpus's uniform samples. ABI hosts CAN supply `volume_label_utf8` (the seam exists), so this is specifically the CLI-driver gap plus a missing convenience derivation.
+
+## Reproduction / verification
+
+- Corpus-derived (rsf-format:167/:443-451; the three labeled DRWUI.log samples).
+- Core first-hand: the volume_label grep census (decl + ABI copy + two naming reads, no fill site); `fill_identity_card` read at cr_ui.cpp:1829-1844 (label absent from the fill set); `rrecov.cpp` scan-flag census (no label flag).
+
+## Fix plan (for the engineering team)
+
+1. Derive the label at scan setup: in `fill_identity_card` (cr_ui.cpp:1829-1844) — where the CLI's identity card is already built — query the volume label (Win32 `GetVolumeInformationW` on the volume handle, or the storage layer's equivalent) and copy it into `cfg.volume_label` when the caller left it empty. Image targets: derive from the image filename (the og has no image-scan label semantics — document the choice).
+2. CLI: optional `scan --label S` override flag (three-site lock + `-h`) for hosts/scripts that want explicit control.
+3. Tests: `AutoSaveCarriesVolumeLabel` (scan a fixture volume → the auto file name contains the sanitized label); `AutoSaveLabelOverride`; `AutoSaveLabelFallsBackToTimestampWhenUnknown` (the current behavior pinned as fallback, not primary).
+
+## Tests to add
+
+- `AutoSave.VolumeLabelDerivedFromVolume` (the fill-site test — fails before, passes after).
+- `AutoSave.LabelOverrideFlag`.
+- `AutoSave.EmptyLabelFallbackShape` (the `auto_<ts>` form, now the documented fallback only).
+
+## Related findings
+
+- N-060 (FIXED — the explicit-save machinery W1c built on).
+- N-090 (this session — the session-row shape limits where the label surfaces; related surface).
+- W1c landing `c95335f` (the feature whose CLI leg this finding completes).
+
+## Open questions
+
+None.

@@ -2138,14 +2138,44 @@ size_t plant_x3f(std::vector<u8>& img, size_t at) {
     return 128;
 }
 
-/* Minolta MRW: II1A + the PRD block offset anchor. */
-size_t plant_mrw(std::vector<u8>& img, size_t at) {
-    std::memcpy(img.data() + at, "II\x1A\x00", 4);
-    put32v(img, at + 4, 0x40);
-    for (size_t i = 8; i < 0x40; ++i)
+/* M-081/SCAN-4: Canon CRW (CIFF) - the II/MM 1A 00 keys with the og
+ * grammar (00 00 HEAP + {CCDR,TIFP,ARCH} + version 2,
+ * FUN_180052000 :62333-62353, first-hand). */
+size_t plant_crw(std::vector<u8>& img, size_t at, const char* type4 = "CCDR", bool be = false) {
+    std::memcpy(img.data() + at, be ? "MM\x1A\x00" : "II\x1A\x00", 4);
+    std::memcpy(img.data() + at + 4, "\x00\x00HEAP\x00\x00", 8);
+    std::memcpy(img.data() + at + 0xA, type4, 4);
+    img[at + 0xE] = 2; /* the version byte the og gate demands */
+    for (size_t i = 0xF; i < 0x40; ++i)
         img[at + i] = u8(i & 0xFF);
-    std::memcpy(img.data() + at + 0x40, "PRD", 3);
-    return 0x40 + 32;
+    return 0x40;
+}
+
+/* M-081/SCAN-4: the ONLY true Minolta MRW form - \0MRM + the og size
+ * formula fields (FUN_180012100 :14233-14258, first-hand):
+ * BE32@+4 + 8 + ceil(u8@0x20 * BE16@+0x1a * BE16@+0x18 / 8). */
+size_t plant_mrm(std::vector<u8>& img, size_t at) {
+    std::memcpy(img.data() + at, "\x00MRM", 4);
+    putbe32(img, at + 4, 0x400); /* BE base */
+    putbe16(img, at + 0x18, 32); /* BE width */
+    putbe16(img, at + 0x1A, 32); /* BE height */
+    img[at + 0x20] = 8;          /* bit depth */
+    for (size_t i = 0x21; i < 0x400 + 8 + 32 * 32; ++i)
+        img[at + i] = u8((i * 7) & 0xFF);
+    return 0x400 + 8 + 32 * 32; /* the og formula's exact value */
+}
+
+/* SCAN-4: FileLowDocAnalyser (id 0x17, the old-Word .doc family) - the
+ * DB A5 2D 00 / 94 A6 2E 00 keys with the og formula fields
+ * (FUN_18001b650 :21167-21188, first-hand): size = (u32@0x124 +
+ * u16@0x128 + 0x1FF) & ~0x1FF. */
+size_t plant_lowdoc(std::vector<u8>& img, size_t at, bool second_key = false) {
+    std::memcpy(img.data() + at, second_key ? "\x94\xA6\x2E\x00" : "\xDB\xA5\x2D\x00", 4);
+    for (size_t i = 4; i < 0x124; ++i)
+        img[at + i] = u8((i * 3) & 0xFF);
+    put32v(img, at + 0x124, 0x400);
+    put16(img, at + 0x128, 0x200);
+    return 0x600; /* (0x400 + 0x200 + 0x1FF) & ~0x1FF - the formula's exact value */
 }
 
 size_t plant_wpg(std::vector<u8>& img, size_t at) {
@@ -2226,11 +2256,14 @@ size_t plant_aiff(std::vector<u8>& img, size_t at) {
 }
 
 size_t plant_hlp(std::vector<u8>& img, size_t at) {
+    /* SCAN-4: the og HLP gate (FUN_180041c50 :49883-49895) - u32@0xc is
+     * the size and must be > 0x1FF and >= u32@+4. */
     std::memcpy(img.data() + at, "\x3F\x5F\x03\x00", 4);
-    put32v(img, at + 4, 0x0B1D0001); /* the size-ish dword (nonzero) */
-    for (size_t i = 8; i < 64; ++i)
-        img[at + i] = u8(i & 0xFF);
-    return 64;
+    put32v(img, at + 4, 0x100);    /* first dword <= size */
+    put32v(img, at + 0xC, 0x1000); /* the declared size */
+    for (size_t i = 0x10; i < 0x1000; ++i)
+        img[at + i] = u8((i * 5) & 0xFF);
+    return 0x1000; /* the og gate's exact carved size */
 }
 
 /* ICONDIR: one 16-byte entry + its data payload. The entry layout is
@@ -2366,6 +2399,82 @@ size_t plant_3gp(std::vector<u8>& img, size_t at) {
     for (size_t i = 28; i < 36; ++i)
         img[at + i] = u8(i & 0xFF);
     return 36;
+}
+
+/* ---- S-041 niche batch 2, school 1 (SCAN-4): og grammars, byte-exact
+ * (each validator's comment carries the decompile cite). ---- */
+size_t plant_chm(std::vector<u8>& img, size_t at) {
+    std::memcpy(img.data() + at, "ITSF", 4);
+    put32v(img, at + 8, 0x60);          /* the v3 header length */
+    put32v(img, at + 0x18, 0x7C01FD10); /* GUID1 lo */
+    put32v(img, at + 0x1C, 0x11D07BAA); /* GUID1 hi */
+    put32v(img, at + 0x20, 0xA0000C9E); /* GUID1 tail lo */
+    put32v(img, at + 0x24, 0xECE622C9); /* GUID1 tail hi */
+    put32v(img, at + 0x28, 0x7C01FD11); /* GUID2 lo */
+    put32v(img, at + 0x2C, 0x11D07BAA);
+    put32v(img, at + 0x30, 0xA0000C9E);
+    put32v(img, at + 0x34, 0xECE622C9);
+    put32v(img, at + 0x60, 0x1FE);  /* the directory-header entry magic */
+    put32v(img, at + 0x68, 0x1000); /* size = u64@0x68 */
+    put32v(img, at + 0x6C, 0);
+    put32v(img, at + 0x70, 0); /* the two zero gates */
+    put32v(img, at + 0x74, 0);
+    for (size_t i = 0x78; i < 0x1000; ++i)
+        img[at + i] = u8((i * 3) & 0xFF);
+    return 0x1000;
+}
+
+size_t plant_one(std::vector<u8>& img, size_t at) {
+    std::memcpy(img.data() + at, "\xE4\x52\x5C\x7B", 4); /* the GUID prefix key */
+    put32v(img, at + 4, 0x4DA7D88C);                     /* GUID tail qword lo */
+    put32v(img, at + 8, 0x7853B1AE);                     /* GUID tail qword hi */
+    put32v(img, at + 0xC, 0xD32969D0);                   /* the final GUID dword */
+    for (size_t i = 0x10; i < 0x100; ++i)
+        img[at + i] = u8(i & 0xFF);
+    return 0x100;
+}
+
+size_t plant_mny(std::vector<u8>& img, size_t at) {
+    std::memcpy(img.data() + at, "MS", 2);
+    std::memcpy(img.data() + at + 4, "MSISAM Database", 15);
+    for (size_t i = 0x13; i < 0x40; ++i)
+        img[at + i] = u8((i * 5) & 0xFF);
+    return 0x100000; /* the og's fixed claimed size */
+}
+
+size_t plant_emf(std::vector<u8>& img, size_t at) {
+    for (size_t i = 0; i < 0x28; ++i)
+        img[at + i] = 1;                            /* the EMF header prefix (iType/bounds) */
+    std::memcpy(img.data() + at + 0x28, " EMF", 4); /* dSignature */
+    put32v(img, at + 0x30, 0x800);                  /* nBytes */
+    put16(img, at + 0x3A, 0);                       /* sReserved == 0 */
+    for (size_t i = 0x3C; i < 0x800; ++i)
+        img[at + i] = u8((i * 5) & 0xFF);
+    return 0x800;
+}
+
+size_t plant_swf(std::vector<u8>& img, size_t at, bool cws = false) {
+    std::memcpy(img.data() + at, cws ? "CWS" : "FWS", 3);
+    img[at + 3] = 6;            /* version inside the og's [3,20] gate */
+    put32v(img, at + 4, 0x400); /* FileLength > 8 */
+    for (size_t i = 8; i < 0x400; ++i)
+        img[at + i] = u8((i * 7) & 0xFF);
+    return 0x400;
+}
+
+size_t plant_3ds(std::vector<u8>& img, size_t at, bool ncsd = false) {
+    if (!ncsd) {
+        std::memcpy(img.data() + at, "MM", 2);
+        std::memcpy(img.data() + at + 0x10, "==", 2); /* the chunk gate */
+        for (size_t i = 0x12; i < 0x40; ++i)
+            img[at + i] = u8((i * 3) & 0xFF);
+    } else {
+        for (size_t i = 0; i < 0x100; ++i)
+            img[at + i] = u8((i * 3) & 0xFF);
+        std::memcpy(img.data() + at + 0x100, "NCSD", 4);
+        put32v(img, at + 0x104, 0x200000);
+    }
+    return 0x40;
 }
 
 } // namespace
@@ -2536,18 +2645,19 @@ TEST(Carve, S007NicheBatch1Carve) {
      * them. Each key re-read at its RAWSearchDLL registration site. */
     std::vector<u8> img(256 * 1024, 0);
     const size_t mid_at = 512, ogg_at = 2048, rm_at = 4096, mxf_at = 6144, dmg_at = 8192,
-                 x3f_at = 10240, mrw_at = 12288, wpg_at = 14336, wpd_at = 16384, psp_at = 18432,
+                 x3f_at = 10240, crw_at = 12288, wpg_at = 14336, wpd_at = 16384, psp_at = 18432,
                  sit_at = 20480, gz_at = 22528, ape_at = 24576, au_at = 28672, aiff_at = 30720,
                  hlp_at = 32768, ico_at = 34816, cur_at = 35840, wmfpl_at = 36864,
                  wmfstd_at = 37888, ttf_at = 38912, mdb_at = 51200, tar_at = 102400,
-                 eps_at = 143360, ai_at = 147456, dxf_at = 151552, gp_at = 155648;
+                 eps_at = 143360, ai_at = 147456, dxf_at = 151552, gp_at = 155648, mrm_at = 159744,
+                 lowdoc_at = 163840, lowdoc2_at = 167936;
     const size_t mid_len = plant_mid(img, mid_at);
     const size_t ogg_len = plant_ogg(img, ogg_at);
     const size_t rm_len = plant_rm(img, rm_at);
     const size_t mxf_len = plant_mxf(img, mxf_at);
     const size_t dmg_len = plant_dmg(img, dmg_at);
     const size_t x3f_len = plant_x3f(img, x3f_at);
-    const size_t mrw_len = plant_mrw(img, mrw_at);
+    const size_t crw_len = plant_crw(img, crw_at);
     const size_t wpg_len = plant_wpg(img, wpg_at);
     const size_t wpd_len = plant_wpd(img, wpd_at);
     const size_t psp_len = plant_psp(img, psp_at);
@@ -2568,6 +2678,9 @@ TEST(Carve, S007NicheBatch1Carve) {
     const size_t ai_len = plant_ai(img, ai_at);
     const size_t dxf_len = plant_dxf(img, dxf_at);
     const size_t gp_len = plant_3gp(img, gp_at);
+    const size_t mrm_len = plant_mrm(img, mrm_at);
+    const size_t lowdoc_len = plant_lowdoc(img, lowdoc_at);
+    const size_t lowdoc2_len = plant_lowdoc(img, lowdoc2_at, true);
 
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
@@ -2605,7 +2718,10 @@ TEST(Carve, S007NicheBatch1Carve) {
     expect_carved(mxf_at, FMT_MXF, mxf_len, "MXF");
     expect_carved(dmg_at, FMT_DMG, dmg_len, "DMG (bzip2)");
     expect_carved(x3f_at, FMT_X3F, x3f_len, "X3F");
-    expect_carved(mrw_at, FMT_MRW, mrw_len, "MRW");
+    expect_carved(crw_at, FMT_CRW, crw_len, "Canon CRW (CIFF)");
+    expect_carved(mrm_at, FMT_MRW, mrm_len, "Minolta MRW (MRM)");
+    expect_carved(lowdoc_at, FMT_LOWDOC, lowdoc_len, "Word doc (legacy)");
+    expect_carved(lowdoc2_at, FMT_LOWDOC2, lowdoc2_len, "Word doc (legacy, 2nd key)");
     expect_carved(wpg_at, FMT_WPG, wpg_len, "WPG");
     expect_carved(wpd_at, FMT_WPD, wpd_len, "WPD");
     expect_carved(psp_at, FMT_PSP, psp_len, "PSP");
@@ -2614,7 +2730,7 @@ TEST(Carve, S007NicheBatch1Carve) {
     expect_carved(ape_at, FMT_APE, ape_len, "APE");
     expect_carved(au_at, FMT_AU, au_len, "Sun AU");
     expect_carved(aiff_at, FMT_AIFF, aiff_len, "AIFF");
-    expect_carved(hlp_at, FMT_HLP3, hlp_len, "Windows Help");
+    expect_carved(hlp_at, FMT_HLP, hlp_len, "Windows Help");
     expect_carved(ico_at, FMT_ICO, ico_len, "Icon");
     expect_carved(cur_at, FMT_CUR, cur_len, "Cursor");
     expect_carved(wmfpl_at, FMT_WMF_PL, wmfpl_len, "WMF placeable");
@@ -2653,9 +2769,14 @@ TEST(Carve, S007NicheBatch1RejectsNoise) {
     std::memcpy(img.data() + 14336, "FOVb", 4);
     img[14336 + 4] = 'x';
     img[14336 + 5] = 'y';
-    /* II1A whose PRD offset points at nothing @ 16384 */
+    /* II1A without the HEAP family behind it (the CRW grammar rejects) @ 16384 */
     std::memcpy(img.data() + 16384, "II\x1A\x00", 4);
     put32v(img, 16384 + 4, 0x40);
+    /* HEAPCCDR with version 3 (the og gate demands 2) @ 49152 */
+    std::memcpy(img.data() + 49152, "II\x1A\x00", 4);
+    std::memcpy(img.data() + 49152 + 4, "\x00\x00HEAP\x00\x00", 8);
+    std::memcpy(img.data() + 49152 + 0xA, "CCDR", 4);
+    img[49152 + 0xE] = 3; /* wrong version */
     /* MAC with an out-of-band version @ 18432 */
     std::memcpy(img.data() + 18432, "MAC ", 4);
     putbe32(img, 18432 + 4, 999999);
@@ -2738,11 +2859,12 @@ TEST(Carve, S007NicheBatch1RejectsNoise) {
         EXPECT_FALSE(off == 8192 && fmt == FMT_MXF) << "single-KLV MXF rejected";
         EXPECT_FALSE(off == 12288 && fmt == FMT_DMG) << "no-pi BZh1 rejected";
         EXPECT_FALSE(off == 14336 && fmt == FMT_X3F) << "bad-version X3F rejected";
-        EXPECT_FALSE(off == 16384 && fmt == FMT_MRW) << "no-PRD MRW rejected";
+        EXPECT_FALSE(off == 16384 && fmt == FMT_CRW) << "II1A without HEAP rejected";
+        EXPECT_FALSE(off == 49152 && fmt == FMT_CRW) << "version-3 HEAPCCDR rejected";
         EXPECT_FALSE(off == 18432 && fmt == FMT_APE) << "bad-version APE rejected";
         EXPECT_FALSE(off == 20480 && fmt == FMT_AU) << "encoding-99 AU rejected";
         EXPECT_FALSE(off == 22528 && fmt == FMT_AIFF) << "size-2 FORM rejected";
-        EXPECT_FALSE(off == 24576 && fmt == FMT_HLP3) << "bare HLP magic rejected";
+        EXPECT_FALSE(off == 24576 && fmt == FMT_HLP) << "bare HLP magic rejected";
         EXPECT_FALSE(off == 28672 && fmt == FMT_ICO) << "planes-9 ICO rejected";
         EXPECT_FALSE(off == 30720 && fmt == FMT_WMF_PL) << "bad-checksum placeable WMF rejected";
         EXPECT_FALSE(off == 32768 && fmt == FMT_WMF) << "params-nonzero WMF rejected";
@@ -2755,6 +2877,223 @@ TEST(Carve, S007NicheBatch1RejectsNoise) {
         EXPECT_FALSE(off == 47104 && fmt == FMT_3GP) << "brand-3gpZ rejected";
     }
     EXPECT_TRUE(stats.rejected >= 20) << "each noise plant must reach a validator rejection";
+}
+
+TEST(Carve, S007M081CiwMrmLowdocHlpOgGrammar) {
+    /* M-081/SCAN-4: the corrected rows reproduce the og grammars first-hand
+     * - CRW (00 00 HEAP + {CCDR,TIFP,ARCH} + ver 2, FUN_180052000
+     * :62333-62353), MRW (\0MRM + the size formula, FUN_180012100
+     * :14233-14258), LowDoc (DBA5/94A6 + the size formula,
+     * FUN_18001b650 :21167-21188), HLP (3F 5F 03 00 + the size gate,
+     * FUN_180041c50 :49883-49895). The retired batch-1 synthetic (II1A +
+     * PRD) must no longer pass (M-081's Q65: the self-fulfilling fixture),
+     * and the registry rows must carry the corrected ext/name labels. */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t crw_at = 4096, tifp_at = 8192, crwmm_at = 12288, mrm_at = 16384, lowdoc_at = 20480,
+                 lowdoc2_at = 24576, hlp_at = 28672, prd_at = 32768;
+    plant_crw(img, crw_at);
+    plant_crw(img, tifp_at, "TIFP");
+    plant_crw(img, crwmm_at, "CCDR", true); /* the MM 1A 00 sibling key */
+    const size_t mrm_len = plant_mrm(img, mrm_at);
+    const size_t lowdoc_len = plant_lowdoc(img, lowdoc_at);
+    const size_t lowdoc2_len = plant_lowdoc(img, lowdoc2_at, true);
+    const size_t hlp_len = plant_hlp(img, hlp_at);
+    /* the retired batch-1 synthetic: II1A + a PRD block */
+    std::memcpy(img.data() + prd_at, "II\x1A\x00", 4);
+    put32v(img, prd_at + 4, 0x40);
+    std::memcpy(img.data() + prd_at + 0x40, "PRD", 3);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    auto find_at = [&](size_t off) -> tree::FileNode* {
+        for (tree::FileNode* n : all)
+            if (!n->props()->extents.empty() && n->props()->extents.front().offset == off)
+                return n;
+        return nullptr;
+    };
+    /* CRW: the HEAP family accepts CCDR and TIFP on both keys */
+    tree::FileNode* crw = find_at(crw_at);
+    ASSERT_NE(crw, nullptr) << "genuine CIFF CRW must carve (M-081)";
+    EXPECT_EQ(crw->props()->carve_format, u64(FMT_CRW));
+    tree::FileNode* tifp = find_at(tifp_at);
+    ASSERT_NE(tifp, nullptr) << "the TIFP record type accepts";
+    EXPECT_EQ(tifp->props()->carve_format, u64(FMT_CRW));
+    tree::FileNode* crwmm = find_at(crwmm_at);
+    ASSERT_NE(crwmm, nullptr) << "the MM 1A 00 sibling key carves";
+    EXPECT_EQ(crwmm->props()->carve_format, u64(FMT_CRW_MM));
+    /* MRW: the og size formula, exact */
+    tree::FileNode* mrm = find_at(mrm_at);
+    ASSERT_NE(mrm, nullptr) << "the \\0MRM row must carve";
+    EXPECT_EQ(mrm->props()->carve_format, u64(FMT_MRW));
+    EXPECT_EQ(mrm->props()->logical_size, mrm_len) << "the og formula size, exact";
+    /* LowDoc: both keys, the og formula size exact */
+    tree::FileNode* ld = find_at(lowdoc_at);
+    ASSERT_NE(ld, nullptr) << "DB A5 2D 00 = FileLowDoc (SCAN-4)";
+    EXPECT_EQ(ld->props()->carve_format, u64(FMT_LOWDOC));
+    EXPECT_EQ(ld->props()->logical_size, lowdoc_len);
+    tree::FileNode* ld2 = find_at(lowdoc2_at);
+    ASSERT_NE(ld2, nullptr) << "94 A6 2E 00 = FileLowDoc (SCAN-4)";
+    EXPECT_EQ(ld2->props()->carve_format, u64(FMT_LOWDOC2));
+    EXPECT_EQ(ld2->props()->logical_size, lowdoc2_len);
+    /* HLP: the og size gate, exact */
+    tree::FileNode* hlp = find_at(hlp_at);
+    ASSERT_NE(hlp, nullptr) << "3F 5F 03 00 = HLP";
+    EXPECT_EQ(hlp->props()->carve_format, u64(FMT_HLP));
+    EXPECT_EQ(hlp->props()->logical_size, hlp_len) << "size = u32@0xc, exact";
+    /* the retired II1A+PRD synthetic must NOT carve */
+    EXPECT_EQ(find_at(prd_at), nullptr) << "the old PRD synthetic is not a CRW file";
+    /* the corrected row labels on the registry surface (M-081: not
+     * mislabeled MRW; SCAN-4: not mislabeled HLP) */
+    const Signature* reg = registry();
+    for (size_t i = 0; i < registry_size(); ++i) {
+        const Signature& s = reg[i];
+        if (s.id == FMT_CRW || s.id == FMT_CRW_MM) {
+            EXPECT_STREQ(s.ext, "crw") << "the II/MM 1A 00 rows are CRW";
+        }
+        if (s.id == FMT_MRW) {
+            EXPECT_STREQ(s.ext, "mrw");
+        }
+        if (s.id == FMT_LOWDOC || s.id == FMT_LOWDOC2) {
+            EXPECT_STREQ(s.ext, "doc") << "the DBA5/94A6 rows are .doc";
+        }
+        if (s.id == FMT_HLP) {
+            EXPECT_STREQ(s.ext, "hlp");
+        }
+    }
+}
+
+TEST(Carve, S007NicheBatch2School1Carve) {
+    /* S-041 batch-2 school 1 (SCAN-4): CHM ONE MNY EMF SWF(FWS/CWS) 3DS
+     * - every grammar re-verified first-hand at the analyser body before
+     * the row landed. The MNY row's carved size is the og's own fixed
+     * 1 MiB claim (FUN_180041dd0); CHM/EMF/SWF take their sizes from
+     * the og's own size fields; ONE/3DS carry the bounded-extent
+     * stand-in for their undecoded walks. */
+    std::vector<u8> img(2 * 1024 * 1024, 0);
+    const size_t chm_at = 4096, one_at = 8192, mny_at = 16384, emf_at = 12288, swf_at = 20480,
+                 cws_at = 22528, mmds_at = 24576, ncsd_at = 28672;
+    const size_t chm_len = plant_chm(img, chm_at);
+    const size_t one_len = plant_one(img, one_at);
+    const size_t mny_len = plant_mny(img, mny_at);
+    const size_t emf_len = plant_emf(img, emf_at);
+    const size_t swf_len = plant_swf(img, swf_at);
+    const size_t cws_len = plant_swf(img, cws_at, true);
+    plant_3ds(img, mmds_at);
+    plant_3ds(img, ncsd_at, true);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    auto find_at = [&](size_t off) -> tree::FileNode* {
+        for (tree::FileNode* n : all)
+            if (!n->props()->extents.empty() && n->props()->extents.front().offset == off)
+                return n;
+        return nullptr;
+    };
+    auto expect_carved = [&](size_t off, u32 fmt, size_t min_len, const char* what) {
+        tree::FileNode* n = find_at(off);
+        ASSERT_NE(n, nullptr) << what << " must carve (S-041 school 1)";
+        EXPECT_EQ(n->props()->carve_format, fmt) << what;
+        EXPECT_GE(n->props()->logical_size, min_len) << what;
+    };
+    expect_carved(chm_at, FMT_CHM, chm_len, "CHM");
+    expect_carved(one_at, FMT_ONE, one_len, "OneNote");
+    expect_carved(mny_at, FMT_MNY, mny_len, "Money");
+    expect_carved(emf_at, FMT_EMF, emf_len, "EMF");
+    expect_carved(swf_at, FMT_SWF, swf_len, "SWF (FWS)");
+    expect_carved(cws_at, FMT_SWF_CWS, cws_len, "SWF (CWS)");
+    expect_carved(mmds_at, FMT_3DS, 0x12, "3DS (MM/==)");
+    expect_carved(ncsd_at, FMT_3DS_NCSD, 0x108, "3DS (NCSD)");
+    /* the og's own size semantics, exact where the og sets a size */
+    EXPECT_EQ(find_at(chm_at)->props()->logical_size, chm_len) << "CHM size = u64@0x68";
+    EXPECT_EQ(find_at(mny_at)->props()->logical_size, mny_len) << "MNY size = the og's 0x100000";
+    EXPECT_EQ(find_at(emf_at)->props()->logical_size, emf_len) << "EMF size = nBytes";
+    EXPECT_EQ(find_at(swf_at)->props()->logical_size, swf_len) << "SWF size = FileLength";
+}
+
+TEST(Carve, S007NicheBatch2School1RejectsNoise) {
+    /* One hostile variant per format - the og gates reject what the
+     * keys would accept on noise. */
+    std::vector<u8> img(256 * 1024, 0);
+    /* ITSF with a broken GUID @ 512 */
+    plant_chm(img, 512);
+    put32v(img, 512 + 0x18, 0xDEADBEEF);
+    /* "MS" with a broken MSISAM string @ 2048 */
+    std::memcpy(img.data() + 2048, "MS", 2);
+    std::memcpy(img.data() + 2048 + 4, "MSISAM DatabasX", 15);
+    /* " EMF" with nBytes 0 @ 4096 */
+    plant_emf(img, 4096);
+    put32v(img, 4096 + 0x30, 0);
+    /* FWS with version 2 (below the og's [3,20] gate) @ 8192 */
+    plant_swf(img, 8192);
+    img[8192 + 3] = 2;
+    /* FWS with FileLength 8 (not > 8) @ 12288 */
+    plant_swf(img, 12288);
+    put32v(img, 12288 + 4, 8);
+    /* "MM" without the == gate and without NCSD @ 16384 */
+    std::memcpy(img.data() + 16384, "MM", 2);
+    /* NCSD with a wrong 0x104 field @ 20480 */
+    plant_3ds(img, 20480, true);
+    put32v(img, 20480 + 0x104, 0x123456);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    for (tree::FileNode* n : all) {
+        const u64 off = n->props()->extents.front().offset;
+        const u64 fmt = n->props()->carve_format;
+        EXPECT_FALSE(off == 512 && fmt == FMT_CHM) << "broken-GUID ITSF rejected";
+        EXPECT_FALSE(off == 2048 && fmt == FMT_MNY) << "broken MSISAM string rejected";
+        EXPECT_FALSE(off == 4096 && fmt == FMT_EMF) << "nBytes-0 EMF rejected";
+        EXPECT_FALSE(off == 8192 && fmt == FMT_SWF) << "version-2 FWS rejected";
+        EXPECT_FALSE(off == 12288 && fmt == FMT_SWF) << "FileLength-8 FWS rejected";
+        EXPECT_FALSE(off == 16384 && fmt == FMT_3DS) << "MM without == / NCSD rejected";
+        EXPECT_FALSE(off == 20480 && fmt == FMT_3DS_NCSD) << "wrong-field NCSD rejected";
+    }
+    EXPECT_TRUE(stats.rejected >= 7) << "each noise plant must reach a validator rejection";
 }
 
 TEST(Carve, S007NicheBatch1SalvageSemantics) {

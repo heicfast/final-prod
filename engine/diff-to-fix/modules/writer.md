@@ -131,3 +131,15 @@ F62/A35/Q65 → MATCH.
 | A27 collision naming | **MATCH** — the og's two `%s_%d`/`%s_%d%s` branches (DRWUI :357116-357131), last-dot split, extensionless branch, counter from 1, cap 10,000, exhaustion fails the item (parallel-lane landing, verified green this session) |
 | S35 mkdir acceptance | **MATCH (semantic form, REGISTERED)** — the SHCreateDirectoryExW 0/0xB7 contract as exist-as-directory success / file-in-the-way fail / else propagate; the literal gate broke drive-root chains (MSVC test #227 incident, in-source comment) |
 | P46 D-19 doc truth | **MATCH** — the refuted "unevidenced" claim superseded by the decoded policy (PARITY-DELTAS:456+) |
+
+
+## Session-8 section (2026-10-28, audited `35adcb9`)
+
+**M-071** (MAJOR — the M-018 regression: recover-all and the CLI tree print
+lost their junk-filter gates in the N-064 rrecov.cpp reconstruction;
+`69507cb` → `cfa4c75`; the stale cr_scan.cpp:1200 comment). **M-074**
+(MAJOR — destination validation classification: path-too-long/invalid/network
+collapse to ERR_DEST_UNWRITABLE vs the og's distinct outcomes
+("Might be invalid path to save." / "The recovery path is too long." /
+PathIsNetworkPathW branch); fix = three appended 0x5005-family codes + the
+CreateFileW error classification).

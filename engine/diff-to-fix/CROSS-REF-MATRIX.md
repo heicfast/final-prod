@@ -495,22 +495,111 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | packaging · WinPE payload census (K78) | DISPOSITIONED-MATCH-at-plan | the PE capability boundary recorded as the boot-media builder's design input; roadmap.md:71 |
 | MOM stubs · 17 never-cited per-module censuses | MATCH (zero new parameters) | wave-7 spot-check: 13 ROLLUP-COVERED + 4 INFRASTRUCTURE-ONLY; decode candidates noted (CWindowsFS ×3, DeviceManager offline-OS strings) |
 | inventory truth · citation-count correction | CORRECTED | SURFACE-INVENTORY "22 of 32" → 17 of 30 (5 stubs cited in brace-group form at s5-session5-corpus-quotes.md:64) |
-**Session-9 changes (2026-10-28, SA-9 lane — audited core product code `35adcb9` / rda-driver `323e75a` / corpus `be0cfe9`; two-repo scope incl. the driver-repo handoffs D3/D4):**
+## Session-8 detail rows (2026-10-28, audited product `35adcb9`; corpus `be0cfe9` — the second-session deep audit)
+
+| Surface × parameter | Verdict | Finding / evidence |
+|---|---|---|
+| imaging · disk→image create flow (P42/C24/F59) | DIVERGENCE-SEVERE | **S-040** — reader-only core; no `cr_ui_image_create`, no verb, no writer; the safe-scan posture's producer absent |
+| carve · S-007 batch-2 remainder formats (B1/A28/C19) | DIVERGENCE-SEVERE | **S-041** — ~24 formats (CHM MNY EMF ONE MPEG-TS 3DS SWF JP2 MOBI + the text school) absent; previously unowned |
+| carve · CRW key attribution + validator grammar (B1/C19/A28) | DIVERGENCE-MAJOR | **M-081** — II/MM\x1A\x00 keys are Canon CIFF per the census; landed as "Minolta MRW" rows whose PRD gate rejects genuine CRW |
+| query · path_substring + state_mask axes (D16/P42) | DIVERGENCE-MAJOR | **M-072** — 5 of 7 og filter groups; no substring, no state mask (R-22) |
+| orchestration · scan-time folder filter (S31/D16) | DIVERGENCE-MAJOR | **M-073** — PushFolderFilter unmirrored; post-hoc query only (R-14) |
+| writer · destination error classification (C23/D14) | DIVERGENCE-MAJOR | **M-074** — too-long/invalid/network collapse to ERR_DEST_UNWRITABLE (R-41) |
+| check · chkdsk launch endpoint (S35/P42) | DIVERGENCE-MAJOR | **M-075** — WinChkdsk launch absent; D-90 disposition superseded by the plan (R-65) |
+| health/enum · TRIM facet in rows (P42/X48) | DIVERGENCE-MAJOR | **M-076** — datum health-facet-only; no row fields/flag (R-63) |
+| preview · 100 MB/15 s product caps (X48/X49) | DIVERGENCE-MAJOR | **M-077** — no eligibility gate, no time bound in the path (R-34) |
+| health · BitLocker turn-off op (F61/P42) | DIVERGENCE-MAJOR | **M-078** — CBitlockerTurnOffOperation unmirrored; unlock-only surface (R-88) |
+| session/CLI · auto-save volume label (D12/B10) | DIVERGENCE-MAJOR | **M-079** — no fill site; CLI auto-saves always `auto_<ts>` |
+| preview(thumb) · default read budget vs ordinary photos (X47/X48) | DIVERGENCE-MAJOR | **M-080** — 6 MiB 12-MP JPEG → BudgetExceeded (fast path gated on pixels only) |
+| mom-capabilities · DeviceManager offline-OS identification (A54-58) | DIVERGENCE-MAJOR + disposition re-scope | **M-082** — live-module machinery (IsBootVolume chain); CheckVersion verdict covered only the dead copy |
+| writer/query/CLI · M-018 junk gates (D16/B2) | **REGRESSION (PARTIAL-FIXED)** | **M-071** — rrecov.cpp reconstruction dropped the CLI tree + recover-all gates (git-proven `69507cb`→`cfa4c75`) |
+| session · list scope + row shape (D12/B10/P42) | DIVERGENCE-MINOR | **N-090** — no `auto_` filter; 1 s save time; label[32]; no device-type |
+| docs · PARITY-DELTAS registration gaps (Q68) | DIVERGENCE-MINOR | **N-091** — load-progress model, thumbnail superset, auto-save posture unregistered |
+| preview(thumb) · refusal matrix + cache (Q68/X47) | DIVERGENCE-MINOR | **N-092** — WMF/EMF/ICO unnamed; no cache scope |
+| carve · batch-1 bounds MID/GZ (A28/C19) | DIVERGENCE-MINOR | **N-093** — 64 MiB/512 MiB vs og 10 MB/400 MB, undocumented |
+| cli · `-h` usage text + stale cite (C24/Q68) | DIVERGENCE-MINOR | **N-094** — sessions verb invisible in help; 4th lock site |
+| docs · five stale texts (Q68) | DIVERGENCE-MINOR | **N-095** — 0x60002400 label; 37-toggles tail; carve.md superseded verdict; transport.md grammar; ABI-CONTRACT cites |
+| transport · identity IOCTL issuance (S35/P42) | DIVERGENCE-MINOR | **N-096** — og issues GET_DISK_CONTEXT_MODE per open; core never issues any |
+| health/docs · auto.txt classification (F61/Q68) | DIVERGENCE-MINOR | **N-097** — it is the FVE auto-unlock key snapshot (plaintext persistence datum) |
+| abi/docs · enum refresh contract sentence (Q68) | DIVERGENCE-MINOR | **N-098** — always-fresh behavior unverified-by-text (R-86's doc half) |
+| config assets · data-asset ground truths (Q68/I-010) | INFORMATIONAL | **I-027** — quota contract, json_raw shield, Aliyun caps, schtasks autostart, filter_generalraw value |
+| mom-capabilities · CWindowsFS live-FS adapter | OPEN QUESTION | **OQ-S8-1** — decoded; og-side consumer untraced |
+| landing verification · W1a/W1b/W1c + thumbnail + carrier | MATCH at load-bearing points | worklog session-8 record (cancel-per-node; ERR_CANCELLED-never-flattened; cancelled-never-autosaves; 27/27 batch-1 magics; carrier all-parameters) |
+| FIXED-truth spot-check · 10 sampled findings | 9 CONFIRMED · 1 PARTIAL | M-018 → **M-071**; the rest verified in-code (worklog record) |
+
+
+## Session-8 wave-2 rows (audited `ff879f9` lineage, corpus `be0cfe9` — the continuation lane, IDs reconciled past the parallel deep-audit lane's set)
+
+| Module · parameter (cell) | Verdict |
+|---|---|
+| carve · batch-2 format coverage (C19/A28/B1) | **S-041 + wave-2 addendum** — the parallel lane's owner finding gains the full decode: 7 text-school grammars, the 18-site config-gated zone, registry geometry (59+35), the BOM battery, FCPEvt end-to-end |
+| carve · WMF placeable validator grammar (A28/C19) | **S-042** — core grammar contradicts the og (checksum word@+20/XOR 0..9/reserved-dword/exact-size vs inch-gate/checksum@18/XOR 0..8/probe-extent); disjoint accept-sets |
+| carve · MDB family second signature (C19/B1) | **M-084** — "Standard ACE DB" (ACCDB 0x4C) missing |
+| carve · batch-1 evidence citations (C65-adj) | **N-099** — registry regions/ctor lines/byte-order corrected (truth pass; constants shipped correct except WMF; also corrects N-093's WPG-ctor cite per erratum E63) |
+| carve · progressive result emission (A31/S38-adj) | **MATCH** — carve_slice streams nodes live during the pass (cr_scan.cpp:1877-88); og live-growth equivalent (UIUX/30:14) |
+| preview/thumbnail · EXIF orientation (B2/A25) | **S-043** — og rotates per tag 0x112 pre-thumbnail; core does not |
+| preview/thumbnail · input eligibility (B1/P48) | **M-080 + wave-2 addendum** — the parallel lane's budget finding gains the og's 200 MB eligibility gate decode (:422428), correcting its "no input cap" claim; severity discussion recorded (SEVERE recommended) |
+| preview/thumbnail · format coverage (B1) | **S-045** — video-keyframe/RAW/HEIC/PDF pipelines absent (og ships them); complements N-092's unnamed-trio + cache gaps |
+| preview/thumbnail · grading side-effect (D15) | **M-083** — og promotes to grade 2 on thumbnail success (:422505-13) |
+| preview/thumbnail · TIFF LZW (B1/A28) | **M-085** — compression-5 refused (mainstream variant) |
+| preview/thumbnail · superset posture (A25) | **I-028** — both-axis scaling, RGBA8, PSD/PNM/HDR, bomb guard, truth gates: deliberate, registered |
+| preview/thumbnail · still-image families + bounded-read doctrine + never-upscale + honest refusals | **MATCH** |
+| session · auto-save trigger gates (A31/D12) | **S-044** — results-found + not-already-saved gates missing; og's enable = byte flag |
+| session · auto-save naming folder variant | **N-105** — "Folder" suffix absent (deferred; cross-ref M-079's volume-label gap) |
+| session · crsf reader robustness (S35) | **MATCH** — per-chunk raw fallback == og's raw-memcpy-on-inflate-failure (md :98) |
+| session · light summary read (D12) | **MATCH** — SESSION_STATE+VOLUME_INFO == the og's record-1-then-record-2 list read (phrasing corrected E64; complements N-090's scope/shape rows) |
+| ntfs · session-wire field set (D11/D12) | **N-100** — og persists +0x60 (total clusters, sparse-zeroed) beside +0x64; core carries +0x64 only |
+| ntfs · origin-LCN stamp chain (C20) | **MATCH** (semantics) — chain cites corrected (+0x53/+0x4f first hop; FUN_180003250) |
+| orchestration · device enumeration sixth source | **N-106** — GetDriverInfo.dll dispositioned OUT-OF-SCOPE by lineage (complements M-082's DeviceManager decode) |
+| audit-trail · SURFACE-INVENTORY arithmetic + classification rows | **N-101** |
+| audit-trail · M-024 count propagation (finding file itself) | **N-102** (cross-ref N-095's PARITY-CORE-REC site) |
+| audit-trail · thumbnail API rows + heif attribution | **N-103** |
+| audit-trail · ldm.md dangling ref + CAPABILITY-MATRIX HFS+ row | **N-104** (cross-ref N-095's five other sites) |
+
+### Session-8 third lane (2026-10-28 — the driver lane + the merge/repair wave; audited core `35adcb9`, driver `323e75a`, corpus `be0cfe9`)
+
+| Module · parameter (cell) | Verdict |
+|---|---|
+| driver-install · versioned coexistence across releases (K76) | **M-086** — FileVersion pinned 1.0.0.0 + no release stamping → the -Layout Versioned tag is always "10" → genuine upgrades hit exit 2 (the M-064 contract's version source starves it) |
+| driver-install · WinPE UpperFilters encoding (K78) | **M-087** — regdrv-rda.reg hex(7) is 5 ASCII bytes, not UTF-16LE multi-string (the D4 handoff, now owned); og's regdrv.reg:35-36 shows the correct form |
+| ci/packaging · FloorVersion pin count + CI-shape docs (K75/Q68) | **M-088** — release.yml v0.2.4 vs installer.yml v0.2.3 while CI-CURRENT.md claims ONE pin source; PREBUILT-ARTIFACTS/DRIVER-RELEASE/DRIVER-CONTRACT/CI-LOCAL/CI-SCENARIOS/README:125-132/RELEASE-NOTES describe the wiped composite-action + 3-workflow set (real consumers: installer/release/test-benchmark) |
+| driver wire · extended-IOCTL fuzz coverage (Q66/C22) | **M-089** — rdabench.c:390 probes the phantom-zero 0x6000244x codes; the live 0x6002440/44/48 handlers receive zero fuzz iterations |
+| driver wire · session-code count prose (C22/Q68) | **N-107** — 14 current-tense "15/18-command" sites vs the code's 19 (the D3 handoff, full inventory; core's DRIVER-CONTRACT.md already says 19) |
+| driver wire · identity IOCTLs + Information×512 + LBA scaling + NAS/Cloud exclusion | **MATCH** — re-verified first-hand this session (rda_ioctl.h:63-65/146, rda_readwrite.c:269, rda_session.c:1122, rda_disk.c:191 vs eprdtdrv-sys--driver-internals.md:68,81-84; binary dword probe: all 19 codes in EUDCPEPM.sys) |
+| docs · engine-constants row set (Q68) | **N-108** — docs/PARAMETERS.md:78-79 still carry 4-8 MiB / 8-signs / 16-bytes / offset-512 (code: 1 MiB+4 KiB / 12 / 48 / 1024 / mime-80); the SCAN-ENGINE-DELTA "fixed this session" claim corrected in place |
+| audit-trail · A-007 evidence cites | **REPAIRED** — the dangling a006-extents-off-by-two.md cites re-pointed at the real a007-extents-off-by-two.md (dated note in the finding) |
+| audit-trail · corpus errata | **E65/E66** — the census :99 0x11c gloss (284 = FreeHand 11, MTS/M2TS list-only) + the retdec qword-truncation tooling caveat (the CHM blocker's real cause) |
+| carve · batch-2 remainder + WMF grammar | **MERGED** — this lane's duplicate S-041/S-042 filings merged into the continuation lane's owner files as convergence addenda (two lanes, two decompilers, one conclusion on WMF; the CHM/FH11 asm decode donated to S-041) |
+
+
+## Session-8 lead-lane rows (FINAL numbering past the third lane, audited core `ff879f9`, corpus `be0cfe9` — 2026-10-28)
+
+| Module | Lead-lane findings (final IDs; the parallel lanes' rows are in their own sections) |
+|---|---|
+| carve | **M-090** (DMG koly walk + DMG-specific cap — erratum E67), **M-091** (the MDB page-chain walk decoded), **S-047** (MPEG-TS/M2TS), **M-092/M-093/M-096/M-098/M-099** (HTML / XML+SVG / MOBI / HIK / AEP), **N-111..N-113, N-115** (JP2 / LZH / text school / OfficeTagFromXML) — school-2/3 children of S-041 |
+| session + ABI | **N-116** (list row ordering), **N-117/N-118** (W1 doc drifts), **I-029** (driver-code provenance) |
+| query | **M-101** (Versions/Tags branches), **N-126** (Unsaved File) |
+| preview | **M-100** (browse-inside), **M-102** (thumbnail ABI) |
+| boot repair | **N-121** (ESP automount), **N-122** (NVRAM create/delete) |
+| CLI / transport | **N-123**, **N-124** |
+| orchestration / docs / structure | **N-125** (disconnect states), **N-119** (D-88 premise), **N-120** (pointer drifts), **I-030** (module-map holes) |
+**Session-9 changes (2026-10-28, SA-9 lane — audited core product code `35adcb9` / rda-driver `323e75a` / corpus `be0cfe9`; two-repo scope; RECONCILED at push time into the session-8 board — 7 convergent filings merged as addenda, 1 unique finding kept):**
 
 | Surface · parameter | Verdict | Cell |
 |---|---|---|
-| carve · WMF placeable gate (offsets/checksum/extent) | DIVERGENCE-SEVERE | **S-040** — inch@+16 reads Reserved (==0 in every real file) → all real placeable WMFs rejected; checksum@+18/XOR-9 vs the og's +20/XOR-10; no HWmf gate; extent 64 MiB probe vs size\*2+22; the test plant mirrors the wrong layout |
-| carve · CRW/MRW key attribution (II/MM 1A 00) | DIVERGENCE-SEVERE | **S-041** — the og keys those u32s to Brance::CRWAnalyser id 0x12 (CIFF gate); our rows are dead MRW validators; Canon CRW never carved; census erratum E53 |
-| carve · batch-2 format set | DIVERGENCE-SEVERE | **S-042** — CHM/MNY/EMF/ONE/MPEG-TS/3DS/SWF/JP2/MOBI/LZH/HTML/SVG + VCF/GPX/HIK/OSP/POS/AEP/HFP absent + the OfficeTagFromXML word/xl/ppt id-split missing; every gate now decoded (CHM instruction-level) |
-| carve · MID/GZ batch-1 caps | DIVERGENCE-MINOR | **N-092** — MID max 64 MiB vs og 10 MB; GZ min 18/max 512 MiB vs og 20/400 MB |
-| driver-install · versioned-coexistence resource | DIVERGENCE-MAJOR | **M-071** — FileVersion pinned 1.0.0.0 across v0.x releases → every release computes `<name>10.sys` → the M-064 upgrade branch is unreachable; every reinstall exits 2 |
-| driver-install · WinPE pre-registration profile | DIVERGENCE-MAJOR | **M-072** — regdrv-rda.reg: unparseable hex(7); DISKDRIVE class vs the og's VOLUME class; Start=3 + UpperFilters active vs the og's boot-start filter (the D4 handoff + two new parameters) |
-| transport · session-code count prose | DIVERGENCE-MINOR | **N-090** — the served 19-code set described as 15/18 in 12+ sites (the D3 handoff expanded; per-site reference-vs-served nuance recorded) |
-| transport · doc-vs-code truthfulness | DIVERGENCE-MINOR | **N-091** — the claimed admin gate has no code; stale 512-byte-sector prose; §2.2 pre-G2 prose; RDA_DP_COMPONENT present despite the S12 removal claim; unreachable default; the 57th check undocumented |
-| transport · EPMNtDrv v2 identity IOCTLs + async completion + \Volume\{N} chain | **MATCH** | the never-audited surface verified: our driver carries 0x60002400/04/08 byte-exactly (GetProcName/GetFileObjName/GetDiskContextMode semantics, buffer gates incl. the 0x207/4 out-length rules), method-aware pass-through, ×512 Information — the C-sheet corpus decode vs the E-sheet code read, cross-checked |
-| transport · EPMNtDrv trio naming + PID handshake | **MATCH** | the never-audited surface verified: PID-token byte-exact transform re-derived at CREATE, mismatch → STATUS_INVALID_PARAMETER; \Device\<UPPERCASED service name> + EPMNTDRV fallback; DO_DIRECT_IO; benchmark-proven 64/64 |
-| V-lane · W1a/W1b/W1c session surfaces (list/progress+cancel/auto-save) | **MATCH** | the landings' corpus claims verified read-only (D-sheet): v5 save_unix tail = the og's SYSTEMTIME mirror; per-node cancel semantics; completion-only auto-save with the og's naming |
-| V-lane · NTFS origin-LCN carrier | **MATCH** | both stamp sites + clone + nflags bit-8 nonzero-gate verified against the +0x64 decode (part1:85 erratum E55) |
-| V-lane · thumbnail engine | **MATCH (documented superset)** | stb+native TIFF+EXIF fast path; the 20171/20172 IPC + UI caps n/a-by-layer; 256px constant not corpus-pinned (documented choice) |
-| V-lane · installer S-038 steps 2-3 | **MATCH (the OS-gate divergence already registered)** | the 13-parameter contract verified landed; the Win7-SP1→2025 gate vs the og's 16-entry matrix is the S-038-registered divergence, step-4-accepted |
-| G-lane · gap-hunt candidates | **MATCH (covered)** | Device.md CDiskDriveLayoutReadWriter = the lost-partition apply sequence (modules/lost-partition.md:205-218); RegLib (mom-capabilities:94-97 + health.md:63); Win32Bcd writer family (boot-repair.md); NTFSLib (ntfs.md:357); getdriverinfo/CTbFile (I-020); VideoViewer (I-015); CWindowsFS/offline-OS stay census stubs (no corpus behavior parameters — not auditable) |
+| transport · EPMNtDrv v2 identity IOCTLs + async completion + \Volume\{N} chain | **MATCH** | the never-audited surface verified by this lane: our driver carries 0x60002400 GetProcName (in==4 u32 PID, out>0x207), 0x60002404 GetFileObjName, 0x60002408 GetDiskContextMode (out==4, bound handles only), method-aware pass-through, ×512 Information — the C-sheet corpus decode vs the E-sheet code read, cross-checked (evidence: the SA-9 context sheets; SURFACE-INVENTORY rows flipped) |
+| transport · EPMNtDrv trio naming + PID handshake | **MATCH** | the never-audited surface verified by this lane: the PID-token byte-sum transform re-derived at CREATE, mismatch → STATUS_INVALID_PARAMETER; \Device\<UPPERCASED service name> + EPMNTDRV fallback; DO_DIRECT_IO; benchmark-proven 64/64 |
+| driver-install · WinPE filter Start posture | DIVERGENCE-MAJOR (parameter added to M-087) | **M-087 + SA-9 addendum** — the demand-start (Start=3) service + active UpperFilters cannot attach at volume-stack build; the og's filter service is Start=0 BOOT_START (EUDCPEPM in regdrv.reg) — the parameter their M-087 lacked |
+| transport · driver doc-vs-code truthfulness (admin gate / S12 / 512-byte prose / unreachable default / 57th check) | DIVERGENCE-MINOR | **N-127** (the lane's unique survivor — renumbered from the collided N-091 at reconciliation) |
+| V-lane · W1a/W1b/W1c session surfaces (list/progress+cancel/auto-save) | **MATCH** | the landings' corpus claims verified read-only (the D-sheet): v5 save_unix tail = the og's SYSTEMTIME mirror; per-node cancel semantics; completion-only auto-save (the og's own results-found/not-saved gates independently decoded by the parallel lane as S-044 — convergent) |
+| V-lane · NTFS origin-LCN carrier | **MATCH** | both stamp sites + clone + nflags bit-8 nonzero-gate verified against the +0x64 decode (part1:85 erratum E68) |
+| V-lane · thumbnail engine | **MATCH (documented superset)** | stb+native TIFF+EXIF fast path; the 20171/20172 IPC + UI caps n/a-by-layer; 256px constant not corpus-pinned (the parallel lane's thumbnail findings S-043/S-045/M-080/M-083/M-102 own the deeper gaps) |
+| V-lane · installer S-038 steps 2-3 | **MATCH (the registered OS-gate divergence)** | the 13-parameter contract verified landed; step-4-accepted at run 40684304129 |
+| G-lane · gap-hunt candidates | **MATCH (covered)** | Device.md CDiskDriveLayoutReadWriter = the lost-partition apply sequence (modules/lost-partition.md:205-218); RegLib (mom-capabilities:94-97 + health.md:63); Win32Bcd writer family (boot-repair.md); NTFSLib (ntfs.md:357); VideoViewer (I-015); CWindowsFS/offline-OS stay census stubs (no corpus behavior parameters — the parallel lane's M-082/N-106 own the adjacent dispositions) |
+| carve · WMF placeable gate | DIVERGENCE-SEVERE | **S-042** (the parallel lane's filing — this lane's convergent decode merged as the SA-9 addendum: the std-WMF stricter-gates observation + the canonical-layout evidence table, evidence/decompiled-quotes/s9-wmf-placeable-gate.md) |
+| carve · CRW/MRW key attribution | DIVERGENCE-SEVERE → **FIXED** | **M-081** (the parallel lane's filing, FIXED at `9e5dedc` — the CRW re-attribution landed; this lane's instruction-level registration quotes merged as the SA-9 convergence addendum, evidence/decompiled-quotes/s9-crw-mrw-registrations.md) |
+| carve · batch-2 format set | DIVERGENCE-SEVERE | **S-041** (the parent) + the per-format children (S-047 MPEG-TS, M-092 HTML, M-093 XML/SVG, M-096 MOBI, M-098 HIK, M-099 AEP, N-111 JP2, N-112 LZH, N-113 text school, N-115 OfficeTag) + school 1 LANDED (`b92ebef` CHM/ONE/MNY/EMF/SWF/3DS) — this lane's consolidated decode table merged as the SA-9 addendum (evidence/decompiled-quotes/s9-batch2-registrations.md, the instruction-level CHM disassembly s9-chm-gate-asm.md corroborating E66) |
+| driver-install · FileVersion pin | DIVERGENCE-MAJOR | **M-086** (the parallel lane's filing — this lane's convergent decode merged as the SA-9 addendum: the CI tag==resource gate proposal, evidence in the finding) |
+| driver-install · regdrv-rda.reg hex(7) | DIVERGENCE-MAJOR | **M-087** (the parallel lane's filing + this lane's Start-posture parameter addendum) |
+| transport · session-code count prose | DIVERGENCE-MINOR | **N-107** (the parallel lane's filing — 14 sites, supersedes this lane's 12-site list) |
+| carve · MID/GZ/PSP/SIT batch-1 caps | DIVERGENCE-MINOR | **N-093** (the parallel lane's broader filing — PSP/SIT included; this lane's MID/GZ ctor quotes corroborate, evidence/decompiled-quotes/s9-mid-gz-bounds.md) |

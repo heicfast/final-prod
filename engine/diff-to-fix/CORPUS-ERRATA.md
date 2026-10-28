@@ -286,42 +286,70 @@ per-key analyser attributions.*
 - **E51** (rawsearchdll--analyser-registry-census.md, the MDB row): the MDB analyser is reached through the U16 registry, key 0x0100 (bytes `00 01`, the first two Jet header bytes) — NOT a u32-keyed format. The full gate is the 20-byte "Standard Jet DB\0" signature (FUN_180015260: key re-check + "dard" u64 @+8 + " DB\0" u32 @+0x10), type-id 39, FileInfo bounds {0x1000, 0xBEBC200} (ctor :21316-21318). The census's "key 0x100 (00 01 00 00)" conflates the u16 key with the full first-dword.
 - **E52** (rawsearchdll--analyser-registry-census.md, the TTF row): FileTTFAnalyser rides the SAME u16 0x0100 chain as MDB (a genuine two-analyser multimap on one key — the sfnt version word 00 01 00 00 and the Jet header 00 01 00 00 share their first two bytes). The census's "0x10000/0x100 key space" phrasing mixed the ICO u32 key (0x00010000, bytes 00 00 01 00) with this u16 0x0100 chain.
 
-## Session-9 rows (2026-10-28 — the batch-2 decode + the instruction-level verifications; same evidence bar)
+## SCAN-4 rows (2026-10-28 — the A2 context-recovery re-run's first-hand registration reads; same evidence bar)
 
-- **E53** (rawsearchdll--analyser-registry-census.md:56, the MRW row): the
-  keys `II\x1a\x00` / `MM\x1a\x00` (0x1a4949 / 0x1a4d4d) are bound to the
-  **Canon CRW** chain — `Brance::CRWAnalyser` (id 0x12) wrapping
-  `FileCRWAnalyser` (registration ghidra RAWSearchDLL_decompiled.c:1746-1762,
-  ctor FUN_18003c9f0 :46100-46121, CIFF gate FUN_18003cb10 :46148-46185:
-  `\x00\x00HEAP` + type {CCDR, TIFP, ARCH} + length byte 2). The census's
-  "Minolta MRW (both byte orders) | FileMRWAnalyser" label is wrong;
-  `FileMRWAnalyser` (id 0x66) rides `\x00MRM` (0x4d524d00) ONLY
-  (:2500-2511). This is the decode the SCAN-ENGINE-DELTA A4 row already
-  carries ("CRW … NOT MRW") — the census text itself still carries the
-  wrong attribution. Consequence filed as S-041 (the product's dead MRW
-  rows on those keys).
-- **E54** (ci-multitool retdec_decompiled.c:22635, the CHM gate
-  function_180016b40): RetDec mis-fused the stack-built GUID constants —
-  it prints `!= 0x7c01fd10` and `!= -0x5ffff362` where the actual
-  instruction stream (verified with capstone on og-codebase/RAWSearchDLL.dll
-  at 0x180016b9d-0x180016bc3) compares full u64s against 0x11D07BAA7C01FD10
-  / 0xECE622C9A0000C9E. Ghidra's rendering is correct. General lesson for
-  future citations: stack-materialized 64-bit constants in RetDec output
-  must be instruction-verified. The prior session's "u64-widened GUID
-  compares conflict with canonical ITSF layout" puzzle is RESOLVED — no
-  anomaly: the canonical ITSF file layout (Russotto spec) places the
-  timestamp DWORD at +0x10, the language ID at +0x14, GUID1 at +0x18 and
-  GUID2 at +0x28 (the +0x20/+0x30 expectation came from reimplementations'
-  in-memory structs, e.g. chmlib's, not the on-disk layout). The og's CHM
-  gate is canonical: ITSF + hdr_len 0x60 + both full GUIDs + HS0 0x1FE@+0x60
-  + zeros + size u64@+0x68.
-- **E55** (SaveScan/ifileproperties-part1--ntfs-fat-exfat.md:85): the
+- **E53** (rawsearchdll--analyser-registry-census.md, the !BDN row): the key `!BDN` (u32 0x4e444221, file bytes 21 42 44 4E) is NOT a "Bentley/BDN document" — it binds **FilePSTAnalyser, id 0x38** (the Outlook PST magic; registration :2324-2330 first-hand). The validator (FUN_180041eb0 :50000-50017) reads byte@+0xa: ==0x0e → size=u32@0xa8; ==0x17 → size=u32@0xb8; else size=0x100000. Consequence: the core's FMT_PST (keyed 21 42 44 4E) was correct; only the census label was wrong.
+- **E54** (raw-dual-registry--u16-magic-keys.md, the 0x4449 row): the u16 key 0x4449 (`ID`) is NOT "AIFF/IANA-family 'ID'-led formats" — it chains **BruteForce::MP3Analyzer → FileMP3Analyser, id 0x2b** (the ID3 lead-in; binding verified :2556-2563, ctor FUN_1800304f0 :37067-37090 first-hand). AIFF keys u32 `FORM` (0x4d524f46) → CFileAIFAnalyzer id 0x50 (verified :2409-2415). The artifact's own :95 "AIFF/'ID'" cross-reference sentence inherits the correction.
+
+
+## Session-8 wave-2 rows (2026-10-28 — the continuation lane's batch-2 decode + the batch-1 citation truth pass; same evidence bar: decompile cite or mechanical recount)
+
+- **E55** (registry geometry; supersedes the S-007 batch-1 landing's region cites): the u32 keyed registry's bindings live at **:1728-2509 (59 entries)** and the u16 registry's at **:2536-2911 (35 entries)** — total **94 keyed bindings**; the list layer is :2919-4214 (unconditional ~2930-3350 + config-gated 3356-4110). The landing's cited regions ":5450-6600"/":6205-6590" are INI-parsing and std::streambuf code (N-099; evidence/decompiled-quotes/s8-autosave-and-stamps.md §7).
+- **E56** (rawsearchdll--analyser-registry-census.md, the `E4 52 5C 7B` row): that key (0x7B5C52E4, :2175-77) is **OneNote** (RawSpeed::OneAnalyser + FileONEAnalyser, GUID-suffix gates :17177-78) — the census's "LZH arc" label is wrong (LZH is list-layer with the u32@+2 `-lhX` probe, :46962-65).
+- **E57** (census, the `II\x1A`/`MM\x1A` rows): keys 0x1a4949/0x1a4d4d (:1751/:1759) bind the **CRW (CIFF)** chain (Brance::CRWAnalyser, "HEAPCCDR" grammar :46148-80) — corroborates M-081's misattribution finding from the registration side.
+- **E58** (census, the New3DS row): `RawSpeed::New3DSAnalyser` + `File3DSAnalyser` (both ID 1, gates u16@0=='MM' AND u16@+0x10==0x3D3D, :14535-45) is the **Autodesk 3D Studio .3ds** format — "New" = new-generation analyser, not the Nintendo console.
+- **E59** (census, the XML/SVG rows): there is no dedicated CXMLAnalyser; the four u32 keys (`<?xm`, UTF8-BOM'<', 0x1cd, `<svg`, :1811-1835) all route into **Brance::SVGAnalyser**, whose string probes discriminate SVG (0x5b) from GPX-class XML (0x13) (:49642-702) — a multi-format router on one analyser.
+- **E60** (the WMF placeable convention; the S-007 batch-1 claim): the og's checksum gate is `word[10]@+20 == XOR(words 0..9)` with a zero dword at bytes 16-19 and the standard header at +22 (FUN_1800264d0 :29826-37) — NOT "stored word = XOR of words 0..8". Filed as **S-042** (the core implements the wrong grammar).
+- **E61** (FUN_180015260 decode): the u16 0x0100 chain's validator accepts a SECOND signature — `"Standard ACE DB"` → type **0x4C (ACCDB)** (:16515-17), beside "Standard Jet DB" → 0x27. The census's MDB row carries only the Jet signature. Filed as **M-084**.
+- **E62** (rsf-format--scan-session.md §5.5 area + DRWUI decode): the auto-save trigger carries **results-found and not-already-saved gates** (call sites :612583/:615166/:616764) and the entry gate is a **byte flag** on a config singleton (:442822-24, FUN_1400b5270 :165951-5) — not an unconditional completion write. Filed as **S-044**.
+- **E63** (the WPG ctor cite, correcting also N-093's inherited cite): the WPG bounds {20, 100,000,000} are stamped in the `RawSpeed::WpgAnalyser::WPGRawFileInfo` ctor at **:15700-15701** — the ":20542-20548" cite (batch-1 landing + N-093) points at `FUN_18001a850` (the FCPEvt content extractor). Verified first-hand both regions this session.
+- **E64** (the W1a session-list phrasing): the og's list reads **record 1 (session state) THEN record 2** — record-1 also has a WinPE variant layout (:432753) and size-progressive field gates; the "record 2 only" phrasing under-reported record 1's role. The core's read_summary matches the og's actual behavior — phrasing-only correction.
+
+
+## Session-8 third-lane rows (2026-10-28 — the driver lane + the CHM/FH11 decode convergence; same evidence bar)
+
+- **E65** (rawsearchdll--analyser-registry-census.md, the 0x11c/284 gloss at :99): the numeric key 284 (0x11C, magic bytes `1C 01 00 00`) is **FreeHand 11** — the registration site maps it to `BruteForce::CFH11Analyser`, format id 0x1D (retdec :5654-5665 / ghidra :1951-1962 / asm `0x1800035a1-0x1800035ea`; grammar u64@+4 == 0x02001401_1C040002, u32@+0xC == 0x011C1400, u16@+0x22 == "11"). The census's "(ICO sizes, MTS/ADTS sync)" gloss is a misattribution — MPEG-TS has NO magic key: CMTS/CM2TS are list-only brute-force scanners (constructed at `0x1800053ae-0x180005488`, no map entry). Corroborated convergently by two session-8 lanes and folded into S-041's addendum.
+- **E66** (retdec_decompiled.c, the :22635 region — a tooling caveat for future reads): retdec prints 64-bit constants in this function **truncated to their sign-extended low dwords** (`0x7c01fd10`, `-0x5ffff362`), while the binary's actual compares are genuine `mov rax,[mem]; cmp rax,[stack-const]` u64 pairs (asm `0x180016b40-0x180016c14`). The batch-2 CHM blocker ("u64-widened GUID compares conflict with the canonical ITSF v3 layout") was an artifact of this printing behavior, not a real conflict — the compared GUIDs are the canonical ITSF v3 pair {7C01FD10-7BAA-11D0-9E0C-00A0C922E6EC}/{7C01FD11-…E6EC} at +0x18/+0x28. **Lesson: never adjudicate compare-width from retdec's constant rendering alone — read the asm or ghidra's full-constant rendering.**
+
+
+## Session-8 lead-lane rows (2026-10-28 — the final push-window reconciliation)
+
+Convergence note: the lead lane's five read legs independently decoded the same census
+corrections as the remote E53-E66 set (the ONE/LZH key flip, the CRW/MRW flip, the New3DS
+row, the XML/SVG router, the WMF convention, the 284=FH11 gloss, the CHM compare-width
+artifact) and the same DBF/EPS + dispatch-order corrections already carried by rows 19/23
+of the older errata table — the lead lane's duplicates are dropped in the merge; the
+remote rows stand. **One distinct row the remote set does not carry:**
+
+- **E67** (the S-007 batch-1 addendum's DMG row, audit-side — filed as **M-090**): "cap
+  mirrors the og's own 0xBEBC200" is wrong — 0xBEBC200 is the GLOBAL singleton carve cap
+  (RAWSearchDLL :9049); **DMGRawFileInfo's own bound is 0xC800000 (209,715,200)**
+  (:49436-49440, read first-hand), and the og's FileDMGAnalyser extent walk targets the
+  **"koly" UDIF trailer** (needle 0x796c6f6b at :63806, an 8-zero pre-gate :63843-63844,
+  **size = hit + 0x200** :63847 — the standard 512-byte UDIF footer), not the bzip2 EOS
+  +10 that core walks. The "koly" constant cross-checks in the shipped binary
+  (og-codebase/RAWSearchDLL.dll, file offset 0x53222). Consequence: core's DMG carves are
+  truncated before the mandatory footer (typically unmountable) and candidates in the
+  200-209.7 MB window are dropped.
+## SA-9 lane rows (2026-10-28 — the push-time-reconciled third lane; same evidence bar)
+
+- **E68** (SaveScan/ifileproperties-part1--ntfs-fat-exfat.md:85): the
   "+0x64 | 4 | secondary ID [CENSUS: 35..199,008,480]" label is refuted by
-  the SCAN-2f/SCAN-3 instruction-decisive decode (both lanes, convergent):
+  the SCAN-2f/SCAN-3 instruction-decisive decode (both lanes, convergent;
+  the SA-9 lane re-verified the DRWUI persistence side first-hand):
   +0x64 = the low u32 of the FIRST $DATA run's start LCN (the
   location-anchor family; DRWUI_decompiled.c:853462-853464 persists it
-  immediately before the type id). The erratum was queued by the SCAN-2f
+  immediately before the type id). This row was queued by the SCAN-2f
   lane's worklog ("corpus erratum row queued (part1:85 'secondary ID')")
-  and is recorded here per that queue. (Companion context: +0x60 = total
-  $DATA clusters — the census multiplicity is allocated-clusters
-  behavior.)
+  and is recorded here per that queue — the parallel lanes' E53-E67 range
+  did not carry it. (Companion context, already on the record elsewhere:
+  +0x60 = total $DATA clusters; the census multiplicity is
+  allocated-clusters behavior.)
+- (Convergence note, no new row: the SA-9 lane's instruction-level CHM
+  disassembly — capstone on `og-codebase/RAWSearchDLL.dll` at
+  0x180016b40, the u64 GUID compares at 0x180016b9d-0x180016bc3 against
+  the stack-materialized constants — independently reaches E66's
+  conclusion and its lesson; its evidence file
+  `evidence/decompiled-quotes/s9-chm-gate-asm.md` carries the full
+  instruction listing. The lane's census MRW/CRW correction is E57's
+  content, reached convergently.)

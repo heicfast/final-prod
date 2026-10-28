@@ -77,12 +77,13 @@
 | Scan orchestration, progress, stages | `architecture/01/05/06`; MOM roll-ups (cited) | AUDITED (modules/orchestration.md) |
 | MOM module system (PartitionRecovery .mo) | `artifacts/MOM-modules/` roll-ups (mo-module-map ×16, mom-module-system ×6, censuses) | AUDITED (modules/mom-capabilities.md) — **17 of 30 per-module stubs never-cited by basename, but the wave-7 spot-check verified every one is rollup-covered or infrastructure-only — zero new parameters** (correction: 5 of the inventory's "never-cited 22" — Common, Config, CheckVersion, bitlockerhelp, FileSystemCheck — are cited in brace-group form at s5-session5-corpus-quotes.md:64; the honest count is 17 of 30). Decode candidates registered: CWindowsFS ×3, the DeviceManager offline-OS-detection strings |
 | Writer / apply / report | `artifacts/MOM-modules/{apply,write,...}` (cited) | AUDITED (modules/writer.md) |
-| Boot repair (BCD/NVRAM) | `artifacts/MOM-modules/EFIBoot*` (cited) | AUDITED (modules/boot-repair.md) |
+| Boot repair (BCD/NVRAM) | `artifacts/MOM-modules/EFIBoot*` (EFIBoot.md itself never-cited — M-040 cites the decompile; N-101) | AUDITED (modules/boot-repair.md) |
 | Health grading (SMART/NVMe) | `artifacts/DiskHealth/` (1/1 cited) | AUDITED (modules/health.md) |
 | Preview subsystem | `artifacts/UIUX/10-preview-subsystem.md` | **AUDITED this session** (wave 4: 19 parameters — 6 MATCH, 6 deliberate-UI-scope, 6 prior-covered; NEW: M-066 archive enumeration for FS-origin archives, N-088 the M-028 propagation tail; OQ-SA-3-adjacent EXIF probe noted in the wave sheet) |
 | Query / filter / tree | `artifacts/UIUX/*` (partially cited) | AUDITED (modules/query.md) — UIUX docs beyond the cited set are UI-pure (no UI in the merged product) |
 | Imaging (disk images) | cited set | AUDITED (modules/imaging.md) |
 | Check phase (damage audit) | `artifacts/MOM-modules/FileSystemCheck` (roll-up cited) | AUDITED (modules/check-phase.md; M-041) |
+| GetDriverInfo.dll (TB-lineage drive-letter topology) | `artifacts/PartitionRecovery/getdriverinfo--tb-module-decode.md` + `per-binary/GetDriverInfo.md`; `architecture/00-INDEX.md:64` | **REGISTERED session-8 wave-2 (N-106)** — the one surface the corpus index carried with zero trail disposition: GetLogicalDrives/GetDriveTypeW letter-topology MOM module (TB lineage). OUT-OF-SCOPE by lineage for the recovery engine (the DRW flow's own enumeration = the N-071 census); the sixth-source note added to N-071's row |
 
 ## 5. Product-frame surfaces
 
@@ -116,7 +117,90 @@ From the corpus (A2's extraction, this session): (1) Inno Setup + bootstrap pair
 
 ## 8. Coverage arithmetic (this inventory)
 
-282 docs inventoried · 78 cited (73 artifacts + 5 architecture) · 204 never-cited,
-of which: OUT-OF-SCOPE ≈ 152 (per-binary 113, runtime-families 10, FileRepair 8,
-UI-pure UIUX ~11, Cloud/Licensing/Languages remainder) · S7-flagged 2 ·
-IN-SCOPE NEVER/PARTIAL ≈ 50 (the §2–§6 rows above). The §7 waves target them.
+282 docs inventoried (283 incl. CORRECTIONS.md meta) · **~95 cited (90
+artifacts + 5 architecture — corrected session-8 wave-2, N-101: brace-group,
+alias and short-stem citation forms were not folded into the original 78)**
+· ~187 never-cited, of which: OUT-OF-SCOPE ≈ 164 (per-binary **112** —
+deepening-batch1 is cited by M-064; runtime-families 10, FileRepair 8, UI-pure
+UIUX ~23, MOM stubs 17 rollup-covered, Languages 2, EuShare **2 never-cited**
+(exclusion stands on architecture/05:124 + DRWUI-exe--main-ui:214-15 +
+rtti_classes.json, not on the EuShare deep-dives), Cloud/Licensing remainder,
+launcher/crash-reporter) · S7-flagged 2 · IN-SCOPE NEVER/PARTIAL ≈ 50 (the
+§2–§6 rows; waves 1-8 landed on them). **Session-8 registrations (both lanes):
+the deep-audit lane's I-027 owns the data-asset register (DataFile.ini row 67,
+DRWReport.ini row 73, Upgrade.ini row 78, auto.txt → N-097); the wave-2 lane
+adds the Eaolog.log 4th-log-channel note (extends N-048's census) and the
+log\BuildRaw.log + log\DelFat.log engine run-log channels (telemetry-equivalent,
+OUT). GetDriverInfo.dll gets its own row below (N-106).**
+
+## 9. Session-8 currency update (2026-10-28 — the second-session deep audit)
+
+- **Corpus commit:** the inventory's standing cite was `03ad46c`; the corpus is
+  now **`be0cfe9`** (one commit: CORRECTIONS #9 — EUUserData → CHKRepairFileSign;
+  GetRawUserInfoMap = per-scan stats map). **Absorption verified first-hand** —
+  CORPUS-ERRATA E-A/E-B, PARITY-DELTAS D-104, and SCAN-ENGINE-DELTA F2 already
+  carry it; no inventory row depends on the superseded reading.
+- **The two §1 NEVER-CITED driver docs** (epmntdrv-internals-v2; trio naming/PID
+  handshake) — **READ IN FULL this session** (the session-8 E lane): the
+  user-mode half is MATCH throughout (IOCTL constants, in/out gates, grammar,
+  PID-token both-sides-exact, 200-disk cap, failure mapping); the residuals are
+  **N-096** (identity-IOCTL non-issuance), two DRIVER-REPO-ITEM handoffs
+  (READ-length semantics nuance; the disk.sys-comparison field reading — the
+  rda-driver lane's items), and the transport.md grammar misquote (**N-095**).
+  §1's "flagged to S7" posture is discharged for the corpus-half audit; the
+  driver-repo halves remain that lane's.
+- **The §4 MOM decode candidates** — CWindowsFS decoded (**OQ-S8-1**, the
+  consumer question); the DeviceManager offline-OS strings decoded (**M-082** —
+  live-module machinery, the mom-capabilities disposition re-scoped).
+- **The og-codebase data assets** — the never-audited set swept (session-8 A
+  lane): every row maps to a register/exclusion; the five decoded ground-truth
+  contracts are **I-027**; auto.txt's misclassification is **N-097**.
+
+---
+
+## §9. Session-8 third-lane corrections (2026-10-28 — coverage-sweep verification; extends, never rewrites, the rows above)
+
+A full citation re-sweep this lane (every one of the 274 corpus artifacts + 9
+architecture docs, basenames grepped against the entire trail) verified the
+inventory's claims post-waves. Corrections and confirmations:
+
+- **Coverage verdict after all waves: CLEAN.** Zero in-scope corpus artifacts
+  document engine-side parameters the trail never dispositioned (the
+  never-cited residue is per-binary reference material, registered OOS
+  families, UI-pure UIUX, and rollup-covered MOM stubs — spot-reads confirm
+  each). The §8 arithmetic was directionally right, numerically fuzzy; the
+  continuation lane's N-101 owns the refreshed counts.
+- **§1/§5 DRWService contradiction — the §5 row's "folded into S-038's
+  packaging contract" claim has NO trail backing** (grep for the service
+  facts `/install` / AUTO_START / "Read FVE Server" / LocalSystem across the
+  trail: only this inventory and the PARAMETERS Group-K derivation list hit
+  them; S-038 contains no DRWService-service content). §1's PARTIAL/NEVER-
+  AUDITED status for the install lifecycle is the truthful one; the §5 row is
+  corrected to read: "install lifecycle NEVER-AUDITED as a dedicated finding —
+  the facts live only in PARAMETERS Group K's derivation sources; a future
+  packaging session may fold them into the K71-K78 walk."
+- **§1 EuShare parenthetical corrected**: "(5 artifacts, cited)" is false —
+  EuShare/ ships 2 .md artifacts, both never-cited (the NAS OOS registration
+  itself stands, via I-010/D-26 + the install.bat/uninstall.bat rows in §5/§6).
+- **§3 glob names corrected**: `rawsearchdll--raw-signs*` and
+  `rawsearchdll--family-layer*.md` match no corpus files — the intended
+  citations are `raw-dual-registry--u16-magic-keys.md` (the "×13" count) and
+  `rawsearchdll--analyser-registry-census.md` (the census); the "family-layer"
+  citation resolves to the trail's own evidence file
+  `evidence/decompiled-quotes/s6-carve-family-layer.md`.
+- **MOM stub count corrected**: 17 → **16** never-cited in any form (21 by
+  strict basename, minus the 5 brace-cited: Common, Config, CheckVersion,
+  bitlockerhelp, FileSystemCheck). All 16 rollup-covered per the wave-7
+  precedent (mo-module-map.md ×16 + modules/mom-capabilities.md rows).
+- **§1 hook-pair row softened**: the EUDCPEPM/EUEDKEPM row's "AUDITED"
+  overstates — both named artifacts are never-cited; the behavior is
+  dispositioned via API-DELTA/I-010/N-041/transport.md, and the urgent-cache/
+  VolSnap/DrvHK semantics rest with the S7 driver lane (unchanged flag).
+- **Citation-state refresh**: SearchDLL 30/30 cited; SaveScan 5/5;
+  config-files 6/6; per-binary now 3/114 (M-064 added two); part1 ×3; corpus
+  commit at this lane: `be0cfe9`.
+- **New surfaces this session's lanes registered** (rows above unchanged):
+  the driver-install findings M-086..M-089 + N-107 (this lane) extend the §1
+  driver rows; the WMF/batch-2 carve rows (S-042/S-041) and the thumbnail/
+  session rows (S-043..S-045, M-080/M-083..M-085, N-092/N-102..N-105) belong
+  to the parallel session-8 legs and are mirrored in CROSS-REF-MATRIX.

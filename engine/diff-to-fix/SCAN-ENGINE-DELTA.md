@@ -33,6 +33,23 @@ decompiles (the +0x64 producer chain re-read at `NTFSSearchDLL_decompiled.c`
 against the tree). See the session-3 resolution log for the full decode chain
 and census table.
 
+**Session re-verification (SCAN-4, 2026-10-28 — the A2 context-recovery re-run; this
+session):** four parallel read legs per protocol (corpus spec leg — architecture docs +
+artifacts + the batch-2 registration-key decode in the registry-builder region; corpus
+decompile leg — the batch-2 validator-grammar decode, a narrowed retry after the first
+attempt hit a container deadline, both read-only; core state leg @ `0058271`; rda-driver
+v0.2.4 leg). Baselines: core `0058271`, corpus `be0cfe9`, rda-driver `323e75a` (v0.2.4).
+Q1-Q11 and the A1-A3/A5-A6/M1-M5/F1-F7 rows re-verified — zero open defects outside the
+A4 remainder; C9 stays Windows-execution-bound; the driver's NAS/Cloud exclusion re-proven
+by grep (zero code paths). **The session's two findings:** (a) the A4 batch-2 remainder is
+now DECODED at validator level — all 17 items, grammars first-hand in the decompile (the
+session-5 log below); (b) the re-verification surfaced TWO live batch-1 misattribution
+defects in the landed registry (CRW keys carried as MRW rows; LowDoc keys carried as HLP
+rows) — fixed this session, with every prior cause line re-pinned (CHM's `:22635` pin was
+map-rebalance code; MPEG-TS's "numeric key 284/0x11C" was the already-landed FH11 key;
+FCPEvt has NO XML side). Corpus errata E53/E54 filed (PST `!BDN`; u16 `0x4449` =
+MP3/ID3, not AIFF).
+
 ---
 
 ## 1. QUICK SCAN
@@ -58,7 +75,7 @@ and census table.
 | A1 | FUN_140581500 creates full searcher set in order NTFS→FAT→exFAT→ZFS(gate)→HFS→ReFS→RAW(settings+0x60), `std::list`, final RAW naming callback vt+0x48 = FUN_140161fb0 | Stage model quick→deep→carve (O37 M-equivalent); composition deltas registered S-006/M-005; RAW naming = `raw_category_name` (M-029 `filter_generalraw`) | **present (registered delta)** |
 | A2 | Deep = complete FS behaviors (NTFS $Bitmap+USN+orphans+MFTMirr; FAT deleted chains + cross-FAT; HFS+ freed-node sweep; ReFS harvest) + same StartSector as quick | `deep_extras` flags per engine + single-walk (D-36); NTFS remnant sweep R2.5; two-pass S-012 | **present (registered delta)** |
 | A3 | Lost partitions: PartitionRecovery CalcPartition scoring, `Insert lost partition %s…`, sector size 512 default | `lost::discover` + `materialize` + parallel candidate scans; scoring matches the 187 CalcPartition.log rows (M-017); exFAT content-consistency reject (M-035) | **present** |
-| A4 | RAWSearchDLL carving: ~106 analyser classes (131 roster rows = 106 analysers + 7 FileInfo result classes + 18 infrastructure — count reconciled SCAN-2f; the "190+" was a stale approximation), dual registry (u32 fourcc RB-tree + u16-key multimap + list layer), 6 families, two-generation fallback chains, raw_signs.json (139 ext) loaded at engine init, RawConfig.ini 34 per-format toggles, ZIP 5,242,881 B padding cap, global carve cap 0xBEBC200 (200,000,000 B, singleton +0x70), PST/RAR/MKV/HEIC grammars, sector-size query via vtable slot 5 | Grammar registry (69 rows) + raw-sign table (compiled-in generated, byte-equal to corpus file) + user-signs layer; validators decompile-exact for the implemented set; M-024 disabled_formats = RawConfig toggles; D-75 registers the omitted fallback generation; N-086 FIXED (D-103, e81b98f); **N-068/N-069/N-070/S-032/S-037 sub-items ALL FIXED in tree (verified SCAN-2f + SCAN-3)**. **S-007 niche remainder (the tracked recall residue): ~30 absent formats** — keyed, keys census-verified at the registration sites (the s3 corrections folded): MPEG-TS (MTS/M2TS, list-layer), APE (`MAC ` id 0x51), MID (`MThd` id 0x26, BE grammar, 14B..10MB), OGG (`OggS` id 0x52), RM (`.RMF` id 0x5e), MXF (`06 0E 2B 34` id 0x78), DMG (`BZh1` id 0x71), X3F (`FOVb` id 0x6c), **CRW (`II\x1A\x00`/`MM\x1A\x00` id 0x12 — NOT MRW)** + **MRW (`\0MRM` id 0x66 only)**, WPG (key `wpg\0` 0x00677077, min 20, max 100,000,000; registry id 0x33 at the registration site per the s3 census re-read — the 0x45 stamp is E48's format-id disposition, the og id number is documentation-only for the core's append-only enum), WPD (`FF WPC` id 0x44), PSP (`Pain` id 0x37, 36B..20MB), SIT (`Stuf` id 0x5d, 20,480B..200MB), GZ (u16 `1F 8B` id 0x1f, max 400MB), MDB (u16 `00 01` id 0x27, max 200MB + "Standard Jet DB" family), MNY (u16 `MS` id 0x28), CHM (`ITSF` id 0x0e, full GUID grammar :22635 region, size=u64@+0x68), **HLP (`3F 5F 03 00` id 0x20 only — `DB A5 2D 00`/`94 A6 2E 00` = FileLowDocAnalyser, the old-Word .doc family id 0x17)**, AU (`.snd` id 0x09), AIFF (`FORM` id 0x50), ICO/CUR (`00 00 01 00`/`00 00 02 00` = LE keys 0x00010000/0x00020000, both id 0x22), WMF/EMF (placeable `D7 CD C6 9A` + std `01 00 09 00`, one analyser id 0x46; EMF itself is LIST-layer), TTF (key `00 01 00 00` 0x00000100, id 0x41), ONE (`E4 52 5C 7B` id 0x31, 20B..500MB), EPS/AI (u32 `C5 D0 D3 C6` id 0x1b + u16 `%!` second registration), 3GP (ftyp-brand dispatch id 0x02), **3DS (u16 `MM` id 0x01 with `==`@+16 chunk gate — the "TIFF-BE collision" census row was the erratum, corrected)**, DXF (u32 `"  0\r"` 0x0d302020 + u16 `99` 0x3939, id 0x19, full `"  0\r\nSECTION\r\n  "` grammar + 999-comment scan); list-layer/structural: TAR (`ustar`@+257 id 0x3f), SWF (`FWS`/`CWS`, size=u32@+4, ZWS NOT accepted, id 0x3e), HTML (u16 `<h`/`<H`/`<!`/UTF-16-BOM id 0x21) + SVG/XML (u32 `<?xm`/BOM`<`/`<svg`/0x000001cd id 0x5b), MOBI (BOOKMOBI, id 0x85, RawConfig-gated), JP2 (sig box + `jp2c` keys 0x80/0x81/0x82, id 0x80, gated), LZH ("-lh" structural id 0x24 — NOT the 0x7B5C52E4 key, which is OneNote), EMF (record-type-1 header, id 0x1a), FCPEvt (XML, id 0x73 — the SQLite container analyser), OfficeTagFromXML; standalone XML family: VCF/GPX/HIK/OSP/POS/AEP/CHFP. **NO DBF/dBase analyser exists in the og** (C5 D0 D3 C6 = CEPSAnalyser = AI/EPS — session-3 correction; implementing DBF would EXCEED the og). Full per-format grammar table + the 68-row u32 registry map: session-3 resolution log below | **partially present — niche remainder in fix (per-school batches, this session)** |
+| A4 | RAWSearchDLL carving: ~106 analyser classes (131 roster rows = 106 analysers + 7 FileInfo result classes + 18 infrastructure — count reconciled SCAN-2f; the "190+" was a stale approximation), dual registry (u32 fourcc RB-tree + u16-key multimap + list layer), 6 families, two-generation fallback chains, raw_signs.json (139 ext) loaded at engine init, RawConfig.ini 34 per-format toggles, ZIP 5,242,881 B padding cap, global carve cap 0xBEBC200 (200,000,000 B, singleton +0x70), PST/RAR/MKV/HEIC grammars, sector-size query via vtable slot 5 | Grammar registry (100 rows at the session-8-audited tree) + raw-sign table (compiled-in generated, byte-equal to corpus file) + user-signs layer; validators decompile-exact for the implemented set; M-024 disabled_formats = RawConfig toggles; D-75 registers the omitted fallback generation; N-086 FIXED (D-103, e81b98f); **N-068/N-069/N-070/S-032/S-037 sub-items ALL FIXED in tree (verified SCAN-2f + SCAN-3)**. **S-007 niche remainder (the tracked recall residue): ~30 absent formats** — keyed, keys census-verified at the registration sites (the s3 corrections folded): MPEG-TS (MTS/M2TS, list-layer), APE (`MAC ` id 0x51), MID (`MThd` id 0x26, BE grammar, 14B..10MB), OGG (`OggS` id 0x52), RM (`.RMF` id 0x5e), MXF (`06 0E 2B 34` id 0x78), DMG (`BZh1` id 0x71), X3F (`FOVb` id 0x6c), **CRW (`II\x1A\x00`/`MM\x1A\x00` id 0x12 — NOT MRW)** + **MRW (`\0MRM` id 0x66 only)**, WPG (key `wpg\0` 0x00677077, min 20, max 100,000,000; registry id 0x33 at the registration site per the s3 census re-read — the 0x45 stamp is E48's format-id disposition, the og id number is documentation-only for the core's append-only enum), WPD (`FF WPC` id 0x44), PSP (`Pain` id 0x37, 36B..20MB), SIT (`Stuf` id 0x5d, 20,480B..200MB), GZ (u16 `1F 8B` id 0x1f, max 400MB), MDB (u16 `00 01` id 0x27, max 200MB + "Standard Jet DB" family), MNY (u16 `MS` id 0x28), CHM (`ITSF` id 0x0e, full ITSF v3 GUID grammar — the real validator sits at :17705-17740, the prior :22635 pin was map-rebalance code — SCAN-4, size=u64@+0x68), **HLP (`3F 5F 03 00` id 0x20 only — `DB A5 2D 00`/`94 A6 2E 00` = FileLowDocAnalyser, the old-Word .doc family id 0x17)**, AU (`.snd` id 0x09), AIFF (`FORM` id 0x50), ICO/CUR (`00 00 01 00`/`00 00 02 00` = LE keys 0x00010000/0x00020000, both id 0x22), WMF/EMF (placeable `D7 CD C6 9A` + std `01 00 09 00`, one analyser id 0x46; EMF itself is LIST-layer), TTF (key `00 01 00 00` 0x00000100, id 0x41), ONE (`E4 52 5C 7B` id 0x31, 20B..500MB), EPS/AI (u32 `C5 D0 D3 C6` id 0x1b + u16 `%!` second registration), 3GP (ftyp-brand dispatch id 0x02), **3DS (u16 `MM` id 0x01 with `==`@+16 chunk gate — the "TIFF-BE collision" census row was the erratum, corrected)**, DXF (u32 `"  0\r"` 0x0d302020 + u16 `99` 0x3939, id 0x19, full `"  0\r\nSECTION\r\n  "` grammar + 999-comment scan); list-layer/structural: TAR (`ustar`@+257 id 0x3f), SWF (`FWS`/`CWS`, size=u32@+4, ZWS NOT accepted, id 0x3e), HTML (u16 `<h`/`<H`/`<!`/UTF-16-BOM id 0x21) + SVG/XML (u32 `<?xm`/BOM`<`/`<svg`/0x000001cd id 0x5b), MOBI (BOOKMOBI, id 0x85, RawConfig-gated), JP2 (`jP  ` sig box @+4 + ftyp brand ids 0x80/0x81/0x82 (`jp2 `/`jpx `/`jpm `), `jp2c` = the size-walk box, id 0x80, gated — SCAN-4 corrected phrasing), LZH ("-lh" structural id 0x24 — NOT the 0x7B5C52E4 key, which is OneNote), EMF (`" EMF"`@+0x28 + nBytes size, id 0x1a — NO iType-1 check, SCAN-4), FCPEvt (`SQLi`-keyed, id 0x73 — the SQLite container analyser; NO XML side exists in the DLL — SCAN-4), OfficeTagFromXML (the ZIP-entry classifier singleton, word/xl/ppt rels ⇒ 0x49/0x4a/0x4b — SCAN-4); standalone XML family: VCF/GPX/HIK/OSP/POS/AEP/CHFP. **NO DBF/dBase analyser exists in the og** (C5 D0 D3 C6 = CEPSAnalyser = AI/EPS — session-3 correction; implementing DBF would EXCEED the og). Full per-format grammar table + the 68-row u32 registry map: session-3 resolution log below + the session-5 validator-grammar decode (all 17 batch-2 items) | **partially present — batch-2 DECODED (session-5 log); M-081 (the CRW/MRW misattribution) + its LowDoc/HLP twin FIXED this session (the SCAN-4 registry correction, `9e5dedc`); batch-2 school 1 LANDED (`b92ebef`: CHM ONE MNY EMF SWF(FWS/CWS) 3DS(MM + the NCSD list-layer twin), grammars first-hand); the list-layer/text school (HTML/SVG/LZH/MTS/M2TS/MOBI/JP2 + VCF/GPX/HIK/OSP/POS/AEP/CHFP) remains QUEUED with its grammar already decoded** [**Session-8 update:** batch-1 LANDED and key-verified (27/27 magics byte-exact at the spot-check; bounds deviations → **N-093**); the batch-2 remainder is owned by **S-041** (SEVERE) — its per-format decode precondition (the zero-invention bar) is now SATISFIED by the session-5 grammar table below (all 17 grammars, first-hand); the format list in this row's remainder text predates the batch-1 landing — treat the session-5 table as the current work list.] |
 | A5 | "Sector by sector" = whole-range FS passes + carve; settings+0x60 gate for RAW engagement | `run_carve` stage, `free_map` gate (M-005), occupancy gate (M-039), zero-stride skip (N-031) | **present** |
 | A6 | Carve validator gating (CNeedRawMgr) | **RESOLVED (OQ-SA-2, this session)**: CNeedRawMgr = the RawConfig.ini [Filter] per-format manager consulted per-detection (extension-keyed); NO quick-vs-deep mode gating exists in the og; the core's M-024 disabled_formats = the equivalent, and the core's all-validators carve matches the og. The File*/CFile* analysers = the legacy fallback generation (chain demonstrated: MP3Analyzer→FileMP3Analyser at +0x18) — D-75 registers the core's single-validator posture | **present (registered delta D-75/M-024)** |
 
@@ -98,6 +115,75 @@ and census table.
 | F5 | ScanConfig surface: sector size 512 default; volume/partition/device identity; mode toggles | `ScanConfig` + CLI flags; `--whole-disk` (lost discovery); `--quick-only`; threads clamp; identity cards N-066 | **present** |
 | F6 | Carve params: window/overlap, hash threshold, free-map gate, max extents | 1 MiB window + 4 KiB overlap, 8 MiB hash cap, 256 MiB max extent — all registered constants | **present (registered)** |
 | F7 | Engine error taxonomy: 0x50-facility (HRESULT-style), DRWUI 0x23c0004/0x2410002 alloc/start | `cr::Err` families; D-68 registered | **present (registered delta)** |
+
+---
+
+## Session-5 resolution log (2026-10-28 — SCAN-4: the batch-2 validator decode + the two batch-1 misattribution corrections; every load-bearing cite below re-read first-hand)
+
+### The two batch-1 misattribution defects (found by the context legs, verified at the registration sites, FIXED this session)
+
+**Defect A — II\x1a\x00 / MM\x1a\x00 are CRW keys, not MRW.** The decompile binds both
+keys to `Brance::CRWAnalyser` → `FileCRWAnalyser`, id 0x12 (registration `RAWSearchDLL_decompiled.c`
+:1746-1761 — verified first-hand; ctor :46098-46121). The og CRW grammar (validator
+FUN_180052000 :62333-62353, verified first-hand): bytes@+4 == {00 00 'H' 'E'} (u32
+0x45480000), u16@+8 == "AP", u32@+0xa ∈ {CCDR, TIFP (0x50464954), ARCH}, version
+byte@+0xe == 2 — i.e. the real Canon CIFF header `II/MM 1A 00 00 00 HEAP CCDR/TIFP/ARCH
+02`. MRW is its own registration: `\0MRM` (u32 0x4d524d00, :2500-2510) →
+`FileMRWAnalyser` id 0x66, whose validator (FUN_180012100 :14233-14258, verified
+first-hand) sets NO structural gate beyond the key and computes `size = BE32(u32@+4) + 8 +
+ceil(u8@0x20 × BE16@+0x1a × BE16@+0x18 / 8)`. The batch-1 landing (e018bf4) keyed these rows
+as "Minolta MRW" and gated them on an invented "PRD block" anchor — a real CRW file
+(HEAPCCDR) fails that gate (the invented offset read at +4 sees 0x45480000 and
+bounds-rejects), so the landed rows carved nothing real. **Fix (this session):** rows
+relabeled `FMT_CRW`/`FMT_CRW_MM` (ext "crw") with `validate_crw` = the og grammar; the
+`\0MRM` row renamed `FMT_MRW` with `validate_mrw` rewritten to the og size formula (the
+u64 product replaces the og's wrapping signed multiply — a registered numeric-hygiene
+divergence, the D-68 precedent; identical results for every non-UB input). FormatId values
+untouched (append-only discipline); the ext-surface correction is logged as a handoff for
+the API lane (list-carve-formats reads the registry automatically).
+
+**Defect B — DB A5 2D 00 / 94 A6 2E 00 are FileLowDocAnalyser keys, not HLP.** Both keys
+bind `FileLowDocAnalyser`, id 0x17 — the old-Word .doc family (registration :2353/:2365,
+verified first-hand; the E49 batch-1 reading stopped one family short). Its validator
+(FUN_18001b650 :21167-21188, verified first-hand) is a size formula only: OLE branch (first
+u32 == D0 CF 11 E0) → `size = (u32@0x30 + 5) × 0x200`; else `size = (u32@0x124 +
+u16@0x128 + 0x1FF) & ~0x1FF`. HLP is 3F 5F 03 00 ONLY (id 0x20, :2401, verified
+first-hand) and its validator (FUN_180041c50 :49883-49895) gates `u32@0xc > 0x1FF &&
+u32@+4 <= u32@0xc` with `size = u32@0xc`. The batch-1 landing keyed DBA5/94A6 as "Windows
+Help" ext "hlp". **Fix (this session):** rows relabeled `FMT_LOWDOC`/`FMT_LOWDOC2` (ext
+"doc", the old-Word .doc family per the id-0x17 census reading) with `validate_lowdoc` =
+the og formula (both branches); the 3F5F03 row renamed `FMT_HLP` with `validate_hlp`
+rewritten to the og size gate (the invented bare-magic degenerate check removed).
+
+### The batch-2 validator decode (all 17 S-007 remainder items; the zero-invention bar lifts for every row below)
+
+| Format | og registration (cite) | Decoded validator grammar (cite) |
+|---|---|---|
+| CHM | u32 `ITSF` → FileCHMAnalyser id 0x0e (:2488-2499, verified first-hand) | ITSF@0 ∧ u32@+8==0x60 ∧ qword@0x18==0x11d07baa7c01fd10 ∧ qword@0x20==0xecee620ca0000c9e ∧ qword@0x28==0x11d07baa7c01fd11 ∧ qword@0x30==0xecee620ca0000c9e ∧ u32@0x60==0x1FE ∧ u32@0x70==0 ∧ u32@0x74==0 → size=u64@0x68 (FUN_180016b40 :17705-17740). **The prior ":22635 GUID-grammar" pin was INVALID** — :22560-22719 is std::_Tree rebalance code. |
+| MNY | u16 `MS` 0x534d (:2909) | 15-byte memcmp `"MSISAM Database"` @+4 → claimed size 0x100000 (FUN_180041dd0 :49956-49981) |
+| EMF | list-only, id 0x1a (:3194-3222) | `" EMF"`@+0x28 (u32 0x464d4520) ∧ u16@0x3a==0 ∧ u32@0x30!=0 → size=u32@0x30 (FUN_180012080 :14204-14214). NO iType==1 check. |
+| ONE | u32 E4 52 5C 7B (:2156-2177) | GUID tail qword@+4==0x7853b1ae4da7d88c ∧ dword@0xc==0xd3296930; ctor bounds {20, 500,000,000} (FUN_180044db0 :52303; FUN_180016080 :17191-17209); chunk-chain walk FUN_180044e30 :52316+ |
+| 3DS | u16 `MM` 0x4d4d (:2885; ctor FUN_1800126c0 :14491-14510) | u16@0x10==0x3d3d ("==") OR (u32@0x100==DAT_180093978 ∧ u32@0x104==0x200000) (FUN_180042fa0 :50906-50916); DAT_180093978 is .rdata — to extract from the DLL; walk FUN_180042ff0 |
+| SWF | list-only FWS/CWS (:3058-3086) | FWS/CWS only — ZWS REJECTED; version@3 ∈ [3,20]; FileLength@4 > 8; size=u32@4 (FUN_1800268a0 :29970-30031) |
+| JP2 | RawConfig-gated list (:3519-3574) | BE32@4==`jP  ` ∧ BE32@8==0x0D0A870A ∧ BE32@0x10==`ftyp`; brand@0x14 {`jp2 `→0x80, `jpx `→0x81, `jpm `→0x82}; box walk keyed `jp2c`, FF D9 end, zero-run end, cap 0x1F3FFFFF (FUN_18001c380 :21812-22110). **The A4 phrasing "jp2c keys 0x80/81/82" is corrected: the ids are brand mappings; jp2c is the walk box.** |
+| MOBI | RawConfig-gated list (:3575-3630) | BE32@0x3c==`BOOK` ∧ BE32@0x40==`MOBI`; size via end-tag `0A 0D 8E E9` (FUN_180025bc0 :29369-29468) |
+| HTML | u16 ×4 {3C68, 3C48, 3C21, FEFF} (:2844-2879) | `_memicmp "<HTML"` 5B / `"<!DOCTYPE HTML"` 14B / UTF-16LE BOM+`<`+wide-html; ctor {20 min, 0x100000 cap} (FUN_180012270 :14307-14401) |
+| SVG/XML | u32 ×4 {`<?xm`, EF BB BF 3C, 0x1cd, `<svg`} (:1806-1837, verified first-hand) | `<?xml version=` 15B@0/+3 ∧ `<svg` substring within first 512B → 0x5b; ctor cap 0x100000 (FUN_180041670 :49622-49725). The 0x1cd key's purpose is UNRESOLVED. |
+| LZH | list-only (:3087-3133) | u32@+2 ∈ {-lh5, -lh0, -lhd} ∧ byte@+6=='-'; entry walk accepts -lh7 too, ≤0x800 entries, ends on first non-LZH entry (FUN_180052970 :62843-62988) |
+| CRW | u32 II/MM 1A 00 (:1746-1761, verified first-hand) | Defect A grammar above |
+| MTS | list-only id 0x76 (:3134-3163) | 0x47 sync @+4 → stride 192, or @+0 → stride 188; second-byte gate ∈ {0x41, 0x42, 0x50, 0x10}; ≥0x200 guard, ≤100 packets/pass (FUN_18002e430/:6b0 :35606-35735) |
+| M2TS | list-only id 0x74 (:3164-3193) | TWO consecutive syncs (+0/+0xc4 or +0/+0xbc) ∧ payload qwords ≠ −1; min span 0x5000; ext M2TS (FUN_180032670 :38525-38619) |
+| FCPEvt | u32 `SQLi` (:1963-1974) | SQLite container ONLY: BE u16 page size@0x10 ≥ 0, page-type mask 0x2536, ≤5 trailing zero pages trimmed (FUN_18001af10 :20776-20841). **NO XML side exists** — zero FCP/plist/flexo string hits in the DLL; the census "FileFCPEVENT (Final Cut Pro!)" label is a consumer-of-SQLite fact, and the core's FMT_SQLITE + the N-089 subtype relabel ALREADY cover this analyser. The A4 census phrasing "(XML, id 0x73)" is corrected. |
+| OfficeTagFromXML | singleton (:53202-53224) | ZIP-entry classifier FUN_180046120 (:53155-53195): `word/_rels/document.xml.rels`→0x49, `xl/_rels/workbook.xml.rels`→0x4a, `ppt/_rels/presentation.xml.rels`→0x4b (+ prefix fallbacks); the local-entry pass additionally maps ODF text/presentation/spreadsheet→0x95/0x93/0x94, epub→0x72, iWork Index/ObjectContainer.iwa→0x6e, Index/Slide*/index.apxl→0x6f, numbers/Tile.iwa→0x70, XMIND→0x86, MindManagerApplication.xsd→0x87, rels/_rels.xml→0x8c, ProjectFolder→0x8d, MediaPool/Master→0x91. Consumed at the ZIP `[Content_Types].xml`/docProps path (:18874-:19176 callers). |
+| Text school | RawConfig-gated/list rows | VCF: `_memicmp "BEGIN:VCARD"` 11B (:45330) · GPX: `<?xml version=` 15B@0/+3 then `<gpx` scan (:20882-20891) · HIK: MPEG-PES pack `00 00 01 BA` + stuffing + optional `00 00 01 BB` + `00 00 01 BD` payload, size=BE16+off (:30429-30456) · OSP: qword@0==0x22646922200a0d7b (`{\r\n  "id": `) (:50123) · POS: `_memicmp {"diagram":` 11B (:20217) · AEP: `"RIFX"` (:11569) · CHFP: `<?xml version=` + `<BiffProject` 12B@0x28 (:19963-19968) |
+
+**Corpus errata filed this session:** E53 — census :88's `!BDN → "Bentley/BDN document"` is
+wrong: u32 0x4e444221 (file bytes 21 42 44 4E) binds FilePSTAnalyser id 0x38 (verified
+:2324-2330; validator FUN_180041eb0 :50000-50017: byte@0xa==0x0e → size=u32@0xa8;
+==0x17 → u32@0xb8; else 0x100000). E54 — dual-registry :28's "0x4449 `ID` = AIFF" is
+wrong: 0x4449 chains BruteForce::MP3Analyzer id 0x2b (verified :2556-2563 + ctor
+FUN_1800304f0 :37067-37090); AIFF keys u32 `FORM` 0x4d524f46 id 0x50 (verified
+:2409-2415).
 
 ---
 
@@ -203,8 +289,12 @@ c899998); every commit since is docs/CI-only. OQ-SA-1 FAT/exFAT halves landed
 (409503c); OQ-SA-3 correction batch landed (93097cb — CORPUS-ERRATA E-A/E-B +
 PARITY-DELTAS D-104). Two stale rows found in docs/PARAMETERS.md §3 (the
 user-sign caps row predates the S-039/M-067 v3 values 12/48/1024/80; the
-"4-8 MiB carve window" row predates the landed 1 MiB+4 KiB model) — fixed
-this session (formats/parameters phase). Board hygiene note for the owning
+"4-8 MiB carve window" row predates the landed 1 MiB+4 KiB model) — ~~fixed
+this session (formats/parameters phase)~~ **[session-8 correction: the claim
+was FALSE — `git log -- docs/PARAMETERS.md` proves no commit after `41a2c56`
+(2026-10-26) touched the file; the rows are STILL stale at every tree since.
+Filed as N-108 with the product-side fix plan; the adjacent cr_rawsigns.h
+"30 formats" comment is the same class.]** Board hygiene note for the owning
 lane: M-068's finding file still sits in MAJOR/ though its own text records
 the fix (43f4962) — move to FIXED/ + amend the SUMMARY count.
 
@@ -261,8 +351,10 @@ detected extensions into the +0x60 set (FUN_18000ed00 sites :19626/:20222/:20892
    MOBI/JP2 stay registered as the og's list-layer posture — a core-side
    equivalent sweep hook if the grammar is extractable, else documented
    remainder).
-3. **Formats & parameters** — the two stale docs/PARAMETERS.md §3 rows fixed
-   (user-sign caps; carve window). No open rows in diff-to-fix/PARAMETERS.md.
+3. **Formats & parameters** — the two stale docs/PARAMETERS.md §3 rows ~~fixed~~
+   **[session-8: NOT fixed — see the correction at the Core state verification
+   block above; N-108 owns the fix]** (user-sign caps; carve window). No open
+   rows in diff-to-fix/PARAMETERS.md.
 4. **Combination layer** — audit-verified present (roots/dedup/Lost Files/
    find_by_extent all landed); no action.
 5. **Corpus errata** — the +0x60/+0x64/+0x40 correction rows (core
@@ -341,3 +433,24 @@ capability — it is the carved-file statistics the DRWUI report consumer (:2275
 formats as `%lld` into the "Trigger_Raw"/"FileSystem" report tree. EUUserData's signs
 never enter the engine through any channel (zero engine references; the DB's consumer
 is CHKRepairFileSign — MatchedFile/NotMatchedFile).
+
+---
+
+## Fix queue (session 5 / SCAN-4 — 2026-10-28; mandated order: quick → advanced/deep → combination → formats & parameters)
+
+1. **Quick scan (Q1-Q11)**: re-verified across the four legs — zero open defects; no code
+   change. The Q10/Q11 fixed states stand.
+2. **Advanced/deep (A-lane)**: (a) the two batch-1 misattribution fixes — FIRST (registry
+   rows relabeled + validators rewritten to the og grammar; FormatId values untouched);
+   (b) the batch-2 remainder in per-school batches, every format first-hand-verified at
+   its decompile site before its row lands (the session-5 grammar table is the decode
+   record); (c) FCPEvt CLOSES as already-covered (FMT_SQLITE + N-089; the XML-side reading
+   refuted); (d) OfficeTagFromXML = the ZIP-entry classifier surface — decoded, filed for
+   the archive-lane leg (S-032's inner-entry inventory is the consumer; the id-assignment
+   surface is a follow-up finding, not a new registry row).
+3. **Combination (C-lane)**: audit-verified present; C9 stays Windows-execution-bound
+   (OQ-S4-3 unchanged).
+4. **Formats & parameters (F-lane)**: the stale grammar-row-count prose fixed at its sites
+   (the A4 "69 rows" reading → the live FMT_COUNT; cr_rawsigns.h's "(30 formats)" comment);
+   the M-024 comment's "[Filter] (37 named toggles" → the shipped file's 34 (CORRECTIONS #5).
+5. **Errata**: E53/E54 filed (see the session-5 log).

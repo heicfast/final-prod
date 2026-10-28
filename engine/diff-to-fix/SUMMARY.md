@@ -1,67 +1,238 @@
-# SUMMARY.md — executive summary (the review-validate close-out on top; earlier sessions below)
+# SUMMARY.md — executive summary (the session-8 third lane on top: the driver lane + merge/repair wave; the parallel session-8 legs below; earlier sessions further below)
 
-## Session-9 delta (2026-10-28 — the SA-9 lane: the wave-2 continuation executed; two-repo scope incl. the driver handoffs)
+## Session-8 delta — third lane (2026-10-28 — the DRIVER lane + the duplicate merges + the board-truth repairs)
+
+**Audited: core `35adcb9` (rebased over the parallel lanes through `9e5dedc`), driver `323e75a` (v0.2.4), corpus `be0cfe9`.** Method: five parallel read agents (corpus contracts for the new landings; corpus coverage/citation sweep; new-landing parity verification; board-truth sweep; driver+RE-tooling audit), then first-hand re-verification of every load-bearing claim by the lead before filing — including a personal re-read of both WMF decompile sites and the core validator, and byte-level decodes of regdrv-rda.reg and rda_version.h.
+
+**Scope determination (from the trail state, T1):** the corpus delta since `03ad46c` is exactly one errata line (#9, already absorbed: E-A/E-B + D-104); the board read 0 active; the audit surface = (a) the post-dev-sign landings' parity claims, (b) the S-007 batch-2 remainder recorded outside an active finding, (c) the driver-lane handoffs D2/D3/D4 (no other session-8 lane took them — two lanes explicitly declared driver out of scope), (d) gate-doc currency.
+
+**Filed this lane — the driver lane (M-086..M-089, N-107):** **M-086** (MAJOR — the FileVersion 1.0.0.0 pin + no release stamping defeats `-Layout Versioned`: every v0.2.x release derives tag "10" → genuine upgrades hit exit 2; the M-064 contract's version source starves it), **M-087** (MAJOR — regdrv-rda.reg:31 UpperFilters `hex(7):r,d,a,\,0` is 5 ASCII bytes, not a UTF-16LE multi-string; the WinPE disk-class filter never attaches; the og's regdrv.reg:35-36 shows the correct form — the D4 handoff owned), **M-088** (MAJOR — FloorVersion pinned at two sites at two floors (release.yml:291 v0.2.4 vs installer.yml:118 v0.2.3) while CI-CURRENT.md:59-61 asserts ONE pin source; plus the CI-shape doc cluster: README:125-132's wholly stale CI paragraph, the 3-lane description omitting installer.yml, PREBUILT-ARTIFACTS.md §2/§5 citing the deleted composite action + three deleted workflows, same-class sites in DRIVER-RELEASE/DRIVER-CONTRACT/CI-LOCAL/CI-SCENARIOS/RELEASE-NOTES), **M-089** (MAJOR — rdabench.c:390 probes the phantom-zero 0x6000244x codes; the live extended IOCTL handlers 0x6002440/44/48 get zero fuzz coverage), **N-107** (MINOR — the driver repo's 14 current-tense "15/18-command" sites vs the code's 19; the D3 handoff's full inventory). Also **N-108** (MINOR — docs/PARAMETERS.md:78-79 still carry the pre-fix constants (4-8 MiB / 8 signs / 16 bytes / offset 512) vs the code's 1 MiB+4 KiB / 12 / 48 / 1024 / 80; the SCAN-ENGINE-DELTA "fixed this session" claim proven FALSE by git log and corrected in place).
+
+**Convergence merges (no duplication policy):** this lane's S-040/S-041 (WMF validator contradiction; batch-2 remainder) were filed in the same window as the continuation lane's S-042/S-041 — both merged into the earlier landings as addenda (two lanes, two decompilers, one conclusion on the WMF grammar: the og's checksum word sits at +20 over words 0..9 with a zero dword at +16, disjoint from the core's inch-gate/checksum@+18 convention; the batch-2 CHM/FH11 asm decode donated to S-041 with the census-:99 and retdec-truncation errata E65/E66). The M-081 fix landing (`9e5dedc`, the CRW/MRW + HLP/doc re-attributions) was verified first-hand in-source — the misattributions are gone, FMT_CRW/FMT_HLP3 carry the og grammars.
+
+**Board-truth repairs:** the A-007 finding's dangling evidence cites (a006-… never existed) re-pointed at the real file with a dated note; SCAN-ENGINE-DELTA's two false "fixed" claims corrected in place; corpus-errata E65/E66 filed; CROSS-REF-MATRIX gained this lane's rows.
+
+**Board after the third lane (all session-8 legs combined):** **47 active** (6 SEVERE · **19 MAJOR** (+M-086..M-089) · **19 MINOR** (+N-107, N-108) · I-026/I-027/I-028) + 249 FIXED + OQ-S4-3/OQ-S8-1 tracked-open. The driver lane is now fully dispositioned: every D-handoff (D2/D3/D4 + the FileVersion note) has an owner finding; the wire contract itself re-verified MATCH (identity IOCTLs, Information×512, LBA scaling, 19 session codes, NAS/Cloud exclusion — binary-probed).
+
+## Session-8 delta (2026-10-28 — the second-session deep audit: missed-surface sweep + remaining-feature filing + landing verification + FIXED-truth spot-check)
+
+**Audited tree: product code `35adcb9`** (HEAD `ff879f9`+ = this session's trail-only
+commits) · **corpus `be0cfe9`** (one commit past the standing `03ad46c`; the
+CORRECTIONS #9 absorption re-verified first-hand — CORPUS-ERRATA E-A/E-B,
+PARITY-DELTAS D-104, SCAN-ENGINE-DELTA F2 all carry it). Method: five parallel
+read lanes (og-codebase never-audited asset sweep; W1a/W1b/W1c/thumbnail
+landing verification; carve-batch + NTFS-carrier + installer + FIXED-truth
+spot-check; remaining-feature evidence packages; the two NEVER-CITED driver
+docs + MOM decode candidates), then first-hand re-verification of every
+load-bearing claim by the lead before filing.
+
+**25 new items** — the session mandate's three asks, delivered:
+
+**(1) Mark all remaining features/implementations/functions as findings** (the
+plan-of-record R-rows + the S-007 batch-2 tail, previously "recorded outside an
+active finding"): **S-040** (SEVERE — image create wholly absent, R-93),
+**S-041** (SEVERE — the S-007 batch-2 carve remainder, ~24 formats), **M-072**
+(query axes path_substring+state_mask, R-22), **M-073** (scan-time folder
+filter, R-14), **M-074** (destination validation codes, R-41), **M-075**
+(chkdsk launch, R-65), **M-076** (TRIM facet in enum rows, R-63), **M-077**
+(preview caps defaults, R-34), **M-078** (BitLocker turn-off, R-88), **N-098**
+(enum refresh contract sentence, R-86).
+
+**(2) What session 1+ missed** (the deep sweep): **M-082** (the DeviceManager
+offline-OS/boot-volume identification — live-module machinery the CheckVersion
+dead-shipped verdict never covered; the mom-capabilities disposition re-scoped),
+**M-081** (CRW misattribution — the Canon CIFF keys landed as "Minolta MRW"
+rows whose PRD gate rejects genuine CRW), **M-071** (the M-018 REGRESSION —
+rrecov.cpp's reconstruction in the N-064 wave dropped the junk-filter gates
+from the CLI tree print and recover-all; git-proven `69507cb` → `cfa4c75`),
+**M-079** (CLI auto-saves never carry the volume label — no fill site), **M-080**
+(thumbnail default 4 MiB read budget starves ordinary photos — 6 MiB 12-MP
+JPEGs get BudgetExceeded), **N-090..N-097** (session-list scope/row shape;
+PARITY-DELTAS registration gaps; thumbnail refusal-matrix holes + no cache;
+batch-1 MID/GZ bounds; CLI `-h` sessions verb missing; five stale-text doc-truth
+sites; identity-IOCTL non-issuance; auto.txt misclassification — it is the FVE
+auto-unlock key snapshot, not a WinPE payload), **I-027** (the og-codebase
+data-asset ground-truth register: the 2 GiB free-quota contract, json_raw's
+"TXT;HTML;LOG;H;CPP;MM;" shield, the Aliyun batching caps, the DiskHealth
+schtasks autostart, filter_generalraw's 65-extension value), **OQ-S8-1**
+(tracked-open — CWindowsFS decoded: the live-mounted-FS adapter; its og
+consumer is the open question).
+
+**(3) Verification of the new landings** (the T1 scope items): W1a/W1b/W1c
+claims verified TRUE at the load-bearing points (cancel-per-node +
+ERR_CANCELLED-never-flattened; cancelled-never-auto-saves; two-call pattern +
+light-record summary; the found deltas are N-090/M-079/N-091 above); the
+NTFS origin-LCN carrier verified on ALL contract parameters (both stamp
+sites, sparse→0xFFFFFFFF, resident→0, bit-8 persistence, clone fan-out, 3
+tests); S-007 batch-1 verified 27/27 magics byte-exact (bounds: N-093); the
+installer steps 2-3 verified by the lane's own green dispatch record (run
+40684304129 — no re-audit needed); the CI rebuild verified docs-only for
+parity surfaces. **FIXED-truth spot-check: 10 findings sampled — 9
+CONFIRMED-FIXED, 1 PARTIAL (M-018 → the M-071 regression finding).**
+
+**Board after session 8:** **25 active** (2 SEVERE · 12 MAJOR · 9 MINOR · 1
+INFORMATIONAL I-027 alongside I-026) · 249 FIXED · tracked-open 2 (OQ-S4-3
+unchanged; **OQ-S8-1** new). **Top risks / recommended fix order:** (1)
+**M-071** — a regression of a FIXED finding (recover-all writes junk; 2-line
+fix); (2) **M-081** — Canon CRW recall + mislabel (small, self-contained);
+(3) **S-041** — the batch-2 carve remainder (largest recall gap; M-081 first);
+(4) **M-079** — the auto-save label fill (one function in fill_identity_card);
+(5) **M-080** — the thumbnail budget (decide before the ABI handoff); (6)
+**S-040** — image create (largest single feature); then the R-row majors
+M-072..M-078 in plan-of-record wave order (W2a/W2b → W3 → W4 → W5); the
+doc-truth minors N-094/N-095 batch-able in one pass. The driver-lane handoffs
+recorded not fixed (READ-length semantics nuance; the disk.sys-comparison
+field reading) belong to the rda-driver repo — noted in the worklog for that
+lane, out of this audit's two-repo scope.
+
+## Session-8 wave-2 delta (2026-10-28 — the continuation lane: batch-2 full decode, WMF grammar refutation, thumbnail verdicts, auto-save gates; reconciled over the parallel deep-audit lane)
+
+**Audited `ff879f9` lineage against corpus `be0cfe9` (read-only).** This lane
+ran in parallel with the deep-audit lane below (its 25 items are in the next
+section); the push-time reconciliation renumbered this lane's IDs past that
+lane's set and MERGED the two content-duplicate findings (the batch-2 decode
+→ **S-041 addendum**; the thumbnail budget → **M-080 addendum** with the
+og-side 200 MB eligibility gate that corrects that finding's "no input cap"
+claim). **This lane's net: 16 new findings + 2 merges** — board after both
+legs: **41 active (6 SEVERE · 15 MAJOR · 17 MINOR · 3 INFO) + 249 FIXED +
+OQ-S4-3/OQ-S8-1 tracked-open.**
+
+**Top risks added by this lane (fix order contribution):**
+1. **S-042** (SEVERE) — the WMF-placeable validator contradicts the og on
+   every gate (checksum word@+20 == XOR words 0..9, reserved dword@16-19,
+   tail word, exact size std_words*2+22) — the two engines accept DISJOINT
+   file sets; the batch-1 landing's "XOR of words 0..8" claim about the og
+   is refuted first-hand (FUN_1800264d0 :29826-37).
+2. **S-043** (SEVERE) — thumbnails are not EXIF-oriented: the og reads GDI+
+   property 0x112 and RotateFlips BEFORE the 256-px pass (:521694-725,
+   call order :652307-309); portrait phone photos thumbnail sideways in
+   the core.
+3. **S-044** (SEVERE) — auto-save gating: the og's three trigger sites gate
+   on results-found (empty scans never auto-save), not-already-saved (2 of
+   3), and not-import; the entry gate is a byte flag on a config singleton
+   — the core fires on every completed scan with a dir set.
+4. **S-045** (SEVERE) — thumbnail format coverage: the og ships
+   video-keyframe (ffmpeg agent, ports 20171/2), RAW (LibRaw/EURawImg,
+   ⅛-downscale→PNG), HEIC (heif.dll embedded-first), PDF (pdfium)
+   pipelines; the core refuses all four by name.
+5. **M-083/M-084/M-085** — the og promotes nodes to grade 2 on thumbnail
+   success (:422505-13); the MDB family's "Standard ACE DB" (ACCDB 0x4C)
+   second signature is missing; TIFF LZW (compression 5) refused.
+6. **The S-041 addendum** — the batch-2 decode completed: the seven
+   text-school grammars (VCF/GPX/HIK/OSP/POS/AEP/CHFP), the 18-site
+   config-gated registration zone, the registry geometry (59 u32 + 35 u16
+   bindings), the u16 BOM battery, FCPEvt end-to-end — the fix plan's
+   decode preconditions are all discharged.
+
+**The verification lane (new landings):** W1a/W1b CONFIRMED (scanTime
++0x6C; restore progress 40+50·done/(total+done); per-child IsCancelled;
+the list's record-1-then-record-2 read — the W1a "record 2" phrasing
+corrected, erratum E64); W1c PARTIAL (naming CONFIRMED, trigger placement
+CONFIRMED, the gating chain MISSING = S-044); OQ-SA-1 carrier semantics
+CONFIRMED with chain corrections (**N-100**: +0x53/+0x4f first hop, the
+FUN_180033250 typo, and the og PERSISTS the +0x60 twin — sparse-zeroed,
+not derivable — which the core does not carry); batch-1 constants verified
+correct EXCEPT the WMF grammar (S-042) and the ACCDB branch (M-084); the
+landing's registry-region cites corrected (**N-099**, erratum E55 — also
+correcting the parallel lane's N-093 WPG-ctor cite: the bounds live at
+:15700-01, not :20542-48, verified first-hand both regions this session).
+
+**Errata E55-E64** (census corrections, all first-hand): registry
+geometry; 0x11C=FreeHand-11 (MPEG-TS is unkeyed brute — corroborates the
+parallel lane's resolution); E4 52 5C 7B=OneNote not "LZH arc";
+II/MM+0x1A=CRW (corroborates M-081); New3DS=Autodesk not Nintendo; the
+XML four-key router through the SVG analyser; the WMF checksum
+convention; MDB's ACE second signature; the auto-save gates; the
+session-list record-1 role.
+
+**Thumbnail parameter verdicts rendered for the first time** (the engine
+landed post-audit): 4 SEVERE/MAJOR defects + the superset register
+(**I-028**: both-axis scaling vs the og's width-derived quirk — og
+portrait thumbs exceed 256px on height — straight-alpha RGBA8 vs
+white-flattened HBITMAPs, PSD/PNM/HDR, dims-first bomb guard,
+UnreadableSpan truth gate) + 5 MATCH rows + 6 UNVERIFIED corpus-silent
+residuals tracked in I-028's Open questions.
+
+**Never-cited sweep (N-101):** the trail's citation arithmetic corrected
+(~95 cited / ~187 never-cited, not 78/204 — brace-group/alias/short-stem
+forms unfolded); per-binary 112/114; EuShare 2 never-cited (exclusion
+re-anchored); EFIBoot.md never-cited (the decompile is the cite);
+GetDriverInfo.dll — the one corpus-indexed surface with zero disposition
+anywhere — registered OUT-by-lineage (**N-106**); the four data-asset
+registrations this lane drafted defer to the parallel lane's I-027/N-097
+deeper reads.
+
+**Coverage:** no src/core module is without audit disposition; no
+unregistered core superset; progressive carve emission dispositioned MATCH
+(live tree growth in both engines — carve_slice streams nodes during the
+pass, cr_scan.cpp:1877-88).
+
+**Recommended fix-order additions from this lane:** S-042 (small, sharp,
+wrong results) → S-043 (orientation) → M-084 (ACCDB) → S-044 gates →
+M-083 (grade seam) → M-085 (TIFF LZW) → the S-041 batch plan (decode
+complete) → S-045 phase-2 deps → N-100 (bit-9 or register) → the
+N-101..N-106 truth batch.
+
+## Session-9 delta (2026-10-28 — the SA-9 lane: the wave-2 continuation executed, then RECONCILED at push time into the parallel session-8 board)
 
 **Audited:** core product code `35adcb9` · rda-driver `323e75a` (v0.2.4) ·
-corpus `be0cfe9`. **8 new findings filed** (the board's first active rows
-since the PARITY-FIX-9 close):
+corpus `be0cfe9`. The lane executed the session-8 T2 lanes (V/R/G/C) plus
+the D-lane (the driver-repo handoffs D3/D4 + FileVersion — in scope via the
+two-repo grant), filed 8 findings — and at push time found the parallel
+session-8 lanes had concurrently landed their own reconciled 75-active
+board covering the same ground (including the M-081 CRW **fix as code**
+`9e5dedc` and the school-1 batch-2 formats **as code** `b92ebef`).
 
-- **SEVERE ×3 (carve):** **S-040** — the placeable-WMF validator reads a
-  wrong header layout (inch@+16 = the Reserved field; checksum@+18 vs the
-  og's +20; XOR-9 vs XOR-10 words; no HWmf gate) and **rejects every real
-  placeable WMF**; the test plant mirrors the wrong convention, so the
-  suite cannot catch it. **S-041** — Canon CRW is not carved at all: the
-  og keys II/MM 1A 00 to Brance::CRWAnalyser id 0x12 (CIFF gate) while our
-  rows on those keys are MRW validators whose PRD-anchor gate no real file
-  passes (two dead rows occupying the CRW key space; FileMRWAnalyser rides
-  \0MRM only — instruction-decisive, census erratum E53). **S-042** — the
-  S-007 batch-2 remainder as a fully-decoded finding: CHM (the deferred
-  GUID-compare puzzle RESOLVED at the instruction level — capstone on the
-  og binary; the canonical ITSF layout puts GUID1@+0x18/GUID2@+0x28),
-  MNY, EMF, ONE, MPEG-TS (the "key 284" deferral resolved: that is
-  FreeHand 11), 3DS, SWF, JP2, MOBI, LZH, HTML, SVG/XML, the text school
-  (VCF/GPX/HIK/OSP/POS/AEP/HFP) + the OfficeTagFromXML DOCX/XLSX/PPTX
-  id-split — every gate now decoded, no further RE required.
-- **MAJOR ×2 (driver-install):** **M-071** — rda-driver's FileVersion is
-  pinned 1.0.0.0 across v0.x releases, so the M-064 versioned-coexistence
-  scheme is functionally inert (every release computes `<name>10.sys`;
-  the upgrade branch is unreachable; every reinstall exits 2). **M-072** —
-  the WinPE profile regdrv-rda.reg: unparseable hex(7) UpperFilters data
-  (the D4 handoff), plus two new parameters (DISKDRIVE class vs the og's
-  VOLUME class; Start=3 + filter active vs the og's boot-start filter).
-- **MINOR ×3:** **N-090** (the D3 stale-count prose expanded to 12+ sites
-  with the reference-vs-served nuance), **N-091** (the driver repo's
-  doc-vs-code truthfulness: the claimed admin gate has no code; stale
-  sector-length prose; the S12 dead-code claim false; unreachable default;
-  the undocumented 57th check), **N-092** (MID/GZ batch-1 caps drift: 64
-  MiB vs 10 MB; 512 MiB/min-18 vs 400 MB/min-20).
+**The reconciliation (this lane's 8 filings → 7 merged + 1 kept):**
+- **S-040 (WMF)** → merged into the parallel lane's **S-042** as the SA-9
+  addendum (the std-WMF stricter-gates observation — our validator adds
+  version/objects/maxrec gates the og lacks; the canonical-layout evidence
+  table; triple verification: two lanes, two decompilers, one conclusion).
+- **S-041 (CRW)** → merged into **M-081 (FIXED)** as the convergence
+  addendum (the instruction-decisive registration quotes + the dead-row
+  offset-bound proof; the MMOR/IIRS/FUJI → TiffAnalyzer correction).
+- **S-042 (batch-2)** → merged into **S-041** (the parent) as the
+  consolidated-decode-table addendum (the per-format gates, the
+  instruction-level CHM disassembly, the pre-landing registry inventory).
+- **M-071 (FileVersion)** → merged into **M-086** (the CI tag==resource
+  gate proposal + the wire-version decision frame).
+- **M-072 (regdrv)** → merged into **M-087** as a NEW PARAMETER it lacked:
+  **the Start posture** — Start=3 + active UpperFilters cannot attach at
+  volume-stack build; the og's filter service is Start=0 BOOT_START.
+- **N-090 (counts)** → converged with **N-107** (theirs: 14 sites, broader).
+- **N-092 (MID/GZ)** → converged with **N-093** (theirs adds PSP/SIT).
+- **N-091 (driver doc-vs-code)** → **KEPT, renumbered N-127** (the unique
+  survivor: the admin-gate claim with no code behind it, the stale
+  512-byte-sector prose, the S12 dead-code contradiction, the unreachable
+  dispatch default, the undocumented 57th check — none on the parallel
+  board).
 
-**MATCH verdicts recorded (no findings):** the never-audited EPMNtDrv v2
-internals + trio naming/PID-handshake surfaces (our driver byte-exact:
-identity IOCTLs, PID-token transform, naming, DO_DIRECT_IO, ×512
-Information); the V-lane landings (W1a/W1b/W1c session surfaces, the NTFS
-origin-LCN carrier, the thumbnail engine, installer S-038 steps 2-3, the
-CI rebuild); the G-lane gap-hunt candidates (all covered by existing
-module rows — the specific citations recorded in the matrix).
+**The lane's unique MATCH verdicts (no findings, rows flipped):** the
+never-audited **EPMNtDrv v2 internals + trio naming/PID handshake** (our
+driver byte-exact: the identity IOCTLs with their buffer gates, the
+PID-token transform re-derived at CREATE, the service-name-derived naming
++ EPMNTDRV fallback, DO_DIRECT_IO, ×512 Information); the V-lane landing
+verifications (W1a/W1b/W1c session surfaces, the NTFS origin-LCN carrier,
+the thumbnail engine, the installer steps 2-3, the CI rebuild); the G-lane
+gap-hunt dispositions (every candidate traced to existing module coverage
+— no false findings filed).
 
-**Corpus errata E53-E55** (the census's MRW/CRW key attribution; RetDec's
-mis-fused stack constants in the CHM gate — with the general lesson for
-future citations; part1:85's refuted "+0x64 secondary ID" label per the
-SCAN-2f queue). **Gate docs:** corpus pin `03ad46c` → `be0cfe9`;
-SURFACE-INVENTORY's own bookkeeping corrected (the EuShare miscount, the
-dead citation globs, the citation counts) + the EPMNtDrv/trio/WinPE rows
-flipped; CROSS-REF-MATRIX gained the session-9 block; PARAMETERS carries
-the currency note.
+**Erratum E68** (part1:85's refuted "+0x64 secondary ID" label — the
+SCAN-2f queue's row, not previously carried) + the convergence note tying
+the lane's capstone CHM evidence to E66. **Gate docs:** the corpus pin
+(`be0cfe9`), the SURFACE-INVENTORY row flips + bookkeeping corrections
+(the EuShare miscount, the dead citation globs, the citation counts), the
+CROSS-REF-MATRIX session-9 block (the reconciled form), the PARAMETERS
+currency note.
 
-**Board after session 9:** **8 active** (S-040, S-041, S-042, M-071,
-M-072, N-090, N-091, N-092) · 249 FIXED · 1 INFORMATIONAL (I-026) ·
-1 tracked-open (OQ-S4-3 — the TTFR half, execution-bound, unchanged).
-**Recommended fix order (first 8):** S-040 → S-041 (both small,
-format-correctness, user-visible recall) → M-071 (one define + a CI gate)
-→ S-042 in the batches its fix plan orders (MPEG-TS → HTML/SVG → SWF →
-EMF → CHM → JP2/MOBI/LZH → ONE/MNY/3DS → text school → OOXML split) →
-M-072 (one file + a parser gate) → N-092 (two one-liners) → N-090/N-091
-(one doc pass + one posture decision).
+**Board after the reconciliation:** the session-8 board (75 active per
+their close: 7 SEVERE · 29 MAJOR · 34 MINOR · 5 INFO) + **N-127** — 76
+active · 249 FIXED · 1 tracked-open (OQ-S4-3, unchanged). **The lane's
+recommended fix-order contributions** (folded into the standing order):
+the M-087 Start-posture decision rides M-087's fix; N-127's item-1 posture
+decision (og-parity vs real hardening) should be made alongside M-086/M-088
+(the version-contract pass) — one driver-contract session can clear
+M-086/M-087/M-088/N-107/N-127 together.
 
 ## Fix-session delta (2026-10-28 — the PARITY-FIX-9 close-out: S-038 FULLY FIXED — the board's last active SEVERE)
 
@@ -4875,3 +5046,52 @@ parity). Tests: Refs.Bps256Accepted / Bps1024Accepted / Cluster16KRejected /
 OpenReadIsFourKiB (all fail-before RED) + Cluster64KAccepted boundary pin.
 Suite **748/748**.
 
+
+
+## Session-8 lead-lane delta (2026-10-28 — the deep-verification + batch-2 formalization
+wave, FINAL reconciliation over THREE concurrent lanes; audited core `ff879f9`, corpus
+`be0cfe9`)
+
+**Method.** Five parallel read legs (the W1a/b/c contract verification; the origin-carrier +
+batch-1 spot re-verification at the constructor/probe sites; the batch-2 key/grammar decode;
+the citation-gap sweep; the thin-module sweep), then lead first-hand verification of every
+load-bearing claim.
+
+**The three-window reconciliation.** The push was rejected twice by concurrent lanes
+landing first (the deep-audit lane's S-040..S-045/M-071..M-085/N-090..N-106; the fix lane's
+CRW/MRW resolution `9e5dedc` + S-041 school-1 `b92ebef`; the third driver lane's
+M-086..M-089/N-107/N-108). Merge outcome: **28 findings kept** in the final numbering
+(S-047, M-090..M-102, N-111..N-126, I-029/I-030), **13 merged as duplicates** via addenda
+(S-041 #2, S-042, N-091, N-100, N-101), **7 school-1 duplicate filings dropped** (CHM/ONE/
+MNY/EMF/SWF/3DS landed; FCPEvt closed-as-covered — the lead lane's decodes convergent with
+the remote errata E56-E66), **1 distinct erratum kept** (E67, the DMG bound/walk).
+
+**The kept headlines the parallel waves did NOT have:**
+- **M-090 (MAJOR)**: the DMG koly-trailer walk + DMG-specific cap divergence — carved DMGs
+  truncated before the mandatory UDIF footer; NOT in the parallel batch-1 truth passes
+  (erratum E67).
+- **M-091 (MAJOR)**: the MDB page-chain size-walk decode — the landed row's "undecoded"
+  comment falsifiable; complements the parallel M-084.
+- **N-116 (MINOR)**: the session-list row-ORDERING divergence (the og's FILETIME
+  time-sort) — a distinct axis from the parallel N-090.
+- The **school-2/3 per-format fix units** with full grammars (S-047 + M-092/M-093/M-096/
+  M-098/M-099 + N-111/N-112/N-113/N-115) — children of S-041, whose step-1 preconditions
+  this wave's decodes resolve (convergent with SCAN-4).
+- **M-100..M-102** (browse-inside, the Versions/Tags branches, the thumbnail ABI export),
+  **N-119..N-126** (D-88's stale premise; the pointer drifts; the ESP automount; the NVRAM
+  create/delete; cli/transport staleness; the drive-disconnect states — R-16 never
+  formalized before; the Unsaved File category), **I-029/I-030**.
+- The **fixture-regeneration requirement** on S-042's addendum: landed tests must derive
+  fixtures from spec, never from the implementation — the class behind S-042/M-081.
+
+**Board after the final merge: 75 active** (7 SEVERE · 29 MAJOR · 34 MINOR · 5 INFO
+incl. I-026 — the third lane's 47 + the lead's 28) / 249 FIXED / 1 tracked-open
+(OQ-S4-3). **Recommended fix order (the lead lane's additions)**: S-042's test
+regeneration + M-090 first (the landed-but-broken pair with the smallest diffs); then
+M-091 (the MDB walk); then the S-041 school-2/3 children in the addendum's order; then
+the N-116..N-126 doc/registration batch.
+
+**Verification discipline**: every load-bearing site re-read by the lead before filing; no
+executed comparisons (read-only container) — recorded per finding; decompile-direct
+(tier 2) with binary probes (tier 4) where constants were ambiguous. Consolidated:
+`evidence/sa8-context-sheets.md`.

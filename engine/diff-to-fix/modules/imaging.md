@@ -54,3 +54,12 @@ converged `ImageFileIo` single seam (the core opens paths itself through
 the injected IO; Win32 implementation `src/win/cr_image_win.cpp`). The
 `cr_ui_open_image` flat-only UI-shim migration follow-up recorded above
 stays open.
+
+
+## Session-8 section (2026-10-28, audited `35adcb9`)
+
+**S-040** (SEVERE — the producer half absent: no `cr_ui_image_create`, no
+writer, no `image` verb; the og's home-page "Create Image" flow and the
+corpus's image-scan-first damage posture (UIUX/11:17) are unreachable; the
+reader half (S-030) is complete). Fix = a flat-image writer over the dest-I/O
+abstractions, driver class (a), SHA256 sidecar, cancel support.

@@ -8,15 +8,16 @@ This is the parameter taxonomy every module is scored against. A module may be
 Every applicable parameter that is not `MATCH`/`DIVERGENCE-INFORMATIONAL`
 generates a finding file under `findings/`.
 
-**Audited core commit:** `67193b6` (baseline includes concurrent fixes through
-`9fc82b0`). **Corpus commit:** `03ad46c`. **Session-9 currency note
-(2026-10-28):** corpus pin advanced to `be0cfe9` (CORRECTIONS.md #9 — the
-EUUserData/GetRawUserInfoMap corrections, already absorbed as CORPUS-ERRATA
-E-A/E-B + D-104; the taxonomy below is unchanged by that commit). The
-session-9 findings (S-040..S-042, M-071/M-072, N-090..N-092) score against
-B1/A28/C19/P29 (carve) and P47/P-inst-15/16 + the doc-truth parameters
-(transport/driver-install) — all existing taxonomy rows; no new parameters
-were invented.
+**Audited core commit:** session-8 wave-2 `ff879f9` (this wave's rows in
+CROSS-REF-MATRIX); the taxonomy itself is commit-independent. **Corpus
+commit:** `be0cfe9` (was `03ad46c`; the one-commit move is CORRECTIONS #9,
+absorbed). Historical: `67193b6`/`9fc82b0` baseline.
+> **Session-9 currency note (2026-10-28, SA-9 lane):** corpus pin advanced to
+> `be0cfe9` (CORRECTIONS.md #9 — absorbed per session-8's T1; the taxonomy is
+> unchanged). The SA-9 lane's contributions score against existing rows only
+> (carve B1/A28/C19/P29; transport P47/doc-truth) — no new parameters invented.
+> The lane's finding set reconciled into the session-8 board at push time
+> (see worklog SA-9/T3; the unique survivor: N-127 driver doc-vs-code truth).
 
 ## Group B — Behavioral parameters
 

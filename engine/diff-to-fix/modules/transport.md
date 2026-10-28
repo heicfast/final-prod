@@ -115,29 +115,45 @@ The corpus constants + the probe decision are pinned in
 compile them; `Transport.*` pins in the Linux suite, the real-chain
 behavior tests on the Windows lane).
 
+
+## Session-8 section (2026-10-28, audited `35adcb9`)
+
+The two NEVER-CITED driver docs read in full against the user-mode half
+(session-8 E lane): identity IOCTLs, in/out gates, grammar, PID-token
+(both-sides-exact), 200-disk cap, failure mapping — MATCH throughout. New:
+**N-096** (identity-IOCTL non-issuance — the og client queries
+GET_DISK_CONTEXT_MODE per open; core never issues any), **N-095** item 4
+(this module's :6 grammar misquote — the og client's disk template is
+2-segment `\\.\EPRDTDRV\%d\%d`). DRIVER-REPO-ITEM handoffs recorded in the
+worklog for the rda-driver lane: the READ-length semantics nuance (og sectors
+vs rda bytes; Information×512 invariant holds) and the disk.sys-comparison
+field reading (DriverName vs ServiceKeyName, unreconciled).
+
+
+## Session-8 lead-lane wave (audited `ff879f9`)
+- **N-124**: the fallback-ladder and WinPE-gate rows are SUPERSEDED by D-DRV-1/D-DRV-2
+  (cr_transport.cpp:563-565 — both REMOVED); annotate rather than re-audit.
 ## Session-9 addendum (2026-10-28, SA-9 lane — rda-driver @ `323e75a` v0.2.4, corpus `be0cfe9`)
 
 **The never-audited EPMNtDrv surfaces resolved MATCH (no finding):**
 - **v2 identity IOCTLs + async completion engine** — our driver carries
-  0x60002400 GetProcName (in==4 u32 PID, out>0x207 image path via
-  NtOpenProcess/ZwQueryInformationProcess), 0x60002404 GetFileObjName
-  (in==4 handle, out>0x208 NT path), 0x60002408 GetDiskContextMode
-  (out==4, bound handles only), method-aware pass-through otherwise —
-  the corpus v2 artifact's contract, cross-verified against the ghidra
-  driver decompiles (C-sheet) and our rda_ioctl.c/rda_ident.c (E-sheet).
+  0x60002400 GetProcName (in==4 u32 PID, out>0x207 image path), 0x60002404
+  GetFileObjName (in==4 handle, out>0x208 NT path), 0x60002408
+  GetDiskContextMode (out==4, bound handles only), method-aware pass-through
+  — the corpus v2 artifact's contract, cross-verified against the ghidra
+  driver decompiles and our rda_ioctl.c/rda_ident.c (the SA-9 C/E sheets).
 - **Trio naming + PID handshake** — the byte-sum PID-token transform
   re-derived at CREATE (mismatch → STATUS_INVALID_PARAMETER),
   `\Device\<UPPERCASED service-name>` + EPMNTDRV fallback, DO_DIRECT_IO,
   the `%s%d` numbered-variant enabling — byte-exact, benchmark-proven.
-- Corpus-internal note (erratum candidate for the corpus repo): the v1
-  artifact's §4 mislabels 0x60002400 as "sets the global target"; the
-  decompile shows GetProcName (the v2 artifact is correct).
+- SURFACE-INVENTORY rows flipped to AUDITED (this lane).
+- Corpus-internal note: the v1 artifact's §4 mislabels 0x60002400 as "sets
+  the global target"; the decompile shows GetProcName (v2 is correct).
 
-**Driver-repo doc-truth findings (the D-lane):**
-- **N-090 (MINOR)** — the served 19-code session set described as 15/18
-  in 12+ sites (the D3 handoff expanded; sites describing the og's
-  EUDCPEPM reference 15 are correct-as-written).
-- **N-091 (MINOR)** — the falsified admin-gate claim at rda_ioctl.h:367
-  (no privilege check in code — decide og-parity vs real hardening),
-  stale 512-byte-sector prose, §2.2 pre-G2 prose, the RDA_DP_COMPONENT
-  S12 contradiction, the unreachable dispatch default, the 57th check.
+**Driver-repo doc-truth (the lane's unique finding):**
+- **N-127 (MINOR)** — the falsified admin-gate claim at rda_ioctl.h:367 (no
+  privilege check in code — the og-parity vs real-hardening decision), the
+  stale 512-byte-sector prose, §2.2 pre-G2 prose, the RDA_DP_COMPONENT S12
+  contradiction, the unreachable dispatch default, the undocumented 57th
+  check. (The count prose is N-107's; the regdrv/installer items are
+  M-086/M-087/M-088's.)

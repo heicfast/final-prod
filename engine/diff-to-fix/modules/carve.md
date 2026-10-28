@@ -584,34 +584,85 @@ the registry census, not the family semantics. The class-by-class comparison
   lost-partition search in the bootable edition; FREE-by-construction) is
   DISPOSITIONED as the boot-media builder's design input — no carve defect.
 
-## Session-9 addendum (2026-10-28, SA-9 lane — audited product code `35adcb9`, corpus `be0cfe9`)
 
-New findings (the S-007 lineage's continuation + the batch-1 verification gaps):
+## Session-8 section (2026-10-28, audited `35adcb9`)
 
-- **S-040 (SEVERE)** — the placeable-WMF validator reads a wrong header
-  layout (inch@+16 = Reserved — always 0 in real files → every real
-  placeable WMF rejected; checksum@+18 vs the og's +20; XOR-9 vs XOR-10
-  words; no HWmf/+38 gates; extent = 64 MiB probe vs size@+28*2+22). The
-  test plant mirrors the wrong convention. The std-WMF validator also adds
-  gates the og lacks (version/objects/maxrec — a stricter-than-og subset).
-- **S-041 (SEVERE)** — Canon CRW not carved: the og keys II/MM 1A 00 to
-  Brance::CRWAnalyser id 0x12 (CIFF gate: `\x00\x00HEAP` + {CCDR,TIFP,
-  ARCH} + length byte 2); our FMT_MRW/FMT_MRW_MM rows on those keys gate
-  on a PRD anchor no real file passes behind those keys (dead rows);
-  FileMRWAnalyser rides `\0MRM` only (our FMT_MRW_MRM is the correct
-  mirror). Census erratum E53.
-- **S-042 (SEVERE)** — the batch-2 remainder, fully decoded: CHM (GUID
-  compares instruction-verified — the canonical ITSF layout GUID1@+0x18/
-  GUID2@+0x28, HS0 0x1FE@+0x60, size u64@+0x68), MNY, EMF, ONE, MPEG-TS
-  (CMTS 0x76/CM2TS 0x74), 3DS, SWF, JP2, MOBI, LZH, HTML, SVG/XML, the
-  text school (VCF/GPX/HIK/OSP/POS/AEP/HFP), + the OfficeTagFromXML
-  DOCX/XLSX/PPTX id split (0x49/0x4A/0x4B vs our single FMT_DOCX).
-- **N-092 (MINOR)** — MID/GZ batch-1 caps drift (64 MiB vs 10 MB; 512
-  MiB/min-18 vs 400 MB/min-20 — the og ctors decoded).
-- Corpus errata E53 (the census's MRW/CRW attribution) + E54 (RetDec's
-  mis-fused CHM constants — instruction-verify stack-materialized u64s
-  before citing).
+New findings touching this module: **S-041** (SEVERE — the batch-2 remainder,
+~24 formats, now owned as a finding; previously the S-007 addendum's unowned
+tail), **M-081** (the CRW misattribution — II/MM`\x1A\x00` are Canon CIFF keys
+per the s3 census, landed as "Minolta MRW" rows whose PRD gate rejects genuine
+CRW; fix = re-attribute + a CIFF HEAPCCDR validator), **N-093** (batch-1
+bounds — MID max 64 MiB vs og 10 MB, GZ 512 MiB/18 vs og 400 MB/20,
+undocumented supersets; PSP/SIT under the recorded heuristic but their og
+bounds were present at the ctors). Verification: batch-1's 27 magics
+re-checked byte-exact at 12 representative registration sites. The
+`modules/carve.md:546-548` stale OQ-SA-3 text → **N-095** item 3.
 
-Evidence: `evidence/decompiled-quotes/s9-{wmf-placeable-gate,crw-mrw-
-registrations,chm-gate-asm,batch2-registrations,mid-gz-bounds}.md` +
-`evidence/executions/s9-carve-registry-inventory.md`.
+
+## Session-8 wave-2 (audited `ff879f9` lineage, corpus `be0cfe9`; IDs reconciled past the parallel deep-audit lane)
+
+- **S-041 addendum (SEVERE)** — this lane completed the batch-2 decode the
+  deep-audit lane's owner finding pinned: the seven text-school grammars
+  (VCF/GPX/HIK/OSP/POS/AEP/CHFP), the 18-site config-gated registration
+  zone, registry geometry (59 u32 + 35 u16 bindings), the u16 BOM battery,
+  FCPEvt end-to-end. Evidence:
+  `../evidence/decompiled-quotes/s8-batch2-formats.md`.
+- **S-042 (SEVERE)** — WMF placeable grammar contradicts the og (checksum
+  word@+20 == XOR(words 0..9), reserved dword@16-19, tail word, exact size
+  std_words*2+22 vs the core's inch-gate/checksum@18/XOR 0..8/probe-extent)
+  — disjoint accept-sets; the batch-1 landing's checksum claim refuted.
+- **M-084 (MAJOR)** — the MDB family's second signature "Standard ACE DB"
+  (ACCDB, type 0x4C) missing.
+- **N-099 (MINOR)** — batch-1 citation truth pass (registry regions
+  :1728-2509/:2536-2911 with 59+35 bindings; WPG ctor at :15700-01 — also
+  correcting N-093's inherited cite, erratum E63; the WPG constant is
+  0x00677077 LE).
+- Progressive carve-tree growth (UIUX/30:14) dispositioned MATCH this
+  session: the core's carve stage attaches nodes live during carve_slice
+  (cr_scan.cpp:1877-88) and counters refresh at progress ticks — same
+  live-growth behavior as the og's advanced pass.
+
+
+## Session-8 lead-lane wave (2026-10-28, audited `ff879f9`, corpus `be0cfe9` — the final
+push-window numbering, reconciled over the deep-audit/fix/third lanes)
+
+**Batch-1 verification failures the parallel waves did not cover:**
+- **M-090** — the DMG extent-walk/cap divergence: the og walks the "koly" UDIF trailer
+  (+0x200) with DMG's own 0xC800000 bound (:49436-49440/:63806) — core walks the bzip2 EOS
+  (+10) with the global 0xBEBC200 cap, truncating real DMGs before the mandatory footer
+  (erratum E67). NOT covered by the parallel lanes' batch-1 truth passes.
+- **M-091** — the MDB page-chain size walk DECODED (0x1000 strides, page-type word <=
+  0x901, cap 0x6400000, :52001-52039): the landed row's "page-chain walk is undecoded"
+  comment is falsifiable now; the 64 MiB bounded-extent stand-in sizes nearly every real
+  Jet DB wrong. (Complements M-084 — the ACCDB second signature.)
+- S-042's lead addendum — the WMF convergent decode + the two fix-criteria additions:
+  the exact Size x 2 + 22 formula; the invented inch-range gate; the fixture-regeneration
+  requirement (fixtures from spec, never from the implementation).
+
+**School-2/3 fix units** (children of S-041 per its addendum #2, grammars decoded):
+**S-047** MPEG-TS/M2TS · **M-092** HTML · **M-093** XML+SVG · **M-096** MOBI ·
+**M-098** HIK · **M-099** AEP · **N-111** JP2 · **N-112** LZH ·
+**N-113** the text school (VCF/GPX/OSP/POS/CHFP) · **N-115** OfficeTagFromXML.
+The school-1 formats (CHM/ONE/MNY/EMF/SWF/3DS) landed via `b92ebef`; FCPEvt closed
+as covered — the lead lane's duplicate filings dropped, its decodes convergent with the
+remote errata E56-E66.
+## Session-9 addendum (2026-10-28, SA-9 lane — audited product code `35adcb9`, corpus `be0cfe9`; reconciled into the session-8 board at push time)
+
+This lane's carve decodes converged with the parallel session-8 lanes; the
+unique artifacts kept (all cited by the reconciled findings):
+- The **instruction-level CHM verification** (capstone on
+  `og-codebase/RAWSearchDLL.dll` at 0x180016b40 — the u64 GUID compares,
+  the stack-constant table; evidence/decompiled-quotes/s9-chm-gate-asm.md)
+  — corroborates erratum E66 and the b92ebef school-1 landing's gate.
+- The **canonical-layout evidence table + the plant-mirrors-the-bug
+  analysis** for WMF placeable (s9-wmf-placeable-gate.md — cited by the
+  S-042 SA-9 addendum; the std-WMF stricter-gates observation there).
+- The **CRW/MRW registration quotes** (s9-crw-mrw-registrations.md — cited
+  by the M-081 FIXED convergence addendum; the MMOR/IIRS/FUJI →
+  BruteForce::TiffAnalyzer attribution correction for future key work).
+- The **consolidated batch-2 decode table** (s9-batch2-registrations.md —
+  cited by the S-041 SA-9 addendum).
+- The **MID/GZ ctor quotes** (s9-mid-gz-bounds.md — corroborate N-093).
+- The **registry inventory** (evidence/executions/s9-carve-registry-inventory.md
+  — the 101-row product inventory + the absence greps, taken at `35adcb9`,
+  i.e. immediately pre-b92ebef; school-1 formats are present post-landing).

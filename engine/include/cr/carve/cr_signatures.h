@@ -138,15 +138,17 @@ enum FormatId : u32 {
      * Multi-key formats keep the og's duplicate-key policy (one row per
      * key, shared validator - MRW/HLP/WMF mirror the og's separate
      * registrations; census :127 "deliberate registry bloat"). */
-    FMT_MID,     /* "MThd" 0x6468544d -> MIDAnalyser+FileMID, idx 38 */
-    FMT_OGG,     /* "OggS" 0x5367674f -> OGGAnalyser+CFileOgg, idx 82 */
-    FMT_RM,      /* ".RMF" 0x464d522e -> RM_RMVB chain, idx 94 */
-    FMT_MXF,     /* 06 0E 2B 34 0x342b0e06 -> MXFAnalyser, idx 120 */
-    FMT_DMG,     /* "BZh1" 0x31685a42 -> DMG chain, idx 113 (level-1 bzip2) */
-    FMT_X3F,     /* "FOVb" 0x62564f46 -> X3F chain, idx 108 */
-    FMT_MRW,     /* II\x1A\x00 0x001a4949 -> MRW custom ctor */
-    FMT_MRW_MM,  /* MM\x1A\x00 0x001a4d4d -> MRW custom ctor (BE sibling) */
-    FMT_MRW_MRM, /* \x00MRM 0x004d524d -> FileMRWAnalyser, idx 102 */
+    FMT_MID, /* "MThd" 0x6468544d -> MIDAnalyser+FileMID, idx 38 */
+    FMT_OGG, /* "OggS" 0x5367674f -> OGGAnalyser+CFileOgg, idx 82 */
+    FMT_RM,  /* ".RMF" 0x464d522e -> RM_RMVB chain, idx 94 */
+    FMT_MXF, /* 06 0E 2B 34 0x342b0e06 -> MXFAnalyser, idx 120 */
+    FMT_DMG, /* "BZh1" 0x31685a42 -> DMG chain, idx 113 (level-1 bzip2) */
+    FMT_X3F, /* "FOVb" 0x62564f46 -> X3F chain, idx 108 */
+    FMT_CRW, /* II\x1A\x00 0x001a4949 -> Brance::CRWAnalyser/FileCRW, id 0x12 (M-081/SCAN-4: Canon
+                CIFF, NOT MRW) */
+    FMT_CRW_MM,  /* MM\x1A\x00 0x001a4d4d -> the CRW chain's BE sibling key (M-081/SCAN-4) */
+    FMT_MRW,     /* \x00MRM 0x004d524d -> FileMRWAnalyser, idx 102, id 0x66 (the ONLY true MRW key -
+                    M-081/SCAN-4) */
     FMT_WPG,     /* "wpg\0" 0x00677077 -> FileInfo {min 20, max 0x5F5E100}, stamp 69 */
     FMT_WPD,     /* \xFFWPC 0x435057ff -> FileWPDAnalyser, idx 68 */
     FMT_PSP,     /* "Pain" 0x6e696150 -> PSPAnalyser chain, idx 55 */
@@ -155,21 +157,35 @@ enum FormatId : u32 {
     FMT_APE,     /* "MAC " 0x2043414d -> CAPEAnalyser, idx 81 */
     FMT_AU,      /* ".snd" 0x646e732e -> FileAUAnalyser, idx 9 */
     FMT_AIFF,    /* "FORM" 0x4d524f46 -> CFileAIFAnalyzer, idx 80 */
-    FMT_HLP,     /* DB A5 2D 00 0x002da5db -> FileHLP cluster, idx 23 */
-    FMT_HLP2,    /* 94 A6 2E 00 0x002ea694 -> FileHLP cluster, idx 23 */
-    FMT_HLP3,    /* 3F 5F 03 00 0x00035f3f -> FileHLP cluster, idx 32 */
-    FMT_ICO,     /* 00 00 01 00 0x00010000 -> FileICOAnalyser, idx 34 */
-    FMT_CUR,     /* 00 00 02 00 0x00020000 -> FileICOAnalyser (cursor dir) */
-    FMT_WMF_PL,  /* D7 CD C6 9A 0x9ac6cdd7 -> placeable-WMF node, idx 70 */
-    FMT_WMF,     /* 01 00 09 00 0x00090001 -> standard-WMF node, idx 70 */
-    FMT_TTF,     /* 00 01 00 00 (u16-key 0x0100 chain with MDB) -> FileTTF */
-    FMT_MDB,     /* 00 01 00 00 (u16-key 0x0100) + "Standard Jet DB" ->
-                  * CMDBAnalyser, type-id 39, bounds {0x1000, 0xBEBC200} */
-    FMT_TAR,     /* "ustar" @+257 list-layer probe (strncmp, TARAnalyser) */
-    FMT_EPS,     /* u16 "%!" 0x2125 -> CEPS-family PostScript chain */
-    FMT_AI,      /* C5 D0 D3 C6 0xc6d3d0c5 -> CEPSAnalyser (Illustrator), idx 27 */
-    FMT_DXF,     /* "  0\r" 0x0d302020 -> CDXF chain (g146+g144), idx 25 */
-    FMT_3GP,     /* ftyp brand 3gp (the og's File3GP legacy row) */
+    FMT_LOWDOC,  /* DB A5 2D 00 0x002da5db -> FileLowDocAnalyser, id 0x17 (SCAN-4: old-Word .doc
+                    family, NOT HLP) */
+    FMT_LOWDOC2, /* 94 A6 2E 00 0x002ea694 -> FileLowDocAnalyser, id 0x17 (second key) */
+    FMT_HLP, /* 3F 5F 03 00 0x00035f3f -> FileHLPAnalyser, idx 32, id 0x20 (the ONLY true HLP key -
+                E49) */
+    FMT_ICO, /* 00 00 01 00 0x00010000 -> FileICOAnalyser, idx 34 */
+    FMT_CUR, /* 00 00 02 00 0x00020000 -> FileICOAnalyser (cursor dir) */
+    FMT_WMF_PL, /* D7 CD C6 9A 0x9ac6cdd7 -> placeable-WMF node, idx 70 */
+    FMT_WMF,    /* 01 00 09 00 0x00090001 -> standard-WMF node, idx 70 */
+    FMT_TTF,    /* 00 01 00 00 (u16-key 0x0100 chain with MDB) -> FileTTF */
+    FMT_MDB,    /* 00 01 00 00 (u16-key 0x0100) + "Standard Jet DB" ->
+                 * CMDBAnalyser, type-id 39, bounds {0x1000, 0xBEBC200} */
+    FMT_TAR,    /* "ustar" @+257 list-layer probe (strncmp, TARAnalyser) */
+    FMT_EPS,    /* u16 "%!" 0x2125 -> CEPS-family PostScript chain */
+    FMT_AI,     /* C5 D0 D3 C6 0xc6d3d0c5 -> CEPSAnalyser (Illustrator), idx 27 */
+    FMT_DXF,    /* "  0\r" 0x0d302020 -> CDXF chain (g146+g144), idx 25 */
+    FMT_3GP,    /* ftyp brand 3gp (the og's File3GP legacy row) */
+    /* ---- S-041 niche batch 2, school 1 (SCAN-4): og grammars verified
+     * first-hand (the session-5 decode table in SCAN-ENGINE-DELTA). ---- */
+    FMT_CHM,      /* "ITSF" 0x46535449 -> FileCHMAnalyser, id 0x0e */
+    FMT_ONE,      /* E4 52 5C 7B 0x7b5c52e4 -> OneAnalyser/FileONE, id 0x31 */
+    FMT_MNY,      /* u16 "MS" 0x534d -> FileMNYAnalyser, id 0x28 */
+    FMT_EMF,      /* list-layer " EMF" @+0x28 -> FileEMFAnalyser, id 0x1a */
+    FMT_SWF,      /* list-layer "FWS" -> FileSWFAnalyser, id 0x3e (ZWS NOT accepted) */
+    FMT_SWF_CWS,  /* list-layer "CWS" -> FileSWFAnalyser, id 0x3e (2nd key) */
+    FMT_3DS,      /* u16 "MM" 0x4d4d -> New3DS/File3DS, id 0x01 ('=='@+0x10 or NCSD@+0x100) */
+    FMT_3DS_NCSD, /* "NCSD" @+0x100 -> the same id-0x01 chain's LIST-layer registration
+                   * (:3223-3243, first-hand) - the CCI form whose NCSD header sits at
+                   * +0x100; the late magic re-expresses that probe */
     FMT_COUNT
 };
 
@@ -237,8 +253,8 @@ size_t registry_size();
 
 /* M-024 (diff-to-fix): the runtime per-format enable/disable surface.
  * The og rebuilds its working registry per search from a host-supplied
- * IAnalyserFilter driven by RawConfig.ini [Filter] (37 named toggles;
- * STL and VPJ ship DISABLED; the removal loop is RAWSearchDLL
+ * IAnalyserFilter driven by RawConfig.ini [Filter] (34 named toggles in the
+ * shipped file - CORRECTIONS #5; STL and VPJ ship DISABLED; the removal loop is RAWSearchDLL
  * FUN_180006b30 :4386-4434 - an analyser whose filter callback rejects
  * it is destroyed out of the u32 map / u16 multimap / list). The core's
  * form: CarveFlags::disabled_formats carries a comma/space/semicolon-

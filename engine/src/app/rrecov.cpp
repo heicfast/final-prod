@@ -925,26 +925,38 @@ int print_sessions(int argc, wchar_t** argv, int& i) {
     WIN32_FIND_DATAW fd;
     HANDLE h =
         FindFirstFileExW(pattern.c_str(), FindExInfoBasic, &fd, FindExSearchNameMatch, nullptr, 0);
-    if (h == INVALID_HANDLE_VALUE) {
-        wprintf(L"cannot enumerate session directory %s\n", dir.c_str());
-        return 1; /* FB-K01: enumeration failure is never exit-0 */
-    }
     const std::wstring sep = (!dir.empty() && dir.back() == L'\\') ? L"" : L"\\";
-    do {
-        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-            continue;
-        /* the 8.3 short-name quirk: the pattern can match on the SHORT
-         * name - verify the LONG name's tail too (case-insensitive) */
-        const std::wstring name(fd.cFileName);
-        if (name.size() < 5)
-            continue;
-        const wchar_t* t = name.c_str() + name.size() - 5;
-        if (t[0] != L'.' || towlower(t[1]) != L'c' || towlower(t[2]) != L'r' ||
-            towlower(t[3]) != L's' || towlower(t[4]) != L'f')
-            continue;
-        files.push_back(dir + sep + name);
-    } while (FindNextFileW(h, &fd));
-    FindClose(h);
+    if (h == INVALID_HANDLE_VALUE) {
+        /* the empty-vs-missing discriminator (the list_crsf_files seam,
+         * runs 40694592245 + 40700058960): the FindFirstFileExW error
+         * code is NOT the reliable axis on real windows (the observed
+         * matrix inverted from the docs), so the DIRECTORY-EXISTS probe
+         * decides - an existing directory with zero matches prints the
+         * zero-row list and exits 0 (the ABI surface's own contract),
+         * a missing path (or a plain FILE handed as a dir) stays the
+         * genuine enumeration failure: FB-K01, exit 1. */
+        const DWORD attr = GetFileAttributesW(dir.c_str());
+        if (attr == INVALID_FILE_ATTRIBUTES || (attr & FILE_ATTRIBUTE_DIRECTORY) == 0) {
+            wprintf(L"cannot enumerate session directory %s\n", dir.c_str());
+            return 1; /* FB-K01: enumeration failure is never exit-0 */
+        }
+    } else {
+        do {
+            if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+                continue;
+            /* the 8.3 short-name quirk: the pattern can match on the SHORT
+             * name - verify the LONG name's tail too (case-insensitive) */
+            const std::wstring name(fd.cFileName);
+            if (name.size() < 5)
+                continue;
+            const wchar_t* t = name.c_str() + name.size() - 5;
+            if (t[0] != L'.' || towlower(t[1]) != L'c' || towlower(t[2]) != L'r' ||
+                towlower(t[3]) != L's' || towlower(t[4]) != L'f')
+                continue;
+            files.push_back(dir + sep + name);
+        } while (FindNextFileW(h, &fd));
+        FindClose(h);
+    }
     std::sort(files.begin(), files.end()); /* the ABI's deterministic row order */
 
     struct SRow {

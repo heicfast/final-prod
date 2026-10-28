@@ -12,3 +12,8 @@ tool) against the core's staged port.
 | post-op chkdsk | **REGISTERED UI-LAYER (D-90)** — external-binary delegation is the host's; the core's contract ends at the byte-exact undo record |
 | P54/P55 module boundaries | the pure rewriter rides the reghive precedent (pure module consumed by the win layer); the family never links into the engines |
 | P62 consent | **MATCH** — the rawfixer model verbatim: no consent callback = nothing is ever written; only an explicit allow executes a plan; undo is the host-invoked restore from the recorded original bytes |
+
+
+## Session-8 lead-lane wave (audited `ff879f9`)
+- **N-121**: the ESP auto-mount half (CUpdateGptSystemBootPartition) — undispositioned.
+- **N-122**: the NVRAM create/delete exclusion — recorded only in M-040's resolution text.

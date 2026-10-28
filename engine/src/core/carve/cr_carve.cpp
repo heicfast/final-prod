@@ -63,11 +63,18 @@ constexpr u32 kTrialOrder[] = {
      * key re-read at its registration site. Distinct magics except the
      * shared 00 01 00 00 key: TTF (table-directory gate) tries before
      * MDB (Jet signature) - the sfnt directory is the more specific
-     * grammar. The HLP/MRW multi-key rows mirror the og's one-row-per-
-     * key policy. */
-    FMT_MID, FMT_OGG, FMT_RM, FMT_MXF, FMT_DMG, FMT_X3F, FMT_MRW, FMT_MRW_MM, FMT_MRW_MRM, FMT_WPG,
-    FMT_WPD, FMT_PSP, FMT_SIT, FMT_GZ, FMT_APE, FMT_AU, FMT_AIFF, FMT_HLP, FMT_HLP2, FMT_HLP3,
+     * grammar. The multi-key rows mirror the og's one-row-per-key
+     * policy. SCAN-4 relabeled the misattributed rows per M-081 (CRW
+     * II/MM 1A 00; LowDoc DBA5/94A6; HLP 3F 5F 03 00) - same key order,
+     * corrected attributions. */
+    FMT_MID, FMT_OGG, FMT_RM, FMT_MXF, FMT_DMG, FMT_X3F, FMT_CRW, FMT_CRW_MM, FMT_MRW, FMT_WPG,
+    FMT_WPD, FMT_PSP, FMT_SIT, FMT_GZ, FMT_APE, FMT_AU, FMT_AIFF, FMT_LOWDOC, FMT_LOWDOC2, FMT_HLP,
     FMT_ICO, FMT_CUR, FMT_WMF_PL, FMT_WMF, FMT_TTF, FMT_MDB, FMT_TAR, FMT_EPS, FMT_AI, FMT_DXF,
+    /* S-041 niche batch 2, school 1 (SCAN-4): og-verified grammars;
+     * FMT_3DS rides the 2-byte MM key AFTER the TIFF family (TIFF-BE's
+     * 4-byte MM 00 2A key is the more specific magic at the same
+     * position - its grammar rejects 3DS content and falls through). */
+    FMT_CHM, FMT_ONE, FMT_MNY, FMT_EMF, FMT_SWF, FMT_SWF_CWS, FMT_3DS, FMT_3DS_NCSD,
     /* S-017: ftyp-destroyed MOV salvage (og MovAnalyzer list layer) -
      * LAST: the ftyp-keyed entries must claim the position first */
     FMT_MOV_NAKED};

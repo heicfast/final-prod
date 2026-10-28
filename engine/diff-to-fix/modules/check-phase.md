@@ -82,3 +82,13 @@ through an 8-event host callback contract.
   post-op chkdsk) remains open on its own row.
 - The DRWUI error→strategy mapping (CCheckFatPartition/CCheckNtfsPartition)
   stays out of core scope (UI-layer classes; the finding's Open question).
+
+
+## Session-8 section (2026-10-28, audited `35adcb9`)
+
+**M-075** (MAJOR — the escalation endpoint absent: the og's WinChkdsk.exe
+launch (FileSystemCheck_decompiled.c:7099/:7134/:7217 — CreateProcessA, WoW64
+branch) vs the core's in-engine-only checker; the 0x100E "use Chkdsk /F"
+advisory is advice the product cannot act on. The fix must also rewrite the
+D-90/PARITY-DELTAS:2977 "out of core" registration — the plan-of-record
+supersedes it. The in-engine audit itself (M-041) remains corpus-exact.

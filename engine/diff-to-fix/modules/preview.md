@@ -151,3 +151,58 @@ suite; fixtures via `scripts/gen_thumbnail_fixtures.py` into
 `tests/data/thumbnails/` with SHA256SUMS) + `fuzz/fuzz_thumbnail.cpp` (every
 parser over hostile bytes, resident + extent-backed + tight-budget lanes).
 ABI exposure of the thumbnail surface is the registered Agent 1 handoff.
+
+
+## Session-8 section (2026-10-28, audited `35adcb9`)
+
+The 05e6786 thumbnail landing verified (both-axis 256 px, dims-first bomb
+guard, truncation disclosure, the I-015-lineage placement — the ABI row 27
+N/A-by-layer disposition stands; registration gap → N-091). New findings:
+**M-080** (MAJOR — the default 4 MiB read budget starves ordinary photos: a
+6 MiB 12-MP JPEG is neither EXIF-fast-pathed (12 MP < 64 MP) nor fully
+readable (6 MiB > 4 MiB) → BudgetExceeded; fix = fast-path on byte-oversize or
+raise the byte default), **M-077** (the og's 100 MB eligibility / 15 s time
+caps — R-34's shipped-defaults half), **N-092** (WMF/EMF/ICO unnamed in the
+refusal matrix + no cache scope).
+
+
+## Session-8 wave-2 — the thumbnail engine's parameter verdicts (audited `ff879f9` lineage, corpus `be0cfe9`; this lane's half — see the deep-audit lane's M-080/N-092 rows for the budget/refusal-matrix halves)
+
+Scored against the og's thumbnail pipeline (decode evidence:
+`../evidence/decompiled-quotes/s8-thumbnail-pipeline.md`):
+
+- **S-043 (SEVERE)** — EXIF orientation not applied (og rotates per tag
+  0x112 before the 256-px pass, FUN_1402fcc30 :521694-725 + call order
+  :652307-309; the core has zero orientation code).
+- **S-045 (SEVERE)** — format coverage: og ships video-keyframe (ffmpeg
+  agent, ports 20171/2), RAW (LibRaw/EURawImg, 1/8-downscale+PNG), HEIC
+  (heif.dll embedded-first), PDF (pdfium) pipelines; the core refuses all
+  by name (the registered phase-2 deps). Complements N-092's unnamed
+  WMF/EMF/ICO trio + cache gaps.
+- **M-083 (MAJOR)** — thumbnail success promotes the node to grade 2 in
+  the og (:422505-13); the core's engine is grade-agnostic (S-023 family).
+- **M-085 (MAJOR)** — TIFF LZW (compression 5) refused; a mainstream
+  scanner/Photoshop variant the og's GDI+ decodes.
+- **M-080 addendum** — this lane decoded the og's still-image eligibility
+  gate (200 MB, :422428) correcting that finding's "no input cap" claim;
+  severity discussion (SEVERE recommended) recorded in the addendum.
+- **I-028 (INFORMATIONAL)** — the superset register: both-axis scaling
+  (og is width-derived — portrait thumbs exceed 256 on height),
+  straight-alpha RGBA8 (og white-flattens), PSD/PNM/HDR, dims-first bomb
+  guard, UnreadableSpan truth gate. Deliberate; do not "fix" away.
+- **N-103 (MINOR)** — R-28/PLAN-API-EXPANSION still read "no dedicated
+  thumbnail op"; the cr_ui ABI exposure remains the open Agent-1 handoff.
+- MATCH rows: still-image family coverage (JPEG/PNG/BMP/GIF + TIFF
+  baseline), bounded range-read doctrine, never-upscale-below-threshold,
+  honest named refusals, the EXIF embedded fast-path strategy.
+- UNVERIFIED (corpus silent, tracked in I-028): og bomb policy,
+  unreadable-span behavior, GdipGetImageThumbnail internals, og
+  WebP/SVG/AVIF thumbnail paths, the 200×200 GDI surface, the
+  :828027 format-group registry's consumer.
+
+
+## Session-8 lead-lane wave (audited `ff879f9`)
+- **M-100**: archive browse-inside preview (ArchivePreviewModel — the in-place damaged-zip
+  entry browse) — absent; reuses the S-032 parser; formalized from R-37.
+- **M-102**: the thumbnail ABI export — the 05e6786 engine has no cr_ui symbol; the
+  recorded Agent-1 handoff formalized as a work item.

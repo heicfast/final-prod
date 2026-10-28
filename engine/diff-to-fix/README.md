@@ -9,27 +9,31 @@ Research corpus (ground truth): https://github.com/heicfast/easeus-drw-research.
 Driver repo (in the audit scope when a session's grant covers both repos —
 session 9's did): https://github.com/heicfast/rda-driver.
 
-**Session 9 (2026-10-28, SA-9 lane — the wave-2 continuation executed):**
-audited **core product code `35adcb9`** (the last code commit; the trail-only
-commits above it verified to touch nothing outside `diff-to-fix/`+`worklog*`),
-**rda-driver `323e75a` (v0.2.4)**, **corpus `be0cfe9`**. Two-repo scope: the
-session-8 T2 lanes (V/R/G/C) executed **plus the D-lane** (the driver-repo
-handoffs D3/D4 + FileVersion, newly in scope). Findings filed: **S-040** (WMF
-placeable validator reads a wrong layout — rejects every real placeable WMF;
-the test plant mirrors the bug), **S-041** (Canon CRW not carved; the II/MM
-1A 00 keys occupied by dead MRW rows — instruction-decisive), **S-042** (the
-batch-2 remainder as a fully-decoded finding: CHM/MNY/EMF/ONE/MPEG-TS/3DS/
-SWF/JP2/MOBI/LZH/HTML/SVG + the text school + the OfficeTagFromXML id split),
-**M-071** (rda-driver FileVersion pinned 1.0.0.0 → the M-064 versioned
-coexistence is inert), **M-072** (regdrv-rda.reg: unparseable hex(7) +
-DISKDRIVE-vs-VOLUME class + the Start posture), **N-090/N-091** (the driver
-repo's stale counts + doc-vs-code truthfulness), **N-092** (MID/GZ cap
-drift). The never-audited EPMNtDrv v2 + trio surfaces resolved **MATCH**;
-the V-lane landings verified; corpus errata E53-E55; evidence under
-`evidence/decompiled-quotes/s9-*` + `evidence/executions/s9-*`. Board at
-close: **8 active** (S-040..S-042, M-071, M-072, N-090..N-092) · 249 FIXED
-· 1 INFORMATIONAL (I-026) · 1 tracked-open (OQ-S4-3 — unchanged, execution-
-bound). Next IDs: A-012+, S-043+, M-073+, N-093+, I-027+.
+**Session 9 (2026-10-28, SA-9 lane — the wave-2 continuation executed; RECONCILED at push time):**
+audited **core product code `35adcb9`** (the last code commit), **rda-driver
+`323e75a` (v0.2.4)**, **corpus `be0cfe9`**. Two-repo scope: the session-8 T2
+lanes (V/R/G/C) executed **plus the D-lane** (the driver-repo handoffs
+D3/D4 + FileVersion). **Push-time reconciliation:** the parallel session-8
+lanes had concurrently landed a 75-active-findings board (their S-040..S-047,
+M-071..M-102, N-090..N-126 decompositions + the M-081 CRW fix `9e5dedc` and
+the school-1 batch-2 code landing `b92ebef`) — this lane's 8 filings were
+7-convergent/1-unique: **merged as addenda** into their S-042 (WMF — the
+std-gates observation + canonical-layout evidence), FIXED M-081 (the CRW
+third-lane corroboration), S-041 (the batch-2 consolidated decode table),
+M-086 (the CI tag==resource gate), M-087 (the **Start-posture parameter** —
+demand-start + active UpperFilters cannot attach at stack-build; the og's
+filter is BOOT_START), N-107/N-093 (converged); **kept as N-127** (the
+rda-driver doc-vs-code truthfulness batch: the claimed admin gate with no
+code, the stale sector prose, the S12 contradiction, the unreachable
+default, the 57th check). The lane's **unique MATCH verdicts**: the
+never-audited EPMNtDrv v2 internals + trio naming/PID handshake (SURFACE-
+INVENTORY rows flipped — the identity IOCTLs, the PID-token transform, the
+naming scheme, DO_DIRECT_IO, ×512 all byte-exact) and the V-lane landing
+verifications (W1a/W1b/W1c, origin-LCN, thumbnail, installer steps 2-3).
+Erratum **E68** (part1:85's refuted "+0x64 secondary ID" label per the
+SCAN-2f queue); evidence under `evidence/decompiled-quotes/s9-*` +
+`evidence/executions/s9-*`. Board after the reconciliation: the session-8
+board + N-127 (see SUMMARY for the current counts).
 
 **This directory is the deliverable of a read-only parity audit.** No source
 code was modified to produce it. It is the roadmap future sessions execute
@@ -37,11 +41,13 @@ against.
 
 | | |
 |---|---|
+| **Audited core commit (session 8 — third lane: the DRIVER lane, 2026-10-28)** | **product code `35adcb9`** (rebased over the parallel session-8 lanes through `7748254`; all this lane's commits are trail-only) · **driver `323e75a`** (v0.2.4 — this lane's primary audit target; no other session-8 lane took the driver D-handoffs) · **corpus `be0cfe9`**. Filed: **M-086** (FileVersion 1.0.0.0 pin defeats -Layout Versioned — upgrades hit exit 2), **M-087** (regdrv-rda.reg hex(7) invalid — the WinPE UpperFilters never attaches; D4 owned), **M-088** (FloorVersion two-site/two-floor split + the "ONE pin source" false claim + the stale CI-shape doc cluster), **M-089** (rdabench phantom-zero probe list — the extended IOCTL handlers get zero fuzz coverage), **N-107** (14 stale 15/18-command sites vs 19), **N-108** (docs/PARAMETERS.md §3 stale constants + the SCAN-ENGINE-DELTA false "fixed" claim corrected). Merges: this lane's duplicate S-040/S-041 filings converged into the continuation lane's S-042/S-041 (WMF: two lanes, two decompilers, one conclusion; the CHM/FH11 asm decode donated; errata E65/E66). Repairs: A-007's dangling evidence cites. **Board after all session-8 legs: 47 active (6 SEVERE · 19 MAJOR · 19 MINOR · 3 INFO) + 249 FIXED + OQ-S4-3/OQ-S8-1 tracked-open.** |
+| **Audited core commit (session 8 — the second-session deep audit, 2026-10-28)** | **product code `35adcb9`** (all session-8 commits are trail-only: diff-to-fix/ + worklog; zero product files touched). **Rebase note:** the product tree moved under the audit to `dd225da` (the parallel CI-REL lane's session-list empty-dir fix) — every load-bearing absence claim was **re-verified on the final rebased tree before push** (the junk-gate census, the volume_label fill-site census, the R-row absences, the batch-2 absences all re-run; only N-090's cr_ui.cpp line cites shifted, corrected in the finding). **Corpus `be0cfe9`** (one commit past `03ad46c`; absorption verified). Board at open: 0 active / 249 FIXED / 1 INFO / 1 tracked-open. Session scope (T1-determined): (a) verify the post-dev-sign landings' corpus claims read-only (W1a/W1b/W1c, the SCAN carrier, S-007 batch-1, thumbnail, installer steps 2-3, CI rebuild); (b) file the S-007 batch-2 remainder; (c) sweep the never-audited og-codebase assets; (d) re-verify the two NEVER-CITED driver docs + the MOM decode candidates; (e) spot-check the FIXED board's truth. **Board at close: 25 active (2 SEVERE · 12 MAJOR · 9 MINOR · I-027) + 249 FIXED + OQ-S4-3/OQ-S8-1 tracked-open.** See SUMMARY's session-8 delta. |
 | **Audited core commit (dev-sign session, 2026-10-27/28 — CLOSED at `832b390`)** | **product code `3bda8e2`** (the session changed ZERO product files — the read-only sweep proves every changed path is under `diff-to-fix/` + `worklog*`; the dev-sign validation run 40549660074 executed the workflow content of `3bda8e2`). Corpus `03ad46c` (unmoved). Board at close: **18 active** (A-010 · S-036..S-039 · M-060..M-066 · N-084..N-088 · I-026) + 223 FIXED + 4 tracked-open. See SUMMARY's dev-sign session deltas + SURFACE-INVENTORY. The SA lane (this session) validated the dev-sign/install/uninstall path on windows-2022 and filed the installer-posture findings **S-036, M-060..M-063, N-084, N-085, I-026** (see `worklog/DEV-SIGN.md` + `evidence/executions/devsign-run-40549660074/`); the parallel S7 lane audits the driver-only-era parity delta. |
 | **Audited core commit** | **session 5b (this leg): `7cf6754`-lineage rebased onto `c75f646`** (the S-019 fix leg verified first-hand in-source this session; the parallel fix legs' landings visible at rebase time: S-012 `c69a790`+`5f1a212`, S-022 `cdd340b`, S-020/M-022/N-037 `9af8014`, S-026 `0c1f58e`, S-021+S-003 `c75f646`, M-023 `d80a52e`, the N-batches and MSVC/bench legs). Session 4: `204137b` (lineage `63a9167` rebased onto `ed00020` — S-013 `d2d9b03` + S-014 `ed00020` included; suite 306/306 + C-ABI check green at that tree). Session 3 (all legs, close at `43149ff` + continuation): baselines `34b3441`→`e6d5b01`→`abe8e36`→`1f08c20`; mid-session landings verified by the audit legs: S-010 `3e34ed2`, M-009 `7fd00e0`, A-002 `7f2c83e`(+`abe26b8`), A-004+S-016 `c33236f`, S-017 `1cc08c3`, S-018 INVALID `2adfa29`, S-006 `abe8e36`, S-011, S-015 `021e2e6`, N-021 `6fc8c0e`, S-013 `d2d9b03`, S-014 `ed00020`. Sessions 1-2 baselines: `67193b6`/`5d6da5f`/`8574039`/`5f638a3`. Corpus `03ad46c` throughout. |
 
 | **Audited core commit** | **session 5: `7cf6754`** (the S-019 landing, one commit past session-4 close `d870dd3`; suite 366/366 executed green at this tree — `evidence/executions/s5-baseline-suite-green.md`). **session 4: `204137b`** (this leg's wave-1 commit; lineage `63a9167` rebased onto `ed00020` — the fix legs' S-013 `d2d9b03` + S-014 `ed00020` included; suite 306/306 + C-ABI check executed green at this tree). Session 3 (all legs, close at `43149ff` + continuation): baselines `34b3441`→`e6d5b01`→`abe8e36`→`1f08c20`; mid-session landings verified by the audit legs: S-010 `3e34ed2`, M-009 `7fd00e0`, A-002 `7f2c83e`(+`abe26b8`), A-004+S-016 `c33236f`, S-017 `1cc08c3`, S-018 INVALID `2adfa29`, S-006 `abe8e36`, S-011, S-015 `021e2e6`, N-021 `6fc8c0e`, S-013 `d2d9b03`, S-014 `ed00020`. Sessions 1-2 baselines: `67193b6`/`5d6da5f`/`8574039`/`5f638a3`. Corpus `03ad46c` throughout. |
-| **Corpus (ground truth) commit** | `03ad46c` (`easeus-drw-research` main, unmoved) |
+| **Corpus (ground truth) commit** | `be0cfe9` (both session-8 legs; CORRECTIONS #9 absorbed). **Session-8 wave-2 — the continuation lane (2026-10-28, audited `ff879f9` lineage, rebased over the parallel deep-audit lane)**: 16 new findings + 2 merges — **S-042** (WMF-placeable grammar contradicts the og — disjoint accept-sets), **S-043** (thumbnail EXIF orientation), **S-044** (auto-save gates missing), **S-045** (thumbnail format coverage video/RAW/HEIC/PDF), **M-083/M-084/M-085** (grade promotion; ACCDB signature; TIFF LZW), **N-099..N-106** (citation truth, +0x60 persistence, inventory arithmetic, M-024 propagation, API rows, doc truth, Folder suffix, GetDriverInfo), **I-028** (thumbnail superset register); the batch-2 decode and the thumbnail-budget evidence MERGED into the parallel lane's **S-041/M-080** as addenda; errata **E55-E64**. **Combined board after both session-8 legs: 41 active (6 SEVERE · 15 MAJOR · 17 MINOR · I-026/I-027/I-028) + 249 FIXED + OQ-S4-3/OQ-S8-1 tracked-open.** Earlier sessions: `03ad46c` throughout |
 
 **Dev-sign validation session (2026-10-27/28, SA lane, audited `dd82db9`/workflow content `3bda8e2`)** —
 Phase 1 of the merged-product validation: the documented dev-sign path
@@ -123,3 +129,15 @@ Session-6 audited tree: **`022c81d`-lineage (landing `bf7df39`)**; corpus `03ad4
 checked first-hand before filing (three stale agent claims filtered). Post-session
 count: **115 active / 34 FIXED** (0 ACUTE · 11 SEVERE · 37 MAJOR · 49 MINOR ·
 18 INFO), 14 tracked-open.
+
+
+**Session-8 lead-lane wave (2026-10-28, audited core `ff879f9`, corpus `be0cfe9` — the FINAL
+reconciliation over three concurrent lanes)** — 28 findings kept (S-047, M-090..M-102,
+N-111..N-126, I-029/I-030), 13 duplicates merged via 5 addenda, 7 school-1 duplicate
+filings dropped after `b92ebef` landed them, erratum E67. **Headline additions the parallel
+waves did not have**: M-090 (the DMG koly-trailer walk/cap divergence — carved DMGs
+truncated before the mandatory UDIF footer), M-091 (the MDB page-chain size-walk decode),
+N-116 (the session-list time-sort divergence), the school-2/3 per-format grammar sheets,
+and the fixture-regeneration requirement (tests derive fixtures from spec, never from the
+implementation — the class behind S-042/M-081). Board after the merge: **75 active /
+249 FIXED / 1 tracked-open**. Evidence: `evidence/sa8-context-sheets.md`.

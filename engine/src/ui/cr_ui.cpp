@@ -394,8 +394,26 @@ bool list_crsf_files(const char* utf8_dir, std::vector<std::string>& out) {
     WIN32_FIND_DATAW fd;
     HANDLE h =
         FindFirstFileExW(pattern.c_str(), FindExInfoBasic, &fd, FindExSearchNameMatch, nullptr, 0);
-    if (h == INVALID_HANDLE_VALUE)
-        return false;
+    if (h == INVALID_HANDLE_VALUE) {
+        /* the empty-vs-missing discriminator (runs 40694592245 + 40700058960):
+         * the ERROR CODE is NOT the reliable axis - the observed windows-2022
+         * matrix came back INVERTED from the documented one (a nonexistent
+         * dir reports ERROR_FILE_NOT_FOUND, an existing EMPTY dir reports a
+         * different code), so keying on any single code breaks one class or
+         * the other. The version-proof truth is the DIRECTORY-EXISTS probe:
+         * an existing directory with zero matches is the empty-list SUCCESS
+         * (POSIX opendir succeeds on the same dir; the W1c contract pins
+         * OK + n==0), while a missing path - or a plain FILE handed as a
+         * dir, POSIX ENOTDIR - is the genuine failure (the no-such-dir-*
+         * rows in SessionListTwoCallPattern and the abi C-gate pin
+         * ERR_OPEN_FAILED). Known divergence, accepted: a directory whose
+         * LIST permission is denied but whose attributes read (a rare ACL
+         * shape) reports the empty list, where POSIX opendir would fail -
+         * the existence probe is the only axis that is right on every
+         * version for the two pinned classes. */
+        const DWORD attr = GetFileAttributesW(u8_to_ws(utf8_dir).c_str());
+        return attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY) != 0;
+    }
     const std::wstring dir_w = u8_to_ws(utf8_dir);
     /* join with the CALLER's separator convention (run 40689196858): a
      * forward-slash dir (the CMake/ctest path style) must stay
