@@ -2968,3 +2968,40 @@ the running code before any change; every fix paired with fail-before/pass-after
 finding, one verified fix, one push. Post-SEVERE, this lane takes the MAJOR tier's
 orchestration/carve-cluster findings (M-103, M-104, M-108, M-109, M-110) unless 11C lands them
 first. Pull before every push; the SA-9 collision rule governs any ID or landing conflicts.
+
+## Session 39 — the diff-to-fix parity-fix session (2026-10-29; opens at core `35bee726`, corpus `be0cfe9`; prompt saved to worklog/session-diff-fix-39-prompt.md)
+
+**Mandate (the user's operative line):** "Fix all the audit findings (priority
+to minor first) one by one, with full context and knowledge and update and put
+fixed findings in fixed directory. Update all docs, counts and all properly."
+Fix order this session: **MINOR → INFORMATIONAL → MAJOR → SEVERE →
+TRACKED-OPEN** (the user's explicit "minor first" overrides the template §4
+order; no ACUTE findings are on the board).
+
+**T1 (baselines + prompt):** core `35bee726` (pulled one commit over the
+session-11 audit lane's `ac39c321`), corpus `be0cfe9`. Build green
+(linux-release, cmake 4.4.4 / g++ 14.2 via pip-installed toolchain); suite
+**1029 tests / 987 passed / 85 skipped (Win-only) / 0 failed**. Prompt saved
+redacted. Convention recorded: fixed findings move to
+`diff-to-fix/findings/FIXED/` (the "fixed directory") with Resolution sections
+in-file AND take a FIXED-LEDGER row — the ledger stays the master index.
+
+**T1c/T1e (hygiene repairs, commit `0c3fd6d2`):** the committed FIXED-LEDGER
+merge conflict (5fecdae1 residue, lines 22-32) resolved per the 64a3b18
+convention — both sides kept as dated history, one truth line on top. The
+count truth: **284 table rows = 264 resolved findings + 20 resolved OQ
+entries** (the 281/282 claims counted with looser inclusion rules; grep
+commands recorded in the ledger's truth line).
+
+**T1d (hygiene repair, the renumber commit):** the N-129 ID collision
+resolved — wave-3's fix-wave-bookkeeping-truth-batch renumbers to **N-135**
+(lane-B keeps N-129 per the SA-9 rule; the S-050→S-051 precedent shape:
+file renamed with history, renumber note in-file, SUMMARY + the wave-3
+evidence file annotated). Next free IDs: S-053+, M-111+, N-136+, I-031+,
+A-012+.
+
+**Board at open (55 active + 4 tracked-open):** SEVERE S-040/S-048/S-049/
+S-050/S-051/S-052 · MAJOR M-072..M-078/M-083/M-086/M-087/M-089/M-098/M-099/
+M-101..M-110 · MINOR N-090/N-093/N-096/N-107/N-111/N-112/N-113/N-115/N-121/
+N-122/N-125..N-134/N-135 · INFO I-026..I-030 · OQ-S4-3/OQ-S8-1/OQ-S10-1/
+OQ-S10-2.
