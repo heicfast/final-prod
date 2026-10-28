@@ -8131,7 +8131,13 @@ TEST(Carve, TsM2TsCapIsTheOg200MB) {
     const Signature* reg = registry();
     ASSERT_NE(reg, nullptr);
     const Signature *ts = nullptr, *m2ts = nullptr;
-    for (const Signature* s = reg; s->ext; ++s) {
+    /* N-186: the table contract is COUNT-based (registry_size(), the
+     * cr_signatures.h census) - kTable carries no null-ext terminator row,
+     * so a terminator walk reads past the global's end (ASan red on main,
+     * test-side only). Walk by count, not by sentinel. */
+    const size_t reg_count = registry_size();
+    for (size_t i = 0; i < reg_count; ++i) {
+        const Signature* s = &reg[i];
         if (s->id == FMT_TS)
             ts = s;
         else if (s->id == FMT_M2TS)
@@ -8165,12 +8171,14 @@ TEST(Carve, TsStreamClampedAt200MB) {
      * is a semicolon-delimited ext list (M-024 contract) - build it
      * from the registry itself */
     std::string disabled;
-    for (const Signature* s = registry(); s->ext; ++s) {
-        if (s->id == FMT_TS || s->id == FMT_M2TS)
+    /* N-186: count-based walk - kTable has no terminator row */
+    for (size_t i = 0; i < registry_size(); ++i) {
+        const Signature& s = registry()[i];
+        if (s.id == FMT_TS || s.id == FMT_M2TS)
             continue;
         if (!disabled.empty())
             disabled += ';';
-        disabled += s->ext;
+        disabled += s.ext;
     }
     flags.disabled_formats = disabled.c_str();
     CarveStats stats;

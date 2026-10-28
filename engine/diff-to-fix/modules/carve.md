@@ -963,3 +963,14 @@ Evidence: `evidence/decompiled-quotes/s42-ogg-zip-typing-and-report-decodes.md` 
   carves. The corrupt-ZIP half of the class fires the apk raw-sign row
   (PK\x03\x04 is apk's layer-1 key — the og's layer-1 admits it identically);
   both layers' interplay recorded in the Resolution.
+
+**N-186 FIXED** (session-45, discovered during this lane's baseline run): the
+S-054 registry pin test and its companion fixture-builder walked `kTable` with
+a null-ext sentinel loop (`for (s = reg; s->ext; ++s)`) — the table contract is
+COUNT-based (`registry_size()`, cr_signatures.h:512-513) and carries no
+terminator row, so the walker read one element past the global (an ASan
+global-buffer-overflow that aborted the whole Linux sanitizer lane at
+`Carve.TsM2TsCapIsTheOg200MB`). Both walks converted to count-bounded index
+loops; no production code changed (every engine walk was already count-based).
+The S-054 pins (the og's 200 MB TS/M2TS clamp) assert identically after the
+fix — `Carve.TsM2TsCapIsTheOg200MB` + `Carve.TsStreamClampedAt200MB` green.

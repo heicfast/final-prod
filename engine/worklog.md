@@ -6858,3 +6858,17 @@ the 0xFFFFFFFE exact boundary; the 0x100000000 regression step) +
 Date2107EndToEndFileTimeIsReal. The finding's example word 0xFFBF corrected (decodes
 the invalid 2107-11-31; 0xFF9F is the true 2107-12-31) — recorded in the Resolution.
 Suite 1273/1273. Trail: findings/FIXED/N-173 + ledger + fat.md row + this entry.
+
+## Session-45 parity-fix lane — N-186 landed (2026-10-29)
+
+**N-186 FIXED (MINOR, discovered — the ASan-lane red on main repaired).** At lane
+open the full-suite baseline run aborted with a global-buffer-overflow at
+`Carve.TsM2TsCapIsTheOg200MB`: the S-054 pin test (and the companion
+`TsStreamClampedAt200MB` disable-list builder) walked the compile-time signature
+table with a null-ext sentinel idiom, but the table contract is count-based
+(`registry_size()`; `kTable` carries no terminator row) — the walker read 8 bytes
+past the global. Filed as a new finding (N-186, test-side only — every production
+walk is count-based) and fixed: both walks converted to count-bounded loops. The
+S-054 pins assert identically after the fix. Baseline after the repair: the suite
+runs to completion under ASan (1161 passed / 0 failed / 85 env-skipped TiffVariants,
+exit 0). Trail: findings/FIXED/N-186 + ledger row + carve.md row + this entry.
