@@ -373,7 +373,7 @@ process/UI concerns deliberately out of core scope — flagged below).
 | state queries (R-25) | UIUX/09:20 | caller-owned selection | PRESENT (n/a) | — |
 | grading + re-grade (R-26) | DRWUI-subsystems:33-52 | S-023 + session_regrade | PRESENT | — |
 | assistant stats (R-27) | DRWUI-subsystems:9-31 | ScanStats/assistant/ScanAnalysis | PRESENT | — |
-| thumbnails (R-28) | UIUX/13:50 | preview_read (no dedicated op) | PARTIAL | no async thumbnail fetch protocol |
+| thumbnails (R-28) | UIUX/13:50 | cr_thumbnail engine landed (05e6786; S-043/N-092/M-080-era updates); cr_ui exposure = M-102 | PARTIAL (engine PRESENT; ABI open) | async per-row fetch is host-side by design (free-threaded ABI) |
 | AI recommend/dedup (R-29) | UIUX/09:55 | none | GAP | product feature; no ranking/dedup pass |
 | freeze protocol (R-30) | UIUX/20:176-192 | immutable snapshots (G-02) | PRESENT (by design) | — |
 | config layer (R-31) | UIUX/09:44-45; CORRECTIONS:5 | filefilter_entry_count + user signs | PARTIAL | per-format carve toggles, usefullostfiles whitelist, display priority missing |

@@ -2712,3 +2712,12 @@ zero-total gate keeps old records shape-identical) + the walk-test's total half
 
 N-100 conform: ledger row + retirement + SUMMARY board (46 active / 280 resolved).
 Session-38 tally: 22 findings closed.
+
+N-129-flagged residuals from this session's own landings, verified and repaired (the
+honest response to the session-10 close-out's bookkeeping flags): (1) the R-28 row at
+REFERENCE-API-GAP:376 - my N-103 edit fixed only the :222 site while the Resolution
+claimed both; the :376 row now carries the engine-PRESENT state + the M-102 handoff
+(the N-129 flag was CORRECT); (2) the phantom pre-rebase SHAs in my FIXED-LEDGER rows
+(954c386/e1e5124/13245c0 - all rewritten by the push-window rebases) - every cell now
+cites the real post-rebase SHAs (e4f3184 batch A / 995ba5d batch B / 32ef33b batch C /
+859e286 batch D / faa547f N-100).
