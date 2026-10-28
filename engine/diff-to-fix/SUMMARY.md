@@ -178,7 +178,25 @@ first-hand re-verification of every corpus cite before any change).**
 GREEN post-fix, full suite green, clang-format 18.1.8 clean, one finding = one
 commit = one push):**
 
-- **M-117 (MAJOR — the never-filed Outlook Express Dbx analyser) → FIXED.**
+- **M-117 → **M-118** (MAJOR — the never-filed Outlook Express Dbx analyser) →
+  **FIXED, CONVERGENT-CORRECTED.** Two parallel fix lanes landed the same finding and
+  the reconciliation caught BOTH lanes' byte errors against the disassembly (the
+  ground-truth discipline working as designed): the parallel lane's JMF6 version word
+  `03 00 10 00` was RIGHT (disasm 0x180016766/0x18001676f `movl $0x36464d4a` +
+  `movl $0x00100003`; this lane's first `03 00 01 00` was a literal-expansion error —
+  now the hostile fixture in Carve.DbxJmf6WrongVersionWordRejected), and its marked
+  pattern byte 6 `0xDE` was WRONG (the dword 0x6deef0f7 is F7 F0 **EE** 6D on disk,
+  disasm 0x18001698b — its marked form never matched a real file; corrected). The
+  bisection decode pinned by raw disassembly (0x180042bb0-0x180042c07: `sar $1` +
+  `lea 0x1(%rsi),%eax`): FUN_180042b30 returns the non-zero prefix ROUNDED UP TO
+  EVEN (prefix 1→2, 3→4 … 511→512; 0 on all-zero) — the walk's extent lands on even
+  bounds. The finding renumbers to **M-118** per SA-9 (the M-117 ID was
+  triple-consumed: the session-40 suppress-overlap ledger row 442 keeps it; the stub
+  stays at findings/FIXED/M-117-*, the A-005/A-006 pair precedent). Bounds re-truthed:
+  min 0x80/0x10 (the size field's read bound / the pattern's whole gate), max
+  0xBEBC200 (the og engine default — the 0xFFFFFFFF cap surface would run the marked
+  walk 4 GiB per candidate). 9/9 tests GREEN. Original record of the parallel lane's
+  landing follows; the merged Resolution lives in findings/FIXED/M-118-*.
   The full grammar landed beyond the finding's own evidence: `FUN_180042b30`
   decoded as the non-zero-prefix binary search (the marked form = the zero-end
   extent to the last non-zero byte), the 272-byte embedded-name buffer decoded

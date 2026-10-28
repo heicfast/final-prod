@@ -5378,3 +5378,31 @@ Dxf999InteriorCommentOfCanonicalFileDoesNotDoubleCarve. Fail-before 3/4 RED
 + matrix cell → MATCH (P1/P19/P28) + the M-117 residue note + carve.md session row +
 this entry. Fixture note for future lanes: "$ACADVER/AC1027" in a DXF fixture
 self-carves as DWG ("AC1027" is that family's magic) — the pins use $INSBASE.
+
+### S42-W1b: the M-118 convergent correction (over the parallel lane's 1d4c96b6)
+
+The rebase over the parallel fix lane's identical Dbx landing surfaced a two-byte
+disagreement between the lanes; the raw disassembly settled BOTH directions (the
+ground-truth discipline working exactly as designed):
+
+- **JMF6 version word: `03 00 10 00` — THEIR reading was right.** Disasm
+  0x180016766/0x18001676f (`movl $0x36464d4a` + `movl $0x00100003`): the probe's u64
+  is 0x0010000336464D4A. My first landing's `03 00 01 00` was a literal-expansion
+  error on Ghidra's 14-digit literal; the finding's own prose carried the same wrong
+  transcription. Fixed here; the wrong word is now the hostile fixture
+  (Carve.DbxJmf6WrongVersionWordRejected — the error itself became a pin).
+- **Marked pattern byte 6: `0xEE` — MY reading was right.** Disasm 0x18001698b
+  (`movl $0x6deef0f7`): F7 F0 EE 6D on disk. Their kMarked's 0xDE meant their marked
+  form never matched a real og file (registry key fires, identity re-check fails).
+  Corrected by replacing their validate_dbx with the byte-exact form.
+- **FUN_180042b30's even rounding — disasm-pinned.** 0x180042bb0-0x180042c07: the
+  `sar $1` bisection + `lea 0x1(%rsi),%eax` return; prefix 1→2, 3→4 … 511→512, 0 on
+  all-zero. Their plain-prefix walk was off-by-one on odd extents.
+
+Renumber: M-117 was triple-consumed (session-40 suppress-overlap ledger row 442 / the
+S41 filing / the parallel lane's commit message) — the Dbx finding is **M-118** per
+SA-9; the stub at findings/FIXED/M-117-* preserves the path (A-005/A-006 precedent);
+the master Resolution (both lanes' records merged, theirs preserved verbatim) lives in
+findings/FIXED/M-118-*. Bounds re-truthed (min 0x80/0x10, max 0xBEBC200). Tests: 9/9
+Carve.Dbx* GREEN; full suite green at the merged tree. The matrix cell, ledger row,
+carve.md verdict, and this worklog carry the convergent record.

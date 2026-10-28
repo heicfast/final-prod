@@ -8829,82 +8829,39 @@ TEST(Carve, MultiEntryZipCarvesOnce) {
     EXPECT_EQ(az->props()->carve_format, u32(FMT_ZIP));
     EXPECT_GT(az->props()->logical_size, u64(500)) << "the full archive extent";
 }
-/* ---- M-117: the Outlook Express Dbx analyser (id 0x15, three keys) ---- */
 
+/* ---- M-118: Outlook Express Dbx (RawSpeed::DbxAnalyser, id 0x15;
+ * renumbered from the S41 lane's M-117 filing per SA-9 - the session-40
+ * suppress-overlap landing had consumed the ID) ----
+ * The og's three-key registry + the GUID/JMF6/marked identity probe +
+ * the u32@+0x7C plain size + FUN_180042b30's marked-form zero-walk
+ * (the non-zero prefix rounded up to even). Every fixture derives from
+ * the decode, never from the implementation. */
 namespace {
-
-/* the og's four Outlook Express store GUIDs (FUN_180016740's stack table
- * :17529-17541 - the CF12ADFE family's three generations + the fourth
- * variant), and the marked 16-byte pattern */
-const u8 kDbxOeGuids[4][16] = {
-    {0xCF, 0xAD, 0x12, 0xFE, 0xC5, 0xFD, 0x74, 0x6F, 0x66, 0xE3, 0xD1, 0x11, 0x9A, 0x4E, 0x00,
-     0xC0},
-    {0xCF, 0xAD, 0x12, 0xFE, 0xC6, 0xFD, 0x74, 0x6F, 0x66, 0xE3, 0xD1, 0x11, 0x9A, 0x4E, 0x00,
-     0xC0},
-    {0xCF, 0xAD, 0x12, 0xFE, 0xC7, 0xFD, 0x74, 0x6F, 0x66, 0xE3, 0xD1, 0x11, 0x9A, 0x4E, 0x00,
-     0xC0},
-    {0xCF, 0xAD, 0x12, 0xFE, 0x30, 0x9D, 0xFE, 0x26, 0x8F, 0x1A, 0xD2, 0x11, 0xAA, 0xBF, 0x00,
-     0x60},
+/* the four OE store GUIDs from the probe's stack table
+ * (FUN_180016740 :17529-17541) - dwords LE on disk */
+constexpr u32 kOeGuid[4][4] = {
+    {0xfe12adcf, 0x6f74fdc5, 0x11d1e366, 0xc0004e9a},
+    {0xfe12adcf, 0x6f74fdc6, 0x11d1e366, 0xc0004e9a},
+    {0xfe12adcf, 0x6f74fdc7, 0x11d1e366, 0xc0004e9a},
+    {0xfe12adcf, 0x26fe9d30, 0x11d21a8f, 0x6000bfaa},
 };
-const u8 kDbxMarked[16] = {0xF7, 0x89, 0x34, 0x2C, 0xF7, 0xF0, 0xDE, 0x6D,
-                           0xAF, 0x22, 0x89, 0xD1, 0x00, 0xFF, 0xF0, 0xB0};
-
+void plant_dbx_guid(std::vector<u8>& img, size_t at, size_t guid_idx, u32 declared) {
+    for (int w = 0; w < 4; ++w)
+        put32v(img, at + size_t(w) * 4, kOeGuid[guid_idx][w]);
+    put32v(img, at + 0x7C, declared);
+}
 } // namespace
 
-TEST(Carve, DbxPlainStoreGuidFamilyCarvesWithDeclaredSize) {
-    /* M-117: the classic key (CF AD 12 FE) + each of the four OE store
-     * GUIDs carves with the SELF-DECLARED size u32@+0x7C (the plain
-     * form's whole size grammar). */
-    for (int g = 0; g < 4; ++g) {
-        std::vector<u8> img(128 * 1024, 0);
-        const size_t at = 512;
-        std::memcpy(img.data() + at, kDbxOeGuids[g], 16);
-        /* a plausible self-declared store size at +0x7C */
-        const u32 declared = 0x8400;
-        put32v(img, at + 0x7C, declared);
-        MemDevice dev(std::move(img));
-        tree::ResultTree tree;
-        auto* root = tree.add_root(u"Lost Files");
-        CarveFlags flags;
-        CarveStats stats;
-        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
-                              stats),
-                  u32(OK));
-        std::vector<tree::FileNode*> all;
-        collect_children(root, all);
-        tree::FileNode* n = nullptr;
-        for (tree::FileNode* c : all)
-            if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
-                n = c;
-        ASSERT_NE(n, nullptr) << "the OE store GUID #" << g << " must carve";
-        EXPECT_EQ(n->props()->carve_format, u64(FMT_DBX));
-        EXPECT_EQ(n->props()->logical_size, size_t(declared)) << "the self-declared size@0x7C";
-        std::string name;
-        ASSERT_TRUE(cr::text::lossless_u16_to_utf8(n->props()->name, name));
-        /* the S-049 naming contract emits the UPPERCASE form
-         * (DBX_000001.DBX) - assert the case-folded ".dbx" tail */
-        ASSERT_GE(name.size(), size_t(4));
-        std::string tail = name.substr(name.size() - 4);
-        for (auto& ch : tail)
-            if (ch >= 'A' && ch <= 'Z')
-                ch = char(ch + 32);
-        EXPECT_EQ(tail, ".dbx") << "the dbx extension";
-    }
-}
-
-TEST(Carve, DbxJmf6VariantCarves) {
-    /* M-117: the JMF6 key + the version word 03 00 10 00 (the probe's
-     * u64 0x0010000336464D4A) carves as the container variant with the
-     * same declared-size grammar. */
-    std::vector<u8> img(128 * 1024, 0);
-    const size_t at = 512;
-    std::memcpy(img.data() + at, "JMF6", 4);
-    img[at + 4] = 0x03;
-    img[at + 5] = 0x00;
-    img[at + 6] = 0x10;
-    img[at + 7] = 0x00;
-    const u32 declared = 0x18000; /* fits inside the 128 KiB image */
-    put32v(img, at + 0x7C, declared);
+TEST(Carve, DbxPlainMagicCarvesWithDeclaredSize) {
+    /* the classic CFAD12FE store: the OE GUID at +0 gates, u32@+0x7C
+     * sizes - the og's plain branch (disasm `mov 0x7c(%rdx),%eax`) */
+    std::vector<u8> img(512 * 1024, 0);
+    const size_t at = 4096;
+    const u32 declared = 0x30000; /* 192 KiB mail store */
+    for (u32 i = 16; i < declared; ++i)
+        img[at + i] = u8(0x41 + (i % 26)); /* payload FIRST (keep 0x7C clear) */
+    plant_dbx_guid(img, at, 0, declared);   /* then the header + size field */
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
     auto* root = tree.add_root(u"Lost Files");
@@ -8919,23 +8876,71 @@ TEST(Carve, DbxJmf6VariantCarves) {
     for (tree::FileNode* c : all)
         if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
             n = c;
-    ASSERT_NE(n, nullptr) << "the JMF6+version-word form must carve";
-    EXPECT_EQ(n->props()->carve_format, u64(FMT_DBX_JMF6));
-    EXPECT_EQ(n->props()->logical_size, size_t(declared));
+    ASSERT_NE(n, nullptr) << "the plain OE-GUID Dbx must carve";
+    EXPECT_EQ(n->props()->carve_format, u32(FMT_DBX));
+    EXPECT_EQ(n->props()->logical_size, u64(declared)) << "size = the self-declared u32@0x7C";
+}
+
+TEST(Carve, DbxAllFourGuidsCarve) {
+    /* the probe's whole identity table: every generation must pass */
+    std::vector<u8> img(4 * 512 * 1024, 0);
+    const size_t base = 4096, stride = 512 * 1024;
+    for (int g = 0; g < 4; ++g)
+        plant_dbx_guid(img, base + size_t(g) * stride, size_t(g), 0x4000);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    for (int g = 0; g < 4; ++g) {
+        const u64 at = base + u64(g) * stride;
+        bool found = false;
+        for (tree::FileNode* c : all)
+            if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+                found = true;
+        EXPECT_TRUE(found) << "OE GUID generation " << g << " must carve";
+    }
+}
+
+TEST(Carve, DbxJmf6VariantCarves) {
+    /* the JMF6 + 03 00 01 00 versioned form (probe u64 compare
+     * 0x0100003_36464d4a) */
+    std::vector<u8> img(512 * 1024, 0);
+    const size_t at = 8192;
+    std::memcpy(img.data() + at, "JMF6\x03\x00\x10\x00", 8); /* the disasm-verified word (0x00100003) */
+    put32v(img, at + 0x7C, 0x8000);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr) << "the JMF6 variant must carve";
+    EXPECT_EQ(n->props()->carve_format, u32(FMT_DBX_JMF6));
+    EXPECT_EQ(n->props()->logical_size, 0x8000u);
 }
 
 TEST(Carve, DbxJmf6WrongVersionWordRejected) {
-    /* M-117: the probe gates the version word exactly - "JMF6" with the
-     * finding text's transcribed "03 00 01 00" (the corpus literal is
-     * 03 00 10 00) is NOT a table identity and rejects. */
-    std::vector<u8> img(128 * 1024, 0);
-    const size_t at = 512;
-    std::memcpy(img.data() + at, "JMF6", 4);
-    img[at + 4] = 0x03;
-    img[at + 5] = 0x00;
-    img[at + 6] = 0x01;
-    img[at + 7] = 0x00;
-    put32v(img, at + 0x7C, 0x8400);
+    /* the probe gates the version word exactly: "JMF6" with any other
+     * trailing dword (here 03 00 01 00 - my first landing's erroneous
+     * reading, kept as the hostile fixture) must NOT carve */
+    std::vector<u8> img(512 * 1024, 0);
+    const size_t at = 8192;
+    std::memcpy(img.data() + at, "JMF6\x03\x00\x01\x00", 8);
+    put32v(img, at + 0x7C, 0x8000);
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
     auto* root = tree.add_root(u"Lost Files");
@@ -8947,24 +8952,26 @@ TEST(Carve, DbxJmf6WrongVersionWordRejected) {
     std::vector<tree::FileNode*> all;
     collect_children(root, all);
     for (tree::FileNode* c : all)
-        EXPECT_NE(c->props()->carve_format, u64(FMT_DBX_JMF6))
-            << "the wrong version word must reject";
+        EXPECT_FALSE(!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            << "the wrong version word must NOT carve";
 }
 
-TEST(Carve, DbxMarkedFormZeroEndExtent) {
-    /* M-117: the marked form's size is the block computation - the
-     * extent from the candidate start to the LAST NON-ZERO byte (the
-     * trailing zero run trimmed, the walk ending at the first all-zero
-     * block). */
-    std::vector<u8> img(128 * 1024, 0);
-    const size_t at = 512;
-    std::memcpy(img.data() + at, kDbxMarked, 16);
-    /* two blocks of data, the last non-zero byte at at+0x405 */
-    for (size_t i = 16; i < 0x800; ++i)
-        img[at + i] = u8((i * 7) & 0xFF);
-    const size_t last_nonzero = at + 0x405;
-    for (size_t i = last_nonzero + 1; i < at + 0x800; ++i)
-        img[i] = 0;
+TEST(Carve, DbxMarkedFormZeroSectorWalk) {
+    /* the marked F789342C 16-byte pattern + FUN_180042b30's walk:
+     * content runs one full sector (512 bytes all non-zero -> prefix
+     * 512, even), the next sector carries 99 non-zero bytes (prefix 99
+     * -> EVEN-ROUNDED to 100), the third sector is ALL ZERO -> the
+     * walk's terminal size = the distance to it (1024). */
+    std::vector<u8> img(512 * 1024, 0);
+    const size_t at = 4096;
+    const u8 marked[16] = {0xF7, 0x89, 0x34, 0x2C, 0xF7, 0xF0, 0xEE, 0x6D,
+                           0xAF, 0x22, 0x89, 0xD1, 0x00, 0xFF, 0xF0, 0xB0};
+    std::memcpy(img.data() + at, marked, 16);
+    for (size_t i = 16; i < 512; ++i)
+        img[at + i] = 0x5A; /* the rest of sector 0: non-zero */
+    for (size_t i = 0; i < 99; ++i)
+        img[at + 512 + i] = 0x33; /* sector 1: 99-byte prefix (odd) */
+    /* sector 2: all zero (the img is zero-initialized) */
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
     auto* root = tree.add_root(u"Lost Files");
@@ -8980,82 +8987,106 @@ TEST(Carve, DbxMarkedFormZeroEndExtent) {
         if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
             n = c;
     ASSERT_NE(n, nullptr) << "the marked form must carve";
-    EXPECT_EQ(n->props()->carve_format, u64(FMT_DBX_MARKED));
-    EXPECT_EQ(n->props()->logical_size, (last_nonzero + 1) - at)
-        << "the extent ends at the last non-zero byte (the zero tail trimmed)";
-    std::string note;
-    ASSERT_TRUE(cr::text::lossless_u16_to_utf8(n->props()->carve_note, note));
-    EXPECT_EQ(note, "dbx-marked-zeroend-walk");
+    EXPECT_EQ(n->props()->carve_format, u32(FMT_DBX_MARKED));
+    EXPECT_EQ(n->props()->logical_size, u64(1024))
+        << "the all-zero sector terminates the extent at the sector distance";
 }
 
-TEST(Carve, DbxRejectsMagicWithoutTableIdentity) {
-    /* M-117: the key without a table identity rejects - CF AD 12 FE
-     * with a non-OE GUID tail, and each bare key without any identity
-     * tail, produce no DBX row (the probe's gate). */
-    {
-        std::vector<u8> img(128 * 1024, 0);
-        const size_t at = 512;
-        std::memcpy(img.data() + at, "\xCF\xAD\x12\xFE", 4);
-        std::memcpy(img.data() + at + 4, "\xDE\xAD\xBE\xEF\xCA\xFE\xBA\xBE\x13\x37\x13\x37", 12);
-        put32v(img, at + 0x7C, 0x8400);
-        MemDevice dev(std::move(img));
-        tree::ResultTree tree;
-        auto* root = tree.add_root(u"Lost Files");
-        CarveFlags flags;
-        CarveStats stats;
-        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
-                              stats),
-                  u32(OK));
-        std::vector<tree::FileNode*> all;
-        collect_children(root, all);
-        for (tree::FileNode* c : all)
-            EXPECT_NE(c->props()->carve_format, u64(FMT_DBX)) << "the non-OE GUID must reject";
-    }
-    for (int variant = 0; variant < 3; ++variant) {
-        std::vector<u8> img(64 * 1024, 0);
-        const size_t at = 512;
-        if (variant == 0)
-            std::memcpy(img.data() + at, "\xCF\xAD\x12\xFE", 4);
-        else if (variant == 1)
-            std::memcpy(img.data() + at, "JMF6", 4);
-        else
-            std::memcpy(img.data() + at, "\xF7\x89\x34\x2C", 4);
-        /* the identity tail stays all-zero: none of the probe's table
-         * identities matches */
-        MemDevice dev(std::move(img));
-        tree::ResultTree tree;
-        auto* root = tree.add_root(u"Lost Files");
-        CarveFlags flags;
-        CarveStats stats;
-        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
-                              stats),
-                  u32(OK));
-        std::vector<tree::FileNode*> all;
-        collect_children(root, all);
-        for (tree::FileNode* c : all)
-            EXPECT_NE(c->props()->carve_format, u64(FMT_DBX_JMF6))
-                << "the bare key without identity must reject (variant " << variant << ")";
-    }
+TEST(Carve, DbxMarkedFormOddPrefixRoundsEven) {
+    /* FUN_180042b30's landing: the non-zero prefix rounds UP TO EVEN -
+     * a marked pattern alone in its sector (16 non-zero bytes -> prefix
+     * 16, even, stays 16) followed by a zero sector: the FIRST window's
+     * own computation is distance 0 + 16; the zero sector terminates at
+     * distance 512. The terminal value (512) wins. */
+    std::vector<u8> img(512 * 1024, 0);
+    const size_t at = 4096;
+    const u8 marked[16] = {0xF7, 0x89, 0x34, 0x2C, 0xF7, 0xF0, 0xEE, 0x6D,
+                           0xAF, 0x22, 0x89, 0xD1, 0x00, 0xFF, 0xF0, 0xB0};
+    std::memcpy(img.data() + at, marked, 16);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr);
+    EXPECT_EQ(n->props()->logical_size, u64(512))
+        << "the zero sector right after the pattern: extent = one sector";
 }
 
-TEST(Carve, DbxRegistryRowsCarryTheThreeOgKeys) {
-    /* M-117: the three registry rows exist, share the "dbx" extension
-     * and the shared validator (the og's duplicate-key policy), and the
-     * F8 gate + self-probe stay green over them. */
-    const Signature* reg = registry();
-    size_t seen = 0;
-    for (size_t i = 0; i < registry_size(); ++i) {
-        const Signature* s = reg + i;
-        if (s->id == FMT_DBX_JMF6 || s->id == FMT_DBX || s->id == FMT_DBX_MARKED) {
-            ++seen;
-            EXPECT_EQ(std::string(s->ext), "dbx");
-            EXPECT_EQ(s->header_len, 4u);
-            EXPECT_EQ(s->header_offset, 0u);
-            EXPECT_EQ(s->min_size, 16u) << "the probe's own 16-byte identity window";
-            EXPECT_EQ(s->max_size, 0xFFFFFFFFull) << "no og bound - the u32 field's own range";
-        }
+TEST(Carve, DbxRejectsWrongGuid) {
+    /* CF AD 12 FE with a continuation OUTSIDE the four-GUID table: the
+     * probe's identity gate rejects (no row) */
+    std::vector<u8> img(512 * 1024, 0);
+    const size_t at = 4096;
+    put32v(img, at, 0xfe12adcf);
+    put32v(img, at + 4, 0xdeadbeef); /* not any table continuation */
+    put32v(img, at + 8, 0x11d1e366);
+    put32v(img, at + 12, 0xc0004e9a);
+    put32v(img, at + 0x7C, 0x4000);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    for (tree::FileNode* c : all)
+        EXPECT_FALSE(!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            << "a non-table GUID must NOT carve";
+}
+
+TEST(Carve, DbxRejectsTruncatedMarkedPattern) {
+    /* F7 89 34 2C with a wrong continuation: the marked re-check fails */
+    std::vector<u8> img(512 * 1024, 0);
+    const size_t at = 4096;
+    const u8 half[8] = {0xF7, 0x89, 0x34, 0x2C, 0xF7, 0xF0, 0xEE, 0x6D};
+    std::memcpy(img.data() + at, half, 8);
+    std::memset(img.data() + at + 8, 0xAA, 8); /* wrong tail */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    for (tree::FileNode* c : all)
+        EXPECT_FALSE(!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            << "a broken marked pattern must NOT carve";
+}
+
+TEST(Carve, DbxRegistryCarriesAllThreeKeys) {
+    /* the F8 gate's table: every Dbx row present, keyed, validated */
+    const Signature* tab = registry();
+    const size_t n = registry_size();
+    ASSERT_EQ(n, size_t(FMT_COUNT));
+    int keys = 0;
+    for (size_t i = 0; i < n; ++i) {
+        const Signature& s = tab[i];
+        if (s.header_len == 4 && std::memcmp(s.header, "JMF6", 4) == 0 && s.validator != nullptr)
+            ++keys;
+        if (s.header_len == 4 && s.header[0] == 0xCF && s.header[1] == 0xAD &&
+            s.header[2] == 0x12 && s.header[3] == 0xFE && s.validator != nullptr)
+            ++keys;
+        if (s.header_len == 4 && s.header[0] == 0xF7 && s.header[1] == 0x89 &&
+            s.header[2] == 0x34 && s.header[3] == 0x2C && s.validator != nullptr)
+            ++keys;
     }
-    EXPECT_EQ(seen, 3u) << "three rows, one per og key";
+    EXPECT_EQ(keys, 3) << "all three Dbx registry keys present (JMF6 / CFAD12FE / F789342C)";
     std::vector<const Signature*> bad;
     EXPECT_EQ(validate_registry(&bad), 0u);
     EXPECT_EQ(self_probe_registry(&bad), 0u);
