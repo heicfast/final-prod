@@ -3377,3 +3377,30 @@ guard. Comparison basis: spans on the scan device (the same same-disk
 convention the absolute-basis check documents; spans on other member
 disks are disjoint hardware).
 **VERDICT:** ACCEPTED (safety posture, documented).
+
+### D-112 — the image-stem label fallback is a last-resort only (N-133 resolution rider, REGISTERED DIVERGENCE — the corrected precedence)
+
+M-079's image-target leg derived the session/auto-save label from the image
+FILENAME STEM on the refuted premise that "the og has no image-scan naming
+semantics." N-133 refuted the premise first-hand (the og's engines decode the
+on-disk label: NTFS $Volume NTFSSearchDLL:647-676 + FUN_18003f3a0
+:50963-50980; ext4 s_volume_name, algorithms-v2 SS2 step 5 — image scans
+included). The corrected precedence landed: **--label > the engine-decoded
+on-disk label > the image-stem fallback** — the orchestrator's engine pass
+replaces the DERIVED stem (ScanConfig.volume_label_derived, set only by the
+stem leg) with the engine decode (NTFS $Volume / ext4 s_volume_name / the FAT
++0x2B boot field / the exFAT root 0x83 dentry — probe_slice_volume_label),
+and the CLI/UI auto-save naming consults it (stats.volume_label).
+
+The REMAINING divergence, registered here: a label-LESS image keeps the
+filename-stem label where the og's session would carry no volume label (its
+auto-name falls back to the timestamp-only shape). Rationale: the stem keeps
+the user's mental model of which image produced the session (a recovery-tool
+convenience the og lacks for images); the engine label always wins when the
+volume carries one. Evidence: the N-133 Resolution + the tests
+VolumeLabel.CallerValueWins / Ext4FromSuperblock / NtfsFromVolumeRecord /
+FatFromBootSector. A second correction recorded in the Resolution: exFAT's
+label lives in the root-dir 0x83 dentry (EntryType@0, CharacterCount@1,
+label UTF-16@4 — the spec form the M-079 spec-repair pinned), not a boot
+field (the finding's "+0x80" reading was the inference; the corpus deep-dive
+documents the dentry).

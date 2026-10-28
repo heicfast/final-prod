@@ -2172,8 +2172,18 @@ u32 scan_run_impl(cr_ui_scan* scan) {
 #else
                                                                                             "/";
 #endif
-        const std::string name =
-            session::auto_session_name(u8_to_u16(s->cfg.volume_label)) + ".crsf";
+        /* N-133: the engine-decoded on-disk label fills an EMPTY label
+         * (the UI layer has no stem fallback - an ABI-supplied label is
+         * the caller's explicit choice and is never replaced) */
+        char label[33] = {0};
+        if (s->cfg.volume_label[0] != 0) {
+            for (size_t k = 0; k + 1 < sizeof(label) && s->cfg.volume_label[k]; ++k)
+                label[k] = s->cfg.volume_label[k];
+        } else if (s->stats.volume_label[0] != 0) {
+            for (size_t k = 0; k + 1 < sizeof(label) && s->stats.volume_label[k]; ++k)
+                label[k] = s->stats.volume_label[k];
+        }
+        const std::string name = session::auto_session_name(u8_to_u16(label)) + ".crsf";
         const u32 arc = write_session_atomic(s, dir + sep + name, nullptr, nullptr);
         s->autosaved = (arc == OK);
         if (s->event_fn) {

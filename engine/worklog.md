@@ -4660,3 +4660,42 @@ Handoff — the highest-value next moves from THIS lane's product:
     SHAs and the history paths either way);
 (5) the standing order (S-052 first — silently wrong LDM bytes, now the board's top
     SEVERE after S-053's landing; the carve school-2/3 children).
+### Session-39 fix log — N-133 landed (the engine-side on-disk volume labels)
+
+**Finding:** MINOR N-133 (the engine-side labels never decoded/surfaced; the
+ext4 half-decode dead; M-079's image-stem leg baking the refuted premise).
+**Classification:** CONFIRMED-DIVERGENCE with TWO corrections recorded: the
+corpus re-verification (a) confirmed the NTFS/ext4 decodes exactly as cited
+(NTFSSearchDLL :647-676 + FUN_18003f3a0 :50963-50980; algorithms-v2 SS2
+step 5), (b) corrected the exFAT half — the label is the ROOT-DIR 0x83
+dentry (spec 7.2: EntryType@0, CharacterCount@1, UTF-16@4 — the layout the
+M-079 spec-repair in test_fixtures.hpp pins), NOT the "+0x80" boot field
+the finding inferred; the FAT +0x2B field landed as the format's standard
+structure.
+**Fix:** orchestrator::probe_slice_volume_label (cr_vollabel.cpp — the
+family detection + the four decoders; the NTFS one through the REAL
+NtfsVolume::open + read_record(3) + fixup + enum_attributes, the 0x60
+resident value wide->narrow with the N-016b U+FFFD rule). Wiring: the
+decode rides run_engine_dispatch's tail into EngineRun.volume_label (the
+og's architecture — the engine layer decodes at volume init, image scans
+included); the main pass replaces a DERIVED label
+(ScanConfig.volume_label_derived — set only by fill_volume_label's
+image-stem leg) with the engine label and surfaces ScanStats.volume_label;
+the rrecov auto-save + the cr_ui auto-save apply the corrected precedence
+(--label > engine label > image stem); the ext4 engine's dead
+Volume::volume_name now surfaces through Ext4ScanStats.volume_label;
+M-079's refuted-premise comment replaced with the corrected precedence
+note. PARITY-DELTAS D-112 registers the remaining divergence (a label-less
+image keeps the stem — the deliberate last-resort).
+**Tests:** VolumeLabel.Ext4FromSuperblock / Ext4LabellessYieldsEmpty /
+FatFromBootSector / FatLabellessYieldsEmpty / NtfsFromVolumeRecord (the
+full bootstrap path) / CallerValueWins / UnknownFamilyLeavesFallback.
+Suite 1086/1086 (1044 / 42 Win-only skipped / 0 failed); clang-format
+clean.
+**Known residual (recorded in the Resolution):** the HFS+ half (the
+volume-name key (-2) catalog-record walk) not landed — no corpus-decoded
+gate, no test in the finding's own plan; the probe returns
+ERR_UNSUPPORTED for HFS+ (the stem fallback, unchanged behavior).
+**Trail:** findings/FIXED/N-133; ledger row (271 main + 20 OQ = 291);
+CROSS-REF-MATRIX cell → MATCH; SUMMARY (board 46 active);
+PARITY-DELTAS D-112.

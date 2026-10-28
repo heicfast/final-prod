@@ -382,6 +382,7 @@ belongs to the fix lane; this census is the audit-side truth record.
 | N-142 | MINOR | ui (the dead CrPreview origin pair; rebase-leftover hygiene) | (this session — cite-by-subject "fix(ui): N-142 - the dead CrPreview origin pair removed") | `findings/FIXED/N-142-preview-handle-dead-wiring-rebase-leftover.md` |
 | N-112 | MINOR | carve | (session-39 fix lane — cite-by-title: "fix(carve): N-112 - the LZH entry-chain walk lands") | `findings/FIXED/N-112-lzh-carve-absent-list-layer-lh-method-gate-entry-walk-decoded.md` |
 | N-113 | MINOR | carve | (session-39 fix lane — cite-by-title: "fix(carve): N-113 - the text school lands") | `findings/FIXED/N-113-text-school-list-probes-absent-vcf-gpx-osp-pos-chfp-decoded.md` |
+| N-133 | MINOR | orchestrator/engines | (session-39 fix lane — cite-by-title: "fix(orchestrator+engines): N-133 - the engine-side on-disk volume labels land") | `findings/FIXED/N-133-engine-side-volume-labels-never-surfaced.md` |
 
 ## Go-forward convention (established by this purge, per the user instruction; AMENDED session-39 AND session-11D — BOTH fix lanes received the same user instruction "put fixed findings in fixed directory")
 

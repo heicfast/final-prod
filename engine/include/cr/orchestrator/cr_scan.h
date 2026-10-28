@@ -240,8 +240,19 @@ struct ScanConfig {
      * stem; whole-disk scans leave it empty (the timestamp-only
      * auto_<ts> shape - the og has no whole-disk scan to mirror). ABI
      * hosts supply it via cr_ui_open_volume's identity card. UTF-8,
-     * NUL-padded into the session record. */
+     * NUL-padded into the session record.
+     *
+     * N-133 (the M-079 premise correction): the og's ENGINES decode the
+     * on-disk label (NTFS $Volume / ext4 s_volume_name / the FAT boot
+     * field / the exFAT root dentry) - image scans included. The derived
+     * marker is set by the CLI's image-stem fallback leg; the
+     * orchestrator's engine pass REPLACES a derived label with the
+     * engine-decoded one (the corrected precedence: --label > engine
+     * on-disk label > image stem). An explicit --label or a live-volume
+     * GetVolumeInformationW label is NOT derived (the OS label IS the
+     * on-disk label for mounted volumes) and is never replaced. */
     char volume_label[32] = {0};
+    bool volume_label_derived = false; /* the stem fallback: replaceable */
 
     /* Device identity card (SESS-2/GAP-W3-9a): model/serial from the disk
      * enumeration, UTF-8 NUL-padded. Informational - the volume identity
@@ -336,6 +347,11 @@ struct ScanStats {
     u64 deleted_found = 0;
     u64 carved_found = 0;
     u64 lost_partitions = 0;
+    /* N-133: the engine-decoded on-disk volume label (empty when the
+     * volume is label-less or the family is unknown) - the post-scan
+     * consumers (the CLI/UI auto-save naming) read it to apply the
+     * engine-label > image-stem precedence the finding corrected. */
+    char volume_label[33] = {0};
     u64 bytes_scanned = 0;
     u64 elapsed_ms = 0;
     u64 cached_hits = 0; /* R1.6 pipe counters (diagnostics) */

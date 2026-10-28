@@ -686,6 +686,11 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
         stats.backup_sb_block = v.backup_sb_block;
     }
     v.dev = slice;
+    /* N-133: surface the engine's own s_volume_name decode (the og's
+     * volume-init label read - was dead code with no consumer) */
+    for (size_t k = 0; k + 1 < sizeof(stats.volume_label) && v.sb.volume_name[k]; ++k)
+        stats.volume_label[k] = char(v.sb.volume_name[k]);
+    stats.volume_label[sizeof(stats.volume_label) - 1] = 0;
     if ((v.sb.feature_incompat & INCOMPAT_BIGALLOC) != 0)
         return ERR_UNSUPPORTED; /* cluster-granular bitmaps/extents: emitting
                                  * block-granular extents would be WRONG -

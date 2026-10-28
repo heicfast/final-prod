@@ -508,7 +508,15 @@ bookkeeping file renumbers to N-135, convergent with session-11B's own renumber)
   and the POS needle settled first-hand from FUN_18001a470 (the finding's open
   question); 9 tests.
 
-**Board now: 47 active (6 SEVERE · 20 MAJOR · 16 MINOR · 5 INFO) · 290 resolved
+- **N-133** (MINOR — orchestrator/engines): the engine-side on-disk volume
+  labels landed — probe_slice_volume_label (the four family decoders, the
+  NTFS $Volume path through the real bootstrap), the EngineRun/stats/cfg
+  wiring, the corrected precedence at all three consumer sites, M-079's
+  refuted-premise comment replaced, the ext4 dead decode surfaced, PARITY-
+  DELTAS D-112 registered; two finding corrections (the exFAT dentry form;
+  the HFS+ half as the known residual); 7 tests.
+
+**Board now: 46 active (6 SEVERE · 20 MAJOR · 15 MINOR · 5 INFO) · 291 resolved
 ledger rows · 5 tracked-open.**
 
 ## Session-10 lane-B delta (2026-10-29 — the continuation deep audit, RECONCILED AT THE SECOND PUSH with the SA-10 lead close + the truth batches + the fix lanes)

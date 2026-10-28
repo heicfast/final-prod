@@ -43,6 +43,11 @@ struct Ext4ScanStats {
                                     backup superblock (0 = primary in use) */
     bool gdt_from_backup = false; /* S-027: descriptors came from the backup
                                       GDT after the found SB, not the front */
+    /* N-133: the engine-decoded s_volume_name (the og's Ext4Volume ctor
+     * strncpy's it "for the UI" - algorithms-v2 SS2 step 5). NUL-padded;
+     * empty = a label-less volume. The engine's own decode surfaced - it
+     * was dead code before this field. */
+    char volume_label[17] = {0};
 };
 
 struct Ext4ScanFlags {

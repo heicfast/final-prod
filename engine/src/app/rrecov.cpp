@@ -318,21 +318,27 @@ void fill_identity_card(u32 disk, orchestrator::ScanConfig& cfg) {
     narrow(disks[disk].serial, cfg.volume_serial, sizeof(cfg.volume_serial));
 }
 
-/* M-079: the volume label for the session record + the auto-save name
- * (the og's GetVolumeName - rsf-format:167; the auto_<vol>_ naming
- * :443-451 with every corpus sample labeled). The og derives it from
- * the scanned volume itself; the CLI asks the win layer by letter. An
- * explicit --label always wins (checked by the caller: empty = derive,
- * nonempty = the user's). Whole-disk targets have no volume name (the
- * og has no whole-disk scan; the timestamp-only shape is the documented
- * fallback). Image targets derive the label half from the image
- * filename stem (the og has no image-scan naming semantics - the
- * S-030-registered divergence's naming half, documented here). */
+/* M-079 + N-133: the volume label for the session record + the
+ * auto-save name (the og's GetVolumeName - rsf-format:167; the
+ * auto_<vol>_ naming :443-451 with every corpus sample labeled). The og
+ * derives it from the scanned volume itself; the CLI asks the win layer
+ * by letter for live volumes. An explicit --label always wins (checked
+ * by the caller: empty = derive, nonempty = the user's). Whole-disk
+ * targets have no volume name (the timestamp-only shape is the
+ * documented fallback). Image targets: the filename stem is the
+ * DERIVED fallback - N-133 corrected M-079's refuted premise (the og's
+ * engines DO decode the on-disk label, image scans included: NTFS
+ * $Volume NTFSSearchDLL:647-676/:50963-50980, ext4 s_volume_name
+ * algorithms-v2 SS2 step 5); the derived marker lets the orchestrator's
+ * engine pass replace the stem with the engine-decoded on-disk label
+ * (the corrected precedence: --label > engine label > image stem). */
 void fill_volume_label(OpenResult& target, orchestrator::ScanConfig& cfg) {
     if (cfg.volume_label[0] != 0)
         return; /* the explicit --label override */
     if (target.is_image) {
-        /* the image filename's stem: "disk.img" -> "disk" */
+        /* the image filename's stem: "disk.img" -> "disk" - the derived
+         * fallback (replaced by the engine-decoded on-disk label at scan
+         * time when the volume carries one) */
         const wchar_t* path = target.image_path.c_str();
         const wchar_t* base = wcsrchr(path, L'\\');
         base = base ? base + 1 : path;
@@ -345,6 +351,7 @@ void fill_volume_label(OpenResult& target, orchestrator::ScanConfig& cfg) {
         for (size_t k = 0; k < n && base[k] < 0x80; ++k)
             cfg.volume_label[k] = char(base[k]);
         cfg.volume_label[n] = 0;
+        cfg.volume_label_derived = true; /* N-133: replaceable by the engine */
         return;
     }
     if (target.volume_letter == 0)
@@ -1824,6 +1831,15 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
      * saved, which also covers the not-import case for resumed runs). */
     if (cfg.autosave_dir[0] != '\0' && effective_out.empty() &&
         (stats.files_found != 0 || stats.lost_partitions != 0)) {
+        /* N-133: the engine-decoded on-disk label replaces the derived
+         * image-stem fallback before the name is composed (the corrected
+         * precedence: the og's session carries the engine label, not the
+         * filename stem) */
+        if (stats.volume_label[0] != 0 && cfg.volume_label_derived) {
+            for (size_t k = 0; k + 1 < sizeof(cfg.volume_label) && stats.volume_label[k]; ++k)
+                cfg.volume_label[k] = stats.volume_label[k];
+            cfg.volume_label[sizeof(cfg.volume_label) - 1] = 0;
+        }
         const std::string name8 =
             session::auto_session_name(text::utf8_to_u16(cfg.volume_label)) + ".crsf";
         std::wstring dir;

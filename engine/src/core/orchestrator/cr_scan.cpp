@@ -13,6 +13,7 @@
  */
 
 #include "cr/orchestrator/cr_scan.h"
+#include "cr/orchestrator/cr_vollabel.h"
 
 #include <algorithm>
 #include <functional>
@@ -1326,6 +1327,11 @@ struct EngineRun {
     u64 files = 0;
     u64 deleted = 0;
     storage::FreeMap free_map; /* S-009: the bitmap truth (main pass only) */
+    /* N-133: the engine-side on-disk volume label (the og's engines decode
+     * it from the volume's own metadata - NTFS $Volume, ext4
+     * s_volume_name, the FAT boot field, the exFAT root-dentry; works
+     * identically for image scans). Empty = the volume is label-less. */
+    char volume_label[33] = {0};
 };
 
 /* S-051/M-104 (diff-to-fix): the whole-disk flow's per-volume display
@@ -1518,6 +1524,12 @@ EngineRun run_engine_dispatch(FsFamily fam, IStorageDevice* slice, bool deep_ext
      * disk map's cell math lines up with the extent overlays. */
     if (r.free_map.valid() && slice->absolute_base() != 0)
         r.free_map.base_byte += slice->absolute_base();
+    /* N-133: the engine-side on-disk label decode - the og's engines read
+     * the volume's own metadata (image scans included); the probe is
+     * informational (a failed decode leaves the label empty, the scan is
+     * unaffected - the og's own posture on a failed $Volume read). */
+    if (r.rc == OK)
+        (void)probe_slice_volume_label(slice, r.volume_label);
     r.rc = candidate_mode ? u32(OK) : rc;
     return r;
 }
@@ -1759,6 +1771,25 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
         return er.rc;
     stats.files_found += er.files;
     stats.deleted_found += er.deleted;
+    /* N-133: the engine-decoded label surfaces here - the og's engines
+     * decode the on-disk label at volume init and the volume node/UI
+     * carries it. Precedence (the finding's corrected order): the explicit
+     * --label > the ENGINE on-disk label > the image-stem fallback. The
+     * derived marker (set by fill_volume_label's stem leg) lets the engine
+     * label replace the stem; the session record + every post-scan
+     * consumer read the updated cfg. */
+    if (er.volume_label[0] != 0) {
+        for (size_t k = 0; k + 1 < sizeof(stats.volume_label) && er.volume_label[k]; ++k)
+            stats.volume_label[k] = er.volume_label[k];
+        if (cfg_.volume_label_derived) {
+            /* replace the derived stem with the engine-decoded on-disk
+             * label - copy INCLUDING the terminator so no stem bytes leak */
+            size_t k = 0;
+            for (; k + 1 < sizeof(cfg_.volume_label) && er.volume_label[k]; ++k)
+                cfg_.volume_label[k] = er.volume_label[k];
+            cfg_.volume_label[k] = 0;
+        }
+    }
     /* S-009: the main pass owns the free-map truth (candidate probes
      * never overwrite it - a lost volume's bitmap is not the slice's). */
     stats.free_map = er.free_map;

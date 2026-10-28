@@ -72,6 +72,7 @@ add_library(cr_core STATIC
     nvramfix/cr_nvramfix.cpp
     refs/cr_refs_engine.cpp
     orchestrator/cr_scan.cpp
+    orchestrator/cr_vollabel.cpp
     tree/cr_node.cpp
     tree/cr_grading.cpp
     tree/cr_diskmap.cpp
