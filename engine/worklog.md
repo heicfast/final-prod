@@ -492,3 +492,23 @@ Stage Summary:
   the parallel lanes' pinned queues. Watching: the installer round-trip
   job + the CI lane at 624db00.
 >>>>>>> 32a14d1 (feat(cli+ci): OQ-S4-3's TTFR harness — the event-stream probe on rrecov scan + the staged-scenarios extraction)
+
+---
+Task ID: PARITY-FIX-6b (the TTFR extraction port to the rebuilt CI lane)
+Agent: main session
+
+Work Log:
+- The owner's CI consolidation (566c483) landed mid-flight: checks/release/
+  test-benchmark replace the 5-workflow set; staged-scenarios.yml +
+  verify-scenario.ps1 are GONE. The rebase: verify-scenario.ps1 deleted
+  (their side wins - the new lane owns the harness); the rrecov probe kept
+  (harness-agnostic).
+- The extraction PORTED to Run-Benchmark.ps1: the per-mode scan block
+  (which already ran every scan with --log stage-<mode>.log) now extracts
+  ttfr_ms/ttfr_first_files into $cleanPerf.scans[] -> the evidence tree's
+  clean-volume-benchmark.json (+ the stage logs already land in evidence).
+- The OQ-S4-3 file's harness section corrected to name the new lane.
+
+Stage Summary:
+- The TTFR probe + extraction now ride the owner's lane of record. The
+  measurement = its next dispatch.

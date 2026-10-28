@@ -281,6 +281,21 @@ foreach ($mode in $ScanModes) {
         files = if ($summary) { $summary.files } else { $null }
         bytes_scanned = if ($summary) { $summary.bytes_scanned } else { $null }
         elapsed_ms = if ($summary) { $summary.elapsed_ms } else { $null }
+        # OQ-S4-3's TTFR half: the CLI's event-stream probe logs ONE line at
+        # the first positive FilesFound event (run-elapsed ms,
+        # pause-compensated; the honest granularity - counters coalesce at
+        # stage boundaries). Extracted per mode so the lane's dispatches
+        # transcribe it (the probe-target correction: ride this lane).
+        ttfr_ms = $null; ttfr_first_files = $null
+    }
+    $ttfrLine = Select-String -Path (Join-Path $benchDir "stage-$mode.log") `
+        -Pattern 'ttfr_ms=(\d+) first_files=(\d+) stage=(\d+)' -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    if ($ttfrLine) {
+        $cleanPerf.scans[-1].ttfr_ms = [long]$ttfrLine.Matches[0].Groups[1].Value
+        $cleanPerf.scans[-1].ttfr_first_files = [long]$ttfrLine.Matches[0].Groups[2].Value
+        Write-Host ("  scan {0}: TTFR {1} ms (first {2} file(s))" -f $mode,
+            $cleanPerf.scans[-1].ttfr_ms, $cleanPerf.scans[-1].ttfr_first_files)
     }
     $out | Set-Content (Join-Path $benchDir "scan-$mode.stdout") -Encoding utf8
     Write-Host ("  scan {0}: {1} ms (exit {2})" -f $mode, $sw.ElapsedMilliseconds, $LASTEXITCODE)

@@ -208,10 +208,13 @@ The probe harness landed (the measurement = the lane's next dispatch):
   ScanController construction (the controller copies the config); the
   once-flag is atomic (events fire from worker threads). Parse-gated
   (win_syntax_check); no new CLI flag — the existing `--log` carries it.
-- `verify-scenario.ps1` (the staged-scenarios lane's acceptance script)
-  passes `--log engine-log.txt`, extracts the line into the evidence JSON
-  (`hash-verification.json`'s new `ttfr` block) and prints it; the
-  evidence artifact upload already carries the whole evidence dir.
+- The extraction lives in the CI-rebuilt lane's harness
+  (`.github/scripts/Run-Benchmark.ps1` — the owner's 3-lane consolidation
+  replaced staged-scenarios.yml mid-landing; the harness already ran every
+  scan with `--log stage-<mode>.log`, so the probe line lands there without
+  a flag change): the per-mode scan block extracts `ttfr_ms` /
+  `ttfr_first_files` into the clean-benchmark performance JSON
+  (`$cleanPerf.scans[]`) and prints the TTFR line per mode.
 
 **Remaining:** the lane's next green dispatch transcribes the TTFR number
 into this file (execution-bound — daily cron 05:30 or a manual dispatch);
