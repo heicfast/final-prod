@@ -40,3 +40,20 @@ The full pass list (every test OK): AbiVersionAndLastError, CarveFormatRegistryE
 1. **The parallel fix window's product claims hold where executable:** the S-054 fences are green first-hand; the ABI surface's contract tests (AbiVersionAnnotationsAreTruthful, AbiHeaderNamesNoPhantomErrorMacros, DriverWireCodesFreeOfPhantomZeroInDocs — the doc-truth test class) all pass at HEAD.
 2. **The main suite is NOT executable at HEAD** — the trail's post-`1fb7603b` green claims are unverifiable until M-120's one-line resolution lands (the 43-minors lane's 1203/1203 was honestly executed at the pre-red `632518b7`).
 3. The product library and the ABI layer are unaffected by the red — the defect is confined to the test source file.
+
+---
+
+## Post-repair re-run (the M-120 closure, same lane, tree `7585a52a` with `b00118b5` folded in)
+
+The parallel repair lane landed `b00118b5` (the conflict-marker residue removed, the
+both-sides-folded case-insensitive typed-extension compare kept) within the same window as
+M-120's filing. This lane's verification at the post-repair tree:
+
+- `make -j$(nproc)` → **cr_tests BUILDS** (the conflict-marker errors gone).
+- `./tests/cr_tests` → **[  PASSED  ] 1104 tests.** / **85 SKIPPED** (the Win-only lane:
+  ExifOrientation parameterization, ThumbnailTiff variants, the other Win-gated suites) /
+  **0 FAILED**.
+
+The full suite is green, first-hand, at the current origin/main. M-120 retired FIXED
+(convergent) — the resolution detail (the folded-compare choice vs the introducing
+message's direct-compare declaration) recorded in the finding's Resolution.

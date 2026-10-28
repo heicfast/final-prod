@@ -80,3 +80,30 @@ None (the finding is the broken test file itself; its resolution restores the ex
 ## Open questions
 
 None. (Which side of the compare to keep is answered by the introducing commit's own message; if the engineering team disagrees, the case-table audit in fix-plan step 2 decides it either way.)
+
+
+---
+
+## Resolution (S42, convergent — filed and executed-verified by this lane; the repair landed by the parallel lane)
+
+**FIXED at `b00118b5`** ("repair(tests): the 59bd5208 conflict-marker residue removed from
+test_carve.cpp (main failed -Werror at db228b75) — the both-sides-folded case-insensitive
+typed-extension compare kept") — pushed within the same window as this finding's filing
+(the two motions were parallel; the repair lane's commit message independently names the
+red at `db228b75`, convergent with this finding's reproduction).
+
+**Resolution detail:** the repair kept the BOTH-SIDES-FOLDED case-insensitive compare
+(the HEAD side's lowercase-both-halves semantics), NOT the direct compare this finding's
+fix plan recommended (which followed the introducing commit's own message). The folded
+compare is a semantic superset (accepts both cases) and the S-049 contract's 13 pin tests
+pass under it — the deviation-from-message resolution is recorded here; the contract holds
+either way.
+
+**Executed verification (this lane, the post-repair tree `7585a52a`):**
+`make -j$(nproc)` → `cr_tests` builds; `./tests/cr_tests` → **1104 PASSED / 85 SKIPPED
+(the Win-only lane) / 0 FAILED** — the full suite green, first-hand. The acceptance
+criteria met: the markers gone (`grep -c '^<<<<<<<'` on the file → 0), `cr_tests` builds,
+the suite green.
+
+**Trail:** findings/FIXED/M-120 (this file); ledger row; the executed evidence extended
+(`evidence/executions/s42-build-at-head.md` §post-repair); SUMMARY delta.
