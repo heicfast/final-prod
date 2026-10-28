@@ -27,7 +27,10 @@ Write-Host "== [1/10] clang-format check =="
 $cf = Get-Command clang-format -ErrorAction SilentlyContinue
 if (-not $cf) {
     $pip = Get-Command pip -ErrorAction SilentlyContinue
-    if ($pip) { Info "installing clang-format via pip..."; pip install clang-format 2>$null | Out-Null; $cf = Get-Command clang-format -ErrorAction SilentlyContinue }
+    # PINNED to the CI gate's version (checks.yml) - an unpinned latest
+    # drifted from the lanes' 18.x tooling and kept the gate red on
+    # 18-formatted code; the pin and the tree move together
+    if ($pip) { Info "installing clang-format 18.1.8 via pip..."; pip install --quiet --disable-pip-version-check clang-format==18.1.8 2>$null | Out-Null; $cf = Get-Command clang-format -ErrorAction SilentlyContinue }
 }
 if ($cf) {
     $files = Get-ChildItem -Recurse -Include *.h,*.hpp,*.cpp,*.c -Path src,include,tests | ForEach-Object FullName

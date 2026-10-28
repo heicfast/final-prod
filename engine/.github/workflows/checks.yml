@@ -78,15 +78,17 @@ jobs:
           key: pip-clangformat-win2022
           restore-keys: pip-clangformat-win2022
 
-      # ci-local.ps1 component [1]. clang-format is installed UNPINNED on
-      # purpose: the tree is formatted with the repo's own local-gate
-      # convention (ci-local.ps1 installs latest too) - pinning a version
-      # the tree was not formatted with would fail today; the shared drift
-      # risk is the documented trade (CI-LOCAL.md section 4).
+      # ci-local.ps1 component [1]. clang-format is PINNED to 18.1.8 - the
+      # version the active lanes' containers and the last-green CI era used
+      # (the unpinned 'latest' policy died on the drift: 23.x disagrees
+      # with 18-formatted code, run 40692407577). The pin and the tree move
+      # TOGETHER: bumping the pin is one commit that re-formats the tree
+      # with the new version and updates ci-local.ps1 in the same change
+      # (the local gate mirrors CI or developers stay red).
       - name: '[1/2] clang-format check (src/ include/ tests/)'
         shell: pwsh
         run: |
-          pip install --quiet --disable-pip-version-check clang-format
+          pip install --quiet --disable-pip-version-check clang-format==18.1.8
           if ($LASTEXITCODE -ne 0) { Write-Host '::error::pip install clang-format failed'; exit 1 }
           $files = Get-ChildItem -Recurse -Include *.h,*.hpp,*.cpp,*.c -Path src,include,tests | ForEach-Object FullName
           if (-not $files -or $files.Count -eq 0) { Write-Host '::error::no sources found to format-check'; exit 1 }
