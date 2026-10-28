@@ -2780,3 +2780,34 @@ Stage Summary:
   500 MB; the shipped RawConfig posture verified (MOBI=1 — default ON).
   Tests: 3 Carve.Mobi* (incl. the non-step-aligned-tag fallback pin);
   suite 1088/1088.
+
+---
+## Session-11 open (2026-10-28 17:49 UTC — the user's session-2 continuation: remove-the-fixed + go-deeper + mark-all-remaining)
+
+Baseline: **core `7990a86d`** (pulled at open: the mid-session M-096 landing absorbed —
+MOBI carve fixed `6e37dc21` + conformed `7990a86d`) · **corpus `be0cfe9`**. Prompt saved
+redacted at `worklog/session-11-diff-audit-prompt.md`, read twice. Board at open:
+**55 active** (6 SEVERE · 23 MAJOR · 21 MINOR · 5 INFO) / ~282 FIXED-LEDGER rows /
+4 tracked-open (OQ-S4-3, OQ-S8-1, OQ-S10-1, OQ-S10-2).
+
+Session decomposition (the user's three asks):
+1. **Remove-the-fixed** — first-hand verification of the freshest landings + board-truth
+   repairs. OPEN FLAGS already identified at T1: (a) M-102+M-083 fixed in `e56baac7`
+   with Resolution sections + ledger rows appended, but the finding files were NEVER
+   `git rm`'d (the purge convention's step 3 missed — both still sit active in the
+   tree while the ledger claims them resolved); their ledger cells read "(this
+   landing)" instead of the real SHA. (b) An ID collision on the board: TWO files
+   carry N-129 (`N-129-fix-wave-bookkeeping-truth-batch.md` from the wave-3 lane,
+   pushed first; `N-129-parity-og-core-inventory-numeric-defects.md` from lane-B,
+   which its own SUMMARY delta says should have been renumbered — the repair was never
+   executed).
+2. **Go more deep** — the S10-F named next candidates (RAWSearchDLL infrastructure
+   function-level walk; the OQ-S8-1 consumer trace) + the lanes S10-F did not reach:
+   the og's config/data assets (FileFilter.xml / DataFile.ini / raw_signs.json / Dict /
+   EUUserData / remote_config_data), the never-cited function space of the seven
+   non-searchdll ghidra trees (drwui / core / misc / local / wave2 / mo / partition /
+   drivers / repair), and the core-side stand-in/follow-up comment register.
+3. **Mark all remaining** — every divergence found gets a finding file per the
+   template; extend-don't-refile against the 55 actives; the SA-9 ID-collision rule on
+   every push.
+
