@@ -30,3 +30,41 @@ false for HEIC/WebP/PDF/video - no silent degrade), and the preview module's lay
 decision for video (the og's out-of-process agent split is UI-layer) stays the
 recorded pre-implementation requirement. Nothing new to resolve; the next concrete
 step stands verbatim.
+
+## Session-48 disposition note (2026-10-29 — pushed forward with NEW DECODE EVIDENCE: the AVIF question answered, the agent seam mapped, the HEIC hint decoded)
+
+Still OPEN on the vendoring decision (each half is a per-library Win7 import-gate audit —
+an owner-level call, not a single-session fix). Verified current at the S48 tree: the
+by-name refusals stand (thumbnail_format_supported at cr_thumbnail.cpp:85 admits
+jpeg/png/bmp/gif/tiff/raw/psd/pnm/hdr only — HEIC/WebP/PDF/video honestly refused, no
+silent degrade). NEW EVIDENCE this session (all read first-hand):
+
+1. **The AVIF question ANSWERED — a REAL decode path, not a stub.** The extension
+   dispatch at DRWUI:664818-664830 maps `.heic`→0x7c / `.heif`→0x7d / `.avif`→0x6c
+   (DAT_1414d42f4, the thirdFUN_1400c9810 arm); the format id flows into the agent
+   factory FUN_14048b330 → FUN_14048bf10, whose answer loop carries a DEDICATED
+   AVIF post-processor: `if (*param_5 == 0x6c) FUN_14048b7f0(param_1)` on the
+   raw-bytes answer path — the 0x6c branch is real decode machinery (the agent
+   returns the still-compressed frame; the UI side rasterizes). AVIF is also in the
+   og's own advertised photo set (the Supported-Formats string, DRWUI:1261392) and
+   the 16-entry extension registry beside webp/braw/pages/numbers (:474356).
+2. **The agent seam mapped — ALL the codec-bound halves ride the SAME out-of-process
+   protocol** (the OQ's video item named ports 20171/2; the photo codecs ride the
+   sibling `ThreadImg` shared-memory channel): `Mutex_ThreadImg` +
+   `ShareMemory_ThreadImg` + events `DRWRAWReadOver_ThreadImg`/`DRWUIWriteOver_ThreadImg`,
+   a 20-byte request header + raw file bytes, a ~200 MiB size cap (0xc800015), a
+   10 s answer wait (FUN_14048bf10 :664344+). This STRENGTHENS the preview module's
+   recorded layer decision: the og's agent split is UI-layer for the PHOTO codecs
+   too, not just video — a core-side vendored stack remains the parity-faithful
+   shape, and the host-callback seam question now covers all four families
+   uniformly.
+3. **The HEIC/HEIF embedded-thumbnail-first hint decoded**: the agent request
+   header's flag byte is set to 1 exactly when the format id is 0x7c/0x7d
+   (`local_68 = (*param_5==0x7c||*param_5==0x7d)` at :664368) — the wire form of
+   the heif_image_handle_get_thumbnail-first policy the OQ's item 1 named. The
+   libheif vendoring lane now has the exact request semantics to mirror.
+
+**Next concrete step (sharpened):** unchanged owner decision on vendoring (libheif
+first — now with the hint-byte semantics decoded); the video layer decision gains
+the uniform-agent-seam evidence above. No fixture-generator change until a library
+is chosen (the recorded step 3's ordering stands).

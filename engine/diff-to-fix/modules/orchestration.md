@@ -333,6 +333,6 @@ reconciliation. See S-051's Resolution addendum in `findings/FIXED/`.
   StartSector" is the common case, not an invariant.
 - **Grading cells (the recovery-chances battery)**: S-058 (SEVERE — the extension-
   table gate polarity inverted; the s5 erratum), S-061 (SEVERE — ReFS/Btrfs
-  insert-time High absent), M-133 (the twin-key device family), M-134 (the deep-read
+  insert-time High absent), M-133 — FIXED (session-52: the twin-key device family narrowed to the og's {FAT16} shift, the ext2/3 leg registered OQ-S52-1), M-134 (the deep-read
   validation + full-tree re-grade), N-183 (the gauge population/score/QSDE batch).
   Worksheet: `../evidence/decompiled-quotes/s42-grading-gate-polarity.md`.

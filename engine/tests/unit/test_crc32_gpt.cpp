@@ -1018,3 +1018,71 @@ TEST(Gpt, TruncatedImageFallsToLadderNotTrustedPrimary) {
     ASSERT_EQ(t.partitions.size(), 1u) << "salvage recovers the entry array";
     EXPECT_EQ(t.partitions[0].start_lba, 100u);
 }
+
+/* ===================================================================== */
+/* M-132 (diff-to-fix): the og's backup probe is at the FIXED device-   */
+/* last LBA (FUN_180006e20:4567: param_1[1]-1), never the primary's     */
+/* declared field; the dead-LBA1 early return (og) vs the core's       */
+/* backup recovery is a REGISTERED deliberate superset (PARITY-DELTAS  */
+/* D-124b).                                                            */
+/* ===================================================================== */
+
+TEST(Gpt, BackupProbedAtDeviceLastWhenPrimaryOk) {
+    /* A trusted primary whose declared backup_lba field disagrees with
+     * device-last (corrupt field) still finds the backup: the probe is
+     * at device-last FIRST. The M-123 position gate rejects such a
+     * primary outright (untrusted -> ladder), so the fixture routes:
+     * primary rejected at the position gate -> salvage (entries intact)
+     * -> backup probe at device-last SUCCEEDS. The og: the same ladder
+     * (its verifier rejects the field too, its backup read is at
+     * device-last). Fail-before would be: backup_ok false on this
+     * fixture. */
+    OgValidGpt g = make_og_valid_gpt();
+    put64(g.disk, 512 + 32, 2000); /* corrupt backup_lba != dev-last 2047 */
+    g.patch_header_crc();
+    MemDevice dev(std::move(g.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_FALSE(t.gpt_primary_ok) << "M-123 gate: corrupt backup_lba field is untrusted";
+    EXPECT_TRUE(t.gpt_backup_ok) << "M-132: the device-last probe finds the intact backup";
+    EXPECT_EQ(t.partitions.size(), 1u) << "salvage + backup both recover the volume set";
+}
+
+TEST(Gpt, CorruptBackupLbaFieldStillFindsBackup) {
+    /* The og-parity leg in the healthy-primary direction: primary
+     * verifying (backup_lba == dev-last), the REAL backup at device-last
+     * with mirrored positions - the probe must not depend on the field
+     * being readable through any path other than device-last. */
+    OgValidGpt g = make_og_valid_gpt();
+    /* scratch the declared field AFTER the CRC is fixed is impossible
+     * without failing the primary (M-123) - so prove the complementary
+     * shape: the backup header itself is intact at device-last while an
+     * imposter (zeroed sector) sits at the OTHER plausible position. */
+    put64(g.disk, 512 + 32, 1900); /* declared backup_lba: a zeroed area */
+    g.patch_header_crc();
+    /* the real backup at 2047 stays intact from make_og_valid_gpt */
+    MemDevice dev(std::move(g.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_FALSE(t.gpt_primary_ok) << "the field mismatch fails the primary gate";
+    EXPECT_TRUE(t.gpt_backup_ok) << "device-last first: the real backup is found";
+}
+
+TEST(Gpt, DeadLba1BackupRecoveryRegistered) {
+    /* The REGISTERED deliberate superset (PARITY-DELTAS D-124b): the og's
+     * analyzer early-returns with NO partitions when the LBA1 read fails
+     * (:4517-4524); the core keeps the recovery stance - the protective
+     * MBR routes to the device-last backup and its entries are emitted.
+     * This test pins the superset so it is never "fixed away" as a
+     * parity bug. */
+    OgValidGpt g = make_og_valid_gpt();
+    std::memset(g.disk.data() + 512, 0, 512); /* LBA1 wiped */
+    MemDevice dev(std::move(g.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_EQ(t.layout, TableLayout::Gpt);
+    EXPECT_FALSE(t.gpt_primary_ok);
+    EXPECT_TRUE(t.gpt_backup_ok);
+    ASSERT_EQ(t.partitions.size(), 1u) << "the core superset: entries recovered from backup";
+    EXPECT_EQ(t.partitions[0].start_lba, 100u);
+}

@@ -93,3 +93,10 @@ semantics; no row covers it.
 
 None — the census and the mechanics are fully decoded; the only open item is the
 product decision (a) vs (b).
+
+## Resolution
+
+**Status:** FIXED (option (b) — the deliberate-superset registration; no code change)
+**Fixed in commit:** `2b0184f3` (the S47 MAJOR-first fix lane)
+**Verified by:** UserSigns.LowercaseHexSignLiveAndRegistered (the og-dead class pinned LIVE: the shipped mpeg sign 0,000001b321000100 decodes and fires) · UserSigns.UppercaseHexSignMatches (the og-live form unchanged, byte-identical to the lowercase twin) · UserSigns.DefaultSetEffectiveCount (190 live — the full default set; the og-dead mpeg-PS family present) — all green; suite green.
+**Resolution notes:** The product decision per the fix plan's option (b): the core's case-insensitive byte-decode channel KEPT and registered as PARITY-DELTAS D-125 (the D-117 class — the og's %02X-only text compare [FUN_140604090 at DRWUI:1003619, zero %02x in DRWUI.exe, both memcmp sites :1003452/:1003555 re-read first-hand this session] is an og machinery defect, not a semantic contract: the vendor's own shipped DB carries signs its matcher can never fire). Folding case to reproduce the defect would break good code (the byte-compare channel is architecturally right and is itself part of the D-104-registered channel superset — the og's scan engine has no user-sign channel at all). **Census corrected per the corpus-wins rule:** the finding's "12 lowercase-hex signs (mpeg ×11, img ×1)" is 11 first-hand (10 pure-lowercase MPEG-PS `000001b3…`/`000001ba…` family + 1 mixed-case img sign `7E742C01…7e742c01` — re-counted at og-codebase/EUUserData this session); the core's default set carries the same 11 among its 190. The effective-count documentation the fix plan demanded lives in D-125 (190 live in the core; 179 would be live under og semantics). Parity benches normalize via D-104 + D-125.

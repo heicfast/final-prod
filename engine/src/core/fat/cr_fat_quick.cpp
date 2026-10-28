@@ -218,7 +218,7 @@ void walk_dir_entries(EmitCtx& ctx, const DirBuffer& buf, tree::FileNode* host,
             }
         }
         if (!lfn_ok)
-            name = short_name_to_u16(short_name);
+            name = short_name_to_u16(short_name, e->nt_reserved);
         pending_lfn.clear();
         if (name.empty())
             continue;

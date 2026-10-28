@@ -965,3 +965,22 @@ Evidence: `evidence/decompiled-quotes/s42-ogg-zip-typing-and-report-decodes.md` 
   carves. The corrupt-ZIP half of the class fires the apk raw-sign row
   (PK\x03\x04 is apk's layer-1 key — the og's layer-1 admits it identically);
   both layers' interplay recorded in the Resolution.
+
+## Session-46 addendum (2026-10-29, audited `659f0f6c`/`fa654673`, corpus `be0cfe9` — the MINOR-first fix lane)
+
+**N-158 FIXED — the OfficeTagFromXML five-branch typing tail** (the S42-B filing
+above, resolved): the five typed ids land — FMT_XMIND/FMT_MMAP/FMT_EDDX/
+FMT_WFP/FMT_DRP (og 0x86/0x87/0x8c/0x8d/0x91, ids appended; override-target
+rows with the og's own display labels; kTrialOrder slots). The XMIND content
+probe decoded from disassembly before landing (FUN_180045110: the 300-byte RAW
+window at record+30+strlen(name); the 16-byte `xmlns="urn:xmind` needle + the
+14-byte .data prolog constant at RVA 0x93980; the already-0x86 return-1
+re-stamp at 0x18004516d). The chain walk's stop semantics corrected to the
+og's truth: NO stop, last-match-wins within the 32-entry/256 KiB bounds
+(:18411-18450 — the N-115-era "map stop" comment was an erratum). The
+[Filter] coupling: the conservative row-level gate through disabled_formats
+(PARITY-DELTAS D-134; the N-115 nine stay always-on per N-149). Tests:
+ZipTypingXmindContentBranch / ZipTypingXmindNeedleMissStaysGeneric /
+ZipTypingDocumentToolEntryNames / ZipTypingLaterEntryOverwritesEarlierStamp /
+ZipTypingUnrelatedEntriesStayGeneric / ZipTypedIdDisableGateSuppressesTyping
+(3 groups RED pre-fix; suite 1209 green). P1/P11/P19/P25/P65 → MATCH.

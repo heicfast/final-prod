@@ -382,9 +382,17 @@ u32 parse_disk_table(IStorageDevice* device, DiskTable& out) {
             copy_header_facts(prim);
             emit_gpt_entries(pent);
             emitted = true;
-            /* informational backup probe at the TRUSTED primary's own
-             * backup LBA (healthy-disk case: both flags true) */
-            if (load_gpt_side(device, prim.backup_lba, true, bak, bent) == OK)
+            /* M-132: the og's backup probe is at the FIXED device-last
+             * LBA (FUN_180006e20:4567 reads param_1[1]-1 - never the
+             * primary's declared field). Probe device-last FIRST (og
+             * parity); the declared backup_lba is a REGISTERED fallback
+             * only (PARITY-DELTAS D-124a - the core's extra reach for
+             * layouts whose trusted primary points elsewhere; note the
+             * M-123 position gate already requires backup_lba == dev_last
+             * on every trusted primary, so the fallback is dormant
+             * unless that gate is ever relaxed). */
+            if (load_gpt_side(device, dev_last, true, bak, bent) == OK ||
+                load_gpt_side(device, prim.backup_lba, true, bak, bent) == OK)
                 out.gpt_backup_ok = true;
         } else if (lba1_gpt) {
             /* og two-step step 1: header dead, entry array maybe intact -

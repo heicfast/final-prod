@@ -56,3 +56,10 @@ grep + the raw-bytes emission read).
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-175 landing, S46 MINOR-first lane — post-push SHA in the ledger row and worklog entry)
+**Verified by:** `FatEngine.NtResCaseFoldFourWay` (RED pre-fix: all four fold cases failed with the raw mixed-case bytes; GREEN post-fix: 0x00→"FILE001.TXT", 0x08→"file001.TXT", 0x10→"FILE001.txt", 0x18→"file001.txt", 0x01→raw "File001.Txt" — the og's exact-value switch, not a mask, pinned) + `FatEngine.NtResFoldLeavesLfnCaseUntouched` (the LFN true-case regression pin) + the BitLocker end-to-end re-pin (`BitLockerStack.EncryptedVolumeScansOnlyThroughDecryptDevice`: the fixture's NTRes=0 mixed-case dentry now renders the og's folded "README.TXT" — the finding's own "case-sensitive benches will diverge" prediction, re-pinned in the same commit). Suite 1190/1190 (linux-release).
+**Resolution notes:** The fold landed inside `short_name_to_u16` (cr_lfn.cpp), which now takes the dentry's `nt_reserved` byte; the four-way exact-value switch mirrors the og's builder (strupr/strlwr per 0x00/0x08/0x10/0x18, everything else raw — corpus :44191-44216 re-read first-hand; the ANSIness of the og's CRT folds maps to the ASCII-only u16 fold, CP437 high-half glyphs untouched). The LFN path is structurally unaffected (LFN names never pass through the short-name builder). The OEM-decode (N-087) composes before the fold, exactly as the og decodes before its _strupr calls. One pre-existing expectation caught and re-pinned (the BitLocker fixture above) — the class the finding predicted.

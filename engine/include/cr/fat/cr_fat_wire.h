@@ -119,7 +119,11 @@ u64 fat_date_to_unix(u16 date, u16 time, u8 tenths); /* N-173: u64 - no 2106 cla
  * FAT engine (cr_lfn.cpp) and the exFAT engine (cr_exfat_quick.cpp) pack
  * dates as bits 15-9 = year-1980, 8-5 month, 4-0 day and times as 15-11
  * hour, 10-5 minute, 4-0 second/2. Returns seconds since 1970-01-01, 0 on
- * invalid/out-of-range fields. */
+ * invalid/out-of-range fields. A-014: the invalid class is the FULL
+ * DosDateTimeToFileTime reject set - month 0/13+, day 0/32+, hour >= 24,
+ * minute >= 60, 2s-field >= 30 (>= 60 s) - matching the og's zero-on-fail
+ * slots (FATSearchDLL :32135/:32144/:32151, the three dentry stamps) and
+ * the exFAT sibling's own field gate (exFATSearchDLL FUN_180002f40). */
 inline u64 fat_datetime_to_unix_seconds(u16 date, u16 time) {
     const u32 year = 1980u + ((date >> 9) & 0x7F);
     const u32 month = (date >> 5) & 0x0F;
@@ -127,14 +131,6 @@ inline u64 fat_datetime_to_unix_seconds(u16 date, u16 time) {
     const u32 hour = (time >> 11) & 0x1F;
     const u32 minute = (time >> 5) & 0x3F;
     const u32 second = (time & 0x1F) * 2;
-    /* A-014: the TIME word is range-gated exactly like DosDateTimeToFileTime
-     * (FATSearchDLL :32135/:32144/:32151 - zero-on-fail): hour > 23, minute
-     * > 59, or a 2-second field > 29 (>= 60 s) is the failure class the og
-     * zeroes the slot for. Month/day were already gated (N-021); the time
-     * word used to flow unvalidated and fabricate day-shifted plausible
-     * timestamps on exactly the corrupt-dentry population recovery targets.
-     * The exFAT sibling is unaffected: its M-014 structural gate
-     * (fat_datetime_fields_ok, FUN_180002f40) rejects this class upstream. */
     if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 || minute > 59 ||
         (time & 0x1F) > 29)
         return 0;

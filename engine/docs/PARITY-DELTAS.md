@@ -3748,3 +3748,128 @@ PlaceholderIsHash + FatEngine.DeletedLfnChecksumRecoversOriginalByte + the re-pi
   `Ext4Engine.UnixTimeConversion` (exact post-2038/2100 filetimes, ns
   variant) — future sessions must not "fix" the core down to either
   defect).
+
+### D-124 — GPT backup-probe position parity + the dead-LBA1 backup recovery superset (M-132 registration, two sub-items)
+
+- **WHAT OG DOES (sub-item a — probe position):** the analyzer's backup
+  read is ALWAYS at the FIXED device-last LBA (`FUN_180006e20:4567` reads
+  `param_1[1] - 1` — the device's own sector count, never the primary
+  header's declared `backup_lba` field; re-read first-hand at
+  `Partition_decompiled.c:4555-4575`).
+- **WHAT OG DOES (sub-item b — the dead-LBA1 early return):** when the
+  LBA1 READ ITSELF fails, the analyzer prints "Failed to read GPT
+  HEADER.", frees, and returns with NO GPT partitions (:4517-4524) — only
+  the separate `IsGPTDisk` detection layer (:4208-4218) classifies the
+  disk as GPT for UI purposes.
+- **WHAT WE DO:** (a) the probe is structurally at device-last FIRST
+  (`cr_table_parse.cpp` — the rc_p==OK branch probes `dev_last` before
+  the declared field; the declared `backup_lba` is a fallback only).
+  Note: post-M-123 the position gate already REQUIRES backup_lba ==
+  dev-last on every trusted primary, so the observable class "healthy
+  primary declaring a nonstandard backup position" routes into the
+  salvage/backup ladder exactly as the og's does — the probe-order change
+  is architectural parity so the divergence cannot re-emerge if the gate
+  is ever relaxed; (b) the core KEEPS the recovery stance the og lacks:
+  a dead/unreadable/wiped LBA1 still routes (via the protective MBR) to
+  the device-last backup probe and its entries are emitted.
+- **WHY (b is kept):** the og's early return is a weakness on the exact
+  damage class recovery tools exist for — a wiped LBA1 with an intact
+  backup is recoverable, and the core recovers it.
+- **RISK:** none — (a) is og-exact structure; (b) only ADDS recoverable
+  output on a class where the og emits nothing.
+- **VERDICT: ACCEPTED** (deliberate superset, registered M-132; pin:
+  `Gpt.DeadLba1BackupRecoveryRegistered` — future sessions must not
+  "fix" the backup recovery away as a parity bug).
+
+**CONVERGENT LANDING NOTE (SA-9, this session):** the S47 INFO-first lane's
+independent I-040 registration (pushed second; per earlier-push-wins this D-123
+stands as registered) verified the same corpus cites first-hand and adds two
+evidentiary/coverage supplements: the 4-site `_gmtime32_s` line census
+(`EXT4SearchDLL_decompiled.c:5495/:5506/:6262/:6273`) and the regular-file
+fold-direction pin `Ext4Engine.SizeHighFoldIsRegularOnlyNotTheOgUnconditionalDefect`
+(hi=1/lo=0xFFFFFFFF surfaces the full 8 GiB-1 size — the direction
+`LegacyAclDirSizeClean` leaves unpinned) plus
+`Ext4Engine.Post2038FileTimeConversionStays64Bit`. Both lanes' records kept.
+
+### D-125 — user-sign hex-case semantics: case-insensitive byte-decode, not the og's %02X-only text compare (M-128 registration, REGISTERED IMPROVEMENT — the D-117 class)
+
+- **WHAT OG DOES:** the EUUserData consumer converts candidate file bytes
+  to UPPERCASE hexadecimal text (`%02X` — FUN_140604090 at
+  `DRWUI_decompiled.c:1003619`; zero `%02x` anywhere in DRWUI.exe) and
+  memcmps against the stored sign string (`:1003452`/`:1003555`). Any
+  sign containing lowercase hex can never match: the og's own shipped
+  EUUserData carries **11** such signs (10 pure-lowercase MPEG-PS
+  `000001b3…`/`000001ba…` family + 1 mixed-case img sign — the census
+  re-counted first-hand this session at `og-codebase/EUUserData`;
+  corrects the finding's "12" per the corpus-wins rule) — dead
+  configuration in the og.
+- **WHAT WE DO:** `cr_usersigns.cpp` decodes both hex cases to BYTES and
+  compares bytes (`hex_nibble` accepts 0-9/a-f/A-F, `match_at` memcmps
+  decoded bytes) — all 190 signs of the shipped default set are live,
+  including the 11 og-dead ones.
+- **WHY:** the og's %02X-only text compare is a string-handling defect of
+  its UI-layer identify flow (the vendor's own DB ships signs its matcher
+  can never fire), not a semantic contract; comparing decoded bytes is
+  the architecturally right channel (the core's user-sign channel is
+  itself the D-104-registered superset — the og's scan engine has no
+  user-sign channel at all). Folding case to match the defect would
+  break good code to reproduce an og weakness.
+- **RISK:** parity benches on the user-sign channel must normalize for
+  D-104 (the channel) + this row (the 11-sign subset): core-only carve
+  records in the MPEG-PS free-space class are expected and explained.
+- **VERDICT: ACCEPTED** (deliberate superset, registered M-128; pins:
+  `UserSigns.LowercaseHexSignLiveAndRegistered` (the og-dead class fires)
+  + `UserSigns.UppercaseHexSignMatches` (the og-live form unchanged) +
+  `UserSigns.DefaultSetEffectiveCount` (190 live, the og-dead mpeg family
+  present) — future sessions must not case-fold the decoder down to the
+  og's dead-configuration semantics).
+
+### D-126 — EUUserData loader tolerance: skipped signs vs the og's dead entries (M-129 registration, one-line nuance)
+
+- **WHAT OG DOES:** malformed sign strings (token count ≠ 2) are silently
+  SKIPPED at load (`DRWUI:1005986`); odd-length/non-hex signs LOAD but the
+  matcher's length/charset guard makes them permanently unmatchable
+  (`:1003452`); unknown members are ignored (`_stricmp "signs"` only,
+  `:1005818`).
+- **WHAT WE DO:** the same tolerances (skip-and-continue) with ONE nuance:
+  odd-length and non-hex signs are SKIPPED at load rather than carried as
+  permanently-dead entries — equivalent-in-effect (a dead sign and a
+  skipped sign both never fire), simpler in the byte-compare channel.
+  The S-039 caps doctrine stays deliberately strict: over-cap shapes
+  (offset > 1024, sign > 96 hex digits, > 12 signs/entry, > 80-char mime,
+  > kMaxEntries) still reject the whole file — the og has no decoded caps
+  analog, `UserSigns.HostileBlobStillAtomic` is the pin.
+- **WHY:** forward compatibility and operational availability — a
+  hand-edited or future-versioned EUUserData the og loads (partially)
+  must load in the core (M-129's whole subject); the caps are the
+  core's own memory-safety posture.
+- **VERDICT: ACCEPTED** (registered M-129; pins: `UserSigns.MalformedSignSkippedNotFatal`
+  + `UserSigns.OddHexSkipped` + `UserSigns.UnknownMemberIgnored` +
+  `UserSigns.MemberNamesCaseInsensitive` + `UserSigns.AllMalformedSignsLoadStructurally`
+  + `UserSigns.TornFileStillRejected` + `UserSigns.ShippedOgFileVerbatimLoads`).
+### D-134 — the N-158 typed-id filter coupling: the row-level disabled_formats gate (REGISTERED CONSERVATIVE POSTURE — the og's exact [Filter] suppression mechanism is undecodable from the corpus)
+
+The og ships `[Filter]` keys for exactly the five N-158 typed ids
+(XMIND/MMAP/EDDX/WFP/DRP, `og-codebase/config/RawConfig.ini` :12/:15/:17/:18/:22,
+all default 1), loaded by CNeedRawMgr::LoadConfig (RAWSearchDLL :13133-13200)
+into a key→flag map. The map's consumers are decodable for the analyser-layer
+ids (HIK/AEP registrations consult their tokens at :3823-3894/:4024-4074 —
+key 0 removes the analyser), but for the five TYPED ids stamped inside the
+ZIP analyser's LFH handler (:53025-53100) no consumer exists in the decompile:
+the per-search filter rebuild's IAnalyserFilter callback (the removal loop
+FUN_180006b30, :4408-4432) calls `(**(code **)(*param_2 + 8))(param_2)` — a
+one-argument method with no id parameter — so whether an og key-off suppresses
+the typed row, the whole analyser, or nothing at all is not decidable from
+the corpus (the keys may even be dead config).
+
+The core's registered posture: the conservative row-level gate the finding
+itself prescribed — the five ids gate through `CarveFlags::disabled_formats`
+(the M-024 surface, the core's documented [Filter] equivalent), suppressing
+the TYPING itself (a disabled typed id makes the candidate fall through to
+the generic ZIP row, never a mis-labeled office claim); the N-115 nine stay
+exempt via carve_format_always_on (N-149's analyser-mask decode — those
+families have no landed og disable evidence and the mask keeps the ZIP
+analyser always-on). This divergence is bounded and honest: it documents a
+gate the og's config file advertises but whose engine-side wiring the corpus
+cannot prove. Registered by N-158's Resolution; revisit only if a future
+corpus artifact decodes the IAnalyserFilter's id plumbing.

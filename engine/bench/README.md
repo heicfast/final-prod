@@ -5,8 +5,11 @@ Evidence-grade, fully instrumented, reproducible comparison of `rrecov`
 Wizard free build (v21.0.0.0, corpus snapshot under `easeus-drw-research`).
 
 Everything runs on GitHub-hosted Windows runners via
-`.github/workflows/comparative-bench.yml`. No local interactive Windows
-machine is used or required.
+`.github/workflows/test-benchmark.yml` (the CI rebuild's 3-lane
+consolidation — `8943993` — replaced the old comparative-bench.yml
+deliberately; the prebuilt-release lane carries the same seeded-VHD
+matrix, and the TTFR probe rides its `--log stage-<mode>.log` harness).
+No local interactive Windows machine is used or required.
 
 ## Principles
 

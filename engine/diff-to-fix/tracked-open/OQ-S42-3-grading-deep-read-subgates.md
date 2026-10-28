@@ -1,7 +1,7 @@
 # OQ-S42-3 — the grading deep-read sub-gates: FUN_1401bc5a0's predicate, the +0x72-bit-7 / +0x74-bit-2 flags, vt+0x28's sector-size source, vt+0xb8 / vt+0x100's meaning, and the run-unit value local_b8[0]
 
 **Origin:** S42 continuation lane, grading focus battery (M-121's decode residue)
-**Status:** OPEN (this session)
+**Status:** RESOLVED-IN-PART (session-48: 5/6 sub-gates decoded first-hand — Q1 addr-set membership, Q2 the claimed flag, Q3 the path-analysis name flag, Q4 GetSectorSize device geometry, Q6 the engine run-unit; Q5 narrowed to the C<X>VolumeAnalyze family with the no-binary blocker; only Q5's slot-23/32 backing fields remain)
 
 ## The precise questions
 
@@ -21,3 +21,101 @@ All sites are in `re-workspace/reversed/ghidra-drwui/DRWUI_decompiled.c`: read `
 ## Consumers
 
 M-121 (its fix plan's step 4), M-120 (the unit value), N-158 (the bit-7 QSDE semantics), M-119 (the vt+0x100 device-code space if it overlaps the boundary semantics there).
+
+---
+
+## Resolution (session-48 lane, 2026-10-29 — five of six sub-gates DECODED first-hand; the sixth narrowed to a material blocker)
+
+**Status:** RESOLVED-IN-PART (5/6 answered; Q5's slot semantics narrowed with the object family identified and the precise blocker recorded). The OQ stays open ONLY on Q5's vt+0xb8/vt+0x100 backing-field semantics; the decode products below are the fix-plan inputs M-121's record lacked.
+
+### Q1 — FUN_1401bc5a0: ANSWERED (addr-set membership, not liveness)
+
+Body read at `:322676-322714`: when the caller's addr == -1, `FUN_1401bc410(mgr, node, &addr, …)`
+resolves the node's address (the same resolver the QSDE path calls at `:331323`); then
+`FUN_1401b6b90(mgr)` walks the singleton (`FUN_1401b19d0`) via its vtable+0x78 getter to a
+container, and `FUN_14035abe0(container, node, addr)` (`:575161-575177`) tests
+`FUN_1404ec7d0(container->+0x10, addr)` — the SAME set-membership primitive the QSDE dedup
+uses at `:331146` (not-in-set → process + count). **It is an addr-map membership probe
+(the claimed/seen-address set), not a device liveness test.** A null container returns 0.
+
+### Q2 — node+0x72 bit 7: ANSWERED (the node-claimed flag; deletion-state independent)
+
+The runtime SETTER is `FUN_140638400` (`:1037337-1037372`): when a node passes the
+collector's predicate, it is attached (collector+0x10 = node; a map insert keyed by
+node+0x50) and `node+0x72 |= 0x80`. The bit is PERSISTED: serializer `FUN_140088940`
+writes it (`:133357` `>> 7`); deserializer `FUN_140088af0` restores it (`:133393`, `:133401`);
+node init zeroes the byte (`:132966/:132969`). The getter `FUN_1401b3550` (`:317506`) is
+read at 6 sites: the M-121 pre-check element 2 (`:606358`), the QSDE counter split
+(`:331164` — claimed nodes bump +0x1bc, unclaimed bump +0x1b8), `:319323`, `:330644`,
+`:612174`, and the serializer. **It is the claimed-by-a-view/collection flag — set at
+attach time, independent of deletion state and scan phase.** (N-158's "QSDE semantics"
+question: the QSDE increment counts CLAIMED vs UNCLAIMED nodes — the deleted-vs-found
+split is carried by the OTHER counters, not this bit.)
+
+### Q3 — node+0x74 bit 2: ANSWERED (the name-set-by-path-analysis flag)
+
+Bit 2 has exactly TWO runtime setters, both immediately after `FUN_140629120(lVar,
+node)` — the function that converts a wide path to UTF-8 and pushes it through the
+node+0x30 setter chain (`:1027882-1027939`): `:1028061` (inside `FUN_140629260`'s
+path-processing) and `:1034509` (inside `FUN_140633be0`'s wide-char `0x3a`+`0x5c` = `:\`
+drive-letter scan). The bit is copied on clone (`:133508-133510`, mask 4). The getter
+`FUN_1403895a0` (`:605061`) has ONE caller: the M-121 pre-check element 3 (`:606359`,
+skip the deep read when set). **Bit 2 = "this node's name was (re)derived by the
+path-analysis flow" — the deep-read skip marks nodes whose identity was already
+re-established by name.** Bit 1 (set by FUN_140389570 at `:606414`, called when grade==1
+and param_4) is the SEPARATE "deep-read validated, grade 1 confirmed" flag — the OQ's
+setter/getter bit asymmetry resolved: they are different flags in the same byte.
+
+### Q4 — vt+0x28: ANSWERED (IStorageDevice slot 5 = GetSectorSize; device geometry, 4Kn-capable)
+
+`local_1090` is the node's device, resolved through the singleton chain
+(`FUN_1401b54f0` primary; `FUN_1401b4fd0`/`FUN_1401b50a0`/`FUN_1401b50f0(mgr, node)`
+fallbacks, `:606316-606330`); `local_1088 = device->vt[+0x28]()` (`:606353`). The usage
+PROVES it is the sector size: `local_1084 = local_1088 - 0x10` then
+`memcmp(buf + local_1084, zeros, 0x10)` (`:606403-405`) indexes the LAST 16 bytes of the
+one-sector read (`device->vt[+8]` = slot 1 = Read, `:606380/:606396`). **Device geometry
+via the IStorageDevice slot-5 getter (the A4 row's mapping holds); NOT a fixed 512 —
+the tail compare is 4Kn-correct by construction.**
+
+### Q5 — vt+0xb8 / vt+0x100: NARROWED (the object family decoded; the slots' backing fields blocked at the corpus's material limit)
+
+The object is the per-volume **C<X>VolumeAnalyze family**: `CNtfsVolumeAnalyze`'s
+constructor (`:794466-794482`) allocates 0x78 bytes, stamps +8 = 0xE (the pre-parse
+default), boot-parses, and on NTFS detection rewrites +8 = **3** (the NTFS FS code,
+the Q1 factory space) — so **vt+0xa0 (slot 20) = the FS-code getter** (the grading
+`== 3` test). The 100-byte region at +0xc is the UTF-16 VOLUME NAME, filled by
+`FUN_140c4a2c0`'s $VOLUME_NAME (type 0x60) MFT-record parse (`:1881864-1881882` via
+`FUN_140c4a060`'s MFT-geometry read). The CFatVolumeAnalyze twin is allocated in the
+same factory loop (`:794495+`). The sub-rule itself re-confirmed on-disk
+(`:605901-907`): `vt+0xb8()!=0 || vt+0x100()==0xa8 → grade 0`, preceded by the
+slot-22 name-keyed lookup returning 0..8 → grade 2. **What remains undecoded: slots
+23/32's backing fields and the 0xa8/0x23 code-space semantics.** The corpus ships NO
+DRWUI.exe binary (re-workspace/reversed/DRWUI.exe is the rabin2/strings artifact
+DIRECTORY; the vtable layout lives in the binary's .rdata, which no corpus artifact
+dumps — Ghidra's flat decompile does not recover vtable slot tables). **Next probe
+(exact):** a Ghidra/r2 re-run WITH vtable recovery on the real DRWUI.exe (not in
+corpus — requires the upstream binary), or the DRWUI_blocks.txt gaining a vtable
+section. Until then the M-121 record treats slot 23 as "a per-volume bad/declined
+state" and slot 32's 0xa8/0x23 as "a per-volume code space" — both sufficient for the
+core's grading parity (the core's own sub-rules are the C5 family: size<0x400 → 2,
+kind {1,4} → −2 — all already implemented).
+
+### Q6 — the run-unit local_b8[0]: ANSWERED (the engine's run granularity, NOT a constant)
+
+The address key formula decoded at BOTH sites: `local_88 = extent_start + device_base +
+run_index * run_info[0]` (`:605939` and `:605932`). `FUN_1401bb580(node, &extent_start,
+run_info_out, &device_base)` (`:322031-322066`) fills them: device_base = the node's
+device vt+0x68 slot; extent_start/run_info = the ENGINE's extent resolver
+(`engine->vt[+0x30]`, engine = `FUN_1401b65b0(mgr, node->handle)`), with the node's own
+vt+0x10 getter as fallback. **local_b8[0] = run_info[0] = the per-node run/extent unit
+(cluster/extent granularity) from the engine's resolver — a variable, not a fixed
+multiplier.** The core's `kDeviceUnit = 2^40` registered stand-in therefore changes only
+key scaling exactly as suspected — collision sets are identical for any unit ≥ the max
+run span (M-120's record stands; the stand-in is now decode-anchored).
+
+**Evidence bar:** every cite above re-read first-hand in
+re-workspace/reversed/ghidra-drwui/DRWUI_decompiled.c this session (the line numbers are
+the on-disk lines). Consumers: M-121/M-120 (FIXED — this decode is the supplementary
+anchor), N-158 (the QSDE semantics answered under Q2 — the bit is the claimed flag, the
+deleted split rides the other counters), M-119 (UNAFFECTED — the vt+0x100 code space is
+the VolumeAnalyze per-volume family, not the partition-boundary semantics).

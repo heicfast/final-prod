@@ -134,10 +134,21 @@ u64 twin_key_of(const tree::FileNode* n, const GradeContext& ctx) {
         base = pr->extents.front().offset;
         len = pr->extents.front().length;
     }
+    /* M-133: the og shifts kinds {1, 4} ONLY (DRWUI :605752-756 and the
+     * device-walk twin :605924-927, re-read first-hand): kind 1 = FAT16
+     * and kind 4 = the EXT2/3 family code. FAT12 (0), FAT32 (2), exFAT
+     * (7), NTFS (3), HFS+ (8), EXT4 (9), ReFS (10), ZFS (13) all keep
+     * their ordinals unshifted. The pre-fix core shifted the whole FAT
+     * family {0,1,2,7} - four of five members wrong. The EXT2/3 leg
+     * (kind 4) is not expressible in the core's FsKindCode today: the
+     * ext engine stamps the whole family Ext4 (9), which the og does
+     * NOT shift - the kind-reporting gap is tracked as OQ-S52-1 (the
+     * og's ext2/3-vs-ext4 classification rule is undecoded in the
+     * corpus; adding a guessed classifier would be hallucinated
+     * parity). */
     const u32 fs = ctx.fs_kind_of(n);
-    const bool fat_family = fs == u32(FsKindCode::Fat12) || fs == u32(FsKindCode::Fat16) ||
-                            fs == u32(FsKindCode::Fat32) || fs == u32(FsKindCode::Exfat);
-    const i64 index = i64(ctx.disk_ordinal_of(n)) - (fat_family ? 2 : 0);
+    const bool shifted = fs == u32(FsKindCode::Fat16);
+    const i64 index = i64(ctx.disk_ordinal_of(n)) - (shifted ? 2 : 0);
     return u64(i64(base + len) + index * i64(kDeviceUnit));
 }
 

@@ -135,6 +135,12 @@ constexpr u32 kTrialOrder[] = {
     /* M-099: AEP (bare RIFX - the og's own weak grammar; distinct
      * magic from the little-endian RIFF family) */
     FMT_AEP,
+    /* N-158: the og's five-branch typing tail - override targets
+     * sharing the LFH key (the typing walk stamps the id; the
+     * FMT_DOCX row wins the shared-hit tie and the override carries
+     * the true id); these slots make the trial table exhaustive and
+     * give the M-024 disable surface its per-row token */
+    FMT_XMIND, FMT_MMAP, FMT_EDDX, FMT_WFP, FMT_DRP,
     /* S-017: ftyp-destroyed MOV salvage (og MovAnalyzer list layer) -
      * LAST: the ftyp-keyed entries must claim the position first */
     FMT_MOV_NAKED};
@@ -339,6 +345,31 @@ struct ScanCtx {
         return 0; /* used but mid-cluster: suppress just this position */
     }
 };
+
+/* N-158: is THIS typed-id row disabled through the M-024 surface?
+ * Scoped to the five og [Filter]-keyed typed ids (XMIND/MMAP/EDDX/
+ * WFP/DRP - RawConfig.ini :12/:15/:17/:18/:22): every other override
+ * target is either carve_format_always_on (the N-115 nine, N-149's
+ * exempt set) or a content-decided discriminator (FMT_SVG/FMT_XML)
+ * whose disable surface stays the trial slot itself. The og's [Filter]
+ * load builds a key->flag map consumed per-key; the core's row-level
+ * gate is the conservative equivalent (PARITY-DELTAS D-134). */
+static bool typed_row_disabled(const ScanCtx& ctx, u32 fmt) {
+    switch (fmt) {
+    case FMT_XMIND:
+    case FMT_MMAP:
+    case FMT_EDDX:
+    case FMT_WFP:
+    case FMT_DRP:
+        break; /* the five gateable typed ids */
+    default:
+        return false; /* every other override target stays exempt */
+    }
+    for (u32 ti = 0; ti < kTrialCount; ++ti)
+        if (u32(kTrialOrder[ti]) == fmt)
+            return ctx.trial_disabled[ti];
+    return false; /* unreachable: kTrialCount == FMT_COUNT is static-asserted */
+}
 
 /* S-049: the og-contract name composition (FUN_140c44770 + the
  * extension append). The COUNTER is acquired by the emit site through
@@ -643,6 +674,25 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 ctx.rejected.fetch_add(1, std::memory_order_relaxed);
                 if (rejected_at.size() < kMaxTrackedRejections)
                     rejected_at.insert(cand_abs); /* S-055: no-reclaim */
+                continue;
+            }
+            /* N-158: the typed-id disable gate. The og ships [Filter]
+             * keys for exactly the five N-158 typed ids (XMIND/MMAP/
+             * EDDX/WFP/DRP, RawConfig.ini :12/:15/:17/:18/:22); when
+             * the host disables the token the typing must not surface:
+             * a candidate whose override targets a disabled row is
+             * dropped HERE (not at the override resolution - the
+             * claiming office row would otherwise emit a non-office
+             * archive as DOCX). The suppression is row-level, the
+             * finding's conservative landing (the og's exact
+             * callback coupling is undecoded - the IAnalyserFilter
+             * method at vtable+8 takes no id parameter,
+             * RAWSearchDLL :4414-4418); the N-115 nine stay exempt
+             * via carve_format_always_on (N-149), so the gate only
+             * ever fires for the five new ids. */
+            if (cr.format_override != 0xFFFFFFFFu && cr.format_override < FMT_COUNT &&
+                typed_row_disabled(ctx, cr.format_override)) {
+                ctx.rejected.fetch_add(1, std::memory_order_relaxed);
                 continue;
             }
             u64 file_len = cr.end - cand_abs;

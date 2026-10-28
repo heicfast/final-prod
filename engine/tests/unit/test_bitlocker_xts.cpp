@@ -474,7 +474,11 @@ TEST(BitLockerStack, EncryptedVolumeScansOnlyThroughDecryptDevice) {
         const u32 rc =
             fat::scan_fat(dev.get(), flags, nullptr, nullptr, nullptr, tree, &ra, &rd, &rl, stats);
         ASSERT_EQ(OK, rc);
-        /* exactly one live file: READme.TXT, 256 bytes, name recovered */
+        /* exactly one live file, 256 bytes, name recovered. N-175: the
+         * fixture dentry stores mixed-case "READMe" bytes with NTRes=0,
+         * and the og's 8.3 fold renders uppercase (FATSearchDLL
+         * :44191-44216) - the expectation re-pinned from the pre-N-175
+         * raw-bytes form "READMe.TXT" to the folded "README.TXT". */
         size_t files = 0;
         for (auto* n = ra.first_child(); n; n = n->next_sibling())
             files++;
@@ -482,7 +486,7 @@ TEST(BitLockerStack, EncryptedVolumeScansOnlyThroughDecryptDevice) {
         const auto* node = ra.first_child();
         ASSERT_NE(nullptr, node->props());
         EXPECT_EQ(256u, node->props()->logical_size);
-        const std::u16string expect_name = u"READMe.TXT";
+        const std::u16string expect_name = u"README.TXT";
         EXPECT_EQ(expect_name, node->props()->name);
         EXPECT_EQ(1u, stats.files);
     }
