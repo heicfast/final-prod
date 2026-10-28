@@ -152,6 +152,93 @@ std::vector<u8> seed() {
             p += 200;
         }
     }
+    /* ---- S-007 niche batch 1 (SCAN-2f): the walk-heavy + multi-field
+     * families - MID/OGG/MXF/TAR/TTF/ICO/WMF-std/AU - hostile mutations
+     * below hammer their length fields and walk states ---- */
+    {
+        /* MID at 145408 */
+        size_t at = 145408;
+        std::memcpy(img.data() + at, "MThd", 4);
+        img[at + 7] = 6; /* BE len 6 */
+        img[at + 10] = 1; /* BE ntrks 1 */
+        img[at + 13] = 1; /* BE division 1 */
+        std::memcpy(img.data() + at + 14, "MTrk", 4);
+        img[at + 21] = 16; /* BE track len 16 */
+    }
+    {
+        /* OGG (BOS + EOS pages) at 151552 */
+        size_t at = 151552;
+        std::memcpy(img.data() + at, "OggS", 4);
+        img[at + 5] = 0x02; /* BOS */
+        img[at + 26] = 1; /* one segment */
+        img[at + 27] = 30; /* segment length */
+        std::memcpy(img.data() + at + 58, "OggS", 4);
+        img[at + 58 + 5] = 0x04; /* EOS */
+        img[at + 58 + 26] = 1;
+        img[at + 58 + 27] = 8;
+    }
+    {
+        /* MXF (two KLV items) at 155648 */
+        size_t at = 155648;
+        std::memcpy(img.data() + at, "\x06\x0E\x2B\x34", 4);
+        img[at + 16] = 0x81; /* long-form BER, 1 length byte */
+        img[at + 17] = 8;
+        std::memcpy(img.data() + at + 25, "\x06\x0E\x2B\x34", 4);
+        img[at + 41] = 0x84; /* long-form BER, 4 length bytes */
+        img[at + 42] = 0x7F; /* hostile length bytes */
+        img[at + 43] = 0xFF;
+        img[at + 44] = 0xFF;
+        img[at + 45] = 0x0A;
+    }
+    {
+        /* TAR (valid checksum member + EOF block) at 160768 */
+        size_t at = 160768;
+        std::memset(img.data() + at, 0, 512);
+        std::memcpy(img.data() + at, "f.txt", 5);
+        std::memcpy(img.data() + at + 124, "00000000020", 11); /* size 16 */
+        std::memcpy(img.data() + at + 257, "ustar", 5);
+        for (int i = 0; i < 8; ++i)
+            img[at + 148 + size_t(i)] = ' ';
+        unsigned long long sum = 0;
+        for (int i = 0; i < 512; ++i)
+            sum += img[at + size_t(i)];
+        std::snprintf(reinterpret_cast<char*>(img.data()) + at + 148, 8, "%06llo ",
+                      sum);
+    }
+    {
+        /* TTF at 167936 + ICO at 172032 */
+        size_t at = 167936;
+        std::memcpy(img.data() + at, "\x00\x01\x00\x00", 4);
+        img[at + 5] = 1; /* BE numTables 1 */
+        std::memcpy(img.data() + at + 12, "cmap", 4);
+        img[at + 22] = 28; /* BE offset 28 */
+        img[at + 26] = 64; /* BE length 64 */
+        at = 172032;
+        t16(img, at + 2, 1); /* ICO type */
+        t16(img, at + 4, 1); /* count */
+        img[at + 8] = 16; /* color count */
+        t16(img, at + 10, 1); /* planes */
+        t16(img, at + 12, 32); /* bpp */
+        t32(img, at + 14, 64); /* bytes */
+        t32(img, at + 18, 22); /* offset */
+    }
+    {
+        /* WMF-std at 176128 + AU at 180224 */
+        size_t at = 176128;
+        std::memcpy(img.data() + at, "\x01\x00\x09\x00", 4);
+        t16(img, at + 4, 0x0300);
+        t32(img, at + 6, 64); /* size words */
+        t16(img, at + 10, 4); /* objects */
+        t32(img, at + 12, 10); /* max record */
+        at = 180224;
+        std::memcpy(img.data() + at, ".snd", 4);
+        img[at + 7] = 24; /* BE data offset 24 */
+        img[at + 11] = 256; /* BE size */
+        img[at + 15] = 3; /* BE encoding */
+        img[at + 19] = 172; /* BE rate 44100 = 0xAC44 */
+        img[at + 20] = 0x44;
+        img[at + 23] = 2; /* BE channels */
+    }
     return img;
 }
 

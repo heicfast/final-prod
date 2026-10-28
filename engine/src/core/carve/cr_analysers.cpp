@@ -2792,5 +2792,885 @@ CarveResult validate_cpt(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
+/* ---- S-007 niche batch 1 (SCAN-2f) --------------------------------- *
+ * Every key below was re-read first-hand at its RAWSearchDLL registration
+ * site before the row landed (retdec static initializer :5450-6600, u16
+ * layer :6205-6590, analyser bodies :20515-22690). Walk semantics follow
+ * the documented format grammar (the S-007 primary batch's rule: "the
+ * format grammar is the model, og behavior the anchor"); formats whose
+ * og size-walk is undecoded use the DWG-pattern bounded extent heuristic
+ * (the sanctioned honest cap, conf <= 650, note names the heuristic). */
+
+/* MID: "MThd" key 0x6468544d (:5735) -> MIDAnalyser+FileMID chain idx 38.
+ * Header: MThd + BE u32 len (6) + u16 format (0..2) + u16 ntrks + u16
+ * division; then MTrk chunks (BE u32 length each). Accept needs >= 1
+ * complete track; a torn tail salvages at the last complete track. */
+CarveResult validate_mid(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[14];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    if (std::memcmp(h, "MThd", 4) != 0)
+        return r;
+    const u32 hlen = (u32(h[4]) << 24) | (u32(h[5]) << 16) | (u32(h[6]) << 8) | u32(h[7]);
+    if (hlen != 6)
+        return r; /* header length is 6 in every SMF file */
+    const u32 fmt = (u32(h[8]) << 8) | h[9];
+    const u32 ntrks = (u32(h[10]) << 8) | h[11];
+    const u32 division = (u32(h[12]) << 8) | h[13];
+    if (fmt > 2 || ntrks == 0 || division == 0)
+        return r;
+    const u64 limit = probe_limit(s, hit, cap);
+    u64 q = hit + 14;
+    u64 last_end = 0;
+    u32 complete = 0;
+    for (u32 guard = 0; guard < 65536; ++guard) {
+        u8 th[8];
+        if (!rd(s, q, th, 8) || q + 8 > limit)
+            break;
+        if (std::memcmp(th, "MTrk", 4) != 0)
+            break;
+        const u64 len = (u64(th[4]) << 24) | (u64(th[5]) << 16) | (u64(th[6]) << 8) | u64(th[7]);
+        if (len > limit - q)
+            break; /* torn track: salvage what walked clean */
+        q += 8 + len;
+        ++complete;
+        last_end = q;
+    }
+    if (complete == 0 || last_end == 0)
+        return r; /* bare header is the degenerate the key would accept */
+    r.ok = true;
+    r.end = last_end;
+    r.confidence = complete >= ntrks ? 800 : 650;
+    r.note = complete >= ntrks ? "midi-track-walk" : "midi-partial-tracks";
+    return r;
+}
+
+/* OGG: "OggS" key 0x5367674f (:5583) -> OGGAnalyser+CFileOgg idx 82.
+ * Page: "OggS" + ver 0 + header_type (first page 0x00/0x02) + granule u64
+ * + serial/seq/CRC u32 + seg-count u8 + segment table; walk to the first
+ * page break; EOS page (type 0x04) closes a clean stream. */
+CarveResult validate_ogg(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[27];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    if (std::memcmp(h, "OggS", 4) != 0 || h[4] != 0)
+        return r;
+    if (h[5] != 0x00 && h[5] != 0x02)
+        return r; /* first page: fresh or BOS */
+    const u64 limit = probe_limit(s, hit, cap);
+    u64 q = hit;
+    u64 last_end = 0;
+    u32 pages = 0;
+    bool saw_eos = false;
+    for (u32 guard = 0; guard < 65536; ++guard) {
+        u8 p[27];
+        if (!rd(s, q, p, 27) || q + 27 > limit)
+            break;
+        if (std::memcmp(p, "OggS", 4) != 0 || p[4] != 0 || (p[5] & 0xF8))
+            break;
+        u64 seg_total = 0;
+        u8 segs[255];
+        if (p[26] != 0 && !rd(s, q + 27, segs, p[26]))
+            break;
+        for (int i = 0; i < p[26]; ++i)
+            seg_total += segs[i];
+        if (q + 27 + u64(p[26]) + seg_total > limit)
+            break; /* torn page: salvage the walked pages */
+        q += 27 + u64(p[26]) + seg_total;
+        ++pages;
+        last_end = q;
+        if (p[5] & 0x04) {
+            saw_eos = true;
+            break;
+        }
+    }
+    if (pages == 0)
+        return r;
+    r.ok = true;
+    r.end = last_end;
+    r.confidence = saw_eos ? 800 : 650;
+    r.note = saw_eos ? "ogg-pages-to-eos" : "ogg-pages-torn-tail";
+    return r;
+}
+
+/* RM: ".RMF" key 0x464d522e (:5603) -> RM_RMVB chain idx 94. The RMF
+ * lead-in is 0x10 bytes (both documented layouts accepted: version @+4
+ * (== 1) or uniform-chunk total-size @+4 (== 0x10)); the body is a chunk
+ * sequence {4CC id + BE u32 total-size (>= 8)} walked BruteForce-style
+ * to the first grammar break (the ASF/A-010 family contract). */
+CarveResult validate_rm(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[16];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    if (std::memcmp(h, ".RMF", 4) != 0)
+        return r;
+    const u32 v = (u32(h[4]) << 24) | (u32(h[5]) << 16) | (u32(h[6]) << 8) | u32(h[7]);
+    if (v != 1 && v != 0x10)
+        return r; /* version-1 or uniform-chunk-size RMF layouts */
+    const u32 tail = (u32(h[8]) << 24) | (u32(h[9]) << 16) | (u32(h[10]) << 8) | u32(h[11]);
+    if (tail == 0 || tail > 0x20000000u)
+        return r; /* n-headers / size sanity */
+    const u64 limit = probe_limit(s, hit, cap);
+    u64 q = hit + 0x10;
+    u64 last_end = 0;
+    u32 chunks = 0;
+    for (u32 guard = 0; guard < 65536; ++guard) {
+        u8 ch[8];
+        if (!rd(s, q, ch, 8) || q + 8 > limit)
+            break;
+        const u32 sz = (u32(ch[4]) << 24) | (u32(ch[5]) << 16) | (u32(ch[6]) << 8) | u32(ch[7]);
+        if (sz < 8 || q + sz > limit)
+            break;
+        q += sz;
+        ++chunks;
+        last_end = q;
+    }
+    if (chunks == 0)
+        return r;
+    r.ok = true;
+    r.end = last_end;
+    r.confidence = 700;
+    r.note = "rm-chunk-walk";
+    return r;
+}
+
+/* MXF: 06 0E 2B 34 key 0x342b0e06 (:5616) -> MXFAnalyser idx 120. KLV
+ * items: 16-byte SMPTE UL key (each item re-keys 06 0E 2B 34) + BER
+ * length (0x00-0x7F short / 0x81-0x88 long form); walk to break. */
+CarveResult validate_mxf(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 k[16];
+    if (!rd(s, hit, k, sizeof(k)))
+        return r;
+    if (std::memcmp(k, "\x06\x0E\x2B\x34", 4) != 0)
+        return r;
+    const u64 limit = probe_limit(s, hit, cap);
+    u64 q = hit;
+    u64 last_end = 0;
+    u32 items = 0;
+    for (u32 guard = 0; guard < 65536; ++guard) {
+        if (!rd(s, q, k, 16) || q + 16 > limit)
+            break;
+        if (std::memcmp(k, "\x06\x0E\x2B\x34", 4) != 0)
+            break;
+        u8 lb = 0;
+        if (!rd(s, q + 16, &lb, 1))
+            break;
+        u64 len = 0;
+        u32 hdr = 17; /* key + first length byte */
+        if ((lb & 0x80) == 0) {
+            len = lb;
+        } else if (lb >= 0x81 && lb <= 0x88) {
+            const u32 n = lb & 0x7F;
+            u8 lenb[8];
+            if (!rd(s, q + 17, lenb, n))
+                break;
+            for (u32 i = 0; i < n; ++i)
+                len = (len << 8) | lenb[i];
+            hdr += n;
+        } else {
+            break; /* 0x80 indefinite + reserved forms: grammar break */
+        }
+        if (len > limit - q || u64(hdr) > limit - q - len)
+            break; /* torn / overflowing item: salvage the walked set */
+        q += hdr + len;
+        ++items;
+        last_end = q;
+    }
+    if (items < 2)
+        return r; /* a single KLV is noise the 4-byte key would accept */
+    r.ok = true;
+    r.end = last_end;
+    r.confidence = 700;
+    r.note = "mxf-klv-walk";
+    return r;
+}
+
+/* DMG: "BZh1" key 0x31685a42 (:5485) -> DMG chain idx 113 - the og keys
+ * the LEVEL-1 bzip2 stream byte-exactly. Gates: the 48-bit block magic
+ * 0x314159265359 at +4; the stream footer 0x177245385090 ends a clean
+ * carve (+4-byte combined CRC); a missing footer salvages to the cap. */
+CarveResult validate_dmg(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[10];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    if (std::memcmp(h, "BZh1", 4) != 0)
+        return r;
+    if (std::memcmp(h + 4, "\x31\x41\x59\x26\x53\x59", 6) != 0)
+        return r; /* bzip2 block header magic (BCD pi) */
+    const u64 limit = probe_limit(s, hit, cap);
+    const u8 kFooter[] = {0x17, 0x72, 0x45, 0x38, 0x50, 0x90};
+    std::vector<u8> blk(kProbeBlock);
+    u64 pos = hit + 10;
+    while (pos + 6 <= limit) {
+        const u64 n = std::min<u64>(u64(kProbeBlock), limit - pos);
+        if (!rd(s, pos, blk.data(), u32(n)))
+            break;
+        for (u64 i = 0; i + 6 <= n; ++i) {
+            if (std::memcmp(blk.data() + i, kFooter, 6) == 0) {
+                r.ok = true;
+                r.end = std::min(pos + i + 10, limit); /* footer + combined CRC */
+                r.confidence = 700;
+                r.note = "bzh1-stream-to-footer";
+                return r;
+            }
+        }
+        if (n <= 6)
+            break; /* nothing more to advance past the 5-byte seam */
+        pos += n - 5; /* seam: the footer may span two blocks */
+    }
+    r.ok = true;
+    r.end = limit; /* no footer inside the cap: truncated stream salvage */
+    r.confidence = 550;
+    r.note = "bzh1-truncated-no-footer";
+    return r;
+}
+
+/* X3F: "FOVb" key 0x62564f46 (:5504) -> X3F chain idx 108. Version at +4
+ * is ASCII ("2.1" etc.); the section-directory walk lives at the file
+ * footer (unreachable mid-slice) - the DWG-pattern bounded extent is the
+ * sanctioned heuristic, the section walk is the recorded follow-up. */
+CarveResult validate_x3f(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[8];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    if (std::memcmp(h, "FOVb", 4) != 0)
+        return r;
+    if (h[4] < '0' || h[4] > '9' || h[5] != '.')
+        return r; /* ASCII version digit + point */
+    r.ok = true;
+    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
+    r.confidence = 620;
+    r.note = "x3f-version-gate+bounded-extent";
+    return r;
+}
+
+/* MRW: three og keys (II\x1A\x00 :5455 / MM\x1A\x00 :5465 / \x00MRM
+ * 0x004d524d :6191, FileMRW idx 102). The II/MM forms carry the PRD
+ * block offset at +4 - the anchor that makes the probe exact; the MRM
+ * form is the marker variant (bounded heuristic). */
+CarveResult validate_mrw(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[8];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    const bool is_ii = std::memcmp(h, "II\x1A\x00", 4) == 0;
+    const bool is_mm = std::memcmp(h, "MM\x1A\x00", 4) == 0;
+    const bool is_mrm = std::memcmp(h, "\x00MRM", 4) == 0;
+    if (!is_ii && !is_mm && !is_mrm)
+        return r;
+    const u64 limit = probe_limit(s, hit, cap);
+    if (is_ii || is_mm) {
+        const u32 off = u32_from_bytes_le(h + 4);
+        if (off < 8 || u64(off) > (4ull << 20))
+            return r;
+        u8 prd[3];
+        if (!rd(s, hit + off, prd, 3) || std::memcmp(prd, "PRD", 3) != 0)
+            return r; /* the PRD block anchor */
+        r.ok = true;
+        r.end = std::min(hit + u64(off) + u64(4 << 20), limit);
+        r.confidence = 650;
+        r.note = "mrw-prd-anchored-bounded";
+        return r;
+    }
+    if (h[4] == 0 && h[5] == 0 && h[6] == 0 && h[7] == 0)
+        return r; /* bare marker with nothing behind it */
+    r.ok = true;
+    r.end = std::min(hit + u64(4 << 20), limit);
+    r.confidence = 600;
+    r.note = "mrm-marker-bounded";
+    return r;
+}
+
+/* WPG: "wpg\0" key 0x00677077 (:5872) -> FileInfo {min 20, max
+ * 0x5F5E100} verified at the ctor (:20542-20548); the modern analyser's
+ * whole validation is the magic re-check (:20519-20528) - the size walk
+ * is the recorded follow-up, the DWG-pattern bounded extent stands in. */
+CarveResult validate_wpg(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[20];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r; /* the og FileInfo floor is 20 bytes */
+    if (std::memcmp(h, "wpg\x00", 4) != 0)
+        return r;
+    r.ok = true;
+    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
+    r.confidence = 620;
+    r.note = "wpg-magic-recheck+bounded-extent";
+    return r;
+}
+
+/* WPD: \xFF" "WPC key 0x435057ff (:5937) -> FileWPDAnalyser idx 68. The
+ * document stream walk is undecoded; the 4-byte key + a nonzero
+ * product-version word at +4 carry the gate, bounded extent stands in. */
+CarveResult validate_wpd(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[8];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    if (std::memcmp(h, "\xFF" "WPC", 4) != 0)
+        return r;
+    if (h[4] == 0 && h[5] == 0)
+        return r; /* zero product word: degenerate */
+    r.ok = true;
+    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
+    r.confidence = 600;
+    r.note = "wpd-magic+bounded-extent";
+    return r;
+}
+
+/* PSP: "Pain" key 0x6e696150 (:5802) -> PSPAnalyser chain idx 55. The
+ * files carry "Paint Shop Pro Image File" as the header string - the
+ * 19-byte prefix is the real discriminator; bounded extent stands in. */
+CarveResult validate_psp(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[19];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    if (std::memcmp(h, "Paint Shop Pro I", 16) != 0)
+        return r;
+    r.ok = true;
+    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
+    r.confidence = 650;
+    r.note = "psp-header-string+bounded-extent";
+    return r;
+}
+
+/* SIT: "Stuf" key 0x66757453 (:5840) -> SIT chain idx 93 (index-first
+ * archive family). The 7-byte "StuffIt" covenant is the strong form of
+ * the key; bounded extent stands in for the undecoded index walk. */
+CarveResult validate_sit(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[7];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    if (std::memcmp(h, "Stuf", 4) != 0 || std::memcmp(h + 4, "fIt", 3) != 0)
+        return r;
+    r.ok = true;
+    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
+    r.confidence = 620;
+    r.note = "sit-magic+bounded-extent";
+    return r;
+}
+
+/* GZ: u16 key 0x8B1F (:6481) -> GZAnalyzer+FileGZ chain idx 39. The
+ * modern analyser is header-validation; the core walks the optional
+ * FLG fields to the DEFLATE start and bounds the extent (the trailer
+ * is only findable by inflating). */
+CarveResult validate_gz(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[10];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    if (h[0] != 0x1F || h[1] != 0x8B)
+        return r;
+    if (h[2] != 8)
+        return r; /* CM = deflate (8 in every shipped gzip) */
+    if (h[3] & 0xE0)
+        return r; /* reserved FLG bits must be clear */
+    const u32 os = h[9];
+    if (os > 13 && os != 0xFF)
+        return r;
+    const u64 limit = probe_limit(s, hit, cap);
+    u64 q = hit + 10;
+    const u32 flg = h[3];
+    if (flg & 0x04) { /* FEXTRA */
+        u8 x[2];
+        if (!rd(s, q, x, 2))
+            return r;
+        const u32 xlen = u32(x[0]) | (u32(x[1]) << 8);
+        if (xlen == 0 || xlen > 0x10000)
+            return r;
+        q += 2 + xlen;
+    }
+    /* FNAME / FCOMMENT: NUL-terminated, bounded scan */
+    for (int which = 0; which < 2; ++which) {
+        if (!(flg & (which == 0 ? 0x08 : 0x10)))
+            continue;
+        bool term = false;
+        for (u32 i = 0; i < 0x10000; ++i) {
+            u8 b = 0;
+            if (!rd(s, q, &b, 1))
+                return r;
+            ++q;
+            if (b == 0) {
+                term = true;
+                break;
+            }
+        }
+        if (!term)
+            return r;
+    }
+    if (flg & 0x02)
+        q += 2; /* FHCRC */
+    if (q >= limit)
+        return r;
+    r.ok = true;
+    r.end = limit; /* the DEFLATE stream runs to the member's trailer */
+    r.confidence = 600;
+    r.note = "gz-header-fields+deflate-bounded";
+    return r;
+}
+
+/* APE: "MAC " key 0x2043414d (:5653) -> CAPEAnalyser idx 81 (frame-sync
+ * school, no index). Version is the BE u32 at +4 (3.9x releases carry
+ * 3920-3990); bounded extent stands in for the undecoded frame walk. */
+CarveResult validate_ape(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[8];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    if (std::memcmp(h, "MAC ", 4) != 0)
+        return r;
+    const u32 v = (u32(h[4]) << 24) | (u32(h[5]) << 16) | (u32(h[6]) << 8) | u32(h[7]);
+    if (v < 300 || v > 5000)
+        return r; /* release integers 3.90-4.x */
+    r.ok = true;
+    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
+    r.confidence = 620;
+    r.note = "ape-version-gate+bounded-extent";
+    return r;
+}
+
+/* AU: ".snd" key 0x646e732e (:6155) -> FileAUAnalyser idx 9. Sun/NeXT
+ * audio: BE data-offset (>= 24), BE size (0xFFFFFFFF = unknown), BE
+ * encoding 1..27, BE sample-rate and channel-count sanity. */
+CarveResult validate_au(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[24];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    if (std::memcmp(h, ".snd", 4) != 0)
+        return r;
+    const u32 off = (u32(h[4]) << 24) | (u32(h[5]) << 16) | (u32(h[6]) << 8) | u32(h[7]);
+    const u32 size = (u32(h[8]) << 24) | (u32(h[9]) << 16) | (u32(h[10]) << 8) | u32(h[11]);
+    const u32 enc = (u32(h[12]) << 24) | (u32(h[13]) << 16) | (u32(h[14]) << 8) | u32(h[15]);
+    const u32 rate = (u32(h[16]) << 24) | (u32(h[17]) << 16) | (u32(h[18]) << 8) | u32(h[19]);
+    const u32 ch = (u32(h[20]) << 24) | (u32(h[21]) << 16) | (u32(h[22]) << 8) | u32(h[23]);
+    if (off < 24 || u64(off) > (256ull << 20))
+        return r;
+    if (enc < 1 || enc > 27)
+        return r; /* documented encodings 1..27 */
+    if (rate < 1000 || rate > 2000000)
+        return r;
+    if (ch < 1 || ch > 64)
+        return r;
+    const u64 limit = probe_limit(s, hit, cap);
+    if (size != 0xFFFFFFFF) {
+        if (size < 4)
+            return r;
+        r.ok = true;
+        r.end = std::min(hit + u64(off) + u64(size), limit);
+        r.confidence = 800;
+        r.note = "sun-audio-fields";
+        return r;
+    }
+    r.ok = true;
+    r.end = limit; /* unknown size: the data runs out */
+    r.confidence = 650;
+    r.note = "sun-audio-fields+unknown-size";
+    return r;
+}
+
+/* AIFF: "FORM" key 0x4d524f46 (:6086) -> CFileAIFAnalyzer idx 80 (the
+ * IFF family, AIFF/ILBM...). Grammar: FORM + BE u32 size + 4-byte
+ * printable form-type; extent = 8 + size. */
+CarveResult validate_aiff(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[12];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    if (std::memcmp(h, "FORM", 4) != 0)
+        return r;
+    const u32 size = (u32(h[4]) << 24) | (u32(h[5]) << 16) | (u32(h[6]) << 8) | u32(h[7]);
+    if (size < 4 || u64(size) > cap)
+        return r;
+    for (int i = 8; i < 12; ++i)
+        if (h[i] < 0x20 || h[i] > 0x7E)
+            return r; /* form-type must be printable ASCII */
+    const u64 limit = probe_limit(s, hit, cap);
+    r.ok = true;
+    r.end = std::min(hit + 8 + u64(size), limit);
+    r.confidence = 750;
+    r.note = "iff-form-grammar";
+    return r;
+}
+
+/* HLP: the og's three keys - DB A5 2D 00 / 94 A6 2E 00 (both idx 23,
+ * :6029/:6041) and 3F 5F 03 00 (idx 32, :6077; the canonical Windows
+ * Help magic - the census's "Nikon NEF" label there is an erratum, NEF
+ * is TIFF-based). The help-body walk is undecoded; the 4-byte keys are
+ * the gate, bounded extent stands in. */
+CarveResult validate_hlp(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[8];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    const bool k1 = std::memcmp(h, "\xDB\xA5\x2D\x00", 4) == 0;
+    const bool k2 = std::memcmp(h, "\x94\xA6\x2E\x00", 4) == 0;
+    const bool k3 = std::memcmp(h, "\x3F\x5F\x03\x00", 4) == 0;
+    if (!k1 && !k2 && !k3)
+        return r;
+    if (k3 && h[4] == 0 && h[5] == 0 && h[6] == 0 && h[7] == 0)
+        return r; /* bare magic: the degenerate the key would accept */
+    r.ok = true;
+    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
+    r.confidence = 600;
+    r.note = "hlp-key-magic+bounded-extent";
+    return r;
+}
+
+/* ICO/CUR: 00 00 01 00 / 00 00 02 00 keys 0x00010000/0x00020000
+ * (:6053-6065) -> FileICOAnalyser idx 34 (one analyser, both dir
+ * types). ICONDIR: reserved u16 (0) + type u16 (1/2) + count u16; each
+ * 16-byte entry carries a data extent - the walk ends at the last
+ * entry's end. */
+CarveResult validate_ico(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[6];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    if (h[0] != 0 || h[1] != 0)
+        return r;
+    const u32 type = u32(h[2]) | (u32(h[3]) << 8);
+    const u32 count = u32(h[4]) | (u32(h[5]) << 8);
+    if (type != 1 && type != 2)
+        return r;
+    if (count == 0 || count > 0x1000)
+        return r;
+    const u64 limit = probe_limit(s, hit, cap);
+    u64 end = 6 + 16ull * count;
+    for (u32 i = 0; i < count; ++i) {
+        u8 e[16];
+        if (!rd(s, hit + 6 + 16ull * i, e, sizeof(e)))
+            return r;
+        const u32 planes = u32(e[4]) | (u32(e[5]) << 8);
+        const u32 bpp = u32(e[6]) | (u32(e[7]) << 8);
+        const u32 bytes = u32(e[8]) | (u32(e[9]) << 8) | (u32(e[10]) << 16) | (u32(e[11]) << 24);
+        const u32 data_off =
+            u32(e[12]) | (u32(e[13]) << 8) | (u32(e[14]) << 16) | (u32(e[15]) << 24);
+        if (type == 1 && (planes < 1 || planes > 4))
+            return r; /* icon entries: sane plane/bpp counts */
+        if (type == 1 && (bpp != 0 && bpp != 1 && bpp != 4 && bpp != 8 && bpp != 16 && bpp != 24 &&
+                          bpp != 32))
+            return r;
+        if (bytes < 16)
+            return r;
+        if (u64(data_off) + u64(bytes) > end)
+            end = u64(data_off) + u64(bytes);
+    }
+    if (hit + end > limit)
+        return r; /* the declared data does not fit the slab */
+    r.ok = true;
+    r.end = hit + end;
+    r.confidence = 700;
+    r.note = "ico-dir-walk";
+    return r;
+}
+
+/* WMF (placeable): D7 CD C6 9A key 0x9ac6cdd7 (:5961) -> the WMF node
+ * idx 70. The 22-byte placeable header ends with the XOR checksum of
+ * its first 10 words - verifying it is the strongest possible gate; a
+ * standard-WMF header must follow at +22. */
+CarveResult validate_wmf_placeable(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[22];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    if (std::memcmp(h, "\xD7\xCD\xC6\x9A", 4) != 0)
+        return r;
+    const u16 inch = u16_from_bytes_le(h + 16);
+    if (inch == 0 || inch > 14400)
+        return r;
+    /* the placeable checksum: the stored word at +18 is the XOR of the
+     * first 9 words (computed with the checksum field zero) - so the
+     * verification compares XOR(words 0..8) against the stored word
+     * (equivalently XOR of all 10 words == 0) */
+    u16 x = 0;
+    for (int i = 0; i < 9; ++i)
+        x = u16(x ^ u16_from_bytes_le(h + 2 * i));
+    const u16 stored = u16_from_bytes_le(h + 18);
+    if (x != stored)
+        return r; /* placeable-header checksum */
+    u8 sh[4];
+    if (!rd(s, hit + 22, sh, 4) || sh[0] != 0x01 || sh[1] != 0x00 || sh[2] != 0x09 || sh[3] != 0x00)
+        return r; /* the standard header follows at +22 */
+    r.ok = true;
+    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
+    r.confidence = 750;
+    r.note = "wmf-placeable-checksum-verified";
+    return r;
+}
+
+/* WMF (standard): 01 00 09 00 key 0x00090001 (:5949) -> the WMF node
+ * idx 70 (shared with the thumbcache family). The 18-byte header: type
+ * 1, header-size 9 words, version 0x0100/0x0300, size in words, sane
+ * object/record counts - extent = size*2. */
+CarveResult validate_wmf_std(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[18];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    if (std::memcmp(h, "\x01\x00\x09\x00", 4) != 0)
+        return r;
+    const u16 ver = u16_from_bytes_le(h + 4);
+    const u32 words = u32_from_bytes_le(h + 6);
+    const u16 objects = u16_from_bytes_le(h + 10);
+    const u32 maxrec = u32_from_bytes_le(h + 12);
+    const u16 params = u16_from_bytes_le(h + 16);
+    if (ver != 0x0100 && ver != 0x0300)
+        return r;
+    if (words < 9 || u64(words) > (cap / 2))
+        return r;
+    if (objects > 256)
+        return r;
+    if (maxrec < 3 || u64(maxrec) > u64(words))
+        return r;
+    if (params != 0)
+        return r;
+    const u64 limit = probe_limit(s, hit, cap);
+    r.ok = true;
+    r.end = std::min(hit + u64(words) * 2, limit);
+    r.confidence = 700;
+    r.note = "wmf-standard-header";
+    return r;
+}
+
+/* TTF: 00 01 00 00 (sfnt 1.0) - the u16-key 0x0100 chain shared with
+ * MDB (census multimap). The sfnt table directory is the gate:
+ * numTables 1..128, and every entry's offset+length must fit inside the
+ * walk's maximum. */
+CarveResult validate_ttf(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[12];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    if (std::memcmp(h, "\x00\x01\x00\x00", 4) != 0)
+        return r;
+    const u32 n = (u32(h[4]) << 8) | h[5];
+    if (n == 0 || n > 128)
+        return r;
+    const u64 limit = probe_limit(s, hit, cap);
+    u64 end = 12 + 16ull * n;
+    for (u32 i = 0; i < n; ++i) {
+        u8 e[16];
+        if (!rd(s, hit + 12 + 16ull * i, e, sizeof(e)))
+            return r;
+        const u32 off = (u32(e[8]) << 24) | (u32(e[9]) << 16) | (u32(e[10]) << 8) | u32(e[11]);
+        const u32 len = (u32(e[12]) << 24) | (u32(e[13]) << 16) | (u32(e[14]) << 8) | u32(e[15]);
+        if (u64(off) + u64(len) > end)
+            end = u64(off) + u64(len);
+        if (e[8] == 0 && e[9] == 0 && e[10] == 0 && e[11] == 0 && e[12] == 0 && e[13] == 0 &&
+            e[14] == 0 && e[15] == 0)
+            return r; /* all-zero offset+length: not a table entry */
+    }
+    if (hit + end > limit)
+        return r;
+    r.ok = true;
+    r.end = hit + end;
+    r.confidence = 700;
+    r.note = "ttf-table-directory";
+    return r;
+}
+
+/* MDB: the u16-key 0x0100 chain -> CMDBAnalyser, validated first-hand
+ * (FUN_180015260: key 00 01 00 00 + "dard" u64 @+8 + " DB\0" u32
+ * @+0x10 = the "Standard Jet DB\0" signature at +4; type-id 39;
+ * FileInfo bounds {0x1000, 0xBEBC200}, ctor :21316-21318). The
+ * page-chain walk is undecoded - the Jet header + the og's own bounds
+ * carry the row, bounded extent stands in. */
+CarveResult validate_mdb(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[20];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    if (std::memcmp(h, "\x00\x01\x00\x00", 4) != 0)
+        return r;
+    if (std::memcmp(h + 4, "Standard Jet DB\x00", 16) != 0)
+        return r;
+    r.ok = true;
+    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
+    r.confidence = 650;
+    r.note = "jet-db-signature+bounded-extent";
+    return r;
+}
+
+/* TAR: the list-layer probe - "ustar" via strncmp at +257 (TARAnalyser,
+ * :63657/:20300). The classic tar header checksum (all header bytes
+ * with the chksum field read as spaces) is the exact gate; the block
+ * walk advances header+data in 512-byte units to the first break/zero
+ * block. min_size 1024 keeps the F8 late-magic rule (257+32). */
+CarveResult validate_tar(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    const u64 limit = probe_limit(s, hit, cap);
+    u64 q = hit;
+    u64 last_end = 0;
+    u32 blocks = 0;
+    for (u32 guard = 0; guard < (1u << 20); ++guard) {
+        u8 b[512];
+        if (!rd(s, q, b, sizeof(b)) || q + 512 > limit)
+            break;
+        bool all_zero = true;
+        for (int i = 0; i < 512; ++i)
+            if (b[i] != 0) {
+                all_zero = false;
+                break;
+            }
+        if (all_zero) {
+            if (blocks > 0)
+                last_end = q; /* the EOF zero block closes the archive */
+            break;
+        }
+        if (std::memcmp(b + 257, "ustar", 5) != 0)
+            break; /* not a header block: end of the walked region */
+        /* checksum: sum with the 8 chksum bytes replaced by spaces */
+        u64 sum = 0;
+        for (int i = 0; i < 512; ++i)
+            sum += (i >= 148 && i < 156) ? u64(' ') : u64(b[i]);
+        u64 stored = 0;
+        bool digits = false;
+        for (int i = 148; i < 156; ++i) {
+            if (b[i] >= '0' && b[i] <= '7') {
+                stored = stored * 8 + u64(b[i] - '0');
+                digits = true;
+            }
+        }
+        if (!digits || sum != stored)
+            break; /* header fails the tar checksum: grammar break */
+        /* size field: 12 octal digits at +124 */
+        u64 size = 0;
+        for (int i = 124; i < 136; ++i)
+            if (b[i] >= '0' && b[i] <= '7')
+                size = size * 8 + u64(b[i] - '0');
+        const u64 data = (size + 511) / 512 * 512;
+        if (q + 512 + data > limit)
+            break; /* torn member: salvage the walked blocks */
+        q += 512 + data;
+        ++blocks;
+        last_end = q;
+    }
+    if (blocks == 0)
+        return r;
+    r.ok = true;
+    r.end = last_end;
+    r.confidence = 750;
+    r.note = "tar-checksum-verified-blocks";
+    return r;
+}
+
+/* EPS: u16 key "%!" 0x2125 (:6205/:6219, the CEPS-family PostScript
+ * chain). The canonical PS covenant "%!PS" is the analyser-side gate
+ * (every shipped PostScript carries it); extent is bounded (the PS
+ * trailer scan is the recorded follow-up). */
+CarveResult validate_eps(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[4];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    if (h[0] != '%' || h[1] != '!' || h[2] != 'P' || h[3] != 'S')
+        return r;
+    r.ok = true;
+    r.end = std::min(hit + u64(16 << 20), probe_limit(s, hit, cap));
+    r.confidence = 620;
+    r.note = "postscript-covenant+bounded-extent";
+    return r;
+}
+
+/* AI: C5 D0 D3 C6 key 0xc6d3d0c5 (:5690) -> CEPSAnalyser idx 27 (the
+ * session-3 correction: Adobe Illustrator AI/EPS - NO dBase analyser
+ * exists in the og). Version word at +4 gates; bounded extent stands
+ * in for the undecoded PS-body walk. */
+CarveResult validate_ai(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[8];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    if (std::memcmp(h, "\xC5\xD0\xD3\xC6", 4) != 0)
+        return r;
+    const u32 v = u32_from_bytes_le(h + 4);
+    if (v < 1 || v > 64)
+        return r; /* AI format versions 2..10 */
+    r.ok = true;
+    r.end = std::min(hit + u64(16 << 20), probe_limit(s, hit, cap));
+    r.confidence = 620;
+    r.note = "ai-version-gate+bounded-extent";
+    return r;
+}
+
+/* DXF: "  0\r" key 0x0d302020 (:5555) -> CDXF chain (g146+g144, idx
+ * 25) - first-hand: DXF is a KEYED u32 format (the census's list-layer
+ * label corrected). The ASCII group-code covenant "  0\r\nSECTION"
+ * extends the key; bounded extent stands in for the text walk. */
+CarveResult validate_dxf(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[12];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    if (std::memcmp(h, "  0\r\nSECTION", 8) != 0)
+        return r;
+    r.ok = true;
+    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
+    r.confidence = 620;
+    r.note = "dxf-group-code-covenant+bounded-extent";
+    return r;
+}
+
+/* 3GP: the og's File3GP row - the ftyp family's 3gp brands (the MP4
+ * validator's brand set does not carry them). Shares the BMFF top-box
+ * walk semantics: brand at +8, boxes to the first break. */
+CarveResult validate_3gp(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[12];
+    if (!rd(s, hit + 4, h, sizeof(h)))
+        return r; /* ftyp sits at +4 */
+    if (std::memcmp(h, "ftyp", 4) != 0)
+        return r;
+    static const char* kBrands[] = {"3gp4", "3gp5", "3gp6", "3gr6", "3gs6", "3ge6", "3gg6"};
+    bool brand_ok = false;
+    for (const char* b : kBrands)
+        if (std::memcmp(h + 4, b, 4) == 0) /* major_brand sits at h+4 */
+            brand_ok = true;
+    if (!brand_ok)
+        return r;
+    const u64 limit = probe_limit(s, hit, cap);
+    /* top-level box walk (the bmff family grammar) */
+    u64 q = hit;
+    u64 last_end = 0;
+    for (u32 guard = 0; guard < 4096; ++guard) {
+        u8 bh[8];
+        if (!rd(s, q, bh, 8) || q + 8 > limit)
+            break;
+        u64 sz = (u64(bh[0]) << 24) | (u64(bh[1]) << 16) | (u64(bh[2]) << 8) | u64(bh[3]);
+        if (sz == 1) {
+            u8 lb[8];
+            if (!rd(s, q + 8, lb, 8))
+                break;
+            u64 big = 0;
+            for (int i = 0; i < 8; ++i)
+                big = (big << 8) | lb[i];
+            sz = big;
+        } else if (sz == 0) {
+            last_end = limit; /* to-EOF box */
+            break;
+        }
+        if (sz < 8 || sz > limit - q)
+            break; /* torn box: salvage the walked set */
+        q += sz;
+        last_end = q;
+    }
+    if (last_end == 0)
+        return r;
+    r.ok = true;
+    r.end = last_end;
+    r.confidence = 780;
+    r.note = "bmff-3gp-brand+box-walk";
+    return r;
+}
+
 } // namespace carve
 } // namespace cr

@@ -44,7 +44,9 @@ constexpr u32 kTrialOrder[] = {
     FMT_PNG, /* N-052: HEIC heic-proper first; HEIF siblings follow */
     FMT_WEBP, FMT_WAV, FMT_PDF, FMT_7Z, FMT_SQLITE, FMT_AVI, FMT_MKV, FMT_RAR5, FMT_RAR4, FMT_PST,
     FMT_ORF, FMT_RAF, FMT_TIFF_EP, FMT_RW2, FMT_PSD,
-    /* N-053: TIFF/EP claims IIU before the RW2 fallback */ FMT_MP3, FMT_M4A, FMT_ASF, FMT_FLV,
+    /* N-053: TIFF/EP claims IIU before the RW2 fallback */ FMT_MP3, FMT_M4A, FMT_3GP,
+    /* S-007 niche: 3GP joins the ftyp family (brand-gated, like the
+     * MP4/MOV/M4A siblings above) */ FMT_ASF, FMT_FLV,
     FMT_CAB, FMT_ISO, FMT_TIFF_BE, FMT_ORF_IIRS, FMT_ORF_MMOR, FMT_ZIP_CD,
     FMT_CAB_LC, /* N-069: lowercase CAB key follows its uppercase sibling (distinct magic) */
     /* S-007: the og's common formats - distinct magics (no overlap with
@@ -57,6 +59,16 @@ constexpr u32 kTrialOrder[] = {
     /* S-037: the og's FH11 + CPT7/8/9 rows (distinct magics; the three
      * CPT keys share one validator, first-key-first is deterministic) */
     FMT_FH11, FMT_CPT7, FMT_CPT8, FMT_CPT9,
+    /* S-007 niche batch 1 (SCAN-2f): the og-only keyed formats - each
+     * key re-read at its registration site. Distinct magics except the
+     * shared 00 01 00 00 key: TTF (table-directory gate) tries before
+     * MDB (Jet signature) - the sfnt directory is the more specific
+     * grammar. The HLP/MRW multi-key rows mirror the og's one-row-per-
+     * key policy. */
+    FMT_MID, FMT_OGG, FMT_RM, FMT_MXF, FMT_DMG, FMT_X3F, FMT_MRW, FMT_MRW_MM,
+    FMT_MRW_MRM, FMT_WPG, FMT_WPD, FMT_PSP, FMT_SIT, FMT_GZ, FMT_APE, FMT_AU, FMT_AIFF,
+    FMT_HLP, FMT_HLP2, FMT_HLP3, FMT_ICO, FMT_CUR, FMT_WMF_PL, FMT_WMF, FMT_TTF, FMT_MDB,
+    FMT_TAR, FMT_EPS, FMT_AI, FMT_DXF,
     /* S-017: ftyp-destroyed MOV salvage (og MovAnalyzer list layer) -
      * LAST: the ftyp-keyed entries must claim the position first */
     FMT_MOV_NAKED};
@@ -70,9 +82,11 @@ struct ScanCtx {
     /* M-024: per-trial-slot and per-raw-sign-format disable maps, built
      * once in carve_slice from flags->disabled_formats (null list ->
      * all-zero = every format enabled). */
-    /* sized by the trial table; the static_assert keeps the fixed array
-     * honest when formats are added */
-    static constexpr u32 kMaxTrialSlots = 96;
+    /* sized by the trial table; the static_asserts keep the fixed array
+     * honest AND the trial order exhaustive when formats are added (a
+     * FormatId missing from kTrialOrder is silently never scanned -
+     * the S-007 niche batch added that second gate) */
+    static constexpr u32 kMaxTrialSlots = 160;
     bool trial_disabled[kMaxTrialSlots] = {};
     std::vector<bool> rawsign_disabled;
     const CarveFlags* flags;
@@ -930,7 +944,11 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
      * pass; the hot loops then test a single bool). The grammar layer
      * gates by trial slot; the raw-sign layer gates by format index. */
     if (flags.disabled_formats != nullptr && *flags.disabled_formats != 0) {
-        static_assert(kTrialCount <= 96, "grow trial_disabled with the trial table");
+        static_assert(kTrialCount <= sizeof(((ScanCtx*)0)->trial_disabled),
+                     "grow trial_disabled with the trial table");
+        static_assert(kTrialCount == FMT_COUNT,
+                     "every FormatId must appear in kTrialOrder exactly once - "
+                     "a missing id is silently never scanned");
         for (u32 ti = 0; ti < kTrialCount; ++ti)
             ctx.trial_disabled[ti] =
                 carve_format_listed(flags.disabled_formats, ctx.reg[kTrialOrder[ti]]);

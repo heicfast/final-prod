@@ -2050,6 +2050,318 @@ size_t plant_dwg(std::vector<u8>& img, size_t at) {
     return 4096;
 }
 
+/* ---- S-007 niche batch 1 plants (SCAN-2f) --------------------------- */
+
+/* SMF: MThd + one complete MTrk. */
+size_t plant_mid(std::vector<u8>& img, size_t at, u32 ntrks_declared = 1, int complete = 1) {
+    std::memcpy(img.data() + at, "MThd", 4);
+    putbe32(img, at + 4, 6);
+    putbe16(img, at + 8, 0); /* format 0 */
+    putbe16(img, at + 10, u16(ntrks_declared));
+    putbe16(img, at + 12, 480); /* division */
+    size_t p = at + 14;
+    for (int t = 0; t < complete; ++t) {
+        std::memcpy(img.data() + p, "MTrk", 4);
+        putbe32(img, p + 4, 16);
+        for (int i = 0; i < 16; ++i)
+            img[p + 8 + size_t(i)] = u8(0x40 + i);
+        p += 8 + 16;
+    }
+    return p - at;
+}
+
+/* Ogg: a BOS page + (optionally) an EOS page. */
+size_t plant_ogg(std::vector<u8>& img, size_t at, bool with_eos = true) {
+    auto page = [&](size_t p, u8 htype, u8 seglen) {
+        std::memcpy(img.data() + p, "OggS", 4);
+        img[p + 4] = 0; /* version */
+        img[p + 5] = htype;
+        for (int i = 0; i < 16; ++i)
+            img[p + 6 + size_t(i)] = u8(i); /* granule..CRC noise */
+        img[p + 26] = 1; /* one segment */
+        img[p + 27] = seglen;
+        for (int i = 0; i < seglen; ++i)
+            img[p + 28 + size_t(i)] = u8(0x30 + i);
+        return 28 + size_t(seglen);
+    };
+    size_t p = at;
+    p += page(p, 0x02, 30);
+    if (with_eos)
+        p += page(p, 0x04, 8);
+    return p - at;
+}
+
+/* RealMedia: .RMF lead-in + one PROP chunk. */
+size_t plant_rm(std::vector<u8>& img, size_t at) {
+    std::memcpy(img.data() + at, ".RMF", 4);
+    putbe32(img, at + 4, 1); /* version 1 */
+    putbe32(img, at + 8, 1); /* n-headers sanity */
+    std::memcpy(img.data() + at + 0x10, "PROP", 4);
+    putbe32(img, at + 0x14, 0x28); /* chunk total size */
+    for (size_t i = 0x18; i < 0x38; ++i)
+        img[at + i] = u8(i & 0xFF);
+    return 0x38;
+}
+
+/* MXF: two minimal KLV items. */
+size_t plant_mxf(std::vector<u8>& img, size_t at) {
+    for (int item = 0; item < 2; ++item) {
+        const size_t p = at + size_t(item) * 25;
+        std::memcpy(img.data() + p,
+                    "\x06\x0E\x2B\x34\x02\x05\x01\x01\x0D\x01\x02\x01\x01\x00\x00\x00", 16);
+        img[p + 16] = 8; /* short-form BER length */
+        for (int i = 0; i < 8; ++i)
+            img[p + 17 + size_t(i)] = u8(0x10 + i);
+    }
+    return 50;
+}
+
+/* A level-1 bzip2 stream: BZh1 + block pi magic (+ optional footer). */
+size_t plant_dmg(std::vector<u8>& img, size_t at, bool with_footer = true) {
+    std::memcpy(img.data() + at, "BZh1", 4);
+    std::memcpy(img.data() + at + 4, "\x31\x41\x59\x26\x53\x59", 6);
+    for (size_t i = 10; i < 128; ++i)
+        img[at + i] = u8(i & 0xFF);
+    if (with_footer) {
+        std::memcpy(img.data() + at + 128, "\x17\x72\x45\x38\x50\x90", 6);
+        put32v(img, at + 134, 0x12345678);
+        return 138;
+    }
+    return 128;
+}
+
+size_t plant_x3f(std::vector<u8>& img, size_t at) {
+    std::memcpy(img.data() + at, "FOVb", 4);
+    std::memcpy(img.data() + at + 4, "2.1\x00", 4);
+    for (size_t i = 8; i < 128; ++i)
+        img[at + i] = u8(i & 0xFF);
+    return 128;
+}
+
+/* Minolta MRW: II1A + the PRD block offset anchor. */
+size_t plant_mrw(std::vector<u8>& img, size_t at) {
+    std::memcpy(img.data() + at, "II\x1A\x00", 4);
+    put32v(img, at + 4, 0x40);
+    for (size_t i = 8; i < 0x40; ++i)
+        img[at + i] = u8(i & 0xFF);
+    std::memcpy(img.data() + at + 0x40, "PRD", 3);
+    return 0x40 + 32;
+}
+
+size_t plant_wpg(std::vector<u8>& img, size_t at) {
+    std::memcpy(img.data() + at, "wpg\x00", 4);
+    for (size_t i = 4; i < 32; ++i)
+        img[at + i] = u8(i & 0xFF);
+    return 32;
+}
+
+size_t plant_wpd(std::vector<u8>& img, size_t at) {
+    std::memcpy(img.data() + at, "\xFF" "WPC", 4);
+    put16(img, at + 4, 0x0200); /* nonzero product word */
+    for (size_t i = 6; i < 32; ++i)
+        img[at + i] = u8(i & 0xFF);
+    return 32;
+}
+
+size_t plant_psp(std::vector<u8>& img, size_t at) {
+    std::memcpy(img.data() + at, "Paint Shop Pro I", 16);
+    std::memcpy(img.data() + at + 16, "mage File\x00", 10);
+    for (size_t i = 26; i < 64; ++i)
+        img[at + i] = u8(i & 0xFF);
+    return 64;
+}
+
+size_t plant_sit(std::vector<u8>& img, size_t at) {
+    std::memcpy(img.data() + at, "Stuf", 4);
+    std::memcpy(img.data() + at + 4, "fIt", 3);
+    for (size_t i = 7; i < 32; ++i)
+        img[at + i] = u8(i & 0xFF);
+    return 32;
+}
+
+size_t plant_gz(std::vector<u8>& img, size_t at) {
+    img[at] = 0x1F;
+    img[at + 1] = 0x8B;
+    img[at + 2] = 8; /* CM deflate */
+    img[at + 3] = 0x00; /* FLG: no optional fields */
+    for (int i = 4; i < 10; ++i)
+        img[at + size_t(i)] = 0;
+    img[at + 9] = 3; /* OS unix */
+    for (size_t i = 10; i < 74; ++i)
+        img[at + i] = u8((i * 13) & 0xFF); /* deflate-ish body */
+    return 74;
+}
+
+size_t plant_ape(std::vector<u8>& img, size_t at) {
+    std::memcpy(img.data() + at, "MAC ", 4);
+    putbe32(img, at + 4, 3980); /* release integer */
+    putbe16(img, at + 8, 2000); /* compression level */
+    for (size_t i = 10; i < 64; ++i)
+        img[at + i] = u8(i & 0xFF);
+    return 64;
+}
+
+size_t plant_au(std::vector<u8>& img, size_t at) {
+    std::memcpy(img.data() + at, ".snd", 4);
+    putbe32(img, at + 4, 24); /* data offset */
+    putbe32(img, at + 8, 256); /* data size */
+    putbe32(img, at + 12, 3); /* encoding u-law */
+    putbe32(img, at + 16, 44100); /* rate */
+    putbe32(img, at + 20, 2); /* channels */
+    for (size_t i = 24; i < 280; ++i)
+        img[at + i] = u8((i * 7) & 0xFF);
+    return 280;
+}
+
+size_t plant_aiff(std::vector<u8>& img, size_t at) {
+    std::memcpy(img.data() + at, "FORM", 4);
+    putbe32(img, at + 4, 32);
+    std::memcpy(img.data() + at + 8, "AIFF", 4);
+    for (size_t i = 12; i < 40; ++i)
+        img[at + i] = u8(i & 0xFF);
+    return 40;
+}
+
+size_t plant_hlp(std::vector<u8>& img, size_t at) {
+    std::memcpy(img.data() + at, "\x3F\x5F\x03\x00", 4);
+    put32v(img, at + 4, 0x0B1D0001); /* the size-ish dword (nonzero) */
+    for (size_t i = 8; i < 64; ++i)
+        img[at + i] = u8(i & 0xFF);
+    return 64;
+}
+
+/* ICONDIR: one 16-byte entry + its data payload. The entry layout is
+ * byte-exact: width u8 + height u8 + colorCount u8 + reserved u8 +
+ * planes u16 + bpp u16 + bytesInRes u32 + imageOffset u32. */
+size_t plant_ico(std::vector<u8>& img, size_t at, u32 type = 1) {
+    put16(img, at + 0, 0); /* reserved */
+    put16(img, at + 2, u16(type));
+    put16(img, at + 4, 1); /* one image */
+    img[at + 6] = 16; /* width */
+    img[at + 7] = 16; /* height */
+    img[at + 8] = 16; /* color count */
+    img[at + 9] = 0; /* reserved */
+    put16(img, at + 10, 1); /* planes */
+    put16(img, at + 12, 32); /* bpp */
+    put32v(img, at + 14, 64); /* bytes in res */
+    put32v(img, at + 18, 22); /* data offset (right after the dir) */
+    for (size_t i = 22; i < 22 + 64; ++i)
+        img[at + i] = u8(i & 0xFF);
+    return 22 + 64;
+}
+
+/* Placeable WMF: 22-byte header with a VALID XOR checksum. */
+size_t plant_wmf_placeable(std::vector<u8>& img, size_t at) {
+    std::memcpy(img.data() + at, "\xD7\xCD\xC6\x9A", 4);
+    put16(img, at + 4, 0); /* handle */
+    put16(img, at + 6, 0);
+    put16(img, at + 8, 0);
+    put16(img, at + 10, 100); /* bbox */
+    put16(img, at + 12, 100);
+    put16(img, at + 14, 200);
+    put16(img, at + 16, 1440); /* inch */
+    u16 x = 0;
+    for (int i = 0; i < 10; ++i)
+        x = u16(x ^ u16_from_bytes_le(&img[at + 2 * size_t(i)]));
+    put16(img, at + 18, x); /* checksum */
+    std::memcpy(img.data() + at + 22, "\x01\x00\x09\x00", 4); /* standard header */
+    put16(img, at + 26, 0x0300); /* version */
+    put32v(img, at + 28, 100); /* size words */
+    return 36;
+}
+
+size_t plant_wmf_std(std::vector<u8>& img, size_t at) {
+    std::memcpy(img.data() + at, "\x01\x00\x09\x00", 4);
+    put16(img, at + 4, 0x0300); /* version */
+    put32v(img, at + 6, 64); /* size in words -> 128 bytes */
+    put16(img, at + 10, 4); /* objects */
+    put32v(img, at + 12, 10); /* max record */
+    put16(img, at + 16, 0); /* params */
+    for (size_t i = 18; i < 128; ++i)
+        img[at + i] = u8((i * 11) & 0xFF);
+    return 128;
+}
+
+size_t plant_ttf(std::vector<u8>& img, size_t at) {
+    std::memcpy(img.data() + at, "\x00\x01\x00\x00", 4);
+    putbe16(img, at + 4, 1); /* numTables */
+    putbe16(img, at + 6, 16); /* searchRange */
+    putbe16(img, at + 8, 0); /* entrySelector */
+    putbe16(img, at + 10, 16); /* rangeShift */
+    std::memcpy(img.data() + at + 12, "cmap", 4);
+    putbe32(img, at + 16, 0); /* checksum */
+    putbe32(img, at + 20, 28); /* offset */
+    putbe32(img, at + 24, 64); /* length */
+    for (size_t i = 28; i < 92; ++i)
+        img[at + i] = u8((i * 5) & 0xFF);
+    return 92;
+}
+
+size_t plant_mdb(std::vector<u8>& img, size_t at) {
+    std::memcpy(img.data() + at, "\x00\x01\x00\x00", 4);
+    std::memcpy(img.data() + at + 4, "Standard Jet DB\x00", 16);
+    for (size_t i = 20; i < 4096; ++i)
+        img[at + i] = u8((i * 17) & 0xFF);
+    return 4096;
+}
+
+/* A POSIX tar: one member header with a VALID checksum + the EOF block. */
+size_t plant_tar(std::vector<u8>& img, size_t at) {
+    u8* h = img.data() + at;
+    std::memset(h, 0, 512);
+    std::memcpy(h, "file.txt", 8); /* name */
+    std::memcpy(h + 100, "0000644\x00", 8); /* mode */
+    std::memcpy(h + 108, "0000000\x00", 8); /* uid */
+    std::memcpy(h + 116, "0000000\x00", 8); /* gid */
+    std::memcpy(h + 124, "00000000020\x00", 12); /* size = 16 */
+    std::memcpy(h + 136, "14000000000\x00", 12); /* mtime */
+    std::memcpy(h + 257, "ustar\x00" "00", 8); /* magic + version */
+    for (int i = 0; i < 8; ++i)
+        h[148 + i] = ' '; /* chksum as spaces for the sum */
+    u64 sum = 0;
+    for (int i = 0; i < 512; ++i)
+        sum += u64(h[i]);
+    /* octal, NUL-terminated, space-padded - the classic stored form */
+    std::snprintf(reinterpret_cast<char*>(h + 148), 8, "%06llo ", (unsigned long long)sum);
+    std::memset(img.data() + at + 512 + ((16 + 511) / 512 * 512), 0, 1024); /* data + EOF */
+    return 512 + ((16 + 511) / 512 * 512) + 512;
+}
+
+size_t plant_eps(std::vector<u8>& img, size_t at) {
+    std::memcpy(img.data() + at, "%!PS-Adobe-3.0", 14);
+    for (size_t i = 14; i < 64; ++i)
+        img[at + i] = u8(i & 0xFF);
+    return 64;
+}
+
+size_t plant_ai(std::vector<u8>& img, size_t at) {
+    std::memcpy(img.data() + at, "\xC5\xD0\xD3\xC6", 4);
+    put32v(img, at + 4, 8); /* AI format version */
+    for (size_t i = 8; i < 64; ++i)
+        img[at + i] = u8(i & 0xFF);
+    return 64;
+}
+
+size_t plant_dxf(std::vector<u8>& img, size_t at) {
+    std::memcpy(img.data() + at, "  0\r\nSECTION\r\n", 12);
+    for (size_t i = 12; i < 64; ++i)
+        img[at + i] = u8(i & 0xFF);
+    return 64;
+}
+
+size_t plant_3gp(std::vector<u8>& img, size_t at) {
+    putbe32(img, at, 20); /* ftyp box size (BMFF sizes are big-endian) */
+    std::memcpy(img.data() + at + 4, "ftyp", 4);
+    std::memcpy(img.data() + at + 8, "3gp4", 4);
+    putbe32(img, at + 12, 0x00000200); /* minor version */
+    putbe32(img, at + 16, 0x33706734); /* one compat brand slot: 3gp4 */
+    putbe32(img, at + 20, 16); /* box2 size 16 */
+    std::memcpy(img.data() + at + 24, "moov", 4);
+    for (size_t i = 28; i < 36; ++i)
+        img[at + i] = u8(i & 0xFF);
+    return 36;
+}
+
 } // namespace
 
 TEST(Carve, S007CommonFormatsCarve) {
@@ -2210,6 +2522,331 @@ TEST(Carve, S007TruncatedSalvageSemantics) {
     EXPECT_LT(gif->props()->logical_size, gif_len) << "extent stops before the broken trailer";
     ASSERT_NE(rtf, nullptr) << "unclosed-group RTF salvages to the slab end";
     EXPECT_EQ(rtf->props()->logical_size, size_t(64 * 1024 - rtf_at));
+}
+
+TEST(Carve, S007NicheBatch1Carve) {
+    /* The niche batch's falsifiable claim: the og-only keyed formats all
+     * carve on a synthetic slice - the pre-batch registry had none of
+     * them. Each key re-read at its RAWSearchDLL registration site. */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t mid_at = 512, ogg_at = 2048, rm_at = 4096, mxf_at = 6144, dmg_at = 8192,
+                 x3f_at = 10240, mrw_at = 12288, wpg_at = 14336, wpd_at = 16384, psp_at = 18432,
+                 sit_at = 20480, gz_at = 22528, ape_at = 24576, au_at = 28672, aiff_at = 30720,
+                 hlp_at = 32768, ico_at = 34816, cur_at = 35840, wmfpl_at = 36864,
+                 wmfstd_at = 37888, ttf_at = 38912, mdb_at = 51200, tar_at = 102400,
+                 eps_at = 143360, ai_at = 147456, dxf_at = 151552, gp_at = 155648;
+    const size_t mid_len = plant_mid(img, mid_at);
+    const size_t ogg_len = plant_ogg(img, ogg_at);
+    const size_t rm_len = plant_rm(img, rm_at);
+    const size_t mxf_len = plant_mxf(img, mxf_at);
+    const size_t dmg_len = plant_dmg(img, dmg_at);
+    const size_t x3f_len = plant_x3f(img, x3f_at);
+    const size_t mrw_len = plant_mrw(img, mrw_at);
+    const size_t wpg_len = plant_wpg(img, wpg_at);
+    const size_t wpd_len = plant_wpd(img, wpd_at);
+    const size_t psp_len = plant_psp(img, psp_at);
+    const size_t sit_len = plant_sit(img, sit_at);
+    const size_t gz_len = plant_gz(img, gz_at);
+    const size_t ape_len = plant_ape(img, ape_at);
+    const size_t au_len = plant_au(img, au_at);
+    const size_t aiff_len = plant_aiff(img, aiff_at);
+    const size_t hlp_len = plant_hlp(img, hlp_at);
+    const size_t ico_len = plant_ico(img, ico_at, 1);
+    const size_t cur_len = plant_ico(img, cur_at, 2);
+    const size_t wmfpl_len = plant_wmf_placeable(img, wmfpl_at);
+    const size_t wmfstd_len = plant_wmf_std(img, wmfstd_at);
+    const size_t ttf_len = plant_ttf(img, ttf_at);
+    const size_t mdb_len = plant_mdb(img, mdb_at);
+    plant_tar(img, tar_at);
+    const size_t eps_len = plant_eps(img, eps_at);
+    const size_t ai_len = plant_ai(img, ai_at);
+    const size_t dxf_len = plant_dxf(img, dxf_at);
+    const size_t gp_len = plant_3gp(img, gp_at);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    auto find_at = [&](size_t off) -> tree::FileNode* {
+        for (tree::FileNode* n : all)
+            if (!n->props()->extents.empty() && n->props()->extents.front().offset == off)
+                return n;
+        return nullptr;
+    };
+    auto expect_carved = [&](size_t off, u32 fmt, size_t min_len, const char* what) {
+        tree::FileNode* n = find_at(off);
+        ASSERT_NE(n, nullptr) << what << " must carve (S-007 niche)";
+        EXPECT_EQ(n->props()->carve_format, fmt) << what;
+        EXPECT_GE(n->props()->logical_size, min_len) << what;
+    };
+    expect_carved(mid_at, FMT_MID, mid_len, "MIDI");
+    expect_carved(ogg_at, FMT_OGG, ogg_len, "Ogg");
+    expect_carved(rm_at, FMT_RM, rm_len, "RealMedia");
+    expect_carved(mxf_at, FMT_MXF, mxf_len, "MXF");
+    expect_carved(dmg_at, FMT_DMG, dmg_len, "DMG (bzip2)");
+    expect_carved(x3f_at, FMT_X3F, x3f_len, "X3F");
+    expect_carved(mrw_at, FMT_MRW, mrw_len, "MRW");
+    expect_carved(wpg_at, FMT_WPG, wpg_len, "WPG");
+    expect_carved(wpd_at, FMT_WPD, wpd_len, "WPD");
+    expect_carved(psp_at, FMT_PSP, psp_len, "PSP");
+    expect_carved(sit_at, FMT_SIT, sit_len, "StuffIt");
+    expect_carved(gz_at, FMT_GZ, gz_len, "gzip");
+    expect_carved(ape_at, FMT_APE, ape_len, "APE");
+    expect_carved(au_at, FMT_AU, au_len, "Sun AU");
+    expect_carved(aiff_at, FMT_AIFF, aiff_len, "AIFF");
+    expect_carved(hlp_at, FMT_HLP3, hlp_len, "Windows Help");
+    expect_carved(ico_at, FMT_ICO, ico_len, "Icon");
+    expect_carved(cur_at, FMT_CUR, cur_len, "Cursor");
+    expect_carved(wmfpl_at, FMT_WMF_PL, wmfpl_len, "WMF placeable");
+    expect_carved(wmfstd_at, FMT_WMF, wmfstd_len, "WMF standard");
+    expect_carved(ttf_at, FMT_TTF, ttf_len, "TrueType");
+    expect_carved(mdb_at, FMT_MDB, mdb_len, "Access DB");
+    expect_carved(tar_at, FMT_TAR, 1024, "TAR");
+    expect_carved(eps_at, FMT_EPS, eps_len, "PostScript");
+    expect_carved(ai_at, FMT_AI, ai_len, "Illustrator");
+    expect_carved(dxf_at, FMT_DXF, dxf_len, "DXF");
+    expect_carved(gp_at, FMT_3GP, gp_len, "3GP");
+}
+
+TEST(Carve, S007NicheBatch1RejectsNoise) {
+    /* One hostile variant per family - the grammar gates reject what the
+     * raw keys would accept on noise. */
+    std::vector<u8> img(256 * 1024, 0);
+    /* MThd with a wrong header length @ 512 */
+    std::memcpy(img.data() + 512, "MThd", 4);
+    putbe32(img, 512 + 4, 7);
+    /* OggS with version 1 @ 2048 */
+    std::memcpy(img.data() + 2048, "OggS", 4);
+    img[2048 + 4] = 1;
+    /* .RMF with version 2 @ 4096 */
+    std::memcpy(img.data() + 4096, ".RMF", 4);
+    putbe32(img, 4096 + 4, 2);
+    /* a single MXF KLV item (the >= 2 gate) @ 8192 */
+    std::memcpy(img.data() + 8192,
+                "\x06\x0E\x2B\x34\x02\x05\x01\x01\x0D\x01\x02\x01\x01\x00\x00\x00", 16);
+    img[8192 + 16] = 8;
+    /* BZh1 without the pi block magic @ 12288 */
+    std::memcpy(img.data() + 12288, "BZh1", 4);
+    for (int i = 0; i < 8; ++i)
+        img[12288 + 4 + size_t(i)] = u8(0xAA + i);
+    /* FOVb with a non-ASCII version @ 14336 */
+    std::memcpy(img.data() + 14336, "FOVb", 4);
+    img[14336 + 4] = 'x';
+    img[14336 + 5] = 'y';
+    /* II1A whose PRD offset points at nothing @ 16384 */
+    std::memcpy(img.data() + 16384, "II\x1A\x00", 4);
+    put32v(img, 16384 + 4, 0x40);
+    /* MAC with an out-of-band version @ 18432 */
+    std::memcpy(img.data() + 18432, "MAC ", 4);
+    putbe32(img, 18432 + 4, 999999);
+    /* .snd with encoding 99 @ 20480 */
+    std::memcpy(img.data() + 20480, ".snd", 4);
+    putbe32(img, 20480 + 4, 24);
+    putbe32(img, 20480 + 8, 256);
+    putbe32(img, 20480 + 12, 99);
+    /* FORM with size 2 @ 22528 */
+    std::memcpy(img.data() + 22528, "FORM", 4);
+    putbe32(img, 22528 + 4, 2);
+    /* bare 3F 5F 03 00 with nothing behind it @ 24576 */
+    std::memcpy(img.data() + 24576, "\x3F\x5F\x03\x00", 4);
+    /* ICO dir with planes 9 @ 28672 */
+    put16(img, 28672 + 0, 0);
+    put16(img, 28672 + 2, 1);
+    put16(img, 28672 + 4, 1);
+    put16(img, 28672 + 10, 9); /* planes: out of range */
+    put32v(img, 28672 + 16, 64);
+    put32v(img, 28672 + 20, 22);
+    /* placeable WMF with a BAD checksum @ 30720 */
+    std::memcpy(img.data() + 30720, "\xD7\xCD\xC6\x9A", 4);
+    put16(img, 30720 + 16, 1440);
+    put16(img, 30720 + 18, 0xBEEF); /* wrong on purpose */
+    /* standard WMF with params != 0 @ 32768 */
+    std::memcpy(img.data() + 32768, "\x01\x00\x09\x00", 4);
+    put16(img, 32768 + 4, 0x0300);
+    put32v(img, 32768 + 6, 64);
+    put16(img, 32768 + 16, 3);
+    /* sfnt with numTables 0 @ 34816 */
+    std::memcpy(img.data() + 34816, "\x00\x01\x00\x00", 4);
+    putbe16(img, 34816 + 4, 0);
+    /* the Jet key with a stranger behind it @ 36864 */
+    std::memcpy(img.data() + 36864, "\x00\x01\x00\x00", 4);
+    std::memcpy(img.data() + 36864 + 4, "Standard XYZ DB\x00", 16);
+    /* tar header with a BAD checksum @ 40960 */
+    std::memset(img.data() + 40960, 0, 512);
+    std::memcpy(img.data() + 40960, "file.txt", 8);
+    std::memcpy(img.data() + 40960 + 257, "ustar\x00" "00", 8);
+    std::snprintf(reinterpret_cast<char*>(img.data() + 40960 + 148), 8, "%06llo ",
+                  (unsigned long long)12345);
+    /* "%!" with no PS behind it @ 44032 */
+    std::memcpy(img.data() + 44032, "%!XY", 4);
+    /* AI with version 999 @ 45056 */
+    std::memcpy(img.data() + 45056, "\xC5\xD0\xD3\xC6", 4);
+    put32v(img, 45056 + 4, 999);
+    /* DXF key without the SECTION covenant @ 46080 */
+    std::memcpy(img.data() + 46080, "  0\r\nXXXXXXX", 11);
+    /* ftyp with an unknown 3gp brand @ 47104 */
+    put32v(img, 47104, 20);
+    std::memcpy(img.data() + 47104 + 4, "ftyp", 4);
+    std::memcpy(img.data() + 47104 + 8, "3gpZ", 4);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    for (tree::FileNode* n : all) {
+        const u64 off = n->props()->extents.front().offset;
+        const u64 fmt = n->props()->carve_format;
+        EXPECT_FALSE(off == 512 && fmt == FMT_MID) << "bad-length MThd rejected";
+        EXPECT_FALSE(off == 2048 && fmt == FMT_OGG) << "bad-version OggS rejected";
+        EXPECT_FALSE(off == 4096 && fmt == FMT_RM) << "version-2 RMF rejected";
+        EXPECT_FALSE(off == 8192 && fmt == FMT_MXF) << "single-KLV MXF rejected";
+        EXPECT_FALSE(off == 12288 && fmt == FMT_DMG) << "no-pi BZh1 rejected";
+        EXPECT_FALSE(off == 14336 && fmt == FMT_X3F) << "bad-version X3F rejected";
+        EXPECT_FALSE(off == 16384 && fmt == FMT_MRW) << "no-PRD MRW rejected";
+        EXPECT_FALSE(off == 18432 && fmt == FMT_APE) << "bad-version APE rejected";
+        EXPECT_FALSE(off == 20480 && fmt == FMT_AU) << "encoding-99 AU rejected";
+        EXPECT_FALSE(off == 22528 && fmt == FMT_AIFF) << "size-2 FORM rejected";
+        EXPECT_FALSE(off == 24576 && fmt == FMT_HLP3) << "bare HLP magic rejected";
+        EXPECT_FALSE(off == 28672 && fmt == FMT_ICO) << "planes-9 ICO rejected";
+        EXPECT_FALSE(off == 30720 && fmt == FMT_WMF_PL) << "bad-checksum placeable WMF rejected";
+        EXPECT_FALSE(off == 32768 && fmt == FMT_WMF) << "params-nonzero WMF rejected";
+        EXPECT_FALSE(off == 34816 && fmt == FMT_TTF) << "numTables-0 sfnt rejected";
+        EXPECT_FALSE(off == 36864 && fmt == FMT_MDB) << "stranger Jet header rejected";
+        EXPECT_FALSE(off == 40960 && fmt == FMT_TAR) << "bad-checksum tar rejected";
+        EXPECT_FALSE(off == 44032 && fmt == FMT_EPS) << "no-PS %! rejected";
+        EXPECT_FALSE(off == 45056 && fmt == FMT_AI) << "version-999 AI rejected";
+        EXPECT_FALSE(off == 46080 && fmt == FMT_DXF) << "no-SECTION DXF rejected";
+        EXPECT_FALSE(off == 47104 && fmt == FMT_3GP) << "brand-3gpZ rejected";
+    }
+    EXPECT_TRUE(stats.rejected >= 20) << "each noise plant must reach a validator rejection";
+}
+
+TEST(Carve, S007NicheBatch1SalvageSemantics) {
+    /* Torn-stream salvage: MIDI with a declared-but-torn track salvages
+     * at the last COMPLETE track; Ogg without an EOS page salvages at
+     * the last complete page; BZh1 without the stream footer salvages
+     * to the cap (the RTF/slab-end family); a clean gzip header (no
+     * findable trailer mid-slab) bounds at the cap the same way. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t mid_at = 512;
+    const size_t mid_len = plant_mid(img, mid_at, 2, 1); /* 2 declared, 1 complete */
+    const size_t ogg_at = 4096;
+    const size_t ogg_len = plant_ogg(img, ogg_at, false);
+    const size_t dmg_at = 8192;
+    plant_dmg(img, dmg_at, false);
+    const size_t gz_at = 12288;
+    const size_t gz_len = plant_gz(img, gz_at);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    tree::FileNode* mid = nullptr;
+    tree::FileNode* ogg = nullptr;
+    tree::FileNode* dmg = nullptr;
+    tree::FileNode* gz = nullptr;
+    for (tree::FileNode* n : all) {
+        const u64 off = n->props()->extents.front().offset;
+        if (off == mid_at)
+            mid = n;
+        else if (off == ogg_at)
+            ogg = n;
+        else if (off == dmg_at)
+            dmg = n;
+        else if (off == gz_at)
+            gz = n;
+    }
+    ASSERT_NE(mid, nullptr) << "torn-tail MIDI salvages at the complete track";
+    EXPECT_EQ(mid->props()->logical_size, mid_len) << "extent stops at the last complete track";
+    ASSERT_NE(ogg, nullptr) << "EOS-less Ogg salvages at the last complete page";
+    EXPECT_EQ(ogg->props()->logical_size, ogg_len) << "extent stops at the last complete page";
+    ASSERT_NE(dmg, nullptr) << "footer-less BZh1 salvages to the cap";
+    EXPECT_EQ(dmg->props()->logical_size, size_t(64 * 1024 - dmg_at)) << "slab-end salvage";
+    ASSERT_NE(gz, nullptr) << "clean gzip header bounds at the cap";
+    EXPECT_GE(gz->props()->logical_size, gz_len) << "the header + body stays inside the extent";
+}
+
+TEST(Carve, S007NicheBatch1SharedKeyDiscriminates) {
+    /* TTF and MDB share the 00 01 00 00 key (the og's u16-0x0100
+     * multimap chain): the trial order tries the sfnt table directory
+     * first, the Jet signature gate second - each plant carves as its
+     * own format, and neither accepts the other's shape. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t ttf_at = 512, mdb_at = 2048;
+    const size_t ttf_len = plant_ttf(img, ttf_at);
+    const size_t mdb_len = plant_mdb(img, mdb_at);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    tree::FileNode* ttf = nullptr;
+    tree::FileNode* mdb = nullptr;
+    for (tree::FileNode* n : all) {
+        const u64 off = n->props()->extents.front().offset;
+        if (off == ttf_at)
+            ttf = n;
+        else if (off == mdb_at)
+            mdb = n;
+    }
+    ASSERT_NE(ttf, nullptr) << "the sfnt plant carves";
+    EXPECT_EQ(ttf->props()->carve_format, FMT_TTF);
+    EXPECT_GE(ttf->props()->logical_size, ttf_len);
+    ASSERT_NE(mdb, nullptr) << "the Jet plant carves";
+    EXPECT_EQ(mdb->props()->carve_format, FMT_MDB);
+    EXPECT_GE(mdb->props()->logical_size, mdb_len);
 }
 
 /* ===================================================================== */

@@ -130,6 +130,46 @@ enum FormatId : u32 {
     FMT_CPT7,
     FMT_CPT8,
     FMT_CPT9,
+    /* S-007 niche batch 1 (SCAN-2f): the og-only keyed formats absent from
+     * every core list - each key re-read first-hand at its RAWSearchDLL
+     * registration site (retdec decompile, the static initializer at
+     * :5450-6600 + the u16 layer at :6205-6590) before this row landed.
+     * All APPENDED (serialized carve_format values stay stable).
+     * Multi-key formats keep the og's duplicate-key policy (one row per
+     * key, shared validator - MRW/HLP/WMF mirror the og's separate
+     * registrations; census :127 "deliberate registry bloat"). */
+    FMT_MID,    /* "MThd" 0x6468544d -> MIDAnalyser+FileMID, idx 38 */
+    FMT_OGG,    /* "OggS" 0x5367674f -> OGGAnalyser+CFileOgg, idx 82 */
+    FMT_RM,     /* ".RMF" 0x464d522e -> RM_RMVB chain, idx 94 */
+    FMT_MXF,    /* 06 0E 2B 34 0x342b0e06 -> MXFAnalyser, idx 120 */
+    FMT_DMG,    /* "BZh1" 0x31685a42 -> DMG chain, idx 113 (level-1 bzip2) */
+    FMT_X3F,    /* "FOVb" 0x62564f46 -> X3F chain, idx 108 */
+    FMT_MRW,    /* II\x1A\x00 0x001a4949 -> MRW custom ctor */
+    FMT_MRW_MM, /* MM\x1A\x00 0x001a4d4d -> MRW custom ctor (BE sibling) */
+    FMT_MRW_MRM,/* \x00MRM 0x004d524d -> FileMRWAnalyser, idx 102 */
+    FMT_WPG,    /* "wpg\0" 0x00677077 -> FileInfo {min 20, max 0x5F5E100}, stamp 69 */
+    FMT_WPD,    /* \xFFWPC 0x435057ff -> FileWPDAnalyser, idx 68 */
+    FMT_PSP,    /* "Pain" 0x6e696150 -> PSPAnalyser chain, idx 55 */
+    FMT_SIT,    /* "Stuf" 0x66757453 -> SIT chain, idx 93 */
+    FMT_GZ,     /* u16 0x8B1F (1F 8B) -> GZAnalyzer+FileGZ, idx 39 */
+    FMT_APE,    /* "MAC " 0x2043414d -> CAPEAnalyser, idx 81 */
+    FMT_AU,     /* ".snd" 0x646e732e -> FileAUAnalyser, idx 9 */
+    FMT_AIFF,   /* "FORM" 0x4d524f46 -> CFileAIFAnalyzer, idx 80 */
+    FMT_HLP,    /* DB A5 2D 00 0x002da5db -> FileHLP cluster, idx 23 */
+    FMT_HLP2,   /* 94 A6 2E 00 0x002ea694 -> FileHLP cluster, idx 23 */
+    FMT_HLP3,   /* 3F 5F 03 00 0x00035f3f -> FileHLP cluster, idx 32 */
+    FMT_ICO,    /* 00 00 01 00 0x00010000 -> FileICOAnalyser, idx 34 */
+    FMT_CUR,    /* 00 00 02 00 0x00020000 -> FileICOAnalyser (cursor dir) */
+    FMT_WMF_PL, /* D7 CD C6 9A 0x9ac6cdd7 -> placeable-WMF node, idx 70 */
+    FMT_WMF,    /* 01 00 09 00 0x00090001 -> standard-WMF node, idx 70 */
+    FMT_TTF,    /* 00 01 00 00 (u16-key 0x0100 chain with MDB) -> FileTTF */
+    FMT_MDB,    /* 00 01 00 00 (u16-key 0x0100) + "Standard Jet DB" ->
+                 * CMDBAnalyser, type-id 39, bounds {0x1000, 0xBEBC200} */
+    FMT_TAR,    /* "ustar" @+257 list-layer probe (strncmp, TARAnalyser) */
+    FMT_EPS,    /* u16 "%!" 0x2125 -> CEPS-family PostScript chain */
+    FMT_AI,     /* C5 D0 D3 C6 0xc6d3d0c5 -> CEPSAnalyser (Illustrator), idx 27 */
+    FMT_DXF,    /* "  0\r" 0x0d302020 -> CDXF chain (g146+g144), idx 25 */
+    FMT_3GP,    /* ftyp brand 3gp (the og's File3GP legacy row) */
     FMT_COUNT
 };
 
