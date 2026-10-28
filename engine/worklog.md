@@ -5024,3 +5024,21 @@ Lane plan (the directive's four readings):
   claims verified audit-side), CLI smoke if the build allows.
 
 Read-only guarantee: this lane touches nothing outside diff-to-fix/ + worklog* (per-commit).
+
+## Fix session 42 (2026-10-29) — the S42 parity-fix lane (baseline: core `67de3276` at open, corpus `be0cfe9`; prompt: worklog/session-diff-fix-42-prompt.md)
+
+**T1 baseline recorded.** Board at open (filesystem truth at `67de3276`): SEVERE 3
+open (S-040, S-048, S-050), MAJOR 21 open, MINOR 18 open, INFO 8 open,
+3 tracked-open; FIXED/ holds 16 files; FIXED-LEDGER carries the resolved rows.
+The S40-severe lane's territory claim (S-048 next) acknowledged and ADOPTED
+as this lane's entry point — its S-049 decode work is directly reusable.
+
+**Hygiene repair (main was RED at open):** the N-115 landing (`67de3276`, the
+HEAD commit) pushed `Carve.OoxmlRelsPathSplit` with stale lowercase extension
+expectations (`.docx`/`.xlsx`/`.pptx`) against the S-049 naming contract that
+landed four commits earlier (`d4b487c8`: the carved name's extension is the
+format's own UPPERCASE form — GZ_000001.GZ in the real og sessions; the S-049
+push re-pinned its 39-test fail-before set but the N-115 test landed after,
+unre-pinned). Expectations re-pinned to `.DOCX/.XLSX/.PPTX`; suite
+**1134 ran / 1092 passed / 42 Win-only skipped / 0 failed** on the repaired
+tree (Linux gcc, Release).

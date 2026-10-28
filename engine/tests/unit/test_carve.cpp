@@ -8423,15 +8423,18 @@ static size_t direct_carved_count(tree::FileNode* root) {
 
 TEST(Carve, OoxmlRelsPathSplit) {
     /* N-115: the og's per-entry rels-path map (word/xl/ppt) types the
-     * OOXML trio - each form stamps its own id and extension. */
+     * OOXML trio - each form stamps its own id and extension. The
+     * extension expectation is the S-049 naming contract: the carved
+     * name's extension is the format's own UPPERCASE form
+     * (DOCX_000001.DOCX - GZ_000001.GZ in the real sessions). */
     const struct {
         const char* rels;
         u32 fmt;
         const char* ext;
     } cases[] = {
-        {"word/_rels/document.xml.rels", FMT_DOCX, ".docx"},
-        {"xl/_rels/workbook.xml.rels", FMT_XLSX, ".xlsx"},
-        {"ppt/_rels/presentation.xml.rels", FMT_PPTX, ".pptx"},
+        {"word/_rels/document.xml.rels", FMT_DOCX, ".DOCX"},
+        {"xl/_rels/workbook.xml.rels", FMT_XLSX, ".XLSX"},
+        {"ppt/_rels/presentation.xml.rels", FMT_PPTX, ".PPTX"},
     };
     for (const auto& c : cases) {
         std::vector<u8> img(256 * 1024, 0);
