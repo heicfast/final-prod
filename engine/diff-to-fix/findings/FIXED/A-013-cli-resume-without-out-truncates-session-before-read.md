@@ -118,3 +118,39 @@ cannot exhibit this loss.
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** <this push> (S42 lane — the ACUTE priority interrupt over the
+MAJOR-first directive; both board ACUTEs jump the queue per the fix-order rule)
+
+**Verified by:** `CrUi.CliResumeSinkNeverTruncatesTheSessionSource` (RED pre-fix —
+proven by reverting rrecov.cpp to the pre-fix tree and re-running: the wiring
+assertions find no sink, the destructive-pattern assertion finds the old
+`_wfopen_s(&ck_file, effective_out...)` truncating open; GREEN post-fix) + the
+Windows CI junk-gate step's new 3b block (the end-to-end round-trip: scan --out F →
+resume-without-out on F → exit 0, F never 0 bytes, `tree --in F` still carries
+DOC.TXT — the exe is Windows-only so the behavioral proof rides CI, the N-094
+source-pin pattern); full cr_ui suite 68/68.
+
+**Resolution notes:** The fix adopts the plan's option 1 — the N-014/CkSink shape
+(cr_ui.cpp:334-389, the ABI layer's own solution to this exact defect class) at the
+CLI: `CliCkSink` stages every checkpoint emit into `<path>.tmp` and commits by
+`MoveFileExW(..., MOVEFILE_REPLACE_EXISTING)` rename (the staging handle closed
+first — the sharing-violation note from the cr_ui landing), reopening a fresh
+staging tmp for the next emit. The final path — which IS the resume file whenever
+--out is absent — is never opened for truncation AT ALL: the resume read (unchanged,
+"rb" on the final path) always sees the intact source, a failed resume leaves it
+byte-identical, and the first successful checkpoint/final save replaces it
+wholesale (the og's fresh-file-per-save crash safety, rsf-format §5.5, at the CLI).
+The G-13 comment block rewritten to the atomic semantics; the sink's error paths
+(resume-open failure, resume-load failure, post-run) close the staging file and
+remove the tmp (no litter, no torn final state). The plan's alternative (defer the
+sink open until after a successful resume read) was evaluated and rejected: the
+orchestrator copies the checkpoint callbacks at controller construction inside
+`ScanController::resume`, so the sink must be wired before the call — the
+tmp+rename shape is the only ordering-proof fix, and it also covers the
+crash-mid-emit and failed-resume cases the deferral does not. The
+`--resume`-in-place contract line (rrecov.cpp:35/:1407) is now true. No safety
+hardening was touched; the fix IS one (silent-data-loss class).

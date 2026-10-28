@@ -5980,3 +5980,15 @@ lane recorded at its pin is now half-landed by the parallel window):
 - **Record repairs:** the s10 evidence's false "reachable through
   cr_ui_preview_metadata" claim corrected (dated addendum); the M-100 ledger
   row annotated; API-DELTA row 16 re-truthed.
+
+### S42-W4: A-013 (the CLI resume truncate-before-read) — FIXED (ACUTE priority)
+
+- **Fix:** the N-014/CkSink shape at the CLI (CliCkSink): every checkpoint emit
+  stages into <path>.tmp and commits by MoveFileExW rename; the final path (the
+  resume file when --out is absent) is never opened for truncation. The
+  alternative (defer the sink open) rejected with the recorded reason: the
+  orchestrator copies the checkpoint callbacks inside ScanController::resume.
+- **Tests:** CrUi.CliResumeSinkNeverTruncatesTheSessionSource (source-level pin,
+  RED pre-fix by the reverted-tree rerun); the Windows CI junk-gate step 3b (the
+  end-to-end resume-without-out round-trip: the session survives, tree intact).
+  Suite 68/68.

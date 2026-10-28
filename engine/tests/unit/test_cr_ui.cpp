@@ -4156,3 +4156,53 @@ TEST(CrUi, ArchiveEntryHostileBound512) {
     EXPECT_EQ(meta.truncated, 1u) << "the bound discloses";
     cr_ui_preview_close(pv);
 }
+
+/* ---- A-013: the CLI resume-without-out truncate-before-read --------- */
+
+TEST(CrUi, CliResumeSinkNeverTruncatesTheSessionSource) {
+    /* A-013 (ACUTE): the CLI's --resume-without---out flow opened the
+     * checkpoint sink "wb" on effective_out - which IS the resume file -
+     * BEFORE the resume read, destroying the user's only session copy
+     * via the program's own printed recovery command. The fix adopts the
+     * N-014/CkSink shape at the CLI: every emit stages into <path>.tmp
+     * and commits by rename, so the final path is never opened for
+     * truncation at all. This pin (source-level: the exe is
+     * Windows-only, the N-094 pattern) asserts the wiring:
+     *   - the atomic sink + its commit callback are wired;
+     *   - the staging open targets the TMP path, never effective_out;
+     *   - the destructive pattern (a truncating open of effective_out)
+     *     is gone;
+     * The end-to-end round-trip (scan --out F; scan --resume F; tree
+     * survives) rides the Windows CI junk-gate step (3b). */
+    const std::string src = cr_test::read_repo_file("src/app/rrecov.cpp");
+    ASSERT_FALSE(src.empty());
+
+    /* the atomic sink exists and is wired with ALL FOUR callbacks */
+    EXPECT_NE(std::string::npos, src.find("struct CliCkSink"))
+        << "the A-013 atomic checkpoint sink (the N-014/CkSink shape)";
+    EXPECT_NE(std::string::npos, src.find("cfg.checkpoint.commit = cli_ck_commit_cb;"))
+        << "the commit-by-rename hook is wired";
+    EXPECT_NE(std::string::npos, src.find("cfg.checkpoint.user = &ck_sink;"));
+    EXPECT_NE(std::string::npos, src.find("MOVEFILE_REPLACE_EXISTING"))
+        << "the replace-rename commit (the og's fresh-file crash safety)";
+
+    /* the staging open targets the TMP path */
+    EXPECT_NE(std::string::npos, src.find("_wfopen_s(&ck_sink.f, ck_sink.tmp_path.c_str(), L\"wb\")"))
+        << "the sink's truncating open lands on the staging tmp only";
+
+    /* the destructive pattern is GONE: no truncating open of the final
+     * path anywhere (pre-fix: _wfopen_s(&ck_file, effective_out, "wb")
+     * textually preceded the resume read) */
+    EXPECT_EQ(std::string::npos, src.find("_wfopen_s(&ck_file, effective_out"))
+        << "the pre-fix truncating open of the resume target";
+    EXPECT_EQ(std::string::npos, src.find("_wfopen_s(&fin, effective_out.c_str(), L\"wb\")"))
+        << "no other truncating open of the aliased path";
+
+    /* the resume read still reads the FINAL path intact ("rb", after
+     * the sink wiring - order-safe because the sink never truncates) */
+    EXPECT_NE(std::string::npos, src.find("_wfopen_s(&fin, resume_path.c_str(), L\"rb\")"));
+
+    /* the sink's error paths clean the staging tmp (no litter, and a
+     * failed resume leaves the source byte-identical) */
+    EXPECT_NE(std::string::npos, src.find("std::filesystem::remove(ck_sink.tmp_path, ec);"));
+}

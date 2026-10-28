@@ -988,6 +988,54 @@ u64 file_size_cb(void* user) {
     return u64(end);
 }
 
+/* A-013: the CLI's atomic checkpoint sink - the N-014/CkSink shape
+ * (cr_ui.cpp:334-389) adopted at the CLI layer. Every emit stages into
+ * <path>.tmp and commits by rename, so the sink NEVER opens the final
+ * path for truncation: the resume file - which effective_out aliases
+ * whenever --out is absent, the exact command the save-on-cancel flow
+ * prints as the documented recovery path - survives untouched until
+ * the first SUCCESSFUL checkpoint replaces it wholesale. A failed or
+ * cancelled-before-first-checkpoint resume leaves the source file
+ * byte-identical (the og's fresh-file-per-save crash safety,
+ * rsf-format §5.5, at the CLI). */
+struct CliCkSink {
+    FILE* f = nullptr; /* the STAGING file (<path>.tmp) */
+    std::wstring final_path;
+    std::wstring tmp_path;
+};
+u32 cli_ck_write_cb(void* user, const void* bytes, u32 len) {
+    auto* s = static_cast<CliCkSink*>(user);
+    return s->f ? (fwrite(bytes, 1, len, s->f) == len ? OK : ERR_SESSION_IO) : u32(ERR_SESSION_IO);
+}
+u64 cli_ck_tell_cb(void* user) {
+    auto* s = static_cast<CliCkSink*>(user);
+    return s->f ? u64(_ftelli64(s->f)) : u64(0);
+}
+u32 cli_ck_seek_cb(void* user, u64 absolute) {
+    auto* s = static_cast<CliCkSink*>(user);
+    return s->f && _fseeki64(s->f, static_cast<long long>(absolute), SEEK_SET) == 0
+               ? OK
+               : ERR_SESSION_IO;
+}
+u32 cli_ck_commit_cb(void* user) {
+    auto* s = static_cast<CliCkSink*>(user);
+    if (!s || !s->f)
+        return ERR_SESSION_IO;
+    std::fflush(s->f);
+    std::fclose(s->f);
+    s->f = nullptr;
+    /* the staging handle is CLOSED: the replace-rename cannot hit a
+     * sharing violation (MoveFileExW on an open file needs
+     * FILE_SHARE_DELETE, which fopen does not request). */
+    if (!MoveFileExW(s->tmp_path.c_str(), s->final_path.c_str(), MOVEFILE_REPLACE_EXISTING))
+        return ERR_SESSION_IO;
+    /* staging for the NEXT emit (a fresh truncating open of the tmp -
+     * never the final path) */
+    if (_wfopen_s(&s->f, s->tmp_path.c_str(), L"wb") != 0 || !s->f)
+        return ERR_SESSION_IO;
+    return OK;
+}
+
 /* ---------------------------------------------------------------------------
  * sessions (W1a / R-56: the og's LastScanRecordView surface, corpus
  * UIUX/07-home-phase-deep-dive.md:21 + rsf-format--scan-session.md 5.2):
@@ -1590,20 +1638,28 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
     const std::wstring effective_out = out_path.empty() ? resume_path : out_path;
 
     /* G-13 checkpoint sink (ARCH-2/SESS-3 wiring): --out enables
-     * stage-boundary auto-checkpoints. Each emit seeks to 0 and
-     * overwrites, so the file always holds the newest complete
-     * checkpoint (a torn one is no worse than no checkpoint - the
-     * reader re-indexes forward by construction). */
-    FILE* ck_file = nullptr;
+     * stage-boundary auto-checkpoints. A-013: the sink is the atomic
+     * CliCkSink - every emit stages into <path>.tmp and commits by
+     * rename, so the final path (which IS the resume file whenever
+     * --out is absent) is never opened for truncation: the resume
+     * source survives until the first successful checkpoint replaces
+     * it wholesale, and a crash mid-emit leaves the previous good
+     * state (the og's fresh-file-per-save crash safety). */
+    CliCkSink ck_sink;
+    bool ck_sink_live = false;
     if (!effective_out.empty()) {
-        if (_wfopen_s(&ck_file, effective_out.c_str(), L"wb") != 0 || !ck_file) {
+        ck_sink.final_path = effective_out;
+        ck_sink.tmp_path = effective_out + L".tmp";
+        if (_wfopen_s(&ck_sink.f, ck_sink.tmp_path.c_str(), L"wb") != 0 || !ck_sink.f) {
             wprintf(L"cannot create session file %s\n", effective_out.c_str());
             return 1;
         }
-        cfg.checkpoint.write = file_write_cb;
-        cfg.checkpoint.tell = file_tell_cb;
-        cfg.checkpoint.seek = file_seek_cb;
-        cfg.checkpoint.user = ck_file;
+        ck_sink_live = true;
+        cfg.checkpoint.write = cli_ck_write_cb;
+        cfg.checkpoint.tell = cli_ck_tell_cb;
+        cfg.checkpoint.seek = cli_ck_seek_cb;
+        cfg.checkpoint.commit = cli_ck_commit_cb;
+        cfg.checkpoint.user = &ck_sink;
     }
 
     tree::ResultTree tree;
@@ -1617,11 +1673,17 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
     cfg.event_fn = &ttfr_event_fn;
     cfg.event_user = &ttfr_probe;
     if (!resume_path.empty()) {
+        /* A-013 note: the sink stages into <path>.tmp and commits by
+         * rename - this read always sees the intact source file. */
         FILE* fin = nullptr;
         if (_wfopen_s(&fin, resume_path.c_str(), L"rb") != 0 || !fin) {
             wprintf(L"cannot open session %s\n", resume_path.c_str());
-            if (ck_file)
-                fclose(ck_file);
+            if (ck_sink_live) {
+                if (ck_sink.f)
+                    fclose(ck_sink.f);
+                std::error_code ec;
+                std::filesystem::remove(ck_sink.tmp_path, ec);
+            }
             return 1;
         }
         session::Reader r(file_read_cb, file_seek_cb, file_size_cb, fin);
@@ -1634,8 +1696,12 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         fclose(fin);
         if (rrc != OK) {
             wprintf(L"resume failed: %hs (0x%08x)\n", err_text(rrc), rrc);
-            if (ck_file)
-                fclose(ck_file);
+            if (ck_sink_live) {
+                if (ck_sink.f)
+                    fclose(ck_sink.f);
+                std::error_code ec;
+                std::filesystem::remove(ck_sink.tmp_path, ec);
+            }
             return 1;
         }
         wprintf(L"[resume] session mask 0x%x - skipping completed stage(s)\n",
@@ -1678,8 +1744,15 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
             return static_cast<ProgressDisplay*>(user)->operator()(pm, nullptr);
         },
         &prog, stats);
-    if (ck_file)
-        fclose(ck_file); /* checkpoints done; the final save reopens fresh */
+    if (ck_sink_live) {
+        /* A-013: checkpoints done; the staging tmp is removed (the final
+         * save reopens fresh through its own tmp+rename) - the final
+         * path holds the last COMMITTED checkpoint, never a torn state */
+        if (ck_sink.f)
+            fclose(ck_sink.f);
+        std::error_code ec;
+        std::filesystem::remove(ck_sink.tmp_path, ec);
+    }
     log_line("scan end rc=0x%08x files=%llu deleted=%llu carved=%llu lost_parts=%llu "
              "bytes=%llu elapsed_ms=%llu errors=%zu",
              rc, stats.files_found, stats.deleted_found, stats.carved_found, stats.lost_partitions,
