@@ -2853,6 +2853,6 @@ T11 gate docs; T12 close.
 
 READ-ONLY guarantee: this session's commits touch NOTHING outside
 `diff-to-fix/` + `worklog*` (verified per-commit at close).
-### N-128's Resolution record (session-10, this lane — the file retired per the purge convention)
+### N-136's Resolution record (renumbered from the N-128 ID collision; session-10, this lane — the file retired per the purge convention)
 
 **Status:** FIXED · **Fixed in commit:** this rebased landing (745c042-lineage) · **Verified by:** the C gate's default-path invocation (FAIL sl_found pre-fix at the 84a1832 baseline worktree; OK post-fix) + the new dot-listing pin + the absolute-path class still OK + cr_ui_tests 58/58 + cr_tests 1026/1026. **Notes:** both list_crsf_files branches (POSIX + Windows) compose BARE names when the caller's dir is exactly "." — a caller who saved "name.crsf" (CWD-relative) now string-matches its own row; every other dir keeps the existing separator-convention join (run 40689196858). Discovered during the M-102 verification (the gate's default argv); predates this session (reproduced at 84a1832); CI never exercised the class (ctest passes an absolute path).
