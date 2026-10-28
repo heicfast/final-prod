@@ -21,6 +21,11 @@ Hand-spliced fixtures (no encoder exists for these shapes):
                              over the embedded path)
   webp_magic.bin           - RIFF/WEBP magic without a real payload
                              (named-unsupported path)
+  exif_orient{1..8}.jpg    - quad64x48 JPEG + APP1/Exif whose IFD0 carries
+                             EXIF Orientation 1..8 (S-043: the og applies
+                             the matching RotateFlip before the 256-px pass;
+                             the quadrant colors pin each transform)
+  exif_orient9.jpg         - orientation byte 9 (invalid): no transform
 
 Run: python3 scripts/gen_thumbnail_fixtures.py  (idempotent).
 """
@@ -107,6 +112,15 @@ def exif_app1(thumb_jpeg: bytes) -> bytes:
     return b"\xff\xe1" + struct.pack(">H", len(body) + 2 + 6)[:2] + b"Exif\x00\x00" + body
 
 
+def exif_orient_app1(orient: int) -> bytes:
+    """APP1/Exif with IFD0 carrying ONLY the Orientation tag (S-043)."""
+    bo = "<"
+    tiff = struct.pack(bo + "2sHI", b"II", 42, 8)
+    ifd0 = struct.pack(bo + "H", 1) + tiff_ifd_entry(0x0112, 3, [orient]) + struct.pack(bo + "I", 0)
+    body = tiff + ifd0
+    return b"\xff\xe1" + struct.pack(">H", len(body) + 2 + 6)[:2] + b"Exif\x00\x00" + body
+
+
 def huge_dims_exif_jpeg(thumb_jpeg: bytes) -> bytes:
     app1 = exif_app1(thumb_jpeg)
     sof0 = (
@@ -169,6 +183,11 @@ def main():
     small_main = q.resize((48, 36))
     small_bytes = enc(small_main, format="JPEG", quality=95)
     files["exif_thumb_small.jpg"] = b"\xff\xd8" + exif_app1(thumb_jpeg) + small_bytes[2:]
+
+    # S-043: the orientation battery - the quadrant JPEG + IFD0 Orientation
+    full_jpg = files["quad64x48.jpg"]
+    for orient in list(range(1, 9)) + [9]:
+        files[f"exif_orient{orient}.jpg"] = b"\xff\xd8" + exif_orient_app1(orient) + full_jpg[2:]
 
     full_png = files["quad64x48.png"]
     files["truncated.png"] = full_png[: int(len(full_png) * 0.45)]

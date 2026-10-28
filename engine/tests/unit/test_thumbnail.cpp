@@ -213,6 +213,114 @@ TEST(Thumbnail, PngDecodesAndDownscalesExactly) {
     expect_pixel(t, 13, 9, 255, 255, 0, 0);
 }
 
+/* S-043: every thumbnail is EXIF-oriented - the og reads GDI+ property
+ * 0x112 and applies the matching RotateFlip BEFORE the 256-px pass
+ * (FUN_1402fcc30 :521694-725, call order :652307-309). The quadrant
+ * colors pin each transform exactly (JPEG tolerance); orientation 1 is
+ * identity and 9 (invalid) never rotates. Pre-fix: no orientation code
+ * existed anywhere in the engine - every orientation-6/8/3 portrait
+ * thumbnailed sideways. */
+class ExifOrientationTest : public ::testing::TestWithParam<int> {};
+TEST_P(ExifOrientationTest, AppliesOgRotateFlip) {
+    const int orient = GetParam();
+    char name[48];
+    std::snprintf(name, sizeof(name), "exif_orient%d.jpg", orient);
+    auto fx = load_fixture(name);
+    if (fx.empty())
+        GTEST_SKIP() << "fixture missing";
+    Node n(fx, true);
+    auto r = n.reader();
+    Thumbnail t;
+    ThumbnailCaps c;
+    c.max_edge = 256; /* no downscale: the raw transform is observable */
+    ASSERT_EQ(ThumbStatus::Ok, make_thumbnail(r, c, t));
+    EXPECT_EQ("jpeg", t.source_format);
+    /* the quadrant layout: TL=red TR=green BL=blue BR=yellow, 64x48 */
+    const bool swapped = orient >= 5 && orient <= 8;
+    EXPECT_EQ(swapped ? 48u : 64u, t.width) << "orient " << orient;
+    EXPECT_EQ(swapped ? 64u : 48u, t.height) << "orient " << orient;
+    /* where did the RED (top-left) quadrant land? */
+    int rx = 2, ry = 2;
+    switch (orient) {
+    case 1:
+        rx = 2;
+        ry = 2;
+        break; /* identity */
+    case 2:
+        rx = 61;
+        ry = 2;
+        break; /* flip X -> top-right */
+    case 3:
+        rx = 61;
+        ry = 45;
+        break; /* rotate 180 -> bottom-right */
+    case 4:
+        rx = 2;
+        ry = 45;
+        break; /* flip Y -> bottom-left */
+    case 5:
+        rx = 2;
+        ry = 2;
+        break; /* transpose -> top-left */
+    case 6:
+        rx = 45;
+        ry = 2;
+        break; /* rotate 90 CW -> top-right */
+    case 7:
+        rx = 45;
+        ry = 61;
+        break; /* transverse -> bottom-right */
+    case 8:
+        rx = 2;
+        ry = 61;
+        break; /* rotate 270 CW -> bottom-left */
+    case 9:
+        rx = 2;
+        ry = 2;
+        break; /* invalid: no transform */
+    }
+    if (orient == 1 || orient == 9 || orient == 5)
+        expect_pixel(t, 2, 2, 255, 0, 0, 60); /* red stays TL */
+    else
+        expect_pixel(t, u32(rx), u32(ry), 255, 0, 0, 60); /* red per the map */
+    /* the opposite corner (bottom-right of the ORIGINAL) is yellow */
+    int yx = 61, yy = 45;
+    switch (orient) {
+    case 2:
+        yx = 2;
+        yy = 45;
+        break;
+    case 3:
+        yx = 2;
+        yy = 2;
+        break;
+    case 4:
+        yx = 61;
+        yy = 2;
+        break;
+    case 5:
+        yx = 45;
+        yy = 61;
+        break;
+    case 6:
+        yx = 2;
+        yy = 61;
+        break;
+    case 7:
+        yx = 2;
+        yy = 2;
+        break;
+    case 8:
+        yx = 45;
+        yy = 2;
+        break;
+    }
+    if (orient != 1 && orient != 9)
+        expect_pixel(t, u32(yx), u32(yy), 255, 255, 0, 60); /* yellow per the map */
+}
+INSTANTIATE_TEST_SUITE_P(ExifOrientation, ExifOrientationTest,
+                         ::testing::Values(1, 2, 3, 4, 5, 6, 7, 8, 9));
+
 TEST(Thumbnail, JpegDecodesWithLossyTolerance) {
     auto fx = load_fixture("quad64x48.jpg");
     if (fx.empty())

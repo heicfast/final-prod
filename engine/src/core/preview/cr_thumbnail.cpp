@@ -318,46 +318,98 @@ class ExifWalker {
 public:
     ExifWalker(PreviewReader& pr, Budget& b) : pr_(pr), b_(b) {}
 
+    /* S-043: the EXIF Orientation tag (0x112) from IFD0 - the og reads
+     * GDI+ property 0x112 and applies the matching RotateFlip BEFORE the
+     * 256-px pass (FUN_1402fcc30 :521694-725; call order :652307-309).
+     * Returns 1..8, or 0 when absent/invalid (no transform). */
+    u32 orientation() {
+        u64 tiff_abs = 0, seg_payload = 0;
+        if (!find_exif_tiff(tiff_abs, seg_payload))
+            return 0;
+        tiff_ = tiff_abs;
+        u8 hdr[8];
+        if (!bfetch(pr_, b_, tiff_, hdr, 8))
+            return 0;
+        if (hdr[0] == 'I' && hdr[1] == 'I')
+            le_ = true;
+        else if (hdr[0] == 'M' && hdr[1] == 'M')
+            le_ = false;
+        else
+            return 0;
+        if (rd16(hdr + 2) != 42)
+            return 0;
+        const u32 ifd0 = rd32(hdr + 4);
+        u8 c2[2];
+        if (!fetch(ifd0, c2, 2))
+            return 0;
+        const u32 n0 = rd16(c2);
+        if (n0 == 0 || n0 > 256)
+            return 0;
+        std::vector<u8> ents(size_t(n0) * 12);
+        if (!fetch(ifd0 + 2, ents.data(), u32(ents.size())))
+            return 0;
+        for (u32 i = 0; i < n0; ++i) {
+            const u8* e = ents.data() + size_t(i) * 12;
+            if (rd16(e) == 0x0112 && rd16(e + 2) == 3 && rd32(e + 4) == 1) {
+                const u32 v = rd16(e + 8);
+                if (v >= 1 && v <= 8)
+                    return v;
+                return 0; /* an invalid orientation byte: no transform */
+            }
+        }
+        return 0;
+    }
+
     /* Returns the embedded JPEG thumbnail bytes, empty when absent. */
     std::vector<u8> embedded_thumbnail(u64 limit) {
+        u64 tiff_abs = 0, seg_payload = 0;
+        if (!find_exif_tiff(tiff_abs, seg_payload, limit))
+            return {};
+        auto thumb = parse_tiff_thumbnail(tiff_abs, seg_payload);
+        return thumb;
+    }
+
+    /* The APP1/Exif segment's TIFF header (absolute) + payload length.
+     * Shared by the embedded-thumbnail walk and the orientation read. */
+    bool find_exif_tiff(u64& tiff_abs, u64& seg_payload, u64 limit = 256u << 10) {
         const u64 size = pr_.size();
         u64 off = 2; /* past SOI */
         for (u32 guard = 0; guard < 512 && off + 4 <= size && off < limit; ++guard) {
             u8 m4[4];
             if (bfetch(pr_, b_, off, m4, 2) != 2)
-                return {};
+                return false;
             if (m4[0] != 0xFF)
-                return {};
+                return false;
             u32 marker = m4[1];
             while (marker == 0xFF) { /* fill bytes */
                 ++off;
                 if (bfetch(pr_, b_, off, m4, 2) != 2 || m4[0] != 0xFF)
-                    return {};
+                    return false;
                 marker = m4[1];
             }
             if (marker == 0xD9 || marker == 0xDA) /* EOI / SOS: metadata ends */
-                return {};
+                return false;
             if (marker == 0x01 || (marker >= 0xD0 && marker <= 0xD7)) {
                 off += 2; /* standalone markers */
                 continue;
             }
             if (bfetch(pr_, b_, off + 2, m4, 2) != 2)
-                return {};
+                return false;
             const u32 seg_len = (u32(m4[0]) << 8) | m4[1];
             if (seg_len < 2)
-                return {};
+                return false;
             if (marker == 0xE1) {
                 u8 head[6];
                 if (bfetch(pr_, b_, off + 4, head, 6) == 6 &&
                     std::memcmp(head, "Exif\0\0", 6) == 0) {
-                    auto thumb = parse_tiff_thumbnail(off + 10, u64(seg_len) - 8);
-                    if (!thumb.empty())
-                        return thumb;
+                    tiff_abs = off + 10;
+                    seg_payload = u64(seg_len) - 8;
+                    return true;
                 }
             }
             off += 2 + seg_len;
         }
-        return {};
+        return false;
     }
 
 private:
@@ -939,6 +991,60 @@ bool reader_gained_failures(const std::vector<ReadErrorRange>& before, const Pre
     return false;
 }
 
+/* S-043: apply the EXIF orientation to decoded RGBA before the downscale -
+ * the og's 8-case RotateFlip map (FUN_1402fcc30 :521694-725: 2->4 flip-X,
+ * 3->2 rotate-180, 4->6 flip-Y, 5->5 transpose, 6->1 rotate-90-CW,
+ * 7->7 transverse, 8->3 rotate-270-CW), applied BEFORE the 256-px pass
+ * (call order :652307-309). Straight RGBA8, row-major, w*4 stride. */
+void apply_exif_orientation(std::vector<u8>& rgba, u32& w, u32& h, u32 orient) {
+    if (orient < 2 || orient > 8 || w == 0 || h == 0)
+        return; /* 1 = identity; 0/invalid = no transform (the og's switch
+                 * has no default arm - unknown bytes never rotate) */
+    std::vector<u8> out(rgba.size());
+    const u32 W = w, H = h;
+    const bool swap = orient >= 5; /* 5..8 transpose the axes */
+    for (u32 y = 0; y < H; ++y) {
+        for (u32 x = 0; x < W; ++x) {
+            u32 nx = 0, ny = 0;
+            switch (orient) {
+            case 2:
+                nx = W - 1 - x;
+                ny = y;
+                break; /* flip X */
+            case 3:
+                nx = W - 1 - x;
+                ny = H - 1 - y;
+                break; /* rotate 180 */
+            case 4:
+                nx = x;
+                ny = H - 1 - y;
+                break; /* flip Y */
+            case 5:
+                nx = y;
+                ny = x;
+                break; /* transpose */
+            case 6:
+                nx = H - 1 - y;
+                ny = x;
+                break; /* rotate 90 CW */
+            case 7:
+                nx = H - 1 - y;
+                ny = W - 1 - x;
+                break; /* transverse */
+            case 8:
+                nx = y;
+                ny = W - 1 - x;
+                break; /* rotate 270 CW */
+            }
+            std::memcpy(out.data() + (size_t(ny) * (swap ? H : W) + nx) * 4,
+                        rgba.data() + (size_t(y) * W + x) * 4, 4);
+        }
+    }
+    if (swap)
+        std::swap(w, h);
+    rgba.swap(out);
+}
+
 ThumbStatus finish_ok(Thumbnail& out, std::vector<u8>& rgba, u32 w, u32 h, u32 max_edge,
                       const char* fmt, bool embedded) {
     box_downscale(rgba, w, h, max_edge);
@@ -983,6 +1089,14 @@ ThumbStatus thumbnail_stb(PreviewReader& pr, const ThumbnailCaps& caps, Thumbnai
             return ThumbStatus::Oversized;
         }
     }
+    /* S-043: read the orientation BEFORE the decode - the full decode
+     * consumes the read budget the walker needs (the og's GDI+ path reads
+     * property 0x112 before scaling, :652307-309). */
+    u32 orient = 0;
+    if (is_jpeg) {
+        ExifWalker wlk(pr, b);
+        orient = wlk.orientation();
+    }
     StbioSource src(pr, b);
     auto cb = src.callbacks();
     int w = 0, h = 0, comp = 0;
@@ -996,6 +1110,18 @@ ThumbStatus thumbnail_stb(PreviewReader& pr, const ThumbnailCaps& caps, Thumbnai
     if (reader_gained_failures(fails_before, pr)) {
         out.truncated = false;
         return ThumbStatus::UnreadableSpan;
+    }
+    /* S-043: apply the RotateFlip BEFORE the 256-px pass - the og's call
+     * order (:652307 orientation -> :652309 the 256-px thumbnail). The
+     * embedded fast path (the budget escape above) is excluded: the
+     * camera-pre-rotated embedded thumbnail is already display-oriented
+     * (the libheif embedded-first precedent the fast path follows), so
+     * both engines produce the correctly-oriented thumbnail. */
+    if (orient != 0) {
+        u32 tw = u32(w), th = u32(h);
+        apply_exif_orientation(rgba, tw, th, orient);
+        w = int(tw);
+        h = int(th);
     }
     const char* name = fmt == Fmt::Jpeg  ? "jpeg"
                        : fmt == Fmt::Png ? "png"
