@@ -2336,3 +2336,8 @@ SCAN-ENGINE-DELTA:78/260 + carve.md:630); N-106 (the SI:86 GetDriverInfo row wit
 OUT-OF-SCOPE-by-lineage disposition + the N-071 sixth-source note); N-101's and N-120's
 other items (the session-9 currency pass's arithmetic; the S-050 FileRepair pointer
 repair; the EuShare count; the be0cfe9 pins).
+
+Doc-truth batch C conform: all eight files retired into history (Resolutions preserved
+at 13245c0), ledger rows appended (incl. the two FIXED-ALREADY classifications), matrix
+rows flipped. Filesystem truth: 50 active (6 SEVERE · 22 MAJOR · 17 MINOR · 5 INFO) /
+276 resolved / 2 tracked-open. Session-38 tally: 18 findings closed.

@@ -541,7 +541,7 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | cli · `-h` usage text + stale cite (C24/Q68) | **MATCH** | **N-094 — FIXED (session 38)**: the sessions usage line landed + CORE-API-CURRENT re-pinned (3043-3063, count 11) + the verb lock grown to four sites with the `CrUi.CliHelpListsEveryDispatchedVerb` regression pin (both directions) |
 | docs · five stale texts (Q68) | **MATCH** | **N-095 — FIXED (session 38, `e1e5124`)**: GetProcName relabel (both sites); 34-toggles + the 1,481-unique nuance; the carve.md D-104 note; the 2-segment disk template; the ABI cites via N-117 |
 | transport · identity IOCTL issuance (S35/P42) | DIVERGENCE-MINOR | **N-096** — og issues GET_DISK_CONTEXT_MODE per open; core never issues any |
-| health/docs · auto.txt classification (F61/Q68) | DIVERGENCE-MINOR | **N-097** — it is the FVE auto-unlock key snapshot (plaintext persistence datum) |
+| health/docs · auto.txt classification (F61/Q68) | **MATCH** | **N-097 — FIXED (session 38, `13245c0`)**: the inventory row carries the FVE-snapshot truth + the security datum; the core's no-persistence posture registered |
 | abi/docs · enum refresh contract sentence (Q68) | DIVERGENCE-MINOR | **N-098** — always-fresh behavior unverified-by-text (R-86's doc half) |
 | config assets · data-asset ground truths (Q68/I-010) | INFORMATIONAL | **I-027** — quota contract, json_raw shield, Aliyun caps, schtasks autostart, filter_generalraw value |
 | mom-capabilities · CWindowsFS live-FS adapter | OPEN QUESTION | **OQ-S8-1** — decoded; og-side consumer untraced |
@@ -571,11 +571,11 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | session · light summary read (D12) | **MATCH** — SESSION_STATE+VOLUME_INFO == the og's record-1-then-record-2 list read (phrasing corrected E64; complements N-090's scope/shape rows) |
 | ntfs · session-wire field set (D11/D12) | **N-100** — og persists +0x60 (total clusters, sparse-zeroed) beside +0x64; core carries +0x64 only |
 | ntfs · origin-LCN stamp chain (C20) | **MATCH** (semantics) — chain cites corrected (+0x53/+0x4f first hop; FUN_180003250) |
-| orchestration · device enumeration sixth source | **N-106** — GetDriverInfo.dll dispositioned OUT-OF-SCOPE by lineage (complements M-082's DeviceManager decode) |
-| audit-trail · SURFACE-INVENTORY arithmetic + classification rows | **N-101** |
-| audit-trail · M-024 count propagation (finding file itself) | **N-102** (cross-ref N-095's PARITY-CORE-REC site) |
+| orchestration · device enumeration sixth source | **MATCH** | **N-106 — FIXED-ALREADY (classified session 38)**: the SI:86 disposition row with corpus cites + the N-071 sixth-source note (landed by the session-8 wave-2 lane) |
+| audit-trail · SURFACE-INVENTORY arithmetic + classification rows | **MATCH** | **N-101 — FIXED (session 38, `13245c0`)**: one live residue (per-binary 112/114) + the rest FIXED-ALREADY with reproductions |
+| audit-trail · M-024 count propagation (finding file itself) | **MATCH** | **N-102 — FIXED (session 38, `13245c0`)**: the propagation note flipped to done (every live site reads 34) |
 | audit-trail · thumbnail API rows + heif attribution | **N-103 — FIXED (session 38, `954c386`)**: R-28 rows engine-PRESENT + M-102 the tracked ABI handoff; the heif.dll attribution corrected per the import tables re-read first-hand |
-| audit-trail · ldm.md dangling ref + CAPABILITY-MATRIX HFS+ row | **N-104** (cross-ref N-095's five other sites) |
+| audit-trail · ldm.md dangling ref + CAPABILITY-MATRIX HFS+ row | **MATCH** | **N-104 — FIXED (session 38, `13245c0`)**: the table.md ref dropped; the HFS+ row DONE with the engine cite verified first-hand |
 
 ### Session-8 third lane (2026-10-28 — the driver lane + the merge/repair wave; audited core `35adcb9`, driver `323e75a`, corpus `be0cfe9`)
 
@@ -602,7 +602,7 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | query | **M-101** (Versions/Tags branches), **N-126** (Unsaved File) |
 | preview | **M-100** (browse-inside), **M-102** (thumbnail ABI) |
 | boot repair | **N-121** (ESP automount), **N-122** (NVRAM create/delete) |
-| CLI / transport | **N-123** (N-124 FIXED session 10 — the transport.md SUPERSEDED annotation landed in 2025554; see evidence/s10-reverification-sweep.md) |
+| CLI / transport | **N-123 — FIXED (session 38, `13245c0`)**: the 11-verb recount + exit 4; N-124 FIXED session 10 — the transport.md SUPERSEDED annotation landed in 2025554; see evidence/s10-reverification-sweep.md |
 | orchestration / docs / structure | **N-125** (disconnect states), **N-119 — FIXED (session 38, `e1e5124`): D-88 re-adjudicated against the EuShare decode (leg 2 struck, trigger FIRED-and-adjudicated, the exclusion stands on scope)**, **N-120** (pointer drifts), **I-030** (module-map holes) |
 **Session-9 changes (2026-10-28, SA-9 lane — audited core product code `35adcb9` / rda-driver `323e75a` / corpus `be0cfe9`; two-repo scope; RECONCILED at push time into the session-8 board — 7 convergent filings merged as addenda, 1 unique finding kept):**
 
