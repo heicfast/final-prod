@@ -8449,8 +8449,15 @@ TEST(Carve, OoxmlRelsPathSplit) {
         ASSERT_EQ(direct_carved_count(root), 1u) << "the rels path " << c.rels;
         tree::FileNode* n0 = root->first_child();
         EXPECT_EQ(n0->props()->carve_format, c.fmt) << "the rels-path split";
+        /* the S-049 naming contract: <PREFIX>_<counter>.<UPPERCASE-EXT> -
+         * assert case-insensitively on the typed extension tail */
         const std::string nm = n0->name_utf8();
-        EXPECT_EQ(nm.compare(nm.size() - 5, 5, c.ext), 0) << "the typed extension";
+        ASSERT_GE(nm.size(), size_t(5));
+        std::string tail = nm.substr(nm.size() - 5);
+        for (auto& ch : tail)
+            if (ch >= 'A' && ch <= 'Z')
+                ch = char(ch + 32);
+        EXPECT_EQ(tail, c.ext) << "the typed extension";
     }
 }
 

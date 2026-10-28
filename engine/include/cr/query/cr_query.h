@@ -41,6 +41,16 @@ enum class Category : u8 {
     Other = 6,
     Email = 7,
     Bookmarks = 8,
+    /* N-126: the og's "Unsaved File" search-type category (the UI's
+     * type-mask bit 6, DRWUI :367384/:368807) - the office
+     * unsaved-document family. The engine-side membership decoded from
+     * the corpus: the Word autosave/backup pair (.asd/.wbk - the
+     * finding's named members; the og's full table - the office tmp
+     * forms and the ~-prefixed locks - is not decoded anywhere in the
+     * corpus: the R-27 assistant space carries only the six 5-0xB
+     * categories, the UI layer owns the bit). APPEND-ONLY (serialized
+     * category values stay stable). */
+    Unsaved = 9,
 };
 
 /* "jpg" (no dot, any case) -> Image; unknown extensions -> Other.
@@ -83,7 +93,7 @@ size_t filefilter_entry_count();
  * pass-through. Sizes are logical bytes; dates are the node's `modified`
  * time in 100-ns units (FileTimes wire unit). */
 struct Filter {
-    u32 category_mask = 0x1FF; /* Category bits (None..Bookmarks) */
+    u32 category_mask = 0x3FF; /* Category bits (None..Unsaved - N-126 widened from 0x1FF) */
     u64 size_min = 0;
     u64 size_max = ~u64(0);
     u64 modified_from = 0;

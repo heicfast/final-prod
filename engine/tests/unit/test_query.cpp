@@ -829,3 +829,50 @@ TEST(Query, BucketFiltersThroughRun) {
         EXPECT_EQ("today.txt", r.rows[0].name_utf8);
     }
 }
+
+TEST(Query, UnsavedFileCategory) {
+    /* N-126: the og's "Unsaved File" search-type category (the UI's
+     * type-mask bit 6) - the office unsaved-document family lands in
+     * its own category; the mask's tenth bit selects it. */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Lost Files");
+    add_file(t, root, "Autosave.asd", 100, 1000, 1, false, tree::Origin::Carved);
+    add_file(t, root, "Document.wbk", 200, 2000, 1, false, tree::Origin::Carved);
+    add_file(t, root, "photo.jpg", 300, 3000, 1, false, tree::Origin::Carved);
+    /* the category classification */
+    EXPECT_EQ(Category::Unsaved, category_for_extension("asd"));
+    EXPECT_EQ(Category::Unsaved, category_for_extension("ASD"));
+    EXPECT_EQ(Category::Unsaved, category_for_extension("wbk"));
+    EXPECT_EQ(Category::Image, category_for_extension("jpg"));
+    /* the mask selection: Unsaved only */
+    {
+        Query q;
+        q.filter.category_mask = 1u << u32(Category::Unsaved);
+        const Result r = run(t, q);
+        ASSERT_EQ(u64(2), r.total_matched);
+        EXPECT_EQ("Autosave.asd", r.rows[0].name_utf8);
+        EXPECT_EQ(u32(Category::Unsaved), r.rows[0].category);
+    }
+    /* the default mask (0x3FF) admits the unsaved rows */
+    {
+        Query q;
+        const Result r = run(t, q);
+        EXPECT_EQ(u64(3), r.total_matched);
+    }
+}
+
+TEST(Query, CategoriesAppendOnlyGuard) {
+    /* N-126: the category values are serialized in sessions and cross
+     * the ABI - the pre-existing nine keep their values, Unsaved
+     * appends at 9 (the append-only rule the FileFilter landing set). */
+    EXPECT_EQ(u8(Category::None), u8(0));
+    EXPECT_EQ(u8(Category::Image), u8(1));
+    EXPECT_EQ(u8(Category::Video), u8(2));
+    EXPECT_EQ(u8(Category::Audio), u8(3));
+    EXPECT_EQ(u8(Category::Document), u8(4));
+    EXPECT_EQ(u8(Category::Archive), u8(5));
+    EXPECT_EQ(u8(Category::Other), u8(6));
+    EXPECT_EQ(u8(Category::Email), u8(7));
+    EXPECT_EQ(u8(Category::Bookmarks), u8(8));
+    EXPECT_EQ(u8(Category::Unsaved), u8(9));
+}

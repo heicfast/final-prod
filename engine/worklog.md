@@ -1,3 +1,12 @@
+- **N-126 FIXED** — the Unsaved File category: Category::Unsaved=9 (append-only), the .asd/.wbk
+  overlay ahead of the generated table (the og's FileFilter.xml carries no autosave rows — the
+  category is a UI-layer classification, bit 6 of the type mask, DRWUI :367384/:368807), the
+  default mask widened 0x1FF→0x3FF at all three sites, ABI-CONTRACT's enumeration updated. The
+  finding's demanded decode pass executed first: the R-27 space carries only the six assistant
+  categories — the full membership (tmp forms, ~-locks) is the corpus-limited follow-up,
+  registered. A desync repaired en route: cat_of duplicated the table lookup (the overlay would
+  have classified but not filtered) — it now delegates to category_for_extension. Tests:
+  Query.UnsavedFileCategory (RED pre-fix) + Query.CategoriesAppendOnlyGuard. Suite 1136/1136.
 - **N-115 + N-153 FIXED** — the OfficeTagFromXML typing pass: the rels-path map (word/xl/ppt +
   the word-prefix fallback, office-gated per the decompile's param_3), the mimetype/[Content_Types]
   content tags (stored or deflated ≤10 KiB through compress::kGzip), and the name-tag set (iWork/

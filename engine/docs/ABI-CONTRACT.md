@@ -709,7 +709,8 @@ virtualizes at the UI layer (~1000-item incremental tree batches,
 against it; this is a registered deliberate difference. Sort code 7 (Type)
 mirrors the og's results-view Type column: category in the FileFilter.xml
 iconIndex order (Graphic/Document/Email/Audio/Video/Other/Archive/
-Bookmarks), then extension, then name.
+Bookmarks, Unsaved - N-126's tenth bit: the og's office unsaved-document
+category, the .asd/.wbk autosave family), then extension, then name.
 
 ### Query bucket translation + the raw-category name (M-029, session 32)
 
