@@ -7,6 +7,7 @@
  */
 
 #include "cr/btrfs/cr_btrfs_engine.h"
+#include "cr/orchestrator/cr_filterfolder.h" /* M-110: the not-in-pools guard */
 #include "cr/btrfs/cr_btrfs_cache.h" /* N-072 */
 #include "cr/cr_text.h"
 #include <gtest/gtest.h>
@@ -322,6 +323,56 @@ std::vector<u8> build_volume() {
     /* file content */
     memcpy(d.data() + L_DATA, "Hello, btrfs!", 14);
     memcpy(d.data() + L_DATA + 4096, "nested btrfs content", 21);
+    return d;
+}
+
+
+/* M-110: a Synology-shaped volume - every real-world Synology Btrfs
+ * directory carries an "@eaDir" child holding the SYNO@EA@… EA entries.
+ * Layout: /photos (dir 257) containing keep.txt (258, a real file that
+ * MUST stay), "@eaDir" (dir 259, the suppressed one) containing
+ * "SYNO@EA@photos" (260), and "@eaDirBackup" (dir 261) containing
+ * "ea.bak" (262) - the exact-vs-prefix discriminator. */
+std::vector<u8> build_synology_volume() {
+    auto d = build_volume();
+    NodeBuilder nb;
+    const u64 MTIME = 1600000000;
+    Key ki;
+    ki.type = 1;
+    ki.objectid = 256; /* the subvol root dir (the walk roots here) */
+    nb.add(ki, make_inode(0x4000, NODESIZE, 2, MTIME));
+    ki.objectid = 257; /* photos dir */
+    nb.add(ki, make_inode(0x4000, NODESIZE, 3, MTIME));
+    ki.objectid = 258; /* keep.txt */
+    nb.add(ki, make_inode(0x8000, 8, 1, MTIME));
+    ki.objectid = 259; /* @eaDir dir */
+    nb.add(ki, make_inode(0x4000, NODESIZE, 2, MTIME));
+    ki.objectid = 260; /* SYNO@EA@photos */
+    nb.add(ki, make_inode(0x8000, 16, 1, MTIME));
+    ki.objectid = 261; /* @eaDirBackup dir */
+    nb.add(ki, make_inode(0x4000, NODESIZE, 2, MTIME));
+    ki.objectid = 262; /* ea.bak */
+    nb.add(ki, make_inode(0x8000, 6, 1, MTIME));
+    Key kd;
+    kd.type = 84;
+    kd.objectid = 256;
+    kd.offset = 0x44440004;
+    nb.add(kd, make_dir_item(257, "photos", 2));
+    kd.objectid = 257;
+    kd.offset = 0x55550005;
+    nb.add(kd, make_dir_item(258, "keep.txt", 1));
+    kd.offset = 0x66660006;
+    nb.add(kd, make_dir_item(259, "@eaDir", 2));
+    kd.offset = 0x77770007;
+    nb.add(kd, make_dir_item(261, "@eaDirBackup", 2));
+    kd.objectid = 259;
+    kd.offset = 0x88880008;
+    nb.add(kd, make_dir_item(260, "SYNO@EA@photos", 1));
+    kd.objectid = 261;
+    kd.offset = 0x99990009;
+    nb.add(kd, make_dir_item(262, "ea.bak", 1));
+    auto nd = nb.finish(L_FS_TREE, 0);
+    memcpy(d.data() + L_FS_TREE, nd.data(), NODESIZE);
     return d;
 }
 
@@ -2074,6 +2125,106 @@ TEST(Btrfs, CacheStaleGenerationDiscardedOnVolumeRewrite) {
     EXPECT_EQ(st2.cache_hits, 0u) << "the stale-generation blob is discarded";
     EXPECT_EQ(st2.cache_writes, 1u) << "and replaced with the fresh derivation";
     EXPECT_EQ(io.writes, 2);
+}
+
+
+/* ---- M-110: the og's Synology "@eaDir" descent suppression ---- */
+
+namespace {
+
+std::set<std::string> all_paths(tree::FileNode* root) {
+    std::set<std::string> paths;
+    std::function<void(tree::FileNode*, std::string)> walk = [&](tree::FileNode* n,
+                                                                 const std::string& p) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->props())
+                continue;
+            const std::string nm = c->name_utf8();
+            const std::string full = p.empty() ? nm : p + "/" + nm;
+            paths.insert(full);
+            walk(c, full);
+        }
+    };
+    walk(root, "");
+    return paths;
+}
+
+} // namespace
+
+TEST(Btrfs, EaDirSubtreeSuppressed) {
+    /* the og's Btrfs walk never descends into a directory named exactly
+     * "@eaDir" (FUN_180001cd0 :704-711): the node is emitted EMPTY, its
+     * SYNO@EA@… children are never walked */
+    auto img = build_synology_volume();
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    BtrfsScanStats st;
+    u32 rc = scan_btrfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    const auto paths = all_paths(ra);
+    /* the @eaDir directory node ITSELF is present (the og emits it empty) */
+    EXPECT_TRUE(paths.count("photos/@eaDir")) << "the @eaDir node is emitted";
+    /* ...but its children are absent */
+    EXPECT_FALSE(paths.count("photos/@eaDir/SYNO@EA@photos"))
+        << "the EA entries are never walked (the og's suppression)";
+    /* the sibling file is unaffected */
+    EXPECT_TRUE(paths.count("photos/keep.txt"));
+}
+
+TEST(Btrfs, EaDirExactMatchOnly) {
+    /* the instruction-level decode (the 7-byte compare includes the
+     * literal's NUL terminator): "@eaDirBackup" is NOT suppressed - it
+     * mismatches at index 6 and descends normally. The finding's
+     * prefix-match claim is corrected by the binary read. */
+    auto img = build_synology_volume();
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    BtrfsScanStats st;
+    u32 rc = scan_btrfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    const auto paths = all_paths(ra);
+    EXPECT_TRUE(paths.count("photos/@eaDirBackup")) << "the longer name descends";
+    EXPECT_TRUE(paths.count("photos/@eaDirBackup/ea.bak"))
+        << "the @eaDirBackup subtree is fully walked (NOT a prefix match)";
+}
+
+TEST(Btrfs, EaDirNodeItselfEmitted) {
+    /* the og's suppression is descent-only: the @eaDir node appears in
+     * the tree (empty), so the shape is "directory with no children",
+     * not "directory absent" */
+    auto img = build_synology_volume();
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    BtrfsScanStats st;
+    ASSERT_EQ(OK, scan_btrfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    tree::FileNode* eadir = nullptr;
+    for (tree::FileNode* c = ra->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->name_utf8() == "photos")
+            for (tree::FileNode* cc = c->first_child(); cc; cc = cc->next_sibling())
+                if (cc->props() && cc->name_utf8() == "@eaDir")
+                    eadir = cc;
+    ASSERT_NE(nullptr, eadir) << "the @eaDir node exists";
+    EXPECT_EQ(nullptr, eadir->first_child()) << "and is EMPTY";
+}
+
+TEST(Btrfs, EaDirNotInFilterfolderPools) {
+    /* the suppression is NOT the M-018 junk-filter mechanism: the name
+     * must not appear in the filterfolder pools (different mechanism -
+     * descent suppression vs name-pool flagging; the guard pins the
+     * boundary) */
+    const std::string_view pool(reinterpret_cast<const char*>(filterfolder::data::kFolderPool),
+                                filterfolder::data::kFolderPoolLen);
+    const std::string_view fpool(reinterpret_cast<const char*>(filterfolder::data::kFilePool),
+                                 filterfolder::data::kFilePoolLen);
+    const std::string_view fatpool(reinterpret_cast<const char*>(
+                                       filterfolder::data::kFatNamePool),
+                                   filterfolder::data::kFatNamePoolLen);
+    for (auto pool_view : {pool, fpool, fatpool})
+        EXPECT_EQ(std::string_view::npos, pool_view.find("@eaDir"))
+            << "the @eaDir suppression is engine-side, not a junk-pool name";
 }
 
 } // namespace btrfs

@@ -102,6 +102,26 @@ true. RED REPAIR: the M-074 parallel landing's win_syntax_check failure
 ERROR_FILENAME_EXCED_RANGE/ERROR_INVALID_NAME/ERROR_BAD_PATHNAME with the
 real WinError values). ctest 1102/1102.
 
+**T3 (M-110 FIXED — the semantics corrected before landing):** the
+Synology @eaDir descent suppression. The instruction-level verification
+DISPROVED the finding's decode: disassembled
+og-codebase/BtrfsSearchDLL.dll first-hand (capstone) — the compare loop
+at 180001e30-180001e44 is movzx/cmp/cmp-rax-7 over r12 = 0x180018580
+("@eaDir\0"), SEVEN bytes including the NUL terminator: the match is
+EXACT, not prefix — "@eaDirBackup" mismatches at index 6 and descends
+normally. The fix lands the exact-match suppression in
+cr_btrfs_engine.cpp's populate() (the node emitted empty, children never
+walked; NOT routed through cr_filterfolder — different mechanism, the
+not-in-pools guard pins the boundary). Fixture: build_synology_volume
+(the standard /photos/@eaDir/SYNO@EA@photos layout + the @eaDirBackup
+discriminator + the unaffected sibling). Tests:
+Btrfs.EaDirSubtreeSuppressed / EaDirNodeItselfEmitted (fail-before
+PROVEN by mutation: both RED with the suppression removed) /
+EaDirExactMatchOnly (the discriminator — RED against a prefix-match
+implementation) / EaDirNotInFilterfolderPools. ctest 1110/1110. The
+finding + the evidence file's prefix paragraph corrected in the
+Resolution; the module row + matrix cell -> MATCH.
+
 **Session-39B territory claim (coordination contract):** the lead 39 instance
 claimed MINOR + INFO; 11D claimed SEVERE; 11C/11D the MAJOR orchestration/carve
 cluster. **39B takes the unclaimed MAJOR preview/query/ABI cluster:

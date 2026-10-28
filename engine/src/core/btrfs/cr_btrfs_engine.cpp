@@ -1134,7 +1134,29 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
                     emitted.insert(de.child);
                     if (is_dir) {
                         ++stats.dirs;
-                        populate(de.child, child_node, depth + 1);
+                        /* M-110: the og's Synology "@eaDir" descent
+                         * suppression (BtrfsSearchDLL FUN_180001cd0
+                         * :704-711). Instruction-verified against the
+                         * binary this session: the compare is 7 bytes
+                         * INCLUDING the literal's NUL terminator
+                         * (180001e30 movzx cl,[rdx+rax] /
+                         * cmp cl,[r12+rax-1] / cmp rax,7 - byte 6 of
+                         * "@eaDir" at 0x180018580 is 0x00), so the
+                         * match is EXACT: a directory named exactly
+                         * "@eaDir" is emitted EMPTY (the node itself
+                         * stays; the og's entry-emit ran before the
+                         * pop-time name check) and its children -
+                         * Synology's SYNO@EA@… EA entries - are never
+                         * walked. A longer name such as "@eaDirBackup"
+                         * mismatches at index 6 and descends normally
+                         * (the finding's prefix-match reading is
+                         * corrected by this decode). NOT routed through
+                         * cr_filterfolder: the M-018 pass flags nodes
+                         * by name-pool membership (subtree kept); this
+                         * is a descent suppression - different
+                         * mechanism, different shape. */
+                        if (de.name != u"@eaDir")
+                            populate(de.child, child_node, depth + 1);
                     } else {
                         ++stats.files;
                     }
