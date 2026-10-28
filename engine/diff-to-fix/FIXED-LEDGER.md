@@ -1,4 +1,4 @@
-# FIXED-LEDGER.md — the index of the 259 resolved findings (files retired to git history)
+# FIXED-LEDGER.md — the master index of resolved findings (264 finding rows + 20 resolved OQ rows at session-39 open; 259 at the SA-10B purge whose convention created this ledger)
 
 > **What this is:** the user-mandated purge (session SA-10B / L-A) removed
 > the 259 per-finding files under `findings/FIXED/` from the working tree
@@ -23,6 +23,7 @@
 
 **(history, HEAD side of the b5da834 conflict):** 282-claim — 280 rows at `e56baac` + M-100 (the batch-C-conform 276 `0872ac2`/`64a3b18` + S-041 resolved-as-umbrella by the SA-10 lane) · 98 with a fix-commit recorded in-file
 **(history, b5da834 side):** 281-claim — the same lineage with the rebase-rewritten batch SHAs (e4f3184 / 995ba5d / 32ef33b)
+**(history, session-39 re-count at `35bee726`, pre-rebase):** 284 rows = 264 main-pattern + 20 OQ — the session-39 open tree before the M-072/M-102/M-083/N-093/N-136 row landings; convergent with the session-11B re-count (the delta is exactly those five rows + the N-136 renumber). Session-39 also resolved the SECOND committed-marker occurrence at the table tail (the N-136/N-093 row collision a parallel lane merged with markers) — both rows kept, markers dropped.
 
 **Counts:** 270 resolved findings (255 at the purge commit + the mid-flight parallel landings absorbed at rebase: M-084/M-091 `16475b8`, N-092 `5ed862f`, N-124 `c75755d`, M-088 DFX-38, N-116 `632d21e`, N-117/N-118/N-103 `e4f3184`, N-095/N-108/N-119 `995ba5d` session-38 doc-truth batches A+B; S-043 `b3938c8` moved its file into the re-created FIXED/ dir BEFORE this convention was readable - its row is pending, the next audit lane retires the file) · 98 with a fix-commit recorded in-file ·
 
@@ -325,11 +326,8 @@
 | N-098 | MINOR | (session-38 batch D; the contract sentence + mirrors + the `EnumerationRefreshContractPinned` pin, RED→GREEN proven) | (this session) | `findings/MINOR/N-098-enum-refresh-contract-sentence.md` |
 | N-105 | MINOR | (FIXED-ALREADY — classified session 38: D-106 is the demanded deferral record; reproduction in the Resolution) | (parallel S-044 lane's rider) | `findings/MINOR/N-105-autosave-folder-suffix-naming.md` |
 | N-100 | MINOR | (session-38; the +0x60 carrier landed as nflags bit-9 with the sparse-zeroing rule — Resolution + RED/GREEN proof in history at the N-100 commit) | (this session) | `findings/MINOR/N-100-ntfs-0x60-total-clusters-not-persisted.md` |
-<<<<<<< HEAD
 | N-136 | MINOR | session/abi | fce38c3-lineage (renumbered from the N-128 ID collision per the SA-9 earlier-remote-push rule - the capability-matrix N-128 keeps the ID) | `findings/MINOR/N-128-session-list-cwd-dir-composes-prefixed-paths.md` (renamed N-136 in history) |
-=======
 | N-093 | MINOR | (session-38; the og's four bound pairs carried — the pin + MID behavioral pair RED→GREEN; Resolution in history at the N-093 commit) | (this session) | `findings/MINOR/N-093-batch1-bounds-mid-gz.md` |
->>>>>>> 909e968 (fix(carve): N-093 - the batch-1 bound pairs become the og's registered caps (MID 10 MB / GZ 20+400 MB / PSP 36+20 MB / SIT 20,480+200 MB))
 
 ## Go-forward convention (established by this purge, per the user instruction)
 
