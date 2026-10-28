@@ -1983,3 +1983,65 @@ Stage Summary:
   MAJOR · 32 MINOR · 5 INFO) / 259 FIXED-in-history / tracked-open
   unchanged. No source code modified — diff-to-fix/ + worklog* only
   (verified per wave).
+
+---
+Task ID: SA-10B/T8 (the lane close — the handoff)
+Agent: session-10 B-lane parity audit (closing)
+
+THE LANE'S PRODUCT (all pushed; this lane's commits: 1e7c963 T1 baseline,
+e27e7c1 the L-B findings, 530fa32 the purge, ea2f3ea the gate docs,
+6dbb171 the convention note, + this close):
+- **The user's "remove the fixed things": EXECUTED.** 259 resolved findings
+  retired to history; findings/FIXED/ does not exist on main; the
+  FIXED-LEDGER is the index; the go-forward convention is recorded (fix
+  lanes retire to history + ledger, never re-create the directory).
+- **4 new findings, every one evidence-complete** (executed + decompile +
+  first-hand core cites): S-048, S-049, M-103 (the real-.rsf mining — the
+  corpus's three REAL og sessions mined for the first time: tree shape,
+  naming contract, LostDir grouping; the evidence file carries the verbatim
+  parser outputs) and S-050 (the product-frame census's one hole: the
+  file-repair line, unimplemented AND untruthfully registered).
+- **1 executed MATCH recorded** (raw_signs.json regen sync — the compiled
+  layer-1 table byte-identical to the og's shipped JSON) and **2 census
+  CLEANs** (og data assets; product-frame binaries).
+
+COVERAGE (this lane): the three real sessions parsed to their last byte;
+the naming/tree ground truth extracted for 34 carve formats + the orphan
+branch; the product-frame binary set enumerated and disposition-mapped;
+the shipped data tables compared at byte level. Read-only guarantee:
+verified per wave — this lane's commits touch ONLY diff-to-fix/ +
+worklog* (every `git show --stat` checked before push).
+
+HANDOFF — the recommended first fixes from THIS lane's filings (priority):
+1. **S-048 + S-049 + M-103 as ONE tree-shape wave** (they share the
+   evidence file, the fixture source, and the session round-trip test
+   seam): the Reconstructed/<volume> children first (S-048 — smallest,
+   highest user impact), then the EXT_%06d namer + the per-analyser
+   prefixes (S-049 — the prefix extraction is per-format, landable
+   incrementally), then the LostDir grouping (M-103 — the parent-record
+   is already at the reparent site). Fixtures MUST be spec-derived (the
+   S-042 class lesson, recorded in the evidence file).
+2. **S-050's registration repair immediately** (a 2-line doc fix — the
+   SURFACE-INVENTORY row already corrected by this lane; the
+   CAPABILITY-MATRIX §3 decision row is the fix lane's first commit),
+   then the build-vs-exclude decision with the corpus's 8 FileRepair
+   artifacts as the build contract if (a).
+3. The parallel fix lanes' queues continue: S-043 (thumbnail family,
+   claimed), S-047 + the S-041 school-2/3 children (carve lane, claimed —
+   NOTE: the real-session extension census now ranks the school-2/3
+   formats by real-world volume: GZ > SVG > PNG > ICO > wav > HTML > JPG —
+   GZ/HTML/SVG first maximizes real-user impact), M-072..M-078 (the
+   R-row batch, claimed).
+4. The remaining SEVEREs after those queues: S-040 (image-create), S-045
+   (thumbnail format coverage phase 2), S-041's parent row.
+
+OPEN ITEMS THIS LANE LEAVES (none new to tracked-open; recorded inside the
+findings): S-049's two open questions (the JPG Model-vs-Software
+precedence fixture; the MP4/MOV template-vs-EXT interplay decode) and
+S-050's product decision. The 2 existing tracked-open (OQ-S4-3
+execution-bound; OQ-S8-1's consumer question) are unchanged.
+
+Board at lane close: **70 active (8 SEVERE · 25 MAJOR · 32 MINOR · 5 INFO)
+/ 259 FIXED-in-history / 2 tracked-open** — at origin/main 6dbb171-lineage
+(+ this close). The parallel-lane environment is ACTIVE; pull before
+every wave; the counts move every few commits.
