@@ -7164,3 +7164,46 @@ token-redacted: `worklog/session-54-continuation-audit-prompt.md` (renamed at th
 Next free IDs at open (per the S47 lane's close): S-062+, M-138+, N-186+, I-045+,
 A-015+. Board at open (filesystem truth, this lane's census): 70 active (0 ACUTE ·
 9 SEVERE · 27 MAJOR · 32 MINOR · 2 INFO) / 71 FIXED / 6 tracked-open.
+
+
+## Session-55 continuation audit lane — territory claim (2026-10-29)
+
+**Lane type:** the SEVENTH continuation audit lane of the same user second-session
+mandate (remove-the-fixed + go-deeper + mark-all-remaining), following the
+S42/S42-B/S42-C/S12/S49/S50 precedent. **READ-ONLY** — the delta vs origin/main
+is `diff-to-fix/` + `worklog*` only, verified per commit. The fix lanes'
+tier division respected (no fix work in this lane).
+
+**Pins:** core `386c6c79` (HEAD at open), corpus `be0cfe9`. Board at open
+(filesystem truth): 69 active (9 SEVERE · 27 MAJOR · 32 MINOR · 1 INFO) /
+72 FIXED / 6 tracked-open. Next free IDs at open: S-062+, M-138+, N-186+,
+I-045+, A-015+.
+
+**This lane's claimed territory (the user's named focus areas not exhausted by
+the S12/S49/S50 lanes):**
+
+1. **The liveness battery** — all 69 active findings re-verified at the pin;
+   falsely-active findings retired with Resolution addenda (remove-the-fixed).
+2. **Sector/LBA math deep-dive** — ghidra-partition + ghidra-mo decompiles:
+   partition-probe boundaries, sector numbers, disk-size math, the
+   lost-partition scan-range derivation (M-137/M-119 adjacent territory).
+3. **Scan strategy deep-dive** — DRWUI orchestration decompile: quick/deep/
+   format-recovery scan ranges, sector stepping, the scan-loop liveness
+   surface (the no-stuck-or-freeze directive).
+4. **EUUserData local-database family** — the og-codebase/EUUserData tree +
+   the consumption decompile (M-129/N-169/N-170 adjacent).
+5. **State management** — the DRWUI scan-state machine vs the core's
+   controller (the I-041/I-042/I-043 register family's residuals).
+6. **Detection/grading calculation** — the grading deep-read subgates
+   (OQ-S42-3) + the QSDE/gauge formula families (N-183 adjacent).
+7. **The never-cited census** — the inventory's 134 never-cited artifacts:
+   behaviors never dispositioned, filed or dispositioned (mark-all-remaining).
+
+**Convergence note:** the remote's S54 continuation lane posted the same focus
+territory first (SA-9); this lane runs as the independent second lane per the
+S42/S42-B/S42-C precedent — both lanes' filings converge with independent
+verification documented. This lane's primary differentiation: the deep
+first-hand decode of the og-codebase EUUserData tree (the local-database
+directive) + the sector/LBA math in the PartitionRecovery decompiles.
+
+Mandate saved token-redacted: `worklog/session-52-continuation-audit-prompt.md`.
