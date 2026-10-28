@@ -731,7 +731,9 @@ semantics the og does not have.
 `cr_ui_scan_config.raw_category_name_utf8` (tail append) is the og's
 per-scan "filter_generalraw" display-name surface (corpus
 s5-oq-s4-2-raw-naming-hook.md): the raw/carve category root's role name.
-NULL/"" = the default "Other Deleted Files (Carved)". Resume recognizes
+NULL/"" = the default "Reconstructed" (S-048: the og's own root name -
+DRWUI's type==7 branch; resume also recognizes the legacy "Other Deleted
+Files (Carved)" so old sessions never duplicate the root). Resume recognizes
 both the default and the configured name, so a re-run never spawns a
 duplicate raw root.
 

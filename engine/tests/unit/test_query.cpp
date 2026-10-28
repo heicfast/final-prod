@@ -262,6 +262,57 @@ TEST(Query, FilterSortPageCorrectness) {
  * the row's FULL path (root role + ancestors + own name, '/'-joined) must
  * start with the prefix, ASCII-case-insensitive; the walk prunes subtrees
  * whose accumulated path is prefix-incompatible with the filter. */
+TEST(Query, CarvedVolumeFilterAxis) {
+    /* S-048: the carve tree's volume attribution IS the tree position
+     * (the og's shape - Reconstructed/<volume-display>/<files>), so the
+     * volume filter axis is the path-prefix filter over the group child's
+     * path: a query for "Reconstructed/ (H:)/" returns exactly that
+     * volume's carved files, never another volume's. */
+    tree::ResultTree t;
+    auto* rec = t.add_root(u"Reconstructed");
+    auto* grpH = t.add_folder(rec, u" (H:)");
+    auto* grpSR = t.add_folder(rec, u"System Reserved");
+    ASSERT_NE(grpH, nullptr);
+    ASSERT_NE(grpSR, nullptr);
+    for (int i = 0; i < 3; ++i) {
+        tree::FileProperties* p = new tree::FileProperties();
+        p->name = u"PNG_00000" + std::u16string(1, u16(u8('1' + i))) + u".PNG";
+        p->logical_size = 100 + i;
+        auto* f = t.add_file(grpH, p);
+        p->release();
+        f->set_origin(tree::Origin::Carved);
+        f->set_deleted_state(tree::DeletedState::Deleted);
+    }
+    {
+        tree::FileProperties* p = new tree::FileProperties();
+        p->name = u"GZ_000001.GZ";
+        p->logical_size = 50;
+        auto* f = t.add_file(grpSR, p);
+        p->release();
+        f->set_origin(tree::Origin::Carved);
+        f->set_deleted_state(tree::DeletedState::Deleted);
+    }
+    t.refresh_stats();
+
+    Query q;
+    q.filter.path_prefix = "Reconstructed/ (H:)";
+    q.filter.origin_mask = 1u << u32(tree::Origin::Carved);
+    q.filter.state_mask = 1u << u32(tree::DeletedState::Deleted);
+    q.limit = 100;
+    Result r = run(t, q);
+    EXPECT_EQ(u64(3), r.total_matched) << "exactly the H volume's carved files";
+    for (const Row& row : r.rows)
+        EXPECT_EQ(row.path_utf8.rfind("Reconstructed/ (H:)/", 0), size_t(0))
+            << "every row is the H volume's: " << row.path_utf8;
+
+    q.filter.path_prefix = "Reconstructed/System Reserved";
+    r = run(t, q);
+    EXPECT_EQ(u64(1), r.total_matched) << "exactly the System Reserved volume's files";
+    if (!r.rows.empty()) {
+        EXPECT_EQ(r.rows[0].name_utf8, "GZ_000001.GZ");
+    }
+}
+
 TEST(Query, PathPrefixFilterMatchesAndPrunes) {
     tree::ResultTree t;
     auto* found = t.add_root(u"Found");

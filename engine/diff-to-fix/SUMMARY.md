@@ -64,6 +64,27 @@ the TTF SHIVxx family — 11/59 rows, a naive name-table read contradicts the 48
 plain rows, the read-bound condition undecoded). Next: S-048 (the same
 real-session evidence's tree-shape half), S-040/S-050.
 
+**S-048 FIXED (the same lane, second push) — the Reconstructed per-volume carve tree.** The
+real-session tree shape landed in full (all first-hand decoded this lane): the
+`Reconstructed` root, the 7 EMPTY category skeleton folders (Pictures/Documents/Archives/
+Videos/Audio/Emails/Others - every real session carries exactly these; a newly-decoded
+surface beyond the finding's own fix plan), the LAZY per-volume group children (the
+finding's "at scan-start" plan corrected by the G session: a carves-free volume gets NO
+child), the empty per-ext folders, and every file directly under the volume child. The
+volume attribution is the tree position (the og's architecture - no per-node field); the
+query axis is the path-prefix filter. New surfaces: CarveFlags::volume_groups/
+volume_group_name (the carve-layer grouping contract), ResultTree::add_folder (the
+intermediate-folder API), the marker-2 session record (child folders; roots stay
+marker=1 - old readers unchanged), ScanConfig::volume_letter (the CLI --volume letter +
+the ABI open-volume letter). The whole-disk scans name their groups through the SAME
+M-104 tier machinery the structured volume roots use (one display name per volume, both
+trees - the og's own shape). Gap positions (outside every table volume) attach to the
+Reconstructed root directly - the unattributable form, never a wrong-volume attribution
+(no real-session sample; the honest fallback recorded in the Resolution). 8-test proof
+set; suite 1199/1199; clang-format clean. Board: S-048 retired to findings/FIXED/ (2
+SEVERE remain on the active board: S-040, S-050).
+
+
 ## S41 lane delta (2026-10-29 — the continuation audit lane per the user's second-session directive: remove-the-fixed, go deeper, mark all remaining; RECONCILED at push over TWO parallel windows; three filings, all renumbered at the reconciliations)
 
 **Audited: core `c7fa527c` (the pre-rebase pin — the liveness battery's claims are pinned

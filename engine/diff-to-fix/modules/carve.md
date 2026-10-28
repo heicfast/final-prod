@@ -722,10 +722,20 @@ unique artifacts kept (all cited by the reconciled findings):
 Two new findings + one executed MATCH, all from the first mining of the
 corpus's three REAL og sessions (evidence/executions/s10b-real-rsf-session-mining.md):
 
-- **S-048 (SEVERE)** — the og's carve branch is `Reconstructed/<volume-display-name>/`
-  (per-volume children; 100% of 189,115 real carved rows); the core's single flat
-  "Other Deleted Files (Carved)" root (cr_scan.cpp:151) has no volume attribution.
-  Fix wave: per-volume children + the Reconstructed default name.
+- **S-048 (SEVERE) — FIXED (session-40 severe lane)** — the og's carve branch landed in full:
+  the `Reconstructed` root (the og's own name; the M-029 config override retained; the legacy
+  name stays a recognized resume role) + the 7 EMPTY category skeleton folders
+  (Pictures/Documents/Archives/Videos/Audio/Emails/Others - every real session's persisted
+  shape, a newly-decoded surface) + the LAZY per-volume group children (the
+  "<label> (<L>:" + ")" / " (H:)" / "System Reserved" forms; a carves-free volume gets NO
+  child - the G session's shape) + the empty per-ext folders (lowercase) with every carved
+  file attached DIRECTLY to the volume child. The volume attribution is the tree position
+  (the og's architecture); the query axis is the path-prefix filter. VolumeGroup ranges +
+  names through CarveFlags (the M-104 tier names for whole-disk scans; the composed
+  label+letter for volume scans - ScanConfig::volume_letter plumbed through the CLI and the
+  ABI); ResultTree::add_folder + the marker-2 session record carry the intermediate folders.
+  8-test proof set (Orchestrator.CarveVolumeGroup* + CarveEngine.Reconstructed* +
+  Crsf.ReconstructedCarveTreeRoundTrip + Query.CarvedVolumeFilterAxis).
 - **S-049 (SEVERE) — FIXED (session-40 severe lane)** — the og's universal naming contract
   `<PREFIX>_<%06d>.<UPPEREXT>` (DRWUI FUN_140c44770:1878330-81; prefix = the UPPERCASE EXT by
   default, PER-FORMAT counters — JPG 1..3938 continuous across prefix variants, GZ 1..27,694,

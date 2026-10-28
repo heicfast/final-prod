@@ -505,7 +505,9 @@ struct CrDevice {
                                                    decrypting device */
     u32 disk = 0;
     bool disk_known = false;
-    u64 volume_len = 0; /* nonzero = a volume slice (not whole-disk) */
+    u64 volume_len = 0;     /* nonzero = a volume slice (not whole-disk) */
+    char volume_letter = 0; /* S-048: the open-volume letter (0 = absent) -
+                               the carve tree's volume-group naming input */
     const char* transport = "image";
     /* S-008 pre-scan repair: image devices remember their source so the
      * shim can reopen the SAME bytes read-write for the consented repair. */
@@ -1379,6 +1381,7 @@ u32 open_volume_impl(char letter, cr_ui_device** out) {
     d->disk = disk;
     d->disk_known = true;
     d->volume_len = len;
+    d->volume_letter = char(letter >= 'a' && letter <= 'z' ? letter - 32 : letter); /* S-048 */
     d->transport = transport;
     *out = reinterpret_cast<cr_ui_device*>(d);
     return ret_ok();
@@ -2053,6 +2056,12 @@ u32 scan_attach_impl(cr_ui_scan* scan, cr_ui_device* dev) {
     if (d->disk_known && s->cfg.volume_model[0] == 0)
         fill_identity_card(d->disk, s->cfg);
 #endif
+    /* S-048: the open volume's letter rides the config (the carve tree's
+     * volume-group naming input - "<label> (<L>:" + ")"). A volume slice
+     * with a letter names its group child; disk/image targets leave it 0
+     * (whole-disk scans name their groups through the M-104 tiers). */
+    if (d->volume_letter != 0 && s->cfg.volume_letter == 0)
+        s->cfg.volume_letter = d->volume_letter;
     return ret_ok();
 }
 
@@ -2132,9 +2141,9 @@ u32 scan_run_impl(cr_ui_scan* scan) {
     if (s->ck_sink) {
         if (s->ck_sink->f)
             std::fclose(s->ck_sink->f);
-        /* the staging file is transient: the final path holds the last
-         * COMMITTED checkpoint; a leftover .tmp is a torn never-committed
-         * emit (N-014's crash window) - remove it, never trust it. */
+            /* the staging file is transient: the final path holds the last
+             * COMMITTED checkpoint; a leftover .tmp is a torn never-committed
+             * emit (N-014's crash window) - remove it, never trust it. */
 #ifdef _WIN32
         DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
 #else
@@ -2758,8 +2767,8 @@ extern "C" CR_UI_API void cr_ui_scan_close(cr_ui_scan* scan) {
         if (s->ck_sink) {
             if (s->ck_sink->f)
                 std::fclose(s->ck_sink->f);
-            /* N-014: the staging file is transient (a torn never-committed
-             * emit); the final path holds the last committed checkpoint. */
+                /* N-014: the staging file is transient (a torn never-committed
+                 * emit); the final path holds the last committed checkpoint. */
 #ifdef _WIN32
             DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
 #else

@@ -4834,6 +4834,7 @@ lane (d4b487c8), S-052 by the third lane (f4e500de) — the remaining SEVERE set
 (S-048/S-050/S-040) is split: this lane takes S-048 first (the decode rides
 this lane's S-049 evidence mining); the 11D lane is free to take S-050/S-040 or
 converge per the first-push-wins convention.
+
 ### Session-39 fix log — N-135 landed (the bookkeeping truth batch closed)
 
 **Finding:** MINOR N-135 (the fix-wave bookkeeping truth batch — 7 items).
@@ -5086,3 +5087,20 @@ findings/FIXED/ with the session-42 verification note, the ledger row landed
 (board 51 active: 3 SEVERE / 23 MAJOR / 16 MINOR / 9 INFO).
 **Next:** S-048 (the carve tree-shape — this lane adopts the S40-severe
 territory claim), then S-050, S-040.
+
+
+
+## Fix session 40-severe — S-048 landed (2026-10-29, the second push; baseline `d4b487c8`+parallel)
+
+**S-048 FIXED — the Reconstructed per-volume carve tree.** The real-session shape
+landed in full: the `Reconstructed` root + the 7 empty category skeleton folders +
+the LAZY per-volume group children (" (H:)" / "System Reserved" / "<label> (<L>:)"
+forms) + the empty per-ext folders + the files directly under the volume child. New
+surfaces: CarveFlags::volume_groups/volume_group_name; ResultTree::add_folder; the
+marker-2 session record (child folders; roots stay marker=1 - old files unchanged);
+ScanConfig::volume_letter (CLI + ABI fills); the M-104 tier names reused for the
+whole-disk group children. Gap positions attach to the root (never mis-attributed).
+The attribution is the tree position (the og's architecture); the query axis is the
+path-prefix filter. 8-test proof set; suite 1199/1199 (linux-release); format clean.
+Next (this lane's claim): S-050 (the file-repair-line registration decision + the
+SURFACE-INVENTORY truth repair), then S-040 (the image-create producer).

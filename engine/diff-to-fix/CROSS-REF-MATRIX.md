@@ -31,6 +31,12 @@ grammar byte-confirmed — no erratum needed).
 
 **SA-10B changes (2026-10-29, the B lane — the real-.rsf session mining; evidence: evidence/executions/s10b-real-rsf-session-mining.md):**
 - **carve row, new cells**: tree-shape/naming parameters — **S-048** (the
+  per-volume grouping — **FIXED, session-40 severe lane**: the Reconstructed root + the
+  7 empty category skeleton folders + the lazy per-volume group children + the empty
+  per-ext folders + the files directly under the volume child; the volume attribution is
+  the tree position, the path-prefix query axis; the marker-2 session record; B8/A26/A42/
+  D12/D13 cells → MATCH; full landing record in the finding's Resolution + the
+  FIXED-LEDGER row),
   `Reconstructed/<volume>` per-volume grouping absent; B8/A26/A42/D12/D13
   cells), **S-049** (the `<PREFIX>_%06d.EXT` naming contract + the
   content-derived prefixes EXIF-Model/Software, ID3-title, PDF/DOCX-timestamp,

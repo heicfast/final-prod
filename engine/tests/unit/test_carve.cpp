@@ -6266,6 +6266,131 @@ TEST(CarveEngine, MovV1MvhdDurationRead) {
         << "the v1 duration field must be read from its proper layout";
 }
 
+TEST(CarveEngine, ReconstructedMultiVolumeGrouping) {
+    /* S-048: the per-volume carve grouping - two VolumeGroups in one
+     * slice, each lazily getting its own group child under the carve
+     * root with its files attached DIRECTLY to it and one empty
+     * per-extension folder beside them (the og's persisted shape:
+     * "Reconstructed/ (I:)/jpg" + "Reconstructed/ (I:)/PNG_000001.PNG";
+     * the multi-volume whole-disk scans' every carved row, 100% of
+     * 189,115 real rows across the three og sessions). */
+    std::vector<u8> img(256 * 1024, 0);
+    plant_jpeg(img, 4096);      /* group A ("Data (D:)") */
+    plant_png(img, 132 * 1024); /* group B ("System Reserved") */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Reconstructed");
+    CarveFlags flags;
+    VolumeGroup ga;
+    ga.start = 0;
+    ga.end = 128 * 1024;
+    ga.name = u"Data (D:)";
+    VolumeGroup gb;
+    gb.start = 128 * 1024;
+    gb.end = 256 * 1024;
+    gb.name = u"System Reserved";
+    flags.volume_groups.push_back(ga);
+    flags.volume_groups.push_back(gb);
+    CarveStats st;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st),
+              OK);
+    tree::FullNode* grpA = nullptr;
+    tree::FullNode* grpB = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->is_full()) {
+            tree::FullNode* f = static_cast<tree::FullNode*>(c);
+            if (f->role == u"Data (D:)")
+                grpA = f;
+            else if (f->role == u"System Reserved")
+                grpB = f;
+        }
+    ASSERT_NE(grpA, nullptr) << "group A's child exists";
+    ASSERT_NE(grpB, nullptr) << "group B's child exists";
+    /* every file under its OWN volume; the ext folders empty beside */
+    int a_files = 0, b_files = 0;
+    for (tree::FileNode* c = grpA->first_child(); c; c = c->next_sibling()) {
+        if (!c->is_full()) {
+            ++a_files;
+            EXPECT_EQ(c->props()->carve_format, u32(FMT_JPG)) << "the JPEG is group A's";
+        } else {
+            EXPECT_EQ(static_cast<tree::FullNode*>(c)->role, u"jpg");
+            EXPECT_EQ(c->first_child(), nullptr) << "the ext folder is empty";
+        }
+    }
+    for (tree::FileNode* c = grpB->first_child(); c; c = c->next_sibling()) {
+        if (!c->is_full()) {
+            ++b_files;
+            EXPECT_EQ(c->props()->carve_format, u32(FMT_PNG)) << "the PNG is group B's";
+        } else {
+            EXPECT_EQ(static_cast<tree::FullNode*>(c)->role, u"png");
+            EXPECT_EQ(c->first_child(), nullptr) << "the ext folder is empty";
+        }
+    }
+    EXPECT_EQ(a_files, 1);
+    EXPECT_EQ(b_files, 1);
+}
+
+TEST(CarveEngine, ReconstructedUnattributedPositionStaysAtRoot) {
+    /* S-048: a candidate OUTSIDE every volume group attaches to the
+     * carve root DIRECTLY - never mis-attributed to a wrong volume (the
+     * gap position: the og's real sessions never sample one; the honest
+     * form is unattributed-at-root). */
+    std::vector<u8> img(256 * 1024, 0);
+    plant_png(img, 4096);        /* inside group A */
+    plant_jpeg(img, 200 * 1024); /* OUTSIDE both groups (the gap) */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Reconstructed");
+    CarveFlags flags;
+    VolumeGroup ga;
+    ga.start = 0;
+    ga.end = 128 * 1024;
+    ga.name = u"Data (D:)";
+    flags.volume_groups.push_back(ga);
+    CarveStats st;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st),
+              OK);
+    tree::FullNode* grpA = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->is_full() && static_cast<tree::FullNode*>(c)->role == u"Data (D:)")
+            grpA = static_cast<tree::FullNode*>(c);
+    ASSERT_NE(grpA, nullptr);
+    int a_files = 0, root_files = 0;
+    for (tree::FileNode* c = grpA->first_child(); c; c = c->next_sibling())
+        if (!c->is_full())
+            ++a_files;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (!c->is_full())
+            ++root_files;
+    EXPECT_EQ(a_files, 1) << "the in-group PNG is attributed to the volume";
+    EXPECT_EQ(root_files, 1) << "the gap JPEG stays at the root (unattributed)";
+}
+
+TEST(CarveEngine, ReconstructedSingleDefaultGroupName) {
+    /* S-048: the single-volume scan shape - one default group name over
+     * the whole slice (no ranges), the common case (" (H:)" - the H
+     * session's 94,057-row form). */
+    auto img = build_carve_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Reconstructed");
+    CarveFlags flags;
+    flags.volume_group_name = u" (H:)";
+    CarveStats st;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st),
+              OK);
+    tree::FullNode* grp = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->is_full() && static_cast<tree::FullNode*>(c)->role == u" (H:)")
+            grp = static_cast<tree::FullNode*>(c);
+    ASSERT_NE(grp, nullptr) << "the single default group child exists";
+    int files = 0;
+    for (tree::FileNode* c = grp->first_child(); c; c = c->next_sibling())
+        if (!c->is_full())
+            ++files;
+    EXPECT_GE(files, 4) << "every carved file attaches to the volume child";
+}
+
 TEST(CarveEngine, OgNamingUniversalExtCounter) {
     /* S-049: the og's universal naming contract - a format with no
      * content-derived prefix names "<UPPEREXT>_<%06d>.<UPPEREXT>": the
@@ -7498,7 +7623,8 @@ TEST(Carve, TsM2TsCapIsTheOg200MB) {
     }
     ASSERT_NE(ts, nullptr);
     ASSERT_NE(m2ts, nullptr);
-    EXPECT_EQ(ts->max_size, 200000000ull) << "the og's TS clamp (:35507-35509), not the refuted x10";
+    EXPECT_EQ(ts->max_size, 200000000ull)
+        << "the og's TS clamp (:35507-35509), not the refuted x10";
     EXPECT_EQ(m2ts->max_size, 200000000ull) << "the og's M2TS clamp, same global";
     EXPECT_EQ(ts->min_size, 0x5000u);
     EXPECT_EQ(m2ts->min_size, 0x5000u);

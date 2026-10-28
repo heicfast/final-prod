@@ -3616,8 +3616,7 @@ TEST(CrUi, ThumbnailCapsAllowEmbeddedValidated) {
     for (const uint32_t v : {0u, 1u}) {
         cr_ui_thumbnail_caps caps{};
         caps.allow_embedded = v;
-        const uint32_t rc =
-            cr_ui_thumbnail_generate(u.dev, u.sess, logo, &caps, nullptr, 0, &info);
+        const uint32_t rc = cr_ui_thumbnail_generate(u.dev, u.sess, logo, &caps, nullptr, 0, &info);
         EXPECT_NE(rc, 0x50030003u) << "allow_embedded=" << v << " must be accepted";
     }
     cr_ui_thumbnail_caps caps{};
@@ -3645,8 +3644,7 @@ TEST(CrUi, ThumbnailHeaderMatchesContract) {
     const std::string capsec = hdr.substr(caps > 700 ? caps - 700 : 0, 900);
     EXPECT_NE(capsec.find("no off position"), std::string::npos)
         << "the allow_embedded design note must be in the caps comment";
-    EXPECT_NE(capsec.find("0 or 1"), std::string::npos)
-        << "the validated range must be stated";
+    EXPECT_NE(capsec.find("0 or 1"), std::string::npos) << "the validated range must be stated";
 }
 
 /* ------------------------------------------------------------------ */

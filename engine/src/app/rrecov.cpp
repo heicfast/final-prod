@@ -1472,9 +1472,15 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
              cfg.threads, int(cfg.run_quick), int(cfg.run_deep), int(cfg.run_carve),
              int(cfg.whole_disk), int(repair), int(repair_apply));
     fill_identity_card(target.disk, cfg); /* SESS-2: model/serial into the card */
-    fill_volume_label(target, cfg);       /* M-079: the <vol> half of the
-                                           * auto-save name + the session
-                                           * record (derive unless --label) */
+    fill_volume_label(target, cfg);
+    /* S-048: the volume's drive letter rides the scan config (the og's
+     * carve-tree volume grouping names the group child "<label> (<L>:)" -
+     * the real-session " (H:)" form). Uppercased; 0 for disk/image
+     * targets. */
+    cfg.volume_letter = target.volume_letter ? char(toupper(unsigned(target.volume_letter)))
+                                             : 0; /* M-079: the <vol> half of the
+                                                   * auto-save name + the session
+                                                   * record (derive unless --label) */
     if (target.is_image) {
         /* S-030: the image identity - format as model, path into the v3
          * tail (the resume path warns when the path changes) */

@@ -180,7 +180,11 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
             nflags |= 1024;
         put32(out, parent_ids[i]);
         put16(out, nflags);
-        out.push_back(u8(n->is_full() ? 1 : 0));
+        /* S-048: marker 2 = a child FOLDER (a FullNode with a role under a
+         * parent - the carve tree's volume groups + per-ext skeleton
+         * folders). Roots stay marker 1 (old readers re-attach them as
+         * roots exactly as before); old files never contain marker 2. */
+        out.push_back(u8(n->is_full() ? (parent_ids[i] == 0xFFFFFFFFu ? 1 : 2) : 0));
         out.push_back(u8(n->origin()));
         out.push_back(u8(n->deleted_state()));
         out.push_back(u8(n->confidence()));
@@ -348,7 +352,7 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* re
          * anything else is corruption - fail the record and let the
          * container's CRC/resync layer recover, never silently normalize
          * to a light node. */
-        if (marker != 0 && marker != 1) {
+        if (marker != 0 && marker != 1 && marker != 2) { /* S-048: +2 (child folder) */
             c.fail = true;
             break;
         }
@@ -483,7 +487,45 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* re
                 break;
         }
         tree::FileNode* n = nullptr;
-        if (marker == 1) {
+        if (marker == 2) {
+            /* S-048: a child FOLDER - a FullNode with a role under its
+             * parent (parents always precede children in the writer's
+             * depth-first walk). A marker-2 record without a resolvable
+             * parent is structural corruption: c.fail (the N-058 class -
+             * never a silent re-parent, never a root promotion). */
+            const u16 role_len = c.g16();
+            if (c.fail || c.left < size_t(role_len) * 2u) {
+                c.fail = true;
+                break;
+            }
+            std::u16string role(role_len, 0);
+            for (u16 k = 0; k < role_len; ++k)
+                role[k] = c.g16();
+            tree::FullNode::Stats st{};
+            st.file_count = c.g64();
+            st.dir_count = c.g64();
+            st.total_logical = c.g64();
+            st.deleted_count = c.g64();
+            tree::FileNode* parent = nullptr;
+            if (parent_id != 0xFFFFFFFFu && parent_id < count)
+                parent = by_id[parent_id];
+            if (parent == nullptr) {
+                c.fail = true; /* a folder without its parent: corrupt */
+                break;
+            }
+            tree::FullNode* folder = tree.add_folder(parent, role);
+            if (folder) {
+                folder->set_stats(st);
+                folder->set_props(props);
+                if (folder->props() == nullptr) {
+                    c.fail = true;
+                    break;
+                }
+            }
+            n = folder;
+            if (n == nullptr)
+                break; /* allocation failure: the N-058 error path */
+        } else if (marker == 1) {
             /* full node: role + stats; re-attach as a root-level virtual */
             const u16 role_len = c.g16();
             /* N-058: same class as the name-length bomb (the og bounds-
