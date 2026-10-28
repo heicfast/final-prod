@@ -5587,3 +5587,14 @@ base = diff-to-fix/ + worklog* only.
   DeclinesOutOfCap / ShortFileFallsToWalk / SvgLegUnaffected GREEN both sides — the
   declination paths the old code already satisfied). Suite 1163/1121/0/42.
 - **Trail:** finding → FIXED/ with the Resolution; ledger row; carve.md verdict.
+## Session-43 minors lane — N-146 landed (2026-10-29)
+
+**N-146 FIXED (MINOR — the FH11 zero-end stand-in).** FUN_180029f30 re-read first-hand
+(:32612-32633 — the constant predicate stamps CZeroEndRawFileInfo id 0x1d, no size
+walk). The re-homing executed per the finding's own recommended path: M-107's
+enumeration gains the twelfth site (the zero-end class distinction recorded — the
+32 MiB salvage posture vs the batch-1 64 MiB DWG pattern; the D-101 decline covers
+the pending-object architecture), the in-code provenance comment updated, and
+Carve.Fh11BoundedExtentPinned pins the exact constant on an unclamped 40 MiB device
+(fail-before proven by mutation: 32→16 MiB goes RED). Trail: findings/FIXED/N-146 +
+ledger + matrix → MATCH (registered stand-in) + carve.md row + this entry.

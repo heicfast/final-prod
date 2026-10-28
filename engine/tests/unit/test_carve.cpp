@@ -4565,6 +4565,37 @@ TEST(Carve, Fh11RejectsBareKeyBytes) {
     }
 }
 
+TEST(Carve, Fh11BoundedExtentPinned) {
+    /* N-146: the FH11 zero-end stand-in is REGISTERED (M-107's
+     * enumeration + the D-101 stateless-architecture decline) and PINNED:
+     * the og's FUN_180029f30 stamps the CZeroEndRawFileInfo id 0x1d with
+     * NO size walk (re-read first-hand :32612-32633) - the pending-object
+     * engine's zero-end metric carries the extent, a D-101-registered
+     * architecture core deliberately does not port. The stand-in is the
+     * honest 32 MiB cap; this pin holds the constant so it cannot drift
+     * silently (the M-107 pin pattern). */
+    std::vector<u8> img(40ull << 20, 0); /* > 32 MiB past the hit: unclamped */
+    const size_t at = 0x2000;
+    plant_fh11(img, at);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    flags.hash_small_files = false;
+    CarveStats stats;
+    ASSERT_EQ(OK, carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats));
+    tree::FileNode* hit = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->name_utf8().find(".FH11") != std::string::npos)
+            hit = c;
+    ASSERT_NE(hit, nullptr) << "the FH11 header must carve";
+    ASSERT_GE(hit->props()->extents.size(), 1u);
+    EXPECT_EQ(hit->props()->extents[0].length, u64(32ull << 20))
+        << "the zero-end family's stand-in extent is exactly 32 MiB (the registered cap)";
+    EXPECT_EQ(hit->props()->extents[0].offset, u64(at));
+}
+
 TEST(Carve, CptGenerationsDetected) {
     /* all three PhotoPaint generation keys (CPT7/CPT8/CPT9) reach the
      * shared validator; each carves with the pointer-chase extent */

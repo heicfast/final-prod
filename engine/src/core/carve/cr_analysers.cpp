@@ -4404,7 +4404,11 @@ CarveResult validate_fh11(IStorageDevice* s, u64 hit, u64 cap) {
     r.ok = true;
     r.confidence = 700;
     /* CZeroEndRawFileInfo: no size grammar - bounded extent (the
-     * family's salvage posture over the zero-end semantics) */
+     * family's salvage posture over the zero-end semantics). N-146: the
+     * stand-in is REGISTERED (M-107's enumeration, the twelfth site - the
+     * zero-end class; the D-101 stateless-architecture decline covers the
+     * og's pending-object zero-end metric) and PINNED
+     * (Carve.Fh11BoundedExtentPinned holds the exact 32 MiB). */
     const u64 limit = probe_limit(s, hit, cap);
     u64 end = hit + (32ull << 20); /* FH11 documents are small-to-medium */
     if (end > limit)

@@ -884,3 +884,13 @@ Evidence: `evidence/decompiled-quotes/s42-ogg-zip-typing-and-report-decodes.md` 
   dropped under a naming list; the jpg control still disabled),
   `CarveEngine.FilterExemptSetCoversTypedRows` (the 16-row family mapping +
   the exhaustive complement + the LOWDOC split). Suite 1223/1223.
+
+- **N-146 FIXED** (MINOR — the FH11 zero-end stand-in re-homed + pinned):
+  FUN_180029f30 re-read first-hand (:32612-32633 — the constant predicate
+  stamps CZeroEndRawFileInfo id 0x1d with NO size walk). The site joins
+  M-107's enumeration as its twelfth member (the zero-end family's 32 MiB
+  salvage posture — a different class than the batch-1 64 MiB DWG pattern;
+  the D-101 decline covers the og's pending-object zero-end metric).
+  `Carve.Fh11BoundedExtentPinned` holds the exact constant (fail-before
+  proven by mutation: 32→16 MiB RED). The registration gap — the finding's
+  actual defect — closed.

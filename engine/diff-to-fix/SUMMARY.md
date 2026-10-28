@@ -235,6 +235,17 @@ LOWDOC rows — row-level exemption, exactly the og's mask scope.
 **Board after this push (filesystem truth):** 40 active (3 SEVERE · 23 MAJOR ·
 14 MINOR · 0 INFO) / 3 tracked-open / the FIXED archive at 25 files.
 
+**N-146 FIXED — the FH11 zero-end stand-in re-homed and pinned.** Corpus re-verified
+first-hand (FUN_180029f30 :32612-32633: the constant predicate stamps the zero-end
+FileInfo id 0x1d with no size walk). The site joins M-107's enumeration as the twelfth
+member (the zero-end family class, the D-101 decline) — the registration gap was the
+finding's actual defect; the 32 MiB salvage cap stays and is pinned
+(`Carve.Fh11BoundedExtentPinned`, mutation-proven fail-before).
+
+**Board after this push (filesystem truth):** 39 active (3 SEVERE · 23 MAJOR ·
+13 MINOR · 0 INFO) / 3 tracked-open / the FIXED archive at 26 files.
+
+
 
 ## Session-42 fix-lane delta (2026-10-29 — the SEVERE-first diff-fix execution continuing the S40-severe territory; opened on `67de3276`, re-merged over the hottest parallel window of the trail through `a3741812`; corpus `be0cfe9` throughout)
 

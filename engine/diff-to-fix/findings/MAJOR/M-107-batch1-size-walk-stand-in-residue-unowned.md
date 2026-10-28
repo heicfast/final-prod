@@ -84,3 +84,19 @@ bounded extent, not the og's); (b) the EPS/AI stand-ins are **16 MiB**, not
 the title's blanket 64 MiB — already so at the filing baseline (verified via
 the filing commit's tree). Cosmetic to the finding's own text; recorded so
 the fix wave does not re-derive the wrong bounds.
+---
+
+## Session-43 addendum (2026-10-29 — the N-146 re-homing: the FH11 site joins this enumeration)
+
+**N-146 resolved the one un-owned stand-in this finding's enumerations missed:** the
+FH11 row's zero-end stand-in (`cr_analysers.cpp`'s `validate_fh11`, `end = hit +
+(32ull << 20)` — the S-037-era landing, its owner purged with the S41 sweep) is now
+REGISTERED here: the twelfth site, a DIFFERENT stand-in class than the eleven batch-1
+members (the og's FUN_180029f30 :32612-32633 stamps the CZeroEndRawFileInfo id 0x1d
+with NO size walk — the pending-object engine's zero-end metric carries the extent,
+the D-101-registered architecture decline; the 32 MiB cap is the zero-end family's
+salvage posture, not the batch-1 64 MiB DWG pattern). The constant is PINNED
+(`Carve.Fh11BoundedExtentPinned` — the exact 32 MiB extent on an unclamped 40 MiB
+device; the pin's fail-before proven by mutation: 32→16 MiB goes RED). The site's
+disposition: stand-in stays (the D-101 decline covers it); the registration gap that
+was N-146's actual defect is closed.

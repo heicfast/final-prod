@@ -69,3 +69,10 @@ purge-convention residue class).
 ## Open questions
 
 None — the og behavior is cited, the stand-in is cited, the gap is registration.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-146 landing — post-push SHA in the ledger row and worklog entry)
+**Verified by:** `Carve.Fh11BoundedExtentPinned` (the exact 32 MiB extent on an unclamped 40 MiB device — RED under the 32→16 MiB mutation, GREEN at the true constant: the pin's fail-before proven by mutation, the S-054 fence precedent); the existing `Carve.Fh11DetectedAndWalked` (the clamped min(device-end, 32 MiB) form) + `Carve.Fh11RejectsBareKeyBytes` stay green. Suite green at the landing tree.
+**Resolution notes:** Corpus re-verified first-hand: FUN_180029f30 re-read at :32612-32633 — the constant predicate (qword@+4 == 0x20014011c040002, dword@+0xC == 0x11c1400, short@+0x22 == 0x3131) stamps id 0x1d at result+0x18 with NO size computation, exactly the finding's decode (the CZeroEndRawFileInfo class; the pending-object engine's generic zero-end metric carries the extent). The fix followed the finding's own recommended path (fix-plan step 1's first branch): the registration re-homed — M-107's enumeration gains the site as its twelfth member with the class distinction recorded (the zero-end family's 32 MiB salvage posture vs the batch-1 64 MiB DWG pattern), the module row updated, and the constant pinned so it cannot drift silently (step 2). Landing the real zero-end semantics was correctly declined: the D-101-registered stateless-architecture decline covers the pending-object machinery for one format (the finding's own "it is not" verdict). The in-code comment's provenance updated to name the registration.
