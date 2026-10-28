@@ -312,6 +312,33 @@ enum FormatId : u32 {
     FMT_OSP,     /* '{\r\n "di": ' - the OpenShot key */
     FMT_POS,     /* '{"diagram":' - the ProcessOn key */
     FMT_CHFP,    /* "<?xm" + <BiffProject@0x28 - the CHFP key */
+    /* N-115 (diff-to-fix): the og's OfficeTagFromXML typing set - the
+     * ZIP-path classifier discriminates the OOXML trio by the per-entry
+     * rels-path map (word/_rels/document.xml.rels -> DOCX 0x49,
+     * xl/_rels/workbook.xml.rels -> XLSX 0x4a,
+     * ppt/_rels/presentation.xml.rels -> PPTX 0x4b, the "word"-prefix
+     * fallback -> 0x49; RAWSearchDLL :53164-53194, the names matched on
+     * the ENTRY NAME with the office context flag) plus the wider tag
+     * corpus (the floss strings :6699-6729 + the strings table
+     * :768-905): the ODF trio by the mimetype entry's content
+     * (application/vnd.oasis.opendocument.{text,spreadsheet,
+     * presentation}), EPUB (application/epub+zip + the OPS/ chapter1.html name tag), Apple iWork (Index/[*].iwa +
+     * index.apxl), Hangul (application/hwp+zip), CorelDRAW
+     * (content/riffData.cdr). All rows share the LFH dispatch key and
+     * are OVERRIDE TARGETS (the typing walk stamps the id by content;
+     * the FMT_DOCX row wins the registry-order tie). The og's id
+     * mapping for the non-OOXML families is undecoded - the family
+     * granularity here is the tag strings' own. Ids APPENDED
+     * (serialized carve_format values stay stable). */
+    FMT_XLSX,  /* xl/_rels/workbook.xml.rels (the og id 0x4a) */
+    FMT_PPTX,  /* ppt/_rels/presentation.xml.rels (the og id 0x4b) */
+    FMT_ODT,   /* mimetype: ...opendocument.text */
+    FMT_ODS,   /* mimetype: ...opendocument.spreadsheet */
+    FMT_ODP,   /* mimetype: ...opendocument.presentation */
+    FMT_EPUB,  /* mimetype: application/epub+zip (OPS/chapter1.html tag) */
+    FMT_IWORK, /* Index/[*].iwa + index.apxl */
+    FMT_HWP,   /* mimetype/[Content_Types]: application/hwp+zip */
+    FMT_CDR,   /* content/riffData.cdr */
     FMT_COUNT
 };
 

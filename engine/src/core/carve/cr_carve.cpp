@@ -105,6 +105,11 @@ constexpr u32 kTrialOrder[] = {
      * forms, which the M-093 XML rows also key - the grammars reject each
      * other's content) */
     FMT_VCF, FMT_GPX, FMT_GPX_BOM, FMT_OSP, FMT_POS, FMT_CHFP,
+    /* N-115: the OfficeTagFromXML typing set - override targets sharing
+     * the LFH key; the FMT_DOCX row (earliest of the family) wins the
+     * registry-order tie and the typing walk's override carries the
+     * true id; these slots make the trial table exhaustive */
+    FMT_XLSX, FMT_PPTX, FMT_ODT, FMT_ODS, FMT_ODP, FMT_EPUB, FMT_IWORK, FMT_HWP, FMT_CDR,
     /* S-017: ftyp-destroyed MOV salvage (og MovAnalyzer list layer) -
      * LAST: the ftyp-keyed entries must claim the position first */
     FMT_MOV_NAKED};

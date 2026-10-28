@@ -260,7 +260,11 @@ TEST(CarveEngine, GrammarValidationAndSpecificity) {
     /* validated: jpg, png, zip, docx; noise rejected; no duplicates yet */
     EXPECT_EQ(stats.validated, 4u);
     EXPECT_GE(stats.rejected, 1u);
-    EXPECT_EQ(stats.duplicates, 0u);
+    /* N-153: the two archives' inner central-directory positions
+     * (PK\x01\x02 inside the emitted extents) now count as duplicates -
+     * the same archive, suppressed (pre-fix they re-carved as phantom
+     * zips whenever the tail cleared the 128-byte floor) */
+    EXPECT_EQ(stats.duplicates, 2u);
     EXPECT_TRUE(stats.bytes_scanned >= 32 * 1024 - 4096);
 
     /* collect and classify */
@@ -8349,4 +8353,228 @@ TEST(Carve, GpxBomFormCarvesOnce) {
     EXPECT_EQ(all[0]->props()->carve_format, u32(FMT_GPX_BOM));
     EXPECT_EQ(all[0]->props()->extents.front().offset, u64(4096));
     EXPECT_EQ(all[0]->props()->logical_size, std::strlen(doc) + 3);
+}
+
+/* ===================================================================== */
+/* N-115: the OfficeTagFromXML typing pass - the rels-path split, the    */
+/* reordered-zip tolerance, and the wider tag corpus.                    */
+/* ===================================================================== */
+
+namespace {
+
+/* a minimal multi-entry stored ZIP: the LFH chain + one CD record per
+ * entry + the EOCD (the typing walk only needs the LFH chain) */
+size_t plant_zip_entries(std::vector<u8>& img, size_t at,
+                         const std::vector<std::pair<const char*, std::string>>& entries) {
+    std::vector<size_t> lfh_offs;
+    size_t pos = at;
+    for (const auto& [name, data] : entries) {
+        const size_t nlen = std::strlen(name);
+        std::memcpy(img.data() + pos, "PK\x03\x04", 4);
+        put16(img, pos + 4, 20);
+        put16(img, pos + 8, 0); /* stored */
+        put16(img, pos + 12, 0x5A46);
+        put32v(img, pos + 18, u32(data.size()));
+        put32v(img, pos + 22, u32(data.size()));
+        put16(img, pos + 26, u16(nlen));
+        put16(img, pos + 28, 0);
+        std::memcpy(img.data() + pos + 30, name, nlen);
+        if (!data.empty())
+            std::memcpy(img.data() + pos + 30 + nlen, data.data(), data.size());
+        lfh_offs.push_back(pos);
+        pos += 30 + nlen + data.size();
+    }
+    /* central directory + EOCD */
+    const size_t cd_at = pos;
+    for (size_t i = 0; i < entries.size(); ++i) {
+        const auto& [name, data] = entries[i];
+        const size_t nlen = std::strlen(name);
+        std::memcpy(img.data() + pos, "PK\x01\x02", 4);
+        put16(img, pos + 4, 20);
+        put16(img, pos + 12, 0x5A46);
+        put32v(img, pos + 20, u32(data.size()));
+        put32v(img, pos + 24, u32(data.size()));
+        put16(img, pos + 28, u16(nlen));
+        put32v(img, pos + 42, u32(lfh_offs[i] - at));
+        std::memcpy(img.data() + pos + 46, name, nlen);
+        pos += 46 + nlen;
+    }
+    const size_t cd_len = pos - cd_at;
+    std::memcpy(img.data() + pos, "PK\x05\x06", 4);
+    put16(img, pos + 8, u16(entries.size()));
+    put16(img, pos + 10, u16(entries.size()));
+    put32v(img, pos + 12, u32(cd_len));
+    put32v(img, pos + 16, u32(cd_at - at));
+    return at;
+}
+
+} // namespace
+
+
+/* N-115/N-153: the carved ARCHIVE count - direct children of the carve
+ * root only (the S-032 inventory presents the inner entries as CHILD
+ * nodes of the archive; collect_children would count them too). */
+static size_t direct_carved_count(tree::FileNode* root) {
+    size_t n = 0;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        ++n;
+    return n;
+}
+
+TEST(Carve, OoxmlRelsPathSplit) {
+    /* N-115: the og's per-entry rels-path map (word/xl/ppt) types the
+     * OOXML trio - each form stamps its own id and extension. */
+    const struct {
+        const char* rels;
+        u32 fmt;
+        const char* ext;
+    } cases[] = {
+        {"word/_rels/document.xml.rels", FMT_DOCX, ".docx"},
+        {"xl/_rels/workbook.xml.rels", FMT_XLSX, ".xlsx"},
+        {"ppt/_rels/presentation.xml.rels", FMT_PPTX, ".pptx"},
+    };
+    for (const auto& c : cases) {
+        std::vector<u8> img(256 * 1024, 0);
+        plant_zip_entries(img, 4096, {{"[Content_Types].xml", "<Types/>"},
+                                      {c.rels, "<Relationships/>"},
+                                      {"doc.xml", "body"}});
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats s;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              s),
+                  u32(OK));
+        ASSERT_EQ(direct_carved_count(root), 1u) << "the rels path " << c.rels;
+        tree::FileNode* n0 = root->first_child();
+        EXPECT_EQ(n0->props()->carve_format, c.fmt) << "the rels-path split";
+        const std::string nm = n0->name_utf8();
+        EXPECT_EQ(nm.compare(nm.size() - 5, 5, c.ext), 0) << "the typed extension";
+    }
+}
+
+TEST(Carve, ZipEntriesReorderedStillTyped) {
+    /* N-115: the og matches the rels path ANYWHERE in the entry list - a
+     * damaged/reordered zip whose [Content_Types].xml is NOT the literal
+     * first entry still types (the old first-entry gate missed it). */
+    std::vector<u8> img(256 * 1024, 0);
+    plant_zip_entries(img, 4096, {{"docProps/app.xml", "<app/>"},
+                                  {"[Content_Types].xml", "<Types/>"},
+                                  {"xl/_rels/workbook.xml.rels", "<Relationships/>"}});
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              u32(OK));
+    ASSERT_EQ(direct_carved_count(root), 1u);
+    EXPECT_EQ(root->first_child()->props()->carve_format, u32(FMT_XLSX))
+        << "the reordered zip still types by the per-entry scan";
+}
+
+TEST(Carve, OdfEpubTypedByMimetype) {
+    /* N-115: the wider tag corpus - the mimetype entry's content types
+     * the ODF trio and EPUB (the og's decompressed-content tags; the
+     * stored mimetype needs no inflate). */
+    const struct {
+        const char* mime;
+        u32 fmt;
+    } cases[] = {
+        {"application/vnd.oasis.opendocument.text", FMT_ODT},
+        {"application/vnd.oasis.opendocument.spreadsheet", FMT_ODS},
+        {"application/vnd.oasis.opendocument.presentation", FMT_ODP},
+        {"application/epub+zip", FMT_EPUB},
+        {"application/hwp+zip", FMT_HWP},
+    };
+    for (const auto& c : cases) {
+        std::vector<u8> img(256 * 1024, 0);
+        plant_zip_entries(img, 4096, {{"mimetype", c.mime}, {"content.xml", "<doc/>"}});
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats s;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              s),
+                  u32(OK));
+        ASSERT_EQ(direct_carved_count(root), 1u) << "mimetype " << c.mime;
+        EXPECT_EQ(root->first_child()->props()->carve_format, c.fmt)
+            << "the mimetype content tag";
+    }
+}
+
+TEST(Carve, IworkAndCdrTypedByEntryName) {
+    /* N-115: the name-tag set - the iWork Index/.iwa family + index.apxl
+     * and CorelDRAW's content/riffData.cdr (no decompression needed). */
+    const struct {
+        const char* entry;
+        u32 fmt;
+    } cases[] = {
+        {"Index/Document.iwa", FMT_IWORK},
+        {"index.apxl", FMT_IWORK},
+        {"content/riffData.cdr", FMT_CDR},
+    };
+    for (const auto& c : cases) {
+        std::vector<u8> img(256 * 1024, 0);
+        plant_zip_entries(img, 4096, {{c.entry, std::string(32, 'x')}});
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats s;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              s),
+                  u32(OK));
+        ASSERT_EQ(direct_carved_count(root), 1u) << "entry " << c.entry;
+        EXPECT_EQ(root->first_child()->props()->carve_format, c.fmt) << "the name tag";
+    }
+}
+
+TEST(Carve, OfficeUnrefinableStaysDocxAndPlainZipStaysZip) {
+    /* N-115: an office-shaped zip the map cannot refine stays the
+     * dispatch row (DOCX, the og's 0x49); a zip with NO office shape and
+     * no tags stays the generic ZIP row. */
+    std::vector<u8> img(256 * 1024, 0);
+    plant_zip_entries(img, 4096, {{"[Content_Types].xml", "<Types/>"}, {"media.bin", "xxx"}});
+    plant_zip_entries(img, 8192, {{"plain.txt", std::string(200, 'p')}});
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              u32(OK));
+    ASSERT_EQ(direct_carved_count(root), 2u);
+    u32 seen[2] = {0, 0};
+    for (tree::FileNode* n = root->first_child(); n; n = n->next_sibling()) {
+        const u64 off = n->props()->extents.front().offset;
+        seen[off == 4096 ? 0 : 1] = n->props()->carve_format;
+    }
+    EXPECT_EQ(seen[0], u32(FMT_DOCX)) << "the unrefinable office zip stays DOCX";
+    EXPECT_EQ(seen[1], u32(FMT_ZIP)) << "the untyped zip stays the generic ZIP row";
+}
+
+TEST(Carve, MultiEntryZipCarvesOnce) {
+    /* N-153: a multi-entry archive emits ONE file - the inner LFH
+     * positions are the SAME archive (the og's sector-bitmap
+     * consumption; the S-032 inventory presents the entries as
+     * children). Pre-fix: the outer node + one phantom per inner LFH
+     * whose tail-to-EOCD span cleared the 128-byte floor. */
+    std::vector<u8> img(256 * 1024, 0);
+    plant_zip_entries(img, 4096, {{"a.txt", std::string(200, 'a')},
+                                  {"b.txt", std::string(200, 'b')}});
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              u32(OK));
+    ASSERT_EQ(direct_carved_count(root), 1u) << "one archive, one file (the N-153 phantom)";
+    tree::FileNode* az = root->first_child();
+    EXPECT_EQ(az->props()->extents.front().offset, u64(4096));
+    EXPECT_EQ(az->props()->carve_format, u32(FMT_ZIP));
+    EXPECT_GT(az->props()->logical_size, u64(500)) << "the full archive extent";
 }

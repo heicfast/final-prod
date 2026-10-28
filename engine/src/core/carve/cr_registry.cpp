@@ -107,7 +107,8 @@ CarveResult validate_vcf(IStorageDevice* s, u64 hit, u64 cap);      /* N-113: th
 CarveResult validate_gpx(IStorageDevice* s, u64 hit, u64 cap);      /* N-113 */
 CarveResult validate_osp(IStorageDevice* s, u64 hit, u64 cap);      /* N-113 */
 CarveResult validate_pos(IStorageDevice* s, u64 hit, u64 cap);      /* N-113 */
-CarveResult validate_chfp(IStorageDevice* s, u64 hit, u64 cap);     /* N-113 */
+CarveResult validate_chfp(IStorageDevice* s, u64 hit, u64 cap);
+CarveResult validate_office_zip(IStorageDevice* s, u64 hit, u64 cap); /* N-115: the typed rows */     /* N-113 */
 
 namespace {
 const Signature kTable[] = {
@@ -150,7 +151,20 @@ const Signature kTable[] = {
     {FMT_WEBP, "webp", {'R', 'I', 'F', 'F'}, 4, 0, 64, 128ull << 20, 800, validate_webp, "WebP"},
     {FMT_HEIC, "heic", {'f', 't', 'y', 'p'}, 4, 4, 128, 512ull << 20, 750, validate_heic, "HEIC"},
     {FMT_PDF, "pdf", {'%', 'P', 'D', 'F', '-'}, 5, 0, 128, 512ull << 20, 900, validate_pdf, "PDF"},
-    {FMT_ZIP, "zip", {'P', 'K', 0x03, 0x04}, 4, 0, 128, 2ull << 30, 700, validate_zip, "ZIP"},
+    {FMT_ZIP,
+     "zip",
+     {'P', 'K', 0x03, 0x04},
+     4,
+     0,
+     128,
+     2ull << 30,
+     700,
+     validate_zip,
+     "ZIP",
+     /* N-153: an inner LFH strictly inside an emitted archive is the
+      * SAME archive (the og's sector-bitmap extent consumption; the
+      * S-032 inventory presents the entries as children instead) */
+     true},
     {FMT_DOCX,
      "docx",
      {'P', 'K', 0x03, 0x04},
@@ -160,7 +174,11 @@ const Signature kTable[] = {
      512ull << 20,
      800,
      validate_docx,
-     "Office Open XML"},
+     "Office Open XML",
+     /* N-153: an inner LFH position strictly inside an emitted archive
+      * is the SAME archive (the og's sector-bitmap consumption; its
+      * S-032 inventory presents the entries as children instead) */
+     true},
     {FMT_7Z,
      "7z",
      {'7', 'z', 0xBC, 0xAF, 0x27, 0x1C},
@@ -350,7 +368,11 @@ const Signature kTable[] = {
      2ull << 30,
      600,
      validate_zip_cd,
-     "ZIP (central directory)"},
+     "ZIP (central directory)",
+     /* N-153: a CD record inside an emitted archive's extent is already
+      * carved as part of it; the headless-salvage path (a CD with the
+      * head destroyed) is never inside an emitted extent - unaffected */
+     true},
     /* S-017: the og's list-layer MovAnalyzer (RAWSearchDLL FUN_180004fb0
      * :2919-4208; the u16-key 0x0000 registration at :2748 is dead under
      * the dispatch's zero-header guard :9954 - the LIVE path is the list
@@ -1316,6 +1338,22 @@ const Signature kTable[] = {
      620,
      validate_chfp,
      "HFP project"},
+    /* N-115: the OfficeTagFromXML typing set - override-target rows
+     * sharing the LFH key. The typing walk (validate_office_zip) stamps
+     * the id by per-entry content; the FMT_DOCX row above wins the
+     * registry-order tie at a shared hit, so these rows resolve the
+     * effective ext/name for the override. The og's ids for the
+     * non-OOXML families are undecoded (the family granularity is the
+     * tag strings' own). */
+    {FMT_XLSX, "xlsx", {'P', 'K', 0x03, 0x04}, 4, 0, 128, 512ull << 20, 800, validate_office_zip, "Excel Workbook", true},
+    {FMT_PPTX, "pptx", {'P', 'K', 0x03, 0x04}, 4, 0, 128, 512ull << 20, 800, validate_office_zip, "PowerPoint Presentation", true},
+    {FMT_ODT, "odt", {'P', 'K', 0x03, 0x04}, 4, 0, 128, 512ull << 20, 620, validate_office_zip, "OpenDocument Text", true},
+    {FMT_ODS, "ods", {'P', 'K', 0x03, 0x04}, 4, 0, 128, 512ull << 20, 620, validate_office_zip, "OpenDocument Spreadsheet", true},
+    {FMT_ODP, "odp", {'P', 'K', 0x03, 0x04}, 4, 0, 128, 512ull << 20, 620, validate_office_zip, "OpenDocument Presentation", true},
+    {FMT_EPUB, "epub", {'P', 'K', 0x03, 0x04}, 4, 0, 128, 512ull << 20, 620, validate_office_zip, "EPUB e-book", true},
+    {FMT_IWORK, "iwa", {'P', 'K', 0x03, 0x04}, 4, 0, 128, 512ull << 20, 620, validate_office_zip, "Apple iWork", true},
+    {FMT_HWP, "hwp", {'P', 'K', 0x03, 0x04}, 4, 0, 128, 512ull << 20, 620, validate_office_zip, "Hangul Document", true},
+    {FMT_CDR, "cdr", {'P', 'K', 0x03, 0x04}, 4, 0, 128, 512ull << 20, 620, validate_office_zip, "CorelDRAW Drawing", true},
 };
 } // namespace
 

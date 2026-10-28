@@ -7,6 +7,7 @@
  */
 
 #include "cr/carve/cr_signatures.h"
+#include "cr/compress/cr_decomp.h" /* N-115: the mimetype content inflate */
 #include "cr/storage/cr_device.h"
 #include <zlib.h>
 #include <algorithm>
@@ -1342,15 +1343,128 @@ static CarveResult zip_common(IStorageDevice* s, u64 hit, u64 cap, bool office) 
             return r;
     }
     if (office) {
-        /* first local entry name must be "[Content_Types].xml" */
-        u16 name_len = rd16(s, hit + 26);
-        if (name_len != 19)
-            return r;
-        u8 nm[19];
-        if (!rd(s, hit + 30, nm, 19))
-            return r;
-        if (std::memcmp(nm, "[Content_Types].xml", 19) != 0)
-            return r;
+        /* N-115: the og's OfficeTagFromXML typing pass (RAWSearchDLL
+         * :53164-53194 + the singleton walker :53202-53300). The old
+         * gate required [Content_Types].xml as the LITERAL FIRST entry;
+         * the og walks the entry inventory matching names ANYWHERE (a
+         * damaged/reordered zip still types) and decompresses entries
+         * up to 10 KiB (0x2800) for the content tags. The rels-path
+         * map (matched on the ENTRY NAME with the office flag):
+         *   word/_rels/document.xml.rels     -> 0x49 DOCX
+         *   xl/_rels/workbook.xml.rels       -> 0x4a XLSX
+         *   ppt/_rels/presentation.xml.rels  -> 0x4b PPTX
+         *   a >=5-char name starting "word" -> 0x49 (the fallback)
+         * An office-shaped zip ([Content_Types].xml seen) that the map
+         * cannot refine stays DOCX (the og's dispatch analyser id).
+         * The wider tag corpus (the floss strings :6699-6729): the
+         * mimetype entry's content types the ODF trio / EPUB / HWP
+         * (stored or deflated <= 10 KiB), and name tags carry iWork
+         * (the Index/.iwa family, index.apxl), EPUB (OPS/chapter1.html) and
+         * CorelDRAW (content/riffData.cdr). The walk is bounded (32
+         * entries / 256 KiB - the og's window bounds it similarly; the
+         * typed names live in the first entries of real files). */
+        u32 typed = 0;
+        bool content_types = false;
+        u8 nmbuf[512];
+        u64 pos = hit;
+        const u64 wl = probe_limit(s, hit, cap);
+            const u64 wb = hit + (u64(256) << 10);
+            const u64 walk_limit = wb < wl ? wb : wl;
+        for (int ent = 0; ent < 32 && pos + 30 <= walk_limit; ++ent) {
+            u8 lfh[30];
+            if (!rd(s, pos, lfh, 30) || std::memcmp(lfh, "PK\x03\x04", 4) != 0)
+                break;
+            const u16 method = u16(lfh[8]) | (u16(lfh[9]) << 8);
+            const u16 nlen = u16(lfh[26]) | (u16(lfh[27]) << 8);
+            const u16 elen = u16(lfh[28]) | (u16(lfh[29]) << 8);
+            u32 csize = u32(lfh[18]) | (u32(lfh[19]) << 8) | (u32(lfh[20]) << 16) |
+                        (u32(lfh[21]) << 24);
+            u32 usize = u32(lfh[22]) | (u32(lfh[23]) << 8) | (u32(lfh[24]) << 16) |
+                        (u32(lfh[25]) << 24);
+            if (nlen == 0 || nlen > sizeof(nmbuf))
+                break; /* not a name-bearing entry the walk understands */
+            if (!rd(s, pos + 30, nmbuf, nlen))
+                break;
+            nmbuf[nlen] = 0;
+            const char* nm = reinterpret_cast<const char*>(nmbuf);
+            const bool is_mimetype = std::strcmp(nm, "mimetype") == 0;
+            const bool is_ct = std::strcmp(nm, "[Content_Types].xml") == 0;
+            if (is_ct)
+                content_types = true;
+            /* the rels-path map (entry-name matches, office context) */
+            if (std::strcmp(nm, "word/_rels/document.xml.rels") == 0)
+                typed = FMT_DOCX;
+            else if (std::strcmp(nm, "xl/_rels/workbook.xml.rels") == 0)
+                typed = FMT_XLSX;
+            else if (std::strcmp(nm, "ppt/_rels/presentation.xml.rels") == 0)
+                typed = FMT_PPTX;
+            else if (nlen >= 5 && std::memcmp(nm, "word", 4) == 0 && typed == 0 &&
+                     content_types)
+                typed = FMT_DOCX; /* the og's word-prefix fallback */
+            /* the name-tag set (no decompression needed) */
+            else if (std::strcmp(nm, "content/riffData.cdr") == 0)
+                typed = FMT_CDR;
+            else if ((nlen > 6 && std::memcmp(nm, "Index/", 6) == 0 &&
+                      nlen > 10 && std::memcmp(nm + nlen - 4, ".iwa", 4) == 0) ||
+                     std::strcmp(nm, "index.apxl") == 0)
+                typed = FMT_IWORK;
+            else if (std::strcmp(nm, "OPS/chapter1.html") == 0)
+                typed = FMT_EPUB;
+            /* the content tags: the mimetype entry (ODF/EPUB/HWP) and
+             * [Content_Types].xml (HWP), <= 10 KiB, stored or deflated */
+            if (typed == 0 && (is_mimetype || (is_ct && csize <= 0x2800))) {
+                u8 content[0x2800 + 1];
+                size_t got = 0;
+                const u64 dpos = pos + 30 + nlen + elen;
+                if (method == 0 && csize <= sizeof(content)) {
+                    if (csize != 0 && rd(s, dpos, content, csize))
+                        got = csize;
+                } else if (method == 8 && csize <= 0x2800 && usize != 0 &&
+                           usize <= 0x2800 && csize != 0xFFFFFFFFu) {
+                    u8 comp[0x2800];
+                    if (rd(s, dpos, comp, csize) &&
+                        compress::decompress_block(compress::kGzip, comp, csize, content,
+                                                   usize))
+                        got = usize;
+                }
+                content[got] = 0;
+                if (got != 0) {
+                    const char* text = reinterpret_cast<const char*>(content);
+                    const size_t tlen = got;
+                    auto has = [&](const char* needle) {
+                        const size_t nl = std::strlen(needle);
+                        if (nl == 0 || nl > tlen)
+                            return false;
+                        for (size_t i = 0; i + nl <= tlen; ++i)
+                            if (std::memcmp(text + i, needle, nl) == 0)
+                                return true;
+                        return false;
+                    };
+                    if (has("application/vnd.oasis.opendocument.text"))
+                        typed = FMT_ODT;
+                    else if (has("application/vnd.oasis.opendocument.spreadsheet"))
+                        typed = FMT_ODS;
+                    else if (has("application/vnd.oasis.opendocument.presentation"))
+                        typed = FMT_ODP;
+                    else if (has("application/epub+zip"))
+                        typed = FMT_EPUB;
+                    else if (has("application/hwp+zip"))
+                        typed = FMT_HWP;
+                }
+            }
+            if (typed != 0)
+                break; /* the first decisive tag wins (the og's map stop) */
+            const u64 next = pos + 30 + u64(nlen) + elen + csize;
+            if (next <= pos)
+                break;
+            pos = next;
+        }
+        if (typed == 0 && !content_types)
+            return r; /* neither office-shaped nor typed: not this row */
+        if (typed != 0 && typed != FMT_DOCX)
+            r.format_override = typed; /* the og stamps the id at the probe */
+        /* typed == 0 && content_types: the unrefinable office zip stays
+         * the dispatch row (DOCX, the og's 0x49) - no override needed */
     }
     /* FIRST geometry-consistent EOCD in the window wins: last-wins (the
      * old rule) absorbed the EOCD of every later archive in the window -
@@ -1585,6 +1699,14 @@ CarveResult validate_zip(IStorageDevice* s, u64 hit, u64 cap) {
     return zip_common(s, hit, cap, false);
 }
 CarveResult validate_docx(IStorageDevice* s, u64 hit, u64 cap) {
+    return zip_common(s, hit, cap, true);
+}
+
+/* N-115: the typed rows (XLSX/PPTX/ODF/EPUB/iWork/HWP/CDR) share the
+ * office walk - the FMT_DOCX row wins the registry-order tie at a shared
+ * LFH hit and the override carries the true id; these rows exist so the
+ * override resolves the effective ext/name (the M-093/M-111 mechanism). */
+CarveResult validate_office_zip(IStorageDevice* s, u64 hit, u64 cap) {
     return zip_common(s, hit, cap, true);
 }
 
