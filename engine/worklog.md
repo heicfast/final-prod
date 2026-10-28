@@ -5723,3 +5723,80 @@ Carve.MpegPsPesLengthsAreBigEndian; RED by the stashed-engine rebuild
 format clean. Trail: both findings in findings/FIXED/ with
 Resolutions; ledger rows; matrix cells (the S-041 children rows);
 modules/carve.md; SUMMARY's S42 block.
+
+## Session 12 close — the S12 session-2 continuation audit (2026-10-29)
+
+**Baselines:** opened on core `869da779` / corpus `be0cfe9`; rebased through THREE
+parallel hot windows (the S42/S42-B/S42-C lanes + the fix landings S-048, M-103,
+M-112, M-098, N-146, N-156, N-157) to push at **`f85def0f`**; the board docs
+(matrix/SUMMARY/modules) land on top of it. READ-ONLY GUARANTEE: this session's
+commits touch NOTHING outside diff-to-fix/ + worklog* (verified per-commit).
+
+**Directive execution:**
+1. **Remove-the-fixed (the liveness battery):** all 49 then-active findings checked —
+   46 STILL-ACTIVE, 2 PARTIAL (S-050 leg-2; N-135 doc-residual), 0 phantom-fixed.
+   Sheets: `evidence/s12-liveness/liveness-{1,2,3}.md`.
+2. **Go-deeper (five lanes, special focus):** A sector/LBA math (45 surfaces);
+   B scan strategy + progress/ETA math + no-stuck-or-freeze (39 surfaces + a 7-input
+   hang-trace table); C the EUUserData local-database family (the sole-consumer decode:
+   the CHK repair chain; GetRawUserInfoMap = per-scan OUTPUT; no writer exists);
+   D state management (the 14-state enum, pause machinery, the stop-organize →
+   auto-save chain, a core-internal ACUTE found in passing); E detection accuracy +
+   calculation (62 rows). Sheets: `evidence/s12-lane-sheets/lane-{A..E}-*.md`.
+3. **39 findings filed** (A-013/A-014, S-055/056/057, M-123..M-132, N-161..N-178,
+   I-035/036/040/041/042/043) — every load-bearing claim re-verified first-hand by the
+   lead (including the ghidra-mo/Partition_decompiled.c cite correction that saved
+   M-123/M-124 from a wrong-file filing).
+
+**The renumber record:** the parallel lanes consumed my draft seats (M-118..122,
+N-154..160, I-037..039) across three hot windows; renumbered per earlier-push-wins —
+my M +5, my N +7, I-037..039 → I-041..043 — via a single-pass simultaneous map
+(scripts at the lead's workspace; convention: never sequential remap, it cascades).
+Two rebase conflicts were the rename-detection relocation of my INFORMATIONAL adds
+into FIXED/ (the remote emptied INFORMATIONAL/) — resolved by restoring my six INFO
+files to INFORMATIONAL/ (they carry pending doc actions, unlike the retired pure
+registers).
+
+**Board truth (filesystem, re-counted after the push): 74 active — 2 ACUTE · 5 SEVERE ·
+28 MAJOR · 33 MINOR · 6 INFO** (the parallel windows' retirements absorbed at the
+reconciliation). Next free IDs: S-058+, M-133+, N-179+, I-044+, A-015+.
+
+**Handoff — the recommended first 20 fixes in priority order (this session's
+contribution):**
+1. **A-013 + M-131** together (one CkSink tmp+commit adoption in rrecov fixes the
+   acute resume-truncate AND the torn-checkpoint shape; the read-before-sink guard
+   lands as defense in depth).
+2. **A-014** (one range condition in fat_datetime_to_unix_seconds + 6 boundary tests).
+3. **S-055 + S-056 + N-171** (one carve patch: reorder the user-sign probe behind the
+   built-in table + gate it by disabled_formats + tick validated).
+4. **S-057** (factor the completion auto-save into the cancel path, gates preserved).
+5. **M-124** (one case label: EBR 0x85 — whole-chain loss on Linux-extended disks).
+6. **M-127** (the cycle-guard run-tree — the no-freeze directive's stall).
+7. **M-123** (the GPT header gate set — port the og's five structural gates).
+8. **M-130** (the FAT dentry shape-validator family — the FP guard).
+9. **M-126** (the ETA helper — the decoded EMA model as a query-layer function).
+10. **M-125** (the progress remap helper + the O38 rewrite).
+11. **M-128 + M-129 + N-169** (the user-sign semantics triple: case normalization
+   decision, tolerant loader, duplicate-key pin — one carve-data commit).
+12. **N-171** if not taken in (3).
+13. **N-173** (drop the 2107 clamp — one line + boundary tests).
+14. **N-174** (the exFAT `._` sink — one prefix gate).
+15. **N-172** (the '#' placeholder alignment + the recovery registration).
+16. **N-175 + N-176** (the FAT name-builder pair — NTRes fold + illegal-char fallback).
+17. **N-177** (the ext4 damaged flag — new node bit + round-trip).
+18. **N-166 + N-167** (the telemetry live counters + the found-size aggregate — one
+   stats commit).
+19. **M-132 + N-161 + N-164** (the GPT ladder set: probe order, span gate, strictness
+   registration).
+20. **N-170 + I-036 + I-040** (the doc-truth batch: the pre-erratum claims, the
+   D-104 precision, the non-adoption registrations — one docs commit).
+
+**Open questions left tracked:** the N-169 og-side decode (CJsonObject member storage:
+FUN_140077180/FUN_140077dca0); lane A's OQ-1/OQ-2/OQ-4 (the GPT span consumption, the
+carve DataRunList units, the dead-LBA1 caller chain) — all recorded in the lane sheets
+with the exact deciding artifacts. OQ-T2 is CLOSED (N-172's decode).
+
+**Coverage note:** the lane sheets carry 146+ examined surfaces with both-side cites
+(45 + 39 + 62 + the local-DB and state-mgmt sheets), every one verdict-tagged
+MATCH / DIVERGENT / COVERED-BY / REGISTERED / NOT-APPLICABLE — the audit trail for the
+next wave's skip-decision.

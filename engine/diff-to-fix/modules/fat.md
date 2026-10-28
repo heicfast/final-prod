@@ -1,5 +1,22 @@
 # modules/fat.md — FAT engine audit verdicts
 
+## S12 addendum (2026-10-29 — the session-2 deep-dive; lane sheets at ../evidence/s12-lane-sheets/)
+
+New active findings on this module: **A-014** (ACUTE — time-word validation:
+hour/min/2s unchecked in `fat_datetime_to_unix_seconds`, shifted plausible timestamps
+where the og zeroes the slot, FAT:32135-54); **M-127** (the O(n^2) visited-vector
+cycle guard vs the og's range tree — stall-class); **M-130** (the dentry
+shape-validator family unported: ext-tail, size/chain-XOR, dir, >9-repeat histogram
+gates + walk-stop semantics); **N-162** (the og's 32-bit cluster-math wrap registered
+— core u64 correct); **N-165** (the "File overflows partition!" scan-time refusal vs
+deferred failure); **N-172** (deleted-first-char `'#'` vs `'_'` + the unregistered
+LFN-checksum recovery superset — closes OQ-T2); **N-173** (the 2106/2107 u32 clamp);
+**N-175** (NTRes case folding); **N-176** (the LFN illegal-char fallback).
+Verified-MATCH this session: cluster-offset formula (u64), EOC/BAD sentinels, boot
+geometry, first_data_sector, the 28-bit size field ( disproven hypothesis), grading
+condition bytes.
+
+
 Reference: FATSearchDLL per corpus artifacts `SearchDLL/fat-engine--deep-dive.md`,
 `fat-exfat-engine-internals.md`, `fat-exfat-engine-algorithms-v2.md`, `CORRECTIONS.md` row 3;
 decompiled evidence in `evidence/decompiled-quotes/exfat-dentry-validation.md` (Q2/Q3).

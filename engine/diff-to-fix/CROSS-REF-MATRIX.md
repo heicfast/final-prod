@@ -1,4 +1,93 @@
-# CROSS-REF-MATRIX.md — module × parameter verdict matrix (the S42-C continuation lane on top: the third-window reconciliation + the never-walked surfaces; the prior sessions below)
+# CROSS-REF-MATRIX.md — module × parameter verdict matrix (the S12 session-2 deep-dive lane on top: sector math / scan-progress math / local database / state management / detection-calculation; the prior lanes below)
+
+**Session-12 S12 lane changes (2026-10-29 — the session-2 continuation audit per the user's second-session directive: remove-the-fixed + go-deeper with special focus on sector numbers, scanning, accurate detection, calculation/mathematics, no-stuck-or-freeze, the local database, state management; opened on core `869da779` (rebased to the window's closes), corpus `be0cfe9`; five deep-dive lanes' context sheets + three liveness batteries at `evidence/s12-lane-sheets/` + `evidence/s12-liveness/`; the findings push `f85def0f`):**
+
+- **The remove-the-fixed liveness battery (directive 1):** all 49 then-active findings
+  checked against the pinned tree — 46 STILL-ACTIVE, 2 PARTIAL (S-050 leg-2 done by its
+  own addendum; N-135's items fixed with a doc-residual), **0 phantom-fixed**. The
+  parallel windows' subsequent retirements (S-048, M-103, M-112-CSL, M-098, N-146,
+  N-156, N-157, the whole I-026..I-034 INFO board) were absorbed at the renumber
+  reconciliation — convergent with this battery's pins.
+- **The renumber record (earlier-push-wins over three hot windows):** this lane's drafts
+  collided with the parallel S42/S42-B/S42-C lanes' consumed seats — M-118..M-122
+  (MountPoints2 / partition-boundary / DBX / Stbio-large-IDAT chains), N-154..N-160,
+  I-037..I-039 — renumbered **my M +5 (→M-123..M-132), my N +7 (→N-161..N-178),
+  I-037..039 → I-041..I-043** (single-pass simultaneous map, no cascade; the script's
+  convention recorded at `worklog.md`'s S12 entry).
+- **The 39 filings, by module × parameter (all first-hand verified — the lead re-read
+  every load-bearing cite before filing):**
+  - **ACUTE (2):** **A-013** (cli/session P32/P34/P35 — the `--resume`-without-`--out`
+    `"wb"` truncate-before-read: the printed resume command destroys the session);
+    **A-014** (fat P9/P2 — `fat_datetime_to_unix_seconds` validates month/day only;
+    hour≥24/min≥60/2s≥30 fabricate shifted plausible timestamps where the og zeroes
+    the slot, FAT:32135-54 ⇔ cr_fat_wire.h:123-142).
+  - **SEVERE (3):** **S-055** (carve P28/P1/P3 — the user-sign layer probes BEFORE the
+    built-in table, inverting the M-048/D-104 collision rule; 8 overlap formats flip to
+    device-end extents); **S-056** (carve P16/P28 — `disabled_formats` gates grammar +
+    raw-sign layers but not the user-sign layer; D-104's own registration claim false in
+    code); **S-057** (session/orchestration P36/P31/P32 — the og's stop path runs its
+    own organize into the shared completion handler whose auto-save gates carry no
+    stopped-check (DRWUI:1549399-21 → :339076-79 → :612572-87); the core never
+    auto-saves a cancelled run, and its comment mis-states the og).
+  - **MAJOR (10):** **M-123** (table P1/P20 — GPT header laxity: no reserved==0 /
+    exact-92 / position / usable-range gates, og `FUN_1800078d0` vs
+    `load_gpt_side`); **M-124** (table P1/P26 — EBR link set {05,0F,**85**} vs the
+    core's {05,0F}: 0x85 chains vanish); **M-125** (orchestration P38 — the og's
+    piecewise progress remap + 99.99 cap decoded (`FUN_1401af820`), unregistered,
+    O38 superseded); **M-126** (orchestration P39 — the og's rate-EMA ETA model
+    decoded; no core ETA surface exists; O39 premise superseded); **M-127**
+    (fat/exfat P47-50 — the O(n²) visited-vector cycle guard vs the og's range tree;
+    100×maximal-chain FAT32 ≈ 100+ s stall-class CPU); **M-128** (carve P1/P19 —
+    og sign matching is UPPERCASE-hex text memcmp; 12 og-dead lowercase signs live in
+    the core, unregistered); **M-129** (carve P23-adjacent — the og's tolerant
+    EUUserData loader (skip-and-continue) vs the core's all-or-nothing reject);
+    **M-130** (fat P1/P3/P26 — the dentry shape-validator family (ext-tail, size/chain
+    XOR, dir, >9-repeat histogram gates + walk-stop semantics) unported); **M-131**
+    (cli/session P34 — the in-run checkpoint is truncate-in-place, the N-014 shape
+    cr_ui fixed; A-013's general case); **M-132** (table P1/P35 — GPT backup probe:
+    og device-last always + full bail on dead LBA1; core probes declared backup_lba +
+    recovers from dev-last — divergent both directions, unregistered).
+  - **MINOR (18):** **N-161** (table — GPT entry span underflow, no first≤last gate);
+    **N-162** (fat/registry — the og's 32-bit `(c−2)×spc` wrap ×4 sites, core u64
+    correct, unregistered D-56/D-68 member); **N-163** (ntfs — runlist
+    truncate-and-keep vs core reject-whole-fragment; sparse-first superset);
+    **N-164** (table/registry — the deliberate GPT strictness unregistered);
+    **N-165** (fat — the "File overflows partition!" scan-time refusal vs the core's
+    deferred per-read failure, unregistered stance); **N-166** (orchestration — live
+    counters stage-boundary-only vs the og's ~2 s cadence; orchestration.md:210
+    inaccurate); **N-167** (orchestration/query — no found-size aggregate, the og's
+    "Files Found: N (X GB)" headline unrenderable); **N-168** (carve — the og's 2×
+    bounds guard, core correct, unregistered); **N-169** (carve — duplicate `asf`
+    block merge semantics, og side undecoded OQ); **N-170** (docs — 8 stale
+    pre-erratum EUUserData/GetRawUserInfoMap claims + 2 corpus-side residues);
+    **N-171** (carve/stats — user-sign files never tick carved_found, runtime +
+    session undercount); **N-172** (fat — deleted-first-char `'#'` vs `'_'` + the
+    unregistered LFN-checksum recovery superset; closes OQ-T2); **N-173** (fat —
+    the 2106/2107 u32 clamp vs full conversion; exFAT sibling inconsistent);
+    **N-174** (exfat — the `._` AppleDouble sink filter absent, the N-028 family's
+    exFAT twin); **N-175** (fat — NTRes case folding unread); **N-176** (fat — the
+    LFN illegal-char 8.3 fallback absent); **N-177** (ext4 — the size-exceeds-blocks
+    damaged flag (FLAGS 0x200) not carried); **N-178** (cli/orchestration — no CLI
+    pause verb + no engine pause notification, the landed ABI pair's missing legs).
+  - **INFORMATIONAL (6):** **I-035** (S-050's CHK-chain decode addendum: rename
+    formats, hex-prefix adapter registry, 36-KiB buffer, tif exclusion);
+    **I-036** (the default-on user-sign posture is CLI-app-level only — D-104's
+    "engine init" phrasing imprecise); **I-041** (stopped-vs-finished: the og's
+    <98% heuristic vs the core's truthful stage mask — deliberate, register);
+    **I-042** (paused-state observability: four og surfaces vs telemetry-only);
+    **I-043** (state ownership: the og's unlocked master enum vs single-owner +
+    mutexed telemetry — deliberate); **I-040** (og-defect non-adoption batch #2:
+    ext4 i_size_high pollution, `_gmtime32_s` post-2038 — register beside D-58/D-59).
+- **Verified-MATCH highlights recorded for the lanes (no finding, evidence in the
+  sheets):** the LDM span/stripe/RAID-5 math clean post-S-052 (algebraically identical
+  to `FUN_180086a90`); EBR base/rel chain math; NTFS runlist nibble/sign-extension/LCN
+  accumulation; exFAT 64-bit cluster math; ZFS DVA `<<9`; the FAT/exFAT/ReFS/Btrfs
+  grading bytes; the og's 14-state scan enum + pause machinery (the core's
+  PausableToken = verified RE-parity); auto-save gates/naming; the cancel-keeps-results
+  flow; no hang-input asymmetry beyond the registered D-14/D-18/N-043 classes (7-input
+  hang trace table in lane B's sheet).
+- **Board after this push (filesystem truth): 74 active — 2 ACUTE · 5 SEVERE ·
+  28 MAJOR · 33 MINOR · 6 INFO.** Next free IDs: S-058+, M-133+, N-179+, I-044+, A-015+.
 
 **Session-42-C S42-C lane changes (2026-10-29 — the THIRD continuation lane of the same user mandate, opened on the same pin `869da779`/`be0cfe9` before any window landed; rebranded twice at the reconciliations [the remote's S42 and S42-B lanes pushed first]; evidence: evidence/s42c-*.md):**
 - **The three-window reconciliation (W1.5, executed twice):** the lane's drafts

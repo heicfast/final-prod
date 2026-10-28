@@ -1,5 +1,15 @@
 # modules/exfat.md — exFAT engine audit verdicts
 
+## S12 addendum (2026-10-29 — the session-2 deep-dive)
+
+New active findings on this module: **N-174** (the `._` AppleDouble sink filter absent
+— the N-028 family's exFAT twin, exFAT:45151/:45222); **M-127**'s exFAT twin (the
+chain-guard complexity); note: A-014 does NOT affect exFAT (the M-014 dentry gate
+rejects the invalid-time class upstream). Verified-MATCH: 64-bit cluster math (the og
+itself is 64-bit here — the FAT 32-bit sites are the inconsistency), the 0x81/0x82/
+0x83/0x85 dispatch, 10ms/tz non-use both sides.
+
+
 Reference: exFATSearchDLL per corpus artifacts `SearchDLL/exfat-engine--deep-dive.md`,
 `fat-exfat-engine-internals.md`, `fat-exfat-engine-algorithms-v2.md`,
 `PartitionRecovery/rawfixer-v2--method-inventory.md` §4; decompiled evidence in

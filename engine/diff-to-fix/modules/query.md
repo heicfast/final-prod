@@ -1,5 +1,12 @@
 
 
+## S12 addendum (2026-10-29 — the session-2 deep-dive)
+
+New active findings on this module: **N-167** (the found-size aggregate absent —
+the og's "Files Found: N (X GB)" completion headline is unrenderable from core stats).
+
+
+
 ---
 
 ## Session-11 fix row (2026-10-26, DFX11 — three M-029 sub-items closed)
