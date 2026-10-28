@@ -107,3 +107,13 @@ the suite green.
 
 **Trail:** findings/FIXED/M-120 (this file); ledger row; the executed evidence extended
 (`evidence/executions/s42-build-at-head.md` §post-repair); SUMMARY delta.
+
+**Convergent addendum (the S42 M-first lane, at `72a17b7c`):** the format drift the red
+window accumulated (the N-115 one-line office rows, the enum comment block, the
+office_zip validator, the S-054 zfs comment) is repaired in this lane's `72a17b7c`
+(the c0f69250 precedent); acceptance re-executed at that HEAD: `git show
+origin/main:tests/unit/test_carve.cpp | grep -c '^<<<<<<<'` → 0, `cr_tests` builds
+clean, full suite **1152/1152 green** (1110 passed / 42 platform skips, 0 failed),
+clang-format 18.1.8 clean over the whole tree. The step-4 discipline (re-run the full
+gate after EVERY rebase, not just before the push) is registered in the worklog
+handoff. One Resolution stands; the two lanes' verifications converge.

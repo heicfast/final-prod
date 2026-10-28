@@ -114,6 +114,21 @@ commit = one push):**
   session-11 amendment — resolved findings land in `findings/FIXED/` from this
   lane forward.
 
+- **M-120 (MAJOR — main RED: committed conflict markers, the 1fb7603b
+  push) → FIXED.** The parallel repair lane's `b00118b5` removed the
+  markers (the both-sides-folded compare — the fix plan's step-2 audit
+  decides: the shipped case table is lowercase, the S-049 contract emits
+  uppercase, the folded compare agrees with both); this lane's rebase
+  kept it convergent and completed the green restoration; the format
+  drift the red window accumulated is repaired at `72a17b7c`. Acceptance
+  executed at origin/main HEAD: **0 markers** at origin/main, `cr_tests`
+  builds, suite **1152/1152 green** (1110 passed / 42 skips), format
+  clean. The step-4 discipline (re-run the gate after every rebase, not
+  just before the push) is registered in the worklog handoff. The
+  message-truth record (the "1096/1096 green" claim that could not have
+  executed against the pushed tree) stands in the filing lane's
+  `evidence/executions/s42-build-at-head.md`.
+
 **Board at this lane's M-117 landing (post-rebase over the parallel lanes'
 S-048/S-049/S-054/S-053/N-115/N-126/N-148/INFO-tier landings): 39 active on
 the filesystem re-count (2 SEVERE · 22 MAJOR · 15 MINOR · 0 INFO — the

@@ -5226,3 +5226,19 @@ conflict); Resolution in the file; the ledger row; the matrix cell → MATCH;
 modules/carve.md M-117 → FIXED; SUMMARY's S42 block. The session-3 "MISSING
 (N-026)" markers (s3-rawsearch-inventory.md:252-254) now resolve to this
 finding.
+
+**M-120 FIXED (main RED: committed conflict markers — the 1fb7603b push) —
+commit `72a17b7c` (this lane's rebase completion + format repair; the marker
+removal itself landed by the parallel repair lane's `b00118b5`):** acceptance
+executed at origin/main HEAD — `git show origin/main:tests/unit/test_carve.cpp
+| grep -c '^<<<<<<<'` → 0; `cr_tests` builds clean; full suite 1152/1152 green
+(1110 passed / 42 platform skips, 0 failed); clang-format 18.1.8 clean over
+the whole tree. The compare form decided by the fix plan's own step-2 audit:
+the shipped case table is lowercase (".docx") while the S-049 contract emits
+UPPERCASE — the both-sides-folded compare is the resolution that agrees with
+both. **The step-4 discipline registered for every future lane: re-run the
+full gate after EVERY rebase, not just before the push** — the 1fb7603b red
+was a rebase conflict committed without a post-rebase suite run. The format
+drift the red window accumulated (N-115's office rows + the S-054 zfs
+comment) repaired at `72a17b7c` (the c0f69250 precedent). Finding moved to
+findings/FIXED/ with the Resolution; ledger row appended.
