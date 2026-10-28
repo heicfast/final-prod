@@ -1,5 +1,32 @@
+# SUMMARY.md — executive summary (the S47 parity-fix lane on top; the prior lanes below, newest-first)
 # SUMMARY.md — executive summary (the S42 diff-to-fix lane's convergence on top; the prior lanes below, newest-first)
 # SUMMARY.md — executive summary (the S12 session-2 deep-dive lane on top — sector math / scan-progress math / local database / state management / detection-calculation; the prior lanes below, newest-first)
+
+## Session-47 S47 fix-lane delta (2026-10-29 — the parity-fix lane over the standing board; core `fa654673` at open, corpus `be0cfe9`; the green baseline proven before the first change: linux-release build clean + full suite 1273/1273)
+
+**Method:** the full SOP loop per finding — corpus cite re-read first-hand, current-tree
+re-verification, classification, RED test, fix, GREEN proof, full-suite regression sweep,
+trail update, push. One finding, one push. This block grows as the lane lands.
+
+**Landings this lane:**
+
+- **A-014 FIXED (ACUTE — the FAT time-word gate).** Corpus re-verified live
+  (FATSearchDLL:32131-32154, three zero-on-fail DosDateTimeToFileTime slots; exFAT twin
+  exFATSearchDLL:45174-45194) before any change; the divergence confirmed unchanged at
+  HEAD. The gate `hour > 23 || minute > 59 || (time & 0x1F) > 29` landed in
+  `fat_datetime_to_unix_seconds` (the exact Win32 accept set — the finding's own plan,
+  one condition, no algorithm change). exFAT provably unperturbed (the M-014 dentry gate
+  rejects the class upstream of the shared helper). RED→GREEN proof set:
+  TimeWordOutOfRangeComponentsYieldZeroTimestamp / TimeWordValidBoundariesStillConvert /
+  InvalidTimeWordPersistsAsZeroFileTime (the fabricated date+1day FileTime
+  134377920000000000 pinned pre-fix on the finding's own falsifier time word 0xC000;
+  the zeroed slot post-fix; the access slot — time word 0 — keeps the real date).
+  Full suite 1276/1276. Finding-text errata recorded in the Resolution: the example date
+  word 0x65C4 decodes month 14 (already-rejected class); tests use the valid 0x5D5D.
+  ACUTE board: **0 active**.
+
+**Board after this landing (filesystem truth):** 76 active (0 ACUTE · 9 SEVERE ·
+28 MAJOR · 32 MINOR · 7 INFO) / 65 FIXED / 6 tracked-open.
 
 ## Session-12 S12 lane delta (2026-10-29 — the session-2 continuation audit per the user's second-session directive: remove-the-fixed + go-deeper, special focus on sector numbers / scanning / accurate detection / calculation / no-stuck-or-freeze / local database / state management; core `869da779` at open → rebased through the parallel windows to push at `f85def0f`, corpus `be0cfe9`)
 

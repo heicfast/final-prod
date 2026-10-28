@@ -2155,6 +2155,71 @@ TEST(FatEngine, Date2107ConvertsFullyNoClamp) {
     EXPECT_EQ(fat_date_to_unix(0x0020, 0x6000, 0), 0u); /* day 0 */
 }
 
+TEST(FatEngine, TimeWordOutOfRangeComponentsYieldZeroTimestamp) {
+    /* A-014: the og converts each dentry timestamp with
+     * DosDateTimeToFileTime (FATSearchDLL_decompiled.c:32135-32154, the
+     * three zero-on-fail slots; the exFAT twin exFATSearchDLL:45174-45194)
+     * which REJECTS hour>=24, minute>=60 and seconds>=60 (2s field >= 30)
+     * - on failure the node's slot is zeroed (the honest 1601 no-date).
+     * The pre-fix core gated month/day only, so hour 24..31 folded
+     * 86400..111600 s into a plausible SHIFTED timestamp persisted into
+     * results and sessions. The gate now matches the Win32 accept set. */
+    const u16 d = 0x5D5D; /* 2026-10-29 (valid date word) */
+    /* hour field 24..31 (bits 15-11 hold up to 31) */
+    EXPECT_EQ(fat_date_to_unix(d, u16(24u << 11), 0), 0u); /* 0xC000: +1 day pre-fix */
+    EXPECT_EQ(fat_date_to_unix(d, u16(31u << 11), 0), 0u); /* 0xF800: field max */
+    /* minute field 60..63 (bits 10-5 hold up to 63) */
+    EXPECT_EQ(fat_date_to_unix(d, u16(60u << 5), 0), 0u);
+    EXPECT_EQ(fat_date_to_unix(d, u16(63u << 5), 0), 0u);
+    /* 2s field 30/31 = 60/62 s (bits 4-0 hold up to 31) */
+    EXPECT_EQ(fat_date_to_unix(d, u16(30u), 0), 0u);
+    EXPECT_EQ(fat_date_to_unix(d, u16(31u), 0), 0u);
+    /* mixed: a valid hour cannot launder corrupt minute+second */
+    EXPECT_EQ(fat_date_to_unix(d, u16((12u << 11) | (60u << 5) | 30u), 0), 0u);
+}
+
+TEST(FatEngine, TimeWordValidBoundariesStillConvert) {
+    /* A-014 regression pin: the gate rejects exactly the
+     * DosDateTimeToFileTime failure set - the highest LEGAL time word
+     * 23:59:58 (0xBF7D) and every field edge just below the reject line
+     * converts identically to the pre-fix arithmetic. */
+    const u16 d = 0x5D5D;                           /* 2026-10-29 */
+    const u64 day_base = fat_date_to_unix(d, 0, 0); /* 00:00:00 */
+    ASSERT_GT(day_base, 0u);
+    EXPECT_EQ(fat_date_to_unix(d, 0xBF7D, 0), day_base + 23u * 3600 + 59u * 60 + 58u);
+    EXPECT_EQ(fat_date_to_unix(d, u16(23u << 11), 0), day_base + 23u * 3600); /* hour 23 */
+    EXPECT_EQ(fat_date_to_unix(d, u16(59u << 5), 0), day_base + 59u * 60);    /* minute 59 */
+    EXPECT_EQ(fat_date_to_unix(d, u16(29u), 0), day_base + 58u);              /* 2s 29 = 58 s */
+    EXPECT_EQ(fat_date_to_unix(d, 0x6000, 0), day_base + 12u * 3600);         /* 12:00:00 */
+}
+
+TEST(FatEngine, InvalidTimeWordPersistsAsZeroFileTime) {
+    /* A-014 end-to-end: a dentry whose time words carry hour 24 (0xC000)
+     * on a valid date persists the ZERO FileTime for created/modified
+     * (the og's zeroed slot), while the access slot - always time word 0
+     * in both engines (FATSearchDLL :32151-32154) - keeps the real date.
+     * The pre-fix core stamped created/modified at date+1day. */
+    auto img = build_fat16_image();
+    u8* root = img.data() + 42 * 512;
+    make_dentry(root + 6 * 32, "BADTIME TXT", 0x20, 15, 100, 0x5D5D, 0xC000, false);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    tree::FileNode* n = find_node(tree, "BADTIME.TXT");
+    ASSERT_NE(n, nullptr) << "the corrupt-time dentry is still a result";
+    EXPECT_EQ(n->props()->times.created, 0u) << "hour 24 -> the zeroed slot";
+    EXPECT_EQ(n->props()->times.modified, 0u) << "hour 24 -> the zeroed slot";
+    EXPECT_EQ(n->props()->times.changed, 0u) << "changed mirrors modified";
+    EXPECT_EQ(n->props()->times.accessed,
+              fat_date_to_unix(0x5D5D, 0, 0) * 10000000ULL + 116444736000000000ULL)
+        << "access (time word 0) keeps the real date";
+}
+
 TEST(FatEngine, Date2107EndToEndFileTimeIsReal) {
     /* N-173 end-to-end: a live dentry dated 2107-12-31 carries the REAL
      * FileTime (unix 4354776000 * 1e7 + the epoch), not the zero/1601
@@ -2170,7 +2235,6 @@ TEST(FatEngine, Date2107EndToEndFileTimeIsReal) {
     ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
     tree::FileNode* z = find_node(tree, "ZERODAT.TXT");
     ASSERT_NE(z, nullptr) << "the 2107-dated dentry must be a result";
-    EXPECT_EQ(z->props()->times.modified,
-              4354776000ULL * 10000000ULL + 116444736000000000ULL)
+    EXPECT_EQ(z->props()->times.modified, 4354776000ULL * 10000000ULL + 116444736000000000ULL)
         << "the 2107 date converts fully (the og has no cutoff)";
 }

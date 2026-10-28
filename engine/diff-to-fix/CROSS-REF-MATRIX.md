@@ -1,5 +1,15 @@
 # CROSS-REF-MATRIX.md — module × parameter verdict matrix (the S12 session-2 deep-dive lane on top: sector math / scan-progress math / local database / state management / detection-calculation; the prior lanes below)
 
+**Session-47 S47 fix lane (2026-10-29 — the parity-fix lane over the standing board at core `fa654673`, corpus `be0cfe9`; baseline proven green 1273/1273 before the first change):**
+
+- **A-014 FIXED** (fat P9/P2 — the time-word gate `hour > 23 || minute > 59 || (time & 0x1F) > 29`
+  landed in `fat_datetime_to_unix_seconds`, the exact DosDateTimeToFileTime accept set; corpus
+  re-verified first-hand this session at FATSearchDLL:32131-32154 + the exFAT twin
+  exFATSearchDLL:45174-45194 before any change; exFAT provably unperturbed — the M-014 gate
+  rejects the class upstream; RED→GREEN: the fabricated date+1day FileTime 134377920000000000
+  pinned pre-fix, the zeroed slot post-fix, access slot (time word 0) keeps the real date;
+  3 new tests + full suite 1276/1276; findings/FIXED/A-014 carries the Resolution).
+
 **Session-12 S12 lane changes (2026-10-29 — the session-2 continuation audit per the user's second-session directive: remove-the-fixed + go-deeper with special focus on sector numbers, scanning, accurate detection, calculation/mathematics, no-stuck-or-freeze, the local database, state management; opened on core `869da779` (rebased to the window's closes), corpus `be0cfe9`; five deep-dive lanes' context sheets + three liveness batteries at `evidence/s12-lane-sheets/` + `evidence/s12-liveness/`; the findings push `f85def0f`):**
 
 - **The remove-the-fixed liveness battery (directive 1):** all 49 then-active findings
@@ -20,7 +30,8 @@
     `"wb"` truncate-before-read: the printed resume command destroys the session);
     **A-014** (fat P9/P2 — `fat_datetime_to_unix_seconds` validates month/day only;
     hour≥24/min≥60/2s≥30 fabricate shifted plausible timestamps where the og zeroes
-    the slot, FAT:32135-54 ⇔ cr_fat_wire.h:123-142).
+    the slot, FAT:32135-54 ⇔ cr_fat_wire.h:123-142) **— FIXED by the S47 fix lane
+    (the time-word gate + 3-test proof set; findings/FIXED/A-014)**.
   - **SEVERE (3):** **S-055** (carve P28/P1/P3 — the user-sign layer probes BEFORE the
     built-in table, inverting the M-048/D-104 collision rule; 8 overlap formats flip to
     device-end extents); **S-056** (carve P16/P28 — `disabled_formats` gates grammar +

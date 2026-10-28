@@ -6870,3 +6870,34 @@ the 0xFFFFFFFE exact boundary; the 0x100000000 regression step) +
 Date2107EndToEndFileTimeIsReal. The finding's example word 0xFFBF corrected (decodes
 the invalid 2107-11-31; 0xFF9F is the true 2107-12-31) — recorded in the Resolution.
 Suite 1273/1273. Trail: findings/FIXED/N-173 + ledger + fat.md row + this entry.
+
+## Session-47 fix lane — the lane opens + A-014 landed (2026-10-29)
+
+**Lane opening:** the S47 parity-fix lane over the standing board at core `fa654673`
+(corpus `be0cfe9`; the S46 worklog-only opener left the board untouched). The mandate
+saved token-redacted at worklog/session-diff-fix-47-prompt.md. The green baseline
+proven BEFORE any change: linux-release build clean, full suite 1273/1273 (72.5 s).
+Board at open (filesystem truth): 77 active (1 ACUTE · 9 SEVERE · 28 MAJOR ·
+32 MINOR · 7 INFO) / 64 FIXED / 6 tracked-open.
+
+**A-014 FIXED (ACUTE — the FAT time-word validation gate).** Classification:
+CONFIRMED-DIVERGENCE — the corpus re-read first-hand (FATSearchDLL_decompiled.c:32131-
+32154: the three zero-on-fail DosDateTimeToFileTime slots, quotes verified verbatim;
+the exFAT twin exFATSearchDLL:45174-45194 same pattern) and the current tree re-checked
+(cr_fat_wire.h:123-142 — the gap unchanged since the audit's pin `8d0d88b8`). The fix:
+the time-word gate `hour > 23 || minute > 59 || (time & 0x1F) > 29` in
+fat_datetime_to_unix_seconds — the exact DosDateTimeToFileTime accept set (the finding's
+own fix plan step 1; one condition, no algorithm change). exFAT provably unperturbed:
+the M-014 dentry gate (fat_datetime_fields_ok, cr_exfat_quick.cpp:313-315) rejects the
+whole class upstream of the shared helper. Tests (RED proven first — the fabricated
+FileTime 134377920000000000 = date+1day pinned live on the finding's falsifier time
+word 0xC000): FatEngine.TimeWordOutOfRangeComponentsYieldZeroTimestamp /
+TimeWordValidBoundariesStillConvert (the 23:59:58 / hour-23 / minute-59 / 2s-29
+regression edges) / InvalidTimeWordPersistsAsZeroFileTime (end-to-end: created/modified/
+changed zeroed, the access slot — always time word 0 in both engines — keeps the real
+date). Suite 1276/1276. Finding-text erratum recorded in the Resolution: the example
+date word 0x65C4 decodes month 14 (the already-rejected N-021 class); the proof set
+uses the genuinely valid 0x5D5D (2026-10-29). Trail: findings/FIXED/A-014 (Resolution
+inside), CROSS-REF-MATRIX S47 block + the S12-lane ACUTE row annotated, modules/fat.md
+A-014 moved to the fixed list + B9 row re-truthed, SUMMARY.md S47 block. ACUTE board
+now 0 active.
