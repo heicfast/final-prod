@@ -25,6 +25,11 @@
  *     aspect-preserving with max_edge applied to BOTH axes (the og's
  *     width-derived GDI+ scale quirk is deliberately corrected), never
  *     upscaled, premultiplied box-filter averaging;
+ *   - S-043: JPEG output is EXIF-oriented - the og reads GDI+ property
+ *     0x112 and applies the matching RotateFlip BEFORE the 256-px pass
+ *     (DRWUI :652307-309); the engine applies the same 8-case transform
+ *     to the full-decode path BEFORE the downscale (the embedded-fast
+ *     path serves camera-pre-rotated thumbs as-is);
  *   - honesty: unsupported formats are named (webp/heic are documented
  *     phase-2; the GDI+ metafile/icon family wmf/emf/ico is likewise
  *     named-and-refused - the og's GDI+ path rasterizes them natively,
