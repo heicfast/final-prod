@@ -10,6 +10,15 @@ before the change.
 
 **Landings this lane so far:**
 
+- **M-128 FIXED** (`2b0184f3`) + **M-129 FIXED** (`55b2fe32`) — the user-sign
+  channel's semantics pair: the hex-case superset registered as D-125 (no code
+  change — the og's %02X-only text compare is an og machinery defect leaving 11
+  of its own shipped signs dead; the census corrected 12→11 first-hand) and the
+  EUUserData loader's og-tolerance semantics landed (unknown members skipped,
+  _stricmp dispatch, malformed signs skip-and-continue, over-cap still atomic
+  per the S-039 doctrine, D-126 registered, the verbatim corpus file ships as
+  the acceptance fixture). 5 RED-pre-fix tests via the stashed-parser proof;
+  suite 1201/1201.
 - **M-132 FIXED** (`d746a75b`) — the backup probe at device-last FIRST (the
   og's fixed-position architecture, FUN_180006e20:4567); the declared backup_lba
   demoted to a registered fallback (D-124a); the Case-A observable honestly
@@ -30,7 +39,7 @@ before the change.
   Ebr.LinkType085WalksChain / Ebr.LinkType085SameBasisAs05 / Mbr.Extended085NotEmittedAsVolume
   (all RED pre-fix); suite 1164/1164.
 
-**Board after this push (filesystem truth): 69 active — 0 ACUTE · 9 SEVERE · 25 MAJOR ·
+**Board after this push (filesystem truth): 67 active — 0 ACUTE · 9 SEVERE · 23 MAJOR ·
 32 MINOR · 3 INFO** (the parallel lanes' A-014 + I-041..I-044 retirements absorbed at the
 merge; both sides' records kept). Next free IDs unchanged: S-062+, M-138+, N-186+, I-045+.
 

@@ -69,6 +69,15 @@
     A-013 landing); **M-132** (table P1/P35 — GPT backup probe:
     og device-last always + full bail on dead LBA1; core probes declared backup_lba +
     recovers from dev-last — divergent both directions, unregistered).
+  - **M-128/M-129 FIXED** (S47 MAJOR-first fix lane, `2b0184f3`/`55b2fe32` —
+    findings/FIXED/: the user-sign hex-case superset REGISTERED as D-125
+    [the og's %02X-only text compare leaves 11 of its own shipped signs
+    dead; the core's byte-decode keeps all 190 live — no code change, 3
+    pins, the census corrected 12→11 first-hand] + the EUUserData loader's
+    og-tolerance semantics [unknown members skipped, _stricmp dispatch,
+    malformed signs skip-and-continue, over-cap still atomic per S-039,
+    D-126 registered, the verbatim corpus fixture ships as a test];
+    P1/P3 detection + P23 error-semantics → MATCH);
   - **MINOR (18):** **N-161** (table — GPT entry span underflow, no first≤last gate);
     **N-162** (fat/registry — the og's 32-bit `(c−2)×spc` wrap ×4 sites, core u64
     correct, unregistered D-56/D-68 member); **N-163** (ntfs — runlist

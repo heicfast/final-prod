@@ -106,6 +106,20 @@ OQ-S10-3's grant boundary). Pulled-before-pushed discipline; one finding, one pu
 fix RED-test-first; corpus cites re-read first-hand. The S48/S49/S50 windows absorbed at
 the merge (A-014 + I-041..I-044 retired by the parallel lanes; both sides' records kept).
 
+- **M-128 FIXED** (`2b0184f3`) — option (b): the case-insensitive byte-decode
+  channel KEPT + registered as PARITY-DELTAS D-125 (the D-117 class). Corpus
+  re-read first-hand: FUN_140604090 :1003619 (%02X-only), memcmp :1003452/
+  :1003555; census corrected 12→11 (10 pure-lowercase mpeg + 1 mixed-case img).
+  Pins: LowercaseHexSignLiveAndRegistered / UppercaseHexSignMatches /
+  DefaultSetEffectiveCount (190 live).
+- **M-129 FIXED** (`55b2fe32`) — the EUUserData loader's og-tolerance: balanced
+  skip_value (unknown members), _stricmp member dispatch, tri-state parse_sign
+  (malformed SKIPS per DRWUI:1005986; over-cap REJECTS — S-039 doctrine intact,
+  HostileBlobStillAtomic green), structural-verdict return code, D-126
+  registered. 5 tests RED pre-fix (stashed-parser proof); the verbatim corpus
+  file (112/191, duplicate asf, 11 lowercase) ships as
+  tests/data/euuserdata-verbatim.json and loads clean; ParseTheOgsShape's
+  reject list split per the new semantics. Suite 1201/1201.
 - **M-132 FIXED** (`d746a75b`) — the GPT backup probe at device-last FIRST
   (cr_table_parse.cpp rc_p==OK branch; FUN_180006e20:4567 re-read first-hand —
   param_1[1]-1, never the declared field); declared backup_lba a registered
