@@ -2942,3 +2942,29 @@ Session plan (per the fix mandate's SOP order — no ACUTE active, so SEVERE fir
 5. TRACKED-OPEN: OQ-S4-3, OQ-S8-1, OQ-S10-1, OQ-S10-2 — resolve or push forward.
 6. Gate docs (CROSS-REF-MATRIX, SUMMARY, modules/*, PARITY-DELTAS) kept current
    with every landing.
+
+---
+## Session-11D fix lane (2026-10-29 open — the diff-TO-FIX execution lane D; scope differentiated from session-11C's pushed open)
+
+Baseline at open: pulled through **`b1473173`** — this lane opened against `35bee726`, then
+absorbed at rebase: the parallel fix lane's **thumbnail ABI landing** (`740d9b56`, M-102+M-083
+FIXED-ALREADY — independently verified in-source by this lane pre-pull: both exports at
+cr_ui.h:1278/:1285 + implementations, the grade promotion at cr_ui.cpp:3741-3742, all four named
+tests present; the N-128→N-136 renumber), lane-B S11B's **three board-truth repairs**
+(`bc4513db` — the N-135 renumber, the FIXED-LEDGER conflict sweep, the 285-row count truth),
+and session-11C's pre-open landings: **M-072 FIXED** (`f6fd86fb` — the path_substring +
+state_mask query axes; to be re-verified at this lane's next suite run), **N-093 FIXED**
+(`03ad5523` — the batch-1 bound pairs; same), and the **driver-grant disposition** (`0a08cb3c`
+— M-086/M-087/M-089's fix surfaces live in heicfast/rda-driver, out of this session's
+two-repo grant; tracked forward under OQ-S10-2 with N-107/N-127's driver halves riding).
+**Corpus `be0cfe9`** (unmoved). Prompt saved redacted at `worklog/session-diff-fix-prompt.md`,
+read twice. **Baseline suite executed at `743d7b8d` (pre-pull tree): 1090/1090 green.**
+
+**THIS LANE'S CLAIMED SCOPE (collision avoidance vs session-11C): the SEVERE tier, in this
+order — S-051 (wholedisk scan targets) → S-049 (carved-naming contract) → S-048 (Reconstructed
+per-volume grouping) → S-052 (LDM recovery basis) → S-050 (repair-line registration decision)
+→ S-040 (image-create producer).** Each finding independently verified against the corpus and
+the running code before any change; every fix paired with fail-before/pass-after tests; one
+finding, one verified fix, one push. Post-SEVERE, this lane takes the MAJOR tier's
+orchestration/carve-cluster findings (M-103, M-104, M-108, M-109, M-110) unless 11C lands them
+first. Pull before every push; the SA-9 collision rule governs any ID or landing conflicts.
