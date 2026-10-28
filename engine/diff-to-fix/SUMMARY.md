@@ -1,3 +1,34 @@
+# SUMMARY.md — executive summary (the session-40 fix lane on top; the prior lanes below, newest-first)
+## Session-40 delta (2026-10-29 — the diff-to-fix board execution: SEVERE-first)
+
+**Audited/fixed: core `4a6a5164` at open, corpus `be0cfe9`; suites 1003 + 59 green
+at open.** The fix session's board at open: **50 active (6 SEVERE · 18 MAJOR ·
+21 MINOR · 5 INFO) + 3 tracked-open (OQ-S4-3, OQ-S10-1, OQ-S10-3) / 294
+resolved rows.** Every finding is re-verified against the corpus and the running
+code before any change (the S-051 evidence probe re-executed verbatim at open —
+the RUN 2 silent-empty verdict reproduced on current main, then flipped by the
+fix). Resolutions land per the retire convention (Resolution rides the fix
+commit; the file retires to history with a ledger row).
+
+- **S-051 FIXED at `6ecd6bb4`** — the whole-disk target set (the session's
+  first SEVERE). The plain disk scan reads the partition list at scan setup and
+  makes every used, non-container partition a scan target (the og's
+  CDoScanPartition flow); the evidence probe's RUN 2 flipped to files=4/
+  deleted=2; six whole-disk tests; the discovery no-double-scan reconciliation;
+  honest skip accounting (table_volumes*). Matrix cell → MATCH; the retired
+  file's Resolution carries the full record.
+
+**Board after S-051, at the rebase reconciliation over the concurrent lanes
+(the S11-lead/S11B audit lanes' 11 new findings; the parallel fix lanes'
+M-109 + N-112 retirements): 63 active (7 SEVERE · 20 MAJOR · 29 MINOR · 7
+INFO) + 3 tracked-open / 300 resolved rows (the S-051 row included).** The
+SEVERE board this session continues on: S-052 (LDM span recovery — silently
+wrong bytes), S-054 (the 10x TS/M2TS cap), S-053 (ReFS unnamed rows), S-049
+(the carved naming contract), S-048 (Reconstructed per-volume grouping),
+S-050 (the file-repair registration), S-040 (image create).
+
+---
+
 # SUMMARY.md — executive summary
 
 ## Session-11 lane B delta (2026-10-29 — the continuation re-triage + landing-parity audit, RECONCILED at every push over the S11/S39/S40 parallel lanes)
@@ -104,6 +135,8 @@ reconcile extend-don't-refile against N-139/N-140/I-031 +
 `s11-rawsearchdll-infra-walk.md` (the six-family carve-grammar half of your
 wave-1 remains yours); wave-3's non-searchdll trees do not collide with this
 lane's ZFS/ReFS searchdll walk.
+
+---
 
 ## Session-11 delta (2026-10-29 — the user's session-2 continuation: remove-the-fixed + go-deeper + mark-all-remaining)
 
