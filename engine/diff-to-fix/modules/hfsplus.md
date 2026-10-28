@@ -293,7 +293,7 @@ Audited `869da779`-lineage (lane tip `d4776278`), corpus `be0cfe9`. Full decode:
   files is raw-rsrc-bytes-with-uncompressed-size (mode 4) or
   size-with-no-extents (mode 3); the core's S-002 landing (kZlib codec
   extents, writer-side inflation) is the deliberate superset. No finding.
-- **N-155 (MINOR, new):** the og's zero-logical-size fallback
+- **N-155 — FIXED (session-42 main lane):** the og's zero-logical-size fallback
   (`dataFork.totalBlocks << 12`, hardcoded 4096) absent in the core — a
   record with `logicalSize==0 && totalBlocks>0` sizes 0 in the core,
   blocks×4096 in the og (the deleted/journal-record population is where it
