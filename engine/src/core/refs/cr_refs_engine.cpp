@@ -1099,12 +1099,43 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
             if (progress && (emitted & 0xF) == 0)
                 (void)progress(emitted, emitted + 0x10, progress_user);
             const std::u16string name16 = name_from_key(ev.key, ev.key_len);
-            if (name16.empty() || ev.val_len < 0x28)
+            /* S-053: the og emits name-destroyed rows. Its name builder
+             * (FUN_18000c2b0 :8674-75) no-ops on keySize <= 4 - empty is a
+             * LEGAL name, and the emit path (FUN_18000ba90 -> FUN_18000d970)
+             * has no name-liveness gate anywhere: a record whose name key is
+             * gone but whose $DATA runs survive is surfaced as an unnamed
+             * recoverable row. The old `name16.empty()` half of this gate
+             * silently dropped that whole population (refs.md B5's "minor,
+             * parity unknown" guess, refuted by the S11 decode). The shape
+             * half stays: val_len < 0x28 is the og's own minimum-record
+             * guard (the c060 pre-check rejects the same class). The stored
+             * name stays EMPTY (the og persists empty; a display fallback
+             * lives at the CLI print layer only, never in the session). */
+            if (ev.val_len < 0x28)
                 return;
             const NodeView nv = parse_node(ev.val, ev.val_len);
             if (!nv.ok)
                 return;
             const GeneralInfo gi = parse_general_info(nv.var, nv.var_len);
+            /* N-141: the og's zero-size AND no-dot noise filter
+             * (FUN_18000ba90 :8317-37). The size is the SAME +0x30 field
+             * parse_general_info reads (the c060 lookup's local_e8 =
+             * RefsFileValues +0x30); within the size==0 class the og
+             * memchr-scans the name for 0x2e and takes the filtered path
+             * when none is found. Semantics are exactly compound:
+             *   size==0 && no '.' in name  -> filtered (metadata residue,
+             *                                  index leftovers - never a
+             *                                  recoverable row og-side)
+             *   size==0 && '.' present     -> emitted (an extension means
+             *                                  a user file shape)
+             *   size!=0                    -> emitted regardless of dots
+             * An empty name (S-053) carries no '.', so an unnamed
+             * zero-size row is filtered exactly as the og filters it (its
+             * memchr loop is skipped on length 0 -> filtered path). */
+            if (gi.size == 0 && name16.find(u'.') == std::u16string::npos) {
+                ++stats.zero_size_nodot_filtered;
+                return;
+            }
 
             tree::FileProperties* props = new tree::FileProperties();
             props->fs_kind = REFS_FS_KIND;

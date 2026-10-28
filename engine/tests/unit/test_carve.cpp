@@ -6847,7 +6847,14 @@ TEST(Carve, Batch1OgCapsAreTheRegistryRows) {
     const Signature* reg = registry();
     ASSERT_NE(reg, nullptr);
     const Signature *mid = nullptr, *gz = nullptr, *psp = nullptr, *sit = nullptr;
-    for (const Signature* s = reg; s->ext; ++s) {
+    /* count-based iteration: the registry is a FIXED table (one entry per
+     * FormatId, order = FormatId - cr_signatures.h's own contract); it has
+     * NO null terminator. The original `for (s = reg; s->ext; ++s)` form
+     * walked past kTable's end (an ASan global-buffer-overflow the full
+     * sanitizer lane caught - the read stopped only wherever adjacent
+     * globals happened to hold a null pointer). */
+    for (size_t i = 0; i < registry_size(); ++i) {
+        const Signature* s = reg + i;
         if (s->id == FMT_MID)
             mid = s;
         else if (s->id == FMT_GZ)
