@@ -7,7 +7,7 @@ New active findings on this module: **M-125** (the og's piecewise progress remap
 superseded); **M-126** (the og's rate-EMA ETA model decoded — no core surface; the O39
 premise superseded); **N-166** (live counters stage-boundary-only vs the og's ~2s
 cadence — the :210-213 claim inaccurate); **N-167** (no found-size aggregate);
-**N-178** (the pause CLI legs); **I-041/I-042/I-043** (the state-model registers:
+**N-178** (the pause CLI legs); **I-041/I-042/I-043 (ACKNOWLEDGED — PARITY-DELTAS D-122)** (the state-model registers:
 stopped-vs-finished, paused observability, state ownership). Key decodes this session:
 the og's 14-state scan enum (DRWUI:208243-296), the pause machinery (engine vtable
 +0x88 notify + gate + GetTickCount compensation — the core's PausableToken is a

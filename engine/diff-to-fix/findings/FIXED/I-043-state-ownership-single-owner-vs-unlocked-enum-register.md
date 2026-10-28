@@ -51,3 +51,10 @@ Both sides read first-hand (lane D; the enum region re-read by the lead auditor)
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED (ACKNOWLEDGED — deliberate improvement registered)
+**Fixed in commit:** (this session's I-043 landing, S48 INFO-first lane — SHA recorded in the worklog entry)
+**Verified by:** corpus re-read first-hand this session: the 14-value state enum confirmed at DRWUI_decompiled.c:208243-296 (notstarted/quickscanning/quickscanpaused/quickscanstopped/quickscanfinish/advancedscanning/advancedscanpaused/advancedscanstopped/…/repairvideo_pause — the telemetry-name table re-read on-disk); core side re-read at src/core/orchestrator/cr_scan.cpp:319-376 (the mutexed telemetry publish paths). PARITY-DELTAS now carries D-122 (the threading family, beside D-18/D-121) — `grep -c "D-122" docs/PARITY-DELTAS.md` ≥ 1 post-landing.
+**Resolution notes:** Registered as D-122 in PARITY-DELTAS per the finding's one-line fix plan: the og's unlocked master scan-state enum (+0x78 on the service singleton, cross-thread reads) vs the core's single-owner controller + mutexed telemetry snapshots — a deliberate thread-safety improvement, data-race-free by construction, in the D-18 cancellation/cancellation-threading family. No code change (the finding's own verdict: the telemetry mutex is already covered by the parallel-scan tests + TSan CI). The I-041/I-042 state-model register family remains open on their own files.
