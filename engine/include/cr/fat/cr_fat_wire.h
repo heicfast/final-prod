@@ -127,7 +127,17 @@ inline u64 fat_datetime_to_unix_seconds(u16 date, u16 time) {
     const u32 hour = (time >> 11) & 0x1F;
     const u32 minute = (time >> 5) & 0x3F;
     const u32 second = (time & 0x1F) * 2;
-    if (month < 1 || month > 12 || day < 1 || day > 31)
+    /* The full DosDateTimeToFileTime accept set (A-014): the og hands
+     * every dentry word to the Win32 converter and zeroes the slot on
+     * failure (FATSearchDLL_decompiled.c:32135-32154, all three sites;
+     * exFAT twin :45174-45194). The Win32 validation rejects month 0/13+,
+     * day 0, and the time components hour>=24, minute>=60, second>=59 -
+     * the 5/6/5-bit fields encode all of those on corrupt dentries, and
+     * folding them into the epoch math fabricated shifted plausible
+     * timestamps. 2s field 30..31 = 60..62 s crosses the second<=59
+     * edge exactly like hour 24..31 and minute 60..63. */
+    if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 ||
+        minute > 59 || second > 59)
         return 0;
     /* days since 1970-01-01 (Howard Hinnant civil algorithm) */
     const i64 y = i64(year) - (month <= 2 ? 1 : 0);

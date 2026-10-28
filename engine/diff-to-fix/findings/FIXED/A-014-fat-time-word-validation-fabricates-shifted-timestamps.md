@@ -121,3 +121,10 @@ family (one-line boundary guards).
 
 None — the og's boundary set is fully decoded (three slots, zero-on-fail), and the core's
 gap is a single missing condition.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this push; S47 lane)
+**Verified by:** `FatEngine.TimeWordOutOfRangeYieldsZeroTimestamp` (FAILED pre-fix, PASSES post-fix), `FatEngine.ValidTimeWordUpperEdgesStillConvert` (regression pin, PASSES both sides - no over-rejection), `FatEngine.InvalidTimeWordPersistsAsZeroFileTime` (end-to-end dentry: hour-24 word -> props.times.modified == 0); full suite 1206 tests / 1164 pass / 0 fail (85 remain Win-env skips). Corpus re-verified first-hand this session: FATSearchDLL_decompiled.c:32135/:32144/:32151 (ghidra-searchdll) - all three DosDateTimeToFileTime calls with the zero-on-fail branch.
+**Resolution notes:** One gate extension in `fat_datetime_to_unix_seconds` (include/cr/fat/cr_fat_wire.h): the time-word components now honor the full DosDateTimeToFileTime accept set (hour<=23, minute<=59, 2s field<=29 i.e. second<=59) alongside the existing month/day gates, so an out-of-range time word yields 0 exactly like the og's zero-on-fail slot. Both consumers (FAT cr_lfn.cpp fat_date_to_unix, exFAT exfat_time_to_unix100) inherit the correction through the shared helper - the exFAT M-014 dentry gate only rejects the all-three-invalid class, so single-field overflows previously leaked to the same fabrication there and now match the og's per-word DosDateTimeToFileTime semantics. Two corrections to the finding's worked example recorded: the cited date word 0x65C4 decodes month 14 (invalid - the finding's "valid" label was wrong); the tests use 0x5904 (2024-08-04). No API change; the helper's own "0 on invalid/out-of-range fields" comment is now truthful for the time word.
