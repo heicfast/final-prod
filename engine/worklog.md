@@ -2586,3 +2586,94 @@ OQ-S10-1 — the codec-bound thumbnail deps; OQ-S10-2 — the sfc probe). The la
 scratch (the probe sources + the agents' context sheets) lives outside the repo at
 /home/z/my-project/scripts/ and /home/z/my-project/audit-work/; the load-bearing
 content is preserved in the six s10-* evidence files.
+
+---
+
+Task ID: S10-C (session-10 continuation lane — the close record; the SECOND-CONVERSATION-SESSION mandate executed in three waves)
+Agent: session-10 continuation audit (this lane; complementary to SA-10/SA-10B/S10-F/DFX-38 and the fix lanes per the push-time SOP)
+
+THE MANDATE (the user's continuation directive): look for what session 1
+missed; REMOVE THE FIXED THINGS; go deeper on og-codebase ↔ core; mark
+all remaining features/implementations/functions.
+
+WAVE 1 — the board-truth sweep (T2-T4): four parallel agents re-verified
+all 76 actives at HEAD 84a1832 first-hand (every core-reference re-read;
+the lead spot-verified the load-bearing verdicts). 74 of 75 in-scope
+STILL-ACTIVE; N-124 FIXED (moved with the resolution record); M-100
+re-scoped (its "grep: absent" core-ref was FALSE AT FILING — 6d0f16c/M-066
+landed the engine half pre-filing; the residual is the ABI/CLI exposure).
+Five addenda filed with new defects the sweep caught: M-079 (a NEW false
+cr_scan.h:236-239 comment), N-094 (the triple verb-count drift), N-102
+(the third 37-toggles instance at cr_carve.h:88 + the finding's own
+citation defect), N-099 (E51's wrong MDB ctor cite), M-100 (R-37 doubly
+stale). Evidence: evidence/s10-reverification-sweep.md (the full verdict
+table + the line re-pins + the push-time reconciliation note).
+
+WAVE 2 — the whole-disk scan-flow deep-dive (the og-codebase comparison
+the prior sessions never ran): executed end-to-end on a controlled
+two-volume MBR fixture (the builder + probe committed in
+evidence/executions/s10-wholedisk-scan-targets.md) vs the og's own three
+real .rsf sessions (re-parsed first-hand). Filed S-051 (SEVERE — the
+plain disk target cr_ui_open_disk/scan --disk N silently returns rc=0
+with ZERO files on healthy partitioned disks; the og's CDoScanPartition
+reads the partition list and scans every volume) and M-104 (MAJOR — the
+in-table volumes surface only as anonymous "Candidate @ LBA" roots; no
+display names, no FS-type markers, known-vs-lost indistinguishable; the
+og's per-volume real-session shape unreachable). The record census
+resolved the multi-volume persistence contract first-hand: ONE record-2
+per session naming the PRIMARY volume (the G session's 147B record-2 =
+"Local Disk (G:)", the artifact layout confirmed byte-exact); the
+multi-volume registry is record-1's special-partition list (System
+Reserved @ LBA 2048 in the G session; entryCount=0 in the single-volume
+sessions). Both findings' open questions RESOLVED by the census.
+
+WAVE 3 — the fix-wave landing-parity verification (the second half of
+remove-the-fixed: VERIFY the fixed): three parallel agents independently
+verified the nine freshest landings (S-044, N-116, M-080, M-085, S-042,
+M-090, M-082, M-071, N-117/N-118/N-103) against their findings'
+og-decodes + the corpus/decompile + the current tree. EIGHT
+PARITY-VERIFIED (the LZW early-change point independently reproduced
+against a from-scratch reference decode; the koly walk re-derived
+term-for-term from FUN_180053de0; the %03d re-checked against the .mo
+binary at offset 0x7bf7c; the junk gates byte-exact to 69507cb; the
+full suite 1005/1005 at HEAD in an independent run). TWO residuals
+filed: M-108 (the M-080 landing stopped at 32 MiB — the og's 200 MB
+anchor not adopted, the 32-200 MB band refused, the pinning test still
+citing the refuted no-cap doctrine) and N-129 (the bookkeeping truth
+batch: N-103's cited :376 site missed while its Resolution claims both
+fixed; the gap-board's :379/:225 self-contradiction; five phantom
+pre-rebase SHAs; the FIXED-LEDGER's own gaps). Evidence:
+evidence/s10-landing-parity-verification.md.
+
+ALSO THIS LANE: the Dict byte-compare (228 entries, ORDERED MATCH vs
+the og's file — the N-064 landing verified); the diskhealth/USB-bridge
+territory checked and found already dispositioned (N-032 + PARITY-CORE-
+DOM D-78 — no duplicate filed); the ID-collision renumbers executed at
+push time (this lane's S-050→S-051 by the SA-10 rule; M-105→M-108 and
+N-128→N-129 by the same rule — the SA-10/SA-10B lanes' same-numbered
+findings pushed first and keep the IDs).
+
+BOARD AT THIS LANE'S CLOSE (the filesystem is the truth): 56 active
+(6 SEVERE · 25 MAJOR · 20 MINOR · 5 INFO) / 281 FIXED-LEDGER rows /
+4 tracked-open. This lane's contributions to the active board: S-051,
+M-104, M-108, N-129 (4 filings) + the M-100 re-scope + 5 addenda. The
+concurrent lanes (SA-10: S-052/M-105/M-106/M-107/N-128; SA-10B:
+S-048/S-049/M-103 + the FIXED purge; the fix lanes: S-042/S-043/S-044/
+M-071/M-080/M-082/M-085/M-090/M-092/N-094/N-116/M-102+M-083/N-091/
+N-098/N-105/N-103/N-117/N-118 all landed and verified) own the rest of
+the movement.
+
+READ-ONLY GUARANTEE: this lane's commits touched NOTHING outside
+diff-to-fix/ + worklog* (verified per-commit; every product-file change
+visible in the final tree entered through the MERGE with origin/main —
+the parallel fix lanes' landed code).
+
+Handoff: the highest-value next fixes from THIS lane's filings:
+(1) S-051 + M-104 as one whole-disk shape pass (the target builder + the
+per-volume display-name roots; composes with S-048/M-103/M-079 — the
+fixtures and the real-session census are in the evidence file);
+(2) M-108 (one constant + one test-doctrine re-pin + a D-row — small);
+(3) N-129's mechanical sweep (the :376/:379 rows, the phantom SHAs, the
+ledger rows) + the optional git-cat-file guard script;
+(4) S-052 (the SA-10 lane's LDM finding) pairs naturally with the
+whole-disk pass — the LDM volumes ride the same candidate machinery.
