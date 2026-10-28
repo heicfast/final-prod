@@ -114,6 +114,13 @@ void* ResultTree::arena_alloc(size_t bytes) {
     return p;
 }
 
+void ResultTree::set_root_basis(FileNode* root, u32 basis_id) {
+    if (!root)
+        return;
+    std::lock_guard<std::mutex> lock(mutex_);
+    root->basis_ = basis_id;
+}
+
 FullNode* ResultTree::add_root(const std::u16string& role) {
     std::lock_guard<std::mutex> lock(mutex_);
     void* mem = arena_alloc(sizeof(FullNode));

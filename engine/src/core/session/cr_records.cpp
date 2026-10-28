@@ -174,6 +174,10 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
             if (pr && pr->ntfs_total_clusters != 0)
                 nflags |= 512; /* N-100: the NTFS total-$DATA-clusters twin (+0x60) */
         }
+        /* S-052: the ROOT's extent-basis id (roots only, nonzero only) -
+         * the LDM dynamic-volume basis that survives the file boundary */
+        if (n->is_full() && n->basis() != 0)
+            nflags |= 1024;
         put32(out, parent_ids[i]);
         put16(out, nflags);
         out.push_back(u8(n->is_full() ? 1 : 0));
@@ -285,6 +289,8 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
             put64(out, f->stats().dir_count);
             put64(out, f->stats().total_logical);
             put64(out, f->stats().deleted_count);
+            if (nflags & 1024) /* S-052: the basis id rides the root record */
+                put32(out, n->basis());
         }
     }
     if (progress && !progress(total_nodes, total_nodes, progress_user))
@@ -498,10 +504,13 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* re
             st.dir_count = c.g64();
             st.total_logical = c.g64();
             st.deleted_count = c.g64();
+            const u32 root_basis = (nflags & 1024) ? c.g32() : 0u; /* S-052 */
             tree::FullNode* full = tree.add_root(role);
             if (full) {
                 full->set_stats(st);
                 full->set_props(props);
+                if (root_basis != 0)
+                    tree.set_root_basis(full, root_basis);
                 n = full;
             }
         } else {
@@ -582,6 +591,109 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* re
         return u32(0x50040001);
     }
     return u32(OK);
+}
+
+/* ---- S-052: the LDM layouts record codec ---- */
+
+u32 serialize_ldm_layouts(const std::vector<table::LdmVolumeLayout>& layouts,
+                          std::vector<u8>& out) {
+    out.clear();
+    put32(out, u32(layouts.size()));
+    for (const auto& lay : layouts) {
+        out.push_back(u8(lay.kind));
+        put64(out, lay.vol_obj_id);
+        put64(out, lay.total_sectors);
+        put64(out, lay.chunk_sectors);
+        put32(out, lay.columns);
+        put64(out, lay.missing_members);
+        out.push_back(lay.complete ? 1 : 0);
+        put16(out, u16(lay.name.size()));
+        for (char ch : lay.name)
+            out.push_back(u8(ch));
+        put32(out, u32(lay.copies.size()));
+        for (const auto& copy : lay.copies) {
+            put32(out, u32(copy.size()));
+            for (const auto& m : copy) {
+                put64(out, m.part_obj_id);
+                put64(out, m.disk_obj_id);
+                out.insert(out.end(), m.disk_guid.b, m.disk_guid.b + 16);
+                put64(out, m.disk_lba);
+                put64(out, m.part_start);
+                put64(out, m.sectors);
+                put64(out, m.vol_offset);
+                put32(out, m.index);
+                out.push_back(m.disk_present ? 1 : 0);
+            }
+        }
+    }
+    return OK;
+}
+
+u32 deserialize_ldm_layouts(const u8* data, size_t len, std::vector<table::LdmVolumeLayout>& out) {
+    out.clear();
+    Cursor c{data, len};
+    const u32 count = c.g32();
+    if (c.fail)
+        return ERR_SESSION_FORMAT;
+    if (count > 4096u) /* the same bomb class as the tree's node count */
+        return ERR_SESSION_FORMAT;
+    out.reserve(count);
+    for (u32 i = 0; i < count; ++i) {
+        table::LdmVolumeLayout lay;
+        lay.kind = table::LdmVolumeKind(c.g8());
+        lay.vol_obj_id = c.g64();
+        lay.total_sectors = c.g64();
+        lay.chunk_sectors = c.g64();
+        lay.columns = c.g32();
+        lay.missing_members = c.g64();
+        lay.complete = c.g8() != 0;
+        const u16 name_len = c.g16();
+        if (c.fail || c.left < size_t(name_len)) {
+            c.fail = true;
+            break;
+        }
+        lay.name.assign(reinterpret_cast<const char*>(c.p), size_t(name_len));
+        c.p += name_len;
+        c.left -= name_len;
+        const u32 copies = c.g32();
+        if (c.fail || copies > 64u) {
+            c.fail = true;
+            break;
+        }
+        lay.copies.resize(copies);
+        for (u32 k = 0; k < copies; ++k) {
+            const u32 members = c.g32();
+            if (c.fail || members > 4096u) {
+                c.fail = true;
+                break;
+            }
+            lay.copies[k].resize(members);
+            for (u32 j = 0; j < members; ++j) {
+                table::LdmMember& m = lay.copies[k][j];
+                m.part_obj_id = c.g64();
+                m.disk_obj_id = c.g64();
+                if (c.left < 16) {
+                    c.fail = true;
+                    break;
+                }
+                std::memcpy(m.disk_guid.b, c.p, 16);
+                c.p += 16;
+                c.left -= 16;
+                m.disk_lba = c.g64();
+                m.part_start = c.g64();
+                m.sectors = c.g64();
+                m.vol_offset = c.g64();
+                m.index = c.g32();
+                m.disk_present = c.g8() != 0;
+            }
+            if (c.fail)
+                break;
+        }
+        if (c.fail)
+            break;
+        out.push_back(std::move(lay));
+    }
+    return c.fail ? ERR_SESSION_FORMAT : OK;
 }
 
 u32 serialize_error_map(const ReadErrorMap& map, std::vector<u8>& out) {

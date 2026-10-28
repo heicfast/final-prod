@@ -34,6 +34,7 @@ std::unique_ptr<Snapshot> ResultTree::capture_snapshot(bool partial) const {
         SnapNode s;
         s.node_id = n->node_id();
         s.full = n->is_full();
+        s.basis = n->basis(); /* S-052: the basis rides every row (roots carry the stamp) */
         s.origin = u8(n->origin());
         s.deleted = u8(n->deleted_state());
         s.confidence = u8(n->confidence());

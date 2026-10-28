@@ -1584,9 +1584,19 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
                 for (const char* p = lay.name.c_str(); *p; ++p)
                     role.push_back(u16(u8(*p)));
                 tree::FullNode* vroot = tree_.add_root(role);
-                table::LdmVolumeDevice vol(lay, resolver);
+                /* S-052: the device is HEAP-OWNED and REGISTERED (basis
+                 * id = index+1) so it survives run()'s return and the
+                 * recovery/preview consumers can read through it; the
+                 * root is stamped with the same id (the F-1 numeric
+                 * rebase never touches these nodes - multi-disk bases
+                 * are resolved through the registry, not shifted). */
+                auto vol = std::make_unique<table::LdmVolumeDevice>(lay, resolver);
+                ldm_layouts_.push_back(lay);
+                tree_.set_root_basis(vroot, u32(ldm_devices_.size() + 1));
+                ldm_devices_.push_back(std::move(vol));
                 u64 files = 0, deleted = 0;
-                (void)scan_candidate(&vol, vroot, cancel, files, deleted, ep, ep_user);
+                (void)scan_candidate(ldm_devices_.back().get(), vroot, cancel, files, deleted, ep,
+                                     ep_user);
                 stats.files_found += files;
                 stats.deleted_found += deleted;
             }
@@ -2279,6 +2289,15 @@ u32 ScanController::save_session(session::Writer& w, const ScanStats& stats,
             return rc2;
     }
 
+    /* S-052: the LDM dynamic-volume layouts (optional record; the tree's
+     * LDM roots carry the matching basis ids - recovery/preview re-arm
+     * the virtual devices from these after a load). */
+    if (!ldm_layouts_.empty()) {
+        if (session::serialize_ldm_layouts(ldm_layouts_, blob) == OK)
+            if (u32 rc = w.add_record(session::REC_LDM_LAYOUTS, blob.data(), u32(blob.size())))
+                return rc;
+    }
+
     if (session::serialize_error_map(stats.errors, blob) == OK)
         if (u32 rc = w.add_record(session::REC_ERROR_MAP, blob.data(), u32(blob.size())))
             return rc;
@@ -2362,6 +2381,10 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
     bool have_state = false;
     session::VolumeInfo vi;
     bool have_vi = false;
+    /* S-052: the LDM layouts land here first - `info` is rebuilt from
+     * the light fields at the end of this function, so the layouts move
+     * into the rebuilt struct (never wiped by the reset). */
+    std::vector<table::LdmVolumeLayout> ldm_loaded;
     for (u32 i = 0; i < count; ++i) {
         session::Record rec;
         u32 rc = r.read_record(i, rec);
@@ -2405,6 +2428,9 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
         case session::REC_VOLUME_INFO:
             if (session::deserialize_volume_info(rec.data.data(), rec.data.size(), vi) == OK)
                 have_vi = true;
+            break;
+        case session::REC_LDM_LAYOUTS: /* S-052: re-arm input */
+            (void)session::deserialize_ldm_layouts(rec.data.data(), rec.data.size(), ldm_loaded);
             break;
         case session::REC_PARTITION_CONTEXT: {
             /* G-23: restore lost candidates so a reloaded session can be
@@ -2479,6 +2505,7 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
      * (no VolumeInfo) assume all stages configured - their masks were
      * config-derived by construction, so the subset check holds trivially. */
     info = session::VolumeSessionInfo{};
+    info.ldm_layouts = std::move(ldm_loaded); /* S-052: survives the reset */
     info.fs_family = have_vi ? vi.fs_kind : 0;
     info.stage_done_mask = have_state ? st.stage_done_mask : 0;
     info.configured_mask = have_vi ? vi.flags : (STAGE_QUICK | STAGE_DEEP | STAGE_CARVE);
@@ -2538,6 +2565,13 @@ u32 ScanController::resume(session::Reader& r, tree::ResultTree& tree,
     out.reset(new (std::nothrow) ScanController(tree, std::move(cfg), info));
     if (!out)
         return ERR_NO_MEMORY;
+    /* S-052: the resumed controller adopts the persisted LDM layouts so a
+     * re-save keeps them (the devices are NOT rebuilt here - consumers
+     * re-arm from the session; the engine pass rebuilds fresh devices iff
+     * the LDM loop re-runs for an incomplete stage). Basis-id continuity:
+     * the loaded tree's LDM roots already carry ids matching these
+     * layouts' order; a re-run loop appends AFTER them (id = size+1). */
+    out->ldm_layouts_ = info.ldm_layouts;
     return OK;
 }
 

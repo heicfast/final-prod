@@ -73,6 +73,14 @@ enum RecordType : u32 {
      * check stage simply lack it and the report reads as empty.
      * Payload: check::serialize_fs_check. */
     REC_FS_CHECK = 9,
+    /* S-052 (diff-to-fix): the LDM dynamic-volume layouts the scan
+     * reconstructed (one per scanned volume root; the tree's root
+     * records carry the matching basis ids). OPTIONAL with the same
+     * skip-unknown-types rule - sessions saved without a dynamic-disk
+     * scan simply lack it and the tree's LDM roots (if any) read with
+     * basis ids that resolve to nothing (recovery then fails the reads
+     * honestly per-extent). Payload: serialize_ldm_layouts. */
+    REC_LDM_LAYOUTS = 10,
 };
 
 /* In-memory record. */

@@ -612,6 +612,22 @@ public:
 
     const ScanConfig& config() const { return cfg_; }
 
+    /* ---- S-052: the LDM basis registry --------------------------------
+     * The dynamic-volume devices the scan built (one per reconstructed
+     * layout), heap-owned so they SURVIVE run()'s return (the scan
+     * loop's old stack devices died with the loop - the finding's root
+     * cause). Basis ids are the registry index+1 - the same ids the
+     * scan stamps on the volume roots (ResultTree::set_root_basis).
+     * Consumers: save_session (persists the LAYOUTS), the UI layer
+     * (moves the devices into the session's basis table while the
+     * scan handle lives). The devices borrow their member disks
+     * through cfg.ldm_resolver - whoever owns those devices must
+     * outlive the registry (the UI's ldm_members). */
+    const std::vector<std::unique_ptr<table::LdmVolumeDevice>>& ldm_devices() const {
+        return ldm_devices_;
+    }
+    const std::vector<table::LdmVolumeLayout>& ldm_layouts() const { return ldm_layouts_; }
+
 private:
     /* M-029: the raw/carve category root's role string - the configured
      * display name (cfg_.raw_category_name, the og's "filter_generalraw"
@@ -694,6 +710,9 @@ private:
 
     tree::ResultTree& tree_;
     ScanConfig cfg_;
+    /* S-052: the dynamic-volume registry (see ldm_devices()) */
+    std::vector<std::unique_ptr<table::LdmVolumeDevice>> ldm_devices_;
+    std::vector<table::LdmVolumeLayout> ldm_layouts_;
     tree::FullNode* root_found_ = nullptr;
     tree::FullNode* root_deleted_ = nullptr;
     tree::FullNode* root_lost_ = nullptr;
