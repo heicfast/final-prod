@@ -262,3 +262,18 @@ stage's quadratic mid-stream re-walk - the 220 MB contiguous TS fixture went fro
 question). The comparative-bench dispatch remains the OQ's own next step: the Windows
 bench leg with a 4 MiB-chunk build variant (engineering task, not audit). No claim is
 retired by the M-117 evidence - the OQ stays open exactly as recorded.
+
+## Session-47 dispatch-ride note (2026-10-29 — the TTFR half's execution state)
+
+The OQ's remaining TTFR half rode the dispatch path this session: the Test & Benchmark lane
+was dispatched mid-window (run **40783364141**, push-triggered on `a75d8198`, 2026-10-28
+22:53 UTC) and is **stale-in-progress at session close** (no status update for 60+ minutes —
+a likely-lost runner; the run has produced no clean-benchmark artifact yet). The transport-
+chunking half stays MEASURED-and-closed (run 40315255368's verdict above). The remaining step
+is UNCHANGED and precise: one green Test & Benchmark execution (re-dispatch if the run is
+confirmed dead) transcribes `ttfr_ms`/`ttfr_first_files` from the `$cleanPerf.scans[]` JSON
+into this file + M-030's Resolution addendum + SUMMARY's performance section; the og-side
+TTFR comparison then needs the new first-found probe in `bench/og/og-driver.ps1` (no
+first-found capture exists) or an owner's scoped-closure decision, exactly as the S11
+addendum recorded. No new engineering prerequisite; Linux-infeasibility re-confirmed (the
+measurement is real-volume I/O through the RDA driver on Windows).
