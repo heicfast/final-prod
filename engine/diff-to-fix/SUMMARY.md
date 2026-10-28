@@ -152,7 +152,13 @@ first-hand; every fix RED-test-first.
   the 9-iteration RED→GREEN pin + `LfnValidNameUnchanged`; the NUL early-return
   subtlety preserved in self-review).
 
-**Board (filesystem truth, running): 65 active — 0 ACUTE · 9 SEVERE · 27 MAJOR · 29 MINOR · 0 INFO / 73 FIXED files / 6 tracked-open (the parallel windows' landings absorbed at each rebase).**
+- **N-177 FIXED** — the ext4 size-exceeds-blocks damaged marker (EXT4SearchDLL
+  :6300-6303 + FUN_180007510 :5455-5467 re-read first-hand;
+  NODE_FLAG_SIZE_EXCEEDS_BLOCKS = the og's own bit 0x200, the clean 64-bit compute
+  on both emission paths, the D-135 non-adoption registration, the write_inode
+  i_blocks_lo fixture repair; 3 tests incl. the session round-trip).
+
+**Board (filesystem truth, running): 64 active — 0 ACUTE · 9 SEVERE · 27 MAJOR · 28 MINOR · 0 INFO / 74 FIXED files / 6 tracked-open (the parallel windows' landings absorbed at each rebase; N-158/N-161 retired convergently by the remote).**
 
 # SUMMARY.md — executive summary (the S42 diff-to-fix lane's convergence on top; the prior lanes below, newest-first)
 # SUMMARY.md — executive summary (the S46 MINOR-first fix lane on top — the user's priority-to-minor directive; the prior lanes below, newest-first)

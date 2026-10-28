@@ -44,6 +44,13 @@ constexpr u16 NODE_FLAG_EXT_SHIFTED = 0x8000;
  * (the pass is idempotent and names are stable). */
 constexpr u16 NODE_FLAG_JUNK_FILTERED = 0x4000;
 
+/* NODE_FLAG_SIZE_EXCEEDS_BLOCKS (N-177, bit 9 - the SAME numeric bit as
+ * the og's node FLAGS 0x200, EXT4SearchDLL :6300-6303): the ext4 engine's
+ * truncation-damage marker - i_blocks coverage cannot cover i_size. Set
+ * for FILES only; persisted with FileProperties.flags (the session
+ * round-trips the field). */
+constexpr u16 NODE_FLAG_SIZE_EXCEEDS_BLOCKS = 0x0200;
+
 enum class Origin : u8 { Structured = 0, Carved = 1, Lost = 2, Virtual = 3 };
 enum class DeletedState : u8 { Active = 0, Deleted = 1, PartiallyOverwritten = 2, Damaged = 3 };
 enum class Confidence : u8 {

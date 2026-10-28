@@ -119,8 +119,8 @@
     the 2106/2107 u32 clamp vs full conversion; exFAT sibling inconsistent);
     ~~**N-174**~~ **FIXED (S46)** (exfat — the `._` AppleDouble sink filter landed, the N-028 family's
     exFAT twin); ~~**N-175**~~ **FIXED (S46)** (fat — NTRes case folding landed); **N-176** (fat — the
-    LFN illegal-char 8.3 fallback absent); **N-177** (ext4 — the size-exceeds-blocks
-    damaged flag (FLAGS 0x200) not carried); **N-178** (cli/orchestration — no CLI
+    LFN illegal-char 8.3 fallback absent); ~~**N-177**~~ **FIXED (S46)** (ext4 — the size-exceeds-blocks
+    damaged flag landed); **N-178** (cli/orchestration — no CLI
     pause verb + no engine pause notification, the landed ABI pair's missing legs).
   - **INFORMATIONAL (6):** **I-035** (S-050's CHK-chain decode addendum: rename
     formats, hex-prefix adapter registry, 36-KiB buffer, tif exclusion);
@@ -671,6 +671,7 @@ not-BAAD both sides; FAT quick-scan threading — already registered D-30x).
 | Module | Parameter(s) | Verdict change (evidence in the finding + `evidence/decompiled-quotes/s6-*`) |
 |---|---|---|
 | fat | B4/B5/D11/A29 | **M-052 — FIXED (s24 DFX24 + s35 convergent)** (recycle-bin $I/$R pairing — the shared cr/recycle model wired into the dentry walk; four-root recognition, chain-read $I parse, original-name remap + post-walk fixup; findings/FIXED/M-052) |
+| ext4 | A11/A13/D15 | **N-177 — FIXED (S46)** (the size-exceeds-blocks damaged marker: NODE_FLAG_SIZE_EXCEEDS_BLOCKS 0x0200 = the og's own FLAGS bit, the clean 64-bit compute `blocks*512 < size` on both emission paths, session round-trip via the existing flags persistence; D-135 registers the og-compute non-adoption; the ext4 fixture's i_blocks_lo now realistic; findings/FIXED/N-177) |
 | fat | A10/B-naming/FB-FalsePos | **N-176 — FIXED (S46)** (the LFN illegal-char fallback: the 9-char gate `?*|\/:"<>` in lfn_assemble — a checksum-valid corrupt LFN carrying any of them now takes the 8.3 fallback exactly like a checksum failure; LfnIllegalCharFallsBackTo83 9-iteration pin + LfnValidNameUnchanged; findings/FIXED/N-176) |
 | fat | A10/B-naming | **N-175 — FIXED (S46)** (the NTRes 8.3 display-case fold: short_name_to_u16 takes the nt_reserved byte and applies the og's four-way exact-value switch — 0x00/0x08/0x10/0x18 fold (strupr/strlwr pairs), anything-else raw; ASCII-only, CP437 high half untouched; LFN path unaffected by construction; NtResCaseFoldFourWay 5-path pin + LFN regression pin + the BitLocker NTRes=0 fixture re-pin; findings/FIXED/N-175) |
 | exfat | B1/A25/S35 | **N-067 FIXED s11** (upcase-table validation — og shape gates + checksum32 stream check, soft stats signal; findings/FIXED/); B4/B5/D11 **M-052 FIXED (s24 DFX24 + s35 convergent)** (the FAT-mirrored pairing — bin context through walk + oracle re-walks; findings/FIXED/M-052) |

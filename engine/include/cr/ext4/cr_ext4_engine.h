@@ -98,6 +98,8 @@ struct Extent {
 struct InodeView {
     u16 mode = 0;
     u64 size = 0;
+    u32 blocks_512 = 0; /* N-177: raw i_blocks_lo (512-byte units) - the
+                         * size-exceeds-blocks damaged-marker input */
     i64 atime = 0, ctime = 0, mtime = 0, dtime = 0, crtime = 0;
     u32 atime_nsec = 0, ctime_nsec = 0, mtime_nsec = 0, crtime_nsec = 0;
     u16 links = 0;

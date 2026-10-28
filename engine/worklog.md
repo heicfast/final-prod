@@ -7777,3 +7777,21 @@ DentryHistogramTenRepeatsStillEmit (the boundary pin), PureVolumeLabelSkippedWal
 SizeChainXorSkippedButWalkContinues, DirSizeAndHighClusterSkipped. Suite 1322/1322
 (linux-release); FatEngine+Telemetry ASan-clean (78/78). Trail: findings/FIXED/M-130 +
 ledger row + matrix cell + fat.md row + this entry.
+## Session-46 minors lane — N-177 landed (2026-10-29)
+
+**N-177 FIXED (MINOR — the ext4 size-exceeds-blocks damaged marker).** Both corpus
+cites re-read first-hand (FUN_180007510 :5455-5467 the verdict compute; :6300-6303
+the caller setting node FLAGS 0x200 for files). Landed: NODE_FLAG_SIZE_EXCEEDS_BLOCKS
+= 0x0200 (the og's own numeric bit), InodeView.blocks_512 populated from i_blocks_lo,
+the clean 64-bit compute (blocks*512 < size, files only) on both emission paths (the
+live-tree child walk + the deleted "InodeNNNN" emission), the session round-trip via
+the existing FileProperties::flags put16/g16 pair (zero persistence code needed).
+The og's compute defects NOT adopted (the +0x1F sign-extension smear + the u32
+truncation of both sides) — registered as PARITY-DELTAS D-135 beside the I-040/D-123
+family. The ext4 fixture's write_inode now populates i_blocks_lo (real volumes always
+carry the coverage word; the zeroed field made every fixture file look damaged —
+caught by the CleanFilesCarryNoBit pin design). Tests: SizeExceedsBlocksSetsDamagedFlag
+(live + deleted + the dir control), DamagedFlagCleanFilesCarryNoBit (pristine
+fixture), DamagedFlagSessionRoundTrip. Suite 1275 ran / 1233 pass / 42 env-skips / 0
+fail. Trail: findings/FIXED/N-177 + ledger row + matrix ext4 row + ext4.md + D-135 +
+this entry.
