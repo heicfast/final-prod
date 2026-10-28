@@ -734,7 +734,8 @@ disposition (T4). NEW rows:
 
 | Module × parameter | Verdict | Finding / evidence |
 |---|---|---|
-| carve · TS/M2TS size cap (C20/A27) | DIVERGENCE-SEVERE | **S-054** — the S-047 landing's `2000000000ull` is 10× the og's 200 MB clamp (`:35507-14` + `:9049`; 2e9 appears nowhere in the og binary); unpinned by any test |
+| carve · TS/M2TS size cap (C20/A27) | **MATCH** (session 40, S-054 FIXED at `d7ba41f6`) — both rows at the og's 200000000 (the clamp :35507-35509, the fallback :35513, the global :9049); registry pin + the 220 MB behavior clamp test; RELEASE-NOTES carries the S-047 repair |
+| carve · suppress_overlap mid-stream walk cost (P47) | **MATCH** (session 40, M-117 FIXED at `d7ba41f6` — discovered during S-054's verification, §8; renumbered M-116→M-117 at the rebase per earlier-push-wins) — the covered check runs BEFORE the validator (the discarded cap-sized walk removed; the 220 MB fixture: >600 s non-completion → 11.3 s; the jump variant rejected — the og ranks overlapping candidates, it does not skip them) |
 | preview/grading · the promotion trigger (D15) | DIVERGENCE-MAJOR | **M-115** — the og promotes on clean recovery-READ success (tier-gated, preview-pane-excluded, decode-independent); core promotes only on decode Ok → core UNDER-promotes damaged-but-readable images; OQ-S11-1 RESOLVED (the decode inverts the board-truth hypothesis); the ≤20-byte over-promotion edge included |
 | boot-repair · the recovered-OS write-side surgery (P1/A54-58) | DIVERGENCE-MAJOR | **M-113** — the genuefisystemfile.cpp chain (TempSystem MountedDevices / TmpBCD device-element 12000004 / TmpSoftWare / SystemSetup+bootstat) absent + unregistered; R-69's "PRESENT" verdict covers only BCD-cell+NVRAM |
 | apply · the host-environment side-effects (P60/A35) | DIVERGENCE-MAJOR | **M-114** — MainModule's silent System-Restore purge (srclient via WMI, both drives, 510-index fallback) absent + undecided + undocumented-in-corpus |

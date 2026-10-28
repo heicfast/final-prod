@@ -4122,6 +4122,29 @@ driver-repo grant boundary).
 rm of files this session itself appended verification addenda to). No source
 code was modified. No fix was applied.
 
+## Fix session 40 (continued) — S-054 + the M-117 discovery (renumbered from the draft M-116 at the push-rebase: the S11-R lane's archive-inventory M-116 pushed first, per the earlier-push-wins rule)
+
+- **S-054 FIXED** — the TS/M2TS carve cap re-pinned to the og's 200 MB
+  controller global (2000000000 → 200000000 on both rows; the "x 10"
+  provenance refuted — the clamp at RAWSearchDLL:35507-35509, the
+  fallback literal :35513, the global :9049, and 2e9 appears nowhere in
+  the binary — every cite re-verified first-hand at the fix). Tests:
+  Carve.TsM2TsCapIsTheOg200MB (registry pin) +
+  Carve.TsStreamClampedAt200MB (behavior: the 220 MB stream clamps;
+  pre-fix one ~219,999,852-byte node). RELEASE-NOTES carries the S-047
+  repair note.
+- **M-117 (drafted M-116; renumbered at the push) FILED + FIXED (discovered during S-054's verification, per §8
+  — announced here and in the commit)** — the suppress_overlap trial
+  loop ran the full cap-sized validator walk for every mid-stream sync
+  BEFORE the covered check discarded it: the 220 MB fixture did not
+  complete inside 600 s pre-fix; post-fix 11.3 s. The fix is the
+  pre-validator covered-check reorder (terminal states identical). The
+  post-emission jump variant was tried and REJECTED — it broke
+  S007CommonFormatsCarve (an AAC ADTS start inside another format's
+  walked extent; the og RANKS overlapping candidates, it does not skip
+  them) — the code comment at the emission site records the lesson.
+  Suite 1030/1030 + 59 green.
+
 ---
 ### Session-11D W1 final (the S-051 CONVERGENT DU merge — the union of both lanes' landings)
 
