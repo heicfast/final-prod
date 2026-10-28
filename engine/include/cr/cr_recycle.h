@@ -7,7 +7,9 @@
  * for NTFS only (cr_mftwalk.cpp). This header is the shared model the
  * three engines consume; the NTFS walk keeps its own thin wrappers so its
  * landed behavior (and tests) are unchanged except where the M-052
- * verification found a scope defect (see N-079, findings/FIXED/).
+ * verification found a scope defect (see N-079 - the FIXED-LEDGER's row;
+ * the Resolution is in history at the row's commit, per the purge
+ * convention).
  *
  * Corpus ground truth (verified first-hand, session DFX35):
  *   - Root recognition is _stricmp over FOUR names, both engines:

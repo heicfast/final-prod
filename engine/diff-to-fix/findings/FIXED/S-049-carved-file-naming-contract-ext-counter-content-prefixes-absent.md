@@ -71,18 +71,76 @@ See fix plan step 5 — nine named scenarios, each derived from the real-session
 The exact precedence when a JPEG carries BOTH EXIF Model and Software (real sessions show both families; no observed co-occurrence sample settles order) — the fix lane should pin with a fixture that mirrors the og's behaviour, decoded at the analyser if ambiguous. The MP4/MOV template-vs-EXT interplay (fix plan step 4).
 
 
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** this session's S-049 landing (session-40 fix lane; cite-by-title per the N-135 rule: "fix(carve): S-049 - the og's universal carved-file naming contract lands")
+**Verified by:** `CarveEngine.OgNamingUniversalExtCounter` (plain PNG -> PNG_000001.PNG / DOCX -> DOCX_000001.DOCX), `OgNamingJpgSofDimensions` (JPG_48x64_000001.JPG), `OgNamingJpgExifModelAndSoftware` (GT-S7562 over dims+Software; Adobe Photoshop 7.0 when Model absent - spaces preserved verbatim), `OgNamingCounterPast99999Unpadded` (GZ_099999.GZ / GZ_100000.GZ - FUN_140c44770 both branches), `OgNamingMp3Id3Title` (AREE DEEWANO MUJHE PECHANO_000001.MP3), `OgNamingPdfCreatorAndDatePrefixes` (TeX2022-03-03 21-11-38_000001.PDF; the 25-char Title truncation pin "LaTeX with hyperref packa"; matplotlib's dashed date -> no date; the bare date 2020-05-23 23-23-23), `OgNamingDocxCreatedTimestamp` (2006-07-25 02-16-00_000001.DOCX), `OgNamingZipFirstCentralDirectoryEntry` (backup_archive_v1.txt_000001.ZIP), `OgNamingWavInamTitle` (BIRD_000001.WAV), `Mp4NamedByDurationPrefix` / `MovNamedByDurationPrefix` / `MovV1MvhdDurationRead` (MP4_06s / MOV_06s - the mvhd timescale/duration prefix; the v1 duration read from its proper field), `FileNnnnFallbackRemoved` (no carved name starts "File"+digits - the retired default pinned absent), `Orchestrator.CarveSingleNamingFamily` (re-pinned: one naming family across both layers, now the og contract). All RED pre-fix by construction (the fail-before set: 39 carve tests asserting the superseded File%06u / template names). Full suite 1122/1122 (linux-release); clang-format clean.
+**Resolution notes:** Re-verified against the corpus FIRST-HAND before the fix: the naming function FUN_140c44770 read directly at DRWUI_decompiled.c:1878330-81 (L"%s_%06d" / L"%06d" / the >99999 L"%d"/L"%s_%d" fallbacks, the 0xff snprintf buffer), BOTH caller sites traced (:1877600/:1877724 - the map-lookup + node+8 counter-increment + the counter read; the prefix construction :1877538-64: the parenthesized-substring extraction branch, the %dx%d dims branch gated W,H in [1,0x2000], DAT_14187f760 = L"%s" verified byte-exact in the PE), and THE THREE REAL OG SESSIONS re-mined first-hand this session with the core's own compare_og_rsf.py (~2M rows): the naming model is EXTENDED beyond the finding's own decode - (1) the counter is PER-FORMAT, not global (JPG 1..3938 continuous across the plain/dims/Model/Software prefix variants; GZ 1..27,694; PNG 1..17,580 - each format counts its own files from 1); (2) the default prefix is the format's own UPPERCASE EXTENSION (GZ_000001.GZ, PNG_000001.PNG - every observed format), not the format display name ("JPEG" never appears); (3) the extension in the name is UPPERCASE; (4) the content-derived prefix families are richer than the finding's table: JPEG Model/Software REPLACE the prefix (GT-S7562, Adobe Photoshop 7.0, Android SP1A.210812.016.T505XXS4CVJ1 - 36 chars, NO truncation) while the dims compose it (JPG_192x144, JPG_1x1); MP4/MOV carry the mvhd DURATION prefix (MP4_14s, MP4_08m07s, MP4_01m, MOV_10s, MOV_01m01s - %02u-padded minutes/seconds); PDF prefixes by Title (25-char read cap - pinned by TWO independent truncations: "LaTeX with hyperref packa" and " TeX output 1998.06.28_17") else Creator/Producer + CreationDate (YYYY-MM-DD HH-MM-SS from the PLAIN D:YYYYMMDDHHMMSS form only; matplotlib's dashed form never yields a date in any session); DOCX by the docProps created date; ZIP by the first central-directory entry name with path separators -> _ (META-INF/ -> META-INF_; dots PRESERVED - the finding's "LICENSE_OFL_N.ZIP" dot-translation example is corrected by the classes.dex x44 / 027.jpg families: the observed LICENSE_OFL row is the literal entry name); WAV by LIST/INFO INAM (BIRD x90, RAIN x60, CAR x50 - INAM being optional metadata explains the 348/548 plain rows). ONE FINDING CORRECTION + ONE SUPERSESSION, both evidence-executed: (a) the finding's "META-INF__N.ZIP (275)" count belongs to the META-INF_ family (275 rows across sessions, verified by direct CSV census); (b) the N-063 MP4/MOV "Lost Name File (<time>)_EaseUS" template landing is SUPERSEDED on the carve-tree application - 57/57 real MP4/MOV carve rows are MP4_%06d.MP4 / MP4_<duration>_%06d.MP4 / MOV_* and ZERO template names: the DRWUI tree-naming layer names every unnamed carve record through the %s_%06d contract and the engine's SetName template does not survive it (the engine-side decode remains real - PARITY-DELTAS D-76 rewritten with the full supersession record). Implementation: CarveResult::embedded_name (full-name semantics) -> CarveResult::name_prefix (prefix semantics, the S-049 carrier); default_namer emits the og contract (the caller's per-format counter through `index`); the per-format counter map lives in the carve ScanCtx (mutex-guarded - the parallel-mode emission composes names on worker threads); mp4_og_name replaced by mp4_duration_prefix (the moov/mvhd walk retained, the duration fields read from the proper v0/v1 layouts). Open nuances recorded (no observed sample separates them): the JPEG Model-vs-Software precedence (Model-first implemented; the Android-fingerprint phones in the G session are consistent with Model-absent) and the PDF Creator-vs-Producer order (Creator-first; every observed non-Title string matches its file's Creator). TTF prefix families observed (SHIV01/SHIV02/SHIV05 - 11/59 rows) but NOT implemented: a naive family-name read contradicts the 48/59 plain rows (most fonts carry family names); the read-bound condition is undecoded - recorded here as the follow-up probe (RAWSearchDLL's TTF analyser name-table walk bounds). The parallel M-108 landing's format dirt (cr_preview.cpp/test_preview.cpp) repaired in the same push (the S-38 style-repair precedent).
+
+
 ---
 
 ## Session-11B cite-refresh addendum (2026-10-29, re-triage at `743d7b8d`)
 
 cr_carve.cpp cites drifted: default_namer now :934-951 (was :907-921), the format literal at :944; the precedence chain now :451-459 (was :429-432); the only two embedded_name producers remain cr_analysers.cpp:727/:736 (MP4/MOV) — the M-093/M-096 landings ADDED formats (XML/SVG/MOBI) without prefix extractors, so this finding's scope GREW: every newly-carved format also defaults to File%06u
 
+*(Pre-fix historical record — the scope-growth observation this addendum registered is RESOLVED by the S-049 landing: the universal `<PREFIX>_<%06d>.<UPPEREXT>` contract with the uppercase-ext default prefix covers every format, present and future — a format with no decoded content prefix takes its own uppercase extension as the prefix by construction. The cite-refresh's stale line numbers belong to the pre-fix tree.)*
 
 ---
 
-## Resolution
+## Session-42 convergence addendum (2026-10-29 — the S42 fix lane's independent landing + the executed arbitration)
 
-**Status:** FIXED
-**Fixed in commit:** this session's S-049 landing (the S42 fix lane; cite-by-title: "fix(carve): S-049 - the og's universal carved-file naming contract lands")
-**Verified by:** `CarveEngine.OgNamingUniversalExtCounter` (PNG_000001.PNG, the retired File%06u asserted ABSENT), `CarveEngine.OgNamingCounterPast99999` (the %d fallback), `CarveEngine.OgNamingJpgSofDimensions` (JPG_48x64_000001.JPG), `CarveEngine.OgNamingJpgExifModel` (GT-S7562_000001.JPG; Model-over-Software), `CarveEngine.OgNamingJpgExifSoftware` (Adobe Photoshop 7.0_000001.JPG), `CarveEngine.OgNamingMp3Id3Title` (AREE DEEWANO MUJHE PECHANO_000001.MP3), `CarveEngine.OgNamingPdfTimestamp` (2020-05-23 23-23-23_000001.PDF), `CarveEngine.OgNamingDocxTimestamp` (KIS2_2022-05-25 13-14-00_000001.DOCX) + `OgNamingDocxTimestampAlone` (2006-07-25 02-16-00_000001.DOCX), `CarveEngine.OgNamingZipFirstEntry` (META-INF__000001.ZIP) + `OgNamingZipFirstEntryDotted` (LICENSE_OFL_000001.ZIP), `CarveEngine.OgNamingSessionWideCounters` (the session-wide counter continuation), `CarveEngine.Mp4NamedByOgUniversalContract` / `MovNamedByOgUniversalContract` / `MovV1CarvesUnderUniversalName` (MP4_000001.MP4 / MOV_000001.MOV - the template never fires), `Orchestrator.CarveSingleNamingFamily` (one family). Suite 1193/1193 linux-release; clang-format clean. Fail-before: the pristine tree names every carve File%06u.ext (and MP4/MOV via the N-063 template); the new tests do not compile against the pristine API (the CarveNameCounters/name_prefix carriers are new) and the old name assertions fail against the fixed code (the 100-failure red run before the assertion updates, both directions witnessed this session).
-**Resolution notes:** Re-verified at the CURRENT tree (4e74ee2f) before the fix: default_namer still formatted File%06u (cr_carve.cpp:973-988), embedded_name still fed only by the MP4/MOV template (cr_analysers.cpp:727/:736 per the S-11B cite-refresh), the finding's scope-growth note (M-093/M-096 formats defaulting to File%06u) confirmed - CONFIRMED-DIVERGENCE. Corpus re-verified FIRST-HAND beyond the finding's citations: FUN_140c44770 re-read at DRWUI_decompiled.c:1878330-81 (the %s_%06d / %06d / >99999 literals); the two data constants extracted from the shipped DRWUI.exe binary (VA 0x14187f760 = L"%s", VA 0x14188017c = L"_"); the no-string caller branch decoded (:1877537-7611: the format-name + L"_" prepend explains BOTH the universal <EXT>_<%06d> form AND the JPG_<W>x<H> dims form; the 1..8192 dims gate at :1877537-42; the format-keyed counter map); the analyser-string branch (:1877634-7730: per-string counters, no format prepend - GT-S7562_000123 = the 123rd GT-S7562 file); the engine-side EXIF walk (RAWSearchDLL :40382-40510: tag 0x110 Model unconditional, 0x131 Software only when no Model, both strncpy'd at a 0x27=39-char cap); the office metadata walk (:53530-53666: dc:creator + dcterms:created from cp:coreProperties - the KIS2_2022-05-25 13-14-00 real form is creator+created); the MP4 template's engine-side construction re-read (:33280-33447) with its destination field identified as NOT the DRWUI carve-naming source (the real sessions settle it). The fix landed the decoded contract end-to-end: the analyser-supplied PREFIX carrier (CarveResult::name_prefix, renamed from N-063's full-name embedded_name - the og's analyser supplies a prefix string, the naming site composes <prefix>_<%06d>), the dims carrier (dim_w/dim_h with the 1..8192 gate), the session-wide per-prefix counter map (CarveFlags::name_counters bound once per ScanController - the og's session-wide DRWUI map), per-analyser prefix extraction (JPEG EXIF Model/Software with the 39-char cap + SOF dims; MP3 TIT2 across the four ID3 encodings; PDF /CreationDate; DOCX docProps/core.xml with the inflate path through the compress layer; ZIP first central-directory/local entry name with the / and . -> _ sanitization pinned by the three real forms), the %d fallback past 99999, the UPPERCASE extension (every real-session name), and the MP4/MOV template's retirement from the carve path (N-063's carve-path half superseded - the template decode preserved in PARITY-DELTAS D-76). The File%06u deliberate default and its D-76 registration are retired (D-76 rewritten: resolved-to-parity); the D-113-lineage layering stands (the namer callback remains the host-policy hook for rule-less formats, now consulted only when no decoded og prefix exists). The open question in the finding (Model+Software co-occurrence precedence) is resolved by the engine decode: Model wins (Software read only when no Model was seen, :40471-40482); the MP4/MOV nuance (fix plan step 4) is resolved by the executed evidence + the destination-field decode. Safety hardenings untouched (no overlap-refusal / consent / 4Kn surface near this change). Corpus citations: DRWUI_decompiled.c:1878330-81/:1877537-7611/:1877634-7730, RAWSearchDLL_decompiled.c:40382-40510/:53530-53666/:33280-33447, og-codebase/DRWUI.exe (the two data constants), evidence/executions/s10b-real-rsf-session-mining.md (the 189,115-row census).
+Two lanes landed S-049 independently in the same window (the S-051 DU
+precedent): the session-40 severe lane's landing pushed FIRST and stands
+as the primary; the S42 lane's landing (the local ee1c6760, never pushed
+alone) is reconciled into the union at the merge. The S42 lane's
+independent first-hand verification ADDS to the record:
+
+1. **The two DRWUI.exe data constants extracted from the shipped binary**:
+   VA 0x14187f760 = L"%s", VA 0x14188017c = L"_" (pefile, first-hand).
+2. **The caller-branch decode**: the no-string branch at :1877537-7611
+   prepends the FORMAT NAME + L"_" (explaining BOTH the universal
+   <EXT>_<%06d> form AND the JPG_<W>x<H> dims form) and draws the
+   counter from the format-keyed map slot; the analyser-string branch at
+   :1877634-7730 composes its map key from the string + the format.
+3. **The engine-side EXIF precedence re-read** (RAWSearchDLL
+   :40382-40510): tag 0x110 Model unconditional, 0x131 Software only
+   when no Model, both strncpy'd at a 0x27=39-char cap; the office
+   metadata walk at :53530-53666 (dc:creator + dcterms:created).
+4. **THE COUNTER-KEY ARBITRATION (executed, first-hand)**: the S42 lane
+   re-mined both the G and H sessions' CSVs and settled the counter
+   semantics the primary landing's "per-format" claim only half-captured.
+   TWO key classes exist: the branch-1 PER-FORMAT key (shared by the
+   plain rows AND every DERIVED composition: the H-session JPG
+   plain+dims union spans 1..952 at 96.7% density; the MP4 families
+   interleave ONE 1..8 counter across plain/01m/22s/12s; the date-alone
+   DOCX rows run 1..19 across three DIFFERENT dates) and the branch-2
+   PER-STRING key (every analyser string counts from 1: ZIP - META-INF_
+   1..193, META-INF_MANIFEST.MF 1..56, classes.dex 1..28, EVERY family
+   1-based dense; PDF keyed by the producer string - TeX 1..453, GPL
+   Ghostscript 9.56.1 1..158, "LaTeX with hyperref packa" 1..46; DOCX
+   keyed by the creator - jacko 1..6 across six different dates, KIS2
+   1..2, Wei Chen 1..2; EXIF - Adobe Photoshop 7.0 1..45 dense). The
+   union implements the two-class rule: CarveResult::name_counter_key
+   (the analyser string) keys branch 2; empty (the derived forms) keys
+   branch 1.
+5. **The DOCX creator composition**: the primary landing's date-only
+   form was HALF the truth - the G-session census shows the creator
+   composes with the date (jacko_2014-09-10 20-43-00_N x6, KIS2_2022-05-25
+   13-14-00_N, Wei Chen_2017-05-25 19-28-00_N x2, python-docx_2013-12-23
+   23-15-00_N) while the creator-less docs fall to the date-alone form
+   (2006-07-25 02-16-00_N x24). The union lands the full composition.
+6. **The session-wide counter map**: CarveFlags::name_counters (one
+   CarveNameCounters per ScanController, bound into every slice) - the
+   og's DRWUI map is session-scoped (its lifetime is the tree-naming
+   context), so volume B's first JPG continues volume A's counter; the
+   per-call local map remains the null-binding fallback.
+
+Proof additions (the union tree, suite 1229/1229):
+`CarveEngine.OgNamingDocxCreatorComposesWithCreated` (the KIS2 form),
+`CarveEngine.OgNamingCounterKeyTwoClasses` (the branch-1 sharing:
+JPG_48x64_000001 + JPG_000002; the per-string families: SoftA_000001 +
+SoftB_000001), `CarveEngine.OgNamingSessionWideCounters` (the
+cross-slice continuation). The primary landing's own 13-test set stands
+unchanged and green.

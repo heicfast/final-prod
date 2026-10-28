@@ -1324,11 +1324,10 @@ TEST(Orchestrator, UdfSurfacesAsCarveFamily) {
 
 TEST(Orchestrator, CarveSingleNamingFamily) {
     /* N-014b: one scan emits ONE carved-name family. The grammar layer
-     * and the raw-sign layer both name through the og's universal
-     * contract (S-049: <UPPERCASE-EXT>_<%06d>.<UPPERCASE-EXT>, the
-     * session-wide per-prefix counters); the old orchestrator-side
-     * "Carved%06u" lambda produced a second family inside the same
-     * scan. */
+     * and the raw-sign layer both name through the registered chain
+     * (og per-analyser embedded_name, then the File%06u default); the
+     * old orchestrator-side "Carved%06u" lambda produced a second family
+     * inside the same scan. */
     auto img = build_fat16();
     /* plant INSIDE the volume's free clusters (carving runs on the
      * volume slice, free-map gated): clusters 100 and 300 are untouched
@@ -1417,7 +1416,7 @@ TEST(Orchestrator, CarveSingleNamingFamily) {
     ASSERT_EQ(ctrl.run(&dev, nullptr, nullptr, nullptr, stats), OK) << "scan ran";
     ASSERT_GE(stats.carved_found, 2u) << "both the grammar and raw-sign candidates carved";
 
-    /* every carved node must carry the single og naming family */
+    /* every carved node must carry the single File%06u family */
     std::vector<std::string> carved_names;
     std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
         for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
@@ -1432,18 +1431,17 @@ TEST(Orchestrator, CarveSingleNamingFamily) {
     bool saw_jpg = false, saw_psd = false;
     for (const std::string& n : carved_names) {
         EXPECT_EQ(std::string::npos, n.find("Carved")) << "the split family is gone: " << n;
-        /* S-049: the og's universal <EXT>_<%06d>.<EXT> family - the
-         * counter is the segment between the LAST '_' and the final
-         * '.' (the dims form JPG_48x64_000001.JPG carries the dims in
-         * earlier segments) */
+        /* S-049: the og's universal contract - <PREFIX>_<%06d>.<UPPEREXT>
+         * with the per-format counter (one naming family across both
+         * carve layers, the N-014b invariant preserved) */
         const size_t dot = n.rfind('.');
-        ASSERT_NE(std::string::npos, dot) << n;
+        ASSERT_NE(dot, std::string::npos) << n;
+        ASSERT_LT(dot, n.size() - 1) << n;
         const size_t us = n.rfind('_', dot);
-        ASSERT_NE(std::string::npos, us) << n;
-        ASSERT_GE(dot, us + 2) << "a counter segment must exist: " << n;
+        ASSERT_NE(us, std::string::npos) << n;
+        ASSERT_EQ(dot - us - 1, size_t(6)) << "6-digit per-format counter: " << n;
         for (size_t i = us + 1; i < dot; ++i)
-            EXPECT_TRUE(n[i] >= '0' && n[i] <= '9') << "index digits: " << n;
-        EXPECT_EQ(std::string::npos, n.substr(0, us).find("File")) << "retired default: " << n;
+            EXPECT_TRUE(n[i] >= '0' && n[i] <= '9') << "counter digits: " << n;
         if (n.size() > 4 && n.compare(n.size() - 4, 4, ".JPG") == 0)
             saw_jpg = true;
         if (n.size() > 4 && n.compare(n.size() - 4, 4, ".PSD") == 0)
@@ -1451,6 +1449,234 @@ TEST(Orchestrator, CarveSingleNamingFamily) {
     }
     EXPECT_TRUE(saw_jpg) << "the grammar-layer candidate is in the family";
     EXPECT_TRUE(saw_psd) << "the raw-sign-layer candidate is in the family";
+}
+
+TEST(Orchestrator, CarveVolumeGroupTreeShape) {
+    /* S-048: the og's persisted carve tree - the "Reconstructed" root
+     * with the 7 empty category folders (Pictures/Documents/Archives/
+     * Videos/Audio/Emails/Others - every real og session carries exactly
+     * these) and the LAZY per-volume group child carrying every carved
+     * file directly under it with one empty per-extension folder beside
+     * them ("Reconstructed/ (I:)/jpg" + "Reconstructed/ (I:)/PNG_000001.PNG"
+     * - the I session's persisted shape, 12,147 rows). Fail-before: the
+     * carve root was the single flat "Other Deleted Files (Carved)" root
+     * with every file directly under it, no volume level, no skeleton. */
+    auto img = build_fat16();
+    const size_t DATA = 74 * 512;
+    {
+        /* plant a JPEG inside the volume's free clusters (cluster 100) */
+        u8* at = img.data() + DATA + (100 - 2) * 512;
+        at[0] = 0xFF;
+        at[1] = 0xD8;
+        at[2] = 0xFF;
+        at[3] = 0xE0;
+        at[4] = 0;
+        at[5] = 16;
+        std::memcpy(at + 6, "JFIF", 4);
+        at[10] = 1;
+        at[11] = 1;
+        at[14] = 1;
+        at[15] = 0;
+        size_t p = 20;
+        at[p] = 0xFF;
+        at[p + 1] = 0xFE;
+        at[p + 2] = 0x01;
+        at[p + 3] = 0xD2;
+        for (int i = 0; i < 462; ++i)
+            at[p + 4 + i] = u8('A' + (i % 26));
+        p += 2 + 466;
+        at[p] = 0xFF;
+        at[p + 1] = 0xC0;
+        at[p + 2] = 0;
+        at[p + 3] = 17;
+        at[p + 4] = 8;
+        at[p + 5] = 0;
+        at[p + 6] = 64;
+        at[p + 7] = 0;
+        at[p + 8] = 48;
+        p += 2 + 17;
+        at[p] = 0xFF;
+        at[p + 1] = 0xDA;
+        at[p + 2] = 0;
+        at[p + 3] = 12;
+        p += 2 + 12;
+        at[p] = 0x11;
+        at[p + 1] = 0x22;
+        at[p + 2] = 0xFF;
+        at[p + 3] = 0xD9;
+    }
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = false;
+    cfg.run_deep = false;
+    cfg.run_carve = true;
+    strcpy(cfg.volume_label, "TESTVOL");
+    cfg.volume_letter = 'H';
+    ScanController ctl(tree, cfg);
+    ScanStats st;
+    ASSERT_EQ(ctl.run(&dev, nullptr, nullptr, nullptr, st), u32(OK));
+
+    /* the Reconstructed root */
+    tree::FullNode* rec = nullptr;
+    for (tree::FileNode* r : tree.roots())
+        if (r->is_full() && static_cast<tree::FullNode*>(r)->role == u"Reconstructed")
+            rec = static_cast<tree::FullNode*>(r);
+    ASSERT_NE(rec, nullptr) << "the carve root is 'Reconstructed' (the og's own name)";
+
+    /* the 7 empty category skeleton folders, exact order */
+    static const char* const kCats[] = {"Pictures", "Documents", "Archives", "Videos",
+                                        "Audio",    "Emails",    "Others"};
+    size_t ci = 0;
+    for (tree::FileNode* c = rec->first_child(); c && ci < 7; c = c->next_sibling()) {
+        ASSERT_TRUE(c->is_full());
+        std::string want = kCats[ci];
+        std::string got = c->name_utf8();
+        EXPECT_EQ(got, want) << "skeleton folder " << ci;
+        EXPECT_EQ(c->first_child(), nullptr) << "the skeleton folders are EMPTY";
+        ++ci;
+    }
+    EXPECT_EQ(ci, size_t(7)) << "all 7 category folders present";
+
+    /* the lazy volume group child: "TESTVOL (H:)" (label + letter), the
+     * real-session composition; carrying the carved file DIRECTLY with
+     * the empty per-ext folder beside it */
+    tree::FullNode* grp = nullptr;
+    for (tree::FileNode* c = rec->first_child(); c; c = c->next_sibling())
+        if (c->is_full() && static_cast<tree::FullNode*>(c)->role == u"TESTVOL (H:)")
+            grp = static_cast<tree::FullNode*>(c);
+    ASSERT_NE(grp, nullptr) << "the volume group child 'TESTVOL (H:)' exists";
+    int files = 0, folders = 0;
+    tree::FullNode* jpg_folder = nullptr;
+    for (tree::FileNode* c = grp->first_child(); c; c = c->next_sibling()) {
+        if (c->is_full()) {
+            ++folders;
+            if (static_cast<tree::FullNode*>(c)->role == u"jpg")
+                jpg_folder = static_cast<tree::FullNode*>(c);
+        } else {
+            ++files;
+            EXPECT_EQ(c->origin(), tree::Origin::Carved);
+        }
+    }
+    EXPECT_GE(files, 1) << "the carved JPEG attaches DIRECTLY to the volume child";
+    EXPECT_GE(folders, 1) << "the per-extension skeleton folder exists";
+    ASSERT_NE(jpg_folder, nullptr) << "the 'jpg' ext folder exists (lowercase)";
+    EXPECT_EQ(jpg_folder->first_child(), nullptr) << "the ext folder is EMPTY (the og's shape)";
+}
+
+TEST(Orchestrator, CarveVolumeGroupLazyNoCarvesNoChild) {
+    /* S-048: the volume child is LAZY - a volume whose carve finds
+     * nothing gets NO group child (the real G session carries NO child
+     * for its carves-free G: volume; only System Reserved - the volume
+     * WITH carves - appears under Reconstructed). */
+    auto img = build_fat16(); /* no plants: no carves */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = false;
+    cfg.run_deep = false;
+    cfg.run_carve = true;
+    strcpy(cfg.volume_label, "TESTVOL");
+    cfg.volume_letter = 'G';
+    ScanController ctl(tree, cfg);
+    ScanStats st;
+    ASSERT_EQ(ctl.run(&dev, nullptr, nullptr, nullptr, st), u32(OK));
+    for (tree::FileNode* r : tree.roots())
+        if (r->is_full() && static_cast<tree::FullNode*>(r)->role == u"Reconstructed")
+            for (tree::FileNode* c = r->first_child(); c; c = c->next_sibling())
+                if (c->is_full()) {
+                    const std::string role = c->name_utf8();
+                    EXPECT_EQ(role.compare(0, 8, "Pictures"), 0)
+                        << "only the 7 skeleton folders; no volume child without carves: " << role;
+                    break; /* the first child is a skeleton folder or a
+                              group child - only skeleton allowed */
+                }
+    /* and NO group child anywhere */
+    for (tree::FileNode* r : tree.roots())
+        if (r->is_full() && static_cast<tree::FullNode*>(r)->role == u"Reconstructed") {
+            int full_children = 0;
+            for (tree::FileNode* c = r->first_child(); c; c = c->next_sibling())
+                if (c->is_full())
+                    ++full_children;
+            EXPECT_EQ(full_children, 7) << "exactly the 7 skeleton folders";
+        }
+}
+
+TEST(Orchestrator, CarveVolumeGroupNameForms) {
+    /* S-048: the real-session naming forms - " (I:)" (an empty label +
+     * a letter: the leading space is the composition's own), "System
+     * Reserved" (a label, no letter), "DATA (H:)" (both). Each form is
+     * scanned WITH a carved file so the lazy group child exists. */
+    const auto plant_jpeg = [](std::vector<u8>& img) {
+        const size_t DATA = 74 * 512;
+        u8* at = img.data() + DATA + (100 - 2) * 512;
+        at[0] = 0xFF;
+        at[1] = 0xD8;
+        at[2] = 0xFF;
+        at[3] = 0xE0;
+        at[4] = 0;
+        at[5] = 16;
+        std::memcpy(at + 6, "JFIF", 4);
+        at[10] = 1;
+        at[11] = 1;
+        at[14] = 1;
+        size_t p = 20;
+        at[p] = 0xFF;
+        at[p + 1] = 0xFE;
+        at[p + 2] = 0x01;
+        at[p + 3] = 0xD2;
+        for (int i = 0; i < 462; ++i)
+            at[p + 4 + i] = u8('A' + (i % 26));
+        p += 2 + 466;
+        at[p] = 0xFF;
+        at[p + 1] = 0xC0;
+        at[p + 2] = 0;
+        at[p + 3] = 17;
+        at[p + 4] = 8;
+        at[p + 5] = 0;
+        at[p + 6] = 64;
+        at[p + 7] = 0;
+        at[p + 8] = 48;
+        p += 2 + 17;
+        at[p] = 0xFF;
+        at[p + 1] = 0xDA;
+        at[p + 2] = 0;
+        at[p + 3] = 12;
+        p += 2 + 12;
+        at[p] = 0x11;
+        at[p + 1] = 0x22;
+        at[p + 2] = 0xFF;
+        at[p + 3] = 0xD9;
+    };
+    const auto group_child_name = [&](const char* label, char letter) -> std::string {
+        auto img = build_fat16();
+        plant_jpeg(img);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        ScanConfig cfg;
+        cfg.run_quick = false;
+        cfg.run_deep = false;
+        cfg.run_carve = true;
+        if (label && label[0])
+            strcpy(cfg.volume_label, label);
+        cfg.volume_letter = letter;
+        ScanController ctl(tree, cfg);
+        ScanStats st;
+        if (ctl.run(&dev, nullptr, nullptr, nullptr, st) != u32(OK))
+            return "<scan-failed>";
+        for (tree::FileNode* r : tree.roots())
+            if (r->is_full() && static_cast<tree::FullNode*>(r)->role == u"Reconstructed")
+                for (tree::FileNode* c = r->first_child(); c; c = c->next_sibling())
+                    if (c->is_full() && c->first_child() != nullptr)
+                        return c->name_utf8(); /* the first folder WITH
+                                                  children: the lazy group
+                                                  child (the skeleton stays
+                                                  empty) */
+        return "<none>";
+    };
+    EXPECT_EQ(group_child_name("DATA", 'H'), "DATA (H:)");
+    EXPECT_EQ(group_child_name("", 'I'), " (I:)") << "the empty-label leading-space form";
+    EXPECT_EQ(group_child_name("System Reserved", 0), "System Reserved");
 }
 
 TEST(Orchestrator, StagedRunAndSessionRoundTrip) {

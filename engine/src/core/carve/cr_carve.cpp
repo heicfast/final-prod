@@ -25,6 +25,8 @@
 #include <atomic>
 #include <chrono>
 #include <cstring>
+#include <map>
+#include <mutex>
 #include <ctime>
 #include <set>
 
@@ -71,7 +73,7 @@ constexpr u32 kTrialOrder[] = {
     FMT_WPD, FMT_PSP, FMT_SIT, FMT_GZ, FMT_APE, FMT_AU, FMT_AIFF, FMT_LOWDOC, FMT_LOWDOC2, FMT_HLP,
     FMT_ICO, FMT_CUR, FMT_WMF_PL, FMT_WMF, FMT_TTF, FMT_MDB,
     /* M-084: the og branch order - Jet first, then the ACE generation */
-    FMT_ACCDB, FMT_TAR, FMT_EPS, FMT_AI, FMT_DXF,
+    FMT_ACCDB, FMT_TAR, FMT_EPS, FMT_AI, FMT_DXF, FMT_DXF_C999,
     /* S-041 niche batch 2, school 1 (SCAN-4): og-verified grammars;
      * FMT_3DS rides the 2-byte MM key AFTER the TIFF family (TIFF-BE's
      * 4-byte MM 00 2A key is the more specific magic at the same
@@ -103,6 +105,14 @@ constexpr u32 kTrialOrder[] = {
      * forms, which the M-093 XML rows also key - the grammars reject each
      * other's content) */
     FMT_VCF, FMT_GPX, FMT_GPX_BOM, FMT_OSP, FMT_POS, FMT_CHFP,
+    /* N-115: the OfficeTagFromXML typing set - override targets sharing
+     * the LFH key; the FMT_DOCX row (earliest of the family) wins the
+     * registry-order tie and the typing walk's override carries the
+     * true id; these slots make the trial table exhaustive */
+    FMT_XLSX, FMT_PPTX, FMT_ODT, FMT_ODS, FMT_ODP, FMT_EPUB, FMT_IWORK, FMT_HWP, FMT_CDR,
+    /* M-121 (the renumber chain M-117->M-118->M-121 per SA-9): the Outlook Express Dbx keys
+     * (distinct 4-byte magics, one shared validator - the og stamps id 0x15 regardless of key) */
+    FMT_DBX_JMF6, FMT_DBX, FMT_DBX_MARKED,
     /* S-017: ftyp-destroyed MOV salvage (og MovAnalyzer list layer) -
      * LAST: the ftyp-keyed entries must claim the position first */
     FMT_MOV_NAKED};
@@ -152,13 +162,69 @@ struct ScanCtx {
      * the same worker that scans the window, and read within the same
      * window scan - cross-window overlap re-checks by re-walking). */
     std::vector<std::pair<u64, u64>> overlap_covered;
-    /* S-049: the per-prefix name counters. flags->name_counters (the
-     * orchestrator's session-wide instance) when bound, else this
-     * per-call local (the single-slice embed case). The og's DRWUI
-     * counter map is session-wide (FUN_140c44770's callers); the local
-     * fallback keeps the embed contract usable standalone. */
-    CarveNameCounters local_counters;
     std::atomic<bool> aborted{false};
+    /* S-049 (the S42 arbitration refinement): the naming counters - the
+     * og's map-keyed counter (DRWUI_decompiled.c:1877584-90, the node+8
+     * increment). TWO key classes, real-session-pinned first-hand by the
+     * G/H CSV census (this session): the branch-1 PER-FORMAT key (the
+     * format's UPPERCASE extension) shared by the plain rows AND every
+     * derived composition (JPEG dims, MP4/MOV duration, the date-alone
+     * forms - the JPG plain+dims union 1..952 at 96.7% density; the MP4
+     * families interleave one 1..8 counter; the date-alone DOCX rows
+     * 1..19 across three dates), and the branch-2 PER-STRING key (the
+     * analyser string: ZIP entry names - every family 1-based dense;
+     * PDF producer strings - TeX 1..453; DOCX creators - jacko 1..6
+     * across six dates; EXIF strings - Adobe Photoshop 7.0 1..45).
+     * The MAP is SESSION-WIDE: flags->name_counters (the orchestrator's
+     * per-scan instance, the DRWUI map's own lifetime) when bound, else
+     * this per-call local (the single-slice embed case). Guarded: the
+     * map is touched on the worker emission path (parallel mode fans
+     * out windows; add_file is tree-serialized but the name composes
+     * before it). */
+    CarveNameCounters local_counters;
+
+    /* the counter acquisition: ++ then read (the DRWUI callers). */
+    u32 next_name_counter(const std::u16string& key) {
+        CarveNameCounters& c = flags->name_counters ? *flags->name_counters : local_counters;
+        std::lock_guard<std::mutex> g(c.lock);
+        return ++c.per_prefix[key];
+    }
+
+    /* the branch rule: the analyser string keys branch 2; the derived
+     * and plain rows key branch 1 (the format). */
+    std::u16string carve_counter_key(const char* ext, const std::string& analyser_key) {
+        std::u16string key;
+        for (const char* p = analyser_key.c_str(); *p; ++p)
+            key.push_back(u16(u8(*p)));
+        if (!key.empty())
+            key.push_back(u'|');
+        for (const char* p = ext; *p; ++p)
+            key.push_back(u16(u8(*p >= 'a' && *p <= 'z' ? *p - 32 : *p)));
+        return key;
+    }
+    /* S-048: the volume-group child cache - the lazily created per-volume
+     * FullNodes under carve_root (role = the group's display name) with
+     * their per-extension skeleton folders (role = the lowercase ext).
+     * Resume-safe: the lazy lookup searches carve_root's existing children
+     * for a matching role FIRST (a re-run never spawns a duplicate group
+     * child), then creates. Files attach to the GROUP node; the ext
+     * folders stay empty (the og's persisted shape - the real sessions
+     * carry one empty ext folder per present extension with every file
+     * directly under the volume node). */
+    /* S-048: the volume groups + the default (whole-slice) group name.
+     * groups empty + default non-empty = one group over the whole slice
+     * (the single-volume scan); both empty = no grouping (standalone
+     * callers). Borrowed pointers: carve_slice assigns its OWN copies
+     * that outlive the scan (the flags object is const& - a copy is
+     * mandatory, never a pointer into the caller's flags). */
+    std::vector<VolumeGroup> groups;
+    std::u16string default_group_name;
+    std::mutex group_mtx;
+    struct GroupNodes {
+        tree::FullNode* node = nullptr;
+        std::map<std::string, tree::FullNode*> ext_nodes;
+    };
+    std::map<size_t, GroupNodes> group_cache; /* key: the group index */
     /* S-031 residual: the wall-clock scan time stamped onto every carved
      * node's times.modified (the og persists a per-carved-file timestamp
      * string written by FUN_140c41aa0 via "%d-%d-%d %d-%d-%d" from the
@@ -172,17 +238,6 @@ struct ScanCtx {
      * instead of re-emitting them as extra entries. Base 0 on synthetic /
      * whole-disk devices: behavior identical to the old code. */
     u64 ext_base = 0;
-
-    /* S-049: the og's counter acquisition - ++ then read (the DRWUI
-     * callers at :1877600/:1877724), keyed by the effective prefix: the
-     * format name for prefix-less/dims rows, the analyser string +
-     * format for prefixed rows (per-string counters: GT-S7562_000123 =
-     * the 123rd GT-S7562 file, 197+ real rows). */
-    u32 next_name_counter(const std::u16string& key) {
-        CarveNameCounters& c = flags->name_counters ? *flags->name_counters : local_counters;
-        std::lock_guard<std::mutex> g(c.lock);
-        return ++c.per_prefix[key];
-    }
 
     /* ---- M-005: the allocation-bitmap gate (corpus-verified first-hand
      * this session, ghidra-searchdll/RAWSearchDLL_decompiled.c :9440-9466
@@ -263,69 +318,53 @@ struct ScanCtx {
     }
 };
 
-/* ---- S-049: the og's universal carved-file naming contract ----------
- *
- * DRWUI FUN_140c44770 (DRWUI_decompiled.c:1878330-81, re-verified
- * first-hand this session, with the two data constants extracted from
- * the shipped DRWUI.exe: DAT_14187f760 = L"%s", DAT_14188017c = L"_"):
- *
- *   prefix present: snprintf(buf, 0xff, L"%s_%06d", prefix, counter)
- *   prefix absent:  snprintf(buf, 0xff, L"%06d", counter)
- *   both switch to the unpadded %d / L"%s_%d" past counter 99999.
- *
- * The caller at :1877537-1877611 (the no-analyser-string branch)
- * prepends the FORMAT NAME + L"_" to the composed name and draws the
- * counter from the format-keyed map slot; the caller at :1877634-7730
- * (the analyser-string branch) uses the string as the prefix with a
- * per-string counter and NO format prepend. The 189,115-row real
- * session census pins the shipped forms: the dominant name for every
- * format is <UPPERCASE-EXT>_<%06d>.<UPPERCASE-EXT> (GZ_000001.GZ
- * x53,891; PNG, SVG, ICO, HTML, WAV, EPS, MP3, CUR, PDF, TTF, CAB,
- * FCPEVENT, TAR, WEBP, MOF, BMP, OGG, WMF, M2TS, SWF, RTF, M2T, AVI,
- * MOV, MP4, MKV, 7Z - all the same family), the JPEG dimensions form
- * JPG_192x144_000001.JPG (405 rows; the dims gate is 1..8192 both,
- * :1877537-42), and the content-derived prefixes: EXIF Model
- * (GT-S7562_000123.JPG) over EXIF Software (Adobe Photoshop 7.0_N.JPG),
- * ID3 titles (MP3), creation timestamps (PDF/DOCX:
- * 2020-05-23 23-23-23_N.PDF), ZIP first central-directory entry names
- * (META-INF__N.ZIP, __MACOSX__N.ZIP, LICENSE_OFL_N.ZIP). */
-static void append_ascii_upper(std::u16string& out, const char* p) {
-    for (; *p; ++p)
-        out.push_back(u16(u8(*p >= 'a' && *p <= 'z' ? *p - 0x20 : *p)));
-}
-
-static void append_ascii(std::u16string& out, const char* p) {
-    for (; *p; ++p)
-        out.push_back(u16(u8(*p)));
-}
-
-/* FUN_140c44770 + the extension append: <prefix-or-EXT>_<counter>.<EXT>,
- * uppercase extension (every real-session name carries it). */
-static std::u16string og_compose_carve_name(const Signature& sig, const std::u16string* prefix,
-                                            u32 counter) {
-    char num[24];
-    if (counter > 99999)
-        snprintf(num, sizeof(num), "%u", unsigned(counter));
-    else
-        snprintf(num, sizeof(num), "%06u", unsigned(counter));
+/* S-049: the og-contract name composition (FUN_140c44770 + the
+ * extension append). The COUNTER is acquired by the emit site through
+ * ctx.next_name_counter (the two-class key rule - see ScanCtx).
+ * prefix.empty() -> the bare %06d form (the og's empty-prefix branch,
+ * :1878334-37 - unreachable through the emit sites, which default the
+ * prefix to the uppercase ext, but implemented for contract parity). */
+static std::u16string og_carve_name(const char* ext, const std::u16string& prefix, u32 counter) {
+    char cnt[20];
+    const int n = snprintf(cnt, sizeof(cnt), counter <= 99999u ? "%06u" : "%u", counter);
+    if (n <= 0)
+        return {};
+    char ext_up[16];
+    size_t el = 0;
+    for (const char* p = ext; *p && el + 1 < sizeof(ext_up); ++p)
+        ext_up[el++] = char(*p >= 'a' && *p <= 'z' ? *p - 32 : *p);
+    ext_up[el] = 0;
+    /* the default prefix: the format's own UPPERCASE extension when the
+     * analyser supplied no content-derived prefix (the real sessions:
+     * every format's plain form is EXT_NNNNNN.EXT - GZ_000001.GZ,
+     * PNG_000001.PNG; the og's caller always supplies a prefix and the
+     * bare %06d branch is its dead path, kept below for contract parity
+     * only through an explicit empty-ext signature) */
+    std::u16string use_prefix;
+    if (!prefix.empty())
+        use_prefix = prefix;
+    else if (ext_up[0] != 0) {
+        for (const char* p = ext_up; *p; ++p)
+            use_prefix.push_back(u16(u8(*p)));
+    }
     std::u16string out;
-    if (prefix != nullptr && !prefix->empty())
-        out = *prefix;
-    else
-        append_ascii_upper(out, sig.ext);
-    out.push_back(u'_');
-    append_ascii(out, num);
+    out.reserve(use_prefix.size() + size_t(n) + el + 2);
+    /* the prefix_counter part, capped at 254 (the og's 0xff snprintf) */
+    size_t cap = 254;
+    if (!use_prefix.empty()) {
+        size_t take =
+            use_prefix.size() < cap - size_t(n) - 1 ? use_prefix.size() : cap - size_t(n) - 1;
+        out.append(use_prefix, 0, take);
+        out.push_back(u'_');
+    }
+    for (const char* p = cnt; *p; ++p)
+        out.push_back(u16(u8(*p)));
+    if (out.size() > cap)
+        out.resize(cap);
     out.push_back(u'.');
-    append_ascii_upper(out, sig.ext);
+    for (const char* p = ext_up; *p; ++p)
+        out.push_back(u16(u8(*p)));
     return out;
-}
-
-/* The raw-sign/user-sign layers' format-keyed counter keys (the
- * prefix-less DRWUI branch keys by the format name). */
-static std::u16string raw_sign_key(const char* ext) {
-    std::u16string key;
-    append_ascii_upper(key, ext);
-    return key;
 }
 
 /* M-025: window-serving read context - the og's already-in-buffer model
@@ -384,6 +423,83 @@ private:
     const u8* win_;
     u64 len_;
 };
+
+/* S-048: the attach parent for a carved file at slice-relative pos —
+ * the volume-group child (lazily created under carve_root, resume-safe
+ * by role) with the per-extension skeleton folder created beside it.
+ * Returns carve_root when no grouping is configured or the position is
+ * outside every group (the unattributable position: never mis-attributed
+ * to a wrong volume). Called on worker threads in parallel mode: the
+ * cache and the folder creation are guarded by group_mtx; the tree's own
+ * add_folder/add_file serialize on the tree mutex. */
+static tree::FileNode* carve_attach_parent(ScanCtx& ctx, u64 pos, const char* ext) {
+    const bool has_groups = !ctx.groups.empty();
+    const bool has_default = !ctx.default_group_name.empty();
+    if (!has_groups && !has_default)
+        return ctx.carve_root; /* no grouping: the standalone-caller shape */
+    size_t gi = SIZE_MAX;
+    if (has_groups) {
+        for (size_t i = 0; i < ctx.groups.size(); ++i) {
+            const VolumeGroup& g = ctx.groups[i];
+            if (g.end > g.start && pos >= g.start && pos < g.end) {
+                gi = i;
+                break;
+            }
+        }
+        if (gi == SIZE_MAX)
+            return ctx.carve_root; /* outside every volume: unattributable */
+    } else {
+        gi = 0; /* the single whole-slice default group */
+    }
+    const std::u16string& want = has_groups ? ctx.groups[gi].name : ctx.default_group_name;
+    const std::lock_guard<std::mutex> lk(ctx.group_mtx);
+    ScanCtx::GroupNodes& gn = ctx.group_cache[gi];
+    /* the group child: lazily created, resume-safe by role (a re-run
+     * never spawns a duplicate volume child) */
+    if (gn.node == nullptr) {
+        tree::FullNode* node = nullptr;
+        for (tree::FileNode* c = ctx.carve_root->first_child(); c; c = c->next_sibling())
+            if (c->is_full() && static_cast<tree::FullNode*>(c)->role == want) {
+                node = static_cast<tree::FullNode*>(c);
+                break;
+            }
+        if (node == nullptr) {
+            node = ctx.tree->add_folder(ctx.carve_root, want);
+            if (node == nullptr) {
+                ctx.aborted.store(true, std::memory_order_relaxed);
+                return ctx.carve_root;
+            }
+        }
+        gn.node = node;
+    }
+    /* the per-extension skeleton folder (one per present extension,
+     * lowercase - the og's persisted shape; the FILES stay on the group
+     * node, the folder is the empty presentation skeleton) */
+    std::string ex(ext ? ext : "");
+    for (char& c : ex)
+        if (c >= 'A' && c <= 'Z')
+            c = char(c + 32);
+    if (gn.ext_nodes.find(ex) == gn.ext_nodes.end()) {
+        std::u16string uex;
+        for (char c : ex)
+            uex.push_back(u16(u8(c)));
+        tree::FullNode* fnode = nullptr;
+        for (tree::FileNode* c = gn.node->first_child(); c; c = c->next_sibling())
+            if (c->is_full() && static_cast<tree::FullNode*>(c)->role == uex) {
+                fnode = static_cast<tree::FullNode*>(c);
+                break;
+            }
+        if (fnode == nullptr) {
+            fnode = ctx.tree->add_folder(gn.node, uex);
+            if (fnode == nullptr) {
+                ctx.aborted.store(true, std::memory_order_relaxed);
+                return gn.node;
+            }
+        }
+        gn.ext_nodes.emplace(ex, fnode);
+    }
+    return gn.node;
+}
 
 /* Scan ONE window [base, base+want) fully (magic dispatch, validation,
  * dedup, emit). Returns OK, or ERR_CANCELLED when aborted mid-way. */
@@ -556,35 +672,23 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 (cr.format_override != 0xFFFFFFFFu && cr.format_override < FMT_COUNT)
                     ? ctx.reg[cr.format_override]
                     : sig;
-            /* S-049: the og's naming contract (FUN_140c44770 + the two
-             * DRWUI caller branches). The analyser prefix wins over the
-             * host namer (a decoded og rule is not host policy); dims
-             * ride the format-keyed counter; rule-less formats consult
-             * the caller's namer, then the <EXT>_<%06d> default. */
-            if (!cr.name_prefix.empty()) {
-                std::u16string key = cr.name_prefix;
-                key.push_back(u'|');
-                for (const char* p = eff.ext; *p; ++p)
-                    key.push_back(u16(u8(*p)));
-                const u32 n = ctx.next_name_counter(key);
-                props->name = og_compose_carve_name(eff, &cr.name_prefix, n);
-            } else {
-                const bool dims_valid = cr.dim_w >= 1 && cr.dim_w <= 8192 && cr.dim_h >= 1 &&
-                                        cr.dim_h <= 8192; /* the DRWUI gate */
-                std::u16string fmt_key;
-                append_ascii_upper(fmt_key, eff.ext);
-                const u32 n = ctx.next_name_counter(fmt_key);
-                if (dims_valid) {
-                    std::u16string dims_prefix = fmt_key;
-                    char dims[32];
-                    snprintf(dims, sizeof(dims), "_%ux%u", unsigned(cr.dim_w), unsigned(cr.dim_h));
-                    for (const char* p = dims; *p; ++p)
-                        dims_prefix.push_back(u16(u8(*p)));
-                    props->name = og_compose_carve_name(eff, &dims_prefix, n);
-                } else {
-                    props->name = ctx.namer ? ctx.namer(eff, file_len, n)
-                                            : og_compose_carve_name(eff, nullptr, n);
-                }
+            /* S-049: the og's naming contract - the DRWUI
+             * "<prefix>_<%06d>.<UPPEREXT>" name with the analyser's
+             * content-derived prefix (CarveResult::name_prefix) over the
+             * two-class counter (the analyser string keys branch 2; the
+             * plain/dims/duration rows key the format - the G/H census).
+             * The caller's namer callback (host policy) still rides for
+             * rule-less formats, now receiving the og-faithful counter.
+             * The N-063 embedded_name full-name chain is superseded: the
+             * real og sessions prove the tree-naming layer names every
+             * unnamed carve record this way and the engine's "Lost Name
+             * File" template never survives it (57/57 real MP4/MOV
+             * carve rows). */
+            {
+                const u32 n =
+                    ctx.next_name_counter(ctx.carve_counter_key(eff.ext, cr.name_counter_key));
+                props->name = ctx.namer ? ctx.namer(eff, file_len, n)
+                                        : og_carve_name(eff.ext, cr.name_prefix, n);
             }
             props->fs_kind =
                 u32(FsKindCode::Raw); /* carved (row 45: was invented 0xFF; factory RAW=6) */
@@ -644,7 +748,11 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 ci.confidence = u16(props->carve_confidence); /* 0..1000: fits u16 */
                 ctx.flags->post_processor->on_candidate(ctx.slice, ci);
             }
-            tree::FileNode* n = ctx.tree->add_file(ctx.carve_root, props);
+            /* S-048: the file attaches to its volume's group child (the
+             * og's persisted shape: Reconstructed/<volume>/<files>, the
+             * per-ext skeleton folders empty beside them) */
+            tree::FileNode* n =
+                ctx.tree->add_file(carve_attach_parent(ctx, cand_abs, eff.ext), props);
             props->release();
             if (n == nullptr) {
                 ctx.aborted.store(true, std::memory_order_relaxed);
@@ -787,12 +895,13 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                             ctx.aborted.store(true, std::memory_order_relaxed);
                             return ERR_NO_MEMORY;
                         }
-                        const u32 fi = ctx.next_name_counter(raw_sign_key(us->ext));
+                        const u32 fi =
+                            ctx.next_name_counter(ctx.carve_counter_key(us->ext, std::string()));
                         Signature rsig{};
                         rsig.ext = us->ext;
                         rsig.name = us->ext;
                         props->name =
-                            ctx.namer ? ctx.namer(rsig, len, fi) : default_namer(rsig, len, fi);
+                            ctx.namer ? ctx.namer(rsig, len, fi) : og_carve_name(rsig.ext, {}, fi);
                         props->fs_kind = u32(FsKindCode::Raw);
                         props->logical_size = len;
                         props->carve_format = 0xFFFE0000u; /* M-048: the user-signature tag */
@@ -814,7 +923,8 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                         if (us->mime[0] != 0)
                             for (const char* mp = us->mime; *mp; ++mp)
                                 props->carve_note.push_back(u16(u8(*mp)));
-                        tree::FileNode* n = ctx.tree->add_file(ctx.carve_root, props);
+                        tree::FileNode* n =
+                            ctx.tree->add_file(carve_attach_parent(ctx, start_abs, us->ext), props);
                         props->release();
                         if (n == nullptr) {
                             ctx.aborted.store(true, std::memory_order_relaxed);
@@ -968,17 +1078,19 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 ctx.aborted.store(true, std::memory_order_relaxed);
                 return ERR_NO_MEMORY;
             }
-            const u32 fi = ctx.next_name_counter(raw_sign_key(fmt.ext));
+            const u32 fi = ctx.next_name_counter(ctx.carve_counter_key(fmt.ext, std::string()));
             /* N-014b: ONE naming family per scan - the raw-sign layer
-             * rides the SAME og contract as the grammar layer (the
-             * per-prefix counter + the <EXT>_<%06d> composition, S-049)
-             * instead of its own scheme. The real sessions' dominant
-             * raw-sign forms are exactly this family (GZ_000001.GZ,
-             * SVG_000042.SVG, ICO_N.ICO - the format-keyed counters). */
+             * rides the SAME chain as the grammar layer (the caller's
+             * namer, then the registered File%06u default) instead of
+             * its own hardcoded scheme. The og has no FileNNNN/Carved
+             * scheme at all (corpus erratum, OQ-S4-2's decode; naming is
+             * the host callback's job - N-063), so the callback contract
+             * reads only ext/name; a partial Signature view of the
+             * raw-sign format is the honest projection of that contract. */
             Signature rsig{};
             rsig.ext = fmt.ext;
             rsig.name = fmt.ext;
-            props->name = ctx.namer ? ctx.namer(rsig, len, fi) : default_namer(rsig, len, fi);
+            props->name = ctx.namer ? ctx.namer(rsig, len, fi) : og_carve_name(rsig.ext, {}, fi);
             props->fs_kind = u32(FsKindCode::Raw);
             props->logical_size = len;
             props->carve_format = 0xFFFF0000u + best->fmt; /* raw-sign tag */
@@ -1023,7 +1135,8 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 ci.confidence = u16(props->carve_confidence); /* 0..1000: fits u16 */
                 ctx.flags->post_processor->on_candidate(ctx.slice, ci);
             }
-            tree::FileNode* n = ctx.tree->add_file(ctx.carve_root, props);
+            tree::FileNode* n =
+                ctx.tree->add_file(carve_attach_parent(ctx, start_abs, fmt.ext), props);
             props->release();
             if (n == nullptr) {
                 ctx.aborted.store(true, std::memory_order_relaxed);
@@ -1071,14 +1184,43 @@ u32 scan_window_index(ScanCtx& ctx, u64 wi, std::set<u64>& emitted_at) {
 
 std::u16string default_namer(const Signature& sig, u64 size, u32 index) {
     (void)size;
-    /* S-049: the og's universal default - <UPPERCASE-EXT>_<%06d>.
-     * <UPPERCASE-EXT> (FUN_140c44770's prefix-less branch + the format-
-     * name prepend; the retired File%06u deliberate default is
-     * superseded: the naming contract is decoded, universally, from the
-     * real sessions + the DRWUI function - PARITY-DELTAS D-76 narrowed
-     * to nothing). The %d fallback past 99999 is the decompile's own
-     * branch. */
-    return og_compose_carve_name(sig, nullptr, index);
+    /* S-049: the og's universal naming contract replaces the invented
+     * File%06u default (the deliberate default registered in
+     * PARITY-DELTAS D-76 - its premise "formats whose og naming rule is
+     * not decoded" is falsified: the rule IS decoded, universally, from
+     * the three real og sessions + the DRWUI naming function
+     * FUN_140c44770 :1878330-81):
+     *   name = <PREFIX>_<%06d counter>.<UPPERCASE-EXT>
+     *   - the counter is PER-FORMAT (this function receives the
+     *     caller's per-format counter through `index` - the ScanCtx
+     *     counter map owns the state; a stateless caller passes its own)
+     *   - past 99999 the og switches to unpadded %d (:1878336/:1878346)
+     *   - the default PREFIX is the format's own UPPERCASE extension
+     *     (GZ_000001.GZ, PNG_000001.PNG - every observed format)
+     *   - the prefix part is capped at 254 chars (the og's
+     *     snprintf(buf, 0xff) on the prefix_counter string), the
+     *     ".EXT" tail appends after it
+     * Content-derived prefixes (JPEG dims/EXIF, MP4/MOV duration, MP3
+     * title, PDF Title/Creator+date, DOCX date, ZIP first entry, WAV
+     * INAM) arrive through CarveResult::name_prefix at the emit site -
+     * this default fires when the analyser supplied none. */
+    char cnt[20];
+    const int n = snprintf(cnt, sizeof(cnt), index <= 99999u ? "%06u" : "%u", index);
+    if (n <= 0)
+        return {};
+    char ext_up[16];
+    size_t el = 0;
+    for (const char* p = sig.ext; *p && el + 1 < sizeof(ext_up); ++p)
+        ext_up[el++] = char(*p >= 'a' && *p <= 'z' ? *p - 32 : *p);
+    ext_up[el] = 0;
+    char buf[40];
+    const int m = snprintf(buf, sizeof(buf), "%s_%s.%s", ext_up, cnt, ext_up);
+    if (m <= 0)
+        return {};
+    std::u16string out;
+    for (const char* p = buf; *p; ++p)
+        out.push_back(u16(u8(*p)));
+    return out;
 }
 
 u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* cancel,
@@ -1098,6 +1240,10 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
     ctx.carve_root = carve_root;
     ctx.dedup_tree = dedup_tree;
     ctx.namer = namer;
+    /* S-048: the volume grouping (copies - the flags object is const&
+     * and the caller's stack frame may not outlive the parallel scan) */
+    ctx.groups = flags.volume_groups;
+    ctx.default_group_name = flags.volume_group_name;
     ctx.total = slice->size();
     ctx.ext_base = slice->absolute_base(); /* GAP-S6-8: disk-absolute basis */
     /* M-005: the allocation-bitmap gate (nullable; slice-relative basis -

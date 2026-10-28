@@ -256,6 +256,13 @@ loader/matcher/CommonRawAnalyser decode, complementing the lead leg's
   `evidence/decompiled-quotes/s5-oq-s4-2-raw-naming-hook.md`. No carve
   emission-path change required for parity; the fix narrows to the
   category-bucket naming surface.
+- **I-027 register note (the filter_generalraw VALUE, session-8 sweep)**:
+  the concrete junk list behind the display-name mapping — the 65-extension
+  `filter_generalraw` value from `remote_config_data`
+  (`loggz, crash, evtx, lrprev, tmb, peak, default, sqm, pf, icns, …,
+  sqlite, m3u, amr, moff`) — on-file here as the ground truth for any
+  host-side general-raw display bucket. The semantic (display-name mapping)
+  is the OQ-S4-2 decode above; the value is the session-8 datum.
 
 ## Session-5 audit (audited commit `7cf6754`) — the never-cited family-artifact wave
 
@@ -684,9 +691,22 @@ multi-card continuation, GPX's declaration+<gpx window + </gpx> walk (cap 100 Mi
 OSP's libopenshot needle with the unique reject-on-missing, POS's needle settled
 from FUN_18001a470 ("ProcessOn Schema File"), CHFP's +0x28 BiffProject anchor;
 the per-chunk find quirk ported exactly; tests Carve.TextSchool*;
-findings/FIXED/N-113) · **N-115** OfficeTagFromXML. · **M-117** (S41: the Outlook Express Dbx analyser — the og's 3-key registry
-[JMF6/CFAD12FE/F789342C → RawSpeed::DbxAnalyser idx 0x15] + the 4-GUID identity probe +
-the u32@+0x7C size pass; the never-filed session-3 "MISSING (N-026)" residue) ·
+findings/FIXED/N-113) · **N-115** OfficeTagFromXML. · **M-121 FIXED — CONVERGENT (the renumber chain M-117 → M-118 [never landed] → M-121
+per SA-9: M-117 was triple-consumed — session-40 suppress-overlap row 442 keeps it;
+the parallel fix lane's 1d4c96b6 landing + this lane's correction push)** — the Outlook Express Dbx
+analyser LANDED: FMT_DBX_JMF6 ("JMF6") / FMT_DBX (CF AD 12 FE) / FMT_DBX_MARKED
+(F7 89 34 2C), one shared validator; the identity probe ported exactly (the
+JMF6+`03 00 10 00` u64 0x0010000336464D4A — disasm-settled at 0x180016766/0x18001676f,
+the parallel lane's reading confirmed over my first landing's 03 00 01 00 expansion
+error; the four OE store GUIDs; the marked 16-byte pattern with byte 6 = 0xEE — the
+parallel lane's 0xDE corrected, disasm 0x18001698b `movl $0x6deef0f7`); the plain-form
+size u32@+0x7C (clamped per the PST family precedent, rejected below the 0x80 read
+bound); the marked-form FUN_180042b30 zero-walk (0 on an all-zero window, else the
+non-zero prefix ROUNDED UP TO EVEN — disasm 0x180042bb0-0x180042c07, the `sar $1`
+bisection + `lea 0x1(%rsi),%eax` return; the pending-object recompute adapted to the
+one-shot validator per D-101); the og's embedded name provably EMPTY (both lanes
+converged); tests Carve.Dbx* (9, RED pre-fix — the formats did not exist); the s3
+"MISSING (N-026)" markers re-pointed at M-121; findings/FIXED/M-121) ·
 **N-152** (S41: the DXF 999-comment entry key — the og's u16 key 0x3939 → CDXFAnalyser +
 the probe's "999\n"/"999\r\n" leading-comment acceptance; the core keys "  0\r" only;
 renumbered twice at the push-time reconciliations per SA-9 — the local N-142 lost to the
@@ -722,27 +742,32 @@ unique artifacts kept (all cited by the reconciled findings):
 Two new findings + one executed MATCH, all from the first mining of the
 corpus's three REAL og sessions (evidence/executions/s10b-real-rsf-session-mining.md):
 
-- **S-048 (SEVERE)** — the og's carve branch is `Reconstructed/<volume-display-name>/`
-  (per-volume children; 100% of 189,115 real carved rows); the core's single flat
-  "Other Deleted Files (Carved)" root (cr_scan.cpp:151) has no volume attribution.
-  Fix wave: per-volume children + the Reconstructed default name.
-- **S-049 (SEVERE) — FIXED (the S42 fix lane, 2026-10-29)** — the og's universal
-  naming contract `<PREFIX>_%06d.EXT` LANDED: the analyser prefix carrier
-  (`CarveResult::name_prefix`) + the dims carrier (dim_w/dim_h, the 1..8192 gate)
-  + the session-wide per-prefix counter map (`CarveFlags::name_counters`, the
-  og's DRWUI counter map; ++ then read, format-keyed for prefix-less/dims rows,
-  string-keyed for prefixed rows) + the %d fallback past 99999 + the UPPERCASE
-  extension. Per-analyser prefix extraction: JPEG EXIF Model>Software (39-char
-  cap, RAWSearchDLL :40382-40510) + SOF dims, MP3 TIT2 (all four ID3
-  encodings), PDF /CreationDate, DOCX dc:creator+dcterms:created (the
-  docProps/core.xml inflate), ZIP first-entry names (the / and . -> _
-  sanitization: META-INF__ / __MACOSX__ / LICENSE_OFL_). The File%06u default
-  and the MP4/MOV carve-path template are RETIRED (the template never fires in
-  the real sessions - 57/57 rows are MP4_%06d.MP4 / MOV_%06d.MOV; N-063's
-  carve-path half superseded; D-76 rewritten resolved-to-parity). The namer
-  callback stays the host-policy hook for rule-less formats. Proof:
-  CarveEngine.OgNaming* (12 tests) + the MP4/MOV universal-name trio +
-  Orchestrator.CarveSingleNamingFamily; suite 1193/1193.
+- **S-048 (SEVERE) — FIXED (session-40 severe lane)** — the og's carve branch landed in full:
+  the `Reconstructed` root (the og's own name; the M-029 config override retained; the legacy
+  name stays a recognized resume role) + the 7 EMPTY category skeleton folders
+  (Pictures/Documents/Archives/Videos/Audio/Emails/Others - every real session's persisted
+  shape, a newly-decoded surface) + the LAZY per-volume group children (the
+  "<label> (<L>:" + ")" / " (H:)" / "System Reserved" forms; a carves-free volume gets NO
+  child - the G session's shape) + the empty per-ext folders (lowercase) with every carved
+  file attached DIRECTLY to the volume child. The volume attribution is the tree position
+  (the og's architecture); the query axis is the path-prefix filter. VolumeGroup ranges +
+  names through CarveFlags (the M-104 tier names for whole-disk scans; the composed
+  label+letter for volume scans - ScanConfig::volume_letter plumbed through the CLI and the
+  ABI); ResultTree::add_folder + the marker-2 session record carry the intermediate folders.
+  8-test proof set (Orchestrator.CarveVolumeGroup* + CarveEngine.Reconstructed* +
+  Crsf.ReconstructedCarveTreeRoundTrip + Query.CarvedVolumeFilterAxis).
+- **S-049 (SEVERE) — FIXED (session-40 severe lane)** — the og's universal naming contract
+  `<PREFIX>_<%06d>.<UPPEREXT>` (DRWUI FUN_140c44770:1878330-81; prefix = the UPPERCASE EXT by
+  default, PER-FORMAT counters — JPG 1..3938 continuous across prefix variants, GZ 1..27,694,
+  PNG 1..17,580; overridden by SOF-dims `JPG_<W>x<H>`/EXIF-Model/EXIF-Software (JPEG),
+  mvhd-duration `MP4_08m07s` (MP4/MOV), ID3-title (MP3), Title(25-char cap)/Creator-Producer+
+  CreationDate (PDF), docProps-created (DOCX), first-CD-entry-with-/-mapping (ZIP), INAM (WAV)).
+  The core's File%06u default fires for every format except MP4/MOV — **RETIRED**: default_namer
+  emits the og contract; CarveResult::embedded_name -> name_prefix; N-063's MP4/MOV template
+  superseded on the carve-tree application (57/57 real rows are MP4_%06d.MP4 / duration forms;
+  the engine-side SetName decode stays documented in PARITY-DELTAS D-76). 13 pin tests
+  (OgNaming* + duration + FileNnnnFallbackRemoved); PARITY-DELTAS D-76 rewritten;
+  B10/A28/D12 cells → MATCH.
 - **Executed MATCH**: the raw_signs.json regen sync — scripts/gen_rawsigns.py
   regenerated the compiled table from the og's shipped JSON: 139 formats / 199
   header / 62 tail signs byte-identical (layout-only clang-format packing diff).
@@ -793,3 +818,25 @@ The carve surface's size-walk residue now has owners:
 - **N-148 items 4-5** (MINOR): the EPS/AI validator caps drifted to 16 MiB vs the 64 MiB rows; six dangling in-code Resolution pointers.
 - The **S-050 addendum**: the repair line's second wiring channel (the per-chunk feed, DDC:9623-27) — the post-processor contract must decide it.
 - Verified MATCH this session: the whole infrastructure table (17 rows — dispatch order, registry duality, geometry, gates, dedup, progress, cancel) at `evidence/s11-lead-deep-lanes.md` §Lane-A; the family map (5 families -> core schools present).
+
+## Session-43 minors lane (2026-10-29 — the N-152 landing; audited `b00118b5`, corpus `be0cfe9`)
+
+- **N-152 FIXED** (MINOR — the DXF 999-comment entry key): the u16 "99"
+  0x3939 second key lands as `FMT_DXF_C999` (the SWF/CWS dual-key
+  precedent — the og's :2722-2733 binding stamps the SAME CDXFAnalyser
+  idx 0x19 under the u16 magic map), and `validate_dxf` gains the probe's
+  comment branch (FUN_1800376f0 :42240-42290, re-read first-hand):
+  "999\n" → the 14-byte LF section form "  0\nSECTION\n  ", "999\r\n" →
+  the 16-byte CRLF form "  0\r\nSECTION\r\n  ", a forward NUL-guarded
+  scan (the og's byte-by-byte memcmp loop; the core's window bounded at
+  4 KiB — the comment-to-SECTION span in real exports is tens of bytes,
+  the bound registered in the Resolution). Both DXF rows carry
+  `suppress_overlap` (the N-151/N-153 repeating-key rule: a comment-led
+  document re-matches "  0\r" strictly inside itself; a canonical
+  document's interior "99" bytes never re-carve). Tests:
+  `Carve.Dxf999CommentHeaderLfCarves` / `Dxf999CommentHeaderCrLfCarves`
+  / `Dxf999RejectsNonCommentContinuation` (re-pinned to the og-faithful
+  headless-canonical salvage — the interior u32 key claims the position,
+  exactly the og's dispatch) / `Dxf999InteriorCommentOfCanonicalFileDoesNotDoubleCarve`.
+  Fail-before: 3 of 4 RED (stashed-validator rebuild; the near-miss
+  re-pin documented in the Resolution). Suite 1215/1215 (linux-release).

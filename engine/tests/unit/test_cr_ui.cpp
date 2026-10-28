@@ -991,6 +991,31 @@ TEST(CrUi, EnumerationRefreshContractPinned) {
         << "R-86's row must carry the pull-model equivalence statement";
 }
 
+TEST(CrUi, EnumerationExFlagGrammarRefusesUnknownBits) {
+    /* M-076: the _ex enumeration grammar - unknown flag bits are refused
+     * with CR_UI_ERR_BAD_PARAMETER BEFORE the platform check (every lane
+     * observes the same grammar; a host must not learn about an ignored
+     * flag from a platform-dependent success). Known bits proceed to the
+     * platform truth (ERR_UNSUPPORTED here). */
+    cr_ui_disk_info di;
+    uint32_t ac = 0;
+    EXPECT_EQ(cr_ui_enumerate_disks_ex(&di, &ac, 0xDEADBEEFu), 0x50030003u)
+        << "unknown flag bits must be refused, not ignored";
+    EXPECT_NE(std::strstr(cr_ui_last_error(), "unknown enumeration flag bits"), nullptr)
+        << "the refusal must name the grammar violation";
+    EXPECT_EQ(cr_ui_enumerate_disks_ex(&di, &ac, CR_ENUM_FLAG_TRIM | 0x10u), 0x50030003u)
+        << "a known bit plus an unknown bit is still refused";
+#ifndef _WIN32
+    /* platform truth: the valid-grammar call reaches the win-backed
+     * surface and answers ERR_UNSUPPORTED, never a silent fake */
+    EXPECT_EQ(cr_ui_enumerate_disks_ex(&di, &ac, 0u), 0x50030008u);
+    EXPECT_EQ(cr_ui_enumerate_disks_ex(&di, &ac, CR_ENUM_FLAG_TRIM), 0x50030008u);
+    EXPECT_NE(std::strstr(cr_ui_last_error(), "Windows platform layer"), nullptr);
+#endif
+    /* the header contract sentences (the opt-in + the never-guessed rule)
+     * are pinned by Enumerate.TrimChipOptInShipsInAbiAndCli */
+}
+
 TEST(CrUi, SessionListCliAndAbiOrderAgree) {
     /* N-116's CLI half: rrecov's `sessions` verb must enumerate in the
      * SAME order the ABI returns (save time first, path tie-break) - the
@@ -3616,8 +3641,7 @@ TEST(CrUi, ThumbnailCapsAllowEmbeddedValidated) {
     for (const uint32_t v : {0u, 1u}) {
         cr_ui_thumbnail_caps caps{};
         caps.allow_embedded = v;
-        const uint32_t rc =
-            cr_ui_thumbnail_generate(u.dev, u.sess, logo, &caps, nullptr, 0, &info);
+        const uint32_t rc = cr_ui_thumbnail_generate(u.dev, u.sess, logo, &caps, nullptr, 0, &info);
         EXPECT_NE(rc, 0x50030003u) << "allow_embedded=" << v << " must be accepted";
     }
     cr_ui_thumbnail_caps caps{};
@@ -3645,6 +3669,47 @@ TEST(CrUi, ThumbnailHeaderMatchesContract) {
     const std::string capsec = hdr.substr(caps > 700 ? caps - 700 : 0, 900);
     EXPECT_NE(capsec.find("no off position"), std::string::npos)
         << "the allow_embedded design note must be in the caps comment";
-    EXPECT_NE(capsec.find("0 or 1"), std::string::npos)
-        << "the validated range must be stated";
+    EXPECT_NE(capsec.find("0 or 1"), std::string::npos) << "the validated range must be stated";
+}
+
+/* ------------------------------------------------------------------ */
+/* S-054: the destination-arming wiring fence                          */
+/* ------------------------------------------------------------------ */
+
+TEST(DestArming, ProductionWiringCallsSpansApi) {
+    /* S-054 (the N-013 regression): the unrelated M-036 commit 1ebd1bcc
+     * silently reverted BOTH production destination-arming sites back to
+     * the pre-N-013 first-extent-only, drive-letter-only shape while the
+     * helpers and their tests survived - the suite stayed green over a
+     * SEVERE safety regression because nothing pinned the WIRING. This
+     * fence fails the day either production path stops feeding the
+     * writer every span of the destination volume (the 1ebd1bcc class).
+     * Source-level pin: the arming seam is Windows-gated (the live-path
+     * assertion runs on the Windows lane; this pin guards both). */
+    const std::string cli = cr_test::read_repo_file("src/app/rrecov.cpp");
+    EXPECT_NE(std::string::npos, cli.find("destination_volume_letter"))
+        << "the CLI recover path must resolve ANY resolvable destination "
+           "path (the drive-letter gate misses junction/relative/UNC)";
+    EXPECT_NE(std::string::npos, cli.find("volume_extents"))
+        << "the CLI recover path must fetch ALL extents of the destination";
+    EXPECT_NE(std::string::npos, cli.find("set_destination_spans"))
+        << "the CLI recover path must arm the writer with every span";
+
+    const std::string ui = cr_test::read_repo_file("src/ui/cr_ui.cpp");
+    EXPECT_NE(std::string::npos, ui.find("destination_volume_letter"))
+        << "the cr_ui destination path must resolve any resolvable path";
+    EXPECT_NE(std::string::npos, ui.find("volume_extents"))
+        << "the cr_ui destination path must fetch ALL extents";
+    EXPECT_NE(std::string::npos, ui.find("set_destination_spans"))
+        << "the cr_ui destination path must arm every span";
+}
+
+TEST(DestArming, HeaderContractStillClaimsAllSpans) {
+    /* S-054's contract half: the published cr_transport.h contract
+     * ("destination arming must use volume_extents() (all spans)") must
+     * stay in the header the integrators read - removing the contract
+     * text to match broken code would be the N-135 doc-truth class. */
+    const std::string hdr = cr_test::read_repo_file("include/cr/win/cr_transport.h");
+    EXPECT_NE(std::string::npos,
+              hdr.find("destination arming must use volume_extents() (all spans)"));
 }

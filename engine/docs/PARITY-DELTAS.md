@@ -1778,6 +1778,12 @@ unless the row itself is first re-audited against the corpus.
   (scan_one_window). A header starting mid-sector is invisible to the og.
   Pin: `CarveEngine.CarvesMidSectorStart` (PNG at sector+137 must carve).
   The M-025 read-model rework must not adopt sector stepping.
+  I-031 clause (the S11 infra walk): the og's engine setup additionally
+  REFUSES sector sizes not a multiple of 512 outright
+  (FUN_18000c430 :9265-9268 — no carve at all on e.g. 520-byte-sector
+  devices); the core is byte-granular and carves regardless — part of the
+  same registered geometry superset, recorded so the refusal is not
+  re-imported as "missing" behavior.
 - **D-59d — LDM RAID-5 dormant rotations (I-008, ACCEPTED).** Og's
   selector (+0x2a8) is constructor-hard-zeroed; only left-symmetric is
   constructible. Core implements exactly the enabled mode (algebraic
@@ -2270,61 +2276,66 @@ evidenced — until then this stays a registered simplification, pinned by
 CarveEngine.OverlapScorePrefersHigherConfidence (which proves the scoring
 half) and the absence of any fallback path in cr_registry.cpp.
 
-### D-76 — carved-file naming: the og's universal contract LANDED (S-049); the N-063-era File%06u default and MP4/MOV carve-path template RETIRED
+### D-76 — carved-file naming: RETIRED with S-049 (the og's universal contract decoded and landed)
 
-**Class:** resolved-to-parity (was: registered divergence) · **Findings:** diff-to-fix N-063 (MINOR, FIXED — its carve-path half superseded) + S-049 (SEVERE, FIXED) · **Dates:** 2026-10-26 (N-063) · 2026-10-29 (S-049)
+**Class:** resolved (the deliberate-default registration narrowed to nothing) · **Finding:** diff-to-fix S-049 (SEVERE, FIXED) superseding N-063 · **Date:** 2026-10-29
 
-**History:** N-063 decoded the MP4/MOV analyser's engine-side template
-("Lost Name File (<time>)_EaseUS", RAWSearchDLL :33312/:33408; <time> =
-the RAW mvhd field — u32@+0x10 (v0) / the FIRST FOUR BYTES of the u64
-@+0x14 (v1) — fed to _localtime64 with NO 1904 conversion) and
-registered two deliberate divergences: the `File%06u.ext` default for
-rule-less formats, and UTC template formatting. S-049's executed
-real-session evidence SUPERSEDED both: the three real og sessions name
-ALL 189,115 carved rows `<UPPERCASE-EXT>_<%06d>.<UPPERCASE-EXT>` (DRWUI
-FUN_140c44770 at :1878330-81 + the format-name prepend at
-:1877537-7611; DAT_14187f760 = L"%s" and DAT_14188017c = L"_"
-extracted from the shipped DRWUI.exe first-hand), with the per-format
-prefix sources decoded: JPEG SOF dims (JPG_192x144_000001.JPG, the
-1..8192 gate), EXIF Model over Software (39-char cap,
-RAWSearchDLL :40382-40510), MP3 ID3 titles, PDF /CreationDate
-timestamps, DOCX dc:creator + dcterms:created (docProps/core.xml,
-:53530-53666), ZIP first-central-directory entry names (META-INF__,
-__MACOSX__, LICENSE_OFL_ real forms). The template NEVER fires in the
-carve path (57/57 real MP4/MOV rows are MP4_%06d.MP4 / MOV_%06d.MOV;
-the engine-side template at :33280-33447 feeds a different record
-field) — its decode is preserved here as corpus knowledge, no longer
-wired into the carve name. The retired divergences: (1) the File%06u
-default is GONE (replaced by the og contract); (2) the UTC-vs-localtime
-template divergence is moot for carve naming (the template is not the
-carve name). The engine-side template decode (the v1 high-word
-truncation quirk, the missing 1904 conversion) remains recorded here.
+**SUPERSEDED by executed evidence.** The three REAL og sessions
+(`og-codebase/SaveScan/`, ~2M rows) decode the naming rule universally:
+every unnamed carved file is named `<PREFIX>_<%06d>.<UPPERCASE-EXT>`
+(DRWUI FUN_140c44770, :1878330-81, both caller sites :1877600/:1877724;
+the per-format counter map :1877584-90) with PER-FORMAT counters (the
+JPG counter runs 1..3938 continuous across its plain/dims/Model/Software
+prefix variants; GZ 1..27,694; PNG 1..17,580) and the format's own
+UPPERCASE extension as the default prefix (GZ_000001.GZ, PNG_000001.PNG
+— every observed format). The N-063 premise ("formats with no decoded og
+naming rule") is falsified: the rule IS decoded, universally. The
+File%06u deliberate default (this row's divergence 1) is RETIRED —
+`default_namer` now emits the og contract, and the retired default is
+pinned absent by `CarveEngine.FileNnnnFallbackRemoved`.
 
-**Carrier:** `CarveResult::name_prefix` (the analyser-supplied prefix;
-S-049 renamed N-063's full-name `embedded_name` carrier) +
-`CarveResult::dim_w/dim_h` (the dims record fields) +
-`CarveFlags::name_counters` (the session-wide per-prefix counter map —
-the og's DRWUI counter map; the orchestrator binds one per scan).
-Emit precedence: analyser prefix (the og contract) > dims form >
-the caller's namer callback (host policy for rule-less formats) >
-the `<EXT>_<%06d>` default.
+The MP4/MOV "Lost Name File (<time>)_EaseUS" engine template
+(RAWSearchDLL :33312/:33408 — the N-063 decode, real engine code) does
+NOT fire for carved files in the shipped product: 57/57 real MP4/MOV
+carve rows across the three sessions are MP4_%06d.MP4 /
+MP4_<duration>_%06d.MP4 / MOV_* (MP4_14s, MP4_08m07s, MP4_01m, MOV_10s,
+MOV_01m01s — the mvhd timescale/duration prefix). The DRWUI
+tree-naming layer names every unnamed carve record through the %s_%06d
+contract and the engine's SetName template does not survive it. The
+template landing (N-063) is superseded ON THE CARVE-TREE APPLICATION;
+its engine-side decode remains documented here and in the N-063 ledger
+row. The template's two replicated quirks (no 1904-epoch conversion,
+the v1 high-word truncation) retire with it.
+
+The content-derived prefix families (all real-session-pinned, landed
+with S-049): JPEG SOF dims `JPG_<W>x<H>` (the DRWUI caller's
+[1,0x2000] sanity gate) / EXIF Model (`GT-S7562`) / EXIF Software
+(`Adobe Photoshop 7.0`, `GIMP 2.6.8`, `Android SP1A...`); MP4/MOV mvhd
+duration; MP3 ID3v2 title; PDF Title (25-char read cap — the
+`LaTeX with hyperref packa` / ` TeX output 1998.06.28_17` truncation
+pins) else Creator/Producer + CreationDate (`YYYY-MM-DD HH-MM-SS`, the
+plain `D:YYYYMMDDHHMMSS` form only — matplotlib's dashed
+`D:2022-08-17 15:05:58+02'00'` never produces a date in any session);
+DOCX docProps created; ZIP first central-directory entry name with path
+separators -> `_` (`META-INF/` -> `META-INF_`; dots preserved — the
+N-063-era dot-translation example is corrected by the classes.dex /
+027.jpg families); WAV LIST/INFO INAM title. The JPEG Model-vs-Software
+precedence (Model first) and the PDF Creator-vs-Producer order are the
+documented closest-pinned readings (no observed co-occurrence separates
+them; recorded in S-049's Resolution as the open nuances).
+
+**Carrier:** `CarveResult::name_prefix` (the semantics moved from
+N-063's full-name `embedded_name`; emit precedence: namer callback >
+the og-contract name with the analyser prefix over the per-format
+counter).
 
 **Pin tests:** `CarveEngine.OgNamingUniversalExtCounter`,
-`CarveEngine.OgNamingCounterPast99999`,
-`CarveEngine.OgNamingJpgSofDimensions`,
-`CarveEngine.OgNamingJpgExifModel`,
-`CarveEngine.OgNamingJpgExifSoftware`,
-`CarveEngine.OgNamingMp3Id3Title`,
-`CarveEngine.OgNamingPdfTimestamp`,
-`CarveEngine.OgNamingDocxTimestamp`,
-`CarveEngine.OgNamingDocxTimestampAlone`,
-`CarveEngine.OgNamingZipFirstEntry`,
-`CarveEngine.OgNamingZipFirstEntryDotted`,
-`CarveEngine.OgNamingSessionWideCounters`,
-`CarveEngine.Mp4NamedByOgUniversalContract`,
-`CarveEngine.MovNamedByOgUniversalContract`,
-`CarveEngine.MovV1CarvesUnderUniversalName`,
-`Orchestrator.CarveSingleNamingFamily` (the one-family guarantee).
+`OgNamingJpgSofDimensions`, `OgNamingJpgExifModelAndSoftware`,
+`OgNamingCounterPast99999Unpadded`, `OgNamingMp3Id3Title`,
+`OgNamingPdfCreatorAndDatePrefixes`, `OgNamingDocxCreatedTimestamp`,
+`OgNamingZipFirstCentralDirectoryEntry`, `OgNamingWavInamTitle`,
+`Mp4NamedByDurationPrefix`, `MovNamedByDurationPrefix`,
+`MovV1MvhdDurationRead`, `FileNnnnFallbackRemoved`.
 
 ### D-98 — Lost-partition APPLY: the safety registers around the og's table writer (S-029) (renumbered from a same-window D-72 collision - the errata convention)
 
@@ -2391,7 +2402,15 @@ single-flight delivery), and the pull surface is the telemetry
 snapshot (`cr_ui_scan_telemetry`, any thread, any time) — the host
 that wants og-style polling simply calls telemetry on its own timer,
 so the information content is fully covered by the two surfaces the
-core already had. The og's reference-out QUERY signals
+core already had.
+
+I-031 carve-layer boundary note (the S11 infra walk): the og's carve
+ENGINE emits no progress at all — its only observer interaction is the
+per-chunk continue-check (RAWSearchDLL :9439-9441); DRWUI computes carve
+progress host-side off its own counters. The core's per-1-MiB-window
+progress callback is therefore the registered superset on the engine
+side too (the push surface the og defers to its UI), not a divergence
+to be flattened away. The og's reference-out QUERY signals
 (`sigIsBusy(bool&)` ×14, `sigIsStopping(bool&)` ×8, :125-144) are now
 surfaced as the synchronous ABI ops `cr_ui_scan_busy` /
 `cr_ui_scan_stopping` (N-075's fix) — synchronous by construction,
@@ -2500,6 +2519,19 @@ incremental continuation (streaming formats whose end cannot be probed
 by a bounded forward walk) must either keep that model in its own layer
 or extend the validator contract — this register is the flag S-017's
 fix-plan step 3 cites.
+
+I-031 boundary addenda (the S11 infra walk, both decoded first-hand):
+(a) the og's pending list is capped at 16 size-unknown candidates
+(FUN_18000c820 :9573-9591 — `0x10 < count + 1` force-finalizes the
+OLDEST at its best-known size, emits it, and notifies the host); the cap
+bounds the og's memory AND truncates the least-recent file on overflow —
+any future streaming-analyser port behind the M-021 seam must decide its
+own cap policy explicitly, not inherit one silently. (b) the og's Stop()
+with an idle device force-finalizes and EMITS every pending partial file
+(FUN_18000ce30 :9658-9693 — partial content reaches the user); the
+core's cancel discards un-emitted candidates — inherent to this
+registered stateless architecture, a visible difference on
+cancel-during-carve the host layer must not paper over.
 
 **DFX32 supplement (the convergent second landing, session 32):** the
 WindowDevice/WindowView wrapper delivers the og's buffer-residency benefit
@@ -3112,6 +3144,25 @@ RDA` / the installer. RATIONALE: the installer owns service lifecycle
 privilege and state-management hazard the product explicitly declines.
 VERDICT: ACCEPTED (deliberate divergence; mandate §2's refusal contract).
 
+**D-121 — the drive-disconnect retry window lives in the HOST, not the engine (N-125).**
+REFERENCE: the og detects mid-scan target removal and offers a
+reconnect-then-continue flow ("Drive Disconnected - Unable to continue
+scanning. Reconnect your drive and try again." Retry/Cancel; UIUX/08:39-47;
+the same triad for NAS/Linux/Cloud offline) - the dialog is the UI layer's;
+no decoded engine error code drives it (the finding's own open question).
+CORE: the transport classifies the device-gone Win32 GLE family
+(DEV_NOT_EXIST/NOT_READY/MEDIA_CHANGED/NO_MEDIA_IN_DRIVE/DEVICE_REMOVED)
+as ERR_DEVICE_DISCONNECTED 0x50020007 - a distinct code, never a
+read-failure storm - and the documented reattach flow is the
+session-checkpoint resume (the machinery exists): the host detects the
+code, waits for reattach in its own loop, then `resume` continues from
+the checkpoint; the CLI's scan verb maps it to exit 5 with the resume
+instruction. RATIONALE: the engine retry window (the og's dialog loop)
+is UI-layer responsibility in the core's layering; a distinct code + the
+resume machinery covers the flow without an in-engine wait state.
+VERDICT: ACCEPTED (the lighter engine posture is the documented contract;
+media errors stay ERR_READ_FAILED - the classification is precise).
+
 **D-DRV-6 — GET_DISK_CONTEXT_MODE (0x60002408) is deliberately NOT issued (N-096).**
 REFERENCE: the og's user-mode client issues exactly one identity IOCTL — the
 per-open GET_DISK_CONTEXT_MODE query (Device_decompiled.c:52598; a 4-byte-out
@@ -3462,3 +3513,22 @@ host's presentation consults the same tables the og's UI reads, the
 core itself renders nothing (the CLI has no Type tab). This is the
 D-107 lineage (the core-only C++ API layering decision). Evidence: the
 N-132 Resolution; tests ConfigDisplay.*.
+
+
+### D-114 — the dormant `only_common` vendor QA mode is deliberately not ported (I-031/S11-R registration, REGISTERED DIVERGENCE — a vendor QA mode)
+
+The og's RAWSearchDLL carries a dormant config-driven mode: when
+config/config.ini's `only_common` key is set (the SHIPPED og config does
+not set it), the registration walk registers ONLY
+`RawFormat_xjq::CommonRawAnalyser` (id 0xa8 = 168,
+FUN_180004fb0 :3013-3056) and the dispatch's map/multimap fast paths are
+disabled (FUN_18000cf60 :9842-9893 falls to the list layer) — a vendor
+QA mode for exercising the single-analyser path. The core has no analog
+(the compiled-in signs table always registers the full set; the
+disable surface is M-024's disabled_formats, the RawConfig toggles'
+port). Rationale: the mode's purpose (isolated QA of one analyser) is
+served by the core's per-format disable surface and the test suite's
+per-analyser fixtures; porting a config key that ships unset would add
+a dead surface the og itself never exercises in production. Evidence:
+I-031's S11-R addendum (both sites read first-hand); corpus
+RAWSearchDLL_decompiled.c :3013-3056, :9842-9893.

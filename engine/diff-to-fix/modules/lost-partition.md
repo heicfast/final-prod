@@ -247,6 +247,7 @@ CalcPartition observable. ExFAT-only (OQ-FLT-1); uniform at the candidate seam
 documented). 15 tests incl. two end-to-end whole-disk scans; fail-before
 executed; suite 808/808.
 
+
 ## Session-11D fix lane (2026-10-29 — the S-051 landing's discovery reconciliation)
 
 - **The no-double-scan rule (S-051's acceptance)**: the deep stage's
@@ -260,3 +261,20 @@ executed; suite 808/808.
   discovery's own unit contract is unchanged (`LostDiscovery.TableMatchBonus500`
   and the containment-exemption tests still pin the +500 semantics — the
   filter lives in the orchestrator, one site, above `lost::discover`).
+---
+
+## Session-12 continuation row (2026-10-29, audited `c7fa527c`, corpus `be0cfe9`)
+
+**M-118 (MAJOR — NEW; renumbered from this lane's M-112 filing at the post-rebase ID reconciliation — the parallel lane's M-112 landed first and keeps the number):** the candidate-SOURCE model — the og's whole-disk assembly
+consults THREE sources ("add lost partition from mbr / from filesystem / from
+register", DRWUI.log:637-643 + FUN_140588820 at DRWUI_decompiled.c:921820-921890):
+the table walk (FUN_140589070 — S-051's planned per-table-volume targets), the
+filesystem-probe scan (FUN_140588ba0 — the core's existing discovery), and the
+**register walk** (FUN_1405895d0 / PartitionRecoveryD:8930-8965 — the Explorer
+`MountPoints2\CPC\Volume` history: HKCU, ≤1000 subkeys, the REG_BINARY "Data" blob's
+'#'-delimited 32-hex-char placement field decoded in FUN_18000f5b0 with the
+sector-alignment gate). The register channel has no core counterpart (grep-verified)
+and uniquely recovers partitions whose on-disk remnants are destroyed — the exact
+lost-partition use case. B1 verdict: **DIVERGENCE-MAJOR** pending the channel seam
+(the fix plan's CandidateSource feed + the win-layer walk; S-051's fix plan gains
+the channel merge). Evidence: `evidence/decompiled-quotes/s12-lostpart-register-channel.md`.

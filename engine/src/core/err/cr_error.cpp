@@ -21,6 +21,8 @@ const char* err_text(u32 code) {
         return "range out of bounds";
     case ERR_CANCELLED:
         return "cancelled";
+    case ERR_DEVICE_DISCONNECTED:
+        return "target device disconnected (reattach and resume from the session checkpoint)";
     case ERR_RETRY_EXHAUSTED:
         return "retries exhausted";
     case ERR_BAD_MAGIC:

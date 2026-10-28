@@ -457,6 +457,19 @@ typedef struct cr_ui_disk_info {
     uint32_t table_ok;
     char model[128];  /* UTF-8, may be empty */
     char serial[128]; /* UTF-8, may be empty */
+    /* M-076 (append-only): the per-row TRIM datum behind the og's home-page
+     * "TRIM ON"/"TRIM OFF" chip (UIUX/07:17, :46) - the SSD-aware
+     * recovery-chance indicator. zero-init = unknown: the fields are only
+     * filled by the opt-in _ex enumeration (CR_ENUM_FLAG_TRIM below), so
+     * pre-existing hosts and the plain two-call caller see trim_known == 0
+     * (unknown) and are unaffected. The datum is the OS-global TRIM state
+     * (fsutil behavior query disabledeletenotify - the same primitive the
+     * health facet reads); every row carries the same value, exactly as
+     * every SSD row of the og's page renders the same chip state. */
+    uint32_t trim_known; /* 0 = not queried/unknown (the flag was off, or the query failed); 1 = the
+                            value below is valid */
+    uint32_t trim_on;    /* valid only when trim_known == 1: 1 = TRIM enabled (recovery-chance
+                            warning applies on SSDs), 0 = disabled */
 } cr_ui_disk_info;
 
 typedef struct cr_ui_volume_info {
@@ -468,6 +481,12 @@ typedef struct cr_ui_volume_info {
     char label[64];     /* UTF-8, may be empty */
     uint32_t bitlocker; /* 1 = FVE detected */
 } cr_ui_volume_info;
+
+/* M-076: the enumeration opt-in flags (the _ex call below only - the plain
+ * two-call exports never take flags). Unknown bits are refused with
+ * CR_UI_ERR_BAD_PARAMETER - a host passing a flag this build does not know
+ * must fail loudly, not silently ignore. */
+#define CR_ENUM_FLAG_TRIM 0x00000001u
 
 /* Two-call pattern for both: *count as IN capacity when out != NULL, as
  * OUT needed when out == NULL. Enumeration failure returns its error code
@@ -483,7 +502,20 @@ typedef struct cr_ui_volume_info {
  * (IOCTL_DISK_UPDATE_PROPERTIES, S-029), documented as such at
  * REFERENCE-API-GAP R-86. */
 CR_UI_API uint32_t cr_ui_enumerate_disks(cr_ui_disk_info* out, uint32_t* count);
+CR_UI_API uint32_t cr_ui_enumerate_disks_ex(cr_ui_disk_info* out, uint32_t* count,
+                                            uint32_t flags);
 CR_UI_API uint32_t cr_ui_enumerate_volumes(cr_ui_volume_info* out, uint32_t* count);
+
+/* M-076 opt-in contract (cr_ui_enumerate_disks_ex above): the TRIM chip
+ * datum is NOT free - the underlying fsutil query spawns a process per
+ * invocation. cr_ui_enumerate_disks (and _ex with flags == 0) never pays
+ * it; a host that wants the og's per-row chip opts in with
+ * CR_ENUM_FLAG_TRIM and accepts the latency (the og itself queries the
+ * same primitive for its home page - the chip is worth the cost there,
+ * and the caller decides, per the opt-in design recorded in the M-076
+ * resolution). The query is issued ONCE per invocation (the datum is
+ * OS-global) and stamped on every row; a failed query leaves trim_known
+ * == 0 on every row - never a guessed value. */
 
 /* ---- scan lifecycle ------------------------------------------------------
  * One cr_ui_scan = one staged pipeline over one attached device view,

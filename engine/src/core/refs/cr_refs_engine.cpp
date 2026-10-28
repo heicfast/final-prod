@@ -1251,9 +1251,14 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
                 }
             }
             stats.data_runs += props->extents.size();
-            (void)og_prop_flags; /* property flags tracked for og-parity
-                                  * surfaces (grading consumers); not yet
-                                  * consumed by the core's grading model */
+            (void)og_prop_flags; /* N-148: a PASSIVE datum - the
+                                  * property-flag decode tracked for
+                                  * og-parity documentation; not consumed
+                                  * by the core's grading model (the og's
+                                  * grading consumers of the flags are
+                                  * undecoded; the registration lives in
+                                  * modules/orchestration.md's grading
+                                  * non-adoption row) */
 
             /* M-027: "$I" rows - read the resident evidence for the later
              * $R remap (the content bytes live at the materialized extent;

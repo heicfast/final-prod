@@ -253,6 +253,16 @@ struct ScanConfig {
      * GetVolumeInformationW label is NOT derived (the OS label IS the
      * on-disk label for mounted volumes) and is never replaced. */
     char volume_label[32] = {0};
+
+    /* S-048 (diff-to-fix): the scan target volume's drive letter
+     * (UPPERCASE, 0 = absent) - the og's carve-tree volume grouping names
+     * each volume child "<label> (<L>:" + ")" (the real-session forms:
+     * " (H:)" for an empty label with a letter, "System Reserved" for a
+     * label without one). The CLI fills it from the --volume target's
+     * letter; ABI hosts through cr_ui_open_volume's letter. Absent for
+     * --disk/--image targets (whole-disk scans name their per-volume
+     * children through the M-104 tier machinery instead). */
+    char volume_letter = 0;
     bool volume_label_derived = false; /* the stem fallback: replaceable */
 
     /* Device identity card (SESS-2/GAP-W3-9a): model/serial from the disk
@@ -650,6 +660,12 @@ private:
      * display name (cfg_.raw_category_name, the og's "filter_generalraw"
      * surface) when set, the default role otherwise. */
     std::u16string raw_root_name_() const;
+    /* S-048: the carve tree's volume-group display name (the og's
+     * composition - see the ScanConfig::volume_letter note) and the 7
+     * category skeleton folders under the Reconstructed root (the real
+     * sessions' persisted shape; idempotent - existing folders reused). */
+    std::u16string carve_volume_display_name_(FsFamily fam) const;
+    void add_carve_skeleton_();
     u32 run_quick(IStorageDevice* slice, CancelToken* cancel, bool (*progress)(u32, void*),
                   void* pu, ScanStats& stats);
     u32 run_deep(IStorageDevice* slice, CancelToken* cancel, bool (*progress)(u32, void*), void* pu,
@@ -735,9 +751,8 @@ private:
     tree::FullNode* root_lost_ = nullptr;
     tree::FullNode* root_carved_ = nullptr;
     /* S-049: the scan-wide per-prefix name counters - one instance per
-     * ScanController, bound into every slice's CarveFlags so volume B's
-     * first JPG continues volume A's counter (the og's session-wide
-     * DRWUI counter map). */
+     * ScanController, bound into every slice's CarveFlags (the og's
+     * session-wide DRWUI counter map). */
     carve::CarveNameCounters name_counters_;
     bool quick_done_ = false; /* quick stage completed its engine pass (ARCH-7) */
     /* actual stage completion for stage_done_mask truth (G-07 resume) */

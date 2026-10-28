@@ -9,7 +9,9 @@
  *     budget-gated callback adapter over PreviewReader - the engine never
  *     opens files);
  *   - TIFF baseline: a native, bounded decoder (uncompressed / PackBits /
- *     Deflate strips, 8/16-bit, gray / palette / RGB / RGBA, both endians),
+ *     Deflate / LZW strips, 8/16-bit, gray / palette / RGB / RGBA, both
+ *     endians — the matrix kept in step with the header's (N-135 item 7:
+ *     the .cpp's copy had missed M-085's LZW)),
  *     following the repo's own-parser doctrine; predictor-2, tiled TIFF and
  *     JPEG-in-TIFF are honestly refused (documented phase-2);
  *   - JPEG EXIF embedded-thumbnail fast path: native APP1/TIFF walk

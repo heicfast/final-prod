@@ -120,6 +120,11 @@ dedup), GAP-S6-13 (64 KiB transport envelope).
   its message-pump implementation detail).
 - Registered non-adoptions (in the Resolution): the og's UNDECODED NTFS
   vt+0xb8/vt+0x100 sub-rule and its internal matched/total composition.
+  N-148 note (the passive-datum registration): the ReFS engine's
+  og_prop_flags (the type-2/1/3 property-flag decode, cr_refs_engine.cpp:
+  1180-1211) is a PASSIVE datum - tracked for og-parity documentation,
+  not consumed by the core's grading model (the og's grading consumers
+  of the flags are undecoded; wiring it in needs that decode first).
 
 ---
 

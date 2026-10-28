@@ -1,11 +1,11 @@
-# MAJOR M-117 — Outlook Express Dbx carve analyser entirely absent (the og's 3-key registry + GUID probe + u32@0x7C size); the session-3 "MISSING (N-026)" residue that was never filed
+# MAJOR M-121 — Outlook Express Dbx carve analyser entirely absent (the renumber chain: the S41 lane's M-117 filing → M-118 at my first rebase [never landed] → **M-121** at the final push per SA-9 — M-117 was triple-consumed [session-40 suppress-overlap ledger row 442 keeps it], and the parallel lanes' lostpart finding consumed M-118 while this renumber was in flight; M-119/M-120 also consumed) (the og's 3-key registry + GUID probe + u32@0x7C size); the session-3 "MISSING (N-026)" residue that was never filed
 
 **Severity:** MAJOR
 **Module:** carve (RAWSearchDLL parity surface)
 **Parameters affected:** P1 (detection correctness — a whole recoverable format silently missed), P3 (false-negative rate), P19 (magic bytes: three registry keys absent), P25 (engine algorithm steps — the Dbx validation grammar), P28 (carving validator logic), P65 (test coverage — no Dbx test exists)
 **Corpus references:** `re-workspace/reversed/ghidra-searchdll/RAWSearchDLL_decompiled.c` :2192-2232 (the three registry bindings — node constructions + map inserts), :17509-17562 (FUN_180016740, the Dbx format-id probe), :17586-17600 (FUN_180016880, the DBXRawFileInfo ctor), :17622-17690 (FUN_180016950, the size/name pass); `re-workspace/artifacts/SearchDLL/rawsearchdll--family-rawspeed.md` (the RawSpeed roster: DbxAnalyser, 4 vftable refs — top code weight alongside TAR); `re-workspace/artifacts/SearchDLL/rawsearchdll--analyser-registry-census.md` §3 (keys 0x36464d4a/0xfe12adcf/0x2c3489f7), §5 (the email-recovery marketing maps to SQLite+dBase+MDB+**Dbx**+PST); `og-codebase/raw_signs.json` (no dbx entry — the JSON layer does not cover it either; the analyser is the only path)
 **Core references:** audited `c7fa527c`. `src/core/carve/cr_registry.cpp` (all 122 FMT_ rows byte-matched — zero Dbx key), `include/cr/carve/cr_signatures.h` (the FormatId enum — no DBX member), `src/core/carve/cr_analysers.cpp` (no validate_dbx), `src/core/carve/cr_rawsigns_data.cpp` (no dbx extension). The trail's own record of the gap: `diff-to-fix/evidence/decompiled-quotes/s3-rawsearch-inventory.md:252-254` — the three keys marked **"MISSING (N-026)"**, and `diff-to-fix/evidence/s3-agent-logs/S3-CARVE.md:70` — "**Unfiled planned IDs: N-026** (per-layer format tables — folded into the inventory)". The N-026 ID was later consumed by an unrelated refs-geometry finding (FIXED-LEDGER :206), so the planned carve filing never happened and no successor finding covers it (S-041's umbrella retirement lists its children: M-092/M-093/M-096/M-098/M-099/N-111/N-112/N-113/N-115 — no Dbx).
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** RESOLVED — see the Resolution section at the foot of this file
 
 ## Summary
 
@@ -81,3 +81,92 @@ UNVERIFIED-BY-EXECUTION: no og run was executed against a DBX fixture this sessi
 ## Open questions
 
 The marked-form (F789342C) size computation depends on `FUN_180042b30`'s decode (fix-plan step 1) — the block arithmetic was not fully decoded this session; the fixer must pin it before writing the validator. The 272-byte name buffer's field offset (the DBX folder-name location) likewise rides the Analyse-virtual decode.
+
+## Resolution
+
+**Status:** FIXED
+
+## Resolution
+
+**Status:** FIXED (CONVERGENT — two parallel fix lanes landed the same finding; this
+section is the merged record)
+
+**Fixed in commit:** `1d4c96b6` (the parallel fix lane's landing, pushed first) +
+**this push** (the convergent correction lane: two byte-level repairs + the renumber
+to M-121 per SA-9 — the chain M-117 → M-118 [never landed] → M-121)
+
+**Renumber:** **M-121** per SA-9 (the chain M-117 → M-118 → M-121) — the M-117 ID was consumed THREE times: the
+session-40 suppress-overlap landing (FIXED-LEDGER row 442, retired to history — the
+earlier push, keeps the ID), the S41 audit lane's Dbx filing, and the parallel fix
+lane's 1d4c96b6 commit message. The renumber note lives in this heading; the
+`findings/FIXED/M-117-*` path keeps a collision-record stub per the A-005/A-006
+renumber-pair precedent (no file deleted), pointing through the chain to M-121.
+
+**Verified by:** `Carve.DbxPlainMagicCarvesWithDeclaredSize` ·
+`Carve.DbxAllFourGuidsCarve` · `Carve.DbxJmf6VariantCarves` ·
+`Carve.DbxJmf6WrongVersionWordRejected` · `Carve.DbxMarkedFormZeroSectorWalk` ·
+`Carve.DbxMarkedFormOddPrefixRoundsEven` · `Carve.DbxRejectsWrongGuid` ·
+`Carve.DbxRejectsTruncatedMarkedPattern` · `Carve.DbxRegistryCarriesAllThreeKeys`
+(9/9 GREEN; RED pre-fix — the formats did not exist, the tests cannot compile
+against the pre-fix tree; the parallel lane's RED proof was the stashed-engine
+rebuild, same terminal state).
+
+**Resolution notes (the convergent record):** The finding was independently verified
+by BOTH lanes against the corpus before either fix, and the two verifications
+DISAGREED on two bytes — each lane caught the other's error at the reconciliation:
+
+1. **The JMF6 version word is `03 00 10 00`** — the parallel lane's reading,
+   disassembly-settled at 0x180016766/0x18001676f (`movl $0x36464d4a` +
+   `movl $0x00100003`): the probe's u64 is **0x0010000336464D4A**. My first landing
+   expanded Ghidra's 14-digit literal `0x10000336464d4a` (:17573) as
+   0x0001_0003_3646_4D4A ("03 00 01 00") — a literal-expansion error; the finding's
+   own prose carried the same wrong transcription. The wrong word is now the hostile
+   fixture in `Carve.DbxJmf6WrongVersionWordRejected` (the error itself became a
+   pin).
+2. **The marked pattern's byte 6 is `0xEE`, not `0xDE`** — my reading,
+   disassembly-settled at 0x18001698b (`movl $0x6deef0f7`): the dword 0x6deef0f7 is
+   F7 F0 **EE** 6D on disk. The parallel lane's kMarked carried 0xDE — its marked
+   form would never match a real og-marked file (the registry key fires, the 16-byte
+   identity re-check fails, no row). Corrected in this push.
+3. **FUN_180042b30's return is the non-zero prefix ROUNDED UP TO EVEN** — my decode,
+   disassembly-settled at 0x180042bb0-0x180042c07 (the `sar $1` bisection +
+   `lea 0x1(%rsi),%eax` = mid+1 return; Ghidra + retdec + simulation cross-pinned):
+   prefix 1→2, 2→2, 3→4 … 511→512, 0 on an all-zero window. The parallel lane's
+   walk used the plain prefix (off-by-one on odd extents). The one-shot port keeps
+   the last computed extent per D-101: content extends to distance + the
+   even-rounded prefix, the first all-zero sector terminates at the sector distance,
+   row-cap bounded.
+4. **The 272-byte embedded name is EMPTY** — both lanes converged (:17660-17667:
+   memset-then-strlen with nothing written; disasm 0x180016a16-0x180016a78). The
+   S-049 default naming (DBX_%06d.DBX) is the og-faithful outcome; no name_prefix.
+
+The landed grammar: three registry rows (FMT_DBX_JMF6 / FMT_DBX / FMT_DBX_MARKED,
+APPENDED, serialized carve_format stable; one shared validator, the og's
+duplicate-key policy), the identity probe exact (the JMF6+03 00 10 00 u64, the four
+OE store GUIDs, the marked 16-byte pattern; a key hit without a table identity
+rejects), the plain-form size u32@+0x7C (clamped to the readable extent per the PST
+family precedent; rejected below the 0x80 read bound — the og's window over-read
+becomes the bounded-read rejection, the family convention), the marked-form
+zero-walk above. Bounds: min 0x80/0x10, max 0xBEBC200 (the og engine default — the
+user-info singleton's 200,000,000 reset, the MDB family precedent; the parallel
+lane's 0xFFFFFFFF cap surface would let the marked walk run 4 GiB per candidate).
+kTrialOrder extended (the every-FormatId-exactly-once assert enforces it). The ext
+surface rides "dbx" (the og ext-table id 21); the query layer's existing
+`{"dbx", Category::Email}` row surfaces it in the email bucket. The s3 inventory's
+three "MISSING (N-026)" rows re-pointed to MATCH. Corpus citations:
+RAWSearchDLL_decompiled.c :2192-2232, :17509-17562, :17586-17600, :17622-17690,
+:50703-50750; disassembly 0x180016740-0x180016860, 0x180016950-0x180016ac0,
+0x180042b30-0x180042c20. UNVERIFIED-BY-EXECUTION against a live og run (no Windows
+host) — decode evidence is the basis, per protocol tier 2. No safety hardening was
+touched.
+
+---
+
+### The parallel lane's original Resolution (1d4c96b6, preserved verbatim)
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** <this push> (the fix + trail ride one commit; the SHA cell is repaired at push if the rebase moves it)
+**Verified by:** Carve.DbxPlainStoreGuidFamilyCarvesWithDeclaredSize · Carve.DbxJmf6VariantCarves · Carve.DbxJmf6WrongVersionWordRejected · Carve.DbxMarkedFormZeroEndExtent · Carve.DbxRejectsMagicWithoutTableIdentity · Carve.DbxRegistryRowsCarryTheThreeOgKeys (6/6 GREEN; RED pre-fix proven by the stashed-engine rebuild — the tests cannot even compile against the pre-fix engine: `FMT_DBX*` not declared, the registry surface did not exist); suite 1125/1125 green post-fix (1083 passed / 42 platform skips, 0 failed); clang-format 18.1.8 clean; the F8 gate + self-probe green over the three new rows.
+**Resolution notes:** The full grammar landed, decoded first-hand from the corpus this session beyond the finding's own evidence: (1) the fix-plan step-1 open question is closed — `FUN_180042b30` (:50703-50746) is a binary search for the offset where a window's ALL-ZERO tail begins (the 1-based non-zero prefix length), so the marked-form size `(cur_window - start) * block + nonzero_prefix` accumulates, across the engine's per-window Analyse calls, to the extent from the candidate start to the last non-zero byte (the zero-end family; the engine's block = the device sector size, 0x200 default — the scan loop at :9460-9470 walks block-unit positions, and the engine's own zero-window detection at :9489-9505 ends the candidate at an all-zero window). (2) The 272-byte embedded-name buffer is memset-then-strlen'd with NOTHING ever written into it (:17660-17667) — the shipped name is always empty; ported as no embedded_name (the dead copy NOT fabricated into a name grammar). (3) A finding-text correction: the JMF6 version word is `03 00 10 00` (the probe's u64 literal `0x0010000336464D4A` at :17573), not the finding's transcribed "03 00 01 00" — the corpus literal wins; the wrong-word rejection is pinned by Carve.DbxJmf6WrongVersionWordRejected. Landed: three registry rows in the og's registration order (FMT_DBX_JMF6 / FMT_DBX / FMT_DBX_MARKED — one row per key, shared `validate_dbx`, the M-092 duplicate-key policy), the identity probe ported exactly (the four OE store GUIDs, the JMF6+version u64, the marked 16-byte pattern — a key hit without a table identity rejects, FUN_180016740's gate), the plain form's self-declared u32@+0x7C size (ungated in the og — FUN_180016950 writes the field straight into the FileInfo size slot), the marked form's zero-end walk (512-byte blocks, stop at the first all-zero block, end at the last non-zero byte). Core adaptation documented in the code comment: the +0x7C read at the slice edge is refused (the og's window over-read becomes the core's bounded-read rejection — the family convention); the row carries the probe's own 16-byte floor and the u32 field's own 0xFFFFFFFF range as the cap surface (the og registers no bound, and neither implementation's raw_signs.json carries dbx — the analyser is the only path in both). The ext surface rides "dbx" (the og's ext-table id 21, s5-grading-extension-table-dump.md:56); the query layer's existing `{"dbx", Category::Email}` row (cr_filefilter_data.cpp:286) surfaces it in the email bucket. The session-3 "MISSING (N-026)" markers in s3-rawsearch-inventory.md:252-254 now resolve to this finding (the never-filed plan is filed and fixed). The user's this-session directive ("put fixed findings in fixed directory") adjudicates the matrix's recorded FIXED-archive convention conflict in favor of the session-11 amendment — this file moves to findings/FIXED/ in-tree. No safety hardening was touched by this fix.

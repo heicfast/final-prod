@@ -106,6 +106,7 @@ thread-safety class documented per group ([ABI-CONTRACT.md](ABI-CONTRACT.md)).
 | Export | Purpose |
 |---|---|
 | `cr_ui_enumerate_disks` / `cr_ui_enumerate_volumes` | the device census (PhysicalDrive namespace, ≤ 200 disks, D-85 scope); each call re-queries the OS — no cache, calling again IS the refresh (N-098) |
+| `cr_ui_enumerate_disks_ex` | the opt-in census (M-076): `CR_ENUM_FLAG_TRIM` adds the per-row TRIM chip datum (`trim_known`/`trim_on` — the og's home-page SSD recovery-chance indicator, UIUX/07:17) to every `cr_ui_disk_info` row; unknown flag bits are refused with `CR_UI_ERR_BAD_PARAMETER`; the query is one fresh fsutil read per invocation (OS-global datum) and a failed query leaves `trim_known == 0` — never a guessed value |
 | `cr_ui_open_disk` / `cr_ui_open_volume` / `cr_ui_open_image` | open by number / letter / image file (flat, VMDK, VHD, VHDX). S-051: a scan over a whole-disk/disk-image target ALWAYS scans the partition table's volumes (one per-volume tree root; the og's CDoScanPartition partition-list read — a table-bearing disk never yields a silent empty verdict) |
 | `cr_ui_open_volume_with_key` | open a BitLocker volume with a user-supplied FVEK (in-stack XTS-AES decrypt, M-033) |
 | `cr_ui_unlock_volume_with_dictionary` | explicit-consent BitLocker password unlock (N-064; shipped 228-entry dict + user candidates) |

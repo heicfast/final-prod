@@ -262,6 +262,57 @@ TEST(Query, FilterSortPageCorrectness) {
  * the row's FULL path (root role + ancestors + own name, '/'-joined) must
  * start with the prefix, ASCII-case-insensitive; the walk prunes subtrees
  * whose accumulated path is prefix-incompatible with the filter. */
+TEST(Query, CarvedVolumeFilterAxis) {
+    /* S-048: the carve tree's volume attribution IS the tree position
+     * (the og's shape - Reconstructed/<volume-display>/<files>), so the
+     * volume filter axis is the path-prefix filter over the group child's
+     * path: a query for "Reconstructed/ (H:)/" returns exactly that
+     * volume's carved files, never another volume's. */
+    tree::ResultTree t;
+    auto* rec = t.add_root(u"Reconstructed");
+    auto* grpH = t.add_folder(rec, u" (H:)");
+    auto* grpSR = t.add_folder(rec, u"System Reserved");
+    ASSERT_NE(grpH, nullptr);
+    ASSERT_NE(grpSR, nullptr);
+    for (int i = 0; i < 3; ++i) {
+        tree::FileProperties* p = new tree::FileProperties();
+        p->name = u"PNG_00000" + std::u16string(1, u16(u8('1' + i))) + u".PNG";
+        p->logical_size = 100 + i;
+        auto* f = t.add_file(grpH, p);
+        p->release();
+        f->set_origin(tree::Origin::Carved);
+        f->set_deleted_state(tree::DeletedState::Deleted);
+    }
+    {
+        tree::FileProperties* p = new tree::FileProperties();
+        p->name = u"GZ_000001.GZ";
+        p->logical_size = 50;
+        auto* f = t.add_file(grpSR, p);
+        p->release();
+        f->set_origin(tree::Origin::Carved);
+        f->set_deleted_state(tree::DeletedState::Deleted);
+    }
+    t.refresh_stats();
+
+    Query q;
+    q.filter.path_prefix = "Reconstructed/ (H:)";
+    q.filter.origin_mask = 1u << u32(tree::Origin::Carved);
+    q.filter.state_mask = 1u << u32(tree::DeletedState::Deleted);
+    q.limit = 100;
+    Result r = run(t, q);
+    EXPECT_EQ(u64(3), r.total_matched) << "exactly the H volume's carved files";
+    for (const Row& row : r.rows)
+        EXPECT_EQ(row.path_utf8.rfind("Reconstructed/ (H:)/", 0), size_t(0))
+            << "every row is the H volume's: " << row.path_utf8;
+
+    q.filter.path_prefix = "Reconstructed/System Reserved";
+    r = run(t, q);
+    EXPECT_EQ(u64(1), r.total_matched) << "exactly the System Reserved volume's files";
+    if (!r.rows.empty()) {
+        EXPECT_EQ(r.rows[0].name_utf8, "GZ_000001.GZ");
+    }
+}
+
 TEST(Query, PathPrefixFilterMatchesAndPrunes) {
     tree::ResultTree t;
     auto* found = t.add_root(u"Found");
@@ -828,4 +879,51 @@ TEST(Query, BucketFiltersThroughRun) {
         ASSERT_EQ(u64(1), r.total_matched);
         EXPECT_EQ("today.txt", r.rows[0].name_utf8);
     }
+}
+
+TEST(Query, UnsavedFileCategory) {
+    /* N-126: the og's "Unsaved File" search-type category (the UI's
+     * type-mask bit 6) - the office unsaved-document family lands in
+     * its own category; the mask's tenth bit selects it. */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Lost Files");
+    add_file(t, root, "Autosave.asd", 100, 1000, 1, false, tree::Origin::Carved);
+    add_file(t, root, "Document.wbk", 200, 2000, 1, false, tree::Origin::Carved);
+    add_file(t, root, "photo.jpg", 300, 3000, 1, false, tree::Origin::Carved);
+    /* the category classification */
+    EXPECT_EQ(Category::Unsaved, category_for_extension("asd"));
+    EXPECT_EQ(Category::Unsaved, category_for_extension("ASD"));
+    EXPECT_EQ(Category::Unsaved, category_for_extension("wbk"));
+    EXPECT_EQ(Category::Image, category_for_extension("jpg"));
+    /* the mask selection: Unsaved only */
+    {
+        Query q;
+        q.filter.category_mask = 1u << u32(Category::Unsaved);
+        const Result r = run(t, q);
+        ASSERT_EQ(u64(2), r.total_matched);
+        EXPECT_EQ("Autosave.asd", r.rows[0].name_utf8);
+        EXPECT_EQ(u32(Category::Unsaved), r.rows[0].category);
+    }
+    /* the default mask (0x3FF) admits the unsaved rows */
+    {
+        Query q;
+        const Result r = run(t, q);
+        EXPECT_EQ(u64(3), r.total_matched);
+    }
+}
+
+TEST(Query, CategoriesAppendOnlyGuard) {
+    /* N-126: the category values are serialized in sessions and cross
+     * the ABI - the pre-existing nine keep their values, Unsaved
+     * appends at 9 (the append-only rule the FileFilter landing set). */
+    EXPECT_EQ(u8(Category::None), u8(0));
+    EXPECT_EQ(u8(Category::Image), u8(1));
+    EXPECT_EQ(u8(Category::Video), u8(2));
+    EXPECT_EQ(u8(Category::Audio), u8(3));
+    EXPECT_EQ(u8(Category::Document), u8(4));
+    EXPECT_EQ(u8(Category::Archive), u8(5));
+    EXPECT_EQ(u8(Category::Other), u8(6));
+    EXPECT_EQ(u8(Category::Email), u8(7));
+    EXPECT_EQ(u8(Category::Bookmarks), u8(8));
+    EXPECT_EQ(u8(Category::Unsaved), u8(9));
 }

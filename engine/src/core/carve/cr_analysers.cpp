@@ -7,8 +7,9 @@
  */
 
 #include "cr/carve/cr_signatures.h"
-#include "cr/compress/cr_decomp.h"
+#include "cr/compress/cr_decomp.h" /* N-115: the mimetype content inflate */
 #include "cr/storage/cr_device.h"
+#include <zlib.h>
 #include <algorithm>
 #include <cstring>
 #include <ctime>
@@ -66,6 +67,105 @@ u64 rdbe64(IStorageDevice* s, u64 off) {
     for (int i = 0; i < 8; ++i)
         v = (v << 8) | b[i];
     return v;
+}
+
+/* ---- S-049: the content-derived naming-prefix producers ----------------
+ *
+ * The og's engine-side analysers supply a prefix string that DRWUI's
+ * naming layer composes as "<prefix>_<%06d>.<EXT>"
+ * (DRWUI_decompiled.c:1878330-81; the prefix-extraction and WxH-dims
+ * branches at the caller :1877538-64; the per-format counter map at
+ * :1877584-90 — all first-hand this session). The real og sessions pin
+ * the per-format prefix families (the verbatim table in
+ * evidence/executions/s10b-real-rsf-session-mining.md + this session's
+ * first-hand re-mining: JPG_192x144 / GT-S7562 / Adobe Photoshop 7.0,
+ * MP4_08m07s / MOV_10s, <ID3 title>, <Title/Creator+date>, <docProps
+ * created>, <first CD entry>). */
+
+/* Content bytes -> the u16 prefix. The og's analysers read raw bytes and
+ * widen them; ASCII prefixes dominate the real sessions. Try UTF-8
+ * first (EXIF MP/ID3v2 UTF-8 strings), fall back to byte promotion
+ * (latin-1) so arbitrary tag bytes still surface. */
+std::u16string prefix_from_bytes(const char* p, size_t n) {
+    if (p == nullptr || n == 0)
+        return {};
+    /* cheap UTF-8 validity walk */
+    bool utf8_ok = true;
+    for (size_t i = 0; i < n;) {
+        const unsigned char c = static_cast<unsigned char>(p[i]);
+        size_t need;
+        if (c < 0x80)
+            need = 1;
+        else if ((c & 0xE0) == 0xC0)
+            need = 2;
+        else if ((c & 0xF0) == 0xE0)
+            need = 3;
+        else if ((c & 0xF8) == 0xF0)
+            need = 4;
+        else {
+            utf8_ok = false;
+            break;
+        }
+        if (i + need > n) {
+            utf8_ok = false;
+            break;
+        }
+        i += need;
+    }
+    std::u16string out;
+    out.reserve(n);
+    if (utf8_ok) {
+        for (size_t i = 0; i < n;) {
+            const unsigned char c = static_cast<unsigned char>(p[i]);
+            if (c < 0x80) {
+                out.push_back(u16(c));
+                i += 1;
+            } else if ((c & 0xE0) == 0xC0) {
+                out.push_back(u16(((u32(c) & 0x1F) << 6) | (u32(p[i + 1]) & 0x3F)));
+                i += 2;
+            } else if ((c & 0xF0) == 0xE0) {
+                out.push_back(u16(((u32(c) & 0x0F) << 12) | ((u32(p[i + 1]) & 0x3F) << 6) |
+                                  (u32(p[i + 2]) & 0x3F)));
+                i += 3;
+            } else {
+                /* a 4-byte sequence outside the BMP: the og's wide string
+                 * holds it as the surrogate pair; both halves promote */
+                const u32 cp = ((u32(c) & 0x07) << 18) | ((u32(p[i + 1]) & 0x3F) << 12) |
+                               ((u32(p[i + 2]) & 0x3F) << 6) | (u32(p[i + 3]) & 0x3F);
+                out.push_back(u16(0xD800 + ((cp - 0x10000) >> 10)));
+                out.push_back(u16(0xDC00 + ((cp - 0x10000) & 0x3FF)));
+                i += 4;
+            }
+        }
+        return out;
+    }
+    for (size_t i = 0; i < n; ++i)
+        out.push_back(u16(u8(p[i])));
+    return out;
+}
+
+std::u16string prefix_from_bytes(const std::string& s) {
+    return prefix_from_bytes(s.data(), s.size());
+}
+
+/* The og's date/duration composition forms (real-session-pinned):
+ * the date "2020-05-23 23-23-23" (PDF/DOCX - colons are Windows-illegal,
+ * the og writes dashes), the MP4/MOV duration "08m07s" / "14s" / "01m"
+ * (%02u-padded minutes/seconds). */
+std::u16string duration_form(u64 total_seconds) {
+    char buf[32];
+    const u64 m = total_seconds / 60;
+    const u64 sec = total_seconds % 60;
+    int n;
+    if (m == 0)
+        n = snprintf(buf, sizeof(buf), "%02us", unsigned(sec));
+    else if (sec == 0)
+        n = snprintf(buf, sizeof(buf), "%02um", unsigned(m));
+    else
+        n = snprintf(buf, sizeof(buf), "%02um%02us", unsigned(m), unsigned(sec));
+    if (n <= 0)
+        return {};
+    return prefix_from_bytes(buf, size_t(n));
 }
 
 /* EBML vint: returns length in bytes (1..8), value in *v; 0 = invalid */
@@ -136,68 +236,193 @@ u64 probe_limit(IStorageDevice* s, u64 hit, u64 cap) {
     return std::min(hit + cap, s->size());
 }
 
-/* ---- S-049: prefix-building helpers --------------------------------- */
-
-/* Latin-1 bytes -> u16 (the og's ANSI strings: EXIF ASCII, ZIP entry
- * names - byte value == code point). */
-static void append_latin1(std::u16string& out, const char* p, size_t n) {
-    for (size_t i = 0; i < n && p[i] != 0; ++i)
-        out.push_back(u16(u8(p[i])));
-}
-
-/* UTF-8 bytes -> u16 (ID3v2.4 encoding 3 / XML content). Malformed
- * sequences pass through as Latin-1 (never a name failure - the prefix
- * is cosmetic metadata, the carve itself already validated). */
-static void append_utf8(std::u16string& out, const char* p, size_t n) {
-    size_t i = 0;
-    while (i < n && p[i] != 0) {
-        const unsigned char c = (unsigned char)p[i];
-        if (c < 0x80) {
-            out.push_back(u16(c));
-            i += 1;
-        } else if ((c & 0xE0) == 0xC0 && i + 1 < n) {
-            out.push_back(u16(((c & 0x1Fu) << 6) | ((unsigned char)p[i + 1] & 0x3Fu)));
-            i += 2;
-        } else if ((c & 0xF0) == 0xE0 && i + 2 < n) {
-            out.push_back(u16((((unsigned char)p[i] & 0x0Fu) << 12) |
-                              (((unsigned char)p[i + 1] & 0x3Fu) << 6) |
-                              ((unsigned char)p[i + 2] & 0x3Fu)));
-            i += 3;
-        } else {
-            out.push_back(u16(c)); /* passthrough: Latin-1 fallback */
-            i += 1;
-        }
-    }
-}
-
-/* S-049: the og's ZIP-entry name sanitization for the carve prefix -
- * the real-session forms pin the mapping (META-INF/ -> META-INF_,
- * __MACOSX/ -> __MACOSX_, LICENSE.OFL -> LICENSE_OFL: path separators
- * AND dots become underscores; META-INF keeps its hyphen - hyphens are
- * legal filename characters). The invalid-for-filenames set maps to
- * '_' so a carved name is always a usable filename. */
-static std::u16string sanitize_entry_prefix(const std::string& name) {
-    std::u16string out;
-    for (char c : name) {
-        if (c == 0)
-            break;
-        if (c == '/' || c == '\\' || c == '.' || c == ':' || c == '*' || c == '?' || c == '"' ||
-            c == '<' || c == '>' || c == '|' || (c >= 0 && c < 0x20))
-            out.push_back(u'_');
-        else
-            out.push_back(u16(u8(c)));
-        if (out.size() >= 200)
-            break; /* the DRWUI naming buffer bound (0xff wchars) */
-    }
-    return out;
-}
-
 /* finalize a validated PDF (end = offset just past the effective %%EOF) */
-static CarveResult carve_pdf_done(CarveResult r, u64 end) {
+/* S-049: the PDF naming prefix — real-session-pinned model (first-hand
+ * re-mining of all three og sessions this session):
+ *   - a PDF with an info-dict /Title prefixes by the Title (truncated at
+ *     25 chars: " TeX output 1998.06.28_17" and "LaTeX with hyperref
+ *     packa" are both exactly-25 truncations of 29/27-char source
+ *     strings — two independent pins);
+ *   - otherwise (Creator, else Producer) + the /CreationDate formatted
+ *     "YYYY-MM-DD HH-MM-SS" (colons are Windows-illegal; the og writes
+ *     dashes): "TeX2022-03-03 21-11-38", "GPL Ghostscript
+ *     9.56.12022-08-17 15-05-58", "groff version 1.23.02023-12-19
+ *     21-25-45";
+ *   - the date parse reads "D:" + at least 14 plain digits (matplotlib's
+ *     dashed "D:2022-08-17 15:05:58+02'00'" form never produced a date
+ *     prefix in any session — rejected naturally by the 14-digit read);
+ *   - string reads cap at 25 chars; a date-only form exists ("2020-05-23
+ *     23-23-23" — no Title/Creator/Producer found in the bounded scan).
+ * Open nuance recorded in S-049's Resolution: which of Creator/Producer
+ * the og prefers when both are present beyond the read bound — the
+ * sessions never show a form that separates them (every observed
+ * non-Title string matches its file's Creator; gs-distilled files carry
+ * the Producer only). Creator-first is the implemented reading. */
+static void pdf_name_prefix(IStorageDevice* s, u64 hit, u64 end, CarveResult& r) {
+    enum Key { K_TITLE, K_CREATOR, K_PRODUCER, K_DATE };
+    static const size_t kStrCap = 25;
+    static const u64 kScanCap = 256ull << 10;
+    const u64 limit = end - hit > kScanCap ? hit + kScanCap : end;
+    std::vector<u8> buf(kProbeBlock);
+    std::string title, creator, producer, date;
+    u64 block = hit;
+    while (block < limit &&
+           (title.empty() || (creator.empty() && producer.empty()) || date.empty())) {
+        const u64 remain = limit - block;
+        const u32 take = u32(std::min<u64>(remain, kProbeBlock));
+        if (take < 16)
+            break;
+        if (!rd(s, block, buf.data(), take))
+            break;
+        /* candidate keys: /Title /Creator /Producer /CreationDate */
+        for (u32 i = 0; i + 6 <= take; ++i) {
+            if (buf[i] != '/')
+                continue;
+            Key key;
+            size_t klen;
+            if (std::memcmp(buf.data() + i, "/Title", 6) == 0) {
+                key = K_TITLE;
+                klen = 6;
+            } else if (std::memcmp(buf.data() + i, "/Creator", 8) == 0 && i + 8 <= take) {
+                key = K_CREATOR;
+                klen = 8;
+            } else if (std::memcmp(buf.data() + i, "/Producer", 9) == 0 && i + 9 <= take) {
+                key = K_PRODUCER;
+                klen = 9;
+            } else if (std::memcmp(buf.data() + i, "/CreationDate", 13) == 0 && i + 13 <= take) {
+                key = K_DATE;
+                klen = 13;
+            } else {
+                continue;
+            }
+            /* the first key occurrence wins (per key); skip the string
+             * walk when this key is already filled */
+            const std::string* have = key == K_TITLE      ? &title
+                                      : key == K_CREATOR  ? &creator
+                                      : key == K_PRODUCER ? &producer
+                                                          : &date;
+            if (!have->empty())
+                continue;
+            /* optional whitespace then a literal ( string */
+            u64 p = block + i + klen;
+            u32 ws = 0;
+            while (p + ws < limit && ws < 8) {
+                u8 c = 0;
+                if (!rd(s, p + ws, &c, 1))
+                    break;
+                if (c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == 0) {
+                    ++ws;
+                    continue;
+                }
+                break;
+            }
+            u8 open = 0;
+            if (p + ws >= limit || !rd(s, p + ws, &open, 1) || open != '(')
+                continue;
+            p = p + ws + 1;
+            if (key == K_DATE) {
+                /* D: + at least 14 plain digits (the dashed matplotlib
+                 * "D:2022-08-17 15:05:58+02'00'" form never produced a
+                 * date prefix in any session - it fails this read
+                 * naturally: the first dash breaks the digit run) */
+                u8 pre[2] = {0, 0};
+                if (!rd(s, p, pre, 2) || pre[0] != 'D' || pre[1] != ':')
+                    continue;
+                char digits[16] = {};
+                u32 nd = 0;
+                while (p + 2 + nd < limit && nd < 16) {
+                    u8 c = 0;
+                    if (!rd(s, p + 2 + nd, &c, 1))
+                        break;
+                    if (c < '0' || c > '9')
+                        break;
+                    digits[nd] = char(c);
+                    ++nd;
+                }
+                if (nd < 14)
+                    continue; /* not the plain D:YYYYMMDDHHMMSS form */
+                /* the fixed 14-digit read; an over-long digit run keeps
+                 * the first 14 (the suffix grammar belongs past them) */
+                digits[14] = 0;
+                char out[24];
+                const int n =
+                    snprintf(out, sizeof(out), "%.4s-%.2s-%.2s %.2s-%.2s-%.2s", digits, digits + 4,
+                             digits + 6, digits + 8, digits + 10, digits + 12);
+                if (n == 19)
+                    date.assign(out, size_t(n));
+                continue;
+            }
+            /* literal string: read up to the cap, honoring \( \) \\ */
+            std::string v;
+            v.reserve(kStrCap);
+            u8 c = 0;
+            u64 q = p;
+            while (q < limit && v.size() < kStrCap) {
+                if (!rd(s, q, &c, 1))
+                    break;
+                if (c == ')')
+                    break;
+                if (c == '\\') {
+                    u8 e = 0;
+                    if (q + 1 < limit && rd(s, q + 1, &e, 1) &&
+                        (e == '(' || e == ')' || e == '\\')) {
+                        v.push_back(char(e));
+                        q += 2;
+                        continue;
+                    }
+                    v.push_back('\\');
+                    ++q;
+                    continue;
+                }
+                v.push_back(char(c));
+                ++q;
+            }
+            while (!v.empty() && (v.back() == 0 || v.back() == ' '))
+                v.pop_back();
+            if (!v.empty()) {
+                if (key == K_TITLE)
+                    title = std::move(v);
+                else if (key == K_CREATOR)
+                    creator = std::move(v);
+                else
+                    producer = std::move(v);
+            }
+        }
+        if (block + take >= limit)
+            break;
+        block += u64(take) - 8; /* 9-byte key overlap seam */
+    }
+    if (!title.empty()) {
+        r.name_prefix = prefix_from_bytes(title);
+        r.name_counter_key = title; /* the per-string counter key (the
+                                     * H-session census: TeX 1..453,
+                                     * GPL Ghostscript 9.56.1 1..158,
+                                     * LaTeX-with-hyperref-packa 1..46) */
+        return;
+    }
+    std::u16string out;
+    if (!creator.empty()) {
+        out = prefix_from_bytes(creator);
+        r.name_counter_key = creator;
+    } else if (!producer.empty()) {
+        out = prefix_from_bytes(producer);
+        r.name_counter_key = producer;
+    }
+    if (!date.empty())
+        out += prefix_from_bytes(date); /* the date rides the display
+                                         * prefix, NOT the counter key
+                                         * (TeX-dated and TeX-plain
+                                         * share one counter) */
+    if (!out.empty())
+        r.name_prefix = std::move(out);
+}
+
+static CarveResult carve_pdf_done(IStorageDevice* s, CarveResult r, u64 hit, u64 end) {
     r.ok = true;
     r.end = end;
     r.confidence = 900;
     r.note = "%%EOF(last-before-next-PDF,1MiB-blocks)";
+    pdf_name_prefix(s, hit, end, r); /* S-049 */
     return r;
 }
 
@@ -321,86 +546,153 @@ static u64 scan_eocd_for_cd_anchor(IStorageDevice* s, u64 anchor, u64 limit) {
  * complete ones (no grade distinction found in the legacy path), the
  * core grades them PartialRisk (600 < the 850 Excellent band) — recover
  * more, grade honestly (registered in PARITY-DELTAS). */
+/* S-049: the JPEG naming prefix — EXIF Model, then EXIF Software, then
+ * the SOF dimensions (the dims branch the DRWUI naming caller gates on
+ * W,H in [1, 0x2000] — :1877540-46), else empty (the emit site's plain
+ * uppercase-ext default). Real-session forms: GT-S7562_000123.JPG,
+ * Adobe Photoshop 7.0_N.JPG, JPG_192x144_000001.JPG. The dims prefix
+ * composes the format name: "JPG_<W>x<H>". */
+static std::u16string jpeg_name_prefix(IStorageDevice* s, u64 hit, u64 cap, u64 sof_w, u64 sof_h,
+                                       std::string* counter_key = nullptr) {
+    /* EXIF APP1: walk the JPEG segments for APP1 "Exif\0\0", then the
+     * TIFF IFD0 for Model (0x0110) / Software (0x0131). Bounded: the
+     * first 64 KiB of the file (EXIF lives in the header; the APP1
+     * segment length is u16-bounded anyway). */
+    const u64 limit = hit + (cap < 65536 ? cap : 65536);
+    u64 pos = hit + 2;
+    std::string model, software;
+    int markers = 0;
+    while (pos + 4 <= limit) {
+        if (++markers > 256)
+            break;
+        u8 m[4];
+        if (!rd(s, pos, m, 2) || m[0] != 0xFF)
+            break;
+        const u8 mk = m[1];
+        if (mk == 0xD8 || (mk >= 0xD0 && mk <= 0xD7) || mk == 0x01) {
+            pos += 2;
+            continue;
+        }
+        if (mk == 0xD9 || mk == 0xDA)
+            break; /* header walk ends at the entropy data */
+        const u16 seglen = rdbe16(s, pos + 2);
+        if (seglen < 2)
+            break;
+        if (mk == 0xE1 && seglen >= 10) {
+            u8 exif_hdr[6];
+            if (rd(s, pos + 4, exif_hdr, 6) == true && std::memcmp(exif_hdr, "Exif\0\0", 6) == 0) {
+                /* TIFF header at pos+10: byte order II/MM (0x4942/0x4D4D),
+                 * magic 42, IFD0 offset */
+                const u64 tiff = pos + 10;
+                u8 th[8];
+                if (rd(s, tiff, th, 8) == true) {
+                    const bool le = th[0] == 0x49 && th[1] == 0x49;
+                    const bool be = th[0] == 0x4D && th[1] == 0x4D;
+                    if (le || be) {
+                        const auto rd16e = [&](u64 o) {
+                            u8 b[2];
+                            if (!rd(s, o, b, 2))
+                                return u16(0);
+                            return le ? u16(u32(b[0]) | (u32(b[1]) << 8))
+                                      : u16((u32(b[0]) << 8) | b[1]);
+                        };
+                        const auto rd32e = [&](u64 o) {
+                            u8 b[4];
+                            if (!rd(s, o, b, 4))
+                                return u32(0);
+                            return le ? (u32(b[0]) | (u32(b[1]) << 8) | (u32(b[2]) << 16) |
+                                         (u32(b[3]) << 24))
+                                      : ((u32(b[0]) << 24) | (u32(b[1]) << 16) | (u32(b[2]) << 8) |
+                                         b[3]);
+                        };
+                        const u16 magic = rd16e(tiff + 2);
+                        const u32 ifd_off = rd32e(tiff + 4);
+                        if (magic == 42 && ifd_off != 0 && ifd_off < 65536 &&
+                            tiff + ifd_off + 2 <= limit) {
+                            const u64 ifd = tiff + ifd_off;
+                            const u16 count = rd16e(ifd);
+                            if (count > 0 && count <= 512) {
+                                for (u16 e = 0; e < count; ++e) {
+                                    const u64 entry = ifd + 2 + u64(e) * 12;
+                                    if (entry + 12 > limit)
+                                        break;
+                                    const u16 tag = rd16e(entry);
+                                    if (tag != 0x0110 && tag != 0x0131)
+                                        continue;
+                                    const u16 typ = rd16e(entry + 2);
+                                    const u32 cnt = rd32e(entry + 4);
+                                    /* ASCII type only; bounded to a sane
+                                     * tag-string length */
+                                    if (typ != 2 || cnt == 0 || cnt > 256)
+                                        continue;
+                                    u64 val_off = entry + 8;
+                                    if (cnt > 4) {
+                                        const u32 vo = rd32e(entry + 8);
+                                        if (vo == 0 || vo >= 65536)
+                                            continue;
+                                        val_off = tiff + vo;
+                                    }
+                                    if (val_off + cnt > limit)
+                                        continue;
+                                    std::string v(size_t(cnt), '\0');
+                                    if (!rd(s, val_off, &v[0], cnt))
+                                        continue;
+                                    while (!v.empty() && (v.back() == 0 || v.back() == ' '))
+                                        v.pop_back(); /* NUL/space trim */
+                                    if (v.empty())
+                                        continue;
+                                    if (tag == 0x0110 && model.empty())
+                                        model = v;
+                                    else if (tag == 0x0131 && software.empty())
+                                        software = v;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        pos += 2 + u64(seglen);
+    }
+    if (!model.empty()) {
+        if (counter_key != nullptr)
+            *counter_key = model; /* the per-string counter key */
+        return prefix_from_bytes(model);
+    }
+    if (!software.empty()) {
+        if (counter_key != nullptr)
+            *counter_key = software;
+        return prefix_from_bytes(software);
+    }
+    /* the dims branch: W,H in [1, 0x2000] (the DRWUI caller's sanity
+     * gate, :1877540-46); the prefix composes the format name. The
+     * dims_form flag routes the emit site's counter to the branch-1
+     * per-format key (the plain+dims families share ONE counter - the
+     * H-session JPG census: the union 1..952 at 96.7% density; the
+     * string families carry their own per-string counters). */
+    if (sof_w >= 1 && sof_w <= 0x2000 && sof_h >= 1 && sof_h <= 0x2000) {
+        char buf[32];
+        const int n = snprintf(buf, sizeof(buf), "JPG_%ux%u", unsigned(sof_w), unsigned(sof_h));
+        if (n > 0)
+            return prefix_from_bytes(buf, size_t(n)); /* derived: the
+                                                       * per-format key */
+    }
+    return {};
+}
+
 CarveResult validate_jpeg(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
     u64 pos = hit + 2; /* skip FFD8 */
     bool saw_sof = false, saw_sos = false;
     /* the og fallback's salvage inputs: SOF dimensions (last good SOF0
      * wins, SOF2 fills-if-empty — FUN_18004bbd0 case -0x40/-0x3e) */
-    u64 sof_estimate = 0; /* h*w*3; 0 = dims unknown/unreadable */
-    /* S-049: the naming inputs - the SOF dims (the DRWUI record's
-     * u16 w@+0xC/h@+0x62; the <EXT>_<w>x<h> prefix form) and the EXIF
-     * Model/Software strings (RAWSearchDLL :40382-40510: tag 0x110
-     * unconditional, 0x131 only when no Model, both strncpy'd at a
-     * 0x27=39-char cap). */
-    u16 sof_w = 0, sof_h = 0;
-    std::u16string exif_model, exif_software;
-    /* S-049: the APP1/Exif IFD0 walk for Model (0x110) / Software
-     * (0x131) - ASCII values, both TIFF byte orders, value offsets
-     * TIFF-header-relative. Bounded: <= 256 IFD entries, the string
-     * read capped at 39 bytes (the og's strncpy bound). */
-    auto read_exif_ascii = [&](u64 tiff, u32 val_off, u32 byte_len) -> std::u16string {
-        if (byte_len == 0 || byte_len > 0x27)
-            byte_len = byte_len > 0x27 ? 0x27 : byte_len; /* the og's cap */
-        if (byte_len == 0)
-            return {};
-        char tmp[0x27];
-        const u32 take = byte_len < sizeof(tmp) ? byte_len : u32(sizeof(tmp));
-        if (!rd(s, tiff + val_off, tmp, take))
-            return {};
-        std::u16string out;
-        append_latin1(out, tmp, take);
-        return out;
-    };
-    auto walk_exif_ifd0 = [&](u64 app1_payload) {
-        u8 hdr[8];
-        if (!rd(s, app1_payload, hdr, 8))
-            return;
-        bool be;
-        if (hdr[0] == 'I' && hdr[1] == 'I' && hdr[2] == 42 && hdr[3] == 0)
-            be = false;
-        else if (hdr[0] == 'M' && hdr[1] == 'M' && hdr[2] == 0 && hdr[3] == 42)
-            be = true;
-        else
-            return;
-        const u32 ifd_off =
-            be ? ((u32(hdr[4]) << 24) | (u32(hdr[5]) << 16) | (u32(hdr[6]) << 8) | u32(hdr[7]))
-               : (u32(hdr[4]) | (u32(hdr[5]) << 8) | (u32(hdr[6]) << 16) | (u32(hdr[7]) << 24));
-        if (ifd_off == 0 || ifd_off > (1u << 20))
-            return;
-        const u16 n = be ? rdbe16(s, app1_payload + ifd_off) : rd16(s, app1_payload + ifd_off);
-        if (n == 0 || n > 256)
-            return;
-        for (u16 e = 0; e < n; ++e) {
-            const u64 ea = app1_payload + ifd_off + 2 + u64(e) * 12;
-            const u16 tag = be ? rdbe16(s, ea) : rd16(s, ea);
-            if (tag != 0x110 && tag != 0x131)
-                continue;
-            const u16 type = be ? rdbe16(s, ea + 2) : rd16(s, ea + 2);
-            if (type != 2) /* ASCII */
-                continue;
-            u32 cnt = be ? rdbe32(s, ea + 4) : rd32(s, ea + 4);
-            if (cnt == 0 || cnt > 0x1000)
-                continue;
-            u32 val;
-            if (cnt > 4) {
-                val = be ? rdbe32(s, ea + 8) : rd32(s, ea + 8);
-            } else {
-                u8 vb[4];
-                if (!rd(s, ea + 8, vb, 4))
-                    continue;
-                val =
-                    be ? ((u32(vb[0]) << 24) | (u32(vb[1]) << 16) | (u32(vb[2]) << 8) | u32(vb[3]))
-                       : (u32(vb[0]) | (u32(vb[1]) << 8) | (u32(vb[2]) << 16) | (u32(vb[3]) << 24));
-            }
-            const std::u16string str = read_exif_ascii(app1_payload, val, cnt);
-            if (str.empty())
-                continue;
-            if (tag == 0x110 && exif_model.empty())
-                exif_model = str;
-            else if (tag == 0x131 && exif_software.empty())
-                exif_software = str;
-        }
+    u64 sof_estimate = 0;     /* h*w*3; 0 = dims unknown/unreadable */
+    u64 sof_w = 0, sof_h = 0; /* S-049: the dims prefix inputs */
+    /* S-049: compose the naming prefix on every accept path (the og's
+     * prefix is analyser-supplied regardless of the accept tier) */
+    const auto set_prefix = [&]() {
+        r.name_counter_key.clear();
+        r.name_prefix = jpeg_name_prefix(s, hit, cap, sof_w, sof_h, &r.name_counter_key);
     };
     int markers = 0;
     /* the legacy tier's accept-at-limit: anchored at the candidate start,
@@ -423,14 +715,7 @@ CarveResult validate_jpeg(IStorageDevice* s, u64 hit, u64 cap) {
         r.confidence = 600;
         r.note = sof_estimate != 0 ? "fallback-salvage(no-EOI,SOF-estimate)"
                                    : "fallback-salvage(no-EOI,cap/10)";
-        /* S-049: the naming inputs ride the record on every accepted
-         * verdict (the og's analyser fills them during the walk) */
-        r.dim_w = sof_w;
-        r.dim_h = sof_h;
-        if (!exif_model.empty())
-            r.name_prefix = exif_model; /* Model over Software (the og) */
-        else if (!exif_software.empty())
-            r.name_prefix = exif_software;
+        set_prefix(); /* S-049: the prefix rides the salvage tier too */
         return r;
     };
     while (pos + 4 <= hit + cap) {
@@ -451,15 +736,8 @@ CarveResult validate_jpeg(IStorageDevice* s, u64 hit, u64 cap) {
             r.end = pos + 2;
             r.confidence = r.ok ? 900 : 400;
             r.note = r.ok ? "marker-walk+EOI" : "no-SOF/SOS";
-            /* S-049: the naming inputs ride the record (see salvage) */
-            if (r.ok) {
-                r.dim_w = sof_w;
-                r.dim_h = sof_h;
-                if (!exif_model.empty())
-                    r.name_prefix = exif_model;
-                else if (!exif_software.empty())
-                    r.name_prefix = exif_software;
-            }
+            if (r.ok)
+                set_prefix();
             return r;
         }
         if (mk == 0xDA)
@@ -487,23 +765,12 @@ CarveResult validate_jpeg(IStorageDevice* s, u64 hit, u64 cap) {
                 const u64 w = rdbe16(s, pos + 7);
                 if (h != 0 && w != 0 && (mk == 0xC0 || sof_estimate == 0)) {
                     sof_estimate = h * w * 3;
-                    /* S-049: the same read feeds the naming dims (the
-                     * og's analyser fills the record's w/h fields from
-                     * its SOF walk; SOF0 last-wins, SOF2 fills-if-empty
-                     * - the same precedence the estimate keeps) */
                     if (mk == 0xC0 || (sof_w == 0 && sof_h == 0)) {
-                        sof_w = u16(w);
-                        sof_h = u16(h);
+                        sof_w = w;
+                        sof_h = h;
                     }
                 }
             }
-        }
-        /* S-049: APP1/Exif -> the Model/Software prefix strings (the
-         * first Exif segment wins; the og's walk reads IFD0) */
-        if (mk == 0xE1 && exif_model.empty() && exif_software.empty()) {
-            u8 tag6[6];
-            if (rd(s, pos + 4, tag6, 6) && std::memcmp(tag6, "Exif\0\0", 6) == 0)
-                walk_exif_ifd0(pos + 10);
         }
         /* JPEG segment lengths are BIG-endian (wire-correct read; the
          * original LE read desynced on every real-world file) */
@@ -773,37 +1040,134 @@ CarveResult validate_heif(IStorageDevice* s, u64 hit, u64 cap) {
         r.note = "HEIF-family (og display label: HEIF)";
     return r;
 }
-/* ---- S-049 note: N-063's MP4/MOV name template RETIRED from the carve
- * path ---------------------------------------------------------------
- * The engine-side decode stands (RAWSearchDLL :33280-33447 builds
- * "Lost Name File (" + <mvhd time> + ")_EaseUS", the v1 read taking the
- * u64's HIGH 32 bits at mvhd+0x14, the time fed to _localtime64 raw),
- * but the real og sessions name ALL 57 carved MP4/MOV files
- * MP4_%06d.MP4 / MOV_%06d.MOV - the template never fires in the DRWUI
- * carve-naming path (it feeds a different record field). The carve
- * name is the universal <EXT>_<%06d> contract; the template's decode
- * is preserved here and in PARITY-DELTAS. */
+/* ---- S-049: the MP4/MOV duration naming prefix ------------------------
+ * Real-session evidence (first-hand re-mining this session; the verbatim
+ * table in evidence/executions/s10b-real-rsf-session-mining.md): the og's
+ * carved MP4/MOV rows are named "<EXT>_<duration>_<%06d>.<EXT>" —
+ * MP4_14s_000003.MP4, MP4_08m07s_000030.MP4, MP4_01m_000006.MP4,
+ * MOV_10s_000009.MOV, MOV_01m01s_000015.MOV — 57/57 real MP4/MOV carve
+ * rows across the three og sessions, ZERO "Lost Name File (...)_EaseUS"
+ * template names. The N-063 engine-side decode (RAWSearchDLL :33312 —
+ * the analyser SetName template) is real ENGINE code, but the DRWUI
+ * tree-naming layer names every unnamed carve record through the
+ * "%s_%06d" contract (FUN_140c44770) and the engine template does not
+ * survive it in the shipped product's persisted sessions. This landing
+ * supersedes N-063's carve-tree application: the prefix is the mvhd
+ * DURATION (timescale+duration), composed with the format name.
+ *
+ * mvhd (ISO/IEC 14496-12): v0 — timescale u32@box+20, duration u32@box+24;
+ * v1 — timescale u32@box+28, duration u64@box+32. duration_seconds =
+ * duration / timescale (timescale 0 = no prefix). */
+static std::u16string mp4_duration_prefix(IStorageDevice* s, u64 hit, u64 cap,
+                                          const char* fmt_name) {
+    /* walk top-level boxes for moov, then moov's children for mvhd */
+    u64 pos = hit;
+    u64 mvhd = 0;
+    int boxes = 0;
+    while (pos + 8 <= hit + cap && mvhd == 0) {
+        if (++boxes > 4096)
+            break;
+        const u32 sz = rdbe32(s, pos);
+        u8 type[4];
+        if (!rd(s, pos + 4, type, 4))
+            break;
+        u64 box_len = sz;
+        if (sz == 1) {
+            const u64 big = (u64(rdbe32(s, pos + 8)) << 32) | rdbe32(s, pos + 12);
+            if (big < 16 || pos + big > hit + cap)
+                break;
+            box_len = big;
+        } else if (sz == 0) {
+            box_len = (hit + cap) - pos; /* to-EOF box */
+        }
+        if (pos + box_len > hit + cap)
+            box_len = (hit + cap) - pos;
+        if (std::memcmp(type, "moov", 4) == 0 && box_len >= 8) {
+            /* walk moov's children */
+            u64 ipos = pos + 8;
+            const u64 iend = pos + box_len;
+            int inner = 0;
+            while (ipos + 8 <= iend) {
+                if (++inner > 1024)
+                    break;
+                const u32 isz = rdbe32(s, ipos);
+                u8 itype[4];
+                if (!rd(s, ipos + 4, itype, 4))
+                    break;
+                u64 ibox = isz;
+                if (isz == 1) {
+                    const u64 big2 = (u64(rdbe32(s, ipos + 8)) << 32) | rdbe32(s, ipos + 12);
+                    if (big2 < 16 || ipos + big2 > iend)
+                        break;
+                    ibox = big2;
+                } else if (isz == 0) {
+                    ibox = iend - ipos;
+                }
+                if (std::memcmp(itype, "mvhd", 4) == 0 && ibox >= 20) {
+                    mvhd = ipos;
+                    break;
+                }
+                if (ibox < 8)
+                    break;
+                ipos += ibox;
+            }
+        }
+        if (box_len < 8)
+            break;
+        pos += box_len;
+    }
+    if (mvhd == 0)
+        return {}; /* no mvhd: the emit site falls back to the plain
+                      uppercase-ext default prefix */
+    const u8 version = rd8(s, mvhd + 8);
+    u32 timescale;
+    u64 duration;
+    if (version == 1) {
+        if (mvhd + 40 > hit + cap)
+            return {};
+        timescale = rdbe32(s, mvhd + 28);
+        duration = rdbe64(s, mvhd + 32);
+    } else {
+        if (mvhd + 28 > hit + cap)
+            return {};
+        timescale = rdbe32(s, mvhd + 20);
+        duration = rdbe32(s, mvhd + 24);
+    }
+    if (timescale == 0 || duration == 0)
+        return {};
+    const u64 secs = duration / timescale;
+    if (secs == 0)
+        return {}; /* sub-second: the og's %02us floor would print 00s —
+                      no observed sub-second sample; the plain default is
+                      the honest form */
+    const std::u16string dur = duration_form(secs);
+    if (dur.empty())
+        return {};
+    char head[16];
+    const int n = snprintf(head, sizeof(head), "%s_", fmt_name);
+    if (n <= 0)
+        return {};
+    std::u16string out = prefix_from_bytes(head, size_t(n));
+    out += dur;
+    return out;
+}
 
 CarveResult validate_mp4(IStorageDevice* s, u64 hit, u64 cap) {
-    /* S-049: no analyser prefix - the real sessions name ALL 57 carved
-     * MP4 files MP4_%06d.MP4 (the %s branch never fires with the
-     * "Lost Name File" template on the carve path; the engine-side
-     * template at RAWSearchDLL :33280-33447 feeds a different field -
-     * its decode is preserved in the S-049 Resolution and
-     * PARITY-DELTAS, not in the carve name). N-063's carve-path half is
-     * superseded by the executed real-session evidence. */
     static const char* const brands[] = {"isom", "mp42", "mp41", "iso2", "avc1", "dash"};
     CarveResult r = bmff_walk(s, hit, cap, brands, 6);
-    if (r.ok)
+    if (r.ok) {
         r.confidence = 780;
+        r.name_prefix = mp4_duration_prefix(s, hit, cap, "MP4"); /* S-049 */
+    }
     return r;
 }
 CarveResult validate_mov(IStorageDevice* s, u64 hit, u64 cap) {
-    /* S-049: see validate_mp4 - MOV_%06d.MOV (30/30 real rows) */
     static const char* const brands[] = {"qt  "};
     CarveResult r = bmff_walk(s, hit, cap, brands, 1);
-    if (r.ok)
+    if (r.ok) {
         r.confidence = 720;
+        r.name_prefix = mp4_duration_prefix(s, hit, cap, "MOV"); /* S-049 */
+    }
     return r;
 }
 
@@ -844,55 +1208,11 @@ CarveResult validate_mov_naked(IStorageDevice* s, u64 hit, u64 cap) {
     r.end = next + second_sz;
     r.confidence = 620;
     r.note = "naked-moov+box-walk";
+    r.name_prefix = mp4_duration_prefix(s, hit, cap, "MOV"); /* S-049 */
     return r;
 }
 
 /* ---- PDF: %PDF-1.x + %%EOF ---- */
-/* S-049: the /CreationDate prefix scan - the real sessions' PDF names
- * are the creation timestamp formatted YYYY-MM-DD HH-MM-SS (91 rows:
- * 2020-05-23 23-23-23_N.PDF, 2023-04-05 10-18-10_N.PDF). The Info
- * dict value is (D:YYYYMMDDHHmmSS...); missing digits format as zero
- * (the og's snprintf of whatever it parsed). Returns an empty prefix
- * when no date is present. */
-static std::u16string pdf_creation_prefix_from(const u8* buf, u32 take, u32 at) {
-    /* at: the index of '/CreationDate' inside buf; expect '(' then
-     * optional 'D:' then digits */
-    u32 p = at + 13;
-    while (p < take && (buf[p] == ' ' || buf[p] == '\t' || buf[p] == '\r' || buf[p] == '\n'))
-        ++p;
-    if (p >= take || buf[p] != '(')
-        return {};
-    ++p;
-    if (p + 1 < take && buf[p] == 'D' && buf[p + 1] == ':')
-        p += 2;
-    char digits[32];
-    u32 nd = 0;
-    while (p < take && nd < 14 && buf[p] >= '0' && buf[p] <= '9') {
-        digits[nd++] = char(buf[p]);
-        ++p;
-    }
-    if (nd < 4)
-        return {}; /* not even a year: no usable date */
-    while (nd < 14)
-        digits[nd++] = '0'; /* the og formats what it parsed; pad the rest */
-    int y = (digits[0] - '0') * 1000 + (digits[1] - '0') * 100 + (digits[2] - '0') * 10 +
-            (digits[3] - '0');
-    int mo = (digits[4] - '0') * 10 + (digits[5] - '0');
-    int d = (digits[6] - '0') * 10 + (digits[7] - '0');
-    int h = (digits[8] - '0') * 10 + (digits[9] - '0');
-    int mi = (digits[10] - '0') * 10 + (digits[11] - '0');
-    int se = (digits[12] - '0') * 10 + (digits[13] - '0');
-    if (y < 1000 || y > 9999 || mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59 ||
-        se > 59)
-        return {}; /* a nonsensical date is not a name */
-    char out[32];
-    snprintf(out, sizeof(out), "%04d-%02d-%02d %02d-%02d-%02d", y, mo, d, h, mi, se);
-    std::u16string res;
-    for (const char* q = out; *q; ++q)
-        res.push_back(u16(u8(*q)));
-    return res;
-}
-
 CarveResult validate_pdf(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
     u8 v[2];
@@ -911,9 +1231,8 @@ CarveResult validate_pdf(IStorageDevice* s, u64 hit, u64 cap) {
      * P1-12: 1 MiB block reads throughout. */
     const u64 limit = probe_limit(s, hit, cap);
     std::vector<u8> buf(kProbeBlock);
-    u64 best = 0;            /* offset just past the last %%EOF before the boundary */
-    u64 block = hit + 16;    /* skip the own header (+version digits) */
-    std::u16string creation; /* S-049: the FIRST /CreationDate prefix */
+    u64 best = 0;         /* offset just past the last %%EOF before the boundary */
+    u64 block = hit + 16; /* skip the own header (+version digits) */
     while (block < limit) {
         const u64 remain = limit - block;
         const u32 take = u32(std::min<u64>(remain, kProbeBlock));
@@ -921,16 +1240,6 @@ CarveResult validate_pdf(IStorageDevice* s, u64 hit, u64 cap) {
             break;
         if (!rd(s, block, buf.data(), take))
             break;
-        /* S-049: the date scan rides the same pass (13-byte needle;
-         * the -12 seam below covers it across block boundaries). */
-        if (creation.empty()) {
-            for (u32 i = 0; i + 13 <= take; ++i) {
-                if (std::memcmp(buf.data() + i, "/CreationDate", 13) == 0) {
-                    creation = pdf_creation_prefix_from(buf.data(), take, i);
-                    break;
-                }
-            }
-        }
         /* ordered scan: positions of both magics, ascending */
         for (u32 i = 0; i + 5 <= take; ++i) {
             if (std::memcmp(buf.data() + i, "%%EOF", 5) == 0) {
@@ -939,25 +1248,138 @@ CarveResult validate_pdf(IStorageDevice* s, u64 hit, u64 cap) {
             }
             if (std::memcmp(buf.data() + i, "%PDF-", 5) == 0) {
                 /* next file's header: this candidate ends at its last %%EOF */
-                if (best != 0) {
-                    CarveResult done = carve_pdf_done(r, best);
-                    done.name_prefix = creation;
-                    return done;
-                }
-                return r;
+                return best != 0 ? carve_pdf_done(s, r, hit, best) : r;
             }
         }
         if (block + take >= limit)
             break;
-        block += u64(take) - 12; /* 13-byte needle: (mlen-1) seam (covers
-                                    the 5-byte magics too) */
+        block += u64(take) - 4; /* 5-byte magics: (mlen-1) seam */
     }
-    if (best != 0) {
-        CarveResult done = carve_pdf_done(r, best);
-        done.name_prefix = creation;
-        return done;
+    return best != 0 ? carve_pdf_done(s, r, hit, best) : r;
+}
+
+/* ---- S-049: the archive naming prefixes ---------------------------------
+ * ZIP: the first central-directory entry name, path separators -> '_'
+ * (real-session pins: "META-INF/" -> META-INF__000001.ZIP, "classes.dex"
+ * -> classes.dex_000001.ZIP, "mimetype" -> mimetype_N.ZIP, "-" ->
+ * -_000001.ZIP, "027.jpg" keeps its dots - the finding's dot-translation
+ * example is corrected by the classes.dex/027.jpg families: dots are
+ * preserved, only the path separator maps). */
+static std::u16string zip_first_entry_prefix(std::string nm, std::string* counter_key = nullptr) {
+    if (counter_key != nullptr)
+        *counter_key = nm; /* the raw entry name keys the counter (the
+                            * census: every ZIP family 1-based dense) */
+    for (char& c : nm)
+        if (c == '/' || c == '\\')
+            c = '_';
+    return prefix_from_bytes(nm);
+}
+
+static std::u16string zip_first_entry_prefix(const std::vector<CarveEntry>& entries,
+                                             std::string* counter_key = nullptr) {
+    if (entries.empty())
+        return {};
+    return zip_first_entry_prefix(entries.front().name, counter_key);
+}
+
+/* DOCX: the docProps/core.xml dc:creator + created date, composed
+ * "<creator>_<YYYY-MM-DD HH-MM-SS>" (real-session pins - the S42 lane's
+ * first-hand G/H census: jacko_2014-09-10 20-43-00_N x6,
+ * KIS2_2022-05-25 13-14-00_N, Wei Chen_2017-05-25 19-28-00_N x2,
+ * python-docx_2013-12-23 23-15-00_N - and the creator-less form
+ * 2006-07-25 02-16-00_N.DOCX x24, 2006-10-24 12-00-00, 2021-10-27
+ * 10-50-00: the W3CDTF T/Z punctuation maps to space/dashes; colons are
+ * Windows-illegal). The creator rides the og's office metadata walk
+ * (RAWSearchDLL :53530-53666: dc:creator from cp:coreProperties). The
+ * core.xml entry is located through the S-032 inventory
+ * (data_offset/data_len) and inflated through the shared zlib path when
+ * deflate-compressed. */
+static std::u16string docx_created_prefix(IStorageDevice* s, const std::vector<CarveEntry>& entries,
+                                          std::string* counter_key = nullptr) {
+    const CarveEntry* core_xml = nullptr;
+    for (const CarveEntry& e : entries)
+        if (e.name == "docProps/core.xml" && e.data_len > 0 && e.data_len < (1u << 20)) {
+            core_xml = &e;
+            break;
+        }
+    if (core_xml == nullptr)
+        return {};
+    std::vector<u8> raw(size_t(core_xml->data_len));
+    if (!rd(s, core_xml->data_offset, raw.data(), u32(raw.size())))
+        return {};
+    /* core.xml is deflate-compressed in practice (Office writes method
+     * 8); inflate through the RFC-1950 tolerant wrapper (a zlib header
+     * is present for method-8 entries; stored members fall through to
+     * the raw bytes). Bounded: the inflated member is at most 256 KiB
+     * (docProps/core.xml is a few KiB in every real Office file). */
+    std::vector<u8> out(256 * 1024);
+    std::string xml;
+    {
+        z_stream zs = {};
+        if (inflateInit2(&zs, 15) == Z_OK) { /* +15: RFC 1950 wrapper */
+            zs.next_in = const_cast<Bytef*>(raw.data());
+            zs.avail_in = uInt(raw.size());
+            zs.next_out = out.data();
+            zs.avail_out = uInt(out.size());
+            if (inflate(&zs, Z_FINISH) == Z_STREAM_END)
+                xml.assign(reinterpret_cast<const char*>(out.data()), size_t(zs.total_out));
+            inflateEnd(&zs);
+        }
     }
-    return r;
+    if (xml.empty()) {
+        /* stored (method 0) member: the raw bytes are the XML */
+        xml.assign(reinterpret_cast<const char*>(raw.data()), raw.size());
+    }
+    /* the dc:creator text (the og's office walk extracts it from
+     * cp:coreProperties, :53542; the real creator-prefixed families:
+     * jacko_/KIS2_/Wei Chen_/python-docx_) - bounded to 39 chars (the
+     * EXIF-family strncpy cap class) */
+    std::u16string creator;
+    {
+        const size_t cpos = xml.find("dc:creator");
+        if (cpos != std::string::npos) {
+            const size_t cgt = xml.find('>', cpos);
+            const size_t clt = xml.find('<', cgt == std::string::npos ? 0 : cgt + 1);
+            if (cgt != std::string::npos && clt != std::string::npos && clt > cgt + 1 &&
+                clt - (cgt + 1) <= 39) {
+                creator = prefix_from_bytes(xml.data() + cgt + 1, clt - (cgt + 1));
+                /* the creator keys the per-string counter (the census:
+                 * jacko 1..6 across six different dates, KIS2 1..2,
+                 * Wei Chen 1..2 - the DATE never joins the key) */
+                if (counter_key != nullptr)
+                    *counter_key = xml.substr(cgt + 1, clt - (cgt + 1));
+            }
+        }
+    }
+    /* the created date: <dcterms:created ...>YYYY-MM-DDThh:mm:ss...< */
+    const size_t pos = xml.find("dcterms:created");
+    if (pos == std::string::npos)
+        return creator; /* creator alone: no date row observed, but the
+                         * composition degrades to the string family */
+    const size_t gt = xml.find('>', pos);
+    if (gt == std::string::npos)
+        return creator;
+    const size_t lt = xml.find('<', gt + 1);
+    if (lt == std::string::npos)
+        return creator;
+    const size_t ilen = lt - (gt + 1);
+    if (ilen != 19 && ilen != 20) /* 19: no zone; 20: the trailing Z form */
+        return creator;
+    const std::string iso = xml.substr(gt + 1, 19);
+    if (iso[4] != '-' || iso[7] != '-' || (iso[10] != 'T' && iso[10] != ' ') || iso[13] != ':' ||
+        iso[16] != ':')
+        return creator;
+    /* the W3CDTF punctuation maps to the og's form: T -> space, the time
+     * colons -> dashes (Windows-illegal) - "2006-07-25 02-16-00" */
+    char buf[20];
+    const int n =
+        snprintf(buf, sizeof(buf), "%.4s-%.2s-%.2s %.2s-%.2s-%.2s", iso.data() + 0, iso.data() + 5,
+                 iso.data() + 8, iso.data() + 11, iso.data() + 14, iso.data() + 17);
+    if (n != 19)
+        return creator;
+    if (!creator.empty())
+        return creator + prefix_from_bytes("_", 1) + prefix_from_bytes(buf, 19);
+    return prefix_from_bytes(buf, 19);
 }
 
 /* ---- ZIP family: local header + EOCD; DOCX adds [Content_Types].xml ---- */
@@ -980,15 +1402,126 @@ static CarveResult zip_common(IStorageDevice* s, u64 hit, u64 cap, bool office) 
             return r;
     }
     if (office) {
-        /* first local entry name must be "[Content_Types].xml" */
-        u16 name_len = rd16(s, hit + 26);
-        if (name_len != 19)
-            return r;
-        u8 nm[19];
-        if (!rd(s, hit + 30, nm, 19))
-            return r;
-        if (std::memcmp(nm, "[Content_Types].xml", 19) != 0)
-            return r;
+        /* N-115: the og's OfficeTagFromXML typing pass (RAWSearchDLL
+         * :53164-53194 + the singleton walker :53202-53300). The old
+         * gate required [Content_Types].xml as the LITERAL FIRST entry;
+         * the og walks the entry inventory matching names ANYWHERE (a
+         * damaged/reordered zip still types) and decompresses entries
+         * up to 10 KiB (0x2800) for the content tags. The rels-path
+         * map (matched on the ENTRY NAME with the office flag):
+         *   word/_rels/document.xml.rels     -> 0x49 DOCX
+         *   xl/_rels/workbook.xml.rels       -> 0x4a XLSX
+         *   ppt/_rels/presentation.xml.rels  -> 0x4b PPTX
+         *   a >=5-char name starting "word" -> 0x49 (the fallback)
+         * An office-shaped zip ([Content_Types].xml seen) that the map
+         * cannot refine stays DOCX (the og's dispatch analyser id).
+         * The wider tag corpus (the floss strings :6699-6729): the
+         * mimetype entry's content types the ODF trio / EPUB / HWP
+         * (stored or deflated <= 10 KiB), and name tags carry iWork
+         * (the Index/.iwa family, index.apxl), EPUB (OPS/chapter1.html) and
+         * CorelDRAW (content/riffData.cdr). The walk is bounded (32
+         * entries / 256 KiB - the og's window bounds it similarly; the
+         * typed names live in the first entries of real files). */
+        u32 typed = 0;
+        bool content_types = false;
+        u8 nmbuf[512];
+        u64 pos = hit;
+        const u64 wl = probe_limit(s, hit, cap);
+        const u64 wb = hit + (u64(256) << 10);
+        const u64 walk_limit = wb < wl ? wb : wl;
+        for (int ent = 0; ent < 32 && pos + 30 <= walk_limit; ++ent) {
+            u8 lfh[30];
+            if (!rd(s, pos, lfh, 30) || std::memcmp(lfh, "PK\x03\x04", 4) != 0)
+                break;
+            const u16 method = u16(lfh[8]) | (u16(lfh[9]) << 8);
+            const u16 nlen = u16(lfh[26]) | (u16(lfh[27]) << 8);
+            const u16 elen = u16(lfh[28]) | (u16(lfh[29]) << 8);
+            u32 csize =
+                u32(lfh[18]) | (u32(lfh[19]) << 8) | (u32(lfh[20]) << 16) | (u32(lfh[21]) << 24);
+            u32 usize =
+                u32(lfh[22]) | (u32(lfh[23]) << 8) | (u32(lfh[24]) << 16) | (u32(lfh[25]) << 24);
+            if (nlen == 0 || nlen > sizeof(nmbuf))
+                break; /* not a name-bearing entry the walk understands */
+            if (!rd(s, pos + 30, nmbuf, nlen))
+                break;
+            nmbuf[nlen] = 0;
+            const char* nm = reinterpret_cast<const char*>(nmbuf);
+            const bool is_mimetype = std::strcmp(nm, "mimetype") == 0;
+            const bool is_ct = std::strcmp(nm, "[Content_Types].xml") == 0;
+            if (is_ct)
+                content_types = true;
+            /* the rels-path map (entry-name matches, office context) */
+            if (std::strcmp(nm, "word/_rels/document.xml.rels") == 0)
+                typed = FMT_DOCX;
+            else if (std::strcmp(nm, "xl/_rels/workbook.xml.rels") == 0)
+                typed = FMT_XLSX;
+            else if (std::strcmp(nm, "ppt/_rels/presentation.xml.rels") == 0)
+                typed = FMT_PPTX;
+            else if (nlen >= 5 && std::memcmp(nm, "word", 4) == 0 && typed == 0 && content_types)
+                typed = FMT_DOCX; /* the og's word-prefix fallback */
+            /* the name-tag set (no decompression needed) */
+            else if (std::strcmp(nm, "content/riffData.cdr") == 0)
+                typed = FMT_CDR;
+            else if ((nlen > 6 && std::memcmp(nm, "Index/", 6) == 0 && nlen > 10 &&
+                      std::memcmp(nm + nlen - 4, ".iwa", 4) == 0) ||
+                     std::strcmp(nm, "index.apxl") == 0)
+                typed = FMT_IWORK;
+            else if (std::strcmp(nm, "OPS/chapter1.html") == 0)
+                typed = FMT_EPUB;
+            /* the content tags: the mimetype entry (ODF/EPUB/HWP) and
+             * [Content_Types].xml (HWP), <= 10 KiB, stored or deflated */
+            if (typed == 0 && (is_mimetype || (is_ct && csize <= 0x2800))) {
+                u8 content[0x2800 + 1];
+                size_t got = 0;
+                const u64 dpos = pos + 30 + nlen + elen;
+                if (method == 0 && csize <= sizeof(content)) {
+                    if (csize != 0 && rd(s, dpos, content, csize))
+                        got = csize;
+                } else if (method == 8 && csize <= 0x2800 && usize != 0 && usize <= 0x2800 &&
+                           csize != 0xFFFFFFFFu) {
+                    u8 comp[0x2800];
+                    if (rd(s, dpos, comp, csize) &&
+                        compress::decompress_block(compress::kGzip, comp, csize, content, usize))
+                        got = usize;
+                }
+                content[got] = 0;
+                if (got != 0) {
+                    const char* text = reinterpret_cast<const char*>(content);
+                    const size_t tlen = got;
+                    auto has = [&](const char* needle) {
+                        const size_t nl = std::strlen(needle);
+                        if (nl == 0 || nl > tlen)
+                            return false;
+                        for (size_t i = 0; i + nl <= tlen; ++i)
+                            if (std::memcmp(text + i, needle, nl) == 0)
+                                return true;
+                        return false;
+                    };
+                    if (has("application/vnd.oasis.opendocument.text"))
+                        typed = FMT_ODT;
+                    else if (has("application/vnd.oasis.opendocument.spreadsheet"))
+                        typed = FMT_ODS;
+                    else if (has("application/vnd.oasis.opendocument.presentation"))
+                        typed = FMT_ODP;
+                    else if (has("application/epub+zip"))
+                        typed = FMT_EPUB;
+                    else if (has("application/hwp+zip"))
+                        typed = FMT_HWP;
+                }
+            }
+            if (typed != 0)
+                break; /* the first decisive tag wins (the og's map stop) */
+            const u64 next = pos + 30 + u64(nlen) + elen + csize;
+            if (next <= pos)
+                break;
+            pos = next;
+        }
+        if (typed == 0 && !content_types)
+            return r; /* neither office-shaped nor typed: not this row */
+        if (typed != 0 && typed != FMT_DOCX)
+            r.format_override = typed; /* the og stamps the id at the probe */
+        /* typed == 0 && content_types: the unrefinable office zip stays
+         * the dispatch row (DOCX, the og's 0x49) - no override needed */
     }
     /* FIRST geometry-consistent EOCD in the window wins: last-wins (the
      * old rule) absorbed the EOCD of every later archive in the window -
@@ -1071,7 +1604,6 @@ static CarveResult zip_common(IStorageDevice* s, u64 hit, u64 cap, bool office) 
                     e.size = usize;
                     e.data_offset = pos + 30 + nlen + elen;
                     e.data_len = csize;
-                    e.method = u16(lfh[8]) | (u16(lfh[9]) << 8); /* S-049 */
                     ir.entries.push_back(std::move(e));
                 }
             }
@@ -1084,9 +1616,7 @@ static CarveResult zip_common(IStorageDevice* s, u64 hit, u64 cap, bool office) 
             ir.end = last_end;
             ir.confidence = 550;
             ir.note = "indexless-LFH-chain";
-            /* S-049: the first entry's name is the og's ZIP prefix */
-            if (!ir.entries.empty())
-                ir.name_prefix = sanitize_entry_prefix(ir.entries.front().name);
+            ir.name_prefix = zip_first_entry_prefix(ir.entries); /* S-049 */
             /* N-008 (decompile :18492-18508): the og's salvage extension -
              * after a BROKEN record chain, absorb data-bearing trailing
              * sectors. Entry: the window at [end, end+sec) carries a
@@ -1174,14 +1704,12 @@ static CarveResult zip_common(IStorageDevice* s, u64 hit, u64 cap, bool office) 
             const u32 csize = u32_from_bytes_le(cd + 20);
             const u32 usize = u32_from_bytes_le(cd + 24);
             const u32 lfh_off = u32_from_bytes_le(cd + 42);
-            const u16 method = u16(cd[10]) | (u16(cd[11]) << 8); /* S-049 */
             if (nlen > 0 && nlen <= 512) {
                 CarveEntry e;
                 std::string nm(size_t(nlen), '\0');
                 if (rd(s, cpos + 46, &nm[0], nlen)) {
                     e.name = std::move(nm);
                     e.size = usize;
-                    e.method = method;
                     if (csize != 0xFFFFFFFFu && lfh_off != 0xFFFFFFFFu) {
                         /* localize the data span through the LFH's own
                          * name/extra lengths (the CD's copy can differ) */
@@ -1216,114 +1744,28 @@ static CarveResult zip_common(IStorageDevice* s, u64 hit, u64 cap, bool office) 
     r.end = end;
     r.confidence = office ? 850 : 700;
     r.note = office ? "[Content_Types]+EOCD" : "EOCD+cd-geometry";
-    /* S-049: the first central-directory entry's name is the og's ZIP
-     * carve prefix (META-INF__N.ZIP / __MACOSX__N.ZIP /
-     * LICENSE_OFL_N.ZIP - JAR/Mac archives' first CD entries are the
-     * directory markers themselves). */
-    if (!office && !r.entries.empty())
-        r.name_prefix = sanitize_entry_prefix(r.entries.front().name);
+    /* S-049: DOCX prefixes by the docProps created date (real sessions:
+     * 2006-07-25 02-16-00_N.DOCX - never the [Content_Types].xml first
+     * entry); plain ZIP prefixes by the first central-directory entry
+     * name (META-INF__N.ZIP, classes.dex_N.ZIP) */
+    r.name_prefix = office ? docx_created_prefix(s, r.entries, &r.name_counter_key)
+                           : zip_first_entry_prefix(r.entries, &r.name_counter_key);
     return r;
 }
 
 CarveResult validate_zip(IStorageDevice* s, u64 hit, u64 cap) {
     return zip_common(s, hit, cap, false);
 }
-/* S-049: the DOCX docProps/core.xml prefix - the og's office metadata
- * walk (RAWSearchDLL :53530-53666) extracts dc:creator and
- * dcterms:created from the cp:coreProperties element (dc:title exists
- * only on the ODF office:meta branch); the real-session names compose
- * them: KIS2_2022-05-25 13-14-00_N.DOCX (creator + created) and
- * 2006-07-25 02-16-00_N.DOCX (created alone when no creator). The ISO
- * 8601 value (2022-05-25T13:14:00Z) formats as YYYY-MM-DD HH-MM-SS. */
-static std::u16string docx_docprops_prefix(IStorageDevice* s, const CarveResult& r) {
-    const CarveEntry* core = nullptr;
-    for (const CarveEntry& e : r.entries) {
-        if (e.name == "docProps/core.xml") {
-            core = &e;
-            break;
-        }
-    }
-    if (core == nullptr || core->size == 0 || core->size > (256u << 10) || core->data_len == 0 ||
-        core->data_len > (256u << 10))
-        return {}; /* absent or implausible: no prefix (DOCX_%06d.DOCX) */
-    std::vector<u8> raw(size_t(core->data_len));
-    if (!rd(s, core->data_offset, raw.data(), u32(core->data_len)))
-        return {};
-    std::vector<u8> xml;
-    if (core->method == 0) {
-        xml = std::move(raw);
-        if (xml.size() > core->size)
-            xml.resize(size_t(core->size));
-    } else if (core->method == 8) {
-        xml.resize(size_t(core->size));
-        if (!compress::decompress_block(compress::kGzip, raw.data(), raw.size(), xml.data(),
-                                        xml.size()))
-            return {}; /* undecodable metadata: no prefix, never a failure */
-    } else {
-        return {};
-    }
-    /* bounded literal scans for the fixed element names (the og's XML
-     * walk resolves the same tag paths; the literals are stable in
-     * every producer's core.xml). Handles attribute-carrying opening
-     * tags (dcterms:created's xsi:type="dcterms:W3CDTF") and
-     * self-closing forms (no text). */
-    const std::string body(reinterpret_cast<const char*>(xml.data()), xml.size());
-    auto find_text = [&](const char* tag) -> std::string {
-        const std::string open = std::string("<") + tag;
-        size_t pos = 0;
-        for (int guard = 0; guard < 8; ++guard) {
-            const size_t at = body.find(open, pos);
-            if (at == std::string::npos)
-                return {};
-            pos = at + 1;
-            const char next = at + open.size() < body.size() ? body[at + open.size()] : 0;
-            if (next != '>' && next != ' ' && next != '\t' && next != '\r' && next != '\n')
-                continue; /* a longer tag name (dc:creatorX): keep looking */
-            const size_t gt = body.find('>', at);
-            if (gt == std::string::npos || gt - at > open.size() + 256)
-                continue; /* no close or an absurd attribute run */
-            if (gt != at + open.size() && body[gt - 1] == '/')
-                continue; /* self-closing: no text */
-            const size_t text_at = gt + 1;
-            const size_t close_at = body.find("</", text_at);
-            if (close_at == std::string::npos || close_at - text_at > 4096)
-                return {};
-            return body.substr(text_at, close_at - text_at);
-        }
-        return {};
-    };
-    const std::string creator = find_text("dc:creator");
-    const std::string created = find_text("dcterms:created");
-    std::u16string created16;
-    if (created.size() >= 19 && created[4] == '-' && created[7] == '-' &&
-        (created[10] == 'T' || created[10] == ' ')) {
-        /* 2022-05-25T13:14:00Z -> 2022-05-25 13-14-00 (T -> space,
-         * colons -> dashes, the timezone tail dropped) */
-        char out[24];
-        snprintf(out, sizeof(out), "%.4s-%.2s-%.2s %.2s-%.2s-%.2s", created.c_str(),
-                 created.c_str() + 5, created.c_str() + 8, created.c_str() + 11,
-                 created.c_str() + 14, created.c_str() + 17);
-        for (const char* p = out; *p; ++p)
-            created16.push_back(u16(u8(*p)));
-    }
-    std::u16string prefix;
-    if (!creator.empty() && creator.size() <= 100) {
-        append_utf8(prefix, creator.c_str(), creator.size());
-        if (!created16.empty())
-            prefix.push_back(u'_');
-    }
-    if (!created16.empty())
-        prefix += created16;
-    if (prefix.size() > 200)
-        prefix.resize(200);
-    return prefix;
+CarveResult validate_docx(IStorageDevice* s, u64 hit, u64 cap) {
+    return zip_common(s, hit, cap, true);
 }
 
-CarveResult validate_docx(IStorageDevice* s, u64 hit, u64 cap) {
-    CarveResult r = zip_common(s, hit, cap, true);
-    if (r.ok)
-        r.name_prefix = docx_docprops_prefix(s, r);
-    return r;
+/* N-115: the typed rows (XLSX/PPTX/ODF/EPUB/iWork/HWP/CDR) share the
+ * office walk - the FMT_DOCX row wins the registry-order tie at a shared
+ * LFH hit and the override carries the true id; these rows exist so the
+ * override resolves the effective ext/name (the M-093/M-111 mechanism). */
+CarveResult validate_office_zip(IStorageDevice* s, u64 hit, u64 cap) {
+    return zip_common(s, hit, cap, true);
 }
 
 /* CARVE-2: central-directory-anchored carving - the og's PREFERRED
@@ -1331,6 +1773,16 @@ CarveResult validate_docx(IStorageDevice* s, u64 hit, u64 cap) {
  * survives, the entry still surfaces (names live in the CD). Scan
  * forward for the EOCD to size the span; without one, take a bounded
  * CD-sized window. */
+/* S-049: the CD record at pos - its entry name (bounded, 512) */
+static std::string cd_entry_name(IStorageDevice* s, u64 pos, u16 nlen) {
+    if (nlen == 0 || nlen > 512)
+        return {};
+    std::string nm(size_t(nlen), '\0');
+    if (!rd(s, pos + 46, &nm[0], nlen))
+        return {};
+    return nm;
+}
+
 CarveResult validate_zip_cd(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
     u8 cd[46];
@@ -1368,6 +1820,8 @@ CarveResult validate_zip_cd(IStorageDevice* s, u64 hit, u64 cap) {
                 r.end = limit;
             r.confidence = 600;
             r.note = "cd-anchor+EOCD";
+            r.name_prefix =
+                zip_first_entry_prefix(cd_entry_name(s, hit, nlen), &r.name_counter_key);
             return r;
         }
     }
@@ -1378,6 +1832,7 @@ CarveResult validate_zip_cd(IStorageDevice* s, u64 hit, u64 cap) {
         r.end = limit;
     r.confidence = 550;
     r.note = "cd-anchor";
+    r.name_prefix = zip_first_entry_prefix(cd_entry_name(s, hit, nlen), &r.name_counter_key);
     return r;
 }
 
@@ -2037,6 +2492,58 @@ u32 mp3_frame_size(const u8* f) {
 }
 } // namespace
 
+/* S-049: the MP3 naming prefix - the ID3v2 title (TIT2 for v2.3/v2.4;
+ * real-session pins: "AREE DEEWANO MUJHE PECHANO_000123.MP3", "Ek Lo Ek
+ * Muft_N.MP3", "02 Prem Ratan Dhan Payo (SongsMp3.Com)_N.MP3" - spaces,
+ * dots and parentheses are preserved verbatim). v2.4 frame sizes are
+ * syncsafe; v2.3 plain BE u32. The text encoding byte leads the payload
+ * (0 latin-1, 1 UTF-16/BOM, 2 UTF-16BE, 3 UTF-8); ASCII dominates the
+ * observed titles. */
+static std::u16string id3_title_prefix(IStorageDevice* s, u64 hit, u64 audio_at, u8 ver,
+                                       std::string* counter_key = nullptr) {
+    u64 pos = hit + 10; /* skip the ID3 header */
+    int frames = 0;
+    while (pos + 10 <= audio_at && frames < 512) {
+        ++frames;
+        u8 fh[10];
+        if (!rd(s, pos, fh, 10))
+            return {};
+        if (fh[0] == 0)
+            return {}; /* padding: no title found */
+        char fid[5] = {char(fh[0]), char(fh[1]), char(fh[2]), char(fh[3]), 0};
+        u32 fsize;
+        if (ver == 4)
+            fsize = (u32(fh[4]) << 21) | (u32(fh[5]) << 14) | (u32(fh[6]) << 7) | fh[7];
+        else
+            fsize = (u32(fh[4]) << 24) | (u32(fh[5]) << 16) | (u32(fh[6]) << 8) | fh[7];
+        if (fsize == 0 || fsize > 4096)
+            return {}; /* hostile/empty frame: no sane title walk */
+        if (std::memcmp(fid, "TIT2", 4) == 0) {
+            /* encoding byte + text, NUL-terminated */
+            const u64 body = pos + 10 + 1;
+            const u64 avail = audio_at > body ? audio_at - body : 0;
+            const size_t want = size_t(std::min<u64>(avail, fsize - 1));
+            if (want == 0)
+                return {};
+            std::string v(want, '\0');
+            if (!rd(s, body, &v[0], u32(want)))
+                return {};
+            const size_t nul = v.find('\0');
+            if (nul != std::string::npos)
+                v.resize(nul);
+            while (!v.empty() && v.back() == ' ')
+                v.pop_back();
+            if (v.empty())
+                return {};
+            if (counter_key != nullptr)
+                *counter_key = v; /* the per-string counter key */
+            return prefix_from_bytes(v);
+        }
+        pos += 10 + fsize;
+    }
+    return {};
+}
+
 CarveResult validate_mp3(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
     u8 h[10];
@@ -2100,80 +2607,71 @@ CarveResult validate_mp3(IStorageDevice* s, u64 hit, u64 cap) {
     r.end = frames_end; /* <= limit by construction */
     r.confidence = 820;
     r.note = "ID3+frame-walk";
-    /* S-049: the ID3v2 title prefix (the real sessions' MP3 names:
-     * AREE DEEWANO MUJHE PECHANO_000123.MP3, JISKA MUJHE THA
-     * INTEZAAR_N.MP3 - the analyser supplies the title string, the
-     * naming site appends _<%06d>). Walk the tag's frames for TIT2;
-     * v2.3 sizes are plain u32 BE, v2.4 syncsafe. Encoding byte 0 =
-     * Latin-1, 1 = UTF-16 BOM, 2 = UTF-16BE, 3 = UTF-8. Bounded to
-     * the tag region and 64 frames. */
-    {
-        u64 fp = hit + 10;
-        const u64 tag_end = hit + 10 + size;
-        for (int guard = 0; guard < 64 && fp + 10 <= tag_end; ++guard) {
-            char fid[4];
-            if (!rd(s, fp, fid, 4))
-                break;
-            if (fid[0] < 'A' || fid[0] > 'Z')
-                break; /* not a frame id: end of the frame chain */
-            u8 szb[4];
-            if (!rd(s, fp + 4, szb, 4))
-                break;
-            u32 flen;
-            if (ver_major == 4)
-                flen = (u32(szb[0] & 0x7F) << 21) | (u32(szb[1] & 0x7F) << 14) |
-                       (u32(szb[2] & 0x7F) << 7) | u32(szb[3] & 0x7F);
-            else
-                flen = (u32(szb[0]) << 24) | (u32(szb[1]) << 16) | (u32(szb[2]) << 8) | u32(szb[3]);
-            if (flen == 0 || flen > (1u << 20))
-                break;
-            if (std::memcmp(fid, "TIT2", 4) == 0 && flen >= 2) {
-                const u32 text_len = flen - 1; /* minus the encoding byte */
-                if (text_len <= 4096) {
-                    std::vector<char> txt(text_len);
-                    if (rd(s, fp + 10 + 1, txt.data(), text_len)) {
-                        const u8 enc = rd8(s, fp + 10);
-                        std::u16string title;
-                        if (enc == 0)
-                            append_latin1(title, txt.data(), text_len);
-                        else if (enc == 3)
-                            append_utf8(title, txt.data(), text_len);
-                        else if (enc == 1 && text_len >= 2) {
-                            /* UTF-16 with BOM */
-                            const bool le = u8(txt[0]) != 0xFE || u8(txt[1]) != 0xFF;
-                            for (u32 i = 2; i + 1 < text_len; i += 2) {
-                                const u16 ch = le ? u16(u8(txt[i]) | (u16(u8(txt[i + 1])) << 8))
-                                                  : u16((u16(u8(txt[i])) << 8) | u8(txt[i + 1]));
-                                if (ch == 0)
-                                    break;
-                                if (title.size() < 200)
-                                    title.push_back(ch);
-                            }
-                        } else if (enc == 2 && text_len >= 2) {
-                            for (u32 i = 0; i + 1 < text_len; i += 2) {
-                                const u16 ch = u16((u16(u8(txt[i])) << 8) | u8(txt[i + 1]));
-                                if (ch == 0)
-                                    break;
-                                if (title.size() < 200)
-                                    title.push_back(ch);
-                            }
-                        }
-                        if (title.size() > 200)
-                            title.resize(200); /* the DRWUI 0xff buffer bound */
-                        if (!title.empty())
-                            r.name_prefix = std::move(title);
-                    }
-                }
-                break; /* the title frame is found (or this TIT2 was
-                          unusable): the walk ends either way */
-            }
-            fp += 10 + u64(flen);
-        }
-    }
+    r.name_prefix = id3_title_prefix(s, hit, audio_at, ver_major, &r.name_counter_key); /* S-049 */
     return r;
 }
 
 /* ---- WAV: RIFF + WAVE + fmt chunk ---- */
+/* S-049: the WAV naming prefix - the LIST/INFO INAM title (real-session
+ * pins: "BIRD_N.WAV" x90, "RAIN_N.WAV" x60, "CAR_N.WAV" x50 in the I
+ * session - game/audio-library INFO titles; 348 of 548 WAV rows carry no
+ * INAM and take the plain WAV default, consistent with INAM being
+ * optional metadata). RIFF chunks from hit+12: id(4) size(4 LE) data;
+ * LIST with type INFO carries INAM subchunks. */
+static std::u16string wav_inam_prefix(IStorageDevice* s, u64 hit, u64 end,
+                                      std::string* counter_key = nullptr) {
+    u64 pos = hit + 12;
+    int chunks = 0;
+    while (pos + 8 <= end && chunks < 512) {
+        ++chunks;
+        u8 ch[8];
+        if (!rd(s, pos, ch, 8))
+            return {};
+        const u32 csz = u32(ch[4]) | (u32(ch[5]) << 8) | (u32(ch[6]) << 16) | (u32(ch[7]) << 24);
+        if (csz > 0x7FFFFFFFu)
+            return {}; /* hostile size */
+        if (std::memcmp(ch, "LIST", 4) == 0 && csz >= 4 && pos + 12 <= end) {
+            u8 lt[4];
+            if (!rd(s, pos + 8, lt, 4))
+                return {};
+            if (std::memcmp(lt, "INFO", 4) == 0) {
+                /* walk the INFO subchunks for INAM */
+                u64 sub = pos + 12;
+                const u64 send = std::min(pos + 8 + u64(csz), end);
+                int subs = 0;
+                while (sub + 8 <= send && subs < 64) {
+                    ++subs;
+                    u8 sc[8];
+                    if (!rd(s, sub, sc, 8))
+                        return {};
+                    const u32 ssz =
+                        u32(sc[4]) | (u32(sc[5]) << 8) | (u32(sc[6]) << 16) | (u32(sc[7]) << 24);
+                    if (ssz > 4096)
+                        return {};
+                    if (std::memcmp(sc, "INAM", 4) == 0 && ssz > 0 && sub + 8 + ssz <= end) {
+                        std::string v(size_t(ssz), '\0');
+                        if (!rd(s, sub + 8, &v[0], ssz))
+                            return {};
+                        const size_t nul = v.find('\0');
+                        if (nul != std::string::npos)
+                            v.resize(nul);
+                        while (!v.empty() && v.back() == ' ')
+                            v.pop_back();
+                        if (!v.empty()) {
+                            if (counter_key != nullptr)
+                                *counter_key = v; /* the per-string counter key */
+                            return prefix_from_bytes(v);
+                        }
+                    }
+                    sub += 8 + u64(ssz) + (ssz & 1); /* chunks are word-aligned */
+                }
+            }
+        }
+        pos += 8 + u64(csz) + (csz & 1); /* word-aligned stride */
+    }
+    return {};
+}
+
 CarveResult validate_wav(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
     u8 h[16];
@@ -2192,6 +2690,7 @@ CarveResult validate_wav(IStorageDevice* s, u64 hit, u64 cap) {
         r.end = hit + cap;
     r.confidence = 900;
     r.note = "RIFF+WAVE+fmt";
+    r.name_prefix = wav_inam_prefix(s, hit, r.end, &r.name_counter_key); /* S-049 */
     return r;
 }
 
@@ -4943,7 +5442,10 @@ CarveResult validate_eps(IStorageDevice* s, u64 hit, u64 cap) {
     if (h[0] != '%' || h[1] != '!' || h[2] != 'P' || h[3] != 'S')
         return r;
     r.ok = true;
-    r.end = std::min(hit + u64(16 << 20), probe_limit(s, hit, cap));
+    /* N-148: 64 MiB - the M-107-verified stand-in shape (the registry
+     * row and the finding's "all eleven at 64 MiB"; the 16 MiB drift
+     * made the validator 4x tighter than its own row) */
+    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
     r.confidence = 620;
     r.note = "postscript-covenant+bounded-extent";
     return r;
@@ -4964,7 +5466,9 @@ CarveResult validate_ai(IStorageDevice* s, u64 hit, u64 cap) {
     if (v < 1 || v > 64)
         return r; /* AI format versions 2..10 */
     r.ok = true;
-    r.end = std::min(hit + u64(16 << 20), probe_limit(s, hit, cap));
+    /* N-148: 64 MiB - the M-107-verified stand-in shape (the row
+     * re-pinned with it; was 16 MiB) */
+    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
     r.confidence = 620;
     r.note = "ai-version-gate+bounded-extent";
     return r;
@@ -4973,18 +5477,62 @@ CarveResult validate_ai(IStorageDevice* s, u64 hit, u64 cap) {
 /* DXF: "  0\r" key 0x0d302020 (:5555) -> CDXF chain (g146+g144, idx
  * 25) - first-hand: DXF is a KEYED u32 format (the census's list-layer
  * label corrected). The ASCII group-code covenant "  0\r\nSECTION"
- * extends the key; bounded extent stands in for the text walk. */
+ * extends the key; bounded extent stands in for the text walk.
+ * N-152: the og's probe (FUN_1800376f0 :42240-42290, re-read first-hand)
+ * ALSO enters through the u16 "99" key 0x3939 (the 999-comment entry -
+ * :2722-2733's registry binding, the same CDXF chain idx 0x19): a file
+ * starting "999\n" or "999\r\n" (the DXF group-code-999 free-form
+ * comment convention) is accepted when the section pattern follows -
+ * the LF form "  0\nSECTION\n  " (14 bytes) after "999\n", the CRLF
+ * form "  0\r\nSECTION\r\n  " (16 bytes) after "999\r\n". The scan
+ * walks forward from the comment (the og's byte-by-byte memcmp loop
+ * :42277-42293) and breaks at the first NUL byte (the og's loop
+ * guard). The scan window here is bounded at 4 KiB (the comment-to-
+ * SECTION span in real CAD exports is tens of bytes; the og scans its
+ * full probe window - the bound is this port's documented posture). */
 CarveResult validate_dxf(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
-    u8 h[12];
+    u8 h[8];
     if (!rd(s, hit, h, sizeof(h)))
         return r;
-    if (std::memcmp(h, "  0\r\nSECTION", 8) != 0)
+    bool ok = std::memcmp(h, "  0\r\nSECTION", 8) == 0;
+    const char* note = "dxf-group-code-covenant+bounded-extent";
+    if (!ok) {
+        /* the 999-comment entry key's branch */
+        u8 c[5];
+        if (!rd(s, hit, c, sizeof(c)))
+            return r;
+        const bool lf_comment = c[0] == '9' && c[1] == '9' && c[2] == '9' && c[3] == '\n';
+        const bool crlf_comment =
+            c[0] == '9' && c[1] == '9' && c[2] == '9' && c[3] == '\r' && c[4] == '\n';
+        if (lf_comment || crlf_comment) {
+            static const char kPatLf[] = "  0\nSECTION\n  ";
+            static const char kPatCrLf[] = "  0\r\nSECTION\r\n  ";
+            const char* pat = lf_comment ? kPatLf : kPatCrLf;
+            const size_t plen = lf_comment ? sizeof(kPatLf) - 1 : sizeof(kPatCrLf) - 1;
+            constexpr u64 kScan = 4096;
+            u8 win[kScan];
+            const u64 avail = std::min<u64>(kScan, s->size() > hit ? s->size() - hit : 0);
+            if (avail >= plen && rd(s, hit, win, u32(avail))) {
+                for (u64 i = 0; i + plen <= avail; ++i) {
+                    if (win[i] == 0)
+                        break; /* the og's NUL guard */
+                    if (std::memcmp(win + i, pat, plen) == 0) {
+                        ok = true;
+                        break;
+                    }
+                }
+            }
+            if (ok)
+                note = "dxf-999-comment-entry+section-scan";
+        }
+    }
+    if (!ok)
         return r;
     r.ok = true;
     r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
     r.confidence = 620;
-    r.note = "dxf-group-code-covenant+bounded-extent";
+    r.note = note;
     return r;
 }
 
@@ -5214,6 +5762,127 @@ CarveResult validate_3ds_ncsd(IStorageDevice* s, u64 hit, u64 cap) {
     r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
     r.confidence = 620;
     r.note = "3ds-ncsd-list-layer+bounded-extent";
+    return r;
+}
+
+/* ---- M-121: Outlook Express Dbx (RawSpeed::DbxAnalyser, id 0x15=21; the
+ * renumber chain M-117 -> M-118 -> M-121 per SA-9) ----
+ * The og registers THREE magic keys (the static initializer
+ * RAWSearchDLL_decompiled.c:2192-2232, each node stamped idx 0x15):
+ *   "JMF6" 0x36464d4a / CF AD 12 FE 0xfe12adcf / F7 89 34 2C 0x2c3489f7.
+ * The identity probe (FUN_180016740 :17509-17562) stamps id 0x15 iff
+ * the 16-byte window is one of:
+ *   - the JMF6 versioned form: first u64 == 0x0100003_36464d4a
+ *     ("JMF6" + 03 00 10 00);
+ *   - one of FOUR Outlook Express store GUIDs (the stack table
+ *     :17529-17541): {fe12adcf, 6f74fdc5|c6|c7, 11d1e366, c0004e9a}
+ *     (three generations) or {fe12adcf, 26fe9d30, 11d21a8f, 6000bfaa};
+ *   - the marked 16-byte pattern {2c3489f7, 6deef0f7, d18922af,
+ *     b0f0ff00}.
+ * The size pass (FUN_180016950, disassembly-verified at
+ * 0x180016950-0x180016ac0): the FIRST Analyse call re-checks the marked
+ * pattern and latches it (the ctor's u16@+0x118 = 0x100 = the probe-once
+ * flag pair); the plain forms size from u32@+0x7C (`mov 0x7c(%rdx),%eax`);
+ * the marked form (gate: >8 valid window bytes) walks
+ * size = (cur_sector - match_sector) * sector + FUN_180042b30(window,
+ * sector) - the pending-object recompute adapted to the core's one-shot
+ * validator as the walk below (D-101's registered stateless convention).
+ * FUN_180042b30 (Ghidra + retdec + simulation cross-pinned this session):
+ * 0 on an all-zero window, else the non-zero prefix ROUNDED UP TO EVEN
+ * (prefix 1->2, 2->2, 3->4 ... 511->512; the bisection's mid+1 landing).
+ * The marked form's 272-byte name buffer is memset-0-then-copied
+ * (disasm 0x180016a16 memset -> 0x180016a1b walk): the embedded name is
+ * EMPTY - the og emits no content prefix, and the S-049 default names
+ * the row (DBX_%06d.DBX). */
+CarveResult validate_dbx(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[16];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    const u64 lo = u64_from_bytes_le(h);
+    const u64 hi = u64_from_bytes_le(h + 8);
+    enum Form { FORM_NONE, FORM_JMF6, FORM_PLAIN, FORM_MARKED } form = FORM_NONE;
+    if (lo == 0x0010000336464d4aULL) { /* "JMF6"+03 00 10 00 (disasm 0x180016766/0x18001676f: movl
+                                          $0x36464d4a + movl $0x00100003 - the parallel lane's
+                                          reading, confirmed; my first landing's 03 00 01 00 was a
+                                          literal-expansion error) */
+        form = FORM_JMF6;              /* "JMF6" + 03 00 10 00 */
+    } else {
+        /* the four OE store GUIDs (the probe's stack table) */
+        static const u64 kGuids[4][2] = {
+            {0x6f74fdc5fe12adcfULL, 0xc0004e9a11d1e366ULL},
+            {0x6f74fdc6fe12adcfULL, 0xc0004e9a11d1e366ULL},
+            {0x6f74fdc7fe12adcfULL, 0xc0004e9a11d1e366ULL},
+            {0x26fe9d30fe12adcfULL, 0x6000bfaa11d21a8fULL},
+        };
+        for (const auto& g : kGuids) {
+            if (lo == g[0] && hi == g[1]) {
+                form = FORM_PLAIN;
+                break;
+            }
+        }
+        if (form == FORM_NONE && lo == 0x6deef0f72c3489f7ULL && hi == 0xb0f0ff00d18922afULL)
+            form = FORM_MARKED;
+    }
+    if (form == FORM_NONE)
+        return r; /* magic without a table identity: the probe rejects */
+    if (form == FORM_JMF6 || form == FORM_PLAIN) {
+        /* size = the DBX's own self-declared u32 @ +0x7C */
+        u8 sz[4];
+        if (!rd(s, hit + 0x7C, sz, sizeof(sz)))
+            return r; /* the og's >=512-byte window always covers it */
+        u64 size = u64(u32_from_bytes_le(sz));
+        if (size < 0x80)
+            return r; /* below the size field's own read bound */
+        const u64 limit = probe_limit(s, hit, cap);
+        if (size > limit - hit)
+            size = limit - hit; /* the PST family precedent: clamp, not drop */
+        r.ok = true;
+        r.end = hit + size;
+        r.confidence = form == FORM_JMF6 ? 780 : 800;
+        r.note = form == FORM_JMF6 ? "dbx-jmf6+size@0x7c" : "dbx-guid+size@0x7c";
+        return r;
+    }
+    /* the marked form: FUN_180016950's walk, one-shot form. The og
+     * recomputes size per scan window; the terminal value is the
+     * distance to the first all-zero sector (FUN_180042b30 -> 0), or
+     * distance + the even-rounded non-zero prefix while content runs.
+     * Walk sector windows from the hit; keep the last computed extent;
+     * bound by the row cap (probe_limit). */
+    const u64 ssz = s->geometry().logical_sector >= 512 ? s->geometry().logical_sector : 512;
+    const u64 limit = probe_limit(s, hit, cap);
+    std::vector<u8> win(size_t(ssz), 0);
+    u64 end = hit + 16; /* the pattern itself: the first window's floor */
+    u64 p = hit;
+    while (p + ssz <= limit) {
+        if (!rd(s, p, win.data(), u32(ssz)))
+            break; /* keep the last computed extent (the og's window miss) */
+        /* FUN_180042b30: all-zero window -> 0; else the non-zero prefix
+         * rounded up to even (the bisection's mid+1 landing) */
+        size_t last = 0;
+        bool any = false;
+        for (size_t i = 0; i < win.size(); ++i)
+            if (win[i] != 0) {
+                any = true;
+                last = i;
+            }
+        if (!any) {
+            end = p; /* the all-zero window: size = the distance alone */
+            break;
+        }
+        size_t ext = last + 1;
+        ext += ext & 1; /* round up to even (FUN_180042b30's landing) */
+        if (ext > win.size())
+            ext = win.size();
+        end = p + ext;
+        p += ssz;
+    }
+    if (end <= hit)
+        return r;
+    r.ok = true;
+    r.end = std::min(end, limit);
+    r.confidence = 700;
+    r.note = "dbx-marked-zero-walk";
     return r;
 }
 

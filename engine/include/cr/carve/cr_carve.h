@@ -26,10 +26,25 @@ namespace carve {
 
 class CarvePostProcessor; /* M-021: defined below (CarveFlags binds it) */
 
-/* S-049: the og's per-prefix name counters (see CarveFlags::name_counters). */
+/* S-049: the session-wide per-prefix name counters - the og's DRWUI
+ * counter map (the ++ then read at :1877600/:1877724). Session-wide: the
+ * map spans every volume's carves (the orchestrator owns one per scan
+ * and binds it into every slice's CarveFlags); a null flags binding
+ * falls back to the carve call's local map. Thread-safe: the grammar
+ * layer's worker fan-out shares it. */
 struct CarveNameCounters {
     std::map<std::u16string, u32> per_prefix;
     std::mutex lock;
+};
+
+/* S-048: one scanned volume's carve grouping — the slice-relative
+ * [start, end) range and the volume's display name (the real-session
+ * forms: " (I:)" for an empty label with a letter, "System Reserved"
+ * for a label without one, "<label> (<X>:)" for both). */
+struct VolumeGroup {
+    u64 start = 0; /* slice-relative start (inclusive) */
+    u64 end = 0;   /* slice-relative end (exclusive) */
+    std::u16string name;
 };
 
 struct CarveStats {
@@ -107,17 +122,29 @@ struct CarveFlags {
      * emission, exactly the og's DLL-absent degrade. See
      * CarvePostProcessor below. */
     CarvePostProcessor* post_processor = nullptr;
-    /* S-049: the session-wide per-prefix name counters (the og's DRWUI
-     * counter map - FUN_140c44770's callers at :1877600/:1877724 ++ then
-     * read a per-key counter; the key is the format name for
-     * prefix-less/dims rows, the analyser string for prefixed rows).
-     * Session-wide: the og's map spans every volume's carves, so volume
-     * B's first JPG continues volume A's counter (the real sessions'
-     * sequential per-format numbering across the whole scan). The
-     * orchestrator owns one instance per scan and points every slice's
-     * flags at it; null = a per-call local map (the single-slice embed
-     * case). Thread-safe: the grammar layer's worker fan-out shares it. */
+    /* S-049: the session-wide per-prefix name counters (see
+     * CarveNameCounters). The orchestrator binds one per scan; null =
+     * a per-call local map. */
     CarveNameCounters* name_counters = nullptr;
+    /* ---- S-048 (diff-to-fix): the carve tree's volume grouping --------
+     * The og's persisted carve tree (the three REAL og sessions, ~2M rows,
+     * evidence/executions/s10b-real-rsf-session-mining.md): a
+     * "Reconstructed" root whose children are the scanned volumes' display
+     * names, each volume child carrying one EMPTY per-extension folder
+     * (lowercase, e.g. "jpg") per present extension with every carved
+     * file attached DIRECTLY to the volume node - never under the
+     * extension folders. The volume child is created LAZILY at the first
+     * carved-file emit inside its range (the real G session carries NO
+     * child for its carves-free G: volume). volume_groups: slice-relative
+     * [start, end) ranges with the volumes' display names; a candidate
+     * outside every range attaches to the carve root directly (the
+     * unattributable position - never mis-attributed to a wrong volume).
+     * Empty groups + non-empty volume_group_name = ONE group over the
+     * whole slice (the single-volume scan - the common case). Both empty
+     * = no grouping: the bare-root emission (the pre-S-048 shape, kept
+     * for standalone engine callers that know no volume identity). */
+    std::vector<VolumeGroup> volume_groups;
+    std::u16string volume_group_name;
 };
 
 /* ---- M-021: the post-carve processing hook -------------------------
@@ -166,15 +193,18 @@ public:
     virtual void on_candidate(IStorageDevice* /*slice*/, const CarveCandidateInfo& /*info*/) {}
 };
 
-/* Naming callback: returns the display name for a carved hit (host policy;
- * consulted only for candidates whose analyser supplied no decoded og
- * prefix - the og contract always wins where decoded). The index param is
- * the per-prefix counter (S-049). */
+/* Naming callback: returns the display name for a carved hit (host policy).
+ * A namer overrides the og-contract default naming entirely (S-049). */
 using NameCallback = std::function<std::u16string(const Signature& sig, u64 size, u32 index)>;
 
-/* Default namer: the og's universal contract - <UPPERCASE-EXT>_<%06d>.<UPPERCASE-EXT>
- * (DRWUI FUN_140c44770 + the format-name prepend; the unpadded %d past
- * 99999). S-049. */
+/* Default namer (S-049): the og's universal carved-file naming contract,
+ * "<UPPERCASE-EXT>_<%06d>.<UPPERCASE-EXT>" (GZ_000001.GZ, PNG_000001.PNG),
+ * with the unpadded %d form past counter 99999 (DRWUI FUN_140c44770,
+ * decompiled :1878330-81; real-session-pinned per-format counters). The
+ * `index` parameter is the caller's PER-FORMAT counter (carve_slice's
+ * internal counter map when the default chain runs). The File%06u default
+ * this replaced was an invention (retired with S-049; the PARITY-DELTAS
+ * D-76 registration narrowed to nothing). */
 std::u16string default_namer(const Signature& sig, u64 size, u32 index);
 
 /*
