@@ -46,7 +46,7 @@ decompiles (`re-workspace/reversed/ghidra-searchdll/`, `ghidra-drwui/`); core
 | A3 | Lost partitions: PartitionRecovery CalcPartition scoring, `Insert lost partition %s…`, sector size 512 default | `lost::discover` + `materialize` + parallel candidate scans; scoring matches the 187 CalcPartition.log rows (M-017); exFAT content-consistency reject (M-035) | **present** |
 | A4 | RAWSearchDLL carving: 190+ analysers, dual registry (u32 fourcc + u16 magic), 6 families, two-generation fallback, raw_signs.json (139 ext) loaded at engine init, RawConfig.ini 34 per-format toggles, ZIP 5,242,881 B padding cap, PST/RAR/MKV/HEIC grammars, sector-size query via vtable slot 5 | Grammar registry + raw-sign table (compiled-in generated, byte-equal to corpus file) + user-signs layer; validators decompile-exact for the implemented set; M-024 disabled_formats = RawConfig toggles; D-75 registers the omitted fallback generation; S-007 remainder: 67 of 131 analyser classes not implemented (largest true recall residue — tracked, not hallucinated) | **partially present — S-007 remainder tracked; posture divergence N-086 (open, fix queued)** |
 | A5 | "Sector by sector" = whole-range FS passes + carve; settings+0x60 gate for RAW engagement | `run_carve` stage, `free_map` gate (M-005), occupancy gate (M-039), zero-stride skip (N-031) | **present** |
-| A6 | Carve validator mode gating (CNeedRawMgr — possible quick-vs-deep validator sets) | Core runs all validators unconditionally in the carve pass | **unverified — OQ-SA-2 (probe queued)** |
+| A6 | Carve validator gating (CNeedRawMgr) | **RESOLVED (OQ-SA-2, this session)**: CNeedRawMgr = the RawConfig.ini [Filter] per-format manager consulted per-detection (extension-keyed); NO quick-vs-deep mode gating exists in the og; the core's M-024 disabled_formats = the equivalent, and the core's all-validators carve matches the og. The File*/CFile* analysers = the legacy fallback generation (chain demonstrated: MP3Analyzer→FileMP3Analyser at +0x18) — D-75 registers the core's single-validator posture | **present (registered delta D-75/M-024)** |
 
 ## 3. COMBINATION / TRANSFORMATION (quick ⇄ advanced)
 
@@ -144,8 +144,12 @@ detected extensions into the +0x60 set (FUN_18000ed00 sites :19626/:20222/:20892
 2. **OQ-SA-1 — LANDED (FAT/exFAT halves)**: `fat_origin_cluster` carrier + nflags
    bit-7 wire + 3 tests (runtime fail-before proven); the NTFS +0x64 half stays
    tracked-open with the narrowed probe (the $FILE_NAME reference-region u32).
-3. **OQ-SA-2**: the four carve-family probes (CFCPEvt key binding, AAC/M1V/RIFF tier
-   roles, WPG size stamp, CNeedRawMgr mode gating).
+3. **OQ-SA-2 — CLOSED (all four probes resolved this session)**: CFCPEvt = the
+   SQLite analyser (key "SQLi", no gap); AAC/M1V/RIFF list-layer classes = the
+   legacy fallback generation (D-75 already registers the core's posture);
+   WPG = og max 100 MB / type 0x45 / key "wpg" — the core has NO WPG (S-007
+   remainder data point recorded); CNeedRawMgr = per-format config, not
+   scan-mode (M-024 equivalent).
 4. OQ-S4-3 scan-level half: stays open (Windows-hardware execution-bound).
 
 **Contradiction register (A2 vs the parallel lane's FIX-6 note):** the lane's OQ-SA-3

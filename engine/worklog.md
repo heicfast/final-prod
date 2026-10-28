@@ -18125,3 +18125,45 @@ Stage Summary:
   owner). Both CI-red breakages repaired; the ABI's normative docs now
   match the driver-only code they describe, with 4 regression pins
   holding the line.
+Task ID: SCAN-2d (Agent 2 — OQ-SA-2: the four carve-family probes RESOLVED; the tracked question CLOSES)
+Agent: Agent 2 (scan-engine lane)
+
+Work Log:
+- Probe 1 (CFCPEvt): the registry initializer binds CFCPEvtAnalyser
+  (type 0x73) to key 0x694C5153 = "SQLi" (:1965-1971) — it IS the SQLite
+  analyser (FCP Events libraries are SQLite); legacy twin
+  FileFCPEVENTAnalyser (same type 0x73) = the fallback generation. Core
+  covers SQLite (FMT_SQLITE, 12-byte magic): no gap.
+- Probe 2 (AAC/M1V/RIFF tiers): the two-generation chain is now
+  instruction-concrete — FUN_1800304f0 builds BruteForce::MP3Analyzer
+  (modern, 0x2b) with FileMP3Analyser (legacy) attached at +0x18,
+  registered for the MPEG/AAC sync keys (0xFDFF/0xFEFF/0xFFFF/0xFFE2...);
+  the list-layer File*/CFile* classes are the FALLBACK generation. The
+  core's single-primary posture = the registered D-75; the og's boundary
+  (modern reject -> legacy try -> both reject -> discard) now decoded.
+- Probe 3 (WPG): RawSpeed::WpgAnalyser (type 0x45, key "wpg") magic-gates
+  on the 3-byte "wpg" ASCII and stamps a CANONICAL MAXIMUM of
+  100,000,000 bytes on WPGRawFileInfo (+0x23; the x5 sanity factor in the
+  extent math). The core has NO WPG format at all — the size question is
+  superseded by an absence; recorded as a measured data point on the
+  S-007 remainder trail (key "wpg" / type 0x45 / max 100 MB) for the
+  format-implementation lane.
+- Probe 4 (CNeedRawMgr): it is the RawConfig.ini [Filter] per-format
+  manager (once-init singleton; populated via GetPrivateProfileSectionA
+  ("Filter")), consulted AT DETECTION TIME by every analyser,
+  extension-keyed (~20 uniform sites) — there is NO quick-vs-deep
+  validator-mode gating in the og's RAW engine. The core's M-024
+  disabled_formats = the equivalent; "runs all validators" matches the
+  og modulo per-format config, which the core implements.
+- Trail: OQ-SA-2 tracked-open file closed with the four resolutions;
+  SCAN-ENGINE-DELTA.md row A6 flipped to present (registered D-75/M-024).
+- handoff: S-007 lane — the WPG og-side facts are now measured (this
+  entry) for any future FMT_WPG implementation.
+
+Stage Summary:
+- OQ-SA-2 CLOSED (pure decode session; no core change needed — the two
+  relevant postures were already registered deliberately). The A2
+  scan-engine queue is now: OQ-SA-1 NTFS +0x64 half (narrowed, one
+  stack-offset probe), OQ-S4-3 scan-level bench half (Windows-hardware
+  execution-bound), and the S-007 remainder (WPG among them). Delta
+  Report current.
