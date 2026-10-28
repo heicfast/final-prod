@@ -17801,3 +17801,35 @@ Stage Summary:
   are all multi-session work: S-038 (the PACKAGING.md design doc +
   installer), M-064's versioned-deployer halves, I-026 (deliberate,
   no action), and the 3 tracked-open probes.
+Task ID: FIX-8 (S-038 step 1 — the PACKAGING.md contract doc; the telemetry
+field form re-verified first-hand)
+Agent: main engineer (fix session: the SA-6 wave-2 lane)
+
+Work Log:
+- Re-verified the S-038 corpus evidence first-hand (the string tables under
+  re-workspace/reversed/{unins000.exe,SetupUE.exe,InfoForSetup.exe}/):
+  all 13 parameters confirmed verbatim; one attribution correction — the
+  telemetry FIELD form (/SendInfo "Window" "Install" "Activity"
+  "Info_Userinfo" "Attribute" " + "Country":" + ","Timezone":") lives in
+  SETUPUE's strings, with InfoForSetup carrying the Aliyun upload verbs
+  (AliyunSendInfo/AliyunUninstallStart/AliyunUninstallEnd +
+  /SendInfo//SendInfoEx//UninstallStart//UninstallEnd); the GAC
+  assembly-removal strings additionally documented.
+- Wrote docs/PACKAGING.md: the reference install architecture decoded, the
+  13-parameter table (each with its citation), the technology decision
+  (default: Inno Setup, strengths/weaknesses vs WiX/custom), the ARP
+  contract, the silent flag set with exit-code discipline, the admin
+  requirement, the modernized OS gate (REGISTERED divergence), the
+  write+verify version key, the telemetry posture (default: omit — an
+  OPEN product decision), the single-instance default, the driver install
+  as an internal step (absorbs N-085, consumes the M-064 remainder), the
+  three test gates, and the milestone acceptance.
+- Trail: modules/driver-install.md app-installer section note + the
+  S-038 finding's fix-progress section (step 1 landed; the finding stays
+  ACTIVE until the gates are green).
+
+Stage Summary:
+- S-038 step-1 gate CLOSED (the finding remains ACTIVE for steps 2-4).
+  Board unchanged (4 active · 237 FIXED · 3 tracked-open). Next: the
+  OQ-SA-2 corpus probes (CFCPEvt attribution, AAC/M1V/RIFF tier roles,
+  WPG size stamp, CNeedRawMgr gating), then OQ-SA-1, then N-086.

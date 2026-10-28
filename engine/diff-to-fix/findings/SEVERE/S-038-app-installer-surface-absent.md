@@ -54,3 +54,21 @@ Corpus doc + string-table evidence (strength-3, every string quoted this session
 ## Open questions
 
 Whether the merged product WANTS install telemetry (K77's /SendInfo family) is a product-privacy decision, not an audit question — the fix plan deliberately leaves it as implement/no-op/omit-with-rationale.
+
+## Fix progress (step 1 of the fix plan — LANDED)
+
+**Step 1 (the contract doc) is complete** (this session's S-038-step-1
+commit): `docs/PACKAGING.md` carries the 13-parameter contract, every
+parameter cited to the verbatim string-table evidence (the telemetry field
+form lives in SetupUE's strings — `/SendInfo "Window" "Install" "Activity"
+"Info_Userinfo" "Attribute" "` + `"Country":"` + `","Timezone":"` — with
+InfoForSetup carrying the Aliyun upload channel `/SendInfo`, `/SendInfoEx`,
+`/UninstallStart`, `/UninstallEnd`; the GAC assembly-removal strings
+(CreateAssemblyCache/InstallAssembly/UninstallAssembly) are additionally
+documented). The technology decision (default: Inno Setup), the modernized
+OS gate (REGISTERED divergence past Server 2016), the telemetry posture
+(default recommendation: omit), and the multi-instance default
+(single-instance) are recorded as the milestone's decisions-with-defaults.
+**Status remains READ-ONLY-FINDING-with-step-1-landed**: steps 2-4
+(implementation, the three test gates, acceptance) are the milestone's
+remaining work; the finding moves to FIXED when the §11 gates are green.

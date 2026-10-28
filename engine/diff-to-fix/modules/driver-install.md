@@ -60,3 +60,18 @@ S-038/M-064.
   -Uninstall-verb halves remain OPEN (tracked in this module row) — the
   driver's naming already supports the variants (rda_control.c), the
   deployer logic is the future batch.
+
+## SA-6 wave-2 lane (2026-10-28 — S-038 step 1: the contract doc)
+
+- **S-038 step 1 LANDED**: `docs/PACKAGING.md` — the 13-parameter contract
+  (K74 silent flags 1-5, admin 6, ARP 7-8, K76 unins%.3d 9, Inno metadata
+  10, K77 telemetry 11-12, version key 13), every parameter with its
+  verbatim string-table citation; the reference's install architecture
+  decoded; the technology decision (default: Inno Setup, the evidence-pinned
+  choice), the modernized OS gate (Win7 SP1 → Win11 + Server 2025 —
+  REGISTERED divergence), the write+verify version key, the single-instance
+  default, the driver install as an internal step (absorbing N-085), the
+  three test gates, and the milestone acceptance. The telemetry posture
+  (default recommendation: omit) and the technology call are the two OPEN
+  product decisions recorded in the doc. S-038 stays ACTIVE (steps 2-4:
+  implementation, tests, acceptance) — its step-1 gate is closed.

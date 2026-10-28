@@ -1,5 +1,24 @@
 # SUMMARY.md — executive summary (the review-validate close-out on top; earlier sessions below)
 
+## Fix-session delta (2026-10-28 — the SA-6 wave-2 lane, S-038 step 1: the PACKAGING.md contract doc)
+
+**S-038 step 1 (the contract doc) LANDED**: `docs/PACKAGING.md` — the
+13-parameter installer contract (the silent flags /SILENT /VERYSILENT
+/SUPPRESSMSGBOXES /NORESTART /NORESTARTAPPLICATIONS; admin-required
+uninstall; ARP UninstallString + QuietUninstallString ending " /SILENT";
+unins%.3d multi-instance; the Inno metadata keys; the /SendInfo//SendInfoEx
+install telemetry + /UninstallStart//UninstallEnd uninstall telemetry; the
+HKLM\SOFTWARE\...\Version write+verify key), every parameter with its
+verbatim string-table citation (first-hand re-verified this session: the
+telemetry field form is in SetupUE's strings, the upload verbs in
+InfoForSetup's). The technology decision (default: Inno Setup — the
+evidence-pinned choice), the modernized OS gate (Win7 SP1 -> Win11 +
+Server 2025, REGISTERED divergence past the reference's Server-2016 table),
+the telemetry posture (default recommendation: omit), the single-instance
+default, the driver install as an internal step (absorbing N-085), and the
+three test gates. S-038 stays ACTIVE (steps 2-4: implementation, tests,
+acceptance).
+
 ## Fix-session delta (2026-10-28 — the SA-6 wave-2 convergence: M-067 filed+fixed, the RESOLVED-INDEX ledger reconciled)
 
 **M-067 (MAJOR, NEW-FINDING — the S-039 convergence residue) FIXED**: the
