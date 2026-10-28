@@ -4544,7 +4544,7 @@ mechanism from W1 compose.
 Task ID: S11C/T3
 Agent: session-11 fix lane
 
-**The landing (`ea9c8ed5`):** the finding's full architectural plan —
+**The landing (`f4e500de`):** the finding's full architectural plan —
 (1) the tree gains per-root basis ids (`ResultTree::set_root_basis`;
 roots only, descendants read through the parent walk; persisted as
 node-flags bit10 in the tree record), (2) the scan controller keeps the

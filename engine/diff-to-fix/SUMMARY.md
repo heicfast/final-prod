@@ -438,12 +438,12 @@ whole-table re-count.)
 
 ## Session-11 fix lane (11C) delta (2026-10-29 — the user's fix-session mandate: verify, fix, prove, mark)
 
-**Baselines: core `35bee726` at open → `ea9c8ed5` (this lane's S-052
+**Baselines: core `35bee726` at open → `f4e500de` (this lane's S-052
 landing); corpus `be0cfe9` (unmoved). ctest 1121/1121 green at the
 landing tree (Linux gcc -Werror Release; win_syntax_check green;
 Windows CI rides the push).**
 
-- **S-052 → FIXED (`ea9c8ed5`)** — the LDM span recovery basis: the
+- **S-052 → FIXED (`f4e500de`)** — the LDM span recovery basis: the
   finding's full architectural plan landed (per-root basis ids in the
   tree + node-flags bit10 persistence; the controller's heap device
   registry replacing the dead stack device; the SafeWriter's
