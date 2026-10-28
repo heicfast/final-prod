@@ -1,3 +1,14 @@
+- **N-113 CONVERGENCE + N-150 FIXED (the rider over the parallel landing)** — this lane's own
+  N-113 implementation (six rows, every grammar re-verified first-hand, the POS needle question
+  settled: the literal "ProcessOn Schema File", formula needle_end+0x13 calibrated against
+  OSP's +0xF twin) hit the push window against the parallel minors lane's equivalent landing
+  (b6e0a9ef — theirs stands). The verification of THEIR landing exposed three nested-candidate
+  double-carves their tests missed (the SVG declaration+interior pair — pre-existing from
+  M-093; the VCF inner card; the GPX BOM interior declaration): **N-151 filed and fixed (renumbered from N-150 at the S11-R collision — their api-doc batch pushed first)** —
+  suppress_overlap on the four M-093 rows + FMT_VCF/FMT_GPX/FMT_GPX_BOM. Tests:
+  SvgDeclaredDocumentCarvesOnce, TextSchoolVcfInnerCardIsSameFile, GpxBomFormCarvesOnce (all
+  RED on c0f69250, GREEN after). Suite 1082/1082 (1040/42/0). Audit trail: N-150 filed +
+  retired to findings/FIXED/ with the reproductions; ledger row; matrix current.
 
 ## Fix session 40 — the diff-to-fix board execution (2026-10-29, T1 baseline: core `4a6a5164`, corpus `be0cfe9`; prompt saved to worklog/session-40-diff-fix-prompt.md; SEVERE-first order; board at open: 6 SEVERE · 18 MAJOR · 21 MINOR · 5 INFO active + 3 tracked-open; suites 1003 + 59 green at open)
 
@@ -4380,3 +4391,70 @@ Stage Summary:
   resolved ledger rows / 3 tracked-open. The lane is closed; the backup
   branch (session-11-local-backup) preserves the full pre-reconciliation
   state for forensics.
+
+---
+Task ID: S40-ML/T1 (S-053 + N-141 fixed — the ReFS emission gate, one pass both directions)
+Agent: session-40 main diff-fix lane (tracked-open-first)
+
+Work Log:
+- **S-053 (SEVERE, CONFIRMED-DIVERGENCE) — FIXED.** Verified first-hand
+  against the corpus before any code: the name builder FUN_18000c2b0
+  no-ops on keySize<=4 (:8674-75, `if (0 < iVar4)` wraps the whole
+  builder — empty is a LEGAL return); FUN_18000ba90's survive path
+  (LAB_18000bbfb -> RefsNodeHeader walk -> the per-attribute emitters ->
+  d970 identity/recycle routing) consults the name ONLY in the N-141
+  dot-scan — no name-liveness gate anywhere (the lead's own line-by-line
+  read, completing the S11 walk's own "confirm no later name gate"
+  re-verify note). Fix: the `name16.empty()` half of the emission gate
+  removed; `ev.val_len < 0x28` (the og's own minimum-record shape guard)
+  stays. Unnamed rows: stored name EMPTY (the og persists empty), full
+  attribute walk, content-based grading, identity map participation.
+  Display fallback = the CLI human-readable print ONLY (File%06u
+  per-print placeholder in print_tree; csv/json/session keep the true
+  empty name — the finding's "display layer ONLY, never baked into the
+  session" requirement, pinned by the round-trip test).
+- **N-141 (MINOR, CONFIRMED-DIVERGENCE) — FIXED, the same pass** (both
+  findings name the single-pass fix). The size field decoded to the SAME
+  +0x30 both engines read (FUN_18000c060's param_3 out = the found
+  sub-object's puVar1[6] = byte +0x30; parse_general_info's gi.size =
+  le64(var + 0x30)). Fix: the compound gate after parse_general_info —
+  size==0 AND no U'.' -> filtered, counted in stats.zero_size_nodot_filtered
+  (new field, the granularity_discards precedent); zero-size-with-dot and
+  nonzero survive; unnamed-zero-size filters (the og's memchr skips on
+  length 0 — decoded, not assumed).
+- **Tests (fail-before/pass-after PROVEN):** 4 S-053 tests + 4 N-141
+  boundary tests in test_refs_volume.cpp. RED proof: the engine stash
+  rebuild ran the 8 — 6 FAILED pre-fix (the 2 passers are the
+  over-filtering boundary guards, green by design both sides), 8/8 GREEN
+  post-fix. Suites: full linux-release 1064/1064 (1022 passed / 42
+  Win-only skipped / 0 failed); the FULL ASan lane 1064 tests green with
+  ZERO reports; clang-format 18.1.8 clean repo-wide.
+- **The ASan catch (a real memory bug, fixed root-cause):** the full
+  sanitizer lane detonated on Carve_Batch1OgCapsAreTheRegistryRows — the
+  N-093 test iterated `for (s = reg; s->ext; ++s)` past kTable's end
+  (global-buffer-overflow READ of 8 bytes; the table is count-based by
+  contract — cr_signatures.h "one entry per FormatId, order = FormatId";
+  every other consumer uses registry_size()). Repaired to the count-based
+  loop with the contract comment. This is the test-side defect class the
+  ci-local --san lane exists to catch; it had never been run over the
+  N-093 landing.
+- Trail: both finding files carry full Resolution sections (retired to
+  history in this commit per the S11-R-enforced convention — the ledger
+  is the index, the Resolutions ride this commit); FIXED-LEDGER +2 rows
+  (306 = 284 main + 22 OQ, filesystem-recounted); CROSS-REF-MATRIX: the
+  refs B2/B3/B4 cell + the B3 cell -> MATCH; modules/refs.md B5 note
+  resolved-FIXED; SUMMARY session-40-MAIN delta block. Corpus citations
+  in the code comments: ReFSSearchDLL_decompiled.c :8674-75, :8478-81,
+  :8317-37, :8554-8640 (the c060 size-read decode).
+- OQ-S4-3: the Windows benchmark (run 40747332987) dispatched at lane
+  open is executing; the TTFR transcription lands on its completion.
+- Coordination: S-053 was in the parallel SEVERE-first lane's declared
+  queue (not in flight — their in-flight is S-052); this lane landed it
+  first, their entry drops per the convergence rule. This lane's next:
+  S-049 + S-048 (the carve pair), then S-050/S-040/S-054, then M-116+.
+
+Stage Summary:
+- Board after this landing: 61 active (6 SEVERE · 21 MAJOR · 27 MINOR · 7
+  INFO) / 306 resolved ledger rows / 3 tracked-open. Suites green
+  (release + ASan); format clean; the push carries the two- finding fix,
+  the ASan test repair, and the full trail.

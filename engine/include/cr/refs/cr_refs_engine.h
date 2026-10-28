@@ -79,6 +79,12 @@ struct RefsScanStats {
     u64 identity_dedups = 0; /* duplicate object rows collapsed (keep-one) */
     u64 recycle_routed = 0;  /* "$R…"/"S-…"/SVI rows routed to the recycle flush */
     u64 dollar_i_pairs = 0;  /* $R nodes remapped from their $I evidence */
+    /* N-141: rows dropped by the og's zero-size AND no-dot noise filter
+     * (FUN_18000ba90 :8317-37 — the FileValues +0x30 size gate local_e8 < 1
+     * combined with the memchr(name, 0x2e) dot-scan; a zero-size row WITH
+     * a '.' survives, a nonzero row without one survives). Counted so the
+     * suppression is observable, never silent. */
+    u64 zero_size_nodot_filtered = 0;
 };
 
 struct RefsScanFlags {

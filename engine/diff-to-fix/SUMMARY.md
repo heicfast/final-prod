@@ -1,4 +1,57 @@
 # SUMMARY.md — executive summary (the session-40 fix lane on top; the prior lanes below, newest-first)
+
+## Session-40-MAIN-lane delta (2026-10-29 — the tracked-open-first lane; the user's "priority to tracked open first" mandate)
+
+**Fix order this lane: TRACKED-OPEN → SEVERE → MAJOR → N-138..N-141.** Opens
+at core `461825d8` (pulled), absorbed the S11/S11-R/S40C windows through the
+landings below; corpus `be0cfe9` throughout. The CI red at open (two Checks
+runs failed [1/2] clang-format — the M-108/M-110 waves' 18 violations in
+cr_preview.cpp/test_preview.cpp/test_btrfs_volume.cpp) was REPAIRED first
+(the push-window format-dirt class; local [1/10] clean; preview suites green).
+
+**FIXED this lane:**
+- **S-053** (SEVERE — refs): the name-destroyed row class now EMITS. The og's
+  name builder no-ops on keySize<=4 and its emit path has no name gate
+  (ReFSSearchDLL :8674-75/:8478-81 — re-verified first-hand, both sides): the
+  core's `name16.empty()` drop removed; unnamed $DATA-only records flow the
+  full path with the STORED name empty (content-based grading, identity map,
+  session round-trip pinned — never a synthetic name in data); the CLI
+  human-readable print carries a `File%06u` DISPLAY placeholder only. Tests:
+  Refs.UnnamedDataOnlyRowEmitted / UnnamedRowGradeIsContentBased /
+  UnnamedOddLengthKeyEmittedNoCrash / UnnamedNameSessionRoundTrip — all RED
+  pre-fix (stashed-engine rebuild), GREEN post-fix.
+- **N-141** (MINOR — refs, the S-053 pass over the same gate): the og's
+  zero-size AND no-dot noise filter landed with the exact compound semantics
+  (FUN_18000ba90 :8317-37 — the FileValues +0x30 field, confirmed the same
+  field parse_general_info reads): zero-size-no-dot filtered (counted in
+  stats.zero_size_nodot_filtered — never silent), zero-size-with-extension
+  and nonzero-no-dot survive, unnamed-zero-size filters exactly as the og
+  filters it. Tests: Refs.ZeroSizeNoDotRowSuppressed / ZeroSizeWithExtensionEmitted
+  / NonZeroNoDotEmitted / UnnamedZeroSizeRowSuppressed.
+- **Drive-by repair (a real memory bug, ASan-caught):** the N-093 test's
+  registry iteration `for (s = reg; s->ext; ++s)` walked past kTable's end
+  (a global-buffer-overflow under the full ASan lane; the table is
+  count-based by contract — cr_signatures.h's "one entry per FormatId");
+  repaired to the count-based loop every other consumer uses. The full ASan
+  suite (1064 tests) is green with ZERO reports post-repair.
+- **OQ-S4-3 in flight:** the Windows benchmark dispatch (run 40747332987,
+  test-benchmark.yml smoke profile) is executing — the TTFR transcription
+  that closes the OQ rides its completion.
+
+**Board now: 61 active (6 SEVERE · 21 MAJOR · 27 MINOR · 7 INFO) · 306
+resolved ledger rows (284 main-pattern + 22 OQ, filesystem-recounted) · 3
+tracked-open.** Convention note: resolved findings retire to history with
+the Resolution riding the fix commit (the S11-R-enforced convention; the
+S-053/N-141 Resolutions live in this lane's fix commit and the ledger rows).
+
+**Lane claims ahead (coordination):** the S-052 SEVERE fix is the parallel
+SEVERE-first lane's in-flight work (not duplicated here). This lane takes
+next: S-049 + S-048 (the carved naming + grouping pair, one carve wave),
+then S-050, S-040, S-054, then the MAJOR tier (M-116 first), then N-138..N-141
+remainders. S-053/N-141 are LANDED — the SEVERE-first lane's queue entry for
+S-053 drops per the convergence rule.
+
+---
 ## Session-40-continuation delta (2026-10-29 — the S40-continuation minors lane over the S11 filings; the user's "priority to minor first" mandate)
 
 **Fix order this lane: MINOR → INFO** (the SEVERE tier is the parallel S40

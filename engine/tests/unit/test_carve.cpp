@@ -6847,7 +6847,14 @@ TEST(Carve, Batch1OgCapsAreTheRegistryRows) {
     const Signature* reg = registry();
     ASSERT_NE(reg, nullptr);
     const Signature *mid = nullptr, *gz = nullptr, *psp = nullptr, *sit = nullptr;
-    for (const Signature* s = reg; s->ext; ++s) {
+    /* count-based iteration: the registry is a FIXED table (one entry per
+     * FormatId, order = FormatId - cr_signatures.h's own contract); it has
+     * NO null terminator. The original `for (s = reg; s->ext; ++s)` form
+     * walked past kTable's end (an ASan global-buffer-overflow the full
+     * sanitizer lane caught - the read stopped only wherever adjacent
+     * globals happened to hold a null pointer). */
+    for (size_t i = 0; i < registry_size(); ++i) {
+        const Signature* s = reg + i;
         if (s->id == FMT_MID)
             mid = s;
         else if (s->id == FMT_GZ)
@@ -7585,4 +7592,80 @@ TEST(Carve, TextSchoolChfpRootOffAnchorRejects) {
         carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
         u32(OK));
     EXPECT_EQ(find_carved_at(tree, at), nullptr) << "the off-anchor root must reject";
+}
+
+TEST(Carve, TextSchoolVcfInnerCardIsSameFile) {
+    /* N-150-class (this lane's verification of the parallel N-113 landing):
+     * the multi-card file must carve ONCE - the inner BEGIN:VCARD re-match
+     * is the same file (the og's sector-aligned probe + extent consumption
+     * never re-fires inside a walked file). The parallel landing's test
+     * checked only the outer extent; this pin closes the count. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    const std::string card1 = "BEGIN:VCARD\r\nFN:A\r\nEND:VCARD\r\n";
+    const std::string card2 = "BEGIN:VCARD\r\nFN:B\r\nEND:VCARD\r\n";
+    std::memcpy(img.data() + at, card1.data(), card1.size());
+    std::memcpy(img.data() + at + card1.size(), card2.data(), card2.size());
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    ASSERT_EQ(all.size(), 1u) << "the inner card re-match must not double-carve";
+    EXPECT_EQ(all[0]->props()->logical_size, card1.size() + card2.size());
+}
+
+TEST(Carve, SvgDeclaredDocumentCarvesOnce) {
+    /* N-151 (discovered during this lane's N-113 verification): an
+     * XML-declared SVG document must carve ONCE - the pre-fix tree carried
+     * BOTH the declaration-start candidate (the <?xm row, override->SVG)
+     * AND the interior direct-<svg candidate (the <svg row).
+     * suppress_overlap on the XML family rows keeps the interior re-match
+     * suppressed (the same document). */
+    const char* svgdoc = "<?xml version=\"1.0\"?>\n<svg xmlns=\"x\"></svg>";
+    std::vector<u8> img(256 * 1024, 0);
+    std::memcpy(img.data() + 4096, svgdoc, std::strlen(svgdoc));
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    ASSERT_EQ(all.size(), 1u) << "ONE document, ONE file (the N-151 double-carve)";
+    EXPECT_EQ(all[0]->props()->carve_format, u32(FMT_SVG));
+    EXPECT_EQ(all[0]->props()->extents.front().offset, u64(4096))
+        << "the declaration-start candidate owns the document";
+}
+
+TEST(Carve, GpxBomFormCarvesOnce) {
+    /* N-150-class: the BOM'd GPX must carve ONCE (the BOM row's candidate
+     * owns the document; the interior declaration re-match is the same
+     * file). */
+    const char* doc = "<?xml version=\"1.0\"?>\n<gpx version=\"1.1\"><trk></trk></gpx>";
+    std::vector<u8> img(256 * 1024, 0);
+    img[4096] = 0xEF;
+    img[4097] = 0xBB;
+    img[4098] = 0xBF;
+    std::memcpy(img.data() + 4099, doc, std::strlen(doc));
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    ASSERT_EQ(all.size(), 1u) << "the BOM form is ONE file (the nested declaration is the same)";
+    EXPECT_EQ(all[0]->props()->carve_format, u32(FMT_GPX_BOM));
+    EXPECT_EQ(all[0]->props()->extents.front().offset, u64(4096));
+    EXPECT_EQ(all[0]->props()->logical_size, std::strlen(doc) + 3);
 }

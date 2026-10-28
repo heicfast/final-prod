@@ -861,7 +861,25 @@ bool name_matches(const tree::FileNode* n, const TreePrintFlags& f) {
     return name_contains_ci(n->name_utf8(), f.filter);
 }
 
+/* S-053 display-layer placeholder for name-destroyed rows (ReFS unnamed
+ * $DATA-only records): the stored name is EMPTY - the og's engine emits
+ * them nameless and its sessions persist empty - so the human-readable
+ * tree print gives each one a stable, per-print numbered placeholder.
+ * Data exports (csv/json) and the session never see this string. */
+std::string unnamed_display_name(u32 counter) {
+    char buf[16];
+    snprintf(buf, sizeof(buf), "File%06u", counter);
+    return buf;
+}
+
 void print_tree(tree::ResultTree& tree, const TreePrintFlags& f) {
+    /* S-053: name-destroyed ReFS rows carry an EMPTY stored name (the og's
+     * own engine emits them nameless; the session persists empty). The
+     * human-readable print gives them a stable display placeholder so the
+     * row is visible and addressable - DISPLAY LAYER ONLY: the csv/json
+     * exports and the session keep the true empty name (never a synthetic
+     * one baked into data). */
+    u32 unnamed_display_counter = 0;
     std::function<void(tree::FileNode*, const std::string&, int)> walk =
         [&](tree::FileNode* n, const std::string& path, int depth) {
             for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
@@ -872,6 +890,8 @@ void print_tree(tree::ResultTree& tree, const TreePrintFlags& f) {
                                * set never prints (the gate the N-064
                                * reconstruction dropped) */
                 const std::string name = c->name_utf8();
+                const std::string shown =
+                    name.empty() ? unnamed_display_name(++unnamed_display_counter) : name;
                 const std::string full = path.empty() ? name : path + "\\" + name;
                 const bool is_dir = (c->props()->attributes & 0x10) != 0;
                 const bool deleted = c->deleted_state() != tree::DeletedState::Active;
@@ -894,7 +914,7 @@ void print_tree(tree::ResultTree& tree, const TreePrintFlags& f) {
                     const char* org = c->origin() == tree::Origin::Carved
                                           ? " [carved]"
                                           : (c->origin() == tree::Origin::Lost ? " [lost]" : "");
-                    wprintf(L"%hs (%llu)%hs%hs\n", name.c_str(),
+                    wprintf(L"%hs (%llu)%hs%hs\n", shown.c_str(),
                             static_cast<unsigned long long>(c->props()->logical_size), st, org);
                 }
                 if (is_dir)

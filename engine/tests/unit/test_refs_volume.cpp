@@ -13,6 +13,7 @@
 #include "cr/refs/cr_refs_engine.h"
 #include "cr/refs/cr_refs_detect.h"
 #include "cr/orchestrator/cr_scan.h"
+#include "cr/session/cr_records.h"
 #include "cr/tree/cr_node.h"
 #include <gtest/gtest.h>
 #include <algorithm>
@@ -1803,6 +1804,297 @@ TEST(RefsDetect, PartialSignaturePageDetected) {
     ASSERT_EQ(OK, detect_refs(&dev3, info3));
     EXPECT_TRUE(info3.found);
     EXPECT_FALSE(info3.signature_partial);
+}
+
+/* ---- S-053 + N-141: the emission gate (unnamed rows emitted; the
+ * zero-size-no-dot noise filter) ----
+ *
+ * Corpus ground truth (ReFSSearchDLL_decompiled.c):
+ *  - the name builder FUN_18000c2b0 (:8674-75) no-ops on keySize <= 4 -
+ *    empty is a LEGAL name; the emit path (:8317 -> FUN_18000d970) has no
+ *    name-liveness gate, so name-destroyed records surface as unnamed
+ *    recoverable rows;
+ *  - FUN_18000ba90's filter (:8317-37) is size-first, dot-second: within
+ *    the size==0 class (the FileValues +0x30 field == parse_general_info's
+ *    gi.size), a name with no '.' takes the filtered path. */
+namespace {
+
+/* a bare type-marker key: the name-destroyed shape (no name bytes at all) */
+std::vector<u8> bare_file_key(size_t extra_bytes = 0) {
+    std::vector<u8> key(4 + extra_bytes, 0);
+    put32(key.data(), 0x00010030);
+    return key;
+}
+
+tree::FileNode* find_unnamed(const std::vector<tree::FileNode*>& nodes) {
+    for (auto* n : nodes)
+        if (n->props() && n->props()->name.empty() && (n->props()->attributes & 0x10) == 0)
+            return n;
+    return nullptr;
+}
+
+} // namespace
+
+TEST(Refs, UnnamedDataOnlyRowEmitted) {
+    /* S-053 RED-when-absent: a record whose name key is destroyed (bare
+     * 0x00010030 key) but whose $DATA run survives is an unnamed
+     * recoverable row with the same shape as a named one. */
+    std::vector<u8> img = build_volume();
+    {
+        std::vector<Row> rows;
+        rows.push_back(
+            file_row_key(u"hello.txt", build_file_node(0x01D0000000000000ull, 0x01D1000000000000ull,
+                                                       0, 4096, 4096, 200, 1, true)));
+        rows.push_back({bare_file_key(),
+                        build_file_node(0x01D0000000000000ull, 0x01D1000000000000ull, 0, 4096, 4096,
+                                        210, 1, true),
+                        0});
+        rewrite_root_table(img, rows);
+    }
+    RamDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    ASSERT_EQ(OK, scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    std::vector<tree::FileNode*> act;
+    collect(ra, act);
+    bool hello = false;
+    for (auto* n : act)
+        if (n->name_utf8() == "hello.txt")
+            hello = true;
+    ASSERT_TRUE(hello) << "the named control file is unaffected";
+    tree::FileNode* un = find_unnamed(act);
+    ASSERT_NE(un, nullptr) << "the name-destroyed row must be emitted (S-053)";
+    EXPECT_TRUE(un->props()->name.empty()) << "the stored name stays empty - "
+                                              "no synthetic name at the engine layer";
+    EXPECT_EQ(4096ull, un->props()->logical_size);
+    ASSERT_EQ(1u, un->props()->extents.size()) << "the $DATA run survives";
+    EXPECT_EQ(210 * 4096ull, un->props()->extents[0].offset);
+}
+
+TEST(Refs, UnnamedRowGradeIsContentBased) {
+    /* S-053: the unnamed row grades by content viability alone - a deleted
+     * unnamed record whose data cluster is free lands PartialRisk in the
+     * deleted tree, exactly like its named sibling (the og has no
+     * name-shaped grading anywhere). */
+    std::vector<u8> img = build_volume();
+    {
+        std::vector<Row> rows;
+        rows.push_back({bare_file_key(),
+                        build_file_node(0x01D0000000000000ull, 0x01D1000000000000ull, 0, 4096, 4096,
+                                        210, 1, true),
+                        0x4 /* deleted */});
+        rewrite_root_table(img, rows);
+    }
+    RamDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    ASSERT_EQ(OK, scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    std::vector<tree::FileNode*> del;
+    collect(rd, del);
+    tree::FileNode* un = find_unnamed(del);
+    ASSERT_NE(un, nullptr) << "the deleted unnamed row is harvested";
+    EXPECT_EQ(tree::DeletedState::Deleted, un->deleted_state());
+    EXPECT_EQ(tree::Confidence::PartialRisk, un->confidence())
+        << "cluster 210 is free in the allocator - the content-based grade";
+}
+
+TEST(Refs, UnnamedOddLengthKeyEmittedNoCrash) {
+    /* S-053 fuzz-adjunct boundary (deterministic): a key one byte short of
+     * a full trailing char (5 bytes) still yields an empty name; the row
+     * emits and nothing reads past the key (name_from_key's i+1 bound). */
+    std::vector<u8> img = build_volume();
+    {
+        std::vector<Row> rows;
+        rows.push_back({bare_file_key(1) /* 5-byte key: type marker + 1 byte */,
+                        build_file_node(0x01D0000000000000ull, 0x01D1000000000000ull, 0, 4096, 4096,
+                                        210, 1, true),
+                        0});
+        rewrite_root_table(img, rows);
+    }
+    RamDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    ASSERT_EQ(OK, scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    std::vector<tree::FileNode*> act;
+    collect(ra, act);
+    EXPECT_NE(find_unnamed(act), nullptr) << "the odd-length-key row still emits";
+}
+
+TEST(Refs, ZeroSizeNoDotRowSuppressed) {
+    /* N-141: size==0 AND no '.' in the name -> the og's filtered path
+     * (metadata residue / index leftovers): never a recoverable row. The
+     * counter surfaces the suppression (never silent). */
+    std::vector<u8> img = build_volume();
+    {
+        std::vector<Row> rows;
+        rows.push_back(
+            file_row_key(u"hello.txt", build_file_node(0x01D0000000000000ull, 0x01D1000000000000ull,
+                                                       0, 4096, 4096, 200, 1, true)));
+        rows.push_back(
+            file_row_key(u"residue", build_file_node(0x01D0000000000000ull, 0x01D1000000000000ull,
+                                                     0, 0, 4096, 210, 1, true)));
+        rewrite_root_table(img, rows);
+    }
+    RamDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    ASSERT_EQ(OK, scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    std::vector<tree::FileNode*> act;
+    collect(ra, act);
+    bool residue = false;
+    for (auto* n : act)
+        if (n->name_utf8() == "residue")
+            residue = true;
+    EXPECT_FALSE(residue) << "the zero-size no-dot row is filtered (N-141)";
+    EXPECT_EQ(1u, stats.zero_size_nodot_filtered);
+    bool hello = false;
+    for (auto* n : act)
+        if (n->name_utf8() == "hello.txt")
+            hello = true;
+    EXPECT_TRUE(hello) << "the control row is unaffected";
+}
+
+TEST(Refs, ZeroSizeWithExtensionEmitted) {
+    /* N-141 boundary: the dot condition only applies within the zero-size
+     * class - a zero-size record WITH an extension survives (an extension
+     * means a user file shape). */
+    std::vector<u8> img = build_volume();
+    {
+        std::vector<Row> rows;
+        rows.push_back(
+            file_row_key(u"empty.dat", build_file_node(0x01D0000000000000ull, 0x01D1000000000000ull,
+                                                       0, 0, 4096, 210, 1, true)));
+        rewrite_root_table(img, rows);
+    }
+    RamDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    ASSERT_EQ(OK, scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    std::vector<tree::FileNode*> act;
+    collect(ra, act);
+    bool empty_dat = false;
+    for (auto* n : act)
+        if (n->name_utf8() == "empty.dat")
+            empty_dat = true;
+    EXPECT_TRUE(empty_dat) << "zero-size WITH an extension survives the filter";
+    EXPECT_EQ(0u, stats.zero_size_nodot_filtered);
+}
+
+TEST(Refs, NonZeroNoDotEmitted) {
+    /* N-141 boundary: a nonzero record without an extension survives - the
+     * filter is size-first, never a general no-dot rule. */
+    std::vector<u8> img = build_volume();
+    {
+        std::vector<Row> rows;
+        rows.push_back(
+            file_row_key(u"README", build_file_node(0x01D0000000000000ull, 0x01D1000000000000ull, 0,
+                                                    4096, 4096, 210, 1, true)));
+        rewrite_root_table(img, rows);
+    }
+    RamDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    ASSERT_EQ(OK, scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    std::vector<tree::FileNode*> act;
+    collect(ra, act);
+    bool readme = false;
+    for (auto* n : act)
+        if (n->name_utf8() == "README")
+            readme = true;
+    EXPECT_TRUE(readme) << "nonzero size without an extension survives the filter";
+    EXPECT_EQ(0u, stats.zero_size_nodot_filtered);
+}
+
+TEST(Refs, UnnamedZeroSizeRowSuppressed) {
+    /* S-053 x N-141 composition: an unnamed zero-size row is filtered
+     * exactly as the og filters it (its memchr loop is skipped on name
+     * length 0 -> the filtered path). Unnamed rows are NOT a blanket
+     * exception to the noise filter. */
+    std::vector<u8> img = build_volume();
+    {
+        std::vector<Row> rows;
+        rows.push_back({bare_file_key(),
+                        build_file_node(0x01D0000000000000ull, 0x01D1000000000000ull, 0, 0, 4096,
+                                        210, 1, true),
+                        0});
+        rewrite_root_table(img, rows);
+    }
+    RamDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    ASSERT_EQ(OK, scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    std::vector<tree::FileNode*> act;
+    collect(ra, act);
+    EXPECT_EQ(nullptr, find_unnamed(act)) << "unnamed + zero-size = the filtered class";
+    EXPECT_EQ(1u, stats.zero_size_nodot_filtered);
+}
+
+TEST(Refs, UnnamedNameSessionRoundTrip) {
+    /* S-053: the empty name persists through a save/load cycle and never
+     * mutates into a synthetic one (the display placeholder lives at the
+     * CLI print layer only). */
+    std::vector<u8> img = build_volume();
+    {
+        std::vector<Row> rows;
+        rows.push_back({bare_file_key(),
+                        build_file_node(0x01D0000000000000ull, 0x01D1000000000000ull, 0, 4096, 4096,
+                                        210, 1, true),
+                        0});
+        rewrite_root_table(img, rows);
+    }
+    RamDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    ASSERT_EQ(OK, scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    std::vector<tree::FileNode*> act;
+    collect(ra, act);
+    ASSERT_NE(find_unnamed(act), nullptr);
+
+    std::vector<u8> blob;
+    ASSERT_EQ(OK, session::serialize_tree(tree, blob));
+    tree::ResultTree back;
+    ASSERT_EQ(OK, session::deserialize_tree(blob.data(), blob.size(), back));
+    std::vector<tree::FileNode*> reloaded;
+    for (auto* r : back.roots())
+        collect(r, reloaded);
+    tree::FileNode* un = find_unnamed(reloaded);
+    ASSERT_NE(un, nullptr) << "the unnamed row survives the round trip";
+    EXPECT_TRUE(un->props()->name.empty()) << "and the stored name is still empty";
+    EXPECT_EQ(4096ull, un->props()->logical_size);
+    ASSERT_EQ(1u, un->props()->extents.size());
+    EXPECT_EQ(210 * 4096ull, un->props()->extents[0].offset);
 }
 } // namespace
 } // namespace refs
