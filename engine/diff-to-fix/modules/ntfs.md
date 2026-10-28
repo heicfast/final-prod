@@ -1,5 +1,13 @@
 # modules/ntfs.md — NTFS engine audit verdicts
 
+## S12 addendum (2026-10-29 — the session-2 deep-dive)
+
+New active findings on this module: **N-163** (runlist malformed-input tolerance:
+the og truncates-and-keeps, the core rejects the whole fragment; sparse-first is a
+core superset to register). Verified-MATCH this session: runlist nibble order,
+sign-extension points, u64 LCN accumulation, $MFT bootstrap math, attr flags.
+
+
 Reference: NTFSSearchDLL (+ NTFSLib mirror handling) per corpus artifacts
 `SearchDLL/ntfs-engine--deep-dive.md`, `ntfs-engine-internals.md`,
 `ntfs-engine-algorithms-v2--deleted-viability.md`, `zfs-vdev--mftmirr--calcpartition.md` §2,

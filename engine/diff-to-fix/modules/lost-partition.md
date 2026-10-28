@@ -1,5 +1,17 @@
 # modules/lost-partition.md — lost-partition module audit verdicts
 
+## S12 addendum (2026-10-29 — the session-2 deep-dive — the table/GPT/EBR surfaces)
+
+New active findings on this module: **M-123** (GPT header validation laxity — no
+reserved==0 / exact-92 / position / usable-range gates vs the og's FUN_1800078d0);
+**M-124** (EBR link type 0x85 not a container — whole Linux-extended chains vanish);
+**M-132** (GPT backup-probe position + dead-LBA1 asymmetry, both directions);
+**N-161** (GPT entry span underflow, no first<=last gate); **N-164** (the deliberate
+GPT strictness unregistered). Verified-MATCH: EBR base/rel chain math, MBR LBA fields,
+GPT type-GUIDs, the salvage ladder's two-step order, LDM span/stripe/RAID-5 math
+(post-S-052, algebraically identical to FUN_180086a90).
+
+
 Reference: PartitionRecoveryD.mo + Partition.mo + CalcPartition classes per corpus
 artifacts `PartitionRecovery/mo-module-map.md`, `SearchDLL/zfs-vdev--mftmirr--calcpartition.md`
 §3, `PartitionRecovery/pending-operation-engine.md`; og binaries (driver layer out of

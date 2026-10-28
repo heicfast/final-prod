@@ -1,4 +1,81 @@
-# SUMMARY.md — executive summary (the S42-B merge on top — the continuation-audit lane [B] + the parallel S42-main lane, both sides' records kept; the prior lanes below, newest-first)
+# SUMMARY.md — executive summary (the S12 session-2 deep-dive lane on top — sector math / scan-progress math / local database / state management / detection-calculation; the prior lanes below, newest-first)
+
+## Session-12 S12 lane delta (2026-10-29 — the session-2 continuation audit per the user's second-session directive: remove-the-fixed + go-deeper, special focus on sector numbers / scanning / accurate detection / calculation / no-stuck-or-freeze / local database / state management; core `869da779` at open → rebased through the parallel windows to push at `f85def0f`, corpus `be0cfe9`)
+
+**Method:** five parallel deep-dive lanes (A sector/LBA math · B scan strategy +
+progress/ETA mathematics + liveness · C the EUUserData local-database family · D state
+management · E detection-accuracy and calculation audit — context sheets at
+`evidence/s12-lane-sheets/`) + three liveness batteries over the then-active board
+(`evidence/s12-liveness/`). **Every load-bearing claim re-verified first-hand by the
+lead before filing** — the two ACUTEs, all three SEVEREs, and the sector-math MAJORs
+were re-read line-by-line on both sides (including catching and correcting one lane's
+wrong-file line cites: the EBR/GPT decodes live in `ghidra-mo/Partition_decompiled.c`,
+not the PartitionRecovery tree).
+
+**The remove-the-fixed battery (49 checked at the pin):** 46 STILL-ACTIVE · 2 PARTIAL
+(S-050 leg-2 already done by its own addendum; N-135's seven items fixed with a doc
+residual) · **0 phantom-fixed**. The parallel windows' later retirements (S-048, M-103,
+M-112, M-098, N-146, N-156, N-157, I-026..I-034) converged with the battery's pins.
+
+**39 new findings filed (renumbered at the three-window reconciliation — earlier-push-
+wins over the parallel S42 lanes' consumed seats M-118..122/N-154..160/I-037..039):**
+
+- **A-013 (ACUTE)** — the CLI's `--resume`-without-`--out` opens the checkpoint sink
+  `"wb"` on the resume target BEFORE the `"rb"` resume read (rrecov.cpp:1567/:1576/:1598):
+  the save-on-cancel flow prints exactly this command as the recovery path — running it
+  destroys the session. Silent data loss on the documented path.
+- **A-014 (ACUTE)** — FAT time-word validation: the core validates month/day only;
+  hour≥24/min≥60/2s-field≥30 flow into the epoch math and fabricate shifted plausible
+  timestamps (cr_fat_wire.h:123-142) where the og zeroes the slot via
+  `DosDateTimeToFileTime` failure (FAT:32135-54). Wrong metadata in output data, on the
+  corrupt-dentry population recovery targets.
+- **S-055 (SEVERE)** — the user-sign layer probes BEFORE the built-in raw-sign table
+  (cr_carve.cpp:738-808 vs :830), inverting the M-048/D-104 collision rule its own
+  comment states; the 8 overlap formats (amr/cap/class/cpl/flac/msf/pdb/wpl) flip to
+  device-end extents on the default path.
+- **S-056 (SEVERE)** — `disabled_formats` gates the grammar and raw-sign layers but not
+  the user-sign layer — D-104's "same format-toggle rules" registration claim is false
+  in code.
+- **S-057 (SEVERE)** — the og auto-saves STOPPED scans (stop-organize
+  "Scan stopped and found %1 files." → the shared completion handler
+  FUN_140395e50 whose gates carry no stopped-check, DRWUI:1549399/:339076/:612572-87);
+  the core never auto-saves a cancelled run and its comment mis-states the og.
+- **M-123..M-132 (MAJOR ×10)** — GPT header validation laxity (no reserved/position/
+  usable-range gates vs the og's `FUN_1800078d0`); EBR link type 0x85 missing (whole
+  Linux-extended chains vanish); the og's piecewise progress remap + 99.99% cap decoded
+  (O38 superseded); the og's rate-EMA ETA model decoded, no core surface (O39 premise
+  superseded); the FAT/exFAT O(n²) cycle guard (stall-class, 100+ s on chain-heavy
+  FAT32 — the no-freeze directive's hit); user-sign hex-case semantics (12 og-dead
+  signs live in core); the EUUserData all-or-nothing parser vs the og's tolerant skip;
+  the FAT dentry shape-validator family unported (histogram/size/chain gates — the og's
+  main garbage-dentry FP guard); the CLI checkpoint truncate-in-place (the N-014 shape
+  cr_ui already fixed); the GPT backup-probe asymmetry (both directions, unregistered).
+- **N-161..N-178 (MINOR ×18)** — the span underflow, the FAT 32-bit wrap registration,
+  the NTFS runlist salvage posture, the GPT strictness registration, the overflow-chain
+  stance, live counters cadence, the found-size aggregate, the 2× bounds registration,
+  the duplicate-asf semantics, the pre-erratum doc batch, the carved_found undercount,
+  the deleted-first-char `'#'`/LFN-recovery register (OQ-T2 closed), the 2107 clamp,
+  the exFAT AppleDouble sink, NTRes case folding, the LFN illegal-char fallback, the
+  ext4 damaged flag, the pause CLI legs.
+- **I-035/I-036/I-040/I-041/I-042/I-043 (INFO ×6)** — the CHK-chain decode addendum
+  (S-050's evidence), the CLI-only default posture, the og-defect non-adoption batch #2
+  (ext4 i_size_high, `_gmtime32_s`), and the three state-model registers
+  (stopped-vs-finished, paused observability, state ownership).
+
+**Verified-MATCH records (evidence in the lane sheets, no findings):** the S-052 LDM
+span/stripe/RAID-5 math clean; EBR base/rel math; NTFS runlist codec on valid inputs;
+exFAT 64-bit cluster math; ZFS DVA; the pause machinery RE-parity (PausableToken); the
+auto-save gates/naming; the 7-input hang-trace table (no unregistered hang asymmetry —
+the no-freeze directive's clean bill).
+
+**Board after this push (filesystem truth, re-counted): 74 active — 2 ACUTE ·
+5 SEVERE · 28 MAJOR · 33 MINOR · 6 INFO** (+ the parallel lanes' retirements absorbed
+at the reconciliation). Next free IDs: S-058+, M-133+, N-179+, I-044+, A-015+.
+
+**Recommended fix-order contribution (this lane's top):** A-013+M-131 together (one CkSink
+adoption fixes both), then A-014 (one condition + 6 tests), then S-055+S-056+N-171 (one
+carve patch), then S-057 (the stop-window auto-save factor), then M-124 (one case label
+— whole-chain loss), then M-127 (the perf stall).
 
 ## Session-42-C S42-C lane delta (2026-10-29 — the THIRD continuation lane of the same user mandate, same pin `869da779`/`be0cfe9`; rebranded twice [the remote's S42 and S42-B lanes pushed first]; reconciled over THREE hot windows)
 

@@ -1,5 +1,22 @@
 # modules/carve.md — carve module audit verdicts
 
+## S12 addendum (2026-10-29 — the session-2 deep-dive — the local-database/user-sign family)
+
+New active findings on this module: **S-055** (SEVERE — the user-sign layer probes
+before the built-in table, inverting the M-048/D-104 collision rule; 8 overlap formats
+flip to device-end extents); **S-056** (SEVERE — disabled_formats does not gate the
+user-sign layer; D-104's claim false in code); **M-128** (hex-case semantics — 12
+og-dead signs live in core); **M-129** (the all-or-nothing parser vs the og's tolerant
+skip); **N-168** (the og's 2x bounds guard, core correct); **N-169** (duplicate-asf
+merge semantics); **N-170** (8 stale pre-erratum doc claims); **N-171** (user-sign
+files never tick carved_found); **I-035** (the CHK-chain decode addendum for S-050);
+**I-036** (the default-on posture is CLI-app-level only). Key architecture decode
+(this session, lane C): EUUserData's sole og consumer = DRWUI's CHK repair chain
+(renames identified .chk fragments by hex-prefix adapters); GetRawUserInfoMap = the
+per-scan carve-statistics OUTPUT map (cleared per searcher init, read post-scan) —
+never an engine input; NO writer exists for EUUserData in any og binary.
+
+
 Reference: RAWSearchDLL per corpus artifacts `SearchDLL/rawsearch-carving--deep-dive.md`,
 `rawsearchdll--analyser-registry-census.md`, `raw-dual-registry--u16-magic-keys.md`,
 `rawsearchdll--family-{brance,bruteforce,rawspeed,filegen,special,xjq}.md`,

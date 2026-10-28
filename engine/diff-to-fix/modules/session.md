@@ -1,5 +1,16 @@
 # modules/session.md — session module audit verdicts (CRSF vs .rsf)
 
+## S12 addendum (2026-10-29 — the session-2 deep-dive)
+
+New active findings on this module: **A-013** (ACUTE — the CLI resume-truncate:
+"wb" checkpoint sink opens on the resume target before the "rb" read);
+**M-131** (the in-run checkpoint is truncate-in-place — the N-014 shape cr_ui fixed);
+**S-057** (SEVERE — the og auto-saves stopped scans into the shared completion
+handler; the core never auto-saves a cancelled run). Verified-MATCH: auto-save
+gates/naming/sanitizer, load identity re-check, save/load progress, the LDM basis
+re-arm (S-052), no-engine-state-persisted parity, the og's import path read-only.
+
+
 Reference: the .rsf grammar per `re-workspace/artifacts/SaveScan/rsf-format--scan-session.md`
 (+ `ifileproperties-part1/2/3`), auto-save naming/sanitizer, CORRECTIONS folded.
 
