@@ -1,5 +1,5 @@
-**Session-52 lane (the S46 MINOR-first claim continued, 2026-10-29; renumbered from the
-S47 draft at this merge — the remote's S47/S48/S49/S50/S51 seats pushed first per SA-9):**
+**Session-53 lane (the S46 MINOR-first claim continued, 2026-10-29; renumbered from the
+S47→S52 drafts at two hot-window merges — the remote's S47..S52 seats pushed first per SA-9):**
 the S46 claim is executed by this lane (same mandate, same MINOR-first directive, no fixes
 landed between the claim commit `fa654673` and this lane's open). Baseline at open:
 linux-release build green, suite **1273/1273**. Mandate saved token-redacted at
@@ -17,6 +17,18 @@ linux-release build green, suite **1273/1273**. Mandate saved token-redacted at
   undecoded (OQ-1) — no parity claim, no PARITY-DELTAS row. (The N-161 landing rode
   the pre-merge tree; the M-124 EBR-0x85 window merged clean around the GPT gate —
   both edits verified coexisting in the merged tree, suite re-run green below.)
+**S48 lane progress (INFO board COMPLETE — 6 of 6 dispositioned by this lane):**
+I-044 (f0163182 — the scan-mode register: C1/A1/A5 annotated, D-36 citation fixed, errata row),
+I-043 (D-122 — the state-ownership improvement registered), I-042 (module-registered pause
+observability), I-041 (module-registered stopped-vs-finished mapping, the 0x62 threshold
+re-read), I-040 (D-123 + BOTH anti-down-fix pins landed: Ext4Engine.LegacyAclDirSizeClean
+RED-proven by temporarily adopting the og defect, UnixTimeConversion extended post-2038;
+suite 1204: 1162/42/0), I-035 (the four CHK-chain constants folded into S-050). Every
+corpus cite re-read first-hand before each acknowledgment (14 DRWUI/EXT4SearchDLL ranges
+total). The sibling lanes' concurrent landings absorbed by rebase: A-014 (S45/S51
+convergent), M-124 (S47), I-036 (S47). Board after: INFO 0 open. Next: the tracked-open
+set bottom-up (OQ-S42-3 -> OQ-S10-1), then the MAJOR tier bottom-up (M-137 -> M-073)
+against S47/S49/S50's top-down sweeps.
 
 **Session-51 severe-first lane (rebranded from the S47 draft at the hot-window
 merge — the remote's S47/S48/S49/S50 seats pushed first) — A-014 CONVERGENT with the
@@ -7051,3 +7063,34 @@ rejects the class upstream; full exFAT family green). Tests added (all RED→GRE
 `InvalidTimeStampsPersistAsZeroInTree`. Full suite **1278/1278**. Trail: finding →
 findings/FIXED/ with Resolution; ledger row; matrix cell → MATCH; modules/fat.md
 B9 verdict updated. SHA recorded post-push below.
+
+## Session-51 lane — A-014 CONVERGENCE recorded (2026-10-29, this lane rebranded from S47 per the remote's MAJOR-first S47 push)
+
+This lane independently verified A-014 (the corpus re-read first-hand: the three
+DosDateTimeToFileTime zero-on-fail slots at FATSearchDLL_decompiled.c:32131-32160
++ the exFAT twin :45174-45194 + the M-014 gate re-read as a per-field conjunction),
+built the identical gate (the byte-equivalent boundary set `hour > 23 || minute > 59
+|| (time & 0x1F) > 29` on the shared `fat_datetime_to_unix_seconds`), and proved it
+with a 6-test RED->GREEN battery (TimeWordHour24/Hour31/Minute60/SecondField30 → 0;
+the 0xBF7D = 23:59:58 valid-range pin; the end-to-end zero-persist with the
+access-slot-keeps-real-date correction — the og's third call passes time word 0,
+which is legal) BEFORE pulling the remote window. The remote's own A-014 landing
+(044f48d9, absorbed at 712ac508 with the third lane's supplementary per-slot pins)
+wins per SA-9 earlier-push-wins; this lane's verification converges on the same
+accept set with zero divergence. The one finding-text correction this lane adds to
+the record: the finding's "exFAT protected by hour>23 ∧ min>59 ∧ 2s>29" phrasing
+reads as a three-way conjunction, but the M-014 gate is per-field (each field
+independently bounded — exFATSearchDLL FUN_180002f40). No behavioral difference
+(the class is rejected either way); recorded for citation precision. The board at
+this point (filesystem truth at 55e88af0): the remote's I-036/I-041..I-044
+retirements absorbed; this lane proceeds to the MAJOR tier per the user's
+session directive.
+
+**Session-52 lane territory claim (coordination contract, 2026-10-29 UTC):** this lane
+(the user's session directive: MAJOR-first, 20+ fixes) claims the mid-board MAJOR engine-math
+set — **M-133, M-132, M-130, M-129, M-128, M-127, M-126, M-123, M-134, M-135, M-136**
+(the band S47's top-down sweep has not reached and S48's bottom-up sweep reaches last),
+then descends into whichever tier remains open at that point. Per the house rule the first
+verified FIX PUSH retires a seat, not the claim; sibling lanes' landings converge with this
+lane's independent verification documented. Every push pulls first; one finding, one push;
+every fix RED-test-first. Audited pin: core `e4409ef8`, corpus `be0cfe9`.
