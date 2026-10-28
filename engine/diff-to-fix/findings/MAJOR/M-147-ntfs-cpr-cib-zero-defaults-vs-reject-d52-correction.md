@@ -1,4 +1,4 @@
-# MAJOR M-138 — NTFS cpr==0/cib==0: the og's scan path DEFAULTS (record 0x400 / index block 0x1000) at four independent sites; the core rejects the volume — and PARITY-DELTA D-52's "og rejects" premise is a decompile misread of the NTFSLib store-guards
+# MAJOR M-147 — NTFS cpr==0/cib==0: the og's scan path DEFAULTS (record 0x400 / index block 0x1000) at four independent sites; the core rejects the volume — and PARITY-DELTA D-52's "og rejects" premise is a decompile misread of the NTFSLib store-guards
 
 **Severity:** MAJOR
 **Module:** ntfs (boot parameter decoding)
@@ -6,6 +6,7 @@
 **Corpus references:** `re-workspace/reversed/ghidra-mo/NTFSFileSystemAnalyser_decompiled.c` FUN_180004830 (:3427-3440, `if (bVar1 == 0) return 0x400;`) and FUN_180004870 (:3443-3456, `if (bVar1 == 0) return 0x1000;`) — re-read first-hand; `ghidra-searchdll/NTFSSearchDLL_decompiled.c` FUN_18003f630 (the identical 0x400 default); `ghidra-mo/PartitionRecoveryD_decompiled.c` FUN_180011a10 (:10231-10247, 0x400) + FUN_180011a90 (:10254-10268, 0x1000); `ghidra-mo/NTFSLib_decompiled.c:19315-19348` (the store-guard structure and the shared exit — see below)
 **Core references:** audited `34d6cf10` — `src/core/ntfs/cr_bootstrap.cpp:44-46` (`clusters_per_index_block == 0 → ERR_BAD_PARAMETER`), `:78-82` (`record_size == 0 → ERR_BAD_PARAMETER` via `record_size_from_dbr`, `include/cr/ntfs/cr_ntfs_wire.h:234`); pin test `BootRecordSizeZeroRejected` (D-52's pin)
 **Status:** READ-ONLY FINDING — no fix applied
+**Renumber:** M-138 → **M-147** (2026-10-29, the S56 lane's third collision rider: M-138 is the retired twin-key [SA-9 seat-owner, pushed 8b76017c], M-139 the active hik-discriminator filing, M-140 the active csl-cd01 filing - M-147 computed next-free against the FULL live board [active + retired + ledger] by the gate's own scan; no content change)
 
 ## Summary
 

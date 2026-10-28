@@ -1,3 +1,24 @@
+**S56 lane — N-154 landed + the third collision rider (2026-10-29).**
+
+**N-154 FIXED (MINOR — the bookkeeping-truth batch #2).** The cr_log.cpp
+false "N-079" cite re-truthed (the Site-leak fix rode the N-062 landing
+`14229f2f`, git-walk proof; the repair note quotes the falseness). Item 2
+FIXED-ALREADY convergent (N-164/D-116 own the salvage registration +
+the ldm.md cell). modules/tree.md + modules/err.md created from the coverage
+census — I-030's module-row gap closed (all four rows now exist). The stale
+"1027/1027" site annotated per the count-at-HEAD convention (dated history
+preserved). The doc_truth_gate's check_filed_as_citations landed (the
+in-source filed-as existence guard). **The third collision rider rode this
+landing**: the gate's FIXED-directory title check (this session's hardening)
+caught the stock-raw-sign N-188 dual-file collision (→N-193, two seats raced
+mid-repair) + the RRWR H1 title drift (N-155→N-156) + FOUR fresh parallel-lane
+filings on taken seats (N-187-lostpart→N-200, N-188-fat-media→N-201,
+N-193-ext4-superblock→N-202, M-138-ntfs-cpr→M-147 — the M-seat computed
+next-free against the FULL live board) + the ledger-regex MULTILINE fix.
+Gate green: 69 active / 108 retired / 368 ledger-resolved / zero collisions.
+No production behavior changed (comment-truth + docs + gates). Trail:
+findings/FIXED/N-154 + ledger row + tree.md/err.md + this entry.
+
 **S56 lane — the second collision-repair rider + the gate hardening (2026-10-29).**
 
 The doc_truth_gate's findings/FIXED/-directory uniqueness check (this rider's
@@ -941,7 +962,10 @@ Resolutions. Suite baseline at open re-verified: 1037 tests / 995 pass / 42 env 
   plants mirrored the bug). Tests: WmfPlaceableOgGrammarCarves,
   WmfPlaceableOldCoreGrammarRejected, WmfPlaceableTwentyByteVariantRejected,
   WmfStdOgGatesAcceptNonCanonicalHeaders + re-planted S007 batch-1 tests.
-  Suite 1027/1027 green (Linux release). Audit trail: finding moved to
+  Suite 1027/1027 green (Linux release) [the count at THIS session's pin;
+  N-154's count-at-HEAD note: the suite grows with every landing - each
+  session's entries pin their own counts; the standing size is the latest
+  entry's, never a fixed number]. Audit trail: finding moved to
   findings/FIXED/ with Resolution; CROSS-REF-MATRIX cells → MATCH;
   modules/carve.md verdict updated; SUMMARY counts updated.
 # worklog.md — the live multi-agent session log

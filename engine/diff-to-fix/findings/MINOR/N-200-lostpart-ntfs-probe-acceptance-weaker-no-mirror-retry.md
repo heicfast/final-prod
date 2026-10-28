@@ -1,4 +1,4 @@
-# MINOR N-187 — Lost-scan NTFS candidate acceptance is weaker in the core: the og requires boot-pair OR 4-record-MFT validation (with a mirror retry) before accepting a candidate; the core's probe never rejects on MFT evidence (scoring only, no mirror retry)
+# MINOR N-200 — Lost-scan NTFS candidate acceptance is weaker in the core: the og requires boot-pair OR 4-record-MFT validation (with a mirror retry) before accepting a candidate; the core's probe never rejects on MFT evidence (scoring only, no mirror retry)
 
 **Severity:** MINOR
 **Module:** lost-partition (NTFS candidate acceptance)
@@ -6,6 +6,7 @@
 **Corpus references:** `re-workspace/reversed/ghidra-mo/PartitionRecoveryD_decompiled.c` FUN_180011150 (:9880-9914 — the candidate classifier: `FUN_180011260(boot-pair) == 0` → try `FUN_180011560` (4-record MFT read + validate + MIRROR RETRY at FUN_180011b30's +0x38 getter), both failing → the 0xfffffff1 reject slot) and FUN_180011560 (:10023-10075 — `FUN_180011a10(param_4) << 2` = 4 × record_size bytes read; `FUN_180011b10`(mft_lcn)… on failure `FUN_180011b30`(mirr_lcn) retry), both re-read first-hand this session
 **Core references:** audited `34d6cf10` — `src/core/lost/cr_candidates.cpp:70-122` (`probe_ntfs`: the MFT record-0 probe adds +30 on success but never rejects on failure; no mirror retry; no boot-pair check)
 **Status:** READ-ONLY FINDING — no fix applied
+**Renumber:** N-187 → **N-200** (2026-10-29, the S56 lane's third collision rider: the retired mpegps N-187 (the S56 lane's N-160 doc-truth renumber, landed 23:13 UTC) owns the seat per SA-9; the seat was taken before this filing pushed - the doc_truth_gate's active-vs-ledger check caught it live; no content change)
 
 ## Summary
 

@@ -1,4 +1,4 @@
-# MINOR N-193 — ext4 superblock validator acceptance-band deltas (consolidated): inode_size==0, log_bs 7..20, journal_inum gating, desc_size combos — four band differences on garbage SBs, both directions, unregistered
+# MINOR N-202 — ext4 superblock validator acceptance-band deltas (consolidated): inode_size==0, log_bs 7..20, journal_inum gating, desc_size combos — four band differences on garbage SBs, both directions, unregistered
 
 **Severity:** MINOR
 **Module:** ext4 (superblock validation)
@@ -6,6 +6,7 @@
 **Corpus references:** `re-workspace/reversed/ghidra-searchdll/EXT4SearchDLL_decompiled.c` — the validator region :3232-3239 (log_bs sign-check form; inode_size gate `(rev==0) || (short)inode_size != 0`), :3365-3367 (journal_inum copied only when feature_compat HAS_JOURNAL bit 2), :3397-3405 (desc_size clamped to [32,64] unconditionally)
 **Core references:** audited `34d6cf10` — `src/core/ext4/cr_ext4_engine.cpp:148-149` (`log_bs > 6` reject), `:172-174` (inode_size==0 → 128 fallback accept), `:177-179` (journal_inum read unconditionally, 0 → 8), `:191-199` (desc_size 64 only when 64BIT else 32)
 **Status:** READ-ONLY FINDING — no fix applied
+**Renumber:** N-193 → **N-202** (2026-10-29, the S56 lane's third collision rider: the retired stock-raw-sign N-193 (the S56 collision repair, pushed 8aafefbb) owns the seat per SA-9; the seat was taken before this filing pushed - the doc_truth_gate's active-vs-ledger check caught it live; no content change)
 
 ## Summary
 
