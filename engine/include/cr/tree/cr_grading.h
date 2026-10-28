@@ -56,6 +56,7 @@
 
 #include "cr_node.h"
 #include "../query/cr_query.h"
+#include "../storage/cr_device.h" /* M-134: GradeReader's IStorageDevice */
 #include <string>
 #include <vector>
 
@@ -71,6 +72,19 @@ struct DeviceSlot {
     u32 fs_kind = 0;      /* FsKindCode (cr_types.h) */
 };
 
+/* M-134 (diff-to-fix): the deep-read grade validation's bounded reader
+ * (the og resolves one through its global manager chain,
+ * FUN_14038c470 :606319-331). Optional: absent (dev == nullptr) the
+ * content rules are skipped exactly as they were pre-M-134 - the
+ * structural rules never depended on it. The scan threads the device
+ * at the completion pass; the session-regrade ABI (device-decoupled by
+ * design) runs the rule set without the content half, the registered
+ * seam noted in the M-134 Resolution. */
+struct GradeReader {
+    IStorageDevice* dev = nullptr; /* the device the extents are rebased to */
+    u32 sector_size = 0;           /* 0 = derive from dev->geometry() */
+};
+
 /* The extent-end twin-key unit (the og's local_b8[0], vt-derived and
  * undecoded): a constant larger than any addressable disk so per-device
  * keys never collide across devices. The og's structural intent - same
@@ -81,6 +95,11 @@ struct GradeContext {
     /* The scan's slices, sorted by base. Empty = single implicit disk 0
      * (synthetic fixtures, whole-disk scans with no slice table). */
     std::vector<DeviceSlot> devices;
+
+    /* M-134: the optional bounded reader for the deep-read content
+     * rules (one sector per node, the not-in-table no-twin population
+     * only). */
+    GradeReader reader;
 
     const DeviceSlot* slot_for(u64 abs_offset) const;
     /* The FS that owns a node: props->fs_kind, or the owning slot's kind
@@ -134,10 +153,16 @@ struct AssistantStats {
 void grade_tree(tree::ResultTree& t, const GradeContext& ctx, AssistantStats& out);
 
 /* Per-selection re-grade (FUN_1401d7110): re-run the decision rules on
- * ONE node. Only grade-1 (Average) nodes are eligible - the og's
- * re-grade gate (grade not in {0, 2}). Returns true when the node was
- * re-graded. */
-bool regrade_node(tree::FileNode* n, const GradeContext& ctx);
+ * ONE node. Only grade-1 (Average) nodes with the graded bit CLEAR are
+ * eligible - the og's one-shot re-grade gate (grade==1 && graded-bit
+ * clear, :340852-873). M-134: the re-grade now re-runs the FULL
+ * per-node tree shape (solo rules + the S-058 table gate + the twin
+ * lookup + the deep read) instead of the solo rules alone; pass the
+ * tree to enable the twin lookup (the og's FUN_14038ac90 can set
+ * ANOTHER node's grade through the twin map). Returns true when the
+ * node was re-graded. */
+bool regrade_node(tree::FileNode* n, const GradeContext& ctx,
+                  const tree::ResultTree* tree = nullptr);
 
 /* The 169-entry deep-validation extension table (dumped from the corpus
  * DRWUI.exe .data 0x141bb0500; first key "Raw", every flag byte 0).

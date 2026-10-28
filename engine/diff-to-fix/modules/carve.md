@@ -10,8 +10,12 @@ layer; match_at's disabled_exts predicate now carries the removal-loop semantics
 **M-128** (hex-case semantics — 12
 og-dead signs live in core); **M-129** (the all-or-nothing parser vs the og's tolerant
 skip); **N-168** (the og's 2x bounds guard, core correct); **N-169** (duplicate-asf
-merge semantics); **N-170** (8 stale pre-erratum doc claims); **N-171** (user-sign
-files never tick carved_found); **I-035 (ACKNOWLEDGED — folded into S-050 as the dated addendum)** (the CHK-chain decode addendum for S-050);
+merge semantics); **N-170** (8 stale pre-erratum doc claims); **N-171 FIXED
+(Session-44 — the user-sign emission ticks `validated`; RED→GREEN on both the carve
+and session legs; findings/FIXED/N-171)** (user-sign files never tick carved_found);
+**N-188 FIXED (Session-44 §8 discovery — the stock raw-sign layer's twin, filed+fixed
+the same session; findings/FIXED/N-186)** (sign-table-only formats never tick
+`validated`); **I-035 (ACKNOWLEDGED — folded into S-050 as the dated addendum)** (the CHK-chain decode addendum for S-050);
 **I-036** (the default-on posture is CLI-app-level only). Key architecture decode
 (this session, lane C): EUUserData's sole og consumer = DRWUI's CHK repair chain
 (renames identified .chk fragments by hex-prefix adapters); GetRawUserInfoMap = the
@@ -992,3 +996,40 @@ ZipTypingXmindContentBranch / ZipTypingXmindNeedleMissStaysGeneric /
 ZipTypingDocumentToolEntryNames / ZipTypingLaterEntryOverwritesEarlierStamp /
 ZipTypingUnrelatedEntriesStayGeneric / ZipTypedIdDisableGateSuppressesTyping
 (3 groups RED pre-fix; suite 1209 green). P1/P11/P19/P25/P65 → MATCH.
+
+## S50 addendum (2026-10-29 — the continuation audit lane: the landing-parity sweep's carve filings; audited core `34d6cf10`, corpus `be0cfe9`)
+
+New active findings on this module (all first-hand verified both sides; the
+sweep: `evidence/executions/s50-landing-parity-sweep.md`, the divergence
+quotes: `evidence/decompiled-quotes/s50-landing-divergences.md`):
+
+- **S-062 (SEVERE — NEW)** — the ONE chunk-chain walk's size-gate exits:
+  the og publishes 2x-device FLAT on both size-gate breaks (FUN_180044e30
+  :52316-52358, the uVar5=uVar1 comma decode, Ghidra+retdec agree); the
+  core keeps the last-valid-chunk end — **0 on a first-chunk decline**: the
+  og recovers min(2x-device,500M) where the core carves nothing. The
+  M-106 landing's own regression.
+- **M-139 (MAJOR — NEW)** — the HIK discriminator: the og probes
+  **00 00 01 BC** (private_stream_2, -0x43ff0000 at both sites of
+  FUN_1800272a0 :30438/:30452); the core probes **0xBD** (private_stream_1)
+  — the M-098 landing's transcription error (the finding title itself
+  wrong). Genuine HIK files lose the HIK id/name/extent (generic MPEG-PS
+  grammar catches most content); BD-led streams falsely HIK-stamped.
+- **M-140 (MAJOR — NEW)** — the CSL/CD01 latch: the og's per-candidate
+  +0x120 latch permanently binds CD01-key candidates to the 0x44c sizing
+  and a declined read drops them (FUN_180041950 :49766-49798); the core's
+  decline fall-through carves via the `</svg>` walk / the bounded fallback —
+  the landed "retries other sizing" claim refuted by the decompile.
+- **N-189 (MINOR — NEW)** — the DXF canonical gate is 8 bytes
+  ("  0\r\nSECTION") where the og requires the full 16-byte
+  "  0\r\nSECTION\r\n  " two-qword pattern (:42258-42275); the N-152
+  999-leg is parity.
+- **N-190 (MINOR — NEW)** — the S-094/S-049 JPEG EXIF prefix path accepts
+  Model/Software up to 256 chars; the og strncpy's at 39 (0x27,
+  :40382-40510) — naming divergence on >39-char tags only.
+
+Convergence notes (no new rows): the landing sweep verified the rest of the
+window's carve landings PARITY (S-048's 7-folder skeleton exact incl. the
+5..11 id order; S-049's naming contract; M-121 Dbx; M-099 AEP; N-146 FH11;
+N-149 exempt set; N-152's 999 branch; N-139's OOM policy; N-172/N-173's
+FAT presentations — the sweep table rows 1-25).

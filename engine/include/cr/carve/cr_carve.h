@@ -49,7 +49,9 @@ struct VolumeGroup {
 
 struct CarveStats {
     u64 hits = 0;       /* magic candidates */
-    u64 validated = 0;  /* grammar-confirmed */
+    u64 validated = 0;  /* emitted carve records - grammar + raw-sign + user-sign
+                         * layers (N-171/N-188); carved_found is assigned from
+                         * this counter at the orchestrator seam */
     u64 rejected = 0;   /* header-only noise (F8 guard) */
     u64 duplicates = 0; /* deduped vs structured/carved */
     u64 hashed = 0;

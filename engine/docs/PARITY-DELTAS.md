@@ -1181,8 +1181,10 @@ NOT registered here — see docs/DRIVER-UTILIZATION.md's checklist.
   walks) while cutting 64 KiB blocks' 16,384/GiB. The alignbench sweep
   (PERFORMANCE-BASELINE §6) owns further tuning.
 - **D-52 — carve-format registry as a unified two-layer enumeration.** The
-  og exposes RAWSearchDLL registry views (EUGetAnalyserList/Map/Multimap +
-  GetRawUserInfoMap — raw-dual-registry seeds); ours exposes one POD
+  og exposes RAWSearchDLL registry views (EUGetAnalyserList/Map/Multimap —
+  the registry enumeration pair; N-170 re-truth: GetRawUserInfoMap is NOT a
+  registry seed, it is the per-scan carve-statistics OUTPUT map per E-B);
+  ours exposes one POD
   enumeration over BOTH layers (grammar validators then raw-sign formats)
   with stable append-only ordering. Equivalent host capability, different
   shape; the og's RawConfig.ini per-format toggles are host-side policy on
@@ -1849,7 +1851,9 @@ Verified against corpus 03ad46c and the running core before acknowledgment.
 - **D-60e — PENetwork SMB destinations (I-021-5, LANE).** WinPE-lane
   validation item (N-056 test gap), not an engine gap.
 - **D-60f — DRWCfg.bin (I-021-6, SCOPE).** UI-layer AES config cache; the
-  engine reads RawConfig/FileFilter/raw_signs/EUUserData only.
+  engine reads RawConfig/FileFilter/raw_signs only. (N-170 re-truth: the
+  ENGINE never reads EUUserData — its sole og consumer is DRWUI's
+  CHKRepairFileSign, the CHK repair chain, per CORRECTIONS.md #9/E-A.)
 - **D-60g — Session robustness (I-022-1, ACCEPTED).** Per-record CRC32 of
   the decompressed payload, F10 resync + torn-tail salvage, decompression
   bomb caps (cr_crsf.cpp) — the og's loader is per-field only. Keep.
@@ -3919,6 +3923,33 @@ reference-quirk parity. Registered by N-163's Resolution alongside the
 decoder's truncate-and-keep tolerance landing (the og direction this
 finding fixed); the S-001 all-hole recovery behavior is unchanged and
 now decode-anchored.
+
+### D-136 — the metadata-restoration POSIX translation (S-060 landing, REGISTERED DELIBERATE TRANSLATION — engine behavior)
+
+**Class:** deliberate cross-platform translation · **Findings:** S-060 (landing
+2026-10-29) · **Date:** 2026-10-29
+
+**WHAT OG DOES:** after every committed item the og's export tail runs
+`SetFileAttributesW(path, word & 0xfffd)` then `CreateFileW` + the mask-gated
+`SetFileTime(created, access, write)` trio (DRWUI:874686-718), both failures
+ReleaseTrace'd and non-fatal.
+
+**WHAT CORE DOES:** the identical contract on Windows (WinDestIo implements
+the og's shape verbatim). On POSIX hosts (FileDestIo — the portable ABI-check
+recovery surface), the same contract translates as: the times via
+`utimensat` (atime + mtime; a BIRTH time is not portably settable through
+POSIX — the created slot maps to nothing on hosts without a birth-time API
+and is skipped, never guessed), and the attributes via `chmod` carrying the
+READONLY bit (0x1) as the owner-write bit (the one DOS attribute POSIX can
+hold truthfully; hidden/system/archive have no portable mapping and are
+dropped rather than approximated). The per-field enables mirror the engine's
+emission — a zero slot is the og's honest no-date (the N-021/A-014 zero
+FileTime) and passes as NULL exactly like the og's mask gates.
+
+**WHY:** the og is a Windows-only product; the core's portable surface must
+either fake Win32 semantics (wrong) or translate honestly (this). The
+translation is reported per row ("restored" / "failed:<code>" /
+"unsupported") — never a silent approximation.
 ### D-135 — the ext4 damaged-marker compute: clean 64-bit form over the og's sign-extended/truncated comparison (N-177 registration)
 
 The og's truncation-damage verdict (EXT4SearchDLL FUN_180007510 :5455-5467)
@@ -3934,3 +3965,60 @@ ACL pointer pollution never smear the size (the D-123 family); (3) the marker
 bit is the SAME numeric bit 0x200 so cross-tool consumption is unaffected.
 Registered deliberate superset: the og's comparison defects are NOT adopted
 (the I-040 anti-down-fix doctrine).
+
+### D-136 — the FAT out-of-volume run-end stance: deferred per-read failure, not scan-time destruction (N-165 registration, REGISTERED DELIBERATE SUPERSET — truncated-tail volumes are first-class recovery targets)
+
+The og's FAT runlist factories destroy a file's whole runlist at SCAN time
+when a run's end passes the volume sector limit — "File overflows
+partition!" via ReleaseTrace and the runlist object released
+(FATSearchDLL :10873-10903 and the second factory :28045-28070, both
+64-bit checks, re-read first-hand this session). The file then surfaces
+with NO data runs: no recoverable content offered even where the device
+still holds the chain's readable prefix.
+
+The core's registered stance: extents emit unguarded
+(cr_fat_quick.cpp:370-386) and validate_boot deliberately accepts volumes
+whose BPB claims more sectors than the device holds (the truncated-tail
+allowance, cr_chain.cpp:613-616) — a volume cut mid-FAT keeps every
+overflow-tail file LISTED with its chain extents; the readable prefix
+recovers, and the beyond-device tail fails per-read, surfacing through the
+FB-R02 Salvaged family (the recovery report's partial-content disclosure)
+instead of a scan-time destruction. Rationale: truncated-tail volumes are
+recovery targets exactly when the tail is gone (repartitioned/re-sized
+disks); destroying the runlist because its end is past the limit also
+destroys the in-device prefix the og itself could have served. The
+scan-time grade stays the chain's own (FAT-verified intact chains grade
+Excellent; the truncation is a recovery-time disclosure, never a silent
+drop). Pinned by FatEngine.TruncatedVolumeOverflowChainStance; do NOT
+"fix" toward the og's destruction without re-registering this row.
+### D-135 — the session-list surface's registered deltas (N-090: the scope superset, the save-time second resolution, the deviceType non-carriage; the label width CLOSED by the v6 tail)
+
+**WHAT:** three deliberate differences on the W1a session-list surface,
+each verified against the corpus first-hand this session: (a) the core
+lists EVERY `*.crsf` in the directory where the og's home list keeps
+only names containing BOTH `auto_` and `.rsf` (FUN_140273940 at
+DRWUI_decompiled.c:432326-432333 — the substring pair filter; rsf-format
+§5.5); (b) `save_unix` carries SECONDS where the og's record-2 carries a
+local SYSTEMTIME with milliseconds (rsf-format §5.2 +0x6C); (c) the og's
+record-2 `deviceType` u32 (2 → "Desktop", 3 → "Recycle Bin", else the
+disk-info name at +0x120) has no row counterpart.
+**WHY:** (a) the core is an engine ABI serving hosts that resume MANUAL
+saves too — a manual save is as resumable as an auto-save, and hiding it
+from the list serves no recovery purpose; a host wanting the og's exact
+home view filters client-side by name (one substring pair). (b) the
+newest-first comparator needs second resolution only — the og's own
+auto-save FILE NAMES are second-granular
+(`auto_<vol>_<MM>_<DD>_<HH>_<MM>_<SS>.rsf`, rsf-format §5.5), and the
+core's equal-second ties break by path bytes deterministically (N-116);
+carrying ms would force a v6-format migration for a display nicety the
+banner never exercises. (c) no core consumer exists for a UI display
+classification of the disk; a host composing the og's view has its own
+enumeration to draw from.
+**RISK:** none for recovery behavior — all three are presentation-layer
+on a host-facing summary surface. The LABEL WIDTH delta (the og's
+`volumeName[100]` vs the core's 31-char card) is CLOSED by this same
+landing: the v6 record tail + the `label_full[100]` ABI append carry
+the complete label at the og's exact strncpy(…,99) width, with
+`label[32]` preserved as the legacy prefix view.
+**Registered by:** N-090's Resolution (the finding's fix-plan steps 1-4,
+the deliberate-superset option taken at every choice point).

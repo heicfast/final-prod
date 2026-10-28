@@ -46,3 +46,16 @@ The remote lane's a5fe33a5 landed a byte-equivalent repair (the same
 (the cr_ui `Level::Warning` half + the executed pre/post proof + the process note)
 rides as the convergent supplement. Their `Warning→Warn` fix, if it rode the same
 commit, is identical to this lane's.
+
+### Second-instance addendum (2026-10-29, the S-055/S-056 + M-138 windows)
+
+Two more committed-red instances of the same class, both repaired during this lane's
+N-166 verification (both pre-existing at origin/main, proven by the stashed-tree run):
+(1) `Grading.ExtensionTableGatesDeepValidation` — the M-138 rebase (4d450da2) moved
+the twin fixtures onto the out-of-table `.zzqx` pair and the control onto `.doc` but
+left the assertions on the pre-rebase fixture mapping (the test failed unconditionally
+at the pushed tree; the assertions now follow the test's own decoded S-058 semantics);
+(2) the re-landed N-171 ticked `validated` TWICE per user-sign record (a merge
+artifact — every user-sign record double-counted in carved_found; the N-171 tests
+caught it, the landing lane's target-filtered suite run did not; one tick now).
+Suite before this lane's repairs: 3 failing tests at origin/main; after: 1382/1382.

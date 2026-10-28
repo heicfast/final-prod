@@ -72,3 +72,19 @@ Core-derived (the usage census + the token wait read; the ABI tests cited).
 Leg 2's depth: which thread waits the og's `+0xf8` pause gate engine-side (no engine
 corpus code found — likely UI/timer-side; settles whether an engine consumer exists at
 all).
+
+---
+
+## Addendum (S54 lane, 2026-10-29): the og's engine-pause gate skips scan-type-1 runs
+
+A further decoded constraint for the fix plan's engine-notification leg: the og's
+engine-side pause gate (`DRWUI_decompiled.c:314405/:314476`) skips runs whose
+`+0xD8 != 1` — i.e. **pause is not delivered to the engine for every scan type**
+(the +0xD8 field's writer is an unresolved probe, recorded in the S54 evidence
+sheet). The core pauses in ALL stages — a superset in the pause-delivery direction;
+if the og's type-1 runs are the deep/complete scans, the og deliberately does NOT
+pause engine work for that class (pause = UI-level only there). Fix plan impact:
+when porting the engine notification, gate it on the scan-type field the core
+already tracks (quick/deep/carve mask) and register the core's all-stage pause as
+a deliberate superset OR align to the og's type gate once the +0xD8 writer is
+decoded (one probe; see `evidence/s54-deepdive-orchestration.md`, UNRESOLVED #2).

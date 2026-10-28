@@ -308,3 +308,29 @@ MATCH.
   0xFF9F/2107-12-31 value, the 0xFFFFFFFE boundary, the 0x100000000 regression
   step) + Date2107EndToEndFileTimeIsReal. The finding's 0xFFBF example word
   corrected (it decodes 2107-11-31 — invalid; 0xFF9F is 2107-12-31).
+
+## Session-46 addendum (2026-10-29 — the MINOR-first fix lane; audited `fa654673`-lineage, corpus `be0cfe9`)
+
+**N-165 FIXED — the out-of-volume run-end stance registered.** Both og factory
+gates re-read first-hand (:10865-10903 / :28040-28075: the run-end sector-limit
+check, ReleaseTrace "File overflows partition!", the runlist destruction). The
+core's deferred-failure posture — the truncated-tail volume stays a
+first-class target, the overflow-tail file stays listed with its chain
+extents, the readable prefix recovers and the tail discloses as Salvaged at
+recovery (FB-R02) — REGISTERED as PARITY-DELTAS D-136 and pinned by
+FatEngine.TruncatedVolumeOverflowChainStance (the scan-time grade stays the
+chain's own: the truncation is recovery-time knowledge). No behavior change,
+per the finding's own plan.
+
+
+## S54 addendum (2026-10-29 — the fifth continuation lane's focus deep dives)
+
+New active findings on this module: **S-064** (SEVERE — engine-open flavor selection
+is string-driven in the og (FUN_18002f970), bracket-driven in the core; on
+string/bracket disagreement the core decodes 12-bit entries where the og decodes
+16-bit — wrong-content class), **N-188** (the FAT1/FAT2 media-word re-flavor
+refinement absent; lands with S-064 as the og's two-step decision sequence).
+Verified-MATCH this session: the og gate set at :38044-38062 re-derived field by
+field (numFATs/spc-set/bps/root-entries/spf/signature), the flavor-0xE-only consumer
+bail, the bracket function's lost-scan-only placement, the FAT16 exact media check's
+M-015 port confirmed, and the u64 cluster math (D-119 stands).

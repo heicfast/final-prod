@@ -531,3 +531,34 @@ file is real content shape). The zero-valid-runs class still rejects.
 Tests: TornAfterValidRunsKeepsPrefix / AllGarbageYieldsNothing /
 SparseFirstAcceptedAndRegistered / the end-to-end
 TornRunlistKeepsPrefixAndGradesPartialRisk (2 RED pre-fix). Suite 1280.
+
+## S50 convergence note (2026-10-29 — the continuation audit lane)
+
+The lane's independent OQ-S42-1 probe CONVERGED with the winning a75d8198
+decode (SI-PREFERRED, FN-FALLBACK, FUN_180006db0 :5338-5351 + the
+FUN_180044fb0 40-byte size gate; the core's has_si-else-FN at
+cr_mftwalk.cpp:868 identical). This lane's additional nuance, registered
+in the B9 note: the og's SI size-validity gate is valueOffset+0x28 (>= 40
+bytes of SI value) where the core's parse_standard_information requires
+72 — on corrupt 40-71-byte SI records the og emits SI times, the core
+falls back to FN; the stricter gate is the benign hardening (no finding,
+no code change owed). Evidence: `evidence/decompiled-quotes/
+s50-ntfs-btrfs-time-precedence-decodes.md` §1.
+
+---
+
+## S54 addendum (2026-10-29 — the fifth continuation lane's focus deep dives)
+
+New active findings on this module: **S-063** (SEVERE — the torn-$MFT bootstrap
+fallback to the $MFTMirr LCN the og has and the core refuses, with the core's own
+"nothing to mirror FROM" comment premise refuted), **M-138** (cpr/cib zero: the og's
+four scan-path default sites 0x400/0x1000 vs the core's rejection + the D-52
+premise correction), **M-145** (the core-only 55AA open gate), **M-146** (probe_family's
+gate family ≠ the analyser's — spc-POW2 core-only, zero sweeps + record-shape gates
+missing, the getter misattribution in the comment), **M-141** (the core-only
+mft_lcn/mftmirr_lcn bounds), **N-196** (the walk-entry record-geometry gate — core
+superset, register), **N-197** (the spc shift-threshold og-internal inconsistency —
+register the chosen side). Verified-MATCH this session: the +0x30/+0x38 kernel-layout
+getter pair, the runlist decode family (re-walked), the MFT record-size decode forms
+(three og variants mapped), the analyser's zero-sweep offsets, and the remnant-scan
+512-byte stride. Quote pack: `evidence/decompiled-quotes/s54-finding-quote-pack.md`.

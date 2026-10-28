@@ -264,6 +264,13 @@ std::string build_report(const std::vector<Item>& items, const Totals& t,
          * within-v1; unclassified value-enqueued rows). */
         if (!it.tree_class.empty())
             append_str(out, "tree_class", it.tree_class, true);
+        /* S-060: the metadata restoration outcome per row - "restored",
+         * "failed:<code>", "unsupported" (a metadata-less backend), or
+         * omitted when not attempted (dirs, refused items). The og
+         * traces both restoration failures and continues; the core's
+         * report tells the same truth per row. */
+        if (!it.metadata.empty())
+            append_str(out, "metadata", it.metadata, true);
         out.push_back('}');
     }
     out.append(items.empty() ? "]\n}\n" : "\n  ]\n}\n");

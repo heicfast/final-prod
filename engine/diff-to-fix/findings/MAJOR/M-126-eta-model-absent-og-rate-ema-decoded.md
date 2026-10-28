@@ -94,3 +94,20 @@ disposition being corrected.
 ## Open questions
 
 None — the model is fully decoded from FUN_1401af410 + display sites.
+
+---
+
+## Addendum (S54 lane, 2026-10-29): the ETA time-budget SEED decoded — the missing helper input
+
+The og's ETA budget does not start from zero: `DRWUI_decompiled.c:315150` seeds the
+budget with `total_bytes / 60 MiB + 60 s` before the rate EMA takes over — i.e. an
+initial assumption of **1 MiB/s plus a flat 60-second base**. The finding's fix plan
+(step: "adopt the og's rate model") should seed the budget identically so the
+pre-first-measurement window (the first ~60 s of a scan, where the EMA has no data)
+renders the og's ETA rather than an arbitrary initial value. Corpus cite re-read
+first-hand this session by the S54 deep-dive F leg (the full derivation in
+`evidence/s54-deepdive-orchestration.md`, Axis 3); core side: no seed exists at
+`34d6cf10` (the ETA budget starts at zero/absent until the EMA has samples).
+
+Test to add alongside the finding's own: `Eta.InitialSeedIs1MiBPerSecPlus60s`
+(a scan with zero rate samples renders `total/1MiB/s + 60s`, not zero/infinite).

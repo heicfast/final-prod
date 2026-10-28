@@ -531,6 +531,7 @@ TEST(Ext4Engine, UnixTimeConversion) {
  * ifmt(mode)==0x8000) is the registered deliberate non-adoption
  * (PARITY-DELTAS D-123). This pin refuses a future "fix" down to the
  * defect. */
+
 TEST(Ext4Engine, LegacyAclDirSizeClean) {
     auto img = build_volume();
     /* the legacy dir-ACL pointer lives in i_size_high's slot for

@@ -138,6 +138,48 @@ bool WinDestIo::exists(const std::u16string& path_utf16) {
            INVALID_FILE_ATTRIBUTES;
 }
 
+u32 WinDestIo::set_metadata(u64 item_id, const std::u16string& final_path_utf16,
+                            const FileMeta& meta) {
+    (void)item_id; /* the og addresses the destination by PATH, not the
+                    * (already closed) temp handle - DRWUI :874684-718 */
+    const wchar_t* path = reinterpret_cast<const wchar_t*>(final_path_utf16.c_str());
+    /* the og's tail, shape for shape: attributes first (word & ~0x2,
+     * :874686-690 - failure only traced, the flow CONTINUES to the
+     * times), then the timestamp trio via a fresh CreateFileW handle
+     * (:874697-714: creation, access, write FILETIME* slots - NULL for
+     * the un-set fields, the og's mask gates). Either failure surfaces
+     * as the call's return code; the WRITER keeps the item Done either
+     * way (the og's non-fatal contract). */
+    u32 rc = OK;
+    if (meta.set_attributes && !SetFileAttributesW(path, meta.attributes))
+        rc = ERR_WRITE_FAILED; /* the og's "Failed to set file attribute" */
+    HANDLE h = CreateFileW(path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                           nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE)
+        return rc != OK ? rc : u32(ERR_WRITE_FAILED); /* "Failed to set file time" */
+    FILETIME ft_create, ft_access, ft_write;
+    FILETIME *p_create = nullptr, *p_access = nullptr, *p_write = nullptr;
+    if (meta.set_created) {
+        ft_create.dwLowDateTime = DWORD(meta.created & 0xFFFFFFFFu);
+        ft_create.dwHighDateTime = DWORD(meta.created >> 32);
+        p_create = &ft_create;
+    }
+    if (meta.set_accessed) {
+        ft_access.dwLowDateTime = DWORD(meta.accessed & 0xFFFFFFFFu);
+        ft_access.dwHighDateTime = DWORD(meta.accessed >> 32);
+        p_access = &ft_access;
+    }
+    if (meta.set_modified) {
+        ft_write.dwLowDateTime = DWORD(meta.modified & 0xFFFFFFFFu);
+        ft_write.dwHighDateTime = DWORD(meta.modified >> 32);
+        p_write = &ft_write;
+    }
+    if (!SetFileTime(h, p_create, p_access, p_write))
+        rc = rc != OK ? rc : u32(ERR_WRITE_FAILED); /* first failure wins */
+    CloseHandle(h);
+    return rc;
+}
+
 u32 WinDestIo::mkdir(const std::u16string& path_utf16) {
     /* G-08: create every component of the chain; a component that already
      * EXISTS AS A DIRECTORY is success (idempotent reconstruction).

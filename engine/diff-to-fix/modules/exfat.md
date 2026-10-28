@@ -45,7 +45,10 @@ Core (audited commit `67193b6`): `src/core/exfat/` (2 files, 678 LOC) +
   file notes; no corpus contradiction).
 - **B6 post-format** — `M` per documented corpus behavior (no exFAT remnant sweep
   documented in corpus; RAWSearch covers content).
-- **B9 timestamps** — `M` exFAT 10ms timestamps with tz-offset conversion
+- **B9 timestamps** — `M` exFAT 10ms timestamps; the tz-offset bytes are
+  parsed but NOT applied (N-180 re-truth per the module's own session-2
+  re-audit at :93: the og reads them and converts to local system time,
+  which equals the fixed local-as-UTC stamp)
   (`exfat_time_to_unix100(ts, tz)`); og conversion semantics not itemized in corpus — no
   contradiction found.
 - **B10 filename/Unicode** — `M` UTF-16 name fragments, checksum-validated glue for live
@@ -301,3 +304,15 @@ ExfatEngine.RecyclePairingMirrored (fail-before EXECUTED — engine
 mutation 3/4 RED; the over-matching pin green by design). B4/B5/D11
 verdict: MATCH.
 
+
+
+## S54 addendum (2026-10-29 — the fifth continuation lane's focus deep dives)
+
+New active findings on this module: **S-066** (SEVERE — the lost-anchor base−12
+re-base ladder absent: the og probes FAT media words at base and base−12 after a
+failed backup-boot gate and corrects the volume base; the core scans 12 sectors
+off), **N-198** (the three core-only numeric bounds — register the hardening).
+Verified-MATCH this session: the og gate set (FUN_180021e80's full `!= 0` family),
+the dual ROL15 entry checksum, the boot-region checksum parity (informational on
+both sides — confirmed neither validates it at open outside RawFixer), the
+cluster→heap u64 math, and the exFAT engine's non-use of FSI 'RRaA' (both sides).
