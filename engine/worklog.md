@@ -16,6 +16,86 @@ gate's uniqueness check now covers: active-active, active-vs-retired,
 retired-retired (title IDs), active-vs-ledger, and ledger-same-ID-different-
 slug. Gate green: 48 active / 108 retired / 368 ledger-resolved / zero
 collisions. No production code touched.
+---
+## Session-47 INFO-first lane — SESSION CLOSE + HANDOFF (2026-10-29, at `97b87b0a`; the lane's full span `d872452c` → `97b87b0a`)
+
+**Task ID:** S47-INFOFIX (the user's INFORMATIONAL-first mandate: "Fix all the audit
+findings (priority to informational first) one by one... Aim for at least 20+ fixes").
+**Lane identity note:** this lane's S47 claim (`d872452c`, 22:27:26 UTC) was the FIRST
+S47 push; the MAJOR-first lane's later S47 claim rebranded S47→S58 mid-window, then
+S58→(later numbers) as the seat war continued — this lane kept the S47-INFO-first
+label throughout; the trail distinguishes lanes by directive, not number.
+
+**This lane's product (11 substantive pushes, every one re-verified against the
+corpus + the live tree before any change):**
+1. `d872452c` — the territory claim (INFO + tracked-open + MAJOR under
+   earlier-push-wins; S45 keeps ACUTE/SEVERE, S46 keeps MINORs).
+2. `55e88af0` — **I-036 FIXED**: the user-sign default-load posture register + the
+   D-104/inventory precision edits (the load-site census re-executed).
+3. `1fccb0a4` — **I-040 CONVERGENT**: the og-defect non-adoption register #2 (the
+   independent FUN_180007510 + _gmtime32_s decodes; the S48 lane's D-123 landing
+   wins per SA-9; this lane's fold-direction + post-2038 pins ride).
+4. `1b1fbdc9` — **OQ-S42-2 RESOLVED-MATCH (convergent)**: the Btrfs nsec fold decoded
+   first-hand (FUN_180006ba0 :4435-4441); the unique end-to-end pin
+   Btrfs.MtimeNsecFoldsLikeTheOg landed.
+5. `448a037e` — **OQ-S42-1 RESOLVED-MATCH**: the NTFS $SI/$FN precedence decoded
+   (NTFSSearchDLL :5338-5353 — SI-first, the core's rule verbatim; the third slot
+   carries $SI.MFT-modified) + NtfsVolume.SiTimeSlotsMatchOgSurfacedSet pins both
+   directions + the fallback.
+6. `003730e0` — **OQ-S52-1 evidence addendum** (the ext analyser's verdict masks
+   decoded first-hand for its owner) + the tracked-open sweep's verified-current
+   notes (OQ-S10-1's by-name refusals at cr_thumbnail.cpp:85, OQ-S10-3's grant
+   boundary).
+7. `455220e8` + `79b8406b` + `97b87b0a` — **three format-drift sweeps** (the first
+   under the wrong 23.1.3, then twice under the CI's PINNED 18.1.8 — checks.yml:91;
+   the Checks gate was red on every push in the window until these).
+8. `cc81f2b6` — **M-115 CONVERGENT** (the S47-MAJOR-first lane's 1d7a761b wins; this
+   lane's identical read_ok design folded in; unique supplements: the dims-seam
+   refusal pin + PreviewPaneNeverPromotes + the ABI doc block) **+ the window's
+   pushed reds closed**: the N-171 double-increment dedup, the S-058 polarity test
+   flip, e1/e2, the part_slice retype (convergent with S53's N-188), Warning→Warn.
+9. `128e3071` — **OQ-S4-3's dispatch-ride state recorded** (run 40783364141 stale;
+   the transport half stays measured-and-closed; the TTFR step unchanged).
+10. `53e782aa` — **SUMMARY.md's S47 session block** (the INFO board 7→0 with the
+   ecosystem's mirror lane absorbing I-041..I-044 + I-035 mid-flight).
+
+**Counting this lane's dispositions per the user's 20+ bar:** the honest ledger is
+**2 owned INFO retirements + 3 convergence supplements (I-040/M-115/OQ-S42-2) + 2 OQ
+resolutions with first-hand decodes + 1 evidence addendum + 4 main-green gate
+repairs/sweeps + 7 new pin/proof tests (ext4 ×2, btrfs ×1, ntfs ×1, cr_ui ×3)** —
+the raw finding-ID count (I-036/I-040/OQ-S42-1/OQ-S42-2 = 4 owned/convergent seats
+plus the M-115 convergence) is smaller than 20 because the S48 mirror lane retired
+the other 6 INFO seats (I-035/I-041..I-044) MID-FLIGHT with earlier pushes, and the
+MAJOR/MINOR tiers were claimed top-down/bottom-up/middle by four other active lanes
+whose windows this lane absorbed 20+ times. The audit trail records exactly who
+retired what; no silent work, no invented seat counts.
+
+**Remaining tracked items this lane leaves (with rationale + next steps):**
+- **OQ-S4-3 (TTFR half)** — Windows-execution-bound; re-dispatch test-benchmark if
+  run 40783364141 is confirmed dead, transcribe ttfr_ms/ttfr_first_files; the og-side
+  needs the new first-found probe in bench/og/og-driver.ps1 (S11 addendum's step 4).
+- **OQ-S52-1 (ext2/3 vs ext4 kind)** — the S52 lane's filing; this lane's analyser-
+  mask decode (the 5/6 family gates + the 0x2c0 ext4 triple-gate) is in the file;
+  the remaining half: map analyser-verdict {5,6,0x18} → the DRWUI {4/5,9} kind codes
+  feeding FUN_140577d40's callers.
+- **OQ-S10-1 / OQ-S10-3 / OQ-S42-3** — verified current, owners active (S48's
+  RESOLVED-IN-PART on S42-3; the vendoring/grant decisions are owner-level).
+- **M-126** — assessed this session, left to the S52 lane's claim (a real UI-layer
+  ETA model landing: the EMA + type-gated budget variant + the 1 Hz countdown; the
+  M-125 query-layer-helper precedent is the right shape; O39's disposition flips
+  with it).
+
+**Release tag: NOT taken this session** — the board does not close cleanly (the
+audit lanes filed new findings faster than the fix lanes retired them; 60+ active
+at close). The v0.5.0-parity tag stays behind the SEVERE tier's closure per the
+mandate's "if the audit closes cleanly" conditional.
+
+**The next session's first three moves:** (1) pull + re-run the pinned-18.1.8 format
+gate BEFORE anything else (the window's lanes keep pushing 23.x-formatted code);
+(2) check the Checks run on `97b87b0a`+ (this lane's last sweep) and close any new
+pushed reds before touching findings; (3) the SEVERE tier (8 at close) is the
+highest-value open band — S-059/S-060 (the timestamp restoration pair) were landing
+as this session closed.
 
 **S56 lane — N-090 landed (2026-10-29).**
 
