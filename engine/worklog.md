@@ -2242,3 +2242,80 @@ Doc-truth batch B conform: N-095/N-108/N-119 retired into history (Resolutions p
 at e1e5124), ledger rows appended, matrix rows flipped, SUMMARY board updated.
 Filesystem truth: 60 active (8 SEVERE · 22 MAJOR · 25 MINOR · 5 INFO) / 268 resolved /
 2 tracked-open. Session-38 tally: 10 findings closed.
+
+Task ID: FIX-T4 (S-043 closed)
+Agent: lead fix session (closing-fix lane)
+
+Work Log:
+- S-043 verified first-hand: cr_thumbnail.cpp had zero orientation code
+  (grep + full read); the corpus evidence (FUN_1402fcc30 :521694-725,
+  call order :652307-309, s8-thumbnail-pipeline.md §1) re-read directly.
+  CONFIRMED-DIVERGENCE.
+- Fix: apply_orientation (the 8 EXIF cases as the og's RotateFlipType
+  mapping, cases 5-8 swapping axes) applied to decoded RGBA BEFORE the
+  box downscale (the og's RotateFlip-then-GetImageThumbnail order).
+  JPEG: ExifWalker gained ifd0_orientation() (APP1/IFD0 tag 0x112,
+  type 3 count 1, 1..8; anything else = no transform = the og's
+  GetPropertyItemSize==0 branch). TIFF: tag 274 captured in the native
+  decoder. Non-JPEG stb formats stay untransformed (the og reads no
+  0x112 property for them either).
+- The embedded fast path (the finding's conditional made precise):
+  serves as-stored per CIPA DC-008 (embedded thumbs are stored upright -
+  applying IFD0's tag would double-rotate spec-conformant files);
+  honors an IFD1-DECLARED 0x112 as the not-already-oriented marker.
+  The og has no embedded fast path (it full-decodes) so the corpus has
+  no statement on that leg - the rule is spec-derived, registered
+  PARITY-DELTAS D-105, both behaviors pinned by test.
+- Tests: 8 new (ExifOrientationAppliedBeforeDownscale over 2..8,
+  OrientationOneIsIdentity, OrientationInvalidIgnored, TiffOrientation
+  Applied/InvalidIgnored, EmbeddedFastPathServesStoredOrientationBy
+  Default, EmbeddedFastPathHonorsIfd1DeclaredOrientation). Fixtures:
+  exif_orient_{1..9}.jpg + tiff_orient6.tif + tiff_orient_9invalid.tif
+  + huge_dims_exif_thumb_ifd1o6.jpg (gen_thumbnail_fixtures.py's
+  exif_app1 parameterized; pre-existing fixtures byte-identical).
+  Fail-before EXECUTED: with cr_thumbnail.cpp stashed, 3 transform tests
+  RED (Exif/Tiff/EmbeddedIfd1), identity/invalid/serves-stored green.
+  Suite 1041/1041 linux-release; thumbnail suite ASan-clean
+  (build/linux-gcc); clang-format 18.1.8 clean.
+- Audit trail: Resolution + FIXED/ move; matrix row -> MATCH;
+  modules/preview.md S-043 -> FIXED; PARITY-DELTAS D-105; SUMMARY
+  board 71 active / 254 FIXED.
+
+Stage Summary:
+- S-043 closed with the og's exact pipeline order. Next in the claimed
+  territory: M-083 (grade promotion - the same work item's other
+  side-effect), then M-080 (the budget middle-class), M-085 (TIFF LZW),
+  S-044 (auto-save gates), S-045 (format coverage), S-040 (image create).
+
+---
+Task ID: FIX-T4b (S-043 push-time reconciliation)
+Agent: lead fix session (closing-fix lane)
+
+Work Log:
+- The push-time reconciliation: a parallel lane had landed S-043's base
+  (d0787e9: walker orientation read, apply_exif_orientation, the
+  exif_orient{1..9} battery, embedded path excluded wholesale) while this
+  lane's independent implementation was in flight. NOT a replacement -
+  rebased as RIDERS on their base: (1) TIFF tag 274 (the GDI+ 0x112
+  datum for TIFF inputs - their landing missed the TIFF leg);
+  (2) the embedded path's D-105 rule made precise (serves as-stored per
+  CIPA DC-008; honors an IFD1-DECLARED 0x112 as the not-already-oriented
+  marker - the finding's own fix-plan conditional).
+- Test batteries deduplicated: their ExifOrientation parameterized
+  battery kept for the JPEG full path; this lane's unique riders kept
+  (TiffOrientationApplied/InvalidIgnored, EmbeddedFastPathServesStored-
+  OrientationByDefault, EmbeddedFastPathHonorsIfd1DeclaredOrientation).
+  This lane's duplicate JPEG battery dropped (equivalent assertions).
+- Fixtures: byteheavy12mp.jpg restored to SHA256SUMS (the M-080 lane's
+  hand-spliced fixture, outside the generator); tiff_orient6.tif,
+  tiff_orient_9invalid.tif, huge_dims_exif_thumb_ifd1o6.jpg added via
+  the generator's new exif_app1_ifd1 parameterization.
+- Board convention adopted (FIXED-LEDGER): the S-043 merged Resolution
+  + M-080's file retire to history with ledger rows (both lanes had
+  re-created findings/FIXED/ before the convention was readable - the
+  ledger itself flagged S-043's row as pending).
+
+Stage Summary:
+- S-043 fully closed across both lanes. Territory re-read after the
+  parallel landings: M-083 (grade promotion) is next - M-080/S-044/N-092/
+  M-088/N-116 already landed by others. Then M-085, M-079, S-045, S-040.

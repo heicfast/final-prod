@@ -634,6 +634,78 @@ TEST(Thumbnail, SmallJpegWithEmbeddedThumbPrefersFullDecode) {
     EXPECT_EQ(36u, t.height);
 }
 
+/* ---------------- S-043 riders (the closing-fix lane's additions over
+ * the landed JPEG battery above): the TIFF tag-274 leg (the datum GDI+
+ * surfaces as property 0x112 for TIFF inputs) and the embedded fast
+ * path's D-105 orientation rule ---------------- */
+
+
+TEST(Thumbnail, TiffOrientationApplied) {
+    /* tag 274 = GDI+ property 0x112 for TIFF inputs; lossless fixture so
+     * the corner colors are exact */
+    auto fx = load_fixture("tiff_orient6.tif");
+    if (fx.empty())
+        GTEST_SKIP() << "fixture data/thumbnails/tiff_orient6.tif not present";
+    Node n(fx, true);
+    auto r = n.reader();
+    Thumbnail t;
+    ASSERT_EQ(ThumbStatus::Ok, make_thumbnail(r, ThumbnailCaps{}, t));
+    EXPECT_EQ(48u, t.width); /* the 90-degree cases swap the axes */
+    EXPECT_EQ(64u, t.height);
+    expect_pixel(t, 6, 4, 0, 0, 255, 30);  /* stored BL lands at TL */
+    expect_pixel(t, 42, 4, 255, 0, 0, 30); /* stored TL lands at TR */
+    expect_pixel(t, 6, 56, 255, 255, 0, 30);
+    expect_pixel(t, 42, 56, 0, 255, 0, 30);
+}
+
+TEST(Thumbnail, TiffOrientationInvalidIgnored) {
+    auto fx = load_fixture("tiff_orient_9invalid.tif");
+    if (fx.empty())
+        GTEST_SKIP() << "fixture data/thumbnails/tiff_orient_9invalid.tif not present";
+    Node n(fx, true);
+    auto r = n.reader();
+    Thumbnail t;
+    ASSERT_EQ(ThumbStatus::Ok, make_thumbnail(r, ThumbnailCaps{}, t));
+    EXPECT_EQ(64u, t.width);
+    EXPECT_EQ(48u, t.height);
+}
+
+TEST(Thumbnail, EmbeddedFastPathServesStoredOrientationByDefault) {
+    /* the CIPA DC-008 convention: an IFD1 thumbnail with no orientation
+     * declaration of its own is stored upright - it serves as stored (no
+     * double rotation; the pixels are the existing pin's) */
+    auto fx = load_fixture("huge_dims_exif_thumb.jpg");
+    if (fx.empty())
+        GTEST_SKIP() << "fixture data/thumbnails/huge_dims_exif_thumb.jpg not present";
+    Node n(fx, true);
+    auto r = n.reader();
+    Thumbnail t;
+    ASSERT_EQ(ThumbStatus::Ok, make_thumbnail(r, ThumbnailCaps{}, t));
+    EXPECT_TRUE(t.from_embedded);
+    EXPECT_EQ(24u, t.width);
+    EXPECT_EQ(18u, t.height);
+}
+
+TEST(Thumbnail, EmbeddedFastPathHonorsIfd1DeclaredOrientation) {
+    /* IFD1's own 0x112=6 is the marker of a NOT-already-oriented embedded
+     * thumb: the fast path applies the transform (the finding's
+     * conditional, made precise) */
+    auto fx = load_fixture("huge_dims_exif_thumb_ifd1o6.jpg");
+    if (fx.empty())
+        GTEST_SKIP() << "fixture data/thumbnails/huge_dims_exif_thumb_ifd1o6.jpg not present";
+    Node n(fx, true);
+    auto r = n.reader();
+    Thumbnail t;
+    ASSERT_EQ(ThumbStatus::Ok, make_thumbnail(r, ThumbnailCaps{}, t));
+    EXPECT_TRUE(t.from_embedded);
+    EXPECT_EQ(18u, t.width); /* the 90-degree case swaps the thumb axes */
+    EXPECT_EQ(24u, t.height);
+    /* stored thumb: left half (9,99,199), right half (200,100,0); after
+     * rot90CW the left half lands on TOP */
+    expect_pixel(t, 4, 4, 9, 99, 199, 45);
+    expect_pixel(t, 13, 19, 200, 100, 0, 45);
+}
+
 TEST(Thumbnail, TruncatedPngFailsHonestly) {
     auto fx = load_fixture("truncated.png");
     if (fx.empty())

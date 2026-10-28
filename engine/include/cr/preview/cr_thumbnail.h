@@ -97,7 +97,18 @@ struct ThumbnailCaps {
  * input stream was short - on failures it accompanies the status, and on
  * Ok it discloses a decoder-tolerated short stream (stb's JPEG zero-fill
  * leniency: the image decoded, the short input is never silent); it is
- * never a silent loss. */
+ * never a silent loss.
+ *
+ * S-043: the output is DISPLAY-ORIENTED - the og reads GDI+ property
+ * 0x112 (EXIF Orientation) and RotateFlips the bitmap immediately
+ * before its 256-px thumbnail pass (FUN_1402fcc30, call order :652307
+ * -> :652309). The same transform (the 8 EXIF cases, applied before the
+ * downscale) runs for JPEG (APP1/IFD0 tag 0x112) and TIFF (tag 274);
+ * formats without an EXIF block are left untransformed, matching the
+ * og's GetPropertyItemSize(0x112)==0 branch. The embedded fast path
+ * serves the IFD1 thumbnail as stored (the CIPA DC-008 convention:
+ * embedded thumbnails are stored upright) and honors an IFD1-declared
+ * 0x112 as the not-already-oriented marker. */
 struct Thumbnail {
     u32 width = 0;
     u32 height = 0;

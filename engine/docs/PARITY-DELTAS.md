@@ -3195,3 +3195,30 @@ here).
 **WHAT CORE DOES:** both FMT_TS and FMT_M2TS implement the walk's tolerance uniformly — null packets anywhere in the run (including the head) keep the run intact; the "+null" evidence marker records their presence.
 
 **WHY REGISTERED AS A SUPERSET:** broadcast and camcorder TS streams commonly begin with null-padding packets; the og's own walk semantics accept them mid-run, so the probe's head-reject loses real files the CMTS chain would carve. The core's uniform tolerance is strictly more recalling on the same evidence strength (0x47-synced strided packets ≥ 0x5000). Verdict: ACCEPTED.
+
+## V. Closing-fix session (2026-10-29) — the thumbnail orientation rule (S-043 rider)
+
+**D-105 — the embedded-fast-path orientation semantics.** The og's EXIF
+orientation behavior is corpus-decisive for the full-decode path only:
+`FUN_1402fcc30` reads GDI+ property 0x112 and RotateFlips the decoded
+bitmap immediately before `GdipGetImageThumbnail` (call order :652307 →
+:652309; evidence/decompiled-quotes/s8-thumbnail-pipeline.md §1) — the
+core does exactly that for JPEG (APP1/IFD0 tag 0x112, the landed base) and
+TIFF (tag 274, the same datum GDI+ surfaces as 0x112 — the closing-fix
+rider), before the 256-px pass.
+
+The core's embedded-EXIF fast path (the M-080/D-96 budget strategy for
+oversized inputs — the og full-decodes those via GDI+) has NO corpus
+statement about orientation: the og has no such path. Its rule is
+spec-derived and registered here: an IFD1 thumbnail is served AS STORED
+(the CIPA DC-008 convention records embedded thumbnails upright —
+applying IFD0's tag to them would double-rotate spec-conformant files, a
+regression the og never exhibits), and an IFD1-DECLARED 0x112 is honored
+as the marker of a not-already-oriented thumb (the rare non-conformant
+writer). Both behaviors are pinned by test
+(`Thumbnail.EmbeddedFastPathServesStoredOrientationByDefault` /
+`Thumbnail.EmbeddedFastPathHonorsIfd1DeclaredOrientation`). Residual
+known gap: a file whose IFD1 thumb is stored unrotated WITHOUT declaring
+0x112 would serve sideways where the og's full decode would rotate —
+indistinguishable from the stored bytes without a semantic the file does
+not carry; the spec-conformant case (the overwhelming norm) matches.

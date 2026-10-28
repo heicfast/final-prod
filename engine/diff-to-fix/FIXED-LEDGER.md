@@ -20,6 +20,10 @@
 > live in history.
 
 **Counts:** 268 resolved findings (255 at the purge commit + the mid-flight parallel landings absorbed at rebase: M-084/M-091 `16475b8`, N-092 `5ed862f`, N-124 `c75755d`, M-088 DFX-38, N-116 `632d21e`, N-117/N-118/N-103 `954c386`, N-095/N-108/N-119 `e1e5124` session-38 doc-truth batches A+B; S-043 `b3938c8` moved its file into the re-created FIXED/ dir BEFORE this convention was readable - its row is pending, the next audit lane retires the file) · 98 with a fix-commit recorded in-file ·
+
+**Counts:** 265 resolved findings (255 at the purge commit + the mid-flight parallel landings absorbed at rebase: M-084/M-091 `16475b8`, N-092 `5ed862f`, N-124 `c75755d`, M-088 DFX-38, N-116 `632d21e` session-38, N-117/N-118/N-103 `954c386` session-38 doc-truth batch A; S-043 `b3938c8` moved its file into the re-created FIXED/ dir BEFORE this convention was readable - its row is pending, the next audit lane retires the file) · 98 with a fix-commit recorded in-file ·
+
+**Counts:** 264 resolved findings (255 at the purge commit + the mid-flight parallel landings absorbed at rebase: M-084/M-091 `16475b8`, N-092 `5ed862f`, N-124 `c75755d`, M-088 DFX-38, N-116 `632d21e` session-38; S-043 and M-080 re-created FIXED/ before the convention was readable - their files retired to history and their rows added by the closing-fix lane's reconciliation) · 98 with a fix-commit-recorded-in-file ·
 **Ledger generated:** session SA-10B (2026-10-29), tree `62074bf`-lineage.
 
 | ID | Severity | Module | Fix commit (as recorded in-file) | Retired file (history path) |
@@ -30,7 +34,6 @@
 | A-004 | ACUTE |  | — | `findings/FIXED/A-004-eventrange-fires-through-config-sink.md` |
 | A-005 | ACUTE |  | 180010720 | `findings/FIXED/A-005-hfsplus-btree-record-span-inverted.md` |
 | A-006 | ACUTE |  | — | `findings/FIXED/A-005-rawfixer-4kn-stack-buffer-overflow.md` |
-| A-006 | ACUTE |  | — | `findings/FIXED/A-006-rawfixer-4kn-stack-buffer-overflow.md` |
 | A-007 | ACUTE |  | bddf4df | `findings/FIXED/A-007-extents-overflow-descriptors-off-by-two.md` |
 | A-008 | ACUTE |  | — | `findings/FIXED/A-008-zfs-child-dir-zapobj-offset.md` |
 | A-010 | ACUTE |  | — | `findings/FIXED/A-010-asf-carve-truncated-to-header-object.md` |
@@ -107,7 +110,6 @@
 | M-051 | MAJOR |  | FFFFFFFF | `findings/FIXED/M-051-raw-carve-provenance-fields-unpersisted.md` |
 | M-052 | MAJOR |  | — | `findings/FIXED/M-052-fat-exfat-recycle-bin-pairing-missing.md` |
 | M-053 | MAJOR |  | 180041b00 | `findings/FIXED/M-053-c-abi-consumer-fixture-stale-since-m015.md` |
-| M-053 | MAJOR |  | b1f9210 | `findings/FIXED/M-053-m015-landing-missed-c-consumer-fixture-ci-red.md` |
 | M-054 | MAJOR |  | d487928 | `findings/FIXED/M-054-exfat-allocation-bitmap-bit-cluster-off-by-two.md` |
 | M-055 | MAJOR |  | 3b5397a | `findings/FIXED/M-055-winlayer-uncompilable-destio-nesting-transport-namespace.md` |
 | M-056 | MAJOR |  | — | `findings/FIXED/M-056-tiff-family-size-basis-mix.md` |
@@ -125,11 +127,11 @@
 | M-069 | MAJOR |  | — | `findings/FIXED/M-069-staged-scenarios-never-green.md` |
 | M-070 | MAJOR |  | — | `findings/FIXED/M-070-stage-disk-param-type-coercion.md` |
 | M-071 | MAJOR |  | 69507cb | `findings/FIXED/M-071-m018-regression-junk-gates-lost.md` |
+| M-080 | MAJOR | preview | 5ccc0da | `findings/FIXED/M-080-thumbnail-budget-starves-photos.md` |
 | M-081 | MAJOR |  | 9e5dedc | `findings/FIXED/M-081-crw-misattributed-mrw-prd-gate.md` |
 | M-090 | MAJOR |  | 180053de0 | `findings/FIXED/M-090-dmg-footer-walk-and-cap-diverge-from-og.md` |
 | M-088 | MAJOR | ci/packaging (the FloorVersion pin split + the CI-shape doc cluster) | (this landing, DFX-38) | `findings/FIXED/M-088-floorversion-pin-split-and-stale-ci-docs.md` (full Resolution preserved in the retired file; the landing record + the doc_truth_gate evidence in worklog.md DFX-38/M-088) |
 | N-001 | MINOR |  | — | `findings/FIXED/N-001-STALE-DUPLICATE-REMOVED.md` |
-| N-001 | ? |  | — | `findings/FIXED/N-001-ntfs-mftmirr-fallback-hardcodes-4-records.md` |
 | N-002 | MINOR |  | — | `findings/FIXED/N-002-fat-alternate-eoc-families-mark-chains-broken.md` |
 | N-003 | MINOR |  | — | `findings/FIXED/N-003-exfat-entry-set-checksum-enforced-beyond-og.md` |
 | N-004 | MINOR |  | — | `findings/FIXED/N-004-N-006-linuxfs-minor-divergences.md` |
@@ -167,7 +169,6 @@
 | N-038 | MINOR |  | — | `findings/FIXED/N-038-hfsplus-fork-selection-predicate-byte-29.md` |
 | N-039 | MINOR |  | — | `findings/FIXED/N-039-ntfs-usnjrnl-harvest-gate-mask-and-bounds.md` |
 | N-040 | MINOR |  | 63a9167 | `findings/FIXED/N-040-abi-doc-truthfulness-defects.md` |
-| N-040 | MINOR |  | — | `findings/FIXED/N-040-ntfs-pass1-filter-si-system-hidden-vs-fn-system.md` |
 | N-041 | MINOR |  | — | `findings/FIXED/N-041-dead-code-rdaclient-and-volume-letter-to-disk.md` |
 | N-042 | MINOR |  | — | `findings/FIXED/N-042-cli-health-temperature-fractional-digit-wrong.md` |
 | N-043 | MINOR |  | 140577100 | `findings/FIXED/N-043-progress-liveness-watchdog-absent.md` |
@@ -204,12 +205,10 @@
 | N-074 | MINOR |  | a4053c4 | `findings/FIXED/N-074-doc-drift-group-2-five-stale-claims.md` |
 | N-075 | MINOR |  | — | `findings/FIXED/N-075-event-bus-query-signals-and-pull-progress-convention.md` |
 | N-076 | MINOR |  | — | `findings/FIXED/N-076-fsfamily-reserved5-anchor-missing.md` |
-| N-076 | MINOR |  | — | `findings/FIXED/N-076-raf-version-gate-rejects-real-ascii-version-files.md` |
 | N-077 | MINOR |  | b7d4e22 | `findings/FIXED/N-077-deserialize-tree-props-leak-on-early-break.md` |
 | N-078 | MINOR |  | — | `findings/FIXED/N-078-session-carve-note-truncation-loads-as-ok.md` |
 | N-079 | MINOR |  | — | `findings/FIXED/N-079-ntfs-recycle-bin-scope-name-prefix-matched-everywhere.md` |
 | N-080 | MINOR |  | — | `findings/FIXED/N-080-descriptor-offset-transposition-model-serial.md` |
-| N-080 | MINOR |  | — | `findings/FIXED/N-080-log-seam-set-sink-leaks-final-site.md` |
 | N-081 | MINOR |  | — | `findings/FIXED/N-081-filterfolder-pool-overread.md` |
 | N-082 | MINOR |  | — | `findings/FIXED/N-082-recycle-fixture-overread.md` |
 | N-084 | MINOR |  | — | `findings/FIXED/N-084-devsign-no-timestamp-server.md` |
@@ -279,6 +278,7 @@
 | S-038 | SEVERE |  | — | `findings/FIXED/S-038-app-installer-surface-absent.md` |
 | S-039 | SEVERE |  | — | `findings/FIXED/S-039-user-signs-caps-reject-og-euuserdata.md` |
 | S-042 | SEVERE |  | f6e303e | `findings/FIXED/S-042-wmf-placeable-grammar-contradicts-og.md` |
+| S-043 | SEVERE | preview | d0787e9 (base) + the closing-fix riders | `findings/FIXED/S-043-thumbnail-exif-orientation-not-applied.md` |
 | S-044 | SEVERE |  | 7b7e095 | `findings/FIXED/S-044-autosave-gates-missing.md` |
 | M-084 | MAJOR | (mid-flight landing) | 16475b8 | `findings/FIXED/M-084-mdb-accdb-second-signature-missing.md` |
 | M-091 | MAJOR | (mid-flight landing) | 16475b8 | `findings/FIXED/M-091-mdb-page-chain-size-walk-decoded-bounded-extent-stands-in.md` |

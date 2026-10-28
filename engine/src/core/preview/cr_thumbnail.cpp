@@ -360,7 +360,12 @@ public:
         return 0;
     }
 
-    /* Returns the embedded JPEG thumbnail bytes, empty when absent. */
+    /* Returns the embedded JPEG thumbnail bytes, empty when absent.
+     * S-043 rider: ifd1_orientation() is valid after a non-empty return -
+     * IFD1 may declare its own 0x112 (the marker of a NOT-already-oriented
+     * embedded thumb; the CIPA DC-008 convention stores thumbnails
+     * upright, so the tag is normally absent and the bytes serve as
+     * stored - the closing-fix lane's D-105 rule, made precise). */
     std::vector<u8> embedded_thumbnail(u64 limit) {
         u64 tiff_abs = 0, seg_payload = 0;
         if (!find_exif_tiff(tiff_abs, seg_payload, limit))
@@ -368,6 +373,10 @@ public:
         auto thumb = parse_tiff_thumbnail(tiff_abs, seg_payload);
         return thumb;
     }
+
+    /* S-043 rider: the orientation IFD1 itself declared (0 = none) - see
+     * embedded_thumbnail(). */
+    u32 ifd1_orientation() const { return ifd1_orientation_; }
 
     /* The APP1/Exif segment's TIFF header (absolute) + payload length.
      * Shared by the embedded-thumbnail walk and the orientation read. */
@@ -461,6 +470,7 @@ private:
         if (!fetch(ifd1 + 2, ents.data(), u32(ents.size())))
             return {};
         u32 thumb_off = 0, thumb_len = 0;
+        ifd1_orientation_ = 0;
         for (u32 i = 0; i < n1; ++i) {
             const u8* e = ents.data() + size_t(i) * 12;
             const u32 tag = rd16(e);
@@ -470,6 +480,10 @@ private:
                 thumb_off = rd32(e + 8);
             else if (tag == 0x0202 && type == 4 && count == 1)
                 thumb_len = rd32(e + 8);
+            else if (tag == 0x0112 && type == 3 && count == 1) {
+                const u32 v = rd16(e + 8);
+                ifd1_orientation_ = (v >= 1 && v <= 8) ? v : 0;
+            }
         }
         if (thumb_off == 0 || thumb_len == 0)
             return {};
@@ -489,6 +503,7 @@ private:
     PreviewReader& pr_;
     Budget& b_;
     u64 tiff_ = 0;
+    u32 ifd1_orientation_ = 0;
     bool le_ = true;
 };
 
@@ -504,6 +519,8 @@ namespace {
 struct TiffTags {
     u32 width = 0, height = 0, spp = 1, bps = 1;
     u32 compression = 1, photometric = 1, planar = 1, predictor = 1;
+    u32 orientation = 1; /* tag 274 - S-043 rider: GDI+ surfaces this as
+                             property 0x112 for TIFF inputs */
     u64 rows_per_strip = 0xFFFFFFFF;
     std::vector<u64> strip_offsets, strip_counts;
     u64 colormap_off = 0;
@@ -694,6 +711,15 @@ private:
             break;
         case 262:
             t.photometric = u32(val(0));
+            break;
+        case 274: /* Orientation - S-043 rider: GDI+ surfaces this as
+                   * property 0x112 for TIFF inputs; the value space is
+                   * 1..8, junk keeps the identity (the default) */
+            if (count == 1) {
+                const u32 v = u32(val(0));
+                if (v >= 1 && v <= 8)
+                    t.orientation = v;
+            }
             break;
         case 273:
             t.strip_offsets.clear();
@@ -1213,7 +1239,16 @@ ThumbStatus thumbnail_stb(PreviewReader& pr, const ThumbnailCaps& caps, Thumbnai
                         stbi_image_free(px);
                         if (reader_gained_failures(fails_before, pr))
                             return ThumbStatus::UnreadableSpan;
-                        return finish_ok(out, rgba, u32(tw), u32(th), caps.max_edge, "jpeg", true);
+                        /* S-043 rider (D-105): IFD1 may declare its own
+                         * 0x112 (a NOT-already-oriented embedded thumb -
+                         * the rare non-conformant writer); the CIPA DC-008
+                         * norm stores thumbnails upright and carries no
+                         * tag, in which case the bytes serve as stored
+                         * (no double rotation). */
+                        u32 ew = u32(tw), eh = u32(th);
+                        if (wlk.ifd1_orientation() >= 2)
+                            apply_exif_orientation(rgba, ew, eh, wlk.ifd1_orientation());
+                        return finish_ok(out, rgba, ew, eh, caps.max_edge, "jpeg", true);
                     }
                 }
             }
@@ -1356,7 +1391,13 @@ ThumbStatus thumbnail_tiff(PreviewReader& pr, const ThumbnailCaps& caps, Thumbna
         out.truncated = false;
         return ThumbStatus::UnreadableSpan;
     }
-    return finish_ok(out, rgba, t.width, t.height, caps.max_edge, "tiff", false);
+    /* S-043 rider: TIFF tag 274 is the same orientation datum GDI+
+     * surfaces as property 0x112 for TIFF inputs - the og RotateFlips
+     * those too */
+    u32 tw = t.width, th = t.height;
+    if (t.orientation >= 2)
+        apply_exif_orientation(rgba, tw, th, t.orientation);
+    return finish_ok(out, rgba, tw, th, caps.max_edge, "tiff", false);
 }
 
 } // namespace

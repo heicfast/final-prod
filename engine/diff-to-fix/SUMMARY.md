@@ -110,23 +110,17 @@ M-071/S-042 lanes: regression + SEVERE tier first.
   `SafeWriter::enqueue` stays un-gated by that same decision (the finding's open
   question settled). Proven fail-before/fail-after at the ABI surface (2 RED without
   the gate, 3 green with). Suite 1026/1026.
-- **N-092** (MINOR → FIXED, session-38 lane `5ee3858`) — the thumbnail refusal
-  matrix's unnamed WMF/EMF/ICO trio: all five magic forms (placeable key, standard
-  header, EMF signature@+40 — sniff buffer 16→48, ICO, CUR) now `Unsupported` with
-  the family NAME; the cache scope DECIDED and registered (no engine-side cache —
-  the og caches UI-side in ThumbnailFactory; the core's in-process doctrine keeps
-  the engine stateless; LRU-if-ABI-lands candidate noted for M-102). RED proven on
-  all five forms, GREEN after (`MetafileAndIconFamiliesAreNamedRefusals`); suite
-  1029/1029.
-- **N-116** (MINOR → FIXED, session-38 lane) — the session-list row ordering: rows
-  now newest-first by save_unix (the og's FUN_140273550 comparator settled
-  first-hand: !(ftA < ftB) = newest-first), path-ascending tie-break; the TRUNCATED
-  under-capacity answer is the time-ordered prefix; cr_ui.h + ABI-CONTRACT §7f
-  re-worded; the CLI `sessions` verb re-sorts by the same key.
-  `SessionListOgTimeOrdering` RED (row 0 = the path-first OLD session) → GREEN
-  (row 0 = the path-last NEW one); suite 1041/1041. Style repair rode along: the
-  parallel S-044 lane's landing (`7b7e095`) carried clang-format violations in
-  cr_ui.h/cr_ui.cpp/test_cr_ui.cpp — reformatted so the format gate stays green.
+- **S-043** (SEVERE → FIXED, TWO LANDES reconciled) — the thumbnail EXIF
+  orientation: the parallel lane's base (`d0787e9`: the walker orientation read
+  before decode, the 8-case `apply_exif_orientation`, the `exif_orient{1..9}.jpg`
+  battery) + the closing-fix lane's riders rebased on top: TIFF tag 274 (the GDI+
+  0x112 datum for TIFF inputs) and the embedded fast path's D-105 rule made
+  precise (serves as-stored per CIPA DC-008; honors an IFD1-DECLARED 0x112 as
+  the not-already-oriented marker — the finding's own fix-plan conditional).
+  Riders proven fail-before on the base alone; ASan-clean thumbnail suite;
+  registered PARITY-DELTAS D-105; the finding's merged Resolution retired to
+  history with its FIXED-LEDGER row (the retire also swept M-080's re-created
+  FIXED/ file — both lanes predated the convention's readability).
 
 - **M-088** (MAJOR → FIXED, DFX-38 lane) — the FloorVersion pin split closed:
   installer.yml bumped to v0.2.4 (both live pins equal, the M-061 teardown
@@ -173,6 +167,10 @@ CORE-API-CURRENT residual, N-092, N-116, N-117, N-118, N-103, N-095, N-108, N-11
 the code fixes proven RED→GREEN with named tests, the doc fixes site-verified
 before/after, every Resolution recorded, the ledger conformed per the purge
 convention.
+
+**Board after this window (filesystem truth, all lanes reconciled):** 66
+active (7 SEVERE · 23 MAJOR · 31 MINOR · 5 INFO) / **264 resolved**
+(FIXED-LEDGER.md + history) / 2 tracked-open (OQ-S4-3, OQ-S8-1).
 
 ## Fix session (2026-10-29 — the parity close: every tier executed against corpus `be0cfe9`, core `84a1832`-lineage)
 

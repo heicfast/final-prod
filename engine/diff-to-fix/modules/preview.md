@@ -183,9 +183,14 @@ refusal matrix + no cache scope).
 Scored against the og's thumbnail pipeline (decode evidence:
 `../evidence/decompiled-quotes/s8-thumbnail-pipeline.md`):
 
-- **S-043 (SEVERE)** — EXIF orientation not applied (og rotates per tag
+- **S-043 (FIXED)** — EXIF orientation not applied (og rotates per tag
   0x112 before the 256-px pass, FUN_1402fcc30 :521694-725 + call order
-  :652307-309; the core has zero orientation code).
+  :652307-309; the core has zero orientation code). Fixed by the
+  closing-fix session: the 8-case transform (JPEG APP1/IFD0 0x112 + TIFF
+  tag 274) applied before the downscale; the embedded fast path serves
+  as-stored per the CIPA DC-008 convention with the IFD1-declared 0x112
+  as the not-already-oriented marker (registered PARITY-DELTAS D-105);
+  8 tests, fail-before executed — Resolution in findings/FIXED/S-043.
 - **S-045 (SEVERE)** — format coverage: og ships video-keyframe (ffmpeg
   agent, ports 20171/2), RAW (LibRaw/EURawImg, 1/8-downscale+PNG), HEIC
   (heif.dll embedded-first), PDF (pdfium) pipelines; the core refuses all

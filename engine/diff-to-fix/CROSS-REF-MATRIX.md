@@ -558,7 +558,7 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | carve · MDB family second signature (C19/B1) | **M-084** — "Standard ACE DB" (ACCDB 0x4C) missing |
 | carve · batch-1 evidence citations (C65-adj) | **N-099** — registry regions/ctor lines/byte-order corrected (truth pass; constants shipped correct except WMF; also corrects N-093's WPG-ctor cite per erratum E63) |
 | carve · progressive result emission (A31/S38-adj) | **MATCH** — carve_slice streams nodes live during the pass (cr_scan.cpp:1877-88); og live-growth equivalent (UIUX/30:14) |
-| preview/thumbnail · EXIF orientation (B2/A25) | **S-043** — og rotates per tag 0x112 pre-thumbnail; core does not |
+| preview/thumbnail · EXIF orientation (B2/A25) | ~~**S-043**~~ **MATCH** (fixed this session — the 8-case RotateFlip-then-thumbnail order for JPEG APP1/IFD0 0x112 + TIFF tag 274, before the 256-px pass; the embedded fast path's spec-derived rule registered D-105; Resolution in findings/FIXED/S-043) |
 | preview/thumbnail · input eligibility (B1/P48) | **M-080 + wave-2 addendum** — the parallel lane's budget finding gains the og's 200 MB eligibility gate decode (:422428), correcting its "no input cap" claim; severity discussion recorded (SEVERE recommended) |
 | preview/thumbnail · format coverage (B1) | **S-045** — video-keyframe/RAW/HEIC/PDF pipelines absent (og ships them); complements N-092's unnamed-trio + cache gaps |
 | preview/thumbnail · grading side-effect (D15) | **M-083** — og promotes to grade 2 on thumbnail success (:422505-13) |

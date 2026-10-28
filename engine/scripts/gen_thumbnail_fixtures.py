@@ -108,15 +108,25 @@ def tiff_ifd_entry(tag, typ, values, bo="<"):
 
 def exif_app1(thumb_jpeg: bytes) -> bytes:
     """APP1/Exif segment carrying IFD0 -> IFD1(0x201/0x202) -> thumbnail."""
+    return exif_app1_ifd1(thumb_jpeg)
+
+
+def exif_app1_ifd1(thumb_jpeg: bytes, orientation: int = 1, ifd1_orientation: int = 0) -> bytes:
+    """APP1/Exif carrying IFD0 (Orientation 0x112) -> IFD1 (0x201/0x202
+    [+ its own 0x112 when ifd1_orientation > 0]) -> thumbnail. The S-043
+    rider fixtures: ifd1_orientation declares a NOT-already-oriented
+    embedded thumb (the D-105 rule's rare case)."""
     bo = "<"  # II
     tiff = struct.pack(bo + "2sHI", b"II", 42, 8)
-    ifd0 = struct.pack(bo + "H", 1) + tiff_ifd_entry(0x0112, 3, [1]) + struct.pack(bo + "I", 26)
+    ifd0 = struct.pack(bo + "H", 1) + tiff_ifd_entry(0x0112, 3, [orientation]) + struct.pack(bo + "I", 26)
     ifd1_off = 8 + len(ifd0)  # 26
-    thumb_off = ifd1_off + 2 + 12 * 2 + 4  # 56
+    ifd1_n = 3 if ifd1_orientation > 0 else 2
+    thumb_off = ifd1_off + 2 + 12 * ifd1_n + 4
     ifd1 = (
-        struct.pack(bo + "H", 2)
+        struct.pack(bo + "H", ifd1_n)
         + tiff_ifd_entry(0x0201, 4, [thumb_off])
         + tiff_ifd_entry(0x0202, 4, [len(thumb_jpeg)])
+        + (tiff_ifd_entry(0x0112, 3, [ifd1_orientation]) if ifd1_orientation > 0 else b"")
         + struct.pack(bo + "I", 0)
     )
     body = tiff + ifd0 + ifd1 + thumb_jpeg
@@ -271,6 +281,20 @@ def main():
     full_jpg = files["quad64x48.jpg"]
     for orient in list(range(1, 9)) + [9]:
         files[f"exif_orient{orient}.jpg"] = b"\xff\xd8" + exif_orient_app1(orient) + full_jpg[2:]
+
+    # S-043 riders (the closing-fix lane): the embedded fast path with an
+    # IFD1-DECLARED 0x112=6 (the not-already-oriented marker - the D-105
+    # rule's rare case), built from the huge-dims shape by swapping in a
+    # parameterized APP1
+    files["huge_dims_exif_thumb_ifd1o6.jpg"] = huge_dims_exif_jpeg(thumb_jpeg).replace(
+        exif_app1(thumb_jpeg), exif_app1_ifd1(thumb_jpeg, ifd1_orientation=6)
+    )
+
+    # S-043 rider: TIFF tag 274 (the GDI+ 0x112 datum for TIFF inputs);
+    # PIL's tiffinfo writes the IFD tag, pixels stay stored-unrotated
+    q_full = quadrant()
+    files["tiff_orient6.tif"] = enc(q_full, format="TIFF", tiffinfo={274: 6})
+    files["tiff_orient_9invalid.tif"] = enc(q_full, format="TIFF", tiffinfo={274: 9})
 
     full_png = files["quad64x48.png"]
     files["truncated.png"] = full_png[: int(len(full_png) * 0.45)]
