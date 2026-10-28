@@ -1181,8 +1181,10 @@ NOT registered here — see docs/DRIVER-UTILIZATION.md's checklist.
   walks) while cutting 64 KiB blocks' 16,384/GiB. The alignbench sweep
   (PERFORMANCE-BASELINE §6) owns further tuning.
 - **D-52 — carve-format registry as a unified two-layer enumeration.** The
-  og exposes RAWSearchDLL registry views (EUGetAnalyserList/Map/Multimap +
-  GetRawUserInfoMap — raw-dual-registry seeds); ours exposes one POD
+  og exposes RAWSearchDLL registry views (EUGetAnalyserList/Map/Multimap —
+  the registry enumeration pair; N-170 re-truth: GetRawUserInfoMap is NOT a
+  registry seed, it is the per-scan carve-statistics OUTPUT map per E-B);
+  ours exposes one POD
   enumeration over BOTH layers (grammar validators then raw-sign formats)
   with stable append-only ordering. Equivalent host capability, different
   shape; the og's RawConfig.ini per-format toggles are host-side policy on
@@ -1849,7 +1851,9 @@ Verified against corpus 03ad46c and the running core before acknowledgment.
 - **D-60e — PENetwork SMB destinations (I-021-5, LANE).** WinPE-lane
   validation item (N-056 test gap), not an engine gap.
 - **D-60f — DRWCfg.bin (I-021-6, SCOPE).** UI-layer AES config cache; the
-  engine reads RawConfig/FileFilter/raw_signs/EUUserData only.
+  engine reads RawConfig/FileFilter/raw_signs only. (N-170 re-truth: the
+  ENGINE never reads EUUserData — its sole og consumer is DRWUI's
+  CHKRepairFileSign, the CHK repair chain, per CORRECTIONS.md #9/E-A.)
 - **D-60g — Session robustness (I-022-1, ACCEPTED).** Per-record CRC32 of
   the decompressed payload, F10 resync + torn-tail salvage, decompression
   bomb caps (cr_crsf.cpp) — the og's loader is per-field only. Keep.

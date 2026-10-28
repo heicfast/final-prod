@@ -158,7 +158,15 @@ first-hand; every fix RED-test-first.
   on both emission paths, the D-135 non-adoption registration, the write_inode
   i_blocks_lo fixture repair; 3 tests incl. the session round-trip).
 
-**Board (filesystem truth, running): 64 active — 0 ACUTE · 9 SEVERE · 27 MAJOR · 28 MINOR · 0 INFO / 74 FIXED files / 6 tracked-open (the parallel windows' landings absorbed at each rebase; N-158/N-161 retired convergently by the remote).**
+- **N-170 FIXED** — the pre-erratum EUUserData/GetRawUserInfoMap doc-truth batch
+  (CORRECTIONS.md #9 = E-A/E-B re-read first-hand; 6 sites re-truthed — the
+  cr_usersigns.h header's refuted "consults alongside raw_signs" claim, the
+  kMaxEntries census math, the OQ-SA-3 resolution text, D-52's "seeds" grouping,
+  D-60f's engine-reads list, SCAN-ENGINE-DELTA C4's "+ EUUserData MIME"; items 2/4
+  already re-truthed by the parallel S-055/N-179 landings — FIXED-ALREADY, verified;
+  acceptance grep zero).
+
+**Board (filesystem truth, running): 63 active — 0 ACUTE · 9 SEVERE · 27 MAJOR · 27 MINOR · 0 INFO / 75 FIXED files / 5 tracked-open (the parallel windows' landings absorbed at each rebase; OQ-S42-1 closed by the remote).**
 
 # SUMMARY.md — executive summary (the S42 diff-to-fix lane's convergence on top; the prior lanes below, newest-first)
 # SUMMARY.md — executive summary (the S46 MINOR-first fix lane on top — the user's priority-to-minor directive; the prior lanes below, newest-first)

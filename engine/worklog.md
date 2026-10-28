@@ -7795,3 +7795,22 @@ caught by the CleanFilesCarryNoBit pin design). Tests: SizeExceedsBlocksSetsDama
 fixture), DamagedFlagSessionRoundTrip. Suite 1275 ran / 1233 pass / 42 env-skips / 0
 fail. Trail: findings/FIXED/N-177 + ledger row + matrix ext4 row + ext4.md + D-135 +
 this entry.
+
+## Session-46 minors lane — N-170 landed (2026-10-29)
+
+**N-170 FIXED (MINOR — the pre-erratum EUUserData/GetRawUserInfoMap claim batch).**
+The erratum re-read first-hand (CORRECTIONS.md #9: EUUserData's sole og consumer is
+DRWUI's CHKRepairFileSign — the CHK repair chain — with zero references in
+RAWSearchDLL's 80,614 lines; GetRawUserInfoMap = the per-scan carve-statistics
+OUTPUT map). Six sites re-truthed: cr_usersigns.h's header block (the refuted
+"consults it alongside raw_signs.json" claim replaced with the E-A truth + the
+D-104 superset framing), the kMaxEntries census comment (the cap counts TOTAL
+signs — 190 deduped/191 raw, 256 = 1.34x, not "111; 2.3x"), PARITY-OG-CORE-
+INVENTORY's OQ-SA-3 resolution (the stats-map truth), D-52 (GetRawUserInfoMap out
+of the "seeds" grouping), D-60f (EUUserData off the engine's read list), and
+SCAN-ENGINE-DELTA C4 (the "+ EUUserData MIME" claim struck). Items 2 and 4 of the
+finding were ALREADY re-truthed by the parallel windows' landings (S-055's
+built-in-first text; N-179's kMaxExtLen=8 "manifest" comment) — verified
+FIXED-ALREADY at the current tree. Acceptance grep (the finding's own criterion):
+the refuted phrases carry zero assertion hits. Doc-only; no code change. Trail:
+findings/FIXED/N-170 + ledger row + matrix row + carve.md row + this entry.

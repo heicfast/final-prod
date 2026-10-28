@@ -64,3 +64,10 @@ Each item read at its cited location this session; the erratum read at both ends
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-170 landing, S46 MINOR-first lane — post-push SHA in the ledger row and worklog entry)
+**Verified by:** the acceptance grep — `consults it alongside` / `scan-setup trigger` → zero hits in src/include/docs/diff-to-fix (the finding's own acceptance criterion). Doc-only (no code change); the suite green at the landing (1275 ran / 1233 pass / 42 env-skips / 0 fail). Items 2 and 4 were ALREADY re-truthed by the parallel windows' landings (item 2 by the S-055 fix — the built-in-first text at the current :92-94; item 4 by N-179 — the kMaxExtLen = 8 "manifest" comment): both verified FIXED-ALREADY at the current tree and excluded from this commit's edit set.
+**Resolution notes:** Six sites re-truthed to the E-A/E-B reading (CORRECTIONS.md #9 re-read first-hand this session): (1) cr_usersigns.h's header block — EUUserData never reaches the og's RAW engine (sole og consumer: DRWUI's CHKRepairFileSign, the CHK repair chain, :1005387/:1005818/:721520-721680; zero references in RAWSearchDLL's 80,614 lines); the core's carve-side consumption is the registered deliberate superset D-104; (3) kMaxEntries — the cap counts TOTAL SIGNS (the loader's out.signs.size() gate), the og ships 190 deduped / 191 raw (N-169), 256 = 1.34×; (5) PARITY-OG-CORE-INVENTORY's OQ-SA-3 resolution — GetRawUserInfoMap is the per-scan carve-statistics OUTPUT map (E-B), the N-140 surface's og counterpart; (6) D-52 — GetRawUserInfoMap removed from the "raw-dual-registry seeds" grouping; (7) D-60f — EUUserData removed from the engine's read list (the ENGINE never reads it; DRWUI does, for CHK repair); (8) SCAN-ENGINE-DELTA C4 — the "+ EUUserData MIME" claim struck (no binary consumer of the mime member). The two corpus-side residues (userdata-remoteconfig §1; rawsearch-carving--deep-dive §3 item 2) await the corpus maintainers' fold-on-next-touch — unchanged, read-only repo.
