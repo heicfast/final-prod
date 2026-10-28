@@ -1,6 +1,33 @@
-# SUMMARY.md — executive summary (the S41 continuation lane on top; the prior lanes below, newest-first)
+# SUMMARY.md — executive summary (the Session-42 fix lane on top; the prior lanes below, newest-first)
 
 
+
+## Session-42 fix-lane delta (2026-10-29 — the SEVERE-first diff-fix execution continuing the S40-severe territory; opened on `67de3276`, re-merged over the hottest parallel window of the trail through `a3741812`; corpus `be0cfe9` throughout)
+
+**S-054 bookkeeping completed (FIXED-ALREADY, independently verified).** The
+N-013-regression SEVERE (the multi-extent destination arming clobbered by the
+unrelated M-036 commit `1ebd1bcc`) was fixed by the parallel lane at
+`a3741812` (the 3b5397a1 shape restored verbatim at both production sites +
+the `DestArming.ProductionWiringCallsSpansApi`/`HeaderContractStillClaimsAllSpans`
+wiring fence) but the trail was left incomplete — the finding sat in SEVERE/
+with its Resolution written. This lane verified the fix first-hand (wiring live
+at `rrecov.cpp:2112-2132` + `cr_ui.cpp:4056-4063`, fence pair green,
+`Report.MultiExtentSpannedVolumeRefused` green, suite 1094/1094) and completed
+the retirement: file → findings/FIXED/, ledger row landed, matrix cells
+F62/B8/R43/Q65 → MATCH, board SEVERE 4 → 3.
+
+**Hygiene repairs at the lane open (main was RED twice in the merge window):**
+(1) the N-115 landing's `Carve.OoxmlRelsPathSplit` expectation was pushed
+un-re-pinned against the S-049 uppercase-ext contract — re-pinned; (2) the
+N-126 lane's case-insensitive comparator and this lane's uppercase table were
+spliced into a broken pair by the rebase — the earlier-push comparator kept
+with the lowercase table. Suite 1094/1094 green on the repaired tree (Linux
+gcc Release, from-scratch build).
+
+**Board after this push (filesystem truth): 51 active (3 SEVERE · 23 MAJOR ·
+16 MINOR · 9 INFO) / 21 files in FIXED/ / 332 ledger rows / 3 tracked-open.**
+SEVERE tier remaining: S-048 (the carve tree-shape), S-050 (the file-repair
+line), S-040 (the image-create producer).
 
 ## Session-40 severe-lane delta (2026-10-29 — the SEVERE-first diff-fix execution lane, parallel to the session-40 minor-first lane; opening on `461825d8`/corpus `be0cfe9`, re-merged over the hot parallel window through `7320a2f6`)
 

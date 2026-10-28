@@ -5064,3 +5064,18 @@ tree (Linux gcc, Release).
   (DestArming.ProductionWiringCallsSpansApi - the source-level pin
   that fails the day either production path stops calling the spans
   API; the fail-before proven by mutation). Suite 1094/1094 + 61.
+
+### Session-42 — S-054 trail completion (the first SEVERE retired this lane)
+
+**Finding:** SEVERE S-054 (the N-013 regression — multi-extent destination arming).
+**Classification:** FIXED-ALREADY — the parallel lane's `a3741812` landed the
+wiring restore mid-window; this lane verified it independently (wiring grep
+live at rrecov.cpp:2112-2132 + cr_ui.cpp:4056-4063; the fence pair
+DestArming.ProductionWiringCallsSpansApi/HeaderContractStillClaimsAllSpans
+executed green; Report.MultiExtentSpannedVolumeRefused green; suite 1094/1094)
+and completed the trail the fix commit left open: the file moved to
+findings/FIXED/ with the session-42 verification note, the ledger row landed
+(333 rows), the matrix F62/B8/R43/Q65 cells flipped to MATCH, SUMMARY re-truthed
+(board 51 active: 3 SEVERE / 23 MAJOR / 16 MINOR / 9 INFO).
+**Next:** S-048 (the carve tree-shape — this lane adopts the S40-severe
+territory claim), then S-050, S-040.
