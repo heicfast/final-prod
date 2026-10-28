@@ -19,7 +19,7 @@
 > blocks carry the resolution narrative; the per-file Resolution sections
 > live in history.
 
-**Counts:** 260 resolved findings (255 at the purge commit + the 4 mid-flight parallel landings absorbed at rebase: M-084/M-091 `16475b8`, N-092 `5ed862f`, N-124 `c75755d` + M-088, DFX-38) · 98 with a fix-commit recorded in-file ·
+**Counts:** 262 resolved findings (255 at the purge commit + the mid-flight parallel landings absorbed at rebase: M-084/M-091 `16475b8`, N-092 `5ed862f`, N-124 `c75755d`, M-088 DFX-38, N-116 `632d21e` session-38; S-043 `b3938c8` moved its file into the re-created FIXED/ dir BEFORE this convention was readable - its row is pending, the next audit lane retires the file) · 98 with a fix-commit recorded in-file ·
 **Ledger generated:** session SA-10B (2026-10-29), tree `62074bf`-lineage.
 
 | ID | Severity | Module | Fix commit (as recorded in-file) | Retired file (history path) |
@@ -284,6 +284,7 @@
 | M-091 | MAJOR | (mid-flight landing) | 16475b8 | `findings/FIXED/M-091-mdb-page-chain-size-walk-decoded-bounded-extent-stands-in.md` |
 | N-092 | MINOR | (mid-flight landing) | 5ed862f | `findings/FIXED/N-092-thumbnail-refusal-matrix-and-cache.md` |
 | N-124 | MINOR | (mid-flight landing) | c75755d | `findings/FIXED/N-124-transport-module-rows-superseded-by-ddrv-wave.md` |
+| N-116 | MINOR | (session-38 minor-first lane; the Resolution + RED->GREEN proof live in the retired file and worklog.md's S38 block) | 632d21e | `findings/FIXED/N-116-session-list-row-ordering-diverges-og-time-sort.md` |
 
 ## Go-forward convention (established by this purge, per the user instruction)
 

@@ -2129,3 +2129,12 @@ Suite 1041/1041. Style repair rode along (the parallel S-044 landing 7b7e095 car
 clang-format violations in cr_ui.h/cr_ui.cpp/test_cr_ui.cpp - reformatted, gate green).
 Board (filesystem-counted): 70 active (7 SEVERE · 27 MAJOR · 31 MINOR · 5 INFO) / 258
 FIXED / 2 tracked-open.
+
+N-116 trail conform (the purge convention): the replayed N-116 landing (632d21e) moved
+the finding file into findings/FIXED/ under the pre-purge convention this session
+started with; the SA-10B purge (user-mandated) established the go-forward rule while
+the session ran - ledger row + git rm, never a re-created FIXED/ dir. This commit
+retires the file into git history (the full Resolution + the RED->GREEN proof are
+preserved at 632d21e) and appends the ledger row. S-043's file (the parallel lane's
+b3938c8 landing) also sits in the re-created dir - noted in the ledger's counts line
+for the next audit lane to retire; not touched here (their lane may still be working).
