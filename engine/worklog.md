@@ -1,3 +1,13 @@
+- **N-137 FIXED** — the thumbnail ABI header's two contract-truth defects: (1) the section
+  comment's "0x50030004 ERR_TRUNCATED never returned" denial replaced with the truth the
+  implementation, ABI-CONTRACT §7i, and the existing test already carried (a decode REFUSAL
+  returns ERR_TRUNCATED; in-band truncation stays an Ok-path disclosure); (2) the caps field's
+  "validated 0/1" claim enforced — allow_embedded > 1 now refuses with ERR_BAD_PARAMETER
+  (0/1 = default-ON/explicit-ON, the og-parity always-prefer-embedded preserved and documented
+  as the no-off-position design). Tests: ThumbnailCapsAllowEmbeddedValidated (RED pre-fix on
+  the silent 7-acceptance) + ThumbnailHeaderMatchesContract (the doc-truth pin, RED pre-fix).
+  cr_ui_tests 61/61; cr_tests 1082/1082. Audit trail: retired to findings/FIXED/ with
+  Resolution; ledger row.
 - **N-113 CONVERGENCE + N-150 FIXED (the rider over the parallel landing)** — this lane's own
   N-113 implementation (six rows, every grammar re-verified first-hand, the POS needle question
   settled: the literal "ProcessOn Schema File", formula needle_end+0x13 calibrated against
