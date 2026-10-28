@@ -53,7 +53,7 @@ CarveResult validate_mpegps(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_mpeges(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_dwg(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_fh11(IStorageDevice* s, u64 hit, u64 cap); /* S-037 */
-CarveResult validate_cpt(IStorageDevice* s, u64 hit, u64 cap);   /* S-037 */
+CarveResult validate_cpt(IStorageDevice* s, u64 hit, u64 cap);  /* S-037 */
 
 namespace {
 const Signature kTable[] = {
@@ -627,11 +627,35 @@ const Signature kTable[] = {
      * rows per the og's registry policy (same validator, distinct ids).
      * The validator gates on "FILE" @ +4 and 0x13C @ +0x34, then the
      * FUN_1800436e0 pointer-chase. */
-    {FMT_CPT7, "cpt", {'C', 'P', 'T', '7'}, 4, 0, 0x38, 1ull << 30, 800, validate_cpt,
+    {FMT_CPT7,
+     "cpt",
+     {'C', 'P', 'T', '7'},
+     4,
+     0,
+     0x38,
+     1ull << 30,
+     800,
+     validate_cpt,
      "Corel PhotoPaint"},
-    {FMT_CPT8, "cpt", {'C', 'P', 'T', '8'}, 4, 0, 0x38, 1ull << 30, 800, validate_cpt,
+    {FMT_CPT8,
+     "cpt",
+     {'C', 'P', 'T', '8'},
+     4,
+     0,
+     0x38,
+     1ull << 30,
+     800,
+     validate_cpt,
      "Corel PhotoPaint"},
-    {FMT_CPT9, "cpt", {'C', 'P', 'T', '9'}, 4, 0, 0x38, 1ull << 30, 800, validate_cpt,
+    {FMT_CPT9,
+     "cpt",
+     {'C', 'P', 'T', '9'},
+     4,
+     0,
+     0x38,
+     1ull << 30,
+     800,
+     validate_cpt,
      "Corel PhotoPaint"},
 };
 } // namespace

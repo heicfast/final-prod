@@ -1786,7 +1786,7 @@ size_t plant_gif(std::vector<u8>& img, size_t at) {
 size_t plant_asf(std::vector<u8>& img, size_t at, int data_objects, const char* tail = "unknown",
                  u64 torn_size = 0, u32 header_count = 1) {
     static const u8 asf_guid[16] = {0x30, 0x26, 0xB2, 0x75, 0x8E, 0x66, 0xCF, 0x11,
-                                     0xA6, 0xD9, 0x00, 0xAA, 0x00, 0x62, 0xCE, 0x6C};
+                                    0xA6, 0xD9, 0x00, 0xAA, 0x00, 0x62, 0xCE, 0x6C};
     static const u8 data_guid[16] = {0x36, 0x26, 0xB2, 0x75, 0x8E, 0x66, 0xCF, 0x11,
                                      0xA6, 0xD9, 0x00, 0xAA, 0x00, 0x62, 0xCE, 0x6C};
     size_t p = at;
@@ -2288,10 +2288,9 @@ TEST(Carve, AsfHeaderCountGatesUnchanged) {
         auto* root = tree.add_root(u"L");
         CarveFlags flags;
         CarveStats stats;
-        ASSERT_EQ(
-            carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
-                        stats),
-            OK);
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
+                  OK);
         for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
             if (c->props()) {
                 EXPECT_EQ(std::string::npos, c->name_utf8().find(".wmv"))
@@ -2317,8 +2316,8 @@ TEST(Carve, Fh11DetectedAndWalked) {
     CarveFlags flags;
     flags.hash_small_files = false;
     CarveStats stats;
-    ASSERT_EQ(OK, carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr,
-                              nullptr, stats));
+    ASSERT_EQ(OK, carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats));
     tree::FileNode* hit = nullptr;
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
         if (c->props() && c->name_utf8().find(".fh11") != std::string::npos)
@@ -2346,8 +2345,8 @@ TEST(Carve, Fh11RejectsBareKeyBytes) {
     CarveFlags flags;
     flags.hash_small_files = false;
     CarveStats stats;
-    ASSERT_EQ(OK, carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr,
-                              nullptr, stats));
+    ASSERT_EQ(OK, carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats));
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
         if (c->props()) {
             EXPECT_EQ(std::string::npos, c->name_utf8().find(".fh11"))
@@ -2395,7 +2394,7 @@ TEST(Carve, CptRejectsTruncatedHeader) {
     std::vector<u8> img(2ull << 20, 0);
     std::memcpy(img.data() + 0x2000, "CPT7", 4);
     std::memcpy(img.data() + 0x2004, "XXXX", 4); /* wrong Analyse magic */
-    put32v(img, 0x2000 + 0x34, 0x13C);            /* the gate alone is not enough */
+    put32v(img, 0x2000 + 0x34, 0x13C);           /* the gate alone is not enough */
 
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
@@ -2403,8 +2402,8 @@ TEST(Carve, CptRejectsTruncatedHeader) {
     CarveFlags flags;
     flags.hash_small_files = false;
     CarveStats stats;
-    ASSERT_EQ(OK, carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr,
-                              nullptr, stats));
+    ASSERT_EQ(OK, carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats));
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
         if (c->props()) {
             EXPECT_EQ(std::string::npos, c->name_utf8().find(".cpt"))
@@ -4140,7 +4139,9 @@ TEST(UserSigns, ParseOgShippedExtremes) {
         "{"
         /* the 44-byte sign (the og's longest - entry "img") */
         "\"img\": { \"signs\": "
-        "[\"0,7E742C015070024D52010000000800000001000031000000310000004301FF0001000800010000007e742c01\"], "
+        "[\"0,"
+        "7E742C015070024D52010000000800000001000031000000310000004301FF0001000800010000007e742c01\""
+        "], "
         "\"mime\": \"application/octet-stream\" },"
         /* the 11-sign entry (the og's max - entry "mpeg", the real sign
          * strings from og-codebase/EUUserData) */
@@ -4203,19 +4204,16 @@ TEST(UserSigns, HostileBlobStillAtomic) {
     EXPECT_FALSE(set.valid);
     /* a sign at offset 99999 (past the 1024 bound) */
     const char* far_off = "{\"x\": {\"signs\": [\"99999,504B\"], \"mime\": \"m\"}}";
-    EXPECT_EQ(ERR_BAD_PARAMETER,
-              carve::usersigns::parse(far_off, std::strlen(far_off), set));
+    EXPECT_EQ(ERR_BAD_PARAMETER, carve::usersigns::parse(far_off, std::strlen(far_off), set));
     /* an entry with 13 signs (past kMaxSignsPerEntry = 12) */
-    const char* many =
-        "{\"x\": {\"signs\": "
-        "[\"0,01\",\"0,02\",\"0,03\",\"0,04\",\"0,05\",\"0,06\",\"0,07\","
-        "\"0,08\",\"0,09\",\"0,0A\",\"0,0B\",\"0,0C\",\"0,0D\"], \"mime\": \"m\"}}";
+    const char* many = "{\"x\": {\"signs\": "
+                       "[\"0,01\",\"0,02\",\"0,03\",\"0,04\",\"0,05\",\"0,06\",\"0,07\","
+                       "\"0,08\",\"0,09\",\"0,0A\",\"0,0B\",\"0,0C\",\"0,0D\"], \"mime\": \"m\"}}";
     EXPECT_EQ(ERR_BAD_PARAMETER, carve::usersigns::parse(many, std::strlen(many), set));
     /* an 81-char mime (past kMaxMimeLen = 80) */
     const std::string long_mime =
         "{\"x\": {\"signs\": [\"0,AA\"], \"mime\": \"" + std::string(81, 'm') + "\"}}";
-    EXPECT_EQ(ERR_BAD_PARAMETER,
-              carve::usersigns::parse(long_mime.c_str(), long_mime.size(), set));
+    EXPECT_EQ(ERR_BAD_PARAMETER, carve::usersigns::parse(long_mime.c_str(), long_mime.size(), set));
 }
 
 TEST(UserSigns, RegistrationRoundTripProceedsToScan) {
@@ -4263,8 +4261,7 @@ TEST(UserSigns, DefaultSetShipsAndLoads) {
      * finding) parses clean through the post-S-039 caps and registers
      * every sign. The file in the repo IS the release asset (staged
      * beside rrecov.exe); this test is the ship/load contract. */
-    std::ifstream in(std::string(CR_SOURCE_DIR) + "/data/userdata-defaults.json",
-                     std::ios::binary);
+    std::ifstream in(std::string(CR_SOURCE_DIR) + "/data/userdata-defaults.json", std::ios::binary);
     ASSERT_TRUE(in.good()) << "data/userdata-defaults.json must ship in the repo";
     std::string json((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
     ASSERT_FALSE(json.empty());
@@ -4292,14 +4289,11 @@ TEST(UserSigns, OgAbsentFromStockExtensionsCarried) {
      * The spot list below crosses the format families: archives, media,
      * legacy office, fonts, disc images. */
     static const char* const kAbsent[] = {
-        "123",  "3gp",  "aiff", "art",  "au",   "bz2",  "chm",  "cif",  "csh",
-        "dms",  "dtd",  "eml",  "epub", "fits", "fm",   "gz",   "hqx",  "ico",
-        "lha",  "lwp",  "m4v",  "midi", "mmf",  "mpeg", "mts",  "mxf",  "ogg",
-        "pgm",  "pls",  "qxd",  "ra",   "ram",  "rgb",  "rm",   "rpm",  "sam",
-        "sit",  "swf",  "tar",  "ttf",  "vcd",  "vcf",  "wk1",  "wpd",  "xar",
-        "xls",  "xlsx", "xz"};
-    std::ifstream in(std::string(CR_SOURCE_DIR) + "/data/userdata-defaults.json",
-                     std::ios::binary);
+        "123",  "3gp",  "aiff", "art", "au",  "bz2", "chm", "cif", "csh", "dms",  "dtd",  "eml",
+        "epub", "fits", "fm",   "gz",  "hqx", "ico", "lha", "lwp", "m4v", "midi", "mmf",  "mpeg",
+        "mts",  "mxf",  "ogg",  "pgm", "pls", "qxd", "ra",  "ram", "rgb", "rm",   "rpm",  "sam",
+        "sit",  "swf",  "tar",  "ttf", "vcd", "vcf", "wk1", "wpd", "xar", "xls",  "xlsx", "xz"};
+    std::ifstream in(std::string(CR_SOURCE_DIR) + "/data/userdata-defaults.json", std::ios::binary);
     ASSERT_TRUE(in.good());
     std::string json((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
     carve::usersigns::UserSignSet set;

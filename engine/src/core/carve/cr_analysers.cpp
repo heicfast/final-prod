@@ -1883,7 +1883,7 @@ CarveResult validate_asf(IStorageDevice* s, u64 hit, u64 cap) {
     static const u8 index_guid[16] = {0xD3, 0x29, 0xE2, 0xD6, 0xDA, 0x35, 0xD1, 0x11,
                                       0x90, 0x34, 0x00, 0xA0, 0xC9, 0x03, 0x49, 0xBE};
     static const u8 mediaidx1_guid[16] = {0xF8, 0x03, 0xB1, 0xFE, 0xBE, 0x57, 0xD2, 0x11,
-                                           0xBB, 0x5B, 0x00, 0xA0, 0xC9, 0x03, 0x49, 0xBE};
+                                          0xBB, 0x5B, 0x00, 0xA0, 0xC9, 0x03, 0x49, 0xBE};
     static const u8 mediaidx2_guid[16] = {0xAD, 0x3B, 0x20, 0x6B, 0x11, 0x3F, 0xE4, 0x48,
                                           0xAC, 0xA8, 0xD7, 0x61, 0x3D, 0xE2, 0xCF, 0xA7};
     const u64 window_end = std::min<u64>(hit + cap, s->size());
@@ -1894,11 +1894,9 @@ CarveResult validate_asf(IStorageDevice* s, u64 hit, u64 cap) {
         const u64 sz = rd64(s, pos + 16);
         if (sz < 24 || pos + sz > window_end)
             break; /* undersized / torn / non-fitting = grammar break */
-        if (std::memcmp(g, asf_guid, 16) != 0 &&
-            std::memcmp(g, data_guid, 16) != 0 &&
+        if (std::memcmp(g, asf_guid, 16) != 0 && std::memcmp(g, data_guid, 16) != 0 &&
             std::memcmp(g, simpidx_guid, 16) != 0 && std::memcmp(g, index_guid, 16) != 0 &&
-            std::memcmp(g, mediaidx1_guid, 16) != 0 &&
-            std::memcmp(g, mediaidx2_guid, 16) != 0)
+            std::memcmp(g, mediaidx1_guid, 16) != 0 && std::memcmp(g, mediaidx2_guid, 16) != 0)
             break; /* unknown top-level object = grammar break */
         pos += sz;
     }
@@ -2633,7 +2631,7 @@ CarveResult validate_fh11(IStorageDevice* s, u64 hit, u64 cap) {
     if (!rd(s, hit, h, sizeof(h)))
         return r;
     const u64 v8 = u64(h[4]) | (u64(h[5]) << 8) | (u64(h[6]) << 16) | (u64(h[7]) << 24) |
-                  (u64(h[8]) << 32) | (u64(h[9]) << 40) | (u64(h[10]) << 48) | (u64(h[11]) << 56);
+                   (u64(h[8]) << 32) | (u64(h[9]) << 40) | (u64(h[10]) << 48) | (u64(h[11]) << 56);
     if (v8 != 0x020014011C040002ULL)
         return r;
     const u32 v4 = u32(h[0xC]) | (u32(h[0xD]) << 8) | (u32(h[0xE]) << 16) | (u32(h[0xF]) << 24);
@@ -2680,7 +2678,8 @@ CarveResult validate_cpt(IStorageDevice* s, u64 hit, u64 cap) {
     const u32 file_magic = u32(h[4]) | (u32(h[5]) << 8) | (u32(h[6]) << 16) | (u32(h[7]) << 24);
     if (file_magic != 0x454C4946) /* "FILE" */
         return r;
-    const u32 slot34 = u32(h[0x34]) | (u32(h[0x35]) << 8) | (u32(h[0x36]) << 16) | (u32(h[0x37]) << 24);
+    const u32 slot34 =
+        u32(h[0x34]) | (u32(h[0x35]) << 8) | (u32(h[0x36]) << 16) | (u32(h[0x37]) << 24);
     if (slot34 != 0x13C)
         return r; /* the version gate == the table offset (same slot) */
     const u32 n = u32(h[0x28]) | (u32(h[0x29]) << 8) | (u32(h[0x2A]) << 16) | (u32(h[0x2B]) << 24);
