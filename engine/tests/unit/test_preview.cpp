@@ -510,7 +510,10 @@ TEST(PreviewMeta, TruncatedMagicsAreSafeAndHonest) {
                          "image",
                          "webp"});                          /* 12-byte RIFF/WEBP */
         cases.push_back({{'P', 'K'}, "archive", "zip"});    /* 2-byte PK */
-        cases.push_back({{'%'}, "text", "txt"});            /* 1-byte printable: text */
+        /* M-108: eligibility is extension-gated (the og's TxtViewFiles
+         * whitelist) - a printable head in a non-whitelisted .bin is NOT
+         * text (the old content-sniff false-positive class) */
+        cases.push_back({{'%'}, "unsupported", ""}); /* printable head, non-whitelisted ext */
         cases.push_back({{0x00, 0xFF}, "unsupported", ""}); /* binary */
         for (auto& c : cases) {
             const u64 n = c.bytes.size();
@@ -860,7 +863,7 @@ TEST(PreviewMeta, CompressedExtentReportsTruncatedUnderBudget) {
     ASSERT_GT(comp.size(), 4096u); /* the block alone busts the budget */
     MemDevice dev(comp);
     tree::FileProperties* pr =
-        props_with("c.bin", plain.size(), 0,
+        props_with("c.txt", plain.size(), 0,
                    {tree::FileProperties::Extent{0, plain.size(), compress::kGzip, comp.size()}});
     PropsGuard g(pr);
     PreviewReader r(&dev, pr);
@@ -893,7 +896,7 @@ TEST(PreviewMeta, CompressedExtentWholeBlockReadDisclosed) {
     }
     MemDevice dev(comp);
     tree::FileProperties* pr =
-        props_with("c.bin", plain.size(), 0,
+        props_with("c.txt", plain.size(), 0,
                    {tree::FileProperties::Extent{0, plain.size(), compress::kGzip, comp.size()}});
     PropsGuard g(pr);
     PreviewReader r(&dev, pr);
@@ -1313,4 +1316,191 @@ TEST(Preview, M077TimeGuardDefaultsOnAndOverridable) {
     Caps off;
     off.max_decode_ms = 0xFFFFFFFFu;
     EXPECT_EQ(0xFFFFFFFFu, off.max_decode_ms);
+}
+
+/* ---- M-108: the TxtViewFiles text-preview eligibility model ----
+ * The og gates text preview by EXTENSION MEMBERSHIP in
+ * config/FilterFolder.ini [Filter] TxtViewFiles (DRWUI:535858/:535937,
+ * the toupper-folded membership search FUN_140310aa0; the ".txt;"
+ * ini-absent default). Content is never sniffed for eligibility. */
+
+TEST(PreviewMeta, Utf8BomTextIsText) {
+    /* the og renders a .txt whatever its bytes; the old 16-byte
+     * printable-ASCII head gate refused the BOM byte (EF >= 0x7F) */
+    std::vector<u8> txt(64, ' ');
+    txt[0] = 0xEF;
+    txt[1] = 0xBB;
+    txt[2] = 0xBF;
+    std::memcpy(txt.data() + 3, "hello bom text", 14);
+    MemDevice dev(std::move(txt));
+    tree::FileProperties::Extent a{0, 64, 0, 0};
+    tree::FileProperties* pr = props_with("n.txt", 64, 0, {a});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("text", m.kind);
+    EXPECT_EQ("txt", m.format);
+    /* the BOM is skipped, the body passes through */
+    EXPECT_EQ(std::string::npos, m.text_snippet.find("\xEF\xBB\xBF"));
+    EXPECT_NE(std::string::npos, m.text_snippet.find("hello bom text"));
+}
+
+TEST(PreviewMeta, Utf16BomTextIsText) {
+    /* UTF-16LE BOM text: decoded to UTF-8 for the snippet (a raw byte
+     * pass-through would truncate at the first ASCII char's NUL) */
+    const char16_t body[] = u"utf16 body";
+    std::vector<u8> txt;
+    txt.push_back(0xFF);
+    txt.push_back(0xFE);
+    for (char16_t c : body)
+        for (int b = 0; b < 2; ++b)
+            txt.push_back(u8(c >> (8 * b)));
+    txt.resize(64, 0);
+    MemDevice dev(std::move(txt));
+    tree::FileProperties::Extent a{0, 64, 0, 0};
+    tree::FileProperties* pr = props_with("n.txt", 64, 0, {a});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("text", m.kind);
+    EXPECT_NE(std::string::npos, m.text_snippet.find("utf16 body"));
+}
+
+TEST(PreviewMeta, Utf16SurrogatePairDecodes) {
+    /* an astral char (U+1F600) as a surrogate pair: the snippet carries
+     * its UTF-8 encoding (F0 9F 98 80), not a replacement pair */
+    const char16_t body[] = u"\x83\x83"; /* placeholder, real pair below */
+    (void)body;
+    std::vector<u8> txt;
+    txt.push_back(0xFF);
+    txt.push_back(0xFE);
+    const char16_t pair[2] = {0xD83D, 0xDE00}; /* U+1F600 */
+    for (char16_t c : pair)
+        for (int b = 0; b < 2; ++b)
+            txt.push_back(u8(c >> (8 * b)));
+    txt.push_back(' ');
+    txt.push_back(0);
+    txt.push_back('!');
+    txt.push_back(0);
+    txt.resize(64, 0);
+    MemDevice dev(std::move(txt));
+    tree::FileProperties::Extent a{0, 64, 0, 0};
+    tree::FileProperties* pr = props_with("n.txt", 64, 0, {a});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("text", m.kind);
+    EXPECT_NE(std::string::npos, m.text_snippet.find("\xF0\x9F\x98\x80"));
+}
+
+TEST(PreviewMeta, Latin1TextIsText) {
+    /* Latin-1 accented text (0xE9 >= 0x7F): the og renders it (the
+     * extension gates); the snippet passes the high byte through raw */
+    std::vector<u8> txt(64, ' ');
+    std::memcpy(txt.data(), "caf\xE9 menu", 9);
+    MemDevice dev(std::move(txt));
+    tree::FileProperties::Extent a{0, 64, 0, 0};
+    tree::FileProperties* pr = props_with("n.txt", 64, 0, {a});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("text", m.kind);
+    EXPECT_NE(std::string::npos, m.text_snippet.find("caf\xE9"));
+}
+
+TEST(PreviewMeta, PrintableHeadBinaryNotText) {
+    /* the false-positive class: a non-whitelisted extension with 16
+     * printable head bytes was classified text with a garbage snippet;
+     * the og's whitelist membership for .xyz is false */
+    std::vector<u8> bin(64, 0);
+    std::memcpy(bin.data(), "MJFZ-0123456789AB", 17); /* printable head */
+    for (size_t i = 17; i < 64; ++i)
+        bin[i] = u8(i * 7);
+    MemDevice dev(std::move(bin));
+    tree::FileProperties::Extent a{0, 64, 0, 0};
+    tree::FileProperties* pr = props_with("data.xyz", 64, 0, {a});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("unsupported", m.kind);
+    EXPECT_TRUE(m.text_snippet.empty());
+}
+
+TEST(PreviewMeta, ExtensionlessNameIsNotText) {
+    /* the og's empty-needle early return: an extensionless name is
+     * never text-viewable, whatever its bytes */
+    std::vector<u8> txt(64, ' ');
+    std::memcpy(txt.data(), "plain readme body", 17);
+    MemDevice dev(std::move(txt));
+    tree::FileProperties::Extent a{0, 64, 0, 0};
+    tree::FileProperties* pr = props_with("README", 64, 0, {a});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("unsupported", m.kind);
+}
+
+TEST(PreviewMeta, WhitelistMembershipCaseInsensitive) {
+    /* FUN_140310aa0 folds with toupper: .TXT (the shipped list's own
+     * casing) and .txt/.Txt are the same extension; the shipped list's
+     * lowercase families (.md/.json) match their uppercase forms too */
+    EXPECT_TRUE(preview::textexts::eligible(".TXT"));
+    EXPECT_TRUE(preview::textexts::eligible(".txt"));
+    EXPECT_TRUE(preview::textexts::eligible(".Txt"));
+    EXPECT_TRUE(preview::textexts::eligible(".MD"));
+    EXPECT_TRUE(preview::textexts::eligible(".md"));
+    EXPECT_TRUE(preview::textexts::eligible(".JSON"));
+    EXPECT_TRUE(preview::textexts::eligible(".log"));
+    EXPECT_TRUE(preview::textexts::eligible(".XML"));
+    EXPECT_TRUE(preview::textexts::eligible(".ini"));
+    EXPECT_TRUE(preview::textexts::eligible(".cfg"));
+    EXPECT_TRUE(preview::textexts::eligible(".bat"));
+    EXPECT_TRUE(preview::textexts::eligible(".msbak"));
+    EXPECT_TRUE(preview::textexts::eligible(".database_uuid"));
+    /* non-members: the og's list has no .xyz/.dat/.bin/.exe/.docx */
+    EXPECT_FALSE(preview::textexts::eligible(".xyz"));
+    EXPECT_FALSE(preview::textexts::eligible(".dat"));
+    EXPECT_FALSE(preview::textexts::eligible(".bin"));
+    EXPECT_FALSE(preview::textexts::eligible(".exe"));
+    EXPECT_FALSE(preview::textexts::eligible(".docx"));
+    EXPECT_FALSE(preview::textexts::eligible(".pdf"));
+    /* the empty needle and the non-dot forms never match */
+    EXPECT_FALSE(preview::textexts::eligible(""));
+    EXPECT_FALSE(preview::textexts::eligible("txt"));
+    /* no partial-token match: ".t" must not hit ".TXT;" */
+    EXPECT_FALSE(preview::textexts::eligible(".t"));
+    /* no delimiter injection: ".txt;.exe" is one (absurd) extension,
+     * not two - it is not in the pool as a whole token */
+    EXPECT_FALSE(preview::textexts::eligible(".txt;.exe"));
+}
+
+TEST(PreviewTextWhitelist, ByteExactAgainstCorpus) {
+    /* the generated pool is the og's TxtViewFiles value VERBATIM: the
+     * 97 shipped tokens (92 unique case-folded), the og's entry order,
+     * the trailing delimiter, NUL-terminated (regenerate via
+     * scripts/gen_preview_text_exts.py - the gen_filterfolder pattern) */
+    const std::string_view pool(reinterpret_cast<const char*>(
+                                    preview::textexts::data::kTxtViewPool),
+                                preview::textexts::data::kTxtViewPoolLen);
+    /* the shipped list's head and tail, verbatim */
+    EXPECT_EQ(0u, pool.find(".TXT;.CFG;.CONFIG;.CSS;.CSV;.HTML;.INF;"));
+    EXPECT_NE(std::string_view::npos, pool.find(";.XSL;.bak;.msbak;\0", 0));
+    /* the exact shipped token set (re-derived independently here from
+     * the corpus value - any drift in generation fails this) */
+    const char* kCorpusValue =
+        ".TXT;.CFG;.CONFIG;.CSS;.CSV;.HTML;.INF;.INFO;.INI;.JS;.LOG;.XML;"
+        ".aae;.database_uuid;.srt;.bat;.md;.json;.1ST;.A;.A8S;.ANS;.ARENA;"
+        ".AS;.ASA;.ASM;.ATH;.ATT;.AVS;.BBZ;.BCS;.BMK;.BOOK;.BPW;.BSD;.BSDL;"
+        ".BSH;.CAMP;.CEL;.CELX;.CFG;.CFG;.CGI;.CHART;.CMD;.CONF;.CS;.CSH;"
+        ".CU;.CUS;.DBA;.DIF;.FOUNTAIN;.GM;.GSC;.GSD;.HAML;.HPS;.HTM;.JAV;"
+        ".JAVA;.JRTF;.M;.M;.MAP;.MARKDOWN;.MCMETA;.MDBACKUP;.MDINFO;.MDL;"
+        ".MDOWN;.ML;.MXML;.OSU;.OUT;.P6;.PAS;.PHP;.PL;.PNPROJ;.PNPT;"
+        ".PROPERTIES;.PROPERTIES;.PY;.QC;.QC;.RTX;.S;.SRC;.URL;.WTX;.XQL;"
+        ".XQY;.XSD;.XSL;.bak;.msbak;";
+    EXPECT_EQ(std::string_view(kCorpusValue), pool.substr(0, pool.find('\0')));
+    EXPECT_EQ(97u, preview::textexts::data::kTxtViewTokenCount);
+    /* the pool NUL-terminates within its own bytes */
+    EXPECT_LT(std::strlen(reinterpret_cast<const char*>(
+                              preview::textexts::data::kTxtViewPool)),
+              preview::textexts::data::kTxtViewPoolLen);
 }

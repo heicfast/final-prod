@@ -83,6 +83,12 @@ public:
     u64 device_reads() const { return device_reads_; }
     u64 device_bytes() const { return device_bytes_; }
 
+    /* M-108: the previewed node's properties (the name the text-preview
+     * eligibility gate reads the extension from - the og's
+     * FUN_140089050 cached-extension consumer). Null only for the
+     * synthetic test readers that bypass the node. */
+    const tree::FileProperties* props() const { return props_; }
+
     /* M-028: the device-byte cost of a read_at(logical_offset, len)
      * BEFORE issuing it. Plain extents cost their overlapped length;
      * COMPRESSED extents cost the whole packed block (psize — any window
@@ -137,6 +143,33 @@ struct ArchiveEntry {
  * og's model is unbounded because the UI streams lazily; our extractor
  * is eager, so we cap + flag). */
 constexpr u32 kMaxPreviewArchiveEntries = 512;
+
+/* M-108: the text-preview eligibility gate (the og's TxtViewFiles
+ * whitelist). The og decides which files preview as text by EXTENSION
+ * MEMBERSHIP in config/FilterFolder.ini [Filter] TxtViewFiles -
+ * decompile-verified (DRWUI_decompiled.c:535858/:535937): the ini loads
+ * once (the ini-absent default is ".txt;"), the node's cached extension
+ * is tested with the toupper-folded delimited search
+ * (FUN_140310aa0 - ASCII case-insensitive), and content is NEVER
+ * sniffed for eligibility. Consequences ported exactly: a whitelisted
+ * extension (.txt/.log/.xml/... - 97 shipped tokens, 92 unique
+ * case-folded; the generated pool is byte-exact from the corpus ini)
+ * previews as text whatever its bytes (UTF-8 BOM, UTF-16, Latin-1 all
+ * render); a non-whitelisted extension never previews as text (a
+ * printable-head binary is NOT text); an extensionless name fails the
+ * consumers' empty-needle early return (not viewable). The generated
+ * pool: src/core/preview/cr_preview_text_exts_data.cpp (regenerate via
+ * scripts/gen_preview_text_exts.py after corpus updates). */
+namespace textexts {
+/* Is this dot-prefixed ASCII extension (e.g. ".txt") a text-preview
+ * format per the og's TxtViewFiles whitelist? Case-insensitive. */
+bool eligible(std::string_view dot_ext);
+namespace data {
+extern const u8 kTxtViewPool[];
+extern const u32 kTxtViewPoolLen;
+extern const u32 kTxtViewTokenCount;
+} // namespace data
+} // namespace textexts
 
 struct Metadata {
     std::string kind;   /* image|video|audio|document|archive|text|unsupported */

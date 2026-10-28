@@ -58,6 +58,8 @@ add_library(cr_core STATIC
     orchestrator/cr_filterfolder.cpp
     orchestrator/cr_filterfolder_data.cpp
     preview/cr_preview.cpp
+    preview/cr_preview_text_exts.cpp
+    preview/cr_preview_text_exts_data.cpp
     preview/cr_thumbnail.cpp
     query/cr_query.cpp
     query/cr_filefilter_data.cpp

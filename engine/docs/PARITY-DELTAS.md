@@ -3257,6 +3257,33 @@ adds D-rows should treat the sequence as D-108+ and, if reconciling, renumber
 the second D-107 to a free slot with a history note. This session's rows are
 D-108/D-109/D-110.)*
 
+
+### D-111 — the text-preview precedence for a whitelisted extension whose CONTENT matches a rich magic (M-108 resolution rider, REGISTERED DIVERGENCE — corpus-silent edge)
+
+**WHAT OG DOES:** the preview controller resolves the previewer "by file type"
+(UIUX/10 §1); the TxtViewFiles membership flag (DRWUI:535858/:535937) routes a
+whitelisted extension to the text viewer. The resolution ORDER when a
+whitelisted extension's CONTENT matches a rich previewer's magic (a `.txt`
+file whose bytes start `PK`) is not decoded in the corpus — the two flag
+consumers set the text-viewable bit, but the panel's preference between
+text-view and a content-decoded rich view is UIUX-silent.
+
+**WHAT WE DO:** `extract_metadata` (src/core/preview/cr_preview.cpp) keeps the
+magic-keyed rich previews (JPEG/PNG/.../PDF/ZIP) AHEAD of the M-108 extension
+gate — a `PK`-headed `.txt` reports `kind=archive/docx`, not text.
+
+**WHY:** the core's preview surface is content-keyed for the rich formats
+(the S-0xx/M-0xx landings); the finding's fix plan lands the whitelist at the
+fall-through (both executed-probe classes resolved); the og's order for the
+overlap case is undecoded, so the conservative architecture (rich previews
+first) stands until a corpus decode settles it.
+
+**RISK:** low — the overlap class is pathological (a text-named archive); no
+executed evidence shows the og preferring text there.
+
+**VERDICT:** ACCEPTED (one decompile probe of the preview controller's
+resolution order, if the corpus ever decodes it, flips this to parity work).
+
 ## V. Closing-fix session (2026-10-29) — the thumbnail orientation rule (S-043 rider)
 
 **D-105 — the embedded-fast-path orientation semantics.** The og's EXIF

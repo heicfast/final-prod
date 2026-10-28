@@ -586,7 +586,149 @@ bool wav_info(Window& w, Metadata& m) {
 
 /* --- documents --- */
 
+/* M-108: the text snippet for a TxtViewFiles-ELIGIBLE node. The og
+ * never sniffs content for eligibility (extension-gated,
+ * DRWUI:535858/:535937) - a whitelisted extension renders as text
+ * whatever its bytes, so the snippet here is a byte pass-through that
+ * handles the three real-world Windows text shapes the old
+ * printable-ASCII head gate refused:
+ *   - UTF-8 BOM (EF BB BF): skipped, the body passes through (multi-
+ *     byte UTF-8 sequences are kept raw - the snippet stays valid
+ *     UTF-8, the host renders it exactly as the og's viewer would);
+ *   - UTF-16LE/BE BOM (FF FE / FE FF): decoded to UTF-8 (surrogate
+ *     pairs handled; unpaired units substitute U+FFFD per the N-016b
+ *     naming rule) - a raw pass-through would truncate at the first
+ *     ASCII char's NUL byte;
+ *   - no BOM: byte pass-through - printable ASCII kept, high bytes
+ *     (>= 0x7F: Latin-1 accents, UTF-8 continuations) kept raw, \n/\t
+ *     normalized to a space like the og-era sniff, other control
+ *     bytes dropped.
+ * A NUL byte in a BOM-less stream ends the snippet (the existing
+ * binary-guard semantics - the kind stays "text" because eligibility
+ * is extension-decided; only the SNIPPET stops there). */
+static void utf16_snippet(Window& w, Metadata& m, u64 body_off, bool big_endian) {
+    std::string acc;
+    acc.reserve(w.caps.text_snippet);
+    u64 off = body_off;
+    bool ended = false;
+    while (acc.size() < w.caps.text_snippet && !ended) {
+        const u8* p = w.fetch_any(off, 512);
+        if (!p)
+            break;
+        size_t i = 0;
+        for (; i + 1 < w.last_got && acc.size() < w.caps.text_snippet; i += 2) {
+            const u16 u = big_endian ? (u16(p[i]) << 8 | p[i + 1])
+                                     : (u16(p[i + 1]) << 8 | p[i]);
+            if (u == 0) {
+                ended = true; /* the UTF-16 NUL terminator */
+                break;
+            }
+            u32 cp = u;
+            if (u >= 0xD800u && u <= 0xDBFFu) {
+                /* high surrogate: needs the next unit */
+                if (i + 3 < w.last_got) {
+                    const u16 lo = big_endian
+                                       ? (u16(p[i + 2]) << 8 | p[i + 3])
+                                       : (u16(p[i + 3]) << 8 | p[i + 2]);
+                    if (lo >= 0xDC00u && lo <= 0xDFFFu) {
+                        cp = 0x10000u + ((u32(u) - 0xD800u) << 10) + (u32(lo) - 0xDC00u);
+                        i += 2; /* consume the low surrogate too */
+                    } else {
+                        cp = 0xFFFDu; /* unpaired high surrogate */
+                    }
+                } else {
+                    /* pair straddles the fetch boundary: refetch from the
+                     * next unit (re-align by rewinding one unit) */
+                    break;
+                }
+            } else if (u >= 0xDC00u && u <= 0xDFFFu) {
+                cp = 0xFFFDu; /* unpaired low surrogate */
+            }
+            if (cp == u'\n' || cp == u'\t' || cp == u'\r') {
+                acc.push_back(' ');
+                continue;
+            }
+            if (cp < 0x20u)
+                continue; /* other control units dropped */
+            /* re-encode UTF-8 */
+            if (cp < 0x80u) {
+                acc.push_back(char(u8(cp)));
+            } else if (cp < 0x800u) {
+                acc.push_back(char(u8(0xC0u | (cp >> 6))));
+                acc.push_back(char(u8(0x80u | (cp & 0x3Fu))));
+            } else if (cp < 0x10000u) {
+                acc.push_back(char(u8(0xE0u | (cp >> 12))));
+                acc.push_back(char(u8(0x80u | ((cp >> 6) & 0x3Fu))));
+                acc.push_back(char(u8(0x80u | (cp & 0x3Fu))));
+            } else {
+                acc.push_back(char(u8(0xF0u | (cp >> 18))));
+                acc.push_back(char(u8(0x80u | ((cp >> 12) & 0x3Fu))));
+                acc.push_back(char(u8(0x80u | ((cp >> 6) & 0x3Fu))));
+                acc.push_back(char(u8(0x80u | (cp & 0x3Fu))));
+            }
+        }
+        if (ended || i + 1 >= w.last_got)
+            break; /* NUL seen, odd tail byte, or the straddle rewind */
+        off += w.last_got;
+        if (w.last_got < 512)
+            break;
+    }
+    m.text_snippet = acc;
+    m.kind = "text";
+    m.format = "txt";
+}
+
 void text_sniff(Window& w, Metadata& m) {
+    /* M-108: BOM-aware text snippet (see the block comment above) */
+    const u8* head = w.fetch_any(0, 3);
+    if (head && w.last_got >= 3) {
+        if (head[0] == 0xEF && head[1] == 0xBB && head[2] == 0xBF) {
+            /* UTF-8 BOM: skip it, pass the body through */
+            std::string acc;
+            u64 off = 3;
+            while (acc.size() < w.caps.text_snippet && off < pr_size(w)) {
+                const u8* p = w.fetch_any(off, 512);
+                if (!p)
+                    break;
+                bool nul = false;
+                for (size_t i = 0; i < w.last_got && acc.size() < w.caps.text_snippet; ++i) {
+                    const u8 c = p[i];
+                    if (c == 0) {
+                        nul = true;
+                        break;
+                    }
+                    if (c >= 0x20)
+                        acc.push_back(char(c)); /* high bytes raw (>= 0x7F incl.) */
+                    else if (c == '\n' || c == '\t')
+                        acc.push_back(' ');
+                    /* other control bytes dropped */
+                }
+                if (nul)
+                    break;
+                off += w.last_got;
+                if (w.last_got < 512)
+                    break;
+            }
+            m.text_snippet = acc;
+            m.kind = "text";
+            m.format = "txt";
+            return;
+        }
+    }
+    const u8* b16 = w.fetch_any(0, 2);
+    if (b16 && w.last_got >= 2) {
+        if (b16[0] == 0xFF && b16[1] == 0xFE) {
+            utf16_snippet(w, m, 2, false);
+            return;
+        }
+        if (b16[0] == 0xFE && b16[1] == 0xFF) {
+            utf16_snippet(w, m, 2, true);
+            return;
+        }
+    }
+    /* no BOM: byte pass-through (high bytes kept raw - Latin-1 and
+     * multi-byte UTF-8 pass through for the host to render, the og's
+     * viewer-side rendering posture) */
     u64 off = 0;
     std::string acc;
     while (acc.size() < w.caps.text_snippet && off < pr_size(w)) {
@@ -595,13 +737,13 @@ void text_sniff(Window& w, Metadata& m) {
             break;
         bool nul = false;
         for (size_t i = 0; i < w.last_got && acc.size() < w.caps.text_snippet; ++i) {
-            const u8 c = w.buf[i];
+            const u8 c = p[i];
             if (c == 0) {
                 nul = true;
                 break;
             }
-            if (c >= 0x20 && c < 0x7F)
-                acc.push_back(char(c));
+            if (c >= 0x20)
+                acc.push_back(char(c)); /* high bytes raw (>= 0x7F incl.) */
             else if (c == '\n' || c == '\t')
                 acc.push_back(' ');
         }
@@ -614,6 +756,27 @@ void text_sniff(Window& w, Metadata& m) {
     m.text_snippet = acc;
     m.kind = "text";
     m.format = "txt";
+}
+
+/* M-108: the node's dot-extension (".txt"), from the UTF-16 display
+ * name's LAST dot (the og's FUN_140089050 returns the node's cached
+ * dot-prefixed extension). Empty when the name has no dot or the
+ * extension tail is non-ASCII (the pool is pure ASCII - a non-ASCII
+ * extension can never match, the og's byte-wise toupper fold is
+ * ASCII-only). */
+static std::string node_extension(const tree::FileProperties& props) {
+    const std::u16string& n = props.name;
+    const size_t dot = n.rfind(u'.');
+    if (dot == std::u16string::npos)
+        return {};
+    std::string ext;
+    ext.reserve(n.size() - dot);
+    for (size_t i = dot; i < n.size(); ++i) {
+        if (n[i] >= 0x80u)
+            return {}; /* non-ASCII extension: not poolable */
+        ext.push_back(char(u8(n[i])));
+    }
+    return ext;
 }
 
 void pdf_sniff(Window& w, Metadata& m) {
@@ -895,14 +1058,26 @@ Metadata extract_metadata(PreviewReader& pr, const Caps& caps) {
     } else if (is_zip) {
         docx_sniff(w, m);
     } else {
-        bool printable = true;
-        for (size_t i = 0; i < 16 && i < hs; ++i)
-            if (head[i] >= 0x7F)
-                printable = false;
-        if (printable && sz > 0)
+        /* M-108: the og's TxtViewFiles extension whitelist gates text
+         * eligibility - decompile-verified (DRWUI_decompiled.c:535858/
+         * :535937: the ini loads once, the node's cached extension is
+         * tested with the toupper-folded delimited search
+         * FUN_140310aa0; the ini-absent default is ".txt;"). Content is
+         * NEVER sniffed for eligibility: a whitelisted extension
+         * renders as text whatever its bytes (text_sniff handles the
+         * UTF-8-BOM/UTF-16/Latin-1 shapes the old printable-ASCII head
+         * gate refused); a non-whitelisted extension is unsupported; an
+         * extensionless name fails the consumers' empty-needle early
+         * return (not viewable). The magic-keyed rich previews above
+         * keep precedence for their formats (the previewer-resolution
+         * order for a whitelisted extension whose CONTENT matches a
+         * rich magic is corpus-silent - registered in PARITY-DELTAS). */
+        const std::string ext = pr.props() ? node_extension(*pr.props()) : std::string();
+        if (!ext.empty() && textexts::eligible(ext)) {
             text_sniff(w, m);
-        else
+        } else {
             m.kind = "unsupported";
+        }
     }
     /* M-066: OR, not assign - the read-budget flag (w.truncated) and the
      * inventory flag (the archive-entry cap inside docx_sniff, plus the

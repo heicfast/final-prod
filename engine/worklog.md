@@ -77,6 +77,31 @@ phantom-SHA row sweep, the M-082/S-045 missing rows, the extended counts):
   those fix surfaces live in heicfast/rda-driver, outside this session's
   two-repo grant).
 
+**T2 (M-108 FIXED — the board's own recommended first fix):** the
+TxtViewFiles text-preview eligibility model. Corpus re-verified first-hand:
+both DRWUI consumers (:535858/:535937 + the second at :535913-:535960),
+FUN_140310950 (the extension transform) and FUN_140310aa0 (the
+toupper-folded case-INSENSITIVE search — decoded in the loop this session),
+the ".txt;" ini-absent default, both corpus FilterFolder.ini copies
+byte-identical. COUNT CORRECTION: the whitelist is 97 tokens / 92 unique
+case-folded (the "119" in the finding + the artifact was the ellipsis-note
+miscount). Landed: scripts/gen_preview_text_exts.py +
+src/core/preview/cr_preview_text_exts_data.cpp (byte-exact pool) +
+cr_preview_text_exts.cpp (case-insensitive membership) + the
+extract_metadata fall-through gate + the BOM-aware snippet (UTF-8 BOM
+skipped; UTF-16LE/BE decoded incl. surrogate pairs with the N-016b U+FFFD
+rule; Latin-1 raw) + PreviewReader::props() (the name source). The
+extensionless-name case decoded and ported (the consumers' empty-needle
+early return -> unsupported). 8 new tests; fail-before PROVEN by mutation
+(pre-fix heuristic restored: 7 RED). 2 existing tests updated with the
+behavior change (the false-positive expectation + two .bin->.txt renames
+preserving the compressed-extent tests' text-sniff intent). D-111
+registered (the precedence edge: corpus-silent). API-DELTA row 44 now
+true. RED REPAIR: the M-074 parallel landing's win_syntax_check failure
+(the three WinError constants missing from tests/win-stub/windows.h —
+ERROR_FILENAME_EXCED_RANGE/ERROR_INVALID_NAME/ERROR_BAD_PATHNAME with the
+real WinError values). ctest 1102/1102.
+
 **Session-39B territory claim (coordination contract):** the lead 39 instance
 claimed MINOR + INFO; 11D claimed SEVERE; 11C/11D the MAJOR orchestration/carve
 cluster. **39B takes the unclaimed MAJOR preview/query/ABI cluster:

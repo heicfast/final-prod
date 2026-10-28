@@ -107,7 +107,7 @@ but not real (invented) | SUPERSET = documented deliberate divergence.
 | 41 | EUUserData 111-entry default user-sign DB | **landed (37c48c6, M-065)**; consumption mode resolved (CHK repair chain; core's load = SUPERSET D-104) | 025dee7 board |
 | 42 | raw_signs.json 139-extension table (engine-init `std::ifstream` load) | compiled-in table (D-103 registered, reproducibility-over-mutability decision) | e81b98f |
 | 43 | Dict 228-entry password dictionary | shipped (cr_dict_data.cpp) | corpus-api-context §4 |
-| 44 | FilterFolder.ini noise blocklist + FatFilterName 10 locales + TxtViewFiles 119 ext | landed (cr_filterfolder_data.cpp) | corpus-api-context §4 |
+| 44 | FilterFolder.ini noise blocklist + FatFilterName 10 locales + TxtViewFiles 97 ext (the finding-time "119" was the artifact's ellipsis-note miscount) | noise blocklist + FatFilterName landed (cr_filterfolder_data.cpp); TxtViewFiles landed at the M-108 fix (cr_preview_text_exts_data.cpp — the preview eligibility pool, byte-exact) | corpus-api-context §4 + filtering-priority--config-layer.md §3 + the M-108 Resolution |
 | 45 | PriorityDisplayType.xml / usefullostfiles.xml / SumaryFileType groups | landed (query/filefilter data layers) | corpus-api-context §4 |
 
 ### 1.8 Deliberate divergences (registered, no action)
