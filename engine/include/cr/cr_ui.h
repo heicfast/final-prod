@@ -1247,7 +1247,11 @@ CR_UI_API uint32_t cr_ui_preview_unreadable(cr_ui_preview* pv, uint64_t* total_b
 /* Caps block mirroring the engine's ThumbnailCaps. NULL caps (or any
  * zero field) = that default; nonzero values are validated by the same
  * ranges the engine enforces (max_edge 1..8192, max_pixels/max_read/
- * max_work nonzero, allow_embedded 0/1). */
+ * max_work nonzero, allow_embedded 0 or 1 - values above 1 are refused
+ * with ERR_BAD_PARAMETER). allow_embedded NOTE (N-137): the embedded
+ * fast path is ALWAYS preferred (og parity - the og's thumbnail worker
+ * takes the embedded preview whenever present); 0 = default-ON and
+ * 1 = explicit-ON. There is no off position by design. */
 typedef struct cr_ui_thumbnail_caps {
     uint32_t max_edge;   /* 0 = 256 (the og's GDI+ convention) */
     uint64_t max_pixels; /* 0 = 64 MP (decode-memory bomb guard) */
@@ -1274,9 +1278,12 @@ typedef struct cr_ui_thumbnail_info {
  * caller allocates and calls again. rgba != NULL with rgba_cap too small
  * returns 0x50030009 ERR_NO_MEMORY with bytes_needed set (nothing is
  * partially written). Status mapping is the engine's verbatim:
- * 0 = OK (info + pixels), 0x50030004 ERR_TRUNCATED never returned for
- * thumbnails (the engine discloses truncation via info->truncated on
- * Ok), 0x50030008 ERR_UNSUPPORTED for the named phase-2 refusals
+ * 0 = OK (info + pixels); 0x50030004 ERR_TRUNCATED is returned for a
+ * decode REFUSAL (a damaged/short stream the strict decoders reject -
+ * ABI-CONTRACT 7i's mapping; the refusal branch also sets
+ * info->truncated); in-band truncation (a decoder-tolerated short
+ * stream) is NOT an error - it crosses via info->truncated on Ok;
+ * 0x50030008 ERR_UNSUPPORTED for the named phase-2 refusals
  * (info->source_format carries the family), other codes as the error
  * table. caps == NULL = the defaults above. The device is the scan's
  * device (the same pairing rule as cr_ui_preview_open_session). */

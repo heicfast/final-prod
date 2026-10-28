@@ -3601,3 +3601,50 @@ TEST(CrUi, CliScanFillsAutoSaveVolumeLabel) {
               std::string::npos)
         << "the pre-fix false-claim sentence (unwired) must stay gone";
 }
+
+TEST(CrUi, ThumbnailCapsAllowEmbeddedValidated) {
+    /* N-137: the header's "validated 0/1" claim is ENFORCED - 0 and 1
+     * are accepted (the knob's only two values; the embedded fast path
+     * is always preferred - og parity, no off position), anything above
+     * 1 is refused with ERR_BAD_PARAMETER. */
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_img_to_session("thumbcaps", build_fat16_jpg_trunc(), u, img, crsf));
+    const uint64_t logo = query_node_id(u.sess, "LOGO2.JPG");
+    ASSERT_NE(logo, 0u);
+    cr_ui_thumbnail_info info{};
+    for (const uint32_t v : {0u, 1u}) {
+        cr_ui_thumbnail_caps caps{};
+        caps.allow_embedded = v;
+        const uint32_t rc =
+            cr_ui_thumbnail_generate(u.dev, u.sess, logo, &caps, nullptr, 0, &info);
+        EXPECT_NE(rc, 0x50030003u) << "allow_embedded=" << v << " must be accepted";
+    }
+    cr_ui_thumbnail_caps caps{};
+    caps.allow_embedded = 7;
+    EXPECT_EQ(0x50030003u, cr_ui_thumbnail_generate(u.dev, u.sess, logo, &caps, nullptr, 0, &info))
+        << "an out-of-range allow_embedded must be refused (the header's claim, enforced)";
+}
+
+TEST(CrUi, ThumbnailHeaderMatchesContract) {
+    /* N-137 doc-truth pin: the thumbnail section's error-code claims
+     * must equal ABI-CONTRACT 7i's - the "never returned" denial of the
+     * DecodeFailed->ERR_TRUNCATED mapping is gone, the refusal mapping
+     * is stated, and the caps note records the no-off-position design. */
+    const std::string hdr = cr_test::read_repo_file("include/cr/cr_ui.h");
+    ASSERT_FALSE(hdr.empty());
+    const size_t gen = hdr.find("cr_ui_thumbnail_generate");
+    ASSERT_NE(gen, std::string::npos);
+    const std::string sec = hdr.substr(gen > 1600 ? gen - 1600 : 0, 2200);
+    EXPECT_EQ(sec.find("never returned"), std::string::npos)
+        << "the denial of the ERR_TRUNCATED refusal mapping must stay gone";
+    EXPECT_NE(sec.find("decode REFUSAL"), std::string::npos)
+        << "the refusal mapping must be stated in the section comment";
+    const size_t caps = hdr.find("cr_ui_thumbnail_caps {");
+    ASSERT_NE(caps, std::string::npos);
+    const std::string capsec = hdr.substr(caps > 700 ? caps - 700 : 0, 900);
+    EXPECT_NE(capsec.find("no off position"), std::string::npos)
+        << "the allow_embedded design note must be in the caps comment";
+    EXPECT_NE(capsec.find("0 or 1"), std::string::npos)
+        << "the validated range must be stated";
+}

@@ -3725,6 +3725,13 @@ u32 thumbnail_generate_impl(cr_ui_device* dev, cr_ui_session* sess, uint64_t nod
             ecaps.max_read = caps->max_read;
         if (caps->max_work != 0)
             ecaps.max_work = caps->max_work;
+        /* N-137: the header's "validated 0/1" claim is now enforced -
+         * the knob has no off position (og parity: the embedded fast
+         * path is always preferred), so 0 = default-ON, 1 = explicit-
+         * ON, anything above 1 is a contract violation (BadParameter) */
+        if (caps->allow_embedded > 1)
+            return ret_(ERR_BAD_PARAMETER, "caps->allow_embedded must be 0 or 1 (got %u)",
+                        caps->allow_embedded);
         if (caps->allow_embedded != 0)
             ecaps.allow_embedded = caps->allow_embedded != 0;
     }

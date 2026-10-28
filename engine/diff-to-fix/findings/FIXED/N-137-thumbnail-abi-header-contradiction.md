@@ -111,3 +111,10 @@ header comment contradicts).
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-137 landing — recorded post-push in the ledger row)
+**Verified by:** `CrUi.ThumbnailCapsAllowEmbeddedValidated` (0 and 1 accepted; 7 refused with ERR_BAD_PARAMETER 0x50030003 — RED pre-fix: the out-of-range value was silently accepted as ON), `CrUi.ThumbnailHeaderMatchesContract` (the doc-truth pin: the "never returned" denial is gone from the section, the refusal mapping is stated, the caps note records the no-off-position design — RED pre-fix on the header text), plus the whole thumbnail family staying green (cr_ui_tests 61/61; cr_tests 1082/1082, 1040 pass / 42 env skips / 0 fail).
+**Resolution notes:** Both contract-truth defects repaired: (1) the section comment's "ERR_TRUNCATED never returned" denial replaced with the truth ABI-CONTRACT §7i and the existing test already pinned (`ThumbnailTruncationDisclosed`'s 0x50030004 expectation) — a decode REFUSAL returns ERR_TRUNCATED with info->truncated also set, while in-band truncation stays an Ok-path disclosure; (2) the caps field's "validated 0/1" claim is now ENFORCED: values above 1 are refused with ERR_BAD_PARAMETER, 0 = default-ON and 1 = explicit-ON (the og-parity always-prefer-embedded behavior is preserved and now DOCUMENTED in the caps comment — the knob has no off position by design, exactly as the finding's recommended option). Comments are not ABI-surface (no version bump); the >1 refusal is a strict tightening of a previously-silent acceptance (any consumer passing 0 or 1 — the documented values — is unaffected; only contract violations change behavior). The finding's third ask (the C-consumer refusal-branch example in tests/ui_abi_check.c) is noted as riding the next abi-check touch — the header/test pair here carries the contract truth.
