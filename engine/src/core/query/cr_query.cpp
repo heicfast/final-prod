@@ -554,5 +554,58 @@ bool apply_size_bucket(Filter& f, u16 bucket, u64 custom_min, u64 custom_max) {
     }
 }
 
+/* ---- M-125: the og's progress display math (the DRWUI decode) ----
+ * The three-function family, ported verbatim from the decompile:
+ * FUN_1401af820 (the piecewise remap + the defensive stall cap),
+ * FUN_1401af950 (the type dispatch + the raw computation), and
+ * FUN_1401afa60 (the monotonic publish guard). The finding's own test
+ * table carried four transcription errors against these corpus
+ * constants (raw 20 -> 21.8 not 22; raw 29 -> 23.6 not 23.8; raw 98
+ * -> 99.0 not 99.4; raw 99 -> 99.0 not 99.99 - the stall cap only
+ * fires for raw > 100, the og's dead defensive branch): the constants
+ * here are the corpus's, and the tests pin the corrected table (the
+ * corpus wins, per the protocol). */
+double progress_display_remap(double raw_percent) {
+    double out;
+    if (11.0 <= raw_percent) {
+        if (30.0 <= raw_percent) {
+            out = raw_percent;
+            if (raw_percent <= 98.0) {
+                if (raw_percent <= 90.0) {
+                    out = raw_percent * 0.8;
+                } else {
+                    out = (raw_percent - 88.0) * 2.7 + 72.0;
+                }
+            }
+        } else {
+            out = (raw_percent - 11.0) * 0.2 + 20.0;
+        }
+    } else {
+        out = raw_percent * 2.0;
+    }
+    if (100.0 < out && raw_percent != 100.0)
+        out = 99.99; /* the defensive stall cap (dead for raw in [0,100]) */
+    return out;
+}
+
+double progress_display_percent(u32 message_type, u64 done, u64 total) {
+    if (total < 1)
+        return 0.0;
+    const double raw = (double(done) * 100.0) / double(total);
+    if (message_type == 0)
+        return 0.0; /* the reset message */
+    if (message_type == 1) {
+        double p = progress_display_remap(raw);
+        if (100.0 < p)
+            p = 100.0; /* FUN_1401af950's outer clamp */
+        return p;
+    }
+    return raw; /* the non-remapped message types */
+}
+
+double progress_display_publish(double current, double next) {
+    return next > current ? next : current; /* the monotonic guard */
+}
+
 } // namespace query
 } // namespace cr

@@ -85,6 +85,39 @@ bool type_display_order(const char* ext_utf8_lower, TypeDisplayCategory& out_cat
                         u32& out_rank);
 const char* type_display_category_name(TypeDisplayCategory c);
 
+/* ---- M-125: the og's progress DISPLAY math (DRWUI decode) ----
+ * The og's displayed scan percent is not the raw scan completion:
+ * DRWUI computes raw = done*100/total from the sector-based engine
+ * messages, then (for the type-1 progress messages) applies a
+ * piecewise remap and a defensive stall cap. These helpers land that
+ * display math as an OPTIONAL query-layer surface so hosts can render
+ * og-faithful UX; the engine's own telemetry stays the TRUTHFUL
+ * linear weighted permille (cr_scan's weighted_progress - the
+ * deliberate engine-side truth registered in PARITY-DELTAS; the remap
+ * is the og's display layer, D-118). */
+
+/* FUN_1401af820 (DRWUI :314931-314959) verbatim - the piecewise remap:
+ *   raw < 11        -> raw * 2.0
+ *   11 <= raw < 30  -> (raw - 11) * 0.2 + 20.0
+ *   30 <= raw <= 90 -> raw * 0.8
+ *   90 < raw <= 98  -> (raw - 88) * 2.7 + 72.0
+ *   raw > 98        -> raw
+ *   result > 100 && raw != 100 -> 99.99 (the defensive stall cap - for
+ *   raw in [0,100] every segment is <= 100, so the cap is the og's
+ *   dead defensive branch, reachable only for out-of-range raw; ported
+ *   as decoded) */
+double progress_display_remap(double raw_percent);
+
+/* FUN_1401af950 (DRWUI :314964-314986) - the display percent for one
+ * engine progress message: message_type 0 -> 0.0 (the reset), 1 ->
+ * REMAP(raw) (clamped to 100.0), anything else -> raw as-is. */
+double progress_display_percent(u32 message_type, u64 done, u64 total);
+
+/* FUN_1401afa60 (DRWUI :315014-315024) - the monotonic publish guard:
+ * a lower value never lowers the displayed percent (the completion
+ * message bypasses the guard with its forced 100). */
+double progress_display_publish(double current, double next);
+
 /* The generated table's entry count (regeneration-drift guard:
  * Filter.TableCount pins it to the corpus unique count). */
 size_t filefilter_entry_count();

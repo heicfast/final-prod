@@ -3611,3 +3611,43 @@ false-positive discipline (the F8 gates, the N-070 score contest) exists to
 keep exactly that class out of the results. Affected fixture class: corrupt
 ZIP/RIFF archives (pinned: `Carve.SpecialRejectPlainAcceptRefusedByName` —
 the corrupt candidate refused by name; the valid control beside it carves).
+
+### D-119 — the FAT cluster→sector math is full u64; the og's 32-bit wrapping product deliberately not adopted (N-162 registration, REGISTERED SUPERSET — the numeric-hygiene family's FAT member)
+
+The og computes `(cluster−2) × sectors_per_cluster` as a 32-bit product at four
+verified sites (FATSearchDLL :13194 — the explicit `(uint)` cast on the cluster
+operand with the `(int)` spc, re-read first-hand this session; :11239 — the same
+32-bit operand promotion without the cast; :28172 and :39068-39080 — the
+CalcPartition geometry twins; 64-bit sites also exist in the og, e.g. the :28045
+runlist factory — the width inconsistency is og-internal). The product wraps on
+data areas beyond 2^32 sectors — legal FAT32 territory (2 TiB at 512 B/sector;
+spc=32 wraps from cluster 134,217,730; at the spec-max cluster 0x0FFFFFF4 with
+spc=32 the og addresses 0xFFFFFE40 instead of 8,589,934,144 — a ~2 TiB
+displacement). The core's `FatTable::cluster_offset` (cr_chain.cpp) is full u64
+and correct — the deliberate non-adoption of an og arithmetic defect, this
+family's FAT member (D-56 the NTFS pass-2 precedent, D-68 the MRW precedent).
+Rationale: a recovery engine must address what the on-disk geometry actually
+names; the og's wrap is silent corruption on large volumes, not a contract.
+Evidence: N-162's cites; the pin test `FatEngine.ClusterOffsetBeyond2TiB` (the
+spec-max cluster's exact u64 address, the wrapped form explicitly NOT equal).
+## X. The S42 fix lane (2026-10-29) — the progress display layer (M-125)
+
+**D-118 — the engine's linear permille vs the og's display remap (progress
+semantics, M-125):** the core's engine telemetry reports a TRUTHFUL linear
+weighted permille over the stage weights (cr_scan's `weighted_progress`,
+40/35/25 — the engine never lies in its telemetry), where the og's DRWUI
+renders a piecewise-remapped display percent (FUN_1401af820: raw<11 → ×2;
+11..30 → (raw−11)·0.2+20; 30..90 → ×0.8; 90..98 → (raw−88)·2.7+72; >98 →
+identity; the defensive 99.99 stall cap — dead for raw in [0,100], ported as
+decoded) with the monotonic publish guard hiding the 98-boundary
+discontinuity (the 2.7 segment tops at 99.0, the identity tail drops to
+98.5). Rationale: the engine's truthful permille is the deliberate
+improvement (a lying engine metric corrupts every consumer — benches,
+sessions, hosts); the og's remap is a UX-layer construct. The display math
+lands as the OPTIONAL query-layer helper family
+(`query::progress_display_remap/_percent/_publish`) so hosts render
+og-faithful UX without the engine lying. Evidence: DRWUI_decompiled.c
+:314931-314986 + :315014-315024 (the four-function family, decoded
+first-hand); the runtime anchors (displayed 9% at 75 s, 34% at ≈460 s,
+dynamic-ground-truth :39,:90) reproduce under the curve. Tests:
+ProgressDisplay.* (M-125).

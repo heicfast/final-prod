@@ -67,3 +67,10 @@ unverified (OQ-5 — blast-radius only).
 ## Open questions
 
 The widths of the remaining 14 sites (OQ-5) — quantification only.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-162 landing — post-push SHA in the ledger row and worklog entry)
+**Verified by:** `FatEngine.ClusterOffsetBeyond2TiB` (the spec-max cluster 0x0FFFFFF4 with spc=32: the exact u64 address 4,398,046,332,928 — beyond the 32-bit wrap band — and explicitly NOT equal to the og's wrapping form 0xFFFFFE40+base; the down-fix guard). Suite 1264/1264 (linux-release).
+**Resolution notes:** Corpus re-verified first-hand: :13194's cast structure re-read directly (`(ulonglong)(((uint)uVar7 - 2) * (int)param_1[4]) + param_1[8]` — the explicit (uint) truncation with the (int) spc operand) and :11239's promotion form (`(uVar7 - 2) * (int)param_1[4]` — 32-bit product without the cast); the core's cr_chain.cpp u64 product re-read live. The fix followed the finding's plan: PARITY-DELTAS D-119 registered (the D-56/D-68 numeric-hygiene family's FAT member) with the four og sites, the wrap arithmetic, the 64-bit-site inconsistency note, and the silent-corruption rationale; NO code change (the core is correct); the optional pin test landed as the down-fix guard. Fixture note: FatParams::cluster_bytes is the field the math reads (not derived from sectors_per_cluster) — the pin sets it explicitly.

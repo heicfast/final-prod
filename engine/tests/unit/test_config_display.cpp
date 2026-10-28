@@ -6,6 +6,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cr/orchestrator/cr_scan.h>
 #include <cr/query/cr_query.h>
 
 using namespace cr;
@@ -105,4 +106,82 @@ TEST(ConfigDisplay, TypeDisplayCategoryNamesVerbatim) {
     /* N-132: the XML's Description attributes verbatim. */
     EXPECT_STREQ(query::type_display_category_name(query::TypeDisplayCategory::Picture), "Picture");
     EXPECT_STREQ(query::type_display_category_name(query::TypeDisplayCategory::Archive), "Archive");
+}
+
+/* ---- M-125: the og's progress display math (the DRWUI decode) ---- */
+
+TEST(ProgressDisplay, RemapCurveTable) {
+    /* M-125: FUN_1401af820 verbatim - the five segments with the
+     * corpus's constants. The finding's own table carried four
+     * transcription errors against these constants (raw 20 -> "22" not
+     * 21.8; raw 29 -> "23.8" not 23.6; raw 98 -> "99.4" not 99.0; raw
+     * 99 -> "99.99" not 99.0 - the stall cap only fires for raw > 100):
+     * the corpus constants win (DRWUI :314931-314959 - 0.2/20.0/0.8/
+     * 2.7/72.0 and the identity tail). */
+    const struct {
+        double raw, want;
+    } cases[] = {
+        {0.0, 0.0},   {5.0, 10.0},   {10.0, 20.0}, {10.9, 21.8},   {11.0, 20.0}, {20.0, 21.8},
+        {29.0, 23.6}, {29.9, 23.78}, {30.0, 24.0}, {50.0, 40.0},   {90.0, 72.0}, {90.1, 77.67},
+        {98.0, 99.0}, {98.5, 98.5},  {99.0, 99.0}, {100.0, 100.0},
+    };
+    for (const auto& c : cases)
+        EXPECT_NEAR(query::progress_display_remap(c.raw), c.want, 1e-9) << "raw " << c.raw;
+    /* the 98-boundary discontinuity: the 2.7 segment ends at 98 (-> 99.0)
+     * and the identity tail takes over (98.5 -> 98.5, LOWER than 99.0) -
+     * the og's curve is non-monotonic at the boundary, which is exactly
+     * what FUN_1401afa60's monotonic publish guard exists to hide (the
+     * display never goes DOWN; ProgressDisplay.MonotonicPublishGuard) */
+    EXPECT_GT(query::progress_display_remap(98.0), query::progress_display_remap(98.5));
+}
+
+TEST(ProgressDisplay, StallCapIsTheDefensiveBranch) {
+    /* M-125: the 99.99 stall cap fires ONLY when the remap output
+     * exceeds 100 with raw != 100 - the 2.7 segment tops at 99.0 (raw
+     * 98) and the identity tail stays <= 100 for raw in (98,100], so
+     * the cap is the og's dead defensive branch, reachable only for
+     * the out-of-range raw > 100 (ported as decoded and proven live
+     * for that input). */
+    EXPECT_NEAR(query::progress_display_remap(98.5), 98.5, 1e-9); /* the identity tail, no cap */
+    EXPECT_NEAR(query::progress_display_remap(101.0), 99.99, 1e-9);
+    EXPECT_NEAR(query::progress_display_remap(250.0), 99.99, 1e-9);
+    EXPECT_NEAR(query::progress_display_remap(100.0), 100.0, 1e-9);
+}
+
+TEST(ProgressDisplay, PercentTypeDispatch) {
+    /* M-125: FUN_1401af950 - type 0 -> 0.0 (the reset), type 1 ->
+     * REMAP(raw) with the outer 100.0 clamp, the other types -> raw. */
+    EXPECT_NEAR(query::progress_display_percent(0, 500, 1000), 0.0, 1e-9);
+    /* raw 5 (done 50 of 1000) -> type 1 -> REMAP(5) = 10 */
+    EXPECT_NEAR(query::progress_display_percent(1, 50, 1000), 10.0, 1e-9);
+    /* raw 50 -> type 1 -> 40 (the og's mid-scan ~30% display dip) */
+    EXPECT_NEAR(query::progress_display_percent(1, 500, 1000), 40.0, 1e-9);
+    /* raw 100 -> 100 (the completion) */
+    EXPECT_NEAR(query::progress_display_percent(1, 1000, 1000), 100.0, 1e-9);
+    /* total < 1 -> 0 (the og's divide guard) */
+    EXPECT_NEAR(query::progress_display_percent(1, 10, 0), 0.0, 1e-9);
+    /* the non-remapped types: raw as-is */
+    EXPECT_NEAR(query::progress_display_percent(2, 500, 1000), 50.0, 1e-9);
+}
+
+TEST(ProgressDisplay, MonotonicPublishGuard) {
+    /* M-125: FUN_1401afa60 - a lower value never lowers the display;
+     * the completion message bypasses the guard with its forced 100. */
+    EXPECT_NEAR(query::progress_display_publish(40.0, 39.0), 40.0, 1e-9);
+    EXPECT_NEAR(query::progress_display_publish(40.0, 41.0), 41.0, 1e-9);
+    EXPECT_NEAR(query::progress_display_publish(99.0, 100.0), 100.0, 1e-9);
+}
+
+TEST(ProgressDisplay, CorePermilleStaysLinear) {
+    /* M-125: the engine's own telemetry stays the TRUTHFUL linear
+     * weighted permille (cr_scan's weighted_progress, 40/35/25) - the
+     * remap is the og's DISPLAY layer, a query-side helper; the
+     * engine never lies in its telemetry (the deliberate divergence
+     * registered in PARITY-DELTAS). */
+    const orchestrator::StageWeights w{40, 35, 25};
+    EXPECT_EQ(orchestrator::weighted_progress(w, 0, 0, 0), 0u);
+    EXPECT_EQ(orchestrator::weighted_progress(w, 1000, 0, 0), 400u);
+    EXPECT_EQ(orchestrator::weighted_progress(w, 1000, 1000, 0), 750u);
+    EXPECT_EQ(orchestrator::weighted_progress(w, 1000, 1000, 1000), 1000u);
+    EXPECT_EQ(orchestrator::weighted_progress(w, 500, 500, 500), 500u);
 }

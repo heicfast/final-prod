@@ -31,10 +31,24 @@ Core (audited `67193b6` + concurrent fixes in tree): `src/core/orchestrator/cr_s
   carve; the og's quick/advanced split maps to core's quick/deep+carve (carve is a
   separate stage in core; in the og, RAWSearcher is part of the advanced set — S-006/M-005
   cover the composition differences).
-- **O38 progress** — `M`-equivalent: weighted single-division permilles, per-stage
-  monotonic, pause-compensated elapsed; og's 40→65% save formula and bottomarea
-  semantics are UI-session constructs (session module note); engine-level callbacks
-  bridge with veto (progress-false → cancel) — matches the og's cancel cadence.
+- **O38 progress** — MATCH (M-125 FIXED, the S42 fix lane): the engine's weighted
+  single-division permilles (per-stage monotonic, pause-compensated elapsed) stay the
+  TRUTHFUL engine telemetry — the deliberate engine-side truth registered in
+  PARITY-DELTAS D-118 — and the og's DISPLAY math now lands as the query-layer helper
+  family (`query::progress_display_remap/_percent/_publish`, cr_query.h:88-119):
+  FUN_1401af820's five-segment piecewise remap verbatim (raw<11 → ×2; 11..30 →
+  (raw−11)·0.2+20; 30..90 → ×0.8; 90..98 → (raw−88)·2.7+72; >98 → identity; the
+  defensive 99.99 stall cap — dead for raw in [0,100], the og's defensive branch
+  ported as decoded), FUN_1401af950's type dispatch (0 → reset, 1 → remap+clamp, else
+  raw), FUN_1401afa60's monotonic publish guard (the 98-boundary discontinuity: the
+  2.7 segment tops at 99.0 and the identity tail DROPS to 98.5 — the guard exists to
+  hide exactly that). Tests ProgressDisplay.* (5) + the engine's linear regression
+  pin; og's 40→65% save formula and bottomarea semantics remain UI-session constructs
+  (session module note); engine-level callbacks bridge with veto (progress-false →
+  cancel) — matches the og's cancel cadence. The finding's own test table carried
+  four transcription errors against the corpus constants (raw 20 → 21.8 not 22; 29 →
+  23.6 not 23.8; 98 → 99.0 not 99.4; 99 → 99.0 not 99.99) — corrected per the corpus
+  (the corpus wins).
 - **O39 ETA** — `M`-note: core exposes telemetry for ETA computation (elapsed, rates);
   the og's "Remaining time" formatting is UI-side. No engine gap.
 - **O40 threading** — `M`: engine pass single-threaded with intra-engine parallelism
@@ -299,3 +313,27 @@ reconciliation. See S-051's Resolution addendum in `findings/FIXED/`.
 - **M-114** (MAJOR): MainModule's silent System-Restore purge (srclient SRRemoveRestorePoint via WMI enumerate-all, 510-index fallback, BOTH drives of a copy/repartition pair) — absent, undecided, undocumented even in the corpus. The posture decision (host-consent plan item vs registered decline) is the fix lane's.
 - **N-145** (MINOR): the cross-run apply-interruption marker (the og's pendingMarkedDisk; core's CRUNDO01-only posture) — the in-flight journal recommendation.
 - **N-148 item 6** (MINOR): the ReFS og_prop_flags decoded-but-unconsumed datum (the consumer decode or the passive-datum registration).
+
+## S42 continuation lane (2026-10-29 — the scan-mode semantics focus battery; core `b26017a7`)
+
+- **O31/O38 (the auto-advance state machine) — REGISTER, I-044**: decoded engine-side
+  (CDoScanPartition::DoScan pushes state 1 unconditionally, DRWUI:567875-892; the
+  ScanThread pops states with telemetry events 0-3; controllers 0/1/5/4 = quick/
+  advanced/recycle-bin; the recoverability grade only selects coaching text) — the
+  C1 disposition's "UI-layer state machine" rationale is corrected; the core's
+  default-on stages are confirmed as the correct parity translation. Also
+  registered: settings+0x60/+0x6c are hardwired constants (:947721-22), the
+  4 MiB all-allocated chunk skip (FUN_140585150), the FUN_140581500-vs-FUN_140580720
+  citation erratum, and ZFS compiled out of the shipped og (version.ini scanzfs absent).
+- **O37 (stage order) — DIVERGENCE-MINOR, N-181**: the og starts the RAW carve
+  controllers before the FS deep engines (:916484-916509); the core's carve stage
+  is strictly last — time-to-first-carved-result diverges, result sets identical.
+- **O31/A2 (the deep range) — DIVERGENCE-MINOR, N-182**: the og's deep-only resolver
+  (FUN_14035a6d0: device-type-6 sub-ranges, the 300 MB small-volume rule,
+  neighbor-entry extension); the core reuses the quick slice — D-36's "same
+  StartSector" is the common case, not an invariant.
+- **Grading cells (the recovery-chances battery)**: S-058 (SEVERE — the extension-
+  table gate polarity inverted; the s5 erratum), S-061 (SEVERE — ReFS/Btrfs
+  insert-time High absent), M-133 (the twin-key device family), M-134 (the deep-read
+  validation + full-tree re-grade), N-183 (the gauge population/score/QSDE batch).
+  Worksheet: `../evidence/decompiled-quotes/s42-grading-gate-polarity.md`.

@@ -320,3 +320,11 @@ no prior finding owned.)
   the reconciled tree).
 - The `Thumbnail.*` pin family re-verified green at the pin by the landing-parity
   pass (evidence/s42c-landing-parity.md §8).
+## S42 continuation lane (2026-10-29 — the preview focus battery; core `b26017a7`)
+
+- **Q46 (media metadata families) — DIVERGENCE-MINOR, N-184**: extract_metadata
+  implements MP4 + WAV only (cr_preview.cpp:985-1079); AVI/MKV/MOV/FLAC/MP3/M4A
+  return unsupported where the og's agent-side pipeline derives metadata for every
+  family it opens. The battery's covered ground (M-108 landed, N-144/M-115 active,
+  I-028/OQ-S10-1 registered) re-verified current; the doc-truth staleness cluster
+  (R-28/R-34/ABI-CONTRACT/API-DELTA rows) filed as N-180.

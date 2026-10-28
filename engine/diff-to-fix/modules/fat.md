@@ -269,3 +269,9 @@ MATCH.
   deleted-marker rewrite are caller behavior (unchanged) — 0x05 → 0xE5
   → CP437 sigma. 3 tests (2 fail-before-proven RED on the reverted
   build).
+
+- **N-162 FIXED** (session-43): the cluster→sector u64 width registered as
+  PARITY-DELTAS D-119 (the og's four 32-bit wrap sites vs the core's u64 — the
+  D-56/D-68 numeric-hygiene family's FAT member);
+  FatEngine.ClusterOffsetBeyond2TiB is the down-fix guard (the spec-max
+  cluster's exact address, the wrapped form explicitly not-equal).

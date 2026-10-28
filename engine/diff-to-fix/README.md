@@ -112,6 +112,30 @@ verify_trail_shas.py`); this lane's usersigns finding renumbered **N-161**
 **Board at the S42-D close, post the S12 wave (filesystem truth at
 `c466d732`): 75 active (2 ACUTE · 5 SEVERE · 28 MAJOR · 34 MINOR · 6 INFO) /
 360 resolved ledger rows / 3 tracked-open.**
+**Session-42 continuation lane (2026-10-29 — the user's second-session FOCUS BATTERY:
+file reconstruction / timestamp / recovery chances / partition recovery + API /
+preview / scan-mode semantics; audited core `b26017a7`, corpus `be0cfe9`):** 16 new
+findings + 3 tracked-open, all first-hand verified. The headline set: **S-058** (the
+grading extension-table gate polarity is INVERTED — the core twin-flags the wrong
+extension population; the s5 evidence's polarity line is the erratum the inversion
+inherited), **S-059** (sparse/hole files left-shifted or refused at recovery — the og
+always writes full logical size), **S-060** (recovered files lose timestamps + DOS
+attributes — the og restores both after every item; the N-009d row refuted),
+**S-061** (ReFS/Btrfs never receive the og's insert-time High grade), **M-133..M-137**
+(the grading sub-rules, the deep-read validation, the read-failure semantics, the
+recovery retry-bypass, the lost-partition surfaced shape — the "Lost Partition
+%d(%s)" template resolving M-104's deferred question), **N-180..N-185** (the
+doc-truth staleness batch, RAW-first ordering, the deep-range resolver, the gauge
+accounting, media metadata families — and **N-185: main is RED at the audited
+HEAD**, the opening commit's test re-pin self-defeating, its "green" claim refuted
+by the executed 1136/1093/1/42), **I-044** (the scan-mode decode register — the
+auto-advance state machine, the hardwired gates, two citation errata), **OQ-S42-1/2/3**.
+W1 remove-the-fixed discharged by git-ground (src+include byte-identical to the S12
+live-verification point; the 4 active SEVERE sites re-probed live). **Board: 69
+active (8 SEVERE · 28 MAJOR · 23 MINOR · 10 INFO) / 6 tracked-open.** Evidence: the
+s42 worksheets (4 decompile + liveness + the executed build log). The lane's fix
+order: N-185 (the red-main test repair) → S-058 → S-059 → S-060 → S-061 →
+M-136/M-135 → M-133/M-134/M-137, then the standing board order.
 
 **Session-41 S41 lane (2026-10-29 — the continuation audit lane, the user's second-session
 directive: remove-the-fixed + go-deeper + mark-all-remaining; RECONCILED at push over TWO

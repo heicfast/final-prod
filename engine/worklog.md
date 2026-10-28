@@ -6608,3 +6608,203 @@ Verification discoveries recorded: the raw-sign interplay (apk = PK\x03\x04) and
 S-048 folder-node/inner-entry collection discipline for future test authors.
 Suite 1260/1260. Trail: findings/FIXED/N-143 + ledger + carve.md row + D-118 + this
 entry.
+## Session-42 continuation lane — W2 re-scope: the focus-battery addendum lands (2026-10-29)
+
+The user's continuation directive re-applied with a named focus battery: file
+reconstruction, timestamp, recovery chances status, partition recovery + the
+recovered-partition API support format, preview, and the scan-mode semantics
+(quick vs advanced/deep, trigger parameters, combination, collaboration). The
+directive saved token-redacted at
+`worklog/session-42-continuation-audit-prompt.addendum-focus-battery.md`
+(read twice per the mandate).
+
+**Baselines at this addendum:** core `b26017a7` (the lane-open tip; the S42
+hygiene commit — tests/expectation re-pin + worklog only), corpus `be0cfe9`
+(unchanged since session 8). **W1 ground pre-proven:** `git diff 25e408b8..HEAD
+-- src/ include/` is EMPTY — the source tree is byte-identical to the S12
+reconcile's live re-verification point, so the remove-the-fixed battery runs as
+a verification-of-claims (spot re-probes at the defect sites) rather than a
+blind 53-finding redo; the board reconciles 53 active (4/23/17/9) + 19
+FIXED-file + 3 tracked-open (the 55→53 delta = the N-151/N-153 retirements,
+ledger-verified).
+
+Lane order: W1 (board truth + spot probes) → the six focus lanes (parallel
+context agents, lead first-hand verification per finding) → the S42-declared
+residue batch (config-layer shellexe/TreeType/themdark/DRWLog + the UNVERIFIED
+residuals N-038/I-014/OQ-S10-2-cell) → W4 executed verification (fresh build +
+suite at HEAD) → filings → push.
+
+## Session-42 continuation lane — CLOSE RECORD (2026-10-29; the focus-battery execution)
+
+**Baselines:** core `b26017a7` (audited HEAD; the lane's own commits are trail-only),
+corpus `be0cfe9`. **The mandate:** the user's focus battery — file reconstruction,
+timestamp, recovery chances status, partition recovery + the recovered-partition API
+support format, preview, how scanning works (quick vs advanced/deep, the trigger
+parameters, combination, collaboration) — independently verified and validated, diffs
+filed severe.
+
+**Execution:** six parallel context agents (A–F, one per focus area; agent B
+relaunched once after a gateway deadline) produced context sheets; the LEAD
+first-hand-verified every load-bearing claim before filing (decompile re-reads at
+the cited lines, core re-reads, greps, git-proof, and an executed build+suite).
+One agent claim (a polarity transcription) was REFUTED by the lead's own read and
+became S-061's erratum chain; two dropped entirely for failed verification.
+
+**W1 (remove-the-fixed):** discharged by git-ground — `git diff 25e408b8..HEAD --
+src/ include/` EMPTY (byte-identical to the S12 live-verification point); the 4
+active SEVERE sites re-probed LIVE (all still live); the board reconciled 53
+active (4/23/17/9) + 19 FIXED + 3 tracked-open entering (`evidence/s42-liveness-sweep.md`).
+
+**Filed (16 findings + 3 tracked-open):**
+- SEVERE: **S-061** (the grading extension-table gate INVERTED — the og's
+  twin/deep-validation runs for NOT-in-table extensions; `FUN_1401bebe0` =
+  inequality; control case :585888; the s5 §5 polarity erratum; the "" quirk
+  corroborates), **S-059** (sparse/hole export left-shift or ERR_TRUNCATED refusal
+  vs the og's full-size zero-chunk writes), **S-060** (timestamps + DOS attributes
+  never restored — the og's `:874686-718` block; **the N-009d row REFUTED**),
+  **S-061** (ReFS/Btrfs insert-time High absent — `:605481-497`).
+- MAJOR: **M-133** (the twin-key family {FAT16, EXT2} vs the core's FAT-family),
+  **M-134** (`FUN_14038c470` decoded — the deep-read grade rule + the full-tree
+  re-grade absent), **M-135** (the read-failure semantics batch — truncate/number/
+  keep-partial vs zero-fill/delete; the six-cause taxonomy), **M-136** (recovery
+  reads bypass the scan's Retry+Cache pipe), **M-137** (the lost-partition
+  surfaced shape — the "Lost Partition %d(%s)" template resolving M-104's open
+  question 1, the 10-target cap, the "Quick" registration, the 512 fallback, the
+  presentation rows, the CreateEnumPartitionObject seam).
+- MINOR: **N-180** (the doc-truth staleness batch — six sites), **N-181**
+  (RAW-first start ordering), **N-182** (the deep-range resolver), **N-183**
+  (the gauge population/score/QSDE batch), **N-184** (preview media metadata
+  families), **N-185** (**main RED at HEAD** — the opening commit's test re-pin
+  self-defeating; the "1092/1092 green" claim refuted by the executed
+  1136/1093/1/42).
+- INFO: **I-044** (the scan-mode decode register — the auto-advance state machine
+  [engine-side, unconditional], the hardwired settings gates, the 4 MiB chunk
+  skip, the FUN_140581500 citation erratum, ZFS compiled out of the shipped og).
+- tracked-open: **OQ-S42-1** (NTFS $SI/$FN time precedence), **OQ-S42-2**
+  (Btrfs nsec), **OQ-S42-3** (the deep-read sub-gates).
+
+**W4 (executed verification):** fresh out-of-tree build at HEAD (Release, gcc,
+Linux) + full suite: **1136 ran / 1093 passed / 1 FAILED (Carve.OoxmlRelsPathSplit)
+/ 42 Win-only skipped** — the failure is N-185 (a TEST defect, the engine emits the
+correct uppercase extension); evidence at
+`diff-to-fix/evidence/executions/s42-build-suite-execution.md`.
+
+**Board at close: 69 active (8 SEVERE · 28 MAJOR · 23 MINOR · 10 INFO) / 6
+tracked-open** (53 entering + 16 filed). Matrix: the S42 block at the head.
+Modules: writer/lost-partition/orchestration/preview rows appended. SUMMARY +
+README head blocks written. **Next free IDs: S-059+, M-125+, N-161+, I-037+.**
+
+**Handoff — the recommended first 20 fixes (this lane's filings first):**
+(1) N-185 (red main — the one-line test repair unblocks every other lane's suite);
+(2) S-061 (the polarity flip + test re-pin + the s5 erratum note);
+(3) S-059 (per-extent logical offsets + hole extents — the sparse data-loss refusal);
+(4) S-060 (the DestIo set_metadata surface — timestamp/attribute restoration);
+(5) S-061 (two lines in solo_rules + the ReFS/Btrfs tests);
+(6) M-136 (recovery through the retry pipe) + (7) M-135 (the failure taxonomy +
+partial-file policy that follows it);
+(8) M-133 (the twin-key family set); (9) M-134 (the deep read + the re-grade scope,
+with OQ-S42-3's gates resolved at fix time);
+(10) M-137 (the naming template + the cap + the Quick staging);
+(11) N-180 (the doc-truth batch); (12) N-181 (RAW-first, if the concurrent-pass
+option is taken); (13) N-182 (the resolver or its registered delta);
+(14) N-183 (the gauge accounting); (15) N-184 (the four media extractors);
+then the standing board order: (16) S-054 (the N-013 re-landing — still first
+among the pre-existing SEVEREs); (17) S-048; (18) S-050; (19) S-040;
+(20) M-119 (the read-clamp pass, composing with S-059's writer-side clamp).
+
+READ-ONLY GUARANTEE: held — this lane's writes are diff-to-fix/ + worklog* only
+(git status verified per-commit; the out-of-tree build directory was removed
+after the execution record was taken; no source, test, build, or workflow file
+was touched).
+
+## Session-42 continuation lane — POST-REBASE RECONCILIATION RECORD (2026-10-29; the push-time absorption of the hottest parallel window of the trail, 63 commits)
+
+The lane's filings push was rejected (main had moved 63 commits: the S42-D/S12/S42-main/
+S40-minor lanes' filings + the fix window's landings). The rebase absorbed them and THIS
+entry records the reconciliation (the S12-lane precedent: absorb, re-verify first-hand,
+renumber past the collisions, re-truth the board).
+
+**What the parallel window landed (affects this lane's product):** the S-048 and S-054
+FIX landings (both retired to FIXED/ — this lane's handoff list is re-truthed below);
+A-013 (the CLI resume truncate — FIXED), M-099 (AEP analyser), N-139 (carve OOM), M-116
+(the archive ABI), N-179, N-164/N-168 (the PARITY-DELTAS registrations), and the
+OoxmlRelsPathSplit repair chain (`d10e4aa2` + `1fb7603b` — see N-185 below). The S12
+wave-1's 39 filings (A-013/A-014, S-055..S-057, M-123..M-132, N-161..N-178,
+I-035/I-036/I-040..I-043) + the S42-D lane's M-118/N-154/N-158/N-159/N-160 + the
+S42-B lane's N-158/N-159/N-160-class seats all consumed this lane's ID space.
+
+**ID collisions found and repaired (all 16 of this lane's filings, per the N-129
+earlier-push-wins convention — the remote's earlier pushes keep the seats):**
+S-055→**S-058** (grading gate polarity), S-056→**S-059** (sparse export), S-057→**S-060**
+(timestamp restoration), S-058→**S-061** (ReFS/Btrfs grade); M-120→**M-133** (twin-key
+family), M-121→**M-134** (deep-read validation), M-122→**M-135** (read-failure
+semantics), M-123→**M-136** (retry bypass), M-124→**M-137** (lost-partition shape);
+N-155→**N-180** (doc-truth batch), N-156→**N-181** (RAW-first), N-157→**N-182**
+(deep-range resolver), N-158→**N-183** (gauge/QSDE), N-159→**N-184** (media metadata),
+N-160→**N-185** (re-scoped at the reconciliation: the b26017a7-repin addendum to the
+remote's N-157 — the test is GREEN at the merged HEAD via `d10e4aa2`/`1fb7603b`; the
+finding now preserves the executed proof that b26017a7 itself never repaired anything
+and its "1092/1092 green" claim was false); I-036→**I-044** (scan-mode register).
+
+**Every defect site re-verified LIVE at the post-rebase HEAD `30bc8b79`:**
+- S-058: `cr_grading.cpp:275` — the inverted gate unchanged.
+- S-059: `cr_runlist.cpp:190` (sparse drop) + `cr_safewriter.cpp:442-445`
+  (ERR_TRUNCATED — line drift re-pinned) unchanged.
+- S-060: zero `SetFileTime`/`utimensat` in `src/`+`include/` — unchanged.
+- S-061: `cr_grading.cpp:217-219` — the ReFS/Btrfs early return unchanged.
+- M-136: the raw-device handoff — `rrecov.cpp:2326` (re-pinned from :2080-2082 after
+  the window's CLI landings).
+- M-137: the `Candidate @` root — `cr_scan.cpp:2052-2058` (re-pinned from
+  :1933-1939 after the S-048 window landings).
+- M-133/M-134/M-135/N-180..N-184/I-044: the cited sites are outside every landed
+  fix's file set (verified by the fix commits' --stat) — cites stand.
+
+**Board-truth repairs this lane made at the rebase:** the remote's SUMMARY.md carried
+UNRESOLVED conflict markers (the `39e81d5f` broken merge — `<<<<<<<`/`=======`/
+`>>>>>>>` at its head); this lane rebuilt the file keeping both sides' blocks (the
+remote's blocks above, this lane's renumbered block below per earlier-push-wins).
+
+**Board at the lane's final close (filesystem truth at the post-rebase tree,
+absorbing the second 3-commit window cb93adf9 — M-106/N-143 fixed, M-131
+FIXED-ALREADY): 81 active (1 ACUTE · 9 SEVERE · 29 MAJOR · 35 MINOR · 7 INFO —
+this lane's 16 among them) / 60 FIXED / 6 tracked-open (the prior 3 + this
+lane's OQ-S42-1/2/3).** Next free IDs: S-062+, M-138+, N-186+, I-045+, A-015+.
+
+**Handoff update over the close record (the window changed the standing board):**
+(1) S-054 and S-048 are FIXED — they leave the fix order; this lane's S-058 (the
+polarity flip) and S-059 (the sparse export) move to the top of the SEVERE queue
+alongside the remote's A-014 (the FAT time-word fabrication — the timestamp-battery
+convergent) and S-055..S-057; (2) N-185's code defect is already resolved — only the
+record erratum is owed; (3) the rest of this lane's handoff order stands as filed.
+
+## Session-43 minors lane — N-162 landed (2026-10-29)
+
+**N-162 FIXED (MINOR — the FAT cluster-math width registered).** Both og cast forms
+re-read first-hand (:13194 the explicit (uint) cast, :11239 the 32-bit promotion);
+the core's u64 product re-read live. PARITY-DELTAS D-119 registered (the D-56/D-68
+family's FAT member) with the wrap arithmetic and the silent-corruption rationale;
+FatEngine.ClusterOffsetBeyond2TiB pins the exact u64 address at the spec-max cluster
+and asserts NON-equality with the og's wrapping form (the down-fix guard). No code
+change. Trail: findings/FIXED/N-162 + ledger row + fat.md family note + this entry.
+**M-125 FIXED (the progress display math — the og's piecewise remap +
+the 99.99 cap) — commit `<this push>`:** the display math landed as the
+optional query-layer helper family — `query::progress_display_remap`
+(FUN_1401af820 :314931-314959 verbatim: raw<11 → ×2; 11..30 →
+(raw−11)·0.2+20; 30..90 → ×0.8; 90..98 → (raw−88)·2.7+72; >98 →
+identity; the defensive 99.99 stall cap), `_percent` (FUN_1401af950:
+the type-0 reset / type-1 remap+clamp / else raw), `_publish`
+(FUN_1401afa60: the monotonic guard) — with the engine's truthful
+linear permille untouched (ProgressDisplay.CorePermilleStaysLinear the
+regression pin). **Corpus-wins corrections to the finding's own test
+table:** raw 20 → 21.8 (not "22"), 29 → 23.6 (not "23.8"), 98 → 99.0
+(not "99.4"), 99 → 99.0 (not "99.99"); the 99.99 cap is the og's DEAD
+defensive branch (the 2.7 segment tops at 99.0 and the identity tail
+stays ≤ 100, so the cap fires only for raw > 100 — pinned live at raw
+101/250); the 98-boundary discontinuity (99.0 at raw 98 → 98.5 at raw
+98.5, the og's non-monotonic curve) decoded and pinned — exactly what
+the monotonic publish guard exists to hide. Trail: O38 → MATCH (the
+decode + the helper surface); PARITY-DELTAS D-118 (the linear-permille
+engine truth as the deliberate divergence — the engine never lies in
+its telemetry); findings/FIXED/ with the Resolution; ledger row; matrix
+cell; SUMMARY's S42 block. Tests: ProgressDisplay.* (5); RED by the
+stashed-engine rebuild; suite 1197/1197 green; format clean.
