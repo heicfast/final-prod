@@ -397,7 +397,19 @@ bool list_crsf_files(const char* utf8_dir, std::vector<std::string>& out) {
     if (h == INVALID_HANDLE_VALUE)
         return false;
     const std::wstring dir_w = u8_to_ws(utf8_dir);
-    const std::wstring sep = (!dir_w.empty() && dir_w.back() == L'\\') ? L"" : L"\\";
+    /* join with the CALLER's separator convention (run 40689196858): a
+     * forward-slash dir (the CMake/ctest path style) must stay
+     * forward-slash - a backslash join produced mixed-separator row
+     * paths that never strcmp-matched the caller's own path (green on
+     * POSIX, red on Windows). Both separators LOAD fine on Windows;
+     * comparability is the contract the abi-check pins. */
+    std::wstring sep;
+    if (!dir_w.empty() && (dir_w.back() == L'/' || dir_w.back() == L'\\'))
+        sep = L"";
+    else if (dir_w.find(L'/') != std::wstring::npos && dir_w.find(L'\\') == std::wstring::npos)
+        sep = L"/";
+    else
+        sep = L"\\";
     do {
         if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
             continue;
