@@ -1,3 +1,25 @@
+**Session-46 lane — the N-165 registration lands (2026-10-29).**
+
+- **N-165 FIXED (MINOR, fat)** — the out-of-volume run-end stance registered:
+  both og factory gates re-read first-hand (FATSearchDLL :10865-10903 — the
+  run-end check against the volume sector limit, ReleaseTrace "File
+  overflows partition!", the runlist released; the second factory
+  :28040-28075 the same check). The finding's own plan selected the core's
+  deferred-failure posture (no silent behavior change): REGISTERED as
+  PARITY-DELTAS D-136 — the truncated-tail volume (BPB > device,
+  validate_boot's deliberate allowance) stays a first-class target; the
+  overflow-tail file stays LISTED with its chain extents; the readable
+  prefix recovers and the beyond-device tail discloses as the recovery-time
+  Salvaged (FB-R02), never a scan-time destruction. Pinned by
+  FatEngine.TruncatedVolumeOverflowChainStance. Two plan-truth corrections
+  in the Resolution: the scan-time grade is the chain's own (the finding's
+  "PartialRisk" wording describes the recovery-time disclosure), and
+  reconstruct_deleted_chain bounds the walk at the dentry's declared size.
+  Suite 1281/1281 (1239/42/0). (This lane's earlier landings this session:
+  N-158 `78b9b7aa`, N-159 `035508fa`, N-163 `142a7f40` — each with the full
+  trail; this entry repairs the summary bookkeeping the hot-window
+  rebase orphaned.)
+
 **Session-51 severe-first lane — S-057 landed (2026-10-29).**
 
 **S-057 FIXED (the stop-window auto-save).** Corpus re-verified first-hand

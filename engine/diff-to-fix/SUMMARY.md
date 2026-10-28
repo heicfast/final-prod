@@ -12,6 +12,8 @@ halves of the polarity pin) and convergence addendum ride in the finding file;
 its redundant code/tests were dropped per the superset rule (the winning 23/23
 battery incl. S-061's ReFS/Btrfs insert-time pins stands).
 
+**Session-46 lane landings (the other MINOR-first seat, 2026-10-29):** **N-158 FIXED** (`78b9b7aa` — the OfficeTagFromXML five-branch typing tail: XMIND/MMAP/EDDX/WFP/DRP, the disassembly-decoded XMIND probe + the no-stop chain walk + D-134), **N-159 FIXED** (`035508fa` — the failed-files report's tree_class axis + failed_bytes split + the three register repairs), **N-163 FIXED** (`142a7f40` — the NTFS runlist truncate-and-keep tolerance + the torn flag + PartialRisk grading + D-135), **N-165 FIXED** (`7f4f30d4` — the FAT out-of-volume stance registered D-136 + the stance pin). Suites green at each push; the full Resolutions ride the finding files + ledger rows.
+
 ## Session-44 minors-lane delta (2026-10-29 — the minor-first diff-fix execution lane per the user's operative directive; opened on `9807934` (the N-172/N-173 landing), corpus `be0cfe9`; suite at open 1203 green / 1161 pass · 42 win-skip · 0 fail)
 
 **Board at open (this lane's view): 77 active — 1 ACUTE · 9 SEVERE · 28 MAJOR ·
