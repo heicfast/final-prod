@@ -28,3 +28,9 @@ priority order · T20 close-out: board docs, handoff.
 - **[T1]** Repos pulled; core at `fa654673`, corpus at `be0cfe9`. Audited-commit lineage recorded. Mandate saved.
 - **[T2/T3]** diff-to-fix/ read (README, SUMMARY, all live finding files, module docs); core tree walked.
   Baseline build + full test suite next.
+
+- **[f3e3a4b0]** A-014 FIXED (ACUTE): FAT time-word gate = the full DosDateTimeToFileTime accept set; 3 tests; finding+ledger updated.
+- **[7cd8be5e]** S-055+S-056+N-171 FIXED (one carve patch): built-in-first collision rule executed, disabled-format toggle gates user signs, user-sign records count in carved_found; zero-skip restructure + stale-matches clear; 3 RED-before tests.
+- **[486c8d8d]** S-058 FIXED (SEVERE): grading ext-table gate polarity corrected (NOT-in-table = the deep/twin population, verified vs FUN_1401bebe0 inequality comparator + :585888 control case); s5 evidence erratum recorded; 2 tests re-pinned.
+- **[8917b012]** S-061 FIXED (SEVERE): ReFS/Btrfs insert-time High grade (FUN_14038a470 :605481-497); 2 tests.
+- **[70d94f8c]** M-124 FIXED (MAJOR): EBR link 0x85 (Linux extended) joins the chain path; 1 RED-before test.
