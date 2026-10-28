@@ -79,3 +79,12 @@ ctor cite "(ctor :21316-21318)"** — the same defect class E63 fixed for
 WPG was never fixed for MDB's E51 row (the real MDB ctor bounds sit at
 :16539-41 per the session-5 decode). Add to the fix plan: correct E51's
 cite alongside the S-007 addendum.
+
+---
+
+## Resolution
+
+**Status:** FIXED-ALREADY
+**Fixed in commit:** (landed by the parallel session-8/SCAN-4 lanes; classified this session — the session-38 minor-first lane)
+**Verified by:** the live-trail reproduction: CORPUS-ERRATA **E55** (read this session) carries exactly this finding's corrections — "the u32 keyed registry's bindings live at :1728-2509 (59 entries) and the u16 registry's at :2536-2911 (35 entries) — total 94 keyed bindings; the landing's cited regions ':5450-6600'/':6205-6590' are INI-parsing and std::streambuf code (N-99; evidence s8-autosave-and-stamps.md §7)" — with the evidence file's §7 read this session (:94/:101 quote the corrected regions); the WPG constant's byte order (0x00677077 LE, not 0x77706700) is corrected at SCAN-ENGINE-DELTA:78/:260 and modules/carve.md:630; the WPG/MDB ctor-line re-pins ride E55's evidence file; the WMF grammar correction is S-042's own resolution (f6e303e).
+**Resolution notes:** The finding's asks were (1) the S-007 addendum and (2) the census errata rows — both landed by parallel lanes before this session reached the item: the corrections live in E55 + the live gate docs (the retired S-007 file's history copy carries the landing-time cites; the LIVE truth is E55 + the corrected SCAN-ENGINE-DELTA/carve.md rows). No code change was ever needed (every shipped constant was correct except the WMF grammar = S-042, separately resolved). This classification is recorded so the board reflects that the citation-truth tail is closed.

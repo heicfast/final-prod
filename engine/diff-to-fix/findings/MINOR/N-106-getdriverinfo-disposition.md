@@ -46,3 +46,12 @@ N-101 (the inventory arithmetic wave that surfaced it).
 ## Open questions
 
 None.
+
+---
+
+## Resolution
+
+**Status:** FIXED-ALREADY
+**Fixed in commit:** (landed by the parallel session-8 wave-2 lane; classified this session — the session-38 minor-first lane)
+**Verified by:** the live-trail reproduction: SURFACE-INVENTORY:86 (read this session) carries the GetDriverInfo.dll row — "REGISTERED session-8 wave-2 (N-106) — the one surface the corpus index carried with zero trail disposition: GetLogicalDrives/GetDriveTypeW letter-topology MOM module (TB lineage). OUT-OF-SCOPE by lineage for the recovery engine (the DRW flow's own enumeration = the N-071 census); the sixth-source note added to N-071's row" — exactly the finding's fix-plan step 1 and step 2 (the row cites the getdriverinfo--tb-module-decode artifact + the per-binary card + architecture/00-INDEX.md:64).
+**Resolution notes:** The disposition the finding demanded (OUT-OF-SCOPE by lineage, registered not silent) is live in the inventory with the corpus cites; the sixth-source note on N-071's row landed with it. Nothing remained to edit this session beyond the classification record.

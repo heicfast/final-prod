@@ -55,3 +55,12 @@ history — the real file is `M-024-no-runtime-format-filter-surface-vs-og-rawco
 (the substance is unaffected; the cite is corrected here). Fix plan update:
 add cr_carve.h:88 to the sweep list (now three sites: FIXED/M-024:6,15;
 cr_carve.h:88).
+
+---
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-102 doc-truth batch — the session-38 minor-first lane)
+**Verified by:** grep of the live tree: the last live "37 toggles"/"propagation pending" site was SURFACE-INVENTORY:60 (the finding file itself and its :6/:15 mentions were retired to git history by the SA-10B purge — historical records, correct to leave).
+**Resolution notes:** Re-verified at current main: the recount (34, CORRECTIONS #5) had propagated everywhere EXCEPT SURFACE-INVENTORY:60's "propagation pending this session" note (two sessions stale) and PARITY-CORE-REC:125's "37 extension toggles" (that one landed via this session's N-095 fix). The inventory note is flipped to done with the propagation map (PARITY-CORE-REC via N-095; the retired finding file's own mentions stay historical in git history per the purge convention). The count-independent RawConfig parsing is untouched (the finding's own impact note).

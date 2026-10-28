@@ -48,3 +48,12 @@ Corpus first-hand this session: the decompile sites read (pipe create :430715; d
 ## Open questions
 
 None.
+
+---
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-097 doc-truth batch — the session-38 minor-first lane)
+**Verified by:** the corpus chain re-read first-hand before the edit: DRWUI_decompiled.c:430715 (CreateNamedPipeA for `\\.\Pipe\DRWBitlocker`) + :430781-430798 (the delete+rewrite of auto.txt) + the 316-B og file's structure — all as filed.
+**Resolution notes:** Re-verified at current main: PARITY-OG-CORE-INVENTORY:55 still filed auto.txt as "INSTALLER — WinPE auto.bat payload" via the miscited boot-config artifact. The row is corrected to the truthful classification: DATA (FVE) — the BitLocker auto-unlock key snapshot DRWUI persists plaintext at the install root, with the pipe-creation and rewrite decompile sites cited, the og file's decoded structure (u32 count + one 0x138-B record), the SECURITY datum for host deployers (the og persists key material at the install root; the core never does — unlock-only, in-memory, S-014), and the OOS-UI/DRWService-sidecar scope. The core's safer no-persistence posture is unchanged (the finding demanded registration, not behavior).

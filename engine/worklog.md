@@ -2319,3 +2319,20 @@ Stage Summary:
 - S-043 fully closed across both lanes. Territory re-read after the
   parallel landings: M-083 (grade promotion) is next - M-080/S-044/N-092/
   M-088/N-116 already landed by others. Then M-085, M-079, S-045, S-040.
+---
+Doc-truth batch C (N-104 + N-097 + N-102 + N-123 + N-101 + N-120 + N-099 + N-106):
+every site re-verified at current main first. FIXED live this batch: N-104 (ldm.md's
+dangling table.md ref dropped; CAPABILITY-MATRIX's HFS+ row flipped to DONE with the
+engine cite re-verified first-hand at cr_hfsplus_engine.cpp:514); N-097 (the auto.txt
+inventory row corrected to the FVE-key-snapshot truth - pipe create :430715 + rewrite
+:430781-798 re-read first-hand; the plaintext-at-install-root security datum registered);
+N-102 (the SURFACE-INVENTORY propagation note flipped to done - the retired M-024 file's
+mentions stay historical); N-123 (cli.md's 7-verb row -> the 11-verb dispatch with the
+wave cites + exit 4 added); N-101's one live residue (per-binary 113/114 -> 112/114 -
+deepening-batch1 is cited by M-064); N-120's live residues (same arithmetic item; the
+rest verified already landed). FIXED-ALREADY with reproductions: N-099 (E55 carries the
+registry-region/94-binding corrections verbatim + the WPG byte-order fixes live at
+SCAN-ENGINE-DELTA:78/260 + carve.md:630); N-106 (the SI:86 GetDriverInfo row with the
+OUT-OF-SCOPE-by-lineage disposition + the N-071 sixth-source note); N-101's and N-120's
+other items (the session-9 currency pass's arithmetic; the S-050 FileRepair pointer
+repair; the EuShare count; the be0cfe9 pins).

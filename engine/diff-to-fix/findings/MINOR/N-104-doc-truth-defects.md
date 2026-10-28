@@ -37,3 +37,12 @@ N-101/N-102/N-103 (the same truth-pass wave).
 ## Open questions
 
 None.
+
+---
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-104 doc-truth batch — the session-38 minor-first lane)
+**Verified by:** direct site reads before/after; the HFS+ replacement's engine cite re-verified first-hand (cr_hfsplus_engine.cpp:514 = the S-021 journal-harvest block, read at the current tree).
+**Resolution notes:** Re-verified at current main: (1) modules/ldm.md:1's title parenthetical still referenced the nonexistent `table.md` — dropped with the correction note (the module doc's own rows cover src/core/table/); (2) CAPABILITY-MATRIX's HFS+ attributes/journal row still read "absent — MISSING" while S-002/S-003/S-021 are all resolved — flipped to DONE with the engine cite (cr_hfsplus_engine.cpp:514-602), the three finding refs and the D-46/D-53/D-91/D-93 semantics registrations named.

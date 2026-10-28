@@ -104,3 +104,12 @@ runtime, but §3 registers only Cloud/NAS/remote, BitLocker-derivation, signing,
 (wrong-register pointers make registered exclusions look silent); (c) PARITY-CORE-REC's
 repair-chain exclusion text sits at :163, not :164 (the off-by-one repeated across three
 findings' cites).
+
+---
+
+## Resolution
+
+**Status:** FIXED (one live residue) + FIXED-ALREADY (the rest, by the parallel session-9/SA-10B lanes)
+**Fixed in commit:** (this session's N-101 doc-truth batch — the session-38 minor-first lane)
+**Verified by:** the live-tree reproduction of each already-fixed half (reads cited below) + the one remaining arithmetic item fixed and re-verified.
+**Resolution notes:** Re-verified at current main, item by item: the §8 arithmetic corrections (92-by-basename/110-any-form/134-never-cited + the corrected globs) were ALREADY landed by the session-9 currency pass (SURFACE-INVENTORY:22-27 — read this session); the EuShare 2-artifact row correction at :40 and the never-cited note at :125 — ALREADY landed; the three classification-row corrections — the per-binary row carried the one LIVE residue (it still said "113/114 never-cited; libvmdk ×1" while deepening-batch1 is also cited by M-064 at SI:41/ PARAMETERS:152 — now 112/114 with both cites named); GetDriverInfo — the N-106 disposition row EXISTS at SI:86 (that finding's own resolution); the Eaolog.log + BuildRaw.log/DelFat.log registration lines — ALREADY landed at SI:132-133; the DataFile.ini/DRWReport.ini/Upgrade.ini/auto.txt rides — I-027's rows + this session's N-097 auto.txt correction. The one live edit this session: the per-binary 112/114 arithmetic. Everything else was verified as already landed and is recorded here with its reproduction.

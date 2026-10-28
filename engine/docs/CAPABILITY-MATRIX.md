@@ -40,7 +40,7 @@
 | ext4 live+deleted | EXT4SearchDLL | SB/GDT/inodes/extent trees, deleted inodes, orphan sweep | **DONE** | test_ext4_volume.cpp |
 | ext4 journal salvage | walk-all (E-2 decompile pin) | every block in [s_first, s_maxlen) feeds the dir parser | **DONE** | D-07 CLOSED; JournalSalvage test |
 | HFS+ | HFSSearchDLL | volume header, catalog+extents B-trees, fork model, orphan sweep | **DONE** | test_hfsplus_volume.cpp; F-A2-17/18 verified W-audit |
-| HFS+ attributes B-tree / journal replay | not evidenced engine-side | absent | **MISSING (registered gap, D-L)** | CAPABILITY note; og extent itself UNVERIFIED |
+| HFS+ attributes B-tree / journal replay | HFSSearchDLL (decmpfs attribute harvest + the journal's deleted-record differential) | landed: the attributes-tree walk incl. decmpfs (S-002), full journal replay (S-003) + the journal-deleted differential harvest (S-021 — `cr_hfsplus_engine.cpp:514-602`; semantics registered D-46/D-53/D-91/D-93) | **DONE** | modules/hfsplus.md; the S-002/S-003/S-021 resolutions |
 | Btrfs | BtrfsSearchDLL | mirror SB select, chunk mapping, tree walk, subvolume roots, inline extents, compressed extents (zlib/lz4/zstd) | **DONE** | BTR-2/3/4 W2; test_btrfs_volume.cpp incl. compressed fixtures |
 | Btrfs old-generation trees | none (max-gen only) | same (parity) | **DONE (parity)** | D-06 header note |
 | ZFS | ZfsSearchDLL | label nvlist, uberblock ring (every valid state walked — per-txg history, S-034 FIXED: newest state live, older states feed the deleted tree with identity dedup), MOS/ZPL, dnode walk, embedded blocks, gang blocks, compressed extents | **DONE** | test_zfs_volume.cpp incl. Zfs.Ring* (S-034); D-05 corrected to the fixed stance |

@@ -47,3 +47,12 @@ N-124 (the same recurrence class in transport.md); N-020 (the prior fix).
 ## Open questions
 
 None.
+
+---
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-123 doc-truth batch — the session-38 minor-first lane)
+**Verified by:** the dispatch recounted at the current tree (rrecov.cpp:3043-3063 — 11 verbs: list, list-carve-formats, sessions, scan, tree, recover, health, fix, apply, bench, driver) against modules/cli.md's "exactly 7 commands" row; exit 4 confirmed in the rrecov.cpp docstring + docs/DRIVER-REQUIRED.md.
+**Resolution notes:** Re-verified at current main: the CLI module row undercounted the verb surface by four (N-020's 7-verb correction predating the N-033/W1a/S-029/D-DRV-3/bench waves) and omitted exit 4. Both rows rewritten: the commands row now lists the 11-verb dispatch with each wave's cite and points at the four-site verb lock (grown by this session's N-094, enforced by `CrUi.CliHelpListsEveryDispatchedVerb` — which also guards this module row's truth indirectly by pinning the source); the exit-code row gains exit 4 (the driver prerequisite) plus the sessions/apply/fix/bench exit semantics that had also accrued. The optional doc-parse test the finding suggested is superseded: the N-094 regression pin already fails if any future verb wave drifts the dispatched surface, and the module row cites it.

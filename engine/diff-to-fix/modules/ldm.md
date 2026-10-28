@@ -1,4 +1,4 @@
-# modules/ldm.md — partition table + LDM module audit verdicts (table.md covers MBR/GPT/EBR)
+# modules/ldm.md — partition table + LDM module audit verdicts (MBR/GPT/EBR covered in this file's own table rows; the former `table.md` reference was dangling — N-104)
 
 Reference: Partition.mo / LdmManager.mo / PartitionRecoveryD per corpus artifacts
 `PartitionRecovery/mo-module-map.md`, `PartitionRecovery/rawfixer-v2--method-inventory.md`,

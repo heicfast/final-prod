@@ -47,3 +47,12 @@ N-119 (D-88, the same register-truth family); the session-8 GAP-SWEEP sheet.
 ## Open questions
 
 None.
+
+---
+
+## Resolution
+
+**Status:** FIXED (the live residues) + FIXED-ALREADY (the rest, by the parallel lanes)
+**Fixed in commit:** (this session's N-120 doc-truth batch — the session-38 minor-first lane)
+**Verified by:** per-item live-tree reads (below); the load-bearing wrong-register pointers verified FIXED before classification.
+**Resolution notes:** Re-verified item by item at current main: (a) I-010's D-26 pointer over-claim — the finding file is retired to git history (SA-10B purge); the live registers are truthful (licensing = D-32, installer = S-038/PACKAGING, runtime-families = the OGI RUNTIME legend :39) and the runtime-families no-row gap is superseded by the OGI legend's own registration — nothing live to edit, recorded here; (b) SURFACE-INVENTORY:85-86's wrong-register exclusion pointers — the FileRepair row was rewritten by the SA-10B S-050 filing ("the prior row's OUT-OF-SCOPE (CAPABILITY-MATRIX §3) citation was FALSE") — FIXED-ALREADY; (c) the EuShare artifact count — FIXED-ALREADY (SI:40 "2 artifacts — was a miscount"); (d) the per-binary never-cited arithmetic — the one LIVE residue, fixed this session alongside N-101 (113/114 → 112/114 with both cites named); (e) PARITY-CORE-REC's repair-chain line — verified at :163 (the three findings citing :164 are retired to history; the live text needs no edit); (f) the corpus-commit pins — FIXED-ALREADY (be0cfe9 at SI:20/:138-139 and PARAMETERS:13, read this session). The load-bearing class (wrong-register pointers that made registered exclusions look silent) is closed; the trail's navigation boards are consistent.

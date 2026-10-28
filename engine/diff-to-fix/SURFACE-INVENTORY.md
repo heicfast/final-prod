@@ -57,7 +57,7 @@
 | ReFS engine | `artifacts/SearchDLL/refs*` (cited); tracked-open OQ residuals | AUDITED (modules/refs.md; N-036 registered) |
 | LDM dynamic disks | `artifacts/SearchDLL/ldm*` (cited) | AUDITED (modules/ldm.md) |
 | Session .rsf format | `artifacts/SaveScan/*` (5/5 cited); `ifileproperties-part1/2/3` | AUDITED (modules/session.md) — **part1 (NTFS/FAT/exFAT schemas + 23-slot interface) under-cited ×1 vs parts 2/3 (×6/×8)** |
-| FileFilter / RawConfig config | `artifacts/config-files/*` (cited); `og-codebase/config/RawConfig.ini` | AUDITED (M-023/M-024) — **M-024's "37 toggles" count superseded by CORRECTIONS #5 (actual 34) — propagation pending this session** |
+| FileFilter / RawConfig config | `artifacts/config-files/*` (cited); `og-codebase/config/RawConfig.ini` | AUDITED (M-023/M-024) — **M-024's "37 toggles" count superseded by CORRECTIONS #5 (actual 34) — propagated (N-102): every live count site now reads 34 (PARITY-CORE-REC via N-095; the retired finding file's own :6/:15 stay historical in git history)** |
 | User-extensible signature DB (EUUserData) | `artifacts/config-files/userdata-remoteconfig--signature-and-flags.md` | **AUDITED this session** (wave 5: S-039 the caps reject the og's own DB — 15/111 violate, 0 load, scan aborts; M-065 no default set — 79 extensions stock-absent; OQ-SA-3 the consumption-mode probe) |
 
 ## 3. Carve / raw-signature surfaces
@@ -97,7 +97,7 @@
 | Crash supervisor / launcher chain | `artifacts/DRW-exe--launcher.md`, `DRWReport-exe--crash-reporter.md` | DRW.exe → DRWUI supervision | OUT-OF-SCOPE (no UI/launcher in the merged product) |
 | File repair line | `artifacts/FileRepair/` (8/8 — all first-cited by S-050) + the 9 og binaries + `remote_config_data` flags | EUFileRepair/Fixo product line (photo/video/office/HWP/raw/archive repair) | **AUDITED this session (SA-10B): S-050** — unimplemented AND the prior row's OUT-OF-SCOPE (CAPABILITY-MATRIX §3) citation was FALSE (§3 does not list the repair line); the capability gap + the registration drift are S-050's two defects |
 | Cloud / licensing / languages / runtime families | `artifacts/Cloud/`, `Licensing/` (beyond retention), `Languages/`, `runtime-families/` | Cloud pairing, activation, localization, runtime DLL census | OUT-OF-SCOPE (registered exclusions) |
-| per-binary identity cards (114) | `artifacts/per-binary/` (113/114 never-cited; libvmdk ×1) | Per-binary RTTI/import/strings censuses | Reference material — consulted per-surface above; not individually auditable surfaces |
+| per-binary identity cards (114) | `artifacts/per-binary/` (112/114 never-cited; libvmdk ×1 via modules/mom-capabilities.md:40 + deepening-batch1 ×1 via M-064 — the "113/114" row was the N-101/N-120 arithmetic drift, corrected) | Per-binary RTTI/import/strings censuses | Reference material — consulted per-surface above; not individually auditable surfaces |
 
 ## 6. The corpus's installer-behavior parameters no finding owns (the §5 app-installer ground truth, enumerated)
 
