@@ -99,12 +99,8 @@ CarveResult validate_3ds_ncsd(IStorageDevice* s, u64 hit, u64 cap); /* the list-
 CarveResult validate_ts(IStorageDevice* s, u64 hit, u64 cap);       /* S-047: CMTS, 188-byte */
 CarveResult validate_m2ts(IStorageDevice* s, u64 hit, u64 cap);     /* S-047: CM2TS, 192-byte */
 CarveResult validate_html(IStorageDevice* s, u64 hit, u64 cap);     /* M-092: the four-key chain */
-<<<<<<< HEAD
-CarveResult validate_xmlsvg(IStorageDevice* s, u64 hit, u64 cap); /* M-093: the shared chain */
-CarveResult validate_mobi(IStorageDevice* s, u64 hit, u64 cap); /* M-096: the salvage gate */
-=======
 CarveResult validate_xmlsvg(IStorageDevice* s, u64 hit, u64 cap);   /* M-093: the shared chain */
->>>>>>> 909e968 (fix(carve): N-093 - the batch-1 bound pairs become the og's registered caps (MID 10 MB / GZ 20+400 MB / PSP 36+20 MB / SIT 20,480+200 MB))
+CarveResult validate_mobi(IStorageDevice* s, u64 hit, u64 cap);     /* M-096: the salvage gate */
 
 namespace {
 const Signature kTable[] = {
@@ -1095,7 +1091,6 @@ const Signature kTable[] = {
      620,
      validate_xmlsvg,
      "SVG image"},
-<<<<<<< HEAD
     /* M-096: MOBI - the BOOKMOBI pair at +0x3C is the whole gate (the
      * full-salvage posture: the 0x3C bytes before it are never read);
      * the 512-step end-tag walk, cap 500 MB. Shipped RawConfig MOBI=1 -
@@ -1110,9 +1105,6 @@ const Signature kTable[] = {
      620,
      validate_mobi,
      "Kindle e-book"},
-=======
-    {FMT_SVG, "svg", {'<', 's', 'v', 'g'}, 4, 0, 0, 0x100000ull, 620, validate_xmlsvg, "SVG image"},
->>>>>>> 909e968 (fix(carve): N-093 - the batch-1 bound pairs become the og's registered caps (MID 10 MB / GZ 20+400 MB / PSP 36+20 MB / SIT 20,480+200 MB))
 };
 } // namespace
 
