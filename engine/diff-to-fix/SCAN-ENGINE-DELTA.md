@@ -289,8 +289,12 @@ c899998); every commit since is docs/CI-only. OQ-SA-1 FAT/exFAT halves landed
 (409503c); OQ-SA-3 correction batch landed (93097cb — CORPUS-ERRATA E-A/E-B +
 PARITY-DELTAS D-104). Two stale rows found in docs/PARAMETERS.md §3 (the
 user-sign caps row predates the S-039/M-067 v3 values 12/48/1024/80; the
-"4-8 MiB carve window" row predates the landed 1 MiB+4 KiB model) — fixed
-this session (formats/parameters phase). Board hygiene note for the owning
+"4-8 MiB carve window" row predates the landed 1 MiB+4 KiB model) — ~~fixed
+this session (formats/parameters phase)~~ **[session-8 correction: the claim
+was FALSE — `git log -- docs/PARAMETERS.md` proves no commit after `41a2c56`
+(2026-10-26) touched the file; the rows are STILL stale at every tree since.
+Filed as N-108 with the product-side fix plan; the adjacent cr_rawsigns.h
+"30 formats" comment is the same class.]** Board hygiene note for the owning
 lane: M-068's finding file still sits in MAJOR/ though its own text records
 the fix (43f4962) — move to FIXED/ + amend the SUMMARY count.
 
@@ -347,8 +351,10 @@ detected extensions into the +0x60 set (FUN_18000ed00 sites :19626/:20222/:20892
    MOBI/JP2 stay registered as the og's list-layer posture — a core-side
    equivalent sweep hook if the grammar is extractable, else documented
    remainder).
-3. **Formats & parameters** — the two stale docs/PARAMETERS.md §3 rows fixed
-   (user-sign caps; carve window). No open rows in diff-to-fix/PARAMETERS.md.
+3. **Formats & parameters** — the two stale docs/PARAMETERS.md §3 rows ~~fixed~~
+   **[session-8: NOT fixed — see the correction at the Core state verification
+   block above; N-108 owns the fix]** (user-sign caps; carve window). No open
+   rows in diff-to-fix/PARAMETERS.md.
 4. **Combination layer** — audit-verified present (roots/dedup/Lost Files/
    find_by_extent all landed); no action.
 5. **Corpus errata** — the +0x60/+0x64/+0x40 correction rows (core
