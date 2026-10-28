@@ -68,3 +68,19 @@ Per format (in the decode-then-land order): `plant_<fmt>_over_cap` (true size > 
 3. SWF's site takes its size from FileLength (:4308) with no 64 MiB cap — as the finding's own open question 3 anticipated.
 
 **Enumeration extended:** the M-093 landing's own residual — the CSL 0x44c size branch (dword@0x44c + 0x480, corpus FUN_180041950 :49749+) — is the same unowned-stand-in class; filed as **M-112** this session (this lane filed it as M-111; renumbered at the push-time reconciliation over the parallel S11 lane's explorer-browse M-111) (it was recorded only in a code comment + the retired M-093 Resolution). The class now has twelve member sites across two findings (M-107's eleven + M-112's CSL).
+
+
+---
+
+## S11-R addendum (2026-10-29, the reconciliation lane; re-verified at `b6e0a9ef`)
+
+**Two factual corrections to this finding's own text (this lane's re-read;
+the 0x44c CSL fold is already landed above as M-112 — the enumeration stands
+at twelve member sites + M-112's):** (a) AI **has its own validator**
+(`validate_ai` in cr_analysers.cpp, FMT_AI row in cr_registry.cpp) — the
+finding's "no separate AI validator exists" parenthetical is wrong (the
+stand-in substance holds: the validator's size walk is the DWG-pattern
+bounded extent, not the og's); (b) the EPS/AI stand-ins are **16 MiB**, not
+the title's blanket 64 MiB — already so at the filing baseline (verified via
+the filing commit's tree). Cosmetic to the finding's own text; recorded so
+the fix wave does not re-derive the wrong bounds.

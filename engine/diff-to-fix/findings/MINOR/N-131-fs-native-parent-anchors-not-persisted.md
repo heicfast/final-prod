@@ -56,3 +56,21 @@ The exFAT +0x54 semantics (anchor twin vs type-registry ID) rest on the family-p
 ## Session-11B addendum (2026-10-29): cite refresh + the N-100 framing update
 
 The write site drifted to `src/core/session/cr_records.cpp:177` (was :175 — N-100's landing added the bit-9 block at :174-175). The nflags ladder now ends at bit 512 — no 1024/2048 parent-anchor bits; the finding's defect is unchanged. **Framing refresh:** the file's "N-100 (ACTIVE)" cross-reference is stale — N-100 is FIXED (faa547f7, ledger-conformed b6b012af) and its landed bit-9 carrier is now the PRECEDENT for this finding's fix plan (the same flag-gated block pattern extends to the parent-anchor fields).
+
+
+---
+
+## S11-R addendum (2026-10-29, the reconciliation lane; re-verified at `b6e0a9ef`)
+
+**Fix-plan re-base (this lane's unique product; the parallel lanes' re-triage
+did not re-base it):** (a) the finding's cr_node.h "+0x60 declined datum"
+precedent is superseded — `faa547f7` landed the +0x60 carrier
+(`FileProperties::ntfs_total_clusters`, N-100), so that argument is moot;
+(b) the proposed carrier bit 512 is **TAKEN** — the N-100 landing uses bit 512
+in the own-file anchor block (cr_records.cpp:174/:278/:475 carry the field;
+the zero-total gate keeps old records shape-identical). A landing must
+allocate different bits for the parent anchors. The core claim and impact are
+unaffected: `cr_records.cpp`'s persisted parent datum remains the id list
+only; no parent-anchor field exists anywhere (repo grep
+`parent_anchor|parent_reference|parent_frn|parent_cluster|parent_twin` → 0
+hits at `b6e0a9ef`).

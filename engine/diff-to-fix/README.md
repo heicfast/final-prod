@@ -107,6 +107,28 @@ filings cite the current tree). See `evidence/s11-lead-deep-lanes.md` and the
 SUMMARY's session-11 head block.
 
 
+**Session 11 / S11-R (2026-10-29 — the reconciliation lane; the user's second-session instruction, executed against the hottest push window of the trail):**
+audited **core `8365956e`** → re-verified **`b6e0a9ef`** · **corpus `be0cfe9`**.
+The lane executed the three asks (board truth · the 54-finding re-triage ·
+the S10-F queue: the RAWSearchDLL infra walk, the API-DELTA currency pass,
+the OQ-S8-1 trace) and then reconciled over **63 concurrent-lane commits**
+(the parallel S11/S11B/lead/39/40/S12 lanes + the fix wave: M-108/M-109/
+M-110/M-072/M-074/M-077/M-102+M-083/N-093/N-111..N-113/S-051 all landed).
+UNIQUE product landed: **M-116** (the M-100 re-open — the archive
+inventory's ABI half; the retirement's "reachable today" claim refuted
+first-hand at two trees), **N-150** (the API doc-truth batch — the
+false-missing R-84 pair, the doubly-stale R-37, the 81-vs-83 and 34-vs-38
+count drifts, all re-verified current), the N-131/N-132/M-107 addenda, the
+I-031 register extension (only_common + the A4 phrasing), and the
+re-created findings/FIXED/ sweep (7 ledger-rowed files). The lane's ABSORBED
+work (the duplicated board-truth repairs, the OQ-S8-1 resolution → the
+remote M-111, the RAW infra walk → their N-139/N-140 + I-031, the N-134
+retirement, the re-triage) is enumerated in the worklog + the matrix's
+S11-R block; the full lane state is preserved in the session-11-local-backup
+branch. Evidence: `evidence/s11r-api-currency-pass.md`.
+**Board after S11-R: 64 active (7 SEVERE · 21 MAJOR · 29 MINOR · 7 INFO) /
+300 resolved ledger rows / 3 tracked-open.**
+
 **Merged product repository (audit + dev-sign target):**
 **https://github.com/heicfast/core_recovery** — confirmed by inspection (core
 engine `src/core`+`include/cr`, win layer `src/win`, driver-consuming transport,

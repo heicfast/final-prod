@@ -16,6 +16,55 @@ S-048/S-050/S-040 their queue; no duplication). Opens at core `c0f69250`, corpus
 ledger rows · 3 tracked-open.**
 
 ---
+# SUMMARY.md — executive summary (the S11-R reconciliation lane on top; the prior lanes below, newest-first)
+
+## S11-R delta (2026-10-29 — the reconciliation lane: the 63-commit push window absorbed; the unique product landed)
+
+**Audited: core `8365956e` (the lane's open baseline) → re-verified at
+`b6e0a9ef` (the post-window HEAD, code-current).** The lane opened against
+the S10-F close and executed all three asks (board truth · the 54-finding
+re-triage · the S10-F queue: the RAWSearchDLL infrastructure walk, the
+API-DELTA currency pass, the OQ-S8-1 trace) — then hit the push rejection:
+**63 concurrent-lane commits** (the parallel S11/S11B/lead/39/40/S12 lanes
+executing the same three-ask instruction + the fix wave: M-108/M-109/M-110/
+M-072/M-074/M-077/M-102+M-083/N-093/N-111/N-112/N-113/S-051 landed).
+Reconciled per the SOP (earlier remote push wins; extend-don't-refile; no
+duplication): the lane's ABSORBED work is enumerated in the worklog and the
+matrix block; the lane's UNIQUE product landed this push:
+
+- **M-116** (MAJOR — the headline): **the M-100 re-open.** The session-10
+  retirement's residue claim ("reachable today through
+  cr_ui_preview_metadata") is FALSE — verified first-hand at TWO trees:
+  `cr_ui_metadata` (cr_ui.h:1214-1224) has no entries field and
+  `preview_metadata_impl` (cr_ui.cpp:3613-3631) never touches
+  `Metadata.entries`. The archive inventory (M-066's engine, the CD walk,
+  the 512-entry bound) is unreachable from every shipped consumer surface —
+  the M-102 repair shape (two-call export) is the fix. No remote lane caught
+  it (the findings-tree grep for the symbols: zero). The M-100 ledger row
+  carries the re-open annotation.
+- **N-150** (MINOR — the API doc-truth batch, re-verified CURRENT at
+  b6e0a9ef): both staleness directions — the false-missing R-84 pair (the
+  6-facet driver-status surface landed; the rows still say "rda_available
+  probe ONLY"), the doubly-stale R-37 (→ M-116), the overclaiming counts
+  (API.md:81 "81" vs the actual 83 · CORE-API-CURRENT:16 "34+OK/10-events"
+  vs the actual 38/12 · :345's 3-way-stale status line), and the
+  stale-landed API-DELTA rows (10/14/18/22/§3).
+- **The addenda** (unique, the parallel lanes' re-triage did not carry
+  them): N-131's fix-plan re-base (bit 512 TAKEN by N-100's landing); N-132's
+  aggravation verified current (the e4f3184 R-31:225 spread); M-107's two
+  factual nits (AI has its own validator; EPS/AI are 16 MiB).
+- **I-031's register extension**: the dormant `only_common` vendor mode (a
+  deliberate-divergence D-row) + the A4 device-slot phrasing correction.
+- **The board-truth repair**: the re-created `findings/FIXED/` dir (7
+  ledger-rowed files — the convention violation the ledger's own header
+  warns about) swept to history.
+
+**Board after S11-R (filesystem truth): 64 active files** (7 SEVERE ·
+21 MAJOR · 29 MINOR · 7 INFO) · **300 resolved ledger rows** · **3
+tracked-open** (OQ-S4-3, OQ-S10-1, OQ-S10-3). Next free IDs: S-055+,
+M-117+, N-151+, I-034+, A-012+. **Recommended fix order contribution:
+M-116 first** (the M-102-pattern two-call archive export — small, unblocks
+a landed engine; composes with N-150's row-state sweep in the same wave).
 
 ## Session-40 delta (2026-10-29 — the diff-to-fix board execution: SEVERE-first)
 

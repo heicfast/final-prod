@@ -747,3 +747,28 @@ disposition (T4). NEW rows:
 | carve · the repair wiring's second channel (M-021's seam) | **MATCH per-candidate + the facet registered** | the **S-050 addendum** — the og feeds every CHUNK to the repair interface (`vtable+0x40` DDC:9623-27) beside the per-candidate hook; the post-processor contract must decide the channel |
 | og-tree register · the errata batch | REFERENCE-side | the CORPUS-ERRATA S11-lead rows (census :20-23/:82, the ZIP dual-gate conflation, the phantom REPORT entries, the dup tree, the two undocumented write-side families) |
 | the negative results | MATCH (recorded) | Lane A's infrastructure table (17 rows — the load-bearing machinery fully dispositioned); Lane B's 40-asset inventory (all N/A dispositions register-cited); Lane C's 19-behavior interaction map (broadly covered/host-side); Lane D's binary-level CLEAN re-confirmation; Lane E's no-TODO/no-stub/every-refusal-owned census — `evidence/s11-lead-deep-lanes.md` |
+
+**Session-11 S11-R lane (2026-10-29 — the reconciliation lane: the 63-commit push-window absorbed, the unique product landed; audited `8365956e` → re-verified `b6e0a9ef`):**
+
+| Surface · parameter | Verdict | Cell |
+|---|---|---|
+| abi/preview · the archive inventory's ABI half (the M-100 re-open) | **DIVERGENCE-MAJOR** | **M-116** — the engine's `Metadata.entries` (cr_preview.h:134-191) crosses NO shipped surface: `cr_ui_metadata` (cr_ui.h:1214-1224) has no entries field and `preview_metadata_impl` (cr_ui.cpp:3613-3631) silently discards it; the session-10 retirement record's "reachable today through cr_ui_preview_metadata" claim refuted first-hand at TWO trees; the M-102 repair shape (two-call export, cr_ui.h:1283-1290 the landed precedent) is the fix |
+| gate docs · the API currency batch | **DIVERGENCE-MINOR** | **N-150** — both directions, re-verified current at b6e0a9ef: the false-missing R-84 pair (the 6-facet driver-status surface landed; the rows still say probe-only) + the doubly-stale R-37 (→ M-116) + the overclaiming counts (API.md:81 "81" vs 83; CORE-API-CURRENT:16 "34+OK/10" vs 38/12; :345 3-way stale) + the stale-landed API-DELTA rows (10/14/18/22/§3) |
+| session schema · the parent-anchor fix-plan basis | **MINOR-ADDENDUM** | **N-131 + S11-R addendum** — the fix-plan re-base: bit 512 is TAKEN by N-100's ntfs_total_clusters landing (cr_records.cpp:174/:278/:475); the +0x60-precedent argument is moot |
+| api docs · the R-31 false-PRESENT spread | **MINOR-ADDENDUM** | **N-132 + S11-R addendum** — the e4f3184 propagation verified CURRENT at b6e0a9ef (R-31:225 still cites the false API-DELTA row 45 as its source) |
+| carve · the stand-in census nits | **MINOR-ADDENDUM** | **M-107 + S11-R addendum** — AI has its own validator (the parenthetical corrected); EPS/AI stand-ins are 16 MiB not 64 MiB |
+| infra register · the two unregister'd items | **INFO-EXTENSION** | **I-031 + S11-R extension** — the dormant only_common vendor mode (a deliberate-divergence D-row) + the A4 device-slot phrasing correction |
+| board truth · the re-created findings/FIXED/ | **REPAIRED (this lane)** | The 7 re-created files (I-030, N-111..N-113, N-134, OQ-S10-2, OQ-S8-1 — all ledger-rowed) swept to history per the ledger's own no-re-create convention; the rows stay; the class is N-135's |
+
+The lane's ABSORBED work (duplicated by the parallel lanes that pushed first,
+preserved in the session-11-local-backup branch + this session's worklog):
+the wave-1 board-truth repairs (M-102/M-083 retirement, the N-129→N-135
+collision, the ledger conflict/phantom SHAs — f166440b/bc4513db/2cf3f4d0/
+15279503); the OQ-S8-1 resolution + browse filing (4f44db49 → their M-111);
+the RAWSearchDLL infra walk (d50a54dc → their N-139/N-140 + I-031); the
+N-134 retirement (b37fabab, as FIXED-ALREADY where this lane had REFUTED —
+same substance: the register rows predated the filing); the 54-finding
+re-triage (their s11-triage-sweep.md; this lane's N-133 phantom-SHA repair
+absorbed by session-39's ledger row note; the S-050 register-half and I-030
+addenda absorbed by their S11B addenda; the M-107 0x44c fold absorbed by
+their M-112).

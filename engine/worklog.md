@@ -4125,3 +4125,72 @@ Work Log:
 
 Stage Summary:
 - First minor landed this lane; queue next: S-053+N-141 (the recommended one-pass), N-139, N-140, N-138, N-149, N-148, N-146, then the INFO acknowledgments.
+---
+Task ID: S11-R (session-11, the reconciliation lane — the 63-commit push window absorbed; the unique product landed)
+Agent: session-11 continuation lead (the fifth parallel session-11 lane)
+
+Work Log:
+- T1 at 8365956e: the prompt saved token-redacted + read twice; the
+  board-truth defects found at open (M-083/M-102 fixed-but-unretired, the
+  duplicate N-129 pair, the 283-vs-281 ledger drift).
+- WAVE-1 (board truth, EXECUTED locally): M-083/M-102 retired with the
+  ledger placeholders filled (e56baac7); the N-129 collision repaired
+  (wave-3's bookkeeping batch → N-135, the SA-9 rule); the b5da834 ledger
+  conflict residue resolved; the M-090 180053de0 mis-paste → 9daa787; the
+  exact row census recorded. — ABSORBED at push: the remote lanes landed
+  the same repairs (f166440b/bc4513db/2cf3f4d0/15279503/23849cac).
+- WAVE-2 (the re-triage, EXECUTED locally): five parallel agents, all 54
+  true-active findings re-verified (44 STILL-DEFECTIVE · S-050 PARTIAL ·
+  N-134 REFUTED-at-filing · I-030 PARTIAL · 4 INFO accurate); the addenda
+  drafted. — ABSORBED: their s11-triage-sweep.md (the same 56-row table at
+  the same baseline) + their b37fabab addenda batch; N-134 retired by
+  theirs as FIXED-ALREADY (same substance — the register rows predated the
+  filing; this lane's REFUTED label recorded in the backup branch).
+- WAVE-3 (the S10-F queue, EXECUTED locally): the RAWSearchDLL
+  infrastructure walk (the 18-row census + 14 MATCH holds + the
+  zero-threading/zero-error-propagation negatives); the API-DELTA currency
+  pass; the OQ-S8-1 consumer trace (four hops verified first-hand). —
+  ABSORBED: their s11-rawsearchdll-infra-walk.md + N-139/N-140 + I-031;
+  their s10f-cwindowsfs-consumer-trace.md + M-111 (their browse finding is
+  DEEPER than this lane's draft — the ShellExecuteA branch, the enumeration
+  impl, the IFSInterface vtable; this lane's S-053 draft DROPPED); the
+  S-050 per-chunk-feed addendum (this lane's D-INF-1).
+- THE PUSH REJECTION + RECONCILIATION: 63 concurrent-lane commits (the
+  parallel S11/S11B/lead/39/40/S12 lanes + the fix wave — M-108/M-109/
+  M-110/M-072/M-074/M-077/M-102+M-083/N-093/N-111..N-113/S-051 landed;
+  the S12 lane opened; the session-40 minor-first mandate opened). Rebase
+  attempted, aborted at the conflict scale; the lane state preserved in
+  session-11-local-backup (4 commits); main reset to b6e0a9ef; the UNIQUE
+  product re-derived against the new HEAD and landed:
+  * M-116 (THE headline — no remote lane caught it): the M-100 re-open.
+    The retirement's residue claim ("reachable today through
+    cr_ui_preview_metadata") refuted FIRST-HAND at 8365956e AND b6e0a9ef
+    (cr_ui.h:1214-1224 no entries field; cr_ui.cpp:3613-3631 m.entries
+    never referenced). The archive inventory's ABI half re-opened; the
+    M-100 ledger row annotated.
+  * N-150 (the API doc-truth batch): every item re-verified CURRENT at
+    b6e0a9ef — the false-missing R-84 pair, the doubly-stale R-37, the
+    81-vs-83 export count, the 34-vs-38 error-code count, the :345 line,
+    the stale-landed API-DELTA rows.
+  * The unique addenda: N-131 (bit-512 re-base — N-100's landing took the
+    bit), N-132 (the R-31 spread verified current), M-107 (the two nits).
+  * I-031's extension: only_common + the A4 phrasing.
+  * The re-created findings/FIXED/ sweep: 7 ledger-rowed files retired to
+    history per the ledger's own convention.
+- BOOKKEEPING INCIDENT (this lane's own, recorded per the truth standard):
+  the lane's SUMMARY/README insertion script carried a p/r variable-target
+  bug that wrote README content into the SUMMARY path on the pre-rebase
+  local branch (the backup branch preserves the corrupted intermediate);
+  fixed before the reconciliation landing by restoring from the last good
+  state. Lesson: one writer variable per file.
+- READ-ONLY GUARANTEE: verified per-commit on the local branch (all four
+  commits touch only diff-to-fix/ + worklog*); the reconciliation landing
+  touches only diff-to-fix/ + worklog*; zero product files.
+
+Stage Summary:
+- Board after S11-R (filesystem truth): 64 active (7 S · 21 M · 29 N ·
+  7 I) / 300 resolved ledger rows / 3 tracked-open.
+- The lane's recommended fix order: M-116 first (the M-102-pattern
+  two-call archive export + N-150's row-state sweep in the same wave).
+- The backup branch (session-11-local-backup) preserves the full
+  pre-reconciliation lane state for any future forensics.
