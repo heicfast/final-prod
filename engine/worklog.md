@@ -6594,3 +6594,17 @@ and the acceptance test
 CrUi.CliResumeSinkNeverTruncatesTheSessionSource is green. The finding
 moved to findings/FIXED/ with the FIXED-ALREADY Resolution (no code
 change needed); ledger row; matrix cell; modules/cli.md.
+
+## Session-43 minors lane — N-143 landed (2026-10-29)
+
+**N-143 FIXED (MINOR — the ISpecial two-step dispatch posture).** All three corpus
+cites re-read first-hand. The DECLINE branch taken per the finding's own fix-plan
+step 3: the id-8 generic fallback stays absent — the honest-refusal doctrine —
+registered as PARITY-DELTAS D-118 (the D-75 family) with the no-semantics rationale
+and the affected fixture class. The pin: Carve.SpecialRejectPlainAcceptRefusedByName
+(the corrupt-RIFF fixture — grammar-only family, isolated from the raw-sign layer
+whose apk row admits the corrupt-ZIP half exactly as the og's layer-1 does).
+Verification discoveries recorded: the raw-sign interplay (apk = PK\x03\x04) and the
+S-048 folder-node/inner-entry collection discipline for future test authors.
+Suite 1260/1260. Trail: findings/FIXED/N-143 + ledger + carve.md row + D-118 + this
+entry.

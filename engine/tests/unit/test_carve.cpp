@@ -6043,6 +6043,79 @@ TEST(CarveEngine, FormatDisabledRawSignsToo) {
     EXPECT_GE(stats2.sign_hits, 1u) << "enabled by default: the sample sign fires";
 }
 
+TEST(Carve, SpecialRejectPlainAcceptRefusedByName) {
+    /* N-143: the og's ISpecial two-step dispatch (RAWSearchDLL :9877-9883,
+     * re-read first-hand: the vtable+0x40 special validate runs FIRST; on
+     * its reject the plain vtable+0x10 probe runs) demotes a
+     * special-reject/plain-accept candidate to the GENERIC format id 8
+     * and keeps scanning (:10020-10039 - the id-8 stamp when result+0x18
+     * == 0). The corrupt-RIFF class is the fixture: the RIFF key hits,
+     * every grammar tier (WAVE/AVI /WEBP form types) rejects, and the og's
+     * plain probe would accept the bare magic -> the id-8 generic row.
+     * The RIFF family is grammar-only (no raw-sign key fires on "RIFF" -
+     * the layer-1 table's signs were enumerated this session), so this
+     * fixture isolates the DISPATCH-TIER question exactly. The core's
+     * honest-refusal doctrine DELIBERATELY declines the id-8 generic
+     * fallback (registered in PARITY-DELTAS D-118, the D-75 family): a
+     * signature-true/grammar-false hit produces NO candidate here - the
+     * refusal is by design, not a gap. */
+    std::vector<u8> img(256 * 1024, 0);
+    /* the corrupt form: the RIFF magic present, a garbage form type that
+     * no grammar tier accepts */
+    std::memcpy(img.data() + 4096, "RIFF", 4);
+    img[4100] = 0x40;
+    img[4101] = 0x00;
+    img[4102] = 0x00;
+    img[4103] = 0x00;                          /* a plausible size */
+    std::memcpy(img.data() + 4104, "JUNK", 4); /* the garbage form type */
+    /* the control: a valid WAV a page later still carves */
+    std::memcpy(img.data() + 8192, "RIFF", 4);
+    {
+        const u32 total = 38;
+        img[8196] = u8(total);
+        img[8197] = u8(total >> 8);
+        img[8198] = u8(total >> 16);
+        img[8199] = u8(total >> 24);
+    }
+    std::memcpy(img.data() + 8200, "WAVE", 4);
+    std::memcpy(img.data() + 8204, "fmt ", 4);
+    img[8208] = 16;
+    img[8212] = 1;
+    img[8214] = 1;
+    img[8216] = 0x44;
+    img[8217] = 0xAC;
+    img[8220] = 0x10;
+    img[8221] = 0xB1;
+    img[8224] = 2;
+    img[8226] = 16;
+    std::memcpy(img.data() + 8228, "data", 4);
+    img[8232] = 2;
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    flags.hash_small_files = false;
+    CarveStats stats;
+    ASSERT_EQ(OK, carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats));
+    /* collect CARVED FILE nodes only - the S-048 skeleton carries folder
+     * nodes (props() == nullptr) and archive children may carry no own
+     * extents; count the top-level carved FILES with extents */
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->origin() == tree::Origin::Carved && !c->props()->extents.empty())
+                all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    ASSERT_EQ(all.size(), 1u) << "ONLY the valid WAV control carves";
+    EXPECT_EQ(all[0]->props()->extents.front().offset, u64(8192))
+        << "the corrupt RIFF candidate is refused BY NAME (no generic id-8 "
+           "demote - the registered deliberate divergence)";
+}
+
 TEST(CarveEngine, FilterExemptSetAlwaysOn) {
     /* N-149: the og's per-search filter rebuild NEVER removes the
      * OLE/RIFF/ZIP analysers (the removal loop FUN_180006b30's
