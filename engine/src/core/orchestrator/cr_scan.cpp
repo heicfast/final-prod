@@ -282,6 +282,12 @@ void ScanController::adopt_resume_state_(const session::VolumeSessionInfo& resum
      * run (load -> immediate save, e.g. cancel-during-resume) preserves it.
      * A fresh run() overwrites vol_boot_hash_ with the recomputed value. */
     vol_boot_hash_ = resumed.boot_hash;
+    /* M-079: the label joins the adopted identity card (the SESS-2
+     * pattern - a re-save without a new run preserves the loaded label;
+     * a fresh run's derivation then sees it non-empty and leaves it). */
+    if (cfg_.volume_label[0] == '\0')
+        for (size_t i = 0; i < sizeof(cfg_.volume_label); ++i)
+            cfg_.volume_label[i] = resumed.label[i];
     if (cfg_.volume_model[0] == '\0')
         for (size_t i = 0; i < sizeof(cfg_.volume_model); ++i)
             cfg_.volume_model[i] = resumed.model[i];

@@ -56,6 +56,19 @@ S-019, S-021, S-022, S-024, S-027, S-029, S-030, S-031, S-032, S-034 (and I-011)
 The mechanical backfill (the cat-file guard over every hex token in `diff-to-fix/`)
 belongs to the fix lane; this census is the audit-side truth record.
 
+> **Session-38 convergence note (2026-10-29, post-purge):** the M-071 row
+> above carries a three-lane convergence (the landed fix-lane `ce2405a`,
+> the DFX-38 lane's addendum, and this session-38 execution lane's
+> complementary landing `63efde8` — the ONE merged Windows-CI step
+> `CLI junk-filter contract (M-071 - tree + recover-all)` over the
+> committed fixture `tests/data/images/junk-gate-fat16.raw`, the
+> Linux-suite substrate proof
+> `FilterFolder.JunkGateFixtureFileScansAndFlagsHiddenSet`, and the
+> explicit-selection pin). The retired file's full session-38 convergence
+> addendum is preserved in git history (the `63efde8` parent's tree) and
+> summarized in worklog.md's S38-M071-CONVERGE entry + SUMMARY.md's
+> session-38 reconciliation delta.
+
 | ID | Severity | Module | Fix commit (as recorded in-file) | Retired file (history path) |
 |---|---|---|---|---|
 | A-001 | ACUTE |  | — | `findings/FIXED/A-001-gpt-type-guids-wrong-ldm-gpt-dynamic-disks-fail.md` |
@@ -156,7 +169,7 @@ belongs to the fix lane; this census is the audit-side truth record.
 | M-068 | MAJOR |  | 5e7390b | `findings/FIXED/M-068-composite-double-start.md` |
 | M-069 | MAJOR |  | — | `findings/FIXED/M-069-staged-scenarios-never-green.md` |
 | M-070 | MAJOR |  | — | `findings/FIXED/M-070-stage-disk-param-type-coercion.md` |
-| M-071 | MAJOR |  | 69507cb | `findings/FIXED/M-071-m018-regression-junk-gates-lost.md` |
+| M-071 | MAJOR |  | 69507cb (+ the session-38 convergence landing: the Windows-CI execution proof, the committed Linux-proven fixture, the trail repairs) | `findings/FIXED/M-071-m018-regression-junk-gates-lost.md` |
 | M-079 | MAJOR | session/CLI | 0b76757c (f43b747 was a pre-rebase phantom, repaired session 39) | `findings/MAJOR/M-079-cli-autosave-volume-label-unfilled.md` — **S10-F addendum (2026-10-29): the fix's image-target leg (the image-stem fallback) is a registered divergence** — the og's image-scan label is the ENGINE-side on-disk decode (NTFS $Volume $VOLUME_NAME; ext4 s_volume_name), not the filename; the engine-decode absence + the completion path = **N-133** (evidence: s10f-engine-volume-labels.md) |
 | M-080 | MAJOR | preview | 5ccc0da | `findings/FIXED/M-080-thumbnail-budget-starves-photos.md` |
 | M-083 | MAJOR | preview/abi | e56baac7 (thumbnail ABI two-call) | `findings/MAJOR/M-083-thumbnail-grade-promotion-absent.md` (deleted by the parallel fix lane fce38c3d; Resolution in-file — content recoverable there) — **session-11-lead independent verification: PARITY-VERIFIED, the engine layer executed standalone 40/40 checks zero-ASan (evidence/s11-board-truth.md)** |

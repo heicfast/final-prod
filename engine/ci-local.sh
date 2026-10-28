@@ -153,7 +153,7 @@ echo "== [9/10] commit message convention (type(scope): lowercase ...) =="
 MSG_BAD=0
 while IFS= read -r rev; do
   MSG=$(git log -1 --format='%s' "$rev")
-  if ! echo "$MSG" | grep -qE '^(feat|fix|repair|docs|worklog|bench|ci|style|audit|merge|test|refactor|perf|chore|build|revert)(\([a-z0-9._-]+\))?!?: .+'; then
+  if ! echo "$MSG" | grep -qE '^(feat|fix|repair|docs|worklog|bench|ci|style|audit|merge|test|refactor|perf|chore|build|revert)(\([A-Za-z0-9._-]+\))?!?: .+'; then
     echo "  non-conforming: $rev $MSG"
     MSG_BAD=1
   fi

@@ -8,6 +8,7 @@
 #include "cr/session/cr_crsf.h"
 #include "cr/storage/cr_device.h"
 #include "test_fixtures.hpp"
+#include "test_tmpdir.hpp"
 #include <algorithm>
 #include <cstring>
 #include <mutex>
@@ -392,6 +393,78 @@ TEST(Orchestrator, JunkFilteredFromResults) {
     EXPECT_TRUE(names.count("KEEP.ME"));
     EXPECT_TRUE(names.count("_ELFILE.TXT"))
         << "deleted files are results too (the FAT undelete convention renders 0xE5 as _)";
+}
+
+/* ---- M-071: the file-backed junk-gate fixture ----
+ *
+ * tools/gen_junk_gate_fixture.py generates
+ * tests/data/images/junk-gate-fat16.raw (same geometry as build_fat16()
+ * above, with the SVI dir carrying an inner TRACKER.TXT so the
+ * subtree semantics are observable). This test proves the SHIPPED FILE
+ * scans with the same semantics the in-memory builder asserts - the
+ * Windows CI junk-gate contract step (rrecov scan/tree/recover over
+ * this exact file) rides a fixture the Linux suite has already proven
+ * parseable, flagged and query-gated. The two-surface semantic is
+ * pinned here: TRACKER.TXT is a query RESULT (the flag is per-node;
+ * children of hidden dirs stay results per the og's "hides entries,
+ * not contents") while the CLI tree/recover-all walks skip the whole
+ * flagged subtree (a tree view cannot show children of a hidden node;
+ * the M-018/M-071 gates live in rrecov.cpp's walks). */
+TEST(FilterFolder, JunkGateFixtureFileScansAndFlagsHiddenSet) {
+    const std::string raw = cr_test::read_repo_file("tests/data/images/junk-gate-fat16.raw");
+    ASSERT_FALSE(raw.empty());
+    ASSERT_EQ(size_t(5074) * 512, raw.size()) << "regenerate via tools/gen_junk_gate_fixture.py";
+
+    MemDevice dev(std::vector<u8>(raw.begin(), raw.end()));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_carve = false;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    ASSERT_EQ(OK, ctrl.run(&dev, nullptr, nullptr, nullptr, stats)) << err_text(u32(0));
+
+    EXPECT_EQ(4u, stats.junk_filtered)
+        << "DESKTOP.INI + $USNJRNL + System Volume Information + the zh-CN New Folder";
+
+    std::map<std::string, bool> flagged;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props())
+                flagged[c->name_utf8()] = (c->props()->flags & tree::NODE_FLAG_JUNK_FILTERED) != 0;
+            collect(c);
+        }
+    };
+    for (tree::FileNode* r : tree.roots())
+        collect(r);
+    /* the hidden set, flagged on the file image exactly as in-memory */
+    EXPECT_TRUE(flagged.count("DESKTOP.INI") && flagged["DESKTOP.INI"]);
+    EXPECT_TRUE(flagged.count("$USNJRNL") && flagged["$USNJRNL"]);
+    EXPECT_TRUE(flagged.count("System Volume Information") && flagged["System Volume Information"]);
+    EXPECT_TRUE(flagged.count("\u65B0\u5EFA\u6587\u4EF6\u5939") &&
+                flagged["\u65B0\u5EFA\u6587\u4EF6\u5939"]);
+    /* the controls, never flagged */
+    ASSERT_TRUE(flagged.count("DOC.TXT"));
+    EXPECT_FALSE(flagged["DOC.TXT"]);
+    ASSERT_TRUE(flagged.count("KEEP.ME"));
+    EXPECT_FALSE(flagged["KEEP.ME"]);
+    /* the inner file is a result (per-node flag; children stay) */
+    ASSERT_TRUE(flagged.count("TRACKER.TXT"));
+    EXPECT_FALSE(flagged["TRACKER.TXT"]);
+
+    /* the query surface excludes the junk set, keeps everything else */
+    query::Query q;
+    q.limit = 1000;
+    query::Result res = query::run(tree, q);
+    std::set<std::string> names;
+    for (const auto& row : res.rows)
+        names.insert(row.name_utf8);
+    EXPECT_FALSE(names.count("DESKTOP.INI"));
+    EXPECT_FALSE(names.count("$USNJRNL"));
+    EXPECT_FALSE(names.count("System Volume Information"));
+    EXPECT_TRUE(names.count("DOC.TXT"));
+    EXPECT_TRUE(names.count("KEEP.ME"));
+    EXPECT_TRUE(names.count("TRACKER.TXT"));
 }
 
 } // namespace
@@ -1119,6 +1192,54 @@ TEST(SafeWriter, OverlapRefusal) {
     std::string got = io.content_of(writer2.queue()[0].item_id);
     ASSERT_GE(got.size(), 7u);
     EXPECT_EQ(got.substr(0, 7), "DOCDATA");
+}
+
+/* M-071 design pin: the junk gate lives in the RESULT-SURFACE walks
+ * (query passes(); rrecov.cpp's CLI tree print + recover-all plan walk),
+ * NOT in SafeWriter::enqueue - an explicit selection (the flat-C API
+ * consumer's equivalent of checking the box for a hidden file) still
+ * recovers a junk-flagged node. This is the documented M-018 contract;
+ * pinning it here keeps a future "defense-in-depth" enqueue gate from
+ * silently breaking explicit selection. */
+TEST(SafeWriter, ExplicitSelectionStillRecoversJunkFlaggedNode) {
+    const std::string raw = cr_test::read_repo_file("tests/data/images/junk-gate-fat16.raw");
+    ASSERT_FALSE(raw.empty());
+    MemDevice dev(std::vector<u8>(raw.begin(), raw.end()));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_carve = false;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    ASSERT_EQ(ctrl.run(&dev, nullptr, nullptr, nullptr, stats), OK);
+    EXPECT_EQ(stats.junk_filtered, 4u);
+
+    tree::FileNode* junk = nullptr;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == "DESKTOP.INI")
+                junk = c;
+            collect(c);
+        }
+    };
+    for (auto* r : tree.roots())
+        collect(r);
+    ASSERT_NE(junk, nullptr);
+    ASSERT_NE(junk->props(), nullptr);
+    ASSERT_NE(junk->props()->flags & tree::NODE_FLAG_JUNK_FILTERED, 0u)
+        << "fixture precondition: DESKTOP.INI must arrive flagged";
+
+    MockIo io;
+    SafeWriter writer(io, &dev, WriterConfig{});
+    writer.set_destination(dev.size(), dev.size()); /* disjoint destination */
+    EXPECT_EQ(writer.enqueue(junk, u16_("R:\\out")), OK);
+    WriterStats ws;
+    ASSERT_EQ(writer.process(nullptr, nullptr, nullptr, ws), OK);
+    EXPECT_EQ(ws.done, 1u);
+    EXPECT_EQ(writer.queue().size(), 1u);
+    EXPECT_EQ(writer.queue()[0].state, ItemState::Done);
+    std::string got = io.content_of(writer.queue()[0].item_id);
+    ASSERT_GE(got.size(), 15u);
+    EXPECT_EQ(got.substr(0, 15), "DESKTOPINI-JUNK");
 }
 
 TEST(SafeWriter, CollisionAndSanitize) {

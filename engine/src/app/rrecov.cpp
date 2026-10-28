@@ -1356,6 +1356,15 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
                 cfg.autosave_dir[k] = d8[k];
             continue;
         }
+        if (get_opt(argc, argv, i, L"--label", &v)) {
+            /* M-079: explicit label override (the ABI card's
+             * volume_label_utf8 seam, CLI-side). The derived label only
+             * fills an EMPTY field, so caller text always wins. */
+            const std::string l8 = text::wide_to_utf8(v);
+            for (size_t k = 0; k + 1 < sizeof(cfg.volume_label) && k < l8.size(); ++k)
+                cfg.volume_label[k] = l8[k];
+            continue;
+        }
         if (get_opt(argc, argv, i, L"--resume", &resume_path))
             continue;
         if (get_opt(argc, argv, i, L"--log", &log_path))

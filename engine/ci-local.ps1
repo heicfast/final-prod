@@ -121,7 +121,7 @@ Write-Host "== [9/10] commit message convention (type(scope): lowercase ...) =="
 $msgBad = @()
 git log --format='%H %s' origin/main..HEAD 2>$null | ForEach-Object {
     $rev, $subj = $_ -split ' ', 2
-    if ($subj -notmatch '^(feat|fix|repair|docs|worklog|bench|ci|style|audit|merge|test|refactor|perf|chore|build|revert)(\([a-z0-9._-]+\))?!?: .+') {
+    if ($subj -notmatch '^(feat|fix|repair|docs|worklog|bench|ci|style|audit|merge|test|refactor|perf|chore|build|revert)(\([A-Za-z0-9._-]+\))?!?: .+') {
         $msgBad += "  non-conforming: $rev $subj"
     }
 }

@@ -550,7 +550,7 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | health/enum · TRIM facet in rows (P42/X48) | DIVERGENCE-MAJOR | **M-076** — datum health-facet-only; no row fields/flag (R-63) |
 | preview · 100 MB/15 s product caps (X48/X49) | DIVERGENCE-MAJOR | **M-077** — no eligibility gate, no time bound in the path (R-34) |
 | health · BitLocker turn-off op (F61/P42) | DIVERGENCE-MAJOR | **M-078** — CBitlockerTurnOffOperation unmirrored; unlock-only surface (R-88) |
-| session/CLI · auto-save volume label (D12/B10) | DIVERGENCE-MAJOR | **M-079** — no fill site; CLI auto-saves always `auto_<ts>` |
+| session/CLI · auto-save volume label (D12/B10) | **MATCH** | **M-079 FIXED** (`0b76757`, the parallel lane — fill_volume_label at scan setup) + this lane's convergence complement: the Windows-CI behavioral assertions (auto_junk-gate-fat16<stamp> / --label override), the exFAT fixture spec-repair, the resume label adoption |
 | preview(thumb) · default read budget vs ordinary photos (X47/X48) | DIVERGENCE-MAJOR | **M-080** — 6 MiB 12-MP JPEG → BudgetExceeded (fast path gated on pixels only) |
 | mom-capabilities · DeviceManager offline-OS identification (A54-58) | DIVERGENCE-MAJOR + disposition re-scope | **M-082** — live-module machinery (IsBootVolume chain); CheckVersion verdict covered only the dead copy |
 | writer/query/CLI · M-018 junk gates (D16/B2) | **MATCH (gate restored + extended)** | **M-071 FIXED** — the rrecov pair restored byte-exact from `69507cb` + the cr_ui session/snapshot bulk walks gated (the W-lane surfaces that postdate M-018); explicit-selection stays open (the og's default-not-block semantic, pinned by test) |

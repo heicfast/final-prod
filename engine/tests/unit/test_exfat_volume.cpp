@@ -10,6 +10,7 @@
  */
 #include <gtest/gtest.h>
 #include "cr/exfat/cr_exfat_engine.h"
+#include "cr/orchestrator/cr_scan.h"
 #include "cr/storage/cr_device.h"
 #include <algorithm>
 #include <cstring>
@@ -289,7 +290,11 @@ std::vector<u8> build_exfat_image(u8 tz = 0) {
         }
         at += 32;
     }
-    /* 0x83 volume label */
+    /* 0x83 volume label - M-079 spec-repair: the label chars live at
+     * +4 (exFAT spec 7.2: EntryType@0, CharacterCount@1, Reserved@2-3,
+     * VolumeLabel@4-33); the old +2 write overlapped the reserved field
+     * (a spec-invalid entry - invisible to the skip-only tests that
+     * consumed it before, wrong for anything that reads the label). */
     {
         u8* e = img.data() + ROOT + at;
         std::memset(e, 0, 32);
@@ -297,7 +302,7 @@ std::vector<u8> build_exfat_image(u8 tz = 0) {
         e[1] = 7;
         const char16_t* lbl = u"TESTVOL";
         for (int i = 0; i < 7; ++i)
-            put16(img, ROOT + at + 2 + i * 2, lbl[i]);
+            put16(img, ROOT + at + 4 + i * 2, lbl[i]);
         at += 32;
     }
     /* photo.jpg: live NoFatChain (clusters 10-11, 1024B). Carries the

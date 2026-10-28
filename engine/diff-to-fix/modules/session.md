@@ -234,7 +234,7 @@ W1a/W1b/W1c verified at the load-bearing points (cancel-per-node;
 ERR_CANCELLED-never-flattened; cancelled-never-auto-saves; light-record
 summary; atomic write; the v5 tail round-trip). New findings: **N-090** (list
 scope/row shape — no `auto_` filter vs the og's home-list enumeration; 1 s
-save time; label[32]; no device-type), **M-079** (MAJOR — the CLI never fills
+save time; label[32]; no device-type), **M-079 FIXED** (`0b76757` by the parallel fix-lane: fill_volume_label at scan setup — --label override > the --volume target's GetVolumeInformationW > the image filename stem; this lane's convergence complement: the Windows-CI behavioral assertions over the committed fixture + the exFAT fixture label-entry spec-repair + the resume label adoption in adopt_resume_state_) (was: the CLI never fills
 `volume_label`: no fill site exists, `fill_identity_card` covers every identity
 field but the label; CLI auto-saves are always `auto_<ts>`), **N-091** (the
 load-progress model + auto-save posture + thumbnail superset unregistered in

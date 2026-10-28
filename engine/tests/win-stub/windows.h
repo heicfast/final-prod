@@ -149,6 +149,13 @@ struct WIN32_FIND_DATAW {
 #define ERROR_INVALID_FUNCTION 1UL
 #define ERROR_FILE_NOT_FOUND 2UL
 #define ERROR_INVALID_HANDLE 6UL
+/* M-074's destination-validation classification (cr_destio.cpp's
+ * classify_dest_error) - the real winerror values, declaration-only
+ * for the parse gate (the M-074 landing grew src/win's SDK surface;
+ * the stub grows with it per the gate's own protocol) */
+#define ERROR_INVALID_NAME 123UL
+#define ERROR_BAD_PATHNAME 161UL
+#define ERROR_FILENAME_EXCED_RANGE 206UL
 #define ERROR_CANCELLED 1223UL
 #define ERROR_MORE_DATA 234UL
 #define ERROR_ALREADY_EXISTS 183UL

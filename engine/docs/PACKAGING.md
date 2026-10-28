@@ -3,7 +3,7 @@
 > **Status: ACCEPTED (S-038 FIXED — steps 1-4 complete; the installer
 > lane's first fully-green dispatch: run 40684304129 at `1c4db82`, all
 > three §11 gates GREEN on windows-2022).** This document exists
-> because [S-038](../diff-to-fix/findings/SEVERE/S-038-app-installer-surface-absent.md)
+> because [S-038](https://github.com/heicfast/core_recovery/blob/main/diff-to-fix/FIXED-LEDGER.md) (ledger row; the retired finding file lives in git history)
 > put the reference product's installer surface on the board as a 13-parameter
 > contract. The packaging milestone is built AGAINST this contract, never
 > invented from scratch: every parameter below carries its corpus citation

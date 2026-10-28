@@ -205,6 +205,58 @@ claimed by their territory commits) — pull before reading counts.
 > top: session-38's minor-first wave, the parallel S-042/M-071 fix lanes, the
 > session-8/9 audit lanes below)" — superseded by the SA-10B header above;
 > its content blocks are unchanged below.
+# SUMMARY.md — executive summary (the combined closing-fix lanes on top: session-38's minor-first wave, the parallel S-042/M-071 fix lanes, the session-8/9 audit lanes below)
+## Session-38 reconciliation delta (2026-10-29 — this lane's M-071 convergence + the rrecov-gates execution proof the landed fix lacked)
+
+This lane verified M-071 independently at `84a1832` (same census as the
+landed fix: only cr_query.cpp:119 gated; both rrecov walks gate-less;
+`git show 69507cb` for the original form; corpus FilterFolder.ini re-read)
+and had prepared the identical two-gate restoration when the parallel
+fix-lane's `ce2405a` landed first — no duplicate code kept (the
+convergence precedent); the landed fix re-verified first-hand at the
+reconciled main. This lane's surviving contribution, per the landed
+Resolution's own named gap ("the rrecov.cpp pair cannot execute on
+Linux"): **the Windows-CI behavioral execution of the two rrecov.cpp
+gates** (new checks.yml step `CLI junk-filter contract (M-071 - tree +
+recover-all)` — scan/tree/recover over a committed junk-carrying fixture
+via the driverless `--image` path), **the file-backed fixture + generator**
+(`tools/gen_junk_gate_fixture.py` + `tests/data/images/junk-gate-fat16.raw`,
+SHA256SUMS-pinned; the generator's two bring-up slips caught by the test's
+own assertions), and **the Linux gtest over the shipped file**
+(`FilterFolder.JunkGateFixtureFileScansAndFlagsHiddenSet` — flags exactly
+4 junk nodes, query-gates them, TRACKER.TXT stays a result: the per-node
+flag / subtree-skip two-surface semantic pinned on the CI step's
+substrate) + the core-side explicit-selection pin
+(`SafeWriter.ExplicitSelectionStillRecoversJunkFlaggedNode`).
+
+Trail repairs in the same landing: modules/driver-install.md's session-9
+row mislabeling the driver FileVersion finding (M-086) as "M-071"
+corrected; the ci-local.sh/ps1 commit-scope regex widened to the de-facto
+convention (259 origin/main commits carry uppercase scopes — the regex was
+the outlier, not the commits); docs/PACKAGING.md's S-038 link repointed to
+FIXED/ (the PARITY-FIX-9 move, found by the ci-local doc-link check).
+Board unchanged by this lane's landing (M-071 was already moved by
+`ce2405a`; this lane adds proof, not a count change): **71 active** (6
+SEVERE · 26 MAJOR · 34 MINOR · 5 INFO) · 254 FIXED · OQ-S4-3/OQ-S8-1
+tracked-open.
+
+**M-079 FIXED by the parallel fix-lane** (`0b76757` — the CLI-side
+fill_volume_label: --label override > the --volume target's
+GetVolumeInformationW > the image filename stem, at the finding's
+recommended seam), with this lane's CONVERGENCE complement: the
+Windows-CI junk-gate step now proves the landed fill end-to-end
+(auto_junk-gate-fat16<stamp> from --autosave-dir over the committed
+fixture; auto_CUSTOM<stamp> with --label) — the behavioral execution
+the landed fix's source-truth pin does not give; plus the exFAT fixture
+label-entry spec-repair (+2 → +4, spec 7.2) and the resume-path label
+adoption (the SESS-2 card completion). This lane's alternative
+orchestrator-side FS-derivation draft (FAT dentry/BPB, exFAT 0x83, NTFS
+$VOLUME_NAME) was reverted per the convergence precedent — recorded in
+worklog S38-M079-CONVERGE as a future deliberate-divergence option
+(FS-truth labels on raw image scans).
+Board: **70 active** (6 SEVERE · 25 MAJOR · 34
+MINOR · 5 INFO) · the FIXED count moves in the ledger.
+
 
 ## Closing-fix wave delta (2026-10-28/29 — the fix mandate over the 75-active board, three concurrent lanes reconciled)
 
