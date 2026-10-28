@@ -109,9 +109,9 @@ CarveResult validate_osp(IStorageDevice* s, u64 hit, u64 cap);      /* N-113 */
 CarveResult validate_pos(IStorageDevice* s, u64 hit, u64 cap);      /* N-113 */
 CarveResult validate_chfp(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_office_zip(IStorageDevice* s, u64 hit, u64 cap); /* N-115: the typed rows */
-CarveResult validate_dbx(IStorageDevice* s, u64 hit, u64 cap);        /* M-121 */
-CarveResult validate_dbx(IStorageDevice* s, u64 hit, u64 cap);        /* M-117 */
+CarveResult validate_dbx(IStorageDevice* s, u64 hit, u64 cap);        /* M-117/M-121 */
 CarveResult validate_hik(IStorageDevice* s, u64 hit, u64 cap);        /* M-098 */
+CarveResult validate_aep(IStorageDevice* s, u64 hit, u64 cap);        /* M-099 */
 
 namespace {
 const Signature kTable[] = {
@@ -1540,6 +1540,22 @@ const Signature kTable[] = {
      700,
      validate_hik,
      "Hikvision recording"},
+    /* M-099: AEP (After Effects project) - the og's AEPAnalyser
+     * (id 0x9c, list-layer, RawConfig AEP=1 shipped). BARE RIFX key,
+     * the og's own weak grammar ported AS-IS (no "Egg!" body gate -
+     * any big-endian RIFF passes; the weak probe is the parity
+     * target). The row floor: the RIFX head (8) the size field read
+     * needs; the cap is the og's walk cap 0x1e00000 (30 MiB). */
+    {FMT_AEP,
+     "aep",
+     {'R', 'I', 'F', 'X'},
+     4,
+     0,
+     8,
+     0x1e00000ull,
+     620,
+     validate_aep,
+     "After Effects project"},
 };
 } // namespace
 

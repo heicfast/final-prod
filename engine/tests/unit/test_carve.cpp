@@ -9616,7 +9616,9 @@ namespace {
  * exercise the PRODUCTION guard path (the try/catch + the conversion +
  * the diagnostic) without poisoning the process-wide allocator. */
 struct ScopedOomHook {
-    ScopedOomHook() { carve::detail::oom_test_hook = [](size_t) { return true; }; }
+    ScopedOomHook() {
+        carve::detail::oom_test_hook = [](size_t) { return true; };
+    }
     ~ScopedOomHook() { carve::detail::oom_test_hook = nullptr; }
 };
 
@@ -9638,8 +9640,7 @@ TEST(Carve, OomWindowBufferReturnsCode) {
     u32 rc = OK;
     {
         ScopedOomHook oom;
-        rc = carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr,
-                         nullptr, s);
+        rc = carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s);
     } /* hook reset: the assertions below may allocate */
     EXPECT_EQ(rc, u32(ERR_NO_MEMORY)) << "the OOM code, not an exception";
 }
@@ -9667,8 +9668,7 @@ TEST(Carve, OomTailBufferReturnsCode) {
              * 1 MiB, want clamps to the 64 KiB device) */
             return bytes >= (1ull << 20);
         };
-        rc = carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr,
-                         nullptr, s);
+        rc = carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s);
         carve::detail::oom_test_hook = nullptr;
     }
     EXPECT_EQ(rc, u32(ERR_NO_MEMORY)) << "the tail-site failure converts too";
@@ -9691,8 +9691,8 @@ TEST(Carve, OomNoExceptionEscapesEngine) {
     {
         ScopedOomHook oom;
         try {
-            rc = carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr,
-                             nullptr, s);
+            rc = carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                             s);
         } catch (...) {
             escaped = true;
         }
@@ -9701,4 +9701,154 @@ TEST(Carve, OomNoExceptionEscapesEngine) {
     EXPECT_TRUE(rc == u32(ERR_NO_MEMORY) || rc == u32(OK))
         << "a code every time (a worker OOM yields the code; a racing "
            "completion may return OK when every window finished first)";
+}
+/* ---- M-099: AEP (After Effects project, AEPAnalyser id 0x9c) ---- */
+
+namespace {
+
+/* a bare RIFX container: the 4CC + the BE-u32 chunk length at +4 */
+void plant_rifx(std::vector<u8>& img, size_t at, u32 be_len) {
+    img[at] = 'R';
+    img[at + 1] = 'I';
+    img[at + 2] = 'F';
+    img[at + 3] = 'X';
+    img[at + 4] = u8(be_len >> 24);
+    img[at + 5] = u8(be_len >> 16);
+    img[at + 6] = u8(be_len >> 8);
+    img[at + 7] = u8(be_len);
+}
+
+} // namespace
+
+TEST(Carve, AepRifxAccepted) {
+    /* M-099: the og's own WEAK grammar ported as-is - a bare RIFX with
+     * a sane BE length carves with NO body check (an "Egg!" gate the og
+     * lacks must not appear). */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    plant_rifx(img, at, 0x1000); /* BE length 0x1000 */
+    for (size_t i = 8; i < 0x1000; ++i)
+        img[at + i] = u8((i * 7) & 0xFF); /* non-zero filler, no XMP */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr) << "the bare RIFX carves (the weak grammar parity)";
+    EXPECT_EQ(n->props()->carve_format, u64(FMT_AEP));
+    EXPECT_EQ(n->props()->logical_size, size_t(0x1000)) << "the BE chunk length";
+    std::string nm = n->name_utf8();
+    EXPECT_NE(nm.find("AEP_"), std::string::npos) << "the AEP name prefix (DAT_180067008)";
+    EXPECT_NE(nm.find(".AEP"), std::string::npos);
+}
+
+TEST(Carve, AepXmpEndExtent) {
+    /* M-099: the chunked "<?xpacket end" scan extends the size to the
+     * marker's position + 6 (the og's own +6 - six bytes past the
+     * marker START). */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    plant_rifx(img, at, 0x100);
+    for (size_t i = 8; i < 0x100; ++i)
+        img[at + i] = u8((i * 7) & 0xFF);
+    /* the XMP terminator at a known position past the chunk length: the
+     * first window is at size+8 = 0x108; the marker at 0x108+0x12 */
+    const size_t marker_at = at + 0x108 + 0x12;
+    const char xmp[] = "<?xpacket end";
+    std::memcpy(img.data() + marker_at, xmp, sizeof(xmp) - 1);
+    const size_t expected = (marker_at + 6) - at;
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr);
+    EXPECT_EQ(n->props()->carve_format, u64(FMT_AEP));
+    EXPECT_EQ(n->props()->logical_size, expected) << "the marker position + 6";
+}
+
+TEST(Carve, AepBeLengthByteSwap) {
+    /* M-099: the BE-u32 length is read byteswapped - a length 0x00000123
+     * (BE bytes 00 00 01 23) is 0x123, not 0x23010000; the
+     * little-endian RIFF family must NOT claim the RIFX row. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    plant_rifx(img, at, 0x123);
+    for (size_t i = 8; i < 0x123; ++i)
+        img[at + i] = u8((i * 7) & 0xFF);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr) << "the RIFX row claims the file";
+    EXPECT_EQ(n->props()->carve_format, u64(FMT_AEP));
+    EXPECT_EQ(n->props()->logical_size, size_t(0x123))
+        << "the byteswapped (BE) length read - not the LE 0x23010000";
+}
+
+TEST(Carve, AepCapThirtyMiB) {
+    /* M-099: the 30 MiB walk cap - a declared length >= 0x1e00001
+     * sizes at the 0x1e00000 cap EXACT (the og's cap-exit assignment). */
+    const Signature* reg = registry();
+    const Signature* aep = nullptr;
+    for (size_t i = 0; i < registry_size(); ++i)
+        if (reg[i].id == FMT_AEP)
+            aep = &reg[i];
+    ASSERT_NE(aep, nullptr);
+    EXPECT_EQ(aep->max_size, 0x1e00000ull) << "the og's 30 MiB cap";
+    EXPECT_EQ(aep->min_size, 8u) << "the RIFX head the size read needs";
+    EXPECT_EQ(std::string(aep->ext), "aep");
+    /* the declared-over-cap length: the cap exact */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    plant_rifx(img, at, 0x1e00001); /* one past the cap bound */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr) << "the over-cap RIFX still carves (the cap exact)";
+    EXPECT_EQ(n->props()->carve_format, u64(FMT_AEP));
+    EXPECT_EQ(n->props()->logical_size, size_t(64 * 1024 - 512))
+        << "the cap clamped to the device (the 30 MiB cap overruns the 64 KiB image)";
+    std::vector<const Signature*> bad;
+    EXPECT_EQ(validate_registry(&bad), 0u);
+    EXPECT_EQ(self_probe_registry(&bad), 0u);
 }

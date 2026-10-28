@@ -609,6 +609,18 @@ commit = one push):**
   rdbe16; the S-007 fixture's LE length plants → the BE wire form (the
   fixture could never have been a real stream);
   Carve.MpegPsPesLengthsAreBigEndian pins the decode.
+- **M-099 (MAJOR — the AEP/After Effects project analyser) → FIXED.**
+  The weak grammar ported AS-IS (the finding's own directive: bare
+  RIFX, no "Egg!" body gate — the false-positive posture IS the parity
+  target); the walk decoded exactly beyond the finding's text: the
+  first 0x200 window at size+8, the 0x200 stepping with the window
+  fetched at the counter (the og's 8-byte first-window overlap), the
+  "<?xpacket end" marker sizing at marker-position + 6, the zero-run
+  sub-walk (a window ending in 8 zeros trims at the first 8-zero run),
+  the 0x1e00000 cap exact on both the over-cap and the cap-exit paths;
+  the name L"AEP" dumped from the og binary (DAT_180067008:
+  41 00 45 00 50 00). RawConfig AEP=1 shipped. Proof: Carve.Aep* (4
+  tests) + the stashed-engine RED; suite 1181/1181 green post-fix.
 
 **Board at this lane's M-117 landing (post-rebase over the parallel lanes'
 S-048/S-049/S-054/S-053/N-115/N-126/N-148/INFO-tier landings): 39 active on

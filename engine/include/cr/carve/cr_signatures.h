@@ -386,6 +386,25 @@ enum FormatId : u32 {
      * the generic stream never shadows the HIK discriminator. Id
      * APPENDED (serialized carve_format values stay stable). */
     FMT_HIK,
+    /* M-099 (diff-to-fix): the og's AEP (After Effects project) analyser
+     * (AEPAnalyser id 0x9c - list-layer, the RawConfig "AEP" token
+     * :4024-4074, shipped AEP=1/enabled). The probe (FUN_18000efa0
+     * :11550-11598) accepts BARE RIFX (0x58464952, big-endian RIFF) with
+     * NO body check - the og's own deliberate weak grammar (any RIFX
+     * passes; porting it AS-IS is the parity target, an "Egg!" gate the
+     * og lacks must NOT be added); the analyser names its files L"AEP"
+     * (DAT_180067008, dumped from the binary: 41 00 45 00 50 00). The
+     * size walk (FUN_18000f0d0 :11603-11840): size = the BE-u32 chunk
+     * length at +4 (the byteswapped read :11690-11695); >= 0x1e00001 ->
+     * the 0x1e00000 (30 MiB) cap exact; else the chunked scan - 0x200
+     * windows from size+8 (the first window's +8 offset), stepping
+     * 0x200 with the size counter, for the 13-byte "<?xpacket end" XMP
+     * terminator; found -> size = the marker's position + 6; a window
+     * whose last 8 bytes are all zero triggers the zero-run walk (the
+     * first 8 consecutive zero bytes in the window ends the extent at
+     * size + the run's offset); the cap exit sets 0x1e00000 exact. Id
+     * APPENDED (serialized carve_format values stay stable). */
+    FMT_AEP,
     FMT_COUNT
 };
 

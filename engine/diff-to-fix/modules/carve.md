@@ -689,7 +689,7 @@ case-insensitive <HTML/<!DOCTYPE HTML/wide probes + the ASCII-only </html>
 end-tag walk with sector round-up, 1 MiB cap; the vocabulary-consistency
 surface updated — HTML is checkable now, the OQ-FLT-1 registry-derived
 design; findings/FIXED/M-092) · **M-093** XML+SVG · **M-096** MOBI ·
-**M-098 FIXED (S42 fix lane)** HIK (the private_stream_1 discriminator: the BB->BD skip + the direct-BD form, the 0x1A+gated-BE16 pack walk, the 1 GiB cap-exact, L"HIK" from DAT_18006b428 dumped from the binary, base 700 for the N-070 score contest; tests Carve.Hik*; N-156 discovered+fixed in the same landing — the generic MPEG-PS lengths now read BE; findings/FIXED/M-098 + N-156) · **M-099** AEP ·
+**M-098 FIXED (S42 fix lane)** HIK (the private_stream_1 discriminator: the BB->BD skip + the direct-BD form, the 0x1A+gated-BE16 pack walk, the 1 GiB cap-exact, L"HIK" from DAT_18006b428 dumped from the binary, base 700 for the N-070 score contest; tests Carve.Hik*; N-156 discovered+fixed in the same landing — the generic MPEG-PS lengths now read BE; findings/FIXED/M-098 + N-156) · **M-099 FIXED (S42 fix lane)** AEP (the bare-RIFX weak grammar ported as-is, the BE-length + "<?xpacket end" scan with the +6 extent, the zero-run trim, the 30 MiB cap exact, L"AEP" from DAT_180067008; tests Carve.Aep*; findings/FIXED/M-099) ·
 **N-111 FIXED session-39** (FMT_JP2/FMT_JPX/FMT_JPM: the "jP  " box key at +4 with the
 payload/ftyp/brand gates, the exact-match brand map via format_override (the M-093
 pattern), the fully-decoded size machinery — the BE u32 box walk with the len==1

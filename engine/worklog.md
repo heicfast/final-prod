@@ -6014,3 +6014,18 @@ parent state + the lane's intended N-139 test block assembled at its proper plac
 (after MpegPsPesLengthsAreBigEndian); the content is byte-faithful to their intent
 (the ScopedOomHook seam, the three tests, the comments). Suite 1249/1249 green
 post-repair (this lane's build); the 8 HIK/MpegPs/OOM tests all pass.
+**M-099 FIXED (the AEP/After Effects project analyser) — commit `<this
+push>`:** the weak grammar ported AS-IS (bare RIFX, no "Egg!" body gate
+per the finding's own directive); the walk decoded beyond the finding:
+the first 0x200 window at size+8 (the +8 offset :11688), then the
+counter-stepped windows (the og's 8-byte first-window overlap
+:11784-11785), the "<?xpacket end" marker at marker+6 (:11761), the
+zero-run sub-walk (:11769-11840 — a window ending in 8 zeros trims at
+the first 8-zero run, d+7 < 0x1ff), the 0x1e00000 cap exact on both
+the over-cap path (len >= 0x1e00001) and the cap-exit path; the name
+L"AEP" (DAT_180067008 dumped from og-codebase/RAWSearchDLL.dll: 41 00
+45 00 50 00); RawConfig AEP=1 (og-codebase/config/RawConfig.ini:32).
+Row: FMT_AEP keyed "RIFX", ext "aep", floor 8, cap 0x1e00000. Tests:
+Carve.Aep* (4); RED by the stashed-engine rebuild; suite 1181/1181
+green; format clean. Trail: findings/FIXED/ with the Resolution;
+ledger row; matrix cell; modules/carve.md; SUMMARY's S42 block.
