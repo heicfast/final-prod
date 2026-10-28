@@ -1,3 +1,19 @@
+## Session-44 minors lane (2026-10-29 — the minor-first diff-fix execution lane, per the user's operative directive; T1 baseline: core `9807934` at open (the N-172/N-173 landing), corpus `be0cfe9`; prompt saved to worklog/session-diff-fix-44-minors-prompt.md; board at open: 1 ACUTE · 9 SEVERE · 28 MAJOR · 32 MINOR · 7 INFO active + 6 tracked-open; suite 1203 green at open (1161 pass / 42 win-skip / 0 fail), build linux-release with CR_ENABLE_TESTS=ON; REBRAND NOTE at the push reconciliation: the S45..S51 parallel seats pushed first — this lane's S44 branding kept per both-sides-records-kept; the S46 claim on the MINOR set is noted, first verified FIX PUSH retires a seat per the S49 house rule — N-161 landed here first)
+
+- **T1/T2/T3/T4 complete** — both repos pulled (core at `9807934`, corpus at `be0cfe9` — both fresh at open); the diff-to-fix board read in full (README lane history, SEVERITY-SCALE, the open set per tier); the core built clean (linux-release, cmake 4.4.4 via pip — note: system cmake absent, `~/.venv/bin/cmake`); the full unit suite ran green at open: 1203 tests (1161 pass / 42 skip / 0 fail) in 69.7 s. The lane's fix order per the user directive: MINOR (32 open) → INFO (7) → TRACKED-OPEN (6) → MAJOR (28) → SEVERE (9) → ACUTE (1), one finding per verified fix per push. The S47/S48..S50 window's retirements (A-014 + M-124 + I-041..I-044) absorbed at this lane's first push rebase.
+
+- **N-161 FIXED** — the GPT entry-span underflow: `emit_gpt_entries` now gates `first_lba ≤ last_lba`
+  before the span math; a corrupt inverted entry (first=5, last=0) is counted in the new
+  `DiskTable::gpt_invalid_entries` (surfaced through `ScanStats::gpt_invalid_entries` at the
+  whole-disk target-set parse) instead of wrapping to sector_count 0xFFFFFFFFFFFFFFFC and
+  masquerading as a giant volume. RED proven pre-fix (the corrupt fixture emitted the second
+  wrapped partition exactly as filed); GREEN post-fix. The overflow boundary (first=0,
+  last=UINT64_MAX) pinned on the zero-span side of the seam (not an inversion; the +1 wraps
+  to 0; the existing gate drops it). All three emission paths share the gated lambda. Tests:
+  `Gpt.EntryLastLbaBeforeFirstLbaSkippedAndCounted` + `Gpt.EntrySpanOverflowBoundary`.
+  Suite 1205/1205 (linux-release). Audit trail: finding Resolution + move to findings/FIXED/,
+  matrix MINOR row, lost-partition module doc, SUMMARY Session-44 delta.
+
 **S48 lane progress (INFO board COMPLETE — 6 of 6 dispositioned by this lane):**
 I-044 (f0163182 — the scan-mode register: C1/A1/A5 annotated, D-36 citation fixed, errata row),
 I-043 (D-122 — the state-ownership improvement registered), I-042 (module-registered pause
@@ -111,6 +127,7 @@ tracked-OQ per the S42 liveness verdict — no code disposition possible from th
 tree; re-verified before claiming). Pulled-before-pushed discipline; one finding, one
 push; every fix RED-test-first. Target: 20+ MINOR fixes this session. Audited pin:
 core `659f0f6c`, corpus `be0cfe9`.
+
 
 - **N-148 FIXED** — the comment-truth batch, all seven items: the LDM RAID-5 UNDECODED hedge
   replaced with the OQ-T7 resolved MATCH; D-09's demanded ZFS wording landed verbatim; the M-112

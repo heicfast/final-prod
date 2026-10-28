@@ -766,3 +766,65 @@ TEST(Gpt, EspMsrLinuxBiosbootLdmClassification) {
     EXPECT_EQ(t.partitions[4].fs, FsKind::Reserved); /* LDM metadata */
     EXPECT_EQ(t.partitions[5].fs, FsKind::Ldm);      /* LDM data */
 }
+
+TEST(Gpt, EntryLastLbaBeforeFirstLbaSkippedAndCounted) {
+    /* N-161: an entry whose span is inverted (last_lba < first_lba) must
+     * be named invalid and counted - never emitted with the wrapped
+     * near-u64-max sector count masquerading as a giant volume. */
+    GptDisk gd = make_gpt_disk();
+    /* second used entry with the corrupt shape: first=5, last=0 */
+    const u8 basic[16] = {0xA2, 0xA0, 0xD0, 0xEB, 0xE5, 0xB9, 0x33, 0x44,
+                          0x87, 0xC0, 0x68, 0xB6, 0xB7, 0x26, 0x99, 0xC7};
+    std::memcpy(gd.entries.data() + 128, basic, 16);
+    put64(gd.entries, 128 + 32, 5);
+    put64(gd.entries, 128 + 40, 0);
+    std::memcpy(gd.disk.data() + 2 * 512, gd.entries.data(), gd.entries.size());
+    put32(gd.disk, 512 + 88, crc32(gd.entries.data(), gd.entries.size()));
+    put32(gd.disk, 512 + 16, 0);
+    put32(gd.disk, 512 + 16, crc32(gd.disk.data() + 512, 92));
+    /* mirror to the backup side (entries + header CRCs stay consistent) */
+    std::memcpy(gd.disk.data() + 2046 * 512, gd.entries.data(), gd.entries.size());
+    std::vector<u8> bh(gd.disk.begin() + 512, gd.disk.begin() + 1024);
+    put32(bh, 16, 0);
+    put64(bh, 24, 2047);
+    put64(bh, 32, 1);
+    put64(bh, 72, 2046);
+    put32(bh, 16, crc32(bh.data(), 92));
+    std::memcpy(gd.disk.data() + 2047 * 512, bh.data(), 512);
+
+    MemDevice dev(std::move(gd.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    ASSERT_EQ(t.partitions.size(), 1u); /* the corrupt entry never emits */
+    EXPECT_EQ(t.partitions[0].start_lba, 100u);
+    EXPECT_EQ(t.partitions[0].sector_count, 101u);
+    EXPECT_EQ(t.gpt_invalid_entries, 1u); /* named invalid, counted */
+}
+
+TEST(Gpt, EntrySpanOverflowBoundary) {
+    /* N-161 boundary: the whole-LBA-space claim (first=0, last=UINT64_MAX)
+     * is NOT an inverted span (first <= last holds), so the invalid-span
+     * counter must not tick; the +1 wraps the count to 0 and the existing
+     * zero-span gate drops the entry. Pins the two-gate seam. */
+    GptDisk gd = make_gpt_disk();
+    put64(gd.entries, 32, 0);
+    put64(gd.entries, 40, 0xFFFFFFFFFFFFFFFFull);
+    std::memcpy(gd.disk.data() + 2 * 512, gd.entries.data(), gd.entries.size());
+    put32(gd.disk, 512 + 88, crc32(gd.entries.data(), gd.entries.size()));
+    put32(gd.disk, 512 + 16, 0);
+    put32(gd.disk, 512 + 16, crc32(gd.disk.data() + 512, 92));
+    std::memcpy(gd.disk.data() + 2046 * 512, gd.entries.data(), gd.entries.size());
+    std::vector<u8> bh(gd.disk.begin() + 512, gd.disk.begin() + 1024);
+    put32(bh, 16, 0);
+    put64(bh, 24, 2047);
+    put64(bh, 32, 1);
+    put64(bh, 72, 2046);
+    put32(bh, 16, crc32(bh.data(), 92));
+    std::memcpy(gd.disk.data() + 2047 * 512, bh.data(), 512);
+
+    MemDevice dev(std::move(gd.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_EQ(t.partitions.size(), 0u);   /* zero-span gate drops it */
+    EXPECT_EQ(t.gpt_invalid_entries, 0u); /* not an inversion */
+}

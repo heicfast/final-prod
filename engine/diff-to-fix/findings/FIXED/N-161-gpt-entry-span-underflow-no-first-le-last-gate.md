@@ -63,4 +63,30 @@ Core-derived (lead auditor read the span math + the gate). Arithmetic: 0 − 5 +
 ## Open questions
 
 The og's own span consumption (OQ-1) — the artifacts to decode are listed in the lane
-sheet; resolving it upgrades this to MATCH or a parity divergence.
+sheet; resolving it upgrades this to MATCH or a parity divergence. (Session-44 note:
+still open — the fix below is the core-side honesty gate the finding demanded regardless;
+the og-side decode remains on M-123's OQ list.)
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-161 landing — post-push SHA in the ledger row and worklog entry)
+**Verified by:** `Gpt.EntryLastLbaBeforeFirstLbaSkippedAndCounted` (RED pre-fix: the corrupt
+entry [type GUID set, first=5, last=0] emitted as a second partition with the wrapped
+0xFFFFFFFFFFFFFFFC sector count — the masquerade reproduced exactly as filed; post-fix:
+1 partition, `gpt_invalid_entries == 1`) + `Gpt.EntrySpanOverflowBoundary` (first=0,
+last=UINT64_MAX: first≤last holds so the invalid-span counter does NOT tick; the +1
+wraps the count to 0 and the existing zero-span gate drops it — the two-gate seam
+pinned on both sides). Suite 1205/1205 green (1203 prior + 2 new, linux-release).
+**Resolution notes:** The gate landed exactly per the fix plan step 1: `emit_gpt_entries`
+now checks `e.last_lba < e.first_lba` after the used-test, increments the new
+`DiskTable::gpt_invalid_entries` counter, and continues without emitting. The counter
+is surfaced through `ScanStats::gpt_invalid_entries` (copied at the whole-disk
+target-set parse site, cr_scan.cpp) so a hostile image reads as named-invalid rather
+than landing unnamed in `table_volumes_skipped`. All three emission paths (verified
+primary, salvaged primary, backup) share the lambda, so the gate covers every side.
+No safety hardening touched (this IS one — the honesty doctrine's named-invalid over
+silent wrap). The og-side OQ stays open on M-123's decode list; if the og later proves
+to validate the same shape, this converges to MATCH, and if it shares the wrap defect,
+the gate stays as a documented deliberate hardening (PARITY-DELTAS candidate at that
+session).

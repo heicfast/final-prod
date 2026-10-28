@@ -79,6 +79,13 @@ struct DiskTable {
      * unreadable/invalid EBR link (0 when the chain is whole). */
     EbrChainStatus ebr_status = EbrChainStatus::None;
     u64 ebr_break_lba = 0;
+    /* N-161: corrupt-entry honesty — GPT entries skipped because their
+     * span is inverted (last_lba < first_lba; the subtraction would wrap
+     * to a near-u64-max sector count that masquerades as a giant
+     * volume). Counted here, never emitted; surfaced through ScanStats
+     * so a hostile image reads as named-invalid, not silently skipped
+     * downstream. */
+    u32 gpt_invalid_entries = 0;
 };
 
 class CancelRegistry; /* fwd */

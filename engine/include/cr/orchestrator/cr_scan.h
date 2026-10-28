@@ -487,6 +487,11 @@ struct ScanStats {
     u64 table_volumes = 0;
     u64 table_volumes_scanned = 0;
     u64 table_volumes_skipped = 0;
+    /* N-161: GPT entries the table parse named invalid (inverted span,
+     * last_lba < first_lba) instead of letting the wrapped sector count
+     * masquerade as a giant volume and land in table_volumes_skipped as
+     * an unnamed skip. */
+    u32 gpt_invalid_entries = 0;
 };
 
 /* ---- live scan observability (G-04/G-05/G-06) ----

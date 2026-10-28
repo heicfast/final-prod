@@ -11,8 +11,9 @@ walk, the bogus Other-volume at the link target gone (P1 detection / P26 tree-wa
 MATCH; tests Ebr.LinkType085WalksChain / Ebr.LinkType085SameBasisAs05 /
 Mbr.Extended085NotEmittedAsVolume, all RED pre-fix);
 **M-132** (GPT backup-probe position + dead-LBA1 asymmetry, both directions);
-**N-161** (GPT entry span underflow, no first<=last gate); **N-164** (the deliberate
-GPT strictness unregistered). Verified-MATCH: EBR base/rel chain math, MBR LBA fields,
+**N-161 FIXED (Session-44 minors lane — the first≤last span gate + the named-invalid
+counter, RED→GREEN proven; findings/FIXED/N-161)** (GPT entry span underflow);
+**N-164** (the deliberate GPT strictness unregistered). Verified-MATCH: EBR base/rel chain math, MBR LBA fields,
 GPT type-GUIDs, the salvage ladder's two-step order, LDM span/stripe/RAID-5 math
 (post-S-052, algebraically identical to FUN_180086a90).
 

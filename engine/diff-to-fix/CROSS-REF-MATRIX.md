@@ -62,7 +62,9 @@
     A-013 landing); **M-132** (table P1/P35 — GPT backup probe:
     og device-last always + full bail on dead LBA1; core probes declared backup_lba +
     recovers from dev-last — divergent both directions, unregistered).
-  - **MINOR (18):** **N-161** (table — GPT entry span underflow, no first≤last gate);
+  - **MINOR (18):** **N-161 FIXED (Session-44 minors lane — `emit_gpt_entries` first≤last gate
+    + `DiskTable`/`ScanStats::gpt_invalid_entries` counter; RED→GREEN proven; findings/FIXED/N-161)**
+    (table — GPT entry span underflow, no first≤last gate);
     **N-162** (fat/registry — the og's 32-bit `(c−2)×spc` wrap ×4 sites, core u64
     correct, unregistered D-56/D-68 member); **N-163** (ntfs — runlist
     truncate-and-keep vs core reject-whole-fragment; sparse-first superset);

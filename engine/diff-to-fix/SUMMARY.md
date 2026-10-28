@@ -1,4 +1,31 @@
-# SUMMARY.md — executive summary (the S47 MAJOR-first fix lane on top; the prior lanes below, newest-first)
+# SUMMARY.md — executive summary (the S44 minors lane on top of the S47 MAJOR-first fix lane; the prior lanes below, newest-first — rebrand note: the remote's S47/S48..S50 window pushed first; this lane's N-161 rides the reconciliation per SA-9)
+
+## Session-44 minors-lane delta (2026-10-29 — the minor-first diff-fix execution lane per the user's operative directive; opened on `9807934` (the N-172/N-173 landing), corpus `be0cfe9`; suite at open 1203 green / 1161 pass · 42 win-skip · 0 fail)
+
+**Board at open (this lane's view): 77 active — 1 ACUTE · 9 SEVERE · 28 MAJOR ·
+32 MINOR · 7 INFO — + 6 tracked-open, FIXED archive at 64 files.** Fix order this lane:
+MINOR → INFO → TRACKED-OPEN → MAJOR → SEVERE → ACUTE (the user's minor-first directive;
+the ACUTE/SEVERE tiers execute after the minors board clears, per the session's ≥20-fix
+mandate on this tier first). (At the push reconciliation the S47/S48..S50 window's
+A-014 + M-124 + I-041..I-044 retirements landed first — earlier-push-wins; this lane's
+N-161 lands on top of that board.)
+
+**N-161 FIXED — the GPT entry-span underflow gate.** Verified before the change (the
+SOP): the span math re-read at `emit_gpt_entries` (cr_table_parse.cpp:273-274 at the
+finding's pin — the `last − first + 1` with no gate) and the `!= 0` zero-span gate it
+slips past; the wrapped-count reproduction executed RED first-hand (the corrupt entry
+[first=5, last=0, type GUID set] emitted as a second partition with sector_count
+0xFFFFFFFFFFFFFFFC — the masquerade exactly as filed). The landing: the `first ≤ last`
+gate after the used-test, the new `DiskTable::gpt_invalid_entries` counter, surfaced
+through `ScanStats::gpt_invalid_entries` at the whole-disk target-set parse site; all
+three emission paths (verified primary, salvaged primary, backup) share the lambda, so
+the gate covers every side. The overflow boundary pinned on the other side of the seam:
+first=0 / last=UINT64_MAX is NOT an inversion (counter stays 0; the +1 wraps to 0 and
+the existing zero-span gate drops it). Tests: `Gpt.EntryLastLbaBeforeFirstLbaSkippedAndCounted`
+(RED pre-fix) + `Gpt.EntrySpanOverflowBoundary`. Suite 1205/1205 (linux-release).
+
+**Board after this push (filesystem truth, post-reconciliation): 70 active — 0 ACUTE ·
+9 SEVERE · 27 MAJOR · 31 MINOR · 3 INFO — + 6 tracked-open / the FIXED archive at 71 files.**
 
 ## Session-47 S47 lane delta (2026-10-29 — the MAJOR-first parity-FIX lane per the user's explicit directive; core `fa654673` at open → merged through the S48/S49/S50 windows; corpus `be0cfe9`)
 
@@ -9,7 +36,6 @@ verified fix, one push; every fix RED-test-first; every corpus cite re-read firs
 before the change.
 
 **Landings this lane so far:**
-
 - **M-124 FIXED** (`dcb123dd`) — the EBR link type 0x85 (Linux extended) joined the
   Extended arm of `mbr_type_to_kind`: whole 0x85-stamped chains no longer vanish, the
   bogus Other-volume at the link target is gone (Partition_decompiled.c:1006's `-0x7b`

@@ -274,6 +274,17 @@ u32 parse_disk_table(IStorageDevice* device, DiskTable& out) {
             for (const auto& e : ents) {
                 if (!gpt_entry_used(e))
                     continue;
+                /* N-161: an inverted span (last_lba < first_lba) would wrap
+                 * the subtraction to a near-u64-max sector count that slips
+                 * past the zero-span gate and masquerades as a giant volume;
+                 * name it invalid, count it, never emit it. The overflow
+                 * boundary (first=0, last=UINT64_MAX) stays on the zero-span
+                 * side of the seam: first <= last holds there, the +1 wraps
+                 * the count to 0 and the existing gate drops it. */
+                if (e.last_lba < e.first_lba) {
+                    ++out.gpt_invalid_entries;
+                    continue;
+                }
                 PartitionInfo p;
                 p.start_lba = e.first_lba;
                 p.sector_count = e.last_lba - e.first_lba + 1;
