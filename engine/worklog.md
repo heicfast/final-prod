@@ -236,6 +236,17 @@ OQ-S10-3's grant boundary). Pulled-before-pushed discipline; one finding, one pu
 fix RED-test-first; corpus cites re-read first-hand. The S48/S49/S50 windows absorbed at
 the merge (A-014 + I-041..I-044 retired by the parallel lanes; both sides' records kept).
 
+- **M-134 FIXED** (`9455f50a`) — the deep-read grade validation: FUN_14038c470
+  (:606291-619) re-read first-hand; the two threshold rules exact (addr==0:
+  first-32-zero or first-4-0xFF -> Low; addr>0: the previous sector's
+  last-16-zero -> High); the overlap-flag skip; the failed-read no-change;
+  GradeReader threaded at the scan's completion pass; the graded one-shot bit on
+  FileNode; regrade_node = the full per-node tree shape (solo + S-058 gate +
+  twin lookup + deep read). OQ-S42-3's sub-gates unadopted per the fix plan's
+  own allowance. Tests: 4 RED content tests (the API-extending shape proven by
+  the neutered-rule rebuild) + RegradeRunsFullTreeOnce + ReaderAbsent pin; the
+  M-115 tiny-file test re-isolated (before/after) after the new rule
+  legitimately promoted its fixture. Suites 1244/1244 + 71/71.
 - **M-115 FIXED** (`1d7a761b`) — the thumbnail grade promotion re-based on READ
   evidence: Thumbnail::read_ok disclosed by the engine (make_thumbnail_status sets
   it on Ok + DecodeFailed when no unreadable span was gained — the og's

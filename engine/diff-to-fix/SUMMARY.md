@@ -75,6 +75,13 @@ before the change.
 
 **Landings this lane so far:**
 
+- **M-134 FIXED** (`9455f50a`) — the og's deep-read grade validation: the two
+  decoded sector-content rules (first-32-zero/first-4-0xFF → Low; the previous
+  sector's last-16-zero → High), the GradeReader threaded at the completion pass
+  (one bounded sector per not-in-table no-twin node), the graded one-shot bit,
+  and the full-tree per-selection re-grade (twin lookup included). OQ-S42-3's
+  sub-gates stay unadopted per the fix plan's allowance. 4 RED content tests
+  (neutered-rule proof) + 2 pins; suites 1244/1244 + 71/71.
 - **M-115 FIXED** (`1d7a761b`) — the thumbnail grade-promotion is now READ-gated,
   not decode-gated (Thumbnail::read_ok disclosed by the engine; the ABI promotes on
   the clean recovery read per DRWUI :422507-514; the og's 0x14 work-item floor at
@@ -119,9 +126,9 @@ before the change.
   Ebr.LinkType085WalksChain / Ebr.LinkType085SameBasisAs05 / Mbr.Extended085NotEmittedAsVolume
   (all RED pre-fix); suite 1164/1164.
 
-**Board after this push (filesystem truth, post the parallel lanes' S-055/S-056 +
-N-175/I-board retirements absorbed at the merges): 61 active — 0 ACUTE · 7 SEVERE ·
-21 MAJOR · 28 MINOR · 0 INFO** (the parallel lanes' A-014 + I-041..I-044 retirements absorbed at the
+**Board after this push (filesystem truth, post the parallel lanes' retirements
+absorbed at the merges): 59 active — 0 ACUTE · 5 SEVERE · 19 MAJOR · 25 MINOR ·
+0 INFO** (the parallel lanes' A-014 + I-041..I-044 retirements absorbed at the
 merge; both sides' records kept). Next free IDs unchanged: S-062+, M-138+, N-186+, I-045+.
 
 # SUMMARY.md — executive summary (the S46 MINOR-first parity-fix lane on top; the prior lanes below, newest-first)

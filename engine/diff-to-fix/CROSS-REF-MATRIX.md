@@ -89,6 +89,10 @@
     the grade promotion is READ-gated, not decode-gated [DRWUI :422507-514 —
     Thumbnail::read_ok disclosed by the engine, the ABI promotes on the clean
     read, the 0x14 dispatcher floor added]; D15/B2/A42 → MATCH);
+  - **M-134 FIXED** (S47 MAJOR-first fix lane, `9455f50a` — findings/FIXED/M-134:
+    the deep-read grade validation landed [FUN_14038c470's two threshold
+    rules + the overlap skip + the graded one-shot bit + the full-tree
+    regrade]; #15/#32/#9 → MATCH);
   - **MINOR (18):** **N-161** (table — GPT entry span underflow, no first≤last gate);
   - **MINOR (18):** **N-161 FIXED (Session-44 minors lane — `emit_gpt_entries` first≤last gate
     + `DiskTable`/`ScanStats::gpt_invalid_entries` counter; RED→GREEN proven; findings/FIXED/N-161)**
