@@ -17658,3 +17658,33 @@ Stage Summary:
   M-066 · 3 MINOR N-086/N-087/N-088 · 1 INFO I-026) · 233 FIXED ·
   tracked-open 3. Next: M-066 (preview archive enumeration) then the
   MINORs.
+
+---
+Task ID: AG3-0 (Agent 3 session open — the parity inventory gate)
+Agent: Agent 3 (modules / loaders / format handlers / repair pipelines / sidecars)
+
+Work Log:
+- Session scope: close the og-codebase -> core_recovery feature/module gap;
+  easeus-drw-research is the sole source of truth; UI/UX layer excluded (single
+  aggregate line in the inventory, no per-entry UI rows); NAS/Cloud excluded per
+  the unified-driver exclusion.
+- Created docs/PARITY-OG-CORE-INVENTORY.md (v1): full non-UI classification of
+  the og tree (Section A) + every PartitionRecovery/* module (Section B) +
+  FEATURE queue by criticality (Section C: M-040 boot repair verification ->
+  thumbnail generation engine [session-owner directive] -> M-066 -> N-086) +
+  handoffs (Section D) + triage log (Section E) + full file appendix (Section F).
+- current: parallel corpus verification sub-agents 3-A..3-F are resolving every
+  TRIAGE row (boot family DONE-stamp, repair family, REPORTING family,
+  thumbnail/decode matrix, config/format surface, per-FS .mo surface).
+- next: fold verification results into the inventory (v2), merge to main, then
+  implement the highest-criticality FEATURE rows one at a time.
+- handoff: Agent 1 — the thumbnail engine and M-066's archive-entry Metadata
+  will need cr_ui ABI contract definitions once the engine side lands; Agent 3
+  implements engine-side only. handoff: Agent 2 — none anticipated (no scan
+  shape/parameter changes).
+
+Stage Summary:
+- The classification gate artifact exists and is committed before any
+  implementation. Board context at session start: 7 active findings
+  (S-038 SEVERE [installer — Agent 3 OOS], M-064-rem + M-066 MAJOR,
+  N-086/N-087/N-088 MINOR, I-026 INFO), 233 FIXED, 3 tracked-open.
