@@ -907,3 +907,77 @@ next A-012+, S-040+, M-071+, N-090+, I-027+. URLs recorded here and in
 diff-to-fix/README.md (the standing record — re-verified this session).
 
 Prompt saved redacted: worklog/session-9-parity-audit-prompt.md. Read twice.
+
+---
+Task ID: SA-9/T2 (the parallel reading wave — five agents, both repos + corpus)
+Agent: session-9 full parity audit (this session)
+
+Context sheets produced in the scratch area (/home/z/my-project/audit-ctx/,
+NOT committed per the SOP): A-corpus-inventory.md (376 lines — the artifact
+walk: 274 artifacts / 244 unique basenames, 92 cited by literal basename /
+110 in any form, 134 never-cited; og-codebase 17-dir tree map; top-15
+gap-hunt candidates), B-batch2-decode.md (the batch-2 format decode: every
+format's key/id/class/bounds/gate with decompile cites), C-driver-corpus.md
+(976 lines — the EPMNtDrv v2 internals + trio naming/PID handshake + hook
+drivers + 7-driver map, every claim cross-verified against the ghidra
+decompiles), D-core-vlane.md (the V-lane verification of the post-dev-sign
+landings), E-driver-read.md (the rda-driver repo read — all 66 files, the
+wire contract, D3/D4/FileVersion verification).
+
+Headline results (each verified FIRST-HAND by the lead before any finding
+was written — the verification log is the findings' evidence files):
+- V-lane: W1a/W1b/W1c/origin-LCN/thumbnail/installer landings verify MATCH
+  (documented divergences stay documented); TWO new defects found in the
+  S-007 batch-1 carve landing: the WMF placeable validator reads a WRONG
+  header layout (inch@+16 = the reserved field; checksum@+18 vs the og's
+  +20; XOR-9-words vs the og's 10) and REJECTS every real placeable WMF
+  (the test plant mirrors our own wrong convention — the suite cannot catch
+  it); MID/GZ registry caps drift from the og ctors (64MiB vs 10MB; 512MiB/
+  min-18 vs 400MB/min-20).
+- R-lane: the batch-2 formats fully decoded at the registration sites —
+  the CHM GUID-compare-width puzzle RESOLVED at the instruction level
+  (capstone on the og binary: u64 compares, Ghidra right, RetDec's stack-
+  built constants mis-fused; the canonical ITSF layout puts GUID1@+0x18/
+  GUID2@+0x28 per the Russotto spec — the og's gate is canonical, the prior
+  session's chmlib-struct-based expectation was the error); CRW/MRW
+  resolved instruction-decisive: II/MM 1A 00 -> Brance::CRWAnalyser id 0x12
+  (CIFF gate), FileMRWAnalyser id 0x66 rides \0MRM ONLY — our batch-1 MRW
+  rows on II/MM 1A 00 are dead rows and Canon CRW is not carved at all.
+- G-lane: the gap-hunt candidates dispositioned against the existing module
+  coverage (CDiskDriveLayoutReadWriter = the lost-partition apply sequence,
+  covered modules/lost-partition.md:205-218; RegLib covered mom-capabilities
+  :94-97 + health.md:63; BCD writer covered boot-repair.md; NTFSLib covered
+  ntfs.md:357; VideoViewer covered I-015; CWindowsFS/offline-OS stay census
+  stubs — the corpus documents the classes but no behavior parameters).
+- D-lane (this session's two-repo grant): D3 CONFIRMED and expanded (16
+  prose + 2 structural stale-count sites; nuance: sites describing the og's
+  EUDCPEPM reference set as 15 are CORRECT — the true served set is 19);
+  D4 CONFIRMED (hex(7) tokens are not hex bytes; plus TWO more divergences:
+  the class GUID targets DISKDRIVE where the og's regdrv.reg writes VOLUME,
+  and Start=3 demand-start vs the og's boot-start filter); FileVersion
+  CONFIRMED pinned 1.0.0.0 vs tag v0.2.4 (the M-064 versioned-coexistence
+  scheme is inert: every v0.x build computes <name>10.sys so the upgrade
+  branch never triggers); the admin-gate doc claim at rda_ioctl.h:367 has
+  NO code check behind it.
+- The never-audited EPMNtDrv v2 + trio surfaces resolve MATCH (our driver
+  implements the PID-token handshake byte-exactly, service-name-derived
+  naming, DO_DIRECT_IO, METHOD_BUFFERED identity IOCTLs, pass-through,
+  x512 Information — cross-verified C-sheet corpus decode vs E-sheet code
+  read); the SURFACE-INVENTORY rows flip to AUDITED this session.
+
+Agent-B corrections absorbed by the lead (the sheet's own errors, caught by
+first-hand re-reads, NOT carried into findings): the "MMOR -> CRW chain"
+association is wrong (MMOR/IIRS/FUJI -> BruteForce::TiffAnalyzer id 0x40,
+ghidra :1727-1744 + FUN_180037b50); the B-sheet's CHM GUID tail constant
+reading was garbled (the true tail u64 = 0xECE622C9A0000C9E, verified at
+the instruction level).
+
+Findings written this session: S-040 (WMF placeable layout), S-041 (CRW
+absent + MRW dead rows), S-042 (batch-2 formats absent), M-071 (FileVersion
+pin), M-072 (regdrv-rda.reg), N-090 (D3 counts), N-091 (driver doc-vs-code
+truthfulness), N-092 (MID/GZ caps). Evidence under evidence/decompiled-
+quotes/s9-* and evidence/executions/s9-*. Gate docs updated: README (the
+session-9 block), SURFACE-INVENTORY (corpus pin be0cfe9 + row flips + the
+EuShare/glob corrections), PARAMETERS (pin), CROSS-REF-MATRIX (new rows),
+SUMMARY (delta block), CORPUS-ERRATA (E53-E55), modules/carve.md,
+modules/driver-install.md, modules/transport.md.
