@@ -1,6 +1,10 @@
 # CORE-API-CURRENT — the current public API surface (v0.4.1-parity tree, HEAD 22e9657)
 
-> Written by reading agent A (Task 2-a). Every claim is cited `file:line` against `22e9657`.
+> Written by reading agent A (Task 2-a). Original census cited `file:line`
+> against `22e9657`. **Cite refresh (api-fix-2 lane):** the LIVE sections'
+> cites were re-verified against the current tree — §(a) Win platform layer,
+> §(b) ABI tables, §(c) CLI grammar, §(d).5 — and re-pinned where drifted;
+> §(e)/§(f) keep their historical 22e9657-era cites under the banner below.
 > Companion document: [CORE-DISK-ACCESS.md](CORE-DISK-ACCESS.md) (the transport decision map).
 > This file inventories the surface as it EXISTS; historical/parity context lives in
 > [API.md](API.md), [API-SURFACE-AUDIT.md](API-SURFACE-AUDIT.md), [ABI-CONTRACT.md](ABI-CONTRACT.md).
@@ -141,15 +145,14 @@
 
 | Symbol | Purpose |
 |---|---|
-| `win::open_rda_partition/open_rda_volume` | grammar-path driver opens (cr_transport.h:33-35) |
-| `win::image_file_io()` | the Win32 ImageFileIo singleton (cr_transport.h:39) |
-| `win::open_physical_drive/open_harddisk_volume` | direct handles (cr_transport.h:43-44) |
-| `win::open_disk(disk, prefer_rda, service, err)` | the decision-point whole-disk open (cr_transport.h:47-48) |
-| `win::open_disk_rw` / `open_disk_apply_rw` | write-capable views (repair/apply) (cr_transport.h:57-78) |
-| `win::refresh_disk_properties` | S-029 IOCTL_DISK_UPDATE_PROPERTIES + settle (cr_transport.h:67) |
-| `win::volume_extent/volume_extents/destination_volume_letter` | N-013 destination arming (cr_transport.h:83-108) |
-| `win::rda_available(service, last_error)` | the presence probe (cr_transport.h:114) |
-| `win::win_pe_environment()` | M-030 PE gate (cr_transport.h:124) |
+| `win::query_driver_status(service_name, out)` | the driver-status diagnostic query — fills every facet, never fails on driver condition, it REPORTS it (cr_transport.h:53) |
+| `win::open_rda_partition/open_rda_volume` | grammar-path driver opens (cr_transport.h:64-66) |
+| `win::image_file_io()` | the Win32 ImageFileIo singleton (cr_transport.h:71) |
+| `win::open_physical_drive` | CONTROL-PATH whole-disk open (\\.\\PhysicalDriveN), enumeration-only — NOT a data-path open; `open_harddisk_volume` and the direct data-path fallbacks are REMOVED (cr_transport.h:80) |
+| `win::open_disk(disk, service, err)` | the whole-disk data-path open over the RDA grammar path — driver REQUIRED, the grammar open is the only leg (cr_transport.h:89) |
+| `win::open_disk_rw` / `open_disk_apply_rw` | write-capable views (repair/apply), RDA handles GENERIC_READ|WRITE (cr_transport.h:100/:121) |
+| `win::refresh_disk_properties` | S-029 IOCTL_DISK_UPDATE_PROPERTIES + settle (cr_transport.h:110) |
+| `win::volume_extent/volume_extents/destination_volume_letter` | N-013 destination arming (cr_transport.h:127-152) |
 | `win::enumerate_disks/enumerate_disk_interfaces/merge_disk_enumeration/enumerate_volumes` + `PhysicalDisk/VolumeEntry` + `decode_device_descriptor/decode_device_id_descriptor/bus_interface_name` | N-071 two-stack enumeration (cr_enumerate.h:37-258) |
 | `win::WinDestIo` | Win32 atomic temp+rename DestIo (cr_destio.h:17-45) |
 | `win::is_elevated()` | GAP-P1-5 elevation probe (cr_elevate.h:23) |
@@ -171,120 +174,120 @@ heap-out strings, zero-init configs always safe, no exception escapes (catch-all
 
 | Export | Contract |
 |---|---|
-| `cr_ui_abi_version()` | returns 2; call first, refuse on mismatch (cr_ui.h:73-75) |
-| `cr_ui_last_error()` | thread-local text of the LAST failing call; stable until next call on that thread (cr_ui.h:81-84) |
-| `cr_ui_string_free(char*)` | frees heap strings (free() also valid) (cr_ui.h:87) |
+| `cr_ui_abi_version()` | returns 2; call first, refuse on mismatch (cr_ui.h:105-107) |
+| `cr_ui_last_error()` | thread-local text of the LAST failing call; stable until next call on that thread (cr_ui.h:110-113) |
+| `cr_ui_string_free(char*)` | frees heap strings (free() also valid) (cr_ui.h:113) |
 
 ### b.2 Devices & transport truth (9)
 
 | Export | Contract |
 |---|---|
-| `cr_ui_open_image(utf8, offset, bytes, out)` | flat/VMDK/VHD/VHDX read-only device bounded to [offset, offset+bytes); bytes=0 → to EOF (cr_ui.h:237-241) |
-| `cr_ui_open_disk(disk, out)` | Windows only: RDA-first with direct fallback; transport reported by device_transport (cr_ui.h:249-251) |
-| `cr_ui_open_volume(letter, out)` | BitLocker probe first; locked → auto-unlock attempt → `CR_UI_ERR_FVE_LOCKED` (0x50060001); returns the volume slice on its parent disk (cr_ui.h:252-253) |
-| `cr_ui_last_transport_error()` | M-030: surviving transport leg's error from the LAST cr_ui_open_disk on this process; advisory, process-global, never clears (cr_ui.h:268-280; impl cr_ui.cpp:1437-1445) |
-| `cr_ui_open_volume_with_key(letter, hex_fvek, out)` | M-033: locked-volume open with user FVEK (64/128 hex chars → AES-128/256-XTS in-stack decrypt) (cr_ui.h:294-301) |
-| `cr_ui_unlock_volume_with_dictionary(letter, passwords, count)` | N-064 explicit-consent dictionary unlock (shipped 228 + user candidates) (cr_ui.h:317-323) |
-| `cr_ui_device_close(dev)` | closes; caller-owned close order (cr_ui.h:326) |
-| `cr_ui_device_geometry(dev, out)` | 4Kn-aware geometry (cr_ui.h:335) |
-| `cr_ui_device_transport(dev, buf, cap, needed)` | "rda" / "direct" / "image" two-call string (cr_ui.h:340-342) |
+| `cr_ui_open_image(utf8, offset, bytes, out)` | flat/VMDK/VHD/VHDX read-only device bounded to [offset, offset+bytes); bytes=0 → to EOF (cr_ui.h:281) |
+| `cr_ui_open_disk(disk, out)` | Windows only: REFUSES with the classified ERR_DRIVER_* code when the RDA driver is absent/not-started/unauthorized/version-incompatible/errored — NO direct-handle fallback (PLAN-DRIVER-ONLY); transport (always "rda") reported by device_transport (cr_ui.h:299) |
+| `cr_ui_open_volume(letter, out)` | BitLocker probe first; locked → auto-unlock attempt → `CR_UI_ERR_FVE_LOCKED` (0x50060001); returns the volume slice on its parent disk (cr_ui.h:300) |
+| `cr_ui_last_transport_error()` | M-030: surviving transport leg's error from the LAST cr_ui_open_disk on this process; advisory, process-global, never clears (cr_ui.h:309; impl cr_ui.cpp:1505) |
+| `cr_ui_open_volume_with_key(letter, hex_fvek, out)` | M-033: locked-volume open with user FVEK (64/128 hex chars → AES-128/256-XTS in-stack decrypt) (cr_ui.h:376) |
+| `cr_ui_unlock_volume_with_dictionary(letter, passwords, count)` | N-064 explicit-consent dictionary unlock (shipped 228 + user candidates) (cr_ui.h:392) |
+| `cr_ui_device_close(dev)` | closes; caller-owned close order (cr_ui.h:396) |
+| `cr_ui_device_geometry(dev, out)` | 4Kn-aware geometry (cr_ui.h:405) |
+| `cr_ui_device_transport(dev, buf, cap, needed)` | "rda" / "image" two-call string (cr_ui.h:412) |
 
 ### b.3 Enumeration (2)
 
 | Export | Contract |
 |---|---|
-| `cr_ui_enumerate_disks(out, count)` | PhysicalDrive census ≤ 200 disks; failure returns error (never silent empty) (cr_ui.h:373) |
-| `cr_ui_enumerate_volumes(out, count)` | letter/disk correlation + FVE flag (cr_ui.h:374) |
+| `cr_ui_enumerate_disks(out, count)` | PhysicalDrive census ≤ 200 disks; failure returns error (never silent empty) (cr_ui.h:443) |
+| `cr_ui_enumerate_volumes(out, count)` | letter/disk correlation + FVE flag (cr_ui.h:444) |
 
 ### b.4 Scan lifecycle (18)
 
 | Export | Contract |
 |---|---|
-| `cr_ui_scan_create(cfg, out)` / `cr_ui_scan_close` | handle lifecycle; zero-init cfg = defaults (cr_ui.h:462-464) |
-| `cr_ui_scan_attach_device` | bind device BEFORE run; identity card auto-fill (Windows) (cr_ui.h:469-471) |
-| `cr_ui_scan_run` | synchronous on caller's thread; 0 / engine error / `CR_UI_ERR_CANCELLED` with tree intact (cr_ui.h:476-478) |
-| `cr_ui_scan_pause` / `_resume` / `_cancel` | token control, any thread (cr_ui.h:481-483) |
-| `cr_ui_scan_busy` / `cr_ui_scan_stopping` | N-075 synchronous state queries (live run state / live cancel request) (cr_ui.h:508-512) |
-| `cr_ui_scan_set_event_fn` | subscribe pre-run only (ERR_BAD_PARAMETER mid-run) (cr_ui.h:230-232) |
-| `cr_ui_scan_telemetry` | any-thread live snapshot (cr_ui.h:540) |
-| `cr_ui_scan_get_stats` | post-run counters (cr_ui.h:578) |
-| `cr_ui_scan_assistant` | S-023 grading statistics (cr_ui.h:617) |
-| `cr_ui_scan_checkpoint_count` | G-13 emitted checkpoints (cr_ui.h:636) |
-| `cr_ui_scan_repair_save_undo` | persist S-008 repair undo log (cr_ui.h:643) |
-| `cr_ui_scan_save_session(path)` / `cr_ui_scan_save_cancel` | N-060 atomic save + save-scoped cancel (cr_ui.h:692-698, 703-712) |
-| `cr_ui_scan_snapshot` | G-02 immutable mid-scan/after value capture (cr_ui.h:716-719) |
-| `cr_ui_scan_verify_identity` | boot-hash mismatch → `CR_UI_ERR_BAD_CHECKSUM` (cr_ui.h:723-727) |
+| `cr_ui_scan_create(cfg, out)` / `cr_ui_scan_close` | handle lifecycle; zero-init cfg = defaults (cr_ui.h:551-552) |
+| `cr_ui_scan_attach_device` | bind device BEFORE run; identity card auto-fill (Windows) (cr_ui.h:557-559) |
+| `cr_ui_scan_run` | synchronous on caller's thread; 0 / engine error / `CR_UI_ERR_CANCELLED` with tree intact (cr_ui.h:562-564) |
+| `cr_ui_scan_pause` / `_resume` / `_cancel` | token control, any thread (cr_ui.h:565-567) |
+| `cr_ui_scan_busy` / `cr_ui_scan_stopping` | N-075 synchronous state queries (live run state / live cancel request) (cr_ui.h:580-581) |
+| `cr_ui_scan_set_event_fn` | subscribe pre-run only (ERR_BAD_PARAMETER mid-run) (cr_ui.h:271-273) |
+| `cr_ui_scan_telemetry` | any-thread live snapshot (cr_ui.h:603) |
+| `cr_ui_scan_get_stats` | post-run counters (cr_ui.h:635) |
+| `cr_ui_scan_assistant` | S-023 grading statistics (cr_ui.h:664) |
+| `cr_ui_scan_checkpoint_count` | G-13 emitted checkpoints (cr_ui.h:672) |
+| `cr_ui_scan_repair_save_undo` | persist S-008 repair undo log (cr_ui.h:681) |
+| `cr_ui_scan_save_session(path)` / `cr_ui_scan_save_cancel` | N-060 atomic save + save-scoped cancel (cr_ui.h:758-764, 703-712) |
+| `cr_ui_scan_snapshot` | G-02 immutable mid-scan/after value capture (cr_ui.h:764-767) |
+| `cr_ui_scan_verify_identity` | boot-hash mismatch → `CR_UI_ERR_BAD_CHECKSUM` (cr_ui.h:772-776) |
 
 ### b.5 Apply (3) — S-029 lost-partition table writes
 
 | Export | Contract |
 |---|---|
-| `cr_ui_apply_lost_partition(dev, cand, rebuild, consent, user, out)` | plan → consent callback → transactional write + undo; default-deny (cr_ui.h:790-798) |
-| `cr_ui_apply_undo_last(dev, out)` | byte-exact restore of last apply (cr_ui.h:801) |
-| `cr_ui_apply_save_undo(dev, path)` | persist CRUNDO01 container (cr_ui.h:807) |
+| `cr_ui_apply_lost_partition(dev, cand, rebuild, consent, user, out)` | plan → consent callback → transactional write + undo; default-deny (cr_ui.h:731-739) |
+| `cr_ui_apply_undo_last(dev, out)` | byte-exact restore of last apply (cr_ui.h:738) |
+| `cr_ui_apply_save_undo(dev, path)` | persist CRUNDO01 container (cr_ui.h:743) |
 
 ### b.6 Sessions & snapshots (12)
 
 | Export | Contract |
 |---|---|
-| `cr_ui_session_load` / `cr_ui_session_close` | .crsf container lifecycle (cr_ui.h:732-734) |
-| `cr_ui_session_get_info` | family, masks, slice, identity card, boot_hash (cr_ui.h:745) |
-| `cr_ui_session_stats` | the stats block (cr_ui.h:746) |
-| `cr_ui_session_regrade` | S-023 per-selection re-grade (grade-1 only) (cr_ui.h:625-627) |
-| `cr_ui_session_snapshot` | post-scan value capture (cr_ui.h:747) |
-| `cr_ui_session_resume(sess, original_cfg, out)` | mask-validated resume flow (cr_ui.h:752-755) |
-| `cr_ui_snapshot_close` / `_node_count` / `_partial` / `_node(index, info, name_buf, cap)` / `_dfs(indices, count)` | index-addressed immutable rows; TRUNCATED two-call pattern (cr_ui.h:757-780) |
+| `cr_ui_session_load` / `cr_ui_session_close` | .crsf container lifecycle (cr_ui.h:781-783) |
+| `cr_ui_session_get_info` | family, masks, slice, identity card, boot_hash (cr_ui.h:796) |
+| `cr_ui_session_stats` | the stats block (cr_ui.h:797) |
+| `cr_ui_session_regrade` | S-023 per-selection re-grade (grade-1 only) (cr_ui.h:670-672) |
+| `cr_ui_session_snapshot` | post-scan value capture (cr_ui.h:798) |
+| `cr_ui_session_resume(sess, original_cfg, out)` | mask-validated resume flow (cr_ui.h:805-808) |
+| `cr_ui_snapshot_close` / `_node_count` / `_partial` / `_node(index, info, name_buf, cap)` / `_dfs(indices, count)` | index-addressed immutable rows; TRUNCATED two-call pattern (cr_ui.h:842-865) |
 
 ### b.7 Query (3)
 
 | Export | Contract |
 |---|---|
-| `cr_ui_query_run(sess, q, rows, count, total)` | G-12 filter/sort/page; heap rows (cr_ui.h:842-844) |
-| `cr_ui_query_rows_free` | frees the row array (cr_ui.h:845) |
-| `cr_ui_query_apply_buckets` | M-029 og date/size bucket-id translation, unknown IDs rejected (cr_ui.h:867-873) |
+| `cr_ui_query_run(sess, q, rows, count, total)` | G-12 filter/sort/page; heap rows (cr_ui.h:905-907) |
+| `cr_ui_query_rows_free` | frees the row array (cr_ui.h:908) |
+| `cr_ui_query_apply_buckets` | M-029 og date/size bucket-id translation, unknown IDs rejected (cr_ui.h:927-933) |
 
 ### b.8 Carve registry + user signs (5)
 
 | Export | Contract |
 |---|---|
-| `cr_ui_carve_format_count()` / `cr_ui_carve_format_info(index, out)` | N-033 two-layer enumeration, stable order (cr_ui.h:912-919) |
-| `cr_ui_register_user_signs(json, len)` | M-048 atomic install (cr_ui.h:962) |
-| `cr_ui_user_sign_count()` / `cr_ui_user_sign_info` | enumerate active set (cr_ui.h:975-977) |
+| `cr_ui_carve_format_count()` / `cr_ui_carve_format_info(index, out)` | N-033 two-layer enumeration, stable order (cr_ui.h:959-966) |
+| `cr_ui_register_user_signs(json, len)` | M-048 atomic install (cr_ui.h:977) |
+| `cr_ui_user_sign_count()` / `cr_ui_user_sign_info` | enumerate active set (cr_ui.h:989-991) |
 
 ### b.9 Disk map (2)
 
 | Export | Contract |
 |---|---|
-| `cr_ui_disk_map(sess, snap, want, got, alloc/coverage/found/confidence, bad_ranges...)` | GAP-S6-11 overlay producer; TRUNCATED two-call for bad ranges (cr_ui.h:1002-1007) |
-| `cr_ui_disk_map_free(overlay)` | frees one overlay array (cr_ui.h:1012) |
+| `cr_ui_disk_map(sess, snap, want, got, alloc/coverage/found/confidence, bad_ranges...)` | GAP-S6-11 overlay producer; TRUNCATED two-call for bad ranges (cr_ui.h:1032-1037) |
+| `cr_ui_disk_map_free(overlay)` | frees one overlay array (cr_ui.h:1040) |
 
 ### b.10 Preview (7)
 
 | Export | Contract |
 |---|---|
-| `cr_ui_preview_open_snapshot(dev, snap, index, out)` / `cr_ui_preview_open_session(dev, sess, node_id, out)` | private-props copy; DEVICE must outlive (cr_ui.h:1022-1025) |
-| `cr_ui_preview_close` / `cr_ui_preview_size` | lifecycle (cr_ui.h:1026-1031) |
-| `cr_ui_preview_read(pv, off, buf, len, placed)` | 4 MiB/call cap; short only at EOF; unreadable spans zero-filled AND reported (cr_ui.h:1035-1040) |
-| `cr_ui_preview_metadata(pv, out)` | capped kind/format/EXIF/codec/text extraction (cr_ui.h:1058) |
-| `cr_ui_preview_unreadable(pv, total, count)` | truthful failure map (cr_ui.h:1069) |
+| `cr_ui_preview_open_snapshot(dev, snap, index, out)` / `cr_ui_preview_open_session(dev, sess, node_id, out)` | private-props copy; DEVICE must outlive (cr_ui.h:1054-1057) |
+| `cr_ui_preview_close` / `cr_ui_preview_size` | lifecycle (cr_ui.h:1058-1063) |
+| `cr_ui_preview_read(pv, off, buf, len, placed)` | 4 MiB/call cap; short only at EOF; unreadable spans zero-filled AND reported (cr_ui.h:1064-1069) |
+| `cr_ui_preview_metadata(pv, out)` | capped kind/format/EXIF/codec/text extraction (cr_ui.h:1082) |
+| `cr_ui_preview_unreadable(pv, total, count)` | truthful failure map (cr_ui.h:1086) |
 
 ### b.11 Recovery (12)
 
 | Export | Contract |
 |---|---|
-| `cr_ui_recovery_create(source, cfg, out)` / `cr_ui_recovery_close` | writer session over injected DestIo (cr_ui.h:1088-1092) |
-| `cr_ui_recovery_set_destination(path)` | arms F12 overlap refusal on Windows (cr_ui.h:1098) |
-| `cr_ui_recovery_enqueue_node` / `_subtree` / `_snapshot` / `_subtree_snapshot` | queue building (session node_id or snapshot index) (cr_ui.h:1104-1112) |
-| `cr_ui_recovery_queue_count` | live depth (cr_ui.h:1115) |
-| `cr_ui_recovery_process` / `cr_ui_recovery_cancel` | synchronous process on caller's thread; ERR_CANCELLED keeps committed items (cr_ui.h:1119-1121) |
-| `cr_ui_recovery_get_stats` | per-outcome counters incl. salvaged/nothing_to_recover (cr_ui.h:1133) |
-| `cr_ui_recovery_report_json(rec, source, json_out)` | G-09 report, valid any time (cr_ui.h:1140) |
+| `cr_ui_recovery_create(source, cfg, out)` / `cr_ui_recovery_close` | writer session over injected DestIo (cr_ui.h:1109-1113) |
+| `cr_ui_recovery_set_destination(path)` | arms F12 overlap refusal on Windows (cr_ui.h:1116) |
+| `cr_ui_recovery_enqueue_node` / `_subtree` / `_snapshot` / `_subtree_snapshot` | queue building (session node_id or snapshot index) (cr_ui.h:1123-1131) |
+| `cr_ui_recovery_queue_count` | live depth (cr_ui.h:1134) |
+| `cr_ui_recovery_process` / `cr_ui_recovery_cancel` | synchronous process on caller's thread; ERR_CANCELLED keeps committed items (cr_ui.h:1141-1143) |
+| `cr_ui_recovery_get_stats` | per-outcome counters incl. salvaged/nothing_to_recover (cr_ui.h:1151) |
+| `cr_ui_recovery_report_json(rec, source, json_out)` | G-09 report, valid any time (cr_ui.h:1156) |
 
 ### b.12 Health (1)
 
 | Export | Contract |
 |---|---|
-| `cr_ui_health_read(disk, rep, attrs, cap, count)` | SMART + NVMe + SSD heuristic + TRIM in one call; Windows-only (ERR_UNSUPPORTED elsewhere) (cr_ui.h:1226-1229) |
+| `cr_ui_health_read(disk, rep, attrs, cap, count)` | SMART + NVMe + SSD heuristic + TRIM in one call; Windows-only (ERR_UNSUPPORTED elsewhere) (cr_ui.h:1201-1204) |
 
 ### b.13 Events (the payload contract, not exports)
 
@@ -310,29 +313,31 @@ err_attempts M-049 triple), `CHECKPOINT` 5, `LOST_CANDIDATE` 6, `REPAIR` 7,
 
 ## (c) CLI grammar — every verb, flag, exit code (src/app/rrecov.cpp)
 
-Verbs dispatched in `wmain` (rrecov.cpp:2495-2551): **list, list-carve-formats, scan,
-tree, recover, health, fix, apply, bench** (9). `rrecov` with no args prints usage, exit 0.
+Verbs dispatched in `wmain` (rrecov.cpp:2787-2808): **list, list-carve-formats, scan,
+tree, recover, health, fix, apply, bench, driver** (10). `rrecov` with no args prints usage, exit 0.
 Unknown verb → `unknown command: %s`, exit 1. All output is wprintf (stdout); errors are
-printed to stdout too (there is no separate stderr convention — "Everything is logged in
-detail ... for testing, validation and benchmarking workflows", rrecov.cpp:24-26; the
-`--log FILE` receives the detailed seam log, N-048 wiring rrecov.cpp:150-175).
+printed to stdout too — the ONE deliberate stderr surface is the driver-refusal path
+(`require_driver`'s `fwprintf(stderr)` lines, rrecov.cpp:332-383: exit 4 carries the
+ERR_DRIVER_* class on stderr by contract, docs/DRIVER-REQUIRED.md) — "Everything is logged in
+detail ... for testing, validation and benchmarking workflows", rrecov.cpp:34-35; the
+`--log FILE` receives the detailed seam log, N-048 wiring rrecov.cpp:148-183).
 
-### c.1 `list` (rrecov.cpp:560-590)
+### c.1 `list` (rrecov.cpp:644-672)
 Enumerates disks (200-disk bound) + volumes. Flags: none.
-Exit: 0 ok / **1** enumeration failure (FB-K01 fix, rrecov.cpp:562-565).
+Exit: 0 ok / **1** enumeration failure (FB-K01 fix, rrecov.cpp:646-649).
 
-### c.2 `list-carve-formats` (rrecov.cpp:597-655)
+### c.2 `list-carve-formats` (rrecov.cpp:681-743)
 Enumerates the two-layer carve registry (grammar + rawsign). Flags: none.
-Exit: 0 / 1 (empty registry is never exit-0, rrecov.cpp:610-613).
+Exit: 0 / 1 (empty registry is never exit-0, rrecov.cpp:694-696).
 
-### c.3 `scan` (rrecov.cpp:781-1365)
+### c.3 `scan` (rrecov.cpp:865-1494)
 | Flag | Semantics |
 |---|---|
-| `--disk N` | whole-disk target; RDA-first transport (open_disk_view) |
+| `--disk N` | whole-disk target; driver-only transport (open_disk_view — the grammar path is the only leg, PLAN-DRIVER-ONLY R1) |
 | `--volume C:` | volume target: BitLocker gate (fvek/dict/auto-unlock), extent map, parent disk, PartitionSlice, optional XTS wrap |
 | `--image file` | S-030 image target (.vmdk/.vhd/.vhdx/.img/.dmg/raw; .edisk refused) |
 | `--whole-disk` | lost-partition discovery (N-044 honest name; needs --disk) |
-| `--deep` | deprecated alias of --whole-disk with a note (rrecov.cpp:931-938) |
+| `--deep` | deprecated alias of --whole-disk with a note (rrecov.cpp:1052) |
 | `--quick-only` | disables deep + carve (deep is ALWAYS on otherwise) |
 | `--no-carve` | disables carve stage |
 | `--threads N` | 0 = auto (hw-1, clamp 1..8); 1 = single-threaded |
@@ -349,46 +354,50 @@ Exit: 0 / 1 (empty registry is never exit-0, rrecov.cpp:610-613).
 
 Exit: **0** ok / **1** failure (unknown option, no target, open failure, scan rc≠OK,
 session save failure) / **3** cancelled (session saved when --out/--resume given,
-rrecov.cpp:1261-1277). Pre-pass flags may appear anywhere (rrecov.cpp:787-800).
+rrecov.cpp:1424). Pre-pass flags may appear anywhere (rrecov.cpp:874-905).
 
-### c.4 `tree` (rrecov.cpp:1368-1423)
+### c.4 `tree` (rrecov.cpp:1538-1589)
 `--in file.crsf` (required), `--filter substr`, `--deleted-only`, `--csv`, `--json`
 (frozen G-12 schema `{"total":N,"rows":[{path,name,size,modified,origin,deleted,confidence,category}]}`,
-rrecov.cpp:1330-1363). Exit 0/1.
+print_tree_json rrecov.cpp:1496). Exit 0/1.
 
-### c.5 `recover` (rrecov.cpp:1425-1641)
+### c.5 `recover` (rrecov.cpp:1595-1816)
 `--in file.crsf` + (`--disk N` | `--image file`) + `--to DIR` (all required);
 `--filter s`, `--deleted-only`, `--report file.json` (G-09; includes S-023 ScanAnalysis).
 Source opened BEFORE session load (M-042 revalidation). Destination overlap → per-item
-`ERR_DEST_OVERLAP` refusals; `[F12] WARNING` when dest == source disk (rrecov.cpp:1500-1506).
+`ERR_DEST_OVERLAP` refusals; `[F12] WARNING` when dest == source disk (rrecov.cpp:1685).
 Exit: **0** / **1** hard failure / **2** partial (item errors or hash mismatch,
-rrecov.cpp:1639). Destination-full is completed-with-failures, not abort (N-015).
+rrecov.cpp:1815). Destination-full is completed-with-failures, not abort (N-015).
 
-### c.6 `health` (rrecov.cpp:1643-1753)
+### c.6 `health` (rrecov.cpp:1821-1929)
 `--disk N` required. Direct `\\.\PhysicalDriveN` GENERIC_READ|WRITE open
-(rrecov.cpp:1661-1666) with elevation-aware messaging. SMART → NVMe → SSD heuristic →
+(rrecov.cpp:1840-1841) with elevation-aware messaging. SMART → NVMe → SSD heuristic →
 TRIM. Exit: 0 / 1 (open/flag) / **3** every source unavailable (FB-H04 fix).
 
-### c.7 `fix` (rrecov.cpp:2287-2493)
+### c.7 `fix` (rrecov.cpp:2468-2674)
 `--disk N` (required, even for undo-apply — F-B-4), `--part P` (slice view; A-002 disk-absolute
-rebase), `--apply` (consent), `--undo file`, `--undo-apply file`, `--no-rda`.
+rebase), `--apply` (consent), `--undo file`, `--undo-apply file` (`--no-rda` is REMOVED —
+driver-only, rrecov.cpp:2470).
 Dry-run default (plan print). Exit 0 (incl. REFUSED/clean) / 1 (usage) / 2 (analyze/execute/undo failure).
 
-### c.8 `apply` (rrecov.cpp:1989-2285)
-`--disk N --session file.crsf` required; `--candidate N` (1-based; required once >1),
-`--apply` (consent), `--undo file`, `--no-rda`, `--boot-fix old-lba`,
+### c.8 `apply` (rrecov.cpp:2169-2466)
+`--disk N --session file.crsf` required (`--in` alias accepted); `--candidate N` (1-based; required once >1),
+`--apply` (consent), `--undo file` (`--no-rda` is REMOVED — driver-only), `--boot-fix old-lba`,
 `--boot-fix-bcd path` (M-040 post-apply BCD+NVRAM repair, advisory failures).
 Exit 0 (incl. dry-run/REFUSED) / 1 (usage) / 2 (open/plan/execute failure).
 
-### c.9 `bench` (rrecov.cpp:1754-1874)
+### c.9 `bench` (rrecov.cpp:1932-2133)
 `--disk N` required; `--mode seq|rand|open|read|info` (default seq), `--mb N` (≤65536),
-`--block-kb N` (4..16384), `--iterations N`, `--seed N`, `--json`, `--no-rda`.
-Transport label "rda"/"direct" reported (rrecov.cpp:1820). Exit 0 / 1 (usage/unknown mode)
+`--block-kb N` (4..16384), `--iterations N`, `--seed N`, `--json` (`--no-rda` is REMOVED —
+driver-only). Transport label is "rda" only — the grammar path is the one leg
+(PLAN-DRIVER-ONLY R10, rrecov.cpp:2000). Exit 0 / 1 (usage/unknown mode)
 / 2 (open failure, zero hits, read failure).
 
-**Doc-drift note:** docs/API.md:41 lists `rrecov info --disk N | --image file` — no `info`
-verb exists in rrecov.cpp (wmain 2534-2551; "info" is only a bench MODE). API.md's scan
-usage line also omits `--image`/`--deep`. CLI usage text in-binary is the truth.
+**Doc-drift note (HISTORICAL, both halves since fixed):** docs/API.md once listed
+`rrecov info --disk N | --image file` — no `info` verb ever existed ("info" is only a
+bench MODE); that line was removed and API.md's scan usage line gained
+`--image`/`--deep`/`--repair-undo` (this lane, the three-site CLI truth pass). CLI
+usage text in-binary remains the truth; the wmain dispatch is rrecov.cpp:2787-2808.
 
 ---
 
@@ -494,8 +503,10 @@ boundaries via CheckpointSink (cr_scan.h:272-299); `--resume` revalidation (M-04
   (read_chunk/rename_attempts/skip flags/conflict/progress — cr_ui.h:1078-1086),
   `cr_ui_query` (cr_ui.h:826-841).
 - CLI: PARAMETERS.md registry; every flag listed in §(c).
-- Transport config: service name (hardcoded `L"RDA"` at every call site),
-  `prefer_rda` bools, `--no-rda` flags. No env vars, no config files.
+- Transport config: service name (hardcoded `L"RDA"` at every call site;
+  the CLI `driver --service NAME` overrides for the status surface only).
+  No `prefer_rda` bools, no `--no-rda` flags (both REMOVED with the
+  driver-only architecture). No env vars, no config files.
 
 ---
 
