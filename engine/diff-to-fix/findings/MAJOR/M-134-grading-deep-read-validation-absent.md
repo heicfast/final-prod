@@ -62,7 +62,7 @@ The grade column can disagree exactly in the cases users care most about — vis
 ## Related findings
 
 - **S-058** — the gate polarity (defines the population that reaches this rule).
-- **M-133** — the twin-key family set (the twin check that precedes the deep read).
+- **M-138** — the twin-key family set (the twin check that precedes the deep read; renumbered from M-133 at the N-160 doc-truth repair).
 - **N-183** — the rawCount consumer of this rule's return value.
 
 ## Open questions

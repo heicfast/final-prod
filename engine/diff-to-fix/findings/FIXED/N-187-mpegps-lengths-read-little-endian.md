@@ -1,4 +1,4 @@
-# MINOR N-156 — validate_mpegps reads the MPEG-PS system-header and PES length fields as LITTLE-endian u16 — every length with a non-zero high byte walks to a corrupted extent (a 0x0123 PES walks as 0x2301)
+# MINOR N-187 — validate_mpegps reads the MPEG-PS system-header and PES length fields as LITTLE-endian u16 — every length with a non-zero high byte walks to a corrupted extent (a 0x0123 PES walks as 0x2301)
 
 **Severity:** MINOR (a wire-decoding defect in the generic MPEG-PS structural walk: extents inflate or collapse by the byte-swapped delta for every stream whose PES/system-header lengths carry a non-zero high byte — which is every real-world PS stream, since PES payloads are commonly > 255 bytes; discovered during M-098's verification per §8)
 **Module:** carve (the generic MPEG-PS row, S-007's structural walk)
@@ -6,6 +6,7 @@
 **Corpus references:** `re-workspace/reversed/ghidra-searchdll/RAWSearchDLL_decompiled.c:30489-30524` (the og's HIK walk reads every PS length BYTE-SWAPPED: `*(ushort *)(piVar1 + 1) << 8 | *(ushort *)(piVar1 + 1) >> 8` — the BE u16 wire form; the same byte-swap decodes the probe's PES length at :30441/:30476) — the og's own PS-family length convention is big-endian, and the MPEG-PS wire format itself (ISO 13818-1) defines both length fields as BE u16.
 **Core references:** the fixed `src/core/carve/cr_analysers.cpp` validate_mpegps (:3288/:3296 pre-fix) — both length reads used `rd16` (the LE helper); the S-007 landing's own fixture `plant_mpegps` (tests/unit/test_carve.cpp:2040/:2048 pre-fix) planted the lengths LE (`put16`), so the fixture and the validator shared the same wire-inconsistent convention and the suite stayed green over the defect (the fixture could never have been a real PS stream).
 **Status:** FIXED (discovered and fixed in the M-098 landing, per §8)
+**Renumber:** N-156 → **N-187** (2026-10-29, the S56 lane: the N-160 doc-truth gate caught the collision live — the RRWR-direction N-156 was filed at `0ff6cc92` 20:30:07 UTC, this file's landing rode `c0efacc3` 21:04:29 UTC; the earlier push keeps the seat per SA-9; the ledger row and the M-098 Resolution cite updated)
 
 ## Summary
 

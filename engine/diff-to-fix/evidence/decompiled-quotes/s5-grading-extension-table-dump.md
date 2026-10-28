@@ -288,3 +288,19 @@ FS ∉ {3 NTFS, 10 ReFS, 0xB Btrfs} (`:605736-605737`):
 **Bottom line:** OQ-S4-1 is RESOLVED. The extension-gate rule is now byte-matchable:
 gate = { ext(name-after-last-dot, ASCII-uppercased) ∈ 169-key set ∪ {""} }, exact
 case-sensitive match, and only on the generic FS path of `FUN_14038ac90`.
+
+---
+
+## ERRATUM (S-058 Resolution, 2026-10-29 — §5 item 4's polarity line corrected)
+
+§5 item 4's "In-table (find != end) → deep-validation branch" is INVERTED. The
+comparator chain re-read first-hand at the S-058 verification:
+`FUN_1401bebe0` (:324923) returns `FUN_1401bec20(a,b) == 0` and `FUN_1401bec20`
+(:324925) is `*a == *b` — so `FUN_1401bebe0(find, end)` is TRUE iff find != end
+iff FOUND, and the gate `if (cVar1 == '\0')` at :605743 enters the
+deep-validation block exactly when the lookup MISSED (NOT in the table). The
+control case at :585885-905 (the found-in-set || name-in-consts idiom using the
+EQUALITY comparator) calibrates both directions simultaneously. §6.2's note
+survives with the corrected reading: the runtime set's "" quirk makes dot-less
+files SKIP the branch (they are in-table), not enter it. The table dump itself
+(§2-§3) remains byte-exact and valid.

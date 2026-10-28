@@ -1,4 +1,4 @@
-# MINOR N-186 — the M-119 window committed a red main: the app parse broke at `rrecov.cpp:3253` (IStorageDevice-typed holder erased PartitionSlice's clamp surface) and `cr_ui.cpp:1387/:1481` used the nonexistent `Level::Warning` — win_syntax_check failed at the pushed tree
+# MINOR N-188 (renumbered from the N-186 draft at the N-160 window merge per SA-9 — the remote lane's renumbered N-142-rsf finding took N-186 with timestamp proof; ddd7c5dc) — the M-119 window committed a red main: the app parse broke at `rrecov.cpp:3253` (IStorageDevice-typed holder erased PartitionSlice's clamp surface) and `cr_ui.cpp:1387/:1481` used the nonexistent `Level::Warning` — win_syntax_check failed at the pushed tree
 
 **Severity:** MINOR (build-integrity / committed-red class — the N-133/M-120 family; no behavior defect on Linux where the app target was not part of the lane's suite run)
 **Module:** cli / ui (the app + UI translation units the win_syntax_check gate parses)
@@ -35,6 +35,6 @@ None.
 ## Resolution
 
 **Status:** FIXED
-**Fixed in commit:** (this session's N-186 repair, riding the N-158 convergence push — post-push SHA in the worklog entry)
+**Fixed in commit:** (this session's N-188 repair, riding the N-158 convergence push — post-push SHA in the worklog entry)
 **Verified by:** win_syntax_check green at the repaired tree (was Failed with the five quoted errors at `64fc2d8d`); the full suite 1340/1340 (1339/1340 pre-repair).
 **Resolution notes:** The two-line repair landed exactly as the fix plan: the unique_ptr holder retyped to `PartitionSlice` (the create factory's own return type — the interface erasure was the defect, not the calls) and the two `Level::Warning` uses corrected to the enum's actual `Warn`. No behavior change on any platform — the Linux app binary was unbuildable at the window, so the repair restores the M-119 design intent rather than altering it. The process lesson (green-suite claims from target-filtered runs) is recorded in the finding for the CI lane.

@@ -541,8 +541,8 @@ GptDisk make_gpt_disk() {
     put32(gd.disk, 512 + 12, 92);
     put64(gd.disk, 512 + 24, 1);
     put64(gd.disk, 512 + 32, 2047);
-    put64(gd.disk, 512 + 40, 34);  /* first usable (M-123: entries outside) */
-    put64(gd.disk, 512 + 48, 2014);/* last usable */
+    put64(gd.disk, 512 + 40, 34);   /* first usable (M-123: entries outside) */
+    put64(gd.disk, 512 + 48, 2014); /* last usable */
     put64(gd.disk, 512 + 72, 2);
     put32(gd.disk, 512 + 80, 4);
     put32(gd.disk, 512 + 84, 128);
@@ -1006,8 +1006,8 @@ TEST(Gpt, TruncatedImageFallsToLadderNotTrustedPrimary) {
      * HEADER sector failed." then the salvage path). */
     OgValidGpt g = make_og_valid_gpt();
     /* claim a 1,048,576-sector (512 MB) geometry on the 1 MB image */
-    put64(g.disk, 512 + 32, 1048575);  /* backup LBA out of image */
-    put64(g.disk, 512 + 48, 1048542);  /* last usable out of image */
+    put64(g.disk, 512 + 32, 1048575); /* backup LBA out of image */
+    put64(g.disk, 512 + 48, 1048542); /* last usable out of image */
     g.patch_header_crc();
     std::memset(g.disk.data() + 2047 * 512, 0, 512); /* no backup in image */
     MemDevice dev(std::move(g.disk));

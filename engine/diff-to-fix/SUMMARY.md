@@ -1,5 +1,17 @@
 # SUMMARY.md — executive summary (the S44 minors lane on top of the S47 MAJOR-first fix lane; the prior lanes below, newest-first — rebrand note: the remote's S47/S48..S50 window pushed first; this lane's N-161 rides the reconciliation per SA-9)
 
+
+**S-058 CONVERGENT (SEVERE — session-57 lane; the S52 lane's ea405392 wins per
+SA-9):** the grading extension-table gate polarity is corrected at the merged tree
+— the twin/overlap/deep-validation machinery now runs for NOT-in-table extensions
+exactly like the og (FUN_1401bebe0 = the inequality comparator; the control case
+:585888 calibrates the direction; the "" runtime-set quirk skips dot-less names);
+in-table extensions keep the engine-default grade. The s5 evidence erratum is
+filed at its §5 item 4. The session-57 lane's independent RED battery (both
+halves of the polarity pin) and convergence addendum ride in the finding file;
+its redundant code/tests were dropped per the superset rule (the winning 23/23
+battery incl. S-061's ReFS/Btrfs insert-time pins stands).
+
 ## Session-44 minors-lane delta (2026-10-29 — the minor-first diff-fix execution lane per the user's operative directive; opened on `9807934` (the N-172/N-173 landing), corpus `be0cfe9`; suite at open 1203 green / 1161 pass · 42 win-skip · 0 fail)
 
 **Board at open (this lane's view): 77 active — 1 ACUTE · 9 SEVERE · 28 MAJOR ·
@@ -126,7 +138,13 @@ first-hand; every fix RED-test-first.
   5-path RED→GREEN pin + `NtResFoldLeavesLfnCaseUntouched`; the BitLocker NTRes=0
   fixture caught and re-pinned — the finding's own predicted bench-divergence class).
 
-**Board (filesystem truth, running): 66 active — 0 ACUTE · 9 SEVERE · 27 MAJOR · 30 MINOR · 0 INFO / 72 FIXED files / 6 tracked-open (the S45..S51 window's A-014/M-124/INFO-board landings absorbed at the rebase).**
+- **N-176 FIXED** — the FAT LFN illegal-char fallback (FATSearchDLL :32084-32099
+  re-read first-hand; the 9-char gate `?*|\/:"<>` inside lfn_assemble beside the
+  checksum — a match takes the same 8.3-fallback path; `LfnIllegalCharFallsBackTo83`
+  the 9-iteration RED→GREEN pin + `LfnValidNameUnchanged`; the NUL early-return
+  subtlety preserved in self-review).
+
+**Board (filesystem truth, running): 65 active — 0 ACUTE · 9 SEVERE · 27 MAJOR · 29 MINOR · 0 INFO / 73 FIXED files / 6 tracked-open (the parallel windows' landings absorbed at each rebase).**
 
 # SUMMARY.md — executive summary (the S42 diff-to-fix lane's convergence on top; the prior lanes below, newest-first)
 # SUMMARY.md — executive summary (the S46 MINOR-first fix lane on top — the user's priority-to-minor directive; the prior lanes below, newest-first)
@@ -153,6 +171,18 @@ repaired by the prior lanes).
   PARITY-DELTAS D-134 (the conservative row-level disabled_formats gate; the
   og's IAnalyserFilter callback takes no id — undecodable). 6 tests, 3 groups
   RED pre-fix; suite 1209/1209; the module/matrix rows → MATCH.
+
+- **N-159 FIXED (MINOR, writer+report)** — the failed-files report's
+  tree-classification axis: the og's recovery-log truth (an HTML report,
+  CSaveFailedFilesWithHtml, DRWUI :642669-642892) decoded and landed — the
+  per-item `tree_class` wire axis (six-valued, root-role derived; the
+  wire↔og-label↔core-role table in the schema doc) + the `failed_bytes`
+  totals split (the +0x268 accumulator semantics; enqueue-time refusals
+  excluded, truth rule 5) + the three register repairs (R-58 "text log" →
+  the HTML-report decode; API-DELTA row 21 "NOT IN CORPUS" refuted; the
+  writer-module D13 addendum) + additive-within-v1 per the schema doc's
+  own contract (the finding's version-bump plan corrected). 4 tests
+  RED-first; suite 1243/1243 (1201/42/0). P13/P11/P46/P68 → MATCH.
 # SUMMARY.md — executive summary (the S12 session-2 deep-dive lane on top — sector math / scan-progress math / local database / state management / detection-calculation; the prior lanes below, newest-first)
 
 ## Session-12 S12 lane delta (2026-10-29 — the session-2 continuation audit per the user's second-session directive: remove-the-fixed + go-deeper, special focus on sector numbers / scanning / accurate detection / calculation / no-stuck-or-freeze / local database / state management; core `869da779` at open → rebased through the parallel windows to push at `f85def0f`, corpus `be0cfe9`)
@@ -371,7 +401,7 @@ entering the lane (`evidence/s42-liveness-sweep.md`).
 **The filings — 16 findings + 3 tracked-open, every one focus-area named by the
 directive, every one decompile-verified first-hand:**
 
-- **S-058 (SEVERE — recovery chances)**: the grading extension-table gate is
+- **S-058 (FIXED session-51 — recovery chances)**: the grading extension-table gate was
   **INVERTED**. The og runs the twin/overlap/deep-validation branch for extensions
   **NOT** in the 169-key set — `FUN_1401bebe0` is the *inequality* comparator
   (`:324923-39`), `FUN_140256d00` is `std::set::find` (`:413990-414019`), and the
@@ -391,7 +421,7 @@ directive, every one decompile-verified first-hand:**
   binary's only `SetFileTime`, mask-gated per field; **the trail's N-009d row
   "og never calls SetFileTime" is REFUTED**); the core's DestIo has no metadata
   surface and zero restoration calls tree-wide.
-- **S-061 (SEVERE — recovery chances)**: **ReFS/Btrfs files never receive the og's
+- **S-061 (FIXED session-51 — recovery chances)**: **ReFS/Btrfs files never received the og's
   insert-time High grade** (`:605481-497` + the 5828/5830 gauge ticks); the core's
   early return (`cr_grading.cpp:217-219`) leaves both filesystems at Average.
 - **M-133..M-137 (MAJOR)**: the twin-key device family ({FAT16, EXT2-family} vs
