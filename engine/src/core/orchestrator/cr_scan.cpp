@@ -406,9 +406,18 @@ void ScanController::adopt_resume_state_(const session::VolumeSessionInfo& resum
     /* M-079: the label joins the adopted identity card (the SESS-2
      * pattern - a re-save without a new run preserves the loaded label;
      * a fresh run's derivation then sees it non-empty and leaves it). */
-    if (cfg_.volume_label[0] == '\0')
-        for (size_t i = 0; i < sizeof(cfg_.volume_label); ++i)
-            cfg_.volume_label[i] = resumed.label[i];
+    if (cfg_.volume_label[0] == '\0') {
+        /* N-090: the resumed session's full-width label (the v6 tail)
+         * re-enters the config; v1..v5 sessions fall back to the legacy
+         * card - the copy is bounded by the SOURCE (the 32-byte legacy
+         * field, never the widened destination). */
+        if (resumed.label_full[0] != '\0')
+            for (size_t i = 0; i < sizeof(cfg_.volume_label); ++i)
+                cfg_.volume_label[i] = resumed.label_full[i];
+        else
+            for (size_t i = 0; i < sizeof(cfg_.volume_label) && i < sizeof(resumed.label); ++i)
+                cfg_.volume_label[i] = resumed.label[i];
+    }
     if (cfg_.volume_model[0] == '\0')
         for (size_t i = 0; i < sizeof(cfg_.volume_model); ++i)
             cfg_.volume_model[i] = resumed.model[i];
@@ -2528,6 +2537,10 @@ u32 ScanController::save_session(session::Writer& w, const ScanStats& stats,
     vi.physical_sector = vol_physical_sector_;
     for (size_t i = 0; i < sizeof(vi.label) - 1 && cfg_.volume_label[i]; ++i)
         vi.label[i] = cfg_.volume_label[i];
+    /* N-090: the complete label (the og's volumeName[100] width) rides
+     * the v6 tail; label[32] above stays the legacy prefix view. */
+    for (size_t i = 0; i < sizeof(vi.label_full) - 1 && cfg_.volume_label[i]; ++i)
+        vi.label_full[i] = cfg_.volume_label[i];
     /* identity card (SESS-2 v2 tail) */
     for (size_t i = 0; i < sizeof(vi.model) - 1 && cfg_.volume_model[i]; ++i)
         vi.model[i] = cfg_.volume_model[i];
@@ -2856,6 +2869,8 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
     info.physical_sector = vi.physical_sector;
     for (size_t i = 0; i < sizeof(info.label); ++i)
         info.label[i] = vi.label[i];
+    for (size_t i = 0; i < sizeof(info.label_full); ++i) /* N-090: v6 tail */
+        info.label_full[i] = vi.label_full[i];
     for (size_t i = 0; i < sizeof(info.model); ++i)
         info.model[i] = vi.model[i];
     for (size_t i = 0; i < sizeof(info.serial); ++i)

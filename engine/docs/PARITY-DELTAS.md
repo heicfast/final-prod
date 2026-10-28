@@ -3991,3 +3991,34 @@ scan-time grade stays the chain's own (FAT-verified intact chains grade
 Excellent; the truncation is a recovery-time disclosure, never a silent
 drop). Pinned by FatEngine.TruncatedVolumeOverflowChainStance; do NOT
 "fix" toward the og's destruction without re-registering this row.
+### D-135 — the session-list surface's registered deltas (N-090: the scope superset, the save-time second resolution, the deviceType non-carriage; the label width CLOSED by the v6 tail)
+
+**WHAT:** three deliberate differences on the W1a session-list surface,
+each verified against the corpus first-hand this session: (a) the core
+lists EVERY `*.crsf` in the directory where the og's home list keeps
+only names containing BOTH `auto_` and `.rsf` (FUN_140273940 at
+DRWUI_decompiled.c:432326-432333 — the substring pair filter; rsf-format
+§5.5); (b) `save_unix` carries SECONDS where the og's record-2 carries a
+local SYSTEMTIME with milliseconds (rsf-format §5.2 +0x6C); (c) the og's
+record-2 `deviceType` u32 (2 → "Desktop", 3 → "Recycle Bin", else the
+disk-info name at +0x120) has no row counterpart.
+**WHY:** (a) the core is an engine ABI serving hosts that resume MANUAL
+saves too — a manual save is as resumable as an auto-save, and hiding it
+from the list serves no recovery purpose; a host wanting the og's exact
+home view filters client-side by name (one substring pair). (b) the
+newest-first comparator needs second resolution only — the og's own
+auto-save FILE NAMES are second-granular
+(`auto_<vol>_<MM>_<DD>_<HH>_<MM>_<SS>.rsf`, rsf-format §5.5), and the
+core's equal-second ties break by path bytes deterministically (N-116);
+carrying ms would force a v6-format migration for a display nicety the
+banner never exercises. (c) no core consumer exists for a UI display
+classification of the disk; a host composing the og's view has its own
+enumeration to draw from.
+**RISK:** none for recovery behavior — all three are presentation-layer
+on a host-facing summary surface. The LABEL WIDTH delta (the og's
+`volumeName[100]` vs the core's 31-char card) is CLOSED by this same
+landing: the v6 record tail + the `label_full[100]` ABI append carry
+the complete label at the og's exact strncpy(…,99) width, with
+`label[32]` preserved as the legacy prefix view.
+**Registered by:** N-090's Resolution (the finding's fix-plan steps 1-4,
+the deliberate-superset option taken at every choice point).

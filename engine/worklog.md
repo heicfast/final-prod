@@ -1,3 +1,21 @@
+**S56 lane — N-090 landed (2026-10-29).**
+
+**N-090 FIXED (MINOR — the session-list scope + row shape).** The four deltas
+dispositioned per the fix plan's deliberate-superset option (D-135): the
+every-*.crsf listing REGISTERED as the superset over the og's auto_+\.rsf home
+filter (DRWUI:432326-432333 re-read first-hand); the label width CLOSED end-to-end
+(the v6 record tail label_full[100] + ScanConfig 100-wide host channel + the ABI
+tail appends on row AND session_info — no version bump, label[32] preserved as
+the legacy prefix, the resume copy source-bounded); the save-time SECONDS
+contract documented (the og's own auto-save names are second-granular; ties by
+path bytes per N-116); deviceType not-carried with the og's 2/3 table in the
+contract. Tests: SessionListVolumeLabelFullWidthRoundTrips (RED = the ABI-append
+compile failure pre-fix) + SessionListScopeSupersetPinsAutoAndManual + the v6
+layout round-trip legs (Crsf.VolumeInfoIdentityCardRoundTrip +100 pin;
+Session.SaveUnixVTailRoundTrip v5-degrade leg). Suite 1276/1276 green (1234/42/0)
++ ASan clean on the touched suites. Trail: findings/FIXED/N-090 + ledger row +
+session.md row + ABI-CONTRACT 7f + crsf-format.md v6 + D-135 + this entry.
+
 **Session-51 severe-first lane — S-060 landed + the hot-window main red closed (2026-10-29).**
 
 **S-060 FIXED (the metadata restoration).** Corpus re-verified first-hand

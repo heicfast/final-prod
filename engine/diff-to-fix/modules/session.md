@@ -284,6 +284,24 @@ PARITY-DELTAS).
   .rsf-format internals, not core divergences).
 
 
+## N-090 landed (the S56 lane, 2026-10-29) — the session-list scope + row shape
+
+- **The scope rule REGISTERED (D-135a):** the every-`*.crsf` listing is the deliberate
+  superset over the og's `auto_`+`.rsf` home-list filter (DRWUI:432326-432333 —
+  substring pair, re-read first-hand). A manual save is a resumable session; hosts
+  wanting the og's exact home view filter client-side. Pinned:
+  `SessionListScopeSupersetPinsAutoAndManual`.
+- **The label width CLOSED (not registered — fixed):** the og's record-2
+  `volumeName[100]`/strncpy(…,99) width end-to-end — `ScanConfig.volume_label[100]`
+  (the host channel), the v6 record tail `label_full[100]` (len-gated; zeros on
+  v1..v5 = the legacy card is the whole truth), the ABI tail appends on
+  `cr_ui_session_row` + `cr_ui_session_info` (no version bump; `label[32]` = the
+  legacy prefix view). Pinned: `SessionListVolumeLabelFullWidthRoundTrips` (RED as
+  the ABI-append compile failure, the house precedent).
+- **The save-time seconds contract (D-135b) + deviceType not-carried (D-135c):**
+  documented in ABI-CONTRACT §7f + PARITY-DELTAS D-135 (the og's ms + its 2→Desktop/
+  3→Recycle-Bin table recorded for the host that eventually asks).
+
 ## Session-8 lead-lane wave (audited `ff879f9` — the W1a/W1b/W1c verification, final numbering)
 
 The load-bearing halves verified MATCH (light records; per-node load progress + cancel +

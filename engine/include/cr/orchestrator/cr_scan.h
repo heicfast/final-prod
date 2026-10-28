@@ -252,7 +252,13 @@ struct ScanConfig {
      * on-disk label > image stem). An explicit --label or a live-volume
      * GetVolumeInformationW label is NOT derived (the OS label IS the
      * on-disk label for mounted volumes) and is never replaced. */
-    char volume_label[32] = {0};
+    /* N-090: the host label channel at the og's record-2
+     * volumeName[100] width (strncpy(...,99)) - a host-supplied label
+     * up to 99 UTF-8 bytes persists complete (the v6 record tail); the
+     * engine-decoded on-disk labels are inherently <= 32 bytes (the
+     * per-family decoders' own caps - FAT/exFAT 11, ext4 16, NTFS 32
+     * ASCII-substituted), so this width serves the host channel. */
+    char volume_label[100] = {0};
 
     /* S-048 (diff-to-fix): the scan target volume's drive letter
      * (UPPERCASE, 0 = absent) - the og's carve-tree volume grouping names

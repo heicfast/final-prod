@@ -569,7 +569,10 @@ typedef struct cr_ui_scan_config {
     uint32_t carve_weight;
     uint32_t threads;              /* 0 = auto */
     const char* volume_label_utf8; /* optional; NULL/"" = none; truncated
-                                    * to 31 chars (session card field) */
+                                    * to 99 chars - the og's record-2
+                                    * volumeName[100] width (N-090; the
+                                    * legacy session card keeps the
+                                    * 31-char prefix view) */
     const char* volume_model_utf8; /* optional identity-card overrides; when
                                     * absent the shim fills them from the
                                     * disk enumeration (Windows, CLI parity) */
@@ -895,7 +898,10 @@ typedef struct cr_ui_session_info {
     uint32_t configured_mask; /* stages the original run configured */
     uint64_t slice_offset, slice_bytes;
     uint32_t logical_sector, physical_sector;
-    char label[32]; /* UTF-8 */
+    char label[32]; /* UTF-8 (the legacy 31-char prefix view) */
+    /* N-090 (ABI append): the complete label at the og's
+     * volumeName[100] width; == label on v1..v5 sessions. */
+    char label_full[100]; /* UTF-8, NUL padded */
     uint64_t scanned_bytes, elapsed_ms;
     char model[48]; /* UTF-8 identity card; empty on v1 sessions */
     char serial[32];
@@ -960,6 +966,12 @@ typedef struct cr_ui_session_row {
     uint64_t save_unix;                /* embedded save time; 0 = pre-v5 session */
     char label[32];                    /* UTF-8 volume label; empty on legacy files */
     char path[CR_UI_SESSION_ROW_PATH]; /* UTF-8 full path, NUL padded */
+    /* N-090 (ABI append - the tail-append pattern, no version bump):
+     * the COMPLETE volume label at the og's record-2 volumeName[100]
+     * width (strncpy(...,99)); label[32] above stays the legacy
+     * 31-char prefix view so old callers see exactly what they always
+     * saw. == label on v1..v5 sessions (the uniform degrade). */
+    char label_full[100]; /* UTF-8, NUL padded */
 } cr_ui_session_row;
 
 CR_UI_API uint32_t cr_ui_session_list(const char* utf8_dir, cr_ui_session_row* rows,

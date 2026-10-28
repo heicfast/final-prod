@@ -3135,6 +3135,7 @@ u32 session_list_impl(const char* utf8_dir, cr_ui_session_row* rows, uint32_t* c
         row.elapsed_ms = s.volume.elapsed_ms;
         row.save_unix = s.volume.save_unix;
         copy_cstr(row.label, sizeof(row.label), s.volume.label);
+        copy_cstr(row.label_full, sizeof(row.label_full), s.volume.label_full);
     }
     /* the og's LastScanRecordView order: the record-2 SYSTEMTIME
      * comparator (FUN_140273550: SystemTimeToFileTime over row+0x20,
@@ -3170,6 +3171,7 @@ u32 session_info_impl(cr_ui_session* sess, cr_ui_session_info* out) {
     out->elapsed_ms = i.elapsed_ms;
     out->boot_hash = i.boot_hash;
     copy_cstr(out->label, sizeof(out->label), i.label);
+    copy_cstr(out->label_full, sizeof(out->label_full), i.label_full); /* N-090 */
     copy_cstr(out->model, sizeof(out->model), i.model);
     copy_cstr(out->serial, sizeof(out->serial), i.serial);
     return ret_ok();
