@@ -707,15 +707,17 @@ const Signature kTable[] = {
     {FMT_RM, "rm", {'.', 'R', 'M', 'F'}, 4, 0, 0x20, 512ull << 20, 700, validate_rm, "RealMedia"},
     {FMT_MXF, "mxf", {0x06, 0x0E, 0x2B, 0x34}, 4, 0, 32, 1ull << 30, 700, validate_mxf, "MXF"},
     /* DMG: the og keys the LEVEL-1 bzip2 stream byte-exactly ("BZh1");
-     * the og's own global carve cap 0xBEBC200 mirrors here (registered
-     * bound) */
+     * M-090: the DMGRawFileInfo ctor's OWN bound is max 0xC800000
+     * (:49436-49440, first-hand) - not the 0xBEBC200 global singleton
+     * (:9049) the batch-1 landing carried. The validator walks the koly
+     * UDIF trailer (FUN_180053de0 :63782-63868). */
     {FMT_DMG,
      "dmg",
      {'B', 'Z', 'h', '1'},
      4,
      0,
      32,
-     0xBEBC200ull,
+     0xC800000ull,
      700,
      validate_dmg,
      "Apple DMG (bzip2)"},

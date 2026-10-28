@@ -2130,6 +2130,29 @@ size_t plant_dmg(std::vector<u8>& img, size_t at, bool with_footer = true) {
     return 128;
 }
 
+/* M-090: a real UDIF shape - BZh1 stream, zero padding, then the 512-byte
+ * "koly" footer block at a 512-aligned offset (or unaligned for the
+ * salvage form). The og sizes the carve koly + 0x200
+ * (FUN_180053de0 :63782-63868). */
+size_t plant_dmg_koly(std::vector<u8>& img, size_t at, size_t koly_rel, bool aligned = true,
+                      bool zero_tail = true) {
+    std::memcpy(img.data() + at, "BZh1", 4);
+    std::memcpy(img.data() + at + 4, "\x31\x41\x59\x26\x53\x59", 6);
+    for (size_t i = 10; i < 128; ++i)
+        img[at + i] = u8(i & 0xFF);
+    const size_t k = at + koly_rel;
+    std::memcpy(img.data() + k, "koly", 4);
+    put32v(img, k + 4, 4);   /* version 4 */
+    put32v(img, k + 8, 512); /* header size */
+    for (size_t i = 12; i < 504; ++i)
+        img[k + i] = u8(i & 0x7F); /* footer fields (non-zero body) */
+    if (!zero_tail)
+        for (size_t i = 504; i < 512; ++i)
+            img[k + i] = 0xAB; /* a non-zero tail breaks the og's gate */
+    (void)aligned;
+    return koly_rel + 0x200;
+}
+
 size_t plant_x3f(std::vector<u8>& img, size_t at) {
     std::memcpy(img.data() + at, "FOVb", 4);
     std::memcpy(img.data() + at + 4, "2.1\x00", 4);
@@ -3052,6 +3075,120 @@ TEST(Carve, S007NicheBatch2School1Carve) {
     EXPECT_EQ(find_at(mny_at)->props()->logical_size, mny_len) << "MNY size = the og's 0x100000";
     EXPECT_EQ(find_at(emf_at)->props()->logical_size, emf_len) << "EMF size = nBytes";
     EXPECT_EQ(find_at(swf_at)->props()->logical_size, swf_len) << "SWF size = FileLength";
+}
+
+TEST(Carve, M090DmgKolyFooterExtent) {
+    /* M-090: the og walks the "koly" UDIF trailer and sizes the carve at
+     * koly + 0x200 (the mandatory 512-byte footer) - NOT the bzip2 EOS
+     * magic + 10 the batch-1 landing carried (RAWSearchDLL_decompiled.c
+     * :63782-63868, first-hand: 512-byte chunk steps, the 8-zero tail
+     * gate, the aligned probe, the past-0x2800 unaligned salvage of the
+     * previous chunk). RED pre-fix: the old validator sized the stream
+     * to the EOS magic + 10 (or the truncated cap), cutting the carve
+     * before the footer. */
+    std::vector<u8> img(128 * 1024, 0);
+    const size_t at = 4096, koly_rel = 0x1000;
+    const size_t want = plant_dmg_koly(img, at, koly_rel);
+    /* an early bzip2 EOS magic must NOT bound the carve: the koly walk
+     * runs first and the EOS survives only as the no-koly fallback */
+    std::memcpy(img.data() + at + 128, "\x17\x72\x45\x38\x50\x90", 6);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr) << "the BZh1+koly stream must carve";
+    EXPECT_EQ(n->props()->carve_format, FMT_DMG);
+    EXPECT_EQ(n->props()->logical_size, want)
+        << "the carve carries the mandatory UDIF footer (koly + 0x200)";
+}
+
+TEST(Carve, M090DmgKolyUnalignedSalvage) {
+    /* the og's second probe (past 0x2800): a koly at an UNALIGNED offset
+     * is found by the full search of the PREVIOUS chunk once the chunk
+     * after it carries the 8-zero tail - size still koly + 0x200. */
+    std::vector<u8> img(128 * 1024, 0);
+    const size_t at = 4096, koly_rel = 0x3008; /* unaligned inside the chunk */
+    const size_t want = plant_dmg_koly(img, at, koly_rel, false);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr) << "the unaligned-koly stream must carve";
+    EXPECT_EQ(n->props()->logical_size, want) << "salvage sizes koly + 0x200";
+}
+
+TEST(Carve, M090DmgKolyZeroTailGateAndCap) {
+    /* (a) the og's 8-zero tail gate: a koly block whose last 8 bytes are
+     * non-zero does NOT bound the carve (the EOS fallback or the
+     * truncated cap takes over - never the koly extent);
+     * (b) the row cap is the DMGRawFileInfo ctor's OWN 0xC800000
+     * (:49436-49440), not the 0xBEBC200 global singleton. */
+    std::vector<u8> img(128 * 1024, 0);
+    const size_t at = 4096, koly_rel = 0x1000;
+    plant_dmg_koly(img, at, koly_rel, true, false); /* non-zero footer tail */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr) << "the stream still carves (the keyed gates held)";
+    EXPECT_NE(n->props()->logical_size, koly_rel + 0x200)
+        << "the non-zero-tailed koly must not bound the carve";
+    /* the row bound pin: DMG's own ctor max */
+    const Signature* reg = registry();
+    EXPECT_EQ(reg[FMT_DMG].max_size, 0xC800000ull)
+        << "DMG cap = the og's DMG-specific 0xC800000, not the global 0xBEBC200";
 }
 
 TEST(Carve, S007NicheBatch2School1RejectsNoise) {

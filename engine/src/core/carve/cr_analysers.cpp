@@ -3003,6 +3003,54 @@ CarveResult validate_dmg(IStorageDevice* s, u64 hit, u64 cap) {
     if (std::memcmp(h + 4, "\x31\x41\x59\x26\x53\x59", 6) != 0)
         return r; /* bzip2 block header magic (BCD pi) */
     const u64 limit = probe_limit(s, hit, cap);
+    /* M-090: the og walks the "koly" UDIF trailer, not the bzip2 EOS.
+     * RAWSearchDLL_decompiled.c:63782-63868 (FUN_180053de0, first-hand):
+     * 512-byte chunk steps from the stream start; a chunk whose LAST 8
+     * bytes are zero gates both probes - "koly" at the chunk start
+     * (aligned, size = chunk base + 0x200, the mandatory 512-byte UDIF
+     * footer), and past 0x2800 a full search of the PREVIOUS chunk
+     * (unaligned salvage, size = koly offset + 0x200). The bzip2 EOS
+     * magic survives only as the no-koly fallback (the batch-1
+     * bounded-extent convention, now the documented heuristic). */
+    {
+        std::vector<u8> chunk(512), prev(512);
+        bool have_prev = false;
+        u64 p = hit;
+        while (p + 512 <= limit) {
+            if (!rd(s, p, chunk.data(), 512))
+                break;
+            bool zero_tail = true;
+            for (int i = 504; i < 512; ++i)
+                if (chunk[size_t(i)] != 0) {
+                    zero_tail = false;
+                    break;
+                }
+            if (zero_tail) {
+                if (std::memcmp(chunk.data(), "koly", 4) == 0) {
+                    r.ok = true;
+                    r.end = std::min(p + 0x200, limit);
+                    r.confidence = 700;
+                    r.note = "dmg-koly-trailer";
+                    return r;
+                }
+                const u64 rel = p - hit;
+                if (rel > 0x2800 && rel > 512 && have_prev) {
+                    for (u32 i = 0; i + 4 <= 512; ++i) {
+                        if (std::memcmp(prev.data() + i, "koly", 4) == 0) {
+                            r.ok = true;
+                            r.end = std::min(p - 512 + i + 0x200, limit);
+                            r.confidence = 700;
+                            r.note = "dmg-koly-trailer-unaligned";
+                            return r;
+                        }
+                    }
+                }
+            }
+            std::memcpy(prev.data(), chunk.data(), 512);
+            have_prev = true;
+            p += 512;
+        }
+    }
     const u8 kFooter[] = {0x17, 0x72, 0x45, 0x38, 0x50, 0x90};
     std::vector<u8> blk(kProbeBlock);
     u64 pos = hit + 10;
@@ -3014,8 +3062,8 @@ CarveResult validate_dmg(IStorageDevice* s, u64 hit, u64 cap) {
             if (std::memcmp(blk.data() + i, kFooter, 6) == 0) {
                 r.ok = true;
                 r.end = std::min(pos + i + 10, limit); /* footer + combined CRC */
-                r.confidence = 700;
-                r.note = "bzh1-stream-to-footer";
+                r.confidence = 650;
+                r.note = "bzh1-stream-to-eos-no-koly";
                 return r;
             }
         }
