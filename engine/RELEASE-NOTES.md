@@ -14,6 +14,16 @@
   the driver's unsigned AND signed SHA-256 plus the dev-sign subject.
 - The ubuntu sanitizer/fuzz CI lanes were dropped (owner directive;
   coverage remains available locally via `ci-local.sh --san|--fuzz`).
+- **The Windows empty-directory listing fix** (run `40694592245`): a
+  directory containing NO `.crsf` sessions listed as `ERR_OPEN_FAILED`
+  on Windows - `FindFirstFileExW` reports "searched, nothing matched"
+  as an invalid handle with `ERROR_FILE_NOT_FOUND`, which is the
+  empty-list SUCCESS, not a read failure (POSIX `opendir` succeeds on
+  the same directory; the `CrUi.AutoSaveOnCompletion` first-block
+  contract - the zero-init scan lists the empty autosave dir as `OK` +
+  `n==0` - is what the run was red on). Fixed at both surfaces: the
+  ABI's `cr_ui_session_list` and the CLI `sessions` verb (zero rows,
+  exit 0; a genuinely missing directory stays FB-K01 exit 1).
 
 # core_recovery v0.4.1-parity
 

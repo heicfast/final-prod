@@ -925,26 +925,36 @@ int print_sessions(int argc, wchar_t** argv, int& i) {
     WIN32_FIND_DATAW fd;
     HANDLE h =
         FindFirstFileExW(pattern.c_str(), FindExInfoBasic, &fd, FindExSearchNameMatch, nullptr, 0);
-    if (h == INVALID_HANDLE_VALUE) {
-        wprintf(L"cannot enumerate session directory %s\n", dir.c_str());
-        return 1; /* FB-K01: enumeration failure is never exit-0 */
-    }
     const std::wstring sep = (!dir.empty() && dir.back() == L'\\') ? L"" : L"\\";
-    do {
-        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-            continue;
-        /* the 8.3 short-name quirk: the pattern can match on the SHORT
-         * name - verify the LONG name's tail too (case-insensitive) */
-        const std::wstring name(fd.cFileName);
-        if (name.size() < 5)
-            continue;
-        const wchar_t* t = name.c_str() + name.size() - 5;
-        if (t[0] != L'.' || towlower(t[1]) != L'c' || towlower(t[2]) != L'r' ||
-            towlower(t[3]) != L's' || towlower(t[4]) != L'f')
-            continue;
-        files.push_back(dir + sep + name);
-    } while (FindNextFileW(h, &fd));
-    FindClose(h);
+    if (h == INVALID_HANDLE_VALUE) {
+        /* the empty-directory truth (run 40694592245, the ABI seam's own
+         * fix): ERROR_FILE_NOT_FOUND is 'searched, nothing matched' - the
+         * directory was read and the empty list is the VALID answer (the
+         * cr_ui session-list contract pins OK + n==0 there). The CLI
+         * mirrors it: zero rows, exit 0. ERROR_PATH_NOT_FOUND (no such
+         * directory) and every other class (access denied, ...) remain
+         * enumeration failures - FB-K01: never exit-0. */
+        if (GetLastError() != ERROR_FILE_NOT_FOUND) {
+            wprintf(L"cannot enumerate session directory %s\n", dir.c_str());
+            return 1; /* FB-K01: enumeration failure is never exit-0 */
+        }
+    } else {
+        do {
+            if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+                continue;
+            /* the 8.3 short-name quirk: the pattern can match on the SHORT
+             * name - verify the LONG name's tail too (case-insensitive) */
+            const std::wstring name(fd.cFileName);
+            if (name.size() < 5)
+                continue;
+            const wchar_t* t = name.c_str() + name.size() - 5;
+            if (t[0] != L'.' || towlower(t[1]) != L'c' || towlower(t[2]) != L'r' ||
+                towlower(t[3]) != L's' || towlower(t[4]) != L'f')
+                continue;
+            files.push_back(dir + sep + name);
+        } while (FindNextFileW(h, &fd));
+        FindClose(h);
+    }
     std::sort(files.begin(), files.end()); /* the ABI's deterministic row order */
 
     struct SRow {

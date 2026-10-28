@@ -394,8 +394,20 @@ bool list_crsf_files(const char* utf8_dir, std::vector<std::string>& out) {
     WIN32_FIND_DATAW fd;
     HANDLE h =
         FindFirstFileExW(pattern.c_str(), FindExInfoBasic, &fd, FindExSearchNameMatch, nullptr, 0);
-    if (h == INVALID_HANDLE_VALUE)
-        return false;
+    if (h == INVALID_HANDLE_VALUE) {
+        /* the empty-directory truth (run 40694592245, the AutoSave W1c
+         * red): FindFirstFileExW reports 'searched, nothing matched' as
+         * INVALID_HANDLE_VALUE + ERROR_FILE_NOT_FOUND - the directory
+         * WAS read, the answer is the empty list. POSIX opendir on the
+         * same empty dir succeeds, and the cross-platform contract (the
+         * W1c test's first block: the zero-init scan lists the empty
+         * autosave dir as OK + n==0) makes that a SUCCESS, never
+         * ERR_OPEN_FAILED. ERROR_PATH_NOT_FOUND (no such directory)
+         * and every other class (access denied, invalid name, ...) stay
+         * genuine read failures. */
+        const DWORD e = GetLastError();
+        return e != ERROR_FILE_NOT_FOUND;
+    }
     const std::wstring dir_w = u8_to_ws(utf8_dir);
     /* join with the CALLER's separator convention (run 40689196858): a
      * forward-slash dir (the CMake/ctest path style) must stay
