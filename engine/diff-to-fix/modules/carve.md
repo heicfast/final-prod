@@ -526,6 +526,18 @@ the registry census, not the family semantics. The class-by-class comparison
 - CORRECTIONS #5 propagated: the RawConfig [Filter] count is 34, not 37
   (M-024 addendum; matrix/SUMMARY/evidence notes updated).
 
+## Fix-session delta (M-065 closed — 2026-10-28)
+
+- **M-065 → FIXED** — the shipped default set: data/userdata-defaults.json
+  (the og's own 111-entry/190-sign EUUserData, canonicalized; parses clean
+  under the S-039 caps), the rrecov engine-init load (exe-adjacent file,
+  explicit --user-signs replaces, corrupt = degrade-empty, absent = one
+  log line), the release.yml staging (beside rrecov.exe + data/), 2 tests
+  (DefaultSetShipsAndLoads 111/190 + OgAbsentFromStockExtensionsCarried).
+  OQ-SA-3 resolved en route: GetRawUserInfoMap is consumed by DRWUI at
+  scan setup (Trigger_Raw/FileSystem config tree) - capability-
+  configuring, MAJOR stands.
+
 ## Fix-session delta (S-037 closed — 2026-10-28)
 
 - **S-037 → FIXED** — FH11 (key 0x11C, the og's FUN_180029f30 constant

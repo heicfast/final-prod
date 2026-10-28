@@ -17621,3 +17621,40 @@ Stage Summary:
   3 MINOR N-086/N-087/N-088 · 1 INFO I-026) · 232 FIXED · 4 tracked-open.
   The driver lane's next CI dispatch is the execution evidence for the
   S-036/M-061/M-063 close-outs.
+
+---
+Task ID: FIX-6 (M-065 — the shipped default user-sign set; OQ-SA-3 resolved)
+Agent: main engineer
+
+Work Log:
+- Resolved the OQ-SA-3 blocking probe first-hand from the decompile:
+  GetRawUserInfoMap (RAWSearchDLL export :72213) is consumed by DRWUI
+  (DRWUI_decompiled.c:227538, GetProcAddress at DLL load) - the consumer
+  walks the map into a "Trigger_Raw"/"FileSystem" config tree feeding the
+  RAW searcher's scan-setup trigger surface. Capability-configuring; the
+  deep-dive:61 "secondary typing" line describes raw_signs.json's role,
+  not EUUserData's. M-065 stands at MAJOR.
+- Validated the og's whole 111-entry/190-sign DB against the post-S-039
+  parser grammar first (clean parse; the S-039 caps were sized from the
+  same census).
+- data/userdata-defaults.json: canonicalized copy of the og's EUUserData
+  (sorted keys, signs/mime verbatim; 16,156 bytes) - the release asset.
+- rrecov engine-init load: exe-adjacent userdata-defaults.json when no
+  explicit --user-signs (explicit file replaces the default entirely);
+  corrupt default = loud line + proceed empty (the og's bad-config-as-
+  absent degrade); absent = one line, never an error.
+- release.yml: the file staged beside rrecov.exe + under data/;
+  PREBUILT-ARTIFACTS §3 zip row documents the asset.
+- Tests: DefaultSetShipsAndLoads (190 signs / 111 exts) +
+  OgAbsentFromStockExtensionsCarried (47-name spot enumeration; the
+  finding's 79 census now 78 - S-037 added 'cpt'). Win-stub SDK gained
+  GetModuleFileNameW (the parse gate). Suite 916/4/0; syntax gate green.
+- Trail: M-065 -> FIXED (Resolution), OQ-SA-3 -> RESOLVED (probe note),
+  matrix row -> MATCH (FIXED), modules/carve.md delta, SUMMARY board
+  (8 -> 7 active, 232 -> 233 FIXED, tracked-open 4 -> 3).
+
+Stage Summary:
+- M-065 CLOSED. Board: 7 active (1 SEVERE S-038 · 2 MAJOR M-064-rem/
+  M-066 · 3 MINOR N-086/N-087/N-088 · 1 INFO I-026) · 233 FIXED ·
+  tracked-open 3. Next: M-066 (preview archive enumeration) then the
+  MINORs.

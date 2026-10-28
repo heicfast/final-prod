@@ -22,3 +22,19 @@ The wave's budget went to the grammar decode + the og-DB measurement (which prod
 ## Related findings
 
 - **S-039, M-065** (this session) — the findings this calibrates.
+
+
+## Probe resolution (2026-10-28, the M-065 fix session)
+
+Decoded first-hand: `GetRawUserInfoMap` is a RAWSearchDLL EXPORT
+(:72213) whose consumer lives in DRWUI (DRWUI_decompiled.c:227538 —
+GetProcAddress at RAWSearchDLL load, then :227545-227585): the consumer
+walks the map and builds a config tree keyed `"Trigger_Raw"` /
+`"FileSystem"` — the entries (extension name + the numeric setting at
+entry+0x20, formatted "%lld") feed the RAW searcher's scan-setup trigger
+configuration (the filter_generalraw family). Verdict: the DB is
+**consulted at scan setup and configures the RAW trigger surface** — the
+"consulted-alongside" phrasing was the accurate one; the deep-dive:61
+"secondary typing" line describes raw_signs.json's role for
+analyser-less formats, not EUUserData's role. M-065's severity stands at
+MAJOR (the shipped default set landed: see findings/FIXED/M-065).

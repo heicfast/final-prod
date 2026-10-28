@@ -5,7 +5,7 @@
 **Parameters affected:** B1-adjacent (detection coverage), C19-adjacent (the default sign vocabulary), the packaging default-data question (K-adjacent: what ships in the box)
 **Corpus references:** `easeus-drw-research/og-codebase/EUUserData` (the shipped default set: 111 entries — measured this session; 16,891 bytes; also present pristine in `og-codebase/BUILDPE/EaseUS-x64/EUUserData`); `re-workspace/artifacts/config-files/userdata-remoteconfig--signature-and-flags.md` (the grammar + the DB's role); `re-workspace/artifacts/SearchDLL/rawsearch-carving--deep-dive.md:61` ("secondary typing" — the consumption-mode ambiguity, quoted below)
 **Core references:** audited commit `dd82db9` — `src/core/carve/cr_usersigns.cpp` (the parse/install surface exists, M-048); **no default set ships**: `rg -i "euuserdata" src/ include/ docs/ tools/` → zero; the release zip's asset list (`docs/PREBUILT-ARTIFACTS.md` §3) carries no signature-DB asset; of the og's 111 default extensions, **79 are absent from every core stock source** (the generated raw-signs table + the grammar registry — the intersection analysis in this session's wave sheet: tar/gz/xz/bz2/swf/ogg/mxf/3gp/mpeg/xls/ppt/eml among them)
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** FIXED — see Resolution below
 **Prior audit check:** expanded on M-048 (FIXED — which landed the parse/install surface, not a default set); the default-set absence and the 79-extension delta are newly quantified by this session's grammar-artifact read + first measurement of the og's DB
 
 ## Summary
@@ -54,3 +54,46 @@ Corpus evidence (strength-1/3 mix): the measured 111-entry DB (this session's ce
 ## Open questions
 
 The og's consumption mode for EUUserData signs — "secondary typing" (deep-dive:61) vs. consulted-alongside-raw_signs (the same artifact's other phrasing): resolved by decoding RAWSearchDLL's user-info-map consumers (the `GetRawUserInfoMap` chain at `FUN_180001350()+0x90`, the same function M-024's trail already decoded — the probe is one decompile read away and is registered as this finding's blocking question for severity calibration, not for the gap's existence).
+
+## Resolution (FIXED — the shipped default set + the engine-init load; OQ-SA-3's probe resolved en route)
+
+**The consumption-mode probe (OQ-SA-3, resolved first-hand this session):**
+RAWSearchDLL's `GetRawUserInfoMap` is an EXPORT consumed by DRWUI
+(DRWUI_decompiled.c:227538 — `GetProcAddress(hRaw, "GetRawUserInfoMap")`),
+and the consumer at :227545-227585 walks the map assembling each entry
+(name + the numeric setting via `"%lld"` of entry+0x20) into a config tree
+whose consumers are keyed `"Trigger_Raw"` / `"FileSystem"` — the entries
+feed the RAW searcher's setup/trigger configuration at scan-setup time
+(the `filter_generalraw` family). Verdict: **consulted at scan setup —
+capability-configuring for the RAW filter surface**, not result-time-only
+labeling; shipping the default set is a recall-adjacent parity item, and
+M-065's MAJOR severity stands.
+
+**The fix:**
+1. `data/userdata-defaults.json` — the og's own 111-entry / 190-sign DB,
+   canonicalized (sorted keys, signs/mime verbatim, 16,156 bytes pretty
+   JSON), generated from the measured corpus file; it parses clean under
+   the post-S-039 caps (the whole-file validation is the
+   `UserSigns.DefaultSetShipsAndLoads` test: count 190, distinct exts
+   111).
+2. **Engine-init load** (`src/app/rrecov.cpp`): with no explicit
+   `--user-signs`, rrecov loads `userdata-defaults.json` from the
+   executable's directory when present (the og's install-tree posture);
+   precedence: an explicit `--user-signs` file REPLACES the default
+   (install_set's replace semantics); a corrupt shipped default logs and
+   proceeds empty (the og's bad-config-as-absent degrade); an absent
+   default logs one line and proceeds — never an error.
+3. **The release asset**: `release.yml` stages the file BOTH beside
+   `rrecov.exe` (the load path) and under `data/` (the documented home);
+   PREBUILT-ARTIFACTS §3's zip row documents it.
+4. **Tests**: `UserSigns.DefaultSetShipsAndLoads` (the ship/load
+   contract: 111 exts / 190 signs) + `UserSigns.OgAbsentFromStock-
+   ExtensionsCarried` (the 47-name spot enumeration across the
+   families — the finding's 79-name census minus 'cpt', which S-037
+   added, minus case variants; every listed absent-from-stock extension
+   must ship). Full suite: 920 tests — 916 passed / 4 platform-skips /
+   0 failed; the Win7 parse gate green (a GetModuleFileNameW stub joined
+   the win-stub SDK).
+
+**Landed:** commit "fix(carve): M-065 - the shipped default user-sign set
+(the og's 111-entry EUUserData) + the engine-init load + the release asset".

@@ -10,7 +10,9 @@
 #include "cr/table/cr_table_wire.h"
 #include <cstring>
 #include <ctime>
+#include <fstream>
 #include <functional>
+#include <iterator>
 #include <vector>
 
 using namespace cr;
@@ -4252,6 +4254,66 @@ TEST(UserSigns, RegistrationRoundTripProceedsToScan) {
         if (c->props() && c->props()->carve_format == 0xFFFE0000u) {
             EXPECT_EQ(std::u16string(u"application/zip"), c->props()->carve_note);
         }
+    }
+}
+
+TEST(UserSigns, DefaultSetShipsAndLoads) {
+    /* M-065: the shipped default set (data/userdata-defaults.json, the
+     * og's own 111-entry install-tree EUUserData, byte-measured in the
+     * finding) parses clean through the post-S-039 caps and registers
+     * every sign. The file in the repo IS the release asset (staged
+     * beside rrecov.exe); this test is the ship/load contract. */
+    std::ifstream in(std::string(CR_SOURCE_DIR) + "/data/userdata-defaults.json",
+                     std::ios::binary);
+    ASSERT_TRUE(in.good()) << "data/userdata-defaults.json must ship in the repo";
+    std::string json((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    ASSERT_FALSE(json.empty());
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json.data(), json.size(), set))
+        << "the shipped default must parse under the post-S-039 caps";
+    /* the measured og census: 111 entries / 190 signs */
+    EXPECT_EQ(190u, set.signs.size());
+    u32 exts = 0;
+    char last[9] = {};
+    for (const auto& s : set.signs) {
+        if (std::strcmp(s.ext, last) != 0) {
+            ++exts;
+            std::strcpy(last, s.ext);
+        }
+    }
+    EXPECT_EQ(111u, exts) << "the og's 111 default extensions all present";
+}
+
+TEST(UserSigns, OgAbsentFromStockExtensionsCarried) {
+    /* M-065: the 78 extensions that exist in NO core stock signature
+     * source (grammar registry + raw-signs table; the finding's
+     * 79-name census minus 'cpt', which S-037 just added) are all
+     * carried by the shipped default set - the out-of-box parity claim.
+     * The spot list below crosses the format families: archives, media,
+     * legacy office, fonts, disc images. */
+    static const char* const kAbsent[] = {
+        "123",  "3gp",  "aiff", "art",  "au",   "bz2",  "chm",  "cif",  "csh",
+        "dms",  "dtd",  "eml",  "epub", "fits", "fm",   "gz",   "hqx",  "ico",
+        "lha",  "lwp",  "m4v",  "midi", "mmf",  "mpeg", "mts",  "mxf",  "ogg",
+        "pgm",  "pls",  "qxd",  "ra",   "ram",  "rgb",  "rm",   "rpm",  "sam",
+        "sit",  "swf",  "tar",  "ttf",  "vcd",  "vcf",  "wk1",  "wpd",  "xar",
+        "xls",  "xlsx", "xz"};
+    std::ifstream in(std::string(CR_SOURCE_DIR) + "/data/userdata-defaults.json",
+                     std::ios::binary);
+    ASSERT_TRUE(in.good());
+    std::string json((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json.data(), json.size(), set));
+    for (const char* ext : kAbsent) {
+        bool found = false;
+        for (const auto& s : set.signs) {
+            if (std::strcmp(s.ext, ext) == 0) {
+                found = true;
+                break;
+            }
+        }
+        EXPECT_TRUE(found) << "the og's default extension '" << ext
+                           << "' must ship in the default set";
     }
 }
 

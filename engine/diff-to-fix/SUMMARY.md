@@ -18,6 +18,35 @@ findings/FIXED/S-039-*.md for the Resolution.
 7 MAJOR M-060..M-066 · 5 MINOR N-084..N-088 · 1 INFO I-026) · **225 FIXED**
 · tracked-open 4 unchanged.
 
+## Fix-session delta (2026-10-28 — M-065, the shipped default user-sign set; OQ-SA-3 resolved)
+
+**OQ-SA-3 RESOLVED** (first-hand decode): `GetRawUserInfoMap` is a
+RAWSearchDLL export consumed by DRWUI at scan setup — the map's entries
+(extension + numeric setting) build the `"Trigger_Raw"`/`"FileSystem"`
+config tree that feeds the RAW searcher's trigger surface
+(DRWUI_decompiled.c:227538-227585). The DB is capability-configuring, so
+the default set is a recall-adjacent parity item and M-065's severity
+stands.
+
+**M-065 (MAJOR) FIXED**: `data/userdata-defaults.json` — the og's own
+111-entry / 190-sign install-tree EUUserData, canonicalized (sorted keys,
+verbatim signs/mime), parsed clean under the post-S-039 caps. rrecov now
+loads it from the executable directory at engine init (absent explicit
+`--user-signs`; an explicit file replaces; corrupt = degrade-empty with a
+log line, absent = one log line, never an error — the og's config-file
+posture). release.yml stages it beside rrecov.exe AND under data/;
+PREBUILT-ARTIFACTS §3 documents the asset. Tests:
+`UserSigns.DefaultSetShipsAndLoads` (111 exts / 190 signs) +
+`UserSigns.OgAbsentFromStockExtensionsCarried` (the 47-name
+absent-from-stock enumeration). Suite: 920 tests — 916 passed / 4
+platform-skips / 0 failed; the Win7 parse gate green (GetModuleFileNameW
+joined the win-stub SDK).
+
+**Board after M-065:** 7 active (0 ACUTE · 1 SEVERE S-038 · 2 MAJOR
+M-064-remainder + M-066 · 3 MINOR N-086/N-087/N-088 · 1 INFO I-026) ·
+**233 FIXED** · tracked-open 3 (OQ-S4-3, OQ-SA-1, OQ-SA-2 — OQ-SA-3
+resolved this pass).
+
 ## Fix-session delta (2026-10-28 — the v0.2.3 deployer batch: S-036 + M-060 + M-061 + M-062 + M-063 + N-084 + N-085)
 
 **Upstream (rda-driver v0.2.3, tag `6b50bb8`→`f569836`)**: the elevation

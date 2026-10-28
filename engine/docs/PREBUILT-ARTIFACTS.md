@@ -104,7 +104,7 @@ semver — new convention from the combined-release era; the historical
 
 | Asset | Role |
 |---|---|
-| `core-recovery-<tag>.zip` | core binaries + libs + include/ + docs + in-zip SHA256SUMS |
+| `core-recovery-<tag>.zip` | core binaries + libs + include/ + docs + in-zip SHA256SUMS; carries `userdata-defaults.json` beside `rrecov.exe` (M-065: the og's install-tree EUUserData posture — 111 entries, the engine-init default user-sign set; absent file = the empty registry + one log line, never an error) |
 | `rda.sys` | the tier-mate driver binary (single-point consumers) |
 | `rda.inf` | the driver INF |
 | `install.ps1` | the driver installer |

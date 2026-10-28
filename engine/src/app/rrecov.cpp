@@ -903,6 +903,52 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
                 break;
             }
         }
+        /* M-065: the shipped default set - the og's install-tree
+         * EUUserData posture (111 entries; the release zip ships the
+         * same file as data/userdata-defaults.json). Precedence: an
+         * explicit --user-signs file replaces the default entirely
+         * (install_set's replace semantics); with no flag, the
+         * executable-adjacent default loads when present; absent
+         * default + absent flag = the empty registry + one log line
+         * (the og's degraded install posture, never an error). */
+        bool default_loaded = false;
+        if (user_signs_path.empty()) {
+            wchar_t exe[MAX_PATH] = {};
+            if (GetModuleFileNameW(nullptr, exe, MAX_PATH) != 0) {
+                std::wstring dir(exe);
+                const size_t slash = dir.find_last_of(L"\\/");
+                if (slash != std::wstring::npos)
+                    dir.resize(slash + 1);
+                std::wstring def = dir + L"userdata-defaults.json";
+                FILE* f = nullptr;
+                if (_wfopen_s(&f, def.c_str(), L"rb") == 0 && f != nullptr) {
+                    std::vector<char> json;
+                    char buf[4096];
+                    size_t got = 0;
+                    while ((got = fread(buf, 1, sizeof(buf), f)) > 0)
+                        json.insert(json.end(), buf, buf + got);
+                    fclose(f);
+                    carve::usersigns::UserSignSet set;
+                    u32 rc = carve::usersigns::parse(json.data(), size_t(json.size()), set);
+                    if (rc == 0)
+                        rc = carve::usersigns::install_set(std::move(set));
+                    if (rc == 0) {
+                        default_loaded = true;
+                        wprintf(L"[user-signs] %u default user signature(s) loaded\n",
+                                carve::usersigns::active_count());
+                    } else {
+                        /* the shipped default is corrupt: loud, but the
+                         * scan proceeds empty (the og treats a bad
+                         * config file as absent - degrade, never abort) */
+                        wprintf(L"[user-signs] userdata-defaults.json is not a valid "
+                                L"signature database; proceeding with none\n");
+                    }
+                }
+            }
+            if (!default_loaded)
+                wprintf(L"[user-signs] no default signature database; proceeding "
+                        L"with none\n");
+        }
         if (!user_signs_path.empty()) {
             FILE* f = nullptr;
             if (_wfopen_s(&f, user_signs_path.c_str(), L"rb") != 0 || f == nullptr) {

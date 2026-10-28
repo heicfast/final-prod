@@ -488,7 +488,7 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | app-installer · K77 registry + telemetry contract | DIVERGENCE-SEVERE | **S-038** — SetupUE 16-entry OS gate, `SOFTWARE\EASEUS\DRW\Version`, /SendInfo//SendInfoEx//UninstallStart//UninstallEnd |
 | driver-install · K71/K72/K76 versioned/verified deployer contract | PARTIAL-FIXED (script half) | **M-064** — write+verify + per-call SCM errors + the exit-code contract LANDED (v0.2.3); the %s%d versioned-coexistence + -Uninstall-verb halves remain open in modules/driver-install.md |
 | carve · user-sign caps vs the og's own DB | **MATCH (FIXED)** | **S-039** RESOLVED — caps raised to the measured maxima (48/12/1024/80); the og's own DB loads 111/111; fail-before-proven (ParseOgShippedExtremes/HostileBlobStillAtomic/RegistrationRoundTripProceedsToScan) |
-| carve · default user-sign set | DIVERGENCE-MAJOR | **M-065** — 111 og defaults, 79 stock-absent; severity calibrates on **OQ-SA-3** |
+| carve · default user-sign set | **MATCH (FIXED)** | **M-065** RESOLVED — data/userdata-defaults.json ships (the og's 111/190 verbatim) + the engine-init load + the release asset; OQ-SA-3 resolved (scan-setup trigger config) |
 | preview · archive-content enumeration (FS-origin) | DIVERGENCE-MAJOR | **M-066** — ArchivePreviewModel family vs the docx-only hunt (`cr_preview.cpp:685-715`) |
 | preview · doc truth (M-028 propagation) | DIVERGENCE-MINOR | **N-088** — cr_ui.h:1035 + API-SURFACE-AUDIT:94 + the never-produced mov |
 | packaging · WinPE payload census (K78) | DISPOSITIONED-MATCH-at-plan | the PE capability boundary recorded as the boot-media builder's design input; roadmap.md:71 |

@@ -225,6 +225,13 @@ inline HMODULE GetModuleHandleW(const wchar_t*) {
 inline FARPROC GetProcAddress(HMODULE, const char*) {
     return (FARPROC)0;
 }
+/* M-065 (diff-to-fix): the executable-path lookup for the shipped default
+ * user-signature set (userdata-defaults.json beside rrecov.exe). */
+inline DWORD GetModuleFileNameW(HINSTANCE, wchar_t* path, DWORD cap) {
+    if (cap > 0)
+        path[0] = 0;
+    return 0;
+}
 inline BOOL GetDiskFreeSpaceExW(const wchar_t*, ULARGE_INTEGER*, ULARGE_INTEGER*, ULARGE_INTEGER*) {
     return 1;
 }

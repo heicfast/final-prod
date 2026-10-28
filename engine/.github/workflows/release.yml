@@ -79,7 +79,7 @@ jobs:
         shell: pwsh
         run: |
           $out = "stage"
-          New-Item -ItemType Directory -Force "$out/bin", "$out/lib" | Out-Null
+          New-Item -ItemType Directory -Force "$out/bin", "$out/lib", "$out/data" | Out-Null
 
           $required = @(
             "build/win-x64-release/src/app/Release/rrecov.exe",
@@ -128,6 +128,11 @@ jobs:
 
           Copy-Item -Recurse include "$out/include"
           Copy-Item -Recurse docs "$out/docs"
+          # M-065: the shipped default user-signature set (the og's
+          # install-tree EUUserData posture; lands beside rrecov.exe for
+          # the engine-init default load)
+          Copy-Item data/userdata-defaults.json "$out/bin/userdata-defaults.json"
+          Copy-Item data/userdata-defaults.json "$out/data/userdata-defaults.json"
           Copy-Item README.md, LICENSE, RELEASE-NOTES.md "$out/"
 
           $root = (Resolve-Path $out).Path
