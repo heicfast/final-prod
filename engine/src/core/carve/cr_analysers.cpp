@@ -5655,5 +5655,119 @@ CarveResult validate_3ds_ncsd(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
+/* ---- M-117: Outlook Express Dbx (RawSpeed::DbxAnalyser, idx 0x15) ----
+ * The og registers the analyser under THREE magic keys (:2192-2232,
+ * three 0x18 chain nodes each stamped idx 0x15): "JMF6" 0x36464d4a,
+ * 0xfe12adcf (CF AD 12 FE - the classic OE store magic), 0x2c3489f7
+ * (F7 89 34 2C - the marked/folder variant). The identity probe
+ * (FUN_180016740 :17509-17562) stamps id 0x15 when the 16-byte window
+ * equals ANY of:
+ *   - one of FOUR Outlook Express store GUIDs (the stack table
+ *     :17529-17541 - the CF12ADFE family's three generations plus the
+ *     fourth variant),
+ *   - "JMF6" + the version word 03 00 10 00 (the probe's u64 literal
+ *     0x0010000336464D4A at :17573 - the finding text's "03 00 01 00"
+ *     transcription is corrected by the corpus literal),
+ *   - the 16-byte marked pattern F7 89 34 2C F7 F0 DE 6D AF 22 89 D1
+ *     00 FF F0 B0 (the u64 pair at :17574-75).
+ * The size/name pass (FUN_180016950 :17622-17690, the DBXRawFileInfo
+ * Analyse virtual):
+ *   - the FIRST call latches the marked form when the window starts
+ *     with the marked pattern (FileInfo+0x118, gated by the ctor's
+ *     first-call flag +0x119 - the ctor's u16 0x100 at +0x118 is the
+ *     two flags' initialization, marked=0 first-call=1);
+ *   - plain form: size = u32 @ +0x7C (the DBX self-declared size
+ *     field), written ungated - the og trusts the field;
+ *   - marked form (gated by the context's field@+0x14 > 8): the block
+ *     computation - size = (cur_window - start) * block +
+ *     FUN_180042b30(window, block) (:50703-50746: a binary search for
+ *     the offset where the window's ALL-ZERO TAIL begins, i.e. the
+ *     1-based length of the window's non-zero prefix). The engine's
+ *     scan positions are block units (the loop at :9460-9470: block =
+ *     the device's sector size, 0x200 default), so across the per-
+ *     window Analyse calls the net extent runs from the candidate
+ *     start to the last non-zero byte - the zero-end family (the
+ *     engine's own zero-window detection at :9489-9505 ends the
+ *     candidate at an all-zero window). The 272-byte embedded-name
+ *     buffer is memset-then-strlen'd with nothing ever written into
+ *     it (:17660-17667) - the shipped name is ALWAYS empty (the dead
+ *     copy ported as no embedded_name).
+ * Core adaptation: the plain form refuses the +0x7C read at the slice
+ * edge (the og's window over-read becomes the core's bounded-read
+ * rejection - the family convention); the marked form walks 512-byte
+ * blocks (the sector default) and stops at the first all-zero block
+ * (the engine's zero-window end). */
+CarveResult validate_dbx(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[16];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r; /* the probe's 16-byte identity window */
+    static const u8 kMarked[16] = {0xF7, 0x89, 0x34, 0x2C, 0xF7, 0xF0, 0xDE, 0x6D,
+                                   0xAF, 0x22, 0x89, 0xD1, 0x00, 0xFF, 0xF0, 0xB0};
+    static const u8 kOeGuids[4][16] = {
+        {0xCF, 0xAD, 0x12, 0xFE, 0xC5, 0xFD, 0x74, 0x6F, 0x66, 0xE3, 0xD1, 0x11, 0x9A, 0x4E, 0x00,
+         0xC0},
+        {0xCF, 0xAD, 0x12, 0xFE, 0xC6, 0xFD, 0x74, 0x6F, 0x66, 0xE3, 0xD1, 0x11, 0x9A, 0x4E, 0x00,
+         0xC0},
+        {0xCF, 0xAD, 0x12, 0xFE, 0xC7, 0xFD, 0x74, 0x6F, 0x66, 0xE3, 0xD1, 0x11, 0x9A, 0x4E, 0x00,
+         0xC0},
+        {0xCF, 0xAD, 0x12, 0xFE, 0x30, 0x9D, 0xFE, 0x26, 0x8F, 0x1A, 0xD2, 0x11, 0xAA, 0xBF, 0x00,
+         0x60},
+    };
+    const bool marked = std::memcmp(h, kMarked, 16) == 0;
+    bool identity = marked;
+    for (int i = 0; !identity && i < 4; ++i)
+        identity = std::memcmp(h, kOeGuids[i], 16) == 0;
+    if (!identity) {
+        /* the JMF6 form: "JMF6" + the version word 03 00 10 00 */
+        static const u8 kJmf6[8] = {'J', 'M', 'F', '6', 0x03, 0x00, 0x10, 0x00};
+        identity = std::memcmp(h, kJmf6, 8) == 0;
+    }
+    if (!identity)
+        return r; /* the key without a table identity rejects (the probe's gate) */
+    if (!marked) {
+        /* the plain forms: the self-declared size u32@+0x7C, ungated
+         * in the og (FUN_180016950 writes the field straight into the
+         * FileInfo size slot) */
+        u8 b[4];
+        if (!rd(s, hit + 0x7C, b, sizeof(b)))
+            return r; /* the og's window over-read refused - bounded reads */
+        const u64 size = u32_from_bytes_le(b);
+        r.ok = true;
+        r.end = std::min(hit + size, probe_limit(s, hit, cap));
+        r.confidence = 650;
+        r.note = "dbx-oe-identity+declared-size";
+        return r;
+    }
+    /* the marked form: FUN_180042b30's block computation - the extent
+     * from the candidate start to the last non-zero byte, the walk
+     * stopping at the first all-zero block (the engine's zero-window
+     * end - the zero-end family) */
+    const u64 limit = probe_limit(s, hit, cap);
+    constexpr u32 kBlock = 0x200; /* the device sector-size default */
+    std::vector<u8> buf(kBlock);
+    u64 pos = hit;
+    u64 last_nonzero_end = hit; /* the marked magic itself is non-zero */
+    while (pos < limit) {
+        const u64 remain = limit - pos;
+        const u32 take = u32(std::min<u64>(remain, kBlock));
+        if (!rd(s, pos, buf.data(), take))
+            break;
+        u32 last = 0;
+        for (u32 i = 0; i < take; ++i)
+            if (buf[i] != 0)
+                last = i + 1; /* the non-zero prefix length (FUN_180042b30) */
+        if (last == 0)
+            break; /* the all-zero window ends the candidate */
+        last_nonzero_end = pos + last;
+        pos += take;
+    }
+    r.ok = true;
+    r.end = last_nonzero_end;
+    r.confidence = 600;
+    r.note = "dbx-marked-zeroend-walk";
+    return r;
+}
+
 } // namespace carve
 } // namespace cr

@@ -339,6 +339,24 @@ enum FormatId : u32 {
     FMT_IWORK, /* Index/[*].iwa + index.apxl */
     FMT_HWP,   /* mimetype/[Content_Types]: application/hwp+zip */
     FMT_CDR,   /* content/riffData.cdr */
+    /* M-117 (diff-to-fix): the og's Outlook Express Dbx analyser
+     * (RawSpeed::DbxAnalyser, idx 0x15 - one of the highest-code-weight
+     * classes in the RAW engine, rawsearchdll--family-rawspeed.md) is
+     * registered under THREE magic keys (RAWSearchDLL :2192-2232, three
+     * 0x18 chain nodes each stamped idx 0x15, the og's registration
+     * order): "JMF6" 0x36464d4a, the classic OE store magic 0xfe12adcf
+     * (bytes CF AD 12 FE), and the marked/folder variant 0x2c3489f7
+     * (bytes F7 89 34 2C). The identity probe (FUN_180016740
+     * :17509-17562) gates the 16-byte window: one of FOUR Outlook
+     * Express store GUIDs (the CF12ADFE family's three generations +
+     * the fourth variant), or "JMF6" + the version word 03 00 10 00
+     * (the u64 0x0010000336464D4A), or the 16-byte marked pattern. One
+     * row per key, shared validator (the M-092 duplicate-key policy);
+     * the og stamps id 0x15 for all three entry forms. Ids APPENDED
+     * (serialized carve_format values stay stable). */
+    FMT_DBX_JMF6,   /* "JMF6" - the container-variant key */
+    FMT_DBX,        /* CF AD 12 FE - the classic OE store key */
+    FMT_DBX_MARKED, /* F7 89 34 2C - the marked/folder-variant key */
     FMT_COUNT
 };
 

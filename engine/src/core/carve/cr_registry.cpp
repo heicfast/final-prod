@@ -108,7 +108,8 @@ CarveResult validate_gpx(IStorageDevice* s, u64 hit, u64 cap);      /* N-113 */
 CarveResult validate_osp(IStorageDevice* s, u64 hit, u64 cap);      /* N-113 */
 CarveResult validate_pos(IStorageDevice* s, u64 hit, u64 cap);      /* N-113 */
 CarveResult validate_chfp(IStorageDevice* s, u64 hit, u64 cap);
-CarveResult validate_office_zip(IStorageDevice* s, u64 hit, u64 cap); /* N-115: the typed rows */     /* N-113 */
+CarveResult validate_office_zip(IStorageDevice* s, u64 hit, u64 cap); /* N-115: the typed rows */
+CarveResult validate_dbx(IStorageDevice* s, u64 hit, u64 cap);      /* M-117 */
 
 namespace {
 const Signature kTable[] = {
@@ -1354,6 +1355,49 @@ const Signature kTable[] = {
     {FMT_IWORK, "iwa", {'P', 'K', 0x03, 0x04}, 4, 0, 128, 512ull << 20, 620, validate_office_zip, "Apple iWork", true},
     {FMT_HWP, "hwp", {'P', 'K', 0x03, 0x04}, 4, 0, 128, 512ull << 20, 620, validate_office_zip, "Hangul Document", true},
     {FMT_CDR, "cdr", {'P', 'K', 0x03, 0x04}, 4, 0, 128, 512ull << 20, 620, validate_office_zip, "CorelDRAW Drawing", true},
+    /* M-117: Outlook Express Dbx - the og's RawSpeed::DbxAnalyser
+     * (idx 0x15) under three magic keys (:2192-2232, the og's
+     * registration order). The probe gates the identity (the four OE
+     * store GUIDs / the JMF6 version word / the marked pattern -
+     * FUN_180016740); the size pass reads the self-declared u32@+0x7C
+     * (the plain forms) or trims at the zero end (the marked form -
+     * FUN_180042b30's nonzero-prefix block computation). No raw_signs
+     * entry exists in EITHER implementation (the og's own
+     * raw_signs.json carries no dbx - the analyser is the only path),
+     * so the row carries the probe's own 16-byte floor and the u32
+     * size field's own range as the cap surface (the og registers no
+     * bound). The og's ext table: id 21 = "DBX"
+     * (s5-grading-extension-table-dump.md:56). */
+    {FMT_DBX_JMF6,
+     "dbx",
+     {'J', 'M', 'F', '6'},
+     4,
+     0,
+     16,
+     0xFFFFFFFFull,
+     620,
+     validate_dbx,
+     "Outlook Express DBX"},
+    {FMT_DBX,
+     "dbx",
+     {0xCF, 0xAD, 0x12, 0xFE},
+     4,
+     0,
+     16,
+     0xFFFFFFFFull,
+     620,
+     validate_dbx,
+     "Outlook Express DBX"},
+    {FMT_DBX_MARKED,
+     "dbx",
+     {0xF7, 0x89, 0x34, 0x2C},
+     4,
+     0,
+     16,
+     0xFFFFFFFFull,
+     620,
+     validate_dbx,
+     "Outlook Express DBX"},
 };
 } // namespace
 

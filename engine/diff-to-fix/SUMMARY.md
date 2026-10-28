@@ -83,7 +83,48 @@ Reconstructed root directly - the unattributable form, never a wrong-volume attr
 (no real-session sample; the honest fallback recorded in the Resolution). 8-test proof
 set; suite 1199/1199; clang-format clean. Board: S-048 retired to findings/FIXED/ (2
 SEVERE remain on the active board: S-040, S-050).
+# SUMMARY.md — executive summary (the S42 fix lane on top; the prior lanes below, newest-first)
 
+
+## S42 fix-lane delta (2026-10-29 — the diff-to-fix execution lane per the user's directive: priority to MAJOR first, verify-then-fix one finding at a time, ≥20 fixes, fixed findings land in findings/FIXED/)
+
+**Working from: core `4e74ee2f` at lane open (baseline suite 1119/1119 green —
+1077 passed / 42 platform skips, 0 failed), corpus `be0cfe9` throughout (read-only,
+first-hand re-verification of every corpus cite before any change).**
+
+**Landings this lane (each: RED pre-fix proven by the stashed-engine rebuild,
+GREEN post-fix, full suite green, clang-format 18.1.8 clean, one finding = one
+commit = one push):**
+
+- **M-117 (MAJOR — the never-filed Outlook Express Dbx analyser) → FIXED.**
+  The full grammar landed beyond the finding's own evidence: `FUN_180042b30`
+  decoded as the non-zero-prefix binary search (the marked form = the zero-end
+  extent to the last non-zero byte), the 272-byte embedded-name buffer decoded
+  DEAD (the shipped name is always empty — memset-then-strlen with nothing
+  written), and the JMF6 version word CORRECTED to `03 00 10 00` by the
+  corpus's u64 literal `0x0010000336464D4A` over the finding text's "03 00 01
+  00" transcription (the corpus wins; the wrong-word rejection is pinned by
+  test). Three registry rows (JMF6 / CFAD12FE / F789342C — the og's
+  registration order, one row per key, shared `validate_dbx`), the 4-GUID
+  identity probe, the plain form's self-declared u32@+0x7C size, the marked
+  form's 512-block zero-end walk. The session-3 "MISSING (N-026)" markers now
+  resolve to a filed-and-fixed finding. Proof: Carve.Dbx* (6 tests), suite
+  1125/1125 green post-fix. The user's "fixed directory" directive adjudicates
+  the S41-recorded FIXED-archive convention conflict in favor of the in-tree
+  session-11 amendment — resolved findings land in `findings/FIXED/` from this
+  lane forward.
+
+**Board at this lane's M-117 landing (post-rebase over the parallel lanes'
+S-048/S-049/S-054/S-053/N-115/N-126/N-148/INFO-tier landings): 39 active on
+the filesystem re-count (2 SEVERE · 22 MAJOR · 15 MINOR · 0 INFO — the
+INFORMATIONAL tier fully acknowledged+retired by the parallel session-40
+lane) + 3 tracked-open (OQ-S4-3 / OQ-S10-1 / OQ-S10-3).** The parallel
+lanes filed four new findings in flight (M-118 the lost-partition register
+channel, M-119 the partition-boundary read semantics, N-142 renamed the
+rsf-variant-descriptor record gap, N-154 the bookkeeping-truth batch 2) —
+all in the active queue. The earlier board figures (64, 55, 51, 42) were
+each lane-boundary snapshots; the filesystem re-count at each landing is
+the operative truth (the N-129 count-drift rule).
 
 ## S41 lane delta (2026-10-29 — the continuation audit lane per the user's second-session directive: remove-the-fixed, go deeper, mark all remaining; RECONCILED at push over TWO parallel windows; three filings, all renumbered at the reconciliations)
 

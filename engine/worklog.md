@@ -5184,3 +5184,45 @@ executed against this tree (the object file does not compile). Resolved to the
 both-sides-folded case-insensitive compare (the HEAD side of the committed
 conflict — the form consistent with the lowercase cases table); comment updated to
 record the residue. Suite 1211/1211 green (this lane's build, post-repair).
+## Session-42 (S42 fix lane — 2026-10-29, the M-first diff-to-fix execution lane)
+
+**Open:** core `4e74ee2f`, corpus `be0cfe9` (read-only). Baseline: suite 1119/1119
+green (1077 passed / 42 Windows-skips, 0 failed), build green, format clean. Prompt
+saved token-redacted at `worklog/session-diff-fix-m117-prompt.md`.
+
+**M-117 FIXED (the never-filed Outlook Express Dbx analyser) — commit `<this
+push>`:** the full grammar landed, decoded first-hand from the corpus before any
+change: the three-key registration (JMF6 0x36464d4a / CFAD12FE 0xfe12adcf /
+F789342C 0x2c3489f7 → RawSpeed::DbxAnalyser idx 0x15, :2192-2232), the
+FUN_180016740 identity probe (4 OE store GUIDs + the JMF6 version word + the
+marked 16-byte pattern), the FUN_180016950 size/name pass (plain: u32@+0x7C
+self-declared; marked: the block computation), and the two open questions the
+finding left: **FUN_180042b30 decoded** — the binary search for the offset where
+a window's all-zero tail begins (the non-zero prefix length), so the marked
+form's accumulated size = the extent to the last non-zero byte (the zero-end
+family; the engine walks block-unit positions at the device sector size 0x200
+default, and its zero-window detection ends the candidate at an all-zero
+window); **the 272-byte name buffer decoded DEAD** — memset-then-strlen'd with
+nothing ever written, the shipped name is always empty (ported as no
+embedded_name). **Finding-text correction:** the JMF6 version word is `03 00 10
+00` (the corpus's u64 literal 0x0010000336464D4A at :17573), not the finding's
+"03 00 01 00" transcription — the corpus wins, and the wrong-word rejection is
+pinned by `Carve.DbxJmf6WrongVersionWordRejected`. Landed: FMT_DBX_JMF6 /
+FMT_DBX / FMT_DBX_MARKED (appended, og registration order, one row per key,
+shared `validate_dbx`), the kTrialOrder slots, the identity probe ported
+exactly, the plain form's declared-size read (the og's window over-read at the
+slice edge refused per the family convention — documented in the code comment),
+the marked form's 512-block zero-end walk, ext "dbx" (the og's ext-table id
+21) riding the existing query-layer Email category. **Tests:** 6 new
+(Carve.DbxPlainStoreGuidFamilyCarvesWithDeclaredSize / DbxJmf6VariantCarves /
+DbxJmf6WrongVersionWordRejected / DbxMarkedFormZeroEndExtent /
+DbxRejectsMagicWithoutTableIdentity / DbxRegistryRowsCarryTheThreeOgKeys);
+RED pre-fix proven by the stashed-engine rebuild (the tests cannot even compile
+against the pre-fix engine — `FMT_DBX*` not declared, the registry surface did
+not exist); suite 1125/1125 green post-fix; F8 gate + self-probe green over
+the new rows. **Trail:** the finding moved to findings/FIXED/ in-tree per the
+user's "fixed directory" directive (adjudicating the S41-recorded convention
+conflict); Resolution in the file; the ledger row; the matrix cell → MATCH;
+modules/carve.md M-117 → FIXED; SUMMARY's S42 block. The session-3 "MISSING
+(N-026)" markers (s3-rawsearch-inventory.md:252-254) now resolve to this
+finding.
