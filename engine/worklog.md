@@ -5290,3 +5290,74 @@ MAJOR tier; the 43-minors lane owns the MINOR set (their db228b75 claim stands).
 tracked-open; 346 resolved ledger rows (344 unique: 322 main + 22 OQ; the S-051/S-054
 collision pairs documented in-row).** Suite green on the reconciled tree. Next free IDs:
 S-055+, M-120+, N-158+, I-037+, A-012+.
+
+## Session-42 S42 lane close (2026-10-29 — the continuation audit lane's handoff; opened at core `869da779` / corpus `be0cfe9`, absorbed the parallel windows through `0ff6cc92`+)
+
+**The mandate (the user's continuing second-session directive) discharged in five waves:**
+
+W1 — the board-truth verification: the S12 liveness sweep pre-dated the heaviest fix
+window (S-049/S-051/S-052/S-053 + the N-wave), so every at-risk finding was re-checked
+LIVE at the lane tree (the carve family after the S-049 landing, the whole-disk flow
+after S-051, the preview split-halves after M-108); three stale-line cites noted
+(M-104/M-106/M-107 — defects moved, verdicts unchanged); NO unretired fix found
+(evidence/s42-board-verification.md).
+
+W2 — the HFS+ residual resolutions (evidence/decompiled-quotes/s42-hfs-forkfield-resolution.md):
+N-038's field-name residual RESOLVED (+0x29 IS ownerFlags — the ushort-units decode of
+FUN_180009940's short* record parameter mapped all ten branch reads to the TN1150 layout
+byte-exact; FUN_18000f7b0's own FileSize label corroborates); the S-002 decmpfs
+completion residual CLOSED core-superset (the og wires size only, :7835-7845); **N-155
+filed** (the og's zero-logical-size dataFork.totalBlocks<<12 fallback absent in core);
+the og's journal-copy name-length misalignment (FUN_18000fe90's fixed keyStart+0xC base)
+registered deliberate non-parity; I-014 sharpened (the allocation-bitmap question's next
+probe named). DECODE-METHODOLOGY DATUM: the HFS+ engine's short* record params mix
+ushort-unit and cast-first byte reads — future decodes must separate the forms.
+
+W3 — the config-layer batch (I-036, adopted by the S42-main reconcile): the four
+zero-citation surfaces dispositioned (shellexe.ini the Explorer-verb taglines; TreeType
+the DRWUI view-layout gate with both readers decoded; themdark.ini the Qt theme tables;
+DRWLog.log the empty channel) — all OOS-UI/product-frame; I-034's census-claim corrected;
+SURFACE-INVENTORY §12 (evidence/decompiled-quotes/s42-config-layer-dispositions.md).
+
+W4 — the executed verification (evidence/executions/s42-build-at-head.md): the
+from-scratch build at HEAD — cr_core/cr_ui clean, cr_ui_tests 63/63 (incl. the S-054
+fence pair), **cr_tests blocked by committed conflict markers → M-120 filed** (main red;
+the 1fb7603b push's false "suite 1096/1096 green" claim); the parallel repair b00118b5
+landed in the same window; this lane EXECUTED-VERIFIED the post-repair tree: **the full
+suite 1104 PASSED / 85 Win-only SKIPPED / 0 FAILED, first-hand** — M-120 retired
+convergent-FIXED with the deviation-from-message note (the folded compare vs the
+introducing message's direct-compare declaration).
+
+W5 — the DefaultLog real-run decode (evidence/decompiled-quotes/s42-defaultlog-ldq-decode.md):
+M-119's addendum (the Ldq transport entry's full validation ladder first-hand — three
+refuse classes + the clamp + the error-path zero-fill; 393 real-run Ldq refusals prove
+the og's scans over-read routinely); the bad-sector skip constants registered (the og's
+skip-forward-with-backoff vs the core's bisection — outcome-equivalent); the
+recovery-write-failure log observable registered.
+
+**Coverage statistics:** 53 findings liveness-verified across the windows (3 rebases
+absorbed: the S12 filings, the S-048/S-054/S-049-convergence/M-117/N-115-repin fix
+landings, the INFO-tier restoration + N-156/N-157); 2 UNVERIFIED residuals resolved
+(N-038's field name, the S-002 completion question); 1 matrix UNVERIFIED cell repaired
+(the stale OQ-S10-2 row); 3 new findings/registers filed (N-155 active, I-036 adopted,
+M-120 filed-and-resolved); 1 finding addendum (M-119); 2 module addenda (hfsplus,
+storage); 5 evidence files; the full suite executed green audit-side at the post-repair
+HEAD.
+
+**Read-only guarantee:** verified per-commit — this lane's commits touch NOTHING outside
+diff-to-fix/ + worklog* (the product-code commits visible in the windows are the
+parallel fix lanes' landings, not this lane's).
+
+**Handoff — the recommended next moves from this lane's product (priority order):**
+1. **M-119's landing** (now sharpened: the full ladder — three refusals + the clamp +
+   the error-path zero-fill; the 393-refusal real-run evidence is the fixture shape).
+2. **N-155** (one fallback line + five fail-before tests; the HFS+ journal-record
+   population is the bite — implement together with any future HFS+ deleted-path work).
+3. **M-118** (the MountPoints2 channel merge — the board's other LDM-adjacent MAJOR).
+4. **The remaining SEVERE pair** (S-040 the image-create producer; S-050 the repair-line
+   product decision — both carrying parallel addenda now).
+5. **The standing minors** (the 43-minors lane's claimed territory — 16 at this lane's
+   close).
+6. **The re-run-the-gate-after-every-rebase discipline** (M-120's prevention note — the
+   1fb7603b class will recur in hot windows; ci-local.sh is sufficient IF run
+   post-rebase).
