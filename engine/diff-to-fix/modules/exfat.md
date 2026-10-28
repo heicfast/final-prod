@@ -45,7 +45,10 @@ Core (audited commit `67193b6`): `src/core/exfat/` (2 files, 678 LOC) +
   file notes; no corpus contradiction).
 - **B6 post-format** — `M` per documented corpus behavior (no exFAT remnant sweep
   documented in corpus; RAWSearch covers content).
-- **B9 timestamps** — `M` exFAT 10ms timestamps with tz-offset conversion
+- **B9 timestamps** — `M` exFAT 10ms timestamps; the tz-offset bytes are
+  parsed but NOT applied (N-180 re-truth per the module's own session-2
+  re-audit at :93: the og reads them and converts to local system time,
+  which equals the fixed local-as-UTC stamp)
   (`exfat_time_to_unix100(ts, tz)`); og conversion semantics not itemized in corpus — no
   contradiction found.
 - **B10 filename/Unicode** — `M` UTF-16 name fragments, checksum-validated glue for live

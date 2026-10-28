@@ -7814,3 +7814,19 @@ built-in-first text; N-179's kMaxExtLen=8 "manifest" comment) — verified
 FIXED-ALREADY at the current tree. Acceptance grep (the finding's own criterion):
 the refuted phrases carry zero assertion hits. Doc-only; no code change. Trail:
 findings/FIXED/N-170 + ledger row + matrix row + carve.md row + this entry.
+
+## Session-46 minors lane — N-180 landed (2026-10-29)
+
+**N-180 FIXED (MINOR — the doc-truth staleness batch).** Six doc sites re-truthed
+against their code cites, each verified first-hand: REFERENCE-API-GAP's R-28 rows
+(:222/:376 — the thumbnail ABI IS exported, cr_ui.h:1233-1297; the budget is 200 MB
+per M-109, not 32 MiB per M-080) and R-34 rows (:233/:382 — the 100 MB/15 s caps
+SHIP as defaults per M-077, cr_preview.h:125-126); ABI-CONTRACT §7i's caps line;
+API-DELTA's S3-W4a row (LANDED with the code cite); AUDIT-PIPELINE's WRITER-1 row
+(the "returns on first per-item error / OPEN" claim flipped to the
+collect-and-continue MATCH — the same file's findings block had already recorded
+the fix; the row drifted); modules/exfat.md's B9 (the refuted "with tz-offset
+conversion" replaced with the S-011 parsed-but-not-applied truth). The finding's
+item 7 (the s5 evidence's polarity line) was ALREADY landed by the S-058 Resolution
+— verified FIXED-ALREADY at the evidence file's :258/:307. Doc-only; no code change.
+Trail: findings/FIXED/N-180 + ledger row + matrix row + this entry.
