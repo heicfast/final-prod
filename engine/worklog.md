@@ -4779,3 +4779,19 @@ and repaired by the Enumerate delta-registration test — the gate worked).
 Board after this push (this lane's truth): S-049 retired to findings/FIXED/.
 Next: S-048 (the tree-shape half of the same real-session evidence), then
 S-040/S-050, then the MAJOR cluster.
+
+## Session-40-severe territory claim (2026-10-29, post-S-049-push at `d4b487c8`)
+
+**This lane claims S-048 next** (the carve tree-shape half of the same real-session
+evidence S-049's naming rode — the first-hand decode is already in hand: the
+`Reconstructed` root + the 7 empty category folders (Pictures/Documents/Archives/
+Videos/Audio/Emails/Others) + the LAZY per-volume children (` (I:)` / `System
+Reserved` forms — the G session carries NO child for the carves-free G: volume)
++ the per-ext empty folders + the files directly under the volume child), then
+S-050 (the file-repair-line registration decision + the SURFACE-INVENTORY truth
+repair), then S-040 (the image-create producer). The 11D lane's SEVERE-tier
+claim (bcf31316) is acknowledged: S-051 landed by them (ad0535d6), S-049 by this
+lane (d4b487c8), S-052 by the third lane (f4e500de) — the remaining SEVERE set
+(S-048/S-050/S-040) is split: this lane takes S-048 first (the decode rides
+this lane's S-049 evidence mining); the 11D lane is free to take S-050/S-040 or
+converge per the first-push-wins convention.
