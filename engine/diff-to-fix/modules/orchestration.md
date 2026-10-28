@@ -187,3 +187,14 @@ never feed the gate; the dedup tree stays the safety net.
 target policy) / B29 (dedup, net) / O37 (cross-stage data flow)
 verdicts: MATCH (the interval shape is the finding's own sanctioned
 first step; the og's sparse-file mmap stays profiling-gated).
+
+
+## Session-8 section (2026-10-28, audited `35adcb9`)
+
+**M-073** (MAJOR — the scan-time folder filter absent: the og pushes the
+AdvanceFilterCondition into the scan controller at start (PushFolderFilter,
+UIUX/31:142, runtime-verified), constraining incremental tree insertion; the
+core's ScanConfig has no filter input — post-hoc query only. Fix = a
+`filter_folders` vector + post-parse pre-insertion prune + the ABI twin + the
+CLI flag + session round-trip). The W1a/W1b/W1c orchestration claims verified
+(load progress threading, cancel propagation, the completion auto-save leg).

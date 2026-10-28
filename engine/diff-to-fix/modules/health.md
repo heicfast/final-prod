@@ -172,3 +172,16 @@ covers it).
 | P42 transport-chain contract | **MATCH** — the og CAtaSmart accessor model (one transport family serves IDENTIFY/READ DATA/READ THRESHOLDS; per-disk accessor pick) is now the pure seam cr::health::read_smart_ata; ERR_HEALTH_UNAVAILABLE stays the clean final fallback |
 | Q65 | 9-test set: wire format pins (request/response/builder guards/error set) + fallback-chain pair + attribute-parse proof + name-table pin |
 
+
+
+## Session-8 section (2026-10-28, audited `35adcb9`)
+
+**M-076** (MAJOR — the TRIM facet's row-shape gap: the datum is
+health-facet-only (`cr_ui_smart_report.trim_known/trim_enabled`); the og's
+per-row chip needs opt-in row fields or an `_ex` flag; R-63). **M-078**
+(MAJOR — BitLocker turn-off absent: the og's CBitlockerTurnOffOperation
+pending-op + bitlockerhelp.mo/BitLockerLib.dll decrypt flows vs the core's
+unlock-only surface; the legitimate-only stance D-16 is untouched — turn-off
+is a consented destructive op). **N-097**: auto.txt's true semantics (the FVE
+auto-unlock key snapshot DRWUI persists — the security datum for hosts; core
+never persists key material, the safer posture, now stated).

@@ -59,3 +59,15 @@ Core (audited `67193b6`): `src/app/rrecov.cpp` (1,498 LOC).
   sets both sinks and is unaffected; CLI verdicts unchanged otherwise.
 - RawFixer remains manual-CLI only (`rrecov.cpp:1388/1431`) — S-008's pre-scan wiring gap is
   CLI-visible (no `--auto-fix` story yet); note for the S-008 fix plan.
+
+
+## Session-8 section (2026-10-28, audited `35adcb9`)
+
+**N-094** (the `-h` usage block lists 10 verbs — `sessions` is invisible; the
+three-site lock needs its fourth site; + the CORE-API-CURRENT:318 stale
+dispatch cite). **M-071** (MAJOR — the M-018 regression: the junk-filter
+gates were dropped from `print_tree` and the recover-all plan walk when
+rrecov.cpp was reconstructed in the N-064 wave; git-proven). Verbs that would
+land from this session's findings: `image` (S-040), `--filter-path-substr`/
+`--state` (M-072), `--filter-folder` (M-073), `--chkdsk` (M-075), `--trim`
+(M-076), `--turn-off` (M-078) — each must carry the four-site lock.

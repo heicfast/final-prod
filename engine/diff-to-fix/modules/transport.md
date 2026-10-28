@@ -114,3 +114,17 @@ The corpus constants + the probe decision are pinned in
 `include/cr/win/cr_winenv.h` (platform-independent: both CI lanes
 compile them; `Transport.*` pins in the Linux suite, the real-chain
 behavior tests on the Windows lane).
+
+
+## Session-8 section (2026-10-28, audited `35adcb9`)
+
+The two NEVER-CITED driver docs read in full against the user-mode half
+(session-8 E lane): identity IOCTLs, in/out gates, grammar, PID-token
+(both-sides-exact), 200-disk cap, failure mapping — MATCH throughout. New:
+**N-096** (identity-IOCTL non-issuance — the og client queries
+GET_DISK_CONTEXT_MODE per open; core never issues any), **N-095** item 4
+(this module's :6 grammar misquote — the og client's disk template is
+2-segment `\\.\EPRDTDRV\%d\%d`). DRIVER-REPO-ITEM handoffs recorded in the
+worklog for the rda-driver lane: the READ-length semantics nuance (og sectors
+vs rda bytes; Information×512 invariant holds) and the disk.sys-comparison
+field reading (DriverName vs ServiceKeyName, unreconciled).

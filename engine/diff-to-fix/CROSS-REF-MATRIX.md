@@ -495,3 +495,34 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | packaging · WinPE payload census (K78) | DISPOSITIONED-MATCH-at-plan | the PE capability boundary recorded as the boot-media builder's design input; roadmap.md:71 |
 | MOM stubs · 17 never-cited per-module censuses | MATCH (zero new parameters) | wave-7 spot-check: 13 ROLLUP-COVERED + 4 INFRASTRUCTURE-ONLY; decode candidates noted (CWindowsFS ×3, DeviceManager offline-OS strings) |
 | inventory truth · citation-count correction | CORRECTED | SURFACE-INVENTORY "22 of 32" → 17 of 30 (5 stubs cited in brace-group form at s5-session5-corpus-quotes.md:64) |
+## Session-8 detail rows (2026-10-28, audited product `35adcb9`; corpus `be0cfe9` — the second-session deep audit)
+
+| Surface × parameter | Verdict | Finding / evidence |
+|---|---|---|
+| imaging · disk→image create flow (P42/C24/F59) | DIVERGENCE-SEVERE | **S-040** — reader-only core; no `cr_ui_image_create`, no verb, no writer; the safe-scan posture's producer absent |
+| carve · S-007 batch-2 remainder formats (B1/A28/C19) | DIVERGENCE-SEVERE | **S-041** — ~24 formats (CHM MNY EMF ONE MPEG-TS 3DS SWF JP2 MOBI + the text school) absent; previously unowned |
+| carve · CRW key attribution + validator grammar (B1/C19/A28) | DIVERGENCE-MAJOR | **M-081** — II/MM\x1A\x00 keys are Canon CIFF per the census; landed as "Minolta MRW" rows whose PRD gate rejects genuine CRW |
+| query · path_substring + state_mask axes (D16/P42) | DIVERGENCE-MAJOR | **M-072** — 5 of 7 og filter groups; no substring, no state mask (R-22) |
+| orchestration · scan-time folder filter (S31/D16) | DIVERGENCE-MAJOR | **M-073** — PushFolderFilter unmirrored; post-hoc query only (R-14) |
+| writer · destination error classification (C23/D14) | DIVERGENCE-MAJOR | **M-074** — too-long/invalid/network collapse to ERR_DEST_UNWRITABLE (R-41) |
+| check · chkdsk launch endpoint (S35/P42) | DIVERGENCE-MAJOR | **M-075** — WinChkdsk launch absent; D-90 disposition superseded by the plan (R-65) |
+| health/enum · TRIM facet in rows (P42/X48) | DIVERGENCE-MAJOR | **M-076** — datum health-facet-only; no row fields/flag (R-63) |
+| preview · 100 MB/15 s product caps (X48/X49) | DIVERGENCE-MAJOR | **M-077** — no eligibility gate, no time bound in the path (R-34) |
+| health · BitLocker turn-off op (F61/P42) | DIVERGENCE-MAJOR | **M-078** — CBitlockerTurnOffOperation unmirrored; unlock-only surface (R-88) |
+| session/CLI · auto-save volume label (D12/B10) | DIVERGENCE-MAJOR | **M-079** — no fill site; CLI auto-saves always `auto_<ts>` |
+| preview(thumb) · default read budget vs ordinary photos (X47/X48) | DIVERGENCE-MAJOR | **M-080** — 6 MiB 12-MP JPEG → BudgetExceeded (fast path gated on pixels only) |
+| mom-capabilities · DeviceManager offline-OS identification (A54-58) | DIVERGENCE-MAJOR + disposition re-scope | **M-082** — live-module machinery (IsBootVolume chain); CheckVersion verdict covered only the dead copy |
+| writer/query/CLI · M-018 junk gates (D16/B2) | **REGRESSION (PARTIAL-FIXED)** | **M-071** — rrecov.cpp reconstruction dropped the CLI tree + recover-all gates (git-proven `69507cb`→`cfa4c75`) |
+| session · list scope + row shape (D12/B10/P42) | DIVERGENCE-MINOR | **N-090** — no `auto_` filter; 1 s save time; label[32]; no device-type |
+| docs · PARITY-DELTAS registration gaps (Q68) | DIVERGENCE-MINOR | **N-091** — load-progress model, thumbnail superset, auto-save posture unregistered |
+| preview(thumb) · refusal matrix + cache (Q68/X47) | DIVERGENCE-MINOR | **N-092** — WMF/EMF/ICO unnamed; no cache scope |
+| carve · batch-1 bounds MID/GZ (A28/C19) | DIVERGENCE-MINOR | **N-093** — 64 MiB/512 MiB vs og 10 MB/400 MB, undocumented |
+| cli · `-h` usage text + stale cite (C24/Q68) | DIVERGENCE-MINOR | **N-094** — sessions verb invisible in help; 4th lock site |
+| docs · five stale texts (Q68) | DIVERGENCE-MINOR | **N-095** — 0x60002400 label; 37-toggles tail; carve.md superseded verdict; transport.md grammar; ABI-CONTRACT cites |
+| transport · identity IOCTL issuance (S35/P42) | DIVERGENCE-MINOR | **N-096** — og issues GET_DISK_CONTEXT_MODE per open; core never issues any |
+| health/docs · auto.txt classification (F61/Q68) | DIVERGENCE-MINOR | **N-097** — it is the FVE auto-unlock key snapshot (plaintext persistence datum) |
+| abi/docs · enum refresh contract sentence (Q68) | DIVERGENCE-MINOR | **N-098** — always-fresh behavior unverified-by-text (R-86's doc half) |
+| config assets · data-asset ground truths (Q68/I-010) | INFORMATIONAL | **I-027** — quota contract, json_raw shield, Aliyun caps, schtasks autostart, filter_generalraw value |
+| mom-capabilities · CWindowsFS live-FS adapter | OPEN QUESTION | **OQ-S8-1** — decoded; og-side consumer untraced |
+| landing verification · W1a/W1b/W1c + thumbnail + carrier | MATCH at load-bearing points | worklog session-8 record (cancel-per-node; ERR_CANCELLED-never-flattened; cancelled-never-autosaves; 27/27 batch-1 magics; carrier all-parameters) |
+| FIXED-truth spot-check · 10 sampled findings | 9 CONFIRMED · 1 PARTIAL | M-018 → **M-071**; the rest verified in-code (worklog record) |

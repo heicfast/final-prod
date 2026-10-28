@@ -226,3 +226,16 @@ field-level comparison this session:
   FUN_14058c870 decompile).
 - Test debt noted: no end-to-end FAT/exFAT persisted-field round-trip test
   exists to pin the MATCH columns (fix-plan item in OQ-SA-1).
+
+
+## Session-8 section (2026-10-28, audited `35adcb9`)
+
+W1a/W1b/W1c verified at the load-bearing points (cancel-per-node;
+ERR_CANCELLED-never-flattened; cancelled-never-auto-saves; light-record
+summary; atomic write; the v5 tail round-trip). New findings: **N-090** (list
+scope/row shape — no `auto_` filter vs the og's home-list enumeration; 1 s
+save time; label[32]; no device-type), **M-079** (MAJOR — the CLI never fills
+`volume_label`: no fill site exists, `fill_identity_card` covers every identity
+field but the label; CLI auto-saves are always `auto_<ts>`), **N-091** (the
+load-progress model + auto-save posture + thumbnail superset unregistered in
+PARITY-DELTAS).

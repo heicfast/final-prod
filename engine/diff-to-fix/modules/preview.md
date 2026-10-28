@@ -151,3 +151,16 @@ suite; fixtures via `scripts/gen_thumbnail_fixtures.py` into
 `tests/data/thumbnails/` with SHA256SUMS) + `fuzz/fuzz_thumbnail.cpp` (every
 parser over hostile bytes, resident + extent-backed + tight-budget lanes).
 ABI exposure of the thumbnail surface is the registered Agent 1 handoff.
+
+
+## Session-8 section (2026-10-28, audited `35adcb9`)
+
+The 05e6786 thumbnail landing verified (both-axis 256 px, dims-first bomb
+guard, truncation disclosure, the I-015-lineage placement — the ABI row 27
+N/A-by-layer disposition stands; registration gap → N-091). New findings:
+**M-080** (MAJOR — the default 4 MiB read budget starves ordinary photos: a
+6 MiB 12-MP JPEG is neither EXIF-fast-pathed (12 MP < 64 MP) nor fully
+readable (6 MiB > 4 MiB) → BudgetExceeded; fix = fast-path on byte-oversize or
+raise the byte default), **M-077** (the og's 100 MB eligibility / 15 s time
+caps — R-34's shipped-defaults half), **N-092** (WMF/EMF/ICO unnamed in the
+refusal matrix + no cache scope).

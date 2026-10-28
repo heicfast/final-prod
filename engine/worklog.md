@@ -934,3 +934,71 @@ Stage Summary:
 - Watching run for dd225da; on green, cut v0.5.2 (the combined-era
   release with the persistent dev-sign) - the release dispatch then
   continues the test+benchmark lane against the fresh tag.
+---
+Task ID: SA-8/T2-EXEC (the T2 plan's execution record — the five lanes ran in this
+session; the entries below are the results. The product tree moved under the
+audit mid-flight (the CI-REL lane's dd225da et al.); every load-bearing absence
+claim was RE-VERIFIED on the final rebased tree before push — see the entry's
+tail and the s8 evidence file.)
+Task ID: SA-8 (the session-8 deep audit — the second-session continuation; findings filed, boards updated, close-out)
+Agent: session-8 full parity audit (this session)
+
+Scope executed (the T1-determined plan + the user's second-session mandate:
+find what session 1+ missed, verify/remove the fixed things, go deeper on the
+og-codebase comparison, mark all remaining features as findings):
+
+1. **Five parallel read lanes** (og-codebase never-audited asset sweep; the
+   W1a/W1b/W1c/thumbnail landing verification; S-007 batch-1 + NTFS carrier +
+   FIXED-truth spot-check; the 9 R-row evidence packages; the two NEVER-CITED
+   driver docs + the MOM decode candidates). Every load-bearing claim
+   re-verified FIRST-HAND by the lead before filing (the M-018 regression
+   grep census, the volume_label fill-site census, the CRW registry+validator
+   read, the thumbnail budget guards, the session-list filter read, the CLI
+   -h block, the batch-2 absence loop, the DeviceManager decompile greps).
+   Evidence: diff-to-fix/evidence/s8-verification-records.md.
+
+2. **25 items filed** (the session's diff-to-fix/ output):
+   SEVERE: S-040 (image create absent, R-93), S-041 (the S-007 batch-2
+   remainder, ~24 formats — previously recorded outside an active finding).
+   MAJOR: M-071 (the M-018 regression — the N-064 rrecov.cpp reconstruction
+   dropped the junk gates; git-proven), M-072..M-078 (the R-row remainder:
+   query axes, scan-time folder filter, dest codes, chkdsk, TRIM facet,
+   preview caps, BitLocker turn-off), M-079 (auto-save label never filled),
+   M-080 (thumbnail budget starves ordinary photos), M-081 (CRW
+   misattribution + the PRD gate rejects genuine CRW), M-082 (DeviceManager
+   offline-OS identification — the CheckVersion verdict re-scoped).
+   MINOR: N-090..N-098. INFORMATIONAL: I-027 (the data-asset ground-truth
+   register). TRACKED-OPEN: OQ-S8-1 (CWindowsFS consumer).
+
+3. **Landing verification results** (the T1 scope items): W1a/W1b/W1c TRUE
+   at the load-bearing points; the NTFS origin-LCN carrier TRUE on all
+   parameters; batch-1 27/27 magics byte-exact (bounds → N-093); the
+   installer steps 2-3 verified by the lane's own green dispatch record (run
+   40684304129); the CI rebuild docs-only. FIXED spot-check: 9/10 CONFIRMED,
+   M-018 PARTIAL → M-071.
+
+4. **Boards updated:** SUMMARY (the session-8 delta + the new counts + the
+   recommended fix order), CROSS-REF-MATRIX (the session-8 detail rows),
+   API-DELTA §5.2 (row→finding map), SCAN-ENGINE-DELTA A4 (the batch-1
+   landed/batch-2-owned correction), SURFACE-INVENTORY (the corpus-currency
+   + the driver-doc discharge + the decode-candidate dispositions), README
+   (the session-8 audited-commit row), 13 module files (session-8 sections).
+
+Board at close: **25 active** (2 SEVERE · 12 MAJOR · 9 MINOR · I-027; I-026
+informational) · 249 FIXED · tracked-open 2 (OQ-S4-3 unchanged; OQ-S8-1
+new). Recommended first fixes: M-071 (2 lines, a regression), M-081 (small,
+self-contained), then S-041's batches, M-079 (one function), M-080 (decide
+before the ABI handoff), S-040 (the largest feature).
+
+Driver-lane handoffs (recorded not fixed — the rda-driver repo is out of
+this audit's two-repo scope; for that lane): (a) the READ-length semantics
+nuance (og Length = sectors vs rda Length = bytes; the Information×512
+invariant holds — an og-style client through rda.sys would under-read; no
+in-product effect, core is rda's only client); (b) the disk.sys-comparison
+field reading (trio artifact's DriverName vs DRIVER-CONTRACT's ServiceKeyName
+— the decompile's `*(DO->DriverObject+0x30)+0x18` chase matches neither
+cleanly; flagged to S7); plus the standing D3 (the 15/18-vs-19 session-code
+prose, seven driver-repo sites) and D4 (regdrv-rda.reg hex(7) UpperFilters
+still invalid).
+
+No source code modified. Every changed path is under diff-to-fix/ + worklog*.

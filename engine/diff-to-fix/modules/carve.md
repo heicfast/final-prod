@@ -583,3 +583,17 @@ the registry census, not the family semantics. The class-by-class comparison
 - Wave 6 (WinPE payload census): the PE capability boundary (zero .mo = no
   lost-partition search in the bootable edition; FREE-by-construction) is
   DISPOSITIONED as the boot-media builder's design input — no carve defect.
+
+
+## Session-8 section (2026-10-28, audited `35adcb9`)
+
+New findings touching this module: **S-041** (SEVERE — the batch-2 remainder,
+~24 formats, now owned as a finding; previously the S-007 addendum's unowned
+tail), **M-081** (the CRW misattribution — II/MM`\x1A\x00` are Canon CIFF keys
+per the s3 census, landed as "Minolta MRW" rows whose PRD gate rejects genuine
+CRW; fix = re-attribute + a CIFF HEAPCCDR validator), **N-093** (batch-1
+bounds — MID max 64 MiB vs og 10 MB, GZ 512 MiB/18 vs og 400 MB/20,
+undocumented supersets; PSP/SIT under the recorded heuristic but their og
+bounds were present at the ctors). Verification: batch-1's 27 magics
+re-checked byte-exact at 12 representative registration sites. The
+`modules/carve.md:546-548` stale OQ-SA-3 text → **N-095** item 3.

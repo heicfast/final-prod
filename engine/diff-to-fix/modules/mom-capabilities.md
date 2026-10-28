@@ -147,3 +147,20 @@ Audited 2026-10-26 (session 5) — first-time coverage for every row here.
   (no host requests the module by name, no PE binary references it, no
   config-driven load, no enumeration loader; PE edition drops the MOM
   system entirely). MATCH-by-omission registered above.
+
+
+## Session-8 section (2026-10-28, audited `35adcb9`)
+
+**M-082** (MAJOR) re-scopes the offline-OS verdict: the CheckVersion
+dead-shipped MATCH-by-omission covered only that module's copy; the
+**DeviceManager** copy is live (by-name load evidenced) and is the full
+offline-OS/boot-volume identification stack (CurrentVersion profile,
+`\Select\Current` ControlSet resolution, `\MountedDevices` system-partition
+mapping, ProductOptions server/client, per-dir installer sweep —
+DeviceManager_decompiled.c:51303/:62034-62410/:62854-62920). The core's
+reghive is FVE-only; cr_bootfix takes the BCD path as input. Fix plan = the
+capability decision + (if yes) a reghive extension. **OQ-S8-1**: CWindowsFS
+decoded (the live-mounted-FS IFSInterface adapter, FileSystem_decompiled.c
+:10650-10797 factory) — its og consumer is the open question.
+**I-027**: the og-codebase data-asset ground-truth register (quota contract,
+json_raw shield, Aliyun caps, schtasks autostart, filter_generalraw value).

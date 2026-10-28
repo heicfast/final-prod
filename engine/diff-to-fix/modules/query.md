@@ -52,3 +52,14 @@
   (all fail-before RED on the neutered tree). M-029 → FIXED/ — every
   sub-item of the finding is now closed (path group s6; Type sort +
   modified-unit + paging s11; buckets + naming s32).
+
+
+## Session-8 section (2026-10-28, audited `35adcb9`)
+
+**M-072** (MAJOR): the path axis lacks substring and the state dimension is a
+boolean — the og's 7-group AdvanceFilterCondition lands as 5 (type/time/size +
+name-search + path-prefix). Fix: `path_substring` + `state_mask` (4-bit
+DeletedState×Origin mapping) on Filter, the ABI twin, and the CLI; the og's
+state-bucket encodings are corpus-undecoded (registered interpretation).
+**M-073** (MAJOR) is the scan-time half (PushFolderFilter — see
+modules/orchestration.md).

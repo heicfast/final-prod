@@ -1,4 +1,75 @@
-# SUMMARY.md — executive summary (the review-validate close-out on top; earlier sessions below)
+# SUMMARY.md — executive summary (the session-8 deep-audit on top; earlier sessions below)
+
+## Session-8 delta (2026-10-28 — the second-session deep audit: missed-surface sweep + remaining-feature filing + landing verification + FIXED-truth spot-check)
+
+**Audited tree: product code `35adcb9`** (HEAD `ff879f9`+ = this session's trail-only
+commits) · **corpus `be0cfe9`** (one commit past the standing `03ad46c`; the
+CORRECTIONS #9 absorption re-verified first-hand — CORPUS-ERRATA E-A/E-B,
+PARITY-DELTAS D-104, SCAN-ENGINE-DELTA F2 all carry it). Method: five parallel
+read lanes (og-codebase never-audited asset sweep; W1a/W1b/W1c/thumbnail
+landing verification; carve-batch + NTFS-carrier + installer + FIXED-truth
+spot-check; remaining-feature evidence packages; the two NEVER-CITED driver
+docs + MOM decode candidates), then first-hand re-verification of every
+load-bearing claim by the lead before filing.
+
+**25 new items** — the session mandate's three asks, delivered:
+
+**(1) Mark all remaining features/implementations/functions as findings** (the
+plan-of-record R-rows + the S-007 batch-2 tail, previously "recorded outside an
+active finding"): **S-040** (SEVERE — image create wholly absent, R-93),
+**S-041** (SEVERE — the S-007 batch-2 carve remainder, ~24 formats), **M-072**
+(query axes path_substring+state_mask, R-22), **M-073** (scan-time folder
+filter, R-14), **M-074** (destination validation codes, R-41), **M-075**
+(chkdsk launch, R-65), **M-076** (TRIM facet in enum rows, R-63), **M-077**
+(preview caps defaults, R-34), **M-078** (BitLocker turn-off, R-88), **N-098**
+(enum refresh contract sentence, R-86).
+
+**(2) What session 1+ missed** (the deep sweep): **M-082** (the DeviceManager
+offline-OS/boot-volume identification — live-module machinery the CheckVersion
+dead-shipped verdict never covered; the mom-capabilities disposition re-scoped),
+**M-081** (CRW misattribution — the Canon CIFF keys landed as "Minolta MRW"
+rows whose PRD gate rejects genuine CRW), **M-071** (the M-018 REGRESSION —
+rrecov.cpp's reconstruction in the N-064 wave dropped the junk-filter gates
+from the CLI tree print and recover-all; git-proven `69507cb` → `cfa4c75`),
+**M-079** (CLI auto-saves never carry the volume label — no fill site), **M-080**
+(thumbnail default 4 MiB read budget starves ordinary photos — 6 MiB 12-MP
+JPEGs get BudgetExceeded), **N-090..N-097** (session-list scope/row shape;
+PARITY-DELTAS registration gaps; thumbnail refusal-matrix holes + no cache;
+batch-1 MID/GZ bounds; CLI `-h` sessions verb missing; five stale-text doc-truth
+sites; identity-IOCTL non-issuance; auto.txt misclassification — it is the FVE
+auto-unlock key snapshot, not a WinPE payload), **I-027** (the og-codebase
+data-asset ground-truth register: the 2 GiB free-quota contract, json_raw's
+"TXT;HTML;LOG;H;CPP;MM;" shield, the Aliyun batching caps, the DiskHealth
+schtasks autostart, filter_generalraw's 65-extension value), **OQ-S8-1**
+(tracked-open — CWindowsFS decoded: the live-mounted-FS adapter; its og
+consumer is the open question).
+
+**(3) Verification of the new landings** (the T1 scope items): W1a/W1b/W1c
+claims verified TRUE at the load-bearing points (cancel-per-node +
+ERR_CANCELLED-never-flattened; cancelled-never-auto-saves; two-call pattern +
+light-record summary; the found deltas are N-090/M-079/N-091 above); the
+NTFS origin-LCN carrier verified on ALL contract parameters (both stamp
+sites, sparse→0xFFFFFFFF, resident→0, bit-8 persistence, clone fan-out, 3
+tests); S-007 batch-1 verified 27/27 magics byte-exact (bounds: N-093); the
+installer steps 2-3 verified by the lane's own green dispatch record (run
+40684304129 — no re-audit needed); the CI rebuild verified docs-only for
+parity surfaces. **FIXED-truth spot-check: 10 findings sampled — 9
+CONFIRMED-FIXED, 1 PARTIAL (M-018 → the M-071 regression finding).**
+
+**Board after session 8:** **25 active** (2 SEVERE · 12 MAJOR · 9 MINOR · 1
+INFORMATIONAL I-027 alongside I-026) · 249 FIXED · tracked-open 2 (OQ-S4-3
+unchanged; **OQ-S8-1** new). **Top risks / recommended fix order:** (1)
+**M-071** — a regression of a FIXED finding (recover-all writes junk; 2-line
+fix); (2) **M-081** — Canon CRW recall + mislabel (small, self-contained);
+(3) **S-041** — the batch-2 carve remainder (largest recall gap; M-081 first);
+(4) **M-079** — the auto-save label fill (one function in fill_identity_card);
+(5) **M-080** — the thumbnail budget (decide before the ABI handoff); (6)
+**S-040** — image create (largest single feature); then the R-row majors
+M-072..M-078 in plan-of-record wave order (W2a/W2b → W3 → W4 → W5); the
+doc-truth minors N-094/N-095 batch-able in one pass. The driver-lane handoffs
+recorded not fixed (READ-length semantics nuance; the disk.sys-comparison
+field reading) belong to the rda-driver repo — noted in the worklog for that
+lane, out of this audit's two-repo scope.
 
 ## Fix-session delta (2026-10-28 — the PARITY-FIX-9 close-out: S-038 FULLY FIXED — the board's last active SEVERE)
 

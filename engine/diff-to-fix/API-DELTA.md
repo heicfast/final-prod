@@ -218,6 +218,15 @@ drift independently).
 
 ## 5.2 The remaining corpus-parity API work — the plan-of-record board
 
+> **Session-8 update (2026-10-28):** every row below that was verified ABSENT
+> is now a **filed finding** (the session-8 mandate: remaining features get
+> findings). Row→finding: S3-W2a → **M-072**; S3-W2b → **M-073**; S3-W3a →
+> **M-074**; S3-W3b → **M-075**; S3-W3c → **N-098**; S3-W3d → **M-076**;
+> S3-W4a → **M-077**; S3-W4b → **S-040** (SEVERE); S3-W5a → **M-078**. The
+> board and the findings carry the same corpus citations; the findings add
+> the fix plans and test scopes. `docs/PLAN-API-EXPANSION.md` remains the
+> execution plan; `diff-to-fix/` is the audit record.
+
 `docs/PLAN-API-EXPANSION.md` is the plan of record; its acceptance criteria
 ("every PARTIAL row is either PRESENT or moved to the deferred table — zero
 silent rows") are still OPEN. Its Waves 1-5 are the remaining API-surface

@@ -108,3 +108,26 @@ From the corpus (A2's extraction, this session): (1) Inno Setup + bootstrap pair
 of which: OUT-OF-SCOPE ≈ 152 (per-binary 113, runtime-families 10, FileRepair 8,
 UI-pure UIUX ~11, Cloud/Licensing/Languages remainder) · S7-flagged 2 ·
 IN-SCOPE NEVER/PARTIAL ≈ 50 (the §2–§6 rows above). The §7 waves target them.
+
+## 9. Session-8 currency update (2026-10-28 — the second-session deep audit)
+
+- **Corpus commit:** the inventory's standing cite was `03ad46c`; the corpus is
+  now **`be0cfe9`** (one commit: CORRECTIONS #9 — EUUserData → CHKRepairFileSign;
+  GetRawUserInfoMap = per-scan stats map). **Absorption verified first-hand** —
+  CORPUS-ERRATA E-A/E-B, PARITY-DELTAS D-104, and SCAN-ENGINE-DELTA F2 already
+  carry it; no inventory row depends on the superseded reading.
+- **The two §1 NEVER-CITED driver docs** (epmntdrv-internals-v2; trio naming/PID
+  handshake) — **READ IN FULL this session** (the session-8 E lane): the
+  user-mode half is MATCH throughout (IOCTL constants, in/out gates, grammar,
+  PID-token both-sides-exact, 200-disk cap, failure mapping); the residuals are
+  **N-096** (identity-IOCTL non-issuance), two DRIVER-REPO-ITEM handoffs
+  (READ-length semantics nuance; the disk.sys-comparison field reading — the
+  rda-driver lane's items), and the transport.md grammar misquote (**N-095**).
+  §1's "flagged to S7" posture is discharged for the corpus-half audit; the
+  driver-repo halves remain that lane's.
+- **The §4 MOM decode candidates** — CWindowsFS decoded (**OQ-S8-1**, the
+  consumer question); the DeviceManager offline-OS strings decoded (**M-082** —
+  live-module machinery, the mom-capabilities disposition re-scoped).
+- **The og-codebase data assets** — the never-audited set swept (session-8 A
+  lane): every row maps to a register/exclusion; the five decoded ground-truth
+  contracts are **I-027**; auto.txt's misclassification is **N-097**.

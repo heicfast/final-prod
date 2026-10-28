@@ -92,3 +92,15 @@ landed via parallel lanes and were verified this session; D4 closed here):
   spec, satisfied).
 
 | N-075 query-signal exports | **MATCH** (cr_ui_scan_busy / cr_ui_scan_stopping — v2-era append, no bump; the og's reference-out signals as synchronous ops; D-78 registers the pull-progress convention; recovery-progress mapping documented in ABI-CONTRACT 5) | `CrUi.ScanBusyStoppingQueries`, plain-C edges in `cr_ui_abi_check` |
+
+
+## Session-8 section (2026-10-28, audited `35adcb9`)
+
+Export census re-verified: 81 exports, `CR_UI_ABI_VERSION 3`, 11 verbs. The
+session's ABI-visible findings: **S-040** (`cr_ui_image_create` absent),
+**M-072/M-073** (query/scan-config field appends), **M-075**
+(`cr_ui_fsck_volume` absent), **M-076** (row-field/`_ex` flag append),
+**M-077** (preview caps), **M-078** (`cr_ui_turn_off_bitlocker` absent),
+**N-098** (the enumeration always-fresh contract sentence), **N-095** item 5
+(ABI-CONTRACT §7f/§7g stale cr_ui.h cites — blocks now at 853-895/897-916).
+Append-only discipline applies to every fix (§9).
