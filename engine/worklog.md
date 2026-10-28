@@ -1,3 +1,10 @@
+- **N-130 + N-138 FIXED** — the VideoFileRepairer.exe register row (SIDECAR-OOS, the full
+  evidence chain: fix_main_code lineage, -r/-a CLI, MP4/QT atom grammar, avcodec-62 + faad2, the
+  M-021 touchpoint) enriched with N-138's decode (the <dir>\sfc encrypted engine-init database);
+  the family row cross-noted. N-138's trail-truth half: the FIXED-LEDGER's OQ-S10-2 row now
+  carries the SUPERSEDED verdict (the "dead payload" closure refuted by the byte-level decode —
+  hypothesis 1, live repair-line data asset, was correct); the matrix's refutation row and the
+  README note (the audit lane's landings) re-verified standing.
 - **N-129 FIXED** — the og-tree disposition register's six numeric/cite defects, every count
   re-run against the corpus this session (40 api-ms / 24 CORE_RL / 30 .mo / the :97 DRWReport
   cite / the on-disk EuOfficeTools casing / the stale self-nested row deleted). Doc-only; the

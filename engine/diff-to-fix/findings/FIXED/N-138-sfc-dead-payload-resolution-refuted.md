@@ -109,3 +109,10 @@ The database's record semantics (what the 827,489 bytes contain, beyond the
 container grammar) would need the ~275-line LZ decompressor ported to
 enumerate — registered as the non-blocking residual in the evidence file;
 nothing in core scope depends on it.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-130 + N-138 landing — recorded post-push in the ledger row)
+**Verified by:** the three fix-plan sites all current: (1) the register's new VideoFileRepairer.exe row names the sfc as the binary's LIVE encrypted engine-init database (magic " cfs" + the 16-byte XOR key + custom-LZ, the N-138 cites); (2) the FIXED-LEDGER's OQ-S10-2 row carries the SUPERSEDED verdict with the decode summary; (3) the CROSS-REF-MATRIX's refutation row (:724) and the README note (:15) — landed by the audit lane — re-verified standing.
+**Resolution notes:** The false-negative resolution is corrected in every live trail site. The refuted verdict's root cause (the grep probe structurally cannot match DAT_ symbols or hex constants) is preserved as the methodology note the matrix row already carries. The disposition class flips dead-shipped → live-OOS-machinery (the repair line stays OOS either way — no product behavior affected). The retired OQ-S10-2 file itself stays in history as the dated record; the ledger row is the navigable truth and now points at the refutation.
