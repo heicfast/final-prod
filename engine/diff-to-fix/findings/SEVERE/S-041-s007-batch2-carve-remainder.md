@@ -271,3 +271,28 @@ version ∈ [3,20] + RECT parse with ZWS rejected; the OfficeTagFromXML
 rels-name classifier quote (word/xl/ppt → 0x49/0x4A/0x4B,
 FUN_180046120 :53155-53195); and the MMOR/IIRS/FUJI → TiffAnalyzer
 attribution correction (see the M-081 SA-9 addendum).
+
+
+## Resolution record (SA-10, session 10 — FIXED-as-umbrella; the umbrella role is complete)
+
+**The flip rationale (every scope item dispositioned, verified first-hand at the
+reconciliation HEAD; even stronger than at the session's open — three more children
+resolved mid-flight):**
+
+1. **School 1 landed as code (`b92ebef`)**: CHM, ONE, MNY, EMF, SWF (FWS+CWS), 3DS (MM + the
+   NCSD list-layer twin) — `FMT_CHM…FMT_3DS_NCSD` at cr_signatures.h:179-186, registry rows at
+   cr_registry.cpp:933-970, `S007NicheBatch2School1Carve` (8 plants, og-exact size semantics) +
+   `School1RejectsNoise`. FCPEvt closed-as-covered (the SQLite relabel, A-011's landing).
+2. **CRW/MRW/LowDoc/HLP resolved** (`9e5dedc`, M-081 FIXED — the FIXED-LEDGER row carries it).
+3. **DMG resolved mid-flight** (M-090 FIXED `771e2ec` — the koly footer walk landed);
+   **MDB resolved mid-flight** (M-084+M-091 FIXED `16475b8` — the ACE second signature + the
+   page-chain walk landed). The batch-1 verification failures are closed.
+4. **Every still-open school-2/3 format carries its own active child finding**: HTML → M-092;
+   SVG/XML → M-093; LZH → N-112; MPEG-TS/M2TS → S-047; MOBI → M-096; JP2 → N-111; the text
+   school (VCF/GPX/OSP/POS/CHFP) → N-113; OfficeTagFromXML → N-115; HIK → M-098; AEP → M-099.
+5. **The school-1 walk follow-ups (ONE chunk-chain / 3DS section walk) are owned by M-106**
+   (filed this session — the decodes were already in evidence/decompiled-quotes/s8-batch2-formats.md:29,:31).
+
+The S-007 → S-041 precedent applies: when the landed portion completes and every remainder
+has its own owner, the umbrella closes. The board's carve-remainder surface is now fully
+child-owned; this file is the historical record (recoverable per the FIXED-LEDGER protocol).
