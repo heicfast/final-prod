@@ -6808,3 +6808,26 @@ engine truth as the deliberate divergence — the engine never lies in
 its telemetry); findings/FIXED/ with the Resolution; ledger row; matrix
 cell; SUMMARY's S42 block. Tests: ProgressDisplay.* (5); RED by the
 stashed-engine rebuild; suite 1197/1197 green; format clean.
+
+S-050 (the repair-line registration decision), then the MAJOR tier.
+## Session-43 minors lane — N-168 landed (2026-10-29)
+
+**N-168 FIXED (MINOR — the user-sign bounds-guard superset registered).** Both og
+guard sites re-read first-hand (the 2× hex-string guard vs the >> 1 matcher);
+the core's decoded-byte bound registered as PARITY-DELTAS D-117 with the
+og-defect rationale. UserSigns.ShortFragmentMatchesInCore pins the stance from
+both sides and restores the prevailing installed state. Trail: findings/FIXED/
+N-168 + ledger row + carve.md row + this entry.
+
+
+---
+Task ID: S40C-3 (N-139 convergence recorded — the parallel lane's push wins)
+Agent: session-40-continuation minors lane
+
+Work Log:
+- N-139 CONVERGENCE: this lane independently verified the finding (corpus re-read at RAWSearchDLL :958-983 + the DRWUI twin :94179), built the full fix (carve_oom helper on the cr_log seam, both throwing buffers folded to ERR_NO_MEMORY + aborted, the four nothrow emit sites routed through the helper, the deliberate-divergence D-row, and a deterministic injection harness — the test binary's global operator-new/new[] overrides with RAII-disarmed thresholds, RED->GREEN proven: bad_alloc ESCAPED the engine pre-fix), and fought six push-window rebase cycles for it — the remote landed their own complete N-139 (133cced9: the guards + the og-shaped one-line diagnostics on the same seam + the injection seam in cr_carve.h + tests incl. the parallel-worker escape pin + their D-row + the retirement) MID-WINDOW. Per the SA-9 earlier-push-wins house rule their landing stands; this lane's record documents the convergent verification (same corpus cites, same contract shape, same deliberate-divergence registration).
+- This lane's unique landings this session so far: N-142 (c26f77d9 + the SUMMARY block cdcc6c6d — the dead CrPreview pair, grep-census-zero proven), the M-108/format gate repairs (c0f69250 + the style(gate) commits), the OoxmlRelsPathSplit table repair (the parallel lane's red-on-main expectation residue).
+- Board at this point (filesystem truth): 71 active (5 SEVERE · 27 MAJOR · 33 MINOR · 6 INFO) / 37+ FIXED / 3 tracked-open — the S42/S12 audit lanes filed N-154..N-179 + M-116..M-120 + S-054new mid-window. This lane's next queue: the fresh unclaimed minors N-161..N-179 (the FS-engine edge classes: GPT/FAT/NTFS/exFAT/ext4) — the carve/preview territory is the hot lanes'.
+
+Stage Summary:
+- N-142 FIXED (landed); N-139 convergence recorded (their push wins); moving to the fresh minor queue.

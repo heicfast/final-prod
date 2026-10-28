@@ -10,6 +10,7 @@ vcpkg_installed/
 CMakeUserPresets.json
 *.log
 build-asan/
+build-ubsan/
 build-linux/
 Testing/
 *.img.dest2/
