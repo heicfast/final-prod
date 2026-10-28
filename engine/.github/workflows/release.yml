@@ -93,8 +93,12 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $sha = '${{ github.sha }}'
-          $tag = '${{ github.ref_name }}'   # non-empty only on tag pushes
-          $fromTagPush = [bool]$tag
+          # github.ref_name is the BRANCH name on workflow_dispatch ('main'),
+          # not empty - the tag-push detection must use ref_type (run
+          # 40687918634 failed exactly here: tag 'main' rejected by the
+          # semver convention)
+          $fromTagPush = ('${{ github.ref_type }}' -eq 'tag')
+          $tag = if ($fromTagPush) { '${{ github.ref_name }}' } else { '' }
           if (-not $tag) {
             # workflow_dispatch: explicit version or auto next-patch
             $tag = '${{ inputs.version }}'
@@ -111,9 +115,13 @@ jobs:
             exit 1
           }
           # refuse to overwrite an existing tag - DISPATCH ONLY (a tag push
-          # is self-evidently allowed to publish its own tag)
+          # is self-evidently allowed to publish its own tag). NO stderr
+          # redirect here: a redirected native stderr line under
+          # $ErrorActionPreference='Stop' throws in pwsh (the trap class),
+          # and a MISSING tag is this check's own success shape - the
+          # exit code alone carries the verdict
           if (-not $fromTagPush) {
-            gh api "repos/heicfast/core_recovery/git/refs/tags/$tag" 2>$null | Out-Null
+            gh api "repos/heicfast/core_recovery/git/refs/tags/$tag" --silent | Out-Null
             if ($LASTEXITCODE -eq 0) {
               Write-Host "::error::tag $tag already exists - pick the next version (auto mode does this for you)"
               exit 1

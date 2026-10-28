@@ -54,7 +54,12 @@ param(
     [int] $Threads = 4
 )
 
-$ErrorActionPreference = 'Stop'
+# 'Continue' DELIBERATELY (the collect-every-result, verdict-at-the-end
+# discipline): the child bench scripts carry their own EAP=Stop and still
+# throw; native invocations whose stderr is captured (2>&1) must NOT throw
+# at the redirect under Stop (the pwsh trap class) - every phase checks
+# $LASTEXITCODE explicitly instead.
+$ErrorActionPreference = 'Continue'
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 
 # ---- fixed layout -----------------------------------------------------------------

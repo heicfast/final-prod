@@ -42,8 +42,13 @@ function Invoke-Diskpart {
     param([string[]] $Lines, [string] $What)
     $tmp = [System.IO.Path]::GetTempFileName()
     ($Lines -join "`r`n") | Set-Content -Path $tmp -Encoding ascii
+    # EAP=Continue around the diskpart invocation: a redirected native
+    # stderr line under EAP=Stop throws before the exit code can be
+    # diagnosed (the trap class; diskpart writes stderr on failure)
+    $ErrorActionPreference = 'Continue'
     $out = diskpart /s $tmp 2>&1
     $code = $LASTEXITCODE
+    $ErrorActionPreference = 'Stop'
     Remove-Item $tmp -Force -ErrorAction SilentlyContinue
     if ($code -ne 0) {
         Write-Host "::error::diskpart $What failed (exit $code):"

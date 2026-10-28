@@ -113,9 +113,14 @@ $absSys = (Resolve-Path $sysPath).Path
 # 3 copy failed; 4 CreateService SCM error; 5 Parameters read-back mismatch;
 # 6 StartService failed (code-signing rejection carries the testsigning guidance);
 # 7 not RUNNING; 8/9 upgrade path (v0.2.4)
+# NOTE: the installer's stderr is captured WITHOUT the pwsh EAP=Stop throw
+# trap (a redirected native stderr line would throw before the exit code
+# could be diagnosed) - EAP goes to Continue around the invocation
+$ErrorActionPreference = 'Continue'
 $installerOutput = powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $ReleaseDir 'install.ps1') `
     -ServiceName $ServiceName -Source $absSys -IoctlBase 0 2>&1
 $installExit = $LASTEXITCODE
+$ErrorActionPreference = 'Stop'
 $installerOutput | Add-Content -Path $installLog -Encoding utf8
 Log "install.ps1 exit: $installExit"
 if ($installExit -ne 0) {
@@ -139,7 +144,10 @@ if ($params.IoctlBase -ne 0 -or $params.MaxDisks -ne 200 -or $params.DebugLevel 
 Log "service config verified: group 'Boot File System', IoctlBase=0 MaxDisks=200 DebugLevel=1 SessionsEnabled=1"
 
 # ---- 6. idempotent start verification (M-068: install.ps1 starts it itself) -------
-$running = sc.exe query $ServiceName 2>$null | Select-String 'RUNNING'
+# (EAP=Continue around the sc.exe probes: a redirected native stderr line
+# under EAP=Stop throws - the same trap class)
+$ErrorActionPreference = 'Continue'
+$running = sc.exe query $ServiceName | Select-String 'RUNNING'
 if (-not $running) {
     sc.exe start $ServiceName
     if ($LASTEXITCODE -ne 0) {
@@ -155,6 +163,7 @@ if (-not $running) {
 # ---- 7. the product's own driver-status truth (CLI surface) -----------------------
 $statusJson = & $RrecovExe driver --json 2>&1
 $statusExit = $LASTEXITCODE
+$ErrorActionPreference = 'Stop'
 $statusJson | Set-Content (Join-Path $EvidenceDir 'driver-status.json') -Encoding utf8
 Log "rrecov driver --json exit: $statusExit"
 Log "driver status: $statusJson"
