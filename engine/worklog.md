@@ -1738,3 +1738,14 @@ Stage Summary:
   landing lacked. Next: the SEVERE tier (S-042 first — the WMF grammar
   contradiction, then S-043/S-044/S-045/S-040/S-047 and the S-041
   children).
+
+---
+Task ID: FIX-T3 (the closing-fix lane — territory claim + the thumbnail SEVERE cluster)
+Agent: lead fix session (two-repo grant: core_recovery + corpus only)
+
+Lane split observed at push time (the S-042/M-090 lane works the carve
+grammar family; session-38 works the MINOR tier). THIS lane's claimed
+territory, to avoid duplicate work: the thumbnail family (S-043, S-045,
+M-080, M-083, M-085, M-102, N-092), the auto-save gates (S-044, M-079),
+image create (S-040), and the remaining session/CLI majors. Work starts
+at S-043 (EXIF orientation).
