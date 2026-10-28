@@ -3704,3 +3704,30 @@ PlaceholderIsHash + FatEngine.DeletedLfnChecksumRecoversOriginalByte + the re-pi
 - **VERDICT: ACCEPTED** (deliberate improvement, registered I-043; the
   telemetry mutex is already covered by the parallel-scan tests; no
   additional test owed).
+
+### D-123 — og-defect non-adoption batch #2: ext4 i_size_high unconditional poll + _gmtime32_s post-2038 garbage (I-040 registration, REGISTERED IMPROVEMENT — the D-58/D-59/N-162 [D-119] class)
+
+- **WHAT OG DOES (defect 1):** EXT4SearchDLL's size compute (FUN_180007510,
+  `EXT4SearchDLL_decompiled.c:5455-5467`) CONCATs the +0x6c dword with the
+  +0x04 dword **unconditionally for every inode** — but +0x6c (i_size_high)
+  is meaningful only for regular files; for directories it is the legacy
+  dir-ACL pointer, so legacy-ACL directories surface polluted garbage
+  sizes (e.g. an ACL/xattr block number 0x3039 reads as a ~51 PiB size).
+- **WHAT OG DOES (defect 2):** the SearchDLL family converts unix times
+  through `_gmtime32_s` (EXT4SearchDLL.dll import,
+  api-ms-win-crt-time-l1-1-0.dll) — the 32-bit time_t path produces
+  garbage for timestamps past 2038-01-19.
+- **WHAT WE DO:** (1) the clean conditional — the high half folds in only
+  when `ifmt(mode) == 0x8000` (regular), directories keep their true
+  32-bit size (`src/core/ext4/cr_ext4_engine.cpp:404-407`); (2) full-u64
+  time paths end-to-end (`unix_to_filetime_ns`, cr_types.h — i64 seconds,
+  no 32-bit cliff anywhere).
+- **WHY:** both og behaviors are arithmetic defects, not parity surface —
+  adopting them would corrupt recovered metadata.
+- **RISK:** none — the core's outputs are strictly more correct.
+- **VERDICT: ACCEPTED** (deliberate non-adoption, registered I-040;
+  anti-down-fix pins: `Ext4Engine.LegacyAclDirSizeClean` (a dir inode with
+  a nonzero +0x6c ACL pointer keeps its true 32-bit size) + the extended
+  `Ext4Engine.UnixTimeConversion` (exact post-2038/2100 filetimes, ns
+  variant) — future sessions must not "fix" the core down to either
+  defect).
