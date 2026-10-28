@@ -107,3 +107,55 @@ these refine); I-031 (the parallel infra register — complementary territory).
 ## Open questions
 
 None.
+
+---
+
+## Session-42 extension addendum (2026-10-29, at core `869da779` / corpus `be0cfe9` — the config-asset deep-diff lane)
+
+The full 12-group config/data re-diff (raw_signs, recoveryFree.ini, Dict,
+dlconfig.xml, remote_config_data, PEtools.xml, DataFile.ini, the manifest/
+log set, all nine config/ files, EUUserData, log/, SaveScan/) came back
+**MATCH/REGISTERED across the board** — raw_signs.json re-verified
+byte-exact (139/139 exts, 199/199 header signs, 62/62 tail signs; the
+root↔BUILDPE copies md5-identical), EUUserData 111/111 keys / 190/190
+signs with 0 value diffs, Dict 228/228, the SaveScan auto-naming contract
+exact. Two register rows need refinement (fix-lane items; the register
+itself is in docs/ — read-only for the audit):
+
+- **Row 88 (remote_config_data) overstates**: "ZERO references across
+  SearchDLL/MOM/PartitionRecovery artifacts" — `RAWSearchDLL_decompiled.c:9076/9084`
+  DOES carry the `"filter_generalraw"` literal (verified first-hand this
+  session: the engine asks DRWUI for the value via the naming hook;
+  OQ-S4-2's decode — display-name mapping only, the ext-list map at
+  global+0x18 written-never-read in-DLL — is the correct semantics; only
+  the row's absolute phrasing is wrong). One-sentence repair citing
+  OQ-S4-2.
+- **Row 65 (config/version.ini) understates**: described as "Build-pair
+  state file (PE census)" with no mention of the engine-enable keys —
+  `scanext4`/`scanzfs` gate EXT4/ZFS QuickSearcher creation
+  (`DRWUI_decompiled.c:913080-913112`, verified first-hand: license-vcall
+  == 0 AND GetPrivateProfile("config/version.ini","scanext4")==0 → the
+  EUCreateEXT4QuickSearcher case returns 0; same shape for
+  scanzfs/EUCreateZFSQuickSearcher; ReFS/Btrfs cases 10/0xb carry NO
+  gate). Shipped values: scanext4=1 present, scanzfs ABSENT → the free
+  edition creates no ZFS searcher. The registered policy delta (3-F /
+  I-016 note 1 / SCAN-ENGINE-DELTA Q1) should be cross-referenced from
+  the row.
+
+**New INFO datum for the register's fix lane (item 11's family):** the
+`remote_config_data` file is the **verbatim WinHttp response body** cached
+by `firebaseonlineconfig.dll` `FUN_180003010` (first-7-bytes `"fetched"`
+check at `firebaseonlineconfig_decompiled.c:1703`, then `fwrite` of the
+whole buffer) — NOT a client-serialized map. Length framing: `key\0
+[len] value\0` with 1-byte lengths (`\x05false`), 2-byte-LE lengths
+(`\x83\x02` = the 643-byte filter_generalraw array), and `\x00`-escaped
+u16 (`\x00\x3d\x01` = the 317-byte json_pe). Full flag census this
+session: 304 distinct keys / 598 key-tokens (33 enable_* with
+__free/__abroad/__easeus segmentation; json_raw shield
+"TXT;HTML;LOG;H;CPP;MM;" split on 0x3b at DRWUI :499195-499228; repair
+flags → S-050; ~200 url_* + ~60 value_* monetization) — **no unregistered
+engine-behavior flag exists** (the row 88 REPORTING-OOS disposition
+holds).
+
+**Related new finding:** N-154 (the one false cap-annotation the EUUserData
+re-verification surfaced — the ext-length provenance comment).

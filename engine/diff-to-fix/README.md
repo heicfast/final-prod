@@ -1,5 +1,37 @@
 # diff-to-fix/ — parity audit roadmap (core_recovery vs easeus-drw-research)
 
+**Session-42 continuation lane (2026-10-29 — the user's second-session directive:
+remove-the-fixed + go-deeper + mark-all-remaining; audited core `869da779`,
+corpus `be0cfe9`):** the **49-finding liveness sweep** (every active
+SEVERE/MAJOR/MINOR/INFO re-verified against HEAD first-hand — 47 STILL-LIVE,
+5 CANNOT-VERIFY here (the driver-repo set M-086/M-087/M-089/N-107/N-127,
+tracked OQ-S10-2/3), **zero unretired fixes found**); retired **I-028** and
+**I-032** to FIXED/ (both verified: the ABI-CONTRACT §7i documentation landed
+with M-102; S-053+N-141 landed `e10ec381`); narrowed **N-135** to its open
+item set (2/6/7 + two prose phantom SHAs + the missing guard script). Filed:
+**M-118** (MAJOR — **the suite is RED at HEAD**, discovered by execution:
+`Carve.OoxmlRelsPathSplit` expects the pre-S-049 lowercase extension while
+`default_namer` correctly emits `<UPPEREXT>_<%06d>.<UPPEREXT>`; the landing
+`67de3276` rode a SKIPPED build+test job and a FAILED lint gate — 4
+clang-format violations pinned; executed evidence
+`evidence/executions/s42-suite-red-at-head.md`) and **N-154** (MINOR — the
+S-039 cap-annotation set's one false claim: the og's longest EUUserData ext
+is 8 "manifest", not 4). The deeper comparison lanes: the **12-group
+config/data-asset deep-diff** (raw_signs 139/199/62 byte-exact, EUUserData
+111/111+190/190 0-diff, Dict 228/228, SaveScan naming exact, all nine
+config/ files dispositioned — the five never-read ones read fresh), the
+**0-1-citation binary walks** (archive.dll = libarchive/DRWUI-enumeration-only;
+EUUnZip = SIDECAR-OOS with both DRWUI consumer flows verified; PDFViewer =
+OOS-UI MFC+pdfium — all three correctly registered, zero new divergences),
+and the **board-truth repair batch** (the stale "64 active" arithmetic
+corrected; SUMMARY's two phantom SHAs repaired; API-DELTA row 10's stale
+"MISSING" flipped to the landed M-023 MATCH; CORPUS-ERRATA #8 = the
+remote_config verbatim-payload framing decode). **Board at the S42 close
+(filesystem truth): 49 active (3 SEVERE · 22 MAJOR · 18 MINOR · 6 INFO) /
+328 resolved ledger rows / 3 tracked-open.** The standing warning: main's suite
+and lint gate are RED until M-118's fix lands — certify every lane against
+the repaired baseline, not the broken one.
+
 **Session-41 S41 lane (2026-10-29 — the continuation audit lane, the user's second-session
 directive: remove-the-fixed + go-deeper + mark-all-remaining; RECONCILED at push over TWO
 parallel windows):** audited **core `c7fa527c`** (the pre-rebase pin), **corpus `be0cfe9`**.

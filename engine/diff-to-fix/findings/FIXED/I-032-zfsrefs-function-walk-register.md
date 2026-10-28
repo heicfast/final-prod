@@ -90,3 +90,26 @@ None (the two behavioral outcomes carry their own tests in S-053/N-141).
 The .trashinfo content-parse consumer (entry 6): a DRWUI-side walk of the
 ZFS result consumers would resolve whether the og's UI offers a
 trash-restore affordance the maps feed; no core behavior attaches today.
+
+---
+
+## Resolution (session-42, 2026-10-29 — RETIRED to FIXED/)
+
+**Verified FIXED at core `869da779`.** The register's actionable children
+both landed at `e10ec381` (session-40 main lane): **S-053 FIXED** (the
+ReFS unnamed-$DATA-only drop removed — empty-name rows emit with the empty
+stored name; `modules/refs.md` B5 carries the full landing record) and
+**N-141 FIXED** (the zero-size∧no-dot junk filter with the exact compound
+semantics and the `stats.zero_size_nodot_filtered` counter). The doc-flip
+work the register asked for landed with the filing commit and re-verified
+at HEAD: `modules/zfs.md:22` (OQ-T6 RESOLVED — the first-registry-entry
+multi-vdev fallback, MATCH with M-019), `:32` (B8 MATCH), `:33` (B9 closed
+MATCH at 8-byte precision), `modules/refs.md:26` (B4 grade byte decoded),
+`:27` (B5 → S-053 FIXED). CORPUS-ERRATA carries the two decode refinements
+(the 1000 ms unbounded poll; the fixed +4 MiB DVA translate). The one open
+decode (entry 6, the .trashinfo content-parse consumer) remains recorded
+in this file's Open Questions as context — it attaches to no core behavior
+today and the S42 liveness sweep found no new consumer evidence; if a
+future DRWUI walk resolves it, that walk files its own note.
+
+**Board action:** moved to `findings/FIXED/`; FIXED-LEDGER row appended.

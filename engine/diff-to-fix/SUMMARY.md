@@ -1,4 +1,57 @@
-# SUMMARY.md — executive summary (the S41 continuation lane on top; the prior lanes below, newest-first)
+# SUMMARY.md — executive summary (the S42 continuation lane on top; the prior lanes below, newest-first)
+
+## Session-42 continuation delta (2026-10-29 — the remove-the-fixed liveness sweep + deeper comparison; core `869da779`, corpus `be0cfe9`)
+
+**M-118 (MAJOR, NEW — the suite is RED at HEAD, by execution).** The certified
+suite fails at `869da779`: `Carve.OoxmlRelsPathSplit` (landed with N-115 at
+`67de3276`) expects the pre-S-049 lowercase ".docx/.xlsx/.pptx" tails while
+`default_namer` (`cr_carve.cpp:1051-1090`) correctly emits the S-049 uppercase
+contract. The landing rode a SKIPPED build+test CI job and a FAILED lint gate
+(4 clang-format violations pinned: cr_signatures.h:325, cr_analysers.cpp:1370,
+cr_registry.cpp:111, test_carve.cpp:7501); the follow-up bookkeeping commit's
+own title admits the broken chain. Executed evidence:
+`evidence/executions/s42-suite-red-at-head.md` (1134 ran / 1 failed / 85
+Win-skipped on the Linux-release build; the tree BUILDS clean — the failure is
+pure test-truth + gate-discipline). **Fix is mechanical** (uppercase rows +
+clang-format -i on four files); every subsequent lane must certify against the
+repaired baseline.
+
+**N-154 (MINOR, NEW).** The S-039 cap-annotation set's one false claim:
+`cr_usersigns.h:46` says the og's longest EUUserData ext is 4 ("epub","hqx")
+— the stock DB ships `manifest` (8) + `class` (5) (111-key parse, 0 diffs).
+The cap (8) is correct — zero behavior impact; comment-truth only.
+
+**Retired: I-028 + I-032** (the sweep's only fixed findings; both verified
+first-hand — the ABI-CONTRACT §7i thumbnail documentation landed with M-102;
+S-053+N-141 landed `e10ec381`; ledger rows + matrix flips + in-file
+Resolutions). **N-135 narrowed** to its open set (items 2/6/7 + two prose
+phantom SHAs + the still-missing SHA-guard script). **The other 47 active
+findings verified STILL-LIVE** (5 CANNOT-VERIFY here: the driver-repo set
+M-086/M-087/M-089/N-107/N-127, tracked OQ-S10-2/3). The S40B lane's claim
+set re-truthed: of its seven claimed minors only N-132 actually landed
+(N-115/N-153 landed from other lanes; N-126/N-125/N-135/N-148/N-150 remain
+open — the territory-claim-vs-landing gap recorded).
+
+**The deeper comparison lanes (all clean — the config surface is genuinely
+exhausted):** the 12-group config/data deep-diff (raw_signs.json 139/139 +
+199/199 + 62/62 byte-exact; EUUserData 111/111 keys 190/190 signs 0 diffs;
+Dict 228/228; SaveScan auto-naming exact; the five never-read config/ files
+read fresh and dispositioned — config.ini's only_common is M-024's
+CarveFlags, version.ini's scanext4/scanzfs is the registered I-016 policy
+delta, nasconfig/themdark/shellexe are NAS/UI exclusions); the 0-1-citation
+binary walks (archive.dll = libarchive, DRWUI enumeration-only, engine half =
+M-066+S-032 with the open halves already M-116's; EUUnZip = SIDECAR-OOS with
+both DRWUI consumer flows verified first-hand; PDFViewer = OOS-UI MFC+pdfium)
+— zero new divergences, three register confirmations. I-033 carries the
+row-88/row-65 refinements; CORPUS-ERRATA #8 records the remote_config
+verbatim-payload framing decode.
+
+**Board at the S42 close (filesystem truth): 49 active (3 SEVERE · 22 MAJOR ·
+18 MINOR · 6 INFO) / 328 resolved ledger rows / 3 tracked-open (OQ-S4-3,
+OQ-S10-1, OQ-S10-3).** The prior lanes' "64 active" close-claims were
+pre-retirement snapshots (the S40/S41 fix lanes retired 15 findings without
+re-counting) — corrected in README this session.
+
 
 
 
@@ -787,7 +840,7 @@ M-071/S-042 lanes: regression + SEVERE tier first.
   validators re-derived from the og grammar (FUN_1800264d0): the disjoint
   accept-sets closed (checksum word@+20 == XOR words 0..9, zero dword@+16, tail
   word, exact size std_words*2+22).
-- **M-071** (MAJOR → FIXED, closing-fix lane `dd0ffd5`) — the M-018 regression:
+- **M-071** (MAJOR → FIXED, closing-fix lane `ce2405a` — the `dd0ffd5` token was a pre-rebase phantom, repaired session-42) — the M-018 regression:
   both rrecov.cpp gates restored byte-exact from the `69507cb` form; the cr_ui
   session/snapshot bulk walks (the W-lane surfaces that postdate M-018 and never
   carried the gate) gated identically; the explicit-selection semantic (junk stays
@@ -818,7 +871,7 @@ M-071/S-042 lanes: regression + SEVERE tier first.
   into checks.yml's lint job enforces both invariants forever (first run:
   8 named violations — the fail-before; green after).
 
-- **M-082** (MAJOR → FIXED, DFX-38 lane `95122bd`) — the DeviceManager
+- **M-082** (MAJOR → FIXED, DFX-38 lane `1f714884` — the `95122bd` token was a pre-rebase phantom, repaired session-42) — the DeviceManager
   offline-OS profile landed corpus-exact: reghive::offlineos::profile_os()
   (the 8 CurrentVersion fields, the drive-letter SystemRoot gate, the
   12-byte MountedDevices system-partition location, the Select-aware

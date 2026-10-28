@@ -459,3 +459,16 @@ remote rows stand. **One distinct row the remote set does not carry:**
    (`RecoveryModule_decompiled.c:73731-73786`, `:74837-74887`, `:73610-73621`) —
    the READ side appears in MOM-modules/DeviceManager.md:55's string list only;
    filed core-side as M-113 (the corpus-side gap recorded here).
+8. **remote_config_data is a verbatim cached HTTP payload, not a serialized
+   map** (session-42 decode): `firebaseonlineconfig.dll` `FUN_180003010`
+   reads the response via WinHttpReadData, checks the first 7 bytes are
+   `"fetched"` (`firebaseonlineconfig_decompiled.c:1703`), and `fwrite`s
+   the whole buffer to the file. The framing is the server's own
+   `key\0 [len] value\0` scheme with 1-byte lengths (`\x05false`),
+   2-byte-LE lengths (`\x83\x02` = the 643-byte `filter_generalraw`
+   array; `\x1a\x05` = the 1,306-byte `json_gift`), and `\x00`-escaped
+   u16 lengths (`\x00\x3d\x01` = the 317-byte `json_pe`) plus a binary
+   bookkeeping tail. Worth one line in
+   `artifacts/config-files/userdata-remoteconfig--signature-and-flags.md`
+   so the framing is never re-derived. (Core-side impact: none — the
+   core consumes none of it; registered I-027 #2/#5 + OQ-S4-2.)

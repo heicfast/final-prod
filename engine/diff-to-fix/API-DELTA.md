@@ -47,7 +47,7 @@ but not real (invented) | SUPERSET = documented deliberate divergence.
 | # | Corpus surface | Core equivalent | Status | Evidence |
 |---|---|---|---|---|
 | 9 | IFileProperties 23-slot vtable; 10 persisted type codes; FLAGS 0x10/0x20; DataRunList | `cr_ui_node_info` (name/sizes/4 ts/attrs/extents/deleted/origin/confidence/carve format/hash) | **MATCH** (field set ⊇ persisted set) | audit #18 |
-| 10 | FileFilter.xml: 8 categories (Graphic/Document/Email/Audio/Video/Other/Archive/Bookmarks), 1,489 Extention elements / 1,481 unique | 6 hard-coded categories / ~90 ext (M-023 engine scope) | **MISSING (engine-scope taxonomy, tracked M-023; the audit's row is stale on counts: "1,481" = unique, 1,489 = elements)** | corpus-api-context §2.1 #19 (mechanically verified) |
+| 10 | FileFilter.xml: 8 categories (Graphic/Document/Email/Audio/Video/Other/Archive/Bookmarks), 1,489 Extention elements / 1,481 unique | **landed (M-023 FIXED)**: 8 categories / 1,481 unique exts via the generated table `src/core/query/cr_filefilter_data.cpp` + `include/cr/query/cr_query.h:30-33` | **MATCH (row repaired session-42 — the pre-landing "MISSING" verdict was stale; verified at `869da779`)** | corpus-api-context §2.1 #19 + the M-023 Resolution |
 | 11 | AdvanceFilterCondition 7 groups (type/time/size/state/tag/path/search); date buckets 0x100-0x103/0x105, size 0x1000-0x1004/0x1006 | `cr_ui_query` + `cr_ui_query_apply_buckets` (og bucket IDs exact; skipped/unknown rejected) | **MATCH on 6/7** (tag NOT-EXPOSED, UI state) | core-api-surface b.7; corpus-api-context §1.11 |
 | 12 | Search dropdown "Optional Type" 8 classes | `name_substring` | **MATCH** | audit #21 |
 | 13 | Sort (Name/Size/Type/Date + recovery-chance) | query sort 0..7 (7=Type) | **MATCH** | audit #22 |

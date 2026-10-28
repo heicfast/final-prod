@@ -4810,3 +4810,108 @@ lane (d4b487c8), S-052 by the third lane (f4e500de) — the remaining SEVERE set
 (S-048/S-050/S-040) is split: this lane takes S-048 first (the decode rides
 this lane's S-049 evidence mining); the 11D lane is free to take S-050/S-040 or
 converge per the first-push-wins convention.
+
+
+## Session-42 continuation audit — the liveness sweep + deeper comparison lane (2026-10-29; core `869da779` at open, corpus `be0cfe9`; prompt: worklog/session-42-continuation-audit-prompt.md)
+
+The user's second-session directive: remove the fixed things, go deeper, mark
+all remaining. EXECUTED as four waves:
+
+**Wave 1 — the 49-finding liveness sweep (remove-the-fixed).** Every active
+finding re-verified against HEAD first-hand (code greps + fix-plan test-name
+searches + `git log --all --grep` per ID). Result: **47 STILL-LIVE, 2 FIXED,
+5 CANNOT-VERIFY here** (the driver-repo set M-086/M-087/M-089/N-107/N-127 —
+their entire fix surface lives in heicfast/rda-driver, absent from this
+workspace; tracked OQ-S10-2/OQ-S10-3, both still OPEN). The two fixed:
+**I-028** (its one ask — the ABI-CONTRACT both-axis+RGBA8 documentation —
+landed as §7i with M-102) and **I-032** (children S-053+N-141 landed
+`e10ec381`; doc flips verified in zfs.md/refs.md) — both RETIRED to FIXED/
+with in-file Resolutions + ledger rows + matrix flips. **N-135 narrowed**
+(items 1/4/5 landed via the session-39/11B repairs; items 2/6/7 + two prose
+phantom SHAs + the still-missing SHA-guard script remain — the finding stays
+active on that set). Territory-claim truth: the S40B lane's seven-claim set
+(N-115/N-126/N-125/N-132/N-135/N-148/N-150) — only N-132 landed from that
+lane; N-115/N-153 landed from others; the rest remain open.
+
+**Wave 2 — the deeper comparison.** (a) The 12-group config/data-asset
+deep-diff: raw_signs.json re-verified byte-exact (139/139 exts, 199/199
+header signs, 62/62 tail signs; root↔BUILDPE md5-identical), EUUserData
+111/111 keys + 190/190 signs with 0 diffs, Dict 228/228, the SaveScan
+auto-naming contract exact, and the five never-read config/ files (config.ini,
+nasconfig.ini, version.ini, themdark.ini, shellexe.ini) read fresh and
+dispositioned — the engine-relevant keys (only_common, scanext4/scanzfs) are
+already-registered deltas. NEW: **N-154** (the cr_usersigns.h:46 false
+provenance comment — the og's longest ext is 8 "manifest", not 4) + the
+I-033 addendum (row-88 overstatement, row-65 understatement, the
+remote_config verbatim-payload framing decode → CORPUS-ERRATA #8).
+(b) The 0-1-citation binary walks: archive.dll (libarchive; sole importer
+DRWUI, enumeration-only — the register row is accurate), EUUnZip.exe
+(SIDECAR-OOS; both DRWUI consumer flows verified: NasConfig connect.zip
++ Activity.zip), PDFViewer.exe (OOS-UI; MFC+pdfium viewer). Zero new
+divergences — three register confirmations.
+
+**Wave 3 — the executed verification (the session's key discovery).** The
+core BUILT clean at HEAD (Linux Release) and the suite ran: **1134 ran / 1
+FAILED / 85 Win-skipped**. `Carve.OoxmlRelsPathSplit` (landed with N-115 at
+`67de3276`) expects the pre-S-049 lowercase ".docx" tails; `default_namer`
+correctly emits the S-049 uppercase contract. The landing rode CI with
+Build+test SKIPPED + Lint FAILED (4 clang-format violations pinned). Filed
+**M-118** (MAJOR) with full executed evidence
+(`evidence/executions/s42-suite-red-at-head.md`). The product code is
+contract-correct on both probed axes — the defect is test-truth + gate
+discipline; the fix is mechanical, but until it lands, main's suite is red
+and every lane's green-claim must be certified against the repaired baseline.
+
+**Wave 4 — board-truth repair.** The prior lanes' "64 active" close-claims
+were pre-retirement snapshots (15 retirements never re-counted); the README
+now carries the filesystem truth. SUMMARY's two phantom SHAs repaired
+(dd0ffd5→ce2405a, 95122bd→1f714884, cat-file-verified). API-DELTA row 10's
+stale "MISSING" flipped to the landed M-023 MATCH (8 categories/1,481 exts
+verified in cr_query.h:30-33). The FIXED-LEDGER header re-counted (328 rows
+at HEAD; the historical count-lines preserved as dated history).
+
+**Board at the S42 close (filesystem truth): 49 active (3 SEVERE · 22 MAJOR ·
+18 MINOR · 6 INFO) / 328 resolved ledger rows / 3 tracked-open (OQ-S4-3,
+OQ-S10-1, OQ-S10-3).**
+
+READ-ONLY GUARANTEE: this lane's commits touch NOTHING outside diff-to-fix/ +
+worklog* (the build/test run was out-of-source at /tmp/cr-build; the repo
+tree clean at every commit; `git status` verified per-commit).
+
+**Handoff — the recommended first 20 fixes in priority order (the board's
+own severity ordering, updated for this session's findings):**
+1. **M-118** — repair the OoxmlRelsPathSplit rows to the S-049 uppercase
+   contract + clang-format the four files; suite AND lint back to green
+   (everything below certifies against this repaired baseline).
+2. **S-048** — the carve tree's `Reconstructed` root + per-volume children +
+   the 7 category folders (the evidence mining already done in S-049's lane).
+3. **S-050** — the file-repair line: the registration decision (CAPABILITY-
+   MATRIX §3) first, then the repair-line capability scoping.
+4. **S-040** — the image-create producer (the og's R93 disk-image writer).
+5. **M-117** — the DBX analyser (the grammar is decoded; fix-plan step 1
+   names FUN_180042b30 + the Analyse virtual).
+6. **M-116** — the archive inventory ABI exposure (cr_ui_metadata entries
+   field; the engine half is done).
+7. **M-115** — the thumbnail grade promotion decode-gate (the read_ok seam).
+8. **M-112** — the CSL 0x44c size-field branch (decoded, unported).
+9. **M-098/M-099** — the HIK/AEP carve analysers (both decoded with
+   discriminators in hand).
+10. **M-103** — the LostDir parent-record grouping (phase-B reparenting).
+11. **M-101** — the Versions/Tags tree branches (NTFS dedup grouping).
+12. **M-106/M-107** — the ONE/3DS + batch-1 size-walk stand-ins (mechanical
+    against existing decodes).
+13. **M-073** — the scan-time folder filter (FilterFolder.ini semantics).
+14. **M-076** — the TRIM facet enum rows (cr_ui_disk_info fields).
+15. **M-078** — the BitLocker turn-off operation (the consented destructive
+    op; decide scope first).
+16. **M-113/M-114** — the recovered-OS boot surgery + System-Restore purge
+    (both decision-first: PARITY-DELTA registration or implementation).
+17. **M-105/M-111** — the DRWService lifecycle + explorer browse capability
+    (both scope decisions with decoded evidence).
+18. **N-152/N-154 + the N-148 remainder** — the small truth repairs (DXF 999
+    key row; the usersigns comment; R-31/ABI-CONTRACT/thumbnail-matrix sites).
+19. **N-139/N-140/N-143/N-149** — the carve policy/stats/dispatch/exempt-set
+    minors (one coherent carve-policy batch).
+20. **N-135's remainder + the guard script** — the SHA-guard tool (the class
+    recurred twice more this session: the two prose phantoms); then retire
+    N-135 with items 2/6/7.

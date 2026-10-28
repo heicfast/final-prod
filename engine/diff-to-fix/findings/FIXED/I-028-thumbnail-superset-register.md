@@ -74,3 +74,25 @@ context, none blocking.
 ## Session-11B cite-refresh addendum (2026-10-29, re-triage at `743d7b8d`)
 
 benign cite drift: the RGBA8/both-axes contract now at cr_thumbnail.h:24-27 (exact); PSD/PNM/HDR :42-43; test count grew 21→30; the anticipated ABI documentation landed (ABI-CONTRACT §7i). Register content fully accurate.
+
+---
+
+## Resolution (session-42, 2026-10-29 — RETIRED to FIXED/)
+
+**Verified FIXED at core `869da779`.** The finding's own fix plan asked
+exactly one thing — "when the ABI lands, document the both-axis + RGBA8
+contract in ABI-CONTRACT" — and it landed: `docs/ABI-CONTRACT.md` §7i
+(:599-625, rode the M-102 `cr_ui_thumbnail_generate` landing) documents the
+two-call size-probe pattern, the display-oriented RGBA8 output with the
+EXIF-before-downscale transform, the max_edge-256/max_pixels-64MP/max_read-
+32MiB/max_work-1<<22 caps contract, the truncation-is-data mapping, and the
+M-083 grade-promotion side-effect. The engine contract itself
+(`include/cr/preview/cr_thumbnail.h:24-27`, both-axis never-upscale,
+straight-alpha RGBA8) is intact and pinned by 30 test groups. The
+register's UNVERIFIED-residual list is context-only (corpus-silent items,
+none blocking). Liveness sweep S42 verified first-hand: `cr_ui.h:1290`
+(`cr_ui_thumbnail_generate`), `cr_ui.cpp` thumbnail dispatch, ABI-CONTRACT
+§7i present at HEAD. No further work owed; the register remains in force
+as the deliberate-divergence record.
+
+**Board action:** moved to `findings/FIXED/`; FIXED-LEDGER row appended.

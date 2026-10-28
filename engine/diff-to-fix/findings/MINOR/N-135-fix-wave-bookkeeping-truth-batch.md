@@ -96,3 +96,37 @@ Per-item state at HEAD:
 
 Plus (from the same verification): N-100's fix-commit cell said "(this session)" — repaired to faa547f7 this session.
 
+
+---
+
+## Session-42 liveness addendum (2026-10-29, at core `869da779` — the remove-the-fixed sweep)
+
+Re-verified item-by-item, first-hand:
+
+- **Item 1 (R-28 :376)** — RESOLVED (landed via the session-39/11B truth
+  repairs; the second-table row now agrees with :222).
+- **Items 3-4 (phantom SHAs / the mis-paste)** — the ledger cells stand
+  repaired (session-11B). **Two NEW phantom tokens persist in live prose**:
+  `SUMMARY.md:790` (`dd0ffd5`) and `SUMMARY.md:821` (`95122bd`) — both
+  `git cat-file -t` failures at HEAD (the N-129 class: narrative prose the
+  cell-level sweeps never reached). **The required SHA-guard script still
+  has not landed** (no cat-file checker in scripts/ or tools/ at HEAD) —
+  the class keeps recurring exactly as the promotion predicted.
+- **Item 5 (missing rows)** — RESOLVED (M-082's row is present in the
+  ledger at HEAD; verified `FIXED-LEDGER.md:183`).
+- **Item 2 (R-31 self-contradiction)** — **STILL OPEN**: 
+  `docs/REFERENCE-API-GAP.md:379` still reads "PARTIAL | per-format carve
+  toggles, usefullostfiles whitelist, display priority missing" vs the
+  primary table's :225 "PRESENT".
+- **Item 6 (ABI-CONTRACT §7g cite)** — **STILL OPEN, drifted further**:
+  the doc now cites `cr_ui.h:916-944` at `docs/ABI-CONTRACT.md:543`; the
+  W1b block sits at :926-945 at HEAD.
+- **Item 7 (cr_thumbnail.cpp matrix)** — **STILL OPEN**: the file-top
+  matrix at `src/core/preview/cr_thumbnail.cpp:9-14` still lists
+  uncompressed/PackBits/Deflate without LZW while the decoder implements
+  compression==5 (`:796`).
+
+**Scope narrowed to the open set:** items 2, 6, 7 + the two prose phantom
+SHAs + the missing guard script. The board keeps N-135 ACTIVE on that
+narrowed scope (the doc-truth batch family; the fix lane that lands items
+2/6/7 retires it).
