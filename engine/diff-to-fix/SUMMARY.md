@@ -52,10 +52,10 @@ re-verification), corpus `be0cfe9`.**
   duplication; the 5 driver-repo NDVs dispositioned as OQ-S10-3 by the driver
   lane; evidence/s11-triage-sweep.md carries the full table.
 
-**Board after this lane's push (re-truthed over the mid-push M-108 retirement
-that landed under this lane's rebase; ledger per session-39B's row-re-count):
-57 active (7 SEVERE · 18 MAJOR · 25 MINOR · 7 INFO) / 294 resolved rows
-(FIXED-LEDGER: 272 main-pattern + 22 OQ) / 3 tracked-open
+**Board after this lane's push (re-truthed over the mid-push M-108 AND N-111
+retirements that landed under this lane's rebases; ledger per session-39B's
+row-re-count): 56 active (7 SEVERE · 18 MAJOR · 24 MINOR · 7 INFO) / 296
+resolved rows (FIXED-LEDGER) / 3 tracked-open
 (OQ-S4-3 refined in place; OQ-S10-1; OQ-S10-3).** Next free IDs: S-054+, M-112+,
 N-142+, I-033+, A-012+. **Recommended fix-order contribution:** (1) **S-053 +
 N-141 as one ReFS emission-gate pass** (the S-053 half is silent content loss —
