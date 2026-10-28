@@ -310,8 +310,7 @@ TEST(Crsf, VolumeInfoIdentityCardRoundTrip) {
     EXPECT_EQ(out.boot_hash, 0xDEADBEEFu);
     EXPECT_EQ(out.slice_offset, 512u * 63);
     EXPECT_STREQ(out.image, "/vm/disks/qemu.img") << "the image path round-trips";
-    EXPECT_STREQ(out.label_full,
-                 "012345678901234567890123456789012345678901234567890123456789")
+    EXPECT_STREQ(out.label_full, "012345678901234567890123456789012345678901234567890123456789")
         << "N-090: the complete label round-trips (the v6 tail)";
 
     /* v2 record (pre-S-030): no image tail - empty path, not garbage */

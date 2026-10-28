@@ -1292,9 +1292,8 @@ TEST(CrUi, SessionListScopeSupersetPinsAutoAndManual) {
     ASSERT_TRUE(scan_to_session("scope", u, img, crsf));
     const std::string dir = cr_test::tmp_path("cr_ui", "_scope_superset");
     std::filesystem::create_directories(dir);
-    ASSERT_TRUE(std::filesystem::copy_file(
-        crsf, dir + "/auto_test_10_14_23_13_21.crsf",
-        std::filesystem::copy_options::overwrite_existing));
+    ASSERT_TRUE(std::filesystem::copy_file(crsf, dir + "/auto_test_10_14_23_13_21.crsf",
+                                           std::filesystem::copy_options::overwrite_existing));
     ASSERT_TRUE(std::filesystem::copy_file(crsf, dir + "/manual-save.crsf",
                                            std::filesystem::copy_options::overwrite_existing));
     uint32_t n = 0;

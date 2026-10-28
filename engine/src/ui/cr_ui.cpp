@@ -54,7 +54,7 @@
 #include <share.h> /* _SH_DENYNO (S-008: shared image opens) */
 #else
 #include <sys/stat.h>
-#include <fcntl.h>   /* S-060: AT_FDCWD for utimensat */
+#include <fcntl.h> /* S-060: AT_FDCWD for utimensat */
 #include <sys/types.h>
 #include <unistd.h>
 #include <dirent.h> /* W1a (R-56): the *.crsf directory enumeration */
