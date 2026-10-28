@@ -3148,7 +3148,12 @@ u32 session_regrade_impl(cr_ui_session* sess, const uint64_t* node_ids, uint32_t
             continue;
         for (uint32_t i = 0; i < count; ++i) {
             if (nd->node_id() == node_ids[i]) {
-                if (tree::grading::regrade_node(nd, gctx))
+                /* M-134: the full-tree re-grade (twin lookup included -
+                 * the og's FUN_14038ac90 can set ANOTHER node's grade);
+                 * the session is device-decoupled by design, so the deep
+                 * read's reader is absent here - the content half runs at
+                 * the completion pass, the registered seam */
+                if (tree::grading::regrade_node(nd, gctx, &s->tree))
                     ++n;
                 break;
             }

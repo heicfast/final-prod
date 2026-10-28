@@ -290,6 +290,15 @@ public:
         overlap_ = 1;
         set_grade(Grade::High);
     }
+    /* M-134: the re-grade one-shot bit (the og marks the node graded at
+     * FUN_140389540(node,1) after the deep-read pass; the per-selection
+     * re-grade gate is grade==1 && graded-bit clear, :340852-873).
+     * Runtime-only by design: it exists to make the per-selection
+     * re-grade a true one-shot, not a repeat per selection - a reloaded
+     * session re-runs the (idempotent) rules once more, matching the
+     * og's observable behavior on unchanged content. */
+    bool graded() const { return graded_; }
+    void set_graded() { graded_ = 1; }
     /* Direct field set (session deserialize round-trip ONLY - never a
      * rule application; the setter above is the graded path). */
     void set_grade_raw(Grade g) { grade_ = g; }
@@ -328,6 +337,7 @@ protected:
     Confidence confidence_ : 4 = Confidence::Unknown;
     Grade grade_ : 2 = Grade::Average; /* og engine default: grade 1 at emit */
     u8 overlap_ : 1 = 0;               /* og twin/overlap flag (bit 2 of +0x73) */
+    u8 graded_ : 1 = 0;                /* M-134: the re-grade one-shot bit */
     bool full_ = false;                /* FullNode marker (non-polymorphic discrimination) */
     u32 basis_ = 0;                    /* S-052: root's extent-basis id (0 = absolute) */
     u64 node_id_ = 0;
