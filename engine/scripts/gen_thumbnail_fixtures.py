@@ -1,9 +1,7 @@
-#!/ usr / bin / env python3
-""
-    "gen_thumbnail_fixtures.py - generate the cr_thumbnail unit-test fixtures.
+#!/usr/bin/env python3
+"""gen_thumbnail_fixtures.py - generate the cr_thumbnail unit-test fixtures.
 
-    Writes tests /
-    data / thumbnails/*.bin image fixtures + SHA256SUMS. The quadrant
+Writes tests/data/thumbnails/*.bin image fixtures + SHA256SUMS. The quadrant
 pattern (64x48, four solid color quadrants) is chosen so an exact-integer
 box downscale to 16x12 maps each 4x4 source block onto exactly one output
 pixel - the downscaled colors are then EXACT (no blending ambiguity), which
@@ -28,6 +26,16 @@ Hand-spliced fixtures (no encoder exists for these shapes):
                              the matching RotateFlip before the 256-px pass;
                              the quadrant colors pin each transform)
   exif_orient9.jpg         - orientation byte 9 (invalid): no transform
+  byteheavy12mp.jpg        - a 4.07 MiB 12-MP JPEG (M-080: the byte-heavy
+                             pixel-benign middle class)
+  tiff_raw_cr2.bin         - a CR2-shaped camera RAW (M-085/S-045: IFD0 with
+                             the JPEGInterchangeFormat pair 513/514 pointing
+                             at the full-size JPEG preview)
+  exif_orient{1..8}.jpg    - quad64x48 JPEG + APP1/Exif whose IFD0 carries
+                             EXIF Orientation 1..8 (S-043: the og applies
+                             the matching RotateFlip before the 256-px pass;
+                             the quadrant colors pin each transform)
+  exif_orient9.jpg         - orientation byte 9 (invalid): no transform
 
 Run: python3 scripts/gen_thumbnail_fixtures.py  (idempotent).
 """
@@ -35,6 +43,7 @@ Run: python3 scripts/gen_thumbnail_fixtures.py  (idempotent).
 import hashlib
 import io
 import os
+import random
 import struct
 import sys
 import zlib
@@ -123,6 +132,49 @@ def exif_orient_app1(orient: int) -> bytes:
     return b"\xff\xe1" + struct.pack(">H", len(body) + 2 + 6)[:2] + b"Exif\x00\x00" + body
 
 
+def exif_orient_app1(orient: int) -> bytes:
+    """APP1/Exif with IFD0 carrying ONLY the Orientation tag (S-043)."""
+    bo = "<"
+    tiff = struct.pack(bo + "2sHI", b"II", 42, 8)
+    ifd0 = struct.pack(bo + "H", 1) + tiff_ifd_entry(0x0112, 3, [orient]) + struct.pack(bo + "I", 0)
+    body = tiff + ifd0
+    return b"\xff\xe1" + struct.pack(">H", len(body) + 2 + 6)[:2] + b"Exif\x00\x00" + body
+
+
+def tiff_raw_cr2(preview_jpeg: bytes) -> bytes:
+    """S-045: a CR2-shaped camera RAW - II*\0 + IFD0 whose
+    JPEGInterchangeFormat pair (513/514) points at the full-size JPEG
+    preview (photometric 32803 = CFA, compression 1)."""
+    bo = "<"
+    entries = []
+
+    def ent(tag, typ, vals):
+        fmt = {1: "B", 3: "H", 4: "I"}[typ]
+        raw = b"".join(struct.pack(bo + fmt, v) for v in vals)
+        n = len(vals)
+        if len(raw) <= 4:
+            raw = raw.ljust(4, b"\x00")
+            return struct.pack(bo + "HHI", tag, typ, n) + raw
+        raise ValueError("inline only")
+
+    entries.append(ent(256, 4, [64]))     # width
+    entries.append(ent(257, 4, [48]))     # height
+    entries.append(ent(258, 3, [8]))      # bits per sample
+    entries.append(ent(259, 3, [1]))      # compression: none
+    entries.append(ent(262, 4, [32803]))  # photometric: CFA
+    entries.append(ent(277, 3, [1]))      # samples per pixel
+    # 513/514 come last so their values can patch the real offsets below
+    ifd_off = 8
+    n_entries = len(entries) + 2
+    ifd_size = 2 + 12 * n_entries + 4
+    preview_off = ifd_off + ifd_size
+    entries.append(ent(513, 4, [preview_off]))
+    entries.append(ent(514, 4, [len(preview_jpeg)]))
+    body = struct.pack(bo + "H", n_entries) + b"".join(entries) + struct.pack(bo + "I", 0)
+    tiff = struct.pack(bo + "2sHI", b"II", 42, ifd_off) + body
+    return tiff + preview_jpeg
+
+
 def huge_dims_exif_jpeg(thumb_jpeg: bytes) -> bytes:
     app1 = exif_app1(thumb_jpeg)
     sof0 = (
@@ -150,6 +202,9 @@ def main():
     files["tiff_rgb_be.tif"] = enc(q, format="TIFF", big_endian=True)
     files["tiff_packbits.tif"] = enc(q, format="TIFF", compression="packbits")
     files["tiff_deflate.tif"] = enc(q, format="TIFF", compression="tiff_adobe_deflate")
+    # M-085: the classic TIFF LZW (MSB-first, early change) - the scanner
+    # and Photoshop "LZW" export variant GDI+ decodes
+    files["tiff_lzw.tif"] = enc(q, format="TIFF", compression="tiff_lzw")
     # M-085: the classic TIFF LZW (MSB-first, early change) - the scanner
     # and Photoshop "LZW" export variant GDI+ decodes
     files["tiff_lzw.tif"] = enc(q, format="TIFF", compression="tiff_lzw")
@@ -188,6 +243,29 @@ def main():
     small_main = q.resize((48, 36))
     small_bytes = enc(small_main, format="JPEG", quality=95)
     files["exif_thumb_small.jpg"] = b"\xff\xd8" + exif_app1(thumb_jpeg) + small_bytes[2:]
+
+    # S-045: the CR2-shaped RAW fixture - the JPEG preview is the quadrant
+    raw_preview = enc(q, format="JPEG", quality=95)
+    files["tiff_raw_cr2.bin"] = tiff_raw_cr2(raw_preview)
+
+    # M-080: the byte-heavy pixel-benign middle class - a 4.07 MiB 12-MP
+    # JPEG (seeded 8-px color runs, quality 80): the common modern-phone
+    # photo shape that fell between the old 4 MiB read budget and the
+    # 64 MP pixel guard
+    rnd = random.Random(1042)
+    noisy = Image.new("RGB", (4000, 3000))
+    npx = noisy.load()
+    for y in range(3000):
+        for x in range(0, 4000, 8):
+            v = (rnd.randrange(256), rnd.randrange(256), rnd.randrange(256))
+            for dx in range(8):
+                npx[x + dx, y] = v
+    files["byteheavy12mp.jpg"] = enc(noisy, format="JPEG", quality=80)
+
+    # S-043: the orientation battery - the quadrant JPEG + IFD0 Orientation
+    full_jpg = files["quad64x48.jpg"]
+    for orient in list(range(1, 9)) + [9]:
+        files[f"exif_orient{orient}.jpg"] = b"\xff\xd8" + exif_orient_app1(orient) + full_jpg[2:]
 
     # S-043: the orientation battery - the quadrant JPEG + IFD0 Orientation
     full_jpg = files["quad64x48.jpg"]

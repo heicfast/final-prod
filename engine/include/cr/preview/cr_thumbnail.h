@@ -45,6 +45,12 @@
  * first), RAW (LibRaw thumbnail API), video key-frames (ffmpeg), PDF page
  * pixmaps (pdfium), JPEG-in-TIFF / tiled TIFF, WMF/EMF metafiles + ICO/CUR
  * icons (GDI+ on Windows - the og's own native path; refused by name).
+ * Landed natively (S-045's TIFF-RAW half): the camera-RAW family whose
+ * members are TIFF-based containers carrying a full-size JPEG preview
+ * (the JPEGInterchangeFormat pair 513/514 outside compression 6/7 -
+ * CR2/DNG/NEF/ARW-class files) - the preview extracts and decodes through
+ * the JPEG path, the og's EURawImg/LibRaw equivalent for this class;
+ * source_format "raw".
  *
  * Cache scope (deliberate, registered): no engine-side thumbnail cache -
  * repeated renders are the host's layer (the og caches UI-side in

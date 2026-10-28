@@ -118,12 +118,11 @@ TEST(Thumbnail, StatusNamesAreStable) {
 }
 
 TEST(Thumbnail, FormatSupportIsTheDocumentedV1Matrix) {
-    for (const char* f : {"jpeg", "png", "bmp", "gif", "tiff", "psd", "pnm", "hdr"})
-        EXPECT_TRUE(thumbnail_format_supported(f)) << f;
+    for (const char* f : {"jpeg", "png", "bmp", "gif", "tiff", "psd", "pnm", "hdr", "raw"})
+        EXPECT_TRUE(thumbnail_format_supported(f)) << f; /* raw: S-045's TIFF-RAW half */
     /* documented phase-2 refusals */
     EXPECT_FALSE(thumbnail_format_supported("webp"));
     EXPECT_FALSE(thumbnail_format_supported("heic"));
-    EXPECT_FALSE(thumbnail_format_supported("raw"));
     EXPECT_FALSE(thumbnail_format_supported("pdf"));
     EXPECT_FALSE(thumbnail_format_supported("mp4"));
     /* the metafile/icon family: named-and-refused (GDI+ natives the og
@@ -440,6 +439,34 @@ TEST(Thumbnail, EmbeddedFastPathOnByteOversize) {
     EXPECT_EQ("jpeg", t.source_format);
     EXPECT_EQ(64u, t.width);
     EXPECT_EQ(48u, t.height);
+}
+
+/* S-045 (the TIFF-RAW half): camera RAW files are TIFF-based containers
+ * whose visible image is the full-size JPEG preview (the
+ * JPEGInterchangeFormat pair 513/514) - the og routes them through the
+ * EURawImg/LibRaw pipeline whose handoff IS the preview. Pre-fix: the
+ * CR2 shape fell into the native TIFF decoder and failed (CFA
+ * photometric has no baseline semantics). */
+TEST(Thumbnail, RawTiffFamilyServesJpegPreview) {
+    auto fx = load_fixture("tiff_raw_cr2.bin");
+    if (fx.empty())
+        GTEST_SKIP() << "fixture data/thumbnails/tiff_raw_cr2.bin not present";
+    Node n(fx, true);
+    auto r = n.reader();
+    Thumbnail t;
+    ThumbnailCaps c;
+    c.max_edge = 16;
+    ASSERT_EQ(ThumbStatus::Ok, make_thumbnail(r, c, t))
+        << "the CR2-shaped RAW must thumbnail from its JPEG preview";
+    EXPECT_EQ("raw", t.source_format);
+    EXPECT_EQ(16u, t.width);
+    EXPECT_EQ(12u, t.height);
+    expect_pixel(t, 2, 2, 255, 0, 0, 60); /* the quadrant preview decodes */
+    expect_pixel(t, 13, 2, 0, 255, 0, 60);
+    expect_pixel(t, 2, 9, 0, 0, 255, 60);
+    expect_pixel(t, 13, 9, 255, 255, 0, 60);
+    EXPECT_TRUE(thumbnail_format_supported("raw"));
+    /* the format probe: the RAW family is supported since S-045 */
 }
 
 TEST(Thumbnail, JpegDecodesWithLossyTolerance) {

@@ -81,8 +81,8 @@ const char* thumbnail_status_name(ThumbStatus s) {
 }
 
 bool thumbnail_format_supported(std::string_view f) {
-    return f == "jpeg" || f == "png" || f == "bmp" || f == "gif" || f == "tiff" || f == "psd" ||
-           f == "pnm" || f == "hdr";
+    return f == "jpeg" || f == "png" || f == "bmp" || f == "gif" || f == "tiff" ||
+           f == "raw" /* S-045: the TIFF-RAW half */ || f == "psd" || f == "pnm" || f == "hdr";
 }
 
 /* ---------------------------------------------------------------- */
@@ -508,6 +508,12 @@ struct TiffTags {
     std::vector<u64> strip_offsets, strip_counts;
     u64 colormap_off = 0;
     u32 colormap_count = 0;
+    /* S-045 (the TIFF-RAW half): the JPEGInterchangeFormat pair (513/514)
+     * - the full-size JPEG preview every TIFF-based camera RAW (CR2/DNG/
+     * NEF/ARW...) carries - plus the SubIFD chain (330) NEF/ARW park it
+     * in. Zero when absent: plain baseline TIFFs never carry 513/514. */
+    u64 jpeg_if_off = 0, jpeg_if_len = 0;
+    std::vector<u64> subifd_offsets;
 };
 
 class TiffDecoder {
@@ -714,6 +720,16 @@ private:
         case 320:
             t.colormap_off = rd32(e + 8);
             t.colormap_count = count;
+            break;
+        case 330: /* SubIFD - NEF/ARW park the JPEG preview one level down */
+            for (u32 i = 0; i < count && i < 8; ++i)
+                t.subifd_offsets.push_back(val(i));
+            break;
+        case 513:
+            t.jpeg_if_off = val(0);
+            break;
+        case 514:
+            t.jpeg_if_len = val(0);
             break;
         default:
             break;
@@ -1255,6 +1271,40 @@ ThumbStatus thumbnail_stb(PreviewReader& pr, const ThumbnailCaps& caps, Thumbnai
     return st;
 }
 
+/* S-045 (the TIFF-RAW half): the SOF dims of an in-memory JPEG - the
+ * dims-first bomb guard runs BEFORE any stb allocation over RAW preview
+ * bytes (the engine doctrine: no decoder-size-policy dependence). */
+bool jpeg_dims_mem(const std::vector<u8>& j, u32& w, u32& h) {
+    if (j.size() < 4 || j[0] != 0xFF || j[1] != 0xD8)
+        return false;
+    size_t off = 2;
+    while (off + 4 <= j.size()) {
+        if (j[off] != 0xFF)
+            return false;
+        const u8 m = j[off + 1];
+        if (m == 0xD9 || m == 0xDA)
+            return false;
+        if (m == 0x01 || (m >= 0xD0 && m <= 0xD7)) {
+            off += 2;
+            continue;
+        }
+        if (off + 4 > j.size())
+            return false;
+        const u32 len = (u32(j[off + 2]) << 8) | j[off + 3];
+        if (len < 2)
+            return false;
+        if (m == 0xC0 || m == 0xC1 || m == 0xC2 || m == 0xC3) { /* SOF0/1/2/3 */
+            if (off + 10 > j.size() || len < 8)
+                return false;
+            h = (u32(j[off + 5]) << 8) | j[off + 6];
+            w = (u32(j[off + 7]) << 8) | j[off + 8];
+            return w != 0 && h != 0;
+        }
+        off += 2 + len;
+    }
+    return false;
+}
+
 ThumbStatus thumbnail_tiff(PreviewReader& pr, const ThumbnailCaps& caps, Thumbnail& out, Budget& b,
                            const std::vector<ReadErrorRange>& fails_before) {
     TiffDecoder d(pr, b);
@@ -1262,6 +1312,38 @@ ThumbStatus thumbnail_tiff(PreviewReader& pr, const ThumbnailCaps& caps, Thumbna
     if (!d.info(t)) {
         out.truncated = !b.over;
         return b.over ? ThumbStatus::BudgetExceeded : ThumbStatus::DecodeFailed;
+    }
+    /* S-045 (the TIFF-RAW half): a TIFF-RAW shape - the JPEGInterchange
+     * Format pair (513/514) outside JPEG-compressed TIFFs (compression 6/7
+     * stay the named JPEG-in-TIFF refusal) - is the camera-RAW family
+     * (CR2/DNG/NEF/ARW...): the og routes RAW through its EURawImg/LibRaw
+     * pipeline whose handoff is the preview JPEG; the core's equivalent
+     * extracts the full-size JPEG preview and decodes it through the same
+     * JPEG path (dims-first, budget-bounded, truth-gated). */
+    if (t.jpeg_if_off != 0 && t.jpeg_if_len != 0 && t.jpeg_if_len < (256u << 20) &&
+        t.compression != 6 && t.compression != 7) {
+        std::vector<u8> jpeg(size_t(t.jpeg_if_len));
+        if (bfetch(pr, b, t.jpeg_if_off, jpeg.data(), u32(t.jpeg_if_len)) == t.jpeg_if_len &&
+            jpeg.size() > 3 && jpeg[0] == 0xFF && jpeg[1] == 0xD8) {
+            u32 jw = 0, jh = 0;
+            if (jpeg_dims_mem(jpeg, jw, jh) && u64(jw) * u64(jh) <= caps.max_pixels) {
+                int dw = 0, dh = 0, dc = 0;
+                stbi_uc* px =
+                    stbi_load_from_memory(jpeg.data(), int(jpeg.size()), &dw, &dh, &dc, 4);
+                if (px) {
+                    std::vector<u8> rgba(px, px + size_t(dw) * dh * 4);
+                    stbi_image_free(px);
+                    if (reader_gained_failures(fails_before, pr)) {
+                        out.truncated = false;
+                        return ThumbStatus::UnreadableSpan;
+                    }
+                    return finish_ok(out, rgba, u32(dw), u32(dh), caps.max_edge, "raw", false);
+                }
+            }
+        }
+        /* the RAW shape without a decodable preview: fall through to the
+         * baseline attempt (a layered second decoder, never a masked
+         * failure - the final status reflects the real outcome) */
     }
     if (u64(t.width) * t.height > caps.max_pixels)
         return ThumbStatus::Oversized;
