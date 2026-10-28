@@ -703,6 +703,22 @@ void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context
                 i += 1 + 1 + name_entries;
                 continue;
             }
+            /* N-174 (diff-to-fix): the og's exFAT props builder refuses
+             * names starting "._" (exFATSearchDLL :45151 strncmp at +0x29
+             * vs "._" - the macOS AppleDouble sidecar class Finder writes
+             * on exFAT media) and returns 0 before the properties object
+             * is built: the entry never surfaces, silently. The HFS+ sink
+             * (N-028) is the same noise-suppression family on the volume
+             * the sidecars came from. Regular dotfiles are NOT touched -
+             * the gate is prefix-specific ("._" only), and directories
+             * named "._foo" are sunk the same way (the og's gate keys on
+             * the name alone, before any type check in the props build).
+             */
+            if (name.size() >= 2 && name[0] == u'.' && name[1] == u'_') {
+                ++ctx.stats->apple_doubles_sunk;
+                i += 1 + 1 + name_entries;
+                continue;
+            }
 
             const bool deleted = !in_use;
             const bool is_dir = (fe->file_attribute & 0x10) != 0;

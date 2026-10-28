@@ -7231,3 +7231,19 @@ first-hand decode of the og-codebase EUUserData tree (the local-database
 directive) + the sector/LBA math in the PartitionRecovery decompiles.
 
 Mandate saved token-redacted: `worklog/session-55-continuation-audit-prompt.md`.
+## Session-46 minors lane — N-174 landed (2026-10-29)
+
+**N-174 FIXED (MINOR — the exFAT AppleDouble prefix sink).** The corpus cites
+re-read first-hand (exFATSearchDLL :45151 strncmp vs "._" at the props-builder
+head; :45222 the return-0 that keeps the entry from ever surfacing). The gate
+landed in the core's entry walk immediately after name assembly — the same
+position the og holds it — so the M-013 parked-set oracle (which re-walks via
+walk_entries) inherits the gate and reconstructed sets cannot bypass it. A
+`apple_doubles_sunk` ExfatScanStats counter makes the silent sink observable
+(the deliberate observability superset; the og is fully silent). Tests:
+AppleDoublePrefixSunk (RED pre-fix: the sidecar surfaced, counter 0) +
+RegularDotFilesNotSunk (the prefix-specific pin: `.hidden` and `_notes.txt`
+surface — one fixture bug caught during the RED pass: `_notes.txt` is 10
+chars, an 11 name_len pulled the padding NUL into the name). exFAT battery
+36/36 (1 env-skip). Trail: findings/FIXED/N-174 + ledger row + matrix B3/A1/B6
+cell + exfat.md rows + this entry. Suite at the landing: full cr_tests green.
