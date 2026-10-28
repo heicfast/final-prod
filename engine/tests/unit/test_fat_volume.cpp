@@ -305,6 +305,89 @@ TEST(FatEngine, Fat16EndToEnd) {
     EXPECT_EQ(readme->props()->times.modified, 1738843200ULL * 10000000ULL + 116444736000000000ULL);
 }
 
+TEST(FatEngine, LfnIllegalCharFallsBackTo83) {
+    /* N-176 (diff-to-fix): an assembled LFN containing any of the nine
+     * characters a real Windows name can never carry is discarded and
+     * the 8.3 alias used (FATSearchDLL :32084-32099, the strncpy of
+     * "?*|\\/:\"<>" + the nested compare loop). Checksum-valid
+     * corrupt remnants are the recovery population this shapes. */
+    const char16_t illegal[9] = {u'?', u'*', u'|', u'\\', u'/', u':', u'"', u'<', u'>'};
+    for (int k = 0; k < 9; ++k) {
+        auto img = build_fat16_image();
+        u8* root = img.data() + 42 * 512;
+        /* two slots: "re<illegal>adme.txt" style - 14 chars, seq 1|2 */
+        char16_t longname[20];
+        int ln = 0;
+        longname[ln++] = u'r';
+        longname[ln++] = u'e';
+        longname[ln++] = illegal[k];
+        longname[ln++] = u'a';
+        longname[ln++] = u'd';
+        longname[ln++] = u'm';
+        longname[ln++] = u'e';
+        longname[ln++] = u'_';
+        longname[ln++] = u'1';
+        longname[ln++] = u'.';
+        longname[ln++] = u't';
+        longname[ln++] = u'x';
+        longname[ln++] = u't';
+        longname[ln] = 0;
+        u8 name11[11] = {'R', 'E', 'A', 'D', 'M', 'E', '~', '2', 'T', 'X', 'T'};
+        u8 chk = lfn_checksum(name11);
+        std::u16string nm(longname);
+        const size_t half = nm.size() > 13 ? 13 : nm.size();
+        /* slot 2 = tail (13 chars max), slot 1 = head */
+        std::u16string tail = nm.size() > 13 ? nm.substr(13) : std::u16string();
+        std::u16string head = nm.substr(0, half);
+        while (head.size() < 13)
+            head.push_back(char16_t(0));
+        make_lfn_slot(root + 0 * 32, u8(0x42), chk, tail.c_str() + 0); /* seq2|last */
+        make_lfn_slot(root + 1 * 32, u8(0x01), chk, head.c_str() + 0); /* seq1 */
+        make_dentry(root + 6 * 32, "README~2TXT", 0x20, 40, 100, 0x5A46, 0x6000, false);
+        /* link cluster 40 EOC for the planted file */
+        set_fat16_entry(img, 2 * 512, 40, 0xFFFF);
+        set_fat16_entry(img, 22 * 512, 40, 0xFFFF);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* ra = tree.add_root(u"Found");
+        FatScanFlags flags;
+        FatScanStats stats;
+        ASSERT_EQ(
+            scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+            OK);
+        auto all = collect_all(tree);
+        bool saw_alias = false, saw_illegal = false;
+        for (auto* n : all) {
+            if (n->name_utf8() == "README~2.TXT")
+                saw_alias = true;
+            for (char c : n->name_utf8())
+                if (c == char(illegal[k]))
+                    saw_illegal = true;
+        }
+        EXPECT_TRUE(saw_alias) << "the 8.3 alias must serve (illegal char index " << k << ")";
+        EXPECT_FALSE(saw_illegal) << "the corrupt LFN must be discarded (index " << k << ")";
+    }
+}
+
+TEST(FatEngine, LfnValidNameUnchanged) {
+    /* N-176 regression pin: valid LFNs (all legal characters) still
+     * ride the LFN path - the fixture's own "readme_document_v1.txt". */
+    auto img = build_fat16_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    auto all = collect_all(tree);
+    bool saw_lfn = false;
+    for (auto* n : all)
+        if (n->name_utf8() == "readme_document_v1.txt")
+            saw_lfn = true;
+    EXPECT_TRUE(saw_lfn) << "valid LFNs are unaffected by the illegal-char gate";
+}
+
 TEST(FatEngine, LfnCorruptFallsBackToShort) {
     /* corrupt the LFN checksum -> 8.3 name used */
     auto img = build_fat16_image();

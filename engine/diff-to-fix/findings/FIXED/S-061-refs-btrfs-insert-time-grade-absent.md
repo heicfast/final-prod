@@ -81,3 +81,10 @@ The recovery-chances column — the user's primary prioritization signal, surfac
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's S-058+S-061 landing — post-push SHA in the ledger row and worklog entry)
+**Verified by:** `Grading.RefsDeletedFilesGradeHigh` + `Grading.BtrfsDeletedFilesGradeHigh` (both RED pre-fix: deleted ReFS/Btrfs rows stayed at the engine-default Average; GREEN post-fix: High), `Grading.RefsExistingStillHigh` (the Active-rule precedence guard — existing files still grade High via the earlier rule, identical observable outcome as the finding's plan predicted). Suite 1228/1228 green (linux-release).
+**Resolution notes:** CONFIRMED-DIVERGENCE, corpus re-verified first-hand: `FUN_14038a470`'s param_3==0 path at :605481-497 re-read in ghidra-drwui — kind 0xB (Btrfs) and kind 10 (ReFS) each take the unconditional `FUN_140089630(node, 2)` grade-2 branch with the 5830/5828 gauge ticks, and the completion pass's FS exclusion at :605736-737 exists precisely because insert already graded them. The fix is the finding's step 1 in its simplest form: the bare `return true` for ReFS/Btrfs in `solo_rules` replaced with `n->set_grade(Grade::High)` — placed after the Active rule (existing files already grade High there; the og gates the hook on non-existing nodes, and both orderings produce identical observable outcomes, exactly as the finding's plan noted). The gauge accounting needs no separate counter: the final pass counts High-grade nodes into `out.matched` (the 5828 tick's equivalent — the S-058-corrected twin path and this rule feed the same final census). The header's stale "no further decoded rule" note replaced with the decoded rule + cites. No test pinned the wrong behavior pre-fix (the gap was untested, not mis-tested — the finding's own observation), so no re-pins were needed.

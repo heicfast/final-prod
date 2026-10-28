@@ -62,3 +62,14 @@ None.
 **Fixed in commit:** (this session's N-129 landing — recorded post-push in the ledger row)
 **Verified by:** the count re-runs executed against corpus `be0cfe9` this session (the acceptance the fix plan demanded): `ls og-codebase/*.dll | grep -c api-ms-win-` → 40 (25 core + 15 crt; 40 unique basenames, the corpus's inventory.csv agrees); `ls og-codebase/EUFileRepair/ | grep -c CORE_RL` → 24; `ls og-codebase/PartitionRecovery/*.mo | wc -l` → 30 (all 30 dispositioned — the coverage claim strengthens); the DRWReport row confirmed at SURFACE-INVENTORY.md:97; `EuOfficeTools.exe` confirmed present on disk with the lower-case-u name (the register's "EUOfficeTools.exe" casing matched nothing). Every register number now matches the tree.
 **Resolution notes:** All six defects repaired: (1) :53 api-ms count 44→40 with the 25+15 split and the 200-copies/5-roots distribution note; (2) :267 CORE_RL_* 19→24; (3) the .mo census 25→30 (the "all rows exist" claim re-verified at 30); (4) the DRWReport cite :84→:97 (the Imaging row → the crash-reporter row); (5) the EuOfficeTools casing corrected to the on-disk "EuOfficeTools.exe" — NOTE: this lane's first pass misread item 5 as a non-existent file and dropped the entry; the re-verification against the tree caught the over-correction and restored the entry with the correct casing (the finding's own text was right; the fix follows it exactly); (6) the stale self-nested "og-codebase/ (dir)" row deleted. Doc-only — no code change; the counts are the verification.
+
+
+## N-160 erratum (2026-10-29, the S56 lane)
+
+The file's two "OQ-S10-1" references (the summary line "the 2 exceptions
+are N-130/OQ-S10-1" and the related-findings line) mis-point: the
+sfc/VideoFileRepairer exception was **OQ-S10-2** (the VideoViewer/sfc
+tracked question, superseded by N-138's decode — SURFACE-INVENTORY:220 and
+the ledger's OQ-S10-2 row); OQ-S10-1 is the thumbnail-codec-bound-formats
+question (tracked-open). Recorded per N-160 item 3; the original text
+stands above as history.

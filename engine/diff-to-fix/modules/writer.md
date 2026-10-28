@@ -213,3 +213,22 @@ Four new rows, all first-hand verified (worksheet:
   hands the writer the raw device (`rrecov.cpp:2080-2082`, `cr_ui.cpp:4027`)
   while the scan's Retry(3×)+Cache pipe (`cr_scan.cpp:155-194`) goes unused —
   one transient read error becomes a permanent zero span.
+
+## Session-46 addendum (2026-10-29 — the MINOR-first fix lane; audited `fa654673`-lineage, corpus `be0cfe9`)
+
+**N-159 FIXED — the failed-files report's tree-classification axis.** The
+register-truth half first (three sites repaired): R-58's "per-run text log"
+→ the truth (an HTML report: `CSaveFailedFilesWithHtml`, the generator class
+family decoded at DRWUI :642669-642892); API-DELTA row 21's "og format NOT
+IN CORPUS" → "decodable; the generator + grammar are in the decompile";
+D13's addendum below. The axis half: the og's per-row tree classification
+(:642755-642822 — group@+0x1e8 / kind@+0x1f0 / custom-name@+0x1d8 → the
+"Lost Files"/"Reconstructed"/"Tags Extracted"/"Existing Files"/"Deleted"/
+custom-name labels) lands as the report's per-item `tree_class` wire field
+(derived from the node's root role, the S-048/M-103 convention) + the
+`failed_bytes` totals split (the og's +0x254/+0x268 failed-count/failed-bytes
+accumulators). Both additive-within-schema-v1 per the schema doc's own
+version contract (the finding's "version bump" plan corrected). Tests:
+Report.FailedRowsCarryTreeClassification / FailedBytesSplitFromTotal /
+RawCategoryNameClassification / TreeClassIsAdditiveWithinSchemaV1. P13/P11 →
+MATCH; P46/P68 register-truth repaired.

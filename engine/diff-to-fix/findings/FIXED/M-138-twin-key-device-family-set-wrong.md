@@ -1,4 +1,4 @@
-# MAJOR M-133 — the twin-key device-family offset: the og adjusts kinds {FAT16, EXT2-family}; the core adjusts {FAT12, FAT16, FAT32, exFAT}
+# MAJOR M-138 — the twin-key device-family offset: the og adjusts kinds {FAT16, EXT2-family}; the core adjusts {FAT12, FAT16, FAT32, exFAT}
 
 **Severity:** MAJOR
 **Module:** grading / query (recovery-chances focus battery)
@@ -6,6 +6,7 @@
 **Corpus references:** `re-workspace/reversed/ghidra-drwui/DRWUI_decompiled.c:605752-605756` (the `kind ∈ {1, 4} → offset − 2` adjustment in the completion-pass generic path); `:605924-605927` (the same adjustment in the device-walk thread); `architecture/04-recovery-workflow.md` §3.2 (the FS code space: 0-2 FAT, 3 NTFS, 4-5 EXT2, 7 exFAT, 8 HFS, 9 EXT4, 10 ReFS, 13 ZFS); `re-workspace/artifacts/SearchDLL/engine-matrix--factory-contract-verification.md:27` (the per-code breakdown: 0=FAT12, 1=FAT16, 2=FAT32)
 **Core references:** `src/core/tree/cr_grading.cpp:130-142` (`twin_key_of`: `fat_family = Fat12|Fat16|Fat32|Exfat`; `index = ordinal − (fat_family ? 2 : 0)`); `include/cr/tree/cr_grading.h:65-87` (GradeContext/DeviceSlot) — at audited core `b26017a7`
 **Status:** READ-ONLY FINDING — no fix applied
+**Renumber:** M-133 → **M-138** (2026-10-29, the S56 lane: the N-160 doc-truth gate caught the collision live — the remote's suite-red convergent M-133 retired first at `c466d732` 21:08:06 UTC vs this finding's first push `27a70db0` 21:48:00 UTC; the retired row keeps the seat per SA-9 earlier-push-wins; no content change)
 
 ## Summary
 

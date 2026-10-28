@@ -679,6 +679,51 @@ std::string utf16_to_utf8_local(const std::u16string& in) {
     }
     return out;
 }
+
+/* N-159 (diff-to-fix): the og's per-row tree classification - the
+ * failed-files HTML report's classification column
+ * (CSaveFailedFilesWithHtml::FUN_1403c6fc0, DRWUI :642755-642822,
+ * decoded first-hand: group/kind field reads at +0x1e8/+0x1f0 + the
+ * custom-name field at +0x1d8 [FUN_1400d3ee0/FUN_14008b040/
+ * FUN_14008a650], the label appends "Lost Files"+kind-qualifier /
+ * "Existing Files" / "Lost Files"+"Deleted" / the custom raw-category
+ * name). The core's tree models the og's group/kind integers as ROOT
+ * ROLES (the S-048/M-103 convention), so the classification derives
+ * from the node's top-level root:
+ *   "Found"                      -> existing_files        (og kind 4)
+ *   "File Path Lost"/"Lost Files"-> lost_files           (og group 1)
+ *   "Reconstructed"/legacy carved -> lost_files_reconstructed (og kind 7)
+ *   "Tags Extracted"             -> lost_files_tags_extracted (og kind 6;
+ *                                   the branch is M-101's open scope -
+ *                                   the mapping lands ready for it)
+ *   "Deleted"                    -> lost_files_deleted   (og kind 0)
+ *   any other role                -> the custom raw-category name (the
+ *                                   og's FUN_14008a650 non-zero branch)
+ * The og renders the labels in its HTML fragments; the wire values are
+ * the stable snake_case forms (the schema doc carries the mapping - the
+ * joiner between the og's compound label parts is .rdata-unresolved per
+ * the finding's open question, so no invented compound is emitted). */
+static std::string tree_class_of(const tree::FileNode* node) {
+    const tree::FileNode* n = node;
+    while (n != nullptr && n->parent() != nullptr)
+        n = n->parent();
+    if (n == nullptr || !n->is_full())
+        return {};
+    const std::u16string& role = static_cast<const tree::FullNode*>(n)->role;
+    if (role == u"Found")
+        return "existing_files";
+    if (role == u"File Path Lost" || role == u"Lost Files")
+        return "lost_files";
+    if (role == u"Reconstructed" || role == u"Other Deleted Files (Carved)")
+        return "lost_files_reconstructed";
+    if (role == u"Tags Extracted")
+        return "lost_files_tags_extracted";
+    if (role == u"Deleted")
+        return "lost_files_deleted";
+    /* the custom raw-category name (a configured raw root role) - the
+     * og's custom branch appends the category name itself */
+    return utf16_to_utf8_local(role);
+}
 } // namespace
 
 report::Totals SafeWriter::report_totals(const std::string& source, const std::string& destination,
@@ -708,6 +753,17 @@ report::Totals SafeWriter::report_totals(const std::string& source, const std::s
         if (!it.is_dir && it.state == ItemState::Done && !it.resumed)
             bytes += it.bytes_total;
     t.bytes = bytes;
+    /* N-159: the og's failed-bytes accumulator (+0x268) - the bytes of
+     * every file that did NOT commit (Error + Refused; the og's write
+     * failures + the core's destination-refusal family). Pending items
+     * are excluded (never attempted in this pass), as is
+     * NothingToRecover (no bytes ever moved). */
+    u64 failed_bytes = 0;
+    for (const auto& it : queue_)
+        if (!it.is_dir && !it.resumed &&
+            (it.state == ItemState::Error || it.state == ItemState::Refused || it.name_exhausted))
+            failed_bytes += it.bytes_total;
+    t.failed_bytes = failed_bytes;
     t.elapsed_ms = elapsed_ms;
     t.source = source;
     t.destination = destination;
@@ -727,6 +783,7 @@ std::vector<report::Item> SafeWriter::report_items() const {
         r.duration_ms = it.duration_ms;
         r.sha256_hex = it.sha256_hex;
         r.hash_status = it.hash_status;
+        r.tree_class = it.node != nullptr ? tree_class_of(it.node) : std::string();
         if (it.state == ItemState::Refused) {
             r.outcome = report::Outcome::Refused;
             r.reason = it.error;

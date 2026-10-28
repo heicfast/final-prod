@@ -319,7 +319,7 @@ session-format MATCH verdict (`evidence/executions/s10-rsf-ground-truth.md`).
 
 ## Session-12 continuation row (2026-10-29, audited `c7fa527c`, corpus `be0cfe9`)
 
-**N-142 (MINOR — NEW):** the og's variant-save device-descriptor record (the 5th
+**N-186 (MINOR — NEW; renumbered from N-142 at the N-160 doc-truth repair):** the og's variant-save device-descriptor record (the 5th
 GUID `76a672b048058b46ba9e91093a63b517`, FUN_1403f1180 = [552-B struct] + [5400-B
 volumeDevice blob]; rsf-format--scan-session.md:70-75 + :225-233) persists the full
 device identity: bus type, model, serial, **firmware revision, WWN, interface

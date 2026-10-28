@@ -60,3 +60,10 @@ checksum-only assembly read directly).
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-176 landing, S46 MINOR-first lane — post-push SHA in the ledger row and worklog entry)
+**Verified by:** `FatEngine.LfnIllegalCharFallsBackTo83` (RED pre-fix: the checksum-valid corrupt LFN surfaced with its illegal character in the result name for each of the 9 chars; GREEN post-fix: the 8.3 alias serves and no result name carries the char — all 9 iteration sub-cases) + `FatEngine.LfnValidNameUnchanged` (the regression pin: the fixture's own valid 23-char LFN still rides the LFN path). Suite 1218/1218 (linux-release).
+**Resolution notes:** The nine-character gate landed inside `lfn_assemble` beside the checksum validation, exactly per the fix plan — a match returns false and the caller takes the same 8.3-fallback path a checksum failure already takes (the corpus's diversion target is the same fallback builder FUN_180036350, FATSearchDLL :32084-32099 re-read first-hand: the strncpy of the 9-byte set `?*|\/:"<>` + the nested compare loop; the matching-branch goto feeds the fallback call). One implementation subtlety preserved: the end-of-name NUL terminator keeps its early-return semantics (an intermediate draft's `break` would have continued to further slots — caught in self-review before commit). The `#` deleted-placeholder path composes (the placeholder is substituted before the builder runs and '#' is not in the illegal set). No safety hardening near the change.
