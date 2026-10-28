@@ -64,3 +64,10 @@ Core-derived (lead auditor read the span math + the gate). Arithmetic: 0 − 5 +
 
 The og's own span consumption (OQ-1) — the artifacts to decode are listed in the lane
 sheet; resolving it upgrades this to MATCH or a parity divergence.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-161 landing, session-47 minors lane — post-push SHA in the worklog entry)
+**Verified by:** `Gpt.EntryLastLbaBeforeFirstLbaSkippedAndCounted` + `Gpt.EntrySpanOverflowBoundary` — both RED pre-fix at `fa654673` (the underflowed entry emitted as a giant volume: `t.partitions` non-empty with the wrapped sector_count, counter 0) and GREEN post-fix (no emission, `gpt_invalid_entries == 1` on both the last<first shape and the first=0/last=UINT64_MAX wrap boundary); the full Gpt family + `Orchestrator.WholeDisk*` re-run green (20/20); suite re-verified green at the session's close sweep.
+**Resolution notes:** The gate landed exactly as the fix plan specified: `emit_gpt_entries` (cr_table_parse.cpp) now rejects any used entry with `last_lba < first_lba` OR a span that wraps at the 2^64 boundary (`last - first == UINT64_MAX`, the first=0/last=UINT64_MAX shape the finding's own boundary test names), incrementing the new `DiskTable::gpt_invalid_entries` counter (u32, comment-documented as per-emission-path — a damaged-primary salvage plus a backup emission can count the same corrupt entry twice) instead of letting the wrapped count masquerade as a volume. The counter surfaces in `ScanStats::gpt_invalid_entries` at the whole-disk target-parse site (cr_scan.cpp), populated from the same parse that feeds the scan. The finding's own scope note is preserved: this is the core's honesty doctrine (corrupt entries named invalid, counted, never silent), NOT a parity claim — the og's span consumption remains undecoded (OQ-1), so no PARITY-DELTAS row is added and the MATCH-vs-divergence question stays open exactly as the finding recorded it. No contract change: `DiskTable` and `ScanStats` both gained append-only fields with zero-init defaults (old session files and old readers unaffected).

@@ -560,6 +560,63 @@ TEST(Ext4Engine, LegacyAclDirSizeClean) {
     EXPECT_EQ(u64(BS), sub->props()->logical_size);
 }
 
+TEST(Ext4Engine, Post2038FileTimeConversionStays64Bit) {
+    /* I-040 / D-123: the og's _gmtime32_s paths (EXT4SearchDLL :5495/:5506/
+     * :6262/:6273) go garbage past 2038 (32-bit time_t); the core's u64
+     * FILETIME path must stay exact through and beyond the boundary. */
+    const u64 y2038 = 2147483648ULL; /* 2038-01-19T03:14:08Z, the +1 step */
+    EXPECT_EQ((11644473600ULL + y2038) * 10000000ULL, unix_to_filetime(y2038));
+    const u64 y2100 = 4102444800ULL; /* 2100-01-01T00:00:00Z */
+    EXPECT_EQ((11644473600ULL + y2100) * 10000000ULL, unix_to_filetime(y2100));
+}
+
+TEST(Ext4Engine, SizeHighFoldIsRegularOnlyNotTheOgUnconditionalDefect) {
+    /* I-040 / D-123 anti-down-fix pin. The og folds the +0x6C word into
+     * EVERY inode's size (EXT4SearchDLL FUN_180007510 :5455-5467 - the
+     * unconditional high-half poll), so a legacy-ACL directory's ACL
+     * pointer pollutes its surfaced size; the core folds only for regular
+     * files (cr_ext4_engine.cpp read_inode, the ifmt==0x8000 gate). Both
+     * directions pinned so no future session "fixes" the core toward
+     * either defect. */
+    auto img = build_volume();
+    u8* table = img.block(B_INODE_TABLE);
+    /* (a) the subdir inode carries a legacy-ACL pointer at +0x6C: the og
+     * computes 0x00000300_00000400 for this shape; the core surfaces 1024. */
+    put32(table + size_t((INO_DIR - 1) * INO_SZ) + 0x6C, 0x00000300u);
+    /* (b) the regular file's true size is hi=1, lo=0xFFFFFFFF (8 GiB-1):
+     * the regular-file path must surface the full 64-bit size. */
+    put32(table + size_t((INO_HELLO - 1) * INO_SZ) + 0x04, 0xFFFFFFFFu);
+    put32(table + size_t((INO_HELLO - 1) * INO_SZ) + 0x6C, 1u);
+
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+
+    const tree::FileNode* sub = nullptr;
+    const tree::FileNode* hello = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->props())
+                continue;
+            const std::string nm = c->name_utf8();
+            if (nm == "sub")
+                sub = c;
+            if (nm == "hello.txt")
+                hello = c;
+            find(c);
+        }
+    };
+    find(ra);
+    ASSERT_NE(nullptr, sub);
+    ASSERT_NE(nullptr, hello);
+    EXPECT_EQ(u64(1024), sub->props()->logical_size); /* NOT 0x300_00000400 */
+    EXPECT_EQ((u64(1) << 32) | 0xFFFFFFFFu, hello->props()->logical_size);
+}
+
 TEST(Ext4Engine, JournalSalvage) {
     /* the fixture's jbd2 chain (BIG-endian, jsb type 3, descriptor with the
      * first-tag 16-byte UUID rule, ESCAPE-tagged block, matching commit)

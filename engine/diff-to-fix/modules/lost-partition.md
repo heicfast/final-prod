@@ -2,17 +2,31 @@
 
 ## S12 addendum (2026-10-29 — the session-2 deep-dive — the table/GPT/EBR surfaces)
 
-New active findings on this module: **M-123** (GPT header validation laxity — no
-reserved==0 / exact-92 / position / usable-range gates vs the og's FUN_1800078d0);
+New active findings on this module: ~~**M-123**~~ **FIXED (S47 MAJOR-first fix
+lane, `10620f04`)** — FUN_1800078d0's full gate set landed in `load_gpt_side`
+(revision 0x10000, header_size==92, reserved==0, the mirrored position pair,
+usable-range bounds, entries outside the usable range — structural gates before
+the CRC, og order; N-164's deliberate strictness kept; salvage path unchanged by
+design; 9 tests, 8 RED pre-fix; P1 detection / P20 struct-validation → MATCH);
 ~~**M-124**~~ **FIXED (S47 MAJOR-first fix lane, `dcb123dd`)** — the EBR link type
 0x85 joined the Extended arm of `mbr_type_to_kind` (Partition_decompiled.c:1006's
 `-0x7b` compare feeds the same link path as 0x05/0x0F): whole Linux-extended chains
 walk, the bogus Other-volume at the link target gone (P1 detection / P26 tree-walk →
 MATCH; tests Ebr.LinkType085WalksChain / Ebr.LinkType085SameBasisAs05 /
 Mbr.Extended085NotEmittedAsVolume, all RED pre-fix);
+<<<<<<< HEAD
 **M-132** (GPT backup-probe position + dead-LBA1 asymmetry, both directions);
+**N-161 FIXED (Session-44 minors lane — the first≤last span gate + the named-invalid
+counter, RED→GREEN proven; findings/FIXED/N-161)** (GPT entry span underflow);
+**N-164** (the deliberate GPT strictness unregistered). Verified-MATCH: EBR base/rel chain math, MBR LBA fields,
+=======
+~~**M-132**~~ **FIXED (S47 MAJOR-first fix lane, `d746a75b`)** — the backup
+probe at device-last FIRST (FUN_180006e20:4567's fixed position; the declared
+backup_lba a registered fallback), the dead-LBA1 recovery kept + registered
+(PARITY-DELTAS D-124a/b; the pin test Gpt.DeadLba1BackupRecoveryRegistered);
 **N-161** (GPT entry span underflow, no first<=last gate); **N-164** (the deliberate
 GPT strictness unregistered). Verified-MATCH: EBR base/rel chain math, MBR LBA fields,
+>>>>>>> f0b355913656b05e288f8e72b9cbc972f69ffdfc
 GPT type-GUIDs, the salvage ladder's two-step order, LDM span/stripe/RAID-5 math
 (post-S-052, algebraically identical to FUN_180086a90).
 

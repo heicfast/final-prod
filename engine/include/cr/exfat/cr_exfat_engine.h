@@ -95,6 +95,11 @@ struct ExfatScanStats {
     u64 upcase_validated =
         0; /* in-use upcase dentries whose structure passed the og's shape gates */
     u64 upcase_mismatches = 0; /* checksum/length/read integrity failures (0 = clean or absent) */
+    /* N-174 (diff-to-fix): macOS AppleDouble "._"-prefixed sidecars the
+     * og sinks silently at the props builder (exFATSearchDLL :45151) - the
+     * Finder writes these beside every real file on exFAT media; the og
+     * suppresses them as metadata-only noise. Counted, never emitted. */
+    u64 apple_doubles_sunk = 0;
     /* M-052 (diff-to-fix): the recycle-bin $I/$R pairing, og parity for
      * exFAT ("mirrored from FAT engine", fat-exfat-engine-internals.md
      * :71 - IRecycleBinNode2UI, multiple _stricmp sites) */

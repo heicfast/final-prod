@@ -32,3 +32,23 @@ the destination-arming seam adjacent to M-087's WinPE attach question (no core-s
 change owed), and the driver-contract rows (M-089/N-107's wire-code citations) remain
 the core-side truth. The next concrete step stands: one driver-repo lane takes all
 five in the recorded order (M-087 -> M-089 -> N-107/N-127 -> M-086).
+
+## Session-48 disposition note (2026-10-29 — the boundary re-affirmed a fourth time; core-side halves re-verified at the S48 tree)
+
+The S48 lane's grant carries the same two-repo boundary as every session since 10 ("Two
+repositories are in scope and only two: core_recovery (modified) + easeus-drw-research
+(read-only); do not clone, reference, or look at any other repository") — the five
+findings' fix surfaces (M-086/M-087/M-089/N-107/N-127) remain in heicfast/rda-driver
+and stay untouchable this session. Core-side halves re-verified at the current tree
+(`2d9cbf71`-lineage): release.yml:291's `-FloorVersion v0.2.4` consumption of the
+rda-driver release assets (M-086's core half); docs/DRIVER-CONTRACT.md §4.2's
+extended-IOCTL wire rows 0x910-0x912 + the identity/global-handle gating (M-089/N-107's
+core-side citations — the 0x600 device-type/CTL_CODE derivation chain intact); the
+three MAJOR finding files correctly still active in findings/MAJOR/ (their resolutions
+are driver-repo-resident). The next concrete step stands unchanged and precise: one
+driver-repo lane takes all five in the recorded order (M-087's one-line hex(7) fix +
+the .reg parse gate first, then M-089's probe derivation + the static
+dispatch-coverage gate, then the N-107/N-127 prose sweeps, then M-086's
+version-stamping decision + the two-version coexistence drill on a Windows runner),
+each with fail-before/pass-after proof per the house SOPs. No core-side change owed by
+any of the five; no silent leave-behind — the boundary is the grant's own text.

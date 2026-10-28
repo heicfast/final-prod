@@ -1244,6 +1244,83 @@ std::vector<std::string> m014_scan_names(std::vector<u8> img, ExfatScanStats* st
 
 } // namespace
 
+TEST(ExfatEngine, AppleDoublePrefixSunk) {
+    /* N-174 (diff-to-fix): the og's exFAT props builder refuses names
+     * starting "._" (exFATSearchDLL :45151, strncmp vs "._"; the return-0
+     * at :45222 - the entry never surfaces). macOS Finder writes an
+     * AppleDouble "._foo" sidecar beside every file on exFAT media; the
+     * og suppresses them as metadata-only noise. Fail-before: the pre-fix
+     * core emitted "._photo.jpg" as a recoverable entry. */
+    auto img = build_exfat_image();
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    {
+        SetBuilder sb;
+        sb.file_entry(0x20, EXFAT_TEST_TS);
+        sb.stream_entry(0x01, 11, 50, 4096); /* the real content twin's shape */
+        sb.name_entry(u"._photo.jpg");
+        std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, AT);
+    }
+    {
+        /* the plain file the sidecar describes still surfaces */
+        SetBuilder sb;
+        size_t at = AT + 96;
+        sb.file_entry(0x20, EXFAT_TEST_TS);
+        sb.stream_entry(0x01, 9, 51, 4096);
+        sb.name_entry(u"photo.jpg");
+        std::memcpy(img.data() + at, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, at);
+    }
+    ExfatScanStats stats;
+    const auto names = m014_scan_names(std::move(img), &stats);
+    EXPECT_EQ(stats.apple_doubles_sunk, 1u);
+    for (const auto& n : names) {
+        EXPECT_NE(n, "._photo.jpg")
+            << "AppleDouble sidecar must be sunk (og parity, :45151/:45222)";
+    }
+    bool photo_present = false;
+    for (const auto& n : names)
+        photo_present = photo_present || n == "photo.jpg";
+    EXPECT_TRUE(photo_present) << "the described file itself must survive the sink";
+}
+
+TEST(ExfatEngine, RegularDotFilesNotSunk) {
+    /* N-174 over-blocking pin: the og's gate is prefix-specific ("._"),
+     * not a general dotfile sink - ".hidden", "_notes.txt" and "."
+     * -prefixed directories all surface. */
+    auto img = build_exfat_image();
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    {
+        SetBuilder sb;
+        sb.file_entry(0x20, EXFAT_TEST_TS);
+        sb.stream_entry(0x01, 7, 52, 512);
+        sb.name_entry(u".hidden");
+        std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, AT);
+    }
+    {
+        SetBuilder sb;
+        size_t at = AT + 96;
+        sb.file_entry(0x20, EXFAT_TEST_TS);
+        sb.stream_entry(0x01, 10, 53, 512);
+        sb.name_entry(u"_notes.txt");
+        std::memcpy(img.data() + at, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, at);
+    }
+    ExfatScanStats stats;
+    const auto names = m014_scan_names(std::move(img), &stats);
+    EXPECT_EQ(stats.apple_doubles_sunk, 0u);
+    bool hidden = false, notes = false;
+    for (const auto& n : names) {
+        hidden = hidden || n == ".hidden";
+        notes = notes || n == "_notes.txt";
+    }
+    EXPECT_TRUE(hidden) << "plain dotfiles are NOT the og's sink class";
+    EXPECT_TRUE(notes) << "underscore-prefixed names are NOT the og's sink class";
+}
+
 TEST(ExfatEngine, EmptyFileSuppressedLikeOg) {
     /* M-014 falsifiable claim (a): the og's stream emission gate
      * (FUN_180029280 :34562-34564) requires data_length != 0 &&
