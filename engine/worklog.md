@@ -18059,3 +18059,69 @@ Stage Summary:
   one-probe narrowed question. Next in the A2 queue: OQ-SA-2's four
   carve-family probes (CFCPEvt key binding, AAC/M1V/RIFF tier roles, WPG
   size stamp, CNeedRawMgr mode gating).
+
+---
+Task ID: API-FIX-1..3 (the api-fix session: context recovery + the driver-era ABI-contract drift batch)
+Agent: main engineer (API-focused remediation session)
+
+Work Log:
+- Context recovery per protocol: three parallel read-legs (corpus CTX-1 /
+  core CTX-2 / driver CTX-3) produced the API ground-truth pack at
+  /home/z/my-project/api-ctx/{corpus-api-context,core-api-surface,
+  driver-api-surface}.md — every claim path:line-cited; the consolidated
+  inventory/delta board is committed as diff-to-fix/API-DELTA.md (45 rows:
+  MATCH / INCONSISTENT / MISSING / SUPERSET verdicts, the executed fix
+  ledger, and the remaining board after the parallel lanes' landings).
+- Discovered the parallel-session collision mid-flight: other lanes landed
+  M-065 (37c48c6), M-066+N-088 (6d0f16c), S-036 batch (5e7390b), N-087
+  (8451913), ABI v3 M-067 (04dd769) — and left BOTH CI lanes RED
+  (windows: C4244 size_t->double in the FH11 extent check;
+  local-mirror: clang-format violations in 9 files).
+- API-FIX-0 (1117ac9): both CI breakages repaired — the EXPECT_NEAR
+  narrowing replaced with an integer drift check; the 9 files
+  clang-formatted; full suite 965/965 green on the CI lane's exact
+  configuration (gcc-13 + ASan, ubuntu-24.04's compiler — a local gcc-13
+  toolchain was bootstrapped under /home/z/gcc13 to reproduce it
+  faithfully; gcc-14 cannot be used, it false-positives differently).
+- API-FIX-1..3 (c169332): the driver-era ABI-contract drift batch, every
+  item verified against code before writing:
+  1. the phantom-zero extended-IOCTL literal tail (0x6000244x ->
+     0x600244x) swept from 12 sites (7 normative docs, PARITY-ARCH,
+     transport.md, cr_driver_status.h, cr_transport.cpp,
+     test_driver_status.cpp) — the 3bda8e2 wire-truth fix's
+     never-propagated residue;
+  2. cr_ui.h's phantom CR_UI_ERR_INVALID_PARAM macro name -> the real
+     ERR_BAD_PARAMETER, and the device_transport comment's unreachable
+     "direct" value removed (driver-only since PLAN-DRIVER-ONLY);
+  3. ABI-CONTRACT: §4 error table gains the full ERR_DRIVER_* 0x500B
+     family; §6 gains CR_EVT_FS_CHECK(10) + the M-041
+     check_errors/check_family/check_pad struct tail; §7e rewritten to
+     the driver-only advisory contract (the removed RDA->direct
+     fallback + WinPE gate no longer described as current); §3 gains the
+     worker-thread event cross-reference sentence.
+  4. API.md: 78->79 exports, v2->v3, three omitted rows added
+     (cr_ui_last_error, cr_ui_driver_status,
+     cr_ui_unlock_volume_with_dictionary), snapshot_close noted,
+     §2.2 rewritten driver-only; CORE-API-CURRENT.md gains the
+     SUPERSEDED banner (§e/§f + the b.2 row marked historical);
+     API-SURFACE-AUDIT headline 61->79 @ v3 with audit-time provenance.
+  5. Four doc-truth pins added to test_cr_ui.cpp (the N-040/N-088
+     pattern): AbiHeaderNamesNoPhantomErrorMacros,
+     TransportDocCarriesNoDirectValue, AbiContractCarriesDriverEraTruth,
+     DriverWireCodesFreeOfPhantomZeroInDocs (sweeps 10 files).
+  Suite 969/969 green (gcc-13 ASan) + clang-format clean.
+- Driver repo (rda-driver) read-only state: its own doc drifts (D2 stale
+  0x6000244x in docs/architecture.md, D3 stale "15/18-command" counts vs
+  the 19-code set, D4 the invalid hex(7) UpperFilters data in
+  regdrv-rda.reg) are recorded in driver-api-surface.md §9 — the
+  rda-driver lane's queue, not pushed from this session (single-repo
+  commit discipline; the driver repo has its own active lanes).
+
+Stage Summary:
+- API delta board committed (diff-to-fix/API-DELTA.md); the remaining
+  API-scope board after this session: S-038 step-2+ (the installer
+  implementation, packaging lane), M-064 (the rda-driver deployer batch),
+  N-089 (FCP subtype label, carve lane), A-ABI-6 (codeql policy, repo
+  owner). Both CI-red breakages repaired; the ABI's normative docs now
+  match the driver-only code they describe, with 4 regression pins
+  holding the line.
