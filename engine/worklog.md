@@ -3074,6 +3074,33 @@ finding, one verified fix, one push. Post-SEVERE, this lane takes the MAJOR tier
 orchestration/carve-cluster findings (M-103, M-104, M-108, M-109, M-110) unless 11C lands them
 first. Pull before every push; the SA-9 collision rule governs any ID or landing conflicts.
 
+---
+## Session-11D wave 1 (2026-10-29 — A-012: the carve-registry row restore, DISCOVERED during S-051's verification)
+
+Task ID: S11D/W1 (the diff-TO-FIX lane; part 1 of the S-051 landing)
+Agent: session-11D fix lane
+
+- **A-012 (ACUTE, DISCOVERED)**: while running the S-051 evidence probe
+  post-fix, the carve stage returned ERR_BAD_PARAMETER (0x50030003 — the
+  evidence file's own "ERR_OPEN_FAILED" annotation is wrong, corrected in
+  S-051's Resolution). Traced to `carve_slice`'s F8 gate:
+  `validate_registry(nullptr) == 2` — **the 81ee9775 rebase-window conflict
+  sweep dropped M-093's FMT_SVG row** (kTable 119 vs FMT_COUNT 120; the mobi
+  row displaced to index 118/id 119). The two conflict sides were TWO
+  DIFFERENT rows (HEAD: the MOBI entry; other: the one-line FMT_SVG entry);
+  the sweep kept one, dropped one as if duplicates.
+- **Fail-before EXECUTED**: `CarveEngine.RegistryF8Gate` (test_carve.cpp:516,
+  the pre-existing pin) RED at `bcf31316` — the tree stashed, rebuilt, the
+  single test run: "1 FAILED TEST"; `/tmp/regcheck`: `rejects=2 of 119`,
+  the mobi entry reported BAD. **Main was RED at open** — the parallel
+  lanes' push window shipped a hard-down carve stage.
+- **Fix**: the FMT_SVG row restored verbatim from M-093's landing
+  (`git show ca701711`), with the in-table provenance comment. The parallel
+  lanes' 9 residual clang-format violations (cr_signatures.h,
+  cr_analysers.cpp, test_carve.cpp, test_thumbnail.cpp — under the
+  CI-pinned 18.1.8) swept in the same commit.
+- **Pass-after**: `RegistryF8Gate` GREEN; registry 120/120; the full suite
+  1105/1105 with the S-051 landing below; format gate 0 violations.
 ## Session 39 — the diff-to-fix parity-fix session (2026-10-29; opens at core `35bee726`, corpus `be0cfe9`; prompt saved to worklog/session-diff-fix-39-prompt.md)
 
 **Mandate (the user's operative line):** "Fix all the audit findings (priority
