@@ -2509,3 +2509,80 @@ Stage Summary:
 - The thumbnail family is now fully closed at every layer (engine, ABI,
   grading side-effect). Territory remaining: M-079 (auto-save label),
   S-040 (image create). Next parallel pull before starting S-040.
+
+---
+Task ID: S10-B (session-10 lane B — the continuation deep audit, RECONCILED AT THE THIRD PUSH with the SA-10 lead close + the truth batches + the fix lanes + the M-102/M-083 thumbnail fix)
+Agent: session-10 lane-B parity audit (this session)
+
+THE BASELINE: core 84a1832 (the verification tree) · corpus be0cfe9 · the rda-driver
+repo OUT of this lane's two-repo grant (M-086/M-087/M-089/N-127 stand as filed).
+
+THE PUSH-TIME RECONCILIATIONS (three times — the moving-target SOP executed at every
+rejection): (1) the four concurrent fix lanes + the SA-10B purge convention + the
+parallel session-10 audit lane; (2) the SA-10 lead close (S-052, M-105 DRWService,
+M-106, M-107, N-128, the same S-050->S-051 repair) + the truth batches + the M-092
+HTML fix + S-041's umbrella closure; (3) the M-102+M-083 thumbnail ABI/grade-promotion
+fix + the M-092 ledger conform. RENUMBERED at every push (the collision convention,
+earlier remote numbering wins): M-103 -> M-105 -> **M-108**; N-128 -> **N-132**;
+OQ-S10-1 -> **OQ-S10-2**. CONVERGENT: the verification sweep (69 verdicts agree —
+the unique content preserved in s10-verification-pass-b.md) and the S-050->S-051
+collision repair (the remote SA-10 close made the same repair independently).
+
+THIS LANE'S UNIQUE CONTRIBUTIONS (what survives on the merged board):
+1. M-100 resolved closed-as-covered — the one board move every parallel lane missed
+   (6d0f16c is an ancestor of BOTH of M-100's own audited baselines; FIXED-LEDGER
+   row 281; the narrative in s10-verification-pass-b.md).
+2. M-108 (EXECUTED) — the text-preview eligibility model, a surface no prior finding
+   owned: the og's TxtViewFiles 119-ext extension whitelist (decompile-verified
+   first-hand at DRWUI:535858/:535937) vs the core's 16-byte content sniff; the
+   compiled probe proves UTF-8-BOM/UTF-16/Latin-1 text -> kind=unsupported and
+   printable-head binary -> text+garbage (disjoint accept-sets, both directions).
+3. N-132/N-129 — the gate-doc truth pair: API-DELTA rows 44-45's false "landed"
+   claims (TxtViewFiles/SumaryFileType/PriorityDisplayType) + six register count
+   defects from the 1470-file re-count.
+4. N-130 + OQ-S10-2 — the og-tree completeness sweep's two genuinely undispositioned
+   files (the Fixo VideoFileRepairer.exe engine, registered SIDECAR-OOS; the opaque
+   sfc payload, tracked-open with the Ghidra magic-search queued).
+5. N-131 + E69 + the field-parity table — the first per-field enumeration of the
+   og's persisted node schema vs cr_records.cpp (every load-bearing family
+   MATCH-with-re-encoding; 13 SUPERSET; the parent-anchor ABSENT class filed; the
+   ReFS FLAGS corpus contradiction errata'd with the population-site read).
+6. The executed .rsf ground-truth (the three real SaveScan files parsed — the corpus
+   container grammar byte-confirmed, no erratum needed) + the historical records
+   preserved in the lane-B evidence (M-071 archaeology, the M-050 wrapper-scalar
+   enumeration, the retired-addenda content: S-041's 8-children remainder precision
+   after the M-092 landing, N-101/N-106/N-120's dispositions).
+
+COVERAGE STATISTICS (this lane): 75 findings re-verified at 84a1832 (5 agents; the
+load-bearing verdicts lead-re-verified) · 5 new findings + 1 erratum + 1 OQ filed ·
+1 board move (M-100) + 1 convergent collision repair (S-050->S-051) · 6 evidence
+files (2 executed proofs, 2 decompile/grep records, 2 verification/parity tables) ·
+the 1470-file register sweep · the 3-artifact field-parity table.
+
+THE READ-ONLY GUARANTEE (verified at every push): this lane's commits touch NOTHING
+outside diff-to-fix/ + worklog* — the probes (s10-preview-probe.cpp, rsf-probe.py)
+and their binaries live OUTSIDE the repo (/home/z/my-project/scripts/); the preview
+probe compiled the repo's own sources against an in-memory harness without writing
+them. The parallel lanes' prompt file restored untouched (this lane's saved as
+session-10-lane-B-parity-audit-prompt.md).
+
+RECOMMENDED FIRST FIXES (lane-B contributions to the standing order):
+1. M-108 — the BOM/UTF-16 head-gate fix is one branch; the whitelist landing is the
+   gen_filterfolder-precedent data file. User-visible on the most common Windows
+   text shapes.
+2. N-129 + N-132 — ONE mechanical gate-doc pass (the six register counts, the
+   API-DELTA row corrections, the N-130/OQ-S10-2 registration rows).
+3. N-131 + E69's serializer trace — one session closes the session-schema story.
+4. The standing order's head unchanged: S-051/S-052 (the scan-target/LDM SEVEREs),
+   M-104..M-107, the 8 remaining carve children; the M-083/M-102 files await the
+   trail-lane retirement (the code landed at e56baac).
+
+HANDOFF: next IDs S-053+, M-109+, N-133+, I-031+, A-012+. Board after this push
+(the filesystem is the truth): 54 active finding files (6 SEVERE · 24 MAJOR ·
+19 MINOR · 5 INFO — the MAJOR set still carries the code-fixed M-083/M-102 pending
+their trail retirement) / 281 resolved (FIXED-LEDGER) / 4 tracked-open (OQ-S4-3 —
+one Windows dispatch from closing; OQ-S8-1 — the MOM interface-chain trace;
+OQ-S10-1 — the codec-bound thumbnail deps; OQ-S10-2 — the sfc probe). The lane-B
+scratch (the probe sources + the agents' context sheets) lives outside the repo at
+/home/z/my-project/scripts/ and /home/z/my-project/audit-work/; the load-bearing
+content is preserved in the six s10-* evidence files.

@@ -69,3 +69,20 @@ modules/orchestration.md).
 - **M-101**: the "Versions" node (NTFS multi-version record siblings) + "Tags Extracted"
   branches — the two R-20 roots with no tree concept.
 - **N-126**: the "Unsaved File" category (the og's type-scope list).
+
+---
+
+## Session-10 lane-B addendum (2026-10-29, audited `84a1832`)
+
+**N-132 (MINOR, NEW):** the config-layer triplet behind the query/summary model —
+SumaryFileType (extension unification groups: `m4p_m4a_m4v_mp4` as one family,
+`zip_docx_pptx_xlsx` as the office-in-zip family) and PriorityDisplayType.xml
+(5-cat/35-ext within-category presentation order) — are absent while API-DELTA §1.7
+row 45 claims them "landed (query/filefilter data layers)" (false; the FileFilter
+1481-row membership table and the M-029 buckets ARE landed — the false claim covers
+only the two absent models). The summary counts are the plain 8-bucket
+`category_counts` (cr_grading.h:115). Disposition required: land the unification
+helper or register the plain counter as a deliberate delta; PriorityDisplayType
+needs an OOS-UI row (the usefullostfiles.xml precedent) unless the CLI `tree` wants
+ordering parity. Grep record:
+`evidence/decompiled-quotes/s10-config-layer-absence-greps.md`.

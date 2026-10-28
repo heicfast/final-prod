@@ -1,4 +1,29 @@
 # diff-to-fix/ — parity audit roadmap (core_recovery vs easeus-drw-research)
+**Session 10 lane B (2026-10-29 — the continuation deep audit, RECONCILED AT THE SECOND PUSH):**
+audited **core `84a1832`** (the verification baseline — the concurrent lanes'
+landings reconciled in `evidence/s10-verification-pass-b.md`'s superseded-verdict
+table) · **corpus `be0cfe9`**. Convergent with the parallel verification sweep;
+renumbered twice at push (the collision convention): the lane's M-103 → M-105 →
+**M-108**, N-128 → **N-132**, OQ-S10-1 → **OQ-S10-2**. UNIQUE product: **M-100
+resolved closed-as-covered** (the one move every parallel lane missed — `6d0f16c`
+predates the finding's own baseline; FIXED-LEDGER row); **M-108** (MAJOR, EXECUTED —
+the text-preview eligibility model: the og's TxtViewFiles 119-ext extension whitelist
+vs the core's content sniff; UTF-8-BOM/UTF-16/Latin-1 text refused, printable-head
+binaries admitted; probe at `evidence/executions/s10-preview-text-eligibility.md`);
+**N-132** (API-DELTA rows 44-45's false "landed" claims —
+TxtViewFiles/SumaryFileType/PriorityDisplayType all absent); **N-129** (six register
+count/cite defects); **N-130** (VideoFileRepairer.exe — the undispositioned Fixo
+engine, SIDECAR-OOS registered); **N-131** (the FS-native parent anchors NTFS +0x40 /
+FAT +0x42 / exFAT +0x54 — the N-100 class, with the full field-parity table at
+`evidence/s10-field-parity-table.md`); **OQ-S10-2** (tracked-open: the opaque
+VideoViewer/sfc payload); **erratum E69** (part2's ReFS FLAGS contradiction, the
+population-site read); the S-050→S-051 collision repair (convergent with the remote
+SA-10 close). Executed ground-truth: the three real SaveScan .rsf files parsed
+first-hand — the container grammar byte-confirmed, no erratum
+(`evidence/executions/s10-rsf-ground-truth.md`). Board after the push: **54 active
+(6 SEVERE · 24 MAJOR · 19 MINOR · 5 INFO) / 279 resolved / 4 tracked-open**. Next
+IDs: S-053+, M-109+, N-133+, I-031+, A-012+.
+
 
 **Merged product repository (audit + dev-sign target):**
 **https://github.com/heicfast/core_recovery** — confirmed by inspection (core

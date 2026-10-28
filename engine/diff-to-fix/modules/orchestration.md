@@ -224,7 +224,7 @@ CLI flag + session round-trip). The W1a/W1b/W1c orchestration claims verified
 
 ## Session-10 wave-2 addendum (2026-10-29, continuation lane — audited `84a1832`; EXECUTED evidence)
 
-- **S-051 (SEVERE — renumbered from the wave-2 lane's S-050 filing at the SA-10 reconciliation; SA-10B's file-repair S-050 keeps the ID)** — the whole-disk scan target never consults the
+- **S-051 (SEVERE — renumbered from the lane's S-050; the remote SA-10 close performed the same repair convergently)** — the whole-disk scan target never consults the
   partition list: `cr_ui_open_disk` + scan (the CLI `scan --disk N` without
   `--whole-disk`) probes LBA 0 (the MBR), dispatches Unknown, and returns
   rc=0 with ZERO files on a healthy multi-volume disk. The og's

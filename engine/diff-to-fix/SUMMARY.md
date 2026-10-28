@@ -1,4 +1,59 @@
 # SUMMARY.md — executive summary (the SA-10 lane on top: the triage + reconciliation over the hot parallel window; SA-10B and the fix/closing lanes below)
+## Session-10 lane-B delta (2026-10-29 — the continuation deep audit, RECONCILED AT THE SECOND PUSH with the SA-10 lead close + the truth batches + the fix lanes)
+
+**Audited: core `84a1832`** (the verification baseline; the concurrent lanes' landings
+reconciled in `evidence/s10-verification-pass-b.md`'s superseded-verdict table) ·
+**corpus `be0cfe9`**. Convergent with the parallel verification sweep
+(`s10-reverification-sweep.md`, filed first — the 69 STILL-ACTIVE verdicts agree; this
+lane's evidence keeps only the unique content). **Renumbered twice at push** (the
+collision convention, earlier remote numbering wins): the lane's M-103 → M-105 →
+**M-108** (the parallel lanes consumed M-103 lostdir / M-104 wholedisk / M-105
+DRWService / M-106 ONE-3DS / M-107 batch-1-stand-in) and N-128 → **N-132** (the SA-10
+lead's capability-matrix row owns N-128); N-129..N-131, OQ-S10-2 and E69 were free.
+**CONVERGENT repair:** the S-050→S-051 collision resolution (this lane and the remote
+SA-10 close made the same repair independently).
+
+**This lane's UNIQUE product on the merged board:**
+- **M-100 → RESOLVED (closed-as-covered)** — the one board move every parallel lane
+  missed: the archive browse-inside capability landed in `6d0f16c` (M-066+N-088)
+  BEFORE the finding's own baseline; the filing's central "absent" grep was false.
+  Retired per the purge convention (FIXED-LEDGER row 279; the narrative in
+  `evidence/s10-verification-pass-b.md`).
+- **M-108** (MAJOR — EXECUTED): the text-preview eligibility model — the og gates by
+  the 119-ext TxtViewFiles extension whitelist (decompile-verified first-hand:
+  DRWUI:535858/:535937); the core content-sniffs and refuses UTF-8-BOM/UTF-16/
+  Latin-1 text while admitting printable-head binaries
+  (`evidence/executions/s10-preview-text-eligibility.md`).
+- **N-132** (MINOR): API-DELTA rows 44-45 falsely claim TxtViewFiles/SumaryFileType/
+  PriorityDisplayType "landed" — all three absent, contradicting the truthful R-31.
+- **N-129** (MINOR): six register count/cite defects from the 1470-file re-count.
+- **N-130** (MINOR) + **OQ-S10-2** (tracked-open): the og-tree completeness sweep's
+  two undispositioned files (the Fixo VideoFileRepairer.exe engine, registered
+  SIDECAR-OOS; the opaque sfc payload, the Ghidra magic-search queued).
+- **N-131** (MINOR) + **E69** + the field-parity table: the first per-field
+  enumeration of the og's persisted node schema vs cr_records.cpp — every
+  load-bearing family MATCH-with-re-encoding; 13 SUPERSET fields; the parent-anchor
+  ABSENT class filed (`evidence/s10-field-parity-table.md`).
+- Executed ground-truth: the three REAL SaveScan .rsf files parsed first-hand — the
+  corpus container grammar byte-confirmed, no erratum
+  (`evidence/executions/s10-rsf-ground-truth.md`).
+- Historical records preserved in the lane-B evidence (findings retired by the
+  parallel purge mid-flight): the M-071 git-archaeology completion, the M-050
+  wrapper-scalar completeness enumeration, this lane's S-041/N-101/N-106/N-120
+  addenda (those findings' resolutions landed with the concurrent lanes — N-101
+  FIXED, N-106 FIXED-ALREADY, N-120's residues recorded in the batch-C truth commit,
+  S-041 closed-as-umbrella with the children owning the remainders: 8 child findings
+  still active after the M-092 HTML landing — M-093/M-096/M-098/M-099/N-111/N-112/
+  N-113/N-115).
+
+**Board after the lane-B push: 54 active** (6 SEVERE · 24 MAJOR (-M-100 +M-108) ·
+**19 MINOR** (+N-129..N-132) · 5 INFO) · **279 resolved** (FIXED-LEDGER) ·
+**4 tracked-open** (OQ-S4-3, OQ-S8-1, OQ-S10-1, OQ-S10-2). **Recommended fix order
+contribution:** M-108 first (the BOM head-gate fix is one branch; user-visible on the
+most common Windows text shapes), then the N-129/N-132 gate-doc mechanical pass, then
+N-131 + E69's serializer trace (one session closes the session-schema story), beside
+the standing order (S-051/S-052, M-104..M-107, the carve children).
+
 
 ## SA-10 delta (2026-10-29 — the lead lane: board triage at 84a1832, then the push-time reconciliation over FIVE concurrent lanes)
 

@@ -1,5 +1,25 @@
 # CROSS-REF-MATRIX.md — module × parameter verdict matrix (the SA-10B lane on top: the real-rsf mining findings; the prior sessions below)
 
+**Session-10 lane-B changes (2026-10-29 — the continuation deep audit, audited `84a1832`, RECONCILED at the second push):**
+the second verification lane (convergent with s10-reverification-sweep.md; the unique
+verdicts + the superseded-verdict reconciliation table at
+`evidence/s10-verification-pass-b.md`) plus three deep-comparison lanes. NEW rows:
+preview text-eligibility **M-108** (EXECUTED — the TxtViewFiles whitelist vs the
+content sniff; BOM/UTF-16/Latin-1 false-negatives, printable-head false-positives;
+renumbered twice at push — M-103→M-105→M-108 as the parallel lanes consumed the IDs);
+gate-doc false-"landed" triplet **N-132** (API-DELTA rows 44-45 vs R-31; renumbered
+from N-128 — the SA-10 lead lane's capability-matrix row owns it); register numeric
+defects **N-129**; the undispositioned Fixo engine **N-130** (VideoFileRepairer.exe,
+SIDECAR-OOS); the FS-native parent anchors **N-131** (the N-100 class; the full
+field-parity table at evidence/s10-field-parity-table.md); tracked-open **OQ-S10-2**
+(VideoViewer/sfc); erratum **E69** (part2's ReFS FLAGS contradiction — the
+population-site read). BOARD MOVE: **M-100 resolved closed-as-covered** (FIXED-LEDGER
+row — the `6d0f16c` capability predates the finding's own baseline; the one move the
+parallel lanes missed). CONVERGENT with the remote SA-10 close: the S-050→S-051
+collision repair (both lanes made the same repair). Executed evidence:
+s10-preview-text-eligibility.md + s10-rsf-ground-truth.md (the real-.rsf container
+grammar byte-confirmed — no erratum needed).
+
 **SA-10B changes (2026-10-29, the B lane — the real-.rsf session mining; evidence: evidence/executions/s10b-real-rsf-session-mining.md):**
 - **carve row, new cells**: tree-shape/naming parameters — **S-048** (the
   `Reconstructed/<volume>` per-volume grouping absent; B8/A26/A42/D12/D13
@@ -642,3 +662,11 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | carve · the batch-1 stand-in residue | **DIVERGENCE-MAJOR** | **M-107** — ten sites still carry "recorded follow-up"/"stands in" comments (X3F :3084, CRW :3108, WPG :3197, WPD :3214, PSP :3236, SIT :3253, APE :3329, EPS :3702, DXF :3741, DWG :2644, SWF-RECT :3914) — S-007's promised follow-ups never owned until now; the X3F section-directory grammar corroborated by the never-cited FileRepair artifact (x3f-repair--section-checkers-walk.md:9-33); MDB resolved mid-flight (M-091), DMG too (M-090) |
 | docs/CI · CAPABILITY-MATRIX prebuilt-CI row truth | DIVERGENCE-MINOR | **N-128** — the row cites four workflows + an actions/ dir that do not exist at HEAD (only checks/installer/release/test-benchmark) and buries the unowned ext4/HFS+/Btrfs/ZFS/ReFS staging follow-up inside a DONE verdict; M-088's fix did not touch this row |
 | ldm/writer/tree · ID-collision repair (process) | — | **S-050→S-051 renumber** — the wave-2 lane's wholedisk scan-target S-050 collided with SA-10B's file-repair S-050 (both live on main); per the SA-9 rule the earlier push keeps the ID, the wave-2 file renumbers to S-051 (its orchestration/CROSS-REF/SUMMARY refs updated) |
+
+| preview · text-preview eligibility (TxtViewFiles 119-ext whitelist vs content sniff) | DIVERGENCE-MAJOR | **M-108** (lane-B, renumbered M-103→M-105→M-108 at push — EXECUTED: UTF-8-BOM/UTF-16/Latin-1 .txt → kind=unsupported; printable-head binary → text+garbage snippet; the og gates by extension membership, DRWUI:535858/:535937 decompile-verified) |
+| gate docs · API-DELTA §1.7 rows 44-45 (data-asset scoreboard) | DIVERGENCE-MINOR | **N-132** (lane-B, renumbered from N-128 at push — the "landed" claims for TxtViewFiles/SumaryFileType/PriorityDisplayType are false; REFERENCE-API-GAP R-31 is the truthful register; the TxtViewFiles behavioral half is M-108) |
+| gate docs · PARITY-OG-CORE-INVENTORY counts | DIVERGENCE-MINOR | **N-129** (api-ms 44→40 · CORE_RL 19→24 · .mo 25→30 · the DRWReport cite :84→:97 · the EuOfficeTools casing · the stale self-nested row — all re-counted this session) |
+| og-tree register · VideoViewer/VideoFileRepairer.exe | DIVERGENCE-MINOR (registration) | **N-130** (the Fixo video-repair console engine, 1.9 MB x86, DRWUI-spawned — no disposition row; SIDECAR-OOS registered per the I-010/D-26 repair-family precedent) |
+| session · FS-native parent anchors (NTFS +0x40 / FAT +0x42 / exFAT +0x54) | DIVERGENCE-MINOR | **N-131** (the og persists the FS-native parent datum per node; the core keeps structural parent_id only — reload-time lineage cross-validation lost; the N-100 precedent class) |
+| og-tree register · VideoViewer/sfc | UNVERIFIED (tracked-open) | **OQ-S10-2** (lane-B — 211,614 B opaque " cfs-"/FAN. payload; no consumer string, no corpus characterization; the VideoFileRepairer.exe Ghidra magic-search is the queued probe) |
+| corpus · ifileproperties-part2 ReFS FLAGS | CORPUS-ERRATA | **E69** (part2 §4's "invariant incl. FLAGS" contradicts part2's own ReFS table; the +0x39 [INFERRED] objectId reading weakened by the population-site read — serializer trace queued; core unaffected either way) |

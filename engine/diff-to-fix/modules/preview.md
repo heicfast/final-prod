@@ -223,3 +223,19 @@ Scored against the og's thumbnail pipeline (decode evidence:
   entry browse) — absent; reuses the S-032 parser; formalized from R-37.
 - **M-102**: the thumbnail ABI export — the 05e6786 engine has no cr_ui symbol; the
   recorded Agent-1 handoff formalized as a work item.
+
+---
+
+## Session-10 lane-B addendum (2026-10-29, audited `84a1832`)
+
+**M-108 (MAJOR, NEW — renumbered from the lane's M-103 at push):** the text-preview
+eligibility model diverges — the og gates by extension membership in the 119-entry
+TxtViewFiles whitelist (decompile-verified at DRWUI:535858/:53937); the core
+content-sniffs the first 16 bytes and refuses any byte ≥ 0x7F. EXECUTED proof:
+UTF-8-BOM, UTF-16LE, and Latin-1 text fixtures all return `kind=unsupported` (no
+snippet) while a printable-head binary returns `text` with a garbage snippet
+(`evidence/executions/s10-preview-text-eligibility.md`). The TxtViewFiles whitelist
+is absent from the core (API-DELTA row 44's "landed" claim is false — N-132).
+(Post-rebase note: the parallel lanes landed S-043/M-080/M-085/S-045-partial — the
+thumbnail family moved; M-108 completes the PREVIEW text-eligibility surface, which
+no prior finding owned.)

@@ -285,3 +285,21 @@ re-worded in cr_ui.h + ABI-CONTRACT §7f; `SessionListOgTimeOrdering` RED→GREE
 (the plan's un-landed W1b shape + the ABI-CONTRACT line-cite drift), **N-118** (the stale
 R-52/54/56 gap rows). The registration-class deltas ride the parallel N-091 + the lead
 addendum (the sanitizer superset).
+
+---
+
+## Session-10 lane-B addendum (2026-10-29, audited `84a1832`)
+
+**N-131 (MINOR, NEW):** the FS-native parent anchors are not persisted (NTFS
+parent-reference qword +0x40 / FAT parent-directory u32 +0x42 / exFAT +0x54 twin per
+ifileproperties-part1 :84/:129/:148) — the core persists the structural `parent_id`
+index only (cr_records.cpp:175; `rg parent_anchor|parent_reference|parent_frn` → 0
+hits). The hierarchy round-trips; the FS-native lineage datum (reload-time orphan
+cross-validation, forensic parentage) does not. The N-100 precedent class; the full
+per-field table — every load-bearing family MATCH-with-re-encoding, 13 SUPERSET
+fields, the complete ABSENT enumeration — is `evidence/s10-field-parity-table.md`
+(also the M-050 completeness record + the ReFS FLAGS caveat, erratum E69).
+**Executed ground-truth:** the three real SaveScan .rsf files parsed first-hand this
+session — the corpus container grammar byte-confirmed (magic, 0x8C header, 0x24
+record header, 4 KiB chunked zlib), the strongest-evidence-class backing for the
+session-format MATCH verdict (`evidence/executions/s10-rsf-ground-truth.md`).

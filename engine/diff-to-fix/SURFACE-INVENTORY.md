@@ -40,7 +40,7 @@
 | EuMrx NAS redirector | `architecture/02` §4; `artifacts/EuShare/*` (2 artifacts — `eumrx-nas-architecture.md`, `eumrx-rdbss-internals--minirdr-dispatch.md`; dir-shorthand-cited; the earlier "5 artifacts" was a miscount) | RDBSS mini-redirector for NAS scan | OUT-OF-SCOPE (network/NAS exclusion) — install scripts noted in §6 below |
 | Driver install lifecycle (live) | `architecture/02` §5; `per-binary/setupdrvx64.md`; `deepening-batch1--japanese-winchkdsk-setupdrv-legacy.md` §3 | setupdrvx64 copy+create+start; `-Uninstall` mode; `%s%d` versioned coexistence; write+verify; per-call SCM errors | **AUDITED this session** (Phase 1: S-036/M-060/M-062/N-085; wave 3: **M-064** the versioned/verified contract absent) |
 | Driver pre-registration (WinPE) | `og-codebase/BUILDPE/x64/regdrv.reg`; `artifacts/WinPE/boot-config--winpeshl-autobat-regdrv.md` | Offline-hive service matrix (4 services + volume-class UpperFilters), eprdtdrv absent from PE | **AUDITED (session 9)** — the UpperFilters write / Start-split / eprdtdrv-absence parameters OWNED by **M-072** (regdrv-rda.reg: unparseable hex(7) + DISKDRIVE-vs-VOLUME class + the Start posture; the D4 handoff expanded with two new parameters) |
-| DRWService (BitLocker FVE service) | `architecture/02` §5.2; `artifacts/DRWService-exe--bitlocker-service.md` | On-demand service: `/install` `/uninstall`; AUTO_START "Read FVE Server", LocalSystem | **AUDITED (session 10, M-105)** — data path S-014 (retired-FIXED, modules/health.md); **install lifecycle AUDITED as a dedicated finding (M-105)**: the full CreateService shape + /install + /uninstall + the DRWUI per-use orchestration decoded at the decompile level, the core-side absence grep-verified, R-83's false disposition note owned by M-105's fix plan |
+| DRWService (BitLocker FVE service) | `architecture/02` §5.2; `artifacts/DRWService-exe--bitlocker-service.md` | On-demand service: `/install` `/uninstall`; AUTO_START "Read FVE Server", LocalSystem | **AUDITED (session 10, M-108)** — data path S-014 (retired-FIXED, modules/health.md); **install lifecycle AUDITED as a dedicated finding (M-108)**: the full CreateService shape + /install + /uninstall + the DRWUI per-use orchestration decoded at the decompile level, the core-side absence grep-verified, R-83's false disposition note owned by M-108's fix plan |
 | RDA driver contract (our driver) | core-side: `docs/DRIVER-CONTRACT.md`, `docs/DRIVER-RELEASE.md`, `docs/PREBUILT-ARTIFACTS.md` | The merged product's own driver + prebuilt conventions | Phase-1 AUDITED this session (S-036..I-026); wire-constant parity = S7 lane |
 
 ## 2. Core engine surfaces (filesystems)
@@ -92,7 +92,7 @@
 | App installer (live Windows) | `artifacts/Installer/setupue-infoforsetup--bootstrap-pair.md`; `per-binary/{SetupUE,unins000,InfoForSetup}.md`; unins000/SetupUE/InfoForSetup string tables | Inno Setup + SetupUE OS-gate bootstrap + InfoForSetup telemetry; silent surface (/SILENT //VERYSILENT /SUPPRESSMSGBOXES /NORESTART); ARP QuietUninstallString; unins%03d multi-uninstallers; admin-required uninstaller | **AUDITED this session** (wave 3: S-038 the app-installer surface absent — the 13-parameter contract on the board; string-table evidence verified first-hand) |
 | Install/uninstall telemetry + retention | InfoForSetup strings (`/SendInfo` `/SendInfoEx` `/UninstallStart` `/UninstallEnd`); `artifacts/Licensing/licensing-activation-chain.md` (:29,:45-46) | Uninstall is an instrumented, monetized lifecycle event | **AUDITED this session** (folded into S-038's K77 parameter set; the string-table evidence verified first-hand) |
 | WinPE boot/deployment | `architecture/03-winpe-boot-environment.md`; `artifacts/WinPE/{boot-config,pe-payload-census}.md`; BUILDPE tree (winpeshl.ini, auto.bat, regdrv.reg, software.reg, Unattend.xml) | Shell-replaced PE: launch order, pseudo-desktop build, OEM branch, companion deployment, media builder (PE_Tools + WAIK carve + DISM + IMAPI2) | **DISPOSITIONED this session** — the capability boundary (zero .mo = no lost-partition search in PE; FREE-by-construction; installer stamps version.ini) recorded as the boot-media builder's design input (roadmap.md:71 + S-038's K78); no defect in shipped code |
-| DRWService install lifecycle | see §1 | see §1 | **AUDITED (session 10, M-105)** — the §9 correction below was right: the pre-session-10 "folded into S-038" claim had no trail backing; M-105 is the dedicated finding (the K71-K73 walk's DRWService slice: the CreateService shape, the /install //uninstall verbs, the stop-gated delete, the DRWUI per-use orchestration); the service's data path was already S-014 |
+| DRWService install lifecycle | see §1 | see §1 | **AUDITED (session 10, M-108)** — the §9 correction below was right: the pre-session-10 "folded into S-038" claim had no trail backing; M-108 is the dedicated finding (the K71-K73 walk's DRWService slice: the CreateService shape, the /install //uninstall verbs, the stop-gated delete, the DRWUI per-use orchestration); the service's data path was already S-014 |
 | EuMrx scripted install/uninstall | `og-codebase/EuShare/{install,uninstall}.bat` | sc create filesys + NetworkProvider + ProviderOrder prepend/restore (with the og's own malformed-`if` bug at uninstall.bat:39) | OUT-OF-SCOPE (NAS) — **recorded here because the ProviderOrder write/restore pattern is installer-surface ground truth** |
 | Crash supervisor / launcher chain | `artifacts/DRW-exe--launcher.md`, `DRWReport-exe--crash-reporter.md` | DRW.exe → DRWUI supervision | OUT-OF-SCOPE (no UI/launcher in the merged product) |
 | File repair line | `artifacts/FileRepair/` (8/8 — all first-cited by S-050) + the 9 og binaries + `remote_config_data` flags | EUFileRepair/Fixo product line (photo/video/office/HWP/raw/archive repair) | **AUDITED this session (SA-10B): S-050** — unimplemented AND the prior row's OUT-OF-SCOPE (CAPABILITY-MATRIX §3) citation was FALSE (§3 does not list the repair line); the capability gap + the registration drift are S-050's two defects |
@@ -204,3 +204,30 @@ inventory's claims post-waves. Corrections and confirmations:
   driver rows; the WMF/batch-2 carve rows (S-042/S-041) and the thumbnail/
   session rows (S-043..S-045, M-080/M-083..M-085, N-092/N-102..N-105) belong
   to the parallel session-8 legs and are mirrored in CROSS-REF-MATRIX.
+
+---
+
+## §11. Session-10 lane-B currency update (2026-10-29 — the continuation deep audit)
+
+- **Corpus commit:** `be0cfe9` (unmoved).
+- **The full-tree completeness sweep (1470 files / 167 top-level entries vs the
+  PARITY-OG-CORE-INVENTORY's 112 rows):** 1468/1470 dispositioned. The two exceptions
+  are now owned: **VideoViewer/VideoFileRepairer.exe** (the Fixo video-repair console
+  engine — no row; **N-130** registers it SIDECAR-OOS per the I-010/D-26
+  repair-family precedent; the engine-side touchpoint remains the M-021
+  CarvePostProcessor hook) and **VideoViewer/sfc** (211,614 B opaque " cfs-"/FAN.
+  payload — no consumer string, no corpus characterization; **tracked-open
+  OQ-S10-2**, the VideoFileRepairer Ghidra magic-search queued). The sweep's six
+  register count/cite corrections are **N-129** (api-ms 44→40 · CORE_RL 19→24 · .mo
+  25→30 — all 30 .mo rows exist, the count was wrong · the DRWReport cite :84→:97 ·
+  the EuOfficeTools casing · the stale self-nested row).
+- **The config-layer rows (§6-adjacent):** the FilterFolder.ini row's TxtViewFiles
+  half and the PriorityDisplayType/SumaryFileType surfaces — claimed "landed" by
+  API-DELTA §1.7 rows 44-45, absent in the tree (grep record:
+  `evidence/decompiled-quotes/s10-config-layer-absence-greps.md`) — are owned by
+  **N-132** (registration) + **M-108** (the preview behavior, EXECUTED). The
+  junk-filter pools themselves re-verified byte-exact this session (25/25 entries).
+- **Executed ground-truth added:** the three real SaveScan .rsf files parsed
+  first-hand — the documented container grammar byte-confirmed on real artifacts
+  (magic GUID 1BB3F4EA-4305-4AB6-B4B8-244A33D913BB, 0x8C file header, 0x24 record
+  header, 4 KiB chunked zlib; `evidence/executions/s10-rsf-ground-truth.md`).

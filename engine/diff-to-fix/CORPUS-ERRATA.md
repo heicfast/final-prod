@@ -353,3 +353,32 @@ remote rows stand. **One distinct row the remote set does not carry:**
   `evidence/decompiled-quotes/s9-chm-gate-asm.md` carries the full
   instruction listing. The lane's census MRW/CRW correction is E57's
   content, reached convergently.)
+
+## Session-10 lane-B row (2026-10-29 — the field-parity deep-dive lane)
+
+- **E69** (SaveScan/ifileproperties-part2--ext4-hfs-refs.md — internal
+  contradiction + a doubtful [INFERRED] label): part2 §4's family synthesis
+  (:114-116) claims the persistent field set is "invariant" across the six classes
+  **including FLAGS(u16)** — but part2's own ReFS grammar table (:97-106,
+  [CODE]-backed) has **no FLAGS row**. The synthesis over-generalizes beyond its own
+  table. Additionally, the lane-B first-hand read of the ReFS population site
+  (ReFSSearchDLL_decompiled.c:2105-2135, quoted in full at
+  `evidence/decompiled-quotes/s10-refs-population-site.md`) shows the in-memory +0x39
+  u32 is **flag-bundle-derived** — `uVar7 = (uint)local_90 | 0x10`, where the SAME
+  local_90 bundle feeds the marker at +0x3d (stored as a **u16**, `local_90._4_2_`,
+  not the byte part2's table claims), +0x3f and +0x40 — which weakens the table's
+  "[INFERRED] objectId / parent anchor" reading of +0x39 (an objectId comes from the
+  parse result, not a flags local OR'ed with the has-children bit 0x10). **Not
+  settled by this read:** whether the SERIALIZED ReFS grammar includes a FLAGS u16 —
+  the deciding probe is the vtable+0x98 serializer trace (part2's cited reader
+  FUN_1405f52e0 is the DRWUI-side consumer, not the engine serializer). **Core
+  impact: none either way** — the core persists `flags` unconditionally
+  (cr_records.cpp:192; a superset under either reading) and carries the ReFS object
+  id in `record_ref` (cr_records.cpp:183, refs_engine.cpp:1111). The erratum exists
+  so future sessions do not lean on the contradictory synthesis or the unqualified
+  [INFERRED] label.
+- (Session-10 lane-B verification note, no new row: the three real SaveScan .rsf
+  files were parsed first-hand (`evidence/executions/s10-rsf-ground-truth.md`) — the
+  documented container grammar (magic, 0x8C header, 0x24 record header, 2-byte chunk
+  header, 4 KiB chunked zlib) is byte-confirmed against all three real files; the
+  corpus's rsf-format artifact needs NO correction.)

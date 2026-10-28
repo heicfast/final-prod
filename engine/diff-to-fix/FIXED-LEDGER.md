@@ -19,7 +19,7 @@
 > blocks carry the resolution narrative; the per-file Resolution sections
 > live in history.
 
-**Counts:** 279 resolved findings (the batch-C-conform 276 `0872ac2`/`64a3b18` + **S-041 resolved-as-umbrella by the SA-10 lane** — the purge's 255 + every mid-flight landing through batch C + the convention conformances + S-041/N-101) · 98 with a fix-commit recorded in-file ·  *(the dated counts snapshots below are the parallel lanes' push-window history, kept per the 64a3b18 sweep)*
+**Counts:** 281 resolved findings (280 rows at `e56baac` — the top line said 279, the filesystem is the truth — + M-100 closed-as-covered at the session-10 lane-B push) (the batch-C-conform 276 `0872ac2`/`64a3b18` + **S-041 resolved-as-umbrella by the SA-10 lane** — the purge's 255 + every mid-flight landing through batch C + the convention conformances + S-041/N-101) · 98 with a fix-commit recorded in-file ·  *(the dated counts snapshots below are the parallel lanes' push-window history, kept per the 64a3b18 sweep)*
 **Counts:** 276 resolved findings (255 at the purge commit + the mid-flight parallel landings + the session-38 waves: N-116 `632d21e`, N-117/N-118/N-103 `954c386`, N-095/N-108/N-119 `e1e5124`, batch C N-104/N-097/N-102/N-123/N-101/N-120 fixed + N-099/N-106 FIXED-ALREADY `13245c0`; S-043 `b3938c8` moved its file into the re-created FIXED/ dir BEFORE this convention was readable - its row is pending, the next audit lane retires the file) · 98 with a fix-commit recorded in-file ·
 **Counts:** 279 resolved findings (…prior waves…; the session-38 registration batch D adds N-091/N-098 fixed + N-105 FIXED-ALREADY) · 98 with a fix-commit recorded in-file ·
 
@@ -297,6 +297,7 @@
 | M-084 | MAJOR | (mid-flight landing) | 16475b8 | `findings/FIXED/M-084-mdb-accdb-second-signature-missing.md` |
 | M-085 | MAJOR | preview | (the parallel lane) | `findings/FIXED/M-085-tiff-lzw-refused.md` |
 | M-091 | MAJOR | (mid-flight landing) | 16475b8 | `findings/FIXED/M-091-mdb-page-chain-size-walk-decoded-bounded-extent-stands-in.md` |
+| M-100 | MAJOR | preview | closed-as-covered — `6d0f16c` (M-066+N-088, an ancestor of the finding's own baselines; the session-10 lane-B verification: `evidence/s10-verification-pass-b.md`) | `findings/MAJOR/M-100-archive-browse-inside-preview-absent.md` (retired by the session-10 lane-B push; never lived in FIXED/ — the capability predated the filing) |
 | N-092 | MINOR | (mid-flight landing) | 5ed862f | `findings/FIXED/N-092-thumbnail-refusal-matrix-and-cache.md` |
 | N-124 | MINOR | (mid-flight landing) | c75755d | `findings/FIXED/N-124-transport-module-rows-superseded-by-ddrv-wave.md` |
 | N-116 | MINOR | (session-38 minor-first lane; the Resolution + RED->GREEN proof live in the retired file and worklog.md's S38 block) | 632d21e | `findings/FIXED/N-116-session-list-row-ordering-diverges-og-time-sort.md` |
