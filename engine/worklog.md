@@ -2709,3 +2709,6 @@ not-derivable pair - sparse total 0 beside nonzero allocated_size - round-trips;
 zero-total gate keeps old records shape-identical) + the walk-test's total half
 (readme 2 / deleted 4 / holes 0 / dirdel 0 / ads 1). Compile-RED on the reverted tree
 (field-addition precedent). Suite 1077/1077; format clean.
+
+N-100 conform: ledger row + retirement + SUMMARY board (46 active / 280 resolved).
+Session-38 tally: 22 findings closed.

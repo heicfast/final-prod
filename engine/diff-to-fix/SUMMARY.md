@@ -233,13 +233,13 @@ purge) / 2 tracked-open (OQ-S4-3, OQ-S8-1).
   the time-ordered prefix; the CLI `sessions` verb re-sorts by the same key;
   `SessionListOgTimeOrdering` RED→GREEN; suite 1041/1041.
 
-**Board after this window (filesystem truth, batches A+B+C+D folded in):**
-47 active (6 SEVERE · 22 MAJOR · 14 MINOR · 5 INFO — the window's parallel landings
+**Board after this window (filesystem truth, batches A+B+C+D+N-100 folded
+in):** 46 active (6 SEVERE · 22 MAJOR · 13 MINOR · 5 INFO — the window's parallel landings
 M-080/S-043/M-084/M-091/M-082 + the SA-10B new filings S-048..S-050/M-103 all
 reconciled in the counts above; the purge-era rows carry their own snapshots) /
 **276 resolved** (FIXED-LEDGER.md is the index) / 2 tracked-open (OQ-S4-3, OQ-S8-1).
 
-**Session-38's own tally at this point:** 21 findings closed (N-094 + its
+**Session-38's own tally at this point:** 22 findings closed (N-094 + its
 CORE-API-CURRENT residual, N-092, N-116, N-117, N-118, N-103, N-095, N-108, N-119,
 N-104, N-097, N-102, N-123, N-101, N-120, N-091, N-098, and the FIXED-ALREADY
 classifications N-099 + N-106 + N-105 with reproductions) — every one re-verified against the current tree
