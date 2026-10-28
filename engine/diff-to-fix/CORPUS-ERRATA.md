@@ -310,3 +310,24 @@ per-key analyser attributions.*
 
 - **E65** (rawsearchdll--analyser-registry-census.md, the 0x11c/284 gloss at :99): the numeric key 284 (0x11C, magic bytes `1C 01 00 00`) is **FreeHand 11** — the registration site maps it to `BruteForce::CFH11Analyser`, format id 0x1D (retdec :5654-5665 / ghidra :1951-1962 / asm `0x1800035a1-0x1800035ea`; grammar u64@+4 == 0x02001401_1C040002, u32@+0xC == 0x011C1400, u16@+0x22 == "11"). The census's "(ICO sizes, MTS/ADTS sync)" gloss is a misattribution — MPEG-TS has NO magic key: CMTS/CM2TS are list-only brute-force scanners (constructed at `0x1800053ae-0x180005488`, no map entry). Corroborated convergently by two session-8 lanes and folded into S-041's addendum.
 - **E66** (retdec_decompiled.c, the :22635 region — a tooling caveat for future reads): retdec prints 64-bit constants in this function **truncated to their sign-extended low dwords** (`0x7c01fd10`, `-0x5ffff362`), while the binary's actual compares are genuine `mov rax,[mem]; cmp rax,[stack-const]` u64 pairs (asm `0x180016b40-0x180016c14`). The batch-2 CHM blocker ("u64-widened GUID compares conflict with the canonical ITSF v3 layout") was an artifact of this printing behavior, not a real conflict — the compared GUIDs are the canonical ITSF v3 pair {7C01FD10-7BAA-11D0-9E0C-00A0C922E6EC}/{7C01FD11-…E6EC} at +0x18/+0x28. **Lesson: never adjudicate compare-width from retdec's constant rendering alone — read the asm or ghidra's full-constant rendering.**
+
+
+## Session-8 lead-lane rows (2026-10-28 — the final push-window reconciliation)
+
+Convergence note: the lead lane's five read legs independently decoded the same census
+corrections as the remote E53-E66 set (the ONE/LZH key flip, the CRW/MRW flip, the New3DS
+row, the XML/SVG router, the WMF convention, the 284=FH11 gloss, the CHM compare-width
+artifact) and the same DBF/EPS + dispatch-order corrections already carried by rows 19/23
+of the older errata table — the lead lane's duplicates are dropped in the merge; the
+remote rows stand. **One distinct row the remote set does not carry:**
+
+- **E67** (the S-007 batch-1 addendum's DMG row, audit-side — filed as **M-090**): "cap
+  mirrors the og's own 0xBEBC200" is wrong — 0xBEBC200 is the GLOBAL singleton carve cap
+  (RAWSearchDLL :9049); **DMGRawFileInfo's own bound is 0xC800000 (209,715,200)**
+  (:49436-49440, read first-hand), and the og's FileDMGAnalyser extent walk targets the
+  **"koly" UDIF trailer** (needle 0x796c6f6b at :63806, an 8-zero pre-gate :63843-63844,
+  **size = hit + 0x200** :63847 — the standard 512-byte UDIF footer), not the bzip2 EOS
+  +10 that core walks. The "koly" constant cross-checks in the shipped binary
+  (og-codebase/RAWSearchDLL.dll, file offset 0x53222). Consequence: core's DMG carves are
+  truncated before the mandatory footer (typically unmountable) and candidates in the
+  200-209.7 MB window are dropped.

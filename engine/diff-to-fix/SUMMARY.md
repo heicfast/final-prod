@@ -4985,3 +4985,52 @@ parity). Tests: Refs.Bps256Accepted / Bps1024Accepted / Cluster16KRejected /
 OpenReadIsFourKiB (all fail-before RED) + Cluster64KAccepted boundary pin.
 Suite **748/748**.
 
+
+
+## Session-8 lead-lane delta (2026-10-28 — the deep-verification + batch-2 formalization
+wave, FINAL reconciliation over THREE concurrent lanes; audited core `ff879f9`, corpus
+`be0cfe9`)
+
+**Method.** Five parallel read legs (the W1a/b/c contract verification; the origin-carrier +
+batch-1 spot re-verification at the constructor/probe sites; the batch-2 key/grammar decode;
+the citation-gap sweep; the thin-module sweep), then lead first-hand verification of every
+load-bearing claim.
+
+**The three-window reconciliation.** The push was rejected twice by concurrent lanes
+landing first (the deep-audit lane's S-040..S-045/M-071..M-085/N-090..N-106; the fix lane's
+CRW/MRW resolution `9e5dedc` + S-041 school-1 `b92ebef`; the third driver lane's
+M-086..M-089/N-107/N-108). Merge outcome: **28 findings kept** in the final numbering
+(S-047, M-090..M-102, N-111..N-126, I-029/I-030), **13 merged as duplicates** via addenda
+(S-041 #2, S-042, N-091, N-100, N-101), **7 school-1 duplicate filings dropped** (CHM/ONE/
+MNY/EMF/SWF/3DS landed; FCPEvt closed-as-covered — the lead lane's decodes convergent with
+the remote errata E56-E66), **1 distinct erratum kept** (E67, the DMG bound/walk).
+
+**The kept headlines the parallel waves did NOT have:**
+- **M-090 (MAJOR)**: the DMG koly-trailer walk + DMG-specific cap divergence — carved DMGs
+  truncated before the mandatory UDIF footer; NOT in the parallel batch-1 truth passes
+  (erratum E67).
+- **M-091 (MAJOR)**: the MDB page-chain size-walk decode — the landed row's "undecoded"
+  comment falsifiable; complements the parallel M-084.
+- **N-116 (MINOR)**: the session-list row-ORDERING divergence (the og's FILETIME
+  time-sort) — a distinct axis from the parallel N-090.
+- The **school-2/3 per-format fix units** with full grammars (S-047 + M-092/M-093/M-096/
+  M-098/M-099 + N-111/N-112/N-113/N-115) — children of S-041, whose step-1 preconditions
+  this wave's decodes resolve (convergent with SCAN-4).
+- **M-100..M-102** (browse-inside, the Versions/Tags branches, the thumbnail ABI export),
+  **N-119..N-126** (D-88's stale premise; the pointer drifts; the ESP automount; the NVRAM
+  create/delete; cli/transport staleness; the drive-disconnect states — R-16 never
+  formalized before; the Unsaved File category), **I-029/I-030**.
+- The **fixture-regeneration requirement** on S-042's addendum: landed tests must derive
+  fixtures from spec, never from the implementation — the class behind S-042/M-081.
+
+**Board after the final merge: 75 active** (7 SEVERE · 29 MAJOR · 34 MINOR · 5 INFO
+incl. I-026 — the third lane's 47 + the lead's 28) / 249 FIXED / 1 tracked-open
+(OQ-S4-3). **Recommended fix order (the lead lane's additions)**: S-042's test
+regeneration + M-090 first (the landed-but-broken pair with the smallest diffs); then
+M-091 (the MDB walk); then the S-041 school-2/3 children in the addendum's order; then
+the N-116..N-126 doc/registration batch.
+
+**Verification discipline**: every load-bearing site re-read by the lead before filing; no
+executed comparisons (read-only container) — recorded per finding; decompile-direct
+(tier 2) with binary probes (tier 4) where constants were ambiguous. Consolidated:
+`evidence/sa8-context-sheets.md`.

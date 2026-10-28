@@ -71,3 +71,7 @@ rrecov.cpp was reconstructed in the N-064 wave; git-proven). Verbs that would
 land from this session's findings: `image` (S-040), `--filter-path-substr`/
 `--state` (M-072), `--filter-folder` (M-073), `--chkdsk` (M-075), `--trim`
 (M-076), `--turn-off` (M-078) — each must carry the four-site lock.
+
+
+## Session-8 lead-lane wave (audited `ff879f9`)
+- **N-123**: the "exactly 7 commands" row vs the 11-verb dispatch + the exit-4 row.

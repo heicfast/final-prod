@@ -215,3 +215,9 @@ CLI flag + session round-trip). The W1a/W1b/W1c orchestration claims verified
   topology MOM module) dispositioned: OUT-OF-SCOPE by lineage; the
   og's recovery-flow enumeration remains the N-071 census (WMI/
   setupapi/VDS/StorageSpaces/FunctionDiscovery).
+
+
+## Session-8 lead-lane wave (audited `ff879f9`)
+- **N-125**: the drive-disconnect mid-scan states (the "Drive Disconnected" Retry/Cancel
+  flow, UIUX/08:39-47) — no classification, no reattach-continue model, no registration;
+  from R-16, never formalized through every prior session.

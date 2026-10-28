@@ -621,3 +621,28 @@ re-checked byte-exact at 12 representative registration sites. The
   session: the core's carve stage attaches nodes live during carve_slice
   (cr_scan.cpp:1877-88) and counters refresh at progress ticks — same
   live-growth behavior as the og's advanced pass.
+
+
+## Session-8 lead-lane wave (2026-10-28, audited `ff879f9`, corpus `be0cfe9` — the final
+push-window numbering, reconciled over the deep-audit/fix/third lanes)
+
+**Batch-1 verification failures the parallel waves did not cover:**
+- **M-090** — the DMG extent-walk/cap divergence: the og walks the "koly" UDIF trailer
+  (+0x200) with DMG's own 0xC800000 bound (:49436-49440/:63806) — core walks the bzip2 EOS
+  (+10) with the global 0xBEBC200 cap, truncating real DMGs before the mandatory footer
+  (erratum E67). NOT covered by the parallel lanes' batch-1 truth passes.
+- **M-091** — the MDB page-chain size walk DECODED (0x1000 strides, page-type word <=
+  0x901, cap 0x6400000, :52001-52039): the landed row's "page-chain walk is undecoded"
+  comment is falsifiable now; the 64 MiB bounded-extent stand-in sizes nearly every real
+  Jet DB wrong. (Complements M-084 — the ACCDB second signature.)
+- S-042's lead addendum — the WMF convergent decode + the two fix-criteria additions:
+  the exact Size x 2 + 22 formula; the invented inch-range gate; the fixture-regeneration
+  requirement (fixtures from spec, never from the implementation).
+
+**School-2/3 fix units** (children of S-041 per its addendum #2, grammars decoded):
+**S-047** MPEG-TS/M2TS · **M-092** HTML · **M-093** XML+SVG · **M-096** MOBI ·
+**M-098** HIK · **M-099** AEP · **N-111** JP2 · **N-112** LZH ·
+**N-113** the text school (VCF/GPX/OSP/POS/CHFP) · **N-115** OfficeTagFromXML.
+The school-1 formats (CHM/ONE/MNY/EMF/SWF/3DS) landed via `b92ebef`; FCPEvt closed
+as covered — the lead lane's duplicate filings dropped, its decodes convergent with the
+remote errata E56-E66.

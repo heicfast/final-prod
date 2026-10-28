@@ -147,3 +147,19 @@ word included in neither side") is refuted by both lanes' reads — the +18
 word IS included in the og's XOR (it is word 9), and the stored word sits at
 +20. The e018bf4 commit message's "XOR-checksum VERIFIED" was performed
 against a misread.
+
+
+---
+
+## Session-8 lead-lane reconciliation addendum (2026-10-28, the push-window merge)
+
+Convergent independent verification — the lead lane decoded the same probe
+(RAWSearchDLL_decompiled.c:29829-29840) and reached the same gates (stored word 10 = XOR of
+words 0..9; HWmf==0; Reserved DWORD==0; the standard header 01 00 09 00 at +22;
+NumParameters==0 at +38; size = the standard-header Size dword x 2 + 22 — the exact file
+length, NOT a heuristic). Two additions for the fix's acceptance criteria: (a) the landed
+fixtures must be regenerated from a spec-derived canonical header (or a real .wmf sample),
+NEVER from the validator's own output — the batch-1 tests stayed green precisely because
+their fixtures were generated from the mis-implementation (self-consistent, not
+og-consistent); (b) the og gates on NO inch-range at all — core's `inch == 0 || inch >
+14400` rejection is an invented gate on a field the og's placeable probe never reads.

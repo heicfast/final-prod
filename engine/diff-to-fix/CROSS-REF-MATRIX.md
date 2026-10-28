@@ -570,3 +570,16 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | audit-trail · A-007 evidence cites | **REPAIRED** — the dangling a006-extents-off-by-two.md cites re-pointed at the real a007-extents-off-by-two.md (dated note in the finding) |
 | audit-trail · corpus errata | **E65/E66** — the census :99 0x11c gloss (284 = FreeHand 11, MTS/M2TS list-only) + the retdec qword-truncation tooling caveat (the CHM blocker's real cause) |
 | carve · batch-2 remainder + WMF grammar | **MERGED** — this lane's duplicate S-041/S-042 filings merged into the continuation lane's owner files as convergence addenda (two lanes, two decompilers, one conclusion on WMF; the CHM/FH11 asm decode donated to S-041) |
+
+
+## Session-8 lead-lane rows (FINAL numbering past the third lane, audited core `ff879f9`, corpus `be0cfe9` — 2026-10-28)
+
+| Module | Lead-lane findings (final IDs; the parallel lanes' rows are in their own sections) |
+|---|---|
+| carve | **M-090** (DMG koly walk + DMG-specific cap — erratum E67), **M-091** (the MDB page-chain walk decoded), **S-047** (MPEG-TS/M2TS), **M-092/M-093/M-096/M-098/M-099** (HTML / XML+SVG / MOBI / HIK / AEP), **N-111..N-113, N-115** (JP2 / LZH / text school / OfficeTagFromXML) — school-2/3 children of S-041 |
+| session + ABI | **N-116** (list row ordering), **N-117/N-118** (W1 doc drifts), **I-029** (driver-code provenance) |
+| query | **M-101** (Versions/Tags branches), **N-126** (Unsaved File) |
+| preview | **M-100** (browse-inside), **M-102** (thumbnail ABI) |
+| boot repair | **N-121** (ESP automount), **N-122** (NVRAM create/delete) |
+| CLI / transport | **N-123**, **N-124** |
+| orchestration / docs / structure | **N-125** (disconnect states), **N-119** (D-88 premise), **N-120** (pointer drifts), **I-030** (module-map holes) |

@@ -156,3 +156,8 @@ hardwired-layout-0 finding; OQ-T7 RESOLVED-MATCH). This leg's active LDM items: 
   (`cr_table_parse.cpp:19-22`). On 4Kn GPT disks the LDM metadata partition is looked up
   at wrong offsets → dynamic-disk recovery fails through this path. Fix: thread
   `geometry().logical_sector` through the three sites.
+
+
+## Session-8 lead-lane wave (audited `ff879f9`)
+- **I-030**: this file's line-1 cross-reference to a nonexistent `modules/table.md` —
+  plus the absent reghive.md/apply.md rows.

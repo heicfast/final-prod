@@ -86,3 +86,21 @@ N-102 (M-024 propagation), N-106 (GetDriverInfo), N-103/N-104
 ## Open questions
 
 None.
+
+
+---
+
+## Session-8 lead-lane reconciliation addendum (2026-10-28, the push-window merge)
+
+Three more pointer/arithmetic drifts in the same trail class, from the lead lane's
+citation-gap sweep (kept as N-120 in the merged numbering): (a) the I-010 finding's D-26
+pointer over-claims — its list includes Installer, Licensing/quota, and runtime-families
+under "the D-26 family", but D-26 (PARITY-DELTAS:639-646) contains none of those (licensing
+= D-32; installer = S-038/PACKAGING; runtime-families has NO PARITY-DELTAS row at all —
+per the register's own rule (:6-7) a missing row is a bug); (b) SURFACE-INVENTORY:85-86's
+exclusion pointers target CAPABILITY-MATRIX §3 for FileRepair/Cloud/licensing/languages/
+runtime, but §3 registers only Cloud/NAS/remote, BitLocker-derivation, signing,
+.rsf-import — the real registers are PARITY-CORE-REC.md:163, OGI:30/:39/:79, D-26/D-32
+(wrong-register pointers make registered exclusions look silent); (c) PARITY-CORE-REC's
+repair-chain exclusion text sits at :163, not :164 (the off-by-one repeated across three
+findings' cites).

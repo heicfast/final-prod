@@ -48,3 +48,16 @@ First-hand greps of PARITY-DELTAS.md (zero hits per item) against the documented
 ## Open questions
 
 None.
+
+
+---
+
+## Session-8 lead-lane reconciliation addendum (2026-10-28, the push-window merge)
+
+One more registration gap belongs in this finding's set: the **auto-save filename sanitizer
+superset**. The og's FUN_140286930 replaces exactly 8 characters (`/ * : ? " < > |` —
+rsf-format--scan-session.md:450-451, no backslash); core's `auto_session_name`
+(cr_crsf.cpp:354-360) adds backslash and the C0 control range and calls it "the Windows
+name-forbidden set". A volume label containing a backslash or a control byte produces a
+different filename in core than in the og. Deliberate superset, unregistered — same class
+as the load-progress scale and the opt-in posture this finding already carries.

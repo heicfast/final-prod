@@ -101,3 +101,15 @@ Session-6 audited tree: **`022c81d`-lineage (landing `bf7df39`)**; corpus `03ad4
 checked first-hand before filing (three stale agent claims filtered). Post-session
 count: **115 active / 34 FIXED** (0 ACUTE · 11 SEVERE · 37 MAJOR · 49 MINOR ·
 18 INFO), 14 tracked-open.
+
+
+**Session-8 lead-lane wave (2026-10-28, audited core `ff879f9`, corpus `be0cfe9` — the FINAL
+reconciliation over three concurrent lanes)** — 28 findings kept (S-047, M-090..M-102,
+N-111..N-126, I-029/I-030), 13 duplicates merged via 5 addenda, 7 school-1 duplicate
+filings dropped after `b92ebef` landed them, erratum E67. **Headline additions the parallel
+waves did not have**: M-090 (the DMG koly-trailer walk/cap divergence — carved DMGs
+truncated before the mandatory UDIF footer), M-091 (the MDB page-chain size-walk decode),
+N-116 (the session-list time-sort divergence), the school-2/3 per-format grammar sheets,
+and the fixture-regeneration requirement (tests derive fixtures from spec, never from the
+implementation — the class behind S-042/M-081). Board after the merge: **75 active /
+249 FIXED / 1 tracked-open**. Evidence: `evidence/sa8-context-sheets.md`.

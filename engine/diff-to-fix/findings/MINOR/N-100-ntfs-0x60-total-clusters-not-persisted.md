@@ -78,3 +78,19 @@ auto-save divergence).
 The provenance of the resident path's synthetic-run value (local_60)
 — likely the MFT-record-relative offset; needs one more decode pass if
 resident-file +0x64 parity is ever wanted.
+
+
+---
+
+## Session-8 lead-lane reconciliation addendum (2026-10-28, the push-window merge)
+
+The resident synthetic pair's first element, decoded end-to-end by the lead lane, is the
+**(u32-truncated) walk-context record anchor** — local_60, the 5th output of FUN_1800430b0
+(:5066) -> FUN_180042020 (:52709, `*param_6 = param_1[2]`) <- the record ctor FUN_1800431d0
+(:53315) — which in raw-scan mode is the record's raw disk offset, i.e. **NONZERO**
+(this finding's corpus references already carry the {value,1} shape; the provenance chain
+is the addition). Comment consequence: `include/cr/tree/cr_node.h:208-209` justifies
+core's resident=0 with "the og's zeroed raw block" — inaccurate; the og's resident wrapper
+stamps the record anchor, and core's 0 is the honest deliberate no-runs value. The comment
+should be rewritten to state the og model truthfully (the registered divergence stands;
+the prose was wrong).

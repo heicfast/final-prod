@@ -199,3 +199,10 @@ Scored against the og's thumbnail pipeline (decode evidence:
   unreadable-span behavior, GdipGetImageThumbnail internals, og
   WebP/SVG/AVIF thumbnail paths, the 200×200 GDI surface, the
   :828027 format-group registry's consumer.
+
+
+## Session-8 lead-lane wave (audited `ff879f9`)
+- **M-100**: archive browse-inside preview (ArchivePreviewModel — the in-place damaged-zip
+  entry browse) — absent; reuses the S-032 parser; formalized from R-37.
+- **M-102**: the thumbnail ABI export — the 05e6786 engine has no cr_ui symbol; the
+  recorded Agent-1 handoff formalized as a work item.

@@ -264,3 +264,14 @@ PARITY-DELTAS).
   actual list behavior (record 1 THEN record 2 — the W1a phrasing
   corrected, erratum E64; the og's WinPE variant and size gates are
   .rsf-format internals, not core divergences).
+
+
+## Session-8 lead-lane wave (audited `ff879f9` — the W1a/W1b/W1c verification, final numbering)
+
+The load-bearing halves verified MATCH (light records; per-node load progress + cancel +
+the partial-tree discard; the completion trigger + the byte-exact naming). Filed:
+**N-116** (the row-ORDERING divergence — the og's FILETIME time-sort :432112-432142 vs
+the path-byte sort; a distinct axis from N-090's scope/row-shape finding), **N-117**
+(the plan's un-landed W1b shape + the ABI-CONTRACT line-cite drift), **N-118** (the stale
+R-52/54/56 gap rows). The registration-class deltas ride the parallel N-091 + the lead
+addendum (the sanitizer superset).

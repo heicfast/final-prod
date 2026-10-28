@@ -128,3 +128,8 @@ GET_DISK_CONTEXT_MODE per open; core never issues any), **N-095** item 4
 worklog for the rda-driver lane: the READ-length semantics nuance (og sectors
 vs rda bytes; Information×512 invariant holds) and the disk.sys-comparison
 field reading (DriverName vs ServiceKeyName, unreconciled).
+
+
+## Session-8 lead-lane wave (audited `ff879f9`)
+- **N-124**: the fallback-ladder and WinPE-gate rows are SUPERSEDED by D-DRV-1/D-DRV-2
+  (cr_transport.cpp:563-565 — both REMOVED); annotate rather than re-audit.

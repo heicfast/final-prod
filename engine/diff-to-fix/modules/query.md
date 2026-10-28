@@ -63,3 +63,9 @@ DeletedState×Origin mapping) on Filter, the ABI twin, and the CLI; the og's
 state-bucket encodings are corpus-undecoded (registered interpretation).
 **M-073** (MAJOR) is the scan-time half (PushFolderFilter — see
 modules/orchestration.md).
+
+
+## Session-8 lead-lane wave (audited `ff879f9`)
+- **M-101**: the "Versions" node (NTFS multi-version record siblings) + "Tags Extracted"
+  branches — the two R-20 roots with no tree concept.
+- **N-126**: the "Unsaved File" category (the og's type-scope list).

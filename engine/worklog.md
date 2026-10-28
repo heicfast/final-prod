@@ -1312,3 +1312,46 @@ Agent: scan-engine lane (A2, this session)
   + the text school; the session-5 grammar table is the work list) +
   OfficeTagFromXML's archive-lane classification surface + the ONE/3DS
   size-walks + C9/OQ-S4-3 (Windows-execution-bound, unchanged).
+
+---
+Task ID: SA-8/T10b (session-8 lead-lane close-out — the FINAL three-window reconciliation)
+Agent: session-8 full parity audit (the lead lane; three concurrent lanes reconciled)
+
+The push was rejected twice by concurrent lanes landing first — the reconciliation
+ran three times, each past the new max IDs:
+- Window 1 (the deep-audit lane): 13 duplicates merged (WMF -> their S-042 by
+  addendum; CRW/MRW -> their M-081, already FIXED by 9e5dedc; the API-queue items
+  -> their S-040/M-072..M-078; the registration gaps -> their N-091; +0x60 ->
+  their N-100); the lead's 35 kept findings renumbered S-046../M-086../N-107...
+- Window 2 (the fix lane + the third driver lane): school 1 of S-041 LANDED
+  (b92ebef: CHM ONE MNY EMF SWF 3DS — the lead's 7 duplicate per-format filings
+  dropped, its decodes convergent with the remote errata E56-E66); FCPEvt
+  closed-as-covered; the third lane's M-086..M-089/N-107/N-108 taken; the final
+  renumber: 28 kept (S-047, M-090..M-102, N-111..N-126, I-029/I-030).
+- Errata: the lead's census corrections were ALL duplicates (remote E53-E66 +
+  the older rows 19/23) except ONE — E67 (the DMG bound/walk, filed as M-090).
+
+The kept set's headline additions the parallel waves did NOT have:
+- M-090: the DMG koly-trailer walk + DMG-specific 0xC800000 cap (:49436-49440/
+  :63806) vs core's bzip2-EOS+10/global cap — carved DMGs truncated before the
+  mandatory UDIF footer (erratum E67).
+- M-091: the MDB page-chain size-walk decode (:52001-52039) — the landed row's
+  "undecoded" comment falsifiable; complements M-084.
+- N-116: the session-list row-ORDERING divergence (the og's FILETIME time-sort
+  :432112-432142) — distinct from N-090's scope axis.
+- The school-2/3 per-format fix units (S-047 MTS/M2TS, M-092 HTML, M-093 XML/SVG,
+  M-096 MOBI, M-098 HIK, M-099 AEP, N-111 JP2, N-112 LZH, N-113 text school,
+  N-115 OfficeTagFromXML) — children of S-041 per its addendum #2.
+- M-100/M-101/M-102 (browse-inside, Versions/Tags branches, the thumbnail ABI),
+  N-119..N-126 (D-88's stale premise, the pointer drifts, ESP automount, NVRAM
+  create/delete, cli/transport staleness, the disconnect states, Unsaved File),
+  I-029/I-030 (driver-code provenance, module-map holes).
+- The fixture-regeneration requirement on S-042: landed tests must derive
+  fixtures from spec, never from the implementation — the class behind S-042
+  and the M-081 fix.
+
+Board after the final merge: 75 active (7 SEVERE · 29 MAJOR · 34 MINOR · 5 INFO
+incl. I-026) / 249 FIXED / 1 tracked-open (OQ-S4-3). No source code modified —
+diff-to-fix/ + worklog only. Every kept finding cites audited commit ff879f9;
+the three-window merge map is recorded in the addenda, the boards, and
+diff-to-fix/evidence/sa8-context-sheets.md.

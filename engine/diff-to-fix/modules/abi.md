@@ -104,3 +104,8 @@ session's ABI-visible findings: **S-040** (`cr_ui_image_create` absent),
 **N-098** (the enumeration always-fresh contract sentence), **N-095** item 5
 (ABI-CONTRACT §7f/§7g stale cr_ui.h cites — blocks now at 853-895/897-916).
 Append-only discipline applies to every fix (§9).
+
+
+## Session-8 lead-lane wave (audited `ff879f9`)
+- **I-029**: DRIVER-CONTRACT's "19 EUDCPEPM codes, byte-for-byte" overstates the corpus
+  grounding for 4 codes (0x800C2AC0 + the RRWR trio — zero corpus hits, grep-verified).

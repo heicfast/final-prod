@@ -189,3 +189,58 @@ classifier — the archive-lane classification surface, decoded, to file with
 S-032's consumer). The one-line batch-2 causes that this finding inherited
 from the S-007 addendum are re-pinned there (CHM :22635 invalid; MPEG-TS
 0x11C stale = FH11).
+
+
+---
+
+## Session-8 lead-lane reconciliation addendum #2 (2026-10-28, the third push-window merge —
+IDs past the third lane's M-086..M-089/N-107/N-108, and the school-1 landing reconciled)
+
+The lead lane's independent decode wave (five read legs + first-hand lead verification)
+converged with SCAN-4 on every overlapped format and now contributes the **school-2/3
+per-format fix units** with full grammars (children of this rollup, in the merged numbering):
+
+- **S-047** MPEG-TS/M2TS — the list-layer sync scanners (0x47 sync; 188/192-byte
+  auto-detect by sync position + the {0x40,0x41,'P',0x10} byte set; per-packet verify;
+  null-packet tolerance; sync-loss run commit; **min extent 0x5000**; cap x10; the M2TS
+  extension stamp) — :3143-3149/:3173-3179/:35578-35677/:38457-38536.
+- **M-092** HTML — the FOUR u16 keys (`<h`/`<H`/`<!`/the FF FE UTF-16LE-BOM chain missing
+  from the dual-registry table), the case-insensitive ASCII probes + the UTF-16 wide
+  probe, the `</html>` end-tag walk (1 MiB cap) with sector round-up.
+- **M-093** XML + SVG — the four u32 keys routing into the one analyser (per the remote
+  erratum E59), the 512-byte `<svg` window, the generic-XML fallback marker
+  (DAT_180093968 — one .data hexdump needed before landing), the `</svg>` family walk.
+- **M-096** MOBI — BOOKMOBI at +0x3C with nothing before it validated (the og's own
+  full-salvage posture — port the weak gate as-is), the 0x0E98E0D0A end-tag walk
+  (0x200 step, 500 MB cap).
+- **M-098** HIK — the Hikvision MPEG-PS pack -> private_stream_1 discriminator (the
+  pack-length computation (buf[0xd]&7)+0xE, the BB->BD length gates, the direct-BD form),
+  the structural walk to the 1 GiB cap. CCTV footage — a flagship scenario.
+- **M-099** AEP — bare RIFX (the og's weak grammar, port as-is) + the BE-chunk length +
+  the `<?xpacket end` XMP extension, ~30 MiB cap.
+- **N-111** JP2 — the jP signature + the 0x0D0A870A payload + the ftyp brand map
+  (jp2 /jpx /jpm); cross-ref the school-1 table's "jp2c as the walk box".
+- **N-112** LZH — list-only (no u32 key; the E4 52 5C 7B key binds ONE per the remote
+  erratum E56); the -lh0/-lh5/-lhd/-lh7 method field at +2 + the trailing '-', the
+  local-header entry-chain walk (200 MiB cap).
+- **N-113** the text school — VCF (BEGIN:VCARD probe, END:VCARD+CRLF walk, **multi-card
+  continuation**, 20 MiB cap), GPX (declaration + the <gpx window up to 0x200 iterations,
+  </gpx> walk), OSP (the `{
+ "di": ` 10-byte prefix + the "libopenshot": needle —
+  **reject-on-missing**, the family's only one, 2 MiB cap), POS (`{"diagram":` probe),
+  CHFP (declaration + `<BiffProject`@+0x28, `</BiffProject>` walk with NUL trim, 100 MiB cap).
+- **N-115** OfficeTagFromXML — the og's ZIP-entry classifier (per-entry decompress <=10 KiB;
+  the rels-path split for DOCX/XLSX/PPTX; the ODF/EPUB/iWork/HWP/CDR tag corpus; the
+  dc:title/dc:creator metadata channel) vs core's first-entry [Content_Types].xml gate only.
+  File with S-032's consumer per the school-2 note.
+
+Also: the lead lane's school-1 duplicates (CHM/ONE/MNY/EMF/SWF/3DS/FCPEvt) are dropped in
+this merge — the formats landed via this rollup's school 1 (`b92ebef`) and the lead lane's
+decode evidence is convergent with the SCAN-4 table + the remote errata E56/E57/E58/E65/E66;
+no separate defect remains. The one batch-1 verification failure the parallel waves did NOT
+cover is filed as **M-090** (DMG: the og's FileDMGAnalyser walks the "koly" UDIF trailer
++0x200 with DMG's own 0xC800000 bound :49436-49440/:63806 — core walks the bzip2 EOS +10
+with the global 0xBEBC200 cap, truncating carved DMGs before the mandatory footer; erratum
+E67) and **M-091** (the MDB page-chain size walk decoded: 0x1000 strides, page-type word
+<= 0x901, cap 0x6400000, :52001-52039 — the landed row's "undecoded" comment is falsifiable;
+complements the parallel M-084 ACCDB second-signature finding).
