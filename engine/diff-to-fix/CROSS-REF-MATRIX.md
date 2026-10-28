@@ -1,4 +1,25 @@
-# CROSS-REF-MATRIX.md — module × parameter verdict matrix (post-rebase with parallel leg)
+# CROSS-REF-MATRIX.md — module × parameter verdict matrix (the SA-10B lane on top: the real-rsf mining findings; the prior sessions below)
+
+**SA-10B changes (2026-10-29, the B lane — the real-.rsf session mining; evidence: evidence/executions/s10b-real-rsf-session-mining.md):**
+- **carve row, new cells**: tree-shape/naming parameters — **S-048** (the
+  `Reconstructed/<volume>` per-volume grouping absent; B8/A26/A42/D12/D13
+  cells), **S-049** (the `<PREFIX>_%06d.EXT` naming contract + the
+  content-derived prefixes EXIF-Model/Software, ID3-title, PDF/DOCX-timestamp,
+  ZIP-entry, SOF-dims — B10/A28/D12 cells; N-063's remainder resolved).
+- **ntfs/tree rows, new cells**: orphan-grouping parameters — **M-103**
+  (`LostDir<record>` per-parent folders + the "File Path Lost" branch name;
+  B5/B10/D12/A26 cells; the C2 "roles map 1:1" claim falsified for the lost
+  branch).
+- **mom-capabilities/product-frame row, new cell**: **S-050** (the file-repair
+  line — 9 binaries, 8 artifacts, unimplemented AND untruthfully registered;
+  A42/Q68/I-010 cells).
+- Executed MATCH recorded: the raw_signs.json regen sync (139/199/62
+  byte-identical; the carve row's C19-C21 cells).
+- **The FIXED purge (L-A)**: findings/FIXED/ retired to history; all matrix
+  cells citing FIXED IDs resolve via FIXED-LEDGER.md.
+
+---
+# (prior header) CROSS-REF-MATRIX.md — module × parameter verdict matrix (post-rebase with parallel leg)
 
 **Dev-sign session changes (2026-10-27/28, SA lane — Phase 1, audited `dd82db9`):**
 NEW module row **driver-install/dev-sign** (the packaging surface the corpus

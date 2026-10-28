@@ -479,3 +479,15 @@ node-removal API; documented in the finding).
   clusters, sparse-anywhere-zeroed :41096-98) — the core carries +0x64
   only. Resident semantics decode-confirmed: the og stamps the
   synthetic-run value, the core stamps 0 (documented deviation).
+
+
+## SA-10B addendum (2026-10-29 — the real-.rsf session mining)
+
+- **M-103 (MAJOR)** — the og groups orphaned MFT records into `LostDir<record>`
+  synthetic folders under the "File Path Lost" root (NTFSSearchDLL:42041
+  `LostDir%d`; the H session's real payload: 398 LostDirs holding 938,582 files
+  = 62.6% of the session). The core's phase-B reparent (cr_mftwalk.cpp:1091)
+  puts orphans flat on "Lost Files": the per-parent sibling grouping — the
+  surviving deleted-directory structure — is destroyed. The branch name also
+  diverges ("Lost Files" vs the og's "File Path Lost"). Fix wave: group by
+  parent record + rename the root default.

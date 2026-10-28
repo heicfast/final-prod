@@ -9,6 +9,37 @@ Research corpus (ground truth): https://github.com/heicfast/easeus-drw-research.
 Driver repo (in the audit scope when a session's grant covers both repos —
 session 9's did): https://github.com/heicfast/rda-driver.
 
+**Session 10 / SA-10B (2026-10-29 — the B lane; the user's "second session" instruction: find what session 1 missed, remove the fixed things, go deeper, mark all remaining features):**
+audited **origin/main `62074bf`-lineage (product-code tip `26da616`+)**, corpus
+`be0cfe9`. Five lanes (worklog SA-10B/T1):
+- **L-A — the FIXED purge (EXECUTED):** all **259 resolved findings retired to
+  git history** — `findings/FIXED/` no longer exists on main; `FIXED-LEDGER.md`
+  is the index (ID/severity/fix-commit/history-path; recover any file via
+  `git log --follow -- 'diff-to-fix/findings/FIXED/<slug>.md'`). The findings
+  tree now carries ONLY the active board.
+- **L-B — the real-.rsf session mining (3 new findings, executed-evidence
+  class):** the corpus's three REAL og sessions (~2M rows) mined for the first
+  time — **S-048** (the `Reconstructed/<volume>` per-volume carve grouping
+  absent; 100% of 189,115 real carved rows prove the og shape), **S-049** (the
+  og's universal `<PREFIX>_%06d.EXT` carved naming contract + content-derived
+  prefixes — EXIF Model/Software, ID3 title, PDF/DOCX timestamps, ZIP entries,
+  SOF dims; N-063's remainder resolved; our File%06u fires for every format),
+  **M-103** (`LostDir<record>` per-parent orphan grouping under "File Path
+  Lost" — 62.6% of a real session; our Lost Files root is flat). Evidence:
+  `evidence/executions/s10b-real-rsf-session-mining.md`.
+- **L-C — og data-table parity (executed MATCH):** raw_signs.json regen sync —
+  139 formats / 199 header / 62 tail signs byte-identical to the compiled
+  table; EUUserData/config/Dict census CLEAN.
+- **L-D — the product-frame census (1 new finding):** every og binary mapped
+  to its disposition; **S-050** filed — the og's file-repair line (9 binaries,
+  8 artifacts, flag-gated) unimplemented AND untruthfully registered (the
+  SURFACE-INVENTORY cited a CAPABILITY-MATRIX §3 row that does not exist).
+- **L-E — board truth at this lane's close: 70 active (8 SEVERE · 25 MAJOR ·
+  32 MINOR · 5 INFO — the 4 new + the surviving board) / 259 FIXED-in-history
+  / tracked-open unchanged.** The parallel fix lanes (S-043, S-047, the S-041
+  children, M-072..M-078 — see their territory commits) are landing
+  concurrently; pull before reading counts.
+
 **Session 9 (2026-10-28, SA-9 lane — the wave-2 continuation executed; RECONCILED at push time):**
 audited **core product code `35adcb9`** (the last code commit), **rda-driver
 `323e75a` (v0.2.4)**, **corpus `be0cfe9`**. Two-repo scope: the session-8 T2

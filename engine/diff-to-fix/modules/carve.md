@@ -671,3 +671,27 @@ unique artifacts kept (all cited by the reconciled findings):
 - The **registry inventory** (evidence/executions/s9-carve-registry-inventory.md
   — the 101-row product inventory + the absence greps, taken at `35adcb9`,
   i.e. immediately pre-b92ebef; school-1 formats are present post-landing).
+
+
+## SA-10B addendum (2026-10-29 — the real-.rsf session mining)
+
+Two new findings + one executed MATCH, all from the first mining of the
+corpus's three REAL og sessions (evidence/executions/s10b-real-rsf-session-mining.md):
+
+- **S-048 (SEVERE)** — the og's carve branch is `Reconstructed/<volume-display-name>/`
+  (per-volume children; 100% of 189,115 real carved rows); the core's single flat
+  "Other Deleted Files (Carved)" root (cr_scan.cpp:151) has no volume attribution.
+  Fix wave: per-volume children + the Reconstructed default name.
+- **S-049 (SEVERE)** — the og's universal naming contract `<PREFIX>_%06d.EXT`
+  (DRWUI FUN_140c44770; prefix = uppercase EXT, overridden by SOF-dims/EXIF-Model/
+  EXIF-Software/ID3-title/PDF-timestamp/DOCX-timestamp/ZIP-first-entry). The core's
+  File%06u default fires for every format except MP4/MOV. N-063's recorded
+  remainder ("which of the 22 SetName call sites") is resolved empirically: the
+  DRWUI %s_%06d contract is the universal surface; the analyser prefix is per-format
+  content extraction.
+- **Executed MATCH**: the raw_signs.json regen sync — scripts/gen_rawsigns.py
+  regenerated the compiled table from the og's shipped JSON: 139 formats / 199
+  header / 62 tail signs byte-identical (layout-only clang-format packing diff).
+  The layer-1 table is in sync with the og's shipped data at the audited tree.
+- Corroborations: S-031 (all real carved rows deleted-flagged), S-041 school-2/3
+  real-world weight (GZ/SVG/PNG = the og's top-3 carve volumes).

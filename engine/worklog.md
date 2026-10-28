@@ -1931,3 +1931,55 @@ the CrUi.CliHelpListsEveryDispatchedVerb pin already guards the source-level tru
 ### session-10 (this lane) — territory declaration (after the M-090/M-084/M-091 landings)
 
 Landed so far this lane: M-090 (771e2ec), M-084+M-091 (8a7055e). TERRITORY DECLARED to prevent collision with the parallel fix lanes (603e955's carve lane took S-047 + the S-041 school-2/3 children + the batch-1 verification failures; DFX-38 took M-088, M-082, M-101, M-100 + the non-thumbnail/carve MINORs + INFO + tracked-open): THIS LANE takes the thumbnail/preview family (S-043 EXIF orientation, S-045 format coverage, M-080 budget, M-083 grade promotion, M-085 TIFF LZW, M-102 ABI export, N-103 API-row truths) + the session/query/CLI/writer/check majors (M-072 query axes, M-073 scan-time folder filter, M-074 dest codes, M-075 chkdsk, M-076 TRIM rows, M-077 preview caps, M-078 BitLocker turn-off, M-079 autosave label) + S-040 image create + the driver-repo-resident dispositions (M-086, M-087, M-089, N-107, N-127 — two-repo scope: verify + core-side halves + tracked-open push-forwards). Newly filed findings (S-048, S-049, M-103 from the SA-10B audit lane) coordinate at push time.
+
+---
+Task ID: SA-10B/T2-T7 (the B lane's main wave — the real-rsf mining findings, the census, the purge, the gate docs)
+Agent: session-10 B-lane parity audit (this lane)
+
+Work Log (the wave, consolidated):
+- T2 (L-B executed): parsed all three real og sessions with the core's own
+  compare_og_rsf.py (292 MiB record-4 payload, consumed-to-the-byte clean);
+  extracted the root sets (NTFS / File Path Lost / Reconstructed in every
+  session), the carve-branch shape (100% of 189,115 carved rows under
+  Reconstructed/<volume-display-name>), the naming contract census (34
+  formats' EXT_%06d + the 5 content-derived prefix families), the LostDir
+  grouping (398 folders / 938,982 rows in H), and the carved-row field
+  values (size=0, confidence empty, ALL deleted-flagged). The DRWUI naming
+  function decoded at FUN_140c44770 (%s_%06d + the >99999 fallback); the
+  LostDir%d sites re-read at NTFSSearchDLL:42041/:48915 and
+  exFATSearchDLL:5182. Evidence file written:
+  evidence/executions/s10b-real-rsf-session-mining.md.
+- T3: three findings filed — S-048 (SEVERE, the Reconstructed/<volume>
+  grouping absent), S-049 (SEVERE, the naming contract; N-063's recorded
+  remainder resolved + the MP4/MOV template-vs-EXT nuance recorded for the
+  fix lane), M-103 (MAJOR, LostDir per-parent grouping + the File Path Lost
+  branch name). First-hand core cites re-verified at the moving tree
+  (cr_scan.cpp:151/:202, cr_carve.cpp:907, cr_mftwalk.cpp:1091).
+- T4 (L-C): the CHK/ln chain, EUUserData, Dict, config/*.ini census — every
+  row dispositioned (F2/D-104, M-023/M-073, I-027, N-064); CLEAN. The
+  raw_signs regen-sync MATCH recorded (executed at lane open).
+- T5 (L-D): the product-frame census — every og binary mapped (viewers ->
+  UI-layer OOS rows; iCloud -> EXCLUDED-NAS; repair binaries -> the one
+  HOLE); S-050 filed (SEVERE): the file-repair line unimplemented AND the
+  SURFACE-INVENTORY's CAPABILITY-MATRIX §3 citation false (§3 lists only
+  Cloud/NAS/BitLocker-derivation/signing/.rsf-import). The row corrected
+  in place to cite S-050.
+- T6 (L-A, the user-mandated purge): FIXED-LEDGER.md generated (the 255-row
+  index + the 4 mid-flight landings appended at the rebase = 259);
+  findings/FIXED/ git-rm'd; the push-time reconcile absorbed the parallel
+  fix lanes' concurrent moves INTO the purge (M-084/M-091/N-092/N-094/
+  RESOLVED-INDEX modify-delete conflicts resolved by retiring them too +
+  ledger rows). Purge landed at origin as 530fa32; findings/FIXED/ does
+  not exist on main.
+- T7: gate docs — SUMMARY's SA-10B delta block (with the prior-header
+  note), CROSS-REF-MATRIX's SA-10B session block (S-048/S-049/M-103/S-050
+  cells), README's session-10 block, SURFACE-INVENTORY §5's File-repair
+  row corrected, modules/carve.md + modules/ntfs.md addenda.
+
+Stage Summary:
+- 4 new findings (2 SEVERE + 1 SEVERE product-frame + 1 MAJOR), 1 executed
+  MATCH, 1 census CLEAN, 259 findings retired per the user instruction,
+  all gate docs current. Board at this stage: 70 active (8 SEVERE · 25
+  MAJOR · 32 MINOR · 5 INFO) / 259 FIXED-in-history / tracked-open
+  unchanged. No source code modified — diff-to-fix/ + worklog* only
+  (verified per wave).

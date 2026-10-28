@@ -1,4 +1,88 @@
-# SUMMARY.md — executive summary (the combined closing-fix lanes on top: session-38's minor-first wave, the parallel S-042/M-071 fix lanes, the session-8/9 audit lanes below)
+# SUMMARY.md — executive summary (the SA-10B lane on top: the real-rsf session mining + the FIXED purge; the closing-fix lanes and the session-8/9 audit lanes below)
+
+## SA-10B delta (2026-10-29 — the B lane: real-.rsf session mining, the og data-table parity, the product-frame census, the FIXED purge)
+
+**Audited: origin/main `62074bf`-lineage (product-code tip `26da616`+), corpus
+`be0cfe9` (unmoved).** The user's session-2 instruction — "look for what
+session 1 missed... remove the fixed things... go more deep, do more
+comparison on og-codebase and our core and mark all remaining features,
+implementations, functions, as finding too" — decomposed into five lanes
+(L-A..L-E, worklog SA-10B/T1). The parallel-lane environment stayed HOT the
+whole session (the S-042/S-044/M-071/M-090/N-094/M-084/M-091/N-092/N-124 fix
+landings + the SA-10/S10-F/DFX-38 audit lanes all landed mid-flight; this lane
+reconciled at every push).
+
+**L-A — the FIXED purge (user-mandated): EXECUTED.** The 259 resolved findings
+(250 at the session-9 truth pass + the 9 mid-flight fix-lane landings) are
+**retired to git history** — `findings/FIXED/` no longer exists on main
+(purge commit `530fa32`); `FIXED-LEDGER.md` is the navigable index (ID /
+severity / fix-commit / history-path per row). Nothing is lost: every file
+is one `git log --follow` away, and the active board is now the only thing
+in the findings tree.
+
+**L-B — the real-.rsf session mining (the session's headline): 3 new
+findings, all executed-evidence class (§6.1).** The corpus's three REAL og
+production sessions (`og-codebase/SaveScan/auto_*.rsf`, ~2M rows, 292 MiB of
+record-4 payload, parsed with the core's own compare_og_rsf.py — clean to the
+last byte) were mined for tree-shape and naming ground truth no prior session
+had extracted:
+- **S-048 (SEVERE)** — the og's carve branch is `Reconstructed/<volume-display-name>/`
+  (per-volume children; 100% of 189,115 carved rows across all three sessions);
+  the core has ONE flat "Other Deleted Files (Carved)" root, no volume
+  attribution. DRWUI:320992/:357713/:611618/:642786 corroborate.
+- **S-049 (SEVERE)** — the og's universal carved-file naming contract decoded:
+  `<PREFIX>_%06d.EXT` (DRWUI FUN_140c44770:1878379, `%s_%06d` + the >99999
+  `%s_%d` fallback), prefix = uppercase EXT by default, overridden by
+  content-derived strings: SOF dimensions, EXIF Model/Software (JPG), ID3
+  title (MP3), creation-timestamp strings (PDF/DOCX), ZIP first central-directory
+  entries. The core's `File%06u` default fires for every format except MP4/MOV;
+  **N-063's recorded remainder is resolved** (its "rule not decoded" registration
+  falsified by real data).
+- **M-103 (MAJOR)** — the og's orphan branch groups per-parent-record into
+  `LostDir<NNNN>` synthetic folders under "File Path Lost" (NTFSSearchDLL:42041
+  `LostDir%d`; 398 LostDirs / 938,982 rows = 62.6% of the H session — the
+  post-format salvage majority); the core reparents flat under "Lost Files",
+  destroying sibling grouping. SCAN-ENGINE-DELTA C2's "roles map 1:1" claim is
+  falsified for both branches by the real payloads.
+- Corroborations recorded in the evidence file: S-031 (every real carved row
+  deleted-flagged) and S-041's school-2/3 real-world weight (GZ/SVG/PNG are
+  the og's top-3 carve formats by volume — HTML/SVG the #2/#4).
+
+**L-C — og shipped-data-table parity: MATCH (executed).** The raw_signs.json
+regen sync ran (scripts/gen_rawsigns.py): 139 formats / 199 header / 62 tail
+signs **byte-identical** to the committed table — the only diff is the
+clang-format 2-per-line packing (a hygiene note, not a defect). EUUserData,
+config/*.ini, Dict: every row verified dispositioned (F2/D-104, M-023/M-073,
+I-027, N-064) — the census is CLEAN.
+
+**L-D — the product-frame census: 1 new finding.** Every og product-frame
+binary was mapped to its trail disposition (viewers → PARITY-OG-CORE-INVENTORY
+UI-layer OOS; iCloud → EXCLUDED-NAS; runtime families → registered). One
+surface failed the census:
+- **S-050 (SEVERE)** — the og's **file-repair line** (photo/video/office/HWP/
+  raw/archive repair: 9+ Fixo binaries, 8 never-cited corpus artifacts, the
+  shipped Dict pairing, remote-config-flagged `enable_imgrepair`/
+  `enable_docrepair`, wired into DRWUI's CHK/ln chain) has no core
+  implementation AND no truthful registration — the SURFACE-INVENTORY row
+  cites a CAPABILITY-MATRIX §3 that does not contain it (§3 lists only
+  Cloud/NAS/BitLocker-derivation/signing/.rsf-import). Filed per the user's
+  mark-remaining instruction; the registration drift is the finding's own
+  second defect.
+
+**Board after this lane's waves (at its final push): 70 active (8 SEVERE ·
+25 MAJOR · 32 MINOR · 5 INFO incl. the 4 new: S-048/S-049/S-050 + M-103) /
+259 FIXED-in-history (see FIXED-LEDGER.md) / tracked-open unchanged.** The
+parallel fix lanes keep landing (S-043, S-047, the S-041 children, M-072..M-078
+claimed by their territory commits) — pull before reading counts.
+
+---
+
+## (the prior executive summary continues below — the closing-fix wave and earlier sessions)
+
+> The prior H1 read: "executive summary (the combined closing-fix lanes on
+> top: session-38's minor-first wave, the parallel S-042/M-071 fix lanes, the
+> session-8/9 audit lanes below)" — superseded by the SA-10B header above;
+> its content blocks are unchanged below.
 
 ## Closing-fix wave delta (2026-10-28/29 — the fix mandate over the 75-active board, three concurrent lanes reconciled)
 
