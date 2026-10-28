@@ -61,7 +61,7 @@ This is the documented reconciliation.
 | Read units | bytes at absolute byte offsets (driver passes `Read.Length` raw; sector math client-side) | bytes at absolute offsets (SetFilePointer-equivalent via OVERLAPPED) | **MATCH** |
 | Reported-count contract (F11) | driver reports `Information = Length × 512`; client guard: `if (chunk < got) got /= 512` (`Device_decompiled.c:55964-55968`) | `overlapped_read` accepts `got == len` or `got == len×512` when rda_scaled (cr_transport.cpp:43-59) | **MATCH** — the core implements the same compensation pair the og does |
 | Write path | twin, same ×512 scale | `RwDevice::write_at` accepts both counts (cr_transport.cpp:817-854) | **MATCH** |
-| Control IOCTLs | 0x60002400/04/08 through the handle (GetProcName/GetFileObjName/GetDiskContextMode) + storage passthrough | wire structs documented in `cr_rda.h` (client deleted by N-041); storage passthrough achieved by issuing standard IOCTLs on the grammar handle (`probe_geometry`) — the same passthrough the og exploits | **MATCH** |
+| Control IOCTLs | 0x60002400/04/08 through the handle (GetProcName/GetFileObjName/GetDiskContextMode — the og client issues ONLY the 0x60002408 mode probe per open, informationally) + storage passthrough | wire structs documented in `cr_rda.h` (the constants carry wire parity); the mode query is deliberately NOT issued client-side (N-096/D-DRV-6: the og's use is informational-only, no decoded consumer — registered delta); storage passthrough achieved by issuing standard IOCTLs on the grammar handle (`probe_geometry`) — the same passthrough the og exploits | **MATCH (wire)** / **OMITTED (client issuance — deliberate, D-DRV-6)** |
 
 ### 1.3 Completion model — **MATCH**
 

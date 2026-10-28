@@ -3050,6 +3050,24 @@ RDA` / the installer. RATIONALE: the installer owns service lifecycle
 privilege and state-management hazard the product explicitly declines.
 VERDICT: ACCEPTED (deliberate divergence; mandate §2's refusal contract).
 
+**D-DRV-6 — GET_DISK_CONTEXT_MODE (0x60002408) is deliberately NOT issued (N-096).**
+REFERENCE: the og's user-mode client issues exactly one identity IOCTL — the
+per-open GET_DISK_CONTEXT_MODE query (Device_decompiled.c:52598; a 4-byte-out
+mode probe: 0 = the chosen layer's driver is \Driver\Disk, 1 otherwise) —
+and keeps the result as an informational per-handle record; no decoded branch
+consumes it. CORE: the transport opens the grammar path and reads (cr_rda.h
+carries all three identity constants at wire parity; zero client-side
+issuance — the ARCH-DEAD-2 register's finding). RATIONALE: the og's use is
+informational only (no behavioral dependency decoded anywhere in the
+corpus); the core's transport already resolves the layer stack through
+geometry probing; issuing the query would add a per-open round trip whose
+result nothing consumes. The deliberate lighter posture is registered here
+per N-096's fix-plan option 2, and the DRIVER-UTILIZATION row's wording is
+downgraded from MATCH to the wire-matched/issuance-omitted truth.
+VERDICT: ACCEPTED (client-side non-issuance of an informational-only query;
+wire parity intact — the constants and their semantics are documented in
+cr_rda.h for any future consumer).
+
 **D-DRV-5 — GET_INFO/GET_VERSION are now issued (the wire contract goes live).**
 REFERENCE: the og issues only GetDiskContextMode (0x60002408) — the extended
 RDA IOCTLs postdate the reference binaries (DRIVER-CONTRACT §5; the core's own
