@@ -2892,3 +2892,14 @@ Work Log:
   / 285+2 resolved rows (M-102/M-083 already counted; N-136 appended by the
   parallel lane) / 4 tracked-open. Next free IDs: S-053+, M-111+, N-137+,
   I-031+, A-012+.
+---
+---
+N-093 FIXED (the batch-1 bound pairs): re-verified at current main first (MID {14, 64 MiB},
+GZ {18, 512 MiB}, PSP {32, 128 MiB}, SIT {16, 512 MiB} - all supersets vs the og's
+registered caps). The og's caps carried for all four (MID 10,000,000; GZ 20/400,000,000 -
+the min also corrected; PSP 36/20,000,000; SIT 20,480/200,000,000) with the ctor cites in
+the row comments; plant_sit grew to the og's own 20 KiB floor. RED proven on the pre-fix
+registry: the pin test failed on all four pairs AND the 10,000,001-byte MIDI CARVED under
+the 64 MiB row (the finding's exact falsifiable, reproduced behaviorally); GREEN after.
+Suite 1090/1090; format clean. (PSP/SIT behavioral at/over-max tests are pin-level only -
+20/200 MB fixtures are not unit-test scale; the 10 MB MID pair proves the gate mechanics.)

@@ -2227,12 +2227,22 @@ size_t plant_psp(std::vector<u8>& img, size_t at) {
     return 64;
 }
 
-size_t plant_sit(std::vector<u8>& img, size_t at) {
-    std::memcpy(img.data() + at, "Stuf", 4);
-    std::memcpy(img.data() + at + 4, "fIt", 3);
-    for (size_t i = 7; i < 32; ++i)
+size_t plant_sit(std::vector<u8>& img, size_t at, size_t bytes = 20480) {
+    /* N-093: the og's SIT floor is 20,480 bytes (SITRawFileInfo :16886-92) -
+     * the plant grew from the 32-byte magic stub to the real minimum so the
+     * fixture exercises the og's own acceptance boundary. */
+    if (bytes < 7)
+        bytes = 7; /* the magic itself is 7 bytes; every real call far exceeds it */
+    img[at] = 'S';
+    img[at + 1] = 't';
+    img[at + 2] = 'u';
+    img[at + 3] = 'f';
+    img[at + 4] = 'f';
+    img[at + 5] = 'I';
+    img[at + 6] = 't';
+    for (size_t i = 7; i < bytes; ++i)
         img[at + i] = u8(i & 0xFF);
-    return 32;
+    return bytes;
 }
 
 size_t plant_gz(std::vector<u8>& img, size_t at) {
@@ -3972,7 +3982,6 @@ TEST(Carve, HtmlNonHtmlPrefixesRejected) {
     }
 }
 
-
 TEST(Carve, SvgDeclaredSvgAccepted) {
     /* M-093: the declaration + <svg ...> + </svg> form carves as SVG
      * (id 0x5b semantics - the probe stamps the id by CONTENT via the
@@ -4156,9 +4165,9 @@ TEST(Carve, XmlNoMarkerNoSvgRejected) {
     };
     collect(root);
     for (tree::FileNode* c : all)
-        EXPECT_FALSE(c->props()->extents.front().offset == at &&
-                     (c->props()->carve_format == u64(FMT_XML) ||
-                      c->props()->carve_format == u64(FMT_SVG)))
+        EXPECT_FALSE(
+            c->props()->extents.front().offset == at &&
+            (c->props()->carve_format == u64(FMT_XML) || c->props()->carve_format == u64(FMT_SVG)))
             << "an ordinary declaration without svg/csl must reject";
 }
 
@@ -6821,4 +6830,135 @@ TEST(CarveEngine, OccupancyGateJumpsWholeInterval) {
     EXPECT_EQ(stats.validated, 1u);
     EXPECT_GE(stats.occupancy_skipped, 2u);
     EXPECT_TRUE(stats.bytes_scanned >= 256 * 1024 - 4096) << "the scan still covers the device";
+}
+
+/* ------------------------------------------------------------------ */
+/* N-093: the batch-1 bound pairs are the og's registered caps         */
+/* ------------------------------------------------------------------ */
+
+TEST(Carve, Batch1OgCapsAreTheRegistryRows) {
+    /* The og registers per-format min/max in the FileInfo ctors (read
+     * first-hand by the session-8 lane): MID {14, 10,000,000} (:16326-27),
+     * GZ {20, 400,000,000} (:15824-29), PSP {36, 20,000,000}
+     * (:17373-78), SIT {20,480, 200,000,000} (:16886-92). The core's
+     * rows were detection-supersets (64 MiB / 512 MiB / 128 MiB /
+     * 512 MiB, with min drift) - N-093 retires the supersets: the row
+     * constants ARE the parity surface, pinned here so no future edit
+     * can widen a cap without touching the og's cite. */
+    const Signature* reg = registry();
+    ASSERT_NE(reg, nullptr);
+    const Signature *mid = nullptr, *gz = nullptr, *psp = nullptr, *sit = nullptr;
+    for (const Signature* s = reg; s->ext; ++s) {
+        if (s->id == FMT_MID)
+            mid = s;
+        else if (s->id == FMT_GZ)
+            gz = s;
+        else if (s->id == FMT_PSP)
+            psp = s;
+        else if (s->id == FMT_SIT)
+            sit = s;
+    }
+    ASSERT_NE(mid, nullptr);
+    ASSERT_NE(gz, nullptr);
+    ASSERT_NE(psp, nullptr);
+    ASSERT_NE(sit, nullptr);
+    EXPECT_EQ(mid->min_size, 14u);
+    EXPECT_EQ(mid->max_size, 10000000ull) << "the og's MIDI cap (10 MB), not 64 MiB";
+    EXPECT_EQ(gz->min_size, 20u) << "the og's gzip min is 20, not 18";
+    EXPECT_EQ(gz->max_size, 400000000ull) << "the og's gzip cap (400 MB), not 512 MiB";
+    EXPECT_EQ(psp->min_size, 36u);
+    EXPECT_EQ(psp->max_size, 20000000ull) << "the og's PSP cap (20 MB), not 128 MiB";
+    EXPECT_EQ(sit->min_size, 20480u) << "the og's StuffIt floor (20,480 B), not 16";
+    EXPECT_EQ(sit->max_size, 200000000ull) << "the og's StuffIt cap (200 MB), not 512 MiB";
+}
+
+namespace {
+
+/* a MIDI whose WALKED size is exactly `bytes`: MThd(14) + one MTrk(8+payload) */
+size_t plant_mid_sized(std::vector<u8>& img, size_t at, u64 bytes) {
+    assert(bytes >= 14 + 8);
+    const u64 track_len = bytes - 14 - 8;
+    img[at] = 'M';
+    img[at + 1] = 'T';
+    img[at + 2] = 'h';
+    img[at + 3] = 'd';
+    putbe32(img, at + 4, 6);
+    putbe16(img, at + 8, 0);    /* format 0 */
+    putbe16(img, at + 10, 1);   /* one declared track */
+    putbe16(img, at + 12, 480); /* division */
+    img[at + 14] = 'M';
+    img[at + 15] = 'T';
+    img[at + 16] = 'r';
+    img[at + 17] = 'k';
+    putbe32(img, at + 18, u32(track_len));
+    for (u64 i = 0; i < track_len; ++i)
+        img[at + 22 + size_t(i)] = 0xAA;
+    return size_t(bytes);
+}
+
+void collect_children(tree::FileNode* n, std::vector<tree::FileNode*>& out) {
+    for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+        out.push_back(c);
+        collect_children(c, out);
+    }
+}
+
+} // namespace
+
+TEST(Carve, MidBoundTenMegabytes) {
+    /* N-093's behavioral edge: at the og's 10,000,000-byte cap the MIDI
+     * still carves; one byte over, the cap rejects it (the og's
+     * registered bound, not the retired 64 MiB superset). RED pre-fix:
+     * the 10,000,001-byte file carved under the 64 MiB row. (The image is
+     * sector-padded: the WALKED size is what the cap gates, and the walk
+     * ends at the track's declared length, not the device tail.) */
+    for (const u64 bytes : {10000000ull, 10000001ull}) {
+        std::vector<u8> img(((512 + size_t(bytes)) + 511) / 512 * 512, 0);
+        plant_mid_sized(img, 512, bytes);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
+                  u32(OK));
+        std::vector<tree::FileNode*> all;
+        collect_children(root, all);
+        if (bytes == 10000000ull) {
+            ASSERT_EQ(all.size(), 1u) << "at-cap MIDI must carve";
+            EXPECT_EQ(all[0]->props()->carve_format, FMT_MID);
+            EXPECT_EQ(all[0]->props()->logical_size, size_t(bytes));
+        } else {
+            EXPECT_EQ(all.size(), 0u) << "one byte over the og's 10 MB cap must reject";
+        }
+    }
+}
+
+TEST(Carve, SitMinimumIsTheOgFloor) {
+    /* N-093's SIT edge: the og's floor is 20,480 bytes - at the floor it
+     * carves, a sector under it rejects (the retired 16-byte min accepted
+     * magic-only stubs the og never would; the SIT size is the
+     * available-data extent, so the under case sheds a full sector). */
+    for (const size_t bytes : {size_t(20480), size_t(20480 - 512)}) {
+        std::vector<u8> img(((512 + bytes) + 511) / 512 * 512, 0);
+        plant_sit(img, 512, bytes);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
+                  u32(OK));
+        std::vector<tree::FileNode*> all;
+        collect_children(root, all);
+        if (bytes == 20480) {
+            ASSERT_EQ(all.size(), 1u) << "at-floor SIT must carve";
+            EXPECT_EQ(all[0]->props()->carve_format, FMT_SIT);
+            EXPECT_EQ(all[0]->props()->logical_size, size_t(20480));
+        } else {
+            EXPECT_EQ(all.size(), 0u) << "a sector under the og's 20,480 floor must reject";
+        }
+    }
 }

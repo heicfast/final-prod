@@ -324,7 +324,11 @@
 | N-098 | MINOR | (session-38 batch D; the contract sentence + mirrors + the `EnumerationRefreshContractPinned` pin, RED→GREEN proven) | (this session) | `findings/MINOR/N-098-enum-refresh-contract-sentence.md` |
 | N-105 | MINOR | (FIXED-ALREADY — classified session 38: D-106 is the demanded deferral record; reproduction in the Resolution) | (parallel S-044 lane's rider) | `findings/MINOR/N-105-autosave-folder-suffix-naming.md` |
 | N-100 | MINOR | (session-38; the +0x60 carrier landed as nflags bit-9 with the sparse-zeroing rule — Resolution + RED/GREEN proof in history at the N-100 commit) | (this session) | `findings/MINOR/N-100-ntfs-0x60-total-clusters-not-persisted.md` |
+<<<<<<< HEAD
 | N-136 | MINOR | session/abi | fce38c3-lineage (renumbered from the N-128 ID collision per the SA-9 earlier-remote-push rule - the capability-matrix N-128 keeps the ID) | `findings/MINOR/N-128-session-list-cwd-dir-composes-prefixed-paths.md` (renamed N-136 in history) |
+=======
+| N-093 | MINOR | (session-38; the og's four bound pairs carried — the pin + MID behavioral pair RED→GREEN; Resolution in history at the N-093 commit) | (this session) | `findings/MINOR/N-093-batch1-bounds-mid-gz.md` |
+>>>>>>> 909e968 (fix(carve): N-093 - the batch-1 bound pairs become the og's registered caps (MID 10 MB / GZ 20+400 MB / PSP 36+20 MB / SIT 20,480+200 MB))
 
 ## Go-forward convention (established by this purge, per the user instruction)
 

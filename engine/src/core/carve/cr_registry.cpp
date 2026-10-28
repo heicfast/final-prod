@@ -99,8 +99,12 @@ CarveResult validate_3ds_ncsd(IStorageDevice* s, u64 hit, u64 cap); /* the list-
 CarveResult validate_ts(IStorageDevice* s, u64 hit, u64 cap);       /* S-047: CMTS, 188-byte */
 CarveResult validate_m2ts(IStorageDevice* s, u64 hit, u64 cap);     /* S-047: CM2TS, 192-byte */
 CarveResult validate_html(IStorageDevice* s, u64 hit, u64 cap);     /* M-092: the four-key chain */
+<<<<<<< HEAD
 CarveResult validate_xmlsvg(IStorageDevice* s, u64 hit, u64 cap); /* M-093: the shared chain */
 CarveResult validate_mobi(IStorageDevice* s, u64 hit, u64 cap); /* M-096: the salvage gate */
+=======
+CarveResult validate_xmlsvg(IStorageDevice* s, u64 hit, u64 cap);   /* M-093: the shared chain */
+>>>>>>> 909e968 (fix(carve): N-093 - the batch-1 bound pairs become the og's registered caps (MID 10 MB / GZ 20+400 MB / PSP 36+20 MB / SIT 20,480+200 MB))
 
 namespace {
 const Signature kTable[] = {
@@ -708,7 +712,10 @@ const Signature kTable[] = {
      * at its RAWSearchDLL registration site (retdec :5450-6600, u16
      * layer :6205-6590). Duplicate-key formats keep the og's one-row-
      * per-key policy (census :127). ---- */
-    {FMT_MID, "mid", {'M', 'T', 'h', 'd'}, 4, 0, 14, 64ull << 20, 800, validate_mid, "MIDI"},
+    /* N-093: the og's registered caps (MIDRawFileInfo :16326-16327: min 14,
+     * max 10,000,000) - the 64 MiB superset is retired; the tighter cap
+     * bounds false-positive extent and walk time on keyed garbage. */
+    {FMT_MID, "mid", {'M', 'T', 'h', 'd'}, 4, 0, 14, 10000000, 800, validate_mid, "MIDI"},
     {FMT_OGG, "ogg", {'O', 'g', 'g', 'S'}, 4, 0, 27, 512ull << 20, 800, validate_ogg, "Ogg"},
     {FMT_RM, "rm", {'.', 'R', 'M', 'F'}, 4, 0, 0x20, 512ull << 20, 700, validate_rm, "RealMedia"},
     {FMT_MXF, "mxf", {0x06, 0x0E, 0x2B, 0x34}, 4, 0, 32, 1ull << 30, 700, validate_mxf, "MXF"},
@@ -787,27 +794,26 @@ const Signature kTable[] = {
      600,
      validate_wpd,
      "WordPerfect Document"},
-    {FMT_PSP,
-     "psp",
-     {'P', 'a', 'i', 'n'},
-     4,
-     0,
-     0x20,
-     128ull << 20,
-     650,
-     validate_psp,
-     "Paint Shop Pro"},
+    /* N-093: the og's registered caps (PSPRawFileInfo :17373-17378: min 36,
+     * max 20,000,000) - the S-007 bounded-extent note now cites the true
+     * values instead of implying the og bounds were unknown. */
+    {FMT_PSP, "psp", {'P', 'a', 'i', 'n'}, 4, 0, 36, 20000000, 650, validate_psp, "Paint Shop Pro"},
+    /* N-093: the og's registered caps (SITRawFileInfo :16886-16892: min
+     * 20,480, max 200,000,000) - a real StuffIt archive is never smaller
+     * than the 20 KiB floor; the 16-byte superset is retired. */
     {FMT_SIT,
      "sit",
      {'S', 't', 'u', 'f'},
      4,
      0,
-     16,
-     512ull << 20,
+     20480,
+     200000000,
      620,
      validate_sit,
      "StuffIt Archive"},
-    {FMT_GZ, "gz", {0x1F, 0x8B}, 2, 0, 18, 512ull << 20, 600, validate_gz, "gzip"},
+    /* N-093: the og's registered caps (GZRawFileInfo :15824-15829: min 20,
+     * max 400,000,000) - min 18 -> 20 and the 512 MiB superset retired. */
+    {FMT_GZ, "gz", {0x1F, 0x8B}, 2, 0, 20, 400000000, 600, validate_gz, "gzip"},
     {FMT_APE,
      "ape",
      {'M', 'A', 'C', ' '},
@@ -1059,14 +1065,37 @@ const Signature kTable[] = {
      * (svg content) via CarveResult::format_override (the og's id is
      * content-decided, not key-decided). SVGRawFileInfo bounds
      * {0, 0x100000}. */
-    {FMT_XML, "xml", {'<', '?', 'x', 'm'}, 4, 0, 0, 0x100000ull, 620, validate_xmlsvg,
+    {FMT_XML,
+     "xml",
+     {'<', '?', 'x', 'm'},
+     4,
+     0,
+     0,
+     0x100000ull,
+     620,
+     validate_xmlsvg,
      "XML document"},
-    {FMT_XML_BOM, "xml", {0xEF, 0xBB, 0xBF, 0x3C}, 4, 0, 0, 0x100000ull, 620, validate_xmlsvg,
+    {FMT_XML_BOM,
+     "xml",
+     {0xEF, 0xBB, 0xBF, 0x3C},
+     4,
+     0,
+     0,
+     0x100000ull,
+     620,
+     validate_xmlsvg,
      "XML document"},
-    {FMT_SVG_CD01, "svg", {0xCD, 0x01, 0x00, 0x00}, 4, 0, 0, 0x100000ull, 620, validate_xmlsvg,
+    {FMT_SVG_CD01,
+     "svg",
+     {0xCD, 0x01, 0x00, 0x00},
+     4,
+     0,
+     0,
+     0x100000ull,
+     620,
+     validate_xmlsvg,
      "SVG image"},
-    {FMT_SVG, "svg", {'<', 's', 'v', 'g'}, 4, 0, 0, 0x100000ull, 620, validate_xmlsvg,
-     "SVG image"},
+<<<<<<< HEAD
     /* M-096: MOBI - the BOOKMOBI pair at +0x3C is the whole gate (the
      * full-salvage posture: the 0x3C bytes before it are never read);
      * the 512-step end-tag walk, cap 500 MB. Shipped RawConfig MOBI=1 -
@@ -1081,6 +1110,9 @@ const Signature kTable[] = {
      620,
      validate_mobi,
      "Kindle e-book"},
+=======
+    {FMT_SVG, "svg", {'<', 's', 'v', 'g'}, 4, 0, 0, 0x100000ull, 620, validate_xmlsvg, "SVG image"},
+>>>>>>> 909e968 (fix(carve): N-093 - the batch-1 bound pairs become the og's registered caps (MID 10 MB / GZ 20+400 MB / PSP 36+20 MB / SIT 20,480+200 MB))
 };
 } // namespace
 
