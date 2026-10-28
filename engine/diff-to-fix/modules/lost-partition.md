@@ -2,8 +2,12 @@
 
 ## S12 addendum (2026-10-29 — the session-2 deep-dive — the table/GPT/EBR surfaces)
 
-New active findings on this module: **M-123** (GPT header validation laxity — no
-reserved==0 / exact-92 / position / usable-range gates vs the og's FUN_1800078d0);
+New active findings on this module: ~~**M-123**~~ **FIXED (S47 MAJOR-first fix
+lane, `10620f04`)** — FUN_1800078d0's full gate set landed in `load_gpt_side`
+(revision 0x10000, header_size==92, reserved==0, the mirrored position pair,
+usable-range bounds, entries outside the usable range — structural gates before
+the CRC, og order; N-164's deliberate strictness kept; salvage path unchanged by
+design; 9 tests, 8 RED pre-fix; P1 detection / P20 struct-validation → MATCH);
 ~~**M-124**~~ **FIXED (S47 MAJOR-first fix lane, `dcb123dd`)** — the EBR link type
 0x85 joined the Extended arm of `mbr_type_to_kind` (Partition_decompiled.c:1006's
 `-0x7b` compare feeds the same link path as 0x05/0x0F): whole Linux-extended chains
