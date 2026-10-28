@@ -61,7 +61,10 @@ CarveResult validate_rm(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_mxf(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_dmg(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_x3f(IStorageDevice* s, u64 hit, u64 cap);
-CarveResult validate_mrw(IStorageDevice* s, u64 hit, u64 cap); /* 3 rows */
+CarveResult validate_mrw(IStorageDevice* s, u64 hit,
+                         u64 cap); /* M-081/SCAN-4: 1 row (\x00MRM only) */
+CarveResult validate_crw(IStorageDevice* s, u64 hit,
+                         u64 cap); /* M-081/SCAN-4: 2 rows (II/MM 1A 00) */
 CarveResult validate_wpg(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_wpd(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_psp(IStorageDevice* s, u64 hit, u64 cap);
@@ -70,7 +73,10 @@ CarveResult validate_gz(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_ape(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_au(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_aiff(IStorageDevice* s, u64 hit, u64 cap);
-CarveResult validate_hlp(IStorageDevice* s, u64 hit, u64 cap); /* 3 rows */
+CarveResult validate_hlp(IStorageDevice* s, u64 hit,
+                         u64 cap); /* SCAN-4: 1 row (3F 5F 03 00 only) */
+CarveResult validate_lowdoc(IStorageDevice* s, u64 hit,
+                            u64 cap); /* SCAN-4: 2 rows (DBA5/94A6 = FileLowDoc id 0x17) */
 CarveResult validate_ico(IStorageDevice* s, u64 hit, u64 cap); /* ico+cur */
 CarveResult validate_wmf_placeable(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_wmf_std(IStorageDevice* s, u64 hit, u64 cap);
@@ -706,27 +712,34 @@ const Signature kTable[] = {
      validate_dmg,
      "Apple DMG (bzip2)"},
     {FMT_X3F, "x3f", {'F', 'O', 'V', 'b'}, 4, 0, 64, 64ull << 20, 620, validate_x3f, "Sigma X3F"},
-    {FMT_MRW,
-     "mrw",
+    /* M-081 (SCAN-4): the II/MM 1A 00 keys are CANON CRW (CIFF) -
+     * Brance::CRWAnalyser id 0x12 (registration :1746-1761; grammar
+     * FUN_180052000 :62333-62353: 00 00 HEAP + {CCDR,TIFP,ARCH} +
+     * version byte 2). The batch-1 landing mislabeled them "Minolta
+     * MRW" with an invented PRD gate that rejected every real CRW
+     * file. MRW is the \x00MRM key only (id 0x66, og size formula
+     * FUN_180012100 :14233-14258). */
+    {FMT_CRW,
+     "crw",
      {'I', 'I', 0x1A, 0x00},
      4,
      0,
      512,
      64ull << 20,
      650,
-     validate_mrw,
-     "Minolta MRW"},
-    {FMT_MRW_MM,
-     "mrw",
+     validate_crw,
+     "Canon CRW (CIFF)"},
+    {FMT_CRW_MM,
+     "crw",
      {'M', 'M', 0x1A, 0x00},
      4,
      0,
      512,
      64ull << 20,
      650,
-     validate_mrw,
-     "Minolta MRW (BE)"},
-    {FMT_MRW_MRM,
+     validate_crw,
+     "Canon CRW (CIFF, BE)"},
+    {FMT_MRW,
      "mrw",
      {0x00, 'M', 'R', 'M'},
      4,
@@ -735,7 +748,7 @@ const Signature kTable[] = {
      64ull << 20,
      600,
      validate_mrw,
-     "Minolta MRW (MRM)"},
+     "Minolta MRW"},
     /* WPG: the og's verified FileInfo bounds {20, 0x5F5E100} (ctor
      * :20542-20548) - the row carries them exactly */
     {FMT_WPG,
@@ -791,27 +804,33 @@ const Signature kTable[] = {
      "Monkey's Audio"},
     {FMT_AU, "au", {'.', 's', 'n', 'd'}, 4, 0, 24, 256ull << 20, 800, validate_au, "Sun Audio"},
     {FMT_AIFF, "aiff", {'F', 'O', 'R', 'M'}, 4, 0, 12, 2ull << 30, 750, validate_aiff, "AIFF/IFF"},
-    {FMT_HLP,
-     "hlp",
+    /* SCAN-4 (the M-081 twin): DB A5 2D 00 / 94 A6 2E 00 =
+     * FileLowDocAnalyser id 0x17 (the old-Word .doc family;
+     * formula-only validator FUN_18001b650 :21167-21188). HLP is
+     * 3F 5F 03 00 only (id 0x20, og size gate FUN_180041c50
+     * :49883-49895). The batch-1 landing keyed the LowDoc keys as
+     * "Windows Help". */
+    {FMT_LOWDOC,
+     "doc",
      {0xDB, 0xA5, 0x2D, 0x00},
      4,
      0,
      32,
      64ull << 20,
      600,
-     validate_hlp,
-     "Windows Help"},
-    {FMT_HLP2,
-     "hlp",
+     validate_lowdoc,
+     "Word Document (legacy .doc)"},
+    {FMT_LOWDOC2,
+     "doc",
      {0x94, 0xA6, 0x2E, 0x00},
      4,
      0,
      32,
      64ull << 20,
      600,
-     validate_hlp,
-     "Windows Help (2)"},
-    {FMT_HLP3,
+     validate_lowdoc,
+     "Word Document (legacy .doc, 2nd key)"},
+    {FMT_HLP,
      "hlp",
      {0x3F, 0x5F, 0x03, 0x00},
      4,
@@ -820,7 +839,7 @@ const Signature kTable[] = {
      64ull << 20,
      600,
      validate_hlp,
-     "Windows Help (3.x)"},
+     "Windows Help"},
     {FMT_ICO, "ico", {0x00, 0x00, 0x01, 0x00}, 4, 0, 22, 64ull << 20, 700, validate_ico, "Icon"},
     {FMT_CUR, "cur", {0x00, 0x00, 0x02, 0x00}, 4, 0, 22, 64ull << 20, 700, validate_ico, "Cursor"},
     {FMT_WMF_PL,

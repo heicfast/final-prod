@@ -3050,40 +3050,96 @@ CarveResult validate_x3f(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
-/* MRW: three og keys (II\x1A\x00 :5455 / MM\x1A\x00 :5465 / \x00MRM
- * 0x004d524d :6191, FileMRW idx 102). The II/MM forms carry the PRD
- * block offset at +4 - the anchor that makes the probe exact; the MRM
- * form is the marker variant (bounded heuristic). */
-CarveResult validate_mrw(IStorageDevice* s, u64 hit, u64 cap) {
+/* M-081 (SCAN-4): II\x1A\x00 / MM\x1A\x00 are CANON CRW keys - Brance::
+ * CRWAnalyser -> FileCRWAnalyser, id 0x12 (registration RAWSearchDLL
+ * :1746-1761, first-hand). Grammar FUN_180052000 :62333-62353 (first-hand):
+ * bytes +4..+7 == 00 00 'H' 'E' (u32 0x45480000), u16@+8 == "AP" (completes
+ * "HEAP" at +6..+9), record-type u32@+0xa in {CCDR (0x52444343), TIFP
+ * (0x50464954), ARCH (0x48435241)}, version byte@+0xe == 2 - the real Canon
+ * CIFF header `II/MM 1A 00 00 00 HEAP CCDR/TIFP/ARCH 02`. The og's CIFF heap
+ * size-walk (FUN_180052160) is the recorded follow-up; the DWG-pattern
+ * bounded extent stands in. */
+CarveResult validate_crw(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
-    u8 h[8];
+    u8 h[0xF];
     if (!rd(s, hit, h, sizeof(h)))
         return r;
-    const bool is_ii = std::memcmp(h, "II\x1A\x00", 4) == 0;
-    const bool is_mm = std::memcmp(h, "MM\x1A\x00", 4) == 0;
-    const bool is_mrm = std::memcmp(h, "\x00MRM", 4) == 0;
-    if (!is_ii && !is_mm && !is_mrm)
+    if (std::memcmp(h, "II\x1A\x00", 4) != 0 && std::memcmp(h, "MM\x1A\x00", 4) != 0)
+        return r; /* the registry keys, re-checked */
+    if (u32_from_bytes_le(h + 4) != 0x45480000u)
+        return r; /* 00 00 'H' 'E' */
+    if (u16_from_bytes_le(h + 8) != 0x5041u)
+        return r; /* "AP" */
+    const u32 fourcc = u32_from_bytes_le(h + 0xa);
+    if (fourcc != 0x52444343u /* CCDR */ && fourcc != 0x50464954u /* TIFP */ &&
+        fourcc != 0x48435241u /* ARCH */)
         return r;
-    const u64 limit = probe_limit(s, hit, cap);
-    if (is_ii || is_mm) {
-        const u32 off = u32_from_bytes_le(h + 4);
-        if (off < 8 || u64(off) > (4ull << 20))
-            return r;
-        u8 prd[3];
-        if (!rd(s, hit + off, prd, 3) || std::memcmp(prd, "PRD", 3) != 0)
-            return r; /* the PRD block anchor */
-        r.ok = true;
-        r.end = std::min(hit + u64(off) + u64(4 << 20), limit);
-        r.confidence = 650;
-        r.note = "mrw-prd-anchored-bounded";
-        return r;
-    }
-    if (h[4] == 0 && h[5] == 0 && h[6] == 0 && h[7] == 0)
-        return r; /* bare marker with nothing behind it */
+    if (h[0xe] != 2)
+        return r; /* version byte 2 */
     r.ok = true;
-    r.end = std::min(hit + u64(4 << 20), limit);
+    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
+    r.confidence = 650;
+    r.note = "crw-heap-grammar+bounded-extent";
+    return r;
+}
+
+/* MRW (M-081): the ONLY true Minolta key is \x00MRM (0x004d524d,
+ * :2500-2510) -> FileMRWAnalyser id 0x66. The og validator
+ * (FUN_180012100 :14233-14258, first-hand) sets NO structural gate
+ * beyond the key and computes size = BE32(u32@+4) + 8 +
+ * ceil(u8@0x20 * BE16@+0x1a * BE16@+0x18 / 8). The u64 product
+ * replaces the og's wrapping signed multiply (identical for every
+ * non-UB input; the D-68 numeric-hygiene precedent). */
+CarveResult validate_mrw(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[0x21];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    if (std::memcmp(h, "\x00MRM", 4) != 0)
+        return r; /* the registry key, re-checked */
+    const u64 base = (u64(h[4]) << 24) | (u64(h[5]) << 16) | (u64(h[6]) << 8) | u64(h[7]);
+    const u64 dim_w = (u64(h[0x18]) << 8) | u64(h[0x19]);
+    const u64 dim_h = (u64(h[0x1a]) << 8) | u64(h[0x1b]);
+    const u64 pixels = u64(h[0x20]) * dim_w * dim_h;
+    const u64 size = base + 8 + (pixels + 7) / 8;
+    r.ok = true;
+    r.end = std::min(hit + size, probe_limit(s, hit, cap));
     r.confidence = 600;
-    r.note = "mrm-marker-bounded";
+    r.note = "mrm-og-size-formula";
+    return r;
+}
+
+/* SCAN-4 (the M-081 twin): DB A5 2D 00 / 94 A6 2E 00 are
+ * FileLowDocAnalyser keys (id 0x17, :2353/:2365, first-hand) - the
+ * old-Word .doc family. The og validator (FUN_18001b650 :21167-21188,
+ * first-hand) is a SIZE FORMULA ONLY (no structural gate beyond the
+ * registry key): OLE branch (first u32 == D0 CF 11 E0) -> size =
+ * (u32@0x30 + 5) * 0x200 (kept og-verbatim; unreachable through the
+ * keyed rows - the key IS the first u32); else size = (u32@0x124 +
+ * u16@0x128 + 0x1FF) & ~0x1FF. */
+CarveResult validate_lowdoc(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 k[4];
+    if (!rd(s, hit, k, sizeof(k)))
+        return r;
+    if (std::memcmp(k, "\xDB\xA5\x2D\x00", 4) != 0 && std::memcmp(k, "\x94\xA6\x2E\x00", 4) != 0)
+        return r; /* the registry keys, re-checked */
+    u64 size;
+    if (u32_from_bytes_le(k) == 0xE011CFD0u) {
+        u8 b[4];
+        if (!rd(s, hit + 0x30, b, sizeof(b)))
+            return r;
+        size = (u64(u32_from_bytes_le(b)) + 5) * 0x200;
+    } else {
+        u8 b[6];
+        if (!rd(s, hit + 0x124, b, sizeof(b)))
+            return r;
+        size = (u64(u32_from_bytes_le(b)) + u16_from_bytes_le(b + 4) + 0x1FF) & ~u64(0x1FF);
+    }
+    r.ok = true;
+    r.end = std::min(hit + size, probe_limit(s, hit, cap));
+    r.confidence = 600;
+    r.note = "lowdoc-og-size-formula";
     return r;
 }
 
@@ -3304,27 +3360,24 @@ CarveResult validate_aiff(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
-/* HLP: the og's three keys - DB A5 2D 00 / 94 A6 2E 00 (both idx 23,
- * :6029/:6041) and 3F 5F 03 00 (idx 32, :6077; the canonical Windows
- * Help magic - the census's "Nikon NEF" label there is an erratum, NEF
- * is TIFF-based). The help-body walk is undecoded; the 4-byte keys are
- * the gate, bounded extent stands in. */
+/* HLP (SCAN-4): 3F 5F 03 00 ONLY (idx 32, :2401, first-hand; id 0x20 -
+ * E49). The og validator (FUN_180041c50 :49883-49895, first-hand) gates
+ * u32@0xc > 0x1FF && u32@+4 <= u32@0xc and takes size = u32@0xc. */
 CarveResult validate_hlp(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
-    u8 h[8];
+    u8 h[0x10];
     if (!rd(s, hit, h, sizeof(h)))
         return r;
-    const bool k1 = std::memcmp(h, "\xDB\xA5\x2D\x00", 4) == 0;
-    const bool k2 = std::memcmp(h, "\x94\xA6\x2E\x00", 4) == 0;
-    const bool k3 = std::memcmp(h, "\x3F\x5F\x03\x00", 4) == 0;
-    if (!k1 && !k2 && !k3)
-        return r;
-    if (k3 && h[4] == 0 && h[5] == 0 && h[6] == 0 && h[7] == 0)
-        return r; /* bare magic: the degenerate the key would accept */
+    if (std::memcmp(h, "\x3F\x5F\x03\x00", 4) != 0)
+        return r; /* the registry key, re-checked */
+    const u32 first = u32_from_bytes_le(h + 4);
+    const u32 size = u32_from_bytes_le(h + 0xc);
+    if (size <= 0x1FF || first > size)
+        return r; /* the og's own two gates */
     r.ok = true;
-    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
+    r.end = std::min(hit + u64(size), probe_limit(s, hit, cap));
     r.confidence = 600;
-    r.note = "hlp-key-magic+bounded-extent";
+    r.note = "hlp-og-size-gate";
     return r;
 }
 
