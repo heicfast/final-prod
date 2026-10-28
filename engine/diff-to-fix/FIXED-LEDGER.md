@@ -19,15 +19,13 @@
 > blocks carry the resolution narrative; the per-file Resolution sections
 > live in history.
 
-<<<<<<< HEAD
-**Counts:** 268 resolved findings (255 at the purge commit + the mid-flight parallel landings absorbed at rebase: M-084/M-091 `16475b8`, N-092 `5ed862f`, N-124 `c75755d`, M-088 DFX-38, N-116 `632d21e`, N-117/N-118/N-103 `954c386`, N-095/N-108/N-119 `e1e5124` session-38 doc-truth batches A+B; S-043 `b3938c8` moved its file into the re-created FIXED/ dir BEFORE this convention was readable - its row is pending, the next audit lane retires the file) · 98 with a fix-commit recorded in-file ·
-
-**Counts:** 265 resolved findings (255 at the purge commit + the mid-flight parallel landings absorbed at rebase: M-084/M-091 `16475b8`, N-092 `5ed862f`, N-124 `c75755d`, M-088 DFX-38, N-116 `632d21e` session-38, N-117/N-118/N-103 `954c386` session-38 doc-truth batch A; S-043 `b3938c8` moved its file into the re-created FIXED/ dir BEFORE this convention was readable - its row is pending, the next audit lane retires the file) · 98 with a fix-commit recorded in-file ·
-
-**Counts:** 264 resolved findings (255 at the purge commit + the mid-flight parallel landings absorbed at rebase: M-084/M-091 `16475b8`, N-092 `5ed862f`, N-124 `c75755d`, M-088 DFX-38, N-116 `632d21e` session-38; S-043 and M-080 re-created FIXED/ before the convention was readable - their files retired to history and their rows added by the closing-fix lane's reconciliation) · 98 with a fix-commit-recorded-in-file ·
-=======
 **Counts:** 276 resolved findings (255 at the purge commit + the mid-flight parallel landings + the session-38 waves: N-116 `632d21e`, N-117/N-118/N-103 `954c386`, N-095/N-108/N-119 `e1e5124`, batch C N-104/N-097/N-102/N-123/N-101/N-120 fixed + N-099/N-106 FIXED-ALREADY `13245c0`; S-043 `b3938c8` moved its file into the re-created FIXED/ dir BEFORE this convention was readable - its row is pending, the next audit lane retires the file) · 98 with a fix-commit recorded in-file ·
->>>>>>> ff531f4 (trail(truth): the batch C ledger conform - eight rows appended, files retired to history per the purge convention)
+
+**Counts (268, the prior window's snapshot):** 255 at the purge commit + the mid-flight parallel landings absorbed at rebase: M-084/M-091 `16475b8`, N-092 `5ed862f`, N-124 `c75755d`, M-088 DFX-38, N-116 `632d21e`, N-117/N-118/N-103 `954c386`, N-095/N-108/N-119 `e1e5124` session-38 doc-truth batches A+B.
+
+**Counts (265, the batch-A snapshot):** 255 at the purge commit + M-084/M-091 `16475b8`, N-092 `5ed862f`, N-124 `c75755d`, M-088 DFX-38, N-116 `632d21e` session-38, N-117/N-118/N-103 `954c386` session-38 doc-truth batch A.
+
+**Counts (264, the closing-fix lane's snapshot):** 255 at the purge commit + M-084/M-091 `16475b8`, N-092 `5ed862f`, N-124 `c75755d`, M-088 DFX-38, N-116 `632d21e` session-38; S-043 and M-080 re-created FIXED/ before the convention was readable - their files retired to history and their rows added by the closing-fix lane's reconciliation.
 **Ledger generated:** session SA-10B (2026-10-29), tree `62074bf`-lineage.
 
 | ID | Severity | Module | Fix commit (as recorded in-file) | Retired file (history path) |
