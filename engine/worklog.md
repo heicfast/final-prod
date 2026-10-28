@@ -12,7 +12,15 @@ S47→S52 drafts at two hot-window merges — the remote's S47..S52 seats pushed
 the S46 claim is executed by this lane (same mandate, same MINOR-first directive, no fixes
 landed between the claim commit `fa654673` and this lane's open). Baseline at open:
 linux-release build green, suite **1273/1273**. Mandate saved token-redacted at
-`worklog/session-diff-fix-s52-prompt.md` (the s47-named draft renumbered with the lane).
+`worklog/session-diff-fix-s53-prompt.md` (renumbered with the lane at each window; the S53 seat holds — the remote continuation-audit lane vacated to S55 at 92fe573d).
+
+- **N-174 FIXED** — the exFAT AppleDouble sink: a `._`-prefixed name (macOS Finder
+  sidecar) now skips emission exactly like the og's props-builder refusal
+  (exFATSearchDLL strncmp :45151 + return 0 :45222, both re-read first-hand); files
+  and directories alike, counted in the new ExfatScanStats::appledouble_sunk
+  (never-silent). Test: ExfatEngine.AppleDoublePrefixSunkAndRegularDotFilesKept —
+  RED pre-fix at e0f15e05 (the sidecar surfaced), GREEN post-fix (sidecar absent,
+  the `.hidden` dotfile control present, counter 1); ExfatEngine family green.
 
 - **N-161 FIXED** — the GPT entry-span underflow: `emit_gpt_entries` now gates
   `last_lba < first_lba` (and the 2^64-boundary wrap `last - first == UINT64_MAX`)

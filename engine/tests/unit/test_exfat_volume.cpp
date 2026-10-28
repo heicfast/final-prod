@@ -1244,6 +1244,58 @@ std::vector<std::string> m014_scan_names(std::vector<u8> img, ExfatScanStats* st
 
 } // namespace
 
+/* ---- N-174: the og's `._` AppleDouble sink --------------------------------
+ * macOS Finder writes `._foo` AppleDouble sidecars on exFAT media (camera
+ * cards, USB sticks touched by a Mac). The og's props builder refuses names
+ * starting `._` (exFATSearchDLL strncmp :45151 + the return 0 at :45222) -
+ * metadata-only noise, never surfaced. Regular dotfiles are NOT sunk (the
+ * gate is prefix-specific). */
+TEST(ExfatEngine, AppleDoublePrefixSunkAndRegularDotFilesKept) {
+    auto img = build_exfat_image();
+    /* two extra sets past the fixture's last root set (subdir ends at
+     * byte 576 of the 2-cluster root dir): a `._photo.jpg` sidecar and a
+     * regular `.hidden` dotfile, both live NoFatChain on unused clusters */
+    const size_t ROOT = 25 * 512;
+    const u32 TS = EXFAT_TEST_TS;
+    {
+        testfixture::SetBuilder sb;
+        size_t set_at = ROOT + 576; /* contiguous: the walk breaks at the first TYPE_NONE */
+        sb.file_entry(0x20, TS);
+        sb.stream_entry(0x03 /*NoFatChain*/, 11, 90, 512);
+        sb.name_entry(u"._photo.jpg");
+        std::memcpy(img.data() + set_at, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, set_at);
+    }
+    {
+        testfixture::SetBuilder sb;
+        size_t set_at = ROOT + 672;
+        sb.file_entry(0x20, TS);
+        sb.stream_entry(0x03, 7, 91, 512);
+        sb.name_entry(u".hidden");
+        std::memcpy(img.data() + set_at, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, set_at);
+    }
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    auto all = collect_all(tree);
+    bool sidecar = false, hidden = false;
+    for (auto* n : all) {
+        if (n->name_utf8() == "._photo.jpg")
+            sidecar = true;
+        if (n->name_utf8() == ".hidden")
+            hidden = true;
+    }
+    EXPECT_FALSE(sidecar) << "the AppleDouble sidecar is sunk like the og";
+    EXPECT_TRUE(hidden) << "a regular dotfile is NOT sunk (prefix-specific gate)";
+    EXPECT_EQ(stats.appledouble_sunk, 1u) << "the sink is counted, never silent";
+}
+
 TEST(ExfatEngine, EmptyFileSuppressedLikeOg) {
     /* M-014 falsifiable claim (a): the og's stream emission gate
      * (FUN_180029280 :34562-34564) requires data_length != 0 &&

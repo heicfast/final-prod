@@ -703,6 +703,19 @@ void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context
                 i += 1 + 1 + name_entries;
                 continue;
             }
+            /* N-174: the og's AppleDouble sink - macOS Finder writes
+             * `._foo` sidecars on exFAT media; the og's props builder
+             * refuses names starting `._` (exFATSearchDLL strncmp at
+             * :45151, the return 0 at :45222 - no props object, no tree
+             * node, the entry never surfaces). Files AND directories
+             * alike (the gate sits in the shared props builder; a sunk
+             * directory also never descends). Regular dotfiles pass -
+             * the gate is prefix-specific, never a dotfile filter. */
+            if (name.size() >= 2 && name[0] == u'.' && name[1] == u'_') {
+                ++ctx.stats->appledouble_sunk;
+                i += 1 + 1 + u32(name_entries);
+                continue;
+            }
 
             const bool deleted = !in_use;
             const bool is_dir = (fe->file_attribute & 0x10) != 0;

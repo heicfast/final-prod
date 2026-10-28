@@ -61,3 +61,10 @@ walk's gate census — no name-prefix check). Registry: N-028 covers the HFS+ fa
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-174 landing, session-53 minors lane — post-push SHA in the worklog entry)
+**Verified by:** `ExfatEngine.AppleDoublePrefixSunkAndRegularDotFilesKept` — RED pre-fix at `e0f15e05` (the planted `._photo.jpg` set surfaced in the tree; no sink existed) and GREEN post-fix (the sidecar absent, the `.hidden` control PRESENT — the prefix-specific gate, not a dotfile filter — and `stats.appledouble_sunk == 1`); the ExfatEngine family re-run green incl. EndToEnd + RecyclePairingMirrored (no count drift on the fixture population — no fixture entry starts `._`).
+**Resolution notes:** The gate landed beside the name assembly in the entry-set walk (cr_exfat_quick.cpp): a name whose first two UTF-16 units are `._` skips emission exactly like the og's props-builder refusal (the strncmp at exFATSearchDLL :45151 re-read first-hand this session — `strncmp(param_2 + 0x29, "._", 2)` with the `return 0` at :45222; no props object, no tree node, the entry never surfaces). Files AND directories alike — the og's gate sits in the shared CExFatFileProperties builder, and a sunk directory also never descends in the core (the walk skips the set before the recursion decision). The sink is counted in the new `ExfatScanStats::appledouble_sunk` field (append-only, zero-init — old sessions/ABI unaffected), honoring the repo's never-silent-skip doctrine. The N-028 HFS+ family note is preserved: this is the exFAT mirror of that registered sink, and PARITY-DELTAS needs no new row because the og's behavior is ADOPTED (not diverged) — the finding's own "not recommended" verdict on keeping them was followed. The finding's recommended PARITY-DELTAS-beside-N-028 note therefore does not apply (that path was only for the keep-them option).

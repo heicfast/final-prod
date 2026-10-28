@@ -100,6 +100,11 @@ struct ExfatScanStats {
      * :71 - IRecycleBinNode2UI, multiple _stricmp sites) */
     u64 recycle_info = 0;     /* $I metadata records parsed inside bin roots */
     u64 recycle_remapped = 0; /* $R files remapped to their original name */
+    /* N-174: macOS AppleDouble sidecars sunk by the `._` prefix gate
+     * (exFATSearchDLL strncmp :45151 + return 0 :45222 - the props
+     * builder refuses the name; the entry never surfaces). Counted,
+     * never silent. */
+    u64 appledouble_sunk = 0;
 };
 
 struct ExfatScanFlags {
