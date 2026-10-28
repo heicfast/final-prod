@@ -151,6 +151,12 @@ private:
             return 0;
         if (!s->b_.spend_work() || s->b_.read_left == 0) {
             s->b_.over = true;
+            /* budget exhaustion IS an EOF for stb's stream protocol: every
+             * stb loop (stbi__skip_jpeg_junk_at_end stb_image.h:3393 and
+             * friends) keys on at_eof; a budget-stopped stream that keeps
+             * reporting not-at-EOF while reads return 0 spins forever (the
+             * fuzz-thumbnail timeout, run 40682713696) */
+            s->eof_ = true;
             return 0;
         }
         u32 want = u32(size) < s->b_.read_left ? u32(size) : s->b_.read_left;

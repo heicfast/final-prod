@@ -537,3 +537,26 @@ Work Log:
 Stage Summary:
 - Gate 1d/1e (uninstall + residue) re-proven on the next dispatch — the
   only unproven half of the round trip.
+
+---
+Task ID: PARITY-FIX-8 (the fuzz-lane red repair: the stb EOF protocol + the UBSan nonnull)
+Agent: main session
+
+Work Log:
+- Run 40682713696's fuzz job (the thumbnail landing's first fuzz
+  exercise; the earlier CI red at 40680931476 never reached the campaign):
+  (1) fuzz_thumbnail TIMEOUT at stbi__skip_jpeg_junk_at_end
+  (stb_image.h:3393) - the mechanism: StbioSource::read_cb returned 0 on
+  budget exhaustion WITHOUT setting eof_; stb's junk-skip loop keys on
+  at_eof, so a budget-stopped stream that keeps reporting not-at-EOF
+  while reads return 0 spins forever. Fixed: budget exhaustion now sets
+  eof_ (budget exhaustion IS an EOF for stb's stream protocol).
+  (2) fuzz_preview.cpp:41 UBSan nonnull - memcpy(buf, data_.data()+off,
+  0) with an empty data_ (null data()); guarded by take > 0.
+- Both files g++ -fsyntax-only clean under the repo's full warning set.
+  The next fuzz dispatch (the new Checks lane) is the proof.
+
+Stage Summary:
+- All three lanes of the earlier red repaired (windows/local-mirror build,
+  fuzz build, fuzz campaign). Watching the installer round-trip at
+  1c4db82 (gate 1d/1e proof) + the new Checks lane.
