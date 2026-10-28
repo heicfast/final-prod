@@ -53,3 +53,10 @@ Both sides read first-hand (lane D; the lead auditor verified the 0x62 threshold
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED (ACKNOWLEDGED — deliberate modeling improvement registered)
+**Fixed in commit:** (this session's I-041 landing, S48 INFO-first lane — SHA recorded in the worklog entry)
+**Verified by:** corpus re-read first-hand this session: FUN_1400f1b10 at DRWUI_decompiled.c:205797-205813 confirmed on-disk — the exact heuristic `if (state(+0x78)==5 && progress(+0x1b0) < 0x62) state=7 ("stopped") else state=8 ("finish")`, the 0x62=98 threshold as filed. Core cites re-verified at their CURRENT locations (the audit's :2014-2016/:2583-2589 drifted with later landings): the G-07 integrity comment at cr_scan.cpp:2134-2137 ("a cancelled discovery must not stamp the stage done") and the truthful resume-skip at :2766-2770 (stage_done_mask gates run_quick/run_deep/run_carve). Module doc registered (modules/orchestration.md) — `grep -c "I-041 (ACKNOWLEDGED" modules/orchestration.md` = 1 post-landing.
+**Resolution notes:** The mapping registered in modules/orchestration.md per the finding's fix plan: og states 3/7 (stopped-class) map to the core's cancelled-stage semantics; og 4/8 (finish-class) map to the core's stage-done bits — the core model is the honest replacement (no heuristic, no persisted inference), and the register exists so parity tables stop looking for a "state 7" equivalent. No code change (the finding's own verdict: deliberate improvement). Related actionable legs live on S-057 (the og's stop-window auto-save — open) and N-178 (the pause legs — open).
