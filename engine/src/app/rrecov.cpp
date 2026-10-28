@@ -1849,6 +1849,44 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         }
         return true;
     };
+    /* S-057: the shared auto-save routine - the completion path below and
+     * the user-stop (cancel) path above both call it. Returns whether an
+     * auto-save was DUE (dir set + results found + no explicit sink) so the
+     * cancel hint only prints when NO sink is configured at all. */
+    auto autosave_if_due = [&](bool stopped_window) -> bool {
+        if (cfg.autosave_dir[0] == '\0' || !effective_out.empty())
+            return false;
+        if (stats.files_found == 0 && stats.lost_partitions == 0)
+            return false;
+        /* N-133: the engine-decoded on-disk label replaces the derived
+         * image-stem fallback before the name is composed (the corrected
+         * precedence: the og's session carries the engine label, not the
+         * filename stem) */
+        if (stats.volume_label[0] != 0 && cfg.volume_label_derived) {
+            for (size_t k = 0; k + 1 < sizeof(cfg.volume_label) && stats.volume_label[k]; ++k)
+                cfg.volume_label[k] = stats.volume_label[k];
+            cfg.volume_label[sizeof(cfg.volume_label) - 1] = 0;
+        }
+        const std::string name8 =
+            session::auto_session_name(text::utf8_to_u16(cfg.volume_label)) + ".crsf";
+        std::wstring dir;
+        for (char c : std::string(cfg.autosave_dir))
+            dir.push_back((c & 0x80) ? L'?' : wchar_t(c)); /* ASCII dirs; the
+                                                            * corpus SaveScan folder is ASCII */
+        if (!dir.empty() && dir.back() != L'\\' && dir.back() != L'/')
+            dir += L'\\';
+        std::wstring wide_name = dir;
+        for (char c : name8)
+            wide_name.push_back((c & 0x80) ? L'?' : wchar_t(c)); /* ASCII names
+                                                                  * (the sanitizer guarantees it) */
+        if (save_session_to(wide_name))
+            wprintf(stopped_window ? L"session auto-saved (stopped): %s\n"
+                                   : L"session auto-saved: %s\n",
+                    wide_name.c_str());
+        else
+            wprintf(L"[autosave] FAILED: %s\n", wide_name.c_str());
+        return true;
+    };
 
     if (rc != OK) {
         if (rc == ERR_CANCELLED) {
@@ -1863,7 +1901,17 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
                             effective_out.c_str(), effective_out.c_str());
                 }
             } else {
-                wprintf(L"(pass --out file.crsf to save a resumable session on cancel)\n");
+                /* S-057: the og's stop window auto-saves - the stop path
+                 * runs its own organize into the shared completion
+                 * handler (DRWUI :1549399-421 -> :339076-79 ->
+                 * FUN_140395e50) whose gates (:612571-587) carry no
+                 * stopped-check. With --autosave-dir set and results
+                 * found, the stopped scan's partial results land in the
+                 * auto session exactly like a finished run's; the hint
+                 * below only prints when NO sink is configured at all. */
+                const bool stopped_autosaved = autosave_if_due(true);
+                if (!stopped_autosaved)
+                    wprintf(L"(pass --out file.crsf to save a resumable session on cancel)\n");
             }
             return 3; /* cancelled is distinct from failure (0/1/3) */
         }
@@ -1947,34 +1995,7 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
      * scan never auto-saves) and not-already-saved (--out/--resume is
      * the explicit save - effective_out non-empty means the session was
      * saved, which also covers the not-import case for resumed runs). */
-    if (cfg.autosave_dir[0] != '\0' && effective_out.empty() &&
-        (stats.files_found != 0 || stats.lost_partitions != 0)) {
-        /* N-133: the engine-decoded on-disk label replaces the derived
-         * image-stem fallback before the name is composed (the corrected
-         * precedence: the og's session carries the engine label, not the
-         * filename stem) */
-        if (stats.volume_label[0] != 0 && cfg.volume_label_derived) {
-            for (size_t k = 0; k + 1 < sizeof(cfg.volume_label) && stats.volume_label[k]; ++k)
-                cfg.volume_label[k] = stats.volume_label[k];
-            cfg.volume_label[sizeof(cfg.volume_label) - 1] = 0;
-        }
-        const std::string name8 =
-            session::auto_session_name(text::utf8_to_u16(cfg.volume_label)) + ".crsf";
-        std::wstring dir;
-        for (char c : std::string(cfg.autosave_dir))
-            dir.push_back((c & 0x80) ? L'?' : wchar_t(c)); /* ASCII dirs; the
-                                                            * corpus SaveScan folder is ASCII */
-        if (!dir.empty() && dir.back() != L'\\' && dir.back() != L'/')
-            dir += L'\\';
-        std::wstring wide_name = dir;
-        for (char c : name8)
-            wide_name.push_back((c & 0x80) ? L'?' : wchar_t(c)); /* ASCII names
-                                                                  * (the sanitizer guarantees it) */
-        if (save_session_to(wide_name))
-            wprintf(L"session auto-saved: %s\n", wide_name.c_str());
-        else
-            wprintf(L"[autosave] FAILED: %s\n", wide_name.c_str());
-    }
+    autosave_if_due(false);
     return 0;
 }
 

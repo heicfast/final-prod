@@ -212,7 +212,7 @@ wins over the parallel S42 lanes' consumed seats M-118..122/N-154..160/I-037..03
   layers but not the user-sign layer — D-104's "same format-toggle rules" registration
   claim was false in code. match_at's disabled_exts predicate now carries the og's
   removal-loop semantics (a disabled ext's signs never fire; sibling signs still can).
-- **S-057 (SEVERE)** — the og auto-saves STOPPED scans (stop-organize
+- **S-057 (FIXED session-51)** — the og auto-saved STOPPED scans (stop-organize
   "Scan stopped and found %1 files." → the shared completion handler
   FUN_140395e50 whose gates carry no stopped-check, DRWUI:1549399/:339076/:612572-87);
   the core never auto-saves a cancelled run and its comment mis-states the og.

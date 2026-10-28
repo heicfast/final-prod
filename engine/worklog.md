@@ -1,3 +1,21 @@
+**Session-51 severe-first lane — S-057 landed (2026-10-29).**
+
+**S-057 FIXED (the stop-window auto-save).** Corpus re-verified first-hand
+(stop-organize case 3 at DRWUI:1549399-1549421; the gate chain at :612571-587 —
+not-import/results-found/SD-NAS, NO stopped-check). The cr_ui auto-save block
+factored into autosave_if_due_(CrScan*) and called from BOTH the completion path
+and a new ERR_CANCELLED branch ahead of the generic error return (other failure
+classes still never auto-save — the og's handler does not run for them either).
+The false "ONLY a completed run auto-saves" comment re-truthed. The CLI parity
+leg taken: rrecov's cancel branch runs the same auto-save when no --out sink
+exists (the hint only prints when NO sink is configured at all).
+CancelledRunWithResultsAutoSaves RED pre-fix (4 assertions: no file/autosaved
+0/no event/list 0) -> GREEN post-fix incl. the stopped-session LOAD+RESUME+
+COMPLETE round-trip; CancelledRunZeroFoundWritesNothing pins the og's
+results-found gate in the stop window. cr_ui_tests 70/70; cr_tests 1238/1238.
+Trail: findings/FIXED/S-057 + ledger row + matrix cell + session.md + SUMMARY +
+this entry.
+
 **Session-51 severe-first lane — S-058 + S-061 landed (2026-10-29).**
 
 **S-058 + S-061 FIXED (one grading patch).** Corpus re-verified first-hand:

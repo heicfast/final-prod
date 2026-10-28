@@ -35,7 +35,10 @@
     restored, the user arm fires only when no built-in survived the filter, the
     no-reclaim rule pinned, `findings/FIXED/S-055-*`); **S-056** (carve P16/P28 — FIXED
     session-51 → MATCH: match_at's disabled_exts predicate carries the removal-loop
-    semantics, `findings/FIXED/S-056-*`); **S-057** (session/orchestration P36/P31/P32 — the og's stop path runs its
+    semantics, `findings/FIXED/S-056-*`); **S-057 — FIXED (session-51 lane → MATCH: the
+    factored autosave_if_due_ runs from both the completion and the ERR_CANCELLED
+    branch; the CLI parity leg taken; findings/FIXED/S-057)** (session/orchestration
+    P36/P31/P32 — the og's stop path runs its
     own organize into the shared completion handler whose auto-save gates carry no
     stopped-check (DRWUI:1549399-21 → :339076-79 → :612572-87); the core never
     auto-saves a cancelled run, and its comment mis-states the og).
