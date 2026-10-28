@@ -3806,3 +3806,27 @@ fold-direction pin `Ext4Engine.SizeHighFoldIsRegularOnlyNotTheOgUnconditionalDef
   `UserSigns.DefaultSetEffectiveCount` (190 live, the og-dead mpeg family
   present) — future sessions must not case-fold the decoder down to the
   og's dead-configuration semantics).
+
+### D-126 — EUUserData loader tolerance: skipped signs vs the og's dead entries (M-129 registration, one-line nuance)
+
+- **WHAT OG DOES:** malformed sign strings (token count ≠ 2) are silently
+  SKIPPED at load (`DRWUI:1005986`); odd-length/non-hex signs LOAD but the
+  matcher's length/charset guard makes them permanently unmatchable
+  (`:1003452`); unknown members are ignored (`_stricmp "signs"` only,
+  `:1005818`).
+- **WHAT WE DO:** the same tolerances (skip-and-continue) with ONE nuance:
+  odd-length and non-hex signs are SKIPPED at load rather than carried as
+  permanently-dead entries — equivalent-in-effect (a dead sign and a
+  skipped sign both never fire), simpler in the byte-compare channel.
+  The S-039 caps doctrine stays deliberately strict: over-cap shapes
+  (offset > 1024, sign > 96 hex digits, > 12 signs/entry, > 80-char mime,
+  > kMaxEntries) still reject the whole file — the og has no decoded caps
+  analog, `UserSigns.HostileBlobStillAtomic` is the pin.
+- **WHY:** forward compatibility and operational availability — a
+  hand-edited or future-versioned EUUserData the og loads (partially)
+  must load in the core (M-129's whole subject); the caps are the
+  core's own memory-safety posture.
+- **VERDICT: ACCEPTED** (registered M-129; pins: `UserSigns.MalformedSignSkippedNotFatal`
+  + `UserSigns.OddHexSkipped` + `UserSigns.UnknownMemberIgnored` +
+  `UserSigns.MemberNamesCaseInsensitive` + `UserSigns.AllMalformedSignsLoadStructurally`
+  + `UserSigns.TornFileStillRejected` + `UserSigns.ShippedOgFileVerbatimLoads`).
