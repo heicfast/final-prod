@@ -580,3 +580,32 @@ Stage Summary:
   three CI-red classes repaired. Remaining tracked-open items are owned
   by the parallel lanes (SCAN-2f's origin-LCN carrier) or execution-bound
   (the TTFR measurement on the rebuilt lane's next dispatch).
+
+---
+Task ID: PARITY-FIX-10 (session close-out)
+Agent: main session (senior-dev parity-fix)
+
+Work Log:
+- Test & Benchmark lane (run 40684560877): the failure is the lane's own
+  documented expected state - the latest release (v0.5.1) predates the
+  combined era and lacks rda-test-sign.cer; the error message itself
+  prescribes the remediation (publish the first combined release per
+  docs/RELEASE.md and re-run). An owner tag-push action, not a defect.
+- Session ledger (all pushed): d0a102c (GAP-S6-5 scorer + register truth),
+  3e6a8fa (S-038 steps 2-3), d9b6862 (CI-red repair #1 + YAML colon),
+  2a556e5 (M-068 move + testing.md), 47598bf/3307980 (TTFR harness +
+  port), 1c4db82 (gate-1d quote canonicalization), 7a6374a (fuzz red
+  repair), 51633dd (S-038 FIXED close-out). Plus the rebase-resolved
+  merges with the SCAN-2f / api-exp-1 / CI-rebuild lanes.
+- Session outcome: the board's last active SEVERE closed (S-038, all
+  three gates green, run 40684304129); all seven engine-side recall gaps
+  verified fixed with truthful registers; the physical-ceiling scorer +
+  TTFR harness landed; three CI-red classes repaired; board = 0 active /
+  246 FIXED / 2 tracked-open (both owned: SCAN-2f's carrier queue; the
+  rebuilt lane's TTFR measurement dispatch).
+
+Stage Summary:
+- Handoffs left on the board: (a) the origin-LCN carrier (SCAN-2f F-lane),
+  (b) the TTFR transcription after the next test-benchmark dispatch,
+  (c) the first combined release (owner action; unblocks the
+  test-benchmark lane + the installer payload's signed-driver posture).
