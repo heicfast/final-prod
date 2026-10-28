@@ -2992,7 +2992,25 @@ acts on. Stage (a) — the BCD offset rewriter — IS ported (cr/bcdfix, the
 consent-gated plan/execute/undo core); stage (b) — the UEFI NVRAM updater
 — is the recorded next step on the finding.
 
-**RISK:** a pre-Vista boot.ini-only system (outside the envelope) would
+
+**N-122 addendum — the NVRAM Boot#### create/delete halves are deliberately
+excluded (the v1-scope note now a registered row):** the og's EFIBoot module
+carries a create/patch/delete state machine for Boot#### entries
+(EFIBoot_decompiled.c :251-693, :3405-3480, :4130-4273 — the same decode
+M-040's corpus block cites): a system whose Boot#### variable for the target
+OS was DESTROYED gets a created entry (the next free slot, the og's entry
+template, BootOrder updated); delete = the walk-then-remove path. The core's
+nvramfix PATCHES existing entries only and its walk STOPS on a missing
+Boot#### variable (pinned by NvramFix.MissingBootVariableStopsTheWalk —
+the honest stop, not a silent skip). The exclusion rationale: the create
+path's entry-template details (the og's exact friendly-description string,
+the :3405-3480 slot-allocation walk) need one dedicated decode pass before
+implementation; the patch-only v1 covers the dominant corrupted-entry case;
+the missing-entry case fails loudly with a precise diagnostic the host can
+act on. **Next concrete step:** decode FUN at :3405-3480 (the create walk)
++ the template strings, then land create/delete with the walk's
+stop-on-missing replaced by create-on-missing (the existing test's
+expectation flips with it). Registered per N-122's fix-plan step 1.**RISK:** a pre-Vista boot.ini-only system (outside the envelope) would
 lack the legacy repair — out of posture by construction. A host wanting
 the og's exact undo chain spawns chkdsk itself from the undo record.
 

@@ -1,3 +1,7 @@
+- **N-122 FIXED** — the NVRAM Boot#### create/delete exclusion registered (D-90's addendum in
+  PARITY-DELTAS + the boot-repair.md row): the patch-only v1's scope is now a navigable register
+  row with the EFIBoot cites, the honest-stop pin re-verified, the rationale, and the next
+  concrete step (the :3405-3480 create-walk decode, then create-on-missing with the test flip).
 - **N-096 FIXED** — the identity-IOCTL non-issuance registered per the finding's option 2:
   D-DRV-6 in PARITY-DELTAS (the og's sole client identity IOCTL — the per-open
   GET_DISK_CONTEXT_MODE mode probe — has no decoded behavioral consumer; the core's
