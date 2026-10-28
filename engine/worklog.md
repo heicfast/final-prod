@@ -1,4 +1,6 @@
-**Session-47 severe-first lane — A-014 landed (2026-10-29).**
+**Session-51 severe-first lane (rebranded from the S47 draft at the hot-window
+merge — the remote's S47/S48/S49/S50 seats pushed first) — A-014 CONVERGENT with the
+S45 winning landing (2026-10-29).**
 
 **A-014 FIXED (ACUTE — the FAT time-word fabrication).** Corpus re-verified first-hand
 (the three zero-on-fail DosDateTimeToFileTime slots at FATSearchDLL :32135-32154);
@@ -14,6 +16,67 @@ upstream — verified by reading fat_datetime_fields_ok). Finding erratum record
 the example date word 0x65C4 decodes month 14 (invalid — the og zeroes that slot
 by the N-021 class regardless); tests use the clean 0x58CC. Trail: findings/FIXED/
 A-014 + ledger row + matrix cell (fat P9/P2 → MATCH) + fat.md row + this entry.
+**Session-47 lane (MAJOR-first per the user's explicit directive, 2026-10-29):** the
+unclaimed MAJOR set claimed at `fa654673` (25 in-tree; M-086/M-087/M-089 tracked-OQ per
+OQ-S10-3's grant boundary). Pulled-before-pushed discipline; one finding, one push; every
+fix RED-test-first; corpus cites re-read first-hand. The S48/S49/S50 windows absorbed at
+the merge (A-014 + I-041..I-044 retired by the parallel lanes; both sides' records kept).
+
+- **M-124 FIXED** (`dcb123dd`, trail `1cb665aa`) — the EBR link type 0x85 (Linux
+  extended) joined the Extended arm of `mbr_type_to_kind` (cr_table_parse.cpp:116-125,
+  the corpus cite in the comment). Corpus re-read first-hand:
+  Partition_decompiled.c:989-1010 — the `-0x7b` (== 0x85) compare jumps to
+  LAB_180002348, the identical link path as 0x05/0x0F; 0x42 keeps its separate LDM
+  branch; 0x93 NOT added (no corpus cite — the finding's own open-question note; the
+  decoded set is exactly {05, 0F, 85}). Tests: Ebr.LinkType085WalksChain (RED pre-fix:
+  1 of 4 partitions surfaced, chain lost) · Ebr.LinkType085SameBasisAs05 (RED pre-fix:
+  1 of 2 volumes on the 0x85 copy) · Mbr.Extended085NotEmittedAsVolume (RED pre-fix:
+  the bogus container-volume row) — suite 1164/1164 post-fix. P1/P26 → MATCH; ledger
+  row + matrix cell + lost-partition module row updated in the same push.
+
+**Session-49 lane territory claim (coordination contract, 2026-10-29 UTC):** this lane
+(the user's explicit session directive: "Fix all the audit findings (priority to acute
+first) one by one... aim for 20+ fixes") claims **A-014** (the open ACUTE board) and the
+SEVERE tier **S-040, S-050, S-055, S-056, S-057, S-058, S-059, S-060, S-061** — the set
+the S45 lane claimed 40+ minutes ago with zero landings; per the house earlier-push-wins
+rule the first verified FIX PUSH retires a seat, not the claim. If S45 (or any sibling
+lane) lands a fix first, this lane converges (independent verification documented) and
+moves on. After the SEVERE tier, this lane descends into the MAJOR tier under
+earlier-push-wins against S47/S48 (top-down: M-073 first) and then the MINOR set against
+S46. Every push pulls first; one finding, one push; every fix RED-test-first. Target:
+20+ dispositions this session. Audited pin: core `0d7b1d9d`, corpus `be0cfe9`.
+
+**Session-48 lane territory claim (coordination contract, 2026-10-28 22:31 UTC):** this lane
+(INFORMATIONAL-first per the user's explicit session directive — the same mandate tier as the
+parallel S47 lane, which swept top-down 4 minutes ago; this lane takes the MIRROR SWEEP,
+bottom-up, so the two INFO/MAJOR lanes converge in the middle with minimal collision) claims:
+**I-044, I-043, I-042, I-041, I-040, I-036, I-035** (the open INFORMATIONAL board, bottom-up),
+then the tracked-open set **OQ-S42-3, OQ-S42-2, OQ-S42-1, OQ-S4-3, OQ-S10-3, OQ-S10-1**
+(bottom-up mirror), then the open MAJOR set **M-137, M-136, M-135, M-134, M-133, M-132,
+M-130, M-129, M-128, M-127, M-126, M-124, M-123, M-119, M-118, M-115, M-114, M-113, M-111,
+M-107, M-105, M-101, M-078, M-075, M-073** (bottom-up mirror of S47's top-down sweep; the
+driver-repo-resident M-086/M-087/M-089 stay tracked-OQ per the S42 liveness verdict).
+Every push pulls first and skips anything the sibling lanes already landed; convergence
+resolves per earlier-push-wins with this lane's independent verification documented.
+Pulled-before-pushed discipline; one finding, one push; every fix RED-test-first.
+Target: 20+ dispositions this session. Audited pin: core `d872452c`, corpus `be0cfe9`.
+
+**Session-47 lane territory claim (coordination contract, 2026-10-28 22:30 UTC):** this lane
+(INFORMATIONAL-first per the user's explicit session directive — the parallel S45 lane's
+saved mandate is ACUTE-first and it holds ACUTE/SEVERE; the S46 lane holds the MINOR set
+per its posted claim; the natural unclaimed division for this lane is the INFO board +
+the tracked-open set + the MAJOR tier under earlier-push-wins) claims:
+**I-035, I-036, I-040, I-041, I-042, I-043, I-044** (the full open INFORMATIONAL board,
+top-down), then **OQ-S10-1, OQ-S10-3, OQ-S4-3, OQ-S42-1, OQ-S42-2, OQ-S42-3** (tracked-open:
+resolve to fix or push forward with fresh evidence), then the open MAJOR set
+**M-073, M-075, M-078, M-101, M-105, M-107, M-111, M-113, M-114, M-115, M-118, M-119,
+M-123, M-124, M-126, M-127, M-128, M-129, M-130, M-132, M-133, M-134, M-135, M-136, M-137**
+(the driver-repo-resident M-086/M-087/M-089 + N-107/N-127 stay tracked-OQ per the S42
+liveness verdict — no code disposition possible from this repo's tree; re-verified before
+claiming). Any convergence with the S44/S45/S46 lanes resolves per earlier-push-wins with
+this lane's independent verification documented. Pulled-before-pushed discipline; one
+finding, one push; every fix RED-test-first. Target: 20+ dispositions this session.
+Audited pin: core `fa654673`, corpus `be0cfe9`.
 
 **Session-46 lane territory claim (coordination contract, 2026-10-28 22:22 UTC):** this lane
 (MINOR-first per the user's explicit session directive — the parallel S45 lane's own saved
@@ -6887,3 +6950,75 @@ the 0xFFFFFFFE exact boundary; the 0x100000000 regression step) +
 Date2107EndToEndFileTimeIsReal. The finding's example word 0xFFBF corrected (decodes
 the invalid 2107-11-31; 0xFF9F is the true 2107-12-31) — recorded in the Resolution.
 Suite 1273/1273. Trail: findings/FIXED/N-173 + ledger + fat.md row + this entry.
+
+## Session-49 continuation audit lane — territory claim (2026-10-29)
+
+**Lane type:** the fourth continuation audit lane of the same user second-session
+mandate (remove-the-fixed + go-deeper + mark-all-remaining), following the
+S42/S42-B/S42-C/S12 precedent. **READ-ONLY** — the delta vs origin/main will be
+`diff-to-fix/` + `worklog*` only, verified per commit. The fix lanes' territory
+division respected: S45 keeps ACUTE/SEVERE, S46 keeps the MINOR set, S47/S48 keep
+the INFO + tracked-open + MAJOR tiers (top-down/bottom-up mirrors).
+
+**Pins:** core `0d7b1d9d` (HEAD at open, post the S45-S48 claim commits), corpus
+`be0cfe9`. This lane's claimed territory (no overlap with the fix lanes' fix work):
+
+1. **The liveness battery** — all active board findings + tracked-open re-verified
+   at the pin; falsely-active findings retired with Resolution addenda (the
+   remove-the-fixed ask; verification bookkeeping, not fix work).
+2. **The tracked-open probes** — OQ-S42-1 (NTFS $SI/$FN time precedence decode),
+   OQ-S42-2 (Btrfs nsec treatment decode), OQ-S42-3 (grading deep-read subgates):
+   each has an exact next-probe instruction this lane will execute against the
+   corpus decompiles.
+3. **The newest-landings corpus-parity sweep** — the 25-landing window since the
+   last battery pin `869da779` (N-172/N-173/M-125/N-162/N-143/M-106/N-164/N-179/
+   M-099/A-013/N-139/M-116/M-098/N-155/M-103/N-146/M-112/N-149/S-049/M-076/M-121/
+   N-152/S-048/S-054 + the registry rows): each landing's og-parity re-read
+   first-hand (the regression watch — new code is the newest divergence source;
+   the S42-C sweep's pin predates these).
+4. **The remaining-surface census** — the under-cited artifacts flagged by the
+   inventory's own rows (ifileproperties-part1 on four module rows), the active
+   findings' open questions enumerated, and any never-dispositioned og-codebase
+   behavior surfaced by the probes: every gap filed (mark-all-remaining).
+
+Mandate saved token-redacted: `worklog/session-49-continuation-audit-prompt.md`.
+Next free IDs at open (per the S42 focus-battery close): S-062+, M-138+, N-186+,
+I-045+, A-015+. Board at open (filesystem truth): 77 active (1 ACUTE · 9 SEVERE ·
+28 MAJOR · 32 MINOR · 7 INFO) / 64 FIXED / 6 tracked-open.
+
+## Session-49 → S50 renumber (2026-10-29)
+
+Per SA-9 earlier-push-wins: the remote's **session-49 parity-fix lane** (7e931b1e,
+"ACUTE A-014 + the SEVERE tier per the user's acute-first directive") pushed its
+claim while this lane's claim was in rebase — their lane keeps the S49 name. This
+lane renumbers to **session-50 (S50 continuation audit lane)**; the mandate file
+renamed accordingly (`worklog/session-50-continuation-audit-prompt.md`). No other
+change; the territory claim stands as posted (the audit-only lanes do not collide
+with the fix lanes' tier division: this lane's battery retires findings the fix
+lanes already landed, it does not fix anything itself).
+
+Board delta absorbed at the rebase (the S47/S48 INFO-first lanes landed): I-042,
+I-043, I-044 retired (ACKNOWLEDGED) — the INFO tier is now 4 live by filesystem.
+This lane's battery will re-count at its pin.
+---
+
+## Session-51 diff-fix lane (2026-10-29; opened at core `98079347`, corpus `be0cfe9`; renumbered at the rebase per SA-9 — the remote's session-45 and session-49 fix-lane claims [659f0f6c/7e931b1e, both claim-posting only, zero code landed] pushed first; this lane's mandate copy rides the remote's own worklog/session-diff-fix-45-prompt.md)
+
+Baseline: linux-release build green, full suite **1273/1273** at open (the parallel
+lanes' landings all green). Board at open (filesystem truth): 77 active — 1 ACUTE ·
+9 SEVERE · 28 MAJOR · 32 MINOR · 7 INFO / 64 FIXED / 6 tracked-open.
+
+### Fix 1 — A-014 (ACUTE, fat): the time-word validation
+
+Re-verified first-hand: corpus `ghidra-searchdll/FATSearchDLL_decompiled.c:32135-32154`
+(three zero-on-fail DosDateTimeToFileTime slots) — CONFIRMED-DIVERGENCE at
+`98079347` (the fabricated FileTime 133833168600000000 reproduced on the HOUR24
+dentry). Fix: `fat_datetime_to_unix_seconds` (cr_fat_wire.h) gate extended to
+`hour > 23 || minute > 59 || (time & 0x1F) > 29` — the DosDateTimeToFileTime accept
+set exactly. exFAT verified unaffected (the M-014 `fat_datetime_fields_ok` gate
+rejects the class upstream; full exFAT family green). Tests added (all RED→GREEN):
+`FatEngine.TimeWordHour24YieldsZeroFileTime`, `TimeWordMinute60YieldsZeroFileTime`,
+`TimeWordSecondField30YieldsZeroFileTime`, `ValidTimeWordBoundaryUnchanged`,
+`InvalidTimeStampsPersistAsZeroInTree`. Full suite **1278/1278**. Trail: finding →
+findings/FIXED/ with Resolution; ledger row; matrix cell → MATCH; modules/fat.md
+B9 verdict updated. SHA recorded post-push below.

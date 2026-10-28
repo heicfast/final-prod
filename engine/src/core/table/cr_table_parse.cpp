@@ -117,6 +117,11 @@ FsKind mbr_type_to_kind(u8 type) {
     switch (type) {
     case 0x05:
     case 0x0F:
+    case 0x85:
+        /* 0x85 (Linux extended): the og's EBR walker feeds it through the
+         * IDENTICAL link path as 0x05/0x0F (Partition_decompiled.c:1006 -
+         * the -0x7b signed-char compare jumps to the same link label),
+         * so it is a container, not a volume. */
         return FsKind::Extended;
     case 0x07:
         /* HPFS/NTFS/exFAT share 0x07 - disambiguated later by boot-sector

@@ -858,10 +858,18 @@ Split verdict — three sub-claims:
 ### D-36 — Single-pass quick+deep (ARCH-3): one walk where og runs two generations
 
 - **WHAT OG DOES:** Quick scan = `EUCreate<FS>QuickSearcher`; Advanced = a
-  SEPARATE complete-searcher generation (`FUN_140580720` builds
-  `EUCreate{NTFS,FAT,EXFAT,ZFS,HFS,ReFS}Searcher` + `EUCreateRAWSearcher`,
-  DRWUI_decompiled.c:916443+); quick results carry into Advanced
-  (dynamic-ground-truth: "Advanced Scanning 9% … 1.11M files").
+  SEPARATE complete-searcher generation (**`FUN_140581500`** (DRWUI:917015-917040)
+  is the creation site — I-044 citation correction; the earlier-cited
+  `FUN_140580720` (DRWUI:916443+) is the run phase — builds
+  `EUCreate{NTFS,FAT,EXFAT,ZFS,HFS,ReFS}Searcher` + `EUCreateRAWSearcher`;
+  the ZFS leg is `scanzfs`-gated and the shipped product has the key absent
+  from config/version.ini, so ZFS recognition is compiled out at runtime);
+  quick results carry into Advanced
+  (dynamic-ground-truth: "Advanced Scanning 9% … 1.11M files"). The
+  quick→deep auto-advance itself is an ENGINE-side state machine
+  (`CDoScanPartition::DoScan` pushes states 0/1 unconditionally,
+  DRWUI:567875-567892; I-044 decode) — the core's default-on stage model is
+  the correct parity translation.
 - **WHAT WE DO:** Single-pass-with-deep-settings: the quick stage runs the
   engine pass with deep flags when deep is configured ("single walk" design,
   `src/core/orchestrator/cr_scan.cpp`); the deep stage adds the remnant sweep +
@@ -3669,3 +3677,26 @@ oracle); the placeholder alignment keeps name-set benches comparable without
 normalization. Evidence: N-172's cites; the pins FatEngine.DeletedFirstChar
 PlaceholderIsHash + FatEngine.DeletedLfnChecksumRecoversOriginalByte + the re-pinned
 #EL.TXT/#ONE.TXT/#OLD.TXT family.
+
+### D-122 — scan-state ownership: single-owner + mutexed telemetry snapshots, not the og's unlocked master enum (I-043 registration, REGISTERED IMPROVEMENT — data-race-free by construction)
+
+- **WHAT OG DOES:** the master scan-state variable — a 14-value enum
+  (`notstarted…quickscanpaused/stopped/finish…advancedscanning…repairvideo_pause`)
+  at the service singleton +0x78 (`DRWUI_decompiled.c:208243-296`) — is
+  written by the scan flow and read cross-thread **without its own lock**.
+  The og itself carries a parallel *locked* carrier beside it
+  (`CUIScanProgressInfo::nStatus` +0x44 with its own mutex at +0x90) —
+  i.e. the og's own mitigation acknowledges the race surface.
+- **WHAT WE DO:** the authoritative scan state is single-owner (the
+  controller owns it; no cross-thread unsynchronized reads exist by
+  construction), and every cross-thread observation goes through mutexed
+  telemetry snapshots (`src/core/orchestrator/cr_scan.cpp:319-376` publish
+  paths; the parallel-scan test family + TSan CI pin it).
+- **WHY:** thread-safety hardening (the same family as D-18's cancellation
+  first-class): a recovery library must not expose racy state to hosts.
+- **RISK:** none — the observable state surface (stage masks, progress,
+  pause/stop/finish) is equivalent or richer; only the internal ownership
+  shape differs.
+- **VERDICT: ACCEPTED** (deliberate improvement, registered I-043; the
+  telemetry mutex is already covered by the parallel-scan tests; no
+  additional test owed).

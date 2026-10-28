@@ -47,3 +47,10 @@ N-181 (the RAW-first ordering — the one behavioral residue of this decode), N-
 ## Open questions
 
 Device-type 6's identity (rides N-182's open question).
+
+## Resolution
+
+**Status:** FIXED (ACKNOWLEDGED — register applied)
+**Fixed in commit:** f0163182
+**Verified by:** first-hand corpus re-read at all seven cited DRWUI ranges this session (state-queue push :567875-567892 re-read and confirmed; controller factory :903252-903380 [case 0 CDeletedRecovery / 1+4 CRecycleBinRecovery vtables confirmed on-disk]; settings init :947721-947722 [_DAT_141bc4d60=1, d68=0 — the 1/0 constants]; creation site :917015-917040 [FUN_140581500 confirmed as the function at that line]; memcmp chunk skip :919487-919505; scanext4/scanzfs gates :913047-913110; og-codebase/config/version.ini grep — scanext4=1 present, scanzfs absent). Doc acceptance: `grep -c "I-044" SCAN-ENGINE-DELTA.md docs/PARITY-DELTAS.md diff-to-fix/CORPUS-ERRATA.md` all ≥1 post-landing.
+**Resolution notes:** The register's fix plan executed in full, doc-only by the finding's own verdict. SCAN-ENGINE-DELTA C1's "UI-layer state machine" rationale replaced with the engine-side decode (state machine pushes 0/1 unconditionally; verdict unchanged — net-parity via default-on stages); A1 carries the FUN_140581500-creation-site correction + the hardwired-constants note; A5 carries the hardwired +0x60/+0x6c note + the 4 MiB all-allocated chunk skip. docs/PARITY-DELTAS.md D-36's FUN_140580720 citation corrected (the run-phase function) with the ZFS-compiled-out note folded in. CORPUS-ERRATA gains the session-48 row recording the arch/04 §3.3 twin of the citation error (the corpus doc carries the same number and owes the same one-word correction). No code change — the core's default-on quick→deep→carve stage model is confirmed as the correct parity translation of the og's unconditional auto-advance (cr_scan.h run_quick/run_deep/run_carve default true verified at HEAD). The two behavioral residues of this decode live where the finding filed them: N-181 (RAW-first ordering) and N-182 (deep-range resolver) — both remain open on their own files.

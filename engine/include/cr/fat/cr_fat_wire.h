@@ -127,17 +127,14 @@ inline u64 fat_datetime_to_unix_seconds(u16 date, u16 time) {
     const u32 hour = (time >> 11) & 0x1F;
     const u32 minute = (time >> 5) & 0x3F;
     const u32 second = (time & 0x1F) * 2;
-    /* A-014: the full DosDateTimeToFileTime accept set. The og converts
-     * each dentry timestamp via DosDateTimeToFileTime and ZEROES the slot
-     * on failure (FATSearchDLL_decompiled.c:32135-32154, three slots:
-     * create :32135-38, write :32144-48, access :32151-54); the Win32
-     * conversion rejects hour >= 24, minute >= 60 and second >= 60 (the
-     * 2s field > 29). The core used to validate month/day only, so
-     * out-of-range time words flowed into the epoch math and fabricated
-     * shifted plausible timestamps (time 0xC000 = hour 24 = +1 day
-     * exactly). The gate now matches the og's failure class 1:1; the
-     * exFAT sibling is unaffected (its M-014 dentry gate
-     * fat_datetime_fields_ok already rejects the class upstream). */
+    /* A-014: the TIME word is range-gated exactly like DosDateTimeToFileTime
+     * (FATSearchDLL :32135/:32144/:32151 - zero-on-fail): hour > 23, minute
+     * > 59, or a 2-second field > 29 (>= 60 s) is the failure class the og
+     * zeroes the slot for. Month/day were already gated (N-021); the time
+     * word used to flow unvalidated and fabricate day-shifted plausible
+     * timestamps on exactly the corrupt-dentry population recovery targets.
+     * The exFAT sibling is unaffected: its M-014 structural gate
+     * (fat_datetime_fields_ok, FUN_180002f40) rejects this class upstream. */
     if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 || minute > 59 ||
         (time & 0x1F) > 29)
         return 0;
