@@ -56,3 +56,10 @@ All cites read first-hand this session (lane C sheet: evidence/s12-lane-sheets/l
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED (ACKNOWLEDGED — decode folded into S-050 as the fix plan directs)
+**Fixed in commit:** (this session's I-035 landing, S48 INFO-first lane — SHA recorded in the worklog entry)
+**Verified by:** all four corpus cites re-read first-hand this session: DRWUI:726699-706 (both rename format strings `"%s.%s"` / `"%s_%s.%s"` confirmed in the 0x1000 stack buffer), :1008918-1009407 (the hex-prefix adapter registry — CHKOffice504B0304 keyed "504B0304" [8 chars] + CHKOfficeD0CF11E0A1B11AE1 keyed "D0CF11E0A1B11AE1" [0x10 chars] confirmed on-disk), :772543-553 (the 0x9000/0x200000 buffer constants in the FUN_1404f8e60 call), :726583 (`_stricmp(_Str1,"tif")` — the explicit TIFF exclusion). The fold-in landed as a dated addendum in S-050's finding file — `grep -c "I-035 fold-in" findings/SEVERE/S-050-file-repair-line-absent-and-unregistered.md` = 1 post-landing.
+**Resolution notes:** The register's fix plan executed: the four decode constants (the two rename format strings + the 4 KiB rename buffer, the five-entry hex-prefix adapter registry, the 36-KiB/2-MiB match read buffer, the "tif" exclusion) folded into S-050's finding file as a session-48 addendum feeding the step-3 eligibility-seam contract, so the S-050 owner (the SEVERE lane) consumes them without re-decoding. No code action per the finding's own verdict; S-050 remains ACTIVE on its own file and owns the repair-line decision. The related parser quirks ride M-128/N-168 (both open).
