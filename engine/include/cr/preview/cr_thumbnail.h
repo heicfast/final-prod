@@ -37,8 +37,9 @@
  *     failures carry a status name for logging - never a synthesized image.
  *
  * v1 format matrix: JPEG (baseline+progressive), PNG, BMP/DIB, GIF (first
- * frame), TIFF baseline (uncompressed / PackBits / Deflate strips, 8/16-bit,
- * gray / palette / RGB / RGBA, both endians - native), plus PSD / PNM / HDR
+ * frame), TIFF baseline (uncompressed / PackBits / Deflate / LZW strips -
+ * M-085, 8/16-bit, gray / palette / RGB / RGBA, both endians - native),
+ * plus PSD / PNM / HDR
  * via the vendored public-domain decoder (third_party/stb). Deferred with
  * named dependencies: WebP (libwebp), HEIC (libheif+libde265, embedded
  * first), RAW (LibRaw thumbnail API), video key-frames (ffmpeg), PDF page

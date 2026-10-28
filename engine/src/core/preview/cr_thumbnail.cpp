@@ -738,6 +738,112 @@ private:
             out.resize(size_t(got));
             return true;
         }
+        if (t.compression == 5) { /* LZW (M-085: the classic TIFF LZW -
+                                   * MSB-first packing, 9..12-bit codes, Clear=256/EOI=257, the
+                                   * early-change width step at 510/1022/2046 - the scanner and
+                                   * Photoshop "LZW" TIFF export GDI+ decodes) */
+            if (t.bps == 0 || t.bps > 8)
+                return false; /* 16-bit LZW is nonstandard: honest refusal */
+            const u32 n_literals = 1u << t.bps;
+            std::vector<u16> prefix(4096, 0xFFFF);
+            std::vector<u8> suffix(4096, 0);
+            u32 next_free = n_literals + 2;
+            u32 width = 9;
+            u32 maxcode = (1u << width) - 2; /* early change: one code early */
+            u32 bitpos = 0;
+            u16 prev = 0xFFFF;
+            out.clear();
+            out.reserve(want_out);
+            auto next_code = [&]() -> u32 {
+                if (u64(bitpos) + width > u64(in.size()) * 8)
+                    return 0xFFFFFFFF;
+                u32 code = 0;
+                for (u32 k = 0; k < width; ++k) {
+                    const u64 p = bitpos + k;
+                    code = (code << 1) | u32((in[size_t(p >> 3)] >> (7 - (p & 7))) & 1);
+                }
+                bitpos += width;
+                return code;
+            };
+            auto emit_chain = [&](u16 code) -> bool { /* code -> byte run */
+                                                      u8 tmp[4096];
+                                                      u32 n = 0;
+                                                      u16 c = code;
+                                                      while (c >= n_literals + 2) {
+                                                          if (n >= 4096)
+                                                              return false; /* hostile cycle */
+                                                          tmp[n++] = suffix[c];
+                                                          c = prefix[c];
+                                                          if (c == 0xFFFF)
+                                                              return false;
+                                                      }
+                                                      if (c >= n_literals)
+                                                          return false;
+                                                      tmp[n++] = u8(c);
+                                                      if (out.size() + n > want_out)
+                                                          return false;
+                                                      for (u32 i = 0; i < n; ++i)
+                                                          out.push_back(tmp[n - 1 - i]);
+                                                      return true;
+            };
+            auto first_of = [&](u16 code) -> u8 {
+                u16 c = code;
+                while (c >= n_literals + 2)
+                    c = prefix[c];
+                return u8(c);
+            };
+            while (out.size() < want_out) {
+                const u32 code = next_code();
+                if (code == 0xFFFFFFFF)
+                    return false; /* short stream */
+                if (code == 257)
+                    break;         /* EOI */
+                if (code == 256) { /* Clear: reset the table */
+                    next_free = n_literals + 2;
+                    width = 9;
+                    maxcode = (1u << width) - 2;
+                    prev = 0xFFFF;
+                    continue;
+                }
+                if (code > next_free)
+                    return false; /* not yet defined: hostile */
+                /* the first code after a Clear consumes no table slot (its
+                 * chain has no predecessor to extend) - the slot count only
+                 * advances when an entry is actually added */
+                auto bump = [&]() {
+                    prev = u16(code);
+                    ++next_free;
+                    if (next_free > maxcode && width < 12) {
+                        ++width;
+                        maxcode = (width == 12) ? 4096 : (1u << width) - 2;
+                    }
+                };
+                if (code == next_free) { /* KwKwK: prev + first(prev) */
+                    if (prev == 0xFFFF || next_free >= 4096)
+                        return false;
+                    prefix[next_free] = prev;
+                    suffix[next_free] = first_of(prev);
+                    if (!emit_chain(u16(next_free)))
+                        return false;
+                    bump();
+                } else {
+                    if (!emit_chain(u16(code)))
+                        return false;
+                    if (prev == 0xFFFF) {
+                        prev = u16(code); /* first after Clear: no slot */
+                        continue;
+                    }
+                    if (next_free >= 4096) {
+                        prev = u16(code); /* table full: no more adds */
+                        continue;
+                    }
+                    prefix[next_free] = prev;
+                    suffix[next_free] = first_of(u16(code));
+                    bump();
+                }
+            }
+            return out.size() == want_out;
+        }
         if (t.compression == 32773) { /* PackBits */
             out.clear();
             out.reserve(want_out);

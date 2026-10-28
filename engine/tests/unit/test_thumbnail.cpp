@@ -524,7 +524,9 @@ TEST_P(ThumbnailTiff, BaselineVariantsDecodeExactly) {
 INSTANTIATE_TEST_SUITE_P(TiffVariants, ThumbnailTiff,
                          ::testing::Values("tiff_rgb_le.tif", "tiff_rgb_be.tif",
                                            "tiff_packbits.tif", "tiff_deflate.tif",
-                                           "tiff_palette.tif", "tiff_gray16.tif"));
+                                           "tiff_palette.tif", "tiff_gray16.tif",
+                                           /* M-085: the classic TIFF LZW variant */
+                                           "tiff_lzw.tif"));
 
 /* ---------------- geometry policy ---------------- */
 

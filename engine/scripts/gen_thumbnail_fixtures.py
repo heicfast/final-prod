@@ -1,7 +1,9 @@
-#!/usr/bin/env python3
-"""gen_thumbnail_fixtures.py - generate the cr_thumbnail unit-test fixtures.
+#!/ usr / bin / env python3
+""
+    "gen_thumbnail_fixtures.py - generate the cr_thumbnail unit-test fixtures.
 
-Writes tests/data/thumbnails/*.bin image fixtures + SHA256SUMS. The quadrant
+    Writes tests /
+    data / thumbnails/*.bin image fixtures + SHA256SUMS. The quadrant
 pattern (64x48, four solid color quadrants) is chosen so an exact-integer
 box downscale to 16x12 maps each 4x4 source block onto exactly one output
 pixel - the downscaled colors are then EXACT (no blending ambiguity), which
@@ -148,6 +150,9 @@ def main():
     files["tiff_rgb_be.tif"] = enc(q, format="TIFF", big_endian=True)
     files["tiff_packbits.tif"] = enc(q, format="TIFF", compression="packbits")
     files["tiff_deflate.tif"] = enc(q, format="TIFF", compression="tiff_adobe_deflate")
+    # M-085: the classic TIFF LZW (MSB-first, early change) - the scanner
+    # and Photoshop "LZW" export variant GDI+ decodes
+    files["tiff_lzw.tif"] = enc(q, format="TIFF", compression="tiff_lzw")
     im16 = Image.new("I;16", (W, H))
     px16 = im16.load()
     for y in range(H):
