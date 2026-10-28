@@ -104,7 +104,7 @@ UI/UX layer: owned by the downstream project, not in scope — covers DRWUI.exe 
 | recoveryFree.ini | OOS-LICENSING | 128-byte free-edition quota state, read only by DRWUI's trial registry family; the quota gate lives in DRWUI's CRecoveryMgr upsell flow (3-C) | none | OOS (verified) |
 | SaveScan/*.rsf | WRAPPER-VERIFIED | Scan-session persistence, format FULLY REVERSED + byte-exact-validated (`rsf-format--scan-session.md`); core `cr_crsf` + `docs/crsf-format.md` (D-60g robustness supersets) | `cr_crsf` | VERIFIED |
 | send_dmp_with_aliyun.exe | REPORTING-OOS | Crash-dump uploader (`DRWReport-exe--crash-reporter.md:21-28`) | none | OOS (verified) |
-| EaseUS_MediaGraph.dll + VideoViewer/ffmpeg.exe + avcodec-62/avformat-62/avutil-60/... | FEATURE (TRIAGE-UI-AMBIGUOUS resolved) | The og's media decode path: MediaGraph = full ffmpeg pipeline (open_input → find_stream_info → decoder → frame → DIB) hosted by the UI viewer over zmq/TCP; the og's engines never decode. Per session-owner directive the DECODE capability is engine-side FEATURE (cr_thumbnail); viewer/protocol/process stays UI. ffmpeg also appears repair-side (AVIF shell-out) — repair stays OOS (3-D) | `cr_thumbnail` (new; video key-frames = phase 2 with the ffmpeg dependency decision) | TODO (v1 = still images; see Section C) |
+| EaseUS_MediaGraph.dll + VideoViewer/ffmpeg.exe + avcodec-62/avformat-62/avutil-60/... | FEATURE (TRIAGE-UI-AMBIGUOUS resolved) | The og's media decode path: MediaGraph = full ffmpeg pipeline (open_input → find_stream_info → decoder → frame → DIB) hosted by the UI viewer over zmq/TCP; the og's engines never decode. Per session-owner directive the DECODE capability is engine-side FEATURE (cr_thumbnail); viewer/protocol/process stays UI. ffmpeg also appears repair-side (AVIF shell-out) — repair stays OOS (3-D) | `cr_thumbnail` (new; video key-frames = phase 2 with the ffmpeg dependency decision) | DONE (v1 still images, commit eeedc43; see Section C.2) |
 | EURawImg.exe | SIDECAR-OOS | DRWUI's hidden RAW-decode sidecar (LibRaw static, 467 exports; mutex/event protocol, ~200 MiB request bound; 3-B/3-D) — the DECODE capability maps to cr_thumbnail phase-2 RAW (LibRaw thumbnail API) | none (phase-2 cross-ref) | OOS (verified) |
 | EuSendMessage.exe | INSTALLER | PE-only one-shot WM_COPYDATA messenger to the "DRW_Installer" wizard window (cmd 999) — scripted builder/installer flows (`WinPE/eusendmessage--wm-copydata-messenger.md:9-33`) | none | skip (verified; reclassified from SIDECAR-TRIAGE) |
 | EuICloudRecovery.dll | EXCLUDED-NAS | iCloud client (`esicloud`) | none | skip |
@@ -178,22 +178,32 @@ UI/UX layer: owned by the downstream project, not in scope — covers DRWUI.exe 
    GdipGetImageThumbnail; MediaGraph/ffmpeg → BMP ≤1 MiB over zmq; EURawImg for
    RAW; libheif embedded thumbnails; pdfium for PDF); the core's in-process
    doctrine makes the engine-side capability a deliberate documented superset
-   (I-015 lineage). **v1 (this session): still images — JPEG
-   (baseline+progressive), PNG, BMP/DIB, GIF (first frame) via a vendored
-   public-domain decoder + native baseline TIFF (uncompressed/PackBits/deflate
-   strips) + native EXIF embedded-thumbnail fast path; dims-first
-   decompression-bomb guard; cost-gated bounded reads off PreviewReader;
-   aspect-preserving box downscale to max_edge (default 256, BOTH axes —
-   correcting the og's width-only quirk); honest unsupported / truncated /
-   unreadable-span / oversized error paths. Phase 2 (deferred, named deps):
-   WebP (libwebp), HEIC (libheif+libde265, embedded-first), RAW (LibRaw
-   thumbnail API), video key-frames (ffmpeg — the biggest dependency decision,
-   behind an honest availability query), TIFF phase-2 (JPEG-in-TIFF, tiles).
-   Phase 3: PDF page pixmaps (pdfium). Out: SVG rasterization (og ships qsvg
-   for UI assets only), post-repair enhancement (EUImageEnhance domain),
-   thumbcache recovery (separate future feature row — carve signatures already
-   known: 01 00 09 00, F7 89 34 2C).**
-   Target: `include/cr/preview/cr_thumbnail.h` + `src/core/preview/cr_thumbnail.cpp`.
+   (I-015 lineage). **DONE (commit eeedc43): v1 still images — JPEG
+   (baseline+progressive), PNG, BMP/DIB, GIF (first frame), PSD/PNM/HDR via the
+   vendored public-domain decoder (third_party/stb, LICENSE + BUILD-SUPPRESSIONS
+   S-1) + native baseline TIFF (uncompressed/PackBits/Deflate strips, 8/16-bit,
+   gray/palette/RGB/RGBA, both endians — the TIFF6 signed PackBits count 1-n
+   pinned) + native EXIF embedded-thumbnail fast path; dims-first
+   decompression-bomb guard with NATIVE header parsers (never stbi_info — stb
+   refuses x*y*n ~ 2^30 shapes as corrupt, which would misreport bombs);
+   cost-gated bounded reads off PreviewReader (max_read + work units, M-028
+   lineage); unreadable-span truth gate (never a thumbnail over zero-fill);
+   truncated-stream disclosure on failures AND on Ok; aspect-preserving
+   premultiplied box downscale to max_edge (default 256, BOTH axes — correcting
+   the og's width-only quirk), never upscaled. Verified: 20 unit tests
+   (Thumbnail.* incl. the 6-variant TIFF suite; fixtures
+   tests/data/thumbnails + scripts/gen_thumbnail_fixtures.py + SHA256SUMS) +
+   fuzz/fuzz_thumbnail.cpp harness; full suites 1003/1003 linux-release AND
+   1003/1003 linux-gcc ASan. Phase 2 (deferred, named deps): WebP (libwebp),
+   HEIC (libheif+libde265, embedded-first), RAW (LibRaw thumbnail API), video
+   key-frames (ffmpeg — the biggest dependency decision, behind an honest
+   availability query), TIFF phase-2 (JPEG-in-TIFF, tiles). Phase 3: PDF page
+   pixmaps (pdfium). Out: SVG rasterization (og ships qsvg for UI assets only),
+   post-repair enhancement (EUImageEnhance domain), thumbcache recovery
+   (separate future feature row — carve signatures already known:
+   01 00 09 00, F7 89 34 2C).**
+   Target: `include/cr/preview/cr_thumbnail.h` + `src/core/preview/cr_thumbnail.cpp`
+   (landed) + `diff-to-fix/modules/preview.md` (spec section).
 3. **M-066 preview archive enumeration** — **LANDED by the parallel A2 lane
    (commit 6d0f16c): Metadata.entries (name/size/compressed/crc_present)
    collected on the existing CD walk, 512-entry cap + truncated flag,
