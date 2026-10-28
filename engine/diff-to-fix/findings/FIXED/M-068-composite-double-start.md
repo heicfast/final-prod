@@ -75,3 +75,19 @@ run 40672083772).
 
 None — the fix is the removal of one dead start + the merge with the
 existing RUNNING check.
+
+## Resolution (the board-hygiene move — PARITY-FIX-3 session)
+
+The fix itself landed in the SA-6 wave (convergence `43f4962` + `38ccecb`):
+the composite's start leg is idempotent — it queries RUNNING first and only
+starts when the service is not already running (the v0.2.4 installers start
+it themselves; error 1056 is the contract's own success shape), and any
+OTHER start failure stays fatal. The staged-scenarios drill's setup job
+(run 40672083772) surfaced the defect; the next dispatch exercises the
+repaired composite.
+
+This file's move to FIXED/ (it had remained under findings/MAJOR/ with the
+status line already saying fixed) closes the board-hygiene inconsistency
+flagged by the PARITY-FIX-1 context recovery: the board's "244 FIXED"
+undercounted by this row. The RESOLVED-INDEX gains the M-068 row with this
+move's reference.

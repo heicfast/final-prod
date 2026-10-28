@@ -1,9 +1,12 @@
 # Testing
 
 ## Layer 1 - unit (every push, both platforms)
-926 tests discovered on the Linux lanes (count via
-`ctest --preset linux-gcc` — numbers move fast with every landing wave):
-the pure-core engine suite + the cr_ui binding suite (35) + the plain-C
+1,014 `TEST`/`TEST_F` macros across `tests/unit/` (61 files, counted at the
+PARITY-FIX-3 session; the number moves with every landing wave — the latest
+executed green counts: **1,003/1,003 release+ASan at the thumbnail landing
+(`05e6786`, 20 thumbnail tests included)** and 970/970 at the A-011/N-089
+landing; the macro-vs-executed delta is the Windows-only suites + platform
+skips): the pure-core engine suite + the cr_ui binding suite + the plain-C
 ABI consumer + the win-layer syntax gate. Coverage per subsystem:
 fixup, runlist, tables (GPT/MBR/EBR + the corrected LDM GUIDs), slices,
 cache (incl. the failed-blocks-not-pinned regression), retry/bisection,

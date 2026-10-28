@@ -348,3 +348,22 @@ Work Log:
 
 Stage Summary:
 - Pushing the repair + re-dispatching the installer lane.
+
+---
+Task ID: PARITY-FIX-4 (board hygiene: the M-068 move + testing.md count truth)
+Agent: main session
+
+Work Log:
+- M-068 moved findings/MAJOR/ -> findings/FIXED/ (git mv, history kept):
+  the fix landed in the SA-6 wave (43f4962 + 38ccecb) but the file never
+  moved; Resolution section appended; RESOLVED-INDEX row added.
+- SUMMARY.md: the PARITY-FIX-3/4 delta entry on top (board: 245 FIXED, 1
+  active S-038 awaiting the lane's green dispatch, 2 tracked-open).
+- docs/testing.md: the stale '926 tests' -> the current truth (1,014
+  TEST/TEST_F macros across tests/unit, 61 files; latest executed green
+  1,003/1,003 release+ASan at the thumbnail landing 05e6786).
+
+Stage Summary:
+- Board hygiene closed. Watching the installer lane (run 40682340640) and
+  the CI validation lane (run 40682340755); next: OQ-SA-1's engine-side
+  NTFS origin-LCN carrier if the SCAN-2f lane has not landed it.

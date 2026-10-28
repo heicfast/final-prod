@@ -1,5 +1,50 @@
 # SUMMARY.md — executive summary (the review-validate close-out on top; earlier sessions below)
 
+## Fix-session delta (2026-10-28 — the PARITY-FIX-3 wave: M-068's board move + the recall-gap register truth pass + S-038 steps 2-3)
+
+**M-068 (MAJOR) board-hygiene MOVE** (the fix itself landed in the SA-6
+wave, `43f4962` + convergence `38ccecb`; this wave moved the file to
+FIXED/ with the Resolution section + the RESOLVED-INDEX row): the finding
+had stayed under `findings/MAJOR/` with its status line already saying
+fixed — the board's "244 FIXED" undercounted by this row. The idempotent
+start leg (RUNNING-query first; 1056-after-install = the v0.2.4 contract's
+success shape; any other start failure fatal) is the landed shape.
+
+**The recall-gap register truth pass (GAP-S6-5's action + the stale-row
+flips)**: bench/root-causes.json (filed 2026-10-24, predating the fixes)
+verified against code — ALL SEVEN engine-side recall gaps were already
+fixed (GAP-S6-1/2 `9fc82b0`; S6-3/4 `7797bd6`; S6-6/7/8 `03ddcd2` +
+F-1 `cd9ea16`) with tests; every entry now carries a resolution field; the
+decay entry carries GAP-S6-5's root-cause CORRECTION (physical
+sector-reuse, not an engine defect) and the scorer action LANDED: the
+physical-ceiling metric (apply-scenario emits physical-ceiling.json via
+`Invoke-PhysicalCeilingProbe` — each deletable file's seed-time extent
+ranges hashed against the post-decay volume in one locked pass;
+compute_metrics `--ceiling` adds the `physical_ceiling` block with
+`recall_of_physically_intact`; compare.py surfaces it on BELOW rows;
+self-test tools/test_ceiling_metric.py in ci-local step 5).
+CORE-GAP-LIST.md S6-1..S6-8 flipped CLOSED with commit refs;
+PERFORMANCE-PROFILE.md rows annotated (numbers stand until the next bench
+dispatch re-measures).
+
+**S-038 (SEVERE) steps 2-3 LANDED** (step 4 = the installer lane's first
+green dispatch): the app installer per the PACKAGING.md 13-parameter
+contract — Inno Setup (both owner decisions closed at the contract's
+defaults: Inno + telemetry omit); ARP QuietUninstallString + the version
+key (HKLM\SOFTWARE\heicfast\core_recovery\Version) write+VERIFY by
+[Code]; the modernized OS gate (Win7 SP1 → Server 2025 x64) with the
+OSGATE-V1 sync pin; the driver deployer as the default internal component
+(exit codes propagate); the three test gates (run-gates.ps1 +
+test_installer_osgate.py) in the new installer.yml lane.
+
+**Board after this wave:** 1 active (S-038 — steps 2-3 landed; step 4 =
+the lane's first green dispatch) · **245 FIXED** (244 + M-068's move) ·
+tracked-open 2 (OQ-S4-3 — the TTFR half; OQ-SA-1 — the NTFS +0x64 half
+DECODED by the SCAN-2f lane, the engine-side origin-LCN carrier pinned in
+its fix queue). I-026 remains informational. CI red repaired on the
+parallel thumbnail landing (cr_thumbnail.cpp C4244 + the GCC-only pragma
+under clang, run 40680931476).
+
 ## Fix-session delta (2026-10-28 — the SA-6 probe lane: M-064 FULLY FIXED (the v0.2.4 remainder, upstream rda-driver))
 
 **M-064 (MAJOR) FULLY FIXED** (the second half landed upstream): rda-driver
