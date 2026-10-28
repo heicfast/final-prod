@@ -880,12 +880,12 @@ struct PropReleaser {
 struct CrPreview {
     std::unique_ptr<tree::FileProperties, PropReleaser> owned;
     std::unique_ptr<preview::PreviewReader> reader;
-    /* M-083: the session origin (unset for snapshot-opened previews -
-     * snapshots are read-only views; the og's promotion runs against the
-     * live result tree). The thumbnail success path promotes THIS node's
-     * grade to 2 (the og's thumbnail work item, DRWUI :422505-513). */
-    CrSession* src_session = nullptr;
-    u64 src_node_id = 0;
+    /* M-083: the thumbnail success path promotes the generating node's
+     * grade to 2 - but it addresses the node through
+     * cr_ui_thumbnail_generate's own session/node_id arguments, never
+     * through this handle (ABI-CONTRACT §7i). The preview-handle variant
+     * of that promotion (stashed origin fields) was dropped at the
+     * session-10/11 rebase; N-142 removed the surviving dead pair. */
 };
 
 struct CrRecovery {
@@ -3581,8 +3581,6 @@ u32 preview_open_session_impl(cr_ui_device* dev, cr_ui_session* sess, uint64_t n
         return ret_(ERR_NO_MEMORY, "props clone failed");
     auto* p = new CrPreview();
     p->owned.reset(props);
-    p->src_session = s; /* M-083: the live-tree origin for the promotion */
-    p->src_node_id = node_id;
     /* F-1: extents are absolute - preview through the PARENT disk when the
      * scan device is a volume slice (same basis rule as the recovery writer) */
     IStorageDevice* src = d->dev.get();

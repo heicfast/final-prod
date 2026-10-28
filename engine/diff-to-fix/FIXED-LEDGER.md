@@ -371,6 +371,7 @@ belongs to the fix lane; this census is the audit-side truth record.
 | N-134 | MINOR | register (the product-frame census) | FIXED-ALREADY at `b202f9ed` (the six rows pre-dated the filing by 6.5h; retired session-11B with the sfc addenda preserved) | `findings/FIXED/N-134-product-frame-register-completion.md` |
 | N-093 | MINOR | (session-38; the og's four bound pairs carried — the pin + MID behavioral pair RED→GREEN; Resolution in history at the N-093 commit) | (this session) | `findings/MINOR/N-093-batch1-bounds-mid-gz.md` |
 | N-111 | MINOR | carve | (session-39 fix lane — cite-by-title: "fix(carve): N-111 - the JP2 family lands") | `findings/FIXED/N-111-jp2-carve-absent-jp-signature-ftyp-brand-map-decoded.md` |
+| N-142 | MINOR | ui (the dead CrPreview origin pair; rebase-leftover hygiene) | (this session — cite-by-subject "fix(ui): N-142 - the dead CrPreview origin pair removed") | `findings/FIXED/N-142-preview-handle-dead-wiring-rebase-leftover.md` |
 | N-112 | MINOR | carve | (session-39 fix lane — cite-by-title: "fix(carve): N-112 - the LZH entry-chain walk lands") | `findings/FIXED/N-112-lzh-carve-absent-list-layer-lh-method-gate-entry-walk-decoded.md` |
 | N-113 | MINOR | carve | (session-39 fix lane — cite-by-title: "fix(carve): N-113 - the text school lands") | `findings/FIXED/N-113-text-school-list-probes-absent-vcf-gpx-osp-pos-chfp-decoded.md` |
 

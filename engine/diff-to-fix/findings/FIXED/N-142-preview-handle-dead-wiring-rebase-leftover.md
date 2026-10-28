@@ -53,3 +53,10 @@ M-083 / M-102 (retired — the landed design this residue came from), N-135 (the
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session — the S40-continuation minors lane; cite-by-subject "fix(ui): N-142 - the dead CrPreview origin pair removed")
+**Verified by:** the finding's own acceptance grep re-executed at the fix: `grep -rn "src_session\|src_node_id" src/ include/ tests/` → zero hits (was exactly 4: the two declarations + the two writes); full rebuild green (gcc -Wall -Wextra -Werror -Wshadow); `cr_ui_tests` 59/59 PASSED including `CrUi.ThumbnailSuccessPromotesGradeTo2` (the landed promotion's own pin, test_cr_ui.cpp:3535) and `CrUi.PreviewSessionAndSnapshot` (the preview-handle lifecycle); the 34-test `CrUi.*:Preview*` slice also green.
+**Resolution notes:** The dead pair (CrPreview::src_session / src_node_id, declared under the M-083 comment at cr_ui.cpp:887-888 and written at :3584-3585 on every preview-open) is deleted together with its two write sites; the rewritten comment now states the true promotion addressing — cr_ui_thumbnail_generate's own session/node_id arguments (ABI-CONTRACT §7i), with the dropped-variant history (the session-10/11 rebase) and this finding's ID recorded in place. No ABI change (CrPreview is internal); no behavior change (the fields were read nowhere — the promotion at :3753-3756 runs off its own arguments, re-verified before the edit). This is the hygiene half of the thumbnail-ABI wave residue; N-137 (the header's contract truth) stays the other lane's queue per the territory board.

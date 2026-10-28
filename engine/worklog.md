@@ -4112,3 +4112,16 @@ Work Log:
 
 Stage Summary:
 - Lane open; baseline green; no findings touched yet.
+
+---
+Task ID: S40C-1 (N-142 fixed — the dead CrPreview origin pair)
+Agent: session-40-continuation minors lane
+
+Work Log:
+- Classification: CONFIRMED (re-verified at c0f69250 before the edit: exactly 4 hits — declarations :887-888 + writes :3584-3585, zero reads repo-wide; the promotion at :3753-3756 re-read running off thumbnail_generate's own arguments; the fce38c3d drop record cross-checked).
+- Fix: src/ui/cr_ui.cpp — the CrPreview::src_session/src_node_id pair + the two preview-open writes deleted; the struct comment rewritten to the true addressing (cr_ui_thumbnail_generate's own session/node_id args, ABI-CONTRACT §7i) with the rebase-drop history + N-142 recorded. No ABI change (CrPreview internal).
+- Proof: grep census zero hits (the finding's own acceptance); rebuild green; cr_ui_tests 59/59 (incl. ThumbnailSuccessPromotesGradeTo2 + PreviewSessionAndSnapshot); the 34-test CrUi/Preview slice green.
+- Trail: Resolution in the file; git mv to findings/FIXED/; ledger row N-142; matrix cell → MATCH; SUMMARY session-40-continuation block added (board 54 active: 7 SEVERE · 20 MAJOR · 27 MINOR · 7 INFO / 306 rows / 3 tracked-open).
+
+Stage Summary:
+- First minor landed this lane; queue next: S-053+N-141 (the recommended one-pass), N-139, N-140, N-138, N-149, N-148, N-146, then the INFO acknowledgments.
