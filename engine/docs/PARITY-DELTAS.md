@@ -3611,3 +3611,22 @@ false-positive discipline (the F8 gates, the N-070 score contest) exists to
 keep exactly that class out of the results. Affected fixture class: corrupt
 ZIP/RIFF archives (pinned: `Carve.SpecialRejectPlainAcceptRefusedByName` —
 the corrupt candidate refused by name; the valid control beside it carves).
+
+### D-119 — the FAT cluster→sector math is full u64; the og's 32-bit wrapping product deliberately not adopted (N-162 registration, REGISTERED SUPERSET — the numeric-hygiene family's FAT member)
+
+The og computes `(cluster−2) × sectors_per_cluster` as a 32-bit product at four
+verified sites (FATSearchDLL :13194 — the explicit `(uint)` cast on the cluster
+operand with the `(int)` spc, re-read first-hand this session; :11239 — the same
+32-bit operand promotion without the cast; :28172 and :39068-39080 — the
+CalcPartition geometry twins; 64-bit sites also exist in the og, e.g. the :28045
+runlist factory — the width inconsistency is og-internal). The product wraps on
+data areas beyond 2^32 sectors — legal FAT32 territory (2 TiB at 512 B/sector;
+spc=32 wraps from cluster 134,217,730; at the spec-max cluster 0x0FFFFFF4 with
+spc=32 the og addresses 0xFFFFFE40 instead of 8,589,934,144 — a ~2 TiB
+displacement). The core's `FatTable::cluster_offset` (cr_chain.cpp) is full u64
+and correct — the deliberate non-adoption of an og arithmetic defect, this
+family's FAT member (D-56 the NTFS pass-2 precedent, D-68 the MRW precedent).
+Rationale: a recovery engine must address what the on-disk geometry actually
+names; the og's wrap is silent corruption on large volumes, not a contract.
+Evidence: N-162's cites; the pin test `FatEngine.ClusterOffsetBeyond2TiB` (the
+spec-max cluster's exact u64 address, the wrapped form explicitly NOT equal).

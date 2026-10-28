@@ -6354,3 +6354,13 @@ polarity flip) and S-059 (the sparse export) move to the top of the SEVERE queue
 alongside the remote's A-014 (the FAT time-word fabrication — the timestamp-battery
 convergent) and S-055..S-057; (2) N-185's code defect is already resolved — only the
 record erratum is owed; (3) the rest of this lane's handoff order stands as filed.
+
+## Session-43 minors lane — N-162 landed (2026-10-29)
+
+**N-162 FIXED (MINOR — the FAT cluster-math width registered).** Both og cast forms
+re-read first-hand (:13194 the explicit (uint) cast, :11239 the 32-bit promotion);
+the core's u64 product re-read live. PARITY-DELTAS D-119 registered (the D-56/D-68
+family's FAT member) with the wrap arithmetic and the silent-corruption rationale;
+FatEngine.ClusterOffsetBeyond2TiB pins the exact u64 address at the spec-max cluster
+and asserts NON-equality with the og's wrapping form (the down-fix guard). No code
+change. Trail: findings/FIXED/N-162 + ledger row + fat.md family note + this entry.

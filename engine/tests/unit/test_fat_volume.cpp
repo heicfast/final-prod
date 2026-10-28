@@ -2062,3 +2062,32 @@ TEST(FatEngine, ReadVolumeLabelRejectsLabelLessAndNonFat) {
     /* null device */
     EXPECT_EQ(read_volume_label(nullptr, label), ERR_BAD_PARAMETER);
 }
+
+TEST(FatEngine, ClusterOffsetBeyond2TiB) {
+    /* N-162: the og computes (cluster-2) x spc as a 32-bit product at four
+     * verified sites (FATSearchDLL :11239/:13194 - the (uint) cast and the
+     * 32-bit operand promotion, both re-read first-hand; :28172/:39068-39080
+     * the geometry twins) - it wraps on data areas beyond 2^32 sectors (a
+     * 2 TiB displacement at the spec-max cluster with spc=32). The core is
+     * full u64 (cr_chain.cpp's cluster_offset) - the deliberate
+     * non-adoption of an og arithmetic defect, registered as
+     * PARITY-DELTAS D-119 (the D-56/D-68 numeric-hygiene family's FAT
+     * member). This pin holds the u64 path so a future parity session
+     * cannot "fix" the core DOWN to the wrapping form. */
+    FatParams p;
+    p.bytes_per_sector = 512;
+    p.sectors_per_cluster = 32;
+    p.cluster_bytes = u64(32) * 512; /* the derived field the math reads */
+    p.first_data_sector = 100;
+    /* the spec-max cluster 0x0FFFFFF4: the 32-bit product would wrap to
+     * 0xFFFFFE40 sectors (~2 TiB displacement); the u64 product is exact */
+    const u32 cluster = 0x0FFFFFF4u;
+    const u64 off = FatTable::cluster_offset(p, cluster);
+    const u64 want = (u64(cluster) - 2) * u64(32 * 512) + u64(100 * 512);
+    EXPECT_EQ(off, want) << "the u64 product is exact at the spec-max cluster";
+    EXPECT_GT(off, u64(1) << 32) << "the address is beyond the 32-bit wrap band";
+    /* the wrapped form the og would compute (the down-fix guard) */
+    const u64 wrapped =
+        u64((u32(cluster) - 2u) * u32(32 * 512)) + u64(100 * 512);
+    EXPECT_NE(off, wrapped) << "the u64 path must NOT equal the og's wrapping form";
+}
