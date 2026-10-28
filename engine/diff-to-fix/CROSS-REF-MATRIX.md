@@ -624,3 +624,10 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | driver-install · regdrv-rda.reg hex(7) | DIVERGENCE-MAJOR | **M-087** (the parallel lane's filing + this lane's Start-posture parameter addendum) |
 | transport · session-code count prose | DIVERGENCE-MINOR | **N-107** (the parallel lane's filing — 14 sites, supersedes this lane's 12-site list) |
 | carve · MID/GZ/PSP/SIT batch-1 caps | DIVERGENCE-MINOR | **N-093** (the parallel lane's broader filing — PSP/SIT included; this lane's MID/GZ ctor quotes corroborate, evidence/decompiled-quotes/s9-mid-gz-bounds.md) |
+
+**Session-10 continuation-lane wave 2 (2026-10-29 — audited `84a1832`; the og-codebase deep-dive; EXECUTED evidence class):**
+
+| Surface · parameter | Verdict | Cell |
+|---|---|---|
+| orchestration · whole-disk scan-target construction (the partition list as the target-set basis) | **DIVERGENCE-SEVERE** | **S-050** — the plain disk target silently yields rc=0 + 0 files on healthy partitioned disks (probe→MBR→Unknown→"quick yields nothing"); the og's CDoScanPartition reads the partition list and scans every volume. EXECUTED: the two-volume fixture RUN 2 (evidence/executions/s10-wholedisk-scan-targets.md) + the real G session's both-volumes tree |
+| orchestration/tree · the whole-disk session shape (per-volume display-name roots, FS-type markers, known-vs-lost) | **DIVERGENCE-MAJOR** | **M-104** — table-matched volumes surface as anonymous `Candidate @ <LBA>` roots (the +500 table-match rescue), Found/Deleted stay empty, no volume identity anywhere; the og's real-session depth-1 shape (`Local Disk(G:)` / `System Reserved (NTFS)` / `NTFS` marker / `Reconstructed` / `File Path Lost`) unreachable. EXECUTED: RUN 1 + the tree dump + the first-hand G-session census (same evidence file) |

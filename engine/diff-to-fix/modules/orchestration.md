@@ -221,3 +221,23 @@ CLI flag + session round-trip). The W1a/W1b/W1c orchestration claims verified
 - **N-125**: the drive-disconnect mid-scan states (the "Drive Disconnected" Retry/Cancel
   flow, UIUX/08:39-47) — no classification, no reattach-continue model, no registration;
   from R-16, never formalized through every prior session.
+
+## Session-10 wave-2 addendum (2026-10-29, continuation lane — audited `84a1832`; EXECUTED evidence)
+
+- **S-050 (SEVERE)** — the whole-disk scan target never consults the
+  partition list: `cr_ui_open_disk` + scan (the CLI `scan --disk N` without
+  `--whole-disk`) probes LBA 0 (the MBR), dispatches Unknown, and returns
+  rc=0 with ZERO files on a healthy multi-volume disk. The og's
+  CDoScanPartition flow reads the partition list and scans every known
+  volume (architecture/04 §2/§3.4; the real G session carries both volumes'
+  trees). EXECUTED: evidence/executions/s10-wholedisk-scan-targets.md RUN 2.
+- **M-104 (MAJOR)** — with `--whole-disk`, the in-table volumes are found
+  only via the discovery's +500 table-match candidates, surfacing as
+  anonymous `"Candidate @ <LBA>"` roots: no display names, no FS-type
+  markers, known-vs-lost indistinguishable, Found/Deleted roots empty. The
+  og's real-session per-volume display-name shape (`Local Disk(G:)` +
+  `System Reserved (NTFS)` + the `NTFS` marker) is unreachable. EXECUTED:
+  the same evidence file RUN 1 + the first-hand G-session depth-1 census.
+- The two findings compose with S-048/M-103 (the per-volume branch family)
+  and M-079 (the volume-label plumbing): one whole-disk shape pass in the
+  fix order resolves the family coherently.

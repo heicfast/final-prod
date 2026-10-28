@@ -191,6 +191,25 @@ in each finding's Resolution; the running counts live in this section.
 
 **Board after wave 1 (at my HEAD `84a1832`): 75 active (7 SEVERE · 28 MAJOR · 34 MINOR · 5 INFO) / 251 FIXED / 1 tracked-open.**
 
+**Wave 2 — the og-codebase deep-dive (T5-T9, first findings):** the lane's
+declared complement to SA-10B (data-tables/product-frame/real-rsf mining)
+and S10-F (function inventories): the WHOLE-DISK SCAN FLOW, executed
+end-to-end on a controlled two-volume fixture vs the og's own persisted
+real sessions. Filed **S-050** (SEVERE — the plain disk target
+`cr_ui_open_disk`/`scan --disk N` silently returns rc=0 with ZERO files on
+a healthy partitioned disk: the probe reads the MBR, dispatches Unknown,
+"quick yields nothing"; the og's CDoScanPartition reads the partition list
+and scans every known volume — architecture/04 §2/§3.4 + the real G
+session's both-volumes tree) and **M-104** (MAJOR — with `--whole-disk`,
+the in-table volumes are rescued only by the discovery's +500 table-match
+candidates as anonymous `Candidate @ <LBA>` roots: no display names, no
+FS-type markers, known-vs-lost indistinguishable, Found/Deleted empty; the
+og's real-session per-volume shape unreachable). Evidence class: EXECUTED
+(evidence/executions/s10-wholedisk-scan-targets.md — the fixture builder +
+probe committed beside it; the G session re-parsed first-hand this lane).
+Board after wave 2: **77 active (8 SEVERE · 29 MAJOR · 34 MINOR · 5 INFO)
+/ 255 FIXED-files / 2 tracked-open.**
+
 **Push-time reconciliation (the moving-target SOP executing):** while this
 sweep ran, four concurrent fix lanes landed `26da616` (N-094 — the `-h`
 usage line + the verb lock's fourth site), `f6e303e` (S-042 — the WMF
