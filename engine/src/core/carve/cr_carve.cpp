@@ -870,90 +870,6 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             }
             if (emitted_at.count(start_abs))
                 continue; /* a grammar-validated file starts here */
-            /* M-048: the user-extensible signature layer (the og's
-             * EUUserData consumer) - probed at the same stride, after
-             * the grammar layer's claims, before the built-in raw-sign
-             * table (a user sign for an already-probed position is a
-             * duplicate by construction; a user sign colliding with a
-             * BUILT-IN fires only when the built-ins did not match -
-             * built-in-first, the collision rule the finding specifies).
-             * A user-sign hit emits directly: no tail walk (user signs
-             * carry no tail semantics), the user's extension and MIME in
-             * the record, extent to the device end (the og's user signs
-             * are header-only markers - no size grammar). */
-            if (usersigns::active_count() != 0) {
-                if (const carve::usersigns::UserSign* us =
-                        usersigns::match_at(win + off, want - off)) {
-                    const u64 len = ctx.total - start_abs;
-                    /* F9 dedup (extent class) - the same shape as the
-                     * grammar/raw-sign layers */
-                    u64 len_class = 0;
-                    if (len >= (1 << 20)) {
-                        while ((1ULL << len_class) < len)
-                            ++len_class;
-                        len_class += 64;
-                    } else {
-                        len_class = len / 65536;
-                    }
-                    bool dup = false;
-                    if (ctx.dedup_tree &&
-                        ctx.dedup_tree->find_by_extent(start_abs + ctx.ext_base, len_class))
-                        dup = true;
-                    if (!dup && ctx.tree->find_by_extent(start_abs + ctx.ext_base, len_class))
-                        dup = true;
-                    if (dup) {
-                        ctx.duplicates.fetch_add(1, std::memory_order_relaxed);
-                        emitted_at.insert(start_abs);
-                    } else {
-                        tree::FileProperties* props = new (std::nothrow) tree::FileProperties();
-                        if (props == nullptr) {
-                            ctx.aborted.store(true, std::memory_order_relaxed);
-                            return ERR_NO_MEMORY;
-                        }
-                        const u32 fi =
-                            ctx.next_name_counter(ctx.carve_counter_key(us->ext, std::string()));
-                        Signature rsig{};
-                        rsig.ext = us->ext;
-                        rsig.name = us->ext;
-                        props->name =
-                            ctx.namer ? ctx.namer(rsig, len, fi) : og_carve_name(rsig.ext, {}, fi);
-                        props->fs_kind = u32(FsKindCode::Raw);
-                        props->logical_size = len;
-                        props->carve_format = 0xFFFE0000u; /* M-048: the user-signature tag */
-                        props->carve_confidence = 600;     /* user-taught, no og-calibrated
-                                                            * confidence - the fixed documented
-                                                            * value (PARITY-DELTAS) */
-                        props->times.modified = ctx.scan_time;
-                        {
-                            u8 hdr[512];
-                            const u32 hb = u32(len < sizeof(hdr) ? len : sizeof(hdr));
-                            if (hb != 0 && wdev.read_at(start_abs, hdr, hb) == OK)
-                                props->carve_checksum = table::crc32(hdr, hb);
-                        }
-                        props->extents.push_back({start_abs + ctx.ext_base, len});
-                        if (ctx.ext_base != 0)
-                            props->flags = u16(props->flags | tree::NODE_FLAG_EXT_SHIFTED);
-                        /* the MIME rides the note (the og's EUUserData
-                         * classification field) */
-                        if (us->mime[0] != 0)
-                            for (const char* mp = us->mime; *mp; ++mp)
-                                props->carve_note.push_back(u16(u8(*mp)));
-                        tree::FileNode* n =
-                            ctx.tree->add_file(carve_attach_parent(ctx, start_abs, us->ext), props);
-                        props->release();
-                        if (n == nullptr) {
-                            ctx.aborted.store(true, std::memory_order_relaxed);
-                            return ERR_NO_MEMORY;
-                        }
-                        n->set_origin(tree::Origin::Carved);
-                        n->set_deleted_state(tree::DeletedState::Deleted);
-                        n->set_confidence(tree::Confidence::PartialRisk);
-                        ctx.sign_hits.fetch_add(1, std::memory_order_relaxed);
-                        emitted_at.insert(start_abs);
-                        continue;
-                    }
-                }
-            }
             /* N-031: the og's all-zero-sector fast-skip, core shape: no
              * header sign can live outside the first 47 bytes of the
              * stride (probe_header's whole offset span), so a stride
@@ -961,7 +877,12 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
              * sign-table walk entirely (the og skips the whole sector:
              * its leading/trailing zero-dword metrics, :9490-9520). The
              * grammar layer keeps its first-byte dispatch on zeros - it
-             * is near-free there (the finding's own profile rule). */
+             * is near-free there (the finding's own profile rule). The
+             * user-sign layer is NOT gated by this (S-055 reorder): a
+             * user sign may anchor at offset up to 1024 (kMaxOffset),
+             * so zero strides still reach it; the counter only ticks
+             * when the stride is skipped by every layer. */
+            bool zero_stride = false;
             {
                 const u8* zw = win + off;
                 bool all_zero = true;
@@ -970,14 +891,14 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                         all_zero = false;
                         break;
                     }
-                if (all_zero) {
-                    ctx.zero_strides_skipped.fetch_add(1, std::memory_order_relaxed);
-                    continue;
-                }
+                zero_stride = all_zero;
             }
-            idx.probe_header(win + off, want - off, matches);
-            if (matches.empty())
-                continue;
+            if (!zero_stride)
+                idx.probe_header(win + off, want - off, matches);
+            else
+                matches.clear(); /* probe_header owns the clear; a skipped
+                                  * probe must not inherit the previous
+                                  * stride's hits */
             /* M-024: drop disabled formats before the best-pick (the og's
              * filter removes the analyser from the working registry -
              * FUN_180006b30's removal loop - so its signs never fire) */
@@ -987,8 +908,128 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                     if (!ctx.rawsign_disabled[matches[r]->fmt])
                         matches[w++] = matches[r];
                 matches.resize(w);
-                if (matches.empty())
-                    continue;
+            }
+            if (matches.empty()) {
+                /* M-048: the user-extensible signature layer (the og's
+                 * EUUserData consumer) - probed at the same stride, after
+                 * the grammar layer's claims AND after the built-in
+                 * raw-sign table (S-055: the collision rule its own
+                 * comment always stated - built-in-first - now executed;
+                 * a user sign for an already-probed position is a
+                 * duplicate by construction; a user sign colliding with
+                 * a BUILT-IN fires only when the built-ins did not match
+                 * - including the case where the built-in's only hits
+                 * were disabled out, mirroring the og's
+                 * analyser-removal semantics). A user-sign hit emits
+                 * directly: no tail walk (user signs carry no tail
+                 * semantics), the user's extension and MIME in the
+                 * record, extent to the device end (the og's user signs
+                 * are header-only markers - no size grammar). */
+                if (usersigns::active_count() != 0) {
+                    if (const carve::usersigns::UserSign* us =
+                            usersigns::match_at(win + off, want - off)) {
+                        /* S-056: the format toggle gates EVERY carve
+                         * source (the og's Filter removes the analyser
+                         * from the working registry - FUN_180006b30 -
+                         * and D-104's "same format-toggle rules"
+                         * registration claim, now true in code): a
+                         * disabled extension's user signs never fire
+                         * either. The check rides the HIT path only -
+                         * rare by construction (a magic actually
+                         * matched), so the token scan costs nothing on
+                         * the per-stride hot path. */
+                        const bool us_disabled = carve_token_listed(
+                            ctx.flags->disabled_formats, us->ext, us->ext);
+                        if (us_disabled) {
+                            /* the format is off: no emission, the stride
+                             * falls through to the skip accounting */
+                        } else {
+                            const u64 len = ctx.total - start_abs;
+                            /* F9 dedup (extent class) - the same shape as
+                             * the grammar/raw-sign layers */
+                            u64 len_class = 0;
+                            if (len >= (1 << 20)) {
+                                while ((1ULL << len_class) < len)
+                                    ++len_class;
+                                len_class += 64;
+                            } else {
+                                len_class = len / 65536;
+                            }
+                            bool dup = false;
+                            if (ctx.dedup_tree &&
+                                ctx.dedup_tree->find_by_extent(start_abs + ctx.ext_base,
+                                                               len_class))
+                                dup = true;
+                            if (!dup &&
+                                ctx.tree->find_by_extent(start_abs + ctx.ext_base, len_class))
+                                dup = true;
+                            if (dup) {
+                                ctx.duplicates.fetch_add(1, std::memory_order_relaxed);
+                                emitted_at.insert(start_abs);
+                            } else {
+                                tree::FileProperties* props =
+                                    new (std::nothrow) tree::FileProperties();
+                                if (props == nullptr) {
+                                    ctx.aborted.store(true, std::memory_order_relaxed);
+                                    return ERR_NO_MEMORY;
+                                }
+                                const u32 fi = ctx.next_name_counter(
+                                    ctx.carve_counter_key(us->ext, std::string()));
+                                Signature rsig{};
+                                rsig.ext = us->ext;
+                                rsig.name = us->ext;
+                                props->name = ctx.namer ? ctx.namer(rsig, len, fi)
+                                                        : og_carve_name(rsig.ext, {}, fi);
+                                props->fs_kind = u32(FsKindCode::Raw);
+                                props->logical_size = len;
+                                props->carve_format =
+                                    0xFFFE0000u; /* M-048: the user-signature tag */
+                                props->carve_confidence = 600; /* user-taught, no og-calibrated
+                                                                * confidence - the fixed documented
+                                                                * value (PARITY-DELTAS) */
+                                props->times.modified = ctx.scan_time;
+                                {
+                                    u8 hdr[512];
+                                    const u32 hb =
+                                        u32(len < sizeof(hdr) ? len : sizeof(hdr));
+                                    if (hb != 0 && wdev.read_at(start_abs, hdr, hb) == OK)
+                                        props->carve_checksum = table::crc32(hdr, hb);
+                                }
+                                props->extents.push_back({start_abs + ctx.ext_base, len});
+                                if (ctx.ext_base != 0)
+                                    props->flags =
+                                        u16(props->flags | tree::NODE_FLAG_EXT_SHIFTED);
+                                /* the MIME rides the note (the og's EUUserData
+                                 * classification field) */
+                                if (us->mime[0] != 0)
+                                    for (const char* mp = us->mime; *mp; ++mp)
+                                        props->carve_note.push_back(u16(u8(*mp)));
+                                tree::FileNode* n = ctx.tree->add_file(
+                                    carve_attach_parent(ctx, start_abs, us->ext), props);
+                                props->release();
+                                if (n == nullptr) {
+                                    ctx.aborted.store(true, std::memory_order_relaxed);
+                                    return ERR_NO_MEMORY;
+                                }
+                                n->set_origin(tree::Origin::Carved);
+                                n->set_deleted_state(tree::DeletedState::Deleted);
+                                n->set_confidence(tree::Confidence::PartialRisk);
+                                ctx.sign_hits.fetch_add(1, std::memory_order_relaxed);
+                                /* N-171: the record IS validated (the sign
+                                 * matched); the headline carved count
+                                 * (carved_found = cs.validated) now includes
+                                 * the user-sign channel instead of silently
+                                 * omitting the whole default-on set. */
+                                ctx.validated.fetch_add(1, std::memory_order_relaxed);
+                                emitted_at.insert(start_abs);
+                                continue;
+                            }
+                        }
+                    }
+                }
+                if (zero_stride)
+                    ctx.zero_strides_skipped.fetch_add(1, std::memory_order_relaxed);
+                continue;
             }
             /* highest-confidence hit drives the candidate */
             const rawsigns::RawSign* best = matches[0];

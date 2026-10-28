@@ -68,3 +68,10 @@ population.
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this push; S47 lane, one carve patch with S-055 + S-056)
+**Verified by:** `CarveEngine.UserSignFilesCountInCarvedFound` (FAILED pre-fix: validated==0 with one user-sign record in the tree; PASSES post-fix: validated==1) + `DisabledFormatGatesUserSignLayer`'s control leg (validated==1 with the channel live) + full suite 1209/1167/0-fail.
+**Resolution notes:** The user-sign emission now ticks `ctx.validated` (alongside sign_hits), so `stats.carved_found = cs.validated` (cr_scan.cpp) includes the user-sign channel - the finding's preferred option (ticking validated keeps downstream per-stage counters uniform). The raw-sign layer's exclusion from carved_found is pre-existing, pinned behavior outside this finding's scope (its records count in sign_hits); no session-record schema change was needed since carved_found was already the persisted field.

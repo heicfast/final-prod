@@ -117,3 +117,10 @@ M-024's removal-loop decode (the corpus reference above).
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this push; S47 lane, one carve patch with S-055 + N-171)
+**Verified by:** `CarveEngine.DisabledFormatGatesUserSignLayer` (FAILED pre-fix: the disabled-ext record still carved; PASSES post-fix: sign_hits==0/validated==0/no 0xFFFE0000 records with the ext disabled, and the control leg with an unrelated ext disabled still fires) + full suite 1209/1167/0-fail.
+**Resolution notes:** The user-sign hit path now checks `carve_token_listed(flags.disabled_formats, us->ext, us->ext)` before emission - the same toggle that gates the grammar layer (trial_disabled) and the raw-sign layer (rawsign_disabled), making D-104's "same format-toggle rules" registration true in code. The check rides the HIT path only (a magic actually matched - rare by construction), so the per-stride hot path pays nothing. The docs/PARITY-DELTAS.md D-104 row needs no text change (its claim was aspirational; the code now honors it). No og-side citation change: the og's Filter removes analysers from the working registry (FUN_180006b30, the M-024 decode) and the core now removes the user-sign channel's per-ext reach the same way.
