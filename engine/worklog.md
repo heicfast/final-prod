@@ -4154,3 +4154,229 @@ code was modified. No fix was applied.
 - The board at the merged truth: **53 active (6 SEVERE · 17 MAJOR ·
   24 MINOR · 6 INFO) / 301 ledger data rows / 3 tracked-open** (the count
   recorded for the next conform pass).
+
+## Session-12 S12 lane (2026-10-29 — the continuation audit lane opens; grant: the two repos only, core + corpus)
+
+Task ID: S12/T0 (open — baselines + prompt + territory claim)
+Agent: session-12 continuation audit lane (the user's continuation instruction: find what prior sessions missed, remove the fixed things, go more deep, do more comparison on og-codebase and core, mark all remaining features/implementations/functions)
+
+Work Log:
+- Baselines at open: **core origin/main `f47dc026`** (pulled; the trail moved SIX
+  times during this lane's setup — `620f449` → `21b6c072` (the M-109/M-112-thumbnail
+  fix + conform) → `d61474d9` (the N-112 LZH fix) → `aab031ac` (S11-lead waves-2-3,
+  12 filings) → `f47dc026` (the S11-lead close)), **corpus `be0cfe9`** (unmoved).
+  Board at open (filesystem truth, recounted): **64 active (8 SEVERE · 20 MAJOR ·
+  29 MINOR · 7 INFO) / 300 ledger rows / 3 tracked-open** (OQ-S4-3, OQ-S10-1,
+  OQ-S10-3). Next free IDs at open: S-055+, M-116+, N-150+, I-034+, A-012+.
+- Prompt saved token-redacted: `worklog/session-12-continuation-audit-prompt.md`
+  (hygiene-verified: no live-token pattern). Read twice; the §1–§10 SOP plus the
+  continuation ask govern this lane.
+- **T0 findings at open — board-truth defects discovered during setup, claimed
+  as this lane's Wave 1** (all in `diff-to-fix/`, the lane's writable surface):
+  1. **Phantom SHA in FIXED-LEDGER rows 179–180** (added by the conform commit
+     `21b6c072`): both rows cite fix-commit `5103ecd8`, which does not exist in
+     ANY ref (`git rev-parse` + `git log --all`: unknown revision). The real fix
+     commit is **`76e2d351`** (verified in-repo: "fix(preview): M-109 + M-112 -
+     the og's 200 MB thumbnail eligibility anchor adopted ... the read loop").
+     The phantom-SHA truth class again — session-39B repaired 73 rows of it;
+     these two are NEW since that census.
+  2. **M-112 ID collision**: ledger row 180 assigns **M-112** to the large-IDAT
+     StbioSource read-loop defect (the fix lane's §8-duty NEW-FINDING), but
+     **M-112 is already taken by the ACTIVE S11B finding** (the CSL 0x44c size
+     branch, filed at `b37fabab`, pushed earlier — the SA-9 earlier-push-wins
+     rule). The S11-lead lane already honored the collision for their own
+     filings (their M-112→M-115, their N-147→dropped/extend-don't-refile); the
+     fix lane's row never got the same repair.
+  3. **The never-filed finding**: the large-IDAT defect has NO finding file in
+     any commit — ledger row 180 cites
+     `findings/MAJOR/M-112-stbio-read-cb-single-shot-breaks-large-png-idats.md`
+     "(retired to history)" — a path that never existed (the M-088
+     fictional-path class). The defect is REAL and code-RESOLVED (the read loop
+     + the shared band test at `76e2d351`), but the trail's own §8 duty
+     requires the finding artifact to exist.
+  **Wave-1 repair plan (claimed):** renumber the large-IDAT defect to **M-116**
+  (next free MAJOR per the S11-lead close) with a retroactive finding file —
+  full template + Resolution — retired into `findings/FIXED/` per the
+  N-134/FIXED-ALREADY precedent; repair both rows' SHA cells to `76e2d351`;
+  add the collision note in-file on the active M-112-CSL; then the
+  whole-ledger SHA verification sweep (every hex token in FIXED-LEDGER.md
+  `git cat-file`-verified; phantoms repaired to real commits) + the counts
+  truth re-count. The `21b6c072` message-truth note recorded (unrewritable
+  history; the f166440b precedent).
+- **Territory claim (coordination contract; pull-before-push every wave,
+  earlier-push-wins on convergence):**
+  - **Wave 1 (above)** — the bookkeeping-truth repair.
+  - **Wave 2 (landing-parity, read-only)** — verification of the three freshest
+    landings against the corpus decodes: N-112's LZH entry-chain walk
+    (`d61474d9`) vs the corpus decode (FUN_18003db20 probe + FUN_18003dd70 walk
+    + the RVA 0x9388c method constants read from og-codebase/RAWSearchDLL.dll);
+    M-109's 200 MB eligibility anchor + M-116's read loop (`76e2d351`) vs the
+    DRWUI :422425-429 gate (`0xc800000`). The S-054 precedent (a landed fix with
+    a 10× cap divergence, filed by S11-lead) makes this wave load-bearing.
+  - **Wave 3 (go-deeper, never-walked surfaces)** — the
+    `og-codebase/diskhealth` product tree (**818 files, never function-walked
+    by any prior lane** — only the DRW-side health grading/NVMe/CSMI surfaces
+    were audited) compared against the core's health module; the
+    never-dispositioned og-codebase asset families (`language/` 37 QM files,
+    `License/` 19, `EuShare/`, `NasConfig/`, `platforms/`, `imageformats/`,
+    `log/`, `Resource*/`) against the I-027/I-033 registers — posture
+    registration per the mark-all-remaining ask; the corpus's own worklog
+    cross-check (never read by any audit lane per the trail's citations).
+  - **Wave 4 (mark-all-remaining)** — the core-side citation-gap sweep at the
+    CURRENT tree (every src/include/tests file cited-or-dispositioned; the
+    prior citation-gap sweep was session 5's, ~200 commits ago).
+  - **NOT claimed** (the active fix lanes' territory): all SEVERE/MAJOR/MINOR
+    FIX work (the S40-ML lane's SEVERE queue; the S40 minor lane's N-090..N-137
+    queue), the OQ dispositions, the S11-lead's closed items, the driver-repo
+    residuals (out of this session's two-repo grant; OQ-S10-3 carries them).
+
+Stage Summary:
+- Next: Wave 1 (the ledger repair + verification sweep), then the parallel
+  deep-read agents for Waves 2–4, then filings + the close.
+
+### Session-39 fix log — N-113 landed (the text school)
+
+**Finding:** MINOR N-113 (five text-format list probes absent: VCF/GPX/OSP/
+POS/CHFP).
+**Classification:** CONFIRMED-DIVERGENCE (all five probes + walks re-verified
+first-hand at the corpus cites before any code; the POS open question
+settled by the demanded read of FUN_18001a470: the walk needle is
+"ProcessOn Schema File", extent = find + 21 + 0x13, cap 100 MiB).
+**Fix:** FMT_VCF/FMT_GPX/FMT_GPX_BOM/FMT_OSP/FMT_POS/FMT_CHFP. Decoded
+grammars ported exactly: VCF (the END:VCARD\r\n walk in 0x400 chunks with
+the 10-byte over-read, the multi-card BEGIN:VCARD continuation, cap 20 MiB);
+GPX (the declaration at 0 or +3, the <gpx u32 window [+0x16,+0x216) — a
+root before +0x16 rejects, the og's own window semantics, pinned by test;
+the </gpx> walk in 0x200 chunks, cap 100 MiB — the id!=0xa0 branch decode);
+OSP (the 10-byte prefix gate, the libopenshot needle, extent = find+14+0xF,
+cap 2 MiB, the family's unique REJECT-ON-MISSING — the og's size-0 exit,
+ported as ok=false); POS (the needle settled, extent = find+21+0x13, cap
+100 MiB); CHFP (the case-sensitive declaration + the case-insensitive
+<BiffProject at +0x28 — position-sensitive, pinned by test; the
+</BiffProject> walk, cap 100 MiB). The per-chunk find quirk (needles
+straddling a 512-byte boundary are missed by the og's chunked find) ported
+exactly via chunk_find; the trailing-NUL trim adapted as the bounded
+fallback (the M-092/M-093 convention). The case-insensitive og gates carry
+canonical-case magics — the exotic-case subset registered (the M-092 class).
+**Tests:** Carve.TextSchoolVcfAcceptedAndExtent / VcfMultiCardContinuation /
+VcfNoEndTagFallsBackBounded / GpxAcceptedAndExtent / GpxRootBeforeWindowRejects
+/ OspAcceptedAndRejectOnMissing / PosAcceptedAndExtent / ChfpAcceptedAndExtent
+/ ChfpRootOffAnchorRejects. Suite 1073/1073 (1031 / 42 Win-only skipped / 0
+failed); clang-format clean; F8 + self-probe green.
+**Trail:** findings/FIXED/N-113 with Resolution; ledger row (270 main + 20
+OQ = 290); CROSS-REF-MATRIX cell → MATCH; modules/carve.md; SUMMARY (board
+47 active).
+
+
+---
+Task ID: S40-OPEN (session-40 minors continuation lane open)
+Agent: session-40 execution lane (the user's "priority to minor first" mandate, continuation over the session-39 N-111 landing)
+
+Work Log:
+- T1 done: repos pulled (core `461825d8`, corpus `be0cfe9` — the audited-commit lineage current); prompt saved token-redacted to worklog/session-diff-fix-40-minors-prompt.md; baseline verified GREEN before any change: full build (gcc 14.2, -Wall -Wextra -Wpedantic -Werror -Wshadow) + cr_tests 1052 ran / 1010 passed / 42 Win-only skipped / 0 failed (~102s); clang-format 18.1.8 (the CI pin) installed; hooksPath wired.
+- Board at open (filesystem truth, recounted): 49 active = 6 SEVERE · 18 MAJOR · 20 MINOR · 5 INFO + 3 tracked-open (OQ-S4-3, OQ-S10-1, OQ-S10-3). FIXED/ holds N-111 + the two resolved OQ files. Ledger 288 rows.
+- Lane plan: the 20 open MINORs one-by-one (classify first, fix with RED->GREEN tests), the 5 INFO ACKNOWLEDGEDs, the 3 tracked-open dispositions, then the MAJOR/SEVERE queue as capacity allows. One finding, one verified fix, one push.
+
+Stage Summary:
+- Lane open; baseline green; no findings touched yet.
+
+---
+Task ID: S40C-1 (N-142 fixed — the dead CrPreview origin pair)
+Agent: session-40-continuation minors lane
+
+Work Log:
+- Classification: CONFIRMED (re-verified at c0f69250 before the edit: exactly 4 hits — declarations :887-888 + writes :3584-3585, zero reads repo-wide; the promotion at :3753-3756 re-read running off thumbnail_generate's own arguments; the fce38c3d drop record cross-checked).
+- Fix: src/ui/cr_ui.cpp — the CrPreview::src_session/src_node_id pair + the two preview-open writes deleted; the struct comment rewritten to the true addressing (cr_ui_thumbnail_generate's own session/node_id args, ABI-CONTRACT §7i) with the rebase-drop history + N-142 recorded. No ABI change (CrPreview internal).
+- Proof: grep census zero hits (the finding's own acceptance); rebuild green; cr_ui_tests 59/59 (incl. ThumbnailSuccessPromotesGradeTo2 + PreviewSessionAndSnapshot); the 34-test CrUi/Preview slice green.
+- Trail: Resolution in the file; git mv to findings/FIXED/; ledger row N-142; matrix cell → MATCH; SUMMARY session-40-continuation block added (board 54 active: 7 SEVERE · 20 MAJOR · 27 MINOR · 7 INFO / 306 rows / 3 tracked-open).
+
+Stage Summary:
+- First minor landed this lane; queue next: S-053+N-141 (the recommended one-pass), N-139, N-140, N-138, N-149, N-148, N-146, then the INFO acknowledgments.
+---
+Task ID: S11-R (session-11, the reconciliation lane — the 63-commit push window absorbed; the unique product landed)
+Agent: session-11 continuation lead (the fifth parallel session-11 lane)
+
+Work Log:
+- T1 at 8365956e: the prompt saved token-redacted + read twice; the
+  board-truth defects found at open (M-083/M-102 fixed-but-unretired, the
+  duplicate N-129 pair, the 283-vs-281 ledger drift).
+- WAVE-1 (board truth, EXECUTED locally): M-083/M-102 retired with the
+  ledger placeholders filled (e56baac7); the N-129 collision repaired
+  (wave-3's bookkeeping batch → N-135, the SA-9 rule); the b5da834 ledger
+  conflict residue resolved; the M-090 180053de0 mis-paste → 9daa787; the
+  exact row census recorded. — ABSORBED at push: the remote lanes landed
+  the same repairs (f166440b/bc4513db/2cf3f4d0/15279503/23849cac).
+- WAVE-2 (the re-triage, EXECUTED locally): five parallel agents, all 54
+  true-active findings re-verified (44 STILL-DEFECTIVE · S-050 PARTIAL ·
+  N-134 REFUTED-at-filing · I-030 PARTIAL · 4 INFO accurate); the addenda
+  drafted. — ABSORBED: their s11-triage-sweep.md (the same 56-row table at
+  the same baseline) + their b37fabab addenda batch; N-134 retired by
+  theirs as FIXED-ALREADY (same substance — the register rows predated the
+  filing; this lane's REFUTED label recorded in the backup branch).
+- WAVE-3 (the S10-F queue, EXECUTED locally): the RAWSearchDLL
+  infrastructure walk (the 18-row census + 14 MATCH holds + the
+  zero-threading/zero-error-propagation negatives); the API-DELTA currency
+  pass; the OQ-S8-1 consumer trace (four hops verified first-hand). —
+  ABSORBED: their s11-rawsearchdll-infra-walk.md + N-139/N-140 + I-031;
+  their s10f-cwindowsfs-consumer-trace.md + M-111 (their browse finding is
+  DEEPER than this lane's draft — the ShellExecuteA branch, the enumeration
+  impl, the IFSInterface vtable; this lane's S-053 draft DROPPED); the
+  S-050 per-chunk-feed addendum (this lane's D-INF-1).
+- THE PUSH REJECTION + RECONCILIATION: 63 concurrent-lane commits (the
+  parallel S11/S11B/lead/39/40/S12 lanes + the fix wave — M-108/M-109/
+  M-110/M-072/M-074/M-077/M-102+M-083/N-093/N-111..N-113/S-051 landed;
+  the S12 lane opened; the session-40 minor-first mandate opened). Rebase
+  attempted, aborted at the conflict scale; the lane state preserved in
+  session-11-local-backup (4 commits); main reset to b6e0a9ef; the UNIQUE
+  product re-derived against the new HEAD and landed:
+  * M-116 (THE headline — no remote lane caught it): the M-100 re-open.
+    The retirement's residue claim ("reachable today through
+    cr_ui_preview_metadata") refuted FIRST-HAND at 8365956e AND b6e0a9ef
+    (cr_ui.h:1214-1224 no entries field; cr_ui.cpp:3613-3631 m.entries
+    never referenced). The archive inventory's ABI half re-opened; the
+    M-100 ledger row annotated.
+  * N-150 (the API doc-truth batch): every item re-verified CURRENT at
+    b6e0a9ef — the false-missing R-84 pair, the doubly-stale R-37, the
+    81-vs-83 export count, the 34-vs-38 error-code count, the :345 line,
+    the stale-landed API-DELTA rows.
+  * The unique addenda: N-131 (bit-512 re-base — N-100's landing took the
+    bit), N-132 (the R-31 spread verified current), M-107 (the two nits).
+  * I-031's extension: only_common + the A4 phrasing.
+  * The re-created findings/FIXED/ sweep: 7 ledger-rowed files retired to
+    history per the ledger's own convention.
+- BOOKKEEPING INCIDENT (this lane's own, recorded per the truth standard):
+  the lane's SUMMARY/README insertion script carried a p/r variable-target
+  bug that wrote README content into the SUMMARY path on the pre-rebase
+  local branch (the backup branch preserves the corrupted intermediate);
+  fixed before the reconciliation landing by restoring from the last good
+  state. Lesson: one writer variable per file.
+- READ-ONLY GUARANTEE: verified per-commit on the local branch (all four
+  commits touch only diff-to-fix/ + worklog*); the reconciliation landing
+  touches only diff-to-fix/ + worklog*; zero product files.
+
+Stage Summary:
+- Board after S11-R (filesystem truth): 64 active (7 S · 21 M · 29 N ·
+  7 I) / 300 resolved ledger rows / 3 tracked-open.
+- The lane's recommended fix order: M-116 first (the M-102-pattern
+  two-call archive export + N-150's row-state sweep in the same wave).
+- The backup branch (session-11-local-backup) preserves the full
+  pre-reconciliation lane state for any future forensics.
+
+---
+Task ID: S11-R/close (session-11, the reconciliation lane's final sweep)
+Agent: session-11 continuation lead
+
+Work Log:
+- The final rebase window (c26f77d9's N-142 fix) re-created
+  findings/FIXED/ again (the c56481ca sweep's class recurring within the
+  hour) — swept once more: N-142's ledger row exists (verified); the file
+  retired to history. The convention holds on the landed tree.
+- The landed session: 0f9e4345 (the S11-R reconciliation) + this sweep.
+  READ-ONLY GUARANTEE re-verified on both: only diff-to-fix/ + worklog*
+  touched; zero product files; no conflict markers anywhere.
+
+Stage Summary:
+- Board at the landed HEAD: 63 active (7 S · 21 M · 28 N · 7 I) / 300
+  resolved ledger rows / 3 tracked-open. The lane is closed; the backup
+  branch (session-11-local-backup) preserves the full pre-reconciliation
+  state for forensics.

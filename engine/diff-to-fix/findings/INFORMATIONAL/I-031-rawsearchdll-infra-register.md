@@ -81,3 +81,28 @@ None.
 The singleton's +0x60/+0x68 reset fields have no in-DLL reader (semantics
 UNVERIFIED — host-side read channel or vestigial; carried in the evidence
 file's §4).
+
+
+---
+
+## S11-R addendum (2026-10-29, the reconciliation lane; re-verified at `b6e0a9ef`)
+
+**Register extension (this lane's walk, two items the register does not
+carry):**
+1. **The dormant `only_common` vendor mode** — when config/config.ini's key
+   is set (the shipped og config does NOT set it), the registration walk
+   (`FUN_180004fb0 :3013-3056`) registers ONLY `RawFormat_xjq::
+   CommonRawAnalyser` (id 0xa8=168) and the dispatch's map/multimap fast
+   paths are disabled (`FUN_18000cf60 :9842-9893` falls to the list layer).
+   Core analog: none (repo grep `only_common` → 0 hits) — **register as
+   deliberate divergence** (a vendor QA mode; the core's compiled-in signs
+   table supersedes its purpose). One PARITY-DELTAS D-row.
+2. **SCAN-ENGINE-DELTA A4's phrasing correction** — "sector-size query via
+   vtable slot 5" is the **DEVICE** vtable's slot 5 (`:9192/:9203`,
+   IStorageDevice: +8 Read, [3]/[4] GetSize, [5] GetSectorSize), not the
+   searcher's. One-row edit in the trail's own gate doc.
+Both verified first-hand in the decompile; the lane's full infrastructure
+census (the 18-row itemization, the 14 MATCH confirmations incl. the
+ping-pong slide at :9620-9622, the zero-threading/zero-error-propagation
+negatives) is preserved in the backup branch evidence and corroborates this
+register's rows.

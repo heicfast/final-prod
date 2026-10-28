@@ -3308,6 +3308,244 @@ CarveResult validate_lzh(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
+/* ---- N-113: the text school - the og's small text-format list probes ----
+ * Five RawConfig-token-gated list analysers, every probe + walk re-verified
+ * first-hand this session (the corpus line cites in cr_signatures.h's
+ * N-113 block). Shared shape: a chunked needle scan; the found extent per
+ * the decoded formula; the family's bounded fallback at the cap.
+ *
+ * The og's 0x200-chunk finds are PER-CHUNK (each 512-byte block is copied
+ * into a fixed buffer and std::string-searched independently - a needle
+ * straddling a 512-byte boundary is MISSED by the og); ported exactly
+ * here: chunk_find searches within one chunk only. VCF's loop over-reads
+ * 10 bytes past its 0x400 advance (the u64 compare chain reads
+ * [chunk, chunk+0x40A]) - also ported. The og's 64 KiB sliding-window
+ * trailing-NUL trim (the >16-zero tail check that detects the device end)
+ * is adapted as the bounded fallback at the slice cap (the M-092/M-093
+ * convention for this school's walks). */
+namespace {
+/* case-insensitive ASCII compare (the og's _memicmp) */
+bool ci_eq(const u8* a, const char* b, size_t n) {
+    for (size_t i = 0; i < n; ++i) {
+        u8 x = a[i], y = u8(b[i]);
+        if (x >= 'A' && x <= 'Z')
+            x = u8(x - 'A' + 'a');
+        if (y >= 'A' && y <= 'Z')
+            y = u8(y - 'A' + 'a');
+        if (x != y)
+            return false;
+    }
+    return true;
+}
+
+/* the per-chunk needle search: returns the offset of the needle WITHIN
+ * [chunk_start, chunk_start + chunk + tail) if fully inside one chunk
+ * (tail > 0 only for VCF's over-read form), or npos */
+constexpr u64 kNpos = ~0ull;
+u64 chunk_find(IStorageDevice* s, u64 chunk_start, u64 chunk, u64 tail, const char* needle,
+               u32 needle_len, u8* buf, u32 buf_cap) {
+    const u64 span = chunk + tail;
+    if (span > buf_cap || span < needle_len)
+        return kNpos;
+    const u64 readable = std::min<u64>(span, s->size() - chunk_start);
+    if (readable < needle_len)
+        return kNpos;
+    const u32 take = u32(std::min<u64>(readable, span));
+    if (!rd(s, chunk_start, buf, take))
+        return kNpos;
+    const u64 limit = take >= needle_len ? take - needle_len + 1 : 0;
+    for (u64 i = 0; i < limit; ++i)
+        if (std::memcmp(buf + i, needle, needle_len) == 0)
+            return i;
+    return kNpos;
+}
+} // namespace
+
+CarveResult validate_vcf(IStorageDevice* s, u64 hit, u64 cap) {
+    /* CVCFAnalyser (id 0x88): the probe's BEGIN:VCARD gate is carried by
+     * the row magic. The walk (FUN_18003ba40 :45363-45452): scan 0x400
+     * chunks (the u64/u16/byte compare chain over-reads 10 bytes past the
+     * advance) for the exact-case "END:VCARD\r\n"; on find: extent += find
+     * + 11, then the multi-card continuation - the next 11 bytes
+     * memicmp-compared against "BEGIN:VCARD" (case-insensitive): a match
+     * resumes the walk at the new extent; otherwise the walk ends. Cap
+     * 0x1400000 (the loop bound 0x1400001's floor value). */
+    CarveResult r;
+    const u64 limit = probe_limit(s, hit, cap); /* cap = 20 MiB */
+    std::vector<u8> buf(0x40A + 16);
+    u64 size = 0;
+    while (size < limit) {
+        const u64 chunk_abs = hit + size;
+        const u64 rel =
+            chunk_find(s, chunk_abs, 0x400, 0x0A, "END:VCARD\r\n", 11, buf.data(), u32(buf.size()));
+        if (rel != kNpos) {
+            size += rel + 11;
+            /* the multi-card continuation: BEGIN:VCARD at the new extent
+             * (the og's memicmp) */
+            u8 next[11];
+            if (size + 11 <= limit && rd(s, hit + size, next, 11) && ci_eq(next, "BEGIN:VCARD", 11))
+                continue; /* the next card - keep walking */
+            r.ok = true;
+            r.end = hit + size;
+            r.confidence = 700;
+            r.note = "vcf-endtag-walk";
+            return r;
+        }
+        size += 0x400;
+    }
+    r.ok = true;
+    r.end = limit;
+    r.confidence = 450;
+    r.note = "vcf-bounded-cap";
+    return r;
+}
+
+CarveResult validate_gpx(IStorageDevice* s, u64 hit, u64 cap) {
+    /* CGPXAnalyser (id 0x97): the probe (FUN_18001b0a0 :20860-20936)
+     * gates the 15-byte declaration "<?xml version=\"" at 0 or +3 (the
+     * UTF-8 BOM form - the two registry rows), then scans for the u32
+     * "<gpx" in [+0x16, +0x216). The walk (FUN_18001b220): 0x200 chunks,
+     * "</gpx>" needle, extent = find + 6; cap 0x6400000 (the id != 0xa0
+     * branch). */
+    CarveResult r;
+    u8 head[0x21A];
+    const u64 avail = std::min<u64>(sizeof(head), s->size() > hit ? s->size() - hit : 0);
+    if (avail < 15)
+        return r;
+    if (!rd(s, hit, head, u32(avail)))
+        return r;
+    if (std::memcmp(head, "<?xml version=\"", 15) != 0 &&
+        !(avail >= 18 && std::memcmp(head + 3, "<?xml version=\"", 15) == 0))
+        return r; /* the declaration gate: direct or UTF-8-BOM form */
+    /* the <gpx window: u32 0x7870673c at [+0x16, +0x216) */
+    bool gpx = false;
+    for (u64 i = 0x16; i + 4 <= avail && i < 0x216; ++i) {
+        if (u32_from_bytes_le(head + i) == 0x7870673cu) {
+            gpx = true;
+            break;
+        }
+    }
+    if (!gpx)
+        return r;
+    const u64 limit = probe_limit(s, hit, cap); /* cap = 100 MiB */
+    std::vector<u8> buf(0x200 + 16);
+    u64 size = 0;
+    while (size < limit) {
+        const u64 rel =
+            chunk_find(s, hit + size, 0x200, 0, "</gpx>", 6, buf.data(), u32(buf.size()));
+        if (rel != kNpos) {
+            r.ok = true;
+            r.end = hit + size + rel + 6;
+            r.confidence = 700;
+            r.note = "gpx-endtag-walk";
+            return r;
+        }
+        size += 0x200;
+    }
+    r.ok = true;
+    r.end = limit;
+    r.confidence = 450;
+    r.note = "gpx-bounded-cap";
+    return r;
+}
+
+CarveResult validate_osp(IStorageDevice* s, u64 hit, u64 cap) {
+    /* COSPAnalyser (id 0x8f): the probe's 10-byte prefix gate ('{\r\n
+     * "di": ') is carried by the row magic. The walk (FUN_1800421c0
+     * :50159-50317): 0x200 chunks for "\"libopenshot\":" within 2 MiB;
+     * extent = find + 14 + 0xF; the needle NOT FOUND -> the size field is
+     * set to 0 -> the candidate is DROPPED (the family's only
+     * reject-on-missing - ported as ok=false). */
+    CarveResult r;
+    const u64 limit = probe_limit(s, hit, cap); /* cap = 2 MiB */
+    std::vector<u8> buf(0x200 + 16);
+    u64 size = 0;
+    while (size < limit) {
+        const u64 rel = chunk_find(s, hit + size, 0x200, 0, "\"libopenshot\":", 14, buf.data(),
+                                   u32(buf.size()));
+        if (rel != kNpos) {
+            r.ok = true;
+            r.end = hit + size + rel + 14 + 0xF;
+            r.confidence = 700;
+            r.note = "osp-needle-walk";
+            return r;
+        }
+        size += 0x200;
+    }
+    /* the og's reject-on-missing: size = 0 (FUN_1800421c0's exit path) */
+    r.ok = false;
+    return r;
+}
+
+CarveResult validate_pos(IStorageDevice* s, u64 hit, u64 cap) {
+    /* CPOSAnalyser (id 0x8b): the probe's '{"diagram":' gate is carried by
+     * the row magic (the og's _memicmp - the canonical case here). The
+     * walk needle (the finding's open question, settled first-hand from
+     * FUN_18001a470 :20250-20445): "ProcessOn Schema File" (21 bytes);
+     * 0x200 chunks; extent = find + 21 + 0x13; cap 0x6400000. */
+    CarveResult r;
+    const u64 limit = probe_limit(s, hit, cap); /* cap = 100 MiB */
+    std::vector<u8> buf(0x200 + 16);
+    u64 size = 0;
+    while (size < limit) {
+        const u64 rel = chunk_find(s, hit + size, 0x200, 0, "ProcessOn Schema File", 21, buf.data(),
+                                   u32(buf.size()));
+        if (rel != kNpos) {
+            r.ok = true;
+            r.end = hit + size + rel + 21 + 0x13;
+            r.confidence = 700;
+            r.note = "pos-needle-walk";
+            return r;
+        }
+        size += 0x200;
+    }
+    r.ok = true;
+    r.end = limit;
+    r.confidence = 450;
+    r.note = "pos-bounded-cap";
+    return r;
+}
+
+CarveResult validate_chfp(IStorageDevice* s, u64 hit, u64 cap) {
+    /* CHFPAnalyser (id 0x90): the probe (FUN_1800199xx :19939-19996)
+     * gates the 15-byte XML declaration (case-SENSITIVE memcmp - carried
+     * by the "<?xm" magic + re-verified) AND _memicmp(buf+0x28,
+     * "<BiffProject", 12) == 0 (case-insensitive). The walk
+     * (:20001-20184): 0x200 chunks for "</BiffProject>", extent =
+     * find + 14; cap 0x6400000. */
+    CarveResult r;
+    u8 head[0x34];
+    const u64 avail = std::min<u64>(sizeof(head), s->size() > hit ? s->size() - hit : 0);
+    if (avail < 0x34)
+        return r;
+    if (!rd(s, hit, head, u32(avail)))
+        return r;
+    if (std::memcmp(head, "<?xml version=\"", 15) != 0)
+        return r; /* the case-sensitive declaration gate */
+    if (!ci_eq(head + 0x28, "<BiffProject", 12))
+        return r;                               /* the case-insensitive root gate */
+    const u64 limit = probe_limit(s, hit, cap); /* cap = 100 MiB */
+    std::vector<u8> buf(0x200 + 16);
+    u64 size = 0;
+    while (size < limit) {
+        const u64 rel =
+            chunk_find(s, hit + size, 0x200, 0, "</BiffProject>", 14, buf.data(), u32(buf.size()));
+        if (rel != kNpos) {
+            r.ok = true;
+            r.end = hit + size + rel + 14;
+            r.confidence = 700;
+            r.note = "chfp-endtag-walk";
+            return r;
+        }
+        size += 0x200;
+    }
+    r.ok = true;
+    r.end = limit;
+    r.confidence = 450;
+    r.note = "chfp-bounded-cap";
+    return r;
+}
+
 CarveResult validate_ts(IStorageDevice* s, u64 hit, u64 cap) {
     /* 188-byte MPEG transport stream packets (CMTS, id 0x76) */
     return validate_ts_common(s, hit, cap, 188, 0, 700, "ts-packet-walk-188",

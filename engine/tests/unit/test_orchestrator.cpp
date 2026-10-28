@@ -300,10 +300,54 @@ TEST(Orchestrator, WholeDiskGptTwin) {
 }
 
 TEST(Orchestrator, WholeDiskMixedFamilies) {
-    /* one FAT16 volume + one NTFS-probeable volume (the boot + record-0
-     * shape): per-target family probing dispatches each through its own
-     * engine; the NTFS target (no $Volume label decode yet - N-133's
-     * landing) takes the FS-marker tier, never the anonymous form. */
+    /* one FAT16 + one exFAT volume on one MBR disk: per-target probing
+     * dispatches DIFFERENT engines in one whole-disk scan. */
+    auto fat = build_fat16();                    /* 5074 secs */
+    auto exf = testfixture::build_exfat_image(); /* 2048 secs */
+    constexpr u64 P1_START = 2048, P2_START = 8192;
+    constexpr u64 DISK_SECS = 24000;
+    std::vector<u8> img(u64(DISK_SECS) * 512, 0);
+    auto mbr_entry = [&](int slot, u8 type, u64 start, u64 count) {
+        u8* e = img.data() + 446 + slot * 16;
+        e[4] = type;
+        e[8] = u8(start);
+        e[9] = u8(start >> 8);
+        e[10] = u8(start >> 16);
+        e[11] = u8(start >> 24);
+        e[12] = u8(count);
+        e[13] = u8(count >> 8);
+        e[14] = u8(count >> 16);
+        e[15] = u8(count >> 24);
+    };
+    mbr_entry(0, 0x0E, P1_START, 5074);
+    mbr_entry(1, 0x07, P2_START, 2048); /* exFAT: IFS type */
+    img[510] = 0x55;
+    img[511] = 0xAA;
+    std::memcpy(img.data() + P1_START * 512, fat.data(), fat.size());
+    std::memcpy(img.data() + P2_START * 512, exf.data(), exf.size());
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = true;
+    cfg.run_carve = false;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_EQ(stats.table_volumes, 2u);
+    EXPECT_EQ(stats.table_volumes_scanned, 2u);
+    /* the FAT volume's DOC.TXT and the exFAT volume's doc.txt both land */
+    EXPECT_EQ(count_named(tree, "DOC.TXT") + count_named(tree, "doc.txt"), 2u);
+    EXPECT_GE(count_named(tree, "photo.jpg"), 1u) << "the exFAT target's photo.jpg found";
+}
+
+TEST(Orchestrator, WholeDiskFsMarkerNamesForeignVolume) {
+    /* M-104's tier-3 naming: a volume whose family has NO label decode yet
+     * (NTFS - the $Volume decode is N-133's landing) takes the FS-marker
+     * form "NTFS @ <LBA>", never the anonymous "Volume @ <LBA>" and never
+     * the "Candidate @" form. */
     u64 s1 = 0, s2 = 0;
     auto img = testfixture::build_two_volume_mbr_disk("FATSIDE", "VOLTWO", &s1, &s2);
     /* plant the NTFS probe shape over the second volume's boot sector */
@@ -320,7 +364,6 @@ TEST(Orchestrator, WholeDiskMixedFamilies) {
     b[0x44] = 2;
     b[510] = 0x55;
     b[511] = 0xAA;
-    /* the $MFT record 0 at volume-relative LCN 100 */
     const u64 rec = (s2 + 100) * 512;
     std::memset(img.data() + rec, 0, 1024);
     put32v(img, rec, 0x454C4946); /* 'FILE' */
@@ -343,11 +386,8 @@ TEST(Orchestrator, WholeDiskMixedFamilies) {
     u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
     ASSERT_EQ(rc, OK) << err_text(rc);
     EXPECT_EQ(stats.table_volumes, 2u);
-    EXPECT_EQ(stats.table_volumes_skipped, 0u);
-    EXPECT_GE(stats.files_found, 2u) << "the FAT volume's DOC.TXT + deleted file";
     const auto names = root_names(tree);
     EXPECT_NE(std::find(names.begin(), names.end(), "FATSIDE"), names.end());
-    /* the NTFS tier-2 name: the FS marker + the position, never anonymous */
     std::string expected = "NTFS @ " + std::to_string(s2);
     EXPECT_NE(std::find(names.begin(), names.end(), expected), names.end())
         << "expected the FS-marker root '" << expected << "'";

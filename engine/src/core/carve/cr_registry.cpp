@@ -103,6 +103,11 @@ CarveResult validate_xmlsvg(IStorageDevice* s, u64 hit, u64 cap);   /* M-093: th
 CarveResult validate_mobi(IStorageDevice* s, u64 hit, u64 cap);     /* M-096: the salvage gate */
 CarveResult validate_jp2(IStorageDevice* s, u64 hit, u64 cap);      /* N-111: the JP2 family */
 CarveResult validate_lzh(IStorageDevice* s, u64 hit, u64 cap);      /* N-112: the LZH family */
+CarveResult validate_vcf(IStorageDevice* s, u64 hit, u64 cap);      /* N-113: the text school */
+CarveResult validate_gpx(IStorageDevice* s, u64 hit, u64 cap);      /* N-113 */
+CarveResult validate_osp(IStorageDevice* s, u64 hit, u64 cap);      /* N-113 */
+CarveResult validate_pos(IStorageDevice* s, u64 hit, u64 cap);      /* N-113 */
+CarveResult validate_chfp(IStorageDevice* s, u64 hit, u64 cap);     /* N-113 */
 
 namespace {
 const Signature kTable[] = {
@@ -1203,6 +1208,75 @@ const Signature kTable[] = {
      700,
      validate_lzh,
      "LZH archive"},
+    /* N-113: the text school - the og's RawConfig-token-gated list probes.
+     * The magics carry the probes' own canonical gates; the validators run
+     * the decoded walks (see cr_signatures.h's N-113 block for the full
+     * per-grammar decode). GPX/CHFP share the "<?xm" key with the M-093 XML
+     * rows (their grammars reject each other's content; N-070 ranks the
+     * accepting candidate). The case-insensitive og gates (VCF/POS/CHFP's
+     * memicmp forms) are expressed by the canonical-case magic - the
+     * exotic-case subset beyond the magic is a registered detection subset
+     * (the M-092 HTML class). */
+    {FMT_VCF,
+     "vcf",
+     {'B', 'E', 'G', 'I', 'N', ':', 'V', 'C', 'A', 'R', 'D'},
+     11,
+     0,
+     0x0B,
+     0x1400000ull, /* the walk's 20 MiB cap, byte-exact */
+     620,
+     validate_vcf,
+     "vCard contacts"},
+    {FMT_GPX,
+     "gpx",
+     {'<', '?', 'x', 'm'},
+     4,
+     0,
+     0x20,
+     0x6400000ull,
+     620,
+     validate_gpx,
+     "GPX track"},
+    {FMT_GPX_BOM,
+     "gpx",
+     {0xEF, 0xBB, 0xBF, '<'},
+     4,
+     0,
+     0x20,
+     0x6400000ull,
+     620,
+     validate_gpx,
+     "GPX track"},
+    {FMT_OSP,
+     "osp",
+     {0x7b, 0x0d, 0x0a, 0x20, 0x22, 0x64, 0x69, 0x22, 0x3a, 0x20}, /* '{\r\n "di": ' */
+     10,
+     0,
+     0x0A,
+     0x200000ull, /* 2 MiB - the reject-on-missing family cap */
+     620,
+     validate_osp,
+     "OpenShot project"},
+    {FMT_POS,
+     "pos",
+     {0x7b, 0x22, 'd', 'i', 'a', 'g', 'r', 'a', 'm', 0x22, ':'}, /* '{"diagram":' */
+     11,
+     0,
+     0x0B,
+     0x6400000ull,
+     620,
+     validate_pos,
+     "ProcessOn schema"},
+    {FMT_CHFP,
+     "hfp",
+     {'<', '?', 'x', 'm'},
+     4,
+     0,
+     0x40,
+     0x6400000ull,
+     620,
+     validate_chfp,
+     "HFP project"},
 };
 } // namespace
 

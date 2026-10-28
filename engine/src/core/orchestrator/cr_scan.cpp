@@ -1668,7 +1668,7 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
                     if (fam == FsFamily::Unknown) {
                         ++stats.table_volumes_skipped;
                         if (cr::log::enabled())
-                            cr::log::write(cr::log::Level::Warn,
+                            cr::log::write(cr::log::Level::Info,
                                            "whole-disk target skipped: partition @LBA %llu (%llu "
                                            "sectors) has no identifiable filesystem",
                                            static_cast<unsigned long long>(p.start_lba),

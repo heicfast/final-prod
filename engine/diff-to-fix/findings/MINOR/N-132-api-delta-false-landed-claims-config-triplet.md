@@ -60,3 +60,21 @@ None. (Whether the CLI `tree` wants PriorityDisplayType ordering is a product de
 ## Session-11B addendum (2026-10-29): cite refresh + the propagating aggravation
 
 The false rows are now at `diff-to-fix/API-DELTA.md:110-111` (was :108-109 — insertions above). **Aggravation:** the false "landed" claim now propagates into the PRIMARY gap table — `docs/REFERENCE-API-GAP.md:225` (R-31 primary) claims PRESENT citing "PriorityDisplayType ordering (the query/filefilter data layers, API-DELTA row 45)" while the second-table `:379` still says PARTIAL — the document self-contradicts on the strength of this finding's false row. The fix plan's step 1 (flip rows 44-45 to the truthful state) now also requires the `:225` refresh.
+
+
+---
+
+## S11-R addendum (2026-10-29, the reconciliation lane; re-verified at `b6e0a9ef`)
+
+**Aggravation re-verified at `b6e0a9ef` (this lane's unique product):** the
+false "landed" claim PROPAGATED into the product gap-board — at the filing
+baseline `docs/REFERENCE-API-GAP.md:225` (R-31 primary) honestly read
+"PARTIAL | Missing: … PriorityDisplayType display ordering"; the doc-truth
+batch-A landing (`e4f3184`) flipped it to "PRESENT | … PriorityDisplayType
+ordering (the query/filefilter data layers, API-DELTA row 45)" — citing the
+false API-DELTA row as its source. The row still reads that way at the
+current HEAD (re-read this session): the two gate docs AGREE with each other
+and are BOTH false vs the code (the repo grep stays zero). The fix must
+revert/correct R-31's display-priority clause in addition to rows 44-45 —
+N-150's batch owns the row-state mechanics; this addendum records that the
+spread is verified current, not historical.

@@ -342,7 +342,7 @@ belongs to the fix lane; this census is the audit-side truth record.
 | M-092 | MAJOR | carve (the HTML four-key chain) | eb1f116 | `findings/FIXED/M-092-html-carve-absent-u16-keys-and-endtag-walk-decoded.md` |
 | M-093 | MAJOR | carve (the XML/SVG chain; "csl"+0x1cd decoded) | ca701711 (d1dc51a was a pre-rebase phantom, repaired session 39) | `findings/FIXED/M-093-xml-svg-carve-absent-four-u32-keys-one-chain.md` |
 | M-096 | MAJOR | carve (the MOBI salvage gate + end-tag walk) | 6e37dc21 (7ca83f5 was a pre-rebase phantom, repaired session 39) | `findings/FIXED/M-096-mobi-carve-absent-bookmobi-gate-endtag-walk-decoded.md` |
-| M-100 | MAJOR | preview | closed-as-covered — `6d0f16c` (M-066+N-088, an ancestor of the finding's own baselines; the session-10 lane-B verification: `evidence/s10-verification-pass-b.md`) | `findings/MAJOR/M-100-archive-browse-inside-preview-absent.md` (retired by the session-10 lane-B push; never lived in FIXED/ — the capability predated the filing) |
+| M-100 | MAJOR | preview | closed-as-covered — `6d0f16c` (M-066+N-088, an ancestor of the finding's own baselines; the session-10 lane-B verification: `evidence/s10-verification-pass-b.md`) — **S11-R RE-OPEN ANNOTATION (2026-10-29): the retirement's residue claim ("reachable today through cr_ui_preview_metadata") is FALSE — `cr_ui_metadata` (cr_ui.h:1214-1224) has no entries field and `preview_metadata_impl` (cr_ui.cpp:3613-3631) discards `Metadata.entries`; the exposure half re-opened as M-116 (the engine half genuinely predates the filing; this row stands for that half)** | `findings/MAJOR/M-100-archive-browse-inside-preview-absent.md` (retired by the session-10 lane-B push; never lived in FIXED/ — the capability predated the filing) |
 | M-072 | MAJOR | query/abi | bf17e55 | `findings/MAJOR/M-072-query-axes-path-substring-state-mask.md` |
 | M-074 | MAJOR | writer/abi | 09b311d | `findings/MAJOR/M-074-destination-validation-codes-undifferentiated.md` |
 | M-077 | MAJOR | preview | af5ca4d | `findings/MAJOR/M-077-preview-caps-defaults-absent.md` |
@@ -371,7 +371,9 @@ belongs to the fix lane; this census is the audit-side truth record.
 | N-134 | MINOR | register (the product-frame census) | FIXED-ALREADY at `b202f9ed` (the six rows pre-dated the filing by 6.5h; retired session-11B with the sfc addenda preserved) | `findings/FIXED/N-134-product-frame-register-completion.md` |
 | N-093 | MINOR | (session-38; the og's four bound pairs carried — the pin + MID behavioral pair RED→GREEN; Resolution in history at the N-093 commit) | 03ad5523 (session-11C — the real SHA; this lane's repair of the "(this session)" placeholder) | `findings/MINOR/N-093-batch1-bounds-mid-gz.md` |
 | N-111 | MINOR | carve | (session-39 fix lane — cite-by-title: "fix(carve): N-111 - the JP2 family lands") | `findings/FIXED/N-111-jp2-carve-absent-jp-signature-ftyp-brand-map-decoded.md` |
+| N-142 | MINOR | ui (the dead CrPreview origin pair; rebase-leftover hygiene) | (this session — cite-by-subject "fix(ui): N-142 - the dead CrPreview origin pair removed") | `findings/FIXED/N-142-preview-handle-dead-wiring-rebase-leftover.md` |
 | N-112 | MINOR | carve | (session-39 fix lane — cite-by-title: "fix(carve): N-112 - the LZH entry-chain walk lands") | `findings/FIXED/N-112-lzh-carve-absent-list-layer-lh-method-gate-entry-walk-decoded.md` |
+| N-113 | MINOR | carve | (session-39 fix lane — cite-by-title: "fix(carve): N-113 - the text school lands") | `findings/FIXED/N-113-text-school-list-probes-absent-vcf-gpx-osp-pos-chfp-decoded.md` |
 
 ## Go-forward convention (established by this purge, per the user instruction; AMENDED session-39 AND session-11D — BOTH fix lanes received the same user instruction "put fixed findings in fixed directory")
 
