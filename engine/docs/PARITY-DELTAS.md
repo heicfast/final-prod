@@ -858,10 +858,18 @@ Split verdict — three sub-claims:
 ### D-36 — Single-pass quick+deep (ARCH-3): one walk where og runs two generations
 
 - **WHAT OG DOES:** Quick scan = `EUCreate<FS>QuickSearcher`; Advanced = a
-  SEPARATE complete-searcher generation (`FUN_140580720` builds
-  `EUCreate{NTFS,FAT,EXFAT,ZFS,HFS,ReFS}Searcher` + `EUCreateRAWSearcher`,
-  DRWUI_decompiled.c:916443+); quick results carry into Advanced
-  (dynamic-ground-truth: "Advanced Scanning 9% … 1.11M files").
+  SEPARATE complete-searcher generation (**`FUN_140581500`** (DRWUI:917015-917040)
+  is the creation site — I-044 citation correction; the earlier-cited
+  `FUN_140580720` (DRWUI:916443+) is the run phase — builds
+  `EUCreate{NTFS,FAT,EXFAT,ZFS,HFS,ReFS}Searcher` + `EUCreateRAWSearcher`;
+  the ZFS leg is `scanzfs`-gated and the shipped product has the key absent
+  from config/version.ini, so ZFS recognition is compiled out at runtime);
+  quick results carry into Advanced
+  (dynamic-ground-truth: "Advanced Scanning 9% … 1.11M files"). The
+  quick→deep auto-advance itself is an ENGINE-side state machine
+  (`CDoScanPartition::DoScan` pushes states 0/1 unconditionally,
+  DRWUI:567875-567892; I-044 decode) — the core's default-on stage model is
+  the correct parity translation.
 - **WHAT WE DO:** Single-pass-with-deep-settings: the quick stage runs the
   engine pass with deep flags when deep is configured ("single walk" design,
   `src/core/orchestrator/cr_scan.cpp`); the deep stage adds the remnant sweep +
