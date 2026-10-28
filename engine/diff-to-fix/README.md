@@ -1,5 +1,14 @@
 # diff-to-fix/ — parity audit roadmap (core_recovery vs easeus-drw-research)
 
+**ID-allocation convention (N-160 item 5, enforced by `tools/doc_truth_gate.py` in CI):**
+a next-free-ID check must run against the FIXED-LEDGER's resolved rows AND the
+in-flight parallel lanes' claims, never the active board alone — the S41 lane's
+freedom check missed a retired row (the M-117 2.5-minute push-window race), and
+the gate's first run caught three more live instances, renumbered per SA-9
+earlier-push-wins: N-156→N-187 (mpegps vs RRWR), M-133→M-138 (twin-key vs the
+retired suite-red convergent), N-142→N-186 (the rsf variant record vs the retired
+dead-wiring pair).
+
 **Session-42-C S42-C lane (2026-10-29 — the THIRD continuation lane of the same
 user second-session mandate, same pin core `869da779` / corpus `be0cfe9`; rebranded
 twice at the reconciliations [the remote's S42 and S42-B lanes pushed first]):**
@@ -121,7 +130,7 @@ extension population; the s5 evidence's polarity line is the erratum the inversi
 inherited), **S-059** (sparse/hole files left-shifted or refused at recovery — the og
 always writes full logical size), **S-060** (recovered files lose timestamps + DOS
 attributes — the og restores both after every item; the N-009d row refuted),
-**S-061** (ReFS/Btrfs never receive the og's insert-time High grade), **M-133..M-137**
+**S-061** (ReFS/Btrfs never receive the og's insert-time High grade), **M-134..M-137 + M-138**
 (the grading sub-rules, the deep-read validation, the read-failure semantics, the
 recovery retry-bypass, the lost-partition surfaced shape — the "Lost Partition
 %d(%s)" template resolving M-104's deferred question), **N-180..N-185** (the

@@ -1,3 +1,34 @@
+**S56 lane — N-160 landed (2026-10-29, the S56 MINOR-mirror lane's first disposition).**
+
+**N-160 FIXED (MINOR — the register-truth batch).** All six doc repairs landed:
+I-034's census re-labeled + the committed `scripts/og_tree_census.py` replacing
+the two phantom cites (1,538 entries = 68 dirs + 1,470 files; 555 at top+1; 750
+files within top+2; 720 deeper — every number reproduced first-hand at corpus
+`be0cfe9`); the N-129 OQ-S10-1→OQ-S10-2 erratum addendum; the inventory row 79
+full 5-executable set (EUAdobeRepair 431,192 B + EUArchiveRepair 599,128 B,
+stat-verified) + row 104's S-048/S-049/M-103 session-tree cross-note; I-033 §12's
+invariant re-stated with the verified inert-key set (the remainder → N-158's
+five branches); the README ID-allocation convention sentence. The two doc_truth_gate
+checks landed (`check_cited_scripts_exist` + `check_finding_id_uniqueness`,
+CI-wired at checks.yml:173): RED first run = 7 named violations; GREEN post-fix =
+20 citations resolve, 71 active + 334 ledger-resolved IDs, zero collisions.
+**The gate's first run caught THREE live ID collisions beyond the finding's own
+items** — each repaired per SA-9 earlier-push-wins with push-timestamp proof:
+N-156-mpegps→**N-187** (RRWR filed 20:30:07 UTC first), M-133-twin→**M-138** (the
+retired suite-red convergent 21:08:06 UTC first), N-142-rsf→**N-186** (the retired
+dead-wiring 19:08:34 UTC first); every live cross-ref swept (session.md,
+orchestration.md, S-058, M-134, N-183, N-154, CROSS-REF-MATRIX, README's live
+list, the M-098 file + its ledger row). M-086's `scripts/install.ps1` cite
+resolved as a driver-repo cross-repo path (scoped in its text + the gate's
+CROSS_REPO exemption) — not a phantom. No production code touched. Suite 1230/1230
+green (1188 pass / 42 win-only skip / 0 fail, linux-release) at the landing tree.
+Trail: findings/FIXED/N-160 + ledger row + this entry.
+
+(Convergence note, added at the rebase: the session-52 lane's M-133 twin-key landing
+absorbed below — their fix substance stands; the N-160 doc-truth renumber M-133→M-138
+applies to their FIXED file per SA-9 [the suite-red convergent owns the M-133 seat];
+their N-175/N-176/M-119/S-055/S-056/M-128/M-129/N-158/M-132 landings in the same window
+are noted convergent-skip by this lane's claim.)
 **Tracked-open sweep status (S47 INFO-first lane, 2026-10-29).** OQ-S10-1 verified
 current at HEAD (thumbnail_format_supported at src/core/preview/cr_thumbnail.cpp:85
 admits jpeg/png/bmp/gif/tiff/raw/psd/pnm/hdr only — HEIC/WebP/PDF/video refused BY

@@ -92,7 +92,7 @@ The "Recovery Chances" status — the grade column users sort and decide by — 
 ## Related findings
 
 - **S-061** — ReFS/Btrfs insert-time grade (the other graded-population divergence in the same engine).
-- **M-133** — the twin-key device-family set (the address key the twin map uses).
+- **M-138** — the twin-key device-family set (the address key the twin map uses; renumbered from M-133 at the N-160 doc-truth repair).
 - **M-134** — the deep-read validation (`FUN_14038c470`, the third leg of the same branch).
 - **N-183** — the gauge population/score-formula batch (the same engine's aggregate surface).
 
