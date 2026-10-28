@@ -168,6 +168,17 @@ struct PartitionContext {
     u32 sectors_per_cluster = 0;
     u32 hidden_sectors = 0;
     u32 flags = 0; /* bit 0 = size_from_device_end; bit 1 = geometry valid */
+    /* v3 (M-137): the og's found-partition row context (UIUX/08 §2) +
+     * the naming template's label source. disk_layout is the scan
+     * target's table::TableLayout (0 none, 1 MBR, 2 EBR, 3 GPT,
+     * 4 GPT-damaged); disk_flags bit 0 = dynamic (LDM database found),
+     * bit 1 = the target's table parsed. volume_label is the FAT12/16
+     * boot-sector label (NUL-padded, empty for the unnamed path).
+     * OPTIONAL per the skip-unknown rule: v2 payloads deserialize with
+     * zeros and the older fields are unaffected (append-only wire). */
+    u32 disk_layout = 0;
+    u32 disk_flags = 0;
+    char volume_label[12] = {0};
 };
 u32 serialize_partition_context(const PartitionContext& pc, std::vector<u8>& out);
 

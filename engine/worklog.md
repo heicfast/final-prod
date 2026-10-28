@@ -1,3 +1,14 @@
+- **M-137 FIXED (e7030bf2)** — the lost-partition surfaced shape: the og's naming
+  template (unnamed "Lost Partition <n>(<FS>)" with the per-scan counter; the boot-label
+  path "<label> (<FS>)" with ":)"-bearing labels verbatim; LBA only as the no-FS-name
+  fallback; the FAT12/16 +0x2B label captured by the probe), the presentation trio
+  (disk_layout/disk_dynamic/disk_table_ok stamped from the orchestrator's own parses,
+  persisted PartitionContext v3 tail, surfaced in rrecov + the cr_ui_apply_candidate ABI
+  tail), the ten-target insertion cap (lost_candidates_inserted; >10 stay surfaced +
+  apply-able), and the 512-byte geometry fallback (FallbackGeomDevice shim - every probe
+  reads geometry() directly). 5 new tests + the M-104 twin re-pinned; the three
+  behavioral tests RED-proven by behavior-revert; suite 1244: 1202/42/0. The Quick-staging
+  half: the D-36 single-walk decode (C1/I-044) covers it - registered delta, not a defect.
 **Session-51 severe-first lane — S-058 + S-061 landed (2026-10-29).**
 
 **S-058 + S-061 FIXED (one grading patch).** Corpus re-verified first-hand:
