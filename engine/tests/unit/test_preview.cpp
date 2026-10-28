@@ -508,8 +508,8 @@ TEST(PreviewMeta, TruncatedMagicsAreSafeAndHonest) {
         cases.push_back({{'G', 'I', 'F', '8'}, "image", "gif"}); /* 4-byte GIF */
         cases.push_back({{'R', 'I', 'F', 'F', 0, 0, 0, 0, 'W', 'E', 'B', 'P'},
                          "image",
-                         "webp"});                          /* 12-byte RIFF/WEBP */
-        cases.push_back({{'P', 'K'}, "archive", "zip"});    /* 2-byte PK */
+                         "webp"});                       /* 12-byte RIFF/WEBP */
+        cases.push_back({{'P', 'K'}, "archive", "zip"}); /* 2-byte PK */
         /* M-108: eligibility is extension-gated (the og's TxtViewFiles
          * whitelist) - a printable head in a non-whitelisted .bin is NOT
          * text (the old content-sniff false-positive class) */
@@ -1479,28 +1479,26 @@ TEST(PreviewTextWhitelist, ByteExactAgainstCorpus) {
      * 97 shipped tokens (92 unique case-folded), the og's entry order,
      * the trailing delimiter, NUL-terminated (regenerate via
      * scripts/gen_preview_text_exts.py - the gen_filterfolder pattern) */
-    const std::string_view pool(reinterpret_cast<const char*>(
-                                    preview::textexts::data::kTxtViewPool),
-                                preview::textexts::data::kTxtViewPoolLen);
+    const std::string_view pool(
+        reinterpret_cast<const char*>(preview::textexts::data::kTxtViewPool),
+        preview::textexts::data::kTxtViewPoolLen);
     /* the shipped list's head and tail, verbatim */
     EXPECT_EQ(0u, pool.find(".TXT;.CFG;.CONFIG;.CSS;.CSV;.HTML;.INF;"));
     EXPECT_NE(std::string_view::npos, pool.find(";.XSL;.bak;.msbak;\0", 0));
     /* the exact shipped token set (re-derived independently here from
      * the corpus value - any drift in generation fails this) */
-    const char* kCorpusValue =
-        ".TXT;.CFG;.CONFIG;.CSS;.CSV;.HTML;.INF;.INFO;.INI;.JS;.LOG;.XML;"
-        ".aae;.database_uuid;.srt;.bat;.md;.json;.1ST;.A;.A8S;.ANS;.ARENA;"
-        ".AS;.ASA;.ASM;.ATH;.ATT;.AVS;.BBZ;.BCS;.BMK;.BOOK;.BPW;.BSD;.BSDL;"
-        ".BSH;.CAMP;.CEL;.CELX;.CFG;.CFG;.CGI;.CHART;.CMD;.CONF;.CS;.CSH;"
-        ".CU;.CUS;.DBA;.DIF;.FOUNTAIN;.GM;.GSC;.GSD;.HAML;.HPS;.HTM;.JAV;"
-        ".JAVA;.JRTF;.M;.M;.MAP;.MARKDOWN;.MCMETA;.MDBACKUP;.MDINFO;.MDL;"
-        ".MDOWN;.ML;.MXML;.OSU;.OUT;.P6;.PAS;.PHP;.PL;.PNPROJ;.PNPT;"
-        ".PROPERTIES;.PROPERTIES;.PY;.QC;.QC;.RTX;.S;.SRC;.URL;.WTX;.XQL;"
-        ".XQY;.XSD;.XSL;.bak;.msbak;";
+    const char* kCorpusValue = ".TXT;.CFG;.CONFIG;.CSS;.CSV;.HTML;.INF;.INFO;.INI;.JS;.LOG;.XML;"
+                               ".aae;.database_uuid;.srt;.bat;.md;.json;.1ST;.A;.A8S;.ANS;.ARENA;"
+                               ".AS;.ASA;.ASM;.ATH;.ATT;.AVS;.BBZ;.BCS;.BMK;.BOOK;.BPW;.BSD;.BSDL;"
+                               ".BSH;.CAMP;.CEL;.CELX;.CFG;.CFG;.CGI;.CHART;.CMD;.CONF;.CS;.CSH;"
+                               ".CU;.CUS;.DBA;.DIF;.FOUNTAIN;.GM;.GSC;.GSD;.HAML;.HPS;.HTM;.JAV;"
+                               ".JAVA;.JRTF;.M;.M;.MAP;.MARKDOWN;.MCMETA;.MDBACKUP;.MDINFO;.MDL;"
+                               ".MDOWN;.ML;.MXML;.OSU;.OUT;.P6;.PAS;.PHP;.PL;.PNPROJ;.PNPT;"
+                               ".PROPERTIES;.PROPERTIES;.PY;.QC;.QC;.RTX;.S;.SRC;.URL;.WTX;.XQL;"
+                               ".XQY;.XSD;.XSL;.bak;.msbak;";
     EXPECT_EQ(std::string_view(kCorpusValue), pool.substr(0, pool.find('\0')));
     EXPECT_EQ(97u, preview::textexts::data::kTxtViewTokenCount);
     /* the pool NUL-terminates within its own bytes */
-    EXPECT_LT(std::strlen(reinterpret_cast<const char*>(
-                              preview::textexts::data::kTxtViewPool)),
+    EXPECT_LT(std::strlen(reinterpret_cast<const char*>(preview::textexts::data::kTxtViewPool)),
               preview::textexts::data::kTxtViewPoolLen);
 }

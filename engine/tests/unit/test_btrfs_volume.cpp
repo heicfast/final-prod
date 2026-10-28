@@ -8,7 +8,7 @@
 
 #include "cr/btrfs/cr_btrfs_engine.h"
 #include "cr/orchestrator/cr_filterfolder.h" /* M-110: the not-in-pools guard */
-#include "cr/btrfs/cr_btrfs_cache.h" /* N-072 */
+#include "cr/btrfs/cr_btrfs_cache.h"         /* N-072 */
 #include "cr/cr_text.h"
 #include <gtest/gtest.h>
 #include <zlib.h>
@@ -325,7 +325,6 @@ std::vector<u8> build_volume() {
     memcpy(d.data() + L_DATA + 4096, "nested btrfs content", 21);
     return d;
 }
-
 
 /* M-110: a Synology-shaped volume - every real-world Synology Btrfs
  * directory carries an "@eaDir" child holding the SYNO@EA@… EA entries.
@@ -2127,7 +2126,6 @@ TEST(Btrfs, CacheStaleGenerationDiscardedOnVolumeRewrite) {
     EXPECT_EQ(io.writes, 2);
 }
 
-
 /* ---- M-110: the og's Synology "@eaDir" descent suppression ---- */
 
 namespace {
@@ -2219,8 +2217,7 @@ TEST(Btrfs, EaDirNotInFilterfolderPools) {
                                 filterfolder::data::kFolderPoolLen);
     const std::string_view fpool(reinterpret_cast<const char*>(filterfolder::data::kFilePool),
                                  filterfolder::data::kFilePoolLen);
-    const std::string_view fatpool(reinterpret_cast<const char*>(
-                                       filterfolder::data::kFatNamePool),
+    const std::string_view fatpool(reinterpret_cast<const char*>(filterfolder::data::kFatNamePool),
                                    filterfolder::data::kFatNamePoolLen);
     for (auto pool_view : {pool, fpool, fatpool})
         EXPECT_EQ(std::string_view::npos, pool_view.find("@eaDir"))

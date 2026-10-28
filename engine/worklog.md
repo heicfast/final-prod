@@ -3678,3 +3678,45 @@ Work Log:
   Next free IDs: S-054+, M-113+, N-143+, I-033+, A-012+.
 - The N-129→N-135 renumber and the M-102/M-083 retirement from this lane's earlier
   push stand (743d7b8d lineage; the remote lanes' truth commits cite them).
+
+---
+Task ID: S40-ML/T0 (the session-40 MAIN lane open — CI restore + territory claim)
+Agent: session-40 main diff-fix lane (the user's tracked-open-first directive; the
+parallel minor-first lane's claim at 865f8b43 honored — no overlap)
+
+Work Log:
+- Baselines at open: core origin/main 461825d8 pulled, then fast-forwarded to
+  c7fa527c (the S11 audit wave d50a54dc/53495c0c + the M-110 landing b95c924b +
+  the ledger cite repair). Corpus be0cfe9 (unmoved). Local suite at open: 1052
+  tests / 1010 passed / 42 Win-only skipped / 0 failed (linux-release, g++ 14.2);
+  clang-format 18.1.8 (the CI pin).
+- **CI RED RESTORED (the first finding of this lane, class: push-window format
+  dirt):** the last two Checks runs (461825d8, b95c924b) failed [1/2] clang-format
+  — 18 violations the parallel landings left (cr_preview.cpp x3 from the M-108
+  text-eligibility wave; test_preview.cpp x15 from the same; the M-110
+  test_btrfs_volume.cpp dirt was already repaired in c7fa527c's lineage).
+  Repaired: clang-format -i on the two files; local [1/10] re-run clean (0
+  violations repo-wide); preview/thumbnail suites re-run green (40 passed / 29
+  Win-only skipped). The known lesson (worklog S38-close method note 1) holds:
+  re-run the FULL-REPO format check after every rebase window.
+- **Territory claim (coordination contract):** the parallel S40 lane owns the
+  MINOR queue (N-090..N-137 per its claim) and plans INFO next. THIS lane owns,
+  per the user's tracked-open-first directive: (1) the three tracked-open OQs
+  (OQ-S4-3's Windows dispatch ALREADY IN FLIGHT — run 40747332987, dispatched
+  via the API at open on c7fa527c; OQ-S10-1's video host-callback seam; OQ-S10-3
+  the out-of-grant push-forward), then (2) the SEVERE tier (S-040, S-048, S-049,
+  S-050, S-051, S-052, S-053), then (3) the MAJOR tier (M-073..M-111, the
+  driver-repo halves excepted per the two-repo grant), then (4) the unclaimed
+  new minors N-138..N-141 (filed after the parallel lane's queue was set).
+  Pull-fetch before every push; convergence per the earlier-push-wins precedent.
+- Prompt saved token-redacted: worklog/session-diff-fix-40-prompt.parallel-main-lane.md
+  (the unnumbered name is the session-1-era copy; the parallel lane holds the
+  plain -40- name; this lane takes the .parallel-main-lane suffix per the
+  session-37 precedent).
+
+Stage Summary:
+- Next: OQ dispositions (the benchmark transcription when 40747332987 lands; the
+  OQ-S10-1 video seam; the OQ-S10-3 grant-boundary record), then the SEVERE
+  queue in impact order: S-053 (ReFS unnamed rows), S-052 (LDM span basis),
+  S-051 (whole-disk targets), S-049 (carved naming), S-048 (carve grouping),
+  S-040 (image-create), S-050 (the repair-line registration).
