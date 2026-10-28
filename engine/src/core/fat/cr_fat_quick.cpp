@@ -353,6 +353,13 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
     props->times.changed = props->times.modified;
     props->times.accessed = fat_to_filetime(e.access_date, 0, 0);
     props->attributes = e.attributes;
+    /* OQ-SA-1 (resolved): the og stamps the props' first-cluster anchor
+     * from the dentry pair (dentry +0x14/+0x1A) independent of chain
+     * resolution — for deleted entries the reconstruction helper
+     * FUN_180012e60 ALWAYS stamps, with the DENTRY's own first-cluster
+     * when reconstruction produced nothing (FATSearchDLL :13702-13738).
+     * Passive datum; 0 stays 0 (empty file). */
+    props->fat_origin_cluster = first_cluster;
     if (deleted)
         props->flags &= ~u16(0x10);
     else

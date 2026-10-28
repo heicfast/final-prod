@@ -1132,6 +1132,47 @@ TEST(Session, EngineExtrasAbsentWhenUnpopulated) {
     EXPECT_EQ(blob, blob2) << "no extras block: the record shape is unchanged";
 }
 
+TEST(Session, FatOriginClusterRoundTrip) {
+    /* OQ-SA-1 (resolved, scan-engine lane): the FAT-family first-cluster
+     * origin anchor — the og's CFAT +0x3e / CExFat +0x50 slot (the
+     * SetFirstCluster vtable+0x28 contract; part1 :125-127 census) —
+     * rides its own nflags bit-7 block so a chainless deleted record
+     * keeps its dentry origin across save/load (RED pre-fix: the carrier
+     * did not exist; the datum was dropped). */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Volume F");
+    tree::FileProperties* p = new tree::FileProperties();
+    p->name = u"_GONE.TXT";
+    p->fs_kind = u32(FsKindCode::Fat16);
+    p->fat_origin_cluster = 4089; /* the dentry's origin cluster */
+    p->extents.push_back({8192, 512});
+    auto* f = t.add_file(root, p);
+    (void)f;
+    p->release();
+    /* a second, plain node proves the bit-7 gate: zero carrier -> the
+     * record stays the pre-OQ-SA-1 shape */
+    tree::FileProperties* p2 = new tree::FileProperties();
+    p2->name = u"plain.txt";
+    p2->fs_kind = u32(FsKindCode::Fat16);
+    auto* f2 = t.add_file(root, p2);
+    (void)f2;
+    p2->release();
+    t.refresh_stats();
+
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), u32(OK));
+    tree::ResultTree t2;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), u32(OK));
+    tree::FileNode* g2 = t2.roots()[0]->first_child();
+    ASSERT_NE(g2, nullptr);
+    ASSERT_NE(g2->props(), nullptr);
+    EXPECT_EQ(g2->props()->fat_origin_cluster, 4089u);
+    tree::FileNode* q2 = g2->next_sibling();
+    ASSERT_NE(q2, nullptr);
+    ASSERT_NE(q2->props(), nullptr);
+    EXPECT_EQ(q2->props()->fat_origin_cluster, 0u);
+}
+
 TEST(Session, IdentityCardFirmwareWwnInterface) {
     /* N-066 (diff-to-fix): the og record-3's identity axes — firmware
      * revision (+0x206), WWN/serial-2 (+0x30A), interface description

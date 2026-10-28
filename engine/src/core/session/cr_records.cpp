@@ -139,7 +139,11 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
          *   bit6: N-059 per-FS secondary payload follows (u32 id_a,
          *         u32 id_b, u64 generation, u16 zfs_flags, u16 hfs_flags,
          *         u32 hfs_type - the og's Btrfs +0x3B/+0x3F/+0x81, ZFS
-         *         +0x5A, HFS+ part2 +0xE/+0x74) */
+         *         +0x5A, HFS+ part2 +0xE/+0x74)
+         *   bit7: OQ-SA-1 FAT-family origin cluster follows (u32 - the
+         *         og's CFAT +0x3e / CExFat +0x50 first-cluster anchor,
+         *         stamped from the dentry independent of chain
+         *         resolution; passive datum) */
         u16 nflags = 0;
         if (pr) {
             for (const auto& e : pr->extents)
@@ -163,6 +167,8 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
                        pr->zfs_secondary_flags != 0 || pr->hfs_secondary_flags != 0 ||
                        pr->hfs_type_id != 0))
                 nflags |= 64; /* N-059: per-FS secondary payload follows */
+            if (pr && pr->fat_origin_cluster != 0)
+                nflags |= 128; /* OQ-SA-1: the FAT-family origin cluster */
         }
         put32(out, parent_ids[i]);
         put16(out, nflags);
@@ -240,6 +246,15 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
             put16(out, pr->hfs_secondary_flags);
             put32(out, pr->hfs_type_id);
         }
+        /* OQ-SA-1 (nflags bit7): the FAT-family origin cluster — the og's
+         * CFAT +0x3e / CExFat +0x50 first-cluster anchor (part1 :125-127;
+         * the SetFirstCluster vt+0x28 contract, stamped from the dentry
+         * regardless of chain resolution — FUN_180012e60's unconditional
+         * closing stamp :13737-13738). 4-byte block; bit7 fires only when
+         * the carrier is nonzero, so pre-OQ-SA-1 sessions stay shape-
+         * identical. */
+        if (nflags & 128)
+            put32(out, pr->fat_origin_cluster);
         if (n->is_full()) {
             const tree::FullNode* f = static_cast<const tree::FullNode*>(n);
             put16(out, u16(f->role.size()));
@@ -421,6 +436,11 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* re
             props->zfs_secondary_flags = c.g16();
             props->hfs_secondary_flags = c.g16();
             props->hfs_type_id = c.g32();
+            if (c.fail)
+                break;
+        }
+        if (nflags & 128) { /* OQ-SA-1: the FAT-family origin cluster */
+            props->fat_origin_cluster = c.g32();
             if (c.fail)
                 break;
         }

@@ -27,3 +27,59 @@ The corpus artifacts record the slots and value bands but mark the semantics INF
 
 - **N-087** (this session) — the same artifact's name-field finding (filed, evidence complete).
 - **N-050/N-059** (FIXED) — the adjacent type-registry-ID residual (registered; distinct fields).
+
+## Probe resolution (2026-10-28, Agent 2 scan-engine lane — FAT +0x3e and exFAT +0x50 RESOLVED; NTFS +0x64 narrowed)
+
+**FAT +0x3e — RESOLVED (emission-side decode, decisive).** The slot is the
+first-cluster anchor behind a virtual contract (getter = vtable slot 6,
+setter = vtable+0x28). The walk stamps it from the DENTRY's first-cluster
+pair (dentry +0x14/+0x1A) for live entries
+(FATSearchDLL_decompiled.c:11652-11660), and for deleted entries the
+chain-reconstruction helper FUN_180012e60 (:13702-13738) ALWAYS closes with
+`props->SetFirstCluster(start & 0xffffffff)` — where start = the
+reconstructed chain head on success and **the DENTRY'S OWN first-cluster
+pair when the reconstruction produced nothing** (the entry fallback
+:13716-13719). So a chainless deleted file KEEPS its origin cluster: the
+question's premise is confirmed, the census sample (39/39 hasRun) simply
+never contained the chainless case. The emitted node carries the anchor
+(puVar19[10] = props->+0x3e, :11688-11695) and the reader path uses it as
+the contiguous read anchor (cluster-from-sector math, :11446-11470).
+
+**exFAT +0x50 — RESOLVED (same contract, other object offset).** The
+CExFatFileProperties 0xB8-B object's +0x50 slot (zeroed as `plVar13[10]` in
+the ctor, exFATSearchDLL_decompiled.c:5198-5214) receives the same
+vt+0x28 SetFirstCluster: the orphan/LostDir path stamps it
+unconditionally from the entry's first cluster (source+0x18,
+:5246-5252) and the emitted node carries the cluster's absolute byte
+offset (node[10], :5290-5298 — `cluster_size*(c-2)+data_base`).
+
+**NTFS +0x64 — NARROWED (partial).** The copy path FUN_180003020
+(NTFSSearchDLL_decompiled.c:1972-2010) maps source+0x4f → the landed
+type-registry id (+0x60, N-050) and source+0x53 → the +0x64 u32; the
+caller is the $FILE_NAME parse (FUN_18002a340 :33930+), whose source
+qwords are 48-bit-masked file-reference-family values (e.g.
+`local_41 = *param_1 & 0xffffffffffff` — the parent-reference mask,
+:33901-33915). The +0x64 datum is therefore a u32 drawn from the
+$FILE_NAME reference region adjacent to the type id — most consistent
+with the parent-directory/MFT-reference family — but the exact identity
+(record number low word vs parent-reference low word) is NOT yet
+instruction-decisive. The remaining probe: trace local_41's stack slot
+into FUN_180003020's param_2+0x53 (one stack-offset mapping in the
+caller's local layout). NOT implemented — zero-invention bar held.
+
+**Core fix landed (the FAT/exFAT halves):** `tree::FileProperties` gained
+`fat_origin_cluster` (the passive anchor datum, stamped from the
+dentry/stream-dentry at emission independent of chain resolution —
+cr_fat_quick.cpp / cr_exfat_quick.cpp), persisted as the session tree
+record's nflags bit-7 block (4 bytes, fires only when nonzero —
+pre-fix sessions stay shape-identical; cr_records.cpp). The og's
+degraded contiguous-READ use of the anchor is NOT reproduced (not
+decoded). Tests: FatEngine.FatOriginClusterCarriedForChainlessDeleted +
+ExfatEngine.OriginClusterCarriedFromStreamDentry +
+Session.FatOriginClusterRoundTrip — runtime fail-before PROVEN (stamps
+neutralized: both engine tests RED with the carrier at 0 while the
+session round-trip stays green; full suite 927 passed / 4 platform-skips
+/ 0 failed).
+
+**Status: OQ-SA-1 stays tracked-open for the NTFS +0x64 half only (the
+narrowed question above); the FAT/exFAT anchor halves are CLOSED.**

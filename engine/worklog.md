@@ -18015,3 +18015,47 @@ Stage Summary:
   probes — exFAT FUN_14058c870 writer decompile, FAT chainless probe,
   NTFS +0x64 census correlation), then N-089's fix if the lane stays
   free.
+
+---
+Task ID: SCAN-2c (Agent 2 — OQ-SA-1: the FAT/exFAT anchor-datum carrier landed)
+Agent: Agent 2 (scan-engine lane)
+
+Work Log:
+- Decoded both disputed slots first-hand to instruction level:
+  FAT +0x3e = the first-cluster anchor behind the virtual SetFirstCluster
+  contract (getter vt-slot-6, setter vt+0x28); the deleted-chain helper
+  FUN_180012e60 ALWAYS closes with props->SetFirstCluster(start) — the
+  dentry's own first-cluster pair when reconstruction produced nothing
+  (FATSearchDLL :13702-13738; live path :11652-11660; node carries it
+  :11688-11695). exFAT +0x50 = the same contract at the other object
+  offset (orphan path stamps unconditionally :5246-5252; node[10] carries
+  the absolute cluster offset :5290-5298). NTFS +0x64 narrowed: a u32 from
+  the $FILE_NAME 48-bit reference region adjacent to the landed type-id
+  (FUN_180003020 copy path :1972-2010, caller FUN_18002a340 :33930+) —
+  identity not yet instruction-decisive, NOT implemented (zero-invention
+  bar), the remaining half of the tracked question.
+- Landed the carrier: FileProperties.fat_origin_cluster (passive datum,
+  documented with the full decode chain in cr_node.h); stamped at FAT and
+  exFAT emission from the dentry/stream-dentry independent of chain
+  resolution; persisted as the session tree record's nflags bit-7 block
+  (4 bytes, nonzero-gated; pre-fix sessions shape-identical).
+- Tests: FatOriginClusterCarriedForChainlessDeleted (chainless deleted
+  dentry, FAT[9] FREE; pins the inferred-run PartialRisk interplay),
+  ExfatEngine.OriginClusterCarriedFromStreamDentry (gone/over/photo/doc
+  all carry their stream-dentry FirstCluster),
+  Session.FatOriginClusterRoundTrip (bit-7 round-trip + zero-carrier
+  shape gate). Runtime fail-before PROVEN: stamps neutralized -> both
+  engine tests RED (carrier 0), session round-trip green; restored ->
+  full suite 927 passed / 4 platform-skips / 0 failed.
+- Trail: OQ-SA-1 tracked-open file (FAT/exFAT halves CLOSED, NTFS half
+  narrowed), SCAN-ENGINE-DELTA.md row Q11 flipped to present(fixed).
+- handoff: none to Agent 1 — the carrier is engine-internal + session-wire
+  additive (no API/DTO change; the cr_ui C-ABI does not expose per-node
+  secondary fields, so no ABI bump needed; Agent 1 informed via worklog).
+
+Stage Summary:
+- OQ-SA-1's FAT +0x3e / exFAT +0x50 anchor questions CLOSED with the
+  carrier landed and proven; the NTFS +0x64 half remains tracked with a
+  one-probe narrowed question. Next in the A2 queue: OQ-SA-2's four
+  carve-family probes (CFCPEvt key binding, AAC/M1V/RIFF tier roles, WPG
+  size stamp, CNeedRawMgr mode gating).

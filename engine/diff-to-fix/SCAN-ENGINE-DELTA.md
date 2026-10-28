@@ -35,7 +35,7 @@ decompiles (`re-workspace/reversed/ghidra-searchdll/`, `ghidra-drwui/`); core
 | Q8 | Quick is metadata-only + used-bitmap reasoning; no sector-by-sector content pass; same StartSector range reused by deep | Single-walk quick/deep (D-36 registered); stage telemetry + weighted progress 40/35/25 | **present (registered delta)** |
 | Q9 | Quick-scan error paths: HRESULT-style 0x5002xxxx facility ladder (89 distinct constants in HFS+ engine; "Return Error:0x…Fuction:" verbose channel); record-skip salvage semantics | `cr::Err` families 0x5002/0x5003/... with salvage-over-purity; numeric values core-internal (D-68 registered); read-truth gate ERR_READ_FAILED (anti-fake-success, stronger than og) | **present (registered delta)** |
 | Q10 | FAT 8.3 names persist as raw OEM-codepage bytes (part1:121; control-byte names survive verbatim) | **FIXED (8451913, other lane, verified by A2)**: `short_name_to_u16` CP437 boundary decode (`kCp437[128]`), corpus-cited, 0xE5-name-byte semantics preserved | ~~inconsistent~~ **present (fixed)** |
-| Q11 | IFileProperties anchor-datum fields: FAT +0x3e first-cluster origin kept for chainless deleted files; exFAT +0x50; NTFS +0x64 | No carrier in `tree::FileProperties` | **missing (tracked-open OQ-SA-1)** |
+| Q11 | IFileProperties anchor-datum fields: FAT +0x3e first-cluster origin kept for chainless deleted files; exFAT +0x50; NTFS +0x64 | **FIXED (this session, A2)**: `fat_origin_cluster` carrier stamped from the dentry/stream-dentry independent of chain resolution (FAT/exFAT emission decode: FUN_180012e60's unconditional closing stamp); persisted as nflags bit-7; runtime fail-before proven; NTFS +0x64 remains tracked (narrowed: a u32 from the $FILE_NAME 48-bit reference region, adjacent to the type-id) | **present (fixed) + 1 tracked residue** |
 
 ## 2. ADVANCED / DEEP SCAN
 
@@ -141,8 +141,9 @@ detected extensions into the +0x60 set (FUN_18000ed00 sites :19626/:20222/:20892
    handoff note for the main-engineer lane (their finding text carries the wrong
    justification; no code change required — the landed behavior is legitimate once
    registered as a superset).
-2. **OQ-SA-1**: decode part1 anchor-datum semantics; implement the FAT first-cluster
-   carrier if and only if the semantics verify; otherwise keep tracked-open.
+2. **OQ-SA-1 — LANDED (FAT/exFAT halves)**: `fat_origin_cluster` carrier + nflags
+   bit-7 wire + 3 tests (runtime fail-before proven); the NTFS +0x64 half stays
+   tracked-open with the narrowed probe (the $FILE_NAME reference-region u32).
 3. **OQ-SA-2**: the four carve-family probes (CFCPEvt key binding, AAC/M1V/RIFF tier
    roles, WPG size stamp, CNeedRawMgr mode gating).
 4. OQ-S4-3 scan-level half: stays open (Windows-hardware execution-bound).

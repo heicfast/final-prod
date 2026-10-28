@@ -716,6 +716,64 @@ TEST(FatEngine, Fat12ChainsCanonicalEocAndBad) {
     EXPECT_EQ(stats.chains_broken, 0u);
 }
 
+TEST(FatEngine, FatOriginClusterCarriedForChainlessDeleted) {
+    /* OQ-SA-1 (resolved, scan-engine lane): the og's CFATFileProperties
+     * +0x3e first-cluster anchor is stamped from the DENTRY pair
+     * (+0x14/+0x1A) independent of chain resolution — for deleted entries
+     * the reconstruction helper FUN_180012e60 ALWAYS closes with
+     * props->SetFirstCluster(start & 0xffffffff), where start = the
+     * dentry's OWN first-cluster when the reconstruction produced nothing
+     * (FATSearchDLL_decompiled.c:13702-13738). A chainless deleted file
+     * (the FAT entry at its origin cluster is FREE) therefore KEEPS the
+     * origin datum in the og's record; pre-fix the core reconstructed
+     * nothing and dropped it (RED: fat_origin_cluster read 0). */
+    auto img = build_fat12_image();
+    /* a second deleted dentry: _GONE.TXT, first cluster 9, FAT[9] FREE
+     * (the zero-initialized FAT never links it - chainless by
+     * construction); its content marker sits in the data area as the
+     * only witness the dentry points at */
+    u8* root = img.data() + 6 * 512;
+    make_dentry(root + 2 * 32, "GGONE   TXT", 0x20, 9, 512, 0x5A46, 0x6000, true);
+    std::memcpy(img.data() + 38 * 512 + (9 - 2) * 512, "FAT12GONE", 9);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    FatScanFlags flags; /* quick semantics: no deleted-chain reconstruction */
+    FatScanStats stats;
+    u32 rc = scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+
+    auto all = collect_all(tree);
+    tree::FileNode* gone = nullptr;
+    tree::FileNode* twelve = nullptr;
+    for (auto* n : all) {
+        if (n->name_utf8() == "_GONE.TXT")
+            gone = n;
+        if (n->name_utf8() == "TWELVE.TXT")
+            twelve = n;
+    }
+    ASSERT_NE(gone, nullptr) << "chainless deleted dentry not emitted";
+    ASSERT_NE(twelve, nullptr) << "live FAT12 file missing";
+
+    /* the chainless deleted file: FAT[9] is FREE, so the FAT verified
+     * NOTHING - the default-flags pass reconstructs a single-cluster
+     * contiguous candidate (GAP-S6-2) capped at PartialRisk, never
+     * Excellent. Whatever the chain machinery produced, the dentry's
+     * origin cluster survives as the passive anchor datum */
+    EXPECT_EQ(gone->props()->extents.size(), 1u); /* the inferred [9,10) run */
+    EXPECT_EQ(gone->props()->extents[0].offset, u64(38 + 7) * 512); /* cluster 9 */
+    EXPECT_EQ(gone->confidence(), tree::Confidence::PartialRisk); /* honesty cap */
+    EXPECT_EQ(gone->props()->fat_origin_cluster, 9u);
+    EXPECT_EQ(gone->deleted_state(), tree::DeletedState::Deleted);
+
+    /* the live file carries the anchor too (the og stamps every FAT
+     * record's +0x3e; the census observed it on all-chain-resolved
+     * records - TWELVE.TXT is exactly that shape) */
+    EXPECT_EQ(twelve->props()->fat_origin_cluster, 2u);
+}
+
 TEST(FatEngine, DeletedLfnFragmentOrder) {
     /* FAT-1 (AUDIT-FAT, P1): deleted LFN slots carry 0xE5 in the sequence
      * byte - the sort key collapses to 0x25 for every slot, disk order

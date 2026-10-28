@@ -487,6 +487,58 @@ TEST(ExfatEngine, TimestampsWestOffsetAlsoIgnored) {
     EXPECT_EQ(photo->props()->times.accessed, want);
 }
 
+TEST(ExfatEngine, OriginClusterCarriedFromStreamDentry) {
+    /* OQ-SA-1 (resolved, scan-engine lane): the og's CExFatFileProperties
+     * +0x50 slot is the first-cluster anchor of the SAME virtual
+     * SetFirstCluster contract as FAT's +0x3e (vtable+0x28) — the
+     * orphan/LostDir path stamps it unconditionally from the entry's
+     * first cluster (exFATSearchDLL_decompiled.c:5246-5252) and the
+     * emitted node carries the cluster's absolute byte offset (:5290-
+     * 5298). The core now stamps the stream dentry's FirstCluster at
+     * emission, independent of chain resolution (RED pre-fix: 0).
+     * Fixture truth: gone.dat = deleted NoFatChain at cluster 30 (bitmap
+     * free - the chainless-deleted shape); over.dat = deleted NoFatChain
+     * at cluster 40 (bitmap SET); photo.jpg = live NoFatChain at 10;
+     * doc.txt = live FAT-chain at 20. */
+    auto img = build_exfat_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    u32 rc = scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+
+    auto all = collect_all(tree);
+    tree::FileNode* gone = nullptr;
+    tree::FileNode* over = nullptr;
+    tree::FileNode* photo = nullptr;
+    tree::FileNode* doc = nullptr;
+    for (auto* n : all) {
+        if (n->name_utf8() == "gone.dat")
+            gone = n;
+        if (n->name_utf8() == "over.dat")
+            over = n;
+        if (n->name_utf8() == "photo.jpg")
+            photo = n;
+        if (n->name_utf8() == "doc.txt")
+            doc = n;
+    }
+    ASSERT_NE(gone, nullptr) << "deleted chainless gone.dat not emitted";
+    ASSERT_NE(over, nullptr) << "deleted over.dat not emitted";
+    ASSERT_NE(photo, nullptr);
+    ASSERT_NE(doc, nullptr);
+
+    /* every stream dentry's FirstCluster survives as the passive anchor,
+     * resolved chain or not */
+    EXPECT_EQ(gone->props()->fat_origin_cluster, 30u);
+    EXPECT_EQ(over->props()->fat_origin_cluster, 40u);
+    EXPECT_EQ(photo->props()->fat_origin_cluster, 10u);
+    EXPECT_EQ(doc->props()->fat_origin_cluster, 20u);
+}
+
 TEST(ExfatEngine, FreeMapExcludesVirtualClustersAndMatchesBitmap) {
     /* S-009 hardening: the exFAT allocation bitmap's bits 0/1 are the
      * VIRTUAL reserved clusters (spec-zero). The first landing inverted

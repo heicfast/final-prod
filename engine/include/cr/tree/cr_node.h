@@ -161,6 +161,31 @@ public:
     u16 zfs_secondary_flags = 0;
     u16 hfs_secondary_flags = 0;
     u32 hfs_type_id = 0;
+    /* OQ-SA-1 (resolved, scan-engine lane 2026-10-28): the FAT-family
+     * first-cluster origin anchor — the og's CFATFileProperties +0x3e /
+     * CExFatFileProperties +0x50 slot (part1 :125-127 census; the virtual
+     * SetFirstCluster contract, vtable+0x28, getter vtable slot 6). Decode
+     * chain: the FAT walk stamps the props anchor from the DENTRY's
+     * first-cluster pair (dentry +0x14/+0x1A) for live entries
+     * (FATSearchDLL :11652-11660) and, for deleted entries, the
+     * chain-reconstruction helper FUN_180012e60 ALWAYS ends with
+     * props->SetFirstCluster(start & 0xffffffff) where start = the
+     * reconstructed head on success and the DENTRY'S OWN first-cluster
+     * pair when the reconstruction produced nothing (:13702-13738, entry
+     * fallback :13716-13719, the unconditional stamp :13737-13738). The
+     * exFAT walk is the same contract at the other object offset: the
+     * LostDir/orphan path calls SetFirstCluster(entry->first_cluster)
+     * unconditionally (exFATSearchDLL :5246-5252, vt+0x28 with
+     * source+0x18) and the emitted node carries the cluster's absolute
+     * byte offset (node[10], :5290-5298). So a chainless deleted file
+     * KEEPS its origin cluster in the og's persisted record while the
+     * core reconstructed nothing. Carrier semantics: PASSIVE datum — the
+     * raw dentry/stream-dentry first-cluster value stamped at emission,
+     * independent of chain resolution (0 = empty file / not a FAT-family
+     * record); never consumed by the read/recovery paths (the og's
+     * degraded contiguous-read use is NOT decoded and NOT reproduced).
+     * Persisted as the nflags bit-7 block (cr_records.cpp). */
+    u32 fat_origin_cluster = 0;
     /* content hash when computed (carve dedup + writer verification) */
     u8 sha128[16] = {0}; /* truncated sha-256 digest, 128-bit id */
     bool hash_valid = false;

@@ -797,6 +797,14 @@ void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context
             props->times.accessed = exfat_time_to_unix100(fe->access_timestamp);
             props->attributes = fe->file_attribute;
             props->flags = in_use ? u16(0x10) : u16(0);
+            /* OQ-SA-1 (resolved): the og's exFAT props carry the first-
+             * cluster anchor at +0x50 (the same virtual SetFirstCluster
+             * contract as FAT's +0x3e; vt+0x28) — the orphan/LostDir path
+             * stamps it unconditionally from the entry's first cluster
+             * (exFATSearchDLL :5246-5252), and the node carries the
+             * cluster's absolute offset. Stamped here from the stream
+             * dentry's FirstCluster, independent of chain resolution. */
+            props->fat_origin_cluster = first_cluster;
 
             /* extents (contiguous runs, slice-relative) */
             size_t k = 0;
