@@ -8101,3 +8101,131 @@ board at the pushed tree: **45 active — 5 SEVERE · 19 MAJOR · 21 MINOR ·
 0 INFO / 107 FIXED / 5 tracked-open** (M-134 out of MAJOR; the OQ's
 remaining scope narrowed to the +0x72/+0x74 flag-setter origins). This
 lane's handoff order unchanged except M-134 moves from item 6 to DONE.
+
+---
+
+---
+
+## Session-54 continuation audit lane — CLOSE RECORD (2026-10-29; opened at core `55e88af0`, renumbered from S52 at the rebase per SA-9 [the remote's S52 MAJOR-engine-math fix lane + S53 pushed first]; corpus `be0cfe9` throughout; every filing lead-verified at `34d6cf10`)
+
+**The mandate** (saved token-redacted at `worklog/session-54-continuation-audit-prompt.md`):
+the fifth continuation lane of the user's second-session directive — remove-the-fixed
++ go-deeper on the named focus parameters (sector numbers / scanning / accurate
+detection / calculation & mathematics / no stuck or freeze / local database as
+og-codebase / state management) + mark-all-remaining + the tracked-open probes.
+
+**Waves executed:**
+
+1. **Lane setup + the SA-9 renumber** — the claim hit two push-window rejections
+   (the hottest window of the trail: the S51 SEVERE claim, the S52 MAJOR-engine-math
+   claim, the S53 renumber, the S45..S51 landing wave all pushed during setup);
+   the worklog conflict resolved both-sides-kept, the lane renumbered S52→S54,
+   the claim landed at `2794da8b`.
+2. **The liveness battery (directive 1)** — three parallel agents over the 66
+   then-active findings + 6 tracked-open: **55 LIVE / 5 PARTIAL / 6 UNCERTAIN
+   (driver-repo per OQ-S10-3) / 1 falsely-active** (N-142→N-186: the persistence
+   half landed as the N-066 v4 tail before the finding's pin — the finding read
+   VolumeSessionInfo instead of the persisted VolumeInfo; scope-corrected by
+   addendum). Mid-verification the hot window retired 26 findings (S-055..058,
+   S-061, M-118..M-137, the minors) — all absorbed convergently (the S41
+   precedent). Standing hazards flagged for the fix lanes: the FIXED/M-133 ID
+   collision, the line-drift map (cr_carve +146, cr_ui +44, rrecov :3458-3492),
+   M-089's core-side residue (now N-195). Evidence: `evidence/s54-liveness-*.md`
+   + `evidence/s54-liveness-reconciliation.md`.
+3. **The focus deep dives (directive 2)** — three parallel deep-dive agents
+   (D: NTFS/FAT/exFAT/partition — sector math, scan strategy, validators;
+   E: ext4/HFS+/Btrfs/ZFS/ReFS/RAW — math, scan, validators, hang safety;
+   F: orchestration/session/DRWUI — state, persistence/.rsf/DB, progress/rate
+   math, watchdog policy), each producing a full context sheet (committed as
+   `evidence/s54-deepdive-*.md`). The lead re-verified every load-bearing claim
+   first-hand before filing (the quote pack:
+   `evidence/decompiled-quotes/s54-finding-quote-pack.md`) — including the
+   HFS+ frame-offset derivation (FUN_18000c6e0's swapped-field map), the NTFS
+   +0x30/+0x38 getter pair, the exFAT re-base ladder, the four 0x400/0x1000
+   default sites, the ext4 size-bounded walk, and the unbounded `read_ladder`.
+4. **The filings (directives 2+4)** — 20 new findings (S-062..S-065, M-138..M-144,
+   N-187..N-195, I-045), 3 addenda (M-126 +ETA seed, N-178 +pause type-gate,
+   N-186 +scope correction), 4 corpus-errata rows, 10 module-file addenda, the
+   CROSS-REF-MATRIX S54 block, the SUMMARY/README session blocks.
+5. **The tracked-open probes (directive 3)** — partial: the agents' probes
+   enriched the OQ files' next-probe sets (the pause +0xD8 writer, the
+   "Reading sector" ticker semantics recorded in the orchestration sheet's
+   UNRESOLVED list); the three S42 OQ decodes (SI/FN precedence, Btrfs nsec,
+   grading subgates) remain OPEN on disk — the deep dives did not cross their
+   specific decode targets (the NTFS walk's time serialization and the Btrfs
+   item-time decode were outside this lane's axis priorities). They stay
+   tracked-open with their recorded probes; the next lane should take them
+   first (they are the oldest open probes on the board).
+
+**Coverage statistics:** engines re-walked first-hand this lane: NTFS (boot
+ladder/MFT bootstrap/walk entry/probe family), FAT (open gates/flavor/validate),
+exFAT (boot region/recognition ladder), ext4 (SB/GDT/inodes/ladder/journal),
+HFS+ (VH validator/walk guards), plus the partition layer (EBR/GPT re-walk),
+ReFS recognition, and the orchestration/state/persistence surfaces. Agent-side
+coverage logs (every function/site walked with line ranges) are in the three
+deep-dive sheets. The Btrfs/ZFS/RAW engines were walked by agent E with
+confirmations recorded (SB CRC copied-not-verified on both sides; ZFS fletcher4
+gate parity; carve stepping registered D-59c) and produced no new findings
+beyond the filed set — the strongest remaining coverage gaps are the 8 agent
+UNRESOLVED probes (each with a precise next step).
+
+**Board at the rebase-absorbed close: 65 active — 0 ACUTE · 8 SEVERE · 26 MAJOR ·
+30 MINOR · 1 INFO / 109 FIXED / 5 tracked-open.** Next free: S-067+, M-147+,
+N-200+, I-046+, A-015+.
+
+**The recommended first 20 fixes (the S54 contribution to the priority order):**
+
+1. **S-063** (ntfs $MFTMirr bootstrap — the highest recovery-yield delta per line
+   of fix; the og's classic resilience path)
+2. **S-062** (exfat base−12 re-base — the damaged-volume population)
+3. **S-064 + N-188** (one FAT flavor pass: string-first + media-word re-flavor)
+4. **S-065** (ext4 ladder bounds — the freeze/OOM)
+5. **M-138** (cpr/cib defaults + the D-52 correction — decide the stance, fix the
+   register either way)
+6. **M-139** (drop the 55AA open gate)
+7. **M-140** (probe_family's gate family — with the comment fix)
+8. **M-141** (the LCN bounds — mirror demotion + product form)
+9. **M-142** (HFS+ validator fields + the two corpus-doc corrections)
+10. **M-143** (ext4 journal inode-image)
+11. **M-144** (ext4 GDT streaming)
+12. **N-192** (ReFS FSRS — one line)
+13. **N-195** (bench IOCTL constants — one line, unblocks driver verification)
+14. **N-187** (lost-scan probe mirror retry)
+15. **N-189/N-190/N-191/N-193/I-045** (the registration batch — one PR)
+16. **N-194** (the size formatters — the M-125 pattern)
+17. **M-126's addendum seed** (rides the M-126 fix)
+18. **N-178's addendum type-gate** (rides the N-178 fix)
+19. **N-186's scope correction** (the session.md parity-table row)
+20. **The three S42 OQ probes** (SI/FN precedence, Btrfs nsec, grading subgates —
+    the oldest open decodes on the board)
+
+**Read-only guarantee:** the lane's delta vs origin/main is `diff-to-fix/` +
+`worklog*` only (verified file-by-file before the push; `git status` clean on
+both repos at every step).
+
+
+---
+
+## Session-54 lane — the push-rebase renumber record (2026-10-29; the SA-9 map, single-pass simultaneous)
+
+The filings push hit the hottest window of the trail (three rebase cycles). The
+remote's parallel lanes filed **S-062** (the one-chunk walk size-gate), **M-139**
+(the HIK discriminator), **M-140** (the CSL/CD01 latch), **N-189** (the DXF
+canonical gate), **N-190** (the EXIF prefix cap), **N-191** (the D-118 numbering
+collision), **N-192** (the clone short-name fanout) BEFORE this lane's push — per
+SA-9 earlier-push-wins their seats stand and this lane's seven colliding filings
+renumbered: **my S-062→S-066 (exfat lost-anchor), M-139→M-145 (ntfs 55AA),
+M-140→M-146 (probe_family gates), N-189→N-196 (walk-entry geometry gate),
+N-190→N-197 (spc shift threshold), N-191→N-198 (exfat numeric bounds),
+N-192→N-199 (ReFS FSRS)** — every file, internal title, cross-reference, matrix
+row, module addendum, SUMMARY/README block, and the quote pack updated in one
+pass; no cascade (the non-colliding S-063/S-064/S-065, M-138, M-141..M-144,
+N-187/N-188, N-193..N-195, I-045 keep their seats).
+
+The same window landed **S-060** (the writer metadata restoration — this lane's
+battery had it LIVE at the battery pin, convergent retirement), retired **N-186**
+(the S50 lane's FALSE-ACTIVE resolution — convergent with this lane's independent
+battery verdict; this lane's residual note rides the FIXED file), resolved
+**OQ-S42-1/OQ-S42-2** (the S47 INFO-first lane), and filed the S52 lane's
+**OQ-S52-1** (ext2/3-vs-ext4 kind classification — which this lane's M-143
+journal-inode work adjacent-touches; the next lane should check the overlap).

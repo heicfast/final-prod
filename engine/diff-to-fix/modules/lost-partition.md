@@ -325,3 +325,13 @@ the channel merge). Evidence: `evidence/decompiled-quotes/s12-lostpart-register-
   replacing the refusal. The "Quick" staging maps onto the core's default-on
   single-walk stage model per the C1/I-044 decode (D-36). Worksheet:
   `../evidence/decompiled-quotes/s42-lostpart-surface-batch.md`.
+
+
+## S54 addendum (2026-10-29 — the fifth continuation lane's focus deep dives)
+
+New active findings on this module: **N-187** (the NTFS candidate acceptance is
+weaker in the core: the og requires boot-pair OR a validated 4-record MFT read
+with a mirror retry before accepting; the core scores-but-never-rejects).
+Verified-MATCH this session: the EBR/GPT partition-math families (re-walked in the
+sector-math axis — no new divergence beyond the filed M-123/M-124/N-161 set), the
+candidate scoring evidence set, and the lost-scan FAT bracket ladder.

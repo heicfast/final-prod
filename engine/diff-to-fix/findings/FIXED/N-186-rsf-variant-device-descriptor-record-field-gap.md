@@ -55,39 +55,38 @@ The variant save path's TRIGGER (when does the og take the FUN_1403f1180 path ov
 
 ---
 
-## Resolution (S50 lane, 2026-10-29 — retired as a FALSE-ACTIVE duplicate of N-066; no code change owed)
+## Scope-correction addendum (S54 lane, 2026-10-29): the PERSISTENCE half of this finding is already landed — the live remainder is the restored-summary mirror
 
-**The battery verdict: FIXED-ALREADY at its own audited tree.** The exact
-fields this finding asks for — `char firmware[32]`, `char wwn[32]`, `char
-interface_desc[32]`, `u8 boot_snapshot[512]` — landed with **N-066's
-`4d3f0409`** ("the identity card's record-3 parity — the v4 tail
-(firmware/WWN/interface + the 512-byte boot snapshot) + the descriptor
-offset transposition fixed", 2026-10-26), three days BEFORE this finding
-was filed by the S12 lane. The fields exist at HEAD at
-`include/cr/session/cr_records.h:112-122`, serialize/deserialize at
-`src/core/session/cr_records.cpp:809-812` / `:852-862`, populate at save
-(`src/core/orchestrator/cr_scan.cpp:2424+`), and are pinned by
-`Session.BootSnapshotRoundTrip` (`tests/unit/test_session.cpp:1402-1415`).
+The S54 liveness battery re-verified this finding (post-renumber to N-186) against
+the current tree and found the finding's persistence-layer claim STALE: the N-066
+v4 tail (`include/cr/session/cr_records.h:110-122`: `firmware[32]`, `wwn[32]`,
+`interface_desc[32]`, `boot_snapshot[512]`) IS the variant-record field set,
+serialized at `src/core/session/cr_records.cpp` (the v4 writer, ~:855-865 at
+`34d6cf10`) and round-trip-pinned by the N-066 tests (`tests/unit/test_session.cpp`
++ `tests/unit/test_image.cpp:806-812`'s v3/v4 tail pins). The fix (commit `4d3f0409`,
+2026-10-26) predates the finding's original filing pin.
 
-**The false-grep note (recorded for the trail's truth ledger):** this
-finding's own "Reproduction / verification" claims "grep-verified: no
-512-byte sector image, no firmware/WWN/interface strings anywhere in the
-session layer" — that grep was FALSE at this finding's own audited commit
-`c7fa527c` (verified `git show c7fa527c:include/cr/session/cr_records.h` —
-the N-066 tail is present). The S12 lane filed over a stale tree read.
+**The live remainder:** `VolumeSessionInfo` (the restored-session summary,
+`cr_records.h:203+`) mirrors VolumeInfo only through the v2 identity card — the
+v3/v4/v5 tails (image path, firmware/WWN/interface/boot-snapshot, save_unix) do
+not surface in the load path's summary struct. The finding's scope narrows to:
+(a) the restored-summary mirror gap, and (b) the variant-record TRIGGER question
+(unchanged, below). modules/session.md's parity-table row asserting the
+persistence-layer gap should be corrected to the narrowed scope (doc drift as of
+this addendum). Severity stays MINOR (the load path's consumers currently need
+none of the v4 fields; the gap becomes live the day a host wants the boot-snapshot
+diagnostic after resume).
 
-**The renumber trail stands:** N-142 -> N-186 (the S56 lane's SA-9
-renumber, the retired CrPreview N-142 keeping the seat) — this retirement
-retires the CURRENT ID.
 
-**The one honest sliver (optional follow-up, not a finding):** the
-load-side summary struct `VolumeSessionInfo` (cr_records.h:203-229, filled
-at cr_scan.cpp:2715-2736) does not re-expose the four fields to callers —
-the record layer round-trips them (functional parity for save/load), and
-no current consumer reads them at resume. If a future resume-time
-diagnostic needs the boot-sector diff, the exposure is a one-struct-tail
-change; recorded here so it is not re-filed as a gap.
+---
 
-Trail: findings/FIXED/N-186 (this file) + the battery sheet
-`evidence/s50-liveness-battery.md` (the FIXED-ALREADY verdict) + the
-ledger row + the matrix cell flip.
+## Residual note (S54 lane, absorbed at the push-rebase — does NOT re-open the retirement)
+
+The S54 lane's independent battery reached the same FALSE-ACTIVE verdict convergently
+(the persistence half landed as the N-066 v4 tail before the finding's pin). The one
+observation this lane adds beyond the Resolution: `VolumeSessionInfo` (the restored-
+session summary, `include/cr/session/cr_records.h:203+`) mirrors VolumeInfo only
+through the v2 identity card — the v3/v4/v5 tails do not surface in the load path's
+summary struct. No consumer needs them today (the retirement's "no code change owed"
+stands); recorded here so a future host that wants the boot-snapshot diagnostic after
+resume knows the mirror is the seam, not the persistence layer.
