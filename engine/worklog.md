@@ -5141,3 +5141,36 @@ Stage Summary:
   then the MAJOR tier (M-116 the M-100 re-open first — no lane has
   claimed it), the OQ dispositions as their evidence arrives (the
   OQ-S4-3 benchmark run still in flight), and the unclaimed minors.
+
+## Session-43 minors lane (2026-10-29 — the minor-first diff-fix execution lane; prompt: worklog/session-diff-fix-43-minors-prompt.md)
+
+**T1 baseline (final, post two convergence rounds):** core `632518b7` (origin/main
+after absorbing the S12 lane + the two S42 lanes + the S-054/N-125/INFO-tier window),
+corpus `be0cfe9`. The lane's two earlier session-open attempts were rebased away as
+redundant: (1) the parallel S42 fix lane landed the same OoxmlRelsPathSplit repair
+intent first (b26017a7) — but half-applied (the tail lowercased, the expectations not:
+deterministically RED); (2) this lane's completion of that repair (both sides folded)
+was then itself superseded mid-push by the N-126-lane splicing repair d10e4aa2, which
+landed the equivalent lowercase-table + case-insensitive comparator. First-push-wins
+twice; the remote now carries the correct form and this lane verified it GREEN.
+
+**Baseline executed (this lane's own build at `632518b7`):** linux-release clean
+(g++ 14.2, -Wall -Wextra -Werror -Wshadow), suite **1203/1203 green** (the remote
+lanes' 1094/1094 claims under-count this environment's runnable set; the
+from-scratch execution is this lane's recorded truth).
+
+**Board at open (filesystem truth at `632518b7`):** 42 active (3 SEVERE · 23 MAJOR ·
+16 MINOR · 0 INFO — the INFO tier acknowledged and retired by the e41cbb7e window) /
+3 tracked-open (dispositions re-affirmed by 703b3aee: OQ-S4-3's comparative half
+open with the M-117 throughput evidence appended; OQ-S10-1 honest-refusal scope
+re-verified; OQ-S10-3's two-repo boundary re-affirmed).
+
+**Territory claim (the user's minor-first directive):** this lane takes the full
+remaining MINOR board (16 files: N-090/N-107/N-125*/N-127/N-131/N-139/N-140/N-142/
+N-143/N-144/N-145/N-146/N-148/N-149/N-150/N-152/N-154 — *N-125 landed by the
+parallel window at ab00be9f and is this lane's verification target, not a fix
+target), then the tracked-open transcription work (OQ-S4-3's Windows bench
+completion), then the MAJOR tier as far as the session reaches. N-107/N-127's fix
+surfaces live in the rda-driver repo — out of this session's two-repo grant; they
+ride OQ-S10-3. The SEVERE tier (S-040/S-048/S-050) stays the S42 fix lane's
+declared territory.
