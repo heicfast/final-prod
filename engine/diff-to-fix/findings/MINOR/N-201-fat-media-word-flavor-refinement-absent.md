@@ -1,4 +1,4 @@
-# MINOR N-188 — FAT quick-open media-word flavor refinement absent: the og reads FAT1/FAT2 first sectors and RE-FLAVORS on FAT32-shaped media words (last read wins); combined with S-064's bracket, an internally inconsistent volume is re-flavored by the og and refused/mis-decoded by the core
+# MINOR N-201 — FAT quick-open media-word flavor refinement absent: the og reads FAT1/FAT2 first sectors and RE-FLAVORS on FAT32-shaped media words (last read wins); combined with S-064's bracket, an internally inconsistent volume is re-flavored by the og and refused/mis-decoded by the core
 
 **Severity:** MINOR
 **Module:** fat (engine-open flavor refinement)
@@ -6,6 +6,7 @@
 **Corpus references:** `re-workspace/reversed/ghidra-searchdll/FATSearchDLL_decompiled.c` FUN_180021000 (:26318-26350 region — the quick-open consumer: reads 1 sector at `reserved + base` (FAT1), tests `FAT[0] == 0xFFFFFFFF` / the FAT32 shape family (`(FAT[0] & 0xFFFFFFF) == 0xFFFFFF8 && (FAT[1] & 0xFFFFFF8) == 0xFFFFFF8 || (FAT[1] & 0x7FFFFF8) == 0x7FFFFF8`) → flavor 2; else `FAT[0] == 0xFFFFFFF8` → flavor 1; then repeats the shape test at `spf + reserved + base` (FAT2) and OVERWRITES the flavor again — last word wins)
 **Core references:** audited `34d6cf10` — `src/core/fat/cr_chain.cpp:646-666` (no media-word read at open; the flavor stands as computed) and `:184-216` (`fat_table_validate`: Fat16's exact `0xFFFFFFF8` media check refuses the volume the og would re-flavor — M-015's ported check)
 **Status:** READ-ONLY FINDING — no fix applied
+**Renumber:** N-188 → **N-201** (2026-10-29, the S56 lane's third collision rider: the retired m119-window N-188 (renumbered into the seat at 23:22:29 UTC) owns it per SA-9; the seat was taken before this filing pushed - the doc_truth_gate's active-vs-ledger check caught it live; no content change)
 
 ## Summary
 

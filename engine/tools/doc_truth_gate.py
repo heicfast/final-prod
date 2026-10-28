@@ -62,6 +62,9 @@ MARKERS = re.compile(
     re.IGNORECASE,
 )
 
+# N-154: the in-source "filed as <ID>" citation guard.
+FILED_AS_CITE = re.compile(r"filed\s+as\s+(?:\*\*)?((?:A|S|M|N|I)-\d+|OQ-[A-Z0-9]+-\d+)")
+
 # N-160: the phantom-citation and collision guards.
 SCRIPT_CITE = re.compile(r"(?<![\w/.-])(scripts/[\w][\w.-]*\.(?:py|sh|ps1))\b")
 PHANTOM_MARKERS = re.compile(
@@ -80,7 +83,9 @@ FINDING_TITLE_ID = re.compile(
     r"^#\s+(?:ACUTE|SEVERE|MAJOR|MINOR|INFORMATIONAL)\s+((?:A|S|M|N|I)-\d+)\b"
 )
 OQ_TITLE_ID = re.compile(r"^#\s+(OQ-[A-Z0-9]+-\d+)\b", re.MULTILINE)
-LEDGER_ROW_ID = re.compile(r"^\|\s+((?:A|S|M|N|I)-\d+|OQ-[A-Z0-9]+-\d+)\s+\|")
+LEDGER_ROW_ID = re.compile(
+    r"^\|\s+((?:A|S|M|N|I)-\d+|OQ-[A-Z0-9]+-\d+)\s+\|", re.MULTILINE
+)
 LEDGER_SLUG = re.compile(r"findings/(?:FIXED)/[\w.-]+\.md")
 
 
@@ -299,11 +304,49 @@ def check_finding_id_uniqueness():
     return ok
 
 
+def check_filed_as_citations():
+    """Every in-source "filed as <ID>" cite resolves to a ledger row.
+
+    An in-source audit cite that names a nonexistent finding number sends
+    the next auditor chasing a phantom (the cr_log.cpp N-079 lesson,
+    N-154 item 1 - the wrong-subject half of that class stays human-
+    verified: the early ledger rows carry blank module cells, so a
+    module-matching heuristic would be guesswork).
+    """
+    ok = True
+    n_cites = 0
+    ledger = set(LEDGER_ROW_ID.findall(
+        (DIFF_TO_FIX / "FIXED-LEDGER.md").read_text(encoding="utf-8", errors="replace")
+    ))
+    for pat in ("src/**/*.cpp", "src/**/*.h", "include/**/*.h", "include/**/*.cpp"):
+        for src in sorted(ROOT.glob(pat)):
+            lines = src.read_text(encoding="utf-8", errors="replace").splitlines()
+            for i, line in enumerate(lines):
+                m = FILED_AS_CITE.search(line)
+                if not m:
+                    continue
+                n_cites += 1
+                if m.group(1) not in ledger:
+                    print(
+                        f"doc_truth_gate: FAIL: {src.relative_to(ROOT)}:{i + 1} "
+                        f'cites "filed as {m.group(1)}" but the ledger has no '
+                        f"such row (the phantom-finding class)"
+                    )
+                    ok = False
+    if ok:
+        print(
+            f"doc_truth_gate: in-source filed-as citations clean "
+            f"({n_cites} cite(s), all resolve to ledger rows)"
+        )
+    return ok
+
+
 def main():
     ok = check_floorversion()
     ok = check_deleted_citations() and ok
     ok = check_cited_scripts_exist() and ok
     ok = check_finding_id_uniqueness() and ok
+    ok = check_filed_as_citations() and ok
     if not ok:
         return 1
     print("doc_truth_gate: green")
