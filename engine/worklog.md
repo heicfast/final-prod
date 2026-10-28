@@ -17888,3 +17888,39 @@ by all of the below):
    carve-family decodes), OQ-S4-3 (the TTFR half).
 4. A driver-install lane dispatch for the S-036/M-061/M-063 execution
    evidence (the matrix + runner changes are in; CI needs one run).
+Task ID: SCAN-2 (Agent 2 — scan-engine scope, session 1: context recovery + Delta Report)
+Agent: Agent 2 (engine behavior, formats, parameters, modules, quick⇄advanced pipeline)
+
+Work Log:
+- Parallel context recovery (3 sub-agents): research-corpus scan-engine deep-dive
+  (2-a: per-engine quick algorithms, the FUN_140581500 advanced set + gates, merge/
+  classify/check/filter/sort chain, .rsf grammar, formats & parameters census, the
+  8 CORRECTIONS.md errata applied); core_recovery state audit (2-b: cr_scan stages,
+  per-FS flag-driven walks, CRSF sessions, carve layers, ScanConfig parameters, open
+  scan items M-065/N-086/N-087/OQ-S4-3/OQ-SA-1/2/3, test coverage); rda-driver scan
+  surfaces (2-c: IOCTL table, byte-offset contract, classifier gates, install
+  lifecycle, NAS/Cloud zero-violation).
+- Produced diff-to-fix/SCAN-ENGINE-DELTA.md — the Scan Engine Inventory / Delta Report:
+  every quick/advanced/combination/modules/formats item marked present | missing |
+  inconsistent | hallucinated with exact gaps; registered deltas (D-36/D-51/D-68/D-75/
+  D-97/D-102, I-016, G-07, ARCH-DUP-4) separated from true gaps (N-086, N-087, OQ-SA-1,
+  OQ-SA-2, S-007 remainder, OQ-S4-3 execution half).
+- RESOLVED OQ-SA-3 first-hand (the EUUserData consumption-mode probe): decompile chain
+  DRWUI :1005387 file read -> :1005497+ JSON parse -> CHKRepairFileSign manager
+  (:1002677 vtable) -> MatchedFile/NotMatchedFile checker (:721520-721680, RTTI
+  CHKRepair* family) = the CHK repair chain; RAWSearchDLL has ZERO EUUserData
+  references; GetRawUserInfoMap = per-scan carve-stats telemetry (cleared at searcher
+  init :9044-9051); raw_signs.json is the engine's only runtime-loaded signature file
+  (read-only, nothing writes it in-process).
+- Consequence recorded in the Delta Report: M-065's scan-recall premise refuted (the
+  og's scan never consults EUUserData); default-set packaging belongs to the CHK-repair
+  surface (out of core product scope); core's user-signs carve path = deliberate
+  superset to register in PARITY-DELTAS. No Agent-1 boundary touched (engine-internal).
+- handoff: none (no API/DTO surface affected this commit; the M-065 recalibration is
+  engine-scope only — Agent 1's API contracts unaffected).
+
+Stage Summary:
+- Board delta proposal (to land with the fix commits): OQ-SA-3 RESOLVED; M-065 severity
+  recalibration + reclassification pending corpus-errata filing; fix queue started:
+  N-087 (quick scan, FAT 8.3 OEM names) -> N-086 (raw_signs runtime load) -> OQ-SA-1
+  probe -> OQ-SA-2 probes.
