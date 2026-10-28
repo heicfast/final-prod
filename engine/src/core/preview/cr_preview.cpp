@@ -617,8 +617,7 @@ static void utf16_snippet(Window& w, Metadata& m, u64 body_off, bool big_endian)
             break;
         size_t i = 0;
         for (; i + 1 < w.last_got && acc.size() < w.caps.text_snippet; i += 2) {
-            const u16 u = big_endian ? (u16(p[i]) << 8 | p[i + 1])
-                                     : (u16(p[i + 1]) << 8 | p[i]);
+            const u16 u = big_endian ? (u16(p[i]) << 8 | p[i + 1]) : (u16(p[i + 1]) << 8 | p[i]);
             if (u == 0) {
                 ended = true; /* the UTF-16 NUL terminator */
                 break;
@@ -627,9 +626,8 @@ static void utf16_snippet(Window& w, Metadata& m, u64 body_off, bool big_endian)
             if (u >= 0xD800u && u <= 0xDBFFu) {
                 /* high surrogate: needs the next unit */
                 if (i + 3 < w.last_got) {
-                    const u16 lo = big_endian
-                                       ? (u16(p[i + 2]) << 8 | p[i + 3])
-                                       : (u16(p[i + 3]) << 8 | p[i + 2]);
+                    const u16 lo = big_endian ? (u16(p[i + 2]) << 8 | p[i + 3])
+                                              : (u16(p[i + 3]) << 8 | p[i + 2]);
                     if (lo >= 0xDC00u && lo <= 0xDFFFu) {
                         cp = 0x10000u + ((u32(u) - 0xD800u) << 10) + (u32(lo) - 0xDC00u);
                         i += 2; /* consume the low surrogate too */

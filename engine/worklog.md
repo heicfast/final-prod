@@ -3774,3 +3774,32 @@ Agent: session-11D fix lane
   resolved both-rows-kept (N-136 + N-093 with its real SHA 03ad5523); the
   matrix rows flipped to MATCH; A-012's rows added; SUMMARY counts: **51
   active (5 SEVERE · 20 MAJOR · 21 MINOR · 5 INFO) / 288 ledger rows**.
+
+---
+### Session-11D W1 close (the rebase reconciliation + the push)
+
+- The rebase over the parallel S11/39/40 lanes' 34-commit window: **A-012's
+  row restore was CONVERGENT** — the parallel S11 lane had independently
+  found the same regression and pushed `e4273f2b` ("restore the FMT_SVG row
+  ... 187 tests red") before my fix reached the remote; per the SA-9 rule
+  their repair stands, my landing was dropped at the DU resolution, and the
+  A-012 finding file (kept: the independent fail-before execution + the
+  root-cause trace + the format sweep) was re-classified as the convergent
+  verification record, moved to findings/FIXED/.
+- The ledger's hunk conflicts resolved: the remote's N-134/N-111 rows kept,
+  N-093's row now carries the real SHA 03ad5523 (my placeholder repair), the
+  remote's phantom-SHA S-041 repair kept, my A-012/S-051/M-104 rows appended;
+  the go-forward convention header now names BOTH lanes' identical user
+  instruction (session-39's and session-11D's "put fixed findings in fixed
+  directory" — the same mandate reached every fix lane).
+- SUMMARY counts reconciled to the merged filesystem truth: **53 active
+  (6 SEVERE · 17 MAJOR · 24 MINOR · 6 INFO) / 301 ledger data rows
+  (279 finding + 22 OQ) / 3 tracked-open**.
+- The merged tree fully re-verified: **1128/1128 green** (my 15 new tests +
+  the parallel lanes' 23), clang-format 18.1.8 clean (the parallel lanes'
+  newest landings' 22 violations swept: test_preview.cpp,
+  test_btrfs_volume.cpp, cr_preview.cpp — the same residue class as the
+  first sweep).
+- NEXT (this lane's declared order): **S-049** (the carved-file naming
+  contract — the EXT_%06d default + the per-analyser content prefixes),
+  composing with the display-name mechanism landed here.
