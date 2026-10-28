@@ -4497,3 +4497,51 @@ Stage Summary:
   INFO) / 306 resolved ledger rows / 3 tracked-open. Suites green
   (release + ASan); format clean; the push carries the two- finding fix,
   the ASan test repair, and the full trail.
+
+---
+## Session 11C — T3: S-052 FIXED (the LDM span recovery basis)
+
+Task ID: S11C/T3
+Agent: session-11 fix lane
+
+**The landing (`ea9c8ed5`):** the finding's full architectural plan —
+(1) the tree gains per-root basis ids (`ResultTree::set_root_basis`;
+roots only, descendants read through the parent walk; persisted as
+node-flags bit10 in the tree record), (2) the scan controller keeps the
+virtual volume devices past run()'s return (`ldm_devices_`/`ldm_layouts_`
+— the loop's old stack device replaced; roots stamped with index+1),
+(3) the SafeWriter resolves each item's read source through the borrowed
+`LdmBasisTable` (basis 0/unresolvable = the absolute source, whose reads
+then fail honestly per-extent), (4) the R7.2/F12 overlap refusal maps
+layout-relative extents to PHYSICAL member spans first
+(`LdmVolumeDevice::physical_spans`: exact spanned/striped, conservative
+every-copy/every-column for mirrored/RAID-5), (5) the session persists
+both halves (REC_LDM_LAYOUTS type 10 + the root stamps;
+`load_session_summary` surfaces the layouts; the resumed controller
+adopts them for re-save truthfulness), and (6) the UI arms the session's
+devices lazily at the first basis-aware enqueue/preview/thumbnail
+(Windows: PRIVHEAD-GUID disk enumeration; else local-self — missing
+members fail loudly, never wrong-disk bytes).
+
+**Verified:** `LdmRecovery.*` (7: span byte-exact WITH the executed
+fail-before — the same extent read against the absolute source serves
+0x11 where the scan saw 0x22; stripe round-trip; RAID-5 reconstruction;
+overlap true+false positives; simple identity; preview==recovery; the
+session round-trip) + `Orchestrator.DynamicDiskScanStampsBasisAnd-
+SessionRoundTrips`. Full ctest **1121/1121**; clang-format clean;
+GAP-S6-15 CLOSED in CORE-GAP-LIST.md; ABI-CONTRACT + crsf-format.md +
+PARITY-DELTAS (D-106/D-107) + modules/ldm.md updated in the same landing.
+
+**Honest boundaries (registered):** the cross-disk
+member-on-destination overlap case inherits the absolute-basis check's
+same-disk convention (spans on other member disks = disjoint hardware);
+a resumed incomplete deep stage re-runs the LDM loop (fresh roots — the
+pre-existing resume root-duplication class, unchanged here); the
+Windows re-arm enumeration compiles on the win lane (win_syntax_check
+green) with the multi-disk byte-exactness proven at the core level.
+
+**Process notes:** the parallel fix lane landed M-108/N-111/N-112
+mid-flight (this lane's independent M-108 implementation dropped at the
+pull — the no-duplication convention); the FIXED/ convention amendment
+(user instruction: fixed findings live in the fixed directory) is
+recorded in the ledger's preamble.
