@@ -12,7 +12,7 @@
   scan setup and scans every table volume (the og's CDoScanPartition
   flow) — a partitioned disk no longer completes "successfully" with
   zero files.
-- **M-116** (discovered during S-054's verification): contiguous
+- **M-117** (discovered during S-054's verification; renumbered at the push per the ID-collision rule): contiguous
   TS/M2TS/MPEG-audio streams no longer pay the quadratic mid-stream
   re-walk in the carve stage (covered candidates resolve at the covered
   check before the validator).

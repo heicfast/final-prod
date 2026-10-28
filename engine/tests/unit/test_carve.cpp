@@ -6968,8 +6968,8 @@ TEST(Carve, TsStreamClampedAt200MB) {
      * at the og's cap - no emitted TS node may exceed 200,000,000 bytes
      * and the cap-sized node lands within one 188-byte packet of the
      * clamp. Pre-fix (the 2 GB cap) the whole 220 MB stream emitted as
-     * one ~219,999,852-byte node. M-116 rides the same fixture: the
-     * contiguous 1.06M-sync stream scans to completion (pre-M-116 every
+     * one ~219,999,852-byte node. M-117 rides the same fixture: the
+     * contiguous 1.06M-sync stream scans to completion (pre-M-117 every
      * mid-stream sync re-walked the full cap - the run did not finish
      * inside 600 s). The non-TS formats are disabled so the per-byte
      * trial loop pays only this family's dispatch (the pin exercises

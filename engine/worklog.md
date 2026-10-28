@@ -3998,7 +3998,7 @@ driver-repo grant boundary).
 rm of files this session itself appended verification addenda to). No source
 code was modified. No fix was applied.
 
-## Fix session 40 (continued) — S-054 + the M-116 discovery
+## Fix session 40 (continued) — S-054 + the M-117 discovery (renumbered from the draft M-116 at the push-rebase: the S11-R lane's archive-inventory M-116 pushed first, per the earlier-push-wins rule)
 
 - **S-054 FIXED** — the TS/M2TS carve cap re-pinned to the og's 200 MB
   controller global (2000000000 → 200000000 on both rows; the "x 10"
@@ -4009,7 +4009,7 @@ code was modified. No fix was applied.
   Carve.TsStreamClampedAt200MB (behavior: the 220 MB stream clamps;
   pre-fix one ~219,999,852-byte node). RELEASE-NOTES carries the S-047
   repair note.
-- **M-116 FILED + FIXED (discovered during S-054's verification, per §8
+- **M-117 (drafted M-116; renumbered at the push) FILED + FIXED (discovered during S-054's verification, per §8
   — announced here and in the commit)** — the suppress_overlap trial
   loop ran the full cap-sized validator walk for every mid-stream sync
   BEFORE the covered check discarded it: the 220 MB fixture did not

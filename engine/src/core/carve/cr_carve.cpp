@@ -372,7 +372,8 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 continue;
             ctx.hits.fetch_add(1, std::memory_order_relaxed);
 
-            /* M-116 (the trial-loop ordering repair): the covered check
+            /* M-117 (the trial-loop ordering repair; renumbered from the
+             * draft M-116 at the push per the ID-collision rule): the covered check
              * runs BEFORE the validator. The walk's result was never used
              * for covered candidates (the post-validator check simply
              * `continue`d), but the walk itself ran to the row's FULL cap
@@ -598,7 +599,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             emitted_at.insert(cand_abs); /* this magic position resolved (N-070: the
                                               winner's start; the raw-sign layer must
                                               not re-probe it) */
-            /* M-116 design note: NO post-emission scan jump. A jump past
+            /* M-117 design note: NO post-emission scan jump. A jump past
              * the emitted extent would suppress every candidate STARTING
              * inside the extent - but overlapping candidates are real
              * (the og ranks them by accumulated confidence, N-070's

@@ -137,17 +137,17 @@ commit; the file retires to history with a ledger row).
   deleted=2; six whole-disk tests; the discovery no-double-scan reconciliation;
   honest skip accounting (table_volumes*). Matrix cell → MATCH; the retired
   file's Resolution carries the full record.
-- **S-054 FIXED at `69c682fb`** — the TS/M2TS cap re-pinned to the og's 200 MB
+- **S-054 FIXED at `d7ba41f6`** — the TS/M2TS cap re-pinned to the og's 200 MB
   controller global (the S-047 landing's "x 10" provenance refuted first-hand;
   registry pin + the 220 MB behavior clamp test).
-- **M-116 FILED + FIXED at `69c682fb` (NEW FINDING, §8 — discovered during
+- **M-117 FILED + FIXED at `d7ba41f6` (NEW FINDING, §8 — renumbered M-116→M-117 at the rebase (the S11-R lane's M-116 pushed first); discovered during
   S-054's verification)** — the suppress_overlap trial loop ran the full
   cap-sized walk for every mid-stream sync before the covered check discarded
   it (the 220 MB fixture: >600 s non-completion → 11.3 s). The covered-check
   reorder only; the post-emission jump variant REJECTED by the full-suite gate
   (the og ranks overlapping candidates — the S007 AAC ADTS lesson).
 
-**Board after S-051/S-054/M-116: 61 active (6 SEVERE · 19 MAJOR · 29 MINOR ·
+**Board after S-051/S-053/S-054/M-117 (the parallel lanes' S-053/N-141/N-113/N-142/N-151/M-109/M-112 landings absorbed at the rebase): 56 active (5 SEVERE · 17 MAJOR · 27 MINOR · 7
 7 INFO) + 3 tracked-open / 302 resolved rows.** The SEVERE board this session
 continues on: S-052 (LDM span recovery — silently wrong bytes), S-053 (ReFS
 unnamed rows), S-049 (the carved naming contract), S-048 (Reconstructed
