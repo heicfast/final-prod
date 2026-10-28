@@ -161,3 +161,29 @@ secrets / commit-convention lanes all green; cmake + clang-format are
 absent in this container so the build/test lanes could not run locally —
 the only code-file change is comment-only and parse-verified (the
 windows.h include is the sole expected parse stop on Linux).
+
+---
+Task ID: API-FIX-4 (the M-070 convergence note — this lane's diagnostic half)
+Agent: main engineer (api-fix session)
+
+Work Log:
+- Reproduced the 40673882330 failure shape end-to-end: staged-truth.json's
+  "manifest_version": null + "expected_recoverable": null (the if/else
+  @() unwrap to $null, proven in pwsh 7.4.6) + 0.02 s seed-window =
+  $manifest was null-or-string on the runner; every static reproduction
+  of the invocation (hashtable splat, relative path, LF+CRLF, dot-source
+  topology) parsed 11 files, isolating the cause to the script body.
+- The api-fix-2 lane landed the mechanism (89dd7ad): `$manifest` is
+  `$Manifest` case-insensitively - the SAME variable as the [string]
+  param, whose type constraint coerced the parsed PSCustomObject back to
+  a STRING on assignment (.files/.version -> null). My loud-gate variant
+  (47c7ee5, discarded in the rebase) was the complementary guard; the
+  rename is the root fix and the lane's finding file is canonical.
+- This lane's residual contribution: the mechanism-isolation evidence
+  (the null-vs-empty output-shape distinction + the empty-string
+  ConvertFrom-Json silently-yields-null proof) now lives in the finding
+  trail via this entry.
+
+Stage Summary:
+- M-070 closed by the api-fix-2 lane's rename (89dd7ad); staged-scenarios
+  should now stage 11 files - the lane's next dispatch is the proof.
