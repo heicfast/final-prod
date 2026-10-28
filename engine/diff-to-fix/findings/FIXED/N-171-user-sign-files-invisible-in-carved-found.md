@@ -72,6 +72,17 @@ None.
 ## Resolution
 
 **Status:** FIXED
-**Fixed in commit:** (this session's N-171+N-188 landing — post-push SHA in the ledger row and worklog entry)
-**Verified by:** `CarveStats.UserSignFilesCountInCarvedFound` (RED pre-fix: the DEADBEEF user-sign fixture carved one 0xFFFE0000-tagged record with sign_hits == 1 and validated == 0 — the whole channel invisible in the carved_found feed) + `CarveStats.UserSignCarvedFoundSessionRoundTrip` (RED pre-fix: the orchestrator-level scan reported carved_found == 0 with the record in the tree; post-fix: 1 at runtime AND re-read 1 from the persisted session). Both GREEN post-fix; the full suite 1236/1236 (linux-release).
-**Resolution notes:** The tick landed exactly per the fix plan's preferred step 1: the user-sign emission path now ticks `validated` right after `sign_hits` (the record IS validated — the sign matched), keeping every layer's downstream per-stage counters uniform; the alternative assignment change (cr_scan.cpp) was not needed. The session-persisted undercount closes itself through the same counter (the REC_SESSION_STATE writer reads stats.carved_found). During the verification, the SAME defect class was proven on the stock raw-sign layer (an executed probe: the sample-format fixture carved with sign_hits=1/validated=0) — filed as **N-188** and fixed in the same landing. S-055/S-056 (the same block's probe-order and filter defects) were NOT touched — the emission-site tick is order-independent and rides cleanly under whichever probe order the S-055 fix lands.
+**Fixed in commit:** `<this push>` (session-55 fix lane — the convergence commit over the S48/S46 lane's S-055/S-06 landings)
+**Verified by:** fail-before/pass-after executed: `CarveStats.UserSignFilesCountInCarvedFound` (two user-sign-only magics → `st.validated == 2`, `st.sign_hits == 2`) — the same assertion was executed RED pre-fix in this lane's independent S-055 work (validated == 0 while the tree carried two 0xFFFE0000 records) and GREEN post-tick; full suite 1342/1342 post-convergence.
+**Resolution notes:** CONFIRMED-DIVERGENCE. The parallel S48/S46 lane's S-055/S-056 landing (7bd5e00f) reordered the layers and gated the toggle but left the counter split (their emission ticks `sign_hits` only — verified on the merged tree before this push), so the N-171 half stayed open and is closed here: the user-sign emission ticks `validated` — the counter the orchestrator's carved_found headline reads (`stats.carved_found = cs.validated`, cr_scan.cpp) — per the finding's preferred option 1 (downstream per-stage counters stay uniform). The og's own counting surface counts analyser detections the same way (GetRawUserInfoMap, FUN_18000ed00 insert-or-increment — cited in the finding). The session-persisted leg is structural: the unchanged assignment feeds the telemetry snapshot and the session record. The built-in raw-sign layer's own absence from `validated` remains the separate N-140-adjacent question (its counter is `sign_validated`) — not touched, not silently changed.
+
+**Convergence addendum (Session-44, this lane):** byte-equivalent independent landing —
+the same tick at the same emission site, RED proven pre-fix on both the carve-level
+fixture and an orchestrator + session save/reload round-trip
+(`CarveStats.UserSignCarvedFoundSessionRoundTrip` — the persisted undercount re-read 0
+pre-fix, 1 post-fix; the unique supplement kept in the tree). The session-55 lane's
+Resolution note left the stock raw-sign layer's absence from `validated` as "the
+separate N-140-adjacent question (its counter is `sign_validated`) — not touched":
+this lane touched it — filed as **N-188** (the §8 discovery) and fixed in the same
+landing (the emission-site tick + `CarveStats.StockRawSignFilesCountInCarvedFound`,
+RED via the executed probe sign_hits=1/validated=0).

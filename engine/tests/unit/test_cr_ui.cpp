@@ -611,12 +611,119 @@ void autosave_event_cb(void*, const cr_ui_event* evt) {
 }
 } // namespace
 
+namespace {
+/* S-057: cancel from the files-found event - deterministic stop AFTER
+ * results exist (the engine aborts at its next loop-head poll). The
+ * callback ALSO observes the autosave event (one event slot per scan -
+ * the second set_event_fn would replace the first). */
+cr_ui_scan* g_cancel_target = nullptr;
+void cancel_and_observe(void*, const cr_ui_event* evt) {
+    if (evt->type == CR_EVT_AUTOSAVED) {
+        ++g_autosave_events;
+        g_autosave_rc = evt->autosave_rc;
+        return;
+    }
+    if (evt->type == CR_EVT_FILES_FOUND && evt->files_found >= 1 && g_cancel_target)
+        cr_ui_scan_cancel(g_cancel_target);
+}
+} // namespace
+
+TEST(CrUi, CancelledRunWithResultsAutoSaves) {
+    /* S-057: the og's stop window auto-saves - the stop path runs its
+     * own organize ("Scan stopped and found %1 files.", DRWUI
+     * :1549399-421) into the SAME completion handler whose auto-save
+     * gates (:612571-587) carry no stopped-check. A user who stops a
+     * scan after files are found keeps them: an auto_*.crsf lands in
+     * autosave_dir, stats.autosaved flips, and the session LOADS with
+     * the partial tree. Pre-fix: the cancel path returned before the
+     * auto-save block ever ran (no file, autosaved == 0). */
+    const std::string img = write_fixture("stopsave");
+    ASSERT_FALSE(img.empty());
+    const std::string dir = std::filesystem::path(img).parent_path().string();
+    const std::string adir = dir + "/s057_autosave_" + std::to_string(CR_TEST_PID());
+    std::filesystem::create_directories(adir);
+    g_autosave_events = 0;
+    g_autosave_rc = 1;
+
+    Ui u;
+    ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+    cr_ui_scan_config cfg{};
+    cfg.autosave_dir_utf8 = adir.c_str();
+    ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_set_event_fn(u.scan, cancel_and_observe, nullptr), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+    g_cancel_target = u.scan;
+    /* the subscription cancels once files exist; the engine stops at
+     * its next poll and run() returns ERR_CANCELLED */
+    /* (single event slot: the combined callback both cancels and
+     * observes the autosave outcome) */
+    EXPECT_EQ(cr_ui_scan_run(u.scan), 0x50020005u); /* ERR_CANCELLED */
+    g_cancel_target = nullptr;
+    cr_ui_scan_stats st{};
+    ASSERT_EQ(cr_ui_scan_get_stats(u.scan, &st), CR_UI_OK);
+    EXPECT_EQ(st.autosaved, 1u) << "the stop window auto-saves (S-057)";
+    EXPECT_EQ(g_autosave_events, 1u);
+    EXPECT_EQ(g_autosave_rc, 0u);
+    uint32_t n = 0;
+    ASSERT_EQ(cr_ui_session_list(adir.c_str(), nullptr, &n), CR_UI_OK);
+    ASSERT_EQ(n, 1u);
+    /* the partial session loads and carries the found-so-far tree */
+    std::vector<cr_ui_session_row> rows(1);
+    uint32_t cap = 1;
+    ASSERT_EQ(cr_ui_session_list(adir.c_str(), rows.data(), &cap), CR_UI_OK);
+    EXPECT_EQ(rows[0].valid, 1u);
+    cr_ui_session* sess = nullptr;
+    ASSERT_EQ(cr_ui_session_load(rows[0].path, &sess), CR_UI_OK);
+    cr_ui_scan* resumed = nullptr;
+    cr_ui_scan_config rcfg{};
+    ASSERT_EQ(cr_ui_session_resume(sess, &rcfg, &resumed), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_attach_device(resumed, u.dev), CR_UI_OK);
+    EXPECT_EQ(cr_ui_scan_run(resumed), CR_UI_OK); /* resumes and completes */
+    cr_ui_scan_stats rst{};
+    ASSERT_EQ(cr_ui_scan_get_stats(resumed, &rst), CR_UI_OK);
+    EXPECT_GE(rst.files_found, 1u) << "the stopped scan's partial tree persisted and resumes";
+    cr_ui_scan_close(resumed);
+    cr_ui_session_close(sess);
+}
+
+TEST(CrUi, CancelledRunZeroFoundWritesNothing) {
+    /* S-057 gate pin: the og never writes a nothing-found session - the
+     * results-found gate holds in the stop window exactly as in the
+     * completion window. Cancel BEFORE any results (the
+     * stop-button-before-start shape): no file, no event, autosaved 0. */
+    const std::string img = write_fixture("stopempty");
+    ASSERT_FALSE(img.empty());
+    const std::string dir = std::filesystem::path(img).parent_path().string();
+    const std::string adir = dir + "/s057_empty_" + std::to_string(CR_TEST_PID());
+    std::filesystem::create_directories(adir);
+    g_autosave_events = 0;
+
+    Ui u;
+    ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+    cr_ui_scan_config cfg{};
+    cfg.autosave_dir_utf8 = adir.c_str();
+    ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_set_event_fn(u.scan, autosave_event_cb, nullptr), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_cancel(u.scan), CR_UI_OK);
+    EXPECT_EQ(cr_ui_scan_run(u.scan), 0x50020005u);
+    cr_ui_scan_stats st{};
+    ASSERT_EQ(cr_ui_scan_get_stats(u.scan, &st), CR_UI_OK);
+    EXPECT_EQ(st.autosaved, 0u) << "zero-found stop writes nothing (the og gate holds)";
+    EXPECT_EQ(g_autosave_events, 0u);
+    uint32_t n = 0;
+    ASSERT_EQ(cr_ui_session_list(adir.c_str(), nullptr, &n), CR_UI_OK);
+    EXPECT_EQ(n, 0u);
+}
+
 TEST(CrUi, AutoSaveOnCompletion) {
     /* W1c (R-52): the og's completion SaveScan flow - zero-init = OFF;
      * on a COMPLETED run the auto session lands in autosave_dir under
      * the N-061 auto_<label>_<ts> naming; the event fires ONCE with the
-     * rc and stats.autosaved flips; a CANCELLED run never auto-saves;
-     * the W1a list reads the auto session back (the surfaces compose). */
+     * rc and stats.autosaved flips; since S-057 a user-STOPPED run with
+     * results auto-saves too (the stop-window leg is pinned separately
+     * in CancelledRunWithResultsAutoSaves); the W1a list reads the auto
+     * session back (the surfaces compose). */
     const std::string img = write_fixture("autosave");
     ASSERT_FALSE(img.empty());
     const std::string dir = std::filesystem::path(img).parent_path().string();

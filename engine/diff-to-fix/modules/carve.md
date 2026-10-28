@@ -855,7 +855,15 @@ The carve surface's size-walk residue now has owners:
 
 ## Session-42-B addendum (2026-10-29, audited `869da779`, corpus `be0cfe9` — the continuation lane B's carve filings; renumbered at the S42-B merge: N-154→N-158; the M-118 renumber REVERTED per SA-9 [the parallel window fixed the DBX finding under M-117 first])
 
-**N-158** (MINOR, renumbered from this lane's N-154 filing — the parallel window's bookkeeping-batch-2 keeps the ID — the OfficeTagFromXML five-branch typing tail): the og's ZIP
+**N-158 FIXED (session-53: the five branches landed in the N-115 `zip_common` walk —
+XMIND (the FUN_180045110 predicate decoded first-hand: `content.xml` + the 300-byte
+`xmlns="urn:xmind` window), MMAP, EDDX (both forms), WFP (both forms), DRP; five
+appended enum ids + registry rows with the og's own label constants; the
+`disabled_formats` toggle gated at WINNER SELECTION — a disabled typed candidate
+loses the position to the undisableable generic row, keeping the interior covered
+[the emission-time alternative was implemented and rejected on executed evidence:
+the raw-sign DOTX claim]; findings/FIXED/N-158 — the original filing text below):**
+the og's ZIP
 per-entry typing walk carries five further branches N-115's landing did not port —
 XMIND 0x86 (the `FUN_180045110` content branch), MMAP 0x87
 (`xsd/MindManagerApplication.xsd`), EDDX 0x8c (both rels entry-name forms), WFP

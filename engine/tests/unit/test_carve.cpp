@@ -7572,44 +7572,6 @@ TEST(CarveEngine, UserSignatureProbedAtStride) {
      * registry is per-process, so this test owns it) */
 }
 
-TEST(CarveStats, UserSignFilesCountInCarvedFound) {
-    /* N-171: the headline carved count is assigned from the carve
-     * engine's `validated` counter (cr_scan.cpp: carved_found =
-     * cs.validated). A user-sign record IS a validated carve - the sign
-     * matched, exactly like a grammar-validated record; the og's own
-     * stats map counts analyser detections the same way. Fail-before:
-     * the user-sign path ticked only sign_hits and the whole default-on
-     * user-sign channel (78 extensions carried by no stock source) was
-     * invisible in carved_found. */
-    std::vector<u8> img(2ull << 20, 0);
-    img[0x2000] = 0xDE;
-    img[0x2001] = 0xAD;
-    img[0x2002] = 0xBE;
-    img[0x2003] = 0xEF;
-    const char* json = "{\"uvw\": {\"signs\": [\"0,DEADBEEF\"], \"mime\": \"application/x-uvw\"}}";
-    carve::usersigns::UserSignSet set;
-    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
-    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(set)));
-    ASSERT_EQ(1u, carve::usersigns::active_count());
-
-    MemDevice dev(std::move(img));
-    tree::ResultTree tree;
-    auto* root = tree.add_root(u"Carved");
-    CarveFlags fl;
-    fl.hash_small_files = false;
-    CarveStats st;
-    ASSERT_EQ(OK,
-              carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
-    EXPECT_EQ(1u, st.sign_hits) << "the user-sign emission fired";
-    EXPECT_EQ(1u, st.validated) << "the user-sign record must count in the carved_found feed";
-    /* the tree agrees: exactly one 0xFFFE0000-tagged record */
-    u32 tagged = 0;
-    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
-        if (c->props() && c->props()->carve_format == 0xFFFE0000u)
-            ++tagged;
-    EXPECT_EQ(1u, tagged);
-}
-
 TEST(CarveEngine, UserSignatureYieldsToBuiltInAtSamePosition) {
     /* collision rule: a user sign whose magic ALSO matches a built-in at
      * the same stride defers - the built-in layer probes first and the
@@ -7976,6 +7938,95 @@ TEST(Carve, DisabledOtherFormatsLeaveUserSignsOn) {
     ASSERT_EQ(OK,
               carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
     EXPECT_EQ(1u, count_ext_records(root, "xyzzy")) << "unrelated disables do not over-block";
+}
+
+namespace {
+void plant_hex_bytes(std::vector<u8>& img, size_t at, const char* hex) {
+    const size_t n = std::strlen(hex) / 2;
+    for (size_t i = 0; i < n; ++i) {
+        const char byte[3] = {hex[2 * i], hex[2 * i + 1], 0};
+        img[at + i] = u8(std::strtoul(byte, nullptr, 16));
+    }
+}
+} // namespace
+
+TEST(Carve, CplWplTwoLayerCollisionsStayBuiltin) {
+    /* The two overlap formats whose collisions the offset-0 sign walk
+     * cannot reach, each pinned with BOTH layers matching at one stride:
+     *   cpl - the user sign DCDC at +0 AND the built-in sign at +12 (the
+     *        offset-12 raw sign FF FF 00 00 B8 ... - the only raw-sign-
+     *        table entry that anchors past the stride head). The built-in
+     *        layer owns the stride; the shadow datum: the table's own
+     *        ranking puts ocx's 9-byte offset-12 sign (conf 630) above
+     *        cpl's 12-byte one (conf 510) - ON BOTH SIDES (the core's
+     *        table is generated from the og's raw_signs.json), so the
+     *        winning built-in is ocx, never a user-sign cpl record.
+     *   wpl - the built-in "<?wpl version" sign at +0 AND the default
+     *        set's offset-132 MS-string sign ("Microsoft Windows Media
+     *        Player -- ") - the farthest-anchored default sign colliding
+     *        with a stride-head built-in. wpl's min_size floor is 10 MiB,
+     *        so the fixture is sized to clear it. */
+    ASSERT_TRUE(install_default_usersigns());
+
+    { /* cpl: DCDC at +0 + the built-in sign at +12 */
+        std::vector<u8> img(4ull << 20, 0);
+        plant_hex_bytes(img, 0x2000, "DCDC");
+        plant_hex_bytes(img, 0x2000 + 12, "FFFF0000B800000000000000");
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Carved");
+        CarveFlags fl;
+        fl.hash_small_files = false;
+        CarveStats st;
+        ASSERT_EQ(
+            OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
+        EXPECT_EQ(0u, count_tagged(root, 0xFFFE0000u))
+            << "cpl: no user-sign record at the two-layer collision";
+        EXPECT_EQ(1u, count_builtin_tagged(root))
+            << "cpl: a built-in record owns the stride (ocx, the table's own ranking)";
+    }
+    { /* wpl: the raw sign at +0 + the default user sign at +132 */
+        std::vector<u8> img(20ull << 20, 0); /* > wpl min 10 MiB */
+        plant_hex_bytes(img, 0x2000, "3C3F77706C2076657273696F6E3D22312E30223F3E");
+        plant_hex_bytes(img, 0x2000 + 132,
+                        "4D6963726F736F66742057696E646F7773204D6564696120506C61796572202D2D20");
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Carved");
+        CarveFlags fl;
+        fl.hash_small_files = false;
+        CarveStats st;
+        ASSERT_EQ(
+            OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
+        EXPECT_EQ(0u, count_tagged(root, 0xFFFE0000u))
+            << "wpl: no user-sign record at the far-anchored collision";
+        EXPECT_EQ(1u, count_builtin_tagged(root)) << "wpl: the built-in candidate owns the stride";
+    }
+}
+
+TEST(CarveStats, UserSignFilesCountInCarvedFound) {
+    /* N-171: user-sign emissions tick `validated` - the counter the
+     * orchestrator's carved_found headline reads (stats.carved_found =
+     * cs.validated). Pre-fix the entire default-on channel was invisible
+     * in the carved count (only sign_hits ticked). */
+    const char* json = "{\"xyz\": {\"signs\": [\"0,DEADBEEF\"], \"mime\": \"application/x-xyz\"}}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(set)));
+    std::vector<u8> img(2ull << 20, 0);
+    plant_hex_bytes(img, 0x2000, "DEADBEEF");
+    plant_hex_bytes(img, 0x4000, "DEADBEEF");
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Carved");
+    CarveFlags fl;
+    fl.hash_small_files = false;
+    CarveStats st;
+    ASSERT_EQ(OK,
+              carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
+    EXPECT_EQ(2u, count_tagged(root, 0xFFFE0000u));
+    EXPECT_EQ(2u, st.validated) << "user-sign files count in the carved headline";
+    EXPECT_EQ(2u, st.sign_hits) << "the channel's own counter still ticks";
 }
 
 TEST(UserSigns, ParseOgShippedExtremes) {
@@ -9083,7 +9134,12 @@ TEST(Carve, LzhWrongDashByteRejects) {
      * 5th byte rejects (the 5-byte magic carries the gate, so plant the
      * method bytes directly to defeat the magic and exercise the walk's
      * re-check... the magic itself IS the gate here: a wrong-dash form
-     * never matches any row). */
+     * never matches any row). The default user-sign set's "lha" entry
+     * (2,2D6C68 - the og's own shipped sign) matches ANY "-lh" anchor at
+     * +2, so the test that pins the GRAMMAR's dash gate disables that
+     * orthogonal channel by extension (S-056's disabled_formats gates
+     * the user layer; "lha" has no stock rows, the lzh grammar is a
+     * different extension - the gate is surgical). */
     std::vector<u8> img(64 * 1024, 0);
     const size_t at = 512;
     std::memcpy(img.data() + at + 2, "-lh0x", 5); /* 'x' at byte 6 */
@@ -9091,6 +9147,7 @@ TEST(Carve, LzhWrongDashByteRejects) {
     tree::ResultTree tree;
     auto* root = tree.add_root(u"Lost Files");
     CarveFlags flags;
+    flags.disabled_formats = "lha";
     CarveStats stats;
     ASSERT_EQ(
         carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),

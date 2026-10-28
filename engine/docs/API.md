@@ -150,7 +150,7 @@ thread-safety class documented per group ([ABI-CONTRACT.md](ABI-CONTRACT.md)).
 | `cr_ui_recovery_create` / `cr_ui_recovery_close` | the writer session |
 | `cr_ui_recovery_set_destination` / `cr_ui_recovery_enqueue_node` / `cr_ui_recovery_enqueue_subtree` / `cr_ui_recovery_enqueue_snapshot` (+ `_subtree_snapshot` variants) / `cr_ui_recovery_queue_count` / `cr_ui_recovery_process` / `cr_ui_recovery_get_stats` / `cr_ui_recovery_report_json` | the safe recovery writer (queue, collision policy, atomic writes, hash verify) |
 | `cr_ui_health_read` | SMART/NVMe health with the 4-status grading (Unknown/Good/Caution/Bad) |
-| `cr_ui_apply_lost_partition` / `cr_ui_apply_undo_last` / `cr_ui_apply_save_undo` | lost-partition table apply + undo (consent-gated, D-98a..d safety registers) |
+| `cr_ui_apply_lost_partition` / `cr_ui_apply_undo_last` / `cr_ui_apply_save_undo` | lost-partition table apply + undo (consent-gated, D-98a..d safety registers). M-137: `cr_ui_apply_candidate` carries the append-only presentation tail `disk_layout`/`disk_flags` (the og's found-partition row context, UIUX/08 §2) — zero-initialize the struct before filling |
 | `cr_ui_unlock_volume_with_dictionary` | the consented BitLocker password-dictionary aid (N-064, D-80 canonical: cr::dict's 228-entry shipped table first, then user candidates) |
 | `cr_ui_register_user_signs` / `cr_ui_user_sign_count` / `cr_ui_user_sign_info` | the user-extensible signature database (M-048) |
 | `cr_ui_carve_format_count` / `cr_ui_carve_format_info` | carve-format enumeration (N-033) |

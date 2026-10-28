@@ -186,7 +186,13 @@ first-hand; every fix RED-test-first.
   the 9-iteration RED→GREEN pin + `LfnValidNameUnchanged`; the NUL early-return
   subtlety preserved in self-review).
 
-**Board (filesystem truth, running): 65 active — 0 ACUTE · 9 SEVERE · 27 MAJOR · 29 MINOR · 0 INFO / 73 FIXED files / 6 tracked-open (the parallel windows' landings absorbed at each rebase).**
+- **N-177 FIXED** — the ext4 size-exceeds-blocks damaged marker (EXT4SearchDLL
+  :6300-6303 + FUN_180007510 :5455-5467 re-read first-hand;
+  NODE_FLAG_SIZE_EXCEEDS_BLOCKS = the og's own bit 0x200, the clean 64-bit compute
+  on both emission paths, the D-135 non-adoption registration, the write_inode
+  i_blocks_lo fixture repair; 3 tests incl. the session round-trip).
+
+**Board (filesystem truth, running): 64 active — 0 ACUTE · 9 SEVERE · 27 MAJOR · 28 MINOR · 0 INFO / 74 FIXED files / 6 tracked-open (the parallel windows' landings absorbed at each rebase; N-158/N-161 retired convergently by the remote).**
 
 # SUMMARY.md — executive summary (the S42 diff-to-fix lane's convergence on top; the prior lanes below, newest-first)
 # SUMMARY.md — executive summary (the S46 MINOR-first fix lane on top — the user's priority-to-minor directive; the prior lanes below, newest-first)
@@ -225,6 +231,19 @@ repaired by the prior lanes).
   writer-module D13 addendum) + additive-within-v1 per the schema doc's
   own contract (the finding's version-bump plan corrected). 4 tests
   RED-first; suite 1243/1243 (1201/42/0). P13/P11/P46/P68 → MATCH.
+
+- **N-163 FIXED (MINOR, ntfs)** — the runlist malformed-input tolerance:
+  the og's truncate-and-keep lands (FUN_1800347d0 re-read: every malformed
+  branch a SUCCESS with the runs so far) — a torn $DATA fragment decodes
+  its valid prefix with the `torn` flag, OR-merged at every parse site,
+  and the walker grades the file PartialRisk (never silently pretending
+  completeness); the zero-valid-runs class still rejects (the og's own
+  pre-validator gate, FUN_18001d5f0 :23184); the clean buffer-end stop is
+  distinguished from a tear (the old strict pin re-truthed); the
+  sparse-first acceptance REGISTERED as PARITY-DELTAS D-135 (the deliberate
+  superset over the og's validator rejection). 4 tests, the prefix-keep +
+  the end-to-end PartialRisk grading RED pre-fix; suite 1280/1280
+  (1238/42/0).
 # SUMMARY.md — executive summary (the S12 session-2 deep-dive lane on top — sector math / scan-progress math / local database / state management / detection-calculation; the prior lanes below, newest-first)
 
 ## Session-12 S12 lane delta (2026-10-29 — the session-2 continuation audit per the user's second-session directive: remove-the-fixed + go-deeper, special focus on sector numbers / scanning / accurate detection / calculation / no-stuck-or-freeze / local database / state management; core `869da779` at open → rebased through the parallel windows to push at `f85def0f`, corpus `be0cfe9`)
@@ -266,7 +285,7 @@ wins over the parallel S42 lanes' consumed seats M-118..122/N-154..160/I-037..03
   layers but not the user-sign layer — D-104's "same format-toggle rules" registration
   claim was false in code. match_at's disabled_exts predicate now carries the og's
   removal-loop semantics (a disabled ext's signs never fire; sibling signs still can).
-- **S-057 (SEVERE)** — the og auto-saves STOPPED scans (stop-organize
+- **S-057 (FIXED session-51)** — the og auto-saved STOPPED scans (stop-organize
   "Scan stopped and found %1 files." → the shared completion handler
   FUN_140395e50 whose gates carry no stopped-check, DRWUI:1549399/:339076/:612572-87);
   the core never auto-saves a cancelled run and its comment mis-states the og.

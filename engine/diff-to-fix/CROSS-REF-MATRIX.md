@@ -6,6 +6,7 @@
 |---|---|---|
 | carve · the OfficeTagFromXML five-branch typing tail (P1/P11/P19/P25/P65) | **MATCH** | **N-158 FIXED** (session-46 MINOR-first lane) — the five typed ids land (XMIND 0x86 / MMAP 0x87 / EDDX 0x8c / WFP 0x8d / DRP 0x91): the XMIND content probe decoded from disassembly (the 300-byte RAW window at record+30+strlen(name), the two needles — the 16-byte `xmlns="urn:xmind` + the 14-byte .data constant at RVA 0x93980 — disasm 0x180045110-0x180045666) + the four entry-name compares; the chain walk's NO-stop/last-match-wins semantics decoded and pinned (:18411-18450 — the N-115-era "map stop" comment corrected); the [Filter] coupling as the conservative row-level disabled_formats gate (PARITY-DELTAS D-134); 6 tests, 3 groups RED pre-fix; suite 1209 green — the Resolution in findings/FIXED/ carries the full record |
 | writer+report · the failed-files report's tree-classification axis (P13/P11/P46/P68) | **MATCH** | **N-159 FIXED** (session-46 MINOR-first lane) — the og's recovery-log truth decoded and landed: the per-item `tree_class` axis (the six-valued root-role classification, DRWUI :642755-642822 re-verified first-hand with the three field getters pinned) + the `failed_bytes` totals split (the +0x268 accumulator, the enqueue-refusal exclusion documented as schema truth rule 5) + the three register repairs (R-58's "text log"→HTML report; API-DELTA row 21's "NOT IN CORPUS" refuted; D13's addendum) + additive-within-v1 per the schema doc's own contract; 4 tests RED-first; suite 1243 green |
+| ntfs · the runlist malformed-input tolerance (recovery edge/27/35) | **MATCH** | **N-163 FIXED** (session-46 MINOR-first lane) — the og's truncate-and-keep lands: a torn fragment decodes its valid prefix with `torn` (every decoder branch re-read first-hand, FUN_1800347d0 :41853-41970) + the PartialRisk grading downgrade + the clean-buffer-end/tear distinction + PARITY-DELTAS D-135 (the sparse-first superset registered — the og's pre-validator FUN_18001d5f0 :23184 rejects what the core deliberately accepts); the zero-valid-runs class still rejects (the validator's own gate); TornAfterValidRunsKeepsPrefix + the end-to-end TornRunlistKeepsPrefixAndGradesPartialRisk RED pre-fix; suite 1280 green |
 
 **Session-12 S12 lane changes (2026-10-29 — the session-2 continuation audit per the user's second-session directive: remove-the-fixed + go-deeper with special focus on sector numbers, scanning, accurate detection, calculation/mathematics, no-stuck-or-freeze, the local database, state management; opened on core `869da779` (rebased to the window's closes), corpus `be0cfe9`; five deep-dive lanes' context sheets + three liveness batteries at `evidence/s12-lane-sheets/` + `evidence/s12-liveness/`; the findings push `f85def0f`):**
 
@@ -35,7 +36,10 @@
     restored, the user arm fires only when no built-in survived the filter, the
     no-reclaim rule pinned, `findings/FIXED/S-055-*`); **S-056** (carve P16/P28 — FIXED
     session-51 → MATCH: match_at's disabled_exts predicate carries the removal-loop
-    semantics, `findings/FIXED/S-056-*`); **S-057** (session/orchestration P36/P31/P32 — the og's stop path runs its
+    semantics, `findings/FIXED/S-056-*`); **S-057 — FIXED (session-51 lane → MATCH: the
+    factored autosave_if_due_ runs from both the completion and the ERR_CANCELLED
+    branch; the CLI parity leg taken; findings/FIXED/S-057)** (session/orchestration
+    P36/P31/P32 — the og's stop path runs its
     own organize into the shared completion handler whose auto-save gates carry no
     stopped-check (DRWUI:1549399-21 → :339076-79 → :612572-87); the core never
     auto-saves a cancelled run, and its comment mis-states the og).
@@ -66,8 +70,12 @@
     og sign matching is UPPERCASE-hex text memcmp; 12 og-dead lowercase signs live in
     the core, unregistered); **M-129** (carve P23-adjacent — the og's tolerant
     EUUserData loader (skip-and-continue) vs the core's all-or-nothing reject);
-    **M-130** (fat P1/P3/P26 — the dentry shape-validator family (ext-tail, size/chain
-    XOR, dir, >9-repeat histogram gates + walk-stop semantics) unported); **M-131 FIXED-ALREADY
+    **M-130 — FIXED (session-52 lane — findings/FIXED/M-130: the two-tier port [the
+    walk-BREAK gates: reserved-attr bits, the erased-pattern quad, label purity, the
+    10-pass/11-reject histogram; the emission-SKIP shape gates: size/chain XOR, the
+    dir shape]; 3 decode corrections recorded [the ext-tail gate is the attribute
+    byte; the histogram boundary; the skip-vs-break split]; 8 tests, 4 RED pre-fix;
+    suite 1322/1322)** (fat P1/P3/P26 → MATCH); **M-131 FIXED-ALREADY
     (4f0fc160, the parallel A-013 landing — verified at c98eb7a7: the CliCkSink
     tmp+commit+rename reproduction; the sink never opens the final path for
     truncation; CrUi.CliResumeSinkNeverTruncatesTheSessionSource green;
@@ -116,8 +124,8 @@
     the 2106/2107 u32 clamp vs full conversion; exFAT sibling inconsistent);
     ~~**N-174**~~ **FIXED (S46)** (exfat — the `._` AppleDouble sink filter landed, the N-028 family's
     exFAT twin); ~~**N-175**~~ **FIXED (S46)** (fat — NTRes case folding landed); **N-176** (fat — the
-    LFN illegal-char 8.3 fallback absent); **N-177** (ext4 — the size-exceeds-blocks
-    damaged flag (FLAGS 0x200) not carried); **N-178** (cli/orchestration — no CLI
+    LFN illegal-char 8.3 fallback absent); ~~**N-177**~~ **FIXED (S46)** (ext4 — the size-exceeds-blocks
+    damaged flag landed); **N-178** (cli/orchestration — no CLI
     pause verb + no engine pause notification, the landed ABI pair's missing legs).
   - **INFORMATIONAL (6):** **I-035** (S-050's CHK-chain decode addendum: rename
     formats, hex-prefix adapter registry, 36-KiB buffer, tif exclusion);
@@ -668,6 +676,7 @@ not-BAAD both sides; FAT quick-scan threading — already registered D-30x).
 | Module | Parameter(s) | Verdict change (evidence in the finding + `evidence/decompiled-quotes/s6-*`) |
 |---|---|---|
 | fat | B4/B5/D11/A29 | **M-052 — FIXED (s24 DFX24 + s35 convergent)** (recycle-bin $I/$R pairing — the shared cr/recycle model wired into the dentry walk; four-root recognition, chain-read $I parse, original-name remap + post-walk fixup; findings/FIXED/M-052) |
+| ext4 | A11/A13/D15 | **N-177 — FIXED (S46)** (the size-exceeds-blocks damaged marker: NODE_FLAG_SIZE_EXCEEDS_BLOCKS 0x0200 = the og's own FLAGS bit, the clean 64-bit compute `blocks*512 < size` on both emission paths, session round-trip via the existing flags persistence; D-135 registers the og-compute non-adoption; the ext4 fixture's i_blocks_lo now realistic; findings/FIXED/N-177) |
 | fat | A10/B-naming/FB-FalsePos | **N-176 — FIXED (S46)** (the LFN illegal-char fallback: the 9-char gate `?*|\/:"<>` in lfn_assemble — a checksum-valid corrupt LFN carrying any of them now takes the 8.3 fallback exactly like a checksum failure; LfnIllegalCharFallsBackTo83 9-iteration pin + LfnValidNameUnchanged; findings/FIXED/N-176) |
 | fat | A10/B-naming | **N-175 — FIXED (S46)** (the NTRes 8.3 display-case fold: short_name_to_u16 takes the nt_reserved byte and applies the og's four-way exact-value switch — 0x00/0x08/0x10/0x18 fold (strupr/strlwr pairs), anything-else raw; ASCII-only, CP437 high half untouched; LFN path unaffected by construction; NtResCaseFoldFourWay 5-path pin + LFN regression pin + the BitLocker NTRes=0 fixture re-pin; findings/FIXED/N-175) |
 | exfat | B1/A25/S35 | **N-067 FIXED s11** (upcase-table validation — og shape gates + checksum32 stream check, soft stats signal; findings/FIXED/); B4/B5/D11 **M-052 FIXED (s24 DFX24 + s35 convergent)** (the FAT-mirrored pairing — bin context through walk + oracle re-walks; findings/FIXED/M-052) |

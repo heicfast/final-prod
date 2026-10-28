@@ -35,8 +35,29 @@ class RunList {
 public:
     /* Decode from an on-disk runlist byte string (not including the 8-byte
      * attribute header). Returns OK/ERR_TRUNCATED/ERR_BAD_PARAMETER.
-     * max_runs guards corrupt streams (fix F6 family). */
+     * max_runs guards corrupt streams (fix F6 family).
+     *
+     * N-163 (diff-to-fix): the og's truncate-and-keep tolerance — every
+     * width violation and buffer-exhaustion path in the og's decoder
+     * (NTFSSearchDLL FUN_1800347d0 :41853-41970: len_width>8 break+SUCCESS
+     * :41891, off_width>8 SUCCESS :41992-94, exhaustion :41875/:41888)
+     * KEEPS the runs decoded so far. A fragment torn AFTER at least one
+     * valid run therefore decodes to its valid prefix with OK and
+     * `torn` set — the caller grades the file PartialRisk instead of
+     * silently pretending completeness. A violation with ZERO valid
+     * runs still rejects (the fully-garbage class), matching the og's
+     * pre-validator (FUN_18001d5f0 :23175-23210) which gates the FIRST
+     * header byte at the five $DATA parse sites. The core's
+     * sparse-first acceptance (the og's validator rejects first-byte
+     * off-nibble==0) is the REGISTERED deliberate superset
+     * (PARITY-DELTAS D-135) — a fully-sparse $DATA is real content
+     * shape (all-hole files) and recovers as zero-filled truth. */
     static u32 decode(const u8* data, u32 bytes, u64 first_vcn, u64 max_clusters, RunList& out);
+
+    /* N-163: the decoded prefix ended at a malformed/truncated tail
+     * (set only when OK is returned WITH runs — the og's salvage
+     * posture; consumers must not treat the extent list as complete). */
+    bool torn = false;
 
     /* Encode to bytes (used by session serialization of extents). */
     std::vector<u8> encode() const;

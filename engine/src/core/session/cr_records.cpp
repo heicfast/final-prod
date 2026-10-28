@@ -913,6 +913,12 @@ u32 serialize_partition_context(const PartitionContext& pc, std::vector<u8>& out
     put32(out, pc.sectors_per_cluster);
     put32(out, pc.hidden_sectors);
     put32(out, pc.flags);
+    /* v3 tail (M-137): the found-partition row context + the label
+     * (61 bytes = v3; 41 = v2; 25 = v1 — the same length detection). */
+    put32(out, pc.disk_layout);
+    put32(out, pc.disk_flags);
+    for (int k = 0; k < 12; ++k)
+        out.push_back(u8(pc.volume_label[k]));
     return OK;
 }
 
@@ -930,6 +936,15 @@ u32 deserialize_partition_context(const u8* data, size_t len, PartitionContext& 
         pc.sectors_per_cluster = c.g32();
         pc.hidden_sectors = c.g32();
         pc.flags = c.g32();
+    }
+    /* v3 (61 bytes, M-137): the presentation context + the boot label;
+     * v1/v2 payloads keep the v3 extras zeroed (the append-only wire). */
+    if (!c.fail && len >= 61) {
+        pc.disk_layout = c.g32();
+        pc.disk_flags = c.g32();
+        for (int k = 0; k < 12; ++k)
+            pc.volume_label[k] = char(c.g8());
+        pc.volume_label[11] = 0; /* NUL-floor the wire slot */
     }
     return c.fail ? u32(0x50040001) : u32(OK);
 }
