@@ -1566,3 +1566,34 @@ Next IDs: S-048+, M-103+, N-128+, I-031+, A-012+. The SA-9 context
 sheets remain in the session's scratch area (/home/z/my-project/audit-ctx/
 — A/B/C/D/E, not committed per the SOP); their load-bearing content is
 preserved in the s9-* evidence files and the finding addenda.
+
+---
+Task ID: SA-10/T1 (session-10 open — the baseline record)
+Agent: session-10 continuation parity audit (the "remove the fixed / go
+deeper / mark all remaining" mandate)
+
+Work Log:
+- Context recovery per protocol: pulled origin/main (6 commits, all the
+  parallel session-9 lanes' trail: 6e9b6dd/05b9892/ea59128/167dbe3/
+  df0d5c0/84a1832 — the reconciliation with the parallel session-8 board
+  already absorbed there; product-code tip b92ebef, corpus be0cfe9
+  unchanged).
+- The board read in full: SUMMARY (5036 lines), worklog (1357 lines),
+  SURFACE-INVENTORY, API-DELTA (fully dispositioned: every S3-W row is a
+  finding or DONE), the 75 active findings enumerated, the 2 tracked-open.
+- Baseline recorded: core HEAD 84a1832 / product-code b92ebef / corpus
+  be0cfe9. Prompt saved redacted (worklog/session-10-parity-audit-prompt.md),
+  read twice.
+- Session scope (from the trail's own residual list, not invented):
+  (a) TRIAGE — re-verify all 75 active findings against HEAD; flip FIXED
+  with Resolution records (the "remove the fixed things" ask);
+  (b) DEEP — the DRWService install lifecycle (the one named NEVER-AUDITED
+  dedicated finding), the b92ebef "recorded follow-ups" (ONE/3DS bounded
+  extents), every "recorded outside an active finding" note still standing,
+  the never-cited residue re-sweep;
+  (c) MARK REMAINING — anything corpus-documented without a finding gets
+  one; module-matrix/gate-doc currency after the landings.
+
+Stage Summary:
+- Baseline set; next: the parallel triage/deep/currency lanes, then
+  lead-first-hand verification before any filing.
