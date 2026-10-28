@@ -146,7 +146,7 @@ docs/testing.md).
 | [docs/ABI-CONTRACT.md](docs/ABI-CONTRACT.md) | the ABI wire contract |
 | [docs/testing.md](docs/testing.md) · [docs/build.md](docs/build.md) | test philosophy · build details |
 | [diff-to-fix/README.md](diff-to-fix/README.md) | the parity audit trail (findings → fixes → proofs) |
-| [worklog.md](worklog.md) | the chronological engineering log |
+| [worklog/](worklog/) | the session-prompt archive (the chronological worklog.md was retired 2026-10-28) |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | build lanes, test/gate inventory, commit style, the zero-behavior-change discipline |
 | [SECURITY.md](SECURITY.md) | BitLocker legitimate-unlock-only policy, consent model, transport boundary |
 
