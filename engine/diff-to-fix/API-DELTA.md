@@ -159,7 +159,7 @@ docs/PARITY-DELTAS.md lineage.
 | cr_ui export count | 82 `CR_UI_API` header hits - 3 macro defines = 79; API.md:77 claims 79 | **MATCH** |
 | Error model | `rg -c "^\s+ERR_\w+\s*=" include/cr/cr_error.h` = 39 + OK; CORE-API-CURRENT banner claims 39+OK | **MATCH** |
 | CLI dispatch (code truth) | wmain rrecov.cpp:2779-2800 — 10 verbs: list, list-carve-formats, scan, tree, recover, health, fix, apply, bench, driver | **MATCH (code is the truth; docs below drifted)** |
-| M-064 upstream status | rda-driver `f569836`: v0.2.3 batch (6b50bb8) landed the Parameters write+verify half (install.ps1:91-103, labeled M-064); `-Uninstall` verb, `%s%d` versioned layout, per-call SCM error strings still absent | **REMAINS upstream-lane (no core action; core's driver-status discovery needs no change while the layout stays unversioned)** |
+| M-064 upstream status | REBASE RE-VERIFICATION: rda-driver advanced to v0.2.4 (`323e75a`) while this session ran — the M-064 remainder landed in full: `-Layout Versioned` (default, the `%s%d` coexistence scheme, in-place upgrades, exit codes 8/9), `-Uninstall` verb (delegates to uninstall.ps1), versioned-aware teardown, PS AST parse gate in CI; v0.2.3 (`6b50bb8`) had already landed Parameters write+verify. Finding moved to FIXED by the remote lane (`dfb2761`); core's driver-status discovery verified UNAFFECTED (the service carries the binPath) | **CLOSED upstream (v0.2.4) — no core action; reconciled into this board at rebase** |
 
 ## 4.2 NEW drift found and verified this session (fix items A-D)
 
@@ -180,10 +180,11 @@ FileSystemCheck error set 0x1001..0x100e (finding
 
 API-surface code and its normative docs are now consistent at
 `c899998`+this session. Remaining items are all OUTSIDE the core API
-surface: S-038 steps 2-4 (packaging lane), M-064 upstream remainder
-(driver scripts lane), A-ABI-6 (owner policy), OQ-SA-1/OQ-S4-3
-(engine-scope probes), I-026 (deliberate posture). N-089 FIXED at
-`c899998`.
+surface: S-038 steps 2-4 (packaging lane, pending the owner's two
+PACKAGING.md decisions), M-064 CLOSED upstream at rda-driver v0.2.4,
+A-ABI-6 (owner policy), OQ-SA-1/OQ-S4-3 (engine-scope probes), I-026
+(deliberate posture). N-089 FIXED at `c899998`; A-011/N-089 convergence
+reconciled by the remote lane (`fc74677`).
 
 **Pin added:** `CliVerbListsAreThreeSiteLocked` — any verb/flag/export
 change must land docs/API.md §1, CORE-API-CURRENT §c AND the rrecov.cpp

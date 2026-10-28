@@ -87,3 +87,41 @@ Stage Summary:
   (installer implementation, packaging lane), A-ABI-6 (codeql policy —
   owner call), rda-driver D2/D3/D4 doc drifts. Suites verified green:
   969/969 (my batch), CI success on 1117ac9 + 630df04.
+
+---
+Task ID: API-FIX-2 (api-fix session 2 — the post-A-011 CLI/CRSF doc truth pass)
+Agent: api-fix lane (this session)
+
+Work Log:
+- Context-recovery protocol re-run, API scope only: three parallel
+  read legs (corpus / core / driver) -> the session-2 delta board in
+  diff-to-fix/API-DELTA.md §4 (Session 2).
+- Session-1 board re-verified first-hand: driver wire byte-exact vs
+  rda_ioctl.h (identity 0x60002400/04/08 + extended 0x6002440/44/48 +
+  all 19 session codes + F11 x512); 79 cr_ui exports recounted;
+  39+OK error codes recounted; CLI dispatch = 10 verbs (code truth).
+- Rebase reconciliation: the remote lanes landed M-064 FULLY FIXED
+  upstream (rda-driver v0.2.4 323e75a: -Layout Versioned %s%d
+  coexistence + -Uninstall verb + versioned-aware teardown + PS AST
+  CI gate) and the A-011/N-089 convergence (fc74677) while this
+  session verified — the board row reconciled; core's driver-status
+  discovery confirmed unaffected (the service carries the binPath).
+- Four NEW verified drift items (all doc-vs-code, zero code defects):
+  A: docs/crsf-format.md omits REC_FS_CHECK type 9 (M-041) and its
+  payload grammar; B: the rrecov.cpp header comment lists 8 of 10
+  verbs + misses scan --image/--deep/--repair-undo/--user-signs and
+  recover --image; C: docs/API.md §1 the same 8-of-10 verb gap + a
+  phantom [plan] value on --repair (bare flag at rrecov.cpp:1089) +
+  a duplicate exit-code row 3; D: docs/CORE-API-CURRENT.md §c says
+  9 verbs (omits driver, stale wmain cite) and c.7/c.8/c.9 still
+  document the REMOVED --no-rda flag + the "direct" transport label
+  (only "rda" exists, rrecov.cpp:1992) + stale function-range cites.
+- Fixes A-D landing as separate commits (the three-site verb-list
+  pin: docs/API.md + CORE-API-CURRENT §c + the rrecov.cpp header
+  comment must move together from now on).
+
+Stage Summary:
+- The API lane's remaining board after this session: S-038 steps 2-4
+  (packaging lane, owner decisions pending), A-ABI-6 (owner policy),
+  OQ-SA-1/OQ-S4-3 (engine-scope probes). Everything API-surface-shaped
+  is now doc-consistent with the code at the tree this session pins.
