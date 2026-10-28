@@ -2856,3 +2856,39 @@ READ-ONLY guarantee: this session's commits touch NOTHING outside
 ### N-136's Resolution record (renumbered from the N-128 ID collision; session-10, this lane — the file retired per the purge convention)
 
 **Status:** FIXED · **Fixed in commit:** this rebased landing (745c042-lineage) · **Verified by:** the C gate's default-path invocation (FAIL sl_found pre-fix at the 84a1832 baseline worktree; OK post-fix) + the new dot-listing pin + the absolute-path class still OK + cr_ui_tests 58/58 + cr_tests 1026/1026. **Notes:** both list_crsf_files branches (POSIX + Windows) compose BARE names when the caller's dir is exactly "." — a caller who saved "name.crsf" (CWD-relative) now string-matches its own row; every other dir keeps the existing separator-convention join (run 40689196858). Discovered during the M-102 verification (the gate's default argv); predates this session (reproduced at 84a1832); CI never exercised the class (ctest passes an absolute path).
+
+Task ID: S11B/T5 (the board-truth repair wave — executed, reconciled with the parallel fix lane's mid-flight landing)
+Agent: session-11 lane B
+
+Work Log:
+- The three repairs landed (bc4513db + the rebase over the parallel fix lane's
+  740d9b56/fce38c3d/715300ba):
+  1. **M-102/M-083 retired** — the e56baac7 landing's missed purge step. The
+     parallel fix lane deleted the files directly from findings/MAJOR/ in their
+     fce38c3d reconciliation; my two-phase FIXED/ move was dropped at the rebase
+     resolution (the DU conflicts resolved in their favor — the content with
+     Resolution sections is recoverable at the MAJOR path, verified
+     `git show fce38c3d^:...`). The ledger rows carry the real SHA e56baac7 +
+     the truthful history path (the MAJOR-path deletion).
+  2. **The N-129 collision resolved the ancestry-decisive way** — wave-3's
+     bookkeeping file renumbered **N-129 → N-135** (0e279e43 pushed lane-B's
+     inventory-defects N-129 at 17:32:28Z; f6c00177 — the bookkeeping file's
+     first appearance — is its git DESCENDANT at 17:33:36Z; the SA-9 rule).
+     Renumber note in-file; matrix/SUMMARY/evidence refs updated. NOTE: the
+     parallel session-11 lane's worklog entry proposed the OPPOSITE resolution
+     ("wave-3's file pushed first") — refuted by the object graph; the
+     ancestry proof is recorded here and in the renumber note.
+  3. **The FIXED-LEDGER conflict swept** (5fecdae1's unswept second occurrence,
+     lines 22-32) per the 64a3b18 convention + **the count truth established by
+     whole-table re-count: 285 rows** (265 main-pattern + 20 OQ-prefixed) — the
+     prior 276-282 top-line figures were push-window estimates that never
+     re-counted the table.
+- Convergence with the parallel fix lane: their N-128 (the session-list CWD
+  bare-path composition bug, DISCOVERED during their thumbnail verification)
+  renumbered to N-136 in their own 715300ba repair (the third N-128 claimant
+  conformed — the capability-matrix N-128 keeps the ID). My lane absorbed the
+  renumber; no further action needed.
+- Board after the wave: **53 active (6 SEVERE · 21 MAJOR · 21 MINOR · 5 INFO)**
+  / 285+2 resolved rows (M-102/M-083 already counted; N-136 appended by the
+  parallel lane) / 4 tracked-open. Next free IDs: S-053+, M-111+, N-137+,
+  I-031+, A-012+.
