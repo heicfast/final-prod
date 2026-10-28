@@ -1,3 +1,8 @@
+- **N-096 FIXED** — the identity-IOCTL non-issuance registered per the finding's option 2:
+  D-DRV-6 in PARITY-DELTAS (the og's sole client identity IOCTL — the per-open
+  GET_DISK_CONTEXT_MODE mode probe — has no decoded behavioral consumer; the core's
+  non-issuance is the deliberate lighter posture), and the DRIVER-UTILIZATION control-IOCTL row
+  downgraded from MATCH to "MATCH (wire) / OMITTED (client issuance — deliberate)". Doc-only.
 - **N-128 FIXED** — the CAPABILITY-MATRIX prebuilt-CI row doubly-untrue claim repaired: the
   evidence column re-pointed at the actual post-consolidation lane set (checks / installer /
   release / test-benchmark — no .github/actions/ exists), and the DONE verdict split from the
