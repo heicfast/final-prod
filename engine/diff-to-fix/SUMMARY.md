@@ -227,7 +227,7 @@ currency note.
 
 **Board after the reconciliation:** the session-8 board (75 active per
 their close: 7 SEVERE · 29 MAJOR · 34 MINOR · 5 INFO) + **N-127** — 76
-active · 249 FIXED · 1 tracked-open (OQ-S4-3, unchanged). **The lane's
+active · 250 FIXED · 1 tracked-open (OQ-S4-3, unchanged). **The lane's
 recommended fix-order contributions** (folded into the standing order):
 the M-087 Start-posture decision rides M-087's fix; N-127's item-1 posture
 decision (og-parity vs real hardening) should be made alongside M-086/M-088
