@@ -418,6 +418,22 @@ linux-release build green, suite **1273/1273**. Mandate saved token-redacted at
   finding filed (N-186, the N-133/M-120 committed-red family); full suite 1340/1340
   green post-repair (1339/1340 pre-repair).
 
+- **N-166 FIXED** — the live file-count telemetry: ResultTree gains an O(1)
+  live_files() attach counter (atomic tick in add_file, subtract on detach, zero on
+  reset, self-seeding on deserialize); emit_event_ overlays the counter's delta over
+  the boundary snapshot on ScanProgress samples only (growth attributed to the active
+  stage's counter; boundary stamps + FilesFound events stay snapshot-based - the
+  finding's authoritative-sample requirement); the header contract line updated.
+  Tests: Telemetry.CountersMoveDuringStage (RED via the stashed-overlay rebuild:
+  mid-carve samples carried carved_found == 0 while three JPEGs were attached; GREEN:
+  the pre-park sample carries the delta) + Telemetry.LiveAttachCounterTracksTheTree.
+  **Rode the same landing - two more N-188-family committed-reds repaired** (both
+  pre-existing at origin/main, proven by the stashed-tree run): the M-138 rebase left
+  Grading.ExtensionTableGatesDeepValidation's assertions on the pre-rebase fixture
+  mapping (failed unconditionally; assertions re-pinned to the test's own decoded
+  S-058 semantics), and the re-landed N-171 ticked `validated` twice per user-sign
+  record (a merge artifact; one tick now). Suite 1382/1382.
+
 - **N-158 FIXED (CONVERGENT — the remote lane's 78b9b7aa wins per SA-9)** — the
   OfficeTagFromXML five-branch tail. This lane landed the same five branches
   independently (XMIND/MMAP/EDDX/WFP/DRP in the N-115 `zip_common` walk; the

@@ -115,7 +115,12 @@ ReadPipe build_read_pipe(IStorageDevice* slice, u64 cache_bytes, u32 block_bytes
  *  - Stage transitions fire in scan order, exactly once each. Progress
  *    samples fire when the overall permille advances (coalesced, <= 1000
  *    per scan plus stage flips). Files-found/error events are STAGE-BOUNDARY
- *    samples (the engines do not publish per-file increments); the
+ *    samples (the engines do not publish per-file increments) - but the
+ *    ScanProgress samples carry LIVE-refreshed counters (N-166: the
+ *    attach-time tree counter's delta over the boundary total is
+ *    attributed to the active stage's counter, so mid-stage counts MOVE
+ *    like the og's ~2 s grid cadence; the boundary stamps stay the
+ *    authoritative close-of-stage sample); the
  *    error-map delta carries the newest appended range plus the
  *    cumulative count. Checkpoint fires per G-13 emission. Lost-candidate
  *    events fire per discovered candidate (deep stage, whole-disk scans).

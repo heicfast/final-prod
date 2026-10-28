@@ -563,6 +563,27 @@ void ScanController::emit_event_(event::Type type, u32 stage) const {
         e.stage_permille = st.permille;
         e.bytes_done = stage == 2 ? st.bytes_done : 0;
         e.bytes_total = stage == 2 ? st.units_total : 0;
+        /* N-166: live counter refresh on PROGRESS samples - the og's
+         * results grid tracks the live tree (~2 s cadence; the live
+         * capture's Reconstructed branch grows mid-scan); the core's
+         * stage-boundary stamps stay the authoritative close-of-stage
+         * sample (the boundary events above still carry the snapshot).
+         * The attach-time tree counter's delta over the boundary total
+         * is attributed to the ACTIVE stage's counter (carve growth ->
+         * carved_found, structured growth -> files_found); the clamp
+         * keeps it non-decreasing across a lost-candidate detach. */
+        if (type == event::Type::ScanProgress) {
+            const u64 live_total = tree_.live_files();
+            const u64 snap_total =
+                tel_.snap.files_found + tel_.snap.deleted_found + tel_.snap.carved_found;
+            if (live_total > snap_total) {
+                const u64 delta = live_total - snap_total;
+                if (stage == 2)
+                    e.carved_found += delta;
+                else
+                    e.files_found += delta;
+            }
+        }
     }
     event_fn_(e, event_user_);
 }
