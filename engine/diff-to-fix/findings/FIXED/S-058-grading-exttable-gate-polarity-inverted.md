@@ -99,3 +99,10 @@ The "Recovery Chances" status — the grade column users sort and decide by — 
 ## Open questions
 
 None — the polarity is settled structurally (comparator bodies + control-case calibration + the `""` corroboration all agree). OQ-S42-3 tracks the *sub-gates* inside the deep read, not the polarity.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this push; S47 lane)
+**Verified by:** `Grading.ExtensionTableGatesDeepValidation` (re-pinned to the verified polarity: out-of-table ZZQX twins flagged + High, in-table DOC never flagged + engine-default grade, dot-less never flagged - the pre-fix build fails 5 of its 9 assertions), `Grading.TwinAddressFlagsBoth` (re-based onto out-of-table candidates: zzqx/zzqx same-category twins; asd(Unsaved)/zzq2(Other) same-key different-category unflagged), full suite 1209/1167/0-fail.
+**Resolution notes:** The gate in grade_tree's generic path flipped to the og's verified polarity: twin candidates are collected when the extension is NOT in the 169-key table, with the empty-ext early-out preserved (the og's runtime set contains "" from the ctor's 2000-iteration init over the zero-padded array, so dot-less files skip too - both sides skip, for their own reasons, exactly as the finding's corroboration section states). Corpus re-verified first-hand this session: FUN_1401bebe0 at :324923-324939 is `FUN_1401bec20(a,b) == 0` (the inequality twin), so `cVar1 == 0` at :605742-43 is find==end (NOT FOUND) and the deep block runs for not-in-table extensions; the control case at :585888-585891 (equality comparator, same call shape) calibrates the direction. The s5 evidence file's §5 item 4 carries the ERRATUM note now (its table dump §2-§3 remains byte-exact and valid). The finding's own fix plan items 2-3 (the FUN_14038c470 deep content read and the +0x73 "needs validate" flag) are the separate M-134 finding's scope - this fix lands the population/polarity correction (the twin flagging + grade-2 promotion the core's pass 2 already performs, now on the right population).

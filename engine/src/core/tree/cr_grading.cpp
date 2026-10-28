@@ -270,9 +270,20 @@ void grade_tree(tree::ResultTree& t, const GradeContext& ctx, AssistantStats& ou
             continue;
 
         /* generic path (FS not in {NTFS, ReFS, Btrfs}): the extension
-         * table gates the twin detection (found in the 169-entry map at
-         * DRWUI :605740-605741 -> the deep path runs). */
-        if (!extension_in_grading_table(ext_of_name(pr)))
+         * table gates the twin detection - S-058: the og's gate is
+         * NOT-in-table. Read first-hand: the grading gate's comparator
+         * FUN_1401bebe0 is the INEQUALITY twin (!=) of FUN_1401bec20,
+         * so `cVar1 == 0` at :605742-43 means find==end - NOT FOUND -
+         * and the deep-validation block runs for extensions the 169-key
+         * table does NOT carry (calibrated by the control case :585890
+         * using the equality comparator with the same call shape; the
+         * s5 evidence file's polarity label was inverted - its erratum
+         * is recorded in the finding). The "" quirk: the og's runtime
+         * set contains "" (the ctor's 2000-iteration init over a
+         * zero-padded array), so dot-less files are IN-table and skip
+         * too - the empty-ext early-out preserves that coincidence. */
+        const std::string ext_g = ext_of_name(pr);
+        if (ext_g.empty() || extension_in_grading_table(ext_g))
             continue;
         TwinKey tk;
         tk.key = twin_key_of(n, ctx);

@@ -164,26 +164,38 @@ TEST(Grading, NtfsDeviceIndexRuleUpgrades) {
 }
 
 TEST(Grading, ExtensionTableGatesDeepValidation) {
-    /* only table extensions enter the twin detection: two same-key files
-     * with in-table extensions -> twins; out-of-table -> no twin */
+    /* S-058 (polarity corrected): the og's deep-validation/twin block
+     * runs for extensions NOT in the 169-key table (the comparator
+     * FUN_1401bebe0 is the inequality twin - cVar1==0 at :605742-43 is
+     * find==end, NOT FOUND; calibrated by the :585890 control case).
+     * Out-of-table same-key files -> twins; in-table -> never flagged;
+     * dot-less ("" is IN the og's runtime set) -> never flagged. The
+     * pre-fix core ran the exact inverse on all three populations. */
     ResultTree t;
     auto* root = t.add_root(u"Found");
-    auto* a1 = add_file(t, root, "a.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    auto* a1 = add_file(t, root, "a.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x5000, 0x400);
-    auto* a2 = add_file(t, root, "b.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    auto* a2 = add_file(t, root, "b.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x5000, 0x400);
-    auto* c1 = add_file(t, root, "c.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    auto* c1 = add_file(t, root, "c.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x9000, 0x400);
-    auto* c2 = add_file(t, root, "d.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    auto* c2 = add_file(t, root, "d.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x9000, 0x400);
+    auto* e1 = add_file(t, root, "noext1", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+                        Origin::Structured, 0xD000, 0x400);
+    auto* e2 = add_file(t, root, "noext2", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+                        Origin::Structured, 0xD000, 0x400);
     grading::AssistantStats st;
     grading::grade_tree(t, single_disk_ctx(), st);
-    EXPECT_TRUE(a1->overlap()) << "in-table (DOC) twins must be flagged";
+    EXPECT_TRUE(a1->overlap()) << "out-of-table (ZZQX) twins must be flagged";
     EXPECT_TRUE(a2->overlap());
     EXPECT_EQ(Grade::High, a1->grade());
     EXPECT_EQ(Grade::High, a2->grade());
-    EXPECT_FALSE(c1->overlap()) << "out-of-table extensions never enter the deep path";
+    EXPECT_FALSE(c1->overlap()) << "in-table (DOC) extensions never enter the deep path";
     EXPECT_FALSE(c2->overlap());
+    EXPECT_NE(Grade::High, c1->grade()) << "in-table keeps the engine-default grade";
+    EXPECT_FALSE(e1->overlap()) << "dot-less names: \"\" is in the og's runtime set - skip";
+    EXPECT_FALSE(e2->overlap());
 }
 
 TEST(Grading, TwinAddressFlagsBoth) {
@@ -191,15 +203,18 @@ TEST(Grading, TwinAddressFlagsBoth) {
      * 605781 matches keys AND categories before FUN_14038ba60 flags) */
     ResultTree t;
     auto* root = t.add_root(u"Found");
-    /* same extent-end + same category (doc/doc) -> twins */
-    auto* x1 = add_file(t, root, "x.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    /* same extent-end + same category (zzqx/zzqx - S-058: the deep
+     * path's population is the NOT-in-table extensions) -> twins */
+    auto* x1 = add_file(t, root, "x.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x5000, 0x400);
-    auto* x2 = add_file(t, root, "y.doc", 0x400, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    auto* x2 = add_file(t, root, "y.zzqx", 0x400, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x5100, 0x300);
-    /* same extent-end + DIFFERENT category (doc/mp3) -> not twins */
-    auto* y1 = add_file(t, root, "p1.mp3", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    /* same extent-end + DIFFERENT category (asd=Unsaved vs zzq2=Other -
+     * both NOT in the grading table, so both ARE deep-path candidates;
+     * only the category mismatch keeps them unflagged) -> not twins */
+    auto* y1 = add_file(t, root, "p1.asd", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0xA000, 0x400);
-    auto* y2 = add_file(t, root, "p2.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    auto* y2 = add_file(t, root, "p2.zzq2", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0xA000, 0x400);
     grading::AssistantStats st;
     grading::grade_tree(t, single_disk_ctx(), st);
