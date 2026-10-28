@@ -1,3 +1,19 @@
+**Session-47 lane (the S46 claim continued, 2026-10-29):** the S46 claim is executed by
+this lane (same mandate, same MINOR-first directive, no fixes landed between the claim
+commit `fa654673` and this lane's open). Baseline at open: linux-release build green,
+suite **1273/1273**. Mandate saved token-redacted at `worklog/session-diff-fix-s47-prompt.md`.
+
+- **N-161 FIXED** — the GPT entry-span underflow: `emit_gpt_entries` now gates
+  `last_lba < first_lba` (and the 2^64-boundary wrap `last - first == UINT64_MAX`)
+  before emission, counting the corrupt entry in the new `DiskTable::gpt_invalid_entries`
+  (surfaced in `ScanStats` at the whole-disk parse site) instead of letting the wrapped
+  ~2^64 sector_count masquerade as a giant volume. Tests:
+  Gpt.EntryLastLbaBeforeFirstLbaSkippedAndCounted + Gpt.EntrySpanOverflowBoundary, both
+  RED pre-fix at `fa654673` (the wrapped entry emitted; counter absent/0) and GREEN
+  post-fix; the Gpt family + WholeDisk orchestrator legs green (20/20). The finding's
+  scope note preserved: core-side honesty doctrine, the og's span consumption stays
+  undecoded (OQ-1) — no parity claim, no PARITY-DELTAS row.
+
 **Session-46 lane territory claim (coordination contract, 2026-10-28 22:22 UTC):** this lane
 (MINOR-first per the user's explicit session directive — the parallel S45 lane's own saved
 mandate is ACUTE-first, so the natural division is: S45 takes ACUTE/SEVERE, this lane takes

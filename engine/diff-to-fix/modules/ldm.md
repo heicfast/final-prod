@@ -52,7 +52,12 @@ fixtures) + 3 new guards; real GPT dynamic disks parse end-to-end again.
 - **B6 damaged-volume** — **M-002 FIXED (s10)** (torn chain keeps the walked prefix + ebr_status/ebr_break_lba honesty — findings/FIXED/M-002);
   `M` on two-step GPT salvage + backup-at-end (with D-116's registered
   strictness: entry_size==128 refusal + the 1 MiB entries cap + the salvage
-  entries_lba bounds check — N-164's registration).
+  entries_lba bounds check — N-164's registration);
+  **N-161 FIXED (session-47: the entry-span underflow gate — last_lba < first_lba
+  or the 2^64-boundary wrap is named invalid and counted
+  (DiskTable::gpt_invalid_entries, surfaced in ScanStats) instead of emitting a
+  wrapped giant volume — findings/FIXED/N-161; core-side honesty doctrine, the
+  og's span consumption still OQ)**.
 
 ## Constants and formats
 
