@@ -44,6 +44,7 @@ add_executable(cr_tests
     unit/test_pause_resume.cpp
     unit/test_telemetry.cpp
     unit/test_writer_dirs.cpp
+    unit/test_ldm_recovery.cpp
     unit/test_report.cpp
     unit/test_reghive.cpp
     unit/test_bcdfix.cpp

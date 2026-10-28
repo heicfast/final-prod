@@ -14,6 +14,7 @@
 #include "../cr_types.h"
 #include "../storage/cr_device.h"
 #include "../storage/cr_freemap.h"
+#include "../table/cr_ldm.h" /* S-052: the LDM layouts ride the session */
 #include "../tree/cr_node.h"
 #include "../tree/cr_grading.h"
 #include <vector>
@@ -60,6 +61,18 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out,
 u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree,
                      u32* reparented_out = nullptr, DeserializeProgress progress = nullptr,
                      void* progress_user = nullptr);
+
+/* ---- S-052: LDM dynamic-volume layouts (REC_LDM_LAYOUTS payload) ----
+ * Wire: u32 count + per layout {u8 kind, u64 vol_obj_id, u64
+ * total_sectors, u64 chunk_sectors, u32 columns, u64 missing_members,
+ * u8 complete, u16 name_len + bytes, u32 copies + per copy u32 members
+ * + per member {u64 part_obj_id, u64 disk_obj_id, 16B guid, u64
+ * disk_lba, u64 part_start, u64 sectors, u64 vol_offset, u32 index,
+ * u8 disk_present}}. The members' disk_lba values are the RE-ANCHORED
+ * ones only when the scan's resolver held the member; the recovery-side
+ * re-arm re-anchors again through the member's own PRIVHEAD. */
+u32 serialize_ldm_layouts(const std::vector<table::LdmVolumeLayout>& layouts, std::vector<u8>& out);
+u32 deserialize_ldm_layouts(const u8* data, size_t len, std::vector<table::LdmVolumeLayout>& out);
 
 /* ---- read error map (REC_ERROR_MAP payload) ---- */
 u32 serialize_error_map(const ReadErrorMap& map, std::vector<u8>& out);
@@ -207,6 +220,12 @@ struct VolumeSessionInfo {
     char image[256] = {0};
     /* W1a: the embedded save time (v5+ sessions; 0 = pre-v5). */
     u64 save_unix = 0;
+    /* S-052: the LDM dynamic-volume layouts the scan reconstructed,
+     * persisted as REC_LDM_LAYOUTS and re-loaded here so the session's
+     * recovery/preview consumers can re-arm the virtual devices (the
+     * tree's LDM roots carry the matching basis ids). Empty for
+     * non-dynamic scans and pre-S-052 sessions. */
+    std::vector<table::LdmVolumeLayout> ldm_layouts;
 };
 
 /* ---- W1a: the light per-file summary (R-56; the og's record-2 read) ----

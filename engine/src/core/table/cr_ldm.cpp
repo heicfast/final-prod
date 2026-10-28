@@ -1508,6 +1508,82 @@ u32 LdmVolumeDevice::read_at(u64 offset, void* buffer, u32 length) {
     }
     return OK;
 }
+std::vector<LdmVolumeDevice::PhysicalSpan> LdmVolumeDevice::physical_spans(u64 offset,
+                                                                           u64 length) const {
+    std::vector<PhysicalSpan> out;
+    if (length == 0)
+        return out;
+    if (offset > geom_.total_bytes || length > geom_.total_bytes - offset)
+        return out; /* out of range: nothing is read */
+    const u64 sec0 = offset / 512;
+    const u64 sec_end = (offset + length + 511) / 512; /* ceiling */
+
+    if (layout_.kind == LdmVolumeKind::Broken || layout_.copies.empty())
+        return out;
+
+    /* simple/spanned: the exact runs; mirrored: every copy's runs */
+    if (layout_.kind == LdmVolumeKind::Simple || layout_.kind == LdmVolumeKind::Spanned ||
+        layout_.kind == LdmVolumeKind::Mirrored) {
+        const u32 copies = layout_.kind == LdmVolumeKind::Mirrored
+                               ? u32(layout_.copies.size())
+                               : 1; /* the single copy is copies[0] */
+        for (u32 c = 0; c < copies; ++c) {
+            u64 s = sec0;
+            while (s < sec_end) {
+                u64 run_end = 0, member_lba = 0;
+                const LdmMember* m = nullptr;
+                if (translate_spanned(layout_.copies[c], s, sec_end, run_end, member_lba, m) != OK)
+                    break; /* hole in this copy: its bytes are not read */
+                IStorageDevice* dev = resolver_ ? resolver_(m->disk_guid) : nullptr;
+                if (dev != nullptr)
+                    out.push_back(PhysicalSpan{dev, member_lba * 512, (run_end - s) * 512});
+                s = run_end;
+            }
+        }
+        return out;
+    }
+
+    /* striped/raid5: chunk-by-chunk walk (mirrors read_run's mapping) */
+    const std::vector<LdmMember>& members = layout_.copies[0];
+    const u64 chunk = layout_.chunk_sectors;
+    const u32 cols = layout_.columns;
+    if (chunk == 0 || cols == 0 || members.size() != cols)
+        return out;
+    const bool raid5 = layout_.kind == LdmVolumeKind::Raid5;
+    for (u64 s = sec0; s < sec_end;) {
+        const u64 ci = s / chunk;
+        const u64 in = s % chunk;
+        u64 row, col;
+        if (!raid5) {
+            col = ci % cols;
+            row = ci / cols;
+        } else { /* left-symmetric: P(row) = N-1-(row mod N) */
+            const u64 k = ci;
+            row = k / (cols - 1);
+            const u64 i = k % (cols - 1);
+            const u64 parity = (cols - 1) - (row % cols);
+            col = (parity + 1 + i) % cols;
+        }
+        const u64 in_end = ((s / chunk) + 1) * chunk;
+        const u64 run_end = in_end < sec_end ? in_end : sec_end;
+        const u64 run_sectors = run_end - s;
+        /* striped: only the data column is read (exact). raid5: the data
+         * column OR - on member failure - every surviving column of the
+         * row (reconstruction), so ALL columns are conservative-safe. */
+        const u32 first = raid5 ? 0 : col;
+        const u32 last = raid5 ? cols - 1 : col;
+        for (u32 c2 = first; c2 <= last; ++c2) {
+            const LdmMember& m2 = members[size_t(c2)];
+            IStorageDevice* dev2 = resolver_ ? resolver_(m2.disk_guid) : nullptr;
+            if (dev2 == nullptr)
+                continue; /* missing member: its bytes are not read */
+            out.push_back(
+                PhysicalSpan{dev2, (m2.disk_lba + row * chunk + in) * 512, run_sectors * 512});
+        }
+        s = run_end;
+    }
+    return out;
+}
 
 } // namespace table
 } // namespace cr

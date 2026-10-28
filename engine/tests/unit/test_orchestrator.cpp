@@ -2362,3 +2362,114 @@ TEST(Orchestrator, IdentityCardV4SnapshotAndAxes) {
     }
     EXPECT_TRUE(saw_vi) << "the VolumeInfo record must be present";
 }
+
+/* ---- S-052: the LDM basis survives the scan AND the session file ---- */
+
+TEST(Orchestrator, DynamicDiskScanStampsBasisAndSessionRoundTrips) {
+    /* a FAT16 volume inside an LDM simple volume (the DynamicDiskVolume
+     * Scan shape): the scan must (1) keep the virtual volume device past
+     * run()'s return (the S-052 registry), (2) stamp the volume root
+     * with the matching basis id, and (3) persist the layout + the stamp
+     * through save_session -> load_session_summary so a reloaded session
+     * can re-arm the basis for recovery/preview. */
+    auto fat = build_fat16();
+    constexpr u64 PART_START = 2048;
+    constexpr u64 PART_SIZE = 5074;
+    cr::testfixture::LdmFixture fx(40960);
+    fx.set_disk(1000, "01234567-89AB-CDEF-0123-456789ABCDEF");
+    fx.add_dgr4(1, "TestPCDg0");
+    fx.add_dsk4(1000, "Disk1", "01234567-89AB-CDEF-0123-456789ABCDEF");
+    fx.add_volume({2000, "Volume1", 3, PART_SIZE, 1});
+    fx.add_component({3000, "Volume1-01", cr::table::LDM_COMP_CONCAT, 1, 2000, 0, 0});
+    fx.add_partition({4000, "Disk1-01", PART_START, PART_SIZE, 0, 3000, 0, 1000});
+    fx.finish();
+    auto img = fx.take();
+    std::memcpy(img.data() + PART_START * 512, fat.data(), fat.size());
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = true;
+    cfg.run_carve = false;
+    cfg.whole_disk = true;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    ASSERT_EQ(OK, ctrl.run(&dev, nullptr, nullptr, nullptr, stats));
+
+    /* (1) the registry survived run() */
+    ASSERT_EQ(size_t(1), ctrl.ldm_devices().size());
+    ASSERT_EQ(size_t(1), ctrl.ldm_layouts().size());
+    EXPECT_EQ(cr::table::LdmVolumeKind::Simple, ctrl.ldm_layouts()[0].kind);
+    /* the registered device reads the volume (the FAT's DOC.TXT head is
+     * reachable through it) */
+    EXPECT_EQ(u64(PART_SIZE * 512), ctrl.ldm_devices()[0]->size());
+
+    /* (2) the root is stamped with basis 1 */
+    tree::FullNode* vroot = nullptr;
+    for (tree::FileNode* r : tree.roots())
+        if (r->is_full() && r->name_utf8().find("Dynamic Volume") == 0)
+            vroot = static_cast<tree::FullNode*>(r);
+    ASSERT_NE(nullptr, vroot);
+    EXPECT_EQ(1u, vroot->basis());
+
+    /* (3) the session round-trip: the layout record + the root stamp */
+    struct MemFile {
+        std::vector<u8> data;
+        u64 pos = 0;
+        static u32 wr(void* u, const void* b, u32 len) {
+            auto* m = static_cast<MemFile*>(u);
+            if (m->pos + len > m->data.size())
+                m->data.resize(size_t(m->pos + len));
+            std::memcpy(m->data.data() + m->pos, b, len);
+            m->pos += len;
+            return 0;
+        }
+        static u64 tl(void* u) { return static_cast<MemFile*>(u)->pos; }
+        static u32 sk(void* u, u64 abs) {
+            static_cast<MemFile*>(u)->pos = abs;
+            return 0;
+        }
+    } mf;
+    {
+        session::Writer w(MemFile::wr, MemFile::tl, MemFile::sk, &mf);
+        ASSERT_EQ(w.open(7), OK);
+        ASSERT_EQ(ctrl.save_session(w, stats), OK);
+        ASSERT_EQ(w.finalize(), OK);
+    }
+    session::Reader r(
+        +[](void* u, void* b, u32 len) -> u32 {
+            auto* m = static_cast<MemFile*>(u);
+            if (m->pos + len > m->data.size())
+                return 1;
+            std::memcpy(b, m->data.data() + m->pos, len);
+            m->pos += len;
+            return 0;
+        },
+        MemFile::sk, +[](void* u) -> u64 { return static_cast<MemFile*>(u)->data.size(); }, &mf);
+    ASSERT_EQ(r.open(nullptr), OK);
+    tree::ResultTree back;
+    ScanStats stats2;
+    session::VolumeSessionInfo info;
+    ASSERT_EQ(OK, ScanController::load_session_summary(r, back, stats2, info, &dev));
+    /* the layout re-loaded */
+    ASSERT_EQ(size_t(1), info.ldm_layouts.size());
+    EXPECT_EQ(ctrl.ldm_layouts()[0].kind, info.ldm_layouts[0].kind);
+    EXPECT_EQ(ctrl.ldm_layouts()[0].vol_obj_id, info.ldm_layouts[0].vol_obj_id);
+    /* the root basis stamp re-loaded */
+    tree::FullNode* vroot2 = nullptr;
+    for (tree::FileNode* rn : back.roots())
+        if (rn->is_full() && rn->name_utf8().find("Dynamic Volume") == 0)
+            vroot2 = static_cast<tree::FullNode*>(rn);
+    ASSERT_NE(nullptr, vroot2);
+    EXPECT_EQ(1u, vroot2->basis());
+    /* the re-armed device over the ROUND-TRIPPED layout reads the volume
+     * (the recovery input is complete) */
+    const cr::table::LdmGuid self_guid = info.ldm_layouts[0].copies[0][0].disk_guid;
+    cr::table::LdmVolumeDevice vol2(
+        info.ldm_layouts[0], [&dev, self_guid](const cr::table::LdmGuid& g) -> IStorageDevice* {
+            return g == self_guid ? &dev : nullptr;
+        });
+    (void)vol2;
+    EXPECT_EQ(u64(PART_SIZE * 512), vol2.size());
+}

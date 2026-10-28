@@ -373,6 +373,38 @@ whole-table re-count.)
 
 # SUMMARY.md — executive summary (the SA-10 lane on top: the triage + reconciliation over the hot parallel window; SA-10B and the fix/closing lanes below)
 
+## Session-11 fix lane (11C) delta (2026-10-29 — the user's fix-session mandate: verify, fix, prove, mark)
+
+**Baselines: core `35bee726` at open → `ea9c8ed5` (this lane's S-052
+landing); corpus `be0cfe9` (unmoved). ctest 1121/1121 green at the
+landing tree (Linux gcc -Werror Release; win_syntax_check green;
+Windows CI rides the push).**
+
+- **S-052 → FIXED (`ea9c8ed5`)** — the LDM span recovery basis: the
+  finding's full architectural plan landed (per-root basis ids in the
+  tree + node-flags bit10 persistence; the controller's heap device
+  registry replacing the dead stack device; the SafeWriter's
+  LdmBasisTable per-item routing; the R7.2/F12 overlap refusal mapped
+  to physical member spans; REC_LDM_LAYOUTS + root-stamp session
+  persistence with the lazy re-arm at recovery/preview/thumbnail).
+  GAP-S6-15 CLOSED. Proof: `LdmRecovery.*` (7 tests, the executed
+  0x11-vs-0x22 fail-before embedded in the span test) +
+  `Orchestrator.DynamicDiskScanStampsBasisAndSessionRoundTrips`.
+  Divergences registered: D-106 (missing-member policy), D-107
+  (conservative overlap families).
+- **Convergent with the parallel lane:** M-108 + N-111 + N-112 landed
+  by the concurrent fix lane mid-flight (this lane's independent M-108
+  implementation was dropped at the pull — no duplication; the lane
+  then took S-052, the board's top-recommended architectural fix).
+- **Convention amendment (user instruction):** resolved findings now
+  land IN-TREE under `findings/FIXED/` with their Resolution sections
+  (the ledger indexes both forms; the purge convention applies only to
+  pre-session-11 retirements).
+- **Board at this push:** see the FIXED-LEDGER for the resolved set;
+  the active folders carry the unresolved findings (the filesystem is
+  the truth — counts recomputed at every push).
+
+
 ## Session-39 delta (2026-10-29 — the diff-fix session, the user's "priority to minor first" mandate; opens at core `35bee726`/corpus `be0cfe9`, rebased through the 11C/11D fix-lane opens)
 
 **The fix order this session: MINOR → INFO → MAJOR → SEVERE → TRACKED-OPEN** (the
