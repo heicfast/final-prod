@@ -307,7 +307,10 @@ ScanController::ScanController(tree::ResultTree& tree, ScanConfig cfg)
     if (cfg_.run_quick || cfg_.run_deep) {
         root_found_ = tree_.add_root(u"Found");
         root_deleted_ = tree_.add_root(u"Deleted");
-        root_lost_ = tree_.add_root(u"Lost Files");
+        /* M-103: the og's persisted-session branch name (DRWUI :319865/
+         * :321001; the real sessions' "File Path Lost" root - G: 13,420
+         * rows, H: 938,982, I: 12,903) */
+        root_lost_ = tree_.add_root(u"File Path Lost");
     }
     if (cfg_.run_carve) {
         root_carved_ = tree_.add_root(raw_root_name_());
@@ -339,7 +342,10 @@ ScanController::ScanController(tree::ResultTree& tree, ScanConfig cfg,
                 root_found_ = static_cast<tree::FullNode*>(r);
             else if (role == u"Deleted")
                 root_deleted_ = static_cast<tree::FullNode*>(r);
-            else if (role == u"Lost Files")
+            else if (role == u"File Path Lost" || role == u"Lost Files")
+                /* M-103: the og-contract name; the legacy pre-M-103 name
+                 * stays recognized so an old session resumes without
+                 * spawning a duplicate lost root (the S-048 precedent) */
                 root_lost_ = static_cast<tree::FullNode*>(r);
             /* M-029: the raw root may carry the ORIGINAL run's configured
              * display name (persisted as its role); recognize the current
@@ -352,7 +358,7 @@ ScanController::ScanController(tree::ResultTree& tree, ScanConfig cfg,
     } else if (cfg_.run_quick || cfg_.run_deep) {
         root_found_ = tree_.add_root(u"Found");
         root_deleted_ = tree_.add_root(u"Deleted");
-        root_lost_ = tree_.add_root(u"Lost Files");
+        root_lost_ = tree_.add_root(u"File Path Lost"); /* M-103: the og name */
     }
     if (cfg_.run_carve && root_carved_ == nullptr) {
         root_carved_ = tree_.add_root(raw_root_name_());

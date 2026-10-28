@@ -1709,3 +1709,53 @@ TEST(Session, LoadSessionSummaryPropagatesProgressAndCancel) {
               u32(ERR_CANCELLED));
     EXPECT_LT(st2.calls, nodes2);
 }
+
+TEST(Crsf, LostDirFoldersRoundTrip) {
+    /* M-103: the synthetic LostDir folders persist as ordinary child
+     * nodes (the marker-2 record) and reload with the tree shape intact
+     * - the og's real sessions carry them as real nodes (398 folders in
+     * the H session), so the round-trip must preserve the grouping. */
+    tree::ResultTree t;
+    auto* lost = t.add_root(u"File Path Lost");
+    ASSERT_NE(lost, nullptr);
+    auto* d5000 = t.add_folder(lost, u"LostDir5000");
+    auto* d7000 = t.add_folder(lost, u"LostDir7000");
+    ASSERT_NE(d5000, nullptr);
+    ASSERT_NE(d7000, nullptr);
+    const char* names[] = {"orphan-a1.txt", "orphan-a2.txt", nullptr};
+    for (const char** p = names; *p; ++p) {
+        tree::FileProperties* fp = new tree::FileProperties();
+        fp->name = text::utf8_to_u16(*p);
+        fp->logical_size = 100;
+        fp->fs_kind = u32(FsKindCode::Ntfs);
+        auto* f = t.add_file(d5000, fp);
+        fp->release();
+        ASSERT_NE(f, nullptr);
+        f->set_origin(tree::Origin::Lost);
+        f->set_deleted_state(tree::DeletedState::Deleted);
+    }
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), OK);
+    tree::ResultTree t2;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), OK);
+    EXPECT_EQ(t2.node_count(), t.node_count());
+    tree::FullNode* lost2 = nullptr;
+    for (tree::FileNode* r : t2.roots())
+        if (r->is_full() && static_cast<tree::FullNode*>(r)->role == u"File Path Lost")
+            lost2 = static_cast<tree::FullNode*>(r);
+    ASSERT_NE(lost2, nullptr) << "the renamed root reloads";
+    int folders = 0, files = 0;
+    tree::FullNode* d5000_2 = nullptr;
+    for (tree::FileNode* c = lost2->first_child(); c; c = c->next_sibling()) {
+        if (c->is_full()) {
+            ++folders;
+            if (static_cast<tree::FullNode*>(c)->role == u"LostDir5000")
+                d5000_2 = static_cast<tree::FullNode*>(c);
+        }
+    }
+    EXPECT_EQ(folders, 2) << "both LostDir folders survive the round-trip";
+    ASSERT_NE(d5000_2, nullptr);
+    for (tree::FileNode* c = d5000_2->first_child(); c; c = c->next_sibling())
+        ++files;
+    EXPECT_EQ(files, 2) << "the grouped children stay under their folder";
+}

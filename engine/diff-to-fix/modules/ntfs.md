@@ -483,7 +483,7 @@ node-removal API; documented in the finding).
 
 ## SA-10B addendum (2026-10-29 — the real-.rsf session mining)
 
-- **M-103 (MAJOR)** — the og groups orphaned MFT records into `LostDir<record>`
+- **M-103 — FIXED (session-42 main lane)** — the og groups orphaned MFT records into `LostDir<record>`
   synthetic folders under the "File Path Lost" root (NTFSSearchDLL:42041
   `LostDir%d`; the H session's real payload: 398 LostDirs holding 938,582 files
   = 62.6% of the session). The core's phase-B reparent (cr_mftwalk.cpp:1091)
