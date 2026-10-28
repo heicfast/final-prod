@@ -7066,3 +7066,12 @@ independently bounded — exFATSearchDLL FUN_180002f40). No behavioral differenc
 this point (filesystem truth at 55e88af0): the remote's I-036/I-041..I-044
 retirements absorbed; this lane proceeds to the MAJOR tier per the user's
 session directive.
+
+**Session-52 lane territory claim (coordination contract, 2026-10-29 UTC):** this lane
+(the user's session directive: MAJOR-first, 20+ fixes) claims the mid-board MAJOR engine-math
+set — **M-133, M-132, M-130, M-129, M-128, M-127, M-126, M-123, M-134, M-135, M-136**
+(the band S47's top-down sweep has not reached and S48's bottom-up sweep reaches last),
+then descends into whichever tier remains open at that point. Per the house rule the first
+verified FIX PUSH retires a seat, not the claim; sibling lanes' landings converge with this
+lane's independent verification documented. Every push pulls first; one finding, one push;
+every fix RED-test-first. Audited pin: core `e4409ef8`, corpus `be0cfe9`.
