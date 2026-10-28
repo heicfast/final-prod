@@ -3224,7 +3224,11 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
         return 2;
     }
     IStorageDevice* slice = view.get();
-    std::unique_ptr<IStorageDevice> part_slice;
+    /* N-186 repair: PartitionSlice::create returns unique_ptr<PartitionSlice>
+     * (cr_slice.h:48) - holding it as the interface erased the M-119
+     * clamp-delta surface (was_clamped/length/clamp_delta are PartitionSlice
+     * members, not IStorageDevice) and broke the app parse. */
+    std::unique_ptr<PartitionSlice> part_slice;
     u64 part_base = 0; /* A-002: partition base in DISK bytes (0 = whole disk) */
     if (part >= 1) {
         table::DiskTable t;

@@ -47,6 +47,15 @@ Two layers over every readable byte range:
    N-068), 7z, PST, OFFICE family, TIFF (family size basis, M-056),
    WAV, MP3, PDF, GIF/BMP/RTF/OLE/MPEG-PS/ES/DWG, headerless MP3/AAC
    (10-frame walkers), CAB (`mscf` case key, N-069)…
+   The ZIP typing walk (the og's OfficeTagFromXML, N-115 + N-158)
+   discriminates the OOXML trio (rels paths), the ODF trio + EPUB/HWP
+   (mimetype content), iWork/CDR (name tags), and the five
+   document-tool layouts: XMIND (`content.xml` carrying
+   `xmlns="urn:xmind` in its first 300 bytes), MindManager MMAP
+   (`xsd/MindManagerApplication.xsd`), Edraw EDDX (`rels/_rels.xml` /
+   `rels/page1_rels.xml`), Filmora WFP (`ProjectFolder/…`), DaVinci
+   DRP (`MediaPool/Master/MpFolder.xml`) — all disableable via the
+   ext-token list (the og's RawConfig `[Filter]` keys).
 2. **The 139-format raw-signature table** (raw_signs.json converted per
    the generated-data precedent) + **user-taught signatures**
    (`--user-signs`, the og's EUUserData JSON shape, M-048: extension →

@@ -1384,7 +1384,7 @@ u32 open_volume_impl(char letter, cr_ui_device** out) {
      * surfaced through the log so the host can see the shrinkage; only
      * a genuinely unopenable extent (start past the device) refuses. */
     if (slice && slice->was_clamped() && cr::log::enabled())
-        cr::log::write(cr::log::Level::Warning,
+        cr::log::write(cr::log::Level::Warn,
                        "volume %c: declared window overruns the device by %llu bytes; "
                        "opened clamped",
                        letter, static_cast<unsigned long long>(slice->clamp_delta()));
@@ -1478,7 +1478,7 @@ u32 open_volume_with_key_impl(char letter, const char* utf8_hex_fvek, cr_ui_devi
      * surfaced through the log so the host can see the shrinkage; only
      * a genuinely unopenable extent (start past the device) refuses. */
     if (slice && slice->was_clamped() && cr::log::enabled())
-        cr::log::write(cr::log::Level::Warning,
+        cr::log::write(cr::log::Level::Warn,
                        "volume %c: declared window overruns the device by %llu bytes; "
                        "opened clamped",
                        letter, static_cast<unsigned long long>(slice->clamp_delta()));

@@ -87,6 +87,32 @@ landed between the claim commit `fa654673` and this lane's open). Baseline at op
 linux-release build green, suite **1273/1273**. Mandate saved token-redacted at
 `worklog/session-diff-fix-s53-prompt.md` (renumbered with the lane at each window; the S53 seat holds — the remote continuation-audit lane vacated to S55 at 92fe573d).
 
+- **N-186 FIXED (NEW — discovered during this lane's merge)** — the M-119 window
+  committed a red main: `rrecov.cpp:3253` called PartitionSlice's clamp surface
+  (was_clamped/length/clamp_delta) through an `unique_ptr<IStorageDevice>` holder
+  (the create factory returns `unique_ptr<PartitionSlice>` - the interface erasure
+  broke the app parse) and `cr_ui.cpp:1387/:1481` used the nonexistent
+  `Level::Warning` (the enum carries `Warn`). win_syntax_check Failed at the merged
+  tree (the five parse errors, executed proof); the window's green-suite claims came
+  from `--target cr_tests` runs that skip the app TU. The two-line repair + the
+  finding filed (N-186, the N-133/M-120 committed-red family); full suite 1340/1340
+  green post-repair (1339/1340 pre-repair).
+
+- **N-158 FIXED (CONVERGENT — the remote lane's 78b9b7aa wins per SA-9)** — the
+  OfficeTagFromXML five-branch tail. This lane landed the same five branches
+  independently (XMIND/MMAP/EDDX/WFP/DRP in the N-115 `zip_common` walk; the
+  FUN_180045110 first-hand decode; five appended enum ids + registry rows; the og's
+  own label constants) with the 7-test battery RED-proven via the stashed-engine
+  rebuild (branches disabled at f0b35591: 6/7 fail) — and BOTH lanes independently
+  chose the winner-selection toggle gate over the emission-time gate (this lane's
+  evidence: the raw-sign DOTX claim on the unemitted interior; theirs: the
+  DOCX-mislabel path), a two-lane confirmation of the gate placement. Their landing
+  stands (their XMIND two-needle probe is the more complete decode); this lane's
+  unique supplements kept: the FORMATS.md typing-walk paragraph + the carve-module
+  verdict + this convergence record. The window also brought: N-175 (the NTRes fold
+  — removed from this lane's queue), S-055+S-056, M-119, M-129, M-133, OQ-S42-1/-2
+  resolved — absorbed.
+
 - **N-174 FIXED (CONVERGENT — the remote S46/W1 lane's 6399e957 wins per SA-9)** —
   the exFAT AppleDouble sink: a `._`-prefixed name (macOS Finder sidecar) skips
   emission exactly like the og's props-builder refusal (exFATSearchDLL strncmp
