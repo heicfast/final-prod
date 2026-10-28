@@ -74,3 +74,10 @@ context, none blocking.
 ## Session-11B cite-refresh addendum (2026-10-29, re-triage at `743d7b8d`)
 
 benign cite drift: the RGBA8/both-axes contract now at cr_thumbnail.h:24-27 (exact); PSD/PNM/HDR :42-43; test count grew 21→30; the anticipated ABI documentation landed (ABI-CONTRACT §7i). Register content fully accurate.
+
+## Resolution
+
+**Status:** ACKNOWLEDGED (the deliberate superset posture confirmed and preserved; register content verified accurate at session-42 HEAD)
+**Fixed in commit:** this session's I-028 landing (session-42; cite-by-title: "fix(trail): I-028 - the thumbnail superset register acknowledged at session-42 HEAD")
+**Verified by:** the register's cites re-verified at current HEAD: `include/cr/preview/cr_thumbnail.h` (the both-axis max-edge + straight-alpha RGBA8 contract text; PSD/PNM/HDR via vendored stb; the UnreadableSpan truth gate); `docs/ABI-CONTRACT.md` carries the RGBA8/orientation output contract (the anticipated §7i documentation landed, as the S11B addendum recorded); the thumbnail test group count now 32 (grew 21→30→32 — the pins live and extending). No divergence from the register's claims found.
+**Resolution notes:** The five registered deliberate improvements over the og's thumbnail pipeline — (1) both-axis ≤256 scaling (vs the og's width-derived scale that lets portrait thumbnails reach 256×1280), (2) straight-alpha RGBA8 output (vs the og's white-flattened HBITMAPs), (3) PSD/PNM/HDR decode beyond the og's GDI+ set, (4) the dims-first decompression-bomb guard, (5) the UnreadableSpan truth gate with truncation disclosure — are CONFIRMED intentional and are preserved. Future parity work must NOT "fix" these toward the og's shape; hosts consume the documented ABI-CONTRACT output contract. The UNVERIFIED residuals in the Open questions (the og's GDI+-internal bomb policy, unreadable-span behavior, embedded-thumbnail return, WebP/SVG/AVIF decode) remain corpus-silent and non-blocking; the codec-bound half rides OQ-S10-1.

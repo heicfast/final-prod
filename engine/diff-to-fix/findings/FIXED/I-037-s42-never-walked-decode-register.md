@@ -1,11 +1,13 @@
-# INFORMATIONAL I-035 — The S42 never-walked decode register: SearchResult.txt (the QA-gated full-result-list dump), the DRWUI user-mode bad-sector skip policy (the D-38/FB-S01 og-side record enrichment), and the failed-files HTML fragment constants
+# INFORMATIONAL I-037 — The S42 never-walked decode register: SearchResult.txt (the QA-gated full-result-list dump), the DRWUI user-mode bad-sector skip policy (the D-38/FB-S01 og-side record enrichment), and the failed-files HTML fragment constants
 
 **Severity:** INFORMATIONAL (deliberate-difference / decode-register posture)
 **Module:** audit-trail (never-walked corpus decode register, the I-031/I-032 lineage)
 **Parameters affected:** P46/P68 (documentation accuracy — the og-side records these enrich), P60 (bad-sector handling — the og-side model correction), P16-equivalent (filter model — SearchResult's flags)
 **Corpus references:** `re-workspace/reversed/ghidra-drwui/DRWUI_decompiled.c` (all first-hand this session): `:388969` (`GetPrivateProfileIntA("register","SearchResult",0,"%s/Config.dat")` — the QA gate), `:388972` (`sprintf("%s/log/SearchResult.txt")` + `fopen(…,"wb")`), `:388974-389045` (the dump loop over the two result maps `param_1+0x40` existing / `param_1+0x58` lost, per entry: the full path string, `",folder:0|1"`, `",deleted:0|1\r\n"` — the deleted bit is `node+0x89` bit 1); the bad-sector cluster: `:179826-179899` (`FUN_1400cb580`, the `\\.\PhysicalDrive` read wrapper — the trigger `if ((iVar5 == 2) && (0xb < *(int *)(param_1+0xa8)))` at `:179891-179895`: **12+ bad reads in one call engages the skip routine**), `:179912-180075` (`FUN_1400cb7e0` — the skip routine: `"Start skip bad sectors"`, initial chunk `0x200000` **2 MiB**, allocation `0x4000000` **64 MiB**, adaptive doubling `uVar10*2` capped at `0x4000000`, error code **0x163**, `CancelIo`, sector-granular boundary refinement, the toast `0x28000 < param_1[0x14]` (**163,840 skipped sectors → "Send bad sector message."** + event 0x10), the total cap `0x40000000 < local_68` (**1 GiB → "Break skip bad sectors, ReadSize = %I64d"**), `"Skip bad sectors Finish."`), `:180578-180600` (`FUN_1400cc800` — the cached bad-range short-circuit over the `DAT_1425e71b0` linked list, returning 0x163 without issuing the read), `:820090-820113` + `:819998-820059` (the sector-map bit-setter + its **file-backed 1-bit-per-sector bitmap** via `CreateFileW` + `DeviceIoControl 0x900c4` + `CreateFileMappingW`/`MapViewOfFile`), `:180140-180160` (the ReadThreadData/`Ldq:Read sector error` logging context); the direct-open sites `:176835`/`:176879`/`:177099`/`:177642`/`:178061`/`:178805` (`\\\\.\\PHYSICALDRIVE%d`); the user copy `:1551139` ("Program is trying to skip bad sectors to find data.").
 **Core references:** audited `869da779`. The retry layer: `include/cr/storage/cr_retry.h` (`RetryingDevice` — per-policy retries, bisection to sector granularity, Skip-mode zero-fill of only failing sectors, `ReadErrorMap` preserved) — the registered deliberate equivalent (D-38, `docs/PARITY-DELTAS.md:891-894`; the module note `modules/storage.md:28`); `AUDIT-FALLBACKS.md:88` (FB-S01's "og has no transport-wide retry at all"); no SearchResult.txt equivalent (grep-negative over src/); the report fragment constants' note rides N-155.
-**Status:** READ-ONLY REGISTER — no fix applied (deliberate-difference records + decode enrichment; the one truth repair to FB-S01's wording is fix-lane work)
+**Status:** ACKNOWLEDGED-AT-FILING (per the parallel S42-main window's INFO-tier convention: acknowledged registers land in findings/FIXED/ with their acknowledgment; the actionable residue — the FB-S01/D-38 wording repairs + the R-58 SearchResult qualifier — rides the fix lane)
+**Renumber:** I-035 → **I-037** (S42-B merge, 2026-10-29, SA-9: the parallel window's I-035 (the S12 lane's FIXED filing) and I-036 (the config-layer register, adopted into FIXED/I-034's enrichment) consumed the range).
+**Convergence note (S42-B merge):** the parallel S42-main window's W5 independently registered the bad-sector skip constants (their `43437fe3`: "2 MiB initial, x2-per-3-steps capped 64 MiB, 4 MiB inner threshold, ERROR_CRC trigger, the 80 MiB UI-message gate" + M-119's addendum + storage.md) — convergent with this register's item (b) (the 0x28000 toast = 163,840 sectors × 512 = the same 80 MiB gate in sector units). This register's UNIQUE residue beyond their registration: the 12-read TRIGGER, the cached bad-range short-circuit (FUN_1400cc800), the file-backed 1-bit-per-sector bitmap (the 0x900c4 mapping), the FB-S01 wording repair demand, SearchResult.txt, and the HTML fragment constants.
 
 ## Summary
 
@@ -53,3 +55,15 @@ N-155 (the HTML report this register's item (c) companions); D-38/FB-S01 (the re
 ## Open questions
 
 Which scan flow consumes the `0x1400cb` PhysicalDrive reader cluster (the `ReadThreadData`/`Ldq` logging context suggests the smart-partition/whole-disk scan reader, distinct from the MOM `Device.mo` layer the transport module decoded) — UNDETERMINED; a caller-trace of the class's read entry at `:180196` would close it. No product decision rides on it (the core's mechanism is registered deliberate-different either way).
+
+## Acknowledgment (Resolution, S42-B merge 2026-10-29)
+
+Acknowledged per the INFO-tier convention: the three decode surfaces are
+recorded as deliberate-difference/enrichment registers — no capability gap. The
+bad-sector constants are DOUBLY registered (this register + the parallel
+window's storage.md addendum + M-119's addendum — the convergence noted above).
+The remaining actionable items for the fix lane: (1) the FB-S01/D-38 og-side
+wording repairs (the "no transport-wide retry at all" claim needs the user-mode
+layer qualifier), (2) R-58's SearchResult.txt qualifier, (3) optionally the
+D-38 parameter addendum. The evidence pack:
+`evidence/decompiled-quotes/s42-ogg-zip-typing-and-report-decodes.md` §3-§4.

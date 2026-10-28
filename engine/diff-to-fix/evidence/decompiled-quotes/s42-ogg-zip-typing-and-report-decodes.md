@@ -1,6 +1,7 @@
 # S42 evidence — the continuation-audit lane's first-hand decode pack
 
-- **Task ID:** S42 (session-42 continuation audit lane, the deep-comparison waves)
+- **Task ID:** S42-B (session-42 continuation audit lane, the deep-comparison waves; "B" per the merge with the parallel S42-main window — this lane's filings renumbered at the push reconciliation: N-154→N-158, N-155→N-159, N-156→N-160, I-035→I-037; the DBX finding stayed M-117 per SA-9 [the parallel window's fix-under-M-117 pushed first])
+- **S42-B merge note:** the parallel S42-main window (487949a4/4f8fa661 lineage) landed S-048/M-117-dbx/N-125/N-126/N-135/N-148/N-152 + the INFO-tier restoration AFTER this lane's 869da779 pin — the liveness battery's STILL verdicts are pinned-truth (the retirements ride the remote's own lanes, the S41 precedent). Their W5 bad-sector registration is convergent with this lane's I-037 item (b) — the 0x28000-sector toast and their "80 MiB gate" are the same threshold in different units.
 - **Date:** 2026-10-29
 - **Core HEAD:** `869da779` · **Corpus HEAD:** `be0cfe9`
 - **Method:** every quote below was read first-hand this session (`sed -n` over the

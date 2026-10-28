@@ -375,6 +375,15 @@ public:
      * right device without a numeric rebase (multi-disk bases are not
      * numeric - the F-1 rebase cannot express them). */
     void set_root_basis(FileNode* root, u32 basis_id);
+    /* S-048: attach an intermediate FOLDER under parent — a FullNode child
+     * with a role (the og's tree carries intermediate folders: the carve
+     * tree's per-volume groups + per-extension skeleton folders under the
+     * "Reconstructed" root; the real og sessions persist them, evidence/
+     * executions/s10b-real-rsf-session-mining.md). Never a root; the
+     * session protocol's marker=2 record (roots stay marker=1, so old
+     * readers keep loading old files unchanged and the reader never
+     * re-attaches a child folder as a root). */
+    FullNode* add_folder(FileNode* parent, const std::u16string& role);
     /* Attach a file under parent. Takes a REFERENCE (caller releases its own
      * ref when done; each add_file call adds one node-held ref). Hard links:
      * call once per parent, then release once. */

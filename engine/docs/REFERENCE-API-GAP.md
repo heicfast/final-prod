@@ -376,7 +376,7 @@ process/UI concerns deliberately out of core scope — flagged below).
 | thumbnails (R-28) | UIUX/13:50 | cr_thumbnail engine landed (05e6786; S-043/N-092/M-080-era updates); cr_ui exposure = M-102 | PARTIAL (engine PRESENT; ABI open) | async per-row fetch is host-side by design (free-threaded ABI) |
 | AI recommend/dedup (R-29) | UIUX/09:55 | none | GAP | product feature; no ranking/dedup pass |
 | freeze protocol (R-30) | UIUX/20:176-192 | immutable snapshots (G-02) | PRESENT (by design) | — |
-| config layer (R-31) | UIUX/09:44-45; CORRECTIONS:5 | filefilter_entry_count + user signs | PARTIAL | per-format carve toggles, usefullostfiles whitelist, display priority missing |
+| config layer (R-31) | UIUX/09:44-45; CORRECTIONS:5 | filefilter_entry_count + user signs; RawConfig 34 carve toggles (M-024); PriorityDisplayType + SumaryFileType (N-132's query data layers) | PRESENT (agrees with the primary row) | the one dispositioned remainder: usefullostfiles whitelist = OOS-UI (PARITY-OG-CORE-INVENTORY:64) |
 | preview open (R-32) | UIUX/10:8 | preview_open_* + metadata | PRESENT | — |
 | streaming preview (R-33) | UIUX/10:33-34 | preview_read (read_at, 4 MiB) | PRESENT | — |
 | preview caps (R-34) | UIUX/10:22-27 | Caps seam | PARTIAL | no shipped 100 MB/15 s defaults |

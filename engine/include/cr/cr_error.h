@@ -32,6 +32,14 @@ enum Err : u32 {
     ERR_RANGE_OUT_OF_BOUNDS = 0x50020004,
     ERR_CANCELLED = 0x50020005,
     ERR_RETRY_EXHAUSTED = 0x50020006,
+    /* N-125: the target device went away mid-scan (yanked USB, ejected
+     * media, disconnected NAS mount) - the device-gone GLE family, NOT
+     * a dying-disk read failure. Distinct so hosts can branch into the
+     * reattach-then-resume flow (the session checkpoint machinery) the
+     * og's "Drive Disconnected" Retry/Cancel dialog drives from its UI
+     * layer (UIUX/08:39-47; the core's deliberately lighter engine
+     * posture is registered in PARITY-DELTAS D-121). */
+    ERR_DEVICE_DISCONNECTED = 0x50020007,
 
     /* --- format / parse --- */
     ERR_BAD_MAGIC = 0x50030001,

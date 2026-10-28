@@ -1,35 +1,45 @@
 # diff-to-fix/ — parity audit roadmap (core_recovery vs easeus-drw-research)
 
-**Session-42 S42 lane (2026-10-29 — the SECOND continuation audit lane, the user's
-same three-ask directive: remove-the-fixed + go-deeper + mark-all-remaining):**
-audited **core `869da779`** (HEAD at open — a quiet window, no rebase), **corpus
-`be0cfe9`**. Five parallel read lanes (the corpus config deep-diff, the og-codebase
+**Session-42 S42-B lane (2026-10-29 — the SECOND continuation audit lane, the user's
+same three-ask directive: remove-the-fixed + go-deeper + mark-all-remaining; MERGED
+at push with the parallel S42-main window [487949a4/4f8fa661] — the hottest window
+of the trail absorbed first-hand: S-048/M-117-dbx/N-125/N-126/N-135/N-148/N-152 +
+the INFO-tier restoration + their own S42 filings N-154..N-157/M-118/M-119/N-142/
+I-035/I-036/M-120/S-054-new; this lane's filings renumbered per SA-9 — see below):**
+audited **core `869da779`** (HEAD at open), **corpus `be0cfe9`**. Five parallel read lanes (the corpus config deep-diff, the og-codebase
 folder census, the DRWUI never-walked hunt, the core currency pass, the perf
 evidence pass) + the main-lane first-hand verification battery. **The liveness
 battery: 49/49 active findings STILL at HEAD — zero falsely-active, zero
 phantom-fixed; the board's 64→49 movement was the fix lanes' own proper
-retirements.** Filed: **N-154** (MINOR — OfficeTagFromXML's five-branch ZIP typing
+retirements.** Filed (IDs renumbered at the merge — the parallel window consumed N-154..N-157 first): **N-158** (MINOR — OfficeTagFromXML's five-branch ZIP typing
 tail: XMIND 0x86 / MMAP 0x87 / EDDX 0x8c / WFP 0x8d / DRP 0x91, the WFP/DRP labels
 binary-resolved from .rdata — N-115's landing covered none, and RawConfig's
-[Filter] keys couple to exactly these ids), **N-155** (MINOR — the failed-files
+[Filter] keys couple to exactly these ids), **N-159** (MINOR — the failed-files
 "recovery log" is an HTML report whose rows carry a per-file tree-classification
 column; R-58's "text log" and API-DELTA row 21's "NOT IN CORPUS" refuted by the
-first-hand decode; the core's JSON report lacks the axis), **N-156** (MINOR — the
+first-hand decode; the core's JSON report lacks the axis), **N-160** (MINOR — the
 register-truth batch: I-034's census scope label + PHANTOM script citations,
 N-129's OQ cross-ref swap, the inventory rows 79/104, I-033 §12's invariant), and
-**I-035** (INFO — the never-walked decode register: SearchResult.txt QA dump +
-the DRWUI user-mode bad-sector skip policy enriching D-38/FB-S01). **The M-117→
-M-118 renumber EXECUTED audit-side** (the SA-9 collision: the S41 DBX filing took
+**I-037** (INFO, acknowledged-at-filing per the S42-main INFO convention — the never-walked decode register: SearchResult.txt QA dump +
+the DRWUI user-mode bad-sector skip policy enriching D-38/FB-S01). **The M-117 collision recorded** (the SA-9 race: the S41 DBX filing took
 M-117 2.5 min after 0f5d57fb renumbered the retired suppress_overlap finding into
-it). **N-150 extended** (the fix-wave-stale addendum: 8 underclaiming API-DELTA
+it — and the parallel window then FIXED the DBX finding under M-117 before this
+lane's M-118 renumber pushed; the renumber was reverted at the merge, the dual-ID
+is documented in FIXED/M-117's collision addendum, and M-118 belongs to the S12
+lane's lostpart finding). **N-150 extended** (the fix-wave-stale addendum: 8 underclaiming API-DELTA
 rows + the phantom CR_UI_ERR_FVE_LOCKED macro + the dead duplicate --label handler
-+ ABI-CONTRACT §7i's 32 MiB residue + the count drifts). The S-048/S-050 evidence
-refresh: SaveScan = 3 real .rsf sessions (S-048 stands); EUFileRepair = 87 files,
-5 repair exes + runtimes, no data assets (S-050 stands); the 1,470-file census's
++ ABI-CONTRACT §7i's 32 MiB residue + the count drifts — none fixed by the
+parallel window, verified at the merge). The S-048/S-050 evidence
+refresh: SaveScan = 3 real .rsf sessions (S-048 — now landed by the parallel
+window, convergent); EUFileRepair = 87 files,
+5 repair exes + runtimes, no data assets (S-050 stands — the last SEVERE with no
+owner claim); the 1,470-file census's
 "no undispositioned product surface" verdict SURVIVES the independent re-walk.
 OQ-S4-3 unchanged (the TTFR half unmeasured — no committed value exists).
-**Board: 53 active (3 SEVERE · 21 MAJOR · 20 MINOR · 9 INFO) / 328 resolved rows /
-3 tracked-open.** Evidence:
+**Board after the S42-B merge (filesystem truth): 42 active (2 SEVERE · 22 MAJOR ·
+18 MINOR; the INFO tier folded into FIXED/, I-037 acknowledged-at-filing) / 37
+FIXED files / 3 tracked-open.** Next free IDs: S-055+,
+M-121+, N-161+, I-038+, A-013+. Evidence:
 `evidence/decompiled-quotes/s42-ogg-zip-typing-and-report-decodes.md`.
 
 **Session-41 S41 lane (2026-10-29 — the continuation audit lane, the user's second-session
@@ -55,6 +65,33 @@ repair line's UI-side addendum (UIUX/32). **Board: 64 active (6 SEVERE · 22 MAJ
 28 MINOR · 8 INFO) / 307 resolved rows (the S41 filesystem re-count — the remote's
 302 claim drifts) / 3 tracked-open.** Evidence:
 `evidence/decompiled-quotes/s41-registry-key-residue.md`.
+
+<!-- S12B reconciliation: the parallel lanes' block above landed first; this lane's block rides below, reconciled per earlier-push-wins. -->
+**Session-12 continuation lane (2026-10-29 — the second-session continuation deep audit):**
+audited **core `c7fa527c`** (worklog-only HEAD `36c1d3e5` in-tree; code identical),
+**corpus `be0cfe9`**. The continuation mandate executed in two waves. **Wave 1
+(remove-the-fixed):** the 55-finding liveness sweep — 41 LIVE / 4 PARTIAL / 5
+driver-repo / 5 register, **no unretired fix** (the board is truthful); the suite
+EXECUTED from scratch: **1117/1117 green**. **Wave 2 (go-deeper + mark-all-remaining):**
+four parallel agents + lead first-hand verification filed **six findings + one
+addendum**: **S-054** (SEVERE — **the N-013 regression**: the multi-extent destination
+arming clobbered at both production call sites by the unrelated commit `1ebd1bcc`;
+the all-spans machinery is dead code at HEAD while the published contract claims it;
+the F12 overlap refusal silently defeated for spanned/junction destinations),
+**M-118** (the og's THREE-source lost-partition assembly decoded — the MountPoints2\CPC\Volume
+register channel absent in core; S-051's fix plan gains the merge), **M-119** (the og's
+partition read = clamp+zero-fill+success vs the core's hard-error/whole-volume refusal
+on over-long table lengths), **N-142** (the rsf variant device-descriptor field gap),
+**N-154** (bookkeeping batch #2 — the N-079 collision, the salvage register, module
+rows, the suite-count drift), **I-035** (the register batch), + the **S-050 addendum**
+(the video engine — the corpus's deepest-decoded repair algorithm and the only
+engine-side seam — omitted from the fix plan's build order). **Board at this lane's filings: 61 active (8/19/26/8); post-rebase truth at close:
+55 active (4 SEVERE · 23 MAJOR · 19 MINOR · 9 INFO) / 313 ledger rows / 3 tracked-open
+(four IDs renumbered past the parallel lanes' collisions; every defect site
+re-verified LIVE at the post-rebase HEAD).** Evidence:
+`evidence/decompiled-quotes/s12-*.md` (4) + `evidence/s12-liveness-sweep.md` +
+`evidence/executions/s12-build-execution.md` + the two agent context sheets
+(`evidence/s12-core-deepread.md`, `evidence/s12-corpus-rewalk.md`).
 
 **Session-11 S11 lane (2026-10-29 — the second continuation deep-audit lane, RECONCILED at push):**
 audited **core `46b81573` at close** (code tree `432d15dc`'s; opened `8365956e`; the

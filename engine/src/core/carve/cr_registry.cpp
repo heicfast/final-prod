@@ -108,7 +108,8 @@ CarveResult validate_gpx(IStorageDevice* s, u64 hit, u64 cap);      /* N-113 */
 CarveResult validate_osp(IStorageDevice* s, u64 hit, u64 cap);      /* N-113 */
 CarveResult validate_pos(IStorageDevice* s, u64 hit, u64 cap);      /* N-113 */
 CarveResult validate_chfp(IStorageDevice* s, u64 hit, u64 cap);
-CarveResult validate_office_zip(IStorageDevice* s, u64 hit, u64 cap); /* N-115: the typed rows */     /* N-113 */
+CarveResult validate_office_zip(IStorageDevice* s, u64 hit, u64 cap); /* N-115: the typed rows */
+CarveResult validate_dbx(IStorageDevice* s, u64 hit, u64 cap);        /* M-117 */
 
 namespace {
 const Signature kTable[] = {
@@ -949,7 +950,7 @@ const Signature kTable[] = {
      4,
      0,
      8,
-     16ull << 20,
+     64ull << 20, /* N-148: the M-107-verified 64 MiB stand-in (was 16) */
      620,
      validate_ai,
      "Adobe Illustrator"},
@@ -962,7 +963,33 @@ const Signature kTable[] = {
      64ull << 20,
      620,
      validate_dxf,
-     "AutoCAD DXF"},
+     "AutoCAD DXF",
+     /* N-152: a comment-led DXF re-matches "  0\r" strictly inside the
+      * emitted comment-led stream (the SAME document - the u16 "99" key
+      * claims the position first, the section header sits inside); the
+      * N-151/N-153 repeating-key family rule. */
+     true},
+    /* N-152: the og's second DXF entry key - u16 "99" 0x3939 ->
+     * BruteForce::CDXFAnalyser (RAWSearchDLL :2722-2733, the 0x18-byte
+     * node stamped idx 0x19 inserted under the u16 magic map). The
+     * validator's comment branch (the probe FUN_1800376f0 :42240-42290)
+     * accepts the leading "999\n"/"999\r\n" comment line and scans
+     * forward for the section pattern (LF form after "999\n", CRLF form
+     * after "999\r\n", NUL-terminated scan). */
+    {FMT_DXF_C999,
+     "dxf",
+     {'9', '9'},
+     2,
+     0,
+     32,
+     64ull << 20,
+     620,
+     validate_dxf,
+     "AutoCAD DXF (999 comment)",
+     /* the same-family rule from the sibling row: a canonical DXF's
+      * interior "99" bytes (coordinates, comments) never re-carve inside
+      * an emitted stream */
+     true},
     {FMT_3GP, "3gp", {'f', 't', 'y', 'p'}, 4, 4, 128, 4ull << 30, 780, validate_3gp, "3GP Video"},
     /* ---- S-041 niche batch 2, school 1 (SCAN-4): every grammar
      * re-verified first-hand at the analyser body (the session-5 log in
@@ -1345,15 +1372,148 @@ const Signature kTable[] = {
      * effective ext/name for the override. The og's ids for the
      * non-OOXML families are undecoded (the family granularity is the
      * tag strings' own). */
-    {FMT_XLSX, "xlsx", {'P', 'K', 0x03, 0x04}, 4, 0, 128, 512ull << 20, 800, validate_office_zip, "Excel Workbook", true},
-    {FMT_PPTX, "pptx", {'P', 'K', 0x03, 0x04}, 4, 0, 128, 512ull << 20, 800, validate_office_zip, "PowerPoint Presentation", true},
-    {FMT_ODT, "odt", {'P', 'K', 0x03, 0x04}, 4, 0, 128, 512ull << 20, 620, validate_office_zip, "OpenDocument Text", true},
-    {FMT_ODS, "ods", {'P', 'K', 0x03, 0x04}, 4, 0, 128, 512ull << 20, 620, validate_office_zip, "OpenDocument Spreadsheet", true},
-    {FMT_ODP, "odp", {'P', 'K', 0x03, 0x04}, 4, 0, 128, 512ull << 20, 620, validate_office_zip, "OpenDocument Presentation", true},
-    {FMT_EPUB, "epub", {'P', 'K', 0x03, 0x04}, 4, 0, 128, 512ull << 20, 620, validate_office_zip, "EPUB e-book", true},
-    {FMT_IWORK, "iwa", {'P', 'K', 0x03, 0x04}, 4, 0, 128, 512ull << 20, 620, validate_office_zip, "Apple iWork", true},
-    {FMT_HWP, "hwp", {'P', 'K', 0x03, 0x04}, 4, 0, 128, 512ull << 20, 620, validate_office_zip, "Hangul Document", true},
-    {FMT_CDR, "cdr", {'P', 'K', 0x03, 0x04}, 4, 0, 128, 512ull << 20, 620, validate_office_zip, "CorelDRAW Drawing", true},
+    {FMT_XLSX,
+     "xlsx",
+     {'P', 'K', 0x03, 0x04},
+     4,
+     0,
+     128,
+     512ull << 20,
+     800,
+     validate_office_zip,
+     "Excel Workbook",
+     true},
+    {FMT_PPTX,
+     "pptx",
+     {'P', 'K', 0x03, 0x04},
+     4,
+     0,
+     128,
+     512ull << 20,
+     800,
+     validate_office_zip,
+     "PowerPoint Presentation",
+     true},
+    {FMT_ODT,
+     "odt",
+     {'P', 'K', 0x03, 0x04},
+     4,
+     0,
+     128,
+     512ull << 20,
+     620,
+     validate_office_zip,
+     "OpenDocument Text",
+     true},
+    {FMT_ODS,
+     "ods",
+     {'P', 'K', 0x03, 0x04},
+     4,
+     0,
+     128,
+     512ull << 20,
+     620,
+     validate_office_zip,
+     "OpenDocument Spreadsheet",
+     true},
+    {FMT_ODP,
+     "odp",
+     {'P', 'K', 0x03, 0x04},
+     4,
+     0,
+     128,
+     512ull << 20,
+     620,
+     validate_office_zip,
+     "OpenDocument Presentation",
+     true},
+    {FMT_EPUB,
+     "epub",
+     {'P', 'K', 0x03, 0x04},
+     4,
+     0,
+     128,
+     512ull << 20,
+     620,
+     validate_office_zip,
+     "EPUB e-book",
+     true},
+    {FMT_IWORK,
+     "iwa",
+     {'P', 'K', 0x03, 0x04},
+     4,
+     0,
+     128,
+     512ull << 20,
+     620,
+     validate_office_zip,
+     "Apple iWork",
+     true},
+    {FMT_HWP,
+     "hwp",
+     {'P', 'K', 0x03, 0x04},
+     4,
+     0,
+     128,
+     512ull << 20,
+     620,
+     validate_office_zip,
+     "Hangul Document",
+     true},
+    {FMT_CDR,
+     "cdr",
+     {'P', 'K', 0x03, 0x04},
+     4,
+     0,
+     128,
+     512ull << 20,
+     620,
+     validate_office_zip,
+     "CorelDRAW Drawing",
+     true},
+    /* M-117: Outlook Express Dbx - the og's RawSpeed::DbxAnalyser
+     * (idx 0x15) under three magic keys (:2192-2232, the og's
+     * registration order). The probe gates the identity (the four OE
+     * store GUIDs / the JMF6 version word / the marked pattern -
+     * FUN_180016740); the size pass reads the self-declared u32@+0x7C
+     * (the plain forms) or trims at the zero end (the marked form -
+     * FUN_180042b30's nonzero-prefix block computation). No raw_signs
+     * entry exists in EITHER implementation (the og's own
+     * raw_signs.json carries no dbx - the analyser is the only path),
+     * so the row carries the probe's own 16-byte floor and the u32
+     * size field's own range as the cap surface (the og registers no
+     * bound). The og's ext table: id 21 = "DBX"
+     * (s5-grading-extension-table-dump.md:56). */
+    {FMT_DBX_JMF6,
+     "dbx",
+     {'J', 'M', 'F', '6'},
+     4,
+     0,
+     16,
+     0xFFFFFFFFull,
+     620,
+     validate_dbx,
+     "Outlook Express DBX"},
+    {FMT_DBX,
+     "dbx",
+     {0xCF, 0xAD, 0x12, 0xFE},
+     4,
+     0,
+     16,
+     0xFFFFFFFFull,
+     620,
+     validate_dbx,
+     "Outlook Express DBX"},
+    {FMT_DBX_MARKED,
+     "dbx",
+     {0xF7, 0x89, 0x34, 0x2C},
+     4,
+     0,
+     16,
+     0xFFFFFFFFull,
+     620,
+     validate_dbx,
+     "Outlook Express DBX"},
 };
 } // namespace
 

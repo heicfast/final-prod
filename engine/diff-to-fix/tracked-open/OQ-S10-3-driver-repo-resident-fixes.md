@@ -21,3 +21,14 @@ One driver-repo lane takes all five (they share the read): M-087 first (one line
 ## Core-side verification done this session
 
 The core-side evidence for each finding re-verified at the current tree: release.yml's -FloorVersion v0.2.4 consumption (M-086's core half is sound), the corpus's correct regdrv.reg contrast (M-087), and the driver-contract doc's wire-code rows (M-089/N-107/N-127's core-side citations).
+## Session-40 disposition note (2026-10-29)
+
+Boundary re-affirmed: this session's grant covers exactly core_recovery (modified) +
+easeus-drw-research (corpus) - the five findings' fix surfaces (M-086/M-087/M-089/
+N-107/N-127) remain in heicfast/rda-driver and CANNOT be touched without violating
+the grant (the same class as the OQ's original record). The core-side halves were
+re-verified once more this session at the current tree: the S-054 restore re-touched
+the destination-arming seam adjacent to M-087's WinPE attach question (no core-side
+change owed), and the driver-contract rows (M-089/N-107's wire-code citations) remain
+the core-side truth. The next concrete step stands: one driver-repo lane takes all
+five in the recorded order (M-087 -> M-089 -> N-107/N-127 -> M-086).

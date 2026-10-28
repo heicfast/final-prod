@@ -82,3 +82,29 @@ UNVERIFIED-BY-EXECUTION: no og run was executed against a DBX fixture this sessi
 ## Open questions
 
 The marked-form (F789342C) size computation depends on `FUN_180042b30`'s decode (fix-plan step 1) — the block arithmetic was not fully decoded this session; the fixer must pin it before writing the validator. The 272-byte name buffer's field offset (the DBX folder-name location) likewise rides the Analyse-virtual decode.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** <this push> (the fix + trail ride one commit; the SHA cell is repaired at push if the rebase moves it)
+**Verified by:** Carve.DbxPlainStoreGuidFamilyCarvesWithDeclaredSize · Carve.DbxJmf6VariantCarves · Carve.DbxJmf6WrongVersionWordRejected · Carve.DbxMarkedFormZeroEndExtent · Carve.DbxRejectsMagicWithoutTableIdentity · Carve.DbxRegistryRowsCarryTheThreeOgKeys (6/6 GREEN; RED pre-fix proven by the stashed-engine rebuild — the tests cannot even compile against the pre-fix engine: `FMT_DBX*` not declared, the registry surface did not exist); suite 1125/1125 green post-fix (1083 passed / 42 platform skips, 0 failed); clang-format 18.1.8 clean; the F8 gate + self-probe green over the three new rows.
+**Resolution notes:** The full grammar landed, decoded first-hand from the corpus this session beyond the finding's own evidence: (1) the fix-plan step-1 open question is closed — `FUN_180042b30` (:50703-50746) is a binary search for the offset where a window's ALL-ZERO tail begins (the 1-based non-zero prefix length), so the marked-form size `(cur_window - start) * block + nonzero_prefix` accumulates, across the engine's per-window Analyse calls, to the extent from the candidate start to the last non-zero byte (the zero-end family; the engine's block = the device sector size, 0x200 default — the scan loop at :9460-9470 walks block-unit positions, and the engine's own zero-window detection at :9489-9505 ends the candidate at an all-zero window). (2) The 272-byte embedded-name buffer is memset-then-strlen'd with NOTHING ever written into it (:17660-17667) — the shipped name is always empty; ported as no embedded_name (the dead copy NOT fabricated into a name grammar). (3) A finding-text correction: the JMF6 version word is `03 00 10 00` (the probe's u64 literal `0x0010000336464D4A` at :17573), not the finding's transcribed "03 00 01 00" — the corpus literal wins; the wrong-word rejection is pinned by Carve.DbxJmf6WrongVersionWordRejected. Landed: three registry rows in the og's registration order (FMT_DBX_JMF6 / FMT_DBX / FMT_DBX_MARKED — one row per key, shared `validate_dbx`, the M-092 duplicate-key policy), the identity probe ported exactly (the four OE store GUIDs, the JMF6+version u64, the marked 16-byte pattern — a key hit without a table identity rejects, FUN_180016740's gate), the plain form's self-declared u32@+0x7C size (ungated in the og — FUN_180016950 writes the field straight into the FileInfo size slot), the marked form's zero-end walk (512-byte blocks, stop at the first all-zero block, end at the last non-zero byte). Core adaptation documented in the code comment: the +0x7C read at the slice edge is refused (the og's window over-read becomes the core's bounded-read rejection — the family convention); the row carries the probe's own 16-byte floor and the u32 field's own 0xFFFFFFFF range as the cap surface (the og registers no bound, and neither implementation's raw_signs.json carries dbx — the analyser is the only path in both). The ext surface rides "dbx" (the og's ext-table id 21, s5-grading-extension-table-dump.md:56); the query layer's existing `{"dbx", Category::Email}` row (cr_filefilter_data.cpp:286) surfaces it in the email bucket. The session-3 "MISSING (N-026)" markers in s3-rawsearch-inventory.md:252-254 now resolve to this finding (the never-filed plan is filed and fixed). The user's this-session directive ("put fixed findings in fixed directory") adjudicates the matrix's recorded FIXED-archive convention conflict in favor of the session-11 amendment — this file moves to findings/FIXED/ in-tree. No safety hardening was touched by this fix.
+
+## Session-42 collision record (appended at the S42-B merge, 2026-10-29)
+
+This finding was filed by the S41 lane as **M-117** at `9cc6a03e` (19:20:03Z) —
+2.5 minutes AFTER `0f5d57fb` (19:17:34Z) had renumbered the suppress_overlap
+quadratic-walk finding M-116 → M-117 and retired it with its ledger row
+(`FIXED-LEDGER.md:436`). The ID M-117 was therefore consumed twice: the retired
+suppress_overlap row AND this DBX finding. The S42-B audit lane detected the
+collision and initially renumbered this finding to M-118 — but the parallel
+S42-main window landed this finding's FIX under M-117 (`1d4c96b6`, "fix(carve):
+M-117 - the Outlook Express Dbx analyser lands") before that renumber pushed, so
+per SA-9 earlier-push-wins the fix-under-M-117 stands and the renumber was
+reverted at the merge (the M-118 ID belongs to the S12 lane's lostpart finding).
+**The dual use of M-117 is hereby recorded as a deliberate historical record**
+(the A-005/A-006 renumber-pair precedent): any trail reference to "M-117" after
+2026-10-28 19:17 should disambiguate by slug — `M-117-suppress-overlap` (the
+retired quadratic-walk row) vs `M-117-dbx` (this finding). The freedom-check
+class (next-free-ID checks must run against the LEDGER's resolved rows, not the
+active board alone) is recorded as N-160's item 7.

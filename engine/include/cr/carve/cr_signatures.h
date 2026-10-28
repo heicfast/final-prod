@@ -173,6 +173,10 @@ enum FormatId : u32 {
     FMT_EPS,    /* u16 "%!" 0x2125 -> CEPS-family PostScript chain */
     FMT_AI,     /* C5 D0 D3 C6 0xc6d3d0c5 -> CEPSAnalyser (Illustrator), idx 27 */
     FMT_DXF,    /* "  0\r" 0x0d302020 -> CDXF chain (g146+g144), idx 25 */
+    FMT_DXF_C999, /* u16 "99" 0x3939 -> the SAME CDXF chain, idx 25
+                   * (N-152: RAWSearchDLL :2722-2733 - the 999-comment
+                   * entry key; comment-led CAD exports dispatch through
+                   * the u16 map, the probe's comment branch accepts them) */
     FMT_3GP,    /* ftyp brand 3gp (the og's File3GP legacy row) */
     /* ---- S-041 niche batch 2, school 1 (SCAN-4): og grammars verified
      * first-hand (the session-5 decode table in SCAN-ENGINE-DELTA). ---- */
@@ -322,14 +326,12 @@ enum FormatId : u32 {
      * corpus (the floss strings :6699-6729 + the strings table
      * :768-905): the ODF trio by the mimetype entry's content
      * (application/vnd.oasis.opendocument.{text,spreadsheet,
-     * presentation}), EPUB (application/epub+zip + the OPS/ chapter1.html name tag), Apple iWork (Index/[*].iwa +
-     * index.apxl), Hangul (application/hwp+zip), CorelDRAW
-     * (content/riffData.cdr). All rows share the LFH dispatch key and
-     * are OVERRIDE TARGETS (the typing walk stamps the id by content;
-     * the FMT_DOCX row wins the registry-order tie). The og's id
-     * mapping for the non-OOXML families is undecoded - the family
-     * granularity here is the tag strings' own. Ids APPENDED
-     * (serialized carve_format values stay stable). */
+     * presentation}), EPUB (application/epub+zip + the OPS/ chapter1.html name tag), Apple iWork
+     * (Index/[*].iwa + index.apxl), Hangul (application/hwp+zip), CorelDRAW (content/riffData.cdr).
+     * All rows share the LFH dispatch key and are OVERRIDE TARGETS (the typing walk stamps the id
+     * by content; the FMT_DOCX row wins the registry-order tie). The og's id mapping for the
+     * non-OOXML families is undecoded - the family granularity here is the tag strings' own. Ids
+     * APPENDED (serialized carve_format values stay stable). */
     FMT_XLSX,  /* xl/_rels/workbook.xml.rels (the og id 0x4a) */
     FMT_PPTX,  /* ppt/_rels/presentation.xml.rels (the og id 0x4b) */
     FMT_ODT,   /* mimetype: ...opendocument.text */
@@ -339,6 +341,24 @@ enum FormatId : u32 {
     FMT_IWORK, /* Index/[*].iwa + index.apxl */
     FMT_HWP,   /* mimetype/[Content_Types]: application/hwp+zip */
     FMT_CDR,   /* content/riffData.cdr */
+    /* M-117 (diff-to-fix): the og's Outlook Express Dbx analyser
+     * (RawSpeed::DbxAnalyser, idx 0x15 - one of the highest-code-weight
+     * classes in the RAW engine, rawsearchdll--family-rawspeed.md) is
+     * registered under THREE magic keys (RAWSearchDLL :2192-2232, three
+     * 0x18 chain nodes each stamped idx 0x15, the og's registration
+     * order): "JMF6" 0x36464d4a, the classic OE store magic 0xfe12adcf
+     * (bytes CF AD 12 FE), and the marked/folder variant 0x2c3489f7
+     * (bytes F7 89 34 2C). The identity probe (FUN_180016740
+     * :17509-17562) gates the 16-byte window: one of FOUR Outlook
+     * Express store GUIDs (the CF12ADFE family's three generations +
+     * the fourth variant), or "JMF6" + the version word 03 00 10 00
+     * (the u64 0x0010000336464D4A), or the 16-byte marked pattern. One
+     * row per key, shared validator (the M-092 duplicate-key policy);
+     * the og stamps id 0x15 for all three entry forms. Ids APPENDED
+     * (serialized carve_format values stay stable). */
+    FMT_DBX_JMF6,   /* "JMF6" - the container-variant key */
+    FMT_DBX,        /* CF AD 12 FE - the classic OE store key */
+    FMT_DBX_MARKED, /* F7 89 34 2C - the marked/folder-variant key */
     FMT_COUNT
 };
 

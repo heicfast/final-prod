@@ -505,7 +505,9 @@ struct CrDevice {
                                                    decrypting device */
     u32 disk = 0;
     bool disk_known = false;
-    u64 volume_len = 0; /* nonzero = a volume slice (not whole-disk) */
+    u64 volume_len = 0;     /* nonzero = a volume slice (not whole-disk) */
+    char volume_letter = 0; /* S-048: the open-volume letter (0 = absent) -
+                               the carve tree's volume-group naming input */
     const char* transport = "image";
     /* S-008 pre-scan repair: image devices remember their source so the
      * shim can reopen the SAME bytes read-write for the consented repair. */
@@ -1379,6 +1381,7 @@ u32 open_volume_impl(char letter, cr_ui_device** out) {
     d->disk = disk;
     d->disk_known = true;
     d->volume_len = len;
+    d->volume_letter = char(letter >= 'a' && letter <= 'z' ? letter - 32 : letter); /* S-048 */
     d->transport = transport;
     *out = reinterpret_cast<cr_ui_device*>(d);
     return ret_ok();
@@ -2053,6 +2056,12 @@ u32 scan_attach_impl(cr_ui_scan* scan, cr_ui_device* dev) {
     if (d->disk_known && s->cfg.volume_model[0] == 0)
         fill_identity_card(d->disk, s->cfg);
 #endif
+    /* S-048: the open volume's letter rides the config (the carve tree's
+     * volume-group naming input - "<label> (<L>:" + ")"). A volume slice
+     * with a letter names its group child; disk/image targets leave it 0
+     * (whole-disk scans name their groups through the M-104 tiers). */
+    if (d->volume_letter != 0 && s->cfg.volume_letter == 0)
+        s->cfg.volume_letter = d->volume_letter;
     return ret_ok();
 }
 
@@ -2132,9 +2141,9 @@ u32 scan_run_impl(cr_ui_scan* scan) {
     if (s->ck_sink) {
         if (s->ck_sink->f)
             std::fclose(s->ck_sink->f);
-        /* the staging file is transient: the final path holds the last
-         * COMMITTED checkpoint; a leftover .tmp is a torn never-committed
-         * emit (N-014's crash window) - remove it, never trust it. */
+            /* the staging file is transient: the final path holds the last
+             * COMMITTED checkpoint; a leftover .tmp is a torn never-committed
+             * emit (N-014's crash window) - remove it, never trust it. */
 #ifdef _WIN32
         DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
 #else
@@ -2758,8 +2767,8 @@ extern "C" CR_UI_API void cr_ui_scan_close(cr_ui_scan* scan) {
         if (s->ck_sink) {
             if (s->ck_sink->f)
                 std::fclose(s->ck_sink->f);
-            /* N-014: the staging file is transient (a torn never-committed
-             * emit); the final path holds the last committed checkpoint. */
+                /* N-014: the staging file is transient (a torn never-committed
+                 * emit); the final path holds the last committed checkpoint. */
 #ifdef _WIN32
             DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
 #else
@@ -3447,7 +3456,7 @@ u32 query_run_impl(cr_ui_session* sess, const cr_ui_query* q, cr_ui_query_row** 
         return ret_(ERR_BAD_PARAMETER, "bad argument: sess/q/rows/row_count/total_matched");
     auto* s = reinterpret_cast<CrSession*>(sess);
     query::Query cq;
-    cq.filter.category_mask = q->category_mask ? q->category_mask : 0x1FFu;
+    cq.filter.category_mask = q->category_mask ? q->category_mask : 0x3FFu; /* N-126: Unsaved widens the default (9 -> 10 bits) */
     cq.filter.size_min = q->size_min;
     cq.filter.size_max = q->size_max ? q->size_max : ~u64(0);
     cq.filter.modified_from = q->modified_from;
@@ -3931,7 +3940,7 @@ u32 thumbnail_generate_impl(cr_ui_device* dev, cr_ui_session* sess, uint64_t nod
     }
 
     /* M-083: the og's grading side-effect - thumbnail success promotes
-     * the node to grade 2 (FUN_1402636e0 :422498-518: grade != 2 ->
+     * the node to grade 2 (FUN_1402636e0 :422507-514: grade != 2 ->
      * FUN_140089630(node, 2)); the node setter's monotonic-max + sticky-2
      * semantics ARE the og's, so a no-op for already-high nodes */
     if (node->grade() != tree::Grade::High)
@@ -4039,15 +4048,30 @@ u32 recovery_set_destination_impl(cr_ui_recovery* rec, const char* utf8_path) {
     r->dest_root = root;
     r->have_dest = true;
 #ifdef _WIN32
-    /* [F12] arming: the destination volume's disk extent feeds the
-     * writer's overlap refusal (image-file sources have file-internal
-     * extents and cannot be evaluated - documented platform truth) */
-    if (utf8_path[0] && utf8_path[1] == ':' && r->dev->disk_known &&
-        std::strcmp(r->dev->transport, "image") != 0) {
-        u32 ddisk = 0;
-        u64 dstart = 0, dlen = 0;
-        if (win::volume_extent(wchar_t(utf8_path[0]), &ddisk, &dstart, &dlen))
-            r->writer->set_destination(dstart, dlen);
+    /* [F12]+N-013 arming (restored per S-054 after the 1ebd1bcc clobber):
+     * the destination volume's FULL disk placement feeds the writer's
+     * overlap refusal. Any path that resolves to a volume is armed (the
+     * og opens \\.\X: for every local destination - a drive-letter gate
+     * misses UNC/relative/junction destinations). Junctions resolve to
+     * the TARGET's volume. ALL extents arm the writer (spanned/RAID
+     * destinations have more than one span - first-extent-only arming
+     * silently defeated the F12 refusal for later spans).
+     *
+     * Image-file sources are NEVER writer-armed (platform truth, kept):
+     * their node extents are image-internal, so comparing them against
+     * physical destination spans would be false-positive refusals. */
+    if (std::strcmp(r->dev->transport, "image") != 0) {
+        wchar_t dletter = 0;
+        if (win::destination_volume_letter(u8_to_ws(utf8_path), &dletter)) {
+            std::vector<win::VolExtent> ve;
+            if (win::volume_extents(dletter, &ve)) {
+                std::vector<std::pair<u64, u64>> spans;
+                spans.reserve(ve.size());
+                for (const auto& v : ve)
+                    spans.push_back({v.start, v.len});
+                r->writer->set_destination_spans(spans);
+            }
+        }
     }
 #endif
     return ret_ok();

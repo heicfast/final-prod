@@ -15,6 +15,7 @@
  */
 #include <gtest/gtest.h>
 #include "cr/win/cr_winenv.h"
+#include "cr/win/cr_transport.h" /* N-125: the disconnect classification */
 
 using namespace cr;
 using namespace cr::win;
@@ -59,4 +60,29 @@ TEST(Transport, EnumerateBoundMatchesDriverGrammarSpace) {
      * still did until this fix - hosts with >32 disks are exactly the
      * multi-disk LDM population). */
     EXPECT_EQ(ENUMERATE_DISK_BOUND, 200u);
+}
+
+TEST(Transport, DisconnectClassifiedDistinctly) {
+    /* N-125: the device-gone GLE family classifies as
+     * ERR_DEVICE_DISCONNECTED (the reattach-then-resume contract) - a
+     * distinct code, never a read-failure storm; the og's "Drive
+     * Disconnected" Retry/Cancel dialog (UIUX/08:39-47) drives the same
+     * flow from its UI layer. */
+    EXPECT_TRUE(disconnect::gle_is_disconnect(disconnect::kDevNotExist));    /* 55 */
+    EXPECT_TRUE(disconnect::gle_is_disconnect(disconnect::kNotReady));       /* 21 */
+    EXPECT_TRUE(disconnect::gle_is_disconnect(disconnect::kMediaChanged));   /* 1110 */
+    EXPECT_TRUE(disconnect::gle_is_disconnect(disconnect::kNoMedia));        /* 1112 */
+    EXPECT_TRUE(disconnect::gle_is_disconnect(disconnect::kDeviceRemoved));  /* 1619 */
+}
+
+TEST(Transport, MediaErrorsStillReadFailed) {
+    /* N-125's precision requirement: the dying-disk storm keeps the old
+     * semantics - IO-device and CRC errors are media failures, not
+     * disconnects (the classification must not become a catch-all). */
+    EXPECT_FALSE(disconnect::gle_is_disconnect(1117)); /* ERROR_IO_DEVICE */
+    EXPECT_FALSE(disconnect::gle_is_disconnect(23));   /* ERROR_CRC */
+    EXPECT_FALSE(disconnect::gle_is_disconnect(87));   /* ERROR_INVALID_PARAMETER */
+    EXPECT_FALSE(disconnect::gle_is_disconnect(0));
+    /* the code itself: append-only in the storage I/O family */
+    EXPECT_EQ(u32(ERR_DEVICE_DISCONNECTED), 0x50020007u);
 }

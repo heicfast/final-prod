@@ -130,6 +130,18 @@ This is how `IOCTL_DISK_GET_DRIVE_GEOMETRY(_EX)` etc. reach the disk (used by th
 
 ### 4.4 Copy-session protocol (EUDCPEPM contract — 19 recognized codes)
 
+> **Provenance (session-42, first-hand corpus decode — supersedes I-029's "4 codes
+> unverifiable" claim, which is INVALID):** all 19 codes carry og-corpus provenance.
+> The 15 session codes (0x800C2AC8…0x800C2B38) are tabled in artifact
+> `re-workspace/artifacts/PartitionRecovery/eudcpepm-euedkepm--hook-drivers.md:52-75`.
+> The 4 filter-side codes — 0x800C2AC0 (DISCOVERY), 0x800C2B3E/B40/B42 (the RRWR
+> trio) — are decoded directly in `re-workspace/reversed/ghidra-drivers/
+> EUDCPEPM_decompiled.c`'s `FilterDispatch` (`:1290-1360`: the negative custom-code
+> deltas `-0x7ff3d540`/`-0x7ff3d4c2`/`-0x7ff3d4be`/`-0x7ff3d4c0`; the magic
+> `0x52455752` gates at `:1338`/`:1640`; the data handler `FUN_00013310:1616-1665`).
+> The artifact's own "range observed 0x800C2AC8…0x800C2B38" census missed the four
+> filter-side codes — recorded as a corpus-erratum entry; the decompile is the truth.
+
 Wire code seen by the driver = `custom_code + IoctlBase`, where `IoctlBase` is the service-key DWORD (root or `Parameters\`; default 0, WinPE sets 0x10000) — `src/shared/inc/rda_ioctl.h:146-152`, `src/driver/rda_ioctl.c:38-72`, `src/driver/rda_registry.c:120-127,134-136`. Codes are matched **explicitly** (non-contiguous set, G28 — `src/driver/rda_ioctl.c:42-46`).
 
 | Code (custom) | Name | Gates (in/out) | Semantics (source) |
@@ -150,9 +162,9 @@ Wire code seen by the driver = `custom_code + IoctlBase`, where `IoctlBase` is t
 | `0x800C2B2A` | SIZED_XFER | out > 0x10 | Same shape as direct; sector size from the per-disk cache — `src/driver/rda_ioctl.h:169-170`, `src/driver/rda_session.c:1398-1408`. |
 | `0x800C2B2E` | SIZED_XFER2 (write) | out > 0x10 | Twin — `src/driver/rda_session.c:1404-1408` (IsWrite for DIRECT_WRITE/SIZED_XFER2). |
 | `0x800C2B38` | CANCEL | in ≥ 8 | State := 3 (standby) + worker kick; `STATUS_SUCCESS`, `Information = 0` — `src/driver/rda_session.c:1467-1470`, `:1196-1200`. |
-| `0x800C2B3E` | RRWR raw disk WRITE | filter-only | Control device: no-op `STATUS_SUCCESS` (`src/driver/rda_session.c:1410-1419`). Filter: magic `0x52455752` `"RRWR"` required (`src/shared/inc/rda_ioctl.h:224-225`); wire `{magic@0, sectorSize@+8 must match disk, declaredOutLen@+0xC must equal actual out, lba@+0x10 (u64), sectorCount@+0x18}`; data in the whole MDL buffer; `Information = outLength` on success — `src/driver/rda_filter.c:247-309`. |
-| `0x800C2B40` | RRWR version probe | filter-only | `{0x604 written at +8, Information = 0xC}` — `src/driver/rda_filter.c:233-245`, constants `src/shared/inc/rda_ioctl.h:212-213`. |
-| `0x800C2B42` | RRWR raw disk READ | filter-only | Twin of 0x800C2B3E — `src/driver/rda_filter.c:247-309`. |
+| `0x800C2B3E` | RRWR raw disk READ | filter-only | Control device: no-op `STATUS_SUCCESS` (`src/driver/rda_session.c:1410-1419`). Filter: magic `0x52455752` `"RRWR"` required (`src/shared/inc/rda_ioctl.h:224-225`); wire `{magic@0, sectorSize@+8 must match disk, declaredOutLen@+0xC must equal actual out, lba@+0x10 (u64), sectorCount@+0x18}`; data in the whole MDL buffer; `Information = outLength` on success — `src/driver/rda_filter.c:247-309`. **Og wire decode (N-155, session-42): READ** — EUDCPEPM `FilterDispatch` maps `0x800C2B3E` (delta `-0x7ff3d4c2`) to `FUN_00013310` → `FUN_000141f8` = `IoBuildSynchronousFsdRequest` major **4 = IRP_MJ_READ** (`EUDCPEPM_decompiled.c:1317-1322`, `:1655-1658`, `:2346-2381`; the same `FUN_000141f8` is the og's 0x800C2B0A direct-**read** handler, artifact `eudcpepm-euedkepm--hook-drivers.md:63`). |
+| `0x800C2B40` | RRWR version probe | filter-only | `{0x604 written at +8, Information = 0xC}` — `src/driver/rda_filter.c:233-245`, constants `src/shared/inc/rda_ioctl.h:212-213`. Og-verified byte-exact: `EUDCPEPM_decompiled.c:1336-1342` (`piVar4[2]=0x604`, `Information=0xc`, magic `0x52455752` gate) — N-155's first-hand decode. |
+| `0x800C2B42` | RRWR raw disk WRITE | filter-only | Twin of 0x800C2B3E — `src/driver/rda_filter.c:247-309`. **Og wire decode (N-155, session-42): WRITE** — EUDCPEPM maps `0x800C2B42` (delta `-0x7ff3d4be`, the `isWrite` flag at `:1320`) to `FUN_00013310` → `FUN_00014300` = `IoBuildSynchronousFsdRequest` major **3 = IRP_MJ_WRITE** (`EUDCPEPM_decompiled.c:1659-1660`, `:2386-2420`; `FUN_00014300` is the og's 0x800C2B12 direct-**write** handler, artifact `:64`). |
 
 **Handle-taking commands** (`SESSION_OP`, `SESSION_OP2`, `SESSION_STATUS`, `GET_PROGRESS`, `CLOSE_SESSION`, `GETNEXTBLOCK`, `CANCEL`): first 8 bytes of input = session handle; `inLength < 8` or NULL buffer → `STATUS_INVALID_HANDLE`; invalid handle value: `CLOSE_SESSION`/`GET_PROGRESS` → `STATUS_INVALID_HANDLE`, others → `STATUS_INVALID_PARAMETER` (`src/driver/rda_session.c:1433-1445`). **Unknown session codes → `STATUS_SUCCESS`** (reference fall-through, `src/driver/rda_session.c:1503-1506`).
 

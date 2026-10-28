@@ -540,7 +540,10 @@ time (the v5 VOLUME_INFO tail; 0 = a pre-v5 session — display the file
 ### 7g. The session load progress/cancel surface (W1b / R-54; PLAN-API-EXPANSION Wave 1)
 
 `cr_ui_session_load_with_events(const char* utf8_path, cr_ui_event_fn fn, void* user,
-volatile uint32_t* cancel_flag, cr_ui_session** out)` (cr_ui.h:916-944) — the
+volatile uint32_t* cancel_flag, cr_ui_session** out)` (cr_ui.h:926-944, the
+comment block + the decl at :943-944 — N-135: the old 916-944 range was 9 lines
+loose at the audit tree and drifted further since; re-pinned at the current
+tree) — the
 load-side twin of the N-060 save machinery. The og's RESTORE reports
 progress inside the load window (`40+50*done/(total+done)`,
 rsf-format--scan-session.md flow section) and polls `IUIProgressInfo::
@@ -706,7 +709,8 @@ virtualizes at the UI layer (~1000-item incremental tree batches,
 against it; this is a registered deliberate difference. Sort code 7 (Type)
 mirrors the og's results-view Type column: category in the FileFilter.xml
 iconIndex order (Graphic/Document/Email/Audio/Video/Other/Archive/
-Bookmarks), then extension, then name.
+Bookmarks, Unsaved - N-126's tenth bit: the og's office unsaved-document
+category, the .asd/.wbk autosave family), then extension, then name.
 
 ### Query bucket translation + the raw-category name (M-029, session 32)
 
@@ -727,7 +731,9 @@ semantics the og does not have.
 `cr_ui_scan_config.raw_category_name_utf8` (tail append) is the og's
 per-scan "filter_generalraw" display-name surface (corpus
 s5-oq-s4-2-raw-naming-hook.md): the raw/carve category root's role name.
-NULL/"" = the default "Other Deleted Files (Carved)". Resume recognizes
+NULL/"" = the default "Reconstructed" (S-048: the og's own root name -
+DRWUI's type==7 branch; resume also recognizes the legacy "Other Deleted
+Files (Carved)" so old sessions never duplicate the root). Resume recognizes
 both the default and the configured name, so a re-run never spawns a
 duplicate raw root.
 

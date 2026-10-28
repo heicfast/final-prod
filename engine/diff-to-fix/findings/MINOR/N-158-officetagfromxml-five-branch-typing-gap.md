@@ -1,4 +1,4 @@
-# MINOR N-154 — OfficeTagFromXML's five remaining ZIP-content typing branches (XMIND / MMAP / EDDX / WFP / DRP) absent from core with no owning finding — the N-115 landing's uncovered tail
+# MINOR N-158 — OfficeTagFromXML's five remaining ZIP-content typing branches (XMIND / MMAP / EDDX / WFP / DRP) absent from core with no owning finding — the N-115 landing's uncovered tail
 
 **Severity:** MINOR
 **Module:** carve (RAWSearchDLL ZIP typing parity surface)
@@ -6,6 +6,7 @@
 **Corpus references:** `re-workspace/reversed/ghidra-searchdll/RAWSearchDLL_decompiled.c` :53025-53100 (the five branches, first-hand this session — the ZIP per-entry typing walk inside `FUN_180006b30`'s rebuild loop): the `FUN_180045110` content-match branch stamping id **0x86 + L"XMIND"** (:53029-53035); the entry-name `xsd/MindManagerApplication.xsd` compare stamping **0x87 + L"MMAP"** (:53041-53065); `rels/_rels.xml` OR `rels/page1_rels.xml` stamping **0x8c + L"EDDX"** (:53066-53074); `ProjectFolder/Anon/` OR `ProjectFolder/project_info.json` stamping **0x8d + DAT_18006d940** (:53075-53083); `MediaPool/Master/MpFolder.xml` stamping **0x91 + DAT_180067c88** (:53084-53090); the label constants binary-resolved this session from `RAWSearchDLL.dll` .rdata: **DAT_18006d940 (RVA 0x6d940) = UTF-16 `"WFP"`** (bytes `57 00 46 00 50 00 00 00`), **DAT_180067c88 (RVA 0x67c88) = UTF-16 `"DRP"`** (bytes `44 00 52 00 50 00 00 00`). The runtime toggle surface for exactly these typed ids: `og-codebase/config/RawConfig.ini` — `XMIND=1` (:12), `MMAP=1` (:15), `EDDX=1` (:17), `WFP=1` (:18), `DRP=1` (:22), loaded at `RAWSearchDLL_decompiled.c:13133` (CNeedRawMgr::LoadConfig). Trail's own inventory of the same block: `diff-to-fix/SCAN-ENGINE-DELTA.md:177` (the tag strings listed, unowned).
 **Core references:** audited `869da779`. `src/core/carve/cr_analysers.cpp` — the N-115 landing's `zip_common` office branch (grep `xmind|MindManager|ProjectFolder|MediaPool|page1_rels` over `src/core/carve/` → **zero hits**, verified this session); `include/cr/carve/cr_signatures.h:315-341` (the nine override rows N-115 landed: OOXML trio + ODF trio + EPUB/IWORK/HWP/CDR — no XMIND/MMAP/EDDX/WFP/DRP row); `src/core/query/cr_filefilter_data.cpp` (`xmind` present as a display category extension — the query layer knows the extension, the carve layer cannot type it). The toggle surface exists (`CarveFlags::disabled_formats`, `include/cr/carve/cr_carve.h:86-96`) with no typed id to gate.
 **Status:** READ-ONLY FINDING — no fix applied
+**Renumber:** N-154 → **N-158** (S42-B merge, 2026-10-29, SA-9 earlier-push-wins: the parallel S42-main window consumed N-154/N-155/N-156/N-157 first — their bookkeeping-batch-2/HFS-zero-blocks/RRWR/OoxmlRels findings keep the IDs; this lane's filings renumber past their N-157). Discovered by the S42 config deep-diff; the parallel window's N-152 fix (the DXF key, `4f8fa661`) landed after this finding's corpus verification — convergent, no overlap.
 **Prior audit check:** the tag strings are cited in N-115's corpus field (`diff-to-fix/findings/FIXED/N-115-officetagfromxml-partial-content-types-gate-only.md:6`) and inventoried at `SCAN-ENGINE-DELTA.md:177`, but N-115's Resolution (its own :59 "Resolution notes") lands only the OOXML/ODF/EPUB/IWORK/HWP/CDR set and neither lands nor defers the five branches; no other finding owns them. Discovered by the S42 config-file deep-diff lane's agent-A pass, verified first-hand before filing.
 
 ## Summary
@@ -65,7 +66,7 @@ Corpus-derived, verified first-hand this session (the S42 SOP — both the decom
 
 ## Related findings
 
-N-115 (FIXED — the parent surface; its Resolution's uncovered tail is this finding); N-152 (the same walk's DXF key gap); M-118 (the same registry-key-residue class); N-140 (the per-extension stats surface that the typed ids feed); S-049 (FIXED — the naming contract's per-format counters key on format ids).
+N-115 (FIXED — the parent surface; its Resolution's uncovered tail is this finding); N-152 (the same walk's DXF key gap — FIXED by the parallel window at `4f8fa661`); M-117-dbx (the same registry-key-residue class — FIXED by the parallel window at `1d4c96b6`); N-140 (the per-extension stats surface that the typed ids feed); S-049 (FIXED — the naming contract's per-format counters key on format ids).
 
 ## Open questions
 

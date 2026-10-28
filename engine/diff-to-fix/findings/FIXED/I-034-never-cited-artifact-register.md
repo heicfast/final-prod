@@ -60,3 +60,10 @@ None (informational).
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** ACKNOWLEDGED (the navigation register confirmed; the optional SURFACE-INVENTORY hygiene applied)
+**Fixed in commit:** this session's I-034 landing (session-42; cite-by-title: "fix(trail): I-034 - the never-cited artifact register acknowledged + the SURFACE-INVENTORY navigation index completed")
+**Verified by:** the disposition table's claims spot-checked this session: the three rawsearchdll family rosters re-read (the M-117/N-152 filings they drove are on the board — M-117 active, N-152 active); the eudcpepm artifact re-read first-hand (the I-029/N-155 decode this session — its 15-code census gap now a CORPUS-ERRATA entry); the og-file census's no-undispositioned-surface verdict stands (the runtime-dependency remainder re-confirmed by category).
+**Resolution notes:** The register is confirmed accurate — the 23 never-cited artifacts all dispositioned, the two product-frame completeness censuses recorded. **One correction adopted from the parallel S42 lane's I-036:** the og-file census's "no undispositioned product surface" line was wrong by four config-layer surfaces (shellexe.ini, TreeType, themdark.ini, DRWLog.log — all OOS-UI/product-frame, both TreeType readers decoded in I-036's evidence); the corrected statement is carried in this session's SURFACE-INVENTORY addendum. The fix plan's optional hygiene applied: the 23 basenames + their dispositions added to SURFACE-INVENTORY.md as the session-42 navigation-hygiene addendum, so the corpus-navigation index is complete and the next census starts from the index instead of re-deriving the set. The M-117/N-152 filings the census drove remain the board's active carve work. No code change.

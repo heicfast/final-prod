@@ -251,3 +251,95 @@ residue; the engine-bearing trees re-confirmed CLEAN at binary level).
 Board hygiene: the M-108 filename collision repaired (M-108 preview-text
 keeps the ID per the SA-9 rule; the M-080-residual renumbered M-109).
 Evidence: `evidence/decompiled-quotes/s10f-*.md`.
+
+---
+
+## §12. Session-12 continuation currency update (2026-10-29 — the second-session continuation deep audit; audited core `c7fa527c`, corpus `be0cfe9`)
+
+- **The continuation mandate's three waves executed:** (1) remove-the-fixed — the
+  55-finding liveness sweep, all defect sites re-verified at HEAD (41 LIVE / 4
+  PARTIAL / 5 driver-repo / 5 register; **no unretired fix** — the inventory's
+  coverage claims hold); (2) go-deeper — the below-artifact walks (core module
+  deep-read: all 28 modules dispositioned-in-substance, the four missing module-row
+  files recorded as N-143's item 3; corpus behavioral re-walk: DiskHealth/FileRepair/
+  SaveScan/MOM/config-files + the runtime logs — 8 NOT-DISPOSITIONED claims found,
+  all now filed or registered); (3) mark-all-remaining — every surfaced gap filed.
+- **New rows this lane owns:** the register-channel surface (the og's MountPoints2\
+  CPC\Volume candidate source — **M-118**; was invisible to every prior inventory
+  because no artifact documents it — the runtime log + the engine-side decompile
+  were the only witnesses); the partition-boundary read semantics (**M-119**; the
+  CBasicPartitionDevice clamp decode + the real-log observation); the variant-save
+  device-descriptor record (**N-142**; the rsf artifact's own parenthetical, now
+  owned); the N-013 regression (**S-054**; a landed-fix reversion, not a corpus
+  surface — the board-truth class); the register batch (**I-035**: RegLib's write
+  half, DiskHealth's resident shell, the Explorer verb) and the bookkeeping batch
+  (**N-154**: the N-079 collision, the salvage register, module rows, the suite
+  count).
+- **S-050's row extended by addendum:** the fix plan's build order gains the video
+  engine + the eligibility-signature seam + the output-location contract (the
+  repair-architecture row's deepest-decoded algorithm was unowned by the plan).
+- **Corpus erratum candidate for the next batch (I-033's item 4):** the DiskHealth
+  artifact's auto.bat `trayicon` attribution (changeres.exe per boot-config:87).
+
+---
+
+## §12. Session-42 S42 currency update (2026-10-29 — the continuation audit lane; corpus `be0cfe9`, core `869da779`)
+
+- **The config-layer completeness correction:** I-034's og-file census claim ("no
+  undispositioned product surface") was wrong by four surfaces, all zero-citation at this
+  lane's open — **`config/shellexe.ini`** (the Explorer context-menu verb's 25-locale
+  tagline table; byte-identical install/PE copies; the consumer is the shell-extension
+  host outside the shipped tree), **`config/version.ini`'s `TreeType` gate** (the DRWUI
+  results-view layout boolean, shipped=1; both readers decoded — FUN_140a09c40's
+  absent-or-zero + ctx+0x1c8 co-gate, the Qt item-view consumers only; the scanext4
+  sibling's family completed), **`config/themdark.ini`** (118 Qt stylesheet fragments per
+  theme), and **`log/DRWLog.log`** (the 0-byte launcher channel). All four OOS-UI /
+  product-frame — **I-036** (acknowledged at filing, retired per the purge convention;
+  the live register: `evidence/decompiled-quotes/s42-config-layer-dispositions.md`).
+- **The HFS+ residuals closed** (not an inventory row — module-level): N-038's
+  field-name residual RESOLVED (`ownerFlags`, TN1150 byte-exact via the ushort-units
+  decode), the S-002 decmpfs-completion residual CLOSED core-superset, **N-155** filed
+  (the og's zero-logical-size `totalBlocks<<12` fallback absent in core).
+- **The board-truth verification over the hottest fix window:** every at-risk finding
+  re-checked LIVE at the lane tree (the S12 sweep pre-dated S-049/S-051/S-052/S-053 +
+  the N-wave landings); three stale-line cites noted; **no unretired fix found**
+  (`evidence/s42-board-verification.md`). S-048/S-054 fixed by the parallel window's
+  lanes mid-flight and properly retired (convergent verification recorded in their
+  ledger rows).
+
+
+## Session-42 main-lane navigation-hygiene addendum (2026-10-29 — I-034's optional sweep record; the 23 never-cited basenames; the census claim read through I-036's correction)
+
+The S41 census (`evidence/decompiled-quotes/s41-registry-key-residue.md` §5)
+found 23 of 283 architecture/ + re-workspace artifacts with zero trail
+citations; I-034 dispositioned every one (the register is the finding). The
+basenames are recorded here so the corpus-navigation index is complete and
+the next census does not re-derive the set:
+
+`rawsearchdll--family-brance.md`, `rawsearchdll--family-rawspeed.md`,
+`rawsearchdll--family-xjq.md` (the analyser-family rosters — drove M-117
+and N-152); `eudcpepm-euedkepm--hook-drivers.md` (the Todo-Backup sibling
+driver family — I-029/N-156 territory); `burn--imapi2-disc-writer.md`
+(N-134's media-builder family); `32-repair-item-rows-decode.md` (S-050's
+UI-side addendum); `16-shell-internals-ai-layer.md` (D-26's AI omission);
+`14-cdetailpage-slots-viewmodes.md`, `33-objectname-loop-closure.md`,
+`34-navigatebar-bottomarea-chrome.md` (the OOS-UI convention);
+`22-rtti-class-census.md` (the S10-F methodology artifact);
+`23-euinapp-ie-emulation-bootstrapper.md`, `euinapp--ie-bootstrapper.md`
+(Licensing/monetization OOS); `24-dynamic-ground-truth-ingestion.md`,
+`dynamic-ground-truth--splash-captured.md`,
+`dynamic-ground-truth--window-census-verification.md` (corpus-methodology);
+`language-packs--family-census.md` (multi-language OOS);
+`qt5-core-stack.md`, `qt5-quick-qml-stack.md`, `network-libraries.md`,
+`d3d-graphics-shims.md`, `misc-windows-shims.md`, `imagemagick-modules.md`
+(the dependency-stack families — the og-file census's never-mentioned set
+maps here).
+
+**The census-claim correction adopted (the parallel S42 lane's I-036):**
+I-034's "no undispositioned product surface" line was wrong by four
+config-layer surfaces (`config/shellexe.ini`, `config/version.ini`'s
+TreeType gate, `config/themdark.ini`, `log/DRWLog.log` — all OOS-UI/
+product-frame, dispositioned in I-036 with both TreeType readers decoded).
+The corrected statement: the og-file census's never-mentioned remainder is
+runtime dependencies, third-party license texts, one Qt resource bundle
+(`drw_light.rcc`), and the four config-layer surfaces I-036 owns.

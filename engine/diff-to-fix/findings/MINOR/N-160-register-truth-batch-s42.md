@@ -1,11 +1,12 @@
-# MINOR N-156 — Register-truth batch: I-034's census scope label + phantom-script citations, N-129's OQ-S10-1/S-10-2 cross-ref swap, the inventory row 79/104 gaps, I-033 §12's overstated invariant, and the M-117 ID collision record
+# MINOR N-160 — Register-truth batch: I-034's census scope label + phantom-script citations, N-129's OQ-S10-1/S-10-2 cross-ref swap, the inventory row 79/104 gaps, I-033 §12's overstated invariant, and the M-117 ID collision record
 
 **Severity:** MINOR
 **Module:** audit-trail (the diff-to-fix registers' own truthfulness)
 **Parameters affected:** P68 (documentation accuracy — the registers), P65-equivalent (the audit's own reproducibility: a phantom citation breaks it), P46 (the trail's contract with future lanes)
 **Corpus references:** n/a — the defects are in the trail's own registers; the ground-truth checks executed against the corpus this session are cited per item.
 **Core references:** audited `869da779`. (1) `diff-to-fix/findings/INFORMATIONAL/I-034-never-cited-artifact-register.md:6` ("750 entries, top+1 deep") and `:46` ("script: `scripts/s41_never_cited_census.sh` … `scripts/s41_ogfile_census.py`"); (2) `diff-to-fix/findings/FIXED/N-129-parity-og-core-inventory-numeric-defects.md:15`/`:53` ("the 2 exceptions are N-130/OQ-S10-1"); (3) `docs/PARITY-OG-CORE-INVENTORY.md` row 79 (the EUFileRepair bundle's enumeration) and row 104 (SaveScan/*.rsf); (4) `diff-to-fix/findings/INFORMATIONAL/I-033-config-data-asset-register-extension-batch.md:67-71` (§12's RawConfig invariant); (5) the M-117 collision: `diff-to-fix/FIXED-LEDGER.md:436` (the retired suppress_overlap M-117 row) vs the S41 lane's DBX filing (renumbered **M-118** this session).
-**Status:** READ-ONLY FINDING — no fix applied (the M-117→M-118 renumber itself was performed audit-side this session per the standing renumber convention; the remaining items are fix-lane work)
+**Status:** READ-ONLY FINDING — no fix applied
+**Renumber:** N-156 → **N-160** (S42-B merge, 2026-10-29, SA-9: the parallel S42-main window's RRWR-direction finding keeps N-156; this lane's filing renumbers past their N-157). Item 7's repair note below is UPDATED at the merge: the parallel window fixed the DBX finding under M-117 before this lane's M-118 renumber pushed — the renumber was REVERTED at the merge (their fix stands per SA-9); the dual-ID is recorded in the FIXED/M-117 file's collision addendum.
 
 ## Summary
 
@@ -25,7 +26,7 @@ n/a (register defects). Per item, the verified truth (all first-hand this sessio
 4. **Row 79 (EUFileRepair):** the row names EUImgRepairFile/EuPDFRepairFile/EuOfficeRepairFile + runtimes; the folder also ships **EUAdobeRepair.exe (431,192 B)** and **EUArchiveRepair.exe (599,128 B)** — covered by rows :76/:77 and corrected in prose by I-033 entry 10, but the row's own list is incomplete (the S42 folder census enumerated all 87 files).
 5. **Row 104 (SaveScan/*.rsf):** the row says "VERIFIED" (accurate for the container grammar — the s10 executed evidence) but carries no cross-note to the ACTIVE S-048/S-049/M-103 session-tree findings; a lane reading only the register could mistake it for full session-tree parity.
 6. **I-033 §12's invariant:** the register claims RawConfig's keys minus "core's grammar-covered set (heic/webp/m1v/m2ts/mobi/7z/webm/m2t/stl/vpj)" equal exactly the open findings' set. Verified truth: STL/VPJ have no core carve rows AND no og analyser (inert both sides — they are not "grammar-covered"); M2T rides the TS family; M4P is covered only as an MP4 brand alias; and nine further keys (INSP/INSV/CRM/FFF/DPX/MUSX/RVT + STL/VPJ) have zero engine-side presence in the og. The invariant as written would not trip on the drift it claims to catch; the actual uncovered-but-typed remainder is N-154's five branches.
-7. **The M-117 ID collision (record; repair executed):** the S41 lane filed the DBX analyser finding as M-117 at `9cc6a03e` (2026-10-28T19:20:03Z) with "M-117 and I-034 confirmed free" — 2.5 minutes after `0f5d57fb` (19:17:34Z) had renumbered the suppress_overlap finding M-116→M-117 and retired it with the ledger row (`FIXED-LEDGER.md:436`). Two findings shared one ID until this session's renumber (the DBX finding is now **M-118**; the retired row keeps M-117 per SA-9 earlier-push-wins). The freedom check raced the push window — the same class as the lane's own N-151→N-152 double renumber, but this one was never caught because the collided-with row was retired rather than active.
+7. **The M-117 ID collision (record; the dual-ID documentation landed at the S42-B merge):** the S41 lane filed the DBX analyser finding as M-117 at `9cc6a03e` (2026-10-28T19:20:03Z) with "M-117 and I-034 confirmed free" — 2.5 minutes after `0f5d57fb` (19:17:34Z) had renumbered the suppress_overlap finding M-116→M-117 and retired it with the ledger row (`FIXED-LEDGER.md:436`). Two findings shared one ID until this session's renumber (the DBX finding is now **M-118**; the retired row keeps M-117 per SA-9 earlier-push-wins). The freedom check raced the push window — the same class as the S41 lane's own N-151→N-152 double renumber, but this one was never caught because the collided-with row was retired rather than active. [S42-B merge update: the parallel S42-main window fixed the DBX finding under M-117 (1d4c96b6) before this lane's renumber-to-M-118 pushed; the renumber was reverted at the merge per SA-9, and the M-118 ID belongs to the S12 lane's lostpart finding. The dual use of M-117 stands recorded in the FIXED/M-117 collision addendum — the A-005/A-006 dual-ID historical precedent.]
 
 ## Gap
 
@@ -54,7 +55,7 @@ Doc-truth (no unit tests): the audit's own verification gates — a `doc_truth_g
 
 ## Related findings
 
-N-135 (the fix-wave bookkeeping-truth class — this is its audit-side sibling); N-150 (the doc-truth batch); N-129/N-134 (the retired registers the defects live in); M-118 (the renumbered finding whose collision is item 7); I-034/I-033 (the registers carrying items 1/2/6).
+N-135 (the fix-wave bookkeeping-truth class — this is its audit-side sibling); N-150 (the doc-truth batch); N-129/N-134 (the retired registers the defects live in); M-117-dbx (the fixed finding whose collision is item 7); I-034/I-033 (the registers carrying items 1/2/6).
 
 ## Open questions
 

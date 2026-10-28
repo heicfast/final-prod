@@ -24,6 +24,16 @@ namespace carve {
 
 class CarvePostProcessor; /* M-021: defined below (CarveFlags binds it) */
 
+/* S-048: one scanned volume's carve grouping — the slice-relative
+ * [start, end) range and the volume's display name (the real-session
+ * forms: " (I:)" for an empty label with a letter, "System Reserved"
+ * for a label without one, "<label> (<X>:)" for both). */
+struct VolumeGroup {
+    u64 start = 0; /* slice-relative start (inclusive) */
+    u64 end = 0;   /* slice-relative end (exclusive) */
+    std::u16string name;
+};
+
 struct CarveStats {
     u64 hits = 0;       /* magic candidates */
     u64 validated = 0;  /* grammar-confirmed */
@@ -99,6 +109,25 @@ struct CarveFlags {
      * emission, exactly the og's DLL-absent degrade. See
      * CarvePostProcessor below. */
     CarvePostProcessor* post_processor = nullptr;
+    /* ---- S-048 (diff-to-fix): the carve tree's volume grouping --------
+     * The og's persisted carve tree (the three REAL og sessions, ~2M rows,
+     * evidence/executions/s10b-real-rsf-session-mining.md): a
+     * "Reconstructed" root whose children are the scanned volumes' display
+     * names, each volume child carrying one EMPTY per-extension folder
+     * (lowercase, e.g. "jpg") per present extension with every carved
+     * file attached DIRECTLY to the volume node - never under the
+     * extension folders. The volume child is created LAZILY at the first
+     * carved-file emit inside its range (the real G session carries NO
+     * child for its carves-free G: volume). volume_groups: slice-relative
+     * [start, end) ranges with the volumes' display names; a candidate
+     * outside every range attaches to the carve root directly (the
+     * unattributable position - never mis-attributed to a wrong volume).
+     * Empty groups + non-empty volume_group_name = ONE group over the
+     * whole slice (the single-volume scan - the common case). Both empty
+     * = no grouping: the bare-root emission (the pre-S-048 shape, kept
+     * for standalone engine callers that know no volume identity). */
+    std::vector<VolumeGroup> volume_groups;
+    std::u16string volume_group_name;
 };
 
 /* ---- M-021: the post-carve processing hook -------------------------

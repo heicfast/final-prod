@@ -51,3 +51,10 @@ Corpus first-hand: each file read in full; each consumer decode read at the cite
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** ACKNOWLEDGED (informational register confirmed; the fix plan's optional row-folds applied so the ground truth is navigable from the register itself)
+**Fixed in commit:** this session's I-027 landing (session-42; cite-by-title: "fix(docs): I-027 - the og-codebase data-asset register's five decoded contracts folded into the inventory rows")
+**Verified by:** the five corpus artifacts re-read first-hand this session (`og-codebase/recoveryFree.ini`, `remote_config_data` json_raw, `AliyunConfig.ini`, `diskhealth/addtask.bat`, the filter_generalraw value) and the consumer decodes spot-checked at the cited sites (`DRWUI_decompiled.c:550794-551204` the registry decode; `:499195-499228` the json_raw split); every core absence re-confirmed by grep (no edition gating, no telemetry, no autostart — correctly OOS per the registered exclusions).
+**Resolution notes:** The register's verdicts stand — none of the five contracts opens a core code gap (licensing/telemetry/UI/host-side are registered exclusions). The fix plan's optional folds applied: (1) the free-edition quota contract (HKLM `SOFTWARE\DRWNewFree\Metadata` QWORDs, 2 GiB/2^31 defaults, the 500 MB clamp, the ini-mirror relationship) folded into the recoveryFree.ini row; (2) the raw-results shield (`json_raw` = `{"switch":true,"shield":"TXT;HTML;LOG;H;CPP;MM;"}`, split on `;` into the raw-tree extension-exclusion list) folded into the firebasefetch/remote_config_data row; (3) the telemetry batching caps (nMaxItemCount=1000 / nMaxItemDays=7 / nMaxIdleMinutes=5 / the length+pair caps / bAllowSendInfo=0) folded into the AliyunConfig.ini row; (4) the DiskHealth autostart datum (schtasks ONLOGON HIGHEST) noted at the addtask.bat mention in the UI/UX paragraph; (5) the 65-extension filter_generalraw value recorded in modules/carve.md's session-5 addendum beside the OQ-S4-2 semantic decode. The register now anchors every future host-side parity decision to corpus-exact values without re-derivation.

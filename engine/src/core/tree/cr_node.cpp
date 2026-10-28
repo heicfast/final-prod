@@ -141,6 +141,37 @@ FullNode* ResultTree::add_root(const std::u16string& role) {
     return n;
 }
 
+FullNode* ResultTree::add_folder(FileNode* parent, const std::u16string& role) {
+    if (parent == nullptr)
+        return nullptr;
+    std::lock_guard<std::mutex> lock(mutex_);
+    void* mem = arena_alloc(sizeof(FullNode));
+    if (!mem)
+        return nullptr;
+    FullNode* n = new (mem) FullNode();
+    n->role = role;
+    FileProperties* p = new (std::nothrow) FileProperties();
+    if (!p)
+        return nullptr;
+    p->name = role;
+    n->set_props(p);
+    p->release(); /* set_props took the ref */
+    n->node_id_ = nodes_.size();
+    n->full_ = true;
+    nodes_.push_back(n);
+    n->parent_ = parent;
+    if (parent->first_child_ == nullptr) {
+        parent->first_child_ = n;
+        parent->last_child_ = n;
+    } else {
+        FileNode* t = parent->last_child_;
+        t->next_sibling_ = n;
+        n->prev_sibling_ = t;
+        parent->last_child_ = n;
+    }
+    return n;
+}
+
 FileNode* ResultTree::add_file(FileNode* parent, FileProperties* props) {
     if (!props || !parent)
         return nullptr;

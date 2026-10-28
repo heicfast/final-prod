@@ -1472,9 +1472,15 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
              cfg.threads, int(cfg.run_quick), int(cfg.run_deep), int(cfg.run_carve),
              int(cfg.whole_disk), int(repair), int(repair_apply));
     fill_identity_card(target.disk, cfg); /* SESS-2: model/serial into the card */
-    fill_volume_label(target, cfg);       /* M-079: the <vol> half of the
-                                           * auto-save name + the session
-                                           * record (derive unless --label) */
+    fill_volume_label(target, cfg);
+    /* S-048: the volume's drive letter rides the scan config (the og's
+     * carve-tree volume grouping names the group child "<label> (<L>:)" -
+     * the real-session " (H:)" form). Uppercased; 0 for disk/image
+     * targets. */
+    cfg.volume_letter = target.volume_letter ? char(toupper(unsigned(target.volume_letter)))
+                                             : 0; /* M-079: the <vol> half of the
+                                                   * auto-save name + the session
+                                                   * record (derive unless --label) */
     if (target.is_image) {
         /* S-030: the image identity - format as model, path into the v3
          * tail (the resume path warns when the path changes) */
@@ -1772,6 +1778,23 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
                 wprintf(L"(pass --out file.crsf to save a resumable session on cancel)\n");
             }
             return 3; /* cancelled is distinct from failure (0/1/3) */
+        }
+        /* N-125: the disconnect case - the target went away mid-scan
+         * (yanked USB, ejected media). Exit 5, distinct from failure (1)
+         * and cancel (3); the reattach-then-resume contract: the session
+         * checkpoint (if --out was given) resumes the scan after the
+         * device returns. */
+        if (rc == ERR_DEVICE_DISCONNECTED) {
+            wprintf(L"target device DISCONNECTED mid-scan - the scan stopped at the device-"
+                    L"loss boundary\n");
+            if (!out_path.empty())
+                wprintf(L"reattach the device, then resume: `rrecov resume %ls` continues "
+                        L"from the session checkpoint\n",
+                        out_path.c_str());
+            else
+                wprintf(L"re-run the scan with --out file.crsf so a disconnect becomes a "
+                        L"resumable checkpoint instead of a restart\n");
+            return 5;
         }
         /* read-truth refusal (the fake-scan fix): the volume was (essentially)
          * fully unreadable - the scan did NOT scan. The specific text names
@@ -2080,11 +2103,41 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
     win::WinDestIo io;
     recovery::WriterConfig wcfg;
     recovery::SafeWriter writer(io, src.device.get(), wcfg);
-    if (to_dir.size() >= 2 && to_dir[1] == L':') {
-        u64 dstart = 0, dlen = 0;
-        u32 ddisk = 0;
-        if (win::volume_extent(to_dir[0], &ddisk, &dstart, &dlen))
-            writer.set_destination(dstart, dlen);
+
+    /* destination validation + overlap refusal (F12 + N-013, restored per
+     * S-054 after the 1ebd1bcc clobber): any path that resolves to a
+     * volume is evaluated (the og opens \\.\X: for every local
+     * destination - a drive-letter gate misses UNC/relative/junction
+     * destinations; junctions resolve to the TARGET's volume). Arming
+     * uses ALL extents (spanned/RAID destinations have more than one -
+     * first-extent-only missed overlap on the second+ spans, silently
+     * defeating the F12 refusal for destinations whose later spans live
+     * on the source disk). */
+    {
+        wchar_t dletter = 0;
+        if (win::destination_volume_letter(to_dir, &dletter)) {
+            std::vector<win::VolExtent> ve;
+            if (win::volume_extents(dletter, &ve)) {
+                bool on_source = false;
+                for (const auto& v : ve)
+                    if (v.disk == disk) {
+                        on_source = true;
+                        break;
+                    }
+                if (on_source)
+                    wprintf(L"[F12] WARNING: destination is on the SOURCE disk %u\n", disk);
+                else
+                    wprintf(L"[dest] %c: disk %u @%llu +%llu (%zu extent(s))\n", dletter,
+                            ve.front().disk,
+                            static_cast<unsigned long long>(ve.front().start),
+                            static_cast<unsigned long long>(ve.front().len), ve.size());
+                std::vector<std::pair<u64, u64>> spans;
+                spans.reserve(ve.size());
+                for (const auto& v : ve)
+                    spans.push_back({v.start, v.len});
+                writer.set_destination_spans(spans);
+            }
+        }
     }
 
     /* normalize the destination dir (trailing backslash) */

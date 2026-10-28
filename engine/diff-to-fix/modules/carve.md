@@ -256,6 +256,13 @@ loader/matcher/CommonRawAnalyser decode, complementing the lead leg's
   `evidence/decompiled-quotes/s5-oq-s4-2-raw-naming-hook.md`. No carve
   emission-path change required for parity; the fix narrows to the
   category-bucket naming surface.
+- **I-027 register note (the filter_generalraw VALUE, session-8 sweep)**:
+  the concrete junk list behind the display-name mapping — the 65-extension
+  `filter_generalraw` value from `remote_config_data`
+  (`loggz, crash, evtx, lrprev, tmb, peak, default, sqm, pf, icns, …,
+  sqlite, m3u, amr, moff`) — on-file here as the ground truth for any
+  host-side general-raw display bucket. The semantic (display-name mapping)
+  is the OQ-S4-2 decode above; the value is the session-8 datum.
 
 ## Session-5 audit (audited commit `7cf6754`) — the never-cited family-artifact wave
 
@@ -684,9 +691,14 @@ multi-card continuation, GPX's declaration+<gpx window + </gpx> walk (cap 100 Mi
 OSP's libopenshot needle with the unique reject-on-missing, POS's needle settled
 from FUN_18001a470 ("ProcessOn Schema File"), CHFP's +0x28 BiffProject anchor;
 the per-chunk find quirk ported exactly; tests Carve.TextSchool*;
-findings/FIXED/N-113) · **N-115** OfficeTagFromXML. · **M-118** (S41: the Outlook Express Dbx analyser — renumbered M-117→M-118 at S42 (ID collision with the retired suppress_overlap row) — the og's 3-key registry
+findings/FIXED/N-113) · **N-115** OfficeTagFromXML. · **M-117 FIXED
+(S42 fix lane)** (the Outlook Express Dbx analyser — the og's 3-key registry [S42-B note: the ID M-117 is dual-use history — the retired suppress_overlap row and this DBX finding; the fix landed under M-117 per SA-9; see FIXED/M-117's collision addendum.]
 [JMF6/CFAD12FE/F789342C → RawSpeed::DbxAnalyser idx 0x15] + the 4-GUID identity probe +
-the u32@+0x7C size pass; the never-filed session-3 "MISSING (N-026)" residue) ·
+the u32@+0x7C size pass + the marked form's zero-end block walk (FUN_180042b30 decoded:
+the non-zero-prefix binary search; the extent to the last non-zero byte); the JMF6 version
+word corrected to `03 00 10 00` by the corpus u64 literal; the 272-byte name buffer
+decoded dead (always empty); the never-filed session-3 "MISSING (N-026)" residue — now
+filed and fixed; tests Carve.Dbx*; findings/FIXED/M-117) ·
 **N-152** (S41: the DXF 999-comment entry key — the og's u16 key 0x3939 → CDXFAnalyser +
 the probe's "999\n"/"999\r\n" leading-comment acceptance; the core keys "  0\r" only;
 renumbered twice at the push-time reconciliations per SA-9 — the local N-142 lost to the
@@ -722,10 +734,20 @@ unique artifacts kept (all cited by the reconciled findings):
 Two new findings + one executed MATCH, all from the first mining of the
 corpus's three REAL og sessions (evidence/executions/s10b-real-rsf-session-mining.md):
 
-- **S-048 (SEVERE)** — the og's carve branch is `Reconstructed/<volume-display-name>/`
-  (per-volume children; 100% of 189,115 real carved rows); the core's single flat
-  "Other Deleted Files (Carved)" root (cr_scan.cpp:151) has no volume attribution.
-  Fix wave: per-volume children + the Reconstructed default name.
+- **S-048 (SEVERE) — FIXED (session-40 severe lane)** — the og's carve branch landed in full:
+  the `Reconstructed` root (the og's own name; the M-029 config override retained; the legacy
+  name stays a recognized resume role) + the 7 EMPTY category skeleton folders
+  (Pictures/Documents/Archives/Videos/Audio/Emails/Others - every real session's persisted
+  shape, a newly-decoded surface) + the LAZY per-volume group children (the
+  "<label> (<L>:" + ")" / " (H:)" / "System Reserved" forms; a carves-free volume gets NO
+  child - the G session's shape) + the empty per-ext folders (lowercase) with every carved
+  file attached DIRECTLY to the volume child. The volume attribution is the tree position
+  (the og's architecture); the query axis is the path-prefix filter. VolumeGroup ranges +
+  names through CarveFlags (the M-104 tier names for whole-disk scans; the composed
+  label+letter for volume scans - ScanConfig::volume_letter plumbed through the CLI and the
+  ABI); ResultTree::add_folder + the marker-2 session record carry the intermediate folders.
+  8-test proof set (Orchestrator.CarveVolumeGroup* + CarveEngine.Reconstructed* +
+  Crsf.ReconstructedCarveTreeRoundTrip + Query.CarvedVolumeFilterAxis).
 - **S-049 (SEVERE) — FIXED (session-40 severe lane)** — the og's universal naming contract
   `<PREFIX>_<%06d>.<UPPEREXT>` (DRWUI FUN_140c44770:1878330-81; prefix = the UPPERCASE EXT by
   default, PER-FORMAT counters — JPG 1..3938 continuous across prefix variants, GZ 1..27,694,
@@ -789,9 +811,9 @@ The carve surface's size-walk residue now has owners:
 - The **S-050 addendum**: the repair line's second wiring channel (the per-chunk feed, DDC:9623-27) — the post-processor contract must decide it.
 - Verified MATCH this session: the whole infrastructure table (17 rows — dispatch order, registry duality, geometry, gates, dedup, progress, cancel) at `evidence/s11-lead-deep-lanes.md` §Lane-A; the family map (5 families -> core schools present).
 
-## Session-42 addendum (2026-10-29, audited `869da779`, corpus `be0cfe9` — the continuation lane's carve filings)
+## Session-42-B addendum (2026-10-29, audited `869da779`, corpus `be0cfe9` — the continuation lane B's carve filings; renumbered at the S42-B merge: N-154→N-158; the M-118 renumber REVERTED per SA-9 [the parallel window fixed the DBX finding under M-117 first])
 
-**N-154** (MINOR — the OfficeTagFromXML five-branch typing tail): the og's ZIP
+**N-158** (MINOR, renumbered from this lane's N-154 filing — the parallel window's bookkeeping-batch-2 keeps the ID — the OfficeTagFromXML five-branch typing tail): the og's ZIP
 per-entry typing walk carries five further branches N-115's landing did not port —
 XMIND 0x86 (the `FUN_180045110` content branch), MMAP 0x87
 (`xsd/MindManagerApplication.xsd`), EDDX 0x8c (both rels entry-name forms), WFP
@@ -806,6 +828,27 @@ predicate (FUN_180045110) needs a first-hand re-read before landing.
 **Liveness at `869da779`:** every active carve-scope finding re-verified STILL
 (M-098 HIK / M-099 AEP grep-zero; M-106's ONE 64-MiB stand-in at
 cr_analysers.cpp:5530 read; M-107's 12 `64 << 20` sites counted; M-112's
-"decoded only partially and stays unported" comment read at :3631-3632; M-118's
-dbx grep-zero; N-146's `32ull << 20` at :4379; N-149/N-139/N-140/N-152 grep-zero).
+"decoded only partially and stays unported" comment read at :3631-3632; M-117-dbx (now FIXED by the parallel window, `1d4c96b6`)'s pre-fix grep-zero; N-146's `32ull << 20` at :4379; N-149/N-139/N-140/N-152 grep-zero).
 Evidence: `evidence/decompiled-quotes/s42-ogg-zip-typing-and-report-decodes.md` §1.
+
+## Session-43 minors lane (2026-10-29 — the N-152 landing; audited `b00118b5`, corpus `be0cfe9`)
+
+- **N-152 FIXED** (MINOR — the DXF 999-comment entry key): the u16 "99"
+  0x3939 second key lands as `FMT_DXF_C999` (the SWF/CWS dual-key
+  precedent — the og's :2722-2733 binding stamps the SAME CDXFAnalyser
+  idx 0x19 under the u16 magic map), and `validate_dxf` gains the probe's
+  comment branch (FUN_1800376f0 :42240-42290, re-read first-hand):
+  "999\n" → the 14-byte LF section form "  0\nSECTION\n  ", "999\r\n" →
+  the 16-byte CRLF form "  0\r\nSECTION\r\n  ", a forward NUL-guarded
+  scan (the og's byte-by-byte memcmp loop; the core's window bounded at
+  4 KiB — the comment-to-SECTION span in real exports is tens of bytes,
+  the bound registered in the Resolution). Both DXF rows carry
+  `suppress_overlap` (the N-151/N-153 repeating-key rule: a comment-led
+  document re-matches "  0\r" strictly inside itself; a canonical
+  document's interior "99" bytes never re-carve). Tests:
+  `Carve.Dxf999CommentHeaderLfCarves` / `Dxf999CommentHeaderCrLfCarves`
+  / `Dxf999RejectsNonCommentContinuation` (re-pinned to the og-faithful
+  headless-canonical salvage — the interior u32 key claims the position,
+  exactly the og's dispatch) / `Dxf999InteriorCommentOfCanonicalFileDoesNotDoubleCarve`.
+  Fail-before: 3 of 4 RED (stashed-validator rebuild; the near-miss
+  re-pin documented in the Resolution). Suite 1215/1215 (linux-release).

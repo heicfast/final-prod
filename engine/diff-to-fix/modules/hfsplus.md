@@ -265,3 +265,52 @@ Decision per the finding's own fix-plan option 2: keep the architecture,
 register the divergence here. The engine's per-FILE naming, attributes,
 and extents are unaffected (all MATCH rows above). Revisit only if a
 consumer needs engine-attested volume identity on the node itself.
+
+---
+
+## Session-42 S42 addendum (2026-10-29 — the N-038 field-name residual RESOLVED; the decmpfs completion residual CLOSED; N-155 filed; a decode-methodology datum recorded)
+
+Audited `869da779`-lineage (lane tip `d4776278`), corpus `be0cfe9`. Full decode:
+`evidence/decompiled-quotes/s42-hfs-forkfield-resolution.md`.
+
+- **N-038's field-name residual — RESOLVED:** the record byte +0x29 IS
+  `permissions.fileModes` byte 1 = **`ownerFlags`** (TN1150 byte-exact). The
+  resolution came from the **ushort-units discovery**: `FUN_180009940`'s record
+  parameter is `short *`, so `param_6 + N` reads are USHORT offsets (×2) while
+  the `(longlong)param_6 + N` casts are BYTE offsets — separating the two forms
+  maps all TEN reads in the branch to the TN1150 `HFSPlusCatalogFile` layout
+  exactly (fileID@+8, three dates, FinderInfo 'prdf'@+0x30,
+  dataFork.logicalSize@+0x58, dataFork.totalBlocks@+0x64,
+  resourceFork.logicalSize@+0xA8; evidence §1.1). Corroborated by the og's own
+  debug helper `FUN_18000f7b0` (its `FileSize` label reads `ushort[0x2C]` =
+  byte +0x58). The N-038 landing's semantics stand unchanged — only the
+  field-name question closes.
+- **The decmpfs completion residual (S-002's tail) — CLOSED, core-superset
+  CONFIRMED:** the og's completion site (:7835-7845) copies the attribute
+  payload, sets ONLY the node size from `value+8`, frees the payload, and
+  returns — no mode-3 inline wiring, no mode-4 rsrc-offset branch anywhere in
+  the SearchDLL's node emission. The og's recovered output for compressed
+  files is raw-rsrc-bytes-with-uncompressed-size (mode 4) or
+  size-with-no-extents (mode 3); the core's S-002 landing (kZlib codec
+  extents, writer-side inflation) is the deliberate superset. No finding.
+- **N-155 (MINOR, new):** the og's zero-logical-size fallback
+  (`dataFork.totalBlocks << 12`, hardcoded 4096) absent in the core — a
+  record with `logicalSize==0 && totalBlocks>0` sizes 0 in the core,
+  blocks×4096 in the og (the deleted/journal-record population is where it
+  bites). Fix plan + five fail-before tests in the finding file.
+- **Decode-methodology datum (the ushort-units class):** any future decode of
+  the HFS+ engine's `short *` record/key parameters MUST separate ushort-unit
+  reads from cast-first byte reads — the :7665 cite was correct only because
+  Ghidra rendered that one read with the cast-first form. Registered here so
+  the next HFS+ lane does not re-derive the ambiguity.
+- **The og's journal-copy misalignment (decode datum, deliberate non-parity):**
+  `FUN_18000fe90`'s journal-path record copy uses the fixed base
+  `keyStart + 0xC` — record-aligned only for 2-character names (the live
+  path's `ReadData` getter produces the true layout). The og's journal
+  recovered-records misread field offsets by `4 − 2×nameLen` bytes for other
+  name lengths — an og-side approximation the core must NOT replicate (the
+  D-row class; evidence §1.3).
+- **I-014's allocation-bitmap residual — still open, sharpened:** the
+  bitmap-test idiom sweep found no grade-consumer (the `>> 3` sites are
+  pointer-array math); next probe: the allocation-file object's consumer walk
+  (evidence §4).

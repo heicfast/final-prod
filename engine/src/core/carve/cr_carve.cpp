@@ -73,7 +73,7 @@ constexpr u32 kTrialOrder[] = {
     FMT_WPD, FMT_PSP, FMT_SIT, FMT_GZ, FMT_APE, FMT_AU, FMT_AIFF, FMT_LOWDOC, FMT_LOWDOC2, FMT_HLP,
     FMT_ICO, FMT_CUR, FMT_WMF_PL, FMT_WMF, FMT_TTF, FMT_MDB,
     /* M-084: the og branch order - Jet first, then the ACE generation */
-    FMT_ACCDB, FMT_TAR, FMT_EPS, FMT_AI, FMT_DXF,
+    FMT_ACCDB, FMT_TAR, FMT_EPS, FMT_AI, FMT_DXF, FMT_DXF_C999,
     /* S-041 niche batch 2, school 1 (SCAN-4): og-verified grammars;
      * FMT_3DS rides the 2-byte MM key AFTER the TIFF family (TIFF-BE's
      * 4-byte MM 00 2A key is the more specific magic at the same
@@ -110,6 +110,9 @@ constexpr u32 kTrialOrder[] = {
      * registry-order tie and the typing walk's override carries the
      * true id; these slots make the trial table exhaustive */
     FMT_XLSX, FMT_PPTX, FMT_ODT, FMT_ODS, FMT_ODP, FMT_EPUB, FMT_IWORK, FMT_HWP, FMT_CDR,
+    /* M-117: the Outlook Express Dbx keys (distinct 4-byte magics, one
+     * shared validator - the og stamps id 0x15 regardless of key) */
+    FMT_DBX_JMF6, FMT_DBX, FMT_DBX_MARKED,
     /* S-017: ftyp-destroyed MOV salvage (og MovAnalyzer list layer) -
      * LAST: the ftyp-keyed entries must claim the position first */
     FMT_MOV_NAKED};
@@ -173,6 +176,29 @@ struct ScanCtx {
      * the name composes before it). */
     std::mutex name_mtx;
     std::map<std::string, u32> name_counters;
+    /* S-048: the volume-group child cache - the lazily created per-volume
+     * FullNodes under carve_root (role = the group's display name) with
+     * their per-extension skeleton folders (role = the lowercase ext).
+     * Resume-safe: the lazy lookup searches carve_root's existing children
+     * for a matching role FIRST (a re-run never spawns a duplicate group
+     * child), then creates. Files attach to the GROUP node; the ext
+     * folders stay empty (the og's persisted shape - the real sessions
+     * carry one empty ext folder per present extension with every file
+     * directly under the volume node). */
+    /* S-048: the volume groups + the default (whole-slice) group name.
+     * groups empty + default non-empty = one group over the whole slice
+     * (the single-volume scan); both empty = no grouping (standalone
+     * callers). Borrowed pointers: carve_slice assigns its OWN copies
+     * that outlive the scan (the flags object is const& - a copy is
+     * mandatory, never a pointer into the caller's flags). */
+    std::vector<VolumeGroup> groups;
+    std::u16string default_group_name;
+    std::mutex group_mtx;
+    struct GroupNodes {
+        tree::FullNode* node = nullptr;
+        std::map<std::string, tree::FullNode*> ext_nodes;
+    };
+    std::map<size_t, GroupNodes> group_cache; /* key: the group index */
     /* S-031 residual: the wall-clock scan time stamped onto every carved
      * node's times.modified (the og persists a per-carved-file timestamp
      * string written by FUN_140c41aa0 via "%d-%d-%d %d-%d-%d" from the
@@ -379,6 +405,83 @@ private:
     const u8* win_;
     u64 len_;
 };
+
+/* S-048: the attach parent for a carved file at slice-relative pos —
+ * the volume-group child (lazily created under carve_root, resume-safe
+ * by role) with the per-extension skeleton folder created beside it.
+ * Returns carve_root when no grouping is configured or the position is
+ * outside every group (the unattributable position: never mis-attributed
+ * to a wrong volume). Called on worker threads in parallel mode: the
+ * cache and the folder creation are guarded by group_mtx; the tree's own
+ * add_folder/add_file serialize on the tree mutex. */
+static tree::FileNode* carve_attach_parent(ScanCtx& ctx, u64 pos, const char* ext) {
+    const bool has_groups = !ctx.groups.empty();
+    const bool has_default = !ctx.default_group_name.empty();
+    if (!has_groups && !has_default)
+        return ctx.carve_root; /* no grouping: the standalone-caller shape */
+    size_t gi = SIZE_MAX;
+    if (has_groups) {
+        for (size_t i = 0; i < ctx.groups.size(); ++i) {
+            const VolumeGroup& g = ctx.groups[i];
+            if (g.end > g.start && pos >= g.start && pos < g.end) {
+                gi = i;
+                break;
+            }
+        }
+        if (gi == SIZE_MAX)
+            return ctx.carve_root; /* outside every volume: unattributable */
+    } else {
+        gi = 0; /* the single whole-slice default group */
+    }
+    const std::u16string& want = has_groups ? ctx.groups[gi].name : ctx.default_group_name;
+    const std::lock_guard<std::mutex> lk(ctx.group_mtx);
+    ScanCtx::GroupNodes& gn = ctx.group_cache[gi];
+    /* the group child: lazily created, resume-safe by role (a re-run
+     * never spawns a duplicate volume child) */
+    if (gn.node == nullptr) {
+        tree::FullNode* node = nullptr;
+        for (tree::FileNode* c = ctx.carve_root->first_child(); c; c = c->next_sibling())
+            if (c->is_full() && static_cast<tree::FullNode*>(c)->role == want) {
+                node = static_cast<tree::FullNode*>(c);
+                break;
+            }
+        if (node == nullptr) {
+            node = ctx.tree->add_folder(ctx.carve_root, want);
+            if (node == nullptr) {
+                ctx.aborted.store(true, std::memory_order_relaxed);
+                return ctx.carve_root;
+            }
+        }
+        gn.node = node;
+    }
+    /* the per-extension skeleton folder (one per present extension,
+     * lowercase - the og's persisted shape; the FILES stay on the group
+     * node, the folder is the empty presentation skeleton) */
+    std::string ex(ext ? ext : "");
+    for (char& c : ex)
+        if (c >= 'A' && c <= 'Z')
+            c = char(c + 32);
+    if (gn.ext_nodes.find(ex) == gn.ext_nodes.end()) {
+        std::u16string uex;
+        for (char c : ex)
+            uex.push_back(u16(u8(c)));
+        tree::FullNode* fnode = nullptr;
+        for (tree::FileNode* c = gn.node->first_child(); c; c = c->next_sibling())
+            if (c->is_full() && static_cast<tree::FullNode*>(c)->role == uex) {
+                fnode = static_cast<tree::FullNode*>(c);
+                break;
+            }
+        if (fnode == nullptr) {
+            fnode = ctx.tree->add_folder(gn.node, uex);
+            if (fnode == nullptr) {
+                ctx.aborted.store(true, std::memory_order_relaxed);
+                return gn.node;
+            }
+        }
+        gn.ext_nodes.emplace(ex, fnode);
+    }
+    return gn.node;
+}
 
 /* Scan ONE window [base, base+want) fully (magic dispatch, validation,
  * dedup, emit). Returns OK, or ERR_CANCELLED when aborted mid-way. */
@@ -621,7 +724,11 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 ci.confidence = u16(props->carve_confidence); /* 0..1000: fits u16 */
                 ctx.flags->post_processor->on_candidate(ctx.slice, ci);
             }
-            tree::FileNode* n = ctx.tree->add_file(ctx.carve_root, props);
+            /* S-048: the file attaches to its volume's group child (the
+             * og's persisted shape: Reconstructed/<volume>/<files>, the
+             * per-ext skeleton folders empty beside them) */
+            tree::FileNode* n =
+                ctx.tree->add_file(carve_attach_parent(ctx, cand_abs, eff.ext), props);
             props->release();
             if (n == nullptr) {
                 ctx.aborted.store(true, std::memory_order_relaxed);
@@ -791,7 +898,8 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                         if (us->mime[0] != 0)
                             for (const char* mp = us->mime; *mp; ++mp)
                                 props->carve_note.push_back(u16(u8(*mp)));
-                        tree::FileNode* n = ctx.tree->add_file(ctx.carve_root, props);
+                        tree::FileNode* n =
+                            ctx.tree->add_file(carve_attach_parent(ctx, start_abs, us->ext), props);
                         props->release();
                         if (n == nullptr) {
                             ctx.aborted.store(true, std::memory_order_relaxed);
@@ -1002,7 +1110,8 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 ci.confidence = u16(props->carve_confidence); /* 0..1000: fits u16 */
                 ctx.flags->post_processor->on_candidate(ctx.slice, ci);
             }
-            tree::FileNode* n = ctx.tree->add_file(ctx.carve_root, props);
+            tree::FileNode* n =
+                ctx.tree->add_file(carve_attach_parent(ctx, start_abs, fmt.ext), props);
             props->release();
             if (n == nullptr) {
                 ctx.aborted.store(true, std::memory_order_relaxed);
@@ -1106,6 +1215,10 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
     ctx.carve_root = carve_root;
     ctx.dedup_tree = dedup_tree;
     ctx.namer = namer;
+    /* S-048: the volume grouping (copies - the flags object is const&
+     * and the caller's stack frame may not outlive the parallel scan) */
+    ctx.groups = flags.volume_groups;
+    ctx.default_group_name = flags.volume_group_name;
     ctx.total = slice->size();
     ctx.ext_base = slice->absolute_base(); /* GAP-S6-8: disk-absolute basis */
     /* M-005: the allocation-bitmap gate (nullable; slice-relative basis -

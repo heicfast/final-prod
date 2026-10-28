@@ -53,18 +53,29 @@ version comparison in the fetcher; a latest below the floor fails loudly with
 the explanation (it would classify `Errored` through the core's status query
 regardless — belt and suspenders).
 
-**Install posture on runners:** test-signed with a job-local self-signed cert
-(`New-SelfSignedCertificate -Type CodeSigningCert` → `LocalMachine\Root` +
-`LocalMachine\TrustedPublisher` → `signtool sign /fd SHA256`), installed via
-the release's own `install.ps1 -ServiceName rda -Source rda.sys` — the
-mechanism proven on windows-2022 by the historical api-benchmark lane's
-real runs (40227375329, 40315255368; that lane was deleted by the
-consolidation — the current provers are `test-benchmark.yml`'s
+**Install posture on runners:** the release's `rda.sys` arrives ALREADY
+test-development-signed with the repo's **persistent dev certificate**
+(`release.yml`'s "Test-development-sign the driver (persistent dev
+certificate)" stage: GitHub secrets `DEV_SIGN_CERT_PFX_B64` +
+`DEV_SIGN_CERT_PASSWORD`, CN=RRECOV-DEV-SIGN, 3-year self-signed); the
+public cert ships as the `rda-test-sign.cer` release asset and is imported
+into `LocalMachine\Root` + `LocalMachine\TrustedPublisher` **before**
+install (`Install-ReleaseDriver.ps1:6-11`) — that is the entire trust story
+on HVCI-off runners (windows-2022 = the execution-validated class), no
+bcdedit/testsigning, no reboot, and the signature is verified
+(`Get-AuthenticodeSignature` → Valid) before any kernel load attempt.
+Install goes through the release's own `install.ps1 -ServiceName rda
+-Source rda.sys` — the mechanism proven on windows-2022 by the historical
+api-benchmark lane's real runs (40227375329, 40315255368; that lane was
+deleted by the consolidation — the current provers are `test-benchmark.yml`'s
 Install-ReleaseDriver.ps1 stage and `installer.yml`'s round trip, e.g. run
-40549660074's sign → install → RUNNING → control round-trip → uninstall
-transcript) — no test-signing boot mode required.
+40549660074's trust-import → install → RUNNING → control round-trip →
+uninstall transcript). The earlier job-local self-signed-cert mechanism
+(`New-SelfSignedCertificate` per run) was superseded by the persistent
+dev-cert model — recorded here per I-026's S11B cite-refresh addendum.
 Signing posture is documented truthfully per release (DRIVER-RELEASE §7:
-unsigned-by-design artifacts, CI test-signs for load).
+unsigned-by-design kernel artifacts, the dev-sign stage is release-pipeline
+consumption-time signing for test/CI load, not a vendor signature).
 
 **The v0.2.4 deployer contract (S-036/M-060/M-061/M-062/M-064 closed):** both
 live fetch sites (`release.yml`'s driver tier and `installer.yml`) pin

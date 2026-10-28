@@ -21,3 +21,12 @@ Each is a vendored codec stack (10^5+ lines) whose integration re-opens the Win7
 2. Vendor under third_party/ with the import-surface inventory (which Win32 APIs each touches) filed as an audit artifact.
 3. Extend scripts/gen_thumbnail_fixtures.py per family (real .heic/.webp/.pdf/.mp4 fixtures) + the hostile-noise refusals.
 4. Record the layer decision for video (in-engine vs the host-callback seam) in modules/preview.md BEFORE implementing (the og's split is UI-layer).
+## Session-40 disposition note (2026-10-29)
+
+Still OPEN, scope unchanged and still honest: each half is a vendored codec stack
+with its own Win7-inclusive import-gate audit (libheif first, per the recorded step).
+Verified current this session: the refusals remain BY NAME (thumbnail_format_supported
+false for HEIC/WebP/PDF/video - no silent degrade), and the preview module's layer
+decision for video (the og's out-of-process agent split is UI-layer) stays the
+recorded pre-implementation requirement. Nothing new to resolve; the next concrete
+step stands verbatim.
