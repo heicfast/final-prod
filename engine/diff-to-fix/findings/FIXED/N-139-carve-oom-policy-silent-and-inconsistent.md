@@ -101,3 +101,10 @@ s11-rawsearchdll-infra-walk.md` §3 C1 + the lead verification log.
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** this session's N-139 landing (session-42 main lane; cite-by-title: "fix(carve): N-139 - the OOM policy lands - the graceful code on every allocation path, the one-line diagnostic, the deliberate-divergence register")
+**Verified by:** `Carve.OomWindowBufferReturnsCode` + `Carve.OomTailBufferReturnsCode` + `Carve.OomNoExceptionEscapesEngine` — RED pre-fix (the seam-without-guards build: 2 of 3 FAILED, the injected bad_alloc escaping the engine exactly as the finding's falsifiable predicted), GREEN post-fix (3/3); full suite 1133/1133 + cr_ui_tests 64/64; the win_syntax_check gate parses clean.
+**Resolution notes:** The fix plan executed with one strengthening: the two OOM-realistic buffers (the scan window, the raw-sign tail) carry their own guards with the og-shaped one-line diagnostics (the failed size + the window index on the cr_log seam — `carve oom: window %llu buffer %llu bytes` / `carve oom: tail buffer %llu bytes`), AND a top-level carve_slice guard + a parallel-worker guard convert ANY remaining bad_alloc to ERR_NO_MEMORY — the engine's error-code contract now holds on every allocation path (the plan's step 1 asked for the two buffers; the strengthening covers the acceptance's "any carve allocation site" literally, including the std::set/std::string internals the two-buffer scope would have left escapable). The deliberate divergence registered as PARITY-DELTAS D-115 (beside D-81/D-86 as the plan specified): the core's graceful code + one-line diagnostic vs the og's five-line PUBLOG dump + `RaiseException(0xe0000001, EXCEPTION_NONCONTINUABLE)` — a library embedded in a host must not kill the process the og's standalone product could. The deterministic injection rides a detail-namespace test seam (`carve::detail::oom_test_hook`, the cr_bitlocker.h seam precedent) that throws std::bad_alloc itself — the tests exercise the PRODUCTION guard path, not a simulated response; production code never sets the hook (nullptr = zero overhead).

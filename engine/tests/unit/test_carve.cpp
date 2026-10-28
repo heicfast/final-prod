@@ -9470,6 +9470,30 @@ TEST(Carve, HikDirectPrivateStreamAccepted) {
     size_t p = at + plant_ps_pack(img, at);
     p += plant_pes(img, p, 0xBD, 0x18); /* direct private_stream_1 */
     const size_t expected_end = p;
+/* ---- N-139: the carve OOM policy - the graceful code, never an escaped
+ * exception, with the og-shaped one-line diagnostic ---- */
+
+namespace {
+
+/* N-139: the deterministic OOM injection - the detail seam throws
+ * bad_alloc exactly as a real allocation failure would, so the tests
+ * exercise the PRODUCTION guard path (the try/catch + the conversion +
+ * the diagnostic) without poisoning the process-wide allocator. */
+struct ScopedOomHook {
+    ScopedOomHook() { carve::detail::oom_test_hook = [](size_t) { return true; }; }
+    ~ScopedOomHook() { carve::detail::oom_test_hook = nullptr; }
+};
+
+} // namespace
+
+TEST(Carve, OomWindowBufferReturnsCode) {
+    /* N-139: an allocation failure at the window buffer yields the
+     * ERR_NO_MEMORY code with the one-line size/window diagnostic -
+     * never a silent failure, never an escaped exception (the og's
+     * log-then-die policy is the registered deliberate divergence,
+     * PARITY-DELTAS D-115). */
+    std::vector<u8> img(64 * 1024, 0);
+    plant_png(img, 4096);
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
     auto* root = tree.add_root(u"Lost Files");
@@ -9500,6 +9524,26 @@ TEST(Carve, HikGenericPsNotShadowed) {
     p += plant_ps_pack(img, p);
     p += plant_pes(img, p, 0xE0, 0x30);
     const size_t expected_end = p;
+    CarveStats s;
+    u32 rc = OK;
+    {
+        ScopedOomHook oom;
+        rc = carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr,
+                         nullptr, s);
+    } /* hook reset: the assertions below may allocate */
+    EXPECT_EQ(rc, u32(ERR_NO_MEMORY)) << "the OOM code, not an exception";
+}
+
+TEST(Carve, OomTailBufferReturnsCode) {
+    /* N-139: the tail-scan buffer site - the same guard, the same code.
+     * The tail buffer only allocates on the raw-sign path (a format with
+     * min < max whose candidate is found), so this plants the corpus
+     * "sample" shebang; the hook is gated to the tail buffer's fixed
+     * 1 MiB + kMaxSignBytes footprint so the small window buffers pass
+     * and the failure fires exactly at the tail site. */
+    std::vector<u8> img(64 * 1024, 0);
+    const char shebang[] = "#!/bin/sh\n";
+    std::memcpy(img.data() + 4096, shebang, sizeof(shebang) - 1);
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
     auto* root = tree.add_root(u"Lost Files");
@@ -9579,6 +9623,28 @@ TEST(Carve, MpegPsPesLengthsAreBigEndian) {
     img[p + 3] = 0xB9;
     p += 4;
     const size_t expected = p - at;
+    CarveStats s;
+    u32 rc = OK;
+    {
+        carve::detail::oom_test_hook = [](size_t bytes) {
+            /* the tail buffer is 1 MiB + kMaxSignBytes; the window buffer
+             * for this small image is <= 1 MiB + overlap (WINDOW is
+             * 1 MiB, want clamps to the 64 KiB device) */
+            return bytes >= (1ull << 20);
+        };
+        rc = carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr,
+                         nullptr, s);
+        carve::detail::oom_test_hook = nullptr;
+    }
+    EXPECT_EQ(rc, u32(ERR_NO_MEMORY)) << "the tail-site failure converts too";
+}
+
+TEST(Carve, OomNoExceptionEscapesEngine) {
+    /* N-139 acceptance: no exception escapes the engine on any allocation
+     * path - the parallel workers included (the worker guard converts
+     * bad_alloc to the code; parallel_for's own edge is the backstop). */
+    std::vector<u8> img(32 * 1024, 0);
+    plant_png(img, 4096);
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
     auto* root = tree.add_root(u"Lost Files");
@@ -9597,4 +9663,21 @@ TEST(Carve, MpegPsPesLengthsAreBigEndian) {
     EXPECT_EQ(n->props()->carve_format, u64(FMT_MPEGPS));
     EXPECT_EQ(n->props()->logical_size, expected)
         << "the BE u16 lengths walked exactly (the LE misread would inflate by 0x21DE)";
+    flags.threads = 3;
+    CarveStats s;
+    bool escaped = false;
+    u32 rc = OK;
+    {
+        ScopedOomHook oom;
+        try {
+            rc = carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr,
+                             nullptr, s);
+        } catch (...) {
+            escaped = true;
+        }
+    }
+    EXPECT_FALSE(escaped) << "the engine's error-code contract holds on the worker path";
+    EXPECT_TRUE(rc == u32(ERR_NO_MEMORY) || rc == u32(OK))
+        << "a code every time (a worker OOM yields the code; a racing "
+           "completion may return OK when every window finished first)";
 }

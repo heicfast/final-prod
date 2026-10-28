@@ -3532,3 +3532,24 @@ per-analyser fixtures; porting a config key that ships unset would add
 a dead surface the og itself never exercises in production. Evidence:
 I-031's S11-R addendum (both sites read first-hand); corpus
 RAWSearchDLL_decompiled.c :3013-3056, :9842-9893.
+
+### D-115 — carve OOM: the graceful error code + one-line diagnostic, not the og's log-then-die (N-139 resolution rider, REGISTERED DIVERGENCE — a library must not kill the host)
+
+The og's carve engine treats allocation failure as a hard, loudly-diagnosed
+terminal event: the DLL's global operator new (`RAWSearchDLL:958-983`) logs
+a five-line PUBLOG memory dump (the failed size + the full
+physical/pagefile status via GlobalMemoryStatusEx) and then
+`RaiseException(0xe0000001, EXCEPTION_NONCONTINUABLE, ...)` — process
+death with a forensic trail; DRWUI carries the identical policy
+(`:94179`), so log-then-die is the product's OOM contract, with no
+handler anywhere. The core deliberately diverges: every carve allocation
+failure converts to `ERR_NO_MEMORY` (the two OOM-realistic buffers — the
+scan window and the tail-scan buffer — carry the failed size and window
+index in a one-line `cr::log` Error diagnostic on the D-81/D-86 seam; a
+top-level guard converts any remaining `bad_alloc` so the engine's
+error-code contract holds on every path, worker threads included). A
+library embedded in a host UI must not kill the process the og's
+standalone product could; the diagnostic preserves the og's
+field-diagnosability intent at the core's logging seam. Evidence: the
+N-139 Resolution + `Carve.OomWindowBufferReturnsCode` /
+`Carve.OomTailBufferReturnsCode` / `Carve.OomNoExceptionEscapesEngine`.
