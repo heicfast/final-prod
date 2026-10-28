@@ -3179,3 +3179,26 @@ Stage Summary:
 ### M-077's Resolution record (session-10, this lane — retired per the purge convention)
 
 **Status:** FIXED · **Commit:** af5ca4d · **Verified by:** Preview.M077SizeGate100MiB (RED pre-fix) + Preview.M077TimeGuardDefaultsOnAndOverridable; suite 1035/1035. **Notes:** Caps::max_file_bytes = 100 MiB (the eligibility gate, refuses before any read, truncated-disclosed) + Caps::max_decode_ms = 15000 (the fetch-heartbeat steady-clock deadline; UINT32_MAX disables); zero-init = ON (product policy); the ABI inherits through the existing Caps{} call site; M-028's 4 MiB read/work budgets unchanged beneath.
+---
+## Session-11-lead territory claim + message-truth correction (post-rebase, at f166440b)
+
+**Message-truth correction:** the f166440b commit MESSAGE is the pre-reconciliation
+draft (it describes the wrong N-129 direction, the N-136 draft ID, and the 53-active
+board); the commit CONTENT is the reconciled truth (N-129 lane-B-keeps / N-135
+wave-3; the N-137 filing; the OQ-S10-3 renumber; the 51-active board). The rebase
+--continue accepted the original message unchanged (dumb-terminal EDITOR). This note
+is the truth record — the content, not the message, is authoritative (the same
+standard the findings hold the product docs to).
+
+**Territory claimed by THIS lane (session-11-lead, the AUDIT lane — complementary
+to the fix lanes' claims):** the go-deeper audit waves — (1) the RAWSearchDLL
+infrastructure + six-family function-level walk vs core's carve/registry; (2) the
+og-codebase config/data assets never compared (FileFilter.xml / DataFile.ini /
+raw_signs.json / Dict/ / EUUserData / remote_config_data / EuShare config surfaces);
+(3) the seven non-searchdll ghidra trees' never-cited function space (drwui / core /
+misc / local / wave2 / mo / partition / drivers / repair); (4) the core-side
+stand-in / recorded-follow-up comment register (beyond M-107's ten size-walk sites);
+(5) the OQ-S11-1 promotion-guard decode (DRWUI:422508-511). Filings from these waves
+cite this claim; the fix lanes' claimed findings (11D's SEVERE tier, 39's MINOR/INFO
+tiers, 39B's MAJOR preview/query/ABI cluster) are NOT re-audited by this lane beyond
+the remove-the-fixed verification already landed.
