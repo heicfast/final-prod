@@ -119,3 +119,19 @@ the on-disk lines). Consumers: M-121/M-120 (FIXED — this decode is the supplem
 anchor), N-158 (the QSDE semantics answered under Q2 — the bit is the claimed flag, the
 deleted split rides the other counters), M-119 (UNAFFECTED — the vt+0x100 code space is
 the VolumeAnalyze per-volume family, not the partition-boundary semantics).
+
+## Session-52 update (2026-10-29 — the M-134 landing)
+
+The deep read itself LANDED (findings/FIXED/M-134): the reader, the two
+threshold rules, the graded-bit one-shot, and the full-tree re-grade shape.
+What remains for this OQ is exactly the pre-check trio at :606355-361 —
+`FUN_1401bc5a0(mgr, node, addr) ∧ bit-7-of-+0x72 ∧ ¬bit-2-of-+0x74` → the
+presumptive grade-0 WITHOUT reading. This session's control-flow decode adds
+two constraints for the next probe: (1) the trio's failure path goto-target
+is the read logic (LAB_14038c622) — i.e., a failing pre-check is a SKIP of
+the presumptive demote, not a skip of the whole function; (2) the "graded"
+mark (FUN_140389540) sits at the epilogue — the presumptive path DOES fall
+through to it. Next probe sites: FUN_1401bc5a0's predicate body (the manager
+lookup keyed on the node), and the +0x72/+0x74 flag setters (search the
+props-builder for the byte writes — the bit-2-of-+0x74 "deep-read-skip"
+readiness flag and the bit-7-of-+0x72 candidate flag).

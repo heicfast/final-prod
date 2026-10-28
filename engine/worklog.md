@@ -7891,3 +7891,27 @@ it). The +2 count drift is explained in the annotation (two tests landing betwee
 the fix-lane's run and the hygiene commit). Code was already green at HEAD; this is
 record-truth only. Trail: findings/FIXED/N-185 + ledger row + matrix row + this
 entry.
+
+## Session-52 lane — M-134 landed (2026-10-29)
+
+**M-134 FIXED (MAJOR — the deep-read grade + the full-tree re-grade).**
+FUN_14038c470 re-read in full + the call-site twin-key arithmetic (:605798 —
+the deep read's addr IS the node's twin key, which settles the address
+semantics: the read at key−1 = the extent's LAST sector; key==0 reads the
+reader's sector 0). The landing: GradeReader (the plain-C sector callback)
+on GradeContext, wired at the orchestrator with the scan's own slice;
+deep_read_grade (first-32-zero/first-4-0xFF → Low; the final sector's
+16-zero tail → High; the overlap skip; the null-reader bail; the
+nonzero-index failed-read class [the shifted kinds' keys land outside any
+reader in the og — the read fails, the grade never changes; the core skips
+the same population]); pass 3 in grade_tree for unflagged S-058 candidates;
+the graded-bit mark placed exactly where the og places it (not for flagged
+nodes, not on the null-reader bail, yes on failed reads); regrade_node
+re-enters the full per-node path (solo + the S-058 gate + the deep read)
+behind the one-shot gate. The twin re-lookup documented-skipped (the
+stable-tree argument: the og's persistent map can only re-discover what the
+completion pass flagged). The pre-check trio stays OQ-S42-3 (updated with
+the two new control-flow constraints). Tests (8): the 4 RED behavior tests
++ the control/overlap/Fat16-skip pins + the one-shot re-grade test; suite
+1379/1379 (linux-release). Trail: findings/FIXED/M-134 + ledger row + matrix
+cell + orchestration.md row + the OQ-S42-3 update + this entry.
