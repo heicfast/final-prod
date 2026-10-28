@@ -63,30 +63,11 @@ Core-derived (lead auditor read the span math + the gate). Arithmetic: 0 − 5 +
 ## Open questions
 
 The og's own span consumption (OQ-1) — the artifacts to decode are listed in the lane
-sheet; resolving it upgrades this to MATCH or a parity divergence. (Session-44 note:
-still open — the fix below is the core-side honesty gate the finding demanded regardless;
-the og-side decode remains on M-123's OQ list.)
+sheet; resolving it upgrades this to MATCH or a parity divergence.
 
 ## Resolution
 
 **Status:** FIXED
-**Fixed in commit:** (this session's N-161 landing — post-push SHA in the ledger row and worklog entry)
-**Verified by:** `Gpt.EntryLastLbaBeforeFirstLbaSkippedAndCounted` (RED pre-fix: the corrupt
-entry [type GUID set, first=5, last=0] emitted as a second partition with the wrapped
-0xFFFFFFFFFFFFFFFC sector count — the masquerade reproduced exactly as filed; post-fix:
-1 partition, `gpt_invalid_entries == 1`) + `Gpt.EntrySpanOverflowBoundary` (first=0,
-last=UINT64_MAX: first≤last holds so the invalid-span counter does NOT tick; the +1
-wraps the count to 0 and the existing zero-span gate drops it — the two-gate seam
-pinned on both sides). Suite 1205/1205 green (1203 prior + 2 new, linux-release).
-**Resolution notes:** The gate landed exactly per the fix plan step 1: `emit_gpt_entries`
-now checks `e.last_lba < e.first_lba` after the used-test, increments the new
-`DiskTable::gpt_invalid_entries` counter, and continues without emitting. The counter
-is surfaced through `ScanStats::gpt_invalid_entries` (copied at the whole-disk
-target-set parse site, cr_scan.cpp) so a hostile image reads as named-invalid rather
-than landing unnamed in `table_volumes_skipped`. All three emission paths (verified
-primary, salvaged primary, backup) share the lambda, so the gate covers every side.
-No safety hardening touched (this IS one — the honesty doctrine's named-invalid over
-silent wrap). The og-side OQ stays open on M-123's decode list; if the og later proves
-to validate the same shape, this converges to MATCH, and if it shares the wrap defect,
-the gate stays as a documented deliberate hardening (PARITY-DELTAS candidate at that
-session).
+**Fixed in commit:** (this session's N-161 landing, session-47 minors lane — post-push SHA in the worklog entry)
+**Verified by:** `Gpt.EntryLastLbaBeforeFirstLbaSkippedAndCounted` + `Gpt.EntrySpanOverflowBoundary` — both RED pre-fix at `fa654673` (the underflowed entry emitted as a giant volume: `t.partitions` non-empty with the wrapped sector_count, counter 0) and GREEN post-fix (no emission, `gpt_invalid_entries == 1` on both the last<first shape and the first=0/last=UINT64_MAX wrap boundary); the full Gpt family + `Orchestrator.WholeDisk*` re-run green (20/20); suite re-verified green at the session's close sweep.
+**Resolution notes:** The gate landed exactly as the fix plan specified: `emit_gpt_entries` (cr_table_parse.cpp) now rejects any used entry with `last_lba < first_lba` OR a span that wraps at the 2^64 boundary (`last - first == UINT64_MAX`, the first=0/last=UINT64_MAX shape the finding's own boundary test names), incrementing the new `DiskTable::gpt_invalid_entries` counter (u32, comment-documented as per-emission-path — a damaged-primary salvage plus a backup emission can count the same corrupt entry twice) instead of letting the wrapped count masquerade as a volume. The counter surfaces in `ScanStats::gpt_invalid_entries` at the whole-disk target-parse site (cr_scan.cpp), populated from the same parse that feeds the scan. The finding's own scope note is preserved: this is the core's honesty doctrine (corrupt entries named invalid, counted, never silent), NOT a parity claim — the og's span consumption remains undecoded (OQ-1), so no PARITY-DELTAS row is added and the MATCH-vs-divergence question stays open exactly as the finding recorded it. No contract change: `DiskTable` and `ScanStats` both gained append-only fields with zero-init defaults (old session files and old readers unaffected).

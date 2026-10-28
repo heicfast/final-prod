@@ -1,19 +1,24 @@
-## Session-44 minors lane (2026-10-29 — the minor-first diff-fix execution lane, per the user's operative directive; T1 baseline: core `9807934` at open (the N-172/N-173 landing), corpus `be0cfe9`; prompt saved to worklog/session-diff-fix-44-minors-prompt.md; board at open: 1 ACUTE · 9 SEVERE · 28 MAJOR · 32 MINOR · 7 INFO active + 6 tracked-open; suite 1203 green at open (1161 pass / 42 win-skip / 0 fail), build linux-release with CR_ENABLE_TESTS=ON; REBRAND NOTE at the push reconciliation: the S45..S51 parallel seats pushed first — this lane's S44 branding kept per both-sides-records-kept; the S46 claim on the MINOR set is noted, first verified FIX PUSH retires a seat per the S49 house rule — N-161 landed here first)
+**Session-44 minors lane — N-161 CONVERGENT-DU with the S53 landing (their `e0f15e0` wins per SA-9; this lane's byte-equivalent gate rides as the convergence addendum).** This lane independently verified and fixed N-161 (RED proven pre-fix: the corrupt entry [first=5, last=0] emitted the wrapped 0xFFFFFFFFFFFFFFFC partition; gate + `gpt_invalid_entries` counter + the same two test names landed locally), then hit the hot-window reconciliation: the remote's S53 lane (the S46 MINOR-claim continuation) pushed their own N-161 landing first — a superset (their gate also names the 2^64-boundary wrap `last − first == UINT64_MAX` invalid, where this lane's version left it on the zero-span side of the seam). Convergence resolution: the S53 code + S53 tests kept wholesale (this lane's duplicate test block and duplicate surfacing line removed; the two-gate-seam expectation superseded by the superset's counter==1 pin); this lane's independent RED reproduction stands as the corroboration record. The finding file's Resolution keeps the S53 record; this entry is the convergence documentation.
 
-- **T1/T2/T3/T4 complete** — both repos pulled (core at `9807934`, corpus at `be0cfe9` — both fresh at open); the diff-to-fix board read in full (README lane history, SEVERITY-SCALE, the open set per tier); the core built clean (linux-release, cmake 4.4.4 via pip — note: system cmake absent, `~/.venv/bin/cmake`); the full unit suite ran green at open: 1203 tests (1161 pass / 42 skip / 0 fail) in 69.7 s. The lane's fix order per the user directive: MINOR (32 open) → INFO (7) → TRACKED-OPEN (6) → MAJOR (28) → SEVERE (9) → ACUTE (1), one finding per verified fix per push. The S47/S48..S50 window's retirements (A-014 + M-124 + I-041..I-044) absorbed at this lane's first push rebase.
+**S53 lane (the S46 MINOR-first claim continued, 2026-10-29; renumbered from the
+S47→S52 drafts at two hot-window merges — the remote's S47..S52 seats pushed first per SA-9):**
+the S46 claim is executed by this lane (same mandate, same MINOR-first directive, no fixes
+landed between the claim commit `fa654673` and this lane's open). Baseline at open:
+linux-release build green, suite **1273/1273**. Mandate saved token-redacted at
+`worklog/session-diff-fix-s52-prompt.md` (the s47-named draft renumbered with the lane).
 
-- **N-161 FIXED** — the GPT entry-span underflow: `emit_gpt_entries` now gates `first_lba ≤ last_lba`
-  before the span math; a corrupt inverted entry (first=5, last=0) is counted in the new
-  `DiskTable::gpt_invalid_entries` (surfaced through `ScanStats::gpt_invalid_entries` at the
-  whole-disk target-set parse) instead of wrapping to sector_count 0xFFFFFFFFFFFFFFFC and
-  masquerading as a giant volume. RED proven pre-fix (the corrupt fixture emitted the second
-  wrapped partition exactly as filed); GREEN post-fix. The overflow boundary (first=0,
-  last=UINT64_MAX) pinned on the zero-span side of the seam (not an inversion; the +1 wraps
-  to 0; the existing gate drops it). All three emission paths share the gated lambda. Tests:
-  `Gpt.EntryLastLbaBeforeFirstLbaSkippedAndCounted` + `Gpt.EntrySpanOverflowBoundary`.
-  Suite 1205/1205 (linux-release). Audit trail: finding Resolution + move to findings/FIXED/,
-  matrix MINOR row, lost-partition module doc, SUMMARY Session-44 delta.
-
+- **N-161 FIXED** — the GPT entry-span underflow: `emit_gpt_entries` now gates
+  `last_lba < first_lba` (and the 2^64-boundary wrap `last - first == UINT64_MAX`)
+  before emission, counting the corrupt entry in the new `DiskTable::gpt_invalid_entries`
+  (surfaced in `ScanStats` at the whole-disk parse site) instead of letting the wrapped
+  ~2^64 sector_count masquerade as a giant volume. Tests:
+  Gpt.EntryLastLbaBeforeFirstLbaSkippedAndCounted + Gpt.EntrySpanOverflowBoundary, both
+  RED pre-fix at `fa654673` (the wrapped entry emitted; counter absent/0) and GREEN
+  post-fix; the Gpt family + WholeDisk orchestrator legs green (20/20). The finding's
+  scope note preserved: core-side honesty doctrine, the og's span consumption stays
+  undecoded (OQ-1) — no parity claim, no PARITY-DELTAS row. (The N-161 landing rode
+  the pre-merge tree; the M-124 EBR-0x85 window merged clean around the GPT gate —
+  both edits verified coexisting in the merged tree, suite re-run green below.)
 **S48 lane progress (INFO board COMPLETE — 6 of 6 dispositioned by this lane):**
 I-044 (f0163182 — the scan-mode register: C1/A1/A5 annotated, D-36 citation fixed, errata row),
 I-043 (D-122 — the state-ownership improvement registered), I-042 (module-registered pause

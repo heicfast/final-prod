@@ -79,12 +79,14 @@ struct DiskTable {
      * unreadable/invalid EBR link (0 when the chain is whole). */
     EbrChainStatus ebr_status = EbrChainStatus::None;
     u64 ebr_break_lba = 0;
-    /* N-161: corrupt-entry honesty — GPT entries skipped because their
-     * span is inverted (last_lba < first_lba; the subtraction would wrap
-     * to a near-u64-max sector count that masquerades as a giant
-     * volume). Counted here, never emitted; surfaced through ScanStats
-     * so a hostile image reads as named-invalid, not silently skipped
-     * downstream. */
+    /* N-161: GPT entries rejected by the span gate — a corrupt entry
+     * whose last_lba < first_lba (or whose span wraps to 0 at the
+     * 2^64 boundary) previously underflowed to a giant sector_count
+     * that slipped past the != 0 check and masqueraded as a volume;
+     * the gate names it invalid instead. Diagnostic counter: a damaged
+     * primary whose entries salvage AND the backup also emits can count
+     * the same corrupt entry from both sides — the count is per
+     * emission path, not per unique entry. */
     u32 gpt_invalid_entries = 0;
 };
 
