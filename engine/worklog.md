@@ -1855,3 +1855,20 @@ Order: M-088 (docs, quick) -> M-082 -> M-101 -> M-100 -> the MINOR
 batch -> INFO/tracked-open. Re-pull before every push; convergences
 reconciled per the M-071 pattern (the landed fix stands; unique
 evidence donated on top).
+
+## Fix session — territory declaration (post-S-044, for the parallel lanes)
+
+Reading the pushed worklogs (fix-lane claims the thumbnail family + image
+create; DFX-38 claims M-088/M-082/M-101/M-100 + the non-thumbnail/carve
+MINORs + INFO + tracked-open; SA-10B claims real-rsf mining/data-table
+parity/product-frame census): **this lane takes the CARVE lane** — S-047
+(the MPEG-TS/M2TS sync-scanner seam), the S-041 school-2/3 children
+(M-092 HTML, M-093 XML+SVG, M-096 MOBI, M-098 HIK, M-099 AEP, N-111 JP2,
+N-112 LZH, N-113 the text school, N-115 OfficeTagFromXML), the batch-1
+verification failures M-090 (DMG koly walk) / M-091 (MDB page chain) /
+M-084 (ACCDB second signature) / M-085 (TIFF LZW, if it lands on the
+carve side) / N-093 (batch-1 bounds), and the carve-side MINORs not
+claimed by DFX-38. S-044 was claimed by the fix-lane's worklog but landed
+here first (`7b7e095`) — the gates + tests + D-105/D-106 registrations
+are on main; the fix-lane should re-verify against the landed state per
+the SOP before touching it.
