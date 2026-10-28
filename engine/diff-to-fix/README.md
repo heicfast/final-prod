@@ -21,7 +21,7 @@ population-site read); the S-050→S-051 collision repair (convergent with the r
 SA-10 close). Executed ground-truth: the three real SaveScan .rsf files parsed
 first-hand — the container grammar byte-confirmed, no erratum
 (`evidence/executions/s10-rsf-ground-truth.md`). Board after the push: **54 active
-(6 SEVERE · 24 MAJOR · 19 MINOR · 5 INFO) / 279 resolved / 4 tracked-open**. Next
+(6 SEVERE · 24 MAJOR · 19 MINOR · 5 INFO) / 281 resolved / 4 tracked-open**. Next
 IDs: S-053+, M-109+, N-133+, I-031+, A-012+.
 
 

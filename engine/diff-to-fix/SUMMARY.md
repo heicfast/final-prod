@@ -47,7 +47,7 @@ SA-10 close made the same repair independently).
   N-113/N-115).
 
 **Board after the lane-B push: 54 active** (6 SEVERE · 24 MAJOR (-M-100 +M-108) ·
-**19 MINOR** (+N-129..N-132) · 5 INFO) · **279 resolved** (FIXED-LEDGER) ·
+**19 MINOR** (+N-129..N-132) · 5 INFO) · **281 resolved** (FIXED-LEDGER — 280 rows at the final rebase point + M-100 this push) ·
 **4 tracked-open** (OQ-S4-3, OQ-S8-1, OQ-S10-1, OQ-S10-2). **Recommended fix order
 contribution:** M-108 first (the BOM head-gate fix is one branch; user-visible on the
 most common Windows text shapes), then the N-129/N-132 gate-doc mechanical pass, then
