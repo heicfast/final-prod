@@ -1,3 +1,15 @@
+**Session-49 lane territory claim (coordination contract, 2026-10-29 UTC):** this lane
+(the user's explicit session directive: "Fix all the audit findings (priority to acute
+first) one by one... aim for 20+ fixes") claims **A-014** (the open ACUTE board) and the
+SEVERE tier **S-040, S-050, S-055, S-056, S-057, S-058, S-059, S-060, S-061** — the set
+the S45 lane claimed 40+ minutes ago with zero landings; per the house earlier-push-wins
+rule the first verified FIX PUSH retires a seat, not the claim. If S45 (or any sibling
+lane) lands a fix first, this lane converges (independent verification documented) and
+moves on. After the SEVERE tier, this lane descends into the MAJOR tier under
+earlier-push-wins against S47/S48 (top-down: M-073 first) and then the MINOR set against
+S46. Every push pulls first; one finding, one push; every fix RED-test-first. Target:
+20+ dispositions this session. Audited pin: core `0d7b1d9d`, corpus `be0cfe9`.
+
 **Session-48 lane territory claim (coordination contract, 2026-10-28 22:31 UTC):** this lane
 (INFORMATIONAL-first per the user's explicit session directive — the same mandate tier as the
 parallel S47 lane, which swept top-down 4 minutes ago; this lane takes the MIRROR SWEEP,
