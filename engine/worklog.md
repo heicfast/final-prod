@@ -752,3 +752,21 @@ Agent: api-exp lane (this session)
   section 5.5 (auto_<vol>_<M>_<D>_<H>_<m>_<s> naming, the N-061
   auto_session_name already landed; what is missing is the ScanConfig
   trigger + the completion write + the event/stats surfacing).
+
+---
+Task ID: API-EXP-1 (W1c landing record + the Wave-1 completion note)
+Agent: api-exp lane (this session)
+
+- Landed `c95335f` (feat(scan)): R-52 the completion auto-save. Wave 1
+  of the plan of record is now COMPLETE - W1a (R-56 the session list,
+  78a6552/eb16335), W1b (R-54 the load progress + cancel, ce6bcb0),
+  W1c (R-52, c95335f) - all three SaveScan-parity rows flipped DONE on
+  the S3 board, every landing corpus-cited and locally green.
+- The remaining plan-of-record board for the next session/lane: Wave 2
+  (S3-W2a the query path_substring + state_mask axes, R-22; S3-W2b the
+  scan-time folder filter, R-14), Wave 3 (R-41 dest codes, R-65 chkdsk,
+  R-86 doc sentence, R-63 TRIM facet), Wave 4 (R-34 preview caps
+  defaults, R-93 image create), Wave 5 (R-88 BitLocker turn-off).
+  Session state at handoff: suite 1016/1016 on the local gcc-14 lane,
+  all counts truthful (81 exports / 11 verbs / 39+OK), the three-site
+  CLI lock held on every verb/flag change.
