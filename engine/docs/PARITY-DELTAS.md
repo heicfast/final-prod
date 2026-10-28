@@ -3590,3 +3590,24 @@ not a parity contract. Evidence: N-168's cites (both og sites re-read
 first-hand this session); the pin test `UserSigns.ShortFragmentMatchesInCore`
 (the 5-byte fragment vs the 4-byte sign: matched in core, never tested by the
 og; the below-byte-bound reject still holds).
+
+### D-118 — no generic id-8 demote on special-reject/plain-accept (N-143 registration, REGISTERED DIVERGENCE — the honest-refusal doctrine over the og's salvage stamp)
+
+The og's analyser dispatch is two-tier (RAWSearchDLL :9877-9883, re-read
+first-hand): a candidate analyser implementing ISpecialRawFileAnalyser gets its
+full context-aware validate first; on its reject the plain probe
+(vtable+0x10) runs, and a plain-accept after a special-reject stamps the
+GENERIC format id 8 and continues the per-position chain (:10020-10039 — the
+`result+0x18 == 0 → 8` stamp) so a later analyser can still claim the position.
+FileZIPAnalyser carries both vtables (:2235-2238) — corrupt ZIP/RIFF-family
+archives are the practical demote population. The core deliberately declines
+the id-8 generic fallback class: a signature-true/grammar-false hit produces
+NO candidate (the N-068 sanity gates and every validator's honest refusal),
+never a generic-format salvage row — the same doctrine D-75 registers for the
+per-key chain/fallback family. Rationale: the id-8 row carries no format
+semantics (no validator, no extension family, no recovery affordances); a
+generic candidate's only content is "bytes matched a magic" — the core's
+false-positive discipline (the F8 gates, the N-070 score contest) exists to
+keep exactly that class out of the results. Affected fixture class: corrupt
+ZIP/RIFF archives (pinned: `Carve.SpecialRejectPlainAcceptRefusedByName` —
+the corrupt candidate refused by name; the valid control beside it carves).

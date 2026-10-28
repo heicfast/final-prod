@@ -951,3 +951,15 @@ Evidence: `evidence/decompiled-quotes/s42-ogg-zip-typing-and-report-decodes.md` 
   lose the CHK-repair short-fragment matches). No code change;
   UserSigns.ShortFragmentMatchesInCore pins the stance (the 5-byte fragment
   matched, the below-byte-bound reject held, the prevailing state restored).
+
+- **N-143 FIXED** (MINOR — the ISpecial two-step dispatch posture): all three
+  cites re-read first-hand (:9877-9883 the two-step, :10020-10039 the id-8
+  stamp + chain-continue, :2235-2238 the dual vtables). The DECLINE branch:
+  the generic id-8 fallback class stays absent (the honest-refusal doctrine),
+  registered as PARITY-DELTAS D-118 (the D-75 family). The pin:
+  Carve.SpecialRejectPlainAcceptRefusedByName — the corrupt-RIFF form (the
+  grammar-only family; no raw-sign key fires on RIFF — the layer-1 signs
+  enumerated this session) is refused by name while the valid WAV control
+  carves. The corrupt-ZIP half of the class fires the apk raw-sign row
+  (PK\x03\x04 is apk's layer-1 key — the og's layer-1 admits it identically);
+  both layers' interplay recorded in the Resolution.
