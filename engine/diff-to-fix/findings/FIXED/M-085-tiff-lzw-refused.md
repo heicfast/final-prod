@@ -5,7 +5,7 @@
 **Parameters affected:** B1 (decode coverage), A28-adjacent (the native TIFF validator's compression gate)
 **Corpus references:** the og's still-image path decodes TIFF through GDI+ (`DRWUI_decompiled.c` :652299 `CreateStreamOnHGlobal` → the GDI+ load at :652307-309; GDI+ TIFF support includes LZW — the corpus shows the pipeline, the codec matrix is GDI+-internal [UNVERIFIED at codec granularity, see Open questions]); the og's carve side detects TIFF via the u32 keys (census: `II\x2a\x00`/`MM\x00\x2a`) independent of compression
 **Core references:** audited `ff879f9` — `src/core/preview/cr_thumbnail.cpp:506, :660-698` (native TIFF decoder accepts compression 1/8/32946/32773 only; LZW(5), JPEG-in-TIFF, tiled, predictor-2, planar honestly refused), the phase-2 note in the file header
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** FIXED (session-10 this lane)
 
 ## Summary
 
@@ -74,3 +74,11 @@ GDI+'s exact TIFF codec matrix (LZW/JPEG-in-TIFF/tiles) is
 platform-internal — if codec-granular parity is needed, a runtime
 probe on Windows (GdipLoadImageFromFile on crafted fixtures) or an
 MS-doc citation should pin it; the corpus alone shows the pipeline.
+
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** edee513
+**Verified by:** TiffVariants/ThumbnailTiff.BaselineVariantsDecodeExactly/6 (tiff_lzw.tif - RED pre-fix: DecodeFailed on compression 5; GREEN post-fix: exact quadrant colors through the 16x12 downscale); an independent Python reference decode of the fixture's LZW strip (quadrant rows pinned red/green/blue/yellow) ran BEFORE the C++ landed - the first-code-after-Clear slot-accounting bug was caught and fixed in both implementations; suite 1000/1000 green, clang-format 18.1.8 clean.
+**Resolution notes:** Implemented the classic TIFF LZW in uncompress_strip (compression 5): MSB-first packing, 9..12-bit codes, Clear 256 / EOI 257, the early-change width step (maxcode = 2^n - 2 - the TIFF6 appendix's documented one-code-early off-by-one that distinguishes TIFF LZW from GIF LZW), the prefix/suffix chain table, KwKwK, table-full stop, and the first-code-after-Clear consuming no table slot. bps 1..8 supported (the literal count = 1<<bps); 16-bit LZW (nonstandard) keeps the named honest refusal. The existing dims-first/budget/truth gates are untouched. The fixture tiff_lzw.tif (PIL/libtiff-written, early-change encoder) joined the parameterized TiffVariants matrix and the SHA256SUMS; the header's v1 format matrix + deferred-families list were updated (LZW moved from deferred to native).
