@@ -3986,3 +3986,83 @@ driver-repo grant boundary).
 + `worklog*` (verified per-commit; the two finding retirements in wave 1 were git
 rm of files this session itself appended verification addenda to). No source
 code was modified. No fix was applied.
+
+---
+## Session-12 S12 lane (2026-10-29 — the continuation audit lane opens; grant: the two repos only, core + corpus)
+
+Task ID: S12/T0 (open — baselines + prompt + territory claim)
+Agent: session-12 continuation audit lane (the user's continuation instruction: find what prior sessions missed, remove the fixed things, go more deep, do more comparison on og-codebase and core, mark all remaining features/implementations/functions)
+
+Work Log:
+- Baselines at open: **core origin/main `f47dc026`** (pulled; the trail moved SIX
+  times during this lane's setup — `620f449` → `21b6c072` (the M-109/M-112-thumbnail
+  fix + conform) → `d61474d9` (the N-112 LZH fix) → `aab031ac` (S11-lead waves-2-3,
+  12 filings) → `f47dc026` (the S11-lead close)), **corpus `be0cfe9`** (unmoved).
+  Board at open (filesystem truth, recounted): **64 active (8 SEVERE · 20 MAJOR ·
+  29 MINOR · 7 INFO) / 300 ledger rows / 3 tracked-open** (OQ-S4-3, OQ-S10-1,
+  OQ-S10-3). Next free IDs at open: S-055+, M-116+, N-150+, I-034+, A-012+.
+- Prompt saved token-redacted: `worklog/session-12-continuation-audit-prompt.md`
+  (hygiene-verified: no live-token pattern). Read twice; the §1–§10 SOP plus the
+  continuation ask govern this lane.
+- **T0 findings at open — board-truth defects discovered during setup, claimed
+  as this lane's Wave 1** (all in `diff-to-fix/`, the lane's writable surface):
+  1. **Phantom SHA in FIXED-LEDGER rows 179–180** (added by the conform commit
+     `21b6c072`): both rows cite fix-commit `5103ecd8`, which does not exist in
+     ANY ref (`git rev-parse` + `git log --all`: unknown revision). The real fix
+     commit is **`76e2d351`** (verified in-repo: "fix(preview): M-109 + M-112 -
+     the og's 200 MB thumbnail eligibility anchor adopted ... the read loop").
+     The phantom-SHA truth class again — session-39B repaired 73 rows of it;
+     these two are NEW since that census.
+  2. **M-112 ID collision**: ledger row 180 assigns **M-112** to the large-IDAT
+     StbioSource read-loop defect (the fix lane's §8-duty NEW-FINDING), but
+     **M-112 is already taken by the ACTIVE S11B finding** (the CSL 0x44c size
+     branch, filed at `b37fabab`, pushed earlier — the SA-9 earlier-push-wins
+     rule). The S11-lead lane already honored the collision for their own
+     filings (their M-112→M-115, their N-147→dropped/extend-don't-refile); the
+     fix lane's row never got the same repair.
+  3. **The never-filed finding**: the large-IDAT defect has NO finding file in
+     any commit — ledger row 180 cites
+     `findings/MAJOR/M-112-stbio-read-cb-single-shot-breaks-large-png-idats.md`
+     "(retired to history)" — a path that never existed (the M-088
+     fictional-path class). The defect is REAL and code-RESOLVED (the read loop
+     + the shared band test at `76e2d351`), but the trail's own §8 duty
+     requires the finding artifact to exist.
+  **Wave-1 repair plan (claimed):** renumber the large-IDAT defect to **M-116**
+  (next free MAJOR per the S11-lead close) with a retroactive finding file —
+  full template + Resolution — retired into `findings/FIXED/` per the
+  N-134/FIXED-ALREADY precedent; repair both rows' SHA cells to `76e2d351`;
+  add the collision note in-file on the active M-112-CSL; then the
+  whole-ledger SHA verification sweep (every hex token in FIXED-LEDGER.md
+  `git cat-file`-verified; phantoms repaired to real commits) + the counts
+  truth re-count. The `21b6c072` message-truth note recorded (unrewritable
+  history; the f166440b precedent).
+- **Territory claim (coordination contract; pull-before-push every wave,
+  earlier-push-wins on convergence):**
+  - **Wave 1 (above)** — the bookkeeping-truth repair.
+  - **Wave 2 (landing-parity, read-only)** — verification of the three freshest
+    landings against the corpus decodes: N-112's LZH entry-chain walk
+    (`d61474d9`) vs the corpus decode (FUN_18003db20 probe + FUN_18003dd70 walk
+    + the RVA 0x9388c method constants read from og-codebase/RAWSearchDLL.dll);
+    M-109's 200 MB eligibility anchor + M-116's read loop (`76e2d351`) vs the
+    DRWUI :422425-429 gate (`0xc800000`). The S-054 precedent (a landed fix with
+    a 10× cap divergence, filed by S11-lead) makes this wave load-bearing.
+  - **Wave 3 (go-deeper, never-walked surfaces)** — the
+    `og-codebase/diskhealth` product tree (**818 files, never function-walked
+    by any prior lane** — only the DRW-side health grading/NVMe/CSMI surfaces
+    were audited) compared against the core's health module; the
+    never-dispositioned og-codebase asset families (`language/` 37 QM files,
+    `License/` 19, `EuShare/`, `NasConfig/`, `platforms/`, `imageformats/`,
+    `log/`, `Resource*/`) against the I-027/I-033 registers — posture
+    registration per the mark-all-remaining ask; the corpus's own worklog
+    cross-check (never read by any audit lane per the trail's citations).
+  - **Wave 4 (mark-all-remaining)** — the core-side citation-gap sweep at the
+    CURRENT tree (every src/include/tests file cited-or-dispositioned; the
+    prior citation-gap sweep was session 5's, ~200 commits ago).
+  - **NOT claimed** (the active fix lanes' territory): all SEVERE/MAJOR/MINOR
+    FIX work (the S40-ML lane's SEVERE queue; the S40 minor lane's N-090..N-137
+    queue), the OQ dispositions, the S11-lead's closed items, the driver-repo
+    residuals (out of this session's two-repo grant; OQ-S10-3 carries them).
+
+Stage Summary:
+- Next: Wave 1 (the ledger repair + verification sweep), then the parallel
+  deep-read agents for Waves 2–4, then filings + the close.
