@@ -6949,3 +6949,18 @@ Mandate saved token-redacted: `worklog/session-49-continuation-audit-prompt.md`.
 Next free IDs at open (per the S42 focus-battery close): S-062+, M-138+, N-186+,
 I-045+, A-015+. Board at open (filesystem truth): 77 active (1 ACUTE · 9 SEVERE ·
 28 MAJOR · 32 MINOR · 7 INFO) / 64 FIXED / 6 tracked-open.
+
+## Session-49 → S50 renumber (2026-10-29)
+
+Per SA-9 earlier-push-wins: the remote's **session-49 parity-fix lane** (7e931b1e,
+"ACUTE A-014 + the SEVERE tier per the user's acute-first directive") pushed its
+claim while this lane's claim was in rebase — their lane keeps the S49 name. This
+lane renumbers to **session-50 (S50 continuation audit lane)**; the mandate file
+renamed accordingly (`worklog/session-50-continuation-audit-prompt.md`). No other
+change; the territory claim stands as posted (the audit-only lanes do not collide
+with the fix lanes' tier division: this lane's battery retires findings the fix
+lanes already landed, it does not fix anything itself).
+
+Board delta absorbed at the rebase (the S47/S48 INFO-first lanes landed): I-042,
+I-043, I-044 retired (ACKNOWLEDGED) — the INFO tier is now 4 live by filesystem.
+This lane's battery will re-count at its pin.
