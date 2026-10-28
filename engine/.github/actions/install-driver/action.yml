@@ -140,26 +140,19 @@ runs:
           Write-Host "::error::Parameters key incomplete: IoctlBase=$($params.IoctlBase) MaxDisks=$($params.MaxDisks) DebugLevel=$($params.DebugLevel) SessionsEnabled=$($params.SessionsEnabled)"
           exit 1
         }
-        # v0.2.4 installers start the service themselves (the M-064 batch
-        # made -NoStart opt-out); the start is now IDEMPOTENT - error 1056
-        # ("an instance of the service is already running") after a
-        # successful install means the installer already started it, which
-        # is the contract's own success shape. Any other start failure
-        # stays fatal (the v0.2.3 exit-code lesson: never exit 0 on it).
-        $already = sc.exe query ${{ inputs.service }} 2>$null | Select-String 'RUNNING'
-        if (-not $already) {
-          sc.exe start ${{ inputs.service }}
-          if ($LASTEXITCODE -ne 0) {
-            sc.exe query ${{ inputs.service }}
-            Get-WinEvent -LogName System -MaxEvents 30 | Format-List | Out-String | Write-Host
-            exit 1
-          }
-        } else {
-          Write-Host "service '${{ inputs.service }}' already RUNNING (the v0.2.4 installer starts it) - start step skipped"
-        }
+        # M-068 (the M-062 single-start contract, completed): install.ps1
+        # (v0.2.3+) starts the service itself - the composite VERIFIES
+        # RUNNING instead of starting again (the double-start died 1056 on
+        # the first post-5e7390b execution, run 40672083772). Exactly one
+        # start owner per install.
         # layer-1 evidence: service RUNNING + control device opens
         $svc = sc.exe query ${{ inputs.service }} | Select-String 'RUNNING'
-        if (-not $svc) { Write-Host "service not RUNNING after start"; exit 1 }
+        if (-not $svc) {
+          sc.exe query ${{ inputs.service }}
+          Get-WinEvent -LogName System -MaxEvents 30 | Format-List | Out-String | Write-Host
+          Write-Host "::error::service not RUNNING after install.ps1 (the single-start contract - check exit 6/7 guidance above)"
+          exit 1
+        }
         $h = [IO.File]::Open('\\.\${{ inputs.service }}', 'Open', 'Read', 'ReadWrite')
         $h.Close()
         Write-Host "driver installed: service RUNNING + control device open OK"

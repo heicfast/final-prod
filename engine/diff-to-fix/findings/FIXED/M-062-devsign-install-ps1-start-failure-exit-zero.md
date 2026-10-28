@@ -84,3 +84,18 @@ now runs only on the opt-in fallback, where it is the primary start).
 
 **Landed:** rda-driver `6b50bb8` (tag v0.2.3); the composite flip rides in
 core_recovery's S-036 close-out commit.
+
+
+## Resolution correction (2026-10-28 — M-068, the SA-6 drill)
+
+The single-start contract this Resolution claimed ("the composite verifies
+RUNNING via `sc query` instead of double-starting") was HALF-implemented at
+`5e7390b`: the RUNNING verification was added, but the composite's own bare
+`sc.exe start` was never removed — every post-`5e7390b` install through the
+composite started the service twice and the second start died 1056 (exit 1).
+The defect was latent (no run exercised the rewritten composite until the
+SA-6 drill, run 40672083772). Completed by **M-068** (filed+fixed in the
+same landing): the bare start removed, the RUNNING verification is the
+composite's only start-adjacent step. FIXED files are immutable post-
+resolution by convention — this correction is a note appended by the
+follow-up finding's landing, not an edit of the record above.
