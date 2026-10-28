@@ -6186,3 +6186,28 @@ Verification discoveries recorded: the raw-sign interplay (apk = PK\x03\x04) and
 S-048 folder-node/inner-entry collection discipline for future test authors.
 Suite 1260/1260. Trail: findings/FIXED/N-143 + ledger + carve.md row + D-118 + this
 entry.
+## Session-42 continuation lane — W2 re-scope: the focus-battery addendum lands (2026-10-29)
+
+The user's continuation directive re-applied with a named focus battery: file
+reconstruction, timestamp, recovery chances status, partition recovery + the
+recovered-partition API support format, preview, and the scan-mode semantics
+(quick vs advanced/deep, trigger parameters, combination, collaboration). The
+directive saved token-redacted at
+`worklog/session-42-continuation-audit-prompt.addendum-focus-battery.md`
+(read twice per the mandate).
+
+**Baselines at this addendum:** core `b26017a7` (the lane-open tip; the S42
+hygiene commit — tests/expectation re-pin + worklog only), corpus `be0cfe9`
+(unchanged since session 8). **W1 ground pre-proven:** `git diff 25e408b8..HEAD
+-- src/ include/` is EMPTY — the source tree is byte-identical to the S12
+reconcile's live re-verification point, so the remove-the-fixed battery runs as
+a verification-of-claims (spot re-probes at the defect sites) rather than a
+blind 53-finding redo; the board reconciles 53 active (4/23/17/9) + 19
+FIXED-file + 3 tracked-open (the 55→53 delta = the N-151/N-153 retirements,
+ledger-verified).
+
+Lane order: W1 (board truth + spot probes) → the six focus lanes (parallel
+context agents, lead first-hand verification per finding) → the S42-declared
+residue batch (config-layer shellexe/TreeType/themdark/DRWLog + the UNVERIFIED
+residuals N-038/I-014/OQ-S10-2-cell) → W4 executed verification (fresh build +
+suite at HEAD) → filings → push.
