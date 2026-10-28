@@ -1927,3 +1927,7 @@ listing 11 names, :37 "11"). The :14 headline now reads 11 verbs with the re-pin
 3043-3063 cite and the explicit verb list (the mechanical sweep the addendum prescribed:
 all count/cite sites, re-asserted against the dispatch table itself). No code change;
 the CrUi.CliHelpListsEveryDispatchedVerb pin already guards the source-level truth.
+
+### session-10 (this lane) — territory declaration (after the M-090/M-084/M-091 landings)
+
+Landed so far this lane: M-090 (771e2ec), M-084+M-091 (8a7055e). TERRITORY DECLARED to prevent collision with the parallel fix lanes (603e955's carve lane took S-047 + the S-041 school-2/3 children + the batch-1 verification failures; DFX-38 took M-088, M-082, M-101, M-100 + the non-thumbnail/carve MINORs + INFO + tracked-open): THIS LANE takes the thumbnail/preview family (S-043 EXIF orientation, S-045 format coverage, M-080 budget, M-083 grade promotion, M-085 TIFF LZW, M-102 ABI export, N-103 API-row truths) + the session/query/CLI/writer/check majors (M-072 query axes, M-073 scan-time folder filter, M-074 dest codes, M-075 chkdsk, M-076 TRIM rows, M-077 preview caps, M-078 BitLocker turn-off, M-079 autosave label) + S-040 image create + the driver-repo-resident dispositions (M-086, M-087, M-089, N-107, N-127 — two-repo scope: verify + core-side halves + tracked-open push-forwards). Newly filed findings (S-048, S-049, M-103 from the SA-10B audit lane) coordinate at push time.
