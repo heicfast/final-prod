@@ -45,7 +45,7 @@ first-hand; every fix RED-test-first.
   oracle inherits it; `apple_doubles_sunk` counter; `ExfatEngine.AppleDoublePrefixSunk`
   RED→GREEN + `RegularDotFilesNotSunk` the over-blocking pin; exFAT battery 36/36).
 
-**Board (filesystem truth, running): 76 active — 1 ACUTE · 9 SEVERE · 28 MAJOR · 31 MINOR · 7 INFO / 65 FIXED files / 6 tracked-open.**
+**Board (filesystem truth at `a3ab4ed3`, post the S45..S51 parallel-window absorption — A-014 fixed [convergent, 862d79ef], M-124 fixed [dcb123dd], the INFO board complete [I-035/I-036/I-040..I-044 all ACKNOWLEDGED-RETIRED]): 67 active — 0 ACUTE · 9 SEVERE · 27 MAJOR · 31 MINOR · 0 INFO / 71 FIXED files / 6 tracked-open.**
 
 # SUMMARY.md — executive summary (the S42 diff-to-fix lane's convergence on top; the prior lanes below, newest-first)
 # SUMMARY.md — executive summary (the S12 session-2 deep-dive lane on top — sector math / scan-progress math / local database / state management / detection-calculation; the prior lanes below, newest-first)
