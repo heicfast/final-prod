@@ -8229,3 +8229,19 @@ battery verdict; this lane's residual note rides the FIXED file), resolved
 **OQ-S42-1/OQ-S42-2** (the S47 INFO-first lane), and filed the S52 lane's
 **OQ-S52-1** (ext2/3-vs-ext4 kind classification — which this lane's M-143
 journal-inode work adjacent-touches; the next lane should check the overlap).
+
+---
+
+## Session-54 lane — the M-138 ledger-collision annotation (2026-10-29)
+
+The push-rebase absorbed the S56 lane's N-160 doc-truth repair (3023b23a) which
+re-slugged the RETIRED twin-key landing's ledger row M-133→M-138 — colliding with
+this lane's ACTIVE **M-138** (the NTFS cpr/cib zero-defaults finding, filed in the
+same window). Both M-138 ledger rows now carry the S54 collision note (an HTML
+comment after the second row): ID-matched retirement sweeps must not treat those
+rows as retiring the active M-138; the recommended repair for the bookkeeping lane
+is re-slugging the retired row to a non-colliding marker per the FIXED/M-117
+dual-ID precedent. This is the third manifestation of the ID-collision hazard
+this lane flagged in its battery (the FIXED/M-133 reuse, the N-142/N-186 renumber,
+now this) — a board-wide "one ID, one finding, forever" invariant is worth a
+ci-local gate (the N-160 doc-truth gate family is the natural home).
