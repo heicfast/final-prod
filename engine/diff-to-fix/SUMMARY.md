@@ -1,5 +1,64 @@
-# SUMMARY.md — executive summary (the S44 minors lane on top of the S47/S53/S56 parallel window; the prior lanes below, newest-first)
+# SUMMARY.md — executive summary (the S47 INFO-first lane's block on top; the S44 minors lane + the prior lanes below, newest-first)
 
+
+## Session-47 INFO-first lane delta (2026-10-29 — the user's INFORMATIONAL-first directive executed; core opened at `fa654673`/`d872452c`-claim, pushed through `cc81f2b6`; corpus pin `be0cfe9` throughout)
+
+**The tier the directive named is retired: the open INFORMATIONAL board went 7 → 0**, and the
+tracked-open set lost its two longest-standing S42 timestamp questions. Every disposition
+below re-verified first-hand against the corpus and the live tree before any change (the
+SOP's verify→reproduce→classify loop; the corpus wins, both directions):
+
+- **I-036 FIXED (this lane, `55e88af0`)** — the user-sign default-load posture register: the
+  load-site census re-executed (rrecov.cpp:1269-1310 the single CLI default site, cr_ui.cpp:4615
+  the only ABI path, engine/orchestrator census-zero); D-104 + PARITY-OG-CORE-INVENTORY.md:84
+  now read "CLI-app startup load; the library default is off (cr_ui_register_user_signs)".
+- **I-040 CONVERGENT-MATCH (`1fccb0a4`; the S48 lane's D-123 landing wins per SA-9)** — this
+  lane's independent decode of FUN_180007510 (:5455-5467, the unconditional +0x6C fold) and
+  the 4-site `_gmtime32_s` census (:5495/:5506/:6262/:6273) converged; this lane's unique
+  product: the fold-direction pin `Ext4Engine.SizeHighFoldIsRegularOnlyNotTheOgUnconditionalDefect`
+  (the regular-file 64-bit size the landing's dir-only pin leaves unpinned) +
+  `Post2038FileTimeConversionStays64Bit`.
+- **OQ-S42-1 RESOLVED-MATCH (this lane, `448a037e`)** — the NTFS $SI/$FN time-precedence seam
+  decoded and closed: the og is $SI-first with $FN fallback (NTFSSearchDLL :5338-5353 — the
+  FN defaults overwritten by the $SI getters behind the FUN_180044fb0 fit gate), the core's
+  has_si rule verbatim; bonus seam: the og's third surfaced slot (props+0x35) carries the
+  $SI's MFT-MODIFIED time (FUN_180044ff0 attr+0x30; the true A time is never surfaced) —
+  parse_standard_information's mapping is EXACT parity, now pinned by
+  `NtfsVolume.SiTimeSlotsMatchOgSurfacedSet` (distinct-time records, both directions) so no
+  future cleanup swaps changed/accessed and silently diverges surfaced dates.
+- **OQ-S42-2 RESOLVED-MATCH, CONVERGENT with the S48 audit lane (`1b1fbdc9`)** — the Btrfs
+  nsec question closed by the exact one-read probe: FUN_180006ba0 :4435-4441 FOLDS
+  `(nsec/100)+(sec+0x2b6109100)*10^7` — the core's unix_to_filetime_ns is the identical fold;
+  not an I-006-family superset axis; this lane's unique product:
+  `Btrfs.MtimeNsecFoldsLikeTheOg` (mtime nsec 123456789 → the exact folded FILETIME).
+- **I-035/I-041..I-044** — retired by the parallel S48 mirror lane mid-flight; this lane's
+  first-hand verification of all four I-035 corpus cites (the tif exclusion :726583, the
+  rename formats :726699-706, the 36-KiB/2-MiB buffers :772543-553, the hex-prefix adapter
+  registry :1008918+) recorded as corroboration in the trail.
+- **Tracked-open sweep** — OQ-S10-1's by-name refusals verified current at HEAD
+  (cr_thumbnail.cpp:85); OQ-S10-3's grant boundary re-affirmed (S48's fresh note, corroborated);
+  OQ-S42-3 stays the S48 lane's active RESOLVED-IN-PART (no duplicate); OQ-S52-1 (the fresh
+  ext2/3-vs-ext4 filing) gained this lane's evidence addendum: the analyser's own verdict masks
+  decoded first-hand (incompat-within-0xffffffe9 ∧ ro_compat-within-0xfffffff8 → the family
+  verdicts 5/6; the 0x2c0 EXTENTS|64BIT|FLEX_BG triple-gate → verdict 0x18; the analyser codes
+  ≠ the DRWUI {4/5, 9} kind codes — the mapping is the remaining half for its owner).
+- **M-115 CONVERGENT (`cc81f2b6`; the S47-MAJOR-first lane's `1d7a761b` wins per SA-9)** —
+  this lane built the identical read_ok/promote-on-read/0x14-floor fix independently; unique
+  supplements: the dims-seam refusal pin (`ThumbnailPromotesOnReadNotDecodeDimsRefusal` — the
+  second DecodeFailed exit), the `PreviewPaneNeverPromotes` doctrine pin, the ABI-contract doc
+  block. Family 11/11.
+- **Main-green repairs the same windows owed** (the 09490fea precedent, all closed): the N-171
+  hot-window double-increment deduped (the merge kept both landings' `validated` ticks — the
+  suite's 1-vs-2/2-vs-4 caught it), the S-058 polarity test flipped to its own decode
+  (out-of-table .zzqx enters the deep path; grading 25/25), the e1/e2 unused reds, the M-119
+  `part_slice` retype (convergent with S53's N-188), Level::Warning→Warn ×2, and four
+  format-drift sweeps (the 72a17b7c precedent — the Checks workflow's clang-format gate was
+  red on every push in the S45..S58 window until the first sweep).
+
+**Board contribution:** the INFO board 7→0 (1 owned fix + 1 convergence + corroboration), 2
+OQ rows resolved with decode + pins (S42-1/S42-2), M-115's convergence supplements, OQ-S52-1's
+evidence addendum, 7 new pin/proof tests landed across ext4/btrfs/ntfs/cr_ui, and the CI
+gate restored to green on the drifted window. Suite at this lane's close: **1385/1385**.
 ## Session-44 minors-lane delta, entry 2 (2026-10-29 — the N-171 + N-186 carve-stats pair)
 
 **N-171 FIXED — the user-sign carved_count undercount.** Verified before the change
