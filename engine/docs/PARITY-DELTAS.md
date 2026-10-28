@@ -3117,6 +3117,25 @@ RDA` / the installer. RATIONALE: the installer owns service lifecycle
 privilege and state-management hazard the product explicitly declines.
 VERDICT: ACCEPTED (deliberate divergence; mandate §2's refusal contract).
 
+**D-121 — the drive-disconnect retry window lives in the HOST, not the engine (N-125).**
+REFERENCE: the og detects mid-scan target removal and offers a
+reconnect-then-continue flow ("Drive Disconnected - Unable to continue
+scanning. Reconnect your drive and try again." Retry/Cancel; UIUX/08:39-47;
+the same triad for NAS/Linux/Cloud offline) - the dialog is the UI layer's;
+no decoded engine error code drives it (the finding's own open question).
+CORE: the transport classifies the device-gone Win32 GLE family
+(DEV_NOT_EXIST/NOT_READY/MEDIA_CHANGED/NO_MEDIA_IN_DRIVE/DEVICE_REMOVED)
+as ERR_DEVICE_DISCONNECTED 0x50020007 - a distinct code, never a
+read-failure storm - and the documented reattach flow is the
+session-checkpoint resume (the machinery exists): the host detects the
+code, waits for reattach in its own loop, then `resume` continues from
+the checkpoint; the CLI's scan verb maps it to exit 5 with the resume
+instruction. RATIONALE: the engine retry window (the og's dialog loop)
+is UI-layer responsibility in the core's layering; a distinct code + the
+resume machinery covers the flow without an in-engine wait state.
+VERDICT: ACCEPTED (the lighter engine posture is the documented contract;
+media errors stay ERR_READ_FAILED - the classification is precise).
+
 **D-DRV-6 — GET_DISK_CONTEXT_MODE (0x60002408) is deliberately NOT issued (N-096).**
 REFERENCE: the og's user-mode client issues exactly one identity IOCTL — the
 per-open GET_DISK_CONTEXT_MODE query (Device_decompiled.c:52598; a 4-byte-out

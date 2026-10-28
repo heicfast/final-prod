@@ -1773,6 +1773,23 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
             }
             return 3; /* cancelled is distinct from failure (0/1/3) */
         }
+        /* N-125: the disconnect case - the target went away mid-scan
+         * (yanked USB, ejected media). Exit 5, distinct from failure (1)
+         * and cancel (3); the reattach-then-resume contract: the session
+         * checkpoint (if --out was given) resumes the scan after the
+         * device returns. */
+        if (rc == ERR_DEVICE_DISCONNECTED) {
+            wprintf(L"target device DISCONNECTED mid-scan - the scan stopped at the device-"
+                    L"loss boundary\n");
+            if (!out_path.empty())
+                wprintf(L"reattach the device, then resume: `rrecov resume %ls` continues "
+                        L"from the session checkpoint\n",
+                        out_path.c_str());
+            else
+                wprintf(L"re-run the scan with --out file.crsf so a disconnect becomes a "
+                        L"resumable checkpoint instead of a restart\n");
+            return 5;
+        }
         /* read-truth refusal (the fake-scan fix): the volume was (essentially)
          * fully unreadable - the scan did NOT scan. The specific text names
          * the coverage; the generic branch keeps the code. */

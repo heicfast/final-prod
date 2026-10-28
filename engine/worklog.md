@@ -1,3 +1,11 @@
+- **N-125 FIXED** — the drive-disconnect states: ERR_DEVICE_DISCONNECTED 0x50020007 (the
+  device-gone GLE family: 55/21/1110/1112/1619) classified at both transport read sites; the
+  CLI maps it to exit 5 with the reattach-resume instruction; D-121 registers the host-loop
+  contract (the og's Retry/Cancel dialog is UI-layer — the finding's open question recorded).
+  The classification is precise by test: media errors (1117/23) stay ERR_READ_FAILED. The
+  helper is a both-lane numeric predicate (the M-030 pattern). Tests:
+  Transport.DisconnectClassifiedDistinctly + Transport.MediaErrorsStillReadFailed (RED
+  pre-fix). Suite 1138/1138.
 - **N-126 FIXED** — the Unsaved File category: Category::Unsaved=9 (append-only), the .asd/.wbk
   overlay ahead of the generated table (the og's FileFilter.xml carries no autosave rows — the
   category is a UI-layer classification, bit 6 of the type mask, DRWUI :367384/:368807), the
