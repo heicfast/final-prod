@@ -230,6 +230,8 @@ surfaces) — with findings S-023, M-028..M-030, N-040..N-044, I-015/I-016; reso
 OQ-S2M-1 (grading locus → S-023) and M-022's OQ-1/OQ-3; filed corpus errata rows
 29-36. Navigation: SUMMARY.md (deltas + counts + top risks) → CROSS-REF-MATRIX.md
 (module × parameter verdicts) → modules/*.md (per-module detail) → findings/
+
+**Session-11B note:** the modules map is complete — `reghive.md` and `apply.md` written this session (I-030 resolved; 28 rows, every src/core module directory covered).
 (template-complete, evidence-cited) → tracked-open/ (precise open questions).
 
 **Session 5 (2026-10-26, audited `7cf6754`) — the citation-gap wave:** a systematic

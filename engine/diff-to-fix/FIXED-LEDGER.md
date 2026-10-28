@@ -19,7 +19,7 @@
 > blocks carry the resolution narrative; the per-file Resolution sections
 > live in history.
 
-**Counts (row-count truth, session-11B post-N-134 re-count, 2026-10-29): 298 resolved rows — 276 main-pattern (A/S/M/N/I) + 22 OQ-prefixed** (the session-39 296-count verified against the filesystem; +N-134 this push), each row one retired file (no duplicate IDs; the A-005/A-006 renumber pair counts both IDs by design). The filesystem is the truth (the whole table re-counted twice this window — session-11B's 285/265+20 pass, then session-39's 287/267+20 after the M-072 row landing and the N-136/N-093 committed-marker repair at the table tail kept both rows; the prior top lines' 276–282 figures were push-window estimates that never re-counted the table — the drift is the N-129(numeric-defects) class applied to the ledger's own top line; the `b5da834` repair commit left the second occurrence of the conflict markers unswept — both sides preserved as dated history below).
+**Counts (row-count truth, session-11B final re-count, 2026-10-29): 298 resolved rows — 276 main-pattern (A/S/M/N/I) + 22 OQ-prefixed** (+I-030 this push) (the session-39 296-count verified against the filesystem; +N-134 this push), each row one retired file (no duplicate IDs; the A-005/A-006 renumber pair counts both IDs by design). The filesystem is the truth (the whole table re-counted twice this window — session-11B's 285/265+20 pass, then session-39's 287/267+20 after the M-072 row landing and the N-136/N-093 committed-marker repair at the table tail kept both rows; the prior top lines' 276–282 figures were push-window estimates that never re-counted the table — the drift is the N-129(numeric-defects) class applied to the ledger's own top line; the `b5da834` repair commit left the second occurrence of the conflict markers unswept — both sides preserved as dated history below).
 
 **(history, HEAD side of the b5da834 conflict):** 282-claim — 280 rows at `e56baac` + M-100 (the batch-C-conform 276 `0872ac2`/`64a3b18` + S-041 resolved-as-umbrella by the SA-10 lane) · 98 with a fix-commit recorded in-file
 **(history, b5da834 side):** 281-claim — the same lineage with the rebase-rewritten batch SHAs (e4f3184 / 995ba5d / 32ef33b)
@@ -103,6 +103,7 @@ belongs to the fix lane; this census is the audit-side truth record.
 | I-022 | INFORMATIONAL |  | — | `findings/FIXED/I-022-session5-core-superset-registers.md` |
 | I-023 | INFORMATIONAL |  | — | `findings/FIXED/I-023-drwcfg-persistent-config-channel-scope-register.md` |
 | I-024 | INFORMATIONAL |  | — | `findings/FIXED/I-024-partitionrecoveryd-generator-sets-and-dat-persistence-register.md` |
+| I-030 | INFORMATIONAL | audit-trail structure (the module map) | session-11B (the reghive.md + apply.md rows written; the table.md gap fixed earlier by N-104) | `findings/FIXED/I-030-module-row-structure-gaps.md` |
 | M-001 | MAJOR |  | — | `findings/FIXED/M-001-ntfs-record-size-rejects-where-og-clamps.md` |
 | M-002 | MAJOR |  | — | `findings/FIXED/M-002-ebr-torn-chain-discards-walked-volumes.md` |
 | M-005 | MAJOR |  | — | `findings/FIXED/M-005-carve-bitmap-gating.md` |

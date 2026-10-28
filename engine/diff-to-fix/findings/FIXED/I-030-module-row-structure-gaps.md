@@ -47,3 +47,25 @@ N-120 (the same navigability family).
 ## Open questions
 
 None.
+
+
+---
+
+## Resolution (session-11B, 2026-10-29): RESOLVED — all three gaps closed
+
+1. **The table.md dangling reference** — fixed earlier by N-104 (ldm.md:1 now
+   self-references its own MBR/GPT/EBR rows; the I-028-adjacent note at
+   modules/ldm.md:162).
+2. **The reghive module row** — **`modules/reghive.md` written this session**
+   (the summary row: S-014 FIXED + M-082 FIXED `1f714884` + D-16 + the M-082
+   staging row `:3177+`; the regf constants MATCH block; the read-only safety
+   posture; the test inventory).
+3. **The apply module row** — **`modules/apply.md` written this session**
+   (the summary row: S-029 FIXED + D-98 `:2313` + D-68 `:2010` + M-040
+   `94c9dda`; the corpus IOCTL chain with the S-029 signature-regen correction;
+   the v1 GPT-refusal boundary; the consent/transaction safety family; the test
+   inventory).
+
+Per this finding's own fix plan: "the rows summarize scored coverage, they do
+not open new audits" — both rows are packaging, truthfully cited. The modules/
+map now covers every src/core module directory (28 rows).
