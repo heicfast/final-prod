@@ -1091,6 +1091,7 @@ const Signature kTable[] = {
      620,
      validate_xmlsvg,
      "SVG image"},
+    {FMT_SVG, "svg", {'<', 's', 'v', 'g'}, 4, 0, 0, 0x100000ull, 620, validate_xmlsvg, "SVG image"},
     /* M-096: MOBI - the BOOKMOBI pair at +0x3C is the whole gate (the
      * full-salvage posture: the 0x3C bytes before it are never read);
      * the 512-step end-tag walk, cap 500 MB. Shipped RawConfig MOBI=1 -
