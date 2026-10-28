@@ -1181,8 +1181,10 @@ NOT registered here — see docs/DRIVER-UTILIZATION.md's checklist.
   walks) while cutting 64 KiB blocks' 16,384/GiB. The alignbench sweep
   (PERFORMANCE-BASELINE §6) owns further tuning.
 - **D-52 — carve-format registry as a unified two-layer enumeration.** The
-  og exposes RAWSearchDLL registry views (EUGetAnalyserList/Map/Multimap +
-  GetRawUserInfoMap — raw-dual-registry seeds); ours exposes one POD
+  og exposes RAWSearchDLL registry views (EUGetAnalyserList/Map/Multimap —
+  the registry enumeration pair; N-170 re-truth: GetRawUserInfoMap is NOT a
+  registry seed, it is the per-scan carve-statistics OUTPUT map per E-B);
+  ours exposes one POD
   enumeration over BOTH layers (grammar validators then raw-sign formats)
   with stable append-only ordering. Equivalent host capability, different
   shape; the og's RawConfig.ini per-format toggles are host-side policy on
@@ -1849,7 +1851,9 @@ Verified against corpus 03ad46c and the running core before acknowledgment.
 - **D-60e — PENetwork SMB destinations (I-021-5, LANE).** WinPE-lane
   validation item (N-056 test gap), not an engine gap.
 - **D-60f — DRWCfg.bin (I-021-6, SCOPE).** UI-layer AES config cache; the
-  engine reads RawConfig/FileFilter/raw_signs/EUUserData only.
+  engine reads RawConfig/FileFilter/raw_signs only. (N-170 re-truth: the
+  ENGINE never reads EUUserData — its sole og consumer is DRWUI's
+  CHKRepairFileSign, the CHK repair chain, per CORRECTIONS.md #9/E-A.)
 - **D-60g — Session robustness (I-022-1, ACCEPTED).** Per-record CRC32 of
   the decompressed payload, F10 resync + torn-tail salvage, decompression
   bomb caps (cr_crsf.cpp) — the og's loader is per-field only. Keep.
@@ -3934,3 +3938,29 @@ ACL pointer pollution never smear the size (the D-123 family); (3) the marker
 bit is the SAME numeric bit 0x200 so cross-tool consumption is unaffected.
 Registered deliberate superset: the og's comparison defects are NOT adopted
 (the I-040 anti-down-fix doctrine).
+
+### D-136 — the FAT out-of-volume run-end stance: deferred per-read failure, not scan-time destruction (N-165 registration, REGISTERED DELIBERATE SUPERSET — truncated-tail volumes are first-class recovery targets)
+
+The og's FAT runlist factories destroy a file's whole runlist at SCAN time
+when a run's end passes the volume sector limit — "File overflows
+partition!" via ReleaseTrace and the runlist object released
+(FATSearchDLL :10873-10903 and the second factory :28045-28070, both
+64-bit checks, re-read first-hand this session). The file then surfaces
+with NO data runs: no recoverable content offered even where the device
+still holds the chain's readable prefix.
+
+The core's registered stance: extents emit unguarded
+(cr_fat_quick.cpp:370-386) and validate_boot deliberately accepts volumes
+whose BPB claims more sectors than the device holds (the truncated-tail
+allowance, cr_chain.cpp:613-616) — a volume cut mid-FAT keeps every
+overflow-tail file LISTED with its chain extents; the readable prefix
+recovers, and the beyond-device tail fails per-read, surfacing through the
+FB-R02 Salvaged family (the recovery report's partial-content disclosure)
+instead of a scan-time destruction. Rationale: truncated-tail volumes are
+recovery targets exactly when the tail is gone (repartitioned/re-sized
+disks); destroying the runlist because its end is past the limit also
+destroys the in-device prefix the og itself could have served. The
+scan-time grade stays the chain's own (FAT-verified intact chains grade
+Excellent; the truncation is a recovery-time disclosure, never a silent
+drop). Pinned by FatEngine.TruncatedVolumeOverflowChainStance; do NOT
+"fix" toward the og's destruction without re-registering this row.

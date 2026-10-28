@@ -202,6 +202,61 @@ TEST(Mbr, PlainWithExtended) {
     EXPECT_EQ(t.partitions[2].fs, FsKind::Fat32);
 }
 
+TEST(Mbr, LinuxExtended085LinksFollowTheChain) {
+    /* M-124: the og's EBR walker treats link type 0x85 (Linux extended,
+     * the fdisk/dual-boot convention) EXACTLY like 0x05/0x0F -
+     * Partition_decompiled.c :1006 `local_128 == -0x7b` jumps to the
+     * shared LAB_180002348 link handler (`next = base + rel`). The
+     * pre-fix core mapped 0x85 to Other: the link was emitted as a
+     * bogus VOLUME on the wrong basis and the chain stopped - every
+     * later logical volume in the container vanished from the table. */
+    std::vector<u8> disk(u64(4096) * 512, 0);
+    disk[510] = 0x55;
+    disk[511] = 0xAA;
+    /* primary: NTFS at 128 */
+    disk[446 + 4] = 0x07;
+    put32(disk, 446 + 8, 128);
+    put32(disk, 446 + 12, 512);
+    /* the extended CONTAINER itself typed 0x85 (Linux extended) at 2048 */
+    disk[446 + 16 + 4] = 0x85;
+    put32(disk, 446 + 16 + 8, 2048);
+    put32(disk, 446 + 16 + 12, 2040);
+
+    /* EBR1 at 2048: volume at +63; the NEXT link typed 0x85 at +1024 */
+    u8* ebr1 = disk.data() + 2048 * 512;
+    ebr1[510] = 0x55;
+    ebr1[511] = 0xAA;
+    ebr1[446 + 4] = 0x07;
+    put32(disk, 2048 * 512 + 446 + 8, 63);
+    put32(disk, 2048 * 512 + 446 + 12, 500);
+    ebr1[446 + 16 + 4] = 0x85; /* the Linux-extended link */
+    put32(disk, 2048 * 512 + 446 + 16 + 8, 1024);
+    put32(disk, 2048 * 512 + 446 + 16 + 12, 900);
+
+    /* EBR2 at 3072: FAT32 volume at +63; chain ends */
+    u8* ebr2 = disk.data() + 3072 * 512;
+    ebr2[510] = 0x55;
+    ebr2[511] = 0xAA;
+    ebr2[446 + 4] = 0x0B;
+    put32(disk, 3072 * 512 + 446 + 8, 63);
+    put32(disk, 3072 * 512 + 446 + 12, 700);
+
+    MemDevice dev(std::move(disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_EQ(t.layout, TableLayout::Ebr) << "the 0x85-typed chain is an EBR layout";
+    ASSERT_EQ(t.partitions.size(), 3u) << "primary + BOTH logical volumes visible";
+    EXPECT_EQ(t.partitions[0].start_lba, 128u);
+    EXPECT_EQ(t.partitions[1].start_lba, 2048u + 63u);
+    EXPECT_EQ(t.partitions[1].fs, FsKind::Ntfs);
+    EXPECT_EQ(t.partitions[2].start_lba, 3072u + 63u);
+    EXPECT_EQ(t.partitions[2].fs, FsKind::Fat32);
+    /* the link entry must NOT surface as a volume (links are base-
+     * relative pointers, never volumes) */
+    for (const auto& p : t.partitions)
+        EXPECT_NE(p.start_lba, 2048u + 1024u) << "no bogus volume at the link target";
+}
+
 TEST(Mbr, EbrLayoutAssignedAndPlainMbrStaysMbr) {
     /* N-057: TableLayout::Ebr was a dead enum value (grep-verified at
      * audit time: zero assignment sites). The extended chain now sets

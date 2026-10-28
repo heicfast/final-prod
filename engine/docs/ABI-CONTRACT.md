@@ -632,7 +632,7 @@ Contract:
   nothing partially written.
 - Caps: `NULL` (or any zero field) = the engine default for that field;
   nonzero values ride the engine's own validation. Defaults: max_edge
-  256, max_pixels 64 MP, max_read 32 MiB (M-080), max_work 1<<22,
+  256, max_pixels 64 MP, max_read 200 MB (0xC800000, M-109), max_work 1<<22,
   allow_embedded ON.
 - Truncation is DATA, not an error: the engine's Ok-but-truncated
   contract crosses the ABI verbatim via `info.truncated` (stb's JPEG

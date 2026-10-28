@@ -7567,9 +7567,14 @@ TEST(CarveEngine, UserSignatureProbedAtStride) {
     ASSERT_EQ(1u, hit->props()->extents.size());
     EXPECT_EQ(0x2000u, hit->props()->extents[0].offset);
 
-    /* teardown: clear the registry for the other tests (replace with an
-     * empty-but-valid set is not possible - install requires signs; the
-     * registry is per-process, so this test owns it) */
+    /* teardown: clear the registry for the other tests - a VALID EMPTY
+     * set installs fine (install_set only rejects !valid); the registry
+     * is per-process, so this test owns it (S-055 hygiene: the leak
+     * left a live magic in every later carve test in this binary) */
+    carve::usersigns::UserSignSet teardown;
+    teardown.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
 }
 
 TEST(CarveEngine, UserSignatureYieldsToBuiltInAtSamePosition) {
@@ -7607,6 +7612,174 @@ TEST(CarveEngine, UserSignatureYieldsToBuiltInAtSamePosition) {
     }
     EXPECT_EQ(1u, png_records) << "the built-in PNG claims the position";
     EXPECT_EQ(0u, user_records) << "no user-sign double emission";
+    carve::usersigns::UserSignSet teardown2;
+    teardown2.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown2)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
+}
+
+TEST(CarveEngine, UserSignYieldsToRawSignTableAtSamePosition) {
+    /* S-055: the raw-sign-table leg of the collision rule. The pre-fix
+     * code probed the user-sign layer BEFORE idx.probe_header, so at any
+     * position where a default-set user sign and a built-in raw sign
+     * match the SAME magic, the user record (device-end extent, fixed
+     * 600 confidence, 0xFFFE0000 tag) won and the bounded built-in
+     * candidate vanished. The shipped defaults carry five formats whose
+     * user magic IS a built-in sign (amr/class/flac/msf/pdb - the
+     * magic-overlap subset of the finding's 8-extension set; cap/cpl/wpl
+     * share only the extension, never a position). At each such magic
+     * the built-in table must own the position. */
+    struct Case {
+        const char* ext;
+        const char* magic_hex; /* the og's own shipped sign bytes */
+    };
+    const Case cases[] = {
+        {"amr", "2321414D52"},                     /* #!AMR (conf 870) */
+        {"class", "CAFEBABE"},                     /* cafe babe (conf 800) */
+        {"flac", "664C614300000022"},              /* fLaC.... (conf 940) */
+        {"msf", "2F2F203C212D2D203C6D64623A6D6F726B"}, /* // <!-- <mdb:mork (the built-in's full 16) */
+        {"pdb", "4D6963726F736F66742043"},        /* "Microsoft C" (the built-in 12) */
+    };
+    for (const Case& c : cases) {
+        std::vector<u8> img(2ull << 20, 0);
+        const u8* magic = reinterpret_cast<const u8*>(c.magic_hex);
+        /* hex string -> bytes */
+        std::vector<u8> bytes;
+        for (const char* h = c.magic_hex; h[0] && h[1]; h += 2)
+            bytes.push_back(u8(strtol(std::string(h, h + 2).c_str(), nullptr, 16)));
+        std::memcpy(img.data() + 0x2000, bytes.data(), bytes.size());
+        (void)magic;
+        /* a user sign under a DIFFERENT ext for the same magic: if the
+         * user layer ran first, this record would win the position */
+        std::string json = std::string("{\"") + c.ext +
+                           "u\": {\"signs\": [\"0," + c.magic_hex + "\"], \"mime\": \"x/test\"}}";
+        carve::usersigns::UserSignSet set;
+        ASSERT_EQ(OK, carve::usersigns::parse(json.c_str(), json.size(), set)) << c.ext;
+        ASSERT_EQ(OK, carve::usersigns::install_set(std::move(set))) << c.ext;
+
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Carved");
+        CarveFlags fl;
+        fl.hash_small_files = false;
+        CarveStats st;
+        ASSERT_EQ(OK,
+                  carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st))
+            << c.ext;
+        u32 builtin = 0, user = 0;
+        tree::FileNode* built_n = nullptr;
+        for (tree::FileNode* cn = root->first_child(); cn; cn = cn->next_sibling()) {
+            if (!cn->props())
+                continue;
+            if (cn->props()->carve_format == 0xFFFE0000u)
+                ++user;
+            else {
+                ++builtin;
+                built_n = cn;
+            }
+        }
+        EXPECT_EQ(0u, user) << c.ext << ": no user-sign record at a built-in magic";
+        EXPECT_EQ(1u, builtin) << c.ext << ": the bounded built-in candidate survives";
+        ASSERT_NE(built_n, nullptr) << c.ext;
+        const std::string nm = built_n->name_utf8();
+        std::string dot_up = std::string(".") + c.ext;
+        for (char& ch : dot_up)
+            ch = char(ch >= 'a' && ch <= 'z' ? ch - 'a' + 'A' : ch);
+        EXPECT_NE(nm.find(dot_up), std::string::npos)
+            << c.ext << ": the built-in names the record (got " << nm << ")";
+        EXPECT_NE(built_n->props()->carve_confidence, 600u)
+            << c.ext << ": the table's own confidence, not the user-fixed 600";
+    }
+    /* teardown: install a VALID EMPTY set - the registry is per-process
+     * and later suites must see active_count() == 0 (the pre-existing
+     * tests leaked their sets; this session closes that hygiene gap) */
+    carve::usersigns::UserSignSet empty;
+    empty.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(empty)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
+}
+
+TEST(CarveEngine, DisabledFormatGatesUserSignLayer) {
+    /* S-056: the format toggle gates EVERY carve source. A user-taught
+     * magic under ext "zzq" with disabled_formats="zzq" must NOT carve;
+     * the same installed set with a DIFFERENT format disabled carves
+     * normally. Pre-fix: the user-sign block ignored the toggle and the
+     * record appeared anyway. */
+    std::vector<u8> img(2ull << 20, 0);
+    img[0x2000] = 0xDE;
+    img[0x2001] = 0xAD;
+    img[0x2002] = 0xBE;
+    img[0x2003] = 0xEF;
+    const char* json = "{\"zzq\": {\"signs\": [\"0,DEADBEEF\"], \"mime\": \"x/zzq\"}}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(set)));
+
+    /* disabled: the channel is silent */
+    {
+        MemDevice dev(img);
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Carved");
+        CarveFlags fl;
+        fl.hash_small_files = false;
+        fl.disabled_formats = "zzq";
+        CarveStats st;
+        ASSERT_EQ(
+            OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
+        EXPECT_EQ(0u, st.sign_hits) << "a disabled extension must not carve via user signs";
+        EXPECT_EQ(0u, st.validated) << "and must not count as carved";
+        u32 user = 0;
+        for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+            if (c->props() && c->props()->carve_format == 0xFFFE0000u)
+                ++user;
+        EXPECT_EQ(0u, user);
+    }
+    /* control: a different format disabled - the user sign fires */
+    {
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Carved");
+        CarveFlags fl;
+        fl.hash_small_files = false;
+        fl.disabled_formats = "jpg";
+        CarveStats st;
+        ASSERT_EQ(
+            OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
+        EXPECT_EQ(1u, st.sign_hits) << "an unrelated toggle leaves the channel live";
+        EXPECT_EQ(1u, st.validated) << "N-171: the user-sign record counts in carved_found";
+    }
+    carve::usersigns::UserSignSet teardown3;
+    teardown3.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown3)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
+}
+
+TEST(CarveEngine, UserSignFilesCountInCarvedFound) {
+    /* N-171: the user-sign emission ticks `validated` - the counter
+     * carved_found is assigned from - so the headline carved count no
+     * longer silently omits the whole default-on user-sign channel. */
+    std::vector<u8> img(2ull << 20, 0);
+    img[0x2000] = 0xBA;
+    img[0x2001] = 0xDF;
+    const char* json = "{\"zzn\": {\"signs\": [\"0,BADF\"], \"mime\": \"x/zzn\"}}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(set)));
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Carved");
+    CarveFlags fl;
+    fl.hash_small_files = false;
+    CarveStats st;
+    ASSERT_EQ(OK,
+              carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
+    EXPECT_EQ(1u, st.sign_hits);
+    EXPECT_EQ(1u, st.validated) << "the user-sign record is counted, not invisible";
+    carve::usersigns::UserSignSet teardown4;
+    teardown4.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown4)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
 }
 
 /* ---- S-055/S-056: the user-sign layer's ordering + toggle gates ----

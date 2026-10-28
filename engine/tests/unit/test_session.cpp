@@ -1759,3 +1759,41 @@ TEST(Crsf, LostDirFoldersRoundTrip) {
         ++files;
     EXPECT_EQ(files, 2) << "the grouped children stay under their folder";
 }
+
+/* ---- N-177: the size-exceeds-blocks damaged flag round-trips ------------ */
+
+TEST(Session, SizeExceedsBlocksFlagRoundTrip) {
+    /* the og persists the ext4 truncation-damage bit in the node FLAGS
+     * (+0x39 bit 0x200); the core's props->flags ride the same put16
+     * record - a flagged node keeps the bit across save/load and a
+     * clean node never gains it. */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Volume E");
+    tree::FileProperties* p = new tree::FileProperties();
+    p->name = u"truncated.dat";
+    p->fs_kind = u32(FsKindCode::Ext4);
+    p->flags = tree::FileProperties::PFLAG_SIZE_EXCEEDS_BLOCKS; /* N-177 */
+    p->extents.push_back({4096, 1024});
+    t.add_file(root, p);
+    p->release();
+    tree::FileProperties* p2 = new tree::FileProperties();
+    p2->name = u"whole.dat";
+    p2->fs_kind = u32(FsKindCode::Ext4);
+    p2->extents.push_back({8192, 1024});
+    t.add_file(root, p2);
+    p2->release();
+    t.refresh_stats();
+
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), u32(OK));
+    tree::ResultTree t2;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), u32(OK));
+    tree::FileNode* g2 = t2.roots()[0]->first_child();
+    ASSERT_NE(g2, nullptr);
+    EXPECT_NE(0, int(g2->props()->flags & tree::FileProperties::PFLAG_SIZE_EXCEEDS_BLOCKS))
+        << "the damaged bit survives the save/load";
+    tree::FileNode* q2 = g2->next_sibling();
+    ASSERT_NE(q2, nullptr);
+    EXPECT_EQ(0, int(q2->props()->flags & tree::FileProperties::PFLAG_SIZE_EXCEEDS_BLOCKS))
+        << "the clean node never gains the bit";
+}

@@ -4404,13 +4404,19 @@ TEST(CrUi, ThumbnailTinyFileDoesNotPromote) {
     ASSERT_TRUE(scan_img_to_session("thumbtiny", build_fat16_tiny_pbm(), u, img, crsf));
     const uint64_t tiny = query_node_id(u.sess, "#INY.PBM");
     ASSERT_NE(tiny, 0u) << "the deleted 8-byte PBM must be a result row";
+    /* capture the grade BEFORE: the M-134 deep-read grading rule may
+     * legitimately promote the node at scan completion (its preceding
+     * sector is zero-filled - the og's prev-sector-tail-zero rule); the
+     * M-115 claim is narrower: the THUMBNAIL surface must never promote
+     * under the floor. Isolate by comparing before/after the call. */
+    const uint32_t g_before = grade_of(u.sess, "#INY.PBM");
+    ASSERT_NE(g_before, 0xFFFFFFFFu);
     cr_ui_thumbnail_info info{};
     EXPECT_EQ(0x50030008u,
               cr_ui_thumbnail_generate(u.dev, u.sess, tiny, nullptr, nullptr, 0, &info))
         << "the 20-byte work-item floor refuses the generation";
-    const uint32_t g = grade_of(u.sess, "#INY.PBM");
-    ASSERT_NE(g, 0xFFFFFFFFu);
-    EXPECT_LT(g, 2u) << "no promotion through the thumbnail surface under the floor";
+    EXPECT_EQ(g_before, grade_of(u.sess, "#INY.PBM"))
+        << "no promotion through the thumbnail surface under the floor";
 }
 
 TEST(CrUi, ThumbnailUnreadableSpanNeverPromotes) {
