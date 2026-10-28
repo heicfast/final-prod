@@ -1,3 +1,20 @@
+**OQ-S42-1 RESOLVED-MATCH (S47 INFO-first lane, 2026-10-29).** The NTFS
+$SI/$FN time-precedence seam decoded first-hand and closed: the og is
+$SI-first with $FN fallback (NTFSSearchDLL :5338-5353 — the FN defaults
+overwritten by the $SI getters when type 0x10 is found and the
+FUN_180044fb0 fit gate passes) — the core's has_si rule verbatim; the
+asserted-but-undecoded parity is now decode-backed. Bonus seam resolved:
+the og's third surfaced slot (props+0x35) carries the $SI's MFT-MODIFIED
+time (FUN_180044ff0 attr+0x30; the true A time at content+0x10 is never
+surfaced) — parse_standard_information's apparently-"swapped" mapping
+(changed<-d+16 [A], accessed<-d+24 [MFT-mod]) is EXACT og parity, now
+pinned by NtfsVolume.SiTimeSlotsMatchOgSurfacedSet (distinct-time $SI+$FN
+records in both directions: precedence + slot mapping + the FN fallback
+all proven end-to-end; a future well-meaning "cleanup" that swaps the
+slots now turns the suite red). The SEVERE-candidate risk the OQ flagged
+is closed: no divergence, no code change. Trail: findings/FIXED/OQ-S42-1
++ ledger OQ row + ntfs.md B9 rows + this entry.
+
 **Session-44 minors lane — N-161 CONVERGENT-DU with the S53 landing (their `e0f15e0` wins per SA-9; this lane's byte-equivalent gate rides as the convergence addendum).** This lane independently verified and fixed N-161 (RED proven pre-fix: the corrupt entry [first=5, last=0] emitted the wrapped 0xFFFFFFFFFFFFFFFC partition; gate + `gpt_invalid_entries` counter + the same two test names landed locally), then hit the hot-window reconciliation: the remote's S53 lane (the S46 MINOR-claim continuation) pushed their own N-161 landing first — a superset (their gate also names the 2^64-boundary wrap `last − first == UINT64_MAX` invalid, where this lane's version left it on the zero-span side of the seam). Convergence resolution: the S53 code + S53 tests kept wholesale (this lane's duplicate test block and duplicate surfacing line removed; the two-gate-seam expectation superseded by the superset's counter==1 pin); this lane's independent RED reproduction stands as the corroboration record. The finding file's Resolution keeps the S53 record; this entry is the convergence documentation.
 
 **S53 lane (the S46 MINOR-first claim continued, 2026-10-29; renumbered from the

@@ -47,7 +47,20 @@ Core (audited commit `67193b6`): `src/core/ntfs/` (6 files, 2,311 LOC) +
 - **B6 post-format/remnant** — `M` 4 MiB remnant blocks, 'FILE' prefilter,
   shifted-header salvage at +0x58/+0x60 (og FUN_18002a780 parity), dedup vs
   structured results, skip-forward on unreadable blocks. Note (no finding):
-  prefilter stride hardcoded 512 (`cr_mftwalk.cpp:1113`) — harmless for
+- **B9 $SI/$FN time precedence — OQ-S42-1 RESOLVED-MATCH (this session,
+  first-hand decode + pin):** the og serializes $SI times when the attribute
+  exists and fits (NTFSSearchDLL :5338-5353 — the $FN defaults at :5338-5340
+  [FUN_1800437f0 obj+0x20 → props+0x25, FUN_1800437b0 obj+0x28 → +0x2d,
+  FUN_180043770 obj+0x38 → +0x35] overwritten by the $SI getters at
+  :5350-5352 once FUN_1800430b0 finds type 0x10 and the FUN_180044fb0 fit
+  gate [content_offset@attr+0x14 + 0x28 <= attr_length] passes), else falls
+  back to $FN — the core's `has_si ? si_times : best->times` verbatim. The
+  og's third slot (props+0x35) carries the $SI's FOURTH FILETIME
+  (MFT-modified, FUN_180044ff0 attr+0x30); the true A time is never
+  surfaced; parse_standard_information maps exactly this (changed ← d+16
+  [A], accessed ← d+24 [MFT-mod]) — pinned by
+  `NtfsVolume.SiTimeSlotsMatchOgSurfacedSet` so no cleanup swaps the slots.
+- **B9 stride note (history):** prefilter stride hardcoded 512 (`cr_mftwalk.cpp:1113`) — harmless for
   detection on 4Kn (4096 ⊂ 512-multiples), wasted probes only.
 - **B7 hard-link/ADS/sparse** — hard-link emission `MATCH` as of M-007
   (default single_link_per_record: ONE node per record, the namespace-best
