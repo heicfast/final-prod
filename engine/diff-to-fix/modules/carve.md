@@ -526,6 +526,17 @@ the registry census, not the family semantics. The class-by-class comparison
 - CORRECTIONS #5 propagated: the RawConfig [Filter] count is 34, not 37
   (M-024 addendum; matrix/SUMMARY/evidence notes updated).
 
+## Fix-session delta (S-039 closed — 2026-10-28)
+
+- **S-039 → FIXED** — the user-sign caps raised to the og's measured EUUserData
+  maxima (48/12/1024/80 vs the og's 44/11/526/73), the four false justification
+  comments replaced with the measured values, atomicity kept. The og's own
+  111-entry DB now parses, installs, and the CLI proceeds to the scan (the
+  pre-fix exit-1 abort happened only on the over-cap atomic reject). Three
+  fail-before-proven tests (`ParseOgShippedExtremes` RED on the pre-fix build,
+  `HostileBlobStillAtomic`, `RegistrationRoundTripProceedsToScan` — the
+  offset-526 sign fires at the stride). M-065 (the default set) is unblocked.
+
 ## Dev-sign session waves 3+5 additions (2026-10-28, audited `dd82db9`)
 
 - **S-039 (SEVERE)** — the user-signature caps reject the og's own EUUserData

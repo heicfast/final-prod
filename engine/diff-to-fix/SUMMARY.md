@@ -1,5 +1,23 @@
 # SUMMARY.md — executive summary (the review-validate close-out on top; earlier sessions below)
 
+## Fix-session delta (2026-10-28 — S-039, the user-sign caps)
+
+**S-039 (SEVERE) FIXED**: the caps in `include/cr/carve/cr_usersigns.h`
+raised to the og's measured EUUserData maxima — `kMaxSignBytes` 16→48 (og
+max 44), `kMaxSignsPerEntry` 8→12 (og 11), `kMaxOffset` 512→1024 (og 526),
+`kMaxMimeLen` 63→80 (og 73) — the four false justification comments replaced
+with the measured values, atomicity kept (honest caps + loud reject). The
+og's own 111-entry DB now parses, installs, and the CLI proceeds to the
+scan. Three tests, fail-before PROVEN on the stash-reverted pre-fix build
+(the two behavior tests RED: the 44-byte sign and the 526-offset sign each
+rejected the whole atomic parse); full suite 910 passed / 4 platform-skips /
+0 failed. M-065 (the default set) is now unblocked. See
+findings/FIXED/S-039-*.md for the Resolution.
+
+**Board after S-039:** 16 active (0 ACUTE · 3 SEVERE S-036/S-037/S-038 ·
+7 MAJOR M-060..M-066 · 5 MINOR N-084..N-088 · 1 INFO I-026) · **225 FIXED**
+· tracked-open 4 unchanged.
+
 ## Dev-sign validation session delta (2026-10-27/28 — SA lane: Phase-1 driver dev-sign/install/uninstall validation on a real Windows runner, audited `dd82db9` / workflow content `3bda8e2`; corpus `03ad46c` unmoved)
 
 **The mandate:** validate the merged product's driver under development

@@ -487,7 +487,7 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | app-installer · K74 silent surface (13 params) | DIVERGENCE-SEVERE | **S-038** — Inno /SILENT//VERYSILENT//SUPPRESSMSGBOXES//NORESTART, ARP QuietUninstallString, unins%03d, admin-required — all absent (string tables verified) |
 | app-installer · K77 registry + telemetry contract | DIVERGENCE-SEVERE | **S-038** — SetupUE 16-entry OS gate, `SOFTWARE\EASEUS\DRW\Version`, /SendInfo//SendInfoEx//UninstallStart//UninstallEnd |
 | driver-install · K71/K72/K76 versioned/verified deployer contract | DIVERGENCE-MAJOR | **M-064** — no -Uninstall verb, no %s%d coexistence, no write+verify, no per-call SCM errors (deepening-batch1 §3) |
-| carve · user-sign caps vs the og's own DB | DIVERGENCE-SEVERE | **S-039** — 15/111 EUUserData entries violate (44B/11-signs/526-off/73-mime measured); atomic parse → 0 load → CLI abort |
+| carve · user-sign caps vs the og's own DB | **MATCH (FIXED)** | **S-039** RESOLVED — caps raised to the measured maxima (48/12/1024/80); the og's own DB loads 111/111; fail-before-proven (ParseOgShippedExtremes/HostileBlobStillAtomic/RegistrationRoundTripProceedsToScan) |
 | carve · default user-sign set | DIVERGENCE-MAJOR | **M-065** — 111 og defaults, 79 stock-absent; severity calibrates on **OQ-SA-3** |
 | preview · archive-content enumeration (FS-origin) | DIVERGENCE-MAJOR | **M-066** — ArchivePreviewModel family vs the docx-only hunt (`cr_preview.cpp:685-715`) |
 | preview · doc truth (M-028 propagation) | DIVERGENCE-MINOR | **N-088** — cr_ui.h:1035 + API-SURFACE-AUDIT:94 + the never-produced mov |

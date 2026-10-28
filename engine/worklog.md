@@ -17510,3 +17510,39 @@ Work Log:
 Stage Summary:
 - A-010 CLOSED. Board: 17 active (0 ACUTE · 4 SEVERE · 7 MAJOR · 5 MINOR ·
   1 INFO) · 224 FIXED · 4 tracked-open. Next: S-039 (user-sign caps).
+
+---
+Task ID: FIX-2 (S-039 — the user-sign caps)
+Agent: main engineer (fix session: the handoff queue, priority 2)
+
+Work Log:
+- Re-verified the finding's measurements first-hand from the corpus
+  (og-codebase/EUUserData: 111 entries, 190 signs; max sign 44 B ("img"
+  0,7E742C01...7e742c01), max 11 signs ("mpeg" - the real 11 unique sign
+  strings), max offset 526 ("zip" 526,504B537058), max mime 73 ("pptx"
+  OOXML); 15/111 violate the old caps).
+- Raised include/cr/carve/cr_usersigns.h caps: kMaxSignBytes 16->48,
+  kMaxSignsPerEntry 8->12, kMaxOffset 512->1024, kMaxMimeLen 63->80; the
+  four false justification comments replaced with the measured values;
+  parse_sign's digit-count comment updated (S-039: 1024 = four digits).
+- Atomicity kept (the finding's verdict: the right posture once caps are
+  truthful); the rrecov --user-signs CLI path unchanged - with truthful
+  caps the og's own DB parses + installs + the scan proceeds.
+- Tests added to tests/unit/test_carve.cpp: UserSigns.ParseOgShippedExtremes
+  (the og's real extremes - RED pre-fix, proven on the stash-reverted
+  build), UserSigns.HostileBlobStillAtomic (98-hex-digit sign / 99999
+  offset / 13-sign entry / 81-char mime all still reject), and
+  UserSigns.RegistrationRoundTripProceedsToScan (RED pre-fix; the
+  offset-526 PKspx sign fires at the stride post-fix - note the hex
+  504B537058 = bytes 50 4B 53 70 58, uppercase S).
+- Full suite: 914 tests, 910 passed, 4 platform-skips, 0 failed; the
+  85-test Carve/RawSigns block fully green.
+- Trail: finding Resolution + FIXED move, modules/carve.md fix-delta,
+  CROSS-REF-MATRIX row -> MATCH(FIXED), SUMMARY board (17->16 active,
+  224->225 FIXED).
+
+Stage Summary:
+- S-039 CLOSED. Board: 16 active (0 ACUTE · 3 SEVERE S-036/S-037/S-038 ·
+  7 MAJOR · 5 MINOR · 1 INFO) · 225 FIXED · 4 tracked-open. M-065 (the
+  default user-sign set) is unblocked. Next: S-037 (FH11 + CPT carve
+  validators).

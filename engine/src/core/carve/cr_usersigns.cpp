@@ -97,7 +97,7 @@ bool parse_sign(const char* s, UserSign& us) {
         return false;
     u64 off = 0;
     if (comma - s > 4)
-        return false; /* offset <= 512 is three digits */
+        return false; /* offset <= 1024 is four digits (S-039: the og's max is 526) */
     for (const char* q = s; q < comma; ++q) {
         if (!std::isdigit(unsigned(*q)))
             return false;
@@ -184,7 +184,7 @@ u32 parse(const char* bytes, size_t len, UserSignSet& out) {
                         return ERR_BAD_PARAMETER;
                     if (sign_count >= kMaxSignsPerEntry)
                         return ERR_BAD_PARAMETER;
-                    char sig[8 + 1 + kMaxSignBytes * 2 + 8] = {};
+                    char sig[8 + 1 + kMaxSignBytes * 2 + 8] = {}; /* "offset," + 96 hex digits max */
                     if (!r.read_string(sig, sizeof(sig) - 1))
                         return ERR_BAD_PARAMETER;
                     UserSign us;

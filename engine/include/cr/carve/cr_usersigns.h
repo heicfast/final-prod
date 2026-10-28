@@ -33,12 +33,17 @@ namespace cr {
 namespace carve {
 namespace usersigns {
 
-constexpr u32 kMaxSignBytes = 16; /* the og's longest entry is 8 bytes; 16 bounds hostile input */
+/* S-039: the caps are the og's own shipped EUUserData measured maxima
+ * (16,891-byte file, 111 entries, census in the finding) plus honest
+ * hostile-blob headroom - the og's DB must parse clean; anything beyond
+ * these bounds is hostile input, rejected atomically. */
+constexpr u32 kMaxSignBytes = 48; /* the og's longest sign is 44 bytes (hqx/img/eps); 48 = 44 + headroom */
 constexpr u32 kMaxEntries = 256;  /* the og ships 111; 2.3x headroom, hostile-blob bound */
-constexpr u32 kMaxSignsPerEntry = 8;
-constexpr u32 kMaxOffset = 512; /* signs live inside the probe stride (the og's offsets are 0) */
+constexpr u32 kMaxSignsPerEntry = 12; /* the og's max is 11 signs (mpeg); 12 = 11 + headroom */
+constexpr u32 kMaxOffset = 1024;  /* the og's max offset is 526 (zip "526,504B537058"); the og has no
+                                    * probe-stride bound - 1024 keeps a hostile-input bound */
 constexpr u32 kMaxExtLen = 8;   /* the og's longest ext is 4 ("epub", "hqx") */
-constexpr u32 kMaxMimeLen = 63;
+constexpr u32 kMaxMimeLen = 80; /* the og's longest mime is 73 chars (the OOXML pptx string) */
 
 struct UserSign {
     char ext[kMaxExtLen + 1] = {};   /* lowercased */
@@ -61,7 +66,9 @@ struct UserSignSet {
  * Entries validate as they parse: offset <= kMaxOffset, hex length
  * 2..2*kMaxSignBytes and even, extension charset [A-Za-z0-9]{1,8}
  * (folded lowercase - the og's keys are lowercase), mime length bound,
- * entry/sign caps. The parser accepts the og's pretty-printed form
+ * entry/sign caps. The caps are the measured maxima of the og's own
+ * shipped database (S-039) - the og's EUUserData parses clean. The
+ * parser accepts the og's pretty-printed form
  * (4-space indent, multi-line arrays) and compact JSON alike - it reads
  * the token stream, not the layout. */
 u32 parse(const char* bytes, size_t len, UserSignSet& out);

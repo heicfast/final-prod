@@ -3954,6 +3954,133 @@ TEST(CarveEngine, UserSignatureYieldsToBuiltInAtSamePosition) {
     EXPECT_EQ(0u, user_records) << "no user-sign double emission";
 }
 
+TEST(UserSigns, ParseOgShippedExtremes) {
+    /* S-039: the og's own EUUserData extremes, measured first-hand from
+     * og-codebase/EUUserData (111 entries, 190 signs). Before the fix
+     * these all violated the caps and the og's own DB loaded ZERO
+     * entries (16-byte sign cap, 8 signs/entry, 512 offset, 63-char
+     * mime) - this test is RED on the pre-fix build. */
+    const char* json =
+        "{"
+        /* the 44-byte sign (the og's longest - entry "img") */
+        "\"img\": { \"signs\": "
+        "[\"0,7E742C015070024D52010000000800000001000031000000310000004301FF0001000800010000007e742c01\"], "
+        "\"mime\": \"application/octet-stream\" },"
+        /* the 11-sign entry (the og's max - entry "mpeg", the real sign
+         * strings from og-codebase/EUUserData) */
+        "\"mpeg\": { \"signs\": [\"0,000001BA\",\"0,000001b321000100\",\"0,000001ba21000100\","
+        "\"0,000001b32100716f\",\"0,000001ba2100716f\",\"0,000001b344002c48\","
+        "\"0,000001ba44002c48\",\"0,000001ba21000109\",\"0,000001ba44000400\","
+        "\"0,000001ba2fffff13\",\"0,000001ba44000404\"], "
+        "\"mime\": \"video/mpeg\" },"
+        /* the offset-526 sign (the og's max offset - entry "zip") */
+        "\"zip\": { \"signs\": [\"0,504B0304\",\"526,504B537058\"], "
+        "\"mime\": \"application/zip\" },"
+        /* the 73-char mime (the og's longest - entry "pptx") */
+        "\"pptx\": { \"signs\": [\"0,504B0304\"], "
+        "\"mime\": \"application/vnd.openxmlformats-officedocument.presentationml.presentation\" }"
+        "}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set))
+        << "the og's own shipped extremes must parse clean";
+    EXPECT_TRUE(set.valid);
+    ASSERT_EQ(15u, set.signs.size()) << "1 + 11 + 2 + 1 = 15 signs across 4 entries";
+    /* the 44-byte sign carried whole */
+    const carve::usersigns::UserSign* img_s = nullptr;
+    const carve::usersigns::UserSign* zip_far = nullptr;
+    for (const auto& s : set.signs) {
+        if (std::strcmp(s.ext, "img") == 0)
+            img_s = &s;
+        if (std::strcmp(s.ext, "zip") == 0 && s.offset == 526)
+            zip_far = &s;
+    }
+    ASSERT_NE(img_s, nullptr);
+    EXPECT_EQ(44u, img_s->len) << "the 44-byte sign loads whole";
+    EXPECT_EQ(0x7Eu, img_s->bytes[0]);
+    EXPECT_EQ(0x01u, img_s->bytes[img_s->len - 1])
+        << "the og's img sign ends ...7e742c01 (bounds-safe last-byte probe)";
+    ASSERT_NE(zip_far, nullptr) << "the offset-526 sign loads (the og's stride-less model)";
+    EXPECT_EQ(5u, zip_far->len) << "504B537058 = 5 bytes (PKspx)";
+    /* the 73-char mime carried whole */
+    bool saw_pptx = false;
+    for (const auto& s : set.signs) {
+        if (std::strcmp(s.ext, "pptx") == 0) {
+            saw_pptx = true;
+            EXPECT_EQ(std::string("application/vnd.openxmlformats-officedocument."
+                                  "presentationml.presentation"),
+                      s.mime);
+        }
+    }
+    EXPECT_TRUE(saw_pptx);
+}
+
+TEST(UserSigns, HostileBlobStillAtomic) {
+    /* S-039: honest caps raised, but the atomic hostile-input posture is
+     * unchanged - a 65,536-hex-digit sign (32 KiB of bytes) still
+     * rejects the whole file, and a post-cap offset still rejects. */
+    std::string big(98 + 2, 'A'); /* 98 hex digits: past kMaxSignBytes*2 = 96 */
+    big[0] = '0';
+    big[1] = ',';
+    const std::string json = "{\"x\": {\"signs\": [\"" + big + "\"], \"mime\": \"m\"}}";
+    carve::usersigns::UserSignSet set;
+    EXPECT_EQ(ERR_BAD_PARAMETER, carve::usersigns::parse(json.c_str(), json.size(), set));
+    EXPECT_FALSE(set.valid);
+    /* a sign at offset 99999 (past the 1024 bound) */
+    const char* far_off = "{\"x\": {\"signs\": [\"99999,504B\"], \"mime\": \"m\"}}";
+    EXPECT_EQ(ERR_BAD_PARAMETER,
+              carve::usersigns::parse(far_off, std::strlen(far_off), set));
+    /* an entry with 13 signs (past kMaxSignsPerEntry = 12) */
+    const char* many =
+        "{\"x\": {\"signs\": "
+        "[\"0,01\",\"0,02\",\"0,03\",\"0,04\",\"0,05\",\"0,06\",\"0,07\","
+        "\"0,08\",\"0,09\",\"0,0A\",\"0,0B\",\"0,0C\",\"0,0D\"], \"mime\": \"m\"}}";
+    EXPECT_EQ(ERR_BAD_PARAMETER, carve::usersigns::parse(many, std::strlen(many), set));
+    /* an 81-char mime (past kMaxMimeLen = 80) */
+    const std::string long_mime =
+        "{\"x\": {\"signs\": [\"0,AA\"], \"mime\": \"" + std::string(81, 'm') + "\"}}";
+    EXPECT_EQ(ERR_BAD_PARAMETER,
+              carve::usersigns::parse(long_mime.c_str(), long_mime.size(), set));
+}
+
+TEST(UserSigns, RegistrationRoundTripProceedsToScan) {
+    /* S-039: the CLI round-trip in miniature - the og's own extreme
+     * fixture parses, installs, and the scan proceeds with the count
+     * surfaced (before the fix the rrecov --user-signs path aborted
+     * with exit 1 on this same input; the parse+install success IS the
+     * gate the CLI checks). */
+    const char* json =
+        "{"
+        "\"zip\": { \"signs\": [\"0,504B0304\",\"526,504B537058\"], \"mime\": \"application/zip\" }"
+        "}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(set)));
+    EXPECT_EQ(2u, carve::usersigns::active_count())
+        << "the registration count the CLI prints after the fix";
+
+    /* the far-offset sign is probed where its bytes live: the og's
+     * 526,504B537058 (bytes 50 4B 53 70 58) at stride+526 carves via the
+     * user-sign layer (the og has no stride bound on offsets - the
+     * scan's match_at avail check carries it) */
+    std::vector<u8> img(2ull << 20, 0);
+    const u8 pkspx[5] = {0x50, 0x4B, 0x53, 0x70, 0x58}; /* "PKspx" per hex 504B537058 */
+    std::memcpy(img.data() + 0x2000 + 526, pkspx, sizeof(pkspx));
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Carved");
+    CarveFlags fl;
+    fl.hash_small_files = false;
+    CarveStats st;
+    ASSERT_EQ(OK,
+              carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
+    EXPECT_EQ(1u, st.sign_hits) << "the offset-526 user sign fires at the stride";
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        if (c->props() && c->props()->carve_format == 0xFFFE0000u) {
+            EXPECT_EQ(std::u16string(u"application/zip"), c->props()->carve_note);
+        }
+    }
+}
+
 } // namespace
 
 TEST(CarveEngine, WindowBufferReusedByValidatorChecksumAndHash) {
