@@ -4194,3 +4194,22 @@ Stage Summary:
   two-call archive export + N-150's row-state sweep in the same wave).
 - The backup branch (session-11-local-backup) preserves the full
   pre-reconciliation lane state for any future forensics.
+
+---
+Task ID: S11-R/close (session-11, the reconciliation lane's final sweep)
+Agent: session-11 continuation lead
+
+Work Log:
+- The final rebase window (c26f77d9's N-142 fix) re-created
+  findings/FIXED/ again (the c56481ca sweep's class recurring within the
+  hour) — swept once more: N-142's ledger row exists (verified); the file
+  retired to history. The convention holds on the landed tree.
+- The landed session: 0f9e4345 (the S11-R reconciliation) + this sweep.
+  READ-ONLY GUARANTEE re-verified on both: only diff-to-fix/ + worklog*
+  touched; zero product files; no conflict markers anywhere.
+
+Stage Summary:
+- Board at the landed HEAD: 63 active (7 S · 21 M · 28 N · 7 I) / 300
+  resolved ledger rows / 3 tracked-open. The lane is closed; the backup
+  branch (session-11-local-backup) preserves the full pre-reconciliation
+  state for forensics.
