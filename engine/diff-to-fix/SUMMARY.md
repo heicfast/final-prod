@@ -1,4 +1,67 @@
-# SUMMARY.md — executive summary (the session-40 fix lane on top; the prior lanes below, newest-first)
+# SUMMARY.md — executive summary (the S41 continuation lane on top; the prior lanes below, newest-first)
+
+
+## S41 lane delta (2026-10-29 — the continuation audit lane per the user's second-session directive: remove-the-fixed, go deeper, mark all remaining; RECONCILED at push over TWO parallel windows; three filings, all renumbered at the reconciliations)
+
+**Audited: core `c7fa527c` (the pre-rebase pin — the liveness battery's claims are pinned
+there); reconciled over the parallel windows to the remote close `e10ec381` (the S-053+
+N-141 emission-gate landing on top of the 20+-commit window), corpus `be0cfe9` throughout.**
+
+**This lane's unique product (all first-hand verified before filing; the local M-112/
+N-142/I-033 IDs were concurrently consumed on the remote and renumbered per SA-9 — the
+DXF-999 finding twice: N-142 → N-151 → **N-152**, each time over a concurrent remote
+consumption):**
+- **M-117 (MAJOR)** — the Outlook Express **Dbx carve analyser entirely absent**: the og
+  registers `RawSpeed::DbxAnalyser` (idx 0x15) under THREE magic keys (JMF6 / CF AD 12 FE /
+  F7 89 34 2C — `RAWSearchDLL_decompiled.c:2192-2232`), validates via a 4-GUID Outlook
+  Express identity table + the JMF6 version word (`FUN_180016740:17509`), sizes from
+  `u32@+0x7C` with a marked-form block computation and a 272-byte embedded-name buffer
+  (`FUN_180016950:17622`); the core has zero rows (byte-verified over all 122 FMT_
+  entries), and **neither implementation's raw_signs.json carries dbx**. This is the
+  trail's only never-filed analyser gap: session 3 marked the three keys "MISSING
+  (N-026)", planned the filing, never made it — and the ID was consumed by the parallel
+  refs-geometry finding (S3-CARVE.md:70 records the unfiled plan).
+- **N-152 (MINOR)** — the DXF **999-comment entry key** absent: the og's u16 key 0x3939 →
+  CDXFAnalyser (:2722-2733) + the probe's "999\n"/"999\r\n" leading-comment acceptance
+  (:42240+); the core keys "  0\r" only and requires SECTION at offset 0 — comment-led
+  CAD exports silently missed.
+- **I-034 (INFO)** — the **never-cited corpus-artifact register**: 23 of 283 artifacts
+  carried zero trail citations; dispositioned one-by-one (the three SearchDLL family
+  censuses drove M-117/N-152; EUDCPEPM = the Todo-Backup sibling driver; burn = N-134's
+  media-builder family; UIUX/32 → S-050's addendum; the rest = D-26/OOS-UI). Plus the
+  **750-entry og-file census**: NO undispositioned product surface.
+- **The remove-the-fixed wave (directive 1), pinned at `c7fa527c`:** the full liveness
+  battery — **54 of 55 then-active findings STILL**, one PARTIAL (N-132's TxtViewFiles
+  leg landed with M-108 — re-scoped by addendum, convergent with the S11-R aggravation
+  addendum). No phantom-fixed findings. The parallel windows' subsequent fixes
+  (S-051/N-112/N-113/N-142-CrPreview/M-109/S-053+N-141) were retired by their own lanes,
+  convergent with this battery's pin.
+- **The board-truth repairs:** the "56 active (7/18/24/7)" figure was the S11-final
+  truth commit's own arithmetic defect (MAJOR never decremented at M-110's retirement) —
+  repaired locally to the filesystem truth 55 (7/17/24/7), convergent with the remote's
+  S11B truth commit; the ledger's 296 rows verified TRUE (274 main + 22 OQ); N-111's
+  ledger SHA filled (461825d8); OQ-S10-2's row now carries the N-138 refutation note.
+- **The FIXED-archive convention conflict RECORDED (not adjudicated):** the session-39
+  user amendment ("put fixed findings in fixed directory") vs the S11-R sweep's purge —
+  the S41 lane restored M-108/M-110 per the amendment, then conformed to the remote's
+  earlier-pushed purge at the reconciliation; the matrix block records the open question
+  for the user.
+- **S-050's S41 addendum** — the repair line's UI-side surface (row contracts, task
+  queue, priority-7 fleet, Advanced Repair escalation) — complementary to the S11-lead's
+  per-chunk-feed addendum.
+
+**Board after this lane's push: 64 active (6 SEVERE · 22 MAJOR · 28 MINOR · 8 INFO) /
+307 resolved rows (the S41 filesystem re-count: 285 main-pattern + 22 OQ-prefixed, all
+unique — the remote's "302" arithmetic is the N-129 count-drift class on its own
+ledger claims) / 3 tracked-open (OQ-S4-3; OQ-S10-1; OQ-S10-3).** Next free IDs: S-055+, M-118+,
+N-153+, I-035+, A-012+. Evidence: `evidence/decompiled-quotes/s41-registry-key-residue.md`.
+
+**Recommended fix-order contribution:** M-117 rides the carve-lane queue after the
+school-2/3 children (the fix plan's two decode steps are the only prerequisites — the
+grammar is 80% decoded in the finding); N-152 is a one-row + one-branch landing on the
+existing DXF validator; N-132's remainder (row 45 + R-31's propagated clause + the two
+config-model dispositions) is a docs-only commit.
+
 
 ## Session-40-MAIN-lane delta (2026-10-29 — the tracked-open-first lane; the user's "priority to tracked open first" mandate)
 

@@ -1,4 +1,29 @@
 # diff-to-fix/ — parity audit roadmap (core_recovery vs easeus-drw-research)
+
+**Session-41 S41 lane (2026-10-29 — the continuation audit lane, the user's second-session
+directive: remove-the-fixed + go-deeper + mark-all-remaining; RECONCILED at push over TWO
+parallel windows):** audited **core `c7fa527c`** (the pre-rebase pin), **corpus `be0cfe9`**.
+Filed (all renumbered at the push-time reconciliations per SA-9 — the local IDs were
+concurrently consumed on the remote; the DXF-999 finding twice: N-142 → N-151 → N-152):
+**M-117** (MAJOR — the Outlook Express Dbx carve analyser entirely absent: the og's 3-key
+registry [JMF6/CFAD12FE/F789342C → RawSpeed::DbxAnalyser idx 0x15] + the 4-GUID identity
+probe + the u32@+0x7C size pass; the session-3 "MISSING (N-026)" residue that was planned
+and never filed — the trail's only never-filed analyser gap, found by the 57-key
+byte-level re-diff: 53 landed, 4 absent), **N-152** (MINOR — the DXF 999-comment entry
+key: the og's u16 key 0x3939 + the probe's leading-comment acceptance; the core keys
+"  0\r" only), **I-034** (INFO — the never-cited corpus-artifact register: 23/283
+artifacts dispositioned + the 750-entry og-file census finding no undispositioned product
+surface). The remove-the-fixed wave at the pin: 54/55 then-active findings STILL, one
+PARTIAL (N-132's TxtViewFiles leg landed with M-108 — re-scoped by addendum). The
+board-truth repairs (the "56 active" arithmetic defect; the ledger's 296 rows verified
+TRUE; N-111's SHA fill; the OQ-S10-2/N-138 refutation note) and the **FIXED-archive
+convention conflict recorded as an open user decision** (the session-39 amendment vs the
+S11-R purge — this lane conformed to the earlier-pushed remote state). S-050 carries the
+repair line's UI-side addendum (UIUX/32). **Board: 64 active (6 SEVERE · 22 MAJOR ·
+28 MINOR · 8 INFO) / 307 resolved rows (the S41 filesystem re-count — the remote's
+302 claim drifts) / 3 tracked-open.** Evidence:
+`evidence/decompiled-quotes/s41-registry-key-residue.md`.
+
 **Session-11 S11 lane (2026-10-29 — the second continuation deep-audit lane, RECONCILED at push):**
 audited **core `46b81573` at close** (code tree `432d15dc`'s; opened `8365956e`; the
 hottest parallel window of the trail absorbed — the M-072/M-074/M-077/M-096/N-093

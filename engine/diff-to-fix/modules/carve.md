@@ -684,7 +684,14 @@ multi-card continuation, GPX's declaration+<gpx window + </gpx> walk (cap 100 Mi
 OSP's libopenshot needle with the unique reject-on-missing, POS's needle settled
 from FUN_18001a470 ("ProcessOn Schema File"), CHFP's +0x28 BiffProject anchor;
 the per-chunk find quirk ported exactly; tests Carve.TextSchool*;
-findings/FIXED/N-113) · **N-115** OfficeTagFromXML.
+findings/FIXED/N-113) · **N-115** OfficeTagFromXML. · **M-117** (S41: the Outlook Express Dbx analyser — the og's 3-key registry
+[JMF6/CFAD12FE/F789342C → RawSpeed::DbxAnalyser idx 0x15] + the 4-GUID identity probe +
+the u32@+0x7C size pass; the never-filed session-3 "MISSING (N-026)" residue) ·
+**N-152** (S41: the DXF 999-comment entry key — the og's u16 key 0x3939 → CDXFAnalyser +
+the probe's "999\n"/"999\r\n" leading-comment acceptance; the core keys "  0\r" only;
+renumbered twice at the push-time reconciliations per SA-9 — the local N-142 lost to the
+remote's CrPreview finding, the local N-151 lost to the remote's nested-declaration
+re-finding)
 The school-1 formats (CHM/ONE/MNY/EMF/SWF/3DS) landed via `b92ebef`; FCPEvt closed
 as covered — the lead lane's duplicate filings dropped, its decodes convergent with the
 remote errata E56-E66.

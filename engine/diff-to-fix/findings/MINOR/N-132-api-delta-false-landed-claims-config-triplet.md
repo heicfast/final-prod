@@ -78,3 +78,32 @@ and are BOTH false vs the code (the repo grep stays zero). The fix must
 revert/correct R-31's display-priority clause in addition to rows 44-45 —
 N-150's batch owns the row-state mechanics; this addendum records that the
 spread is verified current, not historical.
+---
+
+## S41 addendum (2026-10-29, the continuation audit lane — the TxtViewFiles leg RESOLVED by the M-108 landing; the finding re-scoped to the standing remainder)
+
+The liveness re-verification at core `c7fa527c` (this lane's T4-T7 battery, first-hand)
+found the TxtViewFiles leg **landed**:
+
+- **Row 44 corrected at the landing:** `diff-to-fix/API-DELTA.md` row 44 now reads
+  "TxtViewFiles landed at the M-108 fix (`cr_preview_text_exts_data.cpp` — the preview
+  eligibility pool, byte-exact)" — the false-"landed" claim for this row is gone, and the
+  correction also repaired the finding-time "119-ext" figure to the artifact's own 97-token
+  count (538 bytes, 92 unique case-folded).
+- **The code surface exists:** `src/core/preview/cr_preview_text_exts.cpp` +
+  `cr_preview_text_exts_data.cpp` (the generated whitelist pool), gated at
+  `src/core/preview/cr_preview.cpp:1061` and declared at
+  `include/cr/preview/cr_preview.h:147-165` — all carrying the M-108 marker. Verified:
+  `rg "TxtViewFiles" src/ include/` → 10 hits, every one at the M-108 sites.
+
+**The standing remainder (this finding's scope, unchanged and convergent with the S11-R
+addendum above):** row 45 still claims "PriorityDisplayType.xml / usefullostfiles.xml /
+SumaryFileType groups — landed (query/filefilter data layers)"; the S11-R addendum's
+aggravation record (the false claim propagated into REFERENCE-API-GAP R-31) compounds
+it. Re-verified at `c7fa527c`: `rg "SumaryFileType|PriorityDisplay" src/ include/` →
+**0 code hits**; `include/cr/tree/cr_grading.h` still carries the plain 8-bucket
+`category_counts` with no family unification. The finding stays ACTIVE, re-scoped to
+row 45 + R-31's propagated clause + the two config-model dispositions.
+
+**Core references re-pinned:** audited `c7fa527c` (this addendum's cites; the original
+file's cites remain the `84a1832` filing-time record).

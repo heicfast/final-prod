@@ -4291,3 +4291,79 @@ Stage Summary:
   INFO) / 306 resolved ledger rows / 3 tracked-open. Suites green
   (release + ASan); format clean; the push carries the two- finding fix,
   the ASan test repair, and the full trail.
+
+---
+Task ID: S41 (session-41 continuation audit lane — the consolidated record; opened at core c7fa527c / corpus be0cfe9, RECONCILED at push over TWO parallel windows, closed at the reconciled push)
+Agent: session-41 continuation audit lane (the user's "second session" directive: find what prior sessions missed, remove the fixed things, go deeper, mark all remaining)
+
+SESSION RECORD (the pre-rebase states preserved at `s41-local-backup` and in the reflog;
+the two reconciliation rebuilds were forced by the trail's hottest windows).
+
+WAVE 0 — LANE OPEN: baselines (core c7fa527c, corpus be0cfe9); prompt saved token-redacted;
+the 56-vs-55 board-truth defect found at T1 (the S11-final truth commit 14cf8064's own
+arithmetic — the MAJOR half never decremented at M-110's retirement).
+
+WAVE 1 — BOARD RE-TRUTH (pinned at c7fa527c): filesystem truth 55 (7/17/24/7); the ledger's
+296 rows verified TRUE (274 main + 22 OQ — the single-regex count had missed the OQ rows);
+the FIXED-archive convention conformed to the session-39 user amendment locally — later
+CONFORMED BACK to the remote's earlier-pushed S11-R purge at the reconciliation (the
+conflict recorded as an OPEN user decision in the matrix's S41 block); N-111's ledger SHA
+cell filled (461825d8); OQ-S10-2's row carries the N-138 refutation note.
+
+WAVE 2 — THE REMOVE-THE-FIXED BATTERY (pinned at c7fa527c): 54/55 then-active findings
+STILL, one PARTIAL (N-132's TxtViewFiles leg landed with M-108/aac75bba; re-scoped by
+addendum to row 45 + R-31's propagated clause — convergent with the S11-R aggravation
+addendum). M-076's apparent TRIM flip checked and REFUTED (the hits are the health
+facet's smart-report struct; cr_ui_disk_info still lacks the fields).
+
+WAVE 3 — THE DEEP-COMPARISON FILINGS: the never-cited-artifact census (283 docs, 260
+cited / 23 never) opened the genuinely unaudited territory; the three never-cited
+RAWSearchDLL family censuses cross-checked against the 122-member enum → the 57-key
+byte-level registry re-diff (53 landed, 4 absent) →
+- **M-117 (MAJOR)** — the Outlook Express Dbx analyser entirely absent (the og's 3-key
+  registry :2192-2232, the 4-GUID identity probe FUN_180016740:17509, the u32@+0x7C size
+  pass FUN_180016950:17622 — the session-3 "MISSING (N-026)" residue planned at
+  S3-CARVE.md:70 and never filed);
+- **N-152 (MINOR)** — the DXF 999-comment entry key (the u16 0x3939 binding :2722-2733 +
+  the probe's leading-comment acceptance :42240+; the core keys "  0\r" only);
+- **I-034 (INFO)** — the never-cited artifact register + the two completeness censuses
+  (the 283-artifact citation census + the 750-entry og-file census: NO undispositioned
+  product surface).
+The never-cited EUDCPEPM artifact dispositioned (the Todo-Backup sibling driver family);
+burn → N-134's family; UIUX/32 → S-050's addendum; UIUX/16's AI layer → D-26.
+
+WAVES 4-5 — THE TWO PUSH-TIME RECONCILIATIONS (the hottest windows of the trail absorbed):
+window 1 (20+ commits: the S11-R/S11-lead/S11B/S12/S40 lanes' filings + the S-051/N-112/
+N-113/N-142/M-109/M-116 fix landings) forced the first renumbering set (M-112→M-117,
+N-142→N-151, I-033→I-034 — each ID concurrently consumed on the remote); window 2 (the
+S-053+N-141 emission-gate landing e10ec381 + the remote's own N-150→N-151 renumber
+6f7d33e8) forced the second (N-151→N-152). Both resolved per SA-9 earlier-push-wins; the
+rebase conflicts resolved by the rebuild-on-remote method; the N-132/S-050 addenda
+re-appended after the remote's own convergent addenda each time; the ledger row
+improvements kept; the FIXED/-dir restorations dropped (the remote's purge wins; the
+convention conflict recorded as the open user decision).
+
+BOARD AT THIS LANE'S CLOSE (the reconciled filesystem truth, re-counted post-rebase):
+**64 active (6 SEVERE · 22 MAJOR · 28 MINOR · 8 INFO) / 307 resolved rows (the S41
+filesystem re-count at the close: 285 main-pattern + 22 OQ-prefixed, all unique — the
+remote's own "300 → +2 = 302" arithmetic drifts by 5 against the table, the N-129
+class on the remote's ledger claims; recorded for the next truth lane) / 3 tracked-open
+(OQ-S4-3; OQ-S10-1; OQ-S10-3 — all three unchanged this lane).** Next free IDs: S-055+,
+M-118+, N-153+, I-035+, A-012+.
+
+READ-ONLY GUARANTEE: verified per-commit — the lane's own commits touch NOTHING outside
+diff-to-fix/ + worklog* (the product-code commits visible in the window are the parallel
+FIX lanes' landings, not this lane's). The product trees of BOTH repos untouched by S41.
+
+Handoff — the highest-value next moves from THIS lane's product:
+(1) **M-117's fix** (the Dbx analyser — fix-plan step 1 names the two FUN bodies to decode
+    first: FUN_180042b30's block computation + the Analyse virtual; the grammar is
+    otherwise decoded; three registry rows + validate_dbx + the five tests are scoped);
+(2) **N-152's landing** (one u16 key row + validate_dxf's leading-comment branch);
+(3) **N-132's remainder** (row 45 + R-31's propagated clause + the config-model
+    dispositions — docs-only);
+(4) **the FIXED-archive convention decision** (the open user question: the session-39
+    amendment vs the S11-R purge — one sentence settles it; the ledger rows carry both
+    SHAs and the history paths either way);
+(5) the standing order (S-052 first — silently wrong LDM bytes, now the board's top
+    SEVERE after S-053's landing; the carve school-2/3 children).

@@ -77,3 +77,30 @@ post-processor contract should decide the per-chunk channel explicitly (a
 `on_chunk` optional callback or its registered decline) — the og's repair engine
 consumes both. Evidence: `evidence/s11-lead-deep-lanes.md` §Lane-A row 13 + the
 addendum list.
+
+---
+
+## S41 addendum (2026-10-29 — the repair line's UI-side surface decoded: the never-cited UIUX/32 artifact)
+
+The corpus artifact `re-workspace/artifacts/UIUX/32-repair-item-rows-decode.md` (zero
+trail citations before this session — see I-034's register) decodes the repair product
+line's UI spine, sharpening this finding's scope-registration evidence (complementary to
+the per-chunk-feed addendum above — that one is the engine-side channel, this one is the
+presentation/queue side):
+
+- **Three row-controller families** (template-sibling pattern): the generic FileRepairListItem/
+  FileRepairScanItem (10 moc methods), CRepairVideoItem and CRepairPDFItem (**byte-identical
+  22-string moc blobs** — one row controller specialized per line).
+- **The row contract** (stringdata-validated): 8 signals + 10 slots — the **Advanced Repair
+  escalation** is sample-file-guided reconstruction (video: CRepairVideoGetSampleWnd; PDF: the
+  decrypt path); `sigSaveActivateSuccess` fires on licensed-advanced-repair activation.
+- **The task queue** (FileRepairDataMgr): sigDoNextRepairTask dequeues, sigUpdateRepairProgress
+  fans out, sigFinishRepairTasks enables batch save — the serialized repair queue.
+- **The thread fleet at TimeCriticalPriority**: FileRepairAddThread/FileRepairThread/
+  FileRepairSaveThread/PdfRepairThread/ArchiveRepairThread all `QThread::start(t, 7)`.
+- **The scan-completion probe**: `m_bNeedViedoRepair=0, m_pVideoRepair=1` — the app probes
+  video-repair availability exactly when results finalize.
+
+Fix-plan impact: step 1's scope registration should name the row-contract surface (the
+actions: Repair/Preview/Save/Stop/Advanced/Feedback/Change) and the queue model as the
+og's behavioral shape. No verdict change (extend-don't-refile).
