@@ -1785,6 +1785,7 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
         table::DiskTable t;
         if (slice->absolute_base() == 0 && table::parse_disk_table(slice, t) == OK &&
             t.layout != table::TableLayout::None) {
+            stats.gpt_invalid_entries = t.gpt_invalid_entries; /* N-161 */
             std::vector<table::PartitionInfo> targets;
             for (const auto& p : t.partitions)
                 if (p.used && p.sector_count != 0 && p.fs != table::FsKind::Extended &&

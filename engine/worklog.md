@@ -1,3 +1,22 @@
+**Session-53 lane (the S46 MINOR-first claim continued, 2026-10-29; renumbered from the
+S47→S52 drafts at two hot-window merges — the remote's S47..S52 seats pushed first per SA-9):**
+the S46 claim is executed by this lane (same mandate, same MINOR-first directive, no fixes
+landed between the claim commit `fa654673` and this lane's open). Baseline at open:
+linux-release build green, suite **1273/1273**. Mandate saved token-redacted at
+`worklog/session-diff-fix-s52-prompt.md` (the s47-named draft renumbered with the lane).
+
+- **N-161 FIXED** — the GPT entry-span underflow: `emit_gpt_entries` now gates
+  `last_lba < first_lba` (and the 2^64-boundary wrap `last - first == UINT64_MAX`)
+  before emission, counting the corrupt entry in the new `DiskTable::gpt_invalid_entries`
+  (surfaced in `ScanStats` at the whole-disk parse site) instead of letting the wrapped
+  ~2^64 sector_count masquerade as a giant volume. Tests:
+  Gpt.EntryLastLbaBeforeFirstLbaSkippedAndCounted + Gpt.EntrySpanOverflowBoundary, both
+  RED pre-fix at `fa654673` (the wrapped entry emitted; counter absent/0) and GREEN
+  post-fix; the Gpt family + WholeDisk orchestrator legs green (20/20). The finding's
+  scope note preserved: core-side honesty doctrine, the og's span consumption stays
+  undecoded (OQ-1) — no parity claim, no PARITY-DELTAS row. (The N-161 landing rode
+  the pre-merge tree; the M-124 EBR-0x85 window merged clean around the GPT gate —
+  both edits verified coexisting in the merged tree, suite re-run green below.)
 **S48 lane progress (INFO board COMPLETE — 6 of 6 dispositioned by this lane):**
 I-044 (f0163182 — the scan-mode register: C1/A1/A5 annotated, D-36 citation fixed, errata row),
 I-043 (D-122 — the state-ownership improvement registered), I-042 (module-registered pause
