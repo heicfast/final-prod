@@ -1020,9 +1020,16 @@ const Signature kTable[] = {
      "Access Database (ACE)"},
     /* S-047: the og's TS sync scanners. The 1-byte 0x47 magic + the
      * follow-byte set {0x40,0x41,'P',0x10} + the strided packet walk
-     * (min extent 0x5000, cap = the 200 MB controller global x 10).
-     * suppress_overlap: every packet of a TS stream re-matches the
-     * 1-byte key - the repeating-sync family (the MPEG-audio
+     * (min extent 0x5000). S-054: the cap is the og's 200 MB controller
+     * global EXACTLY - the walk clamps the computed size to
+     * 200000000 (RAWSearchDLL_decompiled.c:35507-35509) and the
+     * size-unknown fallback assigns the same 200000000 literal
+     * (:35513); the global itself is initialized at :9049
+     * (+0x70 = 200000000). The former "x 10" provenance was refuted:
+     * 2000000000/0x77359400 appears NOWHERE in the decompile (grep
+     * verified twice by the audit lanes, re-verified first-hand at the
+     * fix). suppress_overlap: every packet of a TS stream re-matches
+     * the 1-byte key - the repeating-sync family (the MPEG-audio
      * precedent); mid-stream syncs inside an emitted stream are the
      * SAME stream. */
     {FMT_TS,
@@ -1031,7 +1038,7 @@ const Signature kTable[] = {
      1,
      0,
      0x5000,
-     2000000000ull, /* the og's controller global (200 MB) x 10 */
+     200000000ull, /* the og's TS walk clamps to the 200 MB controller global */
      600,
      validate_ts,
      "MPEG Transport Stream",
@@ -1042,7 +1049,7 @@ const Signature kTable[] = {
      1,
      4, /* the sync sits 4 bytes into the file (TP_extra_header) */
      0x5000,
-     2000000000ull,
+     200000000ull,
      600,
      validate_m2ts,
      "AVCHD M2TS",

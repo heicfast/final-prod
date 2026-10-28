@@ -372,23 +372,24 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 continue;
             ctx.hits.fetch_add(1, std::memory_order_relaxed);
 
-            /* try THIS format's grammar; accepting candidates accumulate
-             * into best_sig (N-070) - the winner is emitted after the
-             * loop. Position-resolution breaks (already-emitted here, F9
-             * dedup) still exit the trial loop immediately. */
-            CarveResult cr = sig.validator(&wdev, cand_abs, sig.max_size);
-            if (!cr.ok) {
-                ctx.rejected.fetch_add(1, std::memory_order_relaxed);
-                continue;
-            }
-            u64 file_len = cr.end - cand_abs;
-            if (file_len < sig.min_size || file_len > sig.max_size) {
-                ctx.rejected.fetch_add(1, std::memory_order_relaxed);
-                continue;
-            }
+            /* M-116 (the trial-loop ordering repair): the covered check
+             * runs BEFORE the validator. The walk's result was never used
+             * for covered candidates (the post-validator check simply
+             * `continue`d), but the walk itself ran to the row's FULL cap
+             * - on a contiguous suppress_overlap stream (TS/M2TS/MPEG
+             * audio: 1-byte sync keys, one hit per packet) that is the
+             * quadratic blow-up this fix removes: every mid-stream sync
+             * re-walked up to 200 MB only to be discarded as a duplicate
+             * (the executed S-054 fixture: a 220 MB stream = ~1.06M hits
+             * x ~200 MB walks - the scan stage never finishes; post-fix
+             * the whole stream scans in milliseconds). The terminal state
+             * is identical (duplicates++ + continue); the one counter
+             * refinement: a covered position whose walk would have FAILED
+             * now counts as a duplicate (what it is - the same stream)
+             * instead of a rejection. */
             if (emitted_at.count(cand_abs)) {
                 ctx.duplicates.fetch_add(1, std::memory_order_relaxed);
-                break;
+                break; /* position already resolved (F9 dedup) */
             }
             if (sig.suppress_overlap) {
                 bool inside = false;
@@ -401,6 +402,20 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                     ctx.duplicates.fetch_add(1, std::memory_order_relaxed);
                     continue; /* a mid-stream sync of an emitted stream */
                 }
+            }
+
+            /* try THIS format's grammar; accepting candidates accumulate
+             * into best_sig (N-070) - the winner is emitted after the
+             * loop. */
+            CarveResult cr = sig.validator(&wdev, cand_abs, sig.max_size);
+            if (!cr.ok) {
+                ctx.rejected.fetch_add(1, std::memory_order_relaxed);
+                continue;
+            }
+            u64 file_len = cr.end - cand_abs;
+            if (file_len < sig.min_size || file_len > sig.max_size) {
+                ctx.rejected.fetch_add(1, std::memory_order_relaxed);
+                continue;
             }
 
             /* F9 dedup vs structured results + prior carved nodes (the
@@ -583,6 +598,17 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             emitted_at.insert(cand_abs); /* this magic position resolved (N-070: the
                                               winner's start; the raw-sign layer must
                                               not re-probe it) */
+            /* M-116 design note: NO post-emission scan jump. A jump past
+             * the emitted extent would suppress every candidate STARTING
+             * inside the extent - but overlapping candidates are real
+             * (the og ranks them by accumulated confidence, N-070's
+             * decode; the core's F9/extent-index dedup is the only
+             * correct suppression). The quadratic walk is removed by the
+             * pre-validator covered check ALONE: it preserves the exact
+             * terminal state for covered candidates while skipping their
+             * discarded walk work. (The jump variant broke
+             * S007CommonFormatsCarve - an AAC ADTS start inside another
+             * format's walked extent - caught by the full-suite gate.) */
         }
     }
 

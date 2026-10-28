@@ -6878,6 +6878,146 @@ TEST(Carve, Batch1OgCapsAreTheRegistryRows) {
     EXPECT_EQ(sit->max_size, 200000000ull) << "the og's StuffIt cap (200 MB), not 512 MiB";
 }
 
+/* -------------------------------------------------------------------- */
+/* S-054: the TS/M2TS cap is the og's 200 MB controller global, exactly */
+/* -------------------------------------------------------------------- */
+
+namespace {
+
+/* a synthetic whole-disk TS stream: the pattern device keeps the 220 MB
+ * "disk" at ~zero memory (every byte derives from its offset - 0x47 sync
+ * every 188 bytes, 0x41 in the follow-byte set, zeros elsewhere). */
+class TsStreamDevice final : public IStorageDevice {
+public:
+    explicit TsStreamDevice(u64 bytes, u64 stream_off) : total_(bytes), off_(stream_off) {
+        geom_.logical_sector = 512;
+        geom_.physical_sector = 512;
+        geom_.sector_count = bytes / 512;
+        geom_.total_bytes = bytes;
+    }
+    u32 read_at(u64 at, void* buf, u32 len) override {
+        if (at > total_ || len > total_ - at)
+            return ERR_RANGE_OUT_OF_BOUNDS;
+        u8* p = static_cast<u8*>(buf);
+        /* packet-template fill: one 188-byte packet synthesized once,
+         * memcpy'd per span - keeps the 220 MB "disk" scan cheap */
+        static u8 pkt[188];
+        if (pkt[0] != 0x47) {
+            std::memset(pkt, 0, sizeof(pkt));
+            pkt[0] = 0x47;
+            pkt[1] = 0x41;
+        }
+        u64 pos = at;
+        u32 rem = len;
+        /* head: the partial packet before the first boundary */
+        if (pos < off_) {
+            const u64 head = std::min<u64>(rem, off_ - pos);
+            std::memset(p, 0, size_t(head));
+            p += head;
+            pos += head;
+            rem -= head;
+        }
+        while (rem > 0) {
+            const u64 s = pos - off_;
+            const u32 in = u32(s % 188);
+            const u32 take = std::min<u32>(rem, 188 - in);
+            std::memcpy(p, pkt + in, take);
+            p += take;
+            pos += take;
+            rem -= take;
+        }
+        return OK;
+    }
+    const Geometry& geometry() const override { return geom_; }
+
+private:
+    u64 total_;
+    u64 off_;
+    Geometry geom_;
+};
+
+} // namespace
+
+TEST(Carve, TsM2TsCapIsTheOg200MB) {
+    /* S-054 registry pin: both rows' max_size are the og's 200 MB
+     * controller global - the walk clamps the computed size to
+     * 200000000 (RAWSearchDLL_decompiled.c:35507-35509) and the
+     * size-unknown fallback assigns the same literal (:35513); the
+     * global initializes at :9049. The former "x 10" value
+     * (2000000000/0x77359400) appears NOWHERE in the decompile - pinned
+     * so no future edit can re-widen the cap without touching the cite. */
+    const Signature* reg = registry();
+    ASSERT_NE(reg, nullptr);
+    const Signature *ts = nullptr, *m2ts = nullptr;
+    for (const Signature* s = reg; s->ext; ++s) {
+        if (s->id == FMT_TS)
+            ts = s;
+        else if (s->id == FMT_M2TS)
+            m2ts = s;
+    }
+    ASSERT_NE(ts, nullptr);
+    ASSERT_NE(m2ts, nullptr);
+    EXPECT_EQ(ts->max_size, 200000000ull) << "the og's TS clamp (:35507-35509), not the refuted x10";
+    EXPECT_EQ(m2ts->max_size, 200000000ull) << "the og's M2TS clamp, same global";
+    EXPECT_EQ(ts->min_size, 0x5000u);
+    EXPECT_EQ(m2ts->min_size, 0x5000u);
+}
+
+TEST(Carve, TsStreamClampedAt200MB) {
+    /* S-054 behavior: a sync-valid TS stream longer than 200 MB carves
+     * at the og's cap - no emitted TS node may exceed 200,000,000 bytes
+     * and the cap-sized node lands within one 188-byte packet of the
+     * clamp. Pre-fix (the 2 GB cap) the whole 220 MB stream emitted as
+     * one ~219,999,852-byte node. M-116 rides the same fixture: the
+     * contiguous 1.06M-sync stream scans to completion (pre-M-116 every
+     * mid-stream sync re-walked the full cap - the run did not finish
+     * inside 600 s). The non-TS formats are disabled so the per-byte
+     * trial loop pays only this family's dispatch (the pin exercises
+     * the TS row's cap, not the whole-registry cost). */
+    TsStreamDevice dev(u64(220) * 1000 * 1000 + 4096, u64(1024) * 1024);
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    /* disable every registry row except the TS family: the disable list
+     * is a semicolon-delimited ext list (M-024 contract) - build it
+     * from the registry itself */
+    std::string disabled;
+    for (const Signature* s = registry(); s->ext; ++s) {
+        if (s->id == FMT_TS || s->id == FMT_M2TS)
+            continue;
+        if (!disabled.empty())
+            disabled += ';';
+        disabled += s->ext;
+    }
+    flags.disabled_formats = disabled.c_str();
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    u64 ts_nodes = 0;
+    u64 largest = 0;
+    for (tree::FileNode* n : all) {
+        if (n->props()->carve_format != u64(FMT_TS))
+            continue;
+        ++ts_nodes;
+        if (n->props()->logical_size > largest)
+            largest = n->props()->logical_size;
+    }
+    ASSERT_GE(ts_nodes, 1u) << "the sync-valid stream must carve";
+    EXPECT_LE(largest, 200000000ull) << "no TS node exceeds the og's 200 MB clamp";
+    EXPECT_GT(largest, 200000000ull - 188ull)
+        << "the cap-sized node is within one 188-byte packet of the clamp";
+}
+
 namespace {
 
 /* a MIDI whose WALKED size is exactly `bytes`: MThd(14) + one MTrk(8+payload) */
