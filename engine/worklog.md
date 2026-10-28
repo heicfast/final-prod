@@ -3720,3 +3720,89 @@ Stage Summary:
   queue in impact order: S-053 (ReFS unnamed rows), S-052 (LDM span basis),
   S-051 (whole-disk targets), S-049 (carved naming), S-048 (carve grouping),
   S-040 (image-create), S-050 (the repair-line registration).
+
+
+## Session-11B CLOSE (2026-10-29) — the continuation audit handoff
+
+**Audited commit:** core `7990a86d` at open → the hot-parallel-window lineage through
+`602dd170` at close (my lane's baselines re-verified at each rebase; the product-code
+tip my verification agents used: `743d7b8d`-lineage incl. `740d9b56`). **Corpus:
+`be0cfe9`** (unmoved all session). 1212+ commits on main at close.
+
+**READ-ONLY GUARANTEE: HELD.** This lane's six surviving commits (35bee726 ·
+bc4513db · 743d7b8d · b37fabab · 602dd170 + the rebase-resolution riders) each
+verified `git show --name-only`: zero files outside `diff-to-fix/` + `worklog*`.
+(The window's other commits are the parallel lanes' — S11/S11-lead/39/40/fix-lane
+— their source landings are theirs.)
+
+**Coverage statistics (the user's three asks, decomposed):**
+1. **Remove-the-fixed** — all 55 active-at-open findings re-verified at HEAD by
+   three parallel agents + lead spot-verification of every load-bearing claim.
+   Board movement this lane: **M-102/M-083 conformed** (the e56baac7 landing's
+   missed purge step), **N-134 retired FIXED-ALREADY** (b202f9ed pre-dated its own
+   filing by 6.5h), **I-030 resolved** (the module map completed). Dropped as
+   moot at push: the M-072/N-093 addenda (both retired mid-flight by the fix
+   lanes — convergent with this lane's triage).
+2. **Go-deeper** — the T4 landing-parity wave over the five freshest landings:
+   M-096/N-100/thumbnail-ABI PARITY-VERIFIED; M-093's one residual filed (M-112);
+   M-079's image-stem divergence confirmed owned by N-133 (+the registration leg
+   found: D-03 stale, no D-row). The phantom-SHA truth class repaired (11 cells,
+   every replacement git-cat-file-verified) — convergent with session-39's deeper
+   census; the guard script is now load-bearing.
+3. **Mark-all-remaining** — **M-112** (the CSL 0x44c unported-unowned stand-in,
+   the M-107 class's twelfth site), **N-142** (the dropped thumbnail variant's
+   dead wiring), + 16 addenda (the per-item status table on N-135; N-133's
+   registration leg; the cite-refresh batch over 10 stale-cite findings; M-107's
+   three in-file corrections), + the reghive.md/apply.md module rows (the map
+   completed, 28 rows).
+
+**Board at close: 56 active (7 SEVERE · 18 MAJOR · 24 MINOR · 7 INFO) / 299
+resolved rows (277 main + 22 OQ — the whole-table re-count truth) / 3 tracked-open
+(OQ-S4-3, OQ-S10-1, OQ-S10-3). Next free IDs: S-054+, M-113+, N-143+, I-033+, A-012+.**
+
+**Recommended first 20 fixes (priority order):**
+1. **S-052** — the LDM span misbase: silently wrong recovery bytes on spans/
+   stripes/mirrors/RAID-5; the five-link chain map is in the finding's cite-refresh
+   addendum; multi-disk fixtures already exist (test_ldm.cpp:206+).
+2. **S-051 + M-104** as one whole-disk shape pass (the partition-list target
+   builder + the per-volume display-name roots; composes with S-048/M-103/M-079 —
+   the executed fixtures and the real-session census are in the evidence files).
+3. **S-053** — the ReFS unnamed-$DATA drop (the parallel lane's new SEVERE; the
+   decode is complete in the finding).
+4. **M-109** — the thumbnail 32 MiB → 200 MB budget: one constant + three doctrine
+   comments + a D-row; the cheapest SEVERE-adjacent fix on the board.
+5. **M-103** — the LostDir per-parent grouping at the existing cr_mftwalk.cpp:1104-1107
+   site (62.6% of a real og session's shape).
+6. **M-112** — the CSL 0x44c size branch: one branch inside validate_xmlsvg, the
+   decode quoted in the finding; four tests named.
+7. **S-048 + S-049** — the carve volume-grouping + naming contract pair (the
+   real-session evidence is complete; the naming decode table is in S-049).
+8. **N-142** — the dead CrPreview wiring: one deletion + comment rewrite (hygiene;
+   10 minutes).
+9. **M-106** — the ONE/3DS size walks: mechanical against the already-landed
+   decodes (the 500MB chunk-chain / 200MB section-walk).
+10. **M-107's remaining ten sites** — the batch-1 stand-ins, one session of
+    decode-and-port (X3F first per the fix plan; EPS/AI at 16 MiB per the
+    addendum's corrections).
+11. **M-101** — the Versions/Tags-Extracted branches (the og's tree shape).
+12. **M-105** — the DRWService lifecycle posture decision (implement vs formal §3
+    exclusion; rides the driver-contract session with M-086/M-087 residuals).
+13. **M-073** — the scan-time folder filter (PushFolderFilter port).
+14. **M-075** — the chkdsk launch (or its formal out-of-core registration rewrite).
+15. **M-076** — the TRIM facet (one enumeration row + the wiring).
+16. **M-078** — the BitLocker turn-off tail (CBitlockerTurnOffOperation port).
+17. **M-098 + M-099 + N-112 + N-113 + N-115** — the carve school-2/3 children in
+    the real-world order (HIK/AEP are decode-complete in their findings).
+18. **M-111** — the Explorer-partition-browse capability decision (the parallel
+    lane's finding; pairs with OQ-S8-1's resolution).
+19. **N-132 + N-135's doc-truth residues** — the API-DELTA false-landed flip +
+    the R-31/:225/:379 reconciliation + the 54 ancient ledger rows' SHA backfill
+    (the guard script).
+20. **S-040** — the image-create producer half (the ABI + win-layer writer +
+    CLI verb; the biggest single feature on the board).
+
+**Handoff to the next session:** the board is truth-current at 602dd170; every
+active finding's cites were re-verified this session (the stale ones carry
+cite-refresh addenda); the driver-repo trio (M-086/M-087/M-089 + N-107/N-127) and
+OQ-S10-3 need a driver-repo lane; OQ-S4-3 is execution-bound (hardware fixtures);
+OQ-S10-1 is vendoring-bound (codec dependencies named in the OQ).
