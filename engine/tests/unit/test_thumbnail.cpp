@@ -184,7 +184,7 @@ TEST(Thumbnail, CapsDefaultsPinTheCorpusAnchors) {
     ThumbnailCaps c;
     EXPECT_EQ(256u, c.max_edge);          /* the og UI-side GDI+ convention */
     EXPECT_EQ(64ull << 20, c.max_pixels); /* 256 MiB worst-case RGBA decode */
-    EXPECT_EQ(4u << 20, c.max_read);      /* PreviewReader kMaxRead superset */
+    EXPECT_EQ(32u << 20, c.max_read);     /* M-080: the og GDI+ path has no input cap */
     EXPECT_EQ(1u << 22, c.max_work);      /* extract_metadata work scale */
     EXPECT_TRUE(c.allow_embedded);
 }
@@ -320,6 +320,127 @@ TEST_P(ExifOrientationTest, AppliesOgRotateFlip) {
 }
 INSTANTIATE_TEST_SUITE_P(ExifOrientation, ExifOrientationTest,
                          ::testing::Values(1, 2, 3, 4, 5, 6, 7, 8, 9));
+
+/* M-080: the byte-heavy but pixel-benign middle class - a 4.07 MiB 12-MP
+ * JPEG (the common modern-phone photo) fell between the pre-fix guards: no
+ * fast path (12 MP < 64 MP) and no read budget (4.07 MiB > the old 4 MiB
+ * default) -> BudgetExceeded, no thumbnail. The og's GDI+ path has no
+ * input byte cap at all (FUN_1403d7840 :652377-419). Post-fix: the raised
+ * 32 MiB default reads it and the 64 MP pixel guard still bounds decode
+ * memory. */
+TEST(Thumbnail, OrdinaryPhotoDefaultBudget) {
+    auto fx = load_fixture("byteheavy12mp.jpg");
+    if (fx.empty())
+        GTEST_SKIP() << "fixture data/thumbnails/byteheavy12mp.jpg not present";
+    EXPECT_GT(fx.size(), size_t(4u << 20)) << "the fixture must exceed the OLD default";
+    EXPECT_LT(fx.size(), size_t(8u << 20));
+    Node n(fx, true);
+    auto r = n.reader();
+    Thumbnail t;
+    ThumbnailCaps c; /* zero-config: the SHIPPED defaults are the contract */
+    ASSERT_EQ(ThumbStatus::Ok, make_thumbnail(r, c, t))
+        << "the ordinary photo must thumbnail under the shipped defaults";
+    EXPECT_EQ("jpeg", t.source_format);
+    EXPECT_FALSE(t.from_embedded) << "the full decode wins (12 MP <= 64 MP)";
+    EXPECT_EQ(256u, t.width); /* 4000 > 3000: the edge axis downscales */
+    EXPECT_EQ(192u, t.height);
+    /* the default pin: the raised cap is the ABI contract hosts inherit */
+    ThumbnailCaps dflt;
+    EXPECT_EQ(32u << 20, dflt.max_read) << "M-080: the raised I/O bound";
+    EXPECT_EQ(64ull * 1024 * 1024, dflt.max_pixels) << "the pixel guard unchanged";
+}
+
+/* M-080: the embedded fast path fires for BYTE-oversized JPEGs too - it
+ * reads only the embedded thumb (a few KiB), never the body. */
+TEST(Thumbnail, EmbeddedFastPathOnByteOversize) {
+    /* splice: a 5 MiB junk body + a real embedded thumb + huge SOF dims */
+    auto fx = load_fixture("byteheavy12mp.jpg");
+    auto thumb_fx = load_fixture("quad64x48.jpg");
+    if (fx.empty() || thumb_fx.empty())
+        GTEST_SKIP() << "fixtures not present";
+    std::vector<u8> img;
+    img.push_back(0xFF);
+    img.push_back(0xD8);
+    /* APP1/Exif with IFD0(orientation=1) + IFD1(thumb) - spliced inline */
+    const u32 tlen = u32(thumb_fx.size());
+    const u32 ifd0_off = 8;
+    const u32 ifd1_off = ifd0_off + 2 + 12 + 4;
+    const u32 thumb_off = ifd1_off + 2 + 24 + 4;
+    std::vector<u8> tiff;
+    auto p16 = [&](u16 v) {
+        tiff.push_back(u8(v));
+        tiff.push_back(u8(v >> 8));
+    };
+    auto p32 = [&](u32 v) {
+        tiff.push_back(u8(v));
+        tiff.push_back(u8(v >> 8));
+        tiff.push_back(u8(v >> 16));
+        tiff.push_back(u8(v >> 24));
+    };
+    tiff.push_back('I');
+    tiff.push_back('I');
+    p16(42);
+    p32(ifd0_off);
+    p16(1); /* IFD0: 1 entry */
+    p16(0x0112);
+    p16(3);
+    p32(1);
+    p16(1);
+    p16(0);
+    p32(ifd1_off);
+    p16(2); /* IFD1: 2 entries */
+    p16(0x0201);
+    p16(4);
+    p32(1);
+    p32(thumb_off);
+    p16(0x0202);
+    p16(4);
+    p32(1);
+    p32(tlen);
+    p32(0);
+    tiff.insert(tiff.end(), thumb_fx.begin(), thumb_fx.end());
+    const u32 seg_len = u32(6 + tiff.size() + 2);
+    img.push_back(0xFF);
+    img.push_back(0xE1);
+    img.push_back(u8(seg_len >> 8));
+    img.push_back(u8(seg_len));
+    const char exif6[6] = {'E', 'x', 'i', 'f', 0, 0};
+    img.insert(img.end(), exif6, exif6 + 6);
+    img.insert(img.end(), tiff.begin(), tiff.end());
+    /* SOF0 with benign 12-MP dims (4000x3000): pixel-benign, byte-heavy -
+     * only the byte axis triggers the fast path */
+    img.push_back(0xFF);
+    img.push_back(0xC0);
+    img.push_back(0);
+    img.push_back(11); /* segment length */
+    img.push_back(8);  /* precision */
+    img.push_back(u8(3000 >> 8));
+    img.push_back(u8(3000));
+    img.push_back(u8(4000 >> 8));
+    img.push_back(u8(4000));
+    img.push_back(1); /* 1 component */
+    img.push_back(1);
+    img.push_back(0x11);
+    img.push_back(0);
+    /* a body just past a small max_read: the fast path must serve the
+     * embedded thumb without reading the body */
+    const size_t junk = size_t(256) * 1024;
+    img.insert(img.end(), junk, 0x5A);
+    img.push_back(0xFF);
+    img.push_back(0xD9);
+
+    Node n(img, true);
+    auto r = n.reader();
+    Thumbnail t;
+    ThumbnailCaps c;
+    c.max_read = 128u * 1024; /* the body exceeds it by 2x */
+    ASSERT_EQ(ThumbStatus::Ok, make_thumbnail(r, c, t))
+        << "byte-oversized JPEGs serve from the embedded thumb";
+    EXPECT_TRUE(t.from_embedded);
+    EXPECT_EQ("jpeg", t.source_format);
+    EXPECT_EQ(64u, t.width);
+    EXPECT_EQ(48u, t.height);
+}
 
 TEST(Thumbnail, JpegDecodesWithLossyTolerance) {
     auto fx = load_fixture("quad64x48.jpg");

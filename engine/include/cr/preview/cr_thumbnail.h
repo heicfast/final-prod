@@ -66,13 +66,19 @@ namespace preview {
 
 /* Bounding policy for one thumbnail generation. Defaults follow the corpus
  * anchors: max_edge 256 (the og UI-side GDI+ convention), max_pixels 64 MP
- * (keeps worst-case decode memory at 256 MiB RGBA), max_read 4 MiB (the
- * PreviewReader kMaxRead documented superset, M-028 cost doctrine),
- * max_work 1<<22 fetch units (the extract_metadata work-guard scale). */
+ * (keeps worst-case decode memory at 256 MiB RGBA), max_read 32 MiB (M-080:
+ * the og's GDI+ path has no input cap; the cap only gates I/O), max_work
+ * 1<<22 fetch units (the extract_metadata work-guard scale). */
 struct ThumbnailCaps {
     u32 max_edge = 256;
     u64 max_pixels = 64ull * 1024 * 1024;
-    u32 max_read = 4u << 20;
+    /* M-080: 32 MiB - the og's GDI+ thumbnail path has NO input byte cap
+     * (FUN_1403d7840 :652377-419); the byte cap only gates I/O here, decode
+     * memory stays bounded by max_pixels (64 MP = 256 MiB RGBA worst
+     * case), and the pre-fix 4 MiB default refused the ordinary 6 MiB
+     * 12-MP photo. Byte-oversized JPEGs still take the embedded fast path
+     * first (a few KiB of reads). */
+    u32 max_read = 32u << 20;
     u32 max_work = 1u << 22;
     bool allow_embedded = true;
 };

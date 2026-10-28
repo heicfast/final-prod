@@ -1068,7 +1068,16 @@ ThumbStatus thumbnail_stb(PreviewReader& pr, const ThumbnailCaps& caps, Thumbnai
             out.truncated = !b.over;
             return b.over ? ThumbStatus::BudgetExceeded : ThumbStatus::DecodeFailed;
         }
-        if (u64(w) * u64(h) > caps.max_pixels) {
+        /* M-080: the byte-oversized middle class - a byte-heavy but
+         * pixel-benign photo (the common case: a 6 MiB 12-MP JPEG) - also
+         * takes the embedded fast path: it reads only the embedded thumb
+         * (a few KiB), never the max_read body. The og's GDI+ path has no
+         * input byte cap at all (FUN_1403d7840 :652377-419); the raised
+         * 32 MiB default keeps the I/O bound while the pixel guard bounds
+         * decode memory. */
+        const bool pixel_oversized = u64(w) * u64(h) > caps.max_pixels;
+        const bool byte_oversized = pr.size() > caps.max_read;
+        if (pixel_oversized || byte_oversized) {
             if (is_jpeg && caps.allow_embedded) {
                 /* the og-parity escape: EXIF embedded thumbnails */
                 ExifWalker wlk(pr, b);
@@ -1086,6 +1095,8 @@ ThumbStatus thumbnail_stb(PreviewReader& pr, const ThumbnailCaps& caps, Thumbnai
                     }
                 }
             }
+            if (byte_oversized)
+                return ThumbStatus::BudgetExceeded; /* named, honest refusal */
             return ThumbStatus::Oversized;
         }
     }
