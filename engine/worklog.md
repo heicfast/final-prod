@@ -5050,3 +5050,17 @@ push re-pinned its 39-test fail-before set but the N-115 test landed after,
 unre-pinned). Expectations re-pinned to `.DOCX/.XLSX/.PPTX`; suite
 **1134 ran / 1092 passed / 42 Win-only skipped / 0 failed** on the repaired
 tree (Linux gcc, Release).
+
+## Fix session 40 (continued) — the S-054 regression restore
+
+- **S-054 FIXED (the N-013 regression)** — the multi-extent destination
+  arming restored at both production call sites (the unrelated M-036
+  commit 1ebd1bcc had reverted them to first-extent-only,
+  drive-letter-only while the helpers and their tests survived - the
+  F12 refusal silently defeated for spanned/RAID destinations and
+  junction paths). The 3b5397a1 shape restored verbatim: any
+  resolvable path armed (junctions resolve to the target volume), ALL
+  extents fed to set_destination_spans. The wiring FENCE landed
+  (DestArming.ProductionWiringCallsSpansApi - the source-level pin
+  that fails the day either production path stops calling the spans
+  API; the fail-before proven by mutation). Suite 1094/1094 + 61.
