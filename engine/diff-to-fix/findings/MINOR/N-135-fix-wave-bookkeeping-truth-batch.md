@@ -8,6 +8,7 @@
 **Status:** READ-ONLY FINDING — no fix applied
 **Renumber note (session-11B, 2026-10-29):** renumbered **N-129 → N-135** — the N-128→N-129 renumber below landed this file onto an ID lane-B had already taken (`0e279e43` 17:32:28Z pushed `N-129-parity-og-core-inventory-numeric-defects.md`; this file's `f6c00177` is its git DESCENDANT, 17:33:36Z — the object-graph proof is in the session-11B worklog entry). Per the SA-9 earlier-push-wins rule lane-B keeps N-129; this file takes N-135 (the next free ID). All live cross-references updated.
 **Prior audit check:** newly discovered (renumbered N-128→N-129 at the push-time reconciliation: the SA-10 lane's CAPABILITY-MATRIX N-128 pushed first and keeps the ID per the SA-9 rule) — the N-127 precedent (a truthfulness batch) extended to the fix-wave's own bookkeeping; N-103/N-118's landings are the immediate cause (their missed sites are items 1-2), the ledger/SHA items are the purge-convention wave's residue.
+**NOTE (session-39 addendum, at the convergent-repair rebase):** items 3-4 of this finding's fix plan were partially repaired by the b5da834 'repair(trail)' commit (the phantom SHAs and the missed R-28:376 site) — that repair is what left the FIXED-LEDGER merge conflict markers (resolved at session-39 T1c over the session-11B repair); the finding is re-verified item-by-item at the current tree when the session-39 fix lane reaches it.
 
 ## Summary
 

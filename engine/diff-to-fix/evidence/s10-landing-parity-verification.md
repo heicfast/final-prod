@@ -2,6 +2,13 @@
 
 # s10-landing-parity-verification.md — the session-10 fix-wave verification pass (nine landings independently verified against their findings' og-decodes, the corpus, and the current tree)
 
+> **Renumber note (session-39 T1d):** every "N-129" reference in THIS file is
+> the wave-3 bookkeeping-truth-batch finding, renumbered to **N-135** at
+> session-39 open per the SA-9 rule (lane-B's N-129-parity-og-core-inventory-
+> numeric-defects pushed first and keeps the ID; the collision was flagged by
+> session-11 T1). The file lives at
+> `findings/MINOR/N-135-fix-wave-bookkeeping-truth-batch.md`.
+
 **Lane:** session-10 continuation audit (wave 3) · **Date:** 2026-10-29 ·
 **Audited tree:** `2beb555` · **Corpus:** `be0cfe9` · **Method:** three
 parallel verification agents (session/preview family; decoder/carve family;
