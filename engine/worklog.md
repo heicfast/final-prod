@@ -3202,3 +3202,69 @@ stand-in / recorded-follow-up comment register (beyond M-107's ten size-walk sit
 cite this claim; the fix lanes' claimed findings (11D's SEVERE tier, 39's MINOR/INFO
 tiers, 39B's MAJOR preview/query/ABI cluster) are NOT re-audited by this lane beyond
 the remove-the-fixed verification already landed.
+
+---
+Task ID: S10-F/T12 (session-10, the FUNCTION-LEVEL COMPLETENESS lane — CLOSE)
+Agent: session-10 function-level completeness audit (lead lane S10-F)
+
+THE READ-ONLY GUARANTEE (verified per-commit): all six of this lane's commits
+(b478a4b, dd0b53d, deea024, 8365956, ac39c32, 4f44db4) touch NOTHING outside
+diff-to-fix/ + worklog* — the per-commit file-list check is clean. The
+product-code changes visible in the final tree (test_thumbnail, cr_records,
+rrecov, cr_carve/cr_analysers, test_carve, test_cr_ui, ...) entered
+exclusively through the REBASES onto the parallel fix lanes' landings
+(M-074 d6c02914, M-079 f43b747, M-093 ca701711, N-100 faa547f7, M-092 eb1f116,
+M-102/M-083 e56baac7, S-043 df08c07e, M-088...) — pulled per the SOP's
+moving-target rule; this lane's affected findings were re-verified against
+those landings during the reconciliations (N-133 re-verified + sharpened at
+the post-M-079-fix tree: the landed image-stem fallback bakes in the refuted
+premise, now the divergence N-133 owns).
+
+COVERAGE STATISTICS (this lane):
+- Function inventories: 9 engine function lists parsed — 9,618 functions,
+  3,088 named, 122 domain-classified after CRT/STL/EH filtering; the
+  class-coverage map: 191 classes cited by name / 49 never (the 49
+  dispositioned one-by-one: 25 engine classes by the T3a/T3b vtable-level
+  reports — ALL COVERED semantically; the rest noise/infra).
+- The ghidra-tree census: 103 decompiled binaries across 9 trees — 71
+  dispositioned, 23 OOS-registered (14 name-absent at family level), 9
+  never-dispositioned (6 substantive → N-134; 3 weak infra-only,
+  re-confirming the inventory's rollup-covered claim).
+- Tracked-open: 2 of 4 resolved (OQ-S8-1 → the consumer trace + M-111;
+  OQ-S10-2 → the decisive probe + the dead-payload registration).
+- Findings filed: M-110 (MAJOR @eaDir), M-111 (MAJOR the browse capability),
+  N-133 (MINOR engine-side volume labels + the M-079 premise correction),
+  N-134 (MINOR the product-frame register batch); 1 addendum (M-079 via the
+  ledger row after its mid-session retirement); 1 process repair (the
+  M-108→M-109 collision).
+- Evidence: 4 evidence files (s10f-btrfs-eadir-suppression,
+  s10f-engine-volume-labels, s10f-product-frame-register,
+  s10f-cwindowsfs-consumer-trace) — every load-bearing claim lead-verified
+  before filing (the FUN_180001cd0 control flow; the FUN_18003f3a0
+  $VOLUME_NAME chain; the six binaries' RTTI greps; the ExplorerPartition
+  chain's three key sites).
+
+BOARD AT LANE CLOSE (filesystem truth, after the parallel lanes' concurrent
+retirements): 52 active (6 SEVERE · 20 MAJOR · 21 MINOR · 5 INFO) / 294
+ledger rows / 3 tracked-open (OQ-S4-3 execution-bound, OQ-S10-1 the fix
+lanes' thumbnail-codec question, OQ-S10-3 driver-repo-resident).
+
+THIS LANE'S CONTRIBUTIONS TO THE STANDING FIX ORDER (for the next fixing
+session, on top of the existing order):
+1. M-110 (@eaDir) — small, engine-scoped, user-visible on Synology volumes;
+   the fixture + three tests are specified; NOT a filterfolder change (the
+   semantics are descent-suppression, different mechanism).
+2. N-133's fix plan — coordinate with the landed M-079: add the engine-side
+   label decode precedence leg (engine on-disk label > image-stem fallback)
+   and replace the false-premise comment at rrecov.cpp:329-332.
+3. M-111 step 1 — the scope DECISION (one docs commit: register the
+   deliberate absence or open the browse seam); the finding closes either way.
+4. N-134 — the register rows (docs-only; the legacy.dll decode question can
+   stay open indefinitely).
+
+HANDOFF: the function/class/binary-level completeness pass is DONE — the
+corpus's engine-bearing surfaces are verified CLEAN at every level the
+mandate named (artifact → binary → class → the two new behavioral decodes
+filed). The residue for future sessions: the FIX work (the 52 active
+findings), the legacy.dll decode (N-134's open question), and the three
+tracked-open questions. No source code was modified by this lane.

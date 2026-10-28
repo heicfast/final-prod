@@ -16,6 +16,17 @@ Board hygiene: the M-108 filename collision repaired (the M-080 residual renumbe
 M-109). Verified CLEAN: the 25 never-cited engine classes (all COVERED semantically)
 and the engine-bearing ghidra trees at binary level. Evidence:
 `evidence/decompiled-quotes/s10f-*.md` (the class/tree census + the three decode files).
+**Wave 2 (the tracked-open resolutions):** OQ-S8-1 RESOLVED — the CWindowsFS consumer
+trace decoded the og's **user-visible in-app partition file browser** (the
+ExplorerPartition chain; every load-bearing cite lead-verified) → **M-111** filed
+(MAJOR: the browse capability has no core seam and no scope registration);
+OQ-S10-2 RESOLVED — the decisive probe found zero consumers of the VideoViewer/sfc
+container corpus-wide → dead payload, registered via N-134's addendum. Both OQ
+files closed to findings/FIXED/ with ledger rows. **Lane end-state:** 6 findings
+filed this session (M-110, M-111, N-133, N-134 + the M-079 addendum + the M-108→M-109
+collision repair), 2 tracked-open questions resolved, 25 engine classes + 103 corpus
+binaries verified dispositioned. **Board at lane close (filesystem truth): 52 active
+(6 SEVERE · 20 MAJOR · 21 MINOR · 5 INFO) / 294 ledger rows / 3 tracked-open.**
 
 **Session 10 lane B (2026-10-29 — the continuation deep audit, RECONCILED AT THE SECOND PUSH):**
 audited **core `84a1832`** (the verification baseline — the concurrent lanes'
