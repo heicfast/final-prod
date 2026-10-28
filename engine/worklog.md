@@ -826,3 +826,36 @@ recorded outside an active finding). (c) The driver-lane handoffs D3/D4
 corpus 03ad46c; the corpus moved.
 
 Prompt saved redacted: worklog/session-8-parity-audit-prompt.md. Read twice.
+
+---
+Task ID: SA-8/T2 (session-8 wave 2 — the continuation mandate: find what prior
+sessions missed, verify the new landings, mark every remaining capability as
+a finding)
+Agent: session-8 full parity audit (this session, second leg)
+
+Session mandate (user): "look for other things which session 1 missed and
+continue working and remove the fixed things and go more deep, do more
+comparison on og-codebase and our core and mark all remaining features,
+implementations, functions, as finding too." Two-repo scope THIS session:
+core_recovery (ff879f9 lineage, read-only) + easeus-drw-research (be0cfe9).
+The rda-driver lane handoffs D3/D4 stay OUT of this session's scope (the
+two-repo mandate; they remain that lane's items on its own repo).
+
+Wave-2 lanes (from the T1 scope determination + the continuation mandate):
+- V-lane: read-only verification of the post-dev-sign landings' corpus
+  claims (API-EXP W1a/W1b/W1c; OQ-SA-1 carrier eac8e1d; S-007 batch-1
+  e018bf4; thumbnail 05e6786; installer S-038 steps 2-3; CI rebuild 566c483).
+- R-lane: the S-007 batch-2 remainder becomes PROPER FINDINGS (the live
+  recall gap currently recorded outside an active finding) — decode what is
+  decodable at the og registration sites first (CHM/MNY/EMF/ONE/MPEG-TS/
+  3DS/SWF/JP2/MOBI/LZH + the text school + FCPEvt/OfficeTagFromXML/CRW).
+- G-lane: the gap hunt — corpus artifacts + og-codebase surfaces the prior
+  sessions' waves never dispositioned; core capabilities without corpus
+  basis (superset register); thumbnail engine vs corpus preview evidence.
+- C-lane: gate-doc currency (SURFACE-INVENTORY/PARAMETERS/README corpus
+  pin 03ad46c -> be0cfe9; board counts; CROSS-REF-MATRIX new rows).
+
+Baselines: core ff879f9 (suite green per the landing lanes' records),
+corpus be0cfe9 (CORRECTIONS #9 absorbed per T1). Board at open: 0 active /
+249 FIXED / 1 INFO (I-026) / 1 tracked-open (OQ-S4-3). ID space continues:
+next A-012+, S-040+, M-071+, N-090+, I-027+.
