@@ -679,3 +679,45 @@ Stage Summary:
   (advanced/deep), the two stale docs/PARAMETERS.md §3 rows (formats/
   parameters), and the execution-bound OQ-S4-3 (stays tracked). Combination
   layer audit-verified present — no action.
+
+---
+Task ID: API-EXP-1 (W1a landing record — R-56 the session list + summary)
+Agent: api-exp lane (this session)
+
+Fix landings:
+- Core half `78a6552` (feat(session)): the VolumeInfo v5 tail (u64
+  save_unix - our mirror of the og record-2's SYSTEMTIME scanTime,
+  rsf-format §5.2 +0x6C; v1..v4 files read 0 = "not recorded"), the
+  save-path stamp + the load pass-through, Reader::peek_record (the
+  header-only type peek - same offsets table + error codes as
+  read_record), ScanController::read_summary (light records only;
+  heavy payloads skipped BY TYPE before any payload I/O; the legacy
+  no-VolumeInfo rule = all-stages configured), the SessionSummary
+  carrier, and the crsf-format.md VOLUME_INFO grammar section (the
+  doc had NO volume-info section at all - now v1..v5 with every
+  tail's length-carries-version rule). Tests: SaveUnixVTailRoundTrip
+  (the 1024B v5 pin + the v4/v1 cut points), PeekRecordHeaderOnly,
+  ReadSummaryLightRecordsOnly (2MB tree record present; summary
+  fields exact), LegacySessionWithoutVolumeInfo; the
+  VolumeInfoIdentityCardRoundTrip v4-size pin moved to the v5 total
+  (1036B) with the wire.
+- Surface half `eb16335` (feat(api)): cr_ui_session_list (cr_ui.h:808-
+  850, two-call size pattern == snapshot_dfs, byte-sorted caller-owned
+  POD rows, error rows for unreadable files, path-truncation rule,
+  ERR_OPEN_FAILED fails loud on the directory), the rrecov `sessions
+  [--dir D] [--json]` verb (FROZEN schema; unreadable rows are data
+  never failure; enumeration failure exits 1), the C-consumer gate
+  block, the parse-gate stub growth (WIN32_FIND_DATAW + the
+  FindFirstFileExW family + MSVC-CRT localtime_s - the gate's own
+  new-SDK-symbol rule), the three-site verb lock honored in one
+  change (rrecov.cpp header + API.md §1 + CORE-API-CURRENT §c, c.3 =
+  sessions, c.4..c.10 renumbered), ABI-CONTRACT §7f, every count site
+  (79->80 exports, 10->11 verbs), and 39 cite re-pins (18 cr_ui.h +
+  21 rrecov.cpp, every anchor re-verified first-hand, script-asserted).
+
+Verification: 1009/1009 green locally (gcc 14.2 Release, incl. the
+win_syntax_check parse gate), clang-format-18 clean, secrets/lints
+clean. Board: API-DELTA §5.2 row S3-W1a flipped DONE. Next: W1b
+(R-54 the session load progress + cancel - the corpus contract is
+SaveScan:344-376, restore 40+50*done/(total+done) + per-child
+IUIProgressInfo cancel; the N-060 save mirror).
