@@ -3731,3 +3731,45 @@ PlaceholderIsHash + FatEngine.DeletedLfnChecksumRecoversOriginalByte + the re-pi
   `Ext4Engine.UnixTimeConversion` (exact post-2038/2100 filetimes, ns
   variant) — future sessions must not "fix" the core down to either
   defect).
+
+### D-124 — GPT backup-probe position parity + the dead-LBA1 backup recovery superset (M-132 registration, two sub-items)
+
+- **WHAT OG DOES (sub-item a — probe position):** the analyzer's backup
+  read is ALWAYS at the FIXED device-last LBA (`FUN_180006e20:4567` reads
+  `param_1[1] - 1` — the device's own sector count, never the primary
+  header's declared `backup_lba` field; re-read first-hand at
+  `Partition_decompiled.c:4555-4575`).
+- **WHAT OG DOES (sub-item b — the dead-LBA1 early return):** when the
+  LBA1 READ ITSELF fails, the analyzer prints "Failed to read GPT
+  HEADER.", frees, and returns with NO GPT partitions (:4517-4524) — only
+  the separate `IsGPTDisk` detection layer (:4208-4218) classifies the
+  disk as GPT for UI purposes.
+- **WHAT WE DO:** (a) the probe is structurally at device-last FIRST
+  (`cr_table_parse.cpp` — the rc_p==OK branch probes `dev_last` before
+  the declared field; the declared `backup_lba` is a fallback only).
+  Note: post-M-123 the position gate already REQUIRES backup_lba ==
+  dev-last on every trusted primary, so the observable class "healthy
+  primary declaring a nonstandard backup position" routes into the
+  salvage/backup ladder exactly as the og's does — the probe-order change
+  is architectural parity so the divergence cannot re-emerge if the gate
+  is ever relaxed; (b) the core KEEPS the recovery stance the og lacks:
+  a dead/unreadable/wiped LBA1 still routes (via the protective MBR) to
+  the device-last backup probe and its entries are emitted.
+- **WHY (b is kept):** the og's early return is a weakness on the exact
+  damage class recovery tools exist for — a wiped LBA1 with an intact
+  backup is recoverable, and the core recovers it.
+- **RISK:** none — (a) is og-exact structure; (b) only ADDS recoverable
+  output on a class where the og emits nothing.
+- **VERDICT: ACCEPTED** (deliberate superset, registered M-132; pin:
+  `Gpt.DeadLba1BackupRecoveryRegistered` — future sessions must not
+  "fix" the backup recovery away as a parity bug).
+
+**CONVERGENT LANDING NOTE (SA-9, this session):** the S47 INFO-first lane's
+independent I-040 registration (pushed second; per earlier-push-wins this D-123
+stands as registered) verified the same corpus cites first-hand and adds two
+evidentiary/coverage supplements: the 4-site `_gmtime32_s` line census
+(`EXT4SearchDLL_decompiled.c:5495/:5506/:6262/:6273`) and the regular-file
+fold-direction pin `Ext4Engine.SizeHighFoldIsRegularOnlyNotTheOgUnconditionalDefect`
+(hi=1/lo=0xFFFFFFFF surfaces the full 8 GiB-1 size — the direction
+`LegacyAclDirSizeClean` leaves unpinned) plus
+`Ext4Engine.Post2038FileTimeConversionStays64Bit`. Both lanes' records kept.

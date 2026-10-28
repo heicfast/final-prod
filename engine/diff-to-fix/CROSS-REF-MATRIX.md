@@ -32,13 +32,20 @@
     own organize into the shared completion handler whose auto-save gates carry no
     stopped-check (DRWUI:1549399-21 → :339076-79 → :612572-87); the core never
     auto-saves a cancelled run, and its comment mis-states the og).
-  - **MAJOR (10):** **M-123** (table P1/P20 — GPT header laxity: no reserved==0 /
-    exact-92 / position / usable-range gates, og `FUN_1800078d0` vs
-    `load_gpt_side`); **M-124 FIXED** (S47 MAJOR-first fix lane, `dcb123dd` — findings/FIXED/M-124:
+  - **MAJOR (10):** **M-123 FIXED** (S47 MAJOR-first fix lane, `10620f04` —
+    findings/FIXED/M-123: FUN_1800078d0's full gate set landed in load_gpt_side
+    [revision 0x10000, header_size==92, reserved==0, the mirrored position pair,
+    usable-range bounds, entries outside the usable range — structural gates
+    before the CRC, og order]; N-164's deliberate strictness kept; 9 tests,
+    8 RED pre-fix; P1/P20 → MATCH); **M-124 FIXED** (S47 MAJOR-first fix lane, `dcb123dd` — findings/FIXED/M-124:
     the EBR link set {05,0F,**85**} — `case 0x85:` joined the Extended arm of
     mbr_type_to_kind per Partition_decompiled.c:1006; whole 0x85 chains walk,
     the bogus Other-volume at the link target gone; 3 RED-then-green tests,
-    suite 1164/1164; P1/P26 → MATCH); **M-125 FIXED (S42 fix
+    suite 1164/1164; P1/P26 → MATCH); **M-132 FIXED** (S47 MAJOR-first fix lane, `d746a75b` — findings/FIXED/M-132:
+    the backup probe at device-last FIRST [FUN_180006e20:4567's fixed
+    position], the declared field a registered fallback; the dead-LBA1
+    recovery kept + registered as PARITY-DELTAS D-124b; P1/P35 → MATCH);
+    **M-125 FIXED (S42 fix
     lane — findings/FIXED/M-125: the query-layer helper family
     `progress_display_remap/_percent/_publish` (FUN_1401af820/:950/:a60 verbatim,
     the constants re-verified against the corpus — the finding's test table
@@ -81,7 +88,7 @@
     session undercount); **N-172** (fat — deleted-first-char `'#'` vs `'_'` + the
     unregistered LFN-checksum recovery superset; closes OQ-T2); **N-173** (fat —
     the 2106/2107 u32 clamp vs full conversion; exFAT sibling inconsistent);
-    **N-174** (exfat — the `._` AppleDouble sink filter absent, the N-028 family's
+    ~~**N-174**~~ **FIXED (S46)** (exfat — the `._` AppleDouble sink filter landed, the N-028 family's
     exFAT twin); **N-175** (fat — NTRes case folding unread); **N-176** (fat — the
     LFN illegal-char 8.3 fallback absent); **N-177** (ext4 — the size-exceeds-blocks
     damaged flag (FLAGS 0x200) not carried); **N-178** (cli/orchestration — no CLI
@@ -522,6 +529,7 @@ F safety · Q quality (definitions in `PARAMETERS.md`).
 | exfat | B2/A27/X47 | **S-013 — FIXED (session 3)** (windowed-FAT accessor, og 1 MiB windows; have_fat never false; extent coverage pinned; windowed failures degrade to the EXFAT-2 salvage) |
 | exfat | B3/B4/B5/D15 | **M-013** (og DOES validate entry-set checksums — dual-form incl. deleted sets + reconstruction oracle; refutes the N-003 fix's verified-absence premise; supersedes N-003) |
 | exfat | B3/B4/B10 | **M-014 — FIXED (s35)** (structural gates: secondary_count ∈ [2,18]; create+modify+access timestamp field sanity, all-zero FAILS; empty streams never emitted; name flags/first-char gates; reserved1/2 zero — findings/FIXED/M-014) |
+| exfat | B3/A1/B6 | **N-174 — FIXED (S46)** (the `._` AppleDouble prefix sink: the og's props-builder refusal at exFAT:45151/:45222 landed in the core's entry walk post-name-assembly, the parked-set oracle inherits it; `apple_doubles_sunk` stats counter (the observability superset); AppleDoublePrefixSunk + RegularDotFilesNotSunk pins — the og's gate is prefix-specific, plain dotfiles unaffected; findings/FIXED/N-174) |
 | hfsplus | B3/B5/B7/C20 | **N-028 — FIXED (minors session, 2026-10-26)** (sink filter at both record sources ✓; rsrc superset registered D-53; 'prdf' folderization ✓ — see findings/FIXED/N-028) + **N-038 FIXED** (ownerFlags 0x20 fork selection) + **N-005 FIXED** (block bound 16 MiB + product sanity) |
 | btrfs | B1/B2/A26/B5 | ~~M-020~~ **FIXED (s33)** — full profile machinery: RAID10 geometry gate (og :2162-2168), class-0x20 rotating mirror og-exact (:2534-2540), RAID0/RAID10 stripe math as the registered superset (D-80; the og FAILS those classes — audit Summary decode error corrected in the Resolution), stripe-boundary extent splitting, default-subvolume DIR_ITEM pick (:3975-4060) with root-5 fallback rendering at the volume root; 4 fail-before + 2 updated expectations; findings/FIXED/M-020 |
 | zfs | B11 (SA registry) | ~~M-038~~ **FIXED (s19)** — registry-driven SA decode; findings/FIXED/M-038 |
