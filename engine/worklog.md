@@ -1099,3 +1099,41 @@ Board after both session-8 legs: 41 active (S-040..S-045, M-071..M-085,
 N-090..N-106, I-026/I-027/I-028) + 249 FIXED + OQ-S4-3/OQ-S8-1
 tracked-open. The S-007 batch-2 remainder is no longer "outside an
 active finding" — S-041 owns it with the decode complete.
+
+---
+Task ID: CI-REL-2 (the v0.5.2 cut - the first combined-era release + the dev-sign cert repair)
+Agent: senior-dev session (this session, third leg)
+
+Work Log:
+- dd225da went green (run 40702251898 - lint + MSVC build + the full
+  1021-test ctest, the first fully green Checks since c95335f); tag
+  v0.5.2 cut at 99eddb0 and pushed; release run 40704304307: validate
+  GREEN, build-core GREEN, driver-tier RED at the sign step.
+- The dev-sign failure was the CERT, not the workflow: signtool signed
+  fine but Get-AuthenticodeSignature returned UnknownError - "a
+  certificate's basic constraint extension has not been observed" -
+  the stored cert lacked Basic Constraints, and a self-signed cert is
+  its own issuer, so the chain engine demands the extension.
+  Regenerated the cert to the documented shape (CN=RRECOV-DEV-SIGN,
+  RSA-2048 SHA-256, 3-year, BC critical CA:FALSE, KU critical
+  digitalSignature, EKU codeSigning; AES-256 PFX) and updated BOTH
+  repo secrets via the sealed-box API. Full rerun (attempt 2): every
+  job green, v0.5.2 PUBLISHED with the 8-asset set incl. rda-test-
+  sign.cer - exactly the asset the benchmark fetch demanded.
+- The auto-dispatched benchmark (40710818026) died at the harness
+  compile: Tee-Object into evidence/05-feature-probes which only
+  Run-Benchmark.ps1 creates LATER (step 6 vs step 5), fatal under
+  ErrorActionPreference=Stop. Fixed the step to self-create its
+  subdir (9cb098c, rebased over the parallel session-8 audit lane's
+  3 commits - no conflict), re-dispatched against v0.5.2
+  (40712214950, reason release-v0.5.2-retry-after-evidence-dir-fix).
+- Security note: the new PFX password is NOT in the repo anywhere -
+  it lives in the repo secrets and one local file outside git
+  (scripts/devsign.pw pattern); the public cert ships as the release
+  asset for consumers.
+
+Stage Summary:
+- Watching 40712214950 (smoke matrix, up to 120 min). On green: the
+  owner's full pipeline is restored end-to-end - commit -> checks ->
+  release (dev-signed) -> test+benchmark. Remaining known-open: the
+  parallel lanes' session-8 findings (their own worklog entries).
