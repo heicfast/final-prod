@@ -3025,3 +3025,14 @@ off the active board via the parallel lanes — the session-39 board is
 **50 active (6 SEVERE · 20 MAJOR · 19 MINOR · 5 INFO) + 5 tracked-open**
 (OQ-S4-3, OQ-S8-1, OQ-S10-1, OQ-S10-2 now carrying M-086/M-087/M-089 +
 N-107/N-127's driver halves). The MINOR lane starts next per the mandate.
+
+**Session-39 territory claim (coordination contract, per this session's
+user mandate "priority to minor first"):** session-39 takes the **MINOR tier
+(N-090 .. N-135) and the INFORMATIONAL tier (I-026..I-030)**, then
+tracked-open items not claimed elsewhere, and the board-wide gate-doc truth
+sweep (CROSS-REF-MATRIX / SUMMARY / modules/* / counts) at close. The
+SEVERE tier belongs to session-11D (their claim pushed first); the MAJOR
+orchestration/carve cluster likewise. Session-39 will NOT touch
+S-040/S-048..S-052 or the 11D-claimed MAJORs; if a MINOR finding's fix
+collides with a parallel lane's territory (e.g. a driver-side MINOR), it is
+left to that lane and noted here. Pull-before-push discipline active.
