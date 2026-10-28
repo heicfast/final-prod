@@ -224,6 +224,40 @@ push; every fix RED-test-first. Target: 20+ MINOR fixes this session. Audited pi
 core `659f0f6c`, corpus `be0cfe9`.
 
 
+- **N-158 FIXED (MINOR, carve)** — the OfficeTagFromXML five-branch typing tail: the
+  five typed ids land (FMT_XMIND/FMT_MMAP/FMT_EDDX/FMT_WFP/FMT_DRP — og ids 0x86/0x87/
+  0x8c/0x8d/0x91, ids APPENDED; five override-target registry rows carrying the og's
+  own display labels; kTrialOrder slots; the XMIND probe helper + the four entry-name
+  compares in zip_common's walk, no office-context gate per the og's unconditional LFH
+  handler). Both of the finding's open questions discharged by first-hand decode BEFORE
+  landing: (1) the XMIND content predicate — FUN_180045110 re-read in full +
+  disassembly-verified at 0x180045110-0x180045666: the probe builds a 300-byte RAW
+  window at record+30+strlen(name) (the entry data start, extra field skipped — the og
+  quirk) and types on EITHER the 16-byte ASCII needle `xmlns="urn:xmind` OR the 14-byte
+  binary constant at .data RVA 0x93980 (f4 4a c6 40 1a bc a7 76 cf e1 a0 d1 cc 9d,
+  resolved from RAWSearchDLL.dll this session — the deflated-stream prolog fingerprint;
+  FUN_180016fc0 len 0xe, cmovne-stamped); the already-0x86 path returns 1 (mov eax,1 at
+  0x18004516d — the idempotent re-stamp; Ghidra's void return type is a tail-elision
+  artifact); the entry set is exactly {content.xml, meta.xml}; (2) the chain-walk stop —
+  :18411-18450's do/while dispatches EVERY record through the shared id slot with NO
+  typing stop (last-match-wins): the N-115-era "the first decisive tag wins (the og's
+  map stop)" comment was an erratum (FUN_180046120 returns after one record; the walk
+  itself never stops) — the walk's early break removed, bounded by the landed
+  32-entry/256 KiB window. The [Filter] coupling registered as PARITY-DELTAS D-134
+  (the conservative row-level gate the finding prescribed: the five ids gate through
+  CarveFlags::disabled_formats, suppressing the TYPING so a disabled id falls through
+  to the generic ZIP row — the og's IAnalyserFilter callback at vtable+8 takes no id
+  parameter, so the og's exact suppression mechanism stays undecodable; the N-115 nine
+  stay always-on per N-149). SCAN-ENGINE-DELTA.md:177's unowned tag list now fully
+  owned. Tests: Carve.ZipTypingXmindContentBranch (3 forms), ZipTypingXmindNeedleMiss
+  StaysGeneric, ZipTypingDocumentToolEntryNames (6 cases), ZipTypingLaterEntry
+  OverwritesEarlierStamp, ZipTypingUnrelatedEntriesStayGeneric, ZipTypedId
+  DisableGateSuppressesTyping — 3 test groups RED pre-fix (all typed FMT_ZIP /
+  first-stamp EDDX), GREEN post. Suite 1209/1209 (1167/42/0); cr_ui_tests 68/68;
+  clang-format clean. Audit trail: retired to findings/FIXED/ with Resolution; ledger
+  row; matrix row → MATCH; carve module addendum; FORMATS.md ZIP-typing paragraph;
+  D-134.
+
 - **N-148 FIXED** — the comment-truth batch, all seven items: the LDM RAID-5 UNDECODED hedge
   replaced with the OQ-T7 resolved MATCH; D-09's demanded ZFS wording landed verbatim; the M-112
   promotion cite tightened to :422507-514; the EPS/AI stand-in caps restored to the M-107-verified

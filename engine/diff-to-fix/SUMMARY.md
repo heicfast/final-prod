@@ -80,6 +80,30 @@ first-hand; every fix RED-test-first.
 **Board (filesystem truth at `a3ab4ed3`, post the S45..S51 parallel-window absorption — A-014 fixed [convergent, 862d79ef], M-124 fixed [dcb123dd], the INFO board complete [I-035/I-036/I-040..I-044 all ACKNOWLEDGED-RETIRED]): 67 active — 0 ACUTE · 9 SEVERE · 27 MAJOR · 31 MINOR · 0 INFO / 71 FIXED files / 6 tracked-open.**
 
 # SUMMARY.md — executive summary (the S42 diff-to-fix lane's convergence on top; the prior lanes below, newest-first)
+# SUMMARY.md — executive summary (the S46 MINOR-first fix lane on top — the user's priority-to-minor directive; the prior lanes below, newest-first)
+
+## Session-46 S46 lane delta (2026-10-29 — the MINOR-first fix lane; opened at core `659f0f6c` → territory claim `fa654673`, corpus `be0cfe9`; the parallel S45 lane holds the ACUTE/SEVERE side)
+
+**Board at this lane's open (filesystem truth):** 77 active (1 ACUTE · 9 SEVERE ·
+28 MAJOR · 32 MINOR · 7 INFO) / 64 FIXED files / 6 tracked-open. Baseline executed:
+linux-release green, cr_tests 1203 (1161 pass / 42 env-skips / 0 fail),
+cr_ui_tests 68/68 — **main was GREEN at the open** (the N-185 red-main long
+repaired by the prior lanes).
+
+**Landings this lane (running count):**
+
+- **N-158 FIXED (MINOR, carve)** — the OfficeTagFromXML five-branch typing tail:
+  the five typed ids land (FMT_XMIND/MMAP/EDDX/WFP/DRP, og 0x86/0x87/0x8c/0x8d/
+  0x91). The finding's two open questions discharged by first-hand decode
+  before landing: the XMIND content probe (disassembly 0x180045110-0x180045666
+  — the 300-byte RAW window at record+30+strlen(name), the 16-byte
+  `xmlns="urn:xmind` needle + the 14-byte .data prolog constant at RVA 0x93980,
+  the already-0x86 return-1 re-stamp) and the chain-walk stop semantics
+  (:18411-18450 — NO stop, last-match-wins; the N-115-era "map stop" comment
+  was an erratum, corrected + pinned). The [Filter] coupling registered as
+  PARITY-DELTAS D-134 (the conservative row-level disabled_formats gate; the
+  og's IAnalyserFilter callback takes no id — undecodable). 6 tests, 3 groups
+  RED pre-fix; suite 1209/1209; the module/matrix rows → MATCH.
 # SUMMARY.md — executive summary (the S12 session-2 deep-dive lane on top — sector math / scan-progress math / local database / state management / detection-calculation; the prior lanes below, newest-first)
 
 ## Session-12 S12 lane delta (2026-10-29 — the session-2 continuation audit per the user's second-session directive: remove-the-fixed + go-deeper, special focus on sector numbers / scanning / accurate detection / calculation / no-stuck-or-freeze / local database / state management; core `869da779` at open → rebased through the parallel windows to push at `f85def0f`, corpus `be0cfe9`)

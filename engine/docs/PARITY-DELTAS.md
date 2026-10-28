@@ -3773,3 +3773,29 @@ fold-direction pin `Ext4Engine.SizeHighFoldIsRegularOnlyNotTheOgUnconditionalDef
 (hi=1/lo=0xFFFFFFFF surfaces the full 8 GiB-1 size — the direction
 `LegacyAclDirSizeClean` leaves unpinned) plus
 `Ext4Engine.Post2038FileTimeConversionStays64Bit`. Both lanes' records kept.
+### D-134 — the N-158 typed-id filter coupling: the row-level disabled_formats gate (REGISTERED CONSERVATIVE POSTURE — the og's exact [Filter] suppression mechanism is undecodable from the corpus)
+
+The og ships `[Filter]` keys for exactly the five N-158 typed ids
+(XMIND/MMAP/EDDX/WFP/DRP, `og-codebase/config/RawConfig.ini` :12/:15/:17/:18/:22,
+all default 1), loaded by CNeedRawMgr::LoadConfig (RAWSearchDLL :13133-13200)
+into a key→flag map. The map's consumers are decodable for the analyser-layer
+ids (HIK/AEP registrations consult their tokens at :3823-3894/:4024-4074 —
+key 0 removes the analyser), but for the five TYPED ids stamped inside the
+ZIP analyser's LFH handler (:53025-53100) no consumer exists in the decompile:
+the per-search filter rebuild's IAnalyserFilter callback (the removal loop
+FUN_180006b30, :4408-4432) calls `(**(code **)(*param_2 + 8))(param_2)` — a
+one-argument method with no id parameter — so whether an og key-off suppresses
+the typed row, the whole analyser, or nothing at all is not decidable from
+the corpus (the keys may even be dead config).
+
+The core's registered posture: the conservative row-level gate the finding
+itself prescribed — the five ids gate through `CarveFlags::disabled_formats`
+(the M-024 surface, the core's documented [Filter] equivalent), suppressing
+the TYPING itself (a disabled typed id makes the candidate fall through to
+the generic ZIP row, never a mis-labeled office claim); the N-115 nine stay
+exempt via carve_format_always_on (N-149's analyser-mask decode — those
+families have no landed og disable evidence and the mask keeps the ZIP
+analyser always-on). This divergence is bounded and honest: it documents a
+gate the og's config file advertises but whose engine-side wiring the corpus
+cannot prove. Registered by N-158's Resolution; revisit only if a future
+corpus artifact decodes the IAnalyserFilter's id plumbing.

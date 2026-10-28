@@ -9323,6 +9323,178 @@ TEST(Carve, OfficeUnrefinableStaysDocxAndPlainZipStaysZip) {
     EXPECT_EQ(seen[1], u32(FMT_ZIP)) << "the untyped zip stays the generic ZIP row";
 }
 
+TEST(Carve, ZipTypingXmindContentBranch) {
+    /* N-158: the og's XMIND content probe (RAWSearchDLL FUN_180045110,
+     * disassembly-verified) - a content.xml or meta.xml entry whose RAW
+     * 300-byte window carries EITHER needle types XMIND (og id 0x86):
+     * the stored-XML namespace declaration, or the 14-byte deflated-
+     * prolog fingerprint from the .data constant. */
+    const std::string prolog = std::string("\xf4\x4a\xc6\x40\x1a\xbc\xa7\x76\xcf\xe1\xa0\xd1"
+                                           "\xcc\x9d",
+                                           14) +
+                               std::string(64, 'z');
+    const struct {
+        const char* entry;
+        std::string data;
+    } cases[] = {
+        {"content.xml", "<?xml version=\"1.0\"?><x xmlns=\"urn:xmind:xmap:2\"/>"},
+        {"meta.xml", "<?xml version=\"1.0\"?><m xmlns=\"urn:xmind:meta:2\"/>"},
+        {"content.xml", prolog}, /* the deflated-prolog needle (raw window) */
+    };
+    for (const auto& c : cases) {
+        std::vector<u8> img(256 * 1024, 0);
+        plant_zip_entries(img, 4096, {{c.entry, c.data}});
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats s;
+        ASSERT_EQ(
+            carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+            u32(OK));
+        ASSERT_EQ(direct_carved_count(root), 1u) << "the XMIND branch " << c.entry;
+        tree::FileNode* n0 = root->first_child();
+        EXPECT_EQ(n0->props()->carve_format, u32(FMT_XMIND)) << "the XMIND content probe";
+        const std::string nm = n0->name_utf8();
+        ASSERT_GE(nm.size(), size_t(6));
+        std::string tail = nm.substr(nm.size() - 6);
+        for (auto& ch : tail)
+            if (ch >= 'A' && ch <= 'Z')
+                ch = char(ch + 32);
+        EXPECT_EQ(tail, ".xmind") << "the typed extension";
+    }
+}
+
+TEST(Carve, ZipTypingXmindNeedleMissStaysGeneric) {
+    /* N-158 negative: a content.xml entry whose window carries NEITHER
+     * needle must NOT type XMIND - the probe is content-gated, not
+     * name-gated (an ODF-style content.xml without the urn:xmind
+     * namespace stays the generic ZIP). */
+    std::vector<u8> img(256 * 1024, 0);
+    plant_zip_entries(img, 4096, {{"content.xml", "<?xml version=\"1.0\"?><odf:doc/>"}});
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              u32(OK));
+    ASSERT_EQ(direct_carved_count(root), 1u);
+    EXPECT_EQ(root->first_child()->props()->carve_format, u32(FMT_ZIP))
+        << "a non-xmind content.xml does not type";
+}
+
+TEST(Carve, ZipTypingDocumentToolEntryNames) {
+    /* N-158: the four entry-name branches (the og's per-entry compare
+     * tail :53041-53090) - MindManager maps, Edraw diagrams (both rels
+     * forms), Filmora projects (both ProjectFolder forms), and the
+     * DaVinci media pool. Each stamps its own id + extension. */
+    const struct {
+        const char* entry;
+        u32 fmt;
+        const char* ext;
+    } cases[] = {
+        {"xsd/MindManagerApplication.xsd", FMT_MMAP, ".mmap"},
+        {"rels/_rels.xml", FMT_EDDX, ".eddx"},
+        {"rels/page1_rels.xml", FMT_EDDX, ".eddx"},
+        {"ProjectFolder/Anon/", FMT_WFP, ".wfp"},
+        {"ProjectFolder/project_info.json", FMT_WFP, ".wfp"},
+        {"MediaPool/Master/MpFolder.xml", FMT_DRP, ".drp"},
+    };
+    for (const auto& c : cases) {
+        std::vector<u8> img(256 * 1024, 0);
+        plant_zip_entries(img, 4096, {{c.entry, std::string(64, 'd')}});
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats s;
+        ASSERT_EQ(
+            carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+            u32(OK));
+        ASSERT_EQ(direct_carved_count(root), 1u) << "the entry " << c.entry;
+        tree::FileNode* n0 = root->first_child();
+        EXPECT_EQ(n0->props()->carve_format, c.fmt) << "the typed id for " << c.entry;
+        const std::string nm = n0->name_utf8();
+        std::string want = c.ext;
+        ASSERT_GE(nm.size(), want.size());
+        std::string tail = nm.substr(nm.size() - want.size());
+        for (auto& ch : tail)
+            if (ch >= 'A' && ch <= 'Z')
+                ch = char(ch + 32);
+        for (auto& ch : want)
+            if (ch >= 'A' && ch <= 'Z')
+                ch = char(ch + 32);
+        EXPECT_EQ(tail, want) << "the typed extension for " << c.entry;
+    }
+}
+
+TEST(Carve, ZipTypingLaterEntryOverwritesEarlierStamp) {
+    /* N-158: the og's chain walk has NO typing stop (:18411-18450,
+     * disassembly: the do/while dispatches every record through the
+     * shared id slot) - a LATER branch match overwrites an EARLIER
+     * stamp (last-match-wins). The pre-N-158 walk broke at the first
+     * decisive entry; the og never does. */
+    std::vector<u8> img(256 * 1024, 0);
+    plant_zip_entries(img, 4096,
+                      {{"rels/_rels.xml", "<rels/>"},                /* EDDX first */
+                       {"MediaPool/Master/MpFolder.xml", "<mp/>"}}); /* DRP second */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              u32(OK));
+    ASSERT_EQ(direct_carved_count(root), 1u);
+    EXPECT_EQ(root->first_child()->props()->carve_format, u32(FMT_DRP))
+        << "the later stamp wins (the chain walk has no stop)";
+}
+
+TEST(Carve, ZipTypingUnrelatedEntriesStayGeneric) {
+    /* N-158 negative: a zip whose entries hit none of the five
+     * branches (and no office shape) stays the generic ZIP row. */
+    std::vector<u8> img(256 * 1024, 0);
+    plant_zip_entries(img, 4096,
+                      {{"readme.txt", "hello"},
+                       {"data/chunk1.bin", std::string(128, 'x')},
+                       {"xsd/Other.xsd", "not mindmanager"}});
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              u32(OK));
+    ASSERT_EQ(direct_carved_count(root), 1u);
+    EXPECT_EQ(root->first_child()->props()->carve_format, u32(FMT_ZIP))
+        << "unrelated entries stay generic";
+}
+
+TEST(Carve, ZipTypedIdDisableGateSuppressesTyping) {
+    /* N-158: the og ships [Filter] keys for exactly the five typed ids
+     * (RawConfig.ini XMIND/MMAP/EDDX/WFP/DRP=1); the core's M-024
+     * disabled_formats surface gates them row-level (the conservative
+     * landing - the og's exact callback coupling is undecoded). With
+     * the token disabled, an XMIND fixture must NOT type: the typing
+     * itself is suppressed, so the archive surfaces as the generic
+     * ZIP row (not DOCX - it is not office-shaped). */
+    std::vector<u8> img(256 * 1024, 0);
+    plant_zip_entries(img, 4096,
+                      {{"content.xml", "<?xml version=\"1.0\"?><x xmlns=\"urn:xmind:1\"/>"}});
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    flags.disabled_formats = "xmind";
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              u32(OK));
+    ASSERT_EQ(direct_carved_count(root), 1u);
+    EXPECT_EQ(root->first_child()->props()->carve_format, u32(FMT_ZIP))
+        << "the disabled typed id does not surface";
+}
+
 TEST(Carve, MultiEntryZipCarvesOnce) {
     /* N-153: a multi-entry archive emits ONE file - the inner LFH
      * positions are the SAME archive (the og's sector-bitmap

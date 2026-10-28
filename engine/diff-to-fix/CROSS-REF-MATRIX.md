@@ -1,4 +1,10 @@
-# CROSS-REF-MATRIX.md — module × parameter verdict matrix (the S12 session-2 deep-dive lane on top: sector math / scan-progress math / local database / state management / detection-calculation; the prior lanes below)
+# CROSS-REF-MATRIX.md — module × parameter verdict matrix (the S46 MINOR-first fix lane on top; the S12 session-2 deep-dive lane below: sector math / scan-progress math / local database / state management / detection-calculation; the prior lanes below)
+
+**Session-46 S46 lane rows (2026-10-29 — the user's MINOR-first fix directive; opened at core `659f0f6c` → `fa654673` claim, corpus `be0cfe9`; the parallel S45 lane holds the ACUTE/SEVERE side per the natural division):**
+
+| Parameter (module · surface) | Verdict | Evidence / finding |
+|---|---|---|
+| carve · the OfficeTagFromXML five-branch typing tail (P1/P11/P19/P25/P65) | **MATCH** | **N-158 FIXED** (session-46 MINOR-first lane) — the five typed ids land (XMIND 0x86 / MMAP 0x87 / EDDX 0x8c / WFP 0x8d / DRP 0x91): the XMIND content probe decoded from disassembly (the 300-byte RAW window at record+30+strlen(name), the two needles — the 16-byte `xmlns="urn:xmind` + the 14-byte .data constant at RVA 0x93980 — disasm 0x180045110-0x180045666) + the four entry-name compares; the chain walk's NO-stop/last-match-wins semantics decoded and pinned (:18411-18450 — the N-115-era "map stop" comment corrected); the [Filter] coupling as the conservative row-level disabled_formats gate (PARITY-DELTAS D-134); 6 tests, 3 groups RED pre-fix; suite 1209 green — the Resolution in findings/FIXED/ carries the full record |
 
 **Session-12 S12 lane changes (2026-10-29 — the session-2 continuation audit per the user's second-session directive: remove-the-fixed + go-deeper with special focus on sector numbers, scanning, accurate detection, calculation/mathematics, no-stuck-or-freeze, the local database, state management; opened on core `869da779` (rebased to the window's closes), corpus `be0cfe9`; five deep-dive lanes' context sheets + three liveness batteries at `evidence/s12-lane-sheets/` + `evidence/s12-liveness/`; the findings push `f85def0f`):**
 
