@@ -138,9 +138,21 @@ M-071/S-042 lanes: regression + SEVERE tier first.
   into checks.yml's lint job enforces both invariants forever (first run:
   8 named violations — the fail-before; green after).
 
-**Board after this window (post-purge filesystem truth):** 69 active (8
-SEVERE — incl. the session-10 lanes' new S-048/S-049/S-050 filings · 24
-MAJOR · 32 MINOR · 5 INFO) / **261 resolved** (FIXED-LEDGER.md is the
+- **M-082** (MAJOR → FIXED, DFX-38 lane `95122bd`) — the DeviceManager
+  offline-OS profile landed corpus-exact: reghive::offlineos::profile_os()
+  (the 8 CurrentVersion fields, the drive-letter SystemRoot gate, the
+  12-byte MountedDevices system-partition location, the Select-aware
+  ControlSet resolution, the ProductOptions classification — including
+  the first-hand %03d format decode from DeviceManager.mo .rdata, which
+  the test's RED forced and the binary settled). Core-only C++ API per
+  the fix plan's staging; PARITY-DELTAS D-107 records the decision +
+  the boot-fix auto-locate follow-up consumer; mom-capabilities.md
+  re-scoped (the dead-shipped verdict covers only the CheckVersion
+  copy). 5-test proof; suite 1045/1045.
+
+**Board after this window (post-purge filesystem truth):** 68 active (8
+SEVERE — incl. the session-10 lanes' new S-048/S-049/S-050 filings · 23
+MAJOR · 32 MINOR · 5 INFO) / **262 resolved** (FIXED-LEDGER.md is the
 index; the per-finding files are retired to git history per the SA-10B
 purge) / 2 tracked-open (OQ-S4-3, OQ-S8-1).
 - **N-116** (MINOR → resolved, session-38 lane, this replay) — the session-list
