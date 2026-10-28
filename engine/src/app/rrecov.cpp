@@ -927,14 +927,16 @@ int print_sessions(int argc, wchar_t** argv, int& i) {
         FindFirstFileExW(pattern.c_str(), FindExInfoBasic, &fd, FindExSearchNameMatch, nullptr, 0);
     const std::wstring sep = (!dir.empty() && dir.back() == L'\\') ? L"" : L"\\";
     if (h == INVALID_HANDLE_VALUE) {
-        /* the empty-directory truth (run 40694592245, the ABI seam's own
-         * fix): ERROR_FILE_NOT_FOUND is 'searched, nothing matched' - the
-         * directory was read and the empty list is the VALID answer (the
-         * cr_ui session-list contract pins OK + n==0 there). The CLI
-         * mirrors it: zero rows, exit 0. ERROR_PATH_NOT_FOUND (no such
-         * directory) and every other class (access denied, ...) remain
-         * enumeration failures - FB-K01: never exit-0. */
-        if (GetLastError() != ERROR_FILE_NOT_FOUND) {
+        /* the empty-vs-missing discriminator (the list_crsf_files seam,
+         * runs 40694592245 + 40700058960): the FindFirstFileExW error
+         * code is NOT the reliable axis on real windows (the observed
+         * matrix inverted from the docs), so the DIRECTORY-EXISTS probe
+         * decides - an existing directory with zero matches prints the
+         * zero-row list and exits 0 (the ABI surface's own contract),
+         * a missing path (or a plain FILE handed as a dir) stays the
+         * genuine enumeration failure: FB-K01, exit 1. */
+        const DWORD attr = GetFileAttributesW(dir.c_str());
+        if (attr == INVALID_FILE_ATTRIBUTES || (attr & FILE_ATTRIBUTE_DIRECTORY) == 0) {
             wprintf(L"cannot enumerate session directory %s\n", dir.c_str());
             return 1; /* FB-K01: enumeration failure is never exit-0 */
         }

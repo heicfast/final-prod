@@ -395,18 +395,24 @@ bool list_crsf_files(const char* utf8_dir, std::vector<std::string>& out) {
     HANDLE h =
         FindFirstFileExW(pattern.c_str(), FindExInfoBasic, &fd, FindExSearchNameMatch, nullptr, 0);
     if (h == INVALID_HANDLE_VALUE) {
-        /* the empty-directory truth (run 40694592245, the AutoSave W1c
-         * red): FindFirstFileExW reports 'searched, nothing matched' as
-         * INVALID_HANDLE_VALUE + ERROR_FILE_NOT_FOUND - the directory
-         * WAS read, the answer is the empty list. POSIX opendir on the
-         * same empty dir succeeds, and the cross-platform contract (the
-         * W1c test's first block: the zero-init scan lists the empty
-         * autosave dir as OK + n==0) makes that a SUCCESS, never
-         * ERR_OPEN_FAILED. ERROR_PATH_NOT_FOUND (no such directory)
-         * and every other class (access denied, invalid name, ...) stay
-         * genuine read failures. */
-        const DWORD e = GetLastError();
-        return e != ERROR_FILE_NOT_FOUND;
+        /* the empty-vs-missing discriminator (runs 40694592245 + 40700058960):
+         * the ERROR CODE is NOT the reliable axis - the observed windows-2022
+         * matrix came back INVERTED from the documented one (a nonexistent
+         * dir reports ERROR_FILE_NOT_FOUND, an existing EMPTY dir reports a
+         * different code), so keying on any single code breaks one class or
+         * the other. The version-proof truth is the DIRECTORY-EXISTS probe:
+         * an existing directory with zero matches is the empty-list SUCCESS
+         * (POSIX opendir succeeds on the same dir; the W1c contract pins
+         * OK + n==0), while a missing path - or a plain FILE handed as a
+         * dir, POSIX ENOTDIR - is the genuine failure (the no-such-dir-*
+         * rows in SessionListTwoCallPattern and the abi C-gate pin
+         * ERR_OPEN_FAILED). Known divergence, accepted: a directory whose
+         * LIST permission is denied but whose attributes read (a rare ACL
+         * shape) reports the empty list, where POSIX opendir would fail -
+         * the existence probe is the only axis that is right on every
+         * version for the two pinned classes. */
+        const DWORD attr = GetFileAttributesW(u8_to_ws(utf8_dir).c_str());
+        return attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY) != 0;
     }
     const std::wstring dir_w = u8_to_ws(utf8_dir);
     /* join with the CALLER's separator convention (run 40689196858): a
