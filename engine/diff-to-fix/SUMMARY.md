@@ -1,5 +1,31 @@
 # SUMMARY.md — executive summary (the review-validate close-out on top; earlier sessions below)
 
+## Fix-session delta (2026-10-28 — the SA-6 probe lane: M-064 FULLY FIXED (the v0.2.4 remainder, upstream rda-driver))
+
+**M-064 (MAJOR) FULLY FIXED** (the second half landed upstream): rda-driver
+v0.2.4 (`323e75a`) — `-Layout Versioned` (default): the dest is
+`<ServiceName><MajorMinor>.sys` from the source image's version resource
+(the reference setupdrvx64 `%s%d` coexistence scheme — an in-use image is
+never overwritten; no version resource = an honest Plain fallback, never a
+guessed tag); a different-version install over an existing service is the
+**in-place upgrade** (stop with the M-061 poll → `sc config binPath=` → the
+shared Parameters write+verify → the shared start leg; the old file stays —
+the reference's rebootless-upgrade story; new exit codes 8/9); `-Uninstall`
+delegates to uninstall.ps1 by re-invoking the current engine (one
+implementation, both entry points); the teardown captures the service's
+actual ImagePath (the versioned name) + sweeps the versioned leftovers; the
+CI lint lane gained the **PowerShell AST parse gate** (the v0.2.3 lesson: a
+broken script broke every CI install). The core's driver-status discovery
+needed NO change (the service carries the binPath; the composite's
+assertions are dynamic — verified). The finding carries the full two-batch
+Resolution; the matrix row -> MATCH (FIXED).
+
+**Board after M-064:** 1 active (1 SEVERE (S-038 steps 2-4 — the installer
+implementation, pending the owner's two PACKAGING.md decisions)) · **244
+FIXED** (the M-064 file carried no prior row — the v0.2.3 half tracked in
+the module doc only) · tracked-open 2 (OQ-S4-3 — the Windows CI dispatch;
+OQ-SA-1 — the NTFS +0x64 residue). I-026 remains informational (no action).
+
 ## Fix-session delta (2026-10-28 — the SA-6 probe lane, wave 2: A-011 (NEW, ACUTE, filed+fixed) + N-089 FIXED)
 
 **A-011 (ACUTE, NEW-FINDING — filed+fixed in one landing)**: the SQLite

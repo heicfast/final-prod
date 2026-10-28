@@ -75,3 +75,18 @@ S-038/M-064.
   (default recommendation: omit) and the technology call are the two OPEN
   product decisions recorded in the doc. S-038 stays ACTIVE (steps 2-4:
   implementation, tests, acceptance) — its step-1 gate is closed.
+
+## SA-6 probe lane (2026-10-28 — the M-064 close-out: the v0.2.4 remainder landed)
+
+- **M-064 FULLY FIXED** (upstream v0.2.3 `6b50bb8` + v0.2.4 `323e75a`; the
+  finding carries the full Resolution): `-Layout Versioned` (default) —
+  `<ServiceName><MajorMinor>.sys` from the source image's version resource
+  (the og's `%s%d` coexistence; an in-use image is never overwritten); the
+  different-version in-place upgrade (stop-poll → `sc config binPath=` →
+  the shared Parameters write+verify → the shared start leg; the old file
+  stays; exit codes 8/9); `-Uninstall` (the current-engine delegation —
+  one implementation, both entry points); the versioned-aware teardown
+  (the service's actual ImagePath + the `<ServiceName><digits>.sys`
+  leftover sweep); the CI PowerShell AST parse gate (the v0.2.3 lesson).
+  The core's driver-status discovery needed no change (the service carries
+  the binPath; the composite's assertions are dynamic).
