@@ -5992,3 +5992,25 @@ lane recorded at its pin is now half-landed by the parallel window):
   RED pre-fix by the reverted-tree rerun); the Windows CI junk-gate step 3b (the
   end-to-end resume-without-out round-trip: the session survives, tree intact).
   Suite 68/68.
+## Session-43 minors lane — the N-139 convergence + the 133cced9 splice repair (2026-10-29)
+
+**N-139 CONVERGENT (the parallel lane's landing stands).** This lane independently
+implemented N-139 in the same window (the same corpus re-reads, the same
+one-Warn-line + structured-stat design, the same PARITY-DELTAS D-115 number, the
+same every-exit stats flush, a size-gated failing operator new as the injection —
+my lane's commits never reached origin through the hot window). The parallel lane's
+133cced9 pushed first with a STRONGER shape: the carve::detail::oom_test_hook seam
+(the cr_bitlocker.h precedent — no process-wide allocator poisoning) + top-level
+carve_slice and parallel-worker guards converting ANY remaining bad_alloc (my
+two-site catches would have left the std::set/std::string internals escapable).
+First-push-wins: their landing stands; my duplicate drops.
+
+**Hygiene repair #4 (main was UNBUILDABLE at `133cced9`):** the N-139 lane's rebase
+spliced its three OOM test bodies INSIDE the HIK/MpegPs tests' bodies (TEST macros
+nested in TEST bodies — test_carve.cpp:9476 'expected identifier', the -Werror build
+fails outright; the commit message's suite-green claim cannot have executed against
+this tree — the M-120 class again). Repaired: the file reconstructed from the
+parent state + the lane's intended N-139 test block assembled at its proper place
+(after MpegPsPesLengthsAreBigEndian); the content is byte-faithful to their intent
+(the ScopedOomHook seam, the three tests, the comments). Suite 1249/1249 green
+post-repair (this lane's build); the 8 HIK/MpegPs/OOM tests all pass.

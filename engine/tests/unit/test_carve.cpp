@@ -9601,6 +9601,13 @@ TEST(Carve, MpegPsPesLengthsAreBigEndian) {
 
 /* ---- N-139: the carve OOM policy - the graceful code, never an escaped
  * exception, with the og-shaped one-line diagnostic ---- */
+/* ===================================================================== */
+/* N-139: the carve OOM policy - the graceful code, never an escaped     */
+/* exception, with the og-shaped one-line diagnostic (the parallel lane's */
+/* landing at 133cced9, re-assembled by the session-43 lane: the pushed  */
+/* rebase had spliced these bodies inside the HIK/MpegPs tests' bodies - */
+/* main was unbuildable at HEAD; the intended content is identical).     */
+/* ===================================================================== */
 
 namespace {
 
