@@ -152,10 +152,14 @@ jobs:
       - name: "Stage the disk (${{ matrix.fs }}$(if (${{ matrix.quick_format }}) {' + quick-format'})) + scripted deletion"
         shell: pwsh
         run: |
-          $args = @('-VhdPath', "$PWD\disk.vhdx", '-SizeMB', '256', '-Fs', '${{ matrix.fs }}',
-                    '-Manifest', '.github\scenarios\seed-manifest.json', '-OutDir', 'staging')
-          if ('${{ matrix.quick_format }}' -eq 'true') { $args += '-QuickFormat' }
-          & .github\scripts\stage-disk.ps1 @args
+          # M-069: the array splat bound POSITIONALLY ('-VhdPath' the literal
+          # string landed in VhdPath, the vhdx path in SizeMB -> the Int32
+          # conversion error; every prior run of this lane died here). The
+          # hashtable splat binds by NAME.
+          $p = @{ VhdPath = "$PWD\disk.vhdx"; SizeMB = 256; Fs = '${{ matrix.fs }}'
+                  Manifest = '.github\scenarios\seed-manifest.json'; OutDir = 'staging' }
+          if ('${{ matrix.quick_format }}' -eq 'true') { $p.QuickFormat = $true }
+          & .github\scripts\stage-disk.ps1 @p
           if ($LASTEXITCODE -ne 0) { exit 1 }
           Get-Content staging\staged-truth.json | Write-Host
 
@@ -175,13 +179,25 @@ jobs:
           $m = Get-VHD -Path "$PWD\disk.vhdx" -ErrorAction SilentlyContinue
           if ($m -and $m.Attached) { Dismount-VHD -Path "$PWD\disk.vhdx" }
 
-      - name: Uninstall the driver (always)
+      - name: Uninstall the driver (always - the release's own uninstall.ps1, M-061/M-064)
         if: always()
         shell: pwsh
         run: |
-          sc.exe stop rda 2>$null | Out-Null
-          sc.exe delete rda 2>$null | Out-Null
-          Remove-Item "$env:SystemRoot\System32\drivers\rda.sys" -Force -ErrorAction SilentlyContinue
+          # M-069: the raw sc.exe teardown + the FIXED plain name (rda.sys)
+          # missed the v0.2.4 versioned image (rda10.sys) and swallowed
+          # every failure. The release's uninstall.ps1 (v0.2.4+: the
+          # service's actual ImagePath + the versioned leftover sweep + the
+          # M-061 poll/verify contract) is the teardown, exactly like
+          # driver-install.yml.
+          if (Test-Path driver\uninstall.ps1) {
+            powershell -ExecutionPolicy Bypass -File driver\uninstall.ps1 -ServiceName rda
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "::error::uninstall.ps1 failed (exit $LASTEXITCODE) - teardown incomplete (M-061 contract)"
+              exit 1
+            }
+          } else {
+            Write-Host "driver\uninstall.ps1 not staged - skipping the scripted teardown"
+          }
 
       - name: Upload the evidence artifact (the acceptance proof)
         if: always()
