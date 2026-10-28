@@ -5174,3 +5174,13 @@ completion), then the MAJOR tier as far as the session reaches. N-107/N-127's fi
 surfaces live in the rda-driver repo — out of this session's two-repo grant; they
 ride OQ-S10-3. The SEVERE tier (S-040/S-048/S-050) stays the S42 fix lane's
 declared territory.
+
+**Hygiene repair #3 (main was BROKEN at `db228b75`):** the 59bd5208 push (the
+S40-ML lane's re-pin repair) committed rebase conflict-marker residue INTO
+tests/unit/test_carve.cpp (the `<<<<<<< HEAD` / `=======` / `>>>>>>>` block at
+:8588-8600) — the -Werror build fails outright ("version control conflict marker
+in file"); the "1096/1096 green" claim in that commit's message cannot have been
+executed against this tree (the object file does not compile). Resolved to the
+both-sides-folded case-insensitive compare (the HEAD side of the committed
+conflict — the form consistent with the lowercase cases table); comment updated to
+record the residue. Suite 1211/1211 green (this lane's build, post-repair).
