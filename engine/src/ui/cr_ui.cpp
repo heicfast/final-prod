@@ -55,18 +55,22 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <dirent.h> /* W1a (R-56): the *.crsf directory enumeration */
 #endif
 
+#include <algorithm>
 #include <atomic>
 #include <mutex>
 #include <cerrno>
 #include <chrono>
 #include <thread>
+#include <cctype>
 #include <cstdarg>
 #include <ctime>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cwctype>
 #include <functional>
 #include <map>
 #include <condition_variable>
@@ -373,6 +377,68 @@ u32 ck_commit_cb(void* user) {
     s->f = open_file(s->tmp_path.c_str(), true);
     return s->f ? OK : ERR_SESSION_IO;
 }
+
+/* ---- W1a (R-56): *.crsf directory enumeration (the list input) -------
+ * Cross-platform, UTF-8 in/out, byte-sorted by full path (the row order
+ * is deterministic - the CLI golden depends on it). FALSE only when the
+ * directory itself cannot be read; individual files are never filtered
+ * here (the row's error field is the honest per-file report). */
+#ifdef _WIN32
+bool list_crsf_files(const char* utf8_dir, std::vector<std::string>& out) {
+    std::wstring pattern = u8_to_ws(utf8_dir);
+    /* accept both "C:\x\y" and "C:\x\y\" - exactly one separator */
+    if (!pattern.empty() && pattern.back() == L'\\')
+        pattern += L"*.crsf";
+    else
+        pattern += L"\\*.crsf";
+    WIN32_FIND_DATAW fd;
+    HANDLE h =
+        FindFirstFileExW(pattern.c_str(), FindExInfoBasic, &fd, FindExSearchNameMatch, nullptr, 0);
+    if (h == INVALID_HANDLE_VALUE)
+        return false;
+    const std::wstring dir_w = u8_to_ws(utf8_dir);
+    const std::wstring sep = (!dir_w.empty() && dir_w.back() == L'\\') ? L"" : L"\\";
+    do {
+        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+            continue;
+        /* the 8.3 short-name quirk: the pattern can match on the SHORT
+         * name - verify the LONG name's tail too (case-insensitive) */
+        const std::wstring name(fd.cFileName);
+        if (name.size() < 5)
+            continue;
+        const wchar_t* t = name.c_str() + name.size() - 5;
+        if (t[0] != L'.' || towlower(t[1]) != L'c' || towlower(t[2]) != L'r' ||
+            towlower(t[3]) != L's' || towlower(t[4]) != L'f')
+            continue;
+        out.push_back(ws_to_u8(dir_w + sep + name));
+    } while (FindNextFileW(h, &fd));
+    FindClose(h);
+    std::sort(out.begin(), out.end());
+    return true;
+}
+#else
+bool list_crsf_files(const char* utf8_dir, std::vector<std::string>& out) {
+    DIR* d = opendir(utf8_dir);
+    if (!d)
+        return false;
+    const std::string dir(utf8_dir);
+    const std::string sep = (!dir.empty() && dir.back() == '/') ? "" : "/";
+    while (dirent* e = readdir(d)) {
+        const char* n = e->d_name;
+        const size_t len = std::strlen(n);
+        if (len < 5)
+            continue;
+        const char* t = n + len - 5;
+        if (t[0] != '.' || tolower(u8(t[1])) != 'c' || tolower(u8(t[2])) != 'r' ||
+            tolower(u8(t[3])) != 's' || tolower(u8(t[4])) != 'f')
+            continue;
+        out.push_back(dir + sep + n);
+    }
+    closedir(d);
+    std::sort(out.begin(), out.end());
+    return true;
+}
+#endif
 u32 f_read_cb(void* user, void* buf, u32 len) {
     FILE* f = static_cast<FILE*>(user);
     return std::fread(buf, 1, len, f) == len ? OK : ERR_SESSION_IO;
@@ -1890,9 +1956,9 @@ u32 scan_run_impl(cr_ui_scan* scan) {
     if (s->ck_sink) {
         if (s->ck_sink->f)
             std::fclose(s->ck_sink->f);
-        /* the staging file is transient: the final path holds the last
-         * COMMITTED checkpoint; a leftover .tmp is a torn never-committed
-         * emit (N-014's crash window) - remove it, never trust it. */
+            /* the staging file is transient: the final path holds the last
+             * COMMITTED checkpoint; a leftover .tmp is a torn never-committed
+             * emit (N-014's crash window) - remove it, never trust it. */
 #ifdef _WIN32
         DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
 #else
@@ -2446,8 +2512,8 @@ extern "C" CR_UI_API void cr_ui_scan_close(cr_ui_scan* scan) {
         if (s->ck_sink) {
             if (s->ck_sink->f)
                 std::fclose(s->ck_sink->f);
-            /* N-014: the staging file is transient (a torn never-committed
-             * emit); the final path holds the last committed checkpoint. */
+                /* N-014: the staging file is transient (a torn never-committed
+                 * emit); the final path holds the last committed checkpoint. */
 #ifdef _WIN32
             DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
 #else
@@ -2560,6 +2626,59 @@ u32 session_load_impl(const char* utf8_path, cr_ui_session** out) {
     }
     *out = reinterpret_cast<cr_ui_session*>(sess);
     return ret_ok();
+}
+
+u32 session_list_impl(const char* utf8_dir, cr_ui_session_row* rows, uint32_t* count) {
+    if (!utf8_dir || !*utf8_dir || !count)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: dir/count");
+    std::vector<std::string> files;
+    if (!list_crsf_files(utf8_dir, files))
+        return ret_(ERR_OPEN_FAILED, "cannot enumerate session dir %s", utf8_dir);
+    const u32 needed = u32(files.size());
+    if (!rows) {
+        *count = needed;
+        return ret_ok();
+    }
+    const u32 cap = *count;
+    const u32 n = needed < cap ? needed : cap;
+    for (u32 i = 0; i < n; ++i) {
+        cr_ui_session_row& row = rows[i];
+        std::memset(&row, 0, sizeof(row));
+        /* the path itself may need truncation (a 1024-byte row field is a
+         * display convenience, not a limit on what loads - callers hand
+         * the full path they enumerated themselves to session_load) */
+        const bool path_truncated = files[i].size() >= sizeof(row.path);
+        copy_cstr(row.path, sizeof(row.path), files[i].c_str());
+        FILE* f = open_file(files[i].c_str(), false);
+        if (!f) {
+            row.valid = 0;
+            row.error = u32(ERR_OPEN_FAILED);
+            continue;
+        }
+        session::Reader r(f_read_cb, f_seek_cb, f_size_cb, f);
+        session::SessionSummary s;
+        const u32 rc = orchestrator::ScanController::read_summary(r, s);
+        std::fclose(f);
+        if (rc != OK) {
+            row.valid = 0;
+            row.error = rc;
+            continue;
+        }
+        row.valid = 1;
+        row.error = path_truncated ? u32(ERR_TRUNCATED) : u32(OK);
+        row.fs_family = s.have_volume ? s.volume.fs_kind : 0;
+        row.stage_done_mask = s.state.stage_done_mask;
+        row.configured_mask = s.configured_mask;
+        row.files_found = s.state.files_found;
+        row.deleted_found = s.state.deleted_found;
+        row.carved_found = s.state.carved_found;
+        row.bytes_scanned = s.state.bytes_scanned;
+        row.elapsed_ms = s.volume.elapsed_ms;
+        row.save_unix = s.volume.save_unix;
+        copy_cstr(row.label, sizeof(row.label), s.volume.label);
+    }
+    *count = n;
+    return ret_(n == needed ? OK : u32(ERR_TRUNCATED), "%s", "");
 }
 
 u32 session_info_impl(cr_ui_session* sess, cr_ui_session_info* out) {
@@ -2861,6 +2980,10 @@ extern "C" CR_UI_API uint32_t cr_ui_session_resume(cr_ui_session* sess,
                                                    const cr_ui_scan_config* original_cfg,
                                                    cr_ui_scan** out) {
     return guarded(session_resume_impl, sess, original_cfg, out);
+}
+extern "C" CR_UI_API uint32_t cr_ui_session_list(const char* utf8_dir, cr_ui_session_row* rows,
+                                                 uint32_t* count) {
+    return guarded(session_list_impl, utf8_dir, rows, count);
 }
 
 /* =========================================================================

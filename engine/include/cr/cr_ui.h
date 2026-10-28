@@ -805,6 +805,50 @@ CR_UI_API uint32_t cr_ui_session_snapshot(cr_ui_session* sess, cr_ui_snapshot** 
 CR_UI_API uint32_t cr_ui_session_resume(cr_ui_session* sess, const cr_ui_scan_config* original_cfg,
                                         cr_ui_scan** out);
 
+/* ---- session list (W1a / R-56) --------------------------------------------
+ * Directory-level summary listing - the og's LastScanRecordView surface
+ * (UIUX/07-home-phase-deep-dive.md:21 + its Continue-last banner): every
+ * *.crsf file in utf8_dir yields ONE row decoded from the container's
+ * LIGHT records only (SESSION_STATE + VOLUME_INFO); the heavy payloads
+ * (the 36 MB-class tree record among them) are skipped BY TYPE before
+ * any payload I/O (ScanController::read_summary + Reader::peek_record).
+ *
+ * Two-call size pattern (same contract as cr_ui_snapshot_dfs):
+ *   rows == NULL -> *count = the number of *.crsf candidates (capacity
+ *                   probe; nothing is decoded)
+ *   rows != NULL -> *count is the IN capacity; rows fill in byte-sorted
+ *                   path order; capacity < needed -> CR_UI_ERR_TRUNCATED
+ *                   with *count = the number filled
+ * An unreadable file (bad magic, torn container, open failure) still
+ * gets a row: valid = 0 + error = the decode/open error - a listing
+ * never hides damage. A valid row carries error = CR_UI_OK unless the
+ * PATH itself needed truncation (>= sizeof(path) bytes): then error =
+ * CR_UI_ERR_TRUNCATED and path[] holds the 1023-byte prefix while the
+ * summary fields stay decoded.
+ * save_unix is the EMBEDDED save time (v5+ sessions; the og record-2
+ * SYSTEMTIME scanTime); 0 = a pre-v5 session - display the file mtime
+ * then, never a fabricated time. Errors: CR_UI_ERR_BAD_PARAMETER
+ * (null/empty args), ERR_OPEN_FAILED (the directory itself cannot be
+ * read). Threading: no shared state; any thread may call. */
+
+#define CR_UI_SESSION_ROW_PATH 1024
+
+typedef struct cr_ui_session_row {
+    uint32_t valid;           /* 1 = summary decoded */
+    uint32_t error;           /* CR_UI_OK, or the decode/truncation error */
+    uint32_t fs_family;       /* orchestrator FsFamily as stored; 0 unknown */
+    uint32_t stage_done_mask; /* quick|deep|carve bits actually done */
+    uint32_t configured_mask; /* stages the original run configured */
+    uint64_t files_found, deleted_found, carved_found;
+    uint64_t bytes_scanned, elapsed_ms;
+    uint64_t save_unix;                /* embedded save time; 0 = pre-v5 session */
+    char label[32];                    /* UTF-8 volume label; empty on legacy files */
+    char path[CR_UI_SESSION_ROW_PATH]; /* UTF-8 full path, NUL padded */
+} cr_ui_session_row;
+
+CR_UI_API uint32_t cr_ui_session_list(const char* utf8_dir, cr_ui_session_row* rows,
+                                      uint32_t* count);
+
 /* ---- snapshot enumeration -------------------------------------------------
  * Flat, index-addressed rows (parent/child/sibling links as indices;
  * CR_UI_SNAP_NONE when absent). This is the mid-scan browse surface; the

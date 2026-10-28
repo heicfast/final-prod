@@ -471,6 +471,46 @@ Contract:
   (layer, ext, size bounds, base confidence, grammar-layer magic) — the
   parity-tooling surface (N-033's step 2).
 
+### 7f. The session-list surface (W1a / R-56; PLAN-API-EXPANSION Wave 1)
+
+`cr_ui_session_list(const char* utf8_dir, cr_ui_session_row* rows, uint32_t* count)`
+(cr_ui.h:808-850) — the og's LastScanRecordView surface
+(UIUX/07-home-phase-deep-dive.md:21 + the Continue-last banner): a
+directory-level summary listing where every `*.crsf` file yields ONE row
+decoded from the container's LIGHT records only (`SESSION_STATE` +
+`VOLUME_INFO`; the heavy payloads — the 36 MB-class tree record among them
+— are skipped BY TYPE before any payload I/O:
+`orchestrator::ScanController::read_summary` + `session::Reader::
+peek_record`, the same light-read shape as the og's record-2 read,
+rsf-format--scan-session.md §5.2).
+
+Contract (ABI RULES-conformant):
+
+- **Two-call size pattern** (same as `cr_ui_snapshot_dfs`): `rows == NULL`
+  → `*count` = the number of `*.crsf` candidates, nothing decoded;
+  `rows != NULL` → `*count` is the IN capacity, rows fill in byte-sorted
+  path order, capacity < needed → `CR_UI_ERR_TRUNCATED` with `*count` =
+  the number filled. Caller-owned memory — rows are PODs, no free export.
+- **Row truth**: `valid=0` + `error` = the decode/open error for unreadable
+  files (bad magic, torn container) — a listing never hides damage; a
+  `valid=1` row carries `error=CR_UI_OK` unless the PATH itself needed
+  truncation (≥ `sizeof(path)` bytes) → `error=CR_UI_ERR_TRUNCATED`, the
+  1023-byte prefix in `path[]`, summary intact.
+- **Fields**: `fs_family`/`stage_done_mask`/`configured_mask`/counts/
+  `label` mirror `cr_ui_session_get_info` + `cr_ui_session_stats` exactly
+  (the C-consumer gate cross-checks); `save_unix` is the EMBEDDED save
+time (the v5 VOLUME_INFO tail; 0 = a pre-v5 session — display the file
+  mtime then, never a fabricated time).
+- **Errors**: `CR_UI_ERR_BAD_PARAMETER` (null/empty args),
+  `ERR_OPEN_FAILED` (the directory itself cannot be read — fail loud,
+  never a silent empty list).
+- **Threading**: no shared state; any thread may call. No handle is
+  created — nothing to close.
+- **ABI stability**: append-only export + new POD struct = NO version
+  bump (§9 policy; `CR_UI_ABI_VERSION` stays 3).
+- **CLI rendering**: `rrecov sessions [--dir D] [--json]` (the three-site
+  verb-list pin governs its doc sites).
+
 ## 8. SQLite session index — REJECTED-BY-REFERENCE (closed GAP-S6-12)
 
 **This section previously specified a queryable SQLite sidecar index

@@ -26,6 +26,7 @@ Companion documents:
 ```
 rrecov list
 rrecov list-carve-formats
+rrecov sessions [--dir D] [--json]
 rrecov scan    --disk N | --volume C: | --image file [--whole-disk] [--deep]
                [--quick-only] [--no-carve] [--threads N] [--out file.crsf]
                [--resume file.crsf] [--json] [--log file] [--csv]
@@ -77,7 +78,7 @@ unlock-side ever fires implicitly. See [CONNECTION-GUIDE.md](CONNECTION-GUIDE.md
 
 Version: `cr_ui_abi_version()` returns `CR_UI_ABI_VERSION` (**3**).
 Call it first and refuse to bind on mismatch. The surface is
-append-only-flat-C: 79 exported functions in the current header, all
+append-only-flat-C: 80 exported functions in the current header, all
 `cr_ui_*`, opaque handles, C callbacks, no exceptions across the boundary,
 thread-safety class documented per group ([ABI-CONTRACT.md](ABI-CONTRACT.md)).
 
@@ -123,6 +124,7 @@ thread-safety class documented per group ([ABI-CONTRACT.md](ABI-CONTRACT.md)).
 | Export | Purpose |
 |---|---|
 | `cr_ui_session_load` / `cr_ui_session_close` / `cr_ui_session_resume` | session container lifecycle |
+| `cr_ui_session_list(dir, rows, count)` | W1a (R-56): the saved-session directory list - the light per-file summary (LastScanRecordView); two-call size pattern |
 | `cr_ui_session_get_info` / `cr_ui_session_stats` / `cr_ui_session_regrade` / `cr_ui_session_snapshot` | summary, per-root stats, re-grading, snapshotting |
 | `cr_ui_snapshot_*` (7) | the read-only result view: DFS walk, node detail, partial window (`cr_ui_snapshot_close` releases) |
 | `cr_ui_query_run` / `cr_ui_query_rows_free` / `cr_ui_query_apply_buckets` | the server-side query (filter/sort/page/bucket IDs, M-029) |

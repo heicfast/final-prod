@@ -34,7 +34,7 @@
 > closed by the 8-step classifier + `cr_ui_driver_status` + the ABI error
 > family. The b.2 row "RDA-first with direct fallback" is likewise
 > superseded (classified ERR_DRIVER_* refusal, no fallback). Current
-> counts: 79 exports / 10 verbs / 39+OK error codes.
+> counts: 80 exports / 11 verbs / 39+OK error codes.
 > Current contract docs: [ABI-CONTRACT.md](ABI-CONTRACT.md),
 > [DRIVER-REQUIRED.md](DRIVER-REQUIRED.md), [API.md](API.md).
 ---
@@ -226,7 +226,7 @@ heap-out strings, zero-init configs always safe, no exception escapes (catch-all
 | `cr_ui_apply_undo_last(dev, out)` | byte-exact restore of last apply (cr_ui.h:738) |
 | `cr_ui_apply_save_undo(dev, path)` | persist CRUNDO01 container (cr_ui.h:743) |
 
-### b.6 Sessions & snapshots (12)
+### b.6 Sessions & snapshots (13)
 
 | Export | Contract |
 |---|---|
@@ -235,51 +235,52 @@ heap-out strings, zero-init configs always safe, no exception escapes (catch-all
 | `cr_ui_session_stats` | the stats block (cr_ui.h:797) |
 | `cr_ui_session_regrade` | S-023 per-selection re-grade (grade-1 only) (cr_ui.h:670-672) |
 | `cr_ui_session_snapshot` | post-scan value capture (cr_ui.h:798) |
-| `cr_ui_session_resume(sess, original_cfg, out)` | mask-validated resume flow (cr_ui.h:805-808) |
-| `cr_ui_snapshot_close` / `_node_count` / `_partial` / `_node(index, info, name_buf, cap)` / `_dfs(indices, count)` | index-addressed immutable rows; TRUNCATED two-call pattern (cr_ui.h:842-865) |
+| `cr_ui_session_resume(sess, original_cfg, out)` | mask-validated resume flow (cr_ui.h:805-806) |
+| `cr_ui_session_list(dir, rows, count)` | W1a (R-56) the saved-session directory list: the light per-file summary (LastScanRecordView), two-call size pattern, error rows for unreadable files (cr_ui.h:808-850) |
+| `cr_ui_snapshot_close` / `_node_count` / `_partial` / `_node(index, info, name_buf, cap)` / `_dfs(indices, count)` | index-addressed immutable rows; TRUNCATED two-call pattern (cr_ui.h:886-902) |
 
 ### b.7 Query (3)
 
 | Export | Contract |
 |---|---|
-| `cr_ui_query_run(sess, q, rows, count, total)` | G-12 filter/sort/page; heap rows (cr_ui.h:905-907) |
-| `cr_ui_query_rows_free` | frees the row array (cr_ui.h:908) |
-| `cr_ui_query_apply_buckets` | M-029 og date/size bucket-id translation, unknown IDs rejected (cr_ui.h:927-933) |
+| `cr_ui_query_run(sess, q, rows, count, total)` | G-12 filter/sort/page; heap rows (cr_ui.h:949-951) |
+| `cr_ui_query_rows_free` | frees the row array (cr_ui.h:952) |
+| `cr_ui_query_apply_buckets` | M-029 og date/size bucket-id translation, unknown IDs rejected (cr_ui.h:971-977) |
 
 ### b.8 Carve registry + user signs (5)
 
 | Export | Contract |
 |---|---|
-| `cr_ui_carve_format_count()` / `cr_ui_carve_format_info(index, out)` | N-033 two-layer enumeration, stable order (cr_ui.h:959-966) |
-| `cr_ui_register_user_signs(json, len)` | M-048 atomic install (cr_ui.h:977) |
-| `cr_ui_user_sign_count()` / `cr_ui_user_sign_info` | enumerate active set (cr_ui.h:989-991) |
+| `cr_ui_carve_format_count()` / `cr_ui_carve_format_info(index, out)` | N-033 two-layer enumeration, stable order (cr_ui.h:1000-1007) |
+| `cr_ui_register_user_signs(json, len)` | M-048 atomic install (cr_ui.h:1021) |
+| `cr_ui_user_sign_count()` / `cr_ui_user_sign_info` | enumerate active set (cr_ui.h:1032-1034) |
 
 ### b.9 Disk map (2)
 
 | Export | Contract |
 |---|---|
-| `cr_ui_disk_map(sess, snap, want, got, alloc/coverage/found/confidence, bad_ranges...)` | GAP-S6-11 overlay producer; TRUNCATED two-call for bad ranges (cr_ui.h:1032-1037) |
-| `cr_ui_disk_map_free(overlay)` | frees one overlay array (cr_ui.h:1040) |
+| `cr_ui_disk_map(sess, snap, want, got, alloc/coverage/found/confidence, bad_ranges...)` | GAP-S6-11 overlay producer; TRUNCATED two-call for bad ranges (cr_ui.h:1076-1081) |
+| `cr_ui_disk_map_free(overlay)` | frees one overlay array (cr_ui.h:1084) |
 
 ### b.10 Preview (7)
 
 | Export | Contract |
 |---|---|
-| `cr_ui_preview_open_snapshot(dev, snap, index, out)` / `cr_ui_preview_open_session(dev, sess, node_id, out)` | private-props copy; DEVICE must outlive (cr_ui.h:1054-1057) |
-| `cr_ui_preview_close` / `cr_ui_preview_size` | lifecycle (cr_ui.h:1058-1063) |
-| `cr_ui_preview_read(pv, off, buf, len, placed)` | 4 MiB/call cap; short only at EOF; unreadable spans zero-filled AND reported (cr_ui.h:1064-1069) |
-| `cr_ui_preview_metadata(pv, out)` | capped kind/format/EXIF/codec/text extraction (cr_ui.h:1082) |
-| `cr_ui_preview_unreadable(pv, total, count)` | truthful failure map (cr_ui.h:1086) |
+| `cr_ui_preview_open_snapshot(dev, snap, index, out)` / `cr_ui_preview_open_session(dev, sess, node_id, out)` | private-props copy; DEVICE must outlive (cr_ui.h:1096-1099) |
+| `cr_ui_preview_close` / `cr_ui_preview_size` | lifecycle (cr_ui.h:1100-1105) |
+| `cr_ui_preview_read(pv, off, buf, len, placed)` | 4 MiB/call cap; short only at EOF; unreadable spans zero-filled AND reported (cr_ui.h:1108-1113) |
+| `cr_ui_preview_metadata(pv, out)` | capped kind/format/EXIF/codec/text extraction (cr_ui.h:1126) |
+| `cr_ui_preview_unreadable(pv, total, count)` | truthful failure map (cr_ui.h:1130) |
 
 ### b.11 Recovery (12)
 
 | Export | Contract |
 |---|---|
-| `cr_ui_recovery_create(source, cfg, out)` / `cr_ui_recovery_close` | writer session over injected DestIo (cr_ui.h:1109-1113) |
-| `cr_ui_recovery_set_destination(path)` | arms F12 overlap refusal on Windows (cr_ui.h:1116) |
-| `cr_ui_recovery_enqueue_node` / `_subtree` / `_snapshot` / `_subtree_snapshot` | queue building (session node_id or snapshot index) (cr_ui.h:1123-1131) |
-| `cr_ui_recovery_queue_count` | live depth (cr_ui.h:1134) |
-| `cr_ui_recovery_process` / `cr_ui_recovery_cancel` | synchronous process on caller's thread; ERR_CANCELLED keeps committed items (cr_ui.h:1141-1143) |
+| `cr_ui_recovery_create(source, cfg, out)` / `cr_ui_recovery_close` | writer session over injected DestIo (cr_ui.h:1151-1155) |
+| `cr_ui_recovery_set_destination(path)` | arms F12 overlap refusal on Windows (cr_ui.h:1160) |
+| `cr_ui_recovery_enqueue_node` / `_subtree` / `_snapshot` / `_subtree_snapshot` | queue building (session node_id or snapshot index) (cr_ui.h:1167-1175) |
+| `cr_ui_recovery_queue_count` | live depth (cr_ui.h:1178) |
+| `cr_ui_recovery_process` / `cr_ui_recovery_cancel` | synchronous process on caller's thread; ERR_CANCELLED keeps committed items (cr_ui.h:1184-1187) |
 | `cr_ui_recovery_get_stats` | per-outcome counters incl. salvaged/nothing_to_recover (cr_ui.h:1151) |
 | `cr_ui_recovery_report_json(rec, source, json_out)` | G-09 report, valid any time (cr_ui.h:1156) |
 
@@ -313,31 +314,39 @@ err_attempts M-049 triple), `CHECKPOINT` 5, `LOST_CANDIDATE` 6, `REPAIR` 7,
 
 ## (c) CLI grammar — every verb, flag, exit code (src/app/rrecov.cpp)
 
-Verbs dispatched in `wmain` (rrecov.cpp:2787-2808): **list, list-carve-formats, scan,
+Verbs dispatched in `wmain` (rrecov.cpp:2993-3018): **list, list-carve-formats, sessions, scan,
 tree, recover, health, fix, apply, bench, driver** (10). `rrecov` with no args prints usage, exit 0.
 Unknown verb → `unknown command: %s`, exit 1. All output is wprintf (stdout); errors are
 printed to stdout too — the ONE deliberate stderr surface is the driver-refusal path
 (`require_driver`'s `fwprintf(stderr)` lines, rrecov.cpp:332-383: exit 4 carries the
 ERR_DRIVER_* class on stderr by contract, docs/DRIVER-REQUIRED.md) — "Everything is logged in
-detail ... for testing, validation and benchmarking workflows", rrecov.cpp:34-35; the
+detail ... for testing, validation and benchmarking workflows", rrecov.cpp:39-40; the
 `--log FILE` receives the detailed seam log, N-048 wiring rrecov.cpp:148-183).
 
-### c.1 `list` (rrecov.cpp:644-672)
+### c.1 `list` (rrecov.cpp:674-702)
 Enumerates disks (200-disk bound) + volumes. Flags: none.
-Exit: 0 ok / **1** enumeration failure (FB-K01 fix, rrecov.cpp:646-649).
+Exit: 0 ok / **1** enumeration failure (FB-K01 fix, rrecov.cpp:676-680).
 
-### c.2 `list-carve-formats` (rrecov.cpp:681-743)
+### c.2 `list-carve-formats` (rrecov.cpp:711-773)
 Enumerates the two-layer carve registry (grammar + rawsign). Flags: none.
-Exit: 0 / 1 (empty registry is never exit-0, rrecov.cpp:694-696).
+Exit: 0 / 1 (empty registry is never exit-0, rrecov.cpp:723-726).
 
-### c.3 `scan` (rrecov.cpp:865-1494)
+### c.3 `sessions` (rrecov.cpp:901-1058)
+W1a (R-56): the saved-session list (the og's LastScanRecordView). Flags:
+`--dir D` (default: the current directory), `--json` (FROZEN schema:
+path/valid/error/fs_family/stage_done_mask/configured_mask/files_found/
+deleted_found/carved_found/bytes_scanned/elapsed_ms/save_unix/label).
+Exit: 0 listed (unreadable files are per-row data, never a failure) /
+1 enumeration failure.
+
+### c.4 `scan` (rrecov.cpp:1064-1687)
 | Flag | Semantics |
 |---|---|
 | `--disk N` | whole-disk target; driver-only transport (open_disk_view — the grammar path is the only leg, PLAN-DRIVER-ONLY R1) |
 | `--volume C:` | volume target: BitLocker gate (fvek/dict/auto-unlock), extent map, parent disk, PartitionSlice, optional XTS wrap |
 | `--image file` | S-030 image target (.vmdk/.vhd/.vhdx/.img/.dmg/raw; .edisk refused) |
 | `--whole-disk` | lost-partition discovery (N-044 honest name; needs --disk) |
-| `--deep` | deprecated alias of --whole-disk with a note (rrecov.cpp:1052) |
+| `--deep` | deprecated alias of --whole-disk with a note (rrecov.cpp:1256) |
 | `--quick-only` | disables deep + carve (deep is ALWAYS on otherwise) |
 | `--no-carve` | disables carve stage |
 | `--threads N` | 0 = auto (hw-1, clamp 1..8); 1 = single-threaded |
@@ -354,43 +363,43 @@ Exit: 0 / 1 (empty registry is never exit-0, rrecov.cpp:694-696).
 
 Exit: **0** ok / **1** failure (unknown option, no target, open failure, scan rc≠OK,
 session save failure) / **3** cancelled (session saved when --out/--resume given,
-rrecov.cpp:1424). Pre-pass flags may appear anywhere (rrecov.cpp:874-905).
+rrecov.cpp:1616). Pre-pass flags may appear anywhere (rrecov.cpp:1073-1104).
 
-### c.4 `tree` (rrecov.cpp:1538-1589)
+### c.5 `tree` (rrecov.cpp:1744-1795)
 `--in file.crsf` (required), `--filter substr`, `--deleted-only`, `--csv`, `--json`
 (frozen G-12 schema `{"total":N,"rows":[{path,name,size,modified,origin,deleted,confidence,category}]}`,
-print_tree_json rrecov.cpp:1496). Exit 0/1.
+print_tree_json rrecov.cpp:1702). Exit 0/1.
 
-### c.5 `recover` (rrecov.cpp:1595-1816)
+### c.6 `recover` (rrecov.cpp:1801-2022)
 `--in file.crsf` + (`--disk N` | `--image file`) + `--to DIR` (all required);
 `--filter s`, `--deleted-only`, `--report file.json` (G-09; includes S-023 ScanAnalysis).
 Source opened BEFORE session load (M-042 revalidation). Destination overlap → per-item
-`ERR_DEST_OVERLAP` refusals; `[F12] WARNING` when dest == source disk (rrecov.cpp:1685).
+`ERR_DEST_OVERLAP` refusals; `[F12] WARNING` when dest == source disk (rrecov.cpp:1891).
 Exit: **0** / **1** hard failure / **2** partial (item errors or hash mismatch,
-rrecov.cpp:1815). Destination-full is completed-with-failures, not abort (N-015).
+rrecov.cpp:1962). Destination-full is completed-with-failures, not abort (N-015).
 
-### c.6 `health` (rrecov.cpp:1821-1929)
+### c.7 `health` (rrecov.cpp:2027-2136)
 `--disk N` required. Direct `\\.\PhysicalDriveN` GENERIC_READ|WRITE open
-(rrecov.cpp:1840-1841) with elevation-aware messaging. SMART → NVMe → SSD heuristic →
+(rrecov.cpp:2051-2053) with elevation-aware messaging. SMART → NVMe → SSD heuristic →
 TRIM. Exit: 0 / 1 (open/flag) / **3** every source unavailable (FB-H04 fix).
 
-### c.7 `fix` (rrecov.cpp:2468-2674)
+### c.8 `fix` (rrecov.cpp:2674-2880)
 `--disk N` (required, even for undo-apply — F-B-4), `--part P` (slice view; A-002 disk-absolute
 rebase), `--apply` (consent), `--undo file`, `--undo-apply file` (`--no-rda` is REMOVED —
 driver-only, rrecov.cpp:2470).
 Dry-run default (plan print). Exit 0 (incl. REFUSED/clean) / 1 (usage) / 2 (analyze/execute/undo failure).
 
-### c.8 `apply` (rrecov.cpp:2169-2466)
+### c.9 `apply` (rrecov.cpp:2375-2672)
 `--disk N --session file.crsf` required (`--in` alias accepted); `--candidate N` (1-based; required once >1),
 `--apply` (consent), `--undo file` (`--no-rda` is REMOVED — driver-only), `--boot-fix old-lba`,
 `--boot-fix-bcd path` (M-040 post-apply BCD+NVRAM repair, advisory failures).
 Exit 0 (incl. dry-run/REFUSED) / 1 (usage) / 2 (open/plan/execute failure).
 
-### c.9 `bench` (rrecov.cpp:1932-2133)
+### c.10 `bench` (rrecov.cpp:2138-2339)
 `--disk N` required; `--mode seq|rand|open|read|info` (default seq), `--mb N` (≤65536),
 `--block-kb N` (4..16384), `--iterations N`, `--seed N`, `--json` (`--no-rda` is REMOVED —
 driver-only). Transport label is "rda" only — the grammar path is the one leg
-(PLAN-DRIVER-ONLY R10, rrecov.cpp:2000). Exit 0 / 1 (usage/unknown mode)
+(PLAN-DRIVER-ONLY R10, rrecov.cpp:2195). Exit 0 / 1 (usage/unknown mode)
 / 2 (open failure, zero hits, read failure).
 
 **Doc-drift note (HISTORICAL, both halves since fixed):** docs/API.md once listed

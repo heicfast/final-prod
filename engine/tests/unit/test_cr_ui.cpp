@@ -342,6 +342,96 @@ TEST(CrUi, CancelSaveAndResume) {
     EXPECT_NE(cr_ui_scan_run(u.scan), CR_UI_OK);
 }
 
+TEST(CrUi, SessionListTwoCallPatternAndRowTruth) {
+    /* W1a (R-56): the LastScanRecordView surface - the capacity probe,
+     * the under-capacity TRUNCATED answer, and per-row truth
+     * cross-checked against the loaded session's own info/stats (the
+     * list must agree with the load on every shared field). */
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_to_session("sesslist", u, img, crsf));
+    const std::string dir = std::filesystem::path(crsf).parent_path().string();
+
+    /* bad arguments */
+    uint32_t n = 0;
+    EXPECT_EQ(cr_ui_session_list(nullptr, nullptr, &n), 0x50030003u);
+    EXPECT_EQ(cr_ui_session_list(dir.c_str(), nullptr, nullptr), 0x50030003u);
+
+    /* capacity probe: the directory has at least OUR session */
+    ASSERT_EQ(cr_ui_session_list(dir.c_str(), nullptr, &n), CR_UI_OK);
+    ASSERT_GE(n, 1u);
+
+    std::vector<cr_ui_session_row> rows(n);
+
+    /* under-capacity: TRUNCATED + the filled count (the snapshot_dfs
+     * contract) */
+    if (n >= 2) {
+        uint32_t cap = n - 1;
+        EXPECT_EQ(cr_ui_session_list(dir.c_str(), rows.data(), &cap), CR_UI_ERR_TRUNCATED);
+        EXPECT_EQ(cap, n - 1u);
+    }
+
+    /* full rows: OUR session's row agrees with the loaded session */
+    uint32_t cap = n;
+    ASSERT_EQ(cr_ui_session_list(dir.c_str(), rows.data(), &cap), CR_UI_OK);
+    ASSERT_EQ(cap, n);
+    const cr_ui_session_row* row = nullptr;
+    for (const auto& r : rows)
+        if (crsf == r.path)
+            row = &r;
+    ASSERT_NE(row, nullptr);
+    ASSERT_EQ(row->valid, 1u);
+    EXPECT_EQ(row->error, CR_UI_OK);
+    EXPECT_GT(row->save_unix, 0ull); /* the v5 stamp from the save path */
+    cr_ui_session_info si{};
+    ASSERT_EQ(cr_ui_session_get_info(u.sess, &si), CR_UI_OK);
+    EXPECT_EQ(row->fs_family, si.fs_family);
+    EXPECT_EQ(row->stage_done_mask, si.stage_done_mask);
+    EXPECT_EQ(row->configured_mask, si.configured_mask);
+    EXPECT_STREQ(row->label, si.label);
+    cr_ui_scan_stats st{};
+    ASSERT_EQ(cr_ui_session_stats(u.sess, &st), CR_UI_OK);
+    EXPECT_EQ(row->files_found, st.files_found);
+    EXPECT_EQ(row->deleted_found, st.deleted_found);
+    EXPECT_EQ(row->carved_found, st.carved_found);
+    EXPECT_EQ(row->bytes_scanned, st.bytes_scanned);
+
+    /* bad directory: ERR_OPEN_FAILED - the listing fails loud, never a
+     * silent empty answer */
+    uint32_t m = 4;
+    EXPECT_EQ(cr_ui_session_list("no-such-dir-w1a", nullptr, &m), 0x50020001u);
+    EXPECT_EQ(cr_ui_session_list("no-such-dir-w1a", rows.data(), &m), 0x50020001u);
+}
+
+TEST(CrUi, SessionListUnreadableFileGetsAnErrorRow) {
+    /* W1a (R-56): a junk .crsf in the directory still gets a row:
+     * valid = 0 + the decode error - the list never hides damage. */
+    const std::string junk = cr_test::tmp_path("cr_ui", "_w1a_junk.crsf");
+    {
+        FILE* f = std::fopen(junk.c_str(), "wb");
+        ASSERT_NE(f, nullptr);
+        for (int i = 0; i < 100; ++i)
+            std::fputc('x', f); /* >= the 64-byte header gate: BAD_MAGIC */
+        std::fclose(f);
+    }
+    const std::string dir = std::filesystem::path(junk).parent_path().string();
+    uint32_t n = 0;
+    ASSERT_EQ(cr_ui_session_list(dir.c_str(), nullptr, &n), CR_UI_OK);
+    ASSERT_GE(n, 1u);
+    std::vector<cr_ui_session_row> rows(n);
+    uint32_t cap = n;
+    ASSERT_EQ(cr_ui_session_list(dir.c_str(), rows.data(), &cap), CR_UI_OK);
+    const cr_ui_session_row* row = nullptr;
+    for (const auto& r : rows)
+        if (junk == r.path)
+            row = &r;
+    ASSERT_NE(row, nullptr);
+    EXPECT_EQ(row->valid, 0u);
+    EXPECT_EQ(row->error, 0x50030001u); /* ERR_BAD_MAGIC at the container header */
+    EXPECT_EQ(row->save_unix, 0ull);
+    std::remove(junk.c_str());
+}
+
 TEST(CrUi, PauseBlocksAndResumes) {
     const std::string img = write_fixture("pause");
     ASSERT_FALSE(img.empty());

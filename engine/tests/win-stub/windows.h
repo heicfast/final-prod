@@ -97,6 +97,22 @@ struct FILETIME {
 #define INVALID_HANDLE_VALUE ((HANDLE)(long long)-1)
 #define INVALID_FILE_ATTRIBUTES ((DWORD)0xFFFFFFFF)
 
+/* W1a (R-56): the cr_ui session-list enumeration (FindFirstFileExW family;
+ * fields the production code actually reads - the parse gate needs no
+ * more, and the SDK names/values match). */
+struct WIN32_FIND_DATAW {
+    DWORD dwFileAttributes;
+    FILETIME ftCreationTime;
+    FILETIME ftLastAccessTime;
+    FILETIME ftLastWriteTime;
+    DWORD nFileSizeHigh;
+    DWORD nFileSizeLow;
+    wchar_t cFileName[MAX_PATH];
+    wchar_t cAlternateFileName[14];
+};
+#define FindExInfoBasic 1
+#define FindExSearchNameMatch 1
+
 /* calling convention + console control (app layer: rrecov's Ctrl-C).
  * WINAPI: on x64 the convention is ignored by MSVC too, so an empty
  * definition is ABI-faithful for the parse gate. (__declspec is neutral-
@@ -207,6 +223,18 @@ inline BOOL CreateDirectoryW(const wchar_t*, SECURITY_ATTRIBUTES*) {
 inline BOOL MoveFileExW(const wchar_t*, const wchar_t*, DWORD) {
     return 1;
 }
+/* W1a (R-56): FindFirstFileExW/FindNextFileW/FindClose (the session-list
+ * directory walk; invalid-handle semantics preserved for the parse gate) */
+inline HANDLE FindFirstFileExW(const wchar_t*, int /*FINDEX_INFO_LEVELS*/, WIN32_FIND_DATAW*,
+                               int /*FINDEX_SEARCH_OPS*/, void* /*LPVOID filter*/, DWORD) {
+    return INVALID_HANDLE_VALUE;
+}
+inline BOOL FindNextFileW(HANDLE, WIN32_FIND_DATAW*) {
+    return 0;
+}
+inline BOOL FindClose(HANDLE) {
+    return 1;
+}
 inline BOOL GetFileSizeEx(HANDLE, LARGE_INTEGER*) {
     return 1;
 }
@@ -256,7 +284,7 @@ inline BOOL QueryPerformanceFrequency(LARGE_INTEGER*) {
 }
 
 /* ---- CRT-adjacent formatting (MSVC secure CRT) ----------------------- */
-#define _TRUNCATE ((size_t)-1)
+#define _TRUNCATE ((size_t) - 1)
 inline int _snwprintf_s(wchar_t*, size_t, size_t, const wchar_t*, ...) {
     return 0;
 }
@@ -407,6 +435,16 @@ inline ULONG RtlNtStatusToDosError(long) {
 typedef int errno_t;
 typedef long long __int64; /* MSVC builtin type; width-faithful, cast-capable */
 inline errno_t _wfopen_s(FILE**, const wchar_t*, const wchar_t*) {
+    return 0;
+}
+/* W1a (R-56): MSVC CRT localtime_s - src/app's sessions verb uses the
+ * cr_query.cpp platform-seam pattern (localtime_s on MSVC, localtime_r
+ * elsewhere); the gate's -D_WIN32 selects the MSVC branch and glibc has
+ * no localtime_s, so the CRT stub grows it here (the gate's own rule). */
+#include <ctime>
+inline errno_t localtime_s(std::tm* out, const std::time_t* src) {
+    if (!out || !src)
+        return 22; /* EINVAL shape, parse-only */
     return 0;
 }
 inline int _fseeki64(FILE*, __int64, int) {

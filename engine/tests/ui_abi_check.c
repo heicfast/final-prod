@@ -524,6 +524,52 @@ int main(int argc, char** argv) {
     cr_ui_scan_close(scan);
     scan = NULL;
 
+    /* ---- session list (W1a/R-56): the C-consumer contract smoke ---- */
+    {
+        char dir[CR_UI_SESSION_ROW_PATH];
+        cr_ui_session_row* sl_rows;
+        uint32_t ncount = 0, cap, sk;
+        size_t cut = (size_t)-1, si;
+        int sl_found = 0;
+        snprintf(dir, sizeof(dir), "%s", crsf_path);
+        for (si = 0; dir[si]; ++si)
+            if (dir[si] == '/' || dir[si] == '\\')
+                cut = si;
+        if (cut == (size_t)-1)
+            snprintf(dir, sizeof(dir), ".");
+        else if (cut == 0)
+            snprintf(dir, sizeof(dir), "/");
+        else
+            dir[cut] = 0;
+        /* two-call size pattern */
+        CHECK_EQ_U64(cr_ui_session_list(dir, NULL, &ncount), CR_UI_OK);
+        CHECK(ncount >= 1);
+        sl_rows = (cr_ui_session_row*)malloc(ncount * sizeof(cr_ui_session_row));
+        CHECK(sl_rows != NULL);
+        cap = ncount;
+        CHECK_EQ_U64(cr_ui_session_list(dir, sl_rows, &cap), CR_UI_OK);
+        CHECK_EQ_U64(cap, ncount);
+        /* OUR row: the summary agrees with the loaded session (valid row,
+         * v5 save stamp, FAT family, quick done). Other rows are other
+         * tests' temp files - not asserted (the suite shares the temp
+         * dir; concurrent tests may be mid-save). */
+        for (sk = 0; sk < cap; ++sk) {
+            if (strcmp(sl_rows[sk].path, crsf_path) == 0) {
+                sl_found = 1;
+                CHECK_EQ_U64(sl_rows[sk].valid, 1u);
+                CHECK_EQ_U64(sl_rows[sk].error, CR_UI_OK);
+                CHECK(sl_rows[sk].save_unix > 0);
+                CHECK_EQ_U64(sl_rows[sk].fs_family, 2u); /* FsFamily::Fat */
+                CHECK(sl_rows[sk].stage_done_mask & 1u); /* quick completed */
+            }
+        }
+        CHECK(sl_found);
+        free(sl_rows);
+        /* the refusal contract: bad args + bad dir fail loud */
+        CHECK_EQ_U64(cr_ui_session_list(NULL, NULL, NULL), 0x50030003u);
+        CHECK_EQ_U64(cr_ui_session_list("no-such-dir-cgate", NULL, &ncount), 0x50020001u);
+    }
+
     /* ---- snapshot (fresh, from a session) + enumeration ---- */
     CHECK_EQ_U64(cr_ui_session_load(crsf_path, &sess), CR_UI_OK);
     CHECK_EQ_U64(cr_ui_session_stats(sess, &st), CR_UI_OK);

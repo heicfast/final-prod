@@ -4,6 +4,9 @@
  * Commands:
  *   list                                  enumerate disks/volumes
  *   list-carve-formats                    the two-layer carve registry
+ *   sessions [--dir D] [--json]          the saved-session list (light
+ *                                         summary per file; the og's
+ *                                         LastScanRecordView surface)
  *   scan --disk N | --volume C: | --image file [--whole-disk] [--deep]
  *         [--quick-only] [--no-carve] [--threads N] [--out file.crsf]
  *         [--resume file.crsf] [--json] [--log file] [--csv]
@@ -23,7 +26,9 @@
  *
  * Exit codes: scan 0 ok / 1 failure / 3 cancelled (session saved when --out
  * was given); list 1 on enumeration failure; list-carve-formats 1 on the
- * empty registry; health 3 when every health source is unavailable;
+ * empty registry; sessions 1 on enumeration failure (unreadable files are
+ * per-row data, never a failure); health 3 when every health source is
+ * unavailable;
  * recover 2 partial (item errors / hash mismatch); apply / fix 2 on
  * open/plan/execute/undo failure; bench 2 on open/read failure or zero
  * hits;
@@ -67,6 +72,8 @@
 #include <chrono>
 #include <atomic>
 #include <cstdarg>
+#include <cwctype> /* W1a: towlower (the sessions *.crsf tail check) */
+#include <ctime>   /* W1a: localtime_s (the sessions save-time display) */
 #include <filesystem>
 #include <cstdio>
 #include <cstdlib>
@@ -879,6 +886,175 @@ u64 file_size_cb(void* user) {
     const long long end = _ftelli64(f);
     _fseeki64(f, cur, SEEK_SET);
     return u64(end);
+}
+
+/* ---------------------------------------------------------------------------
+ * sessions (W1a / R-56: the og's LastScanRecordView surface, corpus
+ * UIUX/07-home-phase-deep-dive.md:21 + rsf-format--scan-session.md 5.2):
+ * list every *.crsf in a directory with the per-file light summary -
+ * SESSION_STATE + VOLUME_INFO only; the heavy tree record is
+ * header-skipped (ScanController::read_summary), so a listing costs
+ * milliseconds even against 100 MB sessions. Unreadable files are
+ * per-row data (never a failure); only enumeration failure exits 1.
+ * ------------------------------------------------------------------------- */
+
+int print_sessions(int argc, wchar_t** argv, int& i) {
+    std::wstring dir = L"."; /* default: the current directory */
+    std::wstring v;
+    bool json = false;
+    while (i < argc) {
+        if (get_opt(argc, argv, i, L"--dir", &v)) {
+            dir = v;
+            continue;
+        }
+        if (wcscmp(argv[i], L"--json") == 0) {
+            json = true;
+            ++i;
+            continue;
+        }
+        wprintf(L"unknown sessions option: %s\n", argv[i]);
+        return 1;
+    }
+    std::wstring pattern = dir;
+    /* accept both "C:\x\y" and "C:\x\y\" - exactly one separator */
+    if (!pattern.empty() && pattern.back() == L'\\')
+        pattern += L"*.crsf";
+    else
+        pattern += L"\\*.crsf";
+    std::vector<std::wstring> files;
+    WIN32_FIND_DATAW fd;
+    HANDLE h =
+        FindFirstFileExW(pattern.c_str(), FindExInfoBasic, &fd, FindExSearchNameMatch, nullptr, 0);
+    if (h == INVALID_HANDLE_VALUE) {
+        wprintf(L"cannot enumerate session directory %s\n", dir.c_str());
+        return 1; /* FB-K01: enumeration failure is never exit-0 */
+    }
+    const std::wstring sep = (!dir.empty() && dir.back() == L'\\') ? L"" : L"\\";
+    do {
+        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+            continue;
+        /* the 8.3 short-name quirk: the pattern can match on the SHORT
+         * name - verify the LONG name's tail too (case-insensitive) */
+        const std::wstring name(fd.cFileName);
+        if (name.size() < 5)
+            continue;
+        const wchar_t* t = name.c_str() + name.size() - 5;
+        if (t[0] != L'.' || towlower(t[1]) != L'c' || towlower(t[2]) != L'r' ||
+            towlower(t[3]) != L's' || towlower(t[4]) != L'f')
+            continue;
+        files.push_back(dir + sep + name);
+    } while (FindNextFileW(h, &fd));
+    FindClose(h);
+    std::sort(files.begin(), files.end()); /* the ABI's deterministic row order */
+
+    struct SRow {
+        std::wstring path;
+        bool opened = false;
+        u32 rc = 0;
+        session::SessionSummary s;
+    };
+    std::vector<SRow> rows;
+    rows.reserve(files.size());
+    for (const std::wstring& f : files) {
+        SRow row;
+        row.path = f;
+        FILE* fin = nullptr;
+        if (_wfopen_s(&fin, f.c_str(), L"rb") == 0 && fin) {
+            row.opened = true;
+            session::Reader r(file_read_cb, file_seek_cb, file_size_cb, fin);
+            row.rc = orchestrator::ScanController::read_summary(r, row.s);
+            fclose(fin);
+        } else {
+            row.rc = ERR_OPEN_FAILED;
+        }
+        rows.push_back(std::move(row));
+    }
+
+    if (json) {
+        /* FROZEN schema (GAP-TREE-JSON lineage): path/label UTF-8,
+         * save_unix = the embedded save time (0 = pre-v5 session). */
+        std::string doc = "[";
+        bool first = true;
+        for (const SRow& row : rows) {
+            if (!first)
+                doc += ',';
+            first = false;
+            doc += "{\"path\":\"";
+            doc += recovery::report::escape_json(text::wide_to_utf8(row.path));
+            doc += "\",\"valid\":";
+            doc += std::to_string(row.opened && row.rc == OK ? 1 : 0);
+            doc += ",\"error\":";
+            doc += std::to_string(row.rc);
+            doc += ",\"fs_family\":";
+            doc += std::to_string(row.s.have_volume ? row.s.volume.fs_kind : 0u);
+            doc += ",\"stage_done_mask\":";
+            doc += std::to_string(row.s.state.stage_done_mask);
+            doc += ",\"configured_mask\":";
+            doc += std::to_string(row.s.configured_mask);
+            doc += ",\"files_found\":";
+            doc += std::to_string(row.s.state.files_found);
+            doc += ",\"deleted_found\":";
+            doc += std::to_string(row.s.state.deleted_found);
+            doc += ",\"carved_found\":";
+            doc += std::to_string(row.s.state.carved_found);
+            doc += ",\"bytes_scanned\":";
+            doc += std::to_string(row.s.state.bytes_scanned);
+            doc += ",\"elapsed_ms\":";
+            doc += std::to_string(row.s.volume.elapsed_ms);
+            doc += ",\"save_unix\":";
+            doc += std::to_string(row.s.volume.save_unix);
+            doc += ",\"label\":\"";
+            doc += recovery::report::escape_json(row.s.volume.label);
+            doc += "\"}";
+        }
+        doc += "]";
+        wprintf(L"%hs\n", doc.c_str());
+        return 0;
+    }
+
+    wprintf(L"%zu session(s) in %s\n", rows.size(), dir.c_str());
+    for (const SRow& row : rows) {
+        const wchar_t* base = row.path.c_str();
+        if (const wchar_t* slash = wcsrchr(base, L'\\'))
+            base = slash + 1;
+        if (!row.opened || row.rc != OK) {
+            wprintf(L"  %s  [unreadable: %hs (0x%08x)]\n", base, err_text(row.rc), row.rc);
+            continue;
+        }
+        wchar_t stages[32] = L"(none recorded)";
+        {
+            const u32 m = row.s.state.stage_done_mask;
+            if (m != 0) {
+                wchar_t* p = stages;
+                *p = 0;
+                if (m & 1u)
+                    p += swprintf(p, 4, L"quick");
+                if (m & 2u)
+                    p += swprintf(p, 4, p != stages ? L"+deep" : L"deep");
+                if (m & 4u)
+                    p += swprintf(p, 6, p != stages ? L"+carve" : L"carve");
+            }
+        }
+        wchar_t when[32] = L"(save time not recorded)";
+        if (row.s.volume.save_unix != 0) {
+            /* the platform seam pattern (cr_query.cpp: localtime_s on
+             * MSVC, localtime_r elsewhere - rrecov is Windows-only at
+             * link time but the parse gate compiles this file on gcc) */
+            std::tm lt{};
+            std::time_t tt = std::time_t(row.s.volume.save_unix);
+#ifdef _WIN32
+            localtime_s(&lt, &tt);
+#else
+            localtime_r(&tt, &lt);
+#endif
+            swprintf(when, 32, L"%04d-%02d-%02d %02d:%02d:%02d", lt.tm_year + 1900, lt.tm_mon + 1,
+                     lt.tm_mday, lt.tm_hour, lt.tm_min, lt.tm_sec);
+        }
+        wprintf(L"  %s  %hs  %s  %llu file(s) (%llu deleted, %llu carved)  %s\n", base,
+                row.s.volume.label, stages, row.s.state.files_found, row.s.state.deleted_found,
+                row.s.state.carved_found, when);
+    }
+    return 0;
 }
 
 /* ---------------------------------------------------------------------------
@@ -2820,6 +2996,8 @@ int wmain(int argc, wchar_t** argv) {
         return print_disks();
     if (cmd == L"list-carve-formats")
         return print_carve_formats();
+    if (cmd == L"sessions")
+        return print_sessions(argc, argv, i);
     if (cmd == L"scan")
         return cmd_scan(argc, argv, i);
     if (cmd == L"tree")
