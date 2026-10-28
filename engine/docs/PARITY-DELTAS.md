@@ -3651,3 +3651,21 @@ og-faithful UX without the engine lying. Evidence: DRWUI_decompiled.c
 first-hand); the runtime anchors (displayed 9% at 75 s, 34% at ≈460 s,
 dynamic-ground-truth :39,:90) reproduce under the curve. Tests:
 ProgressDisplay.* (M-125).
+
+### D-120 — the deleted-FAT name presentation: the og's '#' placeholder on the no-oracle branch (aligned), the LFN-checksum original-byte recovery as the deliberate superset (N-172 registration)
+
+The og renders a deleted 8.3 entry's destroyed first byte (0xE5) as '#' in its name
+builder (FATSearchDLL FUN_180036350 :44166-44172, re-read first-hand: the 0x23
+constant and the -0x1b signed comparison) — "#EADME.DAT" — with NO recovery of the
+destroyed byte anywhere in the DLL. The core's presentation is two-branch: with a
+surviving LFN oracle, `lfn_deleted_checksum_recover` brute-forces the ORIGINAL byte
+deterministically (a bijection over 256 candidates validated against the stored
+checksum — GAP-S6-1, bench 40079065019; "readme.txt" where the og shows
+"#EADME.TXT") — a deliberate superset, quality win, registered here; without an
+oracle the placeholder is '#' (aligned with the og this session per the finding's
+bench-comparability recommendation; the pre-N-172 core used '_'). Rationale: the
+recovery is strictly richer name truth at zero risk (the checksum is a 256-space
+oracle); the placeholder alignment keeps name-set benches comparable without
+normalization. Evidence: N-172's cites; the pins FatEngine.DeletedFirstChar
+PlaceholderIsHash + FatEngine.DeletedLfnChecksumRecoversOriginalByte + the re-pinned
+#EL.TXT/#ONE.TXT/#OLD.TXT family.

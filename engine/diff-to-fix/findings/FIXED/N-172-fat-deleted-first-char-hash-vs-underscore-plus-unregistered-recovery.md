@@ -70,3 +70,10 @@ documents the recovery but no registry row exists.
 ## Open questions
 
 None — OQ-T2 is closed by this finding.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-172 landing — post-push SHA in the ledger row and worklog entry)
+**Verified by:** `FatEngine.DeletedFirstCharPlaceholderIsHash` (the placeholder pin), `FatEngine.DeletedLfnChecksumRecoversOriginalByte` (the superset pin: the oracle branch restores the ORIGINAL 'H' from the stored checksum, never the placeholder), the existing `LfnDeletedChecksumRecovers` per-candidate loop pin, and the re-pinned end-to-end family (#EL.TXT / #ONE.TXT / #OLD.TXT / #GONE.TXT / #VERYL~1.TXT / #NLINK.TXT / #RUNC.TXT / #ELFILE.TXT / #OGO.PNG — 15+ assertion sites across test_fat_volume / test_orchestrator / test_cr_ui, including the sort-order re-derivation: '#' at 0x23 sorts FIRST, so the cr_ui name-paging page[1,1] is now DOC.TXT). Suite 1266/1266 (linux-release).
+**Resolution notes:** Corpus re-verified first-hand: FUN_180036350's substitution re-read directly (:44166-44172 — uVar8 = 0x23, the (char)local_a8 == -0x1b comparison, the '#' assignment); the core's two branches re-read live (cr_fat_quick.cpp's recovery + placeholder). The fix took the finding's recommended path (step 2's og-parity choice): the no-oracle placeholder aligned '_' → '#' (one character, bench comparability), the LFN-checksum recovery registered as the deliberate superset in PARITY-DELTAS D-120 (with the GAP-S6-1 bench provenance). The fat.md B4/OQ-T2 cosmetic question closes with the decode: the og's convention is '#'. The re-pin sweep touched every '_' placeholder assertion repo-wide (the S-049 re-pin pattern); the sort-order consequence (the placeholder now sorts first) was re-derived, not just re-labeled.

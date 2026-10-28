@@ -275,3 +275,12 @@ MATCH.
   D-56/D-68 numeric-hygiene family's FAT member);
   FatEngine.ClusterOffsetBeyond2TiB is the down-fix guard (the spec-max
   cluster's exact address, the wrapped form explicitly not-equal).
+
+- **N-172 FIXED** (session-43): the deleted-name presentation decoded and aligned —
+  the og's placeholder is '#' (FUN_180036350 :44166-44172 re-read first-hand; the
+  B4/OQ-T2 cosmetic question closed); the no-oracle branch aligned from '_'; the
+  LFN-checksum original-byte recovery registered as PARITY-DELTAS D-120 (the
+  deliberate superset, GAP-S6-1's bench-proven bijection). Pins:
+  DeletedFirstCharPlaceholderIsHash + DeletedLfnChecksumRecoversOriginalByte + the
+  re-pinned #EL.TXT family (the placeholder sorts FIRST at 0x23 — the cr_ui
+  name-paging order re-derived).

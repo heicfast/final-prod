@@ -1425,16 +1425,17 @@ TEST(CrUi, QueryFiltersSortPaging) {
     EXPECT_GE(total, 1u);
     cr_ui_query_rows_free(rows, n);
 
-    /* name sort + paging: the deleted 8.3 name is recovered as "_ELFILE.TXT"
-     * (the 0xE5 marker destroys the first character; '_' sorts last), so the
-     * ascending order is DOC.TXT, PHOTO.JPG, _ELFILE.TXT -> page [1,1] */
+    /* name sort + paging: the deleted 8.3 name renders as "#ELFILE.TXT"
+     * (the 0xE5 marker destroys the first character; the og's '#'
+     * placeholder - N-172 - sorts FIRST at 0x23), so the ascending order
+     * is #ELFILE.TXT, DOC.TXT, PHOTO.JPG -> page [1,1] = DOC.TXT */
     q = cr_ui_query{};
     q.sort = 1; /* name */
     q.offset = 1;
     q.limit = 1;
     ASSERT_EQ(cr_ui_query_run(u.sess, &q, &rows, &n, &total), CR_UI_OK);
     ASSERT_EQ(n, 1u);
-    EXPECT_STREQ(rows[0].name, "PHOTO.JPG");
+    EXPECT_STREQ(rows[0].name, "DOC.TXT");
     cr_ui_query_rows_free(rows, n);
 
     /* size range: only DOC.TXT is >= 600 bytes */
@@ -3150,7 +3151,7 @@ TEST(CrUi, QueryApplyBucketsFillsAndRejects) {
     ASSERT_EQ(cr_ui_query_apply_buckets(&q, 0, 0x1006, 0, 0, 500, 1000), CR_UI_OK);
     ASSERT_EQ(cr_ui_query_run(u.sess, &q, &rows, &n, &total), CR_UI_OK);
     ASSERT_EQ(total, 2u);
-    /* the deleted 8.3 name surfaces as "_ELFILE.TXT" (the 0xE5 marker
+    /* the deleted 8.3 name surfaces as "#ELFILE.TXT" (the 0xE5 marker
      * destroys the first character) - match by size for robustness */
     bool saw_doc = false, saw_del = false;
     for (uint32_t i = 0; i < n; ++i) {
@@ -3702,11 +3703,11 @@ TEST(CrUi, ThumbnailSuccessPromotesGradeTo2) {
     /* the DELETED-PNG fixture: deleted non-carved files take the generic
      * grading path (below 2), so the promotion is observable */
     ASSERT_TRUE(scan_img_to_session("thumbgr", build_fat16_png_deleted(), u, img, crsf));
-    const uint64_t logo = query_node_id(u.sess, "_OGO.PNG"); /* 0xE5 renders as _ */
+    const uint64_t logo = query_node_id(u.sess, "#OGO.PNG"); /* the og placeholder renders 0xE5 as # - N-172 */
     const uint64_t doc_id = query_node_id(u.sess, "DOC.TXT");
     ASSERT_NE(logo, 0u) << "the deleted PNG must be a result row";
     ASSERT_NE(doc_id, 0u);
-    const uint32_t g0 = grade_of(u.sess, "_OGO.PNG");
+    const uint32_t g0 = grade_of(u.sess, "#OGO.PNG");
     ASSERT_NE(g0, 0xFFFFFFFFu);
     ASSERT_LT(g0, 2u) << "precondition: the deleted non-carved node starts below 2 "
                          "(otherwise the promotion test is vacuous)";
@@ -3724,12 +3725,12 @@ TEST(CrUi, ThumbnailSuccessPromotesGradeTo2) {
      * the node to grade 2 (FUN_1402636e0 :422498-518), never downgrades,
      * and leaves other nodes alone */
     ASSERT_EQ(cr_ui_thumbnail_generate(u.dev, u.sess, logo, nullptr, nullptr, 0, &info), CR_UI_OK);
-    EXPECT_EQ(2u, grade_of(u.sess, "_OGO.PNG"));
+    EXPECT_EQ(2u, grade_of(u.sess, "#OGO.PNG"));
     EXPECT_EQ(gdoc, grade_of(u.sess, "DOC.TXT")) << "unrelated nodes keep their grade";
 
     /* idempotence: already-grade-2 nodes are a no-op (the != 2 guard) */
     ASSERT_EQ(cr_ui_thumbnail_generate(u.dev, u.sess, logo, nullptr, nullptr, 0, &info), CR_UI_OK);
-    EXPECT_EQ(2u, grade_of(u.sess, "_OGO.PNG"));
+    EXPECT_EQ(2u, grade_of(u.sess, "#OGO.PNG"));
 }
 
 /* M-079: the auto-save volume-label fill (the CLI is MSVC-only; this is

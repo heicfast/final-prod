@@ -196,7 +196,13 @@ void walk_dir_entries(EmitCtx& ctx, const DirBuffer& buf, tree::FileNode* host,
                 chk = recovered_chk;
                 short_name[0] = recovered;
             } else {
-                short_name[0] = '_'; /* undelete convention (no oracle) */
+                /* N-172: the og's placeholder is '#' (FATSearchDLL
+                 * FUN_180036350 :44166-44172, re-read first-hand: the
+                 * 0xE5 first byte (-0x1b signed) renders as 0x23) - the
+                 * no-oracle branch aligns for bench comparability; the
+                 * oracle branch above stays the registered superset
+                 * (PARITY-DELTAS D-120). */
+                short_name[0] = '#';
             }
         }
         if (short_name[0] == 0x05)

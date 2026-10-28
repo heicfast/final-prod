@@ -771,8 +771,8 @@ TEST(Orchestrator, JunkFilteredFromResults) {
     EXPECT_FALSE(names.count("System Volume Information"));
     EXPECT_TRUE(names.count("DOC.TXT"));
     EXPECT_TRUE(names.count("KEEP.ME"));
-    EXPECT_TRUE(names.count("_ELFILE.TXT"))
-        << "deleted files are results too (the FAT undelete convention renders 0xE5 as _)";
+    EXPECT_TRUE(names.count("#ELFILE.TXT"))
+        << "deleted files are results too (the og's FAT placeholder renders 0xE5 as # - N-172)";
 }
 
 /* ---- M-071: the file-backed junk-gate fixture ----

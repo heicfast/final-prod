@@ -6831,3 +6831,17 @@ Work Log:
 
 Stage Summary:
 - N-142 FIXED (landed); N-139 convergence recorded (their push wins); moving to the fresh minor queue.
+
+## Session-43 minors lane — N-172 landed (2026-10-29)
+
+**N-172 FIXED (MINOR — the deleted-FAT name presentation).** The og's substitution
+re-read first-hand (:44166-44172 — 0xE5 renders as '#'). The recommended path taken:
+the no-oracle placeholder aligned '_' → '#' (bench comparability); the LFN-checksum
+recovery registered as PARITY-DELTAS D-120 (the deliberate superset). The re-pin
+sweep: 15+ assertion sites repo-wide (test_fat_volume / test_orchestrator / test_cr_ui)
++ the sort-order consequence re-derived ('#' sorts FIRST — the cr_ui name-paging
+page[1,1] is DOC.TXT now). The recovery-pin fixture note: the STORED checksum is
+computed at write time over the ORIGINAL bytes (computing it over the 0xE5-led raw
+makes the bijection "recover" 0xE5 — the first draft's bug, caught by the pin).
+Suite 1266/1266. Trail: findings/FIXED/N-172 + ledger + fat.md B4 closure + D-120 +
+this entry.

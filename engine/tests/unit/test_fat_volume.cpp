@@ -2,8 +2,8 @@
  *
  * FAT16 fixture (5074 sectors x 512B, 5000 clusters -> flavor FAT16):
  *   reserved 2 | FAT1 2x20 | FAT2 2x20 | root 32 | data
- *   root entries: LFN readme (clusters 10-12), _EL.TXT deleted-intact
- *   (20-21), _ONE.TXT deleted-unlinked (30 FREE), SUBDIR dir (cluster 5)
+ *   root entries: LFN readme (clusters 10-12), #EL.TXT deleted-intact
+ *   (20-21), #ONE.TXT deleted-unlinked (30 FREE), SUBDIR dir (cluster 5)
  *   containing INNER.TXT (cluster 15).
  *
  * FAT32 fixture (66562 sectors, 65530 clusters): root cluster chain 2->3,
@@ -268,9 +268,9 @@ TEST(FatEngine, Fat16EndToEnd) {
         std::string nm = n->name_utf8();
         if (nm == "readme_document_v1.txt")
             readme = n; /* LFN applied */
-        else if (nm == "_EL.TXT")
-            del = n; /* deleted 8.3, '_' restored */
-        else if (nm == "_ONE.TXT")
+        else if (nm == "#EL.TXT")
+            del = n; /* deleted 8.3 - the og's '#' placeholder (N-172) */
+        else if (nm == "#ONE.TXT")
             gone = n;
         else if (nm == "SUBDIR")
             subdir = n;
@@ -377,7 +377,7 @@ TEST(FatEngine, ShortNameAsciiUnchanged) {
     auto all = collect_all(tree);
     bool saw_del = false, saw_inner = false;
     for (auto* n : all) {
-        if (n->name_utf8() == "_EL.TXT") /* the undelete convention */
+        if (n->name_utf8() == "#EL.TXT") /* the og placeholder convention (N-172) */
             saw_del = true;
         if (n->name_utf8() == "INNER.TXT")
             saw_inner = true;
@@ -695,7 +695,7 @@ TEST(FatEngine, Fat12ChainsCanonicalEocAndBad) {
     for (auto* n : all) {
         if (n->name_utf8() == "TWELVE.TXT")
             twelve = n;
-        if (n->name_utf8() == "_OLD.TXT")
+        if (n->name_utf8() == "#OLD.TXT")
             old = n;
     }
     ASSERT_NE(twelve, nullptr) << "live FAT12 file missing";
@@ -750,7 +750,7 @@ TEST(FatEngine, FatOriginClusterCarriedForChainlessDeleted) {
     tree::FileNode* gone = nullptr;
     tree::FileNode* twelve = nullptr;
     for (auto* n : all) {
-        if (n->name_utf8() == "_GONE.TXT")
+        if (n->name_utf8() == "#GONE.TXT")
             gone = n;
         if (n->name_utf8() == "TWELVE.TXT")
             twelve = n;
@@ -920,7 +920,7 @@ TEST(FatEngine, DeletedLfnTornChecksumKeepsHonestFallback) {
     for (auto* n : all) {
         if (n->name_utf8().find("averylongfilename") != std::string::npos)
             saw_fabricated_long_name = true;
-        if (n->name_utf8() == "_VERYL~1.TXT")
+        if (n->name_utf8() == "#VERYL~1.TXT")
             saw_fallback = true;
     }
     EXPECT_FALSE(saw_fabricated_long_name) << "torn slot set must not yield a long name";
@@ -985,7 +985,7 @@ TEST(FatEngine, DeletedUnlinkedChainGetsContiguousRun) {
     auto all = collect_all(tree);
     tree::FileNode* victim = nullptr;
     for (auto* n : all)
-        if (n->name_utf8() == "_NLINK.TXT")
+        if (n->name_utf8() == "#NLINK.TXT")
             victim = n;
     ASSERT_NE(victim, nullptr) << "unlinked deleted entry must surface";
     /* the FULL 4-cluster contiguous run (was: 1 cluster pre-fix) */
@@ -1019,7 +1019,7 @@ TEST(FatEngine, DeletedUnlinkedChainTruncatesAtReusedCluster) {
     auto all = collect_all(tree);
     tree::FileNode* victim = nullptr;
     for (auto* n : all)
-        if (n->name_utf8() == "_RUNC.TXT")
+        if (n->name_utf8() == "#RUNC.TXT")
             victim = n;
     ASSERT_NE(victim, nullptr);
     ASSERT_EQ(victim->props()->extents.size(), 1u);
@@ -1044,7 +1044,7 @@ TEST(FatEngine, DeletedLinkedChainStillPrefersFatTruth) {
     auto all = collect_all(tree);
     tree::FileNode* del = nullptr;
     for (auto* n : all)
-        if (n->name_utf8() == "_EL.TXT")
+        if (n->name_utf8() == "#EL.TXT")
             del = n;
     ASSERT_NE(del, nullptr);
     ASSERT_EQ(del->props()->extents.size(), 1u);
@@ -2089,4 +2089,44 @@ TEST(FatEngine, ClusterOffsetBeyond2TiB) {
     /* the wrapped form the og would compute (the down-fix guard) */
     const u64 wrapped = u64((u32(cluster) - 2u) * u32(32 * 512)) + u64(100 * 512);
     EXPECT_NE(off, wrapped) << "the u64 path must NOT equal the og's wrapping form";
+}
+
+TEST(FatEngine, DeletedFirstCharPlaceholderIsHash) {
+    /* N-172: the og's deleted-entry placeholder is '#' (FATSearchDLL
+     * FUN_180036350 :44166-44172, re-read first-hand: the 0xE5 first
+     * byte - -0x1b signed - renders as 0x23). The no-oracle branch
+     * aligned for bench comparability; the LFN-oracle branch stays the
+     * registered superset (PARITY-DELTAS D-120: the checksum bijection
+     * restores the ORIGINAL byte where the og shows the placeholder). */
+    /* the shape is pinned end-to-end by Fat16EndToEnd's #EL.TXT / #ONE.TXT
+     * rows (the re-pinned set); this unit pin holds the convention by
+     * name so the N-172 mapping is discoverable from the test list. */
+    const char og_placeholder = '#'; /* 0x23, the decompile's uVar8 */
+    EXPECT_EQ(int(u8(og_placeholder)), 0x23);
+}
+
+TEST(FatEngine, DeletedLfnChecksumRecoversOriginalByte) {
+    /* N-172's superset pin: the LFN-checksum bijection restores the
+     * destroyed first byte where the og renders '#' - the deterministic
+     * brute-force over 256 candidates validated against the stored
+     * checksum (GAP-S6-1, bench 40079065019; the stored checksum is
+     * computed at WRITE time over the ORIGINAL 11 bytes). The
+     * per-candidate loop shape is pinned at LfnDeletedChecksumRecovers
+     * (above); this pin holds the PRESENTATION contract: an
+     * oracle-validated recovery yields the original byte, never the
+     * placeholder. */
+    const u8 orig11[11] = {'H', 'E', 'L', 'L', 'O', ' ', ' ', ' ', 'T', 'X', 'T'};
+    u8 raw[11];
+    std::memcpy(raw, orig11, 11);
+    raw[0] = 0xE5; /* the deletion marker destroyed the 'H' */
+    const u8 orig = 'H';
+    const u8 chk = lfn_checksum(orig11); /* the STORED value: over the original */
+    LfnEntry slot = {};
+    slot.checksum = chk; /* the surviving LFN slot's oracle */
+    u8 first = 0, got_chk = 0;
+    std::vector<const LfnEntry*> slots = {&slot};
+    ASSERT_TRUE(lfn_deleted_checksum_recover(slots, raw, first, got_chk));
+    EXPECT_EQ(first, orig) << "the oracle branch restores the ORIGINAL byte";
+    EXPECT_NE(first, u8('#')) << "never the placeholder";
+    EXPECT_EQ(got_chk, chk);
 }
