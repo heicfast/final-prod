@@ -3224,7 +3224,11 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
         return 2;
     }
     IStorageDevice* slice = view.get();
-    std::unique_ptr<IStorageDevice> part_slice;
+    /* M-119 repair (win_syntax_check red at the landing): the concrete
+     * type - the clamp-delta surface (was_clamped/length/clamp_delta) is
+     * PartitionSlice's own, not IStorageDevice's; .get() still feeds the
+     * base-typed slice below. */
+    std::unique_ptr<cr::PartitionSlice> part_slice;
     u64 part_base = 0; /* A-002: partition base in DISK bytes (0 = whole disk) */
     if (part >= 1) {
         table::DiskTable t;

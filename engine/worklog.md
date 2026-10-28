@@ -7642,3 +7642,24 @@ verification was performed FIRST (comparator chain :324923-939, control case
 before any change), and the RED battery ran at the pre-fix tree. Redundant
 code/tests dropped per the superset rule. Moving to S-059 (the sparse-hole export
 left-shift — the deep reconstruction one).
+
+### Fix 5 (convergence) — S-055/S-056/S-171 over the hot-window race + the M-119 win_syntax_check repair
+
+This lane's independent S-055+S-056+N-171 patch (built on `98079347`'s lineage, all
+three findings' fail-before batteries executed RED) lost the SA-9 race to the S48/S46
+lane's 7bd5e00f (identical semantics: built-in-first reorder, the same grammar-rejected
+no-reclaim decision, the same N-031 scoping, their match_at disabled_exts predicate vs
+this lane's post-match carve_token_listed — zero behavioral difference). The convergence
+commit on the merged tree carries this lane's UNIQUE product: **N-171 closed** (the
+validated tick — the winning landing left the counter split; `CarveStats.UserSignFiles-
+CountInCarvedFound` RED→GREEN), the **cpl offset-12 + wpl offset-132 two-layer collision
+legs** (`Carve.CplWplTwoLayerCollisionsStayBuiltin` — the winning test's offset-0 walk
+cannot reach either), and the **ocx-shadowing datum** (cpl's 12-byte sign shadowed by
+ocx's 9-byte prefix at the same offset, conf 630 > 510, on both sides). MAIN-RED REPAIR
+riding the same push: the M-119 landing (033b9cdb) left `win_syntax_check` red —
+rrecov.cpp:3227's base-typed `std::unique_ptr<IStorageDevice>` calling PartitionSlice's
+own clamp surface, and cr_ui.cpp's `Level::Warning` (the enum is `Warn`); both repaired
+(the concrete unique_ptr<cr::PartitionSlice> type; .get() still feeds the base slice).
+Full suite **1342/1342** post-convergence; clang-format 18.1.8 clean. Trail: N-171 →
+findings/FIXED/ with Resolution; ledger row; S-055/S-056 convergence addenda on the
+winning Resolutions.
