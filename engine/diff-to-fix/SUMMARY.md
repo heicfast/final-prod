@@ -1,5 +1,18 @@
 # SUMMARY.md — executive summary (the session-8 third lane on top: the driver lane + merge/repair wave; the parallel session-8 legs below; earlier sessions further below)
 
+## Fix session (2026-10-29 — the parity close: every tier executed against corpus `be0cfe9`, core `84a1832`-lineage)
+
+The execution of the roadmap this directory is: findings re-verified first-hand
+against the corpus before every fix, one finding per commit, every fix proven
+by tests that fail before and pass after. Board movements are recorded per-fix
+in each finding's Resolution; the running counts live in this section.
+
+**Board at session open:** 75 active (7 SEVERE · 28 MAJOR · 35 MINOR · 5 INFO) + 250 FIXED + OQ-S4-3/OQ-S8-1 tracked-open.
+
+**Board after S-042 (first fix of the session):** **74 active (6 SEVERE · 28 MAJOR · 35 MINOR · 5 INFO) + 251 FIXED** + tracked-open unchanged. S-042 (WMF placeable grammar) closed with both WMF branches re-derived from FUN_1800264d0 and spec-regenerated fixtures — see findings/FIXED/S-042.
+
+(Counts in this section update as the session progresses; the per-severity deltas below in the historical sections are frozen history.)
+
 ## Session-8 delta — third lane (2026-10-28 — the DRIVER lane + the duplicate merges + the board-truth repairs)
 
 **Audited: core `35adcb9` (rebased over the parallel lanes through `9e5dedc`), driver `323e75a` (v0.2.4), corpus `be0cfe9`.** Method: five parallel read agents (corpus contracts for the new landings; corpus coverage/citation sweep; new-landing parity verification; board-truth sweep; driver+RE-tooling audit), then first-hand re-verification of every load-bearing claim by the lead before filing — including a personal re-read of both WMF decompile sites and the core validator, and byte-level decodes of regdrv-rda.reg and rda_version.h.

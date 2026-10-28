@@ -2286,24 +2286,33 @@ size_t plant_ico(std::vector<u8>& img, size_t at, u32 type = 1) {
     return 22 + 64;
 }
 
-/* Placeable WMF: 22-byte header with a VALID XOR checksum. */
+/* Placeable WMF per the og grammar (RAWSearchDLL FUN_1800264d0
+ * :29807-29845, S-042): key@0, hmf@4==0, bbox@6..13, inch@14 (never
+ * gated), reserved dword@16..19==0, checksum@20 == XOR(words 0..9),
+ * standard header@+22, params@38==0, extent = Size@28*2 + 22.
+ * Spec-derived fixture (canonical 22-byte Aldus layout) - never
+ * generated from the validator's own output. */
 size_t plant_wmf_placeable(std::vector<u8>& img, size_t at) {
     std::memcpy(img.data() + at, "\xD7\xCD\xC6\x9A", 4);
-    put16(img, at + 4, 0); /* handle */
-    put16(img, at + 6, 0);
-    put16(img, at + 8, 0);
-    put16(img, at + 10, 100); /* bbox */
-    put16(img, at + 12, 100);
-    put16(img, at + 14, 200);
-    put16(img, at + 16, 1440); /* inch */
+    put16(img, at + 4, 0);     /* HWmf */
+    put16(img, at + 6, 0);     /* bbox left */
+    put16(img, at + 8, 0);     /* bbox top */
+    put16(img, at + 10, 100);  /* bbox right */
+    put16(img, at + 12, 100);  /* bbox bottom */
+    put16(img, at + 14, 1440); /* inch - the og never gates this field */
+    put16(img, at + 16, 0);    /* reserved */
+    put16(img, at + 18, 0);    /* reserved */
     u16 x = 0;
     for (int i = 0; i < 10; ++i)
         x = u16(x ^ u16_from_bytes_le(&img[at + 2 * size_t(i)]));
-    put16(img, at + 18, x);                                   /* checksum */
-    std::memcpy(img.data() + at + 22, "\x01\x00\x09\x00", 4); /* standard header */
-    put16(img, at + 26, 0x0300);                              /* version */
-    put32v(img, at + 28, 100);                                /* size words */
-    return 36;
+    put16(img, at + 20, x);                                   /* checksum */
+    std::memcpy(img.data() + at + 22, "\x01\x00\x09\x00", 4); /* std type + header words */
+    put16(img, at + 26, 0x0300);                              /* version - not gated by the og */
+    put32v(img, at + 28, 100);                                /* Size words -> 222-byte file */
+    put16(img, at + 32, 4);                                   /* objects - not gated by the og */
+    put32v(img, at + 34, 10);                                 /* max record - not gated by the og */
+    put16(img, at + 38, 0);                                   /* params == 0 */
+    return 100 * 2 + 22;
 }
 
 size_t plant_wmf_std(std::vector<u8>& img, size_t at) {
@@ -2797,10 +2806,15 @@ TEST(Carve, S007NicheBatch1RejectsNoise) {
     put16(img, 28672 + 10, 9); /* planes: out of range */
     put32v(img, 28672 + 16, 64);
     put32v(img, 28672 + 20, 22);
-    /* placeable WMF with a BAD checksum @ 30720 */
+    /* placeable WMF with a BAD checksum @ 30720 - og grammar everywhere
+     * except the stored checksum word@+20 is wrong on purpose */
     std::memcpy(img.data() + 30720, "\xD7\xCD\xC6\x9A", 4);
-    put16(img, 30720 + 16, 1440);
-    put16(img, 30720 + 18, 0xBEEF); /* wrong on purpose */
+    put16(img, 30720 + 4, 0);
+    put16(img, 30720 + 16, 0);
+    put16(img, 30720 + 18, 0);
+    put16(img, 30720 + 20, 0xBEEF);
+    std::memcpy(img.data() + 30720 + 22, "\x01\x00\x09\x00", 4);
+    put16(img, 30720 + 38, 0);
     /* standard WMF with params != 0 @ 32768 */
     std::memcpy(img.data() + 32768, "\x01\x00\x09\x00", 4);
     put16(img, 32768 + 4, 0x0300);
@@ -3094,6 +3108,167 @@ TEST(Carve, S007NicheBatch2School1RejectsNoise) {
         EXPECT_FALSE(off == 20480 && fmt == FMT_3DS_NCSD) << "wrong-field NCSD rejected";
     }
     EXPECT_TRUE(stats.rejected >= 7) << "each noise plant must reach a validator rejection";
+}
+
+TEST(Carve, WmfPlaceableOgGrammarCarves) {
+    /* S-042: the og's placeable grammar (checksum@+20 == XOR(words
+     * 0..9), reserved dword@+16 == 0, hmf@+4 == 0, params@+38 == 0,
+     * extent = Size@+28*2 + 22 exact) accepts a spec-derived fixture
+     * and sizes it exactly. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    const size_t len = plant_wmf_placeable(img, at);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr) << "the og-convention placeable WMF must carve";
+    EXPECT_EQ(n->props()->carve_format, u64(FMT_WMF_PL));
+    EXPECT_EQ(n->props()->logical_size, len) << "extent = std Size words*2 + 22, exact";
+}
+
+TEST(Carve, WmfPlaceableOldCoreGrammarRejected) {
+    /* S-042: the pre-fix core convention (nonzero "inch"@+16, checksum
+     * stored@+18) violates the og's reserved-dword gate - the old
+     * accept-set and the og's are disjoint, and parity is the og. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    std::memcpy(img.data() + at, "\xD7\xCD\xC6\x9A", 4);
+    put16(img, at + 4, 0);
+    put16(img, at + 6, 0);
+    put16(img, at + 8, 0);
+    put16(img, at + 10, 100);
+    put16(img, at + 12, 100);
+    put16(img, at + 14, 200);
+    put16(img, at + 16, 1440); /* old "inch" field - nonzero reserved */
+    u16 x = 0;
+    for (int i = 0; i < 9; ++i)
+        x = u16(x ^ u16_from_bytes_le(&img[at + 2 * size_t(i)]));
+    put16(img, at + 18, x); /* old checksum@+18 convention */
+    std::memcpy(img.data() + at + 22, "\x01\x00\x09\x00", 4);
+    put32v(img, at + 28, 100);
+    put16(img, at + 38, 0);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    for (tree::FileNode* n : all)
+        EXPECT_FALSE(n->props()->extents.front().offset == at &&
+                     n->props()->carve_format == u64(FMT_WMF_PL))
+            << "the old core-convention grammar must not carve (disjoint from the og's)";
+}
+
+TEST(Carve, WmfPlaceableTwentyByteVariantRejected) {
+    /* S-042 fix-plan test 3: a 20-byte-layout placeable file (checksum
+     * @+18, standard header at +20) is rejected by the og grammar - the
+     * og reads its standard header at +22 and its checksum at +20, so
+     * this layout cannot satisfy both gates. Parity with the og, not
+     * with either historical layout variant. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    std::memcpy(img.data() + at, "\xD7\xCD\xC6\x9A", 4);
+    put16(img, at + 4, 0);
+    put16(img, at + 6, 0);
+    put16(img, at + 8, 0);
+    put16(img, at + 10, 100);
+    put16(img, at + 12, 100);
+    put16(img, at + 14, 1440);
+    put16(img, at + 16, 0);
+    u16 x = 0;
+    for (int i = 0; i < 9; ++i)
+        x = u16(x ^ u16_from_bytes_le(&img[at + 2 * size_t(i)]));
+    put16(img, at + 18, x); /* checksum at +18 under the 20-byte layout */
+    std::memcpy(img.data() + at + 20, "\x01\x00\x09\x00", 4); /* std header at +20 */
+    put32v(img, at + 26, 100);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    for (tree::FileNode* n : all)
+        EXPECT_FALSE(n->props()->extents.front().offset == at &&
+                     n->props()->carve_format == u64(FMT_WMF_PL))
+            << "the 20-byte layout must not carve as placeable (og reads std header at +22)";
+}
+
+TEST(Carve, WmfStdOgGatesAcceptNonCanonicalHeaders) {
+    /* S-042 addendum 1: the og's standard branch gates ONLY on the key
+     * and the params word - version 0x0200, 300 objects and maxrec >
+     * words all carve now (the old core-only gates rejected them). */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    std::memcpy(img.data() + at, "\x01\x00\x09\x00", 4);
+    put16(img, at + 4, 0x0200);   /* version 0x0200 - og-accepted */
+    put32v(img, at + 6, 64);      /* size in words */
+    put16(img, at + 10, 300);     /* objects > 256 - og-accepted */
+    put32v(img, at + 12, 0xFFFF); /* maxrec > words - og-accepted */
+    put16(img, at + 16, 0);       /* params == 0 */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr) << "the og's two-gate standard grammar must accept this header";
+    EXPECT_EQ(n->props()->carve_format, u64(FMT_WMF));
+    EXPECT_EQ(n->props()->logical_size, size_t(128)) << "extent = Size words * 2";
 }
 
 TEST(Carve, S007NicheBatch1SalvageSemantics) {

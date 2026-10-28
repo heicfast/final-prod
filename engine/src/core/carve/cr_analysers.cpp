@@ -3429,71 +3429,74 @@ CarveResult validate_ico(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
-/* WMF (placeable): D7 CD C6 9A key 0x9ac6cdd7 (:5961) -> the WMF node
- * idx 70. The 22-byte placeable header ends with the XOR checksum of
- * its first 10 words - verifying it is the strongest possible gate; a
- * standard-WMF header must follow at +22. */
-CarveResult validate_wmf_placeable(IStorageDevice* s, u64 hit, u64 cap) {
+/* WMF (placeable): D7 CD C6 9A key 0x9ac6cdd7 -> the WMF node (format
+ * code 0x46, shared with the standard branch). Og grammar decoded at
+ * RAWSearchDLL FUN_1800264d0 :29807-29845 (S-042, triple-verified:
+ * ghidra + retdec + capstone across three audit lanes): hmf word@+4 == 0;
+ * the reserved dword @+16..19 == 0 (NO inch gate - the og never reads
+ * the inch field); the checksum word stored @+20 == XOR(words 0..9)
+ * (words 8..9 are the zeroed reserved dword, so the XOR equals the XOR
+ * of words 0..7, but the range is 0..9 as decoded); the standard header
+ * 01 00 09 00 follows at +22; its params word @+38 == 0; extent = the
+ * standard header's Size dword@+28 * 2 + 22 - the exact file length,
+ * not a heuristic. */
+CarveResult validate_wmf_placeable(IStorageDevice* s, u64 hit, u64 /*cap*/) {
     CarveResult r;
-    u8 h[22];
+    u8 h[40];
     if (!rd(s, hit, h, sizeof(h)))
         return r;
     if (std::memcmp(h, "\xD7\xCD\xC6\x9A", 4) != 0)
         return r;
-    const u16 inch = u16_from_bytes_le(h + 16);
-    if (inch == 0 || inch > 14400)
-        return r;
-    /* the placeable checksum: the stored word at +18 is the XOR of the
-     * first 9 words (computed with the checksum field zero) - so the
-     * verification compares XOR(words 0..8) against the stored word
-     * (equivalently XOR of all 10 words == 0) */
+    if (u16_from_bytes_le(h + 4) != 0)
+        return r; /* hmf word == 0 */
+    if (h[16] != 0 || h[17] != 0 || h[18] != 0 || h[19] != 0)
+        return r; /* reserved dword @+16..19 == 0 */
+    /* the placeable checksum per the og: the stored word at +20 equals
+     * the XOR of the TEN preceding words (0..9) - the S-007 batch-1
+     * landing's "stored@+18 == XOR(words 0..8)" convention read the
+     * wrong offset with the wrong range and was refuted by every lane
+     * that re-read the decompile (S-042). */
     u16 x = 0;
-    for (int i = 0; i < 9; ++i)
+    for (int i = 0; i < 10; ++i)
         x = u16(x ^ u16_from_bytes_le(h + 2 * i));
-    const u16 stored = u16_from_bytes_le(h + 18);
-    if (x != stored)
+    if (x != u16_from_bytes_le(h + 20))
         return r; /* placeable-header checksum */
-    u8 sh[4];
-    if (!rd(s, hit + 22, sh, 4) || sh[0] != 0x01 || sh[1] != 0x00 || sh[2] != 0x09 || sh[3] != 0x00)
+    if (std::memcmp(h + 22, "\x01\x00\x09\x00", 4) != 0)
         return r; /* the standard header follows at +22 */
+    if (u16_from_bytes_le(h + 38) != 0)
+        return r; /* the standard header's params word == 0 */
+    const u32 std_words = u32_from_bytes_le(h + 28);
     r.ok = true;
-    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
+    r.end = hit + u64(std_words) * 2 + 22;
+
     r.confidence = 750;
-    r.note = "wmf-placeable-checksum-verified";
+    r.note = "wmf-placeable-og-grammar";
     return r;
 }
 
-/* WMF (standard): 01 00 09 00 key 0x00090001 (:5949) -> the WMF node
- * idx 70 (shared with the thumbcache family). The 18-byte header: type
- * 1, header-size 9 words, version 0x0100/0x0300, size in words, sane
- * object/record counts - extent = size*2. */
-CarveResult validate_wmf_std(IStorageDevice* s, u64 hit, u64 cap) {
+/* WMF (standard): 01 00 09 00 key 0x00090001 -> the WMF node (format
+ * code 0x46, shared with the placeable branch). Og grammar (S-042
+ * addendum 1, FUN_1800264d0 :29809-29815): the ONLY gates are the key
+ * and the params word@+16 == 0; extent = the Size dword@+6 * 2
+ * verbatim. The old core-only gates (version 0x0100/0x0300, objects
+ * <= 256, maxrec <= words, words >= 9) were stricter than the og and
+ * rejected og-accepted files - removed for parity. Size sanity is the
+ * engine's job (min_size/max_size bounds apply to the returned
+ * extent), exactly as the og's controller caps its verbatim size. */
+CarveResult validate_wmf_std(IStorageDevice* s, u64 hit, u64 /*cap*/) {
     CarveResult r;
     u8 h[18];
     if (!rd(s, hit, h, sizeof(h)))
         return r;
     if (std::memcmp(h, "\x01\x00\x09\x00", 4) != 0)
         return r;
-    const u16 ver = u16_from_bytes_le(h + 4);
+    if (u16_from_bytes_le(h + 16) != 0)
+        return r; /* params word == 0 - the og's only second gate */
     const u32 words = u32_from_bytes_le(h + 6);
-    const u16 objects = u16_from_bytes_le(h + 10);
-    const u32 maxrec = u32_from_bytes_le(h + 12);
-    const u16 params = u16_from_bytes_le(h + 16);
-    if (ver != 0x0100 && ver != 0x0300)
-        return r;
-    if (words < 9 || u64(words) > (cap / 2))
-        return r;
-    if (objects > 256)
-        return r;
-    if (maxrec < 3 || u64(maxrec) > u64(words))
-        return r;
-    if (params != 0)
-        return r;
-    const u64 limit = probe_limit(s, hit, cap);
     r.ok = true;
-    r.end = std::min(hit + u64(words) * 2, limit);
+    r.end = hit + u64(words) * 2;
     r.confidence = 700;
-    r.note = "wmf-standard-header";
+    r.note = "wmf-standard-og-gates";
     return r;
 }
 

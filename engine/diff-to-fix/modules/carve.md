@@ -607,10 +607,15 @@ re-checked byte-exact at 12 representative registration sites. The
   zone, registry geometry (59 u32 + 35 u16 bindings), the u16 BOM battery,
   FCPEvt end-to-end. Evidence:
   `../evidence/decompiled-quotes/s8-batch2-formats.md`.
-- **S-042 (SEVERE)** — WMF placeable grammar contradicts the og (checksum
-  word@+20 == XOR(words 0..9), reserved dword@16-19, tail word, exact size
-  std_words*2+22 vs the core's inch-gate/checksum@18/XOR 0..8/probe-extent)
-  — disjoint accept-sets; the batch-1 landing's checksum claim refuted.
+- **S-042 (FIXED this session)** — WMF placeable grammar contradicts the og
+  (checksum word@+20 == XOR(words 0..9), reserved dword@16-19, tail word, exact
+  size std_words*2+22 vs the core's inch-gate/checksum@18/XOR 0..8/probe-extent)
+  — disjoint accept-sets; the batch-1 landing's checksum claim refuted. **FIXED:
+  both WMF validators re-derived from FUN_1800264d0 (the placeable gate set
+  above; the std branch's invented version/objects/maxrec gates removed — the
+  og gates key+params only); fixtures regenerated from the canonical layout;
+  WmfPlaceableOgGrammarCarves / OldCoreGrammarRejected / TwentyByteVariantRejected
+  / WmfStdOgGatesAcceptNonCanonicalHeaders prove it. findings/FIXED/S-042.**
 - **M-084 (MAJOR)** — the MDB family's second signature "Standard ACE DB"
   (ACCDB, type 0x4C) missing.
 - **N-099 (MINOR)** — batch-1 citation truth pass (registry regions

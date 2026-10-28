@@ -1,3 +1,22 @@
+
+## Fix session — the parity close (2026-10-29, T1 baseline: core `84a1832`, corpus `be0cfe9`; prompt saved to worklog/session-diff-fix-parity-close-prompt.md)
+
+- **S-042 FIXED** — the WMF placeable grammar. Re-read FUN_1800264d0
+  (:29807-29845) first-hand before touching anything (the finding's decode
+  confirmed gate-for-gate). `validate_wmf_placeable`: hmf@+4==0, reserved
+  dword@+16..19==0 (the old inch gate read the reserved field and rejected
+  every real file), checksum@+20==XOR(words 0..9), std header@+22, params
+  word@+38==0, extent = Size@+28*2+22 exact (was: 64 MiB probe heuristic).
+  Registry min_size 26→40. `validate_wmf_std`: the invented gates
+  (version/objects/maxrec/words) removed — the og gates key+params only
+  (SA-9 addendum's observation). Fixtures regenerated from the canonical
+  22-byte Aldus layout per the fixture-regeneration requirement (the old
+  plants mirrored the bug). Tests: WmfPlaceableOgGrammarCarves,
+  WmfPlaceableOldCoreGrammarRejected, WmfPlaceableTwentyByteVariantRejected,
+  WmfStdOgGatesAcceptNonCanonicalHeaders + re-planted S007 batch-1 tests.
+  Suite 1027/1027 green (Linux release). Audit trail: finding moved to
+  findings/FIXED/ with Resolution; CROSS-REF-MATRIX cells → MATCH;
+  modules/carve.md verdict updated; SUMMARY counts updated.
 # worklog.md — the live multi-agent session log
 
 **Archive note:** the 2026-10-28 history bulk (17,690 lines, sessions 1

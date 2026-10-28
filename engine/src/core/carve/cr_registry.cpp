@@ -855,7 +855,7 @@ const Signature kTable[] = {
      {0xD7, 0xCD, 0xC6, 0x9A},
      4,
      0,
-     26,
+     40,
      64ull << 20,
      750,
      validate_wmf_placeable,
