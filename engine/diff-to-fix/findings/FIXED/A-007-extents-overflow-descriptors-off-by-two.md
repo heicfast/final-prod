@@ -76,7 +76,7 @@ dropped or corrupted.
   extents branch) — direct code cite.
 - Executed: the fail-before run for `ExtentsOverflowRecordResolvesFragmentedFork`
   (this fix's test) on the pre-fix tree — 8/9 extents resolved, the 9th
-  dropped; `evidence/executions/a006-extents-off-by-two.md`.
+  dropped; `evidence/executions/a007-extents-off-by-two.md`.
 
 ## Fix plan
 
@@ -107,5 +107,15 @@ None; the layout is TN1150-verbatim.
 
 **Status:** FIXED
 **Fixed in commit:** `bddf4df` (filed and fixed as A-005 in that commit; twice-renumbered A-005→A-006→A-007 after the ID collisions with the record-span and rawfixer-4Kn findings)
-**Verified by:** HfsPlus.ExtentsOverflowRecordResolvesFragmentedFork — fail-before executed on the pre-fix tree (extents 8/9, the overflow extent silently dropped by the bounds clamp; `evidence/executions/a006-extents-off-by-two.md`), pass-after (9/9 at the correct byte offset); full suite green.
+**Verified by:** HfsPlus.ExtentsOverflowRecordResolvesFragmentedFork — fail-before executed on the pre-fix tree (extents 8/9, the overflow extent silently dropped by the bounds clamp; `evidence/executions/a007-extents-off-by-two.md`), pass-after (9/9 at the correct byte offset); full suite green.
 **Resolution notes:** CONFIRMED-DIVERGENCE, fixed. Both parse sites (the live overflow walk and the S-021 journal extents branch) now read the eight descriptors from `rec + 12` with the `12 + 64` length gate — the TN1150-verbatim layout (12-byte key incl. the keyLength field + 64-byte HFSPlusExtentRecord). The new fixture populates the extents-overflow tree for the first time in the suite's history (header node + one-record leaf) and pins the 9th-extent resolution that the old code silently dropped.
+
+---
+
+*Citation repair (session-8, 2026-10-28): this finding's two evidence cites read
+`a006-extents-off-by-two.md` (:79, :110) — a filename that never existed (the
+evidence file is `a007-extents-off-by-two.md`, renamed through the A-005→A-006→A-007
+ID-collision merges `2f61564`/`3b81dbc` without the cites being updated). Both cites
+now point at the real file; the content cited (the fail-before execution log) is
+unchanged and verified present. SUMMARY.md:3660's historical `a005-…` spelling in
+the session-2 delta text is left as the dated record.*

@@ -555,3 +555,18 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | audit-trail · M-024 count propagation (finding file itself) | **N-102** (cross-ref N-095's PARITY-CORE-REC site) |
 | audit-trail · thumbnail API rows + heif attribution | **N-103** |
 | audit-trail · ldm.md dangling ref + CAPABILITY-MATRIX HFS+ row | **N-104** (cross-ref N-095's five other sites) |
+
+### Session-8 third lane (2026-10-28 — the driver lane + the merge/repair wave; audited core `35adcb9`, driver `323e75a`, corpus `be0cfe9`)
+
+| Module · parameter (cell) | Verdict |
+|---|---|
+| driver-install · versioned coexistence across releases (K76) | **M-086** — FileVersion pinned 1.0.0.0 + no release stamping → the -Layout Versioned tag is always "10" → genuine upgrades hit exit 2 (the M-064 contract's version source starves it) |
+| driver-install · WinPE UpperFilters encoding (K78) | **M-087** — regdrv-rda.reg hex(7) is 5 ASCII bytes, not UTF-16LE multi-string (the D4 handoff, now owned); og's regdrv.reg:35-36 shows the correct form |
+| ci/packaging · FloorVersion pin count + CI-shape docs (K75/Q68) | **M-088** — release.yml v0.2.4 vs installer.yml v0.2.3 while CI-CURRENT.md claims ONE pin source; PREBUILT-ARTIFACTS/DRIVER-RELEASE/DRIVER-CONTRACT/CI-LOCAL/CI-SCENARIOS/README:125-132/RELEASE-NOTES describe the wiped composite-action + 3-workflow set (real consumers: installer/release/test-benchmark) |
+| driver wire · extended-IOCTL fuzz coverage (Q66/C22) | **M-089** — rdabench.c:390 probes the phantom-zero 0x6000244x codes; the live 0x6002440/44/48 handlers receive zero fuzz iterations |
+| driver wire · session-code count prose (C22/Q68) | **N-107** — 14 current-tense "15/18-command" sites vs the code's 19 (the D3 handoff, full inventory; core's DRIVER-CONTRACT.md already says 19) |
+| driver wire · identity IOCTLs + Information×512 + LBA scaling + NAS/Cloud exclusion | **MATCH** — re-verified first-hand this session (rda_ioctl.h:63-65/146, rda_readwrite.c:269, rda_session.c:1122, rda_disk.c:191 vs eprdtdrv-sys--driver-internals.md:68,81-84; binary dword probe: all 19 codes in EUDCPEPM.sys) |
+| docs · engine-constants row set (Q68) | **N-108** — docs/PARAMETERS.md:78-79 still carry 4-8 MiB / 8-signs / 16-bytes / offset-512 (code: 1 MiB+4 KiB / 12 / 48 / 1024 / mime-80); the SCAN-ENGINE-DELTA "fixed this session" claim corrected in place |
+| audit-trail · A-007 evidence cites | **REPAIRED** — the dangling a006-extents-off-by-two.md cites re-pointed at the real a007-extents-off-by-two.md (dated note in the finding) |
+| audit-trail · corpus errata | **E65/E66** — the census :99 0x11c gloss (284 = FreeHand 11, MTS/M2TS list-only) + the retdec qword-truncation tooling caveat (the CHM blocker's real cause) |
+| carve · batch-2 remainder + WMF grammar | **MERGED** — this lane's duplicate S-041/S-042 filings merged into the continuation lane's owner files as convergence addenda (two lanes, two decompilers, one conclusion on WMF; the CHM/FH11 asm decode donated to S-041) |

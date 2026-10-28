@@ -128,3 +128,39 @@ the body does not carry: the WMF-placeable grammar contradiction
 "Standard ACE DB" ACCDB branch (**M-084**).
 
 **Severity:** unchanged (SEVERE). **Status:** READ-ONLY — no fix applied.
+
+---
+
+## Addendum (session-8 third lane — absence-sweep evidence donation + convergent CHM/FH11 asm verification, merge of the duplicate S-041 filing)
+
+A parallel session-8 lane independently swept the batch-2 absence (patterns →
+0 hits logged in `evidence/decompiled-quotes/s8-batch2-absence-sweep.md`,
+core `35adcb9`: CHM/ITSF, MNY, EMF, ONE, MPEG-TS/284/0x11C-as-MTS, 3DS,
+SWF/FWS/CWS, JP2/jp2c, MOBI/BOOKMOBI, LZH/-lh, HTML, SVG, FCPEvt-keyed,
+OfficeTagFromXML, CRW, VCF, GPX — plus a full-tree sanity sweep
+`ITSF|BOOKMOBI|jp2c|OfficeTag` → 0) and independently resolved the two decode
+blockers the finding's fix plan carried:
+
+- **CHM**: the ":22635 u64-widened GUID conflict" is a **retdec constant-print
+  artifact** — the analyser (`FUN_180016b40`, ghidra `:17705-17740`, asm
+  `0x180016b40-0x180016c14` of `og-codebase/RAWSearchDLL.dll`) compares the
+  canonical ITSF v3 GUID pair {7C01FD10-7BAA-11D0-9E0C-00A0C922E6EC} @+0x18 and
+  {7C01FD11-…E6EC} @+0x28 as genuine 64-bit compares (retdec prints the qword
+  constants truncated to sign-extended low dwords at :22635). Gates: dword@+8
+  == 0x60, u64 pairs at +0x18/+0x20 and +0x28/+0x30, dword@+0x60 == 0x1FE,
+  dword@+0x70 == 0, dword@+0x74 == 0; size = u64@+0x68 verbatim; NO bounds.
+  The trail's claimed GUIDs (799C39D5 / D0ED6BCE) have zero occurrences in the
+  binary. (Convergent with the SCAN-4 lane's `:17705-17740` read.)
+- **Key 284 / 0x11C**: the registration site (`retdec :5654-5665`, ghidra
+  `:1951-1962`, asm `0x1800035a1-0x1800035ea`) maps the magic dword `1C 01 00
+  00` → `BruteForce::CFH11Analyser` (id 0x1D, FreeHand 11, u16@+0x22 ==
+  "11") — NOT MPEG-TS; CMTS/CM2TS are list-only (no magic-key entry), the TAR
+  posture. The census `:99` "(ICO sizes, MTS/ADTS sync)" gloss on the 0x11c
+  row is a misattribution (corpus erratum E-E pending below; note the SCAN-4
+  lane's E53/E54 cover different rows — !BDN→FilePST and 0x4449→AIFF).
+
+The duplicate filing `S-041-niche-carve-batch2-remainder.md` (this lane, filed
+in the same window after renumbering past the deep-audit lane's S-040) is
+removed by this merge; its absence-sweep evidence file remains and is
+referenced above. **Status after the merge: this file is the single owner of
+the batch-2 remainder divergence.**

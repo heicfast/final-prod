@@ -143,3 +143,52 @@ OUT). GetDriverInfo.dll gets its own row below (N-106).**
 - **The og-codebase data assets** — the never-audited set swept (session-8 A
   lane): every row maps to a register/exclusion; the five decoded ground-truth
   contracts are **I-027**; auto.txt's misclassification is **N-097**.
+
+---
+
+## §9. Session-8 third-lane corrections (2026-10-28 — coverage-sweep verification; extends, never rewrites, the rows above)
+
+A full citation re-sweep this lane (every one of the 274 corpus artifacts + 9
+architecture docs, basenames grepped against the entire trail) verified the
+inventory's claims post-waves. Corrections and confirmations:
+
+- **Coverage verdict after all waves: CLEAN.** Zero in-scope corpus artifacts
+  document engine-side parameters the trail never dispositioned (the
+  never-cited residue is per-binary reference material, registered OOS
+  families, UI-pure UIUX, and rollup-covered MOM stubs — spot-reads confirm
+  each). The §8 arithmetic was directionally right, numerically fuzzy; the
+  continuation lane's N-101 owns the refreshed counts.
+- **§1/§5 DRWService contradiction — the §5 row's "folded into S-038's
+  packaging contract" claim has NO trail backing** (grep for the service
+  facts `/install` / AUTO_START / "Read FVE Server" / LocalSystem across the
+  trail: only this inventory and the PARAMETERS Group-K derivation list hit
+  them; S-038 contains no DRWService-service content). §1's PARTIAL/NEVER-
+  AUDITED status for the install lifecycle is the truthful one; the §5 row is
+  corrected to read: "install lifecycle NEVER-AUDITED as a dedicated finding —
+  the facts live only in PARAMETERS Group K's derivation sources; a future
+  packaging session may fold them into the K71-K78 walk."
+- **§1 EuShare parenthetical corrected**: "(5 artifacts, cited)" is false —
+  EuShare/ ships 2 .md artifacts, both never-cited (the NAS OOS registration
+  itself stands, via I-010/D-26 + the install.bat/uninstall.bat rows in §5/§6).
+- **§3 glob names corrected**: `rawsearchdll--raw-signs*` and
+  `rawsearchdll--family-layer*.md` match no corpus files — the intended
+  citations are `raw-dual-registry--u16-magic-keys.md` (the "×13" count) and
+  `rawsearchdll--analyser-registry-census.md` (the census); the "family-layer"
+  citation resolves to the trail's own evidence file
+  `evidence/decompiled-quotes/s6-carve-family-layer.md`.
+- **MOM stub count corrected**: 17 → **16** never-cited in any form (21 by
+  strict basename, minus the 5 brace-cited: Common, Config, CheckVersion,
+  bitlockerhelp, FileSystemCheck). All 16 rollup-covered per the wave-7
+  precedent (mo-module-map.md ×16 + modules/mom-capabilities.md rows).
+- **§1 hook-pair row softened**: the EUDCPEPM/EUEDKEPM row's "AUDITED"
+  overstates — both named artifacts are never-cited; the behavior is
+  dispositioned via API-DELTA/I-010/N-041/transport.md, and the urgent-cache/
+  VolSnap/DrvHK semantics rest with the S7 driver lane (unchanged flag).
+- **Citation-state refresh**: SearchDLL 30/30 cited; SaveScan 5/5;
+  config-files 6/6; per-binary now 3/114 (M-064 added two); part1 ×3; corpus
+  commit at this lane: `be0cfe9`.
+- **New surfaces this session's lanes registered** (rows above unchanged):
+  the driver-install findings M-086..M-089 + N-107 (this lane) extend the §1
+  driver rows; the WMF/batch-2 carve rows (S-042/S-041) and the thumbnail/
+  session rows (S-043..S-045, M-080/M-083..M-085, N-092/N-102..N-105) belong
+  to the parallel session-8 legs and are mirrored in CROSS-REF-MATRIX.

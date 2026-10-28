@@ -1137,3 +1137,55 @@ Stage Summary:
   owner's full pipeline is restored end-to-end - commit -> checks ->
   release (dev-signed) -> test+benchmark. Remaining known-open: the
   parallel lanes' session-8 findings (their own worklog entries).
+=======
+Task ID: SA-8/T2 (session-8 third lane — the read waves)
+Agent: session-8 full parity audit, lead (this session)
+
+Five parallel read agents (A: corpus contracts for the new landings —
+SaveScan/rsf-format read fully end-to-end, UIUX/10+30, the batch-2 evidence;
+B: corpus coverage/citation sweep — all 274 artifacts + 9 architecture docs
+vs the trail; C: new-landing parity verification — W1a/W1b/W1c,
+ntfs_origin_lcn, S-007 batch-1, thumbnail, installer; D: board-truth sweep;
+E: driver + RE tooling audit), then first-hand re-verification by the lead of
+every load-bearing claim before filing: both WMF decompile sites re-read
+personally (ghidra :29820-29845 + retdec :38495-38515 — the term-by-term XOR
+word-list mapping resolved), the core WMF validator re-read (cr_analysers.cpp),
+CI-CURRENT/FloorVersion/README/PREBUILT sites re-read, regdrv-rda.reg decoded
+byte-level, rda_version.h read.
+
+Key verified results feeding the filings:
+- WMF placeable grammar: og checksum word@+20 over words 0..9 + zero-dword@+16
+  vs core checksum@+18 over words 0..8 + inch 1..14400 — DISJOINT accept sets.
+  (Independently and convergently decoded by the continuation lane's S-042 —
+  merged; two lanes, two decompilers, one conclusion.)
+- CHM: the ":22635 u64-widened GUID conflict" is a retdec constant-print
+  artifact (erratum E66); the real gates are the canonical ITSF v3 GUID pair
+  as genuine u64 compares at +0x18/+0x28 + hdr-len 0x60 + chunk magic 0x1FE +
+  zeros, size u64@+0x68, NO bounds. Key 284/0x11C = FreeHand 11 (erratum E65);
+  MTS/M2TS are list-only. Convergent with SCAN-4's decode; donated to S-041.
+- W1a/W1b/W1c parity: verified MATCH-with-registered-divergences (the
+  load-permille window mapping, default-off auto-save, .crsf extension —
+  the parallel lanes filed the registration/threshold items as N-091/S-044/
+  N-105; this lane's residual doc nits folded into the merges).
+- ntfs_origin_lcn + S-007 batch-1 keys: verified landed and corpus-conformant
+  (both walk stamps, clone carry, bit-8; the batch-1 key set byte-exact vs
+  the registration sites — EXCEPT the WMF validator grammar and the two
+  misattributions the parallel lanes already fixed at 9e5dedc, verified gone
+  in-source).
+- Driver lane (this lane's unique territory): M-086 FileVersion pin, M-087
+  regdrv hex(7), M-088 FloorVersion/CI-docs cluster, M-089 rdabench phantom-
+  zero fuzz gap, N-107 the 14 stale count sites; wire contract re-verified
+  MATCH (identity IOCTLs raw-exact, Information x512, LBA scaling, 19 session
+  codes binary-probed, NAS/Cloud exclusion holds).
+- Board truth: docs/PARAMETERS.md §3 rows STILL STALE (the SCAN-2f "fixed"
+  claim false — N-108, claim corrected in SCAN-ENGINE-DELTA); A-007 dangling
+  cites repaired; SURFACE-INVENTORY gained §9 (the DRWService §5-claim
+  correction, EuShare/glob/MOM-count fixes, coverage verdict CLEAN).
+
+Parallel-lane reconciliation: the deep-audit lane (S-040/S-041 + M-071..M-082
++ N-090..N-098 + I-027, 14:31) and the continuation lane (S-042..S-045 +
+M-083..M-085 + N-099..N-106 + I-028, 14:52) filed first; this lane's
+duplicate S-040/S-041 filings merged into their owner files as convergence
+addenda (the no-duplication rule), and this lane's unique findings took
+M-086..M-089 / N-107 / N-108. Board after all legs: 46 active + 249 FIXED +
+OQ-S4-3/OQ-S8-1 tracked.

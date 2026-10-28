@@ -111,3 +111,39 @@ None — the grammar is decoded end-to-end; the only open item is the
 MNY-style question of whether any real-world producer writes the og's
 22-byte layout (irrelevant to parity scoring; relevant only to
 field-impact estimates).
+
+---
+
+## Addendum (session-8 third lane — independent convergence, merge of the duplicate S-042 filing)
+
+A parallel session-8 lane (this filing) independently read both decompile sites
+first-hand — ghidra `RAWSearchDLL_decompiled.c:29820-29845` AND retdec
+`retdec_decompiled.c:38495-38515` — and reached the identical gate set. The
+retdec rendering independently resolves the word-list question term-by-term:
+`v13 = *(int16_t*)(a2+20)` (stored checksum) is compared against the XOR of
+the words at byte offsets 0,2,4,6,8,10,12,14,16,18 — i.e. words 0..9 exactly,
+with the word@+4 term (`v3`) gated ==0 by the caller condition, agreeing with
+ghidra's explicit `param_2[0]..param_2[9]` list. Two lanes, two decompilers,
+one conclusion. The second evidence file is preserved at
+`evidence/decompiled-quotes/s8-wmf-placeable-validator.md` (it carries the
+full gate-comparison table and the exact core quote at the `35adcb9` audit
+tree).
+
+Line-cite refresh: after the M-081 fix landing (`9e5dedc`), the inch gate sits
+at `cr_analysers.cpp:3444` (the function moved; the grammar is unchanged and
+STILL unfixed at the current tree — verified by grep this session).
+
+The duplicate filing `S-042-wmf-placeable-validator-contradicts-og.md` (filed
+by this lane in the same window, renumbered from S-040 after the collision
+with the deep-audit lane's S-040/S-041 set) is removed by this merge; its
+unique content — the gate table, the retdec term mapping, and the test names
+(`S040WmfPlaceableOgGrammarAccepted` / `S040WmfPlaceableCoreConventionRejected`
+/ `S040WmfPlaceableChecksumAt20` / `S040WmfPlaceableZeroDwordGate`) — is
+donated to this file's Tests-to-add section by reference.
+
+**S-007 addendum correction rider:** the batch-1 addendum's WMF line
+(`S-007...md:222-223`, "the stored checksum is the XOR of words 0..8, the +18
+word included in neither side") is refuted by both lanes' reads — the +18
+word IS included in the og's XOR (it is word 9), and the stored word sits at
++20. The e018bf4 commit message's "XOR-checksum VERIFIED" was performed
+against a misread.
