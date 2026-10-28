@@ -68,3 +68,23 @@ length framing) — an opaque container with no reader.
 PE_Tools/dlconfig class) via the **N-134** register batch (the
 product-frame register completion finding); no core action, no capability
 question remains.
+
+---
+
+## REFUTATION ADDENDUM (session-11 S11 lane, 2026-10-29 — the resolution above is superseded)
+
+The "dead payload" verdict is **refuted by decode**: the consumer exists and is
+VideoFileRepairer.exe itself. The zero-hit grep could not find it because the
+filename appears in the decompile only as the `DAT_0059d24c` symbol (the "sfc"
+string lives in .data) and the magic only as the hex constant `0x73666320`
+(`VideoFileRepairer_decompiled.c:248309`) — neither contains the ASCII
+substring the probe searched for. The decoded truth: `" cfs"` magic + a
+16-byte XOR key (`:249963-249966`, "FAN." = key bytes 4-7 — the "motif" was
+the key showing through zero plaintext) + a clean u32 length framing
+(827,489 uncompressed bytes — the "no clean framing" note is also refuted) +
+a version byte dispatching a custom-LZ v2 parser; loaded by the repair-engine
+ctor at startup and REBUILT on failure (`:245536`, `:246921-246931`). Live
+product machinery of the OOS repair line — hypothesis 1, not hypothesis 3.
+Full decode + methodology autopsy: `evidence/decompiled-quotes/s11-sfc-payload-decode.md`;
+the false-resolution record itself is filed as **N-138**. The question stays
+closed — with the corrected answer.

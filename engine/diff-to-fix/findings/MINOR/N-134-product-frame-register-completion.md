@@ -65,3 +65,15 @@ binary and string table — **dead-shipped installer-chain payload** (the
 PE_Tools/dlconfig class), registered here per the OQ's hypothesis 3. The
 OQ file is closed with the full probe record
 (findings/FIXED/OQ-S10-2-videoviewer-sfc-unknown-payload.md).
+
+### ADDENDUM CORRECTION (session-11 S11 lane, 2026-10-29 — supersedes the sfc paragraph above)
+
+The sfc registration above carries the wrong disposition ("dead-shipped
+installer-chain payload"): the S11 lane's byte-level decode refuted the S10-F
+probe it rests on (the grep could not match `DAT_` symbols or hex magic
+constants). The corrected row: **VideoViewer/sfc = VideoFileRepairer.exe's
+LIVE encrypted engine-init database** (" cfs" magic, 16-byte XOR key with
+"FAN." at bytes 4-7, u32 LE uncompressed size 827,489, custom-LZ v2 payload;
+ctor load + rebuild-on-failure at `VideoFileRepairer_decompiled.c:245536`/
+`:246921-246931`) — repair-family OOS per I-010/D-26 (class unchanged,
+reason corrected). See **N-138** + `evidence/decompiled-quotes/s11-sfc-payload-decode.md`.

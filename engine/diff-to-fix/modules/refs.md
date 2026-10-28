@@ -23,11 +23,8 @@ Core (audited commit `67193b6` **including concurrent GAP-S6-3 fix `7797bd6`**):
   resolution, resident data (CRefsResidentDataRunList parity incl. the .rsf
   re-materialization contract — see session module).
 - **B3** — `M` page-shape validation.
-- **B4 deleted classification** — `M`-note: core's ReFS deleted grading has no
-  Excellent tier (agent D observation); og's ReFS deleted-grading boundaries not decoded
-  in corpus — no contradiction demonstrable; revisit if corpus decode lands.
-- **B5 orphan** — `M` system-dir identity resolution; unnamed $DATA-only records noted
-  (agent D) — naming fallback parity unknown, minor.
+- **B4 deleted classification** — `M` **(the og's grading DECODED — I-032, session-11)**: the og's grade is a 2-bit byte at node+0x70 (2=deleted), set from record+0x59, with a host-side bulk re-grade hook (ReFSSearchDLL `:8476`/`:7137-7159`); no tiers in the DLL — the core's finer grading stays the registered superset. The prior "boundaries not decoded" note retires with this decode.
+- **B5 orphan** — `M` system-dir identity resolution; **the unnamed-$DATA-only note RESOLVED as S-053 (SEVERE, session-11)**: the og's name builder no-ops on keySize≤4 and the emit path has NO name gate (ReFSSearchDLL `:8674-8675`/`:8478-8481`) — empty-name rows ARE emitted; the core drops them (`cr_refs_engine.cpp:1102`) — silent loss of name-destroyed content. The prior "naming fallback parity unknown, minor" guess is refuted (the og has no fallback name either — it emits the empty name). Companion: **N-141** (the og's zero-size∧no-dot junk filter the core lacks — `FUN_18000ba90 :8317-8337`). Walk: `evidence/decompiled-quotes/s11-zfsrefs-function-walk.md`.
 - **B7 ADS** — **known gap** (project's own CORE-GAP-LIST: ReFS ADS/containers/security
   not implemented; the og's .mo analyser family covers them — CRefsAppDataRunItem,
   mo-module-map). Filed as the project's GAP register row; audit verdict:

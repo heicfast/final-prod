@@ -220,3 +220,35 @@ The probe harness landed (the measurement = the lane's next dispatch):
 into this file (execution-bound — daily cron 05:30 or a manual dispatch);
 the og-side TTFR comparison then closes the acceptance's second half with
 the same evidence strength as the transport numbers above.
+
+---
+
+## Session-11 S11 addendum (2026-10-29 — the execution plan refined + two stale references found)
+
+The S11 OQTRACE lane re-scoped the remaining TTFR half on the live tree:
+
+- **The harness is verified wired**: the core probe (`src/app/rrecov.cpp`'s
+  `TtfrProbe`/`ttfr_event_fn` → `ttfr_ms`/`first_files`/`stage`) lands in
+  `07-performance/` via `.github/scripts/Run-Benchmark.ps1`; the lane is
+  `test-benchmark.yml` (windows-2022, elevated, prebuilt release + test-signed
+  RDA driver + the fixed-VHD matrix). The og chunk evidence re-verified
+  first-hand: `Device_decompiled.c` ~:56545 (`0x400000/sector` — 4 MiB disk)
+  and the `CVolumeDevice` ctor ~:56912 (`0x700000/sector` — 7 MiB volume);
+  no corpus prose artifact on chunking exists (the numbers must come from the
+  harness).
+- **Linux infeasibility re-confirmed** (the session-14/37 rulings stand): the
+  core+tests build on Linux, but `rrecov` is WIN32-gated (`src/CMakeLists.txt`)
+  and the measurement is real-volume I/O through the RDA kernel driver — a
+  Linux container answers a different question.
+- **The minimum path to close**: (1) windows-2022-class elevated runner;
+  (2) dispatch Test & Benchmark (or ride release.yml's auto-dispatch);
+  (3) transcribe `ttfr_ms`/`ttfr_first_files` here + M-030 + SUMMARY;
+  (4) og-side TTFR needs a new probe in `bench/og/og-driver.ps1` (its
+  `Wait-OgRsf` samples only t_ms/working_set/cpu — no first-found capture
+  exists) or an owner scoped-closure decision.
+- **Two stale references in this file's earlier addenda** (correction for the
+  next reader): the "daily cron 05:30" lane reference is gone (no cron exists
+  in any current workflow — the lane was replaced), and `bench/README.md`
+  still points at the deleted `comparative-bench.yml` (the bench entry doc
+  needs the `test-benchmark.yml` re-point — registered here, a docs fix for
+  the fix lanes).

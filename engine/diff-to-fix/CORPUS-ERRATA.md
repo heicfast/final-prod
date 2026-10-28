@@ -382,3 +382,38 @@ remote rows stand. **One distinct row the remote set does not carry:**
   documented container grammar (magic, 0x8C header, 0x24 record header, 2-byte chunk
   header, 4 KiB chunked zlib) is byte-confirmed against all three real files; the
   corpus's rsf-format artifact needs NO correction.)
+
+- **E-S11 batch (session-11 S11 lane, 2026-10-29 — the RAWSearchDLL infra walk's
+  five precision corrections + the ZFS/ReFS walk's two refinements; every cite
+  first-hand):**
+  1. **s3-rawsearch-inventory §5.7's "external virtual" chunk driver** — imprecise:
+     the chunk-loop driver is `FUN_18000c650` at **vtable slot +0x118** (an in-DLL
+     method of the controller, `:9337-9380` — the loop `vt+0x98(chunk)` over
+     `range_sectors / sectors_per_chunk` at `:9361-9376`), not an external virtual
+     the host installs.
+  2. **s3 §5.5's "array of 0x1000 maps"** — the 0x10048-byte result queue
+     (`FUN_18000c430 :9304-9324`) is precisely: **4096 × 0x10 per-format
+     {list-head,count} buckets** (`_eh_vector_constructor_iterator_(ptr, 0x10,
+     0x1000, …)`) + the all-results list @+0x10000 + an
+     `IIterator<ListIterator<CRawFileInfo*>>` wrapper @+0x10010 + **two**
+     offset-keyed std::maps @+0x10028/+0x10038.
+  3. **The format-name mechanism pinned for S-049** — `FUN_18000b7a0 :8594-8621`
+     reads `&DAT_18008f070 + id*9`: a **9-byte-stride id→name table** in .data
+     (the naming contract's supporting mechanism, previously uncited).
+  4. **The user-info singleton's full layout** (extends SCAN-ENGINE-DELTA A4):
+     `FUN_180001350 :65-100` — {+0x60: 1, +0x68: 0 (both write-only resets at
+     `:9048/:9050` with NO in-DLL reader — semantics unverified), +0x70:
+     200000000 (the 200 MB cap, 12+ readers), +0x78: vector of format ids
+     1..169, +0x90: the stats map, +0xa0: byte, +0xb0: string, +0xc0: 0xff}.
+  5. **DRWUI shares the carve engine's OOM policy** — `DRWUI_decompiled.c:94179`
+     carries the identical `RaiseException(0xe0000001, 0xc0000025)` operator-new
+     (log-then-die is product-wide; no handler anywhere) — context for N-139's
+     product-contract reading.
+  6. **N-056/N-072's "backoff" wording refined** — the og's device poll is a
+     fixed **1000 ms unbounded** loop (ZfsSearchDLL `:5671-5673`), not a backoff;
+     the core's bounded 3×250/500/1000 stays the safer subset (the registered
+     direction is unchanged).
+  7. **The og's DVA translate is a fixed +4 MiB** (ZfsSearchDLL `:17996`) — the
+     core's nvlist-driven vdev offset is identical on whole-disk pools (the
+     registered superset; the note pins the og's constant for future
+     multi-vdev fixtures).

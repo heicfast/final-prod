@@ -3491,3 +3491,84 @@ SESSION LANES (spawned in parallel; scratch sheets under /home/z/my-project/audi
   (the sfc payload probe) + OQ-S4-3 scoping (chunking-relative-perf).
 - L4 TRIAGE — the 56 active findings' cited core-side defect sites re-verified at
   8365956e (remove-the-fixed sweep) + the S10-B N-129's six register items re-check.
+
+---
+Task ID: S11/T2-T10 (session-11 continuation lane — the deep walks, the filings, the reconciliation, the close)
+Agent: session-11 continuation audit lane (S11 — the second continuation lane; distinct from the parallel session-11 wave-1 lane at 7990a86d and the session-11-lead claim at 83d154b5)
+
+SESSION CLOSE RECORD. Opened at core 8365956e / corpus be0cfe9; closed at core
+46b81573 (the worklog commit atop 432d15dc's code tree; the parallel lanes'
+landings absorbed by rebase + first-hand re-verification per the SOP).
+
+WAVE 1 — the four parallel lanes (L1 RAWINFRA / L2 ZFSREFS-FN / L3 OQTRACE /
+L4 TRIAGE; scratch sheets under /home/z/my-project/audit-ctx/, promoted to
+evidence/): the RAWSearchDLL infrastructure walk (64 infra functions, all 1,921
+functions censused — the trail's named wave-2 candidate, NEVER executed before;
+the load-bearing machinery verified COVERED by M-005/M-021/M-024/M-025/N-017/
+N-031/D-78/D-100/D-101/S-049), the ZFS/ReFS function-level walk (981 + 629
+functions; 61 + ~35 engine bodies in full — the two trees the S10-F class
+pass's read-agents did not cover), the OQ traces (CWindowsFS consumer, the sfc
+payload, OQ-S4-3 scoping), and the 56-finding liveness triage.
+
+WAVE 2 — the push-window reconciliation (the hottest of the trail): the pull
+brought 30+ parallel commits — the M-072/M-074/M-077/M-096/N-093 fixes, the
+M-102/M-083 PARITY-VERIFIED retirement, the N-129→N-135 renumber, the ledger
+conflict/phantom-SHA sweeps, M-111's filing, and BOTH OQ resolutions (S10-F
+wave-2, 4f44db49). My lanes' prescribed repairs were ALL landed concurrently —
+reconciled with zero duplication (the triage residue rides its evidence file).
+THE RECONCILIATION'S OWN FINDING: the S10-F OQ-S10-2 "dead payload" resolution
+is a FALSE NEGATIVE — my L3 lane's byte-level decode (executed before their
+push) proves the consumer is VideoFileRepairer.exe itself (magic 0x73666320 as
+a hex constant + the filename as a DAT_ symbol — their ASCII grep could not
+match either). Filed N-138 + the refutation addenda (the OQ file + N-134's
+register row) + the methodology note.
+
+WAVE 3 — the filings, every load-bearing claim re-verified FIRST-HAND by the
+lead before writing (the decompile bodies re-read at their cites; the core
+cites re-pinned at 46b81573 after the fix lanes' line shifts; the sfc decode
+re-executed in python; the DRWUI 0xe0000001 policy-twin grepped):
+- S-053 (SEVERE): the ReFS unnamed-row drop — silent loss of recoverable
+  content (refs.md B5's "minor, parity unknown" resolved the severe direction).
+- N-138/N-139/N-140/N-141 (MINOR): the sfc false-resolution refutation; the
+  carve OOM policy (with the L1 candidate's overclaim CORRECTED before filing
+  — carve_format exists in src/ui; the filed gap is the aggregation surface
+  only); the per-extension stats surface; the ReFS zero-size∧no-dot filter.
+- I-031/I-032 (INFO): the two walks' registers — OQ-T6 RESOLVED (multi-vdev
+  MATCH with M-019), zfs B9 closed MATCH, refs B4 decoded (2-bit grade byte),
+  the ReFS/ZFS volume-label closure, the pending-16/Stop-flush/no-progress/
+  512-gate boundary set, the 36-slot controller vtable.
+- Addenda: OQ-S10-2's refutation, N-134's register correction, M-111's
+  double-verification corroboration, OQ-S4-3's refined plan + two stale refs.
+- Module rows: refs.md B4/B5, zfs.md B2/B8/B9 + the OQ-T6 table row, carve.md
+  findings index. CROSS-REF-MATRIX's S11 block (12 rows). CORPUS-ERRATA's
+  E-S11 batch (7 precision corrections). SUMMARY + README lane blocks.
+
+BOARD AT THIS LANE'S CLOSE: 58 active (7 SEVERE · 19 MAJOR · 25 MINOR ·
+7 INFO) / 285 resolved (FIXED-LEDGER, unchanged this lane) / 3 tracked-open
+(OQ-S4-3 refined; OQ-S10-1; OQ-S10-3). Next free IDs: S-054+, M-112+, N-142+,
+I-033+, A-012+.
+
+TERRITORY RECONCILIATION (for the session-11-lead lane's next pull): your
+claimed wave-1 (RAWSearchDLL infrastructure walk) was executed and filed by
+this lane BEFORE your claim (agents 17:50 → results 18:0x; claim 18:15:38) —
+per earlier-push-wins, N-139/N-140/I-031 + s11-rawsearchdll-infra-walk.md own
+the infrastructure half; your six-family carve-grammar half remains open.
+Wave-3 (non-searchdll trees) does not collide with this lane's ZFS/ReFS walk.
+
+READ-ONLY GUARANTEE: this lane's commits touch NOTHING outside diff-to-fix/ +
+worklog* (the two repos' product trees untouched; verified per-commit).
+
+Handoff — the highest-value next fixes from THIS lane's filings:
+(1) S-053 + N-141 as ONE ReFS emission-gate pass (the S-053 half is silent
+    content loss — the single highest-value fix on the board per severity;
+    the fix plan's ordering note: S-053's gate split first, N-141's compound
+    filter second, the three-class boundary test pins both directions);
+(2) N-139's bad_alloc unification (two try/catch blocks + one diagnostic line
+    — small, contract-cleaning, test-scoped in the finding);
+(3) N-140's per-format tally (the CarveStats extension + the report row);
+(4) N-138's doc-truth sweep (the OQ/N-134/register corrections — one docs
+    commit; the sfc row's class is unchanged, only the reason);
+(5) I-031/I-032's register addenda (D-78/D-101/I-009 + zfs/refs rows —
+    documentation-only);
+then the standing board order (S-051/S-052 whole-disk + LDM, M-108's BOM
+head-gate, the carve school-2/3 children).

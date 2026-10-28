@@ -55,3 +55,20 @@ Decompiled evidence (strength 2): the consumer trace with every load-bearing cit
 ## Open questions
 
 None. (The scope decision is the engineering team's, not an audit unknown.)
+
+---
+
+## CORROBORATION ADDENDUM (session-11 S11 lane, 2026-10-29)
+
+This finding's consumer trace was independently re-derived by the S11 lane's
+OQTRACE agent (concurrent execution, reconciled at push per the
+no-duplication convention): the same chain (DRWUI `:438891` factory resolve →
+PartitionRecovery `:8481-8491` `"FileSystem"` request + module-vtable+0x38 →
+CWindowsFS for mounted volumes) with three additional surface details — the
+browse table lives under the `"PartitionLostSep"` QFrame (`DRWUI:1412268`),
+the 4-column QTableView widths `0x183/0x96/0x50/0x6e` (`:1412346-1412352`),
+and the root listing seeds from `QString "\\"` (`:1412353-1412358`). No
+discrepancy with the filed trace; the corroboration record is at
+`evidence/decompiled-quotes/s11-oq-traces.md` §1 (two independent traces,
+same cites — the evidence class strengthens from single-lane to
+double-verified).

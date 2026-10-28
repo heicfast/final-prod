@@ -81,6 +81,9 @@ Core (audited commit `67193b6` + concurrent `03ddcd2` GAP-S6-8 fix in tree):
 | M-005 | MAJOR | Whole-slice carving vs og's bitmap-gated free-space pass — **FIXED (s14: gate in both dispatch layers + telemetry; bench 1.88x/1.89x on 50% used; suite 575/575)** |
 | N-008 | MINOR | ZIP padding cap off-by-one + alignment; v0x62/ZIP64 chain semantics |
 | OQ-T8 | tracked-open | Dispatch order (u16→u32→signs); JPEG full grammar; no-bitmap og behavior |
+| N-139 | MINOR | **(session-11 infra walk)** Carve OOM policy: og logs 5-line memory diagnostic then non-continuable SEH; core silent — and the core's own two paths disagree (nothrow→ERR_NO_MEMORY vs the two throwing buffers' uncaught bad_alloc) |
+| N-140 | MINOR | **(session-11 infra walk)** Per-extension carve-result aggregation surface (og GetRawUserInfoMap + DRWUI report breakdown) absent — CarveStats scalar-only, no API tallies carve_format |
+| I-031 | INFO | **(session-11 infra walk)** The RAWSearchDLL infrastructure register: pending-16 cap/oldest-first eviction, Stop() flushes partials, engine emits no progress, 512-sector refusal, the full 36-slot controller vtable, the singleton layout |
 
 ## Corpus errata candidate
 

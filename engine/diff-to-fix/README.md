@@ -1,4 +1,30 @@
 # diff-to-fix/ — parity audit roadmap (core_recovery vs easeus-drw-research)
+**Session-11 S11 lane (2026-10-29 — the second continuation deep-audit lane, RECONCILED at push):**
+audited **core `46b81573` at close** (code tree `432d15dc`'s; opened `8365956e`; the
+hottest parallel window of the trail absorbed — the M-072/M-074/M-077/M-096/N-093
+fix landings, M-102/M-083's retirement, the N-129→N-135 renumber, the ledger
+conflict sweep, and M-111 + both OQ resolutions all landed mid-flight and were
+first-hand reconciled), **corpus `be0cfe9`**. The mandate's named-never-done work
+EXECUTED: the **RAWSearchDLL infrastructure function-level walk** (64 infra
+functions, every one dispositioned — the trail's own wave-2 candidate), the
+**ZFS/ReFS function-level walk** (the two engine trees no prior lane had
+function-walked), the **OQ traces**, and the **56-finding liveness triage**.
+Filed: **S-053** (SEVERE — the ReFS unnamed-$DATA-only drop: the og emits
+name-destroyed records as recoverable unnamed rows, the core drops them silently
+— refs.md B5's "minor" guess refuted by decode), **N-138** (MINOR — the S10-F
+OQ-S10-2 "dead payload" resolution REFUTED by byte-level decode: sfc is
+VideoFileRepairer.exe's live encrypted engine-init database; the zero-hit grep
+could not match DAT_-symbols or hex magic constants), **N-139/N-140** (MINOR —
+the carve OOM policy + the per-extension result-aggregation surface),
+**N-141** (MINOR — the og's ReFS zero-size∧no-dot junk filter), **I-031/I-032**
+(INFO registers — the infra boundary set + the walk closures: **OQ-T6 RESOLVED**
+multi-vdev MATCH, zfs B9 closed MATCH at 8-byte precision, refs B4's grade byte
+decoded, both engines' volume-label question closed) + the E-S11 errata batch.
+M-111 double-verified by an independent concurrent trace (corroboration
+addendum). **Board: 58 active (7 SEVERE · 19 MAJOR · 25 MINOR · 7 INFO) / 285
+resolved / 3 tracked-open.** Evidence: `evidence/decompiled-quotes/s11-*.md` +
+`evidence/s11-triage-sweep.md`.
+
 **Session 10 lane S10-F (2026-10-29 — the function-level completeness pass, RECONCILED at push):**
 audited **core product code `44f043a5`** (e56baac7 lineage), **corpus `be0cfe9`**. The
 mandate's "mark all remaining features, implementations, functions as finding too"

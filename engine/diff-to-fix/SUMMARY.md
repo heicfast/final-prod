@@ -1,4 +1,76 @@
-# SUMMARY.md — executive summary (the session-11 continuation lane on top; the prior lanes below, newest-first)
+# SUMMARY.md — executive summary (the S11 deep-audit lane on top; the prior lanes below, newest-first)
+
+## S11 lane delta (2026-10-29 — the second continuation lane: the named-never-done walks EXECUTED — the RAWSearchDLL infrastructure function-level walk, the ZFS/ReFS function-level walk, the OQ traces, the 56-finding liveness triage; one FALSE RESOLUTION refuted by decode)
+
+**Audited: core `46b81573` at close (code tree `432d15dc`'s; opened at `8365956e`,
+reconciled mid-session over the hottest window of the trail — the parallel lanes'
+M-072/M-074/M-077/M-096/N-093 fix landings, the M-102/M-083 retirement, the
+N-129→N-135 renumber, the ledger conflict sweep, M-111's filing and BOTH OQ
+resolutions all landed mid-flight and were absorbed by rebase + first-hand
+re-verification), corpus `be0cfe9`.**
+
+**This lane's unique product (all first-hand verified by the lead before filing):**
+- **S-053 (SEVERE)** — the ReFS unnamed-$DATA-only row drop: the og EMITS
+  name-destroyed records as recoverable unnamed rows (name builder no-ops on
+  keySize≤4, no emit gate — ReFSSearchDLL `:8674-8675`/`:8478-8481`); the core
+  drops them (`cr_refs_engine.cpp:1102`) — silent loss of recoverable content
+  (the S-034 class). refs.md B5's "minor, parity unknown" note resolved the
+  severe direction by decode.
+- **N-138 (MINOR, process-truth)** — the S10-F **OQ-S10-2 "dead payload"
+  resolution REFUTED by byte-level decode**: VideoViewer/sfc is
+  VideoFileRepairer.exe's LIVE encrypted engine-init database (" cfs" magic,
+  16-byte XOR key with "FAN." at bytes 4-7 — the "motif" was the key showing
+  through zero plaintext, 827,489-byte clean u32 framing, custom-LZ v2, ctor
+  load + rebuild-on-failure). The zero-hit grep could not match `DAT_` symbols
+  or hex magic constants — the methodology note is recorded for every future
+  "no consumer" claim. OQ-S10-2's file + N-134's register row corrected by
+  addendum; the question stays closed with the corrected answer.
+- **N-139/N-140 (MINOR)** — the RAWSearchDLL infrastructure walk's two residue
+  findings: the carve OOM policy (og: 5-line diagnostic + non-continuable SEH;
+  core: silent, and its own two paths disagree — 8 nothrow sites vs 2 throwing
+  buffers with no catch upstream) and the per-extension carve-result
+  aggregation surface (og's GetRawUserInfoMap + DRWUI breakdown vs CarveStats'
+  13 scalars — no API tallies carve_format over results).
+- **I-031/I-032 (INFO registers)** — the two walks' deliberate-divergence sets
+  and new trail data: the pending-16 cap/oldest-first eviction, Stop()'s
+  partial-file flush, the engine's zero progress emission, the 512-sector
+  refusal, the full 36-slot controller vtable; **OQ-T6 RESOLVED** (the og
+  resolves multi-vdev DVAs via first-registry-entry fallback — MATCH with the
+  M-019 landing), **zfs B9 closed MATCH** (the og persists 8-byte times — the
+  "nanoseconds" note refuted), **refs B4 decoded** (2-bit grade byte at
+  node+0x70 — the core's finer grading stays the registered superset), the
+  ReFS/ZFS volume-label closure (neither decodes one — N-133's completion set),
+  and the E-S11 errata batch (7 precision corrections).
+- **N-141 (MINOR)** — the og's ReFS zero-size∧no-dot junk filter decoded and
+  registered absent (the M-022 OQ-3 completion; rides the S-053 fix pass).
+- **M-111 corroboration** — this lane's independent CWindowsFS consumer trace
+  (concurrent with S10-F's) agrees on every load-bearing cite; the
+  corroboration addendum double-verifies their filing.
+- **The triage wave's residue** — the 56-finding liveness sweep ran, but every
+  repair it prescribed (M-102/M-083 retirement, N-129 collision, ledger
+  sweeps) was landed CONCURRENTLY by the parallel lanes — reconciled, no
+  duplication; the 5 driver-repo NDVs dispositioned as OQ-S10-3 by the driver
+  lane; evidence/s11-triage-sweep.md carries the full table.
+
+**Board after this lane's push: 58 active (7 SEVERE · 19 MAJOR · 25 MINOR ·
+7 INFO) / 285 resolved (FIXED-LEDGER, unchanged by this lane) / 3 tracked-open
+(OQ-S4-3 refined in place; OQ-S10-1; OQ-S10-3).** Next free IDs: S-054+, M-112+,
+N-142+, I-033+, A-012+. **Recommended fix-order contribution:** (1) **S-053 +
+N-141 as one ReFS emission-gate pass** (the S-053 half is silent content loss —
+the highest-value single fix on the board per severity); (2) N-139's
+bad_alloc-unification (small, contract-cleaning); (3) N-140's stats tally
+(report parity, mechanical); (4) the N-138 doc-truth sweep (the OQ/N-134/
+register corrections ride one docs commit); (5) I-031/I-032's register addenda
+(D-78/D-101/I-009 + zfs/refs module rows — documentation-only).
+
+**Territory note for the session-11-lead lane:** your claimed wave-1 (the
+RAWSearchDLL infrastructure walk) was EXECUTED and filed by this lane before
+your claim landed (agents spawned 17:50, results 18:0x, claim 18:15:38) —
+reconcile extend-don't-refile against N-139/N-140/I-031 +
+`s11-rawsearchdll-infra-walk.md` (the six-family carve-grammar half of your
+wave-1 remains yours); wave-3's non-searchdll trees do not collide with this
+lane's ZFS/ReFS searchdll walk.
+
 ## Session-11 delta (2026-10-29 — the user's session-2 continuation: remove-the-fixed + go-deeper + mark-all-remaining)
 
 **Audited: core `7990a86d` at open (the M-096 mid-session landing absorbed), corpus
