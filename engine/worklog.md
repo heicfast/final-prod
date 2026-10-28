@@ -228,3 +228,47 @@ Stage Summary:
   2-4 (installer, per PACKAGING.md defaults), M-068 board hygiene move,
   testing.md count truth, OQ-SA-1 NTFS +0x64 decompile probe, OQ-S4-3
   TTFR probe target.
+---
+Task ID: SCAN-2f (Agent 2 — scan-engine lane: the context-recovery re-run + the OQ-SA-1 full closure + the S-007 niche batch)
+Agent: Agent 2 (scan-engine lane)
+
+Work Log:
+- Context recovery per protocol: FOUR parallel read legs (corpus
+  carve-family census/dual-registry; corpus NTFS decompile trace; core
+  carve-state audit; rda-driver scan-surface audit). SCAN-ENGINE-DELTA.md
+  re-verified + refreshed at this tree (A4 count reconciliation: 131
+  roster rows = 106 analysers + 7 FileInfo classes + 18 infra; the
+  "67 of 131" residue figure replaced by the precise ~30-format work
+  list; N-068/N-069/N-070/S-032/S-037 sub-items re-verified FIXED; F2's
+  D-104 registration recorded; C9's probe-target correction folded in).
+- OQ-SA-1 NTFS +0x64 — DECODED, instruction-decisive, first-hand: the
+  low dword of the FIRST $DATA extent's starting LCN (NOT parent-ref,
+  NOT own record number). Producer chain: FUN_1800069e0 :5126-5127
+  (src+0x53 <- first pair start from FUN_1800336f0 :41028; src+0x4f <-
+  Sum pair seconds = total clusters) -> FUN_180003020 :1986-1988
+  (dst+0x64/dst+0x60); the $FILE_NAME path FUN_18002a340 :33912 ZEROES
+  the slot (local_39 = src+0x4f/+0x53 as one u64). Engine-side +0x60 =
+  total data-run clusters (the "+0x60 type-registry id" census reading
+  is the DRWUI wire-side overwrite, part1:86). The FAT +0x3e / exFAT
+  +0x50 / NTFS +0x64 anchor triple closes; .rsf persists +0x64
+  immediately before the type id (DRWUI_decompiled.c:853462-853464).
+  Core carrier + nflags bit-8 wire + fail-before tests = the F-lane fix
+  this session; corpus erratum row queued (part1:85 "secondary ID").
+- Driver leg (read-only): rda-driver v0.2.4 wire byte-stable (identity
+  0x60002400/04/08 + extended 0x6002440/44/48 + all 19 session codes
+  re-verified; F11 x512; NAS/Cloud exclusion holds). Driver-repo D3/D4
+  doc drifts + the FileVersion-1.0.0.0-vs-tag note recorded as handoffs
+  in SCAN-ENGINE-DELTA.md (single-repo commit discipline held).
+- handoff: PARITY-FIX-1 lane — your "remaining session targets" list
+  carries "OQ-SA-1 NTFS +0x64 decompile probe": that probe is RESOLVED
+  by this lane (the decode above; the Delta Report Q11 row + the
+  tracked-open file update land with this lane's F-lane fix). No
+  further +0x64 work needed; OQ-S4-3's TTFR half stays
+  execution-bound (the probe-target correction 97cc3b2 governs).
+
+Stage Summary:
+- Scan-engine board after context recovery: quick lane clean (zero open
+  defects); A-lane work = the S-007 niche batch (keyed set, corpus-verified
+  magics, batch-1 scope pinned in the queue); C-lane clean except the
+  execution-bound TTFR half; F-lane work = the NTFS origin-LCN carrier.
+  Fixes land next in the mandated order: A-lane batch -> F-lane carrier.
