@@ -81,3 +81,10 @@ The recovery-chances column — the user's primary prioritization signal, surfac
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this push; S47 lane)
+**Verified by:** `Grading.RefsAndBtrfsDeletedFilesGradeHigh` (FAILED pre-fix - ReFS/Btrfs deleted sat at Average; PASSES post-fix - both High, ext4 control unchanged), `Grading.RefsExistingStillHighAndSmallStillLow` (rule-order guards: Active precedes [same outcome], size<1 Low precedes both), full suite 1211/1169/0-fail.
+**Resolution notes:** solo_rules' ReFS/Btrfs branch now sets Grade::High before its early return - the og's insert-time rule (FUN_14038a470 :605481-497, re-verified first-hand this session: kind 0xB and kind 10 each -> FUN_140089630(node,2) + the gauge ticks DAT_141be5830/5828). The old comment's "the og's device walk covers these" premise is disproven and replaced; the header's rule table (cr_grading.h) documents the decoded rule with the cites and simultaneously re-states the S-058 polarity correction. The gauge accounting needs no separate tick - the core's end-of-pass census computes matched from grade==High, so the promoted population lands in the numerator exactly as the og's ticks intend. Placement after the Active rule mirrors the og's bit-6 insert gate (existing files already High; identical observable outcome).

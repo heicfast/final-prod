@@ -214,9 +214,22 @@ bool solo_rules(tree::FileNode* n, const GradeContext& ctx, AssistantStats* stat
         }
         return true; /* NTFS processed; twins are a FAT-family path */
     }
-    if (fs == u32(FsKindCode::Refs) || fs == u32(FsKindCode::Btrfs))
-        return true; /* excluded from the generic path (the og's device
-                      * walk covers these; no further decoded rule) */
+    if (fs == u32(FsKindCode::Refs) || fs == u32(FsKindCode::Btrfs)) {
+        /* S-061: the og's INSERT-TIME hook grades every non-existing
+         * ReFS/Btrfs file High unconditionally - FUN_14038a470
+         * :605481-497 (kind 0xB -> FUN_140089630(node,2) + the gauge
+         * ticks DAT_141be5830/5828; kind 10 -> the same), re-verified
+         * first-hand this session. The completion pass excludes FS
+         * {3,10,0xB} from the generic path (:605736-37) precisely
+         * because insert already graded them - the old comment's
+         * "device walk covers these" premise was disproven. Placed
+         * AFTER the Active rule (existing files already grade High
+         * there, the og's bit-6 insert gate excludes them); the gauge
+         * accounting rides the end-of-pass grade census (matched =
+         * grade==High), so no separate tick is needed. */
+        n->set_grade(Grade::High);
+        return true;
+    }
     /* generic path continues to twin detection in grade_tree */
     return false;
 }
