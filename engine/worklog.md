@@ -38,6 +38,30 @@ total). The sibling lanes' concurrent landings absorbed by rebase: A-014 (S45/S5
 convergent), M-124 (S47), I-036 (S47). Board after: INFO 0 open. Next: the tracked-open
 set bottom-up (OQ-S42-3 -> OQ-S10-1), then the MAJOR tier bottom-up (M-137 -> M-073)
 against S47/S49/S50's top-down sweeps.
+**I-040 ACKNOWLEDGED-RETIRED (S47 INFO-first lane, 2026-10-29).** The og-defect
+non-adoption register #2 verified first-hand at corpus `be0cfe9`: FUN_180007510
+(:5455-5467) folds +0x6C into every inode's size (the polluted legacy-ACL dir
+class), and _gmtime32_s rides 4 sites (:5495/:5506/:6262/:6273) past 2038; the
+core's regular-only fold (cr_ext4_engine.cpp:404-407) and u64 FILETIME path
+re-verified at HEAD. Registered as PARITY-DELTAS **D-123** (cross-citing the
+D-119/N-162 family) with BOTH anti-down-fix pins landed:
+Ext4Engine.SizeHighFoldIsRegularOnlyNotTheOgUnconditionalDefect (the
+0x300-polluted dir surfaces 1024, the og would show 0x300_00000400; the
+hi=1/lo=0xFFFFFFFF regular file surfaces the full 8 GiB-1) +
+Ext4Engine.Post2038FileTimeConversionStays64Bit (exact FILETIME at 2038 and
+2100). No core code change — the non-adoption stays exactly as audited. Trail:
+findings/FIXED/I-040 + ledger row + D-123 + this entry. **CONVERGENT LANDING
+(SA-9):** the S48 lane's I-040 landed first (their D-123 registration +
+Ext4Engine.LegacyAclDirSizeClean RED-proven + the extended UnixTimeConversion);
+this lane's landing rides as the convergence addendum — same corpus cites
+independently verified, plus the 4-site _gmtime32_s line census and the
+regular-file fold-direction pin their set leaves unpinned; both Resolutions
+kept in-file, the ledger row carries the convergence note. NOTE (lane identity):
+this lane is the S47 INFO-first claimant (d872452c, 22:27:26 — the first S47
+push); the S47 name is contested by the MAJOR-first lane's later claim
+(a08e5447, 22:34:28) — per SA-9 earlier-push-wins this lane keeps the S47 seat;
+the trail distinguishes the two lanes by directive (INFO-first vs MAJOR-first),
+both sides' records kept.
 
 **Session-51 severe-first lane (rebranded from the S47 draft at the hot-window
 merge — the remote's S47/S48/S49/S50 seats pushed first) — A-014 CONVERGENT with the

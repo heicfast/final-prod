@@ -3731,3 +3731,13 @@ PlaceholderIsHash + FatEngine.DeletedLfnChecksumRecoversOriginalByte + the re-pi
   `Ext4Engine.UnixTimeConversion` (exact post-2038/2100 filetimes, ns
   variant) — future sessions must not "fix" the core down to either
   defect).
+
+**CONVERGENT LANDING NOTE (SA-9, this session):** the S47 INFO-first lane's
+independent I-040 registration (pushed second; per earlier-push-wins this D-123
+stands as registered) verified the same corpus cites first-hand and adds two
+evidentiary/coverage supplements: the 4-site `_gmtime32_s` line census
+(`EXT4SearchDLL_decompiled.c:5495/:5506/:6262/:6273`) and the regular-file
+fold-direction pin `Ext4Engine.SizeHighFoldIsRegularOnlyNotTheOgUnconditionalDefect`
+(hi=1/lo=0xFFFFFFFF surfaces the full 8 GiB-1 size — the direction
+`LegacyAclDirSizeClean` leaves unpinned) plus
+`Ext4Engine.Post2038FileTimeConversionStays64Bit`. Both lanes' records kept.
