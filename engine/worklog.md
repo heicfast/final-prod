@@ -6964,3 +6964,25 @@ lanes already landed, it does not fix anything itself).
 Board delta absorbed at the rebase (the S47/S48 INFO-first lanes landed): I-042,
 I-043, I-044 retired (ACKNOWLEDGED) — the INFO tier is now 4 live by filesystem.
 This lane's battery will re-count at its pin.
+---
+
+## Session-51 diff-fix lane (2026-10-29; opened at core `98079347`, corpus `be0cfe9`; renumbered at the rebase per SA-9 — the remote's session-45 and session-49 fix-lane claims [659f0f6c/7e931b1e, both claim-posting only, zero code landed] pushed first; this lane's mandate copy rides the remote's own worklog/session-diff-fix-45-prompt.md)
+
+Baseline: linux-release build green, full suite **1273/1273** at open (the parallel
+lanes' landings all green). Board at open (filesystem truth): 77 active — 1 ACUTE ·
+9 SEVERE · 28 MAJOR · 32 MINOR · 7 INFO / 64 FIXED / 6 tracked-open.
+
+### Fix 1 — A-014 (ACUTE, fat): the time-word validation
+
+Re-verified first-hand: corpus `ghidra-searchdll/FATSearchDLL_decompiled.c:32135-32154`
+(three zero-on-fail DosDateTimeToFileTime slots) — CONFIRMED-DIVERGENCE at
+`98079347` (the fabricated FileTime 133833168600000000 reproduced on the HOUR24
+dentry). Fix: `fat_datetime_to_unix_seconds` (cr_fat_wire.h) gate extended to
+`hour > 23 || minute > 59 || (time & 0x1F) > 29` — the DosDateTimeToFileTime accept
+set exactly. exFAT verified unaffected (the M-014 `fat_datetime_fields_ok` gate
+rejects the class upstream; full exFAT family green). Tests added (all RED→GREEN):
+`FatEngine.TimeWordHour24YieldsZeroFileTime`, `TimeWordMinute60YieldsZeroFileTime`,
+`TimeWordSecondField30YieldsZeroFileTime`, `ValidTimeWordBoundaryUnchanged`,
+`InvalidTimeStampsPersistAsZeroInTree`. Full suite **1278/1278**. Trail: finding →
+findings/FIXED/ with Resolution; ledger row; matrix cell → MATCH; modules/fat.md
+B9 verdict updated. SHA recorded post-push below.

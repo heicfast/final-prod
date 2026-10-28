@@ -121,3 +121,10 @@ family (one-line boundary guards).
 
 None — the og's boundary set is fully decoded (three slots, zero-on-fail), and the core's
 gap is a single missing condition.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** `<this push>` (session-45 fix lane, 2026-10-29)
+**Verified by:** fail-before/pass-after executed both sides: `FatEngine.TimeWordHour24YieldsZeroFileTime`, `TimeWordMinute60YieldsZeroFileTime`, `TimeWordSecondField30YieldsZeroFileTime`, `ValidTimeWordBoundaryUnchanged`, and the end-to-end `InvalidTimeStampsPersistAsZeroInTree` all RED at `98079347` (the fabricated FileTime 133833168600000000 = the date+1-day shift reproduced on the HOUR24 dentry) and GREEN post-fix; full suite 1278/1278 (1273 pre-existing + 5 new).
+**Resolution notes:** CONFIRMED-DIVERGENCE, re-verified first-hand before fixing: the corpus re-read at `re-workspace/reversed/ghidra-searchdll/FATSearchDLL_decompiled.c:32135-32154` confirms all three zero-on-fail `DosDateTimeToFileTime` slots exactly as cited. The fix is the finding's own plan — the shared gate in `fat_datetime_to_unix_seconds` (cr_fat_wire.h) now rejects `hour > 23 || minute > 59 || (time & 0x1F) > 29`, matching the DosDateTimeToFileTime accept set exactly; month/day gating (N-021 lineage) unchanged, the N-173 u64 no-clamp path unchanged. The exFAT sibling is verified unaffected: `fat_datetime_fields_ok` (cr_exfat_quick.cpp:313, the M-014 gate over FUN_180002f40) rejects this component class upstream of the shared helper, so the tightened helper is a no-op on surviving exFAT inputs — the full exFAT test family stays green. The helper's own comment ("0 on invalid/out-of-range fields") is now truthful. No safety hardening touched (the fix is a boundary guard, the same class as N-021).
