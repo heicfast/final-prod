@@ -31,10 +31,24 @@ Core (audited `67193b6` + concurrent fixes in tree): `src/core/orchestrator/cr_s
   carve; the og's quick/advanced split maps to core's quick/deep+carve (carve is a
   separate stage in core; in the og, RAWSearcher is part of the advanced set — S-006/M-005
   cover the composition differences).
-- **O38 progress** — `M`-equivalent: weighted single-division permilles, per-stage
-  monotonic, pause-compensated elapsed; og's 40→65% save formula and bottomarea
-  semantics are UI-session constructs (session module note); engine-level callbacks
-  bridge with veto (progress-false → cancel) — matches the og's cancel cadence.
+- **O38 progress** — MATCH (M-125 FIXED, the S42 fix lane): the engine's weighted
+  single-division permilles (per-stage monotonic, pause-compensated elapsed) stay the
+  TRUTHFUL engine telemetry — the deliberate engine-side truth registered in
+  PARITY-DELTAS D-118 — and the og's DISPLAY math now lands as the query-layer helper
+  family (`query::progress_display_remap/_percent/_publish`, cr_query.h:88-119):
+  FUN_1401af820's five-segment piecewise remap verbatim (raw<11 → ×2; 11..30 →
+  (raw−11)·0.2+20; 30..90 → ×0.8; 90..98 → (raw−88)·2.7+72; >98 → identity; the
+  defensive 99.99 stall cap — dead for raw in [0,100], the og's defensive branch
+  ported as decoded), FUN_1401af950's type dispatch (0 → reset, 1 → remap+clamp, else
+  raw), FUN_1401afa60's monotonic publish guard (the 98-boundary discontinuity: the
+  2.7 segment tops at 99.0 and the identity tail DROPS to 98.5 — the guard exists to
+  hide exactly that). Tests ProgressDisplay.* (5) + the engine's linear regression
+  pin; og's 40→65% save formula and bottomarea semantics remain UI-session constructs
+  (session module note); engine-level callbacks bridge with veto (progress-false →
+  cancel) — matches the og's cancel cadence. The finding's own test table carried
+  four transcription errors against the corpus constants (raw 20 → 21.8 not 22; 29 →
+  23.6 not 23.8; 98 → 99.0 not 99.4; 99 → 99.0 not 99.99) — corrected per the corpus
+  (the corpus wins).
 - **O39 ETA** — `M`-note: core exposes telemetry for ETA computation (elapsed, rates);
   the og's "Remaining time" formatting is UI-side. No engine gap.
 - **O40 threading** — `M`: engine pass single-threaded with intra-engine parallelism

@@ -696,6 +696,21 @@ commit = one push):**
   extents (the under-cap agreement the acceptance requires). Proof:
   Carve.OneChunkChain* / ThreeDsSectionWalk* (3 tests) +
   S007NicheBatch2School1Carve green; suite 1187/1187 green.
+- **M-125 (MAJOR — the progress display math: the og's piecewise remap +
+  99.99 cap, decoded but unregistered) → FIXED.** The display math
+  landed as the OPTIONAL query-layer helper family
+  (`query::progress_display_remap/_percent/_publish` — FUN_1401af820/
+  :950/:a60 verbatim), the engine's truthful linear permille untouched
+  (the regression pin). The finding's own test table carried FOUR
+  transcription errors against the corpus constants (raw 20 → 21.8 not
+  22; 29 → 23.6 not 23.8; 98 → 99.0 not 99.4; 99 → 99.0 not 99.99) —
+  corrected per the corpus-wins rule; the 99.99 cap decoded as the
+  og's DEAD defensive branch (reachable only for raw > 100); the
+  98-boundary discontinuity (99.0 → 98.5) decoded and pinned — the very
+  thing the monotonic publish guard exists to hide. O38 → MATCH;
+  PARITY-DELTAS D-118 registers the linear-permille engine truth as
+  the deliberate divergence. Proof: ProgressDisplay.* (5 tests) + the
+  stashed-engine RED; suite 1197/1197 green.
 
 **Board at this lane's M-117 landing (post-rebase over the parallel lanes'
 S-048/S-049/S-054/S-053/N-115/N-126/N-148/INFO-tier landings): 39 active on

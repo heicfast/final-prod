@@ -6364,3 +6364,25 @@ family's FAT member) with the wrap arithmetic and the silent-corruption rational
 FatEngine.ClusterOffsetBeyond2TiB pins the exact u64 address at the spec-max cluster
 and asserts NON-equality with the og's wrapping form (the down-fix guard). No code
 change. Trail: findings/FIXED/N-162 + ledger row + fat.md family note + this entry.
+**M-125 FIXED (the progress display math — the og's piecewise remap +
+the 99.99 cap) — commit `<this push>`:** the display math landed as the
+optional query-layer helper family — `query::progress_display_remap`
+(FUN_1401af820 :314931-314959 verbatim: raw<11 → ×2; 11..30 →
+(raw−11)·0.2+20; 30..90 → ×0.8; 90..98 → (raw−88)·2.7+72; >98 →
+identity; the defensive 99.99 stall cap), `_percent` (FUN_1401af950:
+the type-0 reset / type-1 remap+clamp / else raw), `_publish`
+(FUN_1401afa60: the monotonic guard) — with the engine's truthful
+linear permille untouched (ProgressDisplay.CorePermilleStaysLinear the
+regression pin). **Corpus-wins corrections to the finding's own test
+table:** raw 20 → 21.8 (not "22"), 29 → 23.6 (not "23.8"), 98 → 99.0
+(not "99.4"), 99 → 99.0 (not "99.99"); the 99.99 cap is the og's DEAD
+defensive branch (the 2.7 segment tops at 99.0 and the identity tail
+stays ≤ 100, so the cap fires only for raw > 100 — pinned live at raw
+101/250); the 98-boundary discontinuity (99.0 at raw 98 → 98.5 at raw
+98.5, the og's non-monotonic curve) decoded and pinned — exactly what
+the monotonic publish guard exists to hide. Trail: O38 → MATCH (the
+decode + the helper surface); PARITY-DELTAS D-118 (the linear-permille
+engine truth as the deliberate divergence — the engine never lies in
+its telemetry); findings/FIXED/ with the Resolution; ledger row; matrix
+cell; SUMMARY's S42 block. Tests: ProgressDisplay.* (5); RED by the
+stashed-engine rebuild; suite 1197/1197 green; format clean.

@@ -32,9 +32,14 @@
   - **MAJOR (10):** **M-123** (table P1/P20 — GPT header laxity: no reserved==0 /
     exact-92 / position / usable-range gates, og `FUN_1800078d0` vs
     `load_gpt_side`); **M-124** (table P1/P26 — EBR link set {05,0F,**85**} vs the
-    core's {05,0F}: 0x85 chains vanish); **M-125** (orchestration P38 — the og's
-    piecewise progress remap + 99.99 cap decoded (`FUN_1401af820`), unregistered,
-    O38 superseded); **M-126** (orchestration P39 — the og's rate-EMA ETA model
+    core's {05,0F}: 0x85 chains vanish); **M-125 FIXED (S42 fix
+    lane — findings/FIXED/M-125: the query-layer helper family
+    `progress_display_remap/_percent/_publish` (FUN_1401af820/:950/:a60 verbatim,
+    the constants re-verified against the corpus — the finding's test table
+    carried 4 transcription errors, corrected per the corpus-wins rule); the
+    engine's linear permille untouched + the regression pin; O38 → MATCH;
+    PARITY-DELTAS D-118)** (orchestration P38 — the og's piecewise progress
+    remap + the defensive 99.99 cap, landed as the optional display layer); **M-126** (orchestration P39 — the og's rate-EMA ETA model
     decoded; no core ETA surface exists; O39 premise superseded); **M-127**
     (fat/exfat P47-50 — the O(n²) visited-vector cycle guard vs the og's range tree;
     100×maximal-chain FAT32 ≈ 100+ s stall-class CPU); **M-128** (carve P1/P19 —
