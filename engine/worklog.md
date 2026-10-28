@@ -2811,3 +2811,45 @@ Session decomposition (the user's three asks):
    template; extend-don't-refile against the 55 actives; the SA-9 ID-collision rule on
    every push.
 
+---
+
+## Session 11B — the continuation audit, lane B (2026-10-29 — the second session-11 lane, differentiated per the no-duplication convention)
+
+Task ID: S11B/T1 (session-11 lane B — setup + state assessment; the lane at ac39c321 opened first and owns the declared scope)
+Agent: continuation audit lane (the user's "second session" instruction re-applied at the current board)
+
+Baselines recorded at open:
+- **Core audited commit: `7990a86d`** (main; the S10-F close + the M-096 fix-conform
+  lineage). 1212 commits total on main.
+- **Corpus: `be0cfe9`** (unmoved since the SA-10B session — verified `git rev-parse HEAD`).
+- Board at open (filesystem is the truth): **55 active finding files** — 6 SEVERE ·
+  23 MAJOR · 21 MINOR (22 IDs: the N-129 collision) · 5 INFO; FIXED-LEDGER ~285
+  data rows (the 281/282 count claims conflict — see T5); 4 tracked-open
+  (OQ-S4-3, OQ-S8-1, OQ-S10-1, OQ-S10-2).
+
+State assessment findings at open (board hygiene — to repair this session):
+1. **Committed merge conflict in `diff-to-fix/FIXED-LEDGER.md`** (lines 22–32,
+   the 282-vs-281 counts stack) — introduced by `5fecdae1` ("repair(trail)",
+   ironic: the repair commit left the conflict markers in the pushed tree);
+   the `64a3b18c` sweep convention (both sides kept as dated history, one
+   truth line on top) not applied to this second occurrence.
+2. **N-129 ID collision**: two files on main —
+   `N-129-parity-og-core-inventory-numeric-defects.md` (lane-B, first pushed
+   `0e279e43` 17:32:28Z) and `N-129-fix-wave-bookkeeping-truth-batch.md`
+   (wave-3, first pushed `f6c00177` 17:33:36Z). Per the SA-9 rule (earlier
+   remote push wins): lane-B keeps N-129; the wave-3 bookkeeping file
+   renumbers to **N-135** (next free after N-134).
+3. **Ledger count drift**: the table carries ~285 data rows (264 strict
+   `[A-Z]-[0-9]` pattern rows + 21 OQ-prefixed rows) while the top line
+   claims 281/282 — the N-129(lane-B) numeric-defects class extends to the
+   ledger's own top line; to be reconciled at T5 with the row-count truth.
+
+Session plan (S11): T2/T3 re-triage of all 55 active findings at HEAD;
+T4 recent-landings side-effect analysis (M-093/M-096/M-079/N-100 fixes vs
+the open children); T5 the three process repairs; T6–T9 the deep-dive waves
+(RAWSearchDLL infrastructure walk; the six never-dispositioned product-frame
+binaries; the OQ consumer traces; the corpus-surface gap-hunt); T10 filings;
+T11 gate docs; T12 close.
+
+READ-ONLY guarantee: this session's commits touch NOTHING outside
+`diff-to-fix/` + `worklog*` (verified per-commit at close).
