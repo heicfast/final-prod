@@ -1063,7 +1063,14 @@ const Signature kTable[] = {
      620,
      validate_html,
      "HTML document"},
-    /* M-093: the XML/SVG chain - four u32 keys, one shared validator;
+    /* M-093: the XML/SVG chain - four u32 keys, one shared validator.
+     * N-150 (session-40 lane B): suppress_overlap on all four rows - an
+     * XML-declared SVG re-matches "<svg" strictly inside the emitted
+     * declaration stream (the SAME document; the og's sector-aligned
+     * probe + extent consumption never re-fires inside a walked file).
+     * The pre-fix double-carve (the declaration candidate AND the
+     * interior direct-<svg candidate both emitted) reproduced on
+     * pristine main: two nodes at 4096/4118 for one document.
      * the probe stamps FMT_XML (the "csl" generic marker) or FMT_SVG
      * (svg content) via CarveResult::format_override (the og's id is
      * content-decided, not key-decided). SVGRawFileInfo bounds
@@ -1077,7 +1084,8 @@ const Signature kTable[] = {
      0x100000ull,
      620,
      validate_xmlsvg,
-     "XML document"},
+     "XML document",
+     true},
     {FMT_XML_BOM,
      "xml",
      {0xEF, 0xBB, 0xBF, 0x3C},
@@ -1087,7 +1095,8 @@ const Signature kTable[] = {
      0x100000ull,
      620,
      validate_xmlsvg,
-     "XML document"},
+     "XML document",
+     true},
     {FMT_SVG_CD01,
      "svg",
      {0xCD, 0x01, 0x00, 0x00},
@@ -1097,8 +1106,19 @@ const Signature kTable[] = {
      0x100000ull,
      620,
      validate_xmlsvg,
-     "SVG image"},
-    {FMT_SVG, "svg", {'<', 's', 'v', 'g'}, 4, 0, 0, 0x100000ull, 620, validate_xmlsvg, "SVG image"},
+     "SVG image",
+     true},
+    {FMT_SVG,
+     "svg",
+     {'<', 's', 'v', 'g'},
+     4,
+     0,
+     0,
+     0x100000ull,
+     620,
+     validate_xmlsvg,
+     "SVG image",
+     true},
     /* M-096: MOBI - the BOOKMOBI pair at +0x3C is the whole gate (the
      * full-salvage posture: the 0x3C bytes before it are never read);
      * the 512-step end-tag walk, cap 500 MB. Shipped RawConfig MOBI=1 -
@@ -1226,7 +1246,15 @@ const Signature kTable[] = {
      0x1400000ull, /* the walk's 20 MiB cap, byte-exact */
      620,
      validate_vcf,
-     "vCard contacts"},
+     "vCard contacts",
+     /* N-150-class (this lane's verification of the parallel N-113
+      * landing): the multi-card form re-matches BEGIN:VCARD strictly
+      * inside the emitted file - an inner card is the SAME file (the
+      * og's sector-aligned probe + extent consumption never re-fires
+      * inside a walked file; the repeating-sync family rule). The
+      * parallel landing's own test checked only the outer extent; the
+      * count pin (TextSchoolVcfInnerCardIsSameFile) closes this. */
+     true},
     {FMT_GPX,
      "gpx",
      {'<', '?', 'x', 'm'},
@@ -1236,7 +1264,10 @@ const Signature kTable[] = {
      0x6400000ull,
      620,
      validate_gpx,
-     "GPX track"},
+     "GPX track",
+     /* N-150-class: a BOM'd file re-matches the declaration strictly
+      * inside the emitted stream - the same file */
+     true},
     {FMT_GPX_BOM,
      "gpx",
      {0xEF, 0xBB, 0xBF, '<'},
@@ -1246,7 +1277,8 @@ const Signature kTable[] = {
      0x6400000ull,
      620,
      validate_gpx,
-     "GPX track"},
+     "GPX track",
+     true},
     {FMT_OSP,
      "osp",
      {0x7b, 0x0d, 0x0a, 0x20, 0x22, 0x64, 0x69, 0x22, 0x3a, 0x20}, /* '{\r\n "di": ' */

@@ -1,3 +1,14 @@
+- **N-113 CONVERGENCE + N-150 FIXED (the rider over the parallel landing)** — this lane's own
+  N-113 implementation (six rows, every grammar re-verified first-hand, the POS needle question
+  settled: the literal "ProcessOn Schema File", formula needle_end+0x13 calibrated against
+  OSP's +0xF twin) hit the push window against the parallel minors lane's equivalent landing
+  (b6e0a9ef — theirs stands). The verification of THEIR landing exposed three nested-candidate
+  double-carves their tests missed (the SVG declaration+interior pair — pre-existing from
+  M-093; the VCF inner card; the GPX BOM interior declaration): **N-150 filed and fixed** —
+  suppress_overlap on the four M-093 rows + FMT_VCF/FMT_GPX/FMT_GPX_BOM. Tests:
+  SvgDeclaredDocumentCarvesOnce, TextSchoolVcfInnerCardIsSameFile, GpxBomFormCarvesOnce (all
+  RED on c0f69250, GREEN after). Suite 1082/1082 (1040/42/0). Audit trail: N-150 filed +
+  retired to findings/FIXED/ with the reproductions; ledger row; matrix current.
 
 ## Fix session 40 — the diff-to-fix board execution (2026-10-29, T1 baseline: core `4a6a5164`, corpus `be0cfe9`; prompt saved to worklog/session-40-diff-fix-prompt.md; SEVERE-first order; board at open: 6 SEVERE · 18 MAJOR · 21 MINOR · 5 INFO active + 3 tracked-open; suites 1003 + 59 green at open)
 
