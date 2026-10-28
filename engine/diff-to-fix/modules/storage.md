@@ -130,3 +130,29 @@ inconsistency. F60/B6/E23/X51 verdict: **DIVERGENCE-MAJOR** pending the
 create-clamp + read-clamp pass (read-side only; the write path keeps hard bounds —
 the fix plan's fence test). Evidence:
 `evidence/decompiled-quotes/s12-partition-read-clamp.md`.
+
+---
+
+## Session-42 S42 addendum (2026-10-29 — the bad-sector skip constants + the Ldq ladder; the DefaultLog real-run decode)
+
+`evidence/decompiled-quotes/s42-defaultlog-ldq-decode.md` (the three classes DefaultLog.txt
+carries that no prior lane had dispositioned — zero trail hits at this lane's open):
+
+- **The Ldq read-parameter ladder** (DRWUI :180139-180160): three refuse classes
+  (negative start/count; count ≥ 4 GiB-of-sectors; start ≥ device size) + the over-long
+  CLAMP + the error-path zero-fill — **M-119's addendum** (its finding file carries the
+  sharpened acceptance; the 393 real-run refusals corroborate that the og's scan layers
+  over-read routinely and the transport's refuse-with-log is normal operation).
+- **The bad-sector skip machinery's constants** (:179930-180080): 2 MiB initial span,
+  read size doubling every 3 steps capped 64 MiB, inner per-granularity skip above
+  4 MiB, ERROR_CRC (0x163) trigger, the 80 MiB-skipped UI-message gate (once-only),
+  skip-range recording into the device's bad map, 1 GiB total-skip break. **REGISTER —
+  mechanism-divergent (skip-forward-with-backoff) vs the core's bisection
+  (`cr_retry.h`), outcome-equivalent** (sector-granularity isolation, zero-fill, the
+  recorded map, the BadSectorTip state per FB-O03). No finding: the user-observable
+  matches.
+- **The recovery-write failure observable**: one real-run
+  `Failed to write file! CFileRecoverWorker::ReadAndWriteDataRunList 1515` — the
+  per-file failure log with function+line; the core's SafeWriter records per-item
+  per-extent failures into the report (the S-052 model). Register datum (the N-048
+  log-census family).

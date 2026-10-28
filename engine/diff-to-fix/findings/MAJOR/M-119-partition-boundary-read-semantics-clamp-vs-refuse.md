@@ -126,3 +126,33 @@ the parallel continuation/fix lanes pushed first with their own M-113 filing
 convention) — renumbered to M-119 at the reconciliation. The defect site was
 re-verified LIVE at the post-rebase HEAD `cd883754` (grep + direct read, cites
 re-pinned where lines drifted); the finding's substance is unchanged.
+
+---
+
+## Session-42 S42 addendum (2026-10-29 — the transport-entry decode + the real-run corroboration: 393 Ldq refusals in DefaultLog.txt)
+
+The finding's site family decoded FIRST-HAND at the transport entry this session
+(`evidence/decompiled-quotes/s42-defaultlog-ldq-decode.md` §1):
+
+1. **The full parameter-validation ladder** (DRWUI :180139-180151, the Ldq entry —
+   "Ldq" = logical-disk query): three REFUSE classes precede the CLAMP class —
+   (a) negative start OR negative count, (b) **count ≥ 4 GiB-of-sectors**
+   (`0x100000000 / sector_size <= count` — a 512-B device: ≥ 8,388,608 sectors),
+   (c) **start ≥ device size**; each refusal logs the Ldq line and errors out. The
+   CLAMP class (start + count > size but start < size) is the finding's core decode —
+   `count = size − start`, then the read proceeds.
+2. **The zero-fill branch** at :180157-180160: the read-error path logs
+   "Read sector error in %d" and **zero-fills count × sector_size** — the
+   zero-fill-succeed semantics sit at BOTH the boundary path and the error path.
+3. **The real-run corroboration**: `og-codebase/log/DefaultLog.txt` carries **393
+   `Ldq:Read sector parameter error` lines** from ONE captured run on a basic disk —
+   the og's own scan layers issue out-of-parameter reads ROUTINELY and the transport's
+   refuse-with-log is normal operation. The finding's fix plan should implement the
+   full ladder (three refusals + the clamp + the error-path zero-fill), not the clamp
+   alone.
+
+**Sharpened acceptance for the fix:** the core's read path refuses negative and
+out-of-range reads (MATCH), clamps over-long reads to the device (the finding's ask),
+zero-fills on read errors where the scan opted into skip mode (the RetryingDevice
+contract), and never hard-errors a whole volume open on a table-length overrun (the
+CLI/UI leg of the finding).
