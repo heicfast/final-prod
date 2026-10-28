@@ -5,7 +5,7 @@
 **Parameters affected:** K78 (boot-media deployment: offline-hive service matrix + UpperFilters), Q68-adjacent (the shipped script's correctness)
 **Corpus references:** `og-codebase/BUILDPE/x64/regdrv.reg:35-36` — the og's own correct encoding: `"UpperFilters"=hex(7):45,00,55,00,44,00,43,00,50,00,45,00,50,00,4d,00,00,00,00,00` ("EUDCPEPM" UTF-16LE + string NUL + final NUL); `architecture/03-winpe-boot-environment.md:54` (the class-guid context — note the corpus labels {71A27CDD-…} DISKDRIVE; the actual DiskDrive class is {4d36e967-e325-11ce-bfc1-08002be10318}); `artifacts/WinPE/boot-config--winpeshl-autobat-regdrv.md` (the regdrv matrix: 4 services + disk-class UpperFilters, eprdtdrv absent from PE)
 **Core references:** audited driver `323e75a`: `scripts/winpe/regdrv-rda.reg:30-31` — `[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Class\{4d36e967-e325-11ce-bfc1-08002be10318}]` / `"UpperFilters"=hex(7):r,d,a,\,0`
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** PUSHED-FORWARD (driver-repo-resident; this session's two-repo grant excludes heicfast/rda-driver)
 **Prior audit check:** "expanded on prior finding" the D4 handoff — recorded in the core trail's SCAN-ENGINE-DELTA driver-lane handoffs ("D4: regdrv-rda.reg hex(7) UpperFilters still invalid") without a finding file; this filing gives it an owner.
 
 ## Summary
@@ -86,3 +86,10 @@ UpperFilters write (the data-path-only PE posture — a documented scope
 choice). Decide with the boot-media lane; the execution proof (a PE boot
 transcript showing the filter attached) is the boot-media lane's first
 dispatch.
+
+
+## Resolution
+
+**Status:** PUSHED-FORWARD (tracked-open OQ-S10-2)
+**Verified by:** bf17e55-lineage tree: the byte-level decode re-verified against the finding's grammar (the shipped scripts/winpe/regdrv-rda.reg is a DRIVER-repo path - heicfast/rda-driver scripts/winpe/regdrv-rda.reg:31; the corpus contrast og-codebase/BUILDPE/x64/regdrv.reg:35-36 carries the correct 10-byte UTF-16LE form).
+**Resolution notes:** The one-line fix (hex(7):72,00,64,00,61,00,00,00,00,00) + the .reg parse gate land in heicfast/rda-driver - outside this session's two-repo grant. Pushed forward as the driver-repo lane's next fix with the exact corrected byte sequence + the gate design recorded in the finding body.

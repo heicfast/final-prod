@@ -5,7 +5,7 @@
 **Parameters affected:** C22 (IOCTL codes and ABI numbers — the probe list's correctness), Q66 (fuzz coverage), Q65-adjacent
 **Corpus references:** `artifacts/PartitionRecovery/eprdtdrv-sys--driver-internals.md:81-84` (the identity-IOCTL family + the passthrough note); the extended family is RDA-native by design (`src/shared/inc/rda_ioctl.h:72-74` — "do not collide with reference function codes 0x900..0x902"); the corpus's own doc-drift record for the phantom-zero class (core trail CORPUS-ERRATA / driver lane D2: "the IOCTL comments' phantom extra zero — CTL_CODE_RDA(0x910) is 0x6002440, not 0x60002440", rda-driver `bd79633`)
 **Core references:** audited driver `323e75a`: `src/bench/rdabench.c:390` (the fuzz-hammer probe list using `0x60002440 / 0x60002444 / 0x60002448`); the REAL handlers `src/shared/inc/rda_ioctl.h:75-79` (`CTL_CODE_RDA(0x910/0x911/0x912)` = `0x6002440 / 0x6002444 / 0x6002448`) dispatched at `src/driver/rda_ioctl.c:276-280`
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** PUSHED-FORWARD (driver-repo-resident; this session's two-repo grant excludes heicfast/rda-driver)
 **Prior audit check:** "expanded on prior finding" the D2 handoff — the phantom-extra-zero doc/comment sites were recorded (rda-driver `bd79633`, `163e3cc`) but the *executable* probe-list instance was never filed; this filing owns the functional half (the fuzz-coverage gap) and points at the residual comment sites.
 
 ## Summary
@@ -53,3 +53,10 @@ First-hand this session: `rdabench.c:390` read (the probe values quoted); `rda_i
 ## Open questions
 
 None.
+
+
+## Resolution
+
+**Status:** PUSHED-FORWARD (tracked-open OQ-S10-2)
+**Verified by:** bf17e55-lineage tree: the phantom-zero constants re-verified as driver-repo sources (src/bench/rdabench.c:390 in heicfast/rda-driver; the real handlers are src/shared/inc/rda_ioctl.h:75-79 + src/driver/rda_ioctl.c:276-280 there).
+**Resolution notes:** The probe-list fix (derive from IOCTL_RDA_* names) + the static gate + the hammer re-run are all rda-driver files - outside this session's two-repo grant. Pushed forward as the driver-repo lane's next fix.
