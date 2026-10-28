@@ -19,7 +19,7 @@
 > blocks carry the resolution narrative; the per-file Resolution sections
 > live in history.
 
-**Counts:** 265 resolved findings (255 at the purge commit + the mid-flight parallel landings absorbed at rebase: M-084/M-091 `16475b8`, N-092 `5ed862f`, N-124 `c75755d`, M-088 DFX-38, N-116 `632d21e` session-38, N-117/N-118/N-103 `954c386` session-38 doc-truth batch A; S-043 `b3938c8` moved its file into the re-created FIXED/ dir BEFORE this convention was readable - its row is pending, the next audit lane retires the file) · 98 with a fix-commit recorded in-file ·
+**Counts:** 268 resolved findings (255 at the purge commit + the mid-flight parallel landings absorbed at rebase: M-084/M-091 `16475b8`, N-092 `5ed862f`, N-124 `c75755d`, M-088 DFX-38, N-116 `632d21e`, N-117/N-118/N-103 `954c386`, N-095/N-108/N-119 `e1e5124` session-38 doc-truth batches A+B; S-043 `b3938c8` moved its file into the re-created FIXED/ dir BEFORE this convention was readable - its row is pending, the next audit lane retires the file) · 98 with a fix-commit recorded in-file ·
 **Ledger generated:** session SA-10B (2026-10-29), tree `62074bf`-lineage.
 
 | ID | Severity | Module | Fix commit (as recorded in-file) | Retired file (history path) |
@@ -288,6 +288,9 @@
 | N-117 | MINOR | (session-38 doc-truth batch A; doc-only per the audit's own plan — Resolution in history at 954c386) | 954c386 | `findings/MINOR/N-117-w1abc-adjacent-doc-drift-plan-shape-and-cite-lines.md` |
 | N-118 | MINOR | (session-38 doc-truth batch A; doc-only — Resolution in history at 954c386) | 954c386 | `findings/MINOR/N-118-reference-api-gap-rows-stale-after-w1-landings.md` |
 | N-103 | MINOR | (session-38 doc-truth batch A; doc-only — Resolution in history at 954c386, incl. the first-hand EURawImg/EUImgRepairFile import-table verification) | 954c386 | `findings/MINOR/N-103-thumbnail-api-rows-stale.md` |
+| N-095 | MINOR | (session-38 doc-truth batch B; doc-only — Resolution in history at e1e5124) | e1e5124 | `findings/MINOR/N-095-doc-truth-batch-stale-texts.md` |
+| N-108 | MINOR | (session-38 doc-truth batch B; doc-only — Resolution in history at e1e5124; the rawsigns comment + SCAN-ENGINE-DELTA halves FIXED-ALREADY by parallel lanes) | e1e5124 | `findings/MINOR/N-108-product-docs-stale-constants.md` |
+| N-119 | MINOR | (session-38 doc-truth batch B; doc-only — Resolution in history at e1e5124; D-88 re-adjudicated against the EuShare decode re-read first-hand) | e1e5124 | `findings/MINOR/N-119-d88-nas-premise-stale-eushare-decode-answers.md` |
 
 ## Go-forward convention (established by this purge, per the user instruction)
 

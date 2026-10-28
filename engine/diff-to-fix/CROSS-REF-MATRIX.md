@@ -539,7 +539,7 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | preview(thumb) · refusal matrix + cache (Q68/X47) | **MATCH** | **N-092 — FIXED (session 38)**: WMF/EMF/ICO named-and-refused (all five magic forms; `MetafileAndIconFamiliesAreNamedRefusals` RED→GREEN); the cache scope DECIDED and registered (no engine cache — host-side per the in-process doctrine; modules/preview.md + cr_thumbnail.h contract) |
 | carve · batch-1 bounds MID/GZ (A28/C19) | DIVERGENCE-MINOR | **N-093** — 64 MiB/512 MiB vs og 10 MB/400 MB, undocumented |
 | cli · `-h` usage text + stale cite (C24/Q68) | **MATCH** | **N-094 — FIXED (session 38)**: the sessions usage line landed + CORE-API-CURRENT re-pinned (3043-3063, count 11) + the verb lock grown to four sites with the `CrUi.CliHelpListsEveryDispatchedVerb` regression pin (both directions) |
-| docs · five stale texts (Q68) | DIVERGENCE-MINOR | **N-095** — 0x60002400 label; 37-toggles tail; carve.md superseded verdict; transport.md grammar; ABI-CONTRACT cites |
+| docs · five stale texts (Q68) | **MATCH** | **N-095 — FIXED (session 38, `e1e5124`)**: GetProcName relabel (both sites); 34-toggles + the 1,481-unique nuance; the carve.md D-104 note; the 2-segment disk template; the ABI cites via N-117 |
 | transport · identity IOCTL issuance (S35/P42) | DIVERGENCE-MINOR | **N-096** — og issues GET_DISK_CONTEXT_MODE per open; core never issues any |
 | health/docs · auto.txt classification (F61/Q68) | DIVERGENCE-MINOR | **N-097** — it is the FVE auto-unlock key snapshot (plaintext persistence datum) |
 | abi/docs · enum refresh contract sentence (Q68) | DIVERGENCE-MINOR | **N-098** — always-fresh behavior unverified-by-text (R-86's doc half) |
@@ -587,7 +587,7 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | driver wire · extended-IOCTL fuzz coverage (Q66/C22) | **M-089** — rdabench.c:390 probes the phantom-zero 0x6000244x codes; the live 0x6002440/44/48 handlers receive zero fuzz iterations |
 | driver wire · session-code count prose (C22/Q68) | **N-107** — 14 current-tense "15/18-command" sites vs the code's 19 (the D3 handoff, full inventory; core's DRIVER-CONTRACT.md already says 19) |
 | driver wire · identity IOCTLs + Information×512 + LBA scaling + NAS/Cloud exclusion | **MATCH** — re-verified first-hand this session (rda_ioctl.h:63-65/146, rda_readwrite.c:269, rda_session.c:1122, rda_disk.c:191 vs eprdtdrv-sys--driver-internals.md:68,81-84; binary dword probe: all 19 codes in EUDCPEPM.sys) |
-| docs · engine-constants row set (Q68) | **N-108** — docs/PARAMETERS.md:78-79 still carry 4-8 MiB / 8-signs / 16-bytes / offset-512 (code: 1 MiB+4 KiB / 12 / 48 / 1024 / mime-80); the SCAN-ENGINE-DELTA "fixed this session" claim corrected in place |
+| docs · engine-constants row set (Q68) | **MATCH** | **N-108 — FIXED (session 38, `e1e5124`)**: both rows code-true (1 MiB+4 KiB; 12/48/1024/80) with code cites; the rawsigns comment + the SCAN-ENGINE-DELTA strike-through halves FIXED-ALREADY (parallel lanes); doc_truth_gate.py now enforces the class |
 | audit-trail · A-007 evidence cites | **REPAIRED** — the dangling a006-extents-off-by-two.md cites re-pointed at the real a007-extents-off-by-two.md (dated note in the finding) |
 | audit-trail · corpus errata | **E65/E66** — the census :99 0x11c gloss (284 = FreeHand 11, MTS/M2TS list-only) + the retdec qword-truncation tooling caveat (the CHM blocker's real cause) |
 | carve · batch-2 remainder + WMF grammar | **MERGED** — this lane's duplicate S-041/S-042 filings merged into the continuation lane's owner files as convergence addenda (two lanes, two decompilers, one conclusion on WMF; the CHM/FH11 asm decode donated to S-041) |
@@ -603,7 +603,7 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | preview | **M-100** (browse-inside), **M-102** (thumbnail ABI) |
 | boot repair | **N-121** (ESP automount), **N-122** (NVRAM create/delete) |
 | CLI / transport | **N-123** (N-124 FIXED session 10 — the transport.md SUPERSEDED annotation landed in 2025554; see evidence/s10-reverification-sweep.md) |
-| orchestration / docs / structure | **N-125** (disconnect states), **N-119** (D-88 premise), **N-120** (pointer drifts), **I-030** (module-map holes) |
+| orchestration / docs / structure | **N-125** (disconnect states), **N-119 — FIXED (session 38, `e1e5124`): D-88 re-adjudicated against the EuShare decode (leg 2 struck, trigger FIRED-and-adjudicated, the exclusion stands on scope)**, **N-120** (pointer drifts), **I-030** (module-map holes) |
 **Session-9 changes (2026-10-28, SA-9 lane — audited core product code `35adcb9` / rda-driver `323e75a` / corpus `be0cfe9`; two-repo scope; RECONCILED at push time into the session-8 board — 7 convergent filings merged as addenda, 1 unique finding kept):**
 
 | Surface · parameter | Verdict | Cell |

@@ -2237,3 +2237,8 @@ and the SCAN-ENGINE-DELTA strike-through were ALREADY fixed by parallel lanes - 
 as such. N-119: D-88 re-adjudicated - the EuShare artifact (eumrx-nas-architecture.md:10-21,
 re-read first-hand) answers the semantics (on-box bitmap scan via the SSH-root agent); leg
 (2) struck, the trigger marked FIRED-and-adjudicated, the exclusion stands on scope alone.
+
+Doc-truth batch B conform: N-095/N-108/N-119 retired into history (Resolutions preserved
+at e1e5124), ledger rows appended, matrix rows flipped, SUMMARY board updated.
+Filesystem truth: 60 active (8 SEVERE · 22 MAJOR · 25 MINOR · 5 INFO) / 268 resolved /
+2 tracked-open. Session-38 tally: 10 findings closed.
