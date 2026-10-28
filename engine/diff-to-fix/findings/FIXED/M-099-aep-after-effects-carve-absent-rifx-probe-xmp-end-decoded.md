@@ -50,3 +50,10 @@ S-007 (batch-2 parent); M-092..M-098 (the batch-2 family).
 ## Open questions
 
 None material.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** `<this push>` (the S42 fix lane's M-099 landing)
+**Verified by:** Carve.AepRifxAccepted · Carve.AepXmpEndExtent · Carve.AepBeLengthByteSwap · Carve.AepCapThirtyMiB (4/4 GREEN; RED pre-fix proven by the stashed-engine rebuild — `FMT_AEP` not declared pre-fix); full suite 1181/1181 green post-fix; F8 gate + self-probe green; clang-format 18.1.8 clean.
+**Resolution notes:** The full analyser landed with the weak grammar ported AS-IS (the finding's own directive): bare RIFX with NO body check, any RIFX passes (the false-positive posture is the parity target; no "Egg!" gate added). Beyond the finding's own text: (1) the name constant **DAT_180067008 dumped from the og binary** (VA 0x180067008 → `41 00 45 00 50 00` = UTF-16LE **L"AEP"**) — landed as `CarveResult::name_prefix` = u"AEP" (the S-049 naming chain: AEP_000001.AEP); (2) the walk's window geometry decoded exactly: the FIRST 0x200 window at size+8 (the +8 offset at :11688), then the size counter advances 0x200 per miss with the NEXT window fetched AT the counter (the og's 8-byte first-window overlap, :11784-11785) — ported exactly; (3) the zero-run sub-walk decoded (:11769-11840): a window whose LAST 8 bytes are all zero triggers a forward scan for the FIRST 8 consecutive zero bytes in the window (d+7 < 0x1ff), ending the extent at size+d (the zero-tail trim — a zero-padded torn AEP ends at its zero run, not at the cap); (4) the cap semantics: a declared length ≥ 0x1e00001 sizes at 0x1e00000 EXACT, and the scan-loop cap exit sets 0x1e00000 exact (:11787-11788). RawConfig AEP=1 (shipped, og-codebase/config/RawConfig.ini:32) — enabled by default; hosts disable via the M-024 list ("aep"). The row: FMT_AEP keyed "RIFX" (bytes 52 49 46 58 — distinct from the little-endian RIFF family), ext "aep" (the og's ext-table "AEP" display form; the query layer's existing `{"aep", Category::Video}` surfaces it), floor 8 (the RIFX head the size read needs), cap 0x1e00000. No safety hardening was touched by this fix.

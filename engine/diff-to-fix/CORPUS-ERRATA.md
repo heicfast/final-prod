@@ -459,3 +459,52 @@ remote rows stand. **One distinct row the remote set does not carry:**
    (`RecoveryModule_decompiled.c:73731-73786`, `:74837-74887`, `:73610-73621`) —
    the READ side appears in MOM-modules/DeviceManager.md:55's string list only;
    filed core-side as M-113 (the corpus-side gap recorded here).
+
+## Session-42-C rows (2026-10-29 — the S42-C continuation lane; re-landed at the third reconciliation — the drafts rode two unpushed lanes and lost two races) (2026-10-29 — the S42-C continuation lane: the corpus-worklog cross-check + the diskhealth walk; same evidence bar: on-disk recount or decompile cite; re-landed at the post-window reconciliation — the drafts' Session-42 block rode the lane's unpushed commits and lost the race)
+
+1. **The Languages census count defect** — the corpus's language-family census
+   claims **8 qtbase** .qm files (and UIUX/02-string-inventory.md:16 claims the
+   qtbase coverage is "13 languages"); the on-disk tree has **11 qtbase** files.
+   The "25+4+8=37" arithmetic holds only by coincidence: the actual census is
+   **22 product + 4 Mainland OEM + 11 qtbase = 37** (with English.qm a 16-byte
+   header-only file, counted in the 22). Recounted first-hand (find + per-file
+   header check, the S42-C/W3b pass).
+2. **The retention-nag period drift** — corpus worklog :785 records the
+   nag/retry band as "~10-60 s"; the decoded CChronoSnap retry band the trail
+   registered (docs/PARITY-DELTAS.md, the P02e/P40 family) is "30-60 s".
+   Cosmetic; both records should converge on the decoded value.
+3. **The diskhealth copy of AliyunConfig.ini has its own consumer** — the
+   trail-side PARITY-OG-CORE-INVENTORY row :51 says the crash-report chain is
+   the consumer; DiskHealth.exe itself reads AND writes
+   `diskhealth/AliyunConfig.ini` (GetPrivateProfileIntW `Config\bAllowSendInfo`
+   at DiskHealth_decompiled.c:39732; WritePrivateProfileStringW at :39762) with
+   its own in-process Aliyun client (the event taxonomy at :32311/:32331/:35114/
+   :35161/:35261/:37214/:38453). Corpus-side: no correction owed; the trail-side
+   docs row gets the one-clause repair (queued on I-038's fix-plan doc-side
+   list).
+4. **The corpus worklog's own RE-surface claims are complete against the
+   trail** — the first full cross-check (S42-C/W3b: ~45 claimed surfaces, each
+   greped against diff-to-fix/): zero missing dispositions, zero material
+   contradictions (the DRWService pipe-direction, RegLib hbin-writer phrasing,
+   and EUinApp role near-misses all cleared; the two numeric drifts above are
+   the only residue). Recorded so future lanes can trust the corpus worklog as
+   a secondary index without re-running the cross-check.
+5. **The RawFixer method-count drift (the trail-side instance)** —
+   docs/PARITY-OG-CORE-INVENTORY.md:157 says "31-method inventory"; the truth
+   is **33** (modules/rawfixer.md:4,108 — `rawfixer-v2--method-inventory.md`
+   "33 methods"; the corpus itself drifted 31→33 across worklog :163→:699).
+   A docs/ row — queued for the next doc lane (outside this lane's writable
+   surface; registered on I-039).
+8. **remote_config_data is a verbatim cached HTTP payload, not a serialized
+   map** (session-42 decode): `firebaseonlineconfig.dll` `FUN_180003010`
+   reads the response via WinHttpReadData, checks the first 7 bytes are
+   `"fetched"` (`firebaseonlineconfig_decompiled.c:1703`), and `fwrite`s
+   the whole buffer to the file. The framing is the server's own
+   `key\0 [len] value\0` scheme with 1-byte lengths (`\x05false`),
+   2-byte-LE lengths (`\x83\x02` = the 643-byte `filter_generalraw`
+   array; `\x1a\x05` = the 1,306-byte `json_gift`), and `\x00`-escaped
+   u16 lengths (`\x00\x3d\x01` = the 317-byte `json_pe`) plus a binary
+   bookkeeping tail. Worth one line in
+   `artifacts/config-files/userdata-remoteconfig--signature-and-flags.md`
+   so the framing is never re-derived. (Core-side impact: none — the
+   core consumes none of it; registered I-027 #2/#5 + OQ-S4-2.)

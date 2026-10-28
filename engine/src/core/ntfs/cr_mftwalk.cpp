@@ -1086,6 +1086,9 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
             u64 rn = mft_reference_record(e.node->props()->record_ref);
             by_record[rn] = e.node;
         }
+    /* M-103: the per-dead-parent LostDir folders (lazily created, one per
+     * distinct dead parent record - ex-siblings group together) */
+    std::map<u64, tree::FileNode*> lost_dirs;
     for (const EmittedNode& e : emitted) {
         u64 own = e.node->props() ? mft_reference_record(e.node->props()->record_ref) : 0;
         if (e.parent_record == own && own != 0) {
@@ -1102,9 +1105,33 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
             tree.reparent(e.node, parent_node);
         } else {
             ++stats.orphans;
-            /* deleted/unresolved -> lost root for coherent display; active
-             * orphans (rare: parent record itself damaged) go there too */
-            tree.reparent(e.node, root_lost);
+            /* M-103: the og's per-parent-record grouping - ex-siblings stay
+             * together under one synthetic LostDir<NNNN> folder (the NNNN is
+             * the dead parent's MFT record number, unpadded; the og's
+             * "LostDir%d", NTFSSearchDLL :48915-48924 the builder, the real
+             * sessions' LostDir7206/1707/7507 the executed pin - the
+             * majority-of-session population in a post-format salvage, H:
+             * 938,982 of 1,500,395 rows). A degenerate parent reference (0
+             * or self) goes straight to the root - no real-session sample
+             * shows the og's degenerate handling; none observed. */
+            if (e.parent_record == 0 || e.parent_record == own) {
+                tree.reparent(e.node, root_lost);
+                continue;
+            }
+            tree::FileNode*& folder = lost_dirs[e.parent_record];
+            if (folder == nullptr) {
+                char nb[32];
+                const int nl = snprintf(nb, sizeof(nb), "LostDir%llu",
+                                        static_cast<unsigned long long>(e.parent_record));
+                std::u16string nm;
+                for (int k = 0; k < nl; ++k)
+                    nm.push_back(u16(u8(nb[k])));
+                folder = tree.add_folder(root_lost, nm);
+            }
+            if (folder != nullptr)
+                tree.reparent(e.node, folder);
+            else
+                tree.reparent(e.node, root_lost); /* arena exhausted: flat, not lost */
         }
     }
 

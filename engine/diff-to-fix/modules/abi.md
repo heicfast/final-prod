@@ -109,3 +109,20 @@ Append-only discipline applies to every fix (§9).
 ## Session-8 lead-lane wave (audited `ff879f9`)
 - **I-029**: DRIVER-CONTRACT's "19 EUDCPEPM codes, byte-for-byte" overstates the corpus
   grounding for 4 codes (0x800C2AC0 + the RRWR trio — zero corpus hits, grep-verified).
+
+## Session-42 addendum (2026-10-29, audited `869da779` — the fix-wave-stale extension of N-150)
+
+The S42 core-currency pass re-verified the API gate docs first-hand: 8 API-DELTA
+rows are newly-underclaiming (features landed by M-072/M-074/M-077/N-098/M-023/
+M-017/S-038/OQ-SA-1 while the rows still say absent — cr_ui.h:1026/:1028,
+cr_error.h:67-69, cr_preview.h's shipped Caps defaults, cr_ui.h:476-482 all
+verified landed) and 6 new defect sites exist: the phantom `CR_UI_ERR_FVE_LOCKED`
+macro (cr_ui.h:328/:407/:418/:421 cite a never-#defined macro — the real name is
+`ERR_FVE_LOCKED`, cr_error.h:72; the fixed cr_ui.h:916 class), the dead duplicate
+`--label` handler (rrecov.cpp:1411 vs :1398, with DIVERGENT truncation semantics),
+ABI-CONTRACT §7i's 32 MiB residue post-M-109's 200 MB re-pin, testing.md's
+1,014-vs-1,199 census, the count sites (API.md "81", CORE-API-CURRENT "78"/"34"/"10"
+vs the actual 83 exports / 42+OK codes / 12 events — CORE-API-CURRENT's own :38
+banner carries the true 83), and bench/README's deleted-workflow citations. All
+ride N-150's S42 addendum (the original fix plan, scope-extended); evidence: the
+S42 decode pack §6.

@@ -56,3 +56,43 @@ M-102 (the fixed twin — engine-real/ABI-absent, same repair shape; cr_ui.h:128
 ## Open questions
 
 None for the gap itself. Product question only: whether browse-inside's host surface (the og's results-page view) is in the merged product's UI scope — the ABI half is worth landing regardless (the engine work is otherwise dead surface).
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** <this push> (S42 lane, the M-first directive)
+
+**Verified by:** `CrUi.ArchiveEntryTwoCallPattern` ·
+`CrUi.ArchiveEntryDamagedZipSalvageAndAbstain` ·
+`CrUi.ArchiveEntryHostileBound512` (3/3 GREEN; RED pre-fix by construction —
+the exports did not exist, the tests cannot compile against the pre-fix
+header); the plain-C consumer block in `tests/ui_abi_check.c` (compiles under
+MSVC /W4 /WX on Windows CI; the count-0/error-path contract at the C surface);
+`CrUi.CliHelpListsEveryDispatchedVerb` green over the new archive-list verb
+(the three-site verb lock). Full suites: cr_ui_tests 67/67, cr_tests
+1124 PASS / 0 FAIL / 42 env-skips (linux-release).
+
+**Resolution notes:** The ABI half landed per the fix plan's option 1 — the
+M-102 house two-call pattern: `cr_ui_archive_entry_count(pv, out)` +
+`cr_ui_archive_entry_at(pv, index, out)` over `cr_ui_archive_entry`
+{name[260], size, compressed, crc_present, name_truncated} (the ArchiveEntry
+fields at cr_preview.h:134-140; the 260-byte name capacity with the honest
+`name_truncated` flag — names are archive-native UTF-8 pass-through, never
+re-encoded). The extraction runs ONCE at the first archive call on the handle
+and is cached for the handle's lifetime (a stable listing — the og's
+ArchivePreviewModel serves one model per browse view; a fresh handle
+re-extracts); non-archive nodes report count 0, never an error; out-of-range
+indices refuse with ERR_RANGE_OUT_OF_BOUNDS. The `rrecov archive-list --in
+file.crsf (--disk N | --image file) --node ID [--json]` verb landed as the
+smoke surface (the CLI goes through the core directly per the no-second-
+singleton rule documented at rrecov.cpp:787; the driver gate matches the
+other read paths). ABI-CONTRACT §5 gained the archive flow; API.md /
+CORE-API-CURRENT.md counts re-truthed (85 exports / 12 verbs); the API-DELTA
+row-16 MATCH claim now carries the ABI half's landing. **Record repairs:**
+the s10-verification-pass-b.md false residue claim corrected by a dated
+addendum; the FIXED-LEDGER M-100 row carries the closure annotation. Test
+notes: the hostile-bound proof runs over an FS-origin node (the exact file
+extent — the carve layer's extent arithmetic is its own audited surface);
+the damaged-zip proof pins BOTH honest halves (the LFH-damaged salvage still
+enumerates — the CD is self-contained; the CD-unreachable case abstains with
+count 0 and no error). No safety hardening was touched.

@@ -95,7 +95,8 @@ struct GradeContext {
  *   raw_count                 = Origin::Carved
  *   lost_partition_*          = Origin::Lost (exist = Active, delete != Active)
  *   quick_scan_exist/delete   = Origin::Structured (exist = Active, delete != Active)
- *   deep_scan_file_count      = nodes under "Lost Files" roots (the
+ *   deep_scan_file_count      = nodes under lost roots ("File Path Lost",
+ *                             the legacy "Lost Files" role included; the
  *                               remnant-salvage surface: INDX harvest, GUID
  *                               dump, size-0 rescue, freed-node sweeps)
  *   quick_scan_delete_extend  = the NTFS device-index rule's tick (exact)

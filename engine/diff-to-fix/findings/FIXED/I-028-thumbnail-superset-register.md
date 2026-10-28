@@ -81,3 +81,25 @@ benign cite drift: the RGBA8/both-axes contract now at cr_thumbnail.h:24-27 (exa
 **Fixed in commit:** this session's I-028 landing (session-42; cite-by-title: "fix(trail): I-028 - the thumbnail superset register acknowledged at session-42 HEAD")
 **Verified by:** the register's cites re-verified at current HEAD: `include/cr/preview/cr_thumbnail.h` (the both-axis max-edge + straight-alpha RGBA8 contract text; PSD/PNM/HDR via vendored stb; the UnreadableSpan truth gate); `docs/ABI-CONTRACT.md` carries the RGBA8/orientation output contract (the anticipated §7i documentation landed, as the S11B addendum recorded); the thumbnail test group count now 32 (grew 21→30→32 — the pins live and extending). No divergence from the register's claims found.
 **Resolution notes:** The five registered deliberate improvements over the og's thumbnail pipeline — (1) both-axis ≤256 scaling (vs the og's width-derived scale that lets portrait thumbnails reach 256×1280), (2) straight-alpha RGBA8 output (vs the og's white-flattened HBITMAPs), (3) PSD/PNM/HDR decode beyond the og's GDI+ set, (4) the dims-first decompression-bomb guard, (5) the UnreadableSpan truth gate with truncation disclosure — are CONFIRMED intentional and are preserved. Future parity work must NOT "fix" these toward the og's shape; hosts consume the documented ABI-CONTRACT output contract. The UNVERIFIED residuals in the Open questions (the og's GDI+-internal bomb policy, unreadable-span behavior, embedded-thumbnail return, WebP/SVG/AVIF decode) remain corpus-silent and non-blocking; the codec-bound half rides OQ-S10-1.
+---
+---
+
+## Resolution (session-42, 2026-10-29 — RETIRED to FIXED/)
+
+**Verified FIXED at core `869da779`.** The finding's own fix plan asked
+exactly one thing — "when the ABI lands, document the both-axis + RGBA8
+contract in ABI-CONTRACT" — and it landed: `docs/ABI-CONTRACT.md` §7i
+(:599-625, rode the M-102 `cr_ui_thumbnail_generate` landing) documents the
+two-call size-probe pattern, the display-oriented RGBA8 output with the
+EXIF-before-downscale transform, the max_edge-256/max_pixels-64MP/max_read-
+32MiB/max_work-1<<22 caps contract, the truncation-is-data mapping, and the
+M-083 grade-promotion side-effect. The engine contract itself
+(`include/cr/preview/cr_thumbnail.h:24-27`, both-axis never-upscale,
+straight-alpha RGBA8) is intact and pinned by 30 test groups. The
+register's UNVERIFIED-residual list is context-only (corpus-silent items,
+none blocking). Liveness sweep S42 verified first-hand: `cr_ui.h:1290`
+(`cr_ui_thumbnail_generate`), `cr_ui.cpp` thumbnail dispatch, ABI-CONTRACT
+§7i present at HEAD. No further work owed; the register remains in force
+as the deliberate-divergence record.
+
+**Board action:** moved to `findings/FIXED/`; FIXED-LEDGER row appended.

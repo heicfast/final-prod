@@ -9,6 +9,9 @@
 **Renumber note (session-11B push-time reconciliation):** filed as M-111 by this lane; renumbered **M-112** — the parallel S11 lane's M-111 (the Explorer-partition-browse capability finding) pushed first and keeps the ID per the SA-9 rule. All cross-references updated (this file's Related-findings section references M-107 by ID, unaffected).
 **Prior audit check:** the M-093 landing (ca701711) recorded the residual in its (now retired) Resolution and in the code comment; **no active finding owns it**: M-107 enumerates batch-1's eleven stand-in sites only (X3F/CRW/WPG/WPD/PSP/SIT/APE/EPS/AI/DXF/DWG/SWF — verified: zero mention of 0x44c/CSL/'csl' in M-107's file), M-106 is ONE/3DS only, S-049 is the naming contract, M-092/M-093 are retired. This filing is the M-107 class's extension to the M-093 landing's own residual — the "recorded outside an active finding, no board owner" defect that class names.
 
+**ID-collision note (added S42-C/W1, the S12-flagged collision resolved):** a SECOND finding briefly claimed the M-112 ID — the `76e2d351` fix lane's ledger row for the StbioSource large-IDAT read-loop defect (the M-109 band-test discovery). That lane pushed after the S11B CSL filing, so this finding owns M-112 per the earlier-push-wins rule; the fix lane's row was renumbered **M-122** and retroactively filed (findings/FIXED/M-122-…md) by the S42-C lane after THREE hot-window seat collisions (the draft M-118 consumed by the remote S12 lane's MountPoints2 finding; the draft M-121 consumed by the remote DBX-analyser chain M-117→M-118→M-121). Any trail reference to "M-112", "M-118", or "M-121" in a preview/thumbnail context means M-122; "M-118" in a lost-partition context is the remote S12 lane's MountPoints2 finding; "M-121" in a carve context is the DBX analyser.
+
+
 ## Summary
 
 The og's SVG/CSL size walker reads a size field at file offset 0x44c (dword + 0x480) for files long enough to span that offset, and uses it as the carve extent. Our core decoded this branch (the comment says so) but never ported it: every 'csl'-marked (Corel symbol-library) XML file is instead sized by the generic `</svg>` end-tag walk or truncated at the 1 MiB family cap. The residual is recorded only in a code comment and the retired M-093 Resolution — no active finding owns it, which is exactly the unowned-stand-in defect class M-107 established for batch-1.
@@ -56,3 +59,37 @@ M-107 (the stand-in-residue class this extends — its enumeration should gain t
 ## Open questions
 
 The og's cap-field value for this analyser (+0x118) is assumed to be the same 0x100000 the M-093 decode registered for the family bounds — the ctor site for the CSL walker's cap was not separately re-read this session. If the engineering team finds the og's cap differs, the declination boundary in test (b) adjusts accordingly; the branch logic is unaffected.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** <this push> (S42 lane, the M-first directive)
+
+**Verified by:** `Carve.CslSizeFieldExtendsPastCap` (RED pre-fix — proven by the
+stashed-validator rebuild: the field ignored, the early `</svg>` marker truncating)
+· `Carve.CslSizeFieldDeclinesOutOfCap` · `Carve.CslShortFileFallsToWalk` ·
+`Carve.SvgLegUnaffectedByCslBranch` (4/4 GREEN post-fix); full suite 1163 tests:
+1121 PASS / 0 FAIL / 42 env-skips (linux-release).
+
+**Resolution notes:** Verified first-hand against the corpus before the fix (the SOP),
+which CLOSED the finding's open question and CORRECTED its premise:
+(1) The cap question: the SVGRawFileInfo ctor (FUN_180041880) sets slot +0x23
+(+0x118, the max) = **0x100000** — the 1 MiB family cap the M-093 decode registered.
+The declination boundary in the out-of-cap test uses it. (2) **Premise correction:**
+the 0x44c branch belongs to the **CD 01 00 00 KEY leg**, not the "csl"-content strstr
+leg. The walker's latch constant DAT_180093918 was binary-dumped this session: it is
+**0x1CD** — the CD01 key's own dword. The "csl" string marker (DAT_180093968) is the
+PROBE-side content router for the `<?xm` declaration leg (id 0x13); such a file's
+first dword is "<?xm" and the walker's latch never fires for it. The PROBE stamps the
+CD01 key **0x5b (SVG)** — DAT_180093940, binary-dumped = 0x1CD, the same dword — so
+the branch's `format_override` keeps FMT_SVG, not the finding's assumed generic-XML
+routing. The landed branch: on the CD01 leg (first dword == 0x1CD), when the readable
+span covers 0x44c+4, read the LE dword, add 0x480, and within the cap assign
+`end = hit + dword + 0x480` (clamped to the readable extent, the family convention)
+with note `csl-sizefield@0x44c`, bypassing the end-tag walk; declination (short file /
+out-of-cap / zero result) falls to the existing walk/fallback exactly as the og's
+pending model retries other sizing. The stale residual comment in validate_xmlsvg's
+header ("stays unported") rewritten to record the landing. Corpus citations:
+RAWSearchDLL_decompiled.c :49749-49828 (the walker), :17291-17306 (the ctor);
+the .data constants DAT_180093918/180093940/180093968 binary-dumped from
+og-codebase/RAWSearchDLL.dll. No safety hardening was touched.

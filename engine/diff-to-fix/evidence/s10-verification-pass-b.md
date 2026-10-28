@@ -153,3 +153,16 @@ writing them.
 - **Board arithmetic at this lane's final push:** 54 active (6 SEVERE · 24 MAJOR ·
   19 MINOR · 5 INFO) · 279 resolved (the FIXED-LEDGER, +M-100 this push) ·
   4 tracked-open.
+
+---
+
+**DATED ADDENDUM (S42 lane, 2026-10-29 — the M-116 correction):** the residue
+claim above ("reachable today through `cr_ui_preview_metadata`") was FALSE and
+is hereby corrected: at the audited trees `cr_ui_metadata` carried no entries
+field and `preview_metadata_impl` discarded `Metadata.entries`. The exposure
+half was re-opened as M-116 (the S11-R annotation) and is now CLOSED: the
+two-call surface (`cr_ui_archive_entry_count` / `cr_ui_archive_entry_at`) +
+the `rrecov archive-list` verb landed with the S42 fix lane; the engine half
+this pass verified (6d0f16c) remains true. The verification lesson recorded:
+a reachability claim must be executed against the impl, never transcribed
+from a retirement note.

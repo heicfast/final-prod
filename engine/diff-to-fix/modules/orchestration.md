@@ -1,5 +1,20 @@
 # modules/orchestration.md — scan orchestrator audit verdicts
 
+## S12 addendum (2026-10-29 — the session-2 deep-dive — progress/ETA mathematics + state management)
+
+New active findings on this module: **M-125** (the og's piecewise progress remap +
+99.99% cap decoded via FUN_1401af820 — unregistered; the O38 "M-equivalent" verdict
+superseded); **M-126** (the og's rate-EMA ETA model decoded — no core surface; the O39
+premise superseded); **N-166** (live counters stage-boundary-only vs the og's ~2s
+cadence — the :210-213 claim inaccurate); **N-167** (no found-size aggregate);
+**N-178** (the pause CLI legs); **I-041/I-042/I-043** (the state-model registers:
+stopped-vs-finished, paused observability, state ownership). Key decodes this session:
+the og's 14-state scan enum (DRWUI:208243-296), the pause machinery (engine vtable
++0x88 notify + gate + GetTickCount compensation — the core's PausableToken is a
+verified RE-parity), the stop-organize -> completion-handler chain, the 7-input
+hang-trace table (no unregistered hang asymmetry).
+
+
 Reference: og stage model per `architecture/04-recovery-workflow.md` +
 `DRWUI-exe--main-ui-architecture.md` §9.2 (quick → advanced composition: all full FS
 searchers + RAW gated on settings+0x60), progress semantics (status strings, "Remaining

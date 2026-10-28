@@ -138,6 +138,14 @@ resume:      session_load -> session_resume -> scan_attach_device
 browse:      session_load -> session_snapshot -> snapshot_node/dfs
              -> preview_open_snapshot -> preview_read/metadata -> preview_close
              -> snapshot_close -> session_close
+archive:     preview_open_session/snapshot -> archive_entry_count
+             -> archive_entry_at × count -> preview_close (M-116: the
+             browse-inside inventory's two-call pattern; the extraction
+             runs once at the first archive call and is cached for the
+             handle's lifetime - one stable listing per preview, the
+             og's one-model-per-browse-view shape; non-archive nodes
+             report count 0, never an error; out-of-range indices
+             refuse with ERR_RANGE_OUT_OF_BOUNDS)
 device rows: cr_ui_enumerate_disks[_ex] (the census; the _ex form's
              CR_ENUM_FLAG_TRIM opt-in adds the per-row TRIM chip datum —
              trim_known/trim_on appended to cr_ui_disk_info, the og's

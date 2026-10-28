@@ -295,7 +295,8 @@ void grade_tree(tree::ResultTree& t, const GradeContext& ctx, AssistantStats& ou
         }
     }
 
-    /* deep-surface census: nodes under "Lost Files" roots (the remnant
+    /* deep-surface census: nodes under lost roots (the "File Path Lost"
+     * role + the legacy "Lost Files" name both carry "Lost"; the remnant
      * harvests - our analog of the og's deep-scan-only files) */
     for (tree::FileNode* r : t.roots()) {
         if (!r->is_full())

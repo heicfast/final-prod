@@ -1,5 +1,12 @@
 # modules/ext4.md — ext4 engine audit verdicts
 
+## S12 addendum (2026-10-29 — the session-2 deep-dive)
+
+New active findings on this module: **N-177** (the size-exceeds-blocks damaged flag
+FLAGS 0x200 not carried); **I-040** registers the og's i_size_high legacy-ACL
+pollution non-adoption. Verified-MATCH: block-group math, groups math, blocks_hi.
+
+
 Reference: EXT4SearchDLL (covers ext2/3/4 — DRWUI codes 4/5/9) per corpus artifacts
 `SearchDLL/ext4-engine--deep-dive.md`, `ext4-hfs-engine-algorithms-v2.md` §1–2,
 `remaining-engines--ext4-hfs-refs-btrfs-zfs.md`, `CORRECTIONS.md` rows 4/6.

@@ -367,6 +367,25 @@ jobs:
             }
           }
 
+          # 3b. A-013: the resume-without-out round-trip - the exact
+          #     command shape the save-on-cancel flow prints. Pre-fix,
+          #     this command truncated the session to 0 bytes BEFORE
+          #     reading it (total loss of the only copy); post-fix the
+          #     sink stages into <path>.tmp and commits by rename, so
+          #     the resume reads the intact source and rewrites it only
+          #     on a successful checkpoint/final save.
+          $preSize = (Get-Item $session).Length
+          if ($preSize -le 0) { Write-Host "::error::session file is empty before resume"; exit 1 }
+          $resOut = & $rrecov scan --image $fixture --resume $session 2>&1 | Out-String
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::resume-without-out exited $LASTEXITCODE (A-013: the session was destroyed or the resume broke): $resOut"; exit 1 }
+          $postSize = (Get-Item $session).Length
+          if ($postSize -le 0) { Write-Host "::error::A-013 regression: the resume command left a 0-byte session"; exit 1 }
+          $treeOut2 = & $rrecov tree --in $session 2>&1 | Out-String
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::post-resume tree --in exited $LASTEXITCODE: $treeOut2"; exit 1 }
+          if ($treeOut2 -notmatch [regex]::Escape('DOC.TXT')) {
+            Write-Host "::error::A-013 regression: the resumed session lost its tree"; exit 1
+          }
+
           # 4. recover-all over the session: junk never written, the
           #    controls (incl. the deleted file) are.
           $recOut = & $rrecov recover --in $session --image $fixture --to $dest 2>&1 | Out-String

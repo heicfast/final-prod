@@ -3353,8 +3353,8 @@ CarveResult validate_mpegps(IStorageDevice* s, u64 hit, u64 cap) {
             ++elements;
             continue;
         }
-        if (code == 0xBB) { /* system header: length follows */
-            const u32 len = rd16(s, q + 4);
+        if (code == 0xBB) {                   /* system header: length follows */
+            const u32 len = rdbe16(s, q + 4); /* N-155: BE u16 (the MPEG-PS wire form) */
             if (len < 6 || q + 6 + len > limit)
                 break;
             q += 6 + len;
@@ -3363,7 +3363,7 @@ CarveResult validate_mpegps(IStorageDevice* s, u64 hit, u64 cap) {
         }
         if ((code & 0xE0) == 0xE0 || (code & 0xC0) == 0xC0 || code == 0xBD || code == 0xBE) {
             /* stream packets + padding: PES length field */
-            const u32 len = rd16(s, q + 4);
+            const u32 len = rdbe16(s, q + 4); /* N-155: BE u16 (the MPEG-PS wire form) */
             if (q + 6 + len > limit)
                 break;
             q += 6 + len;
@@ -3693,10 +3693,9 @@ CarveResult validate_html(IStorageDevice* s, u64 hit, u64 cap) {
  * FUN_180041880). Size: the </svg> family end-tag walk (the
  * .data 0x180093950 string) - the two-case scan, 1 MiB cap, NO sector
  * round-up (FUN_180041950's tail sets the size verbatim; the HTML twin
- * FUN_180042e60 is the round-up exception). Residual (recorded, the
- * M-106 stand-in discipline): the walker's 0x44c branch (the CSL
- * size = dword@0x44c + 0x480 for files long enough to span it) is
- * decoded only partially and stays unported. */
+ * FUN_180042e60 is the round-up exception). The walker's 0x44c branch
+ * (the CD01-key leg's own size field, dword@0x44c + 0x480 within the
+ * cap) LANDED with M-112 - see the branch below. */
 CarveResult validate_xmlsvg(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
     u8 win[513];
@@ -3729,6 +3728,39 @@ CarveResult validate_xmlsvg(IStorageDevice* s, u64 hit, u64 cap) {
     }
     if (!svg && !generic_xml)
         return r;
+    /* M-112: the og's CSL size branch (FUN_180041950 :49749-49828, the
+     * Brance::SVGAnalyser walker's CD 01 00 00 leg - the DAT_180093918
+     * latch, first-hand + binary-dumped this session: the constant IS
+     * 0x1CD): when the file spans offset 0x44c with the full dword
+     * in-window, the LE dword there + 0x480 IS the extent (assigned
+     * verbatim at +0x10), gated by the family cap (the SVGRawFileInfo
+     * ctor's +0x118 = 0x100000, FUN_180041880 :17291-17306 - the
+     * finding's open question closed by the ctor read). FINDING-TEXT
+     * CORRECTION: the branch belongs to the CD 01 00 00 KEY leg, which
+     * the PROBE stamps 0x5b (DAT_180093940 = 0x1CD, the same dword) -
+     * NOT to the "csl"-content strstr leg (id 0x13, whose first dword
+     * is "<?xm" and never fires the walker's latch). The override keeps
+     * the probe's stamp. Declination (short file / out-of-cap / zero
+     * result) falls to the end-tag walk exactly as the og's pending
+     * model retries other sizing. */
+    if (n >= 4 && u32_from_bytes_le(win) == 0x000001cdu) {
+        const u64 avail = s->size() > hit ? s->size() - hit : 0;
+        if (avail >= 0x450) {
+            u8 f[4];
+            if (rd(s, hit + 0x44c, f, sizeof(f))) {
+                const u64 field_size = u64(u32_from_bytes_le(f)) + 0x480;
+                if (field_size != 0 && field_size <= cap) {
+                    const u64 limit0 = probe_limit(s, hit, cap);
+                    r.ok = true;
+                    r.end = std::min(hit + field_size, limit0);
+                    r.format_override = u32(FMT_SVG); /* the probe's stamp for the CD01 key: 0x5b */
+                    r.confidence = 700;
+                    r.note = "csl-sizefield@0x44c";
+                    return r;
+                }
+            }
+        }
+    }
     const u64 limit = probe_limit(s, hit, cap); /* cap = 1 MiB */
     const u64 marker_end = scan_tag_two_case(s, hit, limit, "</svg>");
     /* the og stamps the FORMAT ID at the probe (id 0x5b vs 0x13 depends
@@ -4440,7 +4472,11 @@ CarveResult validate_fh11(IStorageDevice* s, u64 hit, u64 cap) {
     r.ok = true;
     r.confidence = 700;
     /* CZeroEndRawFileInfo: no size grammar - bounded extent (the
-     * family's salvage posture over the zero-end semantics) */
+     * family's salvage posture over the zero-end semantics). N-146: the
+     * stand-in is REGISTERED (M-107's enumeration, the twelfth site - the
+     * zero-end class; the D-101 stateless-architecture decline covers the
+     * og's pending-object zero-end metric) and PINNED
+     * (Carve.Fh11BoundedExtentPinned holds the exact 32 MiB). */
     const u64 limit = probe_limit(s, hit, cap);
     u64 end = hit + (32ull << 20); /* FH11 documents are small-to-medium */
     if (end > limit)
@@ -5883,6 +5919,202 @@ CarveResult validate_dbx(IStorageDevice* s, u64 hit, u64 cap) {
     r.end = std::min(end, limit);
     r.confidence = 700;
     r.note = "dbx-marked-zero-walk";
+    return r;
+}
+
+/* ---- M-098: HIK (Hikvision surveillance, CHIKAnalyser id 0x92) ----
+ * The og's list-layer probe (FUN_1800272a0 :30412-30484, the RawConfig
+ * "HIK" token - shipped HIK=1/enabled) discriminates the vendor's
+ * private_stream_1 PES inside an MPEG-PS pack:
+ *   - the 00 00 01 BA pack header; the pack length = (buf[0xD]&7)+0xE;
+ *   - the SYSTEM-HEADER path: 00 00 01 BB at the pack end, the LE-u32
+ *     skip length at +4 bounded < 0x40000001 with the total < 0x400001,
+ *     then 00 00 01 BD at the skip end - the private_stream_1 PES;
+ *   - or the DIRECT path: 00 00 01 BD straight after the pack;
+ *   - the size starts at the PES's BE-u16 length at +4: pos + 6 + len
+ *     (pos = the BD position, relative to the candidate start);
+ *   - the walk (FUN_180027480 :30489-30558) continues the PS structure
+ *     from the probe's size: a 00 00 01 BA pack advances 0x1A + the
+ *     BE-u16 at +0x18 when low16(u32@+0x14)==0 && byte@+0x16==1 (else
+ *     +0 only); any other 00 00 01 start code advances 6 + the BE-u16
+ *     PES length at +4; the first non-start-code position (or an
+ *     unreadable window) ends the walk; the cap is 0x40000000 (1 GiB)
+ *     - on the cap exit the size is the cap EXACT (FileInfo+0x18 =
+ *     0x40000000), on the break exit the last advanced cursor.
+ * The analyser names its files L"HIK" (DAT_18006b428, dumped from the
+ * og binary: 48 00 49 00 4B 00 - the UTF-16LE form; the direct-BD
+ * branch's std::string length 3 confirms the 3-char read). */
+CarveResult validate_hik(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[14];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r; /* the pack header: the stuffing byte at +0xD needs 14 */
+    if (h[0] != 0 || h[1] != 0 || h[2] != 1 || h[3] != 0xBA)
+        return r; /* the registry key re-checked */
+    const u64 pack_len = (h[0xD] & 7) + 0xE;
+    u8 sc[6];
+    if (!rd(s, hit + pack_len, sc, sizeof(sc)))
+        return r; /* the start code after the pack + the length head */
+    u64 pos = 0;  /* the BD position, relative to the candidate start */
+    if (sc[0] == 0 && sc[1] == 0 && sc[2] == 1 && sc[3] == 0xBB) {
+        /* the system-header path: the LE-u32 skip length at +4 */
+        u8 lb[4];
+        if (!rd(s, hit + pack_len + 4, lb, sizeof(lb)))
+            return r;
+        const u32 len = u32_from_bytes_le(lb);
+        if (len >= 0x40000001u)
+            return r; /* the og's first length bound */
+        const u64 p = pack_len + 6 + len;
+        if (p >= 0x400001u)
+            return r; /* the og's total bound */
+        u8 bd[6];
+        if (!rd(s, hit + p, bd, sizeof(bd)))
+            return r;
+        if (bd[0] != 0 || bd[1] != 0 || bd[2] != 1 || bd[3] != 0xBD)
+            return r; /* private_stream_1 required at the skip end */
+        pos = p;
+    } else if (sc[0] == 0 && sc[1] == 0 && sc[2] == 1 && sc[3] == 0xBD) {
+        pos = pack_len; /* the direct private_stream_1 after the pack */
+    } else {
+        return r; /* neither the system-header nor the direct form */
+    }
+    const u16 pes_len = rdbe16(s, hit + pos + 4);
+    u64 cursor = pos + 6 + pes_len; /* the probe's size */
+    /* the structural walk: packs advance 0x1A (+ the BE-u16 at +0x18
+     * under the +0x14/+0x16 gate), other PES advance 6 + BE-u16@+4 */
+    const u64 limit = probe_limit(s, hit, cap);
+    while (cursor < 0x40000000ull) {
+        u8 w[0x1A];
+        if (!rd(s, hit + cursor, w, 4))
+            break; /* the unreadable window ends the walk */
+        if (w[0] != 0 || w[1] != 0 || w[2] != 1)
+            break; /* the first non-start-code position ends the walk */
+        if (w[3] == 0xBA) {
+            u64 extra = 0;
+            if (rd(s, hit + cursor, w, sizeof(w))) {
+                const u32 w14 = u32_from_bytes_le(w + 0x14);
+                if ((w14 & 0xFFFFu) == 0 && w[0x16] == 1)
+                    extra = rdbe16(s, hit + cursor + 0x18);
+            }
+            cursor += 0x1A + extra;
+        } else {
+            cursor += 6 + rdbe16(s, hit + cursor + 4);
+        }
+    }
+    if (cursor > 0x40000000ull)
+        cursor = 0x40000000ull; /* the cap exit: the size is the cap exact */
+    if (hit + cursor > limit)
+        cursor = limit - hit; /* the slice edge clamp (the engine's window) */
+    r.ok = true;
+    r.end = hit + cursor;
+    r.confidence = 650;
+    r.note = "hik-ps-private-stream-1";
+    r.name_prefix = u"HIK"; /* DAT_18006b428: L"HIK" - the analyser's own name */
+    return r;
+}
+
+/* ---- M-099: AEP (After Effects project, AEPAnalyser id 0x9c) ----
+ * The og's probe (FUN_18000efa0 :11550-11598, the RawConfig "AEP"
+ * token - shipped AEP=1/enabled) accepts BARE RIFX (0x58464952,
+ * big-endian RIFF) with NO body check - the og's own deliberate weak
+ * grammar: any RIFX passes. Ported AS-IS: strengthening it with an
+ * "Egg!" gate the og lacks would diverge. The analyser names its
+ * files L"AEP" (DAT_180067008, dumped from the og binary:
+ * 41 00 45 00 50 00). The size walk (FUN_18000f0d0 :11603-11840):
+ *   - size = the BE-u32 chunk length at +4 (the byteswapped read
+ *     :11690-11695 - the RIFX container's own length field);
+ *   - len >= 0x1e00001 -> the 0x1e00000 (30 MiB) cap EXACT;
+ *   - else the chunked scan: 0x200-byte windows from size+8 (the
+ *     first window's own +8 offset, :11688), the size counter
+ *     advancing 0x200 per miss with the next window fetched AT the
+ *     counter (the og's 8-byte first-window overlap, :11784-11785),
+ *     while size < 0x1e00000:
+ *       - the 13-byte "<?xpacket end" XMP terminator found at offset
+ *         o in the window at base b -> size = b + o + 6 (the og's
+ *         +6 - six bytes past the marker START, :11761);
+ *       - a window whose LAST 8 bytes are all zero triggers the
+ *         zero-run walk (:11769-11840): the first 8 consecutive
+ *         zero bytes at offset d in the window (d+7 < 0x1ff) ->
+ *         size = size + d (the zero-tail trim);
+ *       - the cap exit sets 0x1e00000 exact;
+ *   - an unreadable window keeps the current size (the og's window
+ *     miss exits with the counter's value, :11782). */
+CarveResult validate_aep(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[8];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    if (h[0] != 'R' || h[1] != 'I' || h[2] != 'F' || h[3] != 'X')
+        return r; /* the registry key re-checked (the WEAK probe: no body gate) */
+    const u64 limit = probe_limit(s, hit, cap);
+    u64 size = rdbe32(s, hit + 4); /* the BE-u32 chunk length (byteswapped read) */
+    if (size >= 0x1e00001ull) {
+        size = 0x1e00000ull; /* the 30 MiB cap, exact */
+    } else {
+        /* the chunked XMP-terminator scan: the first window at
+         * size+8, then the 0x200 stepping (the size counter and the
+         * window base move together after the first window) */
+        static const char kNeedle[14] = "<?xpacket end"; /* 13 chars + NUL */
+        std::vector<u8> w(0x200);
+        bool first = true;
+        while (size < 0x1e00000ull) {
+            const u64 wbase = first ? size + 8 : size;
+            first = false;
+            const u64 avail = limit > hit + wbase ? limit - hit - wbase : 0;
+            if (avail == 0)
+                break; /* the unreadable window keeps the size */
+            const u32 take = u32(std::min<u64>(0x200, avail));
+            if (!rd(s, hit + wbase, w.data(), take))
+                break; /* the og's window miss: the size keeps */
+            /* the XMP terminator within the window (the marker may
+             * straddle the window tail - the og's find is per-window,
+             * a straddling marker is missed: ported exactly) */
+            u64 found = UINT64_MAX;
+            for (u32 i = 0; i + 13 <= take; ++i) {
+                if (std::memcmp(w.data() + i, kNeedle, 13) == 0) {
+                    found = i;
+                    break;
+                }
+            }
+            if (found != UINT64_MAX) {
+                size = wbase + found + 6; /* the og's +6 past the marker start */
+                break;
+            }
+            /* the window's last 8 bytes all zero: the zero-run walk */
+            bool tail_zero = take >= 8;
+            for (u32 i = take - 8; i < take; ++i)
+                if (w[i] != 0) {
+                    tail_zero = false;
+                    break;
+                }
+            if (tail_zero) {
+                /* the first 8 consecutive zero bytes in the window */
+                for (u32 d = 0; d + 8 <= take; ++d) {
+                    bool zeros = true;
+                    for (u32 i = 0; i < 8; ++i)
+                        if (w[d + i] != 0) {
+                            zeros = false;
+                            break;
+                        }
+                    if (zeros && d + 7 < 0x1ff) {
+                        size = size + d;
+                        goto zero_trim_done;
+                    }
+                }
+                /* no qualifying run: the og's scan falls through the
+                 * window and the counter advances */
+            }
+            size += 0x200;
+        }
+        if (size > 0x1e00000ull)
+            size = 0x1e00000ull; /* the cap exit: the cap exact */
+    }
+zero_trim_done:
+    r.ok = true;
+    r.end = std::min(hit + size, limit);
+    r.confidence = 620;
+    r.note = "aep-rifx-weak+xmp-end";
+    r.name_prefix = u"AEP"; /* DAT_180067008: L"AEP" - the analyser's own name */
     return r;
 }
 

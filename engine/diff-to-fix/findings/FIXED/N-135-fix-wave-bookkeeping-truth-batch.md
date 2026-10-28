@@ -97,9 +97,45 @@ Per-item state at HEAD:
 Plus (from the same verification): N-100's fix-commit cell said "(this session)" — repaired to faa547f7 this session.
 
 
+<<<<<<< HEAD:diff-to-fix/findings/MINOR/N-135-fix-wave-bookkeeping-truth-batch.md
+---
+
+## Session-42 liveness addendum (2026-10-29, at core `869da779` — the remove-the-fixed sweep)
+
+Re-verified item-by-item, first-hand:
+
+- **Item 1 (R-28 :376)** — RESOLVED (landed via the session-39/11B truth
+  repairs; the second-table row now agrees with :222).
+- **Items 3-4 (phantom SHAs / the mis-paste)** — the ledger cells stand
+  repaired (session-11B). **Two NEW phantom tokens persist in live prose**:
+  `SUMMARY.md:790` (`dd0ffd5`) and `SUMMARY.md:821` (`95122bd`) — both
+  `git cat-file -t` failures at HEAD (the N-129 class: narrative prose the
+  cell-level sweeps never reached). **The required SHA-guard script still
+  has not landed** (no cat-file checker in scripts/ or tools/ at HEAD) —
+  the class keeps recurring exactly as the promotion predicted.
+- **Item 5 (missing rows)** — RESOLVED (M-082's row is present in the
+  ledger at HEAD; verified `FIXED-LEDGER.md:183`).
+- **Item 2 (R-31 self-contradiction)** — **STILL OPEN**: 
+  `docs/REFERENCE-API-GAP.md:379` still reads "PARTIAL | per-format carve
+  toggles, usefullostfiles whitelist, display priority missing" vs the
+  primary table's :225 "PRESENT".
+- **Item 6 (ABI-CONTRACT §7g cite)** — **STILL OPEN, drifted further**:
+  the doc now cites `cr_ui.h:916-944` at `docs/ABI-CONTRACT.md:543`; the
+  W1b block sits at :926-945 at HEAD.
+- **Item 7 (cr_thumbnail.cpp matrix)** — **STILL OPEN**: the file-top
+  matrix at `src/core/preview/cr_thumbnail.cpp:9-14` still lists
+  uncompressed/PackBits/Deflate without LZW while the decoder implements
+  compression==5 (`:796`).
+
+**Scope narrowed to the open set:** items 2, 6, 7 + the two prose phantom
+SHAs + the missing guard script. The board keeps N-135 ACTIVE on that
+narrowed scope (the doc-truth batch family; the fix lane that lands items
+2/6/7 retires it).
+=======
 ## Resolution
 
 **Status:** FIXED
 **Fixed in commit:** this session's N-135 landing (the session-39 fix lane; cite-by-title: "fix(trail): N-135 - the bookkeeping truth batch closed (the item-by-item verification + the phantom-SHA guard)")
 **Verified by:** `scripts/verify/verify_trail_shas.py` — the finding's own optional guard, built as an advisory tool: **470 commit-cited tokens checked across the 9 gate docs, ALL resolve** (or are the documented cross-repo / pre-rebase-as-recorded set — the exit-0 run is the acceptance evidence for item 3's "every SHA cited in diff-to-fix/ resolves"). Item-by-item: (1) REFERENCE-API-GAP:376 — verified already repaired by the b5da834 line's landing (the R-28 second-table row now carries the engine-PRESENT/M-102 state); (2) :379 — REPAIRED this session (the R-31 second-table row flipped to agree with the primary: PRESENT with the M-024 toggles + the N-132 data layers; the OOS-UI remainder named); (3) the phantom-SHA cluster — the ledger's five named tokens verified repaired by the S11 wave; the LIVE residues found by the guard and REPAIRED this session: SUMMARY's M-071 cite (dd0ffd5→ce2405a), M-082 (95122bd→1f714884), the batch-C cite (13245c0→32ef33b), the MATRIX's N-119 cite (e1e5124→995ba5d), the LEDGER's M-074 row (09b311d→d6c02914) and M-077 row (af5ca4d→04707ba1) — six MORE live phantoms beyond the finding's five, each re-pinned to the verified-existing post-rebase commit; (4) the M-090 row's 180053de0 mis-paste — verified repaired (the S11 wave); a NEW instance of the same class found and repaired: the I-011 row's fix-commit column carried the MAGIC CONSTANT 4a4e4c78 (the row-49 constant class) — now "—" with the annotation; (5) the missing M-082/M-080/M-085/S-043 rows — verified present (the S11 wave added M-082; the others were already there); the re-created FIXED/ dir is now the DELIBERATE convention (this session's go-forward amendment per the user's "put fixed findings in fixed directory" instruction — the ledger is the index); (6) ABI-CONTRACT §7g's cite range — REPAIRED (re-pinned to the current tree's true block, 926-944 with the decl at 943-944; the finding's 916-944 was itself 9-loose at ITS tree and the file has drifted since); (7) cr_thumbnail.cpp's file-top matrix — REPAIRED (LZW added, in step with the header's M-085-updated matrix).
 **Resolution notes:** The finding's seven items were verified at the CURRENT tree, not the audited `2beb555` (items 1/4/5 were already repaired by the b5da834 landing + the S11 wave — the classification for those items is FIXED-ALREADY with the reproduction recorded above; items 2/6/7 plus the six newly-found live phantom cites are this session's fixes). The guard script (scripts/verify/verify_trail_shas.py) is deliberately ADVISORY, not a CI gate — the decision recorded in its docstring: the curation set (cross-repo cites, decompile addresses, constants, run IDs, repair annotations that legitimately NAME their phantom) grows with every lane, so a hard gate would churn; the audit/fix lanes run it per-session as the acceptance check instead (the S12/fix-lane convention). The dated-history-snapshot block in the ledger carries one block-level NOTE naming every pre-rebase as-recorded token with their post-rebase equivalents — the snapshots stay as history per the 64a3b18 convention while every LIVE cite resolves.
+>>>>>>> origin/main:diff-to-fix/findings/FIXED/N-135-fix-wave-bookkeeping-truth-batch.md

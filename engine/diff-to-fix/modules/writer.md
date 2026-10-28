@@ -148,6 +148,23 @@ collapse to ERR_DEST_UNWRITABLE vs the og's distinct outcomes
 PathIsNetworkPathW branch); fix = three appended 0x5005-family codes + the
 CreateFileW error classification).
 
+## Session-42-B addendum (2026-10-29, audited `869da779`, corpus `be0cfe9` — the continuation lane B's report-surface filing; renumbered at the S42-B merge: N-155→N-159)
+
+**N-159** (MINOR, renumbered from this lane's N-155 filing — the parallel window's HFS+ finding keeps the ID — the failed-files report's classification axis): the og's
+"recovery log" is an HTML report (`CSaveFailedFilesWithHtml` — the 2000-byte
+content buffer, `ShellExecuteW` open-the-report action), accumulated per failed
+file during the export loop (failed-count + failed-bytes counters), whose per-file
+rows carry a tree-classification column derived from the node (group 1 → "Lost
+Files" + "Reconstructed"@kind7 / "Tags Extracted"@kind6; group 0 → "Existing
+Files"@kind4 / "Lost Files"+"Deleted"@kind0; else the custom raw-category name) —
+`DRWUI_decompiled.c:642669-642822`, first-hand. The core's
+`cr_ui_recovery_report_json` (D13's deliberate structured superset) carries no
+classification field and no failed-bytes split. The register half: R-58's
+"per-run text log" (REFERENCE-API-GAP:104) and API-DELTA row 21's "og format NOT
+IN CORPUS" are refuted — the generator + row grammar are corpus-decodable. Fix
+shape: a per-item `tree_class` field + `failed_bytes` split (append-only schema
+bump) + the three register-site truth repairs. Evidence: the S42 decode pack §2.
+
 ---
 
 ## Session-12 continuation row (2026-10-29, audited `c7fa527c`, corpus `be0cfe9`)

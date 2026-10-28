@@ -369,6 +369,42 @@ enum FormatId : u32 {
     FMT_DBX_JMF6,   /* "JMF6" - the versioned container key */
     FMT_DBX,        /* CF AD 12 FE - the classic OE store key (GUID family) */
     FMT_DBX_MARKED, /* F7 89 34 2C - the marked/folder variant key */
+    /* M-098 (diff-to-fix): the og's HIK (Hikvision surveillance) analyser
+     * (CHIKAnalyser id 0x92 - list-layer, the RawConfig "HIK" token
+     * :3823-3894, shipped HIK=1/enabled). The probe (FUN_1800272a0
+     * :30412-30484) discriminates the vendor's private_stream_1 PES
+     * inside an MPEG-PS pack: the 00 00 01 BA pack header, the pack
+     * length (buf[0xD]&7)+0xE, then EITHER the system-header path
+     * (00 00 01 BB at the pack end -> the LE-u32 skip length at +4,
+     * bounded < 0x40000001 and total < 0x400001 -> 00 00 01 BD at the
+     * skip end) OR the direct 00 00 01 BD at the pack end; the size
+     * starts at the PES's BE-u16 length; the walk (FUN_180027480
+     * :30489-30524) continues the PS structure with the 0x40000000
+     * (1 GiB) cap; the analyser names its files L"HIK" (DAT_18006b428,
+     * dumped from the binary: 48 00 49 00 4B 00). Keyed on the MPEG-PS
+     * pack magic - the trial order puts this row BEFORE FMT_MPEGPS so
+     * the generic stream never shadows the HIK discriminator. Id
+     * APPENDED (serialized carve_format values stay stable). */
+    FMT_HIK,
+    /* M-099 (diff-to-fix): the og's AEP (After Effects project) analyser
+     * (AEPAnalyser id 0x9c - list-layer, the RawConfig "AEP" token
+     * :4024-4074, shipped AEP=1/enabled). The probe (FUN_18000efa0
+     * :11550-11598) accepts BARE RIFX (0x58464952, big-endian RIFF) with
+     * NO body check - the og's own deliberate weak grammar (any RIFX
+     * passes; porting it AS-IS is the parity target, an "Egg!" gate the
+     * og lacks must NOT be added); the analyser names its files L"AEP"
+     * (DAT_180067008, dumped from the binary: 41 00 45 00 50 00). The
+     * size walk (FUN_18000f0d0 :11603-11840): size = the BE-u32 chunk
+     * length at +4 (the byteswapped read :11690-11695); >= 0x1e00001 ->
+     * the 0x1e00000 (30 MiB) cap exact; else the chunked scan - 0x200
+     * windows from size+8 (the first window's +8 offset), stepping
+     * 0x200 with the size counter, for the 13-byte "<?xpacket end" XMP
+     * terminator; found -> size = the marker's position + 6; a window
+     * whose last 8 bytes are all zero triggers the zero-run walk (the
+     * first 8 consecutive zero bytes in the window ends the extent at
+     * size + the run's offset); the cap exit sets 0x1e00000 exact. Id
+     * APPENDED (serialized carve_format values stay stable). */
+    FMT_AEP,
     FMT_COUNT
 };
 
@@ -490,6 +526,13 @@ size_t registry_size();
  * names + enabled state in one stable order (N-033's surface). */
 bool carve_token_listed(const char* disabled_list, const char* ext, const char* name);
 bool carve_format_listed(const char* disabled_list, const Signature& sig);
+
+/* N-149: the og's exempt set - OLE/RIFF/ZIP never leave the working analyser
+ * list (the removal loop's mask 0x1000801 over id-0x30, RAWSearchDLL
+ * :4412-4418). Every grammar row of the three families reports true; the
+ * disable surface refuses to switch them off (the raw-sign list layer is
+ * outside the mask's range and stays disableable). */
+bool carve_format_always_on(FormatId id);
 
 /* F8 gate: validate every entry; returns 0 = OK, else the count of rejects
  * (with a diagnostic list in `bad`). */

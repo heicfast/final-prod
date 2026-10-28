@@ -109,7 +109,9 @@ CarveResult validate_osp(IStorageDevice* s, u64 hit, u64 cap);      /* N-113 */
 CarveResult validate_pos(IStorageDevice* s, u64 hit, u64 cap);      /* N-113 */
 CarveResult validate_chfp(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_office_zip(IStorageDevice* s, u64 hit, u64 cap); /* N-115: the typed rows */
-CarveResult validate_dbx(IStorageDevice* s, u64 hit, u64 cap);        /* M-121 */
+CarveResult validate_dbx(IStorageDevice* s, u64 hit, u64 cap);        /* M-117/M-121 */
+CarveResult validate_hik(IStorageDevice* s, u64 hit, u64 cap);        /* M-098 */
+CarveResult validate_aep(IStorageDevice* s, u64 hit, u64 cap);        /* M-099 */
 
 namespace {
 const Signature kTable[] = {
@@ -1516,6 +1518,44 @@ const Signature kTable[] = {
      700,
      validate_dbx,
      "Outlook Express Dbx"},
+    /* M-098: HIK (Hikvision surveillance) - the og's CHIKAnalyser
+     * (id 0x92, list-layer, RawConfig HIK=1 shipped). Keyed on the
+     * MPEG-PS pack magic; the trial order tries this row BEFORE
+     * FMT_MPEGPS so the private-stream discriminator claims the vendor
+     * layout first and the generic stream row keeps everything else.
+     * The probe's own floor: pack (14) + the BD PES head (6); the cap
+     * is the og's walk cap 0x40000000 (1 GiB). Base confidence 700:
+     * the N-070 accumulated-score contest (base + validator) must
+     * rank the SPECIFIC private-stream discriminator (700+650=1350)
+     * over the generic MPEG-PS stream row (650+650=1300) - the
+     * finding's own precedence rule (HIK before MPEGPS) encoded in
+     * the score model, not just the trial order. */
+    {FMT_HIK,
+     "hik",
+     {0x00, 0x00, 0x01, 0xBA},
+     4,
+     0,
+     20,
+     0x40000000ull,
+     700,
+     validate_hik,
+     "Hikvision recording"},
+    /* M-099: AEP (After Effects project) - the og's AEPAnalyser
+     * (id 0x9c, list-layer, RawConfig AEP=1 shipped). BARE RIFX key,
+     * the og's own weak grammar ported AS-IS (no "Egg!" body gate -
+     * any big-endian RIFF passes; the weak probe is the parity
+     * target). The row floor: the RIFX head (8) the size field read
+     * needs; the cap is the og's walk cap 0x1e00000 (30 MiB). */
+    {FMT_AEP,
+     "aep",
+     {'R', 'I', 'F', 'X'},
+     4,
+     0,
+     8,
+     0x1e00000ull,
+     620,
+     validate_aep,
+     "After Effects project"},
 };
 } // namespace
 
@@ -1661,6 +1701,45 @@ bool carve_token_listed(const char* disabled_list, const char* ext, const char* 
 
 bool carve_format_listed(const char* disabled_list, const Signature& sig) {
     return carve_token_listed(disabled_list, sig.ext, sig.name);
+}
+
+/* N-149 (diff-to-fix): the og's per-search filter rebuild NEVER removes the
+ * OLE/RIFF/ZIP analysers - the removal loop FUN_180006b30's keep-condition
+ * carries the exempt mask 0x1000801 over id-0x30 (RAWSearchDLL :4412-4418,
+ * re-read first-hand: set bits 0/11/24 -> ids 0x30 FileOLEAnalyser /
+ * 0x3b FileRIFFAnalyser / 0x48 FileZIPAnalyser; the ids pinned at the
+ * registry builders :2337 / :2304-2310 / :2243, all three re-read this
+ * session). The core's row set splits the og's three analysers into
+ * per-form rows (AVI/WAV/WEBP under the RIFF key; the office/ODF-typed
+ * family and the CD-salvage anchor under the ZIP key) - every row of
+ * those families is always-on through the disable surface. The raw-sign
+ * LIST layer is NOT exempt: its formats sit outside the og's mask range
+ * (the og's shipped [Filter] targets exactly that layer - STL/VPJ ship
+ * disabled - and no raw-sign row exists for zip/avi/wav/webp/doc). */
+bool carve_format_always_on(FormatId id) {
+    switch (id) {
+    case FMT_OLE: /* the og's 0x30 */
+    case FMT_AVI:
+    case FMT_WAV:
+    case FMT_WEBP: /* the og's 0x3b RIFF family */
+    case FMT_ZIP:
+    case FMT_ZIP_CD:
+    case FMT_DOCX:
+    case FMT_XLSX:
+    case FMT_PPTX:
+    case FMT_ODT:
+    case FMT_ODS:
+    case FMT_ODP:
+    case FMT_EPUB:
+    case FMT_IWORK:
+    case FMT_HWP:
+    case FMT_CDR: /* the og's 0x48 ZIP family (the CD row is the
+                     analyser's preferred anchor; the typed rows are its
+                     in-analyser typing pass - the N-115 decode) */
+        return true;
+    default:
+        return false;
+    }
 }
 
 } // namespace carve

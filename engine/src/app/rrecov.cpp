@@ -17,6 +17,9 @@
  *         [--bitlocker-dict [file]] [--user-signs file] [--repair]
  *         [--repair-apply] [--repair-undo file] [--check]
  *   tree --in file.crsf [--filter substr] [--deleted-only] [--csv] [--json]
+ *   archive-list --in file.crsf (--disk N | --image file) --node ID
+ *                                         the browse-inside inventory (the og's
+ *                                         archive view; M-116's smoke surface)
  *   recover --in file.crsf (--disk N | --image file) --to DIR
  *         [--deleted-only] [--filter s] [--report file.json]
  *   health --disk N
@@ -77,6 +80,7 @@
 #include "cr/storage/cr_decrypt_device.h"
 #include "cr/crypto/cr_aes.h"
 #include "cr/cr_text.h" /* N-009c: --filter UTF-8 encoding */
+#include "cr/preview/cr_preview.h" /* M-116: the archive-list verb surfaces the inventory */
 #include <windows.h>
 #include <map>
 #include <chrono>
@@ -984,6 +988,54 @@ u64 file_size_cb(void* user) {
     return u64(end);
 }
 
+/* A-013: the CLI's atomic checkpoint sink - the N-014/CkSink shape
+ * (cr_ui.cpp:334-389) adopted at the CLI layer. Every emit stages into
+ * <path>.tmp and commits by rename, so the sink NEVER opens the final
+ * path for truncation: the resume file - which effective_out aliases
+ * whenever --out is absent, the exact command the save-on-cancel flow
+ * prints as the documented recovery path - survives untouched until
+ * the first SUCCESSFUL checkpoint replaces it wholesale. A failed or
+ * cancelled-before-first-checkpoint resume leaves the source file
+ * byte-identical (the og's fresh-file-per-save crash safety,
+ * rsf-format §5.5, at the CLI). */
+struct CliCkSink {
+    FILE* f = nullptr; /* the STAGING file (<path>.tmp) */
+    std::wstring final_path;
+    std::wstring tmp_path;
+};
+u32 cli_ck_write_cb(void* user, const void* bytes, u32 len) {
+    auto* s = static_cast<CliCkSink*>(user);
+    return s->f ? (fwrite(bytes, 1, len, s->f) == len ? OK : ERR_SESSION_IO) : u32(ERR_SESSION_IO);
+}
+u64 cli_ck_tell_cb(void* user) {
+    auto* s = static_cast<CliCkSink*>(user);
+    return s->f ? u64(_ftelli64(s->f)) : u64(0);
+}
+u32 cli_ck_seek_cb(void* user, u64 absolute) {
+    auto* s = static_cast<CliCkSink*>(user);
+    return s->f && _fseeki64(s->f, static_cast<long long>(absolute), SEEK_SET) == 0
+               ? OK
+               : ERR_SESSION_IO;
+}
+u32 cli_ck_commit_cb(void* user) {
+    auto* s = static_cast<CliCkSink*>(user);
+    if (!s || !s->f)
+        return ERR_SESSION_IO;
+    std::fflush(s->f);
+    std::fclose(s->f);
+    s->f = nullptr;
+    /* the staging handle is CLOSED: the replace-rename cannot hit a
+     * sharing violation (MoveFileExW on an open file needs
+     * FILE_SHARE_DELETE, which fopen does not request). */
+    if (!MoveFileExW(s->tmp_path.c_str(), s->final_path.c_str(), MOVEFILE_REPLACE_EXISTING))
+        return ERR_SESSION_IO;
+    /* staging for the NEXT emit (a fresh truncating open of the tmp -
+     * never the final path) */
+    if (_wfopen_s(&s->f, s->tmp_path.c_str(), L"wb") != 0 || !s->f)
+        return ERR_SESSION_IO;
+    return OK;
+}
+
 /* ---------------------------------------------------------------------------
  * sessions (W1a / R-56: the og's LastScanRecordView surface, corpus
  * UIUX/07-home-phase-deep-dive.md:21 + rsf-format--scan-session.md 5.2):
@@ -1586,20 +1638,28 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
     const std::wstring effective_out = out_path.empty() ? resume_path : out_path;
 
     /* G-13 checkpoint sink (ARCH-2/SESS-3 wiring): --out enables
-     * stage-boundary auto-checkpoints. Each emit seeks to 0 and
-     * overwrites, so the file always holds the newest complete
-     * checkpoint (a torn one is no worse than no checkpoint - the
-     * reader re-indexes forward by construction). */
-    FILE* ck_file = nullptr;
+     * stage-boundary auto-checkpoints. A-013: the sink is the atomic
+     * CliCkSink - every emit stages into <path>.tmp and commits by
+     * rename, so the final path (which IS the resume file whenever
+     * --out is absent) is never opened for truncation: the resume
+     * source survives until the first successful checkpoint replaces
+     * it wholesale, and a crash mid-emit leaves the previous good
+     * state (the og's fresh-file-per-save crash safety). */
+    CliCkSink ck_sink;
+    bool ck_sink_live = false;
     if (!effective_out.empty()) {
-        if (_wfopen_s(&ck_file, effective_out.c_str(), L"wb") != 0 || !ck_file) {
+        ck_sink.final_path = effective_out;
+        ck_sink.tmp_path = effective_out + L".tmp";
+        if (_wfopen_s(&ck_sink.f, ck_sink.tmp_path.c_str(), L"wb") != 0 || !ck_sink.f) {
             wprintf(L"cannot create session file %s\n", effective_out.c_str());
             return 1;
         }
-        cfg.checkpoint.write = file_write_cb;
-        cfg.checkpoint.tell = file_tell_cb;
-        cfg.checkpoint.seek = file_seek_cb;
-        cfg.checkpoint.user = ck_file;
+        ck_sink_live = true;
+        cfg.checkpoint.write = cli_ck_write_cb;
+        cfg.checkpoint.tell = cli_ck_tell_cb;
+        cfg.checkpoint.seek = cli_ck_seek_cb;
+        cfg.checkpoint.commit = cli_ck_commit_cb;
+        cfg.checkpoint.user = &ck_sink;
     }
 
     tree::ResultTree tree;
@@ -1613,11 +1673,17 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
     cfg.event_fn = &ttfr_event_fn;
     cfg.event_user = &ttfr_probe;
     if (!resume_path.empty()) {
+        /* A-013 note: the sink stages into <path>.tmp and commits by
+         * rename - this read always sees the intact source file. */
         FILE* fin = nullptr;
         if (_wfopen_s(&fin, resume_path.c_str(), L"rb") != 0 || !fin) {
             wprintf(L"cannot open session %s\n", resume_path.c_str());
-            if (ck_file)
-                fclose(ck_file);
+            if (ck_sink_live) {
+                if (ck_sink.f)
+                    fclose(ck_sink.f);
+                std::error_code ec;
+                std::filesystem::remove(ck_sink.tmp_path, ec);
+            }
             return 1;
         }
         session::Reader r(file_read_cb, file_seek_cb, file_size_cb, fin);
@@ -1630,8 +1696,12 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         fclose(fin);
         if (rrc != OK) {
             wprintf(L"resume failed: %hs (0x%08x)\n", err_text(rrc), rrc);
-            if (ck_file)
-                fclose(ck_file);
+            if (ck_sink_live) {
+                if (ck_sink.f)
+                    fclose(ck_sink.f);
+                std::error_code ec;
+                std::filesystem::remove(ck_sink.tmp_path, ec);
+            }
             return 1;
         }
         wprintf(L"[resume] session mask 0x%x - skipping completed stage(s)\n",
@@ -1674,8 +1744,15 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
             return static_cast<ProgressDisplay*>(user)->operator()(pm, nullptr);
         },
         &prog, stats);
-    if (ck_file)
-        fclose(ck_file); /* checkpoints done; the final save reopens fresh */
+    if (ck_sink_live) {
+        /* A-013: checkpoints done; the staging tmp is removed (the final
+         * save reopens fresh through its own tmp+rename) - the final
+         * path holds the last COMMITTED checkpoint, never a torn state */
+        if (ck_sink.f)
+            fclose(ck_sink.f);
+        std::error_code ec;
+        std::filesystem::remove(ck_sink.tmp_path, ec);
+    }
     log_line("scan end rc=0x%08x files=%llu deleted=%llu carved=%llu lost_parts=%llu "
              "bytes=%llu elapsed_ms=%llu errors=%zu",
              rc, stats.files_found, stats.deleted_found, stats.carved_found, stats.lost_partitions,
@@ -1957,6 +2034,137 @@ void print_tree_json(tree::ResultTree& t, const TreePrintFlags& f) {
 /* ---------------------------------------------------------------------------
  * tree (load a session and print)
  * ------------------------------------------------------------------------- */
+
+/* M-116: the browse-inside smoke surface - the archive inventory over
+ * one session node (the same engine extract the cr_ui two-call ABI
+ * serves; the CLI goes through the core directly per the no-second-
+ * singleton rule at :787). The og's results-page archive view backed by
+ * archive.dll is the product shape; this is the headless half. */
+int cmd_archive_list(int argc, wchar_t** argv, int& i) {
+    /* Driver precondition FIRST (the read path re-opens the data source):
+     * --disk targets are driver-only; --image targets are classified. */
+    if (!argv_has_image_target(argc, argv, i)) {
+        const int drc = require_driver();
+        if (drc != 0)
+            return drc;
+    }
+    std::wstring in_path, image_path, v;
+    u32 disk = 0;
+    u64 node_id = 0;
+    bool have_disk = false, have_image = false, have_node = false, json = false;
+    while (i < argc) {
+        if (get_opt(argc, argv, i, L"--in", &in_path))
+            continue;
+        if (get_opt(argc, argv, i, L"--disk", &v)) {
+            disk = u32(wcstoul(v.c_str(), nullptr, 10));
+            have_disk = true;
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--image", &v)) {
+            if (v.empty())
+                return 1;
+            image_path = v;
+            have_image = true;
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--node", &v)) {
+            node_id = wcstoull(v.c_str(), nullptr, 10);
+            have_node = true;
+            continue;
+        }
+        if (has_flag(argc, argv, i, L"--json")) {
+            json = true;
+            continue;
+        }
+        wprintf(L"unknown archive-list option: %s\n", argv[i]);
+        return 1;
+    }
+    if (in_path.empty() || (!have_disk && !have_image) || !have_node) {
+        wprintf(L"archive-list needs --in file.crsf (--disk N | --image file) --node ID\n");
+        return 1;
+    }
+    FILE* fin = nullptr;
+    if (_wfopen_s(&fin, in_path.c_str(), L"rb") != 0 || !fin) {
+        wprintf(L"cannot open session %s\n", in_path.c_str());
+        return 1;
+    }
+    session::Reader r(file_read_cb, file_seek_cb, file_size_cb, fin);
+    tree::ResultTree tree;
+    orchestrator::ScanStats stats;
+    OpenResult src;
+    if (have_image) {
+        if (!open_image_view(image_path, src))
+            return 1;
+    } else if (!open_disk_view(disk, src)) {
+        return 1;
+    }
+    const u32 rc = orchestrator::ScanController::load_session(r, tree, stats, src.device.get());
+    fclose(fin);
+    if (rc != OK) {
+        wprintf(L"session load failed: %hs\n", err_text(rc));
+        return 1;
+    }
+    /* the node walk (the same id the tree view prints) */
+    tree::FileNode* node = nullptr;
+    std::function<bool(tree::FileNode*)> walk = [&](tree::FileNode* n) -> bool {
+        if (n->node_id() == node_id) {
+            node = n;
+            return true;
+        }
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling())
+            if (walk(c))
+                return true;
+        return false;
+    };
+    for (auto* root : tree.roots())
+        if (walk(root))
+            break;
+    if (!node) {
+        wprintf(L"node %llu not found in the session tree\n",
+                static_cast<unsigned long long>(node_id));
+        return 1;
+    }
+    if (!node->props() || node->is_full()) {
+        wprintf(L"node %llu has no previewable content\n",
+                static_cast<unsigned long long>(node_id));
+        return 1;
+    }
+    preview::PreviewReader reader(src.device.get(), node->props());
+    const preview::Metadata m = preview::extract_metadata(reader, preview::Caps{});
+    if (json) {
+        wprintf(L"{\"kind\": \"%hs\", \"format\": \"%hs\", \"truncated\": %s, "
+                L"\"entries\": [",
+                m.kind.c_str(), m.format.c_str(), m.truncated ? L"true" : L"false");
+        for (size_t e = 0; e < m.entries.size(); ++e) {
+            const auto& en = m.entries[e];
+            std::string name8 = en.name;
+            if (name8.size() > 259)
+                name8.resize(259); /* the JSON smoke stays on one line */
+            std::string esc;
+            for (char ch : name8) {
+                if (ch == '"' || ch == '\\')
+                    esc += '\\';
+                esc += ch;
+            }
+            wprintf(L"%s{\"name\": \"%hs\", \"size\": %llu, \"compressed\": %llu, "
+                    L"\"crc_present\": %s}",
+                    e ? L", " : L"", esc.c_str(),
+                    static_cast<unsigned long long>(en.size),
+                    static_cast<unsigned long long>(en.compressed),
+                    en.crc_present ? L"true" : L"false");
+        }
+        wprintf(L"]}\n");
+        return 0;
+    }
+    wprintf(L"%llu entr%s (kind=%hs format=%hs%s)\n",
+            static_cast<unsigned long long>(m.entries.size()),
+            m.entries.size() == 1 ? L"y" : L"ies", m.kind.c_str(), m.format.c_str(),
+            m.truncated ? L", TRUNCATED" : L"");
+    for (const auto& en : m.entries)
+        wprintf(L"  %10llu %10llu  %hs\n", static_cast<unsigned long long>(en.size),
+                static_cast<unsigned long long>(en.compressed), en.name.c_str());
+    return 0;
+}
 
 int cmd_tree(int argc, wchar_t** argv, int& i) {
     std::wstring in_path;
@@ -3225,6 +3433,8 @@ int wmain(int argc, wchar_t** argv) {
             L"                                     64/128 hex chars - in-stack XTS-AES\n"
             L"                                     decrypt, engines see plaintext)\n"
             L"  rrecov tree --in file.crsf [--filter s] [--deleted-only] [--csv]\n"
+            L"  rrecov archive-list --in file.crsf (--disk N | --image file) --node ID\n"
+            L"              [--json]  (the browse-inside archive inventory)\n"
             L"  rrecov recover --in file.crsf (--disk N | --image file) --to DIR [--deleted-only] "
             L"[--filter s]\n"
             L"             [--report file.json]\n"
@@ -3271,6 +3481,8 @@ int wmain(int argc, wchar_t** argv) {
         return cmd_scan(argc, argv, i);
     if (cmd == L"tree")
         return cmd_tree(argc, argv, i);
+    if (cmd == L"archive-list")
+        return cmd_archive_list(argc, argv, i);
     if (cmd == L"recover")
         return cmd_recover(argc, argv, i);
     if (cmd == L"health")

@@ -2707,3 +2707,34 @@ TEST(Orchestrator, DynamicDiskScanStampsBasisAndSessionRoundTrips) {
     (void)vol2;
     EXPECT_EQ(u64(PART_SIZE * 512), vol2.size());
 }
+
+TEST(Orchestrator, LostRootNamedFilePathLost) {
+    /* M-103: the lost branch's default name is the og's persisted-session
+     * name ("File Path Lost" - DRWUI :319865/:321001; the real sessions'
+     * root, G/H/I), NOT the pre-M-103 "Lost Files" invention. The legacy
+     * name stays resume-recognized (the S-048 precedent - an old session
+     * never spawns a duplicate root), pinned by the source check below. */
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    ScanController ctrl(tree, cfg);
+    bool have = false, legacy = false;
+    for (tree::FileNode* r : tree.roots()) {
+        if (!r->is_full())
+            continue;
+        const std::u16string& role = static_cast<tree::FullNode*>(r)->role;
+        if (role == u"File Path Lost")
+            have = true;
+        if (role == u"Lost Files")
+            legacy = true;
+    }
+    EXPECT_TRUE(have) << "the lost root must carry the og's branch name";
+    EXPECT_FALSE(legacy) << "the legacy name must not be CREATED anymore";
+    /* the resume recognition keeps both names (no duplicate root on an
+     * old session) */
+    const std::string src = cr_test::read_repo_file("src/core/orchestrator/cr_scan.cpp");
+    ASSERT_FALSE(src.empty());
+    EXPECT_NE(std::string::npos,
+              src.find("role == u\"File Path Lost\" || role == u\"Lost Files\""))
+        << "the resume path must recognize BOTH names";
+}

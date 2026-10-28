@@ -89,7 +89,7 @@ unlock-side ever fires implicitly. See [CONNECTION-GUIDE.md](CONNECTION-GUIDE.md
 
 Version: `cr_ui_abi_version()` returns `CR_UI_ABI_VERSION` (**3**).
 Call it first and refuse to bind on mismatch. The surface is
-append-only-flat-C: 81 exported functions in the current header, all
+append-only-flat-C: 83 exported functions in the current header, all
 `cr_ui_*`, opaque handles, C callbacks, no exceptions across the boundary,
 thread-safety class documented per group ([ABI-CONTRACT.md](ABI-CONTRACT.md)).
 

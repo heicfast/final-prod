@@ -3532,3 +3532,44 @@ per-analyser fixtures; porting a config key that ships unset would add
 a dead surface the og itself never exercises in production. Evidence:
 I-031's S11-R addendum (both sites read first-hand); corpus
 RAWSearchDLL_decompiled.c :3013-3056, :9842-9893.
+
+### D-115 — carve OOM: the graceful error code + one-line diagnostic, not the og's log-then-die (N-139 resolution rider, REGISTERED DIVERGENCE — a library must not kill the host)
+
+The og's carve engine treats allocation failure as a hard, loudly-diagnosed
+terminal event: the DLL's global operator new (`RAWSearchDLL:958-983`) logs
+a five-line PUBLOG memory dump (the failed size + the full
+physical/pagefile status via GlobalMemoryStatusEx) and then
+`RaiseException(0xe0000001, EXCEPTION_NONCONTINUABLE, ...)` — process
+death with a forensic trail; DRWUI carries the identical policy
+(`:94179`), so log-then-die is the product's OOM contract, with no
+handler anywhere. The core deliberately diverges: every carve allocation
+failure converts to `ERR_NO_MEMORY` (the two OOM-realistic buffers — the
+scan window and the tail-scan buffer — carry the failed size and window
+index in a one-line `cr::log` Error diagnostic on the D-81/D-86 seam; a
+top-level guard converts any remaining `bad_alloc` so the engine's
+error-code contract holds on every path, worker threads included). A
+library embedded in a host UI must not kill the process the og's
+standalone product could; the diagnostic preserves the og's
+field-diagnosability intent at the core's logging seam. Evidence: the
+N-139 Resolution + `Carve.OomWindowBufferReturnsCode` /
+`Carve.OomTailBufferReturnsCode` / `Carve.OomNoExceptionEscapesEngine`.
+
+### D-116 — the GPT deliberate strictness: entry_size==128 refusal + the 1 MiB entries-read cap + the salvage entries_lba bounds check (N-164 registration, REGISTERED DIVERGENCE — validation strength over the og's mis-walk)
+
+The og's GPT reader accepts whatever entry_size the (possibly corrupt) header
+declares: it allocates `entry_count × 0x80` with 64-bit saturation
+(Partition_decompiled.c:4530-4541), reads `entry_size × entry_count` bytes as a
+32-bit product, and its consumers stride a HARDCODED 0x80 (:4703) — a non-128
+entry_size produces an og MIS-WALK of the entry array rather than a refusal,
+and there is no entry-count cap. The core refuses (`entry_size != 128 →
+ERR_BAD_PARAMETER`, cr_table_parse.cpp:38 and the salvage twin), caps the
+entries read at 1 MiB (~8192 entries), and bounds-checks the salvage path's
+entries_start_lba — deliberate strictness registered here per the registry's
+own rule (an unregistered delta is a bug, not a delta): a mis-sized array on a
+corrupt header is refuse-with-code territory for a library whose callers
+branch on rc, not silent mis-parse territory. Rationale: the og's hardcoded
+stride means its acceptance of non-128 arrays yields WRONG data, never
+recovery-relevant salvage. Evidence: N-164's corpus cites (re-read first-hand
+this session: the saturation alloc at :4530-4541, the 32-bit product read at
+:4541, the 0x80 stride at :4703); the core's guards at cr_table_parse.cpp
+:38/:40/:76-81/:100.

@@ -28,3 +28,14 @@ landing (JMF6 version word `03 00 10 00`, disasm-settled) + this lane's converge
 correction push (the marked pattern's byte 6 `0xEE` — the parallel lane's `0xDE`
 never matched a real file; the even-rounded non-zero prefix in
 FUN_180042b30's zero-walk; the renumber). 9/9 tests GREEN.
+
+## S42-B convergence note (2026-10-29, appended at the second merge)
+
+The S42-B continuation-audit lane INDEPENDENTLY detected the same collision at
+its push (the 0f5d57fb/9cc6a03e 2.5-minute race, caught by comparing the two
+commits' timestamps and the ledger's row 436/442) and recorded it as its
+N-160's item 7 + a collision addendum — convergent with this stub's
+triple-consumption chain (M-117 ×3 → M-118 consumed by lostpart → **M-121**,
+the final ID). The S42-B lane's M-118 renumber was reverted at its first merge
+and this second merge adopts the M-121 chain wholesale; N-160's item 7 is
+updated to point here.

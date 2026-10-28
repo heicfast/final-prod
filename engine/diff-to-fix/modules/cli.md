@@ -1,5 +1,13 @@
 # modules/cli.md — rrecov CLI audit verdicts
 
+## S12 addendum (2026-10-29 — the session-2 deep-dive)
+
+New active findings on this module: **A-013** (ACUTE — the --resume-without---out
+truncate-before-read; the save-on-cancel flow prints the destructive command);
+**M-131** (the checkpoint sink's truncate-in-place); **N-178** (no pause verb — the
+ABI pair exists, the CLI never exposes it).
+
+
 Reference: the og has NO CLI (DRW.exe GUI launcher; WinPE runs DRW.exe via auto.bat).
 The CLI is therefore a core-specific surface judged on its own contract + the safety
 posture; og-parity applies only where the CLI exposes engine behavior already audited

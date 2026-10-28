@@ -1257,6 +1257,34 @@ typedef struct cr_ui_metadata {
 
 CR_UI_API uint32_t cr_ui_preview_metadata(cr_ui_preview* pv, cr_ui_metadata* out);
 
+/* ---- archive inventory (M-116: the engine's browse-inside ABI half) -----
+ * The engine extracts a bounded archive-content inventory at preview time
+ * (the M-066 landing: the central-directory walk, the damaged-zip partial
+ * salvage, the 512-entry hostile bound) - before these exports it was
+ * unreachable from every C surface (cr_ui_metadata has no entries field
+ * and the bridge discarded Metadata.entries; the M-100 retirement's
+ * "reachable through cr_ui_preview_metadata" residue claim was false).
+ *
+ * Two-call pattern (the M-102 house shape): count probe, then per-index
+ * fill. The inventory is extracted at the FIRST archive call on the
+ * handle and cached for the handle's lifetime - a stable listing (the
+ * og's ArchivePreviewModel serves one model per browse view); a fresh
+ * preview handle re-extracts. Non-archive nodes report count 0 (never an
+ * error). `name_truncated` flags a name cut at the fixed 260-byte
+ * capacity (names are archive-native UTF-8 pass-through, never
+ * re-encoded). */
+typedef struct cr_ui_archive_entry {
+    char name[260];      /* archive-native bytes, NUL-terminated */
+    uint64_t size;       /* uncompressed size */
+    uint64_t compressed; /* compressed size */
+    uint32_t crc_present; /* CD CRC-32 != 0 (the damaged-entry marker) */
+    uint32_t name_truncated;
+} cr_ui_archive_entry;
+
+CR_UI_API uint32_t cr_ui_archive_entry_count(cr_ui_preview* pv, uint32_t* out);
+CR_UI_API uint32_t cr_ui_archive_entry_at(cr_ui_preview* pv, uint32_t index,
+                                            cr_ui_archive_entry* out);
+
 /* Truthful failure map: device spans that could not be read and were
  * zero-filled. *total_bytes = sum of span lengths. */
 CR_UI_API uint32_t cr_ui_preview_unreadable(cr_ui_preview* pv, uint64_t* total_bytes,

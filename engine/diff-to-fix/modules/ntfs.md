@@ -1,5 +1,13 @@
 # modules/ntfs.md — NTFS engine audit verdicts
 
+## S12 addendum (2026-10-29 — the session-2 deep-dive)
+
+New active findings on this module: **N-163** (runlist malformed-input tolerance:
+the og truncates-and-keeps, the core rejects the whole fragment; sparse-first is a
+core superset to register). Verified-MATCH this session: runlist nibble order,
+sign-extension points, u64 LCN accumulation, $MFT bootstrap math, attr flags.
+
+
 Reference: NTFSSearchDLL (+ NTFSLib mirror handling) per corpus artifacts
 `SearchDLL/ntfs-engine--deep-dive.md`, `ntfs-engine-internals.md`,
 `ntfs-engine-algorithms-v2--deleted-viability.md`, `zfs-vdev--mftmirr--calcpartition.md` §2,
@@ -483,7 +491,7 @@ node-removal API; documented in the finding).
 
 ## SA-10B addendum (2026-10-29 — the real-.rsf session mining)
 
-- **M-103 (MAJOR)** — the og groups orphaned MFT records into `LostDir<record>`
+- **M-103 — FIXED (session-42 main lane)** — the og groups orphaned MFT records into `LostDir<record>`
   synthetic folders under the "File Path Lost" root (NTFSSearchDLL:42041
   `LostDir%d`; the H session's real payload: 398 LostDirs holding 938,582 files
   = 62.6% of the session). The core's phase-B reparent (cr_mftwalk.cpp:1091)

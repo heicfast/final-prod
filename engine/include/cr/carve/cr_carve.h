@@ -217,6 +217,18 @@ std::u16string default_namer(const Signature& sig, u64 size, u32 index);
  * per-worker overlap sets + the tree extent index backstop the window-boundary
  * dedup. Progress stays monotonic (completed-window counter).
  */
+namespace detail {
+/* N-139 test seam: when non-null, the two OOM-realistic buffer
+ * allocations (the scan window and the raw-sign tail) call it with the
+ * requested byte count BEFORE allocating; returning true makes the site
+ * throw std::bad_alloc exactly as a real allocation failure would - the
+ * production guard path (the try/catch + the ERR_NO_MEMORY conversion +
+ * the diagnostic), triggered deterministically. Production code never
+ * sets it (nullptr = the normal path, zero overhead); the OOM tests
+ * inject, then reset. The precedent: cr_bitlocker.h's detail seams. */
+extern bool (*oom_test_hook)(size_t bytes);
+} // namespace detail
+
 u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* cancel,
                 bool (*progress)(u64, u64, void*), void* progress_user, tree::ResultTree& tree,
                 tree::FullNode* carve_root, const tree::ResultTree* dedup_tree,

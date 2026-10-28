@@ -22,6 +22,10 @@
 #include "cr/cr_parallel.h"
 #include "cr/crypto/cr_sha256.h"
 #include "cr/table/cr_table_wire.h" /* M-051: crc32 for the analyser checksum */
+#include "cr/cr_log.h" /* N-139: the OOM diagnostic seam (the og's 5-line
+                          PUBLOG memory dump is the reference shape; one
+                          line sized to this seam) */
+
 #include <atomic>
 #include <chrono>
 #include <cstring>
@@ -32,6 +36,10 @@
 
 namespace cr {
 namespace carve {
+
+namespace detail {
+bool (*oom_test_hook)(size_t bytes) = nullptr; /* N-139: the test seam */
+} // namespace detail
 
 namespace {
 constexpr u64 WINDOW = 1ull << 20; /* 1 MiB */
@@ -53,8 +61,12 @@ constexpr u32 kTrialOrder[] = {
     FMT_CAB_LC, /* N-069: lowercase CAB key follows its uppercase sibling (distinct magic) */
     /* S-007: the og's common formats - distinct magics (no overlap with
      * the entries above), so the placement after the specific set is
-     * safe; FMT_MP3 (ID3-headed) stays ahead of the raw sync family. */
-    FMT_GIF, FMT_BMP, FMT_RTF, FMT_OLE, FMT_MPEGPS, FMT_MPEGES, FMT_DWG, FMT_AAC, FMT_AAC2,
+     * safe; FMT_MP3 (ID3-headed) stays ahead of the raw sync family.
+     * M-098: FMT_HIK shares the 00 00 01 BA key with FMT_MPEGPS and
+     * rides BEFORE it - the private-stream discriminator claims the
+     * vendor layout first; a HIK reject falls through to the generic
+     * stream row. */
+    FMT_HIK, FMT_GIF, FMT_BMP, FMT_RTF, FMT_OLE, FMT_MPEGPS, FMT_MPEGES, FMT_DWG, FMT_AAC, FMT_AAC2,
     FMT_MPGA_E2, FMT_MPGA_E3, FMT_MPGA_E4, FMT_MPGA_E5, FMT_MPGA_E6, FMT_MPGA_E7, FMT_MPGA_F2,
     FMT_MPGA_F3, FMT_MPGA_F4, FMT_MPGA_F5, FMT_MPGA_F6, FMT_MPGA_F7, FMT_MPGA_FA, FMT_MPGA_FB,
     FMT_MPGA_FC, FMT_MPGA_FD, FMT_MPGA_FE, FMT_MPGA_FF,
@@ -113,6 +125,9 @@ constexpr u32 kTrialOrder[] = {
     /* M-121 (the renumber chain M-117->M-118->M-121 per SA-9): the Outlook Express Dbx keys
      * (distinct 4-byte magics, one shared validator - the og stamps id 0x15 regardless of key) */
     FMT_DBX_JMF6, FMT_DBX, FMT_DBX_MARKED,
+    /* M-099: AEP (bare RIFX - the og's own weak grammar; distinct
+     * magic from the little-endian RIFF family) */
+    FMT_AEP,
     /* S-017: ftyp-destroyed MOV salvage (og MovAnalyzer list layer) -
      * LAST: the ftyp-keyed entries must claim the position first */
     FMT_MOV_NAKED};
@@ -1004,7 +1019,29 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                     const u64 window = hi - lo;
                     const u64 scan_len =
                         window < idx.tail_scan_limit() ? window : idx.tail_scan_limit();
-                    std::vector<u8> tail_buf(size_t(kTailScanChunk) + rawsigns::kMaxSignBytes);
+                    /* N-139: the tail-scan buffer is one of the two
+                     * OOM-realistic allocations (1 MiB + max sign); the
+                     * engine's error-code contract holds - bad_alloc
+                     * converts to ERR_NO_MEMORY with the og-shaped
+                     * diagnostic (the failed size), never an exception
+                     * escaping the engine. */
+                    std::vector<u8> tail_buf;
+                    try {
+                        if (detail::oom_test_hook != nullptr &&
+                            detail::oom_test_hook(size_t(kTailScanChunk) +
+                                                  rawsigns::kMaxSignBytes))
+                            throw std::bad_alloc(); /* the N-139 seam */
+                        tail_buf.resize(size_t(kTailScanChunk) +
+                                        rawsigns::kMaxSignBytes);
+                    } catch (const std::bad_alloc&) {
+                        ctx.aborted.store(true, std::memory_order_relaxed);
+                        if (cr::log::enabled())
+                            cr::log::write(cr::log::Level::Error,
+                                           "carve oom: tail buffer %llu bytes",
+                                           (unsigned long long)(kTailScanChunk +
+                                                                rawsigns::kMaxSignBytes));
+                        return ERR_NO_MEMORY;
+                    }
                     u64 scanned = 0;
                     rawsigns::SignIndex::TailHit th;
                     while (scanned < scan_len) {
@@ -1167,7 +1204,26 @@ u32 scan_window_index(ScanCtx& ctx, u64 wi, std::set<u64>& emitted_at) {
      * The last window's avail is always <= WINDOW (window_count =
      * ceil(total/WINDOW)), so the sum of attributed ranges == total. */
     const u64 counted = want < WINDOW ? want : WINDOW;
-    std::vector<u8> win(static_cast<size_t>(want), 0);
+    /* N-139: the window buffer (up to WINDOW + OVERLAP) is the other
+     * OOM-realistic allocation; same contract - the code, the abort
+     * flag, and the one-line diagnostic with the failed size and the
+     * window index (the og's 5-line PUBLOG dump sized to the core's
+     * logging seam; the og then RaiseExceptions - the graceful code is
+     * the registered deliberate divergence, PARITY-DELTAS D-115). */
+    std::vector<u8> win;
+    try {
+        if (detail::oom_test_hook != nullptr &&
+            detail::oom_test_hook(static_cast<size_t>(want)))
+            throw std::bad_alloc(); /* the N-139 seam */
+        win.resize(static_cast<size_t>(want));
+    } catch (const std::bad_alloc&) {
+        ctx.aborted.store(true, std::memory_order_relaxed);
+        if (cr::log::enabled())
+            cr::log::write(cr::log::Level::Error,
+                           "carve oom: window %llu buffer %llu bytes",
+                           (unsigned long long)wi, (unsigned long long)want);
+        return ERR_NO_MEMORY;
+    }
     if (ctx.slice->read_at(base, win.data(), u32(want)) != OK) {
         /* Unreadable window: skipped, NOT counted as scanned - the honest
          * fill-rate contract (G-05) forbids claiming coverage of bytes
@@ -1232,6 +1288,18 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
     if (validate_registry(nullptr) != 0)
         return ERR_BAD_PARAMETER; /* F8 gate */
 
+    /* N-139: the engine's error-code contract holds on EVERY allocation
+     * path - no bad_alloc escapes carve_slice (the two OOM-realistic
+     * buffers carry their own size/window diagnostics above; this guard
+     * converts any remaining allocation failure the same way, with the
+     * diagnostic naming the stage rather than a size it cannot know).
+     * The og's policy is log-then-die (RaiseException 0xe0000001,
+     * RAWSearchDLL :958-983 + DRWUI's twin at :94179 - no handler
+     * exists product-wide); the graceful code + one-line diagnostic is
+     * the registered deliberate divergence (PARITY-DELTAS D-115) - a
+     * library must not kill the host process. */
+    try {
+
     ScanCtx ctx;
     ctx.slice = slice;
     ctx.reg = registry();
@@ -1260,7 +1328,14 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
                       "every FormatId must appear in kTrialOrder exactly once - "
                       "a missing id is silently never scanned");
         for (u32 ti = 0; ti < kTrialCount; ++ti)
+            /* N-149: the og's exempt set - OLE/RIFF/ZIP never leave the
+             * working analyser list (the removal loop's mask 0x1000801
+             * over id-0x30, RAWSearchDLL :4412-4418; the ids re-pinned at
+             * the registry builders :2337/:2304-2310/:2243). The disable
+             * surface refuses to switch those families off; every other
+             * format disables as before. */
             ctx.trial_disabled[ti] =
+                !carve_format_always_on(ctx.reg[kTrialOrder[ti]].id) &&
                 carve_format_listed(flags.disabled_formats, ctx.reg[kTrialOrder[ti]]);
         const rawsigns::SignIndex& idx = rawsigns::SignIndex::get();
         ctx.rawsign_disabled.assign(rawsigns::kFormatCount, false);
@@ -1302,6 +1377,10 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
                 return ERR_CANCELLED;
             if (pool.aborted())
                 return ERR_CANCELLED;
+            /* N-139: same contract on the worker threads - a worker's
+             * allocation failure returns the code, never an exception
+             * through the pool */
+            try {
             std::set<u64> emitted_at; /* per-worker overlap set */
             u32 rc = scan_window_index(ctx, wi, emitted_at);
             const u64 done = windows_done.fetch_add(1, std::memory_order_relaxed) + 1;
@@ -1311,6 +1390,13 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
                 return ERR_CANCELLED;
             }
             return rc;
+            } catch (const std::bad_alloc&) {
+                if (cr::log::enabled())
+                    cr::log::write(cr::log::Level::Error,
+                                   "carve oom: window %llu worker allocation failed",
+                                   (unsigned long long)wi);
+                return ERR_NO_MEMORY;
+            }
         };
 
         /* main-thread watch loop: submit all windows, watch external cancel */
@@ -1355,6 +1441,12 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
             ? stats.bitmap_skipped_clusters * u64(flags.free_map->cluster_bytes)
             : 0;
     return OK;
+
+    } catch (const std::bad_alloc&) {
+        if (cr::log::enabled())
+            cr::log::write(cr::log::Level::Error, "carve oom: engine allocation failed");
+        return ERR_NO_MEMORY;
+    }
 }
 
 } // namespace carve
