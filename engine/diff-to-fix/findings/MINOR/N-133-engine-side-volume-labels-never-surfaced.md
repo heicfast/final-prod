@@ -1,16 +1,16 @@
-# MINOR N-133 — engine-side on-disk volume labels never decoded/surfaced: the ext4 half-decode is dead code, NTFS $Volume and the FAT-family boot labels are never read — and M-079's "no image-scan label semantics" premise is wrong
+# MINOR N-133 — engine-side on-disk volume labels never decoded/surfaced: the ext4 half-decode is dead code, NTFS $Volume and the FAT-family boot labels are never read — and the LANDED M-079 fix's image-stem fallback (rrecov.cpp:331) bakes in the refuted "the og has no image-scan naming semantics" premise
 
 **Severity:** MINOR (a display/datum-layer gap with no recovery impact; the user-visible fill-site gap is M-079's MAJOR — this finding owns the engine-decode absence, the dead ext4 decode, and the premise correction)
 **Module:** ntfs / fat / exfat / ext4 (engine label decode) → session (the label datum's only consumers)
 **Parameters affected:** B11-adjacent (node fields — the volume node's label), D12-adjacent (session persistence — record-2 volumeName's engine-side source), Q68 (documentation — M-079's premise correction)
 **Corpus references:** `re-workspace/reversed/ghidra-searchdll/NTFSSearchDLL_decompiled.c:647-676` (the volume-init walk reads $Volume and extracts the label) + `FUN_18003f3a0` at :50963-50980 (the $VOLUME_NAME type-0x60 attribute extractor with the wide→narrow conversion — instruction-decisive); `re-workspace/artifacts/SearchDLL/ext4-hfs-engine-algorithms-v2.md` §2 step 5 (:45): `strncpy(label, s_volume_name, 0xF) — volume label for the UI`. Full decode chain: `evidence/decompiled-quotes/s10f-engine-volume-labels.md`.
-**Core references:** audited `44f043a5`. ext4: `src/core/ext4/cr_ext4_engine.cpp:200-201` decodes `s_volume_name` into `Volume::volume_name` (`include/cr/ext4/cr_ext4_engine.h:79`) with ZERO consumers (the census: the only two `volume_name` hits are the decode and the declaration). NTFS: no $Volume label read (`cr_mftwalk.cpp:218/:247` are the metafile filter lists). FAT/exFAT: no boot-label decode. The label's only core carriers are caller-supplied: `include/cr/orchestrator/cr_scan.h:239` (`volume_label[32]`), `fill_identity_card` `src/ui/cr_ui.cpp:1850-1866` (fills model/serial/firmware/wwn/interface — not the label).
+**Core references:** audited `deea0241` (the f43b747 M-079 fix landed mid-session; cites re-verified at this tree). The landed M-079 fix: `src/app/rrecov.cpp:331-362` (`fill_volume_label` — `--label` override > the image FILENAME STEM for image targets > GetVolumeInformationW for volume targets), with the comment at :329-332 repeating the refuted premise verbatim ("the og has no image-scan naming semantics"). ext4: `src/core/ext4/cr_ext4_engine.cpp:200-201` decodes `s_volume_name` into `Volume::volume_name` (`include/cr/ext4/cr_ext4_engine.h:79`) with ZERO consumers (the census: the only two `volume_name` hits are the decode and the declaration). NTFS: no $Volume label read (`cr_mftwalk.cpp:218/:247` are the metafile filter lists). FAT/exFAT: no boot-label decode. The label's only core carriers are caller-supplied: `include/cr/orchestrator/cr_scan.h:239` (`volume_label[32]`), `fill_identity_card` `src/ui/cr_ui.cpp:1850-1866` (fills model/serial/firmware/wwn/interface — not the label).
 **Status:** READ-ONLY FINDING — no fix applied
-**Prior audit check:** M-079 (active, MAJOR) owns the fill-site/naming gap and correctly verified no fill site exists — but its fix plan asserts "the og has no image-scan label semantics," which the NTFS/ext4 engine decodes above refute. No other trail item covers the engine-side label surface.
+**Prior audit check:** M-079 (FIXED at `f43b747` this session's window, ledger row carries the S10-F addendum note) correctly verified no fill site existed and landed one — but the landed image-target leg derives the label from the image FILENAME STEM on the strength of the fix plan's premise ("the og has no image-scan label semantics"), which the NTFS/ext4 engine decodes above refute. No other trail item covers the engine-side label surface.
 
 ## Summary
 
-The og's engines decode the scanned volume's on-disk label themselves — NTFS from $Volume's $VOLUME_NAME attribute (instruction-decisive), ext4 from s_volume_name (artifact-documented) — and surface it to the volume node/UI; this works identically for image scans. The core never decodes an engine-side label for any filesystem: the ext4 engine's existing decode (cr_ext4_engine.cpp:200-201) is dead code with no consumer, and NTFS/FAT/exFAT have no decode at all. M-079's fix plan premise ("the og has no image-scan label semantics — derive from the image filename") is wrong and is corrected by the addendum filed with this finding.
+The og's engines decode the scanned volume's on-disk label themselves — NTFS from $Volume's $VOLUME_NAME attribute (instruction-decisive), ext4 from s_volume_name (artifact-documented) — and surface it to the volume node/UI; this works identically for image scans. The core still never decodes an engine-side label for any filesystem: the ext4 engine's existing decode (cr_ext4_engine.cpp:200-201) remains dead code with no consumer, and NTFS/FAT/exFAT have no decode at all. The M-079 fix that landed mid-session (f43b747) fills the live-volume half correctly (GetVolumeInformationW) but implements the image half as the image FILENAME STEM — on the strength of the premise this finding refutes (the og's engines decode the on-disk label, which works identically for images).
 
 ## What the reference does
 
@@ -22,13 +22,13 @@ No engine decodes its volume label. The ext4 engine decodes s_volume_name into `
 
 ## Gap
 
-Falsifiable claims: (a) an ext4 image with `s_volume_name = "myvol"` — the og's UI volume display shows "myvol" (engine-decoded); no core API, JSON field, or CLI output can ever produce "myvol" from that image (the only decode is dead code). (b) The og's engine-side decode is the image-scan label source M-079's fix plan says does not exist.
+Falsifiable claims: (a) an ext4 image with `s_volume_name = "myvol"` — the og's UI volume display shows "myvol" (engine-decoded); no core API, JSON field, or CLI output can ever produce "myvol" from that image (the only decode is dead code). (b) At the landed tree, an ext4 image named `backup.img` with `s_volume_name = "myvol"` produces the auto-save name `auto_backup_...crsf` (the image stem) where the og's session would carry `myvol` (the engine-decoded label) — the landed fallback invents a label the og does not use for image scans.
 
 ## Impact
 
 - The engine-layer label datum is unreachable in the core — the ABI card and auto-save naming depend on caller-supplied values (M-079) with no engine fallback for image scans (the CLI's primary target class).
 - The dead ext4 decode is a maintenance trap (reads as if surfaced; isn't).
-- M-079's image-target fix step, executed as written, would invent a filename-derived label where the og uses the on-disk label — a divergence introduced by the fix.
+- M-079's image-target leg, AS LANDED (f43b747), invents a filename-derived label where the og uses the on-disk label — the divergence is now in the tree, not just in a plan.
 
 ## Reproduction / verification
 
@@ -38,11 +38,11 @@ Falsifiable claims: (a) an ext4 image with `s_volume_name = "myvol"` — the og'
 
 ## Fix plan (for the engineering team)
 
-1. Surface the ext4 decode: after `validate_superblock`, copy `Volume::volume_name` into the scan context; when `cfg.volume_label` is empty at scan setup, fill it from the engine decode (the engine-side fallback M-079's step 1 needs for image targets — coordinate with M-079's fix).
+1. Surface the ext4 decode: after `validate_superblock`, copy `Volume::volume_name` into the scan context; extend `fill_volume_label` (rrecov.cpp:331) with an engine-decode precedence leg for image targets — engine on-disk label (when the engine yields one) BEFORE the image-stem fallback (which becomes the registered last-resort for label-less images). Replace the false-premise comment at :329-332.
 2. Add the NTFS decode: in the $Volume handling (alongside the metafile filter at cr_mftwalk.cpp:218), read the $VOLUME_NAME (type 0x60) $DATA and convert UTF-16→UTF-8 (the og converts wide→narrow; the core's u16 carrier is the faithful equivalent — N-016b's naming precedent applies).
 3. Add the FAT-family decode: the 11-byte boot label (FAT12/16/32 +0x2B, exFAT +0x80), same fallback wiring. HFS+: the volume-name key (-2) catalog record, same wiring.
 4. Tests: `VolumeLabel.Ext4FromSuperblock`, `VolumeLabel.NtfsFromVolumeRecord`, `VolumeLabel.FatFromBootSector`, `VolumeLabel.CallerValueWins` (the override direction), each fail-before.
-5. M-079 coordination: the image-target step of M-079's fix plan should read "derive from the engine-side on-disk label (N-133), fallback to the image filename when the engine yields none" — the addendum already records this.
+5. M-079 coordination: the ledger row carries the S10-F addendum note (the image-stem leg is the registered divergence until this finding's fix lands); the corrected precedence is engine-label > image-stem.
 
 ## Tests to add
 
@@ -53,7 +53,7 @@ Falsifiable claims: (a) an ext4 image with `s_volume_name = "myvol"` — the og'
 
 ## Related findings
 
-- M-079 (active — the fill-site/naming gap this finding's engine decode completes for image targets; addendum filed).
+- M-079 (FIXED f43b747 — its image-stem leg is the divergence this finding owns; the ledger row carries the S10-F addendum note).
 - N-016b precedent (the U+FFFD name-substitution rule for the label's UTF-16→UTF-8 path).
 
 ## Open questions

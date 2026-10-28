@@ -94,12 +94,16 @@ $ grep -rn "volume_name" src/core/ include/cr/ | grep -v s_volume
   firmware / wwn / interface — **not the label** (M-079's gap, current-line
   verified).
 
-## 3. The M-079 premise correction
+## 3. The M-079 premise correction — NOW IN THE LANDED CODE
 
-M-079's fix plan step 1 says: "Image targets: derive from the image
+M-079's fix plan step 1 said: "Image targets: derive from the image
 filename (**the og has no image-scan label semantics** — document the
 choice)." That parenthetical is factually wrong: the og's engines decode
 the label from the volume itself (§1 above), which works identically for
 image scans — the engine-side decode IS the og's image-scan label
-semantics. The addendum in M-079 corrects this and points the fill-site
-fix at the engine decode as the image-scan source.
+semantics. **The fix landed mid-session (f43b747) implements exactly the
+wrong half**: `fill_volume_label` (rrecov.cpp:331-362) derives image-target
+labels from the image FILENAME STEM, and its comment at :329-332 repeats
+the refuted premise verbatim ("the og has no image-scan naming semantics").
+The M-079 ledger row carries the S10-F addendum note; N-133 owns the
+corrected precedence (engine on-disk label > image-stem fallback).
