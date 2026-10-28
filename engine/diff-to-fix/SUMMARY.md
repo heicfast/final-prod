@@ -111,9 +111,12 @@ in-file); N-135 closed by the remote's full fix (0eb5f82f + the SHA guard
 was true at the pin, superseded at the merge); this lane's usersigns finding
 renumbered **N-161** (the remote's N-154 pushed first) and re-verified LIVE
 at the merged tree (`cr_usersigns.h:46` still false — the parallel N-148
-seven-item batch did not include this site). **Board at the S42-D merge close
-(filesystem truth): 37 active (2 SEVERE · 19 MAJOR · 16 MINOR · 0 INFO) /
-358 resolved ledger rows / 3 tracked-open (OQ-S4-3, OQ-S10-1, OQ-S10-3).**
+seven-item batch did not include this site). **Board at the S42-D close, post the S12 findings-wave absorption (filesystem
+truth at `c466d732`): 75 active (2 ACUTE · 5 SEVERE · 28 MAJOR · 34 MINOR ·
+6 INFO — the S12 wave's 39 filings dominate; this lane's one surviving active
+filing among them is N-179, the usersigns comment-truth defect, renumbered
+twice as both its earlier seats were consumed) / 360 resolved ledger rows /
+3 tracked-open (OQ-S4-3, OQ-S10-1, OQ-S10-3).**
 
 
 

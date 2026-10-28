@@ -109,9 +109,9 @@ retired them independently — the ledger rows merged); N-135 closed via the
 remote's full fix (0eb5f82f + the SHA guard `scripts/verify/
 verify_trail_shas.py`); this lane's usersigns finding renumbered **N-161**
 (the S42-main lane's N-154 pushed first) and stays LIVE at the merged tree.
-**Board at the S42-D merge close (filesystem truth):
-37 active (2 SEVERE · 19 MAJOR · 16 MINOR · 0 INFO) / 358 resolved ledger
-rows / 3 tracked-open.**
+**Board at the S42-D close, post the S12 wave (filesystem truth at
+`c466d732`): 75 active (2 ACUTE · 5 SEVERE · 28 MAJOR · 34 MINOR · 6 INFO) /
+360 resolved ledger rows / 3 tracked-open.**
 
 **Session-41 S41 lane (2026-10-29 — the continuation audit lane, the user's second-session
 directive: remove-the-fixed + go-deeper + mark-all-remaining; RECONCILED at push over TWO
