@@ -9,7 +9,7 @@ grant (core + corpus only) — the driver-repo findings get dispositioned/pushed
 not driver-repo edits. Session-38 lane: MINOR tier first per its user directive; the
 M-071/S-042 lanes: regression + SEVERE tier first.
 
-**Fixed in this window (3, by lane):**
+**Fixed in this window (4, by lane):**
 - **N-094** (MINOR → FIXED, session-38 lane `26da616`) — the `-h` usage text omitted
   the `sessions` verb; usage line + CORE-API-CURRENT count repair + the verb lock
   grown to four sites with a both-directions regression pin (suite 1024/1024).
@@ -26,9 +26,17 @@ M-071/S-042 lanes: regression + SEVERE tier first.
   `SafeWriter::enqueue` stays un-gated by that same decision (the finding's open
   question settled). Proven fail-before/fail-after at the ABI surface (2 RED without
   the gate, 3 green with). Suite 1026/1026.
+- **N-092** (MINOR → FIXED, session-38 lane `5ee3858`) — the thumbnail refusal
+  matrix's unnamed WMF/EMF/ICO trio: all five magic forms (placeable key, standard
+  header, EMF signature@+40 — sniff buffer 16→48, ICO, CUR) now `Unsupported` with
+  the family NAME; the cache scope DECIDED and registered (no engine-side cache —
+  the og caches UI-side in ThumbnailFactory; the core's in-process doctrine keeps
+  the engine stateless; LRU-if-ABI-lands candidate noted for M-102). RED proven on
+  all five forms, GREEN after (`MetafileAndIconFamiliesAreNamedRefusals`); suite
+  1029/1029.
 
-**Board after this window:** 72 active (6 SEVERE · 27 MAJOR · 34 MINOR · 5 INFO) /
-**253 FIXED** / 2 tracked-open (OQ-S4-3, OQ-S8-1).
+**Board after this window:** 71 active (6 SEVERE · 27 MAJOR · 33 MINOR · 5 INFO) /
+**254 FIXED** / 2 tracked-open (OQ-S4-3, OQ-S8-1).
 
 ## Fix session (2026-10-29 — the parity close: every tier executed against corpus `be0cfe9`, core `84a1832`-lineage)
 

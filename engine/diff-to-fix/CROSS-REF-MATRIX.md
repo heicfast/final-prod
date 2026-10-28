@@ -515,7 +515,7 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | writer/query/CLI · M-018 junk gates (D16/B2) | **MATCH (gate restored + extended)** | **M-071 FIXED** — the rrecov pair restored byte-exact from `69507cb` + the cr_ui session/snapshot bulk walks gated (the W-lane surfaces that postdate M-018); explicit-selection stays open (the og's default-not-block semantic, pinned by test) |
 | session · list scope + row shape (D12/B10/P42) | DIVERGENCE-MINOR | **N-090** — no `auto_` filter; 1 s save time; label[32]; no device-type |
 | docs · PARITY-DELTAS registration gaps (Q68) | DIVERGENCE-MINOR | **N-091** — load-progress model, thumbnail superset, auto-save posture unregistered |
-| preview(thumb) · refusal matrix + cache (Q68/X47) | DIVERGENCE-MINOR | **N-092** — WMF/EMF/ICO unnamed; no cache scope |
+| preview(thumb) · refusal matrix + cache (Q68/X47) | **MATCH** | **N-092 — FIXED (session 38)**: WMF/EMF/ICO named-and-refused (all five magic forms; `MetafileAndIconFamiliesAreNamedRefusals` RED→GREEN); the cache scope DECIDED and registered (no engine cache — host-side per the in-process doctrine; modules/preview.md + cr_thumbnail.h contract) |
 | carve · batch-1 bounds MID/GZ (A28/C19) | DIVERGENCE-MINOR | **N-093** — 64 MiB/512 MiB vs og 10 MB/400 MB, undocumented |
 | cli · `-h` usage text + stale cite (C24/Q68) | **MATCH** | **N-094 — FIXED (session 38)**: the sessions usage line landed + CORE-API-CURRENT re-pinned (3043-3063, count 11) + the verb lock grown to four sites with the `CrUi.CliHelpListsEveryDispatchedVerb` regression pin (both directions) |
 | docs · five stale texts (Q68) | DIVERGENCE-MINOR | **N-095** — 0x60002400 label; 37-toggles tail; carve.md superseded verdict; transport.md grammar; ABI-CONTRACT cites |

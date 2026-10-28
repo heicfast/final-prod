@@ -26,8 +26,10 @@
  *     width-derived GDI+ scale quirk is deliberately corrected), never
  *     upscaled, premultiplied box-filter averaging;
  *   - honesty: unsupported formats are named (webp/heic are documented
- *     phase-2), truncation is flagged, decode failures carry a status
- *     name for logging - never a synthesized image.
+ *     phase-2; the GDI+ metafile/icon family wmf/emf/ico is likewise
+ *     named-and-refused - the og's GDI+ path rasterizes them natively,
+ *     the core's matrix defers them), truncation is flagged, decode
+ *     failures carry a status name for logging - never a synthesized image.
  *
  * v1 format matrix: JPEG (baseline+progressive), PNG, BMP/DIB, GIF (first
  * frame), TIFF baseline (uncompressed / PackBits / Deflate strips, 8/16-bit,
@@ -35,7 +37,13 @@
  * via the vendored public-domain decoder (third_party/stb). Deferred with
  * named dependencies: WebP (libwebp), HEIC (libheif+libde265, embedded
  * first), RAW (LibRaw thumbnail API), video key-frames (ffmpeg), PDF page
- * pixmaps (pdfium), JPEG-in-TIFF / tiled TIFF.
+ * pixmaps (pdfium), JPEG-in-TIFF / tiled TIFF, WMF/EMF metafiles + ICO/CUR
+ * icons (GDI+ on Windows - the og's own native path; refused by name).
+ *
+ * Cache scope (deliberate, registered): no engine-side thumbnail cache -
+ * repeated renders are the host's layer (the og caches UI-side in
+ * ThumbnailFactory; the core's in-process doctrine keeps the engine
+ * stateless across calls). Recorded in modules/preview.md.
  *
  * Licensed under the MIT license. See LICENSE.
  */

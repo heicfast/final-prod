@@ -126,6 +126,58 @@ TEST(Thumbnail, FormatSupportIsTheDocumentedV1Matrix) {
     EXPECT_FALSE(thumbnail_format_supported("raw"));
     EXPECT_FALSE(thumbnail_format_supported("pdf"));
     EXPECT_FALSE(thumbnail_format_supported("mp4"));
+    /* the metafile/icon family: named-and-refused (GDI+ natives the og
+     * rasterizes; the core's matrix defers them) */
+    EXPECT_FALSE(thumbnail_format_supported("wmf"));
+    EXPECT_FALSE(thumbnail_format_supported("emf"));
+    EXPECT_FALSE(thumbnail_format_supported("ico"));
+}
+
+TEST(Thumbnail, MetafileAndIconFamiliesAreNamedRefusals) {
+    /* every form of the GDI+ metafile/icon family must be REFUSED WITH ITS
+     * NAME, never "unknown" - the refusal matrix's own honesty contract:
+     * placeable WMF (0xD7CDC69A key), standard WMF (type/header-size
+     * header), EMF (the " EMF" signature dword at +40), ICO and CUR. */
+    struct Case {
+        const char* name;
+        std::vector<u8> bytes;
+    };
+    std::vector<u8> placeable(64, 0x41);
+    placeable[0] = 0x9A;
+    placeable[1] = 0xC6;
+    placeable[2] = 0xCD;
+    placeable[3] = 0xD7;
+    std::vector<u8> wmf_std(64, 0x41);
+    wmf_std[0] = 0x02;
+    wmf_std[1] = 0x00;
+    wmf_std[2] = 0x09;
+    wmf_std[3] = 0x00;
+    std::vector<u8> emf(64, 0x41);
+    emf[0] = 0x01; /* EMR_HEADER */
+    emf[1] = emf[2] = emf[3] = 0x00;
+    emf[40] = ' ';
+    emf[41] = 'E';
+    emf[42] = 'M';
+    emf[43] = 'F';
+    std::vector<u8> ico(64, 0x41);
+    ico[0] = ico[1] = 0x00;
+    ico[2] = 0x01;
+    ico[3] = 0x00;
+    std::vector<u8> cur(64, 0x41);
+    cur[0] = cur[1] = 0x00;
+    cur[2] = 0x02;
+    cur[3] = 0x00;
+    const Case cases[] = {
+        {"wmf", placeable}, {"wmf", wmf_std}, {"emf", emf}, {"ico", ico}, {"ico", cur},
+    };
+    for (const Case& c : cases) {
+        Node n(c.bytes, true);
+        PreviewReader r = n.reader();
+        Thumbnail t;
+        ASSERT_EQ(ThumbStatus::Unsupported, make_thumbnail(r, ThumbnailCaps{}, t)) << c.name;
+        EXPECT_EQ(c.name, t.source_format)
+            << "the metafile/icon family must be refused BY NAME, not 'unknown'";
+    }
 }
 
 TEST(Thumbnail, CapsDefaultsPinTheCorpusAnchors) {

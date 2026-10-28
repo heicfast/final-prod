@@ -49,3 +49,12 @@ Corpus-derived (the GDI+ import census; UIUX/30:62); core first-hand (the sniff(
 ## Open questions
 
 None.
+
+---
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-092 commit — the session-38 minor-first lane)
+**Verified by:** `Thumbnail.MetafileAndIconFamiliesAreNamedRefusals` (new) + `Thumbnail.FormatSupportIsTheDocumentedV1Matrix` extended — the new test EXECUTED RED on the pre-fix sniff (all five forms failed with "the metafile/icon family must be refused BY NAME, not 'unknown'"), GREEN after; full suite re-run green; clang-format 18.1.8 clean.
+**Resolution notes:** Re-verified at current main (`84a1832`-lineage + the S-042 landing): sniff() at cr_thumbnail.cpp:201-228 carried no metafile/icon detection (fall-through to "unknown"), and the header's deferred-families list (cr_thumbnail.h:34-41) did not name WMF/EMF/ICO — both halves of the finding's (a) confirmed; the corpus side re-verified first-hand (DRWUI_imports.txt:3356-region GDI+ import block incl. GdipGetImageThumbnail read directly; GDI+ rasterizes metafiles/icons natively — the og's own thumbnail path). The fix, per the finding's fix-plan step 1 (the cheap half now): the family is named-and-refused — placeable WMF (0xD7CDC69A key), standard WMF (u16 type 1/2 + u16 header-size 9), EMF (the " EMF" signature dword at +40 — the make_thumbnail sniff buffer grew 16→48 bytes for it), ICO/CUR (reserved-0 + type word); all five forms return `Unsupported` with `source_format` set to the family name, joining webp/heic in the documented phase-2 refusal group; the header contract + v1-matrix comment extended. Step 2 (the cache decision) is DECIDED AND REGISTERED, not silently dropped: no engine-side cache — the og caches UI-side (ThumbnailFactory::ClearCache, UIUX/30:62), the core's in-process doctrine keeps make_thumbnail stateless; the decision is recorded in modules/preview.md's new cache-scope block + cr_thumbnail.h's contract comment, with the session-scoped-LRU-if-ABI-lands candidate noted for the M-102 handoff. The rasterization itself stays deferred with the other named families (GDI+ dependency — a Windows-only path the core's cross-platform engine deliberately does not take without a decision). `thumbnail_format_supported("wmf"/"emf"/"ico")` returns false by construction (the supported-set is unchanged) and is now pinned false explicitly.

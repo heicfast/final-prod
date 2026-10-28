@@ -1903,3 +1903,19 @@ level (the trail's coverage is artifact-doc-shaped; the user wants the
 tree itself walked) → T7-T9 comparison waves (config/data assets; the
 PartitionRecovery 57-file MOM tree; the diskhealth 818-file tree) → T10
 new findings + matrix rows → T11 gate-doc truth pass + final push.
+---
+---
+---
+N-092 FIXED (the thumbnail refusal matrix's unnamed trio + the cache scope): re-verified
+at current main first (sniff cr_thumbnail.cpp:201-228 no metafile/icon detection; header
+deferred list unnamed) + corpus first-hand (DRWUI_imports.txt GDI+ block ~:3356 incl.
+GdipGetImageThumbnail — GDI+ rasterizes WMF/EMF/ICO natively, the og's own path). Fix per
+the finding's plan: all five magic forms (placeable WMF 0xD7CDC69A, standard WMF
+type/headersize, EMF " EMF"@+40 — sniff buffer 16->48, ICO, CUR) named-and-refused
+(Unsupported with source_format set); header contract + v1-matrix comment extended; the
+cache scope DECIDED and registered (no engine-side cache — og caches UI-side in
+ThumbnailFactory; core's in-process doctrine keeps make_thumbnail stateless; LRU-if-ABI
+candidate noted for M-102) in modules/preview.md + cr_thumbnail.h. RED proven
+(MetafileAndIconFamiliesAreNamedRefusals failed all five forms on the pre-fix sniff via
+the stash-revert build), GREEN after; FormatSupportIsTheDocumentedV1Matrix extended.
+Board now 74 active (6 SEVERE · 28 MAJOR · 33 MINOR · 5 INFO) / 253 FIXED / 2 tracked-open.

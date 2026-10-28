@@ -191,7 +191,7 @@ private:
  * documented phase-2 refusals) */
 /* ---------------------------------------------------------------- */
 
-enum class Fmt { Jpeg, Png, Bmp, Gif, Tiff, Psd, Pnm, Hdr, Webp, Heic, Unknown };
+enum class Fmt { Jpeg, Png, Bmp, Gif, Tiff, Psd, Pnm, Hdr, Webp, Heic, Wmf, Emf, Ico, Unknown };
 
 struct Sniff {
     Fmt fmt;
@@ -224,6 +224,20 @@ Sniff sniff(const u8* p, size_t n) {
          std::memcmp(p + 8, "hevc", 4) == 0 || std::memcmp(p + 8, "hevx", 4) == 0 ||
          std::memcmp(p + 8, "mif1", 4) == 0))
         return {Fmt::Heic, "heic"};
+    /* the metafile/icon family: GDI+ rasterizes all three natively (the og's
+     * own thumbnail path); the core's phase-1 matrix does not - they are
+     * NAMED refusals, never "unknown" (N-092). Placeable WMF: the 0xD7CDC69A
+     * key; standard WMF: u16 type 1/2 + u16 header size 9. */
+    if (n >= 4 && p[0] == 0x9A && p[1] == 0xC6 && p[2] == 0xCD && p[3] == 0xD7)
+        return {Fmt::Wmf, "wmf"};
+    if (n >= 4 && (p[0] == 0x01 || p[0] == 0x02) && p[1] == 0x00 && p[2] == 0x09 && p[3] == 0x00)
+        return {Fmt::Wmf, "wmf"};
+    /* EMF: the EMR_HEADER signature dword " EMF" sits at +40 */
+    if (n >= 44 && std::memcmp(p + 40, " EMF", 4) == 0)
+        return {Fmt::Emf, "emf"};
+    /* ICO/CUR: reserved u16 0 + type u16 1 (icon) / 2 (cursor) */
+    if (n >= 4 && p[0] == 0x00 && p[1] == 0x00 && (p[2] == 0x01 || p[2] == 0x02) && p[3] == 0x00)
+        return {Fmt::Ico, "ico"};
     return {Fmt::Unknown, "unknown"};
 }
 
@@ -1032,13 +1046,17 @@ ThumbStatus make_thumbnail(PreviewReader& pr, const ThumbnailCaps& caps, Thumbna
     const auto fails_before = pr.unreadable_spans().ranges();
     Budget b{caps.max_read, caps.max_work};
 
-    u8 hdr[16];
-    const u32 n = bfetch(pr, b, 0, hdr, pr.size() < 16 ? u32(pr.size()) : 16);
+    u8 hdr[48]; /* 48: the EMF signature lives at +40 (16 was enough for every
+                 * other family; the metafile half of N-092 needs the tail) */
+    const u32 n = bfetch(pr, b, 0, hdr, pr.size() < 48 ? u32(pr.size()) : 48);
     const Sniff sn = sniff(hdr, n);
 
     switch (sn.fmt) {
     case Fmt::Webp:
     case Fmt::Heic:
+    case Fmt::Wmf:
+    case Fmt::Emf:
+    case Fmt::Ico:
     case Fmt::Unknown:
         out.source_format = sn.name; /* named, documented phase-2 refusals */
         return ThumbStatus::Unsupported;

@@ -141,13 +141,25 @@ documented superset: `cr_thumbnail` (`include/cr/preview/cr_thumbnail.h` +
 **Deferred phases (named deps, honest `thumbnail_format_supported` = false):**
 WebP (libwebp), HEIC (libheif+libde265, embedded-first), RAW (LibRaw thumbnail
 API), video key-frames (ffmpeg — the biggest dependency decision), PDF page
-pixmaps (pdfium), JPEG-in-TIFF / tiled TIFF. Out of scope: SVG rasterization
-(og ships qsvg for UI assets), post-repair enhancement (EUImageEnhance domain),
-thumbcache recovery (separate feature row — carve signatures 01 00 09 00 /
-F7 89 34 2C already known).
+pixmaps (pdfium), JPEG-in-TIFF / tiled TIFF, **WMF/EMF metafiles + ICO/CUR icons
+(GDI+ on Windows — the og's own native rasterization path; named-and-refused
+since the N-092 fix: placeable-WMF key 0xD7CDC69A, standard-WMF type/header-size
+header, EMF `" EMF"`@+40, ICO/CUR type word — never "unknown")**. Out of scope:
+SVG rasterization (og ships qsvg for UI assets), post-repair enhancement
+(EUImageEnhance domain), thumbcache recovery (separate feature row — carve
+signatures 01 00 09 00 / F7 89 34 2C already known).
 
-**Tests:** `tests/unit/test_thumbnail.cpp` (20 tests incl. the 6-variant TIFF
-suite; fixtures via `scripts/gen_thumbnail_fixtures.py` into
+**Cache scope (decided + registered, the N-092 fix's second half):** no
+engine-side thumbnail cache. The og caches UI-side (`ThumbnailFactory::ClearCache`,
+UIUX/30:62); the core's in-process doctrine keeps `make_thumbnail` stateless
+across calls — repeated renders are the host's layer (a session-scoped LRU keyed
+by node id becomes the candidate IF the ABI export ever lands one, per M-102's
+handoff). Recorded here + in `include/cr/preview/cr_thumbnail.h`'s contract
+comment; the decision is deliberate, not an omission.
+
+**Tests:** `tests/unit/test_thumbnail.cpp` (21 tests incl. the 6-variant TIFF
+suite and the metafile/icon named-refusal pin; fixtures via
+`scripts/gen_thumbnail_fixtures.py` into
 `tests/data/thumbnails/` with SHA256SUMS) + `fuzz/fuzz_thumbnail.cpp` (every
 parser over hostile bytes, resident + extent-backed + tight-budget lanes).
 ABI exposure of the thumbnail surface is the registered Agent 1 handoff.
