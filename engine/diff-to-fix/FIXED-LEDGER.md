@@ -303,6 +303,7 @@
 | M-093 | MAJOR | carve (the XML/SVG chain; "csl"+0x1cd decoded) | d1dc51a* | `findings/FIXED/M-093-xml-svg-carve-absent-four-u32-keys-one-chain.md` |
 | M-096 | MAJOR | carve (the MOBI salvage gate + end-tag walk) | 7ca83f5* | `findings/FIXED/M-096-mobi-carve-absent-bookmobi-gate-endtag-walk-decoded.md` |
 | M-100 | MAJOR | preview | closed-as-covered — `6d0f16c` (M-066+N-088, an ancestor of the finding's own baselines; the session-10 lane-B verification: `evidence/s10-verification-pass-b.md`) | `findings/MAJOR/M-100-archive-browse-inside-preview-absent.md` (retired by the session-10 lane-B push; never lived in FIXED/ — the capability predated the filing) |
+| M-072 | MAJOR | query/abi | bf17e55 | `findings/MAJOR/M-072-query-axes-path-substring-state-mask.md` |
 | N-092 | MINOR | (mid-flight landing) | 5ed862f | `findings/FIXED/N-092-thumbnail-refusal-matrix-and-cache.md` |
 | N-124 | MINOR | (mid-flight landing) | c75755d | `findings/FIXED/N-124-transport-module-rows-superseded-by-ddrv-wave.md` |
 | N-116 | MINOR | (session-38 minor-first lane; the Resolution + RED->GREEN proof live in the retired file and worklog.md's S38 block) | 632d21e | `findings/FIXED/N-116-session-list-row-ordering-diverges-og-time-sort.md` |

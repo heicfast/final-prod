@@ -2903,3 +2903,6 @@ registry: the pin test failed on all four pairs AND the 10,000,001-byte MIDI CAR
 the 64 MiB row (the finding's exact falsifiable, reproduced behaviorally); GREEN after.
 Suite 1090/1090; format clean. (PSP/SIT behavioral at/over-max tests are pin-level only -
 20/200 MB fixtures are not unit-test scale; the 10 MB MID pair proves the gate mechanics.)
+### M-072's Resolution record (session-10, this lane — retired per the purge convention)
+
+**Status:** FIXED · **Commit:** bf17e55 · **Verified by:** Query.M072PathSubstringAndStateMask (all buckets + the sugar-equivalence pin + the zero-mask default), suite 1030/1030 + cr_ui_tests 59/59. **Notes:** path_substring (contains over the materialized full path, active-axis-only materialization incl. the root segment) + state_mask (DeletedState bits, deleted_only kept as sugar) + the ABI append (cr_ui_query path_substring/state_mask, zero-init defaults). The og's own state-bucket values remain undecoded — the four-bit mapping is the registered interpretation.
