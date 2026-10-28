@@ -1,5 +1,35 @@
 # diff-to-fix/ — parity audit roadmap (core_recovery vs easeus-drw-research)
 
+**Session-42-C S42-C lane (2026-10-29 — the THIRD continuation lane of the same
+user second-session mandate, same pin core `869da779` / corpus `be0cfe9`; rebranded
+twice at the reconciliations [the remote's S42 and S42-B lanes pushed first]):**
+every draft seat collided and renumbered per earlier-push-wins — **M-122**
+(MAJOR, retroactively filed + retired: the never-filed §8 discovery of the
+`76e2d351` landing — the StbioSource single-shot read broke every photo-scale
+PNG decode once M-109 raised the band; the phantom-SHA ledger rows 181-182
+repaired — the phantom `5103ecd8` → `76e2d351`; the M-112 collision resolved [the ACTIVE CSL
+keeps M-112; the S12 MountPoints2 owns M-118; the DBX chain owns M-121]; one
+live code residual: the cr_thumbnail.cpp:163 "N-112"-cite comment), **I-038**
+(INFO, acknowledged-retired: the diskhealth companion tree — 818 files
+function-walked for the first time, 30 dispositions, the 5 never-dispositioned
+transport surfaces registered as D-82/I-027 extensions, the health module
+verified CLEAN), **I-039** (INFO, acknowledged-retired: the corpus's own
+worklog read for the first time — ~45 claimed RE surfaces cross-checked with
+zero gaps, the FoxitRestore / NAS-LM-hash / build-identity datums registered,
+the Languages-count + retention-nag errata filed, the RawFixer 31-vs-33 docs
+drift queued, the core-side citation census: zero behavior gaps), and the
+red-main draft **folded as the N-157 corroboration addendum** (this lane's
+independent second-method reproduction: a clean `git worktree` build of
+`67de3276` runs `Carve.OoxmlRelsPathSplit` FAILED, pinning the N-115
+Resolution's 0-fail claim false at the pushed tree). The ~22-landing parity
+sweep: **all VERIFIED-PARITY at the pin, no code divergence**. The 49/49
+liveness battery CONVERGENT with the remote second lane's. **Board: 40 active
+(2 SEVERE [S-040/S-050] · 21 MAJOR · 17 MINOR · 0 INFO) / 353 ledger rows / 3
+tracked-open; this lane's filings all retire on filing. Next free IDs:
+S-055+, M-123+, N-161+, I-040+, A-013+.** Evidence: `evidence/s42c-*.md` +
+`evidence/executions/s42c-red-main-reproduction.md`.
+
+
 **Session-42 S42-B lane (2026-10-29 — the SECOND continuation audit lane, the user's
 same three-ask directive: remove-the-fixed + go-deeper + mark-all-remaining; MERGED
 at push with the parallel S42-main window [487949a4/4f8fa661] — the hottest window
@@ -69,7 +99,7 @@ repair line's UI-side addendum (UIUX/32). **Board: 64 active (6 SEVERE · 22 MAJ
 
 <!-- S12B reconciliation: the parallel lanes' block above landed first; this lane's block rides below, reconciled per earlier-push-wins. -->
 **Session-12 continuation lane (2026-10-29 — the second-session continuation deep audit):**
-audited **core `c7fa527c`** (worklog-only HEAD `36c1d3e5` in-tree; code identical),
+audited **core `c7fa527c`** (worklog-only HEAD `36c1d3e5` in-tree — a pre-rebase phantom token, the message-truth class: the S12 lane's post-rebase product survives at `1bfeda19`/`3c5f2027`/`25e408b8`; the code tree at all three is `c7fa527c`'s, trail-only deltas aside),
 **corpus `be0cfe9`**. The continuation mandate executed in two waves. **Wave 1
 (remove-the-fixed):** the 55-finding liveness sweep — 41 LIVE / 4 PARTIAL / 5
 driver-repo / 5 register, **no unretired fix** (the board is truthful); the suite

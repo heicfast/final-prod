@@ -193,3 +193,20 @@ unlock-only surface; the legitimate-only stance D-16 is untouched — turn-off
 is a consented destructive op). **N-097**: auto.txt's true semantics (the FVE
 auto-unlock key snapshot DRWUI persists — the security datum for hosts; core
 never persists key material, the safer posture, now stated).
+
+### Session-42-C rows (2026-10-29 — the S42-C continuation lane, post-third-reconciliation) (2026-10-29 — the S42-C continuation lane, post-reconciliation)
+
+- **I-038** (INFO, acknowledged-retired): the diskhealth companion tree
+  registered — the 818-file never-walked surface censused this lane (the
+  EaseUS DiskHealth / *DiskSmart* Qt-QML companion product, CrystalDiskInfo
+  lineage; RENUMBERED TWICE: draft I-035 → I-037, both seats consumed by the remote lanes). 13 COVERED (the
+  engine surface re-verified: SMART chain, 0xD1 thresholds, the 4-status
+  grading, vendor classification, CSMI CC-0x19, the NVMe STORAGE_QUERY route +
+  fields/units/grade — all MATCH against the core's pinned tests), 12
+  NOT-CORE-SCOPE, 5 never-dispositioned transport surfaces REGISTERED (the 6
+  vendor-NVMe CMD_TYPE routes, the USB-bridge quirk table, the AAM/APM
+  device-write setters, the `sc config Winmgmt` mutation, the diskHealthIndex=
+  launch contract — D-82/I-027 extensions), 4 U-datums with next artifacts
+  (evidence/s42c-diskhealth-walk.md). M-076's retirement by the window (4bd5ee7a) leaves the module with NO active divergence. No core code changes proposed. The remote S12 lane's I-035
+  "DiskHealth resident shell" row is the shallow complement this walk supersedes
+  in depth.

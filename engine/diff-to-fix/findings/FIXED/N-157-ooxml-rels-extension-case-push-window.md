@@ -42,3 +42,19 @@ name every carve `EXT_%06d.EXT` uppercase; the og's id→name table is the name 
 The N-115 commit message's green-suite claim is recorded here as the push-window
 test-truth class (the same class as the N-135/`b5da834` conventions record): a proof-set
 claim pushed without a re-run over the parallel window's re-pins.
+
+## S42-C corroboration addendum (2026-10-29 — the independent second lane's reproduction; extend-don't-refile)
+
+The S42-C lane (the other continuation lane of the same user mandate, opened on the
+same pin `869da779` before either lane saw the other's push) discovered the same
+defect independently at its own T0 baseline and reproduced it by a second method:
+a **clean `git worktree` build of the landing commit `67de3276` itself** (linux-release)
+runs `Carve.OoxmlRelsPathSplit` FAILED with the identical `-32` case delta at
+test_carve.cpp:8453 — pinning the falsity of the N-115 Resolution's "Suite 1119/1119
+(1077 pass / 42 env skips / 0 fail)" claim at the exact pushed tree, not just at the
+session-open HEAD (`evidence/executions/s42b-red-main-reproduction.md`, the lane's
+RUN 1/2/3 record: HEAD baseline 1134/1091/42/1, the worktree fail-before, the :319
+uppercase-pin GREEN control). The S42-C lane's draft filing of the same subject
+(N-154 under its local numbering) is retired in favor of this file per
+earlier-push-wins — the draft's unique content (the worktree method + the
+Resolution-claim framing) is fully preserved in this addendum and the evidence file.

@@ -894,3 +894,18 @@ Evidence: `evidence/decompiled-quotes/s42-ogg-zip-typing-and-report-decodes.md` 
   `Carve.Fh11BoundedExtentPinned` holds the exact constant (fail-before
   proven by mutation: 32→16 MiB RED). The registration gap — the finding's
   actual defect — closed.
+### Session-42-C rows (2026-10-29 — the S42-C continuation lane, post-third-reconciliation) (2026-10-29 — the S42-C continuation lane, post-reconciliation)
+
+- **N-157 corroboration** (MINOR, retired): this lane's independent T0 discovery of
+  the red main — reproduced by the second method (a clean `git worktree` build of
+  the landing commit `67de3276` itself: `Carve.OoxmlRelsPathSplit` FAILED with the
+  identical -32 delta, pinning the N-115 Resolution's 0-fail claim false at the
+  pushed tree) — folds as the corroboration addendum on the S42 lane's N-157
+  (extend-don't-refile; evidence/executions/s42c-red-main-reproduction.md).
+- The landing-parity sweep of the freshest carve landings (S-049 naming, S-054's
+  successor state, N-112 LZH, N-113 text school, N-115+N-153 OOXML/ZIP, N-151
+  nested-declaration, A-012 registry): **all VERIFIED-PARITY at the pin** — the
+  S-054-precedent hunt found no code divergence (evidence/s42c-landing-parity.md).
+- The window's S-048/M-117/N-152 landings (verified LIVE at this lane's pin,
+  landed by the parallel lanes mid-window) acknowledged: the pin-time liveness
+  rows are historical; the reconciled tree carries their Resolutions.

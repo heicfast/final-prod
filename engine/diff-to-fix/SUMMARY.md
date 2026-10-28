@@ -1,5 +1,57 @@
 # SUMMARY.md — executive summary (the S42-B merge on top — the continuation-audit lane [B] + the parallel S42-main lane, both sides' records kept; the prior lanes below, newest-first)
 
+## Session-42-C S42-C lane delta (2026-10-29 — the THIRD continuation lane of the same user mandate, same pin `869da779`/`be0cfe9`; rebranded twice [the remote's S42 and S42-B lanes pushed first]; reconciled over THREE hot windows)
+
+**The lane's own waves at the pin:** the T0 baseline EXECUTED (linux-release
+build green; `cr_tests` 1134: 1091 pass / 42 env-skips / 1 FAILED — the red
+main; `cr_ui_tests` 61/61), with the red-main reproduced by a SECOND method —
+a clean `git worktree` build of the landing commit `67de3276` itself runs
+`Carve.OoxmlRelsPathSplit` FAILED (-32), pinning the N-115 Resolution's
+"Suite 1119/1119 (0 fail)" claim false at the pushed tree
+(evidence/executions/s42c-red-main-reproduction.md). The ~22-landing parity
+sweep: **all VERIFIED-PARITY at the pin — no code divergence**
+(evidence/s42c-landing-parity.md; the S-054-precedent hunt's only catch was the
+red-main bookkeeping defect). The never-walked surfaces: **the diskhealth
+companion tree** (818 files, function-walked for the first time — 30
+dispositions, the 5 never-dispositioned transport surfaces, the health module
+verified CLEAN) and **the corpus's own worklog** (read for the first time — ~45
+claimed RE surfaces cross-checked, zero gaps, zero contradictions; the
+FoxitRestore / NAS-LM-hash / build-identity datums) + the core-side citation
+census (232 files, zero behavior gaps) + the 49-active pin-time liveness
+battery (CONVERGENT with the remote second lane's independent battery — two
+lanes, one verdict: 49/49 STILL at the pin, zero falsely-active).
+
+**The three-window reconciliation:** every draft seat collided with an
+earlier-pushed remote lane and renumbered — **M-122** (the never-filed Stbio
+§8 discovery of the `76e2d351` landing, retroactively filed + retired; the
+phantom-SHA ledger rows 181-182 repaired `5103ecd8`→`76e2d351`; one live code
+residual: the cr_thumbnail.cpp:163 "N-112"-cite comment), **I-038** (the
+diskhealth register, acknowledged-retired), **I-039** (the corpus-worklog
+register, acknowledged-retired), the red-main draft folded as the **N-157
+corroboration addendum**. The trail repairs that survived all three windows
+(the phantom-SHA rows, the N-032/N-112/N-113 dangling paths, the
+`36c1d3e5`/`cd883754` pre-rebase phantoms in README/SUMMARY — the trail-SHA
+guard re-run GREEN: 515 tokens resolving) were re-landed by this lane at the
+final reconciliation.
+
+**Board at this lane's close (filesystem truth, re-truthed at the rebase
+over the window's M-112-CSL + N-146 retirements): 38 active (2 SEVERE
+[S-040/S-050] · 20 MAJOR · 16 MINOR · 0 INFO) / 355 ledger rows /
+3 tracked-open (OQ-S4-3; OQ-S10-1; OQ-S10-3).** This lane's three filings
+all retire on filing — the board does not grow. Next free IDs: S-055+,
+M-123+, N-161+, I-040+, A-013+.
+
+**Handoff additions (riding the S42/S42-B lanes' standing orders):**
+(a) M-122's one-line code residual (the cr_thumbnail.cpp:163 comment → the
+next preview-touching format pass); (b) the docs queue (the RawFixer 31→33
+one-worder at PARITY-OG-CORE-INVENTORY.md:157 + the AliyunConfig consumer
+clause at :51 + the I-038 D-82 extension rows); (c) the
+re-run-the-gate-after-every-rebase discipline (seconded — this lane's
+worktree reproduction at `67de3276` is the strongest proof yet that a
+pushed-red can hide behind a suite claim for a full day; the trail-SHA guard
+must join ci-local.sh's gate set — it was RED at two consecutive mains).
+
+
 ## S42-B lane delta (2026-10-29 — the SECOND continuation audit lane per the user's second-session directive: remove-the-fixed, go-deeper, mark-all-remaining; audited core `869da779` at open, MERGED at push with the parallel S42-main window [487949a4/4f8fa661 — the hottest window of the trail absorbed first-hand]; corpus `be0cfe9`; five parallel read lanes + the main-lane first-hand verification battery; evidence: `evidence/decompiled-quotes/s42-ogg-zip-typing-and-report-decodes.md`; this lane's filings renumbered at the merge per SA-9: N-154→N-158, N-155→N-159, N-156→N-160, I-035→I-037 — the parallel window consumed N-154..N-157, I-035/I-036, M-118/M-119 first)
 
 **The remove-the-fixed wave (directive 1) — the full liveness battery at `869da779`:**
@@ -676,7 +728,7 @@ first — silently wrong recovery bytes; then the mechanical MAJORs M-109/M-103/
 
 ## S12 lane delta (2026-10-29 — the second-session continuation: remove-the-fixed verified + the below-artifact deep walks; ONE REGRESSION FOUND — a landed safety fix silently reverted)
 
-**Audited: core `c7fa527c` (worklog-only HEAD `36c1d3e5` in the tree; code byte-identical), corpus `be0cfe9`.**
+**Audited: core `c7fa527c` (worklog-only HEAD `36c1d3e5` in the tree — a pre-rebase phantom token, the message-truth class; the S12 product survives at `1bfeda19`/`3c5f2027`/`25e408b8` in main's history; the code tree is `c7fa527c`'s), corpus `be0cfe9`.**
 
 **Wave 1 — remove-the-fixed (the mandate's first directive):** all 55 active findings'
 defect sites re-verified at HEAD (`evidence/s12-liveness-sweep.md`): 41 LIVE, 4 PARTIAL
@@ -748,7 +800,7 @@ six IDs collided with the parallel continuation lanes' filings** — the earlier
 keep the numbers, this lane's findings renumber: M-112→**M-118** (the register
 channel), M-113→**M-119** (the read-clamp semantics), N-143→**N-154** (the
 bookkeeping batch), I-033→**I-035** (the register batch); S-054 and N-142 keep theirs.
-**Every defect site re-verified LIVE at the post-rebase HEAD `cd883754`** (the N-013
+**Every defect site re-verified LIVE at the post-rebase HEAD `cd883754`** (a pre-rebase phantom token, the message-truth class — the re-verification rode the `25e408b8` reconcile, whose tree is the surviving record) (the N-013
 arming still single-extent with zero spans-consumers; MountPoints2 still absent; the
 slice still strict; the identity card still model/serial/boot_hash — only line drift,
 all cites re-pinned). **Board at close (filesystem truth): 55 active (4 SEVERE · 23

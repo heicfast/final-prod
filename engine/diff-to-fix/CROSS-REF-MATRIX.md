@@ -1,4 +1,56 @@
-# CROSS-REF-MATRIX.md — module × parameter verdict matrix (the S42 continuation lane on top: the board-verification + the HFS+ residual resolutions + N-155; the prior sessions below)
+# CROSS-REF-MATRIX.md — module × parameter verdict matrix (the S42-C continuation lane on top: the third-window reconciliation + the never-walked surfaces; the prior sessions below)
+
+**Session-42-C S42-C lane changes (2026-10-29 — the THIRD continuation lane of the same user mandate, opened on the same pin `869da779`/`be0cfe9` before any window landed; rebranded twice at the reconciliations [the remote's S42 and S42-B lanes pushed first]; evidence: evidence/s42c-*.md):**
+- **The three-window reconciliation (W1.5, executed twice):** the lane's drafts
+  collided at every seat — **M-122** (the Stbio large-IDAT retroactive filing:
+  draft M-112 [the ACTIVE CSL owns it] → M-118 [the remote S12's MountPoints2]
+  → M-121 [the remote DBX chain M-117→M-118→M-121] → M-122), **I-038** (the
+  diskhealth companion-tree register: draft I-035 → I-037, both consumed by the
+  remote lanes' registers), **I-039** (the corpus-worklog register: draft
+  I-036 → I-038, displaced seat-by-seat), and the red-main draft folded as the
+  **N-157 corroboration addendum** (this lane's unique second-method
+  reproduction: a clean `git worktree` build of `67de3276` runs
+  `Carve.OoxmlRelsPathSplit` FAILED, pinning the N-115 Resolution's 0-fail
+  claim false at the pushed tree).
+- **preview row, retroactive cell:** **M-122** (B1/P47/P48 cells → MATCH at the
+  landed code; the phantom-SHA ledger rows 181-182 repaired — the
+  phantom `5103ecd8` → `76e2d351`, STILL standing after all three windows,
+  repaired by this lane; the cr_thumbnail.cpp:163 `N-112`-cite comment verified still
+  standing → the one live code-side residual, carried in its fix plan).
+- **health row, register cell:** **I-038** (the diskhealth companion tree — 818
+  files walked for the first time: 13 COVERED / 12 NOT-CORE-SCOPE / the 5
+  never-dispositioned transport surfaces [6 vendor-NVMe CMD_TYPE routes, the
+  USB-bridge quirk table, the AAM/APM setters, the Winmgmt mutation, the
+  diskHealthIndex= contract] registered as D-82/I-027 extensions; the health
+  module verified CLEAN — zero code changes proposed; M-076's retirement by the
+  window leaves the module with NO active divergence; ACKNOWLEDGED-RETIRED).
+- **cross-cutting row, register cell:** **I-039** (the corpus worklog
+  cross-check — the first lane to read it: ~45 claimed surfaces verified
+  dispositioned, zero contradictions; the FoxitRestore / NAS-LM-hash /
+  build-identity datums registered; the Languages-count + retention-nag errata
+  → CORPUS-ERRATA Session-42-C rows; the RawFixer 31-vs-33 docs drift queued;
+  the core-side citation census: 232 files, zero behavior gaps;
+  ACKNOWLEDGED-RETIRED).
+- **Bookkeeping cells (the repairs that survived all three windows, executed by
+  this lane):** the ledger's phantom-SHA rows 181-182 + the N-032/N-112/N-113
+  dangling FIXED paths (all still standing at the third reconciliation); the
+  trail-SHA guard's pre-rebase phantoms (`36c1d3e5`/`cd883754`) annotated —
+  the guard re-run GREEN (515 tokens resolving; it was RED at two consecutive
+  reconciled mains); the M-112-CSL collision note (the three-seat renumber
+  recorded).
+- **Landing-parity cells (the pin-time sweep, all three windows unaffected):**
+  A-012, S-049, S-051+M-104, S-052, S-053+N-141, S-054, M-109+the-Stbio-loop,
+  N-096, N-112, N-113, N-115+N-153, N-121, N-122, N-128, N-129, N-130+N-138,
+  N-132, N-133, N-137, N-142, N-151 — **all VERIFIED-PARITY at the pin**,
+  no code divergence (evidence/s42c-landing-parity.md).
+- **Convergence cells:** this lane's 49/49-liveness battery at the pin is
+  CONVERGENT with the remote second lane's (397be347: "49/49 STILL at 869da779,
+  zero falsely-active" — two independent lanes, one verdict); the 1470-file
+  asset census verdict likewise convergent; the asset-family walk + the
+  corpus-worklog read + the diskhealth walk + the citation census remain this
+  lane's unique product.
+
+
 
 **Session-42 S42 continuation-lane changes (2026-10-29 — the user's continuing second-session directive at the post-fix-window board; audited `869da779`, corpus `be0cfe9`):**
 the board-truth verification over the hottest fix window (the S12 sweep pre-dated S-049/S-051/S-052/S-053 + the N-wave landings — every at-risk finding re-checked LIVE at the lane tree, three stale-line cites noted, NO unretired fix found; `evidence/s42-board-verification.md`) plus the HFS+ residual resolutions:

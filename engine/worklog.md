@@ -5598,3 +5598,105 @@ the pending-object architecture), the in-code provenance comment updated, and
 Carve.Fh11BoundedExtentPinned pins the exact constant on an unclamped 40 MiB device
 (fail-before proven by mutation: 32→16 MiB goes RED). Trail: findings/FIXED/N-146 +
 ledger + matrix → MATCH (registered stand-in) + carve.md row + this entry.
+## Session-42-C S42-C lane — the full record + the close (2026-10-29, rebuilt at the THIRD hot-window reconciliation)
+
+**The lane:** the third continuation lane of the user's second-session mandate (the pin:
+**core `869da779` / corpus `be0cfe9`**; the prompt saved token-redacted at
+worklog/session-42c-continuation-audit-prompt.md; the pre-push states preserved at
+`s42c-local-backup` [d10b893a → ab0400bf → 0bc1495f, the three unpushed states] and
+`s42-local-backup`). Rebranded twice per earlier-push-wins: the remote's S42 lane and
+S42-B lane (its merge commits c9b9d094/80cc8bdc/b65fdb42) both pushed first; this lane's
+final name is S42-C.
+
+**The waves (all executed at the pin before any window landed):**
+- **T0:** baseline EXECUTED — linux-release build green; cr_tests **1134: 1091 pass /
+  42 env-skips / 1 FAILED** (`Carve.OoxmlRelsPathSplit`, test_carve.cpp:8453, -32);
+  cr_ui_tests 61/61. MAIN RED at open, reproduced at the N-115 landing commit itself
+  (`67de3276`, a clean git-worktree build): the landing's own test pins the pre-S-049
+  lowercase-ext convention while its tree carries the uppercase contract — the N-115
+  Resolution's "Suite 1119/1119 (0 fail)" claim FALSE at the pushed tree.
+- **W2 (landing-parity):** four parallel sub-agents; the ~22 freshest landings verified
+  **ALL VERIFIED-PARITY** (every landing's named tests executed green; every load-bearing
+  corpus cite re-read byte-exact). No code divergence — the S-054-precedent hunt's only
+  catch was the red-main bookkeeping defect. Evidence: evidence/s42c-landing-parity.md.
+- **W3a (diskhealth):** the 818-file companion tree walked for the first time — the
+  EaseUS DiskHealth / *DiskSmart* Qt-QML companion product (CrystalDiskInfo lineage);
+  30 dispositions; the 5 never-dispositioned transport surfaces (the 6 vendor-NVMe
+  CMD_TYPE routes, the USB-bridge quirk table, the AAM/APM setters, the Winmgmt
+  mutation, the diskHealthIndex= contract) registered as D-82/I-027 extensions; 4
+  U-datums with next artifacts; **the core's health module verified CLEAN**.
+  Evidence: evidence/s42c-diskhealth-walk.md.
+- **W3b (asset families + the corpus worklog):** 1470 og-codebase files / 167 root
+  entries walked — zero never-dispositioned product surfaces (I-034's verdict
+  independently reconfirmed; CONVERGENT with the remote second lane's census). The
+  corpus's own worklog.md (62 KB, never cited by any prior lane) read IN FULL: ~45
+  claimed RE surfaces cross-checked, zero gaps, zero contradictions; the FoxitRestore
+  codename, the NAS LM-hash "KGS!@#$%" datum, the shipped-build identity registered.
+  Evidence: evidence/s42c-asset-families-worklog.md.
+- **W4 (citation-gap + liveness):** 232 core files censused (zero behavior gaps; the
+  never-cited residue indexed); the 49-active board liveness-re-triaged at the pin:
+  43 LIVE · 5 LIVE-BY-HANDOFF · 1 partial · 0 stale — **CONVERGENT with the remote
+  second lane's independent battery ("49/49 STILL at 869da779, zero falsely-active",
+  397be347): two lanes, one verdict.** Evidence: evidence/s42c-citation-gap-liveness.md.
+
+**W1.5 (the three-window reconciliation, executed twice):** the push was rejected
+TWICE — the remote moved 35 commits, then 9 more, then the third window's lanes:
+the resumed S12 lane (filings renumbered M-118/M-119/N-154/I-035), the remote S42 lane
+(the config-layer I-036, the DefaultLog decode, the M-120/N-157 red-main saga — the
+SAME red main this lane found independently, fixed by their lanes), the remote S42-B
+lane (N-158 the OfficeTagFromXML five-branch tail, N-159 the failed-files HTML report,
+N-160 the register-truth batch, I-037 the never-walked decode register, the DBX chain
+M-117→M-118→M-121, N-149's exempt-set fix, M-076's TRIM-chip fix), and the 43-minors
+lane (N-152). Every draft seat of this lane collided and renumbered per
+earlier-push-wins: **M-112→M-118→M-121→M-122** (the Stbio retroactive filing — the
+ACTIVE CSL owns M-112, the S12 MountPoints2 owns M-118, the DBX chain owns M-121),
+**I-035→I-037→I-038** (the diskhealth register — the remote registers consumed both
+seats), **I-036→I-038→I-039** (the corpus-worklog register), and the red-main draft
+**folded as the N-157 corroboration addendum** (this lane's unique worktree-method
+reproduction preserved there + in the evidence file).
+
+**The trail repairs that survived all three windows (re-landed by this lane at the
+final reconciliation, still standing at the third tree):** the ledger's phantom-SHA
+rows 181-182 (`5103ecd8`→`76e2d351` — no remote lane had reached them), the
+N-032/N-112/N-113 dangling FIXED paths, the M-112-CSL collision note (the three-seat
+renumber recorded), and the trail-SHA guard's pre-rebase phantoms
+(`36c1d3e5`/`cd883754` in README/SUMMARY — annotated per the message-truth class; the
+guard re-run GREEN: 515 tokens resolving; it was RED at two consecutive mains, which
+is itself the finding — the phantom class keeps entering through hot-window prose).
+
+**Filings (all retiring on filing; the active board does not grow):** M-122
+(retroactive, FIXED/), I-038 (diskhealth register, FIXED/), I-039 (corpus-worklog
+register, FIXED/), the N-157 corroboration addendum. Trail repairs: the ledger rows
+181-182/217/391-392, the M-112-CSL note, the README/SUMMARY phantom annotations, the
+matrix/SUMMARY/README S42-C blocks, the module rows (carve/preview/health), the
+CORPUS-ERRATA Session-42-C rows, the five s42c- evidence files, this worklog record.
+
+**BOARD AT THIS LANE'S CLOSE (filesystem truth, re-truthed at the rebase over the
+window's final two retirements [M-112-CSL fixed at 73a134eb; N-146 fixed at 2c129efc]):
+38 active (2 SEVERE [S-040/S-050] · 20 MAJOR · 16 MINOR · 0 INFO) / 355 ledger rows /
+3 tracked-open (OQ-S4-3; OQ-S10-1; OQ-S10-3). Next free IDs: S-055+, M-123+, N-161+,
+I-040+, A-013+.** The M-112-CSL finding — whose ID-collision note this lane re-landed —
+was fixed and retired by the window's own lane; the note rides the FIXED/ file as history.
+
+READ-ONLY GUARANTEE: verified per-commit across all three lane states — every commit
+this lane produced touches NOTHING outside diff-to-fix/ + worklog* (the product trees
+of BOTH repos untouched; the worktree reproduction lived outside the repo and was
+removed; the scratch sheets re-landed as the s42c- evidence files with the renumber
+disambiguation notes).
+
+Handoff additions (riding the S42/S42-B lanes' standing orders — their priority lists
+stand, M-119/N-155/M-118-MountPoints2/the SEVERE pair/the minors first):
+1. **M-122's one-line code residual** — the cr_thumbnail.cpp:163 "N-112"-cite comment →
+   "M-122" (the next preview-touching lane's format pass).
+2. **The docs queue** — the RawFixer 31→33 one-worder (PARITY-OG-CORE-INVENTORY.md:157)
+   + the AliyunConfig consumer clause (:51) + the I-038 D-82 extension rows: one doc lane.
+3. **The gate discipline, strengthened** — re-run-the-gate-after-every-rebase (the
+   remote S42 lane's item 6, seconded: this lane's worktree reproduction at `67de3276`
+   is the strongest proof yet that a pushed-red can hide behind a suite claim for a
+   full day) AND add verify_trail_shas.py to ci-local.sh's gate set (it was RED at two
+   consecutive mains — the phantom class enters through hot-window prose, twice in 24
+   hours).
+4. **The never-filed-finding duty stands** — M-122 is the second retroactive filing of
+   the trail (after M-104/FIXED-ALREADY class); any future §8-discovery-by-fix-lane
+   must file BEFORE the trail bookkeeping, not after (the S12 lane's twice-interrupted
+   Wave-1 is the cautionary tale: three windows, three seat collisions).
