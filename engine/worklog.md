@@ -1,3 +1,12 @@
+# worklog.md — the live multi-agent session log
+
+**Archive note:** the 2026-10-28 history bulk (17,690 lines, sessions 1
+through the diff-fix waves) was removed from main via PR #13 (980d09c /
+92bdff1); every entry remains retrievable from git history
+(`git log --diff-filter=A -- worklog.md`). This file is the LIVE log —
+each agent session appends its Task-ID entry here per the coordination
+contract (handoffs, boundary items, convergence records).
+
 
 ---
 Task ID: SCAN-2e-recon (Agent 2 — the S-090/A-011 + N-089 convergent-landing reconciliation)
