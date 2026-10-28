@@ -5535,3 +5535,42 @@ pinned at the second-merge truth (41 active); the N-149 retirement moves the
 MINOR count to 17 — the next lane's re-count owns the truth-update per the
 do-not-chase-moving-targets rule (record the audited commit; the fixes ride
 their own lanes).
+
+## S42-B lane close (2026-10-29, final push d9585798)
+
+**The three-ask mandate discharged** (the user's second-session directive):
+1. **Remove-the-fixed:** the full liveness battery at the pinned `869da779` —
+   49/49 STILL, zero falsely-active, zero phantom-fixed; the board's movement
+   since (49→40 at the final tip) was entirely the parallel fix lanes' own
+   retirements (S-048, M-117→M-121-dbx, N-125, N-126, N-135, N-148, N-149,
+   N-152, M-076, the INFO tier), all convergent with the battery's pinned
+   verdicts.
+2. **Go-deeper:** five parallel read lanes (config deep-diff, folder census,
+   DRWUI never-walked hunt, core currency, perf evidence) + the main-lane
+   first-hand verification battery — every load-bearing claim re-verified
+   first-hand (the decompile reads, the PE parse for the WFP/DRP labels, the
+   grep transcripts) before filing.
+3. **Mark-all-remaining:** N-158 (the OfficeTagFromXML five-branch typing tail),
+   N-159 (the failed-files HTML report's classification axis — R-58/API-DELTA
+   row 21 refuted), N-160 (the register-truth batch), I-037 (the never-walked
+   decode register, acknowledged), N-150's S42-B addendum (8 stale API-DELTA
+   rows + 6 new doc-defect sites), the M-117 collision detection (convergent
+   with the remote's own — the M-121 chain adopted), the S-048/S-050 evidence
+   refresh (SaveScan's 3 real .rsf sessions; EUFileRepair's 87-file inventory).
+
+**The hot-window record:** three merge cycles (c9b9d094, 80cc8bdc, b65fdb42 +
+the d9585798 marker repair) absorbed the trail's hottest parallel period — the
+S42-main lane, the S12 lane, the session-43 minors lane, and the DBX renumber
+chain — both sides' records kept per the house convention throughout; one
+committed-marker defect of my own making (the unclosed pair at worklog:5498)
+was caught by the post-push sweep and repaired in the same session (the M-120
+class held to its own standard).
+
+**Handoff (the recommended next fixes, priority order):** S-050 (the repair
+line's implement-vs-exclude decision — the last SEVERE with no owner claim),
+M-118/M-119 (the S12 lane's lostpart register-channel + partition-read
+semantics MAJORs), N-158's entry-name half (mechanical on N-115's walk),
+N-159's classification axis, the N-160+N-150 doc-truth sweep (one push), the
+M-106/M-107 size-walk fleet. Next free IDs: S-055+, M-122+, N-161+, I-038+,
+A-013+. Read-only guarantee: verified per-commit — my delta vs every merge
+base = diff-to-fix/ + worklog* only.
