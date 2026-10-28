@@ -1,3 +1,14 @@
+> **Superseded matrix (2026-10-28):** the staged-scenarios S-* truth
+> matrix now lives in `.github/scenarios/benchmark-matrix.json` and is
+> executed by the test-benchmark lane (`.github/workflows/
+> test-benchmark.yml` + `.github/scripts/Run-Benchmark.ps1`) through BOTH
+> the CLI and the cr_ui API, on simulated fixed-VHDX disks (MBR+GPT,
+> FAT32/NTFS/exFAT, dual-partition). This document's scenario philosophy
+> (ground truth = seed manifest + deletion semantics, never tool output;
+> extra finds recorded, never failures) carries over verbatim; the seed
+> manifest itself is now `bench/seed/generate_seed.ps1`'s deterministic
+> 23-format corpus instead of the 11-file stage-disk manifest.
+
 # CI-SCENARIOS — the staged-scenario truth matrix
 
 > What each prebuilt-consumption workflow proves (PLAN-CI-REBUILD §3.4). The

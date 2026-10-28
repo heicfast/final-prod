@@ -1,3 +1,20 @@
+# core_recovery release notes
+
+## vNext (CI consolidation, 2026-10-28)
+
+- CI rebuilt as the windows-only 3-lane set: **Checks** (format, lints,
+  /W4 /WX build, ctest, Win7 posture, report schema, driverless refusal
+  probes - vcpkg binary-cached), **Release** (validate -> build core +
+  fetch driver tier -> test-dev-SIGN the driver with the repo's
+  persistent certificate, public cert shipped as `rda-test-sign.cer`),
+  **Test & Benchmark** (prebuilt-release consumer: driver verify,
+  simulated VHDX disks, 10-scenario matrix through CLI and the cr_ui API
+  both, gates + perf + structured evidence).
+- Release asset set gains `rda-test-sign.cer`; `MANIFEST.json` now records
+  the driver's unsigned AND signed SHA-256 plus the dev-sign subject.
+- The ubuntu sanitizer/fuzz CI lanes were dropped (owner directive;
+  coverage remains available locally via `ci-local.sh --san|--fuzz`).
+
 # core_recovery v0.4.1-parity
 
 **Scope of this release:** the warnings-hygiene + docs truth pass on top

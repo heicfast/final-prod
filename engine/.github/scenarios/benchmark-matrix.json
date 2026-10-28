@@ -1,0 +1,202 @@
+{
+  "version": 1,
+  "comment": "The versioned truth for the test-benchmark lane (docs/CI-SCENARIOS.md). Disks are FIXED-size VHDX files created by .github/scripts/New-TestDisk.ps1 (diskpart-only: no Hyper-V module dependency, deterministic on every runner image). Scenarios are applied by bench/scenarios/apply-scenario.ps1; ground truth is ALWAYS the seed manifest + the deletion method - never a tool's own output (extra finds are recorded, never failures). Gate floors are derived from the recorded baseline-candidate measurements (bench/baseline-candidate.json, run 40073093997-smoke; PERFORMANCE-PROFILE.md) with headroom for corpus/runner variance; known engine gaps (bench/root-causes.json) are gated observe-only and say so - a gate must never test a documented gap as if it were a promise.",
+  "disks": [
+    {
+      "id": "small-fat32",
+      "size_mb": 2048,
+      "partition_style": "MBR",
+      "volumes": [
+        {
+          "label": "CRFAT",
+          "fs": "FAT32",
+          "size_percent": 100,
+          "letter_hint": "X",
+          "seed_profile": "smoke"
+        }
+      ]
+    },
+    {
+      "id": "multi-gpt",
+      "size_mb": 5120,
+      "partition_style": "GPT",
+      "volumes": [
+        {
+          "label": "CRNTFS",
+          "fs": "NTFS",
+          "size_percent": 60,
+          "letter_hint": "Y",
+          "seed_profile": "full"
+        },
+        {
+          "label": "CREXFAT",
+          "fs": "exFAT",
+          "size_percent": 40,
+          "letter_hint": "Z",
+          "seed_profile": "smoke"
+        }
+      ]
+    },
+    {
+      "id": "large-ntfs",
+      "size_mb": 8192,
+      "partition_style": "GPT",
+      "volumes": [
+        {
+          "label": "CRBIG",
+          "fs": "NTFS",
+          "size_percent": 100,
+          "letter_hint": "W",
+          "seed_profile": "follow-run-profile"
+        }
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "S-DEL-NTFS",
+      "mode": "permanent_delete",
+      "disk": "multi-gpt",
+      "volume": "CRNTFS",
+      "target_mode": "volume",
+      "profile": "smoke",
+      "scan_modes": "all",
+      "gate": {
+        "type": "floor",
+        "floor_hash_recall": 0.8,
+        "note": "NTFS permanent-delete measured 87.16% recall (baseline-candidate, deepcarve); floor 0.80 = regression headroom. Gate metric: deleted (keep=false) size>0 files recovered with SHA-256 match."
+      }
+    },
+    {
+      "id": "S-DEL-EXFAT",
+      "mode": "permanent_delete",
+      "disk": "multi-gpt",
+      "volume": "CREXFAT",
+      "target_mode": "volume",
+      "profile": "smoke",
+      "scan_modes": "all",
+      "gate": {
+        "type": "floor",
+        "floor_hash_recall": 0.9,
+        "note": "exFAT delete family measured 99.94% (root-causes.json); floor 0.90."
+      }
+    },
+    {
+      "id": "S-DEL-FAT32",
+      "mode": "permanent_delete",
+      "disk": "small-fat32",
+      "volume": "CRFAT",
+      "target_mode": "volume",
+      "profile": "smoke",
+      "scan_modes": "deepcarve",
+      "gate": {
+        "type": "observe",
+        "note": "FAT32 deleted-entry recovery is a KNOWN ENGINE GAP (GAP-S6-1/S6-2, measured 0-0.3% recall; root-causes.json) - recorded ungated. Hash-only matches (LFN-lost 8.3-name class) still count toward the recorded number."
+      }
+    },
+    {
+      "id": "S-RECYCLE-NTFS",
+      "mode": "recycle_bin",
+      "disk": "multi-gpt",
+      "volume": "CRNTFS",
+      "target_mode": "volume",
+      "profile": "smoke",
+      "scan_modes": "deepcarve",
+      "gate": {
+        "type": "floor",
+        "floor_hash_recall": 0.9,
+        "note": "recycle-bin $I/$R pairing measured 26/26 name recall (BENCHMARK-REPORT.md, run 39924932944). $R payload content is byte-identical to the original - hash gate applies."
+      }
+    },
+    {
+      "id": "S-BINEMPTY-NTFS",
+      "mode": "folder_delete",
+      "disk": "multi-gpt",
+      "volume": "CRNTFS",
+      "target_mode": "volume",
+      "profile": "smoke",
+      "scan_modes": "deepcarve",
+      "gate": {
+        "type": "floor",
+        "floor_hash_recall": 0.8,
+        "floor_metric": "hash-only",
+        "note": "after Clear-RecycleBin the $I/$R metadata is itself deleted; payload recovery is verified by content hash (inventory hash-only match level). Original-name restoration is recorded but not gated (deleted-$I pairing is best-effort)."
+      }
+    },
+    {
+      "id": "S-FMT-FAT32",
+      "mode": "quick_format",
+      "disk": "small-fat32",
+      "volume": "CRFAT",
+      "target_mode": "volume",
+      "profile": "smoke",
+      "scan_modes": "deepcarve",
+      "gate": {
+        "type": "observe",
+        "note": "quick-format recall is a KNOWN ENGINE GAP (GAP-S6-4: name-only remnant scan, 0% vs og 51.5%) - recorded ungated. The scenario still exercises the full format-recovery path end to end."
+      }
+    },
+    {
+      "id": "S-PART-DELETE",
+      "mode": "delete_partition",
+      "disk": "multi-gpt",
+      "volume": "CREXFAT",
+      "target_mode": "disk",
+      "profile": "smoke",
+      "scan_modes": "deepcarve",
+      "gate": {
+        "type": "discovery",
+        "note": "GATE = the lost partition is DISCOVERED (scan --json lost_partitions >= 1) AND recover completes with exit 0/2. File recall is discovery-limited (43.0% measured) and recorded ungated. Post-actions: the lost-partition APPLY feature probe (dry-run + real apply + partition-reappears assertion).",
+        "post_actions": ["apply_probe"]
+      }
+    },
+    {
+      "id": "S-DECAY-NTFS",
+      "mode": "decay_50",
+      "disk": "large-ntfs",
+      "volume": "CRBIG",
+      "target_mode": "volume",
+      "profile": "full",
+      "scan_modes": "deepcarve",
+      "gate": {
+        "type": "floor",
+        "floor_hash_recall": 0.85,
+        "note": "decay_50 measured 96.4% (PERFORMANCE-PROFILE.md) - sector-reuse decay; floor 0.85."
+      }
+    },
+    {
+      "id": "S-OVR-NTFS",
+      "mode": "partial_overwrite",
+      "disk": "large-ntfs",
+      "volume": "CRBIG",
+      "target_mode": "volume",
+      "profile": "full",
+      "scan_modes": "deepcarve",
+      "gate": {
+        "type": "observe",
+        "note": "the first 8 sectors of every deleted file's first extent are 0xAA-overwritten - those files CANNOT hash-match by construction; the recorded recall covers the non-overwritten remainder. Recorded ungated (honesty about physics, not a gap)."
+      }
+    },
+    {
+      "id": "S-MFT-NTFS",
+      "mode": "mft_corrupt",
+      "disk": "large-ntfs",
+      "volume": "CRBIG",
+      "target_mode": "volume",
+      "profile": "full",
+      "scan_modes": "deepcarve",
+      "gate": {
+        "type": "observe",
+        "note": "MFT records zeroed + $Bitmap XORed - structured NTFS recovery is destroyed by construction; the carve-only salvage path is what this scenario exercises. Recorded ungated."
+      }
+    }
+  ],
+  "benchmark_disk": "large-ntfs",
+  "benchmark_volume": "CRBIG",
+  "cancel_resume_probe": {
+    "disk": "small-fat32",
+    "volume": "CRFAT",
+    "cancel_after_seconds": 3,
+    "note": "the pause/cancel/session feature probe: cancel a live scan mid-flight, save the partial session, resume it to completion (the CLI's exit-3 + --resume contract via the API). Tree parity across resume is NOT gated (the known carve-dedup resume gap, bench/root-causes.json behavior_probes) - recorded."
+  }
+}

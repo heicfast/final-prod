@@ -426,3 +426,46 @@ Work Log:
 Stage Summary:
 - Retrying the round-trip job; TTFR extraction next.
 
+
+---
+Task ID: CI-REBUILD-WIN (the owner-ordered windows-only 3-lane consolidation)
+Agent: the CI rebuild session (context recovery protocol, API scope)
+
+Work Log:
+- Full context recovery first: 5 parallel explore agents (build system,
+  CI autopsy, CLI+API contracts, driver+bench infrastructure, research
+  corpus) - every contract re-verified first-hand against the tree before
+  a line was written (zero-invention bar).
+- WIPED: ci.yml (7 jobs incl. 4 ubuntu lanes), core-install.yml,
+  driver-install.yml, staged-scenarios.yml, the old release.yml,
+  .github/scripts/{stage-disk.ps1,verify-scenario.ps1},
+  .github/scenarios/seed-manifest.json, .github/actions/install-driver
+  (the owner directive: windows runners only; the ubuntu sanitizer/fuzz
+  lanes are documented drops, coverage stays local via ci-local.sh).
+  KEPT: installer.yml (the S-038 lane landed mid-session on the moved
+  main - fresh active work, independent of anything wiped).
+- LANDED the 3-lane set: checks.yml (lint fast-fail -> build+test with
+  vcpkg binary caching + Win7 posture + G-09 + driverless refusal probes
+  + the new PS-AST and workflow-YAML parse gates), release.yml (validate
+  via workflow_call -> resolve -> build-core + driver-tier -> assemble
+  + publish; PERSISTENT dev-cert signing replacing the ephemeral
+  job-local cert, public cert shipped as rda-test-sign.cer), and
+  test-benchmark.yml (single elevated windows-2022 job: release fetch ->
+  driver trust/install/verify -> api_harness.c compiled against the
+  release SDK -> New-TestDisk (diskpart-only fixed VHDX, MBR+GPT,
+  FAT32/NTFS/exFAT, dual-partition) -> Run-Benchmark orchestrator over
+  benchmark-matrix.json: deterministic 23-format corpus, 10 scenarios,
+  CLI + API lanes, floor/discovery/observe gates, apply probe,
+  cancel+resume probe, bench verb + clean-volume timings) with
+  Teardown-Benchmark enforcing the M-061/M-069 contracts and the
+  structured 00..99 evidence artifact.
+- Secrets installed: DEV_SIGN_CERT_PFX_B64 + DEV_SIGN_CERT_PASSWORD
+  (CN=RRECOV-DEV-SIGN, RSA-2048 SHA-256, codeSigning EKU, 3-year).
+- Docs reconciled: CI-CURRENT.md rewritten for the new lane set;
+  CI-SCENARIOS.md pointed at benchmark-matrix.json; RELEASE-NOTES entry.
+
+Stage Summary:
+- Validation pending: the checks dispatch, then a release publish
+  (auto next-patch), then the auto-dispatched test-benchmark against it -
+  the empirical loop the lane set itself enforces (a rewritten composite
+  with zero dispatches is an unverified composite - the M-068 lesson).

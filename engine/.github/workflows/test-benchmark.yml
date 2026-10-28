@@ -1,0 +1,321 @@
+# test-benchmark.yml - the test + benchmark lane (prebuilt release, CLI + API).
+#
+# THE PIPELINE'S CONSUMER: loads the LATEST driver + core from the LATEST
+# combined release (fetch-release.ps1 enforces the documented convention:
+# SHA256SUMS + MANIFEST verification, never a build from source, never a
+# fallback to an older tag), then runs the versioned scenario matrix
+# (.github/scenarios/benchmark-matrix.json) against BOTH product surfaces:
+#
+#   CLI  (rrecov.exe)   - the testing vehicle: scan/tree/recover/bench/driver
+#   API  (cr_ui.dll)    - THE PRODUCT SURFACE (the future UI binds to this
+#                         ABI): a purpose-built C harness (.github/scripts/
+#                         api_harness.c) drives the full lifecycle from the
+#                         release zip's own include/ + lib/ + bin/ - proving
+#                         the shipped SDK is consumable exactly as a UI host
+#                         would consume it
+#
+# What it proves, end to end, on a real windows-2022 runner with a real
+# kernel driver and real simulated disks:
+#   1. the release is fetchable + hash-verified by convention (no builds here)
+#   2. the test-dev-SIGNED driver loads: rda-test-sign.cer imported into
+#      LocalMachine Root + TrustedPublisher -> install.ps1 -> service RUNNING
+#      -> rrecov driver --json reports ready + every facet green (also
+#      asserted through the API: cr_ui_driver_status)
+#   3. recovery works across the scenario matrix: permanent delete, recycle
+#      bin (kept + emptied), quick format, partition delete (+ the lost-
+#      partition APPLY probe), and the full-profile decay/overwrite/mft
+#      scenarios - on FAT32/NTFS/exFAT, MBR+GPT, multi-partition disks,
+#      with a deterministic 23-format corpus (CJK names, long paths, ADS,
+#      hard links, sparse, fragmented, nested, many-small)
+#   4. the session features: cancel mid-scan -> save -> resume
+#   5. performance: per-mode scan timings, recovery throughput, the driver
+#      bench verb (info/seq/rand/open), process sampling (CPU/WS) - all in
+#      the structured evidence artifact
+#
+# EVERYTHING is administrative (elevated by construction on hosted runners;
+# asserted explicitly) - diskpart, Initialize-Disk, Format-Volume, cert
+# stores, the kernel service: the exact operations that fail with permission
+# errors when a step silently runs unelevated.
+#
+# Time discipline: job timeout 120 min (smoke) / 180 (full); every scan/
+# recover is capped (force-kill + recorded) by the orchestrator's
+# ScanCapSec/RecoverCapSec; the ~15 GiB fixed-VHD matrix keeps full scans
+# in the minutes range (measured: deepcarve 60-90 s per 3 GiB volume).
+#
+# Evidence (the structured artifact, uploaded ALWAYS - a failure without
+# evidence is a second failure):
+#   00-environment/   runner image, toolchain, resolved releases, disk space
+#   01-driver/        install log, signature, service config, driver-status
+#   02-disk-setup/    disk-state.json (per-disk numbers/letters/partitions)
+#   03-baseline/      seed manifests + pre-deletion listings (the truth)
+#   04-scenarios/<id>/{cli,api,state}  per-lane logs, trees, reports,
+#                     inventories, metrics, samples, verdicts
+#   05-feature-probes/  health, fix dry-run, user-signs, carve parity,
+#                     cancel+resume
+#   06-comparison/    summary.json + gates.md (the gate table)
+#   07-performance/   clean-volume benchmark, bench-verb JSONs, perf summary
+#   99-teardown/      uninstall + detach records (M-061 contract asserted)
+#
+# The release lane dispatches this workflow automatically after every
+# publish (gh workflow run ... -f core_tag=<tag>); manual dispatch is always
+# available (core_tag empty = latest release).
+name: Test & Benchmark (prebuilt release, CLI + API)
+
+on:
+  workflow_dispatch:
+    inputs:
+      core_tag:
+        description: 'core_release tag to test (empty = latest release by convention)'
+        default: ''
+        type: string
+      profile:
+        description: 'smoke (default 7-scenario matrix) | full (adds decay/overwrite/mft on the 8 GiB disk)'
+        default: 'smoke'
+        type: choice
+        options: [smoke, full]
+      scan_modes:
+        description: 'comma list of CLI scan modes per scenario (quick,deep,deepcarve)'
+        default: 'quick,deep,deepcarve'
+        type: string
+      reason:
+        description: 'why this run (recorded in the env manifest; release dispatches set release-<tag>)'
+        default: 'manual'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-benchmark
+  cancel-in-progress: true
+
+jobs:
+  test-and-benchmark:
+    runs-on: windows-2022 # the execution-validated driver class (HVCI off)
+    timeout-minutes: ${{ inputs.profile == 'full' && 180 || 120 }}
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      EVIDENCE: ${{ github.workspace }}\evidence
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable git long paths
+        run: git config --system core.longpaths true
+
+      # ---- 1. environment + elevation + work-drive probe (the paths trap) -------
+      # Every path below is PROBED (free space) or derived from runner-provided
+      # context (GITHUB_WORKSPACE / RUNNER_TEMP) - the historical workflow-fail
+      # class was hardcoded runner paths (D: drive headroom, VS layout drift).
+      - name: Environment manifest + elevation + work drive
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force -Path "$env:EVIDENCE\00-environment" | Out-Null
+
+          # elevation assertion: the whole lane is administrative by design
+          $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+          if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+            Write-Host '::error::runner is NOT elevated - diskpart/cert-store/service operations would fail; aborting'
+            exit 1
+          }
+          Write-Host "elevated as $([Security.Principal.WindowsIdentity]::GetCurrent().Name)"
+
+          # work drive: pick the drive with the most free space (C: vs D:
+          # layouts differ across runner generations; the recorded failure
+          # was a dynamic-VHDX growth death on the WRONG drive)
+          $drives = Get-PSDrive -PSProvider FileSystem | Where-Object { $_.Free -gt 0 }
+          $best = $drives | Sort-Object Free -Descending | Select-Object -First 1
+          $workRoot = "$($best.Name):\cr-bench"
+          New-Item -ItemType Directory -Force -Path $workRoot | Out-Null
+          "WORKROOT=$workRoot" >> $env:GITHUB_ENV
+          Write-Host "work root: $workRoot ($([math]::Round($best.Free / 1GB, 1)) GiB free)"
+          foreach ($d in $drives) { Write-Host ("  drive {0}: {1:N1} GiB free" -f $d.Name, ($d.Free / 1GB)) }
+
+          # environment manifest (the env-manifest acceptance pattern)
+          $env = [ordered]@{
+            captured_utc   = (Get-Date).ToUniversalTime().ToString('o')
+            reason         = '${{ inputs.reason }}'
+            runner         = '${{ runner.name }}'
+            image_os       = $env:ImageOS
+            runner_os      = '${{ runner.os }}'
+            runner_arch    = '${{ runner.arch }}'
+            elevation      = 'administrator (asserted)'
+            workspace      = $env:GITHUB_WORKSPACE
+            work_root      = $workRoot
+            python         = (python --version 2>&1)
+            drives_free_gb = @($drives | ForEach-Object { [ordered]@{ drive = $_.Name; free_gb = [math]::Round($_.Free / 1GB, 2) } })
+            requested      = [ordered]@{ core_tag = '${{ inputs.core_tag }}'; profile = '${{ inputs.profile }}'; scan_modes = '${{ inputs.scan_modes }}' }
+          }
+          $env | ConvertTo-Json -Depth 5 | Set-Content "$env:EVIDENCE\00-environment\env-manifest.json" -Encoding utf8
+          Get-ComputerInfo | Select-Object WindowsProductName, OsVersion, CsProcessors, CsTotalPhysicalMemory |
+            ConvertTo-Json -Depth 3 | Set-Content "$env:EVIDENCE\00-environment\machine.json" -Encoding utf8
+
+      # ---- 2. fetch the combined release (the convention, enforced) -------------
+      - name: Fetch the core release (hash-verified, no builds here)
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $headers = @{ Authorization = "token $env:GITHUB_TOKEN" }
+          $tag = '${{ inputs.core_tag }}'
+          if ($tag) {
+            $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/heicfast/core_recovery/releases/tags/$tag" -Headers $headers
+          } else {
+            $rel = Invoke-RestMethod -Uri 'https://api.github.com/repos/heicfast/core_recovery/releases/latest' -Headers $headers
+          }
+          $zip = @($rel.assets | Where-Object { $_.name -like 'core-recovery-*.zip' })[0]
+          if (-not $zip) { Write-Host "::error::release $($rel.tag_name) carries no core-recovery-*.zip asset"; exit 1 }
+          Write-Host "resolved release: $($rel.tag_name) ($($rel.name))"
+
+          # the new-pipeline asset set; rda-test-sign.cer REQUIRED - releases
+          # from the old pipeline lack it and the signed-driver trust story
+          # does not exist for them (fail loud with the remediation)
+          $req = "$($zip.name),MANIFEST.json,SHA256SUMS,rda.sys,rda.inf,install.ps1,uninstall.ps1,rda-test-sign.cer"
+          $p = @{ Repo = 'heicfast/core_recovery'; OutDir = "$env:WORKROOT\release"; Required = $req }
+          if ($tag) { $p.Tag = $tag }
+          & .github/scripts/fetch-release.ps1 @p
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          "CORE_TAG=$($rel.tag_name)" >> $env:GITHUB_ENV
+          Copy-Item "$env:WORKROOT\release\resolved-release.json" "$env:EVIDENCE\00-environment\" -Force
+
+      # ---- 3. stage the core + CLI smoke probes ----------------------------------
+      - name: Stage the core + CLI smoke probes
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $staged = "$env:WORKROOT\core-staged"
+          $zip = Get-ChildItem "$env:WORKROOT\release" -Filter 'core-recovery-*.zip' | Select-Object -First 1
+          Expand-Archive -LiteralPath $zip.FullName -DestinationPath $staged -Force
+          # app-local runtime on PATH (the 0xc0000135 / LoadLibrary lesson)
+          $env:PATH = "$staged\bin;$env:PATH"
+          "STAGED=$staged" >> $env:GITHUB_ENV
+
+          $rrecov = "$staged\bin\rrecov.exe"
+          $failed = $false
+          & $rrecov 2>&1 | Out-Null
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::rrecov usage exited $LASTEXITCODE"; $failed = $true }
+          $listOut = & $rrecov list 2>&1
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::rrecov list exited $LASTEXITCODE"; $failed = $true }
+          $carveOut = & $rrecov list-carve-formats 2>&1
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::rrecov list-carve-formats exited $LASTEXITCODE"; $failed = $true }
+          if ($failed) { exit 1 }
+          $listOut | Set-Content "$env:EVIDENCE\00-environment\disk-list-before.txt" -Encoding utf8
+          $carveOut | Set-Content "$env:EVIDENCE\00-environment\carve-formats.txt" -Encoding utf8
+
+          [ordered]@{
+            core_tag = $env:CORE_TAG
+            rrecov_sha256 = (Get-FileHash $rrecov -Algorithm SHA256).Hash
+            cr_ui_sha256 = (Get-FileHash "$staged\bin\cr_ui.dll" -Algorithm SHA256).Hash
+            staged_files = @(Get-ChildItem $staged -Recurse -File | ForEach-Object { $_.FullName.Substring($staged.Length + 1) })
+          } | ConvertTo-Json -Depth 3 | Set-Content "$env:EVIDENCE\00-environment\staged-core.json" -Encoding utf8
+          Write-Host "core staged + CLI smoke green (PATH: $staged\bin prepended)"
+
+      # ---- 4. the driver: trust, install, verify ---------------------------------
+      - name: Install + verify the test-dev-signed driver
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $p = @{
+            ReleaseDir  = "$env:WORKROOT\release"
+            ServiceName = 'rda'
+            RrecovExe   = "$env:STAGED\bin\rrecov.exe"
+            EvidenceDir = "$env:EVIDENCE\01-driver"
+          }
+          & .github/scripts/Install-ReleaseDriver.ps1 @p
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      # ---- 5. compile the API harness against the release SDK + API probes ------
+      - name: Compile the API harness (release SDK include + lib/cr_ui.lib)
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # locate MSVC via vswhere (never a hardcoded VS path - the layout
+          # drift lesson), then compile in a vcvars64 environment
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (-not (Test-Path $vswhere)) { Write-Host '::error::vswhere not found'; exit 1 }
+          $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vsPath) { Write-Host '::error::no VS C++ toolchain located'; exit 1 }
+          $vcvars = Join-Path $vsPath 'VC\Auxiliary\Build\vcvars64.bat'
+          Write-Host "MSVC: $vsPath"
+
+          $harnessSrc = Copy-Item '.github\scripts\api_harness.c' "$env:WORKROOT\api_harness.c" -PassThru
+          # build via a GENERATED .cmd script (a file is deterministic; a
+          # nested-quote cmd /c command line is a quoting minefield)
+          $buildCmd = "@echo off`r`n" +
+            "call `"$vcvars`"`r`n" +
+            "if errorlevel 1 exit /b 1`r`n" +
+            "cl.exe /nologo /W4 /WX /utf-8 /D_CRT_SECURE_NO_WARNINGS `"$($harnessSrc.FullName)`"" +
+            " /I `"$env:STAGED\include`" /Fe:`"$env:STAGED\bin\api_harness.exe`" /Fo:`"$env:WORKROOT\api_harness.obj`"" +
+            " /link /LIBPATH:`"$env:STAGED\lib`" cr_ui.lib`r`n"
+          $buildCmdPath = "$env:WORKROOT\build-harness.cmd"
+          $buildCmd | Set-Content -Path $buildCmdPath -Encoding ascii
+          $out = cmd /d /s /c $buildCmdPath 2>&1
+          $out | Tee-Object -FilePath "$env:EVIDENCE\05-feature-probes\harness-build.log"
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path "$env:STAGED\bin\api_harness.exe")) {
+            Write-Host '::error::api_harness compile failed (log above)'
+            exit 1
+          }
+          Copy-Item $harnessSrc.FullName "$env:EVIDENCE\05-feature-probes\api_harness.c" -Force
+          Write-Host "api_harness.exe built against the release SDK (cr_ui.lib + cr_ui.dll adjacency in bin\)"
+
+      - name: API probes (ABI gate + driver status through the product surface)
+        run: |
+          $failed = $false
+          $h = "$env:STAGED\bin\api_harness.exe"
+
+          $abi = & $h --abi-version 2>&1
+          if ($LASTEXITCODE -eq 0) { Write-Host "PASS ABI: $abi" } else { Write-Host "::error::$abi"; $failed = $true }
+
+          $drv = & $h --driver-status 2>&1
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "PASS driver status (API): $drv"
+          } else {
+            Write-Host "::error::API driver-status not ready: $drv (exit $LASTEXITCODE)"; $failed = $true
+          }
+          $drv | Set-Content "$env:EVIDENCE\01-driver\api-driver-status.json" -Encoding utf8
+          if ($failed) { exit 1 }
+
+      # ---- 6. the matrix: environment + probes + benchmark + scenarios -----------
+      - name: Run the test + benchmark matrix (CLI + API lanes)
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $scanModes = @('${{ inputs.scan_modes }}' -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+          if (-not $scanModes -or $scanModes.Count -eq 0) { $scanModes = @('quick', 'deep', 'deepcarve') }
+          $p = @{
+            MatrixPath   = '.github\scenarios\benchmark-matrix.json'
+            RepoRoot     = $env:GITHUB_WORKSPACE
+            CoreStaged   = $env:STAGED
+            ApiHarness   = "$env:STAGED\bin\api_harness.exe"
+            WorkRoot     = $env:WORKROOT
+            EvidenceRoot = $env:EVIDENCE
+            Profile      = '${{ inputs.profile }}'
+            ScanModes    = $scanModes
+          }
+          & .github\scripts\Run-Benchmark.ps1 @p
+          exit $LASTEXITCODE
+
+      # ---- 7. teardown (ALWAYS: the M-061 contract + the detach records) --------
+      - name: Teardown (driver uninstall + VHD detach + cert cleanup)
+        if: always()
+        run: |
+          if (-not $env:WORKROOT) {
+            Write-Host 'no WORKROOT - setup did not reach the work-drive probe; nothing to tear down'
+            exit 0
+          }
+          $p = @{
+            ReleaseDir   = "$env:WORKROOT\release"
+            ServiceName  = 'rda'
+            DiskStatePath = "$env:WORKROOT\disk-state.json"
+            EvidenceDir  = "$env:EVIDENCE\99-teardown"
+          }
+          & .github\scripts\Teardown-Benchmark.ps1 @p
+          # teardown failures are recorded; the job verdict is the matrix's -
+          # but a failed uninstall CONTRACT is re-raised so it cannot hide
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::teardown contract violation (see evidence/99-teardown)'; exit 1 }
+
+      # ---- 8. the structured evidence artifact (ALWAYS) ---------------------------
+      - name: Upload the structured evidence artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-benchmark-evidence-${{ inputs.profile }}-${{ github.run_id }}
+          path: ${{ github.workspace }}\evidence
+          if-no-files-found: error
+          retention-days: 30

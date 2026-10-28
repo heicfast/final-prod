@@ -1,92 +1,194 @@
-# release.yml - the COMBINED release workflow (the sole source of builds).
+# release.yml - the combined release workflow (the sole source of builds).
 #
 # docs/RELEASE.md is the convention document; docs/PREBUILT-ARTIFACTS.md is
-# the artifact contract this workflow produces. Mandate section 5:
-#   - triggered by a tag push matching the plain-semver convention (vX.Y.Z)
-#   - gated by the FULL pre-merge validation suite (a red validation blocks
-#     the release - no release without green)
-#   - builds the core from the tagged commit (the one from-scratch build)
-#   - fetches the driver at the compatibility tier (prebuilt = the default
-#     and preferred path; source-build ONLY when the tier release does not
-#     exist, stamped built-from-source in MANIFEST.json)
-#   - produces the full artifact set: core zip + headers/symbols + driver
-#     assets + MANIFEST.json + top-level SHA256SUMS
-#   - signing posture is TEST-SIGNED driver artifacts / unsigned core
-#     binaries this session, stated truthfully in the release notes
+# the artifact contract this workflow produces. Mandate:
+#   - gated by the FULL pre-merge validation lane (checks.yml via
+#     workflow_call - no release without green, without exception; the
+#     skip_validation input is the DRILL-ONLY bypass, never for a real
+#     release)
+#   - builds the core from the released commit in Release config (the one
+#     from-scratch build; vcpkg binary-cached like the checks lane)
+#   - fetches the prebuilt driver from heicfast/rda-driver at the
+#     compatibility tier (floor v0.2.4: the versioned-layout + -Uninstall
+#     era the consumers' teardown contract assumes), source-build fallback
+#     ONLY when no tier release exists (stamped built-from-source in
+#     MANIFEST.json)
+#   - TEST-DEVELOPMENT-SIGNS the driver with the repo's PERSISTENT dev
+#     certificate (GitHub secrets DEV_SIGN_CERT_PFX_B64 +
+#     DEV_SIGN_CERT_PASSWORD, CN=RRECOV-DEV-SIGN, 3-year self-signed
+#     code-signing cert). The public certificate ships as the release
+#     asset `rda-test-sign.cer` so ANY consumer (the test-benchmark lane,
+#     dev machines) can establish trust by importing it into LocalMachine
+#     Root + TrustedPublisher and load the signed driver - no secret
+#     needed at consume time. This replaces the job-local ephemeral-cert
+#     posture (which died with the job that minted it).
+#   - produces the full asset set: core-recovery-<tag>.zip + rda.sys
+#     (signed) + rda.inf + install.ps1 + uninstall.ps1 + rda-test-sign.cer
+#     + MANIFEST.json + SHA256SUMS
+#   - on publish, dispatches test-benchmark.yml against the fresh tag
+#     (the release-is-the-substrate chain: every release gets the full
+#     CLI+API test/benchmark pass automatically)
 #
-# Cadence policy (docs/RELEASE.md): release on every green milestone; the
-# current release is the substrate for CI; there is no external schedule.
+# Triggers:
+#   - tag push vMAJOR.MINOR.PATCH (plain semver, the repo convention) -
+#     validates + builds + publishes that exact commit
+#   - workflow_dispatch on a branch (default main = the latest commit):
+#       version  - the tag to cut; empty = auto next-patch from the
+#                  latest release (e.g. v0.5.1 -> v0.5.2)
+#       publish  - false (default) = DRILL: validate + build + assemble,
+#                  upload the combined-release-set artifact, publish
+#                  nothing, dispatch nothing
+#                  true  = cut the tag at this commit and publish
+#       skip_validation - DRILL ONLY: skip the checks gate (never for a
+#                  real release)
 name: Release (combined core + driver)
 
 on:
   push:
-    tags: ['v[0-9]+.[0-9]+.[0-9]+'] # plain semver only - the new convention
+    tags: ['v[0-9]+.[0-9]+.[0-9]+'] # plain semver only - the convention
   workflow_dispatch:
     inputs:
+      version:
+        description: 'Tag to cut (vX.Y.Z); empty = auto next-patch from the latest release'
+        default: ''
+        type: string
+      publish:
+        description: 'Publish the release (cut the tag + upload assets). false = DRILL only'
+        default: false
+        type: boolean
       skip_validation:
         description: 'DRILL ONLY: skip the validation gate (never for a real release)'
         default: false
         type: boolean
 
 permissions:
-  contents: write
+  contents: write # tag + release creation
+  actions: write  # dispatch test-benchmark.yml after publishing
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false # never cancel a release mid-publish
 
 jobs:
-  # ---- gate: the full pre-merge validation suite (no release without green) ----
+  # ---- gate: the full validation lane (no release without green) ----
   validate:
     if: ${{ !inputs.skip_validation }}
-    uses: ./.github/workflows/ci.yml
+    uses: ./.github/workflows/checks.yml
     permissions:
-      # superset of every permission the called lane's jobs request (the
-      # codeql job - if:false, never runs - still statically requires
-      # security-events: write; the caller must cover it or the workflow
-      # fails at startup with "The nested job 'codeql' is requesting
-      # 'security-events: write'")
-      contents: read
-      security-events: write
+      contents: read # superset of every permission checks.yml's jobs request
+
+  # ---- resolve the release identity (tag + exact commit SHA) ----
+  resolve:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+      sha: ${{ steps.resolve.outputs.sha }}
+    steps:
+      - name: Resolve tag + commit
+        id: resolve
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sha = '${{ github.sha }}'
+          $tag = '${{ github.ref_name }}'   # non-empty only on tag pushes
+          $fromTagPush = [bool]$tag
+          if (-not $tag) {
+            # workflow_dispatch: explicit version or auto next-patch
+            $tag = '${{ inputs.version }}'
+            if (-not $tag) {
+              $latest = gh api repos/heicfast/core_recovery/releases/latest --jq .tag_name
+              if (-not $latest) { Write-Host '::error::no previous release to auto-bump from - pass the version input'; exit 1 }
+              if ($latest -notmatch '^v(\d+)\.(\d+)\.(\d+)') { Write-Host "::error::unparseable latest tag '$latest'"; exit 1 }
+              $tag = ('v{0}.{1}.{2}' -f $Matches[1], $Matches[2], ([int]$Matches[3] + 1))
+              Write-Host "auto-bumped: $latest -> $tag"
+            }
+          }
+          if ($tag -notmatch '^v\d+\.\d+\.\d+$') {
+            Write-Host "::error::tag '$tag' does not match the plain-semver convention vX.Y.Z (docs/RELEASE.md)"
+            exit 1
+          }
+          # refuse to overwrite an existing tag - DISPATCH ONLY (a tag push
+          # is self-evidently allowed to publish its own tag)
+          if (-not $fromTagPush) {
+            gh api "repos/heicfast/core_recovery/git/refs/tags/$tag" 2>$null | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "::error::tag $tag already exists - pick the next version (auto mode does this for you)"
+              exit 1
+            }
+          }
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "sha=$sha" >> $env:GITHUB_OUTPUT
+          Write-Host "release identity: $tag @ $sha"
 
   build-core:
-    needs: [validate]
+    needs: [validate, resolve]
     if: ${{ !cancelled() && (needs.validate.result == 'success' || inputs.skip_validation) }}
     runs-on: windows-2022
+    timeout-minutes: 90
+    env:
+      RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.sha }} # the exact released commit
 
-      - name: Build the core from the tagged commit (Release, manifest vcpkg)
+      - name: Enable git long paths
+        shell: pwsh
+        run: git config --system core.longpaths true
+
+      - name: vcpkg binary cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}\vcpkg-binary-cache
+          key: vcpkg-bin-win2022-${{ hashFiles('vcpkg.json') }}
+          restore-keys: vcpkg-bin-win2022-
+
+      - name: Build the core from the released commit (Release, manifest vcpkg)
         shell: pwsh
         run: |
           $env:VCPKG_ROOT = $env:VCPKG_INSTALLATION_ROOT
+          $env:VCPKG_DEFAULT_BINARY_CACHE = Join-Path $env:RUNNER_TEMP 'vcpkg-binary-cache'
+          New-Item -ItemType Directory -Force -Path $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
           cmake --preset win-x64-release
-          if ($LASTEXITCODE) { exit 1 }
+          if ($LASTEXITCODE -ne 0) { exit 1 }
           cmake --build --preset win-x64-release
-          if ($LASTEXITCODE) { exit 1 }
+          if ($LASTEXITCODE -ne 0) { exit 1 }
           ctest --preset win-x64-release -C Release
-          if ($LASTEXITCODE) { exit 1 }
+          if ($LASTEXITCODE -ne 0) { exit 1 }
 
       - name: Win7 posture gate (stamp + import allowlist, every shipped PE)
         shell: pwsh
         run: |
-          python tools/stamp_osversion_um.py build/win-x64-release/src/app/Release/rrecov.exe
-          if ($LASTEXITCODE) { exit 1 }
-          python tools/stamp_osversion_um.py build/win-x64-release/src/ui/Release/cr_ui.dll
-          if ($LASTEXITCODE) { exit 1 }
-          python tools/verify_pe_um.py build/win-x64-release/src/app/Release/rrecov.exe --allowlist tools/ref_imports_um.json
-          if ($LASTEXITCODE) { exit 1 }
-          python tools/verify_pe_um.py build/win-x64-release/src/ui/Release/cr_ui.dll --allowlist tools/ref_imports_um.json
-          if ($LASTEXITCODE) { exit 1 }
+          $pes = @(
+            'build\win-x64-release\src\app\Release\rrecov.exe',
+            'build\win-x64-release\src\ui\Release\cr_ui.dll'
+          )
+          foreach ($pe in $pes) {
+            python tools/stamp_osversion_um.py $pe
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+            python tools/verify_pe_um.py $pe --allowlist tools/ref_imports_um.json
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          }
 
-      - name: Stage the complete SDK + CLI bundle (the proven packaging)
+      # The proven packaging (release.yml of the previous era, ported
+      # verbatim - the UCRT probe survived four runner-image layout
+      # changes by probing BY CONTENT across the three known layouts).
+      - name: Stage the complete SDK + CLI bundle
         shell: pwsh
         run: |
-          $out = "stage"
+          $tag = $env:RELEASE_TAG
+          $out = 'stage'
           New-Item -ItemType Directory -Force "$out/bin", "$out/lib", "$out/data" | Out-Null
 
           $required = @(
-            "build/win-x64-release/src/app/Release/rrecov.exe",
-            "build/win-x64-release/src/ui/Release/cr_ui.dll",
-            "build/win-x64-release/src/ui/Release/cr_ui.lib",
-            "build/win-x64-release/src/core/Release/cr_core.lib",
-            "build/win-x64-release/src/win/Release/cr_win.lib"
+            'build/win-x64-release/src/app/Release/rrecov.exe',
+            'build/win-x64-release/src/ui/Release/cr_ui.dll',
+            'build/win-x64-release/src/ui/Release/cr_ui.lib',
+            'build/win-x64-release/src/core/Release/cr_core.lib',
+            'build/win-x64-release/src/win/Release/cr_win.lib'
           )
           foreach ($artifact in $required) {
             if (-not (Test-Path $artifact -PathType Leaf)) { throw "missing release artifact: $artifact" }
@@ -97,40 +199,38 @@ jobs:
           Copy-Item build/win-x64-release/src/core/Release/cr_core.lib "$out/lib/"
           Copy-Item build/win-x64-release/src/win/Release/cr_win.lib "$out/lib/"
 
-          foreach ($pdb in @("rrecov.pdb", "cr_ui.pdb")) {
+          foreach ($pdb in @('rrecov.pdb', 'cr_ui.pdb')) {
             $candidate = Get-ChildItem build/win-x64-release/src -Recurse -Filter $pdb -ErrorAction SilentlyContinue | Select-Object -First 1
             if ($candidate) { Copy-Item $candidate.FullName "$out/bin/" }
           }
 
           $deployed = @()
-          foreach ($dir in @("build/win-x64-release/src/app/Release", "build/win-x64-release/src/ui/Release")) {
+          foreach ($dir in @('build/win-x64-release/src/app/Release', 'build/win-x64-release/src/ui/Release')) {
             if (Test-Path $dir) {
               $deployed += Get-ChildItem $dir -Filter *.dll -ErrorAction SilentlyContinue |
                 Where-Object { $_.Name -notmatch '^(gtest|gmock)' }
             }
           }
-          $deployed | Sort-Object Name -Unique |
-            ForEach-Object { Copy-Item $_.FullName "$out/bin/" -Force }
+          $deployed | Sort-Object Name -Unique | ForEach-Object { Copy-Item $_.FullName "$out/bin/" -Force }
 
-          $vcCrt = Get-ChildItem "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Redist/MSVC/*/x64/Microsoft.VC143.CRT" -Directory -ErrorAction SilentlyContinue |
+          $vcCrt = Get-ChildItem 'C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Redist/MSVC/*/x64/Microsoft.VC143.CRT' -Directory -ErrorAction SilentlyContinue |
             Sort-Object FullName -Descending | Select-Object -First 1
-          if (-not $vcCrt) { throw "VC143 CRT redist dir not found (VS layout changed?)" }
+          if (-not $vcCrt) { throw 'VC143 CRT redist dir not found (VS layout changed?)' }
           Copy-Item "$($vcCrt.FullName)/*.dll" "$out/bin/"
 
           $ucrtCandidates = @()
-          $ucrtCandidates += Get-ChildItem "C:/Program Files (x86)/Windows Kits/10/Redist/*/ucrt/DLLs/x64" -Directory -ErrorAction SilentlyContinue
-          $ucrtCandidates += Get-ChildItem "C:/Program Files (x86)/Windows Kits/10/Redist/*/ucrt/x64" -Directory -ErrorAction SilentlyContinue
-          $ucrtCandidates += Get-ChildItem "C:/Program Files (x86)/Windows Kits/10/Bin/*/x64/ucrt" -Directory -ErrorAction SilentlyContinue
+          $ucrtCandidates += Get-ChildItem 'C:/Program Files (x86)/Windows Kits/10/Redist/*/ucrt/DLLs/x64' -Directory -ErrorAction SilentlyContinue
+          $ucrtCandidates += Get-ChildItem 'C:/Program Files (x86)/Windows Kits/10/Redist/*/ucrt/x64' -Directory -ErrorAction SilentlyContinue
+          $ucrtCandidates += Get-ChildItem 'C:/Program Files (x86)/Windows Kits/10/Bin/*/x64/ucrt' -Directory -ErrorAction SilentlyContinue
           $ucrt = $ucrtCandidates | Where-Object { Test-Path "$($_.FullName)/ucrtbase.dll" } | Select-Object -First 1
-          if (-not $ucrt) { throw "no UCRT redist carrying ucrtbase.dll in any SDK layout" }
+          if (-not $ucrt) { throw 'no UCRT redist carrying ucrtbase.dll in any SDK layout' }
           Copy-Item "$($ucrt.FullName)/ucrtbase.dll" "$out/bin/"
           Copy-Item "$($ucrt.FullName)/api-ms-win-crt-*.dll" "$out/bin/"
 
           Copy-Item -Recurse include "$out/include"
           Copy-Item -Recurse docs "$out/docs"
-          # M-065: the shipped default user-signature set (the og's
-          # install-tree EUUserData posture; lands beside rrecov.exe for
-          # the engine-init default load)
+          # M-065: the shipped default user-signature set lands beside
+          # rrecov.exe for the engine-init default load
           Copy-Item data/userdata-defaults.json "$out/bin/userdata-defaults.json"
           Copy-Item data/userdata-defaults.json "$out/data/userdata-defaults.json"
           Copy-Item README.md, LICENSE, RELEASE-NOTES.md "$out/"
@@ -138,44 +238,51 @@ jobs:
           $root = (Resolve-Path $out).Path
           $sums = Get-ChildItem $out -Recurse -File |
             Get-FileHash -Algorithm SHA256 |
-            ForEach-Object { "{0}  {1}" -f $_.Hash, $_.Path.Substring($root.Length + 1) }
+            ForEach-Object { '{0}  {1}' -f $_.Hash, $_.Path.Substring($root.Length + 1) }
           $sums | Set-Content "$out/SHA256SUMS"
 
-          Compress-Archive -Path "$out/*" -DestinationPath "core-recovery-$env:GITHUB_REF_NAME.zip" -Force
+          Compress-Archive -Path "$out/*" -DestinationPath "core-recovery-$tag.zip" -Force
+          Write-Host "packaged core-recovery-$tag.zip"
 
       - uses: actions/upload-artifact@v4
         with:
           name: core-bundle
-          path: core-recovery-${{ github.ref_name }}.zip
+          path: core-recovery-${{ needs.resolve.outputs.tag }}.zip
           if-no-files-found: error
 
   driver-tier:
-    needs: [validate]
+    needs: [validate, resolve]
     if: ${{ !cancelled() && (needs.validate.result == 'success' || inputs.skip_validation) }}
     runs-on: windows-2022
+    timeout-minutes: 30
     outputs:
       source: ${{ steps.tier.outputs.source }}
       tag: ${{ steps.tier.outputs.tag }}
+    env:
+      DEV_SIGN_CERT_PFX_B64: ${{ secrets.DEV_SIGN_CERT_PFX_B64 }}
+      DEV_SIGN_CERT_PASSWORD: ${{ secrets.DEV_SIGN_CERT_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
+
       - id: tier
-        name: Fetch the prebuilt driver at the compatibility tier (preferred path)
+        name: Fetch the prebuilt driver at the compatibility tier
         shell: pwsh
         run: |
           # Compatibility tier (docs/RELEASE.md): core 1.x <-> driver wire
-          # major 1 -> the latest rda-driver release by convention. Preferred
-          # path is the prebuilt release; the source-build fallback below
-          # runs ONLY when no tier release exists, and is stamped in
-          # MANIFEST.json (consumed vs built is the manifest's own field).
-          & .github/scripts/fetch-release.ps1 -Repo heicfast/rda-driver -OutDir driver `
-            -Required rda.sys, rda.inf, install.ps1, uninstall.ps1, SHA256SUMS -FloorVersion v0.2.1
+          # major 1 -> the latest rda-driver release, floor v0.2.4 (the
+          # versioned-layout + -Uninstall era; the consumers' teardown
+          # contract sweeps rda<digits>.sys). Preferred path is the
+          # prebuilt release; the source-build fallback below runs ONLY
+          # when no tier release exists and is stamped in MANIFEST.json.
+          $req = 'rda.sys,rda.inf,install.ps1,uninstall.ps1,SHA256SUMS'
+          & .github/scripts/fetch-release.ps1 -Repo heicfast/rda-driver -OutDir driver -Required $req -FloorVersion v0.2.4
           if ($LASTEXITCODE -eq 0) {
             $rec = Get-Content driver\resolved-release.json -Raw | ConvertFrom-Json
             "source=consumed" >> $env:GITHUB_OUTPUT
             "tag=$($rec.tag)" >> $env:GITHUB_OUTPUT
             exit 0
           }
-          Write-Host "::warning::no consumable rda-driver tier release (or verification failed) - BUILDING THE DRIVER FROM SOURCE at the tier per the mandate's fallback; this use is stamped built-from-source in MANIFEST.json"
+          Write-Host '::warning::no consumable rda-driver tier release at floor v0.2.4 - BUILDING THE DRIVER FROM SOURCE; stamped built-from-source in MANIFEST.json'
           "source=built-from-source" >> $env:GITHUB_OUTPUT
           "tag=<source-build>" >> $env:GITHUB_OUTPUT
 
@@ -183,20 +290,84 @@ jobs:
         if: steps.tier.outputs.source == 'built-from-source'
         shell: pwsh
         run: |
-          # the driver repo's own build (docs/build.md of rda-driver): MSBuild
-          # the solution, Release x64; artifacts land in the driver-tiers' own
-          # layout - normalized here to the release asset names.
           git clone --depth 1 https://github.com/heicfast/rda-driver.git rda-driver-src
-          $msbuild = Get-ChildItem "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe" | Select-Object -First 1
+          $msbuild = Get-ChildItem 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe' | Select-Object -First 1
           & $msbuild.FullName rda-driver-src\rda.sln /p:Configuration=Release /p:Platform=x64 /m
           if ($LASTEXITCODE -ne 0) { exit 1 }
           New-Item -ItemType Directory -Force driver | Out-Null
           $sys = Get-ChildItem rda-driver-src -Recurse -Filter rda.sys | Where-Object { $_.FullName -match 'x64\\Release' } | Select-Object -First 1
-          if (-not $sys) { Write-Host "::error::source build produced no rda.sys"; exit 1 }
+          if (-not $sys) { Write-Host '::error::source build produced no rda.sys'; exit 1 }
           Copy-Item $sys.FullName driver\rda.sys -Force
           Copy-Item rda-driver-src\src\driver\rda.inf driver\rda.inf -Force
           Copy-Item rda-driver-src\scripts\install.ps1 driver\install.ps1 -Force
           Copy-Item rda-driver-src\scripts\uninstall.ps1 driver\uninstall.ps1 -Force
+
+      # The persistent dev-sign step. Fails LOUD when the secrets are
+      # missing (no silent fallback to an unsigned or ephemeral driver -
+      # the S-036 doctrine).
+      - name: Test-development-sign the driver (persistent dev certificate)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not $env:DEV_SIGN_CERT_PFX_B64 -or -not $env:DEV_SIGN_CERT_PASSWORD) {
+            Write-Host '::error::missing GitHub secrets DEV_SIGN_CERT_PFX_B64 / DEV_SIGN_CERT_PASSWORD - the release cannot test-sign the driver. Generate a self-signed code-signing cert (CN=RRECOV-DEV-SIGN, codeSigning EKU, digitalSignature KU, RSA-2048 SHA-256), store the PFX base64 + password as repo secrets, and re-run.'
+            exit 1
+          }
+
+          # S-036 lesson: parse-gate the installer scripts BEFORE they ship
+          # (a parse-time crash in install.ps1 broke every CI install once).
+          foreach ($s in @('driver\install.ps1', 'driver\uninstall.ps1')) {
+            $errs = $null
+            [System.Management.Automation.Language.Parser]::ParseFile("$PWD\$s", [ref]$null, [ref]$errs) | Out-Null
+            if ($errs -and $errs.Count -gt 0) {
+              Write-Host "::error::PARSE ERROR in ${s} (the rda-driver release shipped a broken script):"
+              $errs | Select-Object -First 5 | ForEach-Object { Write-Host "  line $($_.Extent.StartLineNumber): $($_.Message)" }
+              exit 1
+            }
+          }
+
+          # record the UNSIGNED hash (upstream provenance; fetch-release
+          # already verified it against the rda-driver SHA256SUMS)
+          $unsignedSha = (Get-FileHash driver\rda.sys -Algorithm SHA256).Hash
+          "$unsignedSha" | Set-Content driver\sha256-unsigned.txt
+
+          # decode the persistent cert and sign (signtool from the newest
+          # Windows Kits install - the proven discovery glob)
+          [IO.File]::WriteAllBytes("$PWD\devsign.pfx", [Convert]::FromBase64String($env:DEV_SIGN_CERT_PFX_B64))
+          $signtool = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe' |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $signtool) { Write-Host '::error::signtool.exe not found (Windows Kits layout changed?)'; exit 1 }
+          # No /tr timestamp by the N-084 posture: the signature is meant
+          # for CI/dev test-loading within the cert's 3-year window; a
+          # consumer needing signature validity past cert expiry should
+          # re-sign with their own cert (docs/DRIVER-RELEASE.md section 5).
+          & $signtool.FullName sign /fd SHA256 /f devsign.pfx /p $env:DEV_SIGN_CERT_PASSWORD driver\rda.sys
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::signtool failed'; exit 1 }
+
+          # verify the signature: import the public cert into this
+          # machine's Root store, then Get-AuthenticodeSignature must
+          # report Valid with the expected signer subject
+          $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new("$PWD\devsign.pfx", $env:DEV_SIGN_CERT_PASSWORD)
+          $cerPath = "$PWD\rda-test-sign.cer"
+          [IO.File]::WriteAllBytes($cerPath, $cert.RawData)
+          Import-Certificate -FilePath $cerPath -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
+          $sig = Get-AuthenticodeSignature driver\rda.sys
+          if ($sig.Status -ne 'Valid') {
+            Write-Host "::error::signature verification failed: $($sig.Status) - $($sig.StatusMessage)"
+            exit 1
+          }
+          if ($sig.SignerCertificate.Subject -notmatch 'RRECOV-DEV-SIGN') {
+            Write-Host "::error::unexpected signer subject: $($sig.SignerCertificate.Subject)"
+            exit 1
+          }
+
+          $signedSha = (Get-FileHash driver\rda.sys -Algorithm SHA256).Hash
+          "$signedSha" | Set-Content driver\sha256-signed.txt
+          Copy-Item $cerPath driver\rda-test-sign.cer -Force
+          Write-Host "driver test-signed: signer $($sig.SignerCertificate.Subject)"
+          Write-Host "  unsigned sha256: $unsignedSha"
+          Write-Host "    signed sha256: $signedSha"
+          Remove-Item devsign.pfx -Force -ErrorAction SilentlyContinue
 
       - uses: actions/upload-artifact@v4
         with:
@@ -206,11 +377,23 @@ jobs:
             driver/rda.inf
             driver/install.ps1
             driver/uninstall.ps1
+            driver/rda-test-sign.cer
+            driver/sha256-unsigned.txt
+            driver/sha256-signed.txt
+            driver/resolved-release.json
           if-no-files-found: error
 
   assemble-and-publish:
-    needs: [build-core, driver-tier]
+    needs: [build-core, driver-tier, resolve]
     runs-on: windows-2022
+    timeout-minutes: 30
+    env:
+      RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
+      RELEASE_SHA: ${{ needs.resolve.outputs.sha }}
+      DRIVER_SOURCE: ${{ needs.driver-tier.outputs.source }}
+      DRIVER_TAG: ${{ needs.driver-tier.outputs.tag }}
+      PUBLISH: ${{ inputs.publish || startsWith(github.ref, 'refs/tags/') }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -224,45 +407,41 @@ jobs:
       - name: Assemble the combined artifact set (MANIFEST.json + SHA256SUMS)
         shell: pwsh
         run: |
-          $tag = "${{ github.ref_name }}"
-          if (-not $tag) { $tag = "v0.0.0-drill" }   # workflow_dispatch drill
+          $tag = $env:RELEASE_TAG
           $coreZip = "core-recovery-$tag.zip"
           if (-not (Test-Path $coreZip)) { throw "core zip missing: $coreZip (did build-core run?)" }
 
-          # the release asset set: core zip + the driver tier mates
-          $assets = @($coreZip, 'driver\rda.sys', 'driver\rda.inf',
-                      'driver\install.ps1', 'driver\uninstall.ps1')
+          # normalize the driver tier to the release root (flat names)
+          Copy-Item driver\rda.sys, driver\rda.inf, driver\install.ps1, driver\uninstall.ps1, driver\rda-test-sign.cer . -Force
+          $assets = @($coreZip, 'rda.sys', 'rda.inf', 'install.ps1', 'uninstall.ps1', 'rda-test-sign.cer')
           foreach ($a in $assets) {
-            $p = if ($a -like 'driver\*') { $a } else { $a }
-            if (-not (Test-Path $p)) { throw "missing release asset: $p" }
+            if (-not (Test-Path $a -PathType Leaf)) { throw "missing release asset: $a" }
           }
-          # normalize driver assets to the release root (flat names)
-          Copy-Item driver\rda.sys, driver\rda.inf, driver\install.ps1, driver\uninstall.ps1 . -Force
 
           $coreVersion = (Get-Content vcpkg.json -Raw | ConvertFrom-Json).'version-string'
-          $driverSource = '${{ needs.driver-tier.outputs.source }}'
-          $driverTag = '${{ needs.driver-tier.outputs.tag }}'
-          if (-not $driverTag) { $driverTag = '<none>' }
+          $driverSource = $env:DRIVER_SOURCE
+          $driverTag = if ($env:DRIVER_TAG) { $env:DRIVER_TAG } else { '<none>' }
+          $unsignedSha = (Get-Content driver\sha256-unsigned.txt -Raw).Trim()
+          $signedSha = (Get-Content driver\sha256-signed.txt -Raw).Trim()
 
-          # ---- MANIFEST.json: every artifact, version, checksum, source tier ----
           $manifest = [ordered]@{
-            release_tag   = $tag
-            core_version  = $coreVersion
-            created_utc   = (Get-Date).ToUniversalTime().ToString('o')
-            driver_tier   = [ordered]@{
-              repo     = 'heicfast/rda-driver'
-              tag      = $driverTag
-              source   = $driverSource     # consumed | built-from-source
-              wire_major_required = 1      # core's compatibility contract
+            release_tag  = $tag
+            core_version = $coreVersion
+            created_utc  = (Get-Date).ToUniversalTime().ToString('o')
+            driver_tier  = [ordered]@{
+              repo                = 'heicfast/rda-driver'
+              tag                 = $driverTag
+              source              = $driverSource # consumed | built-from-source
+              wire_major_required = 1 # core's compatibility contract
+              sha256_unsigned     = $unsignedSha
+              sha256_signed       = $signedSha
+              dev_sign_subject    = 'CN=RRECOV-DEV-SIGN'
             }
-            signing_posture = 'test-signed driver artifacts (job-local certificate at install time); core binaries unsigned - this session''s documented posture (docs/RELEASE.md)'
-            artifacts     = @()
+            signing_posture = 'rda.sys test-development-signed with the repo persistent dev certificate (CN=RRECOV-DEV-SIGN); the public cert ships as rda-test-sign.cer - import into LocalMachine Root + TrustedPublisher to load the driver; core binaries unsigned by design (byte-comparable builds)'
+            artifacts    = @()
           }
-          $top = @('rda.sys', 'rda.inf', 'install.ps1', 'uninstall.ps1', $coreZip)
-          $sums = @()
-          foreach ($name in $top) {
+          foreach ($name in $assets) {
             $hash = (Get-FileHash $name -Algorithm SHA256).Hash
-            $sums += "{0}  {1}" -f $hash, $name
             $manifest.artifacts += [ordered]@{
               name        = $name
               sha256      = $hash
@@ -271,6 +450,14 @@ jobs:
             }
           }
           $manifest | ConvertTo-Json -Depth 5 | Set-Content MANIFEST.json
+
+          # top-level SHA256SUMS over every asset except the two
+          # self-referential index files (the convention: no scheme can
+          # hash its own index)
+          $sums = @()
+          foreach ($name in $assets) {
+            $sums += '{0}  {1}' -f (Get-FileHash $name -Algorithm SHA256).Hash, $name
+          }
           $sums | Set-Content SHA256SUMS
           Get-Content MANIFEST.json | Write-Host
           Get-Content SHA256SUMS | Write-Host
@@ -280,44 +467,79 @@ jobs:
         with:
           name: combined-release-set
           path: |
-            core-recovery-${{ github.ref_name }}.zip
+            core-recovery-*.zip
             rda.sys
             rda.inf
             install.ps1
             uninstall.ps1
+            rda-test-sign.cer
             MANIFEST.json
             SHA256SUMS
           if-no-files-found: error
 
-      - name: Create the combined GitHub release (tag pushes only)
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Cut the tag (workflow_dispatch publish path only)
+        if: env.PUBLISH == 'true' && !startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          # the tag push path already has the tag; the dispatch path
+          # creates it at the exact released SHA (lightweight ref via the
+          # git refs API - resolve.yml already asserted it does not exist)
+          gh api --method POST repos/heicfast/core_recovery/git/refs `
+            -f ref="refs/tags/$env:RELEASE_TAG" -f sha="$env:RELEASE_SHA"
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::tag creation failed for $env:RELEASE_TAG @ $env:RELEASE_SHA"; exit 1 }
+          Write-Host "tag $env:RELEASE_TAG cut at $env:RELEASE_SHA"
+
+      - name: Publish the combined GitHub release
+        if: env.PUBLISH == 'true'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.resolve.outputs.tag }}
           files: |
-            core-recovery-${{ github.ref_name }}.zip
+            core-recovery-${{ needs.resolve.outputs.tag }}.zip
             rda.sys
             rda.inf
             install.ps1
             uninstall.ps1
+            rda-test-sign.cer
             MANIFEST.json
             SHA256SUMS
           body: |
-            # core_recovery ${{ github.ref_name }} — combined core + driver release
+            # core_recovery ${{ needs.resolve.outputs.tag }} — combined core + driver release
 
-            **Read the manifest first:** `MANIFEST.json` lists every artifact with
-            version, SHA256 and source tier (consumed vs built-from-source for the
-            driver tier). `SHA256SUMS` covers every top-level asset.
+            **Read the manifest first:** `MANIFEST.json` lists every artifact
+            with version, SHA256 and source tier. `SHA256SUMS` covers every
+            top-level asset.
 
-            - **Core** built from the tagged commit (the release workflow is the
-              sole source of builds — docs/PREBUILT-ARTIFACTS.md).
+            - **Core** built from the released commit (the release workflow
+              is the sole source of builds — docs/PREBUILT-ARTIFACTS.md).
             - **Driver tier:** ${{ needs.driver-tier.outputs.source == 'consumed' && format('consumed prebuilt from rda-driver {0}', needs.driver-tier.outputs.tag) || 'BUILT FROM SOURCE (no consumable tier release existed; stamped in MANIFEST.json)' }}.
-            - **Signing posture (truthful):** driver artifacts are test-signed at
-              install time with a job-local certificate; core binaries are
-              unsigned. This is this session's documented posture — see
-              docs/RELEASE.md.
+            - **Signing posture (truthful):** `rda.sys` is
+              test-development-signed with the repo's persistent dev
+              certificate (CN=RRECOV-DEV-SIGN). The public certificate
+              ships as `rda-test-sign.cer`: import it into
+              `LocalMachine\Root` AND `LocalMachine\TrustedPublisher`
+              (elevated), then run `install.ps1` — no test-signing boot
+              mode required on HVCI-off machines (GitHub windows-2022
+              runners are the execution-validated class). Core binaries
+              are unsigned by design (byte-comparable builds).
             - **Compatibility:** core 1.x requires driver wire major 1
               (query with `rrecov driver --json`; refusal taxonomy in
               docs/DRIVER-REQUIRED.md).
-            - Full context: RELEASE-NOTES.md (in the core zip), the applicable
-              PARITY-DELTAS.md entries (D-DRV-1..6 this era), and
-              docs/CI-SCENARIOS.md for how CI consumes this release.
+            - **Every published release is automatically test+benchmarked:**
+              publishing dispatches the test-benchmark workflow against
+              this tag (CLI + API lanes over simulated disks —
+              docs/CI-SCENARIOS.md).
+            - Full context: RELEASE-NOTES.md (in the core zip) and the
+              applicable PARITY-DELTAS.md entries.
+
+      # The release-is-the-substrate chain: the fresh release gets the
+      # full test/benchmark pass automatically (the owner's pipeline:
+      # commit -> checks -> release -> test+benchmark).
+      - name: Dispatch the test-benchmark workflow against this release
+        if: env.PUBLISH == 'true'
+        shell: pwsh
+        run: |
+          $tag = $env:RELEASE_TAG
+          gh workflow run test-benchmark.yml --ref main -f core_tag=$tag -f reason="release-$tag"
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::failed to dispatch test-benchmark.yml for $tag"; exit 1 }
+          Write-Host "dispatched test-benchmark.yml (core_tag=$tag) - the fresh release is now being tested + benchmarked"

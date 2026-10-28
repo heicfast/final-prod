@@ -1,0 +1,295 @@
+# checks.yml - the post-commit validation lane (the pre-merge gate).
+#
+# THE WINDOWS-ONLY CONSOLIDATION (docs/CI-CURRENT.md): this lane replaces
+# the old ci.yml 7-job set. The ubuntu sanitizer/fuzz lanes were dropped by
+# the owner's windows-only directive - a documented decision, not an
+# accident: the pure core keeps its sanitizer coverage locally via
+# `./ci-local.sh --san|--fuzz` on dev machines, and MSVC /W4 /WX is the
+# global compile gate here (docs/BUILD-SUPPRESSIONS.md: zero suppressions).
+#
+# Component map (mirrors ci-local.ps1, the developer entry point - the
+# numbering is that script's own):
+#   [1] clang-format --dry-run -Werror over src/ include/ tests/
+#   [2] N-041 dead-surface lint + the driver-only architecture lint
+#   [3] MSVC /W4 /WX Release build (win-x64-release preset, vcpkg manifest)
+#   [4] full ctest (all GoogleTest suites + the cr_ui ABI check)
+#   [5] Win7 posture gate (stamp_osversion_um.py + verify_pe_um.py)
+#   [6] vcpkg.json manifest presence (the pinning policy)
+#   [7] G-09 report-schema validation + the driverless refusal-contract
+#       probes (rrecov driver/scan must exit 4 with the ERR_DRIVER_*
+#       taxonomy when no driver is installed - the standing regression
+#       probe this lane owns; no driver is ever installed here)
+# Plus two CI-owned gates the local gate does not need:
+#   - the PowerShell AST parse gate over every CI-consumed script (the
+#     S-036 lesson: a PS 5.1 parse-time crash in install.ps1 broke every
+#     install for an era)
+#   - the workflow YAML parse gate (the stray-brace class that killed the
+#     old benchmark.yml across 5 dispatches)
+#
+# Efficiency contract: vcpkg binary caching keyed on vcpkg.json (the old
+# lane rebuilt zlib/gtest/lz4/zstd from source on EVERY run - the single
+# largest fixed cost), paths-ignore on docs-only pushes for BOTH push and
+# PR (symmetric - the old lane lacked the PR filter), concurrency
+# cancel-in-progress on new pushes, and lint fast-fails BEFORE the heavy
+# build job starts (the lint gate is historically the most frequently red
+# lane - no point burning 90 minutes of build compute behind it).
+#
+# windows-2022 is pinned everywhere (not windows-latest): it is the
+# execution-validated runner class for this tree (VS2022 Enterprise
+# layout, VCPKG_INSTALLATION_ROOT, HVCI-off for any driver-touching
+# consumer; docs/PREBUILT-ARTIFACTS.md section 2).
+name: Checks
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['**.md', 'docs/**', 'worklog.md', 'worklog/**', 'AUDIT*.md']
+  pull_request:
+    branches: [main]
+    paths-ignore: ['**.md', 'docs/**', 'worklog.md', 'worklog/**', 'AUDIT*.md']
+  workflow_call: {} # release.yml calls this lane as its validation gate
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint + parse gates
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: pip cache (clang-format wheel)
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\pip\Cache
+          key: pip-clangformat-win2022
+          restore-keys: pip-clangformat-win2022
+
+      # ci-local.ps1 component [1]. clang-format is installed UNPINNED on
+      # purpose: the tree is formatted with the repo's own local-gate
+      # convention (ci-local.ps1 installs latest too) - pinning a version
+      # the tree was not formatted with would fail today; the shared drift
+      # risk is the documented trade (CI-LOCAL.md section 4).
+      - name: '[1/2] clang-format check (src/ include/ tests/)'
+        shell: pwsh
+        run: |
+          pip install --quiet --disable-pip-version-check clang-format
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::pip install clang-format failed'; exit 1 }
+          $files = Get-ChildItem -Recurse -Include *.h,*.hpp,*.cpp,*.c -Path src,include,tests | ForEach-Object FullName
+          if (-not $files -or $files.Count -eq 0) { Write-Host '::error::no sources found to format-check'; exit 1 }
+          $bad = $files | ForEach-Object { & clang-format --dry-run -Werror $_ 2>&1 } |
+            Select-String 'error:' | Select-Object -First 20
+          if ($bad) {
+            $bad | ForEach-Object { Write-Host "  $_" }
+            Write-Host '::error::files need formatting - fix: clang-format -i (all files under src/ include/ tests/)'
+            exit 1
+          }
+          Write-Host "clang-format clean ($($files.Count) files)"
+
+      # ci-local.ps1 component [2], verbatim patterns.
+      - name: '[2/2] dead-surface + driver-only architecture lints'
+        shell: pwsh
+        run: |
+          $failed = $false
+          $n41 = Get-ChildItem -Recurse -Include *.cpp,*.h,*.c -Path src,include,tests,tools,bench,fuzz -ErrorAction SilentlyContinue |
+            Select-String -Pattern 'RdaClient::','class RdaClient','volume_letter_to_disk' | Select-Object -First 5
+          if ($n41) { Write-Host '::error::deleted dead-surface symbols found (N-041)'; $n41 | ForEach-Object { Write-Host "  $_" }; $failed = $true }
+          else { Write-Host 'N-041 dead-surface lint clean' }
+
+          $drv = Get-ChildItem -Recurse -Include *.cpp,*.h,*.c -Path src,include -ErrorAction SilentlyContinue |
+            Select-String -Pattern 'rda_available\s*\(','win_pe_environment\s*\(','open_harddisk_volume\s*\(','prefer_rda' |
+            Where-Object { $_.Line -notmatch '^\s*(/\*|\*|//)' } | Select-Object -First 5
+          if ($drv) { Write-Host '::error::removed fallback primitives in production code (driver-only architecture)'; $drv | ForEach-Object { Write-Host "  $_" }; $failed = $true }
+          else { Write-Host 'driver-only architecture lint clean' }
+
+          if (-not (Test-Path vcpkg.json)) { Write-Host '::error::vcpkg.json manifest missing (component 6)'; $failed = $true }
+          else { Write-Host 'vcpkg.json manifest present (manifest mode = the pinning policy)' }
+
+          if ($failed) { exit 1 }
+
+      - name: 'PowerShell AST parse gate (every CI-consumed script)'
+        shell: pwsh
+        run: |
+          # The S-036 lesson: install.ps1's PS 5.1 parse-time crash broke
+          # every CI install for an era behind a fallback. Every script any
+          # workflow dispatches (ours or a release's) is parse-checked here
+          # BEFORE a runner ever executes it.
+          $ErrorActionPreference = 'Stop'
+          $roots = @('ci-local.ps1')
+          $roots += @(Get-ChildItem .github/scripts -Filter *.ps1 -Recurse -ErrorAction SilentlyContinue | ForEach-Object FullName)
+          $roots += @(Get-ChildItem bench -Filter *.ps1 -Recurse -ErrorAction SilentlyContinue | ForEach-Object FullName)
+          if ($roots.Count -le 1) { Write-Host '::error::no .github/scripts or bench ps1 found - tree shape changed?'; exit 1 }
+          $failed = $false
+          foreach ($s in $roots) {
+            $errs = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($s, [ref]$null, [ref]$errs) | Out-Null
+            if ($errs -and $errs.Count -gt 0) {
+              Write-Host "::error::PARSE ERROR in ${s}:"
+              $errs | Select-Object -First 5 | ForEach-Object { Write-Host "  line $($_.Extent.StartLineNumber): $($_.Message)" }
+              $failed = $true
+            }
+          }
+          if ($failed) { exit 1 }
+          Write-Host "AST parse gate clean ($($roots.Count) scripts)"
+
+      - name: 'Workflow YAML parse gate'
+        shell: pwsh
+        run: |
+          # The stray-brace class killed the old benchmark.yml across 5
+          # dispatches before anyone noticed. YAML-parse every workflow
+          # here (python + PyYAML - the runner python has pip access).
+          pip install --quiet --disable-pip-version-check pyyaml
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::pip install pyyaml failed'; exit 1 }
+          $yamls = Get-ChildItem .github/workflows -Filter *.yml | ForEach-Object FullName
+          if ($yamls.Count -lt 1) { Write-Host '::error::no workflows found'; exit 1 }
+          $list = ($yamls -join '";"')
+          python -c "import sys, yaml; [yaml.safe_load(open(p, encoding='utf-8')) for p in sys.argv[1:]]; print('YAML parse gate clean:', len(sys.argv)-1, 'workflow(s)')" $yamls
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+  build-and-test:
+    name: Build + test (MSVC Release, vcpkg cache)
+    needs: lint
+    runs-on: windows-2022
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      # Long paths: the test tree and any generated fixture can exceed
+      # MAX_PATH; git must be allowed to see them (a classic silent-CI-red
+      # source on Windows runners).
+      - name: Enable git long paths
+        shell: pwsh
+        run: git config --system core.longpaths true
+
+      # THE efficiency change: binary caching for the vcpkg manifest. The
+      # old lane rebuilt zlib + gtest + lz4 + zstd from source on every
+      # run (docs/CI-CURRENT.md "zero caching" was the known fixed cost).
+      # VCPKG_DEFAULT_BINARY_CACHE points the toolchain's binary cache at
+      # this directory; the key is the manifest hash so any dependency
+      # change invalidates precisely.
+      - name: vcpkg binary cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}\vcpkg-binary-cache
+          key: vcpkg-bin-win2022-${{ hashFiles('vcpkg.json') }}
+          restore-keys: vcpkg-bin-win2022-
+
+      # ci-local.ps1 components [3]+[4]: the one Release build (the old
+      # double Debug+Release build was deliberately cut) + full ctest.
+      - name: Configure + build (win-x64-release, /W4 /WX)
+        shell: pwsh
+        run: |
+          $env:VCPKG_ROOT = $env:VCPKG_INSTALLATION_ROOT
+          if (-not $env:VCPKG_ROOT) { Write-Host '::error::VCPKG_INSTALLATION_ROOT not set on the runner image'; exit 1 }
+          $env:VCPKG_DEFAULT_BINARY_CACHE = Join-Path $env:RUNNER_TEMP 'vcpkg-binary-cache'
+          New-Item -ItemType Directory -Force -Path $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+          Write-Host "binary cache: $env:VCPKG_DEFAULT_BINARY_CACHE"
+          cmake --preset win-x64-release
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::configure failed (win-x64-release preset)'; exit 1 }
+          cmake --build --preset win-x64-release
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::build failed (MSVC /W4 /WX - the errors above are the fix list)'; exit 1 }
+          Write-Host 'win-x64-release build clean'
+
+      - name: Unit + contract tests (full ctest incl. cr_ui ABI)
+        shell: pwsh
+        run: |
+          ctest --preset win-x64-release -C Release --output-on-failure
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::ctest red (failures above)'; exit 1 }
+          Write-Host 'ctest green'
+
+      # ci-local.ps1 component [5]: stamp BEFORE verify (the ordering is
+      # the contract - verify_pe_um.py fails on (10,0) OS fields).
+      - name: Win7 posture gate (stamp + import allowlist)
+        shell: pwsh
+        run: |
+          $pes = @(
+            'build\win-x64-release\src\app\Release\rrecov.exe',
+            'build\win-x64-release\tests\Release\cr_tests.exe',
+            'build\win-x64-release\src\ui\Release\cr_ui.dll'
+          )
+          foreach ($pe in $pes) {
+            if (-not (Test-Path $pe)) { Write-Host "::error::missing build artifact: $pe"; exit 1 }
+            python tools/stamp_osversion_um.py $pe
+            if ($LASTEXITCODE -ne 0) { Write-Host "::error::stamp failed: $pe"; exit 1 }
+            python tools/verify_pe_um.py $pe --allowlist tools/ref_imports_um.json
+            if ($LASTEXITCODE -ne 0) { Write-Host "::error::import allowlist failed: $pe"; exit 1 }
+          }
+          Write-Host 'Win7 posture gate clean (3 PE)'
+
+      # G-09: test_report.cpp writes cr_report_sample.json into the system
+      # temp dir during ctest; validate it AFTER ctest ran (ordering
+      # dependency, ci-local.md documents the same step).
+      - name: Recovery-report schema validation (G-09)
+        shell: pwsh
+        run: |
+          $sample = Join-Path $env:TEMP 'cr_report_sample.json'
+          if (-not (Test-Path $sample)) {
+            Write-Host '::error::cr_report_sample.json not found in TEMP - the Report.EmitsCiSchemaSample test did not run (or moved its output)'
+            exit 1
+          }
+          python tools/validate_report.py $sample
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::report schema validation failed'; exit 1 }
+          Write-Host 'G-09 report schema valid'
+
+      # The driverless refusal-contract probes (this lane's owned
+      # regression: no driver is ever installed on THIS runner). Every
+      # probe that asserts a NON-ZERO exit by design ends with this
+      # script's own explicit verdict - the exit-0-verdict lesson (three
+      # dispatches died to it historically).
+      - name: Driverless refusal-contract probes (exit-4 taxonomy)
+        shell: pwsh
+        run: |
+          $rrecov = 'build\win-x64-release\src\app\Release\rrecov.exe'
+          if (-not (Test-Path $rrecov)) { Write-Host "::error::missing $rrecov"; exit 1 }
+          $failed = $false
+
+          # usage: bare invocation prints usage, exit 0
+          & $rrecov 2>&1 | Out-Null
+          if ($LASTEXITCODE -eq 0) { Write-Host 'PASS usage: exit 0' } else { Write-Host "::error::usage exited $LASTEXITCODE (expected 0)"; $failed = $true }
+
+          # list: enumeration is classification (b) - works driverless, exit 0
+          & $rrecov list 2>&1 | Out-Null
+          if ($LASTEXITCODE -eq 0) { Write-Host 'PASS list: exit 0' } else { Write-Host "::error::list exited $LASTEXITCODE (expected 0)"; $failed = $true }
+
+          # list-carve-formats: registry enumeration, exit 0
+          $carveOut = & $rrecov list-carve-formats 2>&1
+          if ($LASTEXITCODE -eq 0) { Write-Host 'PASS list-carve-formats: exit 0' } else { Write-Host "::error::list-carve-formats exited $LASTEXITCODE (expected 0)"; $failed = $true }
+
+          # driver --json: MUST refuse with exit 4 + state absent
+          $drvJson = & $rrecov driver --json 2>&1
+          if ($LASTEXITCODE -eq 4 -and $drvJson -match '"state":"absent"') {
+            Write-Host 'PASS driver --json: exit 4, state absent (no driver installed - by design on this lane)'
+          } else {
+            Write-Host "::error::driver --json exited $LASTEXITCODE (expected 4 / absent); output: $drvJson"; $failed = $true
+          }
+
+          # scan --disk 0: MUST refuse BEFORE any scan output, exit 4
+          $scanOut = & $rrecov scan --disk 0 2>&1
+          if ($LASTEXITCODE -eq 4 -and $scanOut -match 'driver required') {
+            Write-Host 'PASS scan --disk 0: exit 4, refusal message present'
+          } else {
+            Write-Host "::error::scan --disk 0 exited $LASTEXITCODE (expected 4); output: $scanOut"; $failed = $true
+          }
+          if ($scanOut -match 'starting scan|stage|progress|\[transport\]') {
+            Write-Host '::error::the refusal must be the whole response - scan output leaked past the driver gate'; $failed = $true
+          }
+
+          if ($failed) { exit 1 }
+          Write-Host 'driverless refusal contract: all probes green'
+
+      - name: Upload diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checks-failure-diagnostics-${{ github.run_id }}
+          path: |
+            build/win-x64-release/CMakeCache.txt
+            build/win-x64-release/Testing/**/*.log
+          if-no-files-found: ignore
+          retention-days: 7
