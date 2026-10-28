@@ -82,6 +82,7 @@ CarveResult validate_wmf_placeable(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_wmf_std(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_ttf(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_mdb(IStorageDevice* s, u64 hit, u64 cap);
+CarveResult validate_accdb(IStorageDevice* s, u64 hit, u64 cap); /* M-084: the ACE branch */
 CarveResult validate_tar(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_eps(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_ai(IStorageDevice* s, u64 hit, u64 cap);
@@ -990,6 +991,19 @@ const Signature kTable[] = {
      620,
      validate_3ds_ncsd,
      "3DS Image (NCSD)"},
+    /* M-084: the og second Jet-family signature - "Standard ACE DB"
+     * (FUN_180015260 :16515-16517, type 0x4C) on the same u16-key chain;
+     * trial order keeps the og Jet-first branch order. */
+    {FMT_ACCDB,
+     "accdb",
+     {0x00, 0x01, 0x00, 0x00},
+     4,
+     0,
+     0x1000,
+     0xBEBC200ull,
+     650,
+     validate_accdb,
+     "Access Database (ACE)"},
 };
 } // namespace
 

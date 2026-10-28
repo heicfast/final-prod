@@ -186,6 +186,11 @@ enum FormatId : u32 {
     FMT_3DS_NCSD, /* "NCSD" @+0x100 -> the same id-0x01 chain's LIST-layer registration
                    * (:3223-3243, first-hand) - the CCI form whose NCSD header sits at
                    * +0x100; the late magic re-expresses that probe */
+    /* M-084 (diff-to-fix): the og second Jet-family signature - the
+     * "Standard ACE DB" branch of FUN_180015260 (:16515-16517, type 0x4C,
+     * the Access 2007+ .accdb generation). Id APPENDED (serialized
+     * carve_format values stay stable). */
+    FMT_ACCDB,
     FMT_COUNT
 };
 

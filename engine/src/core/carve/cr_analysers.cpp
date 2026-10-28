@@ -3585,26 +3585,52 @@ CarveResult validate_ttf(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
-/* MDB: the u16-key 0x0100 chain -> CMDBAnalyser, validated first-hand
- * (FUN_180015260: key 00 01 00 00 + "dard" u64 @+8 + " DB\0" u32
- * @+0x10 = the "Standard Jet DB\0" signature at +4; type-id 39;
- * FileInfo bounds {0x1000, 0xBEBC200}, ctor :21316-21318). The
- * page-chain walk is undecoded - the Jet header + the og's own bounds
- * carry the row, bounded extent stands in. */
-CarveResult validate_mdb(IStorageDevice* s, u64 hit, u64 cap) {
+/* MDB family (M-084 + M-091): the u16-key 0x0100 chain -> CMDBAnalyser,
+ * both signature branches re-read first-hand (FUN_180015260 :16497-16529:
+ * key 00 01 00 00 + "Standard Jet DB\0" at +4 -> type 0x27 (39);
+ * "Standard ACE DB\0" -> type 0x4C (76) - the Access 2007+ generation
+ * the batch-1 landing dropped; FileInfo bounds {0x1000, 0xBEBC200}
+ * :16532-16546). M-091: the size walk is the page-chain walk
+ * FUN_1800447c0 (:52001-52039, read verbatim): 0x1000 strides from the
+ * first page, the page-type u16 at each page start must be nonzero and
+ * <= 0x901 (the Jet b-tree/data page-type family), the run ends at the
+ * first breaking page, cap 0x6400000 (the 0x63fffff inner check). */
+CarveResult validate_mdb_common(IStorageDevice* s, u64 hit, u64 cap, bool ace) {
     CarveResult r;
     u8 h[20];
     if (!rd(s, hit, h, sizeof(h)))
         return r;
     if (std::memcmp(h, "\x00\x01\x00\x00", 4) != 0)
         return r;
-    if (std::memcmp(h + 4, "Standard Jet DB\x00", 16) != 0)
+    if (std::memcmp(h + 4, ace ? "Standard ACE DB\x00" : "Standard Jet DB\x00", 16) != 0)
         return r;
+    const u64 limit = probe_limit(s, hit, cap);
+    u64 off = hit + 0x1000;
+    while (off <= hit + 0xBEBC200ull && off + 2 <= limit) {
+        const u16 word = rd16(s, off);
+        if (word == 0)
+            break; /* the while condition's zero page ends the run */
+        if (word > 0x901)
+            break; /* the Jet page-type family gate */
+        off += 0x1000;
+        if (off > hit + 0x63fffffull)
+            break; /* the walk cap: final size <= 0x6400000 */
+    }
     r.ok = true;
-    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
+    r.end = std::min(off, limit);
     r.confidence = 650;
-    r.note = "jet-db-signature+bounded-extent";
+    r.note = ace ? "ace-db-signature+page-chain-walk" : "jet-db-signature+page-chain-walk";
     return r;
+}
+
+CarveResult validate_mdb(IStorageDevice* s, u64 hit, u64 cap) {
+    return validate_mdb_common(s, hit, cap, false);
+}
+
+/* M-084: the ACE-generation signature - id 0x4C, same bounds, same
+ * page-chain walk (the og's one validator, two branches). */
+CarveResult validate_accdb(IStorageDevice* s, u64 hit, u64 cap) {
+    return validate_mdb_common(s, hit, cap, true);
 }
 
 /* TAR: the list-layer probe - "ustar" via strncmp at +257 (TARAnalyser,

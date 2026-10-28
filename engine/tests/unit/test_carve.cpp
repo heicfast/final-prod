@@ -2373,6 +2373,25 @@ size_t plant_mdb(std::vector<u8>& img, size_t at) {
     return 4096;
 }
 
+/* M-084/M-091: the Jet/ACE family - the og's two signature branches
+ * (FUN_180015260 :16509-16517, type 0x27 / 0x4C) + the page-chain size
+ * walk (FUN_1800447c0 :52001-52039: 0x1000 strides, page-type u16 in
+ * (0, 0x901], run ends at the first breaking page). */
+size_t plant_mdb_family(std::vector<u8>& img, size_t at, bool ace, u32 typed_pages) {
+    std::memcpy(img.data() + at, "\x00\x01\x00\x00", 4);
+    std::memcpy(img.data() + at + 4, ace ? "Standard ACE DB\x00" : "Standard Jet DB\x00", 16);
+    for (size_t i = 20; i < 0x1000; ++i)
+        img[at + i] = u8((i * 17) & 0xFF); /* the header page body */
+    for (u32 p = 0; p < typed_pages; ++p) {
+        const size_t page = at + 0x1000 + size_t(p) * 0x1000;
+        put16(img, page, u16(0x101 + p)); /* a Jet page-type word */
+        for (size_t i = 2; i < 0x1000; ++i)
+            img[page + i] = u8((i * 7) & 0xFF);
+    }
+    /* the page after the last typed page stays zero: the walk ends there */
+    return 0x1000 + size_t(typed_pages) * 0x1000;
+}
+
 /* A POSIX tar: one member header with a VALID checksum + the EOF block. */
 size_t plant_tar(std::vector<u8>& img, size_t at) {
     u8* h = img.data() + at;
@@ -3189,6 +3208,109 @@ TEST(Carve, M090DmgKolyZeroTailGateAndCap) {
     const Signature* reg = registry();
     EXPECT_EQ(reg[FMT_DMG].max_size, 0xC800000ull)
         << "DMG cap = the og's DMG-specific 0xC800000, not the global 0xBEBC200";
+}
+
+TEST(Carve, M084AccdbSecondSignatureCarves) {
+    /* M-084: the og's CMDB validator accepts TWO Jet-family signatures
+     * (FUN_180015260 :16509-16517, first-hand) - the legacy "Standard
+     * Jet DB" (type 0x27) and the ACE-generation "Standard ACE DB"
+     * (type 0x4C, the .accdb default since Access 2007). Pre-fix: the
+     * ACE signature carved nothing (the branch was absent). */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t jet_at = 4096, ace_at = 32768; /* pages stride 0x1000 - no overlap */
+    const size_t jet_len = plant_mdb_family(img, jet_at, false, 2);
+    const size_t ace_len = plant_mdb_family(img, ace_at, true, 3);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    tree::FileNode* jet = nullptr;
+    tree::FileNode* ace = nullptr;
+    for (tree::FileNode* n : all) {
+        const u64 off = n->props()->extents.front().offset;
+        if (off == jet_at)
+            jet = n;
+        else if (off == ace_at)
+            ace = n;
+    }
+    ASSERT_NE(jet, nullptr) << "the legacy Jet signature carves";
+    EXPECT_EQ(jet->props()->carve_format, FMT_MDB);
+    EXPECT_EQ(jet->props()->logical_size, jet_len) << "Jet page-chain extent";
+    ASSERT_NE(ace, nullptr) << "the ACE signature carves (the pre-fix miss)";
+    EXPECT_EQ(ace->props()->carve_format, FMT_ACCDB);
+    EXPECT_EQ(ace->props()->logical_size, ace_len) << "ACE page-chain extent";
+}
+
+TEST(Carve, M091MdbPageChainWalk) {
+    /* M-091: the og's MDB size is the page-chain walk (FUN_1800447c0
+     * :52001-52039, read verbatim): 0x1000 strides, the page-type u16
+     * at each page start must be nonzero and <= 0x901, run ends at the
+     * first breaking page. Pre-fix: every MDB carved as a flat 64 MiB
+     * bounded extent. */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t chain_at = 4096; /* signature + 3 typed pages + zero page */
+    const size_t want = plant_mdb_family(img, chain_at, false, 3);
+    ASSERT_EQ(want, 0x4000u);
+    /* a run whose 3rd page carries an out-of-family type word (0x902):
+     * the walk ends at that page */
+    const size_t gate_at = 32768;
+    plant_mdb_family(img, gate_at, false, 2);
+    put16(img, gate_at + 0x3000, 0x0902);
+    /* a run that never breaks: the walk runs to the probe limit */
+    const size_t unbroken_at = 65536;
+    plant_mdb_family(img, unbroken_at, false, 40);
+    img.resize(192 * 1024, 0); /* cut the run: the walk ends at the slice */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    tree::FileNode* chain = nullptr;
+    tree::FileNode* gate = nullptr;
+    tree::FileNode* unbroken = nullptr;
+    for (tree::FileNode* n : all) {
+        const u64 off = n->props()->extents.front().offset;
+        if (off == chain_at)
+            chain = n;
+        else if (off == gate_at)
+            gate = n;
+        else if (off == unbroken_at)
+            unbroken = n;
+    }
+    ASSERT_NE(chain, nullptr);
+    EXPECT_EQ(chain->props()->logical_size, 0x4000u)
+        << "signature + 3 typed pages + the zero page = 4 pages";
+    ASSERT_NE(gate, nullptr);
+    EXPECT_EQ(gate->props()->logical_size, 0x3000u)
+        << "the 0x902 page-type word ends the run at that page";
+    ASSERT_NE(unbroken, nullptr);
+    EXPECT_EQ(unbroken->props()->logical_size, 192u * 1024 - unbroken_at)
+        << "the unbroken run walks to the probe limit";
 }
 
 TEST(Carve, S007NicheBatch2School1RejectsNoise) {
