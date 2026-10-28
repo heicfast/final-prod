@@ -29,7 +29,7 @@ the text-preview eligibility model: the og's TxtViewFiles 119-ext extension whit
 vs the core's content sniff; UTF-8-BOM/UTF-16/Latin-1 text refused, printable-head
 binaries admitted; probe at `evidence/executions/s10-preview-text-eligibility.md`);
 **N-132** (API-DELTA rows 44-45's false "landed" claims —
-TxtViewFiles/SumaryFileType/PriorityDisplayType all absent); **N-129** (six register
+TxtViewFiles/SumaryFileType/PriorityDisplayType all absent); **N-135** (six register
 count/cite defects); **N-130** (VideoFileRepairer.exe — the undispositioned Fixo
 engine, SIDECAR-OOS registered); **N-131** (the FS-native parent anchors NTFS +0x40 /
 FAT +0x42 / exFAT +0x54 — the N-100 class, with the full field-parity table at
@@ -41,6 +41,21 @@ first-hand — the container grammar byte-confirmed, no erratum
 (`evidence/executions/s10-rsf-ground-truth.md`). Board after the push: **54 active
 (6 SEVERE · 24 MAJOR · 19 MINOR · 5 INFO) / 281 resolved / 4 tracked-open**. Next
 IDs: S-053+, M-109+, N-133+, I-031+, A-012+.
+
+**Session-11 board-truth pass (2026-10-29, the continuation lane's remove-the-fixed
+wave — `evidence/s11-board-truth.md`):** M-102/M-083 independently PARITY-VERIFIED
+(engine-layer executed, 40/40 checks, zero ASan — the record rides the ledger cells +
+the evidence file; the concurrent 11B fix lane's file deletion `fce38c3d` was
+mid-window); the N-129 ID collision repaired (per the file-addition timestamps:
+lane-B's register-defects file keeps N-129, the wave-3 bookkeeping file is N-135);
+the driver-repo OQ-S10-2 collision repaired (renumbered **OQ-S10-3**); the FIXED-
+LEDGER's committed merge-conflict markers resolved, M-088's fictional path corrected,
+M-041's corpus-SHA cell repaired, and the 54-row as-recorded-in-file census recorded
+as the S11-lead erratum; **N-137** filed (the thumbnail ABI header's
+never-returned contradiction + the inert allow_embedded knob); OQ-S11-1 opened (the
+og's undecoded promotion guard). **Board at the S11-lead rebase point: 51 active
+(6 SEVERE · 19 MAJOR · 21 MINOR · 5 INFO) / 289 resolved rows (FIXED-LEDGER) /
+5 tracked-open. Next free IDs: S-053+, M-111+, N-138+, I-031+, A-012+.**
 
 
 **Merged product repository (audit + dev-sign target):**

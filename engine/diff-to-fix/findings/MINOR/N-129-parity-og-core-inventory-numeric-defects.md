@@ -6,6 +6,8 @@
 **Corpus references:** `og-codebase/` tree at `be0cfe9` (counts re-executed this session); `re-workspace/inventory.csv` (the corpus's own count: 40 api-ms)
 **Core references:** audited commit `84a1832` — `docs/PARITY-OG-CORE-INVENTORY.md:53` ("(44 DLLs)"), `:267` ("CORE_RL_* (19)"), `:253` ("all **25** .mo runtime modules"), `:73` (cites "SURFACE-INVENTORY.md:84"), `:30` ("EUOfficeTools.exe"), `:99` ("og-codebase/ (dir)" row)
 **Status:** READ-ONLY FINDING — no fix applied
+**Renumber reconciliation (S11-lead, 2026-10-29):** the N-129 ID collision was resolved by the session-11B trail lane's push (accepted at the S11-lead rebase): THIS file keeps **N-129** — its lane-B push (0e279e43, 17:32:28Z) preceded the wave-3 bookkeeping file's (f6c00177, 17:33:36Z) by 68 seconds, so the wave-3 file renumbers to N-135. The S11-lead's draft repair had renumbered THIS file (the wrong direction, based on commit-graph position rather than the file-addition timestamps); corrected at the rebase reconciliation.
+
 **Prior audit check:** The register was built by the dev-sign session and currency-passed by sessions 8/9; the counts were never re-executed against the tree. The session-10 completeness sweep (1470 files vs 112 rows) is the first full re-count.
 
 ## Summary

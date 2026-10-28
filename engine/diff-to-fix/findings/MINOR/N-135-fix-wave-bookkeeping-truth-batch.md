@@ -55,3 +55,25 @@ N-103 (whose landing missed :376 — the overclaim), N-118 (whose landing left :
 ## Open questions
 
 None.
+
+## Session-11 addendum (2026-10-29 — the census extended; item 4 was one row, the truth is 73)
+
+The session-11 truth pass (`git cat-file -t` over every SHA-like token in the
+FIXED-LEDGER — the guard this finding's fix plan proposed, executed audit-side)
+quantified item 4 and found it was not one mis-paste but a class: **73 of 285 rows
+(~26%) carried an unresolvable fix-commit cell** — 40 decompile addresses
+(`180010720`-style), 14 magic constants (`FFFFFFFF`/`D0CF11E0`/`4a4e4c78`-style), 8
+pre-rebase/foreign phantoms (the five this finding named + `03ad46c` (a corpus-repo
+commit, M-041) + `6b50bb8` (an upstream rda-driver SHA, M-064) + `f43b747`), and the
+"(this landing)" placeholders. Session-11 repaired in place every recent (M-079+)
+row with the verified real commits, added the missing M-082 row, corrected M-088's
+fictional retired path, resolved the ledger's committed merge-conflict markers (a
+defect this finding's own repair commit `5fecdae1` introduced — the b5da834 side
+cited in the marker does not exist), and censused the 54 ancient as-recorded-in-file
+rows in the ledger's S11 erratum block with the per-row recovery command. **Still
+open for the fix lane:** the 54 ancient rows' real-SHA backfill (mechanical, the
+guard script) + the core-side stale rows this finding named (REFERENCE-API-GAP:222
+now ALSO stale in the thumbnail direction — "no cr_ui thumbnail export yet … ABI
+open" is false at HEAD since `e56baac7`) + PLAN-API-EXPANSION:81 + PARITY-DELTAS:3229
+(discovered by the S11/T2 verification; see `evidence/s11-board-truth.md` §1
+residual 3).

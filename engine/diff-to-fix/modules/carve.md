@@ -298,7 +298,7 @@ byte-granular grid); the headerless audio gate is 10 consecutive frames
 S007TruncatedSalvageSemantics), fail-before 3/3; suite 436/436; hostile
 ASan smoke clean. **Remainder (precisely scoped in the finding):** the
 ~25 niche og-only formats (**landed since: school 1 `b92ebef` CHM/ONE/MNY/
-EMF/SWF/3DS + M-081 `9e5dedc` CRW/MRW/LowDoc/HLP + M-090 `771e2ec` DMG +
+EMF/SWF/3DS + M-081 `9e5dedc` CRW/MRW/LowDoc/HLP + M-090 `9daa787b` DMG (S11 repair: 771e2ec phantom) +
 M-084/M-091 `16475b8` MDB/ACCDB — repaired SA-10; the remainder is the
 school-2/3 set, each with its own finding) + the bench seed-matrix extension
 (Windows runner).

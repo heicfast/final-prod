@@ -1,3 +1,47 @@
+# SUMMARY.md — executive summary (the session-11 continuation lane on top; the prior lanes below, newest-first)
+## Session-11 delta (2026-10-29 — the user's session-2 continuation: remove-the-fixed + go-deeper + mark-all-remaining)
+
+**Audited: core `7990a86d` at open (the M-096 mid-session landing absorbed), corpus
+`be0cfe9`.** The continuation mandate decomposed into three waves. **Wave 1
+(remove-the-fixed + board truth) is complete at this writing:** M-102/M-083
+independently **PARITY-VERIFIED** and retired (their landing `e56baac7` appended
+Resolutions + ledger rows but never executed purge step 3 — both files sat active
+while the ledger claimed them resolved; the verification executed the engine layer
+standalone, 40/40 checks, zero ASan; residuals filed as **N-136** — the thumbnail ABI
+header's "ERR_TRUNCATED never returned" contradiction + the inert `allow_embedded`
+knob — and **OQ-S11-1** — the og's promotion guard carries undecoded conditions
+beyond `!= 2` at `DRWUI_decompiled.c:422508-511`); the **N-129 ID collision
+repaired** (lane-B's register-counts finding renumbered **N-135** per the SA-9
+earlier-push-wins rule); the FIXED-LEDGER's **committed merge-conflict markers
+resolved**, the **missing M-082 row added**, the **M-088 fictional retired-path
+corrected**, and **every recent (M-079+) phantom fix-SHA repaired** to the real
+post-rebase commits (M-041's cell held a CORPUS-repo SHA; M-064's an upstream
+rda-driver SHA; M-090's the decompile address `180053de0`); the 54 ancient
+as-recorded-in-file cells censused in the ledger's S11 erratum (extends N-129's item
+4); the gate docs (README / CROSS-REF-MATRIX / modules/preview / modules/carve)
+brought current. Full record: `evidence/s11-board-truth.md`.
+
+**Board at the wave-1 close, AFTER the rebase reconciliation over the concurrent
+lanes (sessions 11B/11C/11D/39/39B all landed mid-window): 51 active (6 SEVERE ·
+19 MAJOR · 21 MINOR · 5 INFO) / 289 resolved rows (the session-39B recount: 269
+main + 20 OQ) / 5 tracked-open (OQ-S4-3, OQ-S8-1, OQ-S10-1, OQ-S10-2 videoviewer,
+OQ-S10-3 driver-repo — the S11-lead collision repairs). Next free IDs: S-053+,
+M-111+, N-138+, I-031+, A-012+.** The reconciliation details: the N-129 direction
+corrected per the file-addition timestamps (lane-B keeps N-129; the wave-3
+bookkeeping file is N-135 — the S11-lead draft had it backwards, the remote 11B
+repair stands); the S11-lead's N-136 draft renumbers **N-137** (the remote's N-136
+pushed first); the driver-repo OQ-S10-2 renumbers **OQ-S10-3**; M-102/M-083's
+retirement verification (engine executed standalone, 40/40, zero ASan) rides the
+ledger cells + `evidence/s11-board-truth.md`; the S11-lead adds to the session-39B
+phantom sweep the four rows it missed (M-041's corpus-SHA cell, M-088's placeholder +
+fictional path, the M-083/M-102 verification annotations, the 54-row
+as-recorded-in-file census erratum). Waves 2-3 (the go-deeper lanes — RAWSearchDLL
+infrastructure function-level walk, the og config/data assets, the seven
+non-searchdll ghidra trees' never-cited space, the core stand-in register) file
+below this block as they land.
+
+---
+
 # SUMMARY.md — executive summary (the SA-10 lane on top: the triage + reconciliation over the hot parallel window; SA-10B and the fix/closing lanes below)
 ## Session-10 lane-B delta (2026-10-29 — the continuation deep audit, RECONCILED AT THE SECOND PUSH with the SA-10 lead close + the truth batches + the fix lanes)
 
@@ -26,7 +70,7 @@ SA-10 close made the same repair independently).
   (`evidence/executions/s10-preview-text-eligibility.md`).
 - **N-132** (MINOR): API-DELTA rows 44-45 falsely claim TxtViewFiles/SumaryFileType/
   PriorityDisplayType "landed" — all three absent, contradicting the truthful R-31.
-- **N-129** (MINOR): six register count/cite defects from the 1470-file re-count.
+- **N-129→N-135** (MINOR): six register count/cite defects from the 1470-file re-count (renumbered S11: the ID collided with the wave-3 lane's earlier-pushed bookkeeping N-129).
 - **N-130** (MINOR) + **OQ-S10-2** (tracked-open): the og-tree completeness sweep's
   two undispositioned files (the Fixo VideoFileRepairer.exe engine, registered
   SIDECAR-OOS; the opaque sfc payload, the Ghidra magic-search queued).

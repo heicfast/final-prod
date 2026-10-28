@@ -84,6 +84,6 @@ pin is deliberate on the wire side while the resource side moves.
 
 ## Resolution
 
-**Status:** PUSHED-FORWARD (tracked-open OQ-S10-2)
+**Status:** PUSHED-FORWARD (tracked-open OQ-S10-3)
 **Verified by:** bf17e55-lineage tree: the core-side evidence re-verified — release.yml's driver tier consumes with -FloorVersion v0.2.4 (the floor is correct on the core side; the defect is the DRIVER repo's rda_version.h pin + unstamped release workflow + the install.ps1 derivation chain - all outside this session's two-repo grant). The finding stays ACTIVE on the board; the fix belongs to the driver-repo lane (the fix plan's steps 1-5 are all rda-driver files).
 **Resolution notes:** The core-side consumption is verified sound; the entire fix surface (rda_version.h, rda.rc, the driver release.yml stamping, install.ps1's tag derivation, the two-version coexistence drill) lives in heicfast/rda-driver - out of scope for this session's TWO-repo grant (core + corpus only). Pushed forward as the driver-repo lane's next fix; no core code change is honest here.

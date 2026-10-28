@@ -57,6 +57,6 @@ None.
 
 ## Resolution
 
-**Status:** PUSHED-FORWARD (tracked-open OQ-S10-2)
+**Status:** PUSHED-FORWARD (tracked-open OQ-S10-3)
 **Verified by:** bf17e55-lineage tree: the phantom-zero constants re-verified as driver-repo sources (src/bench/rdabench.c:390 in heicfast/rda-driver; the real handlers are src/shared/inc/rda_ioctl.h:75-79 + src/driver/rda_ioctl.c:276-280 there).
 **Resolution notes:** The probe-list fix (derive from IOCTL_RDA_* names) + the static gate + the hammer re-run are all rda-driver files - outside this session's two-repo grant. Pushed forward as the driver-repo lane's next fix.

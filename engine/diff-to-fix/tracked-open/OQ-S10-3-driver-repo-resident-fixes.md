@@ -1,4 +1,4 @@
-# OQ-S10-2 — The driver-repo-resident fixes pushed forward (M-086, M-087, M-089, N-107, N-127's driver halves)
+# OQ-S10-3 — The driver-repo-resident fixes pushed forward (renumbered from the OQ-S10-2 draft at the S11-lead reconciliation: the videoviewer OQ-S10-2 (added 0e279e43, 17:32:28Z) pushed 28 minutes before this file (0a08cb3c, 18:00:27Z) and keeps the ID) (M-086, M-087, M-089, N-107, N-127's driver halves)
 
 **Status:** OPEN (session-10, this lane) — spun out of the two-repo grant boundary
 **Module:** transport / driver install lifecycle / driver wire contract

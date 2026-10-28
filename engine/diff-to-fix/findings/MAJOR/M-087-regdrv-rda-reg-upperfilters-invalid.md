@@ -90,6 +90,6 @@ dispatch.
 
 ## Resolution
 
-**Status:** PUSHED-FORWARD (tracked-open OQ-S10-2)
+**Status:** PUSHED-FORWARD (tracked-open OQ-S10-3)
 **Verified by:** bf17e55-lineage tree: the byte-level decode re-verified against the finding's grammar (the shipped scripts/winpe/regdrv-rda.reg is a DRIVER-repo path - heicfast/rda-driver scripts/winpe/regdrv-rda.reg:31; the corpus contrast og-codebase/BUILDPE/x64/regdrv.reg:35-36 carries the correct 10-byte UTF-16LE form).
 **Resolution notes:** The one-line fix (hex(7):72,00,64,00,61,00,00,00,00,00) + the .reg parse gate land in heicfast/rda-driver - outside this session's two-repo grant. Pushed forward as the driver-repo lane's next fix with the exact corrected byte sequence + the gate design recorded in the finding body.

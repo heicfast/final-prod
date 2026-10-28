@@ -153,17 +153,22 @@ signatures 01 00 09 00 / F7 89 34 2C already known).
 engine-side thumbnail cache. The og caches UI-side (`ThumbnailFactory::ClearCache`,
 UIUX/30:62); the core's in-process doctrine keeps `make_thumbnail` stateless
 across calls — repeated renders are the host's layer (a session-scoped LRU keyed
-by node id becomes the candidate IF the ABI export ever lands one, per M-102's
-handoff — **landed `e56baac7`; the cache question re-opens with it**). Recorded
-here + in `include/cr/preview/cr_thumbnail.h`'s contract comment; the decision
-is deliberate, not an omission.
+by node id becomes the candidate for a future host-side cache — the ABI export landed
+as `cr_ui_thumbnail_generate` in `e56baac7`, M-102/M-083 retired (PARITY-VERIFIED by
+session-11-lead, `evidence/s11-board-truth.md`; the residual header-contradiction filed
+as N-137); the engine stays cacheless per this doctrine — the cache question re-opens
+with the landed export). Recorded here + in `include/cr/preview/cr_thumbnail.h`'s contract
+comment; the decision is deliberate, not an omission.
 
 **Tests:** `tests/unit/test_thumbnail.cpp` (21 tests incl. the 6-variant TIFF
 suite and the metafile/icon named-refusal pin; fixtures via
 `scripts/gen_thumbnail_fixtures.py` into
 `tests/data/thumbnails/` with SHA256SUMS) + `fuzz/fuzz_thumbnail.cpp` (every
 parser over hostile bytes, resident + extent-backed + tight-budget lanes).
-ABI exposure of the thumbnail surface is the registered Agent 1 handoff.
+ABI exposure of the thumbnail surface LANDED (`cr_ui_thumbnail_generate` +
+`cr_ui_thumbnail_format_supported`, `e56baac7`; M-102/M-083 retired after the
+session-11 independent verification — `evidence/s11-board-truth.md`; the residual
+header-contradiction filed as N-136).
 
 
 ## Session-8 section (2026-10-28, audited `35adcb9`)

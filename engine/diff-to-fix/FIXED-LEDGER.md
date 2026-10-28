@@ -39,6 +39,23 @@
 **Counts:** 280 resolved findings (276 at the batch-C conform `0872ac2` + **S-041 resolved-as-umbrella by the SA-10 lane**; the purge's 255 + every mid-flight landing through batch C — N-116, N-117/N-118/N-103, N-095/N-108/N-119, N-104/N-097/N-102/N-123/N-101/N-120, N-099/N-106 — + S-043/M-080/M-085/S-047 conformed + S-041/N-101) · 98 with a fix-commit recorded in-file ·
 **Ledger generated:** session SA-10B (2026-10-29), tree `62074bf`-lineage.
 
+### S11-lead erratum — the "as recorded in-file" census (quantifies the phantom-SHA class; complements the session-39 sweep)
+
+The Fix-commit column is **"as recorded in-file"** — it copies what each retired
+file's own Resolution recorded. The session-11-lead truth pass (a `git cat-file -t`
+walk over every SHA-like token — the guard N-135's fix plan proposed, executed
+audit-side) censused the class the session-39 sweep did not reach: **54 ancient rows
+carry non-SHA cells** — 40 decompile addresses in image-base form (e.g. `180010720`)
+and 14 magic constants / numeric literals (e.g. `FFFFFFFF`, `D0CF11E0`, `4a4e4c78`).
+These were never commits; the real fix per row is recoverable via
+`git log --all --oneline --grep '<ID>'`. Affected rows: A-005, A-011, M-013, M-014,
+M-017, M-019, M-020, M-021, M-033, M-039, M-044, M-053, N-007, N-008, N-021, N-022,
+N-025, N-026, N-030, N-034, N-036, N-037, N-043, N-046, N-050, N-051, N-054, N-059,
+N-063, OQ-S003, OQ-T8, S-003, S-006, S-007, S-012, S-013, S-014, S-015, S-018,
+S-019, S-021, S-022, S-024, S-027, S-029, S-030, S-031, S-032, S-034 (and I-011).
+The mechanical backfill (the cat-file guard over every hex token in `diff-to-fix/`)
+belongs to the fix lane; this census is the audit-side truth record.
+
 | ID | Severity | Module | Fix commit (as recorded in-file) | Retired file (history path) |
 |---|---|---|---|---|
 | A-001 | ACUTE |  | — | `findings/FIXED/A-001-gpt-type-guids-wrong-ldm-gpt-dynamic-disks-fail.md` |
@@ -110,7 +127,7 @@
 | M-038 | MAJOR |  | — | `findings/FIXED/M-038-zfs-sa-layout-hardcoded.md` |
 | M-039 | MAJOR |  | 180012040 | `findings/FIXED/M-039-cross-engine-occupancy-bitmap-missing.md` |
 | M-040 | MAJOR |  | 94c9dda | `findings/FIXED/M-040-boot-chain-repair-family-absent.md` |
-| M-041 | MAJOR |  | 03ad46c | `findings/FIXED/M-041-damage-audit-check-phase-missing.md` |
+| M-041 | MAJOR |  | 612abc48 (the 03ad46c token was a CORPUS-repo commit, not a core fix — repaired session-11-lead) | `findings/FIXED/M-041-damage-audit-check-phase-missing.md` |
 | M-042 | MAJOR |  | — | `findings/FIXED/M-042-session-resume-lost-revalidation-missing.md` |
 | M-043 | MAJOR |  | — | `findings/FIXED/M-043-ntfs-content-proof-and-backup-boot-missing.md` |
 | M-044 | MAJOR |  | 180002580 | `findings/FIXED/M-044-udf-recognition-family-missing.md` |
@@ -142,12 +159,12 @@
 | M-071 | MAJOR |  | 69507cb | `findings/FIXED/M-071-m018-regression-junk-gates-lost.md` |
 | M-079 | MAJOR | session/CLI | 0b76757c (f43b747 was a pre-rebase phantom, repaired session 39) | `findings/MAJOR/M-079-cli-autosave-volume-label-unfilled.md` — **S10-F addendum (2026-10-29): the fix's image-target leg (the image-stem fallback) is a registered divergence** — the og's image-scan label is the ENGINE-side on-disk decode (NTFS $Volume $VOLUME_NAME; ext4 s_volume_name), not the filename; the engine-decode absence + the completion path = **N-133** (evidence: s10f-engine-volume-labels.md) |
 | M-080 | MAJOR | preview | 5ccc0da | `findings/FIXED/M-080-thumbnail-budget-starves-photos.md` |
-| M-083 | MAJOR | preview/abi | e56baac7 (thumbnail ABI two-call) | `findings/MAJOR/M-083-thumbnail-grade-promotion-absent.md` (deleted by the parallel fix lane fce38c3d; Resolution in-file — content recoverable there) |
-| M-102 | MAJOR | abi/preview | e56baac7 (cr_ui_thumbnail_generate) | `findings/MAJOR/M-102-thumbnail-abi-export-absent-engine-landed.md` (deleted by the parallel fix lane fce38c3d; Resolution in-file — content recoverable there) |
+| M-083 | MAJOR | preview/abi | e56baac7 (thumbnail ABI two-call) | `findings/MAJOR/M-083-thumbnail-grade-promotion-absent.md` (deleted by the parallel fix lane fce38c3d; Resolution in-file — content recoverable there) — **session-11-lead independent verification: PARITY-VERIFIED, the engine layer executed standalone 40/40 checks zero-ASan (evidence/s11-board-truth.md)** |
+| M-102 | MAJOR | abi/preview | e56baac7 (cr_ui_thumbnail_generate) | `findings/MAJOR/M-102-thumbnail-abi-export-absent-engine-landed.md` (deleted by the parallel fix lane fce38c3d; Resolution in-file — content recoverable there) — **session-11-lead independent verification: PARITY-VERIFIED (evidence/s11-board-truth.md; the residual header-contradiction filed as N-137)** |
 | M-081 | MAJOR |  | 9e5dedc | `findings/FIXED/M-081-crw-misattributed-mrw-prd-gate.md` |
 | M-082 | MAJOR | (the offline Windows OS profile — the og DeviceManager's CPartitionBootInfo hive walk; FIXED at 1f714884, retired at f8bb4d21 whose "ledger row" claim never landed — the row added by the session-39 truth repair, the N-135 item-4 completion) | 1f714884 | `findings/MAJOR/M-082-device-manager-offline-os-identification.md` |
 | M-090 | MAJOR |  | 9daa787 (the 180053de0 token was the FUN_ mis-paste — repaired session 39; the N-135 item-4 original) | `findings/FIXED/M-090-dmg-footer-walk-and-cap-diverge-from-og.md` |
-| M-088 | MAJOR | ci/packaging (the FloorVersion pin split + the CI-shape doc cluster) | (this landing, DFX-38) | `findings/FIXED/M-088-floorversion-pin-split-and-stale-ci-docs.md` (full Resolution preserved in the retired file; the landing record + the doc_truth_gate evidence in worklog.md DFX-38/M-088) |
+| M-088 | MAJOR | ci/packaging (the FloorVersion pin split + the CI-shape doc cluster) | 41d88297 (the fix commit, which also retired the file — repaired session-11-lead) | `findings/MAJOR/M-088-floorversion-pin-split-and-stale-ci-docs.md` (retired directly from MAJOR/ — the originally-recorded FIXED/ path never existed in history; path corrected session-11-lead; the landing record + the doc_truth_gate evidence in worklog.md DFX-38/M-088) |
 | N-001 | MINOR |  | — | `findings/FIXED/N-001-STALE-DUPLICATE-REMOVED.md` |
 | N-002 | MINOR |  | — | `findings/FIXED/N-002-fat-alternate-eoc-families-mark-chains-broken.md` |
 | N-003 | MINOR |  | — | `findings/FIXED/N-003-exfat-entry-set-checksum-enforced-beyond-og.md` |

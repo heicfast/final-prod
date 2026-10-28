@@ -3104,3 +3104,44 @@ left to that lane and noted here. Pull-before-push discipline active.
 ### The F8 gate restore (session-10, this lane)
 
 The parallel M-093 lane's mid-flight push (enum + trial order without the kTable row) made every carve_slice call fail the runtime registry-size gate while the build stayed green (the kTrialOrder static_assert counts the trial array, not the table) — ParallelCarve.MatchesSingleThreaded red at 1342373891. The missing FMT_SVG row landed in FormatId order; suite 1033/1033 green; the green-restore commit cites the root cause (the table/count asymmetry between the two build-time gates — a static_assert on kTable size vs FMT_COUNT would have caught this at build time; noted for the carve lane as a hardening candidate).
+
+---
+
+## REBASE RECONCILIATION NOTE (session-11-lead, replaying a0a48172 onto 2cf3f4d0)
+
+The wave-1 commit a0a48172 was authored against the pre-push window and replayed over
+the concurrent lanes' landings (session-11B/11C/11D + session-39/39B). Convergent
+repairs resolved per the earlier-push-wins rule: (1) the N-129 collision — the S11-lead
+draft renumbered lane-B's register-counts file, but session-11B's timestamp check
+(lane-B's file added 0e279e43 17:32:28Z, 68s before wave-3's f6c00177 17:33:36Z) proves
+lane-B pushed FIRST — lane-B's file keeps N-129, wave-3's bookkeeping file is N-135
+(the S11-lead rebase accepts the remote resolution and corrects its own evidence file);
+(2) the M-102/M-083 retirement — session-11B's fix lane deleted the files at fce38c3d
+mid-window; the S11-lead's independent PARITY-VERIFICATION (the engine layer executed
+standalone, 40/40 checks, zero ASan) rides through as the verification record
+(evidence/s11-board-truth.md) with the ledger cells annotated; the pre-retirement
+addenda the S11-lead appended to the two files did not survive the rebase window (the
+files were already deleted on the remote side) — the verification content lives in the
+evidence file and the ledger notes; (3) the phantom-SHA sweep — session-39B's 19-row
+sweep stands; the S11-lead adds the four repairs their sweep missed (M-041's cell held
+a CORPUS-repo commit; M-088's placeholder + fictional FIXED/ path; the M-083/M-102
+verification annotations; the 54-row as-recorded-in-file census erratum); (4) the S11-lead
+draft's N-136 filing renumbers to **N-137** — the remote's N-136 (the session-list
+cwd-dir finding renumbered from N-128) pushed first and keeps the ID.
+
+
+---
+Task ID: S11/T1-T5 (session-11 wave 1 — remove-the-fixed + board truth)
+Agent: session-11 continuation lane (lead)
+
+Work Log:
+- T1: baselines recorded (core `7990a86d` pulled at open absorbing the M-096 landing; corpus `be0cfe9`); prompt saved redacted; the parallel-lane environment quiet at open (the last push was `7990a86d` itself).
+- T2: M-102/M-083 — the landing `e56baac7` had appended Resolutions + ledger rows but never executed purge step 3 (both files sat ACTIVE while the ledger claimed them resolved; the cells read "(this landing)"). Independent verification (parallel agent + lead re-read of every load-bearing cite): **both PARITY-VERIFIED** — the engine layer executed standalone (the shipped TUs compiled -O2/-O0+ASan, the tests' exact fixture bytes, 40/40 checks, zero ASan: the two-call probe matrix, the 0x50030009+bytes_needed refusal with rgba untouched, caps validation refusals, complete-PNG truncated=0 / truncated-PNG DecodeFailed / truncated-JPEG Ok+truncated=1, the full grade-setter semantics); the corpus decodes re-read first-hand (DRWUI :652395-652410 the 256-px GDI+ scale; :422507-513 the !=2→set-2 promotion; :134188-206 the setter's monotonic-max+sticky-2). Both files retired with pre-retirement verification addenda (preserved in history). Residuals: **N-136** filed (cr_ui.h:1272-1274 "ERR_TRUNCATED never returned" vs the DecodeFailed→ERR_TRUNCATED map at cr_ui.cpp:3677-3678 + §7i:607 + the test's own 0x50030004u expectation at test_cr_ui.cpp:3508; and the inert allow_embedded knob — 0=default-ON, nonzero=ON, no off position, the "validated 0/1" header claim unenforced) + **OQ-S11-1** queued (the og's undecoded promotion-guard conditions at :422508-511: local_167/168/160, +0x5c flag, +0x58!=3 — decode attempted in wave 2) + the stale core-side doc rows recorded for the fix lane (REFERENCE-API-GAP:222/:376, PLAN-API-EXPANSION:81, PARITY-DELTAS:3229 — all now false in the "ABI open" direction).
+- T3: the N-129 ID collision repaired — lane-B's `N-129-parity-og-core-inventory-numeric-defects.md` renumbered **N-135** per the SA-9 rule (the wave-3 bookkeeping N-129 pushed first); the renumber note added to the file; CROSS-REF-MATRIX:668, README:32, SUMMARY:29 updated.
+- T4: the full ledger-vs-tree sweep (parallel agent + lead verification of every repair): the **committed merge-conflict markers** in FIXED-LEDGER (:22-32, from the 5fecdae1 repair itself — the b5da834 side it cites does not exist) RESOLVED (the real-SHA side kept); the **missing M-082 row** added (fix `1f714884`, retire `f8bb4d21`, docs `20ea77d2` — the retire commit claimed a row was appended); **M-088's fictional retired path** corrected (the row cited findings/FIXED/M-088-… which never existed in history — the file was retired from findings/MAJOR/ by the fix commit `41d88297` itself); every recent phantom fix-SHA repaired (M-041 03ad46c→`612abc48` (the cell held a CORPUS commit); M-064 6b50bb8→`dfb2761d` (upstream SHA); M-079 f43b747→`0b76757c`+`b82ea173`; M-084/M-091 16475b8→`8a7055ea`; M-085 (parallel-lane)→`fb7cf30`; M-090 180053de0→`9daa787b`; M-093 d1dc51a→`ca701711`+`608665fb`; M-096 7ca83f5→`6e37dc21`+`7990a86d`; N-116 632d21e→`9445627f`+`48876278`; S-041's 771e2ec/16475b8→`9daa787b`/`8a7055ea`); the **54-row ancient as-recorded-in-file census** (40 decompile addresses + 14 magic constants) recorded as the ledger's S11 erratum (extends N-129 item 4; the mechanical backfill is the fix lane's); the gate docs brought current (README's S11 block; SUMMARY's S11 head block; CROSS-REF-MATRIX's phantom batch-SHA cites — A=`e4f3184`, B=`995ba5d`, C=`32ef33b` — and the M-096/M-100/M-102/M-083/M-092/M-093 stale rows; modules/preview.md's "IF the ABI export ever lands" + "the registered Agent 1 handoff" rows flipped; modules/carve.md's M-090 phantom).
+- T5: the full active-board re-verification at the current tree deferred to the wave-2 close (the 53 remaining actives re-walked there; the three mid-flight fixes at open (M-093/N-100/M-079) were already conformed by their own lanes and their landings verified in S10-F/wave-3 — no re-work needed).
+
+Stage Summary:
+- Board: **53 active (6 SEVERE · 21 MAJOR · 21 MINOR · 5 INFO) / 285 resolved / 4 tracked-open**; next free S-053+, M-111+, N-137+, I-031+, A-012+.
+- Findings: +N-135 (the renumber), +N-136 (new); retirements: M-102, M-083 (both PARITY-VERIFIED).
+- The wave-2 deep lanes (RAWSearchDLL infrastructure; og config/data assets; the seven non-searchdll ghidra trees; the promotion-guard decode; the core stand-in register) spawn next.
