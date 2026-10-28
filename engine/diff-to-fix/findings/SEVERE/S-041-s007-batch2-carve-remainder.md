@@ -164,3 +164,28 @@ in the same window after renumbering past the deep-audit lane's S-040) is
 removed by this merge; its absence-sweep evidence file remains and is
 referenced above. **Status after the merge: this file is the single owner of
 the batch-2 remainder divergence.**
+
+## SCAN-4 progress record (2026-10-28 — decode precondition satisfied; school 1 landed)
+
+The A2 context-recovery re-run (SCAN-4) decoded the ENTIRE batch-2 set at
+validator level — the session-5 grammar table in SCAN-ENGINE-DELTA.md is the
+per-format decode record, so this finding's fix-plan step 1 precondition (the
+zero-invention bar) is now SATISFIED for every listed format. FCPEvt CLOSES
+as already-covered (FMT_SQLITE + the N-089 subtype relabel; NO XML side
+exists in the DLL). M-081 (the CRW half) is RESOLVED (`9e5dedc`).
+
+**School 1 LANDED (`b92ebef`):** CHM ONE MNY EMF SWF(FWS+CWS) 3DS(MM + the
+NCSD list-layer twin) — 8 registry rows, every grammar re-verified first-hand
+at the analyser body; the 3DS NCSD constant 0x4453434e extracted from the og
+DLL's .data (VA 0x180093978); ONE/3DS carry the bounded-extent stand-in for
+their undecoded walks. Tests: `S007NicheBatch2School1Carve` (8 plants,
+og-exact size semantics) + `S007NicheBatch2School1RejectsNoise` (7 hostile
+variants); suite 1023/1023 green.
+
+**Remaining (school 2/3, grammars already decoded in the session-5 table):**
+HTML (u16 ×4) · SVG/XML (u32 ×4) · LZH · MTS/M2TS · MOBI · JP2 · the text
+school (VCF/GPX/HIK/OSP/POS/AEP/CHFP) · OfficeTagFromXML (the ZIP-entry
+classifier — the archive-lane classification surface, decoded, to file with
+S-032's consumer). The one-line batch-2 causes that this finding inherited
+from the S-007 addendum are re-pinned there (CHM :22635 invalid; MPEG-TS
+0x11C stale = FH11).

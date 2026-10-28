@@ -1137,7 +1137,6 @@ Stage Summary:
   owner's full pipeline is restored end-to-end - commit -> checks ->
   release (dev-signed) -> test+benchmark. Remaining known-open: the
   parallel lanes' session-8 findings (their own worklog entries).
-=======
 Task ID: SA-8/T2 (session-8 third lane — the read waves)
 Agent: session-8 full parity audit, lead (this session)
 
@@ -1276,3 +1275,40 @@ Handoff notes for the next session:
   the driver install drills, reg import, WMF fixture carve) is out of this
   container's reach — the findings carry the static evidence and the drills
   are the fix lanes' acceptance criteria.
+Task ID: SCAN-4/A2 (landing record — the Delta Report, M-081 + its twin, S-041 school 1)
+Agent: scan-engine lane (A2, this session)
+
+- Landed (rebased onto the session-8 audit's tree): `ffa7a7d` — the Delta
+  Report refresh (SCAN-ENGINE-DELTA session-5 resolution log: the full
+  batch-2 validator-grammar decode, all 17 items first-hand; the two
+  misattribution defects filed; A4 phrasing corrections for CHM/JP2/EMF/
+  FCPEvt/OfficeTagFromXML), the S-007 batch-2 causes re-pinned (CHM's
+  :22635 = std::_Tree rebalance code, the real ITSF gate at :17705-17740;
+  MPEG-TS's 0x11C = the landed FH11; FCPEvt has NO XML side - covered by
+  FMT_SQLITE + N-089), errata E53 (census's !BDN "Bentley" = wrong; it is
+  FilePSTAnalyser id 0x38, verified :2324-2330) + E54 (dual-registry's
+  0x4449 "ID" = AIFF wrong; it chains MP3/ID3 id 0x2b, AIFF = FORM id 0x50),
+  and this session's worklog baseline entry.
+- Landed `9e5dedc`: M-081 RESOLVED (MAJOR -> FIXED, the finding file's
+  resolution record lists every fix-plan step) + the LowDoc/HLP twin —
+  FMT_CRW/FMT_CRW_MM (the og HEAP grammar), FMT_MRW (the og size formula),
+  FMT_LOWDOC/FMT_LOWDOC2 (FileLowDoc id 0x17, ext "doc"), FMT_HLP (the og
+  size gate); the retired II1A+PRD synthetic asserted NOT carved;
+  S007M081CiwMrmLowdocHlpOgGrammar pins every gate + exact formula sizes +
+  the corrected row labels. Suite 1017->1021 green.
+- Landed `b92ebef`: S-041 batch-2 school 1 — CHM ONE MNY EMF SWF(FWS+CWS)
+  3DS(MM + FMT_3DS_NCSD, the list-layer twin; the NCSD constant 0x4453434e
+  extracted from the og DLL .data VA 0x180093978) — 8 rows, enum values
+  appended (append-only held), S007NicheBatch2School1Carve/RejectsNoise
+  (1023/1023 green). ONE/3DS carry the bounded-extent stand-in; their
+  size-walks are the recorded follow-ups.
+- Convergence with the session-8 audit: M-081 = this lane's defect (a);
+  S-041's decode precondition = the session-5 table; N-093 (batch-1 bounds
+  deviations) noted - the relabeled rows keep their landed bounds.
+- F-lane doc truth: cr_rawsigns.h's "(30 formats)" stale count -> the
+  per-FormatId phrasing; cr_signatures.h M-024 comment's "[Filter] (37 named
+  toggles" -> the shipped file's 34 (CORRECTIONS #5).
+- Open for the next A2 leg: S-041 school 2/3 (HTML SVG LZH MTS/M2TS MOBI JP2
+  + the text school; the session-5 grammar table is the work list) +
+  OfficeTagFromXML's archive-lane classification surface + the ONE/3DS
+  size-walks + C9/OQ-S4-3 (Windows-execution-bound, unchanged).

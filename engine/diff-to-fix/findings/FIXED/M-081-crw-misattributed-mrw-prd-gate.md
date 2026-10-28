@@ -5,7 +5,7 @@
 **Parameters affected:** B1 (detection correctness — genuine CRW rejected), C19 (magic bytes — key attribution), A28 (validator logic — the PRD anchor is the wrong grammar for the key), Q65 (the test fixture is synthetic and self-fulfilling)
 **Corpus references:** `diff-to-fix/evidence/decompiled-quotes/s3-rawsearch-inventory.md:222-223` — the census re-read: `| 0x001a4949 | II\x1a\0 | Canon CRW (CIFF) | Brance::CRWAnalyser (ctor FUN_18003c9f0) | MISSING (N-026) |` and `| 0x001a4d4d | MM\x1a\0 | Canon CRW BE | Brance::CRWAnalyser | MISSING |`; `diff-to-fix/SCAN-ENGINE-DELTA.md:168-169` ("CRW = II/MM`\x1A\x00` (id 0x12) — the MRW key is `\0MRM` (id 0x66) only"); the Brance-family roster `re-workspace/artifacts/SearchDLL/rawsearchdll--family-brance.md` (CRWAnalyser is the family's Canon CIFF member)
 **Core references:** audited `35adcb9`. `src/core/carve/cr_registry.cpp:709-738`: `FMT_MRW` (`{'I','I',0x1A,0x00}`, "Minolta MRW"), `FMT_MRW_MM` (`{'M','M',0x1A,0x00}`, "Minolta MRW (BE)"), `FMT_MRW_MRM` (`{0x00,'M','R','M'}`, "Minolta MRW (MRM)") — all three routed to `validate_mrw`; `src/core/carve/cr_analysers.cpp:3057-3088`: the II/MM forms gate on a **`PRD` block at the u32 offset@+4** (:3069-3074, off < 8 or > 4 MiB → reject; `rd(...,prd,3)` memcmp "PRD" → reject). Enum comments `include/cr/carve/cr_signatures.h:147-148`. Test fixture `tests/unit/test_carve.cpp:2141-2147` = synthetic `II1A` + PRD plant.
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** RESOLVED (SCAN-4, `9e5dedc`) — every fix-plan step executed; moved MAJOR -> FIXED
 
 ## Summary
 
@@ -57,3 +57,12 @@ Recall loss for the Canon CRW format (CIFF — the PowerShot/Early-EOS raw forma
 ## Open questions
 
 The og CRWAnalyser's own CIFF grammar depth (block-walk vs magic+bounds) — read `FUN_18003c9f0`'s body at the decompile when implementing step 2 to match its accept/reject criteria exactly.
+
+## Resolution record (SCAN-4, `9e5dedc` — every fix-plan step executed)
+
+1. **Re-attributed:** `FMT_MRW`(II)→`FMT_CRW`, `FMT_MRW_MM`(MM)→`FMT_CRW_MM` (ext "crw"); `FMT_MRW_MRM` renamed `FMT_MRW` — the only MRW row. FormatId VALUES untouched (append-only).
+2. **The og CIFF validator, first-hand** (the open question above resolved): `FUN_180052000` :62333-62353 — bytes@+4 == {00 00 'H' 'E'} (u32 0x45480000), u16@+8 == "AP", record-type u32@+0xa ∈ {CCDR, TIFP, ARCH}, version byte@+0xe == 2 → `validate_crw`. The CIFF heap size-walk (`FUN_180052160`) is the recorded follow-up; the DWG-pattern bounded extent stands in.
+3. **MRW:** `validate_mrw` = the og size formula (`FUN_180012100` :14233-14258): `BE32(u32@+4) + 8 + ceil(u8@0x20 × BE16@+0x1a × BE16@+0x18 / 8)` — the u64 product replaces the og's wrapping signed multiply (identical for every non-UB input; the D-68 precedent).
+4. **The twin fixed in the same commit:** DBA5/94A6 → `FMT_LOWDOC`/`FMT_LOWDOC2` (FileLowDocAnalyser id 0x17, ext "doc", the og formula-only validator `FUN_18001b650` :21167-21188); HLP = 3F 5F 03 00 only with the og size gate (`FUN_180041c50` :49883-49895).
+5. **Trail reconciled:** the batch-1 addendum + the SCAN-ENGINE-DELTA session-5 log carry the correction notes; the retired II1A+PRD synthetic is asserted NOT carved by the new `S007M081CiwMrmLowdocHlpOgGrammar` test.
+6. **Verification:** suite 1023/1023 green (gcc linux-release Werror incl. the win-stub parse gate); clang-format 18.1.8 clean. The 2 MiB CIFF ext-surface correction (mrw→crw ×2, hlp→doc ×2) is logged as the API-lane handoff in worklog.

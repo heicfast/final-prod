@@ -4,7 +4,8 @@
  * The og's first carving pass: a table of per-extension header/tail byte
  * patterns (raw_signs.json, 139 formats) with (offset, confidence, min/max
  * size) semantics - a cheap sector-granular prefilter that covers formats
- * without full grammar validators. Our grammar validators (30 formats)
+ * without full grammar validators. Our grammar validators (one row per
+ * FormatId - the cr_signatures.h registry, 108 rows at the SCAN-4 tree)
  * remain the precision layer; this is the breadth layer, deduped against
  * both.
  *

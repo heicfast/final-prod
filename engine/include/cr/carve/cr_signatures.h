@@ -253,8 +253,8 @@ size_t registry_size();
 
 /* M-024 (diff-to-fix): the runtime per-format enable/disable surface.
  * The og rebuilds its working registry per search from a host-supplied
- * IAnalyserFilter driven by RawConfig.ini [Filter] (37 named toggles;
- * STL and VPJ ship DISABLED; the removal loop is RAWSearchDLL
+ * IAnalyserFilter driven by RawConfig.ini [Filter] (34 named toggles in the
+ * shipped file - CORRECTIONS #5; STL and VPJ ship DISABLED; the removal loop is RAWSearchDLL
  * FUN_180006b30 :4386-4434 - an analyser whose filter callback rejects
  * it is destroyed out of the u32 map / u16 multimap / list). The core's
  * form: CarveFlags::disabled_formats carries a comma/space/semicolon-
