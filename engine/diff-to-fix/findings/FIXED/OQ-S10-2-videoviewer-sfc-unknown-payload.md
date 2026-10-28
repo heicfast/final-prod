@@ -6,7 +6,7 @@
 **Parameters affected:** P54-adjacent (module boundary), register completeness
 **Corpus references:** `og-codebase/VideoViewer/sfc` (211,614 B; `file` → "data"; no PE header; first bytes `20 63 66 73 2d` = " cfs-"; recurring 4-byte motif `46 41 4E 2E` = "FAN."; zero meaningful ASCII or UTF-16 strings); `re-workspace/inventory.csv:217` (`VideoViewer/sfc,211614,external,data,,,,0,0,` — the corpus itself leaves it uncharacterized: class "external", format "data", no imports/exports); no binary in the og tree references it by name (unins000's `sfc.dll` imports are Windows' System-File-Checker, unrelated)
 **Core references:** audited commit `84a1832` — no disposition row anywhere (the sweep's second and last undispositioned file, beside N-130's VideoFileRepairer.exe); `rg -i "\bsfc\b"` over core docs → only an unrelated "SFC-safe" note in M-078
-**Status:** READ-ONLY — tracked-open
+**Status:** CLOSED — RESOLVED (session-10, S10-F lane, 2026-10-29): the decisive probe ran — **NO consumer exists anywhere in the reversed corpus**; the file is dead payload (hypothesis 3). Registered via the N-134 register batch.
 **Renumber note (push-time reconciliation):** filed as OQ-S10-1 in this lane's working tree; renumbered **OQ-S10-2** at push — the parallel S-045 resolution lane had concurrently spun its codec-bound question out as OQ-S10-1 (thumbnail-codec-bound-formats); the earlier remote numbering wins.
 
 ## The precise question
@@ -36,3 +36,35 @@ None on the core (no core behavior attaches). Register completeness only — the
 ## Related
 
 **N-130** (the same sweep's VideoFileRepairer.exe — the likely consumer, hypothesis 1) · **N-129** (the sweep's numeric defects) · the repair-family exclusion (I-010/D-26) that most plausibly owns the outcome.
+
+
+---
+
+## RESOLUTION (session-10 S10-F, 2026-10-29)
+
+**The decisive probe, executed this session** (the OQ's own "corpus artifact to
+examine next" — the magic/constant search over the VideoViewer-family decompiles):
+
+- `grep -l "sfc\|cfs"` over ghidra-wave2/VideoFileRepairer_decompiled.c,
+  EaseUS_MediaGraph_decompiled.c, ghidra-repair/EUVideoRepair_decompiled.c →
+  **ZERO hits** (per-token counts: cfs=0 sfc=0 FAN=0 in each).
+- The WIDE sweep — `grep -l "sfc\|cfs"` over every `*/  *_decompiled.c` in
+  reversed/ — returns only ghidra-misc/unins000_decompiled.c (Windows' own
+  sfc.dll import — the OQ already recorded it as unrelated) and
+  ghidra-repair/EuOfficeRepairFile_decompiled.c (the hit is the substring inside
+  `"plcfsed not found"` at :4854 — an unrelated error string).
+- String tables: zero `sfc`/`cfs-` references across the reversed set's string
+  tables (sweep over `*strings*.txt` / `*ascii*.txt`).
+
+**Hypotheses 1 and 2 are REFUTED** (no video-repair-line consumer, no
+VideoViewer/MediaGraph consumer). **Hypothesis 3 stands: dead payload** —
+shipped in og-codebase/VideoViewer/ among the media assets (PNGs, cursors,
+the FFmpeg DLL set), never referenced by any reversed binary. First-hand
+structure note: " cfs-" + 3 bytes + 30 "FAN." markers at scattered offsets
+with high-entropy inter-marker data (compressed/encrypted; no clean u32
+length framing) — an opaque container with no reader.
+
+**Disposition:** registered as dead-shipped installer-chain payload (the
+PE_Tools/dlconfig class) via the **N-134** register batch (the
+product-frame register completion finding); no core action, no capability
+question remains.

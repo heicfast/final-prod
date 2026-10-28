@@ -5525,3 +5525,29 @@ infra-only MOM stubs re-confirm the inventory's rollup-covered claim.
 **Board after this lane:** 57 active (6 SEVERE · 26 MAJOR · 21 MINOR ·
 5 INFO) — the S10-F additions on top of the SA-10 close board; FIXED-LEDGER
 unchanged by this lane (no fix verified here; the purge convention holds).
+
+## Session-10 S10-F wave-2 delta (2026-10-29 — the tracked-open resolutions; audited `deea0241`)
+
+Both resolvable tracked-open questions closed this wave:
+
+- **OQ-S8-1 RESOLVED → M-111 (MAJOR)**: the CWindowsFS consumer trace (the
+  T11a read-agent + the lead's first-hand verification of every load-bearing
+  cite) decoded the og's in-app partition file browser end-to-end — DRWUI's
+  browse button → the CreateExplorerPartitionObject export →
+  ExplorerPartition::Open → the FileSystem module's vtable+0x38 factory →
+  CWindowsFS (live-mounted volumes) / the raw parsers (lost partitions,
+  behind the same IFSInterface). User-visible existing-file browsing IS an
+  og product surface; the core has no counterpart seam and no scope
+  registration — M-111 owns the capability decision. Two internal consumers
+  ride the same factory (used-space, root-openability) — recorded in the
+  trace evidence.
+- **OQ-S10-2 RESOLVED (dead payload)**: the decisive probe executed — zero
+  consumers of the " cfs-"/FAN. container across every reversed binary and
+  string table; the video-repair/VideoViewer hypotheses refuted; registered
+  dead-shipped via N-134's addendum.
+- Remaining tracked-open: **OQ-S4-3** (execution-bound, Windows dispatch —
+  unchanged) and **OQ-S10-1** (the thumbnail codec-bound formats question —
+  the fix lanes' surface).
+
+**Board after wave 2:** 58 active (6 SEVERE · 27 MAJOR · 21 MINOR · 5 INFO)
++ the two OQ closures in the ledger.

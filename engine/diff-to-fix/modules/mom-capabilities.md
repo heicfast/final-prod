@@ -184,3 +184,10 @@ json_raw shield, Aliyun caps, schtasks autostart, filter_generalraw value).
 |---|---|
 | register completeness — the product-frame binaries | **DIVERGENCE-MINOR — N-134** (the 103-binary ghidra-tree census: CloneModule.dll [the clone/PreOS host, CEUCloneMgr ×398, the sole Win32Bcd importer], legacy.dll [LibTomCrypt substrate, role undecoded], EuDownloader.exe [the curl downloader], Boot.dll/BootDriver.dll/peformat.dll [the media-builder family — distinct from M-040's repair side] + the six telemetry binaries name-absent — none registered in I-010/I-019/I-027; the engine-bearing trees are CLEAN at binary level; evidence s10f-product-frame-register.md) |
 | MOM module decompile-tree verification | **MATCH** — the 30 .mo decompiles re-checked against the roll-up + trail at binary level: 27 name-cited, 3 infra-only (DeviceAdapter / FileSystemAnalyser-base / ExFatFileSystemAnalyser-open-tail) — re-confirms the inventory's rollup-covered claim |
+
+## Session-10 S10-F wave-2 rows (the tracked-open resolutions, 2026-10-29; audited `deea0241`)
+
+| Parameter | Verdict |
+|---|---|
+| the in-app partition file-browse capability | **DIVERGENCE-MAJOR — M-111** (OQ-S8-1 resolved by the consumer trace: the ExplorerPartition chain is the og's user-visible existing-file browsing of mounted partitions, backed by CWindowsFS for OS-accessible volumes and the raw parsers otherwise; + the used-space and root-openability internal consumers; the core has no seam and no scope registration — the decision is the fix plan's step 1) |
+| VideoViewer/sfc payload | RESOLVED dead-shipped (OQ-S10-2 closed — zero consumers corpus-wide; N-134 addendum) |

@@ -272,6 +272,8 @@ belongs to the fix lane; this census is the audit-side truth record.
 | OQ-S6-2 | ? |  | — | `findings/FIXED/OQ-S6-2-btrfs-rc4-prga-target.md` |
 | OQ-S6-3 | ? |  | — | `findings/FIXED/OQ-S6-3-craw-reader-f4-boolean-and-anchor-b.md` |
 | OQ-S20-1 | ? |  | — | `findings/FIXED/OQ-S20-1-bitlocker-fve-kdf-interop.md` |
+| OQ-S8-1 | ? | mom-capabilities | (this session, S10-F) | `findings/FIXED/OQ-S8-1-cwindowsfs-live-fs-adapter-consumer.md` — **RESOLVED: the consumer is the og's user-visible in-app partition file browser** (the ExplorerPartition chain: DRWUI:438891/:1421116 → PartitionRecovery:8481-8492 → FileSystem.mo's vtable+0x38 → CWindowsFS) + two internal consumers (used-space; root-openability); converts to **M-111** (the capability finding) |
+| OQ-S10-2 | ? | og-tree register | (this session, S10-F) | `findings/FIXED/OQ-S10-2-videoviewer-sfc-unknown-payload.md` — **RESOLVED: dead payload** (the decisive probe ran: zero consumers of the " cfs-"/FAN. container across every reversed binary + string table; hypotheses 1-2 refuted); registered via N-134 |
 | RESOLVED | ? |  | 3678cbf | `findings/FIXED/RESOLVED-INDEX.md` |
 | S-001 | SEVERE |  | — | `findings/FIXED/S-001-ntfs-overwritten-deleted-emitted-not-destroyed.md` |
 | S-002 | SEVERE |  | — | `findings/FIXED/S-002-hfsplus-attributes-tree-decmpfs-not-walked.md` |

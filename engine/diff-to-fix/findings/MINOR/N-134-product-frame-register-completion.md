@@ -52,3 +52,16 @@ Decompiled evidence (strength 2): the per-binary RTTI/string greps re-run by the
 ## Open questions
 
 - legacy.dll's consumer role (the decode: trace its 118 named functions' imports/callers in the og's load graph — the deepening-batch1 §4 hypothesis list is the starting point). Registered in the fix plan as the one open decode; not blocking the register rows.
+
+
+---
+
+## ADDENDUM (session-10 S10-F, 2026-10-29) — the sfc registration (OQ-S10-2's resolution)
+
+The register gains the VideoViewer/sfc payload (211,614 B, " cfs-" magic +
+30 "FAN." markers, opaque compressed/encrypted content): the OQ-S10-2
+decisive probe (this session) found ZERO consumers across every reversed
+binary and string table — **dead-shipped installer-chain payload** (the
+PE_Tools/dlconfig class), registered here per the OQ's hypothesis 3. The
+OQ file is closed with the full probe record
+(findings/FIXED/OQ-S10-2-videoviewer-sfc-unknown-payload.md).

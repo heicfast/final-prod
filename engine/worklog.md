@@ -3145,3 +3145,34 @@ Stage Summary:
 - Board: **53 active (6 SEVERE · 21 MAJOR · 21 MINOR · 5 INFO) / 285 resolved / 4 tracked-open**; next free S-053+, M-111+, N-137+, I-031+, A-012+.
 - Findings: +N-135 (the renumber), +N-136 (new); retirements: M-102, M-083 (both PARITY-VERIFIED).
 - The wave-2 deep lanes (RAWSearchDLL infrastructure; og config/data assets; the seven non-searchdll ghidra trees; the promotion-guard decode; the core stand-in register) spawn next.
+
+---
+Task ID: S10-F/T11 (session-10, wave 2 — the tracked-open resolutions)
+Agent: session-10 function-level completeness audit (lead lane S10-F)
+
+Work Log:
+- OQ-S8-1 (CWindowsFS's consumer): the T11a read-agent traced the IFSInterface
+  factory through the MOM dispatch (the vtable+0x38 slot — zero direct callers)
+  to THREE consumers: (A) the og's in-app partition file browser (DRWUI's
+  browse button :1421116 → CreateExplorerPartitionObject :438891 →
+  ExplorerPartition::Open :8481-8492 → the factory → CWindowsFS for
+  OS-accessible volumes / raw parsers otherwise — USER-VISIBLE existing-file
+  browsing), (B) DeviceManager's used-space, (C) PartitionRecoveryD's
+  root-openability probe. The lead verified every load-bearing cite first-hand
+  (the GetProcAddress sequence, the raw-flag factory chain, the browse
+  trigger) before filing M-111 (MAJOR — the capability finding with the scope
+  decision; evidence s10f-cwindowsfs-consumer-trace.md).
+- OQ-S10-2 (VideoViewer/sfc): the decisive probe ran — zero consumers across
+  every reversed binary + string table (the wide grep's only hits: Windows'
+  own sfc.dll import in unins000, and the "plcfsed" substring in an unrelated
+  error string); first-hand structure read (the " cfs-" header + 30 FAN.
+  markers + high-entropy payload, no clean framing). Verdict: dead-shipped
+  payload; registered via N-134's addendum; the OQ closed.
+- Both OQ files moved to findings/FIXED/ with CLOSED status + ledger rows;
+  CROSS-REF-MATRIX/mom-capabilities/SUMMARY updated.
+
+Stage Summary:
+- Two of the four tracked-open questions RESOLVED this wave; M-111 filed;
+  the remaining two (OQ-S4-3 execution-bound; OQ-S10-1 the fix lanes') stay
+  tracked. Next: close-out (README currency, final counts, the read-only
+  guarantee verification, final push).

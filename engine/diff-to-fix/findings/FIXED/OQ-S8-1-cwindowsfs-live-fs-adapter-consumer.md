@@ -1,6 +1,6 @@
 # OQ-S8-1 — CWindowsFS decoded: the og's live-mounted-filesystem adapter — who consumes it, and does the merged product need one?
 
-**Status:** OPEN QUESTION (tracked) — this is not a defect finding; it is a precisely-scoped question with the evidence needed to answer it.
+**Status:** CLOSED — RESOLVED (session-10, S10-F lane, 2026-10-29): the consumer is decoded — **the og's user-visible in-app partition file browser** (the ExplorerPartition chain), plus two internal capability consumers (used-space; the lost-partition root-openability probe). The capability finding the OQ's resolution path prescribed is filed as **M-111** (MAJOR). Full trace: `evidence/decompiled-quotes/s10f-cwindowsfs-consumer-trace.md`.
 
 ## The decode (first-hand, this session)
 
@@ -38,3 +38,33 @@ The **og-side consumer** of this adapter is untraced (the same class of question
 - M-082 (this session — the other MOM decode candidate, resolved to a finding).
 - OQ-S5-1 (the precedent resolution pattern: s25's CheckVersion dead-shipped evidence).
 - SURFACE-INVENTORY.md:66 (the candidate registration this closes or converts).
+
+
+---
+
+## RESOLUTION (session-10 S10-F, 2026-10-29)
+
+**The answer to the precise question:** the og flows that construct CWindowsFS:
+
+1. **USER-VISIBLE** — the Partition-Recovery feature's in-app per-partition file
+   browser: DRWUI's partition-item browse button (FUN_140904fc0, ShellExecuteA for
+   mounted-with-path :1421113 vs the in-app FUN_14091c620 :1421116-1421118) → the
+   `CreateExplorerPartitionObject` export (:438891) → `ExplorerPartition::Open`
+   (PartitionRecovery_decompiled.c:8481-8492 — `FUN_1800017f0("FileSystem")`, the
+   {5,6,0x18} raw-flag, the IFileSystemModule vtable+0x38 factory) → CWindowsFS for
+   OS-accessible volumes (the raw parsers otherwise, same interface). The browse
+   serves EXISTING files of mounted volumes through the Win32 find chain — exactly
+   the "browse this partition's files" surface.
+2. **Internal** — DeviceManager's partition used-space computation
+   (DeviceManager_decompiled.c:49031-49093, the +0x20 GetUsedSpace slot).
+3. **Internal** — PartitionRecoveryD's lost-partition root-openability probe
+   (PartitionRecoveryD_decompiled.c:6717-6731).
+
+**The parity consequence (per the OQ's own resolution path):** user-visible
+existing-file browsing IS an og product surface, and the core has no counterpart
+seam (no live-FS adapter, no browse surface; the only FindFirstFile* uses are the
+.crsf listings) — filed as **M-111** (MAJOR): the capability finding with the
+scope decision (register the deliberate absence vs open the seam). The
+SURFACE-INVENTORY §4 decode-candidate row converts accordingly. Every
+load-bearing cite in the trace was lead-verified first-hand before filing (the
+verification log is the evidence file's final section).
