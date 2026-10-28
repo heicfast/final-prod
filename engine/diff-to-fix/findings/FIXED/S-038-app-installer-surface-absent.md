@@ -115,3 +115,40 @@ remaining work; the finding moves to FIXED when the §11 gates are green.
 **Status: steps 2-3 landed; step 4 (acceptance) flips when the installer
 lane's first dispatch is green — the lane runs on every push touching
 `installer/**`.**
+
+## Resolution (step 4 — ACCEPTED; the PARITY-FIX-9 close-out)
+
+**The installer lane's first fully-green dispatch: run 40684304129 at
+`1c4db82`** (2026-10-28, windows-2022, Inno 6.7.1 from the runner image).
+All three §11 gates GREEN:
+
+- **Gate 3 InstallerOSGateMatrix** (job `osgate-matrix`): the OSGATE-V1
+  sync pin holds (module == ISS decision table) and all 17 matrix probes
+  behave — 9 in-envelope ADMITS (Win7 SP1 7601 floor, Win8/8.1, Win10
+  1507→22H2, Win11 21H2/24H2, Server 2022/2025) exit 0; 5 below-floor
+  REFUSES (XP, Vista SP1/SP2, Win7 RTM 7600) exit 3; 3 wrong-arch REFUSES
+  (x86, ARM64, Itanium) exit 3.
+- **Gates 1+2** (job `silent-roundtrip`): all 18 assertions GREEN —
+  install exit 0 (/VERYSILENT /SUPPRESSMSGBOXES /NORESTART, zero prompts);
+  version key `HKLM\SOFTWARE\heicfast\core_recovery\Version` reads back
+  exactly the built version; ARP entry with UninstallString +
+  QuietUninstallString (ends `" /SILENT"`, the reference's exact form) +
+  DisplayName/DisplayVersion/Publisher/InstallLocation; driver service RDA
+  RUNNING under the Boot File System group (§10's internal step, the
+  bundled install.ps1 with exit-code propagation); silent uninstall via
+  the ARP QuietUninstallString verbatim; NO residue (ARP, install dir,
+  version key, service, System32\drivers\RDA*.sys).
+
+The two dispatch-era defects (both fixed in-session): the pinned-choco
+downgrade failure (the runner image ships Inno 6.7.1 — detect-first) and
+the QuietUninstallString double-quoting (Inno writes UninstallString
+already quoted; the ISS now strips before composing the canonical form,
+run 40682713693's gate-1d lesson — 14/14 install-side assertions were
+already green there).
+
+**S-038 moves to FIXED**: the 13-parameter contract is implemented
+(`installer/core-recovery.iss`), the three gates are automated and green
+(`.github/workflows/installer.yml` + `installer/run-gates.ps1` +
+`tools/test_installer_osgate.py`), and both owner decisions are recorded
+(PACKAGING.md §2 Inno Setup, §8 omit). The reference's installer surface
+is no longer absent.

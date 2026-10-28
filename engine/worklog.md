@@ -560,3 +560,23 @@ Stage Summary:
 - All three lanes of the earlier red repaired (windows/local-mirror build,
   fuzz build, fuzz campaign). Watching the installer round-trip at
   1c4db82 (gate 1d/1e proof) + the new Checks lane.
+
+---
+Task ID: PARITY-FIX-9 (S-038 step 4 ACCEPTED — the board's last active SEVERE closed)
+Agent: main session
+
+Work Log:
+- Run 40684304129 (1c4db82): the installer lane's first fully-green
+  dispatch - gate 3 (sync pin + 17 probes) AND gates 1+2 (all 18
+  assertions: install/version-key/ARP-both-strings/driver-internal-step/
+  quiet-uninstall/no-residue). The full list is in S-038's Resolution.
+- S-038 moved SEVERE/ -> FIXED/ with the step-4 Resolution; RESOLVED-INDEX
+  row added; SUMMARY's board: 0 active, 246 FIXED, 2 tracked-open;
+  PACKAGING.md status -> ACCEPTED.
+
+Stage Summary:
+- Session board outcome: the last active SEVERE closed; every engine-side
+  recall gap verified fixed + registers truthful; the TTFR harness landed;
+  three CI-red classes repaired. Remaining tracked-open items are owned
+  by the parallel lanes (SCAN-2f's origin-LCN carrier) or execution-bound
+  (the TTFR measurement on the rebuilt lane's next dispatch).

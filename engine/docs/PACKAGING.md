@@ -1,7 +1,8 @@
 # PACKAGING — the app-installer contract (the packaging milestone's design input)
 
-> **Status: IMPLEMENTED (S-038 step 2+3 landed; step 4 acceptance = the
-> three gates green on the installer CI lane).** This document exists
+> **Status: ACCEPTED (S-038 FIXED — steps 1-4 complete; the installer
+> lane's first fully-green dispatch: run 40684304129 at `1c4db82`, all
+> three §11 gates GREEN on windows-2022).** This document exists
 > because [S-038](../diff-to-fix/findings/SEVERE/S-038-app-installer-surface-absent.md)
 > put the reference product's installer surface on the board as a 13-parameter
 > contract. The packaging milestone is built AGAINST this contract, never
@@ -204,10 +205,10 @@ Three automated gates on the CI Windows lane, red-blocking the milestone:
 ## 12. Milestone acceptance
 
 - This contract exists with citations (this document).
-- The three §11 gates green on the CI Windows lane — **the lane exists
-  ([installer.yml](../.github/workflows/installer.yml)); the gates run on
-  every push touching `installer/**`; S-038's step-4 acceptance flips when
-  the first dispatch is green**.
+- The three §11 gates green on the CI Windows lane — **GREEN: run
+  40684304129 at `1c4db82` (osgate-matrix + silent-roundtrip both green;
+  the 18 round-trip assertions + the 17 matrix probes all pass; see
+  S-038's Resolution for the full assertion list)**.
 - Every REGISTERED divergence above carries its rationale; the two OPEN
   decisions (§2 technology, §8 telemetry) are closed and recorded (both
   confirmed at the contract's own defaults by the implementing session).

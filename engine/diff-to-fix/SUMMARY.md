@@ -1,5 +1,34 @@
 # SUMMARY.md — executive summary (the review-validate close-out on top; earlier sessions below)
 
+## Fix-session delta (2026-10-28 — the PARITY-FIX-9 close-out: S-038 FULLY FIXED — the board's last active SEVERE)
+
+**S-038 (SEVERE) FIXED — steps 1-4 complete.** The installer lane's first
+fully-green dispatch (run **40684304129** at `1c4db82`, windows-2022):
+all three PACKAGING.md §11 gates GREEN — InstallerOSGateMatrix (the
+OSGATE-V1 sync pin + 17 matrix probes: 9 in-envelope admits from the
+Win7-SP1 floor to Server 2025, 5 below-floor refusals, 3 wrong-arch
+refusals), InstallerSilentRoundTrip (18 assertions: /VERYSILENT
+zero-prompt install → ARP UninstallString + QuietUninstallString ending
+`" /SILENT"` + the full value set → driver service RDA RUNNING under the
+Boot File System group (§10's internal step) → uninstall via the ARP
+quiet string verbatim → NO residue across files/ARP/version-key/service/
+driver-images), InstallerVersionKeyWritten (the write+verify read-back).
+The dispatch-era defects (pinned-choco downgrade; QuietUninstallString
+double-quoting) were repaired in-session with run-cited lessons. The
+13-parameter contract is implemented in `installer/core-recovery.iss`
+(Inno Setup; §2 = Inno confirmed, §8 = telemetry omit confirmed); the
+finding moves to FIXED/ with the full resolution trail.
+
+**Board after the PARITY-FIX waves:** **0 active** · **246 FIXED** (245 +
+S-038) · tracked-open 2 (OQ-S4-3 — the TTFR harness landed, the
+measurement = the rebuilt lane's next dispatch; OQ-SA-1 — the NTFS +0x64
+decode done by SCAN-2f, the engine-side origin-LCN carrier pinned in
+their fix queue). I-026 remains informational. The wave also repaired
+three CI-red classes on the parallel landings (the thumbnail C4244 + the
+GCC-only pragma under clang; the stb EOF-protocol fuzz timeout; the
+fuzz-preview UBSan nonnull) and landed GAP-S6-5's physical-ceiling scorer
++ the M-068 hygiene move + the testing.md count truth.
+
 ## Fix-session delta (2026-10-28 — the PARITY-FIX-3 wave: M-068's board move + the recall-gap register truth pass + S-038 steps 2-3)
 
 **M-068 (MAJOR) board-hygiene MOVE** (the fix itself landed in the SA-6
