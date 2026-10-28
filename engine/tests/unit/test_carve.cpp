@@ -6961,3 +6961,231 @@ TEST(Carve, SitMinimumIsTheOgFloor) {
         }
     }
 }
+
+/* ---- N-111: the JP2 family (the og's JP2Analyser id 0x80, the brand
+ * map jp2 /jpx /jpm , the box-walk extent machinery) ---- */
+
+namespace {
+/* plant a JP2 family file: [sig box 12B][ftyp box][jp2h box][jp2c box] +
+ * an optional trailing non-jp2c box. The signature box length at +0 is
+ * the caller's (the og never reads it - the salvage posture). */
+size_t plant_jp2(std::vector<u8>& img, size_t at, const char brand[4], u32 sig_box_len,
+                 u32 jp2c_len, bool trailing_box) {
+    auto be32 = [](std::vector<u8>& v, size_t o, u32 x) {
+        v[o] = u8(x >> 24);
+        v[o + 1] = u8(x >> 16);
+        v[o + 2] = u8(x >> 8);
+        v[o + 3] = u8(x);
+    };
+    /* the signature box: length (unchecked by the og), "jP  ", 0x0D0A870A */
+    be32(img, at, sig_box_len);
+    std::memcpy(img.data() + at + 4, "jP  ", 4);
+    be32(img, at + 8, 0x0d0a870au);
+    size_t p = at + 12;
+    /* the ftyp box: length 20, "ftyp", brand, minor 0, no compat list */
+    be32(img, p, 20);
+    std::memcpy(img.data() + p + 4, "ftyp", 4);
+    std::memcpy(img.data() + p + 8, brand, 4);
+    be32(img, p + 12, 0);
+    p += 20;
+    /* the jp2h header box: 8 bytes of box only */
+    be32(img, p, 8);
+    std::memcpy(img.data() + p + 4, "jp2h", 4);
+    p += 8;
+    /* the jp2c codestream box */
+    be32(img, p, jp2c_len);
+    std::memcpy(img.data() + p + 4, "jp2c", 4);
+    for (u32 i = 8; i < jp2c_len; ++i)
+        img[p + i] = u8(0x50 + (i & 0x3F)); /* non-zero codestream filler */
+    p += jp2c_len;
+    if (trailing_box) {
+        be32(img, p, 8);
+        std::memcpy(img.data() + p + 4, "jj2c", 4); /* a non-jp2c box: ends the extent */
+        p += 8;
+    }
+    return p;
+}
+tree::FileNode* find_carved_at(tree::ResultTree& tree, u64 at) {
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    for (tree::FileNode* r : tree.roots())
+        collect(r);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    return n;
+}
+} // namespace
+
+TEST(Carve, Jp2BrandMap) {
+    /* N-111: the three brand forms stamp their respective ids - the og's
+     * exact-match map walk (jp2 ->0x80 / jpx ->0x81 / jpm ->0x82). */
+    struct Case {
+        const char* brand;
+        FormatId id;
+        const char* ext;
+    };
+    for (const Case& c : {Case{"jp2 ", FMT_JP2, "jp2"}, Case{"jpx ", FMT_JPX, "jpx"},
+                          Case{"jpm ", FMT_JPM, "jpm"}}) {
+        std::vector<u8> img(64 * 1024, 0);
+        const size_t at = 512;
+        const size_t end = plant_jp2(img, at, c.brand, 12, 0x100, true);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
+                  u32(OK));
+        tree::FileNode* n = find_carved_at(tree, at);
+        ASSERT_NE(n, nullptr) << "brand " << c.brand << " must carve";
+        EXPECT_EQ(n->props()->carve_format, u64(c.id)) << "brand " << c.brand;
+        EXPECT_EQ(n->props()->logical_size, end - at - 8)
+            << "the box-walk extent (brand " << c.brand << ")";
+        std::string name;
+        ASSERT_TRUE(cr::text::lossless_u16_to_utf8(n->props()->name, name));
+        EXPECT_NE(name.find(std::string(".") + c.ext), std::string::npos);
+    }
+}
+
+TEST(Carve, Jp2SignaturePayloadGate) {
+    /* N-111: a wrong payload constant at +8 rejects (the og gates
+     * 0x0D0A870A exactly). */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    plant_jp2(img, at, "jp2 ", 12, 0x100, true);
+    img[at + 10] = 0x11; /* corrupt the payload dword */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    EXPECT_EQ(find_carved_at(tree, at), nullptr) << "the corrupted payload must reject";
+}
+
+TEST(Carve, Jp2UncheckedBoxLength) {
+    /* N-111: the signature-box length at +0 is never GATED - a bogus
+     * length still passes the probe (the og's salvage posture at the
+     * gate level). The size walk, though, advances BY that bogus length
+     * (the og's own walk jumps past every window and never terminates -
+     * the finding's "still carves with the correct extent" inference
+     * corrected here: the probe accepts, the walk cannot size); the
+     * core's single-pass adaptation takes the bounded fallback (the
+     * family convention) - the cap-window extent, not the box extent. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    plant_jp2(img, at, "jp2 ", 0xDEADBEEFu, 0x100, true);
+    const size_t img_size = img.size();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    tree::FileNode* n = find_carved_at(tree, at);
+    ASSERT_NE(n, nullptr) << "the corrupt-length signature box must still carve (the gate)";
+    EXPECT_EQ(n->props()->carve_format, u64(FMT_JP2));
+    EXPECT_EQ(n->props()->logical_size, img_size - at) << "the bounded fallback extent";
+}
+
+TEST(Carve, Jp2UnknownBrandRejected) {
+    /* N-111: the brand map is exact-match - "j2k " (a real JP2 family
+     * brand the og's map does not carry) rejects, probe returns 0. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    plant_jp2(img, at, "j2k ", 12, 0x100, true);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    EXPECT_EQ(find_carved_at(tree, at), nullptr) << "the unmapped brand must reject";
+}
+
+TEST(Carve, Jp2BoxWalkExtent) {
+    /* N-111: the jp2c-consecutive rule - the first NON-jp2c box after a
+     * codestream box ends the extent (the og's end detector,
+     * FUN_18001c820's flag-0x126 path). */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    const size_t end = plant_jp2(img, at, "jp2 ", 12, 0x100, true);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    tree::FileNode* n = find_carved_at(tree, at);
+    ASSERT_NE(n, nullptr);
+    /* 12 (sig) + 20 (ftyp) + 8 (jp2h) + 0x100 (jp2c) - the trailing
+     * non-jp2c box is NOT part of the file */
+    EXPECT_EQ(n->props()->logical_size, end - at - 8);
+}
+
+TEST(Carve, Jp2EocScan) {
+    /* N-111: the len==0 unbounded-box form - the FF D9 EOC byte scan
+     * sizes to the marker + 2 (FUN_18001c820's flag-0x124 path). */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    /* [sig][ftyp][jp2h][len==0 "jp2c" box][codestream bytes][FF D9] */
+    plant_jp2(img, at, "jp2 ", 12, 0, false);
+    size_t p = at + 12 + 20 + 8;
+    img[p] = 0; /* the zero-length field (already zeroed) */
+    std::memcpy(img.data() + p + 4, "jp2c", 4);
+    for (size_t i = 8; i < 8 + 300; ++i)
+        img[p + i] = u8(0x30 + (i & 0x3F));
+    const size_t eoc = p + 8 + 300;
+    img[eoc] = 0xFF;
+    img[eoc + 1] = 0xD9;
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    tree::FileNode* n = find_carved_at(tree, at);
+    ASSERT_NE(n, nullptr) << "the unbounded-box form must carve";
+    EXPECT_EQ(n->props()->logical_size, (eoc + 2) - at) << "the EOC-scan extent";
+}
+
+TEST(Carve, Jp2Jp2cFinalAtSliceEdgeFallsBackBounded) {
+    /* N-111: a jp2c-final file at the slice edge takes the bounded
+     * fallback - which lands exactly at the file end there. The jp2c
+     * length is chosen so the file end is sector-aligned (MemDevice
+     * truncates to full sectors). */
+    std::vector<u8> img(4 * 1024, 0);
+    const size_t at = 512;
+    const size_t end = plant_jp2(img, at, "jp2 ", 12, 472, false); /* 512+40+472 = 1024 */
+    EXPECT_EQ(end, size_t(1024));
+    img.resize(end);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    tree::FileNode* n = find_carved_at(tree, at);
+    ASSERT_NE(n, nullptr);
+    EXPECT_EQ(n->props()->logical_size, end - at) << "the fallback end == the file end";
+}

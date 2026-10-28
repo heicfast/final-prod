@@ -3001,6 +3001,182 @@ CarveResult validate_mobi(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
+/* ---- JP2 family (N-111): the og's JP2Analyser, the full decode ----
+ * JP2Analyser (id 0x80, the RawConfig "JP2" token, list-layer
+ * :3544-3559). The probe (FUN_18001c380 :21812-21936) gates exactly:
+ * BE u32@+4 == 0x6a502020 ("jP  " - the signature-box TYPE; the box
+ * length u32@+0 is never read - the corrupt-length salvage posture),
+ * BE u32@+8 == 0x0d0a870a (the signature-box payload), BE u32@+0x10 ==
+ * 0x66747970 ("ftyp" - the file-type box must directly follow). The
+ * major brand BE u32@+0x14 then walks a std::map built once per
+ * process (:21886-21936 - lower_bound + key<=probe, i.e. EXACT match):
+ * "jp2 " -> id 0x80, "jpx " -> 0x81, "jpm " -> 0x82; every other brand
+ * leaves the walk unmatched and the probe RETURNS 0 (reject).
+ *
+ * The size machinery (FUN_18001c760/c820 :21979-22115, decoded
+ * first-hand this session - the finding's own text had recorded it as
+ * the undecoded follow-up; no stand-in needed):
+ *   phase 1 - the box walk: read BE u32 length@+0 and BE u32 type@+4;
+ *     len==1 -> the u64 extended length at +8 (16-byte box header);
+ *     len==0 (literal or extended) -> phase 2 from box_start+4;
+ *     length with bit63 set -> size 0 (the defensive reject);
+ *     the box type "jp2c" (the expected-end map, FUN_18001ca60: all
+ *     three ids map to "jp2c") latches the codestream flag, and the
+ *     FIRST NON-jp2c-typed box after it ends the extent (the
+ *     jp2c-consecutive rule - the og's end detector for the common
+ *     jp2c-final files).
+ *   phase 2 - the codestream byte scan (the unbounded len==0 form):
+ *     from box_start+4, scan bytes for the FF D9 EOC u16 (the og reads
+ *     *(u16*)pos == 0xD9FF - little-endian FF D9); a run of 16+
+ *     consecutive zero bytes latches a back-off size (run_start) exactly
+ *     once - the trailing-pad heuristic; the absolute guard 0x1F3FFFFF
+ *     finalizes; EOC beats the latch.
+ * Single-pass adaptation: the walk runs to the slice cap; no
+ * terminator -> the latched back-off size if one fired, else the
+ * bounded fallback (the family convention) with the heuristic note. */
+namespace {
+CarveResult jp2_eoc_scan(IStorageDevice* s, u64 hit, u64 start, u64 limit, CarveResult r) {
+    /* the og's phase 2, block-buffered (one extra byte per block so
+     * every position's u16 successor is in-buffer - no straddle miss) */
+    std::vector<u8> buf(kProbeBlock + 1);
+    u64 pos = start;
+    u32 zero_run = 0;
+    bool latched = false;
+    u64 latched_end = 0;
+    while (pos < limit) {
+        const u64 remain = limit - pos;
+        const u32 take = u32(std::min<u64>(remain, kProbeBlock));
+        if (take < 2)
+            break;
+        /* one extra byte past the block so every position's u16 successor
+         * is in-buffer (at the slice edge the successor is unreadable and
+         * that final position's u16 check is skipped - the og's own
+         * window-edge behavior); the extra byte re-reads as the next
+         * block's buf[0], so the zero-run never double-counts */
+        const u32 want = u32(std::min<u64>(remain, u64(take) + 1));
+        if (!rd(s, pos, buf.data(), want))
+            break;
+        for (u32 i = 0; i < take; ++i) {
+            const u64 abs = pos + i;
+            if (abs - hit > 0x1F3FFFFFull) {
+                /* the og's absolute guard: finalize with whatever the
+                 * scan has recorded */
+                if (latched) {
+                    r.ok = true;
+                    r.end = latched_end;
+                    r.confidence = 550;
+                    r.note = "jp2-eoc-zeros-backoff";
+                    return r;
+                }
+                r.ok = true;
+                r.end = abs;
+                r.confidence = 450;
+                r.note = "jp2-bounded-cap";
+                return r;
+            }
+            const u8 b = buf[i];
+            zero_run = (b != 0) ? 0 : zero_run + 1;
+            if (zero_run > 15 && !latched) {
+                latched = true;
+                latched_end = abs - 15; /* the run's first zero - the og's
+                                         * lVar5 - 0xf, recorded once */
+            }
+            if (i + 1 < want && b == 0xFF && buf[i + 1] == 0xD9) {
+                r.ok = true;
+                r.end = abs + 2;
+                r.confidence = 700;
+                r.note = "jp2-eoc-scan";
+                return r;
+            }
+        }
+        pos += take;
+    }
+    /* no EOC by the cap: the latched back-off if any, else the family
+     * fallback */
+    if (latched) {
+        r.ok = true;
+        r.end = latched_end;
+        r.confidence = 550;
+        r.note = "jp2-eoc-zeros-backoff";
+        return r;
+    }
+    r.ok = true;
+    r.end = limit;
+    r.confidence = 450;
+    r.note = "jp2-bounded-cap";
+    return r;
+}
+} // namespace
+
+CarveResult validate_jp2(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 hdr[0x18];
+    if (!rd(s, hit, hdr, sizeof(hdr)))
+        return r;
+    const u32 sig = (u32(hdr[4]) << 24) | (u32(hdr[5]) << 16) | (u32(hdr[6]) << 8) | u32(hdr[7]);
+    const u32 payload =
+        (u32(hdr[8]) << 24) | (u32(hdr[9]) << 16) | (u32(hdr[10]) << 8) | u32(hdr[11]);
+    const u32 ftyp =
+        (u32(hdr[0x10]) << 24) | (u32(hdr[0x11]) << 16) | (u32(hdr[0x12]) << 8) | u32(hdr[0x13]);
+    if (sig != 0x6a502020u || payload != 0x0d0a870au || ftyp != 0x66747970u)
+        return r; /* the three probe gates, ported exactly */
+    const u32 brand =
+        (u32(hdr[0x14]) << 24) | (u32(hdr[0x15]) << 16) | (u32(hdr[0x16]) << 8) | u32(hdr[0x17]);
+    u32 fmt = 0xFFFFFFFFu;
+    if (brand == 0x6a703220u)
+        fmt = u32(FMT_JP2); /* "jp2 " -> the og's id 0x80 */
+    else if (brand == 0x6a707820u)
+        fmt = u32(FMT_JPX); /* "jpx " -> 0x81 */
+    else if (brand == 0x6a706d20u)
+        fmt = u32(FMT_JPM); /* "jpm " -> 0x82 */
+    if (fmt == 0xFFFFFFFFu)
+        return r; /* the exact-match map walk rejects unknown brands */
+    r.format_override = fmt;
+    const u64 limit = probe_limit(s, hit, cap);
+    constexpr u32 kJp2c = 0x6a703263u; /* "jp2c" - the codestream box */
+    u64 pos = hit;
+    bool seen_jp2c = false;
+    while (pos + 8 <= limit) {
+        const u32 len = rdbe32(s, pos);
+        const u32 type = rdbe32(s, pos + 4);
+        if (seen_jp2c && type != kJp2c) {
+            /* the jp2c-consecutive rule: the first non-codestream box
+             * after a jp2c box ends the extent */
+            r.ok = true;
+            r.end = pos;
+            r.confidence = 700;
+            r.note = "jp2-box-walk";
+            return r;
+        }
+        u64 blen = len;
+        if (len == 1) {
+            if (pos + 16 > limit)
+                break; /* the extended form is unreadable - the walk ends */
+            blen = rdbe64(s, pos + 8);
+        }
+        if (blen == 0)
+            return jp2_eoc_scan(s, hit, pos + 4, limit, r); /* the og's +=4 scan start */
+        if ((blen >> 63) != 0) {
+            r.ok = true;
+            r.end = hit; /* size 0 - the og's defensive reject shape */
+            r.confidence = 300;
+            r.note = "jp2-invalid-box-length";
+            return r;
+        }
+        if (type == kJp2c)
+            seen_jp2c = true;
+        pos += blen;
+    }
+    /* the walk ran to the cap without a terminator (a jp2c-final file at
+     * the slice edge takes this path - the fallback end IS the file end
+     * there): the bounded fallback, the family convention */
+    r.ok = true;
+    r.end = limit;
+    r.confidence = 450;
+    r.note = "jp2-bounded-cap";
+    return r;
+}
+
 CarveResult validate_ts(IStorageDevice* s, u64 hit, u64 cap) {
     /* 188-byte MPEG transport stream packets (CMTS, id 0x76) */
     return validate_ts_common(s, hit, cap, 188, 0, 700, "ts-packet-walk-188",

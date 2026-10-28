@@ -662,7 +662,15 @@ case-insensitive <HTML/<!DOCTYPE HTML/wide probes + the ASCII-only </html>
 end-tag walk with sector round-up, 1 MiB cap; the vocabulary-consistency
 surface updated — HTML is checkable now, the OQ-FLT-1 registry-derived
 design; findings/FIXED/M-092) · **M-093** XML+SVG · **M-096** MOBI ·
-**M-098** HIK · **M-099** AEP · **N-111** JP2 · **N-112** LZH ·
+**M-098** HIK · **M-099** AEP ·
+**N-111 FIXED session-39** (FMT_JP2/FMT_JPX/FMT_JPM: the "jP  " box key at +4 with the
+payload/ftyp/brand gates, the exact-match brand map via format_override (the M-093
+pattern), the fully-decoded size machinery — the BE u32 box walk with the len==1
+extended form, the len==0 FF D9 EOC scan with the 16-zero back-off (guard
+0x1F3FFFFF), and the jp2c-consecutive end rule; ids appended, cap 500 MB; tests
+Carve.Jp2BrandMap/SignaturePayloadGate/UncheckedBoxLength/UnknownBrandRejected/
+BoxWalkExtent/EocScan/Jp2cFinalAtSliceEdgeFallsBackBounded; findings/FIXED/N-111) ·
+**N-112** LZH ·
 **N-113** the text school (VCF/GPX/OSP/POS/CHFP) · **N-115** OfficeTagFromXML.
 The school-1 formats (CHM/ONE/MNY/EMF/SWF/3DS) landed via `b92ebef`; FCPEvt closed
 as covered — the lead lane's duplicate filings dropped, its decodes convergent with the

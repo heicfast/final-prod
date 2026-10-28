@@ -101,6 +101,7 @@ CarveResult validate_m2ts(IStorageDevice* s, u64 hit, u64 cap);     /* S-047: CM
 CarveResult validate_html(IStorageDevice* s, u64 hit, u64 cap);     /* M-092: the four-key chain */
 CarveResult validate_xmlsvg(IStorageDevice* s, u64 hit, u64 cap);   /* M-093: the shared chain */
 CarveResult validate_mobi(IStorageDevice* s, u64 hit, u64 cap);     /* M-096: the salvage gate */
+CarveResult validate_jp2(IStorageDevice* s, u64 hit, u64 cap);      /* N-111: the JP2 family */
 
 namespace {
 const Signature kTable[] = {
@@ -1106,6 +1107,51 @@ const Signature kTable[] = {
      620,
      validate_mobi,
      "Kindle e-book"},
+    /* N-111: JP2 - the og's JP2Analyser (id 0x80, the RawConfig "JP2"
+     * token, list-layer :3544-3559). FMT_JP2 carries THE og scan key:
+     * the "jP  " signature-box type at +4 (the box length at +0 is
+     * UNCHECKED - the salvage posture, the probe never reads it). The
+     * validator gates the payload/ftyp boxes and maps the brand
+     * exactly (jp2 /jpx /jpm ; unknown brands reject - the og's
+     * exact-match map walk :21886-21936), then walks the box structure
+     * for the extent (decoded :21941-22115: BE u32 lengths; len==1 ->
+     * the u64 extended form; the jp2c-consecutive rule - the first
+     * non-jp2c box after a codestream box ends the file; len==0 -> the
+     * FF D9 EOC scan with the 16-zero back-off, guard 0x1F3FFFFF).
+     * FMT_JPX/FMT_JPM carry the BRAND-position keys (the map's own
+     * discriminative keys at +0x14) so a jpx/jpm file fires its own row
+     * at the same start as this row's jP key (equal score - this row
+     * wins by trial order, the override stamps the brand id). */
+    {FMT_JP2,
+     "jp2",
+     {0x6a, 0x50, 0x20, 0x20}, /* "jP  " */
+     4,
+     4,
+     0x18,          /* the probe's own brand read (+0x14..0x18) */
+     0x1F400000ull, /* the EOC-scan guard 0x1F3FFFFF rounded - 500 MB */
+     750,
+     validate_jp2,
+     "JPEG 2000 image"},
+    {FMT_JPX,
+     "jpx",
+     {0x6a, 0x70, 0x78, 0x20},
+     4,
+     0x14,
+     0x40,
+     0x1F400000ull,
+     750,
+     validate_jp2,
+     "JPEG 2000 extended"},
+    {FMT_JPM,
+     "jpm",
+     {0x6a, 0x70, 0x6d, 0x20},
+     4,
+     0x14,
+     0x40,
+     0x1F400000ull,
+     750,
+     validate_jp2,
+     "JPEG 2000 compound"},
 };
 } // namespace
 

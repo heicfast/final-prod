@@ -91,6 +91,11 @@ constexpr u32 kTrialOrder[] = {
     FMT_SVG, FMT_SVG_CD01, FMT_XML, FMT_XML_BOM,
     /* M-096: MOBI (the 8-byte magic at +0x3C - distinct position) */
     FMT_MOBI,
+    /* N-111: the JP2 family - FMT_JP2 first (the og's own analyser key,
+     * the jP signature box); the brand rows follow (a jpx/jpm file ties
+     * at the same start; the earlier trial order wins and the validator's
+     * override stamps the brand id) */
+    FMT_JP2, FMT_JPX, FMT_JPM,
     /* S-017: ftyp-destroyed MOV salvage (og MovAnalyzer list layer) -
      * LAST: the ftyp-keyed entries must claim the position first */
     FMT_MOV_NAKED};

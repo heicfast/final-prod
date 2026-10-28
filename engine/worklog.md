@@ -3406,3 +3406,44 @@ Work Log:
 Stage Summary:
 - Board at this lane's close: 51 active (6 SEVERE · 19 MAJOR · 21 MINOR · 5 INFO) + 3 tracked-open, every remaining SEVERE under a declared territory (S-040 session-10's image-create; S-048/S-049/S-050 SA-10B's carve-grouping/naming/file-repair; S-051 the whole-disk lane; S-052 the LDM span - GAP-S6-15's owner). This lane's two verified findings (M-071, M-079) are closed with their convergence records; the audit trail's per-finding truth is intact (ledger rows, matrix MATCH cells, module verdicts, the retired files carry their Resolutions in git history).
 - The remaining work is the fleet's active queue, not an unclaimed gap; the two-repo grant held throughout (the driver-repo findings M-086..M-089/N-107 were dispositioned as out-of-scope per the session prompt, never touched).
+### Session-39 fix log — N-111 landed (the JP2/JPX/JPM family)
+
+**Finding:** MINOR N-111 (the JP2 family absent; the jP -signature probe +
+brand map decoded; the size walk recorded as the follow-up).
+**Classification:** CONFIRMED-DIVERGENCE (re-verified first-hand: the probe
+gates + the brand map + the registration re-read in the corpus at
+RAWSearchDLL_decompiled.c:3544-3559/:21812-21936 before any code was
+written; the size walk FUN_18001c760/c820/ca60 then decoded line-by-line —
+the finding's own "not decoded — recorded follow-up" was executed this
+session, no stand-in needed).
+**Fix:** FMT_JP2/FMT_JPX/FMT_JPM (ids appended; serialized carve_format
+values stable). FMT_JP2 carries the og's own scan key — the "jP  "
+signature-box type at +4 (the box length at +0 never gated, the salvage
+posture). FMT_JPX/FMT_JPM carry the brand-position keys (+0x14) so every
+family member resolves its own extension; the exact-match brand map
+("jp2 "→0x80 / "jpx "→0x81 / "jpm "→0x82, unknown brands reject) rides
+CarveResult::format_override (the M-093 SVG precedent). The extent: the
+decoded box walk — BE u32 lengths, the len==1 u64 extended form, the len==0
+FF D9 EOC byte scan (16-zero back-off latching once, guard 0x1F3FFFFF),
+the high-bit size-0 reject, and the jp2c-consecutive rule (the first
+non-jp2c box after a codestream box ends the extent). Cap 500 MB
+(0x1F400000). kTrialOrder extended (the completeness static_assert).
+**Tests (RED pre-fix by construction — the formats did not exist):**
+Carve.Jp2BrandMap / Jp2SignaturePayloadGate / Jp2UncheckedBoxLength /
+Jp2UnknownBrandRejected / Jp2BoxWalkExtent / Jp2EocScan /
+Jp2Jp2cFinalAtSliceEdgeFallsBackBounded. Suite 1040/1040 (998 passed / 42
+Win-only skipped / 0 failed, linux-release); clang-format clean; F8 +
+S-017 self-probe green with the three new rows.
+**Finding correction recorded (the audit trail, not the code):** the
+finding's test-plan line "a corrupt-length signature box still carves
+(with the correct extent)" is gate-level TRUE (the probe never reads the
+length) but extent-level FALSE — the og's own walk advances BY the bogus
+length, exits every window bound, and never terminates (the c820 decode);
+the core's single-pass adaptation takes the family's bounded fallback
+there. Documented in the finding's Resolution + the test comment.
+**Trail:** the finding moved to findings/FIXED/ with the Resolution
+(the session-39 convention: the user's "put fixed findings in fixed
+directory" line; the FIXED-LEDGER go-forward section amended); ledger row
+N-111 added (268 main-pattern + 20 OQ = 288); CROSS-REF-MATRIX: the
+carve·JP2-family cell → MATCH + the batch-2 row updated; modules/carve.md
+verdict updated; SUMMARY session-39 delta block added (board 49 active).

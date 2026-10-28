@@ -43,6 +43,39 @@ below this block as they land.
 ---
 
 # SUMMARY.md — executive summary (the SA-10 lane on top: the triage + reconciliation over the hot parallel window; SA-10B and the fix/closing lanes below)
+
+## Session-39 delta (2026-10-29 — the diff-fix session, the user's "priority to minor first" mandate; opens at core `35bee726`/corpus `be0cfe9`, rebased through the 11C/11D fix-lane opens)
+
+**The fix order this session: MINOR → INFO → MAJOR → SEVERE → TRACKED-OPEN** (the
+user's explicit line; the SEVERE/MAJOR territories belong to the parallel 11C/11D
+lanes — the coordination contract in worklog). Board at the post-rebase open: 50
+active (6 SEVERE · 20 MAJOR · 19 MINOR · 5 INFO) + 5 tracked-open (OQ-S4-3,
+OQ-S8-1, OQ-S10-1, OQ-S10-2 now carrying M-086/M-087/M-089 + N-107/N-127's driver
+halves per the driver-lane's grant-boundary disposition).
+
+**Hygiene repairs at open (T1c/T1d/T1e):** the committed FIXED-LEDGER merge
+conflict (5fecdae1) resolved over the convergent session-11B repair (both sides
+kept as dated history, one truth line); the second committed-marker occurrence at
+the table tail (the N-136/N-093 row collision) repaired — both rows kept; the
+count truth re-executed twice (284 pre-rebase → **288 rows = 268 main-pattern +
+20 OQ** post-rebase, no duplicate IDs); the N-129 ID collision resolved (wave-3's
+bookkeeping file renumbers to N-135, convergent with session-11B's own renumber).
+
+**FIXED this session so far:**
+- **N-111** (MINOR — carve): the JP2/JPX/JPM family landed (FMT_JP2 on the og's
+  own "jP  " signature-box key; FMT_JPX/FMT_JPM on the brand-position keys; the
+  exact-match brand map via format_override; **the size machinery the finding had
+  recorded as undecoded was decoded first-hand and landed** — the BE u32 box walk,
+  the len==1 extended form, the len==0 FF D9 EOC scan with the 16-zero back-off,
+  the jp2c-consecutive end rule, cap 500 MB; 7 tests; one finding correction:
+  "corrupt-length still carves" is gate-level truth, extent-level false).
+- **Session-39 convention amendment:** resolved findings now live in
+  `findings/FIXED/` (the user's "put fixed findings in fixed directory"
+  instruction; the ledger is the index — see the amended go-forward section).
+
+**Board now: 49 active (6 SEVERE · 20 MAJOR · 18 MINOR · 5 INFO) · 288 resolved
+ledger rows · 5 tracked-open.**
+
 ## Session-10 lane-B delta (2026-10-29 — the continuation deep audit, RECONCILED AT THE SECOND PUSH with the SA-10 lead close + the truth batches + the fix lanes)
 
 **Audited: core `84a1832`** (the verification baseline; the concurrent lanes' landings

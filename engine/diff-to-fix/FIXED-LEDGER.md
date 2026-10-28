@@ -365,14 +365,21 @@ belongs to the fix lane; this census is the audit-side truth record.
 | N-100 | MINOR | (session-38; the +0x60 carrier landed as nflags bit-9 with the sparse-zeroing rule — Resolution + RED/GREEN proof in history at the N-100 commit) | (this session) | `findings/MINOR/N-100-ntfs-0x60-total-clusters-not-persisted.md` |
 | N-136 | MINOR | session/abi | fce38c3-lineage (renumbered from the N-128 ID collision per the SA-9 earlier-remote-push rule - the capability-matrix N-128 keeps the ID) | `findings/MINOR/N-128-session-list-cwd-dir-composes-prefixed-paths.md` (renamed N-136 in history) |
 | N-093 | MINOR | (session-38; the og's four bound pairs carried — the pin + MID behavioral pair RED→GREEN; Resolution in history at the N-093 commit) | (this session) | `findings/MINOR/N-093-batch1-bounds-mid-gz.md` |
+| N-111 | MINOR | carve | (session-39 fix lane — cite-by-title: "fix(carve): N-111 - the JP2 family lands") | `findings/FIXED/N-111-jp2-carve-absent-jp-signature-ftyp-brand-map-decoded.md` |
 
-## Go-forward convention (established by this purge, per the user instruction)
+## Go-forward convention (established by this purge, per the user instruction; AMENDED session-39 per the session-39 user instruction "put fixed findings in fixed directory")
 
 Fix lanes resolving a finding: (1) record the Resolution section in the
 finding file, (2) append the row to this ledger (ID / severity / fix commit /
-retired path), (3) `git rm` the file — do NOT re-create `findings/FIXED/`.
-The active board stays the only thing in the findings tree; history is the
-archive; this ledger is the index. A finding moved into a re-created
+resolved path), (3) **session-39 amendment: `git mv` the file into
+`findings/FIXED/`** — the user's session-39 instruction explicitly directs
+resolved findings into the fixed directory, so `findings/FIXED/` is
+re-created DELIBERATELY as the live resolved-file archive (rows below the
+amendment carry the `findings/FIXED/` path; the pre-amendment rows keep
+their history paths, recoverable via
+`git log --oneline --follow -- 'diff-to-fix/findings/FIXED/<slug>.md'`).
+The active severity folders stay the only thing carrying UNRESOLVED
+findings; this ledger is the index. A finding moved into a re-created
 `findings/FIXED/` directory violates the convention and the next audit
 lane will retire it again.
 

@@ -227,6 +227,28 @@ enum FormatId : u32 {
      * 512-step end-tag walk (0A 0D 8E E9), cap 500 MB. The magic carries
      * the probe's own acceptance (the pair at +0x3C). */
     FMT_MOBI, /* "BOOKMOBI" @+0x3C - the weak gate, ported exactly */
+    /* N-111 (diff-to-fix): the og's JP2 family (JP2Analyser id 0x80,
+     * list-layer, the RawConfig "JP2" token :3544-3559). The probe gates
+     * the "jP  " signature-box type @+4, the 0x0D0A870A payload @+8 and
+     * the ftyp box @+0x10, then maps the major brand @+0x14 through an
+     * exact-match std::map walk (:21886-21936): "jp2 " -> 0x80,
+     * "jpx " -> 0x81, "jpm " -> 0x82 - every other brand REJECTS. The
+     * signature-box length @+0 is never read (the salvage posture). The
+     * size machinery decoded at :21941-22115 (the finding had recorded
+     * it as the follow-up; this session read it first-hand): the box
+     * walk advances by BE u32 box lengths (len==1 -> the u64 extended
+     * form at +8; len==0 -> the FF D9 EOC byte scan with a 16-zero
+     * back-off, guard 0x1F3FFFFF; high-bit length -> size 0); a "jp2c"
+     * box latches the codestream flag and the FIRST NON-jp2c box after
+     * it ends the extent (the jp2c-consecutive rule - the og's end
+     * detector). FMT_JP2 carries the og's own scan key (the jP box);
+     * FMT_JPX/FMT_JPM carry the brand-position keys (the map's
+     * discriminative keys) so each family member resolves its own
+     * extension. Ids APPENDED (serialized carve_format values stay
+     * stable). */
+    FMT_JP2, /* brand "jp2 " (the og id 0x80) - the jP-box scan key */
+    FMT_JPX, /* brand "jpx " (the og id 0x81) - the brand-position key */
+    FMT_JPM, /* brand "jpm " (the og id 0x82) - the brand-position key */
     FMT_COUNT
 };
 
