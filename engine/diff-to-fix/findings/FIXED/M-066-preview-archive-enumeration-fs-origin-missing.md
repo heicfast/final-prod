@@ -5,7 +5,7 @@
 **Parameters affected:** B1-adjacent (what preview reveals), D11-adjacent (preview Metadata contents for archive nodes), the preview contract's per-type behavior
 **Corpus references:** `easeus-drw-research/re-workspace/artifacts/UIUX/10-preview-subsystem.md:17` — the preview-type table: "| Archives | `ArchivePreviewWindow` (54) + `ArchivePreviewWindowChildItem`/`WorkItem`, `ArchivePreviewModel` (45)/`View` (96)/`Delegate` (23)/`Stub` (20) | full MVC | **browse-inside-archive of damaged zips** (pairs with EUArchiveRepair) |" (NEVER-CITED before this session — the prior preview audit, I-015, registered only the socket-protocol architecture via a different doc)
 **Core references:** audited commit `dd82db9` — `src/core/preview/cr_preview.cpp:685-715` (the zip-family preview path: walks the central directory hunting **only** `word/document.xml` for the docx upgrade — no entry-list is produced for any other archive; `if (!found) return; /* xlsx/pptx/plain zip: no docx upgrade (label stays) */`); the carve path's inner-entry inventories (S-032, FIXED) attach children at the TREE level for carved archives only — an NTFS-deleted zip's node previews with label + size and no content enumeration
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** FIXED — see Resolution below
 **Prior audit check:** not in prior scope — I-015 (FIXED) registered the preview architecture divergence (socket protocol vs in-process reader) via a different artifact; S-032 (FIXED) landed carve-path inner entries; the preview-surface archive-browsing contract was never dispositioned (the UIUX/10 artifact was NEVER-CITED)
 
 ## Summary
@@ -55,3 +55,32 @@ Corpus doc evidence (strength-3): UIUX/10:17 quoted verbatim above. Core evidenc
 ## Open questions
 
 Whether the og's archive preview also drives the EUArchiveRepair routing decision (the artifact says "pairs with") — the core has no repair-bridge in preview either way (M-021/I-010 registered the repair bridge); not load-bearing for the enumeration gap.
+
+## Resolution (FIXED — the preview archive inventory; fail-before proven by construction)
+
+`Metadata` gained `std::vector<ArchiveEntry> entries` (name, size,
+compressed, crc_present) + `kMaxPreviewArchiveEntries = 512`. The
+docx_sniff CD walk (which already existed) now collects every walkable
+entry while it hunts `word/document.xml` — no separate parse, the same
+budget-gated CD read serves both. The docx upgrade is unchanged and
+coexists (the hunt no longer breaks the walk). FS-origin archives — the
+finding's named case — now preview with the full inventory (the
+ArchivePreviewModel browse-inside-archive contract, UIUX/10:17).
+
+Bounded-hostile contract: 512 entries + the truncated flag; a partial
+CD read also sets truncated. Belt fix en route: `extract_metadata`'s
+final `m.truncated = w.truncated` was an ASSIGNMENT that clobbered the
+inventory flag — now an OR (the read-budget and inventory flags are
+independent truncation causes).
+
+**Tests (fail-before by construction — the field did not exist
+pre-fix; compile-error proven on the stash-reverted build):**
+`PreviewMeta.ArchiveEnumeratesEntries` (the FS-origin 3-entry zip:
+names/sizes/CRC presence), `ArchiveDamagedLocalHeaderStillEnumerates`
+(mid-file local header destroyed, CD intact → 3 entries), `Archive-
+DocxUpgradeCoexistsWithEnumeration` (document/docx + text snippet +
+the entry list), `ArchiveEntryCapAndTruncatedFlag` (512 + truncated).
+Suite: 925 tests — 921 passed / 4 platform-skips / 0 failed.
+
+**Landed:** commit "fix(preview): M-066 + N-088 — the archive-content
+inventory (ArchivePreviewModel parity) + the M-028 propagation tail".

@@ -489,8 +489,8 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | driver-install · K71/K72/K76 versioned/verified deployer contract | PARTIAL-FIXED (script half) | **M-064** — write+verify + per-call SCM errors + the exit-code contract LANDED (v0.2.3); the %s%d versioned-coexistence + -Uninstall-verb halves remain open in modules/driver-install.md |
 | carve · user-sign caps vs the og's own DB | **MATCH (FIXED)** | **S-039** RESOLVED — caps raised to the measured maxima (48/12/1024/80); the og's own DB loads 111/111; fail-before-proven (ParseOgShippedExtremes/HostileBlobStillAtomic/RegistrationRoundTripProceedsToScan) |
 | carve · default user-sign set | **MATCH (FIXED)** | **M-065** RESOLVED — data/userdata-defaults.json ships (the og's 111/190 verbatim) + the engine-init load + the release asset; OQ-SA-3 resolved (scan-setup trigger config) |
-| preview · archive-content enumeration (FS-origin) | DIVERGENCE-MAJOR | **M-066** — ArchivePreviewModel family vs the docx-only hunt (`cr_preview.cpp:685-715`) |
-| preview · doc truth (M-028 propagation) | DIVERGENCE-MINOR | **N-088** — cr_ui.h:1035 + API-SURFACE-AUDIT:94 + the never-produced mov |
+| preview · archive-content enumeration (FS-origin) | **MATCH (FIXED)** | **M-066** RESOLVED — Metadata.entries (name/size/compressed/crc) collected on the existing CD walk, 512-entry cap + truncated flag; 4 tests fail-before-by-construction |
+| preview · doc truth (M-028 propagation) | **MATCH (FIXED)** | **N-088** RESOLVED — all three sites corrected + the PreviewDocs grep guard |
 | packaging · WinPE payload census (K78) | DISPOSITIONED-MATCH-at-plan | the PE capability boundary recorded as the boot-media builder's design input; roadmap.md:71 |
 | MOM stubs · 17 never-cited per-module censuses | MATCH (zero new parameters) | wave-7 spot-check: 13 ROLLUP-COVERED + 4 INFRASTRUCTURE-ONLY; decode candidates noted (CWindowsFS ×3, DeviceManager offline-OS strings) |
 | inventory truth · citation-count correction | CORRECTED | SURFACE-INVENTORY "22 of 32" → 17 of 30 (5 stubs cited in brace-group form at s5-session5-corpus-quotes.md:64) |

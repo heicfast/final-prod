@@ -1032,8 +1032,10 @@ CR_UI_API void cr_ui_disk_map_free(uint8_t* overlay);
 
 /* ---- preview ---------------------------------------------------------------
  * Bounded, chunked reads of one node's logical content with NO recovery
- * pass (G-10 - the reference's IInWindowStream preview contract: range
- * reads under explicit caps). The reader owns a private copy of the
+ * pass (G-10 - a preview-true bounded reader: range reads under explicit
+ * caps; NOT an og-named contract - M-028 proved the corpus's
+ * IInWindowStream is the 7-Zip/LZMA SDK input interface, not a preview
+ * surface). The reader owns a private copy of the
  * node's properties, so the source session/snapshot may be closed while
  * a preview lives; the DEVICE must outlive it (it supplies the bytes). */
 

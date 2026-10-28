@@ -17658,3 +17658,42 @@ Stage Summary:
   M-066 · 3 MINOR N-086/N-087/N-088 · 1 INFO I-026) · 233 FIXED ·
   tracked-open 3. Next: M-066 (preview archive enumeration) then the
   MINORs.
+
+---
+Task ID: FIX-7 (M-066 — the preview archive inventory; N-088 rode along)
+Agent: main engineer
+
+Work Log:
+- Metadata gained std::vector<ArchiveEntry> entries (name/size/compressed/
+  crc_present) + kMaxPreviewArchiveEntries=512 (include/cr/preview/
+  cr_preview.h); the og's ArchivePreviewModel browse-inside-archive
+  contract (UIUX/10:17) for ANY walkable-CD archive, carved or FS-origin.
+- docx_sniff's CD walk now collects every entry while it hunts
+  word/document.xml (no break - the hunt continues; the upgrade coexists);
+  a partial CD read flags truncated; the entry cap flags truncated.
+- Belt fix en route: extract_metadata's closing m.truncated = w.truncated
+  was an ASSIGNMENT that clobbered the inventory flag -> OR (the read-
+  budget and inventory flags are independent causes). Caught by the
+  ArchiveEntryCapAndTruncatedFlag test run against the first build.
+- Tests: ArchiveEnumeratesEntries (FS-origin 3-entry zip),
+  ArchiveDamagedLocalHeaderStillEnumerates (mid-file LFH destroyed - the
+  realistic damaged-zip shape; the start-magic variant never routes to
+  the zip sniff), ArchiveDocxUpgradeCoexistsWithEnumeration,
+  ArchiveEntryCapAndTruncatedFlag. Fail-before by construction (compile-
+  error proven on the stash-reverted build). Suite 921/4/0.
+- N-088 rode along: cr_ui.h:1035 provenance claim, API-SURFACE-AUDIT:94
+  row name, REFERENCE-API-GAP R-33 corrected (IInWindowStream = the
+  7-Zip/LZMA SDK input interface per M-028; R-42's og-export-loop
+  description keeps it - the og genuinely uses it there); the mov ghost
+  removed from the format comment; PreviewDocs.NoIInWindowStreamDrift-
+  AndNoMovGhost grep guard (the three contract sites; correction-note
+  contexts must name the SDK).
+- Trail: M-066 + N-088 -> FIXED (Resolutions), both matrix rows ->
+  MATCH (FIXED), modules/preview.md delta, SUMMARY board (7 -> 5 active,
+  233 -> 235 FIXED).
+
+Stage Summary:
+- M-066 + N-088 CLOSED. Board: 5 active (1 SEVERE S-038 · 1 MAJOR
+  M-064-rem · 2 MINOR N-086/N-087 · 1 INFO I-026) · 235 FIXED ·
+  tracked-open 3. Next: N-087 (FAT 8.3 OEM codepage), N-086 (rawsigns
+  posture registration).

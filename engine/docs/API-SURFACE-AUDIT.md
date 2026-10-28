@@ -91,7 +91,7 @@ engine boundary — a C host composes it from existing exports).
 | # | Reference operation | Core equivalent | Verdict | Notes |
 |---|---|---|---|---|
 | 25 | Preview open (per-type stubs, tri-state) | `cr_ui_preview_open_session/_snapshot` | **MATCH** | private-props copy; device must outlive (F-1 basis rule verified cr_ui.cpp:2071-2106) |
-| 26 | Preview stream read (`IInWindowStream`) | `cr_ui_preview_read` | **MATCH** | 4 MiB/call cap, short only at EOF, unreadable spans reported (cr_preview.cpp:19-25). og's 100 MB/15 s caps are UI-policy (host-side), NOT IN CORPUS as engine limits |
+| 26 | Preview stream read (bounded range reader - N-088: no og-named contract; M-028 proved `IInWindowStream` is the 7-Zip/LZMA SDK input interface) | `cr_ui_preview_read` | **MATCH** | 4 MiB/call cap, short only at EOF, unreadable spans reported (cr_preview.cpp:19-25). og's 100 MB/15 s caps are UI-policy (host-side), NOT IN CORPUS as engine limits |
 | 27 | Media thumbnail IPC (TCP 20171) | n/a — UI-process internals | **N/A-by-layer** | og's video-preview child-process IPC; not an engine-boundary operation |
 | 28 | Choose destination (source-volume hard block) | `cr_ui_recovery_set_destination` + F12 overlap refusal | **MATCH+** | og blocks same-volume by raw `\\.\X:` open (04-recovery-workflow.md §7.3); core refuses overlap deterministically via `volume_extent` (ERR_DEST_OVERLAP) — registered superset |
 | 29 | Recover/export (per-target loop, ACL restore, failure log) | `cr_ui_recovery_create/enqueue_*/process/get_stats/report_json` | **MATCH** | og's per-file overwrite policy NOT IN CORPUS; core exposes conflict modes (rename/skip/overwrite) + rename_attempts=64 default. ACL restoration = N-009d (open, tracked). Report: G-09 schema-versioned JSON |

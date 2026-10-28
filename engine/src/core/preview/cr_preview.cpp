@@ -684,32 +684,58 @@ void docx_sniff(Window& w, Metadata& m) {
     const u32 cd_len = cd_size > 65536 ? 65536 : cd_size;
     std::vector<u8> cd(cd_len, 0);
     const u32 cd_got = w.checked_read(cd_off, cd.data(), cd_len);
-    if (cd_got == 0)
+    if (cd_got == 0) {
         return; /* budget exhausted: honest zip label + truncated */
+    }
+    if (cd_got < cd_len)
+        m.truncated = true; /* the CD is partially read: the inventory is
+                             * partial - never a silent loss */
     cd.resize(cd_got);
-    /* find word/document.xml entry (local header offset) */
+    /* find word/document.xml entry (local header offset) AND collect the
+     * content inventory (M-066: the og's ArchivePreviewModel browse-
+     * inside-archive contract - every walkable CD entry, damaged zips
+     * included, carved or FS-origin alike; bounded by
+     * kMaxPreviewArchiveEntries with the truncated flag) */
     static const char want[] = "word/document.xml";
     const size_t want_len = sizeof(want) - 1;
     u64 lho = 0;
     bool found = false;
+    bool entries_capped = false;
     for (size_t o = 0; o + 46 <= cd.size();) {
         if (cd[o] == 'P' && cd[o + 1] == 'K' && cd[o + 2] == 0x01 && cd[o + 3] == 0x02) {
             const u32 nlen = le16(cd.data() + o + 28);
             const u32 elen = le16(cd.data() + o + 30);
             const u32 clen = le16(cd.data() + o + 32);
-            if (o + 46 + nlen <= cd.size() && nlen == want_len &&
-                std::memcmp(cd.data() + o + 46, want, want_len) == 0) {
-                lho = le32(cd.data() + o + 42);
-                found = true;
-                break;
+            if (o + 46 + nlen <= cd.size()) {
+                if (!entries_capped && m.entries.size() < kMaxPreviewArchiveEntries) {
+                    ArchiveEntry e;
+                    e.name.assign(reinterpret_cast<const char*>(cd.data() + o + 46),
+                                  reinterpret_cast<const char*>(cd.data() + o + 46) + nlen);
+                    e.size = le32(cd.data() + o + 24);
+                    e.compressed = le32(cd.data() + o + 20);
+                    e.crc_present = le32(cd.data() + o + 16) != 0;
+                    m.entries.push_back(std::move(e));
+                } else if (m.entries.size() >= kMaxPreviewArchiveEntries) {
+                    entries_capped = true; /* hostile archive: cap + flag */
+                }
+                if (nlen == want_len &&
+                    std::memcmp(cd.data() + o + 46, want, want_len) == 0) {
+                    lho = le32(cd.data() + o + 42);
+                    found = true;
+                    /* the hunt continues: the upgrade needs the walk, the
+                     * inventory needs every entry - no break */
+                }
             }
             o += 46 + u64(nlen) + elen + clen;
         } else {
             ++o;
         }
     }
+    if (entries_capped)
+        m.truncated = true; /* the inventory is partial - never a silent loss */
     if (!found)
-        return; /* xlsx/pptx/plain zip: no docx upgrade (label stays) */
+        return; /* xlsx/pptx/plain zip: no docx upgrade - the label stays,
+                 * but the M-066 inventory is already in m.entries */
     /* local file header: name len + extra len, then the deflate stream */
     std::vector<u8> lfh(30, 0);
     if (w.checked_read(lho, lfh.data(), 30) != 30 || lfh[0] != 'P' || lfh[1] != 'K')
@@ -849,7 +875,10 @@ Metadata extract_metadata(PreviewReader& pr, const Caps& caps) {
         else
             m.kind = "unsupported";
     }
-    m.truncated = w.truncated;
+    /* M-066: OR, not assign - the read-budget flag (w.truncated) and the
+     * inventory flag (the archive-entry cap inside docx_sniff, plus the
+     * CD partial-read flag) are independent truncation causes */
+    m.truncated = m.truncated || w.truncated;
     /* M-028 belt: if ANY path still moved more device bytes than the
      * cap allows, the flag tells the truth (per-call delta, so a reused
      * reader's earlier reads do not false-positive). With the cost-gated

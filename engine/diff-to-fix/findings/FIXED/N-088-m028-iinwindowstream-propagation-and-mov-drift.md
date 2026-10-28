@@ -5,7 +5,7 @@
 **Parameters affected:** Q68 (documentation accuracy), P46 (documentation of the contract)
 **Corpus references:** (via M-028's proven resolution, FIXED) `re-workspace/reversed/ghidra-drwui/DRWUI_decompiled.c:800729-800735` — **IInWindowStream = the 7-Zip/LZMA SDK input interface** (vftable adjacent CLZInWindow/IMatchFinder; zero occurrences in any other reversed tree) — NOT a preview streaming contract
 **Core references:** audited commit `dd82db9` — `include/cr/cr_ui.h:1035-1036` ("the reference's IInWindowStream preview contract: range reads under explicit caps"); `docs/API-SURFACE-AUDIT.md:94` ("Preview stream read (`IInWindowStream`) ... MATCH"); `include/cr/preview/cr_preview.h:116` (the Metadata `format` comment lists `mov` — `rg '"mov"' src/core/preview/cr_preview.cpp` → zero producers)
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** FIXED — see Resolution below
 **Prior audit check:** expanded on prior finding M-028 (FIXED — which corrected the same misattribution in `cr_preview.h:10-11` and the 4 MiB provenance, but did not sweep the two remaining doc sites or the format-comment drift)
 
 ## Summary
@@ -50,3 +50,27 @@ Core evidence (strength-3): the three quoted sites (read this session); `rg '"mo
 ## Open questions
 
 None.
+
+## Resolution (FIXED — all three drift sites corrected + a grep guard)
+
+1. `include/cr/cr_ui.h` preview block: the "the reference's
+   IInWindowStream preview contract" provenance claim replaced with
+   the preview-true statement + M-028's correction (IInWindowStream =
+   the 7-Zip/LZMA SDK input interface, not a preview surface).
+2. `docs/API-SURFACE-AUDIT.md:94`: the row's contract name no longer
+   cites IInWindowStream; provenance points at M-028's resolution.
+   `docs/REFERENCE-API-GAP.md` R-33 also corrected (the og's preview
+   streaming is PreviewDataSource/IPreviewSink; IInWindowStream removed
+   from that row — it remains in R-42 where it correctly describes the
+   og export loop's engine-stream reads).
+3. `include/cr/preview/cr_preview.h:134`: `mov` removed from the format
+   comment (no producer; the corpus's preview table lists no
+   mov-specific previewer).
+4. **The grep guard** (the finding's own acceptance item):
+   `PreviewDocs.NoIInWindowStreamDriftAndNoMovGhost` reads the three
+   contract sites and asserts every IInWindowStream mention sits inside
+   a correction note naming the 7-Zip/LZMA SDK, plus the format comment
+   carries no `|mov`. REFERENCE-API-GAP's og-architecture rows are
+   exempt (R-42 describes the og's actual use).
+
+**Landed:** same commit as M-066.

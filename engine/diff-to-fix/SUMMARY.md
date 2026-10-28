@@ -18,6 +18,33 @@ findings/FIXED/S-039-*.md for the Resolution.
 7 MAJOR M-060..M-066 · 5 MINOR N-084..N-088 · 1 INFO I-026) · **225 FIXED**
 · tracked-open 4 unchanged.
 
+## Fix-session delta (2026-10-28 — M-066 + N-088, the preview parity pair)
+
+**M-066 (MAJOR) FIXED**: preview-time archive-content enumeration —
+`Metadata.entries` (name, size, compressed, crc_present) collected on the
+CD walk that already hunted `word/document.xml` (the docx upgrade
+coexists; no separate parse). FS-origin archives — the finding's named
+case — now preview with the full inventory (the og's ArchivePreviewModel
+browse-inside-archive contract). Bounded: 512 entries + the truncated
+flag; partial CD reads also flag. Belt fix en route:
+`extract_metadata`'s closing `m.truncated = w.truncated` was an
+assignment that clobbered the inventory flag — now an OR. 4 tests, all
+fail-before by construction (the field did not exist; compile-error
+proven on the stash-reverted build).
+
+**N-088 (MINOR) FIXED**: the M-028 propagation tail — cr_ui.h's
+"the reference's IInWindowStream preview contract" claim, API-SURFACE-
+AUDIT:94's row name, and REFERENCE-API-GAP R-33 all corrected (the
+interface is the 7-Zip/LZMA SDK input, M-028's proof); the `mov` ghost
+removed from the Metadata format comment; `PreviewDocs.NoIInWindow-
+StreamDriftAndNoMovGhost` guards the three contract sites (R-42's
+og-architecture description of the export loop is exempt — the og
+genuinely reads engine streams through the LZMA SDK there).
+
+**Board after M-066 + N-088:** 5 active (0 ACUTE · 1 SEVERE S-038 ·
+1 MAJOR M-064-remainder · 2 MINOR N-086/N-087 · 1 INFO I-026) ·
+**235 FIXED** · tracked-open 3.
+
 ## Fix-session delta (2026-10-28 — M-065, the shipped default user-sign set; OQ-SA-3 resolved)
 
 **OQ-SA-3 RESOLVED** (first-hand decode): `GetRawUserInfoMap` is a

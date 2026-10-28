@@ -83,3 +83,17 @@ NEW:
 - **N-088 (MINOR)** — M-028's IInWindowStream correction didn't reach
   `cr_ui.h:1035` / `docs/API-SURFACE-AUDIT.md:94`; `cr_preview.h:116` lists
   a never-produced `mov` format.
+
+## Fix-session delta (M-066 + N-088 closed — 2026-10-28)
+
+- **M-066 → FIXED**: the archive-content inventory (Metadata.entries:
+  name/size/compressed/crc_present; kMaxPreviewArchiveEntries = 512 +
+  truncated) collected on the existing CD walk inside docx_sniff; the
+  docx upgrade coexists; FS-origin archives now enumerate (the
+  ArchivePreviewModel contract). Belt fix: extract_metadata's final
+  truncated ASSIGNMENT clobbered the inventory flag -> OR. 4 tests.
+- **N-088 → FIXED**: cr_ui.h's provenance claim, API-SURFACE-AUDIT:94's
+  row name, REFERENCE-API-GAP R-33 corrected (IInWindowStream = the
+  7-Zip/LZMA SDK input interface, M-028); the mov ghost removed from
+  the format comment; the PreviewDocs grep guard holds the three
+  contract sites.

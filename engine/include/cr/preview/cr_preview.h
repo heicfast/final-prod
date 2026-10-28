@@ -111,9 +111,27 @@ struct Caps {
     u32 text_snippet = 256;  /* extracted text bytes */
 };
 
+/* M-066: one previewed archive entry (the ArchivePreviewModel row):
+ * name, sizes, and per-entry CRC presence (the damaged-zip browsing
+ * contract - a zero CRC marks the entries the repair chain cares
+ * about). Same shape as the carve path's S-032 CarveEntry plus the
+ * CRC flag the preview surface reports. */
+struct ArchiveEntry {
+    std::string name; /* entry name (archive-native bytes, UTF-8 pass-through) */
+    u64 size = 0;         /* uncompressed size */
+    u64 compressed = 0;  /* compressed size */
+    bool crc_present = false; /* CD CRC-32 != 0 (the damaged-entry marker) */
+};
+
+/* M-066: the hostile-archive bound on the preview inventory (512 entries
+ * = the preview budget model's scale, not a decoded og constant - the
+ * og's model is unbounded because the UI streams lazily; our extractor
+ * is eager, so we cap + flag). */
+constexpr u32 kMaxPreviewArchiveEntries = 512;
+
 struct Metadata {
     std::string kind;   /* image|video|audio|document|archive|text|unsupported */
-    std::string format; /* jpeg|png|gif|bmp|tiff|webp|mp4|mov|wav|pdf|docx|txt */
+    std::string format; /* jpeg|png|gif|bmp|tiff|webp|mp4|wav|pdf|docx|zip|txt (N-088: no mov - no producer) */
     u32 width = 0, height = 0;
     std::string orientation;  /* EXIF orientation as "N" (1..8), "" when absent */
     std::string datetime;     /* EXIF DateTimeOriginal (YYYY:MM:DD HH:MM:SS) */
@@ -122,6 +140,12 @@ struct Metadata {
     std::string text_snippet; /* bounded printable text (documents) */
     bool truncated = false;   /* extraction hit a cap (caller may re-run
                                * with higher caps - never a silent loss) */
+    /* M-066: the archive-content inventory (the og's ArchivePreviewModel
+     * browse-inside-archive contract, UIUX/10:17) - emitted for ANY
+     * archive whose central directory is walkable at preview time,
+     * carved or FS-origin alike. Bounded: kMaxPreviewArchiveEntries +
+     * the truncated flag (the preview budget model). */
+    std::vector<ArchiveEntry> entries;
 };
 
 /* Sniff + extract within the caps. `pr` supplies the bytes; the extractor

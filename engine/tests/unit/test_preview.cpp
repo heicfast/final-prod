@@ -10,7 +10,13 @@
 #include <gtest/gtest.h>
 #include "cr/preview/cr_preview.h"
 #include "cr/compress/cr_decomp.h"
+#include <cstdio>
 #include <cstring>
+#include <fstream>
+#include <iterator>
+#include <set>
+#include <string>
+#include <vector>
 #include <zlib.h>
 #include <thread>
 
@@ -901,6 +907,299 @@ TEST(PreviewMeta, CompressedExtentWholeBlockReadDisclosed) {
     EXPECT_GE(r.device_bytes(), comp.size());
     EXPECT_EQ(0u, r.device_bytes() % comp.size());
     EXPECT_FALSE(m.truncated);
+}
+
+/* ---- M-066: the archive-content inventory (ArchivePreviewModel) ---- */
+
+namespace {
+
+/* build a minimal multi-entry zip: N members with the given names, a
+ * stored (method-0) body of the given size, the CD + EOCD. crc != 0 for
+ * the entries whose index is in has_crc. */
+std::vector<u8> build_multi_zip(const std::vector<std::string>& names, u32 body_len,
+                                const std::set<u32>& has_crc = {}) {
+    std::vector<u8> zip;
+    const auto put16 = [&zip](u16 v) {
+        zip.push_back(u8(v));
+        zip.push_back(u8(v >> 8));
+    };
+    const auto put32 = [&zip](u32 v) {
+        zip.push_back(u8(v));
+        zip.push_back(u8(v >> 8));
+        zip.push_back(u8(v >> 16));
+        zip.push_back(u8(v >> 24));
+    };
+    std::vector<u32> lho(names.size(), 0);
+    std::vector<std::vector<u8>> cds;
+    for (u32 i = 0; i < names.size(); ++i) {
+        lho[i] = u32(zip.size());
+        zip.insert(zip.end(), {'P', 'K', 3, 4});
+        put16(20);
+        put16(0);
+        put16(0); /* method = stored */
+        put16(0);
+        put16(0);
+        put32(has_crc.count(i) ? 0xA1B2C3D4u : 0u);
+        put32(body_len);
+        put32(body_len);
+        put16(u16(names[i].size()));
+        put16(0);
+        zip.insert(zip.end(), names[i].begin(), names[i].end());
+        zip.insert(zip.end(), size_t(body_len), u8('z' + i));
+        /* the CD record (built later, offsets need lho first) */
+        std::vector<u8> cd;
+        const auto p16 = [&cd](u16 v) { cd.push_back(u8(v)); cd.push_back(u8(v >> 8)); };
+        const auto p32 = [&cd](u32 v) {
+            cd.push_back(u8(v));
+            cd.push_back(u8(v >> 8));
+            cd.push_back(u8(v >> 16));
+            cd.push_back(u8(v >> 24));
+        };
+        cd.insert(cd.end(), {'P', 'K', 1, 2});
+        p16(20);
+        p16(20);
+        p16(0);
+        p16(0);
+        p16(0);
+        p16(0);
+        p32(has_crc.count(i) ? 0xA1B2C3D4u : 0u);
+        p32(body_len);
+        p32(body_len);
+        p16(u16(names[i].size()));
+        p16(0);
+        p16(0);
+        p16(0);
+        p16(0);
+        p32(0);
+        p32(lho[i]);
+        cd.insert(cd.end(), names[i].begin(), names[i].end());
+        cds.push_back(std::move(cd));
+    }
+    const size_t cd_at = zip.size();
+    size_t cd_len = 0;
+    for (const auto& cd : cds) {
+        zip.insert(zip.end(), cd.begin(), cd.end());
+        cd_len += cd.size();
+    }
+    zip.insert(zip.end(), {'P', 'K', 5, 6});
+    put16(0);
+    put16(0);
+    put16(u16(names.size()));
+    put16(u16(names.size()));
+    put32(u32(cd_len));
+    put32(u32(cd_at));
+    put16(0);
+    return zip;
+}
+
+} // namespace
+
+TEST(PreviewMeta, ArchiveEnumeratesEntries) {
+    /* M-066: a plain multi-entry zip (the FS-origin case - not a carve
+     * child) previews with the full content inventory: names, sizes,
+     * compressed sizes, per-entry CRC presence. */
+    const std::vector<u8> zip = build_multi_zip({"readme.txt", "dir/photo.jpg", "data.bin"},
+                                                100, {0, 2});
+    MemDevice dev{std::vector<u8>(zip)};
+    const u64 zlen = dev.geometry().total_bytes;
+    tree::FileProperties* pr =
+        props_with("ar.zip", zlen, 0, {tree::FileProperties::Extent{0, zlen, 0, 0}});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("archive", m.kind);
+    EXPECT_EQ("zip", m.format);
+    ASSERT_EQ(3u, m.entries.size()) << "the ArchivePreviewModel inventory";
+    EXPECT_EQ("readme.txt", m.entries[0].name);
+    EXPECT_EQ(100u, m.entries[0].size);
+    EXPECT_EQ(100u, m.entries[0].compressed);
+    EXPECT_TRUE(m.entries[0].crc_present);
+    EXPECT_EQ("dir/photo.jpg", m.entries[1].name);
+    EXPECT_FALSE(m.entries[1].crc_present) << "the damaged-entry marker (CRC 0)";
+    EXPECT_EQ("data.bin", m.entries[2].name);
+    EXPECT_TRUE(m.entries[2].crc_present);
+    EXPECT_FALSE(m.truncated);
+}
+
+TEST(PreviewMeta, ArchiveDamagedLocalHeaderStillEnumerates) {
+    /* the og's family exists to browse DAMAGED zips: the CD is intact
+     * but a member's local header is destroyed - the inventory still
+     * enumerates (the CD is self-contained); the start magic stays
+     * recognizable so the content sniff still routes to the zip path
+     * (the real-world damaged-zip shape: the archive opens, a member's
+     * body is gone). */
+    std::vector<u8> zip = build_multi_zip({"a.txt", "b.txt", "c.txt"}, 50, {});
+    /* destroy the SECOND member's local header magic (mid-file) */
+    const size_t second_lfh = 30 + 5 /* name */ + 50 /* body */;
+    ASSERT_LT(second_lfh + 4, zip.size());
+    zip[second_lfh] = 0xDE;
+    zip[second_lfh + 1] = 0xAD;
+    zip[second_lfh + 2] = 0xBE;
+    zip[second_lfh + 3] = 0xEF;
+    MemDevice dev(std::move(zip));
+    const u64 zlen = dev.geometry().total_bytes;
+    tree::FileProperties* pr =
+        props_with("damaged.zip", zlen, 0, {tree::FileProperties::Extent{0, zlen, 0, 0}});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("archive", m.kind);
+    ASSERT_EQ(3u, m.entries.size()) << "the CD walk does not need the local headers";
+    EXPECT_EQ("a.txt", m.entries[0].name);
+    EXPECT_EQ("b.txt", m.entries[1].name);
+    EXPECT_EQ("c.txt", m.entries[2].name);
+}
+
+TEST(PreviewMeta, ArchiveDocxUpgradeCoexistsWithEnumeration) {
+    /* the docx hunt and the inventory share the CD walk - a docx both
+     * upgrades to document/docx AND carries its entry list */
+    const std::string name = "word/document.xml";
+    const std::string plain = "<w>hello preview world</w>";
+    std::vector<u8> comp;
+    {
+        uLongf cl = compressBound(static_cast<uLong>(plain.size()));
+        comp.resize(cl);
+        z_stream zs{};
+        ASSERT_EQ(Z_OK, deflateInit2(&zs, 6, Z_DEFLATED, -15, 8, Z_DEFAULT_STRATEGY));
+        zs.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(plain.data()));
+        zs.avail_in = uInt(plain.size());
+        zs.next_out = comp.data();
+        zs.avail_out = uInt(comp.size());
+        ASSERT_EQ(Z_STREAM_END, deflate(&zs, Z_FINISH));
+        comp.resize(zs.total_out);
+        deflateEnd(&zs);
+    }
+    std::vector<u8> zip;
+    const auto put16 = [&zip](u16 v) { zip.push_back(u8(v)); zip.push_back(u8(v >> 8)); };
+    const auto put32 = [&zip](u32 v) {
+        zip.push_back(u8(v));
+        zip.push_back(u8(v >> 8));
+        zip.push_back(u8(v >> 16));
+        zip.push_back(u8(v >> 24));
+    };
+    const size_t lfh_at = 0;
+    zip.insert(zip.end(), {'P', 'K', 3, 4});
+    put16(20);
+    put16(0);
+    put16(8);
+    put16(0);
+    put16(0);
+    put32(0);
+    put32(u32(comp.size()));
+    put32(u32(plain.size()));
+    put16(u16(name.size()));
+    put16(0);
+    zip.insert(zip.end(), name.begin(), name.end());
+    zip.insert(zip.end(), comp.begin(), comp.end());
+    const size_t cd_at = zip.size();
+    const size_t cd_len = 46 + name.size();
+    zip.insert(zip.end(), {'P', 'K', 1, 2});
+    put16(20);
+    put16(20);
+    put16(0);
+    put16(8);
+    put16(0);
+    put16(0);
+    put32(0);
+    put32(u32(comp.size()));
+    put32(u32(plain.size()));
+    put16(u16(name.size()));
+    put16(0);
+    put16(0);
+    put16(0);
+    put16(0);
+    put32(0);
+    put32(u32(lfh_at));
+    zip.insert(zip.end(), name.begin(), name.end());
+    zip.insert(zip.end(), {'P', 'K', 5, 6});
+    put16(0);
+    put16(0);
+    put16(1);
+    put16(1);
+    put32(u32(cd_len));
+    put32(u32(cd_at));
+    put16(0);
+
+    MemDevice dev(std::move(zip));
+    const u64 zlen = dev.geometry().total_bytes;
+    tree::FileProperties* pr =
+        props_with("d.docx", zlen, 0, {tree::FileProperties::Extent{0, zlen, 0, 0}});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("document", m.kind) << "the upgrade still fires";
+    EXPECT_EQ("docx", m.format);
+    EXPECT_NE(std::string::npos, m.text_snippet.find("hello preview world"));
+    ASSERT_EQ(1u, m.entries.size()) << "AND the inventory rides along";
+    EXPECT_EQ("word/document.xml", m.entries[0].name);
+    EXPECT_EQ(plain.size(), m.entries[0].size);
+}
+
+TEST(PreviewMeta, ArchiveEntryCapAndTruncatedFlag) {
+    /* the hostile-archive bound: kMaxPreviewArchiveEntries + the
+     * truncated flag (never a silent loss) */
+    std::vector<std::string> names;
+    for (u32 i = 0; i < kMaxPreviewArchiveEntries + 40; ++i) {
+        char buf[32];
+        std::snprintf(buf, sizeof(buf), "f%06u.bin", i);
+        names.emplace_back(buf);
+    }
+    const std::vector<u8> zip = build_multi_zip(names, 4);
+    MemDevice dev{std::vector<u8>(zip)};
+    const u64 zlen = dev.geometry().total_bytes;
+    tree::FileProperties* pr =
+        props_with("big.zip", zlen, 0, {tree::FileProperties::Extent{0, zlen, 0, 0}});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("archive", m.kind);
+    EXPECT_EQ(kMaxPreviewArchiveEntries, m.entries.size()) << "the hostile bound";
+    EXPECT_TRUE(m.truncated) << "the partial inventory is disclosed";
+}
+
+TEST(PreviewDocs, NoIInWindowStreamDriftAndNoMovGhost) {
+    /* N-088: M-028's correction must hold at every outward-facing site -
+     * the only permitted mentions of IInWindowStream are the correction
+     * notes themselves (they name the 7-Zip/LZMA SDK); the preview
+     * format comment must not advertise an unproduced mov. */
+    /* the CONTRACT sites (headers + the audit row that rates our
+     * surface); REFERENCE-API-GAP's og-architecture rows (R-42's export
+     * loop) legitimately name the interface where the og actually uses
+     * it - not drift. */
+    const char* const files[] = {
+        "include/cr/preview/cr_preview.h",
+        "include/cr/cr_ui.h",
+        "docs/API-SURFACE-AUDIT.md",
+    };
+    for (const char* f : files) {
+        std::ifstream in(std::string(CR_SOURCE_DIR) + "/" + f, std::ios::binary);
+        ASSERT_TRUE(in.good()) << f;
+        std::string txt((std::istreambuf_iterator<char>(in)),
+                        std::istreambuf_iterator<char>());
+        size_t pos = 0;
+        while ((pos = txt.find("IInWindowStream", pos)) != std::string::npos) {
+            const std::string around = txt.substr(pos > 40 ? pos - 40 : 0, 80);
+            EXPECT_NE(std::string::npos, around.find("7-Zip"))
+                << f << ": an IInWindowStream mention outside a correction note";
+            EXPECT_NE(std::string::npos, around.find("LZMA"))
+                << f << ": the correction context must name the SDK";
+            pos += 16;
+        }
+    }
+    /* the mov ghost: the Metadata format comment must not list mov (no
+     * producer - N-088's third site) */
+    {
+        std::ifstream in(std::string(CR_SOURCE_DIR) + "/include/cr/preview/cr_preview.h",
+                        std::ios::binary);
+        ASSERT_TRUE(in.good());
+        std::string txt((std::istreambuf_iterator<char>(in)),
+                        std::istreambuf_iterator<char>());
+        const size_t fmt = txt.find("std::string format;");
+        ASSERT_NE(std::string::npos, fmt);
+        const std::string comment = txt.substr(fmt, 200);
+        EXPECT_EQ(std::string::npos, comment.find("|mov"))
+            << "the format comment must not advertise a never-produced mov";
+    }
 }
 
 TEST(PreviewMeta, MetadataTruncatedFlagTruthfulAllPaths) {
