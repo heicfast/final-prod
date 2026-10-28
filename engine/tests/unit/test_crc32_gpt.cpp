@@ -600,6 +600,54 @@ TEST(Gpt, ProtectiveOnlyVolumeRecoversFromBackup) {
     EXPECT_EQ(t.partitions[0].fs, FsKind::Ntfs);
 }
 
+/* ---- N-161: the entry-span underflow gate ---------------------------- */
+
+namespace {
+/* Re-stamp the primary side's CRCs after mutating gd.entries (the
+ * header CRC covers the header, the entries CRC covers the array). */
+void restamp_primary(GptDisk& gd) {
+    std::memcpy(gd.disk.data() + 2 * 512, gd.entries.data(), gd.entries.size());
+    put32(gd.disk, 512 + 88, crc32(gd.entries.data(), gd.entries.size()));
+    put32(gd.disk, 512 + 16, 0);
+    put32(gd.disk, 512 + 16, crc32(gd.disk.data() + 512, 92));
+}
+} // namespace
+
+TEST(Gpt, EntryLastLbaBeforeFirstLbaSkippedAndCounted) {
+    /* N-161: a corrupt entry whose last_lba < first_lba underflows the
+     * span (last - first + 1 wraps to ~2^64) and slipped past the
+     * sector_count != 0 gate - the corrupt entry masqueraded as a giant
+     * volume whose reads all fail. The gate names it invalid instead:
+     * no emission + the gpt_invalid_entries counter. */
+    GptDisk gd = make_gpt_disk();
+    put64(gd.entries, 32, 100); /* first_lba */
+    put64(gd.entries, 40, 50);  /* last_lba < first_lba */
+    restamp_primary(gd);
+
+    MemDevice dev(std::move(gd.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_EQ(t.layout, TableLayout::Gpt);
+    EXPECT_TRUE(t.partitions.empty()) << "a wrapped span must not emit a giant volume";
+    EXPECT_EQ(t.gpt_invalid_entries, 1u) << "the corrupt entry is named invalid, not silent";
+}
+
+TEST(Gpt, EntrySpanOverflowBoundary) {
+    /* N-161 boundary: first=0, last=UINT64_MAX wraps the span to exactly
+     * 0 - the same underflow family, previously dropped silently by the
+     * != 0 gate, now named invalid and counted. */
+    GptDisk gd = make_gpt_disk();
+    put64(gd.entries, 32, 0);
+    put64(gd.entries, 40, 0xFFFFFFFFFFFFFFFFull);
+    restamp_primary(gd);
+
+    MemDevice dev(std::move(gd.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_TRUE(t.partitions.empty()) << "the 2^64-wrapping span is invalid, not zero";
+    EXPECT_EQ(t.gpt_invalid_entries, 1u);
+}
+
 TEST(Gpt, HostileSalvageHeaderEntriesOutsideDiskRejected) {
     /* a corrupt header pointing the entry array beyond the device must
      * not be trusted by the salvage path (bounds gate) */

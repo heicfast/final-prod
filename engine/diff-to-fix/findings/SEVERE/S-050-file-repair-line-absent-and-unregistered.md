@@ -117,3 +117,28 @@ og's behavioral shape. No verdict change (extend-don't-refile).
 **Corpus-reference completion:** the finding's corpus list should carry `architecture/06-repair-chain.md` §3/§4/§5 (the video algorithm decode + the per-format engine table + the repair-flow integration) and `re-workspace/artifacts/per-binary/EUVideoRepair.md` (the 7,154-function census + the box-class walk: TkhdBox/UuidBox et al.) — both first-hand re-read this session.
 
 **Impact of the omission:** if the engineering team executes the plan as written, the shipped repair line would lack its best-documented engine and the only one that exercises the core's own scan results — a scope decision the plan never surfaces. The amendment's acceptance: either (a) the build order gains the video family (with the datarun-selection seam named as the integration point and the GetSample consent contract as the input model), or (b) a PARITY-DELTAS row registers the video line's exclusion with the rationale. The eligibility-seam and output-location contracts land as named steps either way.
+
+---
+
+## Addendum (session-48 lane, 2026-10-29 — the I-035 fold-in; all four cites re-read first-hand this session): the CHK repair-chain constants — precise inputs for the eligibility-seam step
+
+The I-035 register's decode, folded here per its fix plan so the S-050 owner consumes it
+without re-decoding (every constant verified on-disk this session):
+
+1. **The rename formats** — identified fragments are RENAMED to their detected extension:
+   `"%s.%s"` (name + identified ext) and, on the +0x98 conflict path, `"%s_%s.%s"`
+   (name + discriminator + ext), both through the 0x1000-byte (4 KiB) stack buffer at
+   `DRWUI:726699-706`.
+2. **The hex-prefix adapter registry** (the repair dispatch, `DRWUI:1008918-1009407`) —
+   keyed by the file's leading hex bytes as ASCII: **"47"=TS** (MPEG-TS), **"4D5A"=PE**,
+   **"504B0304"=Office-zip** (`CHKOffice504B0304`), **"D0CF11E0A1B11AE1"=Office-OLE**
+   (`CHKOfficeD0CF11E0A1B11AE1`), plus the TIFF keys — five entries total.
+3. **The match read buffer** — 36 KiB (`0x9000`) with a 2-MiB (`0x200000`) cap
+   (`DRWUI:772543-553`, the `FUN_1404f8e60` read).
+4. **The "tif" exclusion** — `_stricmp(_Str1,"tif")` at `DRWUI:726583`: TIFF fragments
+   are explicitly excluded from the rename flow.
+
+These constants feed the fix plan's step-3 eligibility-seam contract (the
+`CHKRepairFileSign`-equivalent gating which recovered rows carry the repair hint) and
+the rename semantics any fragment-rename surface must reproduce. No verdict change
+(extend-don't-refile; the register retires as I-035 ACKNOWLEDGED).

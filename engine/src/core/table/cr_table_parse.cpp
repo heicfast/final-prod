@@ -274,6 +274,21 @@ u32 parse_disk_table(IStorageDevice* device, DiskTable& out) {
             for (const auto& e : ents) {
                 if (!gpt_entry_used(e))
                     continue;
+                /* N-161: span underflow gate - a corrupt entry with
+                 * last_lba < first_lba computes sector_count = last -
+                 * first + 1 in u64 arithmetic and wraps to ~2^64, which
+                 * slipped past the != 0 check below and masqueraded as
+                 * a giant volume (every read failing, the volume skipped
+                 * with no diagnostic). The first<=last gate names the
+                 * entry invalid instead; the 2^64-boundary wrap (first=0,
+                 * last=UINT64_MAX -> span exactly 0) joins it. The og's
+                 * own span consumption is undecoded (OQ-1, the lane
+                 * sheet) - this is the core's honesty doctrine, not a
+                 * parity claim. */
+                if (e.last_lba < e.first_lba || e.last_lba - e.first_lba == UINT64_MAX) {
+                    ++out.gpt_invalid_entries;
+                    continue;
+                }
                 PartitionInfo p;
                 p.start_lba = e.first_lba;
                 p.sector_count = e.last_lba - e.first_lba + 1;
