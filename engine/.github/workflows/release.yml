@@ -130,6 +130,11 @@ jobs:
           "tag=$tag" >> $env:GITHUB_OUTPUT
           "sha=$sha" >> $env:GITHUB_OUTPUT
           Write-Host "release identity: $tag @ $sha"
+          # explicit exit: the exists-check's own SUCCESS shape (tag absent)
+          # leaves gh's not-found exit code in $LASTEXITCODE, which the
+          # runner's pwsh shim would inherit (run 40688552776 died exactly
+          # there: identity printed, exit 1)
+          exit 0
 
   build-core:
     needs: [validate, resolve]

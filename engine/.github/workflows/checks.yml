@@ -53,7 +53,14 @@ permissions:
   contents: read
 
 concurrency:
-  group: checks-${{ github.ref }}
+  # EVENT-SCOPED (the run-40688552776 lesson): a push-triggered run and a
+  # release's nested workflow_call validate MUST NOT share a group - a
+  # shared group let any mid-release push cancel the release's own
+  # validation. Push storms still cancel each other (the compute-saving
+  # behavior); the release's validate runs in its own workflow_call group
+  # and nothing else joins it (release.yml's own no-cancel concurrency
+  # serializes releases themselves).
+  group: checks-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
