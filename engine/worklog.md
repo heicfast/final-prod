@@ -2204,3 +2204,22 @@ Doc-truth batch A conform (the ledger convention): N-117/N-118/N-103 retired int
 history (their Resolution sections preserved at 954c386) with ledger rows appended;
 matrix + SUMMARY board updated. Filesystem truth: 63 active (7 SEVERE · 23 MAJOR ·
 28 MINOR · 5 INFO) / 265 resolved / 2 tracked-open.
+## Fix session — S-047 landed (the MPEG-TS/M2TS sync scanners)
+
+- **S-047 FIXED** — the corpus re-read first-hand (registrations :3143-3149/
+  :3173-3179; the chunk handler FUN_18002e430 :35578-35677; the packet walk
+  FUN_180032460 :38457-38536). FMT_TS + FMT_M2TS rows (1-byte 0x47 magic;
+  sync anchors +0/+4 = 188/192-byte strides — the og's own detect order);
+  validate_ts_common: the follow-byte set {0x40,0x41,'P',0x10}, the
+  block-buffered strided walk, all-0xFF null-packet tolerance ("+null"
+  evidence marker), sync-loss run commit, 0x5000 min extent, 200 MB x10
+  cap, the m2ts extension stamp. suppress_overlap on both rows (the
+  repeating-sync family). The 2 KiB progressive first block keeps noise
+  candidates cheap (1-byte magic amplification bounded: measured 54 ms for
+  1,769 hostile candidates). kTrialOrder: M2TS before TS. The
+  WindowServing test invariant updated (TS trials on 0x47+set payload
+  bytes are expected now; the device-call count stays the point). Tests:
+  6 new Carve.* TS tests; suite 1043/1043; ASan+UBSan lanes clean over
+  carve (117/117 each). Audit trail: finding -> FIXED/ with Resolution;
+  matrix + carve.md + S-041 pointer + SUMMARY counts updated
+  (72 active / 253 FIXED).

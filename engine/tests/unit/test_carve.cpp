@@ -2350,6 +2350,45 @@ size_t plant_wmf_std(std::vector<u8>& img, size_t at) {
     return 128;
 }
 
+/* S-047: a 188-byte TS packet stream (0x47 sync, the og's follow-byte set,
+ * patterned payload; optional all-0xFF null packets at +8..+15). */
+size_t plant_ts(std::vector<u8>& img, size_t at, size_t packets, bool with_null = false) {
+    for (size_t p = 0; p < packets; ++p) {
+        const size_t base = at + p * 188;
+        img[base] = 0x47;     /* the sync */
+        img[base + 1] = 0x41; /* in the og's follow-byte set {0x40,0x41,'P',0x10} */
+        img[base + 2] = 0x00;
+        img[base + 3] = 0x01;
+        if (with_null && p % 7 == 3) {
+            /* a null packet: the og checks bytes +8..+15 for all-0xFF and
+             * marks (but does not end) the run - FUN_180032460 */
+            for (size_t b = 4; b < 188; ++b)
+                img[base + b] = 0xFF;
+        } else {
+            for (size_t b = 4; b < 188; ++b)
+                img[base + b] = u8((b * 7 + p * 3) & 0xFF);
+        }
+    }
+    return packets * 188;
+}
+
+/* S-047: a 192-byte M2TS/BDAV packet stream (4-byte TP_extra_header, sync
+ * at +4, follow byte at +5 in the og's set). */
+size_t plant_m2ts(std::vector<u8>& img, size_t at, size_t packets) {
+    for (size_t p = 0; p < packets; ++p) {
+        const size_t base = at + p * 192;
+        img[base + 0] = u8(p & 0xFF); /* TP_extra_header: counter */
+        img[base + 1] = 0x00;
+        img[base + 2] = 0x00;
+        img[base + 3] = 0x00;
+        img[base + 4] = 0x47; /* the sync at +4 */
+        img[base + 5] = 0x50; /* 'P' - in the og's follow-byte set */
+        for (size_t b = 6; b < 192; ++b)
+            img[base + b] = u8((b * 5 + p * 11) & 0xFF);
+    }
+    return packets * 192;
+}
+
 size_t plant_ttf(std::vector<u8>& img, size_t at) {
     std::memcpy(img.data() + at, "\x00\x01\x00\x00", 4);
     putbe16(img, at + 4, 1);   /* numTables */
@@ -3528,6 +3567,208 @@ TEST(Carve, WmfStdOgGatesAcceptNonCanonicalHeaders) {
     ASSERT_NE(n, nullptr) << "the og's two-gate standard grammar must accept this header";
     EXPECT_EQ(n->props()->carve_format, u64(FMT_WMF));
     EXPECT_EQ(n->props()->logical_size, size_t(128)) << "extent = Size words * 2";
+}
+
+TEST(Carve, MpegTs188PacketStreamAccepted) {
+    /* S-047: the og's CMTS analyser (id 0x76) - a 0x47-strided 188-byte
+     * packet stream carves with the walked extent (the last complete
+     * packet), min 0x5000. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    const size_t len = plant_ts(img, at, 345);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr) << "the 188-byte TS stream must carve (S-047)";
+    EXPECT_EQ(n->props()->carve_format, u64(FMT_TS));
+    EXPECT_EQ(n->props()->logical_size, len) << "extent = the last complete packet";
+}
+
+TEST(Carve, M2Ts192PacketStreamAccepted) {
+    /* S-047: the og's CM2TS analyser (id 0x74) - the 192-byte BDAV family
+     * (4-byte TP_extra_header + sync at +4) carves as m2ts with the walked
+     * extent. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    const size_t len = plant_m2ts(img, at, 338);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr) << "the 192-byte M2TS stream must carve (S-047)";
+    EXPECT_EQ(n->props()->carve_format, u64(FMT_M2TS));
+    EXPECT_EQ(n->props()->logical_size, len) << "extent = the last complete packet";
+    std::string name;
+    ASSERT_TRUE(cr::text::lossless_u16_to_utf8(n->props()->name, name));
+    EXPECT_NE(name.find(".m2ts"), std::string::npos) << "the og's M2TS extension stamp";
+}
+
+TEST(Carve, TsBelowMinimumExtentRejected) {
+    /* S-047: the og's minimum-extent gate (FUN_180032460: run < 0x5000 ->
+     * size 0 / reject) - a 4 KiB synced run (21 packets) is noise-class. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    plant_ts(img, at, 21); /* 3948 bytes < 0x5000 */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    for (tree::FileNode* c : all)
+        EXPECT_FALSE(
+            c->props()->extents.front().offset == at &&
+            (c->props()->carve_format == u64(FMT_TS) || c->props()->carve_format == u64(FMT_M2TS)))
+            << "a sub-0x5000 synced run must reject";
+}
+
+TEST(Carve, TsSyncLossCommitsRun) {
+    /* S-047: salvage semantics - sync loss after >= 0x5000 commits the
+     * partial extent (the accumulated run at the last complete packet). */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    const size_t len = plant_ts(img, at, 220);      /* 41360 bytes of packets */
+    std::memset(img.data() + at + len, 0xAB, 4096); /* garbage after the run */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr) << "the synced run before the garbage must carve";
+    EXPECT_EQ(n->props()->carve_format, u64(FMT_TS));
+    EXPECT_EQ(n->props()->logical_size, len) << "the committed run, exact";
+}
+
+TEST(Carve, TsNullPacketTolerated) {
+    /* S-047: null packets (all-0xFF at +8..+15) do NOT end the run
+     * (FUN_180032460's null-marker); the evidence note carries the
+     * "+null" marker of the og's +0x11c flag. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    const size_t len = plant_ts(img, at, 345, true);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr) << "the stream with null packets must carve";
+    EXPECT_EQ(n->props()->carve_format, u64(FMT_TS));
+    EXPECT_EQ(n->props()->logical_size, len) << "null packets keep the run intact";
+    std::string note;
+    ASSERT_TRUE(cr::text::lossless_u16_to_utf8(n->props()->carve_note, note));
+    EXPECT_EQ(note, "ts-packet-walk-188+null") << "the null-marker rides the evidence note";
+}
+
+TEST(Carve, TsSparseSyncNoiseRejected) {
+    /* S-047 hostile: 0x47 bytes sprinkled at a NON-strided period - every
+     * candidate has the follow byte but the second boundary check fails,
+     * so no run ever reaches 0x5000 (the min-extent + per-packet verify
+     * gates are the FP defense). */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    for (size_t off = at; off + 2 < img.size(); off += 37) {
+        img[off] = 0x47;
+        img[off + 1] = 0x41; /* the follow byte passes the gate */
+    }
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    for (tree::FileNode* c : all)
+        EXPECT_FALSE(c->props()->carve_format == u64(FMT_TS) ||
+                     c->props()->carve_format == u64(FMT_M2TS))
+            << "sparse non-strided syncs must never fire the TS family";
 }
 
 TEST(Carve, S007NicheBatch1SalvageSemantics) {
@@ -5363,7 +5604,12 @@ TEST(CarveEngine, WindowServingEliminatesPerCandidateRereads) {
               carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
     EXPECT_EQ(u64(planted), st.validated) << "all plants carved";
     EXPECT_EQ(u64(planted), st.hashed) << "all plants hashed (in-window, no re-read)";
-    EXPECT_EQ(u64(0), st.rejected) << "PNG plants attract no cross-format trials";
+    /* S-047: the TS family's 1-byte 0x47 magic DOES trial on PNG payload
+     * bytes that happen to carry 0x47 + a follow-set byte - expected
+     * cross-format rejections now (each dies inside its 2 KiB first
+     * block, served from the window). The invariant this test owns is
+     * the DEVICE-READ count below, not the absence of TS trials. */
+    EXPECT_LT(st.rejected, u64(32)) << "TS noise trials stay bounded (2 KiB first block)";
     /* the four window fills are the ONLY device reads - every validator
      * probe, chunk walk, checksum and hash served from the window buffer
      * (the og's already-in-buffer model: candidates cost zero device

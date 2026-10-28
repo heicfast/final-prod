@@ -77,6 +77,11 @@ constexpr u32 kTrialOrder[] = {
      * 4-byte MM 00 2A key is the more specific magic at the same
      * position - its grammar rejects 3DS content and falls through). */
     FMT_CHM, FMT_ONE, FMT_MNY, FMT_EMF, FMT_SWF, FMT_SWF_CWS, FMT_3DS, FMT_3DS_NCSD,
+    /* S-047: the TS sync scanners - M2TS before TS (the og's auto-detect
+     * checks the +4 sync first, FUN_18002e430 :35592-35607); the two
+     * families' grammars reject each other's streams within two packets,
+     * so the order only breaks true ties. */
+    FMT_M2TS, FMT_TS,
     /* S-017: ftyp-destroyed MOV salvage (og MovAnalyzer list layer) -
      * LAST: the ftyp-keyed entries must claim the position first */
     FMT_MOV_NAKED};

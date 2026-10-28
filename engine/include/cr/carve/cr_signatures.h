@@ -191,6 +191,17 @@ enum FormatId : u32 {
      * the Access 2007+ .accdb generation). Id APPENDED (serialized
      * carve_format values stay stable). */
     FMT_ACCDB,
+    /* S-047 (diff-to-fix): the og's two list-layer TS sync scanners
+     * (BruteForce::CMTSAnalyser id 0x76 / CM2TSAnalyser id 0x74), fully
+     * decoded at :3143-3149/:3173-3179 + FUN_18002e430 :35578-35677 +
+     * FUN_180032460 :38457-38536. Candidate generation rides the 1-byte
+     * 0x47 magic: TS anchors the sync at +0 (188-byte packets), M2TS at
+     * +4 (192-byte BDAV packets, the 4-byte TP_extra_header in front) -
+     * the og's own auto-detect order. APPENDED (serialized
+     * carve_format values stay stable). */
+    FMT_TS,   /* 0x47 sync + follow-byte gate, 188-byte packet walk (CMTS) */
+    FMT_M2TS, /* 0x47 sync at +4 + follow-byte gate, 192-byte packet walk (CM2TS;
+               * the og stamps the M2TS extension for this family) */
     FMT_COUNT
 };
 

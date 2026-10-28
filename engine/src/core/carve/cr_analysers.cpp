@@ -2637,6 +2637,120 @@ CarveResult validate_mpeges(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
+/* ---- MPEG-TS / M2TS (S-047): the og's two list-layer sync scanners ----
+ * BruteForce::CMTSAnalyser (id 0x76, registration :3143-3149) and
+ * CM2TSAnalyser (id 0x74, :3173-3179) - no magic key in the og's
+ * registries (the "numeric key 284" census row was the FreeHand-11
+ * mis-lead, erratum E54); the analysers generate their own candidates
+ * by chunked scanning. Core port: the candidate generation rides the
+ * keyed dispatch's 1-byte 0x47 magic - FMT_TS anchors the sync at +0
+ * (188-byte packets), FMT_M2TS at +4 (192-byte BDAV packets, the 4-byte
+ * TP_extra_header in front). That mirrors the og's auto-detect order
+ * (the chunk handler FUN_18002e430 :35578-35677 checks the sync at +4
+ * FIRST, then at +0), and each family's grammar rejects the other's
+ * streams within two packets (188- and 192-strides drift apart
+ * immediately), so the N-070 best-pick resolves shared positions.
+ *
+ * The packet walk (FUN_180032460 :38457-38536, decoded first-hand):
+ * stride the detected size, verify 0x47 at every packet boundary
+ * (+0 in 188-mode, +4 in 192-mode), tolerate all-0xFF null packets
+ * (bytes +8..+15 all 0xFF mark the null-packet flag - the run does NOT
+ * end), end the run at the first sync loss committing the accumulated
+ * extent, minimum extent 0x5000 (20 KiB) or size=0/reject, cap = the
+ * controller global x 10 (the row's max_size), extension "M2TS" for
+ * the 192-byte family (the og stamps L"M2TS" when the analyser id is
+ * 0x74, :38531-38536). */
+static CarveResult validate_ts_common(IStorageDevice* s, u64 hit, u64 cap, u32 stride, u32 sync_off,
+                                      u16 conf, const char* note, const char* null_note) {
+    CarveResult r;
+    /* the og's detection gate: the byte AFTER the sync must be in
+     * {0x40, 0x41, 'P', 0x10} (FUN_18002e430's byte-set) */
+    u8 h[8];
+    if (!rd(s, hit + sync_off, h, sizeof(h)))
+        return r;
+    if (h[0] != 0x47)
+        return r;
+    if (h[1] != 0x40 && h[1] != 0x41 && h[1] != 0x50 && h[1] != 0x10)
+        return r;
+    /* the block-buffered packet walk (the P1-12 discipline: probe
+     * windows, boundary-straddling packets re-anchored at the next
+     * block; each packet costs one sync-byte compare at its boundary).
+     * Progressive reads: the FIRST block is 2 KiB - a 1-byte magic
+     * means every 0x47+follow-byte pair in the window reaches this
+     * walk, and noise candidates (no second synced packet) must die
+     * for 2 KiB of traffic, never a full 1 MiB probe block. Only a
+     * candidate whose first ~10 packets all sync graduates to the
+     * kProbeBlock ladder (the run needs 109+ packets to clear 0x5000,
+     * so the small block can never accept - it only cheap-rejects). */
+    constexpr u32 kTSFirstBlock = 2048;
+    const u64 limit = probe_limit(s, hit, cap);
+    u64 verified_end = hit; /* end of the last fully verified packet */
+    u64 pos = hit;          /* next unverified packet boundary (absolute) */
+    bool null_packets = false;
+    std::vector<u8> buf(kProbeBlock);
+    bool first_block = true;
+    while (pos + stride <= limit) {
+        const u64 remain = limit - pos;
+        const u32 take = first_block ? u32(std::min<u64>(remain, kTSFirstBlock))
+                                     : u32(std::min<u64>(remain, kProbeBlock));
+        if (take < stride)
+            break; /* the tail cannot hold another packet */
+        if (!rd(s, pos, buf.data(), take))
+            break; /* unreadable: the run ends at the last verified packet */
+        u32 off = 0;
+        while (off + stride <= take) {
+            if (buf[off + sync_off] != 0x47)
+                break; /* sync loss: the run ends at the last verified packet */
+            /* null-packet tolerance: the og checks the packet's bytes
+             * +8..+15 (the second u64) for all-0xFF and marks (but does
+             * not end) the run - FUN_180032460's
+             * ((u64*)(iVar8+param_2))[1] == -1 */
+            if (off + 16 <= take) {
+                bool all_ff = true;
+                for (u32 b = 8; b < 16; ++b)
+                    if (buf[off + b] != 0xFF) {
+                        all_ff = false;
+                        break;
+                    }
+                if (all_ff)
+                    null_packets = true;
+            }
+            off += stride;
+        }
+        verified_end = pos + off;
+        if (off + stride <= take)
+            break;  /* sync loss inside this block */
+        pos += off; /* the straddling packet anchors the next block */
+        first_block = false;
+    }
+    const u64 run = verified_end - hit;
+    if (run < 0x5000)
+        return r; /* the og's minimum extent: size = 0 / reject */
+    r.ok = true;
+    r.end = verified_end;
+    r.confidence = conf;
+    /* the null-packet flag (the og's +0x11c marker, FUN_180032460
+     * :38472-75) rides the evidence note - the N-089 channel - with a
+     * "+null" marker; its og consumer is undecoded, so it changes no
+     * acceptance/size semantics */
+    r.note = null_packets ? null_note : note;
+    return r;
+}
+
+CarveResult validate_ts(IStorageDevice* s, u64 hit, u64 cap) {
+    /* 188-byte MPEG transport stream packets (CMTS, id 0x76) */
+    return validate_ts_common(s, hit, cap, 188, 0, 700, "ts-packet-walk-188",
+                              "ts-packet-walk-188+null");
+}
+
+CarveResult validate_m2ts(IStorageDevice* s, u64 hit, u64 cap) {
+    /* 192-byte BDAV/M2TS packets - the 4-byte TP_extra_header precedes
+     * every 0x47 sync (CM2TS, id 0x74; the og stamps the M2TS extension
+     * for this family) */
+    return validate_ts_common(s, hit, cap, 192, 4, 700, "m2ts-packet-walk-192",
+                              "m2ts-packet-walk-192+null");
+}
+
 CarveResult validate_dwg(IStorageDevice* s, u64 hit, u64 cap) {
     /* AutoCAD DWG: "AC10xx" version gate over the known release set
      * (r13..R2018), then the bounded extent (the finding's sanctioned

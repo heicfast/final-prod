@@ -96,6 +96,8 @@ CarveResult validate_emf(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_swf(IStorageDevice* s, u64 hit, u64 cap); /* swf + swf_cws */
 CarveResult validate_3ds(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_3ds_ncsd(IStorageDevice* s, u64 hit, u64 cap); /* the list-layer twin */
+CarveResult validate_ts(IStorageDevice* s, u64 hit, u64 cap);       /* S-047: CMTS, 188-byte */
+CarveResult validate_m2ts(IStorageDevice* s, u64 hit, u64 cap);     /* S-047: CM2TS, 192-byte */
 
 namespace {
 const Signature kTable[] = {
@@ -1004,6 +1006,35 @@ const Signature kTable[] = {
      650,
      validate_accdb,
      "Access Database (ACE)"},
+    /* S-047: the og's TS sync scanners. The 1-byte 0x47 magic + the
+     * follow-byte set {0x40,0x41,'P',0x10} + the strided packet walk
+     * (min extent 0x5000, cap = the 200 MB controller global x 10).
+     * suppress_overlap: every packet of a TS stream re-matches the
+     * 1-byte key - the repeating-sync family (the MPEG-audio
+     * precedent); mid-stream syncs inside an emitted stream are the
+     * SAME stream. */
+    {FMT_TS,
+     "ts",
+     {0x47},
+     1,
+     0,
+     0x5000,
+     2000000000ull, /* the og's controller global (200 MB) x 10 */
+     600,
+     validate_ts,
+     "MPEG Transport Stream",
+     true},
+    {FMT_M2TS,
+     "m2ts",
+     {0x47},
+     1,
+     4, /* the sync sits 4 bytes into the file (TP_extra_header) */
+     0x5000,
+     2000000000ull,
+     600,
+     validate_m2ts,
+     "AVCHD M2TS",
+     true},
 };
 } // namespace
 

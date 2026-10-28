@@ -178,7 +178,9 @@ in each finding's Resolution; the running counts live in this section.
 
 **Board after S-042:** 74 active (6 SEVERE · 28 MAJOR · 35 MINOR · 5 INFO) + 251 FIXED. S-042 (WMF placeable grammar) closed with both WMF branches re-derived from FUN_1800264d0 and spec-regenerated fixtures — see findings/FIXED/S-042.
 
-**Board after S-044:** **73 active (5 SEVERE · 28 MAJOR · 35 MINOR · 5 INFO) + 252 FIXED**. S-044 (auto-save gates) closed: the og's three trigger-site gates (results-found / not-import / not-already-saved) landed on the ABI completion window and the CLI twin; config-shape delta registered (D-105); Folder-suffix deferral registered (D-106). Tests: CrUi.AutoSaveSkipsEmptyResults / AutoSaveSkipsAfterExplicitSave / AutoSaveSkipsResumedRun, TSan-clean. See findings/FIXED/S-044.
+**Board after S-044:** 73 active (5 SEVERE · 28 MAJOR · 35 MINOR · 5 INFO) + 252 FIXED. S-044 (auto-save gates) closed: the og's three trigger-site gates (results-found / not-import / not-already-saved) landed on the ABI completion window and the CLI twin; config-shape delta registered (D-105); Folder-suffix deferral registered (D-106). Tests: CrUi.AutoSaveSkipsEmptyResults / AutoSaveSkipsAfterExplicitSave / AutoSaveSkipsResumedRun, TSan-clean. See findings/FIXED/S-044.
+
+**Board after S-047:** **72 active (4 SEVERE · 28 MAJOR · 35 MINOR · 5 INFO) + 253 FIXED**. S-047 (MPEG-TS/M2TS) closed: FMT_TS/FMT_M2TS sync scanners landed on the keyed dispatch (1-byte 0x47 magic, two anchor offsets), the og's full packet-walk grammar, suppress_overlap, the 2 KiB progressive first block for noise cost. Tests: Carve.MpegTs188PacketStreamAccepted / M2Ts192PacketStreamAccepted / TsBelowMinimumExtentRejected / TsSyncLossCommitsRun / TsNullPacketTolerated / TsSparseSyncNoiseRejected; ASan+UBSan clean. See findings/FIXED/S-047.
 
 (Counts in this section update as the session progresses; the per-severity deltas below in the historical sections are frozen history.)
 

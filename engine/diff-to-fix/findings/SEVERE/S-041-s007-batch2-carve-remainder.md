@@ -186,7 +186,8 @@ variants); suite 1023/1023 green.
 HTML (u16 ×4) · SVG/XML (u32 ×4) · LZH · MTS/M2TS · MOBI · JP2 · the text
 school (VCF/GPX/HIK/OSP/POS/AEP/CHFP) · OfficeTagFromXML (the ZIP-entry
 classifier — the archive-lane classification surface, decoded, to file with
-S-032's consumer). The one-line batch-2 causes that this finding inherited
+S-032's consumer). **Update (fix session): MTS/M2TS is DONE — S-047 landed
+the two sync scanners (FMT_TS/FMT_M2TS); see findings/FIXED/S-047.** The one-line batch-2 causes that this finding inherited
 from the S-007 addendum are re-pinned there (CHM :22635 invalid; MPEG-TS
 0x11C stale = FH11).
 
