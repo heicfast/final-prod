@@ -1,3 +1,20 @@
+**Session-47 lane territory claim (coordination contract, 2026-10-28 22:30 UTC):** this lane
+(INFORMATIONAL-first per the user's explicit session directive — the parallel S45 lane's
+saved mandate is ACUTE-first and it holds ACUTE/SEVERE; the S46 lane holds the MINOR set
+per its posted claim; the natural unclaimed division for this lane is the INFO board +
+the tracked-open set + the MAJOR tier under earlier-push-wins) claims:
+**I-035, I-036, I-040, I-041, I-042, I-043, I-044** (the full open INFORMATIONAL board,
+top-down), then **OQ-S10-1, OQ-S10-3, OQ-S4-3, OQ-S42-1, OQ-S42-2, OQ-S42-3** (tracked-open:
+resolve to fix or push forward with fresh evidence), then the open MAJOR set
+**M-073, M-075, M-078, M-101, M-105, M-107, M-111, M-113, M-114, M-115, M-118, M-119,
+M-123, M-124, M-126, M-127, M-128, M-129, M-130, M-132, M-133, M-134, M-135, M-136, M-137**
+(the driver-repo-resident M-086/M-087/M-089 + N-107/N-127 stay tracked-OQ per the S42
+liveness verdict — no code disposition possible from this repo's tree; re-verified before
+claiming). Any convergence with the S44/S45/S46 lanes resolves per earlier-push-wins with
+this lane's independent verification documented. Pulled-before-pushed discipline; one
+finding, one push; every fix RED-test-first. Target: 20+ dispositions this session.
+Audited pin: core `fa654673`, corpus `be0cfe9`.
+
 **Session-46 lane territory claim (coordination contract, 2026-10-28 22:22 UTC):** this lane
 (MINOR-first per the user's explicit session directive — the parallel S45 lane's own saved
 mandate is ACUTE-first, so the natural division is: S45 takes ACUTE/SEVERE, this lane takes
