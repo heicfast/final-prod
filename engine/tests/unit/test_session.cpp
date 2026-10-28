@@ -1174,6 +1174,62 @@ TEST(Session, FatOriginClusterRoundTrip) {
     EXPECT_EQ(q2->props()->fat_origin_cluster, 0u);
 }
 
+TEST(Session, NtfsOriginLcnRoundTrip) {
+    /* OQ-SA-1 NTFS half (resolved, scan-engine lane s3): the og's
+     * CNTFSFileProperties +0x64 anchor — the low u32 of the FIRST $DATA
+     * run's start LCN (FUN_1800336f0 :41028 -> FUN_1800069e0 :5126 ->
+     * FUN_180003020 :1987; persisted by FUN_180003440 :2362) — rides its
+     * own nflags bit-8 block so a fragmented/deleted record keeps its
+     * origin LCN across save/load (RED pre-fix: the carrier did not
+     * exist; the datum was dropped). The 0xFFFFFFFF sparse-first-run
+     * value is nonzero and therefore persists too. */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Volume N");
+    tree::FileProperties* p = new tree::FileProperties();
+    p->name = u"fragment.dat";
+    p->fs_kind = u32(FsKindCode::Ntfs);
+    p->ntfs_origin_lcn = 0x000C1234u; /* the first run's start LCN */
+    p->extents.push_back({0x000C1234ull * 4096, 2 * 4096});
+    p->extents.push_back({0x000D5678ull * 4096, 4096});
+    auto* f = t.add_file(root, p);
+    (void)f;
+    p->release();
+    /* the sparse-first-run shape: the og's stored -1 low dword */
+    tree::FileProperties* p2 = new tree::FileProperties();
+    p2->name = u"holes.dat";
+    p2->fs_kind = u32(FsKindCode::Ntfs);
+    p2->ntfs_origin_lcn = 0xFFFFFFFFu;
+    auto* f2 = t.add_file(root, p2);
+    (void)f2;
+    p2->release();
+    /* a third, plain node proves the bit-8 gate: zero carrier -> the
+     * record stays the pre-OQ-SA-1-NTFS shape */
+    tree::FileProperties* p3 = new tree::FileProperties();
+    p3->name = u"plain.txt";
+    p3->fs_kind = u32(FsKindCode::Ntfs);
+    auto* f3 = t.add_file(root, p3);
+    (void)f3;
+    p3->release();
+    t.refresh_stats();
+
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), u32(OK));
+    tree::ResultTree t2;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), u32(OK));
+    tree::FileNode* g2 = t2.roots()[0]->first_child();
+    ASSERT_NE(g2, nullptr);
+    ASSERT_NE(g2->props(), nullptr);
+    EXPECT_EQ(g2->props()->ntfs_origin_lcn, 0x000C1234u);
+    tree::FileNode* h2 = g2->next_sibling();
+    ASSERT_NE(h2, nullptr);
+    ASSERT_NE(h2->props(), nullptr);
+    EXPECT_EQ(h2->props()->ntfs_origin_lcn, 0xFFFFFFFFu);
+    tree::FileNode* q2 = h2->next_sibling();
+    ASSERT_NE(q2, nullptr);
+    ASSERT_NE(q2->props(), nullptr);
+    EXPECT_EQ(q2->props()->ntfs_origin_lcn, 0u);
+}
+
 TEST(Session, IdentityCardFirmwareWwnInterface) {
     /* N-066 (diff-to-fix): the og record-3's identity axes — firmware
      * revision (+0x206), WWN/serial-2 (+0x30A), interface description

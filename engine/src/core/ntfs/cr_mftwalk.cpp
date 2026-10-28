@@ -891,6 +891,14 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
         /* extents in slice-relative bytes; the tree consumer resolves to
          * absolute via the slice base (orchestrator does this at merge). */
         if (has_data && !data_runs.empty()) {
+            /* OQ-SA-1 NTFS half: the +0x64 location anchor — the low u32 of
+             * the FIRST $DATA run's start LCN (the og's FUN_1800069e0
+             * :5126-5127 <- FUN_1800336f0 :41028 chain; sparse first run ->
+             * 0xFFFFFFFF, the og's stored-start read; stamped ahead of the
+             * compression branch — the og stamps from the runlist object
+             * whenever the datastream attaches, compressed or not). */
+            const DataRun& r0 = data_runs.runs().front();
+            props->ntfs_origin_lcn = r0.sparse ? 0xFFFFFFFFu : u32(r0.lcn);
             if (data_compressed && !is_dir) {
                 /* GAP-P1-1: expand the compression-unit envelope into
                  * codec-tagged per-block extents; raw runlist extents
@@ -1478,6 +1486,12 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                             (is_dir2 ? u16(0x10) : 0);
                         dp->flags = u16(is_dir2 ? PFLAG_IS_DIR : 0);
                         if (has_data2 && !data_runs2.empty()) {
+                            /* OQ-SA-1 NTFS half: same anchor stamp on the
+                             * dump-recovered record (the og's GUID-dump twin
+                             * FUN_18001c660 :22470-22471 sites the same
+                             * encoder outputs). */
+                            const DataRun& dr0 = data_runs2.runs().front();
+                            dp->ntfs_origin_lcn = dr0.sparse ? 0xFFFFFFFFu : u32(dr0.lcn);
                             std::vector<RunList::Extent> ex;
                             data_runs2.extents(ex);
                             for (const auto& e : ex)

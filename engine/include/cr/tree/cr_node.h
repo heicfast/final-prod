@@ -186,6 +186,34 @@ public:
      * degraded contiguous-read use is NOT decoded and NOT reproduced).
      * Persisted as the nflags bit-7 block (cr_records.cpp). */
     u32 fat_origin_cluster = 0;
+    /* OQ-SA-1 NTFS half (resolved, scan-engine lane session 3, convergent
+     * with SCAN-2f): the og's CNTFSFileProperties +0x64 anchor — the low
+     * 32 bits of the FIRST $DATA RUN'S STARTING LCN, the NTFS member of
+     * the vtable+0x30 location-anchor family (FAT +0x3e / exFAT +0x50 /
+     * NTFS +0x64 / CRAW +0xec; HFS+/ReFS/Generic return -1). Decode chain
+     * (all sites read first-hand): the runlist encoder FUN_1800336f0
+     * (:41028) emits out1 = the first run cursor entry's stored start LCN
+     * and out2 = the total run length in clusters (sparse-zeroed
+     * :41096-98); the $DATA parse FUN_1800069e0 (:5126-5127) writes them
+     * into the raw props block at +0x53/+0x4f; the copier FUN_180003020
+     * (:1987-1988) lands them at +0x64/+0x60; the attach twin
+     * FUN_180033250 (:2264-2265) agrees. The serializer FUN_180003440
+     * (:2362-2363) persists both. The $FILE_NAME deep path
+     * FUN_18002a340 zeroes the slot (:33912) — runs attach later. The
+     * prior "+0x60 type-registry id" census reading is refuted (the +0x20
+     * getter is a return-0 stub for 8 of 10 per-FS classes; the DRWUI twin
+     * serializer FUN_140520d20 persists the engine values verbatim).
+     * Carrier semantics: PASSIVE datum — stamped from the first decoded
+     * $DATA run at emission (sparse first run -> 0xFFFFFFFF, the og's
+     * stored-start read; resident / no-runs -> 0, the og's zeroed raw
+     * block — the resident wrapper's synthetic pair is NOT reproduced);
+     * never consumed by the read/recovery paths. The og's +0x60 twin
+     * (total clusters) is NOT carried - derivable from allocated_size +
+     * extents, and its vtable getter is a 0-stub for 8/10 classes. The
+     * og's degraded contiguous-READ use of the anchor is NOT decoded and
+     * NOT reproduced. Persisted as the nflags bit-8 block
+     * (cr_records.cpp). */
+    u32 ntfs_origin_lcn = 0;
     /* content hash when computed (carve dedup + writer verification) */
     u8 sha128[16] = {0}; /* truncated sha-256 digest, 128-bit id */
     bool hash_valid = false;

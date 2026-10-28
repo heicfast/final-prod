@@ -1494,6 +1494,83 @@ TEST(NtfsVolume, EndToEndWalk) {
     EXPECT_GE(root_active->stats().file_count, 0u);
 }
 
+TEST(NtfsVolume, OriginLcnCarriedFromFirstDataRun) {
+    /* OQ-SA-1 NTFS half (resolved, scan-engine lane s3, convergent with
+     * SCAN-2f): the og's CNTFSFileProperties +0x64 anchor = the low u32 of
+     * the FIRST $DATA run's start LCN — the producer chain
+     * FUN_1800336f0 :41028 (out1 = the first run cursor entry's stored
+     * start) -> FUN_1800069e0 :5126 (raw+0x53) -> FUN_180003020 :1987
+     * (+0x64), persisted by FUN_180003440 :2362. A sparse first run reads
+     * the stored -1 -> 0xFFFFFFFF; the $FILE_NAME-only path zeroes the
+     * slot (:33912) so resident / no-runs records carry 0. Pre-fix the
+     * core had no carrier at all (RED: ntfs_origin_lcn read 0 on every
+     * record). */
+    Image img;
+    build_image(img);
+    MemDevice dev(img.raw(), img.geom());
+
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    std::unique_ptr<VolumeBitmap> bm;
+    ASSERT_EQ(VolumeBitmap::load(vol.get(), bm), OK);
+
+    tree::ResultTree tree;
+    auto* root_active = tree.add_root(u"Found (NTFS)");
+    auto* root_deleted = tree.add_root(u"Deleted");
+    auto* root_lost = tree.add_root(u"Lost Files");
+    WalkerFlags wf;
+    WalkStats stats;
+    u32 rc = walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, root_active,
+                      root_deleted, root_lost, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    for (auto* r : tree.roots())
+        collect(r);
+    tree::FileNode *readme = nullptr, *deleted = nullptr, *holes = nullptr, *dirdel = nullptr,
+                   *adsnode = nullptr;
+    for (auto* n : all) {
+        std::string nm = n->name_utf8();
+        if (nm == "readme.txt")
+            readme = n;
+        else if (nm == "deleted.dat")
+            deleted = n;
+        else if (nm == "holes.dat")
+            holes = n;
+        else if (nm == "dirdel")
+            dirdel = n;
+        else if (nm == "ads.txt")
+            adsnode = n;
+    }
+    ASSERT_NE(readme, nullptr);
+    ASSERT_NE(deleted, nullptr);
+    ASSERT_NE(holes, nullptr);
+    ASSERT_NE(dirdel, nullptr);
+    ASSERT_NE(adsnode, nullptr);
+
+    /* live non-resident file: the single run starts at LCN 200 */
+    EXPECT_EQ(readme->props()->ntfs_origin_lcn, 200u);
+    /* deleted non-resident file: LCN 210 — deletion never touches the
+     * anchor (the og persists it for deleted records alike) */
+    EXPECT_EQ(deleted->props()->ntfs_origin_lcn, 210u);
+    /* the all-sparse runlist: the og's stored start for a sparse run is -1
+     * (the encoder's :41037 check) — the low dword reads 0xFFFFFFFF */
+    EXPECT_EQ(holes->props()->ntfs_origin_lcn, 0xFFFFFFFFu);
+    /* a directory with no $DATA runs: the zeroed raw block (the og's
+     * $FILE_NAME-path shape, FUN_18002a340 :33912) */
+    EXPECT_EQ(dirdel->props()->ntfs_origin_lcn, 0u);
+    /* non-resident unnamed $DATA (LCN 250) + resident named ADS: the anchor
+     * follows the UNNAMED stream's first run */
+    EXPECT_EQ(adsnode->props()->ntfs_origin_lcn, 250u);
+}
+
 /* ------------------------------------------------------------------ */
 /* M-007: hard-link emission parity (one node per record; opt-in fan-out) */
 /* ------------------------------------------------------------------ */
@@ -2885,6 +2962,27 @@ TEST(NtfsVolume, GuidDumpPassRecoversReusedRecord) {
     ASSERT_EQ(z1->props()->extents.size(), 1u);
     EXPECT_EQ(z1->props()->extents[0].offset, 150 * CLUSTER);
     EXPECT_EQ(z1->props()->extents[0].length, 1024u);
+}
+
+TEST(NtfsVolume, OriginLcnCarriedOnGuidDumpRecord) {
+    /* OQ-SA-1 NTFS half, the dump-path stamp: the og's GUID-dump twin
+     * FUN_18001c660 (:22470-22471) sites the same runlist-encoder outputs
+     * onto the recovered record's props — the core's dump emission (the
+     * data_runs2 branch) carries the same anchor (RED pre-fix: the
+     * dump-recovered zombie read 0). */
+    Image img;
+    build_dump_image(img);
+    DumpWalkResult w;
+    ASSERT_NO_FATAL_FAILURE(walk_dump_image(img, w));
+    tree::FileNode* z1 = find_node(w.all, "zombie1.dat");
+    ASSERT_NE(z1, nullptr);
+    /* the zombie's single run starts at LCN 150 (the extent above) */
+    EXPECT_EQ(z1->props()->ntfs_origin_lcn, 150u);
+    /* the dump-recovered directory carries no $DATA runs -> 0 (the zeroed
+     * raw-block shape) */
+    tree::FileNode* zd = find_node(w.all, "zombiedir");
+    ASSERT_NE(zd, nullptr);
+    EXPECT_EQ(zd->props()->ntfs_origin_lcn, 0u);
 }
 
 TEST(NtfsVolume, GuidDumpDestroyRules) {

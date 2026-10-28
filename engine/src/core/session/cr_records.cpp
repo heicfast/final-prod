@@ -169,6 +169,8 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
                 nflags |= 64; /* N-059: per-FS secondary payload follows */
             if (pr && pr->fat_origin_cluster != 0)
                 nflags |= 128; /* OQ-SA-1: the FAT-family origin cluster */
+            if (pr && pr->ntfs_origin_lcn != 0)
+                nflags |= 256; /* OQ-SA-1: the NTFS first-$DATA-run LCN anchor */
         }
         put32(out, parent_ids[i]);
         put16(out, nflags);
@@ -255,6 +257,16 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
          * identical. */
         if (nflags & 128)
             put32(out, pr->fat_origin_cluster);
+        /* OQ-SA-1 NTFS half (nflags bit8): the first-$DATA-run LCN anchor —
+         * the og's CNTFSFileProperties +0x64 (the vtable+0x30 location-
+         * anchor family; producer chain FUN_1800336f0 :41028 ->
+         * FUN_1800069e0 :5126 -> FUN_180003020 :1987 -> serializer :2362).
+         * 4-byte append-only block; the bit fires only when the carrier is
+         * nonzero, so pre-fix sessions stay shape-identical. The sparse-
+         * first-run 0xFFFFFFFF value (the og's stored-start read) is
+         * nonzero and therefore persists. */
+        if (nflags & 256)
+            put32(out, pr->ntfs_origin_lcn);
         if (n->is_full()) {
             const tree::FullNode* f = static_cast<const tree::FullNode*>(n);
             put16(out, u16(f->role.size()));
@@ -441,6 +453,11 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* re
         }
         if (nflags & 128) { /* OQ-SA-1: the FAT-family origin cluster */
             props->fat_origin_cluster = c.g32();
+            if (c.fail)
+                break;
+        }
+        if (nflags & 256) { /* OQ-SA-1: the NTFS origin LCN anchor */
+            props->ntfs_origin_lcn = c.g32();
             if (c.fail)
                 break;
         }

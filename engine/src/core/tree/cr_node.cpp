@@ -67,6 +67,11 @@ FileProperties* FileProperties::clone() const {
     p->carve_note = carve_note;
     p->carve_anchor_b = carve_anchor_b;
     p->carve_flag = carve_flag;
+    /* OQ-SA-1 NTFS half: the location anchor survives the hard-link fan-out
+     * clone (clone() is the NTFS walk's own fan-out path — the per-FS
+     * carriers of the non-cloning engines need no line here by
+     * construction). */
+    p->ntfs_origin_lcn = ntfs_origin_lcn;
     std::memcpy(p->sha128, sha128, sizeof(sha128));
     p->hash_valid = hash_valid;
     return p;
