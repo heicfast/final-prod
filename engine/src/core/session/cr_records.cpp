@@ -283,7 +283,8 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, Serialize
     return OK;
 }
 
-u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* reparented_out) {
+u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* reparented_out,
+                     DeserializeProgress progress, void* progress_user) {
     Cursor c{data, len};
     const u32 count = c.g32();
     if (c.fail)
@@ -535,6 +536,13 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* re
         created.push_back(n);
         if (c.fail)
             break;
+        /* W1b (R-54): the per-node load hook - the N-060 save mirror.
+         * The og's restore checks IsCancelled after EVERY child and
+         * tears down (rsf-format--scan-session.md flow section); false
+         * here aborts with ERR_CANCELLED - the tree is PARTIAL and the
+         * caller discards it (a torn load never half-claims state). */
+        if (progress && !progress(u64(i) + 1, u64(count), progress_user))
+            return ERR_CANCELLED;
     }
     /* N-058: resolve the deferred forward references now that every
      * record had its chance to load; the ones that never resolve stay

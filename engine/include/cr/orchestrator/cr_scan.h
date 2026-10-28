@@ -508,7 +508,9 @@ public:
      * the drop is a search-start behavior, not a listing one). */
     static u32 load_session(session::Reader& r, tree::ResultTree& tree,
                             ScanStats& stats /*summary only*/,
-                            IStorageDevice* revalidate_disk = nullptr);
+                            IStorageDevice* revalidate_disk = nullptr,
+                            session::DeserializeProgress progress = nullptr,
+                            void* progress_user = nullptr);
 
     /* ---- resume support (G-07) ----
      * Full flow: load the session (tree + stats + summary), validate the
@@ -524,7 +526,9 @@ public:
     static u32 resume(session::Reader& r, tree::ResultTree& tree, const ScanConfig& original_cfg,
                       ScanStats& stats, session::VolumeSessionInfo& info,
                       std::unique_ptr<ScanController>& out,
-                      IStorageDevice* revalidate_disk = nullptr);
+                      IStorageDevice* revalidate_disk = nullptr,
+                      session::DeserializeProgress progress = nullptr,
+                      void* progress_user = nullptr);
 
     /* Load with the full restored summary (G-14/G-23): tree + stats +
      * volume info + lost candidates + completion masks, with the same
@@ -535,7 +539,9 @@ public:
      * the og's at-search-start drop of stale records. */
     static u32 load_session_summary(session::Reader& r, tree::ResultTree& tree, ScanStats& stats,
                                     session::VolumeSessionInfo& info,
-                                    IStorageDevice* revalidate_disk = nullptr);
+                                    IStorageDevice* revalidate_disk = nullptr,
+                                    session::DeserializeProgress progress = nullptr,
+                                    void* progress_user = nullptr);
 
     /* ---- W1a (R-56): the light summary read --------------------------------
      * Decodes ONLY the container's light records (SESSION_STATE +

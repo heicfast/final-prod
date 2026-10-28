@@ -1437,3 +1437,128 @@ TEST(SessionSummary, LegacySessionWithoutVolumeInfo) {
     EXPECT_EQ(s.volume.label[0], 0);
     EXPECT_EQ(s.volume.save_unix, 0ULL);
 }
+
+namespace {
+/* W1b (R-54): the per-node load hook's observer state. */
+struct LoadHookState {
+    u64 calls = 0;
+    u64 last_done = 0;
+    u64 total_seen = 0;
+    bool cancel_at_done = 0; /* cancel once done >= cancel_at_done */
+};
+bool load_progress_counter(u64 done, u64 total, void* user) {
+    auto* st = static_cast<LoadHookState*>(user);
+    ++st->calls;
+    EXPECT_GE(done, st->last_done); /* monotonic */
+    st->last_done = done;
+    st->total_seen = total;
+    return st->cancel_at_done == 0 || done < st->cancel_at_done;
+}
+} // namespace
+
+TEST(Session, DeserializeProgressPerNodeAndCancel) {
+    /* W1b (R-54): the og's restore reports progress inside the load
+     * window and polls IsCancelled after EVERY child
+     * (rsf-format--scan-session.md flow section) - our per-node
+     * DeserializeProgress mirror. Progress fires per attached node with
+     * done/total NODE counts; false aborts ERR_CANCELLED and the caller
+     * discards the partial tree. */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Volume C");
+    for (int i = 0; i < 12; ++i) {
+        tree::FileProperties* p = new tree::FileProperties();
+        p->name = std::u16string(u"file") + char16_t('a' + i);
+        p->logical_size = 100 + i;
+        (void)t.add_file(root, p);
+        p->release();
+    }
+    t.refresh_stats();
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), OK);
+
+    /* silent load: no hook, no change (the pre-W1b behavior) */
+    {
+        tree::ResultTree t2;
+        u32 reparented = 1;
+        ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2, &reparented), OK);
+        EXPECT_EQ(t2.node_count(), t.node_count());
+    }
+
+    /* progress fires per node, monotonic, with the persisted count */
+    {
+        tree::ResultTree t2;
+        LoadHookState st;
+        ASSERT_EQ(
+            deserialize_tree(blob.data(), blob.size(), t2, nullptr, load_progress_counter, &st),
+            OK);
+        const u64 nodes = t.node_count(); /* the ROOT is a node too (13) */
+        EXPECT_EQ(st.calls, nodes);
+        EXPECT_EQ(st.last_done, nodes);
+        EXPECT_EQ(st.total_seen, nodes);
+    }
+
+    /* cancel mid-tree: ERR_CANCELLED, the caller discards the partial */
+    {
+        tree::ResultTree t2;
+        LoadHookState st;
+        st.cancel_at_done = 5; /* cancel from the 5th attached node on */
+        EXPECT_EQ(
+            deserialize_tree(blob.data(), blob.size(), t2, nullptr, load_progress_counter, &st),
+            ERR_CANCELLED);
+        /* the tree object holds a PARTIAL state - by contract the caller
+         * discards it (never re-queries it as truth); we only assert the
+         * hook stopped early, never that the tree is complete */
+        EXPECT_LT(st.calls, t.node_count());
+    }
+}
+
+TEST(Session, LoadSessionSummaryPropagatesProgressAndCancel) {
+    /* W1b (R-54): the hook rides the CONTAINER path too - the REC_RESULT_
+     * TREE case threads it (ERR_CANCELLED propagates, never flattened
+     * into ERR_SESSION_FORMAT). */
+    MemFile mf;
+    {
+        tree::ResultTree t;
+        auto* root = t.add_root(u"Volume D");
+        for (int i = 0; i < 20; ++i) {
+            tree::FileProperties* p = new tree::FileProperties();
+            p->name = std::u16string(u"f") + char16_t('0' + i);
+            (void)t.add_file(root, p);
+            p->release();
+        }
+        t.refresh_stats();
+        Writer w(MemFile::wr, MemFile::tl, MemFile::sk, &mf);
+        ASSERT_EQ(w.open(0x99ULL), OK);
+        std::vector<u8> blob;
+        ASSERT_EQ(serialize_tree(t, blob), OK);
+        ASSERT_EQ(w.add_record(REC_RESULT_TREE, blob.data(), u32(blob.size())), OK);
+        session::VolumeInfo vi;
+        ASSERT_EQ(serialize_volume_info(vi, blob), OK);
+        ASSERT_EQ(w.add_record(REC_VOLUME_INFO, blob.data(), u32(blob.size())), OK);
+        ASSERT_EQ(w.finalize(), OK);
+    }
+    Reader r(MemFile::rd, MemFile::sk, MemFile::sz, &mf);
+    tree::ResultTree tree;
+    orchestrator::ScanStats stats;
+    session::VolumeSessionInfo info;
+    LoadHookState st;
+    ASSERT_EQ(orchestrator::ScanController::load_session_summary(r, tree, stats, info, nullptr,
+                                                                 load_progress_counter, &st),
+              u32(OK));
+    const u64 nodes2 = tree.node_count(); /* 20 files + the root */
+    EXPECT_EQ(st.calls, nodes2);
+    EXPECT_EQ(st.total_seen, nodes2);
+
+    /* and the cancel path propagates as ERR_CANCELLED through the
+     * container layer (the format error must not swallow it) */
+    Reader r2(MemFile::rd, MemFile::sk, MemFile::sz, &mf);
+    tree::ResultTree tree2;
+    orchestrator::ScanStats stats2;
+    session::VolumeSessionInfo info2;
+    LoadHookState st2;
+    st2.cancel_at_done = 3;
+    EXPECT_EQ(orchestrator::ScanController::load_session_summary(r2, tree2, stats2, info2, nullptr,
+                                                                 load_progress_counter, &st2),
+              u32(ERR_CANCELLED));
+    EXPECT_LT(st2.calls, nodes2);
+}

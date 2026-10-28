@@ -44,10 +44,22 @@ namespace session {
  * serialization (ERR_CANCELLED). NULL = silent save (the pre-N-060
  * behavior). */
 using SerializeProgress = bool (*)(u64 done, u64 total, void* user);
+/* W1b (R-54): load-path progress + cancel hook - the N-060 mirror. The
+ * og's RESTORE reports progress inside the load window (40+50*done/
+ * (total+done) - rsf-format--scan-session.md flow section) and checks
+ * IsCancelled after EVERY child, tearing down on cancel. Called per
+ * attached node during the tree deserialization; done/total are NODE
+ * counts; returning false aborts with ERR_CANCELLED - the caller
+ * discards the partial tree (a torn load never half-claims state,
+ * the load-side twin of the save-side "a torn save never destroys
+ * the previous good file"). NULL = silent load (the pre-W1b
+ * behavior). */
+using DeserializeProgress = bool (*)(u64 done, u64 total, void* user);
 u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out,
                    SerializeProgress progress = nullptr, void* progress_user = nullptr);
 u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree,
-                     u32* reparented_out = nullptr);
+                     u32* reparented_out = nullptr, DeserializeProgress progress = nullptr,
+                     void* progress_user = nullptr);
 
 /* ---- read error map (REC_ERROR_MAP payload) ---- */
 u32 serialize_error_map(const ReadErrorMap& map, std::vector<u8>& out);

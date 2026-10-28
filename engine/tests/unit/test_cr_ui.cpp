@@ -403,6 +403,79 @@ TEST(CrUi, SessionListTwoCallPatternAndRowTruth) {
     EXPECT_EQ(cr_ui_session_list("no-such-dir-w1a", rows.data(), &m), 0x50020001u);
 }
 
+namespace {
+/* W1b (R-54): the load-progress event observer. */
+struct LoadEvents {
+    unsigned events = 0;
+    uint64_t last_done = 0, last_total = 0;
+    uint32_t last_pm = 0;
+    bool terminal = false;
+    volatile uint32_t* cancel = nullptr;
+    bool cancel_on_first = false;
+};
+void load_event_cb(void* user, const cr_ui_event* evt) {
+    auto* st = static_cast<LoadEvents*>(user);
+    if (evt->type != CR_EVT_SESSION_LOAD_PROGRESS)
+        return;
+    ++st->events;
+    st->last_done = evt->bytes_done;
+    st->last_total = evt->bytes_total;
+    st->last_pm = evt->stage_permille;
+    if (evt->bytes_done == evt->bytes_total)
+        st->terminal = true;
+    if (st->cancel_on_first && st->cancel)
+        *st->cancel = 1; /* deterministic same-thread cancel (the og polls
+                          * the progress object from the loading thread) */
+}
+} // namespace
+
+TEST(CrUi, SessionLoadProgressEventsAndCancelFlag) {
+    /* W1b (R-54): the load-side twin of the N-060 save machinery -
+     * coalesced CR_EVT_SESSION_LOAD_PROGRESS events (first tick,
+     * permille steps, terminal) and the CALLER-OWNED cancel flag polled
+     * per node (the og's per-child IsCancelled mirror). */
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_to_session("loadprog", u, img, crsf));
+
+    /* the NULL/NULL variant IS the plain load (the contract) */
+    cr_ui_session* s1 = nullptr;
+    ASSERT_EQ(cr_ui_session_load_with_events(crsf.c_str(), nullptr, nullptr, nullptr, &s1),
+              CR_UI_OK);
+    ASSERT_NE(s1, nullptr);
+    cr_ui_session_close(s1);
+
+    /* events fire; the terminal tick lands done == total at permille 1000 */
+    {
+        cr_ui_session* s2 = nullptr;
+        LoadEvents le;
+        ASSERT_EQ(cr_ui_session_load_with_events(crsf.c_str(), load_event_cb, &le, nullptr, &s2),
+                  CR_UI_OK);
+        ASSERT_NE(s2, nullptr);
+        cr_ui_session_close(s2);
+        EXPECT_GE(le.events, 1u);
+        EXPECT_TRUE(le.terminal);
+        EXPECT_GT(le.last_total, 0u);
+        EXPECT_EQ(le.last_done, le.last_total);
+        EXPECT_EQ(le.last_pm, 1000u);
+    }
+
+    /* cancel: the flag aborts with CR_UI_ERR_CANCELLED and the out param
+     * is NEVER half-claimed (a torn load hands out no session) */
+    {
+        volatile uint32_t cancel = 0;
+        cr_ui_session* s3 = reinterpret_cast<cr_ui_session*>(uintptr_t(0x1234));
+        LoadEvents le;
+        le.cancel = &cancel;
+        le.cancel_on_first = true;
+        EXPECT_EQ(cr_ui_session_load_with_events(crsf.c_str(), load_event_cb, &le, &cancel, &s3),
+                  0x50020005u);
+        EXPECT_EQ(s3, reinterpret_cast<cr_ui_session*>(uintptr_t(0x1234)));
+        EXPECT_GE(le.events, 1u);
+        EXPECT_FALSE(le.terminal);
+    }
+}
+
 TEST(CrUi, SessionListUnreadableFileGetsAnErrorRow) {
     /* W1a (R-56): a junk .crsf in the directory still gets a row:
      * valid = 0 + the decode error - the list never hides damage. */

@@ -192,6 +192,21 @@ typedef void (*cr_ui_recovery_progress_fn)(void* user, uint64_t bytes_done, uint
          * (0x1001..0x100e taxonomy) and check_family the detected                                 \
          * family byte; per-error detail rides the session record.                                 \
          * The report NEVER aborts the scan. */
+#define CR_EVT_SESSION_LOAD_PROGRESS                                                               \
+    11u /* W1b (R-54) load-path progress: fired from the thread running                            \
+         * cr_ui_session_load_with_events while the session tree                                   \
+         * deserializes - coalesced (first tick, permille steps,                                   \
+         * terminal), the CR_EVT_SAVE_PROGRESS mirror. stage =                                     \
+         * 0xFFFFFFFF; stage_permille = the load's own 0..1000;                                    \
+         * overall_permille = 0xFFFFFFFF (no scan context);                                        \
+         * bytes_done/bytes_total = nodes deserialized / persisted                                 \
+         * node count. Cancellation: the CALLER-OWNED cancel flag                                  \
+         * (cr_ui_session_load_with_events' cancel_flag argument,                                  \
+         * polled per node - the og's IUIProgressInfo IsCancelled                                  \
+         * vtable+0x20 polled per child, rsf-format--scan-session.md                               \
+         * flow section) aborts with CR_UI_ERR_CANCELLED - no                                      \
+         * session is returned and the partial tree is discarded                                   \
+         * (a torn load never half-claims state). */
 
 typedef struct cr_ui_event {
     uint32_t type;         /* CR_EVT_* above */
@@ -848,6 +863,27 @@ typedef struct cr_ui_session_row {
 
 CR_UI_API uint32_t cr_ui_session_list(const char* utf8_dir, cr_ui_session_row* rows,
                                       uint32_t* count);
+
+/* ---- session load progress + cancel (W1b / R-54) ---------------------------
+ * The load-side twin of the N-060 save machinery. The og's RESTORE
+ * reports progress inside the load window (40+50*done/(total+done),
+ * rsf-format--scan-session.md flow section) and polls IsCancelled
+ * after EVERY child. This variant of cr_ui_session_load takes:
+ *   fn          - optional event sink; CR_EVT_SESSION_LOAD_PROGRESS
+ *                 fires coalesced (first tick, permille steps,
+ *                 terminal) from the CALLING thread
+ *   cancel_flag - optional CALLER-OWNED flag (zero-init safe; set it
+ *                 nonzero FROM ANY THREAD to abort the load), the
+ *                 og's IUIProgressInfo IsCancelled mirror. Polled
+ *                 per node EVEN WHEN fn is NULL (a silent host can
+ *                 still cancel).
+ * On cancel: returns CR_UI_ERR_CANCELLED, *out untouched (no
+ * half-claimed session - a torn load never hands out partial state).
+ * With fn = NULL and cancel_flag = NULL this is exactly the plain
+ * cr_ui_session_load. */
+CR_UI_API uint32_t cr_ui_session_load_with_events(const char* utf8_path, cr_ui_event_fn fn,
+                                                  void* user, volatile uint32_t* cancel_flag,
+                                                  cr_ui_session** out);
 
 /* ---- snapshot enumeration -------------------------------------------------
  * Flat, index-addressed rows (parent/child/sibling links as indices;

@@ -2628,6 +2628,71 @@ u32 session_load_impl(const char* utf8_path, cr_ui_session** out) {
     return ret_ok();
 }
 
+/* W1b (R-54): the load-path progress/cancel adapter - the N-060
+ * save_progress_adapter_ mirror. The og's restore reports progress inside
+ * the load window and polls IsCancelled after EVERY child
+ * (rsf-format--scan-session.md flow section). (a) the cancel check rides
+ * the CALLER-OWNED flag - polled on every node, events or not (a silent
+ * host can still cancel, same rule as the save side); (b) events coalesce
+ * (first tick, permille steps, terminal - the save event cadence). */
+struct LoadProgressState {
+    cr_ui_event_fn fn = nullptr;
+    void* user = nullptr;
+    volatile uint32_t* cancel = nullptr;
+    u32 last_pm = 0xFFFFFFFFu;
+    bool first = true;
+};
+bool load_progress_adapter_(u64 done, u64 total, void* user) {
+    auto* st = static_cast<LoadProgressState*>(user);
+    /* per-child IsCancelled equivalent: the caller-owned flag, polled on
+     * EVERY node (any thread may set it; zero-init safe by contract) */
+    if (st->cancel && *st->cancel != 0)
+        return false;
+    if (!st->fn)
+        return true;
+    const u32 pm = total ? u32(done * 1000 / total) : 1000;
+    if (st->first || pm != st->last_pm || done == total) {
+        st->first = false;
+        st->last_pm = pm;
+        cr_ui_event out;
+        std::memset(&out, 0, sizeof(out));
+        out.type = CR_EVT_SESSION_LOAD_PROGRESS;
+        out.stage = 0xFFFFFFFFu;
+        out.stage_permille = pm;            /* the load's own 0..1000 */
+        out.overall_permille = 0xFFFFFFFFu; /* no scan context */
+        out.bytes_done = done;              /* nodes deserialized */
+        out.bytes_total = total;            /* persisted node count */
+        st->fn(st->user, &out);
+    }
+    return true;
+}
+
+u32 session_load_with_events_impl(const char* utf8_path, cr_ui_event_fn fn, void* user,
+                                  volatile uint32_t* cancel_flag, cr_ui_session** out) {
+    if (!utf8_path || !*utf8_path || !out)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: path/out");
+    FILE* f = open_file(utf8_path, false);
+    if (!f)
+        return ret_(ERR_OPEN_FAILED, "cannot open session %s", utf8_path);
+    auto* sess = new CrSession();
+    sess->path = utf8_path;
+    session::Reader r(f_read_cb, f_seek_cb, f_size_cb, f);
+    LoadProgressState lp;
+    lp.fn = fn;
+    lp.user = user;
+    lp.cancel = cancel_flag;
+    const u32 rc = orchestrator::ScanController::load_session_summary(
+        r, sess->tree, sess->stats, sess->info, nullptr, load_progress_adapter_, &lp);
+    std::fclose(f);
+    if (rc != OK) {
+        delete sess; /* the partial tree is discarded - a torn load never
+                      * half-claims state (W1b contract) */
+        return ret_(rc, "session load failed (%s)", err_text(rc));
+    }
+    *out = reinterpret_cast<cr_ui_session*>(sess);
+    return ret_ok();
+}
+
 u32 session_list_impl(const char* utf8_dir, cr_ui_session_row* rows, uint32_t* count) {
     if (!utf8_dir || !*utf8_dir || !count)
         return ret_(ERR_BAD_PARAMETER, "bad argument: dir/count");
@@ -2940,6 +3005,12 @@ u32 session_resume_impl(cr_ui_session* sess, const cr_ui_scan_config* original_c
 
 extern "C" CR_UI_API uint32_t cr_ui_session_load(const char* utf8_path, cr_ui_session** out) {
     return guarded(session_load_impl, utf8_path, out);
+}
+extern "C" CR_UI_API uint32_t cr_ui_session_load_with_events(const char* utf8_path,
+                                                             cr_ui_event_fn fn, void* user,
+                                                             volatile uint32_t* cancel_flag,
+                                                             cr_ui_session** out) {
+    return guarded(session_load_with_events_impl, utf8_path, fn, user, cancel_flag, out);
 }
 extern "C" CR_UI_API uint32_t cr_ui_disk_map(cr_ui_session* sess, cr_ui_snapshot* snap,
                                              const cr_ui_disk_map_geometry* want,

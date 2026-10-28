@@ -34,7 +34,7 @@
 > closed by the 8-step classifier + `cr_ui_driver_status` + the ABI error
 > family. The b.2 row "RDA-first with direct fallback" is likewise
 > superseded (classified ERR_DRIVER_* refusal, no fallback). Current
-> counts: 80 exports / 11 verbs / 39+OK error codes.
+> counts: 81 exports / 11 verbs / 39+OK error codes.
 > Current contract docs: [ABI-CONTRACT.md](ABI-CONTRACT.md),
 > [DRIVER-REQUIRED.md](DRIVER-REQUIRED.md), [API.md](API.md).
 ---
@@ -164,9 +164,9 @@
 
 ---
 
-## (b) The C UI ABI — every export (78; `CR_UI_ABI_VERSION 2`, cr_ui.h:64)
+## (b) The C UI ABI — every export (78; `CR_UI_ABI_VERSION 2`, cr_ui.h:79)
 
-Rules (cr_ui.h:23-53): C11, u32 returns from the cr::Err space, UTF-8 in / two-call or
+Rules (cr_ui.h:38-68): C11, u32 returns from the cr::Err space, UTF-8 in / two-call or
 heap-out strings, zero-init configs always safe, no exception escapes (catch-all returns
 `CR_UI_ERR_INTERNAL` 0x50090001), append-only policy.
 
@@ -174,136 +174,137 @@ heap-out strings, zero-init configs always safe, no exception escapes (catch-all
 
 | Export | Contract |
 |---|---|
-| `cr_ui_abi_version()` | returns 2; call first, refuse on mismatch (cr_ui.h:105-107) |
-| `cr_ui_last_error()` | thread-local text of the LAST failing call; stable until next call on that thread (cr_ui.h:110-113) |
-| `cr_ui_string_free(char*)` | frees heap strings (free() also valid) (cr_ui.h:113) |
+| `cr_ui_abi_version()` | returns 2; call first, refuse on mismatch (cr_ui.h:120-122) |
+| `cr_ui_last_error()` | thread-local text of the LAST failing call; stable until next call on that thread (cr_ui.h:125-128) |
+| `cr_ui_string_free(char*)` | frees heap strings (free() also valid) (cr_ui.h:128) |
 
 ### b.2 Devices & transport truth (9)
 
 | Export | Contract |
 |---|---|
-| `cr_ui_open_image(utf8, offset, bytes, out)` | flat/VMDK/VHD/VHDX read-only device bounded to [offset, offset+bytes); bytes=0 → to EOF (cr_ui.h:281) |
-| `cr_ui_open_disk(disk, out)` | Windows only: REFUSES with the classified ERR_DRIVER_* code when the RDA driver is absent/not-started/unauthorized/version-incompatible/errored — NO direct-handle fallback (PLAN-DRIVER-ONLY); transport (always "rda") reported by device_transport (cr_ui.h:299) |
-| `cr_ui_open_volume(letter, out)` | BitLocker probe first; locked → auto-unlock attempt → `CR_UI_ERR_FVE_LOCKED` (0x50060001); returns the volume slice on its parent disk (cr_ui.h:300) |
+| `cr_ui_open_image(utf8, offset, bytes, out)` | flat/VMDK/VHD/VHDX read-only device bounded to [offset, offset+bytes); bytes=0 → to EOF (cr_ui.h:296) |
+| `cr_ui_open_disk(disk, out)` | Windows only: REFUSES with the classified ERR_DRIVER_* code when the RDA driver is absent/not-started/unauthorized/version-incompatible/errored — NO direct-handle fallback (PLAN-DRIVER-ONLY); transport (always "rda") reported by device_transport (cr_ui.h:314) |
+| `cr_ui_open_volume(letter, out)` | BitLocker probe first; locked → auto-unlock attempt → `CR_UI_ERR_FVE_LOCKED` (0x50060001); returns the volume slice on its parent disk (cr_ui.h:315) |
 | `cr_ui_last_transport_error()` | M-030: surviving transport leg's error from the LAST cr_ui_open_disk on this process; advisory, process-global, never clears (cr_ui.h:309; impl cr_ui.cpp:1505) |
-| `cr_ui_open_volume_with_key(letter, hex_fvek, out)` | M-033: locked-volume open with user FVEK (64/128 hex chars → AES-128/256-XTS in-stack decrypt) (cr_ui.h:376) |
-| `cr_ui_unlock_volume_with_dictionary(letter, passwords, count)` | N-064 explicit-consent dictionary unlock (shipped 228 + user candidates) (cr_ui.h:392) |
-| `cr_ui_device_close(dev)` | closes; caller-owned close order (cr_ui.h:396) |
-| `cr_ui_device_geometry(dev, out)` | 4Kn-aware geometry (cr_ui.h:405) |
-| `cr_ui_device_transport(dev, buf, cap, needed)` | "rda" / "image" two-call string (cr_ui.h:412) |
+| `cr_ui_open_volume_with_key(letter, hex_fvek, out)` | M-033: locked-volume open with user FVEK (64/128 hex chars → AES-128/256-XTS in-stack decrypt) (cr_ui.h:391) |
+| `cr_ui_unlock_volume_with_dictionary(letter, passwords, count)` | N-064 explicit-consent dictionary unlock (shipped 228 + user candidates) (cr_ui.h:407) |
+| `cr_ui_device_close(dev)` | closes; caller-owned close order (cr_ui.h:411) |
+| `cr_ui_device_geometry(dev, out)` | 4Kn-aware geometry (cr_ui.h:420) |
+| `cr_ui_device_transport(dev, buf, cap, needed)` | "rda" / "image" two-call string (cr_ui.h:427) |
 
 ### b.3 Enumeration (2)
 
 | Export | Contract |
 |---|---|
-| `cr_ui_enumerate_disks(out, count)` | PhysicalDrive census ≤ 200 disks; failure returns error (never silent empty) (cr_ui.h:443) |
-| `cr_ui_enumerate_volumes(out, count)` | letter/disk correlation + FVE flag (cr_ui.h:444) |
+| `cr_ui_enumerate_disks(out, count)` | PhysicalDrive census ≤ 200 disks; failure returns error (never silent empty) (cr_ui.h:458) |
+| `cr_ui_enumerate_volumes(out, count)` | letter/disk correlation + FVE flag (cr_ui.h:459) |
 
 ### b.4 Scan lifecycle (18)
 
 | Export | Contract |
 |---|---|
-| `cr_ui_scan_create(cfg, out)` / `cr_ui_scan_close` | handle lifecycle; zero-init cfg = defaults (cr_ui.h:551-552) |
-| `cr_ui_scan_attach_device` | bind device BEFORE run; identity card auto-fill (Windows) (cr_ui.h:557-559) |
-| `cr_ui_scan_run` | synchronous on caller's thread; 0 / engine error / `CR_UI_ERR_CANCELLED` with tree intact (cr_ui.h:562-564) |
-| `cr_ui_scan_pause` / `_resume` / `_cancel` | token control, any thread (cr_ui.h:565-567) |
-| `cr_ui_scan_busy` / `cr_ui_scan_stopping` | N-075 synchronous state queries (live run state / live cancel request) (cr_ui.h:580-581) |
-| `cr_ui_scan_set_event_fn` | subscribe pre-run only (ERR_BAD_PARAMETER mid-run) (cr_ui.h:271-273) |
-| `cr_ui_scan_telemetry` | any-thread live snapshot (cr_ui.h:603) |
-| `cr_ui_scan_get_stats` | post-run counters (cr_ui.h:635) |
-| `cr_ui_scan_assistant` | S-023 grading statistics (cr_ui.h:664) |
-| `cr_ui_scan_checkpoint_count` | G-13 emitted checkpoints (cr_ui.h:672) |
-| `cr_ui_scan_repair_save_undo` | persist S-008 repair undo log (cr_ui.h:681) |
-| `cr_ui_scan_save_session(path)` / `cr_ui_scan_save_cancel` | N-060 atomic save + save-scoped cancel (cr_ui.h:758-764, 703-712) |
-| `cr_ui_scan_snapshot` | G-02 immutable mid-scan/after value capture (cr_ui.h:764-767) |
-| `cr_ui_scan_verify_identity` | boot-hash mismatch → `CR_UI_ERR_BAD_CHECKSUM` (cr_ui.h:772-776) |
+| `cr_ui_scan_create(cfg, out)` / `cr_ui_scan_close` | handle lifecycle; zero-init cfg = defaults (cr_ui.h:566-567) |
+| `cr_ui_scan_attach_device` | bind device BEFORE run; identity card auto-fill (Windows) (cr_ui.h:572-574) |
+| `cr_ui_scan_run` | synchronous on caller's thread; 0 / engine error / `CR_UI_ERR_CANCELLED` with tree intact (cr_ui.h:577-579) |
+| `cr_ui_scan_pause` / `_resume` / `_cancel` | token control, any thread (cr_ui.h:580-582) |
+| `cr_ui_scan_busy` / `cr_ui_scan_stopping` | N-075 synchronous state queries (live run state / live cancel request) (cr_ui.h:595-596) |
+| `cr_ui_scan_set_event_fn` | subscribe pre-run only (ERR_BAD_PARAMETER mid-run) (cr_ui.h:286-288) |
+| `cr_ui_scan_telemetry` | any-thread live snapshot (cr_ui.h:618) |
+| `cr_ui_scan_get_stats` | post-run counters (cr_ui.h:650) |
+| `cr_ui_scan_assistant` | S-023 grading statistics (cr_ui.h:679) |
+| `cr_ui_scan_checkpoint_count` | G-13 emitted checkpoints (cr_ui.h:687) |
+| `cr_ui_scan_repair_save_undo` | persist S-008 repair undo log (cr_ui.h:696) |
+| `cr_ui_scan_save_session(path)` / `cr_ui_scan_save_cancel` | N-060 atomic save + save-scoped cancel (cr_ui.h:773-779, 703-712) |
+| `cr_ui_scan_snapshot` | G-02 immutable mid-scan/after value capture (cr_ui.h:779-782) |
+| `cr_ui_scan_verify_identity` | boot-hash mismatch → `CR_UI_ERR_BAD_CHECKSUM` (cr_ui.h:787-791) |
 
 ### b.5 Apply (3) — S-029 lost-partition table writes
 
 | Export | Contract |
 |---|---|
-| `cr_ui_apply_lost_partition(dev, cand, rebuild, consent, user, out)` | plan → consent callback → transactional write + undo; default-deny (cr_ui.h:731-739) |
-| `cr_ui_apply_undo_last(dev, out)` | byte-exact restore of last apply (cr_ui.h:738) |
-| `cr_ui_apply_save_undo(dev, path)` | persist CRUNDO01 container (cr_ui.h:743) |
+| `cr_ui_apply_lost_partition(dev, cand, rebuild, consent, user, out)` | plan → consent callback → transactional write + undo; default-deny (cr_ui.h:746-754) |
+| `cr_ui_apply_undo_last(dev, out)` | byte-exact restore of last apply (cr_ui.h:753) |
+| `cr_ui_apply_save_undo(dev, path)` | persist CRUNDO01 container (cr_ui.h:758) |
 
-### b.6 Sessions & snapshots (13)
+### b.6 Sessions & snapshots (14)
 
 | Export | Contract |
 |---|---|
-| `cr_ui_session_load` / `cr_ui_session_close` | .crsf container lifecycle (cr_ui.h:781-783) |
-| `cr_ui_session_get_info` | family, masks, slice, identity card, boot_hash (cr_ui.h:796) |
-| `cr_ui_session_stats` | the stats block (cr_ui.h:797) |
-| `cr_ui_session_regrade` | S-023 per-selection re-grade (grade-1 only) (cr_ui.h:670-672) |
-| `cr_ui_session_snapshot` | post-scan value capture (cr_ui.h:798) |
-| `cr_ui_session_resume(sess, original_cfg, out)` | mask-validated resume flow (cr_ui.h:805-806) |
-| `cr_ui_session_list(dir, rows, count)` | W1a (R-56) the saved-session directory list: the light per-file summary (LastScanRecordView), two-call size pattern, error rows for unreadable files (cr_ui.h:808-850) |
-| `cr_ui_snapshot_close` / `_node_count` / `_partial` / `_node(index, info, name_buf, cap)` / `_dfs(indices, count)` | index-addressed immutable rows; TRUNCATED two-call pattern (cr_ui.h:886-902) |
+| `cr_ui_session_load` / `cr_ui_session_close` | .crsf container lifecycle (cr_ui.h:796-798) |
+| `cr_ui_session_get_info` | family, masks, slice, identity card, boot_hash (cr_ui.h:811) |
+| `cr_ui_session_stats` | the stats block (cr_ui.h:812) |
+| `cr_ui_session_regrade` | S-023 per-selection re-grade (grade-1 only) (cr_ui.h:685-687) |
+| `cr_ui_session_snapshot` | post-scan value capture (cr_ui.h:813) |
+| `cr_ui_session_resume(sess, original_cfg, out)` | mask-validated resume flow (cr_ui.h:820-821) |
+| `cr_ui_session_list(dir, rows, count)` | W1a (R-56) the saved-session directory list: the light per-file summary (LastScanRecordView), two-call size pattern, error rows for unreadable files (cr_ui.h:823-865) |
+| `cr_ui_session_load_with_events(path, fn, user, cancel_flag, out)` | W1b (R-54) the load with progress events + the caller-owned cancel flag; NULL/NULL == plain load; cancel -> ERR_CANCELLED, no session out (cr_ui.h:867-886) |
+| `cr_ui_snapshot_close` / `_node_count` / `_partial` / `_node(index, info, name_buf, cap)` / `_dfs(indices, count)` | index-addressed immutable rows; TRUNCATED two-call pattern (cr_ui.h:922-938) |
 
 ### b.7 Query (3)
 
 | Export | Contract |
 |---|---|
-| `cr_ui_query_run(sess, q, rows, count, total)` | G-12 filter/sort/page; heap rows (cr_ui.h:949-951) |
-| `cr_ui_query_rows_free` | frees the row array (cr_ui.h:952) |
-| `cr_ui_query_apply_buckets` | M-029 og date/size bucket-id translation, unknown IDs rejected (cr_ui.h:971-977) |
+| `cr_ui_query_run(sess, q, rows, count, total)` | G-12 filter/sort/page; heap rows (cr_ui.h:985-987) |
+| `cr_ui_query_rows_free` | frees the row array (cr_ui.h:988) |
+| `cr_ui_query_apply_buckets` | M-029 og date/size bucket-id translation, unknown IDs rejected (cr_ui.h:1007-1013) |
 
 ### b.8 Carve registry + user signs (5)
 
 | Export | Contract |
 |---|---|
-| `cr_ui_carve_format_count()` / `cr_ui_carve_format_info(index, out)` | N-033 two-layer enumeration, stable order (cr_ui.h:1000-1007) |
-| `cr_ui_register_user_signs(json, len)` | M-048 atomic install (cr_ui.h:1021) |
-| `cr_ui_user_sign_count()` / `cr_ui_user_sign_info` | enumerate active set (cr_ui.h:1032-1034) |
+| `cr_ui_carve_format_count()` / `cr_ui_carve_format_info(index, out)` | N-033 two-layer enumeration, stable order (cr_ui.h:1036-1043) |
+| `cr_ui_register_user_signs(json, len)` | M-048 atomic install (cr_ui.h:1057) |
+| `cr_ui_user_sign_count()` / `cr_ui_user_sign_info` | enumerate active set (cr_ui.h:1068-1070) |
 
 ### b.9 Disk map (2)
 
 | Export | Contract |
 |---|---|
-| `cr_ui_disk_map(sess, snap, want, got, alloc/coverage/found/confidence, bad_ranges...)` | GAP-S6-11 overlay producer; TRUNCATED two-call for bad ranges (cr_ui.h:1076-1081) |
-| `cr_ui_disk_map_free(overlay)` | frees one overlay array (cr_ui.h:1084) |
+| `cr_ui_disk_map(sess, snap, want, got, alloc/coverage/found/confidence, bad_ranges...)` | GAP-S6-11 overlay producer; TRUNCATED two-call for bad ranges (cr_ui.h:1112-1117) |
+| `cr_ui_disk_map_free(overlay)` | frees one overlay array (cr_ui.h:1120) |
 
 ### b.10 Preview (7)
 
 | Export | Contract |
 |---|---|
-| `cr_ui_preview_open_snapshot(dev, snap, index, out)` / `cr_ui_preview_open_session(dev, sess, node_id, out)` | private-props copy; DEVICE must outlive (cr_ui.h:1096-1099) |
-| `cr_ui_preview_close` / `cr_ui_preview_size` | lifecycle (cr_ui.h:1100-1105) |
-| `cr_ui_preview_read(pv, off, buf, len, placed)` | 4 MiB/call cap; short only at EOF; unreadable spans zero-filled AND reported (cr_ui.h:1108-1113) |
-| `cr_ui_preview_metadata(pv, out)` | capped kind/format/EXIF/codec/text extraction (cr_ui.h:1126) |
-| `cr_ui_preview_unreadable(pv, total, count)` | truthful failure map (cr_ui.h:1130) |
+| `cr_ui_preview_open_snapshot(dev, snap, index, out)` / `cr_ui_preview_open_session(dev, sess, node_id, out)` | private-props copy; DEVICE must outlive (cr_ui.h:1132-1135) |
+| `cr_ui_preview_close` / `cr_ui_preview_size` | lifecycle (cr_ui.h:1136-1141) |
+| `cr_ui_preview_read(pv, off, buf, len, placed)` | 4 MiB/call cap; short only at EOF; unreadable spans zero-filled AND reported (cr_ui.h:1144-1149) |
+| `cr_ui_preview_metadata(pv, out)` | capped kind/format/EXIF/codec/text extraction (cr_ui.h:1162) |
+| `cr_ui_preview_unreadable(pv, total, count)` | truthful failure map (cr_ui.h:1166) |
 
 ### b.11 Recovery (12)
 
 | Export | Contract |
 |---|---|
-| `cr_ui_recovery_create(source, cfg, out)` / `cr_ui_recovery_close` | writer session over injected DestIo (cr_ui.h:1151-1155) |
-| `cr_ui_recovery_set_destination(path)` | arms F12 overlap refusal on Windows (cr_ui.h:1160) |
-| `cr_ui_recovery_enqueue_node` / `_subtree` / `_snapshot` / `_subtree_snapshot` | queue building (session node_id or snapshot index) (cr_ui.h:1167-1175) |
-| `cr_ui_recovery_queue_count` | live depth (cr_ui.h:1178) |
-| `cr_ui_recovery_process` / `cr_ui_recovery_cancel` | synchronous process on caller's thread; ERR_CANCELLED keeps committed items (cr_ui.h:1184-1187) |
-| `cr_ui_recovery_get_stats` | per-outcome counters incl. salvaged/nothing_to_recover (cr_ui.h:1151) |
-| `cr_ui_recovery_report_json(rec, source, json_out)` | G-09 report, valid any time (cr_ui.h:1156) |
+| `cr_ui_recovery_create(source, cfg, out)` / `cr_ui_recovery_close` | writer session over injected DestIo (cr_ui.h:1187-1191) |
+| `cr_ui_recovery_set_destination(path)` | arms F12 overlap refusal on Windows (cr_ui.h:1196) |
+| `cr_ui_recovery_enqueue_node` / `_subtree` / `_snapshot` / `_subtree_snapshot` | queue building (session node_id or snapshot index) (cr_ui.h:1203-1211) |
+| `cr_ui_recovery_queue_count` | live depth (cr_ui.h:1214) |
+| `cr_ui_recovery_process` / `cr_ui_recovery_cancel` | synchronous process on caller's thread; ERR_CANCELLED keeps committed items (cr_ui.h:1220-1223) |
+| `cr_ui_recovery_get_stats` | per-outcome counters incl. salvaged/nothing_to_recover (cr_ui.h:1187) |
+| `cr_ui_recovery_report_json(rec, source, json_out)` | G-09 report, valid any time (cr_ui.h:1192) |
 
 ### b.12 Health (1)
 
 | Export | Contract |
 |---|---|
-| `cr_ui_health_read(disk, rep, attrs, cap, count)` | SMART + NVMe + SSD heuristic + TRIM in one call; Windows-only (ERR_UNSUPPORTED elsewhere) (cr_ui.h:1201-1204) |
+| `cr_ui_health_read(disk, rep, attrs, cap, count)` | SMART + NVMe + SSD heuristic + TRIM in one call; Windows-only (ERR_UNSUPPORTED elsewhere) (cr_ui.h:1237-1240) |
 
 ### b.13 Events (the payload contract, not exports)
 
-`cr_ui_event` POD with `type` 1..10 (cr_ui.h:131-224): `CR_EVT_SCAN_STAGE` 1,
+`cr_ui_event` POD with `type` 1..10 (cr_ui.h:146-239): `CR_EVT_SCAN_STAGE` 1,
 `SCAN_PROGRESS` 2, `FILES_FOUND` 3, `ERROR_RANGE` 4 (with err_module/err_operation/
 err_attempts M-049 triple), `CHECKPOINT` 5, `LOST_CANDIDATE` 6, `REPAIR` 7,
 `HEARTBEAT` 8 (N-043 watchdog, shim-side), `SAVE_PROGRESS` 9 (N-060, shim-side),
-`FS_CHECK` 10 (M-041). Unknown types MUST be ignored (forward compat, cr_ui.h:120-121).
+`FS_CHECK` 10 (M-041). Unknown types MUST be ignored (forward compat, cr_ui.h:135-136).
 
 ### b.14 Threading / errors (cross-cutting)
 
 - run()/process() synchronous on caller's thread; pause/resume/cancel/telemetry/snapshot/
-  busy/stopping any thread (cr_ui.h:32-36; ABI-CONTRACT §3).
+  busy/stopping any thread (cr_ui.h:47-51; ABI-CONTRACT §3).
 - Progress + event callbacks fire on worker threads; must not block; NO cancellation
-  semantics in callbacks (cr_ui.h:91-95).
+  semantics in callbacks (cr_ui.h:106-110).
 - Every export is wrapped by `guarded()` (cr_ui.cpp) → catch-all → `CR_UI_ERR_INTERNAL`
   with `cr_ui_last_error` text.
 - Export mechanics: MSVC exports only `__declspec(dllexport)` symbols plus exactly ONE
@@ -463,7 +464,7 @@ the surviving leg's cr::Err code (M-030). See CORE-DISK-ACCESS.md §(g).
 
 **Error-context attribution (M-049):** `errmod::Module` ids 0..12 (kNone, kOrchestrator,
 kNtfs, kFat, kExfat, kExt4, kBtrfs, kHfsplus, kRefs, kZfs, kCarve, kLost, kLdm —
-cr_errmod.h:50-64; ABI mirrors CR_ERRMOD_* cr_ui.h:252-268; ops op_none/op_read
+cr_errmod.h:50-64; ABI mirrors CR_ERRMOD_* cr_ui.h:267-283; ops op_none/op_read
 cr_errmod.h:68-69). Every ErrorRange event carries module/operation/attempts.
 
 ### d.2 Lifecycle states
@@ -481,9 +482,9 @@ cr_errmod.h:68-69). Every ErrorRange event carries module/operation/attempts.
 ### d.3 Threading model
 
 - run()/process() on caller's thread; pause/resume/cancel/telemetry/snapshot/busy/stopping
-  from any thread (cr_ui.h:32-36; ABI-CONTRACT.md:55-70).
+  from any thread (cr_ui.h:47-51; ABI-CONTRACT.md:55-70).
 - Events + progress may fire from ENGINE WORKER THREADS; core does not serialize
-  deliveries; sinks must not block (cr_scan.h:109-121; cr_ui.h:112-121).
+  deliveries; sinks must not block (cr_scan.h:109-121; cr_ui.h:127-136).
 - Cancellation is cooperative: engines poll `CancelToken::checkpoint()` at loop heads;
   **transports do NOT poll the token** (cr_device.h:136-147 honest scope note); bounded
   response = one loop iteration + one in-flight read. PausableToken parks waiters
@@ -508,9 +509,9 @@ boundaries via CheckpointSink (cr_scan.h:272-299); `--resume` revalidation (M-04
   `CarveFlags` (cr_carve.h:59), `RetryPolicy` (cr_device.h:96-108), `Caps` (cr_preview.h:108).
 - ABI: `cr_ui_scan_config` (zero-init defaults; stage_mask 0=7; weights; threads;
   identity strings; checkpoint_path; progress; pre_scan_repair+consent; memory_warn_mb;
-  raw_category_name; pre_scan_check — cr_ui.h:414-460), `cr_ui_recovery_config`
-  (read_chunk/rename_attempts/skip flags/conflict/progress — cr_ui.h:1078-1086),
-  `cr_ui_query` (cr_ui.h:826-841).
+  raw_category_name; pre_scan_check — cr_ui.h:429-475), `cr_ui_recovery_config`
+  (read_chunk/rename_attempts/skip flags/conflict/progress — cr_ui.h:1114-1122),
+  `cr_ui_query` (cr_ui.h:841-856).
 - CLI: PARAMETERS.md registry; every flag listed in §(c).
 - Transport config: service name (hardcoded `L"RDA"` at every call site;
   the CLI `driver --service NAME` overrides for the status surface only).
@@ -524,8 +525,8 @@ boundaries via CheckpointSink (cr_scan.h:272-299); `--resume` revalidation (M-04
 1. **`win::rda_available(service, last_error)`** (cr_transport.h:110-114;
    cr_transport.cpp:441-457) — presence probe, GLE out. The only driver-status query
    primitive in the core.
-2. **`cr_ui_device_transport`** — "rda"/"direct"/"image" (cr_ui.h:340-342).
-3. **`cr_ui_last_transport_error`** — M-030 surviving-leg error (cr_ui.h:268-280).
+2. **`cr_ui_device_transport`** — "rda"/"direct"/"image" (cr_ui.h:355-357).
+3. **`cr_ui_last_transport_error`** — M-030 surviving-leg error (cr_ui.h:283-295).
 4. **CLI `[transport]` lines** — the CLI prints probe GLE / open error / chosen path
    (rrecov.cpp:317-340) and bench's `transport` field (rrecov.cpp:1820).
 5. **`win_pe_environment`** gate (cr_transport.h:116-124) + `cr_winenv.h` pins.

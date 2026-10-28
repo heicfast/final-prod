@@ -220,6 +220,7 @@ typed stream.
 #define CR_EVT_HEARTBEAT        8u  /* N-043 liveness heartbeat (5 s watchdog) */
 #define CR_EVT_SAVE_PROGRESS    9u  /* N-060 save-path progress (coalesced) */
 #define CR_EVT_FS_CHECK         10u /* M-041 pre-scan damage-audit phase done (fired ONCE per scan; check_errors = reported issue count 0x1001..0x100e, check_family = detected family byte; the report NEVER aborts the scan) */
+#define CR_EVT_SESSION_LOAD_PROGRESS 11u /* W1b (R-54) load-path progress: coalesced (first tick, permille steps, terminal) while cr_ui_session_load_with_events deserializes; bytes_done/bytes_total = nodes deserialized / persisted node count; cancel via the CALLER-OWNED cancel_flag -> CR_UI_ERR_CANCELLED, no session out (the og's per-child IsCancelled restore teardown) */
 
 typedef struct cr_ui_event {
     uint32_t type;            /* CR_EVT_* above */
@@ -474,7 +475,7 @@ Contract:
 ### 7f. The session-list surface (W1a / R-56; PLAN-API-EXPANSION Wave 1)
 
 `cr_ui_session_list(const char* utf8_dir, cr_ui_session_row* rows, uint32_t* count)`
-(cr_ui.h:808-850) — the og's LastScanRecordView surface
+(cr_ui.h:823-865) — the og's LastScanRecordView surface
 (UIUX/07-home-phase-deep-dive.md:21 + the Continue-last banner): a
 directory-level summary listing where every `*.crsf` file yields ONE row
 decoded from the container's LIGHT records only (`SESSION_STATE` +
@@ -510,6 +511,38 @@ time (the v5 VOLUME_INFO tail; 0 = a pre-v5 session — display the file
   bump (§9 policy; `CR_UI_ABI_VERSION` stays 3).
 - **CLI rendering**: `rrecov sessions [--dir D] [--json]` (the three-site
   verb-list pin governs its doc sites).
+
+### 7g. The session load progress/cancel surface (W1b / R-54; PLAN-API-EXPANSION Wave 1)
+
+`cr_ui_session_load_with_events(const char* utf8_path, cr_ui_event_fn fn, void* user,
+volatile uint32_t* cancel_flag, cr_ui_session** out)` (cr_ui.h:867-886) — the
+load-side twin of the N-060 save machinery. The og's RESTORE reports
+progress inside the load window (`40+50*done/(total+done)`,
+rsf-format--scan-session.md flow section) and polls `IUIProgressInfo::
+IsCancelled` after EVERY child, tearing down on cancel; our mirror:
+
+- **Events**: `fn` (optional) receives `CR_EVT_SESSION_LOAD_PROGRESS`
+  (type 11) from the CALLING thread — coalesced (first tick, permille
+  steps, terminal — the save event cadence). `stage = 0xFFFFFFFF`;
+  `stage_permille` = the load's own 0..1000; `overall_permille =
+  0xFFFFFFFF` (no scan context); `bytes_done/bytes_total` = nodes
+  deserialized / the persisted node count.
+- **Cancel**: `cancel_flag` (optional, CALLER-OWNED, zero-init safe) is
+  polled per node — EVEN WHEN `fn` is NULL (a silent host can still
+  cancel, the same rule as the save side). Any thread may set it
+  nonzero; the load aborts with `CR_UI_ERR_CANCELLED` and `*out` is
+  NEVER touched (a torn load never half-claims state — the load-side
+  twin of the save-side "a torn save never destroys the previous good
+  file").
+- **Degenerate contract**: with `fn = NULL` and `cancel_flag = NULL`
+  this is exactly the plain `cr_ui_session_load`.
+- **Core seam**: `session::DeserializeProgress` (cr_records.h:47-62),
+  threaded through `load_session` / `load_session_summary` / `resume`;
+  ERR_CANCELLED propagates from `deserialize_tree` through the
+  container layer (never flattened into ERR_SESSION_FORMAT).
+- **ABI stability**: append-only export + append-only event type = NO
+  version bump (§9; `CR_UI_ABI_VERSION` stays 3). No CLI surface (the
+  og has no CLI; load progress is a host concern).
 
 ## 8. SQLite session index — REJECTED-BY-REFERENCE (closed GAP-S6-12)
 

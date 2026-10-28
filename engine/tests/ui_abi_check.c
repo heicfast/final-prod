@@ -572,6 +572,14 @@ int main(int argc, char** argv) {
 
     /* ---- snapshot (fresh, from a session) + enumeration ---- */
     CHECK_EQ_U64(cr_ui_session_load(crsf_path, &sess), CR_UI_OK);
+    /* W1b/R-54: the NULL/NULL event variant IS the plain load (the
+     * contract; progress/cancel behavior is exercised by the C++ suite) */
+    {
+        cr_ui_session* sl = NULL;
+        CHECK_EQ_U64(cr_ui_session_load_with_events(crsf_path, NULL, NULL, NULL, &sl), CR_UI_OK);
+        CHECK(sl != NULL);
+        cr_ui_session_close(sl);
+    }
     CHECK_EQ_U64(cr_ui_session_stats(sess, &st), CR_UI_OK);
     CHECK(st.files_found >= 1);
     {

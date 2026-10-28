@@ -2036,9 +2036,10 @@ u32 ScanController::save_session(session::Writer& w, const ScanStats& stats,
 }
 
 u32 ScanController::load_session(session::Reader& r, tree::ResultTree& tree, ScanStats& stats,
-                                 IStorageDevice* revalidate_disk) {
+                                 IStorageDevice* revalidate_disk,
+                                 session::DeserializeProgress progress, void* progress_user) {
     session::VolumeSessionInfo info;
-    return load_session_summary(r, tree, stats, info, revalidate_disk);
+    return load_session_summary(r, tree, stats, info, revalidate_disk, progress, progress_user);
 }
 
 u32 ScanController::read_summary(session::Reader& r, session::SessionSummary& out) {
@@ -2087,7 +2088,9 @@ u32 ScanController::read_summary(session::Reader& r, session::SessionSummary& ou
 
 u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& tree,
                                          ScanStats& stats, session::VolumeSessionInfo& info,
-                                         IStorageDevice* revalidate_disk) {
+                                         IStorageDevice* revalidate_disk,
+                                         session::DeserializeProgress progress,
+                                         void* progress_user) {
     u32 count = 0;
     if (u32 rc = r.open(&count))
         return rc;
@@ -2103,10 +2106,18 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
         if (rc != OK)
             return rc;
         switch (rec.type) {
-        case session::REC_RESULT_TREE:
-            if (session::deserialize_tree(rec.data.data(), rec.data.size(), tree) != OK)
+        case session::REC_RESULT_TREE: {
+            /* W1b: ERR_CANCELLED propagates (the per-node load hook's
+             * abort) - never flattened into a format error; the caller
+             * discards the partial tree. */
+            const u32 rc2 = session::deserialize_tree(rec.data.data(), rec.data.size(), tree,
+                                                      nullptr, progress, progress_user);
+            if (rc2 == ERR_CANCELLED)
+                return ERR_CANCELLED;
+            if (rc2 != OK)
                 return ERR_SESSION_FORMAT;
             break;
+        }
         case session::REC_SESSION_STATE: {
             if (session::deserialize_session_state(rec.data.data(), rec.data.size(), st) == OK) {
                 stats.files_found = st.files_found;
@@ -2245,9 +2256,11 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
 u32 ScanController::resume(session::Reader& r, tree::ResultTree& tree,
                            const ScanConfig& original_cfg, ScanStats& stats,
                            session::VolumeSessionInfo& info, std::unique_ptr<ScanController>& out,
-                           IStorageDevice* revalidate_disk) {
+                           IStorageDevice* revalidate_disk, session::DeserializeProgress progress,
+                           void* progress_user) {
     out.reset();
-    if (u32 rc = load_session_summary(r, tree, stats, info, revalidate_disk))
+    if (u32 rc =
+            load_session_summary(r, tree, stats, info, revalidate_disk, progress, progress_user))
         return rc;
     ScanConfig cfg = original_cfg;
     if (info.stage_done_mask & STAGE_QUICK)
