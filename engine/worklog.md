@@ -5406,3 +5406,14 @@ the master Resolution (both lanes' records merged, theirs preserved verbatim) li
 findings/FIXED/M-118-*. Bounds re-truthed (min 0x80/0x10, max 0xBEBC200). Tests: 9/9
 Carve.Dbx* GREEN; full suite green at the merged tree. The matrix cell, ledger row,
 carve.md verdict, and this worklog carry the convergent record.
+
+### S42-W1c: the M-118 → M-121 renumber (the parallel lostpart lane consumed M-118)
+
+The renumber chain completes: M-117 (the S41 filing; triple-consumed — session-40
+suppress-overlap ledger row 442 keeps it) → M-118 (my first renumber, never landed:
+the parallel lanes' lostpart three-source-assembly finding consumed the ID while this
+push was in rebase) → **M-121** (final). The stub at findings/FIXED/M-117-* carries
+the chain; the master Resolution (both fix lanes' records, the two disasm-settled
+byte corrections, the even-rounding pin) lives at
+findings/FIXED/M-121-outlook-express-dbx-analyser-absent.md. Code comments, ledger
+row, matrix cell, carve.md verdict, SUMMARY: all re-pointed. 9/9 Carve.Dbx* GREEN.

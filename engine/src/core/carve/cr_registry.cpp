@@ -109,7 +109,7 @@ CarveResult validate_osp(IStorageDevice* s, u64 hit, u64 cap);      /* N-113 */
 CarveResult validate_pos(IStorageDevice* s, u64 hit, u64 cap);      /* N-113 */
 CarveResult validate_chfp(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_office_zip(IStorageDevice* s, u64 hit, u64 cap); /* N-115: the typed rows */
-CarveResult validate_dbx(IStorageDevice* s, u64 hit, u64 cap);        /* M-117 */
+CarveResult validate_dbx(IStorageDevice* s, u64 hit, u64 cap);        /* M-121 */
 
 namespace {
 const Signature kTable[] = {
@@ -1471,12 +1471,11 @@ const Signature kTable[] = {
      validate_office_zip,
      "CorelDRAW Drawing",
      true},
-    /* M-118: Outlook Express Dbx (RawSpeed::DbxAnalyser id 0x15) -
+    /* M-121: Outlook Express Dbx (RawSpeed::DbxAnalyser id 0x15) -
      * three keys, one shared validator (the og's duplicate-key
      * policy, the CAB/CPT precedent). RENUMBERED from the S41 lane's
-     * M-117 filing per SA-9 (the session-40 suppress-overlap landing
-     * had consumed the ID; the parallel fix lane's 1d4c96b6 landing
-     * also used M-117 - this renumber reconciles all three usages).
+     * M-117 filing per SA-9, then to M-121 (the parallel lostpart
+     * finding consumed the M-118 mid-flight).
      * Bounds: the plain forms' size field at +0x7C sets the honest
      * floor 0x80 (the parallel lane's uniform 16 never rejects a
      * short-header candidate the read bound itself refuses); the

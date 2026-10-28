@@ -1,8 +1,8 @@
-# MAJOR M-117 → M-118 — the ID-collision stub (Outlook Express Dbx carve analyser)
+# MAJOR M-117 → M-121 — the ID-collision stub (Outlook Express Dbx carve analyser)
 
 **This file is a renumber stub, not the finding.** The full finding body and the
 convergent Resolution live in
-[`findings/FIXED/M-118-outlook-express-dbx-analyser-absent.md`](M-118-outlook-express-dbx-analyser-absent.md).
+[`findings/FIXED/M-121-outlook-express-dbx-analyser-absent.md`](M-121-outlook-express-dbx-analyser-absent.md) — the chain runs M-117 → M-118 (a renumber that never landed: the parallel lanes' lostpart finding consumed M-118 first) → M-121.
 
 ## Why the renumber (SA-9)
 
@@ -23,7 +23,7 @@ resolved finding is ever deleted — the no-delete mandate).
 
 ## Status
 
-**FIXED (CONVERGENT)** — see the M-118 Resolution: the parallel lane's `1d4c96b6`
+**FIXED (CONVERGENT)** — see the M-121 Resolution: the parallel lane's `1d4c96b6`
 landing (JMF6 version word `03 00 10 00`, disasm-settled) + this lane's convergent
 correction push (the marked pattern's byte 6 `0xEE` — the parallel lane's `0xDE`
 never matched a real file; the even-rounded non-zero prefix in

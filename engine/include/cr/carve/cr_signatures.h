@@ -341,11 +341,12 @@ enum FormatId : u32 {
     FMT_IWORK, /* Index/[*].iwa + index.apxl */
     FMT_HWP,   /* mimetype/[Content_Types]: application/hwp+zip */
     FMT_CDR,   /* content/riffData.cdr */
-    /* M-118 (diff-to-fix; RENUMBERED from the S41 lane's M-117 filing
-     * per SA-9 - the session-40 suppress-overlap landing had consumed
-     * the M-117 ID, FIXED-LEDGER row 434; the parallel fix lane's
-     * 1d4c96b6 landing also used M-117 - the renumber reconciles all
-     * three usages): the og's Outlook Express Dbx analyser
+    /* M-121 (diff-to-fix; the renumber chain M-117 -> M-118 -> M-121
+     * per SA-9: M-117 was triple-consumed [the session-40
+     * suppress-overlap landing keeps it, FIXED-LEDGER row 442; the
+     * S41 filing; the parallel fix lane's 1d4c96b6 message], then the
+     * parallel lostpart finding consumed the M-118 this renumber
+     * first took): the og's Outlook Express Dbx analyser
      * (RawSpeed::DbxAnalyser, idx 0x15=21) - three registry keys
      * (RAWSearchDLL_decompiled.c:2192-2232, first-hand + disassembly-
      * verified): "JMF6" 0x36464d4a,

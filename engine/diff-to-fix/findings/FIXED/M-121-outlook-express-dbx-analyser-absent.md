@@ -1,4 +1,4 @@
-# MAJOR M-118 — Outlook Express Dbx carve analyser entirely absent (renumbered from M-117 at the S42 push per SA-9: the session-40 suppress-overlap landing had consumed the ID — FIXED-LEDGER row 434) (the og's 3-key registry + GUID probe + u32@0x7C size); the session-3 "MISSING (N-026)" residue that was never filed
+# MAJOR M-121 — Outlook Express Dbx carve analyser entirely absent (the renumber chain: the S41 lane's M-117 filing → M-118 at my first rebase [never landed] → **M-121** at the final push per SA-9 — M-117 was triple-consumed [session-40 suppress-overlap ledger row 442 keeps it], and the parallel lanes' lostpart finding consumed M-118 while this renumber was in flight; M-119/M-120 also consumed) (the og's 3-key registry + GUID probe + u32@0x7C size); the session-3 "MISSING (N-026)" residue that was never filed
 
 **Severity:** MAJOR
 **Module:** carve (RAWSearchDLL parity surface)
@@ -93,14 +93,14 @@ section is the merged record)
 
 **Fixed in commit:** `1d4c96b6` (the parallel fix lane's landing, pushed first) +
 **this push** (the convergent correction lane: two byte-level repairs + the renumber
-to M-118 per SA-9)
+to M-121 per SA-9 — the chain M-117 → M-118 [never landed] → M-121)
 
-**Renumber:** **M-118** per SA-9 — the M-117 ID was consumed THREE times: the
+**Renumber:** **M-121** per SA-9 (the chain M-117 → M-118 → M-121) — the M-117 ID was consumed THREE times: the
 session-40 suppress-overlap landing (FIXED-LEDGER row 442, retired to history — the
 earlier push, keeps the ID), the S41 audit lane's Dbx filing, and the parallel fix
 lane's 1d4c96b6 commit message. The renumber note lives in this heading; the
 `findings/FIXED/M-117-*` path keeps a collision-record stub per the A-005/A-006
-renumber-pair precedent (no file deleted).
+renumber-pair precedent (no file deleted), pointing through the chain to M-121.
 
 **Verified by:** `Carve.DbxPlainMagicCarvesWithDeclaredSize` ·
 `Carve.DbxAllFourGuidsCarve` · `Carve.DbxJmf6VariantCarves` ·

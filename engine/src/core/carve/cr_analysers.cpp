@@ -5698,7 +5698,8 @@ CarveResult validate_3ds_ncsd(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
-/* ---- M-118: Outlook Express Dbx (RawSpeed::DbxAnalyser, id 0x15=21) ----
+/* ---- M-121: Outlook Express Dbx (RawSpeed::DbxAnalyser, id 0x15=21; the
+ * renumber chain M-117 -> M-118 -> M-121 per SA-9) ----
  * The og registers THREE magic keys (the static initializer
  * RAWSearchDLL_decompiled.c:2192-2232, each node stamped idx 0x15):
  *   "JMF6" 0x36464d4a / CF AD 12 FE 0xfe12adcf / F7 89 34 2C 0x2c3489f7.

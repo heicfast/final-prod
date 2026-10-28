@@ -8830,9 +8830,8 @@ TEST(Carve, MultiEntryZipCarvesOnce) {
     EXPECT_GT(az->props()->logical_size, u64(500)) << "the full archive extent";
 }
 
-/* ---- M-118: Outlook Express Dbx (RawSpeed::DbxAnalyser, id 0x15;
- * renumbered from the S41 lane's M-117 filing per SA-9 - the session-40
- * suppress-overlap landing had consumed the ID) ----
+/* ---- M-121: Outlook Express Dbx (RawSpeed::DbxAnalyser, id 0x15; the
+ * renumber chain M-117 -> M-118 -> M-121 per SA-9) ----
  * The og's three-key registry + the GUID/JMF6/marked identity probe +
  * the u32@+0x7C plain size + FUN_180042b30's marked-form zero-walk
  * (the non-zero prefix rounded up to even). Every fixture derives from

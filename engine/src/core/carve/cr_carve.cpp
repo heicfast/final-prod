@@ -110,7 +110,7 @@ constexpr u32 kTrialOrder[] = {
      * registry-order tie and the typing walk's override carries the
      * true id; these slots make the trial table exhaustive */
     FMT_XLSX, FMT_PPTX, FMT_ODT, FMT_ODS, FMT_ODP, FMT_EPUB, FMT_IWORK, FMT_HWP, FMT_CDR,
-    /* M-118 (renumbered per SA-9): the Outlook Express Dbx keys (distinct 4-byte magics, one
+    /* M-121 (the renumber chain M-117->M-118->M-121 per SA-9): the Outlook Express Dbx keys (distinct 4-byte magics, one
      * shared validator - the og stamps id 0x15 regardless of key) */
     FMT_DBX_JMF6, FMT_DBX, FMT_DBX_MARKED,
     /* S-017: ftyp-destroyed MOV salvage (og MovAnalyzer list layer) -
