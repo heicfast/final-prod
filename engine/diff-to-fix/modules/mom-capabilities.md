@@ -113,6 +113,19 @@ Audited 2026-10-26 (session 5) — first-time coverage for every row here.
   directory-enumeration loader exists (the FindFirstFileW sites are the
   recovered-filesystem walker with ACL checks). The capability never
   runs in the shipped product; the core's absence is parity.
+  **M-082 RE-SCOPE (DFX-38, 2026-10-29):** the dead-shipped verdict
+  covers ONLY the CheckVersion copy. The **DeviceManager.mo copy of the
+  same machinery is LIVE** (loaded by name — the s25 evidence's own
+  FUN_1800017f0("DeviceManager") trace) and is the full offline-OS /
+  boot-volume identification stack (the 0x418-byte CPartitionBootInfo
+  profile: CurrentVersion identity + SystemRoot + MountedDevices
+  system-partition location + Select-aware ControlSet + ProductOptions —
+  :62034-62330). The core now carries the capability:
+  `reghive::offlineos::profile_os()` (cr_offlineos.h, C++ API; the
+  boot-fix auto-locate consumer + the ABI export are the recorded
+  follow-ups — PARITY-DELTAS D-107). The two copies are separately
+  dispositioned; this row's MATCH-BY-OMISSION no longer covers the
+  surface by omission.
 
 ## Findings index (this module)
 

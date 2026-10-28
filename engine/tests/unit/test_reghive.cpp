@@ -12,6 +12,7 @@
 
 #include <gtest/gtest.h>
 #include "cr/reghive/cr_reghive.h"
+#include "cr/reghive/cr_offlineos.h"
 #include <cstdio>
 #include <cstring>
 #include <map>
@@ -433,4 +434,199 @@ TEST(Reghive, TruncatedAndMutatedHivesParseOrRefuseWithoutCrashing) {
         }
     }
     SUCCEED();
+}
+
+/* ------------------------------------------------- M-082: offline OS profile */
+
+namespace {
+
+/* the SOFTWARE side: \Microsoft\Windows NT\CurrentVersion with the og's
+ * 8-field identity set (DeviceManager_decompiled.c :62034-62119) */
+struct SoftwareHive {
+    HiveBuilder b;
+    u32 cv = 0;
+
+    SoftwareHive() {
+        const u32 ms = b.add_nk(b.root(), "Microsoft", 0);
+        const u32 winnt = b.add_nk(ms, "Windows NT", 0);
+        cv = b.add_nk(winnt, "CurrentVersion", 0);
+    }
+    void add(const char* name, const std::string& v) {
+        b.add_vk(cv, name, 1 /* REG_SZ */, std::vector<u8>(v.begin(), v.end()));
+    }
+};
+
+/* the SYSTEM side: \MountedDevices + \Select\Current + <CS>\Control\
+ * ProductOptions\ProductType (the og's walk order, :62120-62322) */
+struct SystemHive {
+    HiveBuilder b;
+    u32 mounted = 0, select = 0;
+
+    SystemHive() {
+        mounted = b.add_nk(b.root(), "MountedDevices", 0);
+        select = b.add_nk(b.root(), "Select", 0);
+    }
+    void set_current(u32 n) {
+        std::vector<u8> v(4);
+        for (int i = 0; i < 4; ++i)
+            v[i] = u8(n >> (8 * i));
+        b.add_vk(select, "Current", 4 /* REG_DWORD */, v);
+    }
+    u32 add_control_set(const std::string& n, const char* product_type) {
+        u32 cs = b.add_nk(b.root(), n, 0);
+        u32 control = b.add_nk(cs, "Control", 0);
+        u32 po = b.add_nk(control, "ProductOptions", 0);
+        if (product_type)
+            b.add_vk(po, "ProductType", 1,
+                     std::vector<u8>(product_type, product_type + std::strlen(product_type)));
+        return cs;
+    }
+    void add_dos_device(const std::string& vname, u32 sig, u64 off) {
+        std::vector<u8> v(12);
+        for (int i = 0; i < 4; ++i)
+            v[i] = u8(sig >> (8 * i));
+        for (int i = 0; i < 8; ++i)
+            v[4 + i] = u8(off >> (8 * i));
+        b.add_vk(mounted, vname, 3 /* REG_BINARY */, v);
+    }
+};
+
+} // namespace
+
+TEST(OfflineOs, ProfileReadsCurrentVersion) {
+    SoftwareHive sw;
+    sw.add("BuildLab", "22621.nt_amd64fre.220606-1250");
+    sw.add("BuildLabEx", "22621.1.amd64fre.rs_onecore_base.220606-1250");
+    sw.add("CSDVersion", "Service Pack 1");
+    sw.add("CurrentBuildNumber", "22621");
+    sw.add("CurrentVersion", "6.1");
+    sw.add("ProductName", "Windows 10 Pro");
+    sw.add("ProductId", "00330-80000-00000-AA123");
+    sw.add("SystemRoot", "\\Device\\HarddiskVolume3\\Windows"); /* NOT x: form */
+
+    auto bytes = sw.b.build();
+    RegistryHive hive;
+    ASSERT_TRUE(hive.open(bytes.data(), bytes.size()));
+    offlineos::OsProfile p;
+    ASSERT_TRUE(offlineos::profile_os(&hive, nullptr, p));
+    EXPECT_STREQ(p.build_lab, "22621.nt_amd64fre.220606-1250");
+    EXPECT_STREQ(p.build_lab_ex, "22621.1.amd64fre.rs_onecore_base.220606-1250");
+    EXPECT_STREQ(p.csd_version, "Service Pack 1");
+    EXPECT_STREQ(p.current_build, "22621");
+    EXPECT_STREQ(p.current_version, "6.1");
+    EXPECT_STREQ(p.product_name, "Windows 10 Pro");
+    EXPECT_STREQ(p.product_id, "00330-80000-00000-AA123");
+    /* the og's gate: SystemRoot must be a drive-letter form - a
+     * \Device\... root is REJECTED (no copy, no SYSTEM pass) */
+    EXPECT_STREQ(p.system_root, "");
+    EXPECT_FALSE(p.has_mounted_device);
+    EXPECT_EQ(p.product_type, 0u);
+}
+
+TEST(OfflineOs, ControlSetResolvesViaSelectWithFallback) {
+    { /* \Select\Current = 2 -> "\ControlSet002" (the og's %03d
+       * rendering - DAT_18007d37c decoded from DeviceManager.mo) */
+        SystemHive sy;
+        sy.set_current(2);
+        sy.add_control_set("ControlSet001", nullptr);
+        sy.add_control_set("ControlSet002", "WinNT");
+        auto bytes = sy.b.build();
+        RegistryHive hive;
+        ASSERT_TRUE(hive.open(bytes.data(), bytes.size()));
+        EXPECT_EQ(offlineos::resolve_control_set(hive), "\\ControlSet002");
+    }
+    { /* no \Select\Current -> the "\ControlSet001" fallback (:62213-62226) */
+        SystemHive sy;
+        sy.add_control_set("ControlSet001", nullptr);
+        auto bytes = sy.b.build();
+        RegistryHive hive;
+        ASSERT_TRUE(hive.open(bytes.data(), bytes.size()));
+        EXPECT_EQ(offlineos::resolve_control_set(hive), "\\ControlSet001");
+    }
+}
+
+TEST(OfflineOs, SystemPartitionFromMountedDevices) {
+    SoftwareHive sw;
+    sw.add("SystemRoot", "C:\\Windows"); /* the accepted drive-letter form */
+    SystemHive sy;
+    sy.add_dos_device("\\DosDevices\\C:", 0x1A2B3C4Du, 0x100000ull); /* sig + 1 MiB */
+    /* a decoy letter must not claim the profile */
+    sy.add_dos_device("\\DosDevices\\D:", 0xDEADBEEFu, 0x200000ull);
+    sy.set_current(1);
+    sy.add_control_set("ControlSet001", "WinNT");
+
+    auto swb = sw.b.build(), syb = sy.b.build();
+    RegistryHive soft, sys;
+    ASSERT_TRUE(soft.open(swb.data(), swb.size()));
+    ASSERT_TRUE(sys.open(syb.data(), syb.size()));
+    offlineos::OsProfile p;
+    ASSERT_TRUE(offlineos::profile_os(&soft, &sys, p));
+    /* SystemRoot lowercased by the og's _strlwr_s gate */
+    EXPECT_STREQ(p.system_root, "c:\\windows");
+    EXPECT_TRUE(p.has_mounted_device);
+    EXPECT_EQ(p.disk_signature, 0x1A2B3C4Du);
+    EXPECT_EQ(p.partition_offset, 0x100000ull);
+    EXPECT_EQ(p.product_type, offlineos::OsProfile::kProductWinNt);
+}
+
+TEST(OfflineOs, ServerVsClientClassification) {
+    SoftwareHive sw;
+    sw.add("SystemRoot", "E:\\WINNT");
+    struct Case {
+        const char* product_type;
+        u8 want;
+    };
+    const Case cases[] = {
+        {"WinNT", offlineos::OsProfile::kProductWinNt},
+        {"winnt", offlineos::OsProfile::kProductWinNt}, /* lstrcmpiA: ci */
+        {"ServerNT", offlineos::OsProfile::kProductServerNt},
+        {"LanmanNT", offlineos::OsProfile::kProductLanmanNt},
+        {"Terminal Server", 0u}, /* unknown -> stays 0 */
+    };
+    for (const Case& c : cases) {
+        SystemHive sy;
+        sy.set_current(1);
+        sy.add_control_set("ControlSet001", c.product_type);
+        auto swb = sw.b.build(), syb = sy.b.build();
+        RegistryHive soft, sys;
+        ASSERT_TRUE(soft.open(swb.data(), swb.size()));
+        ASSERT_TRUE(sys.open(syb.data(), syb.size()));
+        offlineos::OsProfile p;
+        ASSERT_TRUE(offlineos::profile_os(&soft, &sys, p)) << c.product_type;
+        EXPECT_EQ(p.product_type, c.want) << c.product_type;
+        EXPECT_EQ(p.disk_signature, 0u) << "no MountedDevices value: stays zero";
+        EXPECT_FALSE(p.has_mounted_device);
+    }
+}
+
+TEST(OfflineOs, ToleratesMissingKeysAndOddValueShapes) {
+    { /* SOFTWARE without the CurrentVersion family: an empty-ish profile,
+       * not a failure (the og's skip-if-absent shape) */
+        HiveBuilder b;
+        auto bytes = b.build();
+        RegistryHive hive;
+        ASSERT_TRUE(hive.open(bytes.data(), bytes.size()));
+        offlineos::OsProfile p;
+        ASSERT_TRUE(offlineos::profile_os(&hive, nullptr, p));
+        EXPECT_STREQ(p.product_name, "");
+    }
+    { /* a MountedDevices value that is NOT exactly 12 bytes: the og's
+       * local_1a8 == 0xc gate - no location claim */
+        SoftwareHive sw;
+        sw.add("SystemRoot", "C:\\Windows");
+        SystemHive sy;
+        sy.mounted = sy.b.add_nk(sy.b.root(), "MountedDevices", 0);
+        sy.b.add_vk(sy.mounted, "\\DosDevices\\C:", 3, std::vector<u8>(8, 0xAA));
+        auto swb = sw.b.build(), syb = sy.b.build();
+        RegistryHive soft, sys;
+        ASSERT_TRUE(soft.open(swb.data(), swb.size()));
+        ASSERT_TRUE(sys.open(syb.data(), syb.size()));
+        offlineos::OsProfile p;
+        ASSERT_TRUE(offlineos::profile_os(&soft, &sys, p));
+        EXPECT_FALSE(p.has_mounted_device);
+    }
+    { /* null software hive: refused */
+        offlineos::OsProfile p;
+        EXPECT_FALSE(offlineos::profile_os(nullptr, nullptr, p));
+    }
 }

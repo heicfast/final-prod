@@ -3151,3 +3151,28 @@ only), so the naming variant has no trigger surface. N-105 owns the row.
 
 **WHY REGISTERED:** recorded so a future folder-scan landing knows the
 naming contract. Verdict: NEEDS-WORK (only when folder-scan lands).
+
+### D-107 — the offline-OS profile is a core-only C++ API, not an ABI export (M-082 resolution rider, REGISTERED LAYERING DECISION)
+
+**WHAT OG DOES:** DeviceManager.mo (live-loaded by name) mounts a candidate
+partition's `<root>\Windows\System32\config\{SOFTWARE,SYSTEM}` through its
+in-house HMG classes and fills the 0x418-byte CPartitionBootInfo record —
+the 8 CurrentVersion identity fields, the drive-letter-gated SystemRoot,
+the `\MountedDevices\DosDevices\<x>:` 12-byte system-partition location,
+the `\Select\Current` ControlSet resolution (`%03d` rendering,
+DAT_18007d37c), and the ProductOptions classification
+(DeviceManager_decompiled.c :62034-62330).
+
+**WHAT CORE DOES:** `reghive::offlineos::profile_os()` (cr_offlineos.h,
+M-082) reproduces the walk read-only over the S-014 regf parser — same
+fields, same gates, same Select-awareness (NOT the FVE harvest's
+hardcoded 001). It is a C++ API only: no cr_ui export yet.
+
+**WHY REGISTERED:** the M-082 fix plan's explicit decision — "Expose as a
+small C++ API first; ABI only when a host-facing flow consumes it." The
+recorded follow-up consumer is boot-fix auto-locate (cr_bootfix taking the
+BCD path from the profile's MountedDevices location instead of requiring
+the caller's path); the ABI surface lands with that flow, not before.
+Verdict: ACCEPTED (layering-faithful staging, not a silent gap — the
+capability decision the finding's step 1 demanded is YES and is recorded
+here).

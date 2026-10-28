@@ -2138,3 +2138,49 @@ retires the file into git history (the full Resolution + the RED->GREEN proof ar
 preserved at 632d21e) and appends the ledger row. S-043's file (the parallel lane's
 b3938c8 landing) also sits in the re-created dir - noted in the ledger's counts line
 for the next audit lane to retire; not touched here (their lane may still be working).
+
+
+---
+Task ID: DFX-38/M-082 (the DeviceManager offline-OS profile — the capability lands)
+Agent: lead (DFX-38)
+
+Work Log:
+- Re-verified the finding at HEAD: reghive is FVE-only (cr_reghive.h's own
+  header notes the og "does NOT consult the Select key" for FVE while
+  DeviceManager DOES); cr_bootfix takes a caller-supplied BCD path; no
+  offline-OS identification anywhere (grep: IsBootVolume/
+  PartitionBootInfo/EASEUS_HMG — 0 hits trail-wide, re-confirmed).
+- Corpus re-read before implementation (the full walk :62034-62330), plus
+  ONE first-hand binary decode the finding's citation set did not carry:
+  DAT_18007d37c (the ControlSet rendering format) = "%03d" — read from
+  the shipped og-codebase/PartitionRecovery/DeviceManager.mo .rdata
+  (file offset 0x7bf7c) this session. The first implementation draft used
+  plain to_string; the SystemPartition test went RED (Current=1 -> my
+  "ControlSet1" vs the fixture's real-Windows "ControlSet001"), and the
+  binary decode settled the %03d truth. The corpus-first discipline
+  working as designed.
+- Landed: include/cr/reghive/cr_offlineos.h + src/core/reghive/
+  cr_offlineos.cpp — the og's 0x418-byte CPartitionBootInfo walk over the
+  S-014 regf parser: the 8 CurrentVersion identity fields (0x80-capped,
+  present-if-found), the SystemRoot lowercase+drive-letter gate, the
+  \MountedDevices "\DosDevices\<x>:" value read (leading-backslash value
+  names; exactly-12-byte gate: u32 signature + u64 offset), the
+  \Select\Current resolution (001 fallback, %03d rendering), and the
+  ProductOptions classification (WinNT->1, LanmanNT->2, ServerNT->3,
+  case-insensitive). Core-only C++ API — no ABI export (the M-082 fix
+  plan's own staging; PARITY-DELTAS D-107 records the decision + the
+  boot-fix auto-locate follow-up consumer).
+- Tests: the 5-test OfflineOs.* family (identity fields + the
+  \Device\-root rejection; Select=2 -> \ControlSet002 + the 001
+  fallback; the 12-byte MountedDevices decode with a decoy letter;
+  the 5-case ProductType classification incl. case-insensitivity and
+  unknown; the missing-keys tolerance trio). All RED-by-absence
+  pre-landing. Suite 1045/1045 linux-release; clang-format clean.
+- Docs: mom-capabilities.md re-scoped (the dead-shipped verdict covers
+  ONLY the CheckVersion copy; the live DeviceManager copy implemented);
+  PARITY-DELTAS D-107; the FIXED-LEDGER row.
+
+Stage Summary:
+- M-082 closed: the offline-OS identification capability exists, is
+  corpus-exact (including the %03d decode), and is test-proven. The
+  bootfix auto-locate wiring is the recorded follow-up consumer.
