@@ -221,6 +221,21 @@ cell's residue note updated: only the DBX triple remains of the 57-key re-diff.
 **Board after this push (filesystem truth):** 41 active (3 SEVERE · 23 MAJOR ·
 15 MINOR · 0 INFO) / 3 tracked-open / the FIXED archive at 24 files.
 
+**N-149 FIXED — the carve filter's always-on set.** Corpus re-verified first-hand (the
+removal loop :4408-4435's mask test re-read; the three analyser ids re-pinned at their
+registry builders :2337/:2304-2310/:2243; the shipped [Filter] re-read — 34 keys, none
+of the three). The landing: `carve_format_always_on()` maps the og's three analysers
+onto the core's 16-row family set (OLE; the RIFF per-form rows; the ZIP family + the
+in-analyser typed rows), the disable surface refuses to switch them off, the raw-sign
+list layer stays disableable (outside the mask range). The token-split pin discovered
+during verification: "doc" addresses both the exempt OLE row and the disableable legacy
+LOWDOC rows — row-level exemption, exactly the og's mask scope.
+`CarveEngine.FilterExemptSetAlwaysOn` RED pre-fix → green; suite 1223/1223.
+
+**Board after this push (filesystem truth):** 40 active (3 SEVERE · 23 MAJOR ·
+14 MINOR · 0 INFO) / 3 tracked-open / the FIXED archive at 25 files.
+
+
 ## Session-42 fix-lane delta (2026-10-29 — the SEVERE-first diff-fix execution continuing the S40-severe territory; opened on `67de3276`, re-merged over the hottest parallel window of the trail through `a3741812`; corpus `be0cfe9` throughout)
 
 **S-054 bookkeeping completed (FIXED-ALREADY, independently verified).** The

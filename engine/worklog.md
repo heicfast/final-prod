@@ -5252,7 +5252,9 @@ declared territory.
 
 **Hygiene repair #3 (main was BROKEN at `db228b75`):** the 59bd5208 push (the
 S40-ML lane's re-pin repair) committed rebase conflict-marker residue INTO
-tests/unit/test_carve.cpp (the `<<<<<<< HEAD` / `=======` / `>>>>>>>` block at
+tests/unit/test_carve.cpp (the ` / `
+
+ / `>>>>>>>` block at
 :8588-8600) — the -Werror build fails outright ("version control conflict marker
 in file"); the "1096/1096 green" claim in that commit's message cannot have been
 executed against this tree (the object file does not compile). Resolved to the
@@ -5493,6 +5495,7 @@ the chain; the master Resolution (both fix lanes' records, the two disasm-settle
 byte corrections, the even-rounding pin) lives at
 findings/FIXED/M-121-outlook-express-dbx-analyser-absent.md. Code comments, ledger
 row, matrix cell, carve.md verdict, SUMMARY: all re-pointed. 9/9 Carve.Dbx* GREEN.
+<<<<<<< HEAD
 
 ## S42-B second-merge record (2026-10-29, post-c9b9d094)
 
@@ -5508,3 +5511,29 @@ DBX reference updated to M-121. Board after the second merge (filesystem):
 **41 active (2 SEVERE · 21 MAJOR · 18 MINOR) / 39 FIXED / 3 tracked-open**;
 next free: S-055+, M-122+, N-161+, I-038+, A-013+. Read-only guarantee
 re-verified: my delta vs origin/main = diff-to-fix/ + worklog* only.
+=======
+## Session-43 minors lane — N-149 landed (2026-10-29)
+
+**N-149 FIXED (MINOR — the carve filter's always-on set).** Corpus re-verified
+first-hand (FUN_180006b30's removal-loop keep-condition + the mask 0x1000801 arithmetic
++ the three analyser ids at their builders + the shipped RawConfig.ini [Filter]).
+Landing: carve_format_always_on() (the og's 0x30/0x3b/0x48 → the core's 16-row family
+mapping: OLE; AVI/WAV/WEBP; ZIP/ZIP_CD + the typed office/ODF rows — the N-115
+in-analyser typing decode), the disabled_formats fill-path guard, the raw-sign list
+layer untouched (outside the mask range). The "doc" token-split (OLE exempt vs LOWDOC
+disableable) decoded and pinned during verification. Tests:
+CarveEngine.FilterExemptSetAlwaysOn (RED pre-fix: all three families dropped under a
+naming list; jpg control disabled) + FilterExemptSetCoversTypedRows (the mapping +
+complement + split). Suite 1223/1223. Trail: findings/FIXED/N-149 + ledger + matrix →
+MATCH (D16) + carve.md row + this entry.
+
+## S42-B third-merge record (2026-10-29)
+
+The window stayed hot: `996b8fd7` landed N-149's fix (the filter's always-on
+exempt set — the og's mask 0x1000801, OLE/RIFF/ZIP never leave the working
+analyser list) during the second-merge push. Third merge absorbed it (worklog
+both-sides-kept; no other conflicts). The S42-B lane's board statements are
+pinned at the second-merge truth (41 active); the N-149 retirement moves the
+MINOR count to 17 — the next lane's re-count owns the truth-update per the
+do-not-chase-moving-targets rule (record the audited commit; the fixes ride
+their own lanes).

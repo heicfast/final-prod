@@ -1663,5 +1663,44 @@ bool carve_format_listed(const char* disabled_list, const Signature& sig) {
     return carve_token_listed(disabled_list, sig.ext, sig.name);
 }
 
+/* N-149 (diff-to-fix): the og's per-search filter rebuild NEVER removes the
+ * OLE/RIFF/ZIP analysers - the removal loop FUN_180006b30's keep-condition
+ * carries the exempt mask 0x1000801 over id-0x30 (RAWSearchDLL :4412-4418,
+ * re-read first-hand: set bits 0/11/24 -> ids 0x30 FileOLEAnalyser /
+ * 0x3b FileRIFFAnalyser / 0x48 FileZIPAnalyser; the ids pinned at the
+ * registry builders :2337 / :2304-2310 / :2243, all three re-read this
+ * session). The core's row set splits the og's three analysers into
+ * per-form rows (AVI/WAV/WEBP under the RIFF key; the office/ODF-typed
+ * family and the CD-salvage anchor under the ZIP key) - every row of
+ * those families is always-on through the disable surface. The raw-sign
+ * LIST layer is NOT exempt: its formats sit outside the og's mask range
+ * (the og's shipped [Filter] targets exactly that layer - STL/VPJ ship
+ * disabled - and no raw-sign row exists for zip/avi/wav/webp/doc). */
+bool carve_format_always_on(FormatId id) {
+    switch (id) {
+    case FMT_OLE: /* the og's 0x30 */
+    case FMT_AVI:
+    case FMT_WAV:
+    case FMT_WEBP: /* the og's 0x3b RIFF family */
+    case FMT_ZIP:
+    case FMT_ZIP_CD:
+    case FMT_DOCX:
+    case FMT_XLSX:
+    case FMT_PPTX:
+    case FMT_ODT:
+    case FMT_ODS:
+    case FMT_ODP:
+    case FMT_EPUB:
+    case FMT_IWORK:
+    case FMT_HWP:
+    case FMT_CDR: /* the og's 0x48 ZIP family (the CD row is the
+                     analyser's preferred anchor; the typed rows are its
+                     in-analyser typing pass - the N-115 decode) */
+        return true;
+    default:
+        return false;
+    }
+}
+
 } // namespace carve
 } // namespace cr
