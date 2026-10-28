@@ -329,6 +329,25 @@ u32 Reader::read_record(u32 index, Record& out) {
     return OK;
 }
 
+/* W1a (R-56): header-only peek - the summary/list path skips the heavy
+ * payloads by type before any payload I/O (same offset table + error
+ * codes as read_record; the payload chain is never touched). */
+u32 Reader::peek_record(u32 index, RecordType& type, u64& session_id) {
+    if (index >= impl_->record_offsets.size())
+        return 0x50040001;
+    const u64 at = impl_->record_offsets[index];
+    if (impl_->seek(impl_->user, at))
+        return 0x50040002;
+    u8 rh[CRSF_RECORD_HEADER_BYTES];
+    if (impl_->read(impl_->user, rh, CRSF_RECORD_HEADER_BYTES))
+        return 0x50040002;
+    if (std::memcmp(rh, REC_MAGIC, 4) != 0)
+        return 0x50030001;
+    type = RecordType(u32_from_bytes_le(rh + 4));
+    session_id = u64_from_bytes_le(rh + 8);
+    return OK;
+}
+
 /* ---- N-061: the session auto-naming convention ---------------------- */
 
 namespace {

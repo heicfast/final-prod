@@ -617,6 +617,10 @@ u32 serialize_volume_info(const VolumeInfo& vi, std::vector<u8>& out) {
     out.insert(out.end(), vi.wwn, vi.wwn + 32);
     out.insert(out.end(), vi.interface_desc, vi.interface_desc + 32);
     out.insert(out.end(), vi.boot_snapshot, vi.boot_snapshot + 512);
+    /* W1a v5 tail: the embedded save time (the og's record-2 SYSTEMTIME,
+     * rsf-format section 5.2 +0x6C); old readers stop before it and old
+     * files simply lack it (the deserializer len-gates the read). */
+    put64(out, vi.save_unix);
     return OK;
 }
 
@@ -663,6 +667,11 @@ u32 deserialize_volume_info(const u8* data, size_t len, VolumeInfo& vi) {
             vi.firmware[31] = 0;
             vi.wwn[31] = 0;
             vi.interface_desc[31] = 0;
+            /* W1a v5 tail: absent on v1..v4 records - 0 means "not
+             * recorded" (the list surfaces it honestly; the file's mtime
+             * is the caller's fallback display, never a silent guess). */
+            if (len >= 80 + 84 + 256 + 32 + 32 + 32 + 512 + 8)
+                vi.save_unix = c.g64();
         }
     }
     return c.fail ? u32(0x50040001) : u32(OK);

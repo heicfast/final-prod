@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <ctime>
 #include "cr/cr_log.h"
 #include "cr/cr_bits.h"
 #include "cr/cr_text.h"
@@ -1948,6 +1949,10 @@ u32 ScanController::save_session(session::Writer& w, const ScanStats& stats,
         std::memcpy(vi.boot_snapshot, vol_boot_snapshot_, sizeof(vi.boot_snapshot));
     vi.scanned_bytes = stats.bytes_scanned;
     vi.elapsed_ms = stats.elapsed_ms;
+    /* W1a v5 tail: the embedded save time (the og's record-2 SYSTEMTIME,
+     * rsf-format section 5.2 +0x6C). Stamped at save - the session list
+     * shows the recorded time, which survives copies unlike the mtime. */
+    vi.save_unix = u64(std::time(nullptr));
     /* S-030 v3 tail: the image target's file path (empty otherwise) */
     for (size_t i = 0; i < sizeof(vi.image) - 1 && cfg_.volume_image[i]; ++i)
         vi.image[i] = cfg_.volume_image[i];
@@ -2034,6 +2039,50 @@ u32 ScanController::load_session(session::Reader& r, tree::ResultTree& tree, Sca
                                  IStorageDevice* revalidate_disk) {
     session::VolumeSessionInfo info;
     return load_session_summary(r, tree, stats, info, revalidate_disk);
+}
+
+u32 ScanController::read_summary(session::Reader& r, session::SessionSummary& out) {
+    u32 count = 0;
+    if (u32 rc = r.open(&count))
+        return rc;
+    out = session::SessionSummary{};
+    out.record_count = count;
+    bool id_seen = false;
+    for (u32 i = 0; i < count; ++i) {
+        session::RecordType type = session::REC_SESSION_STATE;
+        u64 sid = 0;
+        if (u32 rc = r.peek_record(i, type, sid))
+            return rc;
+        if (!id_seen) {
+            out.session_id = sid;
+            id_seen = true;
+        }
+        switch (type) {
+        case session::REC_SESSION_STATE:
+        case session::REC_VOLUME_INFO: {
+            session::Record rec;
+            u32 rc = r.read_record(i, rec);
+            if (rc == ERR_BAD_CHECKSUM)
+                continue; /* corrupt: skip, keep going (F10 - the load rule) */
+            if (rc != OK)
+                return rc;
+            if (type == session::REC_SESSION_STATE) {
+                if (session::deserialize_session_state(rec.data.data(), rec.data.size(),
+                                                       out.state) == OK)
+                    out.have_state = true;
+            } else if (session::deserialize_volume_info(rec.data.data(), rec.data.size(),
+                                                        out.volume) == OK) {
+                out.have_volume = true;
+            }
+            break;
+        }
+        default:
+            break; /* heavy/unknown types: header-skipped, never read */
+        }
+    }
+    out.configured_mask =
+        out.have_volume ? out.volume.flags : (STAGE_QUICK | STAGE_DEEP | STAGE_CARVE);
+    return OK;
 }
 
 u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& tree,
@@ -2173,6 +2222,8 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
     info.boot_hash = vi.boot_hash;
     info.scanned_bytes = vi.scanned_bytes;
     info.elapsed_ms = vi.elapsed_ms;
+    /* W1a: the embedded save time rides the summary out (0 = pre-v5). */
+    info.save_unix = vi.save_unix;
     if ((info.stage_done_mask & ~info.configured_mask) != 0)
         return ERR_SESSION_FORMAT; /* mask integrity violation - never a
                                       silent partial resume */

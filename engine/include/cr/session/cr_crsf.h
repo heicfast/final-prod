@@ -120,6 +120,13 @@ public:
     /* Reads record #index (0-based, in file order). */
     u32 read_record(u32 index, Record& out);
     u32 record_count() const { return count_; }
+    /* W1a (R-56): header-only peek - the record's type + session id at
+     * index, WITHOUT reading the payload chain. The session-list /
+     * summary path skips the heavy records (RESULT_TREE / ALLOC_MAP /
+     * ERROR_MAP) BY TYPE before any payload I/O: our tree record can
+     * dwarf the whole summary, exactly the reason the og's list reads
+     * only record 2 per file (rsf-format--scan-session.md section 5.2). */
+    u32 peek_record(u32 index, RecordType& type, u64& session_id);
     /* F-1: container flags from the header (0 = pre-F-1 slice-relative
      * basis; loaders normalize with the session's VolumeInfo). */
     u32 flags() const { return flags_; }

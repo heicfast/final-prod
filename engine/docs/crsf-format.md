@@ -69,6 +69,34 @@ u8  hash_valid + 16B sha-128 id (when valid)
 full nodes add: u16 role_len + role (UTF-16LE) + 4x u64 stats
 ```
 
+## VOLUME_INFO payload (v1..v5 — the record LENGTH carries the version)
+
+```
+v1 (80 B):  u32 fs_kind, u64 slice_offset, u64 slice_bytes,
+            u32 logical_sector, u32 physical_sector,
+            char label[32] (UTF-8, NUL padded),
+            u64 scanned_bytes, u64 elapsed_ms,
+            u32 flags (bits 0-2 = quick|deep|carve CONFIGURED)
+v2 (+84):   char model[48], char serial[32], u32 boot_hash
+            (the SESS-2 identity card; zeros = unverifiable)
+v3 (+256):  char image[256] (S-030: the image target's file path;
+            empty for disk/volume targets)
+v4 (+608):  char firmware[32], char wwn[32], char interface_desc[32],
+            u8 boot_snapshot[512] (N-066: the og record-3 identity axes
+            + the first-sector image)
+v5 (+8):    u64 save_unix (W1a/R-56: the embedded save time, unix
+            seconds UTC — our mirror of the og record-2's SYSTEMTIME
+            scanTime, rsf-format--scan-session.md section 5.2 +0x6C;
+            the session list shows the recorded time; 0 = pre-v5 file)
+```
+
+A reader stops at the length it knows; every absent tail deserializes
+as zeros with "not recorded" semantics (never a guess). The W1a
+(R-56) session-list surface decodes ONLY this record + SESSION_STATE
+per file — the heavy payloads are skipped by type before any payload
+I/O (ScanController::read_summary + Reader::peek_record; the og's list
+likewise reads record 2 per file, never the 36 MB record 4).
+
 ## PARTITION_CONTEXT payload (M-042 v2)
 
 ```

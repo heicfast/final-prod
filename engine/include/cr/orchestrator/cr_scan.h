@@ -537,6 +537,20 @@ public:
                                     session::VolumeSessionInfo& info,
                                     IStorageDevice* revalidate_disk = nullptr);
 
+    /* ---- W1a (R-56): the light summary read --------------------------------
+     * Decodes ONLY the container's light records (SESSION_STATE +
+     * VOLUME_INFO); the heavy payloads (RESULT_TREE, ALLOC_MAP,
+     * ERROR_MAP) are skipped BY TYPE via Reader::peek_record - a
+     * directory listing never pays the tree decode (our tree record can
+     * dwarf the whole summary). This is the og's record-2 read
+     * (rsf-format--scan-session.md section 5.2: volumeName + SYSTEMTIME
+     * scanTime + stats) that its LastScanRecordView list runs per file
+     * (UIUX/07-home-phase-deep-dive.md:21). configured_mask follows the
+     * load_session_summary legacy rule (all stages configured when no
+     * VolumeInfo rides the file); honest emptiness flags mirror the
+     * have_* booleans there. */
+    static u32 read_summary(session::Reader& r, session::SessionSummary& out);
+
     /* ---- live telemetry (G-04/G-05/G-06) ----
      * Thread-safe snapshot of the running scan's state; callable from any
      * thread while run() executes (and after it returns). Includes the live

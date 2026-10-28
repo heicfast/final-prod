@@ -95,6 +95,12 @@ struct VolumeInfo {
     char wwn[32] = {0};
     char interface_desc[32] = {0};
     u8 boot_snapshot[512] = {0};
+    /* W1a (v5 tail - v1..v4 sessions deserialize with 0 = "not
+     * recorded"): the save timestamp, unix seconds UTC - our mirror of
+     * the og's record-2 SYSTEMTIME scanTime (rsf-format--scan-session.md
+     * section 5.2 +0x6C; the og's session list shows the EMBEDDED time,
+     * which survives copies, unlike the mtime). */
+    u64 save_unix = 0;
 };
 u32 serialize_volume_info(const VolumeInfo& vi, std::vector<u8>& out);
 u32 deserialize_volume_info(const u8* data, size_t len, VolumeInfo& vi);
@@ -187,6 +193,25 @@ struct VolumeSessionInfo {
     /* S-030 (v3 tail): the image file path when the scan target was a
      * disk image; empty for disk/volume targets and old sessions. */
     char image[256] = {0};
+    /* W1a: the embedded save time (v5+ sessions; 0 = pre-v5). */
+    u64 save_unix = 0;
+};
+
+/* ---- W1a: the light per-file summary (R-56; the og's record-2 read) ----
+ * What a session LIST decodes per file: the two light records only
+ * (SESSION_STATE + VOLUME_INFO). The heavy payloads are skipped BY
+ * TYPE before any payload I/O (ScanController::read_summary +
+ * Reader::peek_record). configured_mask follows load_session_summary's
+ * legacy rule (all stages configured when no VolumeInfo rides the
+ * file). */
+struct SessionSummary {
+    u64 session_id = 0;
+    SessionState state;       /* counts + stage_done_mask (zeros if absent) */
+    VolumeInfo volume;        /* label + identity + save_unix (v5 tail) */
+    u32 configured_mask = 0;  /* derived: volume.flags, or all stages */
+    u32 record_count = 0;     /* the container's indexed record count */
+    bool have_state = false;  /* honest emptiness: no SESSION_STATE seen */
+    bool have_volume = false; /* legacy sessions carry no VolumeInfo */
 };
 
 } // namespace session

@@ -2,6 +2,7 @@
 #include <gtest/gtest.h>
 #include "cr/session/cr_crsf.h"
 #include "cr/session/cr_records.h"
+#include "cr/orchestrator/cr_scan.h"
 #include <algorithm>
 #include <functional>
 #include "cr/storage/cr_device.h"
@@ -220,8 +221,8 @@ TEST(Crsf, VolumeInfoIdentityCardRoundTrip) {
     std::snprintf(vi.image, sizeof(vi.image), "/vm/disks/qemu.img"); /* S-030 v3 tail */
     std::vector<u8> blob;
     ASSERT_EQ(serialize_volume_info(vi, blob), OK);
-    EXPECT_EQ(blob.size(), 80u + 84u + 256u + 608u)
-        << "v4 layout: v2 + the S-030 image tail + the N-066 axes/snapshot";
+    EXPECT_EQ(blob.size(), 80u + 84u + 256u + 608u + 8u)
+        << "v5 layout: v4 + the W1a save_unix tail (the record-2 scanTime)";
 
     VolumeInfo out;
     ASSERT_EQ(deserialize_volume_info(blob.data(), blob.size(), out), OK);
@@ -1222,4 +1223,161 @@ TEST(Session, BootSnapshotRoundTrip) {
     EXPECT_EQ(0, v3.firmware[0]);
     EXPECT_EQ(0, v3.wwn[0]);
     EXPECT_EQ(0, v3.interface_desc[0]);
+}
+
+TEST(Session, SaveUnixVTailRoundTrip) {
+    /* W1a (R-56): the v5 tail - the embedded save time (the og's
+     * record-2 SYSTEMTIME scanTime, rsf-format section 5.2 +0x6C)
+     * round-trips; v4-era and shorter records read 0 = "not recorded"
+     * (the honest pre-v5 answer, never a fabricated time). */
+    session::VolumeInfo vi;
+    vi.save_unix = 1730123456ULL;
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_volume_info(vi, blob), u32(OK));
+    ASSERT_EQ(blob.size(), size_t(80 + 84 + 256 + 32 + 32 + 32 + 512 + 8));
+    session::VolumeInfo vo;
+    ASSERT_EQ(deserialize_volume_info(blob.data(), blob.size(), vo), u32(OK));
+    EXPECT_EQ(vo.save_unix, 1730123456ULL);
+
+    /* v4-era record (tail cut by one field): loads, save_unix = 0 */
+    const size_t v4_len = blob.size() - 8;
+    session::VolumeInfo v4;
+    ASSERT_EQ(deserialize_volume_info(blob.data(), v4_len, v4), u32(OK));
+    EXPECT_EQ(v4.save_unix, 0ULL);
+    EXPECT_EQ(0, v4.interface_desc[0]);
+
+    /* v1-era record (the 80-byte prefix): same honest zero */
+    session::VolumeInfo v1;
+    ASSERT_EQ(deserialize_volume_info(blob.data(), 80, v1), u32(OK));
+    EXPECT_EQ(v1.save_unix, 0ULL);
+}
+
+TEST(Crsf, PeekRecordHeaderOnly) {
+    /* W1a (R-56): peek_record returns type + session id from the 24-byte
+     * record header WITHOUT touching the payload chain - the skip-by-type
+     * primitive the session-list path is built on. */
+    MemFile mf;
+    {
+        Writer w(MemFile::wr, MemFile::tl, MemFile::sk, &mf);
+        ASSERT_EQ(w.open(0x1122334455667788ULL), OK);
+        auto p1 = compressible_payload();
+        ASSERT_EQ(w.add_record(REC_SESSION_STATE, p1.data(), u32(p1.size())), OK);
+        auto p2 = compressible_payload();
+        p2.push_back(9); /* make the payloads differ */
+        ASSERT_EQ(w.add_record(REC_RESULT_TREE, p2.data(), u32(p2.size())), OK);
+        auto p3 = compressible_payload();
+        p3.push_back(7);
+        ASSERT_EQ(w.add_record(REC_VOLUME_INFO, p3.data(), u32(p3.size())), OK);
+        ASSERT_EQ(w.finalize(), OK);
+    }
+    Reader r(MemFile::rd, MemFile::sk, MemFile::sz, &mf);
+    u32 count = 0;
+    ASSERT_EQ(r.open(&count), OK);
+    ASSERT_EQ(count, 3u);
+
+    RecordType t = REC_SESSION_STATE;
+    u64 sid = 0;
+    ASSERT_EQ(r.peek_record(0, t, sid), OK);
+    EXPECT_EQ(t, REC_SESSION_STATE);
+    EXPECT_EQ(sid, 0x1122334455667788ULL);
+    ASSERT_EQ(r.peek_record(1, t, sid), OK);
+    EXPECT_EQ(t, REC_RESULT_TREE);
+    ASSERT_EQ(r.peek_record(2, t, sid), OK);
+    EXPECT_EQ(t, REC_VOLUME_INFO);
+    EXPECT_EQ(sid, 0x1122334455667788ULL);
+
+    /* out-of-range index refuses (same code as read_record) */
+    EXPECT_EQ(r.peek_record(3, t, sid), 0x50040001u);
+
+    /* peek does not consume: full reads still decode every record */
+    Record rec;
+    ASSERT_EQ(r.read_record(0, rec), OK);
+    EXPECT_EQ(rec.type, REC_SESSION_STATE);
+    EXPECT_EQ(rec.data.size(), compressible_payload().size());
+    ASSERT_EQ(r.read_record(2, rec), OK);
+    EXPECT_EQ(rec.type, REC_VOLUME_INFO);
+}
+
+TEST(SessionSummary, ReadSummaryLightRecordsOnly) {
+    /* W1a (R-56): read_summary decodes ONLY the light records - the
+     * heavy RESULT_TREE payload is skipped by type; every summary field
+     * matches what the full load would report for the same light data. */
+    MemFile mf;
+    session::SessionState st;
+    session::VolumeInfo vi;
+    {
+        st.stage_done_mask = 1; /* quick */
+        st.files_found = 3;
+        st.deleted_found = 1;
+        st.carved_found = 2;
+        st.bytes_scanned = 999;
+        st.error_map_ranges = 0;
+        vi.fs_kind = 3;
+        vi.flags = 1; /* quick configured */
+        vi.scanned_bytes = 999;
+        vi.elapsed_ms = 5;
+        vi.save_unix = 1730123456ULL;
+        std::memcpy(vi.label, "TESTVOL", 7);
+
+        Writer w(MemFile::wr, MemFile::tl, MemFile::sk, &mf);
+        ASSERT_EQ(w.open(0xA1B2C3D4E5F60718ULL), OK);
+        std::vector<u8> blob;
+        ASSERT_EQ(serialize_session_state(st, blob), OK);
+        ASSERT_EQ(w.add_record(REC_SESSION_STATE, blob.data(), u32(blob.size())), OK);
+        ASSERT_EQ(serialize_volume_info(vi, blob), OK);
+        ASSERT_EQ(w.add_record(REC_VOLUME_INFO, blob.data(), u32(blob.size())), OK);
+        /* the heavy record the summary path must never pay for: a
+         * multi-chunk payload far larger than the whole summary */
+        std::vector<u8> big;
+        const std::vector<u8> chunk = compressible_payload();
+        for (int i = 0; i < 400; ++i)
+            big.insert(big.end(), chunk.begin(), chunk.end());
+        ASSERT_EQ(w.add_record(REC_RESULT_TREE, big.data(), u32(big.size())), OK);
+        ASSERT_EQ(w.finalize(), OK);
+    }
+    Reader r(MemFile::rd, MemFile::sk, MemFile::sz, &mf);
+    session::SessionSummary s;
+    ASSERT_EQ(orchestrator::ScanController::read_summary(r, s), u32(OK));
+    EXPECT_EQ(s.session_id, 0xA1B2C3D4E5F60718ULL);
+    EXPECT_EQ(s.record_count, 3u);
+    EXPECT_TRUE(s.have_state);
+    EXPECT_TRUE(s.have_volume);
+    EXPECT_EQ(s.state.stage_done_mask, st.stage_done_mask);
+    EXPECT_EQ(s.state.files_found, st.files_found);
+    EXPECT_EQ(s.state.deleted_found, st.deleted_found);
+    EXPECT_EQ(s.state.carved_found, st.carved_found);
+    EXPECT_EQ(s.state.bytes_scanned, st.bytes_scanned);
+    EXPECT_EQ(s.volume.fs_kind, vi.fs_kind);
+    EXPECT_EQ(s.volume.save_unix, vi.save_unix);
+    EXPECT_EQ(s.volume.elapsed_ms, vi.elapsed_ms);
+    EXPECT_EQ(0, std::strcmp(s.volume.label, "TESTVOL"));
+    /* configured_mask derives from volume.flags (the load rule) */
+    EXPECT_EQ(s.configured_mask, 1u);
+}
+
+TEST(SessionSummary, LegacySessionWithoutVolumeInfo) {
+    /* W1a (R-56): a legacy container with no VolumeInfo still summaries:
+     * have_volume=false, configured_mask = all stages (the
+     * load_session_summary legacy rule), honest empty label. */
+    MemFile mf;
+    {
+        session::SessionState st;
+        st.stage_done_mask = 1;
+        st.files_found = 2;
+        Writer w(MemFile::wr, MemFile::tl, MemFile::sk, &mf);
+        ASSERT_EQ(w.open(0x1ULL), OK);
+        std::vector<u8> blob;
+        ASSERT_EQ(serialize_session_state(st, blob), OK);
+        ASSERT_EQ(w.add_record(REC_SESSION_STATE, blob.data(), u32(blob.size())), OK);
+        ASSERT_EQ(w.finalize(), OK);
+    }
+    Reader r(MemFile::rd, MemFile::sk, MemFile::sz, &mf);
+    session::SessionSummary s;
+    ASSERT_EQ(orchestrator::ScanController::read_summary(r, s), u32(OK));
+    EXPECT_TRUE(s.have_state);
+    EXPECT_FALSE(s.have_volume);
+    EXPECT_EQ(s.state.files_found, 2u);
+    EXPECT_EQ(s.configured_mask, 1u | 2u | 4u);
+    EXPECT_EQ(s.volume.label[0], 0);
+    EXPECT_EQ(s.volume.save_unix, 0ULL);
 }
