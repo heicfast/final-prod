@@ -207,6 +207,7 @@ def check_finding_id_uniqueness():
     """
     ok = True
     active: dict[str, Path] = {}
+    retired: dict[str, Path] = {}
     for sev in ("ACUTE", "SEVERE", "MAJOR", "MINOR", "INFORMATIONAL"):
         for f in sorted((DIFF_TO_FIX / "findings" / sev).glob("*.md")):
             head = f.read_text(encoding="utf-8", errors="replace")[:400]
@@ -223,6 +224,30 @@ def check_finding_id_uniqueness():
                 ok = False
             else:
                 active[fid] = f
+    # N-191 (the second N-188): title IDs must also be unique across the
+    # RETIRED files - two different findings under one ID in findings/FIXED/
+    # is the same M-117 class even when only one carries a ledger row.
+    for f in sorted((DIFF_TO_FIX / "findings" / "FIXED").glob("*.md")):
+        head = f.read_text(encoding="utf-8", errors="replace")[:400]
+        m = FINDING_TITLE_ID.search(head)
+        if not m:
+            continue
+        fid = m.group(1)
+        if fid in active:
+            print(
+                f"doc_truth_gate: FAIL: {fid} is claimed by both an active "
+                f"file ({active[fid].name}) and a retired file ({f.name})"
+            )
+            ok = False
+        elif fid in retired:
+            print(
+                f"doc_truth_gate: FAIL: {fid} is claimed by two retired "
+                f"files: {retired[fid].name} and {f.name} (the M-117 "
+                f"collision class)"
+            )
+            ok = False
+        else:
+            retired[fid] = f
     for f in sorted((DIFF_TO_FIX / "tracked-open").glob("*.md")):
         head = f.read_text(encoding="utf-8", errors="replace")[:400]
         m = OQ_TITLE_ID.search(head) or FINDING_TITLE_ID.search(head)
@@ -268,7 +293,8 @@ def check_finding_id_uniqueness():
         n_rows = len(ledger_slug)
         print(
             f"doc_truth_gate: finding-ID uniqueness holds "
-            f"({len(active)} active, {n_rows} ledger-resolved, zero collisions)"
+            f"({len(active)} active, {len(retired)} retired, "
+            f"{n_rows} ledger-resolved, zero collisions)"
         )
     return ok
 

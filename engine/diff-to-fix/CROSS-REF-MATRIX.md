@@ -158,7 +158,7 @@ convergently. Full record: `evidence/s54-liveness-reconciliation.md`.
     pre-erratum EUUserData/GetRawUserInfoMap claims + 2 corpus-side residues);
     **N-171 FIXED (Session-44 — the user-sign emission ticks `validated`; runtime +
     session undercount closed; findings/FIXED/N-171)** (carve/stats — user-sign files
-    never tick carved_found); **N-188 FIXED (Session-44 §8 discovery during N-171's
+    never tick carved_found); **N-193 FIXED (Session-44 §8 discovery during N-171's
     verification — the stock raw-sign layer's twin: sign-table-only formats never
     ticked `validated` either; the executed probe 1/0/0; the emission-site tick + 4
     stale pins re-pinned; findings/FIXED/N-188)** (carve/stats — NEW, filed+fixed same

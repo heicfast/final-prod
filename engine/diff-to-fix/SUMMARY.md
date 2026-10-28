@@ -73,7 +73,7 @@ own stats map counts analyser detections the same way); no assignment change nee
 Tests: `CarveStats.UserSignFilesCountInCarvedFound` +
 `CarveStats.UserSignCarvedFoundSessionRoundTrip` (both RED pre-fix).
 
-**N-188 FIXED (NEW — the §8 discovery during N-171's verification).** The same
+**N-193 FIXED (NEW — the §8 discovery during N-171's verification; renumbered from the N-188 draft seat at the S56 collision repair).** The same
 defect class proven on the STOCK raw-sign layer by an executed probe: a fixture whose
 only content is the `sample` sign (`#!/bin/sh`, sign-table-only — no grammar) carved
 exactly one record with `sign_hits=1 validated=0` — the og's own layer-1 sign-table

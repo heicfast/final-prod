@@ -1,3 +1,22 @@
+**S56 lane — the second collision-repair rider + the gate hardening (2026-10-29).**
+
+The doc_truth_gate's findings/FIXED/-directory uniqueness check (this rider's
+own hardening - the N-160 gate never scanned the RETIRED files' titles) caught
+TWO more live collisions on its first run: the stock-raw-sign N-188 (a sibling's
+N-171 landing at `20c611a3` 23:25:42 took the seat 3 minutes after the
+m119-window lane's renumber INTO N-188 at `30348fa7` 23:22:29 - the m119 window
+keeps N-188 per SA-9; the stock finding renumbered N-188→**N-193** after TWO
+seats raced mid-repair: active N-191 [D-118-numbering-collision] and N-192
+[clone-drops-short-name-on-fanout] filings pushed while the repair ran - the
+final seat verified against the full board) + the RRWR file's title drift
+(H1 still read N-155 after the SA-9 rename to N-156; title now matches the
+filename + ledger row). The stock finding's missing ledger row added (the
+landing lane's trail commit was cut short by the window - attributed). The
+gate's uniqueness check now covers: active-active, active-vs-retired,
+retired-retired (title IDs), active-vs-ledger, and ledger-same-ID-different-
+slug. Gate green: 48 active / 108 retired / 368 ledger-resolved / zero
+collisions. No production code touched.
+
 **S56 lane — N-090 landed (2026-10-29).**
 
 **N-090 FIXED (MINOR — the session-list scope + row shape).** The four deltas
