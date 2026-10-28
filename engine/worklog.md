@@ -338,6 +338,30 @@ core `659f0f6c`, corpus `be0cfe9`.
   row; matrix row → MATCH; carve module addendum; FORMATS.md ZIP-typing paragraph;
   D-134.
 
+- **N-159 FIXED (MINOR, writer+report)** — the failed-files report's tree-
+  classification axis: the og's recovery log is an HTML report
+  (CSaveFailedFilesWithHtml, DRWUI :642669-642892 — the generator, the
+  per-failure collection slot +0x254/+0x268, the row grammar :642755-642822,
+  ShellExecuteW open) — R-58's "per-run text log" and API-DELTA row 21's "og
+  format NOT IN CORPUS" both REFUTED and repaired (REFERENCE-API-GAP R-58 +
+  R-44's comparative note + API-DELTA row 21 + the writer-module D13 addendum,
+  all in this push). The three classification field getters re-pinned first-hand
+  (FUN_14008a650 = node+0x1d8 custom name; FUN_14008b040 = u32@+0x1f0 kind;
+  FUN_1400d3ee0 = u32@+0x1e8 group). Landed: the per-item `tree_class` wire
+  axis (root-role derived — the core's S-048/M-103 root model maps the og's
+  group/kind integers; the wire↔og-label↔core-role table in the schema doc;
+  the Tags-Extracted mapping ready for M-101's open branch) + the
+  `failed_bytes` totals split (the +0x268 accumulator semantics; the
+  enqueue-refusal exclusion documented as schema truth rule 5 — a precision
+  the fix plan missed) + both fields additive-within-schema-v1 per the
+  schema doc's own version contract (the finding's bump plan corrected —
+  pinned by TreeClassIsAdditiveWithinSchemaV1). Tests: Report.FailedRows
+  CarryTreeClassification / FailedBytesSplitFromTotal / RawCategoryName
+  Classification / TreeClassIsAdditiveWithinSchemaV1 (axis + split RED
+  pre-fix). Suite 1243/1243 (1201/42/0). Audit trail: retired to
+  findings/FIXED/ with Resolution; ledger row; matrix row → MATCH; writer
+  module addendum; the schema doc's wire sample + field docs + truth rule 5.
+
 - **N-148 FIXED** — the comment-truth batch, all seven items: the LDM RAID-5 UNDECODED hedge
   replaced with the OQ-T7 resolved MATCH; D-09's demanded ZFS wording landed verbatim; the M-112
   promotion cite tightened to :422507-514; the EPS/AI stand-in caps restored to the M-107-verified

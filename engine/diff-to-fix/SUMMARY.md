@@ -159,6 +159,18 @@ repaired by the prior lanes).
   PARITY-DELTAS D-134 (the conservative row-level disabled_formats gate; the
   og's IAnalyserFilter callback takes no id — undecodable). 6 tests, 3 groups
   RED pre-fix; suite 1209/1209; the module/matrix rows → MATCH.
+
+- **N-159 FIXED (MINOR, writer+report)** — the failed-files report's
+  tree-classification axis: the og's recovery-log truth (an HTML report,
+  CSaveFailedFilesWithHtml, DRWUI :642669-642892) decoded and landed — the
+  per-item `tree_class` wire axis (six-valued, root-role derived; the
+  wire↔og-label↔core-role table in the schema doc) + the `failed_bytes`
+  totals split (the +0x268 accumulator semantics; enqueue-time refusals
+  excluded, truth rule 5) + the three register repairs (R-58 "text log" →
+  the HTML-report decode; API-DELTA row 21 "NOT IN CORPUS" refuted; the
+  writer-module D13 addendum) + additive-within-v1 per the schema doc's
+  own contract (the finding's version-bump plan corrected). 4 tests
+  RED-first; suite 1243/1243 (1201/42/0). P13/P11/P46/P68 → MATCH.
 # SUMMARY.md — executive summary (the S12 session-2 deep-dive lane on top — sector math / scan-progress math / local database / state management / detection-calculation; the prior lanes below, newest-first)
 
 ## Session-12 S12 lane delta (2026-10-29 — the session-2 continuation audit per the user's second-session directive: remove-the-fixed + go-deeper, special focus on sector numbers / scanning / accurate detection / calculation / no-stuck-or-freeze / local database / state management; core `869da779` at open → rebased through the parallel windows to push at `f85def0f`, corpus `be0cfe9`)

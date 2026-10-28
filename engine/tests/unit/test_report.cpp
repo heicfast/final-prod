@@ -530,3 +530,158 @@ TEST(Report, EmitsCiSchemaSample) {
     f.close();
     SUCCEED();
 }
+
+TEST(Report, FailedRowsCarryTreeClassification) {
+    /* N-159: the og's failed-files HTML report classifies every row by
+     * its results-tree branch (CSaveFailedFilesWithHtml::FUN_1403c6fc0,
+     * DRWUI :642755-642822, decoded first-hand: the group/kind-to-label
+     * mapping). The core derives the same axis from the node's root and
+     * surfaces it on EVERY report row (the structured superset over the
+     * og's failed-only funnel, D13). */
+    std::vector<u8> img(16 * 512, 0);
+    std::memcpy(img.data(), "DONE", 4);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* found = tree.add_root(u"Found");
+    auto* deleted = tree.add_root(u"Deleted");
+    auto* lost = tree.add_root(u"File Path Lost");
+    auto* reconstructed = tree.add_root(u"Reconstructed");
+    auto* exist1 = add_node(tree, found, "exist.bin", 0, 100);
+    auto* fail_deleted = add_node(tree, deleted, "fail1.bin", 512, 100);
+    auto* fail_lost = add_node(tree, lost, "fail2.bin", 512, 100);
+    auto* fail_reconstructed = add_node(tree, reconstructed, "fail3.bin", 512, 100);
+    auto* exist2 = add_node(tree, found, "exist2.bin", 0, 100);
+    tree.refresh_stats();
+
+    ReportIo io;
+    io.broken_temp.insert(u"out\\fail1.bin");
+    io.broken_temp.insert(u"out\\fail2.bin");
+    io.broken_temp.insert(u"out\\fail3.bin");
+    WriterConfig cfg;
+    SafeWriter writer(io, &dev, cfg);
+    for (tree::FileNode* n : {exist1, fail_deleted, fail_lost, fail_reconstructed, exist2})
+        ASSERT_EQ(OK, writer.enqueue(n, u"out\\"));
+
+    WriterStats stats;
+    ASSERT_EQ(OK, writer.process(nullptr, nullptr, nullptr, stats));
+
+    const std::vector<report::Item> items = writer.report_items();
+    ASSERT_EQ(5u, items.size());
+    /* the classification axis rides every row (found/deleted/lost/
+     * reconstructed), failures and successes alike */
+    EXPECT_EQ("existing_files", items[0].tree_class);
+    EXPECT_EQ("lost_files_deleted", items[1].tree_class);
+    EXPECT_EQ("lost_files", items[2].tree_class);
+    EXPECT_EQ("lost_files_reconstructed", items[3].tree_class);
+    EXPECT_EQ("existing_files", items[4].tree_class);
+    /* the failed rows are errors (broken temps) - the axis names WHICH
+     * KIND of file failed, the og's recovery-log contract */
+    EXPECT_EQ(Outcome::Error, items[1].outcome);
+    EXPECT_EQ(Outcome::Error, items[2].outcome);
+    EXPECT_EQ(Outcome::Error, items[3].outcome);
+}
+
+TEST(Report, FailedBytesSplitFromTotal) {
+    /* N-159: the og accumulates the failed files' BYTES separately from
+     * the committed totals (the results singleton's +0x268 accumulator,
+     * DRWUI :642729-642746). The core's totals gain the same split:
+     * failed_bytes counts the non-committed files (Error + Refused),
+     * bytes stays the committed sum. */
+    std::vector<u8> img(16 * 512, 0);
+    std::memcpy(img.data(), "DONE", 4);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* found = tree.add_root(u"Found");
+    auto* ok_file = add_node(tree, found, "ok.txt", 0, 4);
+    auto* refuse_me = add_node(tree, found, "refuse.bin", 1024, 100);
+    auto* fail_me = add_node(tree, found, "fail.bin", 512, 100);
+    tree.refresh_stats();
+
+    ReportIo io;
+    io.broken_temp.insert(u"out\\fail.bin");
+    WriterConfig cfg;
+    cfg.conflict = ConflictPolicy::Skip;
+    SafeWriter writer(io, &dev, cfg);
+    writer.set_destination(1024, 100); /* the overlap refusal */
+    ASSERT_EQ(OK, writer.enqueue(ok_file, u"out\\"));
+    ASSERT_EQ(ERR_DEST_OVERLAP, writer.enqueue(refuse_me, u"out\\"));
+    ASSERT_EQ(OK, writer.enqueue(fail_me, u"out\\"));
+
+    WriterStats stats;
+    ASSERT_EQ(OK, writer.process(nullptr, nullptr, nullptr, stats));
+    const Totals t = writer.report_totals("src", "dst", 5, stats);
+    EXPECT_EQ(4u, t.bytes);          /* the committed ok.txt */
+    EXPECT_EQ(100u, t.failed_bytes); /* fail.bin's 100 (the enqueue-time
+                                        overlap refusal never entered the
+                                        queue - the og's export loop has no
+                                        pre-enqueue refusal class either) */
+
+    /* and the split surfaces in the serialized document */
+    const std::string doc = build_report(writer.report_items(), t);
+    EXPECT_NE(std::string::npos, doc.find("\"failed_bytes\":100"));
+    EXPECT_NE(std::string::npos, doc.find("\"bytes\":4,"));
+}
+
+TEST(Report, RawCategoryNameClassification) {
+    /* N-159: the og's custom branch - a node whose category carries a
+     * custom name classifies BY THAT NAME (FUN_14008a650's non-zero
+     * path appends the name itself). The core's configured raw root
+     * role IS the custom category name. */
+    std::vector<u8> img(16 * 512, 0);
+    std::memcpy(img.data(), "DONE", 4);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* raw = tree.add_root(u"RAW Summer 2024");
+    auto* carved = add_node(tree, raw, "carved.bin", 0, 100);
+    tree.refresh_stats();
+
+    ReportIo io;
+    WriterConfig cfg;
+    SafeWriter writer(io, &dev, cfg);
+    ASSERT_EQ(OK, writer.enqueue(carved, u"out\\"));
+
+    const std::vector<report::Item> items = writer.report_items();
+    ASSERT_EQ(1u, items.size());
+    EXPECT_EQ("RAW Summer 2024", items[0].tree_class);
+    const std::string doc = build_report(items, Totals{});
+    EXPECT_NE(std::string::npos, doc.find("\"tree_class\":\"RAW Summer 2024\""));
+}
+
+TEST(Report, TreeClassIsAdditiveWithinSchemaV1) {
+    /* N-159: the schema doc's own version contract - additive fields
+     * appear WITHIN a version (only breaking changes bump); tree_class
+    and failed_bytes are additive, so schema_version stays 1 and the
+     * new fields append AFTER the fixed v1 fields (append-only order). */
+    std::vector<Item> items;
+    Item a;
+    a.item_id = 1;
+    a.name = "x.bin";
+    a.outcome = Outcome::Error;
+    a.reason = 4;
+    a.bytes = 9;
+    a.tree_class = "lost_files";
+    items.push_back(a);
+    Totals t;
+    t.queued = 1;
+    t.errors = 1;
+    t.failed_bytes = 9;
+    const std::string doc = build_report(items, t);
+    EXPECT_NE(std::string::npos, doc.find("\"schema_version\": 1,"));
+    /* the new item field lands after hash_status (the v1 tail) */
+    const size_t pos_hash = doc.find("\"hash_status\":");
+    const size_t pos_class = doc.find("\"tree_class\":\"lost_files\"");
+    ASSERT_NE(std::string::npos, pos_hash);
+    ASSERT_NE(std::string::npos, pos_class);
+    EXPECT_LT(pos_hash, pos_class);
+    /* an unclassified row simply omits the field (older consumers and
+     * value-enqueued rows are unchanged) */
+    Item b;
+    b.item_id = 2;
+    b.name = "y.bin";
+    items.push_back(b);
+    const std::string doc2 = build_report(items, t);
+    EXPECT_EQ(std::string::npos, doc2.find("\"tree_class\":\"y.bin\""));
+    EXPECT_EQ(
+        1u, u64(doc2.find("\"tree_class\":\"lost_files\"") != std::string::npos) +
+                u64(doc2.find("\"tree_class\":\"lost_files_reconstructed\"") != std::string::npos));
+}
