@@ -3281,3 +3281,64 @@ tracked-open questions. No source code was modified by this lane.
 - **N-096 (identity IOCTL non-issuance)** — the disposition note in the finding + DRIVER-UTILIZATION.md:64 row correction (the wire matches; the client-side per-open 0x60002408 query is the informational divergence — decide whether the transport issues it at open).
 
 **The board at this lane's close:** the audit trail's live counts live in SUMMARY.md + FIXED-LEDGER.md (the parallel lanes maintain both continuously; this lane's rows are in the ledger). Both suites green at the close (cr_tests 1035/1035, cr_ui_tests 59/59, the C gate OK both invocation classes, clang-format 18.1.8 clean). New findings keep arriving from the active audit lanes (S-048..S-052, M-103..M-110, N-129..N-134 at the last pull) — the fix lanes should re-pull before claiming.
+
+---
+Task ID: S38/CLOSE (session 38 close — the handoff)
+Agent: session-38 diff-fix lane (the minor-first session)
+
+FINAL STATE (this lane's last push: 83b9358; main green locally at every push:
+linux-release gcc Werror, full-repo clang-format 18.1.8 zero violations, suite
+1094/1094, win_syntax_check zero FAILs after the M-074 stub growth).
+
+THIS SESSION'S TALLY — 22 findings closed (the user's minor-first directive):
+FIXED with RED→GREEN tests: N-094 (the -h sessions verb + the four-site verb lock),
+N-092 (the WMF/EMF/ICO named refusals + the cache-scope decision), N-116 (the
+session-list newest-first ordering; the comparator direction settled first-hand),
+N-098 (the always-fresh enumeration contract + its pin), N-100 (the NTFS +0x60
+total-clusters carrier, nflags bit-9, sparse-zeroing), N-093 (the og's four batch-1
+bound pairs; the 10,000,001-byte MIDI carved under the old 64 MiB row - the finding's
+exact falsifiable reproduced). FIXED doc-truth with site-verified edits: N-117, N-118,
+N-103, N-095, N-108, N-119, N-104, N-097, N-102, N-123, N-101, N-120, N-091 (the
+D-108/D-109/D-110 registrations). FIXED-ALREADY with reproductions: N-099 (E55),
+N-106 (the SI:86 row), N-105 (D-106). Plus two honesty repairs this session owned
+after parallel-lane flags/landings: the N-129-flagged residuals (the missed R-28:376
+site + the phantom pre-rebase ledger SHAs) and the FMT_SVG registry row my own rebase
+window dropped (the 187-test F8-gate regression, root-caused and restored), the
+parallel lanes' format dirt (twice), and the M-074 win-stub growth.
+
+HONEST REMAINDERS (not closed by this session, with the next step):
+- N-107, N-127: the fixes live in the rda-driver repo - OUT OF this session's
+  two-repo grant (core + corpus only). The findings' own site lists are the complete
+  work orders; the next step is a driver-repo session with the same SOPs.
+- N-111/N-112/N-113/N-115 (the carve school-2/3 children): the parallel carve lane
+  is actively landing exactly these (M-092/M-093/M-096 landed mid-session; MOBI/SVG
+  in the tree now). Left to the active lane per the no-duplication rule.
+- N-090 (session-list row shape: label[32] vs og 100, 1 s granularity, no device-type,
+  the auto_ filter decision): the registration move (D-111: the every-file listing
+  superset + the not-carried set) is the next session's quick win; the ABI-widening
+  halves need the version-gate policy decision first.
+- N-096 (identity-IOCTL non-issuance): option 2 (the D-112 registration + the
+  DRIVER-UTILIZATION wording downgrade) is one doc commit; option 1 (issue the mode
+  query at open) needs the Windows lane's win-stub test.
+- N-121/N-122 (ESP automount, NVRAM create/delete): registration-first per their own
+  plans; the implementations need the corpus decode passes their Open questions name.
+- N-125 (disconnect classification): the error-code append + the documented
+  reattach-continue flow; the DRWUI dialog-trigger probe settles the engine-side
+  question first.
+- N-126 (Unsaved File category): the og's membership list decode (the R-27 type-ID
+  space) is the prerequisite; then the append-only category enum + the carve plumbing.
+- The parallel lanes' newer filings (N-128+...): owned by their lanes; the board's
+  live truth is the filesystem + FIXED-LEDGER.
+
+METHOD NOTES for the next session (the push-window lessons):
+1. Pull OFTEN - this window saw 15+ parallel landings; every rebase window is a
+   conflict-resolution event: resolve worklog by keeping BOTH sides, and RE-RUN THE
+   FULL SUITE + THE FULL-REPO FORMAT CHECK before pushing (rebase windows inherit
+   other lanes' dirt - twice this session).
+2. Conflicted rebases over shared TABLE files (cr_registry.cpp) can silently drop
+   rows - the F8 size gate caught mine; trust the gates, re-run everything.
+3. The purge convention is live: Resolution in the finding file -> FIXED-LEDGER row
+   -> git rm; the file's history copy is the archive. Post-rebase SHAs are the only
+   citable ones (pre-rebase SHAs become phantoms - N-129's class).
+4. The board's counts: the filesystem is the truth (the "board-count truth pass"
+   pattern); recount at every handoff.
