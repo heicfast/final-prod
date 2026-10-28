@@ -4099,3 +4099,16 @@ failed); clang-format clean; F8 + self-probe green.
 **Trail:** findings/FIXED/N-113 with Resolution; ledger row (270 main + 20
 OQ = 290); CROSS-REF-MATRIX cell → MATCH; modules/carve.md; SUMMARY (board
 47 active).
+
+
+---
+Task ID: S40-OPEN (session-40 minors continuation lane open)
+Agent: session-40 execution lane (the user's "priority to minor first" mandate, continuation over the session-39 N-111 landing)
+
+Work Log:
+- T1 done: repos pulled (core `461825d8`, corpus `be0cfe9` — the audited-commit lineage current); prompt saved token-redacted to worklog/session-diff-fix-40-minors-prompt.md; baseline verified GREEN before any change: full build (gcc 14.2, -Wall -Wextra -Wpedantic -Werror -Wshadow) + cr_tests 1052 ran / 1010 passed / 42 Win-only skipped / 0 failed (~102s); clang-format 18.1.8 (the CI pin) installed; hooksPath wired.
+- Board at open (filesystem truth, recounted): 49 active = 6 SEVERE · 18 MAJOR · 20 MINOR · 5 INFO + 3 tracked-open (OQ-S4-3, OQ-S10-1, OQ-S10-3). FIXED/ holds N-111 + the two resolved OQ files. Ledger 288 rows.
+- Lane plan: the 20 open MINORs one-by-one (classify first, fix with RED->GREEN tests), the 5 INFO ACKNOWLEDGEDs, the 3 tracked-open dispositions, then the MAJOR/SEVERE queue as capacity allows. One finding, one verified fix, one push.
+
+Stage Summary:
+- Lane open; baseline green; no findings touched yet.
