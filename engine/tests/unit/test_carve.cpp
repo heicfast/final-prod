@@ -2389,6 +2389,39 @@ size_t plant_m2ts(std::vector<u8>& img, size_t at, size_t packets) {
     return packets * 192;
 }
 
+/* M-092: an HTML document plant - the open tag, body filler, the </html>
+ * end tag. Returns the exact end-of-marker offset (pre-round-up). */
+size_t plant_html(std::vector<u8>& img, size_t at, const char* open_tag, size_t body_len) {
+    const size_t open_len = std::strlen(open_tag);
+    std::memcpy(img.data() + at, open_tag, open_len);
+    for (size_t i = 0; i < body_len; ++i)
+        img[at + open_len + i] = u8('a' + (i % 26));
+    const size_t end = at + open_len + body_len;
+    std::memcpy(img.data() + end, "</html>", 7);
+    return end + 7;
+}
+
+/* M-092: a UTF-16LE HTML plant (FF FE BOM + the wide open tag + wide
+ * body + the ASCII </html> end tag - the og's walk needle is ASCII-only
+ * even for the BOM chain). */
+size_t plant_html_utf16(std::vector<u8>& img, size_t at, size_t body_len) {
+    img[at] = 0xFF;
+    img[at + 1] = 0xFE;
+    const wchar_t* open_tag = L"<HTML>";
+    for (size_t i = 0; open_tag[i]; ++i) {
+        img[at + 2 + 2 * i] = u8(open_tag[i]);
+        img[at + 2 + 2 * i + 1] = 0;
+    }
+    const size_t body_at = at + 2 + 12;
+    for (size_t i = 0; i < body_len; ++i) {
+        img[body_at + 2 * i] = u8('a' + (i % 26));
+        img[body_at + 2 * i + 1] = 0;
+    }
+    const size_t end = body_at + 2 * body_len;
+    std::memcpy(img.data() + end, "</html>", 7);
+    return end + 7;
+}
+
 size_t plant_ttf(std::vector<u8>& img, size_t at) {
     std::memcpy(img.data() + at, "\x00\x01\x00\x00", 4);
     putbe16(img, at + 4, 1);   /* numTables */
@@ -3769,6 +3802,174 @@ TEST(Carve, TsSparseSyncNoiseRejected) {
         EXPECT_FALSE(c->props()->carve_format == u64(FMT_TS) ||
                      c->props()->carve_format == u64(FMT_M2TS))
             << "sparse non-strided syncs must never fire the TS family";
+}
+
+TEST(Carve, HtmlAsciiLowerUpperDoctypeAccepted) {
+    /* M-092: the three ASCII probe forms - <html>, <HTML>, <!DOCTYPE
+     * HTML> - all carve (the probe is case-insensitive; the u16 keys
+     * <h/<H/<! are just the dispatch). */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t lower_at = 512, upper_at = 4096, doctype_at = 8192;
+    const size_t lower_end = plant_html(img, lower_at, "<html>", 600);
+    const size_t upper_end = plant_html(img, upper_at, "<HTML>", 600);
+    const size_t doctype_end = plant_html(img, doctype_at, "<!DOCTYPE HTML>", 600);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    auto find_at = [&](size_t off) -> tree::FileNode* {
+        for (tree::FileNode* n : all)
+            if (!n->props()->extents.empty() && n->props()->extents.front().offset == off)
+                return n;
+        return nullptr;
+    };
+    /* the u16 keys are case-sensitive dispatch rows into the ONE shared
+     * validator: "<html>" -> FMT_HTML, "<HTML>" -> FMT_HTML_H, the
+     * doctype -> FMT_HTML_BANG (the og's duplicate-key policy) */
+    const std::pair<size_t, u64> expect[] = {
+        {lower_at, u64(FMT_HTML)}, {upper_at, u64(FMT_HTML_H)}, {doctype_at, u64(FMT_HTML_BANG)}};
+    for (const auto& [at, fmt] : expect) {
+        tree::FileNode* n = find_at(at);
+        ASSERT_NE(n, nullptr) << "the HTML probe form at " << at << " must carve (M-092)";
+        EXPECT_EQ(n->props()->carve_format, fmt) << "the four-key chain, key-exact row";
+    }
+    /* the exact sector-rounded extents (the size = the rounded marker
+     * end minus the start) */
+    EXPECT_EQ(find_at(lower_at)->props()->logical_size,
+              (((lower_end + 511) / 512) * 512) - lower_at);
+    EXPECT_EQ(find_at(upper_at)->props()->logical_size,
+              (((upper_end + 511) / 512) * 512) - upper_at);
+    EXPECT_EQ(find_at(doctype_at)->props()->logical_size,
+              (((doctype_end + 511) / 512) * 512) - doctype_at);
+}
+
+TEST(Carve, HtmlUtf16BomChainAccepted) {
+    /* M-092: the 4th chain - FF FE + the wide "<HTML>" open tag carves
+     * via the FMT_HTML_UTF16 row; the end-tag walk uses the ASCII
+     * needle (no wide needle exists in the DLL). */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t at = 512;
+    const size_t end = plant_html_utf16(img, at, 300);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr) << "the UTF-16 BOM chain must carve (M-092)";
+    EXPECT_EQ(n->props()->carve_format, u64(FMT_HTML_UTF16));
+    EXPECT_EQ(n->props()->logical_size, (((end + 511) / 512) * 512) - at)
+        << "the ASCII end-tag walk + sector round-up";
+    std::string note;
+    ASSERT_TRUE(cr::text::lossless_u16_to_utf8(n->props()->carve_note, note));
+    EXPECT_EQ(note, "html-endtag-walk+utf16");
+}
+
+TEST(Carve, HtmlNoEndTagFallsBackBounded) {
+    /* M-092: no </html> within the 1 MiB cap -> the bounded fallback
+     * (the RTF/slab-end family) with the heuristic note. */
+    std::vector<u8> img(2 * 1024 * 1024, 0);
+    const size_t at = 512;
+    std::memcpy(img.data() + at, "<html><body>no end tag anywhere", 30);
+    for (size_t i = at + 30; i < at + 0x100000; ++i)
+        img[i] = u8('a' + (i % 26)); /* cap-filling body, no marker */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr) << "the markerless document must still carve (bounded)";
+    EXPECT_EQ(n->props()->carve_format, u64(FMT_HTML));
+    EXPECT_EQ(n->props()->logical_size, size_t(0x100000)) << "the 1 MiB cap";
+    std::string note;
+    ASSERT_TRUE(cr::text::lossless_u16_to_utf8(n->props()->carve_note, note));
+    EXPECT_EQ(note, "html-bounded-cap") << "the heuristic note";
+}
+
+TEST(Carve, HtmlNonHtmlPrefixesRejected) {
+    /* M-092 hostile: the u16 keys fire on <head>/<hr>/<!-- but the probe
+     * rejects everything that is not <HTML / <!DOCTYPE HTML / the wide
+     * forms - a <head> document never carves. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    std::memcpy(img.data() + at, "<head><title>x</title></head><body></body>", 41);
+    /* a UTF-16 file whose post-BOM content is not <HTML>/<! - rejected */
+    const size_t w_at = 4096;
+    img[w_at] = 0xFF;
+    img[w_at + 1] = 0xFE;
+    img[w_at + 2] = 0x3C;
+    img[w_at + 3] = 0x00;
+    img[w_at + 4] = 0x68; /* wide '<h' - not '<HTML>' and not '!' */
+    img[w_at + 5] = 0x00;
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    for (tree::FileNode* c : all) {
+        EXPECT_FALSE(c->props()->extents.front().offset == at &&
+                     c->props()->carve_format == u64(FMT_HTML))
+            << "a <head> document is not <HTML> - probe rejects";
+        EXPECT_FALSE(c->props()->extents.front().offset == w_at &&
+                     c->props()->carve_format == u64(FMT_HTML_UTF16))
+            << "wide '<h' without the <HTML>/! forms - probe rejects";
+    }
 }
 
 TEST(Carve, S007NicheBatch1SalvageSemantics) {

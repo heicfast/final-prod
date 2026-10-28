@@ -2439,3 +2439,15 @@ line on top of the dated snapshots) / 3 tracked-open (OQ-S4-3, OQ-S8-1,
 OQ-S10-1)** — SUMMARY's SA-10 block, README's board line, and the worklog
 close entry all carry these numbers. Recorded per the truth mandate (the
 84a1832 precedent).
+## Fix session — M-092 landed (the HTML carve chain)
+
+- **M-092 FIXED** — corpus re-verified first-hand (the :14263-14281 chain ctor,
+  the FUN_180012270 probe, the FUN_180042e60 size walk). Four rows
+  (FMT_HTML/<h, FMT_HTML_H/<H, FMT_HTML_BANG/<!, FMT_HTML_UTF16/FF FE — the
+  E59 BOM chain), one shared validate_html: the case-insensitive <HTML (5B) /
+  <!DOCTYPE HTML (14B) / BOM+wide probes; the chunked ASCII </html> scan
+  (1 MiB cap — NO wide needle exists in the DLL; the plan's parenthetical
+  was an inference, corrected in the Resolution), sector round-up clamped
+  to the slab, the bounded-cap fallback with the heuristic note. The
+  Consistency vocabulary test updated (HTML checkable — the OQ-FLT-1
+  registry-derived design). Tests: 4 Carve.Html*; suite 1071/1071.

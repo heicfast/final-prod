@@ -2737,6 +2737,122 @@ static CarveResult validate_ts_common(IStorageDevice* s, u64 hit, u64 cap, u32 s
     return r;
 }
 
+/* ---- HTML (M-092): the og's four u16 keys route one analyser chain ----
+ * Registrations: u16 `<h` 0x683c / `<H` 0x483c / `<!` 0x213c (:2849/:2858/
+ * :2867) + the UTF-16LE BOM chain 0xfeff (:2876, census erratum E59) ->
+ * RawSpeed::HTMLAnalyser + FileHTMAnalyser, id 0x21 (:14263-14281).
+ * Probe (FUN_180012270 :14307-14380): ASCII - case-insensitive
+ * "<HTML" (5 bytes) or "<!DOCTYPE HTML" (14 bytes); BOM chain -
+ * dword@0 == 0x003CFEFF (FF FE 3C 00) AND (the wide "<HTML>" at +2
+ * (6 chars, case-insensitive) OR the wide char at +4 == '!').
+ * Size (FUN_180042e60 :50845-50884): the chunked "</html>" scan - a
+ * 7-byte ASCII needle ONLY (no wide needle exists anywhere in the DLL:
+ * grep for the wide-form constants returns zero sites; a UTF-16 file
+ * without an ASCII needle falls to the cap), cap 0x100000, then sector
+ * round-up; no marker within the cap -> the bounded cap (the
+ * RTF/slab-end family, the batch-1 convention). FileInfo bounds
+ * {20, 0x100000} (:14395-14396). */
+static bool ci_ascii(const u8* p, const char* want, size_t n) {
+    for (size_t i = 0; i < n; ++i) {
+        char c = char(p[i]);
+        if (c >= 'a' && c <= 'z')
+            c = char(c - 'a' + 'A');
+        if (c != want[i])
+            return false;
+    }
+    return true;
+}
+
+static bool ci_wide(const u8* p, const wchar_t* want, size_t n) {
+    for (size_t i = 0; i < n; ++i) {
+        char c = char(p[2 * i]);
+        if (c >= 'a' && c <= 'z')
+            c = char(c - 'a' + 'A');
+        if (c != char(want[i]) || p[2 * i + 1] != 0)
+            return false;
+    }
+    return true;
+}
+
+static u64 scan_html_end_tag(IStorageDevice* s, u64 start, u64 limit) {
+    /* the chunked "</html>" scan: 1 MiB probe blocks, overlap of
+     * needle-1 bytes so a marker straddling a block edge is found. */
+    static const char kNeedle[7] = {'<', '/', 'H', 'T',
+                                    'M', 'L', '>'}; /* upper - the
+                scan normalizes the buffer up before compare */
+    std::vector<u8> buf(kProbeBlock);
+    u64 block = start;
+    while (block < limit) {
+        const u64 remain = limit - block;
+        const u32 take = u32(std::min<u64>(remain, kProbeBlock));
+        if (take < 7)
+            break;
+        if (!rd(s, block, buf.data(), take))
+            break;
+        for (u32 i = 0; i + 7 <= take; ++i) {
+            bool hit = true;
+            for (u32 b = 0; b < 7; ++b) {
+                char c = char(buf[i + b]);
+                if (c >= 'a' && c <= 'z')
+                    c = char(c - 'a' + 'A');
+                if (c != kNeedle[b]) {
+                    hit = false;
+                    break;
+                }
+            }
+            if (hit)
+                return block + i + 7; /* just past the marker */
+        }
+        if (block + take >= limit)
+            break;
+        block += u64(take) - 6; /* needle-1 overlap */
+    }
+    return 0; /* not found within the cap */
+}
+
+CarveResult validate_html(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[16];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    bool wide = false;
+    if (ci_ascii(h, "<HTML", 5) || ci_ascii(h, "<!DOCTYPE HTML", 14)) {
+        wide = false;
+    } else if (u32_from_bytes_le(h) == 0x003CFEFF &&
+               (ci_wide(h + 2, L"<HTML>", 6) || (h[4] == 0x21 && h[5] == 0))) {
+        wide = true; /* the UTF-16LE BOM chain */
+    } else {
+        return r; /* the probe's three acceptance forms (plus the wide-'!' form) */
+    }
+    const u64 limit = probe_limit(s, hit, cap); /* cap = 1 MiB */
+    const u64 marker_end = scan_html_end_tag(s, hit, limit);
+    /* FUN_180042e60's sector round-up (:50880-50884): the size rounds up
+     * to the storage cell's logical sector (512 when the device reports
+     * none) - applied to both the marker walk and the cap fallback,
+     * clamped to the slab end (the core's node extents stay inside the
+     * device) */
+    const u64 sec = s->geometry().logical_sector >= 1 ? u64(s->geometry().logical_sector) : 512;
+    u64 end = (marker_end != 0) ? marker_end : limit;
+    if (sec > 1)
+        end = ((end + sec - 1) / sec) * sec;
+    if (end > limit)
+        end = limit;
+    if (marker_end != 0) {
+        r.ok = true;
+        r.end = end;
+        r.confidence = 700;
+        r.note = wide ? "html-endtag-walk+utf16" : "html-endtag-walk";
+        return r;
+    }
+    /* no marker within the cap: the bounded fallback (the og's shared
+     * chunk scan leaves the size at the cap) with the heuristic note */
+    r.ok = true;
+    r.end = end;
+    r.confidence = 500;
+    r.note = wide ? "html-bounded-cap+utf16" : "html-bounded-cap";
+    return r;
+}
+
 CarveResult validate_ts(IStorageDevice* s, u64 hit, u64 cap) {
     /* 188-byte MPEG transport stream packets (CMTS, id 0x76) */
     return validate_ts_common(s, hit, cap, 188, 0, 700, "ts-packet-walk-188",

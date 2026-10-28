@@ -82,6 +82,9 @@ constexpr u32 kTrialOrder[] = {
      * families' grammars reject each other's streams within two packets,
      * so the order only breaks true ties. */
     FMT_M2TS, FMT_TS,
+    /* M-092: the HTML keys (distinct 2-byte magics; one shared
+     * validator - first-key-first is deterministic) */
+    FMT_HTML, FMT_HTML_H, FMT_HTML_BANG, FMT_HTML_UTF16,
     /* S-017: ftyp-destroyed MOV salvage (og MovAnalyzer list layer) -
      * LAST: the ftyp-keyed entries must claim the position first */
     FMT_MOV_NAKED};

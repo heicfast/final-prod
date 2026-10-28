@@ -98,6 +98,7 @@ CarveResult validate_3ds(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_3ds_ncsd(IStorageDevice* s, u64 hit, u64 cap); /* the list-layer twin */
 CarveResult validate_ts(IStorageDevice* s, u64 hit, u64 cap);       /* S-047: CMTS, 188-byte */
 CarveResult validate_m2ts(IStorageDevice* s, u64 hit, u64 cap);     /* S-047: CM2TS, 192-byte */
+CarveResult validate_html(IStorageDevice* s, u64 hit, u64 cap);     /* M-092: the four-key chain */
 
 namespace {
 const Signature kTable[] = {
@@ -1035,6 +1036,22 @@ const Signature kTable[] = {
      validate_m2ts,
      "AVCHD M2TS",
      true},
+    /* M-092: HTML - the og's four u16 keys (one row per key, the shared
+     * validator; the probe itself is case-insensitive so <h/<H/<! all
+     * route the same grammar). FileInfo bounds {20, 0x100000}. */
+    {FMT_HTML, "html", {'<', 'h'}, 2, 0, 20, 0x100000ull, 620, validate_html, "HTML document"},
+    {FMT_HTML_H, "html", {'<', 'H'}, 2, 0, 20, 0x100000ull, 620, validate_html, "HTML document"},
+    {FMT_HTML_BANG, "html", {'<', '!'}, 2, 0, 20, 0x100000ull, 620, validate_html, "HTML document"},
+    {FMT_HTML_UTF16,
+     "html",
+     {0xFF, 0xFE},
+     2,
+     0,
+     20,
+     0x100000ull,
+     620,
+     validate_html,
+     "HTML document"},
 };
 } // namespace
 

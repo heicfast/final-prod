@@ -202,6 +202,15 @@ enum FormatId : u32 {
     FMT_TS,   /* 0x47 sync + follow-byte gate, 188-byte packet walk (CMTS) */
     FMT_M2TS, /* 0x47 sync at +4 + follow-byte gate, 192-byte packet walk (CM2TS;
                * the og stamps the M2TS extension for this family) */
+    /* M-092 (diff-to-fix): the og's HTML chain - four u16 keys (<h/<H/<!
+     * + the UTF-16LE BOM 0xfeff, census erratum E59) -> HTMLAnalyser id
+     * 0x21; the case-insensitive <HTML / <!DOCTYPE HTML / wide probes;
+     * the </html> end-tag walk (1 MiB cap, sector round-up). One row per
+     * key, shared validator (the og's duplicate-key policy). */
+    FMT_HTML,       /* u16 "<h" 0x683c */
+    FMT_HTML_H,     /* u16 "<H" 0x483c */
+    FMT_HTML_BANG,  /* u16 "<!" 0x213c */
+    FMT_HTML_UTF16, /* u16 FF FE 0xfeff - the BOM chain */
     FMT_COUNT
 };
 

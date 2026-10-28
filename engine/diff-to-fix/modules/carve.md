@@ -657,7 +657,11 @@ push-window numbering, reconciled over the deep-audit/fix/third lanes)
 **S-047 FIXED this session** (FMT_TS/FMT_M2TS: the 0x47 sync scanners — 188/192-byte
 auto-detect by anchor offset, per-packet verify, null-packet tolerance, 0x5000 min,
 x10 cap, m2ts extension stamp; tests Carve.MpegTs188*/M2Ts192*/Ts*; findings/FIXED/S-047) ·
-**M-092** HTML · **M-093** XML+SVG · **M-096** MOBI ·
+**M-092 FIXED this session** (the four u16-key rows <h/<H/<!/FF FE + the
+case-insensitive <HTML/<!DOCTYPE HTML/wide probes + the ASCII-only </html>
+end-tag walk with sector round-up, 1 MiB cap; the vocabulary-consistency
+surface updated — HTML is checkable now, the OQ-FLT-1 registry-derived
+design; findings/FIXED/M-092) · **M-093** XML+SVG · **M-096** MOBI ·
 **M-098** HIK · **M-099** AEP · **N-111** JP2 · **N-112** LZH ·
 **N-113** the text school (VCF/GPX/OSP/POS/CHFP) · **N-115** OfficeTagFromXML.
 The school-1 formats (CHM/ONE/MNY/EMF/SWF/3DS) landed via `b92ebef`; FCPEvt closed
