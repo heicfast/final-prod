@@ -1189,3 +1189,90 @@ duplicate S-040/S-041 filings merged into their owner files as convergence
 addenda (the no-duplication rule), and this lane's unique findings took
 M-086..M-089 / N-107 / N-108. Board after all legs: 46 active + 249 FIXED +
 OQ-S4-3/OQ-S8-1 tracked.
+
+---
+Task ID: SA-8/T3 (session-8 third lane — the CLOSE-OUT handoff)
+Agent: session-8 full parity audit, lead (this session)
+
+Audited commits (this lane): core product code `35adcb9` (trail commits
+rebased through the parallel lanes to `7748254`; the parallel fix lanes moved
+the product tree to `9e5dedc`+ mid-session — every load-bearing absence claim
+re-verified on the final rebased tree); driver `323e75a` (v0.2.4); corpus
+`be0cfe9`. Read-only discipline verified: this lane's two commits
+(`8ac5211`, `5553216`) touch ONLY diff-to-fix/ + worklog* — zero product
+files (the product-file changes between 35adcb9 and HEAD belong to the
+parallel CI-REL/scan-engine fix lanes).
+
+Coverage statistics (this lane's waves):
+- Corpus: 274 artifacts + 9 architecture docs enumerated; citation state
+  re-swept against the entire trail; coverage verdict CLEAN (zero in-scope
+  un-dispositioned engine parameters; SURFACE-INVENTORY §9 records the
+  corrections: DRWService §5-claim, EuShare parenthetical, §3 glob names,
+  MOM 17->16, per-binary 3/114, SearchDLL 30/30, SaveScan 5/5).
+- New landings verified: W1a/W1b/W1c (MATCH with registered divergences),
+  ntfs_origin_lcn (both stamps + clone + bit-8 verified), S-007 batch-1 keys
+  (byte-exact vs registration sites; WMF grammar = S-042; misattributions
+  fixed by the parallel lane at 9e5dedc, verified gone), thumbnail (the
+  registration/threshold items filed by the parallel lanes: I-028/N-091/
+  M-080/S-043/S-045), installer S-038 (13/13 parameters contract-faithful).
+- Driver (this lane's unique territory, fully dispositioned): wire contract
+  MATCH (identity IOCTLs raw-exact vs eprdtdrv-internals:81-83, Information
+  x512, LBA scaling, 19 session codes binary-probed in EUDCPEPM.sys, NAS/
+  Cloud exclusion holds); M-086..M-089 + N-107 filed; D2/D3/D4 handoffs all
+  owned; v0.2.4's M-064 claims verified implemented (with the FileVersion
+  caveat = M-086).
+- Board truth: N-108 (docs/PARAMETERS.md stale constants + the SCAN-2f false
+  "fixed" claim, corrected in place); A-007 cite repair; errata E65/E66;
+  CROSS-REF-MATRIX/README/SUMMARY current.
+
+Board at this lane's close (all session-8 legs combined): **47 active**
+(6 SEVERE: S-040 S-041 S-042 S-043 S-044 S-045 · 19 MAJOR: M-071..M-089 ·
+19 MINOR: N-090..N-108 · I-026/I-027/I-028) + 249 FIXED + tracked-open
+OQ-S4-3 (Windows-execution-bound) + OQ-S8-1. No UNVERIFIED items remain
+untracked: every open decode question lives inside a finding's fix plan
+(the zero-invention bar held), and the two tracked-open questions carry
+precise probes.
+
+Recommended first 20 fixes (cross-lane priority order, this lane's vote):
+1. S-042 WMF placeable validator (wrong-results class; the grammar is fully
+   decoded; one function)
+2. S-041 batch-2a CHM + MTS/M2TS (grammars decoded; CHM's blocker refuted)
+3. M-071 the M-018 regression (junk-filter gates lost — recover-all writes
+   the og's hidden junk; user-data pollution class)
+4. S-044 auto-save gates (results-found + not-already-saved; the og never
+   auto-saves an empty/already-saved scan)
+5. M-080 thumbnail budget + the 200 MB eligibility gate (starves ordinary
+   photos)
+6. M-086 driver FileVersion stamping (defeats upgrades; one release-lane
+   decision + the drill)
+7. M-087 regdrv-rda.reg one-line fix + the hex(7) CI gate
+8. M-084 ACCDB second signature + M-085 TIFF LZW (small, decoded, high-value)
+9. S-043 thumbnail EXIF orientation (wrong-aspect output class)
+10. M-088 FloorVersion single-sourcing + the CI-shape doc sweep (the
+    "ONE pin source" lesson)
+11. M-089 rdabench probe-list derivation + the phantom-zero sweep
+12. N-108 docs/PARAMETERS.md two rows (5-minute fix; integrator-facing)
+13. M-082 DeviceManager offline-OS identification (decode work scoped)
+14. M-072..M-078 the R-row batch (query axes, folder filter, dest codes,
+    chkdsk, TRIM, preview caps, BitLocker turn-off — the API-EXP plan of
+    record)
+15. N-107 driver 15/18-command prose sweep (one commit)
+16. S-045 thumbnail format coverage phase 2 (video/RAW/HEIC/PDF)
+17. M-079 CLI autosave volume-label fill site
+18. M-083 thumbnail grade promotion
+19. N-090..N-106 the MINOR batch (doc-truth + propagation rows)
+20. OQ-S4-3 the TTFR measurement (rides the next green Windows dispatch —
+    execution-bound, stays tracked)
+
+Handoff notes for the next session:
+- The parallel-lane environment is ACTIVE (three session-8 audit lanes + two
+  fix lanes landed mid-audit). Pull before every wave; re-verify absence
+  claims on the final tree (the N-090 cite-drift lesson).
+- The corpus remains at be0cfe9 (one errata line past 03ad46c — absorbed).
+  Watch the corpus repo for new CORRECTIONS rows; each is a scope delta.
+- Driver findings file HERE (core trail, the M-064 precedent) with fix plans
+  pointing at rda-driver; single-repo commit discipline holds.
+- The remaining "executed-comparison" verification class (Windows-only paths:
+  the driver install drills, reg import, WMF fixture carve) is out of this
+  container's reach — the findings carry the static evidence and the drills
+  are the fix lanes' acceptance criteria.

@@ -12,7 +12,7 @@
 
 **Board-truth repairs:** the A-007 finding's dangling evidence cites (a006-… never existed) re-pointed at the real file with a dated note; SCAN-ENGINE-DELTA's two false "fixed" claims corrected in place; corpus-errata E65/E66 filed; CROSS-REF-MATRIX gained this lane's rows.
 
-**Board after the third lane (all session-8 legs combined):** **46 active** (6 SEVERE · **20 MAJOR** (+M-086..M-089) · **19 MINOR** (+N-107, N-108) · I-026/I-027/I-028) + 249 FIXED + OQ-S4-3/OQ-S8-1 tracked-open. The driver lane is now fully dispositioned: every D-handoff (D2/D3/D4 + the FileVersion note) has an owner finding; the wire contract itself re-verified MATCH (identity IOCTLs, Information×512, LBA scaling, 19 session codes, NAS/Cloud exclusion — binary-probed).
+**Board after the third lane (all session-8 legs combined):** **47 active** (6 SEVERE · **19 MAJOR** (+M-086..M-089) · **19 MINOR** (+N-107, N-108) · I-026/I-027/I-028) + 249 FIXED + OQ-S4-3/OQ-S8-1 tracked-open. The driver lane is now fully dispositioned: every D-handoff (D2/D3/D4 + the FileVersion note) has an owner finding; the wire contract itself re-verified MATCH (identity IOCTLs, Information×512, LBA scaling, 19 session codes, NAS/Cloud exclusion — binary-probed).
 
 ## Session-8 delta (2026-10-28 — the second-session deep audit: missed-surface sweep + remaining-feature filing + landing verification + FIXED-truth spot-check)
 
