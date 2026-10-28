@@ -2078,7 +2078,7 @@ size_t plant_ogg(std::vector<u8>& img, size_t at, bool with_eos = true) {
         img[p + 5] = htype;
         for (int i = 0; i < 16; ++i)
             img[p + 6 + size_t(i)] = u8(i); /* granule..CRC noise */
-        img[p + 26] = 1; /* one segment */
+        img[p + 26] = 1;                    /* one segment */
         img[p + 27] = seglen;
         for (int i = 0; i < seglen; ++i)
             img[p + 28 + size_t(i)] = u8(0x30 + i);
@@ -2156,7 +2156,10 @@ size_t plant_wpg(std::vector<u8>& img, size_t at) {
 }
 
 size_t plant_wpd(std::vector<u8>& img, size_t at) {
-    std::memcpy(img.data() + at, "\xFF" "WPC", 4);
+    std::memcpy(img.data() + at,
+                "\xFF"
+                "WPC",
+                4);
     put16(img, at + 4, 0x0200); /* nonzero product word */
     for (size_t i = 6; i < 32; ++i)
         img[at + i] = u8(i & 0xFF);
@@ -2182,7 +2185,7 @@ size_t plant_sit(std::vector<u8>& img, size_t at) {
 size_t plant_gz(std::vector<u8>& img, size_t at) {
     img[at] = 0x1F;
     img[at + 1] = 0x8B;
-    img[at + 2] = 8; /* CM deflate */
+    img[at + 2] = 8;    /* CM deflate */
     img[at + 3] = 0x00; /* FLG: no optional fields */
     for (int i = 4; i < 10; ++i)
         img[at + size_t(i)] = 0;
@@ -2203,11 +2206,11 @@ size_t plant_ape(std::vector<u8>& img, size_t at) {
 
 size_t plant_au(std::vector<u8>& img, size_t at) {
     std::memcpy(img.data() + at, ".snd", 4);
-    putbe32(img, at + 4, 24); /* data offset */
-    putbe32(img, at + 8, 256); /* data size */
-    putbe32(img, at + 12, 3); /* encoding u-law */
+    putbe32(img, at + 4, 24);     /* data offset */
+    putbe32(img, at + 8, 256);    /* data size */
+    putbe32(img, at + 12, 3);     /* encoding u-law */
     putbe32(img, at + 16, 44100); /* rate */
-    putbe32(img, at + 20, 2); /* channels */
+    putbe32(img, at + 20, 2);     /* channels */
     for (size_t i = 24; i < 280; ++i)
         img[at + i] = u8((i * 7) & 0xFF);
     return 280;
@@ -2236,13 +2239,13 @@ size_t plant_hlp(std::vector<u8>& img, size_t at) {
 size_t plant_ico(std::vector<u8>& img, size_t at, u32 type = 1) {
     put16(img, at + 0, 0); /* reserved */
     put16(img, at + 2, u16(type));
-    put16(img, at + 4, 1); /* one image */
-    img[at + 6] = 16; /* width */
-    img[at + 7] = 16; /* height */
-    img[at + 8] = 16; /* color count */
-    img[at + 9] = 0; /* reserved */
-    put16(img, at + 10, 1); /* planes */
-    put16(img, at + 12, 32); /* bpp */
+    put16(img, at + 4, 1);    /* one image */
+    img[at + 6] = 16;         /* width */
+    img[at + 7] = 16;         /* height */
+    img[at + 8] = 16;         /* color count */
+    img[at + 9] = 0;          /* reserved */
+    put16(img, at + 10, 1);   /* planes */
+    put16(img, at + 12, 32);  /* bpp */
     put32v(img, at + 14, 64); /* bytes in res */
     put32v(img, at + 18, 22); /* data offset (right after the dir) */
     for (size_t i = 22; i < 22 + 64; ++i)
@@ -2263,20 +2266,20 @@ size_t plant_wmf_placeable(std::vector<u8>& img, size_t at) {
     u16 x = 0;
     for (int i = 0; i < 10; ++i)
         x = u16(x ^ u16_from_bytes_le(&img[at + 2 * size_t(i)]));
-    put16(img, at + 18, x); /* checksum */
+    put16(img, at + 18, x);                                   /* checksum */
     std::memcpy(img.data() + at + 22, "\x01\x00\x09\x00", 4); /* standard header */
-    put16(img, at + 26, 0x0300); /* version */
-    put32v(img, at + 28, 100); /* size words */
+    put16(img, at + 26, 0x0300);                              /* version */
+    put32v(img, at + 28, 100);                                /* size words */
     return 36;
 }
 
 size_t plant_wmf_std(std::vector<u8>& img, size_t at) {
     std::memcpy(img.data() + at, "\x01\x00\x09\x00", 4);
     put16(img, at + 4, 0x0300); /* version */
-    put32v(img, at + 6, 64); /* size in words -> 128 bytes */
-    put16(img, at + 10, 4); /* objects */
-    put32v(img, at + 12, 10); /* max record */
-    put16(img, at + 16, 0); /* params */
+    put32v(img, at + 6, 64);    /* size in words -> 128 bytes */
+    put16(img, at + 10, 4);     /* objects */
+    put32v(img, at + 12, 10);   /* max record */
+    put16(img, at + 16, 0);     /* params */
     for (size_t i = 18; i < 128; ++i)
         img[at + i] = u8((i * 11) & 0xFF);
     return 128;
@@ -2284,12 +2287,12 @@ size_t plant_wmf_std(std::vector<u8>& img, size_t at) {
 
 size_t plant_ttf(std::vector<u8>& img, size_t at) {
     std::memcpy(img.data() + at, "\x00\x01\x00\x00", 4);
-    putbe16(img, at + 4, 1); /* numTables */
-    putbe16(img, at + 6, 16); /* searchRange */
-    putbe16(img, at + 8, 0); /* entrySelector */
+    putbe16(img, at + 4, 1);   /* numTables */
+    putbe16(img, at + 6, 16);  /* searchRange */
+    putbe16(img, at + 8, 0);   /* entrySelector */
     putbe16(img, at + 10, 16); /* rangeShift */
     std::memcpy(img.data() + at + 12, "cmap", 4);
-    putbe32(img, at + 16, 0); /* checksum */
+    putbe32(img, at + 16, 0);  /* checksum */
     putbe32(img, at + 20, 28); /* offset */
     putbe32(img, at + 24, 64); /* length */
     for (size_t i = 28; i < 92; ++i)
@@ -2309,13 +2312,16 @@ size_t plant_mdb(std::vector<u8>& img, size_t at) {
 size_t plant_tar(std::vector<u8>& img, size_t at) {
     u8* h = img.data() + at;
     std::memset(h, 0, 512);
-    std::memcpy(h, "file.txt", 8); /* name */
-    std::memcpy(h + 100, "0000644\x00", 8); /* mode */
-    std::memcpy(h + 108, "0000000\x00", 8); /* uid */
-    std::memcpy(h + 116, "0000000\x00", 8); /* gid */
+    std::memcpy(h, "file.txt", 8);               /* name */
+    std::memcpy(h + 100, "0000644\x00", 8);      /* mode */
+    std::memcpy(h + 108, "0000000\x00", 8);      /* uid */
+    std::memcpy(h + 116, "0000000\x00", 8);      /* gid */
     std::memcpy(h + 124, "00000000020\x00", 12); /* size = 16 */
     std::memcpy(h + 136, "14000000000\x00", 12); /* mtime */
-    std::memcpy(h + 257, "ustar\x00" "00", 8); /* magic + version */
+    std::memcpy(h + 257,
+                "ustar\x00"
+                "00",
+                8); /* magic + version */
     for (int i = 0; i < 8; ++i)
         h[148 + i] = ' '; /* chksum as spaces for the sum */
     u64 sum = 0;
@@ -2355,7 +2361,7 @@ size_t plant_3gp(std::vector<u8>& img, size_t at) {
     std::memcpy(img.data() + at + 8, "3gp4", 4);
     putbe32(img, at + 12, 0x00000200); /* minor version */
     putbe32(img, at + 16, 0x33706734); /* one compat brand slot: 3gp4 */
-    putbe32(img, at + 20, 16); /* box2 size 16 */
+    putbe32(img, at + 20, 16);         /* box2 size 16 */
     std::memcpy(img.data() + at + 24, "moov", 4);
     for (size_t i = 28; i < 36; ++i)
         img[at + i] = u8(i & 0xFF);
@@ -2688,7 +2694,10 @@ TEST(Carve, S007NicheBatch1RejectsNoise) {
     /* tar header with a BAD checksum @ 40960 */
     std::memset(img.data() + 40960, 0, 512);
     std::memcpy(img.data() + 40960, "file.txt", 8);
-    std::memcpy(img.data() + 40960 + 257, "ustar\x00" "00", 8);
+    std::memcpy(img.data() + 40960 + 257,
+                "ustar\x00"
+                "00",
+                8);
     std::snprintf(reinterpret_cast<char*>(img.data() + 40960 + 148), 8, "%06llo ",
                   (unsigned long long)12345);
     /* "%!" with no PS behind it @ 44032 */

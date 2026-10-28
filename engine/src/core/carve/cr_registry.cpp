@@ -61,7 +61,7 @@ CarveResult validate_rm(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_mxf(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_dmg(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_x3f(IStorageDevice* s, u64 hit, u64 cap);
-CarveResult validate_mrw(IStorageDevice* s, u64 hit, u64 cap);  /* 3 rows */
+CarveResult validate_mrw(IStorageDevice* s, u64 hit, u64 cap); /* 3 rows */
 CarveResult validate_wpg(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_wpd(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_psp(IStorageDevice* s, u64 hit, u64 cap);
@@ -70,8 +70,8 @@ CarveResult validate_gz(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_ape(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_au(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_aiff(IStorageDevice* s, u64 hit, u64 cap);
-CarveResult validate_hlp(IStorageDevice* s, u64 hit, u64 cap);  /* 3 rows */
-CarveResult validate_ico(IStorageDevice* s, u64 hit, u64 cap);   /* ico+cur */
+CarveResult validate_hlp(IStorageDevice* s, u64 hit, u64 cap); /* 3 rows */
+CarveResult validate_ico(IStorageDevice* s, u64 hit, u64 cap); /* ico+cur */
 CarveResult validate_wmf_placeable(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_wmf_std(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_ttf(IStorageDevice* s, u64 hit, u64 cap);
@@ -691,16 +691,7 @@ const Signature kTable[] = {
     {FMT_MID, "mid", {'M', 'T', 'h', 'd'}, 4, 0, 14, 64ull << 20, 800, validate_mid, "MIDI"},
     {FMT_OGG, "ogg", {'O', 'g', 'g', 'S'}, 4, 0, 27, 512ull << 20, 800, validate_ogg, "Ogg"},
     {FMT_RM, "rm", {'.', 'R', 'M', 'F'}, 4, 0, 0x20, 512ull << 20, 700, validate_rm, "RealMedia"},
-    {FMT_MXF,
-     "mxf",
-     {0x06, 0x0E, 0x2B, 0x34},
-     4,
-     0,
-     32,
-     1ull << 30,
-     700,
-     validate_mxf,
-     "MXF"},
+    {FMT_MXF, "mxf", {0x06, 0x0E, 0x2B, 0x34}, 4, 0, 32, 1ull << 30, 700, validate_mxf, "MXF"},
     /* DMG: the og keys the LEVEL-1 bzip2 stream byte-exactly ("BZh1");
      * the og's own global carve cap 0xBEBC200 mirrors here (registered
      * bound) */
@@ -906,16 +897,7 @@ const Signature kTable[] = {
      620,
      validate_dxf,
      "AutoCAD DXF"},
-    {FMT_3GP,
-     "3gp",
-     {'f', 't', 'y', 'p'},
-     4,
-     4,
-     128,
-     4ull << 30,
-     780,
-     validate_3gp,
-     "3GP Video"},
+    {FMT_3GP, "3gp", {'f', 't', 'y', 'p'}, 4, 4, 128, 4ull << 30, 780, validate_3gp, "3GP Video"},
 };
 } // namespace
 

@@ -3020,7 +3020,7 @@ CarveResult validate_dmg(IStorageDevice* s, u64 hit, u64 cap) {
             }
         }
         if (n <= 6)
-            break; /* nothing more to advance past the 5-byte seam */
+            break;    /* nothing more to advance past the 5-byte seam */
         pos += n - 5; /* seam: the footer may span two blocks */
     }
     r.ok = true;
@@ -3113,7 +3113,10 @@ CarveResult validate_wpd(IStorageDevice* s, u64 hit, u64 cap) {
     u8 h[8];
     if (!rd(s, hit, h, sizeof(h)))
         return r;
-    if (std::memcmp(h, "\xFF" "WPC", 4) != 0)
+    if (std::memcmp(h,
+                    "\xFF"
+                    "WPC",
+                    4) != 0)
         return r;
     if (h[4] == 0 && h[5] == 0)
         return r; /* zero product word: degenerate */
@@ -3356,8 +3359,8 @@ CarveResult validate_ico(IStorageDevice* s, u64 hit, u64 cap) {
             u32(e[12]) | (u32(e[13]) << 8) | (u32(e[14]) << 16) | (u32(e[15]) << 24);
         if (type == 1 && (planes < 1 || planes > 4))
             return r; /* icon entries: sane plane/bpp counts */
-        if (type == 1 && (bpp != 0 && bpp != 1 && bpp != 4 && bpp != 8 && bpp != 16 && bpp != 24 &&
-                          bpp != 32))
+        if (type == 1 &&
+            (bpp != 0 && bpp != 1 && bpp != 4 && bpp != 8 && bpp != 16 && bpp != 24 && bpp != 32))
             return r;
         if (bytes < 16)
             return r;
