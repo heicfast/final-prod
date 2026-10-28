@@ -62,6 +62,7 @@ add_library(cr_core STATIC
     preview/cr_preview_text_exts_data.cpp
     preview/cr_thumbnail.cpp
     query/cr_query.cpp
+    query/cr_config_display_data.cpp
     query/cr_filefilter_data.cpp
     check/cr_fscheck.cpp
     repair/cr_rawfixer.cpp

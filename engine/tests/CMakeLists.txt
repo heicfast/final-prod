@@ -36,6 +36,7 @@ add_executable(cr_tests
     unit/test_resume_revalidation.cpp
     unit/test_text.cpp
     unit/test_carve.cpp
+    unit/test_config_display.cpp
     unit/test_vollabel.cpp
     unit/test_session.cpp
     unit/test_orchestrator.cpp

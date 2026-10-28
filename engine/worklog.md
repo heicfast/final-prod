@@ -4713,3 +4713,43 @@ ERR_UNSUPPORTED for HFS+ (the stem fallback, unchanged behavior).
 **Trail:** findings/FIXED/N-133; ledger row (271 main + 20 OQ = 291);
 CROSS-REF-MATRIX cell → MATCH; SUMMARY (board 46 active);
 PARITY-DELTAS D-112.
+
+### Session-39 fix log — N-132 landed (the display-config data layers + the API-DELTA truth repair) + the merge-window red repaired
+
+**Finding:** MINOR N-132 (API-DELTA rows 44-45's false "landed" claims for
+TxtViewFiles/SumaryFileType/PriorityDisplayType).
+**Classification:** CONFIRMED-DIVERGENCE at the current tree, NARROWED: the
+parallel M-108 fix landed TxtViewFiles for real (row 44's claim became
+true in the interim); SumaryFileType + PriorityDisplayType remained absent
+(grep re-verified) — row 45 was still false.
+**Fix (fix-the-cause, the M-108 data-layer precedent):** both tables
+landed as query-layer data + public lookups —
+query::summary_family_for_extension (the 11 unification groups, the ini's
+order verbatim) + query::type_display_order / type_display_category_name
+(the 5-category/35-ext alias ordering, read DIRECTLY from
+og-codebase/config/PriorityDisplayType.xml this session). The layering
+registered as PARITY-DELTAS D-113 (the og consumes both in DRWUI's
+presentation; the core lands them as query data — the D-107 lineage).
+API-DELTA row 45 repaired to the truthful split (usefullostfiles stays
+the OOS-UI row; the landed halves carry real cites) — R-31 and the
+API-DELTA now agree.
+**Tests:** ConfigDisplay.SummaryFamilyUnificationGroups /
+SummaryFamilyUngroupedStandsAlone / SummaryFamilyNullAndEmptySafe /
+TypeDisplayOrderVerbatim / TypeDisplayOrderUnrankedReturnsFalse /
+TypeDisplayCategoryNamesVerbatim. Suite 1077/1077 (0 failed);
+clang-format clean.
+**Hygiene repair (the merge window left main RED):** test_fixtures.hpp's
+table::crc32 calls lost their transitive include in the S41 merge-window
+landings — the cr/table/cr_table_wire.h include restored (verified red
+at origin/main HEAD with my changes stashed; the repair is in this
+commit).
+**Trail:** findings/FIXED/N-132; ledger row; CROSS-REF-MATRIX cell →
+MATCH; API-DELTA rows repaired; PARITY-DELTAS D-113.
+
+**Session-39 addendum (the N-132 convergence note for the S40B lane):** the
+S40B lane's territory claim (7320a2f6) lists N-132 among its unclaimed set;
+this lane's N-132 fix landed first (complete: the data layers + tests + the
+truth repair). Per the convergence convention S40B's N-132 pass becomes a
+verification of this landing (the N-111 precedent shape). The
+test_fixtures.hpp crc32 include: convergent repair by two lanes (theirs
+7320a2f6-lineage, mine this commit) - one include kept.

@@ -47,6 +47,34 @@ enum class Category : u8 {
  * Binary search over the generated 1,481-entry table. */
 Category category_for_extension(const std::string& ext_utf8);
 
+/* ---- N-132: the og's two display-config data layers ----
+ *
+ * SumaryFileType (FilterFolder.ini [Filter]): the 11 extension-unification
+ * groups - the members are counted/presented as one family ("MP4 family:
+ * N files" - the container-identity grouping). The core lands the groups
+ * as this lookup; the ABI host's summary presentation consults the same
+ * table the og's UI reads (the layering registered in PARITY-DELTAS
+ * D-113). NULL = the extension stands alone.
+ *
+ * PriorityDisplayType.xml: the 5-category priority tier (Picture/Video/
+ * Document/Audio/Archive) with the 35 ranked extensions - the Type tree
+ * orders extensions WITHIN each category by the 2-digit alias key
+ * (jpg=00 before png=01 before jpeg=02...). The lookup returns the
+ * extension's category + rank; false = unranked (the og's Type tab lists
+ * unranked extensions after the ranked set, unordered). */
+enum class TypeDisplayCategory : u8 {
+    Picture = 0,
+    Video = 1,
+    Document = 2,
+    Audio = 3,
+    Archive = 4,
+};
+
+const char* summary_family_for_extension(const char* ext_utf8_lower);
+bool type_display_order(const char* ext_utf8_lower, TypeDisplayCategory& out_category,
+                        u32& out_rank);
+const char* type_display_category_name(TypeDisplayCategory c);
+
 /* The generated table's entry count (regeneration-drift guard:
  * Filter.TableCount pins it to the corpus unique count). */
 size_t filefilter_entry_count();

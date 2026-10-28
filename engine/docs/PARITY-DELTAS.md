@@ -3432,3 +3432,17 @@ label lives in the root-dir 0x83 dentry (EntryType@0, CharacterCount@1,
 label UTF-16@4 — the spec form the M-079 spec-repair pinned), not a boot
 field (the finding's "+0x80" reading was the inference; the corpus deep-dive
 documents the dentry).
+
+### D-113 — the display-config data layers are core query tables, not UI presentation (N-132 resolution rider, REGISTERED LAYERING DECISION)
+
+The og's FilterFolder.ini SumaryFileType (the 11 extension-unification
+groups behind "MP4 family: N files") and PriorityDisplayType.xml (the
+5-category/35-extension alias ordering behind the Type tab's
+extension order) are consumed in DRWUI's presentation layer. The core
+lands both verbatim as query-layer data + public lookups
+(`query::summary_family_for_extension` / `query::type_display_order` /
+`type_display_category_name`, cr_config_display_data.cpp) — the ABI
+host's presentation consults the same tables the og's UI reads, the
+core itself renders nothing (the CLI has no Type tab). This is the
+D-107 lineage (the core-only C++ API layering decision). Evidence: the
+N-132 Resolution; tests ConfigDisplay.*.

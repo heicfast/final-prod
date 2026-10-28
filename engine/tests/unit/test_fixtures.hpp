@@ -8,7 +8,9 @@
 #define CR_TEST_FIXTURES_HPP_
 
 #include "cr/table/cr_ldm.h"
-#include "cr/table/cr_table_wire.h" /* crc32 (the GPT fixture's entries CRC) */
+#include "cr/table/cr_table_wire.h" /* crc32 (the GPT fixture's entries CRC) -
+                                        the merge window dropped the transitive
+                                        include; convergent repair by two lanes */
 #include "cr/exfat/cr_exfat_engine.h"
 #include <gtest/gtest.h>
 #include <cstring>
