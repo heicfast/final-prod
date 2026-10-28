@@ -3552,6 +3552,44 @@ std::vector<unsigned char> build_fat16_jpg_trunc() {
     return img;
 }
 
+/* M-115: the damaged-but-readable PNG - intact extents, corrupt IDAT
+ * entropy (one flipped byte inside the zlib stream). The strict PNG
+ * decoder refuses the stream (DecodeFailed) while every byte reads
+ * cleanly: the og's read-verdict promotion fires (grade 2), the
+ * pre-fix decode-gated core did not. */
+std::vector<unsigned char> build_fat16_png_damaged() {
+    auto img = build_fat16();
+    const size_t need = (sizeof(kQuad32x24Png) + 511) / 512;
+    for (size_t i = 0; i < need; ++i)
+        put16(img, kFAT1 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i),
+            put16(img, kFAT2 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i);
+    /* DELETED entry: deleted non-carved files take the generic grading
+     * path (below 2) so the promotion is observable (the existing-file
+     * insert-grade-2 would make the test vacuous) */
+    dentry(img, 3, "DAMAGE  PNG", 0x20, 40, (unsigned long)sizeof(kQuad32x24Png), true);
+    std::memcpy(img.data() + kDATA + (40 - 2) * 512, kQuad32x24Png, sizeof(kQuad32x24Png));
+    /* corrupt one byte inside the IDAT zlib stream (offset 41 in the
+     * embedded array: past signature+IHDR+IDAT-header, inside the
+     * compressed payload) - inflate refuses the stream */
+    img[kDATA + (40 - 2) * 512 + 41] ^= 0xFF;
+    return img;
+}
+
+/* M-115: the <=20-byte decodable image - a 1x1 PBM ("P1 1 1 0") is 8
+ * bytes, decodes through the stb PNM path, and is UNDER the og's
+ * 0x14-byte work-item floor: the og never creates a work item (never
+ * promotes); the pre-fix core decoded it and promoted. */
+static const unsigned char kTinyPbm8[] = {'P', '1', '\n', '1', ' ', '1', '\n', '0'};
+
+std::vector<unsigned char> build_fat16_tiny_pbm() {
+    auto img = build_fat16();
+    put16(img, kFAT1 + 40 * 2, 0xFFFF);
+    put16(img, kFAT2 + 40 * 2, 0xFFFF);
+    dentry(img, 3, "TINY    PBM", 0x20, 40, sizeof(kTinyPbm8), true);
+    std::memcpy(img.data() + kDATA + (40 - 2) * 512, kTinyPbm8, sizeof(kTinyPbm8));
+    return img;
+}
+
 bool scan_img_to_session(const char* tag, const std::vector<unsigned char>& bytes, Ui& u,
                          std::string& img_out, std::string& crsf_out) {
     img_out = cr_test::tmp_path("cr_ui", tag);
@@ -4207,4 +4245,81 @@ TEST(CrUi, CliResumeSinkNeverTruncatesTheSessionSource) {
     /* the sink's error paths clean the staging tmp (no litter, and a
      * failed resume leaves the source byte-identical) */
     EXPECT_NE(std::string::npos, src.find("std::filesystem::remove(ck_sink.tmp_path, ec);"));
+}
+
+/* ===================================================================== */
+/* M-115 (diff-to-fix): the og's grade promotion is READ-gated, not     */
+/* decode-gated (DRWUI :422507-514, binary-verified 0x140263b2c-b9a) - */
+/* a clean recovery read (FUN_1403eba50 verdict 0, :422442) promotes   */
+/* the node to grade 2 and the later decode's failure never retracts   */
+/* it. The core promoted only on decode success (under-promoting the   */
+/* damaged-but-readable population) and had no <=0x14 work-item floor  */
+/* (over-promoting tiny decodables).                                    */
+/* ===================================================================== */
+
+TEST(CrUi, ThumbnailPromotesOnReadNotDecode) {
+    /* the damaged-but-readable case - the finding's dominant real-world
+     * class: intact extents (every byte reads cleanly), corrupt IDAT
+     * entropy (the strict PNG decoder refuses). The og: read verdict 0
+     * -> grade 2. Fail-before: the core returned ERR_TRUNCATED at the
+     * DecodeFailed map and never promoted. */
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_img_to_session("thumbrd", build_fat16_png_damaged(), u, img, crsf));
+    /* the deleted first char renders as the og's '#' placeholder (N-172) */
+    uint64_t damaged = query_node_id(u.sess, "#AMAGE.PNG");
+    if (damaged == 0u)
+        damaged = query_node_id(u.sess, "DAMAGE.PNG");
+    ASSERT_NE(damaged, 0u) << "the deleted damaged PNG must be a result row";
+    const char* dname = query_node_id(u.sess, "#AMAGE.PNG") != 0u ? "#AMAGE.PNG" : "DAMAGE.PNG";
+    const uint32_t g0 = grade_of(u.sess, dname);
+    ASSERT_NE(g0, 0xFFFFFFFFu);
+    ASSERT_LT(g0, 2u) << "precondition: the deleted node starts below 2";
+
+    cr_ui_thumbnail_info info{};
+    const uint32_t rc =
+        cr_ui_thumbnail_generate(u.dev, u.sess, damaged, nullptr, nullptr, 0, &info);
+    /* the decode refuses the corrupt stream: ERR_TRUNCATED is the
+     * honest refusal - but the READ was clean, so the promotion fired */
+    EXPECT_EQ(0x50030004u, rc) << "the damaged stream still refuses the decode";
+    EXPECT_EQ(2u, grade_of(u.sess, dname))
+        << "M-115: the clean read promotes - decode-independent";
+}
+
+TEST(CrUi, ThumbnailTinyFileDoesNotPromote) {
+    /* the <=0x14 edge: the og's dispatcher skips work-item creation for
+     * files with size <= 20 (DRWUI :421391-421403) - an 8-byte 1x1 PBM
+     * decodes through the stb PNM path, but neither the og NOR the
+     * post-fix core may promote through the thumbnail surface.
+     * Fail-before: the pre-fix core returned Ok and promoted. */
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_img_to_session("thumbtiny", build_fat16_tiny_pbm(), u, img, crsf));
+    const uint64_t tiny = query_node_id(u.sess, "#INY.PBM");
+    ASSERT_NE(tiny, 0u) << "the deleted 8-byte PBM must be a result row";
+    cr_ui_thumbnail_info info{};
+    EXPECT_EQ(0x50030008u,
+              cr_ui_thumbnail_generate(u.dev, u.sess, tiny, nullptr, nullptr, 0, &info))
+        << "the 20-byte work-item floor refuses the generation";
+    const uint32_t g = grade_of(u.sess, "#INY.PBM");
+    ASSERT_NE(g, 0xFFFFFFFFu);
+    EXPECT_LT(g, 2u) << "no promotion through the thumbnail surface under the floor";
+}
+
+TEST(CrUi, ThumbnailUnreadableSpanNeverPromotes) {
+    /* the read-verdict boundary: a span the reader CANNOT fetch (the
+     * og's verdict -3 class, data-but-flagged-failed) does NOT promote
+     * - read_ok stays false when the generation gained an unreadable
+     * span. Built from the damaged fixture with an out-of-device
+     * extent is not expressible here, so the pin is the engine truth
+     * already covered by the UnreadableSpan tests plus this ABI-level
+     * guard: the promotion ONLY fires on read_ok, never on rc alone. */
+    const std::string src = cr_test::read_repo_file("src/ui/cr_ui.cpp");
+    ASSERT_FALSE(src.empty());
+    EXPECT_NE(src.find("if (thumb.read_ok && node->grade() != tree::Grade::High)"),
+              std::string::npos)
+        << "the promotion must be gated on the disclosed read verdict";
+    EXPECT_EQ(src.find("if (st == preview::ThumbStatus::Ok) {\n        node->set_grade"),
+              std::string::npos)
+        << "the decode-gated promotion shape must stay gone";
 }

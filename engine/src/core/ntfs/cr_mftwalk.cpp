@@ -122,6 +122,9 @@ u32 build_props(NtfsVolume* vol, const std::vector<AttrView>& attrs, u64 record_
                         /* merge multi-fragment $DATA (same attr across records) */
                         for (const DataRun& r : rl.runs())
                             unnamed_data_out.runs().push_back(r);
+                        /* N-163: a torn fragment contributes its valid
+                         * prefix — the flag rides the merged list */
+                        unnamed_data_out.torn = unnamed_data_out.torn || rl.torn;
                     }
                     /* the $DATA tail's file-size-in-bytes (@+0x30) is the
                      * authoritative size: $FILE_NAME's size field is 0 on
@@ -150,6 +153,7 @@ u32 build_props(NtfsVolume* vol, const std::vector<AttrView>& attrs, u64 record_
                     has_i30 = true;
                     for (const DataRun& r : rl.runs())
                         i30_out.runs().push_back(r);
+                    i30_out.torn = i30_out.torn || rl.torn; /* N-163 */
                 }
             }
             break;
@@ -563,6 +567,7 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                             if (parse_data_runs(ca, vol->params().total_clusters, rl) == OK) {
                                 for (const DataRun& r : rl.runs())
                                     data_runs.runs().push_back(r);
+                                data_runs.torn = data_runs.torn || rl.torn; /* N-163 */
                                 has_data = true;
                             }
                             /* $DATA authoritative size from the child too */
@@ -587,6 +592,7 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                             if (parse_data_runs(ca, vol->params().total_clusters, rl) == OK) {
                                 for (const DataRun& r : rl.runs())
                                     i30_runs.runs().push_back(r);
+                                i30_runs.torn = i30_runs.torn || rl.torn; /* N-163 */
                                 has_i30 = true;
                             }
                         }
@@ -772,6 +778,9 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
 
         /* viability grading (fix F5 + corpus gate) */
         tree::Confidence conf = tree::Confidence::Unknown;
+        /* N-163: the merged probe list's torn flag (a $DATA/$I30 fragment
+         * torn after valid runs) — the grading input below */
+        const bool probe_runs_torn = is_dir ? i30_runs.torn : data_runs.torn;
         if (!in_use) {
             const RunList& probe = is_dir ? (has_i30 ? i30_runs : RunList()) : data_runs;
             /* probe size must use the $DATA-authoritative size: $FILE_NAME's
@@ -810,6 +819,14 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
         } else {
             conf = tree::Confidence::Excellent; /* live file: extents owned by it */
         }
+        /* N-163: the og's truncate-and-keep tolerance — a runlist torn
+         * after valid runs decodes to its prefix (never a whole-fragment
+         * rejection); the walker grades the file PartialRisk so the
+         * recovery-chance axis never silently pretends completeness
+         * (the og's own PartialRisk family, the salvage-over-purity
+         * doctrine). Overwritten stays the worse truth it already is. */
+        if (probe_runs_torn && conf == tree::Confidence::Excellent)
+            conf = tree::Confidence::PartialRisk;
 
         /* S-001 (diff-to-fix): the og destroy rule. After the viability
          * grading, a DELETED non-directory file whose every probe cluster

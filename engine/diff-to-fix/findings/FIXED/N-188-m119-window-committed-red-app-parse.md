@@ -38,3 +38,11 @@ None.
 **Fixed in commit:** (this session's N-188 repair, riding the N-158 convergence push — post-push SHA in the worklog entry)
 **Verified by:** win_syntax_check green at the repaired tree (was Failed with the five quoted errors at `64fc2d8d`); the full suite 1340/1340 (1339/1340 pre-repair).
 **Resolution notes:** The two-line repair landed exactly as the fix plan: the unique_ptr holder retyped to `PartitionSlice` (the create factory's own return type — the interface erasure was the defect, not the calls) and the two `Level::Warning` uses corrected to the enum's actual `Warn`. No behavior change on any platform — the Linux app binary was unbuildable at the window, so the repair restores the M-119 design intent rather than altering it. The process lesson (green-suite claims from target-filtered runs) is recorded in the finding for the CI lane.
+
+### Convergence note (2026-10-29)
+
+The remote lane's a5fe33a5 landed a byte-equivalent repair (the same
+`unique_ptr<cr::PartitionSlice>` retype) and pushed first; this lane's N-188 record
+(the cr_ui `Level::Warning` half + the executed pre/post proof + the process note)
+rides as the convergent supplement. Their `Warning→Warn` fix, if it rode the same
+commit, is identical to this lane's.

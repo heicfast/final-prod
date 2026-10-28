@@ -75,6 +75,13 @@ before the change.
 
 **Landings this lane so far:**
 
+- **M-115 FIXED** (`1d7a761b`) — the thumbnail grade-promotion is now READ-gated,
+  not decode-gated (Thumbnail::read_ok disclosed by the engine; the ABI promotes on
+  the clean recovery read per DRWUI :422507-514; the og's 0x14 work-item floor at
+  the ABI gate). The damaged-but-readable population grades 2 like the og; tiny
+  decodables no longer over-promote. The TxtView/media triggers ride N-144/OQ-S10-1
+  (the module row records the gaps). 2 RED-pre-fix tests (stashed-engine proof);
+  suites 71/71 + 1228/1228.
 - **M-119 FIXED** (`033b9cdb`) — the og's tolerant partition-boundary semantics at
   both halves: create clamps an over-long declared window to the device end (delta
   surfaced; N-046's start-past-device refusal kept), read implements the og ladder
@@ -112,8 +119,9 @@ before the change.
   Ebr.LinkType085WalksChain / Ebr.LinkType085SameBasisAs05 / Mbr.Extended085NotEmittedAsVolume
   (all RED pre-fix); suite 1164/1164.
 
-**Board after this push (filesystem truth): 66 active — 0 ACUTE · 9 SEVERE · 22 MAJOR ·
-32 MINOR · 3 INFO** (the parallel lanes' A-014 + I-041..I-044 retirements absorbed at the
+**Board after this push (filesystem truth, post the parallel lanes' S-055/S-056 +
+N-175/I-board retirements absorbed at the merges): 61 active — 0 ACUTE · 7 SEVERE ·
+21 MAJOR · 28 MINOR · 0 INFO** (the parallel lanes' A-014 + I-041..I-044 retirements absorbed at the
 merge; both sides' records kept). Next free IDs unchanged: S-062+, M-138+, N-186+, I-045+.
 
 # SUMMARY.md — executive summary (the S46 MINOR-first parity-fix lane on top; the prior lanes below, newest-first)
@@ -183,6 +191,19 @@ repaired by the prior lanes).
   writer-module D13 addendum) + additive-within-v1 per the schema doc's
   own contract (the finding's version-bump plan corrected). 4 tests
   RED-first; suite 1243/1243 (1201/42/0). P13/P11/P46/P68 → MATCH.
+
+- **N-163 FIXED (MINOR, ntfs)** — the runlist malformed-input tolerance:
+  the og's truncate-and-keep lands (FUN_1800347d0 re-read: every malformed
+  branch a SUCCESS with the runs so far) — a torn $DATA fragment decodes
+  its valid prefix with the `torn` flag, OR-merged at every parse site,
+  and the walker grades the file PartialRisk (never silently pretending
+  completeness); the zero-valid-runs class still rejects (the og's own
+  pre-validator gate, FUN_18001d5f0 :23184); the clean buffer-end stop is
+  distinguished from a tear (the old strict pin re-truthed); the
+  sparse-first acceptance REGISTERED as PARITY-DELTAS D-135 (the deliberate
+  superset over the og's validator rejection). 4 tests, the prefix-keep +
+  the end-to-end PartialRisk grading RED pre-fix; suite 1280/1280
+  (1238/42/0).
 # SUMMARY.md — executive summary (the S12 session-2 deep-dive lane on top — sector math / scan-progress math / local database / state management / detection-calculation; the prior lanes below, newest-first)
 
 ## Session-12 S12 lane delta (2026-10-29 — the session-2 continuation audit per the user's second-session directive: remove-the-fixed + go-deeper, special focus on sector numbers / scanning / accurate detection / calculation / no-stuck-or-freeze / local database / state management; core `869da779` at open → rebased through the parallel windows to push at `f85def0f`, corpus `be0cfe9`)

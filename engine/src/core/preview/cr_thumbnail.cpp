@@ -1425,6 +1425,11 @@ ThumbStatus thumbnail_tiff(PreviewReader& pr, const ThumbnailCaps& caps, Thumbna
 
 } // namespace
 
+/* M-115 (defined below make_thumbnail): the read-verdict disclosure. */
+ThumbStatus make_thumbnail_status(PreviewReader& pr, Thumbnail& out,
+                                  const std::vector<ReadErrorRange>& fails_before,
+                                  ThumbStatus st);
+
 ThumbStatus make_thumbnail(PreviewReader& pr, const ThumbnailCaps& caps, Thumbnail& out) {
     if (caps.max_edge == 0 || caps.max_edge > 8192 || caps.max_pixels == 0 || caps.max_read == 0 ||
         caps.max_work == 0)
@@ -1450,7 +1455,8 @@ ThumbStatus make_thumbnail(PreviewReader& pr, const ThumbnailCaps& caps, Thumbna
         out.source_format = sn.name; /* named, documented phase-2 refusals */
         return ThumbStatus::Unsupported;
     case Fmt::Tiff:
-        return thumbnail_tiff(pr, caps, out, b, fails_before);
+        return make_thumbnail_status(pr, out, fails_before,
+                                     thumbnail_tiff(pr, caps, out, b, fails_before));
     case Fmt::Jpeg:
     case Fmt::Png:
     case Fmt::Bmp:
@@ -1458,9 +1464,26 @@ ThumbStatus make_thumbnail(PreviewReader& pr, const ThumbnailCaps& caps, Thumbna
     case Fmt::Psd:
     case Fmt::Pnm:
     case Fmt::Hdr:
-        return thumbnail_stb(pr, caps, out, sn.fmt, b, fails_before);
+        return make_thumbnail_status(pr, out, fails_before,
+                                     thumbnail_stb(pr, caps, out, sn.fmt, b, fails_before));
     }
     return ThumbStatus::Unsupported;
+}
+
+/* M-115: disclose the READ verdict separately from the decode verdict.
+ * The og's promotion guard (DRWUI :422507-514) is fed by the recovery-
+ * read verdict (FUN_1403eba50, :422442) and carries no decode input - a
+ * payload fetched cleanly but refused by the decoder still promotes.
+ * read_ok = this generation gained NO unreadable span (the og's
+ * verdict-0 'clean read' equivalent; a read over an unfetchable span is
+ * the og's -3 data-but-failed class, which does NOT promote). Only the
+ * statuses whose paths actually fetched payload bytes can carry it. */
+ThumbStatus make_thumbnail_status(PreviewReader& pr, Thumbnail& out,
+                                  const std::vector<ReadErrorRange>& fails_before,
+                                  ThumbStatus st) {
+    if (st == ThumbStatus::Ok || st == ThumbStatus::DecodeFailed)
+        out.read_ok = !reader_gained_failures(fails_before, pr);
+    return st;
 }
 
 } // namespace preview
