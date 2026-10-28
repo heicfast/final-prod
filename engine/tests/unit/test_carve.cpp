@@ -8482,6 +8482,111 @@ TEST(Carve, GpxBomFormCarvesOnce) {
 }
 
 /* ===================================================================== */
+/* N-152: the DXF 999-comment entry key - the u16 "99" 0x3939 dispatch  */
+/* (RAWSearchDLL :2722-2733) and the probe's leading-comment acceptance */
+/* (:42240-42290).                                                       */
+/* ===================================================================== */
+
+TEST(Carve, Dxf999CommentHeaderLfCarves) {
+    /* N-152: a comment-led DXF with LF line endings - the og's u16 "99"
+     * key dispatches to CDXFAnalyser and the probe's comment branch
+     * scans forward for the LF section form "  0\nSECTION\n  ". The
+     * interior "  0\r"-key re-match never fires (the same document -
+     * suppress_overlap). */
+    const char* doc = "999\nFree-form comment line\n"
+                      "  0\nSECTION\n  2\nHEADER\n  9\n$INSBASE\n  10\n0.0\n  20\n0.0\n"
+                      "  0\nENDSEC\n  0\nEOF\n";
+    std::vector<u8> img(256 * 1024, 0);
+    std::memcpy(img.data() + 4096, doc, std::strlen(doc));
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    ASSERT_EQ(all.size(), 1u) << "ONE comment-led document, ONE file";
+    EXPECT_EQ(all[0]->props()->carve_format, u32(FMT_DXF_C999))
+        << "the u16 0x3939 key's row owns the comment-led candidate";
+    EXPECT_EQ(all[0]->props()->extents.front().offset, u64(4096))
+        << "the candidate starts at the 999 comment, not the interior header";
+}
+
+TEST(Carve, Dxf999CommentHeaderCrLfCarves) {
+    /* N-152: the CRLF form - "999\r\n" then the canonical CRLF section
+     * pattern "  0\r\nSECTION\r\n  " (the og's _Size=0x10 branch). */
+    const char* doc = "999\r\nFree-form comment line\r\n"
+                      "  0\r\nSECTION\r\n  2\r\nHEADER\r\n  9\r\n$INSBASE\r\n"
+                      "  10\r\n0.0\r\n  20\r\n0.0\r\n  0\r\nENDSEC\r\n  0\r\nEOF\r\n";
+    std::vector<u8> img(256 * 1024, 0);
+    std::memcpy(img.data() + 8192, doc, std::strlen(doc));
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    ASSERT_EQ(all.size(), 1u) << "ONE comment-led document, ONE file";
+    EXPECT_EQ(all[0]->props()->carve_format, u32(FMT_DXF_C999));
+    EXPECT_EQ(all[0]->props()->extents.front().offset, u64(8192));
+}
+
+TEST(Carve, Dxf999RejectsNonCommentContinuation) {
+    /* N-152: the hostile near-miss - "99x" is not the 999 comment line;
+     * the probe's variant branch requires the full "999" + line ending,
+     * so the u16 key's candidate REJECTS (the comment row claims
+     * nothing). The og-faithful outcome on this fixture: the interior
+     * u32 "  0\r" key still fires and the canonical pattern matches
+     * there - the headless canonical salvage carves ONE DXF at the
+     * interior position (the og's u32 map dispatches the same way). */
+    const char* doc = "99x\r\n  0\r\nSECTION\r\n  2\r\nHEADER\r\n  0\r\nENDSEC\r\n";
+    std::vector<u8> img(256 * 1024, 0);
+    std::memcpy(img.data() + 4096, doc, std::strlen(doc));
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    ASSERT_EQ(all.size(), 1u) << "the near-miss comment claims nothing; ONE salvage";
+    EXPECT_EQ(all[0]->props()->carve_format, u32(FMT_DXF))
+        << "the claim is the canonical row's (the interior position), never the comment row's";
+    EXPECT_EQ(all[0]->props()->extents.front().offset, u64(4096 + 5))
+        << "the headless salvage starts at the interior section header";
+}
+
+TEST(Carve, Dxf999InteriorCommentOfCanonicalFileDoesNotDoubleCarve) {
+    /* N-152: the reverse direction - a CANONICAL DXF carrying an interior
+     * 999 comment (group code 999 mid-body): the canonical row owns the
+     * position; the interior "99" re-match is the same file. */
+    const char* doc = "  0\r\nSECTION\r\n  2\r\nHEADER\r\n"
+                      "999\r\ninterior comment\r\n"
+                      "  0\r\nENDSEC\r\n  0\r\nEOF\r\n";
+    std::vector<u8> img(256 * 1024, 0);
+    std::memcpy(img.data() + 4096, doc, std::strlen(doc));
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    ASSERT_EQ(all.size(), 1u) << "the canonical document carves once";
+    EXPECT_EQ(all[0]->props()->carve_format, u32(FMT_DXF));
+    EXPECT_EQ(all[0]->props()->extents.front().offset, u64(4096));
+}
+
+/* ===================================================================== */
 /* N-115: the OfficeTagFromXML typing pass - the rels-path split, the    */
 /* reordered-zip tolerance, and the wider tag corpus.                    */
 /* ===================================================================== */

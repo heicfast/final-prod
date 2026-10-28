@@ -810,3 +810,25 @@ The carve surface's size-walk residue now has owners:
 - **N-148 items 4-5** (MINOR): the EPS/AI validator caps drifted to 16 MiB vs the 64 MiB rows; six dangling in-code Resolution pointers.
 - The **S-050 addendum**: the repair line's second wiring channel (the per-chunk feed, DDC:9623-27) — the post-processor contract must decide it.
 - Verified MATCH this session: the whole infrastructure table (17 rows — dispatch order, registry duality, geometry, gates, dedup, progress, cancel) at `evidence/s11-lead-deep-lanes.md` §Lane-A; the family map (5 families -> core schools present).
+
+## Session-43 minors lane (2026-10-29 — the N-152 landing; audited `b00118b5`, corpus `be0cfe9`)
+
+- **N-152 FIXED** (MINOR — the DXF 999-comment entry key): the u16 "99"
+  0x3939 second key lands as `FMT_DXF_C999` (the SWF/CWS dual-key
+  precedent — the og's :2722-2733 binding stamps the SAME CDXFAnalyser
+  idx 0x19 under the u16 magic map), and `validate_dxf` gains the probe's
+  comment branch (FUN_1800376f0 :42240-42290, re-read first-hand):
+  "999\n" → the 14-byte LF section form "  0\nSECTION\n  ", "999\r\n" →
+  the 16-byte CRLF form "  0\r\nSECTION\r\n  ", a forward NUL-guarded
+  scan (the og's byte-by-byte memcmp loop; the core's window bounded at
+  4 KiB — the comment-to-SECTION span in real exports is tens of bytes,
+  the bound registered in the Resolution). Both DXF rows carry
+  `suppress_overlap` (the N-151/N-153 repeating-key rule: a comment-led
+  document re-matches "  0\r" strictly inside itself; a canonical
+  document's interior "99" bytes never re-carve). Tests:
+  `Carve.Dxf999CommentHeaderLfCarves` / `Dxf999CommentHeaderCrLfCarves`
+  / `Dxf999RejectsNonCommentContinuation` (re-pinned to the og-faithful
+  headless-canonical salvage — the interior u32 key claims the position,
+  exactly the og's dispatch) / `Dxf999InteriorCommentOfCanonicalFileDoesNotDoubleCarve`.
+  Fail-before: 3 of 4 RED (stashed-validator rebuild; the near-miss
+  re-pin documented in the Resolution). Suite 1215/1215 (linux-release).

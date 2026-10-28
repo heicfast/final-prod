@@ -5409,18 +5409,63 @@ CarveResult validate_ai(IStorageDevice* s, u64 hit, u64 cap) {
 /* DXF: "  0\r" key 0x0d302020 (:5555) -> CDXF chain (g146+g144, idx
  * 25) - first-hand: DXF is a KEYED u32 format (the census's list-layer
  * label corrected). The ASCII group-code covenant "  0\r\nSECTION"
- * extends the key; bounded extent stands in for the text walk. */
+ * extends the key; bounded extent stands in for the text walk.
+ * N-152: the og's probe (FUN_1800376f0 :42240-42290, re-read first-hand)
+ * ALSO enters through the u16 "99" key 0x3939 (the 999-comment entry -
+ * :2722-2733's registry binding, the same CDXF chain idx 0x19): a file
+ * starting "999\n" or "999\r\n" (the DXF group-code-999 free-form
+ * comment convention) is accepted when the section pattern follows -
+ * the LF form "  0\nSECTION\n  " (14 bytes) after "999\n", the CRLF
+ * form "  0\r\nSECTION\r\n  " (16 bytes) after "999\r\n". The scan
+ * walks forward from the comment (the og's byte-by-byte memcmp loop
+ * :42277-42293) and breaks at the first NUL byte (the og's loop
+ * guard). The scan window here is bounded at 4 KiB (the comment-to-
+ * SECTION span in real CAD exports is tens of bytes; the og scans its
+ * full probe window - the bound is this port's documented posture). */
 CarveResult validate_dxf(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
-    u8 h[12];
+    u8 h[8];
     if (!rd(s, hit, h, sizeof(h)))
         return r;
-    if (std::memcmp(h, "  0\r\nSECTION", 8) != 0)
+    bool ok = std::memcmp(h, "  0\r\nSECTION", 8) == 0;
+    const char* note = "dxf-group-code-covenant+bounded-extent";
+    if (!ok) {
+        /* the 999-comment entry key's branch */
+        u8 c[5];
+        if (!rd(s, hit, c, sizeof(c)))
+            return r;
+        const bool lf_comment = c[0] == '9' && c[1] == '9' && c[2] == '9' && c[3] == '\n';
+        const bool crlf_comment =
+            c[0] == '9' && c[1] == '9' && c[2] == '9' && c[3] == '\r' && c[4] == '\n';
+        if (lf_comment || crlf_comment) {
+            static const char kPatLf[] = "  0\nSECTION\n  ";
+            static const char kPatCrLf[] = "  0\r\nSECTION\r\n  ";
+            const char* pat = lf_comment ? kPatLf : kPatCrLf;
+            const size_t plen = lf_comment ? sizeof(kPatLf) - 1 : sizeof(kPatCrLf) - 1;
+            constexpr u64 kScan = 4096;
+            u8 win[kScan];
+            const u64 avail =
+                std::min<u64>(kScan, s->size() > hit ? s->size() - hit : 0);
+            if (avail >= plen && rd(s, hit, win, u32(avail))) {
+                for (u64 i = 0; i + plen <= avail; ++i) {
+                    if (win[i] == 0)
+                        break; /* the og's NUL guard */
+                    if (std::memcmp(win + i, pat, plen) == 0) {
+                        ok = true;
+                        break;
+                    }
+                }
+            }
+            if (ok)
+                note = "dxf-999-comment-entry+section-scan";
+        }
+    }
+    if (!ok)
         return r;
     r.ok = true;
     r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
     r.confidence = 620;
-    r.note = "dxf-group-code-covenant+bounded-extent";
+    r.note = note;
     return r;
 }
 

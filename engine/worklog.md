@@ -5361,3 +5361,20 @@ parallel fix lanes' landings, not this lane's).
 6. **The re-run-the-gate-after-every-rebase discipline** (M-120's prevention note — the
    1fb7603b class will recur in hot windows; ci-local.sh is sufficient IF run
    post-rebase).
+
+## Session-43 minors lane — N-152 landed (2026-10-29)
+
+**N-152 FIXED (MINOR — the DXF 999-comment entry key).** Corpus re-verified first-hand
+(the :2722-2733 u16 binding + the FUN_1800376f0 probe in full — the 16-byte canonical
+pattern's two trailing spaces decoded, the 0xe/0x10 shifted windows, the NUL guard).
+Landing: FMT_DXF_C999 (SWF/CWS dual-key precedent), validate_dxf's comment branch with
+the 4 KiB bounded NUL-guarded forward scan, suppress_overlap on both DXF rows
+(N-151/N-153 same-document rule). Tests: Dxf999CommentHeaderLfCarves /
+Dxf999CommentHeaderCrLfCarves / Dxf999RejectsNonCommentContinuation (re-pinned to the
+og-faithful headless-canonical salvage — the finding's own zero-carve expectation was
+wrong; the og's u32 map claims the interior header) /
+Dxf999InteriorCommentOfCanonicalFileDoesNotDoubleCarve. Fail-before 3/4 RED
+(stashed-validator rebuild); suite 1215/1215. Trail: findings/FIXED/N-152 + ledger row
++ matrix cell → MATCH (P1/P19/P28) + the M-117 residue note + carve.md session row +
+this entry. Fixture note for future lanes: "$ACADVER/AC1027" in a DXF fixture
+self-carves as DWG ("AC1027" is that family's magic) — the pins use $INSBASE.

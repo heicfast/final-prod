@@ -173,6 +173,10 @@ enum FormatId : u32 {
     FMT_EPS,    /* u16 "%!" 0x2125 -> CEPS-family PostScript chain */
     FMT_AI,     /* C5 D0 D3 C6 0xc6d3d0c5 -> CEPSAnalyser (Illustrator), idx 27 */
     FMT_DXF,    /* "  0\r" 0x0d302020 -> CDXF chain (g146+g144), idx 25 */
+    FMT_DXF_C999, /* u16 "99" 0x3939 -> the SAME CDXF chain, idx 25
+                   * (N-152: RAWSearchDLL :2722-2733 - the 999-comment
+                   * entry key; comment-led CAD exports dispatch through
+                   * the u16 map, the probe's comment branch accepts them) */
     FMT_3GP,    /* ftyp brand 3gp (the og's File3GP legacy row) */
     /* ---- S-041 niche batch 2, school 1 (SCAN-4): og grammars verified
      * first-hand (the session-5 decode table in SCAN-ENGINE-DELTA). ---- */

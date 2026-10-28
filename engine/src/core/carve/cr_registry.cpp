@@ -963,7 +963,33 @@ const Signature kTable[] = {
      64ull << 20,
      620,
      validate_dxf,
-     "AutoCAD DXF"},
+     "AutoCAD DXF",
+     /* N-152: a comment-led DXF re-matches "  0\r" strictly inside the
+      * emitted comment-led stream (the SAME document - the u16 "99" key
+      * claims the position first, the section header sits inside); the
+      * N-151/N-153 repeating-key family rule. */
+     true},
+    /* N-152: the og's second DXF entry key - u16 "99" 0x3939 ->
+     * BruteForce::CDXFAnalyser (RAWSearchDLL :2722-2733, the 0x18-byte
+     * node stamped idx 0x19 inserted under the u16 magic map). The
+     * validator's comment branch (the probe FUN_1800376f0 :42240-42290)
+     * accepts the leading "999\n"/"999\r\n" comment line and scans
+     * forward for the section pattern (LF form after "999\n", CRLF form
+     * after "999\r\n", NUL-terminated scan). */
+    {FMT_DXF_C999,
+     "dxf",
+     {'9', '9'},
+     2,
+     0,
+     32,
+     64ull << 20,
+     620,
+     validate_dxf,
+     "AutoCAD DXF (999 comment)",
+     /* the same-family rule from the sibling row: a canonical DXF's
+      * interior "99" bytes (coordinates, comments) never re-carve inside
+      * an emitted stream */
+     true},
     {FMT_3GP, "3gp", {'f', 't', 'y', 'p'}, 4, 4, 128, 4ull << 30, 780, validate_3gp, "3GP Video"},
     /* ---- S-041 niche batch 2, school 1 (SCAN-4): every grammar
      * re-verified first-hand at the analyser body (the session-5 log in

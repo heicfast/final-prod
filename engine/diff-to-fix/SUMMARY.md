@@ -56,6 +56,34 @@ row's no-delete mandate + the user's put-fixed-in-fixed-directory directive):
 
 
 
+
+## Session-43 minors-lane delta (2026-10-29 — the minor-first diff-fix execution lane, per the user's operative directive; opened on `b00118b5` (post the S12/S42/S-054/N-125/INFO-tier windows), corpus `be0cfe9`)
+
+**Hygiene repairs at open (three rounds, all merge-window classes):** (1) the b26017a7
+half-applied OoxmlRelsPathSplit re-pin (one side case-folded — deterministically red);
+(2) the 59bd5208 push's committed conflict-marker residue in test_carve.cpp (main failed
+-Werror outright at db228b75 — the "1096/1096 green" claim in that commit's message
+cannot have executed against the tree); both repaired, the both-sides case-folded form
+kept, suite verified green from scratch (1211/1211 at the repair tree).
+
+**N-152 FIXED — the DXF 999-comment entry key.** First-hand re-verification before the
+change (the SOP): the u16 registry binding re-read (:2722-2733 — the 0x18-byte
+CDXFAnalyser node, idx 0x19, under key 0x3939) and the probe FUN_1800376f0 re-read in
+full (:42240-42290 — the canonical 16-byte "  0\r\nSECTION\r\n  " pattern at 0; the
+comment branch: "999\n" → the 14-byte LF form "  0\nSECTION\n  " (_Size=0xe),
+"999\r\n" → the 16-byte CRLF form (_Size=0x10); the NUL-guarded forward scan). The
+landing: FMT_DXF_C999 on the SWF/CWS dual-key precedent, validate_dxf's comment branch
+(4 KiB bounded scan — the posture registered in the Resolution), suppress_overlap on
+both DXF rows (the N-151/N-153 same-document rule). One test re-pinned during
+verification — the finding's own "99x" near-miss plan expected zero carves, but the
+og's u32 map salvages the interior section header on that fixture (both maps dispatch
+identically); the pin now asserts the og-faithful headless salvage. Fail-before 3/4
+RED (stashed-validator rebuild); suite 1215/1215 (linux-release). The M-117 matrix
+cell's residue note updated: only the DBX triple remains of the 57-key re-diff.
+
+**Board after this push (filesystem truth):** 41 active (3 SEVERE · 23 MAJOR ·
+15 MINOR · 0 INFO) / 3 tracked-open / the FIXED archive at 24 files.
+
 ## Session-42 fix-lane delta (2026-10-29 — the SEVERE-first diff-fix execution continuing the S40-severe territory; opened on `67de3276`, re-merged over the hottest parallel window of the trail through `a3741812`; corpus `be0cfe9` throughout)
 
 **S-054 bookkeeping completed (FIXED-ALREADY, independently verified).** The

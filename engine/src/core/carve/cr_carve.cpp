@@ -73,7 +73,7 @@ constexpr u32 kTrialOrder[] = {
     FMT_WPD, FMT_PSP, FMT_SIT, FMT_GZ, FMT_APE, FMT_AU, FMT_AIFF, FMT_LOWDOC, FMT_LOWDOC2, FMT_HLP,
     FMT_ICO, FMT_CUR, FMT_WMF_PL, FMT_WMF, FMT_TTF, FMT_MDB,
     /* M-084: the og branch order - Jet first, then the ACE generation */
-    FMT_ACCDB, FMT_TAR, FMT_EPS, FMT_AI, FMT_DXF,
+    FMT_ACCDB, FMT_TAR, FMT_EPS, FMT_AI, FMT_DXF, FMT_DXF_C999,
     /* S-041 niche batch 2, school 1 (SCAN-4): og-verified grammars;
      * FMT_3DS rides the 2-byte MM key AFTER the TIFF family (TIFF-BE's
      * 4-byte MM 00 2A key is the more specific magic at the same
