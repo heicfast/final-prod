@@ -65,9 +65,9 @@ void put64(std::vector<u8>& v, size_t at, u64 x) {
  * build_exfat_image now live in test_fixtures.hpp (shared with the
  * whole-disk orchestrator fixtures); the local copies were removed -
  * the using-declarations keep every call site below unchanged. */
-using cr::testfixture::SetBuilder;
-using cr::testfixture::exfat_test_upcase_table_checksum;
 using cr::testfixture::build_exfat_image;
+using cr::testfixture::exfat_test_upcase_table_checksum;
+using cr::testfixture::SetBuilder;
 constexpr u32 EXFAT_TEST_TS = (0x5A46u << 16) | 0x6000u; /* 2025-02-06 12:00:
     every field in range - M-014's timestamp gates reject zero-day/garbage
     stamps, so planted sets carry a realistic stamp like real media */

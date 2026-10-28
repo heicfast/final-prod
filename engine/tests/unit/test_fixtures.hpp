@@ -419,7 +419,7 @@ struct SetBuilder {
     void file_entry(u16 attribute, u32 ts, u8 tz = 0) {
         u8* e = add();
         e[0] = 0x85;
-        e[1] = 2;                         /* secondary count: stream + 1 name */
+        e[1] = 2;                            /* secondary count: stream + 1 name */
         fx_put16(entries, cur_off() + 2, 0); /* checksum filled later */
         fx_put16(entries, cur_off() + 4, attribute);
         fx_put32v(entries, cur_off() + 8, ts);  /* create */
@@ -462,8 +462,7 @@ struct SetBuilder {
             e[0] = 0xC1;
             for (size_t i = 0; i < 15; ++i) {
                 const size_t idx = c * 15 + i;
-                fx_put16(entries, cur_off() + 2 + i * 2,
-                         idx < n.size() ? u16(n[idx]) : 0);
+                fx_put16(entries, cur_off() + 2 + i * 2, idx < n.size() ? u16(n[idx]) : 0);
             }
         }
     }

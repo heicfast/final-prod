@@ -1570,8 +1570,7 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
                     table_target_lbas_.push_back(p.start_lba);
                     if (cancel && cancel->checkpoint())
                         return ERR_CANCELLED;
-                    auto tgt =
-                        PartitionSlice::create(slice, p.start_lba * ls, p.sector_count * ls);
+                    auto tgt = PartitionSlice::create(slice, p.start_lba * ls, p.sector_count * ls);
                     if (!tgt) {
                         ++stats.table_volumes_skipped;
                         continue;
@@ -1584,12 +1583,11 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
                     if (fam == FsFamily::Unknown) {
                         ++stats.table_volumes_skipped;
                         if (cr::log::enabled())
-                            cr::log::write(
-                                cr::log::Level::Info,
-                                "whole-disk target skipped: partition @LBA %llu (%llu "
-                                "sectors) has no identifiable filesystem",
-                                static_cast<unsigned long long>(p.start_lba),
-                                static_cast<unsigned long long>(p.sector_count));
+                            cr::log::write(cr::log::Level::Info,
+                                           "whole-disk target skipped: partition @LBA %llu (%llu "
+                                           "sectors) has no identifiable filesystem",
+                                           static_cast<unsigned long long>(p.start_lba),
+                                           static_cast<unsigned long long>(p.sector_count));
                         continue;
                     }
                     /* the volume's tree root - one root per target (the
@@ -1618,9 +1616,9 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
                      * already ran, so a dispatch open failure counts as a
                      * skipped volume, honestly. */
                     errmod::Guard vfam_guard(module_for_family(fam));
-                    const EngineRun ter = run_engine_dispatch(
-                        fam, tgt.get(), deep_mode, true, cancel, ep, ep_user, tree_, vroot, vroot,
-                        vroot);
+                    const EngineRun ter =
+                        run_engine_dispatch(fam, tgt.get(), deep_mode, true, cancel, ep, ep_user,
+                                            tree_, vroot, vroot, vroot);
                     /* F-1: the volume's nodes are slice-relative; the
                      * per-target subtree rebases to the disk-absolute
                      * basis like the lost candidates' */

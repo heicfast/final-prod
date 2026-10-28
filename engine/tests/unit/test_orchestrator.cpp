@@ -386,7 +386,7 @@ TEST(Orchestrator, WholeDiskGptTwin) {
 TEST(Orchestrator, WholeDiskMixedFamilies) {
     /* one FAT16 + one exFAT volume on one MBR disk: per-target probing
      * dispatches DIFFERENT engines in one whole-disk scan. */
-    auto fat = build_fat16();          /* 5074 secs */
+    auto fat = build_fat16();                    /* 5074 secs */
     auto exf = testfixture::build_exfat_image(); /* 2048 secs */
     constexpr u64 P1_START = 2048, P2_START = 8192;
     constexpr u64 DISK_SECS = 24000;

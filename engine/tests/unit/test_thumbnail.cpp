@@ -184,8 +184,8 @@ TEST(Thumbnail, CapsDefaultsPinTheCorpusAnchors) {
     ThumbnailCaps c;
     EXPECT_EQ(256u, c.max_edge);          /* the og UI-side GDI+ convention */
     EXPECT_EQ(64ull << 20, c.max_pixels); /* 256 MiB worst-case RGBA decode */
-    EXPECT_EQ(0xC800000u, c.max_read);     /* M-109: the og's 200 MB still-image gate (DRWUI :422428) */
-    EXPECT_EQ(1u << 22, c.max_work);      /* extract_metadata work scale */
+    EXPECT_EQ(0xC800000u, c.max_read); /* M-109: the og's 200 MB still-image gate (DRWUI :422428) */
+    EXPECT_EQ(1u << 22, c.max_work);   /* extract_metadata work scale */
     EXPECT_TRUE(c.allow_embedded);
 }
 
@@ -351,7 +351,8 @@ TEST(Thumbnail, OrdinaryPhotoDefaultBudget) {
     EXPECT_EQ(192u, t.height);
     /* the default pin: the raised cap is the ABI contract hosts inherit */
     ThumbnailCaps dflt;
-    EXPECT_EQ(0xC800000u, dflt.max_read) << "M-109: the og 200 MB eligibility gate (the refuted no-cap doctrine re-pinned)";
+    EXPECT_EQ(0xC800000u, dflt.max_read)
+        << "M-109: the og 200 MB eligibility gate (the refuted no-cap doctrine re-pinned)";
     EXPECT_EQ(64ull * 1024 * 1024, dflt.max_pixels) << "the pixel guard unchanged";
 }
 
@@ -901,8 +902,8 @@ std::vector<u8> build_large_png(u32 w, u32 h) {
     ihdr[5] = u8(h >> 16);
     ihdr[6] = u8(h >> 8);
     ihdr[7] = u8(h);
-    ihdr[8] = 8;  /* bit depth */
-    ihdr[9] = 2;  /* color type: truecolor RGB */
+    ihdr[8] = 8; /* bit depth */
+    ihdr[9] = 2; /* color type: truecolor RGB */
     chunk("IHDR", ihdr);
     chunk("IDAT", comp);
     chunk("IEND", {});
@@ -927,7 +928,7 @@ TEST(Thumbnail, LargeStillImageWithinOgBand) {
     ASSERT_EQ(ThumbStatus::Ok, make_thumbnail(r, c, t))
         << "the 32-200 MB band is the og's served band (DRWUI :422428)";
     EXPECT_EQ("png", t.source_format);
-    EXPECT_EQ(256u, t.width); /* 3500 > 3200: the edge axis downscales */
+    EXPECT_EQ(256u, t.width);  /* 3500 > 3200: the edge axis downscales */
     EXPECT_EQ(235u, t.height); /* box_downscale's ceiling: 3200*256/3500 = 234.06 -> 235 */
     EXPECT_FALSE(t.from_embedded);
 }
