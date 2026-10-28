@@ -239,6 +239,14 @@ commit; the file retires to history with a ledger row).
 - **S-054 FIXED at `d7ba41f6`** — the TS/M2TS cap re-pinned to the og's 200 MB
   controller global (the S-047 landing's "x 10" provenance refuted first-hand;
   registry pin + the 220 MB behavior clamp test).
+- **INFORMATIONAL tier ACKNOWLEDGED (9: I-026/I-027/I-028/I-029/I-031/I-032/I-033/I-034/I-035)** —
+  every deliberate-difference rationale re-verified first-hand at the
+  acknowledgment tree (the unsigned-by-design signing posture LIVE in
+  DRIVER-RELEASE 63-66/180 + release.yml; the thumbnail superset at
+  PARITY-DELTAS:3330; the 19-vs-15 contract grounding as recorded) and the
+  register class confirmed on-file ground truth. No code change (the
+  mandate's INFORMATIONAL contract); the safety-hardening divergences are
+  preserved-for-future-work by the Resolution text.
 - **M-117 FILED + FIXED at `d7ba41f6` (NEW FINDING, §8 — renumbered M-116→M-117 at the rebase (the S11-R lane's M-116 pushed first); discovered during
   S-054's verification)** — the suppress_overlap trial loop ran the full
   cap-sized walk for every mid-stream sync before the covered check discarded
