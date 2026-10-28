@@ -901,3 +901,36 @@ Stage Summary:
   dev-sign: rda-test-sign.cer ships, which is exactly the asset the
   test-benchmark lane's fetch demands), and the release's own dispatch
   continues the test+benchmark pass.
+
+---
+Task ID: CI-REL-1b (the 40700058960 correction - the error-code theory died on real windows)
+Agent: senior-dev session (this session, second leg)
+
+Work Log:
+- The first fix (ERROR_FILE_NOT_FOUND -> empty success) was WRONG on
+  real windows-2022: run 40700058960 came back with the observed
+  matrix INVERTED from the documented one - the nonexistent
+  no-such-dir-w1a/no-such-dir-cgate dirs report ERROR_FILE_NOT_FOUND
+  (my key wrongly mapped them to success, breaking test 981 :514 and
+  the abi C-gate :570, both pinning ERR_OPEN_FAILED) while the
+  existing EMPTY autosave dir reports a DIFFERENT code (test 980
+  stayed red at :396). 3 red, worse than the 1 we started with.
+- The lesson recorded in the code comment: the FindFirstFileExW error
+  code is NOT a reliable empty-vs-missing axis across real systems;
+  the version-proof discriminator is the DIRECTORY-EXISTS probe. The
+  landed fix (dd225da): on a failed enumeration, GetFileAttributesW
+  decides - existing directory = the empty-list success (POSIX opendir
+  semantics, the W1c first-block contract OK + n==0), missing path or
+  a plain file handed as a dir (POSIX ENOTDIR) = the genuine
+  ERR_OPEN_FAILED. Known accepted divergence noted in the comment: a
+  dir with denied-list-but-readable-attributes (a rare ACL shape)
+  reports empty where POSIX opendir would fail.
+- Both surfaces again: the ABI seam and the CLI sessions verb (missing
+  dir stays FB-K01 exit 1). Local: gcc 1020/1020 incl. the parse gate,
+  format 18.1.8 clean. RELEASE-NOTES vNext bullet corrected to the
+  final truth.
+
+Stage Summary:
+- Watching run for dd225da; on green, cut v0.5.2 (the combined-era
+  release with the persistent dev-sign) - the release dispatch then
+  continues the test+benchmark lane against the fresh tag.
