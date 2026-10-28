@@ -1919,3 +1919,11 @@ candidate noted for M-102) in modules/preview.md + cr_thumbnail.h. RED proven
 (MetafileAndIconFamiliesAreNamedRefusals failed all five forms on the pre-fix sniff via
 the stash-revert build), GREEN after; FormatSupportIsTheDocumentedV1Matrix extended.
 Board now 74 active (6 SEVERE · 28 MAJOR · 33 MINOR · 5 INFO) / 253 FIXED / 2 tracked-open.
+
+N-094 residual closed (the session-10 sweep addendum's post-fix check): CORE-API-CURRENT
+headline :14 carried the third stale verb count ("9 verbs", cite rrecov.cpp:2534-2551) -
+the sweep found three contradictory counts coexisting in one doc (:14 "9", :319 "(10)"
+listing 11 names, :37 "11"). The :14 headline now reads 11 verbs with the re-pinned
+3043-3063 cite and the explicit verb list (the mechanical sweep the addendum prescribed:
+all count/cite sites, re-asserted against the dispatch table itself). No code change;
+the CrUi.CliHelpListsEveryDispatchedVerb pin already guards the source-level truth.

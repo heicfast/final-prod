@@ -11,8 +11,9 @@
 
 **Headline counts**: C++ public headers 82 under `include/cr/**`; C ABI **78 exports**
 (`grep -c CR_UI_API include/cr/cr_ui.h` = 81 minus 2 macro lines; 78
-`extern "C" CR_UI_API` definitions in src/ui/cr_ui.cpp); CLI **9 verbs**
-(rrecov.cpp:2534-2551); error codes **34 + OK**; errmod modules **13**; ABI event types
+`extern "C" CR_UI_API` definitions in src/ui/cr_ui.cpp); CLI **11 verbs**
+(rrecov.cpp:3043-3063 — list, list-carve-formats, sessions, scan, tree, recover,
+health, fix, apply, bench, driver); error codes **34 + OK**; errmod modules **13**; ABI event types
 **10** (2 shim-side); core event types **8**.
 
 >
