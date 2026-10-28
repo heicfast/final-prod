@@ -50,3 +50,11 @@ S-007 (batch-1 parent; addendum needs the walk/cap erratum); S-042/M-081/M-091 (
 ## Open questions
 
 None material — the DAT_180093910 search constant used by the Brance twin walk (FUN_180041440 :49522-49553) is presumed "koly" by structural twin with FileDMG's explicit needle; if a follow-up wants belt-and-braces, a .data hexdump of that dword settles it (recorded, not blocking).
+
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** 771e2ec
+**Verified by:** Carve.M090DmgKolyFooterExtent (RED pre-fix — the old EOS+10 walk truncated the carve before the footer; GREEN post-fix — size == koly+0x200), Carve.M090DmgKolyUnalignedSalvage (the past-0x2800 previous-chunk probe), Carve.M090DmgKolyZeroTailGateAndCap (the 8-zero tail gate + the 0xC800000 row-bound pin); full suite 960/960 green (gcc linux-release), clang-format 18.1.8 clean.
+**Resolution notes:** Re-derived validate_dmg's extent from FUN_180053de0 (:63782-63868, re-read first-hand this session before the fix): 512-byte chunk steps from the stream start; a chunk whose last 8 bytes are zero gates both probes — the aligned "koly"-at-chunk-start probe (size = chunk base + 0x200) and, past 0x2800, the full search of the PREVIOUS chunk (unaligned salvage, size = koly offset + 0x200). The bzip2 EOS magic (17 72 45 38 50 90)+10 walk survives only as the no-koly fallback (the batch-1 bounded-extent convention, now the documented heuristic), keeping the footer-less salvage behavior the existing NicheBatchSalvageSemantics test pins. The FMT_DMG row cap moved 0xBEBC200 to 0xC800000 per the DMGRawFileInfo ctor's own bound (:49436-49440, read verbatim — 0xBEBC200 is the singleton global at :9049 the landing mis-attributed). The batch-1 commit's "stream-footer walk, cap mirrors the og's own 0xBEBC200" claims are corrected by this record. The keyed gates (BZh1 + the 10-byte block-pi) are unchanged.
