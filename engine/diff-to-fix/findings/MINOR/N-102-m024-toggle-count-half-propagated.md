@@ -36,3 +36,22 @@ N-101 (the same truth-pass wave), M-024 (the subject).
 ## Open questions
 
 None.
+
+---
+
+## Session-10 addendum (2026-10-28, re-verification sweep at HEAD `84a1832`) — a THIRD uncorrected instance + this finding's own citation defect
+
+Re-verified PARTIALLY-FIXED: the src-side halves the finding named were
+corrected by `a972d29` (cr_rawsigns.h:7-8 now "one row per FormatId - the
+cr_signatures.h registry, 108 rows"; cr_signatures.h:256 now "34 named
+toggles in the shipped file"). But the sweep found (a) a THIRD instance
+`a972d29` missed: `include/cr/carve/cr_carve.h:88` still reads "37 named
+toggles, STL/VPJ ship default-off"; and (b) the finding-file half stands
+verbatim: `findings/FIXED/M-024-no-runtime-format-filter-surface-vs-og-rawconfig-ini.md:6,15`
+both still read "37 toggles"/"37 named toggles" (only the :127-139
+addendum carries 34). Citation-defect note for the record: THIS finding's
+cited filename "M-024-rawconfig-toggles-absent.md" never existed in git
+history — the real file is `M-024-no-runtime-format-filter-surface-vs-og-rawconfig-ini.md`
+(the substance is unaffected; the cite is corrected here). Fix plan update:
+add cr_carve.h:88 to the sweep list (now three sites: FIXED/M-024:6,15;
+cr_carve.h:88).

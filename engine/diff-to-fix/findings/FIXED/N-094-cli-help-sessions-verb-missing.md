@@ -58,3 +58,21 @@ None.
 **Fixed in commit:** (this session's N-094 commit — the session-38 minor-first lane)
 **Verified by:** `CrUi.CliHelpListsEveryDispatchedVerb` (new, in tests/unit/test_cr_ui.cpp) — EXECUTED RED on pre-fix main at `84a1832` ("verb 'sessions' is dispatched but has no -h usage line" — the exact filed gap, reproduced; the only red verb of 11), GREEN after the fix; full suite 1024/1024 green (linux-release, gcc Werror); clang-format 18.1.8 clean.
 **Resolution notes:** Re-verified at current main before fixing (usage block now at rrecov.cpp:2996-3041, dispatch at :3043-3063 — the finding's line cites had drifted but the defect stood: 10 usage lines vs 11 dispatched verbs; the sessions dispatch case at :3043 confirmed present, the `-h` block confirmed absent of any sessions line — one line was the whole code delta). The fix: (1) the `sessions [--dir D] [--json]` usage line landed in the `-h` block (after list-carve-formats, matching dispatch order) with the W1a-form parenthetical (LastScanRecordView, per-row error semantics); (2) `docs/CORE-API-CURRENT.md:318` re-pinned to rrecov.cpp:3043-3063 AND its verb count corrected (10 → 11 — the finding missed that the site also miscounted the 11 verbs it listed as "(10)"); (3) the three-site verb lock grew its fourth site per the fix plan: the pin rule box in `diff-to-fix/API-DELTA.md` now names the `-h` usage block as a locked site, and the new test enforces all four sites mechanically (every dispatched verb must appear in the usage block AND the header verb table; every listed usage verb must be dispatched — both directions, so no future verb wave can drift the help again). API-DELTA §0's stale "10 verbs" scope line corrected to 11 in the same change (a count site W1a's landing missed). The test name describes the behavior (help lists every dispatched verb), not the finding ID, per the SOP.
+## Session-10 sweep addendum (2026-10-28 — recorded SIMULTANEOUSLY with the fix lane's landing; retained as the drift's full record)
+
+The sweep re-verified this finding at HEAD `84a1832` moments before the session-38 minor-first lane's fix landed (the `-h` block was at rrecov.cpp:2997-3034 —
+still 10 verbs, no `sessions` line; the dispatch at :3039-3060 with
+`sessions` at :3043). The sweep found the count drift had COMPOUNDED in
+`docs/CORE-API-CURRENT.md`: three mutually contradictory verb counts now
+coexist in one doc — :14 headline "CLI **9 verbs**" (citing the stale
+rrecov.cpp:2534-2551), :319 "(10)" while listing 11 verb names, and :37's
+superseded-box "11 verbs" — plus the stale dispatch cite ":2993-3018"
+(actual: :3037-3060). Fix plan update: the mechanical sweep must take ALL
+count/cite sites in CORE-API-CURRENT.md (4 sites), the -h block, and
+re-assert against the dispatch table itself, not a cached count.
+
+**Post-fix residual check for the next doc pass:** the resolution above
+closes the `-h` block, the :318 count, and API-DELTA §0 — verify whether
+the :14 headline's "9 verbs" + its stale cite (rrecov.cpp:2534-2551) were
+also corrected; if not, that site remains open under N-095's doc-truth
+class (a one-line mechanical fix with the sweep's re-pins).

@@ -1872,3 +1872,34 @@ claimed by DFX-38. S-044 was claimed by the fix-lane's worklog but landed
 here first (`7b7e095`) — the gates + tests + D-105/D-106 registrations
 are on main; the fix-lane should re-verify against the landed state per
 the SOP before touching it.
+
+
+## Session 10 — the continuation deep audit (the second conversation session: re-verify the board, remove the fixed, then go deeper than the artifacts ever went)
+
+Date: 2026-10-28 (evening). Audited: core `84a1832` (= origin/main, verified
+0/0 after fetch — the session-9 close commit), corpus `be0cfe9` (unchanged
+since session-8's T1). Prompt saved redacted to
+`worklog/session-10-deep-audit-prompt.md`; read twice before work.
+
+User directive (this session's delta over the standing SOP): (1) look for
+what session 1 missed; (2) REMOVE THE FIXED THINGS — re-verify the active
+board against HEAD and move anything the fixing lanes landed to FIXED/;
+(3) go deeper — more og-codebase ↔ core comparison; (4) mark ALL remaining
+features / implementations / functions as findings.
+
+Board at session open (per the session-9 close): 76 active
+(7 SEVERE / 28 MAJOR / 35 MINOR / 5 INFO) + 1 tracked-open (OQ-S4-3) /
+250 FIXED. Scope note: this session's prompt pins TWO repositories (core +
+corpus); the rda-driver repo is OUT of this session's scope (its standing
+findings M-086..M-089/N-107/N-127 stay on the board untouched; no new
+driver-repo work this session).
+
+Plan (the session TODO spine): T1 bootstrap (this entry) → T2 read the full
+active board into a verification checklist → T3/T3b re-verification sweep of
+all 76 actives vs HEAD `84a1832` (first-hand source reads; anything the
+lanes landed moves to FIXED/ with a resolution record) → T5/T6 deep-dive
+target discovery at the og-codebase FILE level and the corpus FUNCTION
+level (the trail's coverage is artifact-doc-shaped; the user wants the
+tree itself walked) → T7-T9 comparison waves (config/data assets; the
+PartitionRecovery 57-file MOM tree; the diskhealth 818-file tree) → T10
+new findings + matrix rows → T11 gate-doc truth pass + final push.

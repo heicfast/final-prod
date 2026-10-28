@@ -45,6 +45,33 @@ in each finding's Resolution; the running counts live in this section.
 
 (Counts in this section update as the session progresses; the per-severity deltas below in the historical sections are frozen history.)
 
+# (the session-10 continuation-audit lane's section follows the fix-lane record above)
+
+## Session-10 delta (2026-10-28 evening — the SECOND-CONVERSATION-SESSION continuation: re-verify the board, remove the fixed, then go deeper than the artifacts went)
+
+**Audited: core `84a1832` (= origin/main, verified 0/0 post-fetch — the session-9 close), corpus `be0cfe9` (unchanged).** User directive: look for what session 1 missed; REMOVE THE FIXED THINGS (re-verify the active board vs HEAD); go deeper — more og-codebase ↔ core comparison; mark ALL remaining features/implementations/functions as findings. Scope pin per this session's prompt: TWO repositories (core + corpus); the six driver-repo findings (M-086/M-087/M-089, N-107, N-127, M-088's driver half) stand as filed at driver `323e75a` — not re-verified this session; M-088's core-side half WAS verified (STILL-ACTIVE, untouched).
+
+**Wave 1 — the re-verification sweep (T2-T4):** four parallel agents re-verified all 76 actives against HEAD first-hand (every core-reference re-read at the current tree; the lead spot-verified the load-bearing verdicts). Full table: `evidence/s10-reverification-sweep.md`. Outcome: **74 of 75 in-scope findings STILL-ACTIVE; 1 FIXED (N-124 — the transport.md SUPERSEDED annotation, landed `2025554`); 1 re-scoped (M-100 — its "grep: absent" core-ref was FALSE AT FILING: `6d0f16c`/M-066 landed the engine-half enumeration pre-filing; the residual is the ABI/CLI exposure only)**. Five addenda filed with new defects the sweep caught: M-079 (a NEW false comment at cr_scan.h:236-239 claiming the CLI/win layer fills volume_label — no code does), N-094 (the verb-count drift compounded: CORE-API-CURRENT.md carries THREE contradictory counts 9/10/11), N-102 (a THIRD uncorrected "37 toggles" instance at cr_carve.h:88 + the finding's own cited M-024 filename never existed), N-099 (erratum E51 still carries the wrong MDB ctor cite), M-100 (the R-37 rows now doubly stale). Line-number re-pins recorded in the sweep evidence file (~+55-60 lines in cr_analysers.cpp from the b92ebef insertions).
+
+**Board after wave 1 (at my HEAD `84a1832`): 75 active (7 SEVERE · 28 MAJOR · 34 MINOR · 5 INFO) / 251 FIXED / 1 tracked-open.**
+
+**Push-time reconciliation (the moving-target SOP executing):** while this
+sweep ran, four concurrent fix lanes landed `26da616` (N-094 — the `-h`
+usage line + the verb lock's fourth site), `f6e303e` (S-042 — the WMF
+validators re-derived from FUN_1800264d0, disjoint accept-sets closed),
+`dd0ffd5`/`ce2405a` (M-071 — the M-018 junk-gate regression closed, both
+rrecov.cpp gates restored + the cr_ui bulk walks gated + the
+explicit-selection semantic pinned), and `9daa787`+`b500058` (M-090 — the
+DMG koly trailer walk + the ctor's own 0xC800000 cap; the finding moved to
+FIXED with the batch-1 mis-decode claims corrected). My sweep's
+STILL-ACTIVE verdicts for those four stand as the record at `84a1832` and
+are superseded at the rebase tip. **Board at the rebase tip: 70 active
+(6 SEVERE · 26 MAJOR · 33 MINOR · 5 INFO) / 255 FIXED / 1 tracked-open
+(OQ-S4-3; the remote lanes also carry OQ-S8-1).** The fix lanes' own
+SUMMARY sections (above) own the per-fix resolution records; this lane's
+concurrent-verdict record is preserved in evidence/s10-reverification-sweep.md
+with a reconciliation note added at its head.
+
 ## Session-8 delta — third lane (2026-10-28 — the DRIVER lane + the duplicate merges + the board-truth repairs)
 
 **Audited: core `35adcb9` (rebased over the parallel lanes through `9e5dedc`), driver `323e75a` (v0.2.4), corpus `be0cfe9`.** Method: five parallel read agents (corpus contracts for the new landings; corpus coverage/citation sweep; new-landing parity verification; board-truth sweep; driver+RE-tooling audit), then first-hand re-verification of every load-bearing claim by the lead before filing — including a personal re-read of both WMF decompile sites and the core validator, and byte-level decodes of regdrv-rda.reg and rda_version.h.

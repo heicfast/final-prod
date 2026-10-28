@@ -49,3 +49,44 @@ S-032 (the landed inventory parser this reuses); N-115 (the OOXML typing that fe
 ## Open questions
 
 The og's ArchivePreviewModel is zip-scoped in the corpus decode — whether RAR/7z also browse is a UIUX decode question; the fix lands zip first (the decoded surface) and records the rest.
+
+---
+
+## Session-10 addendum (2026-10-28, re-verification sweep at HEAD `84a1832`) — SCOPE CORRECTION: the engine half landed BEFORE this finding was filed
+
+The session-10 re-verification sweep caught a core-reference defect in this
+finding's own filing: the claim "grep for archive-entry enumeration:
+**absent**" over `src/core/preview/` + `include/cr/preview/` was **already
+false at the finding's audit base `ff879f9`**. Commit `6d0f16c` (fix(preview):
+M-066 + N-088 — the ArchivePreviewModel-parity inventory) is an ancestor of
+`ff879f9` and landed the C++-layer enumeration the finding says is absent.
+
+What EXISTS at HEAD (verified first-hand by the sweep agent and the lead):
+- `include/cr/preview/cr_preview.h:114-149` — `struct ArchiveEntry` (name,
+  size, compressed, crc_present — "the damaged-zip browsing contract - a
+  zero CRC marks the entries the repair chain cares about"), the
+  `kMaxPreviewArchiveEntries = 512` cap, and `Metadata::entries`.
+- `src/core/preview/cr_preview.cpp:696-737` — the zip central-directory
+  walk populating `m.entries` for every walkable CD entry, damaged zips
+  included, capped + flagged.
+
+What still stands (the finding's true residual, re-scoped):
+- The **host-facing exposure**: `cr_ui_metadata` (include/cr/cr_ui.h:1180-1190)
+  carries no entries field, no `cr_ui_archive_list` export exists (81
+  CR_UI_API exports, zero archive-list symbols), and the CLI dispatch
+  (rrecov.cpp:3039-3060) has no archive-list verb. The engine data is
+  unreachable from every shipped consumer surface.
+- The fix plan's step 1 (the ABI surface over the landed parser) is
+  therefore the entire remaining work; the parser half is done (M-066).
+
+Overlaps to record: the engine half of this finding duplicates FIXED/M-066
+(the landing); the residual is the ABI/CLI browse-inside exposure only.
+Downstream doc staleness: `docs/REFERENCE-API-GAP.md:236/385` (R-37) still
+reads "none — preview reads file bytes only | GAP | No archive-content
+enumeration" — now doubly stale (the engine enumeration exists; the gap is
+the exposure) and folded into N-118's stale-rows class.
+
+Board action: the finding STAYS ACTIVE, re-scoped to the exposure half;
+severity stays MAJOR (a capability the og exposes to users remains
+unreachable in ours). Original core-reference text superseded by this
+addendum.

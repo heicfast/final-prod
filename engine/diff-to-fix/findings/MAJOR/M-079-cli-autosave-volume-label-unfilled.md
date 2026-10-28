@@ -53,3 +53,22 @@ Session-list fidelity (the W1a list shows the label-less names), and the product
 ## Open questions
 
 None.
+
+---
+
+## Session-10 addendum (2026-10-28, re-verification sweep at HEAD `84a1832`) — a NEW false comment sits on top of the gap
+
+Re-verified STILL-ACTIVE (line re-pins: the ABI copy is now cr_ui.cpp:1181;
+the naming reads cr_ui.cpp:2026 + rrecov.cpp:1714; the session-record copy
+cr_scan.cpp:1933-1934). New discovery this sweep: `include/cr/orchestrator/
+cr_scan.h:236-239` — the field's comment now claims "Supplied by the caller
+(**the CLI/win layer reads it from the volume entry**; engines never own
+it)". No code does: `win::enumerate_disks` reads the volume label via
+GetVolumeInformationW into the volume-listing row (cr_enumerate.cpp:245)
+but nothing plumbs it into `ScanConfig.volume_label` — the CLI never sets
+the field and `fill_identity_card` (cr_ui.cpp:1847-1862) fills
+model/serial/firmware/wwn/interface but not the label. The comment is a
+fresh false claim layered on the unfixed gap (the doc says the wiring
+exists; the wiring does not). Fix plan gains a step 0: delete or truth the
+cr_scan.h:236-239 sentence before the fill site lands (the M-018
+comment-stale class, now on an ACTIVE gap).

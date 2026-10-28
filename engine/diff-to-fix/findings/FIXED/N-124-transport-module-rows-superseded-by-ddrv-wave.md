@@ -47,3 +47,25 @@ N-123 (the same recurrence class); D-DRV-1/D-DRV-2 (the superseding registers); 
 ## Open questions
 
 None.
+
+---
+
+## RESOLVED — session 10 re-verification sweep (2026-10-28, audited HEAD `84a1832`)
+
+**Verdict: FIXED.** The fix landed in commit `2025554` (the SA-8 lead-lane
+reconciliation): `diff-to-fix/modules/transport.md:133-136` now carries the
+session-8 lead-lane wave section — "**N-124**: the fallback-ladder and
+WinPE-gate rows are SUPERSEDED by D-DRV-1/D-DRV-2 (cr_transport.cpp:563-565 —
+both REMOVED); annotate rather than re-audit." The historical rows at :86-111
+stand as record per the fix plan's "keep the historical record" item. The
+code side re-verified at HEAD: `src/win/cr_transport.cpp:563-573` ("the
+direct fallback and the WinPE gate are REMOVED") + PARITY-DELTAS.md D-DRV-1
+(:2999) / D-DRV-2 (:3013).
+
+Verification: session-10 sweep (evidence/s10-reverification-sweep.md, batch
+4 agent read + the lead's first-hand spot-check of transport.md:130-136).
+Fix-plan completeness: items 1-2 done; item 3 (the modules/driver-install.md
+same-class sweep) was NOT done — driver-install.md carries zero
+D-DRV/REMOVED/superseded annotations at HEAD. Residual registered as a
+follow-up note in the sweep record (driver-install.md same-class check),
+not re-opened as a finding — the driver lane owns that file's next pass.

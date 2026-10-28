@@ -581,7 +581,7 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | query | **M-101** (Versions/Tags branches), **N-126** (Unsaved File) |
 | preview | **M-100** (browse-inside), **M-102** (thumbnail ABI) |
 | boot repair | **N-121** (ESP automount), **N-122** (NVRAM create/delete) |
-| CLI / transport | **N-123**, **N-124** |
+| CLI / transport | **N-123** (N-124 FIXED session 10 — the transport.md SUPERSEDED annotation landed in 2025554; see evidence/s10-reverification-sweep.md) |
 | orchestration / docs / structure | **N-125** (disconnect states), **N-119** (D-88 premise), **N-120** (pointer drifts), **I-030** (module-map holes) |
 **Session-9 changes (2026-10-28, SA-9 lane — audited core product code `35adcb9` / rda-driver `323e75a` / corpus `be0cfe9`; two-repo scope; RECONCILED at push time into the session-8 board — 7 convergent filings merged as addenda, 1 unique finding kept):**
 

@@ -64,3 +64,18 @@ M-084.
 ## Open questions
 
 None.
+
+---
+
+## Session-10 addendum (2026-10-28, re-verification sweep at HEAD `84a1832`)
+
+Re-verified STILL-ACTIVE: FIXED/S-007's stale batch-1 cites stand verbatim
+at :215-223 (the ":5450-6600"/":6205-6590" regions vs the real registries
+:1728-2509/:2536-2911 per E55; "WPG :20515-20550, MDB :21290-21330" vs the
+real ctors :15700-01/:16539-41; the DMG "0xBEBC200 mirrors the og" claim
+refuted by M-090/E67; the WMF checksum sentence refuted by S-042/E60). New
+residual the sweep caught: erratum **E51 itself still carries the wrong MDB
+ctor cite "(ctor :21316-21318)"** — the same defect class E63 fixed for
+WPG was never fixed for MDB's E51 row (the real MDB ctor bounds sit at
+:16539-41 per the session-5 decode). Add to the fix plan: correct E51's
+cite alongside the S-007 addendum.
