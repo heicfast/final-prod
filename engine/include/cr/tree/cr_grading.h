@@ -25,9 +25,12 @@
  *                             QuickScanDeleteExtend counter ticks
  *                             (DAT_141be5818); vt+0xb8/vt+0x100 sub-rules
  *                             are UNDECODED (see Resolution notes)
- *      FS not in {NTFS,    -> generic path: extension in the 169-entry
- *      ReFS, Btrfs}           table (dumped from .data 0x141bb0500, first
- *                             key "Raw") gates the twin detection: two
+ *      FS not in {NTFS,    -> generic path: extension NOT in the 169-entry
+ *      ReFS, Btrfs}           table gates the twin detection (S-058:
+ *                             FUN_1401bebe0 = iterator inequality, the
+ *                             :605743 block runs on the lookup MISS;
+ *                             the runtime set's "" quirk makes dot-less
+ *                             files skip too): two
  *                             nodes with the same extent-end key
  *                             (base + len + device_index*unit, the
  *                             index offset by -2 for FAT-family devices

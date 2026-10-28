@@ -1,3 +1,22 @@
+**Session-51 severe-first lane — S-058 + S-061 landed (2026-10-29).**
+
+**S-058 + S-061 FIXED (one grading patch).** Corpus re-verified first-hand:
+the comparator chain (:324923-324939 — FUN_1401bebe0 = inequality over
+FUN_1401bec20 = iterator equality) + the control case (:585885-905) re-read in
+ghidra-drwui; the insert-time hook (:605481-497) re-read for S-061. S-058: the
+grade_tree gate inverted to NOT-in-table with the explicit ""-quirk skip (the
+og's runtime set contains "" — dot-less files skip under the og; a naive flip
+would have let them enter, the one population where the two would diverge).
+The s5 evidence §5 item 4 erratum appended. The M-133 twin-key fixtures
+re-based onto out-of-table extensions (.doc/.mp3 fixtures could no longer
+reach the machinery under the corrected gate — mechanism orthogonal, math
+unchanged and re-proven). S-061: the bare ReFS/Btrfs early return replaced
+with set_grade(High) after the Active rule; the final gauge census counts
+them (the 5828 tick equivalent). 5 tests RED pre-fix (the re-pinned polarity
+test, both S-061 grade tests, the two twin-mechanism fixtures) → 23/23
+Grading GREEN; suite 1228/1228. Trail: findings/FIXED/ both + ledger rows +
+matrix cells + SUMMARY + the s5 erratum + this entry.
+
 **Session-51 severe-first lane — S-055 + S-056 landed (2026-10-29).**
 
 **S-055 + S-056 FIXED (one carve patch, the finding's own "fix in the same patch"

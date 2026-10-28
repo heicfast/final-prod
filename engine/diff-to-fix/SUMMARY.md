@@ -363,7 +363,7 @@ entering the lane (`evidence/s42-liveness-sweep.md`).
 **The filings — 16 findings + 3 tracked-open, every one focus-area named by the
 directive, every one decompile-verified first-hand:**
 
-- **S-058 (SEVERE — recovery chances)**: the grading extension-table gate is
+- **S-058 (FIXED session-51 — recovery chances)**: the grading extension-table gate was
   **INVERTED**. The og runs the twin/overlap/deep-validation branch for extensions
   **NOT** in the 169-key set — `FUN_1401bebe0` is the *inequality* comparator
   (`:324923-39`), `FUN_140256d00` is `std::set::find` (`:413990-414019`), and the
@@ -383,7 +383,7 @@ directive, every one decompile-verified first-hand:**
   binary's only `SetFileTime`, mask-gated per field; **the trail's N-009d row
   "og never calls SetFileTime" is REFUTED**); the core's DestIo has no metadata
   surface and zero restoration calls tree-wide.
-- **S-061 (SEVERE — recovery chances)**: **ReFS/Btrfs files never receive the og's
+- **S-061 (FIXED session-51 — recovery chances)**: **ReFS/Btrfs files never received the og's
   insert-time High grade** (`:605481-497` + the 5828/5830 gauge ticks); the core's
   early return (`cr_grading.cpp:217-219`) leaves both filesystems at Average.
 - **M-133..M-137 (MAJOR)**: the twin-key device family ({FAT16, EXT2-family} vs
