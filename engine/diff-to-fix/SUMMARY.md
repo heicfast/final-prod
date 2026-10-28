@@ -1,5 +1,17 @@
 # SUMMARY.md — executive summary (the S44 minors lane on top of the S47 MAJOR-first fix lane; the prior lanes below, newest-first — rebrand note: the remote's S47/S48..S50 window pushed first; this lane's N-161 rides the reconciliation per SA-9)
 
+
+**S-058 CONVERGENT (SEVERE — session-57 lane; the S52 lane's ea405392 wins per
+SA-9):** the grading extension-table gate polarity is corrected at the merged tree
+— the twin/overlap/deep-validation machinery now runs for NOT-in-table extensions
+exactly like the og (FUN_1401bebe0 = the inequality comparator; the control case
+:585888 calibrates the direction; the "" runtime-set quirk skips dot-less names);
+in-table extensions keep the engine-default grade. The s5 evidence erratum is
+filed at its §5 item 4. The session-57 lane's independent RED battery (both
+halves of the polarity pin) and convergence addendum ride in the finding file;
+its redundant code/tests were dropped per the superset rule (the winning 23/23
+battery incl. S-061's ReFS/Btrfs insert-time pins stands).
+
 ## Session-44 minors-lane delta (2026-10-29 — the minor-first diff-fix execution lane per the user's operative directive; opened on `9807934` (the N-172/N-173 landing), corpus `be0cfe9`; suite at open 1203 green / 1161 pass · 42 win-skip · 0 fail)
 
 **Board at open (this lane's view): 77 active — 1 ACUTE · 9 SEVERE · 28 MAJOR ·

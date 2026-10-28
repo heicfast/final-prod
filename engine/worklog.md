@@ -7615,3 +7615,18 @@ implementation bug caught in self-review before commit: the end-of-name NUL must
 its early-return (an intermediate `break` would have continued to further slots).
 Suite 1218/1218 (linux-release). Trail: findings/FIXED/N-176 + ledger row + matrix row
 + fat.md list + this entry.
+
+## Session-57 severe-first fix lane — S-058 CONVERGENT (2026-10-29)
+
+**S-058 CONVERGENT per SA-9:** this lane's complete fix (gate inversion + the
+empty-string skip arm + the header re-truth + the s5 erratum + the M-133 fixture
+re-pin to out-of-table extensions + a 3-RED-test battery incl. both halves of the
+polarity pin and a DotlessSkipsTwins quirk guard, suite 1255/1255 green at the
+local tree) lost the push-window race to the S52 lane's ea405392 (S-058 + S-061
+together, 23/23). Their landing stands; this lane's record: the finding file's
+convergence addendum + the ledger convergent row + this entry. The independent
+verification was performed FIRST (comparator chain :324923-939, control case
+:585885-905, gate block :605736-810 — all read first-hand in the corpus decompile
+before any change), and the RED battery ran at the pre-fix tree. Redundant
+code/tests dropped per the superset rule. Moving to S-059 (the sparse-hole export
+left-shift — the deep reconstruction one).
