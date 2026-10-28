@@ -197,7 +197,7 @@ heap-out strings, zero-init configs always safe, no exception escapes (catch-all
 
 | Export | Contract |
 |---|---|
-| `cr_ui_enumerate_disks(out, count)` | PhysicalDrive census ≤ 200 disks; failure returns error (never silent empty) (cr_ui.h:458) |
+| `cr_ui_enumerate_disks(out, count)` | PhysicalDrive census ≤ 200 disks; failure returns error (never silent empty); ALWAYS FRESH — every call re-queries the OS, no cache, no retained state (calling again IS the refresh; the og's modal refresh flow re-runs the same machinery, the modal chrome is host-side; the update-disk-metadata case is the C++-only `win::refresh_disk_properties`, S-029) — the N-098 contract sentence, cr_ui.h:472-484 |
 | `cr_ui_enumerate_volumes(out, count)` | letter/disk correlation + FVE flag (cr_ui.h:459) |
 
 ### b.4 Scan lifecycle (18)

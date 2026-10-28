@@ -471,7 +471,17 @@ typedef struct cr_ui_volume_info {
 
 /* Two-call pattern for both: *count as IN capacity when out != NULL, as
  * OUT needed when out == NULL. Enumeration failure returns its error code
- * (never a silent empty list - CLI G-20 parity). */
+ * (never a silent empty list - CLI G-20 parity).
+ *
+ * Refresh contract (R-86's pull-model equivalence, N-098): each call
+ * RE-QUERIES the OS - there is no cache, no memoization, no retained
+ * state anywhere in the path (a fresh PhysicalDiskList is constructed
+ * per invocation). Calling this again IS the refresh - the og's modal
+ * refresh flow re-runs the same enumeration machinery, and the modal
+ * chrome is host-side. The update-disk-metadata case (making the OS
+ * itself see a changed disk) is the C++-only win::refresh_disk_properties
+ * (IOCTL_DISK_UPDATE_PROPERTIES, S-029), documented as such at
+ * REFERENCE-API-GAP R-86. */
 CR_UI_API uint32_t cr_ui_enumerate_disks(cr_ui_disk_info* out, uint32_t* count);
 CR_UI_API uint32_t cr_ui_enumerate_volumes(cr_ui_volume_info* out, uint32_t* count);
 

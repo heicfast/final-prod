@@ -952,6 +952,45 @@ TEST(CrUi, SessionListTieBreakDeterministic) {
     std::filesystem::remove_all(dir);
 }
 
+TEST(CrUi, EnumerationRefreshContractPinned) {
+    /* N-098: the always-fresh enumeration contract - each
+     * cr_ui_enumerate_disks call re-queries the OS, no cache, no retained
+     * state; calling again IS the refresh (the og's modal flow re-runs the
+     * same machinery; the chrome is host-side). The exe-level two-call
+     * probe runs on the Windows lane; this pin guards the invariant where
+     * every lane can see it: the header contract sentence must stay, and
+     * the implementation must keep constructing a local list per call (a
+     * future cache MUST come with a contract update - which this test
+     * then fails loudly). */
+    const std::string hdr = cr_test::read_repo_file("include/cr/cr_ui.h");
+    ASSERT_FALSE(hdr.empty());
+    const size_t at = hdr.find("cr_ui_enumerate_disks");
+    ASSERT_NE(std::string::npos, at);
+    const std::string block = hdr.substr(at > 800 ? at - 800 : 0, 900);
+    EXPECT_NE(std::string::npos, block.find("RE-QUERIES the OS"))
+        << "the enumeration contract must state the always-fresh rule";
+    EXPECT_NE(std::string::npos, block.find("no cache"))
+        << "the enumeration contract must deny caching explicitly";
+    /* the implementation: a LOCAL PhysicalDiskList per invocation, no
+     * static or member state in the enumerate path */
+    const std::string src = cr_test::read_repo_file("src/ui/cr_ui.cpp");
+    ASSERT_FALSE(src.empty());
+    const size_t impl = src.find("u32 enumerate_disks_impl(");
+    ASSERT_NE(std::string::npos, impl);
+    const size_t impl_end = src.find("\nu32 ", impl + 10);
+    const std::string body =
+        src.substr(impl, (impl_end == std::string::npos ? src.size() : impl_end) - impl);
+    EXPECT_NE(std::string::npos, body.find("win::PhysicalDiskList list;"))
+        << "the enumerate path must construct its list locally per call";
+    EXPECT_EQ(std::string::npos, body.find("static"))
+        << "no static state may appear inside enumerate_disks_impl";
+    /* the C++-only refresh IOCTL stays documented, not exported */
+    const std::string gap = cr_test::read_repo_file("docs/REFERENCE-API-GAP.md");
+    ASSERT_FALSE(gap.empty());
+    EXPECT_NE(std::string::npos, gap.find("calling again IS the refresh"))
+        << "R-86's row must carry the pull-model equivalence statement";
+}
+
 TEST(CrUi, SessionListCliAndAbiOrderAgree) {
     /* N-116's CLI half: rrecov's `sessions` verb must enumerate in the
      * SAME order the ABI returns (save time first, path tie-break) - the

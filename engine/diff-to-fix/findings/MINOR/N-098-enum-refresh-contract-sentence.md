@@ -49,3 +49,12 @@ First-hand: the always-fresh path read (cr_ui.cpp:1631-1671; cr_enumerate.cpp:13
 ## Open questions
 
 None.
+
+---
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-098 contract batch — the session-38 minor-first lane)
+**Verified by:** `CrUi.EnumerationRefreshContractPinned` (new) — EXECUTED RED on the pre-fix header (the contract sentence absent: both the "RE-QUERIES the OS" and "no cache" assertions failed), GREEN after; full suite green (linux-release, gcc Werror); clang-format 18.1.8 clean.
+**Resolution notes:** Re-verified at current main: the always-fresh behavior stood (enumerate_disks_impl constructs a local `win::PhysicalDiskList list;` per invocation, zero cache — read first-hand) while no doc stated it (the header's enumeration section, ABI-CONTRACT, and R-86's row were all silent; grep-verified). The fix per the plan: (1) the contract sentence landed in cr_ui.h's enumeration section (each call RE-QUERIES the OS — no cache, no memoization, no retained state; calling again IS the refresh; the og's modal flow re-runs the same machinery, the chrome is host-side; the update-disk-metadata case is the C++-only S-029 IOCTL); (2) the mirror sentence landed in CORE-API-CURRENT's b.3 row and API.md's census row (ABI-CONTRACT has no enumeration subsection — the finding assumed one; the mirror lives where the enumeration contract actually lives, noted here); (3) R-86's gap row flipped from PARTIAL to PRESENT (pull model, registered) pointing at the statement; (4) the pinning test asserts the header sentence, the local-list implementation shape (and the absence of static state inside enumerate_disks_impl), and R-86's statement — so a future cache cannot land silently. The Windows-lane two-consecutive-calls runtime probe the finding suggested remains the MSVC lane's smoke addition; the source-level pin covers the regression class cross-platform.

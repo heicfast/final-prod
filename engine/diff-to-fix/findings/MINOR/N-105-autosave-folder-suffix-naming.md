@@ -39,3 +39,12 @@ S-044 (the auto-save gating divergence), N-100.
 Whether `vtable+0x110` marks folder scans specifically (the flag's
 exact predicate — the decode shows the condition, the mode's name is
 inferred from the suffix string).
+
+---
+
+## Resolution
+
+**Status:** FIXED-ALREADY
+**Fixed in commit:** (landed by the parallel S-044 lane's rider; classified this session — the session-38 minor-first lane)
+**Verified by:** the live-trail reproduction: PARITY-DELTAS **D-106** (read this session) is exactly this finding's demanded deferral record — "the auto-save Folder-scan naming variant (`Folder` suffix) is unimplementable until a folder-scan mode exists (S-044/N-105 deferral, REGISTERED GAP — surface absent on both engine sides)" with the og's `vtable+0x110` decode (:442883-886), the core's no-folder-scan-mode state, and the go-forward rule ("recorded so a future folder-scan landing knows the naming contract. Verdict: NEEDS-WORK (only when folder-scan lands)").
+**Resolution notes:** The finding's own fix plan was "record the variant as deferred in the N-061 row until a folder-scan flag exists" — the S-044 lane landed the stronger form (a dedicated D-row in the central register, cross-referenced to N-105 by name). Nothing remained to edit beyond this classification record; `AutoSessionNameFolderSuffix` stays the test for the future folder-scan landing, exactly as D-106 prescribes.

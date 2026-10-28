@@ -61,3 +61,12 @@ rsf-format--scan-session.md:450-451, no backslash); core's `auto_session_name`
 name-forbidden set". A volume label containing a backslash or a control byte produces a
 different filename in core than in the og. Deliberate superset, unregistered — same class
 as the load-progress scale and the opt-in posture this finding already carries.
+
+---
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-091 registration batch — the session-38 minor-first lane)
+**Verified by:** live greps before the edit (load-progress: 0 rows; thumbnail: 0 delta rows — only protocol mentions + the S-043 orientation rider section; sanitizer: only the SafeWriter destination-name mention at :2655, not the auto-session name) — all three gaps stood; after the edit the register carries D-108/D-109/D-110.
+**Resolution notes:** Re-verified at current main, item by item: (a) the session-load progress model (stage permille + the 0xFFFFFFFF overall sentinel vs the og's 40+50·done/(total+done) fixed window; the byte fields' recomputation route) — REGISTERED as D-108; (b) the in-engine thumbnail decode superset (the I-015 lineage: the og's thumbnail work is all UI-process GDI+/agents, the core decodes through the bounded PreviewReader) — REGISTERED as D-109 (previously scattered across OGI C.2 + modules/preview.md only); the addendum's fourth gap — the auto-session-name sanitizer superset (backslash + C0 controls beyond the og's exactly-8 characters) — REGISTERED as D-110; (c) the auto-save opt-in/off-default item was ALREADY covered by the parallel S-044 lane's D-105 (the enable-surface shape) + D-12 (the folder convention) — recorded as FIXED-ALREADY halves. The optional §7h `stats.autosaved` ambiguity sentence: ABI-CONTRACT:571 already documents the field's semantics ("live runs; loaded [sessions report the saved flag]") — the ambiguity note is now carried inside D-105's registration context and this Resolution rather than duplicating a fourth site. A D-107 numbering collision between two parallel lanes' rows (the M-082 rider and the S-047 TS posture) was found during the numbering pass and flagged in the register with the go-forward rule (D-108+; renumber-with-history-note if reconciled) — my rows took D-108/D-109/D-110.

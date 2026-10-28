@@ -3196,6 +3196,67 @@ here).
 
 **WHY REGISTERED AS A SUPERSET:** broadcast and camcorder TS streams commonly begin with null-padding packets; the og's own walk semantics accept them mid-run, so the probe's head-reject loses real files the CMTS chain would carve. The core's uniform tolerance is strictly more recalling on the same evidence strength (0x47-synced strided packets ≥ 0x5000). Verdict: ACCEPTED.
 
+### D-108 — the session-load progress model: stage permille + a 0xFFFFFFFF overall sentinel, not the og's fixed 40→65 % overall window (N-091/W1b registration, REGISTERED DIVERGENCE — recomputable)
+
+**WHAT OG DOES:** the restore mirror computes the overall bar as
+`40 + 50·done/(total+done)` over the load window (rsf-format--scan-session.md
+:344-376 — the 40→65 % sub-window of the overall restore progress; per-child
+`IsCancelled` polls).
+
+**WHAT CORE DOES:** `CR_EVT_SESSION_LOAD_PROGRESS` (W1b, ce6bcb0) carries the
+load's OWN stage_permille (0-1000) with `overall_permille = 0xFFFFFFFF` as the
+"not applicable" sentinel, PLUS `bytes_done`/`bytes_total` fields.
+
+**WHY REGISTERED:** a host implementing the og's bar from the stage permille
+alone cannot reproduce the fixed 40-65 % window — but the byte fields permit
+exact host-side recomputation (`40 + 50·bytes_done/(bytes_total+bytes_done)`),
+which is the documented composition route. Rewiring the event to the og's
+fixed window would bake a UI layout decision into the engine event. Verdict:
+ACCEPTED (the recomputation route is documented; ABI-CONTRACT §7g carries the
+fields).
+
+### D-109 — thumbnails decode IN-ENGINE (a superset of the og's UI-side pipeline) (N-091 registration, I-015 lineage, REGISTERED SUPERSET — engine capability)
+
+**WHAT OG DOES:** all thumbnail work is UI-process — GDI+
+`GdipGetImageThumbnail` at 256 px on the still-image family, the MediaGraph
+agent for video key-frames, EURawImg/LibRaw for RAW, heif.dll embedded-first
+for HEIC; the engines never decode an image (I-015/D-59h's register).
+
+**WHAT CORE DOES:** `cr_thumbnail` (05e6786) decodes in-process through the
+bounded PreviewReader (JPEG/PNG/BMP/GIF/TIFF native + PSD/PNM/HDR via stb;
+dims-first bomb guard; named refusals for the deferred families; EXIF
+orientation applied per S-043; both-axis scaling per I-028) — an engine-side
+capability the og does not have. The cr_ui ABI exposure is the open M-102
+handoff; the format matrix + cache-scope decisions live in
+modules/preview.md + cr_thumbnail.h's contract.
+
+**WHY REGISTERED:** the in-process doctrine deliberately places the decode
+where the PreviewReader already bounds every read; a UI-side split would fork
+the bounded-read guarantee. Verdict: ACCEPTED SUPERSET (registered here per
+N-091 — previously scattered across OGI C.2 + preview.md only).
+
+### D-110 — the auto-session-name sanitizer is a deliberate superset: backslash + the C0 control range beyond the og's 8 forbidden characters (N-091 addendum registration, REGISTERED SUPERSET)
+
+**WHAT OG DOES:** `FUN_140286930` replaces exactly 8 characters in the volume
+label for the auto-session filename — `/ * : ? " < > |` — with no backslash
+and no control-range handling (rsf-format--scan-session.md:450-451).
+
+**WHAT CORE DOES:** `auto_session_name` (cr_crsf.cpp) additionally replaces
+backslash and every C0 control byte — the full Windows name-forbidden set.
+
+**WHY REGISTERED:** a label containing a backslash or a control byte produces
+a DIFFERENT (but always VALID) core filename than the og's; the og's 8-char
+set can yield filenames Windows itself rejects. Verdict: ACCEPTED (strictly
+more valid outputs; the naming grammar's other halves — `auto_` prefix,
+timestamp shape — are byte-parity per N-061).
+
+*(D-numbering note: the two D-107 rows above — the M-082 layering rider and
+the S-047 TS-null-packet posture — are a push-window numbering collision
+between two parallel lanes; both rows' content stands, the next lane that
+adds D-rows should treat the sequence as D-108+ and, if reconciling, renumber
+the second D-107 to a free slot with a history note. This session's rows are
+D-108/D-109/D-110.)*
+
 ## V. Closing-fix session (2026-10-29) — the thumbnail orientation rule (S-043 rider)
 
 **D-105 — the embedded-fast-path orientation semantics.** The og's EXIF

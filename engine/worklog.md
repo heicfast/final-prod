@@ -2451,3 +2451,18 @@ close entry all carry these numbers. Recorded per the truth mandate (the
   to the slab, the bounded-cap fallback with the heuristic note. The
   Consistency vocabulary test updated (HTML checkable — the OQ-FLT-1
   registry-derived design). Tests: 4 Carve.Html*; suite 1071/1071.
+---
+Registration batch D (N-091 + N-098 + N-105): N-091's three unregistered deltas landed as
+PARITY-DELTAS D-108 (the load-progress model: stage permille + the 0xFFFFFFFF sentinel vs
+the og's fixed 40-65 pct window, the byte-field recomputation route documented), D-109
+(the in-engine thumbnail decode superset, the I-015 lineage - previously only in OGI C.2 +
+preview.md), D-110 (the auto-session-name sanitizer superset: backslash + C0 beyond the
+og's 8 chars); the auto-save posture item was already covered by the parallel lane's
+D-105 + D-12 (recorded as FIXED-ALREADY halves); a D-107 numbering collision between two
+parallel lanes' rows was found and flagged with the go-forward rule. N-098: the
+always-fresh enumeration contract landed (cr_ui.h's section + the CORE-API-CURRENT/API.md
+mirrors + R-86 flipped to PRESENT) with `CrUi.EnumerationRefreshContractPinned`
+(RED-then-GREEN proven by the stash-revert build: the sentence assertions failed pre-fix);
+the pin also guards the local-list implementation shape and the absence of static state in
+enumerate_disks_impl. N-105: FIXED-ALREADY - D-106 is the demanded deferral record (the
+S-044 lane's rider), reproduction in the Resolution.

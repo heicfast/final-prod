@@ -94,7 +94,7 @@ thread-safety class documented per group ([ABI-CONTRACT.md](ABI-CONTRACT.md)).
 
 | Export | Purpose |
 |---|---|
-| `cr_ui_enumerate_disks` / `cr_ui_enumerate_volumes` | the device census (PhysicalDrive namespace, ≤ 200 disks, D-85 scope) |
+| `cr_ui_enumerate_disks` / `cr_ui_enumerate_volumes` | the device census (PhysicalDrive namespace, ≤ 200 disks, D-85 scope); each call re-queries the OS — no cache, calling again IS the refresh (N-098) |
 | `cr_ui_open_disk` / `cr_ui_open_volume` / `cr_ui_open_image` | open by number / letter / image file (flat, VMDK, VHD, VHDX) |
 | `cr_ui_open_volume_with_key` | open a BitLocker volume with a user-supplied FVEK (in-stack XTS-AES decrypt, M-033) |
 | `cr_ui_unlock_volume_with_dictionary` | explicit-consent BitLocker password unlock (N-064; shipped 228-entry dict + user candidates) |
