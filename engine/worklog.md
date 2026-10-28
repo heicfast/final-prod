@@ -369,7 +369,6 @@ Stage Summary:
   NTFS origin-LCN carrier if the SCAN-2f lane has not landed it.
 
 ---
-<<<<<<< HEAD
 Task ID: API-EXP-1 (api-fix session 3 — the corpus-parity expansion: context recovery + the plan-of-record board)
 Agent: api-exp lane (this session)
 
