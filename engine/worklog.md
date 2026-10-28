@@ -19,6 +19,20 @@ Pulled-before-pushed discipline; one finding, one push; every fix RED-test-first
 Baseline verified before claiming: linux-release suite 1203/1203 green (1161 passed /
 42 win-only skipped / 0 failed) at pin `0d7b1d9d`. Target: 20+ dispositions this session.
 Audited pin: core `0d7b1d9d`, corpus `be0cfe9`.
+**OQ-S42-2 RESOLVED-MATCH (S47 INFO-first lane, 2026-10-29).** The Btrfs nsec
+question answered by the exact probe the file named, executed first-hand:
+BtrfsSearchDLL FUN_180006ba0 (:4435-4441) folds each timespec pair as
+(nsec/100)+(sec+0x2b6109100)*10^7 — FOLDING, not truncation; the core's
+unix_to_filetime_ns is the identical fold (the core adds only the pre-1601
+guard). NOT a superset axis: the I-006 family gains no Btrfs member (ext4
+alone — the og's internal inconsistency btrfs.md:83-84 already records).
+Pinned end-to-end: Btrfs.MtimeNsecFoldsLikeTheOg (the fixture's hello.txt
+now carries mtime nsec 123456789; the surfaced modified time must be the
+exact folded value; EndToEndWalk re-verified green on the fixture change).
+The I-007 otime/crtime superset stands untouched. Trail: findings/FIXED/
+OQ-S42-2 + ledger OQ row + btrfs.md B9 rows + this entry. No code change —
+the fold IS the parity behavior, now guarded against whole-second
+"simplification" forever.
 
 **Session-51 lane territory claim (coordination contract, 2026-10-29):** this lane
 (the user's SEVERE-first directive; rebranded from the S47 draft at the hot-window
