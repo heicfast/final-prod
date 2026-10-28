@@ -859,3 +859,45 @@ Baselines: core ff879f9 (suite green per the landing lanes' records),
 corpus be0cfe9 (CORRECTIONS #9 absorbed per T1). Board at open: 0 active /
 249 FIXED / 1 INFO (I-026) / 1 tracked-open (OQ-S4-3). ID space continues:
 next A-012+, S-040+, M-071+, N-090+, I-027+.
+
+---
+Task ID: CI-REL-1 (the CI-red repair + the v0.5.2 release cut)
+Agent: senior-dev session (this session)
+
+Work Log:
+- Context: every Checks run since c95335f red on the MSVC lane; the
+  release lane red at validate since 40690974024 (three separate
+  build breaks fixed by 66404ae/6ab676f/35adcb9 - C4305/C4804,
+  clang-format pin drift, getpid C4996); the test-benchmark lane red
+  at fetch (40684560877: v0.5.1 predates the combined era, no
+  rda-test-sign.cer asset).
+- The last remaining red: run 40694592245 (35adcb9), test 980
+  CrUi.AutoSaveOnCompletion at test_cr_ui.cpp:396 - the FIRST block's
+  cr_ui_session_list on the just-created EMPTY autosave dir returns
+  0x50020001 (ERR_OPEN_FAILED) on MSVC. Root cause: the Windows
+  list_crsf_files maps FindFirstFileExW's INVALID_HANDLE_VALUE to
+  false unconditionally; on an empty directory the API fails with
+  ERROR_FILE_NOT_FOUND ('searched, nothing matched') which is the
+  empty-list SUCCESS - POSIX opendir on the same dir succeeds, hence
+  gcc-green/msvc-red (the dominant msvc-only-red class).
+- The fix (both surfaces of the seam): cr_ui.cpp's list_crsf_files
+  returns GetLastError()!=ERROR_FILE_NOT_FOUND on the invalid handle
+  (ERROR_PATH_NOT_FOUND/access-denied stay failures); rrecov.cpp's
+  print_sessions takes the same branch - an empty dir prints zero
+  rows and exits 0 (mirroring the ABI contract), a genuinely missing
+  directory stays FB-K01 exit 1.
+- Verification in this container: gcc 14.2 linux-release build clean
+  (-Wall -Wextra -Werror), full suite 1020/1020 green including the
+  win_syntax_check parse gate (7.05s - the _WIN32 branches of both
+  edited files parse against the win-stub SDK) and the AutoSave test
+  itself; clang-format 18.1.8 (the pinned CI version) dry-run clean
+  on both files.
+- RELEASE-NOTES.md vNext gains the fix bullet (the honest surface for
+  the v0.5.2 consumer).
+
+Stage Summary:
+- Next: push, watch Checks go green (the last known red), then cut
+  v0.5.2 (the first release of the combined era with the persistent
+  dev-sign: rda-test-sign.cer ships, which is exactly the asset the
+  test-benchmark lane's fetch demands), and the release's own dispatch
+  continues the test+benchmark pass.
