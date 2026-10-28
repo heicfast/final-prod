@@ -72,6 +72,13 @@ Core (audited commit `67193b6`): `src/core/btrfs/cr_btrfs_engine.cpp` (799 LOC) 
 
 ## Session 2 re-audit (audited commit `5d6da5f`)
 
+- **B9 nsec precision — OQ-S42-2 RESOLVED-MATCH (this session, first-hand):** the
+  og's Btrfs engine FOLDS sub-second precision — FUN_180006ba0
+  (:4435-4441) converts each timespec pair as
+  `*(uint*)(ino+nsec)/100 + (sec + 0x2b6109100)*10^7` — identical to the
+  core's `unix_to_filetime_ns`; NOT an I-006-family superset axis; pinned by
+  `Btrfs.MtimeNsecFoldsLikeTheOg` (mtime nsec 123456789 → the exact folded
+  FILETIME). The question is closed; the parity cite is on the books.
 - **B9 extra timestamps — I-007 (INFO, superset):** core reads all 4
   Btrfs inode timespecs (`INO_ATIME = 0x70`, `INO_CTIME = 0x7C`,
   `INO_MTIME = 0x88`, `INO_otime = 0x94`) via `cr_btrfs_engine.cpp:83-86,

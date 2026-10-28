@@ -57,3 +57,11 @@ superset; I-006's superset family — Btrfs does NOT join (it was never a precis
 superset; only ext4 is, via D-59a); I-007/D-59b — confirmed, now decode-anchored;
 S-057 (restoration precision) — UNAFFECTED, the restored times match the og to the
 100ns on atime/ctime/mtime.
+
+
+---
+
+## Convergence addendum (S47 INFO-first lane, 2026-10-29 — pushed second per SA-9; both lanes' Resolutions kept)
+
+**Status:** CONVERGENT-MATCH (this lane's independent decode reached the identical verdict first-hand: FUN_180006ba0 :4435-4441, the three-pair `(nsec/100)+(sec+0x2b6109100)*10^7` fold, unix_to_filetime_ns byte-equivalent; this file's one-read probe executed by two lanes with the same result)
+**This lane's unique product:** the end-to-end PIN the audit lane's prose decode lacks — `Btrfs.MtimeNsecFoldsLikeTheOg` (tests/unit/test_btrfs_volume.cpp): the shared fixture's hello.txt inode now carries mtime nsec 123456789 and the surfaced modified time must equal `(11644473600+1600000000)*10^7 + 123456789/100` exactly; `Btrfs.EndToEndWalk` re-verified green on the fixture change (make_inode grew the mtime_nsec parameter, default 0 — every other fixture byte-identical). The whole-second "simplification" hazard is now test-guarded, not just documented. btrfs.md's B9 rows carry both lanes' notes (the auto-merge kept both).

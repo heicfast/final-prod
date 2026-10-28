@@ -96,6 +96,15 @@ before the change.
 
 **Landings this lane so far:**
 
+- **M-128 FIXED** (`2b0184f3`) + **M-129 FIXED** (`55b2fe32`) — the user-sign
+  channel's semantics pair: the hex-case superset registered as D-125 (no code
+  change — the og's %02X-only text compare is an og machinery defect leaving 11
+  of its own shipped signs dead; the census corrected 12→11 first-hand) and the
+  EUUserData loader's og-tolerance semantics landed (unknown members skipped,
+  _stricmp dispatch, malformed signs skip-and-continue, over-cap still atomic
+  per the S-039 doctrine, D-126 registered, the verbatim corpus file ships as
+  the acceptance fixture). 5 RED-pre-fix tests via the stashed-parser proof;
+  suite 1201/1201.
 - **M-132 FIXED** (`d746a75b`) — the backup probe at device-last FIRST (the
   og's fixed-position architecture, FUN_180006e20:4567); the declared backup_lba
   demoted to a registered fallback (D-124a); the Case-A observable honestly
@@ -116,7 +125,7 @@ before the change.
   Ebr.LinkType085WalksChain / Ebr.LinkType085SameBasisAs05 / Mbr.Extended085NotEmittedAsVolume
   (all RED pre-fix); suite 1164/1164.
 
-**Board after this push (filesystem truth): 69 active — 0 ACUTE · 9 SEVERE · 25 MAJOR ·
+**Board after this push (filesystem truth): 67 active — 0 ACUTE · 9 SEVERE · 23 MAJOR ·
 32 MINOR · 3 INFO** (the parallel lanes' A-014 + I-041..I-044 retirements absorbed at the
 merge; both sides' records kept). Next free IDs unchanged: S-062+, M-138+, N-186+, I-045+.
 
@@ -136,7 +145,13 @@ first-hand; every fix RED-test-first.
   oracle inherits it; `apple_doubles_sunk` counter; `ExfatEngine.AppleDoublePrefixSunk`
   RED→GREEN + `RegularDotFilesNotSunk` the over-blocking pin; exFAT battery 36/36).
 
-**Board (filesystem truth at `a3ab4ed3`, post the S45..S51 parallel-window absorption — A-014 fixed [convergent, 862d79ef], M-124 fixed [dcb123dd], the INFO board complete [I-035/I-036/I-040..I-044 all ACKNOWLEDGED-RETIRED]): 67 active — 0 ACUTE · 9 SEVERE · 27 MAJOR · 31 MINOR · 0 INFO / 71 FIXED files / 6 tracked-open.**
+- **N-175 FIXED** — the FAT NTRes 8.3 display-case fold (FATSearchDLL :44191-44216
+  re-read first-hand; the four-way exact-value switch in short_name_to_u16 —
+  0x00/0x08/0x10/0x18 fold, anything-else raw; `FatEngine.NtResCaseFoldFourWay` the
+  5-path RED→GREEN pin + `NtResFoldLeavesLfnCaseUntouched`; the BitLocker NTRes=0
+  fixture caught and re-pinned — the finding's own predicted bench-divergence class).
+
+**Board (filesystem truth, running): 66 active — 0 ACUTE · 9 SEVERE · 27 MAJOR · 30 MINOR · 0 INFO / 72 FIXED files / 6 tracked-open (the S45..S51 window's A-014/M-124/INFO-board landings absorbed at the rebase).**
 
 # SUMMARY.md — executive summary (the S42 diff-to-fix lane's convergence on top; the prior lanes below, newest-first)
 # SUMMARY.md — executive summary (the S46 MINOR-first fix lane on top — the user's priority-to-minor directive; the prior lanes below, newest-first)
@@ -7090,3 +7105,25 @@ Both resolvable tracked-open questions closed this wave:
 
 **Board after wave 2:** 58 active (6 SEVERE · 27 MAJOR · 21 MINOR · 5 INFO)
 + the two OQ closures in the ledger.
+
+# SUMMARY.md — executive summary (the S57 severe-first fix lane's convergence records on top; the prior lanes below, newest-first)
+
+## Session-57 S57 fix-lane delta (2026-10-29 — the user's severe-first directive; core `fa654673` at open, corpus `be0cfe9`; the lane seat rebranded S47-draft → S57 across the S45..S56 hot window per SA-9)
+
+**A-014 CONVERGENT (the ACUTE tier is CLOSED at the merged tree):** this lane's
+independent verification + fix collided with the S45 lane's winning landing
+`862d79ef` (byte-equivalent gate: the identical DosDateTimeToFileTime reject set on
+the shared converter). This lane's unique evidence preserved as the finding file's
+Convergence addendum II: the RAW-DISASSEMBLY verification of the corpus binary itself
+(the four KERNEL32!DosDateTimeToFileTime call sites at exact addresses — IAT
+0x18004d088; the three dentry-stamp sites 0x1800289d1/:a1f/:a51, each carrying the
+`test eax,eax; jne <skip>; mov rdi,[slot]` zero-on-fail tail; the fourth site
+0x180032c38 outside the dentry path) — the strongest verification grade for the
+finding's central claim, confirming the decompiled quote against the shipped binary.
+The independent 6-test RED battery reproduced the fabrication on pre-fix main before
+the pull; the redundant tests were DROPPED per the superset rule (the merged S45+S51
+battery covers the full boundary set incl. the per-slot zeroing shape). **Board at
+the merged tree (filesystem truth, this lane's re-count): 0 ACUTE · 9 SEVERE · 25
+MAJOR · 30 MINOR · 0 INFO active (the S48 INFO retirements closed the tier) /
+77 FIXED files / 6 tracked-open (OQ-S42-2's Btrfs-nsec decode landed; its finding
+file's retirement pending its own lane's trail sweep).**

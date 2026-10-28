@@ -3773,6 +3773,63 @@ fold-direction pin `Ext4Engine.SizeHighFoldIsRegularOnlyNotTheOgUnconditionalDef
 (hi=1/lo=0xFFFFFFFF surfaces the full 8 GiB-1 size — the direction
 `LegacyAclDirSizeClean` leaves unpinned) plus
 `Ext4Engine.Post2038FileTimeConversionStays64Bit`. Both lanes' records kept.
+
+### D-125 — user-sign hex-case semantics: case-insensitive byte-decode, not the og's %02X-only text compare (M-128 registration, REGISTERED IMPROVEMENT — the D-117 class)
+
+- **WHAT OG DOES:** the EUUserData consumer converts candidate file bytes
+  to UPPERCASE hexadecimal text (`%02X` — FUN_140604090 at
+  `DRWUI_decompiled.c:1003619`; zero `%02x` anywhere in DRWUI.exe) and
+  memcmps against the stored sign string (`:1003452`/`:1003555`). Any
+  sign containing lowercase hex can never match: the og's own shipped
+  EUUserData carries **11** such signs (10 pure-lowercase MPEG-PS
+  `000001b3…`/`000001ba…` family + 1 mixed-case img sign — the census
+  re-counted first-hand this session at `og-codebase/EUUserData`;
+  corrects the finding's "12" per the corpus-wins rule) — dead
+  configuration in the og.
+- **WHAT WE DO:** `cr_usersigns.cpp` decodes both hex cases to BYTES and
+  compares bytes (`hex_nibble` accepts 0-9/a-f/A-F, `match_at` memcmps
+  decoded bytes) — all 190 signs of the shipped default set are live,
+  including the 11 og-dead ones.
+- **WHY:** the og's %02X-only text compare is a string-handling defect of
+  its UI-layer identify flow (the vendor's own DB ships signs its matcher
+  can never fire), not a semantic contract; comparing decoded bytes is
+  the architecturally right channel (the core's user-sign channel is
+  itself the D-104-registered superset — the og's scan engine has no
+  user-sign channel at all). Folding case to match the defect would
+  break good code to reproduce an og weakness.
+- **RISK:** parity benches on the user-sign channel must normalize for
+  D-104 (the channel) + this row (the 11-sign subset): core-only carve
+  records in the MPEG-PS free-space class are expected and explained.
+- **VERDICT: ACCEPTED** (deliberate superset, registered M-128; pins:
+  `UserSigns.LowercaseHexSignLiveAndRegistered` (the og-dead class fires)
+  + `UserSigns.UppercaseHexSignMatches` (the og-live form unchanged) +
+  `UserSigns.DefaultSetEffectiveCount` (190 live, the og-dead mpeg family
+  present) — future sessions must not case-fold the decoder down to the
+  og's dead-configuration semantics).
+
+### D-126 — EUUserData loader tolerance: skipped signs vs the og's dead entries (M-129 registration, one-line nuance)
+
+- **WHAT OG DOES:** malformed sign strings (token count ≠ 2) are silently
+  SKIPPED at load (`DRWUI:1005986`); odd-length/non-hex signs LOAD but the
+  matcher's length/charset guard makes them permanently unmatchable
+  (`:1003452`); unknown members are ignored (`_stricmp "signs"` only,
+  `:1005818`).
+- **WHAT WE DO:** the same tolerances (skip-and-continue) with ONE nuance:
+  odd-length and non-hex signs are SKIPPED at load rather than carried as
+  permanently-dead entries — equivalent-in-effect (a dead sign and a
+  skipped sign both never fire), simpler in the byte-compare channel.
+  The S-039 caps doctrine stays deliberately strict: over-cap shapes
+  (offset > 1024, sign > 96 hex digits, > 12 signs/entry, > 80-char mime,
+  > kMaxEntries) still reject the whole file — the og has no decoded caps
+  analog, `UserSigns.HostileBlobStillAtomic` is the pin.
+- **WHY:** forward compatibility and operational availability — a
+  hand-edited or future-versioned EUUserData the og loads (partially)
+  must load in the core (M-129's whole subject); the caps are the
+  core's own memory-safety posture.
+- **VERDICT: ACCEPTED** (registered M-129; pins: `UserSigns.MalformedSignSkippedNotFatal`
+  + `UserSigns.OddHexSkipped` + `UserSigns.UnknownMemberIgnored` +
+  `UserSigns.MemberNamesCaseInsensitive` + `UserSigns.AllMalformedSignsLoadStructurally`
+  + `UserSigns.TornFileStillRejected` + `UserSigns.ShippedOgFileVerbatimLoads`).
 ### D-134 — the N-158 typed-id filter coupling: the row-level disabled_formats gate (REGISTERED CONSERVATIVE POSTURE — the og's exact [Filter] suppression mechanism is undecodable from the corpus)
 
 The og ships `[Filter]` keys for exactly the five N-158 typed ids

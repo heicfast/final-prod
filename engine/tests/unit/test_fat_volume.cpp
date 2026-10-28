@@ -424,6 +424,79 @@ TEST(FatEngine, ShortNameKaniMarkerPathUnchanged) {
     EXPECT_TRUE(saw_kani) << "0x05 -> 0xE5 -> CP437 U+00D1, the full marker path";
 }
 
+TEST(FatEngine, NtResCaseFoldFourWay) {
+    /* N-175 (diff-to-fix): Windows stores the display case of 8.3 names
+     * in the NT reserved byte; the og's name builder applies it
+     * (FATSearchDLL :44191-44216, the four-way exact-value switch).
+     * A mixed-case on-disk name "File001 Txt" separates all five paths:
+     *   0x00 -> FILE001.TXT   0x08 -> file001.TXT
+     *   0x10 -> FILE001.txt   0x18 -> file001.txt
+     *   0x01 -> File001.Txt   (raw - the og's switch is exact, not a mask)
+     */
+    struct Case {
+        u8 ntres;
+        const char* expect;
+    };
+    const Case cases[] = {
+        {0x00, "FILE001.TXT"}, {0x08, "file001.TXT"}, {0x10, "FILE001.txt"},
+        {0x18, "file001.txt"}, {0x01, "File001.Txt"},
+    };
+    for (const auto& c : cases) {
+        auto img = build_fat16_image();
+        u8* root = img.data() + 42 * 512;
+        /* slot 6, own EOC cluster 40 (unlinked-elsewhere, linked here) */
+        set_fat16_entry(img, 2 * 512, 40, 0xFFFF);
+        set_fat16_entry(img, 22 * 512, 40, 0xFFFF);
+        /* mixed-case on-disk bytes separate all five render paths */
+        make_dentry(root + 6 * 32, "File001 Txt", 0x20, 40, 100, 0x5A46, 0x6000, false);
+        root[6 * 32 + 12] = c.ntres; /* the NTRes byte */
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* ra = tree.add_root(u"Found");
+        FatScanFlags flags;
+        FatScanStats stats;
+        ASSERT_EQ(
+            scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+            OK);
+        auto all = collect_all(tree);
+        bool found = false;
+        for (auto* n : all) {
+            if (n->props() == nullptr || n->props()->name.empty())
+                continue;
+            if (n->name_utf8().rfind("File001", 0) == 0 ||
+                n->name_utf8().rfind("FILE001", 0) == 0 ||
+                n->name_utf8().rfind("file001", 0) == 0) {
+                EXPECT_EQ(n->name_utf8(), c.expect) << "NTRes=0x" << std::hex << int(c.ntres);
+                found = true;
+            }
+        }
+        EXPECT_TRUE(found) << "the planted dentry must surface (NTRes=0x" << std::hex
+                           << int(c.ntres) << ")";
+    }
+}
+
+TEST(FatEngine, NtResFoldLeavesLfnCaseUntouched) {
+    /* N-175 regression pin: the fold applies ONLY to the 8.3 alias path -
+     * LFN names carry their true case and must never be re-folded. The
+     * fixture's LFN "readme_document_v1.txt" must surface exactly as
+     * stored, not uppercased by the NTRes=0 dentry beside it. */
+    auto img = build_fat16_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    auto all = collect_all(tree);
+    bool saw_lfn = false;
+    for (auto* n : all) {
+        if (n->name_utf8() == "readme_document_v1.txt")
+            saw_lfn = true;
+    }
+    EXPECT_TRUE(saw_lfn) << "the LFN keeps its true case";
+}
+
 TEST(FatEngine, Fat32RootChainAndBackupBoot) {
     /* FAT32: 66562 sectors, reserved 8, FAT 2x512 sectors, first data 1032
      * -> cluster_count 65530 (FAT32). Root chain 2->3, one live entry. */

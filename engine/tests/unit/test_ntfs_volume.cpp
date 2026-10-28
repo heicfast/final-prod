@@ -128,6 +128,15 @@ struct RecBuilder {
     }
 
     void attr_si(u32 dos_flags) {
+        attr_si_times(dos_flags, 132000000000000000ULL, 133000000000000000ULL,
+                      134000000000000000ULL, 135000000000000000ULL);
+    }
+
+    /* OQ-S42-1 pin helper: the $SI content's four FILETIMEs by on-disk
+     * field name — c_time@+0, m_time@+8, a_time@+0x10, mft_modified@+0x18.
+     * (The core's parse maps a_time→times.changed and mft_modified→
+     * times.accessed — the og-parity slot mapping this family pins.) */
+    void attr_si_times(u32 dos_flags, u64 c_time, u64 m_time, u64 a_time, u64 mft_modified) {
         u32 pos = attr_pos;
         u32 vlen = 72, voff = 0x18;
         u32 alen = (voff + vlen + 7) / 8 * 8;
@@ -138,16 +147,26 @@ struct RecBuilder {
         u16_from_bytes_le_wr(buf, pos + 10, u16(voff));
         u16_from_bytes_le_wr(buf, pos + 16, u16(vlen & 0xFFFF));
         u16_from_bytes_le_wr(buf, pos + 20, u16(voff));
-        u64_from_bytes_le_wr(buf, pos + voff + 0, 132000000000000000ULL);  /* created */
-        u64_from_bytes_le_wr(buf, pos + voff + 8, 133000000000000000ULL);  /* modified */
-        u64_from_bytes_le_wr(buf, pos + voff + 16, 134000000000000000ULL); /* changed */
-        u64_from_bytes_le_wr(buf, pos + voff + 24, 135000000000000000ULL); /* accessed */
+        u64_from_bytes_le_wr(buf, pos + voff + 0, c_time);
+        u64_from_bytes_le_wr(buf, pos + voff + 8, m_time);
+        u64_from_bytes_le_wr(buf, pos + voff + 16, a_time);
+        u64_from_bytes_le_wr(buf, pos + voff + 24, mft_modified);
         u32_from_bytes_le_wr(buf, pos + voff + 32, dos_flags);
         attr_pos += alen;
     }
 
     void attr_file_name(u64 parent_record, const char16_t* name, u8 ns, u32 dos_flags,
                         u64 real_size, u64 alloc_size) {
+        attr_file_name_times(parent_record, name, ns, dos_flags, real_size, alloc_size,
+                             132000000000000000ULL, 133000000000000000ULL, 134000000000000000ULL,
+                             135000000000000000ULL);
+    }
+
+    /* OQ-S42-1 pin helper: $FN times by on-disk field name —
+     * c_time@+0x08, m_time@+0x10, mft_modified@+0x18, a_time@+0x20. */
+    void attr_file_name_times(u64 parent_record, const char16_t* name, u8 ns, u32 dos_flags,
+                              u64 real_size, u64 alloc_size, u64 c_time, u64 m_time,
+                              u64 mft_modified, u64 a_time) {
         std::u16string n = name;
         u32 vlen = 66 + u32(n.size()) * 2;
         u32 voff = 0x18;
@@ -162,10 +181,10 @@ struct RecBuilder {
         u16_from_bytes_le_wr(buf, pos + 20, u16(voff));
         u8* d = buf.data() + pos + voff;
         u64_from_bytes_le_wr(buf, pos + voff + 0, parent_record | (1ULL << 48));
-        u64_from_bytes_le_wr(buf, pos + voff + 8, 132000000000000000ULL);
-        u64_from_bytes_le_wr(buf, pos + voff + 16, 133000000000000000ULL);
-        u64_from_bytes_le_wr(buf, pos + voff + 24, 134000000000000000ULL);
-        u64_from_bytes_le_wr(buf, pos + voff + 32, 135000000000000000ULL);
+        u64_from_bytes_le_wr(buf, pos + voff + 8, c_time);
+        u64_from_bytes_le_wr(buf, pos + voff + 16, m_time);
+        u64_from_bytes_le_wr(buf, pos + voff + 24, mft_modified);
+        u64_from_bytes_le_wr(buf, pos + voff + 32, a_time);
         u64_from_bytes_le_wr(buf, pos + voff + 40, alloc_size);
         u64_from_bytes_le_wr(buf, pos + voff + 48, real_size);
         u32_from_bytes_le_wr(buf, pos + voff + 56, dos_flags);
@@ -1871,6 +1890,94 @@ TEST(NtfsVolume, ViabilityProbeUsesDataSize) {
     EXPECT_EQ(zfn->deleted_state(), tree::DeletedState::Deleted);
     EXPECT_EQ(zfn->props()->logical_size, 8192u);                /* $DATA authoritative */
     EXPECT_EQ(zfn->confidence(), tree::Confidence::PartialRisk); /* 1/2 clusters reused */
+}
+
+TEST(NtfsVolume, SiTimeSlotsMatchOgSurfacedSet) {
+    /* OQ-S42-1's resolved decode, pinned end-to-end. The og serializes $SI
+     * times when the attribute exists and fits (NTFSSearchDLL :5338-5353:
+     * the $FN-sourced defaults at :5338-5340 [FUN_1800437f0 obj+0x20 ->
+     * props+0x25, FUN_1800437b0 obj+0x28 -> props+0x2d, FUN_180043770
+     * obj+0x38 -> props+0x35] overwritten by the $SI getters at :5350-5352
+     * when FUN_1800430b0 finds type 0x10 and the FUN_180044fb0 fit gate
+     * [content_offset@attr+0x14 + 0x28 <= attr length] passes), else falls
+     * back to $FN. The $SI getters read attr+0x18/+0x20/+0x30 = content
+     * C/M/MFT-modified — the og's third surfaced slot (props+0x35) is
+     * the $SI's FOURTH FILETIME (MFT-modified, FUN_180044ff0), and the true
+     * access time (content+0x10) is never surfaced. parse_standard_information
+     * maps this exactly (changed <- d+16 [A], accessed <- d+24 [MFT-mod]):
+     * this pin holds the parity mapping so no future "cleanup" swaps
+     * changed/accessed and silently diverges surfaced dates. */
+    Image img;
+    build_image(img);
+    const u64 FN_C = 1110000000000000000ULL, FN_M = 1111000000000000000ULL,
+              FN_MOD = 1112000000000000000ULL, FN_A = 1113000000000000000ULL;
+    const u64 SI_C = 2220000000000000000ULL, SI_M = 2221000000000000000ULL,
+              SI_A = 2222000000000000000ULL, SI_MOD = 2223000000000000000ULL;
+    {
+        /* record 25: $SI with four DISTINCT times + $FN with four OTHER
+         * times — precedence and slot mapping both visible */
+        RecBuilder r;
+        r.header(25, RECORD_IN_USE);
+        r.attr_si_times(0x20, SI_C, SI_M, SI_A, SI_MOD);
+        r.attr_file_name_times(16, u"si25.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 4096, 4096, FN_C,
+                               FN_M, FN_MOD, FN_A);
+        r.attr_data_runlist(90, 1, 4096);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 50), r.buf.data(), RECORD_SIZE);
+    }
+    {
+        /* record 27: NO $SI — the $FN fallback carries the FN times in
+         * parse_file_name's mapping (changed <- FN.MFT-mod, accessed <- FN.A) */
+        RecBuilder r;
+        r.header(27, RECORD_IN_USE);
+        r.attr_file_name_times(16, u"nofn27.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 2048, 2048, FN_C,
+                               FN_M, FN_MOD, FN_A);
+        r.attr_data_runlist(91, 1, 2048);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 54), r.buf.data(), RECORD_SIZE);
+    }
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    std::unique_ptr<VolumeBitmap> bm;
+    ASSERT_EQ(VolumeBitmap::load(vol.get(), bm), OK);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    WalkerFlags wf;
+    WalkStats stats;
+    u32 rc = walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    tree::FileNode* si25 = nullptr;
+    tree::FileNode* nofn27 = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->props())
+                continue;
+            if (c->name_utf8() == "si25.dat")
+                si25 = c;
+            if (c->name_utf8() == "nofn27.dat")
+                nofn27 = c;
+            find(c);
+        }
+    };
+    find(ra);
+    ASSERT_NE(nullptr, si25);
+    ASSERT_NE(nullptr, nofn27);
+    /* $SI precedence: every surfaced slot comes from $SI, none from $FN */
+    EXPECT_EQ(SI_C, si25->props()->times.created);
+    EXPECT_EQ(SI_M, si25->props()->times.modified);
+    EXPECT_EQ(SI_A, si25->props()->times.changed); /* core's extra slot: the true A time */
+    EXPECT_EQ(
+        SI_MOD,
+        si25->props()->times.accessed); /* THE og-parity slot: props+0x35 <- $SI.MFT-modified */
+    /* $FN fallback: no $SI — the FN times carry directly */
+    EXPECT_EQ(FN_C, nofn27->props()->times.created);
+    EXPECT_EQ(FN_M, nofn27->props()->times.modified);
+    EXPECT_EQ(FN_MOD, nofn27->props()->times.changed);
+    EXPECT_EQ(FN_A, nofn27->props()->times.accessed);
 }
 
 TEST(NtfsVolume, ViabilityBoundaryExactFastPath) {

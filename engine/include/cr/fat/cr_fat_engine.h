@@ -222,7 +222,10 @@ bool lfn_deleted_checksum_recover(const std::vector<const LfnEntry*>& slots,
                                   u8& out_checksum);
 
 /* 8.3 name -> display string (strip pad spaces, split dot). */
-std::u16string short_name_to_u16(const u8 name[11]);
+/* N-175: nt_reserved drives the og's four-way 8.3 display-case fold
+ * (FATSearchDLL :44191-44216; exact-value switch: 0x00/0x08/0x10/0x18
+ * fold, anything else raw). */
+std::u16string short_name_to_u16(const u8 name[11], u8 nt_reserved = 0x00);
 
 /* ---- scan engine ---- */
 /* progress-compatible callback type (same shape as ntfs WalkProgress) */

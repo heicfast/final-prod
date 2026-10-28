@@ -7479,23 +7479,39 @@ TEST(UserSigns, ParseTheOgsShape) {
     EXPECT_EQ(8u, set.signs[2].len);
     EXPECT_EQ(0x50, set.signs[2].bytes[0]); /* PK */
 
-    /* validation rejects, atomically (no partial load) */
+    /* validation rejects, atomically (no partial load) - the M-129
+     * tolerance semantics split this list: the og's member loop skips
+     * unknown members (_stricmp "signs" only, DRWUI:1005818) and its
+     * split loop skips malformed sign strings (:1005986), so odd-hex /
+     * non-hex / unknown-key / no-comma signs LOAD (skipped) where the
+     * pre-M-129 core rejected the whole file. The structural and
+     * over-cap rejects stay. */
     auto reject = [](const char* bad) {
         carve::usersigns::UserSignSet s;
         EXPECT_EQ(ERR_BAD_PARAMETER, carve::usersigns::parse(bad, std::strlen(bad), s)) << bad;
         EXPECT_FALSE(s.valid);
     };
     reject("{\"x\":{\"signs\":[\"99999,AA\"],\"mime\":\"m\"}}");      /* offset over cap */
-    reject("{\"x\":{\"signs\":[\"0,AAB\"],\"mime\":\"m\"}}");         /* odd hex */
-    reject("{\"x\":{\"signs\":[\"0,GG\"],\"mime\":\"m\"}}");          /* not hex */
-    reject("{\"x\":{\"signs\":[\"0,AA\"],\"extra\":1}}");             /* unknown key */
-    reject("{\"x\":{\"mime\":\"m\"}}");                               /* no signs */
+    reject("{\"x\":{\"mime\":\"m\"}}");                               /* no signs member */
     reject("{\"bad-ext!\":{\"signs\":[\"0,AA\"],\"mime\":\"m\"}}");   /* charset */
     reject("{\"x\":{\"signs\":[\"0,AA\"],\"mime\":\"m\"}} trailing"); /* garbage */
     reject("");                                                       /* empty */
     reject("[]");                                                     /* not an object */
     /* empty signs array is dead config */
     reject("{\"x\":{\"signs\":[],\"mime\":\"m\"}}");
+
+    /* the M-129 tolerated shapes: these LOAD now (the bad sign skipped,
+     * the good sign kept - the og's skip-and-continue) */
+    auto tolerates = [](const char* ok) {
+        carve::usersigns::UserSignSet s;
+        EXPECT_EQ(OK, carve::usersigns::parse(ok, std::strlen(ok), s)) << ok;
+        EXPECT_TRUE(s.valid);
+        EXPECT_EQ(1u, s.signs.size()) << "the good sign survives, the bad one skipped";
+    };
+    tolerates("{\"x\":{\"signs\":[\"0,AAB\",\"0,ABCD\"],\"mime\":\"m\"}}");     /* odd hex */
+    tolerates("{\"x\":{\"signs\":[\"0,GG\",\"0,DEAD\"],\"mime\":\"m\"}}");      /* not hex */
+    tolerates("{\"x\":{\"signs\":[\"nodecimal\",\"0,DEAD\"],\"mime\":\"m\"}}"); /* 1 token */
+    tolerates("{\"x\":{\"signs\":[\"0,AA\"],\"extra\":1234,\"mime\":\"m\"}}");  /* unknown member */
 }
 
 TEST(CarveEngine, UserSignatureProbedAtStride) {
@@ -10584,4 +10600,173 @@ TEST(Carve, ThreeDsSectionWalkUsesTheStrideFields) {
     EXPECT_EQ(nd->props()->carve_format, u64(FMT_3DS));
     EXPECT_EQ(nd->props()->logical_size, expected)
         << "the stride fields carry the extent (0x40 + the 0x58 shortcut + 0x1234)";
+}
+
+/* ===================================================================== */
+/* M-128 (diff-to-fix): the og's EUUserData consumer converts candidate */
+/* bytes to UPPERCASE hex TEXT (%02X — FUN_140604090:1003619, zero %02x */
+/* in DRWUI.exe) and memcmps against the stored sign string — so the    */
+/* 11 lowercase-hex signs in the og's own shipped file are DEAD         */
+/* configuration in the og. The core decodes hex case-insensitively     */
+/* and compares BYTES: all 190 default signs are live. Registered as    */
+/* PARITY-DELTAS D-125 (deliberate superset, the D-117 class — the      */
+/* og's %02X-only text compare is an og machinery defect, not a         */
+/* semantic contract).                                                  */
+/* ===================================================================== */
+
+TEST(UserSigns, LowercaseHexSignLiveAndRegistered) {
+    /* the og-dead class pinned LIVE: the shipped mpeg sign
+     * "0,000001b321000100" (lowercase b) fires on the bytes it
+     * describes - the byte-decode channel the D-125 registration
+     * protects. Fail-state: any future "og-faithful" case-folding
+     * makes this sign dead and the test fails. */
+    const char* json =
+        "{\"mpeg\": {\"signs\": [\"0,000001b321000100\"], \"mime\": \"video/mpeg\"}}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    ASSERT_EQ(1u, set.signs.size());
+    EXPECT_EQ(8u, set.signs[0].len);
+    EXPECT_EQ(0x00u, set.signs[0].bytes[0]);
+    EXPECT_EQ(0xB3u, set.signs[0].bytes[3])
+        << "the lowercase 'b3' decodes to the same byte as 'B3'";
+    EXPECT_EQ(0x00u, set.signs[0].bytes[7]);
+}
+
+TEST(UserSigns, UppercaseHexSignMatches) {
+    /* the regression pin: uppercase signs (the only og-live form) keep
+     * matching - identical bytes to the lowercase twin */
+    const char* json =
+        "{\"mpeg\": {\"signs\": [\"0,000001B321000100\"], \"mime\": \"video/mpeg\"}}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    ASSERT_EQ(1u, set.signs.size());
+    const u8 want[8] = {0x00, 0x00, 0x01, 0xB3, 0x21, 0x00, 0x01, 0x00};
+    EXPECT_EQ(0, std::memcmp(want, set.signs[0].bytes, 8));
+}
+
+TEST(UserSigns, DefaultSetEffectiveCount) {
+    /* the D-125 census: the shipped default set's EFFECTIVE count is 190
+     * live signs - all 11 lowercase-hex members (10 pure-lowercase mpeg
+     * + 1 mixed-case img, the corrected census; the finding's text said
+     * 12) load and fire in the core where 11 are dead in the og. */
+    std::ifstream in(std::string(CR_SOURCE_DIR) + "/data/userdata-defaults.json", std::ios::binary);
+    ASSERT_TRUE(in.good());
+    std::string json((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json.data(), json.size(), set));
+    EXPECT_EQ(190u, set.signs.size()) << "the effective count under D-125: all live";
+    /* the og-dead subset is present in the live set: count signs whose
+     * textual form carried lowercase hex - proven by decoding both the
+     * file and the loaded set: the mpeg signs starting 00 00 01 B3/BA
+     * with the 8-byte shapes are the lowercase family */
+    u32 mpeg_ps = 0;
+    for (const auto& s : set.signs) {
+        if (std::strcmp(s.ext, "mpeg") == 0 && s.len >= 4 && s.bytes[0] == 0x00 &&
+            s.bytes[1] == 0x00 && s.bytes[2] == 0x01 && (s.bytes[3] == 0xB3 || s.bytes[3] == 0xBA))
+            ++mpeg_ps;
+    }
+    EXPECT_GE(mpeg_ps, 10u) << "the og-dead mpeg family is loaded live";
+}
+
+/* ===================================================================== */
+/* M-129 (diff-to-fix): the og's EUUserData loader tolerates unknown    */
+/* members (_stricmp "signs" only, DRWUI:1005818), case-insensitive     */
+/* member names, malformed sign strings (skip-and-continue, :1005986),  */
+/* and odd-length hex (loads, never matches, :1003452's length guard).  */
+/* The core was all-or-nothing: og-loadable files were wholesale-       */
+/* rejected. The S-039 caps doctrine stays (over-cap still rejects).    */
+/* ===================================================================== */
+
+TEST(UserSigns, UnknownMemberIgnored) {
+    /* the finding's falsifiable case: a valid file + one future member
+     * loads with the member ignored (og: unchanged behavior; the
+     * pre-fix core: ERR_BAD_PARAMETER, zero signs). */
+    const char* json = "{\"x\": {\"signs\": [\"0,DEADBEEF\"], \"size\": 1234, \"mime\": \"m\","
+                       " \"note\": { \"nested\": [true, null, \"s\"] } }}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set))
+        << "a future-versioned member must not fail the file";
+    EXPECT_TRUE(set.valid);
+    ASSERT_EQ(1u, set.signs.size());
+    EXPECT_EQ(0xDEu, set.signs[0].bytes[0]);
+    EXPECT_STREQ("m", set.signs[0].mime) << "the mime after the skipped members still lands";
+}
+
+TEST(UserSigns, MemberNamesCaseInsensitive) {
+    /* the og's dispatch is _stricmp - "SIGNS"/"Signs"/"MIME" all act */
+    const char* json = "{\"x\": {\"SIGNS\": [\"0,ABCD\"], \"Mime\": \"application/x-test\"}}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    EXPECT_TRUE(set.valid);
+    ASSERT_EQ(1u, set.signs.size());
+    EXPECT_EQ(0xABu, set.signs[0].bytes[0]);
+    EXPECT_STREQ("application/x-test", set.signs[0].mime);
+}
+
+TEST(UserSigns, MalformedSignSkippedNotFatal) {
+    /* token-count and charset malformations skip the SIGN, keep the file
+     * (DRWUI:1005986's goto-next); the good sign beside it loads */
+    const char* json = "{\"x\": {\"signs\": [\"nodecimal\", \"0,XYZW\", \"\", \"0,DEADBEEF\"],"
+                       " \"mime\": \"m\"}}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    EXPECT_TRUE(set.valid);
+    ASSERT_EQ(1u, set.signs.size()) << "three malformed skipped, one good loaded";
+    EXPECT_EQ(4u, set.signs[0].len);
+}
+
+TEST(UserSigns, OddHexSkipped) {
+    /* odd-length hex: the og loads it as permanently-unmatchable
+     * (:1003452's guard); the core skips it - equivalent-in-effect,
+     * registered as PARITY-DELTAS D-126's one-line nuance */
+    const char* json = "{\"x\": {\"signs\": [\"0,AAB\", \"0,ABCD\"], \"mime\": \"m\"}}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    ASSERT_EQ(1u, set.signs.size());
+    EXPECT_EQ(2u, set.signs[0].len);
+}
+
+TEST(UserSigns, AllMalformedSignsLoadStructurally) {
+    /* the dead-file edge: every sign malformed -> the STRUCTURE is sound,
+     * parse returns OK, the set is empty (valid=false, install declines).
+     * The og loads this file with zero active signs; the core's parse no
+     * longer fails it either. */
+    const char* json = "{\"x\": {\"signs\": [\"0,AAB\"], \"mime\": \"m\"}}";
+    carve::usersigns::UserSignSet set;
+    EXPECT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    EXPECT_FALSE(set.valid) << "no installable signs - but the FILE loaded";
+    EXPECT_TRUE(set.signs.empty());
+}
+
+TEST(UserSigns, TornFileStillRejected) {
+    /* the honest-rejection floor: unterminated strings/structures are
+     * not og-loadable either (the og's JSON layer fails them) */
+    auto reject = [](const char* bad) {
+        carve::usersigns::UserSignSet s;
+        EXPECT_EQ(ERR_BAD_PARAMETER, carve::usersigns::parse(bad, std::strlen(bad), s)) << bad;
+    };
+    reject("{\"x\": {\"signs\": [\"0,AA\"");          /* torn mid-string */
+    reject("{\"x\": {\"signs\": [\"0,AA\"],");        /* torn mid-object */
+    reject("{\"x\": {\"signs\": ");                   /* torn before value */
+    reject("{\"x\": {\"extra\": ");                   /* torn in unknown member */
+    reject("{\"x\": {\"extra\": {\"y\": [\"z\"} }}"); /* unbalanced unknown value */
+}
+
+TEST(UserSigns, ShippedOgFileVerbatimLoads) {
+    /* the acceptance fixture: the og's own install-tree EUUserData,
+     * verbatim (tests/data/euuserdata-verbatim.json - the byte copy of
+     * og-codebase/EUUserData): 112 blocks including the DUPLICATE asf
+     * block (N-169's subject), 191 signs including the 11 lowercase-hex
+     * og-dead family (D-125), the 8-char "manifest" key - loads with
+     * zero errors. */
+    std::ifstream in(std::string(CR_SOURCE_DIR) + "/tests/data/euuserdata-verbatim.json",
+                     std::ios::binary);
+    ASSERT_TRUE(in.good()) << "the verbatim corpus fixture must ship in the repo";
+    std::string json((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    ASSERT_FALSE(json.empty());
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json.data(), json.size(), set))
+        << "the og's own shipped file must load verbatim";
+    EXPECT_TRUE(set.valid);
+    EXPECT_EQ(191u, set.signs.size()) << "all 191 signs (the duplicate asf block included)";
 }
