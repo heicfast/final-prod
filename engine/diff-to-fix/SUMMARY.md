@@ -1,5 +1,50 @@
 # SUMMARY.md — executive summary (the review-validate close-out on top; earlier sessions below)
 
+## Probe-session delta (2026-10-28 — the SA-6 probe lane: OQ-SA-2 + OQ-SA-3 RESOLVED (all four + one questions decoded first-hand); N-089 filed; 2 corpus-errata rows)
+
+**OQ-SA-2 (the carve-family decode candidates) RESOLVED** — all four
+questions decoded first-hand from the decompile:
+(1) **CFCPEvt IS the og's SQLite analyser** — registered on the SQLi key
+0x694C5153 (the "SQLite format 3" prefix); the census's "multimap
+collision" reading corrected (errata E47). The deep walk RELABELS the id
+0x73 → **0x75** on the 17-byte FCP schema marker "tableactiveactive" —
+a subtype typing the core lacks → **N-089 filed (MINOR, labeling-only)**.
+(2) **No accept/reject boundary divergence**: RIFF is map-registered
+PRIMARY (Brance::RIFFAnalyser id 0x3b + FileRIFFAnalyser fallback on key
+0x46464952); AAC's dispatch primary is CADTSAnalyser (u16 0xFFF1) with
+CFileAACAnalyzer (id 0x4f) list-layer; M1V (id 0x7f) is list-layer only —
+the core's primary grammar validators match the og's validation tier.
+(3) **The WPG "canonical size 0x45" is the FORMAT-ID stamp, not a size**
+(errata E48): the WPG Analyse is a constant predicate (0x677077 → id
+stamp 0x45) + the FileInfo bounds 20 B..100 MB — the core's
+signature-row shape.
+(4) **CNeedRawMgr is a per-format NAME gate at list-construction time,
+NOT a scan-mode gate**: the once-init singleton + a std::map name lookup,
+its 20 call sites all in the analyser-LIST builder — the core's M-024
+per-format disable list is the direct counterpart. No divergence.
+
+**OQ-SA-3 (the EUUserData consumption mode) RESOLVED — on the Agent 2
+scan-engine lane's refuting decode** (`151ce17`/`93097cb`, reconciled this
+session): `GetRawUserInfoMap` is a per-scan **carve-statistics map**
+(insert-side FUN_18000ed00: insert-or-increment per detection, cleared per
+scan) whose DRWUI consumer is a post-scan REPORT reader (the counts
+formatted %lld into the "Trigger_Raw"/"FileSystem" report tree — a report
+section, not a trigger); EUUserData's actual consumer is the **CHK repair
+chain** (CHKRepairFileSign, DRWUI_decompiled.c:1005387+); the RAW engine
+carries ZERO EUUserData references. The M-065 lane's capability reading
+(adopted then re-verified mechanically by this lane) had the data flow
+inverted — the %lld COUNT formatting was in the quoted evidence and its
+significance missed; the correction is recorded in the probe lane's
+worklog. M-065's landed fix stands as the registered SUPERSET D-104.
+
+**Corpus errata**: E47 (the SQLi "collision" is the actual binding) +
+E48 (the WPG size misread) appended.
+
+**Board after this landing:** 4 active (0 ACUTE · 1 SEVERE (S-038 steps
+2-4) · 1 MAJOR (M-064-remainder) · 1 MINOR (N-089 NEW, READ-ONLY) ·
+1 INFO (I-026)) · **240 FIXED** (238 + the two resolved OQs) ·
+tracked-open 2 (OQ-S4-3, OQ-SA-1).
+
 ## Fix-session delta (2026-10-28 — the SA-6 wave-2 lane, S-038 step 1: the PACKAGING.md contract doc)
 
 **S-038 step 1 (the contract doc) LANDED**: `docs/PACKAGING.md` — the

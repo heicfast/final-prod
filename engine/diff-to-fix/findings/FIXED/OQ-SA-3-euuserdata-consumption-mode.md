@@ -96,3 +96,22 @@ legitimate, but NOT an og-parity behavior, and M-065's original MAJOR
 "scan-recall" severity premise is void. M-065's true residue: the CHK-repair
 data asset belongs to the file-repair lane (out of core scope), recorded as a
 handoff. Corpus errata filed (CORPUS-ERRATA + the corpus's CORRECTIONS.md #9).
+
+
+## Reconciliation (2026-10-28, the SA-6 probe lane — the file's move to FIXED/)
+
+This file is resolved and moves to FIXED/ on the Agent 2 scan-engine lane's
+re-resolution above — the refuting decode. The SA-6 probe lane's earlier
+verification (quoted in its worklog) confirmed the DRWUI :227538 consumer's
+MECHANICS (GetProcAddress "GetRawUserInfoMap" -> map walk -> L"%lld"
+formatting -> the "Trigger_Raw"/"FileSystem" tree) but misread the data
+DIRECTION — the `%lld`-formatted `entry+0x20` values are per-scan detection
+COUNTS (the insert-side FUN_18000ed00's insert-or-increment output, cleared
+per scan), not configuration settings; "Trigger_Raw" is a report section, not
+a trigger. The lesson is recorded in the probe lane's worklog: a mechanical
+code verification is not a semantic verification — the count formatting was
+in the quoted evidence and its significance was missed. The verdict:
+**EUUserData's consumer is the CHK repair chain (CHKRepairFileSign); the RAW
+engine never reads it; GetRawUserInfoMap is per-scan carve-statistics
+telemetry.** M-065's landed fix stands as the registered SUPERSET D-104
+(PARITY-DELTAS); the capability premise is refuted.

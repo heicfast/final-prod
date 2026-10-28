@@ -17964,3 +17964,54 @@ Stage Summary:
   stands FIXED-as-superset (D-104). Board unchanged (no finding moved; the
   justification trail is now truthful). Next: OQ-SA-1 anchor-datum probe,
   then OQ-SA-2's four carve-family probes.
+Task ID: PROBE-1 (OQ-SA-2 + OQ-SA-3 resolved first-hand; N-089 filed; 2 errata rows)
+Agent: main engineer (fix session: the SA-6 probe lane)
+
+Work Log:
+- OQ-SA-2 probe 1 (CFCPEvt attribution): the registry initializer decoded
+  (:1962-1971) — CFCPEvtAnalyser (id 0x73) is bound DIRECTLY to the SQLi
+  key 0x694C5153 ("SQLite format 3" prefix); the census's "multimap
+  collision" reading corrected (errata E47). The deep walk FUN_18002dfc1
+  (page-size/count math, 200 MB cap, UTF-16 name conversion) RELABELS the
+  id 0x73 -> 0x75 on the 17-byte FCP schema marker "tableactiveactive"
+  (exact-length-0x11 + memcmp, .rdata 0x6a0c0) — the subtype typing the
+  core lacks -> N-089 filed (MINOR, labeling-only, READ-ONLY with the
+  bounded fix plan).
+- OQ-SA-2 probe 2 (tier roles): RIFF is map-registered PRIMARY
+  (Brance::RIFFAnalyser id 0x3b + FileRIFFAnalyser fallback, key
+  0x46464952); CFileAACAnalyzer (id 0x4f) and M1V (id 0x7f) are
+  LIST-LAYER analysers (constructed only in FUN_180004fb0's std::list,
+  CNeedRawMgr-gated) — the og's list layer is the capability-enumeration
+  surface, not fallback validation; the core's primary grammar validators
+  match the og's validation tier. No accept/reject divergence.
+- OQ-SA-2 probe 3 (WPG): the "canonical size 0x45" is the FORMAT-ID
+  stamp (FileInfo+0x18, the RAR-0x3A slot), not a size (errata E48); the
+  WPG FileInfo carries 20 B..100 MB bounds — the core's signature-row
+  shape. No divergence.
+- OQ-SA-2 probe 4 (CNeedRawMgr): the once-init singleton
+  (FUN_180010a40) + a std::map name lookup (FUN_180010f50); its 20 call
+  sites all live in the analyser-LIST builder (FUN_180004fb0) — a
+  per-format NAME gate at list-construction time (the RawConfig.ini
+  toggles), NEVER a scan-mode gate. The core's M-024 disable list is the
+  direct counterpart. No divergence.
+- OQ-SA-3 (bookkeeping repair, then CORRECTED mid-rebase): the M-065
+  lane's resolution (the :227538 Trigger_Raw/FileSystem consumer) was
+  first re-verified mechanically — then the Agent 2 scan-engine lane's
+  refuting decode landed mid-push (151ce17/93097cb): GetRawUserInfoMap is
+  a per-scan carve-STATISTICS map (insert-side insert-or-increment,
+  cleared per scan), the :227538 consumer is a post-scan REPORT reader
+  (the %lld counts — the evidence this lane quoted and misread), and
+  EUUserData's real consumer is the CHK repair chain (CHKRepairFileSign).
+  The A2 decode wins; the file moved to FIXED/ carrying THEIR resolution
+  + this lane's reconciliation note (the lesson: mechanical code
+  verification is not semantic verification).
+- Trail: both OQs -> FIXED; N-089 filed; CORPUS-ERRATA E47/E48; SUMMARY
+  delta; this worklog.
+
+Stage Summary:
+- OQ-SA-2 + OQ-SA-3 CLOSED. Board: 4 active (S-038 steps 2-4 ·
+  M-064-remainder · N-089 NEW READ-ONLY · I-026) · 240 FIXED ·
+  tracked-open 2 (OQ-S4-3, OQ-SA-1). Next: OQ-SA-1 (the anchor-datum
+  probes — exFAT FUN_14058c870 writer decompile, FAT chainless probe,
+  NTFS +0x64 census correlation), then N-089's fix if the lane stays
+  free.

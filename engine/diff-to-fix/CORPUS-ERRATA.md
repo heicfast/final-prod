@@ -274,3 +274,7 @@ per-key analyser attributions.*
   (:227538-:227625). It is scan OUTPUT (statistics), never scan INPUT.
 - **Evidence:** first-hand insert-side + consumer-side decode (both directions
   of the same map); the FIX-6 reading had the data flow inverted.
+## SA-6 probe-lane rows (2026-10-28 — the OQ-SA-2 resolution's corrections; same evidence bar: decompile cite or mechanical recount)
+
+- **E47** (rawsearchdll--analyser-registry-census.md, the SQLite row): the `SQLi` key (0x694C5153) is NOT a "multimap collision w/ DB chain" — the registry initializer (:1962-1971) constructs CFCPEvtAnalyser (id 0x73) and binds it DIRECTLY to the key; CFCPEvtAnalyser IS the og's SQLite analyser (the class is named for its target: FCP event bundles are SQLite databases). The deep walk additionally relabels the id to 0x75 on the 17-byte "tableactiveactive" schema marker (FUN_18002dfc1) — the FCP-event-database subtype (filed as the core's N-089).
+- **E48** (rawsearchdll--family-special.md, the WPG row): "re-validates `*param_2 == 0x677077` → stamps canonical size 0x45" — 0x45 is the FORMAT-ID stamp (FileInfo+0x18, the same slot RAR stamps 0x3A), NOT a size; the WPG size bounds live on the FileInfo: min 0x14 (20 B) at +0x110, max 100,000,000 (100 MB) at +0x118 (FUN_180014030 + the WPGRawFileInfo ctor).
