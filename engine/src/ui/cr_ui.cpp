@@ -423,7 +423,8 @@ bool list_crsf_files(const char* utf8_dir, std::vector<std::string>& out) {
      * POSIX, red on Windows). Both separators LOAD fine on Windows;
      * comparability is the contract the abi-check pins. */
     std::wstring sep;
-    if (!dir_w.empty() && (dir_w.back() == L'/' || dir_w.back() == L'\\'))
+    const bool cwd = dir_w == L"."; /* N-128: bare names for the CWD dir */
+    if (cwd || (!dir_w.empty() && (dir_w.back() == L'/' || dir_w.back() == L'\\')))
         sep = L"";
     else if (dir_w.find(L'/') != std::wstring::npos && dir_w.find(L'\\') == std::wstring::npos)
         sep = L"/";
@@ -441,7 +442,7 @@ bool list_crsf_files(const char* utf8_dir, std::vector<std::string>& out) {
         if (t[0] != L'.' || towlower(t[1]) != L'c' || towlower(t[2]) != L'r' ||
             towlower(t[3]) != L's' || towlower(t[4]) != L'f')
             continue;
-        out.push_back(ws_to_u8(dir_w + sep + name));
+        out.push_back(cwd ? ws_to_u8(name) : ws_to_u8(dir_w + sep + name));
     } while (FindNextFileW(h, &fd));
     FindClose(h);
     std::sort(out.begin(), out.end());
@@ -453,7 +454,13 @@ bool list_crsf_files(const char* utf8_dir, std::vector<std::string>& out) {
     if (!d)
         return false;
     const std::string dir(utf8_dir);
-    const std::string sep = (!dir.empty() && dir.back() == '/') ? "" : "/";
+    /* N-128: the CWD dir "." composes BARE names - a caller who saved
+     * "name.crsf" (CWD-relative) and lists "." must get "name.crsf"
+     * back, never "./name.crsf" (the same file, a string that never
+     * strcmp-matches the caller's own save path - the abi C-gate's
+     * default-path invocation pinned the hole). */
+    const bool cwd = dir == ".";
+    const std::string sep = cwd || (!dir.empty() && dir.back() == '/') ? "" : "/";
     while (dirent* e = readdir(d)) {
         const char* n = e->d_name;
         const size_t len = std::strlen(n);
@@ -463,7 +470,7 @@ bool list_crsf_files(const char* utf8_dir, std::vector<std::string>& out) {
         if (t[0] != '.' || tolower(u8(t[1])) != 'c' || tolower(u8(t[2])) != 'r' ||
             tolower(u8(t[3])) != 's' || tolower(u8(t[4])) != 'f')
             continue;
-        out.push_back(dir + sep + n);
+        out.push_back(cwd ? std::string(n) : dir + sep + n);
     }
     closedir(d);
     std::sort(out.begin(), out.end());
@@ -873,6 +880,12 @@ struct PropReleaser {
 struct CrPreview {
     std::unique_ptr<tree::FileProperties, PropReleaser> owned;
     std::unique_ptr<preview::PreviewReader> reader;
+    /* M-083: the session origin (unset for snapshot-opened previews -
+     * snapshots are read-only views; the og's promotion runs against the
+     * live result tree). The thumbnail success path promotes THIS node's
+     * grade to 2 (the og's thumbnail work item, DRWUI :422505-513). */
+    CrSession* src_session = nullptr;
+    u64 src_node_id = 0;
 };
 
 struct CrRecovery {
@@ -3565,6 +3578,8 @@ u32 preview_open_session_impl(cr_ui_device* dev, cr_ui_session* sess, uint64_t n
         return ret_(ERR_NO_MEMORY, "props clone failed");
     auto* p = new CrPreview();
     p->owned.reset(props);
+    p->src_session = s; /* M-083: the live-tree origin for the promotion */
+    p->src_node_id = node_id;
     /* F-1: extents are absolute - preview through the PARENT disk when the
      * scan device is a volume slice (same basis rule as the recovery writer) */
     IStorageDevice* src = d->dev.get();
@@ -3653,7 +3668,6 @@ extern "C" CR_UI_API uint32_t cr_ui_preview_unreadable(cr_ui_preview* pv, uint64
                                                        uint32_t* range_count) {
     return guarded(preview_unreadable_impl, pv, total_bytes, range_count);
 }
-
 /* =========================================================================
  * thumbnail (M-102: the engine's ABI half; M-083: the grade promotion)
  * ========================================================================= */
@@ -3675,7 +3689,7 @@ u32 thumb_status_to_abi(preview::ThumbStatus st) {
     case preview::ThumbStatus::BudgetExceeded:
         return ERR_UNSUPPORTED; /* named refusal: the caps refused the input */
     case preview::ThumbStatus::DecodeFailed:
-        return ERR_TRUNCATED;  /* damaged stream (truncated set by engine) */
+        return ERR_TRUNCATED; /* damaged stream (truncated set by engine) */
     case preview::ThumbStatus::UnreadableSpan:
         return ERR_READ_FAILED;
     }
@@ -3730,8 +3744,7 @@ u32 thumbnail_generate_impl(cr_ui_device* dev, cr_ui_session* sess, uint64_t nod
         std::snprintf(info->source_format, sizeof(info->source_format), "%s",
                       thumb.source_format.c_str());
         info->truncated = thumb.truncated ? 1 : 0;
-        return ret_(thumb_status_to_abi(st), "thumbnail %s",
-                    preview::thumbnail_status_name(st));
+        return ret_(thumb_status_to_abi(st), "thumbnail %s", preview::thumbnail_status_name(st));
     }
 
     /* M-083: the og's grading side-effect - thumbnail success promotes
@@ -3752,8 +3765,7 @@ u32 thumbnail_generate_impl(cr_ui_device* dev, cr_ui_session* sess, uint64_t nod
         return ret_ok(); /* the size probe: pixels discarded by design */
     if (rgba_cap < info->bytes_needed) {
         info->bytes_needed = thumb.width * thumb.height * 4u; /* keep the answer */
-        return ret_(ERR_NO_MEMORY, "rgba buffer %u < %u needed", rgba_cap,
-                    info->bytes_needed);
+        return ret_(ERR_NO_MEMORY, "rgba buffer %u < %u needed", rgba_cap, info->bytes_needed);
     }
     std::memcpy(rgba, thumb.rgba.data(), size_t(info->bytes_needed));
     return ret_ok();

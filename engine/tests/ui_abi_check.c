@@ -267,6 +267,17 @@ static int snap_find(cr_ui_snapshot* snap, const char* want) {
 
 int main(int argc, char** argv) {
     const char* img = argc > 1 ? argv[1] : "cr_ui_abi_check.img";
+    /* N-128's pin needs the SAVE's basename (the default-path invocation
+     * saves the CWD-relative "cr_ui_abi_check.img.crsf"; an explicit-path
+     * invocation saves elsewhere - the "." listing only asserts the bare
+     * form, not the name) */
+    const char* img_base = img;
+    {
+        size_t si;
+        for (si = 0; img[si]; ++si)
+            if (img[si] == '/' || img[si] == '\\')
+                img_base = img + si + 1;
+    }
     char crsf_path[512], dest_dir[512];
     cr_ui_device* dev = NULL;
     cr_ui_scan* scan = NULL;
@@ -568,6 +579,32 @@ int main(int argc, char** argv) {
         /* the refusal contract: bad args + bad dir fail loud */
         CHECK_EQ_U64(cr_ui_session_list(NULL, NULL, NULL), 0x50030003u);
         CHECK_EQ_U64(cr_ui_session_list("no-such-dir-cgate", NULL, &ncount), 0x50020001u);
+        /* N-128: the CWD dir lists BARE names - the caller's own CWD-relative
+         * save path string-matches its row (the default-path invocation of
+         * this gate pinned the hole: "./name" never matched "name") */
+        {
+            uint32_t dot_n = 0;
+            cr_ui_session_row* dot_rows;
+            CHECK_EQ_U64(cr_ui_session_list(".", NULL, &dot_n), CR_UI_OK);
+            dot_rows = (cr_ui_session_row*)malloc(dot_n ? dot_n * sizeof(cr_ui_session_row)
+                                                        : sizeof(cr_ui_session_row));
+            CHECK(dot_rows != NULL);
+            uint32_t dot_cap = dot_n;
+            CHECK_EQ_U64(cr_ui_session_list(".", dot_rows, &dot_cap), CR_UI_OK);
+            CHECK(dot_cap == dot_n);
+            int dot_found = 0;
+            for (sk = 0; sk < dot_cap; ++sk) {
+                if (strchr(dot_rows[sk].path, '/') != NULL ||
+                    strchr(dot_rows[sk].path, '\\') != NULL) {
+                    CHECK(0 && "N-128: the CWD dir lists bare names");
+                }
+                if (dot_cap && strcmp(dot_rows[sk].path, "cr_ui_abi_check.img.crsf") == 0)
+                    dot_found = 1;
+            }
+            if (dot_n > 0 && *img_base && strcmp(img_base, "cr_ui_abi_check.img") == 0)
+                CHECK(dot_found); /* the gate's own default-path save */
+            free(dot_rows);
+        }
     }
 
     /* ---- snapshot (fresh, from a session) + enumeration ---- */

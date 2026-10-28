@@ -1245,21 +1245,21 @@ CR_UI_API uint32_t cr_ui_preview_unreadable(cr_ui_preview* pv, uint64_t* total_b
  * max_work nonzero, allow_embedded 0/1). */
 typedef struct cr_ui_thumbnail_caps {
     uint32_t max_edge;       /* 0 = 256 (the og's GDI+ convention) */
-    uint64_t max_pixels;    /* 0 = 64 MP (decode-memory bomb guard) */
-    uint32_t max_read;      /* 0 = 32 MiB (input byte budget, M-080) */
-    uint32_t max_work;      /* 0 = 4 Mi fetch units (decoder work bound) */
-    uint32_t allow_embedded;/* 0 = ON (the EXIF fast path, M-080/D-105) */
+    uint64_t max_pixels;     /* 0 = 64 MP (decode-memory bomb guard) */
+    uint32_t max_read;       /* 0 = 32 MiB (input byte budget, M-080) */
+    uint32_t max_work;       /* 0 = 4 Mi fetch units (decoder work bound) */
+    uint32_t allow_embedded; /* 0 = ON (the EXIF fast path, M-080/D-105) */
 } cr_ui_thumbnail_caps;
 
 typedef struct cr_ui_thumbnail_info {
-    uint32_t width;             /* output dims (post-orientation, post-downscale) */
+    uint32_t width; /* output dims (post-orientation, post-downscale) */
     uint32_t height;
-    uint32_t bytes_needed;      /* width*height*4 - the two-call probe's answer */
-    char source_format[16];     /* jpeg|png|bmp|gif|tiff|psd|pnm|hdr|raw */
-    uint8_t from_embedded;      /* the EXIF fast path served it */
-    uint8_t truncated;          /* decoder-tolerated short stream (disclosed,
-                                 * never silent - the engine's Ok-but-truncated
-                                 * contract crosses the ABI verbatim) */
+    uint32_t bytes_needed;  /* width*height*4 - the two-call probe's answer */
+    char source_format[16]; /* jpeg|png|bmp|gif|tiff|psd|pnm|hdr|raw */
+    uint8_t from_embedded;  /* the EXIF fast path served it */
+    uint8_t truncated;      /* decoder-tolerated short stream (disclosed,
+                             * never silent - the engine's Ok-but-truncated
+                             * contract crosses the ABI verbatim) */
     uint8_t _pad[2];
 } cr_ui_thumbnail_info;
 
@@ -1276,9 +1276,9 @@ typedef struct cr_ui_thumbnail_info {
  * table. caps == NULL = the defaults above. The device is the scan's
  * device (the same pairing rule as cr_ui_preview_open_session). */
 CR_UI_API uint32_t cr_ui_thumbnail_generate(cr_ui_device* dev, cr_ui_session* sess,
-                                             uint64_t node_id,
-                                             const cr_ui_thumbnail_caps* caps, uint8_t* rgba,
-                                             uint32_t rgba_cap, cr_ui_thumbnail_info* info);
+                                            uint64_t node_id, const cr_ui_thumbnail_caps* caps,
+                                            uint8_t* rgba, uint32_t rgba_cap,
+                                            cr_ui_thumbnail_info* info);
 
 /* The format-support probe (the engine's documented v1 matrix + the
  * S-045 raw family): true for jpeg/png/bmp/gif/tiff/psd/pnm/hdr/raw. */
