@@ -21,6 +21,13 @@
  *   fix --disk N [--part P] [--apply] [--undo file] [--undo-apply file]
  *   apply --disk N --session file.crsf [--candidate N] [--apply]
  *         [--undo file] [--boot-fix lba] [--boot-fix-bcd file]
+ *
+ * Boot-fix contract (N-121/D-90's register): --boot-fix-bcd expects the
+ * path of the BCD store to repair - the HOST discovers and mounts the EFI
+ * System Partition (type GUID C12A7328-F81F-11D2-BA4B-00A0C93EC93B) for
+ * unlettered ESPs and unmounts it afterwards; the core repairs the store
+ * at the path it is given (the og's CUpdateGptSystemBootPartition
+ * auto-mount is a registered host contract, PARITY-DELTAS D-90/N-121).
  *   bench --disk N [--mode seq|rand|open|read|info] [--mb N] [--block-kb N]
  *         [--iterations N] [--seed N] [--json]
  *   driver [--service NAME] [--json]      the driver-status surface

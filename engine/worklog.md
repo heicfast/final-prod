@@ -1,3 +1,9 @@
+- **N-121 FIXED** — the ESP auto-mount step (the og's CUpdateGptSystemBootPartition)
+  registered as the documented HOST contract (PARITY-DELTAS D-90/N-121 + the rrecov CLI help +
+  the boot-repair module row): the host discovers the ESP by type GUID, mounts, passes the BCD
+  path, unmounts exception-safe; the core implementation is the registered follow-up gated on
+  the DeviceManager :49956 behavioral decode (the corpus's trace-string-level evidence is the
+  finding's own open question) with the two-test plan attached.
 - **N-122 FIXED** — the NVRAM Boot#### create/delete exclusion registered (D-90's addendum in
   PARITY-DELTAS + the boot-repair.md row): the patch-only v1's scope is now a navigable register
   row with the EFIBoot cites, the honest-stop pin re-verified, the rationale, and the next

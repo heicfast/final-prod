@@ -3010,7 +3010,35 @@ the missing-entry case fails loudly with a precise diagnostic the host can
 act on. **Next concrete step:** decode FUN at :3405-3480 (the create walk)
 + the template strings, then land create/delete with the walk's
 stop-on-missing replaced by create-on-missing (the existing test's
-expectation flips with it). Registered per N-122's fix-plan step 1.**RISK:** a pre-Vista boot.ini-only system (outside the envelope) would
+expectation flips with it). Registered per N-122's fix-plan step 1.
+**N-121 — the ESP auto-mount step (CUpdateGptSystemBootPartition's
+MountGptPartition/UnmountGptPartition) is a REGISTERED host contract, not a
+core implementation.** The og's boot-repair chain finds and mounts the EFI
+System Partition itself so the boot-config update reaches
+\EFI\MICROSOFT\BOOT\BCD on any recovered system (mo-module-map.md:56-57;
+the InitLayout/Mount/Unmount trace strings, DeviceManager.mo :321-332). The
+core's `rrecov apply --boot-fix-bcd <file>` requires the HOST to supply the
+BCD path — a recovered system whose ESP has no drive letter (the common
+case after lost-partition recovery) cannot complete the repair through the
+core until the host mounts the ESP. REGISTERED CONTRACT: the host discovers
+the ESP by type GUID C12A7328-F81F-11D2-BA4B-00A0C93EC93B among the
+recovered/applied partitions, mounts it (the elevation seam), passes the
+path, and unmounts after (the og's own UnmountGptPartition implies the
+pairing — exception-safe: unmount even on failure). RATIONALE: the corpus
+evidence for the mount semantics is trace-string-level (the class name +
+method strings; no artifact decodes the mount behavior — the finding's own
+open question), so the core implementation needs the DeviceManager
+:49956 decode pass first; the host contract covers the flow today with the
+requirement documented where the CLI's help and ABI-CONTRACT describe the
+boot-fix stages. NEXT STEP: decode DeviceManager_decompiled.c:49956 (the
+CUpdateGptSystemBootPartition behavioral pass), then land the discovery +
+mount/unmount pair in the win layer with the exception-safe pairing test
+(a GPT fixture with an unlettered ESP: BootFix.EspAutoMountReachesBcd /
+BootFix.EspUnmountedAfterFix — the finding's test plan). VERDICT: ACCEPTED
+(documented host contract + registered follow-up; the reachability gap is
+no longer silent — the CLI help and the boot-repair module row state the
+requirement).
+**RISK:** a pre-Vista boot.ini-only system (outside the envelope) would
 lack the legacy repair — out of posture by construction. A host wanting
 the og's exact undo chain spawns chkdsk itself from the undo record.
 

@@ -21,3 +21,5 @@ tool) against the core's staged port.
 ### Session-11-lead rows (2026-10-29)
 
 - **M-113** (MAJOR): the recovered-OS boot-environment write-side surgery absent + unregistered — the og's genuefisystemfile.cpp chain (TempSystem MountedDevices rewrite; TmpBCD {9dea862c...}->23000003->device-element 12000004 re-pointing; TmpSoftWare CurrentVersion; SystemSetup/SystemPartition/bootstat). R-69's "PRESENT (bcdfix/nvramfix)" verdict covers only BCD-cell + NVRAM — a different, smaller mechanism. The BIOS twin (CGenBIOSSystemFile) is the fix lane's open decode.
+
+**N-121 (FIXED — registration):** the ESP auto-mount step (the og's CUpdateGptSystemBootPartition / MountGptPartition) is a REGISTERED HOST CONTRACT (PARITY-DELTAS D-90/N-121): the host discovers the ESP by type GUID, mounts it, passes the BCD path, unmounts after (exception-safe); the core's implementation needs the DeviceManager :49956 behavioral decode first — the registered next step.
