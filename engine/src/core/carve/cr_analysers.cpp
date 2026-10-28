@@ -3625,10 +3625,9 @@ CarveResult validate_html(IStorageDevice* s, u64 hit, u64 cap) {
  * FUN_180041880). Size: the </svg> family end-tag walk (the
  * .data 0x180093950 string) - the two-case scan, 1 MiB cap, NO sector
  * round-up (FUN_180041950's tail sets the size verbatim; the HTML twin
- * FUN_180042e60 is the round-up exception). Residual (recorded, the
- * M-106 stand-in discipline): the walker's 0x44c branch (the CSL
- * size = dword@0x44c + 0x480 for files long enough to span it) is
- * decoded only partially and stays unported. */
+ * FUN_180042e60 is the round-up exception). The walker's 0x44c branch
+ * (the CD01-key leg's own size field, dword@0x44c + 0x480 within the
+ * cap) LANDED with M-112 - see the branch below. */
 CarveResult validate_xmlsvg(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
     u8 win[513];
@@ -3661,6 +3660,39 @@ CarveResult validate_xmlsvg(IStorageDevice* s, u64 hit, u64 cap) {
     }
     if (!svg && !generic_xml)
         return r;
+    /* M-112: the og's CSL size branch (FUN_180041950 :49749-49828, the
+     * Brance::SVGAnalyser walker's CD 01 00 00 leg - the DAT_180093918
+     * latch, first-hand + binary-dumped this session: the constant IS
+     * 0x1CD): when the file spans offset 0x44c with the full dword
+     * in-window, the LE dword there + 0x480 IS the extent (assigned
+     * verbatim at +0x10), gated by the family cap (the SVGRawFileInfo
+     * ctor's +0x118 = 0x100000, FUN_180041880 :17291-17306 - the
+     * finding's open question closed by the ctor read). FINDING-TEXT
+     * CORRECTION: the branch belongs to the CD 01 00 00 KEY leg, which
+     * the PROBE stamps 0x5b (DAT_180093940 = 0x1CD, the same dword) -
+     * NOT to the "csl"-content strstr leg (id 0x13, whose first dword
+     * is "<?xm" and never fires the walker's latch). The override keeps
+     * the probe's stamp. Declination (short file / out-of-cap / zero
+     * result) falls to the end-tag walk exactly as the og's pending
+     * model retries other sizing. */
+    if (n >= 4 && u32_from_bytes_le(win) == 0x000001cdu) {
+        const u64 avail = s->size() > hit ? s->size() - hit : 0;
+        if (avail >= 0x450) {
+            u8 f[4];
+            if (rd(s, hit + 0x44c, f, sizeof(f))) {
+                const u64 field_size = u64(u32_from_bytes_le(f)) + 0x480;
+                if (field_size != 0 && field_size <= cap) {
+                    const u64 limit0 = probe_limit(s, hit, cap);
+                    r.ok = true;
+                    r.end = std::min(hit + field_size, limit0);
+                    r.format_override = u32(FMT_SVG); /* the probe's stamp for the CD01 key: 0x5b */
+                    r.confidence = 700;
+                    r.note = "csl-sizefield@0x44c";
+                    return r;
+                }
+            }
+        }
+    }
     const u64 limit = probe_limit(s, hit, cap); /* cap = 1 MiB */
     const u64 marker_end = scan_tag_two_case(s, hit, limit, "</svg>");
     /* the og stamps the FORMAT ID at the probe (id 0x5b vs 0x13 depends

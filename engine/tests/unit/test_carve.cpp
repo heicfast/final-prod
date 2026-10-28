@@ -9208,3 +9208,136 @@ TEST(Carve, DbxRegistryCarriesAllThreeKeys) {
     EXPECT_EQ(validate_registry(&bad), 0u);
     EXPECT_EQ(self_probe_registry(&bad), 0u);
 }
+
+/* ---- M-112: the CSL size branch (the CD 01 00 00 key leg's own size
+ * field at +0x44c, dword + 0x480, gated by the 1 MiB family cap). Every
+ * fixture derives from the FUN_180041950 decode, never from the
+ * implementation. ---- */
+TEST(Carve, CslSizeFieldExtendsPastCap) {
+    /* dword@0x44c sizes the file past the 1 MiB cap the bounded fallback
+     * would impose: 0x0C0000 + 0x480 = 0xC0480 (~786 KiB < cap)... use a
+     * value BETWEEN the </svg>-less fallback and the cap: dword 0x0F0000
+     * -> 0xF0480 (~984 KiB, within cap, > any marker-less walk result the
+     * old code would produce at the same position). RED pre-fix: the old
+     * code falls to the bounded 1 MiB cap only when NO </svg> exists;
+     * with a </svg> planted EARLY the old code truncates there - the new
+     * code must ignore the marker and take the field. */
+    std::vector<u8> img(2 * 1024 * 1024, 0);
+    const size_t at = 4096;
+    img[at + 0] = 0xCD;
+    img[at + 1] = 0x01;
+    img[at + 2] = 0x00;
+    img[at + 3] = 0x00; /* the CD01 key */
+    const char early_svg[] = "<svg>xx</svg>"; /* a marker the walk would find */
+    std::memcpy(img.data() + at + 0x10, early_svg, sizeof(early_svg) - 1);
+    put32v(img, at + 0x44C, 0x0F0000); /* the size field: 0xF0480 total */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr) << "the CD01-keyed CSL file must carve";
+    EXPECT_EQ(n->props()->logical_size, 0xF0480ull)
+        << "the size field wins over both the marker walk and the cap";
+    EXPECT_EQ(n->props()->carve_format, u32(FMT_SVG))
+        << "the probe's stamp for the CD01 key is 0x5b";
+}
+
+TEST(Carve, CslSizeFieldDeclinesOutOfCap) {
+    /* dword + 0x480 > the 1 MiB cap: the branch declines, the end-tag
+     * walk sizes the file (the marker at a known offset) */
+    std::vector<u8> img(2 * 1024 * 1024, 0);
+    const size_t at = 4096;
+    img[at + 0] = 0xCD;
+    img[at + 1] = 0x01;
+    img[at + 2] = 0x00;
+    img[at + 3] = 0x00;
+    put32v(img, at + 0x44C, 0x200000); /* + 0x480 > 0x100000: out of cap */
+    const char body[] = "<svg>yyyyyyyy</svg>"; /* the walk's marker */
+    std::memcpy(img.data() + at + 0x20, body, sizeof(body) - 1);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr);
+    EXPECT_EQ(n->props()->logical_size, 0x20 + sizeof(body) - 1)
+        << "declination falls to the end-tag walk";
+}
+
+TEST(Carve, CslShortFileFallsToWalk) {
+    /* a candidate whose readable span is SHORTER than 0x450 never reads
+     * the field: place the CD01 magic < 0x450 from the DEVICE END so the
+     * field read cannot succeed - the end-tag walk sizes the file */
+    std::vector<u8> img(512 * 1024, 0);
+    const size_t at = img.size() - 0x300; /* 0x300 < 0x450: no field read */
+    img[at + 0] = 0xCD;
+    img[at + 1] = 0x01;
+    img[at + 2] = 0x00;
+    img[at + 3] = 0x00;
+    const char body[] = "<svg>z</svg>";
+    std::memcpy(img.data() + at + 0x8, body, sizeof(body) - 1);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr);
+    EXPECT_EQ(n->props()->logical_size, 0x8 + sizeof(body) - 1)
+        << "the unreadable field declines; the walk owns the extent";
+}
+
+TEST(Carve, SvgLegUnaffectedByCslBranch) {
+    /* the <?xm + <svg content leg keeps the end-tag walk sizing - the
+     * 0x44c branch never fires for a non-CD01 first dword */
+    std::vector<u8> img(2 * 1024 * 1024, 0);
+    const size_t at = 4096;
+    const char doc[] = "<?xml version=\"1.0\"?><svg xmlns=\"x\"></svg>";
+    std::memcpy(img.data() + at, doc, sizeof(doc) - 1);
+    put32v(img, at + 0x44C, 0x0F0000); /* a field the branch must IGNORE */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr);
+    EXPECT_EQ(n->props()->logical_size, sizeof(doc) - 1)
+        << "the declaration leg sizes by the </svg> walk, never the field";
+    EXPECT_EQ(n->props()->carve_format, u32(FMT_SVG));
+}

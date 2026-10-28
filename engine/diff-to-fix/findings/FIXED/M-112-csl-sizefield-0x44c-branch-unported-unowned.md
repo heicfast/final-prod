@@ -56,3 +56,37 @@ M-107 (the stand-in-residue class this extends — its enumeration should gain t
 ## Open questions
 
 The og's cap-field value for this analyser (+0x118) is assumed to be the same 0x100000 the M-093 decode registered for the family bounds — the ctor site for the CSL walker's cap was not separately re-read this session. If the engineering team finds the og's cap differs, the declination boundary in test (b) adjusts accordingly; the branch logic is unaffected.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** <this push> (S42 lane, the M-first directive)
+
+**Verified by:** `Carve.CslSizeFieldExtendsPastCap` (RED pre-fix — proven by the
+stashed-validator rebuild: the field ignored, the early `</svg>` marker truncating)
+· `Carve.CslSizeFieldDeclinesOutOfCap` · `Carve.CslShortFileFallsToWalk` ·
+`Carve.SvgLegUnaffectedByCslBranch` (4/4 GREEN post-fix); full suite 1163 tests:
+1121 PASS / 0 FAIL / 42 env-skips (linux-release).
+
+**Resolution notes:** Verified first-hand against the corpus before the fix (the SOP),
+which CLOSED the finding's open question and CORRECTED its premise:
+(1) The cap question: the SVGRawFileInfo ctor (FUN_180041880) sets slot +0x23
+(+0x118, the max) = **0x100000** — the 1 MiB family cap the M-093 decode registered.
+The declination boundary in the out-of-cap test uses it. (2) **Premise correction:**
+the 0x44c branch belongs to the **CD 01 00 00 KEY leg**, not the "csl"-content strstr
+leg. The walker's latch constant DAT_180093918 was binary-dumped this session: it is
+**0x1CD** — the CD01 key's own dword. The "csl" string marker (DAT_180093968) is the
+PROBE-side content router for the `<?xm` declaration leg (id 0x13); such a file's
+first dword is "<?xm" and the walker's latch never fires for it. The PROBE stamps the
+CD01 key **0x5b (SVG)** — DAT_180093940, binary-dumped = 0x1CD, the same dword — so
+the branch's `format_override` keeps FMT_SVG, not the finding's assumed generic-XML
+routing. The landed branch: on the CD01 leg (first dword == 0x1CD), when the readable
+span covers 0x44c+4, read the LE dword, add 0x480, and within the cap assign
+`end = hit + dword + 0x480` (clamped to the readable extent, the family convention)
+with note `csl-sizefield@0x44c`, bypassing the end-tag walk; declination (short file /
+out-of-cap / zero result) falls to the existing walk/fallback exactly as the og's
+pending model retries other sizing. The stale residual comment in validate_xmlsvg's
+header ("stays unported") rewritten to record the landing. Corpus citations:
+RAWSearchDLL_decompiled.c :49749-49828 (the walker), :17291-17306 (the ctor);
+the .data constants DAT_180093918/180093940/180093968 binary-dumped from
+og-codebase/RAWSearchDLL.dll. No safety hardening was touched.

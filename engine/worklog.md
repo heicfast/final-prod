@@ -5574,3 +5574,16 @@ N-159's classification axis, the N-160+N-150 doc-truth sweep (one push), the
 M-106/M-107 size-walk fleet. Next free IDs: S-055+, M-122+, N-161+, I-038+,
 A-013+. Read-only guarantee: verified per-commit — my delta vs every merge
 base = diff-to-fix/ + worklog* only.
+### S42-W2: M-112 (the CSL 0x44c size branch) — FIXED
+
+- **Verification:** FUN_180041950 :49749-49828 re-read first-hand; the latch constant
+  DAT_180093918 binary-dumped = **0x1CD** (the CD01 key's dword — the finding's
+  "csl-content leg" premise corrected); the probe's DAT_180093940 = 0x1CD too (the
+  CD01 key stamps 0x5b/SVG); the ctor FUN_180041880's +0x118 cap = 0x100000 (the
+  open question closed).
+- **Code:** the CD01-leg branch in validate_xmlsvg (dword@0x44c + 0x480 within cap →
+  the extent, bypassing the walk; declination → the walk).
+- **Tests:** 4 (CslSizeFieldExtendsPastCap RED pre-fix by stashed-validator rebuild;
+  DeclinesOutOfCap / ShortFileFallsToWalk / SvgLegUnaffected GREEN both sides — the
+  declination paths the old code already satisfied). Suite 1163/1121/0/42.
+- **Trail:** finding → FIXED/ with the Resolution; ledger row; carve.md verdict.

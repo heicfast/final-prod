@@ -706,7 +706,13 @@ non-zero prefix ROUNDED UP TO EVEN — disasm 0x180042bb0-0x180042c07, the `sar 
 bisection + `lea 0x1(%rsi),%eax` return; the pending-object recompute adapted to the
 one-shot validator per D-101); the og's embedded name provably EMPTY (both lanes
 converged); tests Carve.Dbx* (9, RED pre-fix — the formats did not exist); the s3
-"MISSING (N-026)" markers re-pointed at M-121; findings/FIXED/M-121) ·
+"MISSING (N-026)" markers re-pointed at M-121; findings/FIXED/M-121) · **M-112 FIXED (S42)** — the CSL size branch landed: the CD 01 00 00 key leg's own
+size field (dword@0x44c + 0x480, gated by the ctor-pinned 1 MiB cap
+[SVGRawFileInfo +0x118 = 0x100000]); the finding's premise corrected (the branch is
+the CD01 key's, DAT_180093918 = 0x1CD — binary-dumped; the probe stamps that key
+0x5b, DAT_180093940 = the same dword; the "csl"-content leg never fires the walker's
+latch); declination falls to the end-tag walk; tests Carve.Csl* + SvgLeg (4, the RED
+case stashed-validator-proven); findings/FIXED/M-112) ·
 **N-152** (S41: the DXF 999-comment entry key — the og's u16 key 0x3939 → CDXFAnalyser +
 the probe's "999\n"/"999\r\n" leading-comment acceptance; the core keys "  0\r" only;
 renumbered twice at the push-time reconciliations per SA-9 — the local N-142 lost to the
