@@ -17486,3 +17486,27 @@ push); the user rotates it after this session as stated.
 NEXT (for whoever continues): the S7 lane's unclaimed driver-era territory
 (see above); the v0.2.3 rda-driver release batching fixes 3/6/9/10; the
 OQ probes are all one-session bounded.
+
+---
+Task ID: FIX-1 (A-010 — the ASF object walker)
+Agent: main engineer (fix session: the handoff queue, priority 1)
+
+Work Log:
+- Re-verified the finding's corpus citations first-hand (rawsearch-carving--
+  deep-dive.md:87-91 BruteForce family contract; registry key 0x75b22630 ->
+  BruteForce::CAsfAnalyser; CAsfRawFileInfo's 4 header sub-object GUIDs).
+- Rewrote validate_asf: entry predicate (GUID + 30<=size<=2GiB + count 1..128)
+  unchanged; the END is now the top-level object walk (Header/Data/Simple
+  Index/Index/Media Object Index x2 GUIDs; size >= 24; window bound =
+  min(hit + max_size, device end) for last-COMPLETE-object torn-tail salvage;
+  unknown GUID / unreadable / undersized / non-fitting = grammar break).
+- 4 tests added (plant_asf fixture family); fail-before PROVEN on the
+  stash-reverted build (the two behavior tests RED pre-fix); full Carve/RawSigns
+  suite 85/85 green post-fix.
+- Trail updates: finding Resolution + FIXED move, modules/carve.md row,
+  CROSS-REF-MATRIX A28/B2 -> MATCH(FIXED), CAPABILITY-MATRIX carve row,
+  SUMMARY board counts (18 active -> 17, FIXED 223 -> 224).
+
+Stage Summary:
+- A-010 CLOSED. Board: 17 active (0 ACUTE · 4 SEVERE · 7 MAJOR · 5 MINOR ·
+  1 INFO) · 224 FIXED · 4 tracked-open. Next: S-039 (user-sign caps).

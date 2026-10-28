@@ -122,11 +122,24 @@ honest correction of this session's own inventory (22→17 of 30 — five stubs
 were cited in brace-group form). Decode candidates registered (CWindowsFS
 ×3, the DeviceManager offline-OS strings) as future-probe notes, not gaps.
 
-**Board after waves 3-7 (authoritative, by findings/ tree inventory):**
+**Board after waves 3-7 (as filed by the audit session):**
 **18 active — 1 ACUTE (A-010) · 4 SEVERE (S-036, S-037, S-038, S-039) ·
 7 MAJOR (M-060..M-066) · 5 MINOR (N-084..N-088) · 1 INFO (I-026)** —
 plus 223 FIXED unchanged and tracked-open 4 (OQ-S4-3 + this session's
-OQ-SA-1, OQ-SA-2, OQ-SA-3). The session's remaining open material is
+OQ-SA-1, OQ-SA-2, OQ-SA-3).
+
+## Fix-session delta (2026-10-28 — the engineering pass over the audited board)
+
+The fix session executing the handoff's priority queue. **A-010 (ACUTE)
+FIXED**: `validate_asf` is now the BruteForce-family object walker (entry
+gates unchanged; 5 known top-level GUIDs + size sanity + device-bound
+torn-tail salvage; extent = last valid position) — 4 fail-before tests
+(`AsfCarveExtentCoversDataObjects`, `AsfCarveTornTailSalvagesLastCompleteObject`
+RED on the pre-fix build; grammar-break + count-gate rows pin the unchanged
+halves). See findings/FIXED/A-010 for the Resolution.
+
+**Board after A-010:** 17 active (0 ACUTE · 4 SEVERE · 7 MAJOR · 5 MINOR ·
+1 INFO) · 224 FIXED · tracked-open 4 unchanged. The session's remaining open material is
 precisely the four tracked-open files' probes; every other in-scope corpus
 surface is dispositioned to a finding, a MATCH, a registered exclusion, or
 an honest zero per SURFACE-INVENTORY.md.

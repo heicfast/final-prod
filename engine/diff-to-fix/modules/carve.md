@@ -500,11 +500,13 @@ NEVER-CITED by any prior finding; S-007's format additions were evidenced from
 the registry census, not the family semantics. The class-by-class comparison
 (evidence in this wave's findings):
 
-- **A-010 (ACUTE)** — `validate_asf` ends the carve extent at the ASF **Header
-  Object's** size field; the og's CAsfAnalyser is a BruteForce walker ("keeps
+- **A-010 (ACUTE, FIXED)** — `validate_asf` ended the carve extent at the ASF
+  **Header Object's** size field; the og's CAsfAnalyser is a BruteForce walker ("keeps
   consuming until the grammar breaks, then reports the last valid position as
   the file size" — rawsearch-carving--deep-dive.md:87-91). Every ASF/WMV/WMA
-  carve is a header-only fragment. A28/B2 cells → ACUTE.
+  carve was a header-only fragment. FIXED: the object walker (5 known
+  top-level GUIDs + size gates + device-bound torn-tail salvage); A28/B2 cells
+  → MATCH (4 fail-before tests in test_carve.cpp).
 - **S-037 (SEVERE)** — two formats escaped every format list: FreeHand 11
   (CFH11Analyser, key 0x11C = bytes `1C 01 00 00`, registry id 0x1d,
   decompile:1952-1961) and Corel PhotoPaint 3 generations (CPT7/8/9 =

@@ -1775,6 +1775,67 @@ size_t plant_gif(std::vector<u8>& img, size_t at) {
     return (p + 1) - at;
 }
 
+/* A-010: a grammar-valid ASF (the BruteForce-family walker's fixture).
+ * Header Object (size hsz, one declared sub-object) + `n` Data Objects,
+ * then one of three tails: a valid unknown-GUID object (grammar break
+ * with sane bytes), garbage, or a torn object whose claimed size runs
+ * past the device end. Returns the expected carve extent (one past the
+ * last COMPLETE valid object). */
+size_t plant_asf(std::vector<u8>& img, size_t at, int data_objects, const char* tail = "unknown",
+                 u64 torn_size = 0, u32 header_count = 1) {
+    static const u8 asf_guid[16] = {0x30, 0x26, 0xB2, 0x75, 0x8E, 0x66, 0xCF, 0x11,
+                                     0xA6, 0xD9, 0x00, 0xAA, 0x00, 0x62, 0xCE, 0x6C};
+    static const u8 data_guid[16] = {0x36, 0x26, 0xB2, 0x75, 0x8E, 0x66, 0xCF, 0x11,
+                                     0xA6, 0xD9, 0x00, 0xAA, 0x00, 0x62, 0xCE, 0x6C};
+    size_t p = at;
+    /* Header Object: GUID + size (100) + count + 2 reserved + payload */
+    std::memcpy(img.data() + p, asf_guid, 16);
+    const u64 hsz = 100;
+    for (int i = 0; i < 8; ++i)
+        img[p + 16 + size_t(i)] = u8(hsz >> (8 * i));
+    for (int i = 0; i < 4; ++i)
+        img[p + 24 + size_t(i)] = u8(header_count >> (8 * i));
+    img[p + 28] = 1; /* broadcast flag (arbitrary non-reserved byte) */
+    for (u32 i = 30; i < hsz; ++i)
+        img[p + size_t(i)] = 0x44;
+    p += size_t(hsz);
+    /* Data Objects: GUID + size + payload (sizes 200/150/300/...) */
+    static const u64 sizes[] = {200, 150, 300, 240};
+    for (int d = 0; d < data_objects; ++d) {
+        std::memcpy(img.data() + p, data_guid, 16);
+        const u64 sz = sizes[d % 4];
+        for (int i = 0; i < 8; ++i)
+            img[p + 16 + size_t(i)] = u8(sz >> (8 * i));
+        for (u64 i = 24; i < sz; ++i)
+            img[p + size_t(i)] = u8(0x55 + d);
+        p += size_t(sz);
+    }
+    if (tail == nullptr || std::strcmp(tail, "none") == 0)
+        return p - at;
+    if (std::strcmp(tail, "garbage") == 0) {
+        for (int i = 0; i < 64; ++i)
+            img[p + size_t(i)] = 0xAA;
+        return p - at;
+    }
+    if (std::strcmp(tail, "torn") == 0) {
+        /* a Data Object whose claimed size runs past the device end */
+        std::memcpy(img.data() + p, data_guid, 16);
+        const u64 sz = torn_size ? torn_size : (1ull << 40);
+        for (int i = 0; i < 8; ++i)
+            img[p + 16 + size_t(i)] = u8(sz >> (8 * i));
+        return p - at; /* the torn object itself is NOT salvage */
+    }
+    /* "unknown": a well-formed object with an unrecognized GUID */
+    for (int i = 0; i < 16; ++i)
+        img[p + size_t(i)] = u8(0xE0 + i);
+    const u64 usz = 128;
+    for (int i = 0; i < 8; ++i)
+        img[p + 16 + size_t(i)] = u8(usz >> (8 * i));
+    for (u64 i = 24; i < usz; ++i)
+        img[p + size_t(i)] = 0x66;
+    return p - at;
+}
+
 /* A valid uncompressed 4x4 24-bpp BMP. */
 size_t plant_bmp(std::vector<u8>& img, size_t at) {
     img[at] = 'B';
@@ -2070,6 +2131,110 @@ TEST(Carve, S007TruncatedSalvageSemantics) {
     EXPECT_LT(gif->props()->logical_size, gif_len) << "extent stops before the broken trailer";
     ASSERT_NE(rtf, nullptr) << "unclosed-group RTF salvages to the slab end";
     EXPECT_EQ(rtf->props()->logical_size, size_t(64 * 1024 - rtf_at));
+}
+
+/* ===================================================================== */
+/* A-010: the ASF object walker - the og's BruteForce family contract     */
+/* ("walk forward to grammar break, report the last valid position";     */
+/* rawsearch-carving--deep-dive.md:87-91). The pre-fix code ended every  */
+/* carve at the Header Object's own size field (header-only fragments).  */
+/* ===================================================================== */
+
+TEST(Carve, AsfCarveExtentCoversDataObjects) {
+    /* header (100) + 3 data objects (200+150+300) + unknown-GUID break */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    const size_t expect = plant_asf(img, at, 3, "unknown");
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* wmv = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            wmv = c;
+    ASSERT_NE(wmv, nullptr) << "ASF fixture must carve";
+    /* fail-before: the old code's extent was the header-only 100 bytes */
+    EXPECT_EQ(wmv->props()->logical_size, expect)
+        << "extent must cover all structurally-valid objects (750), not the header";
+}
+
+TEST(Carve, AsfCarveStopsAtGrammarBreak) {
+    /* grammar break immediately after the Header Object: an unknown-GUID
+     * object with a perfectly sane size - the extent is the header alone
+     * (the family's last-valid-position rule) */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    const size_t expect = plant_asf(img, at, 0, "unknown");
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        if (c->props() && c->name_utf8().find(".wmv") != std::string::npos) {
+            EXPECT_EQ(c->props()->logical_size, expect)
+                << "header-only ASF: extent = the header, no premature extension";
+        }
+    }
+}
+
+TEST(Carve, AsfCarveTornTailSalvagesLastCompleteObject) {
+    /* the trailing Data Object's claimed size runs past the device end:
+     * the walk stops at the last COMPLETE object (salvage semantics) */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    const size_t expect = plant_asf(img, at, 2, "torn"); /* 100 + 200 + 150 */
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    tree::FileNode* wmv = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->extents.front().offset == at)
+            wmv = c;
+    ASSERT_NE(wmv, nullptr);
+    EXPECT_EQ(wmv->props()->logical_size, expect)
+        << "torn tail: extent ends at the last complete object";
+}
+
+TEST(Carve, AsfHeaderCountGatesUnchanged) {
+    /* the entry predicate keeps the og-shaped gates: count 0 and >128
+     * reject even with a perfect GUID and size */
+    for (u32 bad_count : {0u, 129u}) {
+        std::vector<u8> img(64 * 1024, 0);
+        plant_asf(img, 512, 1, "none", 0, bad_count);
+
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"L");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(
+            carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                        stats),
+            OK);
+        for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+            if (c->props()) {
+                EXPECT_EQ(std::string::npos, c->name_utf8().find(".wmv"))
+                    << "count " << bad_count << " must reject";
+            }
+        }
+    }
 }
 
 /* ===================================================================== */

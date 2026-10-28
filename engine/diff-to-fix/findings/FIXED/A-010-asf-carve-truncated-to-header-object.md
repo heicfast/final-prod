@@ -58,3 +58,44 @@ Decompiled evidence (strength-2): corpus deep-dive:87-91 (the family walk contra
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's fix commit — `git log` "fix: A-010")
+**Verified by:** `Carve.AsfCarveExtentCoversDataObjects` (a header + 3 data
+objects + unknown-GUID break fixture: extent = 750 B covering every valid
+object — the pre-fix build carved the header-only 100 B), 
+`Carve.AsfCarveTornTailSalvagesLastCompleteObject` (the trailing Data
+Object's claimed size runs past the device end: the walk stops at the last
+COMPLETE object — 450 B, salvage semantics), `Carve.AsfCarveStopsAtGrammarBreak`
+(an unknown-GUID object with a sane size right after the header: extent = the
+header — the family's last-valid-position rule pins the no-premature-extension
+half), `Carve.AsfHeaderCountGatesUnchanged` (count 0 / 129 still reject — the
+entry predicate is untouched). Fail-before executed: the two behavior tests
+RED on the stash-reverted (pre-fix) build, all four GREEN on the fix; full
+suite green post-fix (85 Carve/RawSigns tests, zero regressions — the
+pre-existing ExtendedFormatsGrammar WMV row unchanged: its header-claimed
+2048 B fixture still carves at 2048 B because the bytes past it are not a
+valid object start).
+**Resolution notes:** Implementation per the fix plan verbatim: the entry
+predicate (GUID, `30 ≤ obj_size ≤ 2 GiB`, header count 1..128) is unchanged;
+the END determination is replaced by the object walker — after the Header
+Object, iterate top-level ASF objects (16 B GUID + 8 B size including the
+24 B header each), sanity-gate the size (`≥ 24`, fits `min(hit + max_size,
+device end)` — the device bound gives the torn-tail last-COMPLETE-object
+semantics), recognize the specification's five top-level types (Header, Data,
+Simple Index, Index, Media Object Index ×2 spellings — the structural
+vocabulary CAsfRawFileInfo seeds the header walk with, decompile:41950-41965),
+advance until the first grammar break (unreadable / undersized / torn /
+unknown GUID / non-fitting), and report the last valid position as the extent
+— the family contract quoted verbatim in the validator's comment. The walk
+reads through the WindowDevice (bounded by the slice; no unbounded
+allocations), caps at the registry max_size (4 GiB), and cannot loop
+(size ≥ 24 guarantees advancement). The `note` field now reads
+`ASF-GUID+object-walk` (was `ASF-GUID+object`). Contract/doc updates landed
+in the same change: modules/carve.md's A-010 row moved to the FIXED ledger,
+CROSS-REF-MATRIX A28/B2 cell flipped to MATCH-with-fix, the CAPABILITY-MATRIX
+carve row's ASF entry now reads "structural walk (BruteForce family parity)".
+Occupancy/dedup now marks the real file extent (the A-010 shadowing concern
+resolves with the extent itself).

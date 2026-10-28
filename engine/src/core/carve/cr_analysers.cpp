@@ -1836,7 +1836,20 @@ CarveResult validate_m4a(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
-/* ---- ASF/WMV: ASF header object GUID ---- */
+/* ---- ASF/WMV: the BruteForce-family object walk (A-010) ----
+ *
+ * The og's BruteForce::CAsfAnalyser is a forward-walking structural
+ * validator: it "walk[s] forward to EOF validating structure at every
+ * step... keeps consuming until the grammar breaks, then reports the
+ * last valid position as the file size... no premature truncation"
+ * (rawsearch-carving--deep-dive.md:87-91; registry binding key
+ * 0x75b22630 -> BruteForce::CAsfAnalyser, RAWSearchDLL decompile
+ * :1914-1923; CAsfRawFileInfo's header sub-object GUID vocabulary
+ * :41950-41965). The entry predicate stays the ASF Header Object GUID
+ * + its gates (below); the END is now the last structurally-valid
+ * object boundary - the pre-fix code ended the extent at the Header
+ * Object's own size field, so every carved WMV/WMA/ASF was a
+ * header-only fragment with none of the media payload (A-010). */
 CarveResult validate_asf(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
     static const u8 asf_guid[16] = {0x30, 0x26, 0xB2, 0x75, 0x8E, 0x66, 0xCF, 0x11,
@@ -1853,11 +1866,44 @@ CarveResult validate_asf(IStorageDevice* s, u64 hit, u64 cap) {
     if (count == 0 || count > 128)
         return r;
     r.ok = true;
-    r.end = hit + obj_size;
-    if (r.end > hit + cap)
-        r.end = hit + cap;
     r.confidence = 850;
-    r.note = "ASF-GUID+object";
+
+    /* The top-level grammar: the ASF specification's five object types
+     * after the header (Data, Simple Index, Index, Media Object Index x2
+     * spellings - plus the Header itself for degenerate repeats). An
+     * object is structurally valid when its GUID is one of these AND its
+     * size is sane (>= its own 24-byte header, fits the window AND the
+     * device - a torn tail ends the walk at the last COMPLETE object,
+     * the family's salvage semantics). Anything else is the grammar
+     * break: stop and report the last valid position. */
+    static const u8 data_guid[16] = {0x36, 0x26, 0xB2, 0x75, 0x8E, 0x66, 0xCF, 0x11,
+                                     0xA6, 0xD9, 0x00, 0xAA, 0x00, 0x62, 0xCE, 0x6C};
+    static const u8 simpidx_guid[16] = {0x90, 0x08, 0x00, 0x33, 0xB1, 0xE5, 0xCF, 0x11,
+                                        0x89, 0xF4, 0x00, 0xA0, 0xC9, 0x03, 0x49, 0xCB};
+    static const u8 index_guid[16] = {0xD3, 0x29, 0xE2, 0xD6, 0xDA, 0x35, 0xD1, 0x11,
+                                      0x90, 0x34, 0x00, 0xA0, 0xC9, 0x03, 0x49, 0xBE};
+    static const u8 mediaidx1_guid[16] = {0xF8, 0x03, 0xB1, 0xFE, 0xBE, 0x57, 0xD2, 0x11,
+                                           0xBB, 0x5B, 0x00, 0xA0, 0xC9, 0x03, 0x49, 0xBE};
+    static const u8 mediaidx2_guid[16] = {0xAD, 0x3B, 0x20, 0x6B, 0x11, 0x3F, 0xE4, 0x48,
+                                          0xAC, 0xA8, 0xD7, 0x61, 0x3D, 0xE2, 0xCF, 0xA7};
+    const u64 window_end = std::min<u64>(hit + cap, s->size());
+    u64 pos = hit + obj_size; /* first byte past the Header Object */
+    while (pos + 24 <= window_end) {
+        if (!rd(s, pos, g, 16))
+            break;
+        const u64 sz = rd64(s, pos + 16);
+        if (sz < 24 || pos + sz > window_end)
+            break; /* undersized / torn / non-fitting = grammar break */
+        if (std::memcmp(g, asf_guid, 16) != 0 &&
+            std::memcmp(g, data_guid, 16) != 0 &&
+            std::memcmp(g, simpidx_guid, 16) != 0 && std::memcmp(g, index_guid, 16) != 0 &&
+            std::memcmp(g, mediaidx1_guid, 16) != 0 &&
+            std::memcmp(g, mediaidx2_guid, 16) != 0)
+            break; /* unknown top-level object = grammar break */
+        pos += sz;
+    }
+    r.end = pos; /* the last valid position (family contract) */
+    r.note = "ASF-GUID+object-walk";
     return r;
 }
 
