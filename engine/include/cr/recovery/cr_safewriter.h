@@ -60,6 +60,36 @@ public:
     virtual u64 free_bytes(const std::u16string&) const { return 0; }
     /* check existing final path (resume detection) */
     virtual bool exists(const std::u16string& path_utf16) = 0;
+
+    /* S-060: post-commit metadata restoration - the og's per-item
+     * tail (DRWUI :874686-718, the only SetFileTime/SetFileAttributesW
+     * pair in the export body): SetFileAttributesW(path, attrs &
+     * 0xfffd) then a CreateFileW handle and the mask-gated SetFileTime
+     * trio, both failures NON-FATAL (ReleaseTrace + continue). The
+     * writer calls this AFTER a successful commit; a non-OK return
+     * never fails the item - the report row records it. Backends
+     * without a metadata surface keep the default (the writer reports
+     * "not restored" truthfully). */
+    struct FileMeta {
+        u64 created = 0;  /* 100ns since 1601 (the FileTimes wire unit) */
+        u64 accessed = 0;
+        u64 modified = 0;
+        u32 attributes = 0; /* the DOS attribute word (the og clears 0x2) */
+        /* per-field enables - the og's mask gates (bit 0x8 creation,
+         * 0x10 access, 0x20 write) translated to "the engine emitted
+         * this field" (a zero slot is the og's no-date and stays unset) */
+        bool set_created = false;
+        bool set_accessed = false;
+        bool set_modified = false;
+        bool set_attributes = false;
+    };
+    virtual u32 set_metadata(u64 item_id, const std::u16string& final_path_utf16,
+                             const FileMeta& meta) {
+        (void)item_id;
+        (void)final_path_utf16;
+        (void)meta;
+        return ERR_UNSUPPORTED;
+    }
 };
 
 enum class ItemState : u8 { Pending = 0, Reading, Writing, Verifying, Done, Error, Refused };
@@ -108,6 +138,12 @@ struct QueueItem {
     report::HashStatus hash_status = report::HashStatus::NotComputed;
     bool had_unreadable = false; /* FB-R02: a device/decompress failure
                                   * zero-filled a span (Outcome::Salvaged) */
+    /* S-060: the post-commit metadata restoration outcome (the og's
+     * SetFileAttributesW + mask-gated SetFileTime tail). 0 = restored;
+     * a code = the backend's refusal (non-fatal - the item stays Done);
+     * the default-constructed value marks "never attempted" (metadata-
+     * less backends, directory items, refused items). */
+    u32 metadata_rc = 0xFFFFFFFFu;
 };
 
 struct WriterConfig {

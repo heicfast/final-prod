@@ -54,6 +54,7 @@
 #include <share.h> /* _SH_DENYNO (S-008: shared image opens) */
 #else
 #include <sys/stat.h>
+#include <fcntl.h>   /* S-060: AT_FDCWD for utimensat */
 #include <sys/types.h>
 #include <unistd.h>
 #include <dirent.h> /* W1a (R-56): the *.crsf directory enumeration */
@@ -764,6 +765,60 @@ private:
     bool exists(const std::u16string& path) override {
         struct stat st;
         return ::stat(to_path(path).c_str(), &st) == 0;
+    }
+    /* S-060: the og's per-item restoration tail, POSIX translation
+     * (the deliberate cross-platform mapping registered in
+     * PARITY-DELTAS): SetFileTime(created/access/write) ->
+     * utimensat (atime + mtime; a birth time is not portable - the
+     * created slot maps to nothing on hosts without a birth-time API
+     * and is skipped, never guessed); SetFileAttributesW(word & ~0x2)
+     * -> chmod with the READONLY bit (0x1) translated to the owner
+     * write bit (the one DOS attribute POSIX can carry truthfully).
+     * Non-fatal by the writer's contract. */
+    u32 set_metadata(u64 item_id, const std::u16string& final_path, const FileMeta& meta) override {
+        (void)item_id;
+        const std::string path = to_path(final_path);
+        u32 rc = OK;
+        if (meta.set_attributes) {
+            struct stat st;
+            if (::stat(path.c_str(), &st) == 0) {
+                mode_t mode = st.st_mode & 07777;
+                if (meta.attributes & 0x1) /* FILE_ATTRIBUTE_READONLY */
+                    mode &= ~mode_t(0200); /* owner write off */
+                else
+                    mode |= 0200;
+                if (::chmod(path.c_str(), mode) != 0)
+                    rc = ERR_WRITE_FAILED;
+            } else {
+                rc = ERR_WRITE_FAILED;
+            }
+        }
+        if (meta.set_accessed || meta.set_modified) {
+            struct timespec ts[2];
+            /* slot 0 = atime, slot 1 = mtime; 100ns-since-1601 ->
+             * unix seconds + nanoseconds */
+            const auto to_ts = [](u64 ft, bool set) {
+                struct timespec out;
+                if (!set) {
+                    out.tv_sec = 0;
+                    out.tv_nsec = UTIME_OMIT;
+                    return out;
+                }
+                const i64 unix100 = i64(ft) - 116444736000000000LL;
+                out.tv_sec = time_t(unix100 / 10000000LL);
+                out.tv_nsec = long((unix100 % 10000000LL) * 100);
+                if (out.tv_nsec < 0) { /* negative-div guard */
+                    out.tv_sec -= 1;
+                    out.tv_nsec += 1000000000L;
+                }
+                return out;
+            };
+            ts[0] = to_ts(meta.accessed, meta.set_accessed);
+            ts[1] = to_ts(meta.modified, meta.set_modified);
+            if (::utimensat(AT_FDCWD, path.c_str(), ts, 0) != 0)
+                rc = rc != OK ? rc : u32(ERR_WRITE_FAILED);
+        }
+        return rc;
     }
 };
 #endif

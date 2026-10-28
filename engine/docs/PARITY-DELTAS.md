@@ -3919,3 +3919,30 @@ reference-quirk parity. Registered by N-163's Resolution alongside the
 decoder's truncate-and-keep tolerance landing (the og direction this
 finding fixed); the S-001 all-hole recovery behavior is unchanged and
 now decode-anchored.
+
+### D-136 — the metadata-restoration POSIX translation (S-060 landing, REGISTERED DELIBERATE TRANSLATION — engine behavior)
+
+**Class:** deliberate cross-platform translation · **Findings:** S-060 (landing
+2026-10-29) · **Date:** 2026-10-29
+
+**WHAT OG DOES:** after every committed item the og's export tail runs
+`SetFileAttributesW(path, word & 0xfffd)` then `CreateFileW` + the mask-gated
+`SetFileTime(created, access, write)` trio (DRWUI:874686-718), both failures
+ReleaseTrace'd and non-fatal.
+
+**WHAT CORE DOES:** the identical contract on Windows (WinDestIo implements
+the og's shape verbatim). On POSIX hosts (FileDestIo — the portable ABI-check
+recovery surface), the same contract translates as: the times via
+`utimensat` (atime + mtime; a BIRTH time is not portably settable through
+POSIX — the created slot maps to nothing on hosts without a birth-time API
+and is skipped, never guessed), and the attributes via `chmod` carrying the
+READONLY bit (0x1) as the owner-write bit (the one DOS attribute POSIX can
+hold truthfully; hidden/system/archive have no portable mapping and are
+dropped rather than approximated). The per-field enables mirror the engine's
+emission — a zero slot is the og's honest no-date (the N-021/A-014 zero
+FileTime) and passes as NULL exactly like the og's mask gates.
+
+**WHY:** the og is a Windows-only product; the core's portable surface must
+either fake Win32 semantics (wrong) or translate honestly (this). The
+translation is reported per row ("restored" / "failed:<code>" /
+"unsupported") — never a silent approximation.

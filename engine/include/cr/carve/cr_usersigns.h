@@ -84,6 +84,12 @@ u32 parse(const char* bytes, size_t len, UserSignSet& out);
 u32 install_set(UserSignSet&& set); /* returns the install error or OK */
 u32 active_count();                 /* installed sign count (0 = none) */
 u32 snapshot(UserSignSet& out);     /* value copy under the lock (ABI info) */
+/* S-055 companion: unregister the active set (the empty registry -
+ * install_set cannot take an empty set by its own validation, so the
+ * explicit reset is the only way back to "no user signs". Mirrors the
+ * og's config-file-absent posture; test isolation uses it to pin the
+ * no-user-sign world that absence-asserting fixtures intend). */
+u32 clear();
 
 /* Match `p` (the stride base, at least kMaxOffset+1 bytes valid) against
  * the active set; returns the matching sign or nullptr. First match in

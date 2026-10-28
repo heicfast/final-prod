@@ -9128,7 +9128,15 @@ TEST(Carve, LzhWrongDashByteRejects) {
      * 5th byte rejects (the 5-byte magic carries the gate, so plant the
      * method bytes directly to defeat the magic and exercise the walk's
      * re-check... the magic itself IS the gate here: a wrong-dash form
-     * never matches any row). */
+     * never matches any row). REGISTRY HYGIENE (the S-055 hot-window
+     * red): the default user-sign set carries lha "2,2D6C68" ("-lh" at
+     * +2) - with a set installed by an earlier test, this fixture's
+     * prefix carves a device-end lha USER record (the D-104 out-of-box
+     * superset, by design). The no-carve assertion pins the
+     * no-user-sign world, so this test resets the registry explicitly
+     * (the suite's per-process registry makes absence a state to SET,
+     * not a default to assume). */
+    ASSERT_EQ(OK, carve::usersigns::clear());
     std::vector<u8> img(64 * 1024, 0);
     const size_t at = 512;
     std::memcpy(img.data() + at + 2, "-lh0x", 5); /* 'x' at byte 6 */

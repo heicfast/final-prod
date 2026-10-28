@@ -1,3 +1,32 @@
+**Session-51 severe-first lane — S-060 landed + the hot-window main red closed (2026-10-29).**
+
+**S-060 FIXED (the metadata restoration).** Corpus re-verified first-hand
+(the per-item tail at DRWUI:874673-722 — attributes & 0xfffd, the mask-gated
+SetFileTime trio, both failures non-fatal). DestIo::FileMeta + set_metadata
+(default ERR_UNSUPPORTED, never faked); the writer restores post-commit for
+every non-dir item with per-field enables mirroring the engine emission (a
+zero slot = the og's no-date, passes as NULL — the og's mask semantics in
+the core's emission model); non-fatal + the report row's metadata outcome
+("restored"/"failed:<code>"/"unsupported", emitted in the JSON). Win32
+backend = the og's shape verbatim; the POSIX translation (utimensat + the
+readonly-bit chmod, birth-time honestly skipped) registered as D-136. The
+N-009d row's refuted premise ("og never calls SetFileTime" — grep-scoped to
+the wrong binary, RecoveryModule instead of the DRWUI export body) corrected
+in writer.md. 4 tests RED (call-site-removed rebuild) -> GREEN; suite
+1261/1261.
+
+**Hot-window main red closed (a NEW class at the merge):** the a5fe33a5
+landing's claim "main red closed" was premature - Carve.LzhWrongDashByteRejects
+failed on the merged tree (verified WITHOUT this lane's changes: the pre-
+existing red). Root cause: test-order residue - the default user-sign set
+(left installed by this lane's GrammarRejectedMagicNotReclaimedByUserSign)
+carries lha "2,2D6C68" which matches the LZH fixture's "-lh" prefix, so the
+wrong-dash form (grammar never dispatched - not a rejection, an unclaimed
+position) carves a device-end lha USER record BY D-104 DESIGN. The test
+asserted a no-user-sign world it never set. Fix: usersigns::clear() (the
+explicit registry reset - install cannot take an empty set) + the test pins
+its world. Suite green.
+
 **Session-51 severe-first lane — S-057 landed (2026-10-29).**
 
 **S-057 FIXED (the stop-window auto-save).** Corpus re-verified first-hand
