@@ -126,7 +126,7 @@ docs/PARITY-DELTAS.md lineage.
 | 2 | cr_ui.h:916 phantom macro → ERR_BAD_PARAMETER; :407 "direct" removal | this session |
 | 3 | ABI-CONTRACT §4 (0x500B family rows), §6 (FS_CHECK type 10 + struct tail), §7e (driver-only rewrite), §3 sentence; API.md (79 exports, 3 missing rows, driver-era §2.2); CORE-API-CURRENT point edits; API-SURFACE-AUDIT headline | this session |
 
-## 3. Remaining board (after parallel-lane landings + this session)
+## 3. Remaining board (after parallel-lane landings + that session)
 
 - **S-038** app-installer surface (packaging milestone; step 1 = PACKAGING.md
   landed `e75d4df`; steps 2-4 = installer implementation + tests — a
@@ -140,3 +140,52 @@ docs/PARITY-DELTAS.md lineage.
 - **OQ-S4-3** chunking perf probe (tracked-open, engine scope).
 - **A-ABI-6** codeql lane `if: false` vs RELEASE-NOTES claim (policy decision
   for the repo owner, flagged in the audit).
+
+---
+
+# Session 2 (2026-10-28, api-fix continuation) — the post-A-011 truth pass
+
+> Method: context-recovery protocol re-run, API scope only. Three parallel
+> read legs produced `/home/z/my-project/api-remediation/context/{research,
+> core,driver}-api-inventory.md`; every item below was then verified
+> FIRST-HAND against the tree before fixing (zero-invention bar). Corpus
+> `03ad46c`; core base `c899998`; driver `f569836`.
+
+## 4.1 Re-verification of the session-1 board (wire + counts)
+
+| Surface | Verification | Result |
+|---|---|---|
+| Driver wire, user-mode half | cr_rda.h vs rda-driver `src/shared/inc/rda_ioctl.h` line-by-line: identity 0x60002400/04/08, extended 0x6002440/44/48, all 19 session codes 0x800C2AC0..0x800C2B42, F11 Information x512 | **MATCH (byte-exact)** |
+| cr_ui export count | 82 `CR_UI_API` header hits - 3 macro defines = 79; API.md:77 claims 79 | **MATCH** |
+| Error model | `rg -c "^\s+ERR_\w+\s*=" include/cr/cr_error.h` = 39 + OK; CORE-API-CURRENT banner claims 39+OK | **MATCH** |
+| CLI dispatch (code truth) | wmain rrecov.cpp:2779-2800 — 10 verbs: list, list-carve-formats, scan, tree, recover, health, fix, apply, bench, driver | **MATCH (code is the truth; docs below drifted)** |
+| M-064 upstream status | rda-driver `f569836`: v0.2.3 batch (6b50bb8) landed the Parameters write+verify half (install.ps1:91-103, labeled M-064); `-Uninstall` verb, `%s%d` versioned layout, per-call SCM error strings still absent | **REMAINS upstream-lane (no core action; core's driver-status discovery needs no change while the layout stays unversioned)** |
+
+## 4.2 NEW drift found and verified this session (fix items A-D)
+
+| # | Site | Drift (verified) | Status |
+|---|---|---|---|
+| A | `docs/crsf-format.md:27-29` (+ no payload section) | Record-type list stops at `8 DISK_LAYOUT (M-042)` — omits `REC_FS_CHECK = 9` (cr_crsf.h:75, M-041); no FS_CHECK payload grammar anywhere in the doc | **PENDING — fix commits follow this board** |
+| B | `src/app/rrecov.cpp:4-17` (header comment) | Lists 8 of 10 verbs (missing `list-carve-formats`, `apply`); scan line omits `--image`/`--deep`/`--repair-undo`/`--user-signs`; recover line omits `--image`; stray `*` artifact mid-continuation line 10 | **PENDING — fix commits follow this board** |
+| C | `docs/API.md §1` (:27-41, :44-60) | 8 of 10 verbs (missing `list-carve-formats`, `apply`); scan line omits `--image`/`--deep`/`--repair-undo`; `[--repair [plan]]` carries a phantom `[plan]` value (`--repair` is a bare `has_flag`, rrecov.cpp:1089); recover line omits `--image` (rrecov.cpp:1611); exit-code table has a DUPLICATE row 3 (:58 and :60) | **PENDING — fix commits follow this board** |
+| D | `docs/CORE-API-CURRENT.md §c` | :313-314 says 9 verbs — omits `driver` — with stale wmain cite 2495-2551 (actual 2779-2800); c.7/c.8/c.9 document the REMOVED `--no-rda` flag (rrecov.cpp:1926/:2462 comments mark it removed); c.9 claims transport label `"rda"/"direct"` reported — only `"rda"` exists (rrecov.cpp:1992, PLAN-DRIVER-ONLY R10); c.9's doc-drift note cites API.md's already-fixed `info`-verb line as current; §c function-range cites stale throughout (print_disks 560-590 -> 636-664, print_carve_formats 597-655 -> 673-735, scan 781-1365 -> 857-1486, tree 1368-1423 -> 1530-1581, recover 1425-1641 -> 1587-1808, health 1643-1753 -> 1813-1921, bench 1754-1874 -> 1924-2125, apply 1989-2285 -> 2161-2458, fix 2287-2493 -> 2460-2666) | **PENDING — fix commits follow this board** |
+
+Grounding for item A's payload section (verified first-hand):
+`serialize_fs_check` (src/core/check/cr_fscheck.cpp:1009-1044) /
+`deserialize_fs_check` (:1046-1089); the og lineage is M-041's
+FileSystemCheck error set 0x1001..0x100e (finding
+`findings/FIXED/M-041-damage-audit-check-phase-missing.md`).
+
+## 4.3 Board after session 2
+
+API-surface code and its normative docs are now consistent at
+`c899998`+this session. Remaining items are all OUTSIDE the core API
+surface: S-038 steps 2-4 (packaging lane), M-064 upstream remainder
+(driver scripts lane), A-ABI-6 (owner policy), OQ-SA-1/OQ-S4-3
+(engine-scope probes), I-026 (deliberate posture). N-089 FIXED at
+`c899998`.
+
+**Pin added:** `CliVerbListsAreThreeSiteLocked` — any verb/flag/export
+change must land docs/API.md §1, CORE-API-CURRENT §c AND the rrecov.cpp
+header comment in the same change (the three sites this session proved
+drift independently).
