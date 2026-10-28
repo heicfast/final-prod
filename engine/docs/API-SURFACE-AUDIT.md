@@ -129,7 +129,7 @@ engine boundary — a C host composes it from existing exports).
 | A-ABI-3 | Export-count drift: docs say "57 exports" (UI-READINESS-PLAN.md:48, RELEASE-NOTES.md:17); actual 61 | LOW | refresh counts |
 | A-ABI-4 | ABI-CONTRACT §5 names nonexistent functions (`session_disk_map`, `scan_disk_map`) | LOW | fix names to `cr_ui_disk_map` |
 | A-ABI-5 | ABI-CONTRACT §6 claims events fire "on the thread running run() only" vs. header truth (worker threads allowed) | MEDIUM (threading contract is load-bearing for hosts) | header wins; fix doc |
-| A-ABI-6 | `codeql` lane disabled (`if: false`) in ci.yml:174-175 while RELEASE-NOTES.md:71 claims "CodeQL clean" | MEDIUM | re-enable or re-word the claim honestly |
+| A-ABI-6 | `codeql` lane disabled (`if: false`) in ci.yml:174-175 while RELEASE-NOTES.md:71 claimed "CodeQL clean" | MEDIUM | **RESOLVED — api-exp S3-1 truth pass (this session, first-hand re-verified)**: the RELEASE-NOTES claim is GONE at this tree (grep: zero CodeQL hits anywhere in RELEASE-NOTES.md; line 71 is now the Win7 import-gate bullet) and the lane deferral IS the recorded decision (ci.yml:173-175 "recorded, not silent" + CI-CURRENT.md:115) — no false claim stands; re-enabling the lane stays an owner-lane option, recorded not silent |
 
 ## 4. C consumer test coverage (the `/W4 /WX` gate)
 
@@ -171,15 +171,17 @@ PauseBlocksAndResumes) per the documented threading split.
    `Query.PathPrefixFilterMatchesAndPrunes` + ABI + C-consumer blocks; tag
    group documented NOT-EXPOSED (D-53 lineage).
 5. **DONE** — Doc drifts A-ABI-3/4/5 fixed (export counts, §5 names, §6
-   threading); A-ABI-6 (codeql `if: false` vs the RELEASE-NOTES claim)
-   remains open — a policy decision for the repo owner (re-enable the lane
-   or re-word the claim), flagged in the audit's findings table.
+   threading); A-ABI-6 closed at the api-exp S3-1 truth pass: the
+   RELEASE-NOTES claim is gone at this tree and the deferral is the
+   recorded decision (ci.yml:173-175 + CI-CURRENT.md:115) — re-enabling
+   the lane remains an owner-lane option, recorded not silent.
 6. **DONE** — C-consumer expansion (§4 above).
 7. M-023 (category taxonomy) remains engine-scope, tracked in diff-to-fix —
    not blocking this session's API completion (D-55 registers it honestly).
 
 Post-session statuses: ops #7/#8 → MATCH; op #20 → MATCH on 6-of-7 groups
 (tag NOT-EXPOSED with rationale); every cross-platform ABI export family has
-C-consumer coverage. Remaining tracked items: M-023 (engine scope), A-ABI-6
-(codeql policy), Windows-only-surface real-disk coverage rides the bench
-harness.
+C-consumer coverage. Remaining tracked items: M-023 (engine scope) and
+Windows-only-surface real-disk coverage rides the bench harness (A-ABI-6
+closed at S3-1; the codeql deferral itself stays recorded in CI-CURRENT
+§7).
