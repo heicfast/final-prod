@@ -50,3 +50,10 @@ None (documentation). A CI-side guard could assert the matrix's cited workflow p
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-128 landing — recorded post-push in the ledger row)
+**Verified by:** the falsifiable checks re-run this session: `ls .github/workflows/` returns exactly {checks, installer, release, test-benchmark}.yml; `.github/actions/` does not exist; the row's evidence column now cites exactly those four paths; the DONE verdict no longer carries the follow-up inside it (a separate FOLLOW-UP cell names the ext4/HFS+/Btrfs/ZFS/ReFS staging, its owner, and its next concrete step).
+**Resolution notes:** Both halves repaired per the fix plan: (1) the evidence column rewritten to the post-consolidation lane set — checks.yml (the consolidated correctness lane; the M-088 fix's own landing), installer.yml (the S-038 installer gates, where the install-driver logic now lives — it builds the installer and fetches/signs the prebuilt driver), release.yml (the sole build source), test-benchmark.yml; (2) the verdict split — DONE covers the v1 matrix, the FS-staging follow-up is now its own owned cell (the unowned-follow-up failure mode closed), with the CI-SCENARIOS.md:81-83 boundary note as the detail record and the next concrete step named (a per-filesystem staging script feeding the same expected-vs-observed harness). Doc-only; the directory listing is the verification.

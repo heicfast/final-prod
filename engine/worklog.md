@@ -1,3 +1,9 @@
+- **N-128 FIXED** — the CAPABILITY-MATRIX prebuilt-CI row doubly-untrue claim repaired: the
+  evidence column re-pointed at the actual post-consolidation lane set (checks / installer /
+  release / test-benchmark — no .github/actions/ exists), and the DONE verdict split from the
+  ext4/HFS+/Btrfs/ZFS/ReFS staging follow-up, which now has an owner (this row) and a next
+  concrete step (per-filesystem staging scripts feeding the same expected-vs-observed harness).
+  Doc-only; the directory listing is the verification.
 - **N-130 + N-138 FIXED** — the VideoFileRepairer.exe register row (SIDECAR-OOS, the full
   evidence chain: fix_main_code lineage, -r/-a CLI, MP4/QT atom grammar, avcodec-62 + faad2, the
   M-021 touchpoint) enriched with N-138's decode (the <dir>\sfc encrypted engine-init database);
