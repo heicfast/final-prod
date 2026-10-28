@@ -2466,3 +2466,7 @@ mirrors + R-86 flipped to PRESENT) with `CrUi.EnumerationRefreshContractPinned`
 the pin also guards the local-list implementation shape and the absence of static state in
 enumerate_disks_impl. N-105: FIXED-ALREADY - D-106 is the demanded deferral record (the
 S-044 lane's rider), reproduction in the Resolution.
+
+Batch D conform: N-091/N-098/N-105 retired into history, ledger rows appended, matrix
+rows flipped, SUMMARY board updated. Filesystem truth: 47 active (6 SEVERE · 22 MAJOR ·
+14 MINOR · 5 INFO) / 279 resolved / 2 tracked-open. Session-38 tally: 21 findings closed.

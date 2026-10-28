@@ -21,6 +21,7 @@
 
 **Counts:** 277 resolved findings (the batch-C-conform 276 `0872ac2`/`64a3b18` + **S-041 resolved-as-umbrella by the SA-10 lane** — the purge's 255 + every mid-flight landing through batch C + the convention conformances + S-041/N-101) · 98 with a fix-commit recorded in-file ·  *(the dated counts snapshots below are the parallel lanes' push-window history, kept per the 64a3b18 sweep)*
 **Counts:** 276 resolved findings (255 at the purge commit + the mid-flight parallel landings + the session-38 waves: N-116 `632d21e`, N-117/N-118/N-103 `954c386`, N-095/N-108/N-119 `e1e5124`, batch C N-104/N-097/N-102/N-123/N-101/N-120 fixed + N-099/N-106 FIXED-ALREADY `13245c0`; S-043 `b3938c8` moved its file into the re-created FIXED/ dir BEFORE this convention was readable - its row is pending, the next audit lane retires the file) · 98 with a fix-commit recorded in-file ·
+**Counts:** 279 resolved findings (…prior waves…; the session-38 registration batch D adds N-091/N-098 fixed + N-105 FIXED-ALREADY) · 98 with a fix-commit recorded in-file ·
 
 **Counts (268, the prior window's snapshot):** 255 at the purge commit + the mid-flight parallel landings absorbed at rebase: M-084/M-091 `16475b8`, N-092 `5ed862f`, N-124 `c75755d`, M-088 DFX-38, N-116 `632d21e`, N-117/N-118/N-103 `954c386`, N-095/N-108/N-119 `e1e5124` session-38 doc-truth batches A+B.
 
@@ -309,6 +310,9 @@
 | N-120 | MINOR | (session-38 doc-truth batch C; live residues fixed + the rest FIXED-ALREADY with reproductions — Resolution at 13245c0) | 13245c0 | `findings/MINOR/N-120-audit-trail-pointer-and-arithmetic-drifts.md` |
 | N-099 | MINOR | (FIXED-ALREADY — classified session 38: E55 + the live WPG/ctor re-pins carry the corrections; reproduction in the Resolution at 13245c0) | (parallel session-8/SCAN-4 lanes; E55) | `findings/MINOR/N-099-batch1-citation-truth-pass.md` |
 | N-106 | MINOR | (FIXED-ALREADY — classified session 38: the SI:86 disposition row; reproduction in the Resolution at 13245c0) | (parallel session-8 wave-2 lane) | `findings/MINOR/N-106-getdriverinfo-disposition.md` |
+| N-091 | MINOR | (session-38 registration batch D; D-108/D-109/D-110 landed — Resolution in history at the batch D commit) | (this session) | `findings/MINOR/N-091-parity-deltas-registration-gaps.md` |
+| N-098 | MINOR | (session-38 batch D; the contract sentence + mirrors + the `EnumerationRefreshContractPinned` pin, RED→GREEN proven) | (this session) | `findings/MINOR/N-098-enum-refresh-contract-sentence.md` |
+| N-105 | MINOR | (FIXED-ALREADY — classified session 38: D-106 is the demanded deferral record; reproduction in the Resolution) | (parallel S-044 lane's rider) | `findings/MINOR/N-105-autosave-folder-suffix-naming.md` |
 
 ## Go-forward convention (established by this purge, per the user instruction)
 
