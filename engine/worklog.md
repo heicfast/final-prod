@@ -2424,3 +2424,18 @@ Stage Summary:
   first — the og's top-3 carve formats by volume). S-052's fix is
   architectural (the basis descriptor + the retained virtual devices) —
   start there.
+
+---
+Task ID: SA-10/truth-note (the close commit's message vs the final board)
+Agent: session-10 lead lane
+
+The pushed close commit's message (bb2cd8a) names the board as it stood when
+the message was composed (66 active / 270 / 2 tracked-open); the three
+subsequent rebase rounds (the S-047/S-045-half/N-095+N-108+N-119 landings,
+then batch C's eight, then the 64a3b18 marker sweep) moved the board under
+it before the final push. **The filesystem is the truth: 54 active (6 SEVERE
+· 25 MAJOR · 18 MINOR · 5 INFO) / 277 in-history (FIXED-LEDGER.md, the 277
+line on top of the dated snapshots) / 3 tracked-open (OQ-S4-3, OQ-S8-1,
+OQ-S10-1)** — SUMMARY's SA-10 block, README's board line, and the worklog
+close entry all carry these numbers. Recorded per the truth mandate (the
+84a1832 precedent).
