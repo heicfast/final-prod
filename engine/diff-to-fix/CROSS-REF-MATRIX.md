@@ -67,8 +67,12 @@
     og sign matching is UPPERCASE-hex text memcmp; 12 og-dead lowercase signs live in
     the core, unregistered); **M-129** (carve P23-adjacent — the og's tolerant
     EUUserData loader (skip-and-continue) vs the core's all-or-nothing reject);
-    **M-130** (fat P1/P3/P26 — the dentry shape-validator family (ext-tail, size/chain
-    XOR, dir, >9-repeat histogram gates + walk-stop semantics) unported); **M-131 FIXED-ALREADY
+    **M-130 — FIXED (session-52 lane — findings/FIXED/M-130: the two-tier port [the
+    walk-BREAK gates: reserved-attr bits, the erased-pattern quad, label purity, the
+    10-pass/11-reject histogram; the emission-SKIP shape gates: size/chain XOR, the
+    dir shape]; 3 decode corrections recorded [the ext-tail gate is the attribute
+    byte; the histogram boundary; the skip-vs-break split]; 8 tests, 4 RED pre-fix;
+    suite 1322/1322)** (fat P1/P3/P26 → MATCH); **M-131 FIXED-ALREADY
     (4f0fc160, the parallel A-013 landing — verified at c98eb7a7: the CliCkSink
     tmp+commit+rename reproduction; the sink never opens the final path for
     truncation; CrUi.CliResumeSinkNeverTruncatesTheSessionSource green;

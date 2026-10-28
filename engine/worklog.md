@@ -7733,3 +7733,29 @@ own clamp surface, and cr_ui.cpp's `Level::Warning` (the enum is `Warn`); both r
 Full suite **1342/1342** post-convergence; clang-format 18.1.8 clean. Trail: N-171 →
 findings/FIXED/ with Resolution; ledger row; S-055/S-056 convergence addenda on the
 winning Resolutions.
+
+## Session-52 lane — M-130 landed (2026-10-29)
+
+**M-130 FIXED (MAJOR — the FAT dentry shape-validator family).** The corpus re-decode
+went BEYOND the finding (every gate re-read in the raw decompile, FUN_1800365a0
+:44263-44375 + the helpers :44380-44520 + all 9 call sites): (1) the ":44295-96
+ext-tail > '?'" gate is the ATTRIBUTE byte (the u32 at +0x08's top byte — the walk
+sites pass the dentry as both context slots, :8788-89/:42944-45); (2) the histogram is
+10-pass/11-reject (pre-increment `9 < count`); (3) the size/chain-XOR + dir gates run
+ONLY at the emission walk (:42948, param_2=1) — a SKIP class, distinct from the
+walk-BREAK classes at :8792/:53647; (4) two gates the finding missed: the
+erased/repeated-pattern quad (ext+attr == ntres/tenths/crtime, != 0x20 — rejects the
+all-zero dentry) and label purity (volume bit set but attr ∉ {8, 0x28} → walk stops —
+upgrading the FAT-10 stray-cluster 0x0F class from skip to break, the og's semantics).
+The port: `fat_dentry_walk_ok` + `fat_dentry_shape_ok` in cr_fat_wire.h, wired at
+walk_dir_entries (break) and pre-emit (skip); `shape_rejected` counter added. The
+date/time sub-gates stay config-gated (N-010c lineage; FUN_1800368e0's time gate is
+behind its own og config flag — A-014 owns the always-on emission semantics). One
+fixture corrected per the S-042 rule: test_telemetry's build_fat16_wide planted
+cluster-2/size-0 dentries — the exact illegal XOR class. Tests (8):
+DentryAttrReservedBitsStopWalk / DentryErasedPatternQuadStopsWalk /
+DentryHistogramEleventhRepeatStopsWalk / DentryImpureLabelStopsWalk (4 RED pre-fix),
+DentryHistogramTenRepeatsStillEmit (the boundary pin), PureVolumeLabelSkippedWalkContinues,
+SizeChainXorSkippedButWalkContinues, DirSizeAndHighClusterSkipped. Suite 1322/1322
+(linux-release); FatEngine+Telemetry ASan-clean (78/78). Trail: findings/FIXED/M-130 +
+ledger row + matrix cell + fat.md row + this entry.
