@@ -1,4 +1,22 @@
 # SUMMARY.md — executive summary (the session-40 fix lane on top; the prior lanes below, newest-first)
+## Session-40-continuation delta (2026-10-29 — the S40-continuation minors lane over the S11 filings; the user's "priority to minor first" mandate)
+
+**Fix order this lane: MINOR → INFO** (the SEVERE tier is the parallel S40
+SEVERE-first lane's declared territory — S-052 in flight, S-054/S-053/S-049/
+S-048/S-050/S-040 their queue; no duplication). Opens at core `c0f69250`, corpus
+`be0cfe9`.
+
+**FIXED this lane so far:**
+- **N-142** (MINOR — ui): the dead CrPreview origin pair (src_session/src_node_id)
+  removed with its two preview-open writes; the M-083 comment re-truthed to the
+  landed promotion's own-argument addressing (ABI-CONTRACT §7i). Acceptance grep
+  zero hits; cr_ui_tests 59/59.
+
+**Board now: 54 active (7 SEVERE · 20 MAJOR · 27 MINOR · 7 INFO) · 306 resolved
+ledger rows · 3 tracked-open.**
+
+---
+
 ## Session-40 delta (2026-10-29 — the diff-to-fix board execution: SEVERE-first)
 
 **Audited/fixed: core `4a6a5164` at open, corpus `be0cfe9`; suites 1003 + 59 green
