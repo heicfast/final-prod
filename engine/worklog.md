@@ -469,3 +469,26 @@ Stage Summary:
   (auto next-patch), then the auto-dispatched test-benchmark against it -
   the empirical loop the lane set itself enforces (a rewritten composite
   with zero dispatches is an unverified composite - the M-068 lesson).
+
+Task ID: PARITY-FIX-6 (OQ-S4-3's TTFR harness — the event-stream probe)
+Agent: main session
+
+Work Log:
+- rrecov scan: TtfrProbe + ttfr_event_fn — ONE log line at the first
+  positive FilesFound event (run-elapsed ms from the event's
+  pause-compensated timestamp_ms; the honest granularity: counters
+  coalesce at stage boundaries). Set before the ScanController
+  construction (the controller copies cfg — caught by review); atomic
+  once-flag (worker threads); no new CLI flag (the existing --log).
+- verify-scenario.ps1: --log engine-log.txt + the ttfr block in the
+  evidence JSON + the printed line; the evidence upload covers it.
+- OQ-S4-3 tracked-open file: the harness section appended; the
+  measurement is the lane's next dispatch (execution-bound).
+- Gate trail: win_syntax_check green (it caught two relocation defects
+  before the push — the parse gate working as designed); ps_sanity OK.
+
+Stage Summary:
+- The last code-side item this session could land without colliding with
+  the parallel lanes' pinned queues. Watching: the installer round-trip
+  job + the CI lane at 624db00.
+>>>>>>> 32a14d1 (feat(cli+ci): OQ-S4-3's TTFR harness — the event-stream probe on rrecov scan + the staged-scenarios extraction)

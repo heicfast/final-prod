@@ -65,6 +65,7 @@
 #include <windows.h>
 #include <map>
 #include <chrono>
+#include <atomic>
 #include <cstdarg>
 #include <filesystem>
 #include <cstdio>
@@ -183,6 +184,28 @@ void log_line(const char* fmt, ...) {
     va_end(ap);
     fputc('\n', g_log);
     fflush(g_log);
+}
+
+/* OQ-S4-3's TTFR probe (the acceptance's scan-level time-to-first-result
+ * half; probe-target correction 97cc3b2 = ride the staged-scenarios lane):
+ * the typed event stream's FIRST FilesFound event with a positive count is
+ * the earliest observable "first result" (counters coalesce at stage
+ * boundaries - the event's timestamp_ms is run-elapsed, pause-compensated).
+ * One log line, once; the staged-scenarios evidence JSON extracts it
+ * (verify-scenario.ps1). Events may fire from engine worker threads - the
+ * once-flag is atomic. */
+struct TtfrProbe {
+    std::atomic<bool> fired{false};
+};
+
+static void ttfr_event_fn(const orchestrator::event::Event& evt, void* user) {
+    auto* probe = static_cast<TtfrProbe*>(user);
+    if (evt.type == orchestrator::event::Type::FilesFound && evt.files_found > 0 &&
+        !probe->fired.exchange(true)) {
+        log_line("ttfr_ms=%llu first_files=%llu stage=%u",
+                 static_cast<unsigned long long>(evt.timestamp_ms),
+                 static_cast<unsigned long long>(evt.files_found), evt.stage);
+    }
 }
 
 /* ---------------------------------------------------------------------------
@@ -1243,6 +1266,13 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
     tree::ResultTree tree;
     std::unique_ptr<orchestrator::ScanController> ctrl;
     orchestrator::ScanStats stats;
+    /* OQ-S4-3's TTFR probe: consume the typed event stream for the
+     * first-result timestamp - set BEFORE the controller construction
+     * (the controller copies the config); the once-flag lives in scan's
+     * frame so the probe outlives run(); events fire from worker threads */
+    TtfrProbe ttfr_probe;
+    cfg.event_fn = &ttfr_event_fn;
+    cfg.event_user = &ttfr_probe;
     if (!resume_path.empty()) {
         FILE* fin = nullptr;
         if (_wfopen_s(&fin, resume_path.c_str(), L"rb") != 0 || !fin) {

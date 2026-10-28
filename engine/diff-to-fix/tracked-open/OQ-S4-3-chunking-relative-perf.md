@@ -193,3 +193,27 @@ The transport-chunking half stays MEASURED-and-closed (the alignbench
 numbers above); only the TTFR half remains open, now with a corrected
 target. No engineering prerequisite exists for option 1 (the event stream
 already carries the timestamps).
+
+## The TTFR harness (2026-10-28, PARITY-FIX-5 — option 1 implemented)
+
+The probe harness landed (the measurement = the lane's next dispatch):
+
+- `rrecov scan` now consumes the typed event stream (GAP-S6-10) for the
+  TTFR datum: `TtfrProbe` + `ttfr_event_fn` log ONE line —
+  `ttfr_ms=<run-elapsed> first_files=<n> stage=<s>` — at the FIRST
+  FilesFound event with a positive count (the event's `timestamp_ms` is
+  run-elapsed, pause-compensated; counters coalesce at stage boundaries,
+  so the first positive boundary is the earliest observable first result —
+  the honest granularity the event stream carries). Set BEFORE the
+  ScanController construction (the controller copies the config); the
+  once-flag is atomic (events fire from worker threads). Parse-gated
+  (win_syntax_check); no new CLI flag — the existing `--log` carries it.
+- `verify-scenario.ps1` (the staged-scenarios lane's acceptance script)
+  passes `--log engine-log.txt`, extracts the line into the evidence JSON
+  (`hash-verification.json`'s new `ttfr` block) and prints it; the
+  evidence artifact upload already carries the whole evidence dir.
+
+**Remaining:** the lane's next green dispatch transcribes the TTFR number
+into this file (execution-bound — daily cron 05:30 or a manual dispatch);
+the og-side TTFR comparison then closes the acceptance's second half with
+the same evidence strength as the transport numbers above.
