@@ -526,6 +526,15 @@ the registry census, not the family semantics. The class-by-class comparison
 - CORRECTIONS #5 propagated: the RawConfig [Filter] count is 34, not 37
   (M-024 addendum; matrix/SUMMARY/evidence notes updated).
 
+## Fix-session delta (N-086 closed — 2026-10-28)
+
+- **N-086 → FIXED (registered)**: the compiled-in raw-signs posture
+  registered as PARITY-DELTAS D-103 (option (a): reproducibility over
+  field mutability; the usersigns surface — the shipped default set +
+  --user-signs + the cr_ui ABI — covers the runtime-extension story;
+  option (b) is the tracked design with its conditional test pair).
+  No code change: a registration fix.
+
 ## Fix-session delta (M-065 closed — 2026-10-28)
 
 - **M-065 → FIXED** — the shipped default set: data/userdata-defaults.json

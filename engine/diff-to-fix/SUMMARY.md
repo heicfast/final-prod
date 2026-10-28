@@ -27,6 +27,21 @@ A-010 row the earlier FIX-1 lane missed) — the index is current again.
 M-065/M-066/N-088 landings) · tracked-open 3 (OQ-S4-3 + OQ-SA-1/2 —
 OQ-SA-3 resolved by the M-065 landing).
 
+## Fix-session delta (2026-10-28 — N-086, the rawsigns posture registration)
+
+**N-086 (MINOR) FIXED (registered)**: the compiled-in base-signature-
+table posture is now a registered deliberate divergence —
+**PARITY-DELTAS D-103** (option (a): reproducibility over the og's
+field-mutable install-tree raw_signs.json; the runtime-extension
+surface is the usersigns path with the shipped 111-entry default set;
+option (b) — a data asset with a SHA-pinned fallback — is the tracked
+design should field-updatable signs become a product requirement).
+Content-identical on the corpus reference; a registration fix, no code
+change.
+
+**Board after N-086:** 3 active (1 SEVERE S-038 · 1 MAJOR M-064-rem ·
+1 INFO I-026) · **237 FIXED** · tracked-open 3.
+
 ## Fix-session delta (2026-10-28 — N-087, the FAT 8.3 OEM decode)
 
 **N-087 (MINOR) FIXED**: `short_name_to_u16`'s identity byte-widening

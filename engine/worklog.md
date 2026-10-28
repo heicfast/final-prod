@@ -17727,6 +17727,7 @@ Stage Summary:
 - N-087 CLOSED. Board: 4 active (1 SEVERE S-038 · 1 MAJOR M-064-rem ·
   1 MINOR N-086 · 1 INFO I-026) · 236 FIXED · tracked-open 3. Next:
   N-086 (the rawsigns posture registration - a decision + one row).
+
 Task ID: FIX-3 (the S-039 convergence + the ledger reconciliation — M-067 filed+fixed; the RESOLVED-INDEX back-fill)
 Agent: main engineer (fix session: the handoff queue, convergence wave)
 
@@ -17771,3 +17772,32 @@ Stage Summary:
   (OQ-SA-3 resolved by the M-065 landing). Next queue: S-038 step 1
   (PACKAGING.md contract), M-064 remainder (%s%d versioned coexistence
   + -Uninstall verb), N-086/N-087, the OQ probes.
+
+---
+NOTE (the N-086 lane's rebase): the M-067 entry above predates this
+lane's N-087 (8451913) and N-086 landings; the board counts below are
+the current ones.
+
+---
+
+---
+Task ID: FIX-9 (N-086 — the rawsigns posture registration)
+Agent: main engineer
+
+Work Log:
+- The decision: option (a) — keep the compiled-in generated table
+  (reproducibility; the usersigns surface covers runtime extension
+  better than an unsigned JSON swap; no corpus evidence the og's
+  mutability is ever exercised by an update channel).
+- PARITY-DELTAS D-103 registered with the full rationale + option (b)'s
+  conditional test pair recorded for the future.
+- Trail: N-086 -> FIXED (Resolution), matrix row -> MATCH (REGISTERED
+  DELIBERATE - D-103), modules/carve.md delta, SUMMARY board
+  (4 -> 3 active, 236 -> 237 FIXED). No code change; suite unaffected.
+
+Stage Summary:
+- N-086 CLOSED. Board: 3 active (1 SEVERE S-038 · 1 MAJOR M-064-rem ·
+  1 INFO I-026) · 237 FIXED · tracked-open 3. The remaining open items
+  are all multi-session work: S-038 (the PACKAGING.md design doc +
+  installer), M-064's versioned-deployer halves, I-026 (deliberate,
+  no action), and the 3 tracked-open probes.

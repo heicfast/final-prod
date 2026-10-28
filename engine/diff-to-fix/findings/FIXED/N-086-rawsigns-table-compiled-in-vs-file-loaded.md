@@ -5,7 +5,7 @@
 **Parameters affected:** R56-adjacent (interface shape of the signature DB), Q68-adjacent (doc truthfulness of the posture), the config-data boundary (the og's raw_signs.json is a mutable data file; the core's is generated code)
 **Corpus references:** `easeus-drw-research/re-workspace/artifacts/SearchDLL/rawsearch-carving--deep-dive.md:54-59` — "raw_signs.json (139 extensions) — **loaded at engine init (23836): std::ifstream("raw_signs.json") → seekg(end)/tellg (size) → read whole file**" (with the correction that tinyxml2, not CJsonObject, parses it); `:121` the census's division of labor (JSON drives header/tail signs for formats without C++ analysers); `og-codebase/raw_signs.json` — the install-tree copy the engine opens
 **Core references:** `src/core/carve/cr_rawsigns_data.cpp` (the generated signature table — compiled in); `scripts/gen_rawsigns.py` (the generator that produces it from the corpus reference); audited commit `dd82db9`; the posture is unregistered — no PARITY-DELTAS row, no finding (the session's inventory: the raw_signs loading mechanism is documented only in the never-cited family/deep-dive artifacts)
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** FIXED (option (a) — registered) — see Resolution below
 **Prior audit check:** not in prior scope (N-030/FIXED covered the confidence-field semantics; the file-load-vs-compiled-in posture was never dispositioned)
 
 ## Summary
@@ -51,3 +51,26 @@ Corpus doc evidence (strength-3): deep-dive:54-59 (the ifstream load, quoted); t
 ## Open questions
 
 None.
+
+## Resolution (FIXED — option (a): the posture registered as D-103)
+
+The deliberate choice is now on the audit trail: **PARITY-DELTAS
+D-103** — the base raw-signature table stays compiled-in (generated
+source, reproducibility over field mutability), with the rationale:
+(1) the runtime-extension surface the og's mutability serves is covered
+better by the user-signature path (the shipped 111-entry default set +
+`--user-signs` replacement + the cr_ui ABI — the M-048/M-065 lineage,
+a stronger contract than an unsigned JSON swap); (2) a reproducible
+binary cannot be silently tampered via an install-tree file; (3) no
+corpus evidence shows the og's field-mutability exercised by any
+update channel. Option (b) (ship as a data asset with a SHA-pinned
+fallback) is the tracked design should a field-updatable signs pack
+become a product requirement — its test pair is recorded in D-103.
+
+Behavior on the corpus reference is identical (the generator is the
+single conversion point); this is a documentation/registration fix —
+no code change, no new tests (the (b)-only pair is conditional).
+
+**Landed:** commit "docs(parity): N-086 — D-103: the compiled-in
+raw-signs posture registered (option (a), reproducibility over field
+mutability)".
