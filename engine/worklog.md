@@ -2677,3 +2677,19 @@ fixtures and the real-session census are in the evidence file);
 ledger rows) + the optional git-cat-file guard script;
 (4) S-052 (the SA-10 lane's LDM finding) pairs naturally with the
 whole-disk pass — the LDM volumes ride the same candidate machinery.
+## Fix session — M-093 landed (the XML/SVG chain) + the two-case scan decode
+
+- **M-093 FIXED** (`d1dc51a`) — both open questions discharged first-hand
+  from the og binary's .data (PE section walk + hexdump): DAT_180093968 =
+  "csl" (the Corel marker -> generic XML id 0x13); the numeric key 0x1cd =
+  a raw dword magic CD 01 00 00 (direct SVG). The full six-needle svg set
+  hexdump-decoded. The probe is case-SENSITIVE (vs HTML's _memicmp); the
+  id split is content-decided — landed via CarveResult::format_override
+  (the emit site resolves the effective row). Four rows (XML/XML_BOM/
+  SVG_CD01/SVG); bounds {0, 1 MiB}; the </svg> walk without sector
+  round-up; the 0x44c CSL-size branch recorded as the residual stand-in.
+- **Decode discovery** — the og's shared end-marker scan (FUN_180054470)
+  is two-variant case-aware (_mbslwr_s then _mbsupr_s: all-lower +
+  all-upper, never mixed). scan_tag_two_case landed; the M-092 HTML
+  scanner refined to the og-exact semantics in the same change.
+- Tests: 5 new Carve.* (Svg*/GenericXml*/XmlNo*); suite 1081/1081.
