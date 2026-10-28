@@ -52,3 +52,42 @@ Corpus-derived (this session): the artifact excerpts quoted above (`rsf-format--
 ## Open questions
 
 The variant save path's TRIGGER (when does the og take the FUN_1403f1180 path over the standard writer — a one-caller decompile at fix time; not blocking for the field addition, but worth pinning so the core's "always write the descriptor" posture is a registered superset rather than an unexplained difference).
+
+---
+
+## Resolution (S50 lane, 2026-10-29 — retired as a FALSE-ACTIVE duplicate of N-066; no code change owed)
+
+**The battery verdict: FIXED-ALREADY at its own audited tree.** The exact
+fields this finding asks for — `char firmware[32]`, `char wwn[32]`, `char
+interface_desc[32]`, `u8 boot_snapshot[512]` — landed with **N-066's
+`4d3f0409`** ("the identity card's record-3 parity — the v4 tail
+(firmware/WWN/interface + the 512-byte boot snapshot) + the descriptor
+offset transposition fixed", 2026-10-26), three days BEFORE this finding
+was filed by the S12 lane. The fields exist at HEAD at
+`include/cr/session/cr_records.h:112-122`, serialize/deserialize at
+`src/core/session/cr_records.cpp:809-812` / `:852-862`, populate at save
+(`src/core/orchestrator/cr_scan.cpp:2424+`), and are pinned by
+`Session.BootSnapshotRoundTrip` (`tests/unit/test_session.cpp:1402-1415`).
+
+**The false-grep note (recorded for the trail's truth ledger):** this
+finding's own "Reproduction / verification" claims "grep-verified: no
+512-byte sector image, no firmware/WWN/interface strings anywhere in the
+session layer" — that grep was FALSE at this finding's own audited commit
+`c7fa527c` (verified `git show c7fa527c:include/cr/session/cr_records.h` —
+the N-066 tail is present). The S12 lane filed over a stale tree read.
+
+**The renumber trail stands:** N-142 -> N-186 (the S56 lane's SA-9
+renumber, the retired CrPreview N-142 keeping the seat) — this retirement
+retires the CURRENT ID.
+
+**The one honest sliver (optional follow-up, not a finding):** the
+load-side summary struct `VolumeSessionInfo` (cr_records.h:203-229, filled
+at cr_scan.cpp:2715-2736) does not re-expose the four fields to callers —
+the record layer round-trips them (functional parity for save/load), and
+no current consumer reads them at resume. If a future resume-time
+diagnostic needs the boot-sector diff, the exposure is a one-struct-tail
+change; recorded here so it is not re-filed as a gap.
+
+Trail: findings/FIXED/N-186 (this file) + the battery sheet
+`evidence/s50-liveness-battery.md` (the FIXED-ALREADY verdict) + the
+ledger row + the matrix cell flip.

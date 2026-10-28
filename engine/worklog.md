@@ -7915,3 +7915,93 @@ the two new control-flow constraints). Tests (8): the 4 RED behavior tests
 + the control/overlap/Fat16-skip pins + the one-shot re-grade test; suite
 1379/1379 (linux-release). Trail: findings/FIXED/M-134 + ledger row + matrix
 cell + orchestration.md row + the OQ-S42-3 update + this entry.
+## Session-50 continuation audit lane — close record (2026-10-29)
+
+**Lane:** S50 (renumbered from the S49 draft per SA-9 — the remote's S49
+parity-fix lane pushed its claim first). The fourth continuation audit lane
+of the user's second-session mandate. **Read-only guarantee held per
+commit: the lane's delta vs origin/main = `diff-to-fix/` + `worklog*` only**
+(verified file-by-file at each push).
+
+**Pins:** battery at core `93461483` (= `0d7b1d9d` code-identical; verified
+`git diff 659f0f6c..HEAD -- src include` EMPTY at battery run — the S45-S50
+claims were worklog-only at that point); the new filings re-verified at
+`34d6cf10` (HEAD at filing, mid the hottest window of the trail — the
+reconciliations below); corpus `be0cfe9` throughout.
+
+**The three asks, discharged:**
+
+1. **Remove-the-fixed — the 74-finding liveness battery** (4 parallel
+   batches; every defect site re-read, every absence re-grepped, per-file
+   git logs checked): **63 LIVE · 6 PARTIAL · 1 FIXED-ALREADY (N-186
+   retired — the battery's only falsely-active finding: the S12 lane filed
+   the rsf variant device-descriptor gap over a tree that already carried
+   N-066's `4d3f0409` fix; the finding's own "grep-verified zero hits"
+   claim was false at its own pin c7fa527c — the false-grep note recorded
+   in the Resolution) · 5 CANNOT-VERIFY (driver-repo: M-086/M-087/M-089/
+   N-107/N-127, tracked OQ-S10-3) · 4 REGISTER-STANDS. Zero phantom-fixed;
+   zero false retirements.** The post-pin fix-wave (the parallel lanes'
+   A-014/S-055..S-058/S-061/M-115/M-119/M-123/M-124/M-128..M-130/M-132/
+   M-137/M-138 + the minors + the INFO-tier retirement) is CONVERGENT —
+   every one of those findings was battery-pinned LIVE at the pin, and every
+   retirement landed after it (the S42-C precedent).
+2. **Go-deeper — the probes + the sweep:** OQ-S42-3 RESOLVED (the grading
+   deep-read sub-gates G0-G6 decoded + the twin-key/caller confirmation —
+   M-134's fix plan now carries the decoded spec); OQ-S42-1/OQ-S42-2
+   independently re-decoded CONVERGENT with the winning a75d8198/355472c4
+   (SI-preferred/FN-fallback; the nsec fold) + two benign-hardening nuances
+   registered (the og's 40-byte SI gate vs the core's 72; the core's
+   pre-1601 guard — no findings owed). The **25-landing parity sweep**
+   (the regression watch): 17 PARITY / 5 LIGHT-CHECK-OK / **3 DIVERGENCE —
+   all in the fix lanes' newest carve code** (S-062: the ONE walk's
+   size-gate exits publish 2x-device flat in the og, 0-on-first-chunk-decline
+   in the core; M-139: the HIK discriminator 0xBC-not-0xBD; M-140: the
+   CSL/CD01 latch-vs-fall-through) + the secondaries (N-189 DXF 16-byte
+   gate, N-190 the EXIF 39-char cap, N-191 the D-118 registry collision).
+3. **Mark-all-remaining:** the ifileproperties-part1 full census (the
+   under-cited flag on four module rows discharged; 51/13/4/7; 15 of 17
+   non-MATCH already trail-owned) -> N-192 (clone() drops short_name) +
+   I-047 (the +0x80 format/icon-ID register, acknowledged-at-filing);
+   the N-165-style register slivers (N-186's VolumeSessionInfo exposure)
+   recorded inside their owners, not re-filed.
+
+**The hot-window reconciliation:** three pushes raced (the S48/S46-lane
+window absorbed; the S53 lane's N-177 convergence; the S56 lane's
+N-142->N-186 renumber adopted mid-battery — the battery's N-142 verdict
+retired the CURRENT N-186 ID). The ID seats: this lane's S-062/M-139/
+M-140/N-189..N-192/I-047 all pushed after verifying next-free-ID against
+the merged tree (the draft's M-138/N-186..N-188 seats had been consumed
+by the window — the filings renumbered before first push, no collisions).
+
+**Board at close (filesystem truth at the pushed tree): 46 active —
+5 SEVERE · 20 MAJOR · 21 MINOR · 0 INFO (folded) / 106 FIXED / 5
+tracked-open.** Next free IDs: S-063+, M-141+, N-193+, I-048+, A-015+.
+
+**The handoff (this lane's recommended first fixes, in order):**
+1. **S-062** — the ONE walk exit values (one exit-value correction +
+   3 named tests; the silent-missed-recovery class).
+2. **M-139** — the HIK byte (two constants + the comment + 2 tests).
+3. **M-140** — the CSL latch (the fall-through deletion + 3 tests).
+4. **N-191** — the D-118 registry renumber (bookkeeping integrity for
+   every future D-cite; + the duplicate-D gate).
+5. **N-189/N-190/N-192** — the three one-line-or-small minors.
+6. **M-134** — now carrying the decoded sub-gate spec (the probe evidence
+   is its implementation reference).
+The SEVERE pair S-059/S-060 (writer metadata/sparse semantics) remains the
+board's largest user-impact pair after these.
+
+**Evidence index:** evidence/s50-liveness-battery.md (the battery) ·
+evidence/executions/s50-landing-parity-sweep.md (the sweep) ·
+evidence/decompiled-quotes/s50-landing-divergences.md (the three
+divergences, both sides) · s50-grading-deep-read-subgates.md (OQ-S42-3) ·
+s50-ntfs-btrfs-time-precedence-decodes.md (the OQ-1/2 corroboration) ·
+evidence/s50-ifileproperties-part1-census.md (the part1 census).
+
+**Rebase re-truth (the S52 lane's M-134 landing absorbed mid-push, convergent
+with this lane's OQ-S42-3 probe — the same decode fed both lanes):** M-134 is
+FIXED at `290e9c16` (their 8 tests incl. 4 RED pre-fix; the reader wired at
+the orchestrator; the graded-bit one-shot; the full-tree re-grade). The
+board at the pushed tree: **45 active — 5 SEVERE · 19 MAJOR · 21 MINOR ·
+0 INFO / 107 FIXED / 5 tracked-open** (M-134 out of MAJOR; the OQ's
+remaining scope narrowed to the +0x72/+0x74 flag-setter origins). This
+lane's handoff order unchanged except M-134 moves from item 6 to DONE.

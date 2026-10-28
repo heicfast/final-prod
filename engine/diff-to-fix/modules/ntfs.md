@@ -531,3 +531,16 @@ file is real content shape). The zero-valid-runs class still rejects.
 Tests: TornAfterValidRunsKeepsPrefix / AllGarbageYieldsNothing /
 SparseFirstAcceptedAndRegistered / the end-to-end
 TornRunlistKeepsPrefixAndGradesPartialRisk (2 RED pre-fix). Suite 1280.
+
+## S50 convergence note (2026-10-29 — the continuation audit lane)
+
+The lane's independent OQ-S42-1 probe CONVERGED with the winning a75d8198
+decode (SI-PREFERRED, FN-FALLBACK, FUN_180006db0 :5338-5351 + the
+FUN_180044fb0 40-byte size gate; the core's has_si-else-FN at
+cr_mftwalk.cpp:868 identical). This lane's additional nuance, registered
+in the B9 note: the og's SI size-validity gate is valueOffset+0x28 (>= 40
+bytes of SI value) where the core's parse_standard_information requires
+72 — on corrupt 40-71-byte SI records the og emits SI times, the core
+falls back to FN; the stricter gate is the benign hardening (no finding,
+no code change owed). Evidence: `evidence/decompiled-quotes/
+s50-ntfs-btrfs-time-precedence-decodes.md` §1.

@@ -135,3 +135,56 @@ through to it. Next probe sites: FUN_1401bc5a0's predicate body (the manager
 lookup keyed on the node), and the +0x72/+0x74 flag setters (search the
 props-builder for the byte writes — the bit-2-of-+0x74 "deep-read-skip"
 readiness flag and the bit-7-of-+0x72 candidate flag).
+---
+
+## Session-50 disposition (2026-10-29 — RESOLVED by the continuation audit lane's probe)
+
+**RESOLVED — the full sub-gate list decoded** (first-hand, DRWUI_decompiled.c
+:606291-606421 + the two callers; the evidence sheet:
+`evidence/decompiled-quotes/s50-grading-deep-read-subgates.md`):
+
+- **G0** — early-outs: null file / the session-restored graded bit
+  (+0x73 bit 2, FUN_1401c5da0) / unresolvable device -> return ungraded.
+- **G1** — the no-read grade-0 gate (mode 0): the offset in the global
+  key-set (+ flag bit7 of +0x72 set + bit2 of +0x74 clear) -> grade 0
+  without any read.
+- **G2** — the prev-sector tail gate: ONE sector read BEFORE the file's
+  first sector; its last 16 bytes all-zero -> tentative grade 2 (mode 0),
+  else tentative 1.
+- **G3** — the first-sector zeroed gate: the first 0x20 bytes all-zero ->
+  grade 0.
+- **G4** — the first-sector 0xFF gate: the first 4 bytes all-0xFF ->
+  grade 0.
+- **G5** — the param_4 flag hook: tentative 1 + param_4 -> set bit1 of
+  +0x74.
+- **G6** — the commit: MAX-ratchet (a committed 2 is never downgraded to
+  0 — FUN_140089630 :134188-134204) + the deep-read-done bit (+0x73 bit 3).
+  Mode 1 (the ReFS preview pass, FUN_1401c7d80 :331272-331289) can only
+  upgrade 0->1.
+
+Caller A (FUN_14038ac90 :605726-605800) re-decoded with the twin-key
+confirmation: the -2 index shift applies to FS types 1/4 (FAT16 and the
+EXT2-family) exactly as the M-133/M-138 filings decoded (:605753-756), and
+the PREVIOUS twin on collision is upgraded to grade 2 — the deep read runs
+only for non-twins.
+
+**Consumers closed:** M-134 (LIVE per the battery) now has the decoded
+sub-gate content for its fix plan (the absent deep-read validation is the
+finding; this decode is the specification). The OQ's own question is
+answered — the tracked-open seat closes; M-134 carries the remaining work.
+
+**S50/S52 reconciliation (at the rebase):** the S52 landing's M-134 fix and
+this lane's decode rode the same evidence — convergent. The S52 update's two
+open constraints are ANSWERED by this lane's decode above: (1) the failing
+pre-check's goto-target LAB_14038c622 is the commit path (the presumptive
+demote is skipped, the function continues — exactly the S52 note's
+reading); (2) the graded mark sits at the epilogue and the presumptive path
+falls through to it (confirmed at :606416-417). The predicate body is
+decoded: FUN_1401bc5a0 (:322676-322715) resolves the node's offset key and
+tests membership via FUN_14035abe0 (:575161-575178) -> FUN_1404ec7d0
+(:820130-820143, the vtable+0x20 contains(key)); the flag getters are
+FUN_1401b3550 (:317506-317510, bit 7 of +0x72) and FUN_1403895a0
+(:605061-605065, bit 2 of +0x74). **The OQ's remaining scope narrows to the
+flag-SETTER origins** (which pipeline stage writes bit7-of-+0x72 and
+bit2-of-+0x74 — the S52 note's props-builder byte-write search); the
+sub-gate decode itself is closed on both lanes' evidence.
