@@ -7189,3 +7189,177 @@ TEST(Carve, Jp2Jp2cFinalAtSliceEdgeFallsBackBounded) {
     ASSERT_NE(n, nullptr);
     EXPECT_EQ(n->props()->logical_size, end - at) << "the fallback end == the file end";
 }
+
+/* ---- N-112: the LZH family (the og's entry-chain walk with the
+ * per-method strides decoded from FUN_18003dd70 + the .data dump) ---- */
+
+namespace {
+/* plant a level-1 LZH entry: [hdr_size u8][chksum u8][method 5B]
+ * [comp u32 LE][unc u32 LE][mtime 4B][attr u8][level u8][namelen u8]
+ * [name][pad to hdr_size]. hdr_size counts the header INCLUDING itself,
+ * EXCLUDING the trailing 2-byte CRC (the next entry lands at
+ * entry_start + hdr_size + 2 + comp). */
+size_t plant_lzh_entry(std::vector<u8>& img, size_t at, const char* method, u32 comp,
+                       const char* name) {
+    const size_t namelen = std::strlen(name);
+    const size_t hdr_size = 22 + namelen; /* 21 fixed + name (+1 for the size byte) */
+    img[at] = u8(hdr_size);
+    img[at + 1] = 0;                             /* checksum (not gated) */
+    std::memcpy(img.data() + at + 2, method, 5); /* "-lh0-" etc. */
+    put32v(img, at + 7, comp);
+    put32v(img, at + 11, comp ? comp * 2 : 0);
+    img[at + 21] = 0;     /* level 1 */
+    img[at + 21 + 1] = 0; /* namelen placeholder - overwritten below */
+    img[at + 21 + 1] = u8(namelen);
+    std::memcpy(img.data() + at + 21 + 2, name, namelen);
+    return at + hdr_size; /* the CRC position (2 bytes) then comp data */
+}
+} // namespace
+
+TEST(Carve, LzhMethodFamilyAccepted) {
+    /* N-112: -lh0/-lh5/-lhd/-lh7 entry forms all carve (the og's four
+     * accepted methods, one row per key - the M-092 policy). */
+    for (const char* m : {"-lh0-", "-lh5-", "-lhd-", "-lh7-"}) {
+        std::vector<u8> img(64 * 1024, 0);
+        const size_t at = 512;
+        size_t p = plant_lzh_entry(img, at, m, 100, "a.txt");
+        /* the CRC + the compressed data + the 0x00 end marker */
+        p += 2 + 100;
+        img[p] = 0; /* the end marker */
+        const size_t end = p + 1;
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
+                  u32(OK));
+        tree::FileNode* n = find_carved_at(tree, at);
+        ASSERT_NE(n, nullptr) << "method " << m << " must carve";
+        std::string name;
+        ASSERT_TRUE(cr::text::lossless_u16_to_utf8(n->props()->name, name));
+        EXPECT_NE(name.find(".lzh"), std::string::npos) << "one id (0x24) -> one extension";
+        (void)end;
+    }
+}
+
+TEST(Carve, LzhEntryChainExtent) {
+    /* N-112: a two-entry -lh0 archive sizes to the chain end (entry1 +
+     * CRC + data + entry2 + CRC + data + the end-marker byte). */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    size_t p = plant_lzh_entry(img, at, "-lh0-", 40, "first.txt");
+    p += 2 + 40; /* CRC + stored data */
+    p = plant_lzh_entry(img, p, "-lh0-", 60, "second.txt");
+    p += 2 + 60;
+    img[p] = 0; /* the end marker */
+    const size_t end = p + 1;
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    tree::FileNode* n = find_carved_at(tree, at);
+    ASSERT_NE(n, nullptr);
+    EXPECT_EQ(n->props()->logical_size, end - at) << "the entry-chain extent";
+}
+
+TEST(Carve, LzhBrokenChainSalvagesLeadingEntries) {
+    /* N-112: a torn second header (garbage at the entry position) ends
+     * the walk cleanly - size = pos+1 (the end-marker byte slot). */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    size_t p = plant_lzh_entry(img, at, "-lh0-", 40, "only.txt");
+    p += 2 + 40;
+    /* garbage where entry2's method field would be - not any accepted
+     * method, and byte 6 != '-' */
+    for (size_t i = 0; i < 32; ++i)
+        img[p + i] = u8(0x41 + (i % 26));
+    const size_t end = p + 1;
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    tree::FileNode* n = find_carved_at(tree, at);
+    ASSERT_NE(n, nullptr) << "the leading entry salvages";
+    EXPECT_EQ(n->props()->logical_size, end - at) << "the chain-break extent (pos+1)";
+}
+
+TEST(Carve, LzhLh5HeaderOnlyStridePinned) {
+    /* N-112: the -lh5 stride is hdr_u8@0 ONLY (the og's decoded behavior,
+     * FUN_18003dd70's -lh5 branch + the .data constant dump) - the walk
+     * lands on the CRC field of the first entry and the chain breaks
+     * there (size = hdr + 1). This test PINS the og's quirk: porting it
+     * exactly is the parity requirement; a future "fix" that makes -lh5
+     * stride like -lh0 must first re-verify against the corpus binary. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    const size_t p = plant_lzh_entry(img, at, "-lh5-", 100, "compressed.txt");
+    const size_t hdr_size = img[at];
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    tree::FileNode* n = find_carved_at(tree, at);
+    ASSERT_NE(n, nullptr) << "-lh5 must carve (the probe accepts)";
+    EXPECT_EQ(n->props()->logical_size, hdr_size + 1)
+        << "the og's hdr-only stride: the chain breaks at the CRC field";
+    (void)p;
+}
+
+TEST(Carve, LzhExtFlagSuppressesTheCrcStride) {
+    /* N-112: after a -lh7 entry latches the ext flag, a following -lh0
+     * entry strides WITHOUT the +2 CRC (FUN_18003dd70's flag-0x120
+     * branch). */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    size_t p = plant_lzh_entry(img, at, "-lh7-", 50, "a.bin");
+    p += 50; /* the -lh7 stride: hdr + comp, NO CRC skip */
+    p = plant_lzh_entry(img, p, "-lh0-", 30, "b.bin");
+    p += 30;    /* ext flag latched: hdr + comp, NO +2 */
+    img[p] = 0; /* the end marker */
+    const size_t end = p + 1;
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    tree::FileNode* n = find_carved_at(tree, at);
+    ASSERT_NE(n, nullptr);
+    EXPECT_EQ(n->props()->logical_size, end - at) << "the ext-flag stride composition";
+}
+
+TEST(Carve, LzhWrongDashByteRejects) {
+    /* N-112: the probe gates buf[6] == '-' - a method field with a wrong
+     * 5th byte rejects (the 5-byte magic carries the gate, so plant the
+     * method bytes directly to defeat the magic and exercise the walk's
+     * re-check... the magic itself IS the gate here: a wrong-dash form
+     * never matches any row). */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    std::memcpy(img.data() + at + 2, "-lh0x", 5); /* 'x' at byte 6 */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    EXPECT_EQ(find_carved_at(tree, at), nullptr) << "the wrong-dash form must not carve";
+}

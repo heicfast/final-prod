@@ -3828,3 +3828,33 @@ active finding's cites were re-verified this session (the stale ones carry
 cite-refresh addenda); the driver-repo trio (M-086/M-087/M-089 + N-107/N-127) and
 OQ-S10-3 need a driver-repo lane; OQ-S4-3 is execution-bound (hardware fixtures);
 OQ-S10-1 is vendoring-bound (codec dependencies named in the OQ).
+
+### Session-39 fix log — N-112 landed (the LZH entry-chain walk)
+
+**Finding:** MINOR N-112 (the LZH archive family absent; the method gate +
+entry-chain walk decoded; list-layer only; erratum E53's key correction).
+**Classification:** CONFIRMED-DIVERGENCE (re-verified first-hand: the probe
+FUN_18003db20 + the registration :3097-3133 re-read; the walk FUN_18003dd70
+decoded line-by-line; **the .data method constants dumped directly from
+og-codebase/RAWSearchDLL.dll at RVA 0x9388c** — the decompile labels them
+DAT_18009388c..a8 and the binary read settles the mapping: Case A's full
+stride = -lh0/-lhd, Case B's hdr-only stride = -lh5, Case C's hdr+comp
+stride = -lh7).
+**Fix:** FMT_LZH/FMT_LZH5/FMT_LZHD/FMT_LZH7 (one row per method key, the
+M-092 duplicate-key policy; all ext "lzh" — the og stamps one id 0x24
+whichever key fired). The 5-byte magic carries the probe's own gate
+("-lh?-" at +2). The walk ported EXACTLY: the per-method strides; the
+ext-flag (+0x120) suppression of the +2 CRC stride; the -2/+2 CRC
+step-back dance at the chain break; size = pos+1 (the end-marker byte);
+the 200 MiB ctor bound byte-exact (0xC800000). The -lh5 hdr-only stride
+is a decoded QUIRK (the og's walk lands on the CRC field after a -lh5
+entry and breaks the chain there) — ported, NOT fixed, PINNED by
+Carve.LzhLh5HeaderOnlyStridePinned.
+**Tests:** Carve.LzhMethodFamilyAccepted / LzhEntryChainExtent /
+LzhBrokenChainSalvagesLeadingEntries / LzhLh5HeaderOnlyStridePinned /
+LzhExtFlagSuppressesTheCrcStride / LzhWrongDashByteRejects. Suite
+1058/1058 (1016 passed / 42 Win-only skipped / 0 failed); clang-format
+clean; F8 + self-probe green.
+**Trail:** findings/FIXED/N-112 with Resolution; ledger row (269 main +
+20 OQ = 289); CROSS-REF-MATRIX: the LZH cell → MATCH + the batch-2 row
+updated; modules/carve.md; SUMMARY (board 48 active).

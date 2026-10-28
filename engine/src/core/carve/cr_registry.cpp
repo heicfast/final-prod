@@ -102,6 +102,7 @@ CarveResult validate_html(IStorageDevice* s, u64 hit, u64 cap);     /* M-092: th
 CarveResult validate_xmlsvg(IStorageDevice* s, u64 hit, u64 cap);   /* M-093: the shared chain */
 CarveResult validate_mobi(IStorageDevice* s, u64 hit, u64 cap);     /* M-096: the salvage gate */
 CarveResult validate_jp2(IStorageDevice* s, u64 hit, u64 cap);      /* N-111: the JP2 family */
+CarveResult validate_lzh(IStorageDevice* s, u64 hit, u64 cap);      /* N-112: the LZH family */
 
 namespace {
 const Signature kTable[] = {
@@ -1152,6 +1153,56 @@ const Signature kTable[] = {
      750,
      validate_jp2,
      "JPEG 2000 compound"},
+    /* N-112: LZH - the og's Brance::LZHAnalyser (id 0x24, list-layer,
+     * RawConfig token-gated). The scan key is the probe's own gate: the
+     * level-1 method field at +2 (5 bytes: "-lh?-"). The shared
+     * validator runs the decoded entry-chain walk with the og's exact
+     * per-method strides (-lh0/-lhd: hdr+comp+2 with the ext-flag
+     * suppression; -lh5: hdr only; -lh7: hdr+comp) and the -2/+2 CRC
+     * step-back chain-break (size = pos+1, the end-marker byte); cap
+     * 200 MiB (the og ctor bound 0xC800000). One row per method key
+     * (the M-092 duplicate-key policy); all rows share ext "lzh" - the
+     * og stamps one id (0x24) whichever key fired. */
+    {FMT_LZH,
+     "lzh",
+     {'-', 'l', 'h', '0', '-'},
+     5,
+     2,
+     0x0B, /* the first entry's 11-byte read (hdr u8@0, method@2..6, comp u32@7) */
+     0xC800000ull,
+     700,
+     validate_lzh,
+     "LZH archive"},
+    {FMT_LZH5,
+     "lzh",
+     {'-', 'l', 'h', '5', '-'},
+     5,
+     2,
+     0x0B,
+     0xC800000ull,
+     700,
+     validate_lzh,
+     "LZH archive"},
+    {FMT_LZHD,
+     "lzh",
+     {'-', 'l', 'h', 'd', '-'},
+     5,
+     2,
+     0x0B,
+     0xC800000ull,
+     700,
+     validate_lzh,
+     "LZH archive"},
+    {FMT_LZH7,
+     "lzh",
+     {'-', 'l', 'h', '7', '-'},
+     5,
+     2,
+     0x0B,
+     0xC800000ull,
+     700,
+     validate_lzh,
+     "LZH archive"},
 };
 } // namespace
 

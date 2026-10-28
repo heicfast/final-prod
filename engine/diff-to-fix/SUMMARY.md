@@ -175,11 +175,16 @@ bookkeeping file renumbers to N-135, convergent with session-11B's own renumber)
   the len==1 extended form, the len==0 FF D9 EOC scan with the 16-zero back-off,
   the jp2c-consecutive end rule, cap 500 MB; 7 tests; one finding correction:
   "corrupt-length still carves" is gate-level truth, extent-level false).
+- **N-112** (MINOR — carve): the LZH family landed (the four method-key rows
+  "-lh0-/-lh5-/-lhd-/-lh7-" at +2; the entry-chain walk fully decoded INCLUDING
+  the .data method-constant dump from the corpus binary that settled the
+  DAT_-label mapping; the -lh5 hdr-only stride quirk ported exactly and PINNED
+  by its own test; cap 200 MiB byte-exact; 6 tests).
 - **Session-39 convention amendment:** resolved findings now live in
   `findings/FIXED/` (the user's "put fixed findings in fixed directory"
   instruction; the ledger is the index — see the amended go-forward section).
 
-**Board now: 49 active (6 SEVERE · 20 MAJOR · 18 MINOR · 5 INFO) · 288 resolved
+**Board now: 48 active (6 SEVERE · 20 MAJOR · 17 MINOR · 5 INFO) · 289 resolved
 ledger rows · 5 tracked-open.**
 
 ## Session-10 lane-B delta (2026-10-29 — the continuation deep audit, RECONCILED AT THE SECOND PUSH with the SA-10 lead close + the truth batches + the fix lanes)

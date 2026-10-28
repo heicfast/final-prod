@@ -673,7 +673,12 @@ extended form, the len==0 FF D9 EOC scan with the 16-zero back-off (guard
 0x1F3FFFFF), and the jp2c-consecutive end rule; ids appended, cap 500 MB; tests
 Carve.Jp2BrandMap/SignaturePayloadGate/UncheckedBoxLength/UnknownBrandRejected/
 BoxWalkExtent/EocScan/Jp2cFinalAtSliceEdgeFallsBackBounded; findings/FIXED/N-111) ·
-**N-112** LZH ·
+**N-112 FIXED session-39** (FMT_LZH/LZH5/LZHD/LZH7: the four
+method-key rows, the "-lh?-" gate at +2, the entry-chain walk fully decoded — the
+per-method strides from the .data constant dump (the binary read that settled the
+DAT_ labels), the ext-flag CRC suppression, the -2/+2 step-back dance, size = pos+1,
+cap 200 MiB; the -lh5 hdr-only quirk PINNED as decoded; tests Carve.Lzh*;
+findings/FIXED/N-112) ·
 **N-113** the text school (VCF/GPX/OSP/POS/CHFP) · **N-115** OfficeTagFromXML.
 The school-1 formats (CHM/ONE/MNY/EMF/SWF/3DS) landed via `b92ebef`; FCPEvt closed
 as covered — the lead lane's duplicate filings dropped, its decodes convergent with the
