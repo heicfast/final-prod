@@ -26,6 +26,12 @@ grammar byte-confirmed — no erratum needed).
   cells), **S-049** (the `<PREFIX>_%06d.EXT` naming contract + the
   content-derived prefixes EXIF-Model/Software, ID3-title, PDF/DOCX-timestamp,
   ZIP-entry, SOF-dims — B10/A28/D12 cells; N-063's remainder resolved).
+  **S-049 → MATCH** (FIXED, the S42 fix lane 2026-10-29: the prefix/dims
+  carriers + the session-wide per-prefix counter map + the per-analyser
+  extraction landed; the File%06u default and the MP4/MOV carve-path template
+  retired — the Resolution in findings/FIXED/, D-76 rewritten
+  resolved-to-parity; 12 OgNaming tests + the MP4/MOV trio +
+  CarveSingleNamingFamily, suite 1193/1193).
 - **ntfs/tree rows, new cells**: orphan-grouping parameters — **M-103**
   (`LostDir<record>` per-parent folders + the "File Path Lost" branch name;
   B5/B10/D12/A26 cells; the C2 "roles map 1:1" claim falsified for the lost

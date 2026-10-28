@@ -1324,10 +1324,11 @@ TEST(Orchestrator, UdfSurfacesAsCarveFamily) {
 
 TEST(Orchestrator, CarveSingleNamingFamily) {
     /* N-014b: one scan emits ONE carved-name family. The grammar layer
-     * and the raw-sign layer both name through the registered chain
-     * (og per-analyser embedded_name, then the File%06u default); the
-     * old orchestrator-side "Carved%06u" lambda produced a second family
-     * inside the same scan. */
+     * and the raw-sign layer both name through the og's universal
+     * contract (S-049: <UPPERCASE-EXT>_<%06d>.<UPPERCASE-EXT>, the
+     * session-wide per-prefix counters); the old orchestrator-side
+     * "Carved%06u" lambda produced a second family inside the same
+     * scan. */
     auto img = build_fat16();
     /* plant INSIDE the volume's free clusters (carving runs on the
      * volume slice, free-map gated): clusters 100 and 300 are untouched
@@ -1416,7 +1417,7 @@ TEST(Orchestrator, CarveSingleNamingFamily) {
     ASSERT_EQ(ctrl.run(&dev, nullptr, nullptr, nullptr, stats), OK) << "scan ran";
     ASSERT_GE(stats.carved_found, 2u) << "both the grammar and raw-sign candidates carved";
 
-    /* every carved node must carry the single File%06u family */
+    /* every carved node must carry the single og naming family */
     std::vector<std::string> carved_names;
     std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
         for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
@@ -1431,14 +1432,21 @@ TEST(Orchestrator, CarveSingleNamingFamily) {
     bool saw_jpg = false, saw_psd = false;
     for (const std::string& n : carved_names) {
         EXPECT_EQ(std::string::npos, n.find("Carved")) << "the split family is gone: " << n;
-        /* the registered default: FileNNNNNN.ext (6 digits) */
-        ASSERT_GE(n.size(), size_t(10)) << n;
-        EXPECT_EQ(0u, n.compare(0, 4, "File")) << n;
-        for (int i = 4; i < 10; ++i)
+        /* S-049: the og's universal <EXT>_<%06d>.<EXT> family - the
+         * counter is the segment between the LAST '_' and the final
+         * '.' (the dims form JPG_48x64_000001.JPG carries the dims in
+         * earlier segments) */
+        const size_t dot = n.rfind('.');
+        ASSERT_NE(std::string::npos, dot) << n;
+        const size_t us = n.rfind('_', dot);
+        ASSERT_NE(std::string::npos, us) << n;
+        ASSERT_GE(dot, us + 2) << "a counter segment must exist: " << n;
+        for (size_t i = us + 1; i < dot; ++i)
             EXPECT_TRUE(n[i] >= '0' && n[i] <= '9') << "index digits: " << n;
-        if (n.size() > 10 && n.compare(n.size() - 4, 4, ".jpg") == 0)
+        EXPECT_EQ(std::string::npos, n.substr(0, us).find("File")) << "retired default: " << n;
+        if (n.size() > 4 && n.compare(n.size() - 4, 4, ".JPG") == 0)
             saw_jpg = true;
-        if (n.size() > 10 && n.compare(n.size() - 4, 4, ".psd") == 0)
+        if (n.size() > 4 && n.compare(n.size() - 4, 4, ".PSD") == 0)
             saw_psd = true;
     }
     EXPECT_TRUE(saw_jpg) << "the grammar-layer candidate is in the family";

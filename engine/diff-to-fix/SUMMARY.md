@@ -1,5 +1,35 @@
-# SUMMARY.md — executive summary (the S41 continuation lane on top; the prior lanes below, newest-first)
+# SUMMARY.md — executive summary (the S42 fix lane on top; the prior lanes below, newest-first)
 
+
+## S42 lane delta (2026-10-29 — the diff-to-fix execution lane: severe-first, every finding verified-then-fixed)
+
+**Working tree:** core `4e74ee2f` at lane open (the S41 lane's close), corpus `be0cfe9`
+throughout. Baseline suite **1182/1182 green** at open (linux-release).
+
+**S-049 (SEVERE) — FIXED** (the first landing of this lane): the og's universal
+carved-file naming contract landed end-to-end — the analyser prefix carrier
+(`CarveResult::name_prefix`, renamed from N-063's full-name `embedded_name`), the
+dims carrier (dim_w/dim_h behind the DRWUI 1..8192 gate), the session-wide
+per-prefix counter map (`CarveFlags::name_counters`, bound once per ScanController
+— the og's DRWUI counter map shape), the %d fallback past 99999, the UPPERCASE
+extension (every real-session name), and the per-analyser prefix extraction:
+JPEG EXIF Model over Software (the decoded 39-char cap and precedence,
+RAWSearchDLL :40382-40510) + SOF dims, MP3 TIT2 (all four ID3 encodings), PDF
+/CreationDate, DOCX dc:creator + dcterms:created (docProps/core.xml inflated
+through the compress layer), ZIP first central-directory entry names (the
+`/`+`.` → `_` sanitization pinned by the META-INF__/__MACOSX__/LICENSE_OFL_ real
+forms). The File%06u deliberate default and N-063's MP4/MOV carve-path template
+are RETIRED (the executed evidence: 57/57 real MP4/MOV rows name MP4_%06d.MP4 /
+MOV_%06d.MOV — the template feeds a different record field; the engine-side
+decode preserved in D-76). First-hand corpus verification beyond the finding:
+FUN_140c44770 re-read, the two data constants extracted from the shipped
+DRWUI.exe (L"%s" @0x14187f760, L"_" @0x14188017c), the no-string caller branch
+decoded (the format-name + L"_" prepend explains BOTH the universal form AND the
+JPG_<W>x<H> dims form), the per-string counter branch decoded. Proof set: 12
+`CarveEngine.OgNaming*` tests + the MP4/MOV universal-name trio +
+`Orchestrator.CarveSingleNamingFamily`; PARITY-DELTAS D-76 rewritten
+(resolved-to-parity); matrix cell → MATCH; carve.md verdict updated; suite
+**1193/1193** (11 net-new tests).
 
 ## S41 lane delta (2026-10-29 — the continuation audit lane per the user's second-session directive: remove-the-fixed, go deeper, mark all remaining; RECONCILED at push over TWO parallel windows; three filings, all renumbered at the reconciliations)
 

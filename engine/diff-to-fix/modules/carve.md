@@ -726,13 +726,23 @@ corpus's three REAL og sessions (evidence/executions/s10b-real-rsf-session-minin
   (per-volume children; 100% of 189,115 real carved rows); the core's single flat
   "Other Deleted Files (Carved)" root (cr_scan.cpp:151) has no volume attribution.
   Fix wave: per-volume children + the Reconstructed default name.
-- **S-049 (SEVERE)** — the og's universal naming contract `<PREFIX>_%06d.EXT`
-  (DRWUI FUN_140c44770; prefix = uppercase EXT, overridden by SOF-dims/EXIF-Model/
-  EXIF-Software/ID3-title/PDF-timestamp/DOCX-timestamp/ZIP-first-entry). The core's
-  File%06u default fires for every format except MP4/MOV. N-063's recorded
-  remainder ("which of the 22 SetName call sites") is resolved empirically: the
-  DRWUI %s_%06d contract is the universal surface; the analyser prefix is per-format
-  content extraction.
+- **S-049 (SEVERE) — FIXED (the S42 fix lane, 2026-10-29)** — the og's universal
+  naming contract `<PREFIX>_%06d.EXT` LANDED: the analyser prefix carrier
+  (`CarveResult::name_prefix`) + the dims carrier (dim_w/dim_h, the 1..8192 gate)
+  + the session-wide per-prefix counter map (`CarveFlags::name_counters`, the
+  og's DRWUI counter map; ++ then read, format-keyed for prefix-less/dims rows,
+  string-keyed for prefixed rows) + the %d fallback past 99999 + the UPPERCASE
+  extension. Per-analyser prefix extraction: JPEG EXIF Model>Software (39-char
+  cap, RAWSearchDLL :40382-40510) + SOF dims, MP3 TIT2 (all four ID3
+  encodings), PDF /CreationDate, DOCX dc:creator+dcterms:created (the
+  docProps/core.xml inflate), ZIP first-entry names (the / and . -> _
+  sanitization: META-INF__ / __MACOSX__ / LICENSE_OFL_). The File%06u default
+  and the MP4/MOV carve-path template are RETIRED (the template never fires in
+  the real sessions - 57/57 rows are MP4_%06d.MP4 / MOV_%06d.MOV; N-063's
+  carve-path half superseded; D-76 rewritten resolved-to-parity). The namer
+  callback stays the host-policy hook for rule-less formats. Proof:
+  CarveEngine.OgNaming* (12 tests) + the MP4/MOV universal-name trio +
+  Orchestrator.CarveSingleNamingFamily; suite 1193/1193.
 - **Executed MATCH**: the raw_signs.json regen sync — scripts/gen_rawsigns.py
   regenerated the compiled table from the og's shipped JSON: 139 formats / 199
   header / 62 tail signs byte-identical (layout-only clang-format packing diff).

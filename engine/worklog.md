@@ -4753,3 +4753,58 @@ truth repair). Per the convergence convention S40B's N-132 pass becomes a
 verification of this landing (the N-111 precedent shape). The
 test_fixtures.hpp crc32 include: convergent repair by two lanes (theirs
 7320a2f6-lineage, mine this commit) - one include kept.
+
+## Session-42 (S42) — the diff-to-fix execution lane opens: S-049 landed (2026-10-29)
+
+**Lane setup:** core `4e74ee2f` at open (the S41 continuation lane's close),
+corpus `be0cfe9`. Baseline 1182/1182 linux-release green. The mandate: execute
+the diff-to-fix roadmap, severe-first, every finding independently verified
+against the corpus before the fix; this lane's prompt preserved at
+`worklog/session-42-diff-fix-prompt.md` (token redacted).
+
+**S-049 (SEVERE) — FIXED, the first landing:** the og's universal carved-file
+naming contract. Corpus re-verified FIRST-HAND before any change:
+FUN_140c44770 at DRWUI_decompiled.c:1878330-81 (the `%s_%06d`/`%06d`/>99999
+literals); the two data constants extracted from the shipped DRWUI.exe binary
+(VA 0x14187f760 = L"%s", VA 0x14188017c = L"_"); the no-string caller branch
+decoded at :1877537-7611 (the format-name + L"_" prepend + the format-keyed
+counter — explains BOTH `JPG_000001.JPG` and `JPG_192x144_000001.JPG` and
+the 1..8192 dims gate); the analyser-string branch at :1877634-7730
+(per-STRING counters — `GT-S7562_000123` is the 123rd GT-S7562 file); the
+engine-side EXIF walk at RAWSearchDLL :40382-40510 (Model unconditional,
+Software only-if-no-Model, both at a 39-char strncpy cap); the office
+metadata walk at :53530-53666 (dc:creator + dcterms:created — the
+`KIS2_2022-05-25 13-14-00` real form is creator+created); the MP4 template's
+engine-side construction re-read at :33280-33447 with its destination field
+identified as NOT the DRWUI carve-naming source (the 57/57 real MP4/MOV rows
+settle it).
+
+**The landing:** `CarveResult::name_prefix` (the analyser prefix carrier —
+renamed from N-063's full-name `embedded_name`; the og's analysers supply a
+PREFIX, the naming site composes `<prefix>_<%06d>`) + `dim_w/dim_h` +
+`CarveNameCounters` (session-wide per-prefix counter map, `CarveFlags::
+name_counters`, bound once per ScanController) + the three emit sites
+rewired (grammar + user-sign + raw-sign; the raw-sign family is where the
+real sessions' GZ/SVG/ICO/HTML rows come from) + `default_namer` rewritten
+to the og contract + the per-analyser extraction (JPEG EXIF/dims, MP3 TIT2,
+PDF /CreationDate, DOCX docProps inflate, ZIP first-entry sanitize) + the
+MP4/MOV template retired from the carve path (mp4_og_name deleted; the
+decode preserved in D-76).
+
+**Tests (fail-before/pass-after both witnessed):** 12 new
+`CarveEngine.OgNaming*` tests (universal form, %d past 99999, SOF dims,
+EXIF Model, EXIF Software, MP3 title, PDF timestamp, DOCX creator+created,
+DOCX created-alone, ZIP META-INF_, ZIP LICENSE.OFL, session-wide counters)
++ the MP4/MOV universal-name trio (replacing the retired N-063 template
+tests) + `Orchestrator.CarveSingleNamingFamily` re-pinned to the one-family
+guarantee. ~40 stale name assertions updated (the File%06u/lowercase-ext
+family). Suite **1193/1193** linux-release (11 net-new); clang-format clean.
+
+**Trail:** findings/FIXED/S-049 (the Resolution with the full first-hand
+corpus decode); ledger row; CROSS-REF-MATRIX cell → MATCH; carve.md verdict;
+PARITY-DELTAS D-76 rewritten (resolved-to-parity — the File%06u deliberate
+default retired, the N-063 carve-path half superseded); SUMMARY's S42 block.
+
+**Next (the lane continues):** S-048 (the per-volume `Reconstructed/<vol>`
+grouping — same evidence file, same wave), then S-040 (image create) and
+S-050 (the repair-line registration decision), then the MAJOR tier.

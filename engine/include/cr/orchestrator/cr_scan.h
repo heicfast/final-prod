@@ -21,6 +21,7 @@
 #include "../tree/cr_node.h"
 #include "../session/cr_crsf.h"
 #include "../session/cr_records.h"
+#include "cr/carve/cr_carve.h"
 #include "cr/lost/cr_lostpart.h"
 #include "cr/check/cr_fscheck.h"
 #include "cr/repair/cr_rawfixer.h"
@@ -733,6 +734,11 @@ private:
     tree::FullNode* root_deleted_ = nullptr;
     tree::FullNode* root_lost_ = nullptr;
     tree::FullNode* root_carved_ = nullptr;
+    /* S-049: the scan-wide per-prefix name counters - one instance per
+     * ScanController, bound into every slice's CarveFlags so volume B's
+     * first JPG continues volume A's counter (the og's session-wide
+     * DRWUI counter map). */
+    carve::CarveNameCounters name_counters_;
     bool quick_done_ = false; /* quick stage completed its engine pass (ARCH-7) */
     /* actual stage completion for stage_done_mask truth (G-07 resume) */
     bool deep_extras_done_ = false; /* remnant sweep + lost discovery done */

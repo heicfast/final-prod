@@ -2105,6 +2105,10 @@ u32 ScanController::run_carve_stage(IStorageDevice* slice, CancelToken* cancel,
     };
     carve::CarveFlags cf;
     cf.threads = threads;
+    /* S-049: bind the session-wide name counters (the member) - every
+     * slice's carves share one per-prefix counter map, the og's
+     * session-wide DRWUI map shape. */
+    cf.name_counters = &name_counters_;
     /* M-039 (diff-to-fix): the cross-engine occupancy gate - the og's
      * per-volume bitmap every FS engine fills from its walk (EXT4
      * fill-from-every-extent :6866-6869; Btrfs per-node :2547-2551;
@@ -2172,13 +2176,13 @@ u32 ScanController::run_carve_stage(IStorageDevice* slice, CancelToken* cancel,
     }
     carve::CarveStats cs;
     /* N-014b: no orchestrator-side namer - both carve layers name
-     * through the single registered chain (the og per-analyser
-     * embedded_name first, then the File%06u default documented in
-     * PARITY-DELTAS). The old "Carved%06u" lambda here produced a second
-     * name family inside one scan (grammar layer "Carved...", raw-sign
-     * layer "File...") - the split N-014b flagged; the family is one now.
-     * Hosts wanting their own policy pass a namer to carve_slice
-     * directly (both layers honor it since the N-014b routing). */
+     * through the single og contract (S-049: the analyser prefix, then
+     * the per-prefix counters + the <EXT>_<%06d> composition). The old
+     * "Carved%06u" lambda here produced a second name family inside one
+     * scan (grammar layer "Carved...", raw-sign layer "File...") - the
+     * split N-014b flagged; the family is one now. Hosts wanting their
+     * own policy pass a namer to carve_slice directly (both layers
+     * honor it since the N-014b routing). */
     u32 rc = carve::carve_slice(slice, cf, cancel, carve_cb, &cbridge, tree_, root_carved_, &tree_,
                                 nullptr, cs);
     stats.carved_found = cs.validated;

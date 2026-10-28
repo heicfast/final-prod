@@ -17,12 +17,20 @@
 #include "../tree/cr_node.h"
 #include "cr_signatures.h"
 #include <functional>
+#include <map>
+#include <mutex>
 #include <vector>
 
 namespace cr {
 namespace carve {
 
 class CarvePostProcessor; /* M-021: defined below (CarveFlags binds it) */
+
+/* S-049: the og's per-prefix name counters (see CarveFlags::name_counters). */
+struct CarveNameCounters {
+    std::map<std::u16string, u32> per_prefix;
+    std::mutex lock;
+};
 
 struct CarveStats {
     u64 hits = 0;       /* magic candidates */
@@ -99,6 +107,17 @@ struct CarveFlags {
      * emission, exactly the og's DLL-absent degrade. See
      * CarvePostProcessor below. */
     CarvePostProcessor* post_processor = nullptr;
+    /* S-049: the session-wide per-prefix name counters (the og's DRWUI
+     * counter map - FUN_140c44770's callers at :1877600/:1877724 ++ then
+     * read a per-key counter; the key is the format name for
+     * prefix-less/dims rows, the analyser string for prefixed rows).
+     * Session-wide: the og's map spans every volume's carves, so volume
+     * B's first JPG continues volume A's counter (the real sessions'
+     * sequential per-format numbering across the whole scan). The
+     * orchestrator owns one instance per scan and points every slice's
+     * flags at it; null = a per-call local map (the single-slice embed
+     * case). Thread-safe: the grammar layer's worker fan-out shares it. */
+    CarveNameCounters* name_counters = nullptr;
 };
 
 /* ---- M-021: the post-carve processing hook -------------------------
@@ -147,10 +166,15 @@ public:
     virtual void on_candidate(IStorageDevice* /*slice*/, const CarveCandidateInfo& /*info*/) {}
 };
 
-/* Naming callback: returns the display name for a carved hit (host policy). */
+/* Naming callback: returns the display name for a carved hit (host policy;
+ * consulted only for candidates whose analyser supplied no decoded og
+ * prefix - the og contract always wins where decoded). The index param is
+ * the per-prefix counter (S-049). */
 using NameCallback = std::function<std::u16string(const Signature& sig, u64 size, u32 index)>;
 
-/* Default namer: File0001.jpg style (corpus default policy). */
+/* Default namer: the og's universal contract - <UPPERCASE-EXT>_<%06d>.<UPPERCASE-EXT>
+ * (DRWUI FUN_140c44770 + the format-name prepend; the unpadded %d past
+ * 99999). S-049. */
 std::u16string default_namer(const Signature& sig, u64 size, u32 index);
 
 /*

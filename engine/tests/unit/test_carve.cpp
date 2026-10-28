@@ -216,6 +216,227 @@ size_t plant_zip(std::vector<u8>& img, size_t at, const char* name, size_t name_
     return (eocd_at + 22) - at;
 }
 
+/* ---- S-049: the og naming-contract fixtures -------------------------------- */
+
+/* a JPEG with an APP1/Exif segment carrying Model and/or Software
+ * (IFD0 tags 0x110/0x131, little-endian TIFF); model/software = nullptr
+ * omits the entry. Built on plant_jpeg's SOF/ SOS shape. */
+size_t plant_jpeg_exif(std::vector<u8>& img, size_t at, const char* model, const char* software) {
+    img[at] = 0xFF;
+    img[at + 1] = 0xD8; /* SOI */
+    size_t p = at + 2;
+    if (model != nullptr || software != nullptr) {
+        /* build the TIFF block first to know the segment length */
+        const size_t tiff_data_at = at + 2 + 2 + 2 + 6; /* SOI+APP1+len+Exif\0\0 */
+        const int nentries = (model != nullptr ? 1 : 0) + (software != nullptr ? 1 : 0);
+        const size_t ifd_at = tiff_data_at + 8;
+        size_t str_at = ifd_at + 2 + size_t(nentries) * 12 + 4;
+        size_t m_off = 0, s_off = 0;
+        if (model != nullptr) {
+            m_off = str_at - tiff_data_at;
+            str_at += std::strlen(model) + 1;
+        }
+        if (software != nullptr) {
+            s_off = str_at - tiff_data_at;
+            str_at += std::strlen(software) + 1;
+        }
+        const size_t tiff_len = str_at - tiff_data_at;
+        const u16 seg_len = u16(2 + 6 + tiff_len); /* len includes itself */
+        img[p] = 0xFF;
+        img[p + 1] = 0xE1;
+        putbe16(img, p + 2, seg_len);
+        std::memcpy(img.data() + p + 4, "Exif\0\0", 6);
+        size_t q = tiff_data_at;
+        img[q] = 'I';
+        img[q + 1] = 'I';
+        img[q + 2] = 42;
+        img[q + 3] = 0;
+        put32v(img, q + 4, 8); /* IFD0 offset (TIFF-relative) */
+        q = ifd_at;
+        put16(img, q, u16(nentries));
+        q += 2; /* the entries follow the count */
+        if (model != nullptr) {
+            put16(img, q, 0x110);
+            put16(img, q + 2, 2); /* ASCII */
+            put32v(img, q + 4, u32(std::strlen(model) + 1));
+            put32v(img, q + 8, u32(m_off));
+            q += 12;
+        }
+        if (software != nullptr) {
+            put16(img, q, 0x131);
+            put16(img, q + 2, 2); /* ASCII */
+            put32v(img, q + 4, u32(std::strlen(software) + 1));
+            put32v(img, q + 8, u32(s_off));
+            q += 12;
+        }
+        put32v(img, q, 0); /* next-IFD */
+        q += 4;
+        if (model != nullptr) {
+            std::memcpy(img.data() + q, model, std::strlen(model) + 1);
+            q += std::strlen(model) + 1;
+        }
+        if (software != nullptr) {
+            std::memcpy(img.data() + q, software, std::strlen(software) + 1);
+            q += std::strlen(software) + 1;
+        }
+        p += 2 + 2 + 6 + tiff_len;
+    }
+    /* COM padding (plant_jpeg's shape) so the file clears the registry's
+     * 512-byte min_size */
+    img[p] = 0xFF;
+    img[p + 1] = 0xFE;
+    putbe16(img, p + 2, 460);
+    for (int i = 0; i < 456; ++i)
+        img[p + 4 + i] = u8('A' + (i % 26));
+    p += 2 + 460;
+    /* SOF0 + SOS + EOI (plant_jpeg's tail shape, compact) */
+    img[p] = 0xFF;
+    img[p + 1] = 0xC0;
+    putbe16(img, p + 2, 17);
+    img[p + 4] = 8;
+    putbe16(img, p + 5, 64); /* height */
+    putbe16(img, p + 7, 48); /* width */
+    img[p + 9] = 1;
+    img[p + 10] = 1;
+    img[p + 11] = 0x22;
+    img[p + 12] = 0;
+    p += 2 + 17;
+    img[p] = 0xFF;
+    img[p + 1] = 0xDA;
+    putbe16(img, p + 2, 12);
+    img[p + 4] = 1;
+    p += 2 + 12;
+    img[p] = 0x00;
+    img[p + 1] = 0x11;
+    img[p + 2] = 0x22;
+    img[p + 3] = 0x33;
+    img[p + 4] = 0xFF;
+    img[p + 5] = 0xD9; /* EOI */
+    return (p + 6) - at;
+}
+
+/* an ID3v2.3 MP3 whose tag carries a TIT2 title frame (encoding 0,
+ * Latin-1), then two real MPEG1 Layer III frames (validate_mp3's
+ * 2-frame floor). */
+size_t plant_mp3_tit2(std::vector<u8>& img, size_t at, const char* title) {
+    const size_t title_len = std::strlen(title);
+    const size_t frame_len = 1 + title_len + 1; /* enc byte + text + NUL */
+    const size_t tag_size = 10 + frame_len;     /* the TIT2 frame only */
+    std::memcpy(img.data() + at, "ID3", 3);
+    img[at + 3] = 3;
+    img[at + 4] = 0;
+    img[at + 5] = 0;
+    const u32 ss = u32(tag_size);
+    img[at + 6] = u8((ss >> 21) & 0x7F);
+    img[at + 7] = u8((ss >> 14) & 0x7F);
+    img[at + 8] = u8((ss >> 7) & 0x7F);
+    img[at + 9] = u8(ss & 0x7F);
+    size_t q = at + 10;
+    std::memcpy(img.data() + q, "TIT2", 4);
+    putbe32(img, q + 4, u32(frame_len)); /* v2.3: plain u32 BE */
+    put16(img, q + 8, 0);                /* flags */
+    img[q + 10] = 0;                     /* encoding 0 = Latin-1 */
+    std::memcpy(img.data() + q + 11, title, title_len + 1);
+    q += 10 + frame_len;
+    /* a TXX-style padding frame is unnecessary: grow the tag itself via
+     * a trailing padding frame is legal, but simpler - extend the audio
+     * to four frames so the whole file clears the 512-byte min_size */
+    const int nframes = 4;
+    /* MPEG1 Layer III frames (the standard 131-byte shape) */
+    for (int fr = 0; fr < nframes; ++fr) {
+        img[q] = 0xFF;
+        img[q + 1] = 0xFB;
+        img[q + 2] = 0x22;
+        img[q + 3] = 0x22;
+        for (int i = 0; i < 127; ++i)
+            img[q + 4 + i] = 0x33;
+        q += 131;
+    }
+    return q - at;
+}
+
+/* a PDF with /CreationDate (D:...) in the body and a closing %%EOF */
+size_t plant_pdf_date(std::vector<u8>& img, size_t at, const char* date_digits) {
+    std::memcpy(img.data() + at, "%PDF-1.4\n", 9);
+    /* a padded body so the file clears the registry's 128-byte min_size */
+    /* leading comment filler: the validator's scan skips the own
+     * header's first 16 bytes, so /CreationDate must sit past that */
+    int n = int(std::snprintf(reinterpret_cast<char*>(img.data()) + at + 9, 192,
+                              "%%\xEF\xBB\xBF filler\n/CreationDate (D:%s)\n"
+                              "1 0 obj\n<</Length 40>>\nstream\n%040d\nendstream\n"
+                              "endobj\ntrailer\n<<>>\n%%%%EOF\n",
+                              date_digits, 0));
+    return size_t(9 + n);
+}
+
+/* a DOCX-shaped stored ZIP: [Content_Types].xml first entry (the gate),
+ * docProps/core.xml second (dc:creator + dcterms:created). */
+size_t plant_docx_core(std::vector<u8>& img, size_t at, const char* creator,
+                       const char* created_iso) {
+    /* zero the archive region: the 0xAA test background must not leak
+     * into unwritten ZIP fields (extra lens, comment lens, sizes) */
+    std::memset(img.data() + at, 0, 2048);
+    char core_xml[512];
+    const int xml_len = std::snprintf(
+        core_xml, sizeof(core_xml),
+        "<?xml version=\"1.0\"?><cp:coreProperties xmlns:cp=\"http://schemas.openxmlformats.org/"
+        "package/2006/metadata/core-properties\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" "
+        "xmlns:dcterms=\"http://purl.org/dc/terms/\"><dc:creator>%s</dc:creator><dcterms:created "
+        "xsi:type=\"dcterms:W3CDTF\">%s</dcterms:created></cp:coreProperties>",
+        creator, created_iso);
+    const char* n1 = "[Content_Types].xml";
+    const size_t n1_len = 19;
+    const size_t n2_len = 17; /* docProps/core.xml */
+    const size_t local1 = 30 + n1_len;
+    const size_t local2 = 30 + n2_len + size_t(xml_len);
+    /* LFH 1 */
+    std::memcpy(img.data() + at, "PK\x03\x04", 4);
+    put16(img, at + 8, 0); /* method stored */
+    put16(img, at + 26, u16(n1_len));
+    std::memcpy(img.data() + at + 30, n1, n1_len);
+    /* LFH 2 */
+    const size_t l2 = at + local1;
+    std::memcpy(img.data() + l2, "PK\x03\x04", 4);
+    put16(img, l2 + 8, 0); /* method stored */
+    put16(img, l2 + 26, u16(n2_len));
+    put16(img, l2 + 28, 0);             /* extra len */
+    put32v(img, l2 + 22, u32(xml_len)); /* usize @+22 */
+    put32v(img, l2 + 18, u32(xml_len)); /* csize @+18 */
+    std::memcpy(img.data() + l2 + 30, "docProps/core.xml", n2_len);
+    std::memcpy(img.data() + l2 + 30 + n2_len, core_xml, size_t(xml_len));
+    /* central directory */
+    const size_t cd = at + local1 + local2;
+    const size_t cd1 = 46 + n1_len;
+    const size_t cd2 = 46 + n2_len;
+    std::memcpy(img.data() + cd, "PK\x01\x02", 4);
+    put16(img, cd + 10, 0);       /* method */
+    put16(img, cd + 30, 0);       /* extra len */
+    put16(img, cd + 32, 0);       /* comment len */
+    put32v(img, cd + 20, u32(0)); /* csize */
+    put32v(img, cd + 24, u32(0)); /* usize */
+    put16(img, cd + 28, u16(n1_len));
+    put32v(img, cd + 42, 0); /* local offset */
+    std::memcpy(img.data() + cd + 46, n1, n1_len);
+    const size_t c2 = cd + cd1;
+    std::memcpy(img.data() + c2, "PK\x01\x02", 4);
+    put16(img, c2 + 10, 0);             /* method */
+    put16(img, c2 + 30, 0);             /* extra len @+30 */
+    put16(img, c2 + 32, 0);             /* comment len @+32 */
+    put32v(img, c2 + 20, u32(xml_len)); /* csize @+20 */
+    put32v(img, c2 + 24, u32(xml_len)); /* usize @+24 */
+    put16(img, c2 + 28, u16(n2_len));
+    put32v(img, c2 + 42, u32(local1)); /* local offset */
+    std::memcpy(img.data() + c2 + 46, "docProps/core.xml", n2_len);
+    /* EOCD */
+    const size_t eocd = cd + cd1 + cd2;
+    std::memcpy(img.data() + eocd, "PK\x05\x06", 4);
+    put16(img, eocd + 8, 2);  /* entries */
+    put16(img, eocd + 10, 2); /* total */
+    put32v(img, eocd + 12, u32(cd1 + cd2));
+    put32v(img, eocd + 16, u32(local1 + local2));
+    return (eocd + 22) - at;
+}
+
 std::vector<u8> build_carve_image() {
     /* CARVE-2: the background is NON-ZERO noise - the og's zero-padding
      * end extension (trailing all-zero 16-byte blocks absorbed, 5.24 MB
@@ -306,16 +527,16 @@ TEST(CarveEngine, GrammarValidationAndSpecificity) {
             FAIL() << "unexpected carved node at " << n->props()->extents.front().offset;
         switch (fmt) {
         case FMT_JPG:
-            EXPECT_EQ(n->name_utf8().substr(n->name_utf8().size() - 4), ".jpg");
+            EXPECT_EQ(n->name_utf8().substr(n->name_utf8().size() - 4), ".JPG");
             break;
         case FMT_PNG:
-            EXPECT_EQ(n->name_utf8().substr(n->name_utf8().size() - 4), ".png");
+            EXPECT_EQ(n->name_utf8().substr(n->name_utf8().size() - 4), ".PNG");
             break;
         case FMT_DOCX:
-            EXPECT_EQ(n->name_utf8().substr(n->name_utf8().size() - 5), ".docx");
+            EXPECT_EQ(n->name_utf8().substr(n->name_utf8().size() - 5), ".DOCX");
             break;
         case FMT_ZIP:
-            EXPECT_EQ(n->name_utf8().substr(n->name_utf8().size() - 4), ".zip");
+            EXPECT_EQ(n->name_utf8().substr(n->name_utf8().size() - 4), ".ZIP");
             break;
         default:
             break;
@@ -589,12 +810,12 @@ TEST(CarveEngine, PstAndRar5Grammar) {
         if (!c->props())
             continue;
         const std::string nm = c->name_utf8();
-        if (nm.find(".pst") != std::string::npos) {
+        if (nm.find(".PST") != std::string::npos) {
             ++pst;
             EXPECT_EQ(4096u, c->props()->extents[0].offset);
             EXPECT_EQ(u64(128 * 1024), c->props()->extents[0].length);
         }
-        if (nm.find(".rar5") != std::string::npos) {
+        if (nm.find(".RAR5") != std::string::npos) {
             ++rar5;
             EXPECT_EQ(rar_at, c->props()->extents[0].offset);
             EXPECT_EQ(rar_end - rar_at, c->props()->extents[0].length);
@@ -607,7 +828,7 @@ TEST(CarveEngine, PstAndRar5Grammar) {
      * trial order tries RAR5 first; the RAR4 entry cannot also fire */
     int rar4 = 0;
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
-        if (c->props() && c->name_utf8().find(".rar") == 0)
+        if (c->props() && c->name_utf8().find(".RAR") == 0)
             ++rar4;
     EXPECT_EQ(0, rar4);
 }
@@ -790,29 +1011,31 @@ TEST(CarveEngine, ExtendedFormatsGrammar) {
         if (c->props()) {
             found.insert(c->name_utf8());
         }
-    /* each extended format must validate */
-    EXPECT_TRUE(found.count("File000000.psd"));
-    EXPECT_TRUE(found.count("File000001.mp3"));
-    EXPECT_TRUE(found.count("File000002.wav"));
-    EXPECT_TRUE(found.count("File000003.wmv"));
-    EXPECT_TRUE(found.count("File000004.flv"));
-    EXPECT_TRUE(found.count("File000005.cab"));
-    EXPECT_TRUE(found.count("File000006.orf"));
+    /* each extended format must validate - S-049: every name is the
+     * og's universal <UPPERCASE-EXT>_<%06d>.<UPPERCASE-EXT> (the
+     * per-format counters start at 1 each) */
+    EXPECT_TRUE(found.count("PSD_000001.PSD"));
+    EXPECT_TRUE(found.count("MP3_000001.MP3"));
+    EXPECT_TRUE(found.count("WAV_000001.WAV"));
+    EXPECT_TRUE(found.count("WMV_000001.WMV"));
+    EXPECT_TRUE(found.count("FLV_000001.FLV"));
+    EXPECT_TRUE(found.count("CAB_000001.CAB"));
+    EXPECT_TRUE(found.count("ORF_000001.ORF"));
     /* ISO detected via its late magic */
     bool iso_found = false;
     for (const auto& f : found)
-        if (f.find(".iso") != std::string::npos)
+        if (f.find(".ISO") != std::string::npos)
             iso_found = true;
     EXPECT_TRUE(iso_found);
     /* negative: the RIFF blob must be WAV, not WEBP/AVI (form-type checked) */
     for (const auto& f : found) {
-        EXPECT_EQ(std::string::npos, f.find(".webp"));
-        EXPECT_EQ(std::string::npos, f.find(".avi"));
+        EXPECT_EQ(std::string::npos, f.find(".WEBP"));
+        EXPECT_EQ(std::string::npos, f.find(".AVI"));
     }
     /* MP3 exact extent: the strict frame walk ended at the last valid
      * frame - 10 (ID3 header) + 100 (tag) + 4*131 (frames) = 634 B */
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
-        if (c->props() && c->name_utf8().find(".mp3") != std::string::npos) {
+        if (c->props() && c->name_utf8().find(".MP3") != std::string::npos) {
             EXPECT_EQ(u64(634), c->props()->extents[0].length);
         }
     }
@@ -872,7 +1095,7 @@ TEST(CarveEngine, PdfEofLastWinsAndFrameFloors) {
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
         if (!c->props())
             continue;
-        if (c->name_utf8().find(".pdf") == std::string::npos)
+        if (c->name_utf8().find(".PDF") == std::string::npos)
             continue;
         ++pdfs;
         ASSERT_EQ(u64(pdf1), c->props()->extents[0].offset);
@@ -948,9 +1171,9 @@ TEST(CarveEngine, RawSignLayerHeaderOnlyAndSharedMagic) {
     tree::FileNode* fst_n = nullptr;
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
         const std::string nm = c->name_utf8();
-        if (nm.size() > 7 && nm.compare(nm.size() - 7, 7, ".sample") == 0)
+        if (nm.size() > 7 && nm.compare(nm.size() - 7, 7, ".SAMPLE") == 0)
             sample_n = c;
-        if (nm.size() > 4 && nm.compare(nm.size() - 4, 4, ".fst") == 0)
+        if (nm.size() > 4 && nm.compare(nm.size() - 4, 4, ".FST") == 0)
             fst_n = c;
     }
     ASSERT_NE(sample_n, nullptr) << "header-only sign hit missing";
@@ -990,7 +1213,7 @@ TEST(CarveEngine, RawSignTailPairWithinFormat) {
     tree::FileNode* sql_n = nullptr;
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
         const std::string nm = c->name_utf8();
-        if (nm.size() > 7 && nm.compare(nm.size() - 7, 7, ".sqlite") == 0)
+        if (nm.size() > 7 && nm.compare(nm.size() - 7, 7, ".SQLITE") == 0)
             sql_n = c;
     }
     ASSERT_NE(sql_n, nullptr) << "sqlite raw-sign hit missing";
@@ -1017,7 +1240,7 @@ TEST(RawSigns, CarvesFiveMiBVob) {
     tree::FileNode* vob_n = nullptr;
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
         const std::string nm = c->name_utf8();
-        if (nm.size() > 4 && nm.compare(nm.size() - 4, 4, ".vob") == 0)
+        if (nm.size() > 4 && nm.compare(nm.size() - 4, 4, ".VOB") == 0)
             vob_n = c;
     }
     ASSERT_NE(vob_n, nullptr) << "vob raw-sign hit missing";
@@ -1073,7 +1296,7 @@ TEST(RawSigns, TailPairWindowScaled) {
     tree::FileNode* apk_n = nullptr;
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
         const std::string nm = c->name_utf8();
-        if (nm.size() > 4 && nm.compare(nm.size() - 4, 4, ".apk") == 0)
+        if (nm.size() > 4 && nm.compare(nm.size() - 4, 4, ".APK") == 0)
             apk_n = c;
     }
     ASSERT_NE(apk_n, nullptr) << "apk raw-sign hit missing";
@@ -1641,7 +1864,13 @@ std::vector<u8> bmff_head(const char* brand) {
 }
 
 tree::FileNode* find_carved_by_ext(tree::FileNode* root, const char* ext) {
-    const std::string dot_ext = std::string(".") + ext;
+    /* S-049: carved names carry the UPPERCASE extension (the og's
+     * real-session naming); callers pass the registry's lowercase ext,
+     * so the compare is case-insensitive on the ext case only */
+    std::string dot_ext = std::string(".") + ext;
+    for (char& ch : dot_ext)
+        if (ch >= 'a' && ch <= 'z')
+            ch = char(ch - 0x20);
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
         const std::string nm = c->name_utf8();
         if (nm.size() > dot_ext.size() &&
@@ -3678,7 +3907,7 @@ TEST(Carve, M2Ts192PacketStreamAccepted) {
     EXPECT_EQ(n->props()->logical_size, len) << "extent = the last complete packet";
     std::string name;
     ASSERT_TRUE(cr::text::lossless_u16_to_utf8(n->props()->name, name));
-    EXPECT_NE(name.find(".m2ts"), std::string::npos) << "the og's M2TS extension stamp";
+    EXPECT_NE(name.find(".M2TS"), std::string::npos) << "the og's M2TS extension stamp";
 }
 
 TEST(Carve, TsBelowMinimumExtentRejected) {
@@ -4018,7 +4247,7 @@ TEST(Carve, SvgDeclaredSvgAccepted) {
     EXPECT_EQ(n->props()->logical_size, doc_len) << "the </svg> end-tag extent, exact";
     std::string name;
     ASSERT_TRUE(cr::text::lossless_u16_to_utf8(n->props()->name, name));
-    EXPECT_NE(name.find(".svg"), std::string::npos) << "the effective row's extension";
+    EXPECT_NE(name.find(".SVG"), std::string::npos) << "the effective row's extension";
 }
 
 TEST(Carve, SvgBomFormAccepted) {
@@ -4136,7 +4365,7 @@ TEST(Carve, GenericXmlFallbackId) {
     EXPECT_EQ(n->props()->carve_format, u64(FMT_XML)) << "the generic-XML id (0x13)";
     std::string name;
     ASSERT_TRUE(cr::text::lossless_u16_to_utf8(n->props()->name, name));
-    EXPECT_NE(name.find(".xml"), std::string::npos);
+    EXPECT_NE(name.find(".XML"), std::string::npos);
 }
 
 TEST(Carve, XmlNoMarkerNoSvgRejected) {
@@ -4215,7 +4444,7 @@ TEST(Carve, MobiBookMobiPairAccepted) {
     EXPECT_EQ(n->props()->logical_size, (0x2000 - 0) + 4) << "the end-tag extent (step-aligned)";
     std::string name;
     ASSERT_TRUE(cr::text::lossless_u16_to_utf8(n->props()->name, name));
-    EXPECT_NE(name.find(".mobi"), std::string::npos);
+    EXPECT_NE(name.find(".MOBI"), std::string::npos);
 }
 
 TEST(Carve, MobiOtherPalmCreatorsRejected) {
@@ -4436,7 +4665,7 @@ TEST(Carve, AsfCarveStopsAtGrammarBreak) {
         carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
         OK);
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
-        if (c->props() && c->name_utf8().find(".wmv") != std::string::npos) {
+        if (c->props() && c->name_utf8().find(".WMV") != std::string::npos) {
             EXPECT_EQ(c->props()->logical_size, expect)
                 << "header-only ASF: extent = the header, no premature extension";
         }
@@ -4484,7 +4713,7 @@ TEST(Carve, AsfHeaderCountGatesUnchanged) {
                   OK);
         for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
             if (c->props()) {
-                EXPECT_EQ(std::string::npos, c->name_utf8().find(".wmv"))
+                EXPECT_EQ(std::string::npos, c->name_utf8().find(".WMV"))
                     << "count " << bad_count << " must reject";
             }
         }
@@ -4511,7 +4740,7 @@ TEST(Carve, Fh11DetectedAndWalked) {
                               stats));
     tree::FileNode* hit = nullptr;
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
-        if (c->props() && c->name_utf8().find(".fh11") != std::string::npos)
+        if (c->props() && c->name_utf8().find(".FH11") != std::string::npos)
             hit = c;
     ASSERT_NE(hit, nullptr) << "the FH11 header must carve";
     EXPECT_EQ(u32(FsKindCode::Raw), hit->props()->fs_kind);
@@ -4544,7 +4773,7 @@ TEST(Carve, Fh11RejectsBareKeyBytes) {
                               stats));
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
         if (c->props()) {
-            EXPECT_EQ(std::string::npos, c->name_utf8().find(".fh11"))
+            EXPECT_EQ(std::string::npos, c->name_utf8().find(".FH11"))
                 << "bare key bytes must not carve";
         }
     }
@@ -4569,7 +4798,7 @@ TEST(Carve, CptGenerationsDetected) {
             << "generation " << char(gen);
         tree::FileNode* hit = nullptr;
         for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
-            if (c->props() && c->name_utf8().find(".cpt") != std::string::npos)
+            if (c->props() && c->name_utf8().find(".CPT") != std::string::npos)
                 hit = c;
         ASSERT_NE(hit, nullptr) << "CPT" << char(gen) << " must carve";
         /* the walk's exact size per the og's FUN_1800436e0: the data
@@ -4601,7 +4830,7 @@ TEST(Carve, CptRejectsTruncatedHeader) {
                               stats));
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
         if (c->props()) {
-            EXPECT_EQ(std::string::npos, c->name_utf8().find(".cpt"))
+            EXPECT_EQ(std::string::npos, c->name_utf8().find(".CPT"))
                 << "a wrong Analyse magic must reject";
         }
     }
@@ -5561,7 +5790,7 @@ TEST(Carve, CabLowercaseMagic) {
     CarveStats s;
     ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
               OK);
-    const std::string dot_cab = ".cab";
+    const std::string dot_cab = ".CAB";
     size_t carved = 0;
     tree::FileNode* lower_node = nullptr;
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
@@ -5661,7 +5890,7 @@ TEST(CarveEngine, TailAnchorCarriedOnTailPairedHits) {
     tree::FileNode* sql_n = nullptr;
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
         const std::string nm = c->name_utf8();
-        if (nm.size() > 7 && nm.compare(nm.size() - 7, 7, ".sqlite") == 0)
+        if (nm.size() > 7 && nm.compare(nm.size() - 7, 7, ".SQLITE") == 0)
             sql_n = c;
     }
     ASSERT_NE(sql_n, nullptr);
@@ -5696,7 +5925,7 @@ TEST(CarveEngine, SqliteRealHeaderByteOrder) {
     tree::FileNode* sql_n = nullptr;
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
         const std::string nm = c->name_utf8();
-        if (nm.size() > 7 && nm.compare(nm.size() - 7, 7, ".sqlite") == 0)
+        if (nm.size() > 7 && nm.compare(nm.size() - 7, 7, ".SQLITE") == 0)
             sql_n = c;
     }
     ASSERT_NE(sql_n, nullptr) << "a real-format SQLite header must carve (pre-A-011: LE-rejected)";
@@ -5722,7 +5951,7 @@ TEST(CarveEngine, SqliteInvalidEncodingRejects) {
               OK);
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
         const std::string nm = c->name_utf8();
-        if (nm.size() > 7 && nm.compare(nm.size() - 7, 7, ".sqlite") == 0) {
+        if (nm.size() > 7 && nm.compare(nm.size() - 7, 7, ".SQLITE") == 0) {
             EXPECT_NE(c->props()->carve_format, u32(FMT_SQLITE))
                 << "an invalid encoding must not reach the grammar layer "
                    "(the raw-sign layer's sign hit is legitimate)";
@@ -5749,7 +5978,7 @@ TEST(CarveEngine, SqliteLittleEndianShapeRejects) {
               OK);
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
         const std::string nm = c->name_utf8();
-        if (nm.size() > 7 && nm.compare(nm.size() - 7, 7, ".sqlite") == 0) {
+        if (nm.size() > 7 && nm.compare(nm.size() - 7, 7, ".SQLITE") == 0) {
             EXPECT_NE(c->props()->carve_format, u32(FMT_SQLITE))
                 << "the LE shape (00 10 at +16) must not reach the grammar "
                    "layer (the raw-sign layer's sign hit is legitimate)";
@@ -5785,7 +6014,7 @@ TEST(CarveEngine, SqliteFcpeventSubtypeRelabeled) {
     tree::FileNode* sql_n = nullptr;
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
         const std::string nm = c->name_utf8();
-        if (nm.size() > 7 && nm.compare(nm.size() - 7, 7, ".sqlite") == 0)
+        if (nm.size() > 7 && nm.compare(nm.size() - 7, 7, ".SQLITE") == 0)
             sql_n = c;
     }
     ASSERT_NE(sql_n, nullptr);
@@ -5810,7 +6039,7 @@ TEST(CarveEngine, SqliteGenericLabelUnchangedWithoutMarker) {
     tree::FileNode* sql_n = nullptr;
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
         const std::string nm = c->name_utf8();
-        if (nm.size() > 7 && nm.compare(nm.size() - 7, 7, ".sqlite") == 0)
+        if (nm.size() > 7 && nm.compare(nm.size() - 7, 7, ".SQLITE") == 0)
             sql_n = c;
     }
     ASSERT_NE(sql_n, nullptr);
@@ -5937,9 +6166,9 @@ TEST(CarveEngine, FormatDisabledSkipsSignature) {
                 const std::string nm = c->name_utf8();
                 if (nm.size() >= 3) {
                     const std::string ext = nm.substr(nm.size() - 3);
-                    if (ext == "jpg")
+                    if (ext == "JPG") /* S-049: the uppercase extension */
                         ++jpg;
-                    if (ext == "png")
+                    if (ext == "PNG")
                         ++png;
                 }
             }
@@ -6179,13 +6408,12 @@ TEST(CarveEngine, WindowServingServesStraddlingReadsCorrectly) {
 
 } // namespace
 
-TEST(CarveEngine, Mp4NamedByMetadataTemplate) {
-    /* N-063 falsifiable claim: a carved MP4 in the og is named
-     * "Lost Name File (<time>)_EaseUS" (metadata-derived), not
-     * "File000123.mp4". The time is the RAW mvhd+0x10 field value fed
-     * as Unix seconds (no 1904-epoch conversion in the og's decode) -
-     * 1738843200 = 2025-02-06 12:00:00 UTC. Fail-before: the node was
-     * named File000001.mp4. */
+TEST(CarveEngine, Mp4NamedByOgUniversalContract) {
+    /* S-049: the real og sessions name ALL 27 carved MP4 files
+     * MP4_%06d.MP4 (the "Lost Name File" template never fires on the
+     * carve path - the 57/57 MP4+MOV real-row census supersedes N-063's
+     * carve-path template). Fail-before: the node was named
+     * "Lost Name File (...)_EaseUS" (and File000000.mp4 before that). */
     auto img = build_bmff_named_image(0, 1738843200u, 0, "isom");
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
@@ -6199,13 +6427,12 @@ TEST(CarveEngine, Mp4NamedByMetadataTemplate) {
         if (c->props() && c->props()->carve_format == FMT_MP4)
             mp4 = c;
     ASSERT_NE(mp4, nullptr) << "the MP4 must carve";
-    EXPECT_EQ(mp4->props()->name, std::u16string(u"Lost Name File (2025:02:06 12:00:00)_EaseUS"));
+    EXPECT_EQ(mp4->props()->name, std::u16string(u"MP4_000001.MP4"));
 }
 
-TEST(CarveEngine, MovNamedByMetadataTemplate) {
-    /* the MOV (qt brand) analyser carries the same og template; a v0
-     * mvhd time of 0 formats as the epoch (the og feeds 0 straight to
-     * _localtime64) */
+TEST(CarveEngine, MovNamedByOgUniversalContract) {
+    /* S-049: the MOV (qt brand) names through the same universal
+     * contract - MOV_%06d.MOV (30/30 real rows) */
     auto img = build_bmff_named_image(0, 0u, 0, "qt  ");
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
@@ -6219,15 +6446,13 @@ TEST(CarveEngine, MovNamedByMetadataTemplate) {
         if (c->props() && c->props()->carve_format == FMT_MOV)
             mov = c;
     ASSERT_NE(mov, nullptr) << "the MOV must carve";
-    EXPECT_EQ(mov->props()->name, std::u16string(u"Lost Name File (1970:01:01 00:00:00)_EaseUS"));
+    EXPECT_EQ(mov->props()->name, std::u16string(u"MOV_000001.MOV"));
 }
 
-TEST(CarveEngine, MovV1MvhdHighWordQuirkReplicated) {
-    /* the og's v1 read takes the FIRST FOUR BYTES of the u64 at
-     * mvhd+0x14 (the HIGH 32 of the BE value - :33335-33338) so every
-     * sane v1 modification time (high word 0) formats as the epoch.
-     * Replicated faithfully; pinned here so a "fix" never silently
-     * diverges from the og's own quirk. */
+TEST(CarveEngine, MovV1CarvesUnderUniversalName) {
+    /* S-049: the v1 mvhd fixture (whose high-word read quirk the N-063
+     * decode pinned) still carves; the name is the universal contract
+     * (the quirk fed the retired template, not the carve name) */
     auto img = build_bmff_named_image(1, 0, 0x00000000E0B67B00ull, "isom");
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
@@ -6241,43 +6466,298 @@ TEST(CarveEngine, MovV1MvhdHighWordQuirkReplicated) {
         if (c->props() && c->props()->carve_format == FMT_MP4)
             mp4 = c;
     ASSERT_NE(mp4, nullptr);
-    EXPECT_EQ(mp4->props()->name, std::u16string(u"Lost Name File (1970:01:01 00:00:00)_EaseUS"))
-        << "the og's v1 high-word quirk must be replicated, not corrected";
+    EXPECT_EQ(mp4->props()->name, std::u16string(u"MP4_000001.MP4"));
 }
 
-TEST(CarveEngine, FallbackNamerDocumented) {
-    /* formats with no decoded og naming rule keep the deliberate
-     * File%06u default (registered in PARITY-DELTAS): the JPEG carve
-     * from the standard fixture is File000001.jpg. */
-    auto img = build_carve_image();
+TEST(CarveEngine, OgNamingUniversalExtCounter) {
+    /* S-049: the og's universal default - a plain PNG (no analyser
+     * prefix, no dims) names PNG_000001.PNG: the uppercase EXT as its
+     * own prefix, the counter starting at 1, the uppercase extension
+     * (the 189,115-row real-session census: PNG_N.PNG x42,412).
+     * Fail-before: File000000.png. */
+    std::vector<u8> img(256 * 1024, 0xAA);
+    plant_png(img, 512);
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
-    auto* root = tree.add_root(u"Lost Files");
+    auto* root = tree.add_root(u"R");
     CarveFlags flags;
     CarveStats st;
     ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st),
               OK);
-    /* the fixture's carved jpg/png/zip/docx all lack decoded og naming
-     * rules - every one of them carries the deliberate File%06u.ext
-     * default (zero-padded, stable ordering; PARITY-DELTAS) */
-    int fallback_named = 0;
-    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
-        if (!c->props())
-            continue;
-        const std::string n8 = c->name_utf8();
-        if (n8.compare(0, 4, "File") != 0)
-            continue;
-        const size_t dot = n8.rfind('.');
-        if (dot == std::string::npos)
-            continue;
-        bool digits = dot == 10; /* File + 6 digits + .ext */
-        for (size_t k = 4; k < dot; ++k)
-            if (n8[k] < '0' || n8[k] > '9')
-                digits = false;
-        if (digits)
-            ++fallback_named;
+    bool saw = false;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->carve_format == FMT_PNG) {
+            EXPECT_EQ(c->props()->name, std::u16string(u"PNG_000001.PNG"));
+            saw = true;
+        }
+    EXPECT_TRUE(saw) << "the PNG must carve";
+    /* the retired deliberate default is gone: no FileNNNN anywhere */
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        EXPECT_NE(0u, c->name_utf8().compare(0, 4, "File"))
+            << "File%06u family must be gone: " << c->name_utf8();
+}
+
+TEST(CarveEngine, OgNamingCounterPast99999) {
+    /* S-049: FUN_140c44770's own fallback - past counter 99999 the
+     * zero-padding drops (%06d -> %d). The counter map is seeded to
+     * 99999 so this carve draws 100000. */
+    std::vector<u8> img(256 * 1024, 0xAA);
+    plant_png(img, 512);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"R");
+    CarveFlags flags;
+    carve::CarveNameCounters counters;
+    counters.per_prefix[u"PNG"] = 99999;
+    flags.name_counters = &counters;
+    CarveStats st;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st),
+              OK);
+    bool saw = false;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->carve_format == FMT_PNG) {
+            EXPECT_EQ(c->props()->name, std::u16string(u"PNG_100000.PNG"));
+            saw = true;
+        }
+    EXPECT_TRUE(saw);
+}
+
+TEST(CarveEngine, OgNamingJpgSofDimensions) {
+    /* S-049: the JPEG dimensions form - a JPEG with a parseable SOF0
+     * (w=48, h=64) and no EXIF names JPG_48x64_000001.JPG (the
+     * format-keyed counter + the %dx%d dims; 405 real rows). */
+    std::vector<u8> img(256 * 1024, 0xAA);
+    plant_jpeg(img, 512);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"R");
+    CarveFlags flags;
+    CarveStats st;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st),
+              OK);
+    bool saw = false;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->carve_format == FMT_JPG) {
+            EXPECT_EQ(c->props()->name, std::u16string(u"JPG_48x64_000001.JPG"));
+            saw = true;
+        }
+    EXPECT_TRUE(saw) << "the JPEG must carve";
+}
+
+TEST(CarveEngine, OgNamingJpgExifModel) {
+    /* S-049: the EXIF Model prefix - GT-S7562_000001.JPG (197+ real
+     * rows; Model wins over Software, the RAWSearchDLL :40382-40510
+     * precedence). Fail-before: File000000.jpg. */
+    std::vector<u8> img(256 * 1024, 0xAA);
+    plant_jpeg_exif(img, 512, "GT-S7562", "SomeSoft 1.0");
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"R");
+    CarveFlags flags;
+    CarveStats st;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st),
+              OK);
+    bool saw = false;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->carve_format == FMT_JPG) {
+            EXPECT_EQ(c->props()->name, std::u16string(u"GT-S7562_000001.JPG"));
+            saw = true;
+        }
+    EXPECT_TRUE(saw) << "the JPEG must carve";
+}
+
+TEST(CarveEngine, OgNamingJpgExifSoftware) {
+    /* S-049: the EXIF Software prefix fires only when no Model exists
+     * (the og's own fallback order) - Adobe Photoshop 7.0_000001.JPG
+     * (125 real rows). */
+    std::vector<u8> img(256 * 1024, 0xAA);
+    plant_jpeg_exif(img, 512, nullptr, "Adobe Photoshop 7.0");
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"R");
+    CarveFlags flags;
+    CarveStats st;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st),
+              OK);
+    bool saw = false;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->carve_format == FMT_JPG) {
+            EXPECT_EQ(c->props()->name, std::u16string(u"Adobe Photoshop 7.0_000001.JPG"));
+            saw = true;
+        }
+    EXPECT_TRUE(saw) << "the JPEG must carve";
+}
+
+TEST(CarveEngine, OgNamingMp3Id3Title) {
+    /* S-049: the ID3v2 title prefix - AREE DEEWANO MUJHE PECHANO_000001.MP3
+     * (a real ID3 title from the sessions; 1,126 MP3 rows). */
+    std::vector<u8> img(256 * 1024, 0xAA);
+    plant_mp3_tit2(img, 512, "AREE DEEWANO MUJHE PECHANO");
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"R");
+    CarveFlags flags;
+    CarveStats st;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st),
+              OK);
+    bool saw = false;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->carve_format == FMT_MP3) {
+            EXPECT_EQ(c->props()->name, std::u16string(u"AREE DEEWANO MUJHE PECHANO_000001.MP3"));
+            saw = true;
+        }
+    EXPECT_TRUE(saw) << "the MP3 must carve";
+}
+
+TEST(CarveEngine, OgNamingPdfTimestamp) {
+    /* S-049: the PDF creation-timestamp prefix -
+     * 2020-05-23 23-23-23_000001.PDF (91 real rows; D:20200523232323
+     * formatted YYYY-MM-DD HH-MM-SS). */
+    std::vector<u8> img(256 * 1024, 0xAA);
+    plant_pdf_date(img, 512, "20200523232323");
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"R");
+    CarveFlags flags;
+    CarveStats st;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st),
+              OK);
+    bool saw = false;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->carve_format == FMT_PDF) {
+            EXPECT_EQ(c->props()->name, std::u16string(u"2020-05-23 23-23-23_000001.PDF"));
+            saw = true;
+        }
+    EXPECT_TRUE(saw) << "the PDF must carve";
+}
+
+TEST(CarveEngine, OgNamingDocxTimestamp) {
+    /* S-049: the DOCX docProps prefix - dc:creator + '_' +
+     * dcterms:created: KIS2_2022-05-25 13-14-00_000001.DOCX (the
+     * KIS2_2022-05-25 13-14-00_N.DOCX real form; the creator and
+     * created both come from docProps/core.xml, RAWSearchDLL
+     * :53530-53666). */
+    std::vector<u8> img(256 * 1024, 0xAA);
+    plant_docx_core(img, 512, "KIS2", "2022-05-25T13:14:00Z");
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"R");
+    CarveFlags flags;
+    CarveStats st;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st),
+              OK);
+    bool saw = false;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->carve_format == FMT_DOCX) {
+            EXPECT_EQ(c->props()->name, std::u16string(u"KIS2_2022-05-25 13-14-00_000001.DOCX"));
+            saw = true;
+        }
+    EXPECT_TRUE(saw) << "the DOCX must carve";
+}
+
+TEST(CarveEngine, OgNamingDocxTimestampAlone) {
+    /* S-049: the creator-less form - the created timestamp alone:
+     * 2006-07-25 02-16-00_000001.DOCX (the 2006-07-25 02-16-00_N.DOCX
+     * real form). */
+    std::vector<u8> img(256 * 1024, 0xAA);
+    plant_docx_core(img, 512, "", "2006-07-25T02:16:00Z");
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"R");
+    CarveFlags flags;
+    CarveStats st;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st),
+              OK);
+    bool saw = false;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->carve_format == FMT_DOCX) {
+            EXPECT_EQ(c->props()->name, std::u16string(u"2006-07-25 02-16-00_000001.DOCX"));
+            saw = true;
+        }
+    EXPECT_TRUE(saw) << "the DOCX must carve";
+}
+
+TEST(CarveEngine, OgNamingZipFirstEntry) {
+    /* S-049: the ZIP first-central-directory-entry prefix - a JAR whose
+     * first CD entry is the META-INF/ directory marker names
+     * META-INF__000001.ZIP (275 real rows; '/' and '.' sanitize to '_',
+     * the hyphen stays). The EOCD comment pads the extent past the
+     * registry's 128-byte min_size. */
+    std::vector<u8> img(256 * 1024, 0xAA);
+    plant_zip(img, 512, "META-INF/", 9);
+    {
+        /* EOCD sits at 512 + 30+9 + 46+9 = 606; add a 40-byte comment */
+        const size_t eocd = 512 + 39 + 55;
+        ASSERT_EQ(std::memcmp(img.data() + eocd, "PK\x05\x06", 4), 0);
+        put16(img, eocd + 20, 40);
     }
-    EXPECT_GE(fallback_named, 3) << "rule-less formats keep the deliberate default";
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"R");
+    CarveFlags flags;
+    CarveStats st;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st),
+              OK);
+    bool saw = false;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->carve_format == FMT_ZIP) {
+            EXPECT_EQ(c->props()->name, std::u16string(u"META-INF__000001.ZIP"));
+            saw = true;
+        }
+    EXPECT_TRUE(saw) << "the ZIP must carve";
+}
+
+TEST(CarveEngine, OgNamingZipFirstEntryDotted) {
+    /* S-049: the dot-sanitizing form - LICENSE.OFL -> LICENSE_OFL
+     * (LICENSE_OFL_N.ZIP, the OFL font-license real form). */
+    std::vector<u8> img(256 * 1024, 0xAA);
+    plant_zip(img, 512, "LICENSE.OFL", 11);
+    {
+        const size_t eocd = 512 + 30 + 11 + 46 + 11;
+        ASSERT_EQ(std::memcmp(img.data() + eocd, "PK\x05\x06", 4), 0);
+        put16(img, eocd + 20, 40);
+    }
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"R");
+    CarveFlags flags;
+    CarveStats st;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st),
+              OK);
+    bool saw = false;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->carve_format == FMT_ZIP) {
+            EXPECT_EQ(c->props()->name, std::u16string(u"LICENSE_OFL_000001.ZIP"));
+            saw = true;
+        }
+    EXPECT_TRUE(saw) << "the ZIP must carve";
+}
+
+TEST(CarveEngine, OgNamingSessionWideCounters) {
+    /* S-049: the og's counter map is session-wide - two slices sharing
+     * one CarveNameCounters object (the orchestrator's binding) number
+     * their PNGs sequentially across slices: PNG_000001 then
+     * PNG_000002 (the real sessions' continuous per-format counters). */
+    carve::CarveNameCounters counters;
+    for (int slice = 0; slice < 2; ++slice) {
+        std::vector<u8> img(256 * 1024, 0xAA);
+        plant_png(img, 512);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"R");
+        CarveFlags flags;
+        flags.name_counters = &counters;
+        CarveStats st;
+        ASSERT_EQ(
+            carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st),
+            OK);
+        for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->props()->carve_format == FMT_PNG) {
+                EXPECT_EQ(c->props()->name,
+                          std::u16string(slice == 0 ? u"PNG_000001.PNG" : u"PNG_000002.PNG"));
+            }
+        }
+    }
 }
 
 TEST(CarveEngine, ZeroSectorSkipStats) {
@@ -6425,7 +6905,7 @@ TEST(CarveEngine, UserSignatureProbedAtStride) {
     EXPECT_EQ(1u, st.sign_hits);
     tree::FileNode* hit = nullptr;
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
-        if (c->props() && c->props()->name.find(u".xyz") != std::u16string::npos)
+        if (c->props() && c->props()->name.find(u".XYZ") != std::u16string::npos)
             hit = c;
     ASSERT_NE(hit, nullptr) << "the user-taught extension surfaces";
     EXPECT_EQ(0xFFFE0000u, hit->props()->carve_format);
@@ -6957,7 +7437,8 @@ TEST(Carve, TsM2TsCapIsTheOg200MB) {
     }
     ASSERT_NE(ts, nullptr);
     ASSERT_NE(m2ts, nullptr);
-    EXPECT_EQ(ts->max_size, 200000000ull) << "the og's TS clamp (:35507-35509), not the refuted x10";
+    EXPECT_EQ(ts->max_size, 200000000ull)
+        << "the og's TS clamp (:35507-35509), not the refuted x10";
     EXPECT_EQ(m2ts->max_size, 200000000ull) << "the og's M2TS clamp, same global";
     EXPECT_EQ(ts->min_size, 0x5000u);
     EXPECT_EQ(m2ts->min_size, 0x5000u);
@@ -7198,7 +7679,12 @@ TEST(Carve, Jp2BrandMap) {
             << "the box-walk extent (brand " << c.brand << ")";
         std::string name;
         ASSERT_TRUE(cr::text::lossless_u16_to_utf8(n->props()->name, name));
-        EXPECT_NE(name.find(std::string(".") + c.ext), std::string::npos);
+        /* S-049: the name carries the UPPERCASE extension */
+        std::string ext_up = c.ext;
+        for (char& ch : ext_up)
+            if (ch >= 'a' && ch <= 'z')
+                ch = char(ch - 0x20);
+        EXPECT_NE(name.find(std::string(".") + ext_up), std::string::npos);
     }
 }
 
@@ -7386,7 +7872,7 @@ TEST(Carve, LzhMethodFamilyAccepted) {
         ASSERT_NE(n, nullptr) << "method " << m << " must carve";
         std::string name;
         ASSERT_TRUE(cr::text::lossless_u16_to_utf8(n->props()->name, name));
-        EXPECT_NE(name.find(".lzh"), std::string::npos) << "one id (0x24) -> one extension";
+        EXPECT_NE(name.find(".LZH"), std::string::npos) << "one id (0x24) -> one extension";
         (void)end;
     }
 }
@@ -7533,7 +8019,7 @@ TEST(Carve, TextSchoolVcfAcceptedAndExtent) {
     EXPECT_EQ(n->props()->logical_size, end - at) << "the END:VCARD extent";
     std::string name;
     ASSERT_TRUE(cr::text::lossless_u16_to_utf8(n->props()->name, name));
-    EXPECT_NE(name.find(".vcf"), std::string::npos);
+    EXPECT_NE(name.find(".VCF"), std::string::npos);
 }
 
 TEST(Carve, TextSchoolVcfMultiCardContinuation) {
@@ -7603,7 +8089,7 @@ TEST(Carve, TextSchoolGpxAcceptedAndExtent) {
     EXPECT_EQ(n->props()->logical_size, end - at) << "the </gpx> extent";
     std::string name;
     ASSERT_TRUE(cr::text::lossless_u16_to_utf8(n->props()->name, name));
-    EXPECT_NE(name.find(".gpx"), std::string::npos);
+    EXPECT_NE(name.find(".GPX"), std::string::npos);
 }
 
 TEST(Carve, TextSchoolGpxRootBeforeWindowRejects) {
@@ -7651,7 +8137,7 @@ TEST(Carve, TextSchoolOspAcceptedAndRejectOnMissing) {
                 << "the needle + 0xF extent";
             std::string name;
             ASSERT_TRUE(cr::text::lossless_u16_to_utf8(n->props()->name, name));
-            EXPECT_NE(name.find(".osp"), std::string::npos);
+            EXPECT_NE(name.find(".OSP"), std::string::npos);
         } else {
             EXPECT_EQ(n, nullptr) << "the missing needle must REJECT (the og's size-0 posture)";
         }
@@ -7680,7 +8166,7 @@ TEST(Carve, TextSchoolPosAcceptedAndExtent) {
     EXPECT_EQ(n->props()->logical_size, (ndl_at + 21 + 0x13) - at) << "the needle + 0x13 extent";
     std::string name;
     ASSERT_TRUE(cr::text::lossless_u16_to_utf8(n->props()->name, name));
-    EXPECT_NE(name.find(".pos"), std::string::npos);
+    EXPECT_NE(name.find(".POS"), std::string::npos);
 }
 
 TEST(Carve, TextSchoolChfpAcceptedAndExtent) {
@@ -7711,7 +8197,7 @@ TEST(Carve, TextSchoolChfpAcceptedAndExtent) {
     EXPECT_EQ(n->props()->logical_size, end - at) << "the </BiffProject> extent";
     std::string name;
     ASSERT_TRUE(cr::text::lossless_u16_to_utf8(n->props()->name, name));
-    EXPECT_NE(name.find(".hfp"), std::string::npos);
+    EXPECT_NE(name.find(".HFP"), std::string::npos);
 }
 
 TEST(Carve, TextSchoolChfpRootOffAnchorRejects) {

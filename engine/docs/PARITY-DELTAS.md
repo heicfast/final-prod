@@ -2270,45 +2270,61 @@ evidenced — until then this stays a registered simplification, pinned by
 CarveEngine.OverlapScorePrefersHigherConfidence (which proves the scoring
 half) and the absence of any fallback path in cr_registry.cpp.
 
-### D-76 — carved-file naming: the File%06u deliberate default + the MP4/MOV template's UTC formatting (N-063)
+### D-76 — carved-file naming: the og's universal contract LANDED (S-049); the N-063-era File%06u default and MP4/MOV carve-path template RETIRED
 
-**Class:** registered divergence (naming) + replicated reference quirk · **Finding:** diff-to-fix N-063 (MINOR, FIXED) · **Date:** 2026-10-26
+**Class:** resolved-to-parity (was: registered divergence) · **Findings:** diff-to-fix N-063 (MINOR, FIXED — its carve-path half superseded) + S-049 (SEVERE, FIXED) · **Dates:** 2026-10-26 (N-063) · 2026-10-29 (S-049)
 
-The og names carved files PER-ANALYSER (SetName-family, ≥8 emit sites):
-the MP4/MOV analyser formats "Lost Name File (<time>)_EaseUS"
-(RAWSearchDLL :33312/:33408 literals, :33412-33434 assembly) where
-<time> is "%04d:%02d:%02d %02d:%02d:%02d" of the RAW mvhd field value —
-the u32 at mvhd+0x10 (v0) or the FIRST FOUR BYTES of the u64 at
-mvhd+0x14 (v1) — fed to _localtime64 as Unix seconds with NO 1904
-MP4-epoch conversion. Two og quirks replicated faithfully and pinned by
-test (never "corrected"): (a) the missing epoch conversion (modern mvhd
-values format ~66 years in the future), (b) the v1 high-word truncation
-(every sane v1 time formats as 1970:01:01 00:00:00). The field is the
-MODIFICATION time under the ISO layout — the finding's "creation-time"
-label corrected by the decode.
+**History:** N-063 decoded the MP4/MOV analyser's engine-side template
+("Lost Name File (<time>)_EaseUS", RAWSearchDLL :33312/:33408; <time> =
+the RAW mvhd field — u32@+0x10 (v0) / the FIRST FOUR BYTES of the u64
+@+0x14 (v1) — fed to _localtime64 with NO 1904 conversion) and
+registered two deliberate divergences: the `File%06u.ext` default for
+rule-less formats, and UTC template formatting. S-049's executed
+real-session evidence SUPERSEDED both: the three real og sessions name
+ALL 189,115 carved rows `<UPPERCASE-EXT>_<%06d>.<UPPERCASE-EXT>` (DRWUI
+FUN_140c44770 at :1878330-81 + the format-name prepend at
+:1877537-7611; DAT_14187f760 = L"%s" and DAT_14188017c = L"_"
+extracted from the shipped DRWUI.exe first-hand), with the per-format
+prefix sources decoded: JPEG SOF dims (JPG_192x144_000001.JPG, the
+1..8192 gate), EXIF Model over Software (39-char cap,
+RAWSearchDLL :40382-40510), MP3 ID3 titles, PDF /CreationDate
+timestamps, DOCX dc:creator + dcterms:created (docProps/core.xml,
+:53530-53666), ZIP first-central-directory entry names (META-INF__,
+__MACOSX__, LICENSE_OFL_ real forms). The template NEVER fires in the
+carve path (57/57 real MP4/MOV rows are MP4_%06d.MP4 / MOV_%06d.MOV;
+the engine-side template at :33280-33447 feeds a different record
+field) — its decode is preserved here as corpus knowledge, no longer
+wired into the carve name. The retired divergences: (1) the File%06u
+default is GONE (replaced by the og contract); (2) the UTC-vs-localtime
+template divergence is moot for carve naming (the template is not the
+carve name). The engine-side template decode (the v1 high-word
+truncation quirk, the missing 1904 conversion) remains recorded here.
 
-**Deliberate divergences this fix registers:**
-1. Formats with NO decoded og naming rule (jpg/png/zip/docx/... — the
-   CZeroEndRawFileInfo membership is not decoded per-format in the
-   corpus) keep OUR `File%06u.ext` default: zero-padded, stable
-   ordering. The old code comment's false "corpus policy" claim is
-   repaired; this is the documented core-side default, not an og scheme
-   (the deep-dive artifact's "File0001.jpg lives in the UI" claim was a
-   corpus erratum, corrected with OQ-S4-2's decode).
-2. The og formats the template time via _localtime64 (scanning-host
-   LOCAL time); the core formats UTC (gmtime_r) for determinism —
-   identical digits on a UTC host. Same class as the S-011 tz posture:
-   host-independent output over host-local fidelity.
+**Carrier:** `CarveResult::name_prefix` (the analyser-supplied prefix;
+S-049 renamed N-063's full-name `embedded_name` carrier) +
+`CarveResult::dim_w/dim_h` (the dims record fields) +
+`CarveFlags::name_counters` (the session-wide per-prefix counter map —
+the og's DRWUI counter map; the orchestrator binds one per scan).
+Emit precedence: analyser prefix (the og contract) > dims form >
+the caller's namer callback (host policy for rule-less formats) >
+the `<EXT>_<%06d>` default.
 
-**Carrier:** `CarveResult::embedded_name` (the per-analyser name rides
-the validation result; emit precedence: embedded_name > namer callback >
-the deliberate default). MP4/MOV wired now; the CZeroEnd-family
-membership decode is the recorded next step in the finding.
-
-**Pin tests:** `CarveEngine.Mp4NamedByMetadataTemplate`,
-`CarveEngine.MovNamedByMetadataTemplate`,
-`CarveEngine.MovV1MvhdHighWordQuirkReplicated` (the quirk pin),
-`CarveEngine.FallbackNamerDocumented` (the deliberate default).
+**Pin tests:** `CarveEngine.OgNamingUniversalExtCounter`,
+`CarveEngine.OgNamingCounterPast99999`,
+`CarveEngine.OgNamingJpgSofDimensions`,
+`CarveEngine.OgNamingJpgExifModel`,
+`CarveEngine.OgNamingJpgExifSoftware`,
+`CarveEngine.OgNamingMp3Id3Title`,
+`CarveEngine.OgNamingPdfTimestamp`,
+`CarveEngine.OgNamingDocxTimestamp`,
+`CarveEngine.OgNamingDocxTimestampAlone`,
+`CarveEngine.OgNamingZipFirstEntry`,
+`CarveEngine.OgNamingZipFirstEntryDotted`,
+`CarveEngine.OgNamingSessionWideCounters`,
+`CarveEngine.Mp4NamedByOgUniversalContract`,
+`CarveEngine.MovNamedByOgUniversalContract`,
+`CarveEngine.MovV1CarvesUnderUniversalName`,
+`Orchestrator.CarveSingleNamingFamily` (the one-family guarantee).
 
 ### D-98 — Lost-partition APPLY: the safety registers around the og's table writer (S-029) (renumbered from a same-window D-72 collision - the errata convention)
 

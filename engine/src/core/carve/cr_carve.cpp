@@ -152,7 +152,12 @@ struct ScanCtx {
      * the same worker that scans the window, and read within the same
      * window scan - cross-window overlap re-checks by re-walking). */
     std::vector<std::pair<u64, u64>> overlap_covered;
-    std::atomic<u32> file_index{0};
+    /* S-049: the per-prefix name counters. flags->name_counters (the
+     * orchestrator's session-wide instance) when bound, else this
+     * per-call local (the single-slice embed case). The og's DRWUI
+     * counter map is session-wide (FUN_140c44770's callers); the local
+     * fallback keeps the embed contract usable standalone. */
+    CarveNameCounters local_counters;
     std::atomic<bool> aborted{false};
     /* S-031 residual: the wall-clock scan time stamped onto every carved
      * node's times.modified (the og persists a per-carved-file timestamp
@@ -167,6 +172,17 @@ struct ScanCtx {
      * instead of re-emitting them as extra entries. Base 0 on synthetic /
      * whole-disk devices: behavior identical to the old code. */
     u64 ext_base = 0;
+
+    /* S-049: the og's counter acquisition - ++ then read (the DRWUI
+     * callers at :1877600/:1877724), keyed by the effective prefix: the
+     * format name for prefix-less/dims rows, the analyser string +
+     * format for prefixed rows (per-string counters: GT-S7562_000123 =
+     * the 123rd GT-S7562 file, 197+ real rows). */
+    u32 next_name_counter(const std::u16string& key) {
+        CarveNameCounters& c = flags->name_counters ? *flags->name_counters : local_counters;
+        std::lock_guard<std::mutex> g(c.lock);
+        return ++c.per_prefix[key];
+    }
 
     /* ---- M-005: the allocation-bitmap gate (corpus-verified first-hand
      * this session, ghidra-searchdll/RAWSearchDLL_decompiled.c :9440-9466
@@ -246,6 +262,71 @@ struct ScanCtx {
         return 0; /* used but mid-cluster: suppress just this position */
     }
 };
+
+/* ---- S-049: the og's universal carved-file naming contract ----------
+ *
+ * DRWUI FUN_140c44770 (DRWUI_decompiled.c:1878330-81, re-verified
+ * first-hand this session, with the two data constants extracted from
+ * the shipped DRWUI.exe: DAT_14187f760 = L"%s", DAT_14188017c = L"_"):
+ *
+ *   prefix present: snprintf(buf, 0xff, L"%s_%06d", prefix, counter)
+ *   prefix absent:  snprintf(buf, 0xff, L"%06d", counter)
+ *   both switch to the unpadded %d / L"%s_%d" past counter 99999.
+ *
+ * The caller at :1877537-1877611 (the no-analyser-string branch)
+ * prepends the FORMAT NAME + L"_" to the composed name and draws the
+ * counter from the format-keyed map slot; the caller at :1877634-7730
+ * (the analyser-string branch) uses the string as the prefix with a
+ * per-string counter and NO format prepend. The 189,115-row real
+ * session census pins the shipped forms: the dominant name for every
+ * format is <UPPERCASE-EXT>_<%06d>.<UPPERCASE-EXT> (GZ_000001.GZ
+ * x53,891; PNG, SVG, ICO, HTML, WAV, EPS, MP3, CUR, PDF, TTF, CAB,
+ * FCPEVENT, TAR, WEBP, MOF, BMP, OGG, WMF, M2TS, SWF, RTF, M2T, AVI,
+ * MOV, MP4, MKV, 7Z - all the same family), the JPEG dimensions form
+ * JPG_192x144_000001.JPG (405 rows; the dims gate is 1..8192 both,
+ * :1877537-42), and the content-derived prefixes: EXIF Model
+ * (GT-S7562_000123.JPG) over EXIF Software (Adobe Photoshop 7.0_N.JPG),
+ * ID3 titles (MP3), creation timestamps (PDF/DOCX:
+ * 2020-05-23 23-23-23_N.PDF), ZIP first central-directory entry names
+ * (META-INF__N.ZIP, __MACOSX__N.ZIP, LICENSE_OFL_N.ZIP). */
+static void append_ascii_upper(std::u16string& out, const char* p) {
+    for (; *p; ++p)
+        out.push_back(u16(u8(*p >= 'a' && *p <= 'z' ? *p - 0x20 : *p)));
+}
+
+static void append_ascii(std::u16string& out, const char* p) {
+    for (; *p; ++p)
+        out.push_back(u16(u8(*p)));
+}
+
+/* FUN_140c44770 + the extension append: <prefix-or-EXT>_<counter>.<EXT>,
+ * uppercase extension (every real-session name carries it). */
+static std::u16string og_compose_carve_name(const Signature& sig, const std::u16string* prefix,
+                                            u32 counter) {
+    char num[24];
+    if (counter > 99999)
+        snprintf(num, sizeof(num), "%u", unsigned(counter));
+    else
+        snprintf(num, sizeof(num), "%06u", unsigned(counter));
+    std::u16string out;
+    if (prefix != nullptr && !prefix->empty())
+        out = *prefix;
+    else
+        append_ascii_upper(out, sig.ext);
+    out.push_back(u'_');
+    append_ascii(out, num);
+    out.push_back(u'.');
+    append_ascii_upper(out, sig.ext);
+    return out;
+}
+
+/* The raw-sign/user-sign layers' format-keyed counter keys (the
+ * prefix-less DRWUI branch keys by the format name). */
+static std::u16string raw_sign_key(const char* ext) {
+    std::u16string key;
+    append_ascii_upper(key, ext);
+    return key;
+}
 
 /* M-025: window-serving read context - the og's already-in-buffer model
  * (RAWSearchDLL :9195-9209 the 8 MiB ping-pong buffer; :9434-9438 chunk
@@ -464,7 +545,6 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 ctx.aborted.store(true, std::memory_order_relaxed);
                 return ERR_NO_MEMORY;
             }
-            const u32 idx = ctx.file_index.fetch_add(1, std::memory_order_relaxed);
             /* M-093: the og stamps the FORMAT ID at the probe (the SVG
              * chain's 0x5b-vs-0x13 split is content-decided, not
              * key-decided). The override resolves the EFFECTIVE
@@ -476,15 +556,36 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 (cr.format_override != 0xFFFFFFFFu && cr.format_override < FMT_COUNT)
                     ? ctx.reg[cr.format_override]
                     : sig;
-            /* N-063: the og's per-analyser name first (the analyser's
-             * own SetName - e.g. MP4/MOV's "Lost Name File (...)_EaseUS"
-             * template), then the caller's namer callback, then the
-             * documented File%06u deliberate default (PARITY-DELTAS:
-             * formats with no decoded og naming rule). */
-            props->name = !cr.embedded_name.empty()
-                              ? cr.embedded_name
-                              : (ctx.namer ? ctx.namer(eff, file_len, idx)
-                                           : default_namer(eff, file_len, idx));
+            /* S-049: the og's naming contract (FUN_140c44770 + the two
+             * DRWUI caller branches). The analyser prefix wins over the
+             * host namer (a decoded og rule is not host policy); dims
+             * ride the format-keyed counter; rule-less formats consult
+             * the caller's namer, then the <EXT>_<%06d> default. */
+            if (!cr.name_prefix.empty()) {
+                std::u16string key = cr.name_prefix;
+                key.push_back(u'|');
+                for (const char* p = eff.ext; *p; ++p)
+                    key.push_back(u16(u8(*p)));
+                const u32 n = ctx.next_name_counter(key);
+                props->name = og_compose_carve_name(eff, &cr.name_prefix, n);
+            } else {
+                const bool dims_valid = cr.dim_w >= 1 && cr.dim_w <= 8192 && cr.dim_h >= 1 &&
+                                        cr.dim_h <= 8192; /* the DRWUI gate */
+                std::u16string fmt_key;
+                append_ascii_upper(fmt_key, eff.ext);
+                const u32 n = ctx.next_name_counter(fmt_key);
+                if (dims_valid) {
+                    std::u16string dims_prefix = fmt_key;
+                    char dims[32];
+                    snprintf(dims, sizeof(dims), "_%ux%u", unsigned(cr.dim_w), unsigned(cr.dim_h));
+                    for (const char* p = dims; *p; ++p)
+                        dims_prefix.push_back(u16(u8(*p)));
+                    props->name = og_compose_carve_name(eff, &dims_prefix, n);
+                } else {
+                    props->name = ctx.namer ? ctx.namer(eff, file_len, n)
+                                            : og_compose_carve_name(eff, nullptr, n);
+                }
+            }
             props->fs_kind =
                 u32(FsKindCode::Raw); /* carved (row 45: was invented 0xFF; factory RAW=6) */
             props->logical_size = file_len;
@@ -686,7 +787,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                             ctx.aborted.store(true, std::memory_order_relaxed);
                             return ERR_NO_MEMORY;
                         }
-                        const u32 fi = ctx.file_index.fetch_add(1, std::memory_order_relaxed);
+                        const u32 fi = ctx.next_name_counter(raw_sign_key(us->ext));
                         Signature rsig{};
                         rsig.ext = us->ext;
                         rsig.name = us->ext;
@@ -867,15 +968,13 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 ctx.aborted.store(true, std::memory_order_relaxed);
                 return ERR_NO_MEMORY;
             }
-            const u32 fi = ctx.file_index.fetch_add(1, std::memory_order_relaxed);
+            const u32 fi = ctx.next_name_counter(raw_sign_key(fmt.ext));
             /* N-014b: ONE naming family per scan - the raw-sign layer
-             * rides the SAME chain as the grammar layer (the caller's
-             * namer, then the registered File%06u default) instead of
-             * its own hardcoded scheme. The og has no FileNNNN/Carved
-             * scheme at all (corpus erratum, OQ-S4-2's decode; naming is
-             * the host callback's job - N-063), so the callback contract
-             * reads only ext/name; a partial Signature view of the
-             * raw-sign format is the honest projection of that contract. */
+             * rides the SAME og contract as the grammar layer (the
+             * per-prefix counter + the <EXT>_<%06d> composition, S-049)
+             * instead of its own scheme. The real sessions' dominant
+             * raw-sign forms are exactly this family (GZ_000001.GZ,
+             * SVG_000042.SVG, ICO_N.ICO - the format-keyed counters). */
             Signature rsig{};
             rsig.ext = fmt.ext;
             rsig.name = fmt.ext;
@@ -972,21 +1071,14 @@ u32 scan_window_index(ScanCtx& ctx, u64 wi, std::set<u64>& emitted_at) {
 
 std::u16string default_namer(const Signature& sig, u64 size, u32 index) {
     (void)size;
-    char buf[32];
-    /* N-063 comment repair: the og has NO FileNNNN scheme anywhere (the
-     * deep-dive artifact's "File0001.jpg lives in the UI" claim was a
-     * corpus erratum, corrected with OQ-S4-2's decode). This is OUR
-     * deliberate default for formats whose og naming rule is not
-     * decoded (registered in docs/PARITY-DELTAS.md) - zero-padded for
-     * stable ordering; formats WITH a decoded og rule name via
-     * CarveResult::embedded_name before this fallback. */
-    int n = snprintf(buf, sizeof(buf), "File%06u.%s", index, sig.ext);
-    if (n <= 0)
-        buf[0] = 0;
-    std::u16string out;
-    for (const char* p = buf; *p; ++p)
-        out.push_back(u16(u8(*p)));
-    return out;
+    /* S-049: the og's universal default - <UPPERCASE-EXT>_<%06d>.
+     * <UPPERCASE-EXT> (FUN_140c44770's prefix-less branch + the format-
+     * name prepend; the retired File%06u deliberate default is
+     * superseded: the naming contract is decoded, universally, from the
+     * real sessions + the DRWUI function - PARITY-DELTAS D-76 narrowed
+     * to nothing). The %d fallback past 99999 is the decompile's own
+     * branch. */
+    return og_compose_carve_name(sig, nullptr, index);
 }
 
 u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* cancel,

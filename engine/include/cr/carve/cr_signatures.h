@@ -327,6 +327,10 @@ struct CarveEntry {
     u64 size = 0;        /* uncompressed size */
     u64 data_offset = 0; /* slice-relative data start (0 = not localized) */
     u64 data_len = 0;    /* compressed data length (0 = not localized) */
+    /* S-049: the entry's compression method (ZIP CD/LFH u16@+10/+8;
+     * 0 = stored, 8 = deflate). The docProps prefix extraction inflates
+     * method-8 entries through the compress layer. */
+    u16 method = 0;
 };
 
 /* Validator outcome. */
@@ -336,13 +340,28 @@ struct CarveResult {
     u16 confidence = 0;              /* 0..1000 */
     const char* note = "";           /* evidence note for the node registry */
     std::vector<CarveEntry> entries; /* S-032: inner-entry inventory */
-    /* N-063: the analyser's OWN name for the carved file (the og's
-     * per-analyser SetName - content/metadata-derived, e.g. the MP4/MOV
-     * "Lost Name File (<time>)_EaseUS" template, RAWSearchDLL
-     * :33312/:33408/:33447/:33531). Empty = no og naming rule for this
-     * format -> the emit site falls back to the namer callback / the
-     * documented File%06u deliberate default. */
-    std::u16string embedded_name;
+    /* S-049: the analyser-supplied name PREFIX (the og's analyser string
+     * -> DRWUI FUN_140c44770's %s branch, DRWUI_decompiled.c
+     * :1878330-81, verified first-hand: name = <prefix>_<%06d>, the %d
+     * fallback past 99999, the prefix-less %06d branch when empty). The
+     * prefix defaults to the uppercase format EXT and is replaced
+     * per-format by content-derived strings - EXIF Model/Software (JPEG,
+     * 39-char cap, Model over Software - RAWSearchDLL :40382-40510),
+     * ID3 title (MP3), creation timestamps (PDF/DOCX), first
+     * central-directory entry names (ZIP); the 189,115-row real-session
+     * census pins every family (s10b-real-rsf-session-mining.md). Empty
+     * = no decoded rule -> the emit site's <EXT>_<%06d> default.
+     * Supersedes N-063's full-name carrier: the real sessions name all
+     * 57 carved MP4/MOV files MP4_%06d.MP4 / MOV_%06d.MOV - the
+     * "Lost Name File" template never fires in the carve path (the
+     * engine-side template at RAWSearchDLL :33280-33447 feeds a
+     * different field, not the DRWUI carve-naming source). */
+    std::u16string name_prefix;
+    /* S-049: image dimensions parsed by the analyser (JPEG SOF; the
+     * DRWUI record's u16 width@+0xC / height@+0x62). Both in 1..8192
+     * (the DRWUI gate at :1877537-42) -> the <EXT>_<w>x<h> prefix form
+     * (JPG_192x144_000001.JPG, 405 real rows). 0 = unknown. */
+    u16 dim_w = 0, dim_h = 0;
     /* M-093: the og stamps the FORMAT ID at the probe, not at the
      * dispatch key - the SVG chain yields 0x5b for svg-content and 0x13
      * for the generic-XML marker regardless of which of its four keys
