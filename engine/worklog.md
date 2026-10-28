@@ -7031,3 +7031,25 @@ rejects the class upstream; full exFAT family green). Tests added (all RED→GRE
 `InvalidTimeStampsPersistAsZeroInTree`. Full suite **1278/1278**. Trail: finding →
 findings/FIXED/ with Resolution; ledger row; matrix cell → MATCH; modules/fat.md
 B9 verdict updated. SHA recorded post-push below.
+
+## Session-51 lane — A-014 CONVERGENCE recorded (2026-10-29, this lane rebranded from S47 per the remote's MAJOR-first S47 push)
+
+This lane independently verified A-014 (the corpus re-read first-hand: the three
+DosDateTimeToFileTime zero-on-fail slots at FATSearchDLL_decompiled.c:32131-32160
++ the exFAT twin :45174-45194 + the M-014 gate re-read as a per-field conjunction),
+built the identical gate (the byte-equivalent boundary set `hour > 23 || minute > 59
+|| (time & 0x1F) > 29` on the shared `fat_datetime_to_unix_seconds`), and proved it
+with a 6-test RED->GREEN battery (TimeWordHour24/Hour31/Minute60/SecondField30 → 0;
+the 0xBF7D = 23:59:58 valid-range pin; the end-to-end zero-persist with the
+access-slot-keeps-real-date correction — the og's third call passes time word 0,
+which is legal) BEFORE pulling the remote window. The remote's own A-014 landing
+(044f48d9, absorbed at 712ac508 with the third lane's supplementary per-slot pins)
+wins per SA-9 earlier-push-wins; this lane's verification converges on the same
+accept set with zero divergence. The one finding-text correction this lane adds to
+the record: the finding's "exFAT protected by hour>23 ∧ min>59 ∧ 2s>29" phrasing
+reads as a three-way conjunction, but the M-014 gate is per-field (each field
+independently bounded — exFATSearchDLL FUN_180002f40). No behavioral difference
+(the class is rejected either way); recorded for citation precision. The board at
+this point (filesystem truth at 55e88af0): the remote's I-036/I-041..I-044
+retirements absorbed; this lane proceeds to the MAJOR tier per the user's
+session directive.
