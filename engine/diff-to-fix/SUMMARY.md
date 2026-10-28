@@ -26,6 +26,32 @@ the existing zero-span gate drops it). Tests: `Gpt.EntryLastLbaBeforeFirstLbaSki
 
 **Board after this push (filesystem truth, post-reconciliation): 70 active — 0 ACUTE ·
 9 SEVERE · 27 MAJOR · 31 MINOR · 3 INFO — + 6 tracked-open / the FIXED archive at 71 files.**
+# SUMMARY.md — executive summary (the session-52 mid-board MAJOR lane on top; the prior lanes below, newest-first)
+
+## Session-52 lane delta (2026-10-29 — the mid-board MAJOR engine-math set per the user's session directive "priority to major first"; core `f894549d` at open, corpus `be0cfe9`; the S45..S51 parallel windows absorbed at each pull)
+
+**Method:** every finding independently re-verified before any change — the cited corpus
+artifact re-read first-hand (decompiled line ranges, not the finding's excerpt), the
+current code re-read at the live tree, RED-test-first, one finding one push.
+
+**M-133 FIXED (the twin-key device-family shift set):** the shift narrowed from the FAT
+family {FAT12, FAT16, FAT32, exFAT} to **{Fat16}** exactly — the og's set is kinds
+{1, 4} (DRWUI :605752-756 + :605924-927, both re-read; the quick-factory dispatch
+FUN_140577d40 :911110-911175 re-read to confirm the kind space). The finding's fix-plan
+ext2/3 leg is NOT expressible in the core's kind space (the ext engine stamps the whole
+family Ext4=9, unshifted in the og — naively mapping the leg would have shifted
+true-ext4 volumes); the classification rule is undecoded in the corpus → **OQ-S52-1
+filed** (the ExtFileSystemAnalyser decode as the next step). One finding correction
+recorded: the "disjoint collision families" impact is structurally inert in the current
+single-device ABI (production contexts carry one slot) — the fix repairs the multi-device
+GradeContext surface the API exposes. Six tests: 3 RED pre-fix (the spurious FAT32/
+exFAT/FAT12 twin pairs via a two-slot kDeviceUnit-spaced context), the FAT16 pin, the
+EXT4/ZFS pins. Suite 1290/1290.
+
+**Live counts after M-133:** ACUTE 0 · SEVERE 9 · MAJOR 26 · MINOR 32 · INFO 1 ·
+tracked-open 7 (OQ-S52-1 new) = 75 active / 67 files in FIXED/.
+
+# SUMMARY.md — executive summary (the S47 MAJOR-first fix lane on top; the prior lanes below, newest-first)
 
 ## Session-47 S47 lane delta (2026-10-29 — the MAJOR-first parity-FIX lane per the user's explicit directive; core `fa654673` at open → merged through the S48/S49/S50 windows; corpus `be0cfe9`)
 

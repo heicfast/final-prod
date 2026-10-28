@@ -7343,3 +7343,24 @@ windows to `f8f01513`), corpus `be0cfe9`.
   the M-133 class residue); both converted to count-based `registry_size()`
   form. Suite 1273/1273 green (ASan lane). No retirement — the class is
   FIXED/M-133's own.
+
+## Session-52 lane — M-133 landed (2026-10-29)
+
+**M-133 FIXED (MAJOR — the twin-key device-family shift set).** Corpus re-read
+first-hand: DRWUI_decompiled.c:605752-756 and :605924-927 (the `kind ∈ {1,4} → −2`
+shift, both sites verbatim) + FUN_140577d40 :911110-911175 (the quick-factory dispatch:
+codes 4-5 → EUCreateEXT2QuickSearcher, 9 → EUCreateEXT4QuickSearcher — same DLL, two
+kind codes). Core re-read: twin_key_of shifted {0,1,2,7} — four of five members wrong.
+The fix: shift set = {Fat16} exactly. The ext2/3 leg (kind 4) is NOT expressible in the
+core's kind space (engine stamps the family Ext4=9, which the og does NOT shift) and the
+og's ext2/3-vs-ext4 classification rule is undecoded in the corpus (ExtFileSystemAnalyser
+FUN_180004670 = magic+geometry only; the family decision sits upstream) — **OQ-S52-1
+filed** with the analyser decode as the next concrete step rather than a guessed
+classifier. Tests (6, tests/unit/test_grading.cpp): TwinKeyFat32DoesNotShift /
+ExfatDoesNotShift / Fat12DoesNotShift (3 RED pre-fix — the spurious cross-device twin
+pairs via a two-slot GradeContext spaced one kDeviceUnit apart: same-in-slot extent ends
+collide iff the kind shifts), TwinKeyFat16StillShifts (the pin), TwinKeyExt4NtfsNeverShift
+(EXT4/ZFS pins — both reach the twin path so the verdicts are non-vacuous; the first
+draft's NTFS neighbor was vacuous, caught live). Suite 1290/1290 (linux-release).
+Trail: findings/FIXED/M-133 + ledger row + matrix cell + orchestration.md row + this
+entry + OQ-S52-1.
