@@ -31,3 +31,32 @@ session. PARAMETERS Group K (K71-K78) is the scoring axis.
 Evidence: `evidence/executions/devsign-run-40549660074/` (the run transcript
 + the verbatim v0.2.2 release scripts) + the verified string tables cited in
 S-038/M-064.
+
+## Fix-session delta (the v0.2.3 batch close-out — 2026-10-28)
+
+- **S-036 → FIXED** (upstream v0.2.3 `6b50bb8`): the elevation guard's
+  InvokeMethodOnNull chain fixed in both scripts; the composite now fails
+  LOUD on installer failure (fallback opt-in via allow_fallback) and pins
+  FloorVersion v0.2.3.
+- **M-060 → FIXED**: the opt-in fallback configures the service exactly
+  like install.ps1 (Boot File System group, absolute binPath, the four
+  Parameters values) and BOTH paths end with sc qc + Parameters assertions.
+- **M-061 → FIXED** (upstream + CI): uninstall.ps1 is now the lane's
+  teardown (poll STOP_PENDING, per-call SCM errors, registration-gone
+  verify, loud locked-image failure); its exit code is the job's verdict +
+  post-state evidence assertions.
+- **M-062 → FIXED** (upstream): start failure fatal (exit 6 + testsigning
+  guidance, single-string message) + a RUNNING confirmation (exit 7);
+  -NoStart prints the installed-stopped state.
+- **M-063 → FIXED**: the environments contract (PREBUILT-ARTIFACTS §2) +
+  the [windows-2022, windows-2025] matrix on the driver lane + the rda-
+  driver release body's build-vs-install evidence separation (`f569836`).
+- **N-084 → FIXED**: the timestamp rationale (PREBUILT-ARTIFACTS §2 +
+  DRIVER-RELEASE §7) + the composite's timestamp_server input.
+- **N-085 → FIXED**: the operator-posture note (dev/CI only; the silent
+  installer is S-038's packaging milestone).
+- **M-064**: the SCRIPT half landed (Parameters write+verify, per-call SCM
+  errors, the exit-code contract); the %s%d versioned-coexistence +
+  -Uninstall-verb halves remain OPEN (tracked in this module row) — the
+  driver's naming already supports the variants (rda_control.c), the
+  deployer logic is the future batch.

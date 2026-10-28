@@ -17,7 +17,7 @@ if (-not $NoStart) {
 }
 ```
 consumed by `.github/actions/install-driver/action.yml:82-85` (invokes install.ps1 then checks `$LASTEXITCODE`); documented as the installer in `docs/PREBUILT-ARTIFACTS.md` §2 / `docs/DRIVER-RELEASE.md` §1; audited commit `dd82db9`
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** FIXED — see Resolution below
 **Prior audit check:** not in prior scope
 
 ## Summary
@@ -67,3 +67,20 @@ Source evidence (strength-3, verbatim released asset quoted above + copied at `.
 ## Open questions
 
 None.
+
+## Resolution (FIXED — upstream v0.2.3: start failure is fatal with the guidance intact)
+
+rda-driver `install.ps1` (v0.2.3, tag `6b50bb8`): the `sc.exe start` failure
+branch is now `Write-Error "StartService failed! Error = $LASTEXITCODE -
+check code-signing policy (testsigning), driver signature, and the System
+event log."` + **exit 6** — a single concatenated string (the malformed
+`+`-continuation warning is gone) and success semantics no longer mask the
+canonical dev failure (code-signing rejection). A post-start RUNNING
+confirmation (`Get-Service` state, exit 7) covers the SCM-accepted-but-
+load-failed case. The `-NoStart` path prints the installed-stopped state
+and exits 0. The composite's double-start is removed on the installer path
+(install.ps1 both starts AND verifies; the composite's own `sc.exe start`
+now runs only on the opt-in fallback, where it is the primary start).
+
+**Landed:** rda-driver `6b50bb8` (tag v0.2.3); the composite flip rides in
+core_recovery's S-036 close-out commit.

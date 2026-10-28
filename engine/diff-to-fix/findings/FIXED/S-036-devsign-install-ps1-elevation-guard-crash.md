@@ -5,7 +5,7 @@
 **Parameters affected:** installer-posture (documented install path executes at all); service-creation semantics (the og's SCM-API create+start, corpus 02-kernel-driver-architecture.md §5)
 **Corpus references:** `easeus-drw-research/architecture/02-kernel-driver-architecture.md:25,101-103` — the og installs its raw-disk driver with a native setup EXE (`PartitionRecovery/setupdrvx64.exe`, PDB `mod.WinDiskAccessDriverSetup/setupempdrv03`) that "copies to `%SystemRoot%\System32\Drivers\%s.sys`" and "creates + starts the service (SCM APIs)" — an installer that performs its steps and reports failure; `og-codebase/BUILDPE/x64/regdrv.reg` (service values: Type=1/Start=3/ErrorControl=1)
 **Core references:** `docs/PREBUILT-ARTIFACTS.md` §2 "Install posture on runners" (installs "via the release's own `install.ps1 -ServiceName rda -Source rda.sys`"); `docs/DRIVER-RELEASE.md` §1 step 8 + §2 (install.ps1 is a required release asset, "the service installer (sc create/start)"); `.github/actions/install-driver/action.yml:66-90` (invokes `powershell -ExecutionPolicy Bypass -File install.ps1`, then the fallback); the exact asset executed: `rda-driver` release **v0.2.2** `install.ps1` lines 38-41 (verbatim copy at `diff-to-fix/evidence/executions/devsign-run-40549660074/release-scripts/install.ps1`); audited commit `dd82db9`
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** FIXED — see Resolution below
 **Prior audit check:** not in prior scope (prior sessions audited the core engine; the prebuilt/driver-only CI era postdates the board close; no prior finding covers the release installer's executability)
 
 ## Summary
@@ -83,3 +83,32 @@ Acceptance criteria: a fresh windows-2022 dispatch of `driver-install.yml` shows
 ## Open questions
 
 None. (The exact PowerShell parse semantics of `[Type]::[Type]::member` under 5.1 vs pwsh 7 are not load-bearing for this finding — the executed crash is transcript-proven either way; the fix avoids the pattern entirely.)
+
+## Resolution (FIXED — upstream v0.2.3 + the composite flip; the pinned-drill
+proof is CI's next run)
+
+Two-sided close-out:
+1. **Upstream (rda-driver v0.2.3, tag `6b50bb8`)**: the elevation guard in
+   both `install.ps1` (was line 38) and `uninstall.ps1` (was line 15) is now
+   `New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())`
+   — the invalid `[WindowsPrincipal]::[WindowsIdentity]` type-literal chain
+   (InvokeMethodOnNull on every stock host) is gone; both scripts carry an
+   explicit `exit 1` on the not-elevated path.
+2. **The composite (this repo, `.github/actions/install-driver/action.yml`)**:
+   `FloorVersion v0.2.1 → v0.2.3` (the floor now means "the installer can
+   actually run"); the fallback is **disabled by default** — an install.ps1
+   failure fails the job with the S-036/M-060 annotation unless
+   `allow_fallback: 'true'` is passed explicitly; when taken, the fallback
+   configures the service exactly like install.ps1 (M-060) and both paths
+   end with the `sc qc` group + Parameters assertions.
+
+The acceptance test from the finding ("the job log must NOT contain 'manual
+sc.exe fallback'") is now structurally guaranteed on the default path: the
+fallback string only prints under `allow_fallback`, which no lane sets. The
+"A pinned pre-v0.2.3 drill must go red" half is the fetcher's FloorVersion
+check (v0.2.2 < v0.2.3 → loud convention violation), exercised on the next
+driver-install lane dispatch.
+
+**Landed:** rda-driver `6b50bb8` (tag v0.2.3) + core_recovery "fix(ci):
+S-036 close-out — the composite fails loud on installer failure + FloorVersion
+v0.2.3 (fallback opt-in, M-060 parity shape, sc qc/Parameters assertions)".

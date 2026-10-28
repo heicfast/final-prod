@@ -17584,3 +17584,40 @@ Stage Summary:
   7 MAJOR · 5 MINOR · 1 INFO) · 226 FIXED · 4 tracked-open. Next in the
   queue: S-036 (rda-driver install.ps1 elevation guard - upstream
   rda-driver fix + v0.2.3 batch), then M-065 (now unblocked by S-039).
+
+---
+Task ID: FIX-5 (S-036 close-out + the v0.2.3 batch on the core side:
+M-060/M-061-CI-half/M-063/N-084/N-085)
+Agent: main engineer
+
+Work Log:
+- rda-driver v0.2.3 cut first (see FIX-4): tag re-pointed to f569836 after
+  the M-063 release-body truth pass (build-gate evidence vs install/load
+  evidence separated).
+- Composite (.github/actions/install-driver/action.yml): FloorVersion
+  v0.2.1 -> v0.2.3; install.ps1 failure now fails the job LOUD with the
+  S-036/M-060 annotation; the sc.exe fallback is opt-in (allow_fallback)
+  and, when taken, is install.ps1's twin (Boot File System group, absolute
+  binPath, the 4 Parameters values - the invented FSFilter group and
+  relative binPath are gone); BOTH paths end with sc qc group + 4-value
+  Parameters read-back assertions; timestamp_server input added (N-084).
+- driver-install.yml: the raw sc.exe teardown replaced by the release's
+  uninstall.ps1 (exit code = the job's teardown verdict) + the post-state
+  evidence assertions (service gone + image gone) - M-061's CI half;
+  the lane became a [windows-2022, windows-2025] matrix with per-leg
+  artifacts - M-063's second runner class.
+- Docs: PREBUILT-ARTIFACTS §2 (the v0.2.3 contract, the environments
+  matrix, the timestamp rationale, the operator posture) + DRIVER-RELEASE
+  §7 (N-084) + the version-history rows (v0.2.3) + the release-body
+  reference updated.
+- Findings moved to FIXED with Resolutions: S-036, M-060, M-061, M-062,
+  M-063, N-084, N-085 (7 findings; M-064's script half landed, the
+  versioned-coexistence/-Uninstall halves remain open on the module row).
+- CROSS-REF-MATRIX rows flipped to MATCH (FIXED); modules/driver-install.md
+  fix-delta appended; SUMMARY board updated.
+
+Stage Summary:
+- Board: 8 active (1 SEVERE S-038 · 3 MAJOR M-064-rem/M-065/M-066 ·
+  3 MINOR N-086/N-087/N-088 · 1 INFO I-026) · 232 FIXED · 4 tracked-open.
+  The driver lane's next CI dispatch is the execution evidence for the
+  S-036/M-061/M-063 close-outs.

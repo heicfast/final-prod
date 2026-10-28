@@ -5,7 +5,7 @@
 **Parameters affected:** installer interaction model (silent vs console); elevation UX; install orchestration ownership (product vs operator)
 **Corpus references:** `easeus-drw-research/architecture/02-kernel-driver-architecture.md:25,99-105` — the reference's driver is installed by `PartitionRecovery/setupdrvx64.exe` (PDB `mod.WinDiskAccessDriverSetup/setupempdrv03`), a native setup EXE invoked by the product, which copies the driver and "creates + starts the service (SCM APIs)"; §5 the whole lifecycle is product-orchestrated (install at app start, teardown at app exit) — no console, no operator-run scripts
 **Core references:** `docs/PREBUILT-ARTIFACTS.md` §2 (the documented install: `install.ps1 -ServiceName rda -Source rda.sys` run by an operator/CI in an elevated shell); `.github/actions/install-driver/action.yml:76-78` (`powershell -ExecutionPolicy Bypass -File install.ps1` — console host, explicit policy bypass); rda-driver v0.2.2 `install.ps1:11-12` ("REQUIRES: elevated PowerShell"), `:35` (`$ErrorActionPreference = 'Stop'`), `:38` the guard; audited commit `dd82db9`
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** FIXED — see Resolution below
 **Prior audit check:** not in prior scope (installer posture was not a prior session's axis)
 
 ## Summary
@@ -52,3 +52,16 @@ Source evidence (strength-3): corpus :25,101-105 (product-owned silent lifecycle
 ## Open questions
 
 None.
+
+## Resolution (FIXED — the posture note; the milestone absorbed by S-038)
+
+`docs/PREBUILT-ARTIFACTS.md` §2 now marks the operator-run-script posture
+explicitly: "elevated console, visible window — dev/CI machines only; the
+customer-shaped silent installer (the og's product-orchestrated SCM
+deployment) is the packaging milestone — S-038's PACKAGING.md contract, not
+this lane." The composite's install path itself is already
+product-orchestrated (no visible window on the runner); the scripts remain
+the documented dev posture with the milestone's design input recorded.
+
+**Landed:** core_recovery "fix(ci): S-036 close-out" (the posture note rides
+in the PREBUILT-ARTIFACTS update).

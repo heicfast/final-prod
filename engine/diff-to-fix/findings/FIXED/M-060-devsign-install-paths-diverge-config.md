@@ -5,7 +5,7 @@
 **Parameters affected:** service group; `Parameters\IoctlBase`; `Parameters\MaxDisks`; `Parameters\DebugLevel`; `Parameters\SessionsEnabled`; ImagePath form (absolute vs relative)
 **Corpus references:** `easeus-drw-research/og-codebase/BUILDPE/x64/regdrv.reg` — the reference's service registrations: eprdtdrv/epmdkdrv `Type=1, Start=3, ErrorControl=1` with **no Group** for eprdtdrv/epmdkdrv, and `ebrntdrv` carries **`"Group"="Boot File System"`**; the EPM WinPE pair (EUDCPEPM/EUEDKEPM) carries `DeviceName` + `IoctlBase=0x10000` — the only registry parameters the corpus documents on any of these services; `easeus-drw-research/re-workspace/artifacts/PartitionRecovery/eprdtdrv-sys--driver-internals.md` (the reference eprdtdrv reads no Parameters — the rda Parameters block is our driver contract, not the og's)
 **Core references:** `.github/actions/install-driver/action.yml:76-90` (the live fallback: `group= "FSFilter Boot File System"`, `binPath= "System32\drivers\rda.sys"`, no Parameters written); the documented path — rda-driver v0.2.2 `install.ps1:57-65` (verbatim copy at `diff-to-fix/evidence/executions/devsign-run-40549660074/release-scripts/install.ps1`: `group= "Boot File System"`, absolute `$destPath`, four Parameters values `IoctlBase=0/MaxDisks=200/DebugLevel=1/SessionsEnabled=1`) and `rda.inf:45-66` (same four defaults, `ServiceBinary=%12%\rda.sys`); audited commit `dd82db9`
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** FIXED — see Resolution below
 **Prior audit check:** not in prior scope (the composite action postdates the board close; no prior finding covers CI install-path service configuration)
 
 ## Summary
@@ -67,3 +67,20 @@ Executed comparison (strength-1): run 40549660074 — the fallback created the s
 ## Open questions
 
 None.
+
+## Resolution (FIXED — the fallback is now the installer's twin, and BOTH paths assert)
+
+`.github/actions/install-driver/action.yml`: the manual fallback (opt-in via
+`allow_fallback: 'true'`, see S-036) now configures the service exactly like
+install.ps1 — group **`Boot File System`** (the og's regdrv.reg +
+install.ps1 profile; the invented `FSFilter` variant is gone), the
+**absolute** binPath (`$env:SystemRoot\System32\drivers\<svc>.sys`), and the
+four **Parameters** values (IoctlBase=0, MaxDisks=200, DebugLevel=1,
+SessionsEnabled=1). After either branch the composite asserts `sc qc` shows
+the group and reads back all four Parameters values — a divergence now
+fails the job instead of silently configuring the driver from compiled
+defaults. PREBUILT-ARTIFACTS §2 documents the v0.2.3 contract + the
+assertions.
+
+**Landed:** core_recovery "fix(ci): S-036 close-out — ... (fallback opt-in,
+M-060 parity shape, sc qc/Parameters assertions)".

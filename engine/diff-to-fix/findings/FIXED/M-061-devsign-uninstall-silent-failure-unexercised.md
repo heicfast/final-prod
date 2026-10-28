@@ -5,7 +5,7 @@
 **Parameters affected:** uninstall behavior (service stop+delete verification); file-removal truthfulness; lifecycle symmetry (install ↔ uninstall)
 **Corpus references:** `easeus-drw-research/architecture/02-kernel-driver-architecture.md:105` — the reference's driver lifecycle: "At app exit / driver uninstall, service is stopped and deleted" (a verified teardown step, not a best-effort one); §5.1-5.3 the full install/operate/uninstall loop
 **Core references:** `.github/workflows/driver-install.yml:157-163` (the "Uninstall the driver (always)" step: raw `sc.exe stop/delete` + `Remove-Item`, exit-code unchecked, no post-uninstall verification, does NOT call uninstall.ps1); the release's `uninstall.ps1` (rda-driver v0.2.2, verbatim copy at `diff-to-fix/evidence/executions/devsign-run-40549660074/release-scripts/uninstall.ps1`: line 15 the identical broken elevation-guard expression from S-036; lines 22-25 stop → 1 s sleep → delete with no stop-verification; lines 33-36 `Remove-Item -Force -ErrorAction SilentlyContinue` followed by unconditional `Write-Host "Removed $destPath"`); `docs/PREBUILT-ARTIFACTS.md` §2 (uninstall.ps1 is a required release asset — the "cleanup script"); audited commit `dd82db9`
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** FIXED — see Resolution below
 **Prior audit check:** not in prior scope (no prior finding covers the uninstall path or the release scripts)
 
 ## Summary
@@ -67,3 +67,25 @@ Executed + source evidence: run 40549660074's teardown step (job-log.txt:334-341
 ## Open questions
 
 None.
+
+## Resolution (FIXED — the release's uninstall.ps1 is now the CI teardown, executed and asserted)
+
+1. **Upstream (rda-driver v0.2.3)**: `uninstall.ps1` checks `$LASTEXITCODE`
+   on stop (exit 2) and delete (exit 4), polls `Get-Service` up to 10×500 ms
+   for STOPPED instead of the fixed 1 s sleep (exit 3 on timeout), verifies
+   the registration is gone after delete (exit 5 — the SCM marked-for-
+   deletion case), and makes the image delete loud with re-`Test-Path`
+   verification (exit 6) — the unconditional "Removed" lie is gone.
+2. **The CI lane (`.github/workflows/driver-install.yml`)**: the raw
+   unverified `sc.exe` teardown is replaced by the release's own
+   `uninstall.ps1`; its exit code is the job's teardown verdict, followed by
+   the post-state evidence assertions the finding asked for (service gone,
+   image gone) — an incomplete teardown now fails the lane instead of
+   printing success.
+
+The full install→uninstall smoke lane is the existing driver-install.yml
+daily cron (both phases in one job); its next dispatch is the execution
+evidence.
+
+**Landed:** rda-driver `6b50bb8` (tag v0.2.3) + core_recovery "fix(ci):
+S-036 close-out" (the teardown flip rides in the same commit).

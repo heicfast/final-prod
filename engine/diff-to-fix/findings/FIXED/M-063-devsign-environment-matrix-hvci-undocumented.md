@@ -5,7 +5,7 @@
 **Parameters affected:** validated-environment matrix; code-signing enforcement classes (HVCI/VBS, Secure Boot, test-signing mode); compatibility claims truthfulness (Win7 SP1 → Win11)
 **Corpus references:** `easeus-drw-research/architecture/02-kernel-driver-architecture.md:19` — all six reference drivers are "Authenticode-signed (EaseUS = 'Chengdu Yiwo Tech Development Co., Ltd')" with per-target builds (`eprdtdrv.sys` production Win8+, `eprdtdrv_win7older.sys` legacy Win7-, WinPE variants preloaded where "no driver-signing enforcement issues exist" :26) — i.e. the reference solves signing-environment variance with a vendor signature chain and deployment-specific binaries, and its WinPE deployment is explicitly motivated by signature enforcement; `:25-27` the four-filename/context split
 **Core references:** `.github/actions/install-driver/action.yml:44-49` (the job-local cert mechanism, comment "no test-signing boot mode required on windows-2022"); `docs/PREBUILT-ARTIFACTS.md` §2 "Install posture on runners" (documents the windows-2022 posture with no environment-constraint statement); `docs/DRIVER-RELEASE.md` §1 release-body claim "Win7 SP1 -> Win11 x64, single binary. Verified by the CI PE gate (import allowlist + OS 6.1 header contract)" — a PE-header claim standing in for an install/load claim; `:62-75` (signing.md scope honesty: OSSign ≠ Microsoft kernel signature, "Win10/11 retail loading still requires Hardware Dev Center attestation/HLK"; "WinPE is relaxed"); the validated run: 40549660074 (windows-2022 only); audited commit `dd82db9`
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** FIXED — see Resolution below
 **Prior audit check:** not in prior scope (the dev-sign CI era postdates the board close)
 
 ## Summary
@@ -56,3 +56,27 @@ Executed (strength-1, the positive half): run 40549660074 — windows-2022, HVCI
 ## Open questions
 
 The exact signing-enforcement posture of the GitHub windows-2022 image (HVCI off is inferred from the successful self-signed load, which is itself the evidence; whether Secure Boot is on or off on those images is not load-bearing for this finding — the load succeeded, so whatever the posture is, it permits the mechanism; the finding's claim is about *other* environments being undocumented, not about the runner's exact flags).
+
+## Resolution (FIXED — the environments contract documented + a second runner class + the release truth pass)
+
+1. **The environments contract** is written into `docs/PREBUILT-ARTIFACTS.md`
+   §2 (the M-063 fix plan's designated home): the enforcement-class table —
+   windows-2022 (HVCI/VBS off, job-local cert: the ONLY execution-validated
+   class), stock Win11 (HVCI on: attestation-signing required; the dev-box
+   recipe is a VBS-off VM or `bcdedit /set testsigning on` + reboot), Win7
+   SP1 (build-gated by the PE headers + import allowlist, **not
+   install-validated** — treat as UNVALIDATED until a runner class covers
+   it).
+2. **A second runner class**: `driver-install.yml` is now a
+   `[windows-2022, windows-2025]` matrix (fail-fast off; per-leg artifacts)
+   — the lane's next dispatch is the second data point.
+3. **The compatibility sentence**: the rda-driver release body (the claim's
+   origin) now separates build-gate evidence (PE gate) from install/load
+   evidence — "Win7 SP1 -> Win11 x64 ... BUILD compatibility verified by
+   the CI PE gate ...; INSTALL/LOAD validated on windows-2022 (HVCI off,
+   job-local cert)" (rda-driver `f569836`, re-tagged v0.2.3). The INF's
+   dead CatalogFile line stays as-is (the INF is not the install path; the
+   scripts are, and they are now the tested artifacts).
+
+**Landed:** core_recovery "fix(ci): S-036 close-out + M-063 environments
+matrix" + rda-driver `f569836`.

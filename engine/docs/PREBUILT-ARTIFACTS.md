@@ -54,11 +54,46 @@ regardless — belt and suspenders).
 **Install posture on runners:** test-signed with a job-local self-signed cert
 (`New-SelfSignedCertificate -Type CodeSigningCert` → `LocalMachine\Root` +
 `LocalMachine\TrustedPublisher` → `signtool sign /fd SHA256`), installed via
-the release's own `install.ps1 -ServiceName rda -Source rda.sys`, started with
-`sc.exe start rda` — the mechanism proven by the api-benchmark lane's real
-runs (40227375329, 40315255368) on windows-2022, which requires no
-test-signing boot mode. Signing posture is documented truthfully per release
-(DRIVER-RELEASE §7: unsigned-by-design artifacts, CI test-signs for load).
+the release's own `install.ps1 -ServiceName rda -Source rda.sys` — the
+mechanism proven by the api-benchmark lane's real runs (40227375329,
+40315255368) on windows-2022, which requires no test-signing boot mode.
+Signing posture is documented truthfully per release (DRIVER-RELEASE §7:
+unsigned-by-design artifacts, CI test-signs for load).
+
+**The v0.2.3 deployer contract (S-036/M-060/M-061/M-062/M-064 closed):** the
+composite pins `FloorVersion v0.2.3` — the release whose `install.ps1`
+actually runs on a stock host (the pre-v0.2.3 elevation guard died as
+`InvokeMethodOnNull` before any install action) and whose start-failure is
+fatal (exit 6 + the testsigning guidance). The installer's exit-code contract:
+0 installed+started · 1 not elevated · 2 name exists · 3 copy failed ·
+4 CreateService SCM error · 5 Parameters read-back mismatch · 6 StartService
+failed · 7 not RUNNING. `uninstall.ps1`: 0 clean · 1 not elevated · 2 stop
+error · 3 no STOPPED within 5 s · 4 delete error · 5 still registered ·
+6 locked image — the CI teardown runs the script and asserts the post-state
+(service gone, image gone). The composite's manual `sc.exe` fallback is
+**disabled by default** (`allow_fallback: 'true'` opts in); when taken it now
+configures the service exactly like `install.ps1` (group `Boot File System`,
+absolute binPath, the four Parameters values) and both paths end with the
+`sc qc` group + Parameters assertions (M-060).
+
+**Timestamps (N-084):** the sign step uses no `/tr` by default — the job-local
+cert outlives the job and the signature dies with it, so a timestamp server is
+unnecessary in CI. Pass `timestamp_server: <TSA>` to the composite for any
+cert whose signature must remain verifiable past its validity window (add
+`/tr <TSA> /td SHA256` by hand for out-of-CI signing — DRIVER-RELEASE §7).
+
+**Operator posture (N-085):** these are operator-run scripts for dev/CI
+machines (elevated console, visible window). The customer-shaped silent
+installer (the og's product-orchestrated SCM deployment) is the packaging
+milestone — S-038's PACKAGING.md contract, not this lane.
+
+**Environment matrix (M-063):** the only execution-validated environment class
+is GitHub's windows-2022 (HVCI/VBS off, job-local cert). On stock Win11 (HVCI
+on) kernel loading requires attestation-signed drivers — use a VM with VBS
+off or `bcdedit /set testsigning on` + reboot for dev boxes; Win7 SP1 is
+build-gated (PE headers + import allowlist) but not install-validated —
+treat it as UNVALIDATED until a runner-class dispatch covers it. The release
+compatibility sentence is PE-header evidence, not install evidence.
 
 ## 3. Core releases (core_recovery)
 

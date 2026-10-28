@@ -450,17 +450,17 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 
 | Surface × parameter | Verdict | Finding / evidence |
 |---|---|---|
-| driver-install · installer executability | DIVERGENCE-SEVERE | **S-036** — documented installer crashes at elevation guard; fallback installs (run 40549660074 :232-237) |
-| driver-install · service group | DIVERGENCE-MAJOR | **M-060** — live path `FSFilter Boot File System` vs corpus/install.ps1 `Boot File System` (regdrv.reg ebrntdrv) |
-| driver-install · Parameters registry (IoctlBase/MaxDisks/DebugLevel/SessionsEnabled) | DIVERGENCE-MAJOR | **M-060** — written by install.ps1/INF, by neither in the live path; compiled defaults observed (max_disks=200, flags=2) |
-| driver-install · ImagePath form | DIVERGENCE-MAJOR | **M-060** — relative vs absolute (folded into the same finding; same fix) |
+| driver-install · installer executability | **MATCH (FIXED)** | **S-036** RESOLVED (upstream v0.2.3 + composite fail-loud flip + FloorVersion v0.2.3) |
+| driver-install · service group | **MATCH (FIXED)** | **M-060** RESOLVED (fallback = install.ps1 twin, opt-in only; sc qc + Parameters assertions on both paths) |
+| driver-install · Parameters registry (IoctlBase/MaxDisks/DebugLevel/SessionsEnabled) | **MATCH (FIXED)** | **M-060** RESOLVED (fallback = install.ps1 twin, opt-in only; sc qc + Parameters assertions on both paths) |
+| driver-install · ImagePath form | **MATCH (FIXED)** | **M-060** RESOLVED (fallback = install.ps1 twin, opt-in only; sc qc + Parameters assertions on both paths) |
 | driver-install · copy destination | MATCH | install.ps1:50-54/composite → `System32\drivers\<svc>.sys`; corpus §5.1 `%SystemRoot%\System32\Drivers\%s.sys` |
 | driver-install · service shape (Type/Start/ErrorControl) | MATCH | `type= kernel start= demand error= normal` = regdrv.reg Type=1/Start=3/ErrorControl=1 (both paths) |
-| driver-install · install-error semantics (start failure) | DIVERGENCE-MAJOR | **M-062** — warning + exit 0 vs the og's definite create+start lifecycle step |
-| driver-uninstall · teardown behavior | DIVERGENCE-MAJOR | **M-061** — unexercised script + silent-failure semantics vs corpus §5.3 "stopped and deleted" |
-| dev-sign · environment matrix / HVCI constraint | DIVERGENCE-MAJOR | **M-063** — single windows-2022 data point; constraint undocumented |
-| dev-sign · signature timestamp | DIVERGENCE-MINOR | **N-084** — no `/tr`; rule for longer-lived certs undocumented |
-| dev-sign · installer interaction model | DIVERGENCE-MINOR | **N-085** — elevated console script vs og's silent product-orchestrated setupdrvx64.exe (SCM APIs) |
+| driver-install · install-error semantics (start failure) | **MATCH (FIXED)** | **M-062** RESOLVED (start failure fatal exit 6 + RUNNING confirm exit 7) |
+| driver-uninstall · teardown behavior | **MATCH (FIXED)** | **M-061** RESOLVED (uninstall.ps1 is the CI teardown, executed + post-state asserted) |
+| dev-sign · environment matrix / HVCI constraint | **MATCH (FIXED)** | **M-063** RESOLVED (environments contract + windows-2025 matrix leg + release-body truth pass) |
+| dev-sign · signature timestamp | **MATCH (FIXED)** | **N-084** RESOLVED (the /tr rationale documented + timestamp_server composite input) |
+| dev-sign · installer interaction model | **MATCH (FIXED)** | **N-085** RESOLVED (operator-posture note; absorbed by S-038's packaging milestone) |
 | dev-sign · signing posture (release artifact state) | DIVERGENCE-INFORMATIONAL | **I-026** — unsigned-by-design + consumption-time sign (execution-proven); og: vendor Authenticode (corpus :19) |
 | dev-sign · load/round-trip behavior | MATCH | run 40549660074: RUNNING + control-device open + GET_INFO/GET_VERSION ready + grammar-path refusal class — the verified core of Phase 1 |
 
@@ -486,7 +486,7 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 |---|---|---|
 | app-installer · K74 silent surface (13 params) | DIVERGENCE-SEVERE | **S-038** — Inno /SILENT//VERYSILENT//SUPPRESSMSGBOXES//NORESTART, ARP QuietUninstallString, unins%03d, admin-required — all absent (string tables verified) |
 | app-installer · K77 registry + telemetry contract | DIVERGENCE-SEVERE | **S-038** — SetupUE 16-entry OS gate, `SOFTWARE\EASEUS\DRW\Version`, /SendInfo//SendInfoEx//UninstallStart//UninstallEnd |
-| driver-install · K71/K72/K76 versioned/verified deployer contract | DIVERGENCE-MAJOR | **M-064** — no -Uninstall verb, no %s%d coexistence, no write+verify, no per-call SCM errors (deepening-batch1 §3) |
+| driver-install · K71/K72/K76 versioned/verified deployer contract | PARTIAL-FIXED (script half) | **M-064** — write+verify + per-call SCM errors + the exit-code contract LANDED (v0.2.3); the %s%d versioned-coexistence + -Uninstall-verb halves remain open in modules/driver-install.md |
 | carve · user-sign caps vs the og's own DB | **MATCH (FIXED)** | **S-039** RESOLVED — caps raised to the measured maxima (48/12/1024/80); the og's own DB loads 111/111; fail-before-proven (ParseOgShippedExtremes/HostileBlobStillAtomic/RegistrationRoundTripProceedsToScan) |
 | carve · default user-sign set | DIVERGENCE-MAJOR | **M-065** — 111 og defaults, 79 stock-absent; severity calibrates on **OQ-SA-3** |
 | preview · archive-content enumeration (FS-origin) | DIVERGENCE-MAJOR | **M-066** — ArchivePreviewModel family vs the docx-only hunt (`cr_preview.cpp:685-715`) |

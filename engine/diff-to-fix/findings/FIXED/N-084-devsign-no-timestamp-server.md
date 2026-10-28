@@ -5,7 +5,7 @@
 **Parameters affected:** signature validity lifetime; signing-posture documentation
 **Corpus references:** `easeus-drw-research/architecture/02-kernel-driver-architecture.md:19` — the reference's signatures are vendor Authenticode (timestamped by construction via the vendor's signing pipeline; the corpus documents the signed state, not the signing ceremony, so there is no reference parameter to diverge from here — this finding is a documentation-hygiene gap, not a parity divergence)
 **Core references:** `.github/actions/install-driver/action.yml:64` — `& $signtool.FullName sign /fd SHA256 /f rda-ci.pfx /p rrecov-ci 'driver\rda.sys'` (no `/tr`, no `/t`); `docs/PREBUILT-ARTIFACTS.md` §2 (documents the sign command's shape without mentioning timestamping); `docs/DRIVER-RELEASE.md` §7 (test-signing posture summary — no timestamp statement); executed at run 40549660074 (job-log.txt:229-230 `Successfully signed`); audited commit `dd82db9`
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** FIXED — see Resolution below
 **Prior audit check:** not in prior scope
 
 ## Summary
@@ -51,3 +51,17 @@ Source evidence (strength-3): the quoted command line (action.yml:64), the two d
 ## Open questions
 
 None.
+
+## Resolution (FIXED — documented + a composite input)
+
+`docs/PREBUILT-ARTIFACTS.md` §2 and `docs/DRIVER-RELEASE.md` §7 now carry the
+one-sentence rationale the finding asked for: the sign step omits `/tr`
+because the job-local cert outlives the job and nothing needs the signature
+afterwards; ANY cert whose signature must outlive its validity window (a
+real release cert, the OSSign chain) requires `/tr <TSA> /td SHA256`.
+The composite gained the `timestamp_server:` input (default empty = the
+current behavior; non-empty routes the signtool call through
+`/tr <TSA> /td SHA256`) — the optional input half of the fix plan.
+
+**Landed:** core_recovery "fix(ci): S-036 close-out — ... (timestamp_server
+input, N-084)".

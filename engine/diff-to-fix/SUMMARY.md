@@ -18,6 +18,41 @@ findings/FIXED/S-039-*.md for the Resolution.
 7 MAJOR M-060..M-066 · 5 MINOR N-084..N-088 · 1 INFO I-026) · **225 FIXED**
 · tracked-open 4 unchanged.
 
+## Fix-session delta (2026-10-28 — the v0.2.3 deployer batch: S-036 + M-060 + M-061 + M-062 + M-063 + N-084 + N-085)
+
+**Upstream (rda-driver v0.2.3, tag `6b50bb8`→`f569836`)**: the elevation
+guard's `[WindowsPrincipal]::[WindowsIdentity]` InvokeMethodOnNull chain
+fixed in BOTH scripts (S-036 — the documented installer can now actually
+complete on a stock host); install start-failure is FATAL (exit 6 + the
+testsigning guidance, exit 7 for not-RUNNING; M-062); uninstall polls
+STOP_PENDING 10×500 ms, checks $LASTEXITCODE on every SCM call, verifies
+the registration is gone, and fails loudly on the locked image (M-061);
+the four Parameters values are read back and verified (M-064's script
+half); the README documents the full exit-code contract (install 0-7,
+uninstall 0-6); the release body separates build-gate from install/load
+evidence (M-063). No binary change — scripts/docs only.
+
+**core_recovery close-out**: the composite pins `FloorVersion v0.2.3`, fails
+LOUD on installer failure (the sc.exe fallback is opt-in via
+`allow_fallback` and, when taken, configures the service exactly like
+install.ps1 — Boot File System group, absolute binPath, the four Parameters
+values — with `sc qc` + read-back assertions on BOTH paths: M-060); the
+driver lane's teardown is now the release's uninstall.ps1 with post-state
+assertions (M-061's CI half); the lane is a [windows-2022, windows-2025]
+matrix (M-063's second runner class); `timestamp_server` composite input +
+the /tr rationale in PREBUILT-ARTIFACTS §2 + DRIVER-RELEASE §7 (N-084); the
+operator-posture note (N-085, absorbed by S-038's milestone); the
+environments contract documented (M-063). M-064's script half landed with
+this batch (write+verify + per-call SCM errors); its %s%d versioned-
+coexistence + -Uninstall-verb halves remain open on the driver-install
+module row.
+
+**Board after the v0.2.3 batch:** 8 active (0 ACUTE · 1 SEVERE S-038 ·
+2 MAJOR M-064 remainder + M-065 + M-066 — see below) — precisely:
+**1 SEVERE (S-038) · 3 MAJOR (M-064-remainder, M-065, M-066) · 2 MINOR
+(N-086, N-087, N-088 — 3 MINOR) · 1 INFO (I-026)** · **232 FIXED** ·
+tracked-open 4 unchanged.
+
 ## Fix-session delta (2026-10-28 — S-037, the two missing carve formats)
 
 **S-037 (SEVERE) FIXED**: FreeHand 11 and Corel PhotoPaint implemented
