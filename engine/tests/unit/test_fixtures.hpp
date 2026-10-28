@@ -566,7 +566,7 @@ inline std::vector<u8> build_two_volume_gpt_disk(const char* l1, const char* l2,
     put32le(h + 16, 0); /* header CRC, patched after */
     put32le(h + 24, 1); /* current LBA */
     put32le(h + 32, u32(disk_secs - 1));
-    put32le(h + 40, 2);                   /* first usable */
+    put32le(h + 40, 34);                  /* first usable (M-123: entries LBA2 outside) */
     put32le(h + 48, u32(disk_secs - 34)); /* last usable (low dword; disk is small) */
     put32le(h + 72, 2);                   /* entries start LBA */
     put32le(h + 80, 2);                   /* num entries */

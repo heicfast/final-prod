@@ -32,9 +32,12 @@
     own organize into the shared completion handler whose auto-save gates carry no
     stopped-check (DRWUI:1549399-21 → :339076-79 → :612572-87); the core never
     auto-saves a cancelled run, and its comment mis-states the og).
-  - **MAJOR (10):** **M-123** (table P1/P20 — GPT header laxity: no reserved==0 /
-    exact-92 / position / usable-range gates, og `FUN_1800078d0` vs
-    `load_gpt_side`); **M-124 FIXED** (S47 MAJOR-first fix lane, `dcb123dd` — findings/FIXED/M-124:
+  - **MAJOR (10):** **M-123 FIXED** (S47 MAJOR-first fix lane, `10620f04` —
+    findings/FIXED/M-123: FUN_1800078d0's full gate set landed in load_gpt_side
+    [revision 0x10000, header_size==92, reserved==0, the mirrored position pair,
+    usable-range bounds, entries outside the usable range — structural gates
+    before the CRC, og order]; N-164's deliberate strictness kept; 9 tests,
+    8 RED pre-fix; P1/P20 → MATCH); **M-124 FIXED** (S47 MAJOR-first fix lane, `dcb123dd` — findings/FIXED/M-124:
     the EBR link set {05,0F,**85**} — `case 0x85:` joined the Extended arm of
     mbr_type_to_kind per Partition_decompiled.c:1006; whole 0x85 chains walk,
     the bogus Other-volume at the link target gone; 3 RED-then-green tests,

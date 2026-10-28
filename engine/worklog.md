@@ -63,6 +63,25 @@ OQ-S10-3's grant boundary). Pulled-before-pushed discipline; one finding, one pu
 fix RED-test-first; corpus cites re-read first-hand. The S48/S49/S50 windows absorbed at
 the merge (A-014 + I-041..I-044 retired by the parallel lanes; both sides' records kept).
 
+- **M-123 FIXED** (`10620f04`) — the og's GPT header verifier gate set landed in
+  `load_gpt_side` (cr_table_parse.cpp:29-110). Corpus re-read first-hand:
+  FUN_1800078d0 at Partition_decompiled.c:4813-4847 — signature, revision
+  0x00010000, header_size exactly 0x5C, reserved==0, the position pair mirrored
+  by side (primary current==1/backup==dev-last; backup mirrored), first_usable <
+  sector_count, first < last, last < sector_count, entries_start_lba OUTSIDE
+  [first_usable, last_usable], entry_size 0x80, THEN the 92-byte header CRC.
+  Structural gates before the CRC (og order); a `backup_side` param added at all
+  four call sites; N-164's deliberate strictness kept (entry-count cap,
+  entries-inside-disk); the salvage path deliberately unchanged (it IS the og's
+  step-1 ladder). Tests: Gpt.OgGateSetHealthyHeaderTrusted (control) +
+  HeaderSizeNot92 / ReservedNonzero / WrongRevision / PrimaryCurrentLbaWrong /
+  BackupLbaWrong / UsableRangeBeyondDevice / EntriesLbaInsideUsableRange /
+  TruncatedImageFallsToLadder (all RED pre-fix). Five stale fixtures re-shaped
+  og-valid (entries outside the usable range): Gpt.ValidTable,
+  BadHeaderCrcDetected, make_gpt_disk, EspMsrLinuxBiosbootLdmClassification,
+  build_two_volume_gpt_disk + the LDM make_gpt_dynamic_disk. Suite 1178/1178.
+  P1/P20 → MATCH; ledger + matrix + module rows updated in the same push.
+
 - **M-124 FIXED** (`dcb123dd`, trail `1cb665aa`) — the EBR link type 0x85 (Linux
   extended) joined the Extended arm of `mbr_type_to_kind` (cr_table_parse.cpp:116-125,
   the corpus cite in the comment). Corpus re-read first-hand:

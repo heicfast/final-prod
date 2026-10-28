@@ -70,8 +70,8 @@ TEST(Gpt, ValidTable) {
     put32(disk, 512 + 12, 92);        /* header size */
     put64(disk, 512 + 24, 1);         /* current LBA */
     put64(disk, 512 + 32, 2047);      /* backup header at last sector */
-    put64(disk, 512 + 40, 2);         /* first usable */
-    put64(disk, 512 + 48, 2046);      /* last usable */
+    put64(disk, 512 + 40, 34);        /* first usable (entries LBA2..33) */
+    put64(disk, 512 + 48, 2014);      /* last usable */
     put64(disk, 512 + 72, 2);         /* entries at LBA2 */
     put32(disk, 512 + 80, 4);         /* 4 entries */
     put32(disk, 512 + 84, 128);       /* entry size */
@@ -129,6 +129,14 @@ TEST(Gpt, BadHeaderCrcDetected) {
     std::memcpy(disk.data() + 512, "EFI PART", 8);
     put32(disk, 512 + 8, 0x00010000);
     put32(disk, 512 + 12, 92);
+    /* M-123: the fixture now carries the full og-valid position shape
+     * (current/backup mirrored, usable range 34..2014, entries at LBA2
+     * outside it) so the rejection is exercised at the ENTRIES-CRC gate,
+     * not short-circuited by the structural gates */
+    put64(disk, 512 + 24, 1);
+    put64(disk, 512 + 32, 2047);
+    put64(disk, 512 + 40, 34);
+    put64(disk, 512 + 48, 2014);
     put64(disk, 512 + 72, 2);
     put32(disk, 512 + 80, 4);
     put32(disk, 512 + 84, 128);
@@ -533,8 +541,8 @@ GptDisk make_gpt_disk() {
     put32(gd.disk, 512 + 12, 92);
     put64(gd.disk, 512 + 24, 1);
     put64(gd.disk, 512 + 32, 2047);
-    put64(gd.disk, 512 + 40, 2);
-    put64(gd.disk, 512 + 48, 2046);
+    put64(gd.disk, 512 + 40, 34);  /* first usable (M-123: entries outside) */
+    put64(gd.disk, 512 + 48, 2014);/* last usable */
     put64(gd.disk, 512 + 72, 2);
     put32(gd.disk, 512 + 80, 4);
     put32(gd.disk, 512 + 84, 128);
@@ -778,8 +786,8 @@ TEST(Gpt, EspMsrLinuxBiosbootLdmClassification) {
     put32(disk, 512 + 12, 92);
     put64(disk, 512 + 24, 1);
     put64(disk, 512 + 32, 2047);
-    put64(disk, 512 + 40, 2);
-    put64(disk, 512 + 48, 2046);
+    put64(disk, 512 + 40, 34); /* M-123: entries LBA2 outside usable */
+    put64(disk, 512 + 48, 2014);
     put64(disk, 512 + 72, 2);
     put32(disk, 512 + 80, 6);
     put32(disk, 512 + 84, 128);
@@ -813,4 +821,200 @@ TEST(Gpt, EspMsrLinuxBiosbootLdmClassification) {
     EXPECT_EQ(t.partitions[3].fs, FsKind::Reserved); /* BIOS boot */
     EXPECT_EQ(t.partitions[4].fs, FsKind::Reserved); /* LDM metadata */
     EXPECT_EQ(t.partitions[5].fs, FsKind::Ldm);      /* LDM data */
+}
+
+/* ===================================================================== */
+/* M-123 (diff-to-fix): the og's GPT header verifier FUN_1800078d0      */
+/* (Partition_decompiled.c:4813-4847) gates on revision 0x10000,        */
+/* header_size EXACTLY 92, reserved==0, the position pair mirrored by   */
+/* side, usable-range bounds (first < last < sector_count), the entries */
+/* array OUTSIDE the usable range, entry_size 0x80 - ALL structural     */
+/* gates BEFORE the CRC. The core accepted headers the og routes to     */
+/* its salvage/backup ladder.                                          */
+/* ===================================================================== */
+
+namespace {
+/* A structurally VALID primary GPT on a 2048-sector disk (real-world
+ * shape: entries at LBA2, usable range 34..2014, backup at 2047 with
+ * mirrored positions and entries at 2046). Individual gates are then
+ * violated one at a time. */
+struct OgValidGpt {
+    std::vector<u8> disk;
+    void patch_header_crc() {
+        put32(disk, 512 + 16, 0);
+        put32(disk, 512 + 16, crc32(disk.data() + 512, 92));
+    }
+};
+
+OgValidGpt make_og_valid_gpt() {
+    OgValidGpt g;
+    g.disk.assign(u64(2048) * 512, 0);
+    g.disk[510] = 0x55;
+    g.disk[511] = 0xAA;
+    g.disk[446 + 4] = 0xEE;
+    put32(g.disk, 446 + 8, 1);
+    put32(g.disk, 446 + 12, 2047);
+
+    std::memcpy(g.disk.data() + 512, "EFI PART", 8);
+    put32(g.disk, 512 + 8, 0x00010000); /* revision */
+    put32(g.disk, 512 + 12, 92);        /* header size */
+    put64(g.disk, 512 + 24, 1);         /* current LBA */
+    put64(g.disk, 512 + 32, 2047);      /* backup LBA = dev last */
+    put64(g.disk, 512 + 40, 34);        /* first usable */
+    put64(g.disk, 512 + 48, 2014);      /* last usable */
+    put64(g.disk, 512 + 72, 2);         /* entries at LBA2 */
+    put32(g.disk, 512 + 80, 4);         /* 4 entries */
+    put32(g.disk, 512 + 84, 128);       /* entry size */
+
+    std::vector<u8> entries(4 * 128, 0);
+    const u8 basic[16] = {0xA2, 0xA0, 0xD0, 0xEB, 0xE5, 0xB9, 0x33, 0x44,
+                          0x87, 0xC0, 0x68, 0xB6, 0xB7, 0x26, 0x99, 0xC7};
+    std::memcpy(entries.data(), basic, 16);
+    put64(entries, 32, 100);
+    put64(entries, 40, 200);
+    put32(g.disk, 512 + 88, crc32(entries.data(), entries.size()));
+    std::memcpy(g.disk.data() + 2 * 512, entries.data(), entries.size());
+    g.patch_header_crc();
+
+    /* the mirrored backup at 2047 (entries at 2046) */
+    std::memcpy(g.disk.data() + 2046 * 512, entries.data(), entries.size());
+    std::vector<u8> bh(g.disk.begin() + 512, g.disk.begin() + 1024);
+    put32(bh, 16, 0);
+    put64(bh, 24, 2047); /* current = dev last */
+    put64(bh, 32, 1);    /* backup = 1 */
+    put64(bh, 72, 2046); /* entries at 2046 */
+    put32(bh, 16, crc32(bh.data(), 92));
+    std::memcpy(g.disk.data() + 2047 * 512, bh.data(), 512);
+    return g;
+}
+} // namespace
+
+TEST(Gpt, OgGateSetHealthyHeaderTrusted) {
+    /* the control: the structurally valid header is trusted on both
+     * sides (primary + the informational backup probe) */
+    OgValidGpt g = make_og_valid_gpt();
+    MemDevice dev(std::move(g.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_EQ(t.layout, TableLayout::Gpt);
+    EXPECT_TRUE(t.gpt_primary_ok);
+    EXPECT_TRUE(t.gpt_backup_ok);
+    ASSERT_EQ(t.partitions.size(), 1u);
+}
+
+TEST(Gpt, HeaderSizeNot92Rejected) {
+    /* CRC-valid 96-byte header: the og requires exactly 0x5C - the core
+     * accepted any [92,512]. Fail-before: primary trusted. */
+    OgValidGpt g = make_og_valid_gpt();
+    /* grow the header to 96 bytes: move the CRC-cover size and patch the
+     * 4 bytes after 92 (reserved2 area) so the 96-byte CRC is valid */
+    put32(g.disk, 512 + 12, 96);
+    put32(g.disk, 512 + 92, 0x11223344); /* bytes inside the 96-byte CRC */
+    put32(g.disk, 512 + 16, 0);
+    put32(g.disk, 512 + 16, crc32(g.disk.data() + 512, 96));
+    /* keep the backup inconsistent so the ladder cannot mask the reject */
+    std::memset(g.disk.data() + 2047 * 512, 0, 512);
+    MemDevice dev(std::move(g.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_FALSE(t.gpt_primary_ok) << "header_size != 92 must not be trusted";
+    /* salvage saves the entries (the og's step 1): partitions surface,
+     * header stays untrusted - exactly the og's ladder */
+    EXPECT_EQ(t.partitions.size(), 1u);
+}
+
+TEST(Gpt, ReservedNonzeroRejected) {
+    OgValidGpt g = make_og_valid_gpt();
+    put32(g.disk, 512 + 20, 0xDEADBEEF); /* reserved */
+    g.patch_header_crc();
+    std::memset(g.disk.data() + 2047 * 512, 0, 512);
+    MemDevice dev(std::move(g.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_FALSE(t.gpt_primary_ok) << "reserved != 0 must not be trusted";
+}
+
+TEST(Gpt, WrongRevisionRejected) {
+    /* the og requires revision exactly 0x00010000 (FUN_1800078d0's
+     * (int)param_2[1] == 0x10000); the core never checked it */
+    OgValidGpt g = make_og_valid_gpt();
+    put32(g.disk, 512 + 8, 0x00010002);
+    g.patch_header_crc();
+    std::memset(g.disk.data() + 2047 * 512, 0, 512);
+    MemDevice dev(std::move(g.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_FALSE(t.gpt_primary_ok) << "revision != 0x10000 must not be trusted";
+}
+
+TEST(Gpt, PrimaryCurrentLbaWrongRejected) {
+    /* the primary must claim current_lba == 1 (param_2[3] == 1) */
+    OgValidGpt g = make_og_valid_gpt();
+    put64(g.disk, 512 + 24, 5); /* claims to live at LBA5 */
+    g.patch_header_crc();
+    std::memset(g.disk.data() + 2047 * 512, 0, 512);
+    MemDevice dev(std::move(g.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_FALSE(t.gpt_primary_ok) << "primary current_lba != 1 must not be trusted";
+}
+
+TEST(Gpt, BackupLbaWrongRejected) {
+    /* the primary must claim backup_lba == sector_count-1 */
+    OgValidGpt g = make_og_valid_gpt();
+    put64(g.disk, 512 + 32, 2000); /* not the device's last LBA */
+    g.patch_header_crc();
+    std::memset(g.disk.data() + 2047 * 512, 0, 512);
+    MemDevice dev(std::move(g.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_FALSE(t.gpt_primary_ok) << "backup_lba != dev-last must not be trusted";
+}
+
+TEST(Gpt, UsableRangeBeyondDeviceRejected) {
+    /* the truncated-image case: a header claiming last_usable past the
+     * device (4 TB GPT imaged to 2 TB). Fail-before: primary trusted. */
+    OgValidGpt g = make_og_valid_gpt();
+    put64(g.disk, 512 + 48, 999999); /* last usable beyond the 2048-sector dev */
+    g.patch_header_crc();
+    std::memset(g.disk.data() + 2047 * 512, 0, 512);
+    MemDevice dev(std::move(g.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_FALSE(t.gpt_primary_ok) << "usable range beyond the device must not be trusted";
+    EXPECT_EQ(t.partitions.size(), 1u) << "salvage still recovers the entries";
+}
+
+TEST(Gpt, EntriesLbaInsideUsableRangeRejected) {
+    /* the entries array must live OUTSIDE [first_usable, last_usable]
+     * (FUN_1800078d0: param_2[9] < param_2[5] || param_2[6] < param_2[9]) */
+    OgValidGpt g = make_og_valid_gpt();
+    put64(g.disk, 512 + 40, 2); /* first_usable = entries_lba = 2 */
+    g.patch_header_crc();
+    std::memset(g.disk.data() + 2047 * 512, 0, 512);
+    MemDevice dev(std::move(g.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_FALSE(t.gpt_primary_ok) << "entries array inside the usable range must not be trusted";
+}
+
+TEST(Gpt, TruncatedImageFallsToLadderNotTrustedPrimary) {
+    /* end-to-end (the finding's 4 TB -> 2 TB case): the primary claims
+     * positions for a bigger disk, so it is untrusted; the entries array
+     * at the image's start is intact, so the og's step-1 salvage recovers
+     * the volume set with gpt_primary_ok == false (the og: "Verify GPT
+     * HEADER sector failed." then the salvage path). */
+    OgValidGpt g = make_og_valid_gpt();
+    /* claim a 1,048,576-sector (512 MB) geometry on the 1 MB image */
+    put64(g.disk, 512 + 32, 1048575);  /* backup LBA out of image */
+    put64(g.disk, 512 + 48, 1048542);  /* last usable out of image */
+    g.patch_header_crc();
+    std::memset(g.disk.data() + 2047 * 512, 0, 512); /* no backup in image */
+    MemDevice dev(std::move(g.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_EQ(t.layout, TableLayout::Gpt);
+    EXPECT_FALSE(t.gpt_primary_ok) << "a header describing a bigger disk is untrusted";
+    ASSERT_EQ(t.partitions.size(), 1u) << "salvage recovers the entry array";
+    EXPECT_EQ(t.partitions[0].start_lba, 100u);
 }

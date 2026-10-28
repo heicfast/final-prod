@@ -10,6 +10,14 @@ before the change.
 
 **Landings this lane so far:**
 
+- **M-123 FIXED** (`10620f04`) — the og's GPT header verifier FUN_1800078d0 gate
+  set landed in `load_gpt_side` (revision 0x10000, header_size exactly 92,
+  reserved==0, the position pair mirrored by side, usable-range bounds, entries
+  array outside the usable range — structural gates before the CRC, og order; the
+  N-164 deliberate strictness kept; the salvage ladder unchanged by design). 9
+  tests (8 RED pre-fix, incl. the truncated-image end-to-end); the 5 stale
+  og-invalid fixtures re-shaped (entries outside the usable range — the fixtures
+  were themselves headers the og would reject); suite 1178/1178.
 - **M-124 FIXED** (`dcb123dd`) — the EBR link type 0x85 (Linux extended) joined the
   Extended arm of `mbr_type_to_kind`: whole 0x85-stamped chains no longer vanish, the
   bogus Other-volume at the link target is gone (Partition_decompiled.c:1006's `-0x7b`
@@ -17,7 +25,7 @@ before the change.
   Ebr.LinkType085WalksChain / Ebr.LinkType085SameBasisAs05 / Mbr.Extended085NotEmittedAsVolume
   (all RED pre-fix); suite 1164/1164.
 
-**Board after this push (filesystem truth): 71 active — 0 ACUTE · 9 SEVERE · 27 MAJOR ·
+**Board after this push (filesystem truth): 70 active — 0 ACUTE · 9 SEVERE · 26 MAJOR ·
 32 MINOR · 3 INFO** (the parallel lanes' A-014 + I-041..I-044 retirements absorbed at the
 merge; both sides' records kept). Next free IDs unchanged: S-062+, M-138+, N-186+, I-045+.
 
