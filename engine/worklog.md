@@ -119,6 +119,21 @@ OQ-S10-3's grant boundary). Pulled-before-pushed discipline; one finding, one pu
 fix RED-test-first; corpus cites re-read first-hand. The S48/S49/S50 windows absorbed at
 the merge (A-014 + I-041..I-044 retired by the parallel lanes; both sides' records kept).
 
+- **M-119 FIXED** (`033b9cdb`) — the partition-boundary tolerant pair: create-clamp
+  (was_clamped/clamp_delta; N-046's start-past-device refusal kept) + the og read
+  ladder (offset>=length/count>length refuse; straddle clamps + FULL-tail zero-fill +
+  OK; parent prefix-error propagates unfilled). The fix plan's fix-time probe EXECUTED
+  first-hand: HFSPlusSearchDLL FUN_180009290 :7219-7264 — the gate, the clamped parent
+  read, the tail memset, the no-zero-fill error path — confirming the engine-side
+  policy before shipping. D-74's read-half SUPERSEDED (dated addendum in
+  PARITY-DELTAS; safety core + under-zeroed-tail non-adoption KEPT — the og memsets
+  sector-count bytes, we zero the full tail, the D-117 defect class). CLI partition
+  open warns-with-delta instead of aborting; both cr_ui volume opens clamp+log. Tests:
+  CreateClampsOverlongDeclaredLength / TailReadClampsAndZeroFills (replaces the D-74
+  pin) / OrchestratorTargetClampScansRaggedTable (all RED pre-fix via stashed-slice
+  proof) + CreateStartBeyondDeviceStillRefused / ExactFitNotClamped (fence pins) —
+  suite 1216/1216, zero engine fallout; the Apply fence tests untouched and green.
+  F60/P1/B6/B8/X51/E23 → MATCH.
 - **M-128 FIXED** (`2b0184f3`) — option (b): the case-insensitive byte-decode
   channel KEPT + registered as PARITY-DELTAS D-125 (the D-117 class). Corpus
   re-read first-hand: FUN_140604090 :1003619 (%02X-only), memcmp :1003452/
