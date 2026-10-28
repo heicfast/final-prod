@@ -552,7 +552,14 @@ bookkeeping file renumbers to N-135, convergent with session-11B's own renumber)
   DELTAS D-112 registered; two finding corrections (the exFAT dentry form;
   the HFS+ half as the known residual); 7 tests.
 
-**Board now: 46 active (6 SEVERE · 20 MAJOR · 15 MINOR · 5 INFO) · 291 resolved
+- **N-135** (MINOR — audit trail): the bookkeeping truth batch closed — the
+  item-by-item verification (three items FIXED-ALREADY by the earlier repairs,
+  reproduced; three repaired this session), SIX additional live phantom cites
+  found by the finding's own guard and re-pinned, the I-011 magic-constant
+  mis-paste repaired; scripts/verify/verify_trail_shas.py built and GREEN
+  (470 tokens, all resolving).
+
+**Board now: 45 active (6 SEVERE · 20 MAJOR · 14 MINOR · 5 INFO) · 292 resolved
 ledger rows · 5 tracked-open.**
 
 ## Session-10 lane-B delta (2026-10-29 — the continuation deep audit, RECONCILED AT THE SECOND PUSH with the SA-10 lead close + the truth batches + the fix lanes)
@@ -622,11 +629,11 @@ the standing order (S-051/S-052, M-104..M-107, the carve children).
 
 **The ID-collision repair (process finding):** the wave-2 lane's S-050 (whole-disk scan targets) collided with SA-10B's S-050 (file-repair line) — both live on main. Per the SA-9 rule the earlier push (SA-10B's) keeps the ID; the wave-2 file renumbers to **S-051** with its orchestration/CROSS-REF/SUMMARY refs updated and a renumber note in the file.
 
-**Convergence merges (no duplication):** this lane's M-100 re-scope and N-099 addendum were independently landed by the session-38 sweep (c75755d) — the lane's versions dropped (batch C then retired both findings whole, `13245c0`; this lane's E69 erratum candidate — the retired S-007 file's own stale :215/:222 cites — is recorded here and in the worklog for the next corpus-erratus pass); the M-079/N-090 cite-refresh notes ride as dated addenda where still live.
+**Convergence merges (no duplication):** this lane's M-100 re-scope and N-099 addendum were independently landed by the session-38 sweep (c75755d) — the lane's versions dropped (batch C then retired both findings whole, `32ef33b` — N-135: the original cite `13245c0` was a pre-rebase phantom, re-pinned; this lane's E69 erratum candidate — the retired S-007 file's own stale :215/:222 cites — is recorded here and in the worklog for the next corpus-erratus pass); the M-079/N-090 cite-refresh notes ride as dated addenda where still live.
 
 **Gate-doc truth repairs (this lane):** SURFACE-INVENTORY row 67's pre-reconciliation IDs (the fourth and last stale-numbering site), the DRWService rows 43/95 (install lifecycle → M-105), driver-install.md's S-038-stays-ACTIVE rows (K74/K77 flipped to the shipped state) + the session-9 addendum's M-071/M-072 renumber annotations, carve.md's landed-format/M-081/S-041 currency annotations, the FIXED-LEDGER backfill (M-081's row + the five retirements + counts 265→270).
 
-**Board after this lane (at its final push, post-rebase over the S-047 `a3abfbe` / S-045-half `021ae07` + OQ-S10-1 / N-095+N-108+N-119 `995ba5d` / batch-C `13245c0`+`0872ac2` landings — N-104/N-097/N-102/N-123/N-101/N-120 fixed + N-099/N-106 FIXED-ALREADY, all convergent with this lane's triage): 54 active (6 SEVERE · 25 MAJOR · 18 MINOR · 5 INFO) / 277 resolved-in-history (FIXED-LEDGER.md) / 3 tracked-open (OQ-S4-3 execution-bound; OQ-S8-1 the CWindowsFS consumer; **OQ-S10-1** S-045's codec-bound thumbnail halves with the named vendoring dependencies). Next free IDs: S-053+, M-108+, N-129+, I-031+, A-012+.**
+**Board after this lane (at its final push, post-rebase over the S-047 `a3abfbe` / S-045-half `021ae07` + OQ-S10-1 / N-095+N-108+N-119 `995ba5d` / batch-C `32ef33b`(N-135: the recorded `13245c0` was a pre-rebase phantom)+`0872ac2` landings — N-104/N-097/N-102/N-123/N-101/N-120 fixed + N-099/N-106 FIXED-ALREADY, all convergent with this lane's triage): 54 active (6 SEVERE · 25 MAJOR · 18 MINOR · 5 INFO) / 277 resolved-in-history (FIXED-LEDGER.md) / 3 tracked-open (OQ-S4-3 execution-bound; OQ-S8-1 the CWindowsFS consumer; **OQ-S10-1** S-045's codec-bound thumbnail halves with the named vendoring dependencies). Next free IDs: S-053+, M-108+, N-129+, I-031+, A-012+.**
 
 **Recommended fix-order contributions:** (1) **S-052** — silently wrong recovery bytes on first-class LDM surfaces; the basis-descriptor fix is architectural but the multi-disk fixtures already exist (test_ldm.cpp:206+); (2) **S-051 + M-104** (the wave-2 lane's whole-disk pair) — rc=0/0-files on healthy disks is the worst first-run experience in the board; (3) **M-106** — mechanical against the existing decodes; (4) the carve school-2/3 children in SA-10B's real-world order (GZ/SVG/PNG first); (5) M-105's posture decision rides the driver-contract session (M-086/M-087 residuals + N-107/N-127).
 
@@ -787,7 +794,9 @@ M-071/S-042 lanes: regression + SEVERE tier first.
   validators re-derived from the og grammar (FUN_1800264d0): the disjoint
   accept-sets closed (checksum word@+20 == XOR words 0..9, zero dword@+16, tail
   word, exact size std_words*2+22).
-- **M-071** (MAJOR → FIXED, closing-fix lane `dd0ffd5`) — the M-018 regression:
+- **M-071** (MAJOR → FIXED, closing-fix lane `ce2405a` — N-135 item 3: the
+  original block cited `dd0ffd5`, a pre-rebase phantom absent from the object
+  store; re-pinned) — the M-018 regression:
   both rrecov.cpp gates restored byte-exact from the `69507cb` form; the cr_ui
   session/snapshot bulk walks (the W-lane surfaces that postdate M-018 and never
   carried the gate) gated identically; the explicit-selection semantic (junk stays
@@ -818,7 +827,8 @@ M-071/S-042 lanes: regression + SEVERE tier first.
   into checks.yml's lint job enforces both invariants forever (first run:
   8 named violations — the fail-before; green after).
 
-- **M-082** (MAJOR → FIXED, DFX-38 lane `95122bd`) — the DeviceManager
+- **M-082** (MAJOR → FIXED, DFX-38 lane `1f714884` — N-135 item 3: the
+  original block cited `95122bd`, a pre-rebase phantom; re-pinned) — the DeviceManager
   offline-OS profile landed corpus-exact: reghive::offlineos::profile_os()
   (the 8 CurrentVersion fields, the drive-letter SystemRoot gate, the
   12-byte MountedDevices system-partition location, the Select-aware
@@ -938,7 +948,7 @@ close for the push-time truth.
 sweep ran, four concurrent fix lanes landed `26da616` (N-094 — the `-h`
 usage line + the verb lock's fourth site), `f6e303e` (S-042 — the WMF
 validators re-derived from FUN_1800264d0, disjoint accept-sets closed),
-`dd0ffd5`/`ce2405a` (M-071 — the M-018 junk-gate regression closed, both
+`ce2405a` (M-071 — the M-018 junk-gate regression closed; N-135: the recorded `dd0ffd5` twin was a pre-rebase phantom), both
 rrecov.cpp gates restored + the cr_ui bulk walks gated + the
 explicit-selection semantic pinned), and `9daa787`+`b500058` (M-090 — the
 DMG koly trailer walk + the ctor's own 0xC800000 cap; the finding moved to

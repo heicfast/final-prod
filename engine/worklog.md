@@ -4810,3 +4810,31 @@ lane (d4b487c8), S-052 by the third lane (f4e500de) — the remaining SEVERE set
 (S-048/S-050/S-040) is split: this lane takes S-048 first (the decode rides
 this lane's S-049 evidence mining); the 11D lane is free to take S-050/S-040 or
 converge per the first-push-wins convention.
+### Session-39 fix log — N-135 landed (the bookkeeping truth batch closed)
+
+**Finding:** MINOR N-135 (the fix-wave bookkeeping truth batch — 7 items).
+**Classification:** SPLIT, verified at the CURRENT tree (not the audited
+2beb555): items 1 (:376)/4 (the M-090 mis-paste)/5 (the missing rows) —
+FIXED-ALREADY by the b5da834 landing + the S11 wave (reproduced and
+recorded); items 2 (:379's stale R-31 row)/6 (ABI-CONTRACT §7g's loose
+range)/7 (the thumbnail .cpp matrix missing LZW) — CONFIRMED, repaired
+this session.
+**Fix:** :379 flipped to agree with the primary R-31 row (PRESENT + the
+M-024 toggles + the N-132 data layers, the OOS-UI remainder named); §7g
+re-pinned to the current tree's true block; the LZW matrix line restored.
+**The finding's own optional guard BUILT and run:**
+scripts/verify/verify_trail_shas.py — 470 commit-cited tokens checked
+across the 9 gate docs. The guard found SIX additional LIVE phantom cites
+beyond the finding's five, all re-pinned to verified-existing post-rebase
+commits: M-074 (09b311d→d6c02914), M-077 (af5ca4d→04707ba1), M-071 in
+SUMMARY (dd0ffd5→ce2405a), M-082 (95122bd→1f714884), the batch-C cite
+(13245c0→32ef33b), N-119 in the matrix (e1e5124→995ba5d); plus the I-011
+row's fix-commit column carrying the MAGIC CONSTANT 4a4e4c78 (a NEW
+instance of the item-4 mis-paste class) — repaired to "—" with the
+annotation. The guard exits 0 (the acceptance evidence). Deliberately
+ADVISORY, not a CI gate — the decision recorded in the docstring (the
+curation set grows per-lane; the audit/fix lanes run it per-session).
+The dated-history-snapshot block carries one NOTE naming every
+pre-rebase as-recorded token with the post-rebase equivalents.
+**Trail:** findings/FIXED/N-135; ledger row; CROSS-REF-MATRIX cell →
+MATCH; SUMMARY (board 45 active). Suite 1077/1077 (0 failed).

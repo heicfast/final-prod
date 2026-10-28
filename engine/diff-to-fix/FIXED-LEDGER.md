@@ -19,19 +19,21 @@
 > blocks carry the resolution narrative; the per-file Resolution sections
 > live in history.
 
-**Counts (row-count truth, session-39B post-M-109/M-112 re-count, 2026-10-29): 300 resolved rows — 278 main-pattern (A/S/M/N/I) + 22 OQ-prefixed** (+I-030 this push) (the session-39 296-count verified against the filesystem; +N-134 this push), each row one retired file (no duplicate IDs; the A-005/A-006 renumber pair counts both IDs by design). The filesystem is the truth (the whole table re-counted twice this window — session-11B's 285/265+20 pass, then session-39's 287/267+20 after the M-072 row landing and the N-136/N-093 committed-marker repair at the table tail kept both rows; the prior top lines' 276–282 figures were push-window estimates that never re-counted the table — the drift is the N-129(numeric-defects) class applied to the ledger's own top line; the `b5da834` repair commit left the second occurrence of the conflict markers unswept — both sides preserved as dated history below).
+**Counts (row-count truth, session-39B post-M-109/M-112 re-count, 2026-10-29): 300 resolved rows — 278 main-pattern (A/S/M/N/I) + 22 OQ-prefixed** (+I-030 this push) (the session-39 296-count verified against the filesystem; +N-134 this push), each row one retired file (no duplicate IDs; the A-005/A-006 renumber pair counts both IDs by design). The filesystem is the truth (the whole table re-counted twice this window — session-11B's 285/265+20 pass, then session-39's 287/267+20 after the M-072 row landing and the N-136/N-093 committed-marker repair at the table tail kept both rows; the prior top lines' 276–282 figures were push-window estimates that never re-counted the table — the drift is the N-129(numeric-defects) class applied to the ledger's own top line; the `b5da834` repair commit (a pre-rebase token) left the second occurrence of the conflict markers unswept — both sides preserved as dated history below).
 
-**(history, HEAD side of the b5da834 conflict):** 282-claim — 280 rows at `e56baac` + M-100 (the batch-C-conform 276 `0872ac2`/`64a3b18` + S-041 resolved-as-umbrella by the SA-10 lane) · 98 with a fix-commit recorded in-file
-**(history, b5da834 side):** 281-claim — the same lineage with the rebase-rewritten batch SHAs (e4f3184 / 995ba5d / 32ef33b)
+**(history, HEAD side of the b5da834 conflict — pre-rebase tokens):** 282-claim — 280 rows at `e56baac` + M-100 (the batch-C-conform 276 `0872ac2`/`64a3b18` + S-041 resolved-as-umbrella by the SA-10 lane) · 98 with a fix-commit recorded in-file
+**(history, b5da834 side — pre-rebase tokens):** 281-claim — the same lineage with the rebase-rewritten batch SHAs (e4f3184 / 995ba5d / 32ef33b)
 **(history, session-39 re-count at `35bee726`, pre-rebase):** 284 rows = 264 main-pattern + 20 OQ — the session-39 open tree before the M-072/M-102/M-083/N-093/N-136 row landings; convergent with the session-11B re-count (the delta is exactly those five rows + the N-136 renumber). Session-39 also resolved the SECOND committed-marker occurrence at the table tail (the N-136/N-093 row collision a parallel lane merged with markers) — both rows kept, markers dropped.
 
-**Counts:** 270 resolved findings (255 at the purge commit + the mid-flight parallel landings absorbed at rebase: M-084/M-091 `16475b8`, N-092 `5ed862f`, N-124 `c75755d`, M-088 DFX-38, N-116 `632d21e`, N-117/N-118/N-103 `e4f3184`, N-095/N-108/N-119 `995ba5d` session-38 doc-truth batches A+B; S-043 `b3938c8` moved its file into the re-created FIXED/ dir BEFORE this convention was readable - its row is pending, the next audit lane retires the file) · 98 with a fix-commit recorded in-file ·
+**NOTE (N-135, the dated-snapshot history block):** the tokens `16475b8`/`632d21e`/`b3938c8`/`13245c0`/`e1e5124`/`dd0ffd5`/`95122bd`/`edee513`/`771e2ec`/`fb2bb91`/`08c66f8`/`b5da834`/`63efde8`/`6b50bb8`/`46b81573` below are PRE-REBASE as-recorded tokens (the push-window lanes' local SHAs, dead at rebase); the post-rebase equivalents are recorded in the rows (8a7055ea, e4f3184, d0787e9, 32ef33b, 995ba5d, ce2405a, 1f714884, fb7cf30, 9daa787, ...) — the snapshots are kept as history per the 64a3b18 convention.
 
-**Counts (268, the prior window's snapshot):** 255 at the purge commit + the mid-flight parallel landings absorbed at rebase: M-084/M-091 `16475b8`, N-092 `5ed862f`, N-124 `c75755d`, M-088 DFX-38, N-116 `632d21e`, N-117/N-118/N-103 `e4f3184`, N-095/N-108/N-119 `995ba5d` session-38 doc-truth batches A+B.
+**Counts:** 270 resolved findings (pre-rebase as-recorded tokens; 255 at the purge commit + the mid-flight parallel landings absorbed at rebase: M-084/M-091 `16475b8`, N-092 `5ed862f`, N-124 `c75755d`, M-088 DFX-38, N-116 `632d21e`, N-117/N-118/N-103 `e4f3184`, N-095/N-108/N-119 `995ba5d` session-38 doc-truth batches A+B; S-043 `b3938c8` moved its file into the re-created FIXED/ dir BEFORE this convention was readable - its row is pending, the next audit lane retires the file) · 98 with a fix-commit recorded in-file ·
 
-**Counts (265, the batch-A snapshot):** 255 at the purge commit + M-084/M-091 `16475b8`, N-092 `5ed862f`, N-124 `c75755d`, M-088 DFX-38, N-116 `632d21e` session-38, N-117/N-118/N-103 `e4f3184` session-38 doc-truth batch A.
+**Counts (268, the prior window's snapshot — pre-rebase as-recorded tokens):** 255 at the purge commit + the mid-flight parallel landings absorbed at rebase: M-084/M-091 `16475b8`, N-092 `5ed862f`, N-124 `c75755d`, M-088 DFX-38, N-116 `632d21e`, N-117/N-118/N-103 `e4f3184`, N-095/N-108/N-119 `995ba5d` session-38 doc-truth batches A+B.
 
-**Counts (264, the closing-fix lane's snapshot):** 255 at the purge commit + M-084/M-091 `16475b8`, N-092 `5ed862f`, N-124 `c75755d`, M-088 DFX-38, N-116 `632d21e` session-38; S-043 and M-080 re-created FIXED/ before the convention was readable - their files retired to history and their rows added by the closing-fix lane's reconciliation.
+**Counts (265, the batch-A snapshot — pre-rebase as-recorded tokens):** 255 at the purge commit + M-084/M-091 `16475b8`, N-092 `5ed862f`, N-124 `c75755d`, M-088 DFX-38, N-116 `632d21e` session-38, N-117/N-118/N-103 `e4f3184` session-38 doc-truth batch A.
+
+**Counts (264, the closing-fix lane's snapshot — pre-rebase as-recorded tokens):** 255 at the purge commit + M-084/M-091 `16475b8`, N-092 `5ed862f`, N-124 `c75755d`, M-088 DFX-38, N-116 `632d21e` session-38; S-043 and M-080 re-created FIXED/ before the convention was readable - their files retired to history and their rows added by the closing-fix lane's reconciliation.
 **Counts:** 280 resolved findings (276 at the batch-C conform `0872ac2` + **S-041 resolved-as-umbrella by the SA-10 lane**; the purge's 255 + every mid-flight landing through batch C — N-116, N-117/N-118/N-103, N-095/N-108/N-119, N-104/N-097/N-102/N-123/N-101/N-120, N-099/N-106 — + S-043/M-080/M-085/S-047 conformed + S-041/N-101) · 98 with a fix-commit recorded in-file ·
 
 **Counts:** 280 resolved findings (276 at the batch-C conform `0872ac2` + **S-041 resolved-as-umbrella by the SA-10 lane**; the purge's 255 + every mid-flight landing through batch C — N-116, N-117/N-118/N-103, N-095/N-108/N-119, N-104/N-097/N-102/N-123/N-101/N-120, N-099/N-106 — + S-043/M-080/M-085/S-047 conformed + S-041/N-101) · 98 with a fix-commit recorded in-file ·
@@ -59,13 +61,13 @@ belongs to the fix lane; this census is the audit-side truth record.
 > **Session-38 convergence note (2026-10-29, post-purge):** the M-071 row
 > above carries a three-lane convergence (the landed fix-lane `ce2405a`,
 > the DFX-38 lane's addendum, and this session-38 execution lane's
-> complementary landing `63efde8` — the ONE merged Windows-CI step
+> complementary landing `63efde8` (a pre-rebase phantom token, N-135) — the ONE merged Windows-CI step
 > `CLI junk-filter contract (M-071 - tree + recover-all)` over the
 > committed fixture `tests/data/images/junk-gate-fat16.raw`, the
 > Linux-suite substrate proof
 > `FilterFolder.JunkGateFixtureFileScansAndFlagsHiddenSet`, and the
 > explicit-selection pin). The retired file's full session-38 convergence
-> addendum is preserved in git history (the `63efde8` parent's tree) and
+> addendum is preserved in git history (the `63efde8` parent's tree — a pre-rebase token, N-135) and
 > summarized in worklog.md's S38-M071-CONVERGE entry + SUMMARY.md's
 > session-38 reconciliation delta.
 
@@ -89,7 +91,7 @@ belongs to the fix lane; this census is the audit-side truth record.
 | I-008 | INFORMATIONAL |  | — | `findings/FIXED/I-008-ldm-raid5-four-rotations-dormant.md` |
 | I-009 | INFORMATIONAL |  | — | `findings/FIXED/I-009-carve-probing-and-block-io-supersets.md` |
 | I-010 | INFORMATIONAL |  | — | `findings/FIXED/I-010-scope-exclusions-and-supersets-registered.md` |
-| I-011 | INFORMATIONAL |  | 4a4e4c78 | `findings/FIXED/I-011-corpus-errata-session2-register.md` |
+| I-011 | INFORMATIONAL |  | — (N-135 item-4-class repair: the recorded `4a4e4c78` was a MAGIC-CONSTANT mis-paste, not a SHA — the row 49 note documents the constant class; no fix commit was recorded in-file) | `findings/FIXED/I-011-corpus-errata-session2-register.md` |
 | I-012 | INFORMATIONAL |  | — | `findings/FIXED/I-012-refs-ads-gap-resolved-shared-limitation.md` |
 | I-013 | INFORMATIONAL |  | — | `findings/FIXED/I-013-refs-host-os-runtime-gate-superset.md` |
 | I-014 | INFORMATIONAL |  | — | `findings/FIXED/I-014-ext4-hfsplus-supersets-and-matches-register.md` |
@@ -344,8 +346,8 @@ belongs to the fix lane; this census is the audit-side truth record.
 | M-096 | MAJOR | carve (the MOBI salvage gate + end-tag walk) | 6e37dc21 (7ca83f5 was a pre-rebase phantom, repaired session 39) | `findings/FIXED/M-096-mobi-carve-absent-bookmobi-gate-endtag-walk-decoded.md` |
 | M-100 | MAJOR | preview | closed-as-covered — `6d0f16c` (M-066+N-088, an ancestor of the finding's own baselines; the session-10 lane-B verification: `evidence/s10-verification-pass-b.md`) — **S11-R RE-OPEN ANNOTATION (2026-10-29): the retirement's residue claim ("reachable today through cr_ui_preview_metadata") is FALSE — `cr_ui_metadata` (cr_ui.h:1214-1224) has no entries field and `preview_metadata_impl` (cr_ui.cpp:3613-3631) discards `Metadata.entries`; the exposure half re-opened as M-116 (the engine half genuinely predates the filing; this row stands for that half)** | `findings/MAJOR/M-100-archive-browse-inside-preview-absent.md` (retired by the session-10 lane-B push; never lived in FIXED/ — the capability predated the filing) |
 | M-072 | MAJOR | query/abi | bf17e55 | `findings/MAJOR/M-072-query-axes-path-substring-state-mask.md` |
-| M-074 | MAJOR | writer/abi | 09b311d | `findings/MAJOR/M-074-destination-validation-codes-undifferentiated.md` |
-| M-077 | MAJOR | preview | af5ca4d | `findings/MAJOR/M-077-preview-caps-defaults-absent.md` |
+| M-074 | MAJOR | writer/abi | d6c02914 (N-135 item-3 repair: the row's 09b311d was a pre-rebase phantom, absent from the object store; the real post-rebase fix) | `findings/MAJOR/M-074-destination-validation-codes-undifferentiated.md` |
+| M-077 | MAJOR | preview | 04707ba1 (N-135 item-3 repair: the row's af5ca4d was a pre-rebase phantom; the real post-rebase fix) | `findings/MAJOR/M-077-preview-caps-defaults-absent.md` |
 | N-092 | MINOR | (mid-flight landing) | 5ed862f | `findings/FIXED/N-092-thumbnail-refusal-matrix-and-cache.md` |
 | N-124 | MINOR | (mid-flight landing) | c75755d | `findings/FIXED/N-124-transport-module-rows-superseded-by-ddrv-wave.md` |
 | N-116 | MINOR | (session-38 minor-first lane; the Resolution + RED->GREEN proof live in the retired file and worklog.md's S38 block) | 9445627f (632d21e was a pre-rebase phantom, repaired session 39) | `findings/FIXED/N-116-session-list-row-ordering-diverges-og-time-sort.md` |
@@ -387,6 +389,7 @@ belongs to the fix lane; this census is the audit-side truth record.
 | N-113 | MINOR | carve | (session-39 fix lane — cite-by-title: "fix(carve): N-113 - the text school lands") | `findings/FIXED/N-113-text-school-list-probes-absent-vcf-gpx-osp-pos-chfp-decoded.md` |
 | N-133 | MINOR | orchestrator/engines | (session-39 fix lane — cite-by-title: "fix(orchestrator+engines): N-133 - the engine-side on-disk volume labels land") | `findings/FIXED/N-133-engine-side-volume-labels-never-surfaced.md` |
 | N-132 | MINOR | query/docs | (session-39 fix lane — cite-by-title: "fix(query+docs): N-132 - the display-config data layers land + the API-DELTA truth repair") | `findings/FIXED/N-132-api-delta-false-landed-claims-config-triplet.md` |
+| N-135 | MINOR | audit-trail | (session-39 fix lane — cite-by-title: "fix(trail): N-135 - the bookkeeping truth batch closed"; the guard scripts/verify/verify_trail_shas.py exits 0 — 470 tokens, all resolving) | `findings/FIXED/N-135-fix-wave-bookkeeping-truth-batch.md` |
 
 ## Go-forward convention (established by this purge, per the user instruction; AMENDED session-39 AND session-11D — BOTH fix lanes received the same user instruction "put fixed findings in fixed directory")
 

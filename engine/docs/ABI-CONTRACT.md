@@ -540,7 +540,10 @@ time (the v5 VOLUME_INFO tail; 0 = a pre-v5 session — display the file
 ### 7g. The session load progress/cancel surface (W1b / R-54; PLAN-API-EXPANSION Wave 1)
 
 `cr_ui_session_load_with_events(const char* utf8_path, cr_ui_event_fn fn, void* user,
-volatile uint32_t* cancel_flag, cr_ui_session** out)` (cr_ui.h:916-944) — the
+volatile uint32_t* cancel_flag, cr_ui_session** out)` (cr_ui.h:926-944, the
+comment block + the decl at :943-944 — N-135: the old 916-944 range was 9 lines
+loose at the audit tree and drifted further since; re-pinned at the current
+tree) — the
 load-side twin of the N-060 save machinery. The og's RESTORE reports
 progress inside the load window (`40+50*done/(total+done)`,
 rsf-format--scan-session.md flow section) and polls `IUIProgressInfo::
