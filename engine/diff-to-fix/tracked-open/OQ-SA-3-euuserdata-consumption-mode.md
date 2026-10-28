@@ -38,3 +38,61 @@ configuration (the filter_generalraw family). Verdict: the DB is
 "secondary typing" line describes raw_signs.json's role for
 analyser-less formats, not EUUserData's role. M-065's severity stands at
 MAJOR (the shipped default set landed: see findings/FIXED/M-065).
+
+## Probe RE-resolution (2026-10-28, Agent 2 scan-engine lane — supersedes the FIX-6 reading above)
+
+The M-065 fix session's resolution above misread the DRWUI :227538 consumer's
+data direction. First-hand insert-side decode, full chain:
+
+1. **What `GetRawUserInfoMap` returns is a per-scan statistics map, not a
+   configuration store.** The returned object is the RAWSearchDLL singleton's
+   `+0x90` member: a `std::map<std::wstring, count>` whose insert-side is
+   `FUN_18000ed00` (RAWSearchDLL_decompiled.c:11376-11525 — MSVC map
+   lower_bound + insert-or-increment: first detection of an extension creates
+   the entry with value 1 (`*(lVar14 + 0x20) = 1`), every repeat detection
+   increments (`plVar10[8] = plVar10[8] + 1`)). The call sites are the ~70
+   analyser detection paths (e.g. :19626, :20222, :20892, :21574, :29402,
+   :30443) — each inserts the DETECTED file's extension after a successful
+   identify. The searcher-init block (FUN_18000beb0 :9044-9051) CLEARS the
+   map (`FUN_180001500` = the map/list clear) before every scan. A map that
+   starts empty each scan and grows per detection is an output (statistics),
+   not an input (configuration); the FIX-6 reading has the data flow inverted.
+2. **The DRWUI :227538 consumer is a one-way post-scan REPORT reader.** It
+   GetProcAddress's the export at RAWSearchDLL load, walks the map, formats
+   each entry's +0x20 count as `%lld` keyed by the extension, and files the
+   result under the `"Trigger_Raw"` / `"FileSystem"` report tree
+   (:227545-:227625, ending in the report/telemetry calls FUN_1400ed3f0 /
+   FUN_1400ed2a0). It never writes anything back into the engine and never
+   reaches the searcher's setup path. "Trigger_Raw" is a report section name,
+   not a trigger configuration; the filter_generalraw family is the naming
+   callback (searcher vt+0x48 = FUN_140161fb0, registered in the init block
+   at :9078+), which this function never touches.
+3. **EUUserData's actual consumer is the CHK repair chain.** DRWUI reads
+   `%s/EUUserData` (install dir; DRWUI_decompiled.c:1005387, `_wfopen_s` +
+   fseek/ftell) → JSON-parses it (:1005497+) → per-extension "signs" arrays
+   (`_stricmp "signs"` :1005818; "offset,HEX" split; `atoi` offset) → the
+   `CHKRepairFileSign` manager (vtable :1002677; by-offset map +0x20 /
+   by-ext map +0x30) → consumed by the MatchedFile/NotMatchedFile
+   file-signature checker (:721520-721680; strings `*****MatchedFile:%s,
+   FileSign:%s` / `xxxxxxxxxx NotMatchedFile:%s,FileSign:%s`; RTTI
+   `.?AVCHKRepair@@`, `.?AVICHKRepairObject@@`, `.?AVCHKRepairFileSign@@`,
+   `.?AVCHKRepairAdapterMgr@@`). Repair-chain surface.
+4. **RAWSearchDLL contains ZERO references to EUUserData** (rg over the
+   80,614-line decompile: no hits) and **DRWUI never writes raw_signs.json**
+   (rg over DRWUI decompile: no hits). The engine's only runtime-loaded
+   signature data is raw_signs.json (read-only ifstream, :23836-23850) and
+   config/RawConfig.ini (:13133). The per-searcher start sequence
+   (FUN_140581360 :916931-917010) passes config/auxiliary/path arguments only
+   (vt+0xe8/+0x70/+0x30/+0x40) — no signature handoff exists.
+
+**Verdict (supersedes the FIX-6 verdict):** the question's (a)/(b) framing was
+wrong — EUUserData's signs are consumed by NEITHER the RAW scan loop NOR the
+scan-result typing path. They feed the CHK repair chain's file-signature
+checker (a subsystem outside the core's product scope). The og's scan engine
+has no user-sign channel at all; core's `--user-signs` carve capability is a
+deliberate product superset (registered D-104), and the landed default-set
+load (37c48c6) extends that superset with the og's own shipped data —
+legitimate, but NOT an og-parity behavior, and M-065's original MAJOR
+"scan-recall" severity premise is void. M-065's true residue: the CHK-repair
+data asset belongs to the file-repair lane (out of core scope), recorded as a
+handoff. Corpus errata filed (CORPUS-ERRATA + the corpus's CORRECTIONS.md #9).

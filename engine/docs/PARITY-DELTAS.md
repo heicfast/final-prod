@@ -3072,3 +3072,48 @@ instantly with zero real work when the family is Unknown, and the product
 appeared alive while reading nothing. The mandate's rule: the product is
 either working or explicitly refusing. VERDICT: ACCEPTED (deliberate
 divergence; truthfulness superset in the D-24/ADR-5 family).
+
+### D-104 — the user-signature carve channel + the shipped default set are a product superset: the og's scan engine has NO user-sign input (OQ-SA-3 re-resolution, M-065 37c48c6, REGISTERED SUPERSET — engine behavior)
+
+**Class:** deliberate superset (carve engine behavior) · **Findings:** OQ-SA-3
+(re-resolved, scan-engine lane, 2026-10-28), M-065 (landed 37c48c6 before the
+re-resolution; superset registration retro-active) · **Date:** 2026-10-28
+
+**WHAT OG DOES:** the og's RAW scan engine has no user-signature input at
+all. Its only runtime-loaded signature data is the install-tree
+`raw_signs.json` (139 ext, read-only ifstream at engine init,
+RAWSearchDLL :23836-23850) and `config/RawConfig.ini` (:13133). The shipped
+`EUUserData` (111 entries) never reaches the engine: DRWUI reads it
+(`%s/EUUserData`, :1005387) into `CHKRepairFileSign` (RTTI-confirmed repair
+chain class; MatchedFile/NotMatchedFile checker :721520-721680) — file
+signature checking for the repair flow. The `GetRawUserInfoMap` export
+returns the singleton's per-scan carve-statistics map (insert-or-increment
+by the analysers' detection paths, FUN_18000ed00 :11376-11525; cleared at
+every searcher init, FUN_18000beb0 :9044-9051; read one-way post-scan by
+DRWUI's "Trigger_Raw"/"FileSystem" report builder :227538-:227625) —
+output, not input.
+
+**WHAT CORE DOES:** the user-signature surface (cr_usersigns, M-048; caps
+S-039) installs user-taught signs into the carve registry — capability-
+creating by construction — and since 37c48c6 the release ships the og's own
+111-entry/190-sign DB as `data/userdata-defaults.json`, loaded at engine
+init when no explicit `--user-signs` is given.
+
+**WHY REGISTERED AS A SUPERSET, NOT A PARITY GAP:** the landed behavior
+exceeds the og's scan engine (the og's engine cannot consume user signs at
+all). The original M-065 framing ("the og consults the DB at scan setup")
+was based on the pre-re-resolution reading of the :227538 consumer and is
+superseded (see the OQ-SA-3 re-resolution + CORPUS-ERRATA E-A/E-B). The
+shipped default set is retained as a deliberate product enhancement: it
+uses the og's own shipped data through the core's own superset channel, it
+is opt-out-able (explicit `--user-signs` replaces it entirely), and the
+carve pass remains gated by the same format-toggle/occupancy/bitmap rules
+as every other carve source. The og-parity statement for the scan engine is:
+default-off user signs; the core's statement is: default-on with the og's
+own data — both recorded here so no parity table re-derives the wrong
+"matching behavior" claim.
+
+**FOLLOW-UPS:** the og's true EUUserData consumer (CHK repair chain) is out
+of the core's product scope (file-repair lane; handoff logged); the corpus
+artifacts carry the correction (CORPUS-ERRATA E-A/E-B + the corpus's
+CORRECTIONS.md #9).

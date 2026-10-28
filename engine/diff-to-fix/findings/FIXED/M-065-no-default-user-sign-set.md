@@ -97,3 +97,42 @@ M-065's MAJOR severity stands.
 
 **Landed:** commit "fix(carve): M-065 - the shipped default user-sign set
 (the og's 111-entry EUUserData) + the engine-init load + the release asset".
+
+## Resolution addendum (2026-10-28, Agent 2 scan-engine lane — the parity-jus­tification corrected; the landed fix stands as a registered superset)
+
+The Resolution above and the probe note inside it justify the ship with
+"the og consults the DB at scan setup … capability-configuring" (the FIX-6
+reading of the DRWUI :227538 consumer). That reading is superseded by the
+OQ-SA-3 re-resolution (see the tracked-open file + CORPUS-ERRATA E-A/E-B +
+PARITY-DELTAS D-104): `GetRawUserInfoMap` returns the per-scan carve
+statistics map (insert-or-increment from the analysers' detection paths,
+cleared at every searcher init) — scan OUTPUT, not scan INPUT; and
+EUUserData's sole consumer is DRWUI's `CHKRepairFileSign` (the CHK repair
+chain), never the RAW engine (zero engine references).
+
+**What this changes:**
+- The og-parity claim "the og's scan consults EUUserData" is withdrawn. The
+  og's scan engine has no user-sign channel; the 79-extension "recall risk"
+  premise is void for the scan engine.
+- The landed behavior (shipped default set + engine-init load) is retained
+  as a **deliberate product superset** (D-104): the core's user-sign surface
+  exceeds the og's engine by design, and feeding it the og's own shipped
+  data is a product enhancement with a clean opt-out (explicit
+  `--user-signs` replaces the default entirely). No code change.
+- The finding's original severity question resolves to: not a scan gap at
+  all; the true og consumer (CHK repair file-signature checking) belongs to
+  the file-repair lane, which is out of the core's product scope —
+  handoff: file-repair lane owns any future CHKRepairFileSign-equivalent
+  surface and its data asset (the same JSON file can serve both channels).
+- The tests and release mechanics landed with this fix remain valid as the
+  superset's contract tests.
+
+**Evidence chain:** DRWUI_decompiled.c:1005387 (:1005497+ JSON parse,
+:1005818 "signs", :1002677 CHKRepairFileSign vtable, :721520-721680 the
+MatchedFile/NotMatchedFile checker, :227538-:227625 the stats report
+reader); RAWSearchDLL_decompiled.c: 0 EUUserData hits over 80,614 lines,
+:11376-11525 FUN_18000ed00 (map insert-or-increment), :9044-9051 searcher
+init (map clear + naming-callback registration), :23836-23850 raw_signs.json
+load, :13133 RawConfig.ini load, :916931-917010 the per-searcher start
+sequence (no sign handoff); RTTI `.?AVCHKRepair@@/.?AVICHKRepairObject@@/
+.?AVCHKRepairFileSign@@/.?AVCHKRepairAdapterMgr@@`.

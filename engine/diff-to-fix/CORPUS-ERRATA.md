@@ -242,3 +242,35 @@ per-key analyser attributions.*
 - **Correction:** the RC4 half is a capa FALSE POSITIVE on function 0x180012190 (the only match for the RC4 rule in this binary). First-hand disassembly of the full 469-byte function: it is a chunked checksum-verified copy pump — per-chunk dispatch at stream+0x2c: type 1 → FUN_180014c00 = adler-32 (0xFFF1 modulus, 5552-blocking), type 2 → FUN_180014ee0 = slicing-by-4 table CRC (DAT_18001a680/1aa80/1ae80/1b280); the rule-matched loops are u16 length-table maintenance (`movzwl -0x2(%rdx); sub; cmovb; mov %ax,(%rdx)`). No `and $0xff` exists anywhere in the function (RC4 index arithmetic is impossible), no 256-entry state/KSA exists anywhere in the decompile (zero `% 0x100` expressions), no keystream XOR, no key material, no rc4/arc4/crypt/cipher strings in the binary. BtrfsSearchDLL has NO RC4 and NO encrypted-dataset support.
 - **Evidence:** first-hand disassembly (objdump 0x180012190-0x18001236d) + decompile read (:15861-15992 adler, :15997-16024 CRC) + whole-binary pattern/string scans; `diff-to-fix/evidence/decompiled-quotes/s25-oq-s6-2-btrfs-rc4-false-positive.md`; OQ-S6-2 RESOLVED on it.
 - **Convergence (DFX30, same day):** independently decoded with the same conclusion; one additional identification recorded in the OQ-S6-2 convergence addendum — the pump serves the zlib-inflate cluster (FUN_180012370's 0x106 DEFLATE lookahead bound + FUN_1800143a0's DAT_180019cc0 length-symbol tables), matching capa's other hit (0x180011550, "ZLIB inflate or deflate").
+
+## Scan-engine session (Agent 2, 2026-10-28) — 2 new errata candidates
+
+**E-A. `re-workspace/artifacts/config-files/userdata-remoteconfig--signature-and-flags.md` §1**
+- **Claim:** EUUserData is "the user-extensible signature database (custom RAW
+  signatures / user-extensible **carving**)" — i.e. the file behind the
+  "add custom file type" feature as a CARVING feed.
+- **Correction:** EUUserData never reaches the RAW carving engine. Its sole
+  consumer is DRWUI's `CHKRepairFileSign` (RTTI: `.?AVCHKRepairFileSign@@`):
+  read at `%s/EUUserData` (DRWUI :1005387), JSON-parsed (:1005497+,
+  `_stricmp "signs"` :1005818), stored in the by-offset/by-ext maps, and
+  consulted by the MatchedFile/NotMatchedFile file-signature checker
+  (:721520-721680) — the CHK repair chain. RAWSearchDLL has zero EUUserData
+  references; the engine's runtime-loaded signature data is raw_signs.json
+  (read-only, :23836) + config/RawConfig.ini (:13133) only.
+- **Evidence:** first-hand decompile chain (RAWSearchDLL_decompiled.c rg =
+  0 EUUserData hits over 80,614 lines; DRWUI_decompiled.c:1005387, :1005497+,
+  :1005818, :1002677, :721520-721680; DRWUI.exe RTTI strings CHKRepair*).
+
+**E-B. `re-workspace/artifacts/SearchDLL/rawsearch-carving--deep-dive.md` :61 area**
+- **Claim:** the user-info-map/"consulted-alongside" phrasing implying
+  EUUserData's signs are consulted by the RAW engine at scan setup (also
+  repeated by the M-065 finding's corpus references and the FIX-6 probe note).
+- **Correction:** `GetRawUserInfoMap` returns the singleton's +0x90 member = a
+  `std::map<std::wstring, count>` of per-extension carve hits, populated
+  insert-or-increment by every analyser detection (FUN_18000ed00 :11376-11525;
+  first hit creates value 1, repeats increment `plVar10[8]+1`), CLEARED at
+  every searcher init (FUN_18000beb0 :9044-9051), and read one-way post-scan
+  by DRWUI's report builder into the "Trigger_Raw"/"FileSystem" report tree
+  (:227538-:227625). It is scan OUTPUT (statistics), never scan INPUT.
+- **Evidence:** first-hand insert-side + consumer-side decode (both directions
+  of the same map); the FIX-6 reading had the data flow inverted.

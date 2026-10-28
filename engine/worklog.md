@@ -17924,3 +17924,43 @@ Stage Summary:
   recalibration + reclassification pending corpus-errata filing; fix queue started:
   N-087 (quick scan, FAT 8.3 OEM names) -> N-086 (raw_signs runtime load) -> OQ-SA-1
   probe -> OQ-SA-2 probes.
+
+---
+Task ID: SCAN-2b (Agent 2 — the OQ-SA-3/M-065 audit-trail correction batch)
+Agent: Agent 2 (scan-engine lane)
+
+Work Log:
+- OQ-SA-3 RE-RESOLVED first-hand, both directions of the disputed map decoded:
+  the insert side FUN_18000ed00 (RAWSearchDLL :11376-11525) is
+  map<wstring,count> insert-or-increment driven by the ~70 analyser
+  detection paths; the searcher init (:9044-9051) clears it every scan; the
+  DRWUI :227538 consumer reads it one-way POST-scan into the
+  "Trigger_Raw"/"FileSystem" report tree. Scan OUTPUT, never INPUT — the
+  FIX-6 "capability-configuring / scan-setup trigger surface" reading had the
+  data flow inverted. EUUserData's sole consumer: CHKRepairFileSign
+  (RTTI-confirmed), the MatchedFile/NotMatchedFile checker of the CHK repair
+  chain; RAWSearchDLL carries ZERO EUUserData references.
+- Files landed: OQ-SA-3 tracked-open re-resolution addendum;
+  CORPUS-ERRATA E-A (userdata artifact's "user-extensible carving") + E-B
+  (deep-dive :61 consulted-alongside phrasing); PARITY-DELTAS D-104 (the
+  user-sign channel + the shipped default set = deliberate product superset
+  — the og's engine has NO user-sign input); M-065 FIXED-finding Resolution
+  addendum (parity justification corrected; the landed code STANDS as the
+  registered superset — no code change, no revert of the other lane's work);
+  CROSS-REF-MATRIX row MATCH->SUPERSET.
+- handoff: (1) file-repair lane — the og's true EUUserData consumer
+  (CHKRepairFileSign, MatchedFile/NotMatchedFile) is out of core product
+  scope; any future CHK-repair-equivalent surface owns the same data asset
+  (data/userdata-defaults.json can serve both channels). (2) main-engineer
+  lane — M-065's Resolution prose carries the superseded justification; the
+  addendum is appended, your text untouched. (3) corpus maintainers —
+  CORRECTIONS.md #9 pushed to easeus-drw-research this session.
+- No Agent-1 boundary touched (documentation + audit-trail only; the ABI
+  surface M-067 is the other lane's, untouched).
+
+Stage Summary:
+- OQ-SA-3 CLOSED with the corrected verdict (neither capability nor typing —
+  repair-chain data; the og scan engine has no user-sign channel). M-065
+  stands FIXED-as-superset (D-104). Board unchanged (no finding moved; the
+  justification trail is now truthful). Next: OQ-SA-1 anchor-datum probe,
+  then OQ-SA-2's four carve-family probes.
