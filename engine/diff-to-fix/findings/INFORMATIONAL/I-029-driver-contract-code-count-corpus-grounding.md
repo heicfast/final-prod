@@ -47,3 +47,12 @@ N-041 (the deleted client whose codes these mirror); D-DRV-5 (the identity-IOCTL
 ## Open questions
 
 Whether an og EUDCPEPM build using the four codes exists outside the corpus — a corpus-lane question (this session's two-repo scope: recorded, not pursued).
+
+
+## SA-10 cite-refresh note (session 10 — one cite re-point; the substance stands)
+
+The RRWR session-code cite `include/cr/win/rda_ioctl.h:224-225` names a path that does not
+exist in the core tree — the header lives in the driver repo at `src/shared/inc/rda_ioctl.h`
+(per `DRIVER-CONTRACT.md:202`'s own pointer). Re-point the cite at the driver-repo path; the
+substance is unchanged (`DRIVER-CONTRACT.md:131`'s 19-code claim + `:202`'s byte-for-byte
+preservation note both stand at HEAD).

@@ -2341,3 +2341,86 @@ Doc-truth batch C conform: all eight files retired into history (Resolutions pre
 at 13245c0), ledger rows appended (incl. the two FIXED-ALREADY classifications), matrix
 rows flipped. Filesystem truth: 50 active (6 SEVERE · 22 MAJOR · 17 MINOR · 5 INFO) /
 276 resolved / 2 tracked-open. Session-38 tally: 18 findings closed.
+
+
+---
+Task ID: SA-10/close (the lead lane's full record — triage + deep + mark-remaining + the five-lane reconciliation)
+Agent: session-10 continuation parity audit (the lead lane, closing)
+
+Work Log:
+- T1 baseline: core 84a1832 / corpus be0cfe9; the 75-active board read in
+  full; prompt saved redacted (worklog/session-10-parity-audit-prompt.md).
+- The parallel lanes A-D ran (triage / DRWService deep-dive / residual sweep
+  / gate-doc currency), then the LEAD first-hand re-verified every
+  load-bearing claim before filing: the S-041 flip rationale, M-100's
+  cr_preview.h state, M-105's core greps + R-83 + PACKAGING.md, the
+  ONE/3DS/batch-1 stand-in sites, the LDM chain (cr_node.h:405-406 →
+  cr_scan.cpp:1500 → cr_ui.cpp:3698-3707 → cr_safewriter.cpp:379), the
+  gate-doc truths (counts, S-038 rows, row 67, A-005 duplicate).
+- THE PUSH-TIME RECONCILIATION (the session's defining event, the SA-9
+  scenario again): the first wave-1 push was rejected — 42+ commits had
+  landed concurrently (the closing-fix lanes: S-042 f6e303e, S-044 9496f3c,
+  M-071 dd0ffd5, M-090 771e2ec, M-084+M-091 16475b8, N-092 5ee3858, N-094
+  26da616, S-043 b3938c8, M-080 5ccc0da, M-085 edee513, M-082 1f71488,
+  M-088 41d8829, N-116/N-117/N-118/N-103; SA-10B: the real-rsf mining
+  S-048/S-049/S-050/M-103 + the user-mandated FIXED purge 530fa32 + the
+  FIXED-LEDGER go-forward convention; the wave-2 lane: the whole-disk
+  findings; session-38: the doc-truth batches). The lane rebuilt everything
+  against the new state:
+  - ID collisions resolved: the wave-2 lane's S-050 (whole-disk) vs SA-10B's
+    S-050 (file-repair) — the earlier push keeps the ID; the wave-2 file
+    renumbered S-051 with all refs. This lane's own filings renumbered past
+    the taken IDs: S-052 (LDM), M-105 (DRWService), M-106 (ONE/3DS), M-107
+    (batch-1 residue), N-128 (CAPABILITY-Matrix).
+  - Convention conformance: S-041 + N-101 retired to HISTORY with Resolution
+    records (two commits: the records, then the retirement) + FIXED-LEDGER
+    rows; the three pending files (S-043/M-080/M-085) conformed the same
+    way; FIXED/ is gone from the tree again.
+  - Convergence: this lane's M-100 re-scope + N-099 addendum duplicated the
+    session-38 sweep's (dropped; one complementary N-099 note kept); the
+    cite-refresh addenda dropped for every finding the fix lanes retired
+    mid-flight (S-042/S-044/M-084/M-090/M-091/N-094/N-116); kept where live
+    (N-090, I-029, M-079's siblings).
+  - All five new findings' cites re-verified at the reconciliation HEAD
+    (the carve file shifted ~50 lines with the M-084/M-091/M-090 landings;
+    cr_ui.cpp shifted with M-071/N-092/N-116; MDB dropped out of M-107's
+    residue list — resolved mid-flight; DRWService greps re-run clean).
+- Gate-doc truth wave: SURFACE-INVENTORY rows 43/67/95; driver-install.md
+  (S-038's K74/K77 flipped to FIXED, the "stays ACTIVE" note, the session-9
+  addendum's M-071/M-072 renumber annotations, the M-105 DRWService
+  addendum); carve.md (the landed-format annotations, M-081/S-041 currency,
+  the M-106/M-107 addendum); ldm.md (the S-052 recovery-side addendum);
+  CROSS-REF-MATRIX (the SA-10 block); SUMMARY (the delta block on top);
+  README (the board line); FIXED-LEDGER (backfill + counts 265→270).
+
+Stage Summary:
+- Board at close (final push, absorbing the mid-flight S-047 `a3abfbe`,
+  S-045-half `021ae07` + OQ-S10-1, N-095/N-108/N-119 `995ba5d`, and batch C
+  `13245c0`+`0872ac2` (N-104/N-097/N-102/N-123/N-101/N-120 fixed +
+  N-099/N-106 FIXED-ALREADY — all convergent with this lane's triage; the
+  duplicate ledger rows deduped, this lane's N-099/N-120 addenda dropped as
+  superseded): 54 active (6 SEVERE · 25 MAJOR · 18 MINOR · 5 INFO) / 277
+  resolved-in-history / 3 tracked-open (OQ-S4-3, OQ-S8-1, OQ-S10-1).
+  Next free IDs: S-053+, M-108+, N-129+, I-031+, A-012+.
+- This lane's unique contributions: S-052 (the LDM span recovery misbase —
+  the recovery-side half of B8/A27, GAP-S6-15's owner), M-105 (the
+  DRWService K71-K73 decode), M-106/M-107 (the walk follow-ups owned), N-128
+  (the CAPABILITY-MATRIX truth row), the S-050→S-051 collision repair, the
+  S-041/N-101 closures, the five-lane reconciliation itself, and the
+  gate-doc truth repairs (row 67, driver-install's S-038 rows, the ledger
+  backfill).
+- The mandate's three asks delivered: triage (0 falsely-active findings at
+  the base; 2 flipped + 5 conformed at the reconciliation), deeper (the
+  DRWService + LDM-recovery + whole-disk-scan surfaces), mark-remaining
+  (every recorded-but-unfiled follow-up now owned — the sweep found and
+  closed all six ownerless obligations: U-1..U-6 → M-106/M-107/M-105/N-128/
+  S-052/direct-repairs).
+- READ-ONLY GUARANTEE: this lane's commits touched NOTHING outside
+  diff-to-fix/ + worklog* (git diff ea1ac86..HEAD over non-audit paths is
+  empty — verified at close). The product-code changes in the tree entered
+  exclusively through the pulled parallel lanes' landings.
+- Handoff: the fix-order contributions are in SUMMARY's block. The carve
+  school-2/3 children should land in SA-10B's real-world order (GZ/SVG/PNG
+  first — the og's top-3 carve formats by volume). S-052's fix is
+  architectural (the basis descriptor + the retained virtual devices) —
+  start there.

@@ -23,8 +23,8 @@ session. PARAMETERS Group K (K71-K78) is the scoring axis.
 
 | Parameter | Verdict | Finding |
 |---|---|---|
-| K74 silent/unattended surface (app level) | DIVERGENCE-SEVERE | **S-038** — the entire app-installer contract absent (Inno /SILENT//VERYSILENT, ARP QuietUninstallString, unins%03d, admin-required uninstall) |
-| K77 install-time registry + telemetry | DIVERGENCE-SEVERE | **S-038** — SetupUE OS gate, DRW\Version key, /SendInfo //UninstallStart//UninstallEnd verbs: all absent |
+| K74 silent/unattended surface (app level) | **FIXED (S-038, steps 1-4; run 40684304129)** — the Inno installer shipped (`installer/core-recovery.iss` + the three gates; repaired SA-10: this row's "all absent" verdict predated the PARITY-FIX landings) |
+| K77 install-time registry + telemetry | **FIXED (S-038)** — the version-key write+VERIFY and the modernized OS gate shipped; telemetry OMIT by the recorded §8 decision |
 | K71/K72/K76 deployer versioned/verified contract | DIVERGENCE-MAJOR | **M-064** — no -Uninstall verb, no %s%d coexistence, no write+verify, no per-call SCM errors |
 | K78 boot-media deployment | DISPOSITIONED | the PE capability boundary = the roadmap builder's design input (roadmap.md:71; S-038's scope); no defect in shipped code |
 
@@ -73,8 +73,9 @@ S-038/M-064.
   default, the driver install as an internal step (absorbing N-085), the
   three test gates, and the milestone acceptance. The telemetry posture
   (default recommendation: omit) and the technology call are the two OPEN
-  product decisions recorded in the doc. S-038 stays ACTIVE (steps 2-4:
-  implementation, tests, acceptance) — its step-1 gate is closed.
+  product decisions recorded in the doc. **S-038 is FIXED (steps 1-4; the
+  PARITY-FIX-9 close-out + run 40684304129 all-green — repaired SA-10: this
+  "stays ACTIVE" note predated the landings).**
 
 ## SA-6 probe lane (2026-10-28 — the M-064 close-out: the v0.2.4 remainder landed)
 
@@ -93,13 +94,13 @@ S-038/M-064.
 
 ## Session-9 addendum (2026-10-28, SA-9 lane — rda-driver @ `323e75a` v0.2.4)
 
-- **M-071 (MAJOR)** — the FileVersion pin: `rda_version.h`/`rda.rc`/
+- **M-086 (MAJOR — the session-9 lane filed this as M-071; renumbered at the push-time reconciliation, repaired SA-10)** — the FileVersion pin: `rda_version.h`/`rda.rc`/
   `rda.inf` carry 1.0.0.0 across all v0.x releases, so `-Layout Versioned`
   always computes `<name>10.sys` and the M-064 in-place-upgrade branch
   (`$imagePath -ne $destPath`) is unreachable — every reinstall exits 2.
   The M-064 feature is inert until the resource is un-pinned (release-tag
   mirror + a CI gate asserting tag == resource).
-- **M-072 (MAJOR)** — the WinPE profile `scripts/winpe/regdrv-rda.reg`:
+- **M-087 (MAJOR — filed as M-072 by that lane; renumbered at the reconciliation, repaired SA-10)** — the WinPE profile `scripts/winpe/regdrv-rda.reg`:
   unparseable `hex(7):r,d,a,\,0` (the og's own regdrv.reg demonstrates
   the UTF-16LE form `72,00,64,00,61,00,00,00,00,00`); the UpperFilters
   write targets GUID_DEVCLASS_DISKDRIVE where the og's file writes
@@ -109,3 +110,22 @@ S-038/M-064.
   WinPE row now owns them here.
 - The EPMNtDrv-v2/trio MATCH records and the D3/D2 doc-truth findings
   live in modules/transport.md's addendum (wire-side).
+
+
+## SA-10 addendum (session 10 — the K71-K73 walk's DRWService slice: M-105)
+
+The K-walk above scores the RDA-driver slice only. The DRWService (BitLocker FVE
+service) slice — a DIFFERENT service, never scored — is now owned by **M-105**
+(filed this session): the og's transient SCM lifecycle ("Read FVE Server",
+AUTO_START/LocalSystem/OWN_PROCESS, /install replace-on-install + StartServiceA,
+the stop-gated delete, per-call SCM error strings, DRWUI's per-use
+uninstall→install→harvest→2s→uninstall orchestration) decoded at the decompile
+level; the core has no counterpart and R-83's disposition note
+(REFERENCE-API-GAP.md:425, "install lives in driver-repo CI scripts") is false
+for this service. K71/K72/K73 gain the DRWService sub-verdict: absent (with the
+fix plan's (a) NO-SERVICE / (b) TRANSIENT HELPER decision frame).
+
+Currency note (SA-10): M-086/M-087/M-089/N-107/N-127 (the driver-contract
+batch) were re-verified standing at the reconciliation HEAD by this session's
+triage lane; the driver-repo-side items belong to that repo's lane per the
+two-repo grant.

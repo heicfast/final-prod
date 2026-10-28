@@ -34,7 +34,7 @@ audited **origin/main `62074bf`-lineage (product-code tip `26da616`+)**, corpus
   to its disposition; **S-050** filed — the og's file-repair line (9 binaries,
   8 artifacts, flag-gated) unimplemented AND untruthfully registered (the
   SURFACE-INVENTORY cited a CAPABILITY-MATRIX §3 row that does not exist).
-- **L-E — board truth at this lane's close: 70 active (8 SEVERE · 25 MAJOR ·
+- **Board truth at the SA-10 lane's close (2026-10-29, final push): 54 active (6 SEVERE · 25 MAJOR · 18 MINOR · 5 INFO) / 277 resolved (FIXED-LEDGER.md) / 3 tracked-open (OQ-S4-3, OQ-S8-1, OQ-S10-1) — the SA-10 reconciliation over all concurrent lanes.** (SA-10B's own close-line, superseded: 70 active (8 SEVERE · 25 MAJOR ·
   32 MINOR · 5 INFO — the 4 new + the surviving board) / 259 FIXED-in-history
   / tracked-open unchanged.** The parallel fix lanes (S-043, S-047, the S-041
   children, M-072..M-078 — see their territory commits) are landing

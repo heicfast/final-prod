@@ -1,4 +1,10 @@
-# SEVERE S-050 — the whole-disk scan target never consults the partition list: `cr_ui_open_disk` + scan (the CLI `scan --disk N` without `--whole-disk`) returns rc=0 with ZERO files on a healthy multi-volume disk — the og's CDoScanPartition flow reads the partition list and scans every known volume
+# SEVERE S-051 — the whole-disk scan target never consults the partition list: `cr_ui_open_disk` + scan (the CLI `scan --disk N` without `--whole-disk`) returns rc=0 with ZERO files on a healthy multi-volume disk — the og's CDoScanPartition flow reads the partition list and scans every known volume
+
+> **Renumbered SA-10 (session-10 reconciliation):** this finding was filed as
+> S-050 by the session-10 wave-2 lane concurrently with SA-10B's L-D file-repair
+> S-050 (pushed first, ea2f3ea lineage). Per the SA-9 collision rule (the earlier
+> remote numbering wins), the file-repair finding keeps S-050 and THIS finding
+> renumbers to S-051. The wave-2 lane's evidence file keeps its s10-* name.
 
 **Severity:** SEVERE
 **Module:** orchestration (scan-target assembly) — modules/orchestration.md, modules/lost-partition.md

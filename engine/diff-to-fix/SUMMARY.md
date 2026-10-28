@@ -1,4 +1,27 @@
-# SUMMARY.md — executive summary (the SA-10B lane on top: the real-rsf session mining + the FIXED purge; the closing-fix lanes and the session-8/9 audit lanes below)
+# SUMMARY.md — executive summary (the SA-10 lane on top: the triage + reconciliation over the hot parallel window; SA-10B and the fix/closing lanes below)
+
+## SA-10 delta (2026-10-29 — the lead lane: board triage at 84a1832, then the push-time reconciliation over FIVE concurrent lanes)
+
+**Audited: `84a1832` at open (75 active / 250 FIXED / 2 tracked-open); reconciled at the `ea1ac86` lineage after the hottest parallel window of the trail** — 42+ commits landed mid-session (the closing-fix lanes' S-042/S-044/M-071/M-090/M-084/M-091/M-080/M-085/S-043/M-082/M-088/N-092/N-094/N-116/N-124/N-103/N-117/N-118 landings; SA-10B's real-rsf mining + the user-mandated FIXED purge + the FIXED-LEDGER go-forward convention; the wave-2 lane's whole-disk scan-flow findings; the session-38 doc-truth batches). Every lane reconciled per the SOP: no duplication, extend-don't-refile, the earlier remote numbering wins collisions.
+
+**This lane's work (the mandate's three asks):**
+1. **Triage ("remove the fixed things")** — all 75 active findings re-verified at the base (LANE-A: 51 STILL-DEFECTIVE · 4 PARTIAL · 5 INFO accurate; 0 falsely-active), then the mid-flight landings re-triaged at the reconciliation HEAD. **Flipped by this lane: S-041** (FIXED-as-umbrella per the S-007 precedent — school 1 landed, DMG/MDB resolved mid-flight, every still-open school-2/3 format child-filed, the walk follow-ups owned by M-106) **and N-101** (every fix-plan step verified executed in-tree) — both retired to history with Resolution records + FIXED-LEDGER rows, along with the three pending-retire files the ledger itself asked the next audit lane to conform (S-043/M-080/M-085).
+2. **Go deeper** — the named NEVER-AUDITED residual closed: **M-105** (the DRWService install lifecycle — the full K71-K73 parameter decode: "Read FVE Server" AUTO_START/LocalSystem/OWN_PROCESS, /install replace-on-install + StartServiceA, the stop-gated delete, DRWUI's per-use uninstall→install→harvest→2s→uninstall orchestration; the core-side absence grep-verified; R-83's false disposition note owned). **S-052** (the LDM span recovery misbase — the recovery-side half of B8/A27 never scored: layout-relative extents vs the single-disk SafeWriter, the scan's virtual device dies at scan end, no refusal path, the R7.2/F12 overlap check on the wrong basis; GAP-S6-15's audit-board owner).
+3. **Mark all remaining** — the recorded-but-unfiled follow-ups swept and owned: **M-106** (the ONE/3DS size-walks — DECODED in the trail's own evidence but shipped as 64 MiB stand-ins; the M-090/M-091 truncation class), **M-107** (the batch-1 stand-in residue — ten sites' "recorded follow-up" comments, S-007's promised follow-ups, the X3F grammar corroborated by the never-cited FileRepair artifact), **N-128** (CAPABILITY-MATRIX's doubly-untrue prebuilt-CI row — dead workflow cites + the unowned ext4/HFS+/Btrfs/ZFS/ReFS staging follow-up buried in a DONE verdict).
+
+**The ID-collision repair (process finding):** the wave-2 lane's S-050 (whole-disk scan targets) collided with SA-10B's S-050 (file-repair line) — both live on main. Per the SA-9 rule the earlier push (SA-10B's) keeps the ID; the wave-2 file renumbers to **S-051** with its orchestration/CROSS-REF/SUMMARY refs updated and a renumber note in the file.
+
+**Convergence merges (no duplication):** this lane's M-100 re-scope and N-099 addendum were independently landed by the session-38 sweep (c75755d) — the lane's versions dropped (batch C then retired both findings whole, `13245c0`; this lane's E69 erratum candidate — the retired S-007 file's own stale :215/:222 cites — is recorded here and in the worklog for the next corpus-erratus pass); the M-079/N-090 cite-refresh notes ride as dated addenda where still live.
+
+**Gate-doc truth repairs (this lane):** SURFACE-INVENTORY row 67's pre-reconciliation IDs (the fourth and last stale-numbering site), the DRWService rows 43/95 (install lifecycle → M-105), driver-install.md's S-038-stays-ACTIVE rows (K74/K77 flipped to the shipped state) + the session-9 addendum's M-071/M-072 renumber annotations, carve.md's landed-format/M-081/S-041 currency annotations, the FIXED-LEDGER backfill (M-081's row + the five retirements + counts 265→270).
+
+**Board after this lane (at its final push, post-rebase over the S-047 `a3abfbe` / S-045-half `021ae07` + OQ-S10-1 / N-095+N-108+N-119 `995ba5d` / batch-C `13245c0`+`0872ac2` landings — N-104/N-097/N-102/N-123/N-101/N-120 fixed + N-099/N-106 FIXED-ALREADY, all convergent with this lane's triage): 54 active (6 SEVERE · 25 MAJOR · 18 MINOR · 5 INFO) / 277 resolved-in-history (FIXED-LEDGER.md) / 3 tracked-open (OQ-S4-3 execution-bound; OQ-S8-1 the CWindowsFS consumer; **OQ-S10-1** S-045's codec-bound thumbnail halves with the named vendoring dependencies). Next free IDs: S-053+, M-108+, N-129+, I-031+, A-012+.**
+
+**Recommended fix-order contributions:** (1) **S-052** — silently wrong recovery bytes on first-class LDM surfaces; the basis-descriptor fix is architectural but the multi-disk fixtures already exist (test_ldm.cpp:206+); (2) **S-051 + M-104** (the wave-2 lane's whole-disk pair) — rc=0/0-files on healthy disks is the worst first-run experience in the board; (3) **M-106** — mechanical against the existing decodes; (4) the carve school-2/3 children in SA-10B's real-world order (GZ/SVG/PNG first); (5) M-105's posture decision rides the driver-contract session (M-086/M-087 residuals + N-107/N-127).
+
+---
+
+## SA-10B delta (2026-10-29 — the B lane: real-.rsf session mining, the og data-table parity, the product-frame census, the FIXED purge)
 
 ## SA-10B delta (2026-10-29 — the B lane: real-.rsf session mining, the og data-table parity, the product-frame census, the FIXED purge)
 
@@ -204,7 +227,7 @@ in each finding's Resolution; the running counts live in this section.
 declared complement to SA-10B (data-tables/product-frame/real-rsf mining)
 and S10-F (function inventories): the WHOLE-DISK SCAN FLOW, executed
 end-to-end on a controlled two-volume fixture vs the og's own persisted
-real sessions. Filed **S-050** (SEVERE — the plain disk target
+real sessions. Filed **S-051** (SEVERE — renumbered from the lane's S-050 filing at the SA-10 reconciliation: SA-10B's file-repair S-050 was pushed first and keeps the ID; the plain disk target
 `cr_ui_open_disk`/`scan --disk N` silently returns rc=0 with ZERO files on
 a healthy partitioned disk: the probe reads the MBR, dispatches Unknown,
 "quick yields nothing"; the og's CDoScanPartition reads the partition list

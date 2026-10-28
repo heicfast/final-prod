@@ -161,3 +161,19 @@ hardwired-layout-0 finding; OQ-T7 RESOLVED-MATCH). This leg's active LDM items: 
 ## Session-8 lead-lane wave (audited `ff879f9`)
 - **I-030**: this file's line-1 cross-reference to a nonexistent `modules/table.md` —
   plus the absent reghive.md/apply.md rows.
+
+## SA-10 addendum (session 10 — the recovery-side half of B8/A27 finally scored: S-052)
+
+The standing B8 ("spanned/mirrored/stripped/RAID-5 layouts resolved") and A27
+("spanned/mirror/stripe reads MATCH") verdicts cover the SCAN side — the
+LdmVolumeDevice's reads through the cross-disk resolver. The RECOVERY side was
+never scored: **S-052** (filed this session) — dynamic-volume nodes keep
+layout-relative extents (cr_node.h:405-406; the F-1 rebase explicitly skips
+them, "multi-disk bases are not expressible"), the LdmVolumeDevice dies at scan
+end (cr_scan.cpp:1500), and the SafeWriter reads a single physical device with
+no LDM guard (cr_safewriter.cpp) — span/stripe/mirror/RAID-5 recovery serves
+silently wrong bytes, and the R7.2/F12 destination-overlap check computes on
+the wrong basis. GAP-S6-15 (CORE-GAP-LIST.md:139, PARTIAL) is the product-side
+registration; S-052 is its audit-board owner. The og contrast: the
+LdmManager.mo volume-storage family (SpanVolumeStorage et al., cr_ldm.h:17-24)
+serves these reads for the product's whole lifetime.

@@ -53,3 +53,15 @@ Corpus-derived (the decompile sites + rsf-format grammar, both read first-hand t
 ## Open questions
 
 The og's stat2 tick-counter semantics are undecoded (rsf-format §8 flags it "soft label") — nothing to mirror until decoded.
+
+
+## SA-10 cite-refresh note (session 10 — line drift only; all four deltas re-verified STANDING at the reconciliation HEAD)
+
+The triage wave re-verified this finding against HEAD after the W1c/dd225da/095a329 landings:
+the empty-vs-missing discriminator (`cr_ui.cpp:398-415`, the directory-exists probe) is
+ORTHOGONAL to this finding's four deltas (the `auto_` scope filter, the row-shape fields, the
+label, the summary surface) — all four stand. Current cites: `list_crsf_files` spans
+`cr_ui.cpp:387-470` (the POSIX branch grew with the discriminator); the `\*.crsf` pattern at
+`:391-393`; `label[32]`/`save_unix` at `cr_ui.h:889-890`. The N-116 ordering sibling was
+resolved mid-flight (`9445627` — the save-time sort landed); the scope/row-shape deltas here
+are untouched by it.

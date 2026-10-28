@@ -297,9 +297,11 @@ byte-granular grid); the headerless audio gate is 10 consecutive frames
 (S007CommonFormatsCarve / S007ValidatorsRejectNoise /
 S007TruncatedSalvageSemantics), fail-before 3/3; suite 436/436; hostile
 ASan smoke clean. **Remainder (precisely scoped in the finding):** the
-~25 niche og-only formats (CHM/AU/MIDI/APE/EPS-AI/DXF/DMG/... — the
-session-2/3-corrected table in the finding file is the implementation
-list) + the bench seed-matrix extension (Windows runner).
+~25 niche og-only formats (**landed since: school 1 `b92ebef` CHM/ONE/MNY/
+EMF/SWF/3DS + M-081 `9e5dedc` CRW/MRW/LowDoc/HLP + M-090 `771e2ec` DMG +
+M-084/M-091 `16475b8` MDB/ACCDB — repaired SA-10; the remainder is the
+school-2/3 set, each with its own finding) + the bench seed-matrix extension
+(Windows runner).
 ## Session-6 rows (deep continuation, 2026-10-26 — the never-read family layer)
 
 The six `rawsearchdll--family-*.md` artifacts + the registry census/dual-registry decode were
@@ -593,11 +595,12 @@ the registry census, not the family semantics. The class-by-class comparison
 
 ## Session-8 section (2026-10-28, audited `35adcb9`)
 
-New findings touching this module: **S-041** (SEVERE — the batch-2 remainder,
-~24 formats, now owned as a finding; previously the S-007 addendum's unowned
-tail), **M-081** (the CRW misattribution — II/MM`\x1A\x00` are Canon CIFF keys
-per the s3 census, landed as "Minolta MRW" rows whose PRD gate rejects genuine
-CRW; fix = re-attribute + a CIFF HEAPCCDR validator), **N-093** (batch-1
+Findings touching this module (currency pass SA-10): **S-041** (FIXED-as-umbrella
+— retired to history this session; every still-open school-2/3 format child-filed:
+S-047/M-092/M-093/M-096/M-098/M-099/N-111/N-112/N-113/N-115), **M-081** (FIXED
+`9e5dedc` — the CRW re-attribution with the og HEAP grammar landed; repaired
+SA-10: the open "fix = re-attribute" phrasing above predated the landing),
+**N-093** (batch-1
 bounds — MID max 64 MiB vs og 10 MB, GZ 512 MiB/18 vs og 400 MB/20,
 undocumented supersets; PSP/SIT under the recorded heuristic but their og
 bounds were present at the ctors). Verification: batch-1's 27 magics
@@ -704,3 +707,18 @@ corpus's three REAL og sessions (evidence/executions/s10b-real-rsf-session-minin
   The layer-1 table is in sync with the og's shipped data at the audited tree.
 - Corroborations: S-031 (all real carved rows deleted-flagged), S-041 school-2/3
   real-world weight (GZ/SVG/PNG = the og's top-3 carve volumes).
+
+
+## SA-10 addendum (session 10 — the walk follow-ups owned: M-106 + M-107; S-041 closed)
+
+The carve surface's size-walk residue now has owners:
+- **M-106** — the school-1 walks that were DECODED but shipped as stand-ins
+  (ONE chunk-chain max 500,000,000; 3DS section-walk max 200,000,000 — both
+  decodes in s8-batch2-formats.md:29,:31; the 64 MiB stand-ins at
+  cr_analysers.cpp:3849-3850/:3939-3940): the M-090/M-091 truncation class.
+- **M-107** — the batch-1 undecoded-walk residue (ten sites: X3F/CRW/WPG/WPD/
+  PSP/SIT/APE/EPS/DXF/DWG + the SWF RECT validation walk), S-007's promised
+  follow-ups never previously owned; the X3F grammar corroborated by the
+  never-cited FileRepair artifact (x3f-repair--section-checkers-walk.md:9-33).
+- **S-041** closed FIXED-as-umbrella (retired to history; the FIXED-LEDGER row
+  carries the closure record).
