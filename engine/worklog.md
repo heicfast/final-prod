@@ -125,3 +125,39 @@ Stage Summary:
   (packaging lane, owner decisions pending), A-ABI-6 (owner policy),
   OQ-SA-1/OQ-S4-3 (engine-scope probes). Everything API-surface-shaped
   is now doc-consistent with the code at the tree this session pins.
+
+---
+Task ID: API-FIX-2 (landing record — the four fix commits)
+Agent: api-fix lane (this session)
+
+Fix landings:
+- A `5c3fb32`: docs/crsf-format.md — REC_FS_CHECK type 9 row + the full
+  FS_CHECK payload grammar (fields verified against serialize/deserialize
+  _fs_check at src/core/check/cr_fscheck.cpp:1009-1089 + the CHK_* enum
+  0x1001..0x100E at cr_fscheck.h:80-97).
+- B+C `3c9a747`: the three-site CLI truth pass, first two sites —
+  rrecov.cpp header comment (10 verbs in dispatch order + the complete
+  scan flag surface + the full exit-code map; comment-only, parse-safe)
+  and docs/API.md §1 (both missing verb lines, scan --image/--deep/
+  --repair-undo, the phantom [plan] value removed, recover --image,
+  --boot-fix added to the consent list per its M-040 shared-apply gate,
+  duplicate exit row 3 collapsed).
+- D `8ff17fc`: docs/CORE-API-CURRENT.md — §c 10-verb truth + the stderr
+  exception (require_driver is the only fwprintf(stderr) surface) + all
+  function-range cites re-pinned + REMOVED --no-rda dropped + the
+  rda-only transport label; the fix grew into the §a/§b/§d refresh
+  (phantom prefer_rda signature, deleted rda_available/win_pe_environment
+  rows, 51 stale cr_ui.h cites mechanically re-pinned; the header now
+  pins the live-section cite refresh, §e/§f keep their 22e9657-era
+  cites under the banner).
+- Board: diff-to-fix/API-DELTA.md §4 items A-D flipped FIXED with the
+  commit refs; the three-site verb-list pin stands
+  (CliVerbListsAreThreeSiteLocked).
+
+Verification: ci-local doc-links / architecture lint (the driver-only
+blocklist — which independently confirms the rda_available /
+win_pe_environment / prefer_rda removals this session's §a edits made) /
+secrets / commit-convention lanes all green; cmake + clang-format are
+absent in this container so the build/test lanes could not run locally —
+the only code-file change is comment-only and parse-verified (the
+windows.h include is the sole expected parse stop on Linux).
