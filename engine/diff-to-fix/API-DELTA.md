@@ -190,3 +190,65 @@ reconciled by the remote lane (`fc74677`).
 change must land docs/API.md §1, CORE-API-CURRENT §c AND the rrecov.cpp
 header comment in the same change (the three sites this session proved
 drift independently).
+
+---
+
+# Session 3 (2026-10-28, api-fix continuation — the corpus-parity expansion board)
+
+> Method: context-recovery protocol run 3, API scope only. Three parallel
+> read legs (corpus / core / driver) re-ran; every item below was then
+> verified FIRST-HAND against the tree before filing (zero-invention bar).
+> Corpus `be0cfe9`; core base `89dd7ad`; driver `323e75a` (v0.2.4). A fresh
+> local verification lane was bootstrapped in this container (cmake 4.4.4
+> via pip, gtest 1.15.2 via FetchContent, gcc 14.2.0 Release): full suite
+> **977/977 green** at the base tree (the Werror/-Wall -Wextra -Wpedantic
+> flags are global in CMakeLists — this is the Linux build lane's config).
+
+## 5.1 Standing state re-verified (no re-audit drift since session 2)
+
+| Surface | Verification | Result |
+|---|---|---|
+| Session-1/2 boards | 79 exports / `CR_UI_ABI_VERSION 3` / 39+OK error codes / 10 CLI verbs recounted at `89dd7ad` (wmain rrecov.cpp:2789-2810) | all stand |
+| Driver wire, user-mode half | `cr_rda.h` vs rda-driver `rda_ioctl.h`: identity 0x60002400/04/08 + extended 0x6002440/44/48 + session codes 0x800C2AC0..0x800C2B42 — the SAME 19 values both sides (`kSessDiscovery..kSessRrwrRead` cr_rda.h:118-142 == `RDA_SESSION_CODE_DISCOVERY..RRWR` rda_ioctl.h:159-188; the driver worklog's "18-code" phrasing counts the dispatch set minus the AC0 discovery probe — same wire set) | **MATCH (byte-exact)** |
+| S-036 fail-loud + FloorVersion close-out (the rda-driver worklog's named "core_recovery-side close-out") | already landed in this tree: `.github/scripts/fetch-release.ps1` `-FloorVersion` semver gate (:27, :59-65), install-driver composite default fail-loud + `FloorVersion v0.2.3` (:45, :68, :71, :108), `release.yml:171` + `staged-scenarios.yml:49` floors, `DRIVER-RELEASE.md:210` mapping | **CLOSED — no core action**; the driver lane's worklog line is stale (recorded for the next driver-lane sync) |
+| A-ABI-6 | RELEASE-NOTES.md carries NO CodeQL claim at this tree (grep: zero hits); the deferral IS the recorded decision (ci.yml:173-175 "recorded, not silent" + `CI-CURRENT.md:115`); the stale half is the audit row itself — `API-SURFACE-AUDIT.md:132` still cites a "RELEASE-NOTES.md:71 'CodeQL clean'" that line 71 no longer carries (it is now the Win7 import-gate bullet) | **FIX ITEM S3-1** (audit-row truth pass) |
+| M-068 | finding filed+fixed in one landing (605d682; the composite now RUNNING-query-first); **REBASE UPDATE**: the hygiene move landed by the board-hygiene lane at `2a556e5` (FIXED/ move + Resolution + RESOLVED-INDEX row) while this session filed — folded, no double-owner | **CLOSED at the rebase** (no api-exp action) |
+| S-038 steps 2-4 | **REBASE UPDATE**: while this session filed, the S-038 lane landed steps 2-3 (`3e6a8fa` — the Inno Setup installer against the 13-parameter PACKAGING.md contract + the three test gates + the CI lane, 11 files); step 4 (acceptance flips on the lane's first installer.yml dispatch) remains theirs | step 4 pending the installer lane |
+| OQ-SA-1 / OQ-S4-3 | **REBASE UPDATE**: SCAN-2f decoded OQ-SA-1's NTFS +0x64 half first-hand (`7bda022` — the low dword of the FIRST $DATA extent's starting LCN; fix queued in their F-lane); OQ-S4-3 unchanged | engine lanes own both |
+
+## 5.2 The remaining corpus-parity API work — the plan-of-record board
+
+`docs/PLAN-API-EXPANSION.md` is the plan of record; its acceptance criteria
+("every PARTIAL row is either PRESENT or moved to the deferred table — zero
+silent rows") are still OPEN. Its Waves 1-5 are the remaining API-surface
+gaps vs the corpus. Verified ABSENT first-hand at `89dd7ad` (grep over
+include/cr + src/ui + src/app; the sole near-hit is
+`cr_ui_smart_report`'s `trim_known/trim_enabled` (cr_ui.h:1189) — the
+HEALTH facet, NOT the enumeration-row facet R-63 wants):
+
+| # | Op (corpus row) | Corpus evidence (the plan's cites, path-mapped) | Verified state at `89dd7ad` | Lane |
+|---|---|---|---|---|
+| S3-W1a | session list + summary export (R-56 PARTIAL) | SaveScan/rsf-format--scan-session.md:11; UIUX/07-home-phase-deep-dive.md:21 (LastScanRecordView + Continue-last banner) | `cr_ui_session_list`/`cr_ui_session_summary` ABSENT; C++ `load_session_summary` exists (cr_scan.h:536) and is consumed by the FULL-load path only (cr_ui.cpp:2555) — no list/summary-only surface, no CLI verb; a summary today requires deserializing the whole tree | this session |
+| S3-W1b | session load progress + cancel (R-54 PARTIAL) | SaveScan/rsf-format--scan-session.md:344-376 (load progress 40-65% + per-child cancel via IUIProgressInfo) | `cr_ui_session_load` has no progress/cancel surface (save-side has both: CR_EVT_SAVE_PROGRESS + `cr_ui_scan_save_cancel` N-060) | this session |
+| S3-W1c | auto-save-on-completion (R-52 PARTIAL) | SaveScan/rsf-format--scan-session.md:443-451 (auto_<vol>_<ts>.rsf); UIUX/30-interaction-driver-ground-truth.md:64-67 | no `autosave_dir` anywhere (grep ABSENT) | this session |
+| S3-W2a | query axes path_substring + state_mask (R-22 PARTIAL) | UIUX/31-filterbar-family-decode.md:55-125 (AdvanceFilterCondition 7 groups) | `path_prefix` landed (the path axis, M-029); substring/state axes ABSENT; tag axis = carve tag surface (D-53 registered) | this session |
+| S3-W2b | scan-time folder filter (R-14 GAP) | UIUX/31-filterbar-family-decode.md:140-143 (PushFolderFilter) | `ScanConfig` has no filter input (grep ABSENT) | this session |
+| S3-W3a | destination validation codes (R-41 PARTIAL) | architecture/04-recovery-workflow.md:136-141 | `ERR_DEST_*` family has no path-too-long / invalid-path / network-classification codes (cr_error.h 0x5005 family) | this session |
+| S3-W3b | chkdsk launch (R-65 PARTIAL) | MOM-modules/mom-module-system--architecture.md:65 (FileSystemCheck.mo + WinChkdsk) | `cr_ui_fsck_volume` ABSENT; `check::run_fscheck` is the in-engine checker, not the og's chkdsk launch | this session (win-layer) |
+| S3-W3c | enumeration refresh export (R-86 PARTIAL) | UIUX/13-ui-core-wiring-state.md:14 | behavior already always-fresh; the plan's remaining half is the header contract sentence | this session (doc) |
+| S3-W3d | TRIM facet in enumeration rows (R-63 PARTIAL) | UIUX/07-home-phase-deep-dive.md:17 (TRIM chip per row) | `cr_ui_disk_info` rows lack trim fields; health report has them (cr_ui.h:1189); opt-in flag + the plan's DEFERRED-if-slow measurement still open | this session |
+| S3-W4a | preview caps shipped defaults (R-34 PARTIAL) | UIUX/10-preview-subsystem.md:22-27 (100 MB / 15 s) | Caps seam exists (`preview::Caps`), no shipped defaults (zero-init = uncapped today) | this session |
+| S3-W4b | image create (R-93 PARTIAL) | UIUX/07-home-phase-deep-dive.md:36-37 (disk -> image) | `cr_ui_image_create` ABSENT; `storage::open_image` is the reader only | next |
+| S3-W5a | BitLocker turn-off (R-88 tail) | DRWService-exe--bitlocker-service.md:50-89 (unlock chain incl. turn-off) | `cr_ui_turn_off_bitlocker` ABSENT (grep) | next |
+
+## 5.3 Execution rules this session obeys
+
+- Landing order = the plan's (Wave 1 -> 5), one op per landing; each op lands
+  as C++ + ABI export + CLI (where the plan rules) + contract text + tests.
+- `CliVerbListsAreThreeSiteLocked`: docs/API.md §1 + CORE-API-CURRENT §c +
+  the rrecov.cpp header comment move together on every verb/flag change.
+- ABI stability policy (ABI-CONTRACT §9): append-only exports/fields = no bump.
+- Read-on-demand: each op's corpus counterpart is read FIRST-HAND before
+  implementation; nothing lands without its citation re-verified.
+- Verification per landing: local gcc-14 lane (977/977 base) + clang-format-18
+  + the dead-surface/architecture/secrets/commit-convention gates.

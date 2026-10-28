@@ -322,6 +322,7 @@ Stage Summary:
   the three gates; then the M-068 hygiene move + testing.md count truth +
   OQ-SA-1 NTFS +0x64 decompile probe.
 
+<<<<<<< HEAD
 
 ---
 Task ID: PARITY-FIX-3 (CI red repair + the installer-lane YAML fix)
@@ -367,3 +368,45 @@ Stage Summary:
 - Board hygiene closed. Watching the installer lane (run 40682340640) and
   the CI validation lane (run 40682340755); next: OQ-SA-1's engine-side
   NTFS origin-LCN carrier if the SCAN-2f lane has not landed it.
+
+---
+Task ID: API-EXP-1 (api-fix session 3 — the corpus-parity expansion: context recovery + the plan-of-record board)
+Agent: api-exp lane (this session)
+
+Work Log:
+- Context-recovery protocol run 3, API scope only: three parallel read
+  legs (corpus be0cfe9 / core 89dd7ad / driver 323e75a) -> the session-3
+  board committed as diff-to-fix/API-DELTA.md §5.
+- Standing state re-verified first-hand: 79 exports / v3 / 39+OK / 10
+  verbs all stand; driver wire byte-exact (the SAME 19 session-code
+  values both sides — the driver worklog's "18-code" phrasing counts the
+  dispatch set minus the AC0 discovery probe; reconciled in the board).
+- Reconciliation: the S-036 fail-loud + FloorVersion close-out the rda
+  driver worklog names as "core_recovery-side" is ALREADY landed here
+  (fetch-release.ps1 semver floor gate :59-65, install-driver composite
+  default fail-loud + FloorVersion v0.2.3, release/staged floors) — the
+  driver lane's line is stale, recorded for its next sync. A-ABI-6's
+  RELEASE-NOTES half is gone (no CodeQL claim at this tree); the stale
+  half is the audit row itself (S3-1). M-068: the hygiene move was
+  landed by the board-hygiene lane at this rebase (2a556e5 — the FIXED/
+  move + the Resolution + the RESOLVED-INDEX row); folded, no action.
+- Rebase note: while this session filed, the S-038 lane landed steps 2-3
+  (3e6a8fa, the Inno installer + the three test gates) and SCAN-2f
+  decoded the OQ-SA-1 NTFS +0x64 half (7bda022) — both folded into this
+  lane's board (API-DELTA §5.1) at the rebase.
+- A fresh local verification lane was bootstrapped in this container
+  (cmake 4.4.4 via pip, gtest 1.15.2 FetchContent, gcc 14.2.0 Release,
+  clang-format 18.1.8): full suite 977/977 green at the base tree.
+- The remaining corpus-parity API work re-based onto the plan of record:
+  PLAN-API-EXPANSION Waves 1-5 = 12 ops (S3-W1a..S3-W5a), every one
+  verified ABSENT first-hand at 89dd7ad. This session executes them in
+  the plan's landing order (W1a session-list first), each op = C++ + ABI
+  + CLI + contract text + tests, read-on-demand corpus verification per
+  op, committing every 2-3 files.
+
+Stage Summary:
+- Board filed (rebase-adjusted); execution starts at W1a (R-56 session
+  list + summary). This lane's queue: S3-1 (the A-ABI-6 audit-row truth
+  pass) then Waves 1-5; NOT touching S-038's installer lane, SCAN-2f's
+  engine probes, or API-FIX-4's CI lane.
+
