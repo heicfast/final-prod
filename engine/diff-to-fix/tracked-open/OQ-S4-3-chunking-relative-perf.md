@@ -252,3 +252,13 @@ The S11 OQTRACE lane re-scoped the remaining TTFR half on the live tree:
   still points at the deleted `comparative-bench.yml` (the bench entry doc
   needs the `test-benchmark.yml` re-point — registered here, a docs fix for
   the fix lanes).
+## Session-40 disposition note (2026-10-29)
+
+Still OPEN (the scan-level time-to-first-result half; the transport half stays measured
+per the 40315255368 verdict above). NEW RELATED EVIDENCE this session: M-117 (the
+suppress_overlap pre-validator covered check, FIXED at `d7ba41f6`) removed the carve
+stage's quadratic mid-stream re-walk - the 220 MB contiguous TS fixture went from
+>600 s non-completion to 11.3 s (the scan-level throughput class adjacent to this OQ's
+question). The comparative-bench dispatch remains the OQ's own next step: the Windows
+bench leg with a 4 MiB-chunk build variant (engineering task, not audit). No claim is
+retired by the M-117 evidence - the OQ stays open exactly as recorded.
