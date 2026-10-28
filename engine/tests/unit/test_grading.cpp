@@ -303,20 +303,24 @@ grading::GradeContext two_slot_ctx(u32 slot1_kind) {
     return ctx;
 }
 
-/* A deleted in-table (.doc) pair at the same in-slot extent end: one on
- * slot 1 (the kind under test), one on slot 0 (NTFS, never shifted). */
+/* A deleted OUT-OF-TABLE (.zzqx) pair at the same in-slot extent end:
+ * one on slot 1 (the kind under test), one on slot 0 (NTFS, never
+ * shifted). S-058 re-base: the deep-path population is the NOT-in-table
+ * extensions (the M-138 landing's fixtures used in-table .doc pairs on
+ * the inverted polarity; the polarity correction flips the fixture
+ * class, the shift-set semantics under test are unchanged). */
 std::pair<FileNode*, FileNode*> add_twin_pair(ResultTree& t, u32 slot1_kind) {
     auto* root = t.add_root(u"Found");
-    add_file(t, root, "x.doc", 500, slot1_kind, DeletedState::Deleted, Origin::Structured,
+    add_file(t, root, "x.zzqx", 500, slot1_kind, DeletedState::Deleted, Origin::Structured,
              grading::kDeviceUnit + 0x5000, 0x400);
-    add_file(t, root, "y.doc", 500, u32(FsKindCode::Hfsplus), DeletedState::Deleted,
+    add_file(t, root, "y.zzqx", 500, u32(FsKindCode::Hfsplus), DeletedState::Deleted,
              Origin::Structured, 0x5000, 0x400);
     FileNode* x = nullptr;
     FileNode* y = nullptr;
     for (auto* n = root->first_child(); n; n = n->next_sibling()) {
-        if (n->name_utf8() == "x.doc")
+        if (n->name_utf8() == "x.zzqx")
             x = n;
-        else if (n->name_utf8() == "y.doc")
+        else if (n->name_utf8() == "y.zzqx")
             y = n;
     }
     return {x, y};
@@ -385,7 +389,7 @@ TEST(Grading, TwinKeyExt4NtfsNeverShift) {
         auto* root = t.roots()[0];
         FileNode *x = nullptr, *y = nullptr;
         for (auto* n = root->first_child(); n; n = n->next_sibling())
-            (n->name_utf8() == "x.doc" ? x : y) = n;
+            (n->name_utf8() == "x.zzqx" ? x : y) = n;
         grading::AssistantStats st;
         grading::grade_tree(t, two_slot_ctx(kind), st);
         EXPECT_FALSE(x->overlap()) << "kind " << kind << " never shifts";
