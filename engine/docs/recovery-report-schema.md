@@ -21,7 +21,8 @@ become U+FFFD so the document always parses).
   "elapsed_ms": 1234,
   "totals": {
     "queued": 5, "done": 2, "dirs": 1, "refused": 1,
-    "errors": 0, "hash_mismatch": 0, "resumed": 1, "bytes": 4096
+    "errors": 0, "hash_mismatch": 0, "resumed": 1, "bytes": 4096,
+    "failed_bytes": 512
   },
   "items": [
     {
@@ -34,7 +35,8 @@ become U+FFFD so the document always parses).
       "bytes": 1024,
       "duration_ms": 12,
       "sha256": "aa11...",
-      "hash_status": "computed"
+      "hash_status": "computed",
+      "tree_class": "lost_files_reconstructed"
     }
   ]
 }
@@ -81,6 +83,9 @@ Top level:
   resumed + nothing_to_recover + pending, since done subsumes the
   committed sub-buckets)
 - `bytes` — sum of `bytes_total` over committed (non-resumed) file items
+- `failed_bytes` (N-159, additive-within-v1) — the og's failed-files
+  accumulator (+0x268 on the results singleton, DRWUI :642729-642746):
+  the bytes of files that did NOT commit. See truth rule 5.
 
 `items[]` — one row per queued item, in queue order (`item_id` monotonic):
 - `item_id` — the queue id (stable within the run; not a tree node id)
@@ -111,6 +116,25 @@ Top level:
   - `computed` — the writer streamed a digest; no stored hash to compare
   - `mismatch` — a stored hash existed and did not match
   - `not_computed` — no digest exists for this row (never faked)
+- `tree_class` (N-159, additive-within-v1; **omitted when empty**) — the
+  results-tree classification the og's failed-files HTML report carries
+  per row (`CSaveFailedFilesWithHtml`, DRWUI :642755-642822). Derived from
+  the item's node's root branch; wire values map to the og's row labels:
+
+  | wire value | og row label (DRWUI :642766-642805) | core root role |
+  |---|---|---|
+  | `existing_files` | "Existing Files" (group 0, kind 4) | `Found` |
+  | `lost_files` | "Lost Files" (group 1) | `File Path Lost` / `Lost Files` |
+  | `lost_files_reconstructed` | "Lost Files" + "Reconstructed" (group 1, kind 7) | `Reconstructed` (the S-048 default) + the legacy carved role |
+  | `lost_files_tags_extracted` | "Lost Files" + "Tags Extracted" (group 1, kind 6) | `Tags Extracted` (M-101's branch — mapping lands ready) |
+  | `lost_files_deleted` | "Lost Files" + "Deleted" (group 0, kind 0) | `Deleted` |
+  | `<custom name>` | the custom raw-category name (FUN_14008a650 != 0) | any other configured root role |
+
+  The og surfaces the axis only on its failed-files funnel; the core
+  emits it on EVERY row (the structured-superset shape, D13). The exact
+  HTML joiner between the og's compound label parts is
+  .rdata-unresolved (N-159's open question) — the wire values are the
+  stable snake_case forms, never an invented compound.
 
 ## Truth rules (non-negotiable)
 
@@ -120,6 +144,12 @@ Top level:
 3. `resumed` items were not re-written; `bytes` in totals excludes them.
 4. Exit-status mapping stays in the caller (CLI: errors or mismatches →
    exit code 2; the report is still emitted first).
+5. (N-159) `failed_bytes` counts every non-committed file's logical size
+   (error rows, including the name-exhausted class; in-queue refusals).
+   Enqueue-time refusals never entered the queue and never attempted a
+   byte — they are excluded, exactly like the og's export loop (no
+   pre-export refusal class exists there). `nothing_to_recover` and
+   `pending` rows never moved bytes and stay excluded.
 
 ## Validation
 

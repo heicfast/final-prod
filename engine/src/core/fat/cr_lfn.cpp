@@ -66,6 +66,21 @@ bool lfn_assemble(const std::vector<const LfnEntry*>& slots, u8 checksum, std::u
                 }
                 if (ch == 0xFFFF)
                     continue; /* padding */
+                /* N-176 (diff-to-fix): the og discards an assembled LFN
+                 * that contains any of the nine characters a real
+                 * Windows name can never carry (question, asterisk, pipe,
+                 * backslash, slash, colon, quote, less, greater - the
+                 * strncpy'd 9-byte set, FATSearchDLL :32084-32099; a
+                 * match diverts to the 8.3-fallback builder, exactly
+                 * like a checksum failure). Corrupt-but-checksum-valid
+                 * remnants that decode to such names would otherwise
+                 * surface as result names the filesystem could never
+                 * have held - names the OS rejects at restore time. */
+                if (ch == u'?' || ch == u'*' || ch == u'|' || ch == u'\\' || ch == u'/' ||
+                    ch == u':' || ch == u'"' || ch == u'<' || ch == u'>') {
+                    out.clear();
+                    return false; /* illegal char: 8.3 fallback */
+                }
                 out.push_back(ch);
             }
         }

@@ -2180,6 +2180,30 @@ not as dead code now.
 
 (The original session-10 D-64 draft was folded into the converged entry above.)
 
+**D-74 SUPERSESSION ADDENDUM (2026-10-29, the S47 MAJOR-first fix lane, M-119
+landing `see git log --grep M-119`):** the read-half of this divergence is
+SUPERSEDED - `PartitionSlice::read_at` now implements the og's ladder
+(straddle clamps + full-tail zero-fill + success; offset >= length and count >
+length remain the parameter errors BOTH sides refuse). What changed versus the
+session-11 decision gate: (1) M-119's real-run evidence - `DRWUI.log:638`
+shows the clamp firing during the og's own lost-partition probing (the og's
+scan flows ISSUE past-end reads and proceed on the zero-filled result), and
+the S42 Ldq decode found 393 out-of-parameter refusals in ONE captured run -
+the og's layers probe boundaries routinely; (2) the M-119 fix-time probe
+re-confirmed the ENGINE-side device's clamp first-hand
+(HFSPlusSearchDLL FUN_180009290 :7219-7264 - the gate, the parent prefix
+read, the tail memset); (3) the whole-volume refusal on table-length overrun
+(the CLI/UI leg) was a divergence this entry never claimed to cover and the
+exact damage class recovery tools are bought for. KEPT from this entry: the
+parameter-error refusals (the safety core), and the under-zeroed-tail memset
+non-adoption (the og zeroes sector-count BYTES; the core zeroes the FULL tail
+- the D-117 class). The create-half is new parity, not divergence:
+`PartitionSlice::create` clamps an over-long declared length to the device
+end with the delta surfaced (`was_clamped`/`clamp_delta`). Pins:
+`Slice.TailReadClampsAndZeroFills` (replaces TailReadRefusalPinned) +
+`Slice.CreateClampsOverlongDeclaredLength` + `Slice.CreateStartBeyondDeviceStillRefused`
++ `Slice.ExactFitNotClamped` + `Slice.OrchestratorTargetClampScansRaggedTable`.
+
 ### D-72 — scan cache: 8 MiB reactive LRU vs og 4 MiB prefetch read-ahead (N-045, REGISTERED DIVERGENCE — budget + algorithm)
 
 The og's `CStorageDeviceWithCache` sizes its cache at **4 MiB**

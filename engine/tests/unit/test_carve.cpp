@@ -7508,8 +7508,8 @@ TEST(UserSigns, ParseTheOgsShape) {
         EXPECT_TRUE(s.valid);
         EXPECT_EQ(1u, s.signs.size()) << "the good sign survives, the bad one skipped";
     };
-    tolerates("{\"x\":{\"signs\":[\"0,AAB\",\"0,ABCD\"],\"mime\":\"m\"}}"); /* odd hex */
-    tolerates("{\"x\":{\"signs\":[\"0,GG\",\"0,DEAD\"],\"mime\":\"m\"}}");  /* not hex */
+    tolerates("{\"x\":{\"signs\":[\"0,AAB\",\"0,ABCD\"],\"mime\":\"m\"}}");     /* odd hex */
+    tolerates("{\"x\":{\"signs\":[\"0,GG\",\"0,DEAD\"],\"mime\":\"m\"}}");      /* not hex */
     tolerates("{\"x\":{\"signs\":[\"nodecimal\",\"0,DEAD\"],\"mime\":\"m\"}}"); /* 1 token */
     tolerates("{\"x\":{\"signs\":[\"0,AA\"],\"extra\":1234,\"mime\":\"m\"}}");  /* unknown member */
 }
@@ -10982,8 +10982,7 @@ TEST(UserSigns, DefaultSetEffectiveCount) {
      * live signs - all 11 lowercase-hex members (10 pure-lowercase mpeg
      * + 1 mixed-case img, the corrected census; the finding's text said
      * 12) load and fire in the core where 11 are dead in the og. */
-    std::ifstream in(std::string(CR_SOURCE_DIR) + "/data/userdata-defaults.json",
-                     std::ios::binary);
+    std::ifstream in(std::string(CR_SOURCE_DIR) + "/data/userdata-defaults.json", std::ios::binary);
     ASSERT_TRUE(in.good());
     std::string json((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
     carve::usersigns::UserSignSet set;
@@ -10996,8 +10995,7 @@ TEST(UserSigns, DefaultSetEffectiveCount) {
     u32 mpeg_ps = 0;
     for (const auto& s : set.signs) {
         if (std::strcmp(s.ext, "mpeg") == 0 && s.len >= 4 && s.bytes[0] == 0x00 &&
-            s.bytes[1] == 0x00 && s.bytes[2] == 0x01 &&
-            (s.bytes[3] == 0xB3 || s.bytes[3] == 0xBA))
+            s.bytes[1] == 0x00 && s.bytes[2] == 0x01 && (s.bytes[3] == 0xB3 || s.bytes[3] == 0xBA))
             ++mpeg_ps;
     }
     EXPECT_GE(mpeg_ps, 10u) << "the og-dead mpeg family is loaded live";
@@ -11016,9 +11014,8 @@ TEST(UserSigns, UnknownMemberIgnored) {
     /* the finding's falsifiable case: a valid file + one future member
      * loads with the member ignored (og: unchanged behavior; the
      * pre-fix core: ERR_BAD_PARAMETER, zero signs). */
-    const char* json =
-        "{\"x\": {\"signs\": [\"0,DEADBEEF\"], \"size\": 1234, \"mime\": \"m\","
-        " \"note\": { \"nested\": [true, null, \"s\"] } }}";
+    const char* json = "{\"x\": {\"signs\": [\"0,DEADBEEF\"], \"size\": 1234, \"mime\": \"m\","
+                       " \"note\": { \"nested\": [true, null, \"s\"] } }}";
     carve::usersigns::UserSignSet set;
     ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set))
         << "a future-versioned member must not fail the file";
@@ -11030,8 +11027,7 @@ TEST(UserSigns, UnknownMemberIgnored) {
 
 TEST(UserSigns, MemberNamesCaseInsensitive) {
     /* the og's dispatch is _stricmp - "SIGNS"/"Signs"/"MIME" all act */
-    const char* json =
-        "{\"x\": {\"SIGNS\": [\"0,ABCD\"], \"Mime\": \"application/x-test\"}}";
+    const char* json = "{\"x\": {\"SIGNS\": [\"0,ABCD\"], \"Mime\": \"application/x-test\"}}";
     carve::usersigns::UserSignSet set;
     ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
     EXPECT_TRUE(set.valid);
@@ -11043,9 +11039,8 @@ TEST(UserSigns, MemberNamesCaseInsensitive) {
 TEST(UserSigns, MalformedSignSkippedNotFatal) {
     /* token-count and charset malformations skip the SIGN, keep the file
      * (DRWUI:1005986's goto-next); the good sign beside it loads */
-    const char* json =
-        "{\"x\": {\"signs\": [\"nodecimal\", \"0,XYZW\", \"\", \"0,DEADBEEF\"],"
-        " \"mime\": \"m\"}}";
+    const char* json = "{\"x\": {\"signs\": [\"nodecimal\", \"0,XYZW\", \"\", \"0,DEADBEEF\"],"
+                       " \"mime\": \"m\"}}";
     carve::usersigns::UserSignSet set;
     ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
     EXPECT_TRUE(set.valid);
@@ -11081,8 +11076,7 @@ TEST(UserSigns, TornFileStillRejected) {
      * not og-loadable either (the og's JSON layer fails them) */
     auto reject = [](const char* bad) {
         carve::usersigns::UserSignSet s;
-        EXPECT_EQ(ERR_BAD_PARAMETER, carve::usersigns::parse(bad, std::strlen(bad), s))
-            << bad;
+        EXPECT_EQ(ERR_BAD_PARAMETER, carve::usersigns::parse(bad, std::strlen(bad), s)) << bad;
     };
     reject("{\"x\": {\"signs\": [\"0,AA\"");          /* torn mid-string */
     reject("{\"x\": {\"signs\": [\"0,AA\"],");        /* torn mid-object */

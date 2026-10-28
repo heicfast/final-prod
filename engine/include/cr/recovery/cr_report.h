@@ -61,6 +61,20 @@ struct Item {
     std::string sha256_hex; /* lowercase hex, empty when not computed */
     HashStatus hash_status = HashStatus::NotComputed;
     bool is_dir = false;
+    /* N-159 (diff-to-fix): the results-tree classification the og's
+     * failed-files HTML report carries per row (CSaveFailedFilesWithHtml
+     * ::FUN_1403c6fc0, DRWUI :642755-642822 - the group/kind-to-label
+     * mapping decoded first-hand). Six-valued, derived from the node's
+     * root branch at report time (the D-107 lineage: og UI-surface
+     * semantics land as core data). Wire values (snake_case, stable;
+     * the og's display label for each is in the schema doc):
+     *   existing_files | lost_files | lost_files_reconstructed |
+     *   lost_files_tags_extracted | lost_files_deleted | <custom
+     *   raw-category name>
+     * Empty = unclassified (value-enqueued snapshot rows carry no node;
+     * the field is then omitted - additive-within-v1 per the schema
+     * doc's own version contract). */
+    std::string tree_class;
 };
 
 struct Totals {
@@ -82,6 +96,15 @@ struct Totals {
                                  * subsumes the committed sub-buckets hash_mismatch
                                  * and salvaged) */
     u64 bytes = 0;              /* sum of committed file bytes */
+    /* N-159: the og's failed-files counters split - CSaveFailedFiles
+     * WithHtml's collection slot accumulates the failed count + failed
+     * BYTES separately from the committed totals (the results singleton
+     * +0x254/+0x268, DRWUI :642729-642746). The failed class here =
+     * non-committed files (Error + Refused): the og's write failures
+     * plus the destination-refusal family the core's safety hardening
+     * adds. NothingToRecover items are excluded (nothing was
+     * attempted, no bytes moved). */
+    u64 failed_bytes = 0;
     u64 elapsed_ms = 0;
     std::string source;      /* UTF-8 source identity (caller-supplied) */
     std::string destination; /* UTF-8 destination identity */

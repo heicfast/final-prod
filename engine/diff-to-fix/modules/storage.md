@@ -115,7 +115,7 @@ verdicts: MATCH-by-registered-scope-exclusion.
 
 ## Session-12 continuation row (2026-10-29, audited `c7fa527c`, corpus `be0cfe9`)
 
-**M-119 (MAJOR — NEW; renumbered from this lane's M-113 filing at the post-rebase ID reconciliation):** partition-boundary read semantics — the og's
+**M-119 FIXED (S47 MAJOR-first fix lane, `033b9cdb` — the tolerant pair landed: create-clamps an over-long declared window [was_clamped/clamp_delta; the start-past-device refusal kept per N-046], the read ladder refuses only the parameter errors while the straddle clamps + FULL-tail zero-fills + succeeds [FUN_180009290 :7219-7264 confirmed first-hand at the fix-time probe]; D-74's read-half superseded with a dated PARITY-DELTAS addendum, its safety core + under-zeroed-tail non-adoption kept; CLI warns-with-delta, both cr_ui opens clamp+log; F60/P1/B6/B8/X51/E23 → MATCH; 3 RED-pre-fix tests, suite 1216/1216):** partition-boundary read semantics — the og's
 CBasicPartitionDevice read wrapper (RTTI-confirmed, DRWUI_decompiled.c:183633-183666)
 CLAMPS a past-end read to the in-bounds prefix, ZERO-FILLS the tail, and returns
 success (the `"i64CountofSectors - i64RealReadSector = %I64d"` diagnostic fired in

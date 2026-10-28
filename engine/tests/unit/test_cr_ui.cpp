@@ -3703,7 +3703,8 @@ TEST(CrUi, ThumbnailSuccessPromotesGradeTo2) {
     /* the DELETED-PNG fixture: deleted non-carved files take the generic
      * grading path (below 2), so the promotion is observable */
     ASSERT_TRUE(scan_img_to_session("thumbgr", build_fat16_png_deleted(), u, img, crsf));
-    const uint64_t logo = query_node_id(u.sess, "#OGO.PNG"); /* the og placeholder renders 0xE5 as # - N-172 */
+    const uint64_t logo =
+        query_node_id(u.sess, "#OGO.PNG"); /* the og placeholder renders 0xE5 as # - N-172 */
     const uint64_t doc_id = query_node_id(u.sess, "DOC.TXT");
     ASSERT_NE(logo, 0u) << "the deleted PNG must be a result row";
     ASSERT_NE(doc_id, 0u);

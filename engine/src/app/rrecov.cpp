@@ -3246,6 +3246,18 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
             wprintf(L"cannot slice partition %d (rc=%08x)\n", part, prc);
             return 2;
         }
+        /* M-119: an over-long table entry (corrupt length, a table from
+         * larger media, a shrunken device) CLAMPS at the device end and
+         * the volume scans - the og's tolerant create - with the clamp
+         * delta surfaced instead of the pre-fix whole-volume refusal. */
+        if (part_slice->was_clamped()) {
+            wprintf(L"warning: partition %d declared %llu sectors past the device end; "
+                    L"scanning the clamped %llu sectors (delta %llu bytes)\n",
+                    part, static_cast<unsigned long long>(p.sector_count),
+                    static_cast<unsigned long long>(part_slice->length() /
+                                                    view->geometry().logical_sector),
+                    static_cast<unsigned long long>(part_slice->clamp_delta()));
+        }
         slice = part_slice.get();
         wprintf(L"analyzing partition %d @ LBA %llu (%llu sectors)\n", part,
                 static_cast<unsigned long long>(p.start_lba),

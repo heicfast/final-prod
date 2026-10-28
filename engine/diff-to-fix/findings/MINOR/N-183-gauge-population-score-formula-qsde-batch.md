@@ -25,7 +25,7 @@ Stated falsifiably: a scan of 1000 files of which 300 are `.jpg`/`.doc`-family (
 
 ## Impact
 
-The aggregate verdict numbers surfaced in the report/ABI (`scan_analysis`) diverge from the og's — a marketing-copy-adjacent surface in the og, a stats block in the core. The QSDE mis-mapping makes the one named stat semantically wrong. MINOR (accounting surface; the per-file grades are owned by S-058/S-061/M-133/M-134).
+The aggregate verdict numbers surfaced in the report/ABI (`scan_analysis`) diverge from the og's — a marketing-copy-adjacent surface in the og, a stats block in the core. The QSDE mis-mapping makes the one named stat semantically wrong. MINOR (accounting surface; the per-file grades are owned by S-058/S-061/M-138/M-134 — M-133 renumbered to M-138 at the N-160 doc-truth repair).
 
 ## Reproduction / verification
 

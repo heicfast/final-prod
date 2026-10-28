@@ -16,6 +16,53 @@ them (the 5828 tick equivalent). 5 tests RED pre-fix (the re-pinned polarity
 test, both S-061 grade tests, the two twin-mechanism fixtures) → 23/23
 Grading GREEN; suite 1228/1228. Trail: findings/FIXED/ both + ledger rows +
 matrix cells + SUMMARY + the s5 erratum + this entry.
+**S56 lane — N-160 landed (2026-10-29, the S56 MINOR-mirror lane's first disposition).**
+
+**N-160 FIXED (MINOR — the register-truth batch).** All six doc repairs landed:
+I-034's census re-labeled + the committed `scripts/og_tree_census.py` replacing
+the two phantom cites (1,538 entries = 68 dirs + 1,470 files; 555 at top+1; 750
+files within top+2; 720 deeper — every number reproduced first-hand at corpus
+`be0cfe9`); the N-129 OQ-S10-1→OQ-S10-2 erratum addendum; the inventory row 79
+full 5-executable set (EUAdobeRepair 431,192 B + EUArchiveRepair 599,128 B,
+stat-verified) + row 104's S-048/S-049/M-103 session-tree cross-note; I-033 §12's
+invariant re-stated with the verified inert-key set (the remainder → N-158's
+five branches); the README ID-allocation convention sentence. The two doc_truth_gate
+checks landed (`check_cited_scripts_exist` + `check_finding_id_uniqueness`,
+CI-wired at checks.yml:173): RED first run = 7 named violations; GREEN post-fix =
+20 citations resolve, 71 active + 334 ledger-resolved IDs, zero collisions.
+**The gate's first run caught THREE live ID collisions beyond the finding's own
+items** — each repaired per SA-9 earlier-push-wins with push-timestamp proof:
+N-156-mpegps→**N-187** (RRWR filed 20:30:07 UTC first), M-133-twin→**M-138** (the
+retired suite-red convergent 21:08:06 UTC first), N-142-rsf→**N-186** (the retired
+dead-wiring 19:08:34 UTC first); every live cross-ref swept (session.md,
+orchestration.md, S-058, M-134, N-183, N-154, CROSS-REF-MATRIX, README's live
+list, the M-098 file + its ledger row). M-086's `scripts/install.ps1` cite
+resolved as a driver-repo cross-repo path (scoped in its text + the gate's
+CROSS_REPO exemption) — not a phantom. No production code touched. Suite 1230/1230
+green (1188 pass / 42 win-only skip / 0 fail, linux-release) at the landing tree.
+Trail: findings/FIXED/N-160 + ledger row + this entry.
+
+(Convergence note, added at the rebase: the session-52 lane's M-133 twin-key landing
+absorbed below — their fix substance stands; the N-160 doc-truth renumber M-133→M-138
+applies to their FIXED file per SA-9 [the suite-red convergent owns the M-133 seat];
+their N-175/N-176/M-119/S-055/S-056/M-128/M-129/N-158/M-132 landings in the same window
+are noted convergent-skip by this lane's claim.)
+**Tracked-open sweep status (S47 INFO-first lane, 2026-10-29).** OQ-S10-1 verified
+current at HEAD (thumbnail_format_supported at src/core/preview/cr_thumbnail.cpp:85
+admits jpeg/png/bmp/gif/tiff/raw/psd/pnm/hdr only — HEIC/WebP/PDF/video refused BY
+NAME, no silent degrade; S48's push-forward note stands, this lane's read corroborates
+it — no redundant commit). OQ-S10-3's grant boundary re-affirmed by S48's fresh note;
+no core-side change owed by any of the five driver-repo findings. OQ-S42-3 stays
+S48's active RESOLVED-IN-PART (5/6 decoded; Q5 theirs mid-flight — no duplicate work).
+OQ-S52-1 (the S52 lane's fresh ext2/3-vs-ext4 filing): this lane's evidence addendum
+appended — the analyser half of its named probe decoded first-hand
+(ExtFileSystemAnalyser FUN_180004670 = magic+geometry only, no family
+discrimination; the verdict path's masks decoded: incompat-within-0xffffffe9 ∧
+ro_compat-within-0xfffffff8 → the family verdicts 5/6, the 0x2c0 =
+EXTENTS|64BIT|FLEX_BG triple-gate → verdict 0x18; the analyser-internal codes ≠
+the DRWUI {4/5, 9} kind codes — the mapping is the remaining half). OQ-S4-3: the
+Test & Benchmark dispatch (run 40783364141) in flight at this entry; the
+transcription lands when the numbers exist.
 
 **Session-51 severe-first lane — S-055 + S-056 landed (2026-10-29).**
 
@@ -189,6 +236,21 @@ OQ-S10-3's grant boundary). Pulled-before-pushed discipline; one finding, one pu
 fix RED-test-first; corpus cites re-read first-hand. The S48/S49/S50 windows absorbed at
 the merge (A-014 + I-041..I-044 retired by the parallel lanes; both sides' records kept).
 
+- **M-119 FIXED** (`033b9cdb`) — the partition-boundary tolerant pair: create-clamp
+  (was_clamped/clamp_delta; N-046's start-past-device refusal kept) + the og read
+  ladder (offset>=length/count>length refuse; straddle clamps + FULL-tail zero-fill +
+  OK; parent prefix-error propagates unfilled). The fix plan's fix-time probe EXECUTED
+  first-hand: HFSPlusSearchDLL FUN_180009290 :7219-7264 — the gate, the clamped parent
+  read, the tail memset, the no-zero-fill error path — confirming the engine-side
+  policy before shipping. D-74's read-half SUPERSEDED (dated addendum in
+  PARITY-DELTAS; safety core + under-zeroed-tail non-adoption KEPT — the og memsets
+  sector-count bytes, we zero the full tail, the D-117 defect class). CLI partition
+  open warns-with-delta instead of aborting; both cr_ui volume opens clamp+log. Tests:
+  CreateClampsOverlongDeclaredLength / TailReadClampsAndZeroFills (replaces the D-74
+  pin) / OrchestratorTargetClampScansRaggedTable (all RED pre-fix via stashed-slice
+  proof) + CreateStartBeyondDeviceStillRefused / ExactFitNotClamped (fence pins) —
+  suite 1216/1216, zero engine fallout; the Apply fence tests untouched and green.
+  F60/P1/B6/B8/X51/E23 → MATCH.
 - **M-128 FIXED** (`2b0184f3`) — option (b): the case-insensitive byte-decode
   channel KEPT + registered as PARITY-DELTAS D-125 (the D-117 class). Corpus
   re-read first-hand: FUN_140604090 :1003619 (%02X-only), memcmp :1003452/
@@ -341,6 +403,30 @@ core `659f0f6c`, corpus `be0cfe9`.
   clang-format clean. Audit trail: retired to findings/FIXED/ with Resolution; ledger
   row; matrix row → MATCH; carve module addendum; FORMATS.md ZIP-typing paragraph;
   D-134.
+
+- **N-159 FIXED (MINOR, writer+report)** — the failed-files report's tree-
+  classification axis: the og's recovery log is an HTML report
+  (CSaveFailedFilesWithHtml, DRWUI :642669-642892 — the generator, the
+  per-failure collection slot +0x254/+0x268, the row grammar :642755-642822,
+  ShellExecuteW open) — R-58's "per-run text log" and API-DELTA row 21's "og
+  format NOT IN CORPUS" both REFUTED and repaired (REFERENCE-API-GAP R-58 +
+  R-44's comparative note + API-DELTA row 21 + the writer-module D13 addendum,
+  all in this push). The three classification field getters re-pinned first-hand
+  (FUN_14008a650 = node+0x1d8 custom name; FUN_14008b040 = u32@+0x1f0 kind;
+  FUN_1400d3ee0 = u32@+0x1e8 group). Landed: the per-item `tree_class` wire
+  axis (root-role derived — the core's S-048/M-103 root model maps the og's
+  group/kind integers; the wire↔og-label↔core-role table in the schema doc;
+  the Tags-Extracted mapping ready for M-101's open branch) + the
+  `failed_bytes` totals split (the +0x268 accumulator semantics; the
+  enqueue-refusal exclusion documented as schema truth rule 5 — a precision
+  the fix plan missed) + both fields additive-within-schema-v1 per the
+  schema doc's own version contract (the finding's bump plan corrected —
+  pinned by TreeClassIsAdditiveWithinSchemaV1). Tests: Report.FailedRows
+  CarryTreeClassification / FailedBytesSplitFromTotal / RawCategoryName
+  Classification / TreeClassIsAdditiveWithinSchemaV1 (axis + split RED
+  pre-fix). Suite 1243/1243 (1201/42/0). Audit trail: retired to
+  findings/FIXED/ with Resolution; ledger row; matrix row → MATCH; writer
+  module addendum; the schema doc's wire sample + field docs + truth rule 5.
 
 - **N-148 FIXED** — the comment-truth batch, all seven items: the LDM RAID-5 UNDECODED hedge
   replaced with the OQ-T7 resolved MATCH; D-09's demanded ZFS wording landed verbatim; the M-112
@@ -7515,3 +7601,17 @@ end-to-end fixture's NTRes=0 mixed-case "READMe.TXT" now renders the og's folded
 "README.TXT" (re-pinned in the same commit; the finding's own predicted
 case-sensitive-bench divergence). Suite 1190/1190 (linux-release). Trail:
 findings/FIXED/N-175 + ledger row + matrix A10/B-naming row + fat.md list + this entry.
+
+## Session-46 minors lane — N-176 landed (2026-10-29)
+
+**N-176 FIXED (MINOR — the FAT LFN illegal-char fallback).** The corpus cite re-read
+first-hand (FATSearchDLL :32084-32099 — the strncpy of the 9-byte set "?*|\/:\"<>" +
+the nested compare; a match diverts to FUN_180036350, the same 8.3-fallback builder
+a checksum failure takes). The gate landed inside lfn_assemble beside the checksum
+check; the caller's existing fallback path serves the alias. LfnIllegalCharFallsBackTo83
+(RED pre-fix: each of the 9 chars surfaced in the result name; GREEN: the alias serves,
+no illegal char in any result) + LfnValidNameUnchanged (the regression pin). One
+implementation bug caught in self-review before commit: the end-of-name NUL must keep
+its early-return (an intermediate `break` would have continued to further slots).
+Suite 1218/1218 (linux-release). Trail: findings/FIXED/N-176 + ledger row + matrix row
++ fat.md list + this entry.

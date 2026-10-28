@@ -1,4 +1,4 @@
-# MINOR N-142 — The og's .rsf variant-save device-descriptor record (GUID 76a672b0…, [552-B struct] + [5400-B volumeDevice blob]) has no field-complete core equivalent: the session identity card carries model/serial/boot-hash only — firmware, WWN, interface string, and the 512-byte boot-sector snapshot are absent
+# MINOR N-186 — The og's .rsf variant-save device-descriptor record (GUID 76a672b0…, [552-B struct] + [5400-B volumeDevice blob]) has no field-complete core equivalent: the session identity card carries model/serial/boot-hash only — firmware, WWN, interface string, and the 512-byte boot-sector snapshot are absent
 
 **Severity:** MINOR
 **Module:** session (persistence format field parity)
@@ -6,6 +6,7 @@
 **Corpus references:** `re-workspace/artifacts/SaveScan/rsf-format--scan-session.md:70-75` (the record-type GUID table — record types 1-4 plus: "A 5th constant `DAT_1414d47a0` = `76a672b048058b46ba9e91093a63b517` drives a record type written by FUN_1403f1180 = `[552-byte struct] + [5400-byte blob]` — used by a variant save path, not present in the shipped auto-save samples"); `re-workspace/artifacts/SaveScan/rsf-format--scan-session.md:205-233` (the 5400-byte volumeDevice blob's observed layout: `+0x000 u32 7 (device/bus type — USB)`, `+0x004 "ST500DM0"` model, `+0x108 "02-1BD142"` serial, `+0x206 "1.02"` firmware revision, `+0x30A char[16]` WWN/serial-2, `+0x414 "USB Device"` interface, `+0x518 byte[512]` the full MBR/BOOT-sector snapshot `33 C0 8E D0 … 55 AA`)
 **Core references:** audited `c7fa527c` — `include/cr/session/cr_records.h:203-223` (`VolumeSessionInfo`: `char model[48]`, `char serial[32]`, `u32 boot_hash` — the SESS-2 v2 identity-card tail; no firmware/WWN/interface fields, no boot-sector snapshot); `src/core/session/cr_crsf.cpp` (the REC_VOLUME_INFO writer — the identity card is the device-identity surface; grep-verified: no 512-byte sector image, no firmware/WWN/interface strings anywhere in the session layer); `diff-to-fix/modules/session.md` (the field-parity table — record types 1-4 dispositioned; no row for the variant record's device-descriptor field set)
 **Status:** READ-ONLY FINDING — no fix applied
+**Renumber:** N-142 → **N-186** (2026-10-29, the S56 lane: the N-160 doc-truth gate caught the collision live — the remote's CrPreview dead-wiring N-142 retired first at `c26f77d9` 19:08:34 UTC vs this finding's first push `25e408b8` 19:54:43 UTC; the retired row keeps the seat per SA-9 earlier-push-wins; no content change)
 
 ## Summary
 
