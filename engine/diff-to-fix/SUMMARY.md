@@ -1,4 +1,26 @@
-# SUMMARY.md — executive summary (the S42 diff-to-fix lane's convergence on top; the prior lanes below, newest-first)
+# SUMMARY.md — executive summary (the S47 MAJOR-first fix lane on top; the prior lanes below, newest-first)
+
+## Session-47 S47 lane delta (2026-10-29 — the MAJOR-first parity-FIX lane per the user's explicit directive; core `fa654673` at open → merged through the S48/S49/S50 windows; corpus `be0cfe9`)
+
+**Lane scope:** the unclaimed MAJOR board (25 in-tree findings claimed at open; M-086/
+M-087/M-089 stay tracked-OQ per OQ-S10-3 — their fix surfaces live in heicfast/rda-driver,
+out of this session's two-repo grant, re-verified before claiming). One finding, one
+verified fix, one push; every fix RED-test-first; every corpus cite re-read first-hand
+before the change.
+
+**Landings this lane so far:**
+
+- **M-124 FIXED** (`dcb123dd`) — the EBR link type 0x85 (Linux extended) joined the
+  Extended arm of `mbr_type_to_kind`: whole 0x85-stamped chains no longer vanish, the
+  bogus Other-volume at the link target is gone (Partition_decompiled.c:1006's `-0x7b`
+  compare re-read first-hand — the same link path as 0x05/0x0F). Tests:
+  Ebr.LinkType085WalksChain / Ebr.LinkType085SameBasisAs05 / Mbr.Extended085NotEmittedAsVolume
+  (all RED pre-fix); suite 1164/1164.
+
+**Board after this push (filesystem truth): 71 active — 0 ACUTE · 9 SEVERE · 27 MAJOR ·
+32 MINOR · 3 INFO** (the parallel lanes' A-014 + I-041..I-044 retirements absorbed at the
+merge; both sides' records kept). Next free IDs unchanged: S-062+, M-138+, N-186+, I-045+.
+
 # SUMMARY.md — executive summary (the S12 session-2 deep-dive lane on top — sector math / scan-progress math / local database / state management / detection-calculation; the prior lanes below, newest-first)
 
 ## Session-12 S12 lane delta (2026-10-29 — the session-2 continuation audit per the user's second-session directive: remove-the-fixed + go-deeper, special focus on sector numbers / scanning / accurate detection / calculation / no-stuck-or-freeze / local database / state management; core `869da779` at open → rebased through the parallel windows to push at `f85def0f`, corpus `be0cfe9`)

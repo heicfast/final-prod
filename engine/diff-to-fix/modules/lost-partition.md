@@ -4,7 +4,12 @@
 
 New active findings on this module: **M-123** (GPT header validation laxity — no
 reserved==0 / exact-92 / position / usable-range gates vs the og's FUN_1800078d0);
-**M-124** (EBR link type 0x85 not a container — whole Linux-extended chains vanish);
+~~**M-124**~~ **FIXED (S47 MAJOR-first fix lane, `dcb123dd`)** — the EBR link type
+0x85 joined the Extended arm of `mbr_type_to_kind` (Partition_decompiled.c:1006's
+`-0x7b` compare feeds the same link path as 0x05/0x0F): whole Linux-extended chains
+walk, the bogus Other-volume at the link target gone (P1 detection / P26 tree-walk →
+MATCH; tests Ebr.LinkType085WalksChain / Ebr.LinkType085SameBasisAs05 /
+Mbr.Extended085NotEmittedAsVolume, all RED pre-fix);
 **M-132** (GPT backup-probe position + dead-LBA1 asymmetry, both directions);
 **N-161** (GPT entry span underflow, no first<=last gate); **N-164** (the deliberate
 GPT strictness unregistered). Verified-MATCH: EBR base/rel chain math, MBR LBA fields,

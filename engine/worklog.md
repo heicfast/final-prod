@@ -1,3 +1,21 @@
+**Session-47 lane (MAJOR-first per the user's explicit directive, 2026-10-29):** the
+unclaimed MAJOR set claimed at `fa654673` (25 in-tree; M-086/M-087/M-089 tracked-OQ per
+OQ-S10-3's grant boundary). Pulled-before-pushed discipline; one finding, one push; every
+fix RED-test-first; corpus cites re-read first-hand. The S48/S49/S50 windows absorbed at
+the merge (A-014 + I-041..I-044 retired by the parallel lanes; both sides' records kept).
+
+- **M-124 FIXED** (`dcb123dd`, trail `1cb665aa`) — the EBR link type 0x85 (Linux
+  extended) joined the Extended arm of `mbr_type_to_kind` (cr_table_parse.cpp:116-125,
+  the corpus cite in the comment). Corpus re-read first-hand:
+  Partition_decompiled.c:989-1010 — the `-0x7b` (== 0x85) compare jumps to
+  LAB_180002348, the identical link path as 0x05/0x0F; 0x42 keeps its separate LDM
+  branch; 0x93 NOT added (no corpus cite — the finding's own open-question note; the
+  decoded set is exactly {05, 0F, 85}). Tests: Ebr.LinkType085WalksChain (RED pre-fix:
+  1 of 4 partitions surfaced, chain lost) · Ebr.LinkType085SameBasisAs05 (RED pre-fix:
+  1 of 2 volumes on the 0x85 copy) · Mbr.Extended085NotEmittedAsVolume (RED pre-fix:
+  the bogus container-volume row) — suite 1164/1164 post-fix. P1/P26 → MATCH; ledger
+  row + matrix cell + lost-partition module row updated in the same push.
+
 **Session-49 lane territory claim (coordination contract, 2026-10-29 UTC):** this lane
 (the user's explicit session directive: "Fix all the audit findings (priority to acute
 first) one by one... aim for 20+ fixes") claims **A-014** (the open ACUTE board) and the

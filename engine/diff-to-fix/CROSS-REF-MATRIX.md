@@ -32,8 +32,11 @@
     auto-saves a cancelled run, and its comment mis-states the og).
   - **MAJOR (10):** **M-123** (table P1/P20 — GPT header laxity: no reserved==0 /
     exact-92 / position / usable-range gates, og `FUN_1800078d0` vs
-    `load_gpt_side`); **M-124** (table P1/P26 — EBR link set {05,0F,**85**} vs the
-    core's {05,0F}: 0x85 chains vanish); **M-125 FIXED (S42 fix
+    `load_gpt_side`); **M-124 FIXED** (S47 MAJOR-first fix lane, `dcb123dd` — findings/FIXED/M-124:
+    the EBR link set {05,0F,**85**} — `case 0x85:` joined the Extended arm of
+    mbr_type_to_kind per Partition_decompiled.c:1006; whole 0x85 chains walk,
+    the bogus Other-volume at the link target gone; 3 RED-then-green tests,
+    suite 1164/1164; P1/P26 → MATCH); **M-125 FIXED (S42 fix
     lane — findings/FIXED/M-125: the query-layer helper family
     `progress_display_remap/_percent/_publish` (FUN_1401af820/:950/:a60 verbatim,
     the constants re-verified against the corpus — the finding's test table
