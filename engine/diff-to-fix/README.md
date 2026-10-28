@@ -21,8 +21,9 @@ the carve OOM policy + the per-extension result-aggregation surface),
 multi-vdev MATCH, zfs B9 closed MATCH at 8-byte precision, refs B4's grade byte
 decoded, both engines' volume-label question closed) + the E-S11 errata batch.
 M-111 double-verified by an independent concurrent trace (corroboration
-addendum). **Board: 58 active (7 SEVERE · 19 MAJOR · 25 MINOR · 7 INFO) / 285
-resolved / 3 tracked-open.** Evidence: `evidence/decompiled-quotes/s11-*.md` +
+addendum). **Board: 57 active (7 SEVERE · 18 MAJOR · 25 MINOR · 7 INFO) / 294
+resolved rows / 3 tracked-open** (re-truthed over the mid-push M-108 retirement;
+ledger per session-39B's row-re-count: 272 main + 22 OQ). Evidence: `evidence/decompiled-quotes/s11-*.md` +
 `evidence/s11-triage-sweep.md`.
 
 **Session 10 lane S10-F (2026-10-29 — the function-level completeness pass, RECONCILED at push):**
