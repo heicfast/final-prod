@@ -5,7 +5,7 @@
 **Parameters affected:** X47/X48 (throughput/latency of the thumbnail path), B2-adjacent (no recovery effect — presentation quality), Q65 (test coverage of the budget boundary)
 **Corpus references:** `re-workspace/artifacts/UIUX/10-preview-subsystem.md` + `re-workspace/artifacts/DRWUI-subsystems--assistant-grading-preview.md` §4 (:66-98 — the ≤1 MiB bound there is the *output payload* on the socket leg; the 100 MB value is preview eligibility, UIUX/10:23); `DRWUI_decompiled.c:652377-652419` (`FUN_1403d7840` — the og's GDI+ thumbnail path: width ≤ 0x100 → as-is; else scale = width/256.0; **no input-size cap on the GDI+ path**)
 **Core references:** audited `35adcb9`. `include/cr/preview/cr_thumbnail.h:61-62`: `u64 max_pixels = 64ull*1024*1024; u32 max_read = 4u<<20;` (the shipped defaults); `src/core/preview/cr_thumbnail.cpp:951` — the embedded-EXIF fast path fires **only** when `u64(w)*u64(h) > caps.max_pixels` (:951-970); `:1009` the same guard on the decode path; `BudgetExceeded` at `cr_thumbnail.h:89` ("caps.max_read / max_work exhausted").
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** FIXED (session-10 this lane)
 
 ## Summary
 
@@ -92,3 +92,11 @@ sharpens its fix target:
    UNVERIFIED — tracked in I-028).
 
 **Status:** READ-ONLY — no fix applied.
+
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** 5ccc0da
+**Verified by:** Thumbnail.OrdinaryPhotoDefaultBudget (RED pre-fix - the 4.07 MiB 12-MP fixture returned BudgetExceeded under the shipped zero-config defaults; GREEN post-fix - Ok, 256x192, full-decode wins), Thumbnail.EmbeddedFastPathOnByteOversize (the spliced APP1+SOF0+junk shape serves from the embedded thumb when the body exceeds max_read), Thumbnail.CapsDefaultsPinTheCorpusAnchors (updated to the raised 32 MiB pin); suite 999/999 green, clang-format 18.1.8 clean.
+**Resolution notes:** Landed BOTH halves of the fix plan: (1) the embedded-EXIF fast path now fires for byte-oversized inputs too (file_size > caps.max_read) - it reads only the embedded thumb (a few KiB) and never the body, and byte-oversized inputs without an embedded thumb keep the named, honest BudgetExceeded refusal; (2) the shipped default max_read rises 4 MiB -> 32 MiB per the corpus anchor (FUN_1403d7840 :652377-419 - the og's GDI+ thumbnail path has no input byte cap at all; the <=1 MiB corpus bound is the socket OUTPUT payload, and 100 MB is the separate preview-eligibility policy M-077 owns). The 64 MP pixel guard is unchanged and remains the decode-memory bound (256 MiB RGBA worst case); the byte cap only gates I/O. Fixture byteheavy12mp.jpg (4.07 MiB, 4000x3000) generated and SHA256SUMS updated. No other parameter regressed: work units unchanged, embedded-first posture unchanged, refusal names unchanged.
