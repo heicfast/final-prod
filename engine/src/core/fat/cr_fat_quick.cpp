@@ -351,8 +351,11 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
      * 0 here maps 1:1 onto the og's failure branch. The exFAT sibling has
      * carried the same early-exit since S-011 (exfat_time_to_unix100). */
     const auto fat_to_filetime = [](u16 date, u16 time, u8 tenths) -> u64 {
-        const u32 secs = fat_date_to_unix(date, time, tenths);
-        return secs ? u64(secs) * 10000000ULL + 116444736000000000ULL : 0;
+        /* N-173: u64 seconds - 2106/2107 FAT dates convert fully (the
+         * og's converter has no cutoff); 0 remains exactly the invalid-
+         * date class (the N-021 zero-FileTime mapping unchanged) */
+        const u64 secs = fat_date_to_unix(date, time, tenths);
+        return secs ? secs * 10000000ULL + 116444736000000000ULL : 0;
     };
     props->times.created = fat_to_filetime(e.creation_date, e.creation_time, e.creation_tenths);
     props->times.modified = fat_to_filetime(e.write_date, e.write_time, 0);

@@ -6845,3 +6845,16 @@ computed at write time over the ORIGINAL bytes (computing it over the 0xE5-led r
 makes the bijection "recover" 0xE5 — the first draft's bug, caught by the pin).
 Suite 1266/1266. Trail: findings/FIXED/N-172 + ledger + fat.md B4 closure + D-120 +
 this entry.
+
+## Session-43 minors lane — N-173 landed (2026-10-29)
+
+**N-173 FIXED (MINOR — the FAT 2106/2107 date collapse).** The clamp dropped:
+fat_date_to_unix returns u64 (signature + caller updated; the stale "u32 props
+contract" comment re-truthed — FileTimes was always u64). The N-021 invalid-date
+semantics preserved exactly (0 = only the invalid class now — a clamped valid date
+can no longer masquerade as invalid). The FAT/exFAT agreement restored (both ride
+the shared unclamped core). Pins: Date2107ConvertsFullyNoClamp (0xFF9F → 4354776000;
+the 0xFFFFFFFE exact boundary; the 0x100000000 regression step) +
+Date2107EndToEndFileTimeIsReal. The finding's example word 0xFFBF corrected (decodes
+the invalid 2107-11-31; 0xFF9F is the true 2107-12-31) — recorded in the Resolution.
+Suite 1273/1273. Trail: findings/FIXED/N-173 + ledger + fat.md row + this entry.

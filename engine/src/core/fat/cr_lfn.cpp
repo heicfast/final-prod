@@ -163,15 +163,22 @@ std::u16string short_name_to_u16(const u8 name[11]) {
     return s;
 }
 
-u32 fat_date_to_unix(u16 date, u16 time, u8 tenths) {
+u64 fat_date_to_unix(u16 date, u16 time, u8 tenths) {
     /* FAT date: bits 15-9 = year-1980, 8-5 month, 4-0 day.
      * FAT time: bits 15-11 hour, 10-5 minute, 4-0 second/2.
      * tenths: 10ms units on the creation field (ignored for seconds math). */
     (void)tenths;
-    /* shared FAT-family datetime core (W4 dedup, AUDIT-FAT §6 row 20);
-     * clamped to the u32 props contract - dates past 2106 saturate to 0 */
-    const u64 secs = fat_datetime_to_unix_seconds(date, time);
-    return secs > 0xFFFFFFFFULL ? 0 : u32(secs);
+    /* N-173: the u32 clamp is GONE - the og's DosDateTimeToFileTime
+     * (FATSearchDLL :32135/:32144/:32151) converts the FULL FAT year
+     * field (<= 2107, year 127) with no 2106 cutoff, and the
+     * FileTimes contract is u64 (cr_types.h) - the stale "u32 props
+     * contract" comment described a contract that never existed. The
+     * shared core (W4 dedup, AUDIT-FAT §6 row 20) still returns 0 for
+     * the INVALID-date class (month 0/13, day 0/32 - the N-021 zero-
+     * FileTime semantics preserved exactly); the exFAT sibling
+     * (exfat_time_to_unix100) already had no clamp - the two FAT-family
+     * decoders now agree. */
+    return fat_datetime_to_unix_seconds(date, time);
 }
 
 } // namespace fat

@@ -284,3 +284,13 @@ MATCH.
   DeletedFirstCharPlaceholderIsHash + DeletedLfnChecksumRecoversOriginalByte + the
   re-pinned #EL.TXT family (the placeholder sorts FIRST at 0x23 — the cr_ui
   name-paging order re-derived).
+
+- **N-173 FIXED** (session-43): the u32 date clamp dropped — fat_date_to_unix
+  returns u64 end-to-end (the og's DosDateTimeToFileTime has no 2106 cutoff; the
+  FileTimes contract was always u64; the stale comment described a contract that
+  never existed). The N-021 invalid-date zero-FileTime semantics preserved exactly
+  (0 is now ONLY the invalid class). The FAT/exFAT decoder agreement restored
+  (both ride the shared unclamped core). Pins: Date2107ConvertsFullyNoClamp (the
+  0xFF9F/2107-12-31 value, the 0xFFFFFFFE boundary, the 0x100000000 regression
+  step) + Date2107EndToEndFileTimeIsReal. The finding's 0xFFBF example word
+  corrected (it decodes 2107-11-31 — invalid; 0xFF9F is 2107-12-31).

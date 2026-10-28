@@ -113,7 +113,7 @@ struct LfnEntry {
 static_assert(sizeof(LfnEntry) == 32);
 
 /* FAT date/time -> unix seconds helpers (pure). */
-u32 fat_date_to_unix(u16 date, u16 time, u8 tenths);
+u64 fat_date_to_unix(u16 date, u16 time, u8 tenths); /* N-173: u64 - no 2106 clamp */
 
 /* Shared FAT-family datetime core (W4 dedup, AUDIT-FAT §6 row 20): both the
  * FAT engine (cr_lfn.cpp) and the exFAT engine (cr_exfat_quick.cpp) pack

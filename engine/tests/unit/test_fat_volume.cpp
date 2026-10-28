@@ -2130,3 +2130,47 @@ TEST(FatEngine, DeletedLfnChecksumRecoversOriginalByte) {
     EXPECT_NE(first, u8('#')) << "never the placeholder";
     EXPECT_EQ(got_chk, chk);
 }
+
+TEST(FatEngine, Date2107ConvertsFullyNoClamp) {
+    /* N-173: the FAT year field reaches 2107 (year 127); the og's
+     * DosDateTimeToFileTime (FATSearchDLL :32135/:32144/:32151) converts
+     * the full range with no 2106 cutoff. The pre-fix core clamped unix
+     * seconds to u32 - dates past 2106-02-07 06:28:15 collapsed to 0
+     * (the invalid 1601 FileTime). The clamp is gone; the u64 path
+     * converts the FAT-legal maximum. (The finding's example word
+     * 0xFFBF decodes 2107-11-31 - day 31 of November, an INVALID date;
+     * the true 2107-12-31 word is 0xFF9F - the correction recorded in
+     * the Resolution.) */
+    /* 2107-12-31 12:00:00 = unix 4354776000 (past u32) */
+    EXPECT_EQ(fat_date_to_unix(0xFF9F, 0x6000, 0), 4354776000ULL);
+    /* the exact u32 boundary: 2106-02-07 06:28:14 = 0xFFFFFFFE */
+    EXPECT_EQ(fat_date_to_unix(0xFC47, 0x3387, 0), 0xFFFFFFFEULL);
+    /* one step past the boundary: 2106-02-07 06:28:16 = 0x100000000 -
+     * the pre-fix clamp returned 0 here (the regression pin) */
+    EXPECT_EQ(fat_date_to_unix(0xFC47, 0x3388, 0), 0x100000000ULL);
+    /* the N-021 invalid class is UNCHANGED: 0 stays exactly the
+     * zero-date/month-13/day-0 class, never a clamped valid date */
+    EXPECT_EQ(fat_date_to_unix(0x0000, 0x6000, 0), 0u);
+    EXPECT_EQ(fat_date_to_unix(0x01A1, 0x6000, 0), 0u); /* month 13 */
+    EXPECT_EQ(fat_date_to_unix(0x0020, 0x6000, 0), 0u); /* day 0 */
+}
+
+TEST(FatEngine, Date2107EndToEndFileTimeIsReal) {
+    /* N-173 end-to-end: a live dentry dated 2107-12-31 carries the REAL
+     * FileTime (unix 4354776000 * 1e7 + the epoch), not the zero/1601
+     * emission the pre-fix clamp produced. */
+    auto img = build_fat16_image_with_bad_dates(0xFF9F, 0x01A1, 0x0020);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    tree::FileNode* z = find_node(tree, "ZERODAT.TXT");
+    ASSERT_NE(z, nullptr) << "the 2107-dated dentry must be a result";
+    EXPECT_EQ(z->props()->times.modified,
+              4354776000ULL * 10000000ULL + 116444736000000000ULL)
+        << "the 2107 date converts fully (the og has no cutoff)";
+}

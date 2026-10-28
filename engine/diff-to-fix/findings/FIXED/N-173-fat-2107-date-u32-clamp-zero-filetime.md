@@ -62,3 +62,10 @@ exceeds u32.
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-173 landing — post-push SHA in the ledger row and worklog entry)
+**Verified by:** `FatEngine.Date2107ConvertsFullyNoClamp` (the 2107-12-31 word 0xFF9F + 12:00 → unix 4354776000 — past u32, converted fully; the exact u32 boundary 2106-02-07 06:28:14 = 0xFFFFFFFE; one step past = 0x100000000 — the pre-fix clamp returned 0 there, the regression pin; the N-021 invalid class UNCHANGED: 0 stays exactly the zero/month-13/day-0 class), `FatEngine.Date2107EndToEndFileTimeIsReal` (a live 2107-dated dentry carries the real FileTime, not the 1601 emission). Suite 1273/1273 (linux-release).
+**Resolution notes:** The clamp dropped per the finding's step 1: `fat_date_to_unix` returns u64 (the signature in cr_fat_wire.h updated; the caller's lambda in cr_fat_quick.cpp now u64-clean) — the FileTimes contract was already u64 (cr_types.h:45-50), so the stale "u32 props contract" comment described a contract that never existed; the comment now records the N-173 truth. The N-021 zero-FileTime semantics are preserved exactly (the shared converter's 0-for-invalid return is the only zero source — a clamped valid date can no longer masquerade as invalid). The FAT/exFAT agreement restored: both decoders ride `fat_datetime_to_unix_seconds` with no clamp (the exFAT sibling never had one — the core-internal inconsistency closed). One finding correction recorded: the finding's example word 0xFFBF decodes 2107-11-31 (day 31 of November — an INVALID date, the N-021 class); the true 2107-12-31 word is 0xFF9F — the tests pin the corrected value.
