@@ -1225,6 +1225,65 @@ CR_UI_API uint32_t cr_ui_preview_metadata(cr_ui_preview* pv, cr_ui_metadata* out
 CR_UI_API uint32_t cr_ui_preview_unreadable(cr_ui_preview* pv, uint64_t* total_bytes,
                                             uint32_t* range_count);
 
+/* ---- thumbnail (M-102: the engine's ABI half; I-028 superset register) -----
+ * The og's results page fetches a 256-px thumbnail per image row through
+ * a dedicated worker (UIUX/10 §2; DRWUI :652395-652410) - host-side, but
+ * backed by engine-readable pixels. This is the equivalent surface: one
+ * bounded generation per node, synchronous (the async worker is host-side
+ * by the in-process doctrine, I-028). Output is DISPLAY-ORIENTED RGBA8
+ * (S-043: the EXIF orientation transform runs before the downscale).
+ *
+ * M-083: a successful generation promotes the node's grade to 2 ("high")
+ * - the og's grading side-effect (FUN_1402636e0 :422498-518: grade != 2
+ * -> FUN_140089630(node, 2)). The promotion never downgrades and is a
+ * no-op for already-high nodes (the setter's monotonic-max + sticky-2
+ * semantics are the node's own, og-exact). */
+
+/* Caps block mirroring the engine's ThumbnailCaps. NULL caps (or any
+ * zero field) = that default; nonzero values are validated by the same
+ * ranges the engine enforces (max_edge 1..8192, max_pixels/max_read/
+ * max_work nonzero, allow_embedded 0/1). */
+typedef struct cr_ui_thumbnail_caps {
+    uint32_t max_edge;       /* 0 = 256 (the og's GDI+ convention) */
+    uint64_t max_pixels;    /* 0 = 64 MP (decode-memory bomb guard) */
+    uint32_t max_read;      /* 0 = 32 MiB (input byte budget, M-080) */
+    uint32_t max_work;      /* 0 = 4 Mi fetch units (decoder work bound) */
+    uint32_t allow_embedded;/* 0 = ON (the EXIF fast path, M-080/D-105) */
+} cr_ui_thumbnail_caps;
+
+typedef struct cr_ui_thumbnail_info {
+    uint32_t width;             /* output dims (post-orientation, post-downscale) */
+    uint32_t height;
+    uint32_t bytes_needed;      /* width*height*4 - the two-call probe's answer */
+    char source_format[16];     /* jpeg|png|bmp|gif|tiff|psd|pnm|hdr|raw */
+    uint8_t from_embedded;      /* the EXIF fast path served it */
+    uint8_t truncated;          /* decoder-tolerated short stream (disclosed,
+                                 * never silent - the engine's Ok-but-truncated
+                                 * contract crosses the ABI verbatim) */
+    uint8_t _pad[2];
+} cr_ui_thumbnail_info;
+
+/* Generate one node's thumbnail. TWO-CALL pattern: rgba == NULL is the
+ * SIZE PROBE (the generation runs - dims depend on the decode - and
+ * info->bytes_needed carries the answer; pixels are discarded); then the
+ * caller allocates and calls again. rgba != NULL with rgba_cap too small
+ * returns 0x50030009 ERR_NO_MEMORY with bytes_needed set (nothing is
+ * partially written). Status mapping is the engine's verbatim:
+ * 0 = OK (info + pixels), 0x50030004 ERR_TRUNCATED never returned for
+ * thumbnails (the engine discloses truncation via info->truncated on
+ * Ok), 0x50030008 ERR_UNSUPPORTED for the named phase-2 refusals
+ * (info->source_format carries the family), other codes as the error
+ * table. caps == NULL = the defaults above. The device is the scan's
+ * device (the same pairing rule as cr_ui_preview_open_session). */
+CR_UI_API uint32_t cr_ui_thumbnail_generate(cr_ui_device* dev, cr_ui_session* sess,
+                                             uint64_t node_id,
+                                             const cr_ui_thumbnail_caps* caps, uint8_t* rgba,
+                                             uint32_t rgba_cap, cr_ui_thumbnail_info* info);
+
+/* The format-support probe (the engine's documented v1 matrix + the
+ * S-045 raw family): true for jpeg/png/bmp/gif/tiff/psd/pnm/hdr/raw. */
+CR_UI_API uint32_t cr_ui_thumbnail_format_supported(const char* utf8_format);
+
 /* ---- recovery ----------------------------------------------------------------
  * The CLI `recover` flow in-process: SafeWriter over an injected DestIo
  * (Win32 atomic temp+rename on Windows; a portable stdio equivalent on

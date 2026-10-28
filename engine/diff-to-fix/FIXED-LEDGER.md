@@ -19,20 +19,22 @@
 > blocks carry the resolution narrative; the per-file Resolution sections
 > live in history.
 
-**Counts:** 277 resolved findings (the batch-C-conform 276 `0872ac2`/`64a3b18` + **S-041 resolved-as-umbrella by the SA-10 lane** — the purge's 255 + every mid-flight landing through batch C + the convention conformances + S-041/N-101) · 98 with a fix-commit recorded in-file ·  *(the dated counts snapshots below are the parallel lanes' push-window history, kept per the 64a3b18 sweep)*
+**Counts:** 279 resolved findings (the batch-C-conform 276 `0872ac2`/`64a3b18` + **S-041 resolved-as-umbrella by the SA-10 lane** — the purge's 255 + every mid-flight landing through batch C + the convention conformances + S-041/N-101) · 98 with a fix-commit recorded in-file ·  *(the dated counts snapshots below are the parallel lanes' push-window history, kept per the 64a3b18 sweep)*
 **Counts:** 276 resolved findings (255 at the purge commit + the mid-flight parallel landings + the session-38 waves: N-116 `632d21e`, N-117/N-118/N-103 `954c386`, N-095/N-108/N-119 `e1e5124`, batch C N-104/N-097/N-102/N-123/N-101/N-120 fixed + N-099/N-106 FIXED-ALREADY `13245c0`; S-043 `b3938c8` moved its file into the re-created FIXED/ dir BEFORE this convention was readable - its row is pending, the next audit lane retires the file) · 98 with a fix-commit recorded in-file ·
 **Counts:** 279 resolved findings (…prior waves…; the session-38 registration batch D adds N-091/N-098 fixed + N-105 FIXED-ALREADY) · 98 with a fix-commit recorded in-file ·
+
+**Counts:** 270 resolved findings (255 at the purge commit + the mid-flight parallel landings absorbed at rebase: M-084/M-091 `16475b8`, N-092 `5ed862f`, N-124 `c75755d`, M-088 DFX-38, N-116 `632d21e`, N-117/N-118/N-103 `954c386`, N-095/N-108/N-119 `e1e5124` session-38 doc-truth batches A+B; S-043 `b3938c8` moved its file into the re-created FIXED/ dir BEFORE this convention was readable - its row is pending, the next audit lane retires the file) · 98 with a fix-commit recorded in-file ·
 
 **Counts (268, the prior window's snapshot):** 255 at the purge commit + the mid-flight parallel landings absorbed at rebase: M-084/M-091 `16475b8`, N-092 `5ed862f`, N-124 `c75755d`, M-088 DFX-38, N-116 `632d21e`, N-117/N-118/N-103 `954c386`, N-095/N-108/N-119 `e1e5124` session-38 doc-truth batches A+B.
 
 **Counts (265, the batch-A snapshot):** 255 at the purge commit + M-084/M-091 `16475b8`, N-092 `5ed862f`, N-124 `c75755d`, M-088 DFX-38, N-116 `632d21e` session-38, N-117/N-118/N-103 `954c386` session-38 doc-truth batch A.
 
 **Counts (264, the closing-fix lane's snapshot):** 255 at the purge commit + M-084/M-091 `16475b8`, N-092 `5ed862f`, N-124 `c75755d`, M-088 DFX-38, N-116 `632d21e` session-38; S-043 and M-080 re-created FIXED/ before the convention was readable - their files retired to history and their rows added by the closing-fix lane's reconciliation.
-**Counts:** 277 resolved findings (276 at the batch-C conform `0872ac2` + **S-041 resolved-as-umbrella by the SA-10 lane**; the purge's 255 + every mid-flight landing through batch C — N-116, N-117/N-118/N-103, N-095/N-108/N-119, N-104/N-097/N-102/N-123/N-101/N-120, N-099/N-106 — + S-043/M-080/M-085/S-047 conformed + S-041/N-101) · 98 with a fix-commit recorded in-file ·
+**Counts:** 279 resolved findings (276 at the batch-C conform `0872ac2` + **S-041 resolved-as-umbrella by the SA-10 lane**; the purge's 255 + every mid-flight landing through batch C — N-116, N-117/N-118/N-103, N-095/N-108/N-119, N-104/N-097/N-102/N-123/N-101/N-120, N-099/N-106 — + S-043/M-080/M-085/S-047 conformed + S-041/N-101) · 98 with a fix-commit recorded in-file ·
 
-**Counts:** 277 resolved findings (276 at the batch-C conform `0872ac2` + **S-041 resolved-as-umbrella by the SA-10 lane**; the purge's 255 + every mid-flight landing through batch C — N-116, N-117/N-118/N-103, N-095/N-108/N-119, N-104/N-097/N-102/N-123/N-101/N-120, N-099/N-106 — + S-043/M-080/M-085/S-047 conformed + S-041/N-101) · 98 with a fix-commit recorded in-file ·
+**Counts:** 279 resolved findings (276 at the batch-C conform `0872ac2` + **S-041 resolved-as-umbrella by the SA-10 lane**; the purge's 255 + every mid-flight landing through batch C — N-116, N-117/N-118/N-103, N-095/N-108/N-119, N-104/N-097/N-102/N-123/N-101/N-120, N-099/N-106 — + S-043/M-080/M-085/S-047 conformed + S-041/N-101) · 98 with a fix-commit recorded in-file ·
 
-**Counts:** 277 resolved findings (276 at the batch-C conform `0872ac2` + **S-041 resolved-as-umbrella by the SA-10 lane**; the purge's 255 + every mid-flight landing through batch C — N-116, N-117/N-118/N-103, N-095/N-108/N-119, N-104/N-097/N-102/N-123/N-101/N-120, N-099/N-106 — + S-043/M-080/M-085/S-047 conformed + S-041/N-101) · 98 with a fix-commit recorded in-file ·
+**Counts:** 279 resolved findings (276 at the batch-C conform `0872ac2` + **S-041 resolved-as-umbrella by the SA-10 lane**; the purge's 255 + every mid-flight landing through batch C — N-116, N-117/N-118/N-103, N-095/N-108/N-119, N-104/N-097/N-102/N-123/N-101/N-120, N-099/N-106 — + S-043/M-080/M-085/S-047 conformed + S-041/N-101) · 98 with a fix-commit recorded in-file ·
 **Ledger generated:** session SA-10B (2026-10-29), tree `62074bf`-lineage.
 
 | ID | Severity | Module | Fix commit (as recorded in-file) | Retired file (history path) |
@@ -137,6 +139,8 @@
 | M-070 | MAJOR |  | — | `findings/FIXED/M-070-stage-disk-param-type-coercion.md` |
 | M-071 | MAJOR |  | 69507cb | `findings/FIXED/M-071-m018-regression-junk-gates-lost.md` |
 | M-080 | MAJOR | preview | 5ccc0da | `findings/FIXED/M-080-thumbnail-budget-starves-photos.md` |
+| M-083 | MAJOR | preview/abi | (this landing) | `findings/MAJOR/M-083-thumbnail-grade-promotion-absent.md` |
+| M-102 | MAJOR | abi/preview | (this landing) | `findings/MAJOR/M-102-thumbnail-abi-export-absent-engine-landed.md` |
 | M-081 | MAJOR |  | 9e5dedc | `findings/FIXED/M-081-crw-misattributed-mrw-prd-gate.md` |
 | M-090 | MAJOR |  | 180053de0 | `findings/FIXED/M-090-dmg-footer-walk-and-cap-diverge-from-og.md` |
 | M-088 | MAJOR | ci/packaging (the FloorVersion pin split + the CI-shape doc cluster) | (this landing, DFX-38) | `findings/FIXED/M-088-floorversion-pin-split-and-stale-ci-docs.md` (full Resolution preserved in the retired file; the landing record + the doc_truth_gate evidence in worklog.md DFX-38/M-088) |

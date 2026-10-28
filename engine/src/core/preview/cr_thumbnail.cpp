@@ -1300,9 +1300,16 @@ ThumbStatus thumbnail_stb(PreviewReader& pr, const ThumbnailCaps& caps, Thumbnai
                                          : "hdr";
     const ThumbStatus st = finish_ok(out, rgba, u32(w), u32(h), caps.max_edge, name, false);
     /* the decoder tolerated a short stream (stb's JPEG zero-fill leniency):
-     * disclose it on the Ok result too - never a silent partial image */
+     * disclose it on the Ok result too - never a silent partial image.
+     * JPEG is the ONE lenient family: the strict decoders (png/bmp/gif/
+     * psd/pnm/hdr) refuse short streams outright, so their Ok proves the
+     * data complete - their post-parse EOF probes (reading past IEND to
+     * detect stream end, the stb API shape) are parse noise, never a data
+     * truncation. Reporting those as truncated would poison the
+     * disclosure signal (a complete PNG claiming truncation - the defect
+     * the M-102 ABI test's fail-before caught). */
     if (st == ThumbStatus::Ok)
-        out.truncated = src.hit_eof();
+        out.truncated = is_jpeg && src.hit_eof();
     return st;
 }
 

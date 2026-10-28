@@ -808,6 +808,27 @@ int main(int argc, char** argv) {
         }
     }
 
+    /* ---- thumbnail (M-102: the engine's ABI half) ---- */
+    {
+        /* the format probe: the v1 matrix true, the deferred false */
+        CHECK_EQ_U64(cr_ui_thumbnail_format_supported("jpeg"), 1u);
+        CHECK_EQ_U64(cr_ui_thumbnail_format_supported("png"), 1u);
+        CHECK_EQ_U64(cr_ui_thumbnail_format_supported("webp"), 0u);
+        CHECK_EQ_U64(cr_ui_thumbnail_format_supported(NULL), CR_UI_ERR_BAD_PARAMETER);
+        /* the two-call pattern on the text node: the named refusal carries
+         * the family (DOC.TXT is not an image - the honest Unsupported) */
+        {
+            cr_ui_thumbnail_info ti;
+            memset(&ti, 0, sizeof(ti));
+            CHECK_EQ_U64(cr_ui_thumbnail_generate(dev, sess, doc_node_id, NULL, NULL, 0, &ti),
+                         CR_UI_ERR_UNSUPPORTED);
+            CHECK_EQ_U64(cr_ui_thumbnail_generate(NULL, sess, doc_node_id, NULL, NULL, 0, &ti),
+                         CR_UI_ERR_BAD_PARAMETER);
+            CHECK_EQ_U64(cr_ui_thumbnail_generate(dev, NULL, doc_node_id, NULL, NULL, 0, &ti),
+                         CR_UI_ERR_BAD_PARAMETER);
+        }
+    }
+
     /* ---- recovery (subtree = the CLI `recover` walk) ---- */
     snprintf(dest_dir, sizeof(dest_dir), "%s.dest", img);
     {

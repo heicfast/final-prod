@@ -2470,3 +2470,42 @@ S-044 lane's rider), reproduction in the Resolution.
 Batch D conform: N-091/N-098/N-105 retired into history, ledger rows appended, matrix
 rows flipped, SUMMARY board updated. Filesystem truth: 47 active (6 SEVERE · 22 MAJOR ·
 14 MINOR · 5 INFO) / 279 resolved / 2 tracked-open. Session-38 tally: 21 findings closed.
+
+---
+Task ID: FIX-T5 (M-102 + M-083 closed)
+Agent: lead fix session (closing-fix lane)
+
+Work Log:
+- M-102 verified: zero cr_ui thumbnail symbols at HEAD (the engine's
+  20+ tests validated a surface no C host could call). M-083 verified:
+  zero grading references in cr_thumbnail.cpp; the og's promotion quote
+  (:422498-518) re-read from the evidence file. Both CONFIRMED.
+- Fix (one coherent surface): cr_ui_thumbnail_generate (two-call: rgba
+  NULL = the size probe - the decode runs because dims depend on it;
+  too-small buffer = 0x50030009 with bytes_needed, nothing partial) +
+  cr_ui_thumbnail_format_supported. Caps mirror ThumbnailCaps with
+  per-field zero-defaults. Reader follows the preview's F-1 basis rule.
+  M-083's promotion wired at the ABI success path (the finding's own
+  recommended seam): grade != High -> set_grade(High); the node setter
+  IS the og's FUN_140089630 semantics (monotonic-max, sticky-2).
+- DISCOVERED-DURING-FIX (engine truth defect, fixed root-cause): the
+  engine reported truncated=1 for COMPLETE PNGs (stb's post-parse EOF
+  probe poisons the disclosure). JPEG is the one lenient family; the
+  strict decoders' Ok proves completeness -> out.truncated now gates on
+  is_jpeg && hit_eof; pinned by the engine test (the first test version
+  was VACUOUS for the grade promotion - existing files grade 2 at insert
+  - restructured to the DELETED-PNG shape so the below-2 start is real).
+- Tests: 4 ABI tests (TwoCallPattern, TruncationDisclosed,
+  UnsupportedFormat, SuccessPromotesGradeTo2 with the deleted-PNG
+  fixture + the failed-generation-never-promotes control +
+  idempotence) + the ui_abi_check.c C-consumer block. Fail-before:
+  the grade promotion patched out -> RED; restored -> GREEN. The ABI
+  tests do not compile without the export (M-102's own impact proof).
+- Docs: ABI-CONTRACT §7i (the thumbnail contract), CORE-API-CURRENT
+  count sites (83 exports), API-DELTA 17b row. Trail: both Resolutions
+  recorded, files retired to history with ledger rows (270 resolved).
+
+Stage Summary:
+- The thumbnail family is now fully closed at every layer (engine, ABI,
+  grading side-effect). Territory remaining: M-079 (auto-save label),
+  S-040 (image create). Next parallel pull before starting S-040.

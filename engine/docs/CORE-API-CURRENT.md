@@ -10,7 +10,7 @@
 > [API.md](API.md), [API-SURFACE-AUDIT.md](API-SURFACE-AUDIT.md), [ABI-CONTRACT.md](ABI-CONTRACT.md).
 
 **Headline counts**: C++ public headers 82 under `include/cr/**`; C ABI **78 exports**
-(`grep -c CR_UI_API include/cr/cr_ui.h` = 81 minus 2 macro lines; 78
+(`grep -c CR_UI_API include/cr/cr_ui.h` = 86 minus 3 macro lines; 83
 `extern "C" CR_UI_API` definitions in src/ui/cr_ui.cpp); CLI **11 verbs**
 (rrecov.cpp:3043-3063 — list, list-carve-formats, sessions, scan, tree, recover,
 health, fix, apply, bench, driver); error codes **34 + OK**; errmod modules **13**; ABI event types
@@ -35,7 +35,7 @@ health, fix, apply, bench, driver); error codes **34 + OK**; errmod modules **13
 > closed by the 8-step classifier + `cr_ui_driver_status` + the ABI error
 > family. The b.2 row "RDA-first with direct fallback" is likewise
 > superseded (classified ERR_DRIVER_* refusal, no fallback). Current
-> counts: 81 exports / 11 verbs / 39+OK error codes.
+> counts: 83 exports / 11 verbs / 39+OK error codes.
 > Current contract docs: [ABI-CONTRACT.md](ABI-CONTRACT.md),
 > [DRIVER-REQUIRED.md](DRIVER-REQUIRED.md), [API.md](API.md).
 ---

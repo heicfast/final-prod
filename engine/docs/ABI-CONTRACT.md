@@ -578,6 +578,44 @@ Contract:
 - ABI stability: appended config field + appended stats field + appended
   event type + appended event-struct tail = NO version bump (§9).
 
+### 7i. The thumbnail surface (M-102; M-083's grade promotion)
+
+The og's results page fetches a 256-px thumbnail per image row through a
+dedicated worker (UIUX/10 §2; the GDI+ width-derived 256-px convention,
+DRWUI :652395-652410). This is the engine's equivalent: one bounded,
+synchronous generation per node (`cr_ui_thumbnail_generate`), display-
+oriented RGBA8 output (S-043: the EXIF orientation transform runs before
+the downscale), the format probe (`cr_ui_thumbnail_format_supported`).
+
+Contract:
+- TWO-CALL pattern: `rgba == NULL` is the size probe — the generation
+  runs (output dims depend on the decode), `cr_ui_thumbnail_info::
+  bytes_needed` carries the answer, pixels are discarded. A too-small
+  buffer returns 0x50030009 ERR_NO_MEMORY with `bytes_needed` set and
+  nothing partially written.
+- Caps: `NULL` (or any zero field) = the engine default for that field;
+  nonzero values ride the engine's own validation. Defaults: max_edge
+  256, max_pixels 64 MP, max_read 32 MiB (M-080), max_work 1<<22,
+  allow_embedded ON.
+- Truncation is DATA, not an error: the engine's Ok-but-truncated
+  contract crosses the ABI verbatim via `info.truncated` (stb's JPEG
+  zero-fill leniency is the one Ok-with-short-input family; the strict
+  decoders' Ok proves completeness — the post-parse EOF probe is parse
+  noise, never reported).
+- Status mapping is verbatim the engine's names onto the shared numeric
+  space: Unsupported (the named phase-2 families — `info.source_format`
+  carries the family), DecodeFailed → 0x50030004 ERR_TRUNCATED,
+  UnreadableSpan → ERR_READ_FAILED, the caps refusals → ERR_UNSUPPORTED.
+- M-083 (the og's grading side-effect, FUN_1402636e0 :422498-518): a
+  successful generation promotes the node's grade to 2 ("high") — never
+  downgrades, no-op for already-high nodes (the node setter's
+  monotonic-max + sticky-2 semantics are the og's own, FUN_140089630).
+  Failed generations never promote. The promotion is observable through
+  `cr_ui_query_run`'s `grade` row field and persists through session
+  save/load (the S-023 serialization).
+- No version bump: appended exports + new structs, no existing shape
+  touched (§9).
+
 ## 8. SQLite session index — REJECTED-BY-REFERENCE (closed GAP-S6-12)
 
 **This section previously specified a queryable SQLite sidecar index

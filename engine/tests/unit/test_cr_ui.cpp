@@ -3303,3 +3303,272 @@ TEST(CrUi, CliHelpListsEveryDispatchedVerb) {
         line = end;
     }
 }
+
+
+/* ---- M-102/M-083: the thumbnail ABI ---- */
+
+namespace {
+
+/* the 32x24 quadrant image (TL red / TR green / BL blue / BR yellow) as a
+ * PNG (exact colors) and a 45%-truncated JPEG (the disclosure case), both
+ * embedded so the cr_ui suite is self-contained (the thumbnail engine's
+ * file fixtures are staged beside cr_tests, not cr_ui_tests) */
+static const unsigned char kQuad32x24Png[] = {
+    137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,32,
+    0,0,0,24,8,2,0,0,0,20,49,104,99,0,0,0,55,73,68,65,
+    84,120,156,99,252,207,64,26,96,36,81,3,19,137,230,147,12,70,45,24,
+    181,96,212,130,225,96,1,35,3,3,105,133,203,255,255,140,36,169,31,250,
+    65,52,106,193,168,5,163,22,208,193,2,0,9,177,5,44,229,141,103,181,
+    0,0,0,0,73,69,78,68,174,66,96,130,
+};
+
+/* the same image as JPEG-90, cut at 45%: 344 of 766 bytes - stb's zero-fill leniency decodes it Ok; the contract REQUIRES the truncated disclosure */
+static const unsigned char kQuad32x24JpgTrunc[] = {
+    255,216,255,224,0,16,74,70,73,70,0,1,1,0,0,1,0,1,0,0,
+    255,219,0,67,0,3,2,2,3,2,2,3,3,3,3,4,3,3,4,5,
+    8,5,5,4,4,5,10,7,7,6,8,12,10,12,12,11,10,11,11,13,
+    14,18,16,13,14,17,14,11,11,16,22,16,17,19,20,21,21,21,12,15,
+    23,24,22,20,24,18,20,21,20,255,219,0,67,1,3,4,4,5,4,5,
+    9,5,5,9,20,13,11,13,20,20,20,20,20,20,20,20,20,20,20,20,
+    20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,
+    20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,255,192,
+    0,17,8,0,24,0,32,3,1,34,0,2,17,1,3,17,1,255,196,0,
+    31,0,0,1,5,1,1,1,1,1,1,0,0,0,0,0,0,0,0,1,
+    2,3,4,5,6,7,8,9,10,11,255,196,0,181,16,0,2,1,3,3,
+    2,4,3,5,5,4,4,0,0,1,125,1,2,3,0,4,17,5,18,33,
+    49,65,6,19,81,97,7,34,113,20,50,129,145,161,8,35,66,177,193,21,
+    82,209,240,36,51,98,114,130,9,10,22,23,24,25,26,37,38,39,40,41,
+    42,52,53,54,55,56,57,58,67,68,69,70,71,72,73,74,83,84,85,86,
+    87,88,89,90,99,100,101,102,103,104,105,106,115,116,117,118,119,120,121,122,
+    131,132,133,134,135,136,137,138,146,147,148,149,150,151,152,153,154,162,163,164,
+    165,166,167,168,
+};
+
+/* sizes: png=112 jpg=766 trunc=344 */
+
+/* a FAT16 carrying ONE real image: the quadrant PNG at cluster 40 */
+std::vector<unsigned char> build_fat16_png() {
+    auto img = build_fat16();
+    const size_t need = (sizeof(kQuad32x24Png) + 511) / 512;
+    for (size_t i = 0; i < need; ++i)
+        put16(img, kFAT1 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i),
+            put16(img, kFAT2 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i);
+    dentry(img, 3, "LOGO    PNG", 0x20, 40, (unsigned long)sizeof(kQuad32x24Png), false);
+    std::memcpy(img.data() + kDATA + (40 - 2) * 512, kQuad32x24Png, sizeof(kQuad32x24Png));
+    return img;
+}
+
+/* the PNG as a DELETED entry (0xE5): deleted non-carved files fall to
+ * the generic grading path (below 2), so the M-083 promotion is
+ * observable - existing files grade 2 at insert (FUN_14037a8a0) and
+ * would make the test vacuous */
+std::vector<unsigned char> build_fat16_png_deleted() {
+    auto img = build_fat16();
+    const size_t need = (sizeof(kQuad32x24Png) + 511) / 512;
+    for (size_t i = 0; i < need; ++i)
+        put16(img, kFAT1 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i),
+            put16(img, kFAT2 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i);
+    dentry(img, 3, "LOGO    PNG", 0x20, 40, (unsigned long)sizeof(kQuad32x24Png), true);
+    std::memcpy(img.data() + kDATA + (40 - 2) * 512, kQuad32x24Png, sizeof(kQuad32x24Png));
+    return img;
+}
+
+/* the same shape with the truncated JPEG as LOGO2.JPG */
+std::vector<unsigned char> build_fat16_jpg_trunc() {
+    auto img = build_fat16();
+    const size_t need = (sizeof(kQuad32x24JpgTrunc) + 511) / 512;
+    for (size_t i = 0; i < need; ++i)
+        put16(img, kFAT1 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i),
+            put16(img, kFAT2 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i);
+    dentry(img, 3, "LOGO2   JPG", 0x20, 40, (unsigned long)sizeof(kQuad32x24JpgTrunc), false);
+    std::memcpy(img.data() + kDATA + (40 - 2) * 512, kQuad32x24JpgTrunc,
+                sizeof(kQuad32x24JpgTrunc));
+    return img;
+}
+
+bool scan_img_to_session(const char* tag, const std::vector<unsigned char>& bytes, Ui& u,
+                          std::string& img_out, std::string& crsf_out) {
+    img_out = cr_test::tmp_path("cr_ui", tag);
+    FILE* f = std::fopen(img_out.c_str(), "wb");
+    if (!f)
+        return false;
+    const size_t n = std::fwrite(bytes.data(), 1, bytes.size(), f);
+    std::fclose(f);
+    if (n != bytes.size())
+        return false;
+    if (cr_ui_open_image(img_out.c_str(), 0, 0, &u.dev) != CR_UI_OK)
+        return false;
+    cr_ui_scan_config cfg{};
+    cfg.progress = progress_cb;
+    cfg.progress_user = &g_progress_calls;
+    if (cr_ui_scan_create(&cfg, &u.scan) != CR_UI_OK)
+        return false;
+    if (cr_ui_scan_attach_device(u.scan, u.dev) != CR_UI_OK)
+        return false;
+    if (cr_ui_scan_run(u.scan) != CR_UI_OK)
+        return false;
+    crsf_out = img_out + ".crsf";
+    if (cr_ui_scan_save_session(u.scan, crsf_out.c_str()) != CR_UI_OK)
+        return false;
+    cr_ui_scan_close(u.scan);
+    u.scan = nullptr;
+    if (cr_ui_session_load(crsf_out.c_str(), &u.sess) != CR_UI_OK)
+        return false;
+    return true;
+}
+
+/* the node's current grade through the query surface */
+uint32_t grade_of(cr_ui_session* sess, const char* name) {
+    cr_ui_query q{};
+    q.name_substring = name;
+    q.limit = 50;
+    cr_ui_query_row* rows = nullptr;
+    uint32_t n = 0;
+    uint64_t total = 0;
+    if (cr_ui_query_run(sess, &q, &rows, &n, &total) != CR_UI_OK)
+        return 0xFFFFFFFFu;
+    uint32_t g = 0xFFFFFFFFu;
+    for (uint32_t i = 0; i < n; ++i)
+        if (std::strcmp(rows[i].name, name) == 0)
+            g = rows[i].grade;
+    cr_ui_query_rows_free(rows, n);
+    return g;
+}
+
+} // namespace
+
+TEST(CrUi, ThumbnailTwoCallPattern) {
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_img_to_session("thumb2c", build_fat16_png(), u, img, crsf));
+    const uint64_t logo = query_node_id(u.sess, "LOGO.PNG");
+    ASSERT_NE(logo, 0u);
+
+    /* call 1: the size probe (rgba NULL) */
+    cr_ui_thumbnail_info info{};
+    ASSERT_EQ(cr_ui_thumbnail_generate(u.dev, u.sess, logo, nullptr, nullptr, 0, &info),
+              CR_UI_OK);
+    EXPECT_EQ(32u, info.width);
+    EXPECT_EQ(24u, info.height);
+    EXPECT_EQ(32u * 24u * 4u, info.bytes_needed);
+    EXPECT_EQ(0u, info.from_embedded);
+    EXPECT_EQ(0u, info.truncated);
+    EXPECT_STREQ("png", info.source_format);
+
+    /* too-small buffer: the named refusal with the answer preserved */
+    std::vector<uint8_t> small(16, 0xAA);
+    cr_ui_thumbnail_info info2{};
+    EXPECT_EQ(cr_ui_thumbnail_generate(u.dev, u.sess, logo, nullptr, small.data(), 16, &info2),
+              0x50030009u);
+    EXPECT_EQ(32u * 24u * 4u, info2.bytes_needed);
+
+    /* call 2: the fill - the quadrant corners are exact (PNG, lossless) */
+    std::vector<uint8_t> px(info.bytes_needed, 0);
+    cr_ui_thumbnail_info info3{};
+    ASSERT_EQ(cr_ui_thumbnail_generate(u.dev, u.sess, logo, nullptr, px.data(),
+                                       uint32_t(px.size()), &info3),
+              CR_UI_OK);
+    ASSERT_EQ(px.size(), size_t(info3.width) * info3.height * 4u);
+    auto at = [&](uint32_t x, uint32_t y) {
+        return px.data() + (size_t(y) * info3.width + x) * 4;
+    };
+    EXPECT_EQ(255, at(2, 2)[0]);
+    EXPECT_EQ(0, at(2, 2)[1]);
+    EXPECT_EQ(0, at(29, 2)[0]);
+    EXPECT_EQ(255, at(29, 2)[1]);
+    EXPECT_EQ(255, at(2, 21)[2]); /* BL quadrant is BLUE */
+    EXPECT_EQ(255, at(29, 21)[0]);
+    EXPECT_EQ(255, at(29, 21)[1]);
+    EXPECT_EQ(255, at(2, 2)[3]);  /* opaque */
+
+    /* the caps pass-through: max_edge 8 downscale to 8x6 */
+    {
+        cr_ui_thumbnail_caps caps{};
+        caps.max_edge = 8;
+        cr_ui_thumbnail_info info8{};
+        ASSERT_EQ(cr_ui_thumbnail_generate(u.dev, u.sess, logo, &caps, nullptr, 0, &info8),
+                  CR_UI_OK);
+        EXPECT_EQ(8u, info8.width);
+        EXPECT_EQ(6u, info8.height);
+    }
+}
+
+TEST(CrUi, ThumbnailTruncationDisclosed) {
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_img_to_session("thumbtr", build_fat16_jpg_trunc(), u, img, crsf));
+    const uint64_t logo = query_node_id(u.sess, "LOGO2.JPG");
+    ASSERT_NE(logo, 0u);
+    cr_ui_thumbnail_info info{};
+    const uint32_t rc =
+        cr_ui_thumbnail_generate(u.dev, u.sess, logo, nullptr, nullptr, 0, &info);
+    /* stb's zero-fill leniency: Ok + truncated=1, or the honest refusal -
+     * either way the truncation is NEVER silent (both carry the flag/row) */
+    if (rc == CR_UI_OK) {
+        EXPECT_EQ(1u, info.truncated) << "Ok-with-truncation must disclose it";
+        EXPECT_STREQ("jpeg", info.source_format);
+    } else {
+        EXPECT_EQ(0x50030004u, rc) << "a refused decode is ERR_TRUNCATED";
+        EXPECT_EQ(1u, info.truncated);
+    }
+}
+
+TEST(CrUi, ThumbnailUnsupportedFormat) {
+    /* the format probe: the v1 matrix true, the deferred families false */
+    EXPECT_EQ(1u, cr_ui_thumbnail_format_supported("jpeg"));
+    EXPECT_EQ(1u, cr_ui_thumbnail_format_supported("png"));
+    EXPECT_EQ(1u, cr_ui_thumbnail_format_supported("tiff"));
+    EXPECT_EQ(1u, cr_ui_thumbnail_format_supported("raw"));
+    EXPECT_EQ(0u, cr_ui_thumbnail_format_supported("webp"));
+    EXPECT_EQ(0u, cr_ui_thumbnail_format_supported("heic"));
+    EXPECT_EQ(0u, cr_ui_thumbnail_format_supported(""));
+    EXPECT_EQ(0x50030003u, cr_ui_thumbnail_format_supported(nullptr));
+
+    /* a text file refuses by format through the generate surface */
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_to_session("thumbun", u, img, crsf));
+    const uint64_t doc = query_node_id(u.sess, "DOC.TXT");
+    ASSERT_NE(doc, 0u);
+    cr_ui_thumbnail_info info{};
+    EXPECT_EQ(cr_ui_thumbnail_generate(u.dev, u.sess, doc, nullptr, nullptr, 0, &info),
+              0x50030008u);
+}
+
+TEST(CrUi, ThumbnailSuccessPromotesGradeTo2) {
+    Ui u;
+    std::string img, crsf;
+    /* the DELETED-PNG fixture: deleted non-carved files take the generic
+     * grading path (below 2), so the promotion is observable */
+    ASSERT_TRUE(scan_img_to_session("thumbgr", build_fat16_png_deleted(), u, img, crsf));
+    const uint64_t logo = query_node_id(u.sess, "_OGO.PNG"); /* 0xE5 renders as _ */
+    const uint64_t doc_id = query_node_id(u.sess, "DOC.TXT");
+    ASSERT_NE(logo, 0u) << "the deleted PNG must be a result row";
+    ASSERT_NE(doc_id, 0u);
+    const uint32_t g0 = grade_of(u.sess, "_OGO.PNG");
+    ASSERT_NE(g0, 0xFFFFFFFFu);
+    ASSERT_LT(g0, 2u) << "precondition: the deleted non-carved node starts below 2 "
+                         "(otherwise the promotion test is vacuous)";
+    const uint32_t gdoc = grade_of(u.sess, "DOC.TXT");
+    ASSERT_NE(gdoc, 0xFFFFFFFFu);
+
+    /* a FAILED thumbnail never promotes: the text node's grade is the
+     * control that must not move */
+    cr_ui_thumbnail_info info{};
+    ASSERT_EQ(cr_ui_thumbnail_generate(u.dev, u.sess, doc_id, nullptr, nullptr, 0, &info),
+              0x50030008u);
+    EXPECT_EQ(gdoc, grade_of(u.sess, "DOC.TXT"));
+
+    /* M-083: the og's grading side-effect - thumbnail success promotes
+     * the node to grade 2 (FUN_1402636e0 :422498-518), never downgrades,
+     * and leaves other nodes alone */
+    ASSERT_EQ(cr_ui_thumbnail_generate(u.dev, u.sess, logo, nullptr, nullptr, 0, &info),
+              CR_UI_OK);
+    EXPECT_EQ(2u, grade_of(u.sess, "_OGO.PNG"));
+    EXPECT_EQ(gdoc, grade_of(u.sess, "DOC.TXT")) << "unrelated nodes keep their grade";
+
+    /* idempotence: already-grade-2 nodes are a no-op (the != 2 guard) */
+    ASSERT_EQ(cr_ui_thumbnail_generate(u.dev, u.sess, logo, nullptr, nullptr, 0, &info),
+              CR_UI_OK);
+    EXPECT_EQ(2u, grade_of(u.sess, "_OGO.PNG"));
+}

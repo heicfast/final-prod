@@ -30,6 +30,7 @@
 #include "cr/carve/cr_usersigns.h"
 #include "cr/tree/cr_diskmap.h"
 #include "cr/preview/cr_preview.h"
+#include "cr/preview/cr_thumbnail.h"
 #include "cr/query/cr_query.h"
 #include "cr/recovery/cr_report.h"
 #include "cr/recovery/cr_safewriter.h"
@@ -3651,6 +3652,131 @@ extern "C" CR_UI_API uint32_t cr_ui_preview_metadata(cr_ui_preview* pv, cr_ui_me
 extern "C" CR_UI_API uint32_t cr_ui_preview_unreadable(cr_ui_preview* pv, uint64_t* total_bytes,
                                                        uint32_t* range_count) {
     return guarded(preview_unreadable_impl, pv, total_bytes, range_count);
+}
+
+/* =========================================================================
+ * thumbnail (M-102: the engine's ABI half; M-083: the grade promotion)
+ * ========================================================================= */
+
+namespace {
+
+/* the engine status -> the ABI error space (the engine's own names map
+ * 1:1 onto the shared numeric space; truncation is DATA, not an error -
+ * it crosses via cr_ui_thumbnail_info.truncated on Ok) */
+u32 thumb_status_to_abi(preview::ThumbStatus st) {
+    switch (st) {
+    case preview::ThumbStatus::Ok:
+        return 0;
+    case preview::ThumbStatus::BadParameter:
+        return ERR_BAD_PARAMETER;
+    case preview::ThumbStatus::Unsupported:
+        return ERR_UNSUPPORTED;
+    case preview::ThumbStatus::Oversized:
+    case preview::ThumbStatus::BudgetExceeded:
+        return ERR_UNSUPPORTED; /* named refusal: the caps refused the input */
+    case preview::ThumbStatus::DecodeFailed:
+        return ERR_TRUNCATED;  /* damaged stream (truncated set by engine) */
+    case preview::ThumbStatus::UnreadableSpan:
+        return ERR_READ_FAILED;
+    }
+    return ERR_INTERNAL;
+}
+
+u32 thumbnail_generate_impl(cr_ui_device* dev, cr_ui_session* sess, uint64_t node_id,
+                            const cr_ui_thumbnail_caps* caps, uint8_t* rgba, uint32_t rgba_cap,
+                            cr_ui_thumbnail_info* info) {
+    if (!dev || !sess || !info)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: dev/sess/info");
+    auto* d = reinterpret_cast<CrDevice*>(dev);
+    auto* s = reinterpret_cast<CrSession*>(sess);
+    tree::FileNode* node = find_node(s->tree, node_id);
+    if (!node)
+        return ret_(ERR_BAD_PARAMETER, "node id %llu not found in the session tree",
+                    static_cast<unsigned long long>(node_id));
+    if (!node->props())
+        return ret_(ERR_BAD_PARAMETER, "node has no content properties");
+    if (node->is_full())
+        return ret_(ERR_BAD_PARAMETER, "root/virtual nodes have no thumbnailable content");
+
+    /* caps: every zero field = the engine default (the header contract);
+     * nonzero values ride the engine's own validation (BadParameter) */
+    preview::ThumbnailCaps ecaps;
+    if (caps) {
+        if (caps->max_edge != 0)
+            ecaps.max_edge = caps->max_edge;
+        if (caps->max_pixels != 0)
+            ecaps.max_pixels = caps->max_pixels;
+        if (caps->max_read != 0)
+            ecaps.max_read = caps->max_read;
+        if (caps->max_work != 0)
+            ecaps.max_work = caps->max_work;
+        if (caps->allow_embedded != 0)
+            ecaps.allow_embedded = caps->allow_embedded != 0;
+    }
+
+    /* the reader mirrors the preview surface (F-1: extents are absolute
+     * - reads through the PARENT disk when the scan device is a volume
+     * slice, the same basis rule as the preview reader and the recovery
+     * writer) */
+    IStorageDevice* src = d->dev.get();
+    if (d->volume_len != 0 && d->hold)
+        src = d->hold.get();
+    preview::PreviewReader reader(src, node->props());
+    preview::Thumbnail thumb;
+    const preview::ThumbStatus st = preview::make_thumbnail(reader, ecaps, thumb);
+    std::memset(info, 0, sizeof(*info));
+    if (st != preview::ThumbStatus::Ok) {
+        /* the named refusals carry the family for diagnostics */
+        std::snprintf(info->source_format, sizeof(info->source_format), "%s",
+                      thumb.source_format.c_str());
+        info->truncated = thumb.truncated ? 1 : 0;
+        return ret_(thumb_status_to_abi(st), "thumbnail %s",
+                    preview::thumbnail_status_name(st));
+    }
+
+    /* M-083: the og's grading side-effect - thumbnail success promotes
+     * the node to grade 2 (FUN_1402636e0 :422498-518: grade != 2 ->
+     * FUN_140089630(node, 2)); the node setter's monotonic-max + sticky-2
+     * semantics ARE the og's, so a no-op for already-high nodes */
+    if (node->grade() != tree::Grade::High)
+        node->set_grade(tree::Grade::High);
+
+    info->width = thumb.width;
+    info->height = thumb.height;
+    info->bytes_needed = thumb.width * thumb.height * 4u;
+    std::snprintf(info->source_format, sizeof(info->source_format), "%s",
+                  thumb.source_format.c_str());
+    info->from_embedded = thumb.from_embedded ? 1 : 0;
+    info->truncated = thumb.truncated ? 1 : 0;
+    if (rgba == nullptr)
+        return ret_ok(); /* the size probe: pixels discarded by design */
+    if (rgba_cap < info->bytes_needed) {
+        info->bytes_needed = thumb.width * thumb.height * 4u; /* keep the answer */
+        return ret_(ERR_NO_MEMORY, "rgba buffer %u < %u needed", rgba_cap,
+                    info->bytes_needed);
+    }
+    std::memcpy(rgba, thumb.rgba.data(), size_t(info->bytes_needed));
+    return ret_ok();
+}
+
+u32 thumbnail_format_supported_impl(const char* utf8_format) {
+    if (!utf8_format)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: utf8_format");
+    return preview::thumbnail_format_supported(utf8_format) ? 1u : 0u;
+}
+
+} // namespace
+
+extern "C" CR_UI_API uint32_t cr_ui_thumbnail_generate(cr_ui_device* dev, cr_ui_session* sess,
+                                                       uint64_t node_id,
+                                                       const cr_ui_thumbnail_caps* caps,
+                                                       uint8_t* rgba, uint32_t rgba_cap,
+                                                       cr_ui_thumbnail_info* info) {
+    return guarded(thumbnail_generate_impl, dev, sess, node_id, caps, rgba, rgba_cap, info);
+}
+
+extern "C" CR_UI_API uint32_t cr_ui_thumbnail_format_supported(const char* utf8_format) {
+    return guarded(thumbnail_format_supported_impl, utf8_format);
 }
 
 /* =========================================================================

@@ -204,6 +204,11 @@ TEST(Thumbnail, PngDecodesAndDownscalesExactly) {
     EXPECT_EQ(12u, t.height);
     EXPECT_EQ("png", t.source_format);
     EXPECT_FALSE(t.from_embedded);
+    /* the truncated disclosure must be FALSE for a complete PNG: the
+     * strict decoders refuse short streams (Ok proves completeness); the
+     * post-parse EOF probe is stb API noise, never data truncation (the
+     * M-102 ABI test's fail-before caught the poisoned signal) */
+    EXPECT_EQ(0u, t.truncated);
     /* 64/16 = 4, 48/12 = 4: every 4x4 source block lands on one output
      * pixel, so the quadrant colors survive the box filter EXACTLY */
     expect_pixel(t, 2, 2, 255, 0, 0, 0);

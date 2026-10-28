@@ -77,3 +77,10 @@ extension), S-043/M-080/S-045 (the same engine's other verdicts).
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** <this landing>
+**Verified by:** `CrUi.ThumbnailSuccessPromotesGradeTo2` — the honest fail-before EXECUTED: with the promotion lines patched out of cr_ui.cpp the test runs RED (the deleted non-carved PNG keeps its below-2 grade), with them GREEN (grade 2); the restructured fixture is the DELETED-PNG shape (existing files grade 2 at insert per FUN_14037a8a0, which made the first test version vacuous — the deleted non-carved node takes the generic path below 2, exactly the og's `!= 2` guard's live case). The test also pins: a FAILED generation never promotes (the text node's grade is the untouched control), unrelated nodes keep their grades, and already-2 nodes are a no-op (idempotence, the og's != 2 guard). Suite **1075/1075** linux-release.
+**Resolution notes:** The seam decision (the finding's fix-plan item 1) is the host/ABI layer, as the finding recommended: the engine stays pure (no grading call inside cr_thumbnail.cpp — its layering is untouched); `cr_ui_thumbnail_generate`'s success path carries the promotion (`if (node->grade() != Grade::High) node->set_grade(Grade::High)` — the og's exact FUN_1402636e0 :422498-518 shape, and the node's setter IS the og's FUN_140089630 semantics: monotonic-max + sticky-2, so no downgrade is expressible). The promotion is observable through `cr_ui_query_row.grade` (the S-023 row field) and persists through session save/load (the S-023 serialization). Corpus re-verified this session: the decompile quote (:422498-518, get-grade-then-set-2 behind the != 2 guard) read directly from the evidence file before the fix.
