@@ -762,9 +762,9 @@ TEST(FatEngine, FatOriginClusterCarriedForChainlessDeleted) {
      * contiguous candidate (GAP-S6-2) capped at PartialRisk, never
      * Excellent. Whatever the chain machinery produced, the dentry's
      * origin cluster survives as the passive anchor datum */
-    EXPECT_EQ(gone->props()->extents.size(), 1u); /* the inferred [9,10) run */
+    EXPECT_EQ(gone->props()->extents.size(), 1u);                   /* the inferred [9,10) run */
     EXPECT_EQ(gone->props()->extents[0].offset, u64(38 + 7) * 512); /* cluster 9 */
-    EXPECT_EQ(gone->confidence(), tree::Confidence::PartialRisk); /* honesty cap */
+    EXPECT_EQ(gone->confidence(), tree::Confidence::PartialRisk);   /* honesty cap */
     EXPECT_EQ(gone->props()->fat_origin_cluster, 9u);
     EXPECT_EQ(gone->deleted_state(), tree::DeletedState::Deleted);
 
