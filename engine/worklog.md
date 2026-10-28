@@ -1597,3 +1597,28 @@ Work Log:
 Stage Summary:
 - Baseline set; next: the parallel triage/deep/currency lanes, then
   lead-first-hand verification before any filing.
+
+---
+Task ID: DFX-38 (the closing fix session — board 84a1832)
+Agent: lead (single-lane; two-repo grant: core_recovery + corpus only)
+
+Work Log:
+- T1: pulled both repos. Core HEAD `84a1832` (docs-only since product
+  base `35adcb9` — the audit's cited tree), corpus `be0cfe9` (the pinned
+  corpus commit, unchanged). Prompt saved token-redacted to
+  `worklog/session-diff-fix-closing-prompt.md`. Baseline built clean
+  (linux-release): suite 978 ran / 953 passed / 25 skipped
+  (Windows-only) / 0 failed.
+- T2/T3: diff-to-fix/ read in full (README/SUMMARY/matrix/PARAMETERS/
+  SEVERITY-SCALE/SURFACE-INVENTORY + all 75 active findings + evidence
+  index); core read at HEAD; load-bearing absence claims re-verified
+  first-hand by grep at `84a1832` (M-071 gates: rrecov.cpp 0 hits;
+  S-043 orientation: 0 hits; S-044 no gates; M-079 no fill site;
+  M-084 no ACCDB; M-090 no koly; M-091 the 64 MiB stand-in — all
+  CONFIRMED at HEAD).
+- Scope determination: M-086/M-087/M-089/N-107/N-127 target the
+  rda-driver repo — OUT OF SCOPE under this session's two-repo grant;
+  dispositions recorded in the finding files, not fixed here.
+- Fix order (board-recommended, data-integrity first): M-071 → SEVERE
+  tier (S-042, S-043, S-044, S-040, S-047 + the S-041 children) →
+  MAJOR → MINOR → INFO/ACK → tracked-open.
