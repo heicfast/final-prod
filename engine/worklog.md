@@ -4838,3 +4838,23 @@ The dated-history-snapshot block carries one NOTE naming every
 pre-rebase as-recorded token with the post-rebase equivalents.
 **Trail:** findings/FIXED/N-135; ledger row; CROSS-REF-MATRIX cell →
 MATCH; SUMMARY (board 45 active). Suite 1077/1077 (0 failed).
+
+## Session 12 open (2026-10-29 — the session-2 continuation audit; directive: remove-the-fixed + deep-dive on sector numbers / scanning / accurate detection / calculation / no-stuck-or-freeze / local database (EUUserData family) / state management)
+
+**Baselines pinned:** core `869da779` at open (rebased over the remote's `0eb5f82f`
+N-135 close → `8d0d88b8`), corpus `be0cfe9`. Prompt saved (token redacted) at
+`worklog/session-12-diff-audit-prompt.md`.
+
+**Opening state recovered from the filesystem (not the stale board prose):** the
+active board on disk is **49 findings — 3 SEVERE (S-040/S-048/S-050) / 21 MAJOR /
+17 MINOR / 8 INFO** — NOT the S41-close "64 active (6/22/28/8)" claim: the
+post-S41 fix waves (S-051, S-052, S-053+N-141, M-104, N-129, N-130, N-132, N-133,
+N-137, N-138, N-115+N-153, plus the N-135 bookkeeping close) retired 15 rows the
+board never decremented. The remove-the-fixed directive therefore starts from a
+board-truth repair before the liveness battery.
+
+**Session plan:** (1) board re-truth + liveness battery over the 49; (2) five
+deep-dive lanes on the directive's focus parameters (sector math; scan strategy
+and progress math; the EUUserData local-database family; state management;
+detection-accuracy and calculation audit); (3) file verified findings, update the
+matrix/ledger/SUMMARY; (4) close with the handoff.
