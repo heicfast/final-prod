@@ -28,6 +28,20 @@
   --whole-disk note. Audit trail: Resolution in the finding, retire +
   ledger row in the follow-up trail commit.
 
+## Fix session 40 (2026-10-29 — the fix-all-minors-first mandate; T1 baseline: core `09941ef4` at open, corpus `be0cfe9`; prompt: worklog/session-diff-fix-40-prompt.md)
+
+The user's session-40 mandate: fix every active finding, **MINOR first**, one verified fix per
+push, every fix proven fail-before/pass-after, findings retired to findings/FIXED/ with
+Resolutions. Suite baseline at open re-verified: 1037 tests / 995 pass / 42 env skips / 0 fail.
+
+- **N-111 CONVERGENCE (du-resolved, their landing stands)** — this lane independently decoded
+  and implemented the JP2 family (FUN_18001c380's gates + FUN_18001c820's two-phase box walk +
+  FUN_18001ca60's jp2c marker map), then hit the push window: the parallel session-39 lane's
+  equivalent landing (461825d8) was on main first. Their landing verified post-hoc by this
+  lane: same gates, same walk semantics, same override architecture — the decode is now
+  two-lane-verified. 13/13 Jp2+Lzh tests green; suite 1064/1064 at `aab031ac`. Record:
+  worklog/session-diff-fix-40-convergence.md.
+
 ## Fix session — the parity close (2026-10-29, T1 baseline: core `84a1832`, corpus `be0cfe9`; prompt saved to worklog/session-diff-fix-parity-close-prompt.md)
 
 - **S-042 FIXED** — the WMF placeable grammar. Re-read FUN_1800264d0
