@@ -18,6 +18,26 @@ findings/FIXED/S-039-*.md for the Resolution.
 7 MAJOR M-060..M-066 · 5 MINOR N-084..N-088 · 1 INFO I-026) · **225 FIXED**
 · tracked-open 4 unchanged.
 
+## Fix-session delta (2026-10-28 — S-037, the two missing carve formats)
+
+**S-037 (SEVERE) FIXED**: FreeHand 11 and Corel PhotoPaint implemented
+from the og's decompiled analysers (first-hand decode this session):
+`validate_fh11` = the og's FUN_180029f30 constant predicate (u64@+4
+`0x020014011C040002`, u32@+0xC `0x011C1400`, u16@+0x22 "11", key 0x11C;
+CZeroEndRawFileInfo -> bounded extent), `validate_cpt` = the
+FUN_180043630 Analyse gate ("FILE"@+4, 0x13C@+0x34) + the FUN_1800436e0
+pointer-chase walk (n@+0x28 8-byte entries -> last -> +0x20/+0x3c
+rebase pair -> data-descriptor size u32@(t2-8)+u32@(t2-4), any read miss
+rejects). Four APPENDED ids (FMT_FH11/FMT_CPT7/8/9; serialized
+carve_format stable); the CPT keys carry the og's duplicate-key registry
+policy; trial order extended. 4 tests, fail-before PROVEN (both
+detection tests RED on the stash-reverted pre-fix build); full suite
+918 tests — 914 passed / 4 platform-skips / 0 failed.
+
+**Board after S-037:** 15 active (0 ACUTE · 2 SEVERE S-036/S-038 ·
+7 MAJOR M-060..M-066 · 5 MINOR N-084..N-088 · 1 INFO I-026) ·
+**226 FIXED** · tracked-open 4 unchanged.
+
 ## Dev-sign validation session delta (2026-10-27/28 — SA lane: Phase-1 driver dev-sign/install/uninstall validation on a real Windows runner, audited `dd82db9` / workflow content `3bda8e2`; corpus `03ad46c` unmoved)
 
 **The mandate:** validate the merged product's driver under development

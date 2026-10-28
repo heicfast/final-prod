@@ -1836,6 +1836,68 @@ size_t plant_asf(std::vector<u8>& img, size_t at, int data_objects, const char* 
     return p - at;
 }
 
+/* S-037: a FreeHand 11 header - the og's FUN_180029f30 constant set:
+ * registry key 1C 01 00 00, u64 @+4 = 0x020014011C040002,
+ * u32 @+0xC = 0x011C1400, u16 @+0x22 = "11". */
+size_t plant_fh11(std::vector<u8>& img, size_t at, size_t payload = 4096) {
+    std::memcpy(img.data() + at, "\x1C\x01\x00\x00", 4);
+    const u64 v8 = 0x020014011C040002ULL;
+    for (int i = 0; i < 8; ++i)
+        img[at + 4 + size_t(i)] = u8(v8 >> (8 * i));
+    put32v(img, at + 0xC, 0x011C1400);
+    img[at + 0x22] = '1';
+    img[at + 0x23] = '1';
+    for (size_t i = 0x24; i < 0x24 + payload; ++i)
+        img[at + i] = u8(i);
+    return 0x24 + payload;
+}
+
+/* S-037: a Corel PhotoPaint container - the og's FUN_180043630 Analyse
+ * gate ("FILE" @ +4, 0x13C @ +0x34) + the FUN_1800436e0 pointer-chase:
+ * n @ +0x28 entries of 8 bytes at table 0x13C; the LAST entry points at
+ * the final block; that block's +0x20/+0x3c pair (nonzero, equal) adds
+ * the 0x3c+val rebasing; the data-section pointer pair at base yields
+ * size = (len at t2-8) + (extras at t2-4). */
+size_t plant_cpt(std::vector<u8>& img, size_t at, u32 gen /* '7'/'8'/'9' */) {
+    size_t p = at;
+    std::memcpy(img.data() + p, "CPT", 3);
+    img[p + 3] = u8(gen);
+    std::memcpy(img.data() + p + 4, "FILE", 4); /* +4 the Analyse magic */
+    /* +0x28: the pointer-table count (2 entries) */
+    put32v(img, p + 0x28, 2);
+    /* +0x34: the version gate == the table offset (0x13C) */
+    put32v(img, p + 0x34, 0x13C);
+    /* the pointer table at 0x13C: 2 entries x 8 bytes; entry 0 = 0x40,
+     * entry 1 = block_off (the walk reads only the LAST) */
+    const u64 block_off = 0x200; /* the final block lives here */
+    put32v(img, p + 0x13C, 0x40);
+    put32v(img, p + 0x13C + 8, u32(block_off));
+    /* the final block: +0x20 tail check, +0x3c the same value (the
+     * rebasing path), then base = block + 0x3c + val */
+    const u32 tail_val = 0x10; /* rebasing adds 0x10 */
+    put32v(img, p + block_off + 0x20, tail_val);
+    put32v(img, p + block_off + 0x3C, tail_val);
+    const u64 base = block_off + 0x3C + tail_val; /* 0x24C */
+    /* the data-section descriptor at base: t2 (a pointer), t3 (nonzero);
+     * size = u32 @ (t2-8) + u32 @ (t2-4) */
+    const u32 t2 = 0x400; /* the data descriptor */
+    put32v(img, p + base, t2);
+    put32v(img, p + base + 4, 1);
+    const u32 len = 0x3000;  /* the data length */
+    const u32 extras = 0x40; /* trailing extras */
+    put32v(img, p + t2 - 8, len);
+    put32v(img, p + t2 - 4, extras);
+    const size_t total = size_t(t2) + len + extras;
+    /* some non-zero texture strictly between the predicate block and the
+     * pointer table (0x38..0x13B) - never touching any structure; keeps
+     * the fixture hostile to zero-skip fast paths without clobbering
+     * the LE fields whose high/low bytes may be zero */
+    for (size_t i = p + 0x40; i < p + 0x13B; ++i)
+        if (img[i] == 0)
+            img[i] = u8(i & 0xFF);
+    return total;
+}
+
 /* A valid uncompressed 4x4 24-bpp BMP. */
 size_t plant_bmp(std::vector<u8>& img, size_t at) {
     img[at] = 'B';
@@ -2233,6 +2295,118 @@ TEST(Carve, AsfHeaderCountGatesUnchanged) {
                 EXPECT_EQ(std::string::npos, c->name_utf8().find(".wmv"))
                     << "count " << bad_count << " must reject";
             }
+        }
+    }
+}
+
+/* ---- S-037: FH11 + CPT7/8/9 (the two missing reference formats) ------- */
+
+TEST(Carve, Fh11DetectedAndWalked) {
+    /* the og's constant-predicate FH11 (FUN_180029f30): the full
+     * 0x24-byte header passes, and the carved extent is bounded (the
+     * CZeroEndRawFileInfo family has no size grammar). */
+    std::vector<u8> img(2ull << 20, 0);
+    const size_t at = 0x2000;
+    plant_fh11(img, at);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    flags.hash_small_files = false;
+    CarveStats stats;
+    ASSERT_EQ(OK, carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr,
+                              nullptr, stats));
+    tree::FileNode* hit = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->name_utf8().find(".fh11") != std::string::npos)
+            hit = c;
+    ASSERT_NE(hit, nullptr) << "the FH11 header must carve";
+    EXPECT_EQ(u32(FsKindCode::Raw), hit->props()->fs_kind);
+    EXPECT_GE(hit->props()->extents.size(), 1u);
+    EXPECT_EQ(at, hit->props()->extents[0].offset);
+    /* the bounded extent: min(device end, 32 MiB) from the hit */
+    EXPECT_NEAR(size_t(hit->props()->extents[0].length), (2ull << 20) - at, 4096);
+}
+
+TEST(Carve, Fh11RejectsBareKeyBytes) {
+    /* the registry key alone (1C 01 00 00) without the constant set is
+     * not an FH11 - the og's Analyse rejects, not the key hit */
+    std::vector<u8> img(2ull << 20, 0);
+    std::memcpy(img.data() + 0x2000, "\x1C\x01\x00\x00", 4);
+    /* fill what would be the constants with the wrong values */
+    for (int i = 0; i < 64; ++i)
+        img[0x2000 + 4 + size_t(i)] = 0xEE;
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    flags.hash_small_files = false;
+    CarveStats stats;
+    ASSERT_EQ(OK, carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr,
+                              nullptr, stats));
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        if (c->props()) {
+            EXPECT_EQ(std::string::npos, c->name_utf8().find(".fh11"))
+                << "bare key bytes must not carve";
+        }
+    }
+}
+
+TEST(Carve, CptGenerationsDetected) {
+    /* all three PhotoPaint generation keys (CPT7/CPT8/CPT9) reach the
+     * shared validator; each carves with the pointer-chase extent */
+    for (const u32 gen : {'7', '8', '9'}) {
+        std::vector<u8> img(2ull << 20, 0);
+        const size_t at = 0x2000;
+        plant_cpt(img, at, gen); /* the extent is checked against the og's walk math below */
+
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"L");
+        CarveFlags flags;
+        flags.hash_small_files = false;
+        CarveStats stats;
+        ASSERT_EQ(OK, carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr,
+                                  nullptr, stats))
+            << "generation " << char(gen);
+        tree::FileNode* hit = nullptr;
+        for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+            if (c->props() && c->name_utf8().find(".cpt") != std::string::npos)
+                hit = c;
+        ASSERT_NE(hit, nullptr) << "CPT" << char(gen) << " must carve";
+        /* the walk's exact size per the og's FUN_1800436e0: the data
+         * descriptor at (t2-8)/(t2-4) yields size = len + extras =
+         * 0x3000 + 0x40 (t2 itself is the descriptor's location, not
+         * part of the size) */
+        const size_t og_size = size_t(0x3000) + 0x40;
+        ASSERT_GE(hit->props()->extents.size(), 1u);
+        EXPECT_EQ(at, hit->props()->extents[0].offset) << char(gen);
+        EXPECT_EQ(og_size, size_t(hit->props()->extents[0].length))
+            << "the FUN_1800436e0 pointer-chase extent, generation " << char(gen);
+    }
+}
+
+TEST(Carve, CptRejectsTruncatedHeader) {
+    /* the key hit without "FILE" @ +4 / the 0x13C gate rejects */
+    std::vector<u8> img(2ull << 20, 0);
+    std::memcpy(img.data() + 0x2000, "CPT7", 4);
+    std::memcpy(img.data() + 0x2004, "XXXX", 4); /* wrong Analyse magic */
+    put32v(img, 0x2000 + 0x34, 0x13C);            /* the gate alone is not enough */
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    flags.hash_small_files = false;
+    CarveStats stats;
+    ASSERT_EQ(OK, carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr,
+                              nullptr, stats));
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        if (c->props()) {
+            EXPECT_EQ(std::string::npos, c->name_utf8().find(".cpt"))
+                << "a wrong Analyse magic must reject";
         }
     }
 }

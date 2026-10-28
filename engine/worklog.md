@@ -17546,3 +17546,41 @@ Stage Summary:
   7 MAJOR · 5 MINOR · 1 INFO) · 225 FIXED · 4 tracked-open. M-065 (the
   default user-sign set) is unblocked. Next: S-037 (FH11 + CPT carve
   validators).
+
+---
+Task ID: FIX-3 (S-037 — the FH11 + CPT7/8/9 carve formats)
+Agent: main engineer (fix session: the handoff queue, priority 4 - S-039's
+fix moved it ahead of the rda-driver-dependent S-036)
+
+Work Log:
+- Decoded both og analysers first-hand from the corpus decompile (beyond
+  the finding's citations): CFH11Analyser::Analyse = FUN_180029f30
+  (:32612) - the exact constant predicate (u64@+4 0x020014011C040002,
+  u32@+0xC 0x011C1400, u16@+0x22 "11") + CZeroEndRawFileInfo (no size
+  walk, id 0x1d display-side); CPTAnalyser::Analyse = FUN_180043630
+  (:51102) - "FILE"@+4 + 0x13C@+0x34 gate (the slot doubles as the
+  pointer-table offset), and the FUN_1800436e0 (:51134) pointer-chase
+  walk with the window helper FUN_180042930's NULL-on-miss semantics.
+- Implemented validate_fh11 + validate_cpt in cr_analysers.cpp (the
+  read-miss-rejects contract mirrored via an rd32chk helper); registered
+  FMT_FH11 + FMT_CPT7/FMT_CPT8/FMT_CPT9 (APPENDED ids; the og's
+  duplicate-key policy for the three CPT generations); extended
+  kTrialOrder (the grammar dispatch table - the first build caught the
+  miss: registry green but no dispatch).
+- Tests: Fh11DetectedAndWalked / Fh11RejectsBareKeyBytes /
+  CptGenerationsDetected (all 3 generations, the exact pointer-chase
+  extent) / CptRejectsTruncatedHeader; the plant_cpt texture loop
+  initially clobbered the LE 0x400 pointer (first byte zero) - bounded
+  to a safe band. Fail-before PROVEN on the stash-reverted build (both
+  detection tests RED).
+- Full suite: 918 tests, 914 passed, 4 platform-skips, 0 failed;
+  RegistrySelfProbe still green for the new magics.
+- Trail: finding Resolution + FIXED move, modules/carve.md delta, both
+  CROSS-REF-MATRIX rows -> MATCH(FIXED), SUMMARY board (16->15 active,
+  225->226 FIXED).
+
+Stage Summary:
+- S-037 CLOSED. Board: 15 active (0 ACUTE · 2 SEVERE S-036/S-038 ·
+  7 MAJOR · 5 MINOR · 1 INFO) · 226 FIXED · 4 tracked-open. Next in the
+  queue: S-036 (rda-driver install.ps1 elevation guard - upstream
+  rda-driver fix + v0.2.3 batch), then M-065 (now unblocked by S-039).

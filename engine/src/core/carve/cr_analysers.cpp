@@ -2614,5 +2614,121 @@ CarveResult validate_dwg(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
+/* ---- S-037: FreeHand 11 (BruteForce::CFH11Analyser, key 0x11C) ----
+ * The og's Analyse is a pure constant-predicate (RAWSearchDLL
+ * FUN_180029f30, decompile:32612-32633): registry key 0x11C hit
+ * (bytes 1C 01 00 00 at the stride), then
+ *   u64 @ +4  == 0x020014011c040002
+ *   u32 @ +0xC == 0x011C1400
+ *   u16 @ +0x22 == 0x3131 (ASCII "11" - the FreeHand 11 marker)
+ * The og returns a CZeroEndRawFileInfo with type id 0x1d and NO size
+ * walk (the zero-end result family; the engine's generic extension
+ * semantics carry it). Our row mirrors the predicate exactly and sets a
+ * bounded extent (the zero-end family has no size grammar to walk) -
+ * the og id 0x1d is display-side only (the core's registry does not
+ * carry og ids, the S-037 row note). */
+CarveResult validate_fh11(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[0x24];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    const u64 v8 = u64(h[4]) | (u64(h[5]) << 8) | (u64(h[6]) << 16) | (u64(h[7]) << 24) |
+                  (u64(h[8]) << 32) | (u64(h[9]) << 40) | (u64(h[10]) << 48) | (u64(h[11]) << 56);
+    if (v8 != 0x020014011C040002ULL)
+        return r;
+    const u32 v4 = u32(h[0xC]) | (u32(h[0xD]) << 8) | (u32(h[0xE]) << 16) | (u32(h[0xF]) << 24);
+    if (v4 != 0x011C1400)
+        return r;
+    const u16 v2 = u16(h[0x22]) | (u16(h[0x23]) << 8);
+    if (v2 != 0x3131)
+        return r; /* "11" */
+    r.ok = true;
+    r.confidence = 700;
+    /* CZeroEndRawFileInfo: no size grammar - bounded extent (the
+     * family's salvage posture over the zero-end semantics) */
+    const u64 limit = probe_limit(s, hit, cap);
+    u64 end = hit + (32ull << 20); /* FH11 documents are small-to-medium */
+    if (end > limit)
+        end = limit;
+    if (end - hit < 0x24)
+        return r;
+    r.end = end;
+    r.note = "fh11-key+const-gate";
+    return r;
+}
+
+/* ---- S-037: Corel PhotoPaint CPT7/8/9 (RawSpeed::CPTAnalyser +
+ * FileCPTAnalyser fallback, keys 0x37545043/0x38545043/0x39545043) ----
+ * The og's Analyse (FUN_180043630, decompile:51102-51130) after the key
+ * hit: u32 @ +4 == 0x454C4946 ("FILE") and u32 @ +0x34 == 0x13C ->
+ * type id 0x11, size deferred to the walk. The walk (FUN_1800436e0,
+ * decompile:51134-51204) is a pointer-chase through the container:
+ *   tab_off = u32 @ +0x34 (absolute data offset)
+ *   n       = u32 @ +0x28; last entry = u32 @ tab_off + (n-1)*8
+ *   base    = last + 0x3c; if u32 @ (last+0x20) != 0 and
+ *             u32 @ (last+0x3c) == it: base = last + 0x3c + that value
+ *   if u32 @ base != 0 and u32 @ (base+4) != 0:
+ *       size = u32 @ (u32@base - 8) + u32 @ (u32@base - 4)
+ *   else size = last
+ * Every read failure anywhere rejects (the og returns null on any
+ * window miss). The og id 0x11 is display-side only. */
+CarveResult validate_cpt(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[0x38];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    const u32 file_magic = u32(h[4]) | (u32(h[5]) << 8) | (u32(h[6]) << 16) | (u32(h[7]) << 24);
+    if (file_magic != 0x454C4946) /* "FILE" */
+        return r;
+    const u32 slot34 = u32(h[0x34]) | (u32(h[0x35]) << 8) | (u32(h[0x36]) << 16) | (u32(h[0x37]) << 24);
+    if (slot34 != 0x13C)
+        return r; /* the version gate == the table offset (same slot) */
+    const u32 n = u32(h[0x28]) | (u32(h[0x29]) << 8) | (u32(h[0x2A]) << 16) | (u32(h[0x2B]) << 24);
+    if (n == 0 || n > 0x10000)
+        return r; /* no pointer table / hostile count */
+    const u64 limit = probe_limit(s, hit, cap);
+    /* window-read helper: the og's FUN_180042930 returns NULL on any
+     * read miss and the walk rejects - mirror that with a success flag */
+    u8 raw[4];
+    auto rd32chk = [&](u64 rel, u32& out) -> bool {
+        if (hit + rel + 4 > limit)
+            return false;
+        if (!rd(s, hit + rel, raw, 4))
+            return false;
+        out = u32(raw[0]) | (u32(raw[1]) << 8) | (u32(raw[2]) << 16) | (u32(raw[3]) << 24);
+        return true;
+    };
+    /* the walk: table pointer = the same +0x34 slot (0x13C) */
+    u32 last = 0;
+    if (!rd32chk(u64(slot34) + (u64(n) - 1) * 8, last))
+        return r;
+    u64 base = u64(last) + 0x3c;
+    u32 tail_chk = 0;
+    if (rd32chk(u64(last) + 0x20, tail_chk) && tail_chk != 0) {
+        u32 at3c = 0;
+        if (rd32chk(u64(last) + 0x3c, at3c) && at3c == tail_chk)
+            base = u64(last) + 0x3c + at3c;
+    }
+    u32 t2 = 0, t3 = 0;
+    if (!rd32chk(base, t2) || !rd32chk(base + 4, t3))
+        return r;
+    u64 size = last;
+    if (t2 != 0 && t3 != 0) {
+        if (t2 < 8)
+            return r; /* the og's window read at (t2-8) fails -> reject */
+        u32 a = 0, b = 0;
+        if (!rd32chk(u64(t2) - 8, a) || !rd32chk(u64(t2) - 4, b))
+            return r;
+        size = u64(a) + u64(b);
+    }
+    if (size < 0x38 || hit + size > limit)
+        return r; /* degenerate / non-fitting */
+    r.ok = true;
+    r.end = hit + size;
+    r.confidence = 700;
+    r.note = "cpt-file-magic+pointer-chase";
+    return r;
+}
+
 } // namespace carve
 } // namespace cr

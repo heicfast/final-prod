@@ -52,6 +52,8 @@ CarveResult validate_ole(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_mpegps(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_mpeges(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_dwg(IStorageDevice* s, u64 hit, u64 cap);
+CarveResult validate_fh11(IStorageDevice* s, u64 hit, u64 cap); /* S-037 */
+CarveResult validate_cpt(IStorageDevice* s, u64 hit, u64 cap);   /* S-037 */
 
 namespace {
 const Signature kTable[] = {
@@ -604,6 +606,33 @@ const Signature kTable[] = {
      * with FMT_CAB; a distinct format id keeps the case-insensitive
      * pair enumerable like the og's registry. */
     {FMT_CAB_LC, "cab", {'m', 's', 'c', 'f'}, 4, 0, 36, 2ull << 30, 870, validate_cab, "Cabinet"},
+    /* S-037: the og's FH11 row - key 0x11C (bytes 1C 01 00 00) ->
+     * BruteForce::CFH11Analyser (decompile:1952-1961, id 0x1d;
+     * the og id is display-side only). The validator mirrors the og's
+     * FUN_180029f30 constant predicate exactly; min_size 0x24 covers
+     * the full predicate span (+0x22..+0x23 "11" marker). */
+    {FMT_FH11,
+     "fh11",
+     {0x1C, 0x01, 0x00, 0x00},
+     4,
+     0,
+     0x24,
+     64ull << 20,
+     820,
+     validate_fh11,
+     "FreeHand 11"},
+    /* S-037: the og's three PhotoPaint generation rows - keys CPT7/
+     * CPT8/CPT9 (census :93) all -> RawSpeed::CPTAnalyser + the
+     * FileCPTAnalyser fallback (id 0x11, display-side only). Duplicate-key
+     * rows per the og's registry policy (same validator, distinct ids).
+     * The validator gates on "FILE" @ +4 and 0x13C @ +0x34, then the
+     * FUN_1800436e0 pointer-chase. */
+    {FMT_CPT7, "cpt", {'C', 'P', 'T', '7'}, 4, 0, 0x38, 1ull << 30, 800, validate_cpt,
+     "Corel PhotoPaint"},
+    {FMT_CPT8, "cpt", {'C', 'P', 'T', '8'}, 4, 0, 0x38, 1ull << 30, 800, validate_cpt,
+     "Corel PhotoPaint"},
+    {FMT_CPT9, "cpt", {'C', 'P', 'T', '9'}, 4, 0, 0x38, 1ull << 30, 800, validate_cpt,
+     "Corel PhotoPaint"},
 };
 } // namespace
 

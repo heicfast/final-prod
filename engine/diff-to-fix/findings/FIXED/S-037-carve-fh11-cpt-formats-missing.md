@@ -5,7 +5,7 @@
 **Parameters affected:** A28 (validator presence per format), C19 (magic keys 0x11C / 0x37545043-family), C21 (registry ids 0x1d for FH11), B1-adjacent (detection coverage)
 **Corpus references:** `easeus-drw-research/re-workspace/reversed/ghidra-searchdll/RAWSearchDLL_decompiled.c:1952-1961` — the registry static-initializer: key `0x11c` → `BruteForce::CFH11Analyser::vftable`, registry id `0x1d` (FH11 = FreeHand 11; 0x11c LE = bytes `1C 01 00 00`, FreeHand's document version marker) · `re-workspace/artifacts/SearchDLL/rawsearchdll--analyser-registry-census.md:93` — `CPT7`/`CPT8`/`CPT9` = `0x37545043, 0x38545043, 0x39545043` → **Corel PhotoPaint, 3 generations**, `RawSpeed::CPTAnalyser` · `:105` CFH11 in the @BruteForce namespace · `:107` CPT in the @RawSpeed namespace · `:128` "Three-generation PhotoPaint support (CPT7/CPT8/CPT9) — rare format, fully covered" · `rawsearchdll--family-bruteforce.md:4` (FH11 named in the family description) `:24` (`BruteForce::CFH11Analyser` roster)
 **Core references:** audited commit `dd82db9` — `rg -i "fh11|freehand" src/ include/` → only `src/core/tree/cr_grading.cpp` ("FH11" in the grading extension table) and `src/core/query/cr_filefilter_data.cpp` (`{"fh11", Category::Image}`) — the extension is classified and graded but **no analyser, no signature, no carve path exists**; `rg -i "corel|cpt7|cpt8|cpt9" src/ include/` → **zero hits** (CPT absent entirely); `rg "1[Cc][ ]*01[ ]*00[ ]*00|0x0001011[Cc]" src/core/carve/` → zero hits; `cr_rawsigns_data.cpp` carries neither format
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** FIXED — see Resolution below
 **Prior audit check:** newly discovered — S-007 (FIXED, "carve missing common formats") enumerated its format additions from the registry census but never included FH11 or CPT; the s3 evidence's FH11 "(N-026)" marker never became a finding (repo N-026 is an unrelated ReFS finding); no other finding names either format (the session's corpus inventory: family-bruteforce.md and family-rawspeed.md were NEVER-CITED)
 
 ## Summary
@@ -56,3 +56,46 @@ Decompiled evidence (strength-2): the registry initializer lines quoted above (d
 ## Open questions
 
 The exact FreeHand 11 post-key walk structure is not decoded in the census artifacts (only the class/key/id binding is); the fix plan's step 1 says "per the format's record sequence" — if the engineering pass needs the og's exact walk, the decompile's CFH11Analyser::Analyse (vtable-resolved from `.rdata`) is the probe; filing this as a finding does not depend on that decode (the absence is proven either way).
+
+## Resolution (FIXED — both formats implemented from the decompile; fail-before proven)
+
+Both validators implemented from the og's decompiled analysers (first-hand
+re-reads this session, cited in-code):
+
+**FH11** — `validate_fh11` mirrors `FUN_180029f30` (decompile:32612-32633)
+exactly: registry key 0x11C (bytes `1C 01 00 00`), then the constant
+predicate u64@+4 == `0x020014011C040002`, u32@+0xC == `0x011C1400`,
+u16@+0x22 == `0x3131` ("11"). The og returns CZeroEndRawFileInfo (type
+id 0x1d, display-side only) with no size walk - the row sets a bounded
+32 MiB/device-end extent. Row: FMT_FH11, ext "fh11", conf 820.
+
+**CPT** — `validate_cpt` mirrors the RawSpeed::CPTAnalyser pair:
+`FUN_180043630` Analyse gate (u32@+4 == `0x454C4946` "FILE", u32@+0x34 ==
+`0x13C` - the version gate doubles as the pointer-table offset) + the
+`FUN_1800436e0` pointer-chase walk: n@+0x28 8-byte entries, last entry ->
+block; block+0x20/+0x3c equal-nonzero pair rebases (+0x3c+val); the
+data-descriptor pair at base -> size = u32@(t2-8) + u32@(t2-4); any read
+miss rejects (the og's window-NULL semantics). Three duplicate-key rows
+per the og's registry policy: FMT_CPT7/FMT_CPT8/FMT_CPT9 (keys CPT7/CPT8/
+CPT9, shared validator, ext "cpt", conf 800).
+
+Trial order extended (the grammar dispatch table), ids APPENDED (serialized
+carve_format values stable). "cpt" was already in the grading table (the
+og's 169-entry set) and the filter table (`{"cpt", Category::Image}`) -
+the results-only inconsistency is closed from the engine side.
+
+**Tests (fail-before PROVEN on the stash-reverted pre-fix build):**
+- `Carve.Fh11DetectedAndWalked` / `Carve.Fh11RejectsBareKeyBytes` — RED
+  pre-fix; the constant-predicate header carves, bare key bytes do not.
+- `Carve.CptGenerationsDetected` (all three generations, exact
+  pointer-chase extent 0x3040) / `Carve.CptRejectsTruncatedHeader` — RED
+  pre-fix.
+- `Carve.RegistrySelfProbeReachesEveryFormat` still green (the new magics
+  are reachable through the scan's own match primitive).
+- Full suite: 918 tests — 914 passed, 4 platform-skips (unchanged), 0
+  failed.
+
+**Landed:** commit "fix(carve): S-037 - FH11 + CPT7/8/9 validators from the
+og's decompiled CFH11Analyser/CPTAnalyser (fail-before proven)" (files:
+`include/cr/carve/cr_signatures.h`, `src/core/carve/{cr_registry,
+cr_analysers,cr_carve}.cpp`, `tests/unit/test_carve.cpp`).

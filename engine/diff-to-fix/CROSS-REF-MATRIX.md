@@ -471,8 +471,8 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | Surface × parameter | Verdict | Finding / evidence |
 |---|---|---|
 | carve · ASF/WMV/WMA end-of-file determination (A28/B2) | MATCH (FIXED) | **A-010 FIXED** — the object walker (5 known top-level GUIDs + size gates + torn-tail device bound) walks to grammar break per the og's BruteForce contract (deep-dive:87-91); 4 fail-before tests in test_carve.cpp |
-| carve · FH11 format presence (A28/C19) | DIVERGENCE-SEVERE | **S-037** — CFH11Analyser key 0x11C id 0x1d (decompile:1952-1961); core: extension in grading/filter tables only, no validator |
-| carve · CPT format presence, 3 generations (A28/C19) | DIVERGENCE-SEVERE | **S-037** — CPT7/8/9 keys (census:93,:128); core: zero occurrences |
+| carve · FH11 + CPT7/8/9 format coverage | **MATCH (FIXED)** | **S-037** RESOLVED — validate_fh11 (the og's FUN_180029f30 predicate) + validate_cpt (the FUN_180043630 gate + FUN_1800436e0 pointer-chase); 4 appended ids; fail-before-proven |
+| carve · CPT format presence, 3 generations (A28/C19) | **MATCH (FIXED)** | **S-037** RESOLVED — three duplicate-key rows (the og's registry policy) sharing validate_cpt |
 | carve · 131 family classes — presence/semantics vs the 6 family artifacts | 34 MATCH · 3 registered-delta · 64 S-007-remainder · 26 N/A · 1 UNDETERMINED | the wave's class-by-class table (agent sheet, scratch); residuals → **OQ-SA-2** |
 | carve · signature-table packaging (R56/Q68) | DIVERGENCE-MINOR | **N-086** — compiled-in generated table vs og's engine-init ifstream load of raw_signs.json (deep-dive:54-59) |
 | session · FAT 8.3 name encoding (B10/D11) | DIVERGENCE-MINOR | **N-087** — raw OEM bytes vs identity-mapped U+00XX (part1:121 vs `cr_lfn.cpp:113-129`) |

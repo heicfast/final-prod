@@ -119,6 +119,17 @@ enum FormatId : u32 {
      * lowercase CAB key; it shares validate_cab with FMT_CAB. Id APPENDED
      * (serialized carve_format values stay stable). */
     FMT_CAB_LC,
+    /* S-037 (diff-to-fix): the og's registry binds FreeHand 11 (key 0x11C
+     * -> BruteForce::CFH11Analyser, id 0x1d; decompile:1952-1961) and the
+     * three Corel PhotoPaint generations CPT7/CPT8/CPT9 (keys
+     * 0x37545043/0x38545043/0x39545043 -> RawSpeed::CPTAnalyser + the
+     * FileCPTAnalyser fallback, census :93/:128) - both were absent from
+     * every core format list. All APPENDED (serialized carve_format
+     * values stay stable). */
+    FMT_FH11,
+    FMT_CPT7,
+    FMT_CPT8,
+    FMT_CPT9,
     FMT_COUNT
 };
 

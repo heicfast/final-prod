@@ -526,6 +526,15 @@ the registry census, not the family semantics. The class-by-class comparison
 - CORRECTIONS #5 propagated: the RawConfig [Filter] count is 34, not 37
   (M-024 addendum; matrix/SUMMARY/evidence notes updated).
 
+## Fix-session delta (S-037 closed — 2026-10-28)
+
+- **S-037 → FIXED** — FH11 (key 0x11C, the og's FUN_180029f30 constant
+  predicate: u64@+4 0x020014011C040002, u32@+0xC 0x011C1400, u16@+0x22
+  "11") + CPT7/8/9 (keys CPT7/CPT8/CPT9 -> the shared FUN_180043630 gate
+  "FILE"@+4 + 0x13C@+0x34 + the FUN_1800436e0 pointer-chase) implemented
+  from the decompile; ids APPENDED (FMT_FH11/FMT_CPT7/FMT_CPT8/FMT_CPT9);
+  trial order extended; 4 fail-before-proven tests; suite 914/4/0.
+
 ## Fix-session delta (S-039 closed — 2026-10-28)
 
 - **S-039 → FIXED** — the user-sign caps raised to the og's measured EUUserData

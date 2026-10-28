@@ -54,6 +54,9 @@ constexpr u32 kTrialOrder[] = {
     FMT_MPGA_E2, FMT_MPGA_E3, FMT_MPGA_E4, FMT_MPGA_E5, FMT_MPGA_E6, FMT_MPGA_E7, FMT_MPGA_F2,
     FMT_MPGA_F3, FMT_MPGA_F4, FMT_MPGA_F5, FMT_MPGA_F6, FMT_MPGA_F7, FMT_MPGA_FA, FMT_MPGA_FB,
     FMT_MPGA_FC, FMT_MPGA_FD, FMT_MPGA_FE, FMT_MPGA_FF,
+    /* S-037: the og's FH11 + CPT7/8/9 rows (distinct magics; the three
+     * CPT keys share one validator, first-key-first is deterministic) */
+    FMT_FH11, FMT_CPT7, FMT_CPT8, FMT_CPT9,
     /* S-017: ftyp-destroyed MOV salvage (og MovAnalyzer list layer) -
      * LAST: the ftyp-keyed entries must claim the position first */
     FMT_MOV_NAKED};
