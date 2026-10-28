@@ -75,8 +75,8 @@ these field-for-field at the ABI.
 | exFAT structural gates | secondary_count ∈ [2,18]; timestamp sanity; stream non-zero; name flags (M-014) | `cr_exfat_engine.h` |
 | ZFS ring walk | every uberblock state, newest-first, identity dedup (S-034); label retry delay-execution (N-072) | `cr_zfs_engine.h` |
 | Btrfs re-scan cache | OFF by default; caller-supplied directory (D-89) | `cr_btrfs_cache.h` |
-| Carve window | 4–8 MiB scan windows; window-aware read view (M-025, D-101 stateless validator architecture) | `cr_carve.h` |
-| Raw-sign table | 139 formats + user signs (caps: 256 entries / 8 signs / 16 bytes / offset ≤ 512, M-048) | `cr_rawsigns.h`, `cr_usersigns.h` |
+| Carve window | 1 MiB sequential scan windows + 4 KiB overlap (M-025, D-101 stateless validator architecture) | `cr_carve.h`, `cr_carve.cpp:35-36` |
+| Raw-sign table | 139 formats + user signs (caps: 256 entries / 12 signs / 48 bytes / offset ≤ 1024 / mime ≤ 80, M-048 + S-039/M-067 v3) | `cr_rawsigns.h`, `cr_usersigns.h:40-47` |
 | User-sign tag space | 0xFFFE0000; fixed confidence 600; MIME on carve_note | M-048 |
 | Overlap policy | accumulated base+verdict ranking; two-generation fallback REGISTERED D-75 | N-070 |
 | Scan cache | 8 MiB / 256 KiB reactive LRU (the og: 4 MiB prefetch read-ahead — REGISTERED D-72, benchmark-gated) | `cr_cached.h` |

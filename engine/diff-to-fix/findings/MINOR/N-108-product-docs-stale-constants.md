@@ -52,3 +52,12 @@ First-hand this session: the doc rows read; the code constants read (quoted); gi
 ## Open questions
 
 None.
+
+---
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-108 doc-truth batch — the session-38 minor-first lane)
+**Verified by:** the code constants re-read at the current tree before the edit: cr_carve.cpp:35-36 (`WINDOW = 1ull << 20`, `OVERLAP = 4096`) and cr_usersigns.h:40-47 (kMaxSignBytes 48 / kMaxEntries 256 / kMaxSignsPerEntry 12 / kMaxOffset 1024 / kMaxMimeLen 80) — the doc rows were stale by 2-4x on five values exactly as filed.
+**Resolution notes:** Re-verified at current main: docs/PARAMETERS.md:78-79 still carried the pre-fix constants ("4-8 MiB" window; "8 signs / 16 bytes / offset <= 512") — both rows rewritten to the landed values with the code cites added (cr_carve.cpp:35-36, cr_usersigns.h:40-47) and the M-048 + S-039/M-067 v3 lineage named. Two of the finding's other items were ALREADY FIXED by parallel lanes and are recorded as such: (a) the cr_rawsigns.h:7 "30 formats" comment now reads "one row per FormatId - the cr_signatures.h registry, 108 rows at the SCAN-4 tree" (the SCAN-4/a972d29 lane's per-FormatId rewording); (b) SCAN-ENGINE-DELTA's false "fixed this session" claim was already struck through and corrected in place by the session-8 audit lane with the N-108 pointer. The finding's own optional grep gate (DocsParameterRows-Match-Code-Constants) is superseded by the stronger doc_truth_gate.py the parallel DFX-38 lane wired into checks.yml (M-088) — the constants rows are now inside that gate's enforcement surface.

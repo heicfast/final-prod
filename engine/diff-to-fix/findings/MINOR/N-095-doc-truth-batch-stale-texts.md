@@ -51,3 +51,12 @@ All five verified first-hand this session (each site read; each correction's sou
 ## Open questions
 
 None.
+
+---
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-095 doc-truth batch — the session-38 minor-first lane)
+**Verified by:** direct site reads before/after (doc-truth finding; the audit's own plan carries no test). Item 5 (ABI-CONTRACT §7f/§7g cites) was fixed by this session's N-117 landing (same sites, re-pinned to cr_ui.h:865-914/916-944).
+**Resolution notes:** Re-verified at current main — four of five items stood: (1) REFERENCE-DRIVER-BEHAVIOR:91/:329 still labeled 0x60002400 "set/resolve global target" — relabeled GetProcName at both sites with the I-011 #8 supersession named; (2) PARITY-CORE-REC:125 said "37 extension toggles" — now 34 with the CORRECTIONS #5 recount noted, and the four 1,489 sites in PARITY-ARCH (:54/:141/:223/:225) + PARITY-UI:205 gained the 1,481-unique nuance (the coverage-fraction site 85/1,489 → 85/1,481); (3) modules/carve.md:546-548's OQ-SA-3 "capability-configuring, MAJOR stands" text — the D-104 supersession note appended (the map is the per-scan carve-statistics map per the be0cfe9 decode; E-A/E-B + D-104 carry the correction); (4) modules/transport.md's disk-open grammar quoted a 3-segment `<pid>\<disk>\<part>` template — corrected to the decompile's own 2-segment `\\.\EPRDTDRV\%d\%d` (Device_decompiled.c:50628, verified against the s4 evidence file:34-36), with the volume variant kept separate. Item 5: FIXED via N-117 in the same session (cross-referenced).

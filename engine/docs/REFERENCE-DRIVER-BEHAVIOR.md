@@ -89,7 +89,8 @@ if (hService) {
 ### 1.4 What the og does NOT query (negative findings, corpus-verified)
 
 - **No version query.** EPMNtDrv's custom IOCTL set is exactly three codes — `0x60002400`
-  (set/resolve global target), `0x60002404` (GetFileObjName), `0x60002408` (GetDiskContextMode) —
+  (GetProcName — the I-011 #8 reading, superseding the earlier "set/resolve global target"
+  label), `0x60002404` (GetFileObjName), `0x60002408` (GetDiskContextMode) —
   everything else passes through to the disk stack
   (`artifacts/PartitionRecovery/eprdtdrv-sys--driver-internals.md:75-84`). There is no GET_VERSION.
   User mode issues only `0x60002408` (`Device_decompiled.c:52598`, 4-byte mode out) — a handle
@@ -326,8 +327,9 @@ event, or tray state reports running/stopped/version/authorization of the produc
 
 The full extent of runtime driver introspection available to og user mode: IOCTL `0x60002408`
 GetDiskContextMode (4-byte mode; the only custom IOCTL user mode actually issues —
-`Device_decompiled.c:52598`), `0x60002404` GetFileObjName, `0x60002400` global-target set
-(`eprdtdrv-sys--driver-internals.md:75-84`). A GET_VERSION-style identity IOCTL exists **only**
+`Device_decompiled.c:52598`), `0x60002404` GetFileObjName, `0x60002400` GetProcName
+(the I-011 #8 reading — the earlier "global-target set" label was superseded;
+`eprdtdrv-sys--driver-internals.md:75-84`). A GET_VERSION-style identity IOCTL exists **only**
 on the WinPE/Todo-Backup-lineage driver EUDCPEPM (`0x800C2AC8` → `0x00010100` + "EASEUS Todo
 Backup Driver (c) Ea…" — `eudcpepm-euedkepm--hook-drivers.md:61`), which has **no in-tree DRW
 opener** (:280). Nothing in the DRW stack queries it.

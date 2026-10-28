@@ -2223,3 +2223,17 @@ matrix + SUMMARY board updated. Filesystem truth: 63 active (7 SEVERE · 23 MAJO
   carve (117/117 each). Audit trail: finding -> FIXED/ with Resolution;
   matrix + carve.md + S-041 pointer + SUMMARY counts updated
   (72 active / 253 FIXED).
+---
+
+Doc-truth batch B (N-095 + N-108 + N-119, one docs commit): all three CONFIRMED at
+current main first. N-095: the 0x60002400 GetProcName relabel at both REFERENCE-DRIVER-
+BEHAVIOR sites (I-011 #8); the 37->34 toggle recount + the 1,481-unique nuance across
+the five PARITY-CORE-REC/ARCH/UI sites; carve.md's OQ-SA-3 D-104 supersession note;
+transport.md's disk template corrected to the decompile's 2-segment %d\\%d form
+(Device_decompiled.c:50628 re-read via the s4 evidence). Item 5 (the ABI cites) landed
+via this session's N-117. N-108: PARAMETERS.md's two constant rows rewritten to the code
+truth (1 MiB + 4 KiB overlap; 12/48/1024/80 caps with code cites); the rawsigns.h comment
+and the SCAN-ENGINE-DELTA strike-through were ALREADY fixed by parallel lanes - recorded
+as such. N-119: D-88 re-adjudicated - the EuShare artifact (eumrx-nas-architecture.md:10-21,
+re-read first-hand) answers the semantics (on-box bitmap scan via the SSH-root agent); leg
+(2) struck, the trigger marked FIRED-and-adjudicated, the exclusion stands on scope alone.

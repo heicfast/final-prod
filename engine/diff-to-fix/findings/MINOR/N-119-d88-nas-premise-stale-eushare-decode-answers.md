@@ -47,3 +47,12 @@ N-120 (the other registration/pointer drifts); GAP-SWEEP context sheet (this ses
 ## Open questions
 
 None.
+
+---
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-119 doc-truth batch — the session-38 minor-first lane)
+**Verified by:** the EuShare artifact re-read first-hand before the edit: eumrx-nas-architecture.md:10-21 documents the 3-layer model (SSH-root agent push to /tmp/EaseUS, the ON-BOX BITMAP-BASED SCAN, results served back) — exactly the decode the finding says D-88 lacked.
+**Resolution notes:** Re-verified at current main: D-88 (PARITY-DELTAS:2894+) still justified leg (2) of its WHY with "the corpus does not answer" while its own revisit trigger ("a corpus decode of the EuMrx scan's actual recovery semantics") had fired unnoticed via the EuShare artifacts. The row is now re-adjudicated: leg (2) struck with the adjudication note (the corpus answers the semantics — the og's deleted-file yield on shares rides the on-box agent's block access, not a client-side raw-SMB path), the RISK field's "No such device class is documented" clause replaced with the truthful on-box-agent statement, and the revisit trigger marked FIRED-and-adjudicated with the standing rule (the exclusion rests on the host-layer/product-scope rationale; re-file only if the product ever wants an on-box agent architecture). The exclusion itself is unchanged — the evidence field and trigger are now truthful, which is what the finding demanded.

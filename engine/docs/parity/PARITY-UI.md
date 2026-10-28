@@ -202,7 +202,7 @@ Severity: P0 (breaks a core flow against evidence) / P1 (wrong behavior or missi
 
 ### F-C-19 — P3 · Axis: Scope-reduction register (undocumented deltas) · Verdict: **UNDOCUMENTED-DELTA (batch)**
 
-- Filter taxonomy: ours 7 categories / ~85 extensions (ResultNode.cs:130-171) vs og 8 FileFilter.xml categories (`Graphic/Document/Email/Audio/Video/Other/Archive/Bookmarks`, FileFilter.xml:2+, 1,489 extensions) + Databases classify tab (UIUX/09 §3) + 9-type search dropdown incl. "Unsaved File" (UIUX/09 §4). Neither the category reduction nor Bookmarks/Databases/Unsaved-File appears in UI-MAP §13.
+- Filter taxonomy: ours 7 categories / ~85 extensions (ResultNode.cs:130-171) vs og 8 FileFilter.xml categories (`Graphic/Document/Email/Audio/Video/Other/Archive/Bookmarks`, FileFilter.xml:2+, 1,489 entries — 1,481 unique, CORRECTIONS #5) + Databases classify tab (UIUX/09 §3) + 9-type search dropdown incl. "Unsaved File" (UIUX/09 §4). Neither the category reduction nor Bookmarks/Databases/Unsaved-File appears in UI-MAP §13.
 - Home "Specify a location" trio (Recycle Bin / Desktop / Select Folder, UI-MAP §3.3:157-158) and the recycle-bin scan result state (`RecycleBinScanNoRltWnd`) are absent from our Home/ScanTarget model.
 - BitLocker unlock chain (og P05) not in the omit list; our surface is `VolumeInfo.IsBitLocker` (parsed from list, OutputParsers.cs:64) with engine-side auto-unlock at scan time (CORE-CONTRACT §13 `--volume` behavior) and no unlock UI.
 - Smart-partition scan (og P09) replaced by whole-disk `--deep` with `[lost]` result roots — documented in code (ScanOptions.cs:4-8) but not in UI-MAP §13.

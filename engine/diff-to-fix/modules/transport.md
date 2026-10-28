@@ -3,8 +3,11 @@
 Reference: og's user-mode device layer (`ghidra-mo/Device_decompiled.c` +
 `ghidra-drivers/eprdtdrv_decompiled.c` + `ghidra-partition/RecoveryModule_decompiled.c`,
 evidence: `evidence/decompiled-quotes/s4-driver-client-and-factory-contract.md`):
-- open grammar `\\.\EPRDTDRV\<mangled-pid>\<disk>\<part>` / `\\.\EPRDTDRV\<mangled-pid>\Volume\<n>`
-  (PID cascading byte-sum token matches the driver's CREATE check);
+- open grammar (disk) `\\.\EPRDTDRV\<mangled-pid>\<disk>` — the decompile's own template is
+  the 2-segment `"\\\\.\\EPRDTDRV\\%d\\%d"` (Device_decompiled.c:50628; the earlier 3-segment
+  `<pid>\<disk>\<part>` quote was this doc's misreading — the partition digit is NOT part of
+  the disk template) — and (volume) `\\.\EPRDTDRV\<mangled-pid>\Volume\<n>`, both with the
+  PID cascading byte-sum token matching the driver's CREATE check;
 - **WinPE environment gate** (`FUN_1800577e0`: GetSystemDirectory → X: drive probe →
   direct `\\.\PhysicalDriveN`/`\\.\HarddiskVolumeN` in PE; driver on live Windows);
 - read chunking **4 MiB disk / 7 MiB volume** (`0x400000`/`0x700000` ÷ sectorSize),

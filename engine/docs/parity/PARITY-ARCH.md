@@ -51,7 +51,7 @@
 | `DRWService.exe` FVE pipe service (DRWService artifact) | absent — BitLocker detect + legitimate unlock only (README.md:26; cr_bitlocker.cpp) | **DELIBERATE-DELTA** — documented subset |
 | `UILogic.dll` UI logic layer (mom-module-system §2:89) | rda-wizard Core VMs/services | **MATCH** (in-flight, see §4) |
 | `DiskHealth.exe` SMART companion | `rrecov health` + `HealthViewModel` (rda-wizard Core/ViewModels/HealthViewModel.cs:10) | **MATCH** |
-| `FileFilter.xml` 8 categories / 1,489 ext + `EUUserData` (config-data-reference; 05:106-108) | `ResultFilter` + hardcoded 7 categories / ~85 ext (rda-wizard ResultNode.cs:130-171) | **MISMATCH** (structure + coverage) → F-D-7 |
+| `FileFilter.xml` 8 categories / 1,489 entries (1,481 unique — CORRECTIONS #5) + `EUUserData` (config-data-reference; 05:106-108) | `ResultFilter` + hardcoded 7 categories / ~85 ext (rda-wizard ResultNode.cs:130-171) | **MISMATCH** (structure + coverage) → F-D-7 |
 | `language/` 25 locales + 4 OEM + qtbase pairs, QM (Languages census §1) | `LocalizationService` JSON tables, en + zh-CN (LocalizationService.cs:28-33) | **DELIBERATE-DELTA** (EN-first documented UI-MAP.md:875) + **MISSING** RTL → F-D-9 |
 | `Resource/` + `ResourceDark/` theme `.rcc` (og-codebase layout) | DESIGN-SYSTEM.md tokens; App resources not yet built | **UNVERIFIED** (App in-flight) |
 
@@ -138,7 +138,7 @@ These mirror og practice (PartitionRecoveryD.mo and RawFixer.dll reuse NTFS/FAT 
 
 ## 5. Resource & localization organization
 
-- **og:** `language/` 37 QM (25 product locales incl. Arabic=RTL, 4 Mainland OEM variants, 8 qtbase; Languages census §1); `Resource/` + `ResourceDark/` per-theme `.rcc` + `ImageResource.xml`; `FileFilter.xml` (8 categories/1,489 ext, localized labels — 05:106-108); `EUUserData` MIME/magic; `Dict/`; `raw_signs.json` (139 ext, external).
+- **og:** `language/` 37 QM (25 product locales incl. Arabic=RTL, 4 Mainland OEM variants, 8 qtbase; Languages census §1); `Resource/` + `ResourceDark/` per-theme `.rcc` + `ImageResource.xml`; `FileFilter.xml` (8 categories/1,489 entries, 1,481 unique — CORRECTIONS #5; localized labels — 05:106-108); `EUUserData` MIME/magic; `Dict/`; `raw_signs.json` (139 ext, external).
 - **ours (wizard):** `LocalizationService` — JSON key→string tables beside the exe, `en` + `zh-CN`, fallback current→English→key-as-text, malformed-format and missing-file degradation never crashes (LocalizationService.cs:54-67, 119-141). Original strings only (clean-room; header comment :6-8). Key discipline: dotted stable ids (`Home.Title`), `Format()` invariant culture. String table files themselves do not exist yet (App-owned, in-flight).
 - **ours (core):** `err_text` stable English strings keyed by code (cr_error.h:62-63, cr_error.cpp:10+); error taxonomy reproduces the og 0x5002xxxx convention (cr_error.h:4-6 citing 05-scan-engine §4).
 
@@ -220,9 +220,9 @@ Structure parity where reasonable holds (externalized table + fallback ≈ QM + 
 
 ### F-D-7 — P2 — resource organization — classification/filter data hardcoded and much smaller than og's external resources
 - **Ours:** `FileCategory` = 7 categories (Photos/Videos/Documents/Audio/Archives/Email/Other) with ~85 extensions in hardcoded C# HashSets (rda-wizard src/RdaWizard.Core/Models/ResultNode.cs:130-171). Core's carve signature DB is likewise compiled-in (cr_rawsigns_data.cpp; 30 formats per roadmap v0.2).
-- **og evidence:** `FileFilter.xml` — 8 top categories (Graphics 213, Video 76, Audio 62, Document 302, Email 25, Web&Others 12, Archive 59, Folders) = 1,489 extensions, with per-category localized labels/descriptions (05-scan-engine-architecture.md:106-108; config-data-reference; og-codebase/FileFilter.xml verified present, 54,597 bytes); plus `EUUserData` MIME/magic typing; plus external `raw_signs.json` (139 ext, 05:90-92).
+- **og evidence:** `FileFilter.xml` — 8 top categories (Graphics 213, Video 76, Audio 62, Document 302, Email 25, Web&Others 12, Archive 59, Folders) = 1,489 entries (1,481 unique after CORRECTIONS #5's dedup — 8 duplicated extension rows), with per-category localized labels/descriptions (05-scan-engine-architecture.md:106-108; config-data-reference; og-codebase/FileFilter.xml verified present, 54,597 bytes); plus `EUUserData` MIME/magic typing; plus external `raw_signs.json` (139 ext, 05:90-92).
 - **Doc status:** UI-MAP.md:592 records the og surface ("8 categories / 1,489 extensions") but AUDIT-UI's ADR/G lists do not flag the implementation gap; ResultNode.cs:129 claims "og parity: the category taxonomy" while the taxonomy differs (no Folders/Web&Others; adds Other).
-- **Suggested fix:** externalize the category/extension map to a resource file (JSON/XML beside the app, localizable labels — mirrors FileFilter.xml's role), align taxonomy (add Folders + Web-ish bucket or document the merge), and track extension-coverage parity as a measurable number (85/1489 today).
+- **Suggested fix:** externalize the category/extension map to a resource file (JSON/XML beside the app, localizable labels — mirrors FileFilter.xml's role), align taxonomy (add Folders + Web-ish bucket or document the merge), and track extension-coverage parity as a measurable number (85/1,481 unique today).
 
 ### F-D-8 — P3 — hygiene — `temp_data.txt` committed at repo root
 - **Ours:** core_recovery/temp_data.txt, 701 lines, git-tracked; content is a stale copy of rawfixer-related C++ (header comment block matching include/cr/repair/cr_rawfixer.h).

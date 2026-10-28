@@ -2918,7 +2918,15 @@ not the redirector. (2) The corpus proves the scan-path plumbing only
 (RTTI + architecture docs); whether the og's NAS scan actually
 recovers deleted files from shares — server-side undelete semantics
 differ fundamentally from raw block access — is a product-level
-question the corpus does not answer (the finding's own open question).
+question ~~the corpus does not answer~~ **[RE-ADJUDICATED 2026-10-28, N-119:
+the corpus NOW answers it — the EuShare artifacts decode the semantics:
+the SSH-root agent pushes to `/tmp/EaseUS` on the NAS box and runs the
+ON-BOX BITMAP-BASED SCAN, serving results back
+(`re-workspace/artifacts/EuShare/eumrx-nas-architecture.md:10-21` — the
+3-layer model). Deleted-file yield on shares therefore rides the agent's
+on-box block access, not a client-side raw-SMB path. The exclusion below
+now rests on the host-layer/product-scope rationale alone — leg (2) of
+the WHY is retired.]** (the finding's own open question).
 (3) A network stack is not pure-core surface: the core deliberately
 owns no OS facilities below the device contract, and SMB client
 behavior (credentials, timeouts, offline caching) is host policy. (4)
@@ -2927,11 +2935,14 @@ is the registration the finding existed to force.
 
 **RISK:** users needing NAS recovery must go through the host layer's
 mapped-drive path (file-level, whatever the OS redirector exposes) —
-no raw-block carving over SMB. No such device class is documented in
-the corpus as recoverable-by-block-access; the exclusion is scope, not
-capability loss. REVISIT TRIGGER: a corpus decode of the EuMrx scan's
-actual recovery semantics (deleted-file yield on shares) would reopen
-the row.
+no raw-block carving over SMB in OUR core; the og's own answer is the
+on-box agent model (the EuShare decode above), which is a product
+deployment shape, not an engine contract. REVISIT TRIGGER: ~~a corpus
+decode of the EuMrx scan's actual recovery semantics (deleted-file
+yield on shares) would reopen the row~~ **[FIRED and adjudicated
+2026-10-28 (N-119): the EuShare decode answered the semantics; the
+exclusion STANDS on the scope rationale — re-filed only if the product
+ever wants an on-box agent architecture.]**
 
 ### D-89 — the Btrfs re-scan cache: our own format, caller-supplied directory, OFF by default (N-072, REGISTERED DIVERGENCE)
 

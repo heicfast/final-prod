@@ -546,6 +546,12 @@ the registry census, not the family semantics. The class-by-class comparison
   OQ-SA-3 resolved en route: GetRawUserInfoMap is consumed by DRWUI at
   scan setup (Trigger_Raw/FileSystem config tree) - capability-
   configuring, MAJOR stands.
+  **[D-104 supersession note (N-095 item 3): the be0cfe9 corpus decode
+  REFUTED the "capability-configuring" reading — GetRawUserInfoMap is the
+  per-scan carve-statistics map (FUN_18000ed00 insert-or-increment +
+  searcher-init clear; the DRWUI post-scan report reader). The "MAJOR
+  stands" verdict above is SUPERSEDED; OQ-SA-3's consumer question is
+  closed by CORPUS-ERRATA E-A/E-B + PARITY-DELTAS D-104.]**
 
 ## Fix-session delta (S-037 closed — 2026-10-28)
 

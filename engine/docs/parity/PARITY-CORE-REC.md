@@ -122,7 +122,7 @@
 ### F-A3-13 — No per-extension runtime gate (RawConfig.ini) and no user-format layer (EUUserData)
 - **Priority:** P3 · **Axis:** Capability · **Verdict:** MISSING
 - **Ours:** `CarveFlags` (cr_carve.h:35-39) has only hash/threads knobs; no per-format enable, no user-defined signature hook.
-- **og evidence:** engine gated per-extension at runtime via `config/RawConfig.ini` (37 extension toggles, loaded at decompiled line 13133 — deep-dive §4); `GetRawUserInfoMap` export exposes the user extension→analyser bindings (deep-dive §1; census §1); `EUUserData` is a second magic/MIME DB (searchdll-family §4.3).
+- **og evidence:** engine gated per-extension at runtime via `config/RawConfig.ini` (**34** extension toggles after CORRECTIONS #5's mechanical recount — the original census claim was 37; loaded at decompiled line 13133 — deep-dive §4); `GetRawUserInfoMap` export exposes the user extension→analyser bindings (deep-dive §1; census §1); `EUUserData` is a second magic/MIME DB (searchdll-family §4.3).
 - **Suggested fix:** add a per-format enable mask to CarveFlags (config-file driven), and note EUUserData as an unimplemented og layer in capability docs.
 
 ### F-A3-14 — Tail-pair search bound (≤2 MiB) contradicts header doc (dead on current corpus) — RESOLVED by S-015
