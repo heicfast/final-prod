@@ -859,3 +859,51 @@ Baselines: core ff879f9 (suite green per the landing lanes' records),
 corpus be0cfe9 (CORRECTIONS #9 absorbed per T1). Board at open: 0 active /
 249 FIXED / 1 INFO (I-026) / 1 tracked-open (OQ-S4-3). ID space continues:
 next A-012+, S-040+, M-071+, N-090+, I-027+.
+
+---
+Task ID: SA-9/T1 (session-9 open — baseline record)
+Agent: session-9 full parity audit (this session)
+
+Baseline (cloned fresh this session):
+- core_recovery @ 005827112ac7f531c38def082ef67f8ff194e92e (main) — merged
+  product repo (confirmed by inspection, the standing determination: core
+  engine src/core + include/cr, win layer src/win, driver-consuming transport,
+  CI, audit trail in one tree; the driver ships as prebuilt rda.sys release
+  asset from heicfast/rda-driver per docs/PREBUILT-ARTIFACTS.md). Product-code
+  baseline for this session's audit: 35adcb93cf433af4339ee7bdb4c7f5e3e13e8fcf
+  (the last code commit; 0058271 and ff879f9 above it are audit-trail-only
+  commits — verified: git log 35adcb9..HEAD over non-audit paths is empty).
+- rda-driver @ 323e75acf4cd745960813af4e7fd586a4a34d1a0 (main, v0.2.4).
+- corpus easeus-drw-research @ be0cfe95ecf22ac67e0f3a823dd003163b196d38 (main)
+  — unchanged from session-8's T1 (CORRECTIONS.md #9 one past the trail's
+  long-standing 03ad46c; absorption already verified by SA-8/T1).
+
+Session scope (from the trail state + the prompt's two-repo grant, not from
+any invented list): THIS session has BOTH repos (core + rda-driver), so the
+driver-repo handoffs recorded by SCAN-2f come INTO scope alongside the
+session-8 wave-2 lanes that opened but did not execute:
+- V-lane: read-only verification of the post-dev-sign landings' corpus claims
+  (API-EXP W1a/W1b/W1c; OQ-SA-1 carrier eac8e1d; S-007 batch-1 e018bf4;
+  thumbnail 05e6786; installer S-038 steps 2-3 3e6a8fa; CI rebuild 566c483).
+- R-lane: the S-007 batch-2 remainder becomes PROPER FINDINGS (CHM/MNY/EMF/
+  ONE/MPEG-TS/3DS/SWF/JP2/MOBI/LZH + the text school + FCPEvt/
+  OfficeTagFromXML/CRW) — decode what is decodable at the og registration
+  sites first.
+- G-lane: the gap hunt — corpus artifacts + og-codebase surfaces the prior
+  waves never dispositioned; core capabilities without corpus basis (superset
+  register); thumbnail engine vs corpus preview evidence; the NEVER-AUDITED
+  EPMNtDrv v2 internals (identity IOCTLs + async completion engine) + trio
+  naming/PID handshake flagged to the S7 lane that never landed.
+- D-lane (new, this session's two-repo grant): rda-driver repo — D3 (the
+  stale "15/18-command" prose vs the 19-code set, seven sites), D4 (regdrv-
+  rda.reg hex(7) UpperFilters invalid), D2-partial doc drifts, the
+  FileVersion-1.0.0.0-vs-tag-v0.2.4 pin.
+- C-lane: gate-doc currency (SURFACE-INVENTORY/PARAMETERS/README corpus pin
+  03ad46c -> be0cfe9; board counts; CROSS-REF-MATRIX rows for new findings).
+
+Board at open: 0 active / 249 FIXED / 1 INFORMATIONAL (I-026) / 1
+tracked-open (OQ-S4-3 — TTFR half execution-bound). ID space continues:
+next A-012+, S-040+, M-071+, N-090+, I-027+. URLs recorded here and in
+diff-to-fix/README.md (the standing record — re-verified this session).
+
+Prompt saved redacted: worklog/session-9-parity-audit-prompt.md. Read twice.
