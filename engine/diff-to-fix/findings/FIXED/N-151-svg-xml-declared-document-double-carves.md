@@ -1,4 +1,4 @@
-# MINOR N-150 — the XML/SVG family double-carves XML-declared documents: the declaration-start candidate (the `<?xm` row, override→SVG) AND the interior direct-`<svg` candidate (the `<svg` row) both emit — one document, two files
+# MINOR N-151 — the XML/SVG family double-carves XML-declared documents: the declaration-start candidate (the `<?xm` row, override→SVG) AND the interior direct-`<svg` candidate (the `<svg` row) both emit — one document, two files
 
 **Severity:** MINOR (duplicate results inflating the carved tree; no data loss — both extents are subsets of the same document)
 **Module / Surface:** carve / the M-093 XML-SVG chain + the N-113 text-school rows' nested-candidate shapes (modules/carve.md)
@@ -52,6 +52,6 @@ None.
 ## Resolution
 
 **Status:** FIXED
-**Fixed in commit:** (this lane's N-150 rider over the parallel N-113 landing — recorded post-push in the ledger row)
+**Fixed in commit:** (this lane's N-151 rider over the parallel N-113 landing — recorded post-push in the ledger row)
 **Verified by:** the three tests above, all RED on the parallel lane's landed tree `c0f69250` and GREEN after the flags (plus the parallel landing's own nine TextSchool tests and the M-093 SVG suite staying green). Suite 1082/1082 (1040 pass / 42 env skips / 0 fail, linux-release).
 **Resolution notes:** `suppress_overlap = true` on the four M-093 rows (FMT_XML, FMT_XML_BOM, FMT_SVG_CD01, FMT_SVG) and the three N-113 rows (FMT_VCF, FMT_GPX, FMT_GPX_BOM) — the interior re-match of an emitted declaration stream is the same document, the repeating-sync family rule (S-007's mechanism) applied to the nested-declaration shapes. Discovered during this lane's N-113 verification: this lane's own N-113 implementation hit the push window against the parallel lane's equivalent landing (b6e0a9ef — their landing stands per the earlier-push-wins rule); the verification of THEIR landing exposed the three double-carve shapes their tests missed (their multi-card test asserted the outer extent, not the count). No behavior change for non-nested documents (side-by-side files are unaffected — the suppression only fires strictly inside an emitted extent).

@@ -4,7 +4,7 @@
   OSP's +0xF twin) hit the push window against the parallel minors lane's equivalent landing
   (b6e0a9ef — theirs stands). The verification of THEIR landing exposed three nested-candidate
   double-carves their tests missed (the SVG declaration+interior pair — pre-existing from
-  M-093; the VCF inner card; the GPX BOM interior declaration): **N-150 filed and fixed** —
+  M-093; the VCF inner card; the GPX BOM interior declaration): **N-151 filed and fixed (renumbered from N-150 at the S11-R collision — their api-doc batch pushed first)** —
   suppress_overlap on the four M-093 rows + FMT_VCF/FMT_GPX/FMT_GPX_BOM. Tests:
   SvgDeclaredDocumentCarvesOnce, TextSchoolVcfInnerCardIsSameFile, GpxBomFormCarvesOnce (all
   RED on c0f69250, GREEN after). Suite 1082/1082 (1040/42/0). Audit trail: N-150 filed +

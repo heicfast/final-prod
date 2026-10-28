@@ -7614,7 +7614,7 @@ TEST(Carve, TextSchoolVcfInnerCardIsSameFile) {
 }
 
 TEST(Carve, SvgDeclaredDocumentCarvesOnce) {
-    /* N-150 (discovered during this lane's N-113 verification): an
+    /* N-151 (discovered during this lane's N-113 verification): an
      * XML-declared SVG document must carve ONCE - the pre-fix tree carried
      * BOTH the declaration-start candidate (the <?xm row, override->SVG)
      * AND the interior direct-<svg candidate (the <svg row).
@@ -7632,7 +7632,7 @@ TEST(Carve, SvgDeclaredDocumentCarvesOnce) {
               u32(OK));
     std::vector<tree::FileNode*> all;
     collect_children(root, all);
-    ASSERT_EQ(all.size(), 1u) << "ONE document, ONE file (the N-150 double-carve)";
+    ASSERT_EQ(all.size(), 1u) << "ONE document, ONE file (the N-151 double-carve)";
     EXPECT_EQ(all[0]->props()->carve_format, u32(FMT_SVG));
     EXPECT_EQ(all[0]->props()->extents.front().offset, u64(4096))
         << "the declaration-start candidate owns the document";

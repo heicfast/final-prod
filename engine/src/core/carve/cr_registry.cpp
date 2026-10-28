@@ -1064,7 +1064,7 @@ const Signature kTable[] = {
      validate_html,
      "HTML document"},
     /* M-093: the XML/SVG chain - four u32 keys, one shared validator.
-     * N-150 (session-40 lane B): suppress_overlap on all four rows - an
+     * N-151 (session-40 lane B): suppress_overlap on all four rows - an
      * XML-declared SVG re-matches "<svg" strictly inside the emitted
      * declaration stream (the SAME document; the og's sector-aligned
      * probe + extent consumption never re-fires inside a walked file).
@@ -1247,7 +1247,7 @@ const Signature kTable[] = {
      620,
      validate_vcf,
      "vCard contacts",
-     /* N-150-class (this lane's verification of the parallel N-113
+     /* N-151-class (this lane's verification of the parallel N-113
       * landing): the multi-card form re-matches BEGIN:VCARD strictly
       * inside the emitted file - an inner card is the SAME file (the
       * og's sector-aligned probe + extent consumption never re-fires
@@ -1265,7 +1265,7 @@ const Signature kTable[] = {
      620,
      validate_gpx,
      "GPX track",
-     /* N-150-class: a BOM'd file re-matches the declaration strictly
+     /* N-151-class: a BOM'd file re-matches the declaration strictly
       * inside the emitted stream - the same file */
      true},
     {FMT_GPX_BOM,
