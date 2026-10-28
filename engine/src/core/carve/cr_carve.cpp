@@ -45,6 +45,13 @@ namespace {
 constexpr u64 WINDOW = 1ull << 20; /* 1 MiB */
 constexpr u64 OVERLAP = 4096;      /* magic search continuity */
 constexpr u64 MAX_FILE_READ_FOR_HASH = 8ull << 20;
+/* S-055: the grammar-rejection tracking bound (no-reclaim set). A
+ * garbage-saturated 2 TiB image can produce millions of full-magic
+ * matches that fail validation; past this bound tracking stops and the
+ * supplementary user-sign suppression degrades gracefully (the primary
+ * contracts - emitted_at, extent dedup - are unaffected). 1 Mi entries
+ * x ~48 B = ~48 MiB worst case, the same order as the window buffers. */
+constexpr size_t kMaxTrackedRejections = 1ull << 20;
 
 /* trial order: most specific grammar first when magics coincide */
 /* specificity-first: same-magic families order their most specific
@@ -517,8 +524,19 @@ static tree::FileNode* carve_attach_parent(ScanCtx& ctx, u64 pos, const char* ex
 }
 
 /* Scan ONE window [base, base+want) fully (magic dispatch, validation,
- * dedup, emit). Returns OK, or ERR_CANCELLED when aborted mid-way. */
-u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u64>& emitted_at) {
+ * dedup, emit). Returns OK, or ERR_CANCELLED when aborted mid-way.
+ *
+ * S-055: `rejected_at` records the start positions where a grammar
+ * analyser MATCHED the magic but validation failed - the strongest
+ * layer's negative verdict. The user-sign arm does not reclaim those
+ * positions (no-reclaim); the built-in raw-sign table still probes
+ * them (the og's layers claim by EMISSION - a rejected position is
+ * unclaimed for the compiled tables). Memory-bounded: tracking stops
+ * past kMaxTrackedRejections (the supplementary suppression degrades
+ * gracefully on garbage-saturated media; the emitted_at / extent-dedup
+ * contracts are unaffected). */
+u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u64>& emitted_at,
+                    std::set<u64>& rejected_at) {
     /* M-025: validators, checksums, hashes and tail scans read through
      * the window-serving device for this window (per-candidate device
      * re-reads eliminated - see WindowDevice above). */
@@ -623,11 +641,15 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             CarveResult cr = sig.validator(&wdev, cand_abs, sig.max_size);
             if (!cr.ok) {
                 ctx.rejected.fetch_add(1, std::memory_order_relaxed);
+                if (rejected_at.size() < kMaxTrackedRejections)
+                    rejected_at.insert(cand_abs); /* S-055: no-reclaim */
                 continue;
             }
             u64 file_len = cr.end - cand_abs;
             if (file_len < sig.min_size || file_len > sig.max_size) {
                 ctx.rejected.fetch_add(1, std::memory_order_relaxed);
+                if (rejected_at.size() < kMaxTrackedRejections)
+                    rejected_at.insert(cand_abs); /* S-055: no-reclaim */
                 continue;
             }
 
@@ -870,20 +892,74 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             }
             if (emitted_at.count(start_abs))
                 continue; /* a grammar-validated file starts here */
-            /* M-048: the user-extensible signature layer (the og's
-             * EUUserData consumer) - probed at the same stride, after
-             * the grammar layer's claims, before the built-in raw-sign
-             * table (a user sign for an already-probed position is a
-             * duplicate by construction; a user sign colliding with a
-             * BUILT-IN fires only when the built-ins did not match -
-             * built-in-first, the collision rule the finding specifies).
-             * A user-sign hit emits directly: no tail walk (user signs
-             * carry no tail semantics), the user's extension and MIME in
-             * the record, extent to the device end (the og's user signs
-             * are header-only markers - no size grammar). */
-            if (usersigns::active_count() != 0) {
+            /* N-031: the og's all-zero-sector fast-skip, core shape: no
+             * BUILT-IN header sign can live outside the first 47 bytes of
+             * the stride (probe_header's whole offset span), so a stride
+             * whose sign window is all zero skips the 47-lookup
+             * sign-table walk entirely (the og skips the whole sector:
+             * its leading/trailing zero-dword metrics, :9490-9520). The
+             * grammar layer keeps its first-byte dispatch on zeros - it
+             * is near-free there (the finding's own profile rule). S-055
+             * note: the skip guards the BUILT-IN arm only - user signs
+             * anchor up to kMaxOffset+48 bytes out (the og's zip sign
+             * sits at +526), so the user-sign arm below still probes
+             * zero-head strides. */
+            bool head_zero = true;
+            for (u32 zi = 0; zi < 47; ++zi)
+                if (win[off + zi]) {
+                    head_zero = false;
+                    break;
+                }
+            if (head_zero)
+                ctx.zero_strides_skipped.fetch_add(1, std::memory_order_relaxed);
+            /* S-055: the built-in raw-sign table probes FIRST and claims
+             * the position on any surviving hit - built-in-first, the
+             * M-048 collision rule the code's own comments have stated
+             * since the channel landed (the pre-fix code probed the user
+             * signs first, flipping the 8 overlap formats - amr/cap/
+             * class/cpl/flac/msf/pdb/wpl in the shipped default set - to
+             * device-end user-sign records). The user-sign arm runs only
+             * when no built-in survived the disabled-format filter. */
+            bool builtin_matched = false;
+            if (!head_zero) {
+                idx.probe_header(win + off, want - off, matches);
+                if (!matches.empty()) {
+                    /* M-024: drop disabled formats before the best-pick (the og's
+                     * filter removes the analyser from the working registry -
+                     * FUN_180006b30's removal loop - so its signs never fire) */
+                    if (!ctx.rawsign_disabled.empty()) {
+                        size_t w = 0;
+                        for (size_t r = 0; r < matches.size(); ++r)
+                            if (!ctx.rawsign_disabled[matches[r]->fmt])
+                                matches[w++] = matches[r];
+                        matches.resize(w);
+                    }
+                    builtin_matched = !matches.empty();
+                }
+            }
+            /* S-055/S-056: the user-extensible signature layer (M-048,
+             * the og's EUUserData consumer shape) - probed at the same
+             * stride AFTER the grammar layer's claims (emitted_at) and
+             * AFTER the built-in raw-sign table (built-in-first, the
+             * collision rule this block's comment has stated since the
+             * channel landed - now true in code). A grammar-REJECTED
+             * start is not reclaimed here either: the strongest layer
+             * examined the position and produced nothing, and a
+             * header-only match is strictly weaker evidence (the
+             * no-reclaim rule the S-055 fix lane pinned). A user-sign
+             * hit emits directly: no tail walk (user signs carry no
+             * tail semantics), the user's extension and MIME in the
+             * record, extent to the device end (the og's user signs are
+             * header-only markers - no size grammar). S-056: the host's
+             * disabled-formats list gates this layer like every other
+             * carve source (D-104's registered contract - the same
+             * removal-loop semantics the built-in filter above uses). */
+            if (!builtin_matched && usersigns::active_count() != 0 &&
+                rejected_at.count(start_abs) == 0) {
+                const char* const us_disabled =
+                    ctx.flags->disabled_formats ? ctx.flags->disabled_formats : "";
                 if (const carve::usersigns::UserSign* us =
-                        usersigns::match_at(win + off, want - off)) {
+                        usersigns::match_at(win + off, want - off, us_disabled)) {
                     const u64 len = ctx.total - start_abs;
                     /* F9 dedup (extent class) - the same shape as the
                      * grammar/raw-sign layers */
@@ -954,42 +1030,11 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                     }
                 }
             }
-            /* N-031: the og's all-zero-sector fast-skip, core shape: no
-             * header sign can live outside the first 47 bytes of the
-             * stride (probe_header's whole offset span), so a stride
-             * whose sign window is all zero skips the 47-lookup
-             * sign-table walk entirely (the og skips the whole sector:
-             * its leading/trailing zero-dword metrics, :9490-9520). The
-             * grammar layer keeps its first-byte dispatch on zeros - it
-             * is near-free there (the finding's own profile rule). */
-            {
-                const u8* zw = win + off;
-                bool all_zero = true;
-                for (u32 zi = 0; zi < 47; ++zi)
-                    if (zw[zi]) {
-                        all_zero = false;
-                        break;
-                    }
-                if (all_zero) {
-                    ctx.zero_strides_skipped.fetch_add(1, std::memory_order_relaxed);
-                    continue;
-                }
-            }
-            idx.probe_header(win + off, want - off, matches);
-            if (matches.empty())
-                continue;
-            /* M-024: drop disabled formats before the best-pick (the og's
-             * filter removes the analyser from the working registry -
-             * FUN_180006b30's removal loop - so its signs never fire) */
-            if (!ctx.rawsign_disabled.empty()) {
-                size_t w = 0;
-                for (size_t r = 0; r < matches.size(); ++r)
-                    if (!ctx.rawsign_disabled[matches[r]->fmt])
-                        matches[w++] = matches[r];
-                matches.resize(w);
-                if (matches.empty())
-                    continue;
-            }
+            if (!builtin_matched)
+                continue; /* S-055: no built-in survivor and no user-sign
+                           * claim at this stride - nothing further to do
+                           * (the best-pick below requires a survivor;
+                           * matches may be empty or all-filtered here) */
             /* highest-confidence hit drives the candidate */
             const rawsigns::RawSign* best = matches[0];
             for (const auto* m : matches)
@@ -1189,7 +1234,8 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
 }
 
 /* Read + scan the window with index wi (base = wi * WINDOW). */
-u32 scan_window_index(ScanCtx& ctx, u64 wi, std::set<u64>& emitted_at) {
+u32 scan_window_index(ScanCtx& ctx, u64 wi, std::set<u64>& emitted_at,
+                      std::set<u64>& rejected_at) {
     const u64 base = wi * WINDOW;
     const u64 avail = ctx.total - base;
     u64 want = avail < WINDOW + OVERLAP ? avail : WINDOW + OVERLAP;
@@ -1228,7 +1274,7 @@ u32 scan_window_index(ScanCtx& ctx, u64 wi, std::set<u64>& emitted_at) {
         return OK;
     }
     ctx.bytes_scanned.fetch_add(counted, std::memory_order_relaxed);
-    return scan_one_window(ctx, base, win.data(), want, emitted_at);
+    return scan_one_window(ctx, base, win.data(), want, emitted_at, rejected_at);
 }
 
 } // namespace
@@ -1348,12 +1394,13 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
         if (!multi) {
             /* single-threaded path: identical semantics to the original scan */
             std::set<u64> emitted_at;
+            std::set<u64> rejected_at; /* S-055: grammar-rejection set (serial path) */
             for (u64 wi = 0; wi < window_count; ++wi) {
                 if (cancel && cancel->checkpoint())
                     return ERR_CANCELLED;
                 if (progress && !progress(wi * WINDOW, ctx.total, progress_user))
                     return ERR_CANCELLED;
-                if (u32 rc = scan_window_index(ctx, wi, emitted_at))
+                if (u32 rc = scan_window_index(ctx, wi, emitted_at, rejected_at))
                     return rc;
             }
             if (progress)
@@ -1377,7 +1424,8 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
                  * through the pool */
                 try {
                     std::set<u64> emitted_at; /* per-worker overlap set */
-                    u32 rc = scan_window_index(ctx, wi, emitted_at);
+                    std::set<u64> rejected_at; /* S-055: per-worker grammar-rejection set */
+                    u32 rc = scan_window_index(ctx, wi, emitted_at, rejected_at);
                     const u64 done = windows_done.fetch_add(1, std::memory_order_relaxed) + 1;
                     if (progress && !progress(done * WINDOW > total ? total : done * WINDOW, total,
                                               progress_user)) {

@@ -1,3 +1,24 @@
+**Session-51 severe-first lane — S-055 + S-056 landed (2026-10-29).**
+
+**S-055 + S-056 FIXED (one carve patch, the finding's own "fix in the same patch"
+note).** Corpus re-verified (the og's layering: grammar claims then table probes;
+EUUserData has zero RAWSearchDLL references per E-A/E-B); the inversion + the ungated
+toggle re-confirmed live at the current HEAD before the fix. The loop body reordered:
+the built-in arm (probe_header + M-024 filter + best-pick/tail/emission) runs first
+and sets builtin_matched; the user-sign arm fires only when no built-in survived the
+disabled-format filter. The N-031 zero-skip now guards the built-in arm only (user
+signs anchor to kMaxOffset+48 — the og's zip sign at +526). The no-reclaim product
+question DECIDED+PINNED: grammar-rejected starts are not reclaimed (rejected_at
+threaded beside emitted_at, memory-bounded 2^20); the built-in table still probes
+rejected positions (the og claims by emission only). S-056 via match_at's new
+disabled_exts predicate INSIDE the match loop (removal-loop semantics — sibling signs
+still fire). D-104 landing notes registered. 8 new tests, all RED->GREEN proven
+(6 fail pre-fix incl. the floor-gate and grammar-rejected pins; CAFEBABE exposed as
+the built-in class magic — a claimed magic, DEADBEEF used for the unclaimed fixtures;
+cap's D4C3B2A1 shared with the higher-conf pcap row — pinned any-built-in-tag).
+Suite 1192/1192 green. Trail: findings/FIXED/ both + ledger rows + matrix cells +
+carve.md + SUMMARY + this entry.
+
 **Session-51 lane territory claim (coordination contract, 2026-10-29):** this lane
 (the user's SEVERE-first directive; rebranded from the S47 draft at the hot-window
 merge) claims the SEVERE board at the merged `712ac508`: **S-055, S-056, S-057,

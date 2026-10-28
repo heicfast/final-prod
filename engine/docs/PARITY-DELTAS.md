@@ -3224,6 +3224,23 @@ either working or explicitly refusing. VERDICT: ACCEPTED (deliberate
 divergence; truthfulness superset in the D-24/ADR-5 family).
 
 ### D-104 — the user-signature carve channel + the shipped default set are a product superset: the og's scan engine has NO user-sign input (OQ-SA-3 re-resolution, M-065 37c48c6, REGISTERED SUPERSET — engine behavior)
+**S-055/S-056 landing notes (2026-10-29, session-51 severe-first lane):** the
+channel's in-engine ordering is now the one D-104's text always described —
+grammar claims first, the built-in raw-sign table second, the user-sign layer
+LAST (built-in-first at collisions; the 8 default-set overlap formats
+amr/cap/class/cpl/flac/msf/pdb/wpl return bounded built-in candidates). The
+format toggle gates the user layer like every other carve source (the og's
+FUN_180006b30 removal-loop semantics: a disabled extension's signs never fire;
+other extensions' signs still can). One further core-side rule with NO og
+analog (the og has no user layer to mirror): a grammar-REJECTED start is not
+reclaimed by the user-sign arm — the strongest layer's negative verdict
+settles the position for the weaker header-only layer (no-reclaim), while the
+built-in table still probes grammar-rejected positions (the og's layers claim
+by emission only). Rejection tracking is memory-bounded at 2^20 entries
+(kMaxTrackedRejections) — past the bound the supplementary suppression
+degrades gracefully on garbage-saturated media; emitted_at and the extent-dedup
+contracts are unaffected.
+
 
 **Class:** deliberate superset (carve engine behavior) · **Findings:** OQ-SA-3
 (re-resolved, scan-engine lane, 2026-10-28), M-065 (landed 37c48c6 before the

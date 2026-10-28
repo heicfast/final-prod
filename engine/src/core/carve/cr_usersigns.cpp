@@ -4,6 +4,7 @@
  */
 
 #include "cr/carve/cr_usersigns.h"
+#include "cr/carve/cr_signatures.h" /* S-056: carve_token_listed - the same token matcher the raw-sign layer uses */
 #include "cr/cr_error.h"
 #include <cctype>
 #include <cstring>
@@ -249,10 +250,18 @@ u32 snapshot(UserSignSet& out) {
     return OK;
 }
 
-const UserSign* match_at(const u8* p, u64 avail) {
+const UserSign* match_at(const u8* p, u64 avail, const char* disabled_exts) {
     std::lock_guard<std::mutex> lock(g_mu);
     for (const auto& s : g_active.signs) {
         if (u64(s.offset) + s.len > avail)
+            continue;
+        /* S-056: the format toggle gates this layer like every other
+         * carve source - the og's FUN_180006b30 removal-loop semantics
+         * (M-024): a disabled analyser's signs never fire; signs of
+         * OTHER extensions at the same position still can (the removal
+         * happens in the registry, not at the probe). */
+        if (disabled_exts != nullptr && *disabled_exts != 0 &&
+            carve_token_listed(disabled_exts, s.ext, nullptr))
             continue;
         if (std::memcmp(p + s.offset, s.bytes, s.len) == 0)
             return &s;

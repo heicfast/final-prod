@@ -60,13 +60,16 @@ wins over the parallel S42 lanes' consumed seats M-118..122/N-154..160/I-037..03
   timestamps (cr_fat_wire.h:123-142) where the og zeroes the slot via
   `DosDateTimeToFileTime` failure (FAT:32135-54). Wrong metadata in output data, on the
   corrupt-dentry population recovery targets.
-- **S-055 (SEVERE)** — the user-sign layer probes BEFORE the built-in raw-sign table
-  (cr_carve.cpp:738-808 vs :830), inverting the M-048/D-104 collision rule its own
-  comment states; the 8 overlap formats (amr/cap/class/cpl/flac/msf/pdb/wpl) flip to
-  device-end extents on the default path.
-- **S-056 (SEVERE)** — `disabled_formats` gates the grammar and raw-sign layers but not
-  the user-sign layer — D-104's "same format-toggle rules" registration claim is false
-  in code.
+- **S-055 (FIXED session-51)** — the user-sign layer probed BEFORE the built-in raw-sign
+  table, inverting the M-048/D-104 collision rule its own comment stated; the 8 overlap
+  formats (amr/cap/class/cpl/flac/msf/pdb/wpl) flipped to device-end extents on the
+  default path. Built-in-first restored (the user arm fires only when no built-in
+  survived the disabled-format filter; the zero-skip guards the built-in arm only; the
+  grammar-rejected no-reclaim rule decided + pinned via the bounded rejected_at set).
+- **S-056 (FIXED session-51)** — `disabled_formats` gated the grammar and raw-sign
+  layers but not the user-sign layer — D-104's "same format-toggle rules" registration
+  claim was false in code. match_at's disabled_exts predicate now carries the og's
+  removal-loop semantics (a disabled ext's signs never fire; sibling signs still can).
 - **S-057 (SEVERE)** — the og auto-saves STOPPED scans (stop-organize
   "Scan stopped and found %1 files." → the shared completion handler
   FUN_140395e50 whose gates carry no stopped-check, DRWUI:1549399/:339076/:612572-87);

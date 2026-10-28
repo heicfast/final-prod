@@ -24,11 +24,11 @@
     lane (862d79ef) with the S51 severe-first lane's convergence addendum (the
     per-slot zeroing pin + the 0x65C4 example-date erratum), findings/FIXED/A-014,
     MATCH).
-  - **SEVERE (3):** **S-055** (carve P28/P1/P3 — the user-sign layer probes BEFORE the
-    built-in table, inverting the M-048/D-104 collision rule; 8 overlap formats flip to
-    device-end extents); **S-056** (carve P16/P28 — `disabled_formats` gates grammar +
-    raw-sign layers but not the user-sign layer; D-104's own registration claim false in
-    code); **S-057** (session/orchestration P36/P31/P32 — the og's stop path runs its
+  - **SEVERE (3):** **S-055** (carve P28/P1/P3 — FIXED session-51 → MATCH: built-in-first
+    restored, the user arm fires only when no built-in survived the filter, the
+    no-reclaim rule pinned, `findings/FIXED/S-055-*`); **S-056** (carve P16/P28 — FIXED
+    session-51 → MATCH: match_at's disabled_exts predicate carries the removal-loop
+    semantics, `findings/FIXED/S-056-*`); **S-057** (session/orchestration P36/P31/P32 — the og's stop path runs its
     own organize into the shared completion handler whose auto-save gates carry no
     stopped-check (DRWUI:1549399-21 → :339076-79 → :612572-87); the core never
     auto-saves a cancelled run, and its comment mis-states the og).
