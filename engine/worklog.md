@@ -1586,7 +1586,6 @@ sheets remain in the session's scratch area (/home/z/my-project/audit-ctx/
 — A/B/C/D/E, not committed per the SOP); their load-bearing content is
 preserved in the s9-* evidence files and the finding addenda.
 
-<<<<<<< HEAD
 ---
 Task ID: SA-10/T1 (session-10 open — the baseline record)
 Agent: session-10 continuation parity audit (the "remove the fixed / go
