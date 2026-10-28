@@ -4867,3 +4867,21 @@ deep-dive lanes on the directive's focus parameters (sector math; scan strategy
 and progress math; the EUUserData local-database family; state management;
 detection-accuracy and calculation audit); (3) file verified findings, update the
 matrix/ledger/SUMMARY; (4) close with the handoff.
+---
+## Session-12 continuation lane — the second-session deep audit, wave 2 (2026-10-29, T1 baseline: core `c7fa527c`, corpus `be0cfe9`; prompt saved token-redacted to worklog/session-12-continuation-audit-prompt.md, read twice)
+
+Opening state (filesystem truth, re-counted at T1): **55 active (7 SEVERE · 17 MAJOR · 24 MINOR · 7 INFO)
++ 3 tracked-open (OQ-S4-3, OQ-S10-1, OQ-S10-3)** + findings/FIXED/ holding the retired-in-place set
+(OQ-S8-1, OQ-S10-2, N-111, M-110). The session-40 fix lane opened at 461825d8 (worklog 865f8b43) with
+a 15-minor queue but has landed no fixes at this baseline — its queue and this lane's audit work do not
+collide (fix lanes own code; this lane owns diff-to-fix/ audit product only; per the S38/S11
+convergence precedents any finding fixed mid-flight is retired, not re-filed).
+
+This lane's mandate (the user's continuation directive, decomposed):
+1. **Remove-the-fixed** — fresh liveness sweep of all 55 active findings' core-side defect sites at
+   `c7fa527c` (the last full triage ran at 8365956e; M-108/N-111/M-110 have landed since).
+2. **Go more deep** — below-artifact-level comparison: core src/core module walk (compress, crypto,
+   reghive, table, tree, recovery, err, nvramfix, bcdfix, apply, query, storage) vs corpus counterparts;
+   og-codebase data-file grammars vs core data assets; per-function behavioral comparison on the
+   high-traffic engine paths.
+3. **Mark all remaining** — anything surfaced without a disposition gets a finding/register row.
