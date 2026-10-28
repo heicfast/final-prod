@@ -2771,3 +2771,12 @@ Stage Summary:
   trail's coverage claims survive the function-level check).
 - Next: the wave-2 candidates (RAWSearchDLL infrastructure function-level
   walk; the OQ-S8-1 consumer trace if time permits) or close-out.
+
+## Fix session — M-096 landed (MOBI)
+
+- **M-096 FIXED** (`7ca83f5`) — the full-salvage BOOKMOBI gate at +0x3C
+  (nothing before it validated — ported exactly), the 0A 0D 8E E9 end-tag
+  walk at 0x200 steps (the open question's byte order discharged), cap
+  500 MB; the shipped RawConfig posture verified (MOBI=1 — default ON).
+  Tests: 3 Carve.Mobi* (incl. the non-step-aligned-tag fallback pin);
+  suite 1088/1088.

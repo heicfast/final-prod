@@ -306,6 +306,9 @@
 | M-084 | MAJOR | (mid-flight landing) | 16475b8 | `findings/FIXED/M-084-mdb-accdb-second-signature-missing.md` |
 | M-085 | MAJOR | preview | (the parallel lane) | `findings/FIXED/M-085-tiff-lzw-refused.md` |
 | M-091 | MAJOR | (mid-flight landing) | 16475b8 | `findings/FIXED/M-091-mdb-page-chain-size-walk-decoded-bounded-extent-stands-in.md` |
+| M-092 | MAJOR | carve (the HTML four-key chain) | eb1f116 | `findings/FIXED/M-092-html-carve-absent-u16-keys-and-endtag-walk-decoded.md` |
+| M-093 | MAJOR | carve (the XML/SVG chain; "csl"+0x1cd decoded) | d1dc51a* | `findings/FIXED/M-093-xml-svg-carve-absent-four-u32-keys-one-chain.md` |
+| M-096 | MAJOR | carve (the MOBI salvage gate + end-tag walk) | 7ca83f5* | `findings/FIXED/M-096-mobi-carve-absent-bookmobi-gate-endtag-walk-decoded.md` |
 | M-100 | MAJOR | preview | closed-as-covered — `6d0f16c` (M-066+N-088, an ancestor of the finding's own baselines; the session-10 lane-B verification: `evidence/s10-verification-pass-b.md`) | `findings/MAJOR/M-100-archive-browse-inside-preview-absent.md` (retired by the session-10 lane-B push; never lived in FIXED/ — the capability predated the filing) |
 | N-092 | MINOR | (mid-flight landing) | 5ed862f | `findings/FIXED/N-092-thumbnail-refusal-matrix-and-cache.md` |
 | N-124 | MINOR | (mid-flight landing) | c75755d | `findings/FIXED/N-124-transport-module-rows-superseded-by-ddrv-wave.md` |
