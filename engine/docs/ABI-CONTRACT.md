@@ -476,7 +476,7 @@ Contract:
 ### 7f. The session-list surface (W1a / R-56; PLAN-API-EXPANSION Wave 1)
 
 `cr_ui_session_list(const char* utf8_dir, cr_ui_session_row* rows, uint32_t* count)`
-(cr_ui.h:823-865) — the og's LastScanRecordView surface
+(cr_ui.h:865-914) — the og's LastScanRecordView surface
 (UIUX/07-home-phase-deep-dive.md:21 + the Continue-last banner): a
 directory-level summary listing where every `*.crsf` file yields ONE row
 decoded from the container's LIGHT records only (`SESSION_STATE` +
@@ -522,7 +522,7 @@ time (the v5 VOLUME_INFO tail; 0 = a pre-v5 session — display the file
 ### 7g. The session load progress/cancel surface (W1b / R-54; PLAN-API-EXPANSION Wave 1)
 
 `cr_ui_session_load_with_events(const char* utf8_path, cr_ui_event_fn fn, void* user,
-volatile uint32_t* cancel_flag, cr_ui_session** out)` (cr_ui.h:867-886) — the
+volatile uint32_t* cancel_flag, cr_ui_session** out)` (cr_ui.h:916-944) — the
 load-side twin of the N-060 save machinery. The og's RESTORE reports
 progress inside the load window (`40+50*done/(total+done)`,
 rsf-format--scan-session.md flow section) and polls `IUIProgressInfo::

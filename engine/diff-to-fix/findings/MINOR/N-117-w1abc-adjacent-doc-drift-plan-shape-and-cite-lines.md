@@ -47,3 +47,12 @@ N-091 (the registration finding); the 8ff17fc cite-re-pin precedent.
 ## Open questions
 
 None.
+
+---
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-117 doc-truth batch — the session-38 minor-first lane)
+**Verified by:** direct site reads before and after (doc-truth finding; the audit's own plan carries no test): PLAN-API-EXPANSION's W1b row now names the landed shape; ABI-CONTRACT §7f/§7g cites re-measured against the current cr_ui.h block boundaries (865-914 / 916-944).
+**Resolution notes:** Re-verified at current main: PLAN-API-EXPANSION:40 still described the un-landed `cr_ui_session_load_cancel(h)` export while the shipped surface is the `cancel_flag` argument on `cr_ui_session_load_with_events` (cr_ui.h:933-944); ABI-CONTRACT:479/:525 still cited cr_ui.h:823-865/867-886 while the actual blocks sit at 865-914 (the W1a list surface + row struct) and 916-944 (the W1b load-events surface). Both fixed: the plan row now records the LANDED shape (and flags the divergence from the sketch — the cancel-flag seam mirrors the save-side machinery rather than a dedicated export), and both contract cites are re-pinned to the measured ranges. The mechanical re-pin pattern (the 8ff17fc precedent) applied at the finding's own prescribed sites.

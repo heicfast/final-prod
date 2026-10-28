@@ -2184,3 +2184,18 @@ Stage Summary:
 - M-082 closed: the offline-OS identification capability exists, is
   corpus-exact (including the %03d decode), and is test-proven. The
   bootfix auto-locate wiring is the recorded follow-up consumer.
+---
+Doc-truth batch A (N-117 + N-118 + N-103, one docs commit per the T12 module-batch rule):
+all three CONFIRMED at current main before any edit. N-117: PLAN-API-EXPANSION:40 named
+the un-landed cr_ui_session_load_cancel(h) shape (the shipped surface is the cancel_flag
+arg on load_with_events, cr_ui.h:933-944) + ABI-CONTRACT 479/525 cited stale cr_ui.h
+ranges (823-865/867-886 vs the measured 865-914/916-944) - both repaired. N-118: the
+R-52/R-54/R-56 gap rows read PARTIAL with pre-landing claims while W1a/W1b/W1c + the
+S-044 gates are landed and test-covered; R-31's "Missing" components all dispositioned
+(M-024+D-97 toggles; usefullostfiles OOS-UI at OGI:64; PriorityDisplayType via the
+query/filefilter data layers) - all five rows + the second table's three flipped to
+PRESENT with landing cites and the real residuals (N-090/N-091) named. N-103: corpus
+import tables re-read first-hand (heif_image_handle_get_thumbnail = EUImgRepairFile
+ONLY at ghidra-repair/EUImgRepairFile_imports.txt:6; EURawImg carries the decode set,
+no get_thumbnail) - the two R-28 rows, the PLAN-API-EXPANSION:81 row, and the OGI
+heif.dll attribution line corrected; M-102 remains the tracked ABI handoff.

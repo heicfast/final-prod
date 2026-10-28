@@ -41,3 +41,12 @@ I-028.
 ## Open questions
 
 None.
+
+---
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-103 doc-truth batch — the session-38 minor-first lane)
+**Verified by:** the corpus import tables re-read first-hand before the edit: `heif_image_handle_get_thumbnail` appears in ghidra-repair/EUImgRepairFile_imports.txt:6 ONLY; ghidra-repair/EURawImg_imports.txt:1-8 carries the decode set (context_read_from_memory_without_copy / get_plane_readonly / scale_image / ...) with NO get_thumbnail — the finding's attribution confirmed verbatim.
+**Resolution notes:** Re-verified at current main: REFERENCE-API-GAP:222/:376 still read "no dedicated thumbnail op / PARTIAL" against the landed engine (05e6786 + this session's N-092/M-080-era updates and the parallel S-043 orientation landing); PLAN-API-EXPANSION:81 still framed R-28 as an un-landed protocol question; PARITY-OG-CORE-INVENTORY's heif.dll row attributed the embedded-thumbnail symbol to both binaries. All fixed: the two R-28 rows now carry the engine-landed state with the cr_ui ABI exposure named as the tracked M-102 handoff (async stays host-side by design); the plan row gained the engine-landed note distinguishing it from the protocol question; the inventory row now attributes the symbol to EUImgRepairFile alone with EURawImg's decode-set imports cited (the N-103 correction). `CrUi.ThumbnailSmoke` remains the test for the M-102 ABI landing, as the finding's own plan states.

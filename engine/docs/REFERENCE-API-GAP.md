@@ -219,10 +219,10 @@ modules (§a). Corpus-side refs use the R-numbers above.
 | R-25 selection/state queries | selection is caller-owned; no by-ref query | PRESENT (n/a) | Selection state is UI-owned by design in our ABI; no engine state to query. |
 | R-26 recoverability grading + re-grade | S-023: `grade_tree`, `cr_ui_scan_assistant`, `cr_ui_session_regrade` (per-selection re-grade, §b.6) | PRESENT | Direct parity incl. the re-grade-on-selection behavior (runtime-verified og behavior). |
 | R-27 RecoveryAssistant stats | `ScanStats` + assistant stats + report `ScanAnalysis` (§a/b) | PRESENT | Category counts via query totals. |
-| R-28 thumbnails | `cr_ui_preview_read` (+4 MiB/call) can source thumbnails; no dedicated async thumbnail op | PARTIAL | No thumbnail-sized read / async per-row fetch protocol; og has a dedicated thread + (for remote) pixmap-by-index streaming. |
+| R-28 thumbnails | engine landed (`cr_thumbnail`, 05e6786: JPEG/PNG/BMP/GIF/TIFF + PSD/PNM/HDR; dims-first bomb guard; named refusals incl. WMF/EMF/ICO per N-092; EXIF orientation per S-043; 32 MiB default budget per M-080); `cr_ui_preview_read` remains the read seam; no cr_ui thumbnail export yet | PARTIAL (engine PRESENT; ABI open) | The cr_ui ABI exposure is the tracked handoff (**M-102**); async per-row fetch is host-side by design (the og's dedicated thread is UI-side; cr_ui is free-threaded per ABI rules — PLAN-API-EXPANSION:81). |
 | R-29 AI recommend/dedup/insight | none | GAP | Product feature; engine side would need a ranking/dedup pass — nothing in core. |
 | R-30 freeze/unfreeze | n/a (UI protocol; our model is immutable snapshots — G-02 makes freezing unnecessary) | PRESENT (by design) | Snapshot immutability replaces the freeze protocol's purpose (model safety during mutation). |
-| R-31 config layer | `filefilter_entry_count`/`category_for_extension` (FileFilter equivalent); `cr_ui_register_user_signs` (M-048, EUUserData JSON) (§a/b.8) | PARTIAL | **Missing: RawConfig.ini per-format carve enable/disable toggles (34 in og); usefullostfiles.xml whitelist promotion; PriorityDisplayType display ordering.** |
+| R-31 config layer | `filefilter_entry_count`/`category_for_extension` (FileFilter equivalent); `cr_ui_register_user_signs` (M-048, EUUserData JSON) (§a/b.8); RawConfig 34 carve toggles (`cr_carve` CarveFlags, M-024 + D-97); PriorityDisplayType ordering (the query/filefilter data layers, API-DELTA row 45) | PRESENT | The one dispositioned remainder: usefullostfiles.xml whitelist promotion is OOS-UI (verified — PARITY-OG-CORE-INVENTORY:64 carries the row). |
 
 ### Preview
 
@@ -258,11 +258,11 @@ modules (§a). Corpus-side refs use the R-numbers above.
 | Ref | Ours | Status | Delta |
 |---|---|---|---|
 | R-51 save session (manual) | `cr_ui_scan_save_session` (N-060 atomic tmp+rename) (§b.4); CLI `--out` | PRESENT | Format differs by design (own CRSF vs. og .rsf — D-01); record coverage matches (state, volume info + identity card incl. image path N-066, partition context, disk layout M-042, tree, error map, free map, assistant stats, fs-check, lost candidates). |
-| R-52 auto-save on completion | stage-boundary auto-checkpoints via `CheckpointSink` when `--out`/`--resume` given (§d.4) | PARTIAL | Checkpoints are stage-boundary partial saves, not a full-session auto-write at completion with `auto_<vol>_<ts>` naming + folder convention + auto_* enumeration. |
+| R-52 auto-save on completion | landed (W1c, c95335f): `ScanConfig.autosave_dir` (empty = off, zero-init safe) writes `auto_<vol>_<ts>.crsf` at completion via the existing save path; event + stats field; CLI `scan --autosave-dir D`; the S-044 gates (results-found / not-import / not-already-saved) landed `7b7e095` | PRESENT | Naming per N-061; the og's fixed module-adjacent SaveScan folder vs our caller-dir is the registered D-12 delta; the auto-name sanitizer superset (N-091 addendum) registered. |
 | R-53 load/restore session | `cr_ui_session_load` + `cr_ui_session_resume` (mask-validated) (§b.6); CLI `--resume` | PRESENT | Identity revalidation = M-042 + `cr_ui_scan_verify_identity` (boot-hash → `ERR_BAD_CHECKSUM`) — direct parity with og's record-3 identity-card verify-on-restore. |
-| R-54 save/load progress + cancel | save: `SAVE_PROGRESS` event (9) + `cr_ui_scan_save_cancel` (§b.4/b.13) | PARTIAL | **Load is synchronous with no progress events and no load-cancel** (og reports 40→65% restore progress and per-child cancel). |
+| R-54 save/load progress + cancel | save: `SAVE_PROGRESS` event (9) + `cr_ui_scan_save_cancel` (§b.4/b.13); load (W1b, ce6bcb0): `cr_ui_session_load_with_events` fires `CR_EVT_SESSION_LOAD_PROGRESS` (stage permille + the byte fields) and takes the `cancel_flag` arg (polled after every child; a torn load never half-claims state) | PRESENT | Load progress model = own stage-permille + 0xFFFFFFFF overall sentinel (the bytes_done/bytes_total fields permit host recomputation of the og's 40+50·done/(total+done) window — the D-12 registration, N-091). |
 | R-55 corrupt-record degradation | skip-forward salvage F10/G-01..G-03 (§d.2) | PRESENT | Same spirit (corruption-tolerant reader). |
-| R-56 session list / last-session banner | C++ `ScanController::load_session_summary` exists (§a orchestrator) | PARTIAL | **No cr_ui export and no CLI verb to enumerate/list past sessions or read a summary (scan time/files/disk) without a full load.** |
+| R-56 session list / last-session banner | landed (W1a, 78a6552 + eb16335): `cr_ui_session_list` (light-records-only rows; two-call size pattern; newest-first by save_unix with path tie-break per N-116) + the CLI `sessions [--dir D] [--json]` verb + the C-gate block | PRESENT | Row-scope/shape deltas (no `auto_` filter; label[32]; 1 s save time; no device-type field) are N-090's registered set. |
 | R-57 config cache | none (no config file persistence) | GAP | Out of scope unless the UI shim needs it (DRWCfg.bin is og's own AES cache). |
 
 ### Report-export
@@ -397,11 +397,11 @@ process/UI concerns deliberately out of core scope — flagged below).
 | cloud upload (R-49) | arch/04:152-154 | none | GAP | no cloud dest |
 | recovery telemetry (R-50) | UIUX/02:55 | none | GAP | product layer |
 | session save (R-51) | SaveScan:55-62,133-160 | scan_save_session (N-060) | PRESENT | own CRSF format (D-01) |
-| auto-save (R-52) | SaveScan:443-451; UIUX/30:64-67 | stage-boundary checkpoints | PARTIAL | no full-session auto-save-on-completion + auto_* naming/enumeration |
+| auto-save (R-52) | SaveScan:443-451; UIUX/30:64-67 | autosave_dir + completion auto-write + S-044 gates | PRESENT | W1c c95335f + 7b7e095; folder convention = registered delta |
 | session load/restore (R-53) | SaveScan:47-52,122-123 | session_load + resume | PRESENT | identity revalidation parity (M-042) |
-| save/load progress+cancel (R-54) | SaveScan:344-376 | SAVE_PROGRESS evt + save_cancel | PARTIAL | no load progress / load cancel |
+| save/load progress+cancel (R-54) | SaveScan:344-376 | SAVE_PROGRESS evt + save_cancel + load events/cancel_flag | PRESENT | W1b ce6bcb0 |
 | corrupt tolerance (R-55) | SaveScan:98-99 | skip-forward F10/G-01..03 | PRESENT | — |
-| session list (R-56) | SaveScan:11; UIUX/07:21 | C++ load_session_summary only | PARTIAL | no cr_ui export / CLI verb for session listing+summary |
+| session list (R-56) | SaveScan:11; UIUX/07:21 | cr_ui_session_list + sessions verb (N-116 time order) | PRESENT | W1a 78a6552/eb16335; N-090 carries the row-shape deltas |
 | config cache (R-57) | SaveScan:453-461 | none | GAP | out of scope (shim may need it) |
 | recovery log/report (R-58) | UIUX/11:16,19-21 | report_json + tree --csv/--json | PRESENT | ours exceeds (structured export; og has none documented) |
 | crash report (R-59) | arch/04:177-180 | none | GAP | host-app concern |

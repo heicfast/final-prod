@@ -47,3 +47,12 @@ M-073..M-102 (the findings the rows map to); N-091/N-117 (the same landing-wave 
 ## Open questions
 
 None.
+
+---
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-118 doc-truth batch — the session-38 minor-first lane)
+**Verified by:** direct row reads against the landed exports/tests before the edit (W1c autosave + S-044 gates in-source; W1b load events + cancel flag; W1a cr_ui_session_list + the sessions verb + N-116's time ordering).
+**Resolution notes:** Re-verified at current main: the gap-check table read PARTIAL on R-52/R-54/R-56 with pre-landing claims (W1c c95335f + the S-044 gate landing 7b7e095; W1b ce6bcb0; W1a 78a6552/eb16335 all landed and test-covered), and R-31's "Missing" components are all dispositioned (RawConfig 34 toggles = M-024 FIXED + D-97; usefullostfiles.xml = OOS-UI verified, PARITY-OG-CORE-INVENTORY:64; PriorityDisplayType = the landed query/filefilter data layers, API-DELTA row 45). All five primary-table rows (R-28-adjacent untouched here — that is N-103's row) flipped to PRESENT with the landing commits cited, the residual deltas named (folder-convention D-12, N-090's row-shape set, the N-091 load-progress registration), and the second summary table's three rows brought into agreement. The board now tells the truth in both directions — no landed feature reads as missing, and the real residuals (N-090/N-091) are named where a future session will find them.
