@@ -339,6 +339,87 @@ TEST(Query, PathPrefixFilterMatchesAndPrunes) {
     }
 }
 
+/* M-072: the path axis's SUBSTRING form + the state dimension as a MASK
+ * (the og's AdvanceFilterCondition carries 7 sub-condition groups; the
+ * core now expresses 7 - the boolean deleted_only stays sugar for the
+ * Lost-files-only control, back-compat). */
+TEST(Query, M072PathSubstringAndStateMask) {
+    tree::ResultTree t;
+    auto* found = t.add_root(u"Found");
+    auto* sub = add_file(t, found, "sub", 0, 0, 0, false, tree::Origin::Virtual);
+    add_file(t, sub, "b.jpg", 100, 1000, 1, false, tree::Origin::Structured);
+    add_file(t, sub, "a.txt", 200, 2000, 2, true, tree::Origin::Structured); /* deleted */
+    auto* other = add_file(t, found, "other", 0, 0, 0, false, tree::Origin::Virtual);
+    add_file(t, other, "e.png", 10, 10, 1, false, tree::Origin::Structured);
+    add_file(t, found, "c.mp4", 300, 3000, 1, false, tree::Origin::Carved);
+    t.refresh_stats();
+
+    /* the substring form: mid-path match, case-insensitive */
+    {
+        Query q;
+        q.filter.path_substring = "sub/b";
+        const Result r = run(t, q);
+        ASSERT_EQ(u64(1), r.total_matched);
+        EXPECT_EQ("b.jpg", r.rows[0].name_utf8);
+    }
+    {
+        Query q;
+        q.filter.path_substring = "OTHER/E"; /* ASCII-case-insensitive */
+        const Result r = run(t, q);
+        ASSERT_EQ(u64(1), r.total_matched);
+        EXPECT_EQ("e.png", r.rows[0].name_utf8);
+    }
+    /* substring + name axis compose */
+    {
+        Query q;
+        q.filter.path_substring = "found/sub";
+        q.filter.extensions = {".jpg"};
+        const Result r = run(t, q);
+        ASSERT_EQ(u64(1), r.total_matched);
+        EXPECT_EQ("b.jpg", r.rows[0].name_utf8);
+    }
+    /* the state mask: Active-only excludes the deleted a.txt */
+    {
+        Query q;
+        q.filter.state_mask = 1u; /* bit0 Active */
+        const Result r = run(t, q);
+        EXPECT_EQ(u64(5), r.total_matched); /* b.jpg, e.png, c.mp4, sub, other */
+    }
+    /* Deleted-only = the Lost-files-only control */
+    {
+        Query q;
+        q.filter.state_mask = 2u; /* bit1 Deleted */
+        const Result r = run(t, q);
+        ASSERT_EQ(u64(1), r.total_matched);
+        EXPECT_EQ("a.txt", r.rows[0].name_utf8);
+    }
+    /* deleted_only sugar == the Deleted bit (back-compat pin) */
+    {
+        Query q1, q2;
+        q1.filter.deleted_only = true;
+        q2.filter.state_mask = 2u;
+        const Result r1 = run(t, q1);
+        const Result r2 = run(t, q2);
+        EXPECT_EQ(r1.total_matched, r2.total_matched);
+        ASSERT_EQ(u64(1), r1.total_matched);
+        EXPECT_EQ("a.txt", r1.rows[0].name_utf8);
+    }
+    /* zero mask = all states (the ABI zero-init default) */
+    {
+        Query q;
+        q.filter.state_mask = 0;
+        const Result r = run(t, q);
+        EXPECT_EQ(u64(6), r.total_matched);
+    }
+    /* no path filter: the count fast lane never materializes paths */
+    {
+        Query q;
+        q.filter.state_mask = 0xF;
+        const Result r = run(t, q);
+        EXPECT_EQ(u64(6), r.total_matched);
+    }
+}
+
 TEST(Query, RandomizedAgainstReference) {
     std::mt19937_64 rng(12345);
     for (int round = 0; round < 20; ++round) {

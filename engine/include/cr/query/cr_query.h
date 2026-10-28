@@ -70,8 +70,29 @@ struct Filter {
      * safe); the walk prunes subtrees whose accumulated path is
      * prefix-incompatible with the filter. */
     std::string path_prefix;
+    /* M-072: the path group's substring form (the og's filter-bar path
+     * box matches on substrings; the prefix form above is the
+     * corpus-decoded M-029 half) - ASCII-case-insensitive over the
+     * materialized full path, evaluated only when active (the
+     * no-string-conversion fast lane keeps the 1M-node budget). */
+    std::string path_substring;
+    /* M-072: the state dimension as a MASK (the og's 7-group filter
+     * carries state as a sub-condition group; the boolean below is its
+     * one-decoded "Lost files only" control). Bits map onto the core's
+     * deleted-state axis: bit0 Active, bit1 Deleted, bit2 Partial,
+     * bit3 Damaged (tree::DeletedState ordinals). 0 = all states.
+     * deleted_only stays as sugar for the Deleted bit (back-compat). */
+    u32 state_mask = 0xF;
     bool deleted_only = false;
     u32 origin_mask = 0xF; /* tree::Origin bits */
+
+    /* effective state mask: deleted_only sugar ORs in the Deleted bit */
+    u32 effective_state_mask() const {
+        u32 m = state_mask == 0 ? 0xFu : state_mask;
+        if (deleted_only)
+            m &= ~1u; /* drop Active (the Lost-files-only semantics) */
+        return m;
+    }
 };
 
 /* ---- M-029: the og filter-bar's Date/Size bucket IDs ----------------

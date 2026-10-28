@@ -3317,6 +3317,9 @@ u32 query_run_impl(cr_ui_session* sess, const cr_ui_query* q, cr_ui_query_row** 
         cq.filter.name_substring = q->name_substring;
     if (q->path_prefix) /* ABI-since core-api: the og path filter group */
         cq.filter.path_prefix = q->path_prefix;
+    if (q->path_substring) /* M-072 (ABI-appended): the path group's substring form */
+        cq.filter.path_substring = q->path_substring;
+    cq.filter.state_mask = q->state_mask ? q->state_mask : 0xFu; /* M-072 */
     cq.filter.deleted_only = q->deleted_only != 0;
     cq.filter.origin_mask = q->origin_mask ? q->origin_mask : 0xFu;
     switch (q->sort) {

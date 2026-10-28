@@ -1023,6 +1023,11 @@ typedef struct cr_ui_query {
     const char* path_prefix;    /* ABI-since core-api: full-path prefix filter
                                  * (og AdvanceFilterCondition path group),
                                  * ASCII-case-insensitive; NULL = no filter */
+    const char* path_substring; /* M-072 (ABI-appended): the path group's
+                                 * substring form; NULL = no filter */
+    uint32_t state_mask;        /* M-072 (ABI-appended): tree::DeletedState
+                                 * bits (bit0 Active, bit1 Deleted, bit2
+                                 * Partial, bit3 Damaged); 0 = all states */
     uint32_t deleted_only;
     uint32_t origin_mask; /* 0 = all origins */
     uint32_t sort, dir;

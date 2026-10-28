@@ -130,7 +130,9 @@ bool passes(const Filter& f, const tree::FileNode* n, const tree::FileProperties
         return false;
     if (u32(n->confidence()) < f.confidence_min)
         return false;
-    if (f.deleted_only && n->deleted_state() == tree::DeletedState::Active)
+    /* M-072: the state dimension as a mask (deleted_only remains sugar
+     * for the Lost-files-only toggle; the mask expresses the og's group) */
+    if ((f.effective_state_mask() & (1u << u32(n->deleted_state()))) == 0)
         return false;
     if ((f.origin_mask & (1u << u32(n->origin()))) == 0)
         return false;
@@ -156,8 +158,11 @@ bool passes(const Filter& f, const tree::FileNode* n, const tree::FileProperties
     /* the path-prefix filter (og AdvanceFilterCondition path group): the
      * row's full path must start with the prefix; the walk only passes a
      * materialized path when the filter is active (the plain count path
-     * keeps its no-string-conversion fast lane) */
+     * keeps its no-string-conversion fast lane). M-072 adds the substring
+     * form on the same axis (the og's filter-bar path box). */
     if (!f.path_prefix.empty() && !starts_with_ci(full_path, f.path_prefix))
+        return false;
+    if (!f.path_substring.empty() && !contains_ci(full_path, f.path_substring))
         return false;
     return true;
 }
@@ -170,7 +175,7 @@ void walk(const tree::FileNode* n, const std::string& prefix, Ctx& c) {
          * path-prefix filter is active (prefix carries the ancestors,
          * '/'-joined, no trailing separator - the Row::path_utf8 shape) */
         std::string full;
-        if (!c.f->path_prefix.empty()) {
+        if (!c.f->path_prefix.empty() || !c.f->path_substring.empty()) {
             const std::string name = ch->name_utf8();
             full = prefix.empty() ? name : prefix + "/" + name;
         }
@@ -213,7 +218,7 @@ Result run(const tree::ResultTree& tree, const Query& q) {
         /* the root's own path segment (FullNode role, ASCII fallback) -
          * only materialized when the path filter is active */
         std::string root_seg;
-        if (!q.filter.path_prefix.empty() && r->is_full()) {
+        if ((!q.filter.path_prefix.empty() || !q.filter.path_substring.empty()) && r->is_full()) {
             const auto* fn = static_cast<const tree::FullNode*>(r);
             for (u16 ch : fn->role)
                 root_seg.push_back(char(u8(ch < 0x80 ? ch : u'_')));
