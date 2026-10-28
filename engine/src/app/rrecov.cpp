@@ -2956,9 +2956,23 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
     wprintf(L"session candidates:\n");
     for (size_t k = 0; k < stats.lost_candidates.size(); ++k) {
         const auto& c = stats.lost_candidates[k];
-        wprintf(L"  %zu: LBA %llu, %llu sectors, score %d%s\n", k + 1,
+        /* M-137: the og's found-partition row context (UIUX/08 §2 -
+         * Disk / Basic / Dynamic / MBR / GPT / File System) */
+        const wchar_t* layout = c.disk_layout == 1   ? L"MBR"
+                                : c.disk_layout == 2 ? L"EBR"
+                                : c.disk_layout == 3 ? L"GPT"
+                                : c.disk_layout == 4 ? L"GPT-damaged"
+                                                     : L"none";
+        const wchar_t* dyn = c.disk_dynamic ? L"dynamic" : L"basic";
+        const wchar_t* tok = c.disk_table_ok ? L"ok" : L"no-table";
+        wchar_t label[13] = L"";
+        for (int m = 0; m < 12 && c.volume_label[m]; ++m)
+            label[m] = wchar_t(u8(c.volume_label[m]));
+        wprintf(L"  %zu: LBA %llu, %llu sectors, score %d, %s/%s, table %s%s%s%s\n", k + 1,
                 static_cast<unsigned long long>(c.start_lba),
-                static_cast<unsigned long long>(c.sector_count), c.score,
+                static_cast<unsigned long long>(c.sector_count), c.score, layout, dyn, tok,
+                label[0] ? L", label \"" : L"", label[0] ? label : L"",
+                label[0] ? L"\"" : L"",
                 int(k) == candidate - 1 ? L"  <-- selected" : L"");
     }
     if (candidate < 1 || size_t(candidate) > stats.lost_candidates.size()) {
@@ -3245,7 +3259,12 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
         return 2;
     }
     IStorageDevice* slice = view.get();
-    std::unique_ptr<IStorageDevice> part_slice;
+    /* M-119 repair (win_syntax_check red at the landing; CONVERGENT with
+     * the S53 lane's N-188 fix - byte-equivalent retype): the concrete
+     * type - the clamp-delta surface (was_clamped/length/clamp_delta) is
+     * PartitionSlice's own, not IStorageDevice's; .get() still feeds the
+     * base-typed slice below. */
+    std::unique_ptr<cr::PartitionSlice> part_slice;
     u64 part_base = 0; /* A-002: partition base in DISK bytes (0 = whole disk) */
     if (part >= 1) {
         table::DiskTable t;

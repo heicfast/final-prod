@@ -16,6 +16,17 @@ results-found gate in the stop window. cr_ui_tests 70/70; cr_tests 1238/1238.
 Trail: findings/FIXED/S-057 + ledger row + matrix cell + session.md + SUMMARY +
 this entry.
 
+- **M-137 FIXED (e7030bf2)** — the lost-partition surfaced shape: the og's naming
+  template (unnamed "Lost Partition <n>(<FS>)" with the per-scan counter; the boot-label
+  path "<label> (<FS>)" with ":)"-bearing labels verbatim; LBA only as the no-FS-name
+  fallback; the FAT12/16 +0x2B label captured by the probe), the presentation trio
+  (disk_layout/disk_dynamic/disk_table_ok stamped from the orchestrator's own parses,
+  persisted PartitionContext v3 tail, surfaced in rrecov + the cr_ui_apply_candidate ABI
+  tail), the ten-target insertion cap (lost_candidates_inserted; >10 stay surfaced +
+  apply-able), and the 512-byte geometry fallback (FallbackGeomDevice shim - every probe
+  reads geometry() directly). 5 new tests + the M-104 twin re-pinned; the three
+  behavioral tests RED-proven by behavior-revert; suite 1244: 1202/42/0. The Quick-staging
+  half: the D-36 single-walk decode (C1/I-044) covers it - registered delta, not a defect.
 **Session-51 severe-first lane — S-058 + S-061 landed (2026-10-29).**
 
 **S-058 + S-061 FIXED (one grading patch).** Corpus re-verified first-hand:
@@ -171,6 +182,32 @@ landed between the claim commit `fa654673` and this lane's open). Baseline at op
 linux-release build green, suite **1273/1273**. Mandate saved token-redacted at
 `worklog/session-diff-fix-s53-prompt.md` (renumbered with the lane at each window; the S53 seat holds — the remote continuation-audit lane vacated to S55 at 92fe573d).
 
+- **N-188 FIXED (NEW — discovered during this lane's merge; renumbered from the N-186 draft at the N-160 window merge per SA-9, the remote's renumbered N-142-rsf took the seat)** — the M-119 window
+  committed a red main: `rrecov.cpp:3253` called PartitionSlice's clamp surface
+  (was_clamped/length/clamp_delta) through an `unique_ptr<IStorageDevice>` holder
+  (the create factory returns `unique_ptr<PartitionSlice>` - the interface erasure
+  broke the app parse) and `cr_ui.cpp:1387/:1481` used the nonexistent
+  `Level::Warning` (the enum carries `Warn`). win_syntax_check Failed at the merged
+  tree (the five parse errors, executed proof); the window's green-suite claims came
+  from `--target cr_tests` runs that skip the app TU. The two-line repair + the
+  finding filed (N-186, the N-133/M-120 committed-red family); full suite 1340/1340
+  green post-repair (1339/1340 pre-repair).
+
+- **N-158 FIXED (CONVERGENT — the remote lane's 78b9b7aa wins per SA-9)** — the
+  OfficeTagFromXML five-branch tail. This lane landed the same five branches
+  independently (XMIND/MMAP/EDDX/WFP/DRP in the N-115 `zip_common` walk; the
+  FUN_180045110 first-hand decode; five appended enum ids + registry rows; the og's
+  own label constants) with the 7-test battery RED-proven via the stashed-engine
+  rebuild (branches disabled at f0b35591: 6/7 fail) — and BOTH lanes independently
+  chose the winner-selection toggle gate over the emission-time gate (this lane's
+  evidence: the raw-sign DOTX claim on the unemitted interior; theirs: the
+  DOCX-mislabel path), a two-lane confirmation of the gate placement. Their landing
+  stands (their XMIND two-needle probe is the more complete decode); this lane's
+  unique supplements kept: the FORMATS.md typing-walk paragraph + the carve-module
+  verdict + this convergence record. The window also brought: N-175 (the NTRes fold
+  — removed from this lane's queue), S-055+S-056, M-119, M-129, M-133, OQ-S42-1/-2
+  resolved — absorbed.
+
 - **N-174 FIXED (CONVERGENT — the remote S46/W1 lane's 6399e957 wins per SA-9)** —
   the exFAT AppleDouble sink: a `._`-prefixed name (macOS Finder sidecar) skips
   emission exactly like the og's props-builder refusal (exFATSearchDLL strncmp
@@ -254,6 +291,18 @@ OQ-S10-3's grant boundary). Pulled-before-pushed discipline; one finding, one pu
 fix RED-test-first; corpus cites re-read first-hand. The S48/S49/S50 windows absorbed at
 the merge (A-014 + I-041..I-044 retired by the parallel lanes; both sides' records kept).
 
+- **M-115 FIXED** (`1d7a761b`) — the thumbnail grade promotion re-based on READ
+  evidence: Thumbnail::read_ok disclosed by the engine (make_thumbnail_status sets
+  it on Ok + DecodeFailed when no unreadable span was gained — the og's
+  FUN_1403eba50 verdict-0 semantics; the -3 data-but-failed class does not
+  promote); the ABI promotes on read_ok before the status check; the og's 0x14
+  work-item floor at the ABI gate (DRWUI :421391-421403); the stale :422498-518
+  cite repaired. Corpus re-read first-hand: the four-condition guard at
+  DRWUI_decompiled.c:422500-422514. Tests: ThumbnailPromotesOnReadNotDecode (the
+  damaged-but-readable PNG, RED pre-fix) / ThumbnailTinyFileDoesNotPromote (the
+  8-byte PBM, RED pre-fix) / ThumbnailUnreadableSpanNeverPromotes (the pin);
+  suites 71/71 + 1228/1228. D15/B2/A42 → MATCH; the TxtView/media triggers ride
+  N-144/OQ-S10-1 per the fix plan's own routing.
 - **M-119 FIXED** (`033b9cdb`) — the partition-boundary tolerant pair: create-clamp
   (was_clamped/clamp_delta; N-046's start-past-device refusal kept) + the og read
   ladder (offset>=length/count>length refuse; straddle clamps + FULL-tail zero-fill +
@@ -445,6 +494,39 @@ core `659f0f6c`, corpus `be0cfe9`.
   pre-fix). Suite 1243/1243 (1201/42/0). Audit trail: retired to
   findings/FIXED/ with Resolution; ledger row; matrix row → MATCH; writer
   module addendum; the schema doc's wire sample + field docs + truth rule 5.
+
+- **N-163 FIXED (MINOR, ntfs)** — the runlist malformed-input tolerance: the
+  og's truncate-and-keep decoder re-read first-hand (FUN_1800347d0
+  :41853-41970 — pos>=bytes :41875, entry-span cut :41888, len_width>8
+  break+SUCCESS :41891, off_width>8 :41992-94, all `return 1`) and the
+  pre-validator (FUN_18001d5f0 :23175-23210 — the first-byte nibble gate
+  at :23184, the five call sites). Landed: (a) the torn_keep tolerance in
+  RunList::decode — width violations, mid-entry truncation and the
+  zero-length tail AFTER >=1 valid run return OK with the valid prefix +
+  the new `torn` flag; zero valid runs still rejects (the validator's own
+  class); (b) the clean buffer-end stop distinguished from a tear (a
+  terminator-less complete runlist decodes OK untorn — the old
+  TerminatesAndRejectsTruncated pin re-truthed to the og's stop); (c) the
+  torn flag OR-merged at all six parse_data_runs sites (primary $DATA,
+  $I30, both child-chase folds) via the merged lists; (d) the grading
+  downgrade: probe torn + Excellent → PartialRisk (Overwritten keeps its
+  worse truth; live files share the downgrade — a torn extent list never
+  silently pretends completeness); (e) the sparse-first direction
+  REGISTERED as PARITY-DELTAS D-135 (the og's validator rejects
+  first-byte off-nibble==0; the core deliberately accepts the all-hole
+  file — real content shape, the og's own decoder has no sparse gate);
+  the og's append-and-continue past a zero-length run noted as the
+  residual in the Resolution (the empty run carries no content). The
+  safety bounds (max_clusters, RUNLIST_MAX_RUNS, the INT64_MIN UB guard)
+  stay rejecting — the F6/fuzz hardening family. Tests:
+  RunList.TornAfterValidRunsKeepsPrefix (4 tear classes) /
+  AllGarbageYieldsNothing / SparseFirstAcceptedAndRegistered +
+  NtfsVolume.TornRunlistKeepsPrefixAndGradesPartialRisk (end-to-end: the
+  deleted file surfaces WITH prefix extents + PartialRisk) — the
+  prefix-keep and the grading both RED pre-fix (stash-proven), GREEN
+  post. Suite 1280/1280 (1238/42/0); clang-format clean. Audit trail:
+  retired to findings/FIXED/ with Resolution; ledger row; matrix row →
+  MATCH; ntfs module addendum; D-135.
 
 - **N-148 FIXED** — the comment-truth batch, all seven items: the LDM RAID-5 UNDECODED hedge
   replaced with the OQ-T7 resolved MATCH; D-09's demanded ZFS wording landed verbatim; the M-112
@@ -7633,3 +7715,65 @@ implementation bug caught in self-review before commit: the end-of-name NUL must
 its early-return (an intermediate `break` would have continued to further slots).
 Suite 1218/1218 (linux-release). Trail: findings/FIXED/N-176 + ledger row + matrix row
 + fat.md list + this entry.
+
+## Session-57 severe-first fix lane — S-058 CONVERGENT (2026-10-29)
+
+**S-058 CONVERGENT per SA-9:** this lane's complete fix (gate inversion + the
+empty-string skip arm + the header re-truth + the s5 erratum + the M-133 fixture
+re-pin to out-of-table extensions + a 3-RED-test battery incl. both halves of the
+polarity pin and a DotlessSkipsTwins quirk guard, suite 1255/1255 green at the
+local tree) lost the push-window race to the S52 lane's ea405392 (S-058 + S-061
+together, 23/23). Their landing stands; this lane's record: the finding file's
+convergence addendum + the ledger convergent row + this entry. The independent
+verification was performed FIRST (comparator chain :324923-939, control case
+:585885-905, gate block :605736-810 — all read first-hand in the corpus decompile
+before any change), and the RED battery ran at the pre-fix tree. Redundant
+code/tests dropped per the superset rule. Moving to S-059 (the sparse-hole export
+left-shift — the deep reconstruction one).
+
+### Fix 5 (convergence) — S-055/S-056/S-171 over the hot-window race + the M-119 win_syntax_check repair
+
+This lane's independent S-055+S-056+N-171 patch (built on `98079347`'s lineage, all
+three findings' fail-before batteries executed RED) lost the SA-9 race to the S48/S46
+lane's 7bd5e00f (identical semantics: built-in-first reorder, the same grammar-rejected
+no-reclaim decision, the same N-031 scoping, their match_at disabled_exts predicate vs
+this lane's post-match carve_token_listed — zero behavioral difference). The convergence
+commit on the merged tree carries this lane's UNIQUE product: **N-171 closed** (the
+validated tick — the winning landing left the counter split; `CarveStats.UserSignFiles-
+CountInCarvedFound` RED→GREEN), the **cpl offset-12 + wpl offset-132 two-layer collision
+legs** (`Carve.CplWplTwoLayerCollisionsStayBuiltin` — the winning test's offset-0 walk
+cannot reach either), and the **ocx-shadowing datum** (cpl's 12-byte sign shadowed by
+ocx's 9-byte prefix at the same offset, conf 630 > 510, on both sides). MAIN-RED REPAIR
+riding the same push: the M-119 landing (033b9cdb) left `win_syntax_check` red —
+rrecov.cpp:3227's base-typed `std::unique_ptr<IStorageDevice>` calling PartitionSlice's
+own clamp surface, and cr_ui.cpp's `Level::Warning` (the enum is `Warn`); both repaired
+(the concrete unique_ptr<cr::PartitionSlice> type; .get() still feeds the base slice).
+Full suite **1342/1342** post-convergence; clang-format 18.1.8 clean. Trail: N-171 →
+findings/FIXED/ with Resolution; ledger row; S-055/S-056 convergence addenda on the
+winning Resolutions.
+
+## Session-52 lane — M-130 landed (2026-10-29)
+
+**M-130 FIXED (MAJOR — the FAT dentry shape-validator family).** The corpus re-decode
+went BEYOND the finding (every gate re-read in the raw decompile, FUN_1800365a0
+:44263-44375 + the helpers :44380-44520 + all 9 call sites): (1) the ":44295-96
+ext-tail > '?'" gate is the ATTRIBUTE byte (the u32 at +0x08's top byte — the walk
+sites pass the dentry as both context slots, :8788-89/:42944-45); (2) the histogram is
+10-pass/11-reject (pre-increment `9 < count`); (3) the size/chain-XOR + dir gates run
+ONLY at the emission walk (:42948, param_2=1) — a SKIP class, distinct from the
+walk-BREAK classes at :8792/:53647; (4) two gates the finding missed: the
+erased/repeated-pattern quad (ext+attr == ntres/tenths/crtime, != 0x20 — rejects the
+all-zero dentry) and label purity (volume bit set but attr ∉ {8, 0x28} → walk stops —
+upgrading the FAT-10 stray-cluster 0x0F class from skip to break, the og's semantics).
+The port: `fat_dentry_walk_ok` + `fat_dentry_shape_ok` in cr_fat_wire.h, wired at
+walk_dir_entries (break) and pre-emit (skip); `shape_rejected` counter added. The
+date/time sub-gates stay config-gated (N-010c lineage; FUN_1800368e0's time gate is
+behind its own og config flag — A-014 owns the always-on emission semantics). One
+fixture corrected per the S-042 rule: test_telemetry's build_fat16_wide planted
+cluster-2/size-0 dentries — the exact illegal XOR class. Tests (8):
+DentryAttrReservedBitsStopWalk / DentryErasedPatternQuadStopsWalk /
+DentryHistogramEleventhRepeatStopsWalk / DentryImpureLabelStopsWalk (4 RED pre-fix),
+DentryHistogramTenRepeatsStillEmit (the boundary pin), PureVolumeLabelSkippedWalkContinues,
+SizeChainXorSkippedButWalkContinues, DirSizeAndHighClusterSkipped. Suite 1322/1322
+(linux-release); FatEngine+Telemetry ASan-clean (78/78). Trail: findings/FIXED/M-130 +
+ledger row + matrix cell + fat.md row + this entry.

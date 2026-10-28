@@ -1384,7 +1384,7 @@ u32 open_volume_impl(char letter, cr_ui_device** out) {
      * surfaced through the log so the host can see the shrinkage; only
      * a genuinely unopenable extent (start past the device) refuses. */
     if (slice && slice->was_clamped() && cr::log::enabled())
-        cr::log::write(cr::log::Level::Warning,
+        cr::log::write(cr::log::Level::Warn,
                        "volume %c: declared window overruns the device by %llu bytes; "
                        "opened clamped",
                        letter, static_cast<unsigned long long>(slice->clamp_delta()));
@@ -1478,7 +1478,7 @@ u32 open_volume_with_key_impl(char letter, const char* utf8_hex_fvek, cr_ui_devi
      * surfaced through the log so the host can see the shrinkage; only
      * a genuinely unopenable extent (start past the device) refuses. */
     if (slice && slice->was_clamped() && cr::log::enabled())
-        cr::log::write(cr::log::Level::Warning,
+        cr::log::write(cr::log::Level::Warn,
                        "volume %c: declared window overruns the device by %llu bytes; "
                        "opened clamped",
                        letter, static_cast<unsigned long long>(slice->clamp_delta()));
@@ -4025,6 +4025,15 @@ u32 thumbnail_generate_impl(cr_ui_device* dev, cr_ui_session* sess, uint64_t nod
         return ret_(ERR_BAD_PARAMETER, "node has no content properties");
     if (node->is_full())
         return ret_(ERR_BAD_PARAMETER, "root/virtual nodes have no thumbnailable content");
+    /* M-115: the og's dispatcher creates thumbnail work items only for
+     * files with size > 0x14 (DRWUI :421391-421403, the <=20-byte skip)
+     * - such files never promote through the thumbnail path in the og,
+     * and the core must not promote them either (the pre-fix core
+     * promoted any decodable image, however small). */
+    if (node->props()->logical_size <= 0x14)
+        return ret_(ERR_UNSUPPORTED,
+                    "thumbnail: %llu-byte file under the og's 20-byte work-item floor",
+                    static_cast<unsigned long long>(node->props()->logical_size));
 
     /* caps: every zero field = the engine default (the header contract);
      * nonzero values ride the engine's own validation (BadParameter) */
@@ -4062,6 +4071,25 @@ u32 thumbnail_generate_impl(cr_ui_device* dev, cr_ui_session* sess, uint64_t nod
     preview::Thumbnail thumb;
     const preview::ThumbStatus st = preview::make_thumbnail(reader, ecaps, thumb);
     std::memset(info, 0, sizeof(*info));
+
+    /* M-115: the og's promotion is READ-gated, not decode-gated
+     * (DRWUI :422507-514, binary-verified at VA 0x140263b2c-b9a:
+     * grade != 2 && (textSnapshot || (!TxtView && readVerdict==0 &&
+     * (payload || category != 3))) -> FUN_140089630(node, 2)). The
+     * recovery READ (FUN_1403eba50, :422442) is the promotion input;
+     * the decode runs later in the og and its failure NEVER retracts
+     * the promotion. The engine now discloses the read verdict
+     * (Thumbnail::read_ok): a file whose extents read cleanly promotes
+     * even when the decoder refuses the damaged stream - the
+     * damaged-but-readable population the og grades 2 and the pre-fix
+     * core left ungraded. The preview-pane (category-3) exclusion is
+     * structural: this ABI is the list-tier surface by doctrine (the
+     * preview surface never promotes - its reader paths carry no
+     * promotion). The node setter's monotonic-max + sticky-2
+     * semantics ARE the og's, so a no-op for already-high nodes. */
+    if (thumb.read_ok && node->grade() != tree::Grade::High)
+        node->set_grade(tree::Grade::High);
+
     if (st != preview::ThumbStatus::Ok) {
         /* the named refusals carry the family for diagnostics */
         std::snprintf(info->source_format, sizeof(info->source_format), "%s",
@@ -4069,13 +4097,6 @@ u32 thumbnail_generate_impl(cr_ui_device* dev, cr_ui_session* sess, uint64_t nod
         info->truncated = thumb.truncated ? 1 : 0;
         return ret_(thumb_status_to_abi(st), "thumbnail %s", preview::thumbnail_status_name(st));
     }
-
-    /* M-083: the og's grading side-effect - thumbnail success promotes
-     * the node to grade 2 (FUN_1402636e0 :422507-514: grade != 2 ->
-     * FUN_140089630(node, 2)); the node setter's monotonic-max + sticky-2
-     * semantics ARE the og's, so a no-op for already-high nodes */
-    if (node->grade() != tree::Grade::High)
-        node->set_grade(tree::Grade::High);
 
     info->width = thumb.width;
     info->height = thumb.height;

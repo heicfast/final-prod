@@ -125,6 +125,17 @@ struct Thumbnail {
     std::string source_format;
     bool from_embedded = false;
     bool truncated = false;
+    /* M-115 (diff-to-fix): the READ verdict, disclosed separately from
+     * the decode verdict - the og's thumbnail worker promotes the node
+     * grade on a CLEAN RECOVERY READ (FUN_1403eba50's verdict == 0,
+     * DRWUI :422442) and the later decode's failure never retracts it
+     * (:422507-514's guard has no decode input). read_ok is true when
+     * the generation's byte fetches were all clean (no unreadable span
+     * gained) - set on the Ok AND DecodeFailed paths (the damaged-
+     * stream case the disclosure exists for); the named refusals that
+     * never fetched a payload (Unsupported sniff, Oversized bomb guard,
+     * BudgetExceeded, BadParameter) leave it false. */
+    bool read_ok = false;
 };
 
 enum class ThumbStatus : int {

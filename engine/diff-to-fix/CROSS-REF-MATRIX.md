@@ -6,6 +6,7 @@
 |---|---|---|
 | carve · the OfficeTagFromXML five-branch typing tail (P1/P11/P19/P25/P65) | **MATCH** | **N-158 FIXED** (session-46 MINOR-first lane) — the five typed ids land (XMIND 0x86 / MMAP 0x87 / EDDX 0x8c / WFP 0x8d / DRP 0x91): the XMIND content probe decoded from disassembly (the 300-byte RAW window at record+30+strlen(name), the two needles — the 16-byte `xmlns="urn:xmind` + the 14-byte .data constant at RVA 0x93980 — disasm 0x180045110-0x180045666) + the four entry-name compares; the chain walk's NO-stop/last-match-wins semantics decoded and pinned (:18411-18450 — the N-115-era "map stop" comment corrected); the [Filter] coupling as the conservative row-level disabled_formats gate (PARITY-DELTAS D-134); 6 tests, 3 groups RED pre-fix; suite 1209 green — the Resolution in findings/FIXED/ carries the full record |
 | writer+report · the failed-files report's tree-classification axis (P13/P11/P46/P68) | **MATCH** | **N-159 FIXED** (session-46 MINOR-first lane) — the og's recovery-log truth decoded and landed: the per-item `tree_class` axis (the six-valued root-role classification, DRWUI :642755-642822 re-verified first-hand with the three field getters pinned) + the `failed_bytes` totals split (the +0x268 accumulator, the enqueue-refusal exclusion documented as schema truth rule 5) + the three register repairs (R-58's "text log"→HTML report; API-DELTA row 21's "NOT IN CORPUS" refuted; D13's addendum) + additive-within-v1 per the schema doc's own contract; 4 tests RED-first; suite 1243 green |
+| ntfs · the runlist malformed-input tolerance (recovery edge/27/35) | **MATCH** | **N-163 FIXED** (session-46 MINOR-first lane) — the og's truncate-and-keep lands: a torn fragment decodes its valid prefix with `torn` (every decoder branch re-read first-hand, FUN_1800347d0 :41853-41970) + the PartialRisk grading downgrade + the clean-buffer-end/tear distinction + PARITY-DELTAS D-135 (the sparse-first superset registered — the og's pre-validator FUN_18001d5f0 :23184 rejects what the core deliberately accepts); the zero-valid-runs class still rejects (the validator's own gate); TornAfterValidRunsKeepsPrefix + the end-to-end TornRunlistKeepsPrefixAndGradesPartialRisk RED pre-fix; suite 1280 green |
 
 **Session-12 S12 lane changes (2026-10-29 — the session-2 continuation audit per the user's second-session directive: remove-the-fixed + go-deeper with special focus on sector numbers, scanning, accurate detection, calculation/mathematics, no-stuck-or-freeze, the local database, state management; opened on core `869da779` (rebased to the window's closes), corpus `be0cfe9`; five deep-dive lanes' context sheets + three liveness batteries at `evidence/s12-lane-sheets/` + `evidence/s12-liveness/`; the findings push `f85def0f`):**
 
@@ -69,8 +70,12 @@
     og sign matching is UPPERCASE-hex text memcmp; 12 og-dead lowercase signs live in
     the core, unregistered); **M-129** (carve P23-adjacent — the og's tolerant
     EUUserData loader (skip-and-continue) vs the core's all-or-nothing reject);
-    **M-130** (fat P1/P3/P26 — the dentry shape-validator family (ext-tail, size/chain
-    XOR, dir, >9-repeat histogram gates + walk-stop semantics) unported); **M-131 FIXED-ALREADY
+    **M-130 — FIXED (session-52 lane — findings/FIXED/M-130: the two-tier port [the
+    walk-BREAK gates: reserved-attr bits, the erased-pattern quad, label purity, the
+    10-pass/11-reject histogram; the emission-SKIP shape gates: size/chain XOR, the
+    dir shape]; 3 decode corrections recorded [the ext-tail gate is the attribute
+    byte; the histogram boundary; the skip-vs-break split]; 8 tests, 4 RED pre-fix;
+    suite 1322/1322)** (fat P1/P3/P26 → MATCH); **M-131 FIXED-ALREADY
     (4f0fc160, the parallel A-013 landing — verified at c98eb7a7: the CliCkSink
     tmp+commit+rename reproduction; the sink never opens the final path for
     truncation; CrUi.CliResumeSinkNeverTruncatesTheSessionSource green;
@@ -88,6 +93,10 @@
     malformed signs skip-and-continue, over-cap still atomic per S-039,
     D-126 registered, the verbatim corpus fixture ships as a test];
     P1/P3 detection + P23 error-semantics → MATCH);
+  - **M-115 FIXED** (S47 MAJOR-first fix lane, `1d7a761b` — findings/FIXED/M-115:
+    the grade promotion is READ-gated, not decode-gated [DRWUI :422507-514 —
+    Thumbnail::read_ok disclosed by the engine, the ABI promotes on the clean
+    read, the 0x14 dispatcher floor added]; D15/B2/A42 → MATCH);
   - **MINOR (18):** **N-161** (table — GPT entry span underflow, no first≤last gate);
   - **MINOR (18):** **N-161 FIXED (Session-44 minors lane — `emit_gpt_entries` first≤last gate
     + `DiskTable`/`ScanStats::gpt_invalid_entries` counter; RED→GREEN proven; findings/FIXED/N-161)**

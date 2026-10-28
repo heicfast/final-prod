@@ -3897,3 +3897,25 @@ analyser always-on). This divergence is bounded and honest: it documents a
 gate the og's config file advertises but whose engine-side wiring the corpus
 cannot prove. Registered by N-158's Resolution; revisit only if a future
 corpus artifact decodes the IAnalyserFilter's id plumbing.
+
+### D-135 — the sparse-FIRST $DATA acceptance (N-163 registration, REGISTERED DELIBERATE SUPERSET — a fully-sparse file is real content shape)
+
+The og's runlist pre-validator (FUN_18001d5f0, NTFSSearchDLL :23175-23210)
+REJECTS a $DATA whose first runlist header byte carries off-nibble==0
+(:23184: `(*b & 0xf0) == 0 -> return 0`) — enforced at the five attribute
+parse sites (:23412/:23506/:23533/:24337/:24643). A fully-sparse file
+(an all-hole $DATA, e.g. an NTFS sparse file never written or a
+hole-punch artifact) therefore yields NO extents in the og — the file is
+unrecoverable-by-policy on the reference.
+
+The core accepts and represents sparse-first runlists natively (the
+RunList decode treats off_width==0 as a legal sparse run; S-001's
+all-hole $DATA fixture recovers as zero-filled truth). Rationale: the
+shape is real content (the zero-filled recovery is honest — the
+Salvaged/FB-R02 family marks it), and rejecting a decodable structure
+the og's own DECODER accepts (FUN_1800347d0 has no sparse gate — only
+the pre-validator does) would sacrifice recoverable file identity for
+reference-quirk parity. Registered by N-163's Resolution alongside the
+decoder's truncate-and-keep tolerance landing (the og direction this
+finding fixed); the S-001 all-hole recovery behavior is unchanged and
+now decode-anchored.
