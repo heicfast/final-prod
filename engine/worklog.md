@@ -1749,3 +1749,50 @@ territory, to avoid duplicate work: the thumbnail family (S-043, S-045,
 M-080, M-083, M-085, M-102, N-092), the auto-save gates (S-044, M-079),
 image create (S-040), and the remaining session/CLI majors. Work starts
 at S-043 (EXIF orientation).
+
+---
+Task ID: SA-10B/T1 (the B lane — session-10 open; the fourth parallel lane's baseline)
+Agent: session-10 B-lane parity audit (the user's "second session" — the sessions 1-9 corpus is "session 1")
+
+THIS LANE'S DECLARED TERRITORY (complementary to SA-10's triage, S10-F's
+function-level completeness, and the DFX-38 closing-fix lane; no overlap,
+per the push-time SOP):
+
+- L-A: the FIXED-purge EXECUTION — `git rm` the 250 findings/FIXED/
+  files per the user's "remove the fixed things" (git history is the
+  archive); a FIXED-LEDGER keeps the IDs navigable; gate-doc updates.
+- L-B: mine the corpus's three REAL og .rsf sessions
+  (og-codebase/SaveScan/auto_*.rsf — ~2M rows, parsed with the core's
+  own scripts/compare_og_rsf.py) for tree-shape/naming ground truth the
+  prior sessions never extracted: the Reconstructed/<volume> carve
+  grouping, the %s_%06d per-file naming contract, the File Path Lost /
+  LostDir<record> orphan grouping. An executed-comparison class NEW
+  this session — the first mining of the real session payloads.
+- L-C: og shipped-data-table parity — raw_signs.json regen sync
+  (EXECUTED at lane open: MATCH — 139 formats / 199 header / 62 tail
+  signs byte-identical after scripts/gen_rawsigns.py regeneration; the
+  only diff is the clang-format 2-per-line packing of the committed
+  file); EUUserData; config/*.ini at value level where gaps remain.
+- L-D: the product-frame capability census (PDFViewer / EUOfficeViewer /
+  EUHwpViewer / the repair line / iCloud / Dict / Downloader) — verify
+  every og product-frame binary has a trail disposition; file the
+  remainder per "mark all remaining features, implementations,
+  functions, as finding too".
+- L-E: spot-verification of the active board at the current tree; close.
+
+Baseline (cloned fresh this lane): core_recovery @ 84a1832 at clone; the
+tree now sits at origin/main 62074bf (product-code tip b92ebef + the
+parallel fix lanes' S-042 fix f6e303e + N-094 fix 26da616 — both flip
+FIXED at this lane's board pass); corpus @ be0cfe9 (unchanged). Board at
+open: 75 active / 250 FIXED / 2 tracked-open (73 active after the
+S-042 + N-094 flips). IDs this lane intends: S-048+, M-103+ (the
+declared free set; push-time reconciliation if the parallel lanes
+collide).
+
+NOTE: this lane's first three push attempts were rejected by the
+parallel lanes landing concurrently (the SOP's moving-target
+environment); the botched local rebase states were discarded each time —
+origin's worklog was never touched by them.
+
+Prompt saved redacted: worklog/session-10-parity-audit-prompt.md (the
+remote lanes' copy — same mandate — kept). Read twice.
