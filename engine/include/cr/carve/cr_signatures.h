@@ -336,13 +336,30 @@ struct CarveResult {
     u16 confidence = 0;              /* 0..1000 */
     const char* note = "";           /* evidence note for the node registry */
     std::vector<CarveEntry> entries; /* S-032: inner-entry inventory */
-    /* N-063: the analyser's OWN name for the carved file (the og's
-     * per-analyser SetName - content/metadata-derived, e.g. the MP4/MOV
-     * "Lost Name File (<time>)_EaseUS" template, RAWSearchDLL
-     * :33312/:33408/:33447/:33531). Empty = no og naming rule for this
-     * format -> the emit site falls back to the namer callback / the
-     * documented File%06u deliberate default. */
-    std::u16string embedded_name;
+    /* S-049: the analyser's CONTENT-DERIVED naming prefix (the og's
+     * per-analyser prefix string that reaches DRWUI's FUN_140c44770
+     * "%s_%06d" naming - DRWUI_decompiled.c:1878330-81, both caller
+     * sites :1877600/:1877724). The og's engine-side analysers supply
+     * a prefix extracted from the file's own content - real-session
+     * evidence (evidence/executions/s10b-real-rsf-session-mining.md):
+     * JPEG SOF dims (JPG_192x144) / EXIF Model (GT-S7562) / EXIF
+     * Software (Adobe Photoshop 7.0), MP4/MOV mvhd duration (MP4_08m07s),
+     * MP3 ID3v2 title, PDF Title/Creator-Producer + CreationDate,
+     * DOCX docProps created, ZIP first central-directory entry name.
+     * Empty = no decoded content prefix -> the emit site names via the
+     * og default: the format's own UPPERCASE extension as the prefix.
+     *
+     * History: this carrier was N-063's `embedded_name` (the RAWSearchDLL
+     * "Lost Name File (<time>)_EaseUS" template, :33312/:33408). The
+     * three REAL og sessions prove the template NEVER fires for carved
+     * MP4/MOV in the shipped product (57/57 real MP4/MOV carve rows are
+     * MP4_%06d.MP4 / MP4_<duration>_%06d.MP4 / MOV_*): the DRWUI tree
+     * naming layer names every unnamed carve record through the
+     * %s_%06d contract and the engine template does not survive it.
+     * The carrier's semantics moved from full-name to PREFIX with the
+     * S-049 landing (the N-063 landing superseded on the carve-tree
+     * application by executed evidence). */
+    std::u16string name_prefix;
     /* M-093: the og stamps the FORMAT ID at the probe, not at the
      * dispatch key - the SVG chain yields 0x5b for svg-content and 0x13
      * for the generic-XML marker regardless of which of its four keys

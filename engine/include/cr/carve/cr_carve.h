@@ -147,10 +147,18 @@ public:
     virtual void on_candidate(IStorageDevice* /*slice*/, const CarveCandidateInfo& /*info*/) {}
 };
 
-/* Naming callback: returns the display name for a carved hit (host policy). */
+/* Naming callback: returns the display name for a carved hit (host policy).
+ * A namer overrides the og-contract default naming entirely (S-049). */
 using NameCallback = std::function<std::u16string(const Signature& sig, u64 size, u32 index)>;
 
-/* Default namer: File0001.jpg style (corpus default policy). */
+/* Default namer (S-049): the og's universal carved-file naming contract,
+ * "<UPPERCASE-EXT>_<%06d>.<UPPERCASE-EXT>" (GZ_000001.GZ, PNG_000001.PNG),
+ * with the unpadded %d form past counter 99999 (DRWUI FUN_140c44770,
+ * decompiled :1878330-81; real-session-pinned per-format counters). The
+ * `index` parameter is the caller's PER-FORMAT counter (carve_slice's
+ * internal counter map when the default chain runs). The File%06u default
+ * this replaced was an invention (retired with S-049; the PARITY-DELTAS
+ * D-76 registration narrowed to nothing). */
 std::u16string default_namer(const Signature& sig, u64 size, u32 index);
 
 /*

@@ -1,6 +1,42 @@
 # SUMMARY.md — executive summary (the S41 continuation lane on top; the prior lanes below, newest-first)
 
 
+
+## Session-40 severe-lane delta (2026-10-29 — the SEVERE-first diff-fix execution lane, parallel to the session-40 minor-first lane; opening on `461825d8`/corpus `be0cfe9`, re-merged over the hot parallel window through `7320a2f6`)
+
+**S-049 FIXED — the og's universal carved-file naming contract.** Independently
+re-verified against the corpus FIRST-HAND (the SOP): FUN_140c44770 read directly
+(:1878330-81 — `%s_%06d`/`%06d` + the >99999 fallbacks, the 0xff buffer), both
+caller sites traced (:1877600/:1877724 — the map-keyed counter + the
+parenthesized-prefix / `%dx%d`-dims branches), DAT_14187f760 verified `L"%s"`
+byte-exact, and THE THREE REAL OG SESSIONS re-mined with the core's own
+compare_og_rsf.py (~2M rows). **The naming model extends the finding's own
+decode**: the counter is PER-FORMAT (not global — JPG 1..3938 continuous across
+its plain/dims/Model/Software prefix variants; GZ 1..27,694; PNG 1..17,580), the
+default prefix is the format's own UPPERCASE EXTENSION (GZ_000001.GZ — the
+display name "JPEG" never appears), and the content families are richer: MP4/MOV
+carry the mvhd DURATION prefix (MP4_14s/MP4_08m07s/MOV_10s — 57/57 real MP4/MOV
+rows), PDF prefixes by Title (25-char read cap — TWO independent truncation pins:
+`LaTeX with hyperref packa`, ` TeX output 1998.06.28_17`) else Creator/Producer +
+CreationDate (the plain D:YYYYMMDDHHMMSS form only; matplotlib's dashed form
+never yields a date), DOCX by docProps created, WAV by LIST/INFO INAM
+(BIRD/RAIN/CAR), ZIP by the first central-directory entry with path separators
+mapped (dots PRESERVED — the finding's dot-translation example corrected by the
+classes.dex/027.jpg families). **One supersession**: N-063's MP4/MOV "Lost Name
+File (...)_EaseUS" template landing is superseded on the carve-tree application
+(57/57 real rows are counter-named; the DRWUI tree-naming layer names every
+unnamed carve record through the %s_%06d contract and the engine template does
+not survive it) — PARITY-DELTAS D-76 rewritten with the full record; the
+File%06u deliberate default RETIRED (pinned absent). Fail-before: 39 carve tests
+asserting the superseded names; pass-after: 13 S-049 pin tests + the re-pinned
+family set; suite 1185/1185 (linux-release, the merged tree over the parallel
+S-051/S-052/M-104/N-133 landings); clang-format clean (the parallel M-108
+landing's dirt repaired in the same push). Open nuances recorded in the
+Resolution (JPEG Model-vs-Software precedence; PDF Creator-vs-Producer order;
+the TTF SHIVxx family — 11/59 rows, a naive name-table read contradicts the 48
+plain rows, the read-bound condition undecoded). Next: S-048 (the same
+real-session evidence's tree-shape half), S-040/S-050.
+
 ## S41 lane delta (2026-10-29 — the continuation audit lane per the user's second-session directive: remove-the-fixed, go deeper, mark all remaining; RECONCILED at push over TWO parallel windows; three filings, all renumbered at the reconciliations)
 
 **Audited: core `c7fa527c` (the pre-rebase pin — the liveness battery's claims are pinned

@@ -2270,45 +2270,66 @@ evidenced — until then this stays a registered simplification, pinned by
 CarveEngine.OverlapScorePrefersHigherConfidence (which proves the scoring
 half) and the absence of any fallback path in cr_registry.cpp.
 
-### D-76 — carved-file naming: the File%06u deliberate default + the MP4/MOV template's UTC formatting (N-063)
+### D-76 — carved-file naming: RETIRED with S-049 (the og's universal contract decoded and landed)
 
-**Class:** registered divergence (naming) + replicated reference quirk · **Finding:** diff-to-fix N-063 (MINOR, FIXED) · **Date:** 2026-10-26
+**Class:** resolved (the deliberate-default registration narrowed to nothing) · **Finding:** diff-to-fix S-049 (SEVERE, FIXED) superseding N-063 · **Date:** 2026-10-29
 
-The og names carved files PER-ANALYSER (SetName-family, ≥8 emit sites):
-the MP4/MOV analyser formats "Lost Name File (<time>)_EaseUS"
-(RAWSearchDLL :33312/:33408 literals, :33412-33434 assembly) where
-<time> is "%04d:%02d:%02d %02d:%02d:%02d" of the RAW mvhd field value —
-the u32 at mvhd+0x10 (v0) or the FIRST FOUR BYTES of the u64 at
-mvhd+0x14 (v1) — fed to _localtime64 as Unix seconds with NO 1904
-MP4-epoch conversion. Two og quirks replicated faithfully and pinned by
-test (never "corrected"): (a) the missing epoch conversion (modern mvhd
-values format ~66 years in the future), (b) the v1 high-word truncation
-(every sane v1 time formats as 1970:01:01 00:00:00). The field is the
-MODIFICATION time under the ISO layout — the finding's "creation-time"
-label corrected by the decode.
+**SUPERSEDED by executed evidence.** The three REAL og sessions
+(`og-codebase/SaveScan/`, ~2M rows) decode the naming rule universally:
+every unnamed carved file is named `<PREFIX>_<%06d>.<UPPERCASE-EXT>`
+(DRWUI FUN_140c44770, :1878330-81, both caller sites :1877600/:1877724;
+the per-format counter map :1877584-90) with PER-FORMAT counters (the
+JPG counter runs 1..3938 continuous across its plain/dims/Model/Software
+prefix variants; GZ 1..27,694; PNG 1..17,580) and the format's own
+UPPERCASE extension as the default prefix (GZ_000001.GZ, PNG_000001.PNG
+— every observed format). The N-063 premise ("formats with no decoded og
+naming rule") is falsified: the rule IS decoded, universally. The
+File%06u deliberate default (this row's divergence 1) is RETIRED —
+`default_namer` now emits the og contract, and the retired default is
+pinned absent by `CarveEngine.FileNnnnFallbackRemoved`.
 
-**Deliberate divergences this fix registers:**
-1. Formats with NO decoded og naming rule (jpg/png/zip/docx/... — the
-   CZeroEndRawFileInfo membership is not decoded per-format in the
-   corpus) keep OUR `File%06u.ext` default: zero-padded, stable
-   ordering. The old code comment's false "corpus policy" claim is
-   repaired; this is the documented core-side default, not an og scheme
-   (the deep-dive artifact's "File0001.jpg lives in the UI" claim was a
-   corpus erratum, corrected with OQ-S4-2's decode).
-2. The og formats the template time via _localtime64 (scanning-host
-   LOCAL time); the core formats UTC (gmtime_r) for determinism —
-   identical digits on a UTC host. Same class as the S-011 tz posture:
-   host-independent output over host-local fidelity.
+The MP4/MOV "Lost Name File (<time>)_EaseUS" engine template
+(RAWSearchDLL :33312/:33408 — the N-063 decode, real engine code) does
+NOT fire for carved files in the shipped product: 57/57 real MP4/MOV
+carve rows across the three sessions are MP4_%06d.MP4 /
+MP4_<duration>_%06d.MP4 / MOV_* (MP4_14s, MP4_08m07s, MP4_01m, MOV_10s,
+MOV_01m01s — the mvhd timescale/duration prefix). The DRWUI
+tree-naming layer names every unnamed carve record through the %s_%06d
+contract and the engine's SetName template does not survive it. The
+template landing (N-063) is superseded ON THE CARVE-TREE APPLICATION;
+its engine-side decode remains documented here and in the N-063 ledger
+row. The template's two replicated quirks (no 1904-epoch conversion,
+the v1 high-word truncation) retire with it.
 
-**Carrier:** `CarveResult::embedded_name` (the per-analyser name rides
-the validation result; emit precedence: embedded_name > namer callback >
-the deliberate default). MP4/MOV wired now; the CZeroEnd-family
-membership decode is the recorded next step in the finding.
+The content-derived prefix families (all real-session-pinned, landed
+with S-049): JPEG SOF dims `JPG_<W>x<H>` (the DRWUI caller's
+[1,0x2000] sanity gate) / EXIF Model (`GT-S7562`) / EXIF Software
+(`Adobe Photoshop 7.0`, `GIMP 2.6.8`, `Android SP1A...`); MP4/MOV mvhd
+duration; MP3 ID3v2 title; PDF Title (25-char read cap — the
+`LaTeX with hyperref packa` / ` TeX output 1998.06.28_17` truncation
+pins) else Creator/Producer + CreationDate (`YYYY-MM-DD HH-MM-SS`, the
+plain `D:YYYYMMDDHHMMSS` form only — matplotlib's dashed
+`D:2022-08-17 15:05:58+02'00'` never produces a date in any session);
+DOCX docProps created; ZIP first central-directory entry name with path
+separators -> `_` (`META-INF/` -> `META-INF_`; dots preserved — the
+N-063-era dot-translation example is corrected by the classes.dex /
+027.jpg families); WAV LIST/INFO INAM title. The JPEG Model-vs-Software
+precedence (Model first) and the PDF Creator-vs-Producer order are the
+documented closest-pinned readings (no observed co-occurrence separates
+them; recorded in S-049's Resolution as the open nuances).
 
-**Pin tests:** `CarveEngine.Mp4NamedByMetadataTemplate`,
-`CarveEngine.MovNamedByMetadataTemplate`,
-`CarveEngine.MovV1MvhdHighWordQuirkReplicated` (the quirk pin),
-`CarveEngine.FallbackNamerDocumented` (the deliberate default).
+**Carrier:** `CarveResult::name_prefix` (the semantics moved from
+N-063's full-name `embedded_name`; emit precedence: namer callback >
+the og-contract name with the analyser prefix over the per-format
+counter).
+
+**Pin tests:** `CarveEngine.OgNamingUniversalExtCounter`,
+`OgNamingJpgSofDimensions`, `OgNamingJpgExifModelAndSoftware`,
+`OgNamingCounterPast99999Unpadded`, `OgNamingMp3Id3Title`,
+`OgNamingPdfCreatorAndDatePrefixes`, `OgNamingDocxCreatedTimestamp`,
+`OgNamingZipFirstCentralDirectoryEntry`, `OgNamingWavInamTitle`,
+`Mp4NamedByDurationPrefix`, `MovNamedByDurationPrefix`,
+`MovV1MvhdDurationRead`, `FileNnnnFallbackRemoved`.
 
 ### D-98 — Lost-partition APPLY: the safety registers around the og's table writer (S-029) (renumbered from a same-window D-72 collision - the errata convention)
 

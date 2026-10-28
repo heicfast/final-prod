@@ -8,6 +8,7 @@
 
 #include "cr/carve/cr_signatures.h"
 #include "cr/storage/cr_device.h"
+#include <zlib.h>
 #include <algorithm>
 #include <cstring>
 #include <ctime>
@@ -65,6 +66,105 @@ u64 rdbe64(IStorageDevice* s, u64 off) {
     for (int i = 0; i < 8; ++i)
         v = (v << 8) | b[i];
     return v;
+}
+
+/* ---- S-049: the content-derived naming-prefix producers ----------------
+ *
+ * The og's engine-side analysers supply a prefix string that DRWUI's
+ * naming layer composes as "<prefix>_<%06d>.<EXT>"
+ * (DRWUI_decompiled.c:1878330-81; the prefix-extraction and WxH-dims
+ * branches at the caller :1877538-64; the per-format counter map at
+ * :1877584-90 — all first-hand this session). The real og sessions pin
+ * the per-format prefix families (the verbatim table in
+ * evidence/executions/s10b-real-rsf-session-mining.md + this session's
+ * first-hand re-mining: JPG_192x144 / GT-S7562 / Adobe Photoshop 7.0,
+ * MP4_08m07s / MOV_10s, <ID3 title>, <Title/Creator+date>, <docProps
+ * created>, <first CD entry>). */
+
+/* Content bytes -> the u16 prefix. The og's analysers read raw bytes and
+ * widen them; ASCII prefixes dominate the real sessions. Try UTF-8
+ * first (EXIF MP/ID3v2 UTF-8 strings), fall back to byte promotion
+ * (latin-1) so arbitrary tag bytes still surface. */
+std::u16string prefix_from_bytes(const char* p, size_t n) {
+    if (p == nullptr || n == 0)
+        return {};
+    /* cheap UTF-8 validity walk */
+    bool utf8_ok = true;
+    for (size_t i = 0; i < n;) {
+        const unsigned char c = static_cast<unsigned char>(p[i]);
+        size_t need;
+        if (c < 0x80)
+            need = 1;
+        else if ((c & 0xE0) == 0xC0)
+            need = 2;
+        else if ((c & 0xF0) == 0xE0)
+            need = 3;
+        else if ((c & 0xF8) == 0xF0)
+            need = 4;
+        else {
+            utf8_ok = false;
+            break;
+        }
+        if (i + need > n) {
+            utf8_ok = false;
+            break;
+        }
+        i += need;
+    }
+    std::u16string out;
+    out.reserve(n);
+    if (utf8_ok) {
+        for (size_t i = 0; i < n;) {
+            const unsigned char c = static_cast<unsigned char>(p[i]);
+            if (c < 0x80) {
+                out.push_back(u16(c));
+                i += 1;
+            } else if ((c & 0xE0) == 0xC0) {
+                out.push_back(u16(((u32(c) & 0x1F) << 6) | (u32(p[i + 1]) & 0x3F)));
+                i += 2;
+            } else if ((c & 0xF0) == 0xE0) {
+                out.push_back(u16(((u32(c) & 0x0F) << 12) | ((u32(p[i + 1]) & 0x3F) << 6) |
+                                  (u32(p[i + 2]) & 0x3F)));
+                i += 3;
+            } else {
+                /* a 4-byte sequence outside the BMP: the og's wide string
+                 * holds it as the surrogate pair; both halves promote */
+                const u32 cp = ((u32(c) & 0x07) << 18) | ((u32(p[i + 1]) & 0x3F) << 12) |
+                               ((u32(p[i + 2]) & 0x3F) << 6) | (u32(p[i + 3]) & 0x3F);
+                out.push_back(u16(0xD800 + ((cp - 0x10000) >> 10)));
+                out.push_back(u16(0xDC00 + ((cp - 0x10000) & 0x3FF)));
+                i += 4;
+            }
+        }
+        return out;
+    }
+    for (size_t i = 0; i < n; ++i)
+        out.push_back(u16(u8(p[i])));
+    return out;
+}
+
+std::u16string prefix_from_bytes(const std::string& s) {
+    return prefix_from_bytes(s.data(), s.size());
+}
+
+/* The og's date/duration composition forms (real-session-pinned):
+ * the date "2020-05-23 23-23-23" (PDF/DOCX - colons are Windows-illegal,
+ * the og writes dashes), the MP4/MOV duration "08m07s" / "14s" / "01m"
+ * (%02u-padded minutes/seconds). */
+std::u16string duration_form(u64 total_seconds) {
+    char buf[32];
+    const u64 m = total_seconds / 60;
+    const u64 sec = total_seconds % 60;
+    int n;
+    if (m == 0)
+        n = snprintf(buf, sizeof(buf), "%02us", unsigned(sec));
+    else if (sec == 0)
+        n = snprintf(buf, sizeof(buf), "%02um", unsigned(m));
+    else
+        n = snprintf(buf, sizeof(buf), "%02um%02us", unsigned(m), unsigned(sec));
+    if (n <= 0)
+        return {};
+    return prefix_from_bytes(buf, size_t(n));
 }
 
 /* EBML vint: returns length in bytes (1..8), value in *v; 0 = invalid */
@@ -136,11 +236,182 @@ u64 probe_limit(IStorageDevice* s, u64 hit, u64 cap) {
 }
 
 /* finalize a validated PDF (end = offset just past the effective %%EOF) */
-static CarveResult carve_pdf_done(CarveResult r, u64 end) {
+/* S-049: the PDF naming prefix — real-session-pinned model (first-hand
+ * re-mining of all three og sessions this session):
+ *   - a PDF with an info-dict /Title prefixes by the Title (truncated at
+ *     25 chars: " TeX output 1998.06.28_17" and "LaTeX with hyperref
+ *     packa" are both exactly-25 truncations of 29/27-char source
+ *     strings — two independent pins);
+ *   - otherwise (Creator, else Producer) + the /CreationDate formatted
+ *     "YYYY-MM-DD HH-MM-SS" (colons are Windows-illegal; the og writes
+ *     dashes): "TeX2022-03-03 21-11-38", "GPL Ghostscript
+ *     9.56.12022-08-17 15-05-58", "groff version 1.23.02023-12-19
+ *     21-25-45";
+ *   - the date parse reads "D:" + at least 14 plain digits (matplotlib's
+ *     dashed "D:2022-08-17 15:05:58+02'00'" form never produced a date
+ *     prefix in any session — rejected naturally by the 14-digit read);
+ *   - string reads cap at 25 chars; a date-only form exists ("2020-05-23
+ *     23-23-23" — no Title/Creator/Producer found in the bounded scan).
+ * Open nuance recorded in S-049's Resolution: which of Creator/Producer
+ * the og prefers when both are present beyond the read bound — the
+ * sessions never show a form that separates them (every observed
+ * non-Title string matches its file's Creator; gs-distilled files carry
+ * the Producer only). Creator-first is the implemented reading. */
+static void pdf_name_prefix(IStorageDevice* s, u64 hit, u64 end, CarveResult& r) {
+    enum Key { K_TITLE, K_CREATOR, K_PRODUCER, K_DATE };
+    static const size_t kStrCap = 25;
+    static const u64 kScanCap = 256ull << 10;
+    const u64 limit = end - hit > kScanCap ? hit + kScanCap : end;
+    std::vector<u8> buf(kProbeBlock);
+    std::string title, creator, producer, date;
+    u64 block = hit;
+    while (block < limit &&
+           (title.empty() || (creator.empty() && producer.empty()) || date.empty())) {
+        const u64 remain = limit - block;
+        const u32 take = u32(std::min<u64>(remain, kProbeBlock));
+        if (take < 16)
+            break;
+        if (!rd(s, block, buf.data(), take))
+            break;
+        /* candidate keys: /Title /Creator /Producer /CreationDate */
+        for (u32 i = 0; i + 6 <= take; ++i) {
+            if (buf[i] != '/')
+                continue;
+            Key key;
+            size_t klen;
+            if (std::memcmp(buf.data() + i, "/Title", 6) == 0) {
+                key = K_TITLE;
+                klen = 6;
+            } else if (std::memcmp(buf.data() + i, "/Creator", 8) == 0 && i + 8 <= take) {
+                key = K_CREATOR;
+                klen = 8;
+            } else if (std::memcmp(buf.data() + i, "/Producer", 9) == 0 && i + 9 <= take) {
+                key = K_PRODUCER;
+                klen = 9;
+            } else if (std::memcmp(buf.data() + i, "/CreationDate", 13) == 0 && i + 13 <= take) {
+                key = K_DATE;
+                klen = 13;
+            } else {
+                continue;
+            }
+            /* the first key occurrence wins (per key); skip the string
+             * walk when this key is already filled */
+            const std::string* have = key == K_TITLE      ? &title
+                                      : key == K_CREATOR  ? &creator
+                                      : key == K_PRODUCER ? &producer
+                                                          : &date;
+            if (!have->empty())
+                continue;
+            /* optional whitespace then a literal ( string */
+            u64 p = block + i + klen;
+            u32 ws = 0;
+            while (p + ws < limit && ws < 8) {
+                u8 c = 0;
+                if (!rd(s, p + ws, &c, 1))
+                    break;
+                if (c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == 0) {
+                    ++ws;
+                    continue;
+                }
+                break;
+            }
+            u8 open = 0;
+            if (p + ws >= limit || !rd(s, p + ws, &open, 1) || open != '(')
+                continue;
+            p = p + ws + 1;
+            if (key == K_DATE) {
+                /* D: + at least 14 plain digits (the dashed matplotlib
+                 * "D:2022-08-17 15:05:58+02'00'" form never produced a
+                 * date prefix in any session - it fails this read
+                 * naturally: the first dash breaks the digit run) */
+                u8 pre[2] = {0, 0};
+                if (!rd(s, p, pre, 2) || pre[0] != 'D' || pre[1] != ':')
+                    continue;
+                char digits[16] = {};
+                u32 nd = 0;
+                while (p + 2 + nd < limit && nd < 16) {
+                    u8 c = 0;
+                    if (!rd(s, p + 2 + nd, &c, 1))
+                        break;
+                    if (c < '0' || c > '9')
+                        break;
+                    digits[nd] = char(c);
+                    ++nd;
+                }
+                if (nd < 14)
+                    continue; /* not the plain D:YYYYMMDDHHMMSS form */
+                /* the fixed 14-digit read; an over-long digit run keeps
+                 * the first 14 (the suffix grammar belongs past them) */
+                digits[14] = 0;
+                char out[24];
+                const int n =
+                    snprintf(out, sizeof(out), "%.4s-%.2s-%.2s %.2s-%.2s-%.2s", digits, digits + 4,
+                             digits + 6, digits + 8, digits + 10, digits + 12);
+                if (n == 19)
+                    date.assign(out, size_t(n));
+                continue;
+            }
+            /* literal string: read up to the cap, honoring \( \) \\ */
+            std::string v;
+            v.reserve(kStrCap);
+            u8 c = 0;
+            u64 q = p;
+            while (q < limit && v.size() < kStrCap) {
+                if (!rd(s, q, &c, 1))
+                    break;
+                if (c == ')')
+                    break;
+                if (c == '\\') {
+                    u8 e = 0;
+                    if (q + 1 < limit && rd(s, q + 1, &e, 1) &&
+                        (e == '(' || e == ')' || e == '\\')) {
+                        v.push_back(char(e));
+                        q += 2;
+                        continue;
+                    }
+                    v.push_back('\\');
+                    ++q;
+                    continue;
+                }
+                v.push_back(char(c));
+                ++q;
+            }
+            while (!v.empty() && (v.back() == 0 || v.back() == ' '))
+                v.pop_back();
+            if (!v.empty()) {
+                if (key == K_TITLE)
+                    title = std::move(v);
+                else if (key == K_CREATOR)
+                    creator = std::move(v);
+                else
+                    producer = std::move(v);
+            }
+        }
+        if (block + take >= limit)
+            break;
+        block += u64(take) - 8; /* 9-byte key overlap seam */
+    }
+    if (!title.empty()) {
+        r.name_prefix = prefix_from_bytes(title);
+        return;
+    }
+    std::u16string out;
+    if (!creator.empty())
+        out = prefix_from_bytes(creator);
+    else if (!producer.empty())
+        out = prefix_from_bytes(producer);
+    if (!date.empty())
+        out += prefix_from_bytes(date);
+    if (!out.empty())
+        r.name_prefix = std::move(out);
+}
+
+static CarveResult carve_pdf_done(IStorageDevice* s, CarveResult r, u64 hit, u64 end) {
     r.ok = true;
     r.end = end;
     r.confidence = 900;
     r.note = "%%EOF(last-before-next-PDF,1MiB-blocks)";
+    pdf_name_prefix(s, hit, end, r); /* S-049 */
     return r;
 }
 
@@ -264,13 +535,139 @@ static u64 scan_eocd_for_cd_anchor(IStorageDevice* s, u64 anchor, u64 limit) {
  * complete ones (no grade distinction found in the legacy path), the
  * core grades them PartialRisk (600 < the 850 Excellent band) — recover
  * more, grade honestly (registered in PARITY-DELTAS). */
+/* S-049: the JPEG naming prefix — EXIF Model, then EXIF Software, then
+ * the SOF dimensions (the dims branch the DRWUI naming caller gates on
+ * W,H in [1, 0x2000] — :1877540-46), else empty (the emit site's plain
+ * uppercase-ext default). Real-session forms: GT-S7562_000123.JPG,
+ * Adobe Photoshop 7.0_N.JPG, JPG_192x144_000001.JPG. The dims prefix
+ * composes the format name: "JPG_<W>x<H>". */
+static std::u16string jpeg_name_prefix(IStorageDevice* s, u64 hit, u64 cap, u64 sof_w, u64 sof_h) {
+    /* EXIF APP1: walk the JPEG segments for APP1 "Exif\0\0", then the
+     * TIFF IFD0 for Model (0x0110) / Software (0x0131). Bounded: the
+     * first 64 KiB of the file (EXIF lives in the header; the APP1
+     * segment length is u16-bounded anyway). */
+    const u64 limit = hit + (cap < 65536 ? cap : 65536);
+    u64 pos = hit + 2;
+    std::string model, software;
+    int markers = 0;
+    while (pos + 4 <= limit) {
+        if (++markers > 256)
+            break;
+        u8 m[4];
+        if (!rd(s, pos, m, 2) || m[0] != 0xFF)
+            break;
+        const u8 mk = m[1];
+        if (mk == 0xD8 || (mk >= 0xD0 && mk <= 0xD7) || mk == 0x01) {
+            pos += 2;
+            continue;
+        }
+        if (mk == 0xD9 || mk == 0xDA)
+            break; /* header walk ends at the entropy data */
+        const u16 seglen = rdbe16(s, pos + 2);
+        if (seglen < 2)
+            break;
+        if (mk == 0xE1 && seglen >= 10) {
+            u8 exif_hdr[6];
+            if (rd(s, pos + 4, exif_hdr, 6) == true && std::memcmp(exif_hdr, "Exif\0\0", 6) == 0) {
+                /* TIFF header at pos+10: byte order II/MM (0x4942/0x4D4D),
+                 * magic 42, IFD0 offset */
+                const u64 tiff = pos + 10;
+                u8 th[8];
+                if (rd(s, tiff, th, 8) == true) {
+                    const bool le = th[0] == 0x49 && th[1] == 0x49;
+                    const bool be = th[0] == 0x4D && th[1] == 0x4D;
+                    if (le || be) {
+                        const auto rd16e = [&](u64 o) {
+                            u8 b[2];
+                            if (!rd(s, o, b, 2))
+                                return u16(0);
+                            return le ? u16(u32(b[0]) | (u32(b[1]) << 8))
+                                      : u16((u32(b[0]) << 8) | b[1]);
+                        };
+                        const auto rd32e = [&](u64 o) {
+                            u8 b[4];
+                            if (!rd(s, o, b, 4))
+                                return u32(0);
+                            return le ? (u32(b[0]) | (u32(b[1]) << 8) | (u32(b[2]) << 16) |
+                                         (u32(b[3]) << 24))
+                                      : ((u32(b[0]) << 24) | (u32(b[1]) << 16) | (u32(b[2]) << 8) |
+                                         b[3]);
+                        };
+                        const u16 magic = rd16e(tiff + 2);
+                        const u32 ifd_off = rd32e(tiff + 4);
+                        if (magic == 42 && ifd_off != 0 && ifd_off < 65536 &&
+                            tiff + ifd_off + 2 <= limit) {
+                            const u64 ifd = tiff + ifd_off;
+                            const u16 count = rd16e(ifd);
+                            if (count > 0 && count <= 512) {
+                                for (u16 e = 0; e < count; ++e) {
+                                    const u64 entry = ifd + 2 + u64(e) * 12;
+                                    if (entry + 12 > limit)
+                                        break;
+                                    const u16 tag = rd16e(entry);
+                                    if (tag != 0x0110 && tag != 0x0131)
+                                        continue;
+                                    const u16 typ = rd16e(entry + 2);
+                                    const u32 cnt = rd32e(entry + 4);
+                                    /* ASCII type only; bounded to a sane
+                                     * tag-string length */
+                                    if (typ != 2 || cnt == 0 || cnt > 256)
+                                        continue;
+                                    u64 val_off = entry + 8;
+                                    if (cnt > 4) {
+                                        const u32 vo = rd32e(entry + 8);
+                                        if (vo == 0 || vo >= 65536)
+                                            continue;
+                                        val_off = tiff + vo;
+                                    }
+                                    if (val_off + cnt > limit)
+                                        continue;
+                                    std::string v(size_t(cnt), '\0');
+                                    if (!rd(s, val_off, &v[0], cnt))
+                                        continue;
+                                    while (!v.empty() && (v.back() == 0 || v.back() == ' '))
+                                        v.pop_back(); /* NUL/space trim */
+                                    if (v.empty())
+                                        continue;
+                                    if (tag == 0x0110 && model.empty())
+                                        model = v;
+                                    else if (tag == 0x0131 && software.empty())
+                                        software = v;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        pos += 2 + u64(seglen);
+    }
+    if (!model.empty())
+        return prefix_from_bytes(model);
+    if (!software.empty())
+        return prefix_from_bytes(software);
+    /* the dims branch: W,H in [1, 0x2000] (the DRWUI caller's sanity
+     * gate, :1877540-46); the prefix composes the format name */
+    if (sof_w >= 1 && sof_w <= 0x2000 && sof_h >= 1 && sof_h <= 0x2000) {
+        char buf[32];
+        const int n = snprintf(buf, sizeof(buf), "JPG_%ux%u", unsigned(sof_w), unsigned(sof_h));
+        if (n > 0)
+            return prefix_from_bytes(buf, size_t(n));
+    }
+    return {};
+}
+
 CarveResult validate_jpeg(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
     u64 pos = hit + 2; /* skip FFD8 */
     bool saw_sof = false, saw_sos = false;
     /* the og fallback's salvage inputs: SOF dimensions (last good SOF0
      * wins, SOF2 fills-if-empty — FUN_18004bbd0 case -0x40/-0x3e) */
-    u64 sof_estimate = 0; /* h*w*3; 0 = dims unknown/unreadable */
+    u64 sof_estimate = 0;     /* h*w*3; 0 = dims unknown/unreadable */
+    u64 sof_w = 0, sof_h = 0; /* S-049: the dims prefix inputs */
+    /* S-049: compose the naming prefix on every accept path (the og's
+     * prefix is analyser-supplied regardless of the accept tier) */
+    const auto set_prefix = [&]() { r.name_prefix = jpeg_name_prefix(s, hit, cap, sof_w, sof_h); };
     int markers = 0;
     /* the legacy tier's accept-at-limit: anchored at the candidate start,
      * end = min(hit + (h*w*3 | 20,000,000), bound) where bound is the
@@ -292,6 +689,7 @@ CarveResult validate_jpeg(IStorageDevice* s, u64 hit, u64 cap) {
         r.confidence = 600;
         r.note = sof_estimate != 0 ? "fallback-salvage(no-EOI,SOF-estimate)"
                                    : "fallback-salvage(no-EOI,cap/10)";
+        set_prefix(); /* S-049: the prefix rides the salvage tier too */
         return r;
     };
     while (pos + 4 <= hit + cap) {
@@ -312,6 +710,8 @@ CarveResult validate_jpeg(IStorageDevice* s, u64 hit, u64 cap) {
             r.end = pos + 2;
             r.confidence = r.ok ? 900 : 400;
             r.note = r.ok ? "marker-walk+EOI" : "no-SOF/SOS";
+            if (r.ok)
+                set_prefix();
             return r;
         }
         if (mk == 0xDA)
@@ -337,8 +737,13 @@ CarveResult validate_jpeg(IStorageDevice* s, u64 hit, u64 cap) {
             if (prec_ok) {
                 const u64 h = rdbe16(s, pos + 5);
                 const u64 w = rdbe16(s, pos + 7);
-                if (h != 0 && w != 0 && (mk == 0xC0 || sof_estimate == 0))
+                if (h != 0 && w != 0 && (mk == 0xC0 || sof_estimate == 0)) {
                     sof_estimate = h * w * 3;
+                    if (mk == 0xC0 || (sof_w == 0 && sof_h == 0)) {
+                        sof_w = w;
+                        sof_h = h;
+                    }
+                }
             }
         }
         /* JPEG segment lengths are BIG-endian (wire-correct read; the
@@ -609,26 +1014,26 @@ CarveResult validate_heif(IStorageDevice* s, u64 hit, u64 cap) {
         r.note = "HEIF-family (og display label: HEIF)";
     return r;
 }
-/* ---- N-063: the og's per-analyser carved-file naming (MP4/MOV) -------
- * RAWSearchDLL decode (first-hand, this session):
- *   - the analyser formats "Lost Name File (" + <time> + ")_EaseUS"
- *     (memmove sites :33412/:33418/:33434; the literal strings at
- *     :33312/:33408);
- *   - <time> = "%04d:%02d:%02d %02d:%02d:%02d" via _localtime64
- *     (:33465 FUN_18002b540, the format call at :33531) of the RAW
- *     mvhd field value - NO 1904 MP4-epoch conversion anywhere in the
- *     decode (the BE value feeds _localtime64 as Unix seconds);
- *   - the field read is mvhd+0x10 (v0, u32) / the FIRST FOUR BYTES of
- *     mvhd+0x14 (v1, u64 - i.e. the HIGH 32 bits of the BE u64, so
- *     every sane v1 time formats as 1970:01:01 00:00:00 - the og's own
- *     quirk, replicated faithfully);
- *   - the field is MODIFICATION time under the ISO/QuickTime layout
- *     (v0 creation@+12/mod@+16; v1 creation@+12u64/mod@+20u64) - the
- *     finding's "creation-time" label corrected by the decode.
- * Registered divergences (PARITY-DELTAS): the og formats via
- * _localtime64 (scanning-host local time); the core formats UTC for
- * determinism - identical digits on a UTC host. */
-static std::u16string mp4_og_name(IStorageDevice* s, u64 hit, u64 cap) {
+/* ---- S-049: the MP4/MOV duration naming prefix ------------------------
+ * Real-session evidence (first-hand re-mining this session; the verbatim
+ * table in evidence/executions/s10b-real-rsf-session-mining.md): the og's
+ * carved MP4/MOV rows are named "<EXT>_<duration>_<%06d>.<EXT>" —
+ * MP4_14s_000003.MP4, MP4_08m07s_000030.MP4, MP4_01m_000006.MP4,
+ * MOV_10s_000009.MOV, MOV_01m01s_000015.MOV — 57/57 real MP4/MOV carve
+ * rows across the three og sessions, ZERO "Lost Name File (...)_EaseUS"
+ * template names. The N-063 engine-side decode (RAWSearchDLL :33312 —
+ * the analyser SetName template) is real ENGINE code, but the DRWUI
+ * tree-naming layer names every unnamed carve record through the
+ * "%s_%06d" contract (FUN_140c44770) and the engine template does not
+ * survive it in the shipped product's persisted sessions. This landing
+ * supersedes N-063's carve-tree application: the prefix is the mvhd
+ * DURATION (timescale+duration), composed with the format name.
+ *
+ * mvhd (ISO/IEC 14496-12): v0 — timescale u32@box+20, duration u32@box+24;
+ * v1 — timescale u32@box+28, duration u64@box+32. duration_seconds =
+ * duration / timescale (timescale 0 = no prefix). */
+static std::u16string mp4_duration_prefix(IStorageDevice* s, u64 hit, u64 cap,
+                                          const char* fmt_name) {
     /* walk top-level boxes for moov, then moov's children for mvhd */
     u64 pos = hit;
     u64 mvhd = 0;
@@ -686,36 +1091,38 @@ static std::u16string mp4_og_name(IStorageDevice* s, u64 hit, u64 cap) {
         pos += box_len;
     }
     if (mvhd == 0)
-        return {}; /* no mvhd: the emit site falls back (the og keeps its
-                      own default too when the box is absent) */
+        return {}; /* no mvhd: the emit site falls back to the plain
+                      uppercase-ext default prefix */
     const u8 version = rd8(s, mvhd + 8);
-    u32 raw_time;
+    u32 timescale;
+    u64 duration;
     if (version == 1) {
-        /* the og reads the FIRST FOUR BYTES of the u64 at mvhd+0x14
-         * (the high 32 of the BE value) - sane v1 times read as 0 */
-        raw_time = rdbe32(s, mvhd + 0x14);
+        if (mvhd + 40 > hit + cap)
+            return {};
+        timescale = rdbe32(s, mvhd + 28);
+        duration = rdbe64(s, mvhd + 32);
     } else {
-        raw_time = rdbe32(s, mvhd + 0x10);
+        if (mvhd + 28 > hit + cap)
+            return {};
+        timescale = rdbe32(s, mvhd + 20);
+        duration = rdbe32(s, mvhd + 24);
     }
-    /* format as UTC "%04d:%02d:%02d %02d:%02d:%02d" (deterministic;
-     * the og's _localtime64 is the registered divergence) */
-    std::time_t tt = std::time_t(raw_time);
-    std::tm tmv{};
-#if defined(_WIN32)
-    gmtime_s(&tmv, &tt); /* MSVC: inverted arg order, same UTC semantics */
-#else
-    gmtime_r(&tt, &tmv);
-#endif
-    char tb[40];
-    snprintf(tb, sizeof(tb), "%04d:%02d:%02d %02d:%02d:%02d", tmv.tm_year + 1900, tmv.tm_mon + 1,
-             tmv.tm_mday, tmv.tm_hour, tmv.tm_min, tmv.tm_sec);
-    std::u16string out;
-    for (const char* p = "Lost Name File ("; *p; ++p)
-        out.push_back(u16(u8(*p)));
-    for (const char* p = tb; *p; ++p)
-        out.push_back(u16(u8(*p)));
-    for (const char* p = ")_EaseUS"; *p; ++p)
-        out.push_back(u16(u8(*p)));
+    if (timescale == 0 || duration == 0)
+        return {};
+    const u64 secs = duration / timescale;
+    if (secs == 0)
+        return {}; /* sub-second: the og's %02us floor would print 00s —
+                      no observed sub-second sample; the plain default is
+                      the honest form */
+    const std::u16string dur = duration_form(secs);
+    if (dur.empty())
+        return {};
+    char head[16];
+    const int n = snprintf(head, sizeof(head), "%s_", fmt_name);
+    if (n <= 0)
+        return {};
+    std::u16string out = prefix_from_bytes(head, size_t(n));
+    out += dur;
     return out;
 }
 
@@ -724,7 +1131,7 @@ CarveResult validate_mp4(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r = bmff_walk(s, hit, cap, brands, 6);
     if (r.ok) {
         r.confidence = 780;
-        r.embedded_name = mp4_og_name(s, hit, cap); /* N-063: og template */
+        r.name_prefix = mp4_duration_prefix(s, hit, cap, "MP4"); /* S-049 */
     }
     return r;
 }
@@ -733,7 +1140,7 @@ CarveResult validate_mov(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r = bmff_walk(s, hit, cap, brands, 1);
     if (r.ok) {
         r.confidence = 720;
-        r.embedded_name = mp4_og_name(s, hit, cap); /* N-063: og template */
+        r.name_prefix = mp4_duration_prefix(s, hit, cap, "MOV"); /* S-049 */
     }
     return r;
 }
@@ -775,6 +1182,7 @@ CarveResult validate_mov_naked(IStorageDevice* s, u64 hit, u64 cap) {
     r.end = next + second_sz;
     r.confidence = 620;
     r.note = "naked-moov+box-walk";
+    r.name_prefix = mp4_duration_prefix(s, hit, cap, "MOV"); /* S-049 */
     return r;
 }
 
@@ -814,14 +1222,104 @@ CarveResult validate_pdf(IStorageDevice* s, u64 hit, u64 cap) {
             }
             if (std::memcmp(buf.data() + i, "%PDF-", 5) == 0) {
                 /* next file's header: this candidate ends at its last %%EOF */
-                return best != 0 ? carve_pdf_done(r, best) : r;
+                return best != 0 ? carve_pdf_done(s, r, hit, best) : r;
             }
         }
         if (block + take >= limit)
             break;
         block += u64(take) - 4; /* 5-byte magics: (mlen-1) seam */
     }
-    return best != 0 ? carve_pdf_done(r, best) : r;
+    return best != 0 ? carve_pdf_done(s, r, hit, best) : r;
+}
+
+/* ---- S-049: the archive naming prefixes ---------------------------------
+ * ZIP: the first central-directory entry name, path separators -> '_'
+ * (real-session pins: "META-INF/" -> META-INF__000001.ZIP, "classes.dex"
+ * -> classes.dex_000001.ZIP, "mimetype" -> mimetype_N.ZIP, "-" ->
+ * -_000001.ZIP, "027.jpg" keeps its dots - the finding's dot-translation
+ * example is corrected by the classes.dex/027.jpg families: dots are
+ * preserved, only the path separator maps). */
+static std::u16string zip_first_entry_prefix(std::string nm) {
+    for (char& c : nm)
+        if (c == '/' || c == '\\')
+            c = '_';
+    return prefix_from_bytes(nm);
+}
+
+static std::u16string zip_first_entry_prefix(const std::vector<CarveEntry>& entries) {
+    if (entries.empty())
+        return {};
+    return zip_first_entry_prefix(entries.front().name);
+}
+
+/* DOCX: the docProps/core.xml created date, formatted "YYYY-MM-DD
+ * HH-MM-SS" (real-session pins: 2006-07-25 02-16-00_N.DOCX x24,
+ * 2006-10-24 12-00-00, 2021-10-27 10-50-00 - the W3CDTF T/Z punctuation
+ * maps to space/dashes; colons are Windows-illegal). The core.xml entry
+ * is located through the S-032 inventory (data_offset/data_len) and
+ * inflated through the shared zlib path when deflate-compressed. */
+static std::u16string docx_created_prefix(IStorageDevice* s,
+                                          const std::vector<CarveEntry>& entries) {
+    const CarveEntry* core_xml = nullptr;
+    for (const CarveEntry& e : entries)
+        if (e.name == "docProps/core.xml" && e.data_len > 0 && e.data_len < (1u << 20)) {
+            core_xml = &e;
+            break;
+        }
+    if (core_xml == nullptr)
+        return {};
+    std::vector<u8> raw(size_t(core_xml->data_len));
+    if (!rd(s, core_xml->data_offset, raw.data(), u32(raw.size())))
+        return {};
+    /* core.xml is deflate-compressed in practice (Office writes method
+     * 8); inflate through the RFC-1950 tolerant wrapper (a zlib header
+     * is present for method-8 entries; stored members fall through to
+     * the raw bytes). Bounded: the inflated member is at most 256 KiB
+     * (docProps/core.xml is a few KiB in every real Office file). */
+    std::vector<u8> out(256 * 1024);
+    std::string xml;
+    {
+        z_stream zs = {};
+        if (inflateInit2(&zs, 15) == Z_OK) { /* +15: RFC 1950 wrapper */
+            zs.next_in = const_cast<Bytef*>(raw.data());
+            zs.avail_in = uInt(raw.size());
+            zs.next_out = out.data();
+            zs.avail_out = uInt(out.size());
+            if (inflate(&zs, Z_FINISH) == Z_STREAM_END)
+                xml.assign(reinterpret_cast<const char*>(out.data()), size_t(zs.total_out));
+            inflateEnd(&zs);
+        }
+    }
+    if (xml.empty()) {
+        /* stored (method 0) member: the raw bytes are the XML */
+        xml.assign(reinterpret_cast<const char*>(raw.data()), raw.size());
+    }
+    /* the created date: <dcterms:created ...>YYYY-MM-DDThh:mm:ss...< */
+    const size_t pos = xml.find("dcterms:created");
+    if (pos == std::string::npos)
+        return {};
+    const size_t gt = xml.find('>', pos);
+    if (gt == std::string::npos)
+        return {};
+    const size_t lt = xml.find('<', gt + 1);
+    if (lt == std::string::npos)
+        return {};
+    const size_t ilen = lt - (gt + 1);
+    if (ilen != 19 && ilen != 20) /* 19: no zone; 20: the trailing Z form */
+        return {};
+    const std::string iso = xml.substr(gt + 1, 19);
+    if (iso[4] != '-' || iso[7] != '-' || (iso[10] != 'T' && iso[10] != ' ') || iso[13] != ':' ||
+        iso[16] != ':')
+        return {};
+    /* the W3CDTF punctuation maps to the og's form: T -> space, the time
+     * colons -> dashes (Windows-illegal) - "2006-07-25 02-16-00" */
+    char buf[20];
+    const int n =
+        snprintf(buf, sizeof(buf), "%.4s-%.2s-%.2s %.2s-%.2s-%.2s", iso.data() + 0, iso.data() + 5,
+                 iso.data() + 8, iso.data() + 11, iso.data() + 14, iso.data() + 17);
+    if (n != 19)
+        return {};
+    return prefix_from_bytes(buf, 19);
 }
 
 /* ---- ZIP family: local header + EOCD; DOCX adds [Content_Types].xml ---- */
@@ -947,6 +1445,7 @@ static CarveResult zip_common(IStorageDevice* s, u64 hit, u64 cap, bool office) 
             ir.end = last_end;
             ir.confidence = 550;
             ir.note = "indexless-LFH-chain";
+            ir.name_prefix = zip_first_entry_prefix(ir.entries); /* S-049 */
             /* N-008 (decompile :18492-18508): the og's salvage extension -
              * after a BROKEN record chain, absorb data-bearing trailing
              * sectors. Entry: the window at [end, end+sec) carries a
@@ -1074,6 +1573,11 @@ static CarveResult zip_common(IStorageDevice* s, u64 hit, u64 cap, bool office) 
     r.end = end;
     r.confidence = office ? 850 : 700;
     r.note = office ? "[Content_Types]+EOCD" : "EOCD+cd-geometry";
+    /* S-049: DOCX prefixes by the docProps created date (real sessions:
+     * 2006-07-25 02-16-00_N.DOCX - never the [Content_Types].xml first
+     * entry); plain ZIP prefixes by the first central-directory entry
+     * name (META-INF__N.ZIP, classes.dex_N.ZIP) */
+    r.name_prefix = office ? docx_created_prefix(s, r.entries) : zip_first_entry_prefix(r.entries);
     return r;
 }
 
@@ -1089,6 +1593,16 @@ CarveResult validate_docx(IStorageDevice* s, u64 hit, u64 cap) {
  * survives, the entry still surfaces (names live in the CD). Scan
  * forward for the EOCD to size the span; without one, take a bounded
  * CD-sized window. */
+/* S-049: the CD record at pos - its entry name (bounded, 512) */
+static std::string cd_entry_name(IStorageDevice* s, u64 pos, u16 nlen) {
+    if (nlen == 0 || nlen > 512)
+        return {};
+    std::string nm(size_t(nlen), '\0');
+    if (!rd(s, pos + 46, &nm[0], nlen))
+        return {};
+    return nm;
+}
+
 CarveResult validate_zip_cd(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
     u8 cd[46];
@@ -1126,6 +1640,7 @@ CarveResult validate_zip_cd(IStorageDevice* s, u64 hit, u64 cap) {
                 r.end = limit;
             r.confidence = 600;
             r.note = "cd-anchor+EOCD";
+            r.name_prefix = zip_first_entry_prefix(cd_entry_name(s, hit, nlen));
             return r;
         }
     }
@@ -1136,6 +1651,7 @@ CarveResult validate_zip_cd(IStorageDevice* s, u64 hit, u64 cap) {
         r.end = limit;
     r.confidence = 550;
     r.note = "cd-anchor";
+    r.name_prefix = zip_first_entry_prefix(cd_entry_name(s, hit, nlen));
     return r;
 }
 
@@ -1795,6 +2311,55 @@ u32 mp3_frame_size(const u8* f) {
 }
 } // namespace
 
+/* S-049: the MP3 naming prefix - the ID3v2 title (TIT2 for v2.3/v2.4;
+ * real-session pins: "AREE DEEWANO MUJHE PECHANO_000123.MP3", "Ek Lo Ek
+ * Muft_N.MP3", "02 Prem Ratan Dhan Payo (SongsMp3.Com)_N.MP3" - spaces,
+ * dots and parentheses are preserved verbatim). v2.4 frame sizes are
+ * syncsafe; v2.3 plain BE u32. The text encoding byte leads the payload
+ * (0 latin-1, 1 UTF-16/BOM, 2 UTF-16BE, 3 UTF-8); ASCII dominates the
+ * observed titles. */
+static std::u16string id3_title_prefix(IStorageDevice* s, u64 hit, u64 audio_at, u8 ver) {
+    u64 pos = hit + 10; /* skip the ID3 header */
+    int frames = 0;
+    while (pos + 10 <= audio_at && frames < 512) {
+        ++frames;
+        u8 fh[10];
+        if (!rd(s, pos, fh, 10))
+            return {};
+        if (fh[0] == 0)
+            return {}; /* padding: no title found */
+        char fid[5] = {char(fh[0]), char(fh[1]), char(fh[2]), char(fh[3]), 0};
+        u32 fsize;
+        if (ver == 4)
+            fsize = (u32(fh[4]) << 21) | (u32(fh[5]) << 14) | (u32(fh[6]) << 7) | fh[7];
+        else
+            fsize = (u32(fh[4]) << 24) | (u32(fh[5]) << 16) | (u32(fh[6]) << 8) | fh[7];
+        if (fsize == 0 || fsize > 4096)
+            return {}; /* hostile/empty frame: no sane title walk */
+        if (std::memcmp(fid, "TIT2", 4) == 0) {
+            /* encoding byte + text, NUL-terminated */
+            const u64 body = pos + 10 + 1;
+            const u64 avail = audio_at > body ? audio_at - body : 0;
+            const size_t want = size_t(std::min<u64>(avail, fsize - 1));
+            if (want == 0)
+                return {};
+            std::string v(want, '\0');
+            if (!rd(s, body, &v[0], u32(want)))
+                return {};
+            const size_t nul = v.find('\0');
+            if (nul != std::string::npos)
+                v.resize(nul);
+            while (!v.empty() && v.back() == ' ')
+                v.pop_back();
+            if (v.empty())
+                return {};
+            return prefix_from_bytes(v);
+        }
+        pos += 10 + fsize;
+    }
+    return {};
+}
+
 CarveResult validate_mp3(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
     u8 h[10];
@@ -1858,10 +2423,67 @@ CarveResult validate_mp3(IStorageDevice* s, u64 hit, u64 cap) {
     r.end = frames_end; /* <= limit by construction */
     r.confidence = 820;
     r.note = "ID3+frame-walk";
+    r.name_prefix = id3_title_prefix(s, hit, audio_at, ver_major); /* S-049 */
     return r;
 }
 
 /* ---- WAV: RIFF + WAVE + fmt chunk ---- */
+/* S-049: the WAV naming prefix - the LIST/INFO INAM title (real-session
+ * pins: "BIRD_N.WAV" x90, "RAIN_N.WAV" x60, "CAR_N.WAV" x50 in the I
+ * session - game/audio-library INFO titles; 348 of 548 WAV rows carry no
+ * INAM and take the plain WAV default, consistent with INAM being
+ * optional metadata). RIFF chunks from hit+12: id(4) size(4 LE) data;
+ * LIST with type INFO carries INAM subchunks. */
+static std::u16string wav_inam_prefix(IStorageDevice* s, u64 hit, u64 end) {
+    u64 pos = hit + 12;
+    int chunks = 0;
+    while (pos + 8 <= end && chunks < 512) {
+        ++chunks;
+        u8 ch[8];
+        if (!rd(s, pos, ch, 8))
+            return {};
+        const u32 csz = u32(ch[4]) | (u32(ch[5]) << 8) | (u32(ch[6]) << 16) | (u32(ch[7]) << 24);
+        if (csz > 0x7FFFFFFFu)
+            return {}; /* hostile size */
+        if (std::memcmp(ch, "LIST", 4) == 0 && csz >= 4 && pos + 12 <= end) {
+            u8 lt[4];
+            if (!rd(s, pos + 8, lt, 4))
+                return {};
+            if (std::memcmp(lt, "INFO", 4) == 0) {
+                /* walk the INFO subchunks for INAM */
+                u64 sub = pos + 12;
+                const u64 send = std::min(pos + 8 + u64(csz), end);
+                int subs = 0;
+                while (sub + 8 <= send && subs < 64) {
+                    ++subs;
+                    u8 sc[8];
+                    if (!rd(s, sub, sc, 8))
+                        return {};
+                    const u32 ssz =
+                        u32(sc[4]) | (u32(sc[5]) << 8) | (u32(sc[6]) << 16) | (u32(sc[7]) << 24);
+                    if (ssz > 4096)
+                        return {};
+                    if (std::memcmp(sc, "INAM", 4) == 0 && ssz > 0 && sub + 8 + ssz <= end) {
+                        std::string v(size_t(ssz), '\0');
+                        if (!rd(s, sub + 8, &v[0], ssz))
+                            return {};
+                        const size_t nul = v.find('\0');
+                        if (nul != std::string::npos)
+                            v.resize(nul);
+                        while (!v.empty() && v.back() == ' ')
+                            v.pop_back();
+                        if (!v.empty())
+                            return prefix_from_bytes(v);
+                    }
+                    sub += 8 + u64(ssz) + (ssz & 1); /* chunks are word-aligned */
+                }
+            }
+        }
+        pos += 8 + u64(csz) + (csz & 1); /* word-aligned stride */
+    }
+    return {};
+}
+
 CarveResult validate_wav(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
     u8 h[16];
@@ -1880,6 +2502,7 @@ CarveResult validate_wav(IStorageDevice* s, u64 hit, u64 cap) {
         r.end = hit + cap;
     r.confidence = 900;
     r.note = "RIFF+WAVE+fmt";
+    r.name_prefix = wav_inam_prefix(s, hit, r.end); /* S-049 */
     return r;
 }
 

@@ -25,6 +25,8 @@
 #include <atomic>
 #include <chrono>
 #include <cstring>
+#include <map>
+#include <mutex>
 #include <ctime>
 #include <set>
 
@@ -154,6 +156,18 @@ struct ScanCtx {
     std::vector<std::pair<u64, u64>> overlap_covered;
     std::atomic<u32> file_index{0};
     std::atomic<bool> aborted{false};
+    /* S-049: the per-format naming counters (the og's map-keyed counter -
+     * DRWUI_decompiled.c:1877584-90, the node+8 increment per format key;
+     * real-session-pinned per-FORMAT semantics: the JPG counter runs
+     * 1..3938 continuous across the plain/dims/Model/Software prefix
+     * variants, GZ 1..27694, PNG 1..17580 - each format counts its own
+     * files from 1). Key: the format's UPPERCASE extension (the name's
+     * own ext text - the observable key space across all three emit
+     * layers). Guarded: the map is touched on the worker emission path
+     * (parallel mode fans out windows; add_file is tree-serialized but
+     * the name composes before it). */
+    std::mutex name_mtx;
+    std::map<std::string, u32> name_counters;
     /* S-031 residual: the wall-clock scan time stamped onto every carved
      * node's times.modified (the og persists a per-carved-file timestamp
      * string written by FUN_140c41aa0 via "%d-%d-%d %d-%d-%d" from the
@@ -246,6 +260,63 @@ struct ScanCtx {
         return 0; /* used but mid-cluster: suppress just this position */
     }
 };
+
+/* S-049: the og-contract name with the ctx's per-format counter state.
+ * prefix.empty() -> the bare %06d form (the og's empty-prefix branch,
+ * :1878334-37 - unreachable through the emit sites, which default the
+ * prefix to the uppercase ext, but implemented for contract parity). */
+static std::u16string og_carve_name(ScanCtx& ctx, const char* ext, const std::u16string& prefix) {
+    char key[16];
+    size_t kl = 0;
+    for (const char* p = ext; *p && kl + 1 < sizeof(key); ++p)
+        key[kl++] = char(*p >= 'a' && *p <= 'z' ? *p - 32 : *p);
+    key[kl] = 0;
+    u32 counter = 0;
+    {
+        const std::lock_guard<std::mutex> lk(ctx.name_mtx);
+        counter = ++ctx.name_counters[key];
+    }
+    char cnt[20];
+    const int n = snprintf(cnt, sizeof(cnt), counter <= 99999u ? "%06u" : "%u", counter);
+    if (n <= 0)
+        return {};
+    char ext_up[16];
+    size_t el = 0;
+    for (const char* p = ext; *p && el + 1 < sizeof(ext_up); ++p)
+        ext_up[el++] = char(*p >= 'a' && *p <= 'z' ? *p - 32 : *p);
+    ext_up[el] = 0;
+    /* the default prefix: the format's own UPPERCASE extension when the
+     * analyser supplied no content-derived prefix (the real sessions:
+     * every format's plain form is EXT_NNNNNN.EXT - GZ_000001.GZ,
+     * PNG_000001.PNG; the og's caller always supplies a prefix and the
+     * bare %06d branch is its dead path, kept below for contract parity
+     * only through an explicit empty-ext signature) */
+    std::u16string use_prefix;
+    if (!prefix.empty())
+        use_prefix = prefix;
+    else if (ext_up[0] != 0) {
+        for (const char* p = ext_up; *p; ++p)
+            use_prefix.push_back(u16(u8(*p)));
+    }
+    std::u16string out;
+    out.reserve(use_prefix.size() + size_t(n) + el + 2);
+    /* the prefix_counter part, capped at 254 (the og's 0xff snprintf) */
+    size_t cap = 254;
+    if (!use_prefix.empty()) {
+        size_t take =
+            use_prefix.size() < cap - size_t(n) - 1 ? use_prefix.size() : cap - size_t(n) - 1;
+        out.append(use_prefix, 0, take);
+        out.push_back(u'_');
+    }
+    for (const char* p = cnt; *p; ++p)
+        out.push_back(u16(u8(*p)));
+    if (out.size() > cap)
+        out.resize(cap);
+    out.push_back(u'.');
+    for (const char* p = ext_up; *p; ++p)
+        out.push_back(u16(u8(*p)));
+    return out;
+}
 
 /* M-025: window-serving read context - the og's already-in-buffer model
  * (RAWSearchDLL :9195-9209 the 8 MiB ping-pong buffer; :9434-9438 chunk
@@ -476,15 +547,17 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 (cr.format_override != 0xFFFFFFFFu && cr.format_override < FMT_COUNT)
                     ? ctx.reg[cr.format_override]
                     : sig;
-            /* N-063: the og's per-analyser name first (the analyser's
-             * own SetName - e.g. MP4/MOV's "Lost Name File (...)_EaseUS"
-             * template), then the caller's namer callback, then the
-             * documented File%06u deliberate default (PARITY-DELTAS:
-             * formats with no decoded og naming rule). */
-            props->name = !cr.embedded_name.empty()
-                              ? cr.embedded_name
-                              : (ctx.namer ? ctx.namer(eff, file_len, idx)
-                                           : default_namer(eff, file_len, idx));
+            /* S-049: the og's naming contract - the caller's namer
+             * callback first (host policy), then the DRWUI
+             * "<prefix>_<%06d>.<UPPEREXT>" name with the analyser's
+             * content-derived prefix (CarveResult::name_prefix) over the
+             * per-format counter. The N-063 embedded_name full-name
+             * chain is superseded: the real og sessions prove the
+             * tree-naming layer names every unnamed carve record this
+             * way and the engine's "Lost Name File" template never
+             * survives it (57/57 real MP4/MOV carve rows). */
+            props->name = ctx.namer ? ctx.namer(eff, file_len, idx)
+                                    : og_carve_name(ctx, eff.ext, cr.name_prefix);
             props->fs_kind =
                 u32(FsKindCode::Raw); /* carved (row 45: was invented 0xFF; factory RAW=6) */
             props->logical_size = file_len;
@@ -691,7 +764,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                         rsig.ext = us->ext;
                         rsig.name = us->ext;
                         props->name =
-                            ctx.namer ? ctx.namer(rsig, len, fi) : default_namer(rsig, len, fi);
+                            ctx.namer ? ctx.namer(rsig, len, fi) : og_carve_name(ctx, rsig.ext, {});
                         props->fs_kind = u32(FsKindCode::Raw);
                         props->logical_size = len;
                         props->carve_format = 0xFFFE0000u; /* M-048: the user-signature tag */
@@ -879,7 +952,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             Signature rsig{};
             rsig.ext = fmt.ext;
             rsig.name = fmt.ext;
-            props->name = ctx.namer ? ctx.namer(rsig, len, fi) : default_namer(rsig, len, fi);
+            props->name = ctx.namer ? ctx.namer(rsig, len, fi) : og_carve_name(ctx, rsig.ext, {});
             props->fs_kind = u32(FsKindCode::Raw);
             props->logical_size = len;
             props->carve_format = 0xFFFF0000u + best->fmt; /* raw-sign tag */
@@ -972,17 +1045,39 @@ u32 scan_window_index(ScanCtx& ctx, u64 wi, std::set<u64>& emitted_at) {
 
 std::u16string default_namer(const Signature& sig, u64 size, u32 index) {
     (void)size;
-    char buf[32];
-    /* N-063 comment repair: the og has NO FileNNNN scheme anywhere (the
-     * deep-dive artifact's "File0001.jpg lives in the UI" claim was a
-     * corpus erratum, corrected with OQ-S4-2's decode). This is OUR
-     * deliberate default for formats whose og naming rule is not
-     * decoded (registered in docs/PARITY-DELTAS.md) - zero-padded for
-     * stable ordering; formats WITH a decoded og rule name via
-     * CarveResult::embedded_name before this fallback. */
-    int n = snprintf(buf, sizeof(buf), "File%06u.%s", index, sig.ext);
+    /* S-049: the og's universal naming contract replaces the invented
+     * File%06u default (the deliberate default registered in
+     * PARITY-DELTAS D-76 - its premise "formats whose og naming rule is
+     * not decoded" is falsified: the rule IS decoded, universally, from
+     * the three real og sessions + the DRWUI naming function
+     * FUN_140c44770 :1878330-81):
+     *   name = <PREFIX>_<%06d counter>.<UPPERCASE-EXT>
+     *   - the counter is PER-FORMAT (this function receives the
+     *     caller's per-format counter through `index` - the ScanCtx
+     *     counter map owns the state; a stateless caller passes its own)
+     *   - past 99999 the og switches to unpadded %d (:1878336/:1878346)
+     *   - the default PREFIX is the format's own UPPERCASE extension
+     *     (GZ_000001.GZ, PNG_000001.PNG - every observed format)
+     *   - the prefix part is capped at 254 chars (the og's
+     *     snprintf(buf, 0xff) on the prefix_counter string), the
+     *     ".EXT" tail appends after it
+     * Content-derived prefixes (JPEG dims/EXIF, MP4/MOV duration, MP3
+     * title, PDF Title/Creator+date, DOCX date, ZIP first entry, WAV
+     * INAM) arrive through CarveResult::name_prefix at the emit site -
+     * this default fires when the analyser supplied none. */
+    char cnt[20];
+    const int n = snprintf(cnt, sizeof(cnt), index <= 99999u ? "%06u" : "%u", index);
     if (n <= 0)
-        buf[0] = 0;
+        return {};
+    char ext_up[16];
+    size_t el = 0;
+    for (const char* p = sig.ext; *p && el + 1 < sizeof(ext_up); ++p)
+        ext_up[el++] = char(*p >= 'a' && *p <= 'z' ? *p - 32 : *p);
+    ext_up[el] = 0;
+    char buf[40];
+    const int m = snprintf(buf, sizeof(buf), "%s_%s.%s", ext_up, cnt, ext_up);
+    if (m <= 0)
+        return {};
     std::u16string out;
     for (const char* p = buf; *p; ++p)
         out.push_back(u16(u8(*p)));

@@ -25,7 +25,11 @@ grammar byte-confirmed — no erratum needed).
   `Reconstructed/<volume>` per-volume grouping absent; B8/A26/A42/D12/D13
   cells), **S-049** (the `<PREFIX>_%06d.EXT` naming contract + the
   content-derived prefixes EXIF-Model/Software, ID3-title, PDF/DOCX-timestamp,
-  ZIP-entry, SOF-dims — B10/A28/D12 cells; N-063's remainder resolved).
+  ZIP-entry, SOF-dims — B10/A28/D12 cells; N-063's remainder resolved;
+  **FIXED — session-40 severe lane**, the full landing record in the finding's
+  Resolution + the FIXED-LEDGER row: per-format counters, the uppercase-ext
+  default, MP4/MOV duration prefixes, PDF Title/Creator+date, DOCX date, WAV
+  INAM — B10/A28/D12 cells → MATCH).
 - **ntfs/tree rows, new cells**: orphan-grouping parameters — **M-103**
   (`LostDir<record>` per-parent folders + the "File Path Lost" branch name;
   B5/B10/D12/A26 cells; the C2 "roles map 1:1" claim falsified for the lost

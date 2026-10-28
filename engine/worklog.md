@@ -4714,6 +4714,7 @@ ERR_UNSUPPORTED for HFS+ (the stem fallback, unchanged behavior).
 CROSS-REF-MATRIX cell → MATCH; SUMMARY (board 46 active);
 PARITY-DELTAS D-112.
 
+
 ### Session-39 fix log — N-132 landed (the display-config data layers + the API-DELTA truth repair) + the merge-window red repaired
 
 **Finding:** MINOR N-132 (API-DELTA rows 44-45's false "landed" claims for
@@ -4753,3 +4754,28 @@ truth repair). Per the convergence convention S40B's N-132 pass becomes a
 verification of this landing (the N-111 precedent shape). The
 test_fixtures.hpp crc32 include: convergent repair by two lanes (theirs
 7320a2f6-lineage, mine this commit) - one include kept.
+
+
+## Fix session 40-severe — the SEVERE-first parity lane (2026-10-29, T1 baseline: core `461825d8` at open (re-merged through `7320a2f6`), corpus `be0cfe9`; prompt: worklog/session-diff-fix-40-severe-prompt.md — the same user mandate as the parallel session-40 minor-first lane, rebranded per the earlier-push-wins collision convention)
+
+**S-049 FIXED — the og's universal carved-file naming contract.** First-hand
+re-verification before any change (the SOP): DRWUI FUN_140c44770 read directly
+(:1878330-81), both callers traced, the three REAL og sessions re-mined with the
+core's own parser. The landing: `default_namer` emits
+`<PREFIX>_<%06d>.<UPPEREXT>` with PER-FORMAT counters (ScanCtx map, mutex-guarded
+for parallel emission); `CarveResult::embedded_name` → `name_prefix`; the prefix
+producers: JPEG EXIF Model→Software→SOF-dims, MP4/MOV mvhd duration, MP3 ID3v2
+TIT2, PDF Title(25-char cap)→Creator/Producer+CreationDate(plain-D: form only),
+DOCX docProps created (inflate path through zlib), ZIP first CD entry
+(`/`\→`_`, dots preserved), WAV LIST/INFO INAM; `mp4_og_name` RETIRED
+(the N-063 carve-tree application superseded by 57/57 real rows — the engine-side
+decode stays documented in PARITY-DELTAS D-76, rewritten). 13 pin tests +
+the 39-test fail-before set re-pinned to the contract; suite 1185/1185 on the
+merged tree (over the parallel S-051/S-052/M-104/N-133 landings); the parallel
+lanes' mid-window tests (N-112 LZH, N-113 text school) updated for the uppercase
+contract in the same push; the M-108 landing's format dirt repaired. PARITY-DELTAS
+D-76 surgically rewritten (the first edit's 9-section collateral deletion caught
+and repaired by the Enumerate delta-registration test — the gate worked).
+Board after this push (this lane's truth): S-049 retired to findings/FIXED/.
+Next: S-048 (the tree-shape half of the same real-session evidence), then
+S-040/S-050, then the MAJOR cluster.

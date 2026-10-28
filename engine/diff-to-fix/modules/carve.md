@@ -726,13 +726,18 @@ corpus's three REAL og sessions (evidence/executions/s10b-real-rsf-session-minin
   (per-volume children; 100% of 189,115 real carved rows); the core's single flat
   "Other Deleted Files (Carved)" root (cr_scan.cpp:151) has no volume attribution.
   Fix wave: per-volume children + the Reconstructed default name.
-- **S-049 (SEVERE)** — the og's universal naming contract `<PREFIX>_%06d.EXT`
-  (DRWUI FUN_140c44770; prefix = uppercase EXT, overridden by SOF-dims/EXIF-Model/
-  EXIF-Software/ID3-title/PDF-timestamp/DOCX-timestamp/ZIP-first-entry). The core's
-  File%06u default fires for every format except MP4/MOV. N-063's recorded
-  remainder ("which of the 22 SetName call sites") is resolved empirically: the
-  DRWUI %s_%06d contract is the universal surface; the analyser prefix is per-format
-  content extraction.
+- **S-049 (SEVERE) — FIXED (session-40 severe lane)** — the og's universal naming contract
+  `<PREFIX>_<%06d>.<UPPEREXT>` (DRWUI FUN_140c44770:1878330-81; prefix = the UPPERCASE EXT by
+  default, PER-FORMAT counters — JPG 1..3938 continuous across prefix variants, GZ 1..27,694,
+  PNG 1..17,580; overridden by SOF-dims `JPG_<W>x<H>`/EXIF-Model/EXIF-Software (JPEG),
+  mvhd-duration `MP4_08m07s` (MP4/MOV), ID3-title (MP3), Title(25-char cap)/Creator-Producer+
+  CreationDate (PDF), docProps-created (DOCX), first-CD-entry-with-/-mapping (ZIP), INAM (WAV)).
+  The core's File%06u default fires for every format except MP4/MOV — **RETIRED**: default_namer
+  emits the og contract; CarveResult::embedded_name -> name_prefix; N-063's MP4/MOV template
+  superseded on the carve-tree application (57/57 real rows are MP4_%06d.MP4 / duration forms;
+  the engine-side SetName decode stays documented in PARITY-DELTAS D-76). 13 pin tests
+  (OgNaming* + duration + FileNnnnFallbackRemoved); PARITY-DELTAS D-76 rewritten;
+  B10/A28/D12 cells → MATCH.
 - **Executed MATCH**: the raw_signs.json regen sync — scripts/gen_rawsigns.py
   regenerated the compiled table from the og's shipped JSON: 139 formats / 199
   header / 62 tail signs byte-identical (layout-only clang-format packing diff).

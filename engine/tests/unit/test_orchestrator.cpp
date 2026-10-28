@@ -1431,14 +1431,20 @@ TEST(Orchestrator, CarveSingleNamingFamily) {
     bool saw_jpg = false, saw_psd = false;
     for (const std::string& n : carved_names) {
         EXPECT_EQ(std::string::npos, n.find("Carved")) << "the split family is gone: " << n;
-        /* the registered default: FileNNNNNN.ext (6 digits) */
-        ASSERT_GE(n.size(), size_t(10)) << n;
-        EXPECT_EQ(0u, n.compare(0, 4, "File")) << n;
-        for (int i = 4; i < 10; ++i)
-            EXPECT_TRUE(n[i] >= '0' && n[i] <= '9') << "index digits: " << n;
-        if (n.size() > 10 && n.compare(n.size() - 4, 4, ".jpg") == 0)
+        /* S-049: the og's universal contract - <PREFIX>_<%06d>.<UPPEREXT>
+         * with the per-format counter (one naming family across both
+         * carve layers, the N-014b invariant preserved) */
+        const size_t dot = n.rfind('.');
+        ASSERT_NE(dot, std::string::npos) << n;
+        ASSERT_LT(dot, n.size() - 1) << n;
+        const size_t us = n.rfind('_', dot);
+        ASSERT_NE(us, std::string::npos) << n;
+        ASSERT_EQ(dot - us - 1, size_t(6)) << "6-digit per-format counter: " << n;
+        for (size_t i = us + 1; i < dot; ++i)
+            EXPECT_TRUE(n[i] >= '0' && n[i] <= '9') << "counter digits: " << n;
+        if (n.size() > 4 && n.compare(n.size() - 4, 4, ".JPG") == 0)
             saw_jpg = true;
-        if (n.size() > 10 && n.compare(n.size() - 4, 4, ".psd") == 0)
+        if (n.size() > 4 && n.compare(n.size() - 4, 4, ".PSD") == 0)
             saw_psd = true;
     }
     EXPECT_TRUE(saw_jpg) << "the grammar-layer candidate is in the family";
