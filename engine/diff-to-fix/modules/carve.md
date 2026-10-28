@@ -256,6 +256,13 @@ loader/matcher/CommonRawAnalyser decode, complementing the lead leg's
   `evidence/decompiled-quotes/s5-oq-s4-2-raw-naming-hook.md`. No carve
   emission-path change required for parity; the fix narrows to the
   category-bucket naming surface.
+- **I-027 register note (the filter_generalraw VALUE, session-8 sweep)**:
+  the concrete junk list behind the display-name mapping — the 65-extension
+  `filter_generalraw` value from `remote_config_data`
+  (`loggz, crash, evtx, lrprev, tmb, peak, default, sqm, pf, icns, …,
+  sqlite, m3u, amr, moff`) — on-file here as the ground truth for any
+  host-side general-raw display bucket. The semantic (display-name mapping)
+  is the OQ-S4-2 decode above; the value is the session-8 datum.
 
 ## Session-5 audit (audited commit `7cf6754`) — the never-cited family-artifact wave
 

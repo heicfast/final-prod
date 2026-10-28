@@ -981,8 +981,7 @@ Work Log:
   analysers + 7 FileInfo + 18 infra) folded in. Their queue pinning
   (A-lane niche batch -> F-lane NTFS carrier) merged into this session's
   execution order.
-- Also swept in this rebase: the stray '>>>>>>> 32a14d1' marker the TTFR
-  lane left inside worklog.md on origin/main (same class as the orphaned
+- Also swept in this rebase: the stray '  lane left inside worklog.md on origin/main (same class as the orphaned
   marker 47598bf swept before; no content lost — the surrounding API-FIX-4
   entry is intact).
 
@@ -5242,3 +5241,52 @@ was a rebase conflict committed without a post-rebase suite run. The format
 drift the red window accumulated (N-115's office rows + the S-054 zfs
 comment) repaired at `72a17b7c` (the c0f69250 precedent). Finding moved to
 findings/FIXED/ with the Resolution; ledger row appended.
+## Session-42 main lane (2026-10-29) — the INFO-first fix lane, reconciled twice over the trail's hottest parallel window
+
+Opened at core `67de3276` (main RED: OoxmlRelsPathSplit, the N-115 push-window casualty —
+independently found + fixed this lane; CONVERGENT with the parallel lanes' b26017a7/
+d10e4aa2/1fb7603b repairs which stand at HEAD; the record filed as **N-157** after two
+renumbers — N-154/N-155 consumed by the parallel window per earlier-push-wins). Corpus
+`be0cfe9` throughout.
+
+**The INFORMATIONAL tier executed in full (the user's priority directive), every finding
+independently verified against the corpus before classification:**
+- I-026 ACKNOWLEDGED + the S11B addendum's stale-mechanism repair applied (PREBUILT-ARTIFACTS.md's
+  job-local-cert text → the persistent dev-cert model).
+- I-027 ACKNOWLEDGED + the five register-row folds applied (quota contract, json_raw shield,
+  telemetry caps, DiskHealth autostart, the 65-ext filter_generalraw value → carve.md).
+- I-028 ACKNOWLEDGED (convergent; cites re-verified at HEAD).
+- **I-029 INVALID** — the four "unverifiable" codes ARE reference wire (the EUDCPEPM
+  FilterDispatch's negative-delta encoding defeated the finding's grep); the 19-code
+  byte-for-byte claim now first-hand verified; corpus-erratum entry for the artifact's
+  15-code census gap.
+- I-031 ACKNOWLEDGED + the doc-only fix plan executed (D-59c/D-78/D-101 addenda, the new
+  D-114 only_common row, SCAN-ENGINE-DELTA A4's device-vtable phrasing).
+- I-032 FIXED-ALREADY with reproduction (zfs.md/refs.md verdict rows + CORPUS-ERRATA
+  refinements all present).
+- I-033 ACKNOWLEDGED + entries 2-9 applied to their register rows.
+- I-034 ACKNOWLEDGED + the SURFACE-INVENTORY navigation index (the 23 basenames, with the
+  parallel lane's I-036 census-claim correction adopted).
+
+**NEW filings (the §8 discovered-divergence class):**
+- **N-156** — the RRWR direction decode (0x800C2B3E=READ/0x800C2B42=WRITE per
+  IoBuildSynchronousFsdRequest majors 4/3); DRIVER-CONTRACT §4.4's inverted rows re-named
+  with per-row cites + the 19-code provenance note; the driver-lane verification step
+  recorded (outside the two-repo scope).
+- **N-157** — the push-window test-truth defect class record (convergent with the remote's
+  three repairs).
+
+**The reconciliation** (after the parallel window's INFO acknowledgment sweep deleted the
+files per the purge convention): all 8 INFO files RESTORED to findings/FIXED/ per the
+user's put-fixed-in-fixed-directory directive + the S-054 row's no-delete mandate, with
+the ledger rows amended to the restored paths + the convergence/enrichment notes. The
+I-029 row carries the INVALID reclassification (the corpus wins over the earlier
+acknowledge).
+
+**Territory claim:** this lane takes next **S-040 + S-050** (the SEVERE pair) and the
+MAJOR tier; the 43-minors lane owns the MINOR set (their db228b75 claim stands).
+
+**Board at this push: 41 active (2 SEVERE · 23 MAJOR · 16 MINOR · 0 INFO) + 3
+tracked-open; 346 resolved ledger rows (344 unique: 322 main + 22 OQ; the S-051/S-054
+collision pairs documented in-row).** Suite green on the reconciled tree. Next free IDs:
+S-055+, M-120+, N-158+, I-037+, A-012+.

@@ -1778,6 +1778,12 @@ unless the row itself is first re-audited against the corpus.
   (scan_one_window). A header starting mid-sector is invisible to the og.
   Pin: `CarveEngine.CarvesMidSectorStart` (PNG at sector+137 must carve).
   The M-025 read-model rework must not adopt sector stepping.
+  I-031 clause (the S11 infra walk): the og's engine setup additionally
+  REFUSES sector sizes not a multiple of 512 outright
+  (FUN_18000c430 :9265-9268 — no carve at all on e.g. 520-byte-sector
+  devices); the core is byte-granular and carves regardless — part of the
+  same registered geometry superset, recorded so the refusal is not
+  re-imported as "missing" behavior.
 - **D-59d — LDM RAID-5 dormant rotations (I-008, ACCEPTED).** Og's
   selector (+0x2a8) is constructor-hard-zeroed; only left-symmetric is
   constructible. Core implements exactly the enabled mode (algebraic
@@ -2396,7 +2402,15 @@ single-flight delivery), and the pull surface is the telemetry
 snapshot (`cr_ui_scan_telemetry`, any thread, any time) — the host
 that wants og-style polling simply calls telemetry on its own timer,
 so the information content is fully covered by the two surfaces the
-core already had. The og's reference-out QUERY signals
+core already had.
+
+I-031 carve-layer boundary note (the S11 infra walk): the og's carve
+ENGINE emits no progress at all — its only observer interaction is the
+per-chunk continue-check (RAWSearchDLL :9439-9441); DRWUI computes carve
+progress host-side off its own counters. The core's per-1-MiB-window
+progress callback is therefore the registered superset on the engine
+side too (the push surface the og defers to its UI), not a divergence
+to be flattened away. The og's reference-out QUERY signals
 (`sigIsBusy(bool&)` ×14, `sigIsStopping(bool&)` ×8, :125-144) are now
 surfaced as the synchronous ABI ops `cr_ui_scan_busy` /
 `cr_ui_scan_stopping` (N-075's fix) — synchronous by construction,
@@ -2505,6 +2519,19 @@ incremental continuation (streaming formats whose end cannot be probed
 by a bounded forward walk) must either keep that model in its own layer
 or extend the validator contract — this register is the flag S-017's
 fix-plan step 3 cites.
+
+I-031 boundary addenda (the S11 infra walk, both decoded first-hand):
+(a) the og's pending list is capped at 16 size-unknown candidates
+(FUN_18000c820 :9573-9591 — `0x10 < count + 1` force-finalizes the
+OLDEST at its best-known size, emits it, and notifies the host); the cap
+bounds the og's memory AND truncates the least-recent file on overflow —
+any future streaming-analyser port behind the M-021 seam must decide its
+own cap policy explicitly, not inherit one silently. (b) the og's Stop()
+with an idle device force-finalizes and EMITS every pending partial file
+(FUN_18000ce30 :9658-9693 — partial content reaches the user); the
+core's cancel discards un-emitted candidates — inherent to this
+registered stateless architecture, a visible difference on
+cancel-during-carve the host layer must not paper over.
 
 **DFX32 supplement (the convergent second landing, session 32):** the
 WindowDevice/WindowView wrapper delivers the og's buffer-residency benefit
@@ -3486,3 +3513,22 @@ host's presentation consults the same tables the og's UI reads, the
 core itself renders nothing (the CLI has no Type tab). This is the
 D-107 lineage (the core-only C++ API layering decision). Evidence: the
 N-132 Resolution; tests ConfigDisplay.*.
+
+
+### D-114 — the dormant `only_common` vendor QA mode is deliberately not ported (I-031/S11-R registration, REGISTERED DIVERGENCE — a vendor QA mode)
+
+The og's RAWSearchDLL carries a dormant config-driven mode: when
+config/config.ini's `only_common` key is set (the SHIPPED og config does
+not set it), the registration walk registers ONLY
+`RawFormat_xjq::CommonRawAnalyser` (id 0xa8 = 168,
+FUN_180004fb0 :3013-3056) and the dispatch's map/multimap fast paths are
+disabled (FUN_18000cf60 :9842-9893 falls to the list layer) — a vendor
+QA mode for exercising the single-analyser path. The core has no analog
+(the compiled-in signs table always registers the full set; the
+disable surface is M-024's disabled_formats, the RawConfig toggles'
+port). Rationale: the mode's purpose (isolated QA of one analyser) is
+served by the core's per-format disable surface and the test suite's
+per-analyser fixtures; porting a config key that ships unset would add
+a dead surface the og itself never exercises in production. Evidence:
+I-031's S11-R addendum (both sites read first-hand); corpus
+RAWSearchDLL_decompiled.c :3013-3056, :9842-9893.

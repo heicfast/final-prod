@@ -306,3 +306,40 @@ Evidence: `evidence/decompiled-quotes/s10f-*.md`.
   (`evidence/s42-board-verification.md`). S-048/S-054 fixed by the parallel window's
   lanes mid-flight and properly retired (convergent verification recorded in their
   ledger rows).
+
+
+## Session-42 main-lane navigation-hygiene addendum (2026-10-29 — I-034's optional sweep record; the 23 never-cited basenames; the census claim read through I-036's correction)
+
+The S41 census (`evidence/decompiled-quotes/s41-registry-key-residue.md` §5)
+found 23 of 283 architecture/ + re-workspace artifacts with zero trail
+citations; I-034 dispositioned every one (the register is the finding). The
+basenames are recorded here so the corpus-navigation index is complete and
+the next census does not re-derive the set:
+
+`rawsearchdll--family-brance.md`, `rawsearchdll--family-rawspeed.md`,
+`rawsearchdll--family-xjq.md` (the analyser-family rosters — drove M-117
+and N-152); `eudcpepm-euedkepm--hook-drivers.md` (the Todo-Backup sibling
+driver family — I-029/N-156 territory); `burn--imapi2-disc-writer.md`
+(N-134's media-builder family); `32-repair-item-rows-decode.md` (S-050's
+UI-side addendum); `16-shell-internals-ai-layer.md` (D-26's AI omission);
+`14-cdetailpage-slots-viewmodes.md`, `33-objectname-loop-closure.md`,
+`34-navigatebar-bottomarea-chrome.md` (the OOS-UI convention);
+`22-rtti-class-census.md` (the S10-F methodology artifact);
+`23-euinapp-ie-emulation-bootstrapper.md`, `euinapp--ie-bootstrapper.md`
+(Licensing/monetization OOS); `24-dynamic-ground-truth-ingestion.md`,
+`dynamic-ground-truth--splash-captured.md`,
+`dynamic-ground-truth--window-census-verification.md` (corpus-methodology);
+`language-packs--family-census.md` (multi-language OOS);
+`qt5-core-stack.md`, `qt5-quick-qml-stack.md`, `network-libraries.md`,
+`d3d-graphics-shims.md`, `misc-windows-shims.md`, `imagemagick-modules.md`
+(the dependency-stack families — the og-file census's never-mentioned set
+maps here).
+
+**The census-claim correction adopted (the parallel S42 lane's I-036):**
+I-034's "no undispositioned product surface" line was wrong by four
+config-layer surfaces (`config/shellexe.ini`, `config/version.ini`'s
+TreeType gate, `config/themdark.ini`, `log/DRWLog.log` — all OOS-UI/
+product-frame, dispositioned in I-036 with both TreeType readers decoded).
+The corrected statement: the og-file census's never-mentioned remainder is
+runtime dependencies, third-party license texts, one Qt resource bundle
+(`drw_light.rcc`), and the four config-layer surfaces I-036 owns.

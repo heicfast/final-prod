@@ -1,4 +1,46 @@
-# SUMMARY.md — executive summary (the Session-42 fix lane on top; the prior lanes below, newest-first)
+# SUMMARY.md — executive summary (the Session-42 MAIN lane's reconciliation on top; the prior lanes below, newest-first)
+
+## Session-42 main-lane reconciliation delta (2026-10-29 — the INFO-tier fix lane, opened at core `67de3276`/corpus `be0cfe9`, re-landed over the trail's hottest parallel window through `0bd04cf9`)
+
+The lane opened on the user's "priority to informational first" directive and executed the
+full INFORMATIONAL tier with the SOP verification loop (every corpus cite re-read first-hand;
+every fix plan either executed or classified). The parallel window landed (convergently, in
+flight): the OoxmlRelsSplit hygiene repairs (`b26017a7`/`d10e4aa2`/`1fb7603b` — the same red
+this lane found at open), N-125, N-126, N-148, **S-048** (the Reconstructed carve tree), the
+S-054 writer fix, the S12 filings (M-118/M-119/N-142/I-035), the S42 continuation lane's
+HFS+ resolutions + **N-155** (their HFS+ finding), **I-036** (the config-layer register with
+I-034's census-claim correction), and the INFO acknowledgment sweep (`e41cbb7e`, which
+DELETED the INFO files per the purge convention). This lane's reconciliation (per the S-054
+row's no-delete mandate + the user's put-fixed-in-fixed-directory directive):
+
+- **The 8 INFO files RESTORED to findings/FIXED/** with enriched Resolutions (the doc-edit
+  executions the acknowledge-only sweep did not carry): I-026 (+ the PREBUILT-ARTIFACTS
+  mechanism refresh), I-027 (+ the five register-row folds), I-028 (convergent), **I-029
+  (RECLASSIFIED INVALID — the corpus wins)**, I-031 (+ the D-59c/D-78/D-101/D-114 addenda +
+  the A4 phrasing repair), I-032 (FIXED-ALREADY with reproduction), I-033 (+ the entries-2-9
+  register applications), I-034 (+ the SURFACE-INVENTORY navigation index, with I-036's
+  census-claim correction adopted).
+- **I-029 INVALID — the four "unverifiable" codes ARE reference wire:** the EUDCPEPM
+  FilterDispatch (`:1290-1360`) handles 0x800C2AC0 + the RRWR trio, encoded as NEGATIVE
+  IoctlBase deltas (`-0x7ff3d540/-0x7ff3d4c2/-0x7ff3d4be/-0x7ff3d4c0`) the finding's grep
+  could not match (the magic is `0x52455752`, not the "RRWR" string). The 19-code
+  byte-for-byte claim now FIRST-HAND VERIFIED. Corpus-erratum class: the artifact's own
+  15-code census missed the four filter-side codes.
+- **N-156 (NEW, MINOR) — the RRWR direction decode:** the og maps 0x800C2B3E →
+  FUN_000141f8 (IRP_MJ_READ, major 4) and 0x800C2B42 → FUN_00014300 (IRP_MJ_WRITE, major
+  3); DRIVER-CONTRACT §4.4 named them inverted — both rows re-named with per-row cites +
+  the 19-code provenance note; the driver-lane rda_filter.c verification is the finding's
+  precise next step (outside the two-repo scope).
+- **N-157 (NEW, MINOR, renumbered twice — N-154/N-155 consumed by the parallel window per
+  earlier-push-wins):** the push-window test-truth defect class record — the N-115 landing
+  asserted lowercase extensions against the S-049 contract landed 43s earlier; main arrived
+  RED with a false green-suite claim. CONVERGENT with the parallel repairs (which stand).
+- **Territory:** this lane claims next **S-040 + S-050** (the SEVERE pair) and the MAJOR
+  tier; the 43-minors lane owns the MINOR set (their `db228b75` claim).
+- The board re-truthed from the filesystem: **41 active (2 SEVERE · 23 MAJOR · 16 MINOR ·
+  0 INFO) + 3 tracked-open; 346 resolved ledger rows (344 unique: 322 main-pattern + 22 OQ; the S-051/
+  S-054 collision pairs documented in-row).** Suite green on the reconciled tree.
+
 
 
 
@@ -4175,8 +4217,7 @@ Overwritten) AND the new producer pin red; fixed → green. Suite after:
 **574/574 Release + 574/574 ASan + 574/574 UBSan** (three lanes, executed).
 
 Also this push: a committed conflict-marker remnant repaired in worklog.md
-(the trailing `>>>>>>> 33c0722` at :9187 — the zero-markers standard).
-
+(the trailing `
 **Counts after this push (direct file inventory):** SEVERE **1** (S-029 —
 S-030 landed by the parallel lane) · MAJOR 34 · MINOR 48 · INFO 22 (all
 ACKNOWLEDGED) · FIXED/ family **87 files** (incl. RESOLVED-INDEX; +M-054
