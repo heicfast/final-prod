@@ -1,3 +1,20 @@
+**Tracked-open sweep status (S47 INFO-first lane, 2026-10-29).** OQ-S10-1 verified
+current at HEAD (thumbnail_format_supported at src/core/preview/cr_thumbnail.cpp:85
+admits jpeg/png/bmp/gif/tiff/raw/psd/pnm/hdr only — HEIC/WebP/PDF/video refused BY
+NAME, no silent degrade; S48's push-forward note stands, this lane's read corroborates
+it — no redundant commit). OQ-S10-3's grant boundary re-affirmed by S48's fresh note;
+no core-side change owed by any of the five driver-repo findings. OQ-S42-3 stays
+S48's active RESOLVED-IN-PART (5/6 decoded; Q5 theirs mid-flight — no duplicate work).
+OQ-S52-1 (the S52 lane's fresh ext2/3-vs-ext4 filing): this lane's evidence addendum
+appended — the analyser half of its named probe decoded first-hand
+(ExtFileSystemAnalyser FUN_180004670 = magic+geometry only, no family
+discrimination; the verdict path's masks decoded: incompat-within-0xffffffe9 ∧
+ro_compat-within-0xfffffff8 → the family verdicts 5/6, the 0x2c0 =
+EXTENTS|64BIT|FLEX_BG triple-gate → verdict 0x18; the analyser-internal codes ≠
+the DRWUI {4/5, 9} kind codes — the mapping is the remaining half). OQ-S4-3: the
+Test & Benchmark dispatch (run 40783364141) in flight at this entry; the
+transcription lands when the numbers exist.
+
 **Session-51 severe-first lane — S-055 + S-056 landed (2026-10-29).**
 
 **S-055 + S-056 FIXED (one carve patch, the finding's own "fix in the same patch"
