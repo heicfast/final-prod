@@ -322,3 +322,29 @@ Stage Summary:
   the three gates; then the M-068 hygiene move + testing.md count truth +
   OQ-SA-1 NTFS +0x64 decompile probe.
 
+
+---
+Task ID: PARITY-FIX-3 (CI red repair + the installer-lane YAML fix)
+Agent: main session
+
+Work Log:
+- installer.yml: the step name carried an unquoted colon ('the v0.2.3
+  lesson: a broken script...') - YAML mapping-value error, zero jobs, the
+  lane's first dispatch died instantly (run 40682041579). Quoted.
+- CI red repair (run 40680931476, three lanes red on the parallel
+  thumbnail landing 05e6786 - not this session's code, repaired per the
+  repo's ci-restore-green precedent):
+  (1) windows/local-mirror: cr_thumbnail.cpp:479 MSVC C4244-as-error -
+  the TIFF bps loop narrowed vector<u64> elements into a u32 range-for
+  var; now compares in u64 and narrows once at the assignment with the
+  8/16 refusal gate as the safety rationale;
+  (2) fuzz: cr_thumbnail.cpp:36 - '-Wmaybe-uninitialized' is a GCC-only
+  warning group; under clang -Werror it fails as unknown-warning-option;
+  now guarded by __GNUC__ && !__clang__ (clang's equivalent lives under
+  -Wconditional-uninitialized; the vendored-stb pragma region keeps the
+  rest).
+- g++ -fsyntax-only -Wall -Wextra -Wpedantic -Wshadow -Werror: the fixed
+  file is clean.
+
+Stage Summary:
+- Pushing the repair + re-dispatching the installer lane.

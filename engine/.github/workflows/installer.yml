@@ -48,7 +48,7 @@ jobs:
         run: |
           python tools/test_installer_osgate.py
           if ($LASTEXITCODE) { exit 1 }
-      - name: PowerShell AST parse gate (the v0.2.3 lesson: a broken script broke every CI install)
+      - name: "PowerShell AST parse gate (the v0.2.3 lesson: a broken script broke every CI install)"
         shell: pwsh
         run: |
           $failed = 0

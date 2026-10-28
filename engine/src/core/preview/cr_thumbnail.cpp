@@ -33,7 +33,12 @@
 #pragma warning(disable : 4100 4189 4244 4245 4267 4456 4457 4701 4702 4706)
 #else
 #pragma GCC diagnostic push
+/* -Wmaybe-uninitialized is a GCC-only group: clang's equivalent lives under
+ * -Wconditional-uninitialized, and an unknown group under -Werror fails the
+ * whole fuzz build (-Werror,-Wunknown-warning-option, run 40680931476) */
+#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 #pragma GCC diagnostic ignored "-Wshadow"
 #pragma GCC diagnostic ignored "-Wpedantic"
@@ -476,10 +481,14 @@ public:
             ifd_off = rd32(link);
         }
         if (!bps_vals.empty()) {
-            for (u32 v : bps_vals)
-                if (v != bps_vals[0])
+            const u64 first = bps_vals[0];
+            for (u64 v : bps_vals)
+                if (v != first)
                     return false; /* mixed sample widths refused */
-            t.bps = bps_vals[0];
+            /* TIFF bit depths are tiny by construction (8/16/32/64); the
+             * 8/16 gate below refuses anything else, so the narrowing is
+             * safe (MSVC C4244-as-error, run 40680931476) */
+            t.bps = u32(first);
         }
         if (t.bps != 8 && t.bps != 16)
             return false;
