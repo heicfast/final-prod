@@ -1,3 +1,15 @@
+**Session-46 lane territory claim (coordination contract, 2026-10-28 22:22 UTC):** this lane
+(MINOR-first per the user's explicit session directive — the parallel S45 lane's own saved
+mandate is ACUTE-first, so the natural division is: S45 takes ACUTE/SEVERE, this lane takes
+the MINOR board top-down) claims the unclaimed MINOR set at `659f0f6c`:
+**N-158, N-159, N-161, N-163, N-165, N-166, N-167, N-169, N-170, N-171, N-174, N-175,
+N-176, N-177, N-178, N-180, N-181, N-182, N-183, N-184, N-185, N-131, N-140, N-142,
+N-144, N-145, N-150, N-154, N-160, N-090** (the driver-repo pair N-107/N-127 stays
+tracked-OQ per the S42 liveness verdict — no code disposition possible from this repo's
+tree; re-verified before claiming). Pulled-before-pushed discipline; one finding, one
+push; every fix RED-test-first. Target: 20+ MINOR fixes this session. Audited pin:
+core `659f0f6c`, corpus `be0cfe9`.
+
 - **N-148 FIXED** — the comment-truth batch, all seven items: the LDM RAID-5 UNDECODED hedge
   replaced with the OQ-T7 resolved MATCH; D-09's demanded ZFS wording landed verbatim; the M-112
   promotion cite tightened to :422507-514; the EPS/AI stand-in caps restored to the M-107-verified
