@@ -1,4 +1,4 @@
-# Evidence: the batch-2 format registrations + gates (S-042)
+# Evidence: the batch-2 format registrations + gates (filed under the S-041 parent + the per-format children after the push-time reconciliation)
 
 **Corpus:** `easeus-drw-research` @ `be0cfe9`
 **Primary sources:** `re-workspace/reversed/ghidra-searchdll/RAWSearchDLL_decompiled.c`

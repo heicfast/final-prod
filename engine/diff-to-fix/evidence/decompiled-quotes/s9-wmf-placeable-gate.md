@@ -1,4 +1,4 @@
-# Evidence: the og's placeable-WMF gate vs our validator (S-040)
+# Evidence: the og's placeable-WMF gate vs our validator (filed as S-042 after the push-time reconciliation; the SA-9 lane's convergent decode)
 
 **Corpus:** `easeus-drw-research` @ `be0cfe9`
 **Source:** `re-workspace/reversed/ghidra-searchdll/RAWSearchDLL_decompiled.c`

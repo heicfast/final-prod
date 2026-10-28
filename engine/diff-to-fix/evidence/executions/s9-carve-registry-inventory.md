@@ -1,4 +1,4 @@
-# Evidence: the carve-registry inventory (S-042 product-absence proof)
+# Evidence: the carve-registry inventory (product-absence proof at 35adcb9 — pre-b92ebef baseline; the S-041 family owns the gap)
 
 **Core:** `core_recovery` product code @ `35adcb9` (session-9 audited baseline)
 **Method:** mechanical enumeration of every FMT_* id in `src/core/carve/cr_registry.cpp`

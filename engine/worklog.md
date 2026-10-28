@@ -1475,3 +1475,94 @@ session-9 block), SURFACE-INVENTORY (corpus pin be0cfe9 + row flips + the
 EuShare/glob corrections), PARAMETERS (pin), CROSS-REF-MATRIX (new rows),
 SUMMARY (delta block), CORPUS-ERRATA (E53-E55), modules/carve.md,
 modules/driver-install.md, modules/transport.md.
+
+---
+Task ID: SA-9/T19+T20 (session-9 close — the push-time reconciliation + the final verification sweep)
+Agent: session-9 full parity audit (this session, closing)
+
+THE PUSH-TIME RECONCILIATION (the session's defining event): the first push
+was rejected — the parallel session-8 lanes (the continuation lane 24e93ad,
+the deep-audit lane 370d659, the third lane 5553216/7922b5e, the scan-4 lane
+ffa7a7d/a972d29, the lead-lane final reconciliation 2025554) had landed a
+75-active-findings board, the M-081 CRW FIX AS CODE (9e5dedc), the school-1
+batch-2 formats AS CODE (b92ebef: CHM/ONE/MNY/EMF/SWF/3DS), and errata
+E53-E67 — concurrently with this lane's independent decodes. Per the SOP
+(never duplicate; extend; the matrix must not carry two rows for one
+divergence), the merge was reconciled:
+- 7 of this lane's 8 filings were CONVERGENT → merged as addenda into the
+  parallel board's owner files (S-040→S-042 WMF incl. the std-gates
+  observation; S-041→M-081-FIXED; S-042→S-041 parent + children; M-071→
+  M-086; M-072→M-87 + THE NEW START-POSTURE PARAMETER; N-090→N-107;
+  N-092→N-093).
+- 1 filing was UNIQUE → kept, renumbered N-127 (the rda-driver doc-vs-code
+  truthfulness batch — the admin-gate claim with no code behind it).
+- This lane's errata E53/E54 were convergent with the remote E57/E66
+  (dropped, convergence noted); E55 (part1:85, the SCAN-2f queue's row)
+  was unique → filed as E68.
+- The ID collisions (both sides had used S-040..S-042/M-071/M-072/
+  N-090..N-092 for different findings) resolved in favor of the remote
+  board's numbering — the dropped local files' content survives fully in
+  the addenda + the six s9-* evidence files.
+
+This lane's UNIQUE contributions that survive on the merged board:
+1. N-127 (the driver doc-truth batch).
+2. The M-087 Start-posture parameter (demand-start + active UpperFilters
+   cannot attach at stack-build; the og's filter is BOOT_START).
+3. The EPMNtDrv v2 + trio naming/PID-handshake MATCH verdicts (the
+   never-audited surfaces — the SURFACE-INVENTORY rows flipped; no prior
+   lane had dispositioned them).
+4. The V-lane landing verifications (W1a/W1b/W1c, origin-LCN, thumbnail,
+   installer steps 2-3, CI) + the G-lane gap-hunt dispositions (every
+   candidate traced to existing coverage — zero false findings filed).
+5. Erratum E68 + the instruction-level CHM capstone evidence (s9-chm-gate-
+   asm.md) corroborating E66.
+6. The SURFACE-INVENTORY bookkeeping corrections (the EuShare miscount,
+   the dead citation globs, the honest citation counts) + the corpus pin
+   (be0cfe9).
+7. The pre-landing registry inventory (s9-carve-registry-inventory.md —
+   the 35adcb9 baseline the school-2/3 children can diff against).
+
+Coverage statistics (this lane, at its 35adcb9 baseline):
+- Carve surface: the batch-2 set fully decoded (per-format keys/ids/
+  classes/bounds/gates); batch-1 verification (WMF functional defect,
+  MID/GZ/PSP/SIT cap drift); the registry inventoried (101 rows).
+- Transport surface: the driver repo read end-to-end (66 files); the
+  EPMNtDrv v2 + trio surfaces dispositioned MATCH; the wire contract
+  verified (19 session codes, identity + extended IOCTLs, the buffer
+  gates); D3/D4/FileVersion resolved into findings.
+- The V-lane: 8 landing groups verified, all corpus claims checked.
+- The G-lane: 15 gap candidates dispositioned against module coverage.
+- Evidence: 5 decompiled-quote files + 1 execution file (all first-hand
+  verified by the lead; the CHM gate disassembled from the og binary).
+
+THE READ-ONLY GUARANTEE (verified twice): this session's own commits
+(6e9b6dd, 05b9892, ea59128, 167dbe3's resolution) touched NOTHING outside
+diff-to-fix/ + worklog* — git diff 0058271..ea59128 over non-audit paths
+is empty. The product-file changes visible in the final tree (cr_carve/
+cr_analysers/cr_registry/test_carve/cr_ui/rrecov/test-benchmark.yml/
+RELEASE-NOTES) entered exclusively through the MERGE with origin/main
+(the parallel lanes' landed code: b92ebef, 9e5dedc, dd225da, 095a329,
+9cb098c) — pulled per the SOP's moving-target rule, and this lane's
+affected findings were re-verified against those landings during the
+reconciliation (M-081's fix matches this lane's decode; the school-1
+gates match this lane's instruction-level CHM read).
+
+Recommended first fixes (this lane's contributions to the standing order,
+for the next fixing session — the full 76-active board is SUMMARY's):
+1. S-042 (WMF) — small, format-correctness, user-visible recall; the
+   fixture-regeneration requirement is part of the fix.
+2. M-086 + M-088 + N-127-item-1 — ONE driver-contract session: un-pin
+   the version resource, the CI tag==resource gate, the FloorVersion
+   split, and the admin-gate posture decision (og-parity vs hardening).
+3. M-087 (+ the SA-9 Start-posture parameter) — the reg file rewrite +
+   the parser gate + the (a)/(b) posture decision with the boot-media lane.
+4. N-107 — the 19-count doc pass (mechanical).
+5. The S-041 school-2/3 children in their fix-plan order (MPEG-TS first).
+6. N-127's remaining mechanical items + N-093's cap one-liners.
+
+Handoff: the board stands at the session-8 close + N-127 (76 active /
+249 FIXED / 5 INFO / 1 tracked-open OQ-S4-3 — execution-bound, unchanged).
+Next IDs: S-048+, M-103+, N-128+, I-031+, A-012+. The SA-9 context
+sheets remain in the session's scratch area (/home/z/my-project/audit-ctx/
+— A/B/C/D/E, not committed per the SOP); their load-bearing content is
+preserved in the s9-* evidence files and the finding addenda.
