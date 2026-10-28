@@ -92,3 +92,33 @@ question, not a correctness one.
 **Fixed in commit:** (this session's A-011+N-089 commit)
 **Verified by:** `CarveEngine.SqliteRealHeaderByteOrder` (a byte-exact real-format header — BE page size 4096, BE page count, valid encoding — carves with the grammar-layer format id and the EXACT pages × page_size extent; fail-before RED: no grammar carve at the audit base), `CarveEngine.SqliteInvalidEncodingRejects` + `CarveEngine.SqliteLittleEndianShapeRejects` (the guards: an invalid encoding and the LE shape never reach the grammar layer — the raw-sign layer's sign hit is legitimate and asserted as the sign-tagged carve). **Fail-before EXECUTED RED** on the stash-reverted build (3 of 5 tests). Full suite green.
 **Resolution notes:** Both fields read big-endian (`rdbe16`/`rdbe32`); the og's encoding gate added (the BE u32 at +56, valid 1..3 — FUN_18002e2b0's `v7 >> 24 < 4`); **a second latent bug fixed in the same never-exercised path**: the pre-fix `pages > 2ull << 30 / page_size` parsed as `2ull << (30 / page_size)` — for 4096-byte pages the limit was `2ull << 0` = 2, rejecting every real multi-page database (the operator-precedence bug hid behind the endianness bug; both were dead-path-hidden because NO grammar-layer SQLite test existed — both prior fixtures were raw-sign-layer tests). The N-089 marker scan rides the same validator (see below).
+
+## Convergence record (Agent 2 scan-engine lane — the same two defects found independently in the same window)
+
+The Agent 2 lane (this session's SCAN-2e work) discovered BOTH defects
+independently while landing N-089's tests: its first spec-correct BE
+fixtures went RED, and the debug trail isolated the LE reads and then
+the `2ull << 30 / page_size` precedence parse (`2ull << (30/page_size)`
+= 2 — the 2-page cap). The lane's draft fix (rdbe16/rdbe32 + the
+parenthesized gate + three fixtures) was superseded by this landing
+(the A-011 decode's extra og gates: the +56 text-encoding field, the
+RetDec-export Analyse entry, the encoding-aware marker forms, the
+4-page scan). Complementary evidence this lane's decode adds to the
+record:
+
+- The Ghidra-side walk cite: `FUN_18002dfc1` (RAWSearchDLL_decompiled.c
+  :35404-35432, the Ghidra export of the same analyser family) — the
+  converted-name gate reads the schema name as a wide string, converts
+  it (`WideCharToMultiByte`, converted length gated < 0x65), and applies
+  the exact-length-0x11 check before the memcmp — the og's name-side
+  mechanics behind the RetDec-export read position.
+- A second-stage fail-before proof: with the endianness/precedence fixes
+  held and ONLY the subtype stamp neutralized, exactly the FCP-label
+  test stays RED while the sizing/generic tests stay green — the
+  isolation proof that the relabel is label-only (detection and sizing
+  byte-identical with/without the marker), the property N-089's
+  "labeling-only" severity rests on.
+
+Both lanes' fixtures agree on the decisive fact: pre-fix, the grammar
+layer's SQLite surface was dead code on every real database — no
+spec-correct fixture existed anywhere in the tree before this window.
