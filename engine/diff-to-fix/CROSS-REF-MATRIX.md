@@ -86,7 +86,7 @@
     session undercount); **N-172** (fat — deleted-first-char `'#'` vs `'_'` + the
     unregistered LFN-checksum recovery superset; closes OQ-T2); **N-173** (fat —
     the 2106/2107 u32 clamp vs full conversion; exFAT sibling inconsistent);
-    **N-174** (exfat — the `._` AppleDouble sink filter absent, the N-028 family's
+    ~~**N-174**~~ **FIXED (S46)** (exfat — the `._` AppleDouble sink filter landed, the N-028 family's
     exFAT twin); **N-175** (fat — NTRes case folding unread); **N-176** (fat — the
     LFN illegal-char 8.3 fallback absent); **N-177** (ext4 — the size-exceeds-blocks
     damaged flag (FLAGS 0x200) not carried); **N-178** (cli/orchestration — no CLI
@@ -527,6 +527,7 @@ F safety · Q quality (definitions in `PARAMETERS.md`).
 | exfat | B2/A27/X47 | **S-013 — FIXED (session 3)** (windowed-FAT accessor, og 1 MiB windows; have_fat never false; extent coverage pinned; windowed failures degrade to the EXFAT-2 salvage) |
 | exfat | B3/B4/B5/D15 | **M-013** (og DOES validate entry-set checksums — dual-form incl. deleted sets + reconstruction oracle; refutes the N-003 fix's verified-absence premise; supersedes N-003) |
 | exfat | B3/B4/B10 | **M-014 — FIXED (s35)** (structural gates: secondary_count ∈ [2,18]; create+modify+access timestamp field sanity, all-zero FAILS; empty streams never emitted; name flags/first-char gates; reserved1/2 zero — findings/FIXED/M-014) |
+| exfat | B3/A1/B6 | **N-174 — FIXED (S46)** (the `._` AppleDouble prefix sink: the og's props-builder refusal at exFAT:45151/:45222 landed in the core's entry walk post-name-assembly, the parked-set oracle inherits it; `apple_doubles_sunk` stats counter (the observability superset); AppleDoublePrefixSunk + RegularDotFilesNotSunk pins — the og's gate is prefix-specific, plain dotfiles unaffected; findings/FIXED/N-174) |
 | hfsplus | B3/B5/B7/C20 | **N-028 — FIXED (minors session, 2026-10-26)** (sink filter at both record sources ✓; rsrc superset registered D-53; 'prdf' folderization ✓ — see findings/FIXED/N-028) + **N-038 FIXED** (ownerFlags 0x20 fork selection) + **N-005 FIXED** (block bound 16 MiB + product sanity) |
 | btrfs | B1/B2/A26/B5 | ~~M-020~~ **FIXED (s33)** — full profile machinery: RAID10 geometry gate (og :2162-2168), class-0x20 rotating mirror og-exact (:2534-2540), RAID0/RAID10 stripe math as the registered superset (D-80; the og FAILS those classes — audit Summary decode error corrected in the Resolution), stripe-boundary extent splitting, default-subvolume DIR_ITEM pick (:3975-4060) with root-5 fallback rendering at the volume root; 4 fail-before + 2 updated expectations; findings/FIXED/M-020 |
 | zfs | B11 (SA registry) | ~~M-038~~ **FIXED (s19)** — registry-driven SA decode; findings/FIXED/M-038 |

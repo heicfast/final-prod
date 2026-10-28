@@ -2,8 +2,10 @@
 
 ## S12 addendum (2026-10-29 — the session-2 deep-dive)
 
-New active findings on this module: **N-174** (the `._` AppleDouble sink filter absent
-— the N-028 family's exFAT twin, exFAT:45151/:45222); **M-127**'s exFAT twin (the
+New active findings on this module: ~~**N-174**~~ **FIXED (S46)** (the `._` AppleDouble
+sink filter landed — the gate at the entry walk post-name-assembly, the
+`apple_doubles_sunk` counter, `ExfatEngine.AppleDoublePrefixSunk` +
+`RegularDotFilesNotSunk`; corpus cites :45151/:45222 re-read first-hand); **M-127**'s exFAT twin (the
 chain-guard complexity); note: A-014 does NOT affect exFAT (the M-014 dentry gate
 rejects the invalid-time class upstream). Verified-MATCH: 64-bit cluster math (the og
 itself is 64-bit here — the FAT 32-bit sites are the inconsistency), the 0x81/0x82/
@@ -88,6 +90,7 @@ Core (audited commit `67193b6`): `src/core/exfat/` (2 files, 678 LOC) +
 | ID | Severity | One-line |
 |---|---|---|
 | N-003 | MINOR | Entry-set checksum enforced on live sets beyond og (grading-only) — **FIXED (diff-to-fix session)** |
+| N-174 | MINOR | `._` AppleDouble prefix sink — **FIXED (S46)** |
 | OQ-T5 | tracked-open | ChecksumDBR per-byte predicate (skip-set) undecoded |
 
 ## Corpus errata candidates surfaced by this wave
