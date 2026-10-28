@@ -3756,8 +3756,10 @@ verified `git show --name-only`: zero files outside `diff-to-fix/` + `worklog*`.
    three in-file corrections), + the reghive.md/apply.md module rows (the map
    completed, 28 rows).
 
-**Board at close: 56 active (7 SEVERE · 18 MAJOR · 24 MINOR · 7 INFO) / 299
-resolved rows (277 main + 22 OQ — the whole-table re-count truth) / 3 tracked-open
+**Board at close: 55 active (7 SEVERE · 18 MAJOR · 24 MINOR · 6 INFO) / 299
+resolved rows (277 main + 22 OQ — the whole-table re-count truth; the close-entry's
+first draft said 56/7-INFO — it carried the pre-I-030-retirement count; the
+filesystem is the truth, corrected) / 3 tracked-open
 (OQ-S4-3, OQ-S10-1, OQ-S10-3). Next free IDs: S-054+, M-113+, N-143+, I-033+, A-012+.**
 
 **Recommended first 20 fixes (priority order):**

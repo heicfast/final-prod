@@ -1,4 +1,36 @@
-# SUMMARY.md — executive summary (the S11 deep-audit lane on top; the prior lanes below, newest-first)
+# SUMMARY.md — executive summary
+
+## Session-11 lane B delta (2026-10-29 — the continuation re-triage + landing-parity audit, RECONCILED at every push over the S11/S39/S40 parallel lanes)
+
+**Audited: core `7990a86d` at open → `620f4497`-lineage at close** (the lane's
+verification baseline `743d7b8d` incl. the `740d9b56` thumbnail ABI) · **corpus
+`be0cfe9`**. The user's three asks, executed:
+
+1. **Remove-the-fixed** — all 55 active-at-open findings re-verified (three parallel
+   agents + lead spot-verification). This lane's moves: **M-102/M-083 conformed**
+   (the e56baac7 landing's missed purge step 3), **N-134 retired FIXED-ALREADY**
+   (the b202f9ed archaeology: all six register rows pre-dated the finding's own
+   filing by 6.5h — verified `git show 44f043a5:...`), **I-030 resolved** (the
+   module map completed: reghive.md + apply.md written per its own packaging plan).
+2. **Go-deeper** — the T4 landing-parity wave: M-096/N-100/thumbnail-ABI
+   PARITY-VERIFIED; M-093's residual filed; M-079's image-stem divergence confirmed
+   N-133-owned (+ the registration leg: D-03 stale, no D-row); the phantom-SHA
+   truth class repaired (11 cells, git-cat-file-verified; convergent with
+   session-39's 73-row census).
+3. **Mark-all-remaining** — **M-112** (MAJOR: the CSL 0x44c size branch
+   decoded-but-unported with NO active owner — the M-107 class's twelfth site;
+   renumbered from M-111 over the parallel lane's explorer-browse M-111),
+   **N-142** (MINOR: the dropped thumbnail variant's dead CrPreview wiring;
+   renumbered from N-137 over the parallel lane's thumbnail-header N-137),
+   + 16 addenda (N-135's per-item status; N-133's registration leg; ten
+   cite-refreshes; M-107's three in-file corrections).
+
+**Board at this lane's close: 55 active (7 SEVERE · 18 MAJOR · 24 MINOR · 6 INFO) /
+299 resolved rows (277 main + 22 OQ, whole-table re-count) / 3 tracked-open.**
+The recommended first-20 fix order is in the worklog's S11B close entry (S-052
+first — silently wrong recovery bytes; then the mechanical MAJORs M-109/M-103/M-112).
+
+ (the S11 deep-audit lane on top; the prior lanes below, newest-first)
 
 ## S11 lane delta (2026-10-29 — the second continuation lane: the named-never-done walks EXECUTED — the RAWSearchDLL infrastructure function-level walk, the ZFS/ReFS function-level walk, the OQ traces, the 56-finding liveness triage; one FALSE RESOLUTION refuted by decode)
 
