@@ -5,8 +5,10 @@
 New active findings on this module: **A-013** (ACUTE — the CLI resume-truncate:
 "wb" checkpoint sink opens on the resume target before the "rb" read);
 **M-131** (the in-run checkpoint is truncate-in-place — the N-014 shape cr_ui fixed);
-**S-057** (SEVERE — the og auto-saves stopped scans into the shared completion
-handler; the core never auto-saves a cancelled run). Verified-MATCH: auto-save
+**S-057** (FIXED session-51 — the og auto-saves stopped scans into the shared
+completion handler; the core never auto-saved a cancelled run. The auto-save now
+runs from BOTH the completion and the ERR_CANCELLED branch — the factored
+autosave_if_due_ helper, the S-044 gates identical, the CLI parity leg taken). Verified-MATCH: auto-save
 gates/naming/sanitizer, load identity re-check, save/load progress, the LDM basis
 re-arm (S-052), no-engine-state-persisted parity, the og's import path read-only.
 

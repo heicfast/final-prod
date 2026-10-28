@@ -226,18 +226,16 @@ bool solo_rules(tree::FileNode* n, const GradeContext& ctx, AssistantStats* stat
         return true; /* NTFS processed; twins are a FAT-family path */
     }
     if (fs == u32(FsKindCode::Refs) || fs == u32(FsKindCode::Btrfs)) {
-        /* S-061: the og's INSERT-TIME hook grades every non-existing
-         * ReFS/Btrfs file High unconditionally - FUN_14038a470
-         * :605481-497 (kind 0xB -> FUN_140089630(node,2) + the gauge
-         * ticks DAT_141be5830/5828; kind 10 -> the same), re-verified
-         * first-hand this session. The completion pass excludes FS
-         * {3,10,0xB} from the generic path (:605736-37) precisely
-         * because insert already graded them - the old comment's
-         * "device walk covers these" premise was disproven. Placed
-         * AFTER the Active rule (existing files already grade High
-         * there, the og's bit-6 insert gate excludes them); the gauge
-         * accounting rides the end-of-pass grade census (matched =
-         * grade==High), so no separate tick is needed. */
+        /* S-061: the og's insert-time hook (FUN_14038a470 :605481-497)
+         * grades every non-existing ReFS/Btrfs node High (grade 2) with
+         * the 5830/5828 gauge ticks - the completion pass excludes FS
+         * {3, 10, 0xB} from the generic path precisely because insert
+         * already graded them (the pre-fix comment's "device walk
+         * covers these" premise was disproven by the decode). Placed
+         * after the Active rule (existing files already grade High
+         * there - the og gates the hook on non-existing nodes); the
+         * final gauge pass counts these as matched (the tick
+         * equivalent). */
         n->set_grade(Grade::High);
         return true;
     }
@@ -294,20 +292,19 @@ void grade_tree(tree::ResultTree& t, const GradeContext& ctx, AssistantStats& ou
             continue;
 
         /* generic path (FS not in {NTFS, ReFS, Btrfs}): the extension
-         * table gates the twin detection - S-058: the og's gate is
-         * NOT-in-table. Read first-hand: the grading gate's comparator
-         * FUN_1401bebe0 is the INEQUALITY twin (!=) of FUN_1401bec20,
-         * so `cVar1 == 0` at :605742-43 means find==end - NOT FOUND -
-         * and the deep-validation block runs for extensions the 169-key
-         * table does NOT carry (calibrated by the control case :585890
-         * using the equality comparator with the same call shape; the
-         * s5 evidence file's polarity label was inverted - its erratum
-         * is recorded in the finding). The "" quirk: the og's runtime
-         * set contains "" (the ctor's 2000-iteration init over a
-         * zero-padded array), so dot-less files are IN-table and skip
-         * too - the empty-ext early-out preserves that coincidence. */
-        const std::string ext_g = ext_of_name(pr);
-        if (ext_g.empty() || extension_in_grading_table(ext_g))
+         * table gates the twin detection. S-058: the og's gate is
+         * NOT-IN-TABLE - FUN_1401bebe0 (:324923) is the iterator
+         * INEQUALITY comparator, so `if (cVar1 == '\0')` at :605743
+         * enters the deep-validation block exactly when the set lookup
+         * MISSED; the control case (:585885-905, the found-in-set ||
+         * name-in-consts idiom) calibrates the direction, and the
+         * runtime set's "" quirk (the ctor's 2000-iteration init loop
+         * inserts the empty string after the 169 real keys) makes
+         * dot-less files skip too. The pre-fix gate ran the twins for
+         * IN-table extensions - the s5 evidence's inverted polarity
+         * line, implemented and test-pinned from that misreading. */
+        const std::string gext = ext_of_name(pr);
+        if (gext.empty() || extension_in_grading_table(gext))
             continue;
         TwinKey tk;
         tk.key = twin_key_of(n, ctx);

@@ -103,6 +103,24 @@ None — the polarity is settled structurally (comparator bodies + control-case 
 ## Resolution
 
 **Status:** FIXED
-**Fixed in commit:** (this push; S47 lane)
-**Verified by:** `Grading.ExtensionTableGatesDeepValidation` (re-pinned to the verified polarity: out-of-table ZZQX twins flagged + High, in-table DOC never flagged + engine-default grade, dot-less never flagged - the pre-fix build fails 5 of its 9 assertions), `Grading.TwinAddressFlagsBoth` (re-based onto out-of-table candidates: zzqx/zzqx same-category twins; asd(Unsaved)/zzq2(Other) same-key different-category unflagged), full suite 1209/1167/0-fail.
-**Resolution notes:** The gate in grade_tree's generic path flipped to the og's verified polarity: twin candidates are collected when the extension is NOT in the 169-key table, with the empty-ext early-out preserved (the og's runtime set contains "" from the ctor's 2000-iteration init over the zero-padded array, so dot-less files skip too - both sides skip, for their own reasons, exactly as the finding's corroboration section states). Corpus re-verified first-hand this session: FUN_1401bebe0 at :324923-324939 is `FUN_1401bec20(a,b) == 0` (the inequality twin), so `cVar1 == 0` at :605742-43 is find==end (NOT FOUND) and the deep block runs for not-in-table extensions; the control case at :585888-585891 (equality comparator, same call shape) calibrates the direction. The s5 evidence file's §5 item 4 carries the ERRATUM note now (its table dump §2-§3 remains byte-exact and valid). The finding's own fix plan items 2-3 (the FUN_14038c470 deep content read and the +0x73 "needs validate" flag) are the separate M-134 finding's scope - this fix lands the population/polarity correction (the twin flagging + grade-2 promotion the core's pass 2 already performs, now on the right population).
+**Fixed in commit:** (this session's S-058+S-061 landing — post-push SHA in the ledger row and worklog entry)
+**Verified by:** `Grading.ExtensionTableGatesDeepValidation` (RE-PINNED: two same-extent-end out-of-table `.zzqx` files → both overlap-flagged + High; two same-extent-end in-table `.doc` files → neither flagged — RED pre-fix with the old inverted pin, GREEN post-fix), `Grading.DotlessNamesSkipTwinDetection` (the ""-quirk coincidence pinned: a dot-less same-key pair produces no flags under either polarity), `Grading.TwinAddressFlagsBoth` + `Grading.TwinKeyFat16StillShifts` + the M-133 shift family (the twin-mechanism fixtures re-based onto out-of-table extensions — `.doc`/`.mp3` fixtures could no longer reach the machinery; the address-key/shift math unchanged and re-proven). Suite 1228/1228 green (linux-release).
+**Resolution notes:** CONFIRMED-DIVERGENCE, corpus re-verified first-hand before fixing: the comparator pair at :324923-324939 (`FUN_1401bebe0` = inequality wrapper over `FUN_1401bec20` = `*a == *b`) and the control case at :585885-905 re-read directly in ghidra-drwui — the deep-validation block at :605743 runs exactly when the 169-key lookup MISSES, as the finding decoded. The fix is the finding's step 1: the gate in `grade_tree` inverted to NOT-in-table, with the "" quirk handled explicitly (`gext.empty() || in_table(gext) → skip` — the og's runtime set contains "", so dot-less files skip too; the current `extension_in_grading_table("")` returning false would otherwise have let dot-less names ENTER under the flipped polarity — the one population where the two implementations would have diverged post-naive-flip). Header contract (cr_grading.h decision-tree comment) and the gate comment updated with the :324923/:605743/:585885 cites; the s5 evidence file's §5 item 4 carries the erratum note per the finding's step 4. The M-133 twin-key family's fixtures moved to out-of-table extensions (mechanism orthogonal to the gate; the pre-fix fixtures' in-table extensions exercised the inverted gate, not the twin math).
+
+### Convergence addendum (session-57 severe-first lane, 2026-10-29)
+
+Fourth lane on this seat; the S52-lane landing (ea405392) wins per SA-9. This lane's
+independent verification + fix (built and RED-proven BEFORE the pull revealed the
+winning landing): the comparator chain re-read first-hand in the corpus decompile
+(FUN_1401bebe0 :324923-324930 = the INEQUALITY comparator over FUN_1401bec20's
+pointer equality; the control case :585885-585905 calibrating `== 0 ⇔ FOUND`; the
+gate block :605736-810 read in full incl. the cleanup-only else); the gate inverted
+with the explicit empty-string skip arm; the M-133 twin fixtures re-pinned to
+out-of-table extensions (.ipynb — Document category — so the device-family shift
+arithmetic stays exercised on the corrected population; this lane's re-pin used
+.txt/.log + the .txt/.flac different-category pair for the category-comparator
+pin). This lane's 3-test RED battery ran at the pre-fix tree (both halves of the
+polarity pin failed: the out-of-table pair unflagged AND the in-table pair
+flagged), plus a DotlessSkipsTwins quirk guard (their DotlessNamesSkipTwinDetection
+is the same pin). This lane's redundant code/test changes were DROPPED per the
+superset rule; the winning landing's 23/23 battery stands.

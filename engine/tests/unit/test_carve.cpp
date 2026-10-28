@@ -7796,8 +7796,7 @@ namespace {
 /* Install the shipped default set; returns false when the file/parse
  * fails (callers ASSERT on it). */
 bool install_default_usersigns() {
-    std::ifstream in(std::string(CR_SOURCE_DIR) + "/data/userdata-defaults.json",
-                     std::ios::binary);
+    std::ifstream in(std::string(CR_SOURCE_DIR) + "/data/userdata-defaults.json", std::ios::binary);
     if (!in.good())
         return false;
     std::string json((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
@@ -7831,8 +7830,7 @@ u32 count_ext_records(tree::FileNode* root, const char* ext8) {
     u32 n = 0;
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
         if (c->props() && c->props()->name.size() >= tail.size() &&
-            c->props()->name.compare(c->props()->name.size() - tail.size(), tail.size(), tail) ==
-                0)
+            c->props()->name.compare(c->props()->name.size() - tail.size(), tail.size(), tail) == 0)
             ++n;
     return n;
 }
@@ -7878,8 +7876,8 @@ TEST(Carve, UserSignOverlapFormatsAllYieldToBuiltin) {
      * at a stride; the built-in candidate must own the position and no
      * 0xFFFE0000 record may appear. */
     ASSERT_TRUE(install_default_usersigns());
-    static const char* const kOverlap[] = {"amr", "cap", "class", "cpl",
-                                           "flac", "msf", "pdb",  "wpl"};
+    static const char* const kOverlap[] = {"amr",  "cap", "class", "cpl",
+                                           "flac", "msf", "pdb",   "wpl"};
     for (const char* ext : kOverlap) {
         u32 fid = 0xFFFFFFFFu;
         const rawsigns::RawSign* sign = nullptr;
@@ -7906,8 +7904,8 @@ TEST(Carve, UserSignOverlapFormatsAllYieldToBuiltin) {
         CarveFlags fl;
         fl.hash_small_files = false;
         CarveStats st;
-        ASSERT_EQ(OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr,
-                                  nullptr, st))
+        ASSERT_EQ(
+            OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st))
             << ext;
         EXPECT_EQ(0u, count_tagged(root, 0xFFFE0000u)) << ext << ": no user-sign record";
         /* a built-in row owns the position. NOTE: the planted magic can
@@ -7990,7 +7988,8 @@ TEST(Carve, UserSignStillFiresWhenNoBuiltinMatches) {
      * UserSignatureProbedAtStride pre-condition); CAFEBABE would NOT do
      * here - it is the built-in class magic (the raw-sign table's class
      * row and the default set's own class sign both carry it) */
-    const char* json = "{\"xyzzy\": {\"signs\": [\"0,DEADBEEF\"], \"mime\": \"application/x-xyzzy\"}}";
+    const char* json =
+        "{\"xyzzy\": {\"signs\": [\"0,DEADBEEF\"], \"mime\": \"application/x-xyzzy\"}}";
     carve::usersigns::UserSignSet set;
     ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
     ASSERT_EQ(OK, carve::usersigns::install_set(std::move(set)));
@@ -8044,8 +8043,8 @@ TEST(Carve, DisabledFormatsGatesUserSignLayer) {
         fl.hash_small_files = false;
         fl.disabled_formats = dis;
         CarveStats st;
-        ASSERT_EQ(OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr,
-                                  nullptr, st))
+        ASSERT_EQ(
+            OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st))
             << "disabled_formats=" << dis;
         EXPECT_EQ(0u, count_tagged(root, 0xFFFE0000u))
             << "disabled '" << dis << "': no user-sign cpl record";
@@ -8058,9 +8057,8 @@ TEST(Carve, DisabledFormatsGatesUserOnlyExtension) {
     /* S-056 on the user-ONLY population (the 78 extensions no stock
      * source carries): disabling one suppresses its user-sign record
      * while an unrelated user extension still fires. */
-    const char* json =
-        "{\"xyzzy\": {\"signs\": [\"0,DEADBEEF\"], \"mime\": \"x/xyzzy\"},"
-        " \"quux\": {\"signs\": [\"0,0BADF00D\"], \"mime\": \"x/quux\"}}";
+    const char* json = "{\"xyzzy\": {\"signs\": [\"0,DEADBEEF\"], \"mime\": \"x/xyzzy\"},"
+                       " \"quux\": {\"signs\": [\"0,0BADF00D\"], \"mime\": \"x/quux\"}}";
     carve::usersigns::UserSignSet set;
     ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
     ASSERT_EQ(OK, carve::usersigns::install_set(std::move(set)));
@@ -8111,6 +8109,95 @@ TEST(Carve, DisabledOtherFormatsLeaveUserSignsOn) {
     ASSERT_EQ(OK,
               carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
     EXPECT_EQ(1u, count_ext_records(root, "xyzzy")) << "unrelated disables do not over-block";
+}
+
+namespace {
+void plant_hex_bytes(std::vector<u8>& img, size_t at, const char* hex) {
+    const size_t n = std::strlen(hex) / 2;
+    for (size_t i = 0; i < n; ++i) {
+        const char byte[3] = {hex[2 * i], hex[2 * i + 1], 0};
+        img[at + i] = u8(std::strtoul(byte, nullptr, 16));
+    }
+}
+} // namespace
+
+TEST(Carve, CplWplTwoLayerCollisionsStayBuiltin) {
+    /* The two overlap formats whose collisions the offset-0 sign walk
+     * cannot reach, each pinned with BOTH layers matching at one stride:
+     *   cpl - the user sign DCDC at +0 AND the built-in sign at +12 (the
+     *        offset-12 raw sign FF FF 00 00 B8 ... - the only raw-sign-
+     *        table entry that anchors past the stride head). The built-in
+     *        layer owns the stride; the shadow datum: the table's own
+     *        ranking puts ocx's 9-byte offset-12 sign (conf 630) above
+     *        cpl's 12-byte one (conf 510) - ON BOTH SIDES (the core's
+     *        table is generated from the og's raw_signs.json), so the
+     *        winning built-in is ocx, never a user-sign cpl record.
+     *   wpl - the built-in "<?wpl version" sign at +0 AND the default
+     *        set's offset-132 MS-string sign ("Microsoft Windows Media
+     *        Player -- ") - the farthest-anchored default sign colliding
+     *        with a stride-head built-in. wpl's min_size floor is 10 MiB,
+     *        so the fixture is sized to clear it. */
+    ASSERT_TRUE(install_default_usersigns());
+
+    { /* cpl: DCDC at +0 + the built-in sign at +12 */
+        std::vector<u8> img(4ull << 20, 0);
+        plant_hex_bytes(img, 0x2000, "DCDC");
+        plant_hex_bytes(img, 0x2000 + 12, "FFFF0000B800000000000000");
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Carved");
+        CarveFlags fl;
+        fl.hash_small_files = false;
+        CarveStats st;
+        ASSERT_EQ(
+            OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
+        EXPECT_EQ(0u, count_tagged(root, 0xFFFE0000u))
+            << "cpl: no user-sign record at the two-layer collision";
+        EXPECT_EQ(1u, count_builtin_tagged(root))
+            << "cpl: a built-in record owns the stride (ocx, the table's own ranking)";
+    }
+    { /* wpl: the raw sign at +0 + the default user sign at +132 */
+        std::vector<u8> img(20ull << 20, 0); /* > wpl min 10 MiB */
+        plant_hex_bytes(img, 0x2000, "3C3F77706C2076657273696F6E3D22312E30223F3E");
+        plant_hex_bytes(img, 0x2000 + 132,
+                        "4D6963726F736F66742057696E646F7773204D6564696120506C61796572202D2D20");
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Carved");
+        CarveFlags fl;
+        fl.hash_small_files = false;
+        CarveStats st;
+        ASSERT_EQ(
+            OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
+        EXPECT_EQ(0u, count_tagged(root, 0xFFFE0000u))
+            << "wpl: no user-sign record at the far-anchored collision";
+        EXPECT_EQ(1u, count_builtin_tagged(root)) << "wpl: the built-in candidate owns the stride";
+    }
+}
+
+TEST(CarveStats, UserSignFilesCountInCarvedFound) {
+    /* N-171: user-sign emissions tick `validated` - the counter the
+     * orchestrator's carved_found headline reads (stats.carved_found =
+     * cs.validated). Pre-fix the entire default-on channel was invisible
+     * in the carved count (only sign_hits ticked). */
+    const char* json = "{\"xyz\": {\"signs\": [\"0,DEADBEEF\"], \"mime\": \"application/x-xyz\"}}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(set)));
+    std::vector<u8> img(2ull << 20, 0);
+    plant_hex_bytes(img, 0x2000, "DEADBEEF");
+    plant_hex_bytes(img, 0x4000, "DEADBEEF");
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Carved");
+    CarveFlags fl;
+    fl.hash_small_files = false;
+    CarveStats st;
+    ASSERT_EQ(OK,
+              carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
+    EXPECT_EQ(2u, count_tagged(root, 0xFFFE0000u));
+    EXPECT_EQ(2u, st.validated) << "user-sign files count in the carved headline";
+    EXPECT_EQ(2u, st.sign_hits) << "the channel's own counter still ticks";
 }
 
 TEST(UserSigns, ParseOgShippedExtremes) {

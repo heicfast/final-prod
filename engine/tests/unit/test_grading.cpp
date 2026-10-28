@@ -204,13 +204,14 @@ TEST(Grading, NtfsDeviceIndexRuleUpgrades) {
 }
 
 TEST(Grading, ExtensionTableGatesDeepValidation) {
-    /* S-058 (polarity corrected): the og's deep-validation/twin block
-     * runs for extensions NOT in the 169-key table (the comparator
-     * FUN_1401bebe0 is the inequality twin - cVar1==0 at :605742-43 is
-     * find==end, NOT FOUND; calibrated by the :585890 control case).
-     * Out-of-table same-key files -> twins; in-table -> never flagged;
-     * dot-less ("" is IN the og's runtime set) -> never flagged. The
-     * pre-fix core ran the exact inverse on all three populations. */
+    /* S-058 re-pin: the og's gate is NOT-IN-TABLE (FUN_1401bebe0 is the
+     * iterator INEQUALITY comparator - the :605743 deep-validation block
+     * runs exactly when the 169-key set lookup MISSES; the control case
+     * at :585885-905 calibrates the direction). Two same-key files with
+     * OUT-OF-TABLE extensions -> twins; in-table -> the engine-default
+     * grade stands, no twin machinery. (The pre-fix pin ran the twins
+     * for the in-table pair - the s5 evidence's inverted polarity line,
+     * which this test had pinned.) */
     ResultTree t;
     auto* root = t.add_root(u"Found");
     auto* a1 = add_file(t, root, "a.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
@@ -227,15 +228,70 @@ TEST(Grading, ExtensionTableGatesDeepValidation) {
                         Origin::Structured, 0xD000, 0x400);
     grading::AssistantStats st;
     grading::grade_tree(t, single_disk_ctx(), st);
-    EXPECT_TRUE(a1->overlap()) << "out-of-table (ZZQX) twins must be flagged";
-    EXPECT_TRUE(a2->overlap());
-    EXPECT_EQ(Grade::High, a1->grade());
-    EXPECT_EQ(Grade::High, a2->grade());
-    EXPECT_FALSE(c1->overlap()) << "in-table (DOC) extensions never enter the deep path";
-    EXPECT_FALSE(c2->overlap());
-    EXPECT_NE(Grade::High, c1->grade()) << "in-table keeps the engine-default grade";
-    EXPECT_FALSE(e1->overlap()) << "dot-less names: \"\" is in the og's runtime set - skip";
-    EXPECT_FALSE(e2->overlap());
+    EXPECT_FALSE(a1->overlap()) << "in-table (DOC) extensions skip the deep path";
+    EXPECT_FALSE(a2->overlap());
+    EXPECT_NE(Grade::High, a1->grade()) << "no twin-induced promotion for in-table rows";
+    EXPECT_TRUE(c1->overlap()) << "out-of-table extensions enter the deep path";
+    EXPECT_TRUE(c2->overlap());
+    EXPECT_EQ(Grade::High, c1->grade());
+    EXPECT_EQ(Grade::High, c2->grade());
+}
+
+TEST(Grading, DotlessNamesSkipTwinDetection) {
+    /* the og's runtime set contains "" (the ctor's 2000-iteration init
+     * loop inserts the empty string after the 169 real keys), so
+     * dot-less files are IN-TABLE -> skip the deep path under the
+     * corrected polarity. Pins the "" coincidence so the polarity flip
+     * cannot regress it. */
+    ResultTree t;
+    auto* root = t.add_root(u"Found");
+    auto* a1 = add_file(t, root, "noext1", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+                        Origin::Structured, 0x5000, 0x400);
+    auto* a2 = add_file(t, root, "noext2", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+                        Origin::Structured, 0x5000, 0x400);
+    grading::AssistantStats st;
+    grading::grade_tree(t, single_disk_ctx(), st);
+    EXPECT_FALSE(a1->overlap()) << "dot-less names skip the twin path (the \"\" quirk)";
+    EXPECT_FALSE(a2->overlap());
+}
+
+TEST(Grading, RefsDeletedFilesGradeHigh) {
+    /* S-061: the og's insert-time hook (FUN_14038a470 :605492-496) sets
+     * grade 2 (High) for every non-existing ReFS node with the gauge
+     * ticks - the completion pass excludes FS 10 from the generic path
+     * precisely because insert already graded it. */
+    ResultTree t;
+    auto* root = t.add_root(u"Found");
+    auto* dead = add_file(t, root, "notes.txt", 500, u32(FsKindCode::Refs),
+                          DeletedState::Deleted);
+    grading::AssistantStats st;
+    grading::grade_tree(t, single_disk_ctx(), st);
+    EXPECT_EQ(Grade::High, dead->grade()) << "deleted ReFS rows grade High at insert";
+}
+
+TEST(Grading, BtrfsDeletedFilesGradeHigh) {
+    /* S-061 twin: FS 0xB gets the same insert-time grade-2 rule
+     * (:605485-489). */
+    ResultTree t;
+    auto* root = t.add_root(u"Found");
+    auto* dead = add_file(t, root, "photo.raw", 500, u32(FsKindCode::Btrfs),
+                          DeletedState::Deleted);
+    grading::AssistantStats st;
+    grading::grade_tree(t, single_disk_ctx(), st);
+    EXPECT_EQ(Grade::High, dead->grade()) << "deleted Btrfs rows grade High at insert";
+}
+
+TEST(Grading, RefsExistingStillHigh) {
+    /* S-061 guard: existing (Active) ReFS files already grade High via
+     * the Active rule that PRECEDES the ReFS/Btrfs rule - identical
+     * observable outcome, pinned so the rule ordering cannot regress. */
+    ResultTree t;
+    auto* root = t.add_root(u"Found");
+    auto* live = add_file(t, root, "live.txt", 500, u32(FsKindCode::Refs),
+                          DeletedState::Active);
+    grading::AssistantStats st;
+    grading::grade_tree(t, single_disk_ctx(), st);
+    EXPECT_EQ(Grade::High, live->grade());
 }
 
 TEST(Grading, TwinAddressFlagsBoth) {
@@ -243,18 +299,21 @@ TEST(Grading, TwinAddressFlagsBoth) {
      * 605781 matches keys AND categories before FUN_14038ba60 flags) */
     ResultTree t;
     auto* root = t.add_root(u"Found");
-    /* same extent-end + same category (zzqx/zzqx - S-058: the deep
-     * path's population is the NOT-in-table extensions) -> twins */
+    /* same extent-end + same category -> twins. S-058: the twin
+     * fixtures ride OUT-OF-TABLE extensions (.zzqx/.ipynb) - the
+     * corrected og gate runs the twin machinery only when the 169-key
+     * lookup MISSES; the pre-fix fixtures used .doc/.mp3 (in-table)
+     * which now skip the deep path. */
     auto* x1 = add_file(t, root, "x.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x5000, 0x400);
     auto* x2 = add_file(t, root, "y.zzqx", 0x400, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x5100, 0x300);
-    /* same extent-end + DIFFERENT category (asd=Unsaved vs zzq2=Other -
-     * both NOT in the grading table, so both ARE deep-path candidates;
-     * only the category mismatch keeps them unflagged) -> not twins */
-    auto* y1 = add_file(t, root, "p1.asd", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    /* same extent-end + DIFFERENT category (zzqx = Other vs ace =
+     * Archive; both out-of-grading-table so the gate passes) -> not
+     * twins */
+    auto* y1 = add_file(t, root, "p1.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0xA000, 0x400);
-    auto* y2 = add_file(t, root, "p2.zzq2", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    auto* y2 = add_file(t, root, "p2.ace", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0xA000, 0x400);
     grading::AssistantStats st;
     grading::grade_tree(t, single_disk_ctx(), st);
@@ -303,12 +362,10 @@ grading::GradeContext two_slot_ctx(u32 slot1_kind) {
     return ctx;
 }
 
-/* A deleted OUT-OF-TABLE (.zzqx) pair at the same in-slot extent end:
- * one on slot 1 (the kind under test), one on slot 0 (NTFS, never
- * shifted). S-058 re-base: the deep-path population is the NOT-in-table
- * extensions (the M-138 landing's fixtures used in-table .doc pairs on
- * the inverted polarity; the polarity correction flips the fixture
- * class, the shift-set semantics under test are unchanged). */
+/* A deleted out-of-table (.doc fixture name kept for the M-133 lookup;
+ * the S-058 gate needs out-of-table exts to reach the twin machinery -
+ * zzqx below) pair at the same in-slot extent end: one on
+ * slot 1 (the kind under test), one on slot 0 (NTFS, never shifted). */
 std::pair<FileNode*, FileNode*> add_twin_pair(ResultTree& t, u32 slot1_kind) {
     auto* root = t.add_root(u"Found");
     add_file(t, root, "x.zzqx", 500, slot1_kind, DeletedState::Deleted, Origin::Structured,
