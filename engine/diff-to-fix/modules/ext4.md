@@ -186,3 +186,10 @@ constant) — `tracked-open/OQ-Z-E-FLT-session3.md`.
 | ID | Severity | One-line |
 |---|---|---|
 | N-057→N-073 | MINOR | (renumbered at integration — the table's original N-057 ID was a pre-coordination session-6 local number) CatchBuffer bad-sector salvage: og re-reads a 1 KiB-backtrack shifted window on failure (ext4-engine--deep-dive.md:25-33); core zero-fills the extent after transport retries — **FIXED-ALREADY (session 14: N-004's transport landing covers it; 3 engine-path pin tests in test_ext4_volume.cpp)** |
+
+## Session-10 S10-F rows (function-level completeness pass, 2026-10-29; audited `44f043a5`)
+
+| Parameter | Verdict |
+|---|---|
+| volume-label decode — s_volume_name surface | **DIVERGENCE-MINOR — N-133** (the og strncpy's s_volume_name for the UI, algorithms-v2 §2 step 5; the core decodes it at cr_ext4_engine.cpp:200-201 into `Volume::volume_name` with ZERO consumers — dead code; the engine-side label is the image-scan source M-079's addendum now points at) |
+| class surface — CEXT4FileProperties / CEXT4QuickSearch / EXT4CatchBufferObj / Ext4Volume / CExt4DataRunList | **MATCH (semantic)** — the T3b class pass: props field set full-parity (I-006/I-007 + superset registered), quick/complete one-entry flags (I-016), the catch-buffer surface fully dispositioned (backtrack N-004/N-073; spawn S-027/D-59; buffering I-014-3/X51 — the og's 20 MiB window size is uncited but perf-only), the volume context and extent adapter mapped — evidence s10f-product-frame-register.md §5 |

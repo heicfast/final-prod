@@ -1,4 +1,22 @@
 # diff-to-fix/ — parity audit roadmap (core_recovery vs easeus-drw-research)
+**Session 10 lane S10-F (2026-10-29 — the function-level completeness pass, RECONCILED at push):**
+audited **core product code `44f043a5`** (e56baac7 lineage), **corpus `be0cfe9`**. The
+mandate's "mark all remaining features, implementations, functions as finding too"
+taken to the corpus's own inventories: the nine engine function lists parsed (9,618
+fns / 3,088 named), the per-engine class surface mapped to trail citations (191
+cited / 49 never — the 49 semantically dispositioned one-by-one), the nine ghidra
+trees' 103 decompiled binaries censused. Filed: **M-110** (MAJOR — the og's Btrfs
+`@eaDir` subtree suppression, a NEW undocumented decode: Synology EA dirs appear
+EMPTY in the og's tree, the core descends unconditionally), **N-133** (MINOR —
+engine-side volume labels never surfaced; the ext4 decode is dead code; M-079's
+"no image-scan label semantics" premise corrected by addendum), **N-134** (MINOR —
+the six never-dispositioned product-frame binaries: CloneModule/legacy.dll/
+EuDownloader/Boot.dll/BootDriver.dll/peformat.dll + the telemetry name-absent set).
+Board hygiene: the M-108 filename collision repaired (the M-080 residual renumbered
+M-109). Verified CLEAN: the 25 never-cited engine classes (all COVERED semantically)
+and the engine-bearing ghidra trees at binary level. Evidence:
+`evidence/decompiled-quotes/s10f-*.md` (the class/tree census + the three decode files).
+
 **Session 10 lane B (2026-10-29 — the continuation deep audit, RECONCILED AT THE SECOND PUSH):**
 audited **core `84a1832`** (the verification baseline — the concurrent lanes'
 landings reconciled in `evidence/s10-verification-pass-b.md`'s superseded-verdict

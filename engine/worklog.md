@@ -2721,3 +2721,53 @@ claimed both; the :376 row now carries the engine-PRESENT state + the M-102 hand
 (954c386/e1e5124/13245c0 - all rewritten by the push-window rebases) - every cell now
 cites the real post-rebase SHAs (e4f3184 batch A / 995ba5d batch B / 32ef33b batch C /
 859e286 batch D / faa547f N-100).
+
+---
+Task ID: S10-F/T3-T8 (session-10, the FUNCTION-LEVEL COMPLETENESS lane — the reading/verification waves and the filings)
+Agent: session-10 function-level completeness audit (lead lane S10-F)
+
+Work Log:
+- T2 (the inventories): the nine ghidra-searchdll function lists parsed
+  (scripts persisted under audit-ctx scratch; the parse/disposition/domain
+  filter scripts saved to /home/z/my-project/scripts/s10_*.py) — 9,618
+  functions / 3,088 named / 3,088→122 domain after CRT/STL/EH filtering;
+  the class-coverage map built (vftable labels): 191 classes cited by name,
+  49 never (type_info/ATL noise + the engine candidates).
+- T3 (the class pass): two read-agents (T3a NTFS/FAT/exFAT, T3b
+  Btrfs/EXT4/HFS+) verified all 25 never-cited classes — vtables re-derived
+  from the og binaries via the trail's own RTTI walker, core equivalents
+  cited, trail dispositions cited. ALL COVERED except two behavioral gaps
+  (the @eaDir suppression; the volume-label dead decode) — both verified
+  first-hand by the lead before filing (the FUN_180001cd0 control flow
+  re-read; the FUN_18003f3a0 $VOLUME_NAME chain re-read).
+- T4 (the tree census): the read-agent enumerated all 103 decompiled
+  binaries across the nine ghidra trees; the lead spot-verified every
+  strong candidate's RTTI claims and the zero-disposition greps. Six
+  substantive never-dispositioned binaries + the telemetry name-absent set.
+- T5-T8 (the filings): M-110 (MAJOR, @eaDir), N-133 (MINOR, volume labels)
+  + the M-079 addendum (the premise correction), N-134 (MINOR, the register
+  completion); evidence files s10f-btrfs-eadir-suppression.md /
+  s10f-engine-volume-labels.md / s10f-product-frame-register.md; module
+  rows appended (btrfs/ext4/mom-capabilities); CROSS-REF-MATRIX's S10-F
+  block; SURFACE-INVENTORY §11; SUMMARY's S10-F delta; README's lane block.
+- Push-time reconciliations (two): the SA-10/DFX-38 baseline collision at
+  open (lane split declared in the T1 worklog entry); the post-wave remote
+  pull (the parallel lanes' 30-commit sprint: SA-10's triage close at 54
+  active, the fix lanes' M-102/M-083/M-092/S-043 landings, lane-B's
+  M-108/N-129..N-132/OQ-S10-1/2, the landing-parity lane's M-105/M-108) —
+  absorbed by rebase; my finding IDs re-coordinated (M-106→M-110 after the
+  lanes took M-106/M-107/M-108; N-128→N-133 after N-128..N-132 were taken);
+  the M-108 filename collision found on the pulled board and repaired per
+  the SA-9 rule (the later-pushed M-080-residual renumbered M-109).
+- Core-side cites re-verified at the CURRENT tree (44f043a5) after the
+  pull: cr_ext4_engine.cpp:200-201 unchanged; fill_identity_card now at
+  cr_ui.cpp:1850-1866 (label still absent from the fill set); the @eaDir
+  grep still zero across src/include/tests.
+
+Stage Summary:
+- Three findings filed (M-110, N-133, N-134) + one addendum + one process
+  repair; the class/tree census verdicts recorded as MATCH rows (the
+  engines' class surface and the engine-bearing trees are CLEAN — the
+  trail's coverage claims survive the function-level check).
+- Next: the wave-2 candidates (RAWSearchDLL infrastructure function-level
+  walk; the OQ-S8-1 consumer trace if time permits) or close-out.

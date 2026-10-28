@@ -231,3 +231,23 @@ inventory's claims post-waves. Corrections and confirmations:
   first-hand — the documented container grammar byte-confirmed on real artifacts
   (magic GUID 1BB3F4EA-4305-4AB6-B4B8-244A33D913BB, 0x8C file header, 0x24 record
   header, 4 KiB chunked zlib; `evidence/executions/s10-rsf-ground-truth.md`).
+
+---
+
+## §11. Session-10 S10-F currency (2026-10-29 — the function-level completeness pass; corpus `be0cfe9`, core `44f043a5`)
+
+The mandate's "mark all remaining features, implementations, functions as
+finding too" taken to the corpus's own function inventories: the nine engine
+`*_functions.txt` lists parsed (9,618 functions / 3,088 named), the class
+surface mapped to trail citations (191 classes cited by name / 49 never —
+the 49 semantically dispositioned one-by-one, all COVERED except the two
+behavioral gaps filed below), and the nine ghidra trees' 103 decompiled
+binaries censused for disposition. Findings: **M-110** (the og's Btrfs
+`@eaDir` descent suppression — a NEW decode, undocumented in the corpus's
+own artifacts), **N-133** (engine-side volume labels — the ext4 decode is
+dead code; M-079's premise corrected), **N-134** (the six never-dispositioned
+product-frame binaries + the telemetry name-absent set — the census's only
+residue; the engine-bearing trees re-confirmed CLEAN at binary level).
+Board hygiene: the M-108 filename collision repaired (M-108 preview-text
+keeps the ID per the SA-9 rule; the M-080-residual renumbered M-109).
+Evidence: `evidence/decompiled-quotes/s10f-*.md`.

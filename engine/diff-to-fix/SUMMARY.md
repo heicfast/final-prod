@@ -5437,3 +5437,46 @@ the N-116..N-126 doc/registration batch.
 executed comparisons (read-only container) — recorded per finding; decompile-direct
 (tier 2) with binary probes (tier 4) where constants were ambiguous. Consolidated:
 `evidence/sa8-context-sheets.md`.
+
+## Session-10 S10-F delta (2026-10-29 — the function-level completeness lane; audited `44f043a5`, corpus `be0cfe9`)
+
+The lane split (declared at open over the parallel SA-10/DFX-38 pushes): this
+lane took the mandate's function-level surface — the nine engine function
+inventories + the per-engine class-coverage map + the nine ghidra trees'
+103-binary disposition census — with every candidate verified first-hand
+before filing (the T3a/T3b/T4 read-agents' reports + the lead's re-reads).
+
+**Filed (3 + 1 addendum + 1 process repair):**
+- **M-110** (MAJOR) — the og's Btrfs `@eaDir` subtree suppression
+  (FUN_180001cd0 :704-711, a 7-byte prefix compare with no length check;
+  Synology EA dirs appear EMPTY in the og tree) absent from the core — the
+  M-018 divergence class at engine scope; the filter is undocumented in the
+  corpus's own artifacts (new decode).
+- **N-133** (MINOR) — engine-side volume labels never decoded/surfaced
+  (NTFS $Volume $VOLUME_NAME extraction instruction-decisive at
+  FUN_18003f3a0 :50963-50980; ext4 s_volume_name per the algorithms-v2
+  artifact): the core's ext4 decode is dead code, NTFS/FAT/exFAT decode
+  nothing; **M-079's "no image-scan label semantics" premise corrected by
+  addendum** (the engines ARE the og's image-scan label source).
+- **N-134** (MINOR) — the product-frame register completion: six
+  never-dispositioned binaries (CloneModule.dll the clone/PreOS host;
+  legacy.dll the LibTomCrypt substrate with the undecoded role;
+  EuDownloader.exe; Boot.dll/BootDriver.dll/peformat.dll the media-builder
+  family) + the six telemetry binaries name-absent — the 103-binary
+  census's only residue.
+- **M-079 addendum** — the image-target fix step corrected (engine-side
+  label first, filename fallback).
+- **M-108→M-109 renumber** — the filename collision from the parallel push
+  race repaired per the SA-9 earlier-push-wins rule (preview-text keeps
+  M-108; the M-080 residual is M-109; CROSS-REF/evidence mentions updated).
+
+**Verified CLEAN (no findings):** the 25 never-cited-by-name engine classes
+across NTFS/FAT/exFAT/Btrfs/EXT4/HFS+ — every one COVERED semantically under
+different citation names (the T3a/T3b vtable-level reports; core
+equivalents cited file:line); the engine-bearing ghidra trees
+(searchdll/mo/partition/drivers/drwui) CLEAN at binary level; the three
+infra-only MOM stubs re-confirm the inventory's rollup-covered claim.
+
+**Board after this lane:** 57 active (6 SEVERE · 26 MAJOR · 21 MINOR ·
+5 INFO) — the S10-F additions on top of the SA-10 close board; FIXED-LEDGER
+unchanged by this lane (no fix verified here; the purge convention holds).

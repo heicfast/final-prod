@@ -163,3 +163,10 @@ read; no per-engine duplicate).
 | Parameter | Verdict |
 |---|---|
 | A25 label import steps | **MATCH** — the og's delay-execution import polling (:86) = the bounded label retry: live handles only (is_static_media discriminator), 250/500/1000 ms backoff, cancel-aware in 50 ms slices, label_retries counted, 3-retry bound then ERR_BAD_MAGIC |
+
+## Session-10 S10-F rows (function-level completeness pass, 2026-10-29; audited `44f043a5`)
+
+| Parameter | Verdict |
+|---|---|
+| A25/A26 descent filter — the `@eaDir` subtree suppression | **DIVERGENCE-MAJOR — M-110** (the og's FUN_180001cd0 walk :704-711 compares directory names against the 7-byte literal `@eaDir` (prefix, no length check) and skips the child walk on match — Synology EA directories appear EMPTY in the og's tree; the core descends unconditionally; the M-018 pass cannot reach the shape: flags-not-hides + no pool entry; corpus artifacts never document the filter — the decode is new, first-hand) |
+| class surface — CBtrfsQuickSearch / CBtrfsFileProerties / CBtrfsNoResidentDataRunList / CBtrfsQuickTreeBuilder | **MATCH (semantic)** — the T3b class pass: the quick controller's vtable + walk (FUN_180002120 :843-928, the only og controller per I-003), the props field set (N-059: no og field unpersisted; id_b always-0 registered), the non-resident extent adapter (chunk-map resolve + rotating mirror, M-020), the DRWUI-side tree builder (B5) — evidence s10f-product-frame-register.md §5 |

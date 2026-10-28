@@ -146,7 +146,7 @@
 | M-069 | MAJOR |  | — | `findings/FIXED/M-069-staged-scenarios-never-green.md` |
 | M-070 | MAJOR |  | — | `findings/FIXED/M-070-stage-disk-param-type-coercion.md` |
 | M-071 | MAJOR |  | 69507cb | `findings/FIXED/M-071-m018-regression-junk-gates-lost.md` |
-| M-079 | MAJOR | session/CLI | f43b747 | `findings/MAJOR/M-079-cli-autosave-volume-label-unfilled.md` |
+| M-079 | MAJOR | session/CLI | f43b747 | `findings/MAJOR/M-079-cli-autosave-volume-label-unfilled.md` — **S10-F addendum (2026-10-29): the fix's image-target leg (the image-stem fallback) is a registered divergence** — the og's image-scan label is the ENGINE-side on-disk decode (NTFS $Volume $VOLUME_NAME; ext4 s_volume_name), not the filename; the engine-decode absence + the completion path = **N-133** (evidence: s10f-engine-volume-labels.md) |
 | M-080 | MAJOR | preview | 5ccc0da | `findings/FIXED/M-080-thumbnail-budget-starves-photos.md` |
 | M-083 | MAJOR | preview/abi | (this landing) | `findings/MAJOR/M-083-thumbnail-grade-promotion-absent.md` |
 | M-102 | MAJOR | abi/preview | (this landing) | `findings/MAJOR/M-102-thumbnail-abi-export-absent-engine-landed.md` |
