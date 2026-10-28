@@ -564,7 +564,7 @@ std::vector<u8> make_gpt_dynamic_disk(const u8* meta_guid, const u8* data_guid) 
     put32le(h + 12, 92);
     put64le(h + 24, 1);
     put64le(h + 32, 65535);
-    put64le(h + 40, 2);
+    put64le(h + 40, 34); /* first usable (M-123: entries LBA2 outside) */
     put64le(h + 48, 65531);
     put64le(h + 72, 2);
     put32le(h + 80, 2);
