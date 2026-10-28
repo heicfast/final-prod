@@ -182,6 +182,14 @@ landed between the claim commit `fa654673` and this lane's open). Baseline at op
 linux-release build green, suite **1273/1273**. Mandate saved token-redacted at
 `worklog/session-diff-fix-s53-prompt.md` (renumbered with the lane at each window; the S53 seat holds — the remote continuation-audit lane vacated to S55 at 92fe573d).
 
+- **N-177 FIXED (CONVERGENT — the remote's 7be438c9 wins per SA-9)** — the ext4
+  size-exceeds-blocks damaged flag. This lane's landing was byte-equivalent (the og's
+  bit 0x200 as PFLAG_SIZE_EXCEEDS_BLOCKS, the lo-only i_blocks read, the files-only
+  gate, the session round-trip pin) and RED-proven via the stashed-gate rebuild; the
+  convergence addendum records the one editorial difference (this lane registered the
+  sign-extension non-adoption under the existing I-040/D-123 family; the winner filed
+  the new D-135 — same non-adoption, both records stand).
+
 - **N-188 FIXED (NEW — discovered during this lane's merge; renumbered from the N-186 draft at the N-160 window merge per SA-9, the remote's renumbered N-142-rsf took the seat)** — the M-119 window
   committed a red main: `rrecov.cpp:3253` called PartitionSlice's clamp surface
   (was_clamped/length/clamp_delta) through an `unique_ptr<IStorageDevice>` holder

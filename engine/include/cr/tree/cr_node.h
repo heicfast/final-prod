@@ -89,7 +89,13 @@ public:
     u64 allocated_size = 0;
     FileTimes times;
     u32 attributes = 0;  /* DOS attributes (dir/hidden/...) */
-    u16 flags = 0;       /* internal: 4 = system-filter (corpus) */
+    /* internal flags: 4 = system-filter (corpus); 0x10 = in-use (NTFS);
+     * 0x02 = NTFS dir mirror. N-177: 0x0200 = size-exceeds-blocks
+     * damage (the og's ext4 FLAGS bit 0x200 at +0x39, FUN_180007510's
+     * i_blocks < size>>9 compare - regular files only; persisted with
+     * the session, a grading/diagnostics input). */
+    u16 flags = 0;
+    static constexpr u16 PFLAG_SIZE_EXCEEDS_BLOCKS = 0x0200;
     std::u16string name; /* full display name (LFN) */
     /* N-011a (diff-to-fix): the og's props carry a separate 8.3 short
      * name (GetShortNameLen/SetShortName/GetShortNamePtr vtable surface;
