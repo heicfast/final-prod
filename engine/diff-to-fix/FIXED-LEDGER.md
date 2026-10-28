@@ -283,3 +283,13 @@
 | M-091 | MAJOR | (mid-flight landing) | 16475b8 | `findings/FIXED/M-091-mdb-page-chain-size-walk-decoded-bounded-extent-stands-in.md` |
 | N-092 | MINOR | (mid-flight landing) | 5ed862f | `findings/FIXED/N-092-thumbnail-refusal-matrix-and-cache.md` |
 | N-124 | MINOR | (mid-flight landing) | c75755d | `findings/FIXED/N-124-transport-module-rows-superseded-by-ddrv-wave.md` |
+
+## Go-forward convention (established by this purge, per the user instruction)
+
+Fix lanes resolving a finding: (1) record the Resolution section in the
+finding file, (2) append the row to this ledger (ID / severity / fix commit /
+retired path), (3) `git rm` the file — do NOT re-create `findings/FIXED/`.
+The active board stays the only thing in the findings tree; history is the
+archive; this ledger is the index. A finding moved into a re-created
+`findings/FIXED/` directory violates the convention and the next audit
+lane will retire it again.
