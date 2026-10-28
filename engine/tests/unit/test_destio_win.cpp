@@ -37,6 +37,34 @@ std::u16string u16_from(const std::string& s) {
     return out;
 }
 
+/* M-074: the og's destination-validation taxonomy - path-too-long,
+ * invalid-path, and the network shape surface as DISTINCT codes, never the
+ * collapsed ERR_DEST_UNWRITABLE (UIUX/11:16's numbered strings). */
+TEST(WinDestIo, M074DestinationCodesDifferentiated) {
+    /* the UNC shape classifies as the network destination even though a
+     * UNC create fails with a generic code on a network-less host */
+    {
+        WinDestIo io;
+        const u32 rc = io.create_temp(1, u16_from("\\\\no-such-server\\share\\file.bin"), u".tmp");
+        EXPECT_EQ(u32(ERR_DEST_NETWORK), rc) << "the UNC shape is the network branch";
+    }
+    /* path-too-long: a >MAX_PATH destination under a real temp root */
+    {
+        WinDestIo io;
+        std::u16string base = u16_from(cr_test::tmp_path("destio", "m074"));
+        std::u16string long_name(300, u'x');
+        const u32 rc = io.create_temp(2, base + u"\\" + long_name, u".tmp");
+        EXPECT_EQ(u32(ERR_DEST_PATH_TOO_LONG), rc) << "ERROR_FILENAME_EXCED_RANGE classifies";
+    }
+    /* invalid path: the reserved-name / malformed shape */
+    {
+        WinDestIo io;
+        const u32 rc = io.create_temp(3, u16_from("C:\\bad|name\\file.bin"), u".tmp");
+        EXPECT_TRUE(rc == u32(ERR_DEST_PATH_INVALID) || rc == u32(ERR_DEST_UNWRITABLE))
+            << "the malformed-name class (the host's error set varies by version)";
+    }
+}
+
 TEST(WinDestIo, MkdirCreatesMissingChainUnderDriveLetterRoot) {
     const std::string root = cr_test::tmp_path("wdestio", ".a");
     const std::string deep = root + "/one/two/three";

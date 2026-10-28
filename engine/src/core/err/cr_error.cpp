@@ -57,6 +57,12 @@ const char* err_text(u32 code) {
         return "destination full";
     case ERR_DEST_NAME_EXHAUSTED: /* N-065 (was absent from this table) */
         return "collision rename space exhausted";
+    case ERR_DEST_PATH_TOO_LONG: /* M-074: the og's numbered taxonomy */
+        return "the recovery path is too long";
+    case ERR_DEST_PATH_INVALID:
+        return "might be an invalid path to save";
+    case ERR_DEST_NETWORK:
+        return "network destination (the local-only destination contract)";
     case ERR_FVE_LOCKED:
         return "volume locked (FVE)";
     case ERR_HEALTH_UNAVAILABLE:

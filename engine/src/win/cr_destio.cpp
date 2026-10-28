@@ -10,6 +10,30 @@
 namespace cr {
 namespace win {
 
+/* M-074: the og's destination-validation taxonomy (UIUX/11:16 - distinct
+ * numbered strings: "Might be invalid path to save." / "The recovery path
+ * is too long." + the PathIsNetworkPathW branch, architecture/04:136-140).
+ * Classify a failed create/mkdir: path-too-long, invalid path, the
+ * network-destination shape (a UNC path grammar check - the static
+ * backslash-backslash prefix covers the corpus's named case; MAPPED
+ * drives are the documented limitation: the dynamic PathIsNetworkPathW
+ * half needs the shell path API and adds no recovery-relevant decision
+ * on this branch). Everything else stays ERR_DEST_UNWRITABLE. */
+namespace {
+u32 classify_dest_error(DWORD e, const std::u16string& path) {
+    if (e == ERROR_FILENAME_EXCED_RANGE)
+        return ERR_DEST_PATH_TOO_LONG;
+    if (e == ERROR_INVALID_NAME || e == ERROR_BAD_PATHNAME)
+        return ERR_DEST_PATH_INVALID;
+    /* the UNC network shape (not the \?\ / \\.\ device prefixes,
+     * which are local device paths) */
+    if (path.size() >= 3 && path[0] == u'\\' && path[1] == u'\\' && path[2] != u'?' &&
+        path[2] != u'.')
+        return ERR_DEST_NETWORK;
+    return ERR_DEST_UNWRITABLE;
+}
+} // namespace
+
 u32 WinDestIo::create_temp(u64 item_id, const std::u16string& final_path,
                            const std::u16string& temp_suffix) {
     std::u16string temp = final_path + temp_suffix; /* per-item suffix (audit row 35c) */
@@ -21,7 +45,7 @@ u32 WinDestIo::create_temp(u64 item_id, const std::u16string& final_path,
         const DWORD e = GetLastError();
         if (e == ERROR_DISK_FULL || e == ERROR_HANDLE_DISK_FULL)
             return ERR_DEST_FULL;
-        return ERR_DEST_UNWRITABLE;
+        return classify_dest_error(e, temp);
     }
     open_[item_id] = Open{h, temp, final_path};
     return OK;
@@ -150,7 +174,7 @@ u32 WinDestIo::mkdir(const std::u16string& path_utf16) {
         const DWORD attr = GetFileAttributesW(reinterpret_cast<const wchar_t*>(prefix.c_str()));
         if (attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY))
             continue; /* exist-as-directory: the EEXIST contract */
-        return ERR_DEST_UNWRITABLE;
+        return classify_dest_error(GetLastError(), prefix);
     }
     return OK;
 }

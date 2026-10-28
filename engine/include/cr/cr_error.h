@@ -61,6 +61,12 @@ enum Err : u32 {
      * DRWUI :357131 `if (10000 < counter) break` - the file is FAILED,
      * never a synthesized fallback name) */
     ERR_DEST_NAME_EXHAUSTED = 0x50050005,
+    /* M-074: the destination-validation taxonomy the og surfaces as
+     * distinct numbered strings (UIUX/11:16) - path-too-long, invalid
+     * path, and the network-destination branch. Append-only family. */
+    ERR_DEST_PATH_TOO_LONG = 0x50050006,
+    ERR_DEST_PATH_INVALID = 0x50050007,
+    ERR_DEST_NETWORK = 0x50050008,
 
     /* --- bitlocker policy --- */
     ERR_FVE_LOCKED = 0x50060001,
