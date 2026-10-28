@@ -8703,24 +8703,3 @@ duplicate test, the crossed grading assertions, the carve triple-tick, the win-s
 the test_carve comment splice — several converged with the parallel lanes' own repairs per
 SA-9), all verified at 1419/1419 before their pushes.
 =======
----
-
-## Session-56 ACUTE-first lane — S-058 CONVERGENT (2026-10-29; the S52 lane's
- ea405392 wins per SA-9)
-
-**S-058 CONVERGENT (SEVERE — the grading extension-table gate polarity).** This
-lane's independent verification + fix preceded its push by a full build/test
-cycle (the comparator pair :324923-324939, FUN_140256d00's set::find idiom
-:413990-414019, and the :585885-585905 control case all re-read first-hand at
-the corpus; the 4-test RED battery ran at the pre-fix tree). The S52 landing
-(byte-equivalent gate inversion + the call-site empty-skip arm) stands. This
-lane's unique landings riding the convergence commit: the IN-PLACE s5
-evidence erratum (§5 item 4's blockquote + §6.2's own text corrected, beside
-the S52 tail ERRATUM section), the CORPUS-ERRATA session-56 row, and the
-predicate header doc-truth repair ("Membership gates" -> non-membership
-enters). Tests: TableGatePolarityNotInTableEnters,
-TableGatePolarityInTableSkips, DotlessSkipsTwins, TwinAddressFlagsBoth
-(re-pinned to out-of-table exts), TableMembershipAndCount ("" TRUE) — 4 RED
-pre-fix, 16/16 green post-fix; suite 1311/1311. Trail: findings/FIXED/S-058 +
-ledger row + orchestration.md grading cell + SUMMARY session block + this
-entry. Next: S-059 (the sparse-hole export).
