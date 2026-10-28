@@ -28,7 +28,7 @@ Core (audited commit `67193b6`): `src/core/btrfs/cr_btrfs_engine.cpp` (799 LOC) 
   the og — see carve module.
 - **B5 orphan** — `M` synthetic subvolume names (core's own convention; og's
   CBtrfsQuickTreeBuilder naming not decoded — no contradiction found).
-- **B9 timestamps** — `M` unix→filetime_ns.
+- **B9 timestamps** — `M` unix→filetime_ns. **OQ-S42-2 RESOLVED (S48)**: the og FOLDS nsec (FUN_180006ba0 :4429-4441 — the nsec/100 + epoch*10^7 fold, 0x2b6109100); the core's unix_to_filetime_ns is the same formula at the same offsets — precision MATCH, not superset; the sole superset is the otime/+0x94 conversion (I-007/D-59b, decode-anchored).
 - **B10 Unicode** — `M` post-S-005-fix (dir-item names decode via the shared
   `text::utf8_to_u16`; `Btrfs.NonAsciiNamesDecodedNotByteLifted`).
 
