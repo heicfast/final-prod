@@ -1,7 +1,7 @@
 # OQ-S42-2 — Btrfs nsec handling in the og: does the engine fold sub-second precision or carry seconds only?
 
 **Origin:** S42 continuation lane, timestamp focus battery (Agent B's context sheet, residue #7)
-**Status:** OPEN (this session)
+**Status:** RESOLVED (session-48: the og FOLDS nsec — FUN_180006ba0's paired sec+nsec/100 fold decoded; core parity exact on atime/ctime/mtime; the otime conversion is the sole superset, D-59b anchored)
 
 ## The precise question
 
@@ -16,3 +16,44 @@ The core folds nsec: `src/core/btrfs/cr_btrfs_engine.cpp:873-880` via `unix_to_f
 ## Consumers
 
 The btrfs module row B9, I-006's superset family register (this would join or be refuted), S-057's restoration finding (precision of what gets restored).
+
+---
+
+## Resolution (session-48 lane, 2026-10-29 — RESOLVED: the og FOLDS nsec; core parity exact on the three converted fields; the otime conversion is the sole superset)
+
+**Status:** RESOLVED (the question answered decisively by the one-read probe the OQ defined;
+the parity claim for Btrfs sub-second precision is now decode-anchored).
+
+**The probe's answer:** `FUN_180006ba0` (BtrfsSearchDLL_decompiled.c:4429-4441, the inode
+timespec converter) is a **paired sec+nsec load with the nsec/100 fold** — the og FOLDS
+sub-second precision:
+
+```
+out+0x4a (ctime) = (u32)(in+0x84)/100 + ((i64)(in+0x7c) + 0x2b6109100) * 10000000
+out+0x52 (mtime) = (u32)(in+0x90)/100 + ((i64)(in+0x88) + 0x2b6109100) * 10000000
+out+0x5a (atime) = (u32)(in+0x78)/100 + ((i64)(in+0x70) + 0x2b6109100) * 10000000
+```
+
+`0x2b6109100` = 11644473600 = the 1970→1601 epoch delta; `nsec/100` = ns→100ns units
+(sub-100ns truncated). **Truncation is REFUTED** — the hypothesis that Btrfs behaves like
+the ext4 sibling (`_gmtime32_s`, wMilliseconds=0, D-59a) is wrong: the og is internally
+inconsistent between its ext4 and Btrfs engines, exactly as the module doc's partial note
+(:83) suspected.
+
+**Core comparison (re-read at HEAD):** `unix_to_filetime_ns` (cr_types.h) is the SAME
+formula — `(sec + 11644473600) * 10000000 + nsec/100` — and the core applies it at the
+SAME offsets (INO_ATIME 0x70/+8, INO_CTIME 0x7c/+8, INO_MTIME 0x88/+8,
+cr_btrfs_engine.cpp:873-878). **B9's sub-second precision verdict: MATCH** — not a
+superset, byte-equivalent arithmetic on all three converted fields.
+
+**The sole superset (bounded precisely):** the core ALSO converts otime/crtime
+(INO_otime 0x94/+8, :880) — the og's converter never touches +0x94 (zeroed, per the
+trail's standing note). This is I-007's 4-of-4 family, already registered as
+**D-59b** — this decode ANCHORS that registration with the og-side proof: the superset
+is the otime FIELD only; the nsec PRECISION is parity, not superset.
+
+**Consumers updated:** B9 (btrfs.md) → MATCH on precision + the registered otime
+superset; I-006's superset family — Btrfs does NOT join (it was never a precision
+superset; only ext4 is, via D-59a); I-007/D-59b — confirmed, now decode-anchored;
+S-057 (restoration precision) — UNAFFECTED, the restored times match the og to the
+100ns on atime/ctime/mtime.

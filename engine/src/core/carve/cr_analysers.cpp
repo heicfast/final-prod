@@ -1383,6 +1383,45 @@ static std::u16string docx_created_prefix(IStorageDevice* s, const std::vector<C
 }
 
 /* ---- ZIP family: local header + EOCD; DOCX adds [Content_Types].xml ---- */
+/* N-158: the og's XMIND content probe (RAWSearchDLL FUN_180045110,
+ * :52469-52715, disassembly-verified at 0x180045110-0x180045666).
+ * The og builds a 300-byte RAW window at record+30+strlen(name) - the
+ * entry's data start with the extra field skipped (the og quirk: it
+ * reads past elen; well-formed archives have elen 0 there, and the
+ * window is the entry's data either way) - and types XMIND when
+ * EITHER needle hits:
+ *   - "xmlns=\"urn:xmind" (16 ASCII bytes - the stored-XML default
+ *     namespace declaration; FUN_18000f820 = the std::string find,
+ *     disasm 0x180045616)
+ *   - the 14-byte binary constant at .data RVA 0x93980 (f4 4a c6 40
+ *     1a bc a7 76 cf e1 a0 d1 cc 9d - the deflated-stream prolog
+ *     fingerprint; the second find FUN_180016fc0 len 0xe, disasm
+ *     0x180045629-0x18004564f, non-NULL return stamps via cmovne)
+ * Both searches cover the same 300 bytes; the probe runs per entry
+ * named content.xml or meta.xml. The window clamps to the candidate's
+ * probe limit (the og reads its in-memory carve buffer unbounded; a
+ * short-tail window only ever fails to match, never false-matches). */
+static bool xmind_content_probe(IStorageDevice* s, u64 pos, u16 nlen, u64 limit) {
+    static const char kNeedleXmlns[] = "xmlns=\"urn:xmind"; /* 16 bytes */
+    static const u8 kNeedleProlog[14] = {0xf4, 0x4a, 0xc6, 0x40, 0x1a, 0xbc, 0xa7,
+                                         0x76, 0xcf, 0xe1, 0xa0, 0xd1, 0xcc, 0x9d};
+    const u64 base = pos + 30 + u64(nlen); /* the og's window base (elen skipped) */
+    if (base >= limit)
+        return false;
+    u8 win[300];
+    const u64 avail64 = limit - base;
+    const size_t avail = avail64 < sizeof(win) ? size_t(avail64) : sizeof(win);
+    if (avail == 0 || !rd(s, base, win, avail))
+        return false;
+    for (size_t i = 0; i + sizeof(kNeedleXmlns) - 1 <= avail; ++i)
+        if (std::memcmp(win + i, kNeedleXmlns, sizeof(kNeedleXmlns) - 1) == 0)
+            return true;
+    for (size_t i = 0; i + sizeof(kNeedleProlog) <= avail; ++i)
+        if (std::memcmp(win + i, kNeedleProlog, sizeof(kNeedleProlog)) == 0)
+            return true;
+    return false;
+}
+
 static CarveResult zip_common(IStorageDevice* s, u64 hit, u64 cap, bool office) {
     CarveResult r;
     /* N-068: the og's LFH candidate sanity gates (decompile :18385-18388,
@@ -1468,6 +1507,31 @@ static CarveResult zip_common(IStorageDevice* s, u64 hit, u64 cap, bool office) 
                 typed = FMT_IWORK;
             else if (std::strcmp(nm, "OPS/chapter1.html") == 0)
                 typed = FMT_EPUB;
+            /* N-158: the og's five-branch typing tail (the LFH-handler
+             * walk :53025-53100, re-read first-hand + disassembly-
+             * verified). Per-entry sequence: the XMIND content probe
+             * (content.xml/meta.xml only), then the four entry-name
+             * compares. Each match OVERWRITES the id - the og's chain
+             * walk (:18411-18450, the do/while over every record with
+             * the shared id slot) has NO typing stop; the N-115-era
+             * "the first decisive tag wins" comment was an erratum,
+             * corrected here (last-match-wins within the walk bounds).
+             * No office-context gate: the og's LFH handler runs these
+             * compares unconditionally, and the office rows' validator
+             * runs at every LFH hit through the contest. */
+            if ((std::strcmp(nm, "content.xml") == 0 || std::strcmp(nm, "meta.xml") == 0) &&
+                xmind_content_probe(s, pos, nlen, wl))
+                typed = FMT_XMIND;
+            else if (std::strcmp(nm, "xsd/MindManagerApplication.xsd") == 0)
+                typed = FMT_MMAP;
+            else if (std::strcmp(nm, "rels/_rels.xml") == 0 ||
+                     std::strcmp(nm, "rels/page1_rels.xml") == 0)
+                typed = FMT_EDDX;
+            else if (std::strcmp(nm, "ProjectFolder/Anon/") == 0 ||
+                     std::strcmp(nm, "ProjectFolder/project_info.json") == 0)
+                typed = FMT_WFP;
+            else if (std::strcmp(nm, "MediaPool/Master/MpFolder.xml") == 0)
+                typed = FMT_DRP;
             /* the content tags: the mimetype entry (ODF/EPUB/HWP) and
              * [Content_Types].xml (HWP), <= 10 KiB, stored or deflated */
             if (typed == 0 && (is_mimetype || (is_ct && csize <= 0x2800))) {
@@ -1509,8 +1573,15 @@ static CarveResult zip_common(IStorageDevice* s, u64 hit, u64 cap, bool office) 
                         typed = FMT_HWP;
                 }
             }
-            if (typed != 0)
-                break; /* the first decisive tag wins (the og's map stop) */
+            /* N-158: NO typing stop - the og's chain walk
+             * (:18411-18450, the do/while dispatching every record
+             * with the shared id slot) never stops on a typed id;
+             * later records overwrite earlier stamps (last-match-wins
+             * within the 32-entry/256 KiB walk bounds). The old
+             * "first decisive tag wins (the og's map stop)" stop was
+             * an N-115-era misreading of the CEN singleton walker
+             * (FUN_180046120 returns after one record - the walk
+             * itself lives in the caller), corrected here. */
             const u64 next = pos + 30 + u64(nlen) + elen + csize;
             if (next <= pos)
                 break;

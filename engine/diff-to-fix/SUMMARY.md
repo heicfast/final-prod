@@ -1,3 +1,56 @@
+# SUMMARY.md — executive summary (the S44 minors lane on top of the S47 MAJOR-first fix lane; the prior lanes below, newest-first — rebrand note: the remote's S47/S48..S50 window pushed first; this lane's N-161 rides the reconciliation per SA-9)
+
+## Session-44 minors-lane delta (2026-10-29 — the minor-first diff-fix execution lane per the user's operative directive; opened on `9807934` (the N-172/N-173 landing), corpus `be0cfe9`; suite at open 1203 green / 1161 pass · 42 win-skip · 0 fail)
+
+**Board at open (this lane's view): 77 active — 1 ACUTE · 9 SEVERE · 28 MAJOR ·
+32 MINOR · 7 INFO — + 6 tracked-open, FIXED archive at 64 files.** Fix order this lane:
+MINOR → INFO → TRACKED-OPEN → MAJOR → SEVERE → ACUTE (the user's minor-first directive;
+the ACUTE/SEVERE tiers execute after the minors board clears, per the session's ≥20-fix
+mandate on this tier first). (At the push reconciliation the S47/S48..S50 window's
+A-014 + M-124 + I-041..I-044 retirements landed first — earlier-push-wins; this lane's
+N-161 lands on top of that board.)
+
+**N-161 FIXED — the GPT entry-span underflow gate.** Verified before the change (the
+SOP): the span math re-read at `emit_gpt_entries` (cr_table_parse.cpp:273-274 at the
+finding's pin — the `last − first + 1` with no gate) and the `!= 0` zero-span gate it
+slips past; the wrapped-count reproduction executed RED first-hand (the corrupt entry
+[first=5, last=0, type GUID set] emitted as a second partition with sector_count
+0xFFFFFFFFFFFFFFFC — the masquerade exactly as filed). The landing: the `first ≤ last`
+gate after the used-test, the new `DiskTable::gpt_invalid_entries` counter, surfaced
+through `ScanStats::gpt_invalid_entries` at the whole-disk target-set parse site; all
+three emission paths (verified primary, salvaged primary, backup) share the lambda, so
+the gate covers every side. The overflow boundary pinned on the other side of the seam:
+first=0 / last=UINT64_MAX is NOT an inversion (counter stays 0; the +1 wraps to 0 and
+the existing zero-span gate drops it). Tests: `Gpt.EntryLastLbaBeforeFirstLbaSkippedAndCounted`
+(RED pre-fix) + `Gpt.EntrySpanOverflowBoundary`. Suite 1205/1205 (linux-release).
+
+**Board after this push (filesystem truth, post-reconciliation): 70 active — 0 ACUTE ·
+9 SEVERE · 27 MAJOR · 31 MINOR · 3 INFO — + 6 tracked-open / the FIXED archive at 71 files.**
+# SUMMARY.md — executive summary (the session-52 mid-board MAJOR lane on top; the prior lanes below, newest-first)
+
+## Session-52 lane delta (2026-10-29 — the mid-board MAJOR engine-math set per the user's session directive "priority to major first"; core `f894549d` at open, corpus `be0cfe9`; the S45..S51 parallel windows absorbed at each pull)
+
+**Method:** every finding independently re-verified before any change — the cited corpus
+artifact re-read first-hand (decompiled line ranges, not the finding's excerpt), the
+current code re-read at the live tree, RED-test-first, one finding one push.
+
+**M-133 FIXED (the twin-key device-family shift set):** the shift narrowed from the FAT
+family {FAT12, FAT16, FAT32, exFAT} to **{Fat16}** exactly — the og's set is kinds
+{1, 4} (DRWUI :605752-756 + :605924-927, both re-read; the quick-factory dispatch
+FUN_140577d40 :911110-911175 re-read to confirm the kind space). The finding's fix-plan
+ext2/3 leg is NOT expressible in the core's kind space (the ext engine stamps the whole
+family Ext4=9, unshifted in the og — naively mapping the leg would have shifted
+true-ext4 volumes); the classification rule is undecoded in the corpus → **OQ-S52-1
+filed** (the ExtFileSystemAnalyser decode as the next step). One finding correction
+recorded: the "disjoint collision families" impact is structurally inert in the current
+single-device ABI (production contexts carry one slot) — the fix repairs the multi-device
+GradeContext surface the API exposes. Six tests: 3 RED pre-fix (the spurious FAT32/
+exFAT/FAT12 twin pairs via a two-slot kDeviceUnit-spaced context), the FAT16 pin, the
+EXT4/ZFS pins. Suite 1290/1290.
+
+**Live counts after M-133:** ACUTE 0 · SEVERE 9 · MAJOR 26 · MINOR 32 · INFO 1 ·
+tracked-open 7 (OQ-S52-1 new) = 75 active / 67 files in FIXED/.
+
 # SUMMARY.md — executive summary (the S47 MAJOR-first fix lane on top; the prior lanes below, newest-first)
 
 ## Session-47 S47 lane delta (2026-10-29 — the MAJOR-first parity-FIX lane per the user's explicit directive; core `fa654673` at open → merged through the S48/S49/S50 windows; corpus `be0cfe9`)
@@ -62,6 +115,30 @@ first-hand; every fix RED-test-first.
 **Board (filesystem truth at `a3ab4ed3`, post the S45..S51 parallel-window absorption — A-014 fixed [convergent, 862d79ef], M-124 fixed [dcb123dd], the INFO board complete [I-035/I-036/I-040..I-044 all ACKNOWLEDGED-RETIRED]): 67 active — 0 ACUTE · 9 SEVERE · 27 MAJOR · 31 MINOR · 0 INFO / 71 FIXED files / 6 tracked-open.**
 
 # SUMMARY.md — executive summary (the S42 diff-to-fix lane's convergence on top; the prior lanes below, newest-first)
+# SUMMARY.md — executive summary (the S46 MINOR-first fix lane on top — the user's priority-to-minor directive; the prior lanes below, newest-first)
+
+## Session-46 S46 lane delta (2026-10-29 — the MINOR-first fix lane; opened at core `659f0f6c` → territory claim `fa654673`, corpus `be0cfe9`; the parallel S45 lane holds the ACUTE/SEVERE side)
+
+**Board at this lane's open (filesystem truth):** 77 active (1 ACUTE · 9 SEVERE ·
+28 MAJOR · 32 MINOR · 7 INFO) / 64 FIXED files / 6 tracked-open. Baseline executed:
+linux-release green, cr_tests 1203 (1161 pass / 42 env-skips / 0 fail),
+cr_ui_tests 68/68 — **main was GREEN at the open** (the N-185 red-main long
+repaired by the prior lanes).
+
+**Landings this lane (running count):**
+
+- **N-158 FIXED (MINOR, carve)** — the OfficeTagFromXML five-branch typing tail:
+  the five typed ids land (FMT_XMIND/MMAP/EDDX/WFP/DRP, og 0x86/0x87/0x8c/0x8d/
+  0x91). The finding's two open questions discharged by first-hand decode
+  before landing: the XMIND content probe (disassembly 0x180045110-0x180045666
+  — the 300-byte RAW window at record+30+strlen(name), the 16-byte
+  `xmlns="urn:xmind` needle + the 14-byte .data prolog constant at RVA 0x93980,
+  the already-0x86 return-1 re-stamp) and the chain-walk stop semantics
+  (:18411-18450 — NO stop, last-match-wins; the N-115-era "map stop" comment
+  was an erratum, corrected + pinned). The [Filter] coupling registered as
+  PARITY-DELTAS D-134 (the conservative row-level disabled_formats gate; the
+  og's IAnalyserFilter callback takes no id — undecodable). 6 tests, 3 groups
+  RED pre-fix; suite 1209/1209; the module/matrix rows → MATCH.
 # SUMMARY.md — executive summary (the S12 session-2 deep-dive lane on top — sector math / scan-progress math / local database / state management / detection-calculation; the prior lanes below, newest-first)
 
 ## Session-12 S12 lane delta (2026-10-29 — the session-2 continuation audit per the user's second-session directive: remove-the-fixed + go-deeper, special focus on sector numbers / scanning / accurate detection / calculation / no-stuck-or-freeze / local database / state management; core `869da779` at open → rebased through the parallel windows to push at `f85def0f`, corpus `be0cfe9`)

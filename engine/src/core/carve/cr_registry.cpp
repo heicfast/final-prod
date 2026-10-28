@@ -1556,6 +1556,75 @@ const Signature kTable[] = {
      620,
      validate_aep,
      "After Effects project"},
+    /* N-158: the og's five-branch typing tail (RAWSearchDLL :53025-
+     * 53100, disassembly-verified) - override-target rows sharing the
+     * LFH key. The typing walk (validate_office_zip) stamps the ids on
+     * entry-name/content matches; the FMT_DOCX row wins the registry-
+     * order tie at a shared hit, so these rows resolve the effective
+     * ext/name for the override. Bounds/floor mirror the office
+     * family (the typing rides the same walk). Unlike the N-115 nine
+     * these rows are NOT in carve_format_always_on: the og ships
+     * [Filter] keys for exactly these five ids (XMIND/MMAP/EDDX/
+     * WFP/DRP=1, RawConfig.ini :12/:15/:17/:18/:22), so the core's
+     * M-024 disabled_formats surface gates them row-level (the
+     * conservative landing; PARITY-DELTAS D-134). The display labels
+     * are the og's own (the L"XMIND"/L"MMAP"/L"EDDX" inline label
+     * stamps + the .rdata-resolved UTF-16 "WFP"/"DRP"). */
+    {FMT_XMIND,
+     "xmind",
+     {'P', 'K', 0x03, 0x04},
+     4,
+     0,
+     128,
+     512ull << 20,
+     620,
+     validate_office_zip,
+     "XMIND",
+     true},
+    {FMT_MMAP,
+     "mmap",
+     {'P', 'K', 0x03, 0x04},
+     4,
+     0,
+     128,
+     512ull << 20,
+     620,
+     validate_office_zip,
+     "MMAP",
+     true},
+    {FMT_EDDX,
+     "eddx",
+     {'P', 'K', 0x03, 0x04},
+     4,
+     0,
+     128,
+     512ull << 20,
+     620,
+     validate_office_zip,
+     "EDDX",
+     true},
+    {FMT_WFP,
+     "wfp",
+     {'P', 'K', 0x03, 0x04},
+     4,
+     0,
+     128,
+     512ull << 20,
+     620,
+     validate_office_zip,
+     "WFP",
+     true},
+    {FMT_DRP,
+     "drp",
+     {'P', 'K', 0x03, 0x04},
+     4,
+     0,
+     128,
+     512ull << 20,
+     620,
+     validate_office_zip,
+     "DRP",
+     true},
 };
 } // namespace
 

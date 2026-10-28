@@ -220,6 +220,124 @@ TEST(Grading, TableMembershipAndCount) {
     EXPECT_EQ(size_t(169), grading::grading_table_entry_count());
 }
 
+/* ---- M-133: the twin-key device-family shift set ----------------------- */
+
+namespace {
+/* Two slots one kDeviceUnit apart: slot 0 (ordinal 0, the unshifted
+ * neighbor) and slot 1 (ordinal 1, the device under test). Files at the
+ * SAME in-slot extent end collide iff the slot-1 kind shifts: key_X =
+ * U + end + (1 - s)U vs key_Y = end + 0 -> equal iff s == 2. This is
+ * the exact arithmetic the og's kind set drives (DRWUI :605752-756:
+ * kind 1 [FAT16] and kind 4 [EXT2/3] shift; everything else does not). */
+grading::GradeContext two_slot_ctx(u32 slot1_kind) {
+    grading::GradeContext ctx;
+    grading::DeviceSlot s0;
+    s0.base = 0;
+    s0.disk_ordinal = 0;
+    s0.fs_kind =
+        u32(FsKindCode::Hfsplus); /* the unshifted neighbor: a
+                                   * kind that reaches the twin path (NTFS/ReFS/Btrfs are
+                                   * intercepted by solo_rules before twin collection - "twins are a
+                                   * FAT-family path" is the og's own comment) */
+    ctx.devices.push_back(s0);
+    grading::DeviceSlot s1;
+    s1.base = grading::kDeviceUnit;
+    s1.disk_ordinal = 1;
+    s1.fs_kind = slot1_kind;
+    ctx.devices.push_back(s1);
+    return ctx;
+}
+
+/* A deleted in-table (.doc) pair at the same in-slot extent end: one on
+ * slot 1 (the kind under test), one on slot 0 (NTFS, never shifted). */
+std::pair<FileNode*, FileNode*> add_twin_pair(ResultTree& t, u32 slot1_kind) {
+    auto* root = t.add_root(u"Found");
+    add_file(t, root, "x.doc", 500, slot1_kind, DeletedState::Deleted, Origin::Structured,
+             grading::kDeviceUnit + 0x5000, 0x400);
+    add_file(t, root, "y.doc", 500, u32(FsKindCode::Hfsplus), DeletedState::Deleted,
+             Origin::Structured, 0x5000, 0x400);
+    FileNode* x = nullptr;
+    FileNode* y = nullptr;
+    for (auto* n = root->first_child(); n; n = n->next_sibling()) {
+        if (n->name_utf8() == "x.doc")
+            x = n;
+        else if (n->name_utf8() == "y.doc")
+            y = n;
+    }
+    return {x, y};
+}
+} // namespace
+
+TEST(Grading, TwinKeyFat16StillShifts) {
+    /* M-133 pin: FAT16 (og kind 1) KEEPS the -2 shift - the one FAT
+     * member the og shifts. Same in-slot extent end + shift 2 -> the
+     * keys coincide -> twins. Passes pre- and post-fix (the pin). */
+    ResultTree t;
+    auto [x, y] = add_twin_pair(t, u32(FsKindCode::Fat16));
+    ASSERT_NE(x, nullptr);
+    ASSERT_NE(y, nullptr);
+    grading::AssistantStats st;
+    grading::grade_tree(t, two_slot_ctx(u32(FsKindCode::Fat16)), st);
+    EXPECT_TRUE(x->overlap()) << "FAT16 keeps the og's -2 shift (kind 1)";
+    EXPECT_TRUE(y->overlap());
+}
+
+TEST(Grading, TwinKeyFat32DoesNotShift) {
+    /* M-133 RED: the og shifts kinds {1, 4} ONLY - FAT32 (kind 2) is
+     * NOT shifted. The pre-fix core shifted the whole FAT family: a
+     * FAT32 device's files collided with the neighbor ordinal's. */
+    ResultTree t;
+    auto [x, y] = add_twin_pair(t, u32(FsKindCode::Fat32));
+    ASSERT_NE(x, nullptr);
+    ASSERT_NE(y, nullptr);
+    grading::AssistantStats st;
+    grading::grade_tree(t, two_slot_ctx(u32(FsKindCode::Fat32)), st);
+    EXPECT_FALSE(x->overlap()) << "FAT32 does not shift (og kind 2)";
+    EXPECT_FALSE(y->overlap());
+}
+
+TEST(Grading, TwinKeyExfatDoesNotShift) {
+    /* M-133 RED: exFAT (og kind 7) is NOT shifted. */
+    ResultTree t;
+    auto [x, y] = add_twin_pair(t, u32(FsKindCode::Exfat));
+    ASSERT_NE(x, nullptr);
+    ASSERT_NE(y, nullptr);
+    grading::AssistantStats st;
+    grading::grade_tree(t, two_slot_ctx(u32(FsKindCode::Exfat)), st);
+    EXPECT_FALSE(x->overlap()) << "exFAT does not shift (og kind 7)";
+    EXPECT_FALSE(y->overlap());
+}
+
+TEST(Grading, TwinKeyFat12DoesNotShift) {
+    /* M-133 RED: FAT12 (og kind 0) is NOT shifted. */
+    ResultTree t;
+    auto [x, y] = add_twin_pair(t, u32(FsKindCode::Fat12));
+    ASSERT_NE(x, nullptr);
+    ASSERT_NE(y, nullptr);
+    grading::AssistantStats st;
+    grading::grade_tree(t, two_slot_ctx(u32(FsKindCode::Fat12)), st);
+    EXPECT_FALSE(x->overlap()) << "FAT12 does not shift (og kind 0)";
+    EXPECT_FALSE(y->overlap());
+}
+
+TEST(Grading, TwinKeyExt4NtfsNeverShift) {
+    /* M-133 pins: the unshifted majority - EXT4 (9, NOT the shifted
+     * code 4) and ZFS (13) never shift; both reach the twin path so the
+     * no-collision verdict is meaningful, not vacuous. */
+    for (u32 kind : {u32(FsKindCode::Ext4), u32(FsKindCode::Zfs)}) {
+        ResultTree t;
+        add_twin_pair(t, kind);
+        auto* root = t.roots()[0];
+        FileNode *x = nullptr, *y = nullptr;
+        for (auto* n = root->first_child(); n; n = n->next_sibling())
+            (n->name_utf8() == "x.doc" ? x : y) = n;
+        grading::AssistantStats st;
+        grading::grade_tree(t, two_slot_ctx(kind), st);
+        EXPECT_FALSE(x->overlap()) << "kind " << kind << " never shifts";
+        EXPECT_FALSE(y->overlap());
+    }
+}
+
 /* ---- per-selection re-grade ---- */
 
 TEST(Grading, RegradeOnlyGrade1) {

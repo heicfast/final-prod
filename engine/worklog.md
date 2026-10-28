@@ -1,3 +1,6 @@
+**Session-44 minors lane — N-161 CONVERGENT-DU with the S53 landing (their `e0f15e0` wins per SA-9; this lane's byte-equivalent gate rides as the convergence addendum).** This lane independently verified and fixed N-161 (RED proven pre-fix: the corrupt entry [first=5, last=0] emitted the wrapped 0xFFFFFFFFFFFFFFFC partition; gate + `gpt_invalid_entries` counter + the same two test names landed locally), then hit the hot-window reconciliation: the remote's S53 lane (the S46 MINOR-claim continuation) pushed their own N-161 landing first — a superset (their gate also names the 2^64-boundary wrap `last − first == UINT64_MAX` invalid, where this lane's version left it on the zero-span side of the seam). Convergence resolution: the S53 code + S53 tests kept wholesale (this lane's duplicate test block and duplicate surfacing line removed; the two-gate-seam expectation superseded by the superset's counter==1 pin); this lane's independent RED reproduction stands as the corroboration record. The finding file's Resolution keeps the S53 record; this entry is the convergence documentation.
+
+**S53 lane (the S46 MINOR-first claim continued, 2026-10-29; renumbered from the
 **Session-56 lane territory claim (coordination contract, 2026-10-28 22:42 UTC; seat renumbered S49→S52→S56 across three hot-window rebases — the remote's S49/S50/S51 and S52/S53/S54/S55 seats pushed first, the S47→S51 precedent applied each time):** this lane
 (MINOR-first per the user's explicit session directive — the S46 claim's MINOR board
 top-down is executed by the S53 lane per its posted claim; this lane takes the MIRROR
@@ -31,7 +34,17 @@ S47→S52 drafts at two hot-window merges — the remote's S47..S52 seats pushed
 the S46 claim is executed by this lane (same mandate, same MINOR-first directive, no fixes
 landed between the claim commit `fa654673` and this lane's open). Baseline at open:
 linux-release build green, suite **1273/1273**. Mandate saved token-redacted at
-`worklog/session-diff-fix-s52-prompt.md` (the s47-named draft renumbered with the lane).
+`worklog/session-diff-fix-s53-prompt.md` (renumbered with the lane at each window; the S53 seat holds — the remote continuation-audit lane vacated to S55 at 92fe573d).
+
+- **N-174 FIXED (CONVERGENT — the remote S46/W1 lane's 6399e957 wins per SA-9)** —
+  the exFAT AppleDouble sink: a `._`-prefixed name (macOS Finder sidecar) skips
+  emission exactly like the og's props-builder refusal (exFATSearchDLL strncmp
+  :45151 + return 0 :45222, re-read first-hand by both lanes). This lane's landing
+  was byte-equivalent (same gate position/semantics; the counter-name difference
+  noted — `apple_doubles_sunk` stands); this lane's test
+  AppleDoublePrefixSunkAndRegularDotFilesKept was independently RED pre-fix at
+  e0f15e05 (the sidecar surfaced) — the corroboration recorded in the finding
+  file's convergence addendum. The winning landing's tests stand.
 
 - **N-161 FIXED** — the GPT entry-span underflow: `emit_gpt_entries` now gates
   `last_lba < first_lba` (and the 2^64-boundary wrap `last - first == UINT64_MAX`)
@@ -223,6 +236,41 @@ tracked-OQ per the S42 liveness verdict — no code disposition possible from th
 tree; re-verified before claiming). Pulled-before-pushed discipline; one finding, one
 push; every fix RED-test-first. Target: 20+ MINOR fixes this session. Audited pin:
 core `659f0f6c`, corpus `be0cfe9`.
+
+
+- **N-158 FIXED (MINOR, carve)** — the OfficeTagFromXML five-branch typing tail: the
+  five typed ids land (FMT_XMIND/FMT_MMAP/FMT_EDDX/FMT_WFP/FMT_DRP — og ids 0x86/0x87/
+  0x8c/0x8d/0x91, ids APPENDED; five override-target registry rows carrying the og's
+  own display labels; kTrialOrder slots; the XMIND probe helper + the four entry-name
+  compares in zip_common's walk, no office-context gate per the og's unconditional LFH
+  handler). Both of the finding's open questions discharged by first-hand decode BEFORE
+  landing: (1) the XMIND content predicate — FUN_180045110 re-read in full +
+  disassembly-verified at 0x180045110-0x180045666: the probe builds a 300-byte RAW
+  window at record+30+strlen(name) (the entry data start, extra field skipped — the og
+  quirk) and types on EITHER the 16-byte ASCII needle `xmlns="urn:xmind` OR the 14-byte
+  binary constant at .data RVA 0x93980 (f4 4a c6 40 1a bc a7 76 cf e1 a0 d1 cc 9d,
+  resolved from RAWSearchDLL.dll this session — the deflated-stream prolog fingerprint;
+  FUN_180016fc0 len 0xe, cmovne-stamped); the already-0x86 path returns 1 (mov eax,1 at
+  0x18004516d — the idempotent re-stamp; Ghidra's void return type is a tail-elision
+  artifact); the entry set is exactly {content.xml, meta.xml}; (2) the chain-walk stop —
+  :18411-18450's do/while dispatches EVERY record through the shared id slot with NO
+  typing stop (last-match-wins): the N-115-era "the first decisive tag wins (the og's
+  map stop)" comment was an erratum (FUN_180046120 returns after one record; the walk
+  itself never stops) — the walk's early break removed, bounded by the landed
+  32-entry/256 KiB window. The [Filter] coupling registered as PARITY-DELTAS D-134
+  (the conservative row-level gate the finding prescribed: the five ids gate through
+  CarveFlags::disabled_formats, suppressing the TYPING so a disabled id falls through
+  to the generic ZIP row — the og's IAnalyserFilter callback at vtable+8 takes no id
+  parameter, so the og's exact suppression mechanism stays undecodable; the N-115 nine
+  stay always-on per N-149). SCAN-ENGINE-DELTA.md:177's unowned tag list now fully
+  owned. Tests: Carve.ZipTypingXmindContentBranch (3 forms), ZipTypingXmindNeedleMiss
+  StaysGeneric, ZipTypingDocumentToolEntryNames (6 cases), ZipTypingLaterEntry
+  OverwritesEarlierStamp, ZipTypingUnrelatedEntriesStayGeneric, ZipTypedId
+  DisableGateSuppressesTyping — 3 test groups RED pre-fix (all typed FMT_ZIP /
+  first-stamp EDDX), GREEN post. Suite 1209/1209 (1167/42/0); cr_ui_tests 68/68;
+  clang-format clean. Audit trail: retired to findings/FIXED/ with Resolution; ledger
+  row; matrix row → MATCH; carve module addendum; FORMATS.md ZIP-typing paragraph;
+  D-134.
 
 - **N-148 FIXED** — the comment-truth batch, all seven items: the LDM RAID-5 UNDECODED hedge
   replaced with the OQ-T7 resolved MATCH; D-09's demanded ZFS wording landed verbatim; the M-112
@@ -7288,3 +7336,45 @@ surface — one fixture bug caught during the RED pass: `_notes.txt` is 10
 chars, an 11 name_len pulled the padding NUL into the name). exFAT battery
 36/36 (1 env-skip). Trail: findings/FIXED/N-174 + ledger row + matrix B3/A1/B6
 cell + exfat.md rows + this entry. Suite at the landing: full cr_tests green.
+
+---
+
+**Session-56 lane territory claim (coordination contract, 2026-10-29):** this
+lane (ACUTE-first per the user's session directive — the parallel S46 lane's
+saved mandate is MINOR-first, so the natural division stands) claims:
+**A-014 (the ACUTE), then the SEVERE board S-055, S-056, S-057, S-058, S-059,
+S-060, S-061, S-040, S-050, then the MAJOR tier M-073..M-137 as capacity
+allows, then the INFORMATIONAL acknowledgments I-035..I-044.** The driver-repo
+pair (M-086/M-087/M-089/N-107/N-127 + OQ-S10-3) stays tracked-OQ per the S48
+boundary disposition (re-verified at `dce44e4d`). Pulled-before-pushed
+discipline; one finding, one push; every fix RED-test-first. Target: 20+
+fixes this session. Audited pin: core `fa654673` (rebased through the
+windows to `f8f01513`), corpus `be0cfe9`.
+
+- **Red main repaired at lane open (`f8f01513`)** — the S-054 TS-pin tests
+  (`Carve.TsM2TsCapIsTheOg200MB` + `Carve.TsStreamClampedAt200MB`) walked off
+  `kTable`'s end with terminator-style iteration (ASan global-buffer-overflow,
+  the M-133 class residue); both converted to count-based `registry_size()`
+  form. Suite 1273/1273 green (ASan lane). No retirement — the class is
+  FIXED/M-133's own.
+
+## Session-52 lane — M-133 landed (2026-10-29)
+
+**M-133 FIXED (MAJOR — the twin-key device-family shift set).** Corpus re-read
+first-hand: DRWUI_decompiled.c:605752-756 and :605924-927 (the `kind ∈ {1,4} → −2`
+shift, both sites verbatim) + FUN_140577d40 :911110-911175 (the quick-factory dispatch:
+codes 4-5 → EUCreateEXT2QuickSearcher, 9 → EUCreateEXT4QuickSearcher — same DLL, two
+kind codes). Core re-read: twin_key_of shifted {0,1,2,7} — four of five members wrong.
+The fix: shift set = {Fat16} exactly. The ext2/3 leg (kind 4) is NOT expressible in the
+core's kind space (engine stamps the family Ext4=9, which the og does NOT shift) and the
+og's ext2/3-vs-ext4 classification rule is undecoded in the corpus (ExtFileSystemAnalyser
+FUN_180004670 = magic+geometry only; the family decision sits upstream) — **OQ-S52-1
+filed** with the analyser decode as the next concrete step rather than a guessed
+classifier. Tests (6, tests/unit/test_grading.cpp): TwinKeyFat32DoesNotShift /
+ExfatDoesNotShift / Fat12DoesNotShift (3 RED pre-fix — the spurious cross-device twin
+pairs via a two-slot GradeContext spaced one kDeviceUnit apart: same-in-slot extent ends
+collide iff the kind shifts), TwinKeyFat16StillShifts (the pin), TwinKeyExt4NtfsNeverShift
+(EXT4/ZFS pins — both reach the twin path so the verdicts are non-vacuous; the first
+draft's NTFS neighbor was vacuous, caught live). Suite 1290/1290 (linux-release).
+Trail: findings/FIXED/M-133 + ledger row + matrix cell + orchestration.md row + this
+entry + OQ-S52-1.

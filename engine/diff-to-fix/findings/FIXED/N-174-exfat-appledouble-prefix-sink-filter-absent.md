@@ -68,3 +68,17 @@ None.
 **Fixed in commit:** (this session's N-174 landing, S46 MINOR-first lane — post-push SHA in the ledger row and worklog entry)
 **Verified by:** `ExfatEngine.AppleDoublePrefixSunk` (RED pre-fix: the `._photo.jpg` sidecar surfaced and `apple_doubles_sunk` stayed 0; GREEN post-fix: the set is skipped at the walk, the counter reads 1, and the described `photo.jpg` still surfaces) + `ExfatEngine.RegularDotFilesNotSunk` (the over-blocking pin: `.hidden` and `_notes.txt` both surface, counter 0 — the og's gate is prefix-specific) + the full exFAT battery 36/36 (1 env-skip). Full suite green (linux-release).
 **Resolution notes:** The gate landed in the entry walk immediately after name assembly, before the recycle-bin pairing and the props build — the same position the og's `FUN_180036660` holds it (the strncmp at exFATSearchDLL :45151 refuses the props build; the `return 0` at :45222 means the entry never surfaces; both cites re-read first-hand this session against the corpus tree at `be0cfe9`). A `apple_doubles_sunk` counter was added to `ExfatScanStats` so the silent sink stays observable (the og is fully silent; the counter is a deliberate observability superset, consistent with the core's stats-truth posture). The M-013 parked-set oracle re-walks through the same `walk_entries` path, so reconstructed sets cannot bypass the gate. No safety hardening was near the change.
+
+### Convergence addendum (S53 minors lane, 2026-10-29)
+
+This lane independently verified, implemented, and RED-proved the same fix (the test
+`ExfatEngine.AppleDoublePrefixSunkAndRegularDotFilesKept` was RED at `e0f15e05` — the
+sidecar surfaced, no sink existed — and GREEN with the gate: sidecar absent, the
+`.hidden` dotfile control present, counter 1) before pulling the winning `6399e957`
+landing (SA-9 earlier-push-wins). The two landings are byte-equivalent in gate position
+(after name assembly, before the recycle/props path), semantics (files and directories
+alike, prefix-specific, never a dotfile filter), and the never-silent counter; the only
+difference is the counter's name (`apple_doubles_sunk` in the winning landing vs this
+lane's `appledouble_sunk` — the winner keeps the field). This lane's corroboration: the
+corpus cites (exFATSearchDLL :45151 strncmp + :45222 return 0) were re-read first-hand
+by BOTH lanes before either landed.
