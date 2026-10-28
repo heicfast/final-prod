@@ -56,6 +56,7 @@ u32 signed_width_of_delta(u64 d) {
 
 u32 RunList::decode(const u8* data, u32 bytes, u64 first_vcn, u64 max_clusters, RunList& out) {
     out.runs_.clear();
+    out.torn = false;
     if (data == nullptr)
         return ERR_BAD_PARAMETER;
     u32 pos = 0;
@@ -63,8 +64,35 @@ u32 RunList::decode(const u8* data, u32 bytes, u64 first_vcn, u64 max_clusters, 
     u64 lcn = 0;
     u64 accumulated = 0;
     while (true) {
-        if (pos >= bytes)
+        /* N-163: the og's truncate-and-keep tolerance. Every malformed
+         * branch below — buffer exhaustion, width violations, a
+         * zero-length tail — returns SUCCESS with the runs so far in the
+         * og's decoder (FUN_1800347d0 :41875/:41888/:41891/:41992-94:
+         * `return 1` on every path; the runs live in the caller's
+         * container). The core previously rejected the WHOLE fragment,
+         * losing the recoverable prefix — the salvage-over-purity
+         * doctrine the audit demands. Zero valid runs still rejects
+         * (the og's pre-validator class, FUN_18001d5f0 :23184 — the
+         * first-header-byte gate at the five $DATA parse sites). */
+        const auto torn_keep = [&](u32 err) -> u32 {
+            if (!out.runs_.empty()) {
+                out.torn = true;
+                return OK;
+            }
+            return err;
+        };
+        if (pos >= bytes) {
+            /* N-163: the og's buffer-end stop is a CLEAN stop (FUN_1800347d0
+             * :41875: `pos >= bytes -> return 1` SUCCESS — a runlist whose
+             * final terminator byte is absent or was span-cut still decodes
+             * its complete entries). NOT torn: the runs present are the
+             * whole truth as far as the decode knows; the PartialRisk
+             * grading input is the malformed-tail class below. Zero runs
+             * still rejects (the empty-span class predates this landing). */
+            if (!out.runs_.empty())
+                return OK;
             return ERR_TRUNCATED;
+        }
         const u8 header = data[pos];
         if (header == 0)
             break; /* terminator */
@@ -75,15 +103,20 @@ u32 RunList::decode(const u8* data, u32 bytes, u64 first_vcn, u64 max_clusters, 
         const u32 len_width = header & 0xF;
         const u32 off_width = header >> 4;
         if (len_width == 0 || len_width > 8)
-            return ERR_BAD_PARAMETER;
+            return torn_keep(ERR_BAD_PARAMETER);
         if (off_width > 8)
-            return ERR_BAD_PARAMETER;
+            return torn_keep(ERR_BAD_PARAMETER);
         if (pos + 1 + len_width + off_width > bytes)
-            return ERR_TRUNCATED;
+            return torn_keep(ERR_TRUNCATED);
 
         const u64 run_len = read_unsigned_le(data + pos + 1, len_width);
         if (run_len == 0)
-            return ERR_BAD_PARAMETER; /* zero-length run is invalid */
+            return torn_keep(ERR_BAD_PARAMETER); /* zero-length tail: the
+                                                  * og appends a zero run
+                                                  * and walks on — the
+                                                  * prefix kept is the
+                                                  * same; the empty run
+                                                  * carries no content */
         accumulated += run_len;
         if (accumulated > max_clusters)
             return ERR_BAD_PARAMETER;

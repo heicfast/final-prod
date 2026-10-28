@@ -440,6 +440,39 @@ core `659f0f6c`, corpus `be0cfe9`.
   findings/FIXED/ with Resolution; ledger row; matrix row → MATCH; writer
   module addendum; the schema doc's wire sample + field docs + truth rule 5.
 
+- **N-163 FIXED (MINOR, ntfs)** — the runlist malformed-input tolerance: the
+  og's truncate-and-keep decoder re-read first-hand (FUN_1800347d0
+  :41853-41970 — pos>=bytes :41875, entry-span cut :41888, len_width>8
+  break+SUCCESS :41891, off_width>8 :41992-94, all `return 1`) and the
+  pre-validator (FUN_18001d5f0 :23175-23210 — the first-byte nibble gate
+  at :23184, the five call sites). Landed: (a) the torn_keep tolerance in
+  RunList::decode — width violations, mid-entry truncation and the
+  zero-length tail AFTER >=1 valid run return OK with the valid prefix +
+  the new `torn` flag; zero valid runs still rejects (the validator's own
+  class); (b) the clean buffer-end stop distinguished from a tear (a
+  terminator-less complete runlist decodes OK untorn — the old
+  TerminatesAndRejectsTruncated pin re-truthed to the og's stop); (c) the
+  torn flag OR-merged at all six parse_data_runs sites (primary $DATA,
+  $I30, both child-chase folds) via the merged lists; (d) the grading
+  downgrade: probe torn + Excellent → PartialRisk (Overwritten keeps its
+  worse truth; live files share the downgrade — a torn extent list never
+  silently pretends completeness); (e) the sparse-first direction
+  REGISTERED as PARITY-DELTAS D-135 (the og's validator rejects
+  first-byte off-nibble==0; the core deliberately accepts the all-hole
+  file — real content shape, the og's own decoder has no sparse gate);
+  the og's append-and-continue past a zero-length run noted as the
+  residual in the Resolution (the empty run carries no content). The
+  safety bounds (max_clusters, RUNLIST_MAX_RUNS, the INT64_MIN UB guard)
+  stay rejecting — the F6/fuzz hardening family. Tests:
+  RunList.TornAfterValidRunsKeepsPrefix (4 tear classes) /
+  AllGarbageYieldsNothing / SparseFirstAcceptedAndRegistered +
+  NtfsVolume.TornRunlistKeepsPrefixAndGradesPartialRisk (end-to-end: the
+  deleted file surfaces WITH prefix extents + PartialRisk) — the
+  prefix-keep and the grading both RED pre-fix (stash-proven), GREEN
+  post. Suite 1280/1280 (1238/42/0); clang-format clean. Audit trail:
+  retired to findings/FIXED/ with Resolution; ledger row; matrix row →
+  MATCH; ntfs module addendum; D-135.
+
 - **N-148 FIXED** — the comment-truth batch, all seven items: the LDM RAID-5 UNDECODED hedge
   replaced with the OQ-T7 resolved MATCH; D-09's demanded ZFS wording landed verbatim; the M-112
   promotion cite tightened to :422507-514; the EPS/AI stand-in caps restored to the M-107-verified

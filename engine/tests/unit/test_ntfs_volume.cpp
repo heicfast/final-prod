@@ -220,6 +220,34 @@ struct RecBuilder {
     }
 
     /* S-001 test surface: $DATA with one fully SPARSE run (all-hole file) */
+    /* N-163: $DATA whose runlist is TORN mid-list - one valid run then a
+     * garbage width byte (len_width 0xF), no terminator. The og's decoder
+     * breaks on the width violation and returns SUCCESS with the valid
+     * prefix (FUN_1800347d0 :41891). */
+    void attr_data_runlist_torn(u64 lcn, u64 clusters, u64 real_size) {
+        u32 pos = attr_pos;
+        RunList rl;
+        rl.runs().push_back(DataRun{0, clusters, 0, lcn, false});
+        std::vector<u8> rle = rl.encode(); /* run + terminator */
+        rle.pop_back();                    /* drop the terminator */
+        rle.push_back(0xF1);               /* the garbage width tail */
+        u32 rlen = u32(rle.size());
+        u32 alen = (0x40 + rlen + 7) / 8 * 8;
+        u32_from_bytes_le_wr(buf, pos + 0, ATTR_TYPE_DATA);
+        u32_from_bytes_le_wr(buf, pos + 4, alen);
+        buf[pos + 8] = 1;
+        u16_from_bytes_le_wr(buf, pos + 10, 0x40);
+        u16_from_bytes_le_wr(buf, pos + 16, 0);
+        u64_from_bytes_le_wr(buf, pos + 24, clusters - 1);
+        u16_from_bytes_le_wr(buf, pos + 32, 0x40);
+        u32_from_bytes_le_wr(buf, pos + 36, 0);
+        u64_from_bytes_le_wr(buf, pos + 40, clusters * CLUSTER);
+        u64_from_bytes_le_wr(buf, pos + 48, real_size);
+        u64_from_bytes_le_wr(buf, pos + 56, real_size);
+        std::memcpy(buf.data() + pos + 0x40, rle.data(), rlen);
+        attr_pos += alen;
+    }
+
     void attr_data_runlist_sparse(u64 clusters, u64 real_size) {
         u32 pos = attr_pos;
         RunList rl;
@@ -2027,6 +2055,58 @@ TEST(NtfsVolume, ViabilityBoundaryExactFastPath) {
     ASSERT_NE(edge, nullptr);
     /* fast-path: no bitmap probe at exactly the boundary (og parity) */
     EXPECT_EQ(edge->confidence(), tree::Confidence::Excellent);
+}
+
+TEST(NtfsVolume, TornRunlistKeepsPrefixAndGradesPartialRisk) {
+    /* N-163: a deleted file whose $DATA runlist is torn mid-list (a valid
+     * run, then a garbage width byte) recovers its PREFIX extents and
+     * grades PartialRisk - the og's truncate-and-keep decoder
+     * (FUN_1800347d0 :41891 break+SUCCESS) + the walker's honest grading.
+     * Pre-fix the core rejected the whole fragment: no extents, the file
+     * graded MetadataOnly (RED). */
+    Image img;
+    build_image(img);
+    {
+        RecBuilder r;
+        r.header(26, 0); /* deleted */
+        r.attr_si(0x20);
+        r.attr_file_name(16, u"torn.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 0, 8192);
+        r.attr_data_runlist_torn(84, 2, 8192); /* valid 2-cluster run + garbage tail */
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 52), r.buf.data(), RECORD_SIZE);
+    }
+    /* $Bitmap untouched: every probe cluster free (Excellent without the
+     * torn downgrade - the pin isolates the N-163 grading) */
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    std::unique_ptr<VolumeBitmap> bm;
+    ASSERT_EQ(VolumeBitmap::load(vol.get(), bm), OK);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    WalkerFlags wf;
+    WalkStats stats;
+    ASSERT_EQ(walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
+              OK);
+    tree::FileNode* torn = nullptr;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == "torn.dat")
+                torn = c;
+            collect(c);
+        }
+    };
+    for (auto* r : tree.roots())
+        collect(r);
+    ASSERT_NE(torn, nullptr) << "the torn-runlist file must surface";
+    EXPECT_FALSE(torn->props()->extents.empty())
+        << "the valid prefix extents are kept (the og's truncate-and-keep)";
+    EXPECT_EQ(torn->props()->extents.size(), 1u);
+    EXPECT_EQ(torn->confidence(), tree::Confidence::PartialRisk)
+        << "the torn flag downgrades Excellent to PartialRisk";
 }
 
 TEST(NtfsVolume, ExtensionRecordsNotCountedDamaged) {

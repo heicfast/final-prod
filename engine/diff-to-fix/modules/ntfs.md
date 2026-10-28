@@ -512,3 +512,22 @@ node-removal API; documented in the finding).
   surviving deleted-directory structure — is destroyed. The branch name also
   diverges ("Lost Files" vs the og's "File Path Lost"). Fix wave: group by
   parent record + rename the root default.
+
+## Session-46 addendum (2026-10-29 — the MINOR-first fix lane; audited `fa654673`-lineage, corpus `be0cfe9`)
+
+**N-163 FIXED — the runlist malformed-input tolerance.** The og's decoder
+re-read first-hand (FUN_1800347d0 :41853-41970: every malformed branch a
+`return 1` SUCCESS — buffer end, entry-span cut, len_width>8 break,
+off_width>8) + the pre-validator (FUN_18001d5f0 :23175-23210: the
+FIRST-byte nibble gate at the five $DATA parse sites). Landed: the
+torn_keep tolerance (width violations + mid-entry truncation + the
+zero-length tail AFTER >=1 valid run -> OK with the prefix + `torn`),
+the flag OR-merged at every parse_data_runs site, the PartialRisk
+grading downgrade (Excellent never silently survives a torn list), the
+clean-buffer-end/tear distinction (the old TerminatesAndRejectsTruncated
+pin re-truthed to the og's clean stop), and the sparse-first acceptance
+REGISTERED as PARITY-DELTAS D-135 (the deliberate superset — the all-hole
+file is real content shape). The zero-valid-runs class still rejects.
+Tests: TornAfterValidRunsKeepsPrefix / AllGarbageYieldsNothing /
+SparseFirstAcceptedAndRegistered / the end-to-end
+TornRunlistKeepsPrefixAndGradesPartialRisk (2 RED pre-fix). Suite 1280.
