@@ -5104,3 +5104,40 @@ The attribution is the tree position (the og's architecture); the query axis is 
 path-prefix filter. 8-test proof set; suite 1199/1199 (linux-release); format clean.
 Next (this lane's claim): S-050 (the file-repair-line registration decision + the
 SURFACE-INVENTORY truth repair), then S-040 (the image-create producer).
+---
+Task ID: S40-ML/T2b (the S-049 convergence record + the interim re-pin repair)
+Agent: session-40 main diff-fix lane
+
+Work Log:
+- **S-049 CONVERGENCE (du-resolved, their landing stands):** this lane
+  independently implemented the universal naming contract (the full
+ FUN_140c44770 port, per-ext counters, the five content-prefix families,
+  the File%06u + MP4/MOV-template retirements, D-76 closed — suite-green
+  at 1056/1056 with 12 tests) and hit the push window: the parallel
+  S40-severe lane's d4b487c8 was on main first. Their landing verified
+  post-hoc first-hand at this tree: a SUPERSET of this lane's draft
+  (the same contract + MORE real-session prefix families this lane's
+  mining missed: MP4/MOV mvhd duration prefixes (MP4_08m07s_000030.MP4),
+  PDF Title/Creator-Producer, WAV LIST INFO INAM, the caller-site
+  per-format counter decode :1877600/:1877724, the JPG 1..3938 counter
+  continuity proof). Per the convergence precedent: the landed fix is
+  the superset, no duplicate code kept from this lane's draft (the
+  branch s049-my-draft-backup holds it; its unique observations — the
+  JFIF/Exif structural-exclusivity decode, the DOCX <Title>_<created>
+  KIS2 composite, the ZIP double-underscore no-trim rationale — are
+  recorded here for any future refinement pass against their landing).
+- **The interim re-pin repaired (main was red):** the N-115
+  OoxmlRelsPathSplit expectation — the S42 lane's b26017a7 re-pin
+  lowercased the name tail while the case table went UPPERCASE: the two
+  halves of the same re-pin disagreed and the test stayed red. Repaired:
+  the direct uppercase compare (the og's carved names carry the
+  UPPERCASE ext; the table already records it). Suite 1096/1096 green
+  at the repaired tree.
+
+Stage Summary:
+- The S-049 work this lane performed is superseded; the two-drive-by
+  products that survive: the CI-red repairs at lane open and this
+  re-pin repair. Next: the board recount over the window's landings,
+  then the MAJOR tier (M-116 the M-100 re-open first — no lane has
+  claimed it), the OQ dispositions as their evidence arrives (the
+  OQ-S4-3 benchmark run still in flight), and the unclaimed minors.

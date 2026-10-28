@@ -8579,10 +8579,13 @@ TEST(Carve, OoxmlRelsPathSplit) {
         ASSERT_EQ(direct_carved_count(root), 1u) << "the rels path " << c.rels;
         tree::FileNode* n0 = root->first_child();
         EXPECT_EQ(n0->props()->carve_format, c.fmt) << "the rels-path split";
-        /* the S-049 naming contract: <PREFIX>_<counter>.<UPPERCASE-EXT> -
-         * assert case-insensitively on the typed extension tail */
+        /* the S-049 naming contract: <PREFIX>_<counter>.<UPPERCASE-EXT>.
+         * The name carries the UPPERCASE form and the table records it -
+         * compare directly (the interim re-pin lowercased one side only,
+         * the mismatch that left this red). */
         const std::string nm = n0->name_utf8();
         ASSERT_GE(nm.size(), size_t(5));
+<<<<<<< HEAD
         std::string tail = nm.substr(nm.size() - 5);
         for (auto& ch : tail)
             if (ch >= 'A' && ch <= 'Z')
@@ -8592,6 +8595,9 @@ TEST(Carve, OoxmlRelsPathSplit) {
             if (ch >= 'A' && ch <= 'Z')
                 ch = char(ch + 32);
         EXPECT_EQ(tail, want) << "the typed extension";
+=======
+        EXPECT_EQ(nm.substr(nm.size() - 5), c.ext) << "the typed extension";
+>>>>>>> 59bd5208 (repair(tests)+worklog(S40-ML/converge): the N-115 OoxmlRelsPathSplit re-pin repaired - the S42 interim re-pin lowercased the name tail while its own case table went uppercase (the two halves disagreed; main was red) - now the direct uppercase compare per the S-049 contract; + the S-049 convergence record (the parallel lane's d4b487c8 superset stands, this lane's draft preserved on s049-my-draft-backup with its unique decode observations recorded); suite 1096/1096 green)
     }
 }
 
