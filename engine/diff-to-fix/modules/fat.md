@@ -2,9 +2,10 @@
 
 ## S12 addendum (2026-10-29 — the session-2 deep-dive; lane sheets at ../evidence/s12-lane-sheets/)
 
-New active findings on this module: **A-014** (ACUTE — time-word validation:
+New active findings on this module: **A-014 FIXED** (ACUTE — time-word validation:
 hour/min/2s unchecked in `fat_datetime_to_unix_seconds`, shifted plausible timestamps
-where the og zeroes the slot, FAT:32135-54); **M-127** (the O(n^2) visited-vector
+where the og zeroes the slot, FAT:32135-54 — FIXED this session: the gate extended to
+the time word, 5 tests, findings/FIXED/A-014); **M-127** (the O(n^2) visited-vector
 cycle guard vs the og's range tree — stall-class); **M-130** (the dentry
 shape-validator family unported: ext-tail, size/chain-XOR, dir, >9-repeat histogram
 gates + walk-stop semantics); **N-162** (the og's 32-bit cluster-math wrap registered
@@ -48,7 +49,8 @@ Core (audited commit `67193b6`, includes concurrent GAP-S6-1/S6-2 fix `9fc82b0`)
   (root-causes.json, other session's lane).
 - **B7 sparse/ADS** — `NA` (not a FAT concept beyond chain model).
 - **B9 timestamps** — `M` DOS date/time → 100ns-1601 (tenths discarded — 2 s resolution is
-  the format's own).
+  the format's own). Time-word range gates now match the og's DosDateTimeToFileTime
+  accept set exactly (A-014 FIXED this session; month/day were already N-021).
 - **B10 filename/Unicode** — `M` LFN glue (0x40 last-entry + 0x0F attr checks, og :11442
   verified), 0x05→0xE5 KANJI escape, deleted-LFN recovery (above); 8.3 fallback '_'
   convention when no oracle.

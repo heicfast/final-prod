@@ -1560,6 +1560,75 @@ TEST(FatEngine, ValidDateYieldsCorrectFileTime) {
     EXPECT_EQ(r->props()->times.modified, 1738843200ULL * 10000000ULL + 116444736000000000ULL);
 }
 
+/* ---- A-014: out-of-range FAT time words yield the ZERO FileTime --------- */
+
+namespace {
+
+/* Plant three live dentries whose DATE is valid (0x5A46 = 2025-02-06) but
+ * whose TIME words carry out-of-range components: hour 24 (0xC000), minute
+ * 60 (0x6780), 2-second field 30 (= 60 s, 0x601E). DosDateTimeToFileTime
+ * rejects all three component classes (FATSearchDLL :32135-54 zero-on-fail);
+ * the pre-fix core folded them into shifted plausible timestamps. */
+std::vector<u8> build_fat16_image_with_bad_times() {
+    auto img = build_fat16_image();
+    u8* root = img.data() + 42 * 512;
+    make_dentry(root + 6 * 32, "HOUR24  TXT", 0x20, 15, 100, 0x5A46, 0xC000, false);
+    make_dentry(root + 7 * 32, "MIN60   TXT", 0x20, 15, 100, 0x5A46, 0x6780, false);
+    make_dentry(root + 8 * 32, "SEC60   TXT", 0x20, 15, 100, 0x5A46, 0x601E, false);
+    return img;
+}
+
+} // namespace
+
+TEST(FatEngine, TimeWordHour24YieldsZeroFileTime) {
+    /* A-014: hour bits 24 flow unvalidated into the epoch math and add a
+     * full day - the fabricated "date + 1 day 00:00" timestamp. The og's
+     * DosDateTimeToFileTime fails, the node slot is zeroed. */
+    EXPECT_EQ(fat_date_to_unix(0x5A46, 0xC000, 0), 0u);
+    EXPECT_EQ(fat_date_to_unix(0x5A46, 0xF800, 0), 0u) << "hour 31: same class";
+}
+
+TEST(FatEngine, TimeWordMinute60YieldsZeroFileTime) {
+    /* A-014: minute bits 60 (the 6-bit field can hold 60..63). */
+    EXPECT_EQ(fat_date_to_unix(0x5A46, 0x6780, 0), 0u);
+}
+
+TEST(FatEngine, TimeWordSecondField30YieldsZeroFileTime) {
+    /* A-014: the 2-second field 30 decodes 60 s (the 5-bit field can hold
+     * 30/31 = 60/62 s); the og's accept set tops out at field 29 = 58 s. */
+    EXPECT_EQ(fat_date_to_unix(0x5A46, 0x601E, 0), 0u);
+    EXPECT_EQ(fat_date_to_unix(0x5A46, 0x601F, 0), 0u) << "field 31 = 62 s: same class";
+}
+
+TEST(FatEngine, ValidTimeWordBoundaryUnchanged) {
+    /* A-014 regression guard: the boundary-legal maximum time word
+     * 23:59:58 (0xBF7D) still converts - the accept set shrinks by nothing.
+     * 2025-02-06 23:59:58 = unix 1738886398. */
+    EXPECT_EQ(fat_date_to_unix(0x5A46, 0xBF7D, 0), 1738886398ULL);
+    EXPECT_EQ(fat_date_to_unix(0x5A46, 0x6000, 0), 1738843200ULL) << "12:00:00 unchanged";
+}
+
+TEST(FatEngine, InvalidTimeStampsPersistAsZeroInTree) {
+    /* A-014 end-to-end: corrupt-dentry time words (the deleted population
+     * recovery targets) surface as the honest zero FileTime in the results
+     * tree, never as a shifted plausible date. */
+    auto img = build_fat16_image_with_bad_times();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    for (const char* name : {"HOUR24.TXT", "MIN60.TXT", "SEC60.TXT"}) {
+        tree::FileNode* n = find_node(tree, name);
+        ASSERT_NE(n, nullptr) << name << " must be scanned";
+        EXPECT_EQ(n->props()->times.created, 0ULL) << name << " created";
+        EXPECT_EQ(n->props()->times.modified, 0ULL) << name << " modified";
+    }
+}
+
 /* ---- N-010a/N-010b/N-010c/N-022 (diff-to-fix session) ------------------ */
 
 TEST(FatEngine, FlavorBoundary65524IsFat32) {

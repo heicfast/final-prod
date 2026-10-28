@@ -18,9 +18,10 @@
   every load-bearing cite before filing):**
   - **ACUTE (2):** **A-013** (cli/session P32/P34/P35 — the `--resume`-without-`--out`
     `"wb"` truncate-before-read: the printed resume command destroys the session);
-    **A-014** (fat P9/P2 — `fat_datetime_to_unix_seconds` validates month/day only;
-    hour≥24/min≥60/2s≥30 fabricate shifted plausible timestamps where the og zeroes
-    the slot, FAT:32135-54 ⇔ cr_fat_wire.h:123-142).
+    **A-014 FIXED** (fat P9/P2 — `fat_datetime_to_unix_seconds` validated month/day only;
+    hour≥24/min≥60/2s≥30 fabricated shifted plausible timestamps where the og zeroes
+    the slot, FAT:32135-54 ⇔ cr_fat_wire.h — the time-word gate landed this session,
+    findings/FIXED/A-014, MATCH).
   - **SEVERE (3):** **S-055** (carve P28/P1/P3 — the user-sign layer probes BEFORE the
     built-in table, inverting the M-048/D-104 collision rule; 8 overlap formats flip to
     device-end extents); **S-056** (carve P16/P28 — `disabled_formats` gates grammar +
