@@ -3187,3 +3187,11 @@ the caller's path); the ABI surface lands with that flow, not before.
 Verdict: ACCEPTED (layering-faithful staging, not a silent gap — the
 capability decision the finding's step 1 demanded is YES and is recorded
 here).
+
+### D-107 — the TS null-packet posture: the core tolerates null-packet-headed streams on both TS rows; the og's CM2TS probe rejects them (S-047 post-landing addendum, REGISTERED SUPERSET — recall over strictness)
+
+**WHAT OG DOES:** the CM2TS probe (FUN_180032670 :38556-38619) rejects candidates whose first two packets carry all-0xFF payload qwords (`param_2[1] == -1` or the second packet's +8 qword == -1) — even though the og's own size walk (FUN_180032460 :38472-75) marks and TOLERATES all-0xFF null packets mid-run, and the CMTS chain (the chunk handler FUN_18002e430) has no payload gate at all.
+
+**WHAT CORE DOES:** both FMT_TS and FMT_M2TS implement the walk's tolerance uniformly — null packets anywhere in the run (including the head) keep the run intact; the "+null" evidence marker records their presence.
+
+**WHY REGISTERED AS A SUPERSET:** broadcast and camcorder TS streams commonly begin with null-padding packets; the og's own walk semantics accept them mid-run, so the probe's head-reject loses real files the CMTS chain would carve. The core's uniform tolerance is strictly more recalling on the same evidence strength (0x47-synced strided packets ≥ 0x5000). Verdict: ACCEPTED.
