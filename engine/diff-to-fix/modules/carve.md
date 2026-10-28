@@ -802,10 +802,15 @@ corpus's three REAL og sessions (evidence/executions/s10b-real-rsf-session-minin
 ## SA-10 addendum (session 10 — the walk follow-ups owned: M-106 + M-107; S-041 closed)
 
 The carve surface's size-walk residue now has owners:
-- **M-106** — the school-1 walks that were DECODED but shipped as stand-ins
-  (ONE chunk-chain max 500,000,000; 3DS section-walk max 200,000,000 — both
-  decodes in s8-batch2-formats.md:29,:31; the 64 MiB stand-ins at
-  cr_analysers.cpp:3849-3850/:3939-3940): the M-090/M-091 truncation class.
+- **M-106 FIXED (S42 fix lane)** — the school-1 walks landed from the
+  first-hand re-read (ONE: the GUID-recheck chunk chain, size u64@+0xC4
+  fallback +0x64, 0<size<=2x-device, the break-point size, the 500,000,000
+  clamp; 3DS: the MM branch's section walk — the 0x58 shortcut on the
+  u16@+0x58 MM marker, the stride u16@+2, the 5x-device cap; the NCSD/CCI
+  branch KEEPS its bounded stand-in — the MM-marked walk would reject every
+  CCI file, the deviation documented in the Resolution): the M-090/M-091
+  truncation class closed on both formats (tests Carve.OneChunkChain* /
+  ThreeDsSectionWalk*; findings/FIXED/M-106).
 - **M-107** — the batch-1 undecoded-walk residue (ten sites: X3F/CRW/WPG/WPD/
   PSP/SIT/APE/EPS/DXF/DWG + the SWF RECT validation walk), S-007's promised
   follow-ups never previously owned; the X3F grammar corroborated by the

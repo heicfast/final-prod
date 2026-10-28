@@ -6139,3 +6139,23 @@ the core's decoded-byte bound registered as PARITY-DELTAS D-117 with the
 og-defect rationale. UserSigns.ShortFragmentMatchesInCore pins the stance from
 both sides and restores the prevailing installed state. Trail: findings/FIXED/
 N-168 + ledger row + carve.md row + this entry.
+**M-106 FIXED (the ONE/3DS size walks — decoded but standing in) — commit
+`<this push>`:** both walks landed from the first-hand re-read of
+RAWSearchDLL FUN_180044e30 (:52316-52358) and FUN_180042ff0
+(:50921-50971): ONE's chunk chain (the per-chunk GUID re-check, the
+size u64@+0xC4 fallback +0x64, the 0<size≤2x-device gate, the size =
+the break-point cursor, the 500,000,000 ctor clamp) and 3DS's MM-branch
+section walk (the 0x58 shortcut when u16@chunk+0x58 is MM, the stride
+u16@+2 with the non-zero gates, the 5x-device cap, the fetch-miss
+no-size return). Documented deviation: the NCSD/CCI branch KEEPS its
+bounded stand-in — the fix plan's "both stand-ins" step overreached
+(the MM-marked walk would reject every CCI file whose CCI header is
+not MM-marked at +0x58); the comment registers the one remaining
+stand-in. The school-1 fixtures (plant_one/plant_3ds) updated to
+walk-valid forms with the SAME extents (0x100/0x40). Tests:
+Carve.OneChunkChainWalksPastTheStandInCap (RED pre-fix by the
+stashed-engine rebuild — the 68 MiB chain truncated at 64 MiB) /
+OneChunkChainHostileVariantsSalvageAndRefuse / ThreeDsSectionWalkUsesTheStrideFields;
+suite 1187/1187 green; format clean. Trail: findings/FIXED/ with the
+Resolution; ledger row; matrix cell → MATCH; modules/carve.md;
+SUMMARY's S42 block.
