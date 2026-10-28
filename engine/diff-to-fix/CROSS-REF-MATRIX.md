@@ -30,11 +30,11 @@
     lane (862d79ef) with the S51 severe-first lane's convergence addendum (the
     per-slot zeroing pin + the 0x65C4 example-date erratum), findings/FIXED/A-014,
     MATCH).
-  - **SEVERE (3):** **S-055** (carve P28/P1/P3 — the user-sign layer probes BEFORE the
-    built-in table, inverting the M-048/D-104 collision rule; 8 overlap formats flip to
-    device-end extents); **S-056** (carve P16/P28 — `disabled_formats` gates grammar +
-    raw-sign layers but not the user-sign layer; D-104's own registration claim false in
-    code); **S-057** (session/orchestration P36/P31/P32 — the og's stop path runs its
+  - **SEVERE (3):** **S-055** (carve P28/P1/P3 — FIXED session-51 → MATCH: built-in-first
+    restored, the user arm fires only when no built-in survived the filter, the
+    no-reclaim rule pinned, `findings/FIXED/S-055-*`); **S-056** (carve P16/P28 — FIXED
+    session-51 → MATCH: match_at's disabled_exts predicate carries the removal-loop
+    semantics, `findings/FIXED/S-056-*`); **S-057** (session/orchestration P36/P31/P32 — the og's stop path runs its
     own organize into the shared completion handler whose auto-save gates carry no
     stopped-check (DRWUI:1549399-21 → :339076-79 → :612572-87); the core never
     auto-saves a cancelled run, and its comment mis-states the og).
@@ -105,7 +105,7 @@
     unregistered LFN-checksum recovery superset; closes OQ-T2); **N-173** (fat —
     the 2106/2107 u32 clamp vs full conversion; exFAT sibling inconsistent);
     ~~**N-174**~~ **FIXED (S46)** (exfat — the `._` AppleDouble sink filter landed, the N-028 family's
-    exFAT twin); **N-175** (fat — NTRes case folding unread); **N-176** (fat — the
+    exFAT twin); ~~**N-175**~~ **FIXED (S46)** (fat — NTRes case folding landed); **N-176** (fat — the
     LFN illegal-char 8.3 fallback absent); **N-177** (ext4 — the size-exceeds-blocks
     damaged flag (FLAGS 0x200) not carried); **N-178** (cli/orchestration — no CLI
     pause verb + no engine pause notification, the landed ABI pair's missing legs).
@@ -658,6 +658,7 @@ not-BAAD both sides; FAT quick-scan threading — already registered D-30x).
 | Module | Parameter(s) | Verdict change (evidence in the finding + `evidence/decompiled-quotes/s6-*`) |
 |---|---|---|
 | fat | B4/B5/D11/A29 | **M-052 — FIXED (s24 DFX24 + s35 convergent)** (recycle-bin $I/$R pairing — the shared cr/recycle model wired into the dentry walk; four-root recognition, chain-read $I parse, original-name remap + post-walk fixup; findings/FIXED/M-052) |
+| fat | A10/B-naming | **N-175 — FIXED (S46)** (the NTRes 8.3 display-case fold: short_name_to_u16 takes the nt_reserved byte and applies the og's four-way exact-value switch — 0x00/0x08/0x10/0x18 fold (strupr/strlwr pairs), anything-else raw; ASCII-only, CP437 high half untouched; LFN path unaffected by construction; NtResCaseFoldFourWay 5-path pin + LFN regression pin + the BitLocker NTRes=0 fixture re-pin; findings/FIXED/N-175) |
 | exfat | B1/A25/S35 | **N-067 FIXED s11** (upcase-table validation — og shape gates + checksum32 stream check, soft stats signal; findings/FIXED/); B4/B5/D11 **M-052 FIXED (s24 DFX24 + s35 convergent)** (the FAT-mirrored pairing — bin context through walk + oracle re-walks; findings/FIXED/M-052) |
 | carve | A25/D11/P42 | **S-032 (converged)** (archive inner-file inventories missing) |
 | carve | B1/C19 | **N-069 FIXED s11** (CAB mscf case key — FMT_CAB_LC dual row + two-spelling validator re-check; findings/FIXED/); B1/A28 **N-068 FIXED s11** (LFH sanity gates decompile-exact; EOCD half FIXED-ALREADY — the CD anchor + EOCD reconciliation already cover it; findings/FIXED/) |

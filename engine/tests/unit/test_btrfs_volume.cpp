@@ -159,7 +159,7 @@ std::vector<u8> make_root_item(u64 tree_bytenr, u64 root_dirid) {
     return r;
 }
 
-std::vector<u8> make_inode(u32 mode, u64 size, u32 nlink, u64 mtime_sec) {
+std::vector<u8> make_inode(u32 mode, u64 size, u32 nlink, u64 mtime_sec, u32 mtime_nsec = 0) {
     std::vector<u8> r(160, 0);
     put64(r.data() + 0x10, size);
     put32(r.data() + 0x28, nlink);
@@ -167,11 +167,12 @@ std::vector<u8> make_inode(u32 mode, u64 size, u32 nlink, u64 mtime_sec) {
     /* kernel btrfs_inode_item: reserved[4] occupies 0x50..0x70; the
      * 12-byte timespecs live at atime@0x70, ctime@0x7C, mtime@0x88,
      * otime@0x94 (each: sec i64 + nsec u32) */
-    put64(r.data() + 0x70, mtime_sec); /* atime sec */
-    put32(r.data() + 0x70 + 8, 0);     /* atime nsec */
-    put64(r.data() + 0x7C, mtime_sec); /* ctime */
-    put64(r.data() + 0x88, mtime_sec); /* mtime */
-    put64(r.data() + 0x94, mtime_sec); /* otime */
+    put64(r.data() + 0x70, mtime_sec);      /* atime sec */
+    put32(r.data() + 0x70 + 8, 0);          /* atime nsec */
+    put64(r.data() + 0x7C, mtime_sec);      /* ctime */
+    put64(r.data() + 0x88, mtime_sec);      /* mtime */
+    put32(r.data() + 0x88 + 8, mtime_nsec); /* mtime nsec (OQ-S42-2 pin) */
+    put64(r.data() + 0x94, mtime_sec);      /* otime */
     return r;
 }
 
@@ -291,7 +292,7 @@ std::vector<u8> build_volume() {
         ki.objectid = 256;
         nb.add(ki, make_inode(0x4000, NODESIZE, 2, MTIME));
         ki.objectid = 257;
-        nb.add(ki, make_inode(0x8000, 14, 1, MTIME));
+        nb.add(ki, make_inode(0x8000, 14, 1, MTIME, 123456789u)); /* hello.txt: OQ-S42-2 nsec pin */
         ki.objectid = 258;
         nb.add(ki, make_inode(0x4000, NODESIZE, 2, MTIME));
         ki.objectid = 259;
@@ -373,6 +374,40 @@ std::vector<u8> build_synology_volume() {
     auto nd = nb.finish(L_FS_TREE, 0);
     memcpy(d.data() + L_FS_TREE, nd.data(), NODESIZE);
     return d;
+}
+
+TEST(Btrfs, MtimeNsecFoldsLikeTheOg) {
+    /* OQ-S42-2 resolution pin: the og FOLDS the sub-second half into the
+     * emitted FILETIME (BtrfsSearchDLL FUN_180006ba0 :4435-4441:
+     * `(nsec/100) + (sec + 0x2b6109100) * 10000000` per timespec pair -
+     * 0x2b6109100 = 11644473600, the 1601->1970 epoch delta), exactly the
+     * core's unix_to_filetime_ns `(sec + EPOCH_DELTA) * 10^7 + nsec/100`.
+     * The fixture's hello.txt inode carries mtime nsec 123456789: the
+     * surfaced modified time must be the full folded value - pin it so
+     * no future session "simplifies" the conversion to whole seconds
+     * (the og's ext4 sibling does truncate - I-006/D-59a; Btrfs does not). */
+    auto img = build_volume();
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    BtrfsScanStats st;
+    u32 rc = scan_btrfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    const u64 expected = (11644473600ULL + 1600000000ULL) * 10000000ULL + 123456789ULL / 100ULL;
+    int pinned = 0;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->props())
+                continue;
+            if (c->name_utf8() == "hello.txt") {
+                EXPECT_EQ(expected, c->props()->times.modified);
+                ++pinned;
+            }
+            find(c);
+        }
+    };
+    find(ra);
+    EXPECT_EQ(1, pinned);
 }
 
 TEST(Btrfs, SuperblockValidation) {

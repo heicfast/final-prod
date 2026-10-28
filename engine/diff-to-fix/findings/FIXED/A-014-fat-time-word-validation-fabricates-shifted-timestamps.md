@@ -146,3 +146,24 @@ lane records: the finding's worked-example date word 0x65C4 decodes month 14 —
 invalid date (the N-021 class; the og zeroes that slot regardless of the time word),
 so the example never isolated the time-word class; the clean word for the intended
 example is 0x58CC (2024-06-12) or the S45 tests' 0x5A46 (2022-01-06).
+
+### Convergence addendum II (session-47 severe-first lane, 2026-10-29)
+
+Third independent verification, by a DIFFERENT method: raw disassembly of the corpus
+binary itself (og-codebase/FATSearchDLL.dll, PE32+). The KERNEL32!DosDateTimeToFileTime
+IAT slot 0x18004d088 carries exactly FOUR call sites in .text, three clustered in the
+dentry-stamp converter: 0x1800289d1 (create time@+0x0E/date@+0x10 -> node+0x25),
+0x180028a1f (write time@+0x16/date@+0x18 -> node+0x2D), 0x180028a51 (access
+date@+0x12/time=0 via `xor edx,edx` -> node+0x35), each followed by `test eax,eax;
+jne <skip>; mov rdi,[slot]` with rdi zeroed - the raw-binary confirmation of the
+decompiled zero-on-fail quote :32131-32154 at exact addresses (verification grade:
+independent RE probe on the shipped binary, the strongest grade for this claim; the
+fourth call site at 0x180032c38 is outside the dentry path). This lane's independent
+6-test RED battery reproduced the fabrication on pre-fix main (time 0xC000 with a
+valid date returned date+1day, minute 60 returned +60min, 2s-field 30 returned +60s)
+and its gate landed byte-equivalent to the S45/S51 landing; per SA-9 the earlier push
+stands and this lane's redundant tests were DROPPED (the merged battery - the S51
+per-slot-zeroing shape with distinct create-vs-write times - is the superset). The
+exFAT sibling's FUN_180002f40 boundary-set cross-check (hour<0xB801 / min<0x761 /
+2s<0x1E) performed from the in-tree decode confirms the shared helper's reject set
+matches the og's own field gate exactly.

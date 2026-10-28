@@ -1,3 +1,40 @@
+**Session-51 severe-first lane — S-055 + S-056 landed (2026-10-29).**
+
+**S-055 + S-056 FIXED (one carve patch, the finding's own "fix in the same patch"
+note).** Corpus re-verified (the og's layering: grammar claims then table probes;
+EUUserData has zero RAWSearchDLL references per E-A/E-B); the inversion + the ungated
+toggle re-confirmed live at the current HEAD before the fix. The loop body reordered:
+the built-in arm (probe_header + M-024 filter + best-pick/tail/emission) runs first
+and sets builtin_matched; the user-sign arm fires only when no built-in survived the
+disabled-format filter. The N-031 zero-skip now guards the built-in arm only (user
+signs anchor to kMaxOffset+48 — the og's zip sign at +526). The no-reclaim product
+question DECIDED+PINNED: grammar-rejected starts are not reclaimed (rejected_at
+threaded beside emitted_at, memory-bounded 2^20); the built-in table still probes
+rejected positions (the og claims by emission only). S-056 via match_at's new
+disabled_exts predicate INSIDE the match loop (removal-loop semantics — sibling signs
+still fire). D-104 landing notes registered. 8 new tests, all RED->GREEN proven
+(6 fail pre-fix incl. the floor-gate and grammar-rejected pins; CAFEBABE exposed as
+the built-in class magic — a claimed magic, DEADBEEF used for the unclaimed fixtures;
+cap's D4C3B2A1 shared with the higher-conf pcap row — pinned any-built-in-tag).
+Suite 1192/1192 green. Trail: findings/FIXED/ both + ledger rows + matrix cells +
+carve.md + SUMMARY + this entry.
+**OQ-S42-1 RESOLVED-MATCH (S47 INFO-first lane, 2026-10-29).** The NTFS
+$SI/$FN time-precedence seam decoded first-hand and closed: the og is
+$SI-first with $FN fallback (NTFSSearchDLL :5338-5353 — the FN defaults
+overwritten by the $SI getters when type 0x10 is found and the
+FUN_180044fb0 fit gate passes) — the core's has_si rule verbatim; the
+asserted-but-undecoded parity is now decode-backed. Bonus seam resolved:
+the og's third surfaced slot (props+0x35) carries the $SI's MFT-MODIFIED
+time (FUN_180044ff0 attr+0x30; the true A time at content+0x10 is never
+surfaced) — parse_standard_information's apparently-"swapped" mapping
+(changed<-d+16 [A], accessed<-d+24 [MFT-mod]) is EXACT og parity, now
+pinned by NtfsVolume.SiTimeSlotsMatchOgSurfacedSet (distinct-time $SI+$FN
+records in both directions: precedence + slot mapping + the FN fallback
+all proven end-to-end; a future well-meaning "cleanup" that swaps the
+slots now turns the suite red). The SEVERE-candidate risk the OQ flagged
+is closed: no divergence, no code change. Trail: findings/FIXED/OQ-S42-1
++ ledger OQ row + ntfs.md B9 rows + this entry.
+
 **Session-44 minors lane — N-161 CONVERGENT-DU with the S53 landing (their `e0f15e0` wins per SA-9; this lane's byte-equivalent gate rides as the convergence addendum).** This lane independently verified and fixed N-161 (RED proven pre-fix: the corrupt entry [first=5, last=0] emitted the wrapped 0xFFFFFFFFFFFFFFFC partition; gate + `gpt_invalid_entries` counter + the same two test names landed locally), then hit the hot-window reconciliation: the remote's S53 lane (the S46 MINOR-claim continuation) pushed their own N-161 landing first — a superset (their gate also names the 2^64-boundary wrap `last − first == UINT64_MAX` invalid, where this lane's version left it on the zero-span side of the seam). Convergence resolution: the S53 code + S53 tests kept wholesale (this lane's duplicate test block and duplicate surfacing line removed; the two-gate-seam expectation superseded by the superset's counter==1 pin); this lane's independent RED reproduction stands as the corroboration record. The finding file's Resolution keeps the S53 record; this entry is the convergence documentation.
 
 **S53 lane (the S46 MINOR-first claim continued, 2026-10-29; renumbered from the
@@ -19,6 +56,20 @@ Pulled-before-pushed discipline; one finding, one push; every fix RED-test-first
 Baseline verified before claiming: linux-release suite 1203/1203 green (1161 passed /
 42 win-only skipped / 0 failed) at pin `0d7b1d9d`. Target: 20+ dispositions this session.
 Audited pin: core `0d7b1d9d`, corpus `be0cfe9`.
+**OQ-S42-2 RESOLVED-MATCH (S47 INFO-first lane, 2026-10-29).** The Btrfs nsec
+question answered by the exact probe the file named, executed first-hand:
+BtrfsSearchDLL FUN_180006ba0 (:4435-4441) folds each timespec pair as
+(nsec/100)+(sec+0x2b6109100)*10^7 — FOLDING, not truncation; the core's
+unix_to_filetime_ns is the identical fold (the core adds only the pre-1601
+guard). NOT a superset axis: the I-006 family gains no Btrfs member (ext4
+alone — the og's internal inconsistency btrfs.md:83-84 already records).
+Pinned end-to-end: Btrfs.MtimeNsecFoldsLikeTheOg (the fixture's hello.txt
+now carries mtime nsec 123456789; the surfaced modified time must be the
+exact folded value; EndToEndWalk re-verified green on the fixture change).
+The I-007 otime/crtime superset stands untouched. Trail: findings/FIXED/
+OQ-S42-2 + ledger OQ row + btrfs.md B9 rows + this entry. No code change —
+the fold IS the parity behavior, now guarded against whole-second
+"simplification" forever.
 
 **Session-51 lane territory claim (coordination contract, 2026-10-29):** this lane
 (the user's SEVERE-first directive; rebranded from the S47 draft at the hot-window
@@ -7393,3 +7444,70 @@ collide iff the kind shifts), TwinKeyFat16StillShifts (the pin), TwinKeyExt4Ntfs
 draft's NTFS neighbor was vacuous, caught live). Suite 1290/1290 (linux-release).
 Trail: findings/FIXED/M-133 + ledger row + matrix cell + orchestration.md row + this
 entry + OQ-S52-1.
+## Session-57 severe-first fix lane — A-014 CONVERGENT (2026-10-29)
+
+**Lane territory (the user's severe-first directive; this lane's draft seat S47 was
+consumed by the remote MAJOR-first S47 lane across the hot window — rebranded S57 per
+SA-9 earlier-push-wins):** A-014 first, then the SEVERE tier
+S-040/S-050/S-055..S-061, then the MAJOR tier, 20+ fixes targeted. Audited pin: core
+`fa654673`, corpus `be0cfe9`. Baseline: suite 1203/1203 green at pin (42 thumbnail
+fixture skips, 0 failed).
+
+**A-014 FIXED (ACUTE — the FAT time-word fabrication):** independently verified before
+any change: (1) the corpus binary itself disassembled first-hand — og-codebase/
+FATSearchDLL.dll (PE32+) imports KERNEL32!DosDateTimeToFileTime at IAT 0x18004d088
+with exactly three clustered call sites (0x1800289d1 create time@+0x0E/date@+0x10 →
+node+0x25; 0x180028a1f write time@+0x16/date@+0x18 → node+0x2D; 0x180028a51 access
+date@+0x12/time=0 → node+0x35), each followed by `test eax,eax; jne skip; mov
+rdi,[slot]` — the zero-on-fail the decompiled quote :32131-32154 documents, confirmed
+against the raw binary; (2) the core's gap reproduced RED on main (6 failing tests:
+time 0xC000 with valid date returned date+1day; minute 60 returned +60min; 2s-field 30
+returned +60s — all fabricated plausibles); (3) the exFAT sibling's own gate
+FUN_180002f40 (already in-tree as `fat_datetime_fields_ok`) pins the identical
+boundary set hour≤23/min≤59/2s≤29 — the shared-helper fix cannot diverge exFAT (its
+M-014 gate rejects the class upstream). 
+**A-014 CONVERGENT per SA-9:** the pull revealed the S45 lane's winning landing
+`862d79ef` (pushed mid-flight with the S51 convergence addendum already recorded) —
+byte-equivalent gate, the identical DosDateTimeToFileTime reject set. Their landing
+stands; this lane's commit resolves to the convergence record: the raw-disassembly
+addendum II in the finding file (the four call-site addresses pinned in the corpus
+binary — IAT 0x18004d088, dentry sites 0x1800289d1/:a1f/:a51, the zero-on-fail tail
+`test eax,eax; jne; mov rdi,[slot]` at each), and this lane's 7 supplementary tests
+DROPPED as redundant (the merged S45+S51 battery — incl. the per-slot zeroing pin —
+is the superset; the shared fixture helper name would have collided). The trail
+edits resolve keep-both-sides: the S47 MAJOR-first lane's fat.md/SUMMARY blocks stand,
+this lane's ledger row lands as the convergent-record II row, the matrix cell keeps
+the remote's MATCH wording. Suite at the merged tree re-verified below before push.
+
+This lane's pre-pull verification (kept for the record): the corpus binary itself
+was disassembled first-hand — the evidence that anchors addendum II. The fix built
+locally: the gate in
+`fat_datetime_to_unix_seconds` (cr_fat_wire.h) extended to
+`hour > 23 || minute > 59 || (time & 0x1F) > 29 → 0` — the full DosDateTimeToFileTime
+reject set; the N-021 zero-FileTime mapping in cr_fat_quick.cpp carries the class with
+no change. Finding exemplar corrected: 0x65C4 is month 14 (invalid), the valid
+June-4-2030 word is 0x64C4. Tests: `FatEngine.TimeWordHour24/Hour31/Minute60/
+Minute63/SecondField30YieldsZeroTimestamp` (5, RED pre-fix), `FatEngine.
+ValidTimeWordBoundaryUnchanged` (23:59:58/midnight/N-173-pin regression guard),
+`FatEngine.InvalidTimeWordPersistsAsZeroFileTime` (end-to-end zero FileTime in the
+result tree, modified+created). Suite 1210/1210 linux-release; UBSan clean on the
+FAT/exFAT battery (98/98). Trail: findings/FIXED/A-014 + ledger row + matrix cell +
+fat.md S47 addendum + B9 row + SUMMARY block + this entry.
+## Session-46 minors lane — N-175 landed (2026-10-29)
+
+**N-175 FIXED (MINOR — the FAT NTRes 8.3 display-case fold).** The corpus cite
+re-read first-hand (FATSearchDLL :44191-44216 — the four-way exact-value switch:
+NTRes 0x00 strupr+strupr, 0x08 strlwr+strupr, 0x10 strupr+strlwr, 0x18 strlwr+strlwr,
+anything else the raw "%s.%s" path — the switch is exact, NOT a mask, so NTRes 0x01
+[Windows' permanently-lowercase bit] takes the raw path). `short_name_to_u16` now
+takes the dentry's nt_reserved byte and applies the ASCII-only fold (the og's
+strupr/strlwr are ANSI CRT; the CP437 high half and the N-087 OEM decode compose
+before it, matching the og's decode-then-fold order). The LFN path never passes
+through the builder — structurally unaffected, pinned by
+NtResFoldLeavesLfnCaseUntouched. NtResCaseFoldFourWay: the 5-path pin (mixed-case
+"File001 Txt" on disk separates all four folds + the raw 0x01 path), RED pre-fix on
+all four fold cases. The fold caught one pre-existing expectation — the BitLocker
+end-to-end fixture's NTRes=0 mixed-case "READMe.TXT" now renders the og's folded
+"README.TXT" (re-pinned in the same commit; the finding's own predicted
+case-sensitive-bench divergence). Suite 1190/1190 (linux-release). Trail:
+findings/FIXED/N-175 + ledger row + matrix A10/B-naming row + fat.md list + this entry.

@@ -1,5 +1,18 @@
 # modules/fat.md — FAT engine audit verdicts
 
+## S47 addendum (2026-10-29 — the session-47 severe-first fix lane)
+
+**A-014 FIXED** (session-47): the time-word gate landed in the shared
+`fat_datetime_to_unix_seconds` — the full DosDateTimeToFileTime reject set
+(hour>23 / minute>59 / 2s-field>29 → the zero FileTime via the N-021 mapping),
+verified first-hand against the corpus binary's own three zero-on-fail call
+sites (0x1800289d1/:a1f/:a51) and the exFAT sibling's FUN_180002f40 boundary
+set. The finding's exemplar date word 0x65C4 corrected to 0x64C4 (month 14 → 6).
+Tests: `FatEngine.TimeWord*` (5 boundary pins, RED pre-fix) +
+`FatEngine.ValidTimeWordBoundaryUnchanged` + the end-to-end
+`FatEngine.InvalidTimeWordPersistsAsZeroFileTime`. See
+../findings/FIXED/A-014-fat-time-word-validation-fabricates-shifted-timestamps.md.
+
 ## S12 addendum (2026-10-29 — the session-2 deep-dive; lane sheets at ../evidence/s12-lane-sheets/)
 
 New active findings on this module: **A-014 FIXED** (ACUTE — time-word validation:
@@ -12,7 +25,7 @@ gates + walk-stop semantics); **N-162** (the og's 32-bit cluster-math wrap regis
 — core u64 correct); **N-165** (the "File overflows partition!" scan-time refusal vs
 deferred failure); **N-172** (deleted-first-char `'#'` vs `'_'` + the unregistered
 LFN-checksum recovery superset — closes OQ-T2); **N-173** (the 2106/2107 u32 clamp);
-**N-175** (NTRes case folding); **N-176** (the LFN illegal-char fallback).
+~~**N-175**~~ **FIXED (S46)** (NTRes case folding landed — the four-way fold, NtResCaseFoldFourWay + the BitLocker re-pin); **N-176** (the LFN illegal-char fallback).
 Verified-MATCH this session: cluster-offset formula (u64), EOC/BAD sentinels, boot
 geometry, first_data_sector, the 28-bit size field ( disproven hypothesis), grading
 condition bytes.

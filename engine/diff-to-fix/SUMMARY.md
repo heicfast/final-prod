@@ -120,7 +120,13 @@ first-hand; every fix RED-test-first.
   oracle inherits it; `apple_doubles_sunk` counter; `ExfatEngine.AppleDoublePrefixSunk`
   RED→GREEN + `RegularDotFilesNotSunk` the over-blocking pin; exFAT battery 36/36).
 
-**Board (filesystem truth at `a3ab4ed3`, post the S45..S51 parallel-window absorption — A-014 fixed [convergent, 862d79ef], M-124 fixed [dcb123dd], the INFO board complete [I-035/I-036/I-040..I-044 all ACKNOWLEDGED-RETIRED]): 67 active — 0 ACUTE · 9 SEVERE · 27 MAJOR · 31 MINOR · 0 INFO / 71 FIXED files / 6 tracked-open.**
+- **N-175 FIXED** — the FAT NTRes 8.3 display-case fold (FATSearchDLL :44191-44216
+  re-read first-hand; the four-way exact-value switch in short_name_to_u16 —
+  0x00/0x08/0x10/0x18 fold, anything-else raw; `FatEngine.NtResCaseFoldFourWay` the
+  5-path RED→GREEN pin + `NtResFoldLeavesLfnCaseUntouched`; the BitLocker NTRes=0
+  fixture caught and re-pinned — the finding's own predicted bench-divergence class).
+
+**Board (filesystem truth, running): 66 active — 0 ACUTE · 9 SEVERE · 27 MAJOR · 30 MINOR · 0 INFO / 72 FIXED files / 6 tracked-open (the S45..S51 window's A-014/M-124/INFO-board landings absorbed at the rebase).**
 
 # SUMMARY.md — executive summary (the S42 diff-to-fix lane's convergence on top; the prior lanes below, newest-first)
 # SUMMARY.md — executive summary (the S46 MINOR-first fix lane on top — the user's priority-to-minor directive; the prior lanes below, newest-first)
@@ -178,13 +184,16 @@ wins over the parallel S42 lanes' consumed seats M-118..122/N-154..160/I-037..03
   timestamps (cr_fat_wire.h:123-142) where the og zeroes the slot via
   `DosDateTimeToFileTime` failure (FAT:32135-54). Wrong metadata in output data, on the
   corrupt-dentry population recovery targets.
-- **S-055 (SEVERE)** — the user-sign layer probes BEFORE the built-in raw-sign table
-  (cr_carve.cpp:738-808 vs :830), inverting the M-048/D-104 collision rule its own
-  comment states; the 8 overlap formats (amr/cap/class/cpl/flac/msf/pdb/wpl) flip to
-  device-end extents on the default path.
-- **S-056 (SEVERE)** — `disabled_formats` gates the grammar and raw-sign layers but not
-  the user-sign layer — D-104's "same format-toggle rules" registration claim is false
-  in code.
+- **S-055 (FIXED session-51)** — the user-sign layer probed BEFORE the built-in raw-sign
+  table, inverting the M-048/D-104 collision rule its own comment stated; the 8 overlap
+  formats (amr/cap/class/cpl/flac/msf/pdb/wpl) flipped to device-end extents on the
+  default path. Built-in-first restored (the user arm fires only when no built-in
+  survived the disabled-format filter; the zero-skip guards the built-in arm only; the
+  grammar-rejected no-reclaim rule decided + pinned via the bounded rejected_at set).
+- **S-056 (FIXED session-51)** — `disabled_formats` gated the grammar and raw-sign
+  layers but not the user-sign layer — D-104's "same format-toggle rules" registration
+  claim was false in code. match_at's disabled_exts predicate now carries the og's
+  removal-loop semantics (a disabled ext's signs never fire; sibling signs still can).
 - **S-057 (SEVERE)** — the og auto-saves STOPPED scans (stop-organize
   "Scan stopped and found %1 files." → the shared completion handler
   FUN_140395e50 whose gates carry no stopped-check, DRWUI:1549399/:339076/:612572-87);
@@ -7074,3 +7083,25 @@ Both resolvable tracked-open questions closed this wave:
 
 **Board after wave 2:** 58 active (6 SEVERE · 27 MAJOR · 21 MINOR · 5 INFO)
 + the two OQ closures in the ledger.
+
+# SUMMARY.md — executive summary (the S57 severe-first fix lane's convergence records on top; the prior lanes below, newest-first)
+
+## Session-57 S57 fix-lane delta (2026-10-29 — the user's severe-first directive; core `fa654673` at open, corpus `be0cfe9`; the lane seat rebranded S47-draft → S57 across the S45..S56 hot window per SA-9)
+
+**A-014 CONVERGENT (the ACUTE tier is CLOSED at the merged tree):** this lane's
+independent verification + fix collided with the S45 lane's winning landing
+`862d79ef` (byte-equivalent gate: the identical DosDateTimeToFileTime reject set on
+the shared converter). This lane's unique evidence preserved as the finding file's
+Convergence addendum II: the RAW-DISASSEMBLY verification of the corpus binary itself
+(the four KERNEL32!DosDateTimeToFileTime call sites at exact addresses — IAT
+0x18004d088; the three dentry-stamp sites 0x1800289d1/:a1f/:a51, each carrying the
+`test eax,eax; jne <skip>; mov rdi,[slot]` zero-on-fail tail; the fourth site
+0x180032c38 outside the dentry path) — the strongest verification grade for the
+finding's central claim, confirming the decompiled quote against the shipped binary.
+The independent 6-test RED battery reproduced the fabrication on pre-fix main before
+the pull; the redundant tests were DROPPED per the superset rule (the merged S45+S51
+battery covers the full boundary set incl. the per-slot zeroing shape). **Board at
+the merged tree (filesystem truth, this lane's re-count): 0 ACUTE · 9 SEVERE · 25
+MAJOR · 30 MINOR · 0 INFO active (the S48 INFO retirements closed the tier) /
+77 FIXED files / 6 tracked-open (OQ-S42-2's Btrfs-nsec decode landed; its finding
+file's retirement pending its own lane's trail sweep).**

@@ -7607,6 +7607,339 @@ TEST(CarveEngine, UserSignatureYieldsToBuiltInAtSamePosition) {
     EXPECT_EQ(0u, user_records) << "no user-sign double emission";
 }
 
+/* ---- S-055/S-056: the user-sign layer's ordering + toggle gates ----
+ *
+ * The default set (userdata-defaults.json) carries signs for the 8
+ * formats that ALSO live in the built-in raw-sign table (amr/cap/
+ * class/cpl/flac/msf/pdb/wpl). Pre-fix, the user-sign probe ran BEFORE
+ * idx.probe_header with a continue on hit, so those magics produced
+ * device-end 0xFFFE0000 records instead of the bounded built-in
+ * candidates - the M-048 collision rule inverted in code. The fix
+ * reorders: built-in arm first, user-sign arm only when no built-in
+ * survived the disabled-format filter, and the format toggle gates the
+ * user layer like every other carve source (the og's removal-loop
+ * semantics). */
+namespace {
+/* Install the shipped default set; returns false when the file/parse
+ * fails (callers ASSERT on it). */
+bool install_default_usersigns() {
+    std::ifstream in(std::string(CR_SOURCE_DIR) + "/data/userdata-defaults.json",
+                     std::ios::binary);
+    if (!in.good())
+        return false;
+    std::string json((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    carve::usersigns::UserSignSet set;
+    if (carve::usersigns::parse(json.data(), json.size(), set) != OK)
+        return false;
+    return carve::usersigns::install_set(std::move(set)) == OK;
+}
+
+u32 count_tagged(tree::FileNode* root, u32 tag) {
+    u32 n = 0;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->carve_format == tag)
+            ++n;
+    return n;
+}
+
+u32 count_builtin_tagged(tree::FileNode* root) {
+    u32 n = 0;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && (c->props()->carve_format & 0xFFFF0000u) == 0xFFFF0000u)
+            ++n;
+    return n;
+}
+
+u32 count_ext_records(tree::FileNode* root, const char* ext8) {
+    /* count records whose name ends in ".<EXT>" (uppercased) */
+    std::u16string tail = u".";
+    for (const char* p = ext8; *p; ++p)
+        tail.push_back(u16(u8(*p >= 'a' && *p <= 'z' ? *p - 32 : *p)));
+    u32 n = 0;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->name.size() >= tail.size() &&
+            c->props()->name.compare(c->props()->name.size() - tail.size(), tail.size(), tail) ==
+                0)
+            ++n;
+    return n;
+}
+} // namespace
+
+TEST(Carve, UserSignYieldsToRawSignTableAtSamePosition) {
+    /* The finding's falsifiable case: a FLAC header at a stride on the
+     * DEFAULT configuration. Pre-fix: one device-end user-sign record
+     * (tag 0xFFFE0000, conf 600, len = total - start). Post-fix: the
+     * bounded built-in flac candidate (tag 0xFFFF0000 + fmt id, conf
+     * 940) and ZERO user-tagged records. */
+    ASSERT_TRUE(install_default_usersigns()) << "the default set must load";
+    std::vector<u8> img(4ull << 20, 0);
+    static const u8 kFlacHdr[8] = {0x66, 0x4C, 0x61, 0x43, 0x00, 0x00, 0x00, 0x22};
+    std::memcpy(img.data() + 0x2000, kFlacHdr, sizeof(kFlacHdr));
+
+    /* the built-in flac format id (resolved from the table, not pinned) */
+    u32 flac_id = 0xFFFFFFFFu;
+    for (u32 i = 0; i < rawsigns::kFormatCount; ++i)
+        if (std::strcmp(rawsigns::kFormats[i].ext, "flac") == 0) {
+            flac_id = i;
+            break;
+        }
+    ASSERT_NE(flac_id, 0xFFFFFFFFu) << "flac is in the built-in table";
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Carved");
+    CarveFlags fl;
+    fl.hash_small_files = false;
+    CarveStats st;
+    ASSERT_EQ(OK,
+              carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
+    EXPECT_EQ(0u, count_tagged(root, 0xFFFE0000u))
+        << "no user-sign record at a built-in magic (S-055)";
+    EXPECT_EQ(1u, count_tagged(root, 0xFFFF0000u + flac_id))
+        << "the bounded built-in flac candidate owns the position";
+}
+
+TEST(Carve, UserSignOverlapFormatsAllYieldToBuiltin) {
+    /* Every one of the 8 default-set formats that ALSO live in the
+     * built-in table: each format's own built-in header sign is planted
+     * at a stride; the built-in candidate must own the position and no
+     * 0xFFFE0000 record may appear. */
+    ASSERT_TRUE(install_default_usersigns());
+    static const char* const kOverlap[] = {"amr", "cap", "class", "cpl",
+                                           "flac", "msf", "pdb",  "wpl"};
+    for (const char* ext : kOverlap) {
+        u32 fid = 0xFFFFFFFFu;
+        const rawsigns::RawSign* sign = nullptr;
+        for (u32 i = 0; i < rawsigns::kFormatCount; ++i)
+            if (std::strcmp(rawsigns::kFormats[i].ext, ext) == 0) {
+                fid = i;
+                break;
+            }
+        ASSERT_NE(fid, 0xFFFFFFFFu) << ext << " is a built-in format";
+        for (u32 hi = 0; hi < rawsigns::kHeaderSignCount; ++hi)
+            if (rawsigns::kHeaderSigns[hi].fmt == fid) {
+                sign = &rawsigns::kHeaderSigns[hi];
+                break;
+            }
+        ASSERT_NE(sign, nullptr) << ext << " has a header sign";
+        if (sign->offset != 0)
+            continue; /* only offset-0 signs can be planted at a stride */
+
+        std::vector<u8> img(4ull << 20, 0);
+        std::memcpy(img.data() + 0x2000, sign->bytes, sign->len);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Carved");
+        CarveFlags fl;
+        fl.hash_small_files = false;
+        CarveStats st;
+        ASSERT_EQ(OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr,
+                                  nullptr, st))
+            << ext;
+        EXPECT_EQ(0u, count_tagged(root, 0xFFFE0000u)) << ext << ": no user-sign record";
+        /* a built-in row owns the position. NOTE: the planted magic can
+         * be claimed by a HIGHER-confidence sibling row - cap's D4C3B2A1
+         * is also pcap's sign (conf 1000 > cap's 910) - so the pin is
+         * any-built-in-tag, not the specific format id (the best-pick's
+         * own rule). */
+        const u64 dev_len = 4ull << 20;
+        if (dev_len - 0x2000 >= rawsigns::kFormats[fid].min_size) {
+            EXPECT_EQ(1u, count_builtin_tagged(root))
+                << ext << ": a built-in candidate owns the position";
+        }
+    }
+}
+
+TEST(Carve, UserSignBuiltinFloorGateSuppressesUserSignToo) {
+    /* A built-in magic in a device smaller than the format's min_size
+     * floor: the built-in arm matches but its floor gate declines, and
+     * the user-sign arm does NOT reclaim the position (built-in-first
+     * means the built-in's MATCH settles the stride - the finding's
+     * "matches.empty() after the filter" gate). Pre-fix this produced a
+     * bogus device-end flac record from a 512 KiB device. */
+    ASSERT_TRUE(install_default_usersigns());
+    std::vector<u8> img(512ull << 10, 0); /* 512 KiB < flac min 1 MiB */
+    static const u8 kFlacHdr[8] = {0x66, 0x4C, 0x61, 0x43, 0x00, 0x00, 0x00, 0x22};
+    std::memcpy(img.data() + 0x2000, kFlacHdr, sizeof(kFlacHdr));
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Carved");
+    CarveFlags fl;
+    fl.hash_small_files = false;
+    CarveStats st;
+    ASSERT_EQ(OK,
+              carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
+    EXPECT_EQ(0u, count_tagged(root, 0xFFFE0000u))
+        << "no user-sign reclaim past the built-in floor gate";
+    EXPECT_EQ(0u, root->first_child() ? 1u : 0u) << "nothing is carved at all";
+}
+
+TEST(Carve, GrammarRejectedMagicNotReclaimedByUserSign) {
+    /* The S-055 fix-lane decision, pinned: a magic the GRAMMAR layer
+     * matched but rejected (truncated JPG - the default set carries jpg
+     * signs, the built-in raw-sign table has no jpg row) is not
+     * re-accepted by the weaker header-only user-sign layer. Pre-fix
+     * this emitted a device-end 0xFFFE0000 jpg record. */
+    ASSERT_TRUE(install_default_usersigns());
+    std::vector<u8> img(2ull << 20, 0);
+    /* the JPG magic alone (no valid IHDR/EOI structure): the grammar
+     * validator must reject it */
+    img[0x2000] = 0xFF;
+    img[0x2001] = 0xD8;
+    img[0x2002] = 0xFF;
+    img[0x2003] = 0xE0;
+    img[0x2004] = 0x00;
+    img[0x2005] = 0x10;
+    img[0x2006] = 'J';
+    img[0x2007] = 'F';
+    img[0x2008] = 'I';
+    img[0x2009] = 'F';
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Carved");
+    CarveFlags fl;
+    fl.hash_small_files = false;
+    CarveStats st;
+    ASSERT_EQ(OK,
+              carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
+    EXPECT_EQ(0u, count_tagged(root, 0xFFFE0000u))
+        << "a grammar-rejected magic is not reclaimed by the user-sign layer";
+}
+
+TEST(Carve, UserSignStillFiresWhenNoBuiltinMatches) {
+    /* The channel stays functional post-reorder: a magic NO layer
+     * claims (not grammar, not built-in) still emits the user-sign
+     * record. Same shape as UserSignatureProbedAtStride, re-pinned here
+     * against the reordered loop. */
+    /* DEADBEEF: verified unclaimed by every stock source (the
+     * UserSignatureProbedAtStride pre-condition); CAFEBABE would NOT do
+     * here - it is the built-in class magic (the raw-sign table's class
+     * row and the default set's own class sign both carry it) */
+    const char* json = "{\"xyzzy\": {\"signs\": [\"0,DEADBEEF\"], \"mime\": \"application/x-xyzzy\"}}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(set)));
+
+    std::vector<u8> img(2ull << 20, 0);
+    img[0x2000] = 0xDE;
+    img[0x2001] = 0xAD;
+    img[0x2002] = 0xBE;
+    img[0x2003] = 0xEF;
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Carved");
+    CarveFlags fl;
+    fl.hash_small_files = false;
+    CarveStats st;
+    ASSERT_EQ(OK,
+              carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
+    EXPECT_EQ(1u, count_tagged(root, 0xFFFE0000u)) << "the unclaimed magic still fires";
+}
+
+TEST(Carve, DisabledFormatsGatesUserSignLayer) {
+    /* S-056: turning a format OFF stops it being carved through the
+     * user-sign channel. 'cpl' is in BOTH the default set and the
+     * built-in table: with cpl disabled NEITHER layer may emit it. */
+    ASSERT_TRUE(install_default_usersigns());
+    /* cpl's built-in header sign, planted at a stride */
+    u32 cpl_id = 0xFFFFFFFFu;
+    const rawsigns::RawSign* cpl_sign = nullptr;
+    for (u32 i = 0; i < rawsigns::kFormatCount; ++i)
+        if (std::strcmp(rawsigns::kFormats[i].ext, "cpl") == 0) {
+            cpl_id = i;
+            break;
+        }
+    ASSERT_NE(cpl_id, 0xFFFFFFFFu);
+    for (u32 hi = 0; hi < rawsigns::kHeaderSignCount; ++hi)
+        if (rawsigns::kHeaderSigns[hi].fmt == cpl_id) {
+            cpl_sign = &rawsigns::kHeaderSigns[hi];
+            break;
+        }
+    ASSERT_NE(cpl_sign, nullptr);
+
+    for (const char* dis : {"cpl", "CPL", "cPl"}) {
+        std::vector<u8> img(4ull << 20, 0);
+        /* cpl's only header sign anchors at +12 (the og's row); the
+         * sign offset is honored by probe_header's bucket key */
+        std::memcpy(img.data() + 0x2000 + cpl_sign->offset, cpl_sign->bytes, cpl_sign->len);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Carved");
+        CarveFlags fl;
+        fl.hash_small_files = false;
+        fl.disabled_formats = dis;
+        CarveStats st;
+        ASSERT_EQ(OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr,
+                                  nullptr, st))
+            << "disabled_formats=" << dis;
+        EXPECT_EQ(0u, count_tagged(root, 0xFFFE0000u))
+            << "disabled '" << dis << "': no user-sign cpl record";
+        EXPECT_EQ(0u, count_tagged(root, 0xFFFF0000u + cpl_id))
+            << "disabled '" << dis << "': no built-in cpl record either";
+    }
+}
+
+TEST(Carve, DisabledFormatsGatesUserOnlyExtension) {
+    /* S-056 on the user-ONLY population (the 78 extensions no stock
+     * source carries): disabling one suppresses its user-sign record
+     * while an unrelated user extension still fires. */
+    const char* json =
+        "{\"xyzzy\": {\"signs\": [\"0,DEADBEEF\"], \"mime\": \"x/xyzzy\"},"
+        " \"quux\": {\"signs\": [\"0,0BADF00D\"], \"mime\": \"x/quux\"}}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(set)));
+
+    std::vector<u8> img(2ull << 20, 0);
+    img[0x2000] = 0xDE;
+    img[0x2001] = 0xAD;
+    img[0x2002] = 0xBE;
+    img[0x2003] = 0xEF;
+    img[0x2800] = 0x0B;
+    img[0x2801] = 0xAD;
+    img[0x2802] = 0xF0;
+    img[0x2803] = 0x0D;
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Carved");
+    CarveFlags fl;
+    fl.hash_small_files = false;
+    fl.disabled_formats = "xyzzy";
+    CarveStats st;
+    ASSERT_EQ(OK,
+              carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
+    EXPECT_EQ(0u, count_ext_records(root, "xyzzy")) << "the disabled user ext is suppressed";
+    EXPECT_EQ(1u, count_ext_records(root, "quux")) << "the other user ext still fires";
+}
+
+TEST(Carve, DisabledOtherFormatsLeaveUserSignsOn) {
+    /* No over-blocking: disabling an unrelated built-in format leaves a
+     * user-only sign untouched. */
+    const char* json = "{\"xyzzy\": {\"signs\": [\"0,DEADBEEF\"], \"mime\": \"x/xyzzy\"}}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(set)));
+
+    std::vector<u8> img(2ull << 20, 0);
+    img[0x2000] = 0xDE;
+    img[0x2001] = 0xAD;
+    img[0x2002] = 0xBE;
+    img[0x2003] = 0xEF;
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Carved");
+    CarveFlags fl;
+    fl.hash_small_files = false;
+    fl.disabled_formats = "jpg,png,zip";
+    CarveStats st;
+    ASSERT_EQ(OK,
+              carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
+    EXPECT_EQ(1u, count_ext_records(root, "xyzzy")) << "unrelated disables do not over-block";
+}
+
 TEST(UserSigns, ParseOgShippedExtremes) {
     /* S-039: the og's own EUUserData extremes, measured first-hand from
      * og-codebase/EUUserData (111 entries, 190 signs). Before the fix

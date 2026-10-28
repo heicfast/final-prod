@@ -141,7 +141,33 @@ static const u16 kCp437[128] = {
     0x00A0, 0x00B7, 0x221A, 0x0192, 0x2248, 0x2202, 0x25A0, 0x00A0, /* F8-FF */
 };
 
-std::u16string short_name_to_u16(const u8 name[11]) {
+namespace {
+/* N-175 (diff-to-fix): the og's 8.3 display-case fold - a four-way
+ * EXACT-VALUE switch on the NT reserved byte (FATSearchDLL
+ * :44191-44216, re-read first-hand):
+ *   NTRes 0x00 -> base UPPER / ext UPPER
+ *   NTRes 0x08 -> base lower / ext UPPER
+ *   NTRes 0x10 -> base UPPER / ext lower
+ *   NTRes 0x18 -> base lower / ext lower
+ *   anything else -> the raw on-disk bytes (the og's switch is an
+ *     exact compare, NOT a mask - NTRes bits 0x01/0x02, Windows'
+ *     "already permanently lowercase" markers, take the raw path).
+ * Windows stores the display case of NT-created 8.3 names in these
+ * two bits (bit 3 = base lowercase, bit 4 = extension lowercase);
+ * the on-disk bytes are conventionally uppercase. The fold is
+ * ASCII-only (the og's _strupr/_strlwr are ANSI CRT calls; CP437
+ * high-half glyphs are untouched, matching the locale-safe og). */
+void ntres_fold_u16(std::u16string& s, bool lower) {
+    for (char16_t& c : s) {
+        if (lower && c >= u'A' && c <= u'Z')
+            c = char16_t(c + 0x20);
+        else if (!lower && c >= u'a' && c <= u'z')
+            c = char16_t(c - 0x20);
+    }
+}
+} // namespace
+
+std::u16string short_name_to_u16(const u8 name[11], u8 nt_reserved) {
     std::u16string s;
     int base_end = 8;
     while (base_end > 0 && name[base_end - 1] == ' ')
@@ -153,12 +179,36 @@ std::u16string short_name_to_u16(const u8 name[11]) {
     int ext_end = 3;
     while (ext_end > 0 && name[8 + ext_end - 1] == ' ')
         --ext_end;
+    std::u16string ext;
     if (ext_end > 0) {
-        s.push_back(u'.');
         for (int i = 0; i < ext_end; ++i) {
             const u8 c = name[8 + i];
-            s.push_back(c >= 0x80 ? kCp437[c - 0x80] : u16(c));
+            ext.push_back(c >= 0x80 ? kCp437[c - 0x80] : u16(c));
         }
+    }
+    switch (nt_reserved) {
+    case 0x00:
+        ntres_fold_u16(s, false);
+        ntres_fold_u16(ext, false);
+        break;
+    case 0x08:
+        ntres_fold_u16(s, true);
+        ntres_fold_u16(ext, false);
+        break;
+    case 0x10:
+        ntres_fold_u16(s, false);
+        ntres_fold_u16(ext, true);
+        break;
+    case 0x18:
+        ntres_fold_u16(s, true);
+        ntres_fold_u16(ext, true);
+        break;
+    default:
+        break; /* raw bytes (the og's exact-match switch, not a mask) */
+    }
+    if (!ext.empty()) {
+        s.push_back(u'.');
+        s += ext;
     }
     return s;
 }
