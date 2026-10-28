@@ -794,3 +794,35 @@ Agent: api-exp lane (this session)
   Session state at handoff: suite 1016/1016 on the local gcc-14 lane,
   all counts truthful (81 exports / 11 verbs / 39+OK), the three-site
   CLI lock held on every verb/flag change.
+
+---
+Task ID: SA-8/T1 (session-8 open — baseline record)
+Agent: session-8 full parity audit (this session)
+
+Baseline (cloned fresh this session):
+- core_recovery @ 35adcb93cf433af4339ee7bdb4c7f5e3e13e8fcf (main) — merged
+  product repo (confirmed: core engine + win layer + audit trail in one tree;
+  driver ships as prebuilt rda.sys release asset).
+- rda-driver @ 323e75acf4cd745960813af4e7fd586a4a34d1a0 (main, v0.2.4 — the
+  M-064 remainder landed).
+- corpus easeus-drw-research @ be0cfe95ecf22ac67e0f3a823dd003163b196d38 (main)
+  — ONE commit past the trail's standing 03ad46c: CORRECTIONS.md #9
+  (EUUserData -> CHKRepairFileSign; GetRawUserInfoMap = per-scan
+  carve-statistics map). Absorption verified first-hand: CORPUS-ERRATA E-A/E-B
+  + PARITY-DELTAS D-104 + SCAN-ENGINE-DELTA F2 row already carry it.
+
+Session scope determination (from the trail + corpus state, not the prompt):
+the board reads 0 active / 249 FIXED / 1 INFORMATIONAL (I-026) / 1 tracked-open
+(OQ-S4-3, Windows-execution-bound). New audit surface since the last audited
+baselines: (a) product code landed since the dev-sign close and the SCAN-2f/3
+context legs — API-EXP W1a/W1b/W1c (78a6552/eb16335, ce6bcb0, c95335f),
+SCAN-2f/3 OQ-SA-1 carrier (eac8e1d/1285be3), S-007 niche batch-1 (e018bf4),
+thumbnail engine (05e6786), installer S-038 steps 2-3 (3e6a8fa), CI rebuild
+(566c483) — each claims corpus contracts; this session verifies those claims
+read-only. (b) The S-007 batch-2 remainder (~14 corpus-documented analyser
+formats absent, causes pinned in the FIXED addendum — a live recall gap
+recorded outside an active finding). (c) The driver-lane handoffs D3/D4
+(recorded not fixed). (d) Gate-doc currency: SURFACE-INVENTORY/PARAMETERS cite
+corpus 03ad46c; the corpus moved.
+
+Prompt saved redacted: worklog/session-8-parity-audit-prompt.md. Read twice.
