@@ -1,3 +1,13 @@
+**Session-51 lane territory claim (coordination contract, 2026-10-29):** this lane
+(the user's SEVERE-first directive; rebranded from the S47 draft at the hot-window
+merge) claims the SEVERE board at the merged `712ac508`: **S-055, S-056, S-057,
+S-058, S-059, S-060, S-061, S-040, S-050** (A-014 already CONVERGENT with the S45
+landing; the MAJOR/MINOR/INFO boards stay with the S46/S47-lane/S48 claims).
+Pulled-before-pushed discipline; one finding, one push; every fix RED-test-first.
+Target: 20+ fixes this session (the SEVERE tier first, then whatever remains
+unclaimed on the lower tiers at each pull). Baseline at the claim: suite 1214/1214
+(1172 pass / 42 env-skips / 0 fail, linux-release at the merged tree).
+
 **Session-51 severe-first lane (rebranded from the S47 draft at the hot-window
 merge — the remote's S47/S48/S49/S50 seats pushed first) — A-014 CONVERGENT with the
 S45 winning landing (2026-10-29).**
