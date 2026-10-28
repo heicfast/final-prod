@@ -141,10 +141,31 @@ retirement verification (engine executed standalone, 40/40, zero ASan) rides the
 ledger cells + `evidence/s11-board-truth.md`; the S11-lead adds to the session-39B
 phantom sweep the four rows it missed (M-041's corpus-SHA cell, M-088's placeholder +
 fictional path, the M-083/M-102 verification annotations, the 54-row
-as-recorded-in-file census erratum). Waves 2-3 (the go-deeper lanes — RAWSearchDLL
-infrastructure function-level walk, the og config/data assets, the seven
-non-searchdll ghidra trees' never-cited space, the core stand-in register) file
-below this block as they land.
+as-recorded-in-file census erratum). **Waves 2-3 (the five go-deeper lanes) LANDED at the session-11-lead close:**
+12 findings filed — **S-054** (SEVERE: the S-047 landing's TS/M2TS cap is 10×
+the og's 200 MB clamp, the "×10" provenance refuted — 2e9 appears nowhere in the
+og binary, no test pins it), **M-115** (MAJOR: the thumbnail grade-promotion
+trigger is mis-modeled — the og promotes on clean recovery-READ success,
+decode-independent, tier-gated, preview-pane-excluded; core promotes only on
+decode Ok and UNDER-promotes damaged-but-readable images; OQ-S11-1 RESOLVED by
+decode, binary-verified at 0x140263b2c-b9a), **M-113** (MAJOR: the recovered-OS
+boot-environment write-side surgery absent — the TempSystem/TmpBCD/TmpSoftWare
+chain; R-69's "PRESENT" verdict is over-coarse), **M-114** (MAJOR: MainModule's
+silent System-Restore purge absent + undecided + undocumented), **N-149, N-143..N-146, N-148**
+(MINOR: the filter's always-on OLE/RIFF/ZIP set; the ISpecial two-step dispatch;
+the TxtView text-snapshot thumbnails; the pendingMarkedDisk cross-run marker; the
+FH11 unowned stand-in; the seven-item comment-truth batch; the CSL 0x44c formula
+converged with the S11B lane's M-112 — this lane's draft dropped per
+extend-don't-refile),
+**I-033** (INFO: the config/data-asset completeness pass — every engine-behavior
+asset byte-identity re-verified; the register corrections; legacy.dll closed; the
+tree bookkeeping) — plus the S-050 wiring addendum (the per-chunk repair feed),
+the N-134 decode closure, and seven CORPUS-ERRATA rows. The negative results are
+recorded (the 17-row infrastructure MATCH table, the 40-asset N/A inventory, the
+19-behavior interaction map, the binary-level CLEAN re-confirmation, the
+no-TODO/no-stub census). Evidence: `evidence/s11-lead-deep-lanes.md`. The board's
+counts at this lane's close ride the next truth pass (the parallel lanes were
+still landing).
 
 ---
 

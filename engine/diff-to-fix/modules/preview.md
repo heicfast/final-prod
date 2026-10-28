@@ -295,3 +295,10 @@ no prior finding owned.)
   early-change growth point — independently reproduced against a
   from-scratch reference decode), M-080's two mechanics (the residual is
   M-108's), S-043's landing was verified in the earlier sweep batches.
+
+### Session-11-lead rows (2026-10-29)
+
+- **M-115** (MAJOR): the promotion trigger is mis-modeled — the og promotes on clean recovery-READ success (decode-independent, tier-gated, preview-pane-excluded); core promotes only on decode Ok. Core UNDER-promotes damaged-but-readable images (the dominant case); the text/media triggers absent (their surfaces below); the <=20-byte over-promotion edge. OQ-S11-1 RESOLVED (the decode, binary-verified at 0x140263b2c-b9a).
+- **N-144** (MINOR): the TxtView text-snapshot thumbnails (<=100 bytes, Arial 13, 200x200 BMP; TxtViewFiles-gated) absent — core refuses text outright.
+- **N-148 item 3** (MINOR): cr_ui.cpp:3754's og cite is 9 lines loose (the guard is :422507-514).
+- Verified MATCH this session: the 19-behavior results-phase interaction map (filter/sort/search/preview/recover/session/regrade families; the rest host-side by doctrine) — §Lane-C Section B.

@@ -742,3 +742,14 @@ The carve surface's size-walk residue now has owners:
   never-cited FileRepair artifact (x3f-repair--section-checkers-walk.md:9-33).
 - **S-041** closed FIXED-as-umbrella (retired to history; the FIXED-LEDGER row
   carries the closure record).
+
+### Session-11-lead rows (2026-10-29)
+
+- **S-054** (SEVERE): the TS/M2TS cap at 2e9 is 10x the og's 200 MB clamp (the S-047 landing's refuted "x 10" provenance; unpinned).
+- **N-149** (MINOR): the filter's always-on set — the og exempts OLE/RIFF/ZIP from every filter (mask 0x1000801); the disable surface can switch them off.
+- **N-143** (MINOR): the ISpecial two-step dispatch with the id-8 generic continuation (the D-75 sibling).
+- **N-146** (MINOR): the FH11 zero-end stand-in unowned (S-037's purge residue; 32 MiB).
+- **M-112** (MAJOR, the S11B lane's convergent filing — this lane's draft N-147 dropped per extend-don't-refile): the CSL 0x44c size formula decoded-but-unported (FUN_180041950 :49749-49828, the span gate + the +0x118 cap check).
+- **N-148 items 4-5** (MINOR): the EPS/AI validator caps drifted to 16 MiB vs the 64 MiB rows; six dangling in-code Resolution pointers.
+- The **S-050 addendum**: the repair line's second wiring channel (the per-chunk feed, DDC:9623-27) — the post-processor contract must decide it.
+- Verified MATCH this session: the whole infrastructure table (17 rows — dispatch order, registry duality, geometry, gates, dedup, progress, cancel) at `evidence/s11-lead-deep-lanes.md` §Lane-A; the family map (5 families -> core schools present).

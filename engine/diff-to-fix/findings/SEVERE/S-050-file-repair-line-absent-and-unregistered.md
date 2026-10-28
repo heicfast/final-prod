@@ -61,3 +61,19 @@ The exact product boundary of "Fixo line inside DRW" vs "separately-sold product
 ## Session-11B addendum (2026-10-29, re-triage at `743d7b8d`): PARTIAL — the false-citation leg was fixed at filing; the capability leg stands
 
 Leg 2 (the false registration) was repaired by `ea2f3ea7` in the finding's own session: the SURFACE-INVENTORY row now truthfully reads "AUDITED this session (SA-10B): S-050 — unimplemented AND the prior row's OUT-OF-SCOPE (CAPABILITY-MATRIX §3) citation was FALSE". The title's "unregistered" clause is half-stale: the FALSE registration is gone, but the FORMAL disposition (implement vs a truthful §3 exclusion row) still pends — CAPABILITY-MATRIX §3 (:77-92) still lists only Cloud/NAS/remote, BitLocker FVE-key derivation, signing, .rsf import. Leg 1 (the capability gap) verified still-active: src/core/repair/ holds only cr_rawfixer.cpp; zero imgrepair/docrepair/videorepair symbols repo-wide; no CLI verb (rrecov.cpp:3127-3148), no ABI op.
+## Session-11-lead addendum (2026-10-29 — the wiring decode extends the scope note)
+
+The Lane A infrastructure walk decoded the og's repair-binding WIRING in full and
+found a facet beyond this finding's registered scope: besides the per-candidate
+hook (the finalized candidate's GetVideoInfo → interface `vtable+0x48`, polled at
+RAWSearchDLL_decompiled.c:10130-10136 — the seam this finding's plan targets),
+the og ALSO feeds **every scanned chunk's raw buffer** to the repair interface
+(`vtable+0x40` at :9623-9627, with the init call `vtable+0x30` receiving the
+device + size at :9226-9236). The og's repair module therefore sees ALL scanned
+bytes — the per-chunk feed is a second, coarser channel beside the per-candidate
+one. Core's CarvePostProcessor (include/cr/carve/cr_carve.h:96-160, the M-021
+seam) is per-candidate only. When this finding's fix lands the repair line, the
+post-processor contract should decide the per-chunk channel explicitly (a
+`on_chunk` optional callback or its registered decline) — the og's repair engine
+consumes both. Evidence: `evidence/s11-lead-deep-lanes.md` §Lane-A row 13 + the
+addendum list.

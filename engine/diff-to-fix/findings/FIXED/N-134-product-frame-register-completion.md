@@ -129,3 +129,13 @@ PRESERVED in this retired file** — the corrected sfc disposition
 + `evidence/decompiled-quotes/s11-sfc-payload-decode.md`; this retirement
 does not touch it (convergent closures: this lane's FIXED-ALREADY retirement
 and the S11 lane's addendum both stand).
+## Session-11-lead addendum (2026-10-29 — the legacy.dll open decode CLOSED; appended at the S11-lead rebase onto the S11B retirement move)
+
+The Lane D tree sweep closed this finding's open question on legacy.dll's
+consumer: **no binary in any of the nine non-searchdll reversed trees imports or
+loads it** (zero `legacy` matches across all `*_imports.txt`; zero
+`LoadLibraryA("legacy…")` strings in the decompiles), and its sole export is
+`OSSL_provider_init` — the loader is the **OpenSSL-3 runtime itself** (libcrypto's
+provider machinery), not any product binary. Fix-plan step 2 can close as
+"consumer = the OpenSSL runtime layer; no og-binary consumer exists." Evidence:
+`evidence/s11-lead-deep-lanes.md` §Lane-D D-4.

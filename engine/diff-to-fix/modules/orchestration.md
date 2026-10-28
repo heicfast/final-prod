@@ -241,3 +241,9 @@ CLI flag + session round-trip). The W1a/W1b/W1c orchestration claims verified
 - The two findings compose with S-048/M-103 (the per-volume branch family)
   and M-079 (the volume-label plumbing): one whole-disk shape pass in the
   fix order resolves the family coherently.
+
+### Session-11-lead rows (2026-10-29)
+
+- **M-114** (MAJOR): MainModule's silent System-Restore purge (srclient SRRemoveRestorePoint via WMI enumerate-all, 510-index fallback, BOTH drives of a copy/repartition pair) — absent, undecided, undocumented even in the corpus. The posture decision (host-consent plan item vs registered decline) is the fix lane's.
+- **N-145** (MINOR): the cross-run apply-interruption marker (the og's pendingMarkedDisk; core's CRUNDO01-only posture) — the in-flight journal recommendation.
+- **N-148 item 6** (MINOR): the ReFS og_prop_flags decoded-but-unconsumed datum (the consumer decode or the passive-datum registration).
