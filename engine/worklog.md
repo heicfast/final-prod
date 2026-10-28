@@ -1,3 +1,28 @@
+**Session-44 minors lane — N-171 + N-188 landed (2026-10-29).**
+
+- **N-171 FIXED** — the user-sign carved_count undercount: the user-sign emission path
+  now ticks `validated` right after `sign_hits` (the counter `carved_found` is assigned
+  from at the orchestrator seam), so the entire default-on user-sign channel (78
+  extensions carried by no stock source) counts in the headline carved number at
+  runtime AND in the persisted session record. RED proven pre-fix on both legs: the
+  carve-level fixture (one 0xFFFE0000 record, validated 0) and the orchestrator +
+  session round-trip (carved_found 0 with the record in the tree; the reload re-read 0).
+  Tests: `CarveStats.UserSignFilesCountInCarvedFound` +
+  `CarveStats.UserSignCarvedFoundSessionRoundTrip`.
+- **N-188 FIXED (NEW — the §8 discovery during N-171's verification, filed+fixed the
+  same session)** — the stock raw-sign layer's twin: sign-table-only formats (no
+  grammar analyser — `sample`, `a`, `amr`, `class`, `evtx`, ...) emitted records without
+  ticking `validated` either; an executed probe proved it (the sample-format fixture:
+  sign_hits=1 / validated=0 / one carved node in the tree). The fix: the emission-site
+  tick (post-dedup, on emission — matching the grammar and user-sign layers; the
+  candidate-site `sign_hits` semantics untouched), plus the `CarveStats::validated`
+  doc comment updated from "grammar-confirmed" to the emitted-record truth. Four stale
+  pins re-pinned to the honest count (the jfif raw-sign plants in the shared fixture
+  now count: 4→5, 3→4, 4→5, 1→2 — the pins' own comments had already documented the
+  raw-sign emissions they were excluding from the counter). Test:
+  `CarveStats.StockRawSignFilesCountInCarvedFound`. Suite 1236/1236 (linux-release).
+  Audit trail: both finding Resolutions + moves to findings/FIXED/, the N-188 row
+  added to CROSS-REF-MATRIX, carve module doc rows, SUMMARY entry-2 block, this entry.
 **Session-51 severe-first lane — S-058 + S-061 landed (2026-10-29).**
 
 **S-058 + S-061 FIXED (one grading patch).** Corpus re-verified first-hand:
@@ -103,7 +128,6 @@ is closed: no divergence, no code change. Trail: findings/FIXED/OQ-S42-1
 
 **Session-44 minors lane — N-161 CONVERGENT-DU with the S53 landing (their `e0f15e0` wins per SA-9; this lane's byte-equivalent gate rides as the convergence addendum).** This lane independently verified and fixed N-161 (RED proven pre-fix: the corrupt entry [first=5, last=0] emitted the wrapped 0xFFFFFFFFFFFFFFFC partition; gate + `gpt_invalid_entries` counter + the same two test names landed locally), then hit the hot-window reconciliation: the remote's S53 lane (the S46 MINOR-claim continuation) pushed their own N-161 landing first — a superset (their gate also names the 2^64-boundary wrap `last − first == UINT64_MAX` invalid, where this lane's version left it on the zero-span side of the seam). Convergence resolution: the S53 code + S53 tests kept wholesale (this lane's duplicate test block and duplicate surfacing line removed; the two-gate-seam expectation superseded by the superset's counter==1 pin); this lane's independent RED reproduction stands as the corroboration record. The finding file's Resolution keeps the S53 record; this entry is the convergence documentation.
 
-**S53 lane (the S46 MINOR-first claim continued, 2026-10-29; renumbered from the
 **Session-56 lane territory claim (coordination contract, 2026-10-28 22:42 UTC; seat renumbered S49→S52→S56 across three hot-window rebases — the remote's S49/S50/S51 and S52/S53/S54/S55 seats pushed first, the S47→S51 precedent applied each time):** this lane
 (MINOR-first per the user's explicit session directive — the S46 claim's MINOR board
 top-down is executed by the S53 lane per its posted claim; this lane takes the MIRROR

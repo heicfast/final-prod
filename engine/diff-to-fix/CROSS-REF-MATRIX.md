@@ -105,8 +105,13 @@
     bounds guard, core correct, unregistered); **N-169** (carve — duplicate `asf`
     block merge semantics, og side undecoded OQ); **N-170** (docs — 8 stale
     pre-erratum EUUserData/GetRawUserInfoMap claims + 2 corpus-side residues);
-    **N-171** (carve/stats — user-sign files never tick carved_found, runtime +
-    session undercount); **N-172** (fat — deleted-first-char `'#'` vs `'_'` + the
+    **N-171 FIXED (Session-44 — the user-sign emission ticks `validated`; runtime +
+    session undercount closed; findings/FIXED/N-171)** (carve/stats — user-sign files
+    never tick carved_found); **N-188 FIXED (Session-44 §8 discovery during N-171's
+    verification — the stock raw-sign layer's twin: sign-table-only formats never
+    ticked `validated` either; the executed probe 1/0/0; the emission-site tick + 4
+    stale pins re-pinned; findings/FIXED/N-188)** (carve/stats — NEW, filed+fixed same
+    session); **N-172** (fat — deleted-first-char `'#'` vs `'_'` + the
     unregistered LFN-checksum recovery superset; closes OQ-T2); **N-173** (fat —
     the 2106/2107 u32 clamp vs full conversion; exFAT sibling inconsistent);
     ~~**N-174**~~ **FIXED (S46)** (exfat — the `._` AppleDouble sink filter landed, the N-028 family's

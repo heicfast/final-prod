@@ -1075,6 +1075,15 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                         n->set_deleted_state(tree::DeletedState::Deleted);
                         n->set_confidence(tree::Confidence::PartialRisk);
                         ctx.sign_hits.fetch_add(1, std::memory_order_relaxed);
+                        /* N-171: the record IS validated - the sign matched,
+                         * exactly like a grammar-validated record (the og's
+                         * own stats map counts analyser detections the same
+                         * way). carved_found is assigned from `validated`
+                         * (cr_scan.cpp); without this tick the whole
+                         * default-on user-sign channel was invisible in the
+                         * headline carved count, at runtime and in the
+                         * session record. */
+                        ctx.validated.fetch_add(1, std::memory_order_relaxed);
                         emitted_at.insert(start_abs);
                         continue;
                     }
@@ -1277,6 +1286,12 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             n->set_deleted_state(tree::DeletedState::Deleted);
             n->set_confidence(tail_paired ? tree::Confidence::PartialRisk
                                           : tree::Confidence::MetadataOnly);
+            /* N-188: the emitted record counts in `validated` — the
+             * counter carved_found is assigned from (cr_scan.cpp),
+             * matching the grammar and user-sign layers' emission-time
+             * counting. Ticked HERE (post-dedup, on emission), not at the
+             * candidate site — sign_hits keeps its candidate semantics. */
+            ctx.validated.fetch_add(1, std::memory_order_relaxed);
             emitted_at.insert(start_abs);
         }
     }
@@ -1284,8 +1299,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
 }
 
 /* Read + scan the window with index wi (base = wi * WINDOW). */
-u32 scan_window_index(ScanCtx& ctx, u64 wi, std::set<u64>& emitted_at,
-                      std::set<u64>& rejected_at) {
+u32 scan_window_index(ScanCtx& ctx, u64 wi, std::set<u64>& emitted_at, std::set<u64>& rejected_at) {
     const u64 base = wi * WINDOW;
     const u64 avail = ctx.total - base;
     u64 want = avail < WINDOW + OVERLAP ? avail : WINDOW + OVERLAP;
@@ -1473,7 +1487,7 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
                  * allocation failure returns the code, never an exception
                  * through the pool */
                 try {
-                    std::set<u64> emitted_at; /* per-worker overlap set */
+                    std::set<u64> emitted_at;  /* per-worker overlap set */
                     std::set<u64> rejected_at; /* S-055: per-worker grammar-rejection set */
                     u32 rc = scan_window_index(ctx, wi, emitted_at, rejected_at);
                     const u64 done = windows_done.fetch_add(1, std::memory_order_relaxed) + 1;

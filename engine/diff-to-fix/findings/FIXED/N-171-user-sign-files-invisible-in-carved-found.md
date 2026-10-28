@@ -68,3 +68,10 @@ population.
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-171+N-188 landing — post-push SHA in the ledger row and worklog entry)
+**Verified by:** `CarveStats.UserSignFilesCountInCarvedFound` (RED pre-fix: the DEADBEEF user-sign fixture carved one 0xFFFE0000-tagged record with sign_hits == 1 and validated == 0 — the whole channel invisible in the carved_found feed) + `CarveStats.UserSignCarvedFoundSessionRoundTrip` (RED pre-fix: the orchestrator-level scan reported carved_found == 0 with the record in the tree; post-fix: 1 at runtime AND re-read 1 from the persisted session). Both GREEN post-fix; the full suite 1236/1236 (linux-release).
+**Resolution notes:** The tick landed exactly per the fix plan's preferred step 1: the user-sign emission path now ticks `validated` right after `sign_hits` (the record IS validated — the sign matched), keeping every layer's downstream per-stage counters uniform; the alternative assignment change (cr_scan.cpp) was not needed. The session-persisted undercount closes itself through the same counter (the REC_SESSION_STATE writer reads stats.carved_found). During the verification, the SAME defect class was proven on the stock raw-sign layer (an executed probe: the sample-format fixture carved with sign_hits=1/validated=0) — filed as **N-188** and fixed in the same landing. S-055/S-056 (the same block's probe-order and filter defects) were NOT touched — the emission-site tick is order-independent and rides cleanly under whichever probe order the S-055 fix lands.

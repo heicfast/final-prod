@@ -1,4 +1,38 @@
-# SUMMARY.md — executive summary (the S44 minors lane on top of the S47 MAJOR-first fix lane; the prior lanes below, newest-first — rebrand note: the remote's S47/S48..S50 window pushed first; this lane's N-161 rides the reconciliation per SA-9)
+# SUMMARY.md — executive summary (the S44 minors lane on top of the S47/S53/S56 parallel window; the prior lanes below, newest-first)
+
+## Session-44 minors-lane delta, entry 2 (2026-10-29 — the N-171 + N-186 carve-stats pair)
+
+**N-171 FIXED — the user-sign carved_count undercount.** Verified before the change
+(the SOP): the emission path re-read at the user-sign block (`sign_hits` the only tick)
+and the assignment seam re-read (`stats.carved_found = cs.validated` — the grammar
+layer's counter alone); the falsifiable claim executed RED first-hand: a DEADBEEF
+user-sign fixture carved one 0xFFFE0000-tagged record with carved_found == 0, at the
+carve level AND through a full orchestrator scan + session save/reload round-trip.
+The landing per the fix plan's preferred step 1: the user-sign emission ticks
+`validated` after `sign_hits` (the record IS validated — the sign matched; the og's
+own stats map counts analyser detections the same way); no assignment change needed.
+Tests: `CarveStats.UserSignFilesCountInCarvedFound` +
+`CarveStats.UserSignCarvedFoundSessionRoundTrip` (both RED pre-fix).
+
+**N-188 FIXED (NEW — the §8 discovery during N-171's verification).** The same
+defect class proven on the STOCK raw-sign layer by an executed probe: a fixture whose
+only content is the `sample` sign (`#!/bin/sh`, sign-table-only — no grammar) carved
+exactly one record with `sign_hits=1 validated=0` — the og's own layer-1 sign-table
+channel (139 formats) was invisible in the headline carved count the same way. Filed
+as findings/MINOR/N-186 (now FIXED/) with the full evidence chain, then fixed in the
+same session: the emission-site tick (post-dedup, on emission — matching the grammar
+and user-sign layers; the candidate-site `sign_hits` semantics untouched), the
+`CarveStats::validated` doc comment updated from "grammar-confirmed" to the
+emitted-record truth (grammar + raw-sign + user-sign). Four stale pins re-pinned to
+the honest count (GrammarValidationAndSpecificity 4→5, SkipsFsAllocatedRegions 3→4,
+StructuredBoundaryPartialOverlap 4→5, OccupancyGateJumpsWholeInterval 1→2 — each
+fixture's jfif raw-sign plant now counts; the pins' own comments had already
+documented the raw-sign emission they were excluding from the counter). Test:
+`CarveStats.StockRawSignFilesCountInCarvedFound` (RED pre-fix via the probe).
+Suite 1236/1236 (linux-release).
+
+**Board after this push (filesystem truth): 68 active — 0 ACUTE · 9 SEVERE ·
+27 MAJOR · 29 MINOR · 3 INFO — + 6 tracked-open / the FIXED archive at 79 files.**
 
 
 **S-058 CONVERGENT (SEVERE — session-57 lane; the S52 lane's ea405392 wins per

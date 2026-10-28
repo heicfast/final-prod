@@ -257,8 +257,10 @@ TEST(CarveEngine, GrammarValidationAndSpecificity) {
         carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
     ASSERT_EQ(rc, OK) << err_text(rc);
 
-    /* validated: jpg, png, zip, docx; noise rejected; no duplicates yet */
-    EXPECT_EQ(stats.validated, 4u);
+    /* validated: jpg, png, zip, docx + the jfif raw-sign emission at
+     * 12288 (N-188: the sign-table layer's records count too); grammar
+     * noise still rejected; no duplicates yet */
+    EXPECT_EQ(stats.validated, 5u);
     EXPECT_GE(stats.rejected, 1u);
     /* N-153: the two archives' inner central-directory positions
      * (PK\x01\x02 inside the emitted extents) now count as duplicates -
@@ -7570,6 +7572,44 @@ TEST(CarveEngine, UserSignatureProbedAtStride) {
      * registry is per-process, so this test owns it) */
 }
 
+TEST(CarveStats, UserSignFilesCountInCarvedFound) {
+    /* N-171: the headline carved count is assigned from the carve
+     * engine's `validated` counter (cr_scan.cpp: carved_found =
+     * cs.validated). A user-sign record IS a validated carve - the sign
+     * matched, exactly like a grammar-validated record; the og's own
+     * stats map counts analyser detections the same way. Fail-before:
+     * the user-sign path ticked only sign_hits and the whole default-on
+     * user-sign channel (78 extensions carried by no stock source) was
+     * invisible in carved_found. */
+    std::vector<u8> img(2ull << 20, 0);
+    img[0x2000] = 0xDE;
+    img[0x2001] = 0xAD;
+    img[0x2002] = 0xBE;
+    img[0x2003] = 0xEF;
+    const char* json = "{\"uvw\": {\"signs\": [\"0,DEADBEEF\"], \"mime\": \"application/x-uvw\"}}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(set)));
+    ASSERT_EQ(1u, carve::usersigns::active_count());
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Carved");
+    CarveFlags fl;
+    fl.hash_small_files = false;
+    CarveStats st;
+    ASSERT_EQ(OK,
+              carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
+    EXPECT_EQ(1u, st.sign_hits) << "the user-sign emission fired";
+    EXPECT_EQ(1u, st.validated) << "the user-sign record must count in the carved_found feed";
+    /* the tree agrees: exactly one 0xFFFE0000-tagged record */
+    u32 tagged = 0;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->carve_format == 0xFFFE0000u)
+            ++tagged;
+    EXPECT_EQ(1u, tagged);
+}
+
 TEST(CarveEngine, UserSignatureYieldsToBuiltInAtSamePosition) {
     /* collision rule: a user sign whose magic ALSO matches a built-in at
      * the same stride defers - the built-in layer probes first and the
@@ -7623,8 +7663,7 @@ namespace {
 /* Install the shipped default set; returns false when the file/parse
  * fails (callers ASSERT on it). */
 bool install_default_usersigns() {
-    std::ifstream in(std::string(CR_SOURCE_DIR) + "/data/userdata-defaults.json",
-                     std::ios::binary);
+    std::ifstream in(std::string(CR_SOURCE_DIR) + "/data/userdata-defaults.json", std::ios::binary);
     if (!in.good())
         return false;
     std::string json((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
@@ -7658,8 +7697,7 @@ u32 count_ext_records(tree::FileNode* root, const char* ext8) {
     u32 n = 0;
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
         if (c->props() && c->props()->name.size() >= tail.size() &&
-            c->props()->name.compare(c->props()->name.size() - tail.size(), tail.size(), tail) ==
-                0)
+            c->props()->name.compare(c->props()->name.size() - tail.size(), tail.size(), tail) == 0)
             ++n;
     return n;
 }
@@ -7705,8 +7743,8 @@ TEST(Carve, UserSignOverlapFormatsAllYieldToBuiltin) {
      * at a stride; the built-in candidate must own the position and no
      * 0xFFFE0000 record may appear. */
     ASSERT_TRUE(install_default_usersigns());
-    static const char* const kOverlap[] = {"amr", "cap", "class", "cpl",
-                                           "flac", "msf", "pdb",  "wpl"};
+    static const char* const kOverlap[] = {"amr",  "cap", "class", "cpl",
+                                           "flac", "msf", "pdb",   "wpl"};
     for (const char* ext : kOverlap) {
         u32 fid = 0xFFFFFFFFu;
         const rawsigns::RawSign* sign = nullptr;
@@ -7733,8 +7771,8 @@ TEST(Carve, UserSignOverlapFormatsAllYieldToBuiltin) {
         CarveFlags fl;
         fl.hash_small_files = false;
         CarveStats st;
-        ASSERT_EQ(OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr,
-                                  nullptr, st))
+        ASSERT_EQ(
+            OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st))
             << ext;
         EXPECT_EQ(0u, count_tagged(root, 0xFFFE0000u)) << ext << ": no user-sign record";
         /* a built-in row owns the position. NOTE: the planted magic can
@@ -7817,7 +7855,8 @@ TEST(Carve, UserSignStillFiresWhenNoBuiltinMatches) {
      * UserSignatureProbedAtStride pre-condition); CAFEBABE would NOT do
      * here - it is the built-in class magic (the raw-sign table's class
      * row and the default set's own class sign both carry it) */
-    const char* json = "{\"xyzzy\": {\"signs\": [\"0,DEADBEEF\"], \"mime\": \"application/x-xyzzy\"}}";
+    const char* json =
+        "{\"xyzzy\": {\"signs\": [\"0,DEADBEEF\"], \"mime\": \"application/x-xyzzy\"}}";
     carve::usersigns::UserSignSet set;
     ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
     ASSERT_EQ(OK, carve::usersigns::install_set(std::move(set)));
@@ -7871,8 +7910,8 @@ TEST(Carve, DisabledFormatsGatesUserSignLayer) {
         fl.hash_small_files = false;
         fl.disabled_formats = dis;
         CarveStats st;
-        ASSERT_EQ(OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr,
-                                  nullptr, st))
+        ASSERT_EQ(
+            OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st))
             << "disabled_formats=" << dis;
         EXPECT_EQ(0u, count_tagged(root, 0xFFFE0000u))
             << "disabled '" << dis << "': no user-sign cpl record";
@@ -7885,9 +7924,8 @@ TEST(Carve, DisabledFormatsGatesUserOnlyExtension) {
     /* S-056 on the user-ONLY population (the 78 extensions no stock
      * source carries): disabling one suppresses its user-sign record
      * while an unrelated user extension still fires. */
-    const char* json =
-        "{\"xyzzy\": {\"signs\": [\"0,DEADBEEF\"], \"mime\": \"x/xyzzy\"},"
-        " \"quux\": {\"signs\": [\"0,0BADF00D\"], \"mime\": \"x/quux\"}}";
+    const char* json = "{\"xyzzy\": {\"signs\": [\"0,DEADBEEF\"], \"mime\": \"x/xyzzy\"},"
+                       " \"quux\": {\"signs\": [\"0,0BADF00D\"], \"mime\": \"x/quux\"}}";
     carve::usersigns::UserSignSet set;
     ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
     ASSERT_EQ(OK, carve::usersigns::install_set(std::move(set)));
@@ -8290,8 +8328,9 @@ TEST(CarveEngine, SkipsFsAllocatedRegions) {
     u32 rc =
         carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
     ASSERT_EQ(rc, OK) << err_text(rc);
-    EXPECT_EQ(stats.validated, 3u)
-        << "the in-extent JPEG must be suppressed (jpg/png/zip/docx -> 3)";
+    EXPECT_EQ(stats.validated, 4u)
+        << "the in-extent JPEG must be suppressed (png/zip/docx + the jfif "
+           "raw-sign plant -> 4; N-188 counts the sign-table layer)";
     EXPECT_GE(stats.occupancy_skipped, 1u) << "the gate must count its suppression";
     bool jpg_at_512 = false;
     std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
@@ -8325,7 +8364,8 @@ TEST(CarveEngine, StructuredBoundaryPartialOverlap) {
     u32 rc =
         carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
     ASSERT_EQ(rc, OK) << err_text(rc);
-    EXPECT_EQ(stats.validated, 4u) << "the straddling JPEG still carves";
+    EXPECT_EQ(stats.validated, 5u) << "the straddling JPEG still carves (jpg/png/zip/docx "
+                                      "+ the jfif raw-sign plant; N-188)";
     bool jpg_at_512 = false;
     std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
         for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
@@ -8356,8 +8396,10 @@ TEST(CarveEngine, OccupancyGateJumpsWholeInterval) {
         carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
     ASSERT_EQ(rc, OK) << err_text(rc);
     /* the JPEG@512, PNG@2048 and ZIP@4096 are inside [0, 8192); the
-     * DOCX@8192 sits exactly on the excluded boundary end and carves */
-    EXPECT_EQ(stats.validated, 1u);
+     * DOCX@8192 sits exactly on the excluded boundary end and carves;
+     * the jfif raw-sign plant@12288 is outside the interval and counts
+     * (N-188) */
+    EXPECT_EQ(stats.validated, 2u);
     EXPECT_GE(stats.occupancy_skipped, 2u);
     EXPECT_TRUE(stats.bytes_scanned >= 256 * 1024 - 4096) << "the scan still covers the device";
 }
@@ -11102,4 +11144,30 @@ TEST(UserSigns, ShippedOgFileVerbatimLoads) {
         << "the og's own shipped file must load verbatim";
     EXPECT_TRUE(set.valid);
     EXPECT_EQ(191u, set.signs.size()) << "all 191 signs (the duplicate asf block included)";
+}
+
+TEST(CarveStats, StockRawSignFilesCountInCarvedFound) {
+    /* N-188 (discovered during N-171's verification): the stock raw-sign
+     * layer emits records without ticking `validated` - carved_found is
+     * assigned from that counter (cr_scan.cpp), so a sign-table-only
+     * format (no grammar analyser; "sample" = #!/bin/sh is one) was
+     * invisible in the headline carved count. RED pre-fix: the executed
+     * probe printed sign_hits=1 / validated=0 with the tree carrying
+     * the carved node. */
+    std::vector<u8> img(2ull << 20, 0);
+    std::memcpy(img.data() + 4096, "#!/bin/sh\n", 10);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Carved");
+    CarveFlags fl;
+    fl.hash_small_files = false;
+    CarveStats st;
+    ASSERT_EQ(OK,
+              carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
+    EXPECT_EQ(1u, st.sign_hits) << "the stock sign-table candidate fired";
+    EXPECT_EQ(1u, st.validated) << "the stock raw-sign record must count in the carved_found feed";
+    /* the tree agrees: exactly one carved record (stats refresh first -
+     * the counters are cached until the walk refreshes them) */
+    tree.refresh_stats();
+    EXPECT_EQ(1u, root->stats().file_count + root->stats().dir_count);
 }
