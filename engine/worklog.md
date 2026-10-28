@@ -7458,3 +7458,21 @@ ValidTimeWordBoundaryUnchanged` (23:59:58/midnight/N-173-pin regression guard),
 result tree, modified+created). Suite 1210/1210 linux-release; UBSan clean on the
 FAT/exFAT battery (98/98). Trail: findings/FIXED/A-014 + ledger row + matrix cell +
 fat.md S47 addendum + B9 row + SUMMARY block + this entry.
+## Session-46 minors lane — N-175 landed (2026-10-29)
+
+**N-175 FIXED (MINOR — the FAT NTRes 8.3 display-case fold).** The corpus cite
+re-read first-hand (FATSearchDLL :44191-44216 — the four-way exact-value switch:
+NTRes 0x00 strupr+strupr, 0x08 strlwr+strupr, 0x10 strupr+strlwr, 0x18 strlwr+strlwr,
+anything else the raw "%s.%s" path — the switch is exact, NOT a mask, so NTRes 0x01
+[Windows' permanently-lowercase bit] takes the raw path). `short_name_to_u16` now
+takes the dentry's nt_reserved byte and applies the ASCII-only fold (the og's
+strupr/strlwr are ANSI CRT; the CP437 high half and the N-087 OEM decode compose
+before it, matching the og's decode-then-fold order). The LFN path never passes
+through the builder — structurally unaffected, pinned by
+NtResFoldLeavesLfnCaseUntouched. NtResCaseFoldFourWay: the 5-path pin (mixed-case
+"File001 Txt" on disk separates all four folds + the raw 0x01 path), RED pre-fix on
+all four fold cases. The fold caught one pre-existing expectation — the BitLocker
+end-to-end fixture's NTRes=0 mixed-case "READMe.TXT" now renders the og's folded
+"README.TXT" (re-pinned in the same commit; the finding's own predicted
+case-sensitive-bench divergence). Suite 1190/1190 (linux-release). Trail:
+findings/FIXED/N-175 + ledger row + matrix A10/B-naming row + fat.md list + this entry.

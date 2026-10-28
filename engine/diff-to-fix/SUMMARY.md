@@ -112,7 +112,13 @@ first-hand; every fix RED-test-first.
   oracle inherits it; `apple_doubles_sunk` counter; `ExfatEngine.AppleDoublePrefixSunk`
   RED→GREEN + `RegularDotFilesNotSunk` the over-blocking pin; exFAT battery 36/36).
 
-**Board (filesystem truth at `a3ab4ed3`, post the S45..S51 parallel-window absorption — A-014 fixed [convergent, 862d79ef], M-124 fixed [dcb123dd], the INFO board complete [I-035/I-036/I-040..I-044 all ACKNOWLEDGED-RETIRED]): 67 active — 0 ACUTE · 9 SEVERE · 27 MAJOR · 31 MINOR · 0 INFO / 71 FIXED files / 6 tracked-open.**
+- **N-175 FIXED** — the FAT NTRes 8.3 display-case fold (FATSearchDLL :44191-44216
+  re-read first-hand; the four-way exact-value switch in short_name_to_u16 —
+  0x00/0x08/0x10/0x18 fold, anything-else raw; `FatEngine.NtResCaseFoldFourWay` the
+  5-path RED→GREEN pin + `NtResFoldLeavesLfnCaseUntouched`; the BitLocker NTRes=0
+  fixture caught and re-pinned — the finding's own predicted bench-divergence class).
+
+**Board (filesystem truth, running): 66 active — 0 ACUTE · 9 SEVERE · 27 MAJOR · 30 MINOR · 0 INFO / 72 FIXED files / 6 tracked-open (the S45..S51 window's A-014/M-124/INFO-board landings absorbed at the rebase).**
 
 # SUMMARY.md — executive summary (the S42 diff-to-fix lane's convergence on top; the prior lanes below, newest-first)
 # SUMMARY.md — executive summary (the S46 MINOR-first fix lane on top — the user's priority-to-minor directive; the prior lanes below, newest-first)
