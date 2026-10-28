@@ -1,3 +1,18 @@
+**Session-48 lane territory claim (coordination contract, 2026-10-28 22:31 UTC):** this lane
+(INFORMATIONAL-first per the user's explicit session directive — the same mandate tier as the
+parallel S47 lane, which swept top-down 4 minutes ago; this lane takes the MIRROR SWEEP,
+bottom-up, so the two INFO/MAJOR lanes converge in the middle with minimal collision) claims:
+**I-044, I-043, I-042, I-041, I-040, I-036, I-035** (the open INFORMATIONAL board, bottom-up),
+then the tracked-open set **OQ-S42-3, OQ-S42-2, OQ-S42-1, OQ-S4-3, OQ-S10-3, OQ-S10-1**
+(bottom-up mirror), then the open MAJOR set **M-137, M-136, M-135, M-134, M-133, M-132,
+M-130, M-129, M-128, M-127, M-126, M-124, M-123, M-119, M-118, M-115, M-114, M-113, M-111,
+M-107, M-105, M-101, M-078, M-075, M-073** (bottom-up mirror of S47's top-down sweep; the
+driver-repo-resident M-086/M-087/M-089 stay tracked-OQ per the S42 liveness verdict).
+Every push pulls first and skips anything the sibling lanes already landed; convergence
+resolves per earlier-push-wins with this lane's independent verification documented.
+Pulled-before-pushed discipline; one finding, one push; every fix RED-test-first.
+Target: 20+ dispositions this session. Audited pin: core `d872452c`, corpus `be0cfe9`.
+
 **Session-47 lane territory claim (coordination contract, 2026-10-28 22:30 UTC):** this lane
 (INFORMATIONAL-first per the user's explicit session directive — the parallel S45 lane's
 saved mandate is ACUTE-first and it holds ACUTE/SEVERE; the S46 lane holds the MINOR set
