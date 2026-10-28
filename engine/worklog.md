@@ -2112,3 +2112,20 @@ Work Log:
 
 Stage Summary:
 - M-088 fully closed in the purge world. DFX-38 continues at M-082.
+---
+N-116 FIXED (the session-list row ordering): re-verified at current main first (path-byte
+sort in list_crsf_files both branches; session_list_impl filled in that order; the CLI
+re-sorted by path with its own comment pinning the wrong contract). The finding's open
+question settled first-hand: FUN_140273550 (DRWUI_decompiled.c:432112-142, re-read this
+session) returns !(ftA < ftB) over the record-2 SYSTEMTIMEs = NEWEST-FIRST (the ordering
+the og's Continue-last banner depends on; the identical side-calls in both branches are
+a decompiler artifact). Fix: session_list_impl decodes every candidate then sorts
+save_unix DESC, path-ascending tie-break; the TRUNCATED under-capacity answer is the
+time-ordered prefix (the NEWEST rows, not an arbitrary path prefix); cr_ui.h two-call
+contract + ABI-CONTRACT 7f re-worded; the CLI sessions verb re-sorts by the same key.
+RED proven (SessionListOgTimeOrdering: row 0 was the path-first OLD session), GREEN
+after (row 0 = the path-last NEW one); tie-break + CLI-source-agreement pins included.
+Suite 1041/1041. Style repair rode along (the parallel S-044 landing 7b7e095 carried
+clang-format violations in cr_ui.h/cr_ui.cpp/test_cr_ui.cpp - reformatted, gate green).
+Board (filesystem-counted): 70 active (7 SEVERE · 27 MAJOR · 31 MINOR · 5 INFO) / 258
+FIXED / 2 tracked-open.

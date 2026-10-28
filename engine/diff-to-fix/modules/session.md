@@ -276,7 +276,12 @@ PARITY-DELTAS).
 The load-bearing halves verified MATCH (light records; per-node load progress + cancel +
 the partial-tree discard; the completion trigger + the byte-exact naming). Filed:
 **N-116** (the row-ORDERING divergence — the og's FILETIME time-sort :432112-432142 vs
-the path-byte sort; a distinct axis from N-090's scope/row-shape finding), **N-117**
+the path-byte sort; a distinct axis from N-090's scope/row-shape finding — **FIXED in
+session 38: rows now newest-first by save_unix with a path-ascending tie-break; the
+comparator's direction settled first-hand (!(ftA < ftB) = newest-first); the TRUNCATED
+answer is the time-ordered prefix; the CLI verb re-sorts by the same key; contract
+re-worded in cr_ui.h + ABI-CONTRACT §7f; `SessionListOgTimeOrdering` RED→GREEN**),
+**N-117**
 (the plan's un-landed W1b shape + the ABI-CONTRACT line-cite drift), **N-118** (the stale
 R-52/54/56 gap rows). The registration-class deltas ride the parallel N-091 + the lead
 addendum (the sanitizer superset).

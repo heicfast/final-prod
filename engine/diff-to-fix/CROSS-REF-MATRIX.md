@@ -598,7 +598,7 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | Module | Lead-lane findings (final IDs; the parallel lanes' rows are in their own sections) |
 |---|---|
 | carve | **M-090** (DMG koly walk + DMG-specific cap — erratum E67), **M-091** (the MDB page-chain walk decoded), **S-047** (MPEG-TS/M2TS), **M-092/M-093/M-096/M-098/M-099** (HTML / XML+SVG / MOBI / HIK / AEP), **N-111..N-113, N-115** (JP2 / LZH / text school / OfficeTagFromXML) — school-2/3 children of S-041 |
-| session + ABI | **N-116** (list row ordering), **N-117/N-118** (W1 doc drifts), **I-029** (driver-code provenance) |
+| session + ABI | **N-116 — FIXED (session 38)**: rows newest-first by save_unix (the og's FUN_140273550 !(ftA<ftB) = newest-first, settled first-hand; TRUNCATED = the time-ordered prefix; CLI re-sorted by the same key; `SessionListOgTimeOrdering` RED→GREEN), **N-117/N-118** (W1 doc drifts), **I-029** (driver-code provenance) |
 | query | **M-101** (Versions/Tags branches), **N-126** (Unsaved File) |
 | preview | **M-100** (browse-inside), **M-102** (thumbnail ABI) |
 | boot repair | **N-121** (ESP automount), **N-122** (NVRAM create/delete) |

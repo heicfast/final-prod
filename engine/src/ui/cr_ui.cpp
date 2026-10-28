@@ -787,7 +787,7 @@ struct CrScan {
     bool started = false;  /* run() entered at least once (one-shot) */
     bool has_ctrl = false; /* fresh-run or resumed controller exists */
     bool is_resumed = false;
-    bool autosaved = false; /* W1c (R-52): the completion auto-save landed */
+    bool autosaved = false;  /* W1c (R-52): the completion auto-save landed */
     bool user_saved = false; /* S-044: the og's +0x388 not-already-saved gate - an
                               * explicit cr_ui_scan_save_session suppresses the
                               * completion auto-save (2 of the og's 3 trigger sites) */
@@ -2798,8 +2798,13 @@ u32 session_list_impl(const char* utf8_dir, cr_ui_session_row* rows, uint32_t* c
     }
     const u32 cap = *count;
     const u32 n = needed < cap ? needed : cap;
-    for (u32 i = 0; i < n; ++i) {
-        cr_ui_session_row& row = rows[i];
+    /* N-116: decode EVERY candidate's light summary first (the og reads
+     * every record-2), then order the whole set by the og's key, then
+     * hand the host the newest n - so even the TRUNCATED answer is the
+     * time-ordered prefix, not an arbitrary path prefix. */
+    std::vector<cr_ui_session_row> all(needed);
+    for (u32 i = 0; i < needed; ++i) {
+        cr_ui_session_row& row = all[i];
         std::memset(&row, 0, sizeof(row));
         /* the path itself may need truncation (a 1024-byte row field is a
          * display convenience, not a limit on what loads - callers hand
@@ -2834,6 +2839,19 @@ u32 session_list_impl(const char* utf8_dir, cr_ui_session_row* rows, uint32_t* c
         row.save_unix = s.volume.save_unix;
         copy_cstr(row.label, sizeof(row.label), s.volume.label);
     }
+    /* the og's LastScanRecordView order: the record-2 SYSTEMTIME
+     * comparator (FUN_140273550: SystemTimeToFileTime over row+0x20,
+     * !(ftA < ftB) = newest first) - the ordering that makes "Continue
+     * last scanning" pick the right file. save_unix DESC; equal stamps
+     * (and zero-stamp rows - pre-v5 sessions, unreadable files) break
+     * ties by path bytes ASC so the row order is always deterministic. */
+    std::sort(all.begin(), all.end(), [](const cr_ui_session_row& a, const cr_ui_session_row& b) {
+        if (a.save_unix != b.save_unix)
+            return a.save_unix > b.save_unix;
+        return std::strcmp(a.path, b.path) < 0;
+    });
+    for (u32 i = 0; i < n; ++i)
+        rows[i] = all[i];
     *count = n;
     return ret_(n == needed ? OK : u32(ERR_TRUNCATED), "%s", "");
 }

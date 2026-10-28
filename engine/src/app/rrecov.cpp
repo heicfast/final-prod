@@ -961,7 +961,8 @@ int print_sessions(int argc, wchar_t** argv, int& i) {
         } while (FindNextFileW(h, &fd));
         FindClose(h);
     }
-    std::sort(files.begin(), files.end()); /* the ABI's deterministic row order */
+    std::sort(files.begin(), files.end()); /* the deterministic enumeration INPUT (the ROW order is
+                                              the ABI's time key below) */
 
     struct SRow {
         std::wstring path;
@@ -985,6 +986,16 @@ int print_sessions(int argc, wchar_t** argv, int& i) {
         }
         rows.push_back(std::move(row));
     }
+    /* N-116: rows re-sorted by the ABI's time key (save_unix DESC, path
+     * tie-break) - the og's LastScanRecordView order, so the verb's first
+     * row is the most recent session exactly like cr_ui_session_list's */
+    std::sort(rows.begin(), rows.end(), [](const SRow& a, const SRow& b) {
+        const u64 ta = (a.opened && a.rc == OK) ? a.s.volume.save_unix : 0;
+        const u64 tb = (b.opened && b.rc == OK) ? b.s.volume.save_unix : 0;
+        if (ta != tb)
+            return ta > tb;
+        return a.path < b.path;
+    });
 
     if (json) {
         /* FROZEN schema (GAP-TREE-JSON lineage): path/label UTF-8,

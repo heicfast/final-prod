@@ -614,8 +614,8 @@ TEST(CrUi, AutoSaveSkipsAfterExplicitSave) {
     const std::string dir = std::filesystem::path(img).parent_path().string();
     const std::string adir = dir + "/s044_autosave_" + std::to_string(CR_TEST_PID());
     std::filesystem::create_directories(adir);
-    const std::string explicit_path = dir + "/s044_explicit_" + std::to_string(CR_TEST_PID()) +
-                                      ".crsf";
+    const std::string explicit_path =
+        dir + "/s044_explicit_" + std::to_string(CR_TEST_PID()) + ".crsf";
     g_autosave_events = 0;
     g_autosave_rc = 1;
     Ui u;
@@ -877,6 +877,101 @@ TEST(CrUi, SessionListUnreadableFileGetsAnErrorRow) {
     EXPECT_EQ(row->error, 0x50030001u); /* ERR_BAD_MAGIC at the container header */
     EXPECT_EQ(row->save_unix, 0ull);
     std::remove(junk.c_str());
+}
+
+TEST(CrUi, SessionListOgTimeOrdering) {
+    /* N-116: the og's LastScanRecordView rows are TIME-ordered - the
+     * record-2 SYSTEMTIME comparator (FUN_140273550: SystemTimeToFileTime
+     * over row+0x20, !(ftA < ftB) = newest first) is what makes the
+     * "Continue last scanning" banner pick the right file. Core listed
+     * path-byte order; a host rendering row 0 as the most recent session
+     * got the wrong answer. Two sessions in ONE isolated directory, the
+     * NEWER one path-sorting LAST, >1 s apart so the second stamps
+     * differ: row 0 must be the newer file. */
+    Ui u1;
+    std::string img1, crsf1;
+    ASSERT_TRUE(scan_to_session("older", u1, img1, crsf1));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1200));
+    Ui u2;
+    std::string img2, crsf2;
+    ASSERT_TRUE(scan_to_session("newer", u2, img2, crsf2));
+
+    /* the isolated listing dir: the OLDER session under the path-first
+     * name, the NEWER under the path-last name (path order and time
+     * order disagree BY CONSTRUCTION) */
+    const std::string dir = cr_test::tmp_path("cr_ui", "_n116_order");
+    std::filesystem::create_directories(dir);
+    const std::string aa = dir + "/aa_older.crsf";
+    const std::string zz = dir + "/zz_newer.crsf";
+    ASSERT_TRUE(
+        std::filesystem::copy_file(crsf1, aa, std::filesystem::copy_options::overwrite_existing));
+    ASSERT_TRUE(
+        std::filesystem::copy_file(crsf2, zz, std::filesystem::copy_options::overwrite_existing));
+
+    uint32_t n = 0;
+    ASSERT_EQ(cr_ui_session_list(dir.c_str(), nullptr, &n), CR_UI_OK);
+    ASSERT_EQ(n, 2u);
+    std::vector<cr_ui_session_row> rows(n);
+    uint32_t cap = n;
+    ASSERT_EQ(cr_ui_session_list(dir.c_str(), rows.data(), &cap), CR_UI_OK);
+    ASSERT_EQ(cap, 2u);
+    /* newest first: the path-LAST file is row 0, and its stamp is the
+     * greater one (or equal, never smaller - the 1.2 s gap makes it
+     * strictly greater in practice) */
+    EXPECT_EQ(zz, rows[0].path) << "row 0 must be the NEWEST session (the og's "
+                                   "time ordering), not the path-first one";
+    EXPECT_EQ(aa, rows[1].path);
+    EXPECT_GE(rows[0].save_unix, rows[1].save_unix);
+    ASSERT_EQ(rows[0].valid, 1u);
+    ASSERT_EQ(rows[1].valid, 1u);
+    std::filesystem::remove_all(dir);
+}
+
+TEST(CrUi, SessionListTieBreakDeterministic) {
+    /* N-116's tie-break: equal save_unix (the same session copied under
+     * two names) orders by path bytes ascending - the deterministic
+     * documented rule, so the row order is always reproducible. */
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_to_session("tie", u, img, crsf));
+    const std::string dir = cr_test::tmp_path("cr_ui", "_n116_tie");
+    std::filesystem::create_directories(dir);
+    ASSERT_TRUE(std::filesystem::copy_file(crsf, dir + "/bb.crsf",
+                                           std::filesystem::copy_options::overwrite_existing));
+    ASSERT_TRUE(std::filesystem::copy_file(crsf, dir + "/aa.crsf",
+                                           std::filesystem::copy_options::overwrite_existing));
+    uint32_t n = 0;
+    ASSERT_EQ(cr_ui_session_list(dir.c_str(), nullptr, &n), CR_UI_OK);
+    ASSERT_EQ(n, 2u);
+    std::vector<cr_ui_session_row> rows(n);
+    uint32_t cap = n;
+    ASSERT_EQ(cr_ui_session_list(dir.c_str(), rows.data(), &cap), CR_UI_OK);
+    EXPECT_EQ(std::string(dir) + "/aa.crsf", rows[0].path);
+    EXPECT_EQ(std::string(dir) + "/bb.crsf", rows[1].path);
+    EXPECT_EQ(rows[0].save_unix, rows[1].save_unix);
+    std::filesystem::remove_all(dir);
+}
+
+TEST(CrUi, SessionListCliAndAbiOrderAgree) {
+    /* N-116's CLI half: rrecov's `sessions` verb must enumerate in the
+     * SAME order the ABI returns (save time first, path tie-break) - the
+     * exe is Windows-only, so this pins the verb's source: the rows
+     * re-sort by the ABI's time key after the path-sorted enumeration
+     * (the enumeration sort stays - it is the deterministic input). */
+    const std::string src = cr_test::read_repo_file("src/app/rrecov.cpp");
+    ASSERT_FALSE(src.empty());
+    const size_t verb = src.find("int print_sessions(");
+    ASSERT_NE(std::string::npos, verb);
+    const std::string body = src.substr(verb, 4000);
+    EXPECT_NE(std::string::npos, body.find("the ABI's time key"))
+        << "print_sessions must re-sort its rows by save time (newest first, "
+           "path tie-break) - the same key cr_ui_session_list returns";
+    /* and the stale path-only row order must not return: the old comment
+     * ('the ABI's deterministic row order' on the enumeration sort) was
+     * the pre-N-116 contract marker */
+    EXPECT_EQ(std::string::npos, body.find("the ABI's deterministic row order"))
+        << "the enumeration sort is the deterministic INPUT, not the row "
+           "order contract";
 }
 
 TEST(CrUi, PauseBlocksAndResumes) {

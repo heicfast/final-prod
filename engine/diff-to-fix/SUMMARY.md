@@ -118,6 +118,15 @@ M-071/S-042 lanes: regression + SEVERE tier first.
   the engine stateless; LRU-if-ABI-lands candidate noted for M-102). RED proven on
   all five forms, GREEN after (`MetafileAndIconFamiliesAreNamedRefusals`); suite
   1029/1029.
+- **N-116** (MINOR → FIXED, session-38 lane) — the session-list row ordering: rows
+  now newest-first by save_unix (the og's FUN_140273550 comparator settled
+  first-hand: !(ftA < ftB) = newest-first), path-ascending tie-break; the TRUNCATED
+  under-capacity answer is the time-ordered prefix; cr_ui.h + ABI-CONTRACT §7f
+  re-worded; the CLI `sessions` verb re-sorts by the same key.
+  `SessionListOgTimeOrdering` RED (row 0 = the path-first OLD session) → GREEN
+  (row 0 = the path-last NEW one); suite 1041/1041. Style repair rode along: the
+  parallel S-044 lane's landing (`7b7e095`) carried clang-format violations in
+  cr_ui.h/cr_ui.cpp/test_cr_ui.cpp — reformatted so the format gate stays green.
 
 - **M-088** (MAJOR → FIXED, DFX-38 lane) — the FloorVersion pin split closed:
   installer.yml bumped to v0.2.4 (both live pins equal, the M-061 teardown
@@ -134,6 +143,16 @@ SEVERE — incl. the session-10 lanes' new S-048/S-049/S-050 filings · 24
 MAJOR · 32 MINOR · 5 INFO) / **261 resolved** (FIXED-LEDGER.md is the
 index; the per-finding files are retired to git history per the SA-10B
 purge) / 2 tracked-open (OQ-S4-3, OQ-S8-1).
+- **N-116** (MINOR → resolved, session-38 lane, this replay) — the session-list
+  row ordering: rows newest-first by save_unix (FUN_140273550 settled first-hand:
+  !(ftA < ftB) = newest-first), path-ascending tie-break; the TRUNCATED answer is
+  the time-ordered prefix; the CLI `sessions` verb re-sorts by the same key;
+  `SessionListOgTimeOrdering` RED→GREEN; suite 1041/1041.
+
+**Board after this window (filesystem truth, N-116 folded into the purge-era
+counts):** 68 active (8 SEVERE · 24 MAJOR · 31 MINOR · 5 INFO) / **262 resolved**
+(FIXED-LEDGER.md + the session-38 lane's Resolution records) / 2 tracked-open
+(OQ-S4-3, OQ-S8-1).
 
 ## Fix session (2026-10-29 — the parity close: every tier executed against corpus `be0cfe9`, core `84a1832`-lineage)
 

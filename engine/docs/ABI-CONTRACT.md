@@ -490,9 +490,15 @@ Contract (ABI RULES-conformant):
 
 - **Two-call size pattern** (same as `cr_ui_snapshot_dfs`): `rows == NULL`
   → `*count` = the number of `*.crsf` candidates, nothing decoded;
-  `rows != NULL` → `*count` is the IN capacity, rows fill in byte-sorted
-  path order, capacity < needed → `CR_UI_ERR_TRUNCATED` with `*count` =
-  the number filled. Caller-owned memory — rows are PODs, no free export.
+  `rows != NULL` → `*count` is the IN capacity, rows fill NEWEST-FIRST by
+  the embedded save time (the og's LastScanRecordView order — its record-2
+  SYSTEMTIME comparator FUN_140273550 sorts newest first, which is what
+  makes the og's "Continue last scanning" banner pick the right file);
+  equal stamps and zero-stamp rows (pre-v5 sessions, unreadable files)
+  break ties by path bytes (deterministic), capacity < needed →
+  `CR_UI_ERR_TRUNCATED` with `*count` = the number filled (the
+  time-ordered prefix — the NEWEST rows). Caller-owned memory — rows are
+  PODs, no free export.
 - **Row truth**: `valid=0` + `error` = the decode/open error for unreadable
   files (bad magic, torn container) — a listing never hides damage; a
   `valid=1` row carries `error=CR_UI_OK` unless the PATH itself needed

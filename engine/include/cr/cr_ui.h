@@ -215,11 +215,11 @@ typedef void (*cr_ui_recovery_progress_fn)(void* user, uint64_t bytes_done, uint
          * (session::auto_session_name, the N-061 corpus convention                                \
          * with the name-forbidden-char sanitizer; the og's completion                             \
          * SaveScan flow, rsf-format section 5.5). A CANCELLED run never                           \
-         * auto-saves and never fires this event. S-044: an EMPTY run                             \
+         * auto-saves and never fires this event. S-044: an EMPTY run                              \
          * (no files, no lost partitions), a RESUMED run and a run whose                           \
          * session was already saved explicitly (cr_ui_scan_save_session)                          \
          * never auto-save either - the og's trigger-site gates                                    \
-         * (FUN_1402857c0 call sites: results-found / not-import /                                  \
+         * (FUN_1402857c0 call sites: results-found / not-import /                                 \
          * not-already-saved). */
 
 typedef struct cr_ui_event {
@@ -873,9 +873,16 @@ CR_UI_API uint32_t cr_ui_session_resume(cr_ui_session* sess, const cr_ui_scan_co
  * Two-call size pattern (same contract as cr_ui_snapshot_dfs):
  *   rows == NULL -> *count = the number of *.crsf candidates (capacity
  *                   probe; nothing is decoded)
- *   rows != NULL -> *count is the IN capacity; rows fill in byte-sorted
- *                   path order; capacity < needed -> CR_UI_ERR_TRUNCATED
- *                   with *count = the number filled
+ *   rows != NULL -> *count is the IN capacity; rows fill NEWEST-FIRST by
+ *                   the embedded save time (the og's LastScanRecordView
+ *                   order - its record-2 SYSTEMTIME comparator sorts
+ *                   newest first, which is what makes the og's
+ *                   "Continue last scanning" banner pick the right file);
+ *                   equal stamps and zero-stamp rows (pre-v5 sessions,
+ *                   unreadable files) break ties by path bytes so the
+ *                   order is deterministic; capacity < needed ->
+ *                   CR_UI_ERR_TRUNCATED with *count = the number filled
+ *                   (the time-ordered prefix - the NEWEST rows)
  * An unreadable file (bad magic, torn container, open failure) still
  * gets a row: valid = 0 + error = the decode/open error - a listing
  * never hides damage. A valid row carries error = CR_UI_OK unless the
