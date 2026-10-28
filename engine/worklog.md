@@ -7122,3 +7122,45 @@ then descends into whichever tier remains open at that point. Per the house rule
 verified FIX PUSH retires a seat, not the claim; sibling lanes' landings converge with this
 lane's independent verification documented. Every push pulls first; one finding, one push;
 every fix RED-test-first. Audited pin: core `e4409ef8`, corpus `be0cfe9`.
+---
+## Session-54 continuation audit lane — territory claim (2026-10-29; renumbered at the rebase per SA-9 — the remote's S52 MAJOR-engine-math fix lane [M-126..M-136 territory, pin e4409ef8] and the S53 lane pushed first; this lane's audit-only battery complements their fixes: retirements-with-evidence only, no code changes)
+
+**Lane type:** the fifth continuation audit lane of the same user second-session
+mandate (remove-the-fixed + go-deeper + mark-all-remaining, with the explicit
+focus battery: sector numbers / scanning / accurate detection / calculation &
+mathematics / no stuck or freeze / local database as og-codebase / state
+management), following the S42/S42-B/S42-C/S12/S49-S50 precedent. **READ-ONLY** —
+the delta vs origin/main will be `diff-to-fix/` + `worklog*` only, verified per
+commit. The fix lanes' territory division respected (no code changes, no finding
+"fixed" by this lane — only retirements-with-evidence of already-landed fixes and
+new filings).
+
+**Pins:** core `55e88af0` (HEAD at open), corpus `be0cfe9`. Mandate saved
+token-redacted: `worklog/session-54-continuation-audit-prompt.md` (renamed at the renumber).
+
+**This lane's claimed territory:**
+
+1. **The liveness battery** — all active board findings re-verified at the pin
+   `55e88af0` (the S45..S51 fix lanes landed A-014 + M-124 + I-041..I-044 + the
+   minors wave since the last battery; the board docs claim 71 active but the
+   filesystem counts 70 — the census itself is re-truthed).
+2. **The focus-area deep dives** — per the user's explicit list: (a) sector
+   numbers & LBA/geometry math across every engine + partition layer; (b) scan
+   strategy (ranges, steps, quick/deep/combination, per-engine search-sector
+   behavior); (c) accurate detection (validators, checksums, boot-sector gates);
+   (d) calculation & mathematics (progress, rate, sizing, free-space, grading
+   arithmetic); (e) no-stuck-or-freeze (cycle guards, cancellation, retry
+   behavior, timeout policy); (f) the local database / result-persistence shape
+   as og-codebase; (g) state management (scan lifecycle, pause/resume,
+   checkpoint). Every divergence filed; every already-filed item cross-referenced
+   not re-filed.
+3. **The tracked-open probes** — OQ-S42-1 ($SI/$FN time precedence decode),
+   OQ-S42-2 (Btrfs nsec treatment), OQ-S42-3 (grading deep-read subgates): each
+   still OPEN on disk; this lane executes the recorded next-probe instructions
+   against the corpus decompiles.
+4. **The remaining-surface census** — any never-dispositioned og-codebase
+   behavior surfaced by the above: every gap filed (mark-all-remaining).
+
+Next free IDs at open (per the S47 lane's close): S-062+, M-138+, N-186+, I-045+,
+A-015+. Board at open (filesystem truth, this lane's census): 70 active (0 ACUTE ·
+9 SEVERE · 27 MAJOR · 32 MINOR · 2 INFO) / 71 FIXED / 6 tracked-open.
