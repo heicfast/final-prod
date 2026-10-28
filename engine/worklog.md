@@ -5495,7 +5495,6 @@ the chain; the master Resolution (both fix lanes' records, the two disasm-settle
 byte corrections, the even-rounding pin) lives at
 findings/FIXED/M-121-outlook-express-dbx-analyser-absent.md. Code comments, ledger
 row, matrix cell, carve.md verdict, SUMMARY: all re-pointed. 9/9 Carve.Dbx* GREEN.
-<<<<<<< HEAD
 
 ## S42-B second-merge record (2026-10-29, post-c9b9d094)
 
@@ -5511,7 +5510,6 @@ DBX reference updated to M-121. Board after the second merge (filesystem):
 **41 active (2 SEVERE · 21 MAJOR · 18 MINOR) / 39 FIXED / 3 tracked-open**;
 next free: S-055+, M-122+, N-161+, I-038+, A-013+. Read-only guarantee
 re-verified: my delta vs origin/main = diff-to-fix/ + worklog* only.
-=======
 ## Session-43 minors lane — N-149 landed (2026-10-29)
 
 **N-149 FIXED (MINOR — the carve filter's always-on set).** Corpus re-verified
