@@ -855,6 +855,19 @@ struct CrSession {
     tree::ResultTree tree;
     orchestrator::ScanStats stats;
     session::VolumeSessionInfo info;
+    /* S-052: the LDM dynamic-volume basis state - the layouts from the
+     * session record, armed lazily into virtual devices at the first
+     * basis-aware consumer (recovery enqueue / preview / thumbnail).
+     * `ldm_basis` is the non-owning table the SafeWriter/PreviewReader
+     * read through; the devices borrow `ldm_members` (Windows) or the
+     * caller's scan device (local-self) through their resolvers. */
+    std::vector<table::LdmVolumeLayout> ldm_layouts;
+    bool ldm_armed = false;
+#ifdef _WIN32
+    std::vector<std::unique_ptr<IStorageDevice>> ldm_members;
+#endif
+    std::vector<std::unique_ptr<table::LdmVolumeDevice>> ldm_devices;
+    std::unique_ptr<recovery::LdmBasisTable> ldm_basis;
 };
 
 struct CrSnapshot {
@@ -868,6 +881,16 @@ struct CrSnapshot {
     u64 slice_start = 0;
     u64 slice_bytes = 0;
     bool have_view = false;
+    /* S-052: the snapshot's basis source. A SESSION snapshot lazily
+     * arms its session's LDM basis at the first basis-aware consumer
+     * (src_session borrowed - the session must outlive recoveries that
+     * enqueue from this snapshot, the same borrowed-nodes contract the
+     * writer's QueueItem.node already carries). A SCAN snapshot points
+     * at the scan controller's LIVE device registry (src_scan borrowed
+     * likewise; its table is built once here, non-owning). */
+    CrSession* src_session = nullptr;
+    CrScan* src_scan = nullptr;
+    std::unique_ptr<recovery::LdmBasisTable> ldm_basis; /* scan-path table */
 };
 
 struct PropReleaser {
@@ -1917,6 +1940,105 @@ void arm_ldm_resolver(CrScan* s) {
 }
 #endif
 
+/* ---- S-052: the session-side LDM basis arm + the basis pickers ---- */
+
+/* the node's root basis id (roots carry the stamp; descendants read it
+ * through the parent chain - the same walk rel_dir_of makes) */
+static u32 node_basis_id(const tree::FileNode* n) {
+    const tree::FileNode* r = n;
+    while (r != nullptr && r->parent() != nullptr)
+        r = r->parent();
+    return r != nullptr ? r->basis() : 0;
+}
+
+/* (re)build the session's LDM virtual devices from its persisted
+ * layouts. `src` = the caller's scan device (the local-self member on
+ * non-Windows hosts; the Windows arm enumerates every disk itself).
+ * Idempotent; a no-op without layouts. The devices borrow their member
+ * disks through the resolver: on Windows the session-owned ldm_members;
+ * elsewhere `src` (the caller keeps it alive - the same borrowed-device
+ * contract every preview/recovery already carries). */
+static void session_arm_ldm_basis(CrSession* s, IStorageDevice* src) {
+    if (!s || s->ldm_armed || s->ldm_layouts.empty())
+        return;
+    s->ldm_armed = true;
+    table::LdmDiskResolver resolver;
+#ifdef _WIN32
+    /* the scan-side arm_ldm_resolver enumeration, session-owned: every
+     * disk's PRIVHEAD GUID -> its open device */
+    auto guid_map = std::make_shared<std::map<table::LdmGuid, IStorageDevice*>>();
+    win::PhysicalDiskList list;
+    if (win::enumerate_disks(win::ENUMERATE_DISK_BOUND, list) == OK) {
+        for (const auto& pd : list) {
+            u32 oerr = 0;
+            auto dev = win::open_disk(pd.number, win::kDefaultDriverService, &oerr);
+            if (!dev)
+                continue;
+            u8 sec[512];
+            if (dev->read_at(6 * 512, sec, sizeof(sec)) == OK &&
+                std::memcmp(sec, "PRIVHEAD", 8) == 0) {
+                table::LdmGuid g{};
+                std::memcpy(g.b, sec + 0x30, 16);
+                (*guid_map)[g] = dev.get();
+            }
+            s->ldm_members.push_back(std::move(dev));
+        }
+    }
+    if (!guid_map->empty())
+        resolver = [guid_map](const table::LdmGuid& g) -> IStorageDevice* {
+            auto it = guid_map->find(g);
+            return it != guid_map->end() ? it->second : nullptr;
+        };
+#else
+    /* local-self only: the session's own disk resolves by its PRIVHEAD
+     * GUID; cross-disk members stay unresolved (their reads fail loudly
+     * per-extent - the honest missing-member semantics, never wrong
+     * bytes from a wrong disk). */
+    table::LdmGuid self{};
+    bool have_self = false;
+    if (src != nullptr) {
+        u8 sec[512];
+        if (src->read_at(6 * 512, sec, sizeof(sec)) == OK && std::memcmp(sec, "PRIVHEAD", 8) == 0) {
+            std::memcpy(self.b, sec + 0x30, 16);
+            have_self = true;
+        }
+    }
+    if (have_self)
+        resolver = [self, src](const table::LdmGuid& g) -> IStorageDevice* {
+            return g == self ? src : nullptr;
+        };
+#endif
+    if (!resolver)
+        return; /* nothing resolvable: the basis stays empty and basis
+                 * reads fail honestly through the absolute source */
+    s->ldm_basis.reset(new recovery::LdmBasisTable());
+    for (const auto& lay : s->ldm_layouts) {
+        try {
+            s->ldm_devices.push_back(
+                std::unique_ptr<table::LdmVolumeDevice>(new table::LdmVolumeDevice(lay, resolver)));
+        } catch (...) {
+            break; /* allocation failure: keep what armed; remaining
+                    * bases resolve to nothing (honest failures) */
+        }
+        s->ldm_basis->add(s->ldm_devices.back().get());
+    }
+}
+
+/* the device a basis-aware consumer reads a SESSION node through
+ * (null = the absolute default). Arms the session on first use. */
+static IStorageDevice* session_node_device(CrSession* s, const tree::FileNode* node,
+                                           IStorageDevice* absolute_src) {
+    const u32 basis = node_basis_id(node);
+    if (basis == 0 || s == nullptr)
+        return absolute_src;
+    session_arm_ldm_basis(s, absolute_src);
+    if (!s->ldm_basis)
+        return absolute_src;
+    recovery::LdmBasisTable* table = s->ldm_basis.get();
+    IStorageDevice* dev = table->at(basis);
+    return dev != nullptr ? dev : absolute_src;
+}
+
 u32 scan_attach_impl(cr_ui_scan* scan, cr_ui_device* dev) {
     if (!scan || !dev)
         return ret_(ERR_BAD_PARAMETER, "bad argument: scan/dev");
@@ -2010,9 +2132,9 @@ u32 scan_run_impl(cr_ui_scan* scan) {
     if (s->ck_sink) {
         if (s->ck_sink->f)
             std::fclose(s->ck_sink->f);
-            /* the staging file is transient: the final path holds the last
-             * COMMITTED checkpoint; a leftover .tmp is a torn never-committed
-             * emit (N-014's crash window) - remove it, never trust it. */
+        /* the staging file is transient: the final path holds the last
+         * COMMITTED checkpoint; a leftover .tmp is a torn never-committed
+         * emit (N-014's crash window) - remove it, never trust it. */
 #ifdef _WIN32
         DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
 #else
@@ -2561,6 +2683,14 @@ u32 scan_snapshot_impl(cr_ui_scan* scan, cr_ui_snapshot** out) {
     if (!snap)
         return ret_(ERR_NO_MEMORY, "snapshot allocation failed");
     auto* w = new CrSnapshot();
+    w->src_scan = s; /* S-052: the live registry source (borrowed) */
+    if (s->ctrl) {
+        /* build the non-owning table over the controller's LIVE devices
+         * (basis ids match the scan's root stamps by construction) */
+        w->ldm_basis.reset(new recovery::LdmBasisTable());
+        for (const auto& dev : s->ctrl->ldm_devices())
+            w->ldm_basis->add(dev.get());
+    }
     w->snap = std::move(snap);
     /* S-009: the mid-scan snapshot carries the LIVE error map (the og's
      * AnalysisGridWidget primary use - UIUX/04:110 - paints bad cells
@@ -2618,8 +2748,8 @@ extern "C" CR_UI_API void cr_ui_scan_close(cr_ui_scan* scan) {
         if (s->ck_sink) {
             if (s->ck_sink->f)
                 std::fclose(s->ck_sink->f);
-                /* N-014: the staging file is transient (a torn never-committed
-                 * emit); the final path holds the last committed checkpoint. */
+            /* N-014: the staging file is transient (a torn never-committed
+             * emit); the final path holds the last committed checkpoint. */
 #ifdef _WIN32
             DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
 #else
@@ -2730,6 +2860,7 @@ u32 session_load_impl(const char* utf8_path, cr_ui_session** out) {
         delete sess;
         return ret_(rc, "session load failed (%s)", err_text(rc));
     }
+    sess->ldm_layouts = sess->info.ldm_layouts; /* S-052: the re-arm input */
     *out = reinterpret_cast<cr_ui_session*>(sess);
     return ret_ok();
 }
@@ -2969,6 +3100,7 @@ u32 session_snapshot_impl(cr_ui_session* sess, cr_ui_snapshot** out) {
     w->slice_start = s->info.slice_offset;
     w->slice_bytes = s->info.slice_bytes;
     w->have_view = s->info.slice_bytes != 0;
+    w->src_session = s; /* S-052: the lazily-armed basis source (borrowed) */
     *out = reinterpret_cast<cr_ui_snapshot*>(w);
     return ret_ok();
 }
@@ -3552,10 +3684,37 @@ u32 preview_open_snapshot_impl(cr_ui_device* dev, cr_ui_snapshot* snap, uint32_t
     auto* p = new CrPreview();
     p->owned.reset(props);
     /* F-1: extents are absolute - preview through the PARENT disk when the
-     * scan device is a volume slice (same basis rule as the recovery writer) */
+     * scan device is a volume slice (same basis rule as the recovery writer).
+     * S-052: basis rows preview through the snapshot's source table (the
+     * session's lazy arm or the scan's live registry - same contract as
+     * the snapshot recovery path). */
     IStorageDevice* src = d->dev.get();
     if (d->volume_len != 0 && d->hold)
         src = d->hold.get();
+    {
+        /* walk the row to its root row's basis (the snapshot twin of
+         * node_basis_id) */
+        u32 i = index;
+        u32 guard = 0;
+        while (w->snap->node(i).parent != tree::SNAP_NONE) {
+            i = w->snap->node(i).parent;
+            if (++guard > w->snap->node_count())
+                break;
+        }
+        const u32 basis = w->snap->node(i).basis;
+        if (basis != 0) {
+            IStorageDevice* bdev = nullptr;
+            if (w->src_session != nullptr) {
+                session_arm_ldm_basis(w->src_session, src);
+                if (w->src_session->ldm_basis)
+                    bdev = w->src_session->ldm_basis->at(basis);
+            } else if (w->src_scan != nullptr && w->ldm_basis) {
+                bdev = w->ldm_basis->at(basis);
+            }
+            if (bdev != nullptr)
+                src = bdev;
+        }
+    }
     p->reader.reset(new preview::PreviewReader(src, p->owned.get()));
     *out = reinterpret_cast<cr_ui_preview*>(p);
     return ret_ok();
@@ -3582,10 +3741,14 @@ u32 preview_open_session_impl(cr_ui_device* dev, cr_ui_session* sess, uint64_t n
     auto* p = new CrPreview();
     p->owned.reset(props);
     /* F-1: extents are absolute - preview through the PARENT disk when the
-     * scan device is a volume slice (same basis rule as the recovery writer) */
+     * scan device is a volume slice (same basis rule as the recovery writer).
+     * S-052: LDM-basis nodes preview through the session's (lazily armed)
+     * virtual volume device - the same multi-disk mapping the scan read
+     * through (preview bytes == recovery bytes, the finding's contract). */
     IStorageDevice* src = d->dev.get();
     if (d->volume_len != 0 && d->hold)
         src = d->hold.get();
+    src = session_node_device(s, node, src);
     p->reader.reset(new preview::PreviewReader(src, p->owned.get()));
     *out = reinterpret_cast<cr_ui_preview*>(p);
     return ret_ok();
@@ -3725,6 +3888,13 @@ u32 thumbnail_generate_impl(cr_ui_device* dev, cr_ui_session* sess, uint64_t nod
             ecaps.max_read = caps->max_read;
         if (caps->max_work != 0)
             ecaps.max_work = caps->max_work;
+        /* N-137: the header's "validated 0/1" claim is now enforced -
+         * the knob has no off position (og parity: the embedded fast
+         * path is always preferred), so 0 = default-ON, 1 = explicit-
+         * ON, anything above 1 is a contract violation (BadParameter) */
+        if (caps->allow_embedded > 1)
+            return ret_(ERR_BAD_PARAMETER, "caps->allow_embedded must be 0 or 1 (got %u)",
+                        caps->allow_embedded);
         if (caps->allow_embedded != 0)
             ecaps.allow_embedded = caps->allow_embedded != 0;
     }
@@ -3732,10 +3902,12 @@ u32 thumbnail_generate_impl(cr_ui_device* dev, cr_ui_session* sess, uint64_t nod
     /* the reader mirrors the preview surface (F-1: extents are absolute
      * - reads through the PARENT disk when the scan device is a volume
      * slice, the same basis rule as the preview reader and the recovery
-     * writer) */
+     * writer). S-052: LDM-basis nodes thumbnail through the session's
+     * armed virtual device (thumbnail bytes == preview == recovery). */
     IStorageDevice* src = d->dev.get();
     if (d->volume_len != 0 && d->hold)
         src = d->hold.get();
+    src = session_node_device(s, node, src);
     preview::PreviewReader reader(src, node->props());
     preview::Thumbnail thumb;
     const preview::ThumbStatus st = preview::make_thumbnail(reader, ecaps, thumb);
@@ -3936,6 +4108,17 @@ u32 recovery_enqueue_node_impl(cr_ui_recovery* rec, cr_ui_session* sess, uint64_
      * deleted with zero behavior change; the live block keeps the
      * finding's full contract.) */
     const std::u16string dir = r->dest_root + rel_dir_of(node);
+    /* S-052: basis-aware reads - arm the session's LDM devices (first
+     * use) and route the writer through them. The table follows THIS
+     * session (a recovery mixing sessions routes by the last enqueue's
+     * source - the borrowed-nodes contract class). */
+    {
+        IStorageDevice* asrc = r->dev->dev.get();
+        if (r->dev->volume_len != 0 && r->dev->hold)
+            asrc = r->dev->hold.get();
+        session_arm_ldm_basis(s, asrc);
+        r->writer->set_basis_table(s->ldm_basis.get());
+    }
     const u32 eq = r->writer->enqueue(node, dir);
     return ret_(eq, "enqueue %s", err_text(eq)); /* overlap callers count by code */
 }
@@ -3952,6 +4135,14 @@ u32 recovery_enqueue_subtree_impl(cr_ui_recovery* rec, cr_ui_session* sess, uint
         return ret_(ERR_BAD_PARAMETER, "node id %llu not found in the session tree",
                     static_cast<unsigned long long>(node_id));
     const std::u16string dir = r->dest_root + rel_dir_of(node);
+    /* S-052: the session's LDM basis (see enqueue_node) */
+    {
+        IStorageDevice* src = r->dev->dev.get();
+        if (r->dev->volume_len != 0 && r->dev->hold)
+            src = r->dev->hold.get();
+        session_arm_ldm_basis(s, src);
+        r->writer->set_basis_table(s->ldm_basis.get());
+    }
     /* self-enqueue files AND real directories (the writer turns dir nodes
      * into mkdir items); roots/virtuals are walked only - the CLI's
      * plan() starts at roots and never enqueues them */
@@ -3985,6 +4176,17 @@ u32 recovery_enqueue_snapshot_impl(cr_ui_recovery* rec, cr_ui_snapshot* snap, ui
     if (n.full)
         return ret_(ERR_BAD_PARAMETER, "root/virtual nodes are not enqueueable");
     const std::u16string dir = r->dest_root + rel_dir_of_snap(*w->snap, index);
+    /* S-052: the snapshot's basis source - the session (lazy arm) or the
+     * scan's live registry (the table built at capture) */
+    if (w->src_session != nullptr) {
+        IStorageDevice* src = r->dev->dev.get();
+        if (r->dev->volume_len != 0 && r->dev->hold)
+            src = r->dev->hold.get();
+        session_arm_ldm_basis(w->src_session, src);
+        r->writer->set_basis_table(w->src_session->ldm_basis.get());
+    } else if (w->src_scan != nullptr) {
+        r->writer->set_basis_table(w->ldm_basis.get());
+    }
     const u32 eq = r->writer->enqueue(*w->snap, index, dir);
     return ret_(eq, "enqueue %s", err_text(eq));
 }
@@ -4003,6 +4205,16 @@ u32 recovery_enqueue_subtree_snapshot_impl(cr_ui_recovery* rec, cr_ui_snapshot* 
     const tree::SnapNode& n = s.node(index);
     const std::u16string dir = r->dest_root + rel_dir_of_snap(s, index);
     u64 queued = 0;
+    /* S-052: the snapshot's basis source (see enqueue_snapshot) */
+    if (w->src_session != nullptr) {
+        IStorageDevice* src = r->dev->dev.get();
+        if (r->dev->volume_len != 0 && r->dev->hold)
+            src = r->dev->hold.get();
+        session_arm_ldm_basis(w->src_session, src);
+        r->writer->set_basis_table(w->src_session->ldm_basis.get());
+    } else if (w->src_scan != nullptr) {
+        r->writer->set_basis_table(w->ldm_basis.get());
+    }
     /* self-enqueue files AND real directories; roots/virtuals are walked
      * only (CLI plan() parity - it never enqueues the roots) */
     if (!n.full) {

@@ -24,6 +24,15 @@
 #include <string>
 #include <vector>
 
+/* S-052 fwd: the LDM virtual device lives in the table layer
+ * (cr/table/cr_ldm.h); the basis adapter below is implemented in
+ * cr_safewriter.cpp where both layers meet. */
+namespace cr {
+namespace table {
+class LdmVolumeDevice;
+} // namespace table
+} // namespace cr
+
 namespace cr {
 namespace recovery {
 
@@ -71,6 +80,12 @@ struct QueueItem {
      * instead of node->props() (exactly one of the two is non-null for
      * content items). */
     const tree::FileProperties* value_props = nullptr;
+    /* S-052: the device this item's extents read through - the node's
+     * root basis resolved at enqueue (basis 0 / unresolvable = the
+     * writer's absolute source_). Recover_item reads HERE, never
+     * source_ directly. */
+    IStorageDevice* read_src = nullptr;
+    u32 basis = 0;              /* the stamped basis id (diagnostics + re-lookup) */
     std::u16string dest_dir;    /* utf16 directory (with trailing sep) */
     std::u16string final_name;  /* collision-resolved */
     std::u16string temp_suffix; /* ".part-" + id */
@@ -126,9 +141,49 @@ struct WriterStats {
     bool dest_full = false;
 };
 
+/* S-052: the multi-basis source table - the LDM virtual devices a
+ * scan/session owns, indexed by the tree roots' basis ids (basis id N
+ * == index N-1; 0 is always the writer's absolute `source`). The table
+ * is NON-OWNING: whoever constructs the LdmVolumeDevices (the scan
+ * controller while the scan handle lives, the session's re-arm after a
+ * load) keeps them alive for the writer's lifetime. */
+class LdmBasisTable {
+public:
+    /* register a device (basis ids are assigned in call order: the
+     * first add() is basis 1) */
+    void add(::cr::table::LdmVolumeDevice* dev);
+    ::cr::table::LdmVolumeDevice* at(u32 basis) const; /* null when absent */
+    size_t size() const { return devs_.size(); }
+
+    /* the physical spans a basis-relative extent touches on its member
+     * disks - the destination-overlap check's input (R7.2/F12 compares
+     * PHYSICAL placements). Empty for an absent basis / out-of-range. */
+    struct Span {
+        IStorageDevice* dev = nullptr;
+        u64 offset = 0;
+        u64 length = 0;
+    };
+    std::vector<Span> spans(u32 basis, u64 offset, u64 length) const;
+
+private:
+    std::vector<::cr::table::LdmVolumeDevice*> devs_;
+};
+
 class SafeWriter {
 public:
-    SafeWriter(DestIo& io, IStorageDevice* source, WriterConfig cfg);
+    /* `bases` (nullable, attachable later via set_basis_table): the LDM
+     * basis devices - S-052. Nodes whose root carries basis N>0 read
+     * through bases->at(N); basis-0 nodes read through `source`
+     * unchanged. The pointer is BORROWED and may be null when no
+     * dynamic volume was scanned. */
+    SafeWriter(DestIo& io, IStorageDevice* source, WriterConfig cfg,
+               const LdmBasisTable* bases = nullptr);
+
+    /* S-052: late-attach/retract the basis table (the UI arms the
+     * session's lazily-rebuilt devices at the first basis-aware
+     * enqueue). Read at enqueue time; null = every basis resolves to
+     * the absolute source. */
+    void set_basis_table(const LdmBasisTable* bases) { bases_ = bases; }
 
     /*
      * set_destination - records the destination volume's disk extent.
@@ -182,7 +237,8 @@ public:
 
 private:
     u32 enqueue_common(const tree::FileProperties* pr, tree::FileNode* node,
-                       const tree::FileProperties* value_props, const std::u16string& dest_dir);
+                       const tree::FileProperties* value_props, const std::u16string& dest_dir,
+                       u32 basis /* S-052: the item's root basis id */);
     u32 recover_item(QueueItem& it, CancelToken* cancel, WriterStats& stats);
     /* timed body: recover_item stamps duration_ms on every exit path */
     u32 recover_item_impl_(QueueItem& it, CancelToken* cancel, WriterStats& stats);
@@ -190,6 +246,8 @@ private:
     u32 ensure_dir_(const std::u16string& dir);
     DestIo& io_;
     IStorageDevice* source_;
+    /* S-052: the multi-basis table (borrowed; may be null/empty) */
+    const LdmBasisTable* bases_ = nullptr;
     WriterConfig cfg_;
     /* N-013: every armed destination span (multi-extent volumes). The
      * legacy single-extent pair is span[0] of this vector. */

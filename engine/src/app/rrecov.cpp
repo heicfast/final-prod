@@ -1338,10 +1338,11 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
              * complete-searcher engine pass - which this CLI ALWAYS runs;
              * this flag instead enables whole-disk lost-partition discovery.
              * The deep stage is always on; --quick-only disables it.
-             * S-051: discovery is the ADDITIONAL flow - a whole-disk
-             * target ALWAYS scans the partition table's volumes first
-             * (the og's CDoScanPartition partition-list read); this flag
-             * only adds the lost-partition candidate sweep on top. */
+             * S-051 (both lanes, merged): the table's own volumes are
+             * ALWAYS scan targets now (the og's CDoScanPartition flow
+             * reads the partition list at scan setup) - this flag only
+             * adds the LOST-partition sweep on top; a plain --disk scan
+             * already finds every in-table volume.
             cfg.whole_disk = true;
             continue;
         }

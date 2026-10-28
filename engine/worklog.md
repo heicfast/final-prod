@@ -1,3 +1,32 @@
+- **N-128 FIXED** — the CAPABILITY-MATRIX prebuilt-CI row doubly-untrue claim repaired: the
+  evidence column re-pointed at the actual post-consolidation lane set (checks / installer /
+  release / test-benchmark — no .github/actions/ exists), and the DONE verdict split from the
+  ext4/HFS+/Btrfs/ZFS/ReFS staging follow-up, which now has an owner (this row) and a next
+  concrete step (per-filesystem staging scripts feeding the same expected-vs-observed harness).
+  Doc-only; the directory listing is the verification.
+- **N-130 + N-138 FIXED** — the VideoFileRepairer.exe register row (SIDECAR-OOS, the full
+  evidence chain: fix_main_code lineage, -r/-a CLI, MP4/QT atom grammar, avcodec-62 + faad2, the
+  M-021 touchpoint) enriched with N-138's decode (the <dir>\sfc encrypted engine-init database);
+  the family row cross-noted. N-138's trail-truth half: the FIXED-LEDGER's OQ-S10-2 row now
+  carries the SUPERSEDED verdict (the "dead payload" closure refuted by the byte-level decode —
+  hypothesis 1, live repair-line data asset, was correct); the matrix's refutation row and the
+  README note (the audit lane's landings) re-verified standing.
+- **N-129 FIXED** — the og-tree disposition register's six numeric/cite defects, every count
+  re-run against the corpus this session (40 api-ms / 24 CORE_RL / 30 .mo / the :97 DRWReport
+  cite / the on-disk EuOfficeTools casing / the stale self-nested row deleted). Doc-only; the
+  re-runs ARE the acceptance. One self-correction mid-fix: this lane's first pass dropped the
+  EuOfficeTools entry (misreading item 5 as non-existence); the tree re-verification restored
+  it with the correct casing — the finding's text was right.
+- **N-137 FIXED** — the thumbnail ABI header's two contract-truth defects: (1) the section
+  comment's "0x50030004 ERR_TRUNCATED never returned" denial replaced with the truth the
+  implementation, ABI-CONTRACT §7i, and the existing test already carried (a decode REFUSAL
+  returns ERR_TRUNCATED; in-band truncation stays an Ok-path disclosure); (2) the caps field's
+  "validated 0/1" claim enforced — allow_embedded > 1 now refuses with ERR_BAD_PARAMETER
+  (0/1 = default-ON/explicit-ON, the og-parity always-prefer-embedded preserved and documented
+  as the no-off-position design). Tests: ThumbnailCapsAllowEmbeddedValidated (RED pre-fix on
+  the silent 7-acceptance) + ThumbnailHeaderMatchesContract (the doc-truth pin, RED pre-fix).
+  cr_ui_tests 61/61; cr_tests 1082/1082. Audit trail: retired to findings/FIXED/ with
+  Resolution; ledger row.
 - **N-113 CONVERGENCE + N-150 FIXED (the rider over the parallel landing)** — this lane's own
   N-113 implementation (six rows, every grammar re-verified first-hand, the POS needle question
   settled: the literal "ProcessOn Schema File", formula needle_end+0x13 calibrated against
@@ -3148,6 +3177,33 @@ finding, one verified fix, one push. Post-SEVERE, this lane takes the MAJOR tier
 orchestration/carve-cluster findings (M-103, M-104, M-108, M-109, M-110) unless 11C lands them
 first. Pull before every push; the SA-9 collision rule governs any ID or landing conflicts.
 
+---
+## Session-11D wave 1 (2026-10-29 — A-012: the carve-registry row restore, DISCOVERED during S-051's verification)
+
+Task ID: S11D/W1 (the diff-TO-FIX lane; part 1 of the S-051 landing)
+Agent: session-11D fix lane
+
+- **A-012 (ACUTE, DISCOVERED)**: while running the S-051 evidence probe
+  post-fix, the carve stage returned ERR_BAD_PARAMETER (0x50030003 — the
+  evidence file's own "ERR_OPEN_FAILED" annotation is wrong, corrected in
+  S-051's Resolution). Traced to `carve_slice`'s F8 gate:
+  `validate_registry(nullptr) == 2` — **the 81ee9775 rebase-window conflict
+  sweep dropped M-093's FMT_SVG row** (kTable 119 vs FMT_COUNT 120; the mobi
+  row displaced to index 118/id 119). The two conflict sides were TWO
+  DIFFERENT rows (HEAD: the MOBI entry; other: the one-line FMT_SVG entry);
+  the sweep kept one, dropped one as if duplicates.
+- **Fail-before EXECUTED**: `CarveEngine.RegistryF8Gate` (test_carve.cpp:516,
+  the pre-existing pin) RED at `bcf31316` — the tree stashed, rebuilt, the
+  single test run: "1 FAILED TEST"; `/tmp/regcheck`: `rejects=2 of 119`,
+  the mobi entry reported BAD. **Main was RED at open** — the parallel
+  lanes' push window shipped a hard-down carve stage.
+- **Fix**: the FMT_SVG row restored verbatim from M-093's landing
+  (`git show ca701711`), with the in-table provenance comment. The parallel
+  lanes' 9 residual clang-format violations (cr_signatures.h,
+  cr_analysers.cpp, test_carve.cpp, test_thumbnail.cpp — under the
+  CI-pinned 18.1.8) swept in the same commit.
+- **Pass-after**: `RegistryF8Gate` GREEN; registry 120/120; the full suite
+  1105/1105 with the S-051 landing below; format gate 0 violations.
 ## Session 39 — the diff-to-fix parity-fix session (2026-10-29; opens at core `35bee726`, corpus `be0cfe9`; prompt saved to worklog/session-diff-fix-39-prompt.md)
 
 **Mandate (the user's operative line):** "Fix all the audit findings (priority
@@ -3753,6 +3809,103 @@ Work Log:
 - The N-129→N-135 renumber and the M-102/M-083 retirement from this lane's earlier
   push stand (743d7b8d lineage; the remote lanes' truth commits cite them).
 
+
+---
+## Session-11D wave 1, part 2 (2026-10-29 — S-051 + M-104: the whole-disk partition-list targets + the display-name roots)
+
+Task ID: S11D/W1 (cont. — one coherent landing; M-104's presentation rides S-051's
+target builder per both finding files' own cross-references)
+Agent: session-11D fix lane
+
+**S-051 (SEVERE → FIXED)** — the silent empty whole-disk scan:
+- **Verified first**: the corpus citations re-read (architecture/04 §2 routing +
+  §3.4 "reads the partition list"; the insertion trace at
+  DRWUI_decompiled.c:904076/:904198 first-hand) and the executed RUN 2
+  reproduced at session open on the current main (rc=0, files=0, the empty
+  four-root tree — the probe output quoted in this session's earlier entry).
+  CONFIRMED-DIVERGENCE.
+- **Fix**: `run_engine_pass`'s partition-list target block (cr_scan.cpp) —
+  whole-disk basis + unforced hint ⇒ the table parsed, every used
+  non-container non-LDM entry a `PartitionSlice` target over the read pipe,
+  per-target `probe_family`, `scan_candidate` under the volume's own root,
+  F-1 subtree rebase (the candidate fan-out's pattern), skip-honesty counters
+  (`ScanStats.table_volume_targets` / `table_volume_skipped`), a per-target
+  Info/Warn log line (the og's insertion-trace analog). The deep stage's
+  discovery drops candidates matching a scanned target's LBA (the
+  no-double-scan reconciliation; honestly-skipped targets stay
+  discoverable — the og's additional-not-replacement semantics). The LDM
+  block keeps precedence; superfloppy and forced-hint paths unchanged (RUN 3
+  control re-executed, with the evidence file's ERR_OPEN_FAILED annotation
+  corrected to ERR_BAD_PARAMETER — 0x50030003's true name).
+- **The naming primitive** (M-104's tier 1): `fat::read_volume_label`
+  (cr_chain.cpp + cr_fat_engine.h) — validate_boot-gated, +0x2B/+0x47 by
+  flavor, trailing-pad trim, label-less refusal (never a blank name).
+- **Tests (all fail-before by construction — the stats fields, roots and
+  helpers did not exist)**: `Orchestrator.WholeDiskScansTableVolumes` (the
+  RUN 2 shape flipped: files 4, deleted 2, targets 2, DOC.TXT ×2),
+  `WholeDiskGptTwin` (the GPT entry array drives the same targets; both
+  CRCs computed in the fixture), `WholeDiskMixedFamilies` (FAT + NTFS
+  per-target dispatch; the tier-2 `NTFS @ <LBA>` name),
+  `WholeDiskDamagedVolumeSkippedHonestly` (skip counted, rc OK),
+  `WholeDiskSuperfloppyUnchanged` (no table ⇒ Found-root behavior pinned),
+  `WholeDiskNoDoubleScan` (lost_partitions 0, zero anonymous roots),
+  `WholeDiskVolumeRootsCarryDisplayNames` (VOLONE/VOLTWO; the deleted file
+  under the same root, flagged), `WholeDiskKnownVsLostDistinguishable`
+  (in-table label root vs exactly one discovery candidate),
+  `WholeDiskVolumeRootNamesRoundTripSession` (the names persist + reload),
+  `FatEngine.ReadVolumeLabelDecodesBootSector` / `ReadVolumeLabelRejectsLabelLessAndNonFat`.
+  Shared fixtures: test_fixtures.hpp's `build_labeled_fat16` /
+  `build_two_volume_mbr_disk` / `build_two_volume_gpt_disk` (the evidence
+  builder's shape, self-contained for the suite; S-048/M-103 reuse them).
+- **Pass-after**: the evidence probe's RUN 1/2/3 re-executed: RUN 1 rc=0,
+  files=4, deleted=2, VOLONE/VOLTWO roots, lost_partitions=0; RUN 2 the
+  same files under the display-name roots (THE finding's acceptance:
+  files_found=4 / deleted_found=2 with rc=0); RUN 3 the honest
+  forced-hint failure unchanged. Full suite **1105/1105**; the
+  whole-disk lost-partition suite (Lost.*) green unchanged — `discover()`'s
+  own contract untouched (the filter lives one site above it).
+- **M-104 (MAJOR → FIXED)** — rides the same landing; the naming tiers, the
+  known-vs-lost distinction, the one-tree-per-volume shape, the session
+  round-trip. Honest residuals recorded in its Resolution: the FS-marker
+  ROW (corpus-ambiguous per the finding's open question) and the standard-
+  root narrowing stay the S-048/M-103 wave's scope; the NTFS/ext4/exFAT
+  label decodes compose via N-133 (MINOR tier, next).
+- **Trail**: S-051 + M-104 moved to `findings/FIXED/` with Resolutions (the
+  user's fixed-directory instruction; the ledger's go-forward convention
+  updated); the ledger's SECOND committed merge conflict (the N-093/M-096
+  rebase's unswept markers — the same class lane-B swept at bc4513db)
+  resolved both-rows-kept (N-136 + N-093 with its real SHA 03ad5523); the
+  matrix rows flipped to MATCH; A-012's rows added; SUMMARY counts: **51
+  active (5 SEVERE · 20 MAJOR · 21 MINOR · 5 INFO) / 288 ledger rows**.
+
+---
+### Session-11D W1 close (the rebase reconciliation + the push)
+
+- The rebase over the parallel S11/39/40 lanes' 34-commit window: **A-012's
+  row restore was CONVERGENT** — the parallel S11 lane had independently
+  found the same regression and pushed `e4273f2b` ("restore the FMT_SVG row
+  ... 187 tests red") before my fix reached the remote; per the SA-9 rule
+  their repair stands, my landing was dropped at the DU resolution, and the
+  A-012 finding file (kept: the independent fail-before execution + the
+  root-cause trace + the format sweep) was re-classified as the convergent
+  verification record, moved to findings/FIXED/.
+- The ledger's hunk conflicts resolved: the remote's N-134/N-111 rows kept,
+  N-093's row now carries the real SHA 03ad5523 (my placeholder repair), the
+  remote's phantom-SHA S-041 repair kept, my A-012/S-051/M-104 rows appended;
+  the go-forward convention header now names BOTH lanes' identical user
+  instruction (session-39's and session-11D's "put fixed findings in fixed
+  directory" — the same mandate reached every fix lane).
+- SUMMARY counts reconciled to the merged filesystem truth: **53 active
+  (6 SEVERE · 17 MAJOR · 24 MINOR · 6 INFO) / 301 ledger data rows
+  (279 finding + 22 OQ) / 3 tracked-open**.
+- The merged tree fully re-verified: **1128/1128 green** (my 15 new tests +
+  the parallel lanes' 23), clang-format 18.1.8 clean (the parallel lanes'
+  newest landings' 22 violations swept: test_preview.cpp,
+  test_btrfs_volume.cpp, cr_preview.cpp — the same residue class as the
+  first sweep).
+- NEXT (this lane's declared order): **S-049** (the carved-file naming
+  contract — the EXT_%06d default + the per-analyser content prefixes),
+  composing with the display-name mechanism landed here.
 ---
 Task ID: S40-ML/T0 (the session-40 MAIN lane open — CI restore + territory claim)
 Agent: session-40 main diff-fix lane (the user's tracked-open-first directive; the
@@ -3998,7 +4151,73 @@ driver-repo grant boundary).
 rm of files this session itself appended verification addenda to). No source
 code was modified. No fix was applied.
 
+## Fix session 40 (continued) — S-054 + the M-117 discovery (renumbered from the draft M-116 at the push-rebase: the S11-R lane's archive-inventory M-116 pushed first, per the earlier-push-wins rule)
+
+- **S-054 FIXED** — the TS/M2TS carve cap re-pinned to the og's 200 MB
+  controller global (2000000000 → 200000000 on both rows; the "x 10"
+  provenance refuted — the clamp at RAWSearchDLL:35507-35509, the
+  fallback literal :35513, the global :9049, and 2e9 appears nowhere in
+  the binary — every cite re-verified first-hand at the fix). Tests:
+  Carve.TsM2TsCapIsTheOg200MB (registry pin) +
+  Carve.TsStreamClampedAt200MB (behavior: the 220 MB stream clamps;
+  pre-fix one ~219,999,852-byte node). RELEASE-NOTES carries the S-047
+  repair note.
+- **M-117 (drafted M-116; renumbered at the push) FILED + FIXED (discovered during S-054's verification, per §8
+  — announced here and in the commit)** — the suppress_overlap trial
+  loop ran the full cap-sized validator walk for every mid-stream sync
+  BEFORE the covered check discarded it: the 220 MB fixture did not
+  complete inside 600 s pre-fix; post-fix 11.3 s. The fix is the
+  pre-validator covered-check reorder (terminal states identical). The
+  post-emission jump variant was tried and REJECTED — it broke
+  S007CommonFormatsCarve (an AAC ADTS start inside another format's
+  walked extent; the og RANKS overlapping candidates, it does not skip
+  them) — the code comment at the emission site records the lesson.
+  Suite 1030/1030 + 59 green.
+
 ---
+### Session-11D W1 final (the S-051 CONVERGENT DU merge — the union of both lanes' landings)
+
+- **The DU**: the S40 fix lane landed a convergent S-051 (`6ecd6bb4`,
+  pushed 18:49:47Z) in the same window as this lane's ad0535d6-lineage —
+  both lanes implemented the finding's own fix plan independently, with
+  six IDENTICAL test names derived verbatim from the finding's "Tests to
+  add" list. The pull-time merge collided on cr_scan.cpp/h, the fixtures
+  and the trail files.
+- **The union (this merge commit)**: their gate skeleton stands (their push
+  won per the SA-9 rule) — `host_fs_hint_` (covers the probed-FAT-alias-on-
+  MBR case this lane's Unknown-only gate missed: probe_family's FAT
+  heuristic can fire on MBR boot-code bytes, which would have re-opened
+  the silent-empty door via an honest-looking engine failure), their direct
+  `run_engine_dispatch` per target with the pass's own deep_mode (candidate
+  mode's always-deep semantics were wrong for primary table targets), and
+  their `table_volumes*` counter names. This lane's contributions kept:
+  the M-104 display-name tiers (the FAT boot-sector label via
+  `fat::read_volume_label` / their GPT-entry-name tier folded in as tier 2 /
+  the `NTFS @ <LBA>` FS marker / the anonymous form last-resort), the
+  probe-Unknown-only skip accounting (an identified-family volume with an
+  engine open failure counts as SCANNED with 0 files, not skipped — the
+  probe's verdict is the volume's identity), and the scanned-only
+  `table_target_lbas_` recording (a skipped damaged volume stays
+  discoverable — the og's additional-targets semantics, architecture/04
+  §3.4).
+- **Test consolidation**: their six local tests dropped (this lane's nine
+  are supersets: the same assertions + the display names + the stats
+  names + the round-trip); their `build_exfat_image` extraction KEPT
+  (test_exfat_volume.cpp consumes it via using-declarations).
+- **The trail**: the ledger's two S-051 rows merged into one CONVERGENT-DU
+  row (their SHA + the union description + the one live file in
+  findings/FIXED/); the matrix's two MATCH rows folded; the finding
+  files carry DU-merge addenda; the modules' lane-blocks both kept with
+  the DU note.
+- **Post-merge verification (executed)**: full suite **1136/1136** green
+  (the S40 lane's tests + this lane's, consolidated); the evidence probe
+  re-run: RUN 2 rc=0 files=4 deleted=2 with the VOLONE/VOLTWO display-name
+  roots; clang-format 18.1.8 clean (the S40/thumbnail lanes' newest
+  residue swept: cr_ui.h, test_exfat_volume.cpp, test_thumbnail.cpp).
+- The board at the merged truth: **53 active (6 SEVERE · 17 MAJOR ·
+  24 MINOR · 6 INFO) / 301 ledger data rows / 3 tracked-open** (the count
+  recorded for the next conform pass).
+
 ## Session-12 S12 lane (2026-10-29 — the continuation audit lane opens; grant: the two repos only, core + corpus)
 
 Task ID: S12/T0 (open — baselines + prompt + territory claim)
@@ -4293,6 +4512,71 @@ Stage Summary:
   the ASan test repair, and the full trail.
 
 ---
+### Session-11D W1 closed (pushed at 1c4a106c after five hot-window merge cycles)
+
+The wave's landings, all verified on the merged tree (1146/1146 green,
+format clean, the evidence probe re-run):
+- **S-051 FIXED** — the CONVERGENT DU union with the S40 lane (their
+  host-hint gate + stats names; this lane's display names, skip accounting,
+  scanned-only reconciliation). RUN 2: rc=0 files=4 deleted=2.
+- **M-104 FIXED** — the display-name tiers riding the union.
+- **A-012** — the CONVERGENT record (the S11 lane's e4273f2b repair stands;
+  this lane's fail-before execution + root-cause trace in the finding file).
+- Trail reconciled through the hot window: the DU rows in the ledger, the
+  folded matrix rows, the addenda in both finding files.
+
+**NEXT (the lane's declared SEVERE order): S-049** — the og's universal
+carved-naming contract (`<PREFIX>_%06d.EXT` + the content-derived
+prefixes). The label primitive (fat::read_volume_label) and the volume-root
+mechanism from W1 compose.
+
+## Session 11C — T3: S-052 FIXED (the LDM span recovery basis)
+
+Task ID: S11C/T3
+Agent: session-11 fix lane
+
+**The landing (`ea9c8ed5`):** the finding's full architectural plan —
+(1) the tree gains per-root basis ids (`ResultTree::set_root_basis`;
+roots only, descendants read through the parent walk; persisted as
+node-flags bit10 in the tree record), (2) the scan controller keeps the
+virtual volume devices past run()'s return (`ldm_devices_`/`ldm_layouts_`
+— the loop's old stack device replaced; roots stamped with index+1),
+(3) the SafeWriter resolves each item's read source through the borrowed
+`LdmBasisTable` (basis 0/unresolvable = the absolute source, whose reads
+then fail honestly per-extent), (4) the R7.2/F12 overlap refusal maps
+layout-relative extents to PHYSICAL member spans first
+(`LdmVolumeDevice::physical_spans`: exact spanned/striped, conservative
+every-copy/every-column for mirrored/RAID-5), (5) the session persists
+both halves (REC_LDM_LAYOUTS type 10 + the root stamps;
+`load_session_summary` surfaces the layouts; the resumed controller
+adopts them for re-save truthfulness), and (6) the UI arms the session's
+devices lazily at the first basis-aware enqueue/preview/thumbnail
+(Windows: PRIVHEAD-GUID disk enumeration; else local-self — missing
+members fail loudly, never wrong-disk bytes).
+
+**Verified:** `LdmRecovery.*` (7: span byte-exact WITH the executed
+fail-before — the same extent read against the absolute source serves
+0x11 where the scan saw 0x22; stripe round-trip; RAID-5 reconstruction;
+overlap true+false positives; simple identity; preview==recovery; the
+session round-trip) + `Orchestrator.DynamicDiskScanStampsBasisAnd-
+SessionRoundTrips`. Full ctest **1121/1121**; clang-format clean;
+GAP-S6-15 CLOSED in CORE-GAP-LIST.md; ABI-CONTRACT + crsf-format.md +
+PARITY-DELTAS (D-106/D-107) + modules/ldm.md updated in the same landing.
+
+**Honest boundaries (registered):** the cross-disk
+member-on-destination overlap case inherits the absolute-basis check's
+same-disk convention (spans on other member disks = disjoint hardware);
+a resumed incomplete deep stage re-runs the LDM loop (fresh roots — the
+pre-existing resume root-duplication class, unchanged here); the
+Windows re-arm enumeration compiles on the win lane (win_syntax_check
+green) with the multi-disk byte-exactness proven at the core level.
+
+**Process notes:** the parallel fix lane landed M-108/N-111/N-112
+mid-flight (this lane's independent M-108 implementation dropped at the
+pull — the no-duplication convention); the FIXED/ convention amendment
+(user instruction: fixed findings live in the fixed directory) is
+recorded in the ledger's preamble.
+
 Task ID: S41 (session-41 continuation audit lane — the consolidated record; opened at core c7fa527c / corpus be0cfe9, RECONCILED at push over TWO parallel windows, closed at the reconciled push)
 Agent: session-41 continuation audit lane (the user's "second session" directive: find what prior sessions missed, remove the fixed things, go deeper, mark all remaining)
 

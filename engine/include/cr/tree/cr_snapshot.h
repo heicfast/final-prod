@@ -55,6 +55,9 @@ struct SnapNode {
     u8 grade = 1;         /* tree::Grade (S-023; 1 = the emit default) */
     bool overlap = false; /* tree overlap flag (S-023) */
     bool full = false;    /* FullNode discriminator (roots / virtual) */
+    u32 basis = 0;        /* S-052: the node's root's extent-basis id
+                           * (0 = absolute; captured for ROOT rows, the
+                           * value consumers read by walking parents) */
 
     /* content (copied, snapshot-owned) */
     u64 logical_size = 0;

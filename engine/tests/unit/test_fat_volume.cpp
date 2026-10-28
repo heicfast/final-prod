@@ -11,6 +11,7 @@
  */
 #include <gtest/gtest.h>
 #include "cr/fat/cr_fat_engine.h"
+#include "cr/cr_text.h"
 #include "cr/storage/cr_device.h"
 #include <cstdio>
 #include <cstdlib>
@@ -1987,4 +1988,77 @@ TEST(FatEngine, NonRecycleDollarFilesStayRaw) {
     EXPECT_EQ(raw_i, 1u) << "out-of-bin $I-named file stays a raw result";
     EXPECT_EQ(raw_r, 1u) << "out-of-bin $R-named file stays a raw result";
     EXPECT_EQ(vac, 0u) << "no remap outside the bin";
+}
+
+/* ---- S-051/M-104 (diff-to-fix): the boot-sector volume label ---- */
+
+namespace {
+
+/* a minimal FAT16 boot sector with the given 11-byte label */
+std::vector<u8> fat16_boot_image(const char* label) {
+    std::vector<u8> img(200 * 512, 0);
+    u8* b = img.data();
+    b[0] = 0xEB;
+    b[1] = 0x3C;
+    b[2] = 0x90;
+    std::memcpy(b + 3, "MSDOS5.0", 8);
+    b[0x0B] = 0x00;
+    b[0x0C] = 0x02; /* bps 512 */
+    b[0x0D] = 1;    /* spc */
+    b[0x0E] = 1;    /* reserved */
+    b[0x10] = 1;    /* one FAT */
+    b[0x11] = 0x00;
+    b[0x12] = 0x02; /* 512 root entries */
+    b[0x13] = 200;  /* total16 = 200 sectors */
+    b[0x15] = 0xF8;
+    b[0x16] = 2; /* spf16 */
+    char lbl[11] = {' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '};
+    for (int i = 0; i < 11 && label[i]; ++i)
+        lbl[i] = label[i];
+    std::memcpy(b + 0x2B, lbl, 11);
+    std::memcpy(b + 0x36, "FAT16   ", 8);
+    b[510] = 0x55;
+    b[511] = 0xAA;
+    return img;
+}
+
+} // namespace
+
+TEST(FatEngine, ReadVolumeLabelDecodesBootSector) {
+    /* the FAT12/16 label sits at +0x2B (11 bytes, space padded); the trim
+     * keeps interior spaces ("MY DISK") and drops the pad. */
+    std::u16string label;
+    MemDevice dev1(fat16_boot_image("MY DISK"));
+    ASSERT_EQ(read_volume_label(&dev1, label), OK);
+    std::string utf8;
+    text::lossless_u16_to_utf8(label, utf8);
+    EXPECT_EQ(utf8, "MY DISK");
+
+    MemDevice dev2(fat16_boot_image("VOLONE"));
+    ASSERT_EQ(read_volume_label(&dev2, label), OK);
+    text::lossless_u16_to_utf8(label, utf8);
+    EXPECT_EQ(utf8, "VOLONE");
+}
+
+TEST(FatEngine, ReadVolumeLabelRejectsLabelLessAndNonFat) {
+    /* an all-space label is the honest "no label" error - the caller's
+     * fallback tier takes over (never a blank display name); a non-FAT
+     * slice is rejected by validate_boot before the field is read. */
+    std::u16string label;
+    MemDevice blank(fat16_boot_image("           "));
+    EXPECT_EQ(read_volume_label(&blank, label), ERR_BAD_PARAMETER);
+    /* a label of 10 spaces + '1' (all 11 field bytes): the trim keeps
+     * every interior space - only TRAILING pad is stripped */
+    MemDevice sparse(fat16_boot_image("          1"));
+    ASSERT_EQ(read_volume_label(&sparse, label), OK);
+    std::string utf8;
+    text::lossless_u16_to_utf8(label, utf8);
+    EXPECT_EQ(utf8, "          1");
+
+    /* zeroed sector: no FAT structure at all */
+    std::vector<u8> zeros(512, 0);
+    MemDevice zerosec(std::move(zeros));
+    EXPECT_EQ(read_volume_label(&zerosec, label), ERR_BAD_MAGIC);
+    /* null device */
+    EXPECT_EQ(read_volume_label(nullptr, label), ERR_BAD_PARAMETER);
 }

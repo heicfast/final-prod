@@ -1,5 +1,22 @@
 # core_recovery release notes
 
+## vNext (additions, 2026-10-29 session 40)
+
+- **S-054 (repair of the S-047 landing)**: the MPEG-TS/AVCHD (TS/M2TS)
+  carve cap is the og's 200 MB controller global EXACTLY — the S-047
+  landing's "× 10" value (2 GB) was a refuted provenance; any release
+  that shipped S-047's cap should read this as the correction (recovered
+  TS/M2TS files above 200 MB were over-extended vs the reference).
+- **S-051**: a whole-disk scan target (the ABI's `cr_ui_open_disk`, the
+  CLI `scan --disk` / whole-disk images) now reads the partition list at
+  scan setup and scans every table volume (the og's CDoScanPartition
+  flow) — a partitioned disk no longer completes "successfully" with
+  zero files.
+- **M-117** (discovered during S-054's verification; renumbered at the push per the ID-collision rule): contiguous
+  TS/M2TS/MPEG-audio streams no longer pay the quadratic mid-stream
+  re-walk in the carve stage (covered candidates resolve at the covered
+  check before the validator).
+
 ## vNext (CI consolidation, 2026-10-28)
 
 - *(Corrected 2026-10-29, M-088: the lane set is FOUR, not three — the

@@ -1328,6 +1328,82 @@ struct EngineRun {
     storage::FreeMap free_map; /* S-009: the bitmap truth (main pass only) */
 };
 
+/* S-051/M-104 (diff-to-fix): the whole-disk flow's per-volume display
+ * name. The og's scan-setup insertion trace carries each target's NAME
+ * ("Insert lost partition %s, ...", DRWUI_decompiled.c:904076) and the
+ * real sessions persist every volume under its display name ("Local
+ * Disk(G:)", "System Reserved (NTFS)" - the depth-1 census in
+ * evidence/executions/s10-wholedisk-scan-targets.md). Naming tiers (the
+ * DU merge: this lane's label/FS-marker tiers + the S40 lane's GPT-name
+ * tier): (1) the on-disk volume label - the FAT families decode it from
+ * the boot sector (fat::read_volume_label); the NTFS/$Volume,
+ * ext4/s_volume_name and exFAT/root-dir label decodes are N-133's landing
+ * and compose here unchanged when they land; (2) the GPT entry name for
+ * GPT partitions (the S40 tier - a partition name; the per-family label
+ * decodes supersede it when they land); (3) the FS-type string with the
+ * position ("NTFS @ 2048" - the og's own no-letter fallback shape carries
+ * the FS in the name); (4) the anonymous LBA form - the last resort ONLY,
+ * never the default (M-104's own acceptance). */
+std::u16string volume_target_name(IStorageDevice* target, FsFamily fam, u64 start_lba,
+                                  const table::PartitionInfo& p) {
+    if (fam == FsFamily::Fat) {
+        std::u16string label;
+        if (fat::read_volume_label(target, label) == OK)
+            return label;
+    }
+    /* the S40 lane's GPT tier: a GPT partition's UTF16 entry name (a
+     * partition name, not the volume's own label - the og names volumes
+     * by their labels; this tier sits between the label decode and the
+     * FS-marker until the per-family label decodes (N-133) land). */
+    if (p.from_gpt) {
+        std::u16string gpt;
+        for (int k = 0; k < 36 && p.name[k]; ++k)
+            gpt.push_back(p.name[k]);
+        if (!gpt.empty())
+            return gpt;
+    }
+    const char* fs = "Unknown";
+    switch (fam) {
+    case FsFamily::Ntfs:
+        fs = "NTFS";
+        break;
+    case FsFamily::Fat:
+        fs = "FAT";
+        break;
+    case FsFamily::Exfat:
+        fs = "exFAT";
+        break;
+    case FsFamily::Ext4:
+        fs = "EXT";
+        break;
+    case FsFamily::Hfsplus:
+        fs = "HFS+";
+        break;
+    case FsFamily::Btrfs:
+        fs = "Btrfs";
+        break;
+    case FsFamily::Refs:
+        fs = "ReFS";
+        break;
+    case FsFamily::Zfs:
+        fs = "ZFS";
+        break;
+    case FsFamily::Udf:
+        fs = "UDF";
+        break;
+    case FsFamily::BitLocker:
+        fs = "BitLocker";
+        break;
+    case FsFamily::Unknown:
+    case FsFamily::Reserved5:
+        break; /* Reserved5 is never produced by probe_family (the anchor
+                * value); Unknown callers never reach the marker tier */
+    }
+    char ascii[48];
+    snprintf(ascii, sizeof(ascii), "%s @ %llu", fs, (unsigned long long)start_lba);
+    return text::utf8_to_u16(ascii);
+}
+
 EngineRun run_engine_dispatch(FsFamily fam, IStorageDevice* slice, bool deep_extras,
                               bool candidate_mode, CancelToken* cancel,
                               bool (*progress)(u64, u64, void*), void* pu, tree::ResultTree& tree,
@@ -1508,9 +1584,19 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
                 for (const char* p = lay.name.c_str(); *p; ++p)
                     role.push_back(u16(u8(*p)));
                 tree::FullNode* vroot = tree_.add_root(role);
-                table::LdmVolumeDevice vol(lay, resolver);
+                /* S-052: the device is HEAP-OWNED and REGISTERED (basis
+                 * id = index+1) so it survives run()'s return and the
+                 * recovery/preview consumers can read through it; the
+                 * root is stamped with the same id (the F-1 numeric
+                 * rebase never touches these nodes - multi-disk bases
+                 * are resolved through the registry, not shifted). */
+                auto vol = std::make_unique<table::LdmVolumeDevice>(lay, resolver);
+                ldm_layouts_.push_back(lay);
+                tree_.set_root_basis(vroot, u32(ldm_devices_.size() + 1));
+                ldm_devices_.push_back(std::move(vol));
                 u64 files = 0, deleted = 0;
-                (void)scan_candidate(&vol, vroot, cancel, files, deleted, ep, ep_user);
+                (void)scan_candidate(ldm_devices_.back().get(), vroot, cancel, files, deleted, ep,
+                                     ep_user);
                 stats.files_found += files;
                 stats.deleted_found += deleted;
             }
@@ -1522,34 +1608,45 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
             return OK;
         }
     }
-    /* S-051: whole-disk target-set construction - the og's CDoScanPartition
-     * flow (architecture/04-recovery-workflow.md section 3.4): the
-     * controller "reads the partition list" at scan setup and makes every
-     * known volume a scan target (lost partitions are ADDITIONAL targets,
-     * inserted later by the --whole-disk discovery). Our plain whole-disk
-     * flow previously probed LBA 0, saw the MBR (no FS signature),
-     * returned Unknown and the dispatch default completed "successfully"
-     * with ZERO files on a healthy multi-volume disk (the executed RUN 2:
-     * rc=0, files_found=0 on a two-volume fixture). Gates, in order:
+    /* S-051 (diff-to-fix): whole-disk target-set construction - the og's
+     * CDoScanPartition flow (architecture/04-recovery-workflow.md §2:
+     * disk -> CDoScanPartition -> CGenericRecoveryController; §3.4:
+     * "reads the partition list", the 0xa8-stride insertion loop at
+     * DRWUI_decompiled.c:904076/:904198): the controller reads the
+     * partition list at scan setup and makes every known volume a scan
+     * target (lost partitions are ADDITIONAL targets, inserted later by
+     * the --whole-disk discovery). The core previously probed LBA 0 of
+     * the whole-disk slice, saw the MBR (no FS signature), returned
+     * Unknown and the dispatch default completed "successfully" with
+     * ZERO files on a healthy multi-volume disk (the executed RUN 2:
+     * rc=0, files_found=0 on the two-volume fixture, evidence/executions/
+     * s10-wholedisk-scan-targets.md). Gates, in order (the DU merge of
+     * the two convergent lanes: this lane's display names + the S40
+     * lane's host-hint gate - both pushed in one window):
      *   - LDM keeps precedence (the block above returned for dynamic
      *     disks - a dynamic disk's volumes come from the database, not
      *     the table);
      *   - !host_fs_hint_: the host-unset case builds table targets. A
      *     host-forced family is an explicit slice assertion (the CLI
      *     --family / the ABI's cfg passthrough) and keeps the single
-     *     dispatch - the og's controller builds the full searcher set
-     *     for the deep flow, not for an asserted family. A PROBED family
+     *     dispatch - the RUN 3 control's honest failure. A PROBED family
      *     (the LBA-0 probe can alias FAT heuristics on MBR boot-code
      *     bytes) routes here too: a table-bearing LBA 0 is by definition
      *     not a filesystem volume, so the table flow is the honest path;
-     *   - a parseable table with at least one used, non-container
-     *     partition (Extended/Protective are containers; a superfloppy
-     *     has no table and keeps the single-slice dispatch unchanged).
+     *   - a parseable table with at least one used, non-container,
+     *     non-LDM partition (the EBR chain already flattened logical
+     *     volumes; Extended/Protective are containers; a superfloppy has
+     *     no table and keeps the single-slice dispatch unchanged).
      * Each target is a PartitionSlice over the same retry/cache pipe
      * (bad-sector isolation + MFT/FAT re-read caching apply per volume),
-     * probed independently - a volume whose probe fails is skipped
-     * HONESTLY (counted in stats.table_volumes_skipped + an Info log
-     * line), never fatal, never silent. */
+     * probed independently - a volume whose probe finds no filesystem is
+     * skipped HONESTLY (counted in table_volumes_skipped + a Warn log
+     * line), never fatal, never silent. Scanned volumes get their own
+     * display-name root (M-104's tiers: the FAT boot-sector label / the
+     * GPT entry name / the FS-marker) and dispatch directly with THIS
+     * pass's deep_mode - the per-volume engine errors are not scan
+     * errors (the candidate-mode contract: an unviable table volume
+     * never aborts the disk scan). */
     if (!host_fs_hint_) {
         errmod::Guard tbl_guard(errmod::kOrchestrator);
         publish_owner_module_(errmod::kOrchestrator);
@@ -1558,16 +1655,14 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
             t.layout != table::TableLayout::None) {
             std::vector<table::PartitionInfo> targets;
             for (const auto& p : t.partitions)
-                if (p.used && p.fs != table::FsKind::Extended &&
-                    p.fs != table::FsKind::Protective && p.sector_count != 0)
+                if (p.used && p.sector_count != 0 && p.fs != table::FsKind::Extended &&
+                    p.fs != table::FsKind::Protective && p.fs != table::FsKind::Ldm)
                     targets.push_back(p);
             if (!targets.empty()) {
                 stats.table_volumes = targets.size();
                 table_target_lbas_.clear();
                 const u64 ls = slice->geometry().logical_sector;
-                bool any_scanned = false;
                 for (const auto& p : targets) {
-                    table_target_lbas_.push_back(p.start_lba);
                     if (cancel && cancel->checkpoint())
                         return ERR_CANCELLED;
                     auto tgt = PartitionSlice::create(slice, p.start_lba * ls, p.sector_count * ls);
@@ -1590,31 +1685,30 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
                                            static_cast<unsigned long long>(p.sector_count));
                         continue;
                     }
-                    /* the volume's tree root - one root per target (the
-                     * og's per-volume display-name shape; the naming is
-                     * M-104's surface, this root carries the LBA-anchored
-                     * identity until then). GPT partitions carry the
-                     * table's UTF16 name when the field is non-empty. */
-                    std::u16string role;
-                    if (p.from_gpt) {
-                        for (int k = 0; k < 36 && p.name[k]; ++k)
-                            role.push_back(p.name[k]);
-                    }
-                    if (role.empty()) {
-                        role = u"Volume @ ";
-                        char buf[32];
-                        snprintf(buf, sizeof(buf), "%llu",
-                                 static_cast<unsigned long long>(p.start_lba));
-                        for (const char* q = buf; *q; ++q)
-                            role.push_back(u16(u8(*q)));
-                    }
+                    /* M-104's display-name tiers (this lane's landing):
+                     * the on-disk volume label first (the FAT families
+                     * decode it from the boot sector), the GPT entry
+                     * name for GPT partitions, the FS-marker with the
+                     * position last - the anonymous form is reserved for
+                     * genuinely-lost discovery candidates. */
+                    const std::u16string role = volume_target_name(tgt.get(), fam, p.start_lba, p);
                     tree::FullNode* vroot = tree_.add_root(role);
+                    if (cr::log::enabled()) {
+                        std::string utf8;
+                        text::lossless_u16_to_utf8(role, utf8);
+                        cr::log::write(cr::log::Level::Info,
+                                       "scan target: table volume '%s' start_lba=%llu "
+                                       "sectors=%llu fs=%u",
+                                       utf8.c_str(), static_cast<unsigned long long>(p.start_lba),
+                                       static_cast<unsigned long long>(p.sector_count), u32(fam));
+                    }
                     const u64 tbase = tgt->absolute_base();
                     /* per-volume engine errors are not scan errors (an
                      * unviable table volume must not abort the disk scan) -
                      * the candidate-mode contract; the per-volume probe
-                     * already ran, so a dispatch open failure counts as a
-                     * skipped volume, honestly. */
+                     * already identified the family, so the volume counts
+                     * as scanned (an engine open failure surfaces 0 files
+                     * under the volume root, honestly). */
                     errmod::Guard vfam_guard(module_for_family(fam));
                     const EngineRun ter =
                         run_engine_dispatch(fam, tgt.get(), deep_mode, true, cancel, ep, ep_user,
@@ -1627,7 +1721,15 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
                         stats.files_found += ter.files;
                         stats.deleted_found += ter.deleted;
                         ++stats.table_volumes_scanned;
-                        any_scanned = true;
+                        /* S-051: record the scanned start LBA so the deep
+                         * stage's discovery never double-scans this
+                         * volume (the no-double-scan acceptance). This
+                         * lane's semantics (kept at the DU merge): a
+                         * target skipped honestly is NOT recorded, so
+                         * discovery still gets its chance on the damaged
+                         * volume - the og's lost partitions are
+                         * ADDITIONAL targets, never replacements. */
+                        table_target_lbas_.push_back(p.start_lba);
                     } else {
                         ++stats.table_volumes_skipped;
                         if (cr::log::enabled())
@@ -1643,7 +1745,6 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
                  * carve) run by their own stages below. Boundary tick +
                  * telemetry come from the caller's post-stamp forward,
                  * exactly like the LDM block above. */
-                (void)any_scanned;
                 return OK;
             }
         }
@@ -1739,14 +1840,21 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
         publish_owner_module_(errmod::kLost);
         u32 lrc = lost::discover(slice, known, 1, cancel, deep_cb, &dbridge, dr);
         if (lrc == OK) {
-            /* S-051: reconcile the discovery's table-matched candidates
-             * against the engine pass's primary target set - a candidate
-             * whose start LBA equals a scanned table volume is a
-             * DUPLICATE (the volume is a primary target now, not a lost
-             * partition; the og inserts lost partitions as ADDITIONAL
-             * targets only). Drop BEFORE the persistence assignment so
-             * the session's lost list never carries in-table volumes, and
-             * each volume enters the tree exactly once. */
+            /* S-051: the no-double-scan reconciliation. The primary pass
+             * scans the table's own volumes as partition-list targets
+             * (run_engine_pass's S-051 block), so discovery's +500
+             * table-match candidates ("Found once partition" - the
+             * M-017(a) exemption) that coincide with an ALREADY-SCANNED
+             * target are dropped BEFORE the persistence assignment: the
+             * session's lost list never carries in-table volumes and
+             * each volume enters the tree exactly once, under its
+             * display-name volume root. A target the primary pass SKIPPED
+             * honestly (probe found no FS) is not in table_target_lbas_,
+             * so its discovery candidate survives - the og's lost
+             * partitions are ADDITIONAL targets on damaged volumes,
+             * never duplicates of healthy ones (architecture/04 §3.4:
+             * the table volumes are the primary set, lost partitions are
+             * inserted in addition). */
             if (!table_target_lbas_.empty() && !dr.candidates.empty()) {
                 std::vector<lost::Candidate> kept;
                 kept.reserve(dr.candidates.size());
@@ -2181,6 +2289,15 @@ u32 ScanController::save_session(session::Writer& w, const ScanStats& stats,
             return rc2;
     }
 
+    /* S-052: the LDM dynamic-volume layouts (optional record; the tree's
+     * LDM roots carry the matching basis ids - recovery/preview re-arm
+     * the virtual devices from these after a load). */
+    if (!ldm_layouts_.empty()) {
+        if (session::serialize_ldm_layouts(ldm_layouts_, blob) == OK)
+            if (u32 rc = w.add_record(session::REC_LDM_LAYOUTS, blob.data(), u32(blob.size())))
+                return rc;
+    }
+
     if (session::serialize_error_map(stats.errors, blob) == OK)
         if (u32 rc = w.add_record(session::REC_ERROR_MAP, blob.data(), u32(blob.size())))
             return rc;
@@ -2264,6 +2381,10 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
     bool have_state = false;
     session::VolumeInfo vi;
     bool have_vi = false;
+    /* S-052: the LDM layouts land here first - `info` is rebuilt from
+     * the light fields at the end of this function, so the layouts move
+     * into the rebuilt struct (never wiped by the reset). */
+    std::vector<table::LdmVolumeLayout> ldm_loaded;
     for (u32 i = 0; i < count; ++i) {
         session::Record rec;
         u32 rc = r.read_record(i, rec);
@@ -2307,6 +2428,9 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
         case session::REC_VOLUME_INFO:
             if (session::deserialize_volume_info(rec.data.data(), rec.data.size(), vi) == OK)
                 have_vi = true;
+            break;
+        case session::REC_LDM_LAYOUTS: /* S-052: re-arm input */
+            (void)session::deserialize_ldm_layouts(rec.data.data(), rec.data.size(), ldm_loaded);
             break;
         case session::REC_PARTITION_CONTEXT: {
             /* G-23: restore lost candidates so a reloaded session can be
@@ -2381,6 +2505,7 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
      * (no VolumeInfo) assume all stages configured - their masks were
      * config-derived by construction, so the subset check holds trivially. */
     info = session::VolumeSessionInfo{};
+    info.ldm_layouts = std::move(ldm_loaded); /* S-052: survives the reset */
     info.fs_family = have_vi ? vi.fs_kind : 0;
     info.stage_done_mask = have_state ? st.stage_done_mask : 0;
     info.configured_mask = have_vi ? vi.flags : (STAGE_QUICK | STAGE_DEEP | STAGE_CARVE);
@@ -2440,6 +2565,13 @@ u32 ScanController::resume(session::Reader& r, tree::ResultTree& tree,
     out.reset(new (std::nothrow) ScanController(tree, std::move(cfg), info));
     if (!out)
         return ERR_NO_MEMORY;
+    /* S-052: the resumed controller adopts the persisted LDM layouts so a
+     * re-save keeps them (the devices are NOT rebuilt here - consumers
+     * re-arm from the session; the engine pass rebuilds fresh devices iff
+     * the LDM loop re-runs for an incomplete stage). Basis-id continuity:
+     * the loaded tree's LDM roots already carry ids matching these
+     * layouts' order; a re-run loop appends AFTER them (id = size+1). */
+    out->ldm_layouts_ = info.ldm_layouts;
     return OK;
 }
 

@@ -297,6 +297,16 @@ public:
     u64 node_id() const { return node_id_; } /* stable within the tree */
     bool is_full() const { return full_; }   /* light/full discrimination */
 
+    /* S-052: the node's EXTENT BASIS - which device its extents are
+     * relative to. 0 = ABSOLUTE device offsets (the F-1 default every
+     * consumer is documented against); >0 = an opaque scan-owned basis
+     * handle (LDM dynamic-volume layouts - the value is an index+1 into
+     * the basis table the scan/session owns; LdmVolumeDevice reads
+     * map it to the member disks). Only ROOTS carry a stamped basis
+     * (set_root_basis); descendants read their root's value by walking
+     * parent() - the same walk rel_dir_of() already makes. */
+    u32 basis() const { return basis_; }
+
     /* u16 name in utf8 convenience (lossy for exotic) */
     std::string name_utf8() const;
 
@@ -319,6 +329,7 @@ protected:
     Grade grade_ : 2 = Grade::Average; /* og engine default: grade 1 at emit */
     u8 overlap_ : 1 = 0;               /* og twin/overlap flag (bit 2 of +0x73) */
     bool full_ = false;                /* FullNode marker (non-polymorphic discrimination) */
+    u32 basis_ = 0;                    /* S-052: root's extent-basis id (0 = absolute) */
     u64 node_id_ = 0;
 };
 
@@ -357,6 +368,13 @@ public:
     ~ResultTree();
 
     FullNode* add_root(const std::u16string& role);
+    /* S-052: stamp a root's extent basis (see FileNode::basis). Call
+     * between add_root and the subtree's emission; id 0 clears. The
+     * scan's LDM loop stamps every dynamic-volume root with its
+     * layout's index+1 so recovery/preview consumers can pick the
+     * right device without a numeric rebase (multi-disk bases are not
+     * numeric - the F-1 rebase cannot express them). */
+    void set_root_basis(FileNode* root, u32 basis_id);
     /* Attach a file under parent. Takes a REFERENCE (caller releases its own
      * ref when done; each add_file call adds one node-held ref). Hard links:
      * call once per parent, then release once. */
@@ -417,8 +435,12 @@ public:
      * Shared props (hard links) shift exactly once via the visited set.
      * base == 0 is a no-op (whole-disk scans, synthetic devices).
      * The extent dedup index is re-keyed so post-scan lookups stay
-     * truthful. LDM volume nodes keep their layout-relative basis
-     * (multi-disk bases are not expressible; registered limitation).
+     * truthful. S-052: LDM dynamic-volume roots are exempt from the
+     * NUMERIC rebase (multi-disk bases are not numeric) - they carry a
+     * stamped basis id instead (set_root_basis), and the basis-aware
+     * consumers (SafeWriter/preview via the LdmBasisTable) resolve
+     * their layout-relative extents through the retained virtual
+     * devices. GAP-S6-15 closed by that wiring.
      */
     size_t node_count_snapshot() const;
     void rebase_new_extents(size_t from_node, u64 base);

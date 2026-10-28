@@ -242,6 +242,38 @@ CLI flag + session round-trip). The W1a/W1b/W1c orchestration claims verified
   and M-079 (the volume-label plumbing): one whole-disk shape pass in the
   fix order resolves the family coherently.
 
+## Session-11D fix lane (2026-10-29 — lane D; S-051 + M-104 FIXED, this session)
+
+**DU-merge note:** the S40 lane's block above documents THEIR convergent
+landing (`6ecd6bb4`); the merged tree keeps the union — their host-hint
+gate + stats names, this lane's display names/skip accounting/scanned-only
+reconciliation. See S-051's Resolution addendum in `findings/FIXED/`.
+
+- **S-051 → FIXED** (`run_engine_pass`'s partition-list target block): a
+  whole-disk-basis scan with an unforced hint now parses the partition
+  table and makes every used, non-container, non-LDM entry a scan target —
+  per-target `probe_family`, `scan_candidate` under the volume's own root,
+  F-1 subtree rebase, honest skips counted in `table_volume_skipped` (rc
+  stays OK), a Warn/Info log line per target (the og's insertion-trace
+  analog). The discovery reconciliation (run_deep) drops candidates whose
+  start LBA matches an already-scanned target — the no-double-scan
+  acceptance; a target skipped for a dead probe stays discoverable (the
+  og's lost partitions are additional targets, never replacements). The
+  superfloppy and forced-hint paths are pinned unchanged (tests).
+- **M-104 → FIXED** (rides the same builder): the volume roots carry
+  display names — tier 1 the FAT-family boot-sector label
+  (`fat::read_volume_label`, validate_boot-gated; NTFS/ext4/exFAT label
+  decodes compose via N-133's landing), tier 2 the `NTFS @ <LBA>`
+  FS-marker, tier 3 the anonymous LBA form now reserved for genuinely-lost
+  discovery candidates. One tree per volume (deleted as a node flag, the
+  og's shape); the names round-trip through the session format.
+- **A-012 (ACUTE, discovered during the S-051 verification)** — see
+  modules/carve.md's row and the finding file: the 81ee9775 rebase-window
+  sweep dropped M-093's FMT_SVG registry row, hard-downing the carve stage
+  on main; restored this session (`RegistryF8Gate` RED→GREEN).
+- Residuals recorded in the Resolutions: the og's FS-type marker ROW
+  (corpus-ambiguous per the finding's own open question) and the
+  standard-root narrowing stay the S-048/M-103 wave's scope.
 ### Session-11-lead rows (2026-10-29)
 
 - **M-114** (MAJOR): MainModule's silent System-Restore purge (srclient SRRemoveRestorePoint via WMI enumerate-all, 510-index fallback, BOTH drives of a copy/repartition pair) — absent, undecided, undocumented even in the corpus. The posture decision (host-consent plan item vs registered decline) is the fix lane's.

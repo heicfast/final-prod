@@ -49,3 +49,10 @@ None (register-only).
 ## Open questions
 
 None for the disposition itself. (Whether the merged product ever wants a video-repair integration via the M-021 hook is a roadmap question, not an audit question.)
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-130 + N-138 landing — recorded post-push in the ledger row)
+**Verified by:** the register row added and cross-noted (grep: the file on disk at og-codebase/VideoViewer/VideoFileRepairer.exe beside the dispositioned media DLLs; the row cites the per-binary artifact + repair-architecture.md:11 + the I-010/D-26 exclusion); the next filename-keyed sweep returns 0 undispositioned files outside the tracked sfc question — which N-138's decode also closes (the sfc is this binary's own engine-init database, now named in the row).
+**Resolution notes:** The register row landed as the fix plan specified (SIDECAR-OOS disposition, the full evidence chain: the fix_main_code lineage, the -r/-a CLI, the MP4/QT atom grammar, avcodec-62 + faad2, the M-021 engine-side touchpoint), enriched with N-138's decode (the `<dir>\sfc` encrypted engine-init database — magic " cfs" + the XOR key + custom-LZ — so the register never re-inherits the refuted "dead payload" reading); the VideoViewer family row (:106 area) cross-notes the child. N-138's trail-truth half rides this landing: the FIXED-LEDGER's OQ-S10-2 row now carries the SUPERSEDED verdict (the original "dead payload" closure refuted by the byte-level decode; hypothesis 1 was correct), matching the matrix's refutation row and the README note the audit lane already landed.

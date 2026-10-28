@@ -66,6 +66,17 @@ Every command logs stage timings, per-stage counts and error maps
 (`--log`). `scan --json` emits the run summary machine-readably;
 `tree --json` the result tree; `--csv` the flat file list.
 
+**Whole-disk scan semantics** (S-051): `scan --disk N` always builds its
+scan targets from the disk's partition table — every used, non-container
+entry is probed per-target and scanned under its own display-name volume
+root (the og's CDoScanPartition flow reads the partition list at scan
+setup; a plain disk scan never silently returns an empty tree on a
+healthy partitioned disk). A target with no readable filesystem is
+skipped honestly and counted (`table_volume_skipped`). `--whole-disk`
+adds the lost-partition discovery on top; table volumes are never
+scanned twice (the discovery's table-match candidates for already-
+scanned targets are dropped).
+
 **Consent-bearing flags** (the safety architecture): `--repair-apply`,
 `--repair-undo`, `--undo-apply`, `--bitlocker-dict`, `--bitlocker-fvek`,
 `--apply`, `--boot-fix` (fires only under `--apply` — the shared apply

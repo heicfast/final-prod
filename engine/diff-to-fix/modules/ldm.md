@@ -181,3 +181,23 @@ serves these reads for the product's whole lifetime.
 ### Session-11-lead row (2026-10-29)
 
 - **N-148 item 1** (MINOR): cr_ldm.h:30-32 still claims the RAID-5 rotation is UNDECODED — OQ-T7 resolved it as a hardwired left-symmetric MATCH (evidence/decompiled-quotes/ldm-raid5-and-scoring.md:8-34); the header's hedge is now false.
+## Session-11 fix lane addendum (2026-10-29 — S-052 FIXED: the recovery-side half of B8/A27 closes)
+
+The S-052 landing closes the recovery-side half the SA-10 addendum scored as
+absent: **B8 and A27 now carry `M` on BOTH sides** — the scan reads through
+the virtual device (the standing verdict) AND the recovery/preview/thumbnail
+read through the RETAINED devices (basis-aware, byte-exact by test). The
+architecture: the scan controller owns a heap registry of the LdmVolumeDevices
+(surviving run()'s return), the dynamic-volume roots carry per-root basis ids
+(`ResultTree::set_root_basis`), the SafeWriter resolves per-item sources
+through the `LdmBasisTable` (recovery enqueues arm the session's lazily
+rebuilt devices from the persisted `REC_LDM_LAYOUTS` record + the root stamps
+that ride the tree record), and the R7.2/F12 overlap refusal maps
+layout-relative extents to PHYSICAL member spans before comparing. Proof set:
+`tests/unit/test_ldm_recovery.cpp` (span/stripe/RAID-5-with-missing-member/
+simple round-trips, the overlap true-positive + the false-positive fix,
+preview==recovery, the layouts+basis session round-trip) and
+`Orchestrator.DynamicDiskScanStampsBasisAndSessionRoundTrips` (the scan-side
+stamping + the save/load chain). GAP-S6-15 is CLOSED in CORE-GAP-LIST.md.
+The two registered divergences of the landing live in PARITY-DELTAS
+(D-106 missing-member policy, D-107 conservative overlap families).

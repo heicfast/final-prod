@@ -755,6 +755,24 @@ The carve surface's size-walk residue now has owners:
 - **S-041** closed FIXED-as-umbrella (retired to history; the FIXED-LEDGER row
   carries the closure record).
 
+## Session-11D fix lane (2026-10-29 — A-012, DISCOVERED during S-051's verification: the registry row restore)
+
+- **A-012 (ACUTE)** — the 81ee9775 rebase-window conflict sweep (the
+  M-093/M-096 push window) dropped M-093's FMT_SVG row from kTable: 119
+  rows against FMT_COUNT's 120, the mobi row displaced (id 119 at index
+  118), and the F8 gate (`validate_registry != 0` at carve_slice's head)
+  rejected EVERY call with ERR_BAD_PARAMETER — the whole carve stage was
+  hard-down on main (the pre-existing `CarveEngine.RegistryF8Gate` pin RED
+  at `bcf31316`, executed first-hand this session as the fail-before).
+  The row is restored verbatim from M-093's landing `ca701711` (the
+  direct "<svg" magic, validate_xmlsvg, 1 MiB cap) with an in-table
+  provenance comment; the registry is 120/120 clean, `RegistryF8Gate`
+  GREEN, and the parallel lanes' 9 residual clang-format violations
+  (cr_signatures.h / cr_analysers.cpp / test_carve.cpp /
+  test_thumbnail.cpp — their M-093/M-096/thumbnail-ABI landings) swept in
+  the same commit so the pinned-version format gate is green. Process
+  lesson recorded in the finding: a rebase-window conflict between two
+  DIFFERENT table rows must keep both sides.
 ### Session-11-lead rows (2026-10-29)
 
 - **S-054** (SEVERE): the TS/M2TS cap at 2e9 is 10x the og's 200 MB clamp (the S-047 landing's refuted "x 10" provenance; unpinned).

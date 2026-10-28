@@ -55,7 +55,12 @@ per node:
 ```
 u32 parent_id (0xFFFFFFFF = top level; attaches under the synthetic
       "Restored" root on load)
-u16 reserved
+u16 node flags (bit0 extent codec/psize pairs, bit1 resident_data,
+      bit2 short_name, bit3 grade byte, bit4 RAW provenance, bit5
+      name_raw, bit6 per-FS secondary, bit7 FAT origin cluster,
+      bit8 NTFS origin LCN, bit9 NTFS total clusters, bit10 (S-052)
+      root basis id follows: u32 — the LDM dynamic-volume basis the
+      root's extents read through; basis 0/absent = ABSOLUTE offsets)
 u8  marker (0 light, 1 full)
 u8  origin, u8 deleted_state, u8 confidence
 u64 record_ref, u32 fs_kind
@@ -67,7 +72,26 @@ u32 extent_count + {u64 offset, u64 length}*
 u32 carve_format, u16 carve_confidence
 u8  hash_valid + 16B sha-128 id (when valid)
 full nodes add: u16 role_len + role (UTF-16LE) + 4x u64 stats
+      (+ u32 basis when node-flags bit10 is set — S-052)
 ```
+
+## LDM_LAYOUTS payload (S-052; optional record, skip-unknown rule)
+
+```
+u32 count + per layout:
+  u8 kind (LdmVolumeKind), u64 vol_obj_id, u64 total_sectors,
+  u64 chunk_sectors, u32 columns, u64 missing_members, u8 complete
+  u16 name_len + bytes
+  u32 copies + per copy: u32 members + per member:
+    u64 part_obj_id, u64 disk_obj_id, 16B disk GUID,
+    u64 disk_lba, u64 part_start, u64 sectors, u64 vol_offset,
+    u32 index, u8 disk_present
+```
+
+The layouts the scan reconstructed, in basis-id order (basis id =
+index+1); the tree's LDM roots carry the matching ids (node-flags bit10).
+Recovery/preview re-arm the virtual volume devices from this record
+after a load (the members re-anchor through their own PRIVHEADs).
 
 ## VOLUME_INFO payload (v1..v5 — the record LENGTH carries the version)
 

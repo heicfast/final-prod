@@ -3310,3 +3310,34 @@ known gap: a file whose IFD1 thumb is stored unrotated WITHOUT declaring
 0x112 would serve sideways where the og's full decode would rotate —
 indistinguishable from the stored bytes without a semantic the file does
 not carry; the spec-conformant case (the overwhelming norm) matches.
+
+## W. The session-11 fix lane (2026-10-29) — S-052's registered divergences
+
+**D-106 — the missing-member recovery policy.** The og's recovery-side
+behavior for an LDM member disk that is ABSENT at recovery time is not
+decoded in the corpus (the scan-side semantics are: reconstruction where
+the layout allows, loud failure where it does not). The core's recovery
+applies its own documented bad-span policy consistently: an unresolvable
+basis (or a member region that fails to read) zero-fills the affected
+spans, flags the item Salvaged (`had_unreadable`), and the default
+hash-verify reports the mismatch — the item is never silently dropped
+and never carries wrong-disk bytes. Rationale: consistency with the
+existing unreadable-span semantics (FB-R02) beats inventing an
+undecoded og behavior; the honest failure is visible in the report.
+**VERDICT:** ACCEPTED (a corpus decode of the og's recovery-side
+missing-member behavior, if ever found, re-opens this as parity work).
+
+**D-107 — the overlap mapping's conservative families.** The S-052
+destination-overlap refusal maps LDM-basis extents to physical member
+spans before comparing: EXACT for spanned/striped (only the data chunks'
+spans are read), CONSERVATIVE for mirrored (every copy's spans — copies
+are tried in read order, any may serve the bytes) and RAID-5 (every
+column of the covered rows — reconstruction XORs the survivors). The og
+has no decoded equivalent check (the R7.2/F12 refusal is the core's own
+documented hard-safety invariant, a deliberate improvement over the
+reference). The conservatism trades rare false refusals for never
+missing a genuine overlap — the safe error direction for a data-loss
+guard. Comparison basis: spans on the scan device (the same same-disk
+convention the absolute-basis check documents; spans on other member
+disks are disjoint hardware).
+**VERDICT:** ACCEPTED (safety posture, documented).

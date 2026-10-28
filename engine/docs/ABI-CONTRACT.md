@@ -153,6 +153,24 @@ carve formats: carve_format_count / carve_format_info — see §7a
 disk map:    cr_ui_disk_map (session OR snapshot) — see §7
 ```
 
+**The LDM basis (S-052).** Nodes from a dynamic-volume scan carry
+LAYOUT-RELATIVE extents: their tree root stamps a basis id (persisted
+with the session beside the REC_LDM_LAYOUTS layouts record), and every
+content consumer resolves it — recovery enqueues route the SafeWriter's
+reads through the session's (lazily re-armed) virtual volume devices,
+and preview/thumbnail open the same device, so preview bytes == recovery
+bytes == the bytes the scan read. The re-arm resolves member disks by
+their PRIVHEAD GUIDs: on Windows every disk is enumerated; elsewhere
+only the scan device itself resolves (a cross-disk member reads fail
+honestly per-extent — the documented missing-member semantics, never
+wrong bytes from a wrong disk). The destination-overlap refusal maps
+LDM-basis extents to their PHYSICAL member spans before comparing
+against the destination (mirrored/RAID-5 spans are conservative: every
+copy/column — any may be read). Snapshots carry their source
+session/scan pointer for the same routing; the source must outlive
+recoveries enqueued from it (the borrowed-nodes contract the writer's
+queue already carries).
+
 **Recovery-progress mapping (N-075 / D-78).** The og's typed
 `IUIProgressInfo` per-item recovery-progress interface
 (`RecoverProgressUISink::sigUpdateProgress(const IUIProgressInfo*)` —

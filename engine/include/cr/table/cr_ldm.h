@@ -335,6 +335,30 @@ public:
     u32 read_at(u64 offset, void* buffer, u32 length) override;
     const Geometry& geometry() const override { return geom_; }
 
+    /* S-052: the (re-anchored) layout this device serves - the session
+     * persistence and the recovery-side overlap mapping read it. */
+    const LdmVolumeLayout& layout() const { return layout_; }
+
+    /* S-052: the physical spans a volume-relative byte range touches -
+     * the recovery writer's destination-overlap check input (R7.2/F12
+     * must compare PHYSICAL placements, not layout-relative offsets).
+     * Per kind:
+     *   simple/spanned  the exact member runs (translate_spanned)
+     *   striped         the data chunks' member runs (exact - a striped
+     *                   read touches only its own column)
+     *   mirrored        EVERY copy's runs (conservative: copies are
+     *                   tried in order, any may be read)
+     *   raid5           EVERY column of every covered row (conservative:
+     *                   reconstruction XORs the surviving columns)
+     * A member whose device does not resolve contributes no span (the
+     * read of that member fails; its bytes are not touched). */
+    struct PhysicalSpan {
+        IStorageDevice* dev; /* the member disk's device (non-null) */
+        u64 offset;          /* absolute byte offset on that device */
+        u64 length;          /* bytes */
+    };
+    std::vector<PhysicalSpan> physical_spans(u64 offset, u64 length) const;
+
 private:
     u32 read_spanned_copy(const std::vector<LdmMember>& members, u64 sec, u32 nsec, u8* dst);
     LdmVolumeLayout layout_;

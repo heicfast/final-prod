@@ -362,6 +362,7 @@ struct ScanStats {
      * (the og's per-hit persistence keeps the find; M-042) but its walked
      * files are detached from the tree and its counts report zero. */
     u64 lost_content_rejected = 0;
+
     ReadErrorMap errors;
     std::vector<lost::Candidate> lost_candidates;
 
@@ -611,6 +612,22 @@ public:
 
     const ScanConfig& config() const { return cfg_; }
 
+    /* ---- S-052: the LDM basis registry --------------------------------
+     * The dynamic-volume devices the scan built (one per reconstructed
+     * layout), heap-owned so they SURVIVE run()'s return (the scan
+     * loop's old stack devices died with the loop - the finding's root
+     * cause). Basis ids are the registry index+1 - the same ids the
+     * scan stamps on the volume roots (ResultTree::set_root_basis).
+     * Consumers: save_session (persists the LAYOUTS), the UI layer
+     * (moves the devices into the session's basis table while the
+     * scan handle lives). The devices borrow their member disks
+     * through cfg.ldm_resolver - whoever owns those devices must
+     * outlive the registry (the UI's ldm_members). */
+    const std::vector<std::unique_ptr<table::LdmVolumeDevice>>& ldm_devices() const {
+        return ldm_devices_;
+    }
+    const std::vector<table::LdmVolumeLayout>& ldm_layouts() const { return ldm_layouts_; }
+
 private:
     /* M-029: the raw/carve category root's role string - the configured
      * display name (cfg_.raw_category_name, the og's "filter_generalraw"
@@ -693,6 +710,9 @@ private:
 
     tree::ResultTree& tree_;
     ScanConfig cfg_;
+    /* S-052: the dynamic-volume registry (see ldm_devices()) */
+    std::vector<std::unique_ptr<table::LdmVolumeDevice>> ldm_devices_;
+    std::vector<table::LdmVolumeLayout> ldm_layouts_;
     tree::FullNode* root_found_ = nullptr;
     tree::FullNode* root_deleted_ = nullptr;
     tree::FullNode* root_lost_ = nullptr;
@@ -748,12 +768,17 @@ private:
      * +0x0B on a table-bearing LBA 0, which by definition is not a
      * volume) routes to the whole-disk table-target flow. */
     bool host_fs_hint_ = false;
-    /* S-051: the whole-disk target set's start LBAs (used, non-container
-     * partitions the engine pass made scan targets of). The --whole-disk
-     * discovery reconciles against this set: a candidate whose start LBA
-     * matches an already-scanned table volume is a duplicate - each
-     * volume enters the tree exactly once, and the in-table volumes are
-     * presented as primary targets, not as lost partitions. */
+    /* S-051: the start LBAs of table volumes the whole-disk flow ALREADY
+     * SCANNED as primary partition-list targets (the og's CDoScanPartition
+     * flow - architecture/04 §3.4). The deep stage's lost-partition
+     * discovery re-finds in-table boot sectors as +500 table-match
+     * candidates (cr_candidates.cpp's "Found once partition" bonus); a
+     * candidate whose start matches a scanned target is dropped BEFORE
+     * materializing it - each volume is scanned exactly once (the
+     * no-double-scan acceptance). MERGE NOTE (this lane's semantics kept):
+     * a target skipped honestly (probe found no FS) is NOT recorded here,
+     * so discovery still gets its chance on the damaged volume (the og's
+     * lost partitions are ADDITIONAL targets, never replacements). */
     std::vector<u64> table_target_lbas_;
 };
 

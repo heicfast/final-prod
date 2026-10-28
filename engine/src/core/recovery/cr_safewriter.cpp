@@ -4,6 +4,7 @@
  */
 
 #include "cr/recovery/cr_safewriter.h"
+#include "cr/table/cr_ldm.h" /* S-052: the LdmBasisTable's device type */
 #include "cr/tree/cr_snapshot.h"
 #include "cr/compress/cr_decomp.h"
 #include "cr/cr_text.h" /* N-016b: raw-name restore derivation */
@@ -19,8 +20,53 @@ bool intersects(u64 a_start, u64 a_len, u64 b_start, u64 b_len) {
 }
 } // namespace
 
-SafeWriter::SafeWriter(DestIo& io, IStorageDevice* source, WriterConfig cfg)
-    : io_(io), source_(source), cfg_(std::move(cfg)) {}
+/* ---- S-052: the LDM basis table ---- */
+
+void LdmBasisTable::add(::cr::table::LdmVolumeDevice* dev) {
+    if (dev != nullptr)
+        devs_.push_back(dev);
+}
+
+::cr::table::LdmVolumeDevice* LdmBasisTable::at(u32 basis) const {
+    if (basis == 0 || basis > devs_.size())
+        return nullptr;
+    return devs_[basis - 1];
+}
+
+std::vector<LdmBasisTable::Span> LdmBasisTable::spans(u32 basis, u64 offset, u64 length) const {
+    std::vector<Span> out;
+    const ::cr::table::LdmVolumeDevice* dev = at(basis);
+    if (dev == nullptr)
+        return out;
+    for (const auto& ps : dev->physical_spans(offset, length))
+        out.push_back(Span{ps.dev, ps.offset, ps.length});
+    return out;
+}
+
+/* walk a live node to its root's basis stamp (S-052: only roots carry
+ * the stamp; descendants read it through the parent chain) */
+static u32 node_basis_of(const tree::FileNode* n) {
+    const tree::FileNode* r = n;
+    while (r != nullptr && r->parent() != nullptr)
+        r = r->parent();
+    return r != nullptr ? r->basis() : 0;
+}
+
+/* walk a snapshot row to its root row's basis stamp */
+static u32 snap_basis_of(const tree::Snapshot& snap, u32 index) {
+    u32 i = index;
+    u32 guard = 0;
+    while (snap.node(i).parent != tree::SNAP_NONE) {
+        i = snap.node(i).parent;
+        if (++guard > snap.node_count()) /* corrupt parent loop: honest 0 */
+            return 0;
+    }
+    return snap.node(i).basis;
+}
+
+SafeWriter::SafeWriter(DestIo& io, IStorageDevice* source, WriterConfig cfg,
+                       const LdmBasisTable* bases)
+    : io_(io), source_(source), bases_(bases), cfg_(std::move(cfg)) {}
 
 void SafeWriter::set_destination(u64 dest_disk_start, u64 dest_disk_bytes) {
     set_destination_spans({{dest_disk_start, dest_disk_bytes}});
@@ -102,7 +148,7 @@ std::u16string SafeWriter::resolve_collision(const std::u16string& dir,
 u32 SafeWriter::enqueue(tree::FileNode* node, const std::u16string& dest_dir) {
     if (node == nullptr || node->props() == nullptr || source_ == nullptr)
         return ERR_BAD_PARAMETER;
-    return enqueue_common(node->props(), node, nullptr, dest_dir);
+    return enqueue_common(node->props(), node, nullptr, dest_dir, node_basis_of(node));
 }
 
 u32 SafeWriter::enqueue(const tree::Snapshot& snap, u32 snap_index,
@@ -118,33 +164,71 @@ u32 SafeWriter::enqueue(const tree::Snapshot& snap, u32 snap_index,
         return ERR_NO_MEMORY;
     value_store_.push_back(std::move(owned));
     const tree::FileProperties* value = value_store_.back().get();
-    return enqueue_common(value, nullptr, value, dest_dir);
+    return enqueue_common(value, nullptr, value, dest_dir, snap_basis_of(snap, snap_index));
 }
 
 u32 SafeWriter::enqueue_common(const tree::FileProperties* pr, tree::FileNode* node,
                                const tree::FileProperties* value_props,
-                               const std::u16string& dest_dir) {
+                               const std::u16string& dest_dir, u32 basis) {
     if (pr == nullptr)
         return ERR_BAD_PARAMETER;
     const bool is_dir = cfg_.reconstruct_dirs && (pr->attributes & 0x10) != 0;
 
-    /* R7.2 / F12: hard refusal on source/destination overlap. The extents
-     * are ABSOLUTE device offsets; the destination extent is the
-     * destination volume's disk placement. Directory nodes carry no
-     * extents - never refused (G-08). */
+    /* S-052: resolve the item's read source. Basis 0 (and any basis the
+     * table cannot resolve) reads through the ABSOLUTE source - for an
+     * unresolvable LDM basis the reads then fail honestly per-extent
+     * (the Skip policy zero-fills + Salvaged outcome, the documented
+     * bad-span semantics - never silent wrong bytes from a wrong disk). */
+    IStorageDevice* read_src = source_;
+    if (basis != 0 && bases_ != nullptr) {
+        if (IStorageDevice* dev = const_cast<LdmBasisTable*>(bases_)->at(basis))
+            read_src = dev;
+    }
+
+    /* R7.2 / F12: hard refusal on source/destination overlap. Basis-0
+     * extents are ABSOLUTE device offsets on `source_`; the destination
+     * extent is the destination volume's disk placement. S-052: for an
+     * LDM basis the layout-relative offsets are NOT device offsets -
+     * the check maps them to PHYSICAL member spans first (only spans on
+     * `source_` itself can intersect the destination under the
+     * same-disk convention the arming documents; spans on other member
+     * disks are different hardware - disjoint by construction).
+     * Directory nodes carry no extents - never refused (G-08). */
     if (!is_dir && have_dest_ && !dest_spans_.empty()) {
-        for (const auto& e : pr->extents) {
-            for (const auto& span : dest_spans_) { /* N-013: every span */
-                if (intersects(e.offset, e.length, span.first, span.second)) {
-                    QueueItem refused;
-                    refused.node = node;
-                    refused.value_props = value_props;
-                    refused.dest_dir = dest_dir;
-                    refused.item_id = next_id_++;
-                    refused.state = ItemState::Refused;
-                    refused.error = ERR_DEST_OVERLAP;
-                    queue_.push_back(refused);
-                    return ERR_DEST_OVERLAP;
+        if (basis == 0) {
+            for (const auto& e : pr->extents) {
+                for (const auto& span : dest_spans_) { /* N-013: every span */
+                    if (intersects(e.offset, e.length, span.first, span.second)) {
+                        QueueItem refused;
+                        refused.node = node;
+                        refused.value_props = value_props;
+                        refused.dest_dir = dest_dir;
+                        refused.item_id = next_id_++;
+                        refused.state = ItemState::Refused;
+                        refused.error = ERR_DEST_OVERLAP;
+                        queue_.push_back(refused);
+                        return ERR_DEST_OVERLAP;
+                    }
+                }
+            }
+        } else if (bases_ != nullptr) {
+            for (const auto& e : pr->extents) {
+                for (const auto& ps : bases_->spans(basis, e.offset, e.length)) {
+                    if (ps.dev != source_)
+                        continue; /* other member disk: disjoint by hardware */
+                    for (const auto& span : dest_spans_) {
+                        if (intersects(ps.offset, ps.length, span.first, span.second)) {
+                            QueueItem refused;
+                            refused.node = node;
+                            refused.value_props = value_props;
+                            refused.dest_dir = dest_dir;
+                            refused.item_id = next_id_++;
+                            refused.state = ItemState::Refused;
+                            refused.error = ERR_DEST_OVERLAP;
+                            queue_.push_back(refused);
+                            return ERR_DEST_OVERLAP;
+                        }
+                    }
                 }
             }
         }
@@ -153,6 +237,8 @@ u32 SafeWriter::enqueue_common(const tree::FileProperties* pr, tree::FileNode* n
     QueueItem it;
     it.node = node;
     it.value_props = value_props; /* G-02b: null for node-based enqueues */
+    it.read_src = read_src;
+    it.basis = basis;
     it.dest_dir = dest_dir;
     if (!it.dest_dir.empty() && it.dest_dir.back() != u'\\' && it.dest_dir.back() != u'/')
         it.dest_dir.push_back(u'\\');
@@ -235,6 +321,9 @@ u32 SafeWriter::recover_item(QueueItem& it, CancelToken* cancel, WriterStats& st
 }
 
 u32 SafeWriter::recover_item_impl_(QueueItem& it, CancelToken* cancel, WriterStats& stats) {
+    /* S-052: the item's basis-resolved read source (enqueue_common
+     * stamped it; basis 0 / unresolvable = the absolute source_) */
+    IStorageDevice* const read_dev = it.read_src != nullptr ? it.read_src : source_;
     /* G-02b: node-based items read the live props; snapshot items read
      * the writer-owned value - exactly one of the two is non-null. */
     const tree::FileProperties* pr = it.node ? it.node->props() : it.value_props;
@@ -376,7 +465,7 @@ u32 SafeWriter::recover_item_impl_(QueueItem& it, CancelToken* cancel, WriterSta
             }
             std::vector<u8> packed(static_cast<size_t>(psize), 0);
             std::vector<u8> plain(static_cast<size_t>(lsize), 0);
-            if (source_->read_at(pr->extents[ext_i].offset, packed.data(), u32(psize)) != OK) {
+            if (read_dev->read_at(pr->extents[ext_i].offset, packed.data(), u32(psize)) != OK) {
                 std::memset(packed.data(), 0, size_t(psize)); /* Skip policy */
                 std::memset(plain.data(), 0, size_t(lsize));
                 it.had_unreadable = true; /* FB-R02: zero-filled span */
@@ -406,7 +495,7 @@ u32 SafeWriter::recover_item_impl_(QueueItem& it, CancelToken* cancel, WriterSta
             continue;
         }
         const u32 got_raw = u32(want);
-        if (source_->read_at(pr->extents[ext_i].offset + in_ext, chunk.data(), got_raw) != OK) {
+        if (read_dev->read_at(pr->extents[ext_i].offset + in_ext, chunk.data(), got_raw) != OK) {
             /* zero-fill the unreadable span (Skip policy) and continue -
              * the hash will intentionally mismatch on damaged content */
             std::memset(chunk.data(), 0, got_raw);

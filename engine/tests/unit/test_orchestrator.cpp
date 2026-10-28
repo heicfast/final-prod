@@ -216,171 +216,87 @@ TEST(Orchestrator, DynamicDiskVolumeScan) {
     ASSERT_NE(nullptr, doc);
 }
 
-/* ---- S-051: the whole-disk target set (the og's CDoScanPartition flow) -- */
+/* ---- S-051 (diff-to-fix): the whole-disk flow's partition-list targets ----
+ *
+ * The og's disk-level flow (architecture/04-recovery-workflow.md §2/§3.4:
+ * CDoScanPartition -> CGenericRecoveryController) reads the partition list
+ * at scan setup and makes every table volume a scan target. The core
+ * previously probed LBA 0, saw the MBR, dispatched Unknown and completed
+ * rc=0 with ZERO files on any healthy partitioned disk (the executed RUN 2,
+ * evidence/executions/s10-wholedisk-scan-targets.md). These tests pin the
+ * fixed target construction; M-104's display-name and known-vs-lost
+ * distinctions ride the same mechanism. */
 
-/* The evidence fixture's exact shape (s10-wholedisk-fixture-builder.py):
- * an 18 MiB raw disk, a valid MBR with TWO type-0x0E partitions
- * (LBA 2048 / 16483 secs, LBA 18531 / 16483 secs), each volume carrying
- * one live file (DOC.TXT) and one deleted file (DELFILE.TXT). */
-std::vector<u8> build_two_volume_mbr_disk() {
-    constexpr u64 P1_START = 2048, P1_SECS = 16483;
-    constexpr u64 P2_START = 18531, P2_SECS = 16483;
-    constexpr u64 DISK_SECS = 37062; /* 18 MiB, room for both + tail */
-    std::vector<u8> img(u64(DISK_SECS) * 512, 0);
+namespace {
 
-    auto mbr_entry = [&](int slot, u8 type, u64 start, u64 count) {
-        u8* e = img.data() + 446 + slot * 16;
-        e[4] = type;
-        e[8] = u8(start);
-        e[9] = u8(start >> 8);
-        e[10] = u8(start >> 16);
-        e[11] = u8(start >> 24);
-        e[12] = u8(count);
-        e[13] = u8(count >> 8);
-        e[14] = u8(count >> 16);
-        e[15] = u8(count >> 24);
-        /* CHS fields stay zero - the LBA fields are what the parser uses */
+/* count nodes by exact name anywhere in the tree */
+u64 count_named(tree::ResultTree& tree, const char* utf8_name) {
+    u64 n = 0;
+    std::function<void(tree::FileNode*)> walk = [&](tree::FileNode* node) {
+        if (node->name_utf8() == utf8_name)
+            ++n;
+        for (tree::FileNode* c = node->first_child(); c; c = c->next_sibling())
+            walk(c);
     };
-    mbr_entry(0, 0x0E, P1_START, P1_SECS);
-    mbr_entry(1, 0x0E, P2_START, P2_SECS);
-    img[510] = 0x55;
-    img[511] = 0xAA;
-
-    /* plant the two volumes */
-    auto v1 = build_fat16();
-    auto v2 = build_fat16();
-    std::memcpy(img.data() + P1_START * 512, v1.data(), v1.size());
-    std::memcpy(img.data() + P2_START * 512, v2.data(), v2.size());
-    return img;
+    for (auto* r : tree.roots())
+        walk(r);
+    return n;
 }
 
-/* the GPT twin: same geometry, a protective MBR + a valid GPT header
- * (CRCs exact) + two basic-data partition entries over the volumes. */
-std::vector<u8> build_two_volume_gpt_disk() {
-    constexpr u64 P1_START = 2048, P1_SECS = 16483;
-    constexpr u64 P2_START = 18531, P2_SECS = 16483;
-    constexpr u64 DISK_SECS = 37062;
-    std::vector<u8> img = build_two_volume_mbr_disk();
-
-    /* replace the MBR's two real entries with one protective 0xEE entry */
-    std::memset(img.data() + 446, 0, 64);
-    {
-        u8* e = img.data() + 446;
-        e[4] = 0xEE;
-        /* the parser accepts the protective entry with zero LBA fields */
-    }
-    img[510] = 0x55;
-    img[511] = 0xAA;
-
-    /* GPT entry array at LBA 2 (128 entries x 128 bytes = 32 sectors) */
-    constexpr u64 ENTRIES_LBA = 2;
-    constexpr u64 HEADER_LBA = 1;
-    table::GptEntry ents[128] = {};
-    {
-        table::GptEntry& e1 = ents[0];
-        static const table::GptEntry zero{};
-        e1 = zero;
-        std::memcpy(e1.type_guid, table::GPT_TYPE_BASIC_DATA, 16);
-        for (int i = 0; i < 16; ++i)
-            e1.unique_guid[i] = u8(0x10 + i);
-        e1.first_lba = P1_START;
-        e1.last_lba = P1_START + P1_SECS - 1;
-        const char16_t* n1 = u"VOLONE";
-        for (int i = 0; i < 6; ++i)
-            e1.name[i] = n1[i];
-    }
-    {
-        table::GptEntry& e2 = ents[1];
-        std::memcpy(e2.type_guid, table::GPT_TYPE_BASIC_DATA, 16);
-        for (int i = 0; i < 16; ++i)
-            e2.unique_guid[i] = u8(0x30 + i);
-        e2.first_lba = P2_START;
-        e2.last_lba = P2_START + P2_SECS - 1;
-        const char16_t* n2 = u"VOLTWO";
-        for (int i = 0; i < 6; ++i)
-            e2.name[i] = n2[i];
-    }
-    std::memcpy(img.data() + ENTRIES_LBA * 512, ents, sizeof(ents));
-
-    /* GPT header at LBA 1 */
-    table::GptHeader h{};
-    std::memcpy(h.signature, "EFI PART", 8);
-    h.revision = 0x00010000;
-    h.header_size = 92;
-    h.header_crc32 = 0; /* computed below */
-    h.current_lba = HEADER_LBA;
-    h.backup_lba = DISK_SECS - 1;
-    h.first_usable_lba = 34;
-    h.last_usable_lba = DISK_SECS - 2;
-    h.entries_start_lba = ENTRIES_LBA;
-    h.entry_count = 128;
-    h.entry_size = 128;
-    h.entries_crc32 = table::crc32(ents, sizeof(ents));
-    std::memcpy(img.data() + HEADER_LBA * 512, &h, sizeof(h));
-    {
-        /* header CRC over header_size bytes with the crc field zeroed */
-        std::vector<u8> tmp(512, 0);
-        std::memcpy(tmp.data(), img.data() + HEADER_LBA * 512, 512);
-        std::memset(tmp.data() + 12, 0, 4); /* offsetof(header_crc32) == 12 */
-        const u32 crc = table::crc32(tmp.data(), 92);
-        put32v(img, HEADER_LBA * 512 + 12, crc);
-    }
-    return img;
+/* collect root display names (role for full nodes, name for the rest) */
+std::vector<std::string> root_names(tree::ResultTree& tree) {
+    std::vector<std::string> out;
+    for (auto* r : tree.roots())
+        out.push_back(r->name_utf8());
+    return out;
 }
+
+} // namespace
 
 TEST(Orchestrator, WholeDiskScansTableVolumes) {
-    /* S-051: the plain whole-disk flow (no --whole-disk) reads the
-     * partition list at scan setup and makes every known volume a scan
-     * target - the og's CDoScanPartition flow. Pre-fix this scan
-     * returned rc=0 with ZERO files (the executed RUN 2: the probe read
-     * LBA 0, saw the MBR, returned Unknown, the dispatch default
-     * completed "successfully" with nothing). */
-    MemDevice dev(build_two_volume_mbr_disk());
+    /* the executed evidence's RUN 2 shape: a plain whole-disk target (no
+     * --whole-disk, Unknown hint) on a healthy two-volume MBR disk MUST
+     * find both volumes' files - previously rc=0 with an empty tree. */
+    auto img = testfixture::build_two_volume_mbr_disk("VOLONE", "VOLTWO");
+    MemDevice dev(std::move(img));
     tree::ResultTree tree;
     ScanConfig cfg;
     cfg.run_quick = true;
     cfg.run_deep = true;
     cfg.run_carve = false;
-    cfg.whole_disk = false; /* the PLAIN disk target - the finding's case */
+    cfg.whole_disk = false;
     ScanController ctrl(tree, cfg);
     ScanStats stats;
     u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
     ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_EQ(stats.files_found, 4u) << "both volumes' DOC.TXT + the deleted files' entries";
+    EXPECT_GE(stats.deleted_found, 2u);
     EXPECT_EQ(stats.table_volumes, 2u);
-    EXPECT_EQ(stats.table_volumes_scanned, 2u);
     EXPECT_EQ(stats.table_volumes_skipped, 0u);
-    EXPECT_GE(stats.files_found, 2u);   /* DOC.TXT in BOTH volumes */
-    EXPECT_GE(stats.deleted_found, 2u); /* DELFILE.TXT in BOTH volumes */
+    /* each volume's DOC.TXT found exactly once - under its own root */
+    EXPECT_EQ(count_named(tree, "DOC.TXT"), 2u);
 }
 
 TEST(Orchestrator, WholeDiskGptTwin) {
-    /* the GPT shape of the same flow: protective MBR + valid header
-     * (CRCs exact) + two basic-data entries; both volumes scanned, the
-     * GPT names reach the per-volume roots. */
-    MemDevice dev(build_two_volume_gpt_disk());
+    /* the same flow on the GPT twin: the GPT entry array (basic-data
+     * partitions) drives the same per-volume targets. */
+    auto img = testfixture::build_two_volume_gpt_disk("GPTVOL1", "GPTVOL2");
+    MemDevice dev(std::move(img));
     tree::ResultTree tree;
     ScanConfig cfg;
     cfg.run_quick = true;
-    cfg.run_deep = true;
     cfg.run_carve = false;
     ScanController ctrl(tree, cfg);
     ScanStats stats;
     u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
     ASSERT_EQ(rc, OK) << err_text(rc);
-    EXPECT_EQ(stats.table_volumes, 2u);
-    EXPECT_EQ(stats.table_volumes_scanned, 2u);
-    EXPECT_GE(stats.files_found, 2u);
-    /* the GPT partition names ride the volume roots (VOLONE / VOLTWO) */
-    bool saw_volone = false, saw_voltwo = false;
-    for (tree::FileNode* r : tree.roots()) {
-        const std::string n = r->name_utf8();
-        if (n == "VOLONE")
-            saw_volone = true;
-        if (n == "VOLTWO")
-            saw_voltwo = true;
-    }
-    EXPECT_TRUE(saw_volone);
-    EXPECT_TRUE(saw_voltwo);
+    EXPECT_EQ(stats.files_found, 4u);
+    EXPECT_EQ(count_named(tree, "DOC.TXT"), 2u);
+    const auto names = root_names(tree);
+    EXPECT_NE(std::find(names.begin(), names.end(), "GPTVOL1"), names.end())
+        << "the first volume's display-name root";
+    EXPECT_NE(std::find(names.begin(), names.end(), "GPTVOL2"), names.end())
+        << "the second volume's display-name root";
 }
 
 TEST(Orchestrator, WholeDiskMixedFamilies) {
@@ -423,102 +339,261 @@ TEST(Orchestrator, WholeDiskMixedFamilies) {
     EXPECT_EQ(stats.table_volumes, 2u);
     EXPECT_EQ(stats.table_volumes_scanned, 2u);
     /* the FAT volume's DOC.TXT and the exFAT volume's doc.txt both land */
-    size_t doc_txt = 0, photo_jpg = 0;
-    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
-        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
-            const std::string n2 = c->name_utf8();
-            if (n2 == "DOC.TXT" || n2 == "doc.txt")
-                ++doc_txt;
-            if (n2 == "photo.jpg")
-                ++photo_jpg;
-            collect(c);
-        }
-    };
-    for (tree::FileNode* r : tree.roots())
-        collect(r);
-    EXPECT_GE(doc_txt, 2u) << "DOC.TXT (FAT16) + doc.txt (exFAT) both found";
-    EXPECT_GE(photo_jpg, 1u) << "the exFAT target's photo.jpg found";
+    EXPECT_EQ(count_named(tree, "DOC.TXT") + count_named(tree, "doc.txt"), 2u);
+    EXPECT_GE(count_named(tree, "photo.jpg"), 1u) << "the exFAT target's photo.jpg found";
+}
+
+TEST(Orchestrator, WholeDiskFsMarkerNamesForeignVolume) {
+    /* M-104's tier-3 naming: a volume whose family has NO label decode yet
+     * (NTFS - the $Volume decode is N-133's landing) takes the FS-marker
+     * form "NTFS @ <LBA>", never the anonymous "Volume @ <LBA>" and never
+     * the "Candidate @" form. */
+    u64 s1 = 0, s2 = 0;
+    auto img = testfixture::build_two_volume_mbr_disk("FATSIDE", "VOLTWO", &s1, &s2);
+    /* plant the NTFS probe shape over the second volume's boot sector */
+    u8* b = img.data() + s2 * 512;
+    std::memset(b, 0, 512);
+    std::memcpy(b + 3, "NTFS    ", 8);
+    put16(img, s2 * 512 + 0x0B, 512);
+    b[0x0D] = 1;
+    b[0x15] = 0xF8;
+    img[s2 * 512 + 0x28] = 200;
+    img[s2 * 512 + 0x30] = 100; /* $MFT LCN 100 */
+    img[s2 * 512 + 0x38] = 108;
+    b[0x40] = 2;
+    b[0x44] = 2;
+    b[510] = 0x55;
+    b[511] = 0xAA;
+    const u64 rec = (s2 + 100) * 512;
+    std::memset(img.data() + rec, 0, 1024);
+    put32v(img, rec, 0x454C4946); /* 'FILE' */
+    put16(img, rec + 4, 0x30);
+    put16(img, rec + 6, 3);
+    put16(img, rec + 0x14, 0x38);
+    put16(img, rec + 0x18, 1);
+    img[rec + 510] = 0x34;
+    img[rec + 511] = 0x12;
+    img[rec + 1022] = 0x34;
+    img[rec + 1023] = 0x12;
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_carve = false;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_EQ(stats.table_volumes, 2u);
+    const auto names = root_names(tree);
+    EXPECT_NE(std::find(names.begin(), names.end(), "FATSIDE"), names.end());
+    std::string expected = "NTFS @ " + std::to_string(s2);
+    EXPECT_NE(std::find(names.begin(), names.end(), expected), names.end())
+        << "expected the FS-marker root '" << expected << "'";
 }
 
 TEST(Orchestrator, WholeDiskDamagedVolumeSkippedHonestly) {
-    /* one healthy volume + one garbage partition (no identifiable FS):
-     * the damaged target is SKIPPED HONESTLY (counted in stats, rc stays
-     * OK), the healthy volume still scans. */
-    auto img = build_two_volume_mbr_disk();
-    /* wreck volume 2's boot sector (random bytes, no OEM/55AA/geometry) */
-    for (size_t i = 0; i < 512; ++i)
-        img[18531 * 512 + i] = u8((i * 7 + 3) & 0xFF);
-    img[18531 * 512 + 510] = 0x12; /* not 0x55 */
-    img[18531 * 512 + 511] = 0x34; /* not 0xAA */
+    /* one healthy volume + one table entry whose boot sector is dead: the
+     * damaged target is skipped HONESTLY (counted in table_volumes_skipped,
+     * rc stays OK, no root emitted) - never silently nor fatally. */
+    u64 s1 = 0, s2 = 0;
+    auto img = testfixture::build_two_volume_mbr_disk("HEALTHY", "DEADBOOT", &s1, &s2);
+    std::memset(img.data() + s2 * 512, 0, 512); /* no FS signature at all */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_carve = false;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_EQ(stats.table_volumes, 2u);
+    EXPECT_EQ(stats.table_volumes_skipped, 1u);
+    EXPECT_GE(stats.files_found, 2u) << "the healthy volume still scans";
+    EXPECT_EQ(count_named(tree, "DOC.TXT"), 1u);
+}
 
+TEST(Orchestrator, WholeDiskSuperfloppyUnchanged) {
+    /* no partition table (a bare FAT volume at LBA 0): the single-slice
+     * dispatch keeps the volume-scan behavior - files under Found. */
+    auto img = build_fat16(); /* TESTVOL, no table */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_carve = false;
+    cfg.whole_disk = false;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_EQ(stats.table_volumes, 0u) << "no table: no per-volume targets";
+    EXPECT_GE(stats.files_found, 1u);
+    /* the volume-target path did not fire: DOC.TXT sits under Found */
+    bool doc_under_found = false;
+    if (tree.roots().size() > 0) {
+        for (tree::FileNode* c = tree.roots()[0]->first_child(); c; c = c->next_sibling())
+            if (c->name_utf8() == "DOC.TXT")
+                doc_under_found = true;
+    }
+    EXPECT_TRUE(doc_under_found);
+}
+
+TEST(Orchestrator, WholeDiskNoDoubleScan) {
+    /* whole-disk mode (discovery ON): the table volumes are scanned ONCE
+     * as primary targets; discovery's table-match candidates for them
+     * are dropped - no duplicate "Candidate @ <LBA>" roots, and
+     * lost_partitions reports the genuinely-lost set only. */
+    auto img = testfixture::build_two_volume_mbr_disk("VOLONE", "VOLTWO");
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
     ScanConfig cfg;
     cfg.run_quick = true;
     cfg.run_deep = true;
     cfg.run_carve = false;
+    cfg.whole_disk = true;
     ScanController ctrl(tree, cfg);
     ScanStats stats;
     u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
-    ASSERT_EQ(rc, OK) << err_text(rc); /* a damaged volume is not fatal */
-    EXPECT_EQ(stats.table_volumes, 2u);
-    EXPECT_EQ(stats.table_volumes_scanned, 1u);
-    EXPECT_EQ(stats.table_volumes_skipped, 1u);
-    EXPECT_GE(stats.files_found, 1u); /* the healthy volume still yields */
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_EQ(stats.files_found, 4u);
+    EXPECT_EQ(count_named(tree, "DOC.TXT"), 2u) << "each volume scanned exactly once";
+    EXPECT_EQ(stats.lost_partitions, 0u)
+        << "the table's own volumes are not lost-partition candidates anymore";
+    for (const auto& n : root_names(tree))
+        EXPECT_EQ(n.find("Candidate @"), std::string::npos)
+            << "no anonymous candidate root for table volumes: " << n;
 }
 
-TEST(Orchestrator, WholeDiskSuperfloppyUnchanged) {
-    /* the regression pin: a volume WITHOUT a partition table (the
-     * superfloppy shape - a bare FAT16 image as the whole disk) keeps
-     * the single-slice dispatch exactly as before. */
-    MemDevice dev(build_fat16());
+TEST(Orchestrator, WholeDiskVolumeRootsCarryDisplayNames) {
+    /* M-104: the per-volume roots carry the volumes' on-disk labels
+     * (VOLONE/VOLTWO from the boot sectors), not anonymous LBA strings;
+     * the live and deleted files of one volume share its single root
+     * (deleted as a node flag, the og's one-tree-per-volume shape). */
+    auto img = testfixture::build_two_volume_mbr_disk("VOLONE", "VOLTWO");
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_carve = false;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    ASSERT_EQ(ctrl.run(&dev, nullptr, nullptr, nullptr, stats), OK);
+
+    const auto names = root_names(tree);
+    ASSERT_NE(std::find(names.begin(), names.end(), "VOLONE"), names.end());
+    ASSERT_NE(std::find(names.begin(), names.end(), "VOLTWO"), names.end());
+    for (const auto& n : names)
+        EXPECT_EQ(n.find("Candidate @"), std::string::npos) << "anonymous root: " << n;
+
+    /* the deleted file lives under the SAME volume root, flagged deleted
+     * (the FAT engine renders the 0xE5 first byte; both nodes under
+     * VOLTWO's subtree with deleted_state set on the deleted one) */
+    tree::FileNode* vol2 = nullptr;
+    for (auto* r : tree.roots())
+        if (r->name_utf8() == "VOLTWO")
+            vol2 = r;
+    ASSERT_NE(vol2, nullptr);
+    u64 del_flagged = 0;
+    for (tree::FileNode* c = vol2->first_child(); c; c = c->next_sibling())
+        if (c->deleted_state() == tree::DeletedState::Deleted)
+            ++del_flagged;
+    EXPECT_GE(del_flagged, 1u) << "the deleted file under its volume root, flagged";
+}
+
+TEST(Orchestrator, WholeDiskKnownVsLostDistinguishable) {
+    /* M-104: one in-table volume + one OUT-OF-TABLE volume (a genuinely
+     * lost partition - a valid FAT boot outside the table). The known
+     * volume surfaces under its label root; the lost one as a discovery
+     * candidate - distinguishable by naming convention, both scannable. */
+    u64 s1 = 0;
+    auto img = testfixture::build_two_volume_mbr_disk("KNOWNVOL", "VOLTWO", &s1);
+    /* wipe the SECOND table entry (its volume data stays on disk) -> the
+     * second volume becomes a genuinely-lost partition for discovery. */
+    u8* mbr = img.data();
+    std::memset(mbr + 446 + 16, 0, 16); /* entry 2 gone; entry 1 stays */
+    MemDevice dev(std::move(img));
     tree::ResultTree tree;
     ScanConfig cfg;
     cfg.run_quick = true;
     cfg.run_deep = true;
     cfg.run_carve = false;
+    cfg.whole_disk = true;
     ScanController ctrl(tree, cfg);
     ScanStats stats;
     u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
     ASSERT_EQ(rc, OK) << err_text(rc);
-    EXPECT_EQ(stats.table_volumes, 0u) << "no table: no table-target flow";
-    EXPECT_GE(stats.files_found, 1u); /* DOC.TXT through the single dispatch */
-    EXPECT_GE(stats.deleted_found, 1u);
+    /* the in-table volume: display-name root; the out-of-table volume:
+     * exactly one discovery candidate */
+    const auto names = root_names(tree);
+    EXPECT_NE(std::find(names.begin(), names.end(), "KNOWNVOL"), names.end());
+    EXPECT_EQ(stats.lost_partitions, 1u);
+    u64 candidate_roots = 0;
+    for (const auto& n : names)
+        if (n.find("Candidate @") != std::string::npos)
+            ++candidate_roots;
+    EXPECT_EQ(candidate_roots, 1u);
+    EXPECT_EQ(count_named(tree, "DOC.TXT"), 2u) << "both volumes' files found";
 }
 
-TEST(Orchestrator, WholeDiskNoDoubleScan) {
-    /* --whole-disk + the table-target flow: the discovery's table-matched
-     * candidates are reconciled against the primary target set - each
-     * volume enters the tree EXACTLY once, and the session's lost list
-     * never carries the in-table volumes. */
-    MemDevice dev(build_two_volume_mbr_disk());
+TEST(Orchestrator, WholeDiskVolumeRootNamesRoundTripSession) {
+    /* M-104: the per-volume display-name roots persist through the
+     * session round-trip (the og's own persistence mechanism for
+     * multi-volume identity - the volume root IS the record). */
+    auto img = testfixture::build_two_volume_mbr_disk("VOLONE", "VOLTWO");
+    MemDevice dev(std::move(img));
     tree::ResultTree tree;
     ScanConfig cfg;
     cfg.run_quick = true;
-    cfg.run_deep = true;
     cfg.run_carve = false;
-    cfg.whole_disk = true; /* discovery ON - the reconciliation case */
     ScanController ctrl(tree, cfg);
     ScanStats stats;
-    u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
-    ASSERT_EQ(rc, OK) << err_text(rc);
-    EXPECT_EQ(stats.table_volumes, 2u);
-    EXPECT_EQ(stats.table_volumes_scanned, 2u);
-    /* each DOC.TXT appears exactly once in the whole tree */
-    size_t doc_count = 0;
-    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
-        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
-            if (c->name_utf8() == "DOC.TXT")
-                ++doc_count;
-            collect(c);
+    ASSERT_EQ(ctrl.run(&dev, nullptr, nullptr, nullptr, stats), OK);
+
+    struct MemFile {
+        std::vector<u8> data;
+        u64 pos = 0;
+        static u32 wr(void* u, const void* b, u32 len) {
+            auto* m = static_cast<MemFile*>(u);
+            if (m->pos + len > m->data.size())
+                m->data.resize(size_t(m->pos + len));
+            std::memcpy(m->data.data() + m->pos, b, len);
+            m->pos += len;
+            return 0;
         }
-    };
-    for (tree::FileNode* r : tree.roots())
-        collect(r);
-    EXPECT_EQ(doc_count, 2u) << "two volumes, one DOC.TXT each - no double scan";
-    /* the in-table volumes are primary targets, not lost partitions */
-    for (const auto& c : stats.lost_candidates)
-        EXPECT_FALSE(c.table_match) << "in-table volume must not persist as a lost candidate";
+        static u64 tl(void* u) { return static_cast<MemFile*>(u)->pos; }
+        static u32 sk(void* u, u64 abs) {
+            static_cast<MemFile*>(u)->pos = abs;
+            return 0;
+        }
+    } mf;
+    {
+        session::Writer w(MemFile::wr, MemFile::tl, MemFile::sk, &mf);
+        ASSERT_EQ(w.open(7), OK);
+        ASSERT_EQ(ctrl.save_session(w, stats), OK);
+        ASSERT_EQ(w.finalize(), OK);
+    }
+    tree::ResultTree tree2;
+    ScanStats stats2;
+    session::Reader r(
+        +[](void* u, void* b, u32 len) -> u32 {
+            auto* m = static_cast<MemFile*>(u);
+            if (m->pos + len > m->data.size())
+                return 1;
+            std::memcpy(b, m->data.data() + m->pos, len);
+            m->pos += len;
+            return 0;
+        },
+        MemFile::sk, +[](void* u) -> u64 { return static_cast<MemFile*>(u)->data.size(); }, &mf);
+    ASSERT_EQ(r.open(nullptr), OK);
+    ASSERT_EQ(ScanController::load_session(r, tree2, stats2), OK);
+    /* the volume roots reload with their display names intact */
+    const auto names = root_names(tree2);
+    EXPECT_NE(std::find(names.begin(), names.end(), "VOLONE"), names.end());
+    EXPECT_NE(std::find(names.begin(), names.end(), "VOLTWO"), names.end());
+    EXPECT_EQ(count_named(tree2, "DOC.TXT"), 2u);
 }
 
 /* ---- M-018: the FilterFolder result-set junk filter ---- */
@@ -2286,4 +2361,115 @@ TEST(Orchestrator, IdentityCardV4SnapshotAndAxes) {
         break;
     }
     EXPECT_TRUE(saw_vi) << "the VolumeInfo record must be present";
+}
+
+/* ---- S-052: the LDM basis survives the scan AND the session file ---- */
+
+TEST(Orchestrator, DynamicDiskScanStampsBasisAndSessionRoundTrips) {
+    /* a FAT16 volume inside an LDM simple volume (the DynamicDiskVolume
+     * Scan shape): the scan must (1) keep the virtual volume device past
+     * run()'s return (the S-052 registry), (2) stamp the volume root
+     * with the matching basis id, and (3) persist the layout + the stamp
+     * through save_session -> load_session_summary so a reloaded session
+     * can re-arm the basis for recovery/preview. */
+    auto fat = build_fat16();
+    constexpr u64 PART_START = 2048;
+    constexpr u64 PART_SIZE = 5074;
+    cr::testfixture::LdmFixture fx(40960);
+    fx.set_disk(1000, "01234567-89AB-CDEF-0123-456789ABCDEF");
+    fx.add_dgr4(1, "TestPCDg0");
+    fx.add_dsk4(1000, "Disk1", "01234567-89AB-CDEF-0123-456789ABCDEF");
+    fx.add_volume({2000, "Volume1", 3, PART_SIZE, 1});
+    fx.add_component({3000, "Volume1-01", cr::table::LDM_COMP_CONCAT, 1, 2000, 0, 0});
+    fx.add_partition({4000, "Disk1-01", PART_START, PART_SIZE, 0, 3000, 0, 1000});
+    fx.finish();
+    auto img = fx.take();
+    std::memcpy(img.data() + PART_START * 512, fat.data(), fat.size());
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = true;
+    cfg.run_carve = false;
+    cfg.whole_disk = true;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    ASSERT_EQ(OK, ctrl.run(&dev, nullptr, nullptr, nullptr, stats));
+
+    /* (1) the registry survived run() */
+    ASSERT_EQ(size_t(1), ctrl.ldm_devices().size());
+    ASSERT_EQ(size_t(1), ctrl.ldm_layouts().size());
+    EXPECT_EQ(cr::table::LdmVolumeKind::Simple, ctrl.ldm_layouts()[0].kind);
+    /* the registered device reads the volume (the FAT's DOC.TXT head is
+     * reachable through it) */
+    EXPECT_EQ(u64(PART_SIZE * 512), ctrl.ldm_devices()[0]->size());
+
+    /* (2) the root is stamped with basis 1 */
+    tree::FullNode* vroot = nullptr;
+    for (tree::FileNode* r : tree.roots())
+        if (r->is_full() && r->name_utf8().find("Dynamic Volume") == 0)
+            vroot = static_cast<tree::FullNode*>(r);
+    ASSERT_NE(nullptr, vroot);
+    EXPECT_EQ(1u, vroot->basis());
+
+    /* (3) the session round-trip: the layout record + the root stamp */
+    struct MemFile {
+        std::vector<u8> data;
+        u64 pos = 0;
+        static u32 wr(void* u, const void* b, u32 len) {
+            auto* m = static_cast<MemFile*>(u);
+            if (m->pos + len > m->data.size())
+                m->data.resize(size_t(m->pos + len));
+            std::memcpy(m->data.data() + m->pos, b, len);
+            m->pos += len;
+            return 0;
+        }
+        static u64 tl(void* u) { return static_cast<MemFile*>(u)->pos; }
+        static u32 sk(void* u, u64 abs) {
+            static_cast<MemFile*>(u)->pos = abs;
+            return 0;
+        }
+    } mf;
+    {
+        session::Writer w(MemFile::wr, MemFile::tl, MemFile::sk, &mf);
+        ASSERT_EQ(w.open(7), OK);
+        ASSERT_EQ(ctrl.save_session(w, stats), OK);
+        ASSERT_EQ(w.finalize(), OK);
+    }
+    session::Reader r(
+        +[](void* u, void* b, u32 len) -> u32 {
+            auto* m = static_cast<MemFile*>(u);
+            if (m->pos + len > m->data.size())
+                return 1;
+            std::memcpy(b, m->data.data() + m->pos, len);
+            m->pos += len;
+            return 0;
+        },
+        MemFile::sk, +[](void* u) -> u64 { return static_cast<MemFile*>(u)->data.size(); }, &mf);
+    ASSERT_EQ(r.open(nullptr), OK);
+    tree::ResultTree back;
+    ScanStats stats2;
+    session::VolumeSessionInfo info;
+    ASSERT_EQ(OK, ScanController::load_session_summary(r, back, stats2, info, &dev));
+    /* the layout re-loaded */
+    ASSERT_EQ(size_t(1), info.ldm_layouts.size());
+    EXPECT_EQ(ctrl.ldm_layouts()[0].kind, info.ldm_layouts[0].kind);
+    EXPECT_EQ(ctrl.ldm_layouts()[0].vol_obj_id, info.ldm_layouts[0].vol_obj_id);
+    /* the root basis stamp re-loaded */
+    tree::FullNode* vroot2 = nullptr;
+    for (tree::FileNode* rn : back.roots())
+        if (rn->is_full() && rn->name_utf8().find("Dynamic Volume") == 0)
+            vroot2 = static_cast<tree::FullNode*>(rn);
+    ASSERT_NE(nullptr, vroot2);
+    EXPECT_EQ(1u, vroot2->basis());
+    /* the re-armed device over the ROUND-TRIPPED layout reads the volume
+     * (the recovery input is complete) */
+    const cr::table::LdmGuid self_guid = info.ldm_layouts[0].copies[0][0].disk_guid;
+    cr::table::LdmVolumeDevice vol2(
+        info.ldm_layouts[0], [&dev, self_guid](const cr::table::LdmGuid& g) -> IStorageDevice* {
+            return g == self_guid ? &dev : nullptr;
+        });
+    (void)vol2;
+    EXPECT_EQ(u64(PART_SIZE * 512), vol2.size());
 }

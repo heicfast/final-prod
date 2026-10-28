@@ -246,3 +246,17 @@ CalcPartition observable. ExFAT-only (OQ-FLT-1); uniform at the candidate seam
 (lost fan-out + LDM volume scans; the og's LDM-path wiring corpus-UNVERIFIED,
 documented). 15 tests incl. two end-to-end whole-disk scans; fail-before
 executed; suite 808/808.
+
+## Session-11D fix lane (2026-10-29 — the S-051 landing's discovery reconciliation)
+
+- **The no-double-scan rule (S-051's acceptance)**: the deep stage's
+  lost-partition discovery now drops candidates whose start LBA matches a
+  table volume the primary pass ALREADY scanned as a partition-list target
+  (the orchestrator records the scanned set; `run_deep` filters before
+  materialization). A table entry that was skipped honestly (dead probe —
+  no filesystem found) is NOT recorded, so its discovery candidate
+  survives: the og's lost partitions are ADDITIONAL targets on damaged
+  volumes (architecture/04 §3.4), never duplicates of healthy ones. The
+  discovery's own unit contract is unchanged (`LostDiscovery.TableMatchBonus500`
+  and the containment-exemption tests still pin the +500 semantics — the
+  filter lives in the orchestrator, one site, above `lost::discover`).

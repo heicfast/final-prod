@@ -200,15 +200,22 @@ commit; the file retires to history with a ledger row).
   deleted=2; six whole-disk tests; the discovery no-double-scan reconciliation;
   honest skip accounting (table_volumes*). Matrix cell → MATCH; the retired
   file's Resolution carries the full record.
+- **S-054 FIXED at `d7ba41f6`** — the TS/M2TS cap re-pinned to the og's 200 MB
+  controller global (the S-047 landing's "x 10" provenance refuted first-hand;
+  registry pin + the 220 MB behavior clamp test).
+- **M-117 FILED + FIXED at `d7ba41f6` (NEW FINDING, §8 — renumbered M-116→M-117 at the rebase (the S11-R lane's M-116 pushed first); discovered during
+  S-054's verification)** — the suppress_overlap trial loop ran the full
+  cap-sized walk for every mid-stream sync before the covered check discarded
+  it (the 220 MB fixture: >600 s non-completion → 11.3 s). The covered-check
+  reorder only; the post-emission jump variant REJECTED by the full-suite gate
+  (the og ranks overlapping candidates — the S007 AAC ADTS lesson).
 
-**Board after S-051, at the rebase reconciliation over the concurrent lanes
-(the S11-lead/S11B audit lanes' 11 new findings; the parallel fix lanes'
-M-109 + N-112 retirements): 63 active (7 SEVERE · 20 MAJOR · 29 MINOR · 7
-INFO) + 3 tracked-open / 300 resolved rows (the S-051 row included).** The
-SEVERE board this session continues on: S-052 (LDM span recovery — silently
-wrong bytes), S-054 (the 10x TS/M2TS cap), S-053 (ReFS unnamed rows), S-049
-(the carved naming contract), S-048 (Reconstructed per-volume grouping),
-S-050 (the file-repair registration), S-040 (image create).
+**Board after S-051/S-053/S-054/M-117 (the parallel lanes' S-053/N-141/N-113/N-142/N-151/M-109/M-112 landings absorbed at the rebase): 56 active (5 SEVERE · 17 MAJOR · 27 MINOR · 7
+7 INFO) + 3 tracked-open / 302 resolved rows.** The SEVERE board this session
+continues on: S-052 (LDM span recovery — silently wrong bytes), S-053 (ReFS
+unnamed rows), S-049 (the carved naming contract), S-048 (Reconstructed
+per-volume grouping), S-050 (the file-repair registration), S-040 (image
+create).
 
 ---
 
@@ -383,9 +390,83 @@ no-TODO/no-stub census). Evidence: `evidence/s11-lead-deep-lanes.md`. The board'
 counts at this lane's close ride the next truth pass (the parallel lanes were
 still landing).
 
+# SUMMARY.md — executive summary (the session-11D fix lane on top: the diff-TO-FIX execution)
+## Session-11D fix lane (2026-10-29 — lane D, the diff-TO-FIX execution session; first landings)
+
+**Fixed this wave (this lane, verified against corpus `be0cfe9`):**
+- **A-012 (ACUTE, DISCOVERED during S-051's verification)** — the 81ee9775
+  rebase-window sweep dropped M-093's FMT_SVG carve-registry row (kTable 119
+  vs FMT_COUNT 120): the F8 gate hard-downed EVERY `carve_slice` call with
+  ERR_BAD_PARAMETER on all of main (`RegistryF8Gate` RED at `bcf31316`,
+  reproduced first-hand; the row restored verbatim from `ca701711`; GREEN
+  post-fix; the parallel lanes' 9 residual clang-format violations swept in
+  the same commit). Full evidence:
+  `findings/ACUTE/A-012-carve-registry-lost-fmt-svg-row-in-rebase-sweep.md`.
+- **S-051 (SEVERE) FIXED** — the whole-disk scan now builds per-volume
+  targets from the partition table (the og's CDoScanPartition flow,
+  architecture/04 §3.4): every used non-container entry probed per-target,
+  scanned under its display-name root, skipped-honestly when no filesystem
+  (counted in `table_volume_skipped`), never double-scanned (discovery's
+  table-match candidates for scanned targets dropped). The executed RUN 2
+  (rc=0 + 0 files on the healthy two-volume fixture) reproduced at session
+  open, then fixed: rc=0, files=4, deleted=2, VOLONE/VOLTWO roots. 8
+  `Orchestrator.WholeDisk*` tests + 2 `FatEngine.ReadVolumeLabel*`.
+- **M-104 (MAJOR) FIXED** (rides S-051's builder) — the display-name tiers:
+  the FAT boot-sector label → the `NTFS @ <LBA>` FS marker → the anonymous
+  form (last resort, now reserved for genuinely-lost candidates); one tree
+  per volume with deleted-as-flag; names round-trip through the session.
+  The NTFS/ext4/exFAT label decodes compose via N-133's landing (MINOR tier).
+- **Conventions**: the second committed FIXED-LEDGER conflict (the N-093/
+  M-096 rebase's unswept markers) resolved both-rows-kept per the 64a3b18
+  convention; the go-forward finding-file convention now carries the
+  resolved files in `findings/FIXED/` per the user's instruction.
+
+**Board after this wave (merged over the parallel S11/39/40 lanes' 34-commit
+window, re-counted at the filesystem truth post-rebase): 53 active
+(6 SEVERE · 17 MAJOR · 24 MINOR · 6 INFO)** / 301 ledger rows (279 finding
+rows + 22 OQ) / 3 tracked-open. This lane's suite proof at its tree:
+**1105/1105** green; clang-format 18.1.8 clean over src/include/tests. Next
+free IDs: S-053+, M-113+, N-143+, I-031+, A-013+. (The count reconciliations
+with the parallel lanes' own close-line counts ride the next conform pass —
+the remote's 602dd170 claimed 299 rows pre-this-landing; +A-012/S-051/M-104
+= 302 data rows by the row-pattern count, the drift recorded for the next
+whole-table re-count.)
+
 ---
 
 # SUMMARY.md — executive summary (the SA-10 lane on top: the triage + reconciliation over the hot parallel window; SA-10B and the fix/closing lanes below)
+
+## Session-11 fix lane (11C) delta (2026-10-29 — the user's fix-session mandate: verify, fix, prove, mark)
+
+**Baselines: core `35bee726` at open → `ea9c8ed5` (this lane's S-052
+landing); corpus `be0cfe9` (unmoved). ctest 1121/1121 green at the
+landing tree (Linux gcc -Werror Release; win_syntax_check green;
+Windows CI rides the push).**
+
+- **S-052 → FIXED (`ea9c8ed5`)** — the LDM span recovery basis: the
+  finding's full architectural plan landed (per-root basis ids in the
+  tree + node-flags bit10 persistence; the controller's heap device
+  registry replacing the dead stack device; the SafeWriter's
+  LdmBasisTable per-item routing; the R7.2/F12 overlap refusal mapped
+  to physical member spans; REC_LDM_LAYOUTS + root-stamp session
+  persistence with the lazy re-arm at recovery/preview/thumbnail).
+  GAP-S6-15 CLOSED. Proof: `LdmRecovery.*` (7 tests, the executed
+  0x11-vs-0x22 fail-before embedded in the span test) +
+  `Orchestrator.DynamicDiskScanStampsBasisAndSessionRoundTrips`.
+  Divergences registered: D-106 (missing-member policy), D-107
+  (conservative overlap families).
+- **Convergent with the parallel lane:** M-108 + N-111 + N-112 landed
+  by the concurrent fix lane mid-flight (this lane's independent M-108
+  implementation was dropped at the pull — no duplication; the lane
+  then took S-052, the board's top-recommended architectural fix).
+- **Convention amendment (user instruction):** resolved findings now
+  land IN-TREE under `findings/FIXED/` with their Resolution sections
+  (the ledger indexes both forms; the purge convention applies only to
+  pre-session-11 retirements).
+- **Board at this push:** see the FIXED-LEDGER for the resolved set;
+  the active folders carry the unresolved findings (the filesystem is
+  the truth — counts recomputed at every push).
+
 
 ## Session-39 delta (2026-10-29 — the diff-fix session, the user's "priority to minor first" mandate; opens at core `35bee726`/corpus `be0cfe9`, rebased through the 11C/11D fix-lane opens)
 
