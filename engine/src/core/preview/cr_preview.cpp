@@ -163,10 +163,11 @@ struct Window {
     u64 pulled = 0;
     u64 work = 0;
     bool truncated = false;
-    u32 last_got = 0; /* bytes available in the buffer returned by the
-                         last fetch (short windows are the NORM for a
-                         recovery product: every fetch consumer must
-                         either demand the full window or consult this) */
+    int64_t deadline = 0; /* M-077: steady_clock ns at the time-guard cutoff */
+    u32 last_got = 0;     /* bytes available in the buffer returned by the
+                             last fetch (short windows are the NORM for a
+                             recovery product: every fetch consumer must
+                             either demand the full window or consult this) */
 
     /* fetch at least `want` bytes at [off, off+want) - LENIENT: returns
      * whatever is available (last_got bytes, possibly fewer than `want`
@@ -178,6 +179,15 @@ struct Window {
      * 4 KiB window over a 64 KiB block pull 64 KiB silently. */
     const u8* fetch_any(u64 off, u32 want) {
         if (work++ > caps.max_work) {
+            truncated = true;
+            return nullptr;
+        }
+        /* M-077: the decode-time guard (the og's 15 s product cap,
+         * UIUX/10:24) - checked on the extraction's read heartbeat
+         * (every fetch), bounded by the work gate's granularity; a host
+         * overrides via Caps::max_decode_ms (UINT32_MAX disables). */
+        if (deadline != 0 &&
+            std::chrono::steady_clock::now().time_since_epoch().count() > int64_t(deadline)) {
             truncated = true;
             return nullptr;
         }
@@ -777,10 +787,30 @@ void docx_sniff(Window& w, Metadata& m) {
 } // namespace
 
 Metadata extract_metadata(PreviewReader& pr, const Caps& caps) {
+    /* M-077: the og's shipped product caps (UIUX/10 §3, QM-verified copy):
+     * the 100 MB eligibility gate refuses BEFORE any read ("Files larger
+     * than 100MB are not available for preview") - never silent (the
+     * truncated flag carries the gate). */
+    if (pr.size() > u64(caps.max_file_bytes)) {
+        Metadata early;
+        early.kind = "oversize";
+        early.format = "eligibility";
+        early.truncated = true;
+        return early;
+    }
     Metadata m;
     Window w;
     w.pr = &pr;
     w.caps = caps;
+    /* M-077: the 15 s decode-time guard - the steady-clock deadline the
+     * fetch heartbeat checks (a host overrides via Caps::max_decode_ms;
+     * UINT32_MAX disables the gate). */
+    if (caps.max_decode_ms != 0xFFFFFFFFu) {
+        w.deadline =
+            (std::chrono::steady_clock::now() + std::chrono::milliseconds(caps.max_decode_ms))
+                .time_since_epoch()
+                .count();
+    }
     /* M-028: per-call device-byte baseline (the closing belt compares
      * the delta against caps.max_read) */
     const u64 dev_bytes_at_entry = pr.device_bytes();

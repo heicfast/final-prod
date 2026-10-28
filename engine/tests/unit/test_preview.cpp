@@ -1276,3 +1276,41 @@ TEST(PreviewMeta, RandomSmallInputsAreSafe) {
         (void)m;
     }
 }
+
+/* M-077: the og's shipped preview PRODUCT caps as config-overridable
+ * defaults (UIUX/10 §3, QM-verified copy): files over 100 MiB are "not
+ * available for preview" (the eligibility gate refuses BEFORE any read,
+ * disclosed via truncated - never silent) and decode work is bounded by
+ * the 15 s time guard. Pre-fix: neither cap existed - an oversized
+ * request proceeded to the budget. */
+TEST(Preview, M077SizeGate100MiB) {
+    /* a logical 101 MiB node over a 1 MiB resident prefix: refused at
+     * the gate (never any read past the resident head), disclosed via
+     * truncated - never silent. Built on the suite's own props helper. */
+    tree::FileProperties::Extent sparse{0, 0, 0, 0}; /* placeholder; the gate runs first */
+    (void)sparse;
+    tree::FileProperties* pr = props_with("huge.bin", (100u << 20) + 1, 2, {});
+    PropsGuard g(pr);
+    pr->resident_data.assign(64, 0x41);
+    MemDevice dev(std::vector<u8>(4096, 0)); /* the gate must never touch it */
+    PreviewReader r(&dev, pr);
+    Caps c;
+    const Metadata m = extract_metadata(r, c);
+    EXPECT_TRUE(m.truncated) << "the gate discloses via truncated, never silent";
+    /* the override: a host raises its own line (the same input passes) */
+    Caps raised;
+    raised.max_file_bytes = 200u << 20;
+    const Metadata m2 = extract_metadata(r, raised);
+    EXPECT_FALSE(m2.truncated) << "the override is honored";
+}
+
+TEST(Preview, M077TimeGuardDefaultsOnAndOverridable) {
+    /* the defaults pin: 100 MiB + 15 s, ON at zero-init */
+    Caps c;
+    EXPECT_EQ(100u << 20, c.max_file_bytes) << "the og's 100 MB line";
+    EXPECT_EQ(15000u, c.max_decode_ms) << "the og's 15 s line";
+    /* the disable: UINT32_MAX turns the time gate off */
+    Caps off;
+    off.max_decode_ms = 0xFFFFFFFFu;
+    EXPECT_EQ(0xFFFFFFFFu, off.max_decode_ms);
+}

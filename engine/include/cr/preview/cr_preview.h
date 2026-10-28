@@ -109,6 +109,15 @@ struct Caps {
     u32 max_read = 4u << 20; /* total bytes pulled from the reader */
     u32 max_work = 1u << 22; /* work-unit guard (parser loop steps) */
     u32 text_snippet = 256;  /* extracted text bytes */
+    /* M-077: the og's shipped preview PRODUCT caps (UIUX/10 §3,
+     * QM-verified copy) as config-overridable defaults: files larger
+     * than 100 MiB are "not available for preview" (the eligibility
+     * gate) and decode-heavy extraction is bounded by a time guard.
+     * Zero-init = the defaults ON (the og's caps are product policy,
+     * not user opt-in); a host overrides by setting its own values
+     * (UINT32_MAX disables a gate). */
+    u32 max_file_bytes = 100u << 20; /* eligibility gate (the 100 MB line) */
+    u32 max_decode_ms = 15000;       /* decode-work time guard (the 15 s line) */
 };
 
 /* M-066: one previewed archive entry (the ArchivePreviewModel row):
