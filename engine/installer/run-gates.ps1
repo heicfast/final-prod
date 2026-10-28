@@ -95,12 +95,35 @@ if (-not $SkipDriver) {
 Write-Host 'gate 1d: silent uninstall via the ARP QuietUninstallString verbatim'
 $quiet = (Get-ItemProperty $ArpKey).QuietUninstallString
 $installDir = (Get-ItemProperty $ArpKey).InstallLocation
-# the quiet form is `"...unins000.exe" /SILENT` - split exe from args at the
-# closing quote, then wait for completion (the uninstaller re-spawns itself;
-# poll the residue instead of trusting the process exit)
-$exe = $quiet.Substring(1, $quiet.IndexOf('"', 1) - 1)
-$args = $quiet.Substring($exe.Length + 2)
-$proc = Start-Process -FilePath $exe -ArgumentList $args -PassThru
+# normalize doubled quotes (""path"" - the pre-canonicalization form) then
+# split exe from args at the closing quote; $args is reserved in PowerShell
+$quietNorm = $quiet -replace '""', '"'
+$exe = $null
+$quietArgs = ''
+if ($quietNorm.StartsWith('"')) {
+    $close = $quietNorm.IndexOf('"', 1)
+    if ($close -gt 1) {
+        $exe = $quietNorm.Substring(1, $close - 1)
+        $quietArgs = $quietNorm.Substring($close + 1).Trim()
+    }
+}
+if (-not $exe) {
+    # unquoted form: split at the first space
+    $sp = $quietNorm.IndexOf(' ')
+    if ($sp -gt 0) {
+        $exe = $quietNorm.Substring(0, $sp)
+        $quietArgs = $quietNorm.Substring($sp + 1).Trim()
+    } else {
+        $exe = $quietNorm
+    }
+}
+if (-not $exe -or -not (Test-Path $exe)) {
+    Write-Host "::error::cannot resolve the uninstaller exe from QuietUninstallString: '$quiet'"
+    exit 1
+}
+# the uninstaller re-spawns itself; wait on the process then poll the
+# residue (the poll-bounded block below) instead of trusting the exit
+$proc = Start-Process -FilePath $exe -ArgumentList $quietArgs -PassThru
 try { $proc | Wait-Process -Timeout 180 -ErrorAction SilentlyContinue } catch { }
 
 # ---- gate 1e: NO residue (poll-bounded: the uninstaller's second phase) ----

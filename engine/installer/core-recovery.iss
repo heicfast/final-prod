@@ -176,6 +176,13 @@ begin
   begin
     RaiseException('ARP UninstallString missing - Inno did not create the uninstall entry');
   end;
+  // Inno writes UninstallString QUOTED when the path contains spaces
+  // ("C:\Program Files\..."); strip the surrounding quotes so the quiet
+  // form is the canonical single-quoted shape, never ""path"" (the
+  // round-trip gate parses it - run 40682713693's gate-1d lesson)
+  if (Length(UninstallExe) >= 2) and (Copy(UninstallExe, 1, 1) = '"') and
+     (Copy(UninstallExe, Length(UninstallExe), 1) = '"') then
+    UninstallExe := Copy(UninstallExe, 2, Length(UninstallExe) - 2);
   QuietUninstall := '"' + UninstallExe + '" /SILENT';
   RegWriteStringValue(HKLM, UninstallKey, 'QuietUninstallString', QuietUninstall);
   if (not RegQueryStringValue(HKLM, UninstallKey, 'QuietUninstallString', ReadBack)) or

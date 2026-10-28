@@ -512,3 +512,28 @@ Work Log:
 Stage Summary:
 - The TTFR probe + extraction now ride the owner's lane of record. The
   measurement = its next dispatch.
+
+---
+Task ID: PARITY-FIX-7 (gate-1d quote-canonicalization fix — 14/14 install-side assertions GREEN)
+Agent: main session
+
+Work Log:
+- Run 40682713693 (the installer round-trip at the fixed Inno step): gates
+  1a-1c + 2 ALL GREEN — install exit 0, version key write+verify
+  (1.0.0-gate.3), ARP UninstallString + QuietUninstallString (ends
+  " /SILENT") + DisplayName/DisplayVersion/Publisher/InstallLocation,
+  driver service RDA RUNNING with the Boot File System group (the
+  PACKAGING section-10 internal step proven end-to-end). The build, ISCC
+  compile, and /VERYSILENT zero-prompt install all work.
+- The single failure: gate 1d's exe parse. Inno writes UninstallString
+  QUOTED ("C:\Program Files\..."); my ISS built '"' + quoted + '"' =
+  ""path"" /SILENT; the gate's Substring parse then produced an empty
+  FilePath. Fixed BOTH sides: the ISS strips UninstallString's surrounding
+  quotes before composing the canonical single-quoted form; run-gates
+  normalizes doubled quotes defensively, splits exe/args robustly (the
+  $args automatic-variable trap avoided), and validates the exe exists
+  before Start-Process.
+
+Stage Summary:
+- Gate 1d/1e (uninstall + residue) re-proven on the next dispatch — the
+  only unproven half of the round trip.
