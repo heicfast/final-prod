@@ -65,6 +65,20 @@ None.
 ## Resolution
 
 **Status:** FIXED
-**Fixed in commit:** (this session's N-174 landing, session-53 minors lane — post-push SHA in the worklog entry)
-**Verified by:** `ExfatEngine.AppleDoublePrefixSunkAndRegularDotFilesKept` — RED pre-fix at `e0f15e05` (the planted `._photo.jpg` set surfaced in the tree; no sink existed) and GREEN post-fix (the sidecar absent, the `.hidden` control PRESENT — the prefix-specific gate, not a dotfile filter — and `stats.appledouble_sunk == 1`); the ExfatEngine family re-run green incl. EndToEnd + RecyclePairingMirrored (no count drift on the fixture population — no fixture entry starts `._`).
-**Resolution notes:** The gate landed beside the name assembly in the entry-set walk (cr_exfat_quick.cpp): a name whose first two UTF-16 units are `._` skips emission exactly like the og's props-builder refusal (the strncmp at exFATSearchDLL :45151 re-read first-hand this session — `strncmp(param_2 + 0x29, "._", 2)` with the `return 0` at :45222; no props object, no tree node, the entry never surfaces). Files AND directories alike — the og's gate sits in the shared CExFatFileProperties builder, and a sunk directory also never descends in the core (the walk skips the set before the recursion decision). The sink is counted in the new `ExfatScanStats::appledouble_sunk` field (append-only, zero-init — old sessions/ABI unaffected), honoring the repo's never-silent-skip doctrine. The N-028 HFS+ family note is preserved: this is the exFAT mirror of that registered sink, and PARITY-DELTAS needs no new row because the og's behavior is ADOPTED (not diverged) — the finding's own "not recommended" verdict on keeping them was followed. The finding's recommended PARITY-DELTAS-beside-N-028 note therefore does not apply (that path was only for the keep-them option).
+**Fixed in commit:** (this session's N-174 landing, S46 MINOR-first lane — post-push SHA in the ledger row and worklog entry)
+**Verified by:** `ExfatEngine.AppleDoublePrefixSunk` (RED pre-fix: the `._photo.jpg` sidecar surfaced and `apple_doubles_sunk` stayed 0; GREEN post-fix: the set is skipped at the walk, the counter reads 1, and the described `photo.jpg` still surfaces) + `ExfatEngine.RegularDotFilesNotSunk` (the over-blocking pin: `.hidden` and `_notes.txt` both surface, counter 0 — the og's gate is prefix-specific) + the full exFAT battery 36/36 (1 env-skip). Full suite green (linux-release).
+**Resolution notes:** The gate landed in the entry walk immediately after name assembly, before the recycle-bin pairing and the props build — the same position the og's `FUN_180036660` holds it (the strncmp at exFATSearchDLL :45151 refuses the props build; the `return 0` at :45222 means the entry never surfaces; both cites re-read first-hand this session against the corpus tree at `be0cfe9`). A `apple_doubles_sunk` counter was added to `ExfatScanStats` so the silent sink stays observable (the og is fully silent; the counter is a deliberate observability superset, consistent with the core's stats-truth posture). The M-013 parked-set oracle re-walks through the same `walk_entries` path, so reconstructed sets cannot bypass the gate. No safety hardening was near the change.
+
+### Convergence addendum (S53 minors lane, 2026-10-29)
+
+This lane independently verified, implemented, and RED-proved the same fix (the test
+`ExfatEngine.AppleDoublePrefixSunkAndRegularDotFilesKept` was RED at `e0f15e05` — the
+sidecar surfaced, no sink existed — and GREEN with the gate: sidecar absent, the
+`.hidden` dotfile control present, counter 1) before pulling the winning `6399e957`
+landing (SA-9 earlier-push-wins). The two landings are byte-equivalent in gate position
+(after name assembly, before the recycle/props path), semantics (files and directories
+alike, prefix-specific, never a dotfile filter), and the never-silent counter; the only
+difference is the counter's name (`apple_doubles_sunk` in the winning landing vs this
+lane's `appledouble_sunk` — the winner keeps the field). This lane's corroboration: the
+corpus cites (exFATSearchDLL :45151 strncmp + :45222 return 0) were re-read first-hand
+by BOTH lanes before either landed.

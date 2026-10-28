@@ -14,13 +14,15 @@ landed between the claim commit `fa654673` and this lane's open). Baseline at op
 linux-release build green, suite **1273/1273**. Mandate saved token-redacted at
 `worklog/session-diff-fix-s53-prompt.md` (renumbered with the lane at each window; the S53 seat holds — the remote continuation-audit lane vacated to S55 at 92fe573d).
 
-- **N-174 FIXED** — the exFAT AppleDouble sink: a `._`-prefixed name (macOS Finder
-  sidecar) now skips emission exactly like the og's props-builder refusal
-  (exFATSearchDLL strncmp :45151 + return 0 :45222, both re-read first-hand); files
-  and directories alike, counted in the new ExfatScanStats::appledouble_sunk
-  (never-silent). Test: ExfatEngine.AppleDoublePrefixSunkAndRegularDotFilesKept —
-  RED pre-fix at e0f15e05 (the sidecar surfaced), GREEN post-fix (sidecar absent,
-  the `.hidden` dotfile control present, counter 1); ExfatEngine family green.
+- **N-174 FIXED (CONVERGENT — the remote S46/W1 lane's 6399e957 wins per SA-9)** —
+  the exFAT AppleDouble sink: a `._`-prefixed name (macOS Finder sidecar) skips
+  emission exactly like the og's props-builder refusal (exFATSearchDLL strncmp
+  :45151 + return 0 :45222, re-read first-hand by both lanes). This lane's landing
+  was byte-equivalent (same gate position/semantics; the counter-name difference
+  noted — `apple_doubles_sunk` stands); this lane's test
+  AppleDoublePrefixSunkAndRegularDotFilesKept was independently RED pre-fix at
+  e0f15e05 (the sidecar surfaced) — the corroboration recorded in the finding
+  file's convergence addendum. The winning landing's tests stand.
 
 - **N-161 FIXED** — the GPT entry-span underflow: `emit_gpt_entries` now gates
   `last_lba < first_lba` (and the 2^64-boundary wrap `last - first == UINT64_MAX`)
@@ -7239,3 +7241,19 @@ first-hand decode of the og-codebase EUUserData tree (the local-database
 directive) + the sector/LBA math in the PartitionRecovery decompiles.
 
 Mandate saved token-redacted: `worklog/session-55-continuation-audit-prompt.md`.
+## Session-46 minors lane — N-174 landed (2026-10-29)
+
+**N-174 FIXED (MINOR — the exFAT AppleDouble prefix sink).** The corpus cites
+re-read first-hand (exFATSearchDLL :45151 strncmp vs "._" at the props-builder
+head; :45222 the return-0 that keeps the entry from ever surfacing). The gate
+landed in the core's entry walk immediately after name assembly — the same
+position the og holds it — so the M-013 parked-set oracle (which re-walks via
+walk_entries) inherits the gate and reconstructed sets cannot bypass it. A
+`apple_doubles_sunk` ExfatScanStats counter makes the silent sink observable
+(the deliberate observability superset; the og is fully silent). Tests:
+AppleDoublePrefixSunk (RED pre-fix: the sidecar surfaced, counter 0) +
+RegularDotFilesNotSunk (the prefix-specific pin: `.hidden` and `_notes.txt`
+surface — one fixture bug caught during the RED pass: `_notes.txt` is 10
+chars, an 11 name_len pulled the padding NUL into the name). exFAT battery
+36/36 (1 env-skip). Trail: findings/FIXED/N-174 + ledger row + matrix B3/A1/B6
+cell + exfat.md rows + this entry. Suite at the landing: full cr_tests green.

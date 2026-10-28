@@ -29,6 +29,25 @@ before the change.
 32 MINOR · 3 INFO** (the parallel lanes' A-014 + I-041..I-044 retirements absorbed at the
 merge; both sides' records kept). Next free IDs unchanged: S-062+, M-138+, N-186+, I-045+.
 
+# SUMMARY.md — executive summary (the S46 MINOR-first parity-fix lane on top; the prior lanes below, newest-first)
+
+## Session-46 lane delta (2026-10-29 — the user's MINOR-first directive; the S45 parallel lane owns ACUTE/SEVERE; audited core `659f0f6c`/`fa654673` at open, corpus `be0cfe9`)
+
+**The lane's mandate:** the unclaimed MINOR set (30 findings claimed at
+`659f0f6c` per the territory-claim entry; the driver-repo pair N-107/N-127 stays
+tracked-OQ). One finding, one verified fix, one push; every corpus cite re-read
+first-hand; every fix RED-test-first.
+
+**Landings this lane (running):**
+
+- **N-174 FIXED** — the exFAT `._` AppleDouble prefix sink (exFAT:45151/:45222
+  re-read first-hand; the gate at the entry walk post-name-assembly, the parked-set
+  oracle inherits it; `apple_doubles_sunk` counter; `ExfatEngine.AppleDoublePrefixSunk`
+  RED→GREEN + `RegularDotFilesNotSunk` the over-blocking pin; exFAT battery 36/36).
+
+**Board (filesystem truth at `a3ab4ed3`, post the S45..S51 parallel-window absorption — A-014 fixed [convergent, 862d79ef], M-124 fixed [dcb123dd], the INFO board complete [I-035/I-036/I-040..I-044 all ACKNOWLEDGED-RETIRED]): 67 active — 0 ACUTE · 9 SEVERE · 27 MAJOR · 31 MINOR · 0 INFO / 71 FIXED files / 6 tracked-open.**
+
+# SUMMARY.md — executive summary (the S42 diff-to-fix lane's convergence on top; the prior lanes below, newest-first)
 # SUMMARY.md — executive summary (the S12 session-2 deep-dive lane on top — sector math / scan-progress math / local database / state management / detection-calculation; the prior lanes below, newest-first)
 
 ## Session-12 S12 lane delta (2026-10-29 — the session-2 continuation audit per the user's second-session directive: remove-the-fixed + go-deeper, special focus on sector numbers / scanning / accurate detection / calculation / no-stuck-or-freeze / local database / state management; core `869da779` at open → rebased through the parallel windows to push at `f85def0f`, corpus `be0cfe9`)
