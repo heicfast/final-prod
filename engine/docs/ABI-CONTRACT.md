@@ -470,8 +470,9 @@ closure — no consumer impact.
 
 ## 9. Stability policy
 
-- `CR_UI_ABI_VERSION` is `2` (v2 = M-036: six appended `cr_ui_smart_report` fields — host_reads, host_writes, controller_busy_time, num_error_log_entries, data_bytes_read, data_bytes_written — at the struct tail; every pre-v2 field and offset unchanged). It bumps on ANY of: removing/renaming an
-  export, changing a struct FIELD (type/meaning/order), changing ownership
+- `CR_UI_ABI_VERSION` is `3` (v3 = M-067, the S-039 convergence residue: the `cr_ui_user_sign` field resize — `bytes` 16 → 48, `mime` 64 → 81, `sign_len` 1..16 → 1..48, `offset` bounded 0..1024 — the first struct FIELD change under this policy; hosts must recompile against v3 or `cr_ui_user_sign_info` would leave a v2 host's `mime[]` non-NUL-terminated on a 73-char MIME (the S-039 caps fix landed first at `b07ee9d` without this half — the two halves converged this session). v2 = M-036: six appended `cr_ui_smart_report` fields — host_reads, host_writes, controller_busy_time, num_error_log_entries, data_bytes_read, data_bytes_written — at the struct tail; every pre-v2 field and offset unchanged). It bumps on ANY of: removing/renaming an
+  export, changing a struct FIELD (type/meaning/order — an in-struct array
+  resize included, which is why v3 exists), changing ownership
   or threading contracts of an existing symbol, renumbering the error-space
   symbols a consumer must handle.
 - ADDING exports, APPENDING struct fields, adding event `type` values,
@@ -548,7 +549,7 @@ both the default and the configured name, so a re-run never spawns a
 duplicate raw root.
 
 
-### 7d. The user-signature registration surface (M-048, ABI-since 2.1)
+### 7d. The user-signature registration surface (M-048; caps S-039, widths v3/M-067)
 
 `cr_ui_register_user_signs(json, len)` installs the og's EUUserData-shaped
 signature database atomically (parse + validate + install; a bad payload
@@ -558,6 +559,18 @@ stride, after the built-in layers (built-in-wins). The tag space for
 user-sign records is 0xFFFE0000 (distinct from raw-sign 0xFFFF0000+fmt).
 Re-registration replaces — the og's config-reload posture (EUUserData is
 re-read per scan, never session state).
+
+**S-039 (caps)**: the accepted grammar grew to the og's own shipped file's
+extremes — signs up to 48 bytes (og max 44), up to 12 signs per entry
+(og max 11), offsets up to 1024 (og max 526), MIME up to 80 chars (og max
+73). The og's actual 111-entry EUUserData parses whole (190 signs); the
+pre-fix caps rejected 15 of its 111 entries atomically (zero loaded).
+
+**v3 (M-067, the convergence residue)**: `cr_ui_user_sign` carries the
+full widths since v3 — `bytes[48]`, `mime[81]`, `sign_len` 1..48, `offset`
+0..1024. The caps fix alone (v2 struct) left `mime[64]` receiving a
+memcpy of a 73-char MIME with no terminator inside the field — a host
+string read ran past it; the v3 resize is the completing half.
 
 ### 7e. The transport-open diagnostic (M-030, ABI-since 2.2)
 

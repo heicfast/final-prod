@@ -2261,6 +2261,36 @@ TEST(CrUi, UserSignRegistrationSurface) {
     EXPECT_EQ(1u, cr_ui_user_sign_count());
 }
 
+TEST(CrUi, UserSignAbiCarriesTheFullS039Widths) {
+    /* M-067 (the S-039 convergence residue): the ABI struct must carry
+     * the full v3 caps - the og's longest MIME (73 chars, the pptx office
+     * family) and the og's longest sign (44 B) survive the info round-trip
+     * NUL-terminated. Pre-v3 (mime[64]/bytes[16]): the 73-char MIME's
+     * memcpy left mime[] with NO terminator (a host string read ran past
+     * the field) and only 16 of the 44 sign bytes surfaced. */
+    const char* mime73 = "application/vnd.openxmlformats-officedocument."
+                         "presentationml.presentation";
+    ASSERT_EQ(73u, std::strlen(mime73)) << "the og's longest MIME (pptx)";
+    /* the og's own 44-B img sign, verbatim */
+    const char* sign44 =
+        "7E742C015070024D52010000000800000001000031000000310000004301FF0001000800010000007e742c01";
+    const std::string json =
+        std::string("{\"img\": {\"signs\": [\"0,") + sign44 + "\"], \"mime\": \"" + mime73 + "\"}}";
+    ASSERT_EQ(0u, cr_ui_register_user_signs(json.data(), cr::u32(json.size())));
+
+    cr_ui_user_sign s{};
+    ASSERT_EQ(0u, cr_ui_user_sign_info(0, &s));
+    EXPECT_EQ(0, std::strcmp(s.mime, mime73))
+        << "the 73-char MIME round-trips whole and NUL-terminated";
+    EXPECT_EQ('\0', s.mime[73]) << "the terminator is inside the field";
+    EXPECT_EQ(44u, s.sign_len) << "the 44-B sign's length round-trips";
+    EXPECT_EQ(0x7E, s.bytes[0]);
+    EXPECT_EQ(0x01, s.bytes[43]) << "the 44th byte surfaces (pre-v3: 16 of 44)";
+    /* restore the empty set for the other tests */
+    const char* empty = "{\"q\": {\"signs\": [\"0,AA\"]}}";
+    ASSERT_EQ(0u, cr_ui_register_user_signs(empty, cr::u32(std::strlen(empty))));
+}
+
 TEST(CrUi, TransportErrorAdvisoryZeroOnCleanState) {
     /* M-030 claim (f): the ABI can now report the transport-open
      * diagnostic (ABI-since 2.2, additive). DRIVER-ONLY SESSION UPDATE:

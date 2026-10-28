@@ -17727,3 +17727,47 @@ Stage Summary:
 - N-087 CLOSED. Board: 4 active (1 SEVERE S-038 · 1 MAJOR M-064-rem ·
   1 MINOR N-086 · 1 INFO I-026) · 236 FIXED · tracked-open 3. Next:
   N-086 (the rawsigns posture registration - a decision + one row).
+Task ID: FIX-3 (the S-039 convergence + the ledger reconciliation — M-067 filed+fixed; the RESOLVED-INDEX back-fill)
+Agent: main engineer (fix session: the handoff queue, convergence wave)
+
+Work Log:
+- Push rejected: a PARALLEL LANE had landed S-039 (b07ee9d), S-037 (d1fba5d),
+  and the whole S-036/v0.2.3 deployer batch (5e7390b — S-036, M-060, M-061,
+  M-062, M-063, N-084, N-085; upstream rda-driver v0.2.3 6b50bb8) while this
+  lane worked the same queue. Convergent-landing protocol applied (the
+  repo's own convention): the parallel lane's landing is canonical; this
+  lane reset to origin/main and reconciled.
+- Re-measured the parallel lane's S-039 first-hand: the caps half matches
+  this lane's independent measurement exactly (48/12/1024/80 vs og
+  44/11/526/73) — convergent. The lane's unique test
+  (RegistrationRoundTripProceedsToScan) adopted by reference.
+- Found the landed S-039's missing half: cr_ui_user_sign still
+  mime[64]/bytes[16] — cr_ui_user_sign_info memcpy's exactly 64 bytes of a
+  now-legal 73-char MIME into mime[64] with NO terminator inside the field
+  (a host string read runs past it) and only 16 of a legal 44-byte sign's
+  bytes surface. FILED as M-067 (NEW-FINDING, the convergence residue).
+- FIXED M-067 in the same landing: the struct resized to the v3 caps
+  (mime[81]/bytes[48]/sign_len 1..48/offset 0..1024) + CR_UI_ABI_VERSION
+  2 -> 3 per the stability policy's first struct-FIELD change
+  (ABI-CONTRACT §9 + §7d carry the v3 entry).
+- Fail-before PROVEN compile-RED: CrUi.UserSignAbiCarriesTheFullS039Widths
+  against the reverted v2 struct fails to build
+  (-Werror=array-bounds: 'array subscript 127 is outside array bounds of
+  cr_ui_user_sign [1]' — the compiler's own model of the host OOB read;
+  'array subscript 43 is above array bounds of uint8_t [16]'); GREEN on
+  v3. Suite 955/955 (+1).
+- Ledger reconciliation: the parallel lane's three landings moved their
+  finding files to FIXED/ with full Resolutions but wrote no
+  RESOLVED-INDEX rows; back-filled all 11 (A-010 from the FIX-1 lane,
+  S-039, S-037, S-036, M-060, M-061, M-062, M-063, N-084, N-085, and
+  mid-rebase M-065, M-066, N-088) + the new M-067 row — the index is
+  current again (236 FIXED).
+
+Stage Summary:
+- M-067 CLOSED (filed+fixed in one landing). Board: 5 active
+  (1 SEVERE S-038 · 1 MAJOR M-064-remainder · 2 MINOR N-086/N-087 ·
+  1 INFO I-026) · 236 FIXED (the parallel lane's M-065/M-066/N-088
+  landed mid-rebase; their index rows back-filled too) · 3 tracked-open
+  (OQ-SA-3 resolved by the M-065 landing). Next queue: S-038 step 1
+  (PACKAGING.md contract), M-064 remainder (%s%d versioned coexistence
+  + -Uninstall verb), N-086/N-087, the OQ probes.

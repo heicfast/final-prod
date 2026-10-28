@@ -72,7 +72,13 @@ extern "C" {
 #define CR_UI_API __attribute__((visibility("default")))
 #endif
 
-#define CR_UI_ABI_VERSION 2u
+/* v3 = M-067 (the S-039 convergence residue): the cr_ui_user_sign field
+ * resize (bytes 16 -> 48, mime 64 -> 81, sign_len/offset ranges) - the
+ * first struct FIELD change under the stability policy
+ * (docs/ABI-CONTRACT.md section 9). The S-039 caps fix (b07ee9d) landed
+ * without this half: a 73-char MIME memcpy'd into mime[64] left the
+ * field non-NUL-terminated (a host read past the field). */
+#define CR_UI_ABI_VERSION 3u
 
 /* Selected error codes (full table: cr_error.h; same numeric space). */
 #define CR_UI_OK 0x00000000u
@@ -969,11 +975,12 @@ CR_UI_API uint32_t cr_ui_carve_format_info(uint32_t index, cr_ui_carve_format* o
 CR_UI_API uint32_t cr_ui_register_user_signs(const char* json_bytes, uint32_t json_len);
 
 typedef struct cr_ui_user_sign {
-    char ext[9];   /* lowercased, NUL-terminated */
-    char mime[64]; /* NUL-terminated; empty when the entry had none */
-    uint32_t offset;
-    uint32_t sign_len; /* 1..16 */
-    uint8_t bytes[16]; /* the signature bytes */
+    char ext[9];       /* lowercased, NUL-terminated */
+    char mime[81];     /* NUL-terminated; empty when the entry had none (v3/M-067:
+                          the og's longest MIME is 73 chars - the office family) */
+    uint32_t offset;   /* 0..1024 (v3/M-067: the og's max offset is 526) */
+    uint32_t sign_len; /* 1..48 (v3/M-067: the og's longest sign is 44 B) */
+    uint8_t bytes[48]; /* the signature bytes (v3/M-067: was 16) */
 } cr_ui_user_sign;
 
 CR_UI_API uint32_t cr_ui_user_sign_count(void);
