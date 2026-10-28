@@ -673,6 +673,14 @@ Work Log:
   marker 47598bf swept before; no content lost — the surrounding API-FIX-4
   entry is intact).
 
+- OQ-SA-1 LANDED (1285be3, rebased to eac8e1d): tree::FileProperties::
+  ntfs_origin_lcn + both walk stamps (main + GUID-dump) + clone() carry +
+  nflags bit-8 persistence; fail-before proven first-hand (stamps
+  neutralized -> engine tests RED, session round-trip green); full suite
+  1010/1010 green pre-merge, 1012/1012 at the merged tree (gcc-13 ASan,
+  this container). OQ-SA-1 is now FULLY closed: decoded, carried,
+  persisted, tested.
+
 Stage Summary:
 - Delta report refreshed + committed; OQ-SA-1 closed at the decode level;
   the remaining scan-engine work is exactly the S-007 niche-format batches
