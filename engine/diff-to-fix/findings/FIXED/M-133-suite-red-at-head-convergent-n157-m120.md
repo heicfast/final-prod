@@ -1,4 +1,4 @@
-# MAJOR M-123 (renumbered from this lane's M-118 filing; convergent with the S42-main/B/C lanes' N-157 + M-120) — the suite was RED at `869da779`: the N-115 test's typed-extension expectation predated the S-049 contract, and its landing (67de3276) rode a skipped build+test job and a failed lint gate — FIXED by the parallel lanes' repair chain
+# MAJOR M-133 (renumbered TWICE per earlier-push-wins: filed M-118 [ID consumed by the S12 lostpart finding], then M-123 [consumed by the S12 GPT-validation major]; convergent with the S42-main/B/C lanes' N-157 + M-120) — the suite was RED at `869da779`: the N-115 test's typed-extension expectation predated the S-049 contract, and its landing (67de3276) rode a skipped build+test job and a failed lint gate — FIXED by the parallel lanes' repair chain
 
 **Severity:** MAJOR (retired-convergent on filing)
 **Module:** carve (test-truth + the CI gate) / audit-trail (the lane's broken chain)

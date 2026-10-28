@@ -53,8 +53,12 @@ constexpr u32 kTrialOrder[] = {
     FMT_CAB_LC, /* N-069: lowercase CAB key follows its uppercase sibling (distinct magic) */
     /* S-007: the og's common formats - distinct magics (no overlap with
      * the entries above), so the placement after the specific set is
-     * safe; FMT_MP3 (ID3-headed) stays ahead of the raw sync family. */
-    FMT_GIF, FMT_BMP, FMT_RTF, FMT_OLE, FMT_MPEGPS, FMT_MPEGES, FMT_DWG, FMT_AAC, FMT_AAC2,
+     * safe; FMT_MP3 (ID3-headed) stays ahead of the raw sync family.
+     * M-098: FMT_HIK shares the 00 00 01 BA key with FMT_MPEGPS and
+     * rides BEFORE it - the private-stream discriminator claims the
+     * vendor layout first; a HIK reject falls through to the generic
+     * stream row. */
+    FMT_HIK, FMT_GIF, FMT_BMP, FMT_RTF, FMT_OLE, FMT_MPEGPS, FMT_MPEGES, FMT_DWG, FMT_AAC, FMT_AAC2,
     FMT_MPGA_E2, FMT_MPGA_E3, FMT_MPGA_E4, FMT_MPGA_E5, FMT_MPGA_E6, FMT_MPGA_E7, FMT_MPGA_F2,
     FMT_MPGA_F3, FMT_MPGA_F4, FMT_MPGA_F5, FMT_MPGA_F6, FMT_MPGA_F7, FMT_MPGA_FA, FMT_MPGA_FB,
     FMT_MPGA_FC, FMT_MPGA_FD, FMT_MPGA_FE, FMT_MPGA_FF,

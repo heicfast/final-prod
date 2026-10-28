@@ -1,11 +1,11 @@
-# MINOR N-161 (renumbered from this lane's N-154 filing; the ID was consumed by the parallel S42-main lane's bookkeeping-truth-batch-2) — the S-039 cap-annotation set carries one false data claim: the og's longest EUUserData extension is 8 ("manifest"), not 4 ("epub", "hqx")
+# MINOR N-179 (renumbered TWICE per earlier-push-wins: filed N-154 [consumed by the S42-main bookkeeping batch], then N-161 [consumed by the S12 GPT-span-underflow finding]) — the S-039 cap-annotation set carries one false data claim: the og's longest EUUserData extension is 8 ("manifest"), not 4 ("epub", "hqx")
 
 **Severity:** MINOR
 **Module:** carve (user-extensible signature DB — the S-039 caps family)
 **Parameters affected:** A68 (documentation accuracy — in-code comment truth), C19-adjacent (the caps' stated corpus grounding)
 **Corpus references:** `og-codebase/EUUserData` (the stock user-signature JSON, 111 keys / 190 signs) — key `"manifest"` (8 chars; `"mime": "text/cache-manifest"` family) and key `"class"` (5 chars) are the two entries longer than 4; measured this session: `max(len(k)) = 8`, the >4 set = `{"class", "manifest"}` exactly
 **Core references:** re-verified at the S42-D merged tree (still live) — audited `869da779` — `include/cr/carve/cr_usersigns.h:46` — `constexpr u32 kMaxExtLen = 8;    /* the og's longest ext is 4 ("epub", "hqx") */`
-**Status:** READ-ONLY FINDING — no fix applied. **Renumber note (S42-D merge):** filed as N-154 on the pre-merge branch; the parallel S42-main lane's own N-154 (bookkeeping-truth batch 2) pushed first, so this finding takes N-161 per the earlier-push-wins convention. The defect is re-verified LIVE at the merged tree: `include/cr/carve/cr_usersigns.h:46` still carries the false "longest ext is 4" comment (grep at the merge). The parallel N-148 comment-truth batch (78e92955, all seven items) did not include this site.
+**Status:** READ-ONLY FINDING — no fix applied. **Renumber note (twice):** filed as N-154 on the pre-merge branch (the S42-main lane's N-154 pushed first), renumbered N-161 at the S42-D merge (the S12 lane's N-161 pushed in the same window), now N-179. The defect is unchanged and re-verified live at each renumber. The defect is re-verified LIVE at the merged tree: `include/cr/carve/cr_usersigns.h:46` still carries the false "longest ext is 4" comment (grep at the merge). The parallel N-148 comment-truth batch (78e92955, all seven items) did not include this site.
 
 ## Summary
 

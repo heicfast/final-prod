@@ -3285,8 +3285,8 @@ CarveResult validate_mpegps(IStorageDevice* s, u64 hit, u64 cap) {
             ++elements;
             continue;
         }
-        if (code == 0xBB) { /* system header: length follows */
-            const u32 len = rd16(s, q + 4);
+        if (code == 0xBB) {                   /* system header: length follows */
+            const u32 len = rdbe16(s, q + 4); /* N-155: BE u16 (the MPEG-PS wire form) */
             if (len < 6 || q + 6 + len > limit)
                 break;
             q += 6 + len;
@@ -3295,7 +3295,7 @@ CarveResult validate_mpegps(IStorageDevice* s, u64 hit, u64 cap) {
         }
         if ((code & 0xE0) == 0xE0 || (code & 0xC0) == 0xC0 || code == 0xBD || code == 0xBE) {
             /* stream packets + padding: PES length field */
-            const u32 len = rd16(s, q + 4);
+            const u32 len = rdbe16(s, q + 4); /* N-155: BE u16 (the MPEG-PS wire form) */
             if (q + 6 + len > limit)
                 break;
             q += 6 + len;
@@ -5480,8 +5480,7 @@ CarveResult validate_dxf(IStorageDevice* s, u64 hit, u64 cap) {
             const size_t plen = lf_comment ? sizeof(kPatLf) - 1 : sizeof(kPatCrLf) - 1;
             constexpr u64 kScan = 4096;
             u8 win[kScan];
-            const u64 avail =
-                std::min<u64>(kScan, s->size() > hit ? s->size() - hit : 0);
+            const u64 avail = std::min<u64>(kScan, s->size() > hit ? s->size() - hit : 0);
             if (avail >= plen && rd(s, hit, win, u32(avail))) {
                 for (u64 i = 0; i + plen <= avail; ++i) {
                     if (win[i] == 0)
@@ -5771,8 +5770,11 @@ CarveResult validate_dbx(IStorageDevice* s, u64 hit, u64 cap) {
     const u64 lo = u64_from_bytes_le(h);
     const u64 hi = u64_from_bytes_le(h + 8);
     enum Form { FORM_NONE, FORM_JMF6, FORM_PLAIN, FORM_MARKED } form = FORM_NONE;
-    if (lo == 0x0010000336464d4aULL) { /* "JMF6"+03 00 10 00 (disasm 0x180016766/0x18001676f: movl $0x36464d4a + movl $0x00100003 - the parallel lane's reading, confirmed; my first landing's 03 00 01 00 was a literal-expansion error) */
-        form = FORM_JMF6; /* "JMF6" + 03 00 10 00 */
+    if (lo == 0x0010000336464d4aULL) { /* "JMF6"+03 00 10 00 (disasm 0x180016766/0x18001676f: movl
+                                          $0x36464d4a + movl $0x00100003 - the parallel lane's
+                                          reading, confirmed; my first landing's 03 00 01 00 was a
+                                          literal-expansion error) */
+        form = FORM_JMF6;              /* "JMF6" + 03 00 10 00 */
     } else {
         /* the four OE store GUIDs (the probe's stack table) */
         static const u64 kGuids[4][2] = {
@@ -5815,8 +5817,7 @@ CarveResult validate_dbx(IStorageDevice* s, u64 hit, u64 cap) {
      * distance + the even-rounded non-zero prefix while content runs.
      * Walk sector windows from the hit; keep the last computed extent;
      * bound by the row cap (probe_limit). */
-    const u64 ssz =
-        s->geometry().logical_sector >= 512 ? s->geometry().logical_sector : 512;
+    const u64 ssz = s->geometry().logical_sector >= 512 ? s->geometry().logical_sector : 512;
     const u64 limit = probe_limit(s, hit, cap);
     std::vector<u8> win(size_t(ssz), 0);
     u64 end = hit + 16; /* the pattern itself: the first window's floor */
@@ -5850,6 +5851,97 @@ CarveResult validate_dbx(IStorageDevice* s, u64 hit, u64 cap) {
     r.end = std::min(end, limit);
     r.confidence = 700;
     r.note = "dbx-marked-zero-walk";
+    return r;
+}
+
+/* ---- M-098: HIK (Hikvision surveillance, CHIKAnalyser id 0x92) ----
+ * The og's list-layer probe (FUN_1800272a0 :30412-30484, the RawConfig
+ * "HIK" token - shipped HIK=1/enabled) discriminates the vendor's
+ * private_stream_1 PES inside an MPEG-PS pack:
+ *   - the 00 00 01 BA pack header; the pack length = (buf[0xD]&7)+0xE;
+ *   - the SYSTEM-HEADER path: 00 00 01 BB at the pack end, the LE-u32
+ *     skip length at +4 bounded < 0x40000001 with the total < 0x400001,
+ *     then 00 00 01 BD at the skip end - the private_stream_1 PES;
+ *   - or the DIRECT path: 00 00 01 BD straight after the pack;
+ *   - the size starts at the PES's BE-u16 length at +4: pos + 6 + len
+ *     (pos = the BD position, relative to the candidate start);
+ *   - the walk (FUN_180027480 :30489-30558) continues the PS structure
+ *     from the probe's size: a 00 00 01 BA pack advances 0x1A + the
+ *     BE-u16 at +0x18 when low16(u32@+0x14)==0 && byte@+0x16==1 (else
+ *     +0 only); any other 00 00 01 start code advances 6 + the BE-u16
+ *     PES length at +4; the first non-start-code position (or an
+ *     unreadable window) ends the walk; the cap is 0x40000000 (1 GiB)
+ *     - on the cap exit the size is the cap EXACT (FileInfo+0x18 =
+ *     0x40000000), on the break exit the last advanced cursor.
+ * The analyser names its files L"HIK" (DAT_18006b428, dumped from the
+ * og binary: 48 00 49 00 4B 00 - the UTF-16LE form; the direct-BD
+ * branch's std::string length 3 confirms the 3-char read). */
+CarveResult validate_hik(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[14];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r; /* the pack header: the stuffing byte at +0xD needs 14 */
+    if (h[0] != 0 || h[1] != 0 || h[2] != 1 || h[3] != 0xBA)
+        return r; /* the registry key re-checked */
+    const u64 pack_len = (h[0xD] & 7) + 0xE;
+    u8 sc[6];
+    if (!rd(s, hit + pack_len, sc, sizeof(sc)))
+        return r; /* the start code after the pack + the length head */
+    u64 pos = 0;  /* the BD position, relative to the candidate start */
+    if (sc[0] == 0 && sc[1] == 0 && sc[2] == 1 && sc[3] == 0xBB) {
+        /* the system-header path: the LE-u32 skip length at +4 */
+        u8 lb[4];
+        if (!rd(s, hit + pack_len + 4, lb, sizeof(lb)))
+            return r;
+        const u32 len = u32_from_bytes_le(lb);
+        if (len >= 0x40000001u)
+            return r; /* the og's first length bound */
+        const u64 p = pack_len + 6 + len;
+        if (p >= 0x400001u)
+            return r; /* the og's total bound */
+        u8 bd[6];
+        if (!rd(s, hit + p, bd, sizeof(bd)))
+            return r;
+        if (bd[0] != 0 || bd[1] != 0 || bd[2] != 1 || bd[3] != 0xBD)
+            return r; /* private_stream_1 required at the skip end */
+        pos = p;
+    } else if (sc[0] == 0 && sc[1] == 0 && sc[2] == 1 && sc[3] == 0xBD) {
+        pos = pack_len; /* the direct private_stream_1 after the pack */
+    } else {
+        return r; /* neither the system-header nor the direct form */
+    }
+    const u16 pes_len = rdbe16(s, hit + pos + 4);
+    u64 cursor = pos + 6 + pes_len; /* the probe's size */
+    /* the structural walk: packs advance 0x1A (+ the BE-u16 at +0x18
+     * under the +0x14/+0x16 gate), other PES advance 6 + BE-u16@+4 */
+    const u64 limit = probe_limit(s, hit, cap);
+    while (cursor < 0x40000000ull) {
+        u8 w[0x1A];
+        if (!rd(s, hit + cursor, w, 4))
+            break; /* the unreadable window ends the walk */
+        if (w[0] != 0 || w[1] != 0 || w[2] != 1)
+            break; /* the first non-start-code position ends the walk */
+        if (w[3] == 0xBA) {
+            u64 extra = 0;
+            if (rd(s, hit + cursor, w, sizeof(w))) {
+                const u32 w14 = u32_from_bytes_le(w + 0x14);
+                if ((w14 & 0xFFFFu) == 0 && w[0x16] == 1)
+                    extra = rdbe16(s, hit + cursor + 0x18);
+            }
+            cursor += 0x1A + extra;
+        } else {
+            cursor += 6 + rdbe16(s, hit + cursor + 4);
+        }
+    }
+    if (cursor > 0x40000000ull)
+        cursor = 0x40000000ull; /* the cap exit: the size is the cap exact */
+    if (hit + cursor > limit)
+        cursor = limit - hit; /* the slice edge clamp (the engine's window) */
+    r.ok = true;
+    r.end = hit + cursor;
+    r.confidence = 650;
+    r.note = "hik-ps-private-stream-1";
+    r.name_prefix = u"HIK"; /* DAT_18006b428: L"HIK" - the analyser's own name */
     return r;
 }
 
