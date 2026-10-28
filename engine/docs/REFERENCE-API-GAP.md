@@ -101,7 +101,7 @@
 
 | # | Operation | Semantic shape | Corpus citation |
 |---|---|---|---|
-| R-58 | Recovery log | Per-run text log written by `EndRecoverThread`; surfaced as "(%1 files / %2 failed; for details, you may check the recovery log)"; numbered failure-cause taxonomy (items 1-6+) shared with destination validation copy. **This is the ONLY corpus-documented results-export surface — no CSV/list-export verb is documented.** | `UIUX/11-recovery-phase-funnel.md:16,19-21`; `DRWUI-exe--main-ui-architecture.md:103`; grep-negative: no export-list/csv verb in artifacts |
+| R-58 | Recovery log | **HTML report** (N-159 decode: `CSaveFailedFilesWithHtml` — per-failure collection slot DRWUI :642729-642746, the row grammar with the per-file tree-classification column :642755-642822, opened via ShellExecuteW :642885) written at export completion; surfaced as "(%1 files / %2 failed; for details, you may check the recovery log)"; numbered failure-cause taxonomy (items 1-6+) shared with destination validation copy. **This is the ONLY corpus-documented results-export surface — no CSV/list-export verb is documented.** | `UIUX/11-recovery-phase-funnel.md:16,19-21`; `DRWUI-exe--main-ui-architecture.md:103`; DRWUI_decompiled.c :642669-642892 (the generator class family, N-159); grep-negative: no export-list/csv verb in artifacts |
 | R-59 | Crash/diagnostic report | `DRW.exe` watchdog → `DRWReport.exe` (minidump + Elapsed/Error/Result JSON + send_dmp_with_aliyun upload) → DRWUI restart; 2 MB shared log buffer flushed every 5 s. | `architecture/04-recovery-workflow.md:177-180`; `re-workspace/artifacts/DRW-exe--launcher.md` (per index) |
 
 ### A7. Health diagnostics
@@ -245,7 +245,7 @@ modules (§a). Corpus-side refs use the R-numbers above.
 | R-41 destination validation | `set_destination` arms F12 overlap refusal; `ERR_DEST_OVERLAP/UNWRITABLE/FULL/NAME_EXHAUSTED`; CLI `[F12]` same-disk warning (§b.11/§d.1) | PARTIAL | Overlap/unwritable/full present (N-015 dest-full = completed-with-failures). **Missing: path-too-long / invalid-path as distinct error codes (og numbered taxonomy 1-6); network-path branch.** |
 | R-42 recovery engine loop + progress | `cr_ui_recovery_process` synchronous + `WriterStats` progress callbacks + per-item outcomes (§b.11) | PRESENT | Equivalent (ours adds post-write hash verification — `ERR_HASH_MISMATCH`, og not documented as verifying). |
 | R-43 recovery cancel | `cr_ui_recovery_cancel` — ERR_CANCELLED keeps committed items (§b.11) | PRESENT | Equivalent. |
-| R-44 result summary + recovery log | `cr_ui_recovery_report_json` (G-09; valid any time) + `get_stats` (§b.11) | PRESENT | Ours is a structured JSON report — exceeds og's text log. |
+| R-44 result summary + recovery log | `cr_ui_recovery_report_json` (G-09; valid any time) + `get_stats` (§b.11) | PRESENT | Ours is a structured JSON report over every item (with the N-159 tree-classification axis + failed-bytes split) — exceeds the og's failed-only HTML funnel. |
 | R-45 free-quota gate / upgrade flow | none | GAP | Product/monetization layer — out of core scope by design; recorded so the UI shim knows the og behavior. |
 | R-46 repair-during-recovery | none | GAP | No repair engine (see A9). |
 | R-47 auto-recover plan | none | GAP | No auto-recover orchestration (scope, destination validation reuse, email notify — product layer). |

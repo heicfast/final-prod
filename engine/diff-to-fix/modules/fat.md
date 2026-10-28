@@ -35,8 +35,12 @@ while the failing slots zero; neither earlier test family asserted it).
 =======
 deferred failure); **N-172** (deleted-first-char `'#'` vs `'_'` + the unregistered
 LFN-checksum recovery superset — closes OQ-T2); **N-173** (the 2106/2107 u32 clamp);
+<<<<<<< HEAD
 ~~**N-175**~~ **FIXED (S46)** (NTRes case folding landed — the four-way fold, NtResCaseFoldFourWay + the BitLocker re-pin); **N-176** (the LFN illegal-char fallback).
 >>>>>>> b1b5eba0590fec0a8aca858737462cb41db29e03
+=======
+~~**N-175**~~ **FIXED (S46)** (NTRes case folding landed — the four-way fold, NtResCaseFoldFourWay + the BitLocker re-pin); ~~**N-176**~~ **FIXED (S46)** (the LFN illegal-char fallback landed — the 9-char gate in lfn_assemble, LfnIllegalCharFallsBackTo83 + LfnValidNameUnchanged).
+>>>>>>> 003730e00a02c5edd486ca33ac22322796192f15
 Verified-MATCH this session: cluster-offset formula (u64), EOC/BAD sentinels, boot
 geometry, first_data_sector, the 28-bit size field ( disproven hypothesis), grading
 condition bytes.

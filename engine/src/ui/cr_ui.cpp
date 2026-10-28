@@ -1379,6 +1379,15 @@ u32 open_volume_impl(char letter, cr_ui_device** out) {
     }
     const char* transport = "rda";
     auto slice = PartitionSlice::create(whole.get(), start, len, nullptr);
+    /* M-119: an over-long declared window CLAMPS at the device end and
+     * the volume opens (the og's tolerant create) - the clamp delta is
+     * surfaced through the log so the host can see the shrinkage; only
+     * a genuinely unopenable extent (start past the device) refuses. */
+    if (slice && slice->was_clamped() && cr::log::enabled())
+        cr::log::write(cr::log::Level::Warn,
+                       "volume %c: declared window overruns the device by %llu bytes; "
+                       "opened clamped",
+                       letter, static_cast<unsigned long long>(slice->clamp_delta()));
     if (!slice)
         return ret_(ERR_OPEN_FAILED, "slice creation failed for %c: (@%llu +%llu)", letter,
                     static_cast<unsigned long long>(start), static_cast<unsigned long long>(len));
@@ -1464,6 +1473,15 @@ u32 open_volume_with_key_impl(char letter, const char* utf8_hex_fvek, cr_ui_devi
     }
     const char* transport = "rda";
     auto slice = PartitionSlice::create(whole.get(), start, len, nullptr);
+    /* M-119: an over-long declared window CLAMPS at the device end and
+     * the volume opens (the og's tolerant create) - the clamp delta is
+     * surfaced through the log so the host can see the shrinkage; only
+     * a genuinely unopenable extent (start past the device) refuses. */
+    if (slice && slice->was_clamped() && cr::log::enabled())
+        cr::log::write(cr::log::Level::Warn,
+                       "volume %c: declared window overruns the device by %llu bytes; "
+                       "opened clamped",
+                       letter, static_cast<unsigned long long>(slice->clamp_delta()));
     if (!slice)
         return ret_(ERR_OPEN_FAILED, "slice creation failed for %c: (@%llu +%llu)", letter,
                     static_cast<unsigned long long>(start), static_cast<unsigned long long>(len));

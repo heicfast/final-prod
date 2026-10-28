@@ -2180,6 +2180,30 @@ not as dead code now.
 
 (The original session-10 D-64 draft was folded into the converged entry above.)
 
+**D-74 SUPERSESSION ADDENDUM (2026-10-29, the S47 MAJOR-first fix lane, M-119
+landing `see git log --grep M-119`):** the read-half of this divergence is
+SUPERSEDED - `PartitionSlice::read_at` now implements the og's ladder
+(straddle clamps + full-tail zero-fill + success; offset >= length and count >
+length remain the parameter errors BOTH sides refuse). What changed versus the
+session-11 decision gate: (1) M-119's real-run evidence - `DRWUI.log:638`
+shows the clamp firing during the og's own lost-partition probing (the og's
+scan flows ISSUE past-end reads and proceed on the zero-filled result), and
+the S42 Ldq decode found 393 out-of-parameter refusals in ONE captured run -
+the og's layers probe boundaries routinely; (2) the M-119 fix-time probe
+re-confirmed the ENGINE-side device's clamp first-hand
+(HFSPlusSearchDLL FUN_180009290 :7219-7264 - the gate, the parent prefix
+read, the tail memset); (3) the whole-volume refusal on table-length overrun
+(the CLI/UI leg) was a divergence this entry never claimed to cover and the
+exact damage class recovery tools are bought for. KEPT from this entry: the
+parameter-error refusals (the safety core), and the under-zeroed-tail memset
+non-adoption (the og zeroes sector-count BYTES; the core zeroes the FULL tail
+- the D-117 class). The create-half is new parity, not divergence:
+`PartitionSlice::create` clamps an over-long declared length to the device
+end with the delta surfaced (`was_clamped`/`clamp_delta`). Pins:
+`Slice.TailReadClampsAndZeroFills` (replaces TailReadRefusalPinned) +
+`Slice.CreateClampsOverlongDeclaredLength` + `Slice.CreateStartBeyondDeviceStillRefused`
++ `Slice.ExactFitNotClamped` + `Slice.OrchestratorTargetClampScansRaggedTable`.
+
 ### D-72 — scan cache: 8 MiB reactive LRU vs og 4 MiB prefetch read-ahead (N-045, REGISTERED DIVERGENCE — budget + algorithm)
 
 The og's `CStorageDeviceWithCache` sizes its cache at **4 MiB**
@@ -3224,6 +3248,23 @@ either working or explicitly refusing. VERDICT: ACCEPTED (deliberate
 divergence; truthfulness superset in the D-24/ADR-5 family).
 
 ### D-104 — the user-signature carve channel + the shipped default set are a product superset: the og's scan engine has NO user-sign input (OQ-SA-3 re-resolution, M-065 37c48c6, REGISTERED SUPERSET — engine behavior)
+**S-055/S-056 landing notes (2026-10-29, session-51 severe-first lane):** the
+channel's in-engine ordering is now the one D-104's text always described —
+grammar claims first, the built-in raw-sign table second, the user-sign layer
+LAST (built-in-first at collisions; the 8 default-set overlap formats
+amr/cap/class/cpl/flac/msf/pdb/wpl return bounded built-in candidates). The
+format toggle gates the user layer like every other carve source (the og's
+FUN_180006b30 removal-loop semantics: a disabled extension's signs never fire;
+other extensions' signs still can). One further core-side rule with NO og
+analog (the og has no user layer to mirror): a grammar-REJECTED start is not
+reclaimed by the user-sign arm — the strongest layer's negative verdict
+settles the position for the weaker header-only layer (no-reclaim), while the
+built-in table still probes grammar-rejected positions (the og's layers claim
+by emission only). Rejection tracking is memory-bounded at 2^20 entries
+(kMaxTrackedRejections) — past the bound the supplementary suppression
+degrades gracefully on garbage-saturated media; emitted_at and the extent-dedup
+contracts are unaffected.
+
 
 **Class:** deliberate superset (carve engine behavior) · **Findings:** OQ-SA-3
 (re-resolved, scan-engine lane, 2026-10-28), M-065 (landed 37c48c6 before the

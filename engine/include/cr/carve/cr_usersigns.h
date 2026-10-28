@@ -87,9 +87,13 @@ u32 snapshot(UserSignSet& out);     /* value copy under the lock (ABI info) */
 
 /* Match `p` (the stride base, at least kMaxOffset+1 bytes valid) against
  * the active set; returns the matching sign or nullptr. First match in
- * registration order wins (deterministic; built-ins were already probed
- * by the earlier layers at the same stride). */
-const UserSign* match_at(const u8* p, u64 avail);
+ * registration order wins (deterministic). S-055: the scan probes this
+ * layer ONLY after the built-in raw-sign table did not match at the
+ * same stride (built-in-first, the M-048 collision rule); S-056:
+ * `disabled_exts` (nullable) is the host's disabled-formats list - a
+ * listed extension's signs never fire (the og's removal-loop
+ * semantics), other extensions' signs still can. */
+const UserSign* match_at(const u8* p, u64 avail, const char* disabled_exts = nullptr);
 
 } // namespace usersigns
 } // namespace carve

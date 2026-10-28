@@ -2,10 +2,12 @@
 
 ## S12 addendum (2026-10-29 — the session-2 deep-dive — the local-database/user-sign family)
 
-New active findings on this module: **S-055** (SEVERE — the user-sign layer probes
-before the built-in table, inverting the M-048/D-104 collision rule; 8 overlap formats
-flip to device-end extents); **S-056** (SEVERE — disabled_formats does not gate the
-user-sign layer; D-104's claim false in code); **M-128** (hex-case semantics — 12
+New active findings on this module: **S-055** (FIXED session-51 — the user-sign layer
+probed before the built-in table, inverting the M-048/D-104 collision rule; 8 overlap
+formats flipped to device-end extents; built-in-first restored, the no-reclaim rule
+pinned); **S-056** (FIXED session-51 — disabled_formats did not gate the user-sign
+layer; match_at's disabled_exts predicate now carries the removal-loop semantics);
+**M-128** (hex-case semantics — 12
 og-dead signs live in core); **M-129** (the all-or-nothing parser vs the og's tolerant
 skip); **N-168** (the og's 2x bounds guard, core correct); **N-169** (duplicate-asf
 merge semantics); **N-170** (8 stale pre-erratum doc claims); **N-171** (user-sign

@@ -1,3 +1,40 @@
+**Tracked-open sweep status (S47 INFO-first lane, 2026-10-29).** OQ-S10-1 verified
+current at HEAD (thumbnail_format_supported at src/core/preview/cr_thumbnail.cpp:85
+admits jpeg/png/bmp/gif/tiff/raw/psd/pnm/hdr only — HEIC/WebP/PDF/video refused BY
+NAME, no silent degrade; S48's push-forward note stands, this lane's read corroborates
+it — no redundant commit). OQ-S10-3's grant boundary re-affirmed by S48's fresh note;
+no core-side change owed by any of the five driver-repo findings. OQ-S42-3 stays
+S48's active RESOLVED-IN-PART (5/6 decoded; Q5 theirs mid-flight — no duplicate work).
+OQ-S52-1 (the S52 lane's fresh ext2/3-vs-ext4 filing): this lane's evidence addendum
+appended — the analyser half of its named probe decoded first-hand
+(ExtFileSystemAnalyser FUN_180004670 = magic+geometry only, no family
+discrimination; the verdict path's masks decoded: incompat-within-0xffffffe9 ∧
+ro_compat-within-0xfffffff8 → the family verdicts 5/6, the 0x2c0 =
+EXTENTS|64BIT|FLEX_BG triple-gate → verdict 0x18; the analyser-internal codes ≠
+the DRWUI {4/5, 9} kind codes — the mapping is the remaining half). OQ-S4-3: the
+Test & Benchmark dispatch (run 40783364141) in flight at this entry; the
+transcription lands when the numbers exist.
+
+**Session-51 severe-first lane — S-055 + S-056 landed (2026-10-29).**
+
+**S-055 + S-056 FIXED (one carve patch, the finding's own "fix in the same patch"
+note).** Corpus re-verified (the og's layering: grammar claims then table probes;
+EUUserData has zero RAWSearchDLL references per E-A/E-B); the inversion + the ungated
+toggle re-confirmed live at the current HEAD before the fix. The loop body reordered:
+the built-in arm (probe_header + M-024 filter + best-pick/tail/emission) runs first
+and sets builtin_matched; the user-sign arm fires only when no built-in survived the
+disabled-format filter. The N-031 zero-skip now guards the built-in arm only (user
+signs anchor to kMaxOffset+48 — the og's zip sign at +526). The no-reclaim product
+question DECIDED+PINNED: grammar-rejected starts are not reclaimed (rejected_at
+threaded beside emitted_at, memory-bounded 2^20); the built-in table still probes
+rejected positions (the og claims by emission only). S-056 via match_at's new
+disabled_exts predicate INSIDE the match loop (removal-loop semantics — sibling signs
+still fire). D-104 landing notes registered. 8 new tests, all RED->GREEN proven
+(6 fail pre-fix incl. the floor-gate and grammar-rejected pins; CAFEBABE exposed as
+the built-in class magic — a claimed magic, DEADBEEF used for the unclaimed fixtures;
+cap's D4C3B2A1 shared with the higher-conf pcap row — pinned any-built-in-tag).
+Suite 1192/1192 green. Trail: findings/FIXED/ both + ledger rows + matrix cells +
+carve.md + SUMMARY + this entry.
 **OQ-S42-1 RESOLVED-MATCH (S47 INFO-first lane, 2026-10-29).** The NTFS
 $SI/$FN time-precedence seam decoded first-hand and closed: the og is
 $SI-first with $FN fallback (NTFSSearchDLL :5338-5353 — the FN defaults
@@ -150,6 +187,21 @@ OQ-S10-3's grant boundary). Pulled-before-pushed discipline; one finding, one pu
 fix RED-test-first; corpus cites re-read first-hand. The S48/S49/S50 windows absorbed at
 the merge (A-014 + I-041..I-044 retired by the parallel lanes; both sides' records kept).
 
+- **M-119 FIXED** (`033b9cdb`) — the partition-boundary tolerant pair: create-clamp
+  (was_clamped/clamp_delta; N-046's start-past-device refusal kept) + the og read
+  ladder (offset>=length/count>length refuse; straddle clamps + FULL-tail zero-fill +
+  OK; parent prefix-error propagates unfilled). The fix plan's fix-time probe EXECUTED
+  first-hand: HFSPlusSearchDLL FUN_180009290 :7219-7264 — the gate, the clamped parent
+  read, the tail memset, the no-zero-fill error path — confirming the engine-side
+  policy before shipping. D-74's read-half SUPERSEDED (dated addendum in
+  PARITY-DELTAS; safety core + under-zeroed-tail non-adoption KEPT — the og memsets
+  sector-count bytes, we zero the full tail, the D-117 defect class). CLI partition
+  open warns-with-delta instead of aborting; both cr_ui volume opens clamp+log. Tests:
+  CreateClampsOverlongDeclaredLength / TailReadClampsAndZeroFills (replaces the D-74
+  pin) / OrchestratorTargetClampScansRaggedTable (all RED pre-fix via stashed-slice
+  proof) + CreateStartBeyondDeviceStillRefused / ExactFitNotClamped (fence pins) —
+  suite 1216/1216, zero engine fallout; the Apply fence tests untouched and green.
+  F60/P1/B6/B8/X51/E23 → MATCH.
 - **M-128 FIXED** (`2b0184f3`) — option (b): the case-insensitive byte-decode
   channel KEPT + registered as PARITY-DELTAS D-125 (the D-117 class). Corpus
   re-read first-hand: FUN_140604090 :1003619 (%02X-only), memcmp :1003452/
@@ -302,6 +354,30 @@ core `659f0f6c`, corpus `be0cfe9`.
   clang-format clean. Audit trail: retired to findings/FIXED/ with Resolution; ledger
   row; matrix row → MATCH; carve module addendum; FORMATS.md ZIP-typing paragraph;
   D-134.
+
+- **N-159 FIXED (MINOR, writer+report)** — the failed-files report's tree-
+  classification axis: the og's recovery log is an HTML report
+  (CSaveFailedFilesWithHtml, DRWUI :642669-642892 — the generator, the
+  per-failure collection slot +0x254/+0x268, the row grammar :642755-642822,
+  ShellExecuteW open) — R-58's "per-run text log" and API-DELTA row 21's "og
+  format NOT IN CORPUS" both REFUTED and repaired (REFERENCE-API-GAP R-58 +
+  R-44's comparative note + API-DELTA row 21 + the writer-module D13 addendum,
+  all in this push). The three classification field getters re-pinned first-hand
+  (FUN_14008a650 = node+0x1d8 custom name; FUN_14008b040 = u32@+0x1f0 kind;
+  FUN_1400d3ee0 = u32@+0x1e8 group). Landed: the per-item `tree_class` wire
+  axis (root-role derived — the core's S-048/M-103 root model maps the og's
+  group/kind integers; the wire↔og-label↔core-role table in the schema doc;
+  the Tags-Extracted mapping ready for M-101's open branch) + the
+  `failed_bytes` totals split (the +0x268 accumulator semantics; the
+  enqueue-refusal exclusion documented as schema truth rule 5 — a precision
+  the fix plan missed) + both fields additive-within-schema-v1 per the
+  schema doc's own version contract (the finding's bump plan corrected —
+  pinned by TreeClassIsAdditiveWithinSchemaV1). Tests: Report.FailedRows
+  CarryTreeClassification / FailedBytesSplitFromTotal / RawCategoryName
+  Classification / TreeClassIsAdditiveWithinSchemaV1 (axis + split RED
+  pre-fix). Suite 1243/1243 (1201/42/0). Audit trail: retired to
+  findings/FIXED/ with Resolution; ledger row; matrix row → MATCH; writer
+  module addendum; the schema doc's wire sample + field docs + truth rule 5.
 
 - **N-148 FIXED** — the comment-truth batch, all seven items: the LDM RAID-5 UNDECODED hedge
   replaced with the OQ-T7 resolved MATCH; D-09's demanded ZFS wording landed verbatim; the M-112
@@ -7477,6 +7553,20 @@ end-to-end fixture's NTRes=0 mixed-case "READMe.TXT" now renders the og's folded
 case-sensitive-bench divergence). Suite 1190/1190 (linux-release). Trail:
 findings/FIXED/N-175 + ledger row + matrix A10/B-naming row + fat.md list + this entry.
 
+## Session-46 minors lane — N-176 landed (2026-10-29)
+
+**N-176 FIXED (MINOR — the FAT LFN illegal-char fallback).** The corpus cite re-read
+first-hand (FATSearchDLL :32084-32099 — the strncpy of the 9-byte set "?*|\/:\"<>" +
+the nested compare; a match diverts to FUN_180036350, the same 8.3-fallback builder
+a checksum failure takes). The gate landed inside lfn_assemble beside the checksum
+check; the caller's existing fallback path serves the alias. LfnIllegalCharFallsBackTo83
+(RED pre-fix: each of the 9 chars surfaced in the result name; GREEN: the alias serves,
+no illegal char in any result) + LfnValidNameUnchanged (the regression pin). One
+implementation bug caught in self-review before commit: the end-of-name NUL must keep
+its early-return (an intermediate `break` would have continued to further slots).
+Suite 1218/1218 (linux-release). Trail: findings/FIXED/N-176 + ledger row + matrix row
++ fat.md list + this entry.
+
 
 ## Session-57 fix lane — the lane opens + the A-014 convergence recorded (2026-10-29)
 
@@ -7514,3 +7604,19 @@ exFATSearchDLL:1756-1794). Trail: findings/FIXED/A-014 addendum, CROSS-REF-MATRI
 convergence block, modules/fat.md supplementary-pin note, SUMMARY.md S57 block.
 
 
+
+
+## Session-57 lane — the red-main repair (the window's M-119/N-159 residue) (2026-10-29)
+
+**The merged main carried a Windows-lane red the window's lanes could not see** (the
+033b9cdb M-119 landing + the N-159-era cr_ui edits landed with the app layer's
+win_syntax_check red — their Linux suites never compile src/app/src/ui, the M-055
+blind spot this gate exists for). Two defects repaired:
+(1) rrecov.cpp:3227 declared `std::unique_ptr<IStorageDevice> part_slice` while the
+M-119 clamp block calls the PartitionSlice-only members (was_clamped/clamp_delta) —
+MSVC rejects the base-typed calls exactly as the stub parse does; the declaration now
+holds the derived PartitionSlice (the slice handoff keeps the base pointer, semantics
+unchanged);
+(2) cr_ui.cpp:1387/:1481 used `cr::log::Level::Warning` where the enum is `Warn`
+(two sites, Win32-guarded - invisible to the Linux build).
+win_syntax_check 1347/1347 re-verified green with the full suite.

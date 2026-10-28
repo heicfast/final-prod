@@ -5,6 +5,7 @@
 | Parameter (module · surface) | Verdict | Evidence / finding |
 |---|---|---|
 | carve · the OfficeTagFromXML five-branch typing tail (P1/P11/P19/P25/P65) | **MATCH** | **N-158 FIXED** (session-46 MINOR-first lane) — the five typed ids land (XMIND 0x86 / MMAP 0x87 / EDDX 0x8c / WFP 0x8d / DRP 0x91): the XMIND content probe decoded from disassembly (the 300-byte RAW window at record+30+strlen(name), the two needles — the 16-byte `xmlns="urn:xmind` + the 14-byte .data constant at RVA 0x93980 — disasm 0x180045110-0x180045666) + the four entry-name compares; the chain walk's NO-stop/last-match-wins semantics decoded and pinned (:18411-18450 — the N-115-era "map stop" comment corrected); the [Filter] coupling as the conservative row-level disabled_formats gate (PARITY-DELTAS D-134); 6 tests, 3 groups RED pre-fix; suite 1209 green — the Resolution in findings/FIXED/ carries the full record |
+| writer+report · the failed-files report's tree-classification axis (P13/P11/P46/P68) | **MATCH** | **N-159 FIXED** (session-46 MINOR-first lane) — the og's recovery-log truth decoded and landed: the per-item `tree_class` axis (the six-valued root-role classification, DRWUI :642755-642822 re-verified first-hand with the three field getters pinned) + the `failed_bytes` totals split (the +0x268 accumulator, the enqueue-refusal exclusion documented as schema truth rule 5) + the three register repairs (R-58's "text log"→HTML report; API-DELTA row 21's "NOT IN CORPUS" refuted; D13's addendum) + additive-within-v1 per the schema doc's own contract; 4 tests RED-first; suite 1243 green |
 
 **Session-52 S52 fix lane (2026-10-29 — the parity-fix lane over the standing board; opened at core `fa654673`, corpus `be0cfe9`, the green baseline proven 1273/1273 BEFORE the first change; rebranded S47-draft -> S52 at the hot-window arbitration — the remote's S45..S51 lanes pushed first):**
 
@@ -43,11 +44,11 @@
     lane (862d79ef) with the S51 severe-first lane's convergence addendum (the
     per-slot zeroing pin + the 0x65C4 example-date erratum), findings/FIXED/A-014,
     MATCH).
-  - **SEVERE (3):** **S-055** (carve P28/P1/P3 — the user-sign layer probes BEFORE the
-    built-in table, inverting the M-048/D-104 collision rule; 8 overlap formats flip to
-    device-end extents); **S-056** (carve P16/P28 — `disabled_formats` gates grammar +
-    raw-sign layers but not the user-sign layer; D-104's own registration claim false in
-    code); **S-057** (session/orchestration P36/P31/P32 — the og's stop path runs its
+  - **SEVERE (3):** **S-055** (carve P28/P1/P3 — FIXED session-51 → MATCH: built-in-first
+    restored, the user arm fires only when no built-in survived the filter, the
+    no-reclaim rule pinned, `findings/FIXED/S-055-*`); **S-056** (carve P16/P28 — FIXED
+    session-51 → MATCH: match_at's disabled_exts predicate carries the removal-loop
+    semantics, `findings/FIXED/S-056-*`); **S-057** (session/orchestration P36/P31/P32 — the og's stop path runs its
     own organize into the shared completion handler whose auto-save gates carry no
     stopped-check (DRWUI:1549399-21 → :339076-79 → :612572-87); the core never
     auto-saves a cancelled run, and its comment mis-states the og).
@@ -671,6 +672,7 @@ not-BAAD both sides; FAT quick-scan threading — already registered D-30x).
 | Module | Parameter(s) | Verdict change (evidence in the finding + `evidence/decompiled-quotes/s6-*`) |
 |---|---|---|
 | fat | B4/B5/D11/A29 | **M-052 — FIXED (s24 DFX24 + s35 convergent)** (recycle-bin $I/$R pairing — the shared cr/recycle model wired into the dentry walk; four-root recognition, chain-read $I parse, original-name remap + post-walk fixup; findings/FIXED/M-052) |
+| fat | A10/B-naming/FB-FalsePos | **N-176 — FIXED (S46)** (the LFN illegal-char fallback: the 9-char gate `?*|\/:"<>` in lfn_assemble — a checksum-valid corrupt LFN carrying any of them now takes the 8.3 fallback exactly like a checksum failure; LfnIllegalCharFallsBackTo83 9-iteration pin + LfnValidNameUnchanged; findings/FIXED/N-176) |
 | fat | A10/B-naming | **N-175 — FIXED (S46)** (the NTRes 8.3 display-case fold: short_name_to_u16 takes the nt_reserved byte and applies the og's four-way exact-value switch — 0x00/0x08/0x10/0x18 fold (strupr/strlwr pairs), anything-else raw; ASCII-only, CP437 high half untouched; LFN path unaffected by construction; NtResCaseFoldFourWay 5-path pin + LFN regression pin + the BitLocker NTRes=0 fixture re-pin; findings/FIXED/N-175) |
 | exfat | B1/A25/S35 | **N-067 FIXED s11** (upcase-table validation — og shape gates + checksum32 stream check, soft stats signal; findings/FIXED/); B4/B5/D11 **M-052 FIXED (s24 DFX24 + s35 convergent)** (the FAT-mirrored pairing — bin context through walk + oracle re-walks; findings/FIXED/M-052) |
 | carve | A25/D11/P42 | **S-032 (converged)** (archive inner-file inventories missing) |

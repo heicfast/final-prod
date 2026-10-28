@@ -96,6 +96,14 @@ before the change.
 
 **Landings this lane so far:**
 
+- **M-119 FIXED** (`033b9cdb`) — the og's tolerant partition-boundary semantics at
+  both halves: create clamps an over-long declared window to the device end (delta
+  surfaced; N-046's start-past-device refusal kept), read implements the og ladder
+  (parameter errors refuse; the straddle clamps + full-tail zero-fills + succeeds —
+  the fix-time probe confirmed the ENGINE-side device policy first-hand at
+  FUN_180009290). D-74's read-half superseded (dated addendum; its safety core and
+  the under-zeroed-tail non-adoption kept). CLI warns-with-delta; both cr_ui opens
+  clamp+log. 3 RED-pre-fix tests; suite 1216/1216 with zero engine fallout.
 - **M-128 FIXED** (`2b0184f3`) + **M-129 FIXED** (`55b2fe32`) — the user-sign
   channel's semantics pair: the hex-case superset registered as D-125 (no code
   change — the og's %02X-only text compare is an og machinery defect leaving 11
@@ -125,7 +133,7 @@ before the change.
   Ebr.LinkType085WalksChain / Ebr.LinkType085SameBasisAs05 / Mbr.Extended085NotEmittedAsVolume
   (all RED pre-fix); suite 1164/1164.
 
-**Board after this push (filesystem truth): 67 active — 0 ACUTE · 9 SEVERE · 23 MAJOR ·
+**Board after this push (filesystem truth): 66 active — 0 ACUTE · 9 SEVERE · 22 MAJOR ·
 32 MINOR · 3 INFO** (the parallel lanes' A-014 + I-041..I-044 retirements absorbed at the
 merge; both sides' records kept). Next free IDs unchanged: S-062+, M-138+, N-186+, I-045+.
 
@@ -151,7 +159,13 @@ first-hand; every fix RED-test-first.
   5-path RED→GREEN pin + `NtResFoldLeavesLfnCaseUntouched`; the BitLocker NTRes=0
   fixture caught and re-pinned — the finding's own predicted bench-divergence class).
 
-**Board (filesystem truth, running): 66 active — 0 ACUTE · 9 SEVERE · 27 MAJOR · 30 MINOR · 0 INFO / 72 FIXED files / 6 tracked-open (the S45..S51 window's A-014/M-124/INFO-board landings absorbed at the rebase).**
+- **N-176 FIXED** — the FAT LFN illegal-char fallback (FATSearchDLL :32084-32099
+  re-read first-hand; the 9-char gate `?*|\/:"<>` inside lfn_assemble beside the
+  checksum — a match takes the same 8.3-fallback path; `LfnIllegalCharFallsBackTo83`
+  the 9-iteration RED→GREEN pin + `LfnValidNameUnchanged`; the NUL early-return
+  subtlety preserved in self-review).
+
+**Board (filesystem truth, running): 65 active — 0 ACUTE · 9 SEVERE · 27 MAJOR · 29 MINOR · 0 INFO / 73 FIXED files / 6 tracked-open (the parallel windows' landings absorbed at each rebase).**
 
 # SUMMARY.md — executive summary (the S42 diff-to-fix lane's convergence on top; the prior lanes below, newest-first)
 # SUMMARY.md — executive summary (the S46 MINOR-first fix lane on top — the user's priority-to-minor directive; the prior lanes below, newest-first)
@@ -178,6 +192,18 @@ repaired by the prior lanes).
   PARITY-DELTAS D-134 (the conservative row-level disabled_formats gate; the
   og's IAnalyserFilter callback takes no id — undecodable). 6 tests, 3 groups
   RED pre-fix; suite 1209/1209; the module/matrix rows → MATCH.
+
+- **N-159 FIXED (MINOR, writer+report)** — the failed-files report's
+  tree-classification axis: the og's recovery-log truth (an HTML report,
+  CSaveFailedFilesWithHtml, DRWUI :642669-642892) decoded and landed — the
+  per-item `tree_class` wire axis (six-valued, root-role derived; the
+  wire↔og-label↔core-role table in the schema doc) + the `failed_bytes`
+  totals split (the +0x268 accumulator semantics; enqueue-time refusals
+  excluded, truth rule 5) + the three register repairs (R-58 "text log" →
+  the HTML-report decode; API-DELTA row 21 "NOT IN CORPUS" refuted; the
+  writer-module D13 addendum) + additive-within-v1 per the schema doc's
+  own contract (the finding's version-bump plan corrected). 4 tests
+  RED-first; suite 1243/1243 (1201/42/0). P13/P11/P46/P68 → MATCH.
 # SUMMARY.md — executive summary (the S12 session-2 deep-dive lane on top — sector math / scan-progress math / local database / state management / detection-calculation; the prior lanes below, newest-first)
 
 ## Session-12 S12 lane delta (2026-10-29 — the session-2 continuation audit per the user's second-session directive: remove-the-fixed + go-deeper, special focus on sector numbers / scanning / accurate detection / calculation / no-stuck-or-freeze / local database / state management; core `869da779` at open → rebased through the parallel windows to push at `f85def0f`, corpus `be0cfe9`)
@@ -209,13 +235,16 @@ wins over the parallel S42 lanes' consumed seats M-118..122/N-154..160/I-037..03
   timestamps (cr_fat_wire.h:123-142) where the og zeroes the slot via
   `DosDateTimeToFileTime` failure (FAT:32135-54). Wrong metadata in output data, on the
   corrupt-dentry population recovery targets.
-- **S-055 (SEVERE)** — the user-sign layer probes BEFORE the built-in raw-sign table
-  (cr_carve.cpp:738-808 vs :830), inverting the M-048/D-104 collision rule its own
-  comment states; the 8 overlap formats (amr/cap/class/cpl/flac/msf/pdb/wpl) flip to
-  device-end extents on the default path.
-- **S-056 (SEVERE)** — `disabled_formats` gates the grammar and raw-sign layers but not
-  the user-sign layer — D-104's "same format-toggle rules" registration claim is false
-  in code.
+- **S-055 (FIXED session-51)** — the user-sign layer probed BEFORE the built-in raw-sign
+  table, inverting the M-048/D-104 collision rule its own comment stated; the 8 overlap
+  formats (amr/cap/class/cpl/flac/msf/pdb/wpl) flipped to device-end extents on the
+  default path. Built-in-first restored (the user arm fires only when no built-in
+  survived the disabled-format filter; the zero-skip guards the built-in arm only; the
+  grammar-rejected no-reclaim rule decided + pinned via the bounded rejected_at set).
+- **S-056 (FIXED session-51)** — `disabled_formats` gated the grammar and raw-sign
+  layers but not the user-sign layer — D-104's "same format-toggle rules" registration
+  claim was false in code. match_at's disabled_exts predicate now carries the og's
+  removal-loop semantics (a disabled ext's signs never fire; sibling signs still can).
 - **S-057 (SEVERE)** — the og auto-saves STOPPED scans (stop-organize
   "Scan stopped and found %1 files." → the shared completion handler
   FUN_140395e50 whose gates carry no stopped-check, DRWUI:1549399/:339076/:612572-87);
