@@ -344,10 +344,10 @@ Exit: 0 listed (unreadable files are per-row data, never a failure) /
 ### c.4 `scan` (rrecov.cpp:1064-1687)
 | Flag | Semantics |
 |---|---|
-| `--disk N` | whole-disk target; driver-only transport (open_disk_view — the grammar path is the only leg, PLAN-DRIVER-ONLY R1) |
+| `--disk N` | whole-disk target; driver-only transport (open_disk_view — the grammar path is the only leg, PLAN-DRIVER-ONLY R1). S-051: a whole-disk scan ALWAYS builds its volume targets from the partition table (the og's CDoScanPartition flow — every used non-container entry probed per-target, scanned under per-volume display-name roots; a volume with no readable filesystem is skipped honestly and counted in table_volume_skipped; a table-less disk keeps the single-slice dispatch) |
 | `--volume C:` | volume target: BitLocker gate (fvek/dict/auto-unlock), extent map, parent disk, PartitionSlice, optional XTS wrap |
 | `--image file` | S-030 image target (.vmdk/.vhd/.vhdx/.img/.dmg/raw; .edisk refused) |
-| `--whole-disk` | lost-partition discovery (N-044 honest name; needs --disk) |
+| `--whole-disk` | ADDS lost-partition discovery on top of the always-on table-volume targets (N-044 honest name; needs --disk; S-051's reconciliation drops discovery candidates whose start LBA matches an already-scanned table volume — no double scan) |
 | `--deep` | deprecated alias of --whole-disk with a note (rrecov.cpp:1256) |
 | `--quick-only` | disables deep + carve (deep is ALWAYS on otherwise) |
 | `--no-carve` | disables carve stage |

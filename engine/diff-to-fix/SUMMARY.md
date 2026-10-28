@@ -114,6 +114,48 @@ infrastructure function-level walk, the og config/data assets, the seven
 non-searchdll ghidra trees' never-cited space, the core stand-in register) file
 below this block as they land.
 
+# SUMMARY.md — executive summary (the session-11D fix lane on top: the diff-TO-FIX execution)
+## Session-11D fix lane (2026-10-29 — lane D, the diff-TO-FIX execution session; first landings)
+
+**Fixed this wave (this lane, verified against corpus `be0cfe9`):**
+- **A-012 (ACUTE, DISCOVERED during S-051's verification)** — the 81ee9775
+  rebase-window sweep dropped M-093's FMT_SVG carve-registry row (kTable 119
+  vs FMT_COUNT 120): the F8 gate hard-downed EVERY `carve_slice` call with
+  ERR_BAD_PARAMETER on all of main (`RegistryF8Gate` RED at `bcf31316`,
+  reproduced first-hand; the row restored verbatim from `ca701711`; GREEN
+  post-fix; the parallel lanes' 9 residual clang-format violations swept in
+  the same commit). Full evidence:
+  `findings/ACUTE/A-012-carve-registry-lost-fmt-svg-row-in-rebase-sweep.md`.
+- **S-051 (SEVERE) FIXED** — the whole-disk scan now builds per-volume
+  targets from the partition table (the og's CDoScanPartition flow,
+  architecture/04 §3.4): every used non-container entry probed per-target,
+  scanned under its display-name root, skipped-honestly when no filesystem
+  (counted in `table_volume_skipped`), never double-scanned (discovery's
+  table-match candidates for scanned targets dropped). The executed RUN 2
+  (rc=0 + 0 files on the healthy two-volume fixture) reproduced at session
+  open, then fixed: rc=0, files=4, deleted=2, VOLONE/VOLTWO roots. 8
+  `Orchestrator.WholeDisk*` tests + 2 `FatEngine.ReadVolumeLabel*`.
+- **M-104 (MAJOR) FIXED** (rides S-051's builder) — the display-name tiers:
+  the FAT boot-sector label → the `NTFS @ <LBA>` FS marker → the anonymous
+  form (last resort, now reserved for genuinely-lost candidates); one tree
+  per volume with deleted-as-flag; names round-trip through the session.
+  The NTFS/ext4/exFAT label decodes compose via N-133's landing (MINOR tier).
+- **Conventions**: the second committed FIXED-LEDGER conflict (the N-093/
+  M-096 rebase's unswept markers) resolved both-rows-kept per the 64a3b18
+  convention; the go-forward finding-file convention now carries the
+  resolved files in `findings/FIXED/` per the user's instruction.
+
+**Board after this wave (merged over the parallel S11/39/40 lanes' 34-commit
+window, re-counted at the filesystem truth post-rebase): 53 active
+(6 SEVERE · 17 MAJOR · 24 MINOR · 6 INFO)** / 301 ledger rows (279 finding
+rows + 22 OQ) / 3 tracked-open. This lane's suite proof at its tree:
+**1105/1105** green; clang-format 18.1.8 clean over src/include/tests. Next
+free IDs: S-053+, M-113+, N-143+, I-031+, A-013+. (The count reconciliations
+with the parallel lanes' own close-line counts ride the next conform pass —
+the remote's 602dd170 claimed 299 rows pre-this-landing; +A-012/S-051/M-104
+= 302 data rows by the row-pattern count, the drift recorded for the next
+whole-table re-count.)
+
 ---
 
 # SUMMARY.md — executive summary (the SA-10 lane on top: the triage + reconciliation over the hot parallel window; SA-10B and the fix/closing lanes below)

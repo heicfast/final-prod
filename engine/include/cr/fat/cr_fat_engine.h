@@ -61,6 +61,20 @@ Flavor flavor_from_clusters(u32 cluster_count_data);
  * the deep-scan gates - N-010b/N-034). */
 u32 validate_boot(const u8* sector512, u64 device_bytes, FatParams& out);
 
+/* S-051/M-104 (diff-to-fix): the FAT-family volume label decoded from the
+ * boot sector - the on-disk label (FAT12/16 +0x2B, FAT32 +0x47; 11 bytes,
+ * space-padded), trimmed of trailing pad spaces. The og's scan flow reads
+ * each volume's label as the target's display name (the real G session's
+ * depth-1 roots are the volumes' own labels - "Local Disk(G:)",
+ * "System Reserved"; evidence/executions/s10-wholedisk-scan-targets.md).
+ * validate_boot gates the decode: a non-FAT slice returns an error and
+ * the caller falls to its next naming tier (the FS-type string, then the
+ * LBA form - modules/orchestration.md). One 512-byte read; the label is
+ * ASCII (codepage 437 in practice) - carried as-is into u16. An all-space
+ * or all-zero label returns ERR_BAD_PARAMETER (the honest "no label" -
+ * never a blank display name). */
+u32 read_volume_label(IStorageDevice* slice, std::u16string& out);
+
 /* Engine-open gates (N-010b, diff-to-fix): the og's FATSearchDLL boot
  * validator FUN_18002f970 + its quick-search consumer FUN_180021000
  * (:26318 bails on flavor 0xE). Layered on top of validate_boot's

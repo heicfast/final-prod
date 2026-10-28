@@ -740,5 +740,38 @@ int lost_boot_flavor(const u8* sector512) {
     return 0;
 }
 
+u32 read_volume_label(IStorageDevice* slice, std::u16string& out) {
+    /* S-051/M-104 (diff-to-fix): the boot-sector label - one read, gated
+     * by validate_boot (the same structural gate probe_family's FAT leg
+     * applies, so the label decode never fires on a non-FAT slice). The
+     * 11-byte field is space-padded; the trim keeps interior spaces
+     * (real labels carry them: "MY DISK   "). All-space/all-zero (a
+     * label-less volume - the real H session's ` (H:)` form) is the
+     * honest ERR_BAD_PARAMETER so the caller takes its fallback tier. */
+    if (slice == nullptr)
+        return ERR_BAD_PARAMETER;
+    u8 sec[512];
+    if (slice->read_at(0, sec, sizeof(sec)) != OK)
+        return ERR_READ_FAILED;
+    FatParams p;
+    if (validate_boot(sec, slice->size(), p) != OK)
+        return ERR_BAD_MAGIC;
+    const u8* field = p.flavor == Flavor::Fat32 ? sec + 0x47 : sec + 0x2B;
+    size_t end = 11;
+    while (end > 0 && (field[end - 1] == ' ' || field[end - 1] == 0))
+        --end;
+    if (end == 0)
+        return ERR_BAD_PARAMETER; /* label-less volume */
+    out.clear();
+    out.reserve(end);
+    for (size_t i = 0; i < end; ++i) {
+        u8 c = field[i];
+        if (c == 0)
+            c = ' '; /* interior NULs in a torn label read as spaces */
+        out.push_back(u16(c));
+    }
+    return OK;
+}
+
 } // namespace fat
 } // namespace cr

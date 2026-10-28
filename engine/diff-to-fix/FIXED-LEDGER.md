@@ -367,11 +367,22 @@ belongs to the fix lane; this census is the audit-side truth record.
 | N-100 | MINOR | (session-38; the +0x60 carrier landed as nflags bit-9 with the sparse-zeroing rule — Resolution + RED/GREEN proof in history at the N-100 commit) | (this session) | `findings/MINOR/N-100-ntfs-0x60-total-clusters-not-persisted.md` |
 | N-136 | MINOR | session/abi | fce38c3-lineage (renumbered from the N-128 ID collision per the SA-9 earlier-remote-push rule - the capability-matrix N-128 keeps the ID) | `findings/MINOR/N-128-session-list-cwd-dir-composes-prefixed-paths.md` (renamed N-136 in history) |
 | N-134 | MINOR | register (the product-frame census) | FIXED-ALREADY at `b202f9ed` (the six rows pre-dated the filing by 6.5h; retired session-11B with the sfc addenda preserved) | `findings/FIXED/N-134-product-frame-register-completion.md` |
-| N-093 | MINOR | (session-38; the og's four bound pairs carried — the pin + MID behavioral pair RED→GREEN; Resolution in history at the N-093 commit) | (this session) | `findings/MINOR/N-093-batch1-bounds-mid-gz.md` |
+| N-093 | MINOR | (session-38; the og's four bound pairs carried — the pin + MID behavioral pair RED→GREEN; Resolution in history at the N-093 commit) | 03ad5523 (session-11C — the real SHA; this lane's repair of the "(this session)" placeholder) | `findings/MINOR/N-093-batch1-bounds-mid-gz.md` |
 | N-111 | MINOR | carve | (session-39 fix lane — cite-by-title: "fix(carve): N-111 - the JP2 family lands") | `findings/FIXED/N-111-jp2-carve-absent-jp-signature-ftyp-brand-map-decoded.md` |
 
-## Go-forward convention (established by this purge, per the user instruction; AMENDED session-39 per the session-39 user instruction "put fixed findings in fixed directory")
+## Go-forward convention (established by this purge, per the user instruction; AMENDED session-39 AND session-11D — BOTH fix lanes received the same user instruction "put fixed findings in fixed directory")
 
+**The current convention (the session-11D fix lane, per the user's explicit
+instruction "put fixed findings in fixed directory"):** fix lanes resolving
+a finding: (1) record the Resolution section in the finding file, (2) append
+the row to this ledger (ID / severity / fix commit / path), (3) `git mv`
+the resolved file into `diff-to-fix/findings/FIXED/` — the directory now
+EXISTS on main and carries the resolved files with their Resolutions.
+The active board stays under `findings/{ACUTE,SEVERE,MAJOR,MINOR,INFORMATIONAL}`;
+`findings/FIXED/` is the resolved archive; this ledger is the index. (The
+earlier purge-to-history convention below is dated history.)
+
+**(dated history — the SA-10B purge convention, superseded by the above):**
 Fix lanes resolving a finding: (1) record the Resolution section in the
 finding file, (2) append the row to this ledger (ID / severity / fix commit /
 resolved path), (3) **session-39 amendment: `git mv` the file into
@@ -387,3 +398,6 @@ findings; this ledger is the index. A finding moved into a re-created
 lane will retire it again.
 
 | S-041 | SEVERE | carve (the batch-2 umbrella) | school-1 `b92ebef` + M-081 `9e5dedc` + M-090 `9daa787` + M-084/M-091 `8a7055ea` (the 771e2ec/16475b8 tokens were pre-rebase phantoms, repaired session 39) | `findings/SEVERE/S-041-s007-batch2-carve-remainder.md` (FIXED-as-umbrella, SA-10 — school 1 landed as code `b92ebef`; CRW/MRW/LowDoc/HLP `9e5dedc`; DMG `9daa787` + MDB `8a7055ea` + MTS/M2TS `a3abfbe` resolved mid-flight; the still-open school-2/3 formats child-filed: M-092, M-093, M-096, M-098, M-099, N-111, N-112, N-113, N-115; the ONE/3DS walk follow-ups owned by M-106. The S-007 precedent: the umbrella closes when every remainder has its own owner. Full Resolution record in the retired file.) |
+| A-012 | ACUTE | carve (the signature registry) | CONVERGENT — the parallel S11 lane's `e4273f2b` pushed first and stands; this lane's independent fail-before record in the file | `findings/FIXED/A-012-carve-registry-lost-fmt-svg-row-in-rebase-sweep.md` (DISCOVERED during S-051's verification: the 81ee9775 rebase-window sweep dropped M-093's FMT_SVG row — kTable 119 vs FMT_COUNT 120, the F8 gate hard-downed every carve_slice call with ERR_BAD_PARAMETER on all of main; RegistryF8Gate RED at bcf31316 → GREEN; full Resolution in the file) |
+| S-051 | SEVERE | orchestration (the whole-disk scan targets) | (this session, lane D — the partition-list target builder + the no-double-scan reconciliation) | `findings/FIXED/S-051-wholedisk-scan-targets-absent-silent-empty.md` (the og's CDoScanPartition flow: every used non-container table entry a per-volume target under its display-name root; skip-honesty counters; RUN 2 reproduced → fixed: rc=0 files=4 deleted=2 on the two-volume fixture; 8 Orchestrator tests + 2 FatEngine label tests; full Resolution in the file) |
+| M-104 | MAJOR | orchestration / tree (the whole-disk volume roots) | (this session, lane D — the display-name tiers + the known-vs-lost distinction, riding S-051's builder) | `findings/FIXED/M-104-wholedisk-volume-roots-anonymous-candidates.md` (tier 1 the FAT boot-sector label / tier 2 the FS-marker "NTFS @ <LBA>" / tier 3 the anonymous form reserved for genuinely-lost candidates only; one tree per volume; the round-trip test; full Resolution in the file) |

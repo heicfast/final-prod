@@ -1317,7 +1317,12 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
             /* N-044: the honest name. The og's "Deep Scan" toggle means the
              * complete-searcher engine pass - which this CLI ALWAYS runs;
              * this flag instead enables whole-disk lost-partition discovery.
-             * The deep stage is always on; --quick-only disables it. */
+             * The deep stage is always on; --quick-only disables it.
+             * S-051: the table's own volumes are ALWAYS scan targets now
+             * (the og's CDoScanPartition flow reads the partition list at
+             * scan setup) - this flag only adds the LOST-partition sweep
+             * on top; a plain --disk scan already finds every in-table
+             * volume. */
             cfg.whole_disk = true;
             continue;
         }

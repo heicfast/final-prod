@@ -382,4 +382,202 @@ struct StripeDisk {
 } // namespace testfixture
 } // namespace cr
 
+/* ---------------------------------------------------------------- */
+/* S-051/M-104 (diff-to-fix): the whole-disk partition-list target   */
+/* fixtures - a two-volume MBR disk, a GPT twin, and the labeled     */
+/* FAT16 volume they plant (the executed evidence's own shape:        */
+/* diff-to-fix/evidence/executions/s10-wholedisk-fixture-builder.py,  */
+/* two type-0x0E FAT16 volumes with VOLONE/VOLTWO labels, one live +  */
+/* one deleted file each).                                           */
+/* ---------------------------------------------------------------- */
+namespace cr {
+namespace testfixture {
+
+inline void put16le(u8* p, u16 v) {
+    p[0] = u8(v);
+    p[1] = u8(v >> 8);
+}
+inline void put32le(u8* p, u32 v) {
+    p[0] = u8(v);
+    p[1] = u8(v >> 8);
+    p[2] = u8(v >> 16);
+    p[3] = u8(v >> 24);
+}
+
+/* A minimal labeled FAT16 volume: boot sector (label at +0x2B), one FAT,
+ * one root-dir block, DOC.TXT (live) + DELFILE.TXT (deleted). Mirrors the
+ * evidence builder's shape but stays self-contained for the unit suite.
+ * Returns the volume image; vol_secs_out (optional) receives its sector
+ * count. The label is space-padded to 11 like the on-disk field. */
+inline std::vector<u8> build_labeled_fat16(const char* label, u64* vol_secs_out = nullptr) {
+    constexpr u32 BPS = 512, SPC = 1, RESERVED = 1, SPF = 66, ROOT_ENTRIES = 512;
+    const u32 root_secs = (ROOT_ENTRIES * 32 + BPS - 1) / BPS;
+    const u32 total = RESERVED + SPF + root_secs + 16384 * SPC;
+    std::vector<u8> vol(u64(total) * BPS, 0);
+    u8* b = vol.data();
+    b[0] = 0xEB;
+    b[1] = 0x3C;
+    b[2] = 0x90;
+    std::memcpy(b + 3, "MSDOS5.0", 8);
+    put16le(b + 0x0B, BPS);
+    b[0x0D] = SPC;
+    put16le(b + 0x0E, RESERVED);
+    b[0x10] = 1; /* one FAT */
+    put16le(b + 0x11, ROOT_ENTRIES);
+    put16le(b + 0x16, SPF);
+    put16le(b + 0x18, 63);
+    put16le(b + 0x1A, 255);
+    put16le(b + 0x20, u16(total)); /* total16 (fits: ~16482) */
+    b[0x15] = 0xF8;
+    /* the 11-byte label, space padded */
+    char lbl[11] = {' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '};
+    for (int i = 0; i < 11 && label[i]; ++i)
+        lbl[i] = label[i];
+    std::memcpy(b + 0x2B, lbl, 11);
+    std::memcpy(b + 0x36, "FAT16   ", 8);
+    b[510] = 0x55;
+    b[511] = 0xAA;
+
+    const u32 fat_off = RESERVED * BPS;
+    const u32 root_off = (RESERVED + SPF) * BPS;
+    const u32 data_off = root_off + root_secs * BPS;
+    put16le(vol.data() + fat_off + 0, 0xFFF8);
+    put16le(vol.data() + fat_off + 2, 0xFFFF);
+    put16le(vol.data() + fat_off + 4, 0xFFFF); /* cluster 2: DOC.TXT */
+    put16le(vol.data() + fat_off + 6, 0xFFFF); /* cluster 3: DELFILE.TXT */
+
+    auto dentry = [&](size_t slot, const char* n8, const char* e3, u32 cl, u32 sz, bool del) {
+        u8* e = vol.data() + root_off + slot * 32;
+        std::memset(e, 0, 32);
+        for (int i = 0; i < 8; ++i)
+            e[i] = u8(n8[i]);
+        for (int i = 0; i < 3; ++i)
+            e[8 + i] = u8(e3[i]);
+        if (del)
+            e[0] = 0xE5;
+        e[11] = 0x20;
+        put16le(e + 0x1A, u16(cl));
+        put16le(e + 0x1C, u16(sz));
+    };
+    dentry(0, "DOC     ", "TXT", 2, 11, false);
+    dentry(1, "DELFILE ", "TXT", 3, 9, true);
+    std::memcpy(vol.data() + data_off, "HELLO CORE", 10);
+    std::memcpy(vol.data() + data_off + BPS, "DELETED!!", 9);
+    if (vol_secs_out)
+        *vol_secs_out = total;
+    return vol;
+}
+
+/* The S-051 evidence shape: an MBR disk with TWO type-0x0E FAT16 volumes
+ * (labels l1/l2), each with one live + one deleted file. Both partitions'
+ * start LBAs land in start1_out/start2_out when provided. */
+inline std::vector<u8> build_two_volume_mbr_disk(const char* l1, const char* l2,
+                                                 u64* start1_out = nullptr,
+                                                 u64* start2_out = nullptr) {
+    u64 s1_secs = 0, s2_secs = 0;
+    auto v1 = build_labeled_fat16(l1, &s1_secs);
+    auto v2 = build_labeled_fat16(l2, &s2_secs);
+    const u64 p1_start = 2048, p2_start = p1_start + s1_secs;
+    const u64 disk_secs = p2_start + s2_secs + 2048;
+    std::vector<u8> img(disk_secs * 512, 0);
+    std::memcpy(img.data() + p1_start * 512, v1.data(), v1.size());
+    std::memcpy(img.data() + p2_start * 512, v2.data(), v2.size());
+    u8* mbr = img.data();
+    auto pentry = [&](u64 start, u64 secs, int idx) {
+        u8* e = mbr + 446 + idx * 16;
+        e[0] = 0x00;
+        e[1] = 0x20;
+        e[2] = 0x21;
+        e[3] = 0x00;
+        e[4] = 0x0E; /* FAT16 LBA */
+        e[5] = 0x20;
+        e[6] = 0x21;
+        e[7] = 0x00;
+        put32le(e + 8, u32(start));
+        put32le(e + 12, u32(secs));
+    };
+    pentry(p1_start, s1_secs, 0);
+    pentry(p2_start, s2_secs, 1);
+    mbr[510] = 0x55;
+    mbr[511] = 0xAA;
+    if (start1_out)
+        *start1_out = p1_start;
+    if (start2_out)
+        *start2_out = p2_start;
+    return img;
+}
+
+/* The GPT twin: same two FAT16 volumes, a valid GPT header + entry array
+ * (both CRCs computed), a protective MBR. start1/start2 in the outputs. */
+inline std::vector<u8> build_two_volume_gpt_disk(const char* l1, const char* l2,
+                                                 u64* start1_out = nullptr,
+                                                 u64* start2_out = nullptr) {
+    u64 s1_secs = 0, s2_secs = 0;
+    auto v1 = build_labeled_fat16(l1, &s1_secs);
+    auto v2 = build_labeled_fat16(l2, &s2_secs);
+    const u64 p1_start = 2048, p2_start = p1_start + s1_secs;
+    const u64 disk_secs = p2_start + s2_secs + 4096;
+    std::vector<u8> img(disk_secs * 512, 0);
+    std::memcpy(img.data() + p1_start * 512, v1.data(), v1.size());
+    std::memcpy(img.data() + p2_start * 512, v2.data(), v2.size());
+    /* protective MBR */
+    u8* mbr = img.data();
+    u8* e = mbr + 446;
+    e[0] = 0x00;
+    e[1] = 0x00;
+    e[2] = 0x02;
+    e[3] = 0x00;
+    e[4] = 0xEE;
+    e[5] = 0xFF;
+    e[6] = 0xFF;
+    e[7] = 0xFF;
+    put32le(e + 8, 1);
+    put32le(e + 12, u32(disk_secs - 1));
+    mbr[510] = 0x55;
+    mbr[511] = 0xAA;
+    /* partition entries at LBA 2 (2 x 128B = fits one sector) */
+    constexpr u8 GPT_TYPE_BASIC_DATA[16] = {0xA2, 0xA0, 0xD0, 0xEB, 0xE5, 0xB9, 0x33, 0x44,
+                                            0x87, 0xC0, 0x68, 0xB6, 0xB7, 0x26, 0x99, 0xC7};
+    u8* ents = img.data() + 2 * 512;
+    auto gpt_entry = [&](int idx, u64 first, u64 last) {
+        u8* p = ents + idx * 128;
+        std::memcpy(p, GPT_TYPE_BASIC_DATA, 16);
+        /* unique GUID: the same bytes with the last byte bumped */
+        std::memcpy(p + 16, GPT_TYPE_BASIC_DATA, 16);
+        p[31] = u8(0xC7 + idx);
+        put32le(p + 32, u32(first));
+        put32le(p + 36, 0);
+        put32le(p + 40, u32(last));
+        put32le(p + 44, 0);
+        p[48] = 0; /* attrs */
+    };
+    gpt_entry(0, p1_start, p1_start + s1_secs - 1);
+    gpt_entry(1, p2_start, p2_start + s2_secs - 1);
+    const u32 ents_crc = table::crc32(ents, 256);
+    /* GPT header at LBA 1 */
+    u8* h = img.data() + 512;
+    std::memcpy(h, "EFI PART", 8);
+    put32le(h + 8, 0x00010000);
+    put32le(h + 12, 92);
+    put32le(h + 16, 0); /* header CRC, patched after */
+    put32le(h + 24, 1); /* current LBA */
+    put32le(h + 32, u32(disk_secs - 1));
+    put32le(h + 40, 2);                   /* first usable */
+    put32le(h + 48, u32(disk_secs - 34)); /* last usable (low dword; disk is small) */
+    put32le(h + 72, 2);                   /* entries start LBA */
+    put32le(h + 80, 2);                   /* num entries */
+    put32le(h + 84, 128);                 /* entry size */
+    put32le(h + 88, ents_crc);
+    const u32 hdr_crc = table::crc32(h, 92);
+    put32le(h + 16, hdr_crc);
+    if (start1_out)
+        *start1_out = p1_start;
+    if (start2_out)
+        *start2_out = p2_start;
+    return img;
+}
+
+} // namespace testfixture
+} // namespace cr
+
 #endif // CR_TEST_FIXTURES_HPP_

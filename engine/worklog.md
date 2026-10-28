@@ -3705,3 +3705,72 @@ Work Log:
   Next free IDs: S-054+, M-113+, N-143+, I-033+, A-012+.
 - The N-129→N-135 renumber and the M-102/M-083 retirement from this lane's earlier
   push stand (743d7b8d lineage; the remote lanes' truth commits cite them).
+
+
+---
+## Session-11D wave 1, part 2 (2026-10-29 — S-051 + M-104: the whole-disk partition-list targets + the display-name roots)
+
+Task ID: S11D/W1 (cont. — one coherent landing; M-104's presentation rides S-051's
+target builder per both finding files' own cross-references)
+Agent: session-11D fix lane
+
+**S-051 (SEVERE → FIXED)** — the silent empty whole-disk scan:
+- **Verified first**: the corpus citations re-read (architecture/04 §2 routing +
+  §3.4 "reads the partition list"; the insertion trace at
+  DRWUI_decompiled.c:904076/:904198 first-hand) and the executed RUN 2
+  reproduced at session open on the current main (rc=0, files=0, the empty
+  four-root tree — the probe output quoted in this session's earlier entry).
+  CONFIRMED-DIVERGENCE.
+- **Fix**: `run_engine_pass`'s partition-list target block (cr_scan.cpp) —
+  whole-disk basis + unforced hint ⇒ the table parsed, every used
+  non-container non-LDM entry a `PartitionSlice` target over the read pipe,
+  per-target `probe_family`, `scan_candidate` under the volume's own root,
+  F-1 subtree rebase (the candidate fan-out's pattern), skip-honesty counters
+  (`ScanStats.table_volume_targets` / `table_volume_skipped`), a per-target
+  Info/Warn log line (the og's insertion-trace analog). The deep stage's
+  discovery drops candidates matching a scanned target's LBA (the
+  no-double-scan reconciliation; honestly-skipped targets stay
+  discoverable — the og's additional-not-replacement semantics). The LDM
+  block keeps precedence; superfloppy and forced-hint paths unchanged (RUN 3
+  control re-executed, with the evidence file's ERR_OPEN_FAILED annotation
+  corrected to ERR_BAD_PARAMETER — 0x50030003's true name).
+- **The naming primitive** (M-104's tier 1): `fat::read_volume_label`
+  (cr_chain.cpp + cr_fat_engine.h) — validate_boot-gated, +0x2B/+0x47 by
+  flavor, trailing-pad trim, label-less refusal (never a blank name).
+- **Tests (all fail-before by construction — the stats fields, roots and
+  helpers did not exist)**: `Orchestrator.WholeDiskScansTableVolumes` (the
+  RUN 2 shape flipped: files 4, deleted 2, targets 2, DOC.TXT ×2),
+  `WholeDiskGptTwin` (the GPT entry array drives the same targets; both
+  CRCs computed in the fixture), `WholeDiskMixedFamilies` (FAT + NTFS
+  per-target dispatch; the tier-2 `NTFS @ <LBA>` name),
+  `WholeDiskDamagedVolumeSkippedHonestly` (skip counted, rc OK),
+  `WholeDiskSuperfloppyUnchanged` (no table ⇒ Found-root behavior pinned),
+  `WholeDiskNoDoubleScan` (lost_partitions 0, zero anonymous roots),
+  `WholeDiskVolumeRootsCarryDisplayNames` (VOLONE/VOLTWO; the deleted file
+  under the same root, flagged), `WholeDiskKnownVsLostDistinguishable`
+  (in-table label root vs exactly one discovery candidate),
+  `WholeDiskVolumeRootNamesRoundTripSession` (the names persist + reload),
+  `FatEngine.ReadVolumeLabelDecodesBootSector` / `ReadVolumeLabelRejectsLabelLessAndNonFat`.
+  Shared fixtures: test_fixtures.hpp's `build_labeled_fat16` /
+  `build_two_volume_mbr_disk` / `build_two_volume_gpt_disk` (the evidence
+  builder's shape, self-contained for the suite; S-048/M-103 reuse them).
+- **Pass-after**: the evidence probe's RUN 1/2/3 re-executed: RUN 1 rc=0,
+  files=4, deleted=2, VOLONE/VOLTWO roots, lost_partitions=0; RUN 2 the
+  same files under the display-name roots (THE finding's acceptance:
+  files_found=4 / deleted_found=2 with rc=0); RUN 3 the honest
+  forced-hint failure unchanged. Full suite **1105/1105**; the
+  whole-disk lost-partition suite (Lost.*) green unchanged — `discover()`'s
+  own contract untouched (the filter lives one site above it).
+- **M-104 (MAJOR → FIXED)** — rides the same landing; the naming tiers, the
+  known-vs-lost distinction, the one-tree-per-volume shape, the session
+  round-trip. Honest residuals recorded in its Resolution: the FS-marker
+  ROW (corpus-ambiguous per the finding's open question) and the standard-
+  root narrowing stay the S-048/M-103 wave's scope; the NTFS/ext4/exFAT
+  label decodes compose via N-133 (MINOR tier, next).
+- **Trail**: S-051 + M-104 moved to `findings/FIXED/` with Resolutions (the
+  user's fixed-directory instruction; the ledger's go-forward convention
+  updated); the ledger's SECOND committed merge conflict (the N-093/M-096
+  rebase's unswept markers — the same class lane-B swept at bc4513db)
+  resolved both-rows-kept (N-136 + N-093 with its real SHA 03ad5523); the
+  matrix rows flipped to MATCH; A-012's rows added; SUMMARY counts: **51
+  active (5 SEVERE · 20 MAJOR · 21 MINOR · 5 INFO) / 288 ledger rows**.

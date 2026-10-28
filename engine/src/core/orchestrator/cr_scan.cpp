@@ -1323,6 +1323,68 @@ struct EngineRun {
     storage::FreeMap free_map; /* S-009: the bitmap truth (main pass only) */
 };
 
+/* S-051/M-104 (diff-to-fix): the whole-disk flow's per-volume display
+ * name. The og's scan-setup insertion trace carries each target's NAME
+ * ("Insert lost partition %s, ...", DRWUI_decompiled.c:904076) and the
+ * real sessions persist every volume under its display name ("Local
+ * Disk(G:)", "System Reserved (NTFS)" - the depth-1 census in
+ * evidence/executions/s10-wholedisk-scan-targets.md). Naming tiers per
+ * M-104's fix plan: (1) the on-disk volume label - the FAT families
+ * decode it from the boot sector (fat::read_volume_label); the
+ * NTFS/$Volume, ext4/s_volume_name and exFAT/root-dir label decodes are
+ * N-133's landing and compose here unchanged when they land; (2) the
+ * FS-type string with the position ("NTFS @ 2048" - the og's own
+ * no-letter fallback shape carries the FS in the name);
+ * (3) the anonymous LBA form - the last resort ONLY, never the default
+ * (M-104's own acceptance). */
+std::u16string volume_target_name(IStorageDevice* target, FsFamily fam, u64 start_lba) {
+    if (fam == FsFamily::Fat) {
+        std::u16string label;
+        if (fat::read_volume_label(target, label) == OK)
+            return label;
+    }
+    const char* fs = "Unknown";
+    switch (fam) {
+    case FsFamily::Ntfs:
+        fs = "NTFS";
+        break;
+    case FsFamily::Fat:
+        fs = "FAT";
+        break;
+    case FsFamily::Exfat:
+        fs = "exFAT";
+        break;
+    case FsFamily::Ext4:
+        fs = "EXT";
+        break;
+    case FsFamily::Hfsplus:
+        fs = "HFS+";
+        break;
+    case FsFamily::Btrfs:
+        fs = "Btrfs";
+        break;
+    case FsFamily::Refs:
+        fs = "ReFS";
+        break;
+    case FsFamily::Zfs:
+        fs = "ZFS";
+        break;
+    case FsFamily::Udf:
+        fs = "UDF";
+        break;
+    case FsFamily::BitLocker:
+        fs = "BitLocker";
+        break;
+    case FsFamily::Unknown:
+    case FsFamily::Reserved5:
+        break; /* Reserved5 is never produced by probe_family (the anchor
+                * value); Unknown callers never reach the marker tier */
+    }
+    char ascii[48];
+    snprintf(ascii, sizeof(ascii), "%s @ %llu", fs, (unsigned long long)start_lba);
+    return text::utf8_to_u16(ascii);
+}
+
 EngineRun run_engine_dispatch(FsFamily fam, IStorageDevice* slice, bool deep_extras,
                               bool candidate_mode, CancelToken* cancel,
                               bool (*progress)(u64, u64, void*), void* pu, tree::ResultTree& tree,
@@ -1517,6 +1579,97 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
             return OK;
         }
     }
+    /* S-051 (diff-to-fix): the og's disk-level flow reads the partition
+     * list at scan setup and makes every table volume a scan target
+     * (architecture/04-recovery-workflow.md §2: disk -> CDoScanPartition
+     * -> CGenericRecoveryController; §3.4: "reads the partition list",
+     * the 0xa8-stride insertion loop at DRWUI_decompiled.c:904076/
+     * :904198). The core previously probed LBA 0 of the whole-disk
+     * slice, found the MBR (no FS signature), returned Unknown and the
+     * dispatch default completed rc=0 with ZERO files on any healthy
+     * partitioned disk (the executed RUN 2, evidence/executions/
+     * s10-wholedisk-scan-targets.md). Fires only on the whole-disk
+     * basis (absolute_base == 0) with an unforced family hint; a
+     * host-forced hint keeps the direct-dispatch semantics (the honest
+     * open failure RUN 3 pins), and a table-less disk (superfloppy)
+     * falls through to the single-slice dispatch unchanged. */
+    if (cfg_.fs_hint == FsFamily::Unknown && slice->absolute_base() == 0) {
+        errmod::Guard tbl_guard(errmod::kOrchestrator);
+        publish_owner_module_(errmod::kOrchestrator);
+        table::DiskTable t;
+        if (table::parse_disk_table(slice, t) == OK) {
+            /* scannable targets: used, non-container entries (the EBR
+             * chain already flattened logical volumes; the og's
+             * partition list carries every volume the same way).
+             * LDM entries are the LDM block's own (probed above); MSR/
+             * BIOS-boot (FsKind::Reserved) stay in the target set and
+             * their content probe skips them honestly - a Windows
+             * Recovery partition (0x27) is Reserved but IS a volume. */
+            struct VolTarget {
+                std::unique_ptr<IStorageDevice> slice;
+                tree::FullNode* root;
+                FsFamily fam;
+            };
+            std::vector<VolTarget> targets;
+            std::vector<VolTarget> skipped; /* probed no FS: counted, no root */
+            const Geometry& g = slice->geometry();
+            for (const auto& p : t.partitions) {
+                if (!p.used || p.sector_count == 0 || p.fs == table::FsKind::Extended ||
+                    p.fs == table::FsKind::Protective || p.fs == table::FsKind::Ldm)
+                    continue;
+                u32 err = 0;
+                auto vslice = PartitionSlice::create(slice, p.start_lba * g.logical_sector,
+                                                     p.sector_count * g.logical_sector, &err);
+                if (!vslice)
+                    continue; /* start past device end: the table parse's
+                                 own salvage guard already bounds these */
+                FsFamily fam = probe_family(vslice.get());
+                const std::u16string name = volume_target_name(vslice.get(), fam, p.start_lba);
+                tree::FullNode* vroot = nullptr;
+                if (fam != FsFamily::Unknown)
+                    vroot = tree_.add_root(name);
+                if (log::enabled()) {
+                    std::string utf8;
+                    text::lossless_u16_to_utf8(name, utf8);
+                    log::write(fam != FsFamily::Unknown ? log::Level::Info : log::Level::Warn,
+                               "scan target: table volume '%s' start_lba=%llu sectors=%llu fs=%u"
+                               "%s",
+                               utf8.c_str(), (unsigned long long)p.start_lba,
+                               (unsigned long long)p.sector_count, u32(fam),
+                               fam == FsFamily::Unknown ? " - no filesystem, skipped" : "");
+                }
+                if (fam == FsFamily::Unknown) {
+                    skipped.push_back({std::move(vslice), nullptr, fam});
+                } else {
+                    targets.push_back({std::move(vslice), vroot, fam});
+                }
+            }
+            if (!targets.empty() || !skipped.empty()) {
+                stats.table_volume_targets = targets.size() + skipped.size();
+                stats.table_volume_skipped = skipped.size();
+                for (auto& vt : targets) {
+                    u64 files = 0, deleted = 0;
+                    (void)scan_candidate(vt.slice.get(), vt.root, cancel, files, deleted, ep,
+                                         ep_user);
+                    stats.files_found += files;
+                    stats.deleted_found += deleted;
+                    /* F-1: the engine emitted target-relative extents;
+                     * rebase each volume's subtree to the disk basis (the
+                     * candidate fan-out's own pattern). The base is the
+                     * partition's start byte - absolute_base() of the
+                     * slice - and is 0-safe by construction. */
+                    tree_.rebase_subtree_extents(vt.root, vt.slice->absolute_base());
+                    /* S-051: record the scanned start LBA so the deep
+                     * stage's discovery never double-scans this volume
+                     * (the no-double-scan acceptance); the LBA is the
+                     * table's own value, not the slice's byte base. */
+                    table_targets_scanned_.push_back(vt.slice->absolute_base() /
+                                                     (g.logical_sector ? g.logical_sector : 512));
+                }
+                return OK;
+            }
+        }
+    }
     /* single dispatch (ARCH-DUP-4): one table for the main pass and the
      * candidate path; deep_extras = this pass's deep_mode, errors
      * propagate, counters are the main-path active/deleted split. */
@@ -1608,6 +1761,35 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
         publish_owner_module_(errmod::kLost);
         u32 lrc = lost::discover(slice, known, 1, cancel, deep_cb, &dbridge, dr);
         if (lrc == OK) {
+            /* S-051 (diff-to-fix): the no-double-scan reconciliation. The
+             * primary pass now scans the table's own volumes as partition-
+             * list targets (run_engine_pass's S-051 block), so discovery's
+             * +500 table-match candidates ("Found once partition" - the
+             * M-017(a) exemption) that coincide with an ALREADY-SCANNED
+             * target are dropped before materialization: each volume is
+             * scanned exactly once, under its display-name volume root.
+             * A target the primary pass SKIPPED honestly (probe found no
+             * FS) is not in table_targets_scanned_, so its discovery
+             * candidate survives - the og's lost partitions are
+             * ADDITIONAL targets on damaged volumes, never duplicates of
+             * healthy ones (architecture/04 §3.4: the table volumes are
+             * the primary set, lost partitions are inserted in addition). */
+            if (!table_targets_scanned_.empty()) {
+                std::vector<lost::Candidate> kept;
+                kept.reserve(dr.candidates.size());
+                for (auto& c : dr.candidates) {
+                    bool already_scanned = false;
+                    for (u64 lba : table_targets_scanned_)
+                        if (lba == c.start_lba) {
+                            already_scanned = true;
+                            break;
+                        }
+                    if (already_scanned)
+                        continue;
+                    kept.push_back(std::move(c));
+                }
+                dr.candidates = std::move(kept);
+            }
             stats.lost_candidates = dr.candidates;
             stats.lost_partitions = dr.candidates.size();
             if (!dr.candidates.empty()) {

@@ -362,6 +362,19 @@ struct ScanStats {
      * (the og's per-hit persistence keeps the find; M-042) but its walked
      * files are detached from the tree and its counts report zero. */
     u64 lost_content_rejected = 0;
+
+    /* S-051 (diff-to-fix): the whole-disk flow's partition-list targets.
+     * table_volume_targets = table entries dispatched as scan targets
+     * (the og's CDoScanPartition flow reads the partition list at scan
+     * setup and makes every table volume a target - architecture/04
+     * §3.4); table_volume_skipped = targets whose content probe found no
+     * filesystem (MSR/bare metadata areas, damaged boot sectors) - skipped
+     * honestly and counted, never silently nor fatally (the og's
+     * per-target probe bails the same way; the plain whole-disk target
+     * previously completed rc=0 with ZERO files on this exact shape - the
+     * executed RUN 2). */
+    u64 table_volume_targets = 0;
+    u64 table_volume_skipped = 0;
     ReadErrorMap errors;
     std::vector<lost::Candidate> lost_candidates;
 
@@ -722,6 +735,19 @@ private:
      * disk-relative; a volume-basis re-read would be the wrong arbiter). */
     std::vector<session::DiskLayoutEntry> disk_layout_;
     bool resumed_whole_disk_ = false;
+    /* S-051 (diff-to-fix): the start LBAs of table volumes the whole-disk
+     * flow ALREADY scanned as primary partition-list targets (the og's
+     * CDoScanPartition flow - architecture/04 §3.4). The deep stage's
+     * lost-partition discovery re-finds in-table boot sectors as +500
+     * table-match candidates (cr_candidates.cpp's "Found once partition"
+     * bonus); since the primary pass now owns those volumes, a candidate
+     * whose start matches a scanned target is dropped BEFORE materializing
+     * it - each volume is scanned exactly once (the no-double-scan
+     * acceptance). A target that was skipped honestly (probe found no FS)
+     * is NOT recorded here, so discovery still gets its chance on the
+     * damaged volume (the og's lost partitions are ADDITIONAL targets,
+     * never replacements). */
+    std::vector<u64> table_targets_scanned_;
 };
 
 } // namespace orchestrator
