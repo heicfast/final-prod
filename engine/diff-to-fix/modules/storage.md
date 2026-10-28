@@ -115,16 +115,16 @@ verdicts: MATCH-by-registered-scope-exclusion.
 
 ## Session-12 continuation row (2026-10-29, audited `c7fa527c`, corpus `be0cfe9`)
 
-**M-113 (MAJOR — NEW):** partition-boundary read semantics — the og's
+**M-119 (MAJOR — NEW; renumbered from this lane's M-113 filing at the post-rebase ID reconciliation):** partition-boundary read semantics — the og's
 CBasicPartitionDevice read wrapper (RTTI-confirmed, DRWUI_decompiled.c:183633-183666)
 CLAMPS a past-end read to the in-bounds prefix, ZERO-FILLS the tail, and returns
 success (the `"i64CountofSectors - i64RealReadSector = %I64d"` diagnostic fired in
 the real-run log at DRWUI.log:638 — the probe continued and the partition was
 found). The core's `PartitionSlice::read_at` (cr_slice.cpp:46-49) returns
 ERR_RANGE_OUT_OF_BOUNDS, and `PartitionSlice::create` (:25-28) REFUSES the whole
-slice on declared-length overrun — which the CLI partition open (rrecov.cpp:2925-2931,
+slice on declared-length overrun — which the CLI partition open (rrecov.cpp:2973-2978,
 raw table length → "cannot slice partition" abort) and both cr_ui volume opens
-(:1349/:1433, ERR_OPEN_FAILED) pass raw. The discovery's own `materialize()`
+(:1372/:1456, ERR_OPEN_FAILED) pass raw. The discovery's own `materialize()`
 (cr_candidates.cpp:493-501) already clamps ragged tails — the internal
 inconsistency. F60/B6/E23/X51 verdict: **DIVERGENCE-MAJOR** pending the
 create-clamp + read-clamp pass (read-side only; the write path keeps hard bounds —

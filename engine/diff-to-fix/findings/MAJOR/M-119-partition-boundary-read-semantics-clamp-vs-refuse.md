@@ -1,10 +1,10 @@
-# MAJOR M-113 — Partition-boundary read semantics: the og's partition device CLAMPS out-of-bounds reads and zero-fills the tail (read succeeds); the core's PartitionSlice hard-errors, and the CLI/UI partition-open paths REFUSE the whole volume when the table's length runs past the device end
+# MAJOR M-119 — Partition-boundary read semantics: the og's partition device CLAMPS out-of-bounds reads and zero-fills the tail (read succeeds); the core's PartitionSlice hard-errors, and the CLI/UI partition-open paths REFUSE the whole volume when the table's length runs past the device end
 
 **Severity:** MAJOR
 **Module:** storage (PartitionSlice), writer/recovery read paths, cli/ui partition open
 **Parameters affected:** F60/P1 (bad-media / boundary handling policy), B6/B8 (multi-volume edge geometry), X51 (I/O behavior at boundaries), E23 (error codes — the same condition maps to SUCCESS+zeros in the og and ERR_RANGE_OUT_OF_BOUNDS in the core)
 **Corpus references:** `re-workspace/reversed/ghidra-drwui/DRWUI_decompiled.c:183633-183666` (FUN_1400d0510 — the RTTI-confirmed `CBasicPartitionDevice` read wrapper: a read whose `(offset, count)` runs past the partition's sector count is clamped to the in-bounds prefix via the parent device, the unread tail is `memset` to ZERO, the read returns success, and the diagnostic `"i64CountofSectors - i64RealReadSector = %I64d"` logs the tail size; the `__RTDynamicCast(..., &CBasicPartitionDevice::RTTI_Type_Descriptor, ...)` inside the function proves the class); `og-codebase/log/DRWUI.log:638` (the real-run observation: `i64CountofSectors - i64RealReadSector = 10175` fired during the deep-scan lost-partition probing — the og's scan really does issue past-end reads and proceeds on the zero-filled result); `architecture/05-scan-engine-architecture.md` §4.2/:118-125 (the CPartitionVirtualVolumeDevice device family — the engine-side counterpart whose per-read policy is the fix-time probe below)
-**Core references:** audited `c7fa527c` — `src/core/storage/cr_slice.cpp:46-49` (`PartitionSlice::read_at`: `if (offset > length_ || u64(length) > length_ - offset) return ERR_RANGE_OUT_OF_BOUNDS;` — hard error, no partial read, no zero-fill); `src/core/storage/cr_slice.cpp:15-31` (`PartitionSlice::create`: `if (start_byte + length_bytes > parent->size()) { *err = ERR_RANGE_OUT_OF_BOUNDS; return nullptr; }` — the whole slice is rejected when the declared length overruns the device); `src/app/rrecov.cpp:2925-2931` (the CLI partition open: `PartitionSlice::create(view.get(), part_base, u64(p.sector_count) * ls, &prc)` with the table's RAW sector count — on overrun the partition is refused entirely: `"cannot slice partition %d (rc=%08x)"`, scan aborts); `src/ui/cr_ui.cpp:1349-1352` and `:1433-1436` (the ABI volume open: same raw-extent `PartitionSlice::create`, same `ERR_OPEN_FAILED "slice creation failed for %c"` refusal); `src/core/lost/cr_candidates.cpp:493-501` (`materialize()` — the discovery path DOES clamp: `if (bytes > max) bytes = max;` — the internal inconsistency: the discovery tolerates ragged tails, the CLI/UI opens do not)
+**Core references:** audited `c7fa527c` — `src/core/storage/cr_slice.cpp:46-49` (`PartitionSlice::read_at`: `if (offset > length_ || u64(length) > length_ - offset) return ERR_RANGE_OUT_OF_BOUNDS;` — hard error, no partial read, no zero-fill); `src/core/storage/cr_slice.cpp:15-31` (`PartitionSlice::create`: `if (start_byte + length_bytes > parent->size()) { *err = ERR_RANGE_OUT_OF_BOUNDS; return nullptr; }` — the whole slice is rejected when the declared length overruns the device); `src/app/rrecov.cpp:2973-2978` (the CLI partition open: `PartitionSlice::create(view.get(), part_base, u64(p.sector_count) * ls, &prc)` with the table's RAW sector count — on overrun the partition is refused entirely: `"cannot slice partition %d (rc=%08x)"`, scan aborts); `src/ui/cr_ui.cpp:1372-1375` and `:1456-1459` (the ABI volume open: same raw-extent `PartitionSlice::create`, same `ERR_OPEN_FAILED "slice creation failed for %c"` refusal); `src/core/lost/cr_candidates.cpp:493-501` (`materialize()` — the discovery path DOES clamp: `if (bytes > max) bytes = max;` — the internal inconsistency: the discovery tolerates ragged tails, the CLI/UI opens do not)
 **Status:** READ-ONLY FINDING — no fix applied
 
 ## Summary
@@ -71,11 +71,11 @@ if (!slice)
     return ret_(ERR_OPEN_FAILED, "slice creation failed for %c: (@%llu +%llu)", ...);
 ```
 
-The discovery path already implements the tolerant posture for its own materialization (`cr_candidates.cpp:493-501`: `if (bytes > max) bytes = max;` — ragged candidate tails are clamped, matching the og's tolerance), which makes the CLI/UI strictness an internal inconsistency as well as an og divergence.
+The discovery path already implements the tolerant posture for its own materialization (`cr_candidates.cpp:493-501` (line cites re-verified at the post-rebase HEAD): `if (bytes > max) bytes = max;` — ragged candidate tails are clamped, matching the og's tolerance), which makes the CLI/UI strictness an internal inconsistency as well as an og divergence.
 
 ## Gap
 
-Falsifiable claims: (1) at `c7fa527c`, `PartitionSlice::read_at` returns an error for any request straddling the slice end, where the og's `CBasicPartitionDevice` read returns success with a zero-filled tail; (2) the CLI partition open (`rrecov.cpp:2925`) and both `cr_ui` volume opens (`:1349`, `:1433`) pass the partition's DECLARED length to `PartitionSlice::create` without clamping to the device end, so a table entry whose length overruns the device refuses the entire volume scan — the og scans such volumes clamped. Both verified by direct read this session.
+Falsifiable claims: (1) at `c7fa527c`, `PartitionSlice::read_at` returns an error for any request straddling the slice end, where the og's `CBasicPartitionDevice` read returns success with a zero-filled tail; (2) the CLI partition open (`rrecov.cpp:2973`) and both `cr_ui` volume opens (`:1349`, `:1433`) pass the partition's DECLARED length to `PartitionSlice::create` without clamping to the device end, so a table entry whose length overruns the device refuses the entire volume scan — the og scans such volumes clamped. Both verified by direct read this session.
 
 ## Impact
 
@@ -88,7 +88,7 @@ Falsifiable claims: (1) at `c7fa527c`, `PartitionSlice::read_at` returns an erro
 Corpus-derived + decompile-verified + code-verified (this session, first-hand):
 1. The FUN_1400d0510 body quoted above, read at DRWUI_decompiled.c:183633-183666 (the clamp, the diagnostic, the memset — quoted in `evidence/decompiled-quotes/s12-partition-read-clamp.md`).
 2. The real-run log line `og-codebase/log/DRWUI.log:638` — the clamp path firing in the field during lost-partition probing (quoted in the evidence file).
-3. The core cites read at HEAD (`cr_slice.cpp:46-49` and `:25-28`; `rrecov.cpp:2925-2931`; `cr_ui.cpp:1349-1352`, `:1433-1436`; `cr_candidates.cpp:493-501`) — quoted above.
+3. The core cites read at HEAD (`cr_slice.cpp:46-49` and `:25-28`; `rrecov.cpp:2925-2931`; `cr_ui.cpp:1349-1352`, `:1433-1436`; `cr_candidates.cpp:493-501` (line cites re-verified at the post-rebase HEAD)) — quoted above.
 4. Executed comparison is possible at fix time (a fixture disk whose table declares a longer partition than the media — the og-side behavior is established by 1+2; the core-side refusal is directly reproducible on the existing CLI with a hand-built fixture — recorded as the fix plan's test (a)).
 
 ## Fix plan (for the engineering team)
@@ -115,3 +115,14 @@ Corpus-derived + decompile-verified + code-verified (this session, first-hand):
 ## Open questions
 
 The engine-side `CPartitionVirtualVolumeDevice` per-read policy (the named fix-time probe — the DRWUI-side decode + real-log observation stand on their own for the product-level semantics).
+
+---
+
+## Post-rebase renumber note (2026-10-29, the hottest parallel window)
+
+This finding was filed under the M-113 number at the pre-rebase HEAD `c7fa527c`;
+the parallel continuation/fix lanes pushed first with their own M-113 filing
+(their M-113 landed earlier and keeps the number per the N-129 collision
+convention) — renumbered to M-119 at the reconciliation. The defect site was
+re-verified LIVE at the post-rebase HEAD `cd883754` (grep + direct read, cites
+re-pinned where lines drifted); the finding's substance is unchanged.

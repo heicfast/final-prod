@@ -55,7 +55,6 @@ Decision-first, then build or re-register:
 
 The exact product boundary of "Fixo line inside DRW" vs "separately-sold product" (the artifacts show the Fixo tree as a distinct source line bundled by the og installer) — the decision in fix-plan step 1 is the product owner's; the audit records the capability gap either way.
 
-<<<<<<< HEAD
 
 ---
 
@@ -105,7 +104,6 @@ presentation/queue side):
 Fix-plan impact: step 1's scope registration should name the row-contract surface (the
 actions: Repair/Preview/Save/Stop/Advanced/Feedback/Change) and the queue model as the
 og's behavioral shape. No verdict change (extend-don't-refile).
-=======
 ---
 
 ## Addendum (session-12 continuation lane, 2026-10-29 — audited `c7fa527c`, corpus `be0cfe9`): the fix plan's build order omits the VIDEO engine — the corpus's deepest-decoded repair algorithm and the only repair surface with an engine-side seam
@@ -119,4 +117,3 @@ og's behavioral shape. No verdict change (extend-don't-refile).
 **Corpus-reference completion:** the finding's corpus list should carry `architecture/06-repair-chain.md` §3/§4/§5 (the video algorithm decode + the per-format engine table + the repair-flow integration) and `re-workspace/artifacts/per-binary/EUVideoRepair.md` (the 7,154-function census + the box-class walk: TkhdBox/UuidBox et al.) — both first-hand re-read this session.
 
 **Impact of the omission:** if the engineering team executes the plan as written, the shipped repair line would lack its best-documented engine and the only one that exercises the core's own scan results — a scope decision the plan never surfaces. The amendment's acceptance: either (a) the build order gains the video family (with the datarun-selection seam named as the integration point and the GetSample consent contract as the input model), or (b) a PARITY-DELTAS row registers the video line's exclusion with the rationale. The eligibility-seam and output-location contracts land as named steps either way.
->>>>>>> 9067618b (audit(S12): the second-session continuation lane's filings — S-054 (SEVERE: the N-013 regression — the multi-extent destination arming clobbered at both production call sites by the unrelated M-036 commit 1ebd1bcc; the all-spans machinery dead code at HEAD while the published contract claims it; the F12 refusal silently defeated for spanned/junction destinations; git-proven with the landing/clobber diffs quoted), M-112 (MAJOR: the og's three-source lost-partition assembly decoded — the MountPoints2\CPC\Volume register channel absent in core; the engine-side walk + the Data-blob placement decode; S-051's fix plan gains the channel merge), M-113 (MAJOR: partition-boundary read semantics — the og clamps+zero-fills+succeeds (RTTI-confirmed, observed in the real-run log) vs the core's hard-error and whole-volume refusal on over-long table lengths), N-142 (MINOR: the rsf variant device-descriptor record's firmware/WWN/interface/boot-snapshot field gap), N-143 (MINOR: bookkeeping batch #2 — the N-079 ID collision, the salvage register, the module rows, the 1027-vs-1117 suite drift), I-033 (INFO: the register batch — RegLib write half, DiskHealth resident shell, the Explorer verb + the trayicon erratum); the S-050 addendum (the video engine omitted from the fix plan's build order — the deepest-decoded algorithm and the only engine-side seam); wave 1 = the 55-finding liveness sweep (41 live / 4 partial / no unretired fix; the board truthful) + the from-scratch suite EXECUTED 1117/1117 green; evidence s12-* (4 decompile quotes + liveness + build-exec + the two agent context sheets); module rows (lost-partition, storage, writer, session) + matrix S12 block + SUMMARY/README/inventory; board 61 active (8/19/26/8); every claim lead-verified first-hand; read-only guarantee held (git status: diff-to-fix/ only))

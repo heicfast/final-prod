@@ -1,4 +1,4 @@
-# MAJOR M-112 — The og's lost-partition candidate assembly consults THREE sources (mbr / filesystem / register); the register source — the Explorer MountPoints2\CPC\Volume history walk, decoded engine-side in PartitionRecoveryD — has no core counterpart, and the S-051/S-052 fix plans build targets from the partition table alone
+# MAJOR M-118 — The og's lost-partition candidate assembly consults THREE sources (mbr / filesystem / register); the register source — the Explorer MountPoints2\CPC\Volume history walk, decoded engine-side in PartitionRecoveryD — has no core counterpart, and the S-051 fix plan builds targets from the partition table alone
 
 **Severity:** MAJOR
 **Module:** lost-partition (candidate assembly), orchestration (whole-disk target model)
@@ -75,3 +75,14 @@ Corpus-derived + decompile-verified (this session, first-hand):
 ## Open questions
 
 The `Data`-blob field split for the sector total (fix-time probe named in step 3 — the start field is proven, the total's exact source needs the FUN_180010b70 call-site re-read; the og's own log shows both start and total emitted, so the total IS derived in the walk).
+
+---
+
+## Post-rebase renumber note (2026-10-29, the hottest parallel window)
+
+This finding was filed under the M-112 number at the pre-rebase HEAD `c7fa527c`;
+the parallel continuation/fix lanes pushed first with their own M-112 filing
+(their M-112 landed earlier and keeps the number per the N-129 collision
+convention) — renumbered to M-118 at the reconciliation. The defect site was
+re-verified LIVE at the post-rebase HEAD `cd883754` (grep + direct read, cites
+re-pinned where lines drifted); the finding's substance is unchanged.

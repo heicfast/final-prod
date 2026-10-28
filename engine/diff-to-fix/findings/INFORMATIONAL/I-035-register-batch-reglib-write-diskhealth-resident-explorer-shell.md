@@ -1,4 +1,4 @@
-# INFORMATIONAL I-033 — Register batch: three og surfaces with no core counterpart and no prior registration (the RegLib hive-WRITE half, DiskHealth's resident monitoring shell, the Explorer "Recover any deleted data" context-menu integration) + one corpus erratum
+# INFORMATIONAL I-035 — Register batch: three og surfaces with no core counterpart and no prior registration (the RegLib hive-WRITE half, DiskHealth's resident monitoring shell, the Explorer "Recover any deleted data" context-menu integration) + one corpus erratum
 
 **Severity:** INFORMATIONAL
 **Module:** reghive, health (product-frame), host/integration (shell), corpus errata
@@ -46,3 +46,14 @@ None (registration-only). Optionally: the S-050-proposed docs-CI check (every OO
 ## Open questions
 
 None — the postures recorded here are the reviewable claims; acceptance-or-rescope is the product owner's standing call.
+
+---
+
+## Post-rebase renumber note (2026-10-29, the hottest parallel window)
+
+This finding was filed under the I-033 number at the pre-rebase HEAD `c7fa527c`;
+the parallel continuation/fix lanes pushed first with their own I-033 filing
+(their I-033 landed earlier and keeps the number per the N-129 collision
+convention) — renumbered to I-035 at the reconciliation. The defect site was
+re-verified LIVE at the post-rebase HEAD `cd883754` (grep + direct read, cites
+re-pinned where lines drifted); the finding's substance is unchanged.

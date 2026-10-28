@@ -1,4 +1,4 @@
-# Evidence — M-112: the three-source lost-partition candidate assembly (mbr / filesystem / register)
+# Evidence — M-118: the three-source lost-partition candidate assembly (mbr / filesystem / register)
 
 Session-12 continuation lane, 2026-10-29. Corpus `be0cfe9`. Every quote below was
 read first-hand this session.
@@ -18,7 +18,7 @@ read first-hand this session.
 
 Three sources, one partition; the register source contributes three records
 (historical mount records) that the downstream dedup collapses. (The
-`i64CountofSectors - i64RealReadSector` line interleaved is the M-113 clamp
+`i64CountofSectors - i64RealReadSector` line interleaved is the M-119 clamp
 diagnostic — see `s12-partition-read-clamp.md`.)
 
 ## 2. The assembly function — DRWUI `FUN_140588820`
@@ -122,7 +122,7 @@ The `Data` value under each `MountPoints2\CPC\Volume\{GUID}` subkey is the shell
 volume cache blob; the '#' pair at offsets 0xc4/0xe6 delimits a 32-char hex field
 at +0xc6 encoding the volume's byte placement; the walk sector-aligns it and feeds
 the candidate container. The sector-TOTAL derivation rides the same parse (the
-fix-time probe in M-112's plan pins the exact second output of FUN_180010b70).
+fix-time probe in M-118's plan pins the exact second output of FUN_180010b70).
 
 ## 5. The core side (absence, grep-verified at `c7fa527c`)
 

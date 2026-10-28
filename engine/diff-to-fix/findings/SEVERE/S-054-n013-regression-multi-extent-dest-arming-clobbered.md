@@ -4,7 +4,7 @@
 **Module:** writer, win/transport, ui
 **Parameters affected:** F62/P62 (destination overlap refusal — hard refusal, same semantics), B8 (multi-volume / spanned volumes), R43/R57 (contract truthfulness — the header documents the requirement the code no longer meets), Q65 (test coverage — no test pins the production wiring; the suite is green over the regression)
 **Corpus references:** `architecture/04-recovery-workflow.md` §7.5 (destination validation: the og ALWAYS opens `\\.\X:` for drive-letter destinations and validates with `IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS` + lock/dismount); `re-workspace/reversed/ghidra-partition/RecoveryModule_decompiled.c:60381-60444` (the og's `IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS` consumption — ALL extents iterated for the overlap/validation logic)
-**Core references:** audited `c7fa527c` — `src/app/rrecov.cpp:2029-2034` (the recover path arms `writer.set_destination(dstart, dlen)` from the FIRST extent only via `win::volume_extent`); `src/ui/cr_ui.cpp:3863-3870` (the ABI path: same first-extent-only `set_destination`, drive-letter-prefix paths only); `include/cr/win/cr_transport.h:124-126` (the published contract: "N-013: reports the FIRST extent only - kept for the source-disk lookup call sites; **destination arming must use volume_extents() (all spans)**") and `:129-131` (the `volume_extents` declaration — zero production consumers, grep-verified); `src/core/recovery/cr_safewriter.cpp:29-34` (`set_destination_spans` — the machinery, unconsumed); `src/win/cr_transport.cpp:1037` (`destination_volume_letter` — the junction/relative-path resolver from the N-013 landing, zero production consumers); git: `3b5397a1` (the N-013 fix landing — rrecov.cpp 52 lines, cr_ui.cpp 37 lines, transport +72, safewriter +34) and `1ebd1bcc` (the UNRELATED M-036 NVMe fix that clobbered both call sites back to the pre-N-013 shape; the removal diff preserves the full spans loop in git history)
+**Core references:** audited `c7fa527c` — `src/app/rrecov.cpp:2084-2088` (the recover path arms `writer.set_destination(dstart, dlen)` from the FIRST extent only via `win::volume_extent`); `src/ui/cr_ui.cpp:4045-4051` (the ABI path: same first-extent-only `set_destination`, drive-letter-prefix paths only); `include/cr/win/cr_transport.h:124-126` (the published contract: "N-013: reports the FIRST extent only - kept for the source-disk lookup call sites; **destination arming must use volume_extents() (all spans)**") and `:129-131` (the `volume_extents` declaration — zero production consumers, grep-verified); `src/core/recovery/cr_safewriter.cpp:29-34` (`set_destination_spans` — the machinery, unconsumed); `src/win/cr_transport.cpp:1037` (`destination_volume_letter` — the junction/relative-path resolver from the N-013 landing, zero production consumers); git: `3b5397a1` (the N-013 fix landing — rrecov.cpp 52 lines, cr_ui.cpp 37 lines, transport +72, safewriter +34) and `1ebd1bcc` (the UNRELATED M-036 NVMe fix that clobbered both call sites back to the pre-N-013 shape; the removal diff preserves the full spans loop in git history)
 **Status:** READ-ONLY FINDING — no fix applied
 
 ## Summary
@@ -66,7 +66,7 @@ Executed (git + grep, this session, first-hand):
 1. `git show 3b5397a1 --stat` — the N-013 landing touches rrecov.cpp (52 lines), cr_ui.cpp (37), cr_transport.cpp (+72), cr_safewriter.cpp (34), plus three test files.
 2. `git show 1ebd1bcc -- src/app/rrecov.cpp` — the M-036 diff removes the `volume_extents`/`set_destination_spans` block and restores `volume_extent`/`set_destination` (the `-`/`+` sides quoted in `evidence/decompiled-quotes/s12-destarming-regression.md`).
 3. `grep -rn "volume_extents|set_destination_spans" src/ --include="*.cpp" | grep -v "cr_transport.cpp|cr_safewriter.cpp"` — zero hits (rc=1).
-4. `sed -n '2029,2034p' src/app/rrecov.cpp` and `sed -n '3863,3870p' src/ui/cr_ui.cpp` — the first-extent-only calls, quoted above.
+4. `sed -n '2084,2088p' src/app/rrecov.cpp` and `sed -n '4045,4051p' src/ui/cr_ui.cpp` — the first-extent-only calls, quoted above.
 5. Full suite at the same tree: 1117/1117 green (`evidence/executions/s12-build-execution.md`) — the regression is invisible to the suite.
 
 ## Fix plan (for the engineering team)
@@ -89,6 +89,7 @@ Executed (git + grep, this session, first-hand):
 - N-013 (the original, retired-FIXED at `3b5397a1` — this finding re-opens its defect with the regression provenance)
 - M-074/S-010-class destination-validation family (the lock/dismount halves)
 - N-135 (the bookkeeping-truth batch class — the ledger row for N-013 should gain a re-opened note)
+- N-154 (bookkeeping batch #2 — the post-rebase truth sweep)
 
 ## Open questions
 

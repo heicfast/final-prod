@@ -36,15 +36,17 @@ addendum**: **S-054** (SEVERE — **the N-013 regression**: the multi-extent des
 arming clobbered at both production call sites by the unrelated commit `1ebd1bcc`;
 the all-spans machinery is dead code at HEAD while the published contract claims it;
 the F12 overlap refusal silently defeated for spanned/junction destinations),
-**M-112** (the og's THREE-source lost-partition assembly decoded — the MountPoints2\CPC\Volume
-register channel absent in core; S-051's fix plan gains the merge), **M-113** (the og's
+**M-118** (the og's THREE-source lost-partition assembly decoded — the MountPoints2\CPC\Volume
+register channel absent in core; S-051's fix plan gains the merge), **M-119** (the og's
 partition read = clamp+zero-fill+success vs the core's hard-error/whole-volume refusal
 on over-long table lengths), **N-142** (the rsf variant device-descriptor field gap),
-**N-143** (bookkeeping batch #2 — the N-079 collision, the salvage register, module
-rows, the suite-count drift), **I-033** (the register batch), + the **S-050 addendum**
+**N-154** (bookkeeping batch #2 — the N-079 collision, the salvage register, module
+rows, the suite-count drift), **I-035** (the register batch), + the **S-050 addendum**
 (the video engine — the corpus's deepest-decoded repair algorithm and the only
-engine-side seam — omitted from the fix plan's build order). **Board: 61 active
-(8 SEVERE · 19 MAJOR · 26 MINOR · 8 INFO) / 296 resolved / 3 tracked-open.** Evidence:
+engine-side seam — omitted from the fix plan's build order). **Board at this lane's filings: 61 active (8/19/26/8); post-rebase truth at close:
+55 active (4 SEVERE · 23 MAJOR · 19 MINOR · 9 INFO) / 313 ledger rows / 3 tracked-open
+(four IDs renumbered past the parallel lanes' collisions; every defect site
+re-verified LIVE at the post-rebase HEAD).** Evidence:
 `evidence/decompiled-quotes/s12-*.md` (4) + `evidence/s12-liveness-sweep.md` +
 `evidence/executions/s12-build-execution.md` + the two agent context sheets
 (`evidence/s12-core-deepread.md`, `evidence/s12-corpus-rewalk.md`).

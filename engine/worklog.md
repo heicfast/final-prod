@@ -4948,3 +4948,56 @@ Handoff — this lane's recommended fix order (its own filings first):
 then the standing board order (the S-053+N-141 ReFS emission-gate pass, S-051/S-052
 whole-disk + LDM, the S-050 product decision NOW carrying the video-engine amendment,
 M-108's BOM head-gate residue, the carve school-2/3 children).
+
+---
+## Session-12 continuation lane — POST-REBASE RECONCILIATION RECORD (2026-10-29; the push-time absorption of the hottest parallel window of the trail)
+
+The lane's close-record push was rejected (61 parallel commits on main). The rebase
+absorbed them and THIS entry records the reconciliation (the S11-lane precedent:
+absorb, re-verify first-hand, renumber past the collisions, re-truth the board).
+
+**What the parallel window landed (affects this lane's filings):** the fix lanes'
+S-049 (d4b487c8, carved-file naming), **S-051** (whole-disk scan targets — this
+lane's M-118/S-051 fix-plan addendum now rides an ALREADY-LANDED fix; the
+register-channel merge is the remaining delta the fix did NOT include — verified:
+`grep MountPoints src/ include/` still zero at the post-rebase HEAD), **S-052**
+(f4e500de per the SHA-truth repair 1233b4a0), **S-053** (the ReFS emission-gate
+pass — the standing top recommendation, now closed), M-104, M-109, and the minor
+set N-096/N-112/N-113/N-115/N-121/N-122/N-128/N-129/N-130/N-134/N-137/N-138/N-141
+(+I-030); the parallel continuation lanes filed M-114..M-117, N-144..N-153, I-034,
+N-153(fixed same session), M-105→(M-104-reopen M-116 noted).
+
+**ID collisions found and repaired (four of this lane's six):** the parallel lanes'
+earlier pushes hold M-112 (csl-sizefield), M-113 (recovered-OS boot surgery), N-143
+(ispecial two-step dispatch), I-033 (config-data register extension) — this lane's
+filings renumber: **M-112→M-118** (the register channel), **M-113→M-119** (the
+read-clamp semantics), **N-143→N-154** (bookkeeping batch #2), **I-033→I-035**
+(the register batch). S-054 and N-142 keep their numbers (no collision). The
+prompt-file add/add collision resolved the same way (the parallel S12 lane's copy
+keeps the canonical name; this lane's rides as
+`worklog/session-12-continuation-audit-prompt.s12b-lane.md`).
+
+**Every defect site re-verified LIVE at the post-rebase HEAD `cd883754`:**
+- S-054: `grep volume_extents|set_destination_spans` in src/ (excluding the two
+  providers) — still ZERO production consumers; the rrecov.cpp arming still
+  single-extent at :2084-2088; cr_ui.cpp at :4045-4051 (line drift re-pinned).
+- M-118: `grep MountPoints src/ include/` — still zero hits.
+- M-119: cr_slice.cpp:43-49 (read) and :28-31 (create) still strict; the CLI
+  partition open still raw-length at rrecov.cpp:2973-2978 ("cannot slice
+  partition" abort); cr_ui.cpp:1372/:1456 (the ERR_OPEN_FAILED refusals).
+- N-142: the identity card still model/serial/boot_hash only
+  (cr_records.h:203-223 re-pinned).
+- N-154's own cites re-pinned (cr_log.cpp:30-33; FIXED-LEDGER.md:262).
+
+**Board at this lane's final close (filesystem truth): 55 active (4 SEVERE · 23
+MAJOR · 19 MINOR · 9 INFO) / 326 ledger rows (304 finding + 22 OQ) / 3
+tracked-open.** Next free IDs: S-055+, M-120+, N-155+, I-036+, A-012+.
+
+**Handoff update over the close record (the parallel window changed the board):**
+(1) S-054 remains the lane's top recommendation (nothing in the window touched the
+destination arming); (2) M-119 unchanged; (3) M-118's fix plan now targets the
+POST-S-051 state — the channel-merge step is the whole remaining delta (S-051's
+landed target builder is the seam to extend, not a parallel design); (4) the
+standing board order after the window: S-048 (the S40 lane's claimed next),
+S-050's product decision (now carrying BOTH the parallel addenda and this lane's
+video-engine amendment), S-040, then the M-tier (M-073/M-075/M-076/M-078...).

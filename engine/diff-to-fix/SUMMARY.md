@@ -303,7 +303,7 @@ defect sites re-verified at HEAD (`evidence/s12-liveness-sweep.md`): 41 LIVE, 4 
 5 register. **No active finding is fixed-but-unretired** — the board is truthful. The
 from-scratch build+suite EXECUTED at this tree: **1117/1117 green, 0 warnings under
 -Werror** (`evidence/executions/s12-build-execution.md`) — the standing "1027" count
-was stale (N-143's item 4).
+was stale (N-154's item 4).
 
 **Wave 2 — the deep walks (the mandate's go-deeper + mark-all-remaining):** four
 parallel agents (core module deep-read; corpus behavioral re-walk; build/exec; the
@@ -355,9 +355,24 @@ addendum filed:
   `tree::FileNode::extents` — the core's own output); the eligibility-signature seam
   and the output-location contract also unnamed.
 
-**Board after this lane's filings: 61 active (8 SEVERE · 19 MAJOR · 26 MINOR · 8 INFO)
-/ 296 resolved rows (FIXED-LEDGER, unchanged) / 3 tracked-open.** Next free IDs:
-S-055+, M-114+, N-144+, I-034+, A-012+.
+**Board at this lane's own filings (pre-rebase truth): 61 active (8 SEVERE · 19 MAJOR ·
+26 MINOR · 8 INFO).**
+
+**POST-REBASE RECONCILIATION (the hottest parallel window of the trail — 61 commits
+absorbed mid-push):** the fix lanes landed S-049/S-051/S-052/**S-053** (the ReFS
+emission-gate pass — the board's standing top recommendation), M-104, M-109, and the
+minor set N-096/N-112/N-113/N-115/N-121/N-122/N-128/N-129/N-130/N-134/N-137/N-138/N-141
+(I-030 too), filing M-114..M-117, N-144..N-153, I-034 alongside; **four of this lane's
+six IDs collided with the parallel continuation lanes' filings** — the earlier pushes
+keep the numbers, this lane's findings renumber: M-112→**M-118** (the register
+channel), M-113→**M-119** (the read-clamp semantics), N-143→**N-154** (the
+bookkeeping batch), I-033→**I-035** (the register batch); S-054 and N-142 keep theirs.
+**Every defect site re-verified LIVE at the post-rebase HEAD `cd883754`** (the N-013
+arming still single-extent with zero spans-consumers; MountPoints2 still absent; the
+slice still strict; the identity card still model/serial/boot_hash — only line drift,
+all cites re-pinned). **Board at close (filesystem truth): 55 active (4 SEVERE · 23
+MAJOR · 19 MINOR · 9 INFO) / 313 ledger rows / 3 tracked-open.** Next free IDs:
+S-055+, M-120+, N-155+, I-036+, A-012+.
 
 **Recommended fix-order contribution (this lane's filings first):**
 (1) **S-054** — the re-landing is mechanical (the `3b5397a1` shape exists in git) and
@@ -367,7 +382,7 @@ priority alongside the standing S-051/S-052/S-053 set;
 write-path fence test); composes with S-051's whole-disk fixtures;
 (3) **M-112** — the register-channel seam (win-layer walk + candidate-source merge;
 the decode is complete, one fix-time probe names the total-field split);
-(4) N-143's bookkeeping batch (the N-079 comment repair is one source-comment edit);
+(4) N-154's bookkeeping batch (the N-079 comment repair is one source-comment edit);
 (5) N-142's identity-card tail (a v6 tail, round-trip-tested); then the standing
 board order (the S-053+N-141 ReFS pass, S-051/S-052, the S-050 decision now
 carrying the video-engine amendment).

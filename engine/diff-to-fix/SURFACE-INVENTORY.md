@@ -265,15 +265,15 @@ Evidence: `evidence/decompiled-quotes/s10f-*.md`.
   SaveScan/MOM/config-files + the runtime logs — 8 NOT-DISPOSITIONED claims found,
   all now filed or registered); (3) mark-all-remaining — every surfaced gap filed.
 - **New rows this lane owns:** the register-channel surface (the og's MountPoints2\
-  CPC\Volume candidate source — **M-112**; was invisible to every prior inventory
+  CPC\Volume candidate source — **M-118**; was invisible to every prior inventory
   because no artifact documents it — the runtime log + the engine-side decompile
-  were the only witnesses); the partition-boundary read semantics (**M-113**; the
+  were the only witnesses); the partition-boundary read semantics (**M-119**; the
   CBasicPartitionDevice clamp decode + the real-log observation); the variant-save
   device-descriptor record (**N-142**; the rsf artifact's own parenthetical, now
   owned); the N-013 regression (**S-054**; a landed-fix reversion, not a corpus
-  surface — the board-truth class); the register batch (**I-033**: RegLib's write
+  surface — the board-truth class); the register batch (**I-035**: RegLib's write
   half, DiskHealth's resident shell, the Explorer verb) and the bookkeeping batch
-  (**N-143**: the N-079 collision, the salvage register, module rows, the suite
+  (**N-154**: the N-079 collision, the salvage register, module rows, the suite
   count).
 - **S-050's row extended by addendum:** the fix plan's build order gains the video
   engine + the eligibility-signature seam + the output-location contract (the
