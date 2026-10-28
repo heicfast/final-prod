@@ -4162,6 +4162,123 @@ TEST(Carve, XmlNoMarkerNoSvgRejected) {
             << "an ordinary declaration without svg/csl must reject";
 }
 
+
+TEST(Carve, MobiBookMobiPairAccepted) {
+    /* M-096: the PalmDB BOOKMOBI pair at +0x3C is the whole gate - the
+     * 0x3C bytes before it are garbage and the book still carves (the
+     * og's full-salvage posture, ported exactly). */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    /* 0x3C bytes of damaged-header garbage, then the pair */
+    for (size_t i = 0; i < 0x3C; ++i)
+        img[at + i] = u8((i * 31) ^ 0xA5);
+    std::memcpy(img.data() + at + 0x3C, "BOOKMOBI", 8);
+    for (size_t i = 0x44; i < 0x1000; ++i)
+        img[at + i] = u8(i & 0xFF);
+    /* the end tag at a 512-aligned position from the start */
+    const size_t tag_at = at + 0x2000;
+    img[tag_at] = 0x0A;
+    img[tag_at + 1] = 0x0D;
+    img[tag_at + 2] = 0x8E;
+    img[tag_at + 3] = 0xE9;
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr) << "the damaged-header BOOKMOBI must carve (salvage parity)";
+    EXPECT_EQ(n->props()->carve_format, u64(FMT_MOBI));
+    EXPECT_EQ(n->props()->logical_size, (0x2000 - 0) + 4) << "the end-tag extent (step-aligned)";
+    std::string name;
+    ASSERT_TRUE(cr::text::lossless_u16_to_utf8(n->props()->name, name));
+    EXPECT_NE(name.find(".mobi"), std::string::npos);
+}
+
+TEST(Carve, MobiOtherPalmCreatorsRejected) {
+    /* M-096: the og gates BOOKMOBI only - a TEXt/REAd eReader pair (the
+     * other famous PalmDB creator) rejects. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    std::memcpy(img.data() + at + 0x3C, "TEXtREAd", 8);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    for (tree::FileNode* c : all)
+        EXPECT_NE(c->props()->carve_format, u64(FMT_MOBI)) << "the TEXt/REAd pair rejects";
+}
+
+TEST(Carve, MobiNoEndTagFallsBackBounded) {
+    /* M-096: no step-aligned end tag within the cap -> the bounded
+     * fallback (clamped to the device end) with the heuristic note. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t at = 512;
+    std::memcpy(img.data() + at + 0x3C, "BOOKMOBI", 8);
+    /* the end-tag bytes at a NON-step-aligned position: the walker's
+     * 0x200 stepping never sees them (the og's own walk shape) */
+    const size_t tag_at = at + 0x2000 + 7;
+    img[tag_at] = 0x0A;
+    img[tag_at + 1] = 0x0D;
+    img[tag_at + 2] = 0x8E;
+    img[tag_at + 3] = 0xE9;
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c : all)
+        if (!c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            n = c;
+    ASSERT_NE(n, nullptr) << "the markerless book still carves (bounded)";
+    EXPECT_EQ(n->props()->carve_format, u64(FMT_MOBI));
+    EXPECT_EQ(n->props()->logical_size, size_t(64 * 1024 - 512)) << "the cap clamped to the device";
+    std::string note;
+    ASSERT_TRUE(cr::text::lossless_u16_to_utf8(n->props()->carve_note, note));
+    EXPECT_EQ(note, "mobi-bounded-cap");
+}
+
 TEST(Carve, S007NicheBatch1SalvageSemantics) {
     /* Torn-stream salvage: MIDI with a declared-but-torn track salvages
      * at the last COMPLETE track; Ogg without an EOS page salvages at

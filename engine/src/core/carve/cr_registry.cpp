@@ -100,6 +100,7 @@ CarveResult validate_ts(IStorageDevice* s, u64 hit, u64 cap);       /* S-047: CM
 CarveResult validate_m2ts(IStorageDevice* s, u64 hit, u64 cap);     /* S-047: CM2TS, 192-byte */
 CarveResult validate_html(IStorageDevice* s, u64 hit, u64 cap);     /* M-092: the four-key chain */
 CarveResult validate_xmlsvg(IStorageDevice* s, u64 hit, u64 cap); /* M-093: the shared chain */
+CarveResult validate_mobi(IStorageDevice* s, u64 hit, u64 cap); /* M-096: the salvage gate */
 
 namespace {
 const Signature kTable[] = {
@@ -1066,6 +1067,20 @@ const Signature kTable[] = {
      "SVG image"},
     {FMT_SVG, "svg", {'<', 's', 'v', 'g'}, 4, 0, 0, 0x100000ull, 620, validate_xmlsvg,
      "SVG image"},
+    /* M-096: MOBI - the BOOKMOBI pair at +0x3C is the whole gate (the
+     * full-salvage posture: the 0x3C bytes before it are never read);
+     * the 512-step end-tag walk, cap 500 MB. Shipped RawConfig MOBI=1 -
+     * default ON; hosts disable via the M-024 list ("mobi"). */
+    {FMT_MOBI,
+     "mobi",
+     {'B', 'O', 'O', 'K', 'M', 'O', 'B', 'I'},
+     8,
+     0x3C,
+     0x60, /* the F8 late-magic floor (header_offset+32) + the probe's own 0x44 read */
+     0x1F400000ull,
+     620,
+     validate_mobi,
+     "Kindle e-book"},
 };
 } // namespace
 

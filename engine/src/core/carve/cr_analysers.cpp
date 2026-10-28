@@ -2940,6 +2940,69 @@ CarveResult validate_xmlsvg(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
+
+/* ---- MOBI (M-096): the og's full-salvage PalmDB gate ----
+ * MOBIAnalyser (id 0x85), list-registered behind the RawConfig "MOBI"
+ * token (:3600-3615 - the SHIPPED RawConfig.ini carries MOBI=1, the
+ * config-files artifact's [Filter] decode: enabled by default). The
+ * probe (FUN_180025bc0 :29369-29431) validates ONLY the PalmDB
+ * type/creator pair: BE32 "BOOK" at +0x3C and BE32 "MOBI" at +0x40 -
+ * the 0x3C bytes before it are NEVER examined (a deliberately weak,
+ * full-salvage gate: fragmented or header-damaged books still carve;
+ * ported EXACTLY - strengthening it would diverge). Size: the
+ * CalculateSize_EndTag walker (the ctor descriptor at :29436-29485:
+ * value 0xe98e0d0a LE-serialized = the bytes 0A 0D 8E E9, length 4,
+ * step 0x200, cap 0x1f400000 = 500 MB) - the needle is checked at
+ * 512-byte steps from the file start; no needle within the cap -> the
+ * bounded fallback (the family convention) with the heuristic note. */
+CarveResult validate_mobi(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 pair[8];
+    if (!rd(s, hit + 0x3C, pair, sizeof(pair)))
+        return r;
+    if (std::memcmp(pair, "BOOKMOBI", 8) != 0)
+        return r; /* the PalmDB type/creator pair - the ONLY gate */
+    const u64 limit = probe_limit(s, hit, cap); /* cap = 500 MB */
+    /* the 512-step end-tag walk, block-buffered (kProbeBlock is an
+     * exact multiple of the step, so every block starts step-aligned
+     * and no step position straddles) */
+    constexpr u64 kStep = 0x200;
+    std::vector<u8> buf(kProbeBlock);
+    u64 pos = hit;
+    u64 marker_end = 0;
+    while (pos + 4 <= limit) {
+        const u64 remain = limit - pos;
+        const u32 take = u32(std::min<u64>(remain, kProbeBlock));
+        if (take < 4)
+            break;
+        if (!rd(s, pos, buf.data(), take))
+            break;
+        for (u64 off = 0; off + 4 <= take; off += kStep) {
+            if (buf[off] == 0x0A && buf[off + 1] == 0x0D && buf[off + 2] == 0x8E &&
+                buf[off + 3] == 0xE9) {
+                marker_end = pos + off + 4;
+                break;
+            }
+        }
+        if (marker_end != 0)
+            break;
+        pos += (u64(take) / kStep) * kStep; /* whole steps only */
+    }
+    if (marker_end != 0) {
+        r.ok = true;
+        r.end = marker_end;
+        r.confidence = 700;
+        r.note = "mobi-endtag-walk";
+        return r;
+    }
+    /* no end tag within the cap: the bounded fallback */
+    r.ok = true;
+    r.end = limit;
+    r.confidence = 450;
+    r.note = "mobi-bounded-cap";
+    return r;
+}
+
 CarveResult validate_ts(IStorageDevice* s, u64 hit, u64 cap) {
     /* 188-byte MPEG transport stream packets (CMTS, id 0x76) */
     return validate_ts_common(s, hit, cap, 188, 0, 700, "ts-packet-walk-188",

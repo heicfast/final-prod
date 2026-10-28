@@ -89,6 +89,8 @@ constexpr u32 kTrialOrder[] = {
      * validator; FMT_SVG first so a direct svg-start document wins the
      * tie against the <?xm row's interior <svg re-match) */
     FMT_SVG, FMT_SVG_CD01, FMT_XML, FMT_XML_BOM,
+    /* M-096: MOBI (the 8-byte magic at +0x3C - distinct position) */
+    FMT_MOBI,
     /* S-017: ftyp-destroyed MOV salvage (og MovAnalyzer list layer) -
      * LAST: the ftyp-keyed entries must claim the position first */
     FMT_MOV_NAKED};
