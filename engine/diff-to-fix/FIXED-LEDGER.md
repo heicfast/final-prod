@@ -280,7 +280,9 @@
 | S-042 | SEVERE |  | f6e303e | `findings/FIXED/S-042-wmf-placeable-grammar-contradicts-og.md` |
 | S-043 | SEVERE | preview | d0787e9 (base) + the closing-fix riders | `findings/FIXED/S-043-thumbnail-exif-orientation-not-applied.md` |
 | S-044 | SEVERE |  | 7b7e095 | `findings/FIXED/S-044-autosave-gates-missing.md` |
+| S-047 | SEVERE | carve | a3abfbe | `findings/FIXED/S-047-mpeg-ts-m2ts-analyser-absent-sync-scanners-decoded.md` |
 | M-084 | MAJOR | (mid-flight landing) | 16475b8 | `findings/FIXED/M-084-mdb-accdb-second-signature-missing.md` |
+| M-085 | MAJOR | preview | (the parallel lane) | `findings/FIXED/M-085-tiff-lzw-refused.md` |
 | M-091 | MAJOR | (mid-flight landing) | 16475b8 | `findings/FIXED/M-091-mdb-page-chain-size-walk-decoded-bounded-extent-stands-in.md` |
 | N-092 | MINOR | (mid-flight landing) | 5ed862f | `findings/FIXED/N-092-thumbnail-refusal-matrix-and-cache.md` |
 | N-124 | MINOR | (mid-flight landing) | c75755d | `findings/FIXED/N-124-transport-module-rows-superseded-by-ddrv-wave.md` |
