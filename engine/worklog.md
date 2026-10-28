@@ -17801,6 +17801,7 @@ Stage Summary:
   are all multi-session work: S-038 (the PACKAGING.md design doc +
   installer), M-064's versioned-deployer halves, I-026 (deliberate,
   no action), and the 3 tracked-open probes.
+
 Task ID: FIX-8 (S-038 step 1 — the PACKAGING.md contract doc; the telemetry
 field form re-verified first-hand)
 Agent: main engineer (fix session: the SA-6 wave-2 lane)
@@ -17833,3 +17834,57 @@ Stage Summary:
   Board unchanged (4 active · 237 FIXED · 3 tracked-open). Next: the
   OQ-SA-2 corpus probes (CFCPEvt attribution, AAC/M1V/RIFF tier roles,
   WPG size stamp, CNeedRawMgr gating), then OQ-SA-1, then N-086.
+
+---
+
+
+---
+Task ID: SESSION-CLOSE (the parity-fix continuation session — the board
+after the convergence)
+Agent: main engineer
+
+SESSION LANDINGS (this lane, 9 commits pushed):
+- S-039 (b07ee9d): the user-sign caps raised to the og's measured
+  EUUserData maxima (48/12/1024/80); the og's own DB loads; 3 tests
+  fail-before-proven.
+- S-037 (d1fba5d): FH11 + CPT7/8/9 validators decoded first-hand from
+  the og's FUN_180029f30/FUN_180043630/FUN_1800436e0; 4 appended ids;
+  4 tests fail-before-proven.
+- S-036 batch (5e7390b + upstream rda-driver v0.2.3 6b50bb8->f569836):
+  the elevation guard's InvokeMethodOnNull fixed in both scripts; the
+  composite fails loud + FloorVersion v0.2.3; M-060/M-061/M-062/M-063/
+  N-084/N-085 all closed (7 findings).
+- M-065 (37c48c6): the shipped default user-sign set (the og's
+  111-entry DB canonicalized) + the rrecov engine-init load + the
+  release asset; OQ-SA-3 resolved en route (GetRawUserInfoMap ->
+  DRWUI's scan-setup Trigger_Raw/FileSystem config tree).
+- M-066 + N-088 (6d0f16c): the preview archive-content inventory
+  (Metadata.entries, 512-cap + truncated; the extract_metadata
+  truncated-OR belt fix) + the M-028 propagation tail (3 sites + the
+  PreviewDocs grep guard).
+- N-087 (8451913): the FAT 8.3 short-name CP437 boundary decode
+  (standard-verified table; 3 tests, 2 fail-before-proven).
+- N-086 (e81b98f): the compiled-in raw-signs posture registered as
+  PARITY-DELTAS D-103 (option (a)).
+
+CONVERGENCE NOTE: the parallel lane's M-067 (04dd769) caught this lane's
+S-039 ABI residue (cr_ui_user_sign's mime[64]/bytes[16]) and fixed it
+with CR_UI_ABI_VERSION 2->3 - both lanes' work is reconciled and current.
+
+BOARD AT CLOSE: 3 active (1 SEVERE S-038 · 1 MAJOR M-064-rem ·
+1 INFO I-026 [deliberate, no action]) · 239 FIXED · 3 tracked-open
+(+OQ-SA-3 resolved, its probe record kept). Suite: 955/955 green on the
+converged tree (the parallel lane's count incl. the ABI tests).
+
+NEXT QUEUE (multi-session work; the S-038 step-1 PACKAGING.md doc
+landed concurrently in the parallel lane - e75d4df - and is consumed
+by all of the below):
+1. S-038 steps 2-4: the installer implementation off the PACKAGING.md
+   contract (InstallerSilentRoundTrip / InstallerVersionKeyWritten /
+   InstallerOSGateMatrix).
+2. M-064 remainder - the %s%d versioned-coexistence install + the
+   -Uninstall verb (the script half landed in v0.2.3).
+3. The OQ probes: OQ-SA-1 (the anchor-datum census), OQ-SA-2 (the four
+   carve-family decodes), OQ-S4-3 (the TTFR half).
+4. A driver-install lane dispatch for the S-036/M-061/M-063 execution
+   evidence (the matrix + runner changes are in; CI needs one run).
