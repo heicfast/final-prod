@@ -2401,6 +2401,82 @@ size_t plant_3gp(std::vector<u8>& img, size_t at) {
     return 36;
 }
 
+/* ---- S-041 niche batch 2, school 1 (SCAN-4): og grammars, byte-exact
+ * (each validator's comment carries the decompile cite). ---- */
+size_t plant_chm(std::vector<u8>& img, size_t at) {
+    std::memcpy(img.data() + at, "ITSF", 4);
+    put32v(img, at + 8, 0x60);          /* the v3 header length */
+    put32v(img, at + 0x18, 0x7C01FD10); /* GUID1 lo */
+    put32v(img, at + 0x1C, 0x11D07BAA); /* GUID1 hi */
+    put32v(img, at + 0x20, 0xA0000C9E); /* GUID1 tail lo */
+    put32v(img, at + 0x24, 0xECE622C9); /* GUID1 tail hi */
+    put32v(img, at + 0x28, 0x7C01FD11); /* GUID2 lo */
+    put32v(img, at + 0x2C, 0x11D07BAA);
+    put32v(img, at + 0x30, 0xA0000C9E);
+    put32v(img, at + 0x34, 0xECE622C9);
+    put32v(img, at + 0x60, 0x1FE);  /* the directory-header entry magic */
+    put32v(img, at + 0x68, 0x1000); /* size = u64@0x68 */
+    put32v(img, at + 0x6C, 0);
+    put32v(img, at + 0x70, 0); /* the two zero gates */
+    put32v(img, at + 0x74, 0);
+    for (size_t i = 0x78; i < 0x1000; ++i)
+        img[at + i] = u8((i * 3) & 0xFF);
+    return 0x1000;
+}
+
+size_t plant_one(std::vector<u8>& img, size_t at) {
+    std::memcpy(img.data() + at, "\xE4\x52\x5C\x7B", 4); /* the GUID prefix key */
+    put32v(img, at + 4, 0x4DA7D88C);                     /* GUID tail qword lo */
+    put32v(img, at + 8, 0x7853B1AE);                     /* GUID tail qword hi */
+    put32v(img, at + 0xC, 0xD32969D0);                   /* the final GUID dword */
+    for (size_t i = 0x10; i < 0x100; ++i)
+        img[at + i] = u8(i & 0xFF);
+    return 0x100;
+}
+
+size_t plant_mny(std::vector<u8>& img, size_t at) {
+    std::memcpy(img.data() + at, "MS", 2);
+    std::memcpy(img.data() + at + 4, "MSISAM Database", 15);
+    for (size_t i = 0x13; i < 0x40; ++i)
+        img[at + i] = u8((i * 5) & 0xFF);
+    return 0x100000; /* the og's fixed claimed size */
+}
+
+size_t plant_emf(std::vector<u8>& img, size_t at) {
+    for (size_t i = 0; i < 0x28; ++i)
+        img[at + i] = 1;                            /* the EMF header prefix (iType/bounds) */
+    std::memcpy(img.data() + at + 0x28, " EMF", 4); /* dSignature */
+    put32v(img, at + 0x30, 0x800);                  /* nBytes */
+    put16(img, at + 0x3A, 0);                       /* sReserved == 0 */
+    for (size_t i = 0x3C; i < 0x800; ++i)
+        img[at + i] = u8((i * 5) & 0xFF);
+    return 0x800;
+}
+
+size_t plant_swf(std::vector<u8>& img, size_t at, bool cws = false) {
+    std::memcpy(img.data() + at, cws ? "CWS" : "FWS", 3);
+    img[at + 3] = 6;            /* version inside the og's [3,20] gate */
+    put32v(img, at + 4, 0x400); /* FileLength > 8 */
+    for (size_t i = 8; i < 0x400; ++i)
+        img[at + i] = u8((i * 7) & 0xFF);
+    return 0x400;
+}
+
+size_t plant_3ds(std::vector<u8>& img, size_t at, bool ncsd = false) {
+    if (!ncsd) {
+        std::memcpy(img.data() + at, "MM", 2);
+        std::memcpy(img.data() + at + 0x10, "==", 2); /* the chunk gate */
+        for (size_t i = 0x12; i < 0x40; ++i)
+            img[at + i] = u8((i * 3) & 0xFF);
+    } else {
+        for (size_t i = 0; i < 0x100; ++i)
+            img[at + i] = u8((i * 3) & 0xFF);
+        std::memcpy(img.data() + at + 0x100, "NCSD", 4);
+        put32v(img, at + 0x104, 0x200000);
+    }
+    return 0x40;
+}
+
 } // namespace
 
 TEST(Carve, S007CommonFormatsCarve) {
@@ -2899,6 +2975,125 @@ TEST(Carve, S007M081CiwMrmLowdocHlpOgGrammar) {
             EXPECT_STREQ(s.ext, "hlp");
         }
     }
+}
+
+TEST(Carve, S007NicheBatch2School1Carve) {
+    /* S-041 batch-2 school 1 (SCAN-4): CHM ONE MNY EMF SWF(FWS/CWS) 3DS
+     * - every grammar re-verified first-hand at the analyser body before
+     * the row landed. The MNY row's carved size is the og's own fixed
+     * 1 MiB claim (FUN_180041dd0); CHM/EMF/SWF take their sizes from
+     * the og's own size fields; ONE/3DS carry the bounded-extent
+     * stand-in for their undecoded walks. */
+    std::vector<u8> img(2 * 1024 * 1024, 0);
+    const size_t chm_at = 4096, one_at = 8192, mny_at = 16384, emf_at = 12288, swf_at = 20480,
+                 cws_at = 22528, mmds_at = 24576, ncsd_at = 28672;
+    const size_t chm_len = plant_chm(img, chm_at);
+    const size_t one_len = plant_one(img, one_at);
+    const size_t mny_len = plant_mny(img, mny_at);
+    const size_t emf_len = plant_emf(img, emf_at);
+    const size_t swf_len = plant_swf(img, swf_at);
+    const size_t cws_len = plant_swf(img, cws_at, true);
+    plant_3ds(img, mmds_at);
+    plant_3ds(img, ncsd_at, true);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    auto find_at = [&](size_t off) -> tree::FileNode* {
+        for (tree::FileNode* n : all)
+            if (!n->props()->extents.empty() && n->props()->extents.front().offset == off)
+                return n;
+        return nullptr;
+    };
+    auto expect_carved = [&](size_t off, u32 fmt, size_t min_len, const char* what) {
+        tree::FileNode* n = find_at(off);
+        ASSERT_NE(n, nullptr) << what << " must carve (S-041 school 1)";
+        EXPECT_EQ(n->props()->carve_format, fmt) << what;
+        EXPECT_GE(n->props()->logical_size, min_len) << what;
+    };
+    expect_carved(chm_at, FMT_CHM, chm_len, "CHM");
+    expect_carved(one_at, FMT_ONE, one_len, "OneNote");
+    expect_carved(mny_at, FMT_MNY, mny_len, "Money");
+    expect_carved(emf_at, FMT_EMF, emf_len, "EMF");
+    expect_carved(swf_at, FMT_SWF, swf_len, "SWF (FWS)");
+    expect_carved(cws_at, FMT_SWF_CWS, cws_len, "SWF (CWS)");
+    expect_carved(mmds_at, FMT_3DS, 0x12, "3DS (MM/==)");
+    expect_carved(ncsd_at, FMT_3DS_NCSD, 0x108, "3DS (NCSD)");
+    /* the og's own size semantics, exact where the og sets a size */
+    EXPECT_EQ(find_at(chm_at)->props()->logical_size, chm_len) << "CHM size = u64@0x68";
+    EXPECT_EQ(find_at(mny_at)->props()->logical_size, mny_len) << "MNY size = the og's 0x100000";
+    EXPECT_EQ(find_at(emf_at)->props()->logical_size, emf_len) << "EMF size = nBytes";
+    EXPECT_EQ(find_at(swf_at)->props()->logical_size, swf_len) << "SWF size = FileLength";
+}
+
+TEST(Carve, S007NicheBatch2School1RejectsNoise) {
+    /* One hostile variant per format - the og gates reject what the
+     * keys would accept on noise. */
+    std::vector<u8> img(256 * 1024, 0);
+    /* ITSF with a broken GUID @ 512 */
+    plant_chm(img, 512);
+    put32v(img, 512 + 0x18, 0xDEADBEEF);
+    /* "MS" with a broken MSISAM string @ 2048 */
+    std::memcpy(img.data() + 2048, "MS", 2);
+    std::memcpy(img.data() + 2048 + 4, "MSISAM DatabasX", 15);
+    /* " EMF" with nBytes 0 @ 4096 */
+    plant_emf(img, 4096);
+    put32v(img, 4096 + 0x30, 0);
+    /* FWS with version 2 (below the og's [3,20] gate) @ 8192 */
+    plant_swf(img, 8192);
+    img[8192 + 3] = 2;
+    /* FWS with FileLength 8 (not > 8) @ 12288 */
+    plant_swf(img, 12288);
+    put32v(img, 12288 + 4, 8);
+    /* "MM" without the == gate and without NCSD @ 16384 */
+    std::memcpy(img.data() + 16384, "MM", 2);
+    /* NCSD with a wrong 0x104 field @ 20480 */
+    plant_3ds(img, 20480, true);
+    put32v(img, 20480 + 0x104, 0x123456);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    for (tree::FileNode* n : all) {
+        const u64 off = n->props()->extents.front().offset;
+        const u64 fmt = n->props()->carve_format;
+        EXPECT_FALSE(off == 512 && fmt == FMT_CHM) << "broken-GUID ITSF rejected";
+        EXPECT_FALSE(off == 2048 && fmt == FMT_MNY) << "broken MSISAM string rejected";
+        EXPECT_FALSE(off == 4096 && fmt == FMT_EMF) << "nBytes-0 EMF rejected";
+        EXPECT_FALSE(off == 8192 && fmt == FMT_SWF) << "version-2 FWS rejected";
+        EXPECT_FALSE(off == 12288 && fmt == FMT_SWF) << "FileLength-8 FWS rejected";
+        EXPECT_FALSE(off == 16384 && fmt == FMT_3DS) << "MM without == / NCSD rejected";
+        EXPECT_FALSE(off == 20480 && fmt == FMT_3DS_NCSD) << "wrong-field NCSD rejected";
+    }
+    EXPECT_TRUE(stats.rejected >= 7) << "each noise plant must reach a validator rejection";
 }
 
 TEST(Carve, S007NicheBatch1SalvageSemantics) {

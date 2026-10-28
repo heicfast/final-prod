@@ -174,6 +174,18 @@ enum FormatId : u32 {
     FMT_AI,     /* C5 D0 D3 C6 0xc6d3d0c5 -> CEPSAnalyser (Illustrator), idx 27 */
     FMT_DXF,    /* "  0\r" 0x0d302020 -> CDXF chain (g146+g144), idx 25 */
     FMT_3GP,    /* ftyp brand 3gp (the og's File3GP legacy row) */
+    /* ---- S-041 niche batch 2, school 1 (SCAN-4): og grammars verified
+     * first-hand (the session-5 decode table in SCAN-ENGINE-DELTA). ---- */
+    FMT_CHM,      /* "ITSF" 0x46535449 -> FileCHMAnalyser, id 0x0e */
+    FMT_ONE,      /* E4 52 5C 7B 0x7b5c52e4 -> OneAnalyser/FileONE, id 0x31 */
+    FMT_MNY,      /* u16 "MS" 0x534d -> FileMNYAnalyser, id 0x28 */
+    FMT_EMF,      /* list-layer " EMF" @+0x28 -> FileEMFAnalyser, id 0x1a */
+    FMT_SWF,      /* list-layer "FWS" -> FileSWFAnalyser, id 0x3e (ZWS NOT accepted) */
+    FMT_SWF_CWS,  /* list-layer "CWS" -> FileSWFAnalyser, id 0x3e (2nd key) */
+    FMT_3DS,      /* u16 "MM" 0x4d4d -> New3DS/File3DS, id 0x01 ('=='@+0x10 or NCSD@+0x100) */
+    FMT_3DS_NCSD, /* "NCSD" @+0x100 -> the same id-0x01 chain's LIST-layer registration
+                   * (:3223-3243, first-hand) - the CCI form whose NCSD header sits at
+                   * +0x100; the late magic re-expresses that probe */
     FMT_COUNT
 };
 

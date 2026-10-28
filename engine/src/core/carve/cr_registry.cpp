@@ -87,6 +87,14 @@ CarveResult validate_eps(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_ai(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_dxf(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_3gp(IStorageDevice* s, u64 hit, u64 cap);
+/* S-041 niche batch 2, school 1 (SCAN-4) */
+CarveResult validate_chm(IStorageDevice* s, u64 hit, u64 cap);
+CarveResult validate_one(IStorageDevice* s, u64 hit, u64 cap);
+CarveResult validate_mny(IStorageDevice* s, u64 hit, u64 cap);
+CarveResult validate_emf(IStorageDevice* s, u64 hit, u64 cap);
+CarveResult validate_swf(IStorageDevice* s, u64 hit, u64 cap); /* swf + swf_cws */
+CarveResult validate_3ds(IStorageDevice* s, u64 hit, u64 cap);
+CarveResult validate_3ds_ncsd(IStorageDevice* s, u64 hit, u64 cap); /* the list-layer twin */
 
 namespace {
 const Signature kTable[] = {
@@ -917,6 +925,69 @@ const Signature kTable[] = {
      validate_dxf,
      "AutoCAD DXF"},
     {FMT_3GP, "3gp", {'f', 't', 'y', 'p'}, 4, 4, 128, 4ull << 30, 780, validate_3gp, "3GP Video"},
+    /* ---- S-041 niche batch 2, school 1 (SCAN-4): every grammar
+     * re-verified first-hand at the analyser body (the session-5 log in
+     * SCAN-ENGINE-DELTA carries the decode table). The ONE row carries
+     * the og ctor's OWN bounds {20, 500,000,000} (FUN_180016080
+     * :17191-17209); the 3DS row carries S-041's census cap. ---- */
+    {FMT_CHM,
+     "chm",
+     {'I', 'T', 'S', 'F'},
+     4,
+     0,
+     32,
+     64ull << 20,
+     750,
+     validate_chm,
+     "Compiled HTML Help"},
+    {FMT_ONE,
+     "one",
+     {0xE4, 0x52, 0x5C, 0x7B},
+     4,
+     0,
+     20,
+     500000000ull,
+     620,
+     validate_one,
+     "OneNote Document"},
+    {FMT_MNY, "mny", {'M', 'S'}, 2, 0, 32, 64ull << 20, 650, validate_mny, "Money Database"},
+    /* EMF: the og probes " EMF"@+0x28 (list-layer) - the late magic
+     * re-expresses that probe; F8's late-magic rule sets min 0x60. */
+    {FMT_EMF,
+     "emf",
+     {' ', 'E', 'M', 'F'},
+     4,
+     0x28,
+     0x60,
+     64ull << 20,
+     700,
+     validate_emf,
+     "Enhanced Metafile"},
+    {FMT_SWF, "swf", {'F', 'W', 'S'}, 3, 0, 16, 64ull << 20, 700, validate_swf, "Shockwave Flash"},
+    {FMT_SWF_CWS,
+     "swf",
+     {'C', 'W', 'S'},
+     3,
+     0,
+     16,
+     64ull << 20,
+     700,
+     validate_swf,
+     "Shockwave Flash (compressed)"},
+    {FMT_3DS, "3ds", {'M', 'M'}, 2, 0, 0x12, 0xBEBC200ull, 620, validate_3ds, "3DS Image"},
+    /* the same id-0x01 chain's list-layer registration (:3223-3243) - the
+     * NCSD-at-+0x100 CCI form; the late magic re-expresses the probe,
+     * F8's late-magic rule sets min 0x140. */
+    {FMT_3DS_NCSD,
+     "3ds",
+     {'N', 'C', 'S', 'D'},
+     4,
+     0x100,
+     0x140,
+     0xBEBC200ull,
+     620,
+     validate_3ds_ncsd,
+     "3DS Image (NCSD)"},
 };
 } // namespace
 

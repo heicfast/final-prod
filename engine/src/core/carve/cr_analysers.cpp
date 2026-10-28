@@ -3728,5 +3728,182 @@ CarveResult validate_3gp(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
+/* ---- S-041 niche batch 2, school 1 (SCAN-4): every grammar below
+ * re-verified first-hand at its analyser body before the row landed
+ * (the session-5 decode table in SCAN-ENGINE-DELTA is the record). ---- */
+
+/* CHM: ITSF key -> FileCHMAnalyser id 0x0e (registration :2488-2499,
+ * first-hand). The og validator (FUN_180016b40 :17705-17740, first-hand):
+ * ITSF@0 + u32@8==0x60 + both ITSF GUIDs as qword pairs (@0x18 ==
+ * 0x11d07baa7c01fd10, @0x20 == 0xece622c9a0000c9e, @0x28 ==
+ * 0x11d07baa7c01fd11, @0x30 == 0xece622c9a0000c9e) + u32@0x60==0x1FE
+ * (the directory-header entry magic) + u32@0x70==0 + u32@0x74==0 ->
+ * size = u64@0x68. The prior ":22635 pin" was std::_Tree rebalance code. */
+CarveResult validate_chm(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[0x78];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    if (std::memcmp(h, "ITSF", 4) != 0)
+        return r; /* the registry key, re-checked */
+    if (u32_from_bytes_le(h + 8) != 0x60u)
+        return r;
+    if (u64_from_bytes_le(h + 0x18) != 0x11d07baa7c01fd10ull ||
+        u64_from_bytes_le(h + 0x20) != 0xece622c9a0000c9eull ||
+        u64_from_bytes_le(h + 0x28) != 0x11d07baa7c01fd11ull ||
+        u64_from_bytes_le(h + 0x30) != 0xece622c9a0000c9eull)
+        return r; /* the two ITSF GUIDs */
+    if (u32_from_bytes_le(h + 0x60) != 0x1FEu || u32_from_bytes_le(h + 0x70) != 0 ||
+        u32_from_bytes_le(h + 0x74) != 0)
+        return r;
+    const u64 size = u64_from_bytes_le(h + 0x68);
+    r.ok = true;
+    r.end = std::min(hit + size, probe_limit(s, hit, cap));
+    r.confidence = 750;
+    r.note = "chm-itsf-guid-grammar";
+    return r;
+}
+
+/* ONE: E4 52 5C 7B key -> RawSpeed::OneAnalyser/FileONE id 0x31
+ * (registration :2156-2177). The og validator (FUN_180044db0
+ * :52287-52311, first-hand) completes the OneNote GUID: qword@+4 ==
+ * 0x7853b1ae4da7d88c and dword@0xc == 0xd32969d0. The FileInfo bounds
+ * {20, 500,000,000} are the og ctor's own (FUN_180016080 :17191-17209).
+ * The chunk-chain size walk (FUN_180044e30) is the recorded follow-up;
+ * the DWG-pattern bounded extent stands in. */
+CarveResult validate_one(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[0x10];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    if (std::memcmp(h, "\xE4\x52\x5C\x7B", 4) != 0)
+        return r; /* the registry key, re-checked */
+    if (u64_from_bytes_le(h + 4) != 0x7853b1ae4da7d88cull ||
+        u32_from_bytes_le(h + 0xc) != 0xd32969d0u)
+        return r; /* the GUID tail */
+    r.ok = true;
+    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
+    r.confidence = 620;
+    r.note = "one-guid+bounded-extent";
+    return r;
+}
+
+/* MNY: u16 'MS' key (:2909) -> FileMNYAnalyser id 0x28. The og
+ * validator (FUN_180041dd0 :49956-49981, first-hand) is a single
+ * 15-byte memcmp "MSISAM Database" @+4 -> claimed size 0x100000. */
+CarveResult validate_mny(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[19];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    if (std::memcmp(h, "MS", 2) != 0)
+        return r; /* the registry key, re-checked */
+    if (std::memcmp(h + 4, "MSISAM Database", 15) != 0)
+        return r; /* the og's whole follow-up gate */
+    r.ok = true;
+    r.end = std::min(hit + u64(0x100000), probe_limit(s, hit, cap));
+    r.confidence = 650;
+    r.note = "mny-msisam-memcmp";
+    return r;
+}
+
+/* EMF: list-only, id 0x1a (:3194-3222). The og validator
+ * (FUN_180012080 :14204-14214, first-hand): " EMF"@+0x28 (u32
+ * 0x464d4520) + u16@0x3a==0 + nBytes u32@0x30!=0 -> size = nBytes.
+ * NO iType-1 check exists in the og (the census phrasing corrected). */
+CarveResult validate_emf(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[0x3C];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    if (std::memcmp(h + 0x28, " EMF", 4) != 0)
+        return r; /* the list-layer probe (re-checked at +0x28) */
+    if (u16_from_bytes_le(h + 0x3A) != 0)
+        return r; /* the reserved word must be zero */
+    const u32 nbytes = u32_from_bytes_le(h + 0x30);
+    if (nbytes == 0)
+        return r;
+    r.ok = true;
+    r.end = std::min(hit + u64(nbytes), probe_limit(s, hit, cap));
+    r.confidence = 700;
+    r.note = "emf-signature+reserved+nbytes";
+    return r;
+}
+
+/* SWF: list-only FWS/CWS (:3058-3086) -> FileSWFAnalyser id 0x3e. The
+ * og validator (FUN_1800268a0 :29970-29996 + the deep gate
+ * FUN_180026940 :30029-30031, first-hand): FWS/CWS only - ZWS is NOT
+ * accepted; version byte@3 in [3,20]; FileLength u32@4 > 8 -> size =
+ * FileLength. The RECT bit-walk past byte 8 is the recorded follow-up. */
+CarveResult validate_swf(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[8];
+    if (!rd(s, hit, h, sizeof(h)))
+        return r;
+    if ((h[0] != 'F' && h[0] != 'C') || h[1] != 'W' || h[2] != 'S')
+        return r; /* FWS | CWS only (the registry keys, re-checked) */
+    if (h[3] < 3 || h[3] > 20)
+        return r; /* the og's version gate */
+    const u32 len = u32_from_bytes_le(h + 4);
+    if (len <= 8)
+        return r; /* the og's FileLength gate */
+    r.ok = true;
+    r.end = std::min(hit + u64(len), probe_limit(s, hit, cap));
+    r.confidence = 700;
+    r.note = "swf-sig+version+filelength";
+    return r;
+}
+
+/* 3DS: u16 'MM' key (:2885) -> RawSpeed::New3DSAnalyser/File3DS id 1
+ * (ctor FUN_1800126c0 :14491-14510). The og validator (FUN_180042fa0
+ * :50906-50916, first-hand): 'MM'@0 AND '=='@+0x10, OR the alt branch
+ * u32@0x100 == 0x4453434e ('NCSD' - extracted from the og DLL's .data,
+ * VA 0x180093978 / file offset 0x91778) AND u32@0x104 == 0x200000.
+ * The section size-walk (FUN_180042ff0) is the recorded follow-up; the
+ * DWG-pattern bounded extent stands in. Row max = S-041's census
+ * bound (200 MB). */
+CarveResult validate_3ds(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[0x12];
+    if (rd(s, hit, h, sizeof(h)) && std::memcmp(h, "MM", 2) == 0 &&
+        u16_from_bytes_le(h + 0x10) == 0x3D3Du) {
+        r.ok = true;
+        r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
+        r.confidence = 620;
+        r.note = "3ds-mm-chunk-gate+bounded-extent";
+        return r;
+    }
+    u8 a[8];
+    if (rd(s, hit + 0x100, a, sizeof(a)) && std::memcmp(a, "NCSD", 4) == 0 &&
+        u32_from_bytes_le(a + 4) == 0x200000u) {
+        r.ok = true;
+        r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
+        r.confidence = 620;
+        r.note = "3ds-ncsd-gate+bounded-extent";
+        return r;
+    }
+    return r;
+}
+
+/* 3DS-NCSD: the same id-0x01 chain's LIST-layer registration
+ * (:3223-3243, first-hand) - the og tries the analyser at probed
+ * positions WITHOUT the MM key, which is how a CCI file whose NCSD
+ * header sits at +0x100 (junk before it) ever reaches the validator.
+ * The core's equivalent: this late-magic row; the grammar is the
+ * branch-2 pair re-checked ('NCSD'@+0x100 + u32@0x104 == 0x200000). */
+CarveResult validate_3ds_ncsd(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 a[8];
+    if (!rd(s, hit + 0x100, a, sizeof(a)))
+        return r;
+    if (std::memcmp(a, "NCSD", 4) != 0 || u32_from_bytes_le(a + 4) != 0x200000u)
+        return r;
+    r.ok = true;
+    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
+    r.confidence = 620;
+    r.note = "3ds-ncsd-list-layer+bounded-extent";
+    return r;
+}
+
 } // namespace carve
 } // namespace cr
