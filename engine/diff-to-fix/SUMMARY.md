@@ -172,7 +172,12 @@ first-hand; every fix RED-test-first.
   S3-W4a LANDED; AUDIT-PIPELINE's WRITER-1 row OPEN→MATCH; exfat.md B9's tz-offset
   phrasing re-truthed; the s5 polarity erratum already landed by S-058 — verified).
 
-**Board (filesystem truth, running): 62 active — 0 ACUTE · 9 SEVERE · 27 MAJOR · 26 MINOR · 0 INFO / 76 FIXED files / 5 tracked-open.**
+- **N-185 FIXED** — the b26017a7 record-truth erratum (the N-157 attribution line
+  annotated with the executed refutation + the corrected repair sequence; the
+  worklog's session-42 false-green claim dated per the 1233b4a0 precedent; the
+  code was already green at HEAD — record-truth only).
+
+**Board (filesystem truth, running): 61 active — 0 ACUTE · 9 SEVERE · 27 MAJOR · 25 MINOR · 0 INFO / 77 FIXED files / 5 tracked-open.**
 
 # SUMMARY.md — executive summary (the S42 diff-to-fix lane's convergence on top; the prior lanes below, newest-first)
 # SUMMARY.md — executive summary (the S46 MINOR-first fix lane on top — the user's priority-to-minor directive; the prior lanes below, newest-first)
