@@ -107,6 +107,11 @@ if python3 tools/test_verify_pe_um.py >/dev/null 2>&1; then
 else
   fail "Win7 PE gate self-test failed (tools/test_verify_pe_um.py)"
 fi
+if python3 tools/test_ceiling_metric.py >/dev/null 2>&1; then
+  ok "GAP-S6-5 physical-ceiling scorer self-test"
+else
+  fail "physical-ceiling scorer self-test failed (tools/test_ceiling_metric.py)"
+fi
 
 # --------------------------------------------------------- 6. dependency pin
 echo "== [6/10] dependency pinning (vcpkg manifest mode) =="

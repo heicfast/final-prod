@@ -248,6 +248,7 @@ def main():
                     'fix_plan': rc.get('fix_plan',
                         'register in docs/CORE-GAP-LIST.md and fix in a follow-up session'),
                     'evidence': rc.get('evidence', ''),
+                    'physical_ceiling': om.get('physical_ceiling'),
                 })
         summary['scenarios'][scen] = entry
 
@@ -358,6 +359,13 @@ def main():
         for b in below_findings:
             md.append(f"- `{b['scenario']}` recall: ours {fmt(b['ours'])} vs og {fmt(b['og'])} - "
                       f"root cause: {b['root_cause_hypothesis']} - plan: {b['fix_plan']}")
+            if b.get('physical_ceiling'):
+                pc = b['physical_ceiling']
+                md.append(f"  - physical ceiling (GAP-S6-5): {pc.get('physically_intact')}/"
+                          f"{pc.get('files_ground_truth')} ground-truth files physically intact "
+                          f"post-decay; recall of the physically-intact set = "
+                          f"{pc.get('recall_of_physically_intact')} - the naive denominator "
+                          f"overstates the gap")
             if b.get('evidence'):
                 md.append(f"  - evidence: {b['evidence']}")
     else:

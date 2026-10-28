@@ -35,6 +35,45 @@ FORMAT_SCENARIOS = {'quick_format', 'full_format'}
 WHOLE_DISK_SCENARIOS = {'delete_partition'}
 
 
+def compute_ceiling(ceil_records, gt, recovered_keys):
+    """GAP-S6-5: the physical-ceiling block. `ceil_records` is the records
+    dict from apply-scenario's physical-ceiling.json (per rel: post-decay
+    extent-range sha256 + short_read flag, produced by hashing each file's
+    seed-time extents against the post-decay volume - deletion never moves
+    bytes, so a hash match means the content is physically present). Recall
+    is then judged against the physically-intact set, not the naive ground
+    truth: the NTFS decay cliff is an allocation-hint sector-reuse effect,
+    not an engine defect.
+
+    Returns None when no ceiling artifact was supplied, else the block dict
+    (files_ground_truth / files_with_extents / physically_intact /
+    intact_share / recovered_of_intact / recall_of_physically_intact /
+    short_read_files)."""
+    if not ceil_records:
+        return None
+    gt_with_ext = [e for e in gt if norm(e['rel']) in ceil_records]
+    intact = []
+    short_read = 0
+    for e in gt_with_ext:
+        r = ceil_records[norm(e['rel'])]
+        if r.get('short_read'):
+            short_read += 1
+            continue
+        if str(r.get('post_decay_sha256', '')).lower() == str(e.get('sha256', '')).lower():
+            intact.append(e)
+    rec_of_intact = sum(1 for e in intact if norm(e['rel']) in recovered_keys)
+    n_intact = len(intact)
+    return {
+        'files_ground_truth': len(gt),
+        'files_with_extents': len(gt_with_ext),
+        'physically_intact': n_intact,
+        'intact_share': round(n_intact / max(1, len(gt)), 4),
+        'short_read_files': short_read,
+        'recovered_of_intact': rec_of_intact,
+        'recall_of_physically_intact': round(rec_of_intact / max(1, n_intact), 4) if n_intact else None,
+    }
+
+
 def load_manifest(path):
     meta, entries = None, []
     with open(path, 'r', encoding='utf-8-sig') as f:
@@ -144,6 +183,7 @@ def main():
     ap.add_argument('--tool', choices=['ours', 'og'], required=True)
     ap.add_argument('--fs', default='')
     ap.add_argument('--mode', default='deepcarve', help='scan mode for the ours leg (tree-<mode>.csv / inventory of recovered-<mode>)')
+    ap.add_argument('--ceiling', default='', help='physical-ceiling.json from apply-scenario (decay scenarios): post-decay per-file extent-range hashes; adds the physical_ceiling block')
     ap.add_argument('--outname', default='metrics.json')
     args = ap.parse_args()
 
@@ -289,6 +329,11 @@ def main():
         attempted = [e for e in gt if norm(e['rel']) in recovered] or gt
         n_attempt = len(attempted)
 
+    # ---- GAP-S6-5: physical ceiling (decay scenarios) ----
+    ceil_json = load_json(args.ceiling) if args.ceiling else None
+    ceil_records = (ceil_json or {}).get('records') if isinstance(ceil_json, dict) else None
+    physical_ceiling = compute_ceiling(ceil_records, gt, set(recovered.keys()))
+
     reported_recovered_files = inv.get('files_seen', 0)
     n_hash_ok = len([r for r in rec_records if r.get('match_level') and r.get('hash_match')])
 
@@ -361,6 +406,7 @@ def main():
         'keep_control': keep_control,
         'per_class': per_class,
         'size_weighted': size_weighted,
+        'physical_ceiling': physical_ceiling,
         'og_cap': cap,
         'perf': perf,
         'preservation': pres,
@@ -369,6 +415,12 @@ def main():
 
     if scenario == 'mft_corrupt' and args.fs and args.fs.upper() != 'NTFS':
         m['notes'].append('NOT-COMPARABLE: mft_corrupt is NTFS-only')
+    if physical_ceiling:
+        m['notes'].append(
+            'PHYSICAL CEILING (GAP-S6-5): {}/{} ground-truth files physically intact post-decay; '
+            'recall_of_physically_intact={}'.format(
+                physical_ceiling['physically_intact'], physical_ceiling['files_ground_truth'],
+                physical_ceiling['recall_of_physically_intact']))
     if args.tool == 'og':
         ogrun = load_json(os.path.join(args.outdir, 'og-run.json')) or {}
         m['og_run_notes'] = ogrun.get('notes', [])

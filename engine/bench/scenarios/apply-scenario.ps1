@@ -56,6 +56,37 @@ function EntryPath($e) {
     return $p
 }
 
+# Cluster-size resolution shared by the extent-addressed scenarios
+# (partial_overwrite, decay_*). BENCH-F5c: ReFS has no BPB cluster geometry
+# at the FAT-style boot-sector offsets - GetBootClusterSize returns garbage/-1
+# (run 40079065019 refs/partial_overwrite 'bad cluster size'). Derive from
+# the manifest ground truth: the largest SINGLE-extent file's size / cluster
+# count (the big seed files are power-of-2 MiB sized, so the division is
+# exact for any sane cluster size). Returns @{ bpc; notes }.
+function Resolve-ClusterBytes {
+    param([string] $Letter, [string] $FileSystem, [array] $Deletable)
+    $notes = @()
+    $bpc = Get-BootClusterSize -Letter $Letter
+    if ($FileSystem -eq 'ReFS' -or $bpc -le 0) {
+        $probe = @($Deletable | Where-Object { $_.extents -and $_.extents.Count -eq 1 -and $_.extents[0][1] -ge 64 }) |
+            Sort-Object { - $_.size } | Select-Object -First 1
+        if ($probe -and [long]$probe.extents[0][1] -gt 0) {
+            $derived = [math]::Floor([double]$probe.size / [double]$probe.extents[0][1])
+            $p2 = 512
+            while ($p2 -lt $derived -and $p2 -lt 1MB) { $p2 *= 2 }
+            if ($p2 -ge 512 -and $p2 -le 1MB) {
+                $bpc = $p2
+                $notes += "ReFS cluster size derived from manifest (probe $($probe.name): $($probe.size) / $($probe.extents[0][1]) -> $bpc)"
+            }
+        }
+        if ($bpc -le 0) {
+            $bpc = 4096
+            $notes += 'ReFS cluster size: derivation failed, assuming 4096 (ReFS default for volumes < 16 TiB) - recorded assumption, not silent'
+        }
+    }
+    return @{ bpc = [long]$bpc; notes = $notes }
+}
+
 $state = [ordered]@{
     mode = $Mode
     letter = "$Letter`:"
@@ -228,39 +259,30 @@ elseif ($Mode.StartsWith('decay_')) {
     Write-VolumeCache -DriveLetter $Letter -ErrorAction SilentlyContinue | Out-Null
     $decayMap = Join-Path $OutDir 'hashmap-post-decay.csv'
     Invoke-VolumeHashCapture -Letter $Letter -OutFile $decayMap -VolumeBytes $VolumeBytes
+    # GAP-S6-5 (root-cause correction): judge decay recall against what is
+    # PHYSICALLY recoverable - hash each deletable file's extent ranges
+    # (captured at seed time; deletion never moves bytes) against the
+    # post-decay volume. The NTFS decay_80 cliff is an allocation-hint
+    # sector-reuse effect, not an engine defect; compute_metrics consumes
+    # physical-ceiling.json from here.
+    $ccb = Resolve-ClusterBytes -Letter $Letter -FileSystem $FileSystem -Deletable $deletable
+    foreach ($n in $ccb.notes) { $state.notes += $n }
+    $ceilFile = Join-Path $OutDir 'physical-ceiling.json'
+    $ceil = Invoke-PhysicalCeilingProbe -Letter $Letter -Entries $deletable -ClusterBytes ([long]$ccb.bpc) -OutFile $ceilFile
     $state.extra = @{
         fill_pct = $pct; filler_files = $fillerCount; filler_bytes = $fillerBytes
         disk_full_hit = $fullHit; target_remaining_bytes = $targetRemaining
+        cluster_bytes = $ccb.bpc; ceiling_files_probed = $ceil.files_probed
+        ceiling_files_no_extents = $ceil.files_no_extents
     }
-    $state.notes += "permanent delete -> fillers written to $pct% -> fillers deleted (sector reuse decay); post-decay hash map captured"
+    $state.notes += "permanent delete -> fillers written to $pct% -> fillers deleted (sector reuse decay); post-decay hash map + physical ceiling ($($ceil.files_probed) files) captured"
 }
 elseif ($Mode -eq 'partial_overwrite') {
     $state.delete_failures += Invoke-PermanentDelete
     Write-VolumeCache -DriveLetter $Letter -ErrorAction SilentlyContinue | Out-Null
-    $bpc = Get-BootClusterSize -Letter $Letter
-    if ($FileSystem -eq 'ReFS' -or $bpc -le 0) {
-        # BENCH-F5c: ReFS has no BPB cluster geometry at the FAT-style boot-
-        # sector offsets - GetBootClusterSize returns garbage/-1 (run 40079065019
-        # refs/partial_overwrite 'bad cluster size'). Derive from the manifest
-        # ground truth: the largest SINGLE-extent file's size / cluster count
-        # (the big seed files are power-of-2 MiB sized, so the division is
-        # exact for any sane cluster size).
-        $probe = @($deletable | Where-Object { $_.extents -and $_.extents.Count -eq 1 -and $_.extents[0][1] -ge 64 }) |
-            Sort-Object { - $_.size } | Select-Object -First 1
-        if ($probe -and [long]$probe.extents[0][1] -gt 0) {
-            $derived = [math]::Floor([double]$probe.size / [double]$probe.extents[0][1])
-            $p2 = 512
-            while ($p2 -lt $derived -and $p2 -lt 1MB) { $p2 *= 2 }
-            if ($p2 -ge 512 -and $p2 -le 1MB) {
-                $bpc = $p2
-                $state.notes += "ReFS cluster size derived from manifest (probe $($probe.name): $($probe.size) / $($probe.extents[0][1]) -> $bpc)"
-            }
-        }
-        if ($bpc -le 0) {
-            $bpc = 4096
-            $state.notes += 'ReFS cluster size: derivation failed, assuming 4096 (ReFS default for volumes < 16 TiB) - recorded assumption, not silent'
-        }
-    }
+    $ccb = Resolve-ClusterBytes -Letter $Letter -FileSystem $FileSystem -Deletable $deletable
+    foreach ($n in $ccb.notes) { $state.notes += $n }
+    $bpc = $ccb.bpc
     if ($bpc -le 0) { throw "bad cluster size $bpc" }
     $exts = @()
     foreach ($e in $deletable) {

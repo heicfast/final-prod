@@ -187,3 +187,44 @@ Work Log:
 Stage Summary:
 - M-070 closed by the api-fix-2 lane's rename (89dd7ad); staged-scenarios
   should now stage 11 files - the lane's next dispatch is the proof.
+
+---
+Task ID: PARITY-FIX-1 (senior-dev session — the recall-gap register truth pass + GAP-S6-5's scorer action)
+Agent: main session (25+yr senior-dev persona, full 3-repo context recovery done)
+
+Work Log:
+- Context recovery protocol executed: 6 parallel agents over the research
+  corpus (architecture docs / artifacts / og-codebase / reversed+raw-evidence),
+  core_recovery (full tree + board), rda-driver (all 66 files). Board at
+  session start: 1 active SEVERE (S-038 steps 2-4) + 2 tracked-open
+  (OQ-S4-3, OQ-SA-1) + I-026 informational.
+- Verified bench/root-causes.json (filed 2026-10-24) against current code:
+  ALL SEVEN engine-side recall gaps are already fixed in code with tests
+  (GAP-S6-1/2 = 9fc82b0; S6-3/4 = 7797bd6; S6-6/7/8 = 03ddcd2 + F-1 cd9ea16)
+  - the register, CORE-GAP-LIST.md rows and PERFORMANCE-PROFILE.md rows
+  were all STALE (predate the landings).
+- GAP-S6-5's action landed (the only open item): the physical-ceiling
+  metric. volume.ps1 gains the HashRanges composite C# op (one locked
+  pass, per-file extent-range SHA-256, short-read honesty) +
+  Invoke-PhysicalCeilingProbe; apply-scenario's decay branch emits
+  physical-ceiling.json (seed-time extents are valid post-decay addresses
+  - deletion never moves bytes); the cluster-size resolution is extracted
+  to Resolve-ClusterBytes shared by partial_overwrite + decay (logic
+  byte-identical, BENCH-F4c/F5c lessons kept); compute_metrics --ceiling
+  adds the physical_ceiling block (compute_ceiling(), recall judged
+  against the physically-intact set); compare.py surfaces the ceiling on
+  BELOW rows; tools/test_ceiling_metric.py (5 cases, 16 assertions) wired
+  into ci-local step 5.
+- Truth pass: root-causes.json every entry now carries a resolution field
+  with the landing commit (original evidence kept verbatim; the decay
+  entry carries GAP-S6-5's root-cause CORRECTION - physical destruction,
+  not an engine defect); CORE-GAP-LIST.md S6-1..S6-8 all flipped CLOSED
+  with commit refs; PERFORMANCE-PROFILE.md rows annotated fixed-in-code
+  (numbers stand until the next bench dispatch re-measures).
+
+Stage Summary:
+- The engine-side recall-gap register is fully closed in code AND the
+  registers now tell the truth. Remaining session targets: S-038 steps
+  2-4 (installer, per PACKAGING.md defaults), M-068 board hygiene move,
+  testing.md count truth, OQ-SA-1 NTFS +0x64 decompile probe, OQ-S4-3
+  TTFR probe target.
