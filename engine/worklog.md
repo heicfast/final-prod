@@ -54,6 +54,14 @@ OQ-S10-3's grant boundary). Pulled-before-pushed discipline; one finding, one pu
 fix RED-test-first; corpus cites re-read first-hand. The S48/S49/S50 windows absorbed at
 the merge (A-014 + I-041..I-044 retired by the parallel lanes; both sides' records kept).
 
+- **M-132 FIXED** (`d746a75b`) — the GPT backup probe at device-last FIRST
+  (cr_table_parse.cpp rc_p==OK branch; FUN_180006e20:4567 re-read first-hand —
+  param_1[1]-1, never the declared field); declared backup_lba a registered
+  fallback (PARITY-DELTAS D-124a); Case-A observable already closed by M-123's
+  gate (honestly recorded in the Resolution); the dead-LBA1 backup recovery KEPT
+  + registered D-124b + pin test Gpt.DeadLba1BackupRecoveryRegistered. Tests:
+  BackupProbedAtDeviceLastWhenPrimaryOk / CorruptBackupLbaFieldStillFindsBackup /
+  DeadLba1BackupRecoveryRegistered; suite 1187/1187. P1/P35 → MATCH.
 - **M-123 FIXED** (`10620f04`) — the og's GPT header verifier gate set landed in
   `load_gpt_side` (cr_table_parse.cpp:29-110). Corpus re-read first-hand:
   FUN_1800078d0 at Partition_decompiled.c:4813-4847 — signature, revision

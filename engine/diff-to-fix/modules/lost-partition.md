@@ -14,7 +14,10 @@ design; 9 tests, 8 RED pre-fix; P1 detection / P20 struct-validation → MATCH);
 walk, the bogus Other-volume at the link target gone (P1 detection / P26 tree-walk →
 MATCH; tests Ebr.LinkType085WalksChain / Ebr.LinkType085SameBasisAs05 /
 Mbr.Extended085NotEmittedAsVolume, all RED pre-fix);
-**M-132** (GPT backup-probe position + dead-LBA1 asymmetry, both directions);
+~~**M-132**~~ **FIXED (S47 MAJOR-first fix lane, `d746a75b`)** — the backup
+probe at device-last FIRST (FUN_180006e20:4567's fixed position; the declared
+backup_lba a registered fallback), the dead-LBA1 recovery kept + registered
+(PARITY-DELTAS D-124a/b; the pin test Gpt.DeadLba1BackupRecoveryRegistered);
 **N-161** (GPT entry span underflow, no first<=last gate); **N-164** (the deliberate
 GPT strictness unregistered). Verified-MATCH: EBR base/rel chain math, MBR LBA fields,
 GPT type-GUIDs, the salvage ladder's two-step order, LDM span/stripe/RAID-5 math

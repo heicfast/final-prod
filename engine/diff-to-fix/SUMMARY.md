@@ -10,6 +10,11 @@ before the change.
 
 **Landings this lane so far:**
 
+- **M-132 FIXED** (`d746a75b`) — the backup probe at device-last FIRST (the
+  og's fixed-position architecture, FUN_180006e20:4567); the declared backup_lba
+  demoted to a registered fallback (D-124a); the Case-A observable honestly
+  recorded as already closed by M-123's position gate; the dead-LBA1 recovery
+  stance KEPT + registered as D-124b with the pin test. Suite 1187/1187.
 - **M-123 FIXED** (`10620f04`) — the og's GPT header verifier FUN_1800078d0 gate
   set landed in `load_gpt_side` (revision 0x10000, header_size exactly 92,
   reserved==0, the position pair mirrored by side, usable-range bounds, entries
@@ -25,7 +30,7 @@ before the change.
   Ebr.LinkType085WalksChain / Ebr.LinkType085SameBasisAs05 / Mbr.Extended085NotEmittedAsVolume
   (all RED pre-fix); suite 1164/1164.
 
-**Board after this push (filesystem truth): 70 active — 0 ACUTE · 9 SEVERE · 26 MAJOR ·
+**Board after this push (filesystem truth): 69 active — 0 ACUTE · 9 SEVERE · 25 MAJOR ·
 32 MINOR · 3 INFO** (the parallel lanes' A-014 + I-041..I-044 retirements absorbed at the
 merge; both sides' records kept). Next free IDs unchanged: S-062+, M-138+, N-186+, I-045+.
 
