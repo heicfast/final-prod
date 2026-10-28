@@ -289,6 +289,91 @@ first — silently wrong recovery bytes; then the mechanical MAJORs M-109/M-103/
 
  (the S11 deep-audit lane on top; the prior lanes below, newest-first)
 
+---
+
+<!-- S12B reconciliation: the parallel continuation/fix lanes landed mid-rebase; their blocks stay above (earlier-push-wins), this lane's delta rides below with its post-rebase addendum. -->
+
+## S12 lane delta (2026-10-29 — the second-session continuation: remove-the-fixed verified + the below-artifact deep walks; ONE REGRESSION FOUND — a landed safety fix silently reverted)
+
+**Audited: core `c7fa527c` (worklog-only HEAD `36c1d3e5` in the tree; code byte-identical), corpus `be0cfe9`.**
+
+**Wave 1 — remove-the-fixed (the mandate's first directive):** all 55 active findings'
+defect sites re-verified at HEAD (`evidence/s12-liveness-sweep.md`): 41 LIVE, 4 PARTIAL
+(N-132/N-135/N-138/I-030 — their residuals recorded in N-143), 5 N/A-driver-repo,
+5 register. **No active finding is fixed-but-unretired** — the board is truthful. The
+from-scratch build+suite EXECUTED at this tree: **1117/1117 green, 0 warnings under
+-Werror** (`evidence/executions/s12-build-execution.md`) — the standing "1027" count
+was stale (N-143's item 4).
+
+**Wave 2 — the deep walks (the mandate's go-deeper + mark-all-remaining):** four
+parallel agents (core module deep-read; corpus behavioral re-walk; build/exec; the
+liveness sweep), every candidate then **first-hand verified by the lead** before
+filing (the SOP): the N-013 git archaeology, the register-channel decode
+(PartitionRecoveryD + DRWUI both), the CBasicPartitionDevice read-wrapper decode +
+its real-log observation, the rsf variant-record field diff. Six findings + one
+addendum filed:
+
+- **S-054 (SEVERE)** — **the N-013 regression**: the multi-extent destination arming
+  landed complete at `3b5397a1` and was CLOBBERED at both production call sites by the
+  unrelated M-036 NVMe commit `1ebd1bcc` — `volume_extents()`/`set_destination_spans()`/
+  `destination_volume_letter()` have ZERO production consumers at HEAD while
+  `cr_transport.h:124-126` still publishes the all-spans requirement and the ledger
+  says FIXED. The F12 overlap refusal is silently defeated for spanned/RAID
+  second+ spans and junction-rooted destinations (the write-proceeds-onto-source-disk
+  data-loss window); the suite is green over it because no test pins the wiring.
+  The highest-value fix on the board (a re-landing + a wiring fence).
+- **M-112 (MAJOR)** — the og's three-source lost-partition candidate assembly
+  (**mbr / filesystem / register**) decoded engine-side: the register source is the
+  Explorer `MountPoints2\CPC\Volume` walk (PartitionRecoveryD:8930-8965; the
+  Data-blob '#'-delimited hex-placement decode in FUN_18000f5b0; observed firing in
+  the real-run log with three register records). The channel uniquely recovers
+  partitions whose on-disk remnants are destroyed; the core has no counterpart and
+  S-051's fix plan builds table-only targets — the plan gains the channel merge.
+- **M-113 (MAJOR)** — partition-boundary read semantics: the og's device read
+  CLAMPS + zero-fills + SUCCEEDS (RTTI-confirmed CBasicPartitionDevice at
+  DRWUI:183633-183666; the real log's `i64CountofSectors - i64RealReadSector = 10175`
+  fired mid-scan and the probe continued); the core's `PartitionSlice` hard-errors
+  per-read AND the CLI/UI partition opens refuse whole volumes when the table's
+  declared length overruns the device (the damaged-table target market). The
+  discovery path already clamps — the fix unifies the tolerant posture (read-side
+  only; the write path keeps hard bounds).
+- **N-142 (MINOR)** — the .rsf variant-save device-descriptor record (the 76a672b0
+  GUID, [552-B struct]+[5400-B volumeDevice blob]): firmware/WWN/interface + the
+  512-byte boot-sector snapshot have no identity-card equivalent (model/serial/
+  boot_hash only).
+- **N-143 (MINOR)** — bookkeeping batch #2: the **N-079 ID collision** (an in-source
+  audit comment cites a filing the ledger gives to a different finding), the
+  GPT-salvage strictness unregistered (PARITY-DELTAS row missing vs ldm.md's plain-M),
+  the tree/err/reghive/apply module rows (I-030's remainder), the stale 1027-vs-1117
+  suite-count claims.
+- **I-033 (INFO)** — register batch: RegLib's hive-WRITE half (the hbin allocator),
+  DiskHealth's resident-monitoring product frame, the Explorer context-menu verb, +
+  the DiskHealth-artifact trayicon erratum.
+- **S-050 ADDENDUM** — the fix plan's build order omits the VIDEO engine: the
+  corpus's deepest-decoded repair algorithm (125 trace points) and the only repair
+  surface with an engine-side seam (the datarun-selection half consumes
+  `tree::FileNode::extents` — the core's own output); the eligibility-signature seam
+  and the output-location contract also unnamed.
+
+**Board after this lane's filings: 61 active (8 SEVERE · 19 MAJOR · 26 MINOR · 8 INFO)
+/ 296 resolved rows (FIXED-LEDGER, unchanged) / 3 tracked-open.** Next free IDs:
+S-055+, M-114+, N-144+, I-034+, A-012+.
+
+**Recommended fix-order contribution (this lane's filings first):**
+(1) **S-054** — the re-landing is mechanical (the `3b5397a1` shape exists in git) and
+the wiring fence prevents the class; the data-loss window makes it the board's top
+priority alongside the standing S-051/S-052/S-053 set;
+(2) **M-113** — the create-clamp + read-clamp pass (small, read-side only, with the
+write-path fence test); composes with S-051's whole-disk fixtures;
+(3) **M-112** — the register-channel seam (win-layer walk + candidate-source merge;
+the decode is complete, one fix-time probe names the total-field split);
+(4) N-143's bookkeeping batch (the N-079 comment repair is one source-comment edit);
+(5) N-142's identity-card tail (a v6 tail, round-trip-tested); then the standing
+board order (the S-053+N-141 ReFS pass, S-051/S-052, the S-050 decision now
+carrying the video-engine amendment).
+
+---
+
 ## S11 lane delta (2026-10-29 — the second continuation lane: the named-never-done walks EXECUTED — the RAWSearchDLL infrastructure function-level walk, the ZFS/ReFS function-level walk, the OQ traces, the 56-finding liveness triage; one FALSE RESOLUTION refuted by decode)
 
 **Audited: core `46b81573` at close (code tree `432d15dc`'s; opened at `8365956e`,

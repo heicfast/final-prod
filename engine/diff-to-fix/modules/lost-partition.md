@@ -247,6 +247,7 @@ CalcPartition observable. ExFAT-only (OQ-FLT-1); uniform at the candidate seam
 documented). 15 tests incl. two end-to-end whole-disk scans; fail-before
 executed; suite 808/808.
 
+<<<<<<< HEAD
 ## Session-11D fix lane (2026-10-29 — the S-051 landing's discovery reconciliation)
 
 - **The no-double-scan rule (S-051's acceptance)**: the deep stage's
@@ -260,3 +261,22 @@ executed; suite 808/808.
   discovery's own unit contract is unchanged (`LostDiscovery.TableMatchBonus500`
   and the containment-exemption tests still pin the +500 semantics — the
   filter lives in the orchestrator, one site, above `lost::discover`).
+=======
+---
+
+## Session-12 continuation row (2026-10-29, audited `c7fa527c`, corpus `be0cfe9`)
+
+**M-112 (MAJOR — NEW):** the candidate-SOURCE model — the og's whole-disk assembly
+consults THREE sources ("add lost partition from mbr / from filesystem / from
+register", DRWUI.log:637-643 + FUN_140588820 at DRWUI_decompiled.c:921820-921890):
+the table walk (FUN_140589070 — S-051's planned per-table-volume targets), the
+filesystem-probe scan (FUN_140588ba0 — the core's existing discovery), and the
+**register walk** (FUN_1405895d0 / PartitionRecoveryD:8930-8965 — the Explorer
+`MountPoints2\CPC\Volume` history: HKCU, ≤1000 subkeys, the REG_BINARY "Data" blob's
+'#'-delimited 32-hex-char placement field decoded in FUN_18000f5b0 with the
+sector-alignment gate). The register channel has no core counterpart (grep-verified)
+and uniquely recovers partitions whose on-disk remnants are destroyed — the exact
+lost-partition use case. B1 verdict: **DIVERGENCE-MAJOR** pending the channel seam
+(the fix plan's CandidateSource feed + the win-layer walk; S-051's fix plan gains
+the channel merge). Evidence: `evidence/decompiled-quotes/s12-lostpart-register-channel.md`.
+>>>>>>> 9067618b (audit(S12): the second-session continuation lane's filings — S-054 (SEVERE: the N-013 regression — the multi-extent destination arming clobbered at both production call sites by the unrelated M-036 commit 1ebd1bcc; the all-spans machinery dead code at HEAD while the published contract claims it; the F12 refusal silently defeated for spanned/junction destinations; git-proven with the landing/clobber diffs quoted), M-112 (MAJOR: the og's three-source lost-partition assembly decoded — the MountPoints2\CPC\Volume register channel absent in core; the engine-side walk + the Data-blob placement decode; S-051's fix plan gains the channel merge), M-113 (MAJOR: partition-boundary read semantics — the og clamps+zero-fills+succeeds (RTTI-confirmed, observed in the real-run log) vs the core's hard-error and whole-volume refusal on over-long table lengths), N-142 (MINOR: the rsf variant device-descriptor record's firmware/WWN/interface/boot-snapshot field gap), N-143 (MINOR: bookkeeping batch #2 — the N-079 ID collision, the salvage register, the module rows, the 1027-vs-1117 suite drift), I-033 (INFO: the register batch — RegLib write half, DiskHealth resident shell, the Explorer verb + the trayicon erratum); the S-050 addendum (the video engine omitted from the fix plan's build order — the deepest-decoded algorithm and the only engine-side seam); wave 1 = the 55-finding liveness sweep (41 live / 4 partial / no unretired fix; the board truthful) + the from-scratch suite EXECUTED 1117/1117 green; evidence s12-* (4 decompile quotes + liveness + build-exec + the two agent context sheets); module rows (lost-partition, storage, writer, session) + matrix S12 block + SUMMARY/README/inventory; board 61 active (8/19/26/8); every claim lead-verified first-hand; read-only guarantee held (git status: diff-to-fix/ only))

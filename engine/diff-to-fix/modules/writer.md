@@ -147,3 +147,23 @@ collapse to ERR_DEST_UNWRITABLE vs the og's distinct outcomes
 ("Might be invalid path to save." / "The recovery path is too long." /
 PathIsNetworkPathW branch); fix = three appended 0x5005-family codes + the
 CreateFileW error classification).
+
+---
+
+## Session-12 continuation row (2026-10-29, audited `c7fa527c`, corpus `be0cfe9`)
+
+**S-054 (SEVERE — NEW, REGRESSION):** the N-013 multi-extent destination arming was
+clobbered back to first-extent-only at both production call sites by the unrelated
+M-036 NVMe commit `1ebd1bcc` (git-proven: the `3b5397a1` landing's spans loop +
+junction resolution removed in that commit's rrecov.cpp/cr_ui.cpp diffs).
+`volume_extents()` / `set_destination_spans()` / `destination_volume_letter()`
+survive as dead code (zero production consumers, grep-verified) while
+`cr_transport.h:124-126` still publishes "destination arming must use
+volume_extents() (all spans)" and the ledger records N-013 FIXED. The SafeWriter's
+refusal loop itself is intact and multi-span-aware (cr_safewriter.cpp:135-137) — it
+is fed an incomplete span set. F62 verdict: **DIVERGENCE-SEVERE** (the refused-write
+guarantee silently defeated for spanned/RAID second+ spans and junction-rooted
+destinations — the write-proceeds-onto-source-disk window); Q65: the suite is green
+over the regression (1117/1117) because no test pins the wiring. Fix: re-land the
+`3b5397a1` shape + the wiring-fence tests. Evidence:
+`evidence/decompiled-quotes/s12-destarming-regression.md`.

@@ -24,6 +24,31 @@ repair line's UI-side addendum (UIUX/32). **Board: 64 active (6 SEVERE · 22 MAJ
 302 claim drifts) / 3 tracked-open.** Evidence:
 `evidence/decompiled-quotes/s41-registry-key-residue.md`.
 
+<!-- S12B reconciliation: the parallel lanes' block above landed first; this lane's block rides below, reconciled per earlier-push-wins. -->
+**Session-12 continuation lane (2026-10-29 — the second-session continuation deep audit):**
+audited **core `c7fa527c`** (worklog-only HEAD `36c1d3e5` in-tree; code identical),
+**corpus `be0cfe9`**. The continuation mandate executed in two waves. **Wave 1
+(remove-the-fixed):** the 55-finding liveness sweep — 41 LIVE / 4 PARTIAL / 5
+driver-repo / 5 register, **no unretired fix** (the board is truthful); the suite
+EXECUTED from scratch: **1117/1117 green**. **Wave 2 (go-deeper + mark-all-remaining):**
+four parallel agents + lead first-hand verification filed **six findings + one
+addendum**: **S-054** (SEVERE — **the N-013 regression**: the multi-extent destination
+arming clobbered at both production call sites by the unrelated commit `1ebd1bcc`;
+the all-spans machinery is dead code at HEAD while the published contract claims it;
+the F12 overlap refusal silently defeated for spanned/junction destinations),
+**M-112** (the og's THREE-source lost-partition assembly decoded — the MountPoints2\CPC\Volume
+register channel absent in core; S-051's fix plan gains the merge), **M-113** (the og's
+partition read = clamp+zero-fill+success vs the core's hard-error/whole-volume refusal
+on over-long table lengths), **N-142** (the rsf variant device-descriptor field gap),
+**N-143** (bookkeeping batch #2 — the N-079 collision, the salvage register, module
+rows, the suite-count drift), **I-033** (the register batch), + the **S-050 addendum**
+(the video engine — the corpus's deepest-decoded repair algorithm and the only
+engine-side seam — omitted from the fix plan's build order). **Board: 61 active
+(8 SEVERE · 19 MAJOR · 26 MINOR · 8 INFO) / 296 resolved / 3 tracked-open.** Evidence:
+`evidence/decompiled-quotes/s12-*.md` (4) + `evidence/s12-liveness-sweep.md` +
+`evidence/executions/s12-build-execution.md` + the two agent context sheets
+(`evidence/s12-core-deepread.md`, `evidence/s12-corpus-rewalk.md`).
+
 **Session-11 S11 lane (2026-10-29 — the second continuation deep-audit lane, RECONCILED at push):**
 audited **core `46b81573` at close** (code tree `432d15dc`'s; opened `8365956e`; the
 hottest parallel window of the trail absorbed — the M-072/M-074/M-077/M-096/N-093
