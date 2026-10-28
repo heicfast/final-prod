@@ -5803,3 +5803,65 @@ own severity ordering, updated for this session's findings):**
 20. **N-135's remainder + the guard script** — the SHA-guard tool (the class
     recurred twice more this session: the two prose phantoms); then retire
     N-135 with items 2/6/7.
+
+
+## Session-42-D merge reconciliation — the third S42 lane's close (2026-10-29, at the merged tree over `8688c1a1`; this lane's pin was `869da779`)
+
+The hottest parallel window of the trail: the S42-main, S42-B, S42-C, S12,
+S40-ML, 43-minors, and m117-fix lanes ALL pushed between this lane's pin and
+its push. The merge absorbed their product per the both-sides-kept convention
+and reconciled this lane's filings per earlier-push-wins:
+
+- **The suite-red discovery (this lane's M-118) was CONVERGENT** — the remote
+  lanes found it independently (their N-157 + M-120 + the S42-C reproduction),
+  repaired it (b26017a7 → 59bd5208 → b00118b5 [the both-sides-folded compare]
+  → 72a17b7c [the format drift]), and certified the suite green (1203/1203 at
+  db228b75). This lane's filing is preserved as **M-123** (the M-118 ID
+  belongs to the S12 lane's active lostpart register-channel finding),
+  retired-convergent on filing, carrying THIS lane's unique evidence: the
+  CI check-runs API proof (Build+test SKIPPED + Lint FAILED at `67de3276`),
+  the four pinned clang-format sites, and the parent-commit introduction
+  proof. The one open tail from this lane's fix plan — the process repair
+  (refusing pushes whose build+test job is skipped) — is recorded in the
+  M-123 file as unlanded as far as this lane verified.
+- **The usersigns finding is renumbered N-161 and stays LIVE** — the remote's
+  N-154 (bookkeeping batch 2) consumed the ID; `cr_usersigns.h:46` re-verified
+  false at the merged tree (the parallel N-148 seven-item comment-truth batch
+  did not include this site). This is the lane's one surviving active filing.
+- **I-028/I-032 retired convergently** — both lanes retired them through
+  different conventions (the remote's INFO-tier acknowledgment restoration;
+  this lane's liveness verification); the ledger rows are merged and both
+  Resolutions are preserved in-file.
+- **N-135's guard supersession recorded** — this lane's at-pin note ("the
+  SHA-guard script still has not landed") was true at `869da779`; the remote
+  landed the guard (`scripts/verify/verify_trail_shas.py`, the 0eb5f82f
+  closure). The note stays in the retired file as the dated at-pin record.
+- **This lane's other unique product** (all preserved at the pin, still
+  accurate): the config/data 12-group deep-diff (byte-exact MATCHes + the
+  I-033 refinements + CORPUS-ERRATA #8), the 3-binary walk (all registered),
+  the executed suite evidence, the API-DELTA row-10 repair, and the phantom-
+  SHA prose repairs (convergent with the remote's broader N-156/N-160
+  register-truth batches).
+
+**Board at the S42-D merge close (filesystem truth): 37 active (2 SEVERE ·
+19 MAJOR · 16 MINOR · 0 INFO) / 358 resolved ledger rows / 3 tracked-open
+(OQ-S4-3, OQ-S10-1, OQ-S10-3).** Next free IDs: S-055+, M-124+, N-162+,
+I-040+, A-013+.
+
+READ-ONLY GUARANTEE: this lane's full delta vs `8688c1a1` (and vs its own
+pin `869da779`) touches NOTHING outside diff-to-fix/ + worklog* — verified
+file-by-file at every commit; the build/test run was out-of-source at
+/tmp/cr-build.
+
+Handoff delta (over the remote lanes' own handoffs — the first-20 list this
+lane recorded at its pin is now half-landed by the parallel window):
+1. **S-050** (the file-repair line — the registration decision first) — one
+   of the two surviving SEVEREs.
+2. **S-040** (the image-create producer) — the other.
+3. **N-161** (this lane's usersigns comment — one-line fix + the two
+   boundary pins).
+4. The M-123 open tail: the push-gate process repair (refuse skipped
+   build+test) — fold into the trail's gate discipline.
+5. Then the remote lanes' own ordering (the S42-B/C handoffs in worklog)
+   stands: the lostpart M-118/M-119 pair, the carve minors fleet, the
+   doc-truth sweep.
