@@ -48,3 +48,10 @@ M-040 (the parent landing); N-121 (the same boot-chain reachability family); D-9
 ## Open questions
 
 The create path's entry-template details (the og's exact friendly-description string and the :3405-3480 walk) — one decode pass before implementation; the capability's existence is pinned.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-122 landing — recorded post-push in the ledger row)
+**Verified by:** the registration read back current: D-90's addendum in PARITY-DELTAS carries the create/delete exclusion with the EFIBoot cites, the honest-stop pin (NvramFix.MissingBootVariableStopsTheWalk — the existing test re-verified pinning the stop), the rationale, and the next concrete step (the :3405-3480 create-walk decode + template strings, then create-on-missing with the test's expectation flip); modules/boot-repair.md carries the row.
+**Resolution notes:** The finding's fix-plan step 1 executed (register-first): the v1-scope remark that lived only inside M-040's resolution text is now a REGISTERED row the trail can navigate — the create/delete halves are deliberate exclusions with a precise remaining scope (the create path's entry-template decode) and the next concrete step (decode, then land create-on-missing; the existing stop-on-missing test flips with the behavior change). The boot-repair flow's reachability gap for the destroyed-entry case is now honest on the register: the walk stops loudly with a diagnostic, the host knows exactly what was not repaired. No code change this landing (the implementation is the registered follow-up; the finding's own severity framing: "the registration gap is the trail-truth half").
