@@ -43,32 +43,37 @@ TEST(Slice, BoundsEnforced) {
     u8 buf[512];
     EXPECT_EQ(slice->read_at(0, buf, 512), OK);
     EXPECT_EQ(buf[0], u8((10 * 512) & 0xFF));
-    /* read crossing the end - refused. M-032/D-74: the og's virtual
-     * volume CLAMPS + zero-fills tail-crossing reads (HFSPlusSearchDLL
-     * FUN_180009290 :7219-7264: in-bounds prefix + memset tail, call
-     * succeeds); ours refuses the whole read - the registered deliberate
-     * divergence. The engine audit found no reliance on the og contract
-     * (the HFS+ journal ring reads are bounded within the ring; every
-     * other engine reads with explicitly bounded lengths and degrades
-     * gracefully on refusal). The og's tail memset is in SECTOR units
-     * (count-n, :7258) - an under-zeroing defect NOT adopted here. */
-    EXPECT_EQ(slice->read_at(20 * 512 - 16, buf, 32), ERR_RANGE_OUT_OF_BOUNDS);
-    /* read fully outside */
+    /* M-119 (supersedes the D-74 pin): a read crossing the end CLAMPS to
+     * the in-bounds prefix, reads it, and zero-fills the tail - the og's
+     * engine device contract (HFSPlusSearchDLL FUN_180009290 :7219-7264,
+     * re-confirmed first-hand at the M-119 fix-time probe; the DRWUI twin
+     * FUN_1400d0510 + the real-run log line "i64CountofSectors -
+     * i64RealReadSector = 10175" at DRWUI.log:638). The og's own tail
+     * memset is under-zeroed (sector-count bytes); ours zeroes the FULL
+     * tail - the arithmetic defect stays unadopted (D-74's decode). */
+    u8 cross[32];
+    std::memset(cross, 0xAA, sizeof(cross));
+    EXPECT_EQ(slice->read_at(20 * 512 - 16, cross, 32), OK);
+    EXPECT_EQ(cross[0], u8((10 * 512 + 20 * 512 - 16) & 0xFF)) << "real prefix bytes";
+    for (int i = 16; i < 32; ++i)
+        EXPECT_EQ(cross[i], 0u) << "the past-end tail is zero-filled at byte " << i;
+    /* read fully outside - still the parameter error (the og ladder) */
     EXPECT_EQ(slice->read_at(20 * 512 + 1, buf, 512), ERR_RANGE_OUT_OF_BOUNDS);
     /* read at very end edge - fine */
     EXPECT_EQ(slice->read_at(20 * 512 - 512, buf, 512), OK);
 }
 
-/* M-032 (diff-to-fix), decision-gate outcome pinned: the slice layer's
- * tail-crossing refusal is a DELIBERATE divergence from the og's
- * clamp+zero-fill virtual-volume contract (corpus
- * HFSPlusSearchDLL_decompiled.c FUN_180009290 :7219-7264, evidence
- * s3-virtual-volume-device.md section 2). Engine audit this session: no
- * engine issues crossing reads relying on zero-fill (journal_ring_read
- * bounds every take within the ring; all other reads are explicitly
- * bounded; refusals degrade through the damage counters). Registered as
- * PARITY-DELTAS D-74 - the safer contract stays. */
-TEST(Slice, TailReadRefusalPinned) {
+/* M-119 (diff-to-fix): the D-74 strict-refusal pin is SUPERSEDED - the
+ * og's engine device clamps + zero-fills tail-crossing reads
+ * (FUN_180009290 :7219-7264, the M-119 fix-time probe re-confirmed it
+ * first-hand), the real-run DRWUI.log shows the clamp firing during
+ * lost-partition probing (the og's scan flows ISSUE past-end reads and
+ * proceed on the zero-filled result), and the CLI/UI whole-volume
+ * refusal on table-length overrun was a divergence D-74 never claimed
+ * to cover. The D-74 safety core KEPT: offset >= length and count >
+ * length remain parameter errors (both sides refuse); the og's
+ * under-zeroed tail memset stays unadopted (the FULL tail is zeroed). */
+TEST(Slice, TailReadClampsAndZeroFills) {
     auto dev = std::make_unique<MemDevice>(u64(100) * 512);
     u32 err = 0;
     auto slice = PartitionSlice::create(dev.get(), 10 * 512, 20 * 512, &err);
@@ -76,10 +81,17 @@ TEST(Slice, TailReadRefusalPinned) {
     EXPECT_EQ(err, OK);
     u8 buf[512] = {0};
     std::memset(buf, 0xAA, sizeof(buf));
-    /* the falsifiable claim from the finding: under the og semantics this
-     * succeeds with 512 zeros past the end; ours refuses */
-    EXPECT_EQ(slice->read_at(20 * 512 - 16, buf, 32), ERR_RANGE_OUT_OF_BOUNDS);
-    EXPECT_EQ(buf[0], u8(0xAA)) << "a refused read never touches the buffer";
+    /* the og semantics: the straddle SUCCEEDS with real prefix bytes and
+     * a zero-filled past-end tail */
+    EXPECT_EQ(slice->read_at(20 * 512 - 16, buf, 32), OK);
+    EXPECT_EQ(buf[0], u8((10 * 512 + 20 * 512 - 16) & 0xFF)) << "16 real prefix bytes";
+    for (int i = 16; i < 32; ++i)
+        EXPECT_EQ(buf[i], 0u) << "tail byte " << i << " zero-filled";
+    /* the parameter-error ladder stays hard */
+    EXPECT_EQ(slice->read_at(20 * 512, buf, 512), ERR_RANGE_OUT_OF_BOUNDS)
+        << "offset >= length: the parameter error (both sides refuse)";
+    EXPECT_EQ(slice->read_at(0, buf, 20 * 512 + 1), ERR_RANGE_OUT_OF_BOUNDS)
+        << "count > length: the parameter error (the og's count gate)";
     /* prefix-only reads still succeed */
     EXPECT_EQ(slice->read_at(20 * 512 - 512, buf, 512), OK);
 }
@@ -287,4 +299,88 @@ TEST(Storage, ParityDeltasListsNasExclusion) {
     ASSERT_FALSE(hdr.empty());
     EXPECT_NE(std::string::npos, hdr.find("REGISTERED DIVERGENCE (M-034, PARITY-DELTAS D-88)"))
         << "cr_device.h must carry the M-034 divergence block";
+}
+
+/* ===================================================================== */
+/* M-119 (diff-to-fix): the og's partition-boundary semantics -        */
+/* creation tolerant (an over-long declared window clamps to the       */
+/* device end), per-read tolerant (a straddling read clamps + zero-    */
+/* fills + succeeds). The engine-side device confirmed first-hand at   */
+/* the fix-time probe (HFSPlusSearchDLL FUN_180009290 :7219-7264) and  */
+/* the DRWUI twin (FUN_1400d0510 :183633-66) + the real-run log        */
+/* (DRWUI.log:638). The CLI/UI whole-volume refusals on table-length   */
+/* overrun are gone (the clamped open + the surfaced delta).           */
+/* ===================================================================== */
+
+TEST(Slice, CreateClampsOverlongDeclaredLength) {
+    /* the finding's CLI/UI leg: a table entry declaring 50 sectors past
+     * the 100-sector device (start 10*512, declared 90*512 -> would end
+     * at 100*512 exactly... use a true overrun: declared 95*512 from
+     * 10*512 ends at 105*512 > the device's 100*512). Fail-before:
+     * nullptr + ERR_RANGE_OUT_OF_BOUNDS (the whole volume refused). */
+    auto dev = std::make_unique<MemDevice>(u64(100) * 512);
+    u32 err = 0;
+    auto slice = PartitionSlice::create(dev.get(), 10 * 512, 95 * 512, &err);
+    ASSERT_NE(slice, nullptr) << "the over-long declared window opens clamped";
+    EXPECT_EQ(err, OK);
+    EXPECT_EQ(slice->length(), 90u * 512) << "clamped to the device end (100-10 sectors";
+    EXPECT_EQ(slice->declared_bytes(), 95u * 512) << "the declared window is recorded";
+    EXPECT_EQ(slice->clamp_delta(), 5u * 512);
+    EXPECT_TRUE(slice->was_clamped());
+    /* the clamped tail reads real bytes up to the device end */
+    u8 buf[512];
+    EXPECT_EQ(slice->read_at(90u * 512 - 512, buf, 512), OK);
+    /* a straddle past the CLAMPED end zero-fills */
+    u8 cross[32];
+    std::memset(cross, 0xAA, sizeof(cross));
+    EXPECT_EQ(slice->read_at(90u * 512 - 16, cross, 32), OK);
+    for (int i = 16; i < 32; ++i)
+        EXPECT_EQ(cross[i], 0u);
+}
+
+TEST(Slice, CreateStartBeyondDeviceStillRefused) {
+    /* N-046's honest posture kept: only the LENGTH clamps - a start past
+     * the device is genuinely unopenable */
+    auto dev = std::make_unique<MemDevice>(u64(100) * 512);
+    u32 err = 0;
+    EXPECT_EQ(PartitionSlice::create(dev.get(), 100 * 512, 10 * 512, &err), nullptr);
+    EXPECT_EQ(err, ERR_RANGE_OUT_OF_BOUNDS);
+    EXPECT_EQ(PartitionSlice::create(dev.get(), 120 * 512, 10 * 512, &err), nullptr);
+    EXPECT_EQ(err, ERR_RANGE_OUT_OF_BOUNDS);
+}
+
+TEST(Slice, ExactFitNotClamped) {
+    /* the healthy case: no clamp telemetry fires */
+    auto dev = std::make_unique<MemDevice>(u64(100) * 512);
+    u32 err = 0;
+    auto slice = PartitionSlice::create(dev.get(), 10 * 512, 90 * 512, &err);
+    ASSERT_NE(slice, nullptr);
+    EXPECT_FALSE(slice->was_clamped());
+    EXPECT_EQ(slice->clamp_delta(), 0u);
+    EXPECT_EQ(slice->length(), slice->declared_bytes());
+}
+
+TEST(Slice, OrchestratorTargetClampScansRaggedTable) {
+    /* the end-to-end shape the CLI/UI legs consume: a whole-disk table
+     * entry whose length overruns the media now produces a CLAMPED
+     * target that probes content (the og scans such volumes) instead of
+     * a skipped volume. */
+    auto dev = std::make_unique<MemDevice>(u64(100) * 512);
+    u32 err = 0;
+    /* the table declares a partition at LBA 10 spanning 95 sectors on a
+     * 100-sector disk: 10+95 = 105 > 100 */
+    auto tgt = PartitionSlice::create(dev.get(), 10 * 512, 95 * 512, &err);
+    ASSERT_NE(tgt, nullptr);
+    EXPECT_TRUE(tgt->was_clamped());
+    EXPECT_EQ(tgt->geometry().sector_count, 90u);
+    /* the clamped target is a fully functional device for the probe
+     * family: reads inside succeed, straddles zero-fill */
+    u8 buf[512];
+    EXPECT_EQ(tgt->read_at(0, buf, 512), OK);
+    EXPECT_EQ(tgt->read_at(tgt->length() - 512, buf, 512), OK);
+    u8 cross[64];
+    std::memset(cross, 0x55, sizeof(cross));
+    EXPECT_EQ(tgt->read_at(tgt->length() - 16, cross, 64), OK);
+    for (int i = 16; i < 64; ++i)
+        EXPECT_EQ(cross[i], 0u) << "byte " << i;
 }

@@ -7479,23 +7479,39 @@ TEST(UserSigns, ParseTheOgsShape) {
     EXPECT_EQ(8u, set.signs[2].len);
     EXPECT_EQ(0x50, set.signs[2].bytes[0]); /* PK */
 
-    /* validation rejects, atomically (no partial load) */
+    /* validation rejects, atomically (no partial load) - the M-129
+     * tolerance semantics split this list: the og's member loop skips
+     * unknown members (_stricmp "signs" only, DRWUI:1005818) and its
+     * split loop skips malformed sign strings (:1005986), so odd-hex /
+     * non-hex / unknown-key / no-comma signs LOAD (skipped) where the
+     * pre-M-129 core rejected the whole file. The structural and
+     * over-cap rejects stay. */
     auto reject = [](const char* bad) {
         carve::usersigns::UserSignSet s;
         EXPECT_EQ(ERR_BAD_PARAMETER, carve::usersigns::parse(bad, std::strlen(bad), s)) << bad;
         EXPECT_FALSE(s.valid);
     };
     reject("{\"x\":{\"signs\":[\"99999,AA\"],\"mime\":\"m\"}}");      /* offset over cap */
-    reject("{\"x\":{\"signs\":[\"0,AAB\"],\"mime\":\"m\"}}");         /* odd hex */
-    reject("{\"x\":{\"signs\":[\"0,GG\"],\"mime\":\"m\"}}");          /* not hex */
-    reject("{\"x\":{\"signs\":[\"0,AA\"],\"extra\":1}}");             /* unknown key */
-    reject("{\"x\":{\"mime\":\"m\"}}");                               /* no signs */
+    reject("{\"x\":{\"mime\":\"m\"}}");                               /* no signs member */
     reject("{\"bad-ext!\":{\"signs\":[\"0,AA\"],\"mime\":\"m\"}}");   /* charset */
     reject("{\"x\":{\"signs\":[\"0,AA\"],\"mime\":\"m\"}} trailing"); /* garbage */
     reject("");                                                       /* empty */
     reject("[]");                                                     /* not an object */
     /* empty signs array is dead config */
     reject("{\"x\":{\"signs\":[],\"mime\":\"m\"}}");
+
+    /* the M-129 tolerated shapes: these LOAD now (the bad sign skipped,
+     * the good sign kept - the og's skip-and-continue) */
+    auto tolerates = [](const char* ok) {
+        carve::usersigns::UserSignSet s;
+        EXPECT_EQ(OK, carve::usersigns::parse(ok, std::strlen(ok), s)) << ok;
+        EXPECT_TRUE(s.valid);
+        EXPECT_EQ(1u, s.signs.size()) << "the good sign survives, the bad one skipped";
+    };
+    tolerates("{\"x\":{\"signs\":[\"0,AAB\",\"0,ABCD\"],\"mime\":\"m\"}}");     /* odd hex */
+    tolerates("{\"x\":{\"signs\":[\"0,GG\",\"0,DEAD\"],\"mime\":\"m\"}}");      /* not hex */
+    tolerates("{\"x\":{\"signs\":[\"nodecimal\",\"0,DEAD\"],\"mime\":\"m\"}}"); /* 1 token */
+    tolerates("{\"x\":{\"signs\":[\"0,AA\"],\"extra\":1234,\"mime\":\"m\"}}");  /* unknown member */
 }
 
 TEST(CarveEngine, UserSignatureProbedAtStride) {
@@ -7762,6 +7778,339 @@ TEST(CarveEngine, UserSignFilesCountInCarvedFound) {
     teardown4.valid = true;
     ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown4)));
     ASSERT_EQ(0u, carve::usersigns::active_count());
+}
+
+/* ---- S-055/S-056: the user-sign layer's ordering + toggle gates ----
+ *
+ * The default set (userdata-defaults.json) carries signs for the 8
+ * formats that ALSO live in the built-in raw-sign table (amr/cap/
+ * class/cpl/flac/msf/pdb/wpl). Pre-fix, the user-sign probe ran BEFORE
+ * idx.probe_header with a continue on hit, so those magics produced
+ * device-end 0xFFFE0000 records instead of the bounded built-in
+ * candidates - the M-048 collision rule inverted in code. The fix
+ * reorders: built-in arm first, user-sign arm only when no built-in
+ * survived the disabled-format filter, and the format toggle gates the
+ * user layer like every other carve source (the og's removal-loop
+ * semantics). */
+namespace {
+/* Install the shipped default set; returns false when the file/parse
+ * fails (callers ASSERT on it). */
+bool install_default_usersigns() {
+    std::ifstream in(std::string(CR_SOURCE_DIR) + "/data/userdata-defaults.json",
+                     std::ios::binary);
+    if (!in.good())
+        return false;
+    std::string json((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    carve::usersigns::UserSignSet set;
+    if (carve::usersigns::parse(json.data(), json.size(), set) != OK)
+        return false;
+    return carve::usersigns::install_set(std::move(set)) == OK;
+}
+
+u32 count_tagged(tree::FileNode* root, u32 tag) {
+    u32 n = 0;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->carve_format == tag)
+            ++n;
+    return n;
+}
+
+u32 count_builtin_tagged(tree::FileNode* root) {
+    u32 n = 0;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && (c->props()->carve_format & 0xFFFF0000u) == 0xFFFF0000u)
+            ++n;
+    return n;
+}
+
+u32 count_ext_records(tree::FileNode* root, const char* ext8) {
+    /* count records whose name ends in ".<EXT>" (uppercased) */
+    std::u16string tail = u".";
+    for (const char* p = ext8; *p; ++p)
+        tail.push_back(u16(u8(*p >= 'a' && *p <= 'z' ? *p - 32 : *p)));
+    u32 n = 0;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->name.size() >= tail.size() &&
+            c->props()->name.compare(c->props()->name.size() - tail.size(), tail.size(), tail) ==
+                0)
+            ++n;
+    return n;
+}
+} // namespace
+
+TEST(Carve, UserSignYieldsToRawSignTableAtSamePosition) {
+    /* The finding's falsifiable case: a FLAC header at a stride on the
+     * DEFAULT configuration. Pre-fix: one device-end user-sign record
+     * (tag 0xFFFE0000, conf 600, len = total - start). Post-fix: the
+     * bounded built-in flac candidate (tag 0xFFFF0000 + fmt id, conf
+     * 940) and ZERO user-tagged records. */
+    ASSERT_TRUE(install_default_usersigns()) << "the default set must load";
+    std::vector<u8> img(4ull << 20, 0);
+    static const u8 kFlacHdr[8] = {0x66, 0x4C, 0x61, 0x43, 0x00, 0x00, 0x00, 0x22};
+    std::memcpy(img.data() + 0x2000, kFlacHdr, sizeof(kFlacHdr));
+
+    /* the built-in flac format id (resolved from the table, not pinned) */
+    u32 flac_id = 0xFFFFFFFFu;
+    for (u32 i = 0; i < rawsigns::kFormatCount; ++i)
+        if (std::strcmp(rawsigns::kFormats[i].ext, "flac") == 0) {
+            flac_id = i;
+            break;
+        }
+    ASSERT_NE(flac_id, 0xFFFFFFFFu) << "flac is in the built-in table";
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Carved");
+    CarveFlags fl;
+    fl.hash_small_files = false;
+    CarveStats st;
+    ASSERT_EQ(OK,
+              carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
+    EXPECT_EQ(0u, count_tagged(root, 0xFFFE0000u))
+        << "no user-sign record at a built-in magic (S-055)";
+    EXPECT_EQ(1u, count_tagged(root, 0xFFFF0000u + flac_id))
+        << "the bounded built-in flac candidate owns the position";
+}
+
+TEST(Carve, UserSignOverlapFormatsAllYieldToBuiltin) {
+    /* Every one of the 8 default-set formats that ALSO live in the
+     * built-in table: each format's own built-in header sign is planted
+     * at a stride; the built-in candidate must own the position and no
+     * 0xFFFE0000 record may appear. */
+    ASSERT_TRUE(install_default_usersigns());
+    static const char* const kOverlap[] = {"amr", "cap", "class", "cpl",
+                                           "flac", "msf", "pdb",  "wpl"};
+    for (const char* ext : kOverlap) {
+        u32 fid = 0xFFFFFFFFu;
+        const rawsigns::RawSign* sign = nullptr;
+        for (u32 i = 0; i < rawsigns::kFormatCount; ++i)
+            if (std::strcmp(rawsigns::kFormats[i].ext, ext) == 0) {
+                fid = i;
+                break;
+            }
+        ASSERT_NE(fid, 0xFFFFFFFFu) << ext << " is a built-in format";
+        for (u32 hi = 0; hi < rawsigns::kHeaderSignCount; ++hi)
+            if (rawsigns::kHeaderSigns[hi].fmt == fid) {
+                sign = &rawsigns::kHeaderSigns[hi];
+                break;
+            }
+        ASSERT_NE(sign, nullptr) << ext << " has a header sign";
+        if (sign->offset != 0)
+            continue; /* only offset-0 signs can be planted at a stride */
+
+        std::vector<u8> img(4ull << 20, 0);
+        std::memcpy(img.data() + 0x2000, sign->bytes, sign->len);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Carved");
+        CarveFlags fl;
+        fl.hash_small_files = false;
+        CarveStats st;
+        ASSERT_EQ(OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr,
+                                  nullptr, st))
+            << ext;
+        EXPECT_EQ(0u, count_tagged(root, 0xFFFE0000u)) << ext << ": no user-sign record";
+        /* a built-in row owns the position. NOTE: the planted magic can
+         * be claimed by a HIGHER-confidence sibling row - cap's D4C3B2A1
+         * is also pcap's sign (conf 1000 > cap's 910) - so the pin is
+         * any-built-in-tag, not the specific format id (the best-pick's
+         * own rule). */
+        const u64 dev_len = 4ull << 20;
+        if (dev_len - 0x2000 >= rawsigns::kFormats[fid].min_size) {
+            EXPECT_EQ(1u, count_builtin_tagged(root))
+                << ext << ": a built-in candidate owns the position";
+        }
+    }
+}
+
+TEST(Carve, UserSignBuiltinFloorGateSuppressesUserSignToo) {
+    /* A built-in magic in a device smaller than the format's min_size
+     * floor: the built-in arm matches but its floor gate declines, and
+     * the user-sign arm does NOT reclaim the position (built-in-first
+     * means the built-in's MATCH settles the stride - the finding's
+     * "matches.empty() after the filter" gate). Pre-fix this produced a
+     * bogus device-end flac record from a 512 KiB device. */
+    ASSERT_TRUE(install_default_usersigns());
+    std::vector<u8> img(512ull << 10, 0); /* 512 KiB < flac min 1 MiB */
+    static const u8 kFlacHdr[8] = {0x66, 0x4C, 0x61, 0x43, 0x00, 0x00, 0x00, 0x22};
+    std::memcpy(img.data() + 0x2000, kFlacHdr, sizeof(kFlacHdr));
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Carved");
+    CarveFlags fl;
+    fl.hash_small_files = false;
+    CarveStats st;
+    ASSERT_EQ(OK,
+              carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
+    EXPECT_EQ(0u, count_tagged(root, 0xFFFE0000u))
+        << "no user-sign reclaim past the built-in floor gate";
+    EXPECT_EQ(0u, root->first_child() ? 1u : 0u) << "nothing is carved at all";
+}
+
+TEST(Carve, GrammarRejectedMagicNotReclaimedByUserSign) {
+    /* The S-055 fix-lane decision, pinned: a magic the GRAMMAR layer
+     * matched but rejected (truncated JPG - the default set carries jpg
+     * signs, the built-in raw-sign table has no jpg row) is not
+     * re-accepted by the weaker header-only user-sign layer. Pre-fix
+     * this emitted a device-end 0xFFFE0000 jpg record. */
+    ASSERT_TRUE(install_default_usersigns());
+    std::vector<u8> img(2ull << 20, 0);
+    /* the JPG magic alone (no valid IHDR/EOI structure): the grammar
+     * validator must reject it */
+    img[0x2000] = 0xFF;
+    img[0x2001] = 0xD8;
+    img[0x2002] = 0xFF;
+    img[0x2003] = 0xE0;
+    img[0x2004] = 0x00;
+    img[0x2005] = 0x10;
+    img[0x2006] = 'J';
+    img[0x2007] = 'F';
+    img[0x2008] = 'I';
+    img[0x2009] = 'F';
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Carved");
+    CarveFlags fl;
+    fl.hash_small_files = false;
+    CarveStats st;
+    ASSERT_EQ(OK,
+              carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
+    EXPECT_EQ(0u, count_tagged(root, 0xFFFE0000u))
+        << "a grammar-rejected magic is not reclaimed by the user-sign layer";
+}
+
+TEST(Carve, UserSignStillFiresWhenNoBuiltinMatches) {
+    /* The channel stays functional post-reorder: a magic NO layer
+     * claims (not grammar, not built-in) still emits the user-sign
+     * record. Same shape as UserSignatureProbedAtStride, re-pinned here
+     * against the reordered loop. */
+    /* DEADBEEF: verified unclaimed by every stock source (the
+     * UserSignatureProbedAtStride pre-condition); CAFEBABE would NOT do
+     * here - it is the built-in class magic (the raw-sign table's class
+     * row and the default set's own class sign both carry it) */
+    const char* json = "{\"xyzzy\": {\"signs\": [\"0,DEADBEEF\"], \"mime\": \"application/x-xyzzy\"}}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(set)));
+
+    std::vector<u8> img(2ull << 20, 0);
+    img[0x2000] = 0xDE;
+    img[0x2001] = 0xAD;
+    img[0x2002] = 0xBE;
+    img[0x2003] = 0xEF;
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Carved");
+    CarveFlags fl;
+    fl.hash_small_files = false;
+    CarveStats st;
+    ASSERT_EQ(OK,
+              carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
+    EXPECT_EQ(1u, count_tagged(root, 0xFFFE0000u)) << "the unclaimed magic still fires";
+}
+
+TEST(Carve, DisabledFormatsGatesUserSignLayer) {
+    /* S-056: turning a format OFF stops it being carved through the
+     * user-sign channel. 'cpl' is in BOTH the default set and the
+     * built-in table: with cpl disabled NEITHER layer may emit it. */
+    ASSERT_TRUE(install_default_usersigns());
+    /* cpl's built-in header sign, planted at a stride */
+    u32 cpl_id = 0xFFFFFFFFu;
+    const rawsigns::RawSign* cpl_sign = nullptr;
+    for (u32 i = 0; i < rawsigns::kFormatCount; ++i)
+        if (std::strcmp(rawsigns::kFormats[i].ext, "cpl") == 0) {
+            cpl_id = i;
+            break;
+        }
+    ASSERT_NE(cpl_id, 0xFFFFFFFFu);
+    for (u32 hi = 0; hi < rawsigns::kHeaderSignCount; ++hi)
+        if (rawsigns::kHeaderSigns[hi].fmt == cpl_id) {
+            cpl_sign = &rawsigns::kHeaderSigns[hi];
+            break;
+        }
+    ASSERT_NE(cpl_sign, nullptr);
+
+    for (const char* dis : {"cpl", "CPL", "cPl"}) {
+        std::vector<u8> img(4ull << 20, 0);
+        /* cpl's only header sign anchors at +12 (the og's row); the
+         * sign offset is honored by probe_header's bucket key */
+        std::memcpy(img.data() + 0x2000 + cpl_sign->offset, cpl_sign->bytes, cpl_sign->len);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Carved");
+        CarveFlags fl;
+        fl.hash_small_files = false;
+        fl.disabled_formats = dis;
+        CarveStats st;
+        ASSERT_EQ(OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr,
+                                  nullptr, st))
+            << "disabled_formats=" << dis;
+        EXPECT_EQ(0u, count_tagged(root, 0xFFFE0000u))
+            << "disabled '" << dis << "': no user-sign cpl record";
+        EXPECT_EQ(0u, count_tagged(root, 0xFFFF0000u + cpl_id))
+            << "disabled '" << dis << "': no built-in cpl record either";
+    }
+}
+
+TEST(Carve, DisabledFormatsGatesUserOnlyExtension) {
+    /* S-056 on the user-ONLY population (the 78 extensions no stock
+     * source carries): disabling one suppresses its user-sign record
+     * while an unrelated user extension still fires. */
+    const char* json =
+        "{\"xyzzy\": {\"signs\": [\"0,DEADBEEF\"], \"mime\": \"x/xyzzy\"},"
+        " \"quux\": {\"signs\": [\"0,0BADF00D\"], \"mime\": \"x/quux\"}}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(set)));
+
+    std::vector<u8> img(2ull << 20, 0);
+    img[0x2000] = 0xDE;
+    img[0x2001] = 0xAD;
+    img[0x2002] = 0xBE;
+    img[0x2003] = 0xEF;
+    img[0x2800] = 0x0B;
+    img[0x2801] = 0xAD;
+    img[0x2802] = 0xF0;
+    img[0x2803] = 0x0D;
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Carved");
+    CarveFlags fl;
+    fl.hash_small_files = false;
+    fl.disabled_formats = "xyzzy";
+    CarveStats st;
+    ASSERT_EQ(OK,
+              carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
+    EXPECT_EQ(0u, count_ext_records(root, "xyzzy")) << "the disabled user ext is suppressed";
+    EXPECT_EQ(1u, count_ext_records(root, "quux")) << "the other user ext still fires";
+}
+
+TEST(Carve, DisabledOtherFormatsLeaveUserSignsOn) {
+    /* No over-blocking: disabling an unrelated built-in format leaves a
+     * user-only sign untouched. */
+    const char* json = "{\"xyzzy\": {\"signs\": [\"0,DEADBEEF\"], \"mime\": \"x/xyzzy\"}}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(set)));
+
+    std::vector<u8> img(2ull << 20, 0);
+    img[0x2000] = 0xDE;
+    img[0x2001] = 0xAD;
+    img[0x2002] = 0xBE;
+    img[0x2003] = 0xEF;
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Carved");
+    CarveFlags fl;
+    fl.hash_small_files = false;
+    fl.disabled_formats = "jpg,png,zip";
+    CarveStats st;
+    ASSERT_EQ(OK,
+              carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st));
+    EXPECT_EQ(1u, count_ext_records(root, "xyzzy")) << "unrelated disables do not over-block";
 }
 
 TEST(UserSigns, ParseOgShippedExtremes) {
@@ -8304,7 +8653,13 @@ TEST(Carve, TsM2TsCapIsTheOg200MB) {
     const Signature* reg = registry();
     ASSERT_NE(reg, nullptr);
     const Signature *ts = nullptr, *m2ts = nullptr;
-    for (const Signature* s = reg; s->ext; ++s) {
+    /* count-based iteration: the registry is a FIXED table (one entry per
+     * FormatId, order = FormatId - cr_signatures.h's own contract); it has
+     * NO null terminator. The `for (s = reg; s->ext; ++s)` form walks past
+     * kTable's end (the ASan lane's global-buffer-overflow, the M-133
+     * red-main class). */
+    for (size_t i = 0; i < registry_size(); ++i) {
+        const Signature* s = reg + i;
         if (s->id == FMT_TS)
             ts = s;
         else if (s->id == FMT_M2TS)
@@ -8338,7 +8693,10 @@ TEST(Carve, TsStreamClampedAt200MB) {
      * is a semicolon-delimited ext list (M-024 contract) - build it
      * from the registry itself */
     std::string disabled;
-    for (const Signature* s = registry(); s->ext; ++s) {
+    /* count-based iteration (the M-133 class): kTable has no null
+     * terminator - the ext-terminated form walks off the end. */
+    for (size_t i = 0; i < registry_size(); ++i) {
+        const Signature* s = registry() + i;
         if (s->id == FMT_TS || s->id == FMT_M2TS)
             continue;
         if (!disabled.empty())
@@ -9496,6 +9854,178 @@ TEST(Carve, OfficeUnrefinableStaysDocxAndPlainZipStaysZip) {
     EXPECT_EQ(seen[1], u32(FMT_ZIP)) << "the untyped zip stays the generic ZIP row";
 }
 
+TEST(Carve, ZipTypingXmindContentBranch) {
+    /* N-158: the og's XMIND content probe (RAWSearchDLL FUN_180045110,
+     * disassembly-verified) - a content.xml or meta.xml entry whose RAW
+     * 300-byte window carries EITHER needle types XMIND (og id 0x86):
+     * the stored-XML namespace declaration, or the 14-byte deflated-
+     * prolog fingerprint from the .data constant. */
+    const std::string prolog = std::string("\xf4\x4a\xc6\x40\x1a\xbc\xa7\x76\xcf\xe1\xa0\xd1"
+                                           "\xcc\x9d",
+                                           14) +
+                               std::string(64, 'z');
+    const struct {
+        const char* entry;
+        std::string data;
+    } cases[] = {
+        {"content.xml", "<?xml version=\"1.0\"?><x xmlns=\"urn:xmind:xmap:2\"/>"},
+        {"meta.xml", "<?xml version=\"1.0\"?><m xmlns=\"urn:xmind:meta:2\"/>"},
+        {"content.xml", prolog}, /* the deflated-prolog needle (raw window) */
+    };
+    for (const auto& c : cases) {
+        std::vector<u8> img(256 * 1024, 0);
+        plant_zip_entries(img, 4096, {{c.entry, c.data}});
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats s;
+        ASSERT_EQ(
+            carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+            u32(OK));
+        ASSERT_EQ(direct_carved_count(root), 1u) << "the XMIND branch " << c.entry;
+        tree::FileNode* n0 = root->first_child();
+        EXPECT_EQ(n0->props()->carve_format, u32(FMT_XMIND)) << "the XMIND content probe";
+        const std::string nm = n0->name_utf8();
+        ASSERT_GE(nm.size(), size_t(6));
+        std::string tail = nm.substr(nm.size() - 6);
+        for (auto& ch : tail)
+            if (ch >= 'A' && ch <= 'Z')
+                ch = char(ch + 32);
+        EXPECT_EQ(tail, ".xmind") << "the typed extension";
+    }
+}
+
+TEST(Carve, ZipTypingXmindNeedleMissStaysGeneric) {
+    /* N-158 negative: a content.xml entry whose window carries NEITHER
+     * needle must NOT type XMIND - the probe is content-gated, not
+     * name-gated (an ODF-style content.xml without the urn:xmind
+     * namespace stays the generic ZIP). */
+    std::vector<u8> img(256 * 1024, 0);
+    plant_zip_entries(img, 4096, {{"content.xml", "<?xml version=\"1.0\"?><odf:doc/>"}});
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              u32(OK));
+    ASSERT_EQ(direct_carved_count(root), 1u);
+    EXPECT_EQ(root->first_child()->props()->carve_format, u32(FMT_ZIP))
+        << "a non-xmind content.xml does not type";
+}
+
+TEST(Carve, ZipTypingDocumentToolEntryNames) {
+    /* N-158: the four entry-name branches (the og's per-entry compare
+     * tail :53041-53090) - MindManager maps, Edraw diagrams (both rels
+     * forms), Filmora projects (both ProjectFolder forms), and the
+     * DaVinci media pool. Each stamps its own id + extension. */
+    const struct {
+        const char* entry;
+        u32 fmt;
+        const char* ext;
+    } cases[] = {
+        {"xsd/MindManagerApplication.xsd", FMT_MMAP, ".mmap"},
+        {"rels/_rels.xml", FMT_EDDX, ".eddx"},
+        {"rels/page1_rels.xml", FMT_EDDX, ".eddx"},
+        {"ProjectFolder/Anon/", FMT_WFP, ".wfp"},
+        {"ProjectFolder/project_info.json", FMT_WFP, ".wfp"},
+        {"MediaPool/Master/MpFolder.xml", FMT_DRP, ".drp"},
+    };
+    for (const auto& c : cases) {
+        std::vector<u8> img(256 * 1024, 0);
+        plant_zip_entries(img, 4096, {{c.entry, std::string(64, 'd')}});
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats s;
+        ASSERT_EQ(
+            carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+            u32(OK));
+        ASSERT_EQ(direct_carved_count(root), 1u) << "the entry " << c.entry;
+        tree::FileNode* n0 = root->first_child();
+        EXPECT_EQ(n0->props()->carve_format, c.fmt) << "the typed id for " << c.entry;
+        const std::string nm = n0->name_utf8();
+        std::string want = c.ext;
+        ASSERT_GE(nm.size(), want.size());
+        std::string tail = nm.substr(nm.size() - want.size());
+        for (auto& ch : tail)
+            if (ch >= 'A' && ch <= 'Z')
+                ch = char(ch + 32);
+        for (auto& ch : want)
+            if (ch >= 'A' && ch <= 'Z')
+                ch = char(ch + 32);
+        EXPECT_EQ(tail, want) << "the typed extension for " << c.entry;
+    }
+}
+
+TEST(Carve, ZipTypingLaterEntryOverwritesEarlierStamp) {
+    /* N-158: the og's chain walk has NO typing stop (:18411-18450,
+     * disassembly: the do/while dispatches every record through the
+     * shared id slot) - a LATER branch match overwrites an EARLIER
+     * stamp (last-match-wins). The pre-N-158 walk broke at the first
+     * decisive entry; the og never does. */
+    std::vector<u8> img(256 * 1024, 0);
+    plant_zip_entries(img, 4096,
+                      {{"rels/_rels.xml", "<rels/>"},                /* EDDX first */
+                       {"MediaPool/Master/MpFolder.xml", "<mp/>"}}); /* DRP second */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              u32(OK));
+    ASSERT_EQ(direct_carved_count(root), 1u);
+    EXPECT_EQ(root->first_child()->props()->carve_format, u32(FMT_DRP))
+        << "the later stamp wins (the chain walk has no stop)";
+}
+
+TEST(Carve, ZipTypingUnrelatedEntriesStayGeneric) {
+    /* N-158 negative: a zip whose entries hit none of the five
+     * branches (and no office shape) stays the generic ZIP row. */
+    std::vector<u8> img(256 * 1024, 0);
+    plant_zip_entries(img, 4096,
+                      {{"readme.txt", "hello"},
+                       {"data/chunk1.bin", std::string(128, 'x')},
+                       {"xsd/Other.xsd", "not mindmanager"}});
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              u32(OK));
+    ASSERT_EQ(direct_carved_count(root), 1u);
+    EXPECT_EQ(root->first_child()->props()->carve_format, u32(FMT_ZIP))
+        << "unrelated entries stay generic";
+}
+
+TEST(Carve, ZipTypedIdDisableGateSuppressesTyping) {
+    /* N-158: the og ships [Filter] keys for exactly the five typed ids
+     * (RawConfig.ini XMIND/MMAP/EDDX/WFP/DRP=1); the core's M-024
+     * disabled_formats surface gates them row-level (the conservative
+     * landing - the og's exact callback coupling is undecoded). With
+     * the token disabled, an XMIND fixture must NOT type: the typing
+     * itself is suppressed, so the archive surfaces as the generic
+     * ZIP row (not DOCX - it is not office-shaped). */
+    std::vector<u8> img(256 * 1024, 0);
+    plant_zip_entries(img, 4096,
+                      {{"content.xml", "<?xml version=\"1.0\"?><x xmlns=\"urn:xmind:1\"/>"}});
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    flags.disabled_formats = "xmind";
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              u32(OK));
+    ASSERT_EQ(direct_carved_count(root), 1u);
+    EXPECT_EQ(root->first_child()->props()->carve_format, u32(FMT_ZIP))
+        << "the disabled typed id does not surface";
+}
+
 TEST(Carve, MultiEntryZipCarvesOnce) {
     /* N-153: a multi-entry archive emits ONE file - the inner LFH
      * positions are the SAME archive (the og's sector-bitmap
@@ -10576,4 +11106,173 @@ TEST(Carve, ThreeDsSectionWalkUsesTheStrideFields) {
     EXPECT_EQ(nd->props()->carve_format, u64(FMT_3DS));
     EXPECT_EQ(nd->props()->logical_size, expected)
         << "the stride fields carry the extent (0x40 + the 0x58 shortcut + 0x1234)";
+}
+
+/* ===================================================================== */
+/* M-128 (diff-to-fix): the og's EUUserData consumer converts candidate */
+/* bytes to UPPERCASE hex TEXT (%02X — FUN_140604090:1003619, zero %02x */
+/* in DRWUI.exe) and memcmps against the stored sign string — so the    */
+/* 11 lowercase-hex signs in the og's own shipped file are DEAD         */
+/* configuration in the og. The core decodes hex case-insensitively     */
+/* and compares BYTES: all 190 default signs are live. Registered as    */
+/* PARITY-DELTAS D-125 (deliberate superset, the D-117 class — the      */
+/* og's %02X-only text compare is an og machinery defect, not a         */
+/* semantic contract).                                                  */
+/* ===================================================================== */
+
+TEST(UserSigns, LowercaseHexSignLiveAndRegistered) {
+    /* the og-dead class pinned LIVE: the shipped mpeg sign
+     * "0,000001b321000100" (lowercase b) fires on the bytes it
+     * describes - the byte-decode channel the D-125 registration
+     * protects. Fail-state: any future "og-faithful" case-folding
+     * makes this sign dead and the test fails. */
+    const char* json =
+        "{\"mpeg\": {\"signs\": [\"0,000001b321000100\"], \"mime\": \"video/mpeg\"}}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    ASSERT_EQ(1u, set.signs.size());
+    EXPECT_EQ(8u, set.signs[0].len);
+    EXPECT_EQ(0x00u, set.signs[0].bytes[0]);
+    EXPECT_EQ(0xB3u, set.signs[0].bytes[3])
+        << "the lowercase 'b3' decodes to the same byte as 'B3'";
+    EXPECT_EQ(0x00u, set.signs[0].bytes[7]);
+}
+
+TEST(UserSigns, UppercaseHexSignMatches) {
+    /* the regression pin: uppercase signs (the only og-live form) keep
+     * matching - identical bytes to the lowercase twin */
+    const char* json =
+        "{\"mpeg\": {\"signs\": [\"0,000001B321000100\"], \"mime\": \"video/mpeg\"}}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    ASSERT_EQ(1u, set.signs.size());
+    const u8 want[8] = {0x00, 0x00, 0x01, 0xB3, 0x21, 0x00, 0x01, 0x00};
+    EXPECT_EQ(0, std::memcmp(want, set.signs[0].bytes, 8));
+}
+
+TEST(UserSigns, DefaultSetEffectiveCount) {
+    /* the D-125 census: the shipped default set's EFFECTIVE count is 190
+     * live signs - all 11 lowercase-hex members (10 pure-lowercase mpeg
+     * + 1 mixed-case img, the corrected census; the finding's text said
+     * 12) load and fire in the core where 11 are dead in the og. */
+    std::ifstream in(std::string(CR_SOURCE_DIR) + "/data/userdata-defaults.json", std::ios::binary);
+    ASSERT_TRUE(in.good());
+    std::string json((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json.data(), json.size(), set));
+    EXPECT_EQ(190u, set.signs.size()) << "the effective count under D-125: all live";
+    /* the og-dead subset is present in the live set: count signs whose
+     * textual form carried lowercase hex - proven by decoding both the
+     * file and the loaded set: the mpeg signs starting 00 00 01 B3/BA
+     * with the 8-byte shapes are the lowercase family */
+    u32 mpeg_ps = 0;
+    for (const auto& s : set.signs) {
+        if (std::strcmp(s.ext, "mpeg") == 0 && s.len >= 4 && s.bytes[0] == 0x00 &&
+            s.bytes[1] == 0x00 && s.bytes[2] == 0x01 && (s.bytes[3] == 0xB3 || s.bytes[3] == 0xBA))
+            ++mpeg_ps;
+    }
+    EXPECT_GE(mpeg_ps, 10u) << "the og-dead mpeg family is loaded live";
+}
+
+/* ===================================================================== */
+/* M-129 (diff-to-fix): the og's EUUserData loader tolerates unknown    */
+/* members (_stricmp "signs" only, DRWUI:1005818), case-insensitive     */
+/* member names, malformed sign strings (skip-and-continue, :1005986),  */
+/* and odd-length hex (loads, never matches, :1003452's length guard).  */
+/* The core was all-or-nothing: og-loadable files were wholesale-       */
+/* rejected. The S-039 caps doctrine stays (over-cap still rejects).    */
+/* ===================================================================== */
+
+TEST(UserSigns, UnknownMemberIgnored) {
+    /* the finding's falsifiable case: a valid file + one future member
+     * loads with the member ignored (og: unchanged behavior; the
+     * pre-fix core: ERR_BAD_PARAMETER, zero signs). */
+    const char* json = "{\"x\": {\"signs\": [\"0,DEADBEEF\"], \"size\": 1234, \"mime\": \"m\","
+                       " \"note\": { \"nested\": [true, null, \"s\"] } }}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set))
+        << "a future-versioned member must not fail the file";
+    EXPECT_TRUE(set.valid);
+    ASSERT_EQ(1u, set.signs.size());
+    EXPECT_EQ(0xDEu, set.signs[0].bytes[0]);
+    EXPECT_STREQ("m", set.signs[0].mime) << "the mime after the skipped members still lands";
+}
+
+TEST(UserSigns, MemberNamesCaseInsensitive) {
+    /* the og's dispatch is _stricmp - "SIGNS"/"Signs"/"MIME" all act */
+    const char* json = "{\"x\": {\"SIGNS\": [\"0,ABCD\"], \"Mime\": \"application/x-test\"}}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    EXPECT_TRUE(set.valid);
+    ASSERT_EQ(1u, set.signs.size());
+    EXPECT_EQ(0xABu, set.signs[0].bytes[0]);
+    EXPECT_STREQ("application/x-test", set.signs[0].mime);
+}
+
+TEST(UserSigns, MalformedSignSkippedNotFatal) {
+    /* token-count and charset malformations skip the SIGN, keep the file
+     * (DRWUI:1005986's goto-next); the good sign beside it loads */
+    const char* json = "{\"x\": {\"signs\": [\"nodecimal\", \"0,XYZW\", \"\", \"0,DEADBEEF\"],"
+                       " \"mime\": \"m\"}}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    EXPECT_TRUE(set.valid);
+    ASSERT_EQ(1u, set.signs.size()) << "three malformed skipped, one good loaded";
+    EXPECT_EQ(4u, set.signs[0].len);
+}
+
+TEST(UserSigns, OddHexSkipped) {
+    /* odd-length hex: the og loads it as permanently-unmatchable
+     * (:1003452's guard); the core skips it - equivalent-in-effect,
+     * registered as PARITY-DELTAS D-126's one-line nuance */
+    const char* json = "{\"x\": {\"signs\": [\"0,AAB\", \"0,ABCD\"], \"mime\": \"m\"}}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    ASSERT_EQ(1u, set.signs.size());
+    EXPECT_EQ(2u, set.signs[0].len);
+}
+
+TEST(UserSigns, AllMalformedSignsLoadStructurally) {
+    /* the dead-file edge: every sign malformed -> the STRUCTURE is sound,
+     * parse returns OK, the set is empty (valid=false, install declines).
+     * The og loads this file with zero active signs; the core's parse no
+     * longer fails it either. */
+    const char* json = "{\"x\": {\"signs\": [\"0,AAB\"], \"mime\": \"m\"}}";
+    carve::usersigns::UserSignSet set;
+    EXPECT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    EXPECT_FALSE(set.valid) << "no installable signs - but the FILE loaded";
+    EXPECT_TRUE(set.signs.empty());
+}
+
+TEST(UserSigns, TornFileStillRejected) {
+    /* the honest-rejection floor: unterminated strings/structures are
+     * not og-loadable either (the og's JSON layer fails them) */
+    auto reject = [](const char* bad) {
+        carve::usersigns::UserSignSet s;
+        EXPECT_EQ(ERR_BAD_PARAMETER, carve::usersigns::parse(bad, std::strlen(bad), s)) << bad;
+    };
+    reject("{\"x\": {\"signs\": [\"0,AA\"");          /* torn mid-string */
+    reject("{\"x\": {\"signs\": [\"0,AA\"],");        /* torn mid-object */
+    reject("{\"x\": {\"signs\": ");                   /* torn before value */
+    reject("{\"x\": {\"extra\": ");                   /* torn in unknown member */
+    reject("{\"x\": {\"extra\": {\"y\": [\"z\"} }}"); /* unbalanced unknown value */
+}
+
+TEST(UserSigns, ShippedOgFileVerbatimLoads) {
+    /* the acceptance fixture: the og's own install-tree EUUserData,
+     * verbatim (tests/data/euuserdata-verbatim.json - the byte copy of
+     * og-codebase/EUUserData): 112 blocks including the DUPLICATE asf
+     * block (N-169's subject), 191 signs including the 11 lowercase-hex
+     * og-dead family (D-125), the 8-char "manifest" key - loads with
+     * zero errors. */
+    std::ifstream in(std::string(CR_SOURCE_DIR) + "/tests/data/euuserdata-verbatim.json",
+                     std::ios::binary);
+    ASSERT_TRUE(in.good()) << "the verbatim corpus fixture must ship in the repo";
+    std::string json((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    ASSERT_FALSE(json.empty());
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json.data(), json.size(), set))
+        << "the og's own shipped file must load verbatim";
+    EXPECT_TRUE(set.valid);
+    EXPECT_EQ(191u, set.signs.size()) << "all 191 signs (the duplicate asf block included)";
 }

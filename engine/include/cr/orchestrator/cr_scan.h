@@ -487,6 +487,12 @@ struct ScanStats {
     u64 table_volumes = 0;
     u64 table_volumes_scanned = 0;
     u64 table_volumes_skipped = 0;
+    /* N-161: GPT entries the span gate named invalid (last_lba <
+     * first_lba, or the 2^64-boundary wrap) at whole-disk table parse -
+     * the corrupt-entry population that previously masqueraded as giant
+     * volumes. Diagnostic only; the table's own field carries the same
+     * count for the parse that fed this scan. */
+    u32 gpt_invalid_entries = 0;
 };
 
 /* ---- live scan observability (G-04/G-05/G-06) ----

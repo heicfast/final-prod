@@ -1,4 +1,4 @@
-# MAJOR M-133 — the twin-key device-family offset: the og adjusts kinds {FAT16, EXT2-family}; the core adjusts {FAT12, FAT16, FAT32, exFAT}
+# MAJOR M-138 — the twin-key device-family offset: the og adjusts kinds {FAT16, EXT2-family}; the core adjusts {FAT12, FAT16, FAT32, exFAT}
 
 **Severity:** MAJOR
 **Module:** grading / query (recovery-chances focus battery)
@@ -6,6 +6,7 @@
 **Corpus references:** `re-workspace/reversed/ghidra-drwui/DRWUI_decompiled.c:605752-605756` (the `kind ∈ {1, 4} → offset − 2` adjustment in the completion-pass generic path); `:605924-605927` (the same adjustment in the device-walk thread); `architecture/04-recovery-workflow.md` §3.2 (the FS code space: 0-2 FAT, 3 NTFS, 4-5 EXT2, 7 exFAT, 8 HFS, 9 EXT4, 10 ReFS, 13 ZFS); `re-workspace/artifacts/SearchDLL/engine-matrix--factory-contract-verification.md:27` (the per-code breakdown: 0=FAT12, 1=FAT16, 2=FAT32)
 **Core references:** `src/core/tree/cr_grading.cpp:130-142` (`twin_key_of`: `fat_family = Fat12|Fat16|Fat32|Exfat`; `index = ordinal − (fat_family ? 2 : 0)`); `include/cr/tree/cr_grading.h:65-87` (GradeContext/DeviceSlot) — at audited core `b26017a7`
 **Status:** READ-ONLY FINDING — no fix applied
+**Renumber:** M-133 → **M-138** (2026-10-29, the S56 lane: the N-160 doc-truth gate caught the collision live — the remote's suite-red convergent M-133 retired first at `c466d732` 21:08:06 UTC vs this finding's first push `27a70db0` 21:48:00 UTC; the retired row keeps the seat per SA-9 earlier-push-wins; no content change)
 
 ## Summary
 
@@ -72,3 +73,10 @@ Wrong overlap flags and overlap-induced High grades on multi-device scans where 
 ## Open questions
 
 The og's run-unit value (`local_b8[0]`, `:605939`) — tracked as OQ-S42-3 (it only rescales keys uniformly, so it cannot change which pairs collide; the family-set fix is independent).
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's M-133 landing, session-52 lane — post-push SHA in the ledger row and worklog entry)
+**Verified by:** `Grading.TwinKeyFat32DoesNotShift` / `TwinKeyExfatDoesNotShift` / `TwinKeyFat12DoesNotShift` (all three RED pre-fix — the exact spurious cross-device twin pairs the finding describes, via a two-slot GradeContext spaced one kDeviceUnit apart where same-in-slot-extent-end files collide iff the kind shifts), `Grading.TwinKeyFat16StillShifts` (the pin: kind 1 keeps the −2 shift, passes pre- and post-fix), `Grading.TwinKeyExt4NtfsNeverShift` (the unshifted majority pins — EXT4 9 and ZFS 13, both reaching the twin path so the verdicts are non-vacuous). Suite 1290/1290 green (linux-release; the six new twin tests are the delta over this lane's pre-fix run of the same tree).
+**Resolution notes:** The shift set narrowed from the FAT family {0,1,2,7} to {Fat16} exactly (cr_grading.cpp twin_key_of) — the corpus-verified og set is kinds {1, 4} (DRWUI :605752-756 + :605924-927, both re-read first-hand this session; the quick-factory dispatch FUN_140577d40 :911110-911175 re-read to confirm the kind space). The finding's fix-plan step 1 mapped the ext2/3 leg to "whatever the engine reports for ext2/3" — this session's verification found the core's engine stamps the whole ext family Ext4 (9), a kind the og does NOT shift, so naively mapping the leg would have shifted true-ext4 volumes (a worse divergence than the status quo). The ext2/3 leg is therefore NOT expressible in the core's current kind space and is registered as OQ-S52-1 (tracked-open): the og's ext2/3-vs-ext4 volume classification rule is undecoded in the corpus (the ExtFileSystemAnalyser superblock validator FUN_180004670 checks magic + geometry; the family decision sits upstream and is not in the artifact), and inventing a classifier would be hallucinated parity. One finding-text correction: the "disjoint collision families" impact claim is structurally inert in the current single-device ABI (production GradeContexts carry one slot; cross-device collisions require equal absolute extent ends which disjoint slices cannot produce) — the fix repairs the constant set for the multi-device GradeContext surface the API already exposes and the tests exercise. kDeviceUnit untouched per fix-plan step 2 (OQ-S42-3 owns the unit question).

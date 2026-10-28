@@ -64,7 +64,7 @@ but not real (invented) | SUPERSET = documented deliberate divergence.
 | 18 | Recovery: `\\.\X:` same-volume block; 0x5c→0x2f path normalization; ACL preservation; overwrite policy NOT IN CORPUS | `cr_ui_recovery_*`; `ERR_DEST_OVERLAP`; conflict modes rename/skip/overwrite; ACL = N-009d tracked | **MATCH+** | audit #28/#29 |
 | 19 | .rsf container (16-B magic, GUID-keyed records 1-4, chunked zlib lvl 5, fallback memcpy) | CRSF v1 (8 record types, chunked zlib, CRC32, skip-forward) | **MATCH (container semantics equivalent; G-09/F10 supersets)** | audit #32/#33 |
 | 20 | Auto-save orchestration (Freeze→save→Unfreeze) | host-side/CLI save | **N/A-by-layer** | audit #34 |
-| 21 | Recovery log FILE format | JSON report schema v1 | **MATCH (clean-room equivalent; og format NOT IN CORPUS)** | audit #37 |
+| 21 | Recovery log FILE format | JSON report schema v1 | **MATCH (structured superset; the og format IS decodable — the CSaveFailedFilesWithHtml generator + the tree-classification row grammar, DRWUI :642669-642892, N-159 landed as the per-item `tree_class` axis + `failed_bytes` split)** | audit #37 + N-159 |
 
 ### 1.4 Lost partitions, health, disk map
 

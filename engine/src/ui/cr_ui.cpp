@@ -1379,6 +1379,15 @@ u32 open_volume_impl(char letter, cr_ui_device** out) {
     }
     const char* transport = "rda";
     auto slice = PartitionSlice::create(whole.get(), start, len, nullptr);
+    /* M-119: an over-long declared window CLAMPS at the device end and
+     * the volume opens (the og's tolerant create) - the clamp delta is
+     * surfaced through the log so the host can see the shrinkage; only
+     * a genuinely unopenable extent (start past the device) refuses. */
+    if (slice && slice->was_clamped() && cr::log::enabled())
+        cr::log::write(cr::log::Level::Warning,
+                       "volume %c: declared window overruns the device by %llu bytes; "
+                       "opened clamped",
+                       letter, static_cast<unsigned long long>(slice->clamp_delta()));
     if (!slice)
         return ret_(ERR_OPEN_FAILED, "slice creation failed for %c: (@%llu +%llu)", letter,
                     static_cast<unsigned long long>(start), static_cast<unsigned long long>(len));
@@ -1464,6 +1473,15 @@ u32 open_volume_with_key_impl(char letter, const char* utf8_hex_fvek, cr_ui_devi
     }
     const char* transport = "rda";
     auto slice = PartitionSlice::create(whole.get(), start, len, nullptr);
+    /* M-119: an over-long declared window CLAMPS at the device end and
+     * the volume opens (the og's tolerant create) - the clamp delta is
+     * surfaced through the log so the host can see the shrinkage; only
+     * a genuinely unopenable extent (start past the device) refuses. */
+    if (slice && slice->was_clamped() && cr::log::enabled())
+        cr::log::write(cr::log::Level::Warning,
+                       "volume %c: declared window overruns the device by %llu bytes; "
+                       "opened clamped",
+                       letter, static_cast<unsigned long long>(slice->clamp_delta()));
     if (!slice)
         return ret_(ERR_OPEN_FAILED, "slice creation failed for %c: (@%llu +%llu)", letter,
                     static_cast<unsigned long long>(start), static_cast<unsigned long long>(len));
@@ -2177,9 +2195,9 @@ u32 scan_run_impl(cr_ui_scan* scan) {
     if (s->ck_sink) {
         if (s->ck_sink->f)
             std::fclose(s->ck_sink->f);
-            /* the staging file is transient: the final path holds the last
-             * COMMITTED checkpoint; a leftover .tmp is a torn never-committed
-             * emit (N-014's crash window) - remove it, never trust it. */
+        /* the staging file is transient: the final path holds the last
+         * COMMITTED checkpoint; a leftover .tmp is a torn never-committed
+         * emit (N-014's crash window) - remove it, never trust it. */
 #ifdef _WIN32
         DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
 #else
@@ -2803,8 +2821,8 @@ extern "C" CR_UI_API void cr_ui_scan_close(cr_ui_scan* scan) {
         if (s->ck_sink) {
             if (s->ck_sink->f)
                 std::fclose(s->ck_sink->f);
-                /* N-014: the staging file is transient (a torn never-committed
-                 * emit); the final path holds the last committed checkpoint. */
+            /* N-014: the staging file is transient (a torn never-committed
+             * emit); the final path holds the last committed checkpoint. */
 #ifdef _WIN32
             DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
 #else

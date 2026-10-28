@@ -26,7 +26,19 @@ bool read_sectors(IStorageDevice* dev, u64 lba, u32 count, std::vector<u8>& buf)
     return dev->read_at(off, buf.data(), u32(len)) == OK;
 }
 
-u32 load_gpt_side(IStorageDevice* dev, u64 header_lba, GptHeader& header_out,
+/* M-123 (diff-to-fix): the og's GPT header verifier FUN_1800078d0
+ * (Partition_decompiled.c:4813-4847) gates on signature, revision
+ * 0x00010000, header_size EXACTLY 0x5C, reserved == 0, the position pair
+ * mirrored by side (primary: current==1 && backup==dev-last; backup:
+ * current==dev-last && backup==1), usable-range bounds (first_usable <
+ * sector_count, first_usable < last_usable, last_usable < sector_count),
+ * the entries array OUTSIDE the usable range, entry_size 0x80 - every
+ * structural gate BEFORE the CRC (cheap rejects first, og order). The
+ * core previously accepted headers the og routes to its salvage/backup
+ * ladder ("Verify GPT HEADER sector failed."). Kept stricter than the og
+ * on purpose (the N-164 deliberate-strictness registration): the entry
+ * count cap and the entries-array-inside-disk bound. */
+u32 load_gpt_side(IStorageDevice* dev, u64 header_lba, bool backup_side, GptHeader& header_out,
                   std::vector<GptEntry>& entries_out) {
     std::vector<u8> sec;
     if (!read_sectors(dev, header_lba, 1, sec))
@@ -35,14 +47,46 @@ u32 load_gpt_side(IStorageDevice* dev, u64 header_lba, GptHeader& header_out,
     std::memcpy(&h, sec.data(), sizeof(h));
     if (std::memcmp(h.signature, GPT_SIGNATURE, 8) != 0)
         return ERR_BAD_MAGIC;
+    /* structural gates, og order - all before any CRC work */
+    if (h.revision != 0x00010000u)
+        return ERR_BAD_PARAMETER;
+    if (h.header_size != 92)
+        return ERR_BAD_PARAMETER; /* the og: exactly 0x5C */
+    if (h.reserved != 0)
+        return ERR_BAD_PARAMETER;
+    const u64 dev_sectors = dev->geometry().sector_count
+                                ? u64(dev->geometry().sector_count)
+                                : dev->size() / dev->geometry().logical_sector;
+    if (dev_sectors < 2)
+        return ERR_BAD_PARAMETER;
+    const u64 dev_last = dev_sectors - 1;
+    if (!backup_side) {
+        if (h.current_lba != 1)
+            return ERR_BAD_PARAMETER;
+        if (h.backup_lba != dev_last)
+            return ERR_BAD_PARAMETER;
+    } else {
+        if (h.current_lba != dev_last)
+            return ERR_BAD_PARAMETER;
+        if (h.backup_lba != 1)
+            return ERR_BAD_PARAMETER;
+    }
+    if (h.first_usable_lba >= dev_sectors)
+        return ERR_BAD_PARAMETER;
+    if (h.first_usable_lba >= h.last_usable_lba)
+        return ERR_BAD_PARAMETER;
+    if (h.last_usable_lba >= dev_sectors)
+        return ERR_BAD_PARAMETER;
+    if (!(h.entries_start_lba < h.first_usable_lba || h.last_usable_lba < h.entries_start_lba))
+        return ERR_BAD_PARAMETER; /* entries array must sit outside the
+                                      usable range (FUN_1800078d0:4831-32) */
     if (h.entry_size != sizeof(GptEntry))
         return ERR_BAD_PARAMETER;
     if (h.entry_count == 0 || u64(h.entry_count) * h.entry_size > GPT_ENTRIES_READ_CAP)
-        return ERR_BAD_PARAMETER;
-    if (h.header_size < 92 || h.header_size > sec.size())
-        return ERR_BAD_PARAMETER; /* P0-2: CRC length must stay inside the sector */
+        return ERR_BAD_PARAMETER; /* deliberate strictness (N-164) */
 
-    /* header CRC: compute over header_size bytes with crc field zeroed */
+    /* header CRC: over the 92-byte header with crc field zeroed (the
+     * og's GPT_ChksumCrc32 over 0x5C bytes) */
     {
         std::vector<u8> tmp(sec);
         std::memset(tmp.data() + offsetof(GptHeader, header_crc32), 0, 4);
@@ -118,14 +162,10 @@ FsKind mbr_type_to_kind(u8 type) {
     case 0x05:
     case 0x0F:
     case 0x85:
-        /* M-124: 0x85 (Linux extended - the fdisk/dual-boot convention)
-         * follows the SAME EBR link path as 0x05/0x0F in the og
-         * (Partition_decompiled.c :1006: `local_128 == -0x7b` goto
-         * LAB_180002348, the shared `next = base + rel` handler).
-         * Before this case, a 0x85 link fell to FsKind::Other, was
-         * emitted as a bogus VOLUME on the wrong basis (links are
-         * base-relative, volumes EBR-relative), and the chain stopped -
-         * every later logical volume in the container vanished. */
+        /* 0x85 (Linux extended): the og's EBR walker feeds it through the
+         * IDENTICAL link path as 0x05/0x0F (Partition_decompiled.c:1006 -
+         * the -0x7b signed-char compare jumps to the same link label),
+         * so it is a container, not a volume. */
         return FsKind::Extended;
     case 0x07:
         /* HPFS/NTFS/exFAT share 0x07 - disambiguated later by boot-sector
@@ -278,6 +318,21 @@ u32 parse_disk_table(IStorageDevice* device, DiskTable& out) {
             for (const auto& e : ents) {
                 if (!gpt_entry_used(e))
                     continue;
+                /* N-161: span underflow gate - a corrupt entry with
+                 * last_lba < first_lba computes sector_count = last -
+                 * first + 1 in u64 arithmetic and wraps to ~2^64, which
+                 * slipped past the != 0 check below and masqueraded as
+                 * a giant volume (every read failing, the volume skipped
+                 * with no diagnostic). The first<=last gate names the
+                 * entry invalid instead; the 2^64-boundary wrap (first=0,
+                 * last=UINT64_MAX -> span exactly 0) joins it. The og's
+                 * own span consumption is undecoded (OQ-1, the lane
+                 * sheet) - this is the core's honesty doctrine, not a
+                 * parity claim. */
+                if (e.last_lba < e.first_lba || e.last_lba - e.first_lba == UINT64_MAX) {
+                    ++out.gpt_invalid_entries;
+                    continue;
+                }
                 PartitionInfo p;
                 p.start_lba = e.first_lba;
                 p.sector_count = e.last_lba - e.first_lba + 1;
@@ -318,7 +373,7 @@ u32 parse_disk_table(IStorageDevice* device, DiskTable& out) {
 
         GptHeader prim;
         std::vector<GptEntry> pent;
-        const u32 rc_p = lba1_gpt ? load_gpt_side(device, 1, prim, pent) : ERR_BAD_MAGIC;
+        const u32 rc_p = lba1_gpt ? load_gpt_side(device, 1, false, prim, pent) : ERR_BAD_MAGIC;
         GptHeader bak;
         std::vector<GptEntry> bent;
         bool emitted = false;
@@ -327,9 +382,17 @@ u32 parse_disk_table(IStorageDevice* device, DiskTable& out) {
             copy_header_facts(prim);
             emit_gpt_entries(pent);
             emitted = true;
-            /* informational backup probe at the TRUSTED primary's own
-             * backup LBA (healthy-disk case: both flags true) */
-            if (load_gpt_side(device, prim.backup_lba, bak, bent) == OK)
+            /* M-132: the og's backup probe is at the FIXED device-last
+             * LBA (FUN_180006e20:4567 reads param_1[1]-1 - never the
+             * primary's declared field). Probe device-last FIRST (og
+             * parity); the declared backup_lba is a REGISTERED fallback
+             * only (PARITY-DELTAS D-124a - the core's extra reach for
+             * layouts whose trusted primary points elsewhere; note the
+             * M-123 position gate already requires backup_lba == dev_last
+             * on every trusted primary, so the fallback is dormant
+             * unless that gate is ever relaxed). */
+            if (load_gpt_side(device, dev_last, true, bak, bent) == OK ||
+                load_gpt_side(device, prim.backup_lba, true, bak, bent) == OK)
                 out.gpt_backup_ok = true;
         } else if (lba1_gpt) {
             /* og two-step step 1: header dead, entry array maybe intact -
@@ -349,7 +412,7 @@ u32 parse_disk_table(IStorageDevice* device, DiskTable& out) {
             /* primary dead AND salvage failed (or protective-only entry):
              * og step 2 - the backup header at the DEVICE-derived last LBA
              * (a damaged primary's backup_lba field cannot be trusted) */
-            if (load_gpt_side(device, dev_last, bak, bent) == OK) {
+            if (load_gpt_side(device, dev_last, true, bak, bent) == OK) {
                 out.gpt_backup_ok = true;
                 copy_header_facts(bak);
                 emit_gpt_entries(bent);
@@ -359,7 +422,7 @@ u32 parse_disk_table(IStorageDevice* device, DiskTable& out) {
             /* entries salvaged from a dead primary: still probe the
              * backup for the informational flag (the og skips this; our
              * gpt_backup_ok consumers expect the flag regardless) */
-            if (load_gpt_side(device, dev_last, bak, bent) == OK)
+            if (load_gpt_side(device, dev_last, true, bak, bent) == OK)
                 out.gpt_backup_ok = true;
         }
         if (!out.gpt_primary_ok && !out.gpt_backup_ok && !emitted)

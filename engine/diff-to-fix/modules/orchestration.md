@@ -7,8 +7,7 @@ New active findings on this module: **M-125** (the og's piecewise progress remap
 superseded); **M-126** (the og's rate-EMA ETA model decoded — no core surface; the O39
 premise superseded); **N-166** (live counters stage-boundary-only vs the og's ~2s
 cadence — the :210-213 claim inaccurate); **N-167** (no found-size aggregate);
-**N-178** (the pause CLI legs); **I-041/I-042/I-043** (the state-model registers:
-stopped-vs-finished, paused observability, state ownership). Key decodes this session:
+**N-178** (the pause CLI legs); **I-041 (ACKNOWLEDGED — registered this lane)** (stopped-vs-finished: the og's verdict is a heuristic — FUN_1400f1b10 [DRWUI:205797-205813, the 0x62=98 threshold re-read first-hand this session] infers "stopped" from progress<98% at the advanced-end transition and persists/restores it [:314692-712, :837740-800]; the core derives it truthfully — stage-done bits stamp only on OK completion [cr_scan.cpp:2134-2137, the G-07 integrity comment] and resume skips only truthfully-completed stages [:2766-2770]. The explicit mapping — og states 3/7 = core cancelled-stage; og 4/8 = core stage-done bit — registered so parity tables stop looking for a "state 7" equivalent); **I-042 (ACKNOWLEDGED — registered this lane)** (paused observability: the og surfaces pause on four surfaces [enum 2/6, nStatus==2, the "Scanning Paused." strip, sigTaskBarPaused], the core exposes `ScanTelemetrySnapshot.paused` [cr_scan.h:520] + cr_ui.h:689 only, no dedicated `cr_ui_scan_paused` query — hosts render pause from telemetry; a library-appropriate subset, the taskbar a host concern); **I-043 (ACKNOWLEDGED — PARITY-DELTAS D-122)** (state ownership). Key decodes this session:
 the og's 14-state scan enum (DRWUI:208243-296), the pause machinery (engine vtable
 +0x88 notify + gate + GetTickCount compensation — the core's PausableToken is a
 verified RE-parity), the stop-organize -> completion-handler chain, the 7-input
@@ -316,7 +315,7 @@ reconciliation. See S-051's Resolution addendum in `findings/FIXED/`.
 
 ## S42 continuation lane (2026-10-29 — the scan-mode semantics focus battery; core `b26017a7`)
 
-- **O31/O38 (the auto-advance state machine) — REGISTER, I-044**: decoded engine-side
+- **O31/O38 (the auto-advance state machine) — REGISTERED (I-044, ACKNOWLEDGED — landed `f0163182`)**: decoded engine-side
   (CDoScanPartition::DoScan pushes state 1 unconditionally, DRWUI:567875-892; the
   ScanThread pops states with telemetry events 0-3; controllers 0/1/5/4 = quick/
   advanced/recycle-bin; the recoverability grade only selects coaching text) — the
@@ -324,7 +323,7 @@ reconciliation. See S-051's Resolution addendum in `findings/FIXED/`.
   default-on stages are confirmed as the correct parity translation. Also
   registered: settings+0x60/+0x6c are hardwired constants (:947721-22), the
   4 MiB all-allocated chunk skip (FUN_140585150), the FUN_140581500-vs-FUN_140580720
-  citation erratum, and ZFS compiled out of the shipped og (version.ini scanzfs absent).
+  citation erratum, and ZFS compiled out of the shipped og (version.ini scanzfs absent). **The register's doc-side fix plan landed at `f0163182`** (C1/A1/A5 annotations + D-36 citation correction + the CORPUS-ERRATA row); the citation erratum's corpus-side twin is recorded for the corpus doc's own errata list.
 - **O37 (stage order) — DIVERGENCE-MINOR, N-181**: the og starts the RAW carve
   controllers before the FS deep engines (:916484-916509); the core's carve stage
   is strictly last — time-to-first-carved-result diverges, result sets identical.
@@ -334,6 +333,6 @@ reconciliation. See S-051's Resolution addendum in `findings/FIXED/`.
   StartSector" is the common case, not an invariant.
 - **Grading cells (the recovery-chances battery)**: S-058 (SEVERE — the extension-
   table gate polarity inverted; the s5 erratum), S-061 (SEVERE — ReFS/Btrfs
-  insert-time High absent), M-133 (the twin-key device family), M-134 (the deep-read
+  insert-time High absent), M-138 — FIXED (session-52: the twin-key device family narrowed to the og's {FAT16} shift, the ext2/3 leg registered OQ-S52-1; renumbered M-133→M-138 at the N-160 doc-truth repair), M-134 (the deep-read
   validation + full-tree re-grade), N-183 (the gauge population/score/QSDE batch).
   Worksheet: `../evidence/decompiled-quotes/s42-grading-gate-polarity.md`.

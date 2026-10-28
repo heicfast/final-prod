@@ -65,10 +65,16 @@ The config/data-asset completeness pass (the user's mark-all-remaining mandate a
     VHD-attach coordination); recorded for completeness, no parity weight
     identified.
 12. **RawConfig.ini's 34-key list as a completeness oracle** (register extension
-    E1): the keys minus core's grammar-covered set (heic/webp/m1v/m2ts/mobi/7z/
-    webm/m2t/stl/vpj) equal exactly the open M-09x/N-11x carve findings' format
-    set — a falsifiable invariant any future key/format drift breaks (a cheap
-    completeness tripwire for the carve board).
+    E1 — N-160's re-stated invariant, the original overstatement repaired):
+    the keys minus the verified inert set equal the carve findings' format
+    set. The inert set = keys with NO engine presence on either side
+    (display-name keys only): STL/VPJ (no core carve row, no og analyser —
+    they are not "grammar-covered"), plus INSP/INSV/CRM/FFF/DPX/MUSX/RVT
+    (zero engine-side presence in the og); M2T rides the TS family's
+    grammar; M4P is covered only as an MP4 brand alias. The uncovered-but-
+    typed remainder is N-158's five OfficeTagFromXML branches. A falsifiable
+    invariant any future key/format drift breaks (a cheap completeness
+    tripwire for the carve board).
 
 ## Impact
 

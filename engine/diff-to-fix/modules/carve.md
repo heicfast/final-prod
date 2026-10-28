@@ -2,14 +2,16 @@
 
 ## S12 addendum (2026-10-29 — the session-2 deep-dive — the local-database/user-sign family)
 
-New active findings on this module: **S-055** (SEVERE — the user-sign layer probes
-before the built-in table, inverting the M-048/D-104 collision rule; 8 overlap formats
-flip to device-end extents); **S-056** (SEVERE — disabled_formats does not gate the
-user-sign layer; D-104's claim false in code); **M-128** (hex-case semantics — 12
+New active findings on this module: **S-055** (FIXED session-51 — the user-sign layer
+probed before the built-in table, inverting the M-048/D-104 collision rule; 8 overlap
+formats flipped to device-end extents; built-in-first restored, the no-reclaim rule
+pinned); **S-056** (FIXED session-51 — disabled_formats did not gate the user-sign
+layer; match_at's disabled_exts predicate now carries the removal-loop semantics);
+**M-128** (hex-case semantics — 12
 og-dead signs live in core); **M-129** (the all-or-nothing parser vs the og's tolerant
 skip); **N-168** (the og's 2x bounds guard, core correct); **N-169** (duplicate-asf
 merge semantics); **N-170** (8 stale pre-erratum doc claims); **N-171** (user-sign
-files never tick carved_found); **I-035** (the CHK-chain decode addendum for S-050);
+files never tick carved_found); **I-035 (ACKNOWLEDGED — folded into S-050 as the dated addendum)** (the CHK-chain decode addendum for S-050);
 **I-036** (the default-on posture is CLI-app-level only). Key architecture decode
 (this session, lane C): EUUserData's sole og consumer = DRWUI's CHK repair chain
 (renames identified .chk fragments by hex-prefix adapters); GetRawUserInfoMap = the
@@ -963,3 +965,22 @@ Evidence: `evidence/decompiled-quotes/s42-ogg-zip-typing-and-report-decodes.md` 
   carves. The corrupt-ZIP half of the class fires the apk raw-sign row
   (PK\x03\x04 is apk's layer-1 key — the og's layer-1 admits it identically);
   both layers' interplay recorded in the Resolution.
+
+## Session-46 addendum (2026-10-29, audited `659f0f6c`/`fa654673`, corpus `be0cfe9` — the MINOR-first fix lane)
+
+**N-158 FIXED — the OfficeTagFromXML five-branch typing tail** (the S42-B filing
+above, resolved): the five typed ids land — FMT_XMIND/FMT_MMAP/FMT_EDDX/
+FMT_WFP/FMT_DRP (og 0x86/0x87/0x8c/0x8d/0x91, ids appended; override-target
+rows with the og's own display labels; kTrialOrder slots). The XMIND content
+probe decoded from disassembly before landing (FUN_180045110: the 300-byte RAW
+window at record+30+strlen(name); the 16-byte `xmlns="urn:xmind` needle + the
+14-byte .data prolog constant at RVA 0x93980; the already-0x86 return-1
+re-stamp at 0x18004516d). The chain walk's stop semantics corrected to the
+og's truth: NO stop, last-match-wins within the 32-entry/256 KiB bounds
+(:18411-18450 — the N-115-era "map stop" comment was an erratum). The
+[Filter] coupling: the conservative row-level gate through disabled_formats
+(PARITY-DELTAS D-134; the N-115 nine stay always-on per N-149). Tests:
+ZipTypingXmindContentBranch / ZipTypingXmindNeedleMissStaysGeneric /
+ZipTypingDocumentToolEntryNames / ZipTypingLaterEntryOverwritesEarlierStamp /
+ZipTypingUnrelatedEntriesStayGeneric / ZipTypedIdDisableGateSuppressesTyping
+(3 groups RED pre-fix; suite 1209 green). P1/P11/P19/P25/P65 → MATCH.

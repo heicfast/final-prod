@@ -507,6 +507,114 @@ TEST(Ext4Engine, BadMagicRejected) {
 TEST(Ext4Engine, UnixTimeConversion) {
     EXPECT_EQ(u64(11644473600ULL * 10000000ULL), unix_to_filetime(0));
     EXPECT_EQ(u64((11644473600ULL + 1000) * 10000000ULL), unix_to_filetime(1000));
+    /* post-2038: the full-i64 path is exact where the og's _gmtime32_s
+     * import (EXT4SearchDLL.dll, api-ms-win-crt-time-l1-1-0) goes garbage
+     * past the 32-bit time_t cliff - the I-040 anti-down-fix pin. */
+    EXPECT_EQ(u64((11644473600ULL + 2147483648ULL) * 10000000ULL),
+              unix_to_filetime(2147483648LL)); /* 2038-01-19T03:14:08Z+1s */
+    EXPECT_EQ(u64((11644473600ULL + 4102444800ULL) * 10000000ULL),
+              unix_to_filetime(4102444800LL)); /* 2100-01-01T00:00:00Z */
+    EXPECT_EQ(u64((11644473600ULL + 2147483648ULL) * 10000000ULL + 1234567ULL / 100ULL),
+              unix_to_filetime_ns(2147483648LL, 1234567u));
+}
+
+/* I-040 anti-down-fix pin: a directory inode with a nonzero legacy-ACL
+ * pointer at +0x6c (the I_SIZE_HIGH slot, meaningful only for regular
+ * files) must keep its true 32-bit size. The og's EXT4SearchDLL
+ * (FUN_180007510, :5455-5467) CONCATs +0x6c with +0x04 unconditionally
+ * for EVERY inode, so legacy-ACL dirs surface polluted garbage sizes;
+ * the core's clean conditional (cr_ext4_engine.cpp: high half only when
+ * ifmt(mode)==0x8000) is the registered deliberate non-adoption
+ * (PARITY-DELTAS D-123). This pin refuses a future "fix" down to the
+ * defect. */
+TEST(Ext4Engine, LegacyAclDirSizeClean) {
+    auto img = build_volume();
+    /* the legacy dir-ACL pointer lives in i_size_high's slot for
+     * directories: a plausible allocator/ACL xattr block number */
+    u8* dir_inode = img.block(B_INODE_TABLE) + size_t((INO_DIR - 1) * INO_SZ);
+    ASSERT_EQ(0x4000, u16(dir_inode[0]) | u16(dir_inode[1] << 8)); /* dir */
+    put32(dir_inode + 0x6C, 0x00003039u);                          /* ACL pointer pollution */
+
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    ASSERT_EQ(OK, scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st))
+        << err_text(0);
+
+    tree::FileNode* sub = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->props()->name == std::u16string(u"sub"))
+                sub = c;
+            find(c);
+        }
+    };
+    find(ra);
+    ASSERT_NE(nullptr, sub) << "the ACL-carrying dir must still surface";
+    /* the true 32-bit size (BS), never the polluted
+     * (0x3039 << 32 | BS) the og's unconditional poll would produce */
+    EXPECT_EQ(u64(BS), sub->props()->logical_size);
+}
+
+TEST(Ext4Engine, Post2038FileTimeConversionStays64Bit) {
+    /* I-040 / D-123: the og's _gmtime32_s paths (EXT4SearchDLL :5495/:5506/
+     * :6262/:6273) go garbage past 2038 (32-bit time_t); the core's u64
+     * FILETIME path must stay exact through and beyond the boundary. */
+    const u64 y2038 = 2147483648ULL; /* 2038-01-19T03:14:08Z, the +1 step */
+    EXPECT_EQ((11644473600ULL + y2038) * 10000000ULL, unix_to_filetime(y2038));
+    const u64 y2100 = 4102444800ULL; /* 2100-01-01T00:00:00Z */
+    EXPECT_EQ((11644473600ULL + y2100) * 10000000ULL, unix_to_filetime(y2100));
+}
+
+TEST(Ext4Engine, SizeHighFoldIsRegularOnlyNotTheOgUnconditionalDefect) {
+    /* I-040 / D-123 anti-down-fix pin. The og folds the +0x6C word into
+     * EVERY inode's size (EXT4SearchDLL FUN_180007510 :5455-5467 - the
+     * unconditional high-half poll), so a legacy-ACL directory's ACL
+     * pointer pollutes its surfaced size; the core folds only for regular
+     * files (cr_ext4_engine.cpp read_inode, the ifmt==0x8000 gate). Both
+     * directions pinned so no future session "fixes" the core toward
+     * either defect. */
+    auto img = build_volume();
+    u8* table = img.block(B_INODE_TABLE);
+    /* (a) the subdir inode carries a legacy-ACL pointer at +0x6C: the og
+     * computes 0x00000300_00000400 for this shape; the core surfaces 1024. */
+    put32(table + size_t((INO_DIR - 1) * INO_SZ) + 0x6C, 0x00000300u);
+    /* (b) the regular file's true size is hi=1, lo=0xFFFFFFFF (8 GiB-1):
+     * the regular-file path must surface the full 64-bit size. */
+    put32(table + size_t((INO_HELLO - 1) * INO_SZ) + 0x04, 0xFFFFFFFFu);
+    put32(table + size_t((INO_HELLO - 1) * INO_SZ) + 0x6C, 1u);
+
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+
+    const tree::FileNode* sub = nullptr;
+    const tree::FileNode* hello = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->props())
+                continue;
+            const std::string nm = c->name_utf8();
+            if (nm == "sub")
+                sub = c;
+            if (nm == "hello.txt")
+                hello = c;
+            find(c);
+        }
+    };
+    find(ra);
+    ASSERT_NE(nullptr, sub);
+    ASSERT_NE(nullptr, hello);
+    EXPECT_EQ(u64(1024), sub->props()->logical_size); /* NOT 0x300_00000400 */
+    EXPECT_EQ((u64(1) << 32) | 0xFFFFFFFFu, hello->props()->logical_size);
 }
 
 TEST(Ext4Engine, JournalSalvage) {
