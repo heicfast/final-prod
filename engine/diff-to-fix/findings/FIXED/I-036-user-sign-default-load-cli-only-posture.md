@@ -54,3 +54,10 @@ Load-site census (grep + the read of rrecov.cpp:1228-1264 and cr_ui.cpp:4509).
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** ACKNOWLEDGED (the register confirmed first-hand; the D-104 + inventory precision edits applied)
+**Fixed in commit:** (this session's I-036 landing — S47 lane; the doc edits in PARITY-DELTAS.md D-104 and PARITY-OG-CORE-INVENTORY.md:84)
+**Verified by:** load-site census re-executed at core `d872452c`: `src/app/rrecov.cpp:1269-1310` is the ONLY default load site (the executable-adjacent `userdata-defaults.json` at CLI startup, line-drifted from the audited :1228-1264); `cr_ui_register_user_signs` at `src/ui/cr_ui.cpp:4615` (drifted from :4509) is the only ABI path; grep-census-zero for any engine/orchestrator-side default load (`src/core/`, `src/ui/` carry no install of the default set); `docs/PREBUILT-ARTIFACTS.md:106` already precise ("beside rrecov.exe").
+**Resolution notes:** The register's claim is confirmed exactly: "default-on user signs" is the CLI product's posture; the library posture is default-off. The finding's demanded one-line precision edit applied at both stale sites — D-104's "loaded at engine init" (PARITY-DELTAS.md D-104) and the inventory row's "engine-init load" (PARITY-OG-CORE-INVENTORY.md:84) now read "CLI-app startup load; the library default is off (cr_ui_register_user_signs)". No code change — the divergence is the documented product posture and stays. Future sessions scoping S-055/S-056/M-128/N-171 (the channel's defects) should cite this register for the affected surface: the CLI default path + any explicit-loading host, never a bare library consumer.

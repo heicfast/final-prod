@@ -9,7 +9,7 @@ user-sign layer; D-104's claim false in code); **M-128** (hex-case semantics —
 og-dead signs live in core); **M-129** (the all-or-nothing parser vs the og's tolerant
 skip); **N-168** (the og's 2x bounds guard, core correct); **N-169** (duplicate-asf
 merge semantics); **N-170** (8 stale pre-erratum doc claims); **N-171** (user-sign
-files never tick carved_found); **I-035** (the CHK-chain decode addendum for S-050);
+files never tick carved_found); **I-035 (ACKNOWLEDGED — folded into S-050 as the dated addendum)** (the CHK-chain decode addendum for S-050);
 **I-036** (the default-on posture is CLI-app-level only). Key architecture decode
 (this session, lane C): EUUserData's sole og consumer = DRWUI's CHK repair chain
 (renames identified .chk fragments by hex-prefix adapters); GetRawUserInfoMap = the
