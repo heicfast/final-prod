@@ -13,3 +13,5 @@ build-asan/
 build-linux/
 Testing/
 *.img.dest2/
+installer/payload/
+installer/dist/

@@ -72,3 +72,46 @@ OS gate (REGISTERED divergence past Server 2016), the telemetry posture
 **Status remains READ-ONLY-FINDING-with-step-1-landed**: steps 2-4
 (implementation, the three test gates, acceptance) are the milestone's
 remaining work; the finding moves to FIXED when the §11 gates are green.
+
+## Fix progress (steps 2-3 of the fix plan — LANDED; step 4 = the CI proof)
+
+**Steps 2 and 3 are complete** (the PARITY-FIX-1 session):
+
+- **Step 2 (the installer)**: `installer/core-recovery.iss` — the Inno
+  Setup implementation of the 13-parameter contract (the header comment maps
+  every parameter to its section). Parameters 1-5/7/10 are native Inno;
+  parameter 8 (ARP `QuietUninstallString`, the reference's exact `" /SILENT"`
+  form) and parameter 13 (`HKLM\SOFTWARE\heicfast\core_recovery\Version`)
+  are written AND read-back-verified by `[Code]` (the M-064 lesson), with
+  the version key's removal owned by the uninstaller's own `[Code]` hook
+  (Inno only uninstalls `[Registry]` entries). Parameter 6 is the admin
+  manifest (`PrivilegesRequired=admin`). Parameter 9 is the frozen
+  single-instance AppId (§9's default). Parameters 11-12 (telemetry) are
+  OMIT per §8's confirmed decision. The OS gate (§6, the modernized
+  Win7-SP1→Server-2025 x64 envelope, REGISTERED divergence) lives in
+  `InitializeSetup` with the SAME decision table as `installer/osgate.ps1`
+  (the OSGATE-V1 marker is the sync pin). The driver deployer (§10) runs as
+  an INTERNAL step (`driver` component, default-checked): the bundled
+  install.ps1 stays the source of truth, exit codes propagate (a failed
+  driver install FAILS the app install), and the teardown runs before file
+  deletion on uninstall.
+- **Step 3 (the three test gates)**: `installer/run-gates.ps1` (gates 1+2 —
+  the silent round trip: /VERYSILENT install → ARP both strings
+  well-formed → uninstall via the ARP QuietUninstallString verbatim →
+  no-residue assertions over files/ARP/version-key/service/driver-images;
+  gate 2 is the version-key read-back) and
+  `tools/test_installer_osgate.py` (gate 3 — the ISS↔module sync pin plus
+  the injectable version matrix: every in-envelope OS admits exit-0, every
+  below-floor tuple (XP/Vista/Win7-RTM) and non-x64 arch refuses exit-3).
+  The lane: `.github/workflows/installer.yml` (gate 3 fast job + the
+  full build→sign→install→uninstall round-trip job on windows-2022, Inno
+  pinned 6.4.3 via choco, driver test-signed with the proven job-local
+  cert mechanism). The installer PS files joined
+  `scripts/ps_parsecheck.ps1`.
+- **The two owner decisions are CLOSED at the contract's own defaults**:
+  §2 = Inno Setup, §8 = omit (the owner may overturn either by reopening
+  the PACKAGING.md row; the implementation maps to either choice).
+
+**Status: steps 2-3 landed; step 4 (acceptance) flips when the installer
+lane's first dispatch is green — the lane runs on every push touching
+`installer/**`.**

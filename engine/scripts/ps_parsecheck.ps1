@@ -7,7 +7,8 @@ $files = @(
   "bench/scenarios/apply-scenario.ps1", "bench/ours/run-ours.ps1",
   "bench/ours/run-behavior.ps1", "bench/ours/verify-driver.ps1",
   "bench/ours/run-alignbench.ps1", "scripts/bench_seed.ps1",
-  "bench/og/run-og.ps1", "bench/og/og-driver.ps1")
+  "bench/og/run-og.ps1", "bench/og/og-driver.ps1",
+  "installer/osgate.ps1", "installer/build-installer.ps1", "installer/run-gates.ps1")
 $failed = 0
 foreach ($f in $files) {
   if (-not (Test-Path $f)) { Write-Host "MISSING  $f"; $failed++; continue }

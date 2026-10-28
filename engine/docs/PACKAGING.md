@@ -1,14 +1,20 @@
 # PACKAGING — the app-installer contract (the packaging milestone's design input)
 
-> **Status: CONTRACT — design work, no installer code yet.** This document
-> exists because [S-038](../diff-to-fix/findings/SEVERE/S-038-app-installer-surface-absent.md)
+> **Status: IMPLEMENTED (S-038 step 2+3 landed; step 4 acceptance = the
+> three gates green on the installer CI lane).** This document exists
+> because [S-038](../diff-to-fix/findings/SEVERE/S-038-app-installer-surface-absent.md)
 > put the reference product's installer surface on the board as a 13-parameter
 > contract. The packaging milestone is built AGAINST this contract, never
 > invented from scratch: every parameter below carries its corpus citation
 > (string-table verbatim or artifact line), and every deliberate divergence
-> is marked REGISTERED with its rationale. The technology decision (§2) and
-> the telemetry posture (§8) are the two open product decisions; everything
-> else is pinned by the reference evidence.
+> is marked REGISTERED with its rationale. Both formerly-open decisions are
+> CLOSED (confirmed by the implementing session per the contract's own
+> defaults; the owner may overturn either by reopening the row):
+> **§2 technology = Inno Setup** (confirmed), **§8 telemetry = omit**
+> (confirmed). The implementation lives in
+> [installer/](../installer/README.md) (`core-recovery.iss` + the gate
+> runners; the three §11 gates run in
+> [installer.yml](../.github/workflows/installer.yml)).
 >
 > Scope: the APP installer (the product's install/uninstall surface). The
 > DRIVER deployer (rda-driver's `install.ps1`/`uninstall.ps1` + the
@@ -70,7 +76,7 @@ assembly-removal strings); `architecture/02-kernel-driver-architecture.md`
 | 12 | Uninstall telemetry | `/UninstallStart` + `/UninstallEnd` (via the Aliyun channel) | InfoForSetup strings |
 | 13 | Version registry key | `HKLM\SOFTWARE\EASEUS\DRW\Version` — written and read back by the bootstrap | SetupUE strings |
 
-## 2. Technology decision (OPEN — the milestone's first call)
+## 2. Technology decision (CLOSED — Inno Setup confirmed)
 
 The reference used **Inno Setup** (the `unins000` trio and the Inno metadata
 keys are Inno's signature — the corpus's own conclusion). The options for the
@@ -82,11 +88,10 @@ merged product:
 | **WiX (MSI)** | enterprise-standard (GPO/SCCM deployment); transactional install | MSI's ARP + silent model differs from Inno's flag set — parameters 1-10 need re-mapping; higher build complexity |
 | **Custom (NSIS/MSIX/zip+script)** | full control | reinvents every parameter; the corpus already paid the RE cost of the Inno surface |
 
-**Default recommendation: Inno Setup** — the contract is evidence-pinned to
-it, and every parameter in §1 that Inno implements natively is a parameter
-the milestone does not have to design. This row is the milestone's decision
-to confirm or overturn; the contract below is technology-neutral where the
-reference evidence is.
+**DECISION: Inno Setup** — the contract's default recommendation, adopted by
+the implementing session (evidence-pinned; the 13-parameter contract maps
+1:1). The implementation: `installer/core-recovery.iss` (Inno 6.3+, CI pins
+6.4.3 via choco).
 
 ## 3. The ARP contract (parameters 7-8)
 
@@ -140,12 +145,17 @@ message, and a REFUSAL (not a warning) outside the envelope. x64-only
 
 `HKLM\SOFTWARE\<Vendor>\<Product>\Version` — written at install, read back
 (verified) before the ARP entry is written. The reference's path
-(`SOFTWARE\EASEUS\DRW\Version`) is the SHAPE; the merged product's own
-vendor/product path is chosen at implementation and recorded here when the
-milestone lands. The write+verify (not write-and-hope) is the M-064 lesson
-applied at the app tier.
+(`SOFTWARE\EASEUS\DRW\Version`) is the SHAPE; the merged product's path is
+**REGISTERED (implemented): `HKLM\SOFTWARE\heicfast\core_recovery\Version`**
+(vendor `heicfast` — the same vendor string the driver's version resource
+carries; product `core_recovery` — the repo/product identity). The
+write+verify (not write-and-hope) is the M-064 lesson applied at the app
+tier: the ISS `[Code]` write is followed by a read-back comparison, and a
+mismatch FAILS the install. The value is removed by the uninstaller's own
+`[Code]` hook (Inno only uninstalls `[Registry]`-section entries — the
+residue the round-trip gate exists to catch).
 
-## 8. The telemetry posture (OPEN — the product-privacy decision)
+## 8. The telemetry posture (CLOSED — omit, confirmed)
 
 The reference's installer reports install and uninstall events (parameters
 11-12: `/SendInfo`//`/SendInfoEx` with locale/environment fields +
@@ -153,10 +163,11 @@ The reference's installer reports install and uninstall events (parameters
 product's posture is a DECISION, not an audit question (S-038's own framing):
 **implement** (an opt-in/no-default telemetry with a documented endpoint),
 **no-op** (the verbs exist as local no-ops so script parity is preserved), or
-**omit with rationale**. Default recommendation: **omit** — the merged product
-has no telemetry endpoint today, and a stub verb that pretends to upload is
-worse than absence. Whatever is chosen lands in this section with the
-rationale.
+**omit with rationale**. **DECISION: omit** — the merged product has no
+telemetry endpoint today, and a stub verb that pretends to upload is worse
+than absence (the contract's default recommendation, adopted by the
+implementing session; parameters 11-12 are therefore intentionally absent
+from the implementation, recorded in the ISS header's contract map).
 
 ## 9. The multi-instance policy (parameter 9)
 
@@ -193,6 +204,10 @@ Three automated gates on the CI Windows lane, red-blocking the milestone:
 ## 12. Milestone acceptance
 
 - This contract exists with citations (this document).
-- The three §11 gates green on the CI Windows lane.
+- The three §11 gates green on the CI Windows lane — **the lane exists
+  ([installer.yml](../.github/workflows/installer.yml)); the gates run on
+  every push touching `installer/**`; S-038's step-4 acceptance flips when
+  the first dispatch is green**.
 - Every REGISTERED divergence above carries its rationale; the two OPEN
-  decisions (§2 technology, §8 telemetry) are closed and recorded.
+  decisions (§2 technology, §8 telemetry) are closed and recorded (both
+  confirmed at the contract's own defaults by the implementing session).

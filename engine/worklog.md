@@ -272,3 +272,53 @@ Stage Summary:
   magics, batch-1 scope pinned in the queue); C-lane clean except the
   execution-bound TTFR half; F-lane work = the NTFS origin-LCN carrier.
   Fixes land next in the mandated order: A-lane batch -> F-lane carrier.
+
+
+---
+Task ID: PARITY-FIX-2 (S-038 steps 2-3 — the app installer + the three gates)
+Agent: main session (senior-dev parity-fix continuation)
+
+Work Log:
+- The two PACKAGING.md owner decisions closed at the contract's own
+  documented defaults (the owner may overturn either by reopening the row):
+  section 2 = Inno Setup (evidence-pinned, the 13-parameter contract maps
+  1:1), section 8 = omit (no telemetry endpoint; no stub verbs).
+- installer/core-recovery.iss: the 13-parameter implementation. Parameters
+  1-5/7/10 native Inno; parameter 6 the admin manifest; parameter 9 the
+  frozen single-instance AppId; parameters 11-12 intentionally OMIT (the
+  recorded decision); parameter 8 (ARP QuietUninstallString, the reference's
+  exact ' /SILENT' form) + parameter 13 (the version key at
+  HKLM\SOFTWARE\heicfast\core_recovery\Version) written AND read-back-verified
+  by [Code] (the M-064 write-and-hope lesson); the version key's removal
+  owned by the uninstaller's [Code] hook (Inno only uninstalls [Registry]
+  entries). OS gate (section 6 modernized envelope, Win7 SP1 -> Server 2025,
+  x64-only) in InitializeSetup; driver deployer (section 10) as the default
+  'driver' component - install.ps1 stays the SCM source of truth, exit codes
+  propagate (failed driver install fails the app install), teardown before
+  file deletion.
+- Caught + fixed pre-push: the [Code] ARP-key string must use the raw GUID
+  (AppIdRaw define) - the {{-escaped AppId define would build a wrong
+  registry key.
+- installer/osgate.ps1: the shared decision module (injectable version
+  tuples; the OSGATE-V1 marker is the sync pin); installer/run-gates.ps1:
+  gates 1+2 executable (silent round trip + version key + no-residue:
+  files/ARP/version-key/service/driver-image sweep); installer/
+  build-installer.ps1: payload staging + ISCC; installer/README.md.
+- tools/test_installer_osgate.py: gate 3 - the sync-pin check (comment-style
+  agnostic) + the injectable matrix (9 in-envelope ADMITS incl. Win7 SP1
+  floor + Server 2025, 5 below-floor REFUSES incl. Win7 RTM/SP0, 3
+  wrong-arch REFUSES incl. ARM64/Itanium).
+- .github/workflows/installer.yml: the gate lane (gate 3 fast job + PS AST
+  parse; the full build -> fetch driver -> job-local test-sign -> ISCC ->
+  round-trip job on windows-2022, Inno pinned 6.4.3 via choco). The
+  installer PS files joined scripts/ps_parsecheck.ps1.
+- PACKAGING.md: status -> IMPLEMENTED; sections 2/7/8/12 record the closed
+  decisions + the registered version-key path.
+- S-038 finding: steps 2-3 Resolution appended; step 4 (acceptance) flips
+  when the lane's first dispatch is green.
+
+Stage Summary:
+- S-038 steps 2-3 landed (11 files). Next: dispatch installer.yml and watch
+  the three gates; then the M-068 hygiene move + testing.md count truth +
+  OQ-SA-1 NTFS +0x64 decompile probe.
+
