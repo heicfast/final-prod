@@ -3,22 +3,30 @@
  *
  * Commands:
  *   list                                  enumerate disks/volumes
- *   driver [--service NAME] [--json]      the driver-status surface
- *   scan --disk N | --volume C: [--whole-disk] [--quick-only] [--no-carve]
- *         [--threads N] [--out file.crsf] [--resume file.crsf] [--json]
- *         [--log file] [--csv] [--filter s] [--deleted-only]
- *          *         [--bitlocker-fvek hex] [--bitlocker-dict [file]] [--check]
+ *   list-carve-formats                    the two-layer carve registry
+ *   scan --disk N | --volume C: | --image file [--whole-disk] [--deep]
+ *         [--quick-only] [--no-carve] [--threads N] [--out file.crsf]
+ *         [--resume file.crsf] [--json] [--log file] [--csv]
+ *         [--filter s] [--deleted-only] [--bitlocker-fvek hex]
+ *         [--bitlocker-dict [file]] [--user-signs file] [--repair]
+ *         [--repair-apply] [--repair-undo file] [--check]
  *   tree --in file.crsf [--filter substr] [--deleted-only] [--csv] [--json]
- *   recover --in file.crsf --disk N --to DIR [--deleted-only] [--filter s]
- *         [--report file.json]
+ *   recover --in file.crsf (--disk N | --image file) --to DIR
+ *         [--deleted-only] [--filter s] [--report file.json]
  *   health --disk N
  *   fix --disk N [--part P] [--apply] [--undo file] [--undo-apply file]
+ *   apply --disk N --session file.crsf [--candidate N] [--apply]
+ *         [--undo file] [--boot-fix lba] [--boot-fix-bcd file]
  *   bench --disk N [--mode seq|rand|open|read|info] [--mb N] [--block-kb N]
  *         [--iterations N] [--seed N] [--json]
+ *   driver [--service NAME] [--json]      the driver-status surface
  *
  * Exit codes: scan 0 ok / 1 failure / 3 cancelled (session saved when --out
- * was given); list 1 on enumeration failure; health 3 when every health
- * source is unavailable; recover 2 partial (item errors / hash mismatch);
+ * was given); list 1 on enumeration failure; list-carve-formats 1 on the
+ * empty registry; health 3 when every health source is unavailable;
+ * recover 2 partial (item errors / hash mismatch); apply / fix 2 on
+ * open/plan/execute/undo failure; bench 2 on open/read failure or zero
+ * hits;
  * 4 = the driver prerequisite is not met (any driver-requiring verb; the
  * refusal names the exact ERR_DRIVER_* class on stderr - see
  * docs/DRIVER-REQUIRED.md).

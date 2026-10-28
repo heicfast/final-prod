@@ -25,17 +25,20 @@ Companion documents:
 
 ```
 rrecov list
-rrecov scan    --disk N | --volume C: [--whole-disk] [--quick-only] [--no-carve]
-               [--threads N] [--out file.crsf] [--resume file.crsf] [--json]
-               [--log file] [--csv] [--filter s] [--deleted-only]
-               [--bitlocker-fvek hex] [--bitlocker-dict [file]]
-               [--user-signs file] [--repair [plan]] [--repair-apply]
-               [--check]
+rrecov list-carve-formats
+rrecov scan    --disk N | --volume C: | --image file [--whole-disk] [--deep]
+               [--quick-only] [--no-carve] [--threads N] [--out file.crsf]
+               [--resume file.crsf] [--json] [--log file] [--csv]
+               [--filter s] [--deleted-only] [--bitlocker-fvek hex]
+               [--bitlocker-dict [file]] [--user-signs file] [--repair]
+               [--repair-apply] [--repair-undo file] [--check]
 rrecov tree    --in file.crsf [--filter substr] [--deleted-only] [--csv] [--json]
-rrecov recover --in file.crsf --disk N --to DIR [--deleted-only] [--filter s]
-               [--report file.json]
+rrecov recover --in file.crsf (--disk N | --image file) --to DIR
+               [--deleted-only] [--filter s] [--report file.json]
 rrecov health  --disk N
 rrecov fix     --disk N [--part P] [--apply] [--undo file] [--undo-apply file]
+rrecov apply   --disk N --session file.crsf [--candidate N] [--apply]
+               [--undo file] [--boot-fix lba] [--boot-fix-bcd file]
 rrecov bench   --disk N [--mode seq|rand|open|read|info] [--mb N]
                [--block-kb N] [--iterations N] [--seed N] [--json]
 rrecov driver  [--service NAME] [--json]
@@ -53,11 +56,10 @@ present/loaded/started/authorized/healthy/version facets; exit 0 = ready,
 | Code | Meaning |
 |---|---|
 | 0 | success |
-| 1 | failure (scan failure, enumeration failure, …) |
-| 2 | recover: partial — item errors or hash mismatch in the write set |
-| 3 | scan cancelled (session saved when --out was given) / health all-unavailable |
+| 1 | failure (scan failure, enumeration failure, unknown option, …) |
+| 2 | recover: partial — item errors or hash mismatch in the write set; apply/fix: open/plan/execute/undo failure; bench: open/read failure or zero hits |
+| 3 | scan cancelled (session saved when --out was given) / health: every source unavailable |
 | 4 | the DRIVER prerequisite is not met — scan/recover/fix/apply/bench refuse before any other output with the ERR_DRIVER_* class on stderr (docs/DRIVER-REQUIRED.md) |
-| 3 | cancelled (scan; the session file is still saved when `--out` was given) / health: every source unavailable |
 
 Every command logs stage timings, per-stage counts and error maps
 (`--log`). `scan --json` emits the run summary machine-readably;
@@ -65,7 +67,8 @@ Every command logs stage timings, per-stage counts and error maps
 
 **Consent-bearing flags** (the safety architecture): `--repair-apply`,
 `--repair-undo`, `--undo-apply`, `--bitlocker-dict`, `--bitlocker-fvek`,
-`--apply`. Each one is an explicit operator action; nothing write-side or
+`--apply`, `--boot-fix` (fires only under `--apply` — the shared apply
+consent, M-040). Each one is an explicit operator action; nothing write-side or
 unlock-side ever fires implicitly. See [CONNECTION-GUIDE.md](CONNECTION-GUIDE.md#consent).
 
 ---
