@@ -4885,3 +4885,66 @@ This lane's mandate (the user's continuation directive, decomposed):
    og-codebase data-file grammars vs core data assets; per-function behavioral comparison on the
    high-traffic engine paths.
 3. **Mark all remaining** — anything surfaced without a disposition gets a finding/register row.
+
+---
+Task ID: S12/T2-T9 (session-12 continuation lane — the second-session deep audit, wave 2)
+Agent: session-12 continuation audit lane (S12 — distinct from the S11 lanes and the session-40 fix lane; the user's "second session" continuation directive)
+
+SESSION CLOSE RECORD. Opened at core `c7fa527c` (worklog-only HEAD `36c1d3e5` in-tree;
+code identical) / corpus `be0cfe9`; closed at `9067618b` (the filings commit on the same
+code tree — zero source-file writes across the session; `git status` at close shows the
+diff-to-fix/ set only).
+
+WAVE 1 — REMOVE-THE-FIXED (the mandate's first directive): the 55-finding liveness
+sweep, every defect site re-located at HEAD by symbol/pattern (line drift absorbed;
+largest shift cr_analysers.cpp ~+560 from the carve landings), every fix-commit claim
+swept by `git log --grep` per ID. Verdicts: 41 LIVE / 4 PARTIAL (N-132 — the
+TxtViewFiles third landed by aac75bba/M-108, rows 45 still false; N-135 — items
+1/3/4/5 repaired, the R-31 contradiction + residual phantom SHAs + the thumbnail
+LZW matrix item standing; N-138 — the OQ record carries the refutation addendum but
+its Status line still asserts the refuted verdict; I-030 — ldm.md's cite repaired,
+reghive/apply rows still absent) / 5 N/A-DRIVER-REPO (M-086/M-087/M-089/N-107/N-127 —
+their fix surfaces live in heicfast/rda-driver, outside this session's two-repo grant)
+/ 5 REGISTER. NO finding is fixed-but-unretired — the board is truthful. The suite
+EXECUTED from scratch at this tree: configure+build 9 targets, 0 warnings under
+-Werror, **1117/1117 tests green in 64.2 s** (the standing "1027" claim was stale —
+N-143's item 4; toolchain gap found and fixed by the sub-agent: cmake via pip).
+
+WAVE 2 — THE DEEP WALKS (go-deeper + mark-all-remaining): four parallel agents (A
+liveness, B core deep-read — all 28 module assignments walked file-by-file, C corpus
+behavioral re-walk — 53 focus-family artifacts + the runtime logs read first-hand,
+D build/exec), then EVERY candidate lead-verified first-hand before filing (the SOP —
+the git archaeology for S-054, the three-source decode for M-112 re-read at both
+cites, the CBasicPartitionDevice wrapper re-read with the RTTI proof, the rsf
+artifact's descriptor layout re-read, the core cites re-located). Six findings + one
+addendum filed (the S12 commit): S-054 / M-112 / M-113 / N-142 / N-143 / I-033 + the
+S-050 video-engine addendum. Board at close: **61 active (8 SEVERE · 19 MAJOR · 26
+MINOR · 8 INFO) / 296 resolved rows / 3 tracked-open**. Next free IDs: S-055+,
+M-114+, N-144+, I-034+, A-012+.
+
+TERRITORY: no collisions — the session-40 fix lane opened (865f8b43) but landed no
+code at this baseline; its 15-minor queue is untouched by this lane's audit product
+(this lane's N-143 records the bookkeeping residuals the fix lanes will want; the
+S-054 re-landing is a CODE fix and belongs to a fix lane, with the wiring-fence test
+prescribed in the finding).
+
+READ-ONLY GUARANTEE: held — the session's writes are diff-to-fix/ + worklog only
+(verified per-commit; the build/ directory is gitignored CMake output).
+
+Handoff — this lane's recommended fix order (its own filings first):
+(1) S-054 — the N-013 re-landing is mechanical (the 3b5397a1 shape exists in git;
+     re-land + the three wiring-fence tests; the data-loss window makes it top
+     priority alongside the standing S-051/S-052/S-053 set);
+(2) M-113 — the create-clamp + read-clamp pass (read-side only; the write-path fence
+     test must stay green; composes with S-051's whole-disk fixtures — add the
+     over-long-table-entry case to them);
+(3) M-112 — the register-channel seam (the CandidateSource feed + the win-layer
+     MountPoints2 walk; the decode is complete; one fix-time probe names the
+     Data-blob's total-field split);
+(4) N-143's bookkeeping batch (the N-079 comment repair is a one-line source-comment
+     edit — the only source touch in the batch; the salvage D-row; the four module
+     rows; the suite-count convention);
+(5) N-142's identity-card v6 tail; I-033's register transcriptions;
+then the standing board order (the S-053+N-141 ReFS emission-gate pass, S-051/S-052
+whole-disk + LDM, the S-050 product decision NOW carrying the video-engine amendment,
+M-108's BOM head-gate residue, the carve school-2/3 children).
