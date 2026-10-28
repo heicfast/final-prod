@@ -352,6 +352,7 @@ Exit: 0 listed (unreadable files are per-row data, never a failure) /
 | `--no-carve` | disables carve stage |
 | `--threads N` | 0 = auto (hw-1, clamp 1..8); 1 = single-threaded |
 | `--out file.crsf` | save session (atomic tmp+rename) + stage-boundary auto-checkpoints |
+| `--autosave-dir D` | W1c (R-52): the completion auto-save directory (the og's auto_<vol>_<ts> SaveScan flow, rsf-format section 5.5) - on a COMPLETED run only; the N-061 naming; never a cancelled run |
 | `--resume file.crsf` | resume (mask truth, boot-hash identity warning, image-path warning, stale-candidate drops) |
 | `--log file` | N-048 detailed run log |
 | `--json` | one-line machine summary `{"files":..,"deleted":..,"carved":..,"lost_partitions":..,"bytes_scanned":..,"elapsed_ms":..}` |

@@ -220,6 +220,7 @@ typed stream.
 #define CR_EVT_HEARTBEAT        8u  /* N-043 liveness heartbeat (5 s watchdog) */
 #define CR_EVT_SAVE_PROGRESS    9u  /* N-060 save-path progress (coalesced) */
 #define CR_EVT_FS_CHECK         10u /* M-041 pre-scan damage-audit phase done (fired ONCE per scan; check_errors = reported issue count 0x1001..0x100e, check_family = detected family byte; the report NEVER aborts the scan) */
+#define CR_EVT_AUTOSAVED 12u /* W1c (R-52) completion auto-save outcome (fired ONCE after run() completes with ScanConfig.autosave_dir set; autosave_rc = 0 saved or the write error; a cancelled run never auto-saves) */
 #define CR_EVT_SESSION_LOAD_PROGRESS 11u /* W1b (R-54) load-path progress: coalesced (first tick, permille steps, terminal) while cr_ui_session_load_with_events deserializes; bytes_done/bytes_total = nodes deserialized / persisted node count; cancel via the CALLER-OWNED cancel_flag -> CR_UI_ERR_CANCELLED, no session out (the og's per-child IsCancelled restore teardown) */
 
 typedef struct cr_ui_event {
@@ -543,6 +544,33 @@ IsCancelled` after EVERY child, tearing down on cancel; our mirror:
 - **ABI stability**: append-only export + append-only event type = NO
   version bump (§9; `CR_UI_ABI_VERSION` stays 3). No CLI surface (the
   og has no CLI; load progress is a host concern).
+
+### 7h. The completion auto-save (W1c / R-52; PLAN-API-EXPANSION Wave 1)
+
+The og's completion SaveScan flow (rsf-format--scan-session.md section 5.5 +
+UIUX/30:64-67): on run() COMPLETION the session is auto-saved to
+`ScanConfig.autosave_dir` (the ABI field `cr_ui_scan_config::
+autosave_dir_utf8`, zero-init = OFF) under `session::auto_session_name` (the
+N-061 corpus naming `auto_<label>_<M>_<D>_<H>_<m>_<s>` with the
+name-forbidden-char sanitizer) + `.crsf`. The write rides the shared atomic
+path (`write_session_atomic`: tmp + finalize + rename - the N-014
+discipline; a torn auto-save never destroys a previous good file).
+
+Contract:
+- A CANCELLED run never auto-saves (the og's flow is the completion
+  window; save-on-cancel is the explicit `cr_ui_scan_save_session`
+  surface).
+- Surfacing: ONE `CR_EVT_AUTOSAVED` (type 12) event with
+  `autosave_rc` (0 = saved, else the write error code - never a silent
+  failure) and `cr_ui_scan_stats.autosaved` (0/1, live runs; loaded
+  sessions honestly report 0).
+- Pure core owns no file I/O: the WRITE is host-side by architecture -
+  the cr_ui shim honors the field on run() completion; the CLI's
+  `scan --autosave-dir D` sets the same core field and runs its own
+  completion leg through its existing save path (the shared naming
+  truth is core's `session::auto_session_name`).
+- ABI stability: appended config field + appended stats field + appended
+  event type + appended event-struct tail = NO version bump (§9).
 
 ## 8. SQLite session index — REJECTED-BY-REFERENCE (closed GAP-S6-12)
 

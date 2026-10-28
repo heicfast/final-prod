@@ -207,6 +207,15 @@ typedef void (*cr_ui_recovery_progress_fn)(void* user, uint64_t bytes_done, uint
          * flow section) aborts with CR_UI_ERR_CANCELLED - no                                      \
          * session is returned and the partial tree is discarded                                   \
          * (a torn load never half-claims state). */
+#define CR_EVT_AUTOSAVED                                                                           \
+    12u /* W1c (R-52) completion auto-save outcome: fired ONCE after                               \
+         * run() completes and ScanConfig.autosave_dir is set -                                    \
+         * autosave_rc = 0 (saved) or the write error code. The                                    \
+         * session lands as <autosave_dir>/auto_<label>_<M>_<D>_<H>_<m>_<s>.crsf                   \
+         * (session::auto_session_name, the N-061 corpus convention                                \
+         * with the name-forbidden-char sanitizer; the og's completion                             \
+         * SaveScan flow, rsf-format section 5.5). A CANCELLED run never                           \
+         * auto-saves and never fires this event. */
 
 typedef struct cr_ui_event {
     uint32_t type;         /* CR_EVT_* above */
@@ -252,6 +261,9 @@ typedef struct cr_ui_event {
     uint64_t check_errors;
     uint32_t check_family;
     uint32_t check_pad; /* keeps the POD an 8-byte multiple (always 0) */
+    /* W1c (R-52) append: the auto-save attempt's rc (CR_EVT_AUTOSAVED
+     * only; 0 on every other event type). */
+    uint64_t autosave_rc;
 } cr_ui_event;
 
 typedef void (*cr_ui_event_fn)(void* user, const cr_ui_event* evt);
@@ -561,6 +573,18 @@ typedef struct cr_ui_scan_config {
                                          * cr_ui_scan_stats' check_* fields, the
                                          * FsCheck event and the session record.
                                          * Zero-init safe (0 = off). */
+    const char* autosave_dir_utf8;      /* W1c (R-52) append: the completion
+                                         * auto-save DIRECTORY (the og's
+                                         * auto_<vol>_<ts> SaveScan flow,
+                                         * rsf-format section 5.5). NULL/""
+                                         * = OFF (zero-init safe). On run()
+                                         * COMPLETION the shim saves the
+                                         * standard record set there under
+                                         * session::auto_session_name (the
+                                         * N-061 corpus naming + sanitizer),
+                                         * fires CR_EVT_AUTOSAVED once and
+                                         * sets stats.autosaved; a cancelled
+                                         * run never auto-saves. */
 } cr_ui_scan_config;
 
 CR_UI_API uint32_t cr_ui_scan_create(const cr_ui_scan_config* cfg, cr_ui_scan** out);
@@ -645,6 +669,12 @@ typedef struct cr_ui_scan_stats {
     uint64_t bytes_unreadable;
     uint32_t probe_unreadable; /* sector 0 read failed (family=Unknown is
                                 * BLIND, not filesystem-absent) */
+    /* W1c (R-52) append: the completion auto-save outcome (the og's
+     * auto_<vol>_<ts> SaveScan flow). 1 = the auto session landed in
+     * ScanConfig.autosave_dir under session::auto_session_name; 0 =
+     * off (the zero-init default) or the run did not complete. The
+     * per-attempt rc rides CR_EVT_AUTOSAVED. */
+    uint32_t autosaved;
 } cr_ui_scan_stats;
 
 CR_UI_API uint32_t cr_ui_scan_get_stats(cr_ui_scan* s, cr_ui_scan_stats* out);

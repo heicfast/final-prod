@@ -342,6 +342,107 @@ TEST(CrUi, CancelSaveAndResume) {
     EXPECT_NE(cr_ui_scan_run(u.scan), CR_UI_OK);
 }
 
+namespace {
+/* W1c (R-52): the completion auto-save event observer. */
+unsigned g_autosave_events = 0;
+uint64_t g_autosave_rc = 1;
+void autosave_event_cb(void*, const cr_ui_event* evt) {
+    if (evt->type == CR_EVT_AUTOSAVED) {
+        ++g_autosave_events;
+        g_autosave_rc = evt->autosave_rc;
+    }
+}
+} // namespace
+
+TEST(CrUi, AutoSaveOnCompletion) {
+    /* W1c (R-52): the og's completion SaveScan flow - zero-init = OFF;
+     * on a COMPLETED run the auto session lands in autosave_dir under
+     * the N-061 auto_<label>_<ts> naming; the event fires ONCE with the
+     * rc and stats.autosaved flips; a CANCELLED run never auto-saves;
+     * the W1a list reads the auto session back (the surfaces compose). */
+    const std::string img = write_fixture("autosave");
+    ASSERT_FALSE(img.empty());
+    const std::string dir = std::filesystem::path(img).parent_path().string();
+    const std::string adir = dir + "/w1c_autosave_" + std::to_string(::getpid());
+    std::filesystem::create_directories(adir);
+    g_autosave_events = 0;
+    g_autosave_rc = 1;
+
+    /* default zero-init: OFF - no event, no file, stats.autosaved == 0 */
+    {
+        Ui u;
+        ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+        cr_ui_scan_config cfg{};
+        ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_set_event_fn(u.scan, autosave_event_cb, nullptr), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+        cr_ui_scan_stats st{};
+        ASSERT_EQ(cr_ui_scan_get_stats(u.scan, &st), CR_UI_OK);
+        EXPECT_EQ(st.autosaved, 0u);
+        EXPECT_EQ(g_autosave_events, 0u);
+        uint32_t n = 0;
+        ASSERT_EQ(cr_ui_session_list(adir.c_str(), nullptr, &n), CR_UI_OK);
+        EXPECT_EQ(n, 0u);
+    }
+
+    /* completion: exactly ONE auto session, valid, N-061 naming, event
+     * once with rc 0, stats flag set */
+    {
+        Ui u;
+        ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+        cr_ui_scan_config cfg{};
+        cfg.autosave_dir_utf8 = adir.c_str();
+        ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_set_event_fn(u.scan, autosave_event_cb, nullptr), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+        cr_ui_scan_stats st{};
+        ASSERT_EQ(cr_ui_scan_get_stats(u.scan, &st), CR_UI_OK);
+        EXPECT_EQ(st.autosaved, 1u);
+        EXPECT_EQ(g_autosave_events, 1u);
+        EXPECT_EQ(g_autosave_rc, 0u);
+        uint32_t n = 0;
+        ASSERT_EQ(cr_ui_session_list(adir.c_str(), nullptr, &n), CR_UI_OK);
+        ASSERT_EQ(n, 1u); /* exactly one - never a per-stage double */
+        std::vector<cr_ui_session_row> rows(1);
+        uint32_t cap = 1;
+        ASSERT_EQ(cr_ui_session_list(adir.c_str(), rows.data(), &cap), CR_UI_OK);
+        EXPECT_EQ(rows[0].valid, 1u);
+        EXPECT_EQ(rows[0].error, CR_UI_OK);
+        EXPECT_GT(rows[0].save_unix, 0ull);
+        const char* base = std::strrchr(rows[0].path, '/');
+        const char* base2 = std::strrchr(rows[0].path, '\\');
+        if (base2 && (!base || base2 > base))
+            base = base2;
+        ASSERT_NE(base, nullptr);
+        EXPECT_EQ(std::strncmp(base + 1, "auto_", 5), 0); /* the N-061 naming */
+        EXPECT_NE(std::strstr(base + 1, ".crsf"), nullptr);
+    }
+
+    /* cancelled run: never auto-saves (the og's flow is the completion
+     * window - save-on-cancel is the explicit cr_ui_scan_save_session
+     * surface) */
+    {
+        Ui u;
+        ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+        cr_ui_scan_config cfg{};
+        cfg.autosave_dir_utf8 = adir.c_str();
+        ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_cancel(u.scan), CR_UI_OK);
+        EXPECT_EQ(cr_ui_scan_run(u.scan), 0x50020005u); /* ERR_CANCELLED */
+        cr_ui_scan_stats st{};
+        ASSERT_EQ(cr_ui_scan_get_stats(u.scan, &st), CR_UI_OK);
+        EXPECT_EQ(st.autosaved, 0u);
+        uint32_t n = 99;
+        ASSERT_EQ(cr_ui_session_list(adir.c_str(), nullptr, &n), CR_UI_OK);
+        EXPECT_EQ(n, 1u); /* still exactly the ONE from the completion */
+    }
+
+    std::filesystem::remove_all(adir);
+}
+
 TEST(CrUi, SessionListTwoCallPatternAndRowTruth) {
     /* W1a (R-56): the LastScanRecordView surface - the capacity probe,
      * the under-capacity TRUNCATED answer, and per-row truth

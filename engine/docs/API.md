@@ -29,7 +29,7 @@ rrecov list-carve-formats
 rrecov sessions [--dir D] [--json]
 rrecov scan    --disk N | --volume C: | --image file [--whole-disk] [--deep]
                [--quick-only] [--no-carve] [--threads N] [--out file.crsf]
-               [--resume file.crsf] [--json] [--log file] [--csv]
+               [--resume file.crsf] [--autosave-dir D] [--json] [--log file] [--csv]
                [--filter s] [--deleted-only] [--bitlocker-fvek hex]
                [--bitlocker-dict [file]] [--user-signs file] [--repair]
                [--repair-apply] [--repair-undo file] [--check]

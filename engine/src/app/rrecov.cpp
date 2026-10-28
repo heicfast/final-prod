@@ -9,7 +9,7 @@
  *                                         LastScanRecordView surface)
  *   scan --disk N | --volume C: | --image file [--whole-disk] [--deep]
  *         [--quick-only] [--no-carve] [--threads N] [--out file.crsf]
- *         [--resume file.crsf] [--json] [--log file] [--csv]
+ *         [--resume file.crsf] [--autosave-dir D] [--json] [--log file] [--csv]
  *         [--filter s] [--deleted-only] [--bitlocker-fvek hex]
  *         [--bitlocker-dict [file]] [--user-signs file] [--repair]
  *         [--repair-apply] [--repair-undo file] [--check]
@@ -1273,6 +1273,16 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         }
         if (get_opt(argc, argv, i, L"--out", &out_path))
             continue;
+        if (get_opt(argc, argv, i, L"--autosave-dir", &v)) {
+            /* W1c (R-52): the completion auto-save directory (the og's
+             * auto_<vol>_<ts> SaveScan flow, rsf-format section 5.5).
+             * Set on the CORE config (the shared host trigger) and honored
+             * below on run() completion only - never a cancelled run. */
+            const std::string d8 = text::wide_to_utf8(v);
+            for (size_t k = 0; k + 1 < sizeof(cfg.autosave_dir) && k < d8.size(); ++k)
+                cfg.autosave_dir[k] = d8[k];
+            continue;
+        }
         if (get_opt(argc, argv, i, L"--resume", &resume_path))
             continue;
         if (get_opt(argc, argv, i, L"--log", &log_path))
@@ -1682,6 +1692,28 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         if (!save_session_to(effective_out))
             return 1;
         wprintf(L"session saved: %s\n", effective_out.c_str());
+    }
+    /* W1c (R-52): the completion auto-save (the og's SaveScan window;
+     * cancelled runs return before this point, so ONLY completed runs
+     * auto-save). The N-061 corpus naming + sanitizer; silent write,
+     * one printed outcome line - never silent failure. */
+    if (cfg.autosave_dir[0] != '\0') {
+        const std::string name8 =
+            session::auto_session_name(text::utf8_to_u16(cfg.volume_label)) + ".crsf";
+        std::wstring dir;
+        for (char c : std::string(cfg.autosave_dir))
+            dir.push_back((c & 0x80) ? L'?' : wchar_t(c)); /* ASCII dirs; the
+                                                            * corpus SaveScan folder is ASCII */
+        if (!dir.empty() && dir.back() != L'\\' && dir.back() != L'/')
+            dir += L'\\';
+        std::wstring wide_name = dir;
+        for (char c : name8)
+            wide_name.push_back((c & 0x80) ? L'?' : wchar_t(c)); /* ASCII names
+                                                                  * (the sanitizer guarantees it) */
+        if (save_session_to(wide_name))
+            wprintf(L"session auto-saved: %s\n", wide_name.c_str());
+        else
+            wprintf(L"[autosave] FAILED: %s\n", wide_name.c_str());
     }
     return 0;
 }

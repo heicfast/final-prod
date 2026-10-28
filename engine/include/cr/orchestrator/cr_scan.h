@@ -269,6 +269,18 @@ struct ScanConfig {
      * so a re-run never spawns a duplicate raw root. */
     char raw_category_name[64] = {0};
 
+    /* W1c (R-52): the completion auto-save DIRECTORY (the og's
+     * auto_<vol>_<M>_<D>_<H>_<m>_<s> SaveScan flow, rsf-format section
+     * 5.5 + UIUX/30:64-67). UTF-8; empty = OFF (zero-init safe).
+     * The WRITE is host-side file I/O by architecture (pure core owns
+     * no file API): cr_ui + the CLI honor this field on run()
+     * COMPLETION (rc == OK; a cancelled run never auto-saves - the
+     * og's flow is the completion window) by saving the standard record
+     * set through their existing save paths under
+     * session::auto_session_name (the N-061 corpus naming + the
+     * name-forbidden-char sanitizer). */
+    char autosave_dir[512] = {0};
+
     /* ---- auto-checkpoint (G-13, issue #9) ----
      * Invoked by the orchestrator at STAGE BOUNDARIES with a freshly
      * serialized session (state + volume + contexts + tree + error map -

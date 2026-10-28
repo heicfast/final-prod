@@ -769,6 +769,7 @@ struct CrScan {
     bool started = false;  /* run() entered at least once (one-shot) */
     bool has_ctrl = false; /* fresh-run or resumed controller exists */
     bool is_resumed = false;
+    bool autosaved = false; /* W1c (R-52): the completion auto-save landed */
     /* S-008 pre-scan repair: the C-ABI consent callback + the lazily
      * opened write view (image: same file r+b; Windows disk/volume: the
      * RW transport mapped through the device slice). */
@@ -1160,6 +1161,7 @@ u32 fill_scan_config(const cr_ui_scan_config* in, orchestrator::ScanConfig& out)
     if (in)
         out.threads = in->threads;
     copy_card(out.volume_label, sizeof(out.volume_label), in ? in->volume_label_utf8 : nullptr);
+    copy_card(out.autosave_dir, sizeof(out.autosave_dir), in ? in->autosave_dir_utf8 : nullptr);
     copy_card(out.volume_model, sizeof(out.volume_model), in ? in->volume_model_utf8 : nullptr);
     copy_card(out.volume_serial, sizeof(out.volume_serial), in ? in->volume_serial_utf8 : nullptr);
     copy_card(out.volume_firmware, sizeof(out.volume_firmware),
@@ -1897,6 +1899,11 @@ u32 scan_attach_impl(cr_ui_scan* scan, cr_ui_device* dev) {
     return ret_ok();
 }
 
+/* W1c (R-52): defined below (after the N-060 adapter block); the
+ * completion auto-save in scan_run_impl calls it. */
+u32 write_session_atomic(CrScan* s, const std::string& final_path,
+                         session::SerializeProgress progress, void* progress_user);
+
 u32 scan_run_impl(cr_ui_scan* scan) {
     if (!scan)
         return ret_(ERR_BAD_PARAMETER, "bad argument: scan");
@@ -1968,9 +1975,9 @@ u32 scan_run_impl(cr_ui_scan* scan) {
     if (s->ck_sink) {
         if (s->ck_sink->f)
             std::fclose(s->ck_sink->f);
-        /* the staging file is transient: the final path holds the last
-         * COMMITTED checkpoint; a leftover .tmp is a torn never-committed
-         * emit (N-014's crash window) - remove it, never trust it. */
+            /* the staging file is transient: the final path holds the last
+             * COMMITTED checkpoint; a leftover .tmp is a torn never-committed
+             * emit (N-014's crash window) - remove it, never trust it. */
 #ifdef _WIN32
         DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
 #else
@@ -1981,6 +1988,35 @@ u32 scan_run_impl(cr_ui_scan* scan) {
     }
     if (rc != OK)
         return ret_(rc, "scan %s", err_text(rc));
+    /* W1c (R-52): the completion auto-save - the og's SaveScan window
+     * (rsf-format section 5.5 + UIUX/30:64-67). ONLY a completed run
+     * auto-saves (a cancelled run never does - the og's flow is the
+     * completion window, and save-on-cancel is the explicit --out/
+     * cr_ui_scan_save_session surface). Silent write, ONE outcome event
+     * (never silent failure), the stats flag. The name is the N-061
+     * corpus convention: auto_<label>_<M>_<D>_<H>_<m>_<s> with the
+     * name-forbidden-char sanitizer. */
+    if (s->cfg.autosave_dir[0] != 0) {
+        const std::string dir(s->cfg.autosave_dir);
+        const std::string sep = (!dir.empty() && (dir.back() == '/' || dir.back() == '\\')) ? "" :
+#ifdef _WIN32
+                                                                                            "\\";
+#else
+                                                                                            "/";
+#endif
+        const std::string name =
+            session::auto_session_name(u8_to_u16(s->cfg.volume_label)) + ".crsf";
+        const u32 arc = write_session_atomic(s, dir + sep + name, nullptr, nullptr);
+        s->autosaved = (arc == OK);
+        if (s->event_fn) {
+            cr_ui_event out;
+            std::memset(&out, 0, sizeof(out));
+            out.type = CR_EVT_AUTOSAVED;
+            out.stage = 0xFFFFFFFFu;
+            out.autosave_rc = arc;
+            s->event_fn(s->event_user, &out);
+        }
+    }
     return ret_ok();
 }
 
@@ -2115,6 +2151,8 @@ u32 scan_stats_impl(cr_ui_scan* scan, cr_ui_scan_stats* out) {
      * presentation surface */
     out->bytes_unreadable = st.bytes_unreadable;
     out->probe_unreadable = st.probe_unreadable ? 1u : 0u;
+    out->autosaved = s->autosaved ? 1u : 0u; /* W1c (R-52): the completion
+                                              * auto-save landed (live runs) */
     return ret_ok();
 }
 
@@ -2404,6 +2442,41 @@ bool save_progress_adapter_(u64 done, u64 total, void* user) {
     return true;
 }
 
+/* W1c (R-52): the shared atomic session write - tmp + finalize + rename
+ * (the N-014 discipline), used by the explicit N-060 save (progress
+ * adapter wired) and the completion auto-save (silent). A cancel or
+ * failure leaves the previous good final file and removes the staging
+ * .tmp (never trust a torn emit). */
+u32 write_session_atomic(CrScan* s, const std::string& final_path,
+                         session::SerializeProgress progress, void* progress_user) {
+    const std::string tmp_path = final_path + ".tmp";
+    FILE* f = open_file(tmp_path.c_str(), true);
+    if (!f)
+        return ERR_SESSION_IO;
+    session::Writer w(f_write_cb, f_tell_cb, f_seek_cb, f);
+    w.set_flags(session::CRSF_FLAG_ABS_EXTENTS); /* F-1: absolute basis */
+    u32 rc = w.open(0x52434F56);
+    if (rc == OK)
+        rc = s->ctrl->save_session(w, s->stats, progress, progress_user);
+    if (rc == OK)
+        rc = w.finalize();
+    std::fclose(f);
+    if (rc == OK) {
+        std::error_code ec;
+        std::filesystem::rename(tmp_path, final_path, ec);
+        if (ec)
+            rc = ERR_SESSION_IO;
+    }
+    if (rc != OK) {
+#ifdef _WIN32
+        DeleteFileW(u8_to_ws(tmp_path.c_str()).c_str());
+#else
+        std::remove(tmp_path.c_str());
+#endif
+    }
+    return rc;
+}
+
 u32 scan_save_session_impl(cr_ui_scan* scan, const char* utf8_path) {
     if (!scan || !utf8_path || !*utf8_path)
         return ret_(ERR_BAD_PARAMETER, "bad argument: scan/path");
@@ -2416,39 +2489,12 @@ u32 scan_save_session_impl(cr_ui_scan* scan, const char* utf8_path) {
      * by a fully finalized container; a cancel or failure leaves the
      * previous good file and removes the staging .tmp. */
     s->save_cancel.store(false, std::memory_order_relaxed); /* fresh save */
-    const std::string final_path(utf8_path);
-    const std::string tmp_path = final_path + ".tmp";
-    FILE* f = open_file(tmp_path.c_str(), true);
-    if (!f)
-        return ret_(ERR_SESSION_IO, "cannot create session file %s", tmp_path.c_str());
-    session::Writer w(f_write_cb, f_tell_cb, f_seek_cb, f);
-    w.set_flags(session::CRSF_FLAG_ABS_EXTENTS); /* F-1: absolute basis */
     SaveProgressState spst;
     spst.s = s;
-    u32 rc = w.open(0x52434F56);
+    const u32 rc = write_session_atomic(s, std::string(utf8_path), save_progress_adapter_, &spst);
     if (rc == OK)
-        rc = s->ctrl->save_session(w, s->stats, save_progress_adapter_, &spst);
-    if (rc == OK)
-        rc = w.finalize();
-    std::fclose(f);
-    if (rc == OK) {
-        std::error_code ec;
-        std::filesystem::rename(tmp_path, final_path, ec);
-        if (ec)
-            rc = ERR_SESSION_IO;
-    }
-    if (rc != OK) {
-        /* cancel or failure: the staging file is a torn never-committed
-         * save - remove it, never trust it (the final path keeps the
-         * previous good session, exactly as before the attempt) */
-#ifdef _WIN32
-        DeleteFileW(u8_to_ws(tmp_path.c_str()).c_str());
-#else
-        std::remove(tmp_path.c_str());
-#endif
-        return ret_(rc, "session save failed (%s)", err_text(rc));
-    }
-    return ret_ok();
+        return ret_ok();
+    return ret_(rc, "session save failed (%s)", err_text(rc));
 }
 
 u32 scan_save_cancel_impl(cr_ui_scan* scan) {
@@ -2524,8 +2570,8 @@ extern "C" CR_UI_API void cr_ui_scan_close(cr_ui_scan* scan) {
         if (s->ck_sink) {
             if (s->ck_sink->f)
                 std::fclose(s->ck_sink->f);
-            /* N-014: the staging file is transient (a torn never-committed
-             * emit); the final path holds the last committed checkpoint. */
+                /* N-014: the staging file is transient (a torn never-committed
+                 * emit); the final path holds the last committed checkpoint. */
 #ifdef _WIN32
             DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
 #else
