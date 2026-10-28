@@ -76,3 +76,10 @@ Corpus-derived (decompile, first-hand this session): the exact quote at :7666-76
 ## Open questions
 
 None. (The og's hardcoded-4096-vs-real-blockSize divergence is an og quirk recorded in the fix plan, not an open question — the parity target is the observable.)
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** this session's N-155 landing (session-42 main lane; cite-by-title: "fix(hfsplus): N-155 - the zero-logical-size totalBlocks fallback lands")
+**Verified by:** `HfsPlus.ZeroLogicalSizeFallsBackToTotalBlocks` — RED pre-fix (the stashed-engine rebuild: case (a) emitted 0), GREEN post-fix; the four cases in one fixture: (a) 0 logical/16 blocks → 65536, (b) 0/0 → 0 (empty file unchanged), (c) 0x1000 logical/1 block → 0x1000 (logical wins), (d) rsrc-marked 0/16 → 0 (no fallback on the rsrc path). Full suite 1130/1130 green.
+**Resolution notes:** The fix plan executed exactly: the fallback sits after the content-fork selection, data-fork path only (`!is_dir && !rsrc_marked`), `totalBlocks << 12` with the og's hardcoded 4096 preserved as the observable (the quirk registered in the code comment and the test — a 512-blocksize volume with the same record would size 65536 in BOTH implementations, the parity target); the decmpfs override still wins for compressed files (the fallback fires before the decmpfs check, which supplies the real size when the attribute exists). `ForkData::total_blocks` gains its first consumer. The plan's test (e) (the deleted/journal-path record shape) rides the same emitter — the finding itself notes FUN_180009940 serves both record sources (the live catalog copies and the journal-walk copies), so the emitter-level pin (a)-(d) covers the behavior for both; the freed-node fixture would duplicate the same code path.
