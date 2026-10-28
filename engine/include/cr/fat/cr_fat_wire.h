@@ -99,6 +99,89 @@ struct DirEntry {
 };
 static_assert(sizeof(DirEntry) == 32);
 
+/* ---- M-130 (diff-to-fix): the og's dentry shape validator --------------
+ * FATSearchDLL FUN_1800365a0 (:44263-44375), decoded gate-by-gate from the
+ * raw decompile this session (the walk sites pass the dentry as BOTH
+ * context slots [0] and [1] - verified at :8788-89 and :42944-45 - so
+ * every field below is read at its standard dentry offset).
+ *
+ * The validator runs per 32-byte slot BEFORE the LFN/deleted dispatch at
+ * the main walk sites; the two og walks apply different subsets:
+ *   - the directory walks (:8792 in FUN_18000bfa0, :53647 in
+ *     FUN_1800411d0) call with param_2 = 0: a failing gate BREAKS the
+ *     walk (end-of-directory semantics - "parity means matching the
+ *     loss");
+ *   - the emission walk (:42948 in FUN_180034db0) calls with param_2 = 1:
+ *     the size/chain and dir gates run there; a failure SKIPS the entry
+ *     (not emitted - the walk continues).
+ * The date/time sub-gates are the N-010c-lineage config family
+ * (strict_date_sanity, default OFF) plus the A-014 emission-level
+ * time-word zeroing - NOT part of these always-on gates. */
+
+/* The walk-level gates (the param_2 = 0 set). Returns true when the slot
+ * may continue through the walk (LFN slots included). */
+inline bool fat_dentry_walk_ok(const DirEntry* e) {
+    const u8 attr = e->attributes;
+    /* (a) the LFN gate: an 0x0F slot with a ZERO first-cluster word is a
+     * valid long-name fragment (FUN_1800365a0 :44286-89). */
+    if (attr == ATTR_LFN && e->first_cluster_low == 0)
+        return true;
+    /* reserved attribute bits (>= 0x40) - the :44295-96 compare is on the
+     * u32 at +0x08 whose top byte IS the attribute byte (the audit's
+     * "ext-tail" attribution corrected: 0x3F < the ATTRIBUTES byte). */
+    if (attr > 0x3F)
+        return false;
+    /* the erased/repeated-pattern gate (:44293-94): the extension+attr
+     * quad equal to the ntres/tenths/creation-time quad (and not 0x20)
+     * - the all-zero dentry and the uniform-byte garbage shapes. */
+    const u32 ext_quad =
+        u32(e->name[8]) | (u32(e->name[9]) << 8) | (u32(e->name[10]) << 16) | (u32(attr) << 24);
+    const u32 crt_quad =
+        u32(e->nt_reserved) | (u32(e->creation_tenths) << 8) | (u32(e->creation_time) << 16);
+    if (ext_quad == crt_quad && crt_quad != 0x20)
+        return false;
+    /* label purity (:44298-44301): an entry with the volume bit set must
+     * be a PURE label - attr in {0x08, 0x28} with the hidden bit clear
+     * ((attr - 8) & 0xDF == 0 admits only the archive bit beside 8) -
+     * otherwise it is corrupt (e.g. an 0x0F slot with a stray cluster,
+     * a dir+label mix) and the walk stops. */
+    const bool label_pure = (attr & 0x02) == 0 && ((attr - 0x08) & 0xDF) == 0;
+    if ((attr & ATTR_VOLUME_ID) && !label_pure)
+        return false;
+    /* (f) the byte histogram (:44356-69): over the 21-byte metadata
+     * window +0x0B..+0x1F, counting NONZERO bytes; the 11th occurrence
+     * of any value rejects (the pre-increment compare is > 9). The main
+     * guard against erased-tail patterns (11x 0xFF) and stale sectors. */
+    u8 hist[256] = {};
+    const u8* win = reinterpret_cast<const u8*>(e) + 0x0B;
+    for (int i = 0; i < 21; ++i) {
+        const u8 b = win[i];
+        if (b != 0) {
+            if (hist[b] > 9)
+                return false;
+            ++hist[b];
+        }
+    }
+    return true;
+}
+
+/* The emission-level shape gates (the param_2 = 1 set, :44344-52). */
+inline bool fat_dentry_shape_ok(const DirEntry* e) {
+    if ((e->attributes & ATTR_DIRECTORY) == 0) {
+        /* (d) size/chain XOR consistency: a zero-size file with a chain,
+         * or a sized file with no chain, is inconsistent - reject. */
+        const u32 chain = (u32(e->first_cluster_high) << 16) | e->first_cluster_low;
+        if ((chain != 0) == (e->file_size == 0))
+            return false;
+    } else {
+        /* (e) a directory with size != 0 AND a nonzero high cluster word
+         * - the corrupt-dir shape. */
+        if (e->file_size != 0 && e->first_cluster_high != 0)
+            return false;
+    }
+    return true;
+}
+
 /* VFAT long-name slot (also 0x20 bytes, attributes == 0x0F). */
 struct LfnEntry {
     u8 sequence;       /* bit 0x40 = last fragment, 0x20 was deleted */
@@ -119,7 +202,11 @@ u64 fat_date_to_unix(u16 date, u16 time, u8 tenths); /* N-173: u64 - no 2106 cla
  * FAT engine (cr_lfn.cpp) and the exFAT engine (cr_exfat_quick.cpp) pack
  * dates as bits 15-9 = year-1980, 8-5 month, 4-0 day and times as 15-11
  * hour, 10-5 minute, 4-0 second/2. Returns seconds since 1970-01-01, 0 on
- * invalid/out-of-range fields. */
+ * invalid/out-of-range fields. A-014: the invalid class is the FULL
+ * DosDateTimeToFileTime reject set - month 0/13+, day 0/32+, hour >= 24,
+ * minute >= 60, 2s-field >= 30 (>= 60 s) - matching the og's zero-on-fail
+ * slots (FATSearchDLL :32135/:32144/:32151, the three dentry stamps) and
+ * the exFAT sibling's own field gate (exFATSearchDLL FUN_180002f40). */
 inline u64 fat_datetime_to_unix_seconds(u16 date, u16 time) {
     const u32 year = 1980u + ((date >> 9) & 0x7F);
     const u32 month = (date >> 5) & 0x0F;
@@ -127,7 +214,8 @@ inline u64 fat_datetime_to_unix_seconds(u16 date, u16 time) {
     const u32 hour = (time >> 11) & 0x1F;
     const u32 minute = (time >> 5) & 0x3F;
     const u32 second = (time & 0x1F) * 2;
-    if (month < 1 || month > 12 || day < 1 || day > 31)
+    if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 || minute > 59 ||
+        (time & 0x1F) > 29)
         return 0;
     /* days since 1970-01-01 (Howard Hinnant civil algorithm) */
     const i64 y = i64(year) - (month <= 2 ? 1 : 0);

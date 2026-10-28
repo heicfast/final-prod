@@ -1379,6 +1379,15 @@ u32 open_volume_impl(char letter, cr_ui_device** out) {
     }
     const char* transport = "rda";
     auto slice = PartitionSlice::create(whole.get(), start, len, nullptr);
+    /* M-119: an over-long declared window CLAMPS at the device end and
+     * the volume opens (the og's tolerant create) - the clamp delta is
+     * surfaced through the log so the host can see the shrinkage; only
+     * a genuinely unopenable extent (start past the device) refuses. */
+    if (slice && slice->was_clamped() && cr::log::enabled())
+        cr::log::write(cr::log::Level::Warn,
+                       "volume %c: declared window overruns the device by %llu bytes; "
+                       "opened clamped",
+                       letter, static_cast<unsigned long long>(slice->clamp_delta()));
     if (!slice)
         return ret_(ERR_OPEN_FAILED, "slice creation failed for %c: (@%llu +%llu)", letter,
                     static_cast<unsigned long long>(start), static_cast<unsigned long long>(len));
@@ -1464,6 +1473,15 @@ u32 open_volume_with_key_impl(char letter, const char* utf8_hex_fvek, cr_ui_devi
     }
     const char* transport = "rda";
     auto slice = PartitionSlice::create(whole.get(), start, len, nullptr);
+    /* M-119: an over-long declared window CLAMPS at the device end and
+     * the volume opens (the og's tolerant create) - the clamp delta is
+     * surfaced through the log so the host can see the shrinkage; only
+     * a genuinely unopenable extent (start past the device) refuses. */
+    if (slice && slice->was_clamped() && cr::log::enabled())
+        cr::log::write(cr::log::Level::Warn,
+                       "volume %c: declared window overruns the device by %llu bytes; "
+                       "opened clamped",
+                       letter, static_cast<unsigned long long>(slice->clamp_delta()));
     if (!slice)
         return ret_(ERR_OPEN_FAILED, "slice creation failed for %c: (@%llu +%llu)", letter,
                     static_cast<unsigned long long>(start), static_cast<unsigned long long>(len));
@@ -2101,10 +2119,54 @@ u32 scan_attach_impl(cr_ui_scan* scan, cr_ui_device* dev) {
     return ret_ok();
 }
 
+
+
 /* W1c (R-52): defined below (after the N-060 adapter block); the
  * completion auto-save in scan_run_impl calls it. */
 u32 write_session_atomic(CrScan* s, const std::string& final_path,
                          session::SerializeProgress progress, void* progress_user);
+
+/* S-057/W1c: the shared auto-save routine - called from BOTH the
+ * completion path and the user-stop (cancel) path. The og's stop path
+ * runs its own organize into the SAME completion handler
+ * (FUN_140395e50) whose auto-save gates carry no stopped-check
+ * (DRWUI :612571-587: not-import, results-found, SD/NAS only), so a
+ * stopped scan's partial results land in SaveScan exactly like a
+ * finished run's. The S-044 gate set is identical for both windows. */
+static void autosave_if_due_(CrScan* s) {
+    if (s->cfg.autosave_dir[0] != 0 && !s->is_resumed && !s->user_saved &&
+        (s->stats.files_found != 0 || s->stats.lost_partitions != 0)) {
+        const std::string dir(s->cfg.autosave_dir);
+        const std::string sep = (!dir.empty() && (dir.back() == '/' || dir.back() == '\\')) ? "" :
+#ifdef _WIN32
+                                                                                            "\\";
+#else
+                                                                                            "/";
+#endif
+        /* N-133: the engine-decoded on-disk label fills an EMPTY label
+         * (the UI layer has no stem fallback - an ABI-supplied label is
+         * the caller's explicit choice and is never replaced) */
+        char label[33] = {0};
+        if (s->cfg.volume_label[0] != 0) {
+            for (size_t k = 0; k + 1 < sizeof(label) && s->cfg.volume_label[k]; ++k)
+                label[k] = s->cfg.volume_label[k];
+        } else if (s->stats.volume_label[0] != 0) {
+            for (size_t k = 0; k + 1 < sizeof(label) && s->stats.volume_label[k]; ++k)
+                label[k] = s->stats.volume_label[k];
+        }
+        const std::string name = session::auto_session_name(u8_to_u16(label)) + ".crsf";
+        const u32 arc = write_session_atomic(s, dir + sep + name, nullptr, nullptr);
+        s->autosaved = (arc == OK);
+        if (s->event_fn) {
+            cr_ui_event out;
+            std::memset(&out, 0, sizeof(out));
+            out.type = CR_EVT_AUTOSAVED;
+            out.stage = 0xFFFFFFFFu;
+            out.autosave_rc = arc;
+            s->event_fn(s->event_user, &out);
+        }
+    }
+}
 
 u32 scan_run_impl(cr_ui_scan* scan) {
     if (!scan)
@@ -2177,9 +2239,9 @@ u32 scan_run_impl(cr_ui_scan* scan) {
     if (s->ck_sink) {
         if (s->ck_sink->f)
             std::fclose(s->ck_sink->f);
-            /* the staging file is transient: the final path holds the last
-             * COMMITTED checkpoint; a leftover .tmp is a torn never-committed
-             * emit (N-014's crash window) - remove it, never trust it. */
+        /* the staging file is transient: the final path holds the last
+         * COMMITTED checkpoint; a leftover .tmp is a torn never-committed
+         * emit (N-014's crash window) - remove it, never trust it. */
 #ifdef _WIN32
         DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
 #else
@@ -2188,13 +2250,31 @@ u32 scan_run_impl(cr_ui_scan* scan) {
         s->ck_sink.reset();
         s->cfg.checkpoint = orchestrator::ScanConfig::CheckpointSink{};
     }
+    if (rc == ERR_CANCELLED) {
+        /* S-057: the og's stop window auto-saves. Pressing Stop does not
+         * discard the scan - the stop path runs its own organize phase
+         * ("Organizing Found Files" / "Scan stopped and found %1 files.",
+         * DRWUI case 3 :1549399-1549421), feeds the same build-tree/
+         * completion handler (:339076-79 -> FUN_140395e50), and that
+         * handler's auto-save gates (:612571-587) carry NO stopped-check
+         * - not-import, results-found, SD/NAS only. A user who stops a
+         * 2-hour scan at 500 K files keeps them in the og; the core now
+         * matches (the pre-fix early return here was the divergence,
+         * and the old comment mis-stated the og). Other failures
+         * (device loss, read refusal, bad parameters) still return
+         * without auto-save - the og's completion handler does not run
+         * for them either. */
+        autosave_if_due_(s);
+        return ret_(rc, "scan %s", err_text(rc));
+    }
     if (rc != OK)
         return ret_(rc, "scan %s", err_text(rc));
     /* W1c (R-52): the completion auto-save - the og's SaveScan window
-     * (rsf-format section 5.5 + UIUX/30:64-67). ONLY a completed run
-     * auto-saves (a cancelled run never does - the og's flow is the
-     * completion window, and save-on-cancel is the explicit --out/
-     * cr_ui_scan_save_session surface). Silent write, ONE outcome event
+     * (rsf-format section 5.5 + UIUX/30:64-67). A COMPLETED run
+     * auto-saves, and since S-057 so does a user-STOPPED run with
+     * results (the og's stop-organize feeds the same completion
+     * handler - see the cancel branch above; the decoded og truth, not
+     * the completion-window-only claim the pre-fix comment asserted). Silent write, ONE outcome event
      * (never silent failure), the stats flag. The name is the N-061
      * corpus convention: auto_<label>_<M>_<D>_<H>_<m>_<s> with the
      * name-forbidden-char sanitizer.
@@ -2208,38 +2288,7 @@ u32 scan_run_impl(cr_ui_scan* scan) {
      * empty scan writes no file, fires no event, and stats.autosaved
      * stays 0 - the og's W1a session list never sees nothing-found
      * runs. */
-    if (s->cfg.autosave_dir[0] != 0 && !s->is_resumed && !s->user_saved &&
-        (s->stats.files_found != 0 || s->stats.lost_partitions != 0)) {
-        const std::string dir(s->cfg.autosave_dir);
-        const std::string sep = (!dir.empty() && (dir.back() == '/' || dir.back() == '\\')) ? "" :
-#ifdef _WIN32
-                                                                                            "\\";
-#else
-                                                                                            "/";
-#endif
-        /* N-133: the engine-decoded on-disk label fills an EMPTY label
-         * (the UI layer has no stem fallback - an ABI-supplied label is
-         * the caller's explicit choice and is never replaced) */
-        char label[33] = {0};
-        if (s->cfg.volume_label[0] != 0) {
-            for (size_t k = 0; k + 1 < sizeof(label) && s->cfg.volume_label[k]; ++k)
-                label[k] = s->cfg.volume_label[k];
-        } else if (s->stats.volume_label[0] != 0) {
-            for (size_t k = 0; k + 1 < sizeof(label) && s->stats.volume_label[k]; ++k)
-                label[k] = s->stats.volume_label[k];
-        }
-        const std::string name = session::auto_session_name(u8_to_u16(label)) + ".crsf";
-        const u32 arc = write_session_atomic(s, dir + sep + name, nullptr, nullptr);
-        s->autosaved = (arc == OK);
-        if (s->event_fn) {
-            cr_ui_event out;
-            std::memset(&out, 0, sizeof(out));
-            out.type = CR_EVT_AUTOSAVED;
-            out.stage = 0xFFFFFFFFu;
-            out.autosave_rc = arc;
-            s->event_fn(s->event_user, &out);
-        }
-    }
+    autosave_if_due_(s);
     return ret_ok();
 }
 
@@ -2803,8 +2852,8 @@ extern "C" CR_UI_API void cr_ui_scan_close(cr_ui_scan* scan) {
         if (s->ck_sink) {
             if (s->ck_sink->f)
                 std::fclose(s->ck_sink->f);
-                /* N-014: the staging file is transient (a torn never-committed
-                 * emit); the final path holds the last committed checkpoint. */
+            /* N-014: the staging file is transient (a torn never-committed
+             * emit); the final path holds the last committed checkpoint. */
 #ifdef _WIN32
             DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
 #else
@@ -3130,7 +3179,12 @@ u32 session_regrade_impl(cr_ui_session* sess, const uint64_t* node_ids, uint32_t
             continue;
         for (uint32_t i = 0; i < count; ++i) {
             if (nd->node_id() == node_ids[i]) {
-                if (tree::grading::regrade_node(nd, gctx))
+                /* M-134: the full-tree re-grade (twin lookup included -
+                 * the og's FUN_14038ac90 can set ANOTHER node's grade);
+                 * the session is device-decoupled by design, so the deep
+                 * read's reader is absent here - the content half runs at
+                 * the completion pass, the registered seam */
+                if (tree::grading::regrade_node(nd, gctx, &s->tree))
                     ++n;
                 break;
             }
@@ -3976,6 +4030,15 @@ u32 thumbnail_generate_impl(cr_ui_device* dev, cr_ui_session* sess, uint64_t nod
         return ret_(ERR_BAD_PARAMETER, "node has no content properties");
     if (node->is_full())
         return ret_(ERR_BAD_PARAMETER, "root/virtual nodes have no thumbnailable content");
+    /* M-115: the og's dispatcher creates thumbnail work items only for
+     * files with size > 0x14 (DRWUI :421391-421403, the <=20-byte skip)
+     * - such files never promote through the thumbnail path in the og,
+     * and the core must not promote them either (the pre-fix core
+     * promoted any decodable image, however small). */
+    if (node->props()->logical_size <= 0x14)
+        return ret_(ERR_UNSUPPORTED,
+                    "thumbnail: %llu-byte file under the og's 20-byte work-item floor",
+                    static_cast<unsigned long long>(node->props()->logical_size));
 
     /* caps: every zero field = the engine default (the header contract);
      * nonzero values ride the engine's own validation (BadParameter) */
@@ -4013,6 +4076,25 @@ u32 thumbnail_generate_impl(cr_ui_device* dev, cr_ui_session* sess, uint64_t nod
     preview::Thumbnail thumb;
     const preview::ThumbStatus st = preview::make_thumbnail(reader, ecaps, thumb);
     std::memset(info, 0, sizeof(*info));
+
+    /* M-115: the og's promotion is READ-gated, not decode-gated
+     * (DRWUI :422507-514, binary-verified at VA 0x140263b2c-b9a:
+     * grade != 2 && (textSnapshot || (!TxtView && readVerdict==0 &&
+     * (payload || category != 3))) -> FUN_140089630(node, 2)). The
+     * recovery READ (FUN_1403eba50, :422442) is the promotion input;
+     * the decode runs later in the og and its failure NEVER retracts
+     * the promotion. The engine now discloses the read verdict
+     * (Thumbnail::read_ok): a file whose extents read cleanly promotes
+     * even when the decoder refuses the damaged stream - the
+     * damaged-but-readable population the og grades 2 and the pre-fix
+     * core left ungraded. The preview-pane (category-3) exclusion is
+     * structural: this ABI is the list-tier surface by doctrine (the
+     * preview surface never promotes - its reader paths carry no
+     * promotion). The node setter's monotonic-max + sticky-2
+     * semantics ARE the og's, so a no-op for already-high nodes. */
+    if (thumb.read_ok && node->grade() != tree::Grade::High)
+        node->set_grade(tree::Grade::High);
+
     if (st != preview::ThumbStatus::Ok) {
         /* the named refusals carry the family for diagnostics */
         std::snprintf(info->source_format, sizeof(info->source_format), "%s",
@@ -4020,13 +4102,6 @@ u32 thumbnail_generate_impl(cr_ui_device* dev, cr_ui_session* sess, uint64_t nod
         info->truncated = thumb.truncated ? 1 : 0;
         return ret_(thumb_status_to_abi(st), "thumbnail %s", preview::thumbnail_status_name(st));
     }
-
-    /* M-083: the og's grading side-effect - thumbnail success promotes
-     * the node to grade 2 (FUN_1402636e0 :422507-514: grade != 2 ->
-     * FUN_140089630(node, 2)); the node setter's monotonic-max + sticky-2
-     * semantics ARE the og's, so a no-op for already-high nodes */
-    if (node->grade() != tree::Grade::High)
-        node->set_grade(tree::Grade::High);
 
     info->width = thumb.width;
     info->height = thumb.height;

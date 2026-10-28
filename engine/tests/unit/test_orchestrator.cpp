@@ -507,7 +507,10 @@ TEST(Orchestrator, WholeDiskKnownVsLostDistinguishable) {
     /* M-104: one in-table volume + one OUT-OF-TABLE volume (a genuinely
      * lost partition - a valid FAT boot outside the table). The known
      * volume surfaces under its label root; the lost one as a discovery
-     * candidate - distinguishable by naming convention, both scannable. */
+     * candidate. M-137: the lost root now carries the og's naming
+     * template - the boot-label path "VOLTWO (FAT)" (label + FS family)
+     * - distinguishable from the known volume's bare label root both by
+     * the FS suffix and by the lost_candidates stats. */
     u64 s1 = 0;
     auto img = testfixture::build_two_volume_mbr_disk("KNOWNVOL", "VOLTWO", &s1);
     /* wipe the SECOND table entry (its volume data stays on disk) -> the
@@ -526,16 +529,154 @@ TEST(Orchestrator, WholeDiskKnownVsLostDistinguishable) {
     u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
     ASSERT_EQ(rc, OK) << err_text(rc);
     /* the in-table volume: display-name root; the out-of-table volume:
-     * exactly one discovery candidate */
+     * exactly one discovery candidate under the M-137 template's
+     * label path */
     const auto names = root_names(tree);
     EXPECT_NE(std::find(names.begin(), names.end(), "KNOWNVOL"), names.end());
     EXPECT_EQ(stats.lost_partitions, 1u);
-    u64 candidate_roots = 0;
-    for (const auto& n : names)
-        if (n.find("Candidate @") != std::string::npos)
-            ++candidate_roots;
-    EXPECT_EQ(candidate_roots, 1u);
+    EXPECT_NE(std::find(names.begin(), names.end(), "VOLTWO (FAT)"), names.end())
+        << "the lost volume's root carries the label + FS-family template";
     EXPECT_EQ(count_named(tree, "DOC.TXT"), 2u) << "both volumes' files found";
+}
+
+TEST(Orchestrator, LostPartUnnamedCandidateNamedLostPartitionN) {
+    /* M-137: the og's unnamed-candidate template (FUN_1403b9330,
+     * DRWUI:634817-838): a lost volume with NO boot label surfaces as
+     * "Lost Partition <n>(<FS>)" with the per-scan counter - never the
+     * old anonymous "Candidate @ <LBA>" form. */
+    u64 s1 = 0, s2 = 0;
+    auto img = testfixture::build_two_volume_mbr_disk("KNOWNVOL", "VOLTWO", &s1, &s2);
+    /* wipe the second table entry AND its boot label: the volume is
+     * genuinely lost AND unnamed */
+    u8* mbr = img.data();
+    std::memset(mbr + 446 + 16, 0, 16);
+    std::memset(img.data() + s2 * 512 + 0x2B, 0x20, 11); /* all spaces */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = true;
+    cfg.run_carve = false;
+    cfg.whole_disk = true;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    ASSERT_EQ(ctrl.run(&dev, nullptr, nullptr, nullptr, stats), OK) << err_text(0);
+    EXPECT_EQ(stats.lost_partitions, 1u);
+    const auto names = root_names(tree);
+    EXPECT_NE(std::find(names.begin(), names.end(), "Lost Partition 1(FAT)"), names.end())
+        << "the unnamed lost volume takes the og's counter template";
+    for (const auto& n : names)
+        EXPECT_EQ(n.find("Candidate @"), std::string::npos)
+            << "the LBA form is only the no-FS-name fallback: " << n;
+}
+
+TEST(Orchestrator, LostPartNamedCandidateKeepsVolumeLabel) {
+    /* M-137: the og's named-candidate rule (":)"-bearing labels kept
+     * verbatim - a drive-letter tail like "DISK (I:)" never gains the
+     * FS suffix; plain labels compose "<label> (<FS>)"). */
+    u64 s1 = 0, s2 = 0;
+    auto img = testfixture::build_two_volume_mbr_disk("KNOWNVOL", "DISK (I:)", &s1, &s2);
+    u8* mbr = img.data();
+    std::memset(mbr + 446 + 16, 0, 16); /* entry 2 gone -> lost */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = true;
+    cfg.run_carve = false;
+    cfg.whole_disk = true;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    ASSERT_EQ(ctrl.run(&dev, nullptr, nullptr, nullptr, stats), OK);
+    EXPECT_EQ(stats.lost_partitions, 1u);
+    const auto names = root_names(tree);
+    EXPECT_NE(std::find(names.begin(), names.end(), "DISK (I:)"), names.end())
+        << "the drive-letter-bearing label is kept verbatim (no FS suffix)";
+}
+
+namespace {
+/* a compact FAT12 boot sector for the insertion-cap fixture: SPF 8,
+ * 100 clusters -> total 113 sectors; the flavor gate classifies FAT12
+ * (spf <= 200) and the +0x2B label slot stays zeroed (unnamed). */
+void plant_compact_fat12(std::vector<u8>& img, u64 lba) {
+    u8* b = img.data() + lba * 512;
+    b[0] = 0xEB;
+    b[1] = 0x3C;
+    b[2] = 0x90;
+    std::memcpy(b + 3, "MSDOS5.0", 8);
+    *(u16*)(b + 0x0B) = u16(512);
+    b[0x0D] = 1;              /* spc */
+    *(u16*)(b + 0x0E) = u16(1); /* reserved */
+    b[0x10] = 1;              /* one FAT */
+    *(u16*)(b + 0x11) = u16(16); /* root entries */
+    *(u16*)(b + 0x16) = u16(8);  /* SPF 8 -> FAT12 flavor */
+    b[0x15] = 0xF8;
+    *(u16*)(b + 0x20) = u16(113); /* total16 */
+    std::memcpy(b + 0x36, "FAT12   ", 8);
+    b[510] = 0x55;
+    b[511] = 0xAA;
+    /* the FAT head: media + two EOC markers (a plausible empty FAT) */
+    *(u16*)(img.data() + (lba + 1) * 512 + 0) = 0xFFF8;
+    *(u16*)(img.data() + (lba + 1) * 512 + 2) = 0xFFFF;
+    *(u16*)(img.data() + (lba + 1) * 512 + 4) = 0xFFFF;
+}
+} // namespace
+
+TEST(Orchestrator, LostPartInsertionCapTenTargets) {
+    /* M-137: the og's scan-target insertion cap (DRWUI:904229-234 - the
+     * loop breaks after the 10th candidate). Twelve lost FAT volumes:
+     * all twelve stay in the surfaced list (lost_candidates, apply-able)
+     * but only ten become scan targets (lost_candidates_inserted). */
+    std::vector<u8> img(u64(12 * 256 + 512) * 512, 0); /* no table: 12 slots */
+    for (int k = 0; k < 12; ++k)
+        plant_compact_fat12(img, u64(256 + k * 256));
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = true;
+    cfg.run_carve = false;
+    cfg.whole_disk = true;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_EQ(stats.lost_partitions, 12u) << "all twelve surface (the og's per-hit persistence)";
+    EXPECT_EQ(stats.lost_candidates_inserted, 10u)
+        << "the og's ten-target insertion cap (DRWUI:904229-234)";
+    /* exactly ten lost-partition roots entered the tree */
+    u64 lost_roots = 0;
+    for (const auto& n : root_names(tree))
+        if (n.find("Lost Partition ") == 0)
+            ++lost_roots;
+    EXPECT_EQ(lost_roots, 10u);
+}
+
+TEST(Orchestrator, LostPartCandidateListingCarriesLayoutFields) {
+    /* M-137: the og's found-partition row context (UIUX/08 §2 -
+     * Disk / Basic / Dynamic / MBR / GPT / File System): the surfaced
+     * candidates carry the scan target's table layout, LDM state and
+     * table-parse health, stamped from the orchestrator's own parse. */
+    u64 s1 = 0;
+    auto img = testfixture::build_two_volume_mbr_disk("KNOWNVOL", "VOLTWO", &s1);
+    u8* mbr = img.data();
+    std::memset(mbr + 446 + 16, 0, 16); /* entry 2 gone -> one lost candidate */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = true;
+    cfg.run_carve = false;
+    cfg.whole_disk = true;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    ASSERT_EQ(ctrl.run(&dev, nullptr, nullptr, nullptr, stats), OK) << err_text(0);
+    ASSERT_EQ(stats.lost_candidates.size(), 1u);
+    const auto& c = stats.lost_candidates[0];
+    EXPECT_EQ(c.disk_layout, 1u) << "MBR (table::TableLayout::Mbr)";
+    EXPECT_EQ(c.disk_dynamic, 0u) << "a basic disk - no LDM database";
+    EXPECT_EQ(c.disk_table_ok, 1u) << "the target's table parsed";
+    EXPECT_EQ(std::string(c.volume_label), "VOLTWO") << "the boot label rides the record";
 }
 
 TEST(Orchestrator, WholeDiskVolumeRootNamesRoundTripSession) {

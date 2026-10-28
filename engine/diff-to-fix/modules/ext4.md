@@ -2,9 +2,10 @@
 
 ## S12 addendum (2026-10-29 — the session-2 deep-dive)
 
-New active findings on this module: **N-177** (the size-exceeds-blocks damaged flag
-FLAGS 0x200 not carried); **I-040** registers the og's i_size_high legacy-ACL
-pollution non-adoption. Verified-MATCH: block-group math, groups math, blocks_hi.
+New active findings on this module: ~~**N-177**~~ **FIXED (S46)** (the size-exceeds-blocks damaged
+flag landed — NODE_FLAG 0x0200 = the og's own bit, the clean 64-bit compute, D-135 registered,
+SizeExceedsBlocksSetsDamagedFlag + CleanFilesCarryNoBit + SessionRoundTrip); **I-040 (ACKNOWLEDGED — PARITY-DELTAS D-123 + the two anti-down-fix pins landed)** registers the og's i_size_high legacy-ACL
+pollution non-adoption). Verified-MATCH: block-group math, groups math, blocks_hi.
 
 
 Reference: EXT4SearchDLL (covers ext2/3/4 — DRWUI codes 4/5/9) per corpus artifacts

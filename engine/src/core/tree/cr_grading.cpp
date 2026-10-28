@@ -134,10 +134,21 @@ u64 twin_key_of(const tree::FileNode* n, const GradeContext& ctx) {
         base = pr->extents.front().offset;
         len = pr->extents.front().length;
     }
+    /* M-133: the og shifts kinds {1, 4} ONLY (DRWUI :605752-756 and the
+     * device-walk twin :605924-927, re-read first-hand): kind 1 = FAT16
+     * and kind 4 = the EXT2/3 family code. FAT12 (0), FAT32 (2), exFAT
+     * (7), NTFS (3), HFS+ (8), EXT4 (9), ReFS (10), ZFS (13) all keep
+     * their ordinals unshifted. The pre-fix core shifted the whole FAT
+     * family {0,1,2,7} - four of five members wrong. The EXT2/3 leg
+     * (kind 4) is not expressible in the core's FsKindCode today: the
+     * ext engine stamps the whole family Ext4 (9), which the og does
+     * NOT shift - the kind-reporting gap is tracked as OQ-S52-1 (the
+     * og's ext2/3-vs-ext4 classification rule is undecoded in the
+     * corpus; adding a guessed classifier would be hallucinated
+     * parity). */
     const u32 fs = ctx.fs_kind_of(n);
-    const bool fat_family = fs == u32(FsKindCode::Fat12) || fs == u32(FsKindCode::Fat16) ||
-                            fs == u32(FsKindCode::Fat32) || fs == u32(FsKindCode::Exfat);
-    const i64 index = i64(ctx.disk_ordinal_of(n)) - (fat_family ? 2 : 0);
+    const bool shifted = fs == u32(FsKindCode::Fat16);
+    const i64 index = i64(ctx.disk_ordinal_of(n)) - (shifted ? 2 : 0);
     return u64(i64(base + len) + index * i64(kDeviceUnit));
 }
 
@@ -172,6 +183,71 @@ std::string ext_of_name(const tree::FileProperties* pr) {
 /* ---- the decision rules (one node, no twin context) -------------------- */
 
 namespace {
+
+/* ---- M-134: the og's deep-read grade validation -----------------------
+ * FUN_14038c470 (DRWUI_decompiled.c:606291-619, decoded first-hand at
+ * the finding and re-read this session before the fix): a bounded
+ * ONE-SECTOR content read that flips the grade on actual disk bytes.
+ *   addr == 0 (the first extent starts at sector 0): read 1 sector at
+ *     offset 0 - first 32 bytes ALL ZERO -> grade 0 (overwritten
+ *     content); first 4 bytes ALL 0xFF -> grade 0 (erased flash/
+ *     sparse tail) (:606364-392).
+ *   addr > 0: read 1 sector at addr-1 - last 16 bytes ALL ZERO ->
+ *     grade 2 (the file follows zero padding - intact-alignment
+ *     evidence) (:606393-411).
+ *   The overlap flag skips the read entirely (FUN_1401c5da0 != 0 ->
+ *     return, :606318); a failed read changes nothing; the node is
+ *     marked graded after the pass (FUN_140389540). The undecoded
+ *   sub-gates (the FUN_1401bc5a0 pre-check trio, OQ-S42-3) are NOT
+ *   adopted - the fix plan's acceptance is the two threshold rules,
+ *   which are the decoded, binary-verifiable heart. */
+bool deep_read_grade(tree::FileNode* n, const GradeContext& ctx) {
+    if (n->overlap())
+        return false; /* the og's skip: the overlap flag is set */
+    const tree::FileProperties* pr = n->props();
+    if (pr == nullptr || pr->extents.empty() || ctx.reader.dev == nullptr)
+        return false;
+    u32 ss = ctx.reader.sector_size;
+    if (ss == 0)
+        ss = ctx.reader.dev->geometry().logical_sector;
+    if (ss == 0 || ss > 4096)
+        return false; /* hostile geometry: no content read */
+    const u64 addr = pr->extents.front().offset / ss;
+    u8 sec[4096];
+    if (addr == 0) {
+        if (ctx.reader.dev->read_at(0, sec, ss) != OK)
+            return false; /* the og: a failed read changes nothing */
+        bool all_zero = true;
+        for (u32 i = 0; i < 32 && i < ss; ++i)
+            if (sec[i] != 0) {
+                all_zero = false;
+                break;
+            }
+        if (all_zero) {
+            n->set_grade(Grade::Low);
+            return true;
+        }
+        if (sec[0] == 0xFF && sec[1] == 0xFF && sec[2] == 0xFF && sec[3] == 0xFF) {
+            n->set_grade(Grade::Low);
+            return true;
+        }
+    } else {
+        const u64 prev = (addr - 1) * ss;
+        if (ctx.reader.dev->read_at(prev, sec, ss) != OK)
+            return false;
+        bool tail_zero = true;
+        for (u32 i = ss > 16 ? ss - 16 : 0; i < ss; ++i)
+            if (sec[i] != 0) {
+                tail_zero = false;
+                break;
+            }
+        if (tail_zero) {
+            n->set_grade(Grade::High);
+            return true;
+        }
+    }
+    return false;
+}
 
 /* the og decision tree minus the twin detection (which needs the global
  * key map). Returns the grade to apply for the solo rules. */
@@ -214,9 +290,20 @@ bool solo_rules(tree::FileNode* n, const GradeContext& ctx, AssistantStats* stat
         }
         return true; /* NTFS processed; twins are a FAT-family path */
     }
-    if (fs == u32(FsKindCode::Refs) || fs == u32(FsKindCode::Btrfs))
-        return true; /* excluded from the generic path (the og's device
-                      * walk covers these; no further decoded rule) */
+    if (fs == u32(FsKindCode::Refs) || fs == u32(FsKindCode::Btrfs)) {
+        /* S-061: the og's insert-time hook (FUN_14038a470 :605481-497)
+         * grades every non-existing ReFS/Btrfs node High (grade 2) with
+         * the 5830/5828 gauge ticks - the completion pass excludes FS
+         * {3, 10, 0xB} from the generic path precisely because insert
+         * already graded them (the pre-fix comment's "device walk
+         * covers these" premise was disproven by the decode). Placed
+         * after the Active rule (existing files already grade High
+         * there - the og gates the hook on non-existing nodes); the
+         * final gauge pass counts these as matched (the tick
+         * equivalent). */
+        n->set_grade(Grade::High);
+        return true;
+    }
     /* generic path continues to twin detection in grade_tree */
     return false;
 }
@@ -270,9 +357,19 @@ void grade_tree(tree::ResultTree& t, const GradeContext& ctx, AssistantStats& ou
             continue;
 
         /* generic path (FS not in {NTFS, ReFS, Btrfs}): the extension
-         * table gates the twin detection (found in the 169-entry map at
-         * DRWUI :605740-605741 -> the deep path runs). */
-        if (!extension_in_grading_table(ext_of_name(pr)))
+         * table gates the twin detection. S-058: the og's gate is
+         * NOT-IN-TABLE - FUN_1401bebe0 (:324923) is the iterator
+         * INEQUALITY comparator, so `if (cVar1 == '\0')` at :605743
+         * enters the deep-validation block exactly when the set lookup
+         * MISSED; the control case (:585885-905, the found-in-set ||
+         * name-in-consts idiom) calibrates the direction, and the
+         * runtime set's "" quirk (the ctor's 2000-iteration init loop
+         * inserts the empty string after the 169 real keys) makes
+         * dot-less files skip too. The pre-fix gate ran the twins for
+         * IN-table extensions - the s5 evidence's inverted polarity
+         * line, implemented and test-pinned from that misreading. */
+        const std::string gext = ext_of_name(pr);
+        if (gext.empty() || extension_in_grading_table(gext))
             continue;
         TwinKey tk;
         tk.key = twin_key_of(n, ctx);
@@ -292,6 +389,22 @@ void grade_tree(tree::ResultTree& t, const GradeContext& ctx, AssistantStats& ou
         if (twins[i].key == twins[i - 1].key && twins[i].cat == twins[i - 1].cat) {
             twins[i].node->set_overlap();
             twins[i - 1].node->set_overlap();
+        }
+    }
+
+    /* M-134: the deep-read grade validation - the og invokes
+     * FUN_14038c470 at :605798 exactly when the twin check FAILED (the
+     * not-in-table population whose extent-end key found no twin): one
+     * bounded sector read per node, content-gated. Nodes whose twin
+     * check SUCCEEDED carry the overlap flag and are skipped by the
+     * rule itself. Every visited node is marked graded (the one-shot
+     * bit, FUN_140389540). */
+    if (ctx.reader.dev != nullptr) {
+        for (const TwinKey& tk : twins) {
+            if (tk.node->overlap())
+                continue; /* the twin-found population: the og's skip */
+            deep_read_grade(tk.node, ctx);
+            tk.node->set_graded();
         }
     }
 
@@ -335,14 +448,57 @@ void grade_tree(tree::ResultTree& t, const GradeContext& ctx, AssistantStats& ou
         out.matched = 0;
 }
 
-bool regrade_node(tree::FileNode* n, const GradeContext& ctx) {
+bool regrade_node(tree::FileNode* n, const GradeContext& ctx,
+                  const tree::ResultTree* tree) {
     if (!n || n->is_full() || !n->props())
         return false;
-    /* the og re-runs the tree only for grade-1 nodes (grade not in
-     * {0, 2} - FUN_1401d7110 :340852-340873) */
-    if (n->grade() != Grade::Average)
+    /* M-134: the og's one-shot re-grade gate - grade==1 AND the graded
+     * bit clear (FUN_1401d7110 :340852-873 re-enters the FULL per-node
+     * tree FUN_14038ac90 only for ungraded Average nodes; the graded
+     * bit set by the completion pass makes the re-grade a true
+     * one-shot per node). */
+    if (n->grade() != Grade::Average || n->graded())
         return false;
-    solo_rules(n, ctx, nullptr);
+    /* the full per-node tree shape: solo rules... */
+    const bool generic_path = solo_rules(n, ctx, nullptr);
+    if (generic_path) {
+        n->set_graded();
+        return true;
+    }
+    /* ...the S-058 table gate... */
+    const std::string gext = ext_of_name(n->props());
+    if (gext.empty() || extension_in_grading_table(gext)) {
+        n->set_graded();
+        return true;
+    }
+    /* ...the twin lookup (the og's FUN_14038ac90 can set ANOTHER node's
+     * grade through the twin map) - needs the tree; without it (the
+     * device-decoupled ABI session) the lookup is skipped and the deep
+     * read runs alone, the registered seam in the M-134 Resolution */
+    if (tree != nullptr) {
+        const u64 key = twin_key_of(n, ctx);
+        const query::Category cat = query::category_for_extension(ext_of_name(n->props()));
+        std::vector<tree::FileNode*> stack;
+        for (tree::FileNode* r : tree->roots())
+            stack.push_back(r);
+        while (!stack.empty()) {
+            tree::FileNode* other = stack.back();
+            stack.pop_back();
+            for (tree::FileNode* c = other->first_child(); c; c = c->next_sibling())
+                stack.push_back(c);
+            if (other == n || other->is_full() || !other->props())
+                continue;
+            if (twin_key_of(other, ctx) == key &&
+                query::category_for_extension(ext_of_name(other->props())) == cat) {
+                n->set_overlap();
+                other->set_overlap();
+                break;
+            }
+        }
+    }
+    /* ...and the deep read (one bounded sector, content-gated) */
+    deep_read_grade(n, ctx);
+    n->set_graded();
     return true;
 }
 

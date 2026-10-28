@@ -2,12 +2,26 @@
 
 ## S12 addendum (2026-10-29 — the session-2 deep-dive — the table/GPT/EBR surfaces)
 
-New active findings on this module: **M-123** (GPT header validation laxity — no
-reserved==0 / exact-92 / position / usable-range gates vs the og's FUN_1800078d0);
-**M-124** (EBR link type 0x85 not a container — whole Linux-extended chains vanish);
-**M-132** (GPT backup-probe position + dead-LBA1 asymmetry, both directions);
-**N-161** (GPT entry span underflow, no first<=last gate); **N-164** (the deliberate
-GPT strictness unregistered). Verified-MATCH: EBR base/rel chain math, MBR LBA fields,
+New active findings on this module: ~~**M-123**~~ **FIXED (S47 MAJOR-first fix
+lane, `10620f04`)** — FUN_1800078d0's full gate set landed in `load_gpt_side`
+(revision 0x10000, header_size==92, reserved==0, the mirrored position pair,
+usable-range bounds, entries outside the usable range — structural gates before
+the CRC, og order; N-164's deliberate strictness kept; salvage path unchanged by
+design; 9 tests, 8 RED pre-fix; P1 detection / P20 struct-validation → MATCH);
+~~**M-124**~~ **FIXED (S47 MAJOR-first fix lane, `dcb123dd`)** — the EBR link type
+0x85 joined the Extended arm of `mbr_type_to_kind` (Partition_decompiled.c:1006's
+`-0x7b` compare feeds the same link path as 0x05/0x0F): whole Linux-extended chains
+walk, the bogus Other-volume at the link target gone (P1 detection / P26 tree-walk →
+MATCH; tests Ebr.LinkType085WalksChain / Ebr.LinkType085SameBasisAs05 /
+Mbr.Extended085NotEmittedAsVolume, all RED pre-fix);
+~~**M-132**~~ **FIXED (S47 MAJOR-first fix lane, `d746a75b`)** — the backup
+probe at device-last FIRST (FUN_180006e20:4567's fixed position; the declared
+backup_lba a registered fallback), the dead-LBA1 recovery kept + registered
+(PARITY-DELTAS D-124a/b; the pin test Gpt.DeadLba1BackupRecoveryRegistered);
+**N-161 FIXED (Session-44 minors lane — the first≤last span gate + the named-invalid
+counter, RED→GREEN proven; findings/FIXED/N-161)** (GPT entry span underflow);
+**N-164 FIXED** (the deliberate GPT strictness registered as PARITY-DELTAS D-116).
+Verified-MATCH: EBR base/rel chain math, MBR LBA fields,
 GPT type-GUIDs, the salvage ladder's two-step order, LDM span/stripe/RAID-5 math
 (post-S-052, algebraically identical to FUN_180086a90).
 
@@ -293,7 +307,7 @@ the channel merge). Evidence: `evidence/decompiled-quotes/s12-lostpart-register-
 
 ## S42 continuation lane (2026-10-29 — the partition-recovery focus battery; core `b26017a7`)
 
-- **A30/D12/D13 (the surfaced shape) — DIVERGENCE-MAJOR, M-137**: the og names
+- **A30/D12/D13 (the surfaced shape) — FIXED (M-137, `e7030bf2`)**: the og names
   unnamed candidates `"Lost Partition %d(%s)"` via the per-scan counter
   (FUN_1403b9330, DRWUI:634817-838 — **resolving M-104's deferred open question 1**),
   relabels leftovers "Unallocated" (:525588-98), presents Disk/Basic/Dynamic/MBR/GPT/FS
@@ -301,5 +315,13 @@ the channel merge). Evidence: `evidence/decompiled-quotes/s12-lostpart-register-
   "Quick" search (:904229-240), and falls back to 512-byte sectors on a failed
   geometry query (:904185-87). The core: `Candidate @ <LBA>` roots
   (cr_scan.cpp:1933-1939), no cap, always-deep candidates, ERR_BAD_PARAMETER
-  refusal on zero sector size, LBA/size/fs-only listing surfaces. Worksheet:
+  refusal on zero sector size, LBA/size/fs-only listing surfaces. **FIXED at
+  `e7030bf2`**: the template + counter + label-keep rules landed (the FAT12/16
+  boot label captured by the probe), the presentation trio
+  (disk_layout/disk_dynamic/disk_table_ok) stamped + persisted per-record
+  (PartitionContext v3 tail) + surfaced in rrecov's listing and the
+  cr_ui_apply_candidate ABI tail, the ten-target insertion cap
+  (lost_candidates_inserted), and the FallbackGeomDevice 512-byte shim
+  replacing the refusal. The "Quick" staging maps onto the core's default-on
+  single-walk stage model per the C1/I-044 decode (D-36). Worksheet:
   `../evidence/decompiled-quotes/s42-lostpart-surface-batch.md`.

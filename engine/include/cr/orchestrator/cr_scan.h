@@ -390,6 +390,15 @@ struct ScanStats {
      * files are detached from the tree and its counts report zero. */
     u64 lost_content_rejected = 0;
 
+    /* M-137 (diff-to-fix): the og's lost-partition insertion cap
+     * (DRWUI:904229-234 - the scan-target insertion loop breaks after the
+     * 10th candidate, `if (9 < n) break`). lost_candidates stays the FULL
+     * surfaced set (the apply-listing input); inserted counts the ones
+     * that became scan targets this run. The og caps at 10; candidates
+     * beyond the cap remain in the surfaced list (recoverable by the
+     * partition-write path, never scanned). */
+    u64 lost_candidates_inserted = 0;
+
     ReadErrorMap errors;
     std::vector<lost::Candidate> lost_candidates;
 
@@ -487,6 +496,12 @@ struct ScanStats {
     u64 table_volumes = 0;
     u64 table_volumes_scanned = 0;
     u64 table_volumes_skipped = 0;
+    /* N-161: GPT entries the span gate named invalid (last_lba <
+     * first_lba, or the 2^64-boundary wrap) at whole-disk table parse -
+     * the corrupt-entry population that previously masqueraded as giant
+     * volumes. Diagnostic only; the table's own field carries the same
+     * count for the parse that fed this scan. */
+    u32 gpt_invalid_entries = 0;
 };
 
 /* ---- live scan observability (G-04/G-05/G-06) ----
@@ -817,6 +832,14 @@ private:
      * so discovery still gets its chance on the damaged volume (the og's
      * lost partitions are ADDITIONAL targets, never replacements). */
     std::vector<u64> table_target_lbas_;
+    /* M-137: the og's per-scan unnamed-partition counter (DRWUI:634817-838
+     * - the "Lost Partition %d(%s)" template's counter at +0x400 on the
+     * scan object, incremented per UNNAMED candidate) + the scan-target
+     * context the presentation rows carry (the table parse + LDM probe
+     * results, stamped onto every candidate at discovery time). */
+    u32 lost_name_counter_ = 0;
+    u32 seen_table_layout_ = 0; /* table::TableLayout (0 = none parsed) */
+    bool seen_ldm_ = false;
 };
 
 } // namespace orchestrator

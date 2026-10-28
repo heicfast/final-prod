@@ -222,7 +222,10 @@ bool lfn_deleted_checksum_recover(const std::vector<const LfnEntry*>& slots,
                                   u8& out_checksum);
 
 /* 8.3 name -> display string (strip pad spaces, split dot). */
-std::u16string short_name_to_u16(const u8 name[11]);
+/* N-175: nt_reserved drives the og's four-way 8.3 display-case fold
+ * (FATSearchDLL :44191-44216; exact-value switch: 0x00/0x08/0x10/0x18
+ * fold, anything else raw). */
+std::u16string short_name_to_u16(const u8 name[11], u8 nt_reserved = 0x00);
 
 /* ---- scan engine ---- */
 /* progress-compatible callback type (same shape as ntfs WalkProgress) */
@@ -235,6 +238,11 @@ struct FatScanStats {
     u64 chains_broken = 0;
     u64 cycles_cut = 0;
     u64 date_rejected = 0; /* N-010c: dentries dropped by date sanity */
+    /* M-130 (diff-to-fix): dentries dropped by the og's shape validator
+     * (FUN_1800365a0) - both the walk-break classes (reserved attr bits,
+     * erased-pattern quad, impure labels, the 11th-repeat histogram) and
+     * the emission-skip classes (size/chain XOR, the dir shape). */
+    u64 shape_rejected = 0;
     /* M-052 (diff-to-fix): the recycle-bin $I/$R pairing, og parity for
       FAT (IRecycleBinNode2UI, fat-exfat-engine-internals.md :37-40) */
     u64 recycle_info = 0;     /* $I metadata records parsed inside bin roots */

@@ -405,6 +405,44 @@ enum FormatId : u32 {
      * size + the run's offset); the cap exit sets 0x1e00000 exact. Id
      * APPENDED (serialized carve_format values stay stable). */
     FMT_AEP,
+    /* N-158 (diff-to-fix): the og's five-branch ZIP typing tail - the
+     * RAWSearchDLL LFH-handler walk stamps five more typed ids on
+     * entry-name/content matches (the decompile :53025-53100, re-read
+     * first-hand + disassembly-verified this session):
+     *   XMIND (og id 0x86): the content probe on entries named
+     *     content.xml/meta.xml - the og's FUN_180045110 builds a
+     *     300-byte RAW window at record+30+strlen(name) (the entry's
+     *     data start, extra field skipped - the og quirk) and types
+     *     when EITHER needle hits: the ASCII "xmlns=\"urn:xmind" (16
+     *     bytes, the stored-XML namespace declaration) OR the 14-byte
+     *     binary constant at .data RVA 0x93980 (f4 4a c6 40 1a bc a7
+     *     76 cf e1 a0 d1 cc 9d - the deflated-stream prolog
+     *     fingerprint; disasm 0x180045629-0x18004564f: find returns
+     *     npos -> the C-buffer second find with len 0xe). The probe
+     *     returns 1 when the id is ALREADY 0x86 (disasm
+     *     0x18004516d: mov eax,1 - the idempotent re-stamp).
+     *   MMAP  (og id 0x87): entry name == "xsd/MindManagerApplication.xsd"
+     *   EDDX  (og id 0x8c): entry name == "rels/_rels.xml" OR
+     *                       "rels/page1_rels.xml"
+     *   WFP   (og id 0x8d): entry name == "ProjectFolder/Anon/" OR
+     *                       "ProjectFolder/project_info.json"
+     *   DRP   (og id 0x91): entry name == "MediaPool/Master/MpFolder.xml"
+     * The og's display labels (the L"XMIND"/L"MMAP"/L"EDDX" inline
+     * strings + the .rdata-resolved UTF-16 "WFP" @0x6d940 / "DRP"
+     * @0x67c88) ride the rows. The og's chain walk (:18411-18450) has
+     * NO typing stop - the shared id slot is last-match-wins across
+     * every walked record. The [Filter] coupling: RawConfig.ini ships
+     * XMIND/MMAP/EDDX/WFP/DRP=1 keys for exactly these ids; the og's
+     * exact suppression mechanism is undecoded (the IAnalyserFilter
+     * callback takes no id), so the core gates row-level through the
+     * M-024 disabled_formats surface (the conservative landing the
+     * finding prescribes, registered in PARITY-DELTAS). Ids APPENDED
+     * (serialized carve_format values stay stable). */
+    FMT_XMIND, /* the content.xml/meta.xml probe -> 0x86 */
+    FMT_MMAP,  /* xsd/MindManagerApplication.xsd -> 0x87 */
+    FMT_EDDX,  /* rels/_rels.xml | rels/page1_rels.xml -> 0x8c */
+    FMT_WFP,   /* ProjectFolder/Anon/ | ProjectFolder/project_info.json -> 0x8d */
+    FMT_DRP,   /* MediaPool/Master/MpFolder.xml -> 0x91 */
     FMT_COUNT
 };
 

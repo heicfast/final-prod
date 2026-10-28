@@ -1,4 +1,13 @@
-# CROSS-REF-MATRIX.md — module × parameter verdict matrix (the S12 session-2 deep-dive lane on top: sector math / scan-progress math / local database / state management / detection-calculation; the prior lanes below)
+# CROSS-REF-MATRIX.md — module × parameter verdict matrix (the S46 MINOR-first fix lane on top; the S12 session-2 deep-dive lane below: sector math / scan-progress math / local database / state management / detection-calculation; the prior lanes below)
+
+**Session-46 S46 lane rows (2026-10-29 — the user's MINOR-first fix directive; opened at core `659f0f6c` → `fa654673` claim, corpus `be0cfe9`; the parallel S45 lane holds the ACUTE/SEVERE side per the natural division):**
+
+| Parameter (module · surface) | Verdict | Evidence / finding |
+|---|---|---|
+| carve · the OfficeTagFromXML five-branch typing tail (P1/P11/P19/P25/P65) | **MATCH** | **N-158 FIXED** (session-46 MINOR-first lane) — the five typed ids land (XMIND 0x86 / MMAP 0x87 / EDDX 0x8c / WFP 0x8d / DRP 0x91): the XMIND content probe decoded from disassembly (the 300-byte RAW window at record+30+strlen(name), the two needles — the 16-byte `xmlns="urn:xmind` + the 14-byte .data constant at RVA 0x93980 — disasm 0x180045110-0x180045666) + the four entry-name compares; the chain walk's NO-stop/last-match-wins semantics decoded and pinned (:18411-18450 — the N-115-era "map stop" comment corrected); the [Filter] coupling as the conservative row-level disabled_formats gate (PARITY-DELTAS D-134); 6 tests, 3 groups RED pre-fix; suite 1209 green — the Resolution in findings/FIXED/ carries the full record |
+| writer+report · the failed-files report's tree-classification axis (P13/P11/P46/P68) | **MATCH** | **N-159 FIXED** (session-46 MINOR-first lane) — the og's recovery-log truth decoded and landed: the per-item `tree_class` axis (the six-valued root-role classification, DRWUI :642755-642822 re-verified first-hand with the three field getters pinned) + the `failed_bytes` totals split (the +0x268 accumulator, the enqueue-refusal exclusion documented as schema truth rule 5) + the three register repairs (R-58's "text log"→HTML report; API-DELTA row 21's "NOT IN CORPUS" refuted; D13's addendum) + additive-within-v1 per the schema doc's own contract; 4 tests RED-first; suite 1243 green |
+| ntfs · the runlist malformed-input tolerance (recovery edge/27/35) | **MATCH** | **N-163 FIXED** (session-46 MINOR-first lane) — the og's truncate-and-keep lands: a torn fragment decodes its valid prefix with `torn` (every decoder branch re-read first-hand, FUN_1800347d0 :41853-41970) + the PartialRisk grading downgrade + the clean-buffer-end/tear distinction + PARITY-DELTAS D-135 (the sparse-first superset registered — the og's pre-validator FUN_18001d5f0 :23184 rejects what the core deliberately accepts); the zero-valid-runs class still rejects (the validator's own gate); TornAfterValidRunsKeepsPrefix + the end-to-end TornRunlistKeepsPrefixAndGradesPartialRisk RED pre-fix; suite 1280 green |
+| fat · the out-of-volume run-end stance (27/23 + false-positive shaping) | **MATCH (registered deliberate superset, D-136)** | **N-165 FIXED** (session-46 MINOR-first lane) — both og factory gates re-read first-hand (FATSearchDLL :10865-10903/:28040-28075: the run-end check + "File overflows partition!" + the runlist destruction); the core's deferred-failure stance REGISTERED as PARITY-DELTAS D-136 + pinned by FatEngine.TruncatedVolumeOverflowChainStance (the overflow-tail file stays listed with full chain extents; the readable prefix recovers; the tail discloses as Salvaged at recovery); the scan-time grade stays the chain's own; no behavior change — the registration + pin the finding's own plan prescribed |
 
 **Session-12 S12 lane changes (2026-10-29 — the session-2 continuation audit per the user's second-session directive: remove-the-fixed + go-deeper with special focus on sector numbers, scanning, accurate detection, calculation/mathematics, no-stuck-or-freeze, the local database, state management; opened on core `869da779` (rebased to the window's closes), corpus `be0cfe9`; five deep-dive lanes' context sheets + three liveness batteries at `evidence/s12-lane-sheets/` + `evidence/s12-liveness/`; the findings push `f85def0f`):**
 
@@ -18,21 +27,37 @@
   every load-bearing cite before filing):**
   - **ACUTE (2):** **A-013** (cli/session P32/P34/P35 — the `--resume`-without-`--out`
     `"wb"` truncate-before-read: the printed resume command destroys the session);
-    **A-014** (fat P9/P2 — `fat_datetime_to_unix_seconds` validates month/day only;
-    hour≥24/min≥60/2s≥30 fabricate shifted plausible timestamps where the og zeroes
-    the slot, FAT:32135-54 ⇔ cr_fat_wire.h:123-142).
-  - **SEVERE (3):** **S-055** (carve P28/P1/P3 — the user-sign layer probes BEFORE the
-    built-in table, inverting the M-048/D-104 collision rule; 8 overlap formats flip to
-    device-end extents); **S-056** (carve P16/P28 — `disabled_formats` gates grammar +
-    raw-sign layers but not the user-sign layer; D-104's own registration claim false in
-    code); **S-057** (session/orchestration P36/P31/P32 — the og's stop path runs its
+    **A-014 FIXED** (fat P9/P2 — `fat_datetime_to_unix_seconds` validated month/day only;
+    hour≥24/min≥60/2s≥30 fabricated shifted plausible timestamps where the og zeroes
+    the slot, FAT:32135-54 ⇔ cr_fat_wire.h — the time-word gate landed by the S45
+    lane (862d79ef) with the S51 severe-first lane's convergence addendum (the
+    per-slot zeroing pin + the 0x65C4 example-date erratum), findings/FIXED/A-014,
+    MATCH).
+  - **SEVERE (3):** **S-055** (carve P28/P1/P3 — FIXED session-51 → MATCH: built-in-first
+    restored, the user arm fires only when no built-in survived the filter, the
+    no-reclaim rule pinned, `findings/FIXED/S-055-*`); **S-056** (carve P16/P28 — FIXED
+    session-51 → MATCH: match_at's disabled_exts predicate carries the removal-loop
+    semantics, `findings/FIXED/S-056-*`); **S-057 — FIXED (session-51 lane → MATCH: the
+    factored autosave_if_due_ runs from both the completion and the ERR_CANCELLED
+    branch; the CLI parity leg taken; findings/FIXED/S-057)** (session/orchestration
+    P36/P31/P32 — the og's stop path runs its
     own organize into the shared completion handler whose auto-save gates carry no
     stopped-check (DRWUI:1549399-21 → :339076-79 → :612572-87); the core never
     auto-saves a cancelled run, and its comment mis-states the og).
-  - **MAJOR (10):** **M-123** (table P1/P20 — GPT header laxity: no reserved==0 /
-    exact-92 / position / usable-range gates, og `FUN_1800078d0` vs
-    `load_gpt_side`); **M-124** (table P1/P26 — EBR link set {05,0F,**85**} vs the
-    core's {05,0F}: 0x85 chains vanish); **M-125 FIXED (S42 fix
+  - **MAJOR (10):** **M-123 FIXED** (S47 MAJOR-first fix lane, `10620f04` —
+    findings/FIXED/M-123: FUN_1800078d0's full gate set landed in load_gpt_side
+    [revision 0x10000, header_size==92, reserved==0, the mirrored position pair,
+    usable-range bounds, entries outside the usable range — structural gates
+    before the CRC, og order]; N-164's deliberate strictness kept; 9 tests,
+    8 RED pre-fix; P1/P20 → MATCH); **M-124 FIXED** (S47 MAJOR-first fix lane, `dcb123dd` — findings/FIXED/M-124:
+    the EBR link set {05,0F,**85**} — `case 0x85:` joined the Extended arm of
+    mbr_type_to_kind per Partition_decompiled.c:1006; whole 0x85 chains walk,
+    the bogus Other-volume at the link target gone; 3 RED-then-green tests,
+    suite 1164/1164; P1/P26 → MATCH); **M-132 FIXED** (S47 MAJOR-first fix lane, `d746a75b` — findings/FIXED/M-132:
+    the backup probe at device-last FIRST [FUN_180006e20:4567's fixed
+    position], the declared field a registered fallback; the dead-LBA1
+    recovery kept + registered as PARITY-DELTAS D-124b; P1/P35 → MATCH);
+    **M-125 FIXED (S42 fix
     lane — findings/FIXED/M-125: the query-layer helper family
     `progress_display_remap/_percent/_publish` (FUN_1401af820/:950/:a60 verbatim,
     the constants re-verified against the corpus — the finding's test table
@@ -46,8 +71,12 @@
     og sign matching is UPPERCASE-hex text memcmp; 12 og-dead lowercase signs live in
     the core, unregistered); **M-129** (carve P23-adjacent — the og's tolerant
     EUUserData loader (skip-and-continue) vs the core's all-or-nothing reject);
-    **M-130** (fat P1/P3/P26 — the dentry shape-validator family (ext-tail, size/chain
-    XOR, dir, >9-repeat histogram gates + walk-stop semantics) unported); **M-131 FIXED-ALREADY
+    **M-130 — FIXED (session-52 lane — findings/FIXED/M-130: the two-tier port [the
+    walk-BREAK gates: reserved-attr bits, the erased-pattern quad, label purity, the
+    10-pass/11-reject histogram; the emission-SKIP shape gates: size/chain XOR, the
+    dir shape]; 3 decode corrections recorded [the ext-tail gate is the attribute
+    byte; the histogram boundary; the skip-vs-break split]; 8 tests, 4 RED pre-fix;
+    suite 1322/1322)** (fat P1/P3/P26 → MATCH); **M-131 FIXED-ALREADY
     (4f0fc160, the parallel A-013 landing — verified at c98eb7a7: the CliCkSink
     tmp+commit+rename reproduction; the sink never opens the final path for
     truncation; CrUi.CliResumeSinkNeverTruncatesTheSessionSource green;
@@ -56,7 +85,27 @@
     A-013 landing); **M-132** (table P1/P35 — GPT backup probe:
     og device-last always + full bail on dead LBA1; core probes declared backup_lba +
     recovers from dev-last — divergent both directions, unregistered).
+  - **M-128/M-129 FIXED** (S47 MAJOR-first fix lane, `2b0184f3`/`55b2fe32` —
+    findings/FIXED/: the user-sign hex-case superset REGISTERED as D-125
+    [the og's %02X-only text compare leaves 11 of its own shipped signs
+    dead; the core's byte-decode keeps all 190 live — no code change, 3
+    pins, the census corrected 12→11 first-hand] + the EUUserData loader's
+    og-tolerance semantics [unknown members skipped, _stricmp dispatch,
+    malformed signs skip-and-continue, over-cap still atomic per S-039,
+    D-126 registered, the verbatim corpus fixture ships as a test];
+    P1/P3 detection + P23 error-semantics → MATCH);
+  - **M-115 FIXED** (S47 MAJOR-first fix lane, `1d7a761b` — findings/FIXED/M-115:
+    the grade promotion is READ-gated, not decode-gated [DRWUI :422507-514 —
+    Thumbnail::read_ok disclosed by the engine, the ABI promotes on the clean
+    read, the 0x14 dispatcher floor added]; D15/B2/A42 → MATCH);
+  - **M-134 FIXED** (S47 MAJOR-first fix lane, `9455f50a` — findings/FIXED/M-134:
+    the deep-read grade validation landed [FUN_14038c470's two threshold
+    rules + the overlap skip + the graded one-shot bit + the full-tree
+    regrade]; #15/#32/#9 → MATCH);
   - **MINOR (18):** **N-161** (table — GPT entry span underflow, no first≤last gate);
+  - **MINOR (18):** **N-161 FIXED (Session-44 minors lane — `emit_gpt_entries` first≤last gate
+    + `DiskTable`/`ScanStats::gpt_invalid_entries` counter; RED→GREEN proven; findings/FIXED/N-161)**
+    (table — GPT entry span underflow, no first≤last gate);
     **N-162** (fat/registry — the og's 32-bit `(c−2)×spc` wrap ×4 sites, core u64
     correct, unregistered D-56/D-68 member); **N-163** (ntfs — runlist
     truncate-and-keep vs core reject-whole-fragment; sparse-first superset);
@@ -73,10 +122,10 @@
     session undercount); **N-172** (fat — deleted-first-char `'#'` vs `'_'` + the
     unregistered LFN-checksum recovery superset; closes OQ-T2); **N-173** (fat —
     the 2106/2107 u32 clamp vs full conversion; exFAT sibling inconsistent);
-    **N-174** (exfat — the `._` AppleDouble sink filter absent, the N-028 family's
-    exFAT twin); **N-175** (fat — NTRes case folding unread); **N-176** (fat — the
-    LFN illegal-char 8.3 fallback absent); **N-177** (ext4 — the size-exceeds-blocks
-    damaged flag (FLAGS 0x200) not carried); **N-178** (cli/orchestration — no CLI
+    ~~**N-174**~~ **FIXED (S46)** (exfat — the `._` AppleDouble sink filter landed, the N-028 family's
+    exFAT twin); ~~**N-175**~~ **FIXED (S46)** (fat — NTRes case folding landed); **N-176** (fat — the
+    LFN illegal-char 8.3 fallback absent); ~~**N-177**~~ **FIXED (S46)** (ext4 — the size-exceeds-blocks
+    damaged flag landed); **N-178** (cli/orchestration — no CLI
     pause verb + no engine pause notification, the landed ABI pair's missing legs).
   - **INFORMATIONAL (6):** **I-035** (S-050's CHK-chain decode addendum: rename
     formats, hex-prefix adapter registry, 36-KiB buffer, tif exclusion);
@@ -162,7 +211,7 @@ the board-truth verification over the hottest fix window (the S12 sweep pre-date
 
 **Session-42 continuation lane changes (2026-10-29 — the user's second-session focus battery: file reconstruction / timestamp / recovery chances / partition recovery + API / preview / scan-mode semantics; audited core `b26017a7` (src+include byte-identical to the S12 live-verification point — the liveness sweep discharged by git-proof + SEVERE spot-probes, evidence/s42-liveness-sweep.md), corpus `be0cfe9`; the W4 executed build+suite at `evidence/executions/s42-build-suite-execution.md`):**
 
-- **grading/query rows, new cells — the recovery-chances battery (4 SEVERE + 3 filed)**: the extension-table gate polarity — **S-058** (SEVERE: the og runs the twin/overlap/deep-validation branch for extensions NOT in the 169-key set — `FUN_1401bebe0` = inequality, control case :585888 calibrates the direction; the core's `if (!in_table) continue` at cr_grading.cpp:275 twin-flags the exact inverse population, pinned by test_grading.cpp:166-187; the s5 evidence's §5 polarity line is the erratum the inversion inherited — evidence/decompiled-quotes/s42-grading-gate-polarity.md); the ReFS/Btrfs insert-time grade — **S-061** (SEVERE: the og grades both High at insert with 5828/5830 gauge ticks, DRWUI:605481-497; the core's early return leaves them Average — cr_grading.cpp:217-219); the twin-key device family — **M-133** (the og shifts kinds {FAT16, EXT2-family}; the core shifts {FAT12/16/32/exFAT} — cr_grading.cpp:130-142); the deep-read validation + full-tree re-grade — **M-134** (`FUN_14038c470` decoded: first-sector zero/0xFF → Low, prev-sector tail-16-zero → High; `FUN_1401d7110` re-runs the whole tree; core re-runs solo rules only + no reader in GradeContext; sub-gates tracked as OQ-S42-3); the gauge/QSDE accounting — **N-183** (the 20-format member-set population + the `int((m/t+0.05)*10)` score + the QSDE counter mis-mapping).
+- **grading/query rows, new cells — the recovery-chances battery (4 SEVERE + 3 filed)**: the extension-table gate polarity — **S-058 — FIXED (session-51 lane → MATCH: the gate flipped to NOT-in-table with the ""-quirk skip; the M-133 twin fixtures re-based onto out-of-table exts; the s5 evidence erratum appended; findings/FIXED/S-058)**; the ReFS/Btrfs insert-time grade — **S-061 — FIXED (session-51 lane → MATCH: the bare early return replaced with set_grade(High) after the Active rule; the final gauge census counts them; findings/FIXED/S-061)**; the twin-key device family — **M-133 — FIXED (session-52 lane — findings/FIXED/M-133: the shift narrowed to {Fat16} exactly per DRWUI :605752-756/:605924-927; the ext2/3 leg not expressible in the core's kind space, registered OQ-S52-1; 6 tests, 3 RED pre-fix; suite 1290/1290)**; the deep-read validation + full-tree re-grade — **M-134 — FIXED (session-52 lane — findings/FIXED/M-134: GradeReader wired at the orchestrator; the two threshold rules landed [first-32-zero/first-4-0xFF → Low; the final sector's 16-zero tail → High]; the twin-key address semantics settled [addr = the twin key: the extent's last sector]; the graded-bit one-shot re-grade re-enters the full path; 8 tests, 4 RED pre-fix; suite 1379/1379 → MATCH; the pre-check trio stays OQ-S42-3)**; the gauge/QSDE accounting — **N-183** (the 20-format member-set population + the `int((m/t+0.05)*10)` score + the QSDE counter mis-mapping).
 - **writer/recovery rows, new cells — the file-reconstruction battery (2 SEVERE + 3 filed)**: the sparse-hole export semantics — **S-059** (SEVERE: the og writes zero chunks for holes and always produces full logical size — :875661-673/:875062-75; the core drops sparse runs at cr_runlist.cpp:190, has no per-extent logical offset (cr_node.h:109-120), left-shifts interior holes and refuses with ERR_TRUNCATED — cr_safewriter.cpp:440-444; the mftwalk comments assert a zero-fill the writer cannot perform); the timestamp/attribute restoration — **S-060** (SEVERE: the og restores DOS attributes + the mask-gated SetFileTime trio after every item — :874686-718, the only SetFileTime in the binary, refuting the N-009d row's premise; the core's DestIo has no metadata surface, zero restoration calls tree-wide); the read-failure semantics — **M-135** (the og truncates + numbers + logs the failure trio and keeps the partial; the core zero-fills-and-continues then deletes failed items wholesale; the six-cause taxonomy); the retry bypass — **M-136** (recovery hands the writer the raw device while the scan's Retry+Cache pipe exists unused — rrecov.cpp:2080-2082/cr_ui.cpp:4027 vs cr_scan.cpp:155-194).
 - **lost-partition/orchestration rows, new cells — the partition-recovery battery**: the surfaced-shape batch — **M-137** (the "Lost Partition %d(%s)" template + per-scan counter at FUN_1403b9330/:634817-838, the "Unallocated" relabel :525588-98, the 10-target insertion cap + the per-candidate "Quick" registration :904229-240, the 512-byte fallback :904185-87, the Disk/Basic/Dynamic/MBR/GPT presentation rows, the CreateEnumPartitionObject seam — vs the core's `Candidate @ <LBA>` roots, no cap, always-deep, ERR_BAD_PARAMETER refusal; **M-104's open question 1 resolved by the template decode** — evidence/decompiled-quotes/s42-lostpart-surface-batch.md).
 - **orchestration/carve rows, new cells — the scan-mode battery (the "how scanning works" directive)**: the auto-advance state machine DECODED — **I-044** (engine-side, unconditional, result-independent — the C1 row's "UI-layer" rationale corrected; the hardwired settings+0x60/+0x6c; the 4 MiB all-allocated chunk skip; the `FUN_140581500`-vs-`FUN_140580720` citation erratum; ZFS compiled out of the shipped og); the RAW-first start ordering — **N-181** (the og starts CRAWSearchController first, :916484-916509; the core's carve stage is strictly last); the deep-range resolver — **N-182** (`FUN_14035a6d0`'s type-6 sub-range/300 MB/neighbor-extension path; the core reuses the quick slice — D-36's wording qualified).
@@ -175,7 +224,7 @@ the remove-the-fixed liveness sweep (55/55 adjudicated: 41 LIVE, 4 PARTIAL — N
 - **writer/transport/ui rows, new cells**: the destination-overlap safety parameter — **S-054 FIXED at `a3741812`, CONVERGENT (session-42 independent verification: FIXED-ALREADY)** (was SEVERE: the N-013 multi-extent arming CLOBBERED at both production call sites by the unrelated M-036 commit `1ebd1bcc`; `volume_extents`/`set_destination_spans`/`destination_volume_letter` zero consumers at HEAD; the header contract still claims all-spans; the suite-green masks it; git-proven — evidence/decompiled-quotes/s12-destarming-regression.md). Restored verbatim per the 3b5397a1 shape — any resolvable path armed, ALL extents fed to `set_destination_spans`; the wiring FENCE lands (`DestArming.ProductionWiringCallsSpansApi` + `HeaderContractStillClaimsAllSpans`), fail-before proven by mutation. **Session-42 first-hand re-verification at `d10e4aa2`: the wiring is live at both sites (`rrecov.cpp:2112-2132`, `cr_ui.cpp:4056-4063`), the fence pair + `Report.MultiExtentSpannedVolumeRefused` green, suite 1094/1094 — F62/B8/R43/Q65 cells all MATCH; the finding retired to findings/FIXED/ (the no-delete mandate — the purge lane's deletion converged to the archive), board SEVERE 4 → 3.**
 - **lost-partition/orchestration rows, new cells**: the candidate-source model — **M-118** (the og's THREE-source assembly mbr/filesystem/register decoded engine-side: the MountPoints2\CPC\Volume walk at PartitionRecoveryD:8930-8965 + FUN_18000f5b0's Data-blob field decode; the register channel absent in core; S-051's fix plan builds table-only targets; B1/A25/A30/O37 cells — evidence/decompiled-quotes/s12-lostpart-register-channel.md).
 - **storage/writer/cli rows, new cells**: partition-boundary read semantics — **M-119** (the og's CBasicPartitionDevice read = clamp + zero-fill + SUCCESS, RTTI-confirmed at DRWUI:183633-183666 and observed firing in the real-run log DRWUI.log:638; the core's PartitionSlice hard-errors per-read and the CLI/UI opens REFUSE whole volumes on over-long table lengths; the discovery path already clamps — the internal inconsistency; F60/B6/E23/X51 cells — evidence/decompiled-quotes/s12-partition-read-clamp.md).
-- **session row, new cell**: the variant-save device-descriptor record — **N-142** (the 76a672b0 GUID record's 5400-B volumeDevice blob: firmware/WWN/interface + the 512-B boot snapshot have no identity-card equivalent; D12 field parity — evidence/decompiled-quotes/s12-rsf-fifth-record.md).
+- **session row, new cell**: the variant-save device-descriptor record — **N-186** (renumbered from N-142 at the N-160 doc-truth repair; the 76a672b0 GUID record's 5400-B volumeDevice blob: firmware/WWN/interface + the 512-B boot snapshot have no identity-card equivalent; D12 field parity — evidence/decompiled-quotes/s12-rsf-fifth-record.md).
 - **board-truth cells**: **N-154** (bookkeeping batch #2: the N-079 ID collision in cr_log.cpp:30-34's comment vs FIXED-LEDGER:259; the GPT-salvage strictness unregistered vs ldm.md:53's plain-M; tree/err/reghive/apply module rows absent — I-030's remainder; the stale 1027-vs-1117 suite count) and **I-035** (register batch: RegLib's hive-WRITE half, DiskHealth's resident-monitoring product frame, the Explorer context-menu verb + the DiskHealth-artifact trayicon erratum).
 - **S-050 addendum**: the fix plan's build order gains the video engine (the corpus's deepest-decoded repair algorithm + the only engine-side seam — the datarun-selection consumes tree extents), the eligibility-signature seam, and the output-location contract.
 
@@ -514,6 +563,7 @@ F safety · Q quality (definitions in `PARAMETERS.md`).
 | exfat | B2/A27/X47 | **S-013 — FIXED (session 3)** (windowed-FAT accessor, og 1 MiB windows; have_fat never false; extent coverage pinned; windowed failures degrade to the EXFAT-2 salvage) |
 | exfat | B3/B4/B5/D15 | **M-013** (og DOES validate entry-set checksums — dual-form incl. deleted sets + reconstruction oracle; refutes the N-003 fix's verified-absence premise; supersedes N-003) |
 | exfat | B3/B4/B10 | **M-014 — FIXED (s35)** (structural gates: secondary_count ∈ [2,18]; create+modify+access timestamp field sanity, all-zero FAILS; empty streams never emitted; name flags/first-char gates; reserved1/2 zero — findings/FIXED/M-014) |
+| exfat | B3/A1/B6 | **N-174 — FIXED (S46)** (the `._` AppleDouble prefix sink: the og's props-builder refusal at exFAT:45151/:45222 landed in the core's entry walk post-name-assembly, the parked-set oracle inherits it; `apple_doubles_sunk` stats counter (the observability superset); AppleDoublePrefixSunk + RegularDotFilesNotSunk pins — the og's gate is prefix-specific, plain dotfiles unaffected; findings/FIXED/N-174) |
 | hfsplus | B3/B5/B7/C20 | **N-028 — FIXED (minors session, 2026-10-26)** (sink filter at both record sources ✓; rsrc superset registered D-53; 'prdf' folderization ✓ — see findings/FIXED/N-028) + **N-038 FIXED** (ownerFlags 0x20 fork selection) + **N-005 FIXED** (block bound 16 MiB + product sanity) |
 | btrfs | B1/B2/A26/B5 | ~~M-020~~ **FIXED (s33)** — full profile machinery: RAID10 geometry gate (og :2162-2168), class-0x20 rotating mirror og-exact (:2534-2540), RAID0/RAID10 stripe math as the registered superset (D-80; the og FAILS those classes — audit Summary decode error corrected in the Resolution), stripe-boundary extent splitting, default-subvolume DIR_ITEM pick (:3975-4060) with root-5 fallback rendering at the volume root; 4 fail-before + 2 updated expectations; findings/FIXED/M-020 |
 | zfs | B11 (SA registry) | ~~M-038~~ **FIXED (s19)** — registry-driven SA decode; findings/FIXED/M-038 |
@@ -626,6 +676,12 @@ not-BAAD both sides; FAT quick-scan threading — already registered D-30x).
 | Module | Parameter(s) | Verdict change (evidence in the finding + `evidence/decompiled-quotes/s6-*`) |
 |---|---|---|
 | fat | B4/B5/D11/A29 | **M-052 — FIXED (s24 DFX24 + s35 convergent)** (recycle-bin $I/$R pairing — the shared cr/recycle model wired into the dentry walk; four-root recognition, chain-read $I parse, original-name remap + post-walk fixup; findings/FIXED/M-052) |
+| tests/records | P65/P68 | **N-185 — FIXED (S46)** (the b26017a7 record-truth erratum: the N-157 attribution line + the worklog's session-42 false-green claim annotated with the executed refutation; the code defect was already resolved by d10e4aa2/1fb7603b; findings/FIXED/N-185) |
+| docs/api-gate | P68 | **N-180 — FIXED (S46)** (the doc-truth staleness batch: R-28/R-34 rows flipped to the landed ABI + shipped caps, ABI §7i's 200 MB budget, API-DELTA S3-W4a LANDED, the WRITER-1 row's OPEN→MATCH, exfat.md's B9 tz re-truth; the s5 erratum already landed by S-058; findings/FIXED/N-180) |
+| carve/docs | P68/registry-truth | **N-170 — FIXED (S46)** (the pre-erratum EUUserData/GetRawUserInfoMap claim batch: 6 sites re-truthed to E-A/E-B — cr_usersigns.h header + kMaxEntries census, PARITY-OG-CORE-INVENTORY OQ-SA-3, D-52, D-60f, SCAN-ENGINE-DELTA C4; items 2/4 already re-truthed by the parallel S-055/N-179 landings; acceptance grep zero; findings/FIXED/N-170) |
+| ext4 | A11/A13/D15 | **N-177 — FIXED (S46)** (the size-exceeds-blocks damaged marker: NODE_FLAG_SIZE_EXCEEDS_BLOCKS 0x0200 = the og's own FLAGS bit, the clean 64-bit compute `blocks*512 < size` on both emission paths, session round-trip via the existing flags persistence; D-135 registers the og-compute non-adoption; the ext4 fixture's i_blocks_lo now realistic; findings/FIXED/N-177) |
+| fat | A10/B-naming/FB-FalsePos | **N-176 — FIXED (S46)** (the LFN illegal-char fallback: the 9-char gate `?*|\/:"<>` in lfn_assemble — a checksum-valid corrupt LFN carrying any of them now takes the 8.3 fallback exactly like a checksum failure; LfnIllegalCharFallsBackTo83 9-iteration pin + LfnValidNameUnchanged; findings/FIXED/N-176) |
+| fat | A10/B-naming | **N-175 — FIXED (S46)** (the NTRes 8.3 display-case fold: short_name_to_u16 takes the nt_reserved byte and applies the og's four-way exact-value switch — 0x00/0x08/0x10/0x18 fold (strupr/strlwr pairs), anything-else raw; ASCII-only, CP437 high half untouched; LFN path unaffected by construction; NtResCaseFoldFourWay 5-path pin + LFN regression pin + the BitLocker NTRes=0 fixture re-pin; findings/FIXED/N-175) |
 | exfat | B1/A25/S35 | **N-067 FIXED s11** (upcase-table validation — og shape gates + checksum32 stream check, soft stats signal; findings/FIXED/); B4/B5/D11 **M-052 FIXED (s24 DFX24 + s35 convergent)** (the FAT-mirrored pairing — bin context through walk + oracle re-walks; findings/FIXED/M-052) |
 | carve | A25/D11/P42 | **S-032 (converged)** (archive inner-file inventories missing) |
 | carve | B1/C19 | **N-069 FIXED s11** (CAB mscf case key — FMT_CAB_LC dual row + two-spelling validator re-check; findings/FIXED/); B1/A28 **N-068 FIXED s11** (LFH sanity gates decompile-exact; EOCD half FIXED-ALREADY — the CD anchor + EOCD reconciliation already cover it; findings/FIXED/) |

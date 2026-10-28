@@ -64,7 +64,7 @@ but not real (invented) | SUPERSET = documented deliberate divergence.
 | 18 | Recovery: `\\.\X:` same-volume block; 0x5c→0x2f path normalization; ACL preservation; overwrite policy NOT IN CORPUS | `cr_ui_recovery_*`; `ERR_DEST_OVERLAP`; conflict modes rename/skip/overwrite; ACL = N-009d tracked | **MATCH+** | audit #28/#29 |
 | 19 | .rsf container (16-B magic, GUID-keyed records 1-4, chunked zlib lvl 5, fallback memcpy) | CRSF v1 (8 record types, chunked zlib, CRC32, skip-forward) | **MATCH (container semantics equivalent; G-09/F10 supersets)** | audit #32/#33 |
 | 20 | Auto-save orchestration (Freeze→save→Unfreeze) | host-side/CLI save | **N/A-by-layer** | audit #34 |
-| 21 | Recovery log FILE format | JSON report schema v1 | **MATCH (clean-room equivalent; og format NOT IN CORPUS)** | audit #37 |
+| 21 | Recovery log FILE format | JSON report schema v1 | **MATCH (structured superset; the og format IS decodable — the CSaveFailedFilesWithHtml generator + the tree-classification row grammar, DRWUI :642669-642892, N-159 landed as the per-item `tree_class` axis + `failed_bytes` split)** | audit #37 + N-159 |
 
 ### 1.4 Lost partitions, health, disk map
 
@@ -255,7 +255,7 @@ HEALTH facet, NOT the enumeration-row facet R-63 wants):
 | S3-W3b | chkdsk launch (R-65 PARTIAL) | MOM-modules/mom-module-system--architecture.md:65 (FileSystemCheck.mo + WinChkdsk) | `cr_ui_fsck_volume` ABSENT; `check::run_fscheck` is the in-engine checker, not the og's chkdsk launch | this session (win-layer) |
 | S3-W3c | enumeration refresh export (R-86 PARTIAL) | UIUX/13-ui-core-wiring-state.md:14 | behavior already always-fresh; the plan's remaining half is the header contract sentence | this session (doc) |
 | S3-W3d | TRIM facet in enumeration rows (R-63 PARTIAL) | UIUX/07-home-phase-deep-dive.md:17 (TRIM chip per row) | `cr_ui_disk_info` rows lack trim fields; health report has them (cr_ui.h:1189); opt-in flag + the plan's DEFERRED-if-slow measurement still open | this session |
-| S3-W4a | preview caps shipped defaults (R-34 PARTIAL) | UIUX/10-preview-subsystem.md:22-27 (100 MB / 15 s) | Caps seam exists (`preview::Caps`), no shipped defaults (zero-init = uncapped today) | this session |
+| S3-W4a | preview caps shipped defaults (R-34 PARTIAL) | UIUX/10-preview-subsystem.md:22-27 (100 MB / 15 s) | LANDED (M-077; N-180 re-truth): `cr_preview.h:125-126` ships `max_file_bytes = 100 MiB` / `max_decode_ms = 15000` as the defaults | this session |
 | S3-W4b | image create (R-93 PARTIAL) | UIUX/07-home-phase-deep-dive.md:36-37 (disk -> image) | `cr_ui_image_create` ABSENT; `storage::open_image` is the reader only | next |
 | S3-W5a | BitLocker turn-off (R-88 tail) | DRWService-exe--bitlocker-service.md:50-89 (unlock chain incl. turn-off) | `cr_ui_turn_off_bitlocker` ABSENT (grep) | next |
 

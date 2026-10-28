@@ -611,12 +611,119 @@ void autosave_event_cb(void*, const cr_ui_event* evt) {
 }
 } // namespace
 
+namespace {
+/* S-057: cancel from the files-found event - deterministic stop AFTER
+ * results exist (the engine aborts at its next loop-head poll). The
+ * callback ALSO observes the autosave event (one event slot per scan -
+ * the second set_event_fn would replace the first). */
+cr_ui_scan* g_cancel_target = nullptr;
+void cancel_and_observe(void*, const cr_ui_event* evt) {
+    if (evt->type == CR_EVT_AUTOSAVED) {
+        ++g_autosave_events;
+        g_autosave_rc = evt->autosave_rc;
+        return;
+    }
+    if (evt->type == CR_EVT_FILES_FOUND && evt->files_found >= 1 && g_cancel_target)
+        cr_ui_scan_cancel(g_cancel_target);
+}
+} // namespace
+
+TEST(CrUi, CancelledRunWithResultsAutoSaves) {
+    /* S-057: the og's stop window auto-saves - the stop path runs its
+     * own organize ("Scan stopped and found %1 files.", DRWUI
+     * :1549399-421) into the SAME completion handler whose auto-save
+     * gates (:612571-587) carry no stopped-check. A user who stops a
+     * scan after files are found keeps them: an auto_*.crsf lands in
+     * autosave_dir, stats.autosaved flips, and the session LOADS with
+     * the partial tree. Pre-fix: the cancel path returned before the
+     * auto-save block ever ran (no file, autosaved == 0). */
+    const std::string img = write_fixture("stopsave");
+    ASSERT_FALSE(img.empty());
+    const std::string dir = std::filesystem::path(img).parent_path().string();
+    const std::string adir = dir + "/s057_autosave_" + std::to_string(CR_TEST_PID());
+    std::filesystem::create_directories(adir);
+    g_autosave_events = 0;
+    g_autosave_rc = 1;
+
+    Ui u;
+    ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+    cr_ui_scan_config cfg{};
+    cfg.autosave_dir_utf8 = adir.c_str();
+    ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_set_event_fn(u.scan, cancel_and_observe, nullptr), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+    g_cancel_target = u.scan;
+    /* the subscription cancels once files exist; the engine stops at
+     * its next poll and run() returns ERR_CANCELLED */
+    /* (single event slot: the combined callback both cancels and
+     * observes the autosave outcome) */
+    EXPECT_EQ(cr_ui_scan_run(u.scan), 0x50020005u); /* ERR_CANCELLED */
+    g_cancel_target = nullptr;
+    cr_ui_scan_stats st{};
+    ASSERT_EQ(cr_ui_scan_get_stats(u.scan, &st), CR_UI_OK);
+    EXPECT_EQ(st.autosaved, 1u) << "the stop window auto-saves (S-057)";
+    EXPECT_EQ(g_autosave_events, 1u);
+    EXPECT_EQ(g_autosave_rc, 0u);
+    uint32_t n = 0;
+    ASSERT_EQ(cr_ui_session_list(adir.c_str(), nullptr, &n), CR_UI_OK);
+    ASSERT_EQ(n, 1u);
+    /* the partial session loads and carries the found-so-far tree */
+    std::vector<cr_ui_session_row> rows(1);
+    uint32_t cap = 1;
+    ASSERT_EQ(cr_ui_session_list(adir.c_str(), rows.data(), &cap), CR_UI_OK);
+    EXPECT_EQ(rows[0].valid, 1u);
+    cr_ui_session* sess = nullptr;
+    ASSERT_EQ(cr_ui_session_load(rows[0].path, &sess), CR_UI_OK);
+    cr_ui_scan* resumed = nullptr;
+    cr_ui_scan_config rcfg{};
+    ASSERT_EQ(cr_ui_session_resume(sess, &rcfg, &resumed), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_attach_device(resumed, u.dev), CR_UI_OK);
+    EXPECT_EQ(cr_ui_scan_run(resumed), CR_UI_OK); /* resumes and completes */
+    cr_ui_scan_stats rst{};
+    ASSERT_EQ(cr_ui_scan_get_stats(resumed, &rst), CR_UI_OK);
+    EXPECT_GE(rst.files_found, 1u) << "the stopped scan's partial tree persisted and resumes";
+    cr_ui_scan_close(resumed);
+    cr_ui_session_close(sess);
+}
+
+TEST(CrUi, CancelledRunZeroFoundWritesNothing) {
+    /* S-057 gate pin: the og never writes a nothing-found session - the
+     * results-found gate holds in the stop window exactly as in the
+     * completion window. Cancel BEFORE any results (the
+     * stop-button-before-start shape): no file, no event, autosaved 0. */
+    const std::string img = write_fixture("stopempty");
+    ASSERT_FALSE(img.empty());
+    const std::string dir = std::filesystem::path(img).parent_path().string();
+    const std::string adir = dir + "/s057_empty_" + std::to_string(CR_TEST_PID());
+    std::filesystem::create_directories(adir);
+    g_autosave_events = 0;
+
+    Ui u;
+    ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+    cr_ui_scan_config cfg{};
+    cfg.autosave_dir_utf8 = adir.c_str();
+    ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_set_event_fn(u.scan, autosave_event_cb, nullptr), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_cancel(u.scan), CR_UI_OK);
+    EXPECT_EQ(cr_ui_scan_run(u.scan), 0x50020005u);
+    cr_ui_scan_stats st{};
+    ASSERT_EQ(cr_ui_scan_get_stats(u.scan, &st), CR_UI_OK);
+    EXPECT_EQ(st.autosaved, 0u) << "zero-found stop writes nothing (the og gate holds)";
+    EXPECT_EQ(g_autosave_events, 0u);
+    uint32_t n = 0;
+    ASSERT_EQ(cr_ui_session_list(adir.c_str(), nullptr, &n), CR_UI_OK);
+    EXPECT_EQ(n, 0u);
+}
+
 TEST(CrUi, AutoSaveOnCompletion) {
     /* W1c (R-52): the og's completion SaveScan flow - zero-init = OFF;
      * on a COMPLETED run the auto session lands in autosave_dir under
      * the N-061 auto_<label>_<ts> naming; the event fires ONCE with the
-     * rc and stats.autosaved flips; a CANCELLED run never auto-saves;
-     * the W1a list reads the auto session back (the surfaces compose). */
+     * rc and stats.autosaved flips; since S-057 a user-STOPPED run with
+     * results auto-saves too (the stop-window leg is pinned separately
+     * in CancelledRunWithResultsAutoSaves); the W1a list reads the auto
+     * session back (the surfaces compose). */
     const std::string img = write_fixture("autosave");
     ASSERT_FALSE(img.empty());
     const std::string dir = std::filesystem::path(img).parent_path().string();
@@ -3552,6 +3659,44 @@ std::vector<unsigned char> build_fat16_jpg_trunc() {
     return img;
 }
 
+/* M-115: the damaged-but-readable PNG - intact extents, corrupt IDAT
+ * entropy (one flipped byte inside the zlib stream). The strict PNG
+ * decoder refuses the stream (DecodeFailed) while every byte reads
+ * cleanly: the og's read-verdict promotion fires (grade 2), the
+ * pre-fix decode-gated core did not. */
+std::vector<unsigned char> build_fat16_png_damaged() {
+    auto img = build_fat16();
+    const size_t need = (sizeof(kQuad32x24Png) + 511) / 512;
+    for (size_t i = 0; i < need; ++i)
+        put16(img, kFAT1 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i),
+            put16(img, kFAT2 + (40 + i) * 2, i + 1 == need ? 0xFFFF : 41 + i);
+    /* DELETED entry: deleted non-carved files take the generic grading
+     * path (below 2) so the promotion is observable (the existing-file
+     * insert-grade-2 would make the test vacuous) */
+    dentry(img, 3, "DAMAGE  PNG", 0x20, 40, (unsigned long)sizeof(kQuad32x24Png), true);
+    std::memcpy(img.data() + kDATA + (40 - 2) * 512, kQuad32x24Png, sizeof(kQuad32x24Png));
+    /* corrupt one byte inside the IDAT zlib stream (offset 41 in the
+     * embedded array: past signature+IHDR+IDAT-header, inside the
+     * compressed payload) - inflate refuses the stream */
+    img[kDATA + (40 - 2) * 512 + 41] ^= 0xFF;
+    return img;
+}
+
+/* M-115: the <=20-byte decodable image - a 1x1 PBM ("P1 1 1 0") is 8
+ * bytes, decodes through the stb PNM path, and is UNDER the og's
+ * 0x14-byte work-item floor: the og never creates a work item (never
+ * promotes); the pre-fix core decoded it and promoted. */
+static const unsigned char kTinyPbm8[] = {'P', '1', '\n', '1', ' ', '1', '\n', '0'};
+
+std::vector<unsigned char> build_fat16_tiny_pbm() {
+    auto img = build_fat16();
+    put16(img, kFAT1 + 40 * 2, 0xFFFF);
+    put16(img, kFAT2 + 40 * 2, 0xFFFF);
+    dentry(img, 3, "TINY    PBM", 0x20, 40, sizeof(kTinyPbm8), true);
+    std::memcpy(img.data() + kDATA + (40 - 2) * 512, kTinyPbm8, sizeof(kTinyPbm8));
+    return img;
+}
+
 bool scan_img_to_session(const char* tag, const std::vector<unsigned char>& bytes, Ui& u,
                          std::string& img_out, std::string& crsf_out) {
     img_out = cr_test::tmp_path("cr_ui", tag);
@@ -3703,7 +3848,8 @@ TEST(CrUi, ThumbnailSuccessPromotesGradeTo2) {
     /* the DELETED-PNG fixture: deleted non-carved files take the generic
      * grading path (below 2), so the promotion is observable */
     ASSERT_TRUE(scan_img_to_session("thumbgr", build_fat16_png_deleted(), u, img, crsf));
-    const uint64_t logo = query_node_id(u.sess, "#OGO.PNG"); /* the og placeholder renders 0xE5 as # - N-172 */
+    const uint64_t logo =
+        query_node_id(u.sess, "#OGO.PNG"); /* the og placeholder renders 0xE5 as # - N-172 */
     const uint64_t doc_id = query_node_id(u.sess, "DOC.TXT");
     ASSERT_NE(logo, 0u) << "the deleted PNG must be a result row";
     ASSERT_NE(doc_id, 0u);
@@ -4206,4 +4352,87 @@ TEST(CrUi, CliResumeSinkNeverTruncatesTheSessionSource) {
     /* the sink's error paths clean the staging tmp (no litter, and a
      * failed resume leaves the source byte-identical) */
     EXPECT_NE(std::string::npos, src.find("std::filesystem::remove(ck_sink.tmp_path, ec);"));
+}
+
+/* ===================================================================== */
+/* M-115 (diff-to-fix): the og's grade promotion is READ-gated, not     */
+/* decode-gated (DRWUI :422507-514, binary-verified 0x140263b2c-b9a) - */
+/* a clean recovery read (FUN_1403eba50 verdict 0, :422442) promotes   */
+/* the node to grade 2 and the later decode's failure never retracts   */
+/* it. The core promoted only on decode success (under-promoting the   */
+/* damaged-but-readable population) and had no <=0x14 work-item floor  */
+/* (over-promoting tiny decodables).                                    */
+/* ===================================================================== */
+
+TEST(CrUi, ThumbnailPromotesOnReadNotDecode) {
+    /* the damaged-but-readable case - the finding's dominant real-world
+     * class: intact extents (every byte reads cleanly), corrupt IDAT
+     * entropy (the strict PNG decoder refuses). The og: read verdict 0
+     * -> grade 2. Fail-before: the core returned ERR_TRUNCATED at the
+     * DecodeFailed map and never promoted. */
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_img_to_session("thumbrd", build_fat16_png_damaged(), u, img, crsf));
+    /* the deleted first char renders as the og's '#' placeholder (N-172) */
+    uint64_t damaged = query_node_id(u.sess, "#AMAGE.PNG");
+    if (damaged == 0u)
+        damaged = query_node_id(u.sess, "DAMAGE.PNG");
+    ASSERT_NE(damaged, 0u) << "the deleted damaged PNG must be a result row";
+    const char* dname = query_node_id(u.sess, "#AMAGE.PNG") != 0u ? "#AMAGE.PNG" : "DAMAGE.PNG";
+    const uint32_t g0 = grade_of(u.sess, dname);
+    ASSERT_NE(g0, 0xFFFFFFFFu);
+    ASSERT_LT(g0, 2u) << "precondition: the deleted node starts below 2";
+
+    cr_ui_thumbnail_info info{};
+    const uint32_t rc =
+        cr_ui_thumbnail_generate(u.dev, u.sess, damaged, nullptr, nullptr, 0, &info);
+    /* the decode refuses the corrupt stream: ERR_TRUNCATED is the
+     * honest refusal - but the READ was clean, so the promotion fired */
+    EXPECT_EQ(0x50030004u, rc) << "the damaged stream still refuses the decode";
+    EXPECT_EQ(2u, grade_of(u.sess, dname))
+        << "M-115: the clean read promotes - decode-independent";
+}
+
+TEST(CrUi, ThumbnailTinyFileDoesNotPromote) {
+    /* the <=0x14 edge: the og's dispatcher skips work-item creation for
+     * files with size <= 20 (DRWUI :421391-421403) - an 8-byte 1x1 PBM
+     * decodes through the stb PNM path, but neither the og NOR the
+     * post-fix core may promote through the thumbnail surface.
+     * Fail-before: the pre-fix core returned Ok and promoted. */
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_img_to_session("thumbtiny", build_fat16_tiny_pbm(), u, img, crsf));
+    const uint64_t tiny = query_node_id(u.sess, "#INY.PBM");
+    ASSERT_NE(tiny, 0u) << "the deleted 8-byte PBM must be a result row";
+    /* capture the grade BEFORE: the M-134 deep-read grading rule may
+     * legitimately promote the node at scan completion (its preceding
+     * sector is zero-filled - the og's prev-sector-tail-zero rule); the
+     * M-115 claim is narrower: the THUMBNAIL surface must never promote
+     * under the floor. Isolate by comparing before/after the call. */
+    const uint32_t g_before = grade_of(u.sess, "#INY.PBM");
+    ASSERT_NE(g_before, 0xFFFFFFFFu);
+    cr_ui_thumbnail_info info{};
+    EXPECT_EQ(0x50030008u,
+              cr_ui_thumbnail_generate(u.dev, u.sess, tiny, nullptr, nullptr, 0, &info))
+        << "the 20-byte work-item floor refuses the generation";
+    EXPECT_EQ(g_before, grade_of(u.sess, "#INY.PBM"))
+        << "no promotion through the thumbnail surface under the floor";
+}
+
+TEST(CrUi, ThumbnailUnreadableSpanNeverPromotes) {
+    /* the read-verdict boundary: a span the reader CANNOT fetch (the
+     * og's verdict -3 class, data-but-flagged-failed) does NOT promote
+     * - read_ok stays false when the generation gained an unreadable
+     * span. Built from the damaged fixture with an out-of-device
+     * extent is not expressible here, so the pin is the engine truth
+     * already covered by the UnreadableSpan tests plus this ABI-level
+     * guard: the promotion ONLY fires on read_ok, never on rc alone. */
+    const std::string src = cr_test::read_repo_file("src/ui/cr_ui.cpp");
+    ASSERT_FALSE(src.empty());
+    EXPECT_NE(src.find("if (thumb.read_ok && node->grade() != tree::Grade::High)"),
+              std::string::npos)
+        << "the promotion must be gated on the disclosed read verdict";
+    EXPECT_EQ(src.find("if (st == preview::ThumbStatus::Ok) {\n        node->set_grade"),
+              std::string::npos)
+        << "the decode-gated promotion shape must stay gone";
 }

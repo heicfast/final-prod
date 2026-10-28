@@ -405,6 +405,9 @@ bool read_inode(Volume& v, u32 ino, InodeView& iv) {
     if (ifmt(iv.mode) == 0x8000) /* regular: 64-bit size */
         size |= u64(le32(raw + I_SIZE_HIGH)) << 32;
     iv.size = size;
+    /* N-177: the raw block-coverage word (512-byte units, the og's
+     * comparison input at +0x1C - FUN_180007510 :5455-5467). */
+    iv.blocks_512 = le32(raw + I_BLOCKS_LO);
     /* extended fields present when the inode is larger than the 128-byte
      * good-old layout and i_extra_isize covers them (kernel rule). */
     if (v.sb.inode_size >= 0x98u && v.sb.rev_level >= 1) {
@@ -980,6 +983,14 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
             props->name_raw = de.name_raw;          /* N-016b */
             props->fs_kind = u32(FsKindCode::Ext4); /* corpus factory code */
             props->logical_size = child.size;
+            /* N-177 (diff-to-fix): the og's truncation-damage marker
+             * (EXT4SearchDLL :6300-6303 - FUN_180007510's
+             * i_blocks < size>>9 verdict sets node FLAGS 0x200 for
+             * FILES). Clean 64-bit form: no sign-extension on
+             * i_size_high (the og's +0x1F quirk is the I-040/D-123
+             * defect family), no 32-bit truncation of either side. */
+            if (!is_dir && u64(child.blocks_512) * 512 < child.size)
+                props->flags = u16(props->flags | tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS);
             props->attributes = is_dir ? 0x10 : 0;
             props->times.created =
                 unix_to_filetime_ns(child.crtime ? child.crtime : child.ctime,
@@ -1091,6 +1102,9 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
             props->name = nm;
             props->fs_kind = u32(FsKindCode::Ext4);
             props->logical_size = iv.size;
+            /* N-177: same damaged-marker compute on the deleted path. */
+            if (!is_dir && u64(iv.blocks_512) * 512 < iv.size)
+                props->flags = u16(props->flags | tree::NODE_FLAG_SIZE_EXCEEDS_BLOCKS);
             props->attributes = is_dir ? 0x10 : 0;
             props->times.created = unix_to_filetime_ns(iv.crtime ? iv.crtime : iv.ctime,
                                                        iv.crtime ? iv.crtime_nsec : iv.ctime_nsec);

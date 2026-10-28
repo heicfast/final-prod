@@ -230,6 +230,9 @@ std::string build_report(const std::vector<Item>& items, const Totals& t,
     append_num(out, "nothing_to_recover", t.nothing_to_recover, true);
     append_num(out, "pending", t.pending, true);
     append_num(out, "bytes", t.bytes, true);
+    /* N-159: the og's failed-bytes split (CSaveFailedFilesWithHtml's
+     * +0x268 accumulator) - additive-within-v1 per the schema doc. */
+    append_num(out, "failed_bytes", t.failed_bytes, true);
     out.append("},\n");
 
     /* S-023: the optional scan-analysis block (the og's RecoveryAssistant
@@ -253,6 +256,14 @@ std::string build_report(const std::vector<Item>& items, const Totals& t,
         append_num(out, "duration_ms", it.duration_ms, true);
         append_str(out, "sha256", it.sha256_hex, true);
         append_str(out, "hash_status", hash_status_name(it.hash_status), true);
+        /* N-159: the og's per-row tree classification (the failed-files
+         * HTML report's classification column, decoded at DRWUI
+         * :642755-642822). Emitted for EVERY row - the og surfaces it
+         * only on its failed-files funnel (D13), the core's report is
+         * the structured superset. Omitted when empty (additive-
+         * within-v1; unclassified value-enqueued rows). */
+        if (!it.tree_class.empty())
+            append_str(out, "tree_class", it.tree_class, true);
         out.push_back('}');
     }
     out.append(items.empty() ? "]\n}\n" : "\n  ]\n}\n");

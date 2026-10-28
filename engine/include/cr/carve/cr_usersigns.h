@@ -4,9 +4,15 @@
  * Corpus: the og's og-codebase/EUUserData - a 16,891-byte JSON map of
  * 111 extensions, each carrying user-defined file signatures
  * ("signs": ["<offset>,<hex bytes>"]) and a MIME type
- * (config-data-reference.md :95; byte-verified in the finding). The og's
- * carve layer consults it alongside raw_signs.json; users teach the
- * scanner new file types.
+ * (config-data-reference.md :95; byte-verified in the finding). N-170
+ * (CORRECTIONS.md #9 = E-A/E-B, re-read first-hand): the og's RAW
+ * carving engine NEVER consults this file - its sole og consumer is
+ * DRWUI's CHKRepairFileSign (the CHK repair chain's
+ * MatchedFile/NotMatchedFile signature checker, DRWUI :1005387/:1005818/
+ * :721520-721680; zero EUUserData references in RAWSearchDLL's 80,614
+ * lines). The CORE's carve-side consumption of this format is the
+ * registered deliberate superset D-104 (the user-taught channel the og
+ * never built engine-side).
  *
  * Schema (the og's shape verbatim):
  *   { "<ext>": { "signs": ["<offset>,<HEX>"], "mime": "<type>" }, ... }
@@ -39,7 +45,11 @@ namespace usersigns {
  * these bounds is hostile input, rejected atomically. */
 constexpr u32 kMaxSignBytes =
     48; /* the og's longest sign is 44 bytes (hqx/img/eps); 48 = 44 + headroom */
-constexpr u32 kMaxEntries = 256;      /* the og ships 111; 2.3x headroom, hostile-blob bound */
+constexpr u32 kMaxEntries = 256;      /* N-170: the cap is enforced against TOTAL SIGNS
+                                         * (the loader's out.signs.size() check, cr_usersigns.cpp)
+                                         * - the og's shipped set carries 190 signs deduped (191 raw,
+                                         * the duplicate-asf merge; N-169), so 256 = 1.34x the raw
+                                         * count, the hostile-blob bound */
 constexpr u32 kMaxSignsPerEntry = 12; /* the og's max is 11 signs (mpeg); 12 = 11 + headroom */
 constexpr u32 kMaxOffset = 1024; /* the og's max offset is 526 (zip "526,504B537058"); the og has no
                                   * probe-stride bound - 1024 keeps a hostile-input bound */
@@ -87,9 +97,13 @@ u32 snapshot(UserSignSet& out);     /* value copy under the lock (ABI info) */
 
 /* Match `p` (the stride base, at least kMaxOffset+1 bytes valid) against
  * the active set; returns the matching sign or nullptr. First match in
- * registration order wins (deterministic; built-ins were already probed
- * by the earlier layers at the same stride). */
-const UserSign* match_at(const u8* p, u64 avail);
+ * registration order wins (deterministic). S-055: the scan probes this
+ * layer ONLY after the built-in raw-sign table did not match at the
+ * same stride (built-in-first, the M-048 collision rule); S-056:
+ * `disabled_exts` (nullable) is the host's disabled-formats list - a
+ * listed extension's signs never fire (the og's removal-loop
+ * semantics), other extensions' signs still can. */
+const UserSign* match_at(const u8* p, u64 avail, const char* disabled_exts = nullptr);
 
 } // namespace usersigns
 } // namespace carve

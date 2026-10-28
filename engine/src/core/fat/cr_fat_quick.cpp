@@ -152,16 +152,28 @@ void walk_dir_entries(EmitCtx& ctx, const DirBuffer& buf, tree::FileNode* host,
         const u8 first = e->name[0];
         if (first == DENTRY_END)
             break; /* end of directory (corpus DENTRY_END) */
+        /* M-130 (diff-to-fix): the og's per-slot shape validator
+         * (FUN_1800365a0 :44263-44375) runs BEFORE the LFN/deleted
+         * dispatch at the main walk sites; a failing gate BREAKS the
+         * walk (:8792-93 in FUN_18000bfa0, :53647-48 in FUN_1800411d0 -
+         * end-of-directory semantics, the og loses everything after the
+         * corrupt slot; parity means matching the loss). The LFN slots
+         * pass inside the validator itself (the 0x0F + zero-cluster
+         * gate), so the walk-stop only fires on the corrupt classes:
+         * reserved attribute bits, the erased/repeated-pattern quad,
+         * impure volume-label shapes, and the 11th-repeat histogram. */
+        if (!fat_dentry_walk_ok(e)) {
+            ++ctx.stats->shape_rejected;
+            pending_lfn.clear();
+            break;
+        }
         if (e->attributes == ATTR_LFN) {
             const LfnEntry* l = reinterpret_cast<const LfnEntry*>(raw);
-            /* FAT-10 (AUDIT-FAT): og requires an LFN slot's first_cluster
-             * (+0x1A) to be ZERO before treating an 0x0F entry as an LFN
-             * slot (FUN_1800365a0:44287) - junk 0x0F-attr entries with
-             * stray +0x1A bytes are otherwise absorbed into the name. */
-            if (l->first_cluster != 0) {
-                pending_lfn.clear();
-                continue;
-            }
+            /* FAT-10 (AUDIT-FAT): an 0x0F slot's first_cluster (+0x1A)
+             * must be ZERO (FUN_1800365a0:44287). The M-130 walk gate
+             * above now REJECTS the stray-cluster 0x0F shape outright
+             * (the og's impure-label class - the walk stops); this arm
+             * only sees the clean slots. */
             pending_lfn.push_back(l);
             continue;
         }
@@ -218,7 +230,7 @@ void walk_dir_entries(EmitCtx& ctx, const DirBuffer& buf, tree::FileNode* host,
             }
         }
         if (!lfn_ok)
-            name = short_name_to_u16(short_name);
+            name = short_name_to_u16(short_name, e->nt_reserved);
         pending_lfn.clear();
         if (name.empty())
             continue;
@@ -248,6 +260,19 @@ void walk_dir_entries(EmitCtx& ctx, const DirBuffer& buf, tree::FileNode* host,
                 ++ctx.stats->date_rejected;
                 continue;
             }
+        }
+
+        /* M-130 (diff-to-fix): the emission-walk shape gates
+         * (FUN_1800365a0 at the param_2 = 1 site :42948,
+         * FUN_180034db0's walk): the size/chain XOR consistency for
+         * files and the size+high-cluster shape for dirs. A failure
+         * SKIPS the entry - the og's emission walk continues past it
+         * (this is NOT a walk-stop class; only the walk gates above
+         * break). */
+        if (!fat_dentry_shape_ok(e)) {
+            ++ctx.stats->shape_rejected;
+            pending_lfn.clear();
+            continue;
         }
 
         emit_entry(ctx, *e, name, deleted, host, deleted_host, in_bin);

@@ -1,17 +1,30 @@
 # modules/fat.md — FAT engine audit verdicts
 
+## S47 addendum (2026-10-29 — the session-47 severe-first fix lane)
+
+**A-014 FIXED** (session-47): the time-word gate landed in the shared
+`fat_datetime_to_unix_seconds` — the full DosDateTimeToFileTime reject set
+(hour>23 / minute>59 / 2s-field>29 → the zero FileTime via the N-021 mapping),
+verified first-hand against the corpus binary's own three zero-on-fail call
+sites (0x1800289d1/:a1f/:a51) and the exFAT sibling's FUN_180002f40 boundary
+set. The finding's exemplar date word 0x65C4 corrected to 0x64C4 (month 14 → 6).
+Tests: `FatEngine.TimeWord*` (5 boundary pins, RED pre-fix) +
+`FatEngine.ValidTimeWordBoundaryUnchanged` + the end-to-end
+`FatEngine.InvalidTimeWordPersistsAsZeroFileTime`. See
+../findings/FIXED/A-014-fat-time-word-validation-fabricates-shifted-timestamps.md.
+
 ## S12 addendum (2026-10-29 — the session-2 deep-dive; lane sheets at ../evidence/s12-lane-sheets/)
 
-New active findings on this module: **A-014** (ACUTE — time-word validation:
+New active findings on this module: **A-014 FIXED** (ACUTE — time-word validation:
 hour/min/2s unchecked in `fat_datetime_to_unix_seconds`, shifted plausible timestamps
-where the og zeroes the slot, FAT:32135-54); **M-127** (the O(n^2) visited-vector
-cycle guard vs the og's range tree — stall-class); **M-130** (the dentry
-shape-validator family unported: ext-tail, size/chain-XOR, dir, >9-repeat histogram
-gates + walk-stop semantics); **N-162** (the og's 32-bit cluster-math wrap registered
+where the og zeroes the slot, FAT:32135-54 — FIXED this session: the gate extended to
+the time word, 5 tests, findings/FIXED/A-014); **M-127** (the O(n^2) visited-vector
+cycle guard vs the og's range tree — stall-class); **M-130 — FIXED (session-52: the two-tier port
+  [walk-BREAK gates + emission-SKIP shape gates], 3 decode corrections, suite 1322/1322)**; **N-162** (the og's 32-bit cluster-math wrap registered
 — core u64 correct); **N-165** (the "File overflows partition!" scan-time refusal vs
 deferred failure); **N-172** (deleted-first-char `'#'` vs `'_'` + the unregistered
 LFN-checksum recovery superset — closes OQ-T2); **N-173** (the 2106/2107 u32 clamp);
-**N-175** (NTRes case folding); **N-176** (the LFN illegal-char fallback).
+~~**N-175**~~ **FIXED (S46)** (NTRes case folding landed — the four-way fold, NtResCaseFoldFourWay + the BitLocker re-pin); ~~**N-176**~~ **FIXED (S46)** (the LFN illegal-char fallback landed — the 9-char gate in lfn_assemble, LfnIllegalCharFallsBackTo83 + LfnValidNameUnchanged).
 Verified-MATCH this session: cluster-offset formula (u64), EOC/BAD sentinels, boot
 geometry, first_data_sector, the 28-bit size field ( disproven hypothesis), grading
 condition bytes.
@@ -48,7 +61,8 @@ Core (audited commit `67193b6`, includes concurrent GAP-S6-1/S6-2 fix `9fc82b0`)
   (root-causes.json, other session's lane).
 - **B7 sparse/ADS** — `NA` (not a FAT concept beyond chain model).
 - **B9 timestamps** — `M` DOS date/time → 100ns-1601 (tenths discarded — 2 s resolution is
-  the format's own).
+  the format's own). Time-word range gates now match the og's DosDateTimeToFileTime
+  accept set exactly (A-014 FIXED this session; month/day were already N-021).
 - **B10 filename/Unicode** — `M` LFN glue (0x40 last-entry + 0x0F attr checks, og :11442
   verified), 0x05→0xE5 KANJI escape, deleted-LFN recovery (above); 8.3 fallback '_'
   convention when no oracle.
@@ -294,3 +308,16 @@ MATCH.
   0xFF9F/2107-12-31 value, the 0xFFFFFFFE boundary, the 0x100000000 regression
   step) + Date2107EndToEndFileTimeIsReal. The finding's 0xFFBF example word
   corrected (it decodes 2107-11-31 — invalid; 0xFF9F is 2107-12-31).
+
+## Session-46 addendum (2026-10-29 — the MINOR-first fix lane; audited `fa654673`-lineage, corpus `be0cfe9`)
+
+**N-165 FIXED — the out-of-volume run-end stance registered.** Both og factory
+gates re-read first-hand (:10865-10903 / :28040-28075: the run-end sector-limit
+check, ReleaseTrace "File overflows partition!", the runlist destruction). The
+core's deferred-failure posture — the truncated-tail volume stays a
+first-class target, the overflow-tail file stays listed with its chain
+extents, the readable prefix recovers and the tail discloses as Salvaged at
+recovery (FB-R02) — REGISTERED as PARITY-DELTAS D-136 and pinned by
+FatEngine.TruncatedVolumeOverflowChainStance (the scan-time grade stays the
+chain's own: the truncation is recovery-time knowledge). No behavior change,
+per the finding's own plan.

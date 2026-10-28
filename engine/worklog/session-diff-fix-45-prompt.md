@@ -1,36 +1,31 @@
-# Session-45 diff-to-fix prompt (token redacted)
+# Session 45 — diff-fix execution prompt (token redacted)
 
-## IM Chat Context (gateway metadata)
-- session_id: web-e60092bc-782b-4b89-88f0-5c5db6b0ed07
-- chat_id: d0f392f5-35ec-4f58-b3f8-00f04cd84924
-- channel: zai-web
+Saved at session open (T1). The live token was provided via the user message only;
+it is redacted here and never committed.
 
-## Mandate (abridged, token redacted)
+**Mandate:** execute the roadmap in `core_recovery/diff-to-fix/`. For every finding —
+ACUTE, SEVERE, MAJOR, MINOR, INFORMATIONAL, and TRACKED-OPEN — independently verify
+the finding, fix it in the codebase, prove the fix with tests and benchmarks, and mark
+it fixed in the audit trail with evidence. The audit is a hypothesis; this lane is the
+verifier. False positives cost more than honest UNVERIFIEDs.
 
-Senior systems engineer mandate: execute the roadmap in `core_recovery/diff-to-fix/`.
-For every finding — ACUTE, SEVERE, MAJOR, MINOR, INFORMATIONAL, and TRACKED-OPEN —
-independently verify the finding, fix it in the codebase, prove the fix with tests
-and benchmarks, and mark it fixed in the audit trail with evidence. The audit is a
-hypothesis; every finding re-verified against the research corpus and the running
-code before any change. A false finding is corrected in the audit trail rather than
-"fixed" by breaking good code.
+**Repos in scope (only two):**
+- Core (modified): https://github.com/heicfast/core_recovery
+- Research corpus (ground truth, read-only): https://github.com/heicfast/easeus-drw-research
 
-Two repositories in scope and only two:
-- Core (modified): github.com/heicfast/core_recovery
-- Research corpus (ground truth, read-only): github.com/heicfast/easeus-drw-research
-- GitHub token: REDACTED (env/git config only, never committed, never logged)
+**Classifications:** CONFIRMED-DIVERGENCE → fix; ALREADY-FIXED → FIXED-ALREADY with
+reproduction; FALSE-POSITIVE → INVALID with evidence; OUTDATED-EVIDENCE → SUPERSEDED;
+NEW-FINDING → file + fix this session.
 
-Workflow: Verify → Reproduce → Classify (CONFIRMED-DIVERGENCE / ALREADY-FIXED /
-FALSE-POSITIVE / OUTDATED-EVIDENCE / NEW-FINDING) → Fix → Re-review → Test →
-Benchmark → Document → Push → Loop. One finding, one verified fix, one push.
-Pull frequently, never force-push, leave main green. Re-implement from
-understanding; never paste decompiled code; cite the corpus artifact in commit
-messages. Every fix paired with a test that fails before and passes after.
-Safety hardenings preserved. No stubs/mocks/fallbacks that mask failure.
-The audit trail is the deliverable: finding files get Resolution sections,
-CROSS-REF-MATRIX cells go to MATCH, SUMMARY/module docs/ledger/worklog updated.
+**SOP:** Verify → Reproduce → Classify → Fix → Re-review → Test → Benchmark → Document →
+Push → Loop. One finding, one verified fix, one push. Pull frequently, never force-push,
+leave main green. Re-implement from understanding — never paste decompiled code, never
+copy proprietary strings. Every fix paired with a test that fails before and passes after.
 
-Fix order: ACUTE → SEVERE → MAJOR → MINOR → INFORMATIONAL (ACKNOWLEDGED) →
-TRACKED-OPEN. Performance fixes measured, not guessed. Windows CI green
-(MSVC /W4 /WX, Win7-inclusive import gate), Linux CI green (ASan/UBSan/TSan,
-fuzz smoke). Tag a release if the audit closes cleanly. Aim: 20+ fixes.
+**Fix order:** ACUTE → SEVERE → MAJOR → MINOR → INFORMATIONAL (ACKNOWLEDGED) → TRACKED-OPEN.
+User's session emphasis: "Fix all the audit findings (priority to major first) one by one …
+Aim for at least 20+ fixes in this session."
+
+**Session pins:** opened at core `98079347` (HEAD at clone), corpus `be0cfe9`.
+Board at open (filesystem truth): 77 active — 1 ACUTE (A-014) · 9 SEVERE · 28 MAJOR ·
+32 MINOR · 7 INFO / 64 files in findings/FIXED/ / 6 tracked-open.

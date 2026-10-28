@@ -123,6 +123,46 @@ TEST(Grading, EmailCategoryFastPath) {
     EXPECT_NE(Grade::High, deleted_txt->grade()); /* not email, not twin */
 }
 
+TEST(Grading, RefsAndBtrfsDeletedFilesGradeHigh) {
+    /* S-061: the og's insert-time hook grades every non-existing ReFS
+     * (kind 10) and Btrfs (kind 0xB) file High unconditionally
+     * (FUN_14038a470 :605481-497 - FUN_140089630(node,2) + the gauge
+     * ticks DAT_141be5830/5828 for both kinds, verified first-hand).
+     * The pre-fix core returned early without touching the grade -
+     * the whole ReFS/Btrfs population sat at Average. */
+    ResultTree t;
+    auto* root = t.add_root(u"Found");
+    auto* refs_del =
+        add_file(t, root, "notes.txt", 900, u32(FsKindCode::Refs), DeletedState::Deleted);
+    auto* btrfs_del =
+        add_file(t, root, "photo.jpg", 900, u32(FsKindCode::Btrfs), DeletedState::Deleted);
+    /* control: the same shape on ext4 stays Average (no insert rule) */
+    auto* ext4_del =
+        add_file(t, root, "notes.txt", 900, u32(FsKindCode::Ext4), DeletedState::Deleted);
+    grading::AssistantStats st;
+    grading::grade_tree(t, single_disk_ctx(), st);
+    EXPECT_EQ(Grade::High, refs_del->grade()) << "ReFS deleted -> insert-time High";
+    EXPECT_EQ(Grade::High, btrfs_del->grade()) << "Btrfs deleted -> insert-time High";
+    EXPECT_NE(Grade::High, ext4_del->grade()) << "ext4 deleted keeps the generic path";
+}
+
+TEST(Grading, RefsExistingStillHighAndSmallStillLow) {
+    /* rule-order guards: the Active rule precedes the ReFS/Btrfs rule
+     * (identical outcome - High), and the size<1 Low rule precedes both
+     * (the og's insert hook is gated on size via the completion pass's
+     * :605726-27 - a zero-size node grades Low on every FS). */
+    ResultTree t;
+    auto* root = t.add_root(u"Found");
+    auto* refs_live =
+        add_file(t, root, "live.txt", 100, u32(FsKindCode::Refs), DeletedState::Active);
+    auto* refs_zero =
+        add_file(t, root, "zero.txt", 0, u32(FsKindCode::Refs), DeletedState::Deleted);
+    grading::AssistantStats st;
+    grading::grade_tree(t, single_disk_ctx(), st);
+    EXPECT_EQ(Grade::High, refs_live->grade());
+    EXPECT_EQ(Grade::Low, refs_zero->grade());
+}
+
 TEST(Grading, ExistingFilesHighDeletedNot) {
     /* the insert rule (FUN_14037a8a0): existing + size >= 1 -> 2 */
     ResultTree t;
@@ -164,26 +204,94 @@ TEST(Grading, NtfsDeviceIndexRuleUpgrades) {
 }
 
 TEST(Grading, ExtensionTableGatesDeepValidation) {
-    /* only table extensions enter the twin detection: two same-key files
-     * with in-table extensions -> twins; out-of-table -> no twin */
+    /* S-058 re-pin: the og's gate is NOT-IN-TABLE (FUN_1401bebe0 is the
+     * iterator INEQUALITY comparator - the :605743 deep-validation block
+     * runs exactly when the 169-key set lookup MISSES; the control case
+     * at :585885-905 calibrates the direction). Two same-key files with
+     * OUT-OF-TABLE extensions -> twins; in-table -> the engine-default
+     * grade stands, no twin machinery. (The pre-fix pin ran the twins
+     * for the in-table pair - the s5 evidence's inverted polarity line,
+     * which this test had pinned.) */
     ResultTree t;
     auto* root = t.add_root(u"Found");
-    auto* a1 = add_file(t, root, "a.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    auto* a1 = add_file(t, root, "a.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x5000, 0x400);
-    auto* a2 = add_file(t, root, "b.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    auto* a2 = add_file(t, root, "b.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x5000, 0x400);
-    auto* c1 = add_file(t, root, "c.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    auto* c1 = add_file(t, root, "c.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x9000, 0x400);
-    auto* c2 = add_file(t, root, "d.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    auto* c2 = add_file(t, root, "d.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x9000, 0x400);
+    auto* e1 = add_file(t, root, "noext1", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+                        Origin::Structured, 0xD000, 0x400);
+    auto* e2 = add_file(t, root, "noext2", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+                        Origin::Structured, 0xD000, 0x400);
     grading::AssistantStats st;
     grading::grade_tree(t, single_disk_ctx(), st);
-    EXPECT_TRUE(a1->overlap()) << "in-table (DOC) twins must be flagged";
-    EXPECT_TRUE(a2->overlap());
-    EXPECT_EQ(Grade::High, a1->grade());
-    EXPECT_EQ(Grade::High, a2->grade());
-    EXPECT_FALSE(c1->overlap()) << "out-of-table extensions never enter the deep path";
-    EXPECT_FALSE(c2->overlap());
+    EXPECT_FALSE(a1->overlap()) << "in-table (DOC) extensions skip the deep path";
+    EXPECT_FALSE(a2->overlap());
+    EXPECT_NE(Grade::High, a1->grade()) << "no twin-induced promotion for in-table rows";
+    EXPECT_TRUE(c1->overlap()) << "out-of-table extensions enter the deep path";
+    EXPECT_TRUE(c2->overlap());
+    EXPECT_EQ(Grade::High, c1->grade());
+    EXPECT_EQ(Grade::High, c2->grade());
+}
+
+TEST(Grading, DotlessNamesSkipTwinDetection) {
+    /* the og's runtime set contains "" (the ctor's 2000-iteration init
+     * loop inserts the empty string after the 169 real keys), so
+     * dot-less files are IN-TABLE -> skip the deep path under the
+     * corrected polarity. Pins the "" coincidence so the polarity flip
+     * cannot regress it. */
+    ResultTree t;
+    auto* root = t.add_root(u"Found");
+    auto* a1 = add_file(t, root, "noext1", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+                        Origin::Structured, 0x5000, 0x400);
+    auto* a2 = add_file(t, root, "noext2", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+                        Origin::Structured, 0x5000, 0x400);
+    grading::AssistantStats st;
+    grading::grade_tree(t, single_disk_ctx(), st);
+    EXPECT_FALSE(a1->overlap()) << "dot-less names skip the twin path (the \"\" quirk)";
+    EXPECT_FALSE(a2->overlap());
+}
+
+TEST(Grading, RefsDeletedFilesGradeHigh) {
+    /* S-061: the og's insert-time hook (FUN_14038a470 :605492-496) sets
+     * grade 2 (High) for every non-existing ReFS node with the gauge
+     * ticks - the completion pass excludes FS 10 from the generic path
+     * precisely because insert already graded it. */
+    ResultTree t;
+    auto* root = t.add_root(u"Found");
+    auto* dead = add_file(t, root, "notes.txt", 500, u32(FsKindCode::Refs),
+                          DeletedState::Deleted);
+    grading::AssistantStats st;
+    grading::grade_tree(t, single_disk_ctx(), st);
+    EXPECT_EQ(Grade::High, dead->grade()) << "deleted ReFS rows grade High at insert";
+}
+
+TEST(Grading, BtrfsDeletedFilesGradeHigh) {
+    /* S-061 twin: FS 0xB gets the same insert-time grade-2 rule
+     * (:605485-489). */
+    ResultTree t;
+    auto* root = t.add_root(u"Found");
+    auto* dead = add_file(t, root, "photo.raw", 500, u32(FsKindCode::Btrfs),
+                          DeletedState::Deleted);
+    grading::AssistantStats st;
+    grading::grade_tree(t, single_disk_ctx(), st);
+    EXPECT_EQ(Grade::High, dead->grade()) << "deleted Btrfs rows grade High at insert";
+}
+
+TEST(Grading, RefsExistingStillHigh) {
+    /* S-061 guard: existing (Active) ReFS files already grade High via
+     * the Active rule that PRECEDES the ReFS/Btrfs rule - identical
+     * observable outcome, pinned so the rule ordering cannot regress. */
+    ResultTree t;
+    auto* root = t.add_root(u"Found");
+    auto* live = add_file(t, root, "live.txt", 500, u32(FsKindCode::Refs),
+                          DeletedState::Active);
+    grading::AssistantStats st;
+    grading::grade_tree(t, single_disk_ctx(), st);
+    EXPECT_EQ(Grade::High, live->grade());
 }
 
 TEST(Grading, TwinAddressFlagsBoth) {
@@ -191,15 +299,21 @@ TEST(Grading, TwinAddressFlagsBoth) {
      * 605781 matches keys AND categories before FUN_14038ba60 flags) */
     ResultTree t;
     auto* root = t.add_root(u"Found");
-    /* same extent-end + same category (doc/doc) -> twins */
-    auto* x1 = add_file(t, root, "x.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    /* same extent-end + same category -> twins. S-058: the twin
+     * fixtures ride OUT-OF-TABLE extensions (.zzqx/.ipynb) - the
+     * corrected og gate runs the twin machinery only when the 169-key
+     * lookup MISSES; the pre-fix fixtures used .doc/.mp3 (in-table)
+     * which now skip the deep path. */
+    auto* x1 = add_file(t, root, "x.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x5000, 0x400);
-    auto* x2 = add_file(t, root, "y.doc", 0x400, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    auto* x2 = add_file(t, root, "y.zzqx", 0x400, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x5100, 0x300);
-    /* same extent-end + DIFFERENT category (doc/mp3) -> not twins */
-    auto* y1 = add_file(t, root, "p1.mp3", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    /* same extent-end + DIFFERENT category (zzqx = Other vs ace =
+     * Archive; both out-of-grading-table so the gate passes) -> not
+     * twins */
+    auto* y1 = add_file(t, root, "p1.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0xA000, 0x400);
-    auto* y2 = add_file(t, root, "p2.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    auto* y2 = add_file(t, root, "p2.ace", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0xA000, 0x400);
     grading::AssistantStats st;
     grading::grade_tree(t, single_disk_ctx(), st);
@@ -218,6 +332,126 @@ TEST(Grading, TableMembershipAndCount) {
     EXPECT_FALSE(grading::extension_in_grading_table("zzqx"));
     EXPECT_FALSE(grading::extension_in_grading_table(""));
     EXPECT_EQ(size_t(169), grading::grading_table_entry_count());
+}
+
+/* ---- M-133: the twin-key device-family shift set ----------------------- */
+
+namespace {
+/* Two slots one kDeviceUnit apart: slot 0 (ordinal 0, the unshifted
+ * neighbor) and slot 1 (ordinal 1, the device under test). Files at the
+ * SAME in-slot extent end collide iff the slot-1 kind shifts: key_X =
+ * U + end + (1 - s)U vs key_Y = end + 0 -> equal iff s == 2. This is
+ * the exact arithmetic the og's kind set drives (DRWUI :605752-756:
+ * kind 1 [FAT16] and kind 4 [EXT2/3] shift; everything else does not). */
+grading::GradeContext two_slot_ctx(u32 slot1_kind) {
+    grading::GradeContext ctx;
+    grading::DeviceSlot s0;
+    s0.base = 0;
+    s0.disk_ordinal = 0;
+    s0.fs_kind =
+        u32(FsKindCode::Hfsplus); /* the unshifted neighbor: a
+                                   * kind that reaches the twin path (NTFS/ReFS/Btrfs are
+                                   * intercepted by solo_rules before twin collection - "twins are a
+                                   * FAT-family path" is the og's own comment) */
+    ctx.devices.push_back(s0);
+    grading::DeviceSlot s1;
+    s1.base = grading::kDeviceUnit;
+    s1.disk_ordinal = 1;
+    s1.fs_kind = slot1_kind;
+    ctx.devices.push_back(s1);
+    return ctx;
+}
+
+/* A deleted out-of-table (.doc fixture name kept for the M-133 lookup;
+ * the S-058 gate needs out-of-table exts to reach the twin machinery -
+ * zzqx below) pair at the same in-slot extent end: one on
+ * slot 1 (the kind under test), one on slot 0 (NTFS, never shifted). */
+std::pair<FileNode*, FileNode*> add_twin_pair(ResultTree& t, u32 slot1_kind) {
+    auto* root = t.add_root(u"Found");
+    add_file(t, root, "x.zzqx", 500, slot1_kind, DeletedState::Deleted, Origin::Structured,
+             grading::kDeviceUnit + 0x5000, 0x400);
+    add_file(t, root, "y.zzqx", 500, u32(FsKindCode::Hfsplus), DeletedState::Deleted,
+             Origin::Structured, 0x5000, 0x400);
+    FileNode* x = nullptr;
+    FileNode* y = nullptr;
+    for (auto* n = root->first_child(); n; n = n->next_sibling()) {
+        if (n->name_utf8() == "x.zzqx")
+            x = n;
+        else if (n->name_utf8() == "y.zzqx")
+            y = n;
+    }
+    return {x, y};
+}
+} // namespace
+
+TEST(Grading, TwinKeyFat16StillShifts) {
+    /* M-133 pin: FAT16 (og kind 1) KEEPS the -2 shift - the one FAT
+     * member the og shifts. Same in-slot extent end + shift 2 -> the
+     * keys coincide -> twins. Passes pre- and post-fix (the pin). */
+    ResultTree t;
+    auto [x, y] = add_twin_pair(t, u32(FsKindCode::Fat16));
+    ASSERT_NE(x, nullptr);
+    ASSERT_NE(y, nullptr);
+    grading::AssistantStats st;
+    grading::grade_tree(t, two_slot_ctx(u32(FsKindCode::Fat16)), st);
+    EXPECT_TRUE(x->overlap()) << "FAT16 keeps the og's -2 shift (kind 1)";
+    EXPECT_TRUE(y->overlap());
+}
+
+TEST(Grading, TwinKeyFat32DoesNotShift) {
+    /* M-133 RED: the og shifts kinds {1, 4} ONLY - FAT32 (kind 2) is
+     * NOT shifted. The pre-fix core shifted the whole FAT family: a
+     * FAT32 device's files collided with the neighbor ordinal's. */
+    ResultTree t;
+    auto [x, y] = add_twin_pair(t, u32(FsKindCode::Fat32));
+    ASSERT_NE(x, nullptr);
+    ASSERT_NE(y, nullptr);
+    grading::AssistantStats st;
+    grading::grade_tree(t, two_slot_ctx(u32(FsKindCode::Fat32)), st);
+    EXPECT_FALSE(x->overlap()) << "FAT32 does not shift (og kind 2)";
+    EXPECT_FALSE(y->overlap());
+}
+
+TEST(Grading, TwinKeyExfatDoesNotShift) {
+    /* M-133 RED: exFAT (og kind 7) is NOT shifted. */
+    ResultTree t;
+    auto [x, y] = add_twin_pair(t, u32(FsKindCode::Exfat));
+    ASSERT_NE(x, nullptr);
+    ASSERT_NE(y, nullptr);
+    grading::AssistantStats st;
+    grading::grade_tree(t, two_slot_ctx(u32(FsKindCode::Exfat)), st);
+    EXPECT_FALSE(x->overlap()) << "exFAT does not shift (og kind 7)";
+    EXPECT_FALSE(y->overlap());
+}
+
+TEST(Grading, TwinKeyFat12DoesNotShift) {
+    /* M-133 RED: FAT12 (og kind 0) is NOT shifted. */
+    ResultTree t;
+    auto [x, y] = add_twin_pair(t, u32(FsKindCode::Fat12));
+    ASSERT_NE(x, nullptr);
+    ASSERT_NE(y, nullptr);
+    grading::AssistantStats st;
+    grading::grade_tree(t, two_slot_ctx(u32(FsKindCode::Fat12)), st);
+    EXPECT_FALSE(x->overlap()) << "FAT12 does not shift (og kind 0)";
+    EXPECT_FALSE(y->overlap());
+}
+
+TEST(Grading, TwinKeyExt4NtfsNeverShift) {
+    /* M-133 pins: the unshifted majority - EXT4 (9, NOT the shifted
+     * code 4) and ZFS (13) never shift; both reach the twin path so the
+     * no-collision verdict is meaningful, not vacuous. */
+    for (u32 kind : {u32(FsKindCode::Ext4), u32(FsKindCode::Zfs)}) {
+        ResultTree t;
+        add_twin_pair(t, kind);
+        auto* root = t.roots()[0];
+        FileNode *x = nullptr, *y = nullptr;
+        for (auto* n = root->first_child(); n; n = n->next_sibling())
+            (n->name_utf8() == "x.zzqx" ? x : y) = n;
+        grading::AssistantStats st;
+        grading::grade_tree(t, two_slot_ctx(kind), st);
+        EXPECT_FALSE(x->overlap()) << "kind " << kind << " never shifts";
+        EXPECT_FALSE(y->overlap());
+    }
 }
 
 /* ---- per-selection re-grade ---- */
@@ -380,4 +614,150 @@ TEST(Report, ContainsAssistantStatistics) {
     a.matched = 0;
     const std::string small = recovery::report::build_report({}, t, &a);
     EXPECT_NE(std::string::npos, small.find("\"small_result\":1"));
+}
+
+/* ===================================================================== */
+/* M-134 (diff-to-fix): the og's deep-read grade validation              */
+/* (FUN_14038c470 :606291-619, decoded) - a bounded ONE-SECTOR content  */
+/* read that flips the grade on actual disk bytes: addr==0 -> first-32- */
+/* zero or first-4-0xFF grades Low; addr>0 -> the previous sector's     */
+/* last-16-zero grades High; the overlap flag skips the read; the       */
+/* graded bit makes the per-selection re-grade a one-shot.              */
+/* ===================================================================== */
+
+namespace {
+/* a controllable reader device for the content rules (512-byte sectors) */
+class GradeMemDevice final : public IStorageDevice {
+public:
+    explicit GradeMemDevice(u64 bytes, u32 sector = 512) : data_(size_t(bytes), 0) {
+        geom_.logical_sector = sector;
+        geom_.physical_sector = sector;
+        geom_.sector_count = bytes / sector;
+        geom_.total_bytes = geom_.sector_count * sector;
+    }
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (off > data_.size() || len > data_.size() - off)
+            return ERR_RANGE_OUT_OF_BOUNDS;
+        std::memcpy(buf, data_.data() + off, len);
+        return OK;
+    }
+    const Geometry& geometry() const override { return geom_; }
+    std::vector<u8> data_;
+
+private:
+    Geometry geom_;
+};
+} // namespace
+
+TEST(Grading, DeepReadZeroedFirstSectorGradesLow) {
+    /* a not-in-table file whose first extent sits at device byte 0 with
+     * the first 32 bytes ZERO (overwritten content): the og's deep read
+     * flips it to Low. Fail-before: no reader, no content rule - the
+     * grade stayed whatever the structural rules gave. */
+    GradeMemDevice dev(u64(64) * 512);
+    grading::GradeContext ctx = single_disk_ctx();
+    ctx.reader.dev = &dev;
+    ResultTree t;
+    auto* root = t.add_root(u"Found");
+    auto* f = add_file(t, root, "gone.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+                       Origin::Structured, 0, 0x400);
+    dev.data_[0] = 0; /* the whole first sector stays zeroed */
+    grading::AssistantStats st;
+    grading::grade_tree(t, ctx, st);
+    EXPECT_EQ(Grade::Low, f->grade()) << "the zeroed first sector demotes to Low";
+}
+
+TEST(Grading, DeepRead0xFFHeadGradesLow) {
+    GradeMemDevice dev(u64(64) * 512);
+    grading::GradeContext ctx = single_disk_ctx();
+    ctx.reader.dev = &dev;
+    ResultTree t;
+    auto* root = t.add_root(u"Found");
+    auto* f = add_file(t, root, "erased.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+                       Origin::Structured, 0, 0x400);
+    dev.data_[0] = dev.data_[1] = dev.data_[2] = dev.data_[3] = 0xFF;
+    dev.data_[40] = 0x42; /* not all-zero: the 0xFF rule must be the one that fires */
+    grading::AssistantStats st;
+    grading::grade_tree(t, ctx, st);
+    EXPECT_EQ(Grade::Low, f->grade()) << "the 0xFF-filled head demotes to Low";
+}
+
+TEST(Grading, DeepReadPrevSectorTailZeroGradesHigh) {
+    /* a not-in-table file at sector 2 whose PRECEDING sector (1) ends in
+     * 16 zero bytes: the og grades High (intact-alignment evidence) */
+    GradeMemDevice dev(u64(64) * 512);
+    /* make sector 1's head non-zero so only the TAIL rule can fire */
+    dev.data_[512] = 0x77;
+    dev.data_[512 + 100] = 0x33;
+    grading::GradeContext ctx = single_disk_ctx();
+    ctx.reader.dev = &dev;
+    ResultTree t;
+    auto* root = t.add_root(u"Found");
+    auto* f = add_file(t, root, "padded.zzqx", 500, u32(FsKindCode::Fat16),
+                       DeletedState::Deleted, Origin::Structured, 2 * 512, 0x400);
+    grading::AssistantStats st;
+    grading::grade_tree(t, ctx, st);
+    EXPECT_EQ(Grade::High, f->grade()) << "the zero tail of the previous sector promotes to High";
+}
+
+TEST(Grading, DeepReadSkipsOverlapFlagged) {
+    /* the overlap flag skips the content read (FUN_1401c5da0 != 0 ->
+     * return): twins at zeroed content keep their twin-induced High -
+     * the content rule never demotes them */
+    GradeMemDevice dev(u64(64) * 512); /* all-zero content */
+    grading::GradeContext ctx = single_disk_ctx();
+    ctx.reader.dev = &dev;
+    ResultTree t;
+    auto* root = t.add_root(u"Found");
+    auto* a = add_file(t, root, "twin1.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+                       Origin::Structured, 0x5000, 0x400);
+    auto* b = add_file(t, root, "twin2.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+                       Origin::Structured, 0x5000, 0x400);
+    /* the only file NOT twinned sits at byte 0 over zeroed content */
+    auto* solo = add_file(t, root, "solo.zzqx", 500, u32(FsKindCode::Fat16),
+                          DeletedState::Deleted, Origin::Structured, 0, 0x400);
+    grading::AssistantStats st;
+    grading::grade_tree(t, ctx, st);
+    EXPECT_TRUE(a->overlap());
+    EXPECT_TRUE(b->overlap());
+    EXPECT_EQ(Grade::High, a->grade()) << "the twins keep their High - no content read";
+    EXPECT_EQ(Grade::High, b->grade());
+    EXPECT_EQ(Grade::Low, solo->grade()) << "the unflagged solo node takes the content rule";
+}
+
+TEST(Grading, RegradeRunsFullTreeOnce) {
+    /* the graded bit makes the per-selection re-grade a true one-shot
+     * (FUN_1401d7110's grade==1 && graded-bit-clear gate). Fail-before:
+     * regrade re-ran forever (idempotent but unbounded). */
+    ResultTree t;
+    auto* root = t.add_root(u"Found");
+    auto* avg = add_file(t, root, "avg.zzqx", 5000, u32(FsKindCode::Fat16),
+                         DeletedState::Deleted, Origin::Structured, 0x9000, 0x400);
+    grading::AssistantStats st;
+    /* no reader: the completion pass marks graded only through the deep
+     * read loop - without a reader the node stays ungraded (the ABI
+     * re-grade path). With a reader it would be marked here already. */
+    grading::grade_tree(t, single_disk_ctx(), st);
+    ASSERT_EQ(Grade::Average, avg->grade());
+    EXPECT_FALSE(avg->graded()) << "no reader: the completion pass left the bit clear";
+    EXPECT_TRUE(grading::regrade_node(avg, single_disk_ctx(), &t))
+        << "first call: eligible (grade 1, bit clear)";
+    EXPECT_TRUE(avg->graded()) << "the re-grade marks the one-shot bit";
+    EXPECT_FALSE(grading::regrade_node(avg, single_disk_ctx(), &t))
+        << "second call: the one-shot gate refuses";
+}
+
+TEST(Grading, DeepReadReaderAbsentChangesNothing) {
+    /* the structural back-compat pin: no reader -> the content rules are
+     * skipped exactly as pre-M-134 (the ABI session re-grade path) */
+    GradeMemDevice dev(u64(64) * 512);
+    ResultTree t;
+    auto* root = t.add_root(u"Found");
+    auto* f = add_file(t, root, "zeroed.zzqx", 500, u32(FsKindCode::Fat16),
+                       DeletedState::Deleted, Origin::Structured, 0, 0x400);
+    (void)dev;
+    grading::AssistantStats st;
+    grading::grade_tree(t, single_disk_ctx(), st);
+    EXPECT_NE(Grade::Low, f->grade())
+        << "without a reader the zeroed content cannot demote (the registered seam)";
 }
