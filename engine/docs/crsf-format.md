@@ -27,6 +27,7 @@ additions: explicit versioning, per-record CRC32, corruption skip-forward.
 +0x04 type u32     1 SESSION_STATE | 2 VOLUME_INFO | 3 PARTITION_CONTEXT
                     4 RESULT_TREE   | 5 ERROR_MAP | 6 ASSISTANT_STATS
                     7 ALLOC_MAP     | 8 DISK_LAYOUT (M-042)
+                    9 FS_CHECK (M-041)
 +0x08 session_id u64
 +0x10 chain u32    on-disk bytes after the header (patched on finalize)
 +0x14 crc32 u32    CRC32 of the DECOMPRESSED payload
@@ -94,3 +95,34 @@ On the next search the freshly enumerated layout is compared against it
 restored lost candidate is re-read at its start LBA against the CURRENT
 disk and stale records are DROPPED before they reach the UI (the og's
 PRD:20748-20842 search-start re-validation).
+
+## FS_CHECK payload (M-041)
+
+```
+u32 error_count
+per error: { u32 code, u64 param, u32 record_no,
+             u32 path_len, u8 path_hint[path_len] }
+u32 fat_copies_compared
+u32 fat_entries_checked
+u32 clusters_visited
+u32 mft_records_examined
+u32 family_detected        0/1
+u8  family[]               NUL-terminated ASCII
+(zero pad to an 8-byte multiple; the writer pads, the reader stops
+ at the NUL)
+```
+
+The damage-audit check-phase report (the og's FileSystemCheck error set,
+codes 0x1001..0x100E: 0x1001 volume-too-small, 0x1002 duplicate claim,
+0x1003 orphan / free-but-allocated cluster, 0x1004 size-vs-chain, 0x1005
+FAT-copy mismatch, 0x1006 FAT-table invalid, 0x1007 dir-tree audit,
+0x1008 $MFT-name, 0x1009 $MFTMirr, 0x100A NTFS version gate, 0x100B
+$Bitmap floor, 0x100D DBR invalid, 0x100E catastrophic). `param` carries
+the cluster/LCN/version-word context where the og passes one;
+`record_no` the claiming record; `path_hint` an ASCII fragment populated
+by the dir-walk contexts (0x1007 per-entry, 0x1006's walk hits, 0x1004's
+size-vs-chain). OPTIONAL record with the same skip-unknown-types rule:
+sessions saved without the check stage simply lack it and the report
+reads as empty (cr_crsf.h:70-75; serializer src/core/check/
+cr_fscheck.cpp:1009-1044, deserializer :1046-1089 —
+`check::serialize_fs_check`).
