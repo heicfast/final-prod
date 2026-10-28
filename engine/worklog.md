@@ -3592,3 +3592,43 @@ Handoff — the highest-value next fixes from THIS lane's filings:
     documentation-only);
 then the standing board order (S-051/S-052 whole-disk + LDM, M-108's BOM
 head-gate, the carve school-2/3 children).
+
+---
+Task ID: S40/T1 (session-40 open — baselines + prompt + territory claim)
+Agent: session-40 diff-fix lane (the user's minor-first directive)
+
+Work Log:
+- Baselines recorded at open: **core origin/main `461825d8`** (the N-111 JP2 landing — pulled at T1, one
+  commit past the M-108 retirement `4a6a5164`), **corpus `be0cfe9`** (unmoved). Board at open (filesystem
+  truth, re-counted post-pull): **49 active (6 SEVERE · 18 MAJOR · 20 MINOR · 5 INFO) + 3 tracked-open**
+  (OQ-S4-3, OQ-S10-1, OQ-S10-3) + FIXED/ holding the retired-in-place set (OQ-S8-1, OQ-S10-2, N-111).
+  **Rebase reconciliation #1 (recorded per the coordination contract):** the S11 audit wave landed
+  mid-push (`85c8491d`+`d50a54dc`+`53495c0c` — S-053/N-138..N-141/I-031/I-032 filed, the OQ-S10-2
+  dead-payload resolution REFUTED by N-138's byte-level decode, the counts re-truthed) — board at the
+  rebase point: **57 active (7 SEVERE · 18 MAJOR · 25 MINOR · 7 INFO) / 294 ledger rows / 3 tracked-open**.
+  This lane's queue is unaffected by the new filings except where noted per-finding (N-130's OQ-S10-2
+  addendum connection); the S11 lane's own fix claims are honored as theirs.
+- Prompt saved token-redacted: `worklog/session-diff-fix-40-prompt.md` (the generic
+  `session-diff-fix-prompt.md` name is taken by the session-1-era copy; the numbered convention is the
+  repo's own). Read twice; the minor-first directive governs this lane's queue.
+- **Session-40 territory claim (coordination contract, pull-before-push discipline active):** the
+  **MINOR tier except the carve lane's in-flight school children** — N-112/N-113/N-115 belong to the
+  active session-39 carve lane (N-111 just landed; per the S38 no-duplication rule their next formats
+  are theirs) — **and except the driver-repo residuals N-107/N-127** (their fix surfaces live in
+  heicfast/rda-driver, outside this session's core+corpus grant; carried by OQ-S10-3). This lane's
+  initial queue, minor-first: **N-090, N-096, N-121, N-122, N-125, N-126, N-128, N-129, N-130, N-131,
+  N-132, N-133, N-134, N-135, N-137** (15 findings), each with independent re-verification vs the
+  corpus before any code. After the minor queue: the INFORMATIONAL tier (I-026..I-030, re-claiming at
+  that point to honor session-39's earlier board), then tracked-open, then whatever MAJOR/SEVERE
+  territory remains unclaimed. Pull-fetch before every push; convergence events resolved per the
+  earlier-push-wins precedent.
+- Convention adopted this lane (per the user's directive and the session-39 carve lane's live
+  precedent): resolved findings get the **Resolution section in the finding file, then `git mv` into
+  `diff-to-fix/findings/FIXED/`**, the FIXED-LEDGER row, the matrix/module/SUMMARY updates — nothing
+  deleted, the file's pre-move history preserved by git.
+
+Stage Summary:
+- Next: build/test green baseline (cmake preset linux-release; full suite + the local gate mirrors),
+  then the audit-doc read (SEVERITY-SCALE/PARAMETERS/CROSS-REF-MATRIX/the 15 queued finding files +
+  their cited corpus artifacts), then the per-finding loop: verify → reproduce → classify → fix →
+  test → trail → push.
