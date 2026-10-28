@@ -3875,3 +3875,71 @@ Stage Summary:
 - 12 findings (1 SEVERE · 3 MAJOR · 7 MINOR · 1 INFO) + 2 addenda + 7 errata rows + the evidence sheet; the go-deeper mandate's five lanes all closed with recorded negative results.
 - The parallel-lane environment stayed hot the whole session (11B/11C/11D/39/39B/S40 + the second S11 instance); every filing re-coordinated against the board at disk time; the read-only guarantee holds (this session's commits touch only diff-to-fix/ + worklog*).
 - Remaining: T12 (the close — the board count truth pass at the final push, the worklog handoff, the OQ-S11-1 tracked-open disposition update).
+
+---
+## Session-11-lead CLOSE (2026-10-29 — the continuation lane's handoff)
+
+**Audited: core `7990a86d` at open → the `461825d8`-lineage at filing (the board
+moved three times mid-session; every filing's core-cites re-checked at disk time);
+corpus `be0cfe9` (unmoved).** Final commit: `aab031ac`-lineage (the waves-2-3
+landing, itself rebased twice over the concurrent lanes). Message-truth note: the
+aab031ac commit MESSAGE lists the pre-reconciliation IDs (M-112/N-142/N-147); the
+CONTENT is the reconciled truth (M-115/N-149/the N-147 drop) — the content, not
+the message, is authoritative (the f166440b precedent).
+
+**The three asks, delivered:**
+1. **Remove-the-fixed (wave 1):** M-102/M-083 independently PARITY-VERIFIED (the
+   engine layer executed standalone — 40/40 checks, zero ASan — the two-call
+   probe matrix, the 0x50030009+bytes_needed refusal with rgba untouched, caps
+   validation refusals, the complete-PNG/truncated-PNG/truncated-JPEG
+   truncation-disclosure trio, the full grade-setter semantics) and retired
+   (racing the parallel 11B fix lane's own deletion — the verification record
+   rides the ledger cells + evidence/s11-board-truth.md); the N-129 ID collision
+   repaired per the file-addition timestamps; the OQ-S10-2 collision repaired
+   (the driver-repo file → OQ-S10-3); the FIXED-LEDGER's committed merge-conflict
+   resolved; M-041's corpus-SHA cell, M-088's placeholder + fictional path, and
+   the 54-row as-recorded-in-file census repaired/recorded; N-137 filed (the ABI
+   header's never-returned contradiction + the inert allow_embedded knob).
+2. **Go more deep (waves 2-3):** five lanes, all closed with recorded negative
+   results — the RAWSearchDLL infrastructure (the 17-row MATCH table; the unique
+   S-054/N-149/N-143), the og config/data assets (the 40-asset pass; every
+   engine-behavior asset byte-identity re-verified; I-033), the DRWUI decode
+   (OQ-S11-1 RESOLVED — the promotion is read-gated, binary-verified; M-115 +
+   N-144), the nine ghidra trees (M-113/M-114/N-145; the binary-level CLEAN
+   census re-confirmed; legacy.dll closed), the core stand-in register
+   (N-146/N-148; no TODO debt, no stubs, every refusal owned).
+3. **Mark all remaining:** 11 findings survive the push-time reconciliation
+   (S-054, M-115, M-113, M-114, N-149, N-143, N-144, N-145, N-146, N-148,
+   I-033) + 2 addenda (S-050's per-chunk repair feed; N-134's legacy.dll
+   closure) + 7 CORPUS-ERRATA rows + the consolidated evidence sheet.
+
+**Board at close: 64 active (8 SEVERE · 20 MAJOR · 29 MINOR · 7 INFO) — this
+lane's net contribution +11 filings; the concurrent lanes (11B/11C/11D/39/39B/S40
++ the second S11 instance) own the rest of the movement (their retirements:
+M-072/M-074/M-077/M-083/M-096/M-100/M-102/M-108/M-109/M-110/M-112/N-111/N-134/
+I-030 + the OQ resolutions; their filings: M-111/M-112/N-138..N-142/I-031/I-032/
+S-053 + more landing as this closes). Next free IDs: S-055+, M-116+, N-150+,
+I-034+, A-012+.** 3 tracked-open remain (OQ-S4-3, OQ-S10-1, OQ-S10-3 — the
+driver-repo grant boundary).
+
+**Recommended first fixes from THIS lane's filings (priority order):**
+1. **S-054** — the TS/M2TS cap: one constant × 2 rows + the provenance comment +
+   two pin tests; the wrong-output class, mechanical, no design work.
+2. **M-115** — the promotion trigger: the read-vs-decode verdict split in the
+   thumbnail outcome (the engine already reads the extents; disclose the read
+   separately) + the ≤20-byte skip + the cite repair; pairs with N-144's render
+   surface (one landing).
+3. **M-113** — the boot surgery: the reghive-writer module (Win32-only, the
+   platform doctrine) + the R-69 verdict flip; the VM drill is the acceptance.
+4. **M-114** — the SR-purge posture decision (host-consent plan item vs
+   registered decline) — a decision first, code second.
+5. **N-149** — the filter-exempt set: three format ids + one test.
+6. **N-146/N-148** — the registration sweeps (the FH11 re-home + the
+   comment-truth batch): one mechanical commit each.
+7. Then the standing order (S-051/S-052, the carve children, the S11B lane's
+   M-111/M-112 residue).
+
+**The read-only guarantee:** every commit this session touches only `diff-to-fix/`
++ `worklog*` (verified per-commit; the two finding retirements in wave 1 were git
+rm of files this session itself appended verification addenda to). No source
+code was modified. No fix was applied.
