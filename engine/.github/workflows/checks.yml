@@ -282,6 +282,12 @@ jobs:
 
           if ($failed) { exit 1 }
           Write-Host 'driverless refusal contract: all probes green'
+          # the exit-0-verdict lesson, applied to this very step: the last
+          # NATIVE command above exits 4 BY DESIGN (the refusal probe), and
+          # the runner's pwsh shim propagates $LASTEXITCODE when the script
+          # does not exit explicitly - this run's own first dispatch died
+          # exactly there (run 40684826829: every probe PASS, step red)
+          exit 0
 
       - name: Upload diagnostics on failure
         if: failure()

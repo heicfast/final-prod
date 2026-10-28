@@ -271,6 +271,7 @@ jobs:
           }
           $drv | Set-Content "$env:EVIDENCE\01-driver\api-driver-status.json" -Encoding utf8
           if ($failed) { exit 1 }
+          exit 0   # explicit: never inherit a probe's $LASTEXITCODE (the 40684826829 lesson)
 
       # ---- 6. the matrix: environment + probes + benchmark + scenarios -----------
       - name: Run the test + benchmark matrix (CLI + API lanes)
@@ -309,6 +310,7 @@ jobs:
           # teardown failures are recorded; the job verdict is the matrix's -
           # but a failed uninstall CONTRACT is re-raised so it cannot hide
           if ($LASTEXITCODE -ne 0) { Write-Host '::error::teardown contract violation (see evidence/99-teardown)'; exit 1 }
+          exit 0
 
       # ---- 8. the structured evidence artifact (ALWAYS) ---------------------------
       - name: Upload the structured evidence artifact
