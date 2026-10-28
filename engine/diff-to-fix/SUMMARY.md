@@ -1,5 +1,69 @@
-# SUMMARY.md — executive summary (the S41 continuation lane on top; the prior lanes below, newest-first)
+# SUMMARY.md — executive summary (the S42 continuation lane on top; the prior lanes below, newest-first)
 
+## S42 lane delta (2026-10-29 — the SECOND continuation audit lane per the user's second-session directive: remove-the-fixed, go-deeper, mark-all-remaining; audited core `869da779` at HEAD (a quiet window — no rebase needed), corpus `be0cfe9`; five parallel read lanes + the main-lane first-hand verification battery; evidence: `evidence/decompiled-quotes/s42-ogg-zip-typing-and-report-decodes.md`)
+
+**The remove-the-fixed wave (directive 1) — the full liveness battery at `869da779`:**
+**49 of 49 then-active findings STILL, zero falsely-active, zero phantom-fixed.**
+Every active finding's primary defect claim re-verified first-hand (grep/read per
+finding: S-040's image_create absence; S-048's zero `Reconstructed` in src; S-050's
+code absence AND its CAPABILITY-MATRIX §3 exclusion-list miss; the 21 MAJORs incl.
+M-106's 64-MiB stand-in read and M-107's 12 stand-in sites counted; the 17 MINORs
+grep-zero on their absences; N-148's UNDECODED comment read). The 5 driver-repo
+findings (M-086/M-087/M-089/N-107/N-127) stand as PUSHED-FORWARD (the third repo
+is out of the two-repo grant). The board's 64→49 movement was the fix lanes' own
+proper retirements (S-049/S-051+M-104/S-052/S-053+N-141/S-054+M-117-suppress/
+N-111..N-153/M-108..M-110/M-102/M-083/M-072/M-074/M-077/N-093 + the doc-truth
+batch) — no silent retirements. The SUMMARY's own "64 active (6/22/28/8)" was the
+stale arithmetic (never re-truthed after the retirement wave); the S42 filesystem
+re-count is the truth below.
+
+**This lane's unique product (all first-hand verified before filing):**
+- **N-154** (MINOR) — OfficeTagFromXML's five-branch ZIP typing tail: the og stamps
+  XMIND 0x86 / MMAP 0x87 / EDDX 0x8c / WFP 0x8d / DRP 0x91 (the WFP/DRP labels
+  binary-resolved from .rdata at RVAs 0x6d940/0x67c88 this session); N-115's
+  landing covered none; RawConfig's `[Filter]` keys couple to exactly these ids.
+- **N-155** (MINOR) — the failed-files "recovery log" is an HTML report
+  (`CSaveFailedFilesWithHtml`) whose rows carry a per-file tree-classification
+  column (Lost/Reconstructed/Tags-Extracted/Existing/Deleted/custom); R-58's
+  "text log" and API-DELTA row 21's "NOT IN CORPUS" refuted by the decode; the
+  core's JSON report lacks the axis.
+- **N-156** (MINOR) — the register-truth batch: I-034's census scope label + its
+  PHANTOM script citations; N-129's OQ-S10-1↔S-10-2 swap; inventory rows 79/104;
+  I-033 §12's overstated invariant; the M-117 ID-collision record.
+- **I-035** (INFO) — the never-walked decode register: SearchResult.txt (the
+  QA-gated full-result-list dump) + the DRWUI user-mode bad-sector skip policy
+  (12-read trigger / 2→64 MiB adaptive chunk / 0x163 / 163,840-sector toast /
+  1 GiB cap / cached bad-range short-circuit / file-backed bitmap — enriching
+  D-38/FB-S01's og-side record) + the HTML fragment constants.
+- **The M-117→M-118 renumber EXECUTED** (the SA-9 collision: the S41 lane's DBX
+  filing took M-117 2.5 minutes AFTER 0f5d57fb renumbered the suppress_overlap
+  finding into it — the retired row keeps the ID per earlier-push-wins; the DBX
+  finding is M-118; the freedom-check class recorded in N-156 item 7).
+- **N-150's S42 addendum** — the fix-wave-stale extension: 8 newly-underclaiming
+  API-DELTA rows + 6 new defect sites (the phantom `CR_UI_ERR_FVE_LOCKED` macro;
+  the dead duplicate `--label` handler with DIVERGENT semantics; ABI-CONTRACT §7i's
+  32 MiB residue; testing.md's 1,014-vs-1,199 census; the 81/78-vs-83 export counts
+  and 34/39-vs-42 code counts; bench/README's dead citations).
+- **The S-048/S-050 evidence refresh** (the folder census's unique product):
+  SaveScan/ = exactly 3 real .rsf sessions (magic verified first-hand; S-048's
+  189,115-row per-volume tree shape stands); EUFileRepair/ = 87 files = 5 repair
+  executables + 82 runtime DLLs, NO data assets (S-050's implement-vs-exclude
+  decision still open). The og-file census's "no undispositioned product surface"
+  verdict SURVIVES the S42 independent re-walk (1,470/1,470 files).
+- **OQ-S4-3 unchanged (tracked-open)**: the transport-chunking half stays
+  MEASURED; the TTFR half has no committed value (run 40747332987 in flight at the
+  pin; the emission/extraction wiring verified); NOT closeable from committed
+  evidence. bench/baseline.json still an empty placeholder.
+
+**Board after this lane's push: 53 active (3 SEVERE · 21 MAJOR · 20 MINOR ·
+9 INFO) / 328 ledger rows / 3 tracked-open (OQ-S4-3; OQ-S10-1; OQ-S10-3).**
+Next free IDs: S-055+, M-119+, N-157+, I-036+, A-013+.
+
+**Recommended fix-order contribution:** the S-048 tree-shape landing remains the
+highest-value SEVERE (the S40-severe lane's claim stands — its decode is in hand);
+N-154's entry-name half is mechanical on N-115's walk; N-155's classification axis
+is a small schema-bump landing; N-156 + N-150's addendum compose into one doc-truth
+sweep; the M-106/M-107 size-walk fleet remains the MAJOR tier's mechanical bulk.
 
 
 ## Session-40 severe-lane delta (2026-10-29 — the SEVERE-first diff-fix execution lane, parallel to the session-40 minor-first lane; opening on `461825d8`/corpus `be0cfe9`, re-merged over the hot parallel window through `7320a2f6`)
@@ -47,7 +111,7 @@ N-141 emission-gate landing on top of the 20+-commit window), corpus `be0cfe9` t
 N-142/I-033 IDs were concurrently consumed on the remote and renumbered per SA-9 — the
 DXF-999 finding twice: N-142 → N-151 → **N-152**, each time over a concurrent remote
 consumption):**
-- **M-117 (MAJOR)** — the Outlook Express **Dbx carve analyser entirely absent**: the og
+- **M-118 (MAJOR, renumbered from the lane's M-117 filing at S42 — the SA-9 collision with the retired suppress_overlap row)** — the Outlook Express **Dbx carve analyser entirely absent**: the og
   registers `RawSpeed::DbxAnalyser` (idx 0x15) under THREE magic keys (JMF6 / CF AD 12 FE /
   F7 89 34 2C — `RAWSearchDLL_decompiled.c:2192-2232`), validates via a 4-GUID Outlook
   Express identity table + the JMF6 version word (`FUN_180016740:17509`), sizes from
@@ -63,7 +127,7 @@ consumption):**
   CAD exports silently missed.
 - **I-034 (INFO)** — the **never-cited corpus-artifact register**: 23 of 283 artifacts
   carried zero trail citations; dispositioned one-by-one (the three SearchDLL family
-  censuses drove M-117/N-152; EUDCPEPM = the Todo-Backup sibling driver; burn = N-134's
+  censuses drove M-118/N-152 (the DBX finding's S42 renumber); EUDCPEPM = the Todo-Backup sibling driver; burn = N-134's
   media-builder family; UIUX/32 → S-050's addendum; the rest = D-26/OOS-UI). Plus the
   **750-entry og-file census**: NO undispositioned product surface.
 - **The remove-the-fixed wave (directive 1), pinned at `c7fa527c`:** the full liveness
@@ -92,7 +156,7 @@ unique — the remote's "302" arithmetic is the N-129 count-drift class on its o
 ledger claims) / 3 tracked-open (OQ-S4-3; OQ-S10-1; OQ-S10-3).** Next free IDs: S-055+, M-118+,
 N-153+, I-035+, A-012+. Evidence: `evidence/decompiled-quotes/s41-registry-key-residue.md`.
 
-**Recommended fix-order contribution:** M-117 rides the carve-lane queue after the
+**Recommended fix-order contribution:** M-118 (the S42 renumber of the DBX filing) rides the carve-lane queue after the
 school-2/3 children (the fix plan's two decode steps are the only prerequisites — the
 grammar is 80% decoded in the finding); N-152 is a one-row + one-branch landing on the
 existing DXF validator; N-132's remainder (row 45 + R-31's propagated clause + the two

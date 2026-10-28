@@ -1,5 +1,7 @@
 # S41/T9 evidence — the registry-key residue sweep (the never-filed N-026 territory)
 
+> **S42 renumber note (2026-10-29):** the DBX finding this evidence drove was filed by the S41 lane as M-117 and renumbered **M-118** at session-42 (the SA-9 collision with the retired suppress_overlap M-117). Every "M-117" mention below referring to the DBX analyser reads as M-118; mentions of the suppress_overlap design keep M-117.
+
 - **Task ID:** S41/T9 (session-41 continuation audit lane, the deep-comparison wave A)
 - **Date:** 2026-10-29
 - **Core HEAD:** `c7fa527c` · **Corpus HEAD:** `be0cfe9`

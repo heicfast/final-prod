@@ -4810,3 +4810,59 @@ lane (d4b487c8), S-052 by the third lane (f4e500de) — the remaining SEVERE set
 (S-048/S-050/S-040) is split: this lane takes S-048 first (the decode rides
 this lane's S-049 evidence mining); the 11D lane is free to take S-050/S-040 or
 converge per the first-push-wins convention.
+
+## Fix session 42 — the continuation audit lane (2026-10-29, the user's second-session directive: remove-the-fixed + go-deeper + mark-all-remaining; T1 pins: core `869da779` at HEAD (a quiet window — zero concurrent pushes), corpus `be0cfe9`; prompt saved token-redacted at worklog/session-42-continuation-audit-prompt.md)
+
+**READ-ONLY guarantee:** this lane's writes are confined to `diff-to-fix/` and
+`worklog*` (verified below before commit). No product code touched.
+
+**Wave 1 — the liveness battery (directive 1):** every active finding's primary
+defect claim re-verified first-hand at `869da779` — **49/49 STILL, zero
+falsely-active, zero phantom-fixed.** The greps/reads: S-040 (image_create
+grep-zero), S-048 (zero `Reconstructed` in src/), S-050 (absent from code AND
+CAPABILITY-MATRIX §3's exclusion list — both legs), M-073/M-076 (cr_ui_disk_info
+read — no TRIM fields)/M-078/M-098/M-099 (grep-zero)/M-101/M-103/M-105/M-106 (the
+ONE 64-MiB stand-in at cr_analysers.cpp:5530 read; the 500,000,000-bound comment)
+/M-107 (12 `64 << 20` sites counted)/M-111/M-112 (the "stays unported" comment at
+:3631-3632 read)/M-113/M-114 (grep-zero)/M-115 (the DecodeFailed ordering in
+cr_thumbnail.cpp:1288 read)/M-116 (cr_ui.h:1214-1224 — no entries field)/M-118
+(dbx grep-zero); N-090/N-126/N-131/N-139/N-140/N-143/N-144/N-145/N-149/N-152
+grep-zero; N-146 (the `32ull << 20` at :4379 read); N-148 (the UNDECODED comment
+at include/cr/table/cr_ldm.h:30-32 read); N-150 (re-verified + extended — see
+below). M-086/M-087/M-089/N-107/N-127 stand PUSHED-FORWARD (driver-repo-resident,
+the third repo outside the two-repo grant). The board's 64→49 movement was the fix
+lanes' own retirements (S-049/S-051+M-104/S-052/S-053+N-141/S-054+M-117-suppress/
+N-111..N-153/M-108..M-110/M-102/M-083/M-072/M-074/M-077/N-093) — the SUMMARY's
+"64 active" was stale arithmetic, re-truthed to the filesystem count.
+
+**Wave 2 — the go-deeper lanes (directive 2):** five parallel read agents —
+(a) the corpus config/data deep-diff (FileFilter.xml 1,481/1,481 MATCH re-verified;
+raw_signs 139/139; the config/ family; remote_config_data's json_raw/filter_generalraw;
+the named root files — everything dispositioned EXCEPT the five-branch typing tail),
+(b) the og-codebase folder census (1,470/1,470 files dispositioned; the I-034 verdict
+survives; 5 register-truth defects found; SaveScan's 3 .rsf sessions + EUFileRepair's
+87-file inventory feeding S-048/S-050), (c) the DRWUI never-walked hunt (the
+ISaveFailedFiles HTML family; SearchResult.txt; the 0x1400cb bad-sector cluster),
+(d) the core currency pass (stub census CLEAN; API-DELTA stale in both directions;
+the doc-number drift set), (e) the perf evidence pass (OQ-S4-3's state; the bench
+inventory). The main lane verified every load-bearing claim first-hand before
+filing (the decompile reads, the PE parse for the WFP/DRP labels, the grep
+transcripts — all in the evidence pack).
+
+**Wave 3 — the filings (directive 3, mark-all-remaining):** N-154 (the
+OfficeTagFromXML five-branch typing tail — RAWSearchDLL:53025-53100 first-hand,
+the WFP/DRP labels binary-resolved at .rdata RVAs 0x6d940/0x67c88, the RawConfig
+coupling at :12/:15/:17/:18/:22), N-155 (the failed-files HTML report —
+FUN_1403c6fc0's classification mapping first-hand, the R-58/API-DELTA-21 refutations),
+N-156 (the register-truth batch — I-034's scope label + phantom scripts, N-129's
+OQ swap, rows 79/104, I-033 §12), I-035 (the never-walked decode register),
+N-150's S42 addendum (8 underclaiming rows + 6 new defect sites), the M-117→M-118
+RENUMBER executed (the SA-9 collision — the S41 lane's freedom check raced
+0f5d57fb's push by 2.5 minutes; the retired suppress_overlap row keeps M-117).
+
+**Board at this lane's push: 53 active (3 SEVERE · 21 MAJOR · 20 MINOR · 9 INFO) /
+328 ledger rows / 3 tracked-open.** Next free IDs: S-055+, M-119+, N-157+, I-036+,
+A-013+. Recommended next: the S-048 tree-shape landing (the S40-severe lane's claim
+stands), then N-154's entry-name half (mechanical on N-115's walk), N-155's
+classification axis, the N-156+N-150 doc-truth sweep, the M-106/M-107 size-walk
+fleet.

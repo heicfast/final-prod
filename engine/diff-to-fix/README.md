@@ -1,11 +1,43 @@
 # diff-to-fix/ — parity audit roadmap (core_recovery vs easeus-drw-research)
 
+**Session-42 S42 lane (2026-10-29 — the SECOND continuation audit lane, the user's
+same three-ask directive: remove-the-fixed + go-deeper + mark-all-remaining):**
+audited **core `869da779`** (HEAD at open — a quiet window, no rebase), **corpus
+`be0cfe9`**. Five parallel read lanes (the corpus config deep-diff, the og-codebase
+folder census, the DRWUI never-walked hunt, the core currency pass, the perf
+evidence pass) + the main-lane first-hand verification battery. **The liveness
+battery: 49/49 active findings STILL at HEAD — zero falsely-active, zero
+phantom-fixed; the board's 64→49 movement was the fix lanes' own proper
+retirements.** Filed: **N-154** (MINOR — OfficeTagFromXML's five-branch ZIP typing
+tail: XMIND 0x86 / MMAP 0x87 / EDDX 0x8c / WFP 0x8d / DRP 0x91, the WFP/DRP labels
+binary-resolved from .rdata — N-115's landing covered none, and RawConfig's
+[Filter] keys couple to exactly these ids), **N-155** (MINOR — the failed-files
+"recovery log" is an HTML report whose rows carry a per-file tree-classification
+column; R-58's "text log" and API-DELTA row 21's "NOT IN CORPUS" refuted by the
+first-hand decode; the core's JSON report lacks the axis), **N-156** (MINOR — the
+register-truth batch: I-034's census scope label + PHANTOM script citations,
+N-129's OQ cross-ref swap, the inventory rows 79/104, I-033 §12's invariant), and
+**I-035** (INFO — the never-walked decode register: SearchResult.txt QA dump +
+the DRWUI user-mode bad-sector skip policy enriching D-38/FB-S01). **The M-117→
+M-118 renumber EXECUTED audit-side** (the SA-9 collision: the S41 DBX filing took
+M-117 2.5 min after 0f5d57fb renumbered the retired suppress_overlap finding into
+it). **N-150 extended** (the fix-wave-stale addendum: 8 underclaiming API-DELTA
+rows + the phantom CR_UI_ERR_FVE_LOCKED macro + the dead duplicate --label handler
++ ABI-CONTRACT §7i's 32 MiB residue + the count drifts). The S-048/S-050 evidence
+refresh: SaveScan = 3 real .rsf sessions (S-048 stands); EUFileRepair = 87 files,
+5 repair exes + runtimes, no data assets (S-050 stands); the 1,470-file census's
+"no undispositioned product surface" verdict SURVIVES the independent re-walk.
+OQ-S4-3 unchanged (the TTFR half unmeasured — no committed value exists).
+**Board: 53 active (3 SEVERE · 21 MAJOR · 20 MINOR · 9 INFO) / 328 resolved rows /
+3 tracked-open.** Evidence:
+`evidence/decompiled-quotes/s42-ogg-zip-typing-and-report-decodes.md`.
+
 **Session-41 S41 lane (2026-10-29 — the continuation audit lane, the user's second-session
 directive: remove-the-fixed + go-deeper + mark-all-remaining; RECONCILED at push over TWO
 parallel windows):** audited **core `c7fa527c`** (the pre-rebase pin), **corpus `be0cfe9`**.
 Filed (all renumbered at the push-time reconciliations per SA-9 — the local IDs were
 concurrently consumed on the remote; the DXF-999 finding twice: N-142 → N-151 → N-152):
-**M-117** (MAJOR — the Outlook Express Dbx carve analyser entirely absent: the og's 3-key
+**M-118** (MAJOR — the Outlook Express Dbx carve analyser entirely absent (renumbered from the S41 lane's M-117 at S42: the ID had been consumed by the retired suppress_overlap row 2.5 minutes earlier, SA-9): the og's 3-key
 registry [JMF6/CFAD12FE/F789342C → RawSpeed::DbxAnalyser idx 0x15] + the 4-GUID identity
 probe + the u32@+0x7C size pass; the session-3 "MISSING (N-026)" residue that was planned
 and never filed — the trail's only never-filed analyser gap, found by the 57-key

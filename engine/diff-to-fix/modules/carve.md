@@ -684,7 +684,7 @@ multi-card continuation, GPX's declaration+<gpx window + </gpx> walk (cap 100 Mi
 OSP's libopenshot needle with the unique reject-on-missing, POS's needle settled
 from FUN_18001a470 ("ProcessOn Schema File"), CHFP's +0x28 BiffProject anchor;
 the per-chunk find quirk ported exactly; tests Carve.TextSchool*;
-findings/FIXED/N-113) · **N-115** OfficeTagFromXML. · **M-117** (S41: the Outlook Express Dbx analyser — the og's 3-key registry
+findings/FIXED/N-113) · **N-115** OfficeTagFromXML. · **M-118** (S41: the Outlook Express Dbx analyser — renumbered M-117→M-118 at S42 (ID collision with the retired suppress_overlap row) — the og's 3-key registry
 [JMF6/CFAD12FE/F789342C → RawSpeed::DbxAnalyser idx 0x15] + the 4-GUID identity probe +
 the u32@+0x7C size pass; the never-filed session-3 "MISSING (N-026)" residue) ·
 **N-152** (S41: the DXF 999-comment entry key — the og's u16 key 0x3939 → CDXFAnalyser +
@@ -788,3 +788,24 @@ The carve surface's size-walk residue now has owners:
 - **N-148 items 4-5** (MINOR): the EPS/AI validator caps drifted to 16 MiB vs the 64 MiB rows; six dangling in-code Resolution pointers.
 - The **S-050 addendum**: the repair line's second wiring channel (the per-chunk feed, DDC:9623-27) — the post-processor contract must decide it.
 - Verified MATCH this session: the whole infrastructure table (17 rows — dispatch order, registry duality, geometry, gates, dedup, progress, cancel) at `evidence/s11-lead-deep-lanes.md` §Lane-A; the family map (5 families -> core schools present).
+
+## Session-42 addendum (2026-10-29, audited `869da779`, corpus `be0cfe9` — the continuation lane's carve filings)
+
+**N-154** (MINOR — the OfficeTagFromXML five-branch typing tail): the og's ZIP
+per-entry typing walk carries five further branches N-115's landing did not port —
+XMIND 0x86 (the `FUN_180045110` content branch), MMAP 0x87
+(`xsd/MindManagerApplication.xsd`), EDDX 0x8c (both rels entry-name forms), WFP
+0x8d (both ProjectFolder forms; the label binary-resolved "WFP" at .rdata RVA
+0x6d940), DRP 0x91 (`MediaPool/Master/MpFolder.xml`; "DRP" at RVA 0x67c88) —
+`RAWSearchDLL_decompiled.c:53025-53100`, first-hand. The core's nine override rows
+cover none of them; RawConfig.ini's `[Filter]` keys couple to exactly these ids
+(the core's `disabled_formats` surface has no ids to gate). The entry-name half is
+a mechanical landing on N-115's existing walk; the XMIND content branch's exact
+predicate (FUN_180045110) needs a first-hand re-read before landing.
+
+**Liveness at `869da779`:** every active carve-scope finding re-verified STILL
+(M-098 HIK / M-099 AEP grep-zero; M-106's ONE 64-MiB stand-in at
+cr_analysers.cpp:5530 read; M-107's 12 `64 << 20` sites counted; M-112's
+"decoded only partially and stays unported" comment read at :3631-3632; M-118's
+dbx grep-zero; N-146's `32ull << 20` at :4379; N-149/N-139/N-140/N-152 grep-zero).
+Evidence: `evidence/decompiled-quotes/s42-ogg-zip-typing-and-report-decodes.md` §1.
