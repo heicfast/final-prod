@@ -3897,3 +3897,40 @@ analyser always-on). This divergence is bounded and honest: it documents a
 gate the og's config file advertises but whose engine-side wiring the corpus
 cannot prove. Registered by N-158's Resolution; revisit only if a future
 corpus artifact decodes the IAnalyserFilter's id plumbing.
+
+### D-135 — the sparse-FIRST $DATA acceptance (N-163 registration, REGISTERED DELIBERATE SUPERSET — a fully-sparse file is real content shape)
+
+The og's runlist pre-validator (FUN_18001d5f0, NTFSSearchDLL :23175-23210)
+REJECTS a $DATA whose first runlist header byte carries off-nibble==0
+(:23184: `(*b & 0xf0) == 0 -> return 0`) — enforced at the five attribute
+parse sites (:23412/:23506/:23533/:24337/:24643). A fully-sparse file
+(an all-hole $DATA, e.g. an NTFS sparse file never written or a
+hole-punch artifact) therefore yields NO extents in the og — the file is
+unrecoverable-by-policy on the reference.
+
+The core accepts and represents sparse-first runlists natively (the
+RunList decode treats off_width==0 as a legal sparse run; S-001's
+all-hole $DATA fixture recovers as zero-filled truth). Rationale: the
+shape is real content (the zero-filled recovery is honest — the
+Salvaged/FB-R02 family marks it), and rejecting a decodable structure
+the og's own DECODER accepts (FUN_1800347d0 has no sparse gate — only
+the pre-validator does) would sacrifice recoverable file identity for
+reference-quirk parity. Registered by N-163's Resolution alongside the
+decoder's truncate-and-keep tolerance landing (the og direction this
+finding fixed); the S-001 all-hole recovery behavior is unchanged and
+now decode-anchored.
+### D-135 — the ext4 damaged-marker compute: clean 64-bit form over the og's sign-extended/truncated comparison (N-177 registration)
+
+The og's truncation-damage verdict (EXT4SearchDLL FUN_180007510 :5455-5467)
+computes `size = (i_size_high << 32 | i_size_lo) + ((i_size_high >> 0x1F) & 0x1FF)`
+— a 9-bit sign-extension smear on the high dword (the same +0x6c-slot legacy-ACL
+poll family D-123 documents for directories, applied here as an arithmetic
+adjustment on files) — and then compares the two sides as TRUNCATED 32-bit words:
+`u32(i_blocks_lo) < u32(size >> 9)`. The core's N-177 landing computes the clean
+form: `u64(i_blocks_lo) * 512 < i_size`, files only. Divergences from the og:
+(1) sizes above 4 GiB compare correctly (the og's u32 truncation can mis-mark
+exactly-4-GiB-straddling files); (2) inodes whose +0x6c slot carries a legacy
+ACL pointer pollution never smear the size (the D-123 family); (3) the marker
+bit is the SAME numeric bit 0x200 so cross-tool consumption is unaffected.
+Registered deliberate superset: the og's comparison defects are NOT adopted
+(the I-040 anti-down-fix doctrine).

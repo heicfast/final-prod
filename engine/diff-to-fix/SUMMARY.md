@@ -3,6 +3,18 @@
 # SUMMARY.md — executive summary (the session-52 mid-board MAJOR lane on top; the prior lanes below, newest-first)
 
 
+
+**S-058 CONVERGENT (SEVERE — session-57 lane; the S52 lane's ea405392 wins per
+SA-9):** the grading extension-table gate polarity is corrected at the merged tree
+— the twin/overlap/deep-validation machinery now runs for NOT-in-table extensions
+exactly like the og (FUN_1401bebe0 = the inequality comparator; the control case
+:585888 calibrates the direction; the "" runtime-set quirk skips dot-less names);
+in-table extensions keep the engine-default grade. The s5 evidence erratum is
+filed at its §5 item 4. The session-57 lane's independent RED battery (both
+halves of the polarity pin) and convergence addendum ride in the finding file;
+its redundant code/tests were dropped per the superset rule (the winning 23/23
+battery incl. S-061's ReFS/Btrfs insert-time pins stands).
+
 ## Session-44 minors-lane delta (2026-10-29 — the minor-first diff-fix execution lane per the user's operative directive; opened on `9807934` (the N-172/N-173 landing), corpus `be0cfe9`; suite at open 1203 green / 1161 pass · 42 win-skip · 0 fail)
 
 **Board at open (this lane's view): 77 active — 1 ACUTE · 9 SEVERE · 28 MAJOR ·
@@ -96,6 +108,13 @@ before the change.
 
 **Landings this lane so far:**
 
+- **M-115 FIXED** (`1d7a761b`) — the thumbnail grade-promotion is now READ-gated,
+  not decode-gated (Thumbnail::read_ok disclosed by the engine; the ABI promotes on
+  the clean recovery read per DRWUI :422507-514; the og's 0x14 work-item floor at
+  the ABI gate). The damaged-but-readable population grades 2 like the og; tiny
+  decodables no longer over-promote. The TxtView/media triggers ride N-144/OQ-S10-1
+  (the module row records the gaps). 2 RED-pre-fix tests (stashed-engine proof);
+  suites 71/71 + 1228/1228.
 - **M-119 FIXED** (`033b9cdb`) — the og's tolerant partition-boundary semantics at
   both halves: create clamps an over-long declared window to the device end (delta
   surfaced; N-046's start-past-device refusal kept), read implements the og ladder
@@ -133,8 +152,9 @@ before the change.
   Ebr.LinkType085WalksChain / Ebr.LinkType085SameBasisAs05 / Mbr.Extended085NotEmittedAsVolume
   (all RED pre-fix); suite 1164/1164.
 
-**Board after this push (filesystem truth): 66 active — 0 ACUTE · 9 SEVERE · 22 MAJOR ·
-32 MINOR · 3 INFO** (the parallel lanes' A-014 + I-041..I-044 retirements absorbed at the
+**Board after this push (filesystem truth, post the parallel lanes' S-055/S-056 +
+N-175/I-board retirements absorbed at the merges): 61 active — 0 ACUTE · 7 SEVERE ·
+21 MAJOR · 28 MINOR · 0 INFO** (the parallel lanes' A-014 + I-041..I-044 retirements absorbed at the
 merge; both sides' records kept). Next free IDs unchanged: S-062+, M-138+, N-186+, I-045+.
 
 # SUMMARY.md — executive summary (the S46 MINOR-first parity-fix lane on top; the prior lanes below, newest-first)
@@ -165,7 +185,13 @@ first-hand; every fix RED-test-first.
   the 9-iteration RED→GREEN pin + `LfnValidNameUnchanged`; the NUL early-return
   subtlety preserved in self-review).
 
-**Board (filesystem truth, running): 65 active — 0 ACUTE · 9 SEVERE · 27 MAJOR · 29 MINOR · 0 INFO / 73 FIXED files / 6 tracked-open (the parallel windows' landings absorbed at each rebase).**
+- **N-177 FIXED** — the ext4 size-exceeds-blocks damaged marker (EXT4SearchDLL
+  :6300-6303 + FUN_180007510 :5455-5467 re-read first-hand;
+  NODE_FLAG_SIZE_EXCEEDS_BLOCKS = the og's own bit 0x200, the clean 64-bit compute
+  on both emission paths, the D-135 non-adoption registration, the write_inode
+  i_blocks_lo fixture repair; 3 tests incl. the session round-trip).
+
+**Board (filesystem truth, running): 64 active — 0 ACUTE · 9 SEVERE · 27 MAJOR · 28 MINOR · 0 INFO / 74 FIXED files / 6 tracked-open (the parallel windows' landings absorbed at each rebase; N-158/N-161 retired convergently by the remote).**
 
 # SUMMARY.md — executive summary (the S42 diff-to-fix lane's convergence on top; the prior lanes below, newest-first)
 # SUMMARY.md — executive summary (the S46 MINOR-first fix lane on top — the user's priority-to-minor directive; the prior lanes below, newest-first)
@@ -204,6 +230,19 @@ repaired by the prior lanes).
   writer-module D13 addendum) + additive-within-v1 per the schema doc's
   own contract (the finding's version-bump plan corrected). 4 tests
   RED-first; suite 1243/1243 (1201/42/0). P13/P11/P46/P68 → MATCH.
+
+- **N-163 FIXED (MINOR, ntfs)** — the runlist malformed-input tolerance:
+  the og's truncate-and-keep lands (FUN_1800347d0 re-read: every malformed
+  branch a SUCCESS with the runs so far) — a torn $DATA fragment decodes
+  its valid prefix with the `torn` flag, OR-merged at every parse site,
+  and the walker grades the file PartialRisk (never silently pretending
+  completeness); the zero-valid-runs class still rejects (the og's own
+  pre-validator gate, FUN_18001d5f0 :23184); the clean buffer-end stop is
+  distinguished from a tear (the old strict pin re-truthed); the
+  sparse-first acceptance REGISTERED as PARITY-DELTAS D-135 (the deliberate
+  superset over the og's validator rejection). 4 tests, the prefix-keep +
+  the end-to-end PartialRisk grading RED pre-fix; suite 1280/1280
+  (1238/42/0).
 # SUMMARY.md — executive summary (the S12 session-2 deep-dive lane on top — sector math / scan-progress math / local database / state management / detection-calculation; the prior lanes below, newest-first)
 
 ## Session-12 S12 lane delta (2026-10-29 — the session-2 continuation audit per the user's second-session directive: remove-the-fixed + go-deeper, special focus on sector numbers / scanning / accurate detection / calculation / no-stuck-or-freeze / local database / state management; core `869da779` at open → rebased through the parallel windows to push at `f85def0f`, corpus `be0cfe9`)
@@ -245,7 +284,7 @@ wins over the parallel S42 lanes' consumed seats M-118..122/N-154..160/I-037..03
   layers but not the user-sign layer — D-104's "same format-toggle rules" registration
   claim was false in code. match_at's disabled_exts predicate now carries the og's
   removal-loop semantics (a disabled ext's signs never fire; sibling signs still can).
-- **S-057 (SEVERE)** — the og auto-saves STOPPED scans (stop-organize
+- **S-057 (FIXED session-51)** — the og auto-saved STOPPED scans (stop-organize
   "Scan stopped and found %1 files." → the shared completion handler
   FUN_140395e50 whose gates carry no stopped-check, DRWUI:1549399/:339076/:612572-87);
   the core never auto-saves a cancelled run and its comment mis-states the og.
@@ -422,7 +461,7 @@ entering the lane (`evidence/s42-liveness-sweep.md`).
 **The filings — 16 findings + 3 tracked-open, every one focus-area named by the
 directive, every one decompile-verified first-hand:**
 
-- **S-058 (SEVERE — recovery chances)**: the grading extension-table gate is
+- **S-058 (FIXED session-51 — recovery chances)**: the grading extension-table gate was
   **INVERTED**. The og runs the twin/overlap/deep-validation branch for extensions
   **NOT** in the 169-key set — `FUN_1401bebe0` is the *inequality* comparator
   (`:324923-39`), `FUN_140256d00` is `std::set::find` (`:413990-414019`), and the
@@ -442,7 +481,7 @@ directive, every one decompile-verified first-hand:**
   binary's only `SetFileTime`, mask-gated per field; **the trail's N-009d row
   "og never calls SetFileTime" is REFUTED**); the core's DestIo has no metadata
   surface and zero restoration calls tree-wide.
-- **S-061 (SEVERE — recovery chances)**: **ReFS/Btrfs files never receive the og's
+- **S-061 (FIXED session-51 — recovery chances)**: **ReFS/Btrfs files never received the og's
   insert-time High grade** (`:605481-497` + the 5828/5830 gauge ticks); the core's
   early return (`cr_grading.cpp:217-219`) leaves both filesystems at Average.
 - **M-133..M-137 (MAJOR)**: the twin-key device family ({FAT16, EXT2-family} vs

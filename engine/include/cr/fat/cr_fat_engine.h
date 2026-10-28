@@ -238,6 +238,11 @@ struct FatScanStats {
     u64 chains_broken = 0;
     u64 cycles_cut = 0;
     u64 date_rejected = 0; /* N-010c: dentries dropped by date sanity */
+    /* M-130 (diff-to-fix): dentries dropped by the og's shape validator
+     * (FUN_1800365a0) - both the walk-break classes (reserved attr bits,
+     * erased-pattern quad, impure labels, the 11th-repeat histogram) and
+     * the emission-skip classes (size/chain XOR, the dir shape). */
+    u64 shape_rejected = 0;
     /* M-052 (diff-to-fix): the recycle-bin $I/$R pairing, og parity for
       FAT (IRecycleBinNode2UI, fat-exfat-engine-internals.md :37-40) */
     u64 recycle_info = 0;     /* $I metadata records parsed inside bin roots */

@@ -190,4 +190,20 @@ per-slot-zeroing shape with distinct create-vs-write times - is the superset). T
 exFAT sibling's FUN_180002f40 boundary-set cross-check (hour<0xB801 / min<0x761 /
 2s<0x1E) performed from the in-tree decode confirms the shared helper's reject set
 matches the og's own field gate exactly.
+<<<<<<< HEAD
 >>>>>>> b1b5eba0590fec0a8aca858737462cb41db29e03
+=======
+
+### Convergence addendum III (this lane, 2026-10-29)
+
+A fourth independent verification (the S56 lane): the same three corpus slots re-read
+at `ghidra-searchdll/FATSearchDLL_decompiled.c:32135/:32144/:32151`, the gate built
+independently (semantically byte-equivalent: `second > 59` vs `(time & 0x1F) > 29`
+denote the same reject set), fail-before proven by stash-revert execution. The S51
+seat stands; this lane's duplicate test family was dropped at the merge in favor of
+the stronger merged set (exact-value pins + per-slot zeroing). The exFAT inheritance
+observation (the M-014 gate only rejects the all-three-invalid class, so single-field
+overflows previously leaked through the shared helper on exFAT too) was this lane's
+independent catch — the S45/S51 resolutions' "verified unaffected" claim holds only
+for the all-three class; the tightened shared helper is a strict improvement there.
+>>>>>>> 994e0bb0bf9d80c69e7c47ace4e7541ecb4255f1

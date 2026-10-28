@@ -3,7 +3,7 @@
 **Severity:** INFORMATIONAL
 **Module:** gate docs (the corpus-navigation registers) / cross-cutting
 **Parameters affected:** P68 (documentation accuracy — the artifact corpus's navigability), P69 (the stub/never-cited surface sweep)
-**Corpus references:** the 23 never-cited artifacts (full list in `evidence/decompiled-quotes/s41-registry-key-residue.md` §5); the og-codebase file census (750 entries, top+1 deep)
+**Corpus references:** the 23 never-cited artifacts (full list in `evidence/decompiled-quotes/s41-registry-key-residue.md` §5); the og-codebase file census (1,538 entries = 68 dirs + 1,470 files; 555 entries at top+1; 750 files within top+2; the 720 deeper files — diskhealth's QML tree + BUILDPE/EaseUS-x64's nested payloads — rest on the wholesale family lines; N-160's re-labeled scope, re-executed via `scripts/og_tree_census.py` at corpus `be0cfe9`)
 **Core references:** audited `c7fa527c`. The gate registers read in full: `diff-to-fix/SURFACE-INVENTORY.md`, `docs/parity/PARITY-OG-CORE-INVENTORY.md` (via diff-to-fix's citations), `docs/parity/PARITY-ARCH.md:42`, `docs/parity/PARITY-DELTAS-draft.md:580` (D-26); the active findings N-134, S-050; `diff-to-fix/findings/INFORMATIONAL/I-027-og-codebase-data-asset-register.md`
 **Status:** READ-ONLY FINDING — no fix applied (an accurate register, filed for the record and the next lanes' navigation)
 
@@ -43,7 +43,7 @@ Navigation only. The M-112/N-142 outcome demonstrates the value of the census me
 
 ## Reproduction / verification
 
-Executed this session: the basename-grep census (script: `scripts/s41_never_cited_census.sh` logic recorded in evidence §5) + the og-file census (`scripts/s41_ogfile_census.py`, 750 entries vs every register file). Every disposition row above verified by reading the named artifact and the named register row.
+Executed this session: the basename-grep census (logic recorded in evidence §5; the original line here cited two `s41_*` scripts that were never committed — the N-160 phantom-citation repair replaced them) + the og-file census (`scripts/og_tree_census.py` — the committed, reproducible form; the 750-file top+2 set vs every register file). Every disposition row above verified by reading the named artifact and the named register row.
 
 ## Fix plan (for the engineering team)
 
@@ -67,3 +67,17 @@ None.
 **Fixed in commit:** this session's I-034 landing (session-42; cite-by-title: "fix(trail): I-034 - the never-cited artifact register acknowledged + the SURFACE-INVENTORY navigation index completed")
 **Verified by:** the disposition table's claims spot-checked this session: the three rawsearchdll family rosters re-read (the M-117/N-152 filings they drove are on the board — M-117 active, N-152 active); the eudcpepm artifact re-read first-hand (the I-029/N-155 decode this session — its 15-code census gap now a CORPUS-ERRATA entry); the og-file census's no-undispositioned-surface verdict stands (the runtime-dependency remainder re-confirmed by category).
 **Resolution notes:** The register is confirmed accurate — the 23 never-cited artifacts all dispositioned, the two product-frame completeness censuses recorded. **One correction adopted from the parallel S42 lane's I-036:** the og-file census's "no undispositioned product surface" line was wrong by four config-layer surfaces (shellexe.ini, TreeType, themdark.ini, DRWLog.log — all OOS-UI/product-frame, both TreeType readers decoded in I-036's evidence); the corrected statement is carried in this session's SURFACE-INVENTORY addendum. The fix plan's optional hygiene applied: the 23 basenames + their dispositions added to SURFACE-INVENTORY.md as the session-42 navigation-hygiene addendum, so the corpus-navigation index is complete and the next census starts from the index instead of re-deriving the set. The M-117/N-152 filings the census drove remain the board's active carve work. No code change.
+
+
+## N-160 repair addendum (2026-10-29, the S56 lane)
+
+N-160 items 1-2 repaired here: the census-scope label was wrong on both
+numbers' relationship ("750 entries, top+1 deep" — the verified truth at
+corpus `be0cfe9`, re-executed first-hand: 1,538 entries = 68 dirs + 1,470
+files; 555 entries at top+1; 750 FILES within top+2; 720 deeper files
+outside that scope, resting on the wholesale family lines — the
+no-undispositioned-product-surface verdict is unchanged, re-confirmed by
+category); the two `s41_*` census scripts never existed (phantom citations —
+the census was not reproducible from the register). The committed
+replacement is `scripts/og_tree_census.py`, whose output the re-labeled
+lines carry; the basename-grep census's method stays at evidence §5.

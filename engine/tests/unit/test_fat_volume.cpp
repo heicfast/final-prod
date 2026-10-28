@@ -2460,6 +2460,7 @@ TEST(FatEngine, InvalidTimeStampsPersistAsZero) {
     EXPECT_NE(z->props()->times.created, 0u);
 }
 
+<<<<<<< HEAD
 TEST(FatEngine, InvalidTimeWordAccessSlotStaysReal) {
     /* A-014 convergence pin (the S52 lane's supplementary): the og
      * passes time word 0 for the access slot (FATSearchDLL
@@ -2471,6 +2472,44 @@ TEST(FatEngine, InvalidTimeWordAccessSlotStaysReal) {
     auto img = build_fat16_image();
     u8* root = img.data() + 42 * 512;
     make_dentry(root + 6 * 32, "ACCREAL TXT", 0x20, 15, 100, 0x58CC, 0xC000, false);
+=======
+/* ---- M-130: the dentry shape-validator family -------------------------- */
+
+namespace {
+/* Plant a raw 32-byte dentry at a root slot (fields the make_dentry
+ * helper cannot express: raw attribute bytes, crafted metadata quads). */
+void plant_raw(std::vector<u8>& img, size_t slot, const DirEntry& e) {
+    std::memcpy(img.data() + 42 * 512 + slot * 32, &e, sizeof(e));
+}
+DirEntry raw_dentry(const char* name8_3, u8 attr, u16 high, u16 low, u32 size) {
+    DirEntry e = {};
+    for (int i = 0; i < 11; ++i)
+        e.name[i] = u8(name8_3[i]);
+    e.attributes = attr;
+    e.creation_time = 0x6000;
+    e.creation_date = 0x58CC;
+    e.access_date = 0x58CC;
+    e.write_time = 0x6000;
+    e.write_date = 0x58CC;
+    e.first_cluster_high = high;
+    e.first_cluster_low = low;
+    e.file_size = size;
+    return e;
+}
+} // namespace
+
+TEST(FatEngine, DentryAttrReservedBitsStopWalk) {
+    /* M-130: an attribute byte with reserved bits (>= 0x40) fails the
+     * og's validator (FUN_1800365a0 :44295-96 - the u32 at +0x08's top
+     * byte IS the attribute byte; the audit's "ext-tail" attribution
+     * corrected) and the walk BREAKS (:8792-93): the dentries after the
+     * corrupt slot are lost - parity means matching the loss. */
+    auto img = build_fat16_image();
+    u8* root = img.data() + 42 * 512;
+    make_dentry(root + 6 * 32, "GOOD1   TXT", 0x20, 10, 100, 0x58CC, 0x6000, false);
+    plant_raw(img, 7, raw_dentry("RESERVEDTXT", 0x40, 0, 10, 100));
+    make_dentry(root + 8 * 32, "AFTER   TXT", 0x20, 10, 100, 0x58CC, 0x6000, false);
+>>>>>>> 994e0bb0bf9d80c69e7c47ace4e7541ecb4255f1
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
     auto* ra = tree.add_root(u"Found");
@@ -2479,6 +2518,7 @@ TEST(FatEngine, InvalidTimeWordAccessSlotStaysReal) {
     FatScanFlags flags;
     FatScanStats stats;
     ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+<<<<<<< HEAD
     tree::FileNode* n = find_node(tree, "ACCREAL.TXT");
     ASSERT_NE(n, nullptr) << "the invalid-time dentry is still a result";
     EXPECT_EQ(n->props()->times.created, 0u) << "hour 24 -> the zeroed slot";
@@ -2487,6 +2527,179 @@ TEST(FatEngine, InvalidTimeWordAccessSlotStaysReal) {
     EXPECT_EQ(n->props()->times.accessed,
               fat_date_to_unix(0x58CC, 0, 0) * 10000000ULL + 116444736000000000ULL)
         << "access (time word 0) keeps the real date";
+=======
+    EXPECT_NE(find_node(tree, "GOOD1.TXT"), nullptr) << "before the corrupt slot";
+    EXPECT_EQ(find_node(tree, "AFTER.TXT"), nullptr) << "the walk stopped at the 0x40 attr";
+    EXPECT_EQ(find_node(tree, "RESERVED.TXT"), nullptr);
+    EXPECT_GE(stats.shape_rejected, 1u);
+}
+
+TEST(FatEngine, DentryErasedPatternQuadStopsWalk) {
+    /* M-130: the extension+attribute quad equal to the
+     * ntres/tenths/creation-time quad (and not 0x20) is the erased /
+     * repeated-pattern class (:44293-94) - including the all-zero
+     * dentry. The walk stops. */
+    auto img = build_fat16_image();
+    u8* root = img.data() + 42 * 512;
+    make_dentry(root + 6 * 32, "GOOD1   TXT", 0x20, 10, 100, 0x58CC, 0x6000, false);
+    DirEntry pat = raw_dentry("PATTERN TXT", 0x20, 0, 10, 100);
+    pat.nt_reserved = 'T';      /* 0x54 */
+    pat.creation_tenths = 'X';  /* 0x58 */
+    pat.creation_time = 0x2054; /* 'T' | 0x20 << 8 */
+    plant_raw(img, 7, pat);
+    make_dentry(root + 8 * 32, "AFTER   TXT", 0x20, 10, 100, 0x58CC, 0x6000, false);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    EXPECT_NE(find_node(tree, "GOOD1.TXT"), nullptr);
+    EXPECT_EQ(find_node(tree, "PATTERN.TXT"), nullptr) << "the erased-pattern quad rejects";
+    EXPECT_EQ(find_node(tree, "AFTER.TXT"), nullptr) << "the walk stopped";
+}
+
+TEST(FatEngine, DentryHistogramEleventhRepeatStopsWalk) {
+    /* M-130: the byte-histogram gate (:44356-69) - 21-byte metadata
+     * window, nonzero bytes; the ELEVENTH occurrence of any value
+     * rejects (the pre-increment compare is > 9; the audit's ">9
+     * occurrences" boundary corrected to 10-pass/11-reject). */
+    auto img = build_fat16_image();
+    u8* root = img.data() + 42 * 512;
+    make_dentry(root + 6 * 32, "GOOD1   TXT", 0x20, 10, 100, 0x58CC, 0x6000, false);
+    DirEntry eleven = raw_dentry("HISTO   TXT", 0x20, 0, 10, 100);
+    eleven.nt_reserved = 0x42;
+    eleven.creation_tenths = 0x42;
+    eleven.creation_time = 0x4242;
+    eleven.creation_date = 0x4242;
+    eleven.access_date = 0x4242;
+    eleven.write_time = 0x4242;
+    eleven.write_date = 0x4242; /* the 11th 0x42 */
+    plant_raw(img, 7, eleven);
+    make_dentry(root + 8 * 32, "AFTER   TXT", 0x20, 10, 100, 0x58CC, 0x6000, false);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    EXPECT_NE(find_node(tree, "GOOD1.TXT"), nullptr);
+    EXPECT_EQ(find_node(tree, "HISTO.TXT"), nullptr) << "11 repeats reject";
+    EXPECT_EQ(find_node(tree, "AFTER.TXT"), nullptr) << "the walk stopped";
+}
+
+TEST(FatEngine, DentryHistogramTenRepeatsStillEmit) {
+    /* M-130 boundary: TEN occurrences of the same nonzero byte PASS -
+     * the emitted dentry is a real result (the og's pre-increment
+     * compare fires on the 11th, not the 10th). */
+    auto img = build_fat16_image();
+    DirEntry ten = raw_dentry("HIST10  TXT", 0x20, 0, 10, 100);
+    ten.nt_reserved = 0x42;
+    ten.creation_tenths = 0x42;
+    ten.creation_time = 0x4242;
+    ten.creation_date = 0x4242;
+    ten.access_date = 0x4242;
+    ten.write_time = 0x4242; /* exactly ten 0x42 bytes */
+    plant_raw(img, 6, ten);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    EXPECT_NE(find_node(tree, "HIST10.TXT"), nullptr) << "10 repeats are legal";
+}
+
+TEST(FatEngine, DentryImpureLabelStopsWalk) {
+    /* M-130: label purity (:44298-44301) - an entry with the volume bit
+     * that is NOT a pure label (attr in {8, 0x28}, hidden clear) is
+     * corrupt and the walk stops; a PURE label is skipped as a result
+     * and the walk continues (the pin below). */
+    auto img = build_fat16_image();
+    u8* root = img.data() + 42 * 512;
+    make_dentry(root + 6 * 32, "GOOD1   TXT", 0x20, 10, 100, 0x58CC, 0x6000, false);
+    plant_raw(img, 7, raw_dentry("IMPLABEL   ", 0x18, 0, 5, 0)); /* dir+volume */
+    make_dentry(root + 8 * 32, "AFTER   TXT", 0x20, 10, 100, 0x58CC, 0x6000, false);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    EXPECT_NE(find_node(tree, "GOOD1.TXT"), nullptr);
+    EXPECT_EQ(find_node(tree, "AFTER.TXT"), nullptr) << "the impure label stopped the walk";
+}
+
+TEST(FatEngine, PureVolumeLabelSkippedWalkContinues) {
+    /* M-130 pin: a PURE volume label (attr 0x08) passes the validator
+     * and is skipped as a result - the walk continues past it. */
+    auto img = build_fat16_image();
+    u8* root = img.data() + 42 * 512;
+    plant_raw(img, 6, raw_dentry("VOLLABEL   ", 0x08, 0, 0, 0));
+    make_dentry(root + 7 * 32, "AFTER   TXT", 0x20, 10, 100, 0x58CC, 0x6000, false);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    EXPECT_EQ(find_node(tree, "VOLLABEL"), nullptr) << "a label is never a result";
+    EXPECT_NE(find_node(tree, "AFTER.TXT"), nullptr) << "the walk continued past the label";
+}
+
+TEST(FatEngine, SizeChainXorSkippedButWalkContinues) {
+    /* M-130: the emission-walk shape gates (:44344-48, the param_2 = 1
+     * site) - a zero-size file WITH a chain (and a sized file with NO
+     * chain) are inconsistent shapes: NOT emitted, but the walk does
+     * NOT stop (this is the skip class, not the break class). */
+    auto img = build_fat16_image();
+    u8* root = img.data() + 42 * 512;
+    make_dentry(root + 6 * 32, "ZEROSIZETXT", 0x20, 10, 0, 0x58CC, 0x6000, false);
+    make_dentry(root + 7 * 32, "NOCHAIN TXT", 0x20, 0, 500, 0x58CC, 0x6000, false);
+    make_dentry(root + 8 * 32, "AFTER   TXT", 0x20, 10, 100, 0x58CC, 0x6000, false);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    EXPECT_EQ(find_node(tree, "ZEROSIZE.TXT"), nullptr) << "zero size with a chain: skipped";
+    EXPECT_EQ(find_node(tree, "NOCHAIN.TXT"), nullptr) << "sized with no chain: skipped";
+    EXPECT_NE(find_node(tree, "AFTER.TXT"), nullptr) << "the walk continued (skip, not break)";
+    EXPECT_GE(stats.shape_rejected, 2u);
+}
+
+TEST(FatEngine, DirSizeAndHighClusterSkipped) {
+    /* M-130: the dir shape gate (:44350) - a directory with size != 0
+     * AND a nonzero high cluster word is the corrupt-dir shape: not
+     * emitted, walk continues. */
+    auto img = build_fat16_image();
+    u8* root = img.data() + 42 * 512;
+    plant_raw(img, 6, raw_dentry("BADDIR     ", ATTR_DIRECTORY, 0x1234, 5, 777));
+    make_dentry(root + 7 * 32, "AFTER   TXT", 0x20, 10, 100, 0x58CC, 0x6000, false);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    EXPECT_EQ(find_node(tree, "BADDIR"), nullptr) << "the corrupt dir shape: skipped";
+    EXPECT_NE(find_node(tree, "AFTER.TXT"), nullptr) << "the walk continued";
+>>>>>>> 994e0bb0bf9d80c69e7c47ace4e7541ecb4255f1
 }
 
 TEST(FatEngine, Date2107EndToEndFileTimeIsReal) {

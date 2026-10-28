@@ -4,6 +4,7 @@
  */
 
 #include "cr/lost/cr_lostpart.h"
+#include "cr/cr_log.h"
 #include "cr/ntfs/cr_bootstrap.h"
 #include "cr/ntfs/cr_fixup.h"
 #include "cr/ntfs/cr_ntfs_wire.h"
@@ -148,6 +149,36 @@ int probe_fat(IStorageDevice* disk, u64 boot_lba, Candidate& c) {
     if (flavor == 0)
         return -100;
     int pts = 20; /* valid FAT BPB (og gate passed) */
+    /* M-137: the FAT12/16 boot-sector volume label (+0x2B, 11 bytes,
+     * space-padded - the old-style label only the 12/16 flavors carry;
+     * FAT32 zeroes the slot). Captured here so the naming template's
+     * volume-label-keep rule ("%s (%s)" with the label, the ":)"-bearing
+     * labels kept verbatim - DRWUI:634817-838) has its on-disk source;
+     * validation: at least one printable non-space byte. */
+    if (flavor == 1 || flavor == 2) {
+        bool printable = false;
+        for (int k = 0; k < 11; ++k) {
+            const u8 ch = sec[0x2B + k];
+            if (ch == 0)
+                break;
+            if (ch >= 0x20 && ch < 0x7F) {
+                if (ch != 0x20)
+                    printable = true;
+            } else {
+                printable = false;
+                break;
+            }
+        }
+        if (printable) {
+            int k = 0;
+            for (; k < 11 && sec[0x2B + k]; ++k)
+                c.volume_label[k] = char(sec[0x2B + k]);
+            /* right-trim spaces (the padding) */
+            while (k > 0 && c.volume_label[k - 1] == ' ')
+                --k;
+            c.volume_label[k] = 0;
+        }
+    }
     c.sector_count = p.total_bytes / p.bytes_per_sector;
     /* N-035: FAT is the metadata-gap family - the data area begins at
      * first_data_sector (reserved + two FATs [+ root dir on FAT12/16]
@@ -751,19 +782,53 @@ bool table_match(const Candidate& c, const std::vector<table::PartitionInfo>& kn
     return false;
 }
 
+/* M-137: the geometry-fallback device shim - wraps a device whose
+ * sector-size query failed (logical_sector 0) with the 512-byte view
+ * (DRWUI:904185-187: `if (sector_size == 0) sector_size = 0x200;`).
+ * Every probe reads geometry() directly for its LBA math, so the
+ * fallback must present the corrected geometry, not patch one local. */
+class FallbackGeomDevice final : public IStorageDevice {
+public:
+    FallbackGeomDevice(IStorageDevice* inner) : inner_(inner) {
+        geom_ = inner->geometry();
+        geom_.logical_sector = 512;
+    }
+    u32 read_at(u64 off, void* buf, u32 len) override { return inner_->read_at(off, buf, len); }
+    const Geometry& geometry() const override { return geom_; }
+
+private:
+    IStorageDevice* inner_;
+    Geometry geom_;
+};
+
 } // namespace
 
 u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& known,
              u32 stride_sectors, CancelToken* cancel, bool (*progress)(u64, u64, void*),
              void* progress_user, DiscoveryResult& out) {
-    if (disk == nullptr || disk->geometry().logical_sector == 0)
+    /* M-137 (diff-to-fix): the og's geometry fallback (DRWUI:904185-187:
+     * `if (sector_size == 0) sector_size = 0x200;` - a failed device
+     * sector-size query proceeds at 512 rather than refusing). The old
+     * core refused the whole discovery with ERR_BAD_PARAMETER; the
+     * honest shape is the Warn log + the 512-byte shim (the discovery
+     * is LBA-math driven and 512 is the universal floor). */
+    if (disk == nullptr)
         return ERR_BAD_PARAMETER;
+    FallbackGeomDevice fallback_disk(disk);
+    IStorageDevice* effective = disk;
+    if (disk->geometry().logical_sector == 0) {
+        if (cr::log::enabled())
+            cr::log::write(cr::log::Level::Warn,
+                           "lost discovery: device sector size unreadable (0) - "
+                           "proceeding at the 512-byte fallback");
+        effective = &fallback_disk;
+    }
     if (stride_sectors == 0)
         stride_sectors = 1;
-    const u32 ls = disk->geometry().logical_sector;
-    const u64 total = disk->size();
+    const u32 ls = effective->geometry().logical_sector;
+    const u64 total = effective->size();
 
-    WindowScanner scan(disk);
+    WindowScanner scan(effective);
     std::vector<Candidate> found;
     u64 sectors_scanned = 0;
     u64 read_errors = 0;
@@ -800,31 +865,31 @@ u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& know
                 std::memcpy(oem, sec + 3, 8);
                 if (std::strncmp(oem, "NTFS    ", 8) == 0) {
                     c.fs = CandidateFs::Ntfs;
-                    pts = probe_ntfs(disk, lba, c);
+                    pts = probe_ntfs(effective, lba, c);
                 } else if (std::strncmp(oem, "EXFAT   ", 8) == 0) {
                     c.fs = CandidateFs::Exfat;
-                    pts = probe_exfat(disk, lba, c);
+                    pts = probe_exfat(effective, lba, c);
                 } else if (std::memcmp(sec, "EFI PART", 8) == 0) {
                     c.fs = CandidateFs::GptTable;
-                    pts = probe_gpt_header(disk, lba, c);
+                    pts = probe_gpt_header(effective, lba, c);
                 } else if (std::memcmp(oem, "ReFS", 4) == 0) {
                     /* S-006: the ReFS DBR (OEM "ReFS", probe_family's gate)
                      * fell into the FAT catch-all and was dropped as noise
                      * before. Detected via the page-signature window probe. */
                     c.fs = CandidateFs::Refs;
-                    pts = probe_refs(disk, lba, c);
+                    pts = probe_refs(effective, lba, c);
                 } else if (std::memcmp(oem, "-FVE-FS-", 8) == 0) {
                     /* S-019: BitLocker VBR (the og's type-0xB classifier
                      * gate, PartitionRecoveryD_decompiled.c:2778-2785) -
                      * must run BEFORE the FAT catch-all or the FVE BPB-less
                      * boot sector dies in fat::validate_boot. */
                     c.fs = CandidateFs::BitLocker;
-                    pts = probe_bitlocker(disk, lba, c);
+                    pts = probe_bitlocker(effective, lba, c);
                 } else {
                     /* FAT family: validate via the BPB parser (the catch-all
                      * stays LAST - it is the noisiest family) */
                     c.fs = CandidateFs::Fat;
-                    pts = probe_fat(disk, lba, c);
+                    pts = probe_fat(effective, lba, c);
                 }
             }
 
@@ -838,19 +903,19 @@ u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& know
              * documented in PARITY-DELTAS D-50. */
             if (pts < 0) {
                 c.fs = CandidateFs::Ext2;
-                pts = probe_ext(disk, lba, scan, c);
+                pts = probe_ext(effective, lba, scan, c);
             }
             if (pts < 0) {
                 c.fs = CandidateFs::HfsPlus;
-                pts = probe_hfsplus(disk, lba, scan, c);
+                pts = probe_hfsplus(effective, lba, scan, c);
             }
             if (pts < 0 && lba % mib_lbas == 0) {
                 c.fs = CandidateFs::Btrfs;
-                pts = probe_btrfs(disk, lba, c);
+                pts = probe_btrfs(effective, lba, c);
             }
             if (pts < 0 && lba % mib_lbas == 0) {
                 c.fs = CandidateFs::Zfs;
-                pts = probe_zfs(disk, lba, c);
+                pts = probe_zfs(effective, lba, c);
             }
             if (pts < 0)
                 continue; /* no family accepted: noise */
@@ -956,7 +1021,7 @@ u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& know
     u64 max_count = 1;
     for (auto& c : adjusted) {
         u64 files = 0, folders = 0;
-        content_counts(disk, c, cancel, files, folders);
+        content_counts(effective, c, cancel, files, folders);
         u64 count = weighted_count(og_fs_code(c.fs), files, folders);
         count += fs_bonus(c);
         c.table_match = table_match(c, known);

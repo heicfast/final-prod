@@ -19,9 +19,8 @@ New active findings on this module: **A-014 FIXED** (ACUTE — time-word validat
 hour/min/2s unchecked in `fat_datetime_to_unix_seconds`, shifted plausible timestamps
 where the og zeroes the slot, FAT:32135-54 — FIXED this session: the gate extended to
 the time word, 5 tests, findings/FIXED/A-014); **M-127** (the O(n^2) visited-vector
-cycle guard vs the og's range tree — stall-class); **M-130** (the dentry
-shape-validator family unported: ext-tail, size/chain-XOR, dir, >9-repeat histogram
-gates + walk-stop semantics); **N-162** (the og's 32-bit cluster-math wrap registered
+cycle guard vs the og's range tree — stall-class); **M-130 — FIXED (session-52: the two-tier port
+  [walk-BREAK gates + emission-SKIP shape gates], 3 decode corrections, suite 1322/1322)**; **N-162** (the og's 32-bit cluster-math wrap registered
 — core u64 correct); **N-165** (the "File overflows partition!" scan-time refusal vs
 <<<<<<< HEAD
 deferred failure); **N-175** (NTRes case folding); **N-176** (the LFN illegal-char fallback).

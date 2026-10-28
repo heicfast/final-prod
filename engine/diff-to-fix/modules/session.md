@@ -5,8 +5,10 @@
 New active findings on this module: **A-013** (ACUTE — the CLI resume-truncate:
 "wb" checkpoint sink opens on the resume target before the "rb" read);
 **M-131** (the in-run checkpoint is truncate-in-place — the N-014 shape cr_ui fixed);
-**S-057** (SEVERE — the og auto-saves stopped scans into the shared completion
-handler; the core never auto-saves a cancelled run). Verified-MATCH: auto-save
+**S-057** (FIXED session-51 — the og auto-saves stopped scans into the shared
+completion handler; the core never auto-saved a cancelled run. The auto-save now
+runs from BOTH the completion and the ERR_CANCELLED branch — the factored
+autosave_if_due_ helper, the S-044 gates identical, the CLI parity leg taken). Verified-MATCH: auto-save
 gates/naming/sanitizer, load identity re-check, save/load progress, the LDM basis
 re-arm (S-052), no-engine-state-persisted parity, the og's import path read-only.
 
@@ -319,7 +321,7 @@ session-format MATCH verdict (`evidence/executions/s10-rsf-ground-truth.md`).
 
 ## Session-12 continuation row (2026-10-29, audited `c7fa527c`, corpus `be0cfe9`)
 
-**N-142 (MINOR — NEW):** the og's variant-save device-descriptor record (the 5th
+**N-186 (MINOR — NEW; renumbered from N-142 at the N-160 doc-truth repair):** the og's variant-save device-descriptor record (the 5th
 GUID `76a672b048058b46ba9e91093a63b517`, FUN_1403f1180 = [552-B struct] + [5400-B
 volumeDevice blob]; rsf-format--scan-session.md:70-75 + :225-233) persists the full
 device identity: bus type, model, serial, **firmware revision, WWN, interface

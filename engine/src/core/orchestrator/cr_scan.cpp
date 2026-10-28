@@ -1530,6 +1530,37 @@ std::u16string volume_target_name(IStorageDevice* target, FsFamily fam, u64 star
     return text::utf8_to_u16(ascii);
 }
 
+/* M-137 (diff-to-fix): the lost-candidate FS display name - the og's
+ * fsname argument to the "Lost Partition %d(%s)" template
+ * (FUN_1403b9330, DRWUI:634817-838). nullptr = no resolvable name (the
+ * naming falls back to the LBA form). */
+static const char* lost_fs_display_name(lost::CandidateFs fs) {
+    switch (fs) {
+    case lost::CandidateFs::Ntfs:
+        return "NTFS";
+    case lost::CandidateFs::Fat:
+        return "FAT";
+    case lost::CandidateFs::Exfat:
+        return "exFAT";
+    case lost::CandidateFs::Ext2:
+        return "EXT2";
+    case lost::CandidateFs::HfsPlus:
+        return "HFS+";
+    case lost::CandidateFs::Btrfs:
+        return "Btrfs";
+    case lost::CandidateFs::Zfs:
+        return "ZFS";
+    case lost::CandidateFs::Refs:
+        return "ReFS";
+    case lost::CandidateFs::BitLocker:
+        return "BitLocker";
+    case lost::CandidateFs::GptTable:
+    case lost::CandidateFs::Unknown:
+        return nullptr; /* the LBA fallback path */
+    }
+    return nullptr;
+}
+
 EngineRun run_engine_dispatch(FsFamily fam, IStorageDevice* slice, bool deep_extras,
                               bool candidate_mode, CancelToken* cancel,
                               bool (*progress)(u64, u64, void*), void* pu, tree::ResultTree& tree,
@@ -1698,6 +1729,7 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
         publish_owner_module_(errmod::kLdm);
         table::LdmInfo ldm;
         if (table::parse_ldm_database(slice, ldm) == OK && ldm.found) {
+            seen_ldm_ = true; /* M-137: the candidate rows' Dynamic flag */
             const table::LdmGuid& self = ldm.ph.disk_guid_bin;
             /* member resolution: platform-provided cross-disk registry
              * first (each member disk's own PRIVHEAD re-anchors its LBAs
@@ -1786,6 +1818,9 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
         if (slice->absolute_base() == 0 && table::parse_disk_table(slice, t) == OK &&
             t.layout != table::TableLayout::None) {
             stats.gpt_invalid_entries = t.gpt_invalid_entries; /* N-161 */
+            /* M-137: the scan-target context the candidate rows carry
+             * (stamped onto every discovered candidate below) */
+            seen_table_layout_ = u32(t.layout);
             std::vector<table::PartitionInfo> targets;
             for (const auto& p : t.partitions)
                 if (p.used && p.sector_count != 0 && p.fs != table::FsKind::Extended &&
@@ -2025,6 +2060,17 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
             }
             stats.lost_candidates = dr.candidates;
             stats.lost_partitions = dr.candidates.size();
+            /* M-137: stamp the presentation context onto every candidate
+             * (the og's found-partition rows carry Disk / Basic / Dynamic /
+             * MBR / GPT / FS per partition - UIUX/08 §2; the disk-level
+             * trio comes from the table parse + LDM probe that already
+             * ran in the engine pass). */
+            for (auto& c : dr.candidates) {
+                c.disk_layout = seen_table_layout_;
+                c.disk_dynamic = seen_ldm_ ? 1 : 0;
+                c.disk_table_ok = seen_table_layout_ != 0 ? 1 : 0;
+            }
+            stats.lost_candidates = dr.candidates;
             if (!dr.candidates.empty()) {
                 /* M-042: the og's per-hit persistence (PRD:20409 - the
                  * scan loop appends every FOUND partition's record
@@ -2046,19 +2092,76 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                     u64 base; /* F-1: candidate start on the disk */
                 };
                 std::vector<CandWork> work;
+                /* M-137 (diff-to-fix): the og's scan-target insertion cap -
+                 * DRWUI:904195-234's loop breaks after the 10th inserted
+                 * candidate (`if (9 < uVar19) break`; each iteration logs
+                 * "Insert lost partition %s, %d, StartSector=%I64d,
+                 * TotalSector=%I64d" + registers a Quick-mode search
+                 * :904239). The candidates are score-sorted (the surfaced
+                 * set's own order), so the cap keeps the 10 best - the
+                 * og's semantics. Beyond the cap the candidate stays in
+                 * the surfaced list (apply-able, never scanned). */
+                constexpr size_t kLostInsertCap = 10;
+                u64 inserted = 0;
                 for (const auto& c : dr.candidates) {
+                    if (work.size() >= kLostInsertCap) {
+                        if (cr::log::enabled())
+                            cr::log::write(cr::log::Level::Info,
+                                           "lost partition insertion cap: %zu of %llu candidates "
+                                           "scanned (the og's 10-target cap, DRWUI:904229-234)",
+                                           work.size(), (unsigned long long)dr.candidates.size());
+                        break;
+                    }
                     emit_lost_candidate_(c); /* GAP-S6-10 */
                     auto cand_slice = lost::materialize(slice, c);
                     if (!cand_slice)
                         continue;
-                    std::u16string role = u"Candidate @";
-                    char buf[32];
-                    snprintf(buf, sizeof(buf), " %llu", (unsigned long long)c.start_lba);
-                    for (const char* p = buf; *p; ++p)
-                        role.push_back(u16(u8(*p)));
+                    /* M-137: the og's surfaced naming template
+                     * (FUN_1403b9330, DRWUI:634817-838): a candidate with
+                     * a volume label names "<label> (<FS>)" (a label that
+                     * already carries a drive-letter tail like
+                     * "Local Disk (I:)" - a ":)" substring - is kept
+                     * verbatim); an unnamed candidate takes
+                     * "Lost Partition <n>(<FS>)" with the per-scan counter
+                     * at +0x400; the LBA form stays only when no FS name
+                     * resolves (the finding's own fallback). */
+                    std::u16string role;
+                    const char* fsname = lost_fs_display_name(c.fs);
+                    if (c.volume_label[0] != 0) {
+                        bool drive_letter_tail = false;
+                        for (int k = 0; c.volume_label[k] && k + 1 < 12; ++k)
+                            if (c.volume_label[k] == ':' && c.volume_label[k + 1] == ')')
+                                drive_letter_tail = true;
+                        if (drive_letter_tail) {
+                            for (int k = 0; c.volume_label[k]; ++k)
+                                role.push_back(u16(u8(c.volume_label[k])));
+                        } else if (fsname) {
+                            char ascii[64];
+                            snprintf(ascii, sizeof(ascii), "%s (%s)", c.volume_label, fsname);
+                            role = text::utf8_to_u16(ascii);
+                        } else {
+                            char ascii[64];
+                            snprintf(ascii, sizeof(ascii), "%s", c.volume_label);
+                            role = text::utf8_to_u16(ascii);
+                        }
+                    } else if (fsname) {
+                        char ascii[64];
+                        snprintf(ascii, sizeof(ascii), "Lost Partition %u(%s)",
+                                 ++lost_name_counter_, fsname);
+                        role = text::utf8_to_u16(ascii);
+                    } else {
+                        /* the no-FS-name fallback: the old LBA form */
+                        role = u"Candidate @";
+                        char buf[32];
+                        snprintf(buf, sizeof(buf), " %llu", (unsigned long long)c.start_lba);
+                        for (const char* p = buf; *p; ++p)
+                            role.push_back(u16(u8(*p)));
+                    }
                     const u64 cbase = cand_slice->absolute_base();
                     work.push_back({std::move(cand_slice), tree_.add_root(role), cbase});
+                    ++inserted;
                 }
+                stats.lost_candidates_inserted = inserted;
                 if (!work.empty()) {
                     if (threads > 1 && work.size() > 1) {
                         /* Per-candidate stats (workers never touch shared
@@ -2459,6 +2562,16 @@ u32 ScanController::save_session(session::Writer& w, const ScanStats& stats,
             pc.flags |= 0x1;
         if (c.have_geometry)
             pc.flags |= 0x2;
+        /* v3 tail (M-137): the found-partition row context + the label */
+        pc.disk_layout = c.disk_layout;
+        pc.disk_flags = 0;
+        if (c.disk_dynamic)
+            pc.disk_flags |= 0x1;
+        if (c.disk_table_ok)
+            pc.disk_flags |= 0x2;
+        for (int k = 0; k < 12; ++k)
+            pc.volume_label[k] = c.volume_label[k];
+        pc.volume_label[11] = 0;
         if (session::serialize_partition_context(pc, blob) == OK)
             if (u32 rc =
                     w.add_record(session::REC_PARTITION_CONTEXT, blob.data(), u32(blob.size())))
@@ -2665,6 +2778,15 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
                 c.hidden_sectors = pc.hidden_sectors;
                 c.size_from_device_end = (pc.flags & 0x1) != 0;
                 c.have_geometry = (pc.flags & 0x2) != 0;
+                /* M-137 v3: the presentation context + the boot label
+                 * (v1/v2 sessions deserialize with zeros - the
+                 * append-only wire; the listing degrades honestly). */
+                c.disk_layout = pc.disk_layout;
+                c.disk_dynamic = (pc.disk_flags & 0x1) != 0 ? 1 : 0;
+                c.disk_table_ok = (pc.disk_flags & 0x2) != 0 ? 1 : 0;
+                for (int k = 0; k < 12; ++k)
+                    c.volume_label[k] = pc.volume_label[k];
+                c.volume_label[11] = 0;
                 /* M-042: the og re-reads every persisted record at search
                  * start and DROPS the ones the current disk no longer
                  * confirms (PRD:20748-20842). Two execution points: here

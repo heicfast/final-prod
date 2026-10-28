@@ -124,3 +124,12 @@ None.
 **Fixed in commit:** (this session's S-055+S-056 landing — post-push SHA in the ledger row and worklog entry)
 **Verified by:** `Carve.DisabledFormatsGatesUserSignLayer` (cpl disabled in three casings — cpl/CPL/cPl — zero cpl records from EITHER layer; RED pre-fix: the user layer emitted the 0xFFFE0000 record through the toggle), `Carve.DisabledFormatsGatesUserOnlyExtension` (the user-only population: xyzzy disabled suppresses its record while the unrelated quux sign still fires — the removal-loop semantics, not a blanket kill), `Carve.DisabledOtherFormatsLeaveUserSignsOn` (jpg,png,zip disabled leaves an unrelated user sign untouched — no over-blocking). Suite 1192/1192 green (linux-release).
 **Resolution notes:** CONFIRMED-DIVERGENCE, re-verified first-hand: the ungated user-sign block and the two-map setup (:1118-1131 with no user-sign map) re-read at the current HEAD. The fix takes the finding's predicate variant: `usersigns::match_at` gained a `disabled_exts` parameter (default nullptr — existing callers unchanged) and skips listed extensions INSIDE the match loop, mirroring the og's FUN_180006b30 removal-loop semantics exactly (a disabled analyser's signs never fire; signs of OTHER extensions at the same position still can — a caller-side single check after first-match would have silently killed those sibling signs). The scan passes `ctx.flags->disabled_formats` through — the same token list the raw-sign layer's map build (:1131) and the grammar layer's trial map use. D-104's "gated by the same format-toggle rules" claim is now true in code; the registration needed no text change beyond the S-055 landing notes. Landed in the same patch as S-055 (the finding's own "fix in the same patch" note — both findings' sites are the same block).
+
+### Convergence addendum (session-55 fix lane)
+
+Convergent with the winning 7bd5e00f landing (their `match_at` disabled_exts predicate
+carries the FUN_180006b30 removal-loop semantics; this lane's losing push used the
+post-match `carve_token_listed` check — the same token matcher, the same accept set,
+zero behavioral difference). This lane's independent fail-before reproduction: one
+0xFFFE0000 record under `disabled_formats="xyz"` at `862d79ef`'s parent, green post-gate
+in both implementations. No further change needed on the merged tree.

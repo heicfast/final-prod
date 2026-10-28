@@ -957,3 +957,47 @@ TEST(LostDiscovery, OverLargeDuplicateRescoredToFront) {
     EXPECT_EQ(r.candidates[2].start_lba, u64(1024));
     EXPECT_EQ(r.candidates[2].score, 537);
 }
+
+/* ---- M-137: the geometry fallback (DRWUI:904185-187) ---- */
+
+namespace {
+/* a device whose geometry query reports logical_sector 0 (the failed /
+ * absent geometry query) while its reads stay healthy - the shape the
+ * og's `if (sector_size == 0) sector_size = 0x200;` fallback serves. */
+class ZeroGeomDevice final : public IStorageDevice {
+public:
+    explicit ZeroGeomDevice(std::vector<u8> b) : data_(std::move(b)) {
+        /* logical_sector deliberately 0: the unreadable geometry */
+        geom_.physical_sector = 512;
+        geom_.sector_count = data_.size() / 512;
+        geom_.total_bytes = geom_.sector_count * 512;
+    }
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (off > data_.size() || len > data_.size() - off)
+            return ERR_RANGE_OUT_OF_BOUNDS;
+        std::memcpy(buf, data_.data() + off, len);
+        return OK;
+    }
+    const Geometry& geometry() const override { return geom_; }
+
+private:
+    std::vector<u8> data_;
+    Geometry geom_;
+};
+} // namespace
+
+TEST(LostDiscovery, ZeroSectorSizeFallsBackTo512) {
+    /* M-137: the og proceeds at 512 when the device sector-size query
+     * fails (DRWUI:904185-187) - the old core refused the whole
+     * discovery with ERR_BAD_PARAMETER; the fallback keeps the
+     * discovery alive on the 512-byte floor. The table layer's own
+     * parse legitimately refuses the unreadable geometry (its LBA math
+     * needs the sector size), so the zero-geometry shape is the
+     * tableless discovery - exactly the og's fallback context. */
+    auto img = build_disk();
+    ZeroGeomDevice dev(std::move(img));
+    DiscoveryResult r;
+    u32 rc = discover(&dev, {}, 1, nullptr, nullptr, nullptr, r);
+    EXPECT_EQ(rc, OK) << "the zero-geometry query proceeds at 512, never refuses";
+    EXPECT_FALSE(r.candidates.empty()) << "the planted volumes still surface";
+}
