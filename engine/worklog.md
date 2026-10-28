@@ -4497,3 +4497,22 @@ Stage Summary:
   INFO) / 306 resolved ledger rows / 3 tracked-open. Suites green
   (release + ASan); format clean; the push carries the two- finding fix,
   the ASan test repair, and the full trail.
+
+---
+### Session-11D W1 closed (pushed at 1c4a106c after five hot-window merge cycles)
+
+The wave's landings, all verified on the merged tree (1146/1146 green,
+format clean, the evidence probe re-run):
+- **S-051 FIXED** — the CONVERGENT DU union with the S40 lane (their
+  host-hint gate + stats names; this lane's display names, skip accounting,
+  scanned-only reconciliation). RUN 2: rc=0 files=4 deleted=2.
+- **M-104 FIXED** — the display-name tiers riding the union.
+- **A-012** — the CONVERGENT record (the S11 lane's e4273f2b repair stands;
+  this lane's fail-before execution + root-cause trace in the finding file).
+- Trail reconciled through the hot window: the DU rows in the ledger, the
+  folded matrix rows, the addenda in both finding files.
+
+**NEXT (the lane's declared SEVERE order): S-049** — the og's universal
+carved-naming contract (`<PREFIX>_%06d.EXT` + the content-derived
+prefixes). The label primitive (fat::read_volume_label) and the volume-root
+mechanism from W1 compose.
