@@ -308,3 +308,16 @@ MATCH.
   0xFF9F/2107-12-31 value, the 0xFFFFFFFE boundary, the 0x100000000 regression
   step) + Date2107EndToEndFileTimeIsReal. The finding's 0xFFBF example word
   corrected (it decodes 2107-11-31 — invalid; 0xFF9F is 2107-12-31).
+
+## Session-46 addendum (2026-10-29 — the MINOR-first fix lane; audited `fa654673`-lineage, corpus `be0cfe9`)
+
+**N-165 FIXED — the out-of-volume run-end stance registered.** Both og factory
+gates re-read first-hand (:10865-10903 / :28040-28075: the run-end sector-limit
+check, ReleaseTrace "File overflows partition!", the runlist destruction). The
+core's deferred-failure posture — the truncated-tail volume stays a
+first-class target, the overflow-tail file stays listed with its chain
+extents, the readable prefix recovers and the tail discloses as Salvaged at
+recovery (FB-R02) — REGISTERED as PARITY-DELTAS D-136 and pinned by
+FatEngine.TruncatedVolumeOverflowChainStance (the scan-time grade stays the
+chain's own: the truncation is recovery-time knowledge). No behavior change,
+per the finding's own plan.

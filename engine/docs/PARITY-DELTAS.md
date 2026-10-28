@@ -3938,3 +3938,29 @@ ACL pointer pollution never smear the size (the D-123 family); (3) the marker
 bit is the SAME numeric bit 0x200 so cross-tool consumption is unaffected.
 Registered deliberate superset: the og's comparison defects are NOT adopted
 (the I-040 anti-down-fix doctrine).
+
+### D-136 — the FAT out-of-volume run-end stance: deferred per-read failure, not scan-time destruction (N-165 registration, REGISTERED DELIBERATE SUPERSET — truncated-tail volumes are first-class recovery targets)
+
+The og's FAT runlist factories destroy a file's whole runlist at SCAN time
+when a run's end passes the volume sector limit — "File overflows
+partition!" via ReleaseTrace and the runlist object released
+(FATSearchDLL :10873-10903 and the second factory :28045-28070, both
+64-bit checks, re-read first-hand this session). The file then surfaces
+with NO data runs: no recoverable content offered even where the device
+still holds the chain's readable prefix.
+
+The core's registered stance: extents emit unguarded
+(cr_fat_quick.cpp:370-386) and validate_boot deliberately accepts volumes
+whose BPB claims more sectors than the device holds (the truncated-tail
+allowance, cr_chain.cpp:613-616) — a volume cut mid-FAT keeps every
+overflow-tail file LISTED with its chain extents; the readable prefix
+recovers, and the beyond-device tail fails per-read, surfacing through the
+FB-R02 Salvaged family (the recovery report's partial-content disclosure)
+instead of a scan-time destruction. Rationale: truncated-tail volumes are
+recovery targets exactly when the tail is gone (repartitioned/re-sized
+disks); destroying the runlist because its end is past the limit also
+destroys the in-device prefix the og itself could have served. The
+scan-time grade stays the chain's own (FAT-verified intact chains grade
+Excellent; the truncation is a recovery-time disclosure, never a silent
+drop). Pinned by FatEngine.TruncatedVolumeOverflowChainStance; do NOT
+"fix" toward the og's destruction without re-registering this row.

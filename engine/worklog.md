@@ -5670,6 +5670,11 @@ format's own UPPERCASE form — GZ_000001.GZ in the real og sessions; the S-049
 push re-pinned its 39-test fail-before set but the N-115 test landed after,
 unre-pinned). Expectations re-pinned to `.DOCX/.XLSX/.PPTX`; suite
 **1134 ran / 1092 passed / 42 Win-only skipped / 0 failed** on the repaired
+tree **[N-185 ERRATUM, S46 lane: this "0 failed" claim is FALSE for the tree the
+same session's `b26017a7` commit describes — the executed proof at exactly that
+commit is 1136 ran / 1093 passed / 1 FAILED (`Carve.OoxmlRelsPathSplit`) / 42
+skipped; the count drift (+2) and the repair-attribution error are recorded in
+findings/FIXED/N-185; the suite IS green at every HEAD from `d10e4aa2` on]**
 tree (Linux gcc, Release).
 
 ## Fix session 40 (continued) — the S-054 regression restore
@@ -7822,3 +7827,34 @@ built-in-first text; N-179's kMaxExtLen=8 "manifest" comment) — verified
 FIXED-ALREADY at the current tree. Acceptance grep (the finding's own criterion):
 the refuted phrases carry zero assertion hits. Doc-only; no code change. Trail:
 findings/FIXED/N-170 + ledger row + matrix row + carve.md row + this entry.
+
+## Session-46 minors lane — N-180 landed (2026-10-29)
+
+**N-180 FIXED (MINOR — the doc-truth staleness batch).** Six doc sites re-truthed
+against their code cites, each verified first-hand: REFERENCE-API-GAP's R-28 rows
+(:222/:376 — the thumbnail ABI IS exported, cr_ui.h:1233-1297; the budget is 200 MB
+per M-109, not 32 MiB per M-080) and R-34 rows (:233/:382 — the 100 MB/15 s caps
+SHIP as defaults per M-077, cr_preview.h:125-126); ABI-CONTRACT §7i's caps line;
+API-DELTA's S3-W4a row (LANDED with the code cite); AUDIT-PIPELINE's WRITER-1 row
+(the "returns on first per-item error / OPEN" claim flipped to the
+collect-and-continue MATCH — the same file's findings block had already recorded
+the fix; the row drifted); modules/exfat.md's B9 (the refuted "with tz-offset
+conversion" replaced with the S-011 parsed-but-not-applied truth). The finding's
+item 7 (the s5 evidence's polarity line) was ALREADY landed by the S-058 Resolution
+— verified FIXED-ALREADY at the evidence file's :258/:307. Doc-only; no code change.
+Trail: findings/FIXED/N-180 + ledger row + matrix row + this entry.
+
+## Session-46 minors lane — N-185 landed (2026-10-29)
+
+**N-185 FIXED (MINOR — the b26017a7 record-truth erratum).** The finding's executed
+proof stands as filed (the evidence file's 1136/1093/1/42 at exactly b26017a7). The
+owed record repairs landed: the N-157 fixed-record's attribution line now annotates
+the "b26017a7 re-pinned the expectation" credit with the executed refutation and the
+corrected repair sequence (67de3276 red -> b26017a7 STILL RED -> d10e4aa2 green ->
+1fb7603b cleanup), and the worklog's session-42 "1134 ran / 1092 passed / 0 failed
+on the repaired tree" claim carries the dated erratum note (the 1233b4a0
+message-truth precedent — the historical entry stands, the correction sits beside
+it). The +2 count drift is explained in the annotation (two tests landing between
+the fix-lane's run and the hygiene commit). Code was already green at HEAD; this is
+record-truth only. Trail: findings/FIXED/N-185 + ledger row + matrix row + this
+entry.
