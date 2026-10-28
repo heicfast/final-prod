@@ -219,6 +219,118 @@ std::string write_fixture(const char* tag) {
     return path;
 }
 
+/* M-116: the archive fixture variant - STASH.ZIP (a stored-method
+ * multi-entry zip: 3 named members, entry 1 CRC-less) on its own
+ * cluster, so the two-call archive ABI is provable end-to-end at the
+ * same surface the og's results-page archive view serves. */
+std::vector<unsigned char> build_stash_zip() {
+    std::vector<unsigned char> zip;
+    const auto z16 = [&zip](unsigned v) {
+        zip.push_back((unsigned char)(v));
+        zip.push_back((unsigned char)(v >> 8));
+    };
+    const auto z32 = [&zip](unsigned long v) {
+        zip.push_back((unsigned char)(v));
+        zip.push_back((unsigned char)(v >> 8));
+        zip.push_back((unsigned char)(v >> 16));
+        zip.push_back((unsigned char)(v >> 24));
+    };
+    const char* names[3] = {"readme.txt", "dir/photo.jpg", "data.bin"};
+    const unsigned crc[3] = {0xA1B2C3D4u, 0u, 0x11223344u};
+    std::vector<unsigned> lho(3, 0);
+    std::vector<std::vector<unsigned char>> cds;
+    for (int i = 0; i < 3; ++i) {
+        lho[size_t(i)] = unsigned(zip.size());
+        const unsigned char sig4[4] = {'P', 'K', 3, 4};
+        zip.insert(zip.end(), sig4, sig4 + 4);
+        z16(20);
+        z16(0);
+        z16(0);
+        z16(0);
+        z16(0);
+        z32(crc[i]);
+        z32(100);
+        z32(100);
+        z16(unsigned(std::strlen(names[i])));
+        z16(0);
+        for (const char* c = names[i]; *c; ++c)
+            zip.push_back((unsigned char)(*c));
+        zip.insert(zip.end(), size_t(100), (unsigned char)('a' + i));
+        std::vector<unsigned char> cd;
+        const auto c16 = [&cd](unsigned v) {
+            cd.push_back((unsigned char)(v));
+            cd.push_back((unsigned char)(v >> 8));
+        };
+        const auto c32 = [&cd](unsigned long v) {
+            cd.push_back((unsigned char)(v));
+            cd.push_back((unsigned char)(v >> 8));
+            cd.push_back((unsigned char)(v >> 16));
+            cd.push_back((unsigned char)(v >> 24));
+        };
+        const unsigned char cdsig[4] = {'P', 'K', 1, 2};
+        cd.insert(cd.end(), cdsig, cdsig + 4);
+        c16(20);
+        c16(20);
+        c16(0);
+        c16(0);
+        c16(0);
+        c16(0);
+        c32(crc[i]);
+        c32(100);
+        c32(100);
+        c16(unsigned(std::strlen(names[i])));
+        c16(0);
+        c16(0);
+        c16(0);
+        c16(0);
+        c32(0);
+        c32(lho[size_t(i)]);
+        for (const char* c = names[i]; *c; ++c)
+            cd.push_back((unsigned char)(*c));
+        cds.push_back(std::move(cd));
+    }
+    const size_t cd_at = zip.size();
+    size_t cd_len = 0;
+    for (const auto& cd : cds) {
+        zip.insert(zip.end(), cd.begin(), cd.end());
+        cd_len += cd.size();
+    }
+    const unsigned char eocd[4] = {'P', 'K', 5, 6};
+    zip.insert(zip.end(), eocd, eocd + 4);
+    z16(0);
+    z16(0);
+    z16(3);
+    z16(3);
+    z32(cd_len);
+    z32(cd_at);
+    z16(0);
+    return zip;
+}
+
+std::string write_fixture_zip(const char* tag) {
+    const std::string path = cr_test::tmp_path("cr_ui", tag);
+    FILE* f = std::fopen(path.c_str(), "wb");
+    if (!f)
+        return {};
+    auto img = build_fat16();
+    const auto zip = build_stash_zip();
+    const unsigned first_free = 60; /* clusters 60..: the zip body */
+    size_t need = (zip.size() + 511) / 512;
+    for (unsigned c = 0; c < need; ++c)
+        put16(img, kFAT1 + (first_free + c) * 2, first_free + c + 1);
+    put16(img, kFAT1 + (first_free + need - 1) * 2, 0xFFFF);
+    for (unsigned c = 0; c < need; ++c)
+        put16(img, kFAT2 + (first_free + c) * 2, first_free + c + 1);
+    put16(img, kFAT2 + (first_free + need - 1) * 2, 0xFFFF);
+    dentry(img, 3, "STASH   ZIP", 0x20, first_free, unsigned(zip.size()), false); /* slot 3: the first free slot (a zero entry ends the FAT dir walk) */
+    std::memcpy(img.data() + kDATA + (first_free - 2) * 512, zip.data(), zip.size());
+    const size_t n = std::fwrite(img.data(), 1, img.size(), f);
+    std::fclose(f);
+    if (n != img.size())
+        return {};
+    return path;
+}
+
 unsigned g_progress_calls = 0;
 void progress_cb(void* user, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uint32_t) {
     ++*static_cast<unsigned*>(user);
@@ -226,6 +338,8 @@ void progress_cb(void* user, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, u
 void recovery_progress_cb(void* user, uint64_t, uint64_t) {
     ++*static_cast<unsigned*>(user);
 }
+
+
 
 struct Ui {
     cr_ui_device* dev = nullptr;
@@ -246,6 +360,32 @@ struct Ui {
             cr_ui_device_close(dev);
     }
 };
+
+/* M-116: the zip-fixture scan flows (the scan_to_session shape). */
+bool scan_zip_to_session(const char* tag, Ui& u, std::string& img_out, std::string& crsf_out) {
+    img_out = write_fixture_zip(tag);
+    if (img_out.empty())
+        return false;
+    if (cr_ui_open_image(img_out.c_str(), 0, 0, &u.dev) != CR_UI_OK)
+        return false;
+    cr_ui_scan_config cfg{};
+    cfg.progress = progress_cb;
+    cfg.progress_user = &g_progress_calls;
+    if (cr_ui_scan_create(&cfg, &u.scan) != CR_UI_OK)
+        return false;
+    if (cr_ui_scan_attach_device(u.scan, u.dev) != CR_UI_OK)
+        return false;
+    if (cr_ui_scan_run(u.scan) != CR_UI_OK)
+        return false;
+    crsf_out = img_out + ".crsf";
+    if (cr_ui_scan_save_session(u.scan, crsf_out.c_str()) != CR_UI_OK)
+        return false;
+    cr_ui_scan_close(u.scan);
+    u.scan = nullptr;
+    if (cr_ui_session_load(crsf_out.c_str(), &u.sess) != CR_UI_OK)
+        return false;
+    return true;
+}
 
 /* run a full scan over a fresh fixture and return the session+device in u;
  * the scan handle is closed after saving (the CLI process shape). */
@@ -3712,4 +3852,307 @@ TEST(DestArming, HeaderContractStillClaimsAllSpans) {
     const std::string hdr = cr_test::read_repo_file("include/cr/win/cr_transport.h");
     EXPECT_NE(std::string::npos,
               hdr.find("destination arming must use volume_extents() (all spans)"));
+}
+
+/* ---- M-116: the archive-inventory ABI (the two-call pattern) ---- */
+
+TEST(CrUi, ArchiveEntryTwoCallPattern) {
+    /* the browse-inside inventory crosses the C ABI: count probe, then
+     * per-index fill, names/sizes/CRC intact, out-of-range refused,
+     * non-archive nodes count 0 (never an error). */
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_zip_to_session("arch", u, img, crsf));
+
+    const uint64_t zip_id = query_node_id(u.sess, "STASH.ZIP");
+    ASSERT_NE(zip_id, 0u) << "the zip fixture must scan into the tree";
+    cr_ui_preview* pv = nullptr;
+    ASSERT_EQ(cr_ui_preview_open_session(u.dev, u.sess, zip_id, &pv), CR_UI_OK);
+    uint32_t count = 99;
+    ASSERT_EQ(cr_ui_archive_entry_count(pv, &count), CR_UI_OK);
+    ASSERT_EQ(count, 3u) << "the ArchivePreviewModel inventory at the ABI";
+
+    cr_ui_archive_entry e{};
+    ASSERT_EQ(cr_ui_archive_entry_at(pv, 0, &e), CR_UI_OK);
+    EXPECT_STREQ(e.name, "readme.txt");
+    EXPECT_EQ(e.size, 100u);
+    EXPECT_EQ(e.compressed, 100u);
+    EXPECT_EQ(e.crc_present, 1u);
+    ASSERT_EQ(cr_ui_archive_entry_at(pv, 1, &e), CR_UI_OK);
+    EXPECT_STREQ(e.name, "dir/photo.jpg");
+    EXPECT_EQ(e.crc_present, 0u) << "the damaged-entry marker crosses (CRC 0)";
+    ASSERT_EQ(cr_ui_archive_entry_at(pv, 2, &e), CR_UI_OK);
+    EXPECT_STREQ(e.name, "data.bin");
+    EXPECT_EQ(e.crc_present, 1u);
+    /* out-of-range refused (not a crash, not silent) */
+    EXPECT_NE(cr_ui_archive_entry_at(pv, 3, &e), CR_UI_OK);
+    /* bad pointers refused */
+    EXPECT_NE(cr_ui_archive_entry_count(pv, nullptr), CR_UI_OK);
+    EXPECT_NE(cr_ui_archive_entry_at(nullptr, 0, &e), CR_UI_OK);
+    cr_ui_preview_close(pv);
+
+    /* a non-archive node: count 0, never an error (the empty browse) */
+    const uint64_t doc = query_node_id(u.sess, "DOC.TXT");
+    ASSERT_NE(doc, 0u);
+    pv = nullptr;
+    ASSERT_EQ(cr_ui_preview_open_session(u.dev, u.sess, doc, &pv), CR_UI_OK);
+    ASSERT_EQ(cr_ui_archive_entry_count(pv, &count), CR_UI_OK);
+    EXPECT_EQ(count, 0u);
+    EXPECT_NE(cr_ui_archive_entry_at(pv, 0, &e), CR_UI_OK)
+        << "no entries: every index is out of range";
+    cr_ui_preview_close(pv);
+}
+
+TEST(CrUi, ArchiveEntryDamagedZipSalvageAndAbstain) {
+    /* the damaged-zip contract at the ABI, both honest halves:
+     * (a) a member's local header destroyed - the CD is self-contained,
+     *     the inventory still enumerates (the og's family exists to
+     *     browse damaged zips; the engine's M-066 salvage crosses);
+     * (b) the CD itself unreachable (the EOCD's cd_off past EOF) - the
+     *     salvage ABSTAINS: count 0, kind still archive, no error, no
+     *     crash (the browse view renders an empty damaged listing). */
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_zip_to_session("archlfh", u, img, crsf));
+    {
+        /* destroy the SECOND member's local header magic (mid-file):
+         * the file image's zip body starts at cluster 60's data; the
+         * second LFH sits 30+10+100 bytes into the body */
+        FILE* f = std::fopen(img.c_str(), "r+b");
+        ASSERT_NE(f, nullptr);
+        const long body_at = 74 * 512 + 58 * 512; /* kDATA + (60-2)*512 */
+        const long second_lfh = body_at + 30 + 10 + 100;
+        ASSERT_EQ(std::fseek(f, second_lfh, SEEK_SET), 0);
+        std::fputc(0xDE, f);
+        std::fputc(0xAD, f);
+        std::fputc(0xBE, f);
+        std::fputc(0xEF, f);
+        std::fclose(f);
+    }
+    /* re-scan the damaged image into a fresh session */
+    {
+        Ui u2;
+        std::string img2 = img; /* scan the damaged image manually */
+        ASSERT_EQ(cr_ui_open_image(img2.c_str(), 0, 0, &u2.dev), CR_UI_OK);
+        cr_ui_scan_config cfg{};
+        cfg.progress = progress_cb;
+        cfg.progress_user = &g_progress_calls;
+        ASSERT_EQ(cr_ui_scan_create(&cfg, &u2.scan), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_attach_device(u2.scan, u2.dev), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_run(u2.scan), CR_UI_OK);
+        const std::string csf2 = img2 + ".crsf";
+        ASSERT_EQ(cr_ui_scan_save_session(u2.scan, csf2.c_str()), CR_UI_OK);
+        cr_ui_scan_close(u2.scan);
+        u2.scan = nullptr;
+        ASSERT_EQ(cr_ui_session_load(csf2.c_str(), &u2.sess), CR_UI_OK);
+        const uint64_t zip_id = query_node_id(u2.sess, "STASH.ZIP");
+        ASSERT_NE(zip_id, 0u);
+        cr_ui_preview* pv = nullptr;
+        ASSERT_EQ(cr_ui_preview_open_session(u2.dev, u2.sess, zip_id, &pv), CR_UI_OK);
+        uint32_t count = 0;
+        ASSERT_EQ(cr_ui_archive_entry_count(pv, &count), CR_UI_OK);
+        EXPECT_EQ(count, 3u) << "the CD walk does not need the local headers";
+        cr_ui_archive_entry e{};
+        ASSERT_EQ(cr_ui_archive_entry_at(pv, 0, &e), CR_UI_OK);
+        EXPECT_STREQ(e.name, "readme.txt");
+        cr_ui_preview_close(pv);
+    }
+    /* (b) the CD unreachable: abstain, no error */
+    Ui u3;
+    std::string img3, crsf3;
+    ASSERT_TRUE(scan_zip_to_session("archcd", u3, img3, crsf3));
+    {
+        /* the zip body lives at cluster 60; find its EOCD by scanning
+         * backward from the body start for the PK\x05\x06 signature,
+         * then point cd_off (EOCD+16) far past EOF */
+        FILE* f = std::fopen(img3.c_str(), "rb+");
+        ASSERT_NE(f, nullptr);
+        const long body_at = 74 * 512 + 58 * 512; /* kDATA + (60-2)*512 */
+        ASSERT_EQ(std::fseek(f, body_at, SEEK_SET), 0);
+        std::vector<unsigned char> body(4096);
+        const size_t got = std::fread(body.data(), 1, body.size(), f);
+        ASSERT_GT(got, 100u);
+        long eocd = -1;
+        for (size_t i = got - 4; i > 0; --i) {
+            if (body[i] == 'P' && body[i + 1] == 'K' && body[i + 2] == 5 && body[i + 3] == 6) {
+                eocd = long(i);
+                break;
+            }
+        }
+        ASSERT_GT(eocd, 0) << "the EOCD must be inside the zip body head";
+        ASSERT_EQ(std::fseek(f, body_at + eocd + 16, SEEK_SET), 0);
+        std::fputc(0x7F, f);
+        std::fputc(0xFF, f);
+        std::fputc(0xFF, f);
+        std::fputc(0xFF, f);
+        std::fclose(f);
+    }
+    {
+        Ui u4;
+        ASSERT_EQ(cr_ui_open_image(img3.c_str(), 0, 0, &u4.dev), CR_UI_OK);
+        cr_ui_scan_config cfg{};
+        cfg.progress = progress_cb;
+        cfg.progress_user = &g_progress_calls;
+        ASSERT_EQ(cr_ui_scan_create(&cfg, &u4.scan), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_attach_device(u4.scan, u4.dev), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_run(u4.scan), CR_UI_OK);
+        const std::string crsf4 = img3 + ".crsf";
+        ASSERT_EQ(cr_ui_scan_save_session(u4.scan, crsf4.c_str()), CR_UI_OK);
+        cr_ui_scan_close(u4.scan);
+        u4.scan = nullptr;
+        ASSERT_EQ(cr_ui_session_load(crsf4.c_str(), &u4.sess), CR_UI_OK);
+        const uint64_t zip_id = query_node_id(u4.sess, "STASH.ZIP");
+        ASSERT_NE(zip_id, 0u);
+        cr_ui_preview* pv = nullptr;
+        ASSERT_EQ(cr_ui_preview_open_session(u4.dev, u4.sess, zip_id, &pv), CR_UI_OK);
+        cr_ui_metadata meta{};
+        ASSERT_EQ(cr_ui_preview_metadata(pv, &meta), CR_UI_OK);
+        EXPECT_EQ(std::string(meta.kind), "archive") << "the sniff still routes";
+        uint32_t count = 99;
+        ASSERT_EQ(cr_ui_archive_entry_count(pv, &count), CR_UI_OK);
+        EXPECT_EQ(count, 0u) << "the unreachable CD abstains (no error, no crash)";
+        cr_ui_preview_close(pv);
+    }
+}
+
+TEST(CrUi, ArchiveEntryHostileBound512) {
+    /* the 512-entry hostile bound at the ABI layer over an FS-origin
+     * node (the exact file extent; the carve layer's extent arithmetic
+     * is its own audited surface): a 700-member zip lists exactly 512
+     * entries with truncated=1 (the preview budget model - the eager
+     * extractor's cap, M-066's registered bound). */
+    auto img = build_fat16();
+    /* the 700-member stored zip (names f0000.bin..f0699.bin, 4-byte
+     * bodies, real CRCs) */
+    std::vector<unsigned char> zip;
+    const auto z16 = [&zip](unsigned v) {
+        zip.push_back((unsigned char)(v));
+        zip.push_back((unsigned char)(v >> 8));
+    };
+    const auto z32 = [&zip](unsigned long v) {
+        zip.push_back((unsigned char)(v));
+        zip.push_back((unsigned char)(v >> 8));
+        zip.push_back((unsigned char)(v >> 16));
+        zip.push_back((unsigned char)(v >> 24));
+    };
+    char name[32];
+    std::vector<unsigned> lho;
+    std::vector<std::vector<unsigned char>> cds;
+    for (unsigned i = 0; i < 700; ++i) {
+        std::snprintf(name, sizeof(name), "f%04u.bin", i);
+        lho.push_back(unsigned(zip.size()));
+        const unsigned char s4[4] = {'P', 'K', 3, 4};
+        zip.insert(zip.end(), s4, s4 + 4);
+        z16(20);
+        z16(0);
+        z16(0);
+        z16(0);
+        z16(0);
+        z32(0x01020304u);
+        z32(4);
+        z32(4);
+        z16(unsigned(std::strlen(name)));
+        z16(0);
+        for (const char* c = name; *c; ++c)
+            zip.push_back((unsigned char)(*c));
+        zip.insert(zip.end(), 4, 'x');
+        std::vector<unsigned char> cd;
+        const auto c16 = [&cd](unsigned v) {
+            cd.push_back((unsigned char)(v));
+            cd.push_back((unsigned char)(v >> 8));
+        };
+        const auto c32 = [&cd](unsigned long v) {
+            cd.push_back((unsigned char)(v));
+            cd.push_back((unsigned char)(v >> 8));
+            cd.push_back((unsigned char)(v >> 16));
+            cd.push_back((unsigned char)(v >> 24));
+        };
+        const unsigned char c4[4] = {'P', 'K', 1, 2};
+        cd.insert(cd.end(), c4, c4 + 4);
+        c16(20);
+        c16(20);
+        c16(0);
+        c16(0);
+        c16(0);
+        c16(0);
+        c32(0x01020304u);
+        c32(4);
+        c32(4);
+        c16(unsigned(std::strlen(name)));
+        c16(0);
+        c16(0);
+        c16(0);
+        c16(0);
+        c32(0);
+        c32(lho.back());
+        for (const char* c = name; *c; ++c)
+            cd.push_back((unsigned char)(*c));
+        cds.push_back(std::move(cd));
+    }
+    const size_t cd_at = zip.size();
+    size_t cd_len = 0;
+    for (const auto& cd : cds) {
+        zip.insert(zip.end(), cd.begin(), cd.end());
+        cd_len += cd.size();
+    }
+    const unsigned char eocd[4] = {'P', 'K', 5, 6};
+    zip.insert(zip.end(), eocd, eocd + 4);
+    z16(0);
+    z16(0);
+    z16(700);
+    z16(700);
+    z32(cd_len);
+    z32(cd_at);
+    z16(0);
+
+    /* the FAT fixture: STASH.ZIP on cluster 60 (the write_fixture_zip
+     * shape, inlined here for the 700-member body) */
+    const unsigned first_free = 60;
+    const size_t need = (zip.size() + 511) / 512;
+    for (unsigned c = 0; c < need; ++c) {
+        put16(img, kFAT1 + (first_free + c) * 2, first_free + c + 1);
+        put16(img, kFAT2 + (first_free + c) * 2, first_free + c + 1);
+    }
+    put16(img, kFAT1 + (first_free + need - 1) * 2, 0xFFFF);
+    put16(img, kFAT2 + (first_free + need - 1) * 2, 0xFFFF);
+    dentry(img, 3, "STASH   ZIP", 0x20, first_free, unsigned(zip.size()), false);
+    std::memcpy(img.data() + kDATA + (first_free - 2) * 512, zip.data(), zip.size());
+
+    const std::string path = cr_test::tmp_path("cr_ui", "arch700.img");
+    FILE* f = std::fopen(path.c_str(), "wb");
+    ASSERT_NE(f, nullptr);
+    const size_t wn = std::fwrite(img.data(), 1, img.size(), f);
+    std::fclose(f);
+    ASSERT_EQ(wn, img.size());
+
+    Ui u;
+    ASSERT_EQ(cr_ui_open_image(path.c_str(), 0, 0, &u.dev), CR_UI_OK);
+    cr_ui_scan_config cfg{};
+    cfg.progress = progress_cb;
+    cfg.progress_user = &g_progress_calls;
+    ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+    const std::string crsf = path + ".crsf";
+    ASSERT_EQ(cr_ui_scan_save_session(u.scan, crsf.c_str()), CR_UI_OK);
+    cr_ui_scan_close(u.scan);
+    u.scan = nullptr;
+    ASSERT_EQ(cr_ui_session_load(crsf.c_str(), &u.sess), CR_UI_OK);
+    const uint64_t zip_id = query_node_id(u.sess, "STASH.ZIP");
+    ASSERT_NE(zip_id, 0u);
+    cr_ui_preview* pv = nullptr;
+    ASSERT_EQ(cr_ui_preview_open_session(u.dev, u.sess, zip_id, &pv), CR_UI_OK);
+    uint64_t pvsz = 0;
+    ASSERT_EQ(cr_ui_preview_size(pv, &pvsz), CR_UI_OK);
+    ASSERT_EQ(pvsz, zip.size()) << "the FS-origin node carries the exact file";
+    uint32_t entries = 0;
+    ASSERT_EQ(cr_ui_archive_entry_count(pv, &entries), CR_UI_OK);
+    EXPECT_EQ(entries, 512u) << "the hostile bound at the ABI layer";
+    cr_ui_archive_entry e{};
+    ASSERT_EQ(cr_ui_archive_entry_at(pv, 511, &e), CR_UI_OK);
+    EXPECT_EQ(std::string(e.name).size(), 9u) << "the 512th entry fills";
+    cr_ui_metadata meta{};
+    ASSERT_EQ(cr_ui_preview_metadata(pv, &meta), CR_UI_OK);
+    EXPECT_EQ(meta.truncated, 1u) << "the bound discloses";
+    cr_ui_preview_close(pv);
 }

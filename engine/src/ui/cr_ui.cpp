@@ -911,6 +911,13 @@ struct CrPreview {
      * through this handle (ABI-CONTRACT §7i). The preview-handle variant
      * of that promotion (stashed origin fields) was dropped at the
      * session-10/11 rebase; N-142 removed the surviving dead pair. */
+    /* M-116: the archive-inventory cache - the two-call ABI pattern
+     * (count + per-index fill) must not re-walk the central directory
+     * per entry. Extracted at the FIRST archive call, stable for the
+     * handle's lifetime (the og's ArchivePreviewModel serves one model
+     * per browse view); a fresh handle re-extracts. */
+    bool archive_cached = false;
+    preview::Metadata archive_cache;
 };
 
 struct CrRecovery {
@@ -3848,6 +3855,43 @@ u32 preview_unreadable_impl(cr_ui_preview* pv, uint64_t* total_bytes, uint32_t* 
     return ret_ok();
 }
 
+/* M-116: the archive-inventory ABI half. The two-call pattern over the
+ * handle-cached extraction (see CrPreview). Non-archive nodes report
+ * count 0 - never an error (the browse view renders an empty listing,
+ * the og's model behavior for non-archives). */
+u32 archive_entry_count_impl(cr_ui_preview* pv, uint32_t* out) {
+    if (!pv || !out)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: pv/out");
+    auto* p = reinterpret_cast<CrPreview*>(pv);
+    if (!p->archive_cached) {
+        p->archive_cache = preview::extract_metadata(*p->reader, preview::Caps{});
+        p->archive_cached = true;
+    }
+    *out = u32(p->archive_cache.entries.size());
+    return ret_ok();
+}
+
+u32 archive_entry_impl(cr_ui_preview* pv, uint32_t index, cr_ui_archive_entry* out) {
+    if (!pv || !out)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: pv/out");
+    auto* p = reinterpret_cast<CrPreview*>(pv);
+    if (!p->archive_cached) {
+        p->archive_cache = preview::extract_metadata(*p->reader, preview::Caps{});
+        p->archive_cached = true;
+    }
+    if (u64(index) >= p->archive_cache.entries.size())
+        return ret_(ERR_RANGE_OUT_OF_BOUNDS, "archive entry index %u of %llu", index,
+                    static_cast<unsigned long long>(p->archive_cache.entries.size()));
+    const preview::ArchiveEntry& e = p->archive_cache.entries[index];
+    std::memset(out, 0, sizeof(*out));
+    bool fit = copy_bstr(out->name, sizeof(out->name), e.name);
+    out->size = e.size;
+    out->compressed = e.compressed;
+    out->crc_present = e.crc_present ? 1u : 0u;
+    out->name_truncated = fit ? 0u : 1u;
+    return ret_ok();
+}
+
 } // namespace
 
 extern "C" CR_UI_API uint32_t cr_ui_preview_open_snapshot(cr_ui_device* dev, cr_ui_snapshot* snap,
@@ -3879,6 +3923,13 @@ extern "C" CR_UI_API uint32_t cr_ui_preview_metadata(cr_ui_preview* pv, cr_ui_me
 extern "C" CR_UI_API uint32_t cr_ui_preview_unreadable(cr_ui_preview* pv, uint64_t* total_bytes,
                                                        uint32_t* range_count) {
     return guarded(preview_unreadable_impl, pv, total_bytes, range_count);
+}
+extern "C" CR_UI_API uint32_t cr_ui_archive_entry_count(cr_ui_preview* pv, uint32_t* out) {
+    return guarded(archive_entry_count_impl, pv, out);
+}
+extern "C" CR_UI_API uint32_t cr_ui_archive_entry_at(cr_ui_preview* pv, uint32_t index,
+                                                       cr_ui_archive_entry* out) {
+    return guarded(archive_entry_impl, pv, index, out);
 }
 /* =========================================================================
  * thumbnail (M-102: the engine's ABI half; M-083: the grade promotion)

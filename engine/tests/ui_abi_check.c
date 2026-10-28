@@ -830,6 +830,23 @@ int main(int argc, char** argv) {
         memset(&meta, 0, sizeof(meta));
         CHECK_EQ_U64(cr_ui_preview_metadata(pv, &meta), CR_UI_OK);
         CHECK(strlen(meta.kind) > 0);
+        /* M-116: the archive-inventory two-call pattern at the plain-C
+         * surface. DOC.TXT is not an archive: count 0, never an error,
+         * every index out of range - the empty browse view. (The full
+         * inventory proof - names/sizes/CRC, the damaged-zip salvage,
+         * the 512 bound - lives in the cr_ui suite; this block pins the
+         * C-compilability and the empty contract under /W4 /WX.) */
+        {
+            uint32_t acount = 99;
+            cr_ui_archive_entry ae;
+            CHECK_EQ_U64(cr_ui_archive_entry_count(pv, &acount), CR_UI_OK);
+            CHECK_EQ_U64(acount, 0u);
+            memset(&ae, 0xCD, sizeof(ae));
+            CHECK(cr_ui_archive_entry_at(pv, 0, &ae) != CR_UI_OK);
+            CHECK_EQ_U64(cr_ui_archive_entry_count(NULL, &acount), CR_UI_ERR_BAD_PARAMETER);
+            CHECK_EQ_U64(cr_ui_archive_entry_at(NULL, 0, &ae), CR_UI_ERR_BAD_PARAMETER);
+            CHECK_EQ_U64(cr_ui_archive_entry_at(pv, 0, NULL), CR_UI_ERR_BAD_PARAMETER);
+        }
         cr_ui_preview_close(pv);
         pv = NULL;
     }

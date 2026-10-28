@@ -5965,3 +5965,18 @@ lane recorded at its pin is now half-landed by the parallel window):
 5. Then the remote lanes' own ordering (the S42-B/C handoffs in worklog)
    stands: the lostpart M-118/M-119 pair, the carve minors fleet, the
    doc-truth sweep.
+### S42-W3: M-116 (the archive-inventory ABI) — FIXED
+
+- **Code:** cr_ui_archive_entry_count/_at (the M-102 two-call house pattern)
+  over the handle-cached extraction (CrPreview.archive_cache — one extraction
+  per preview, the og's one-model-per-browse-view shape); the
+  rrecov archive-list verb (dispatch + usage + the Commands header — the
+  three-site verb lock green); ABI-CONTRACT §5 archive flow; API counts
+  re-truthed 85 exports / 12 verbs; the C-consumer block.
+- **Tests:** 3 × CrUi.ArchiveEntry* (two-call pattern + the salvage/abstain
+  pair + the 512 bound with truncated disclosure; RED pre-fix by construction
+  — the exports did not exist); the FS-origin fixture carries the exact file
+  extent (the carve extent is its own surface); suites 67/67 + 1124/0/42.
+- **Record repairs:** the s10 evidence's false "reachable through
+  cr_ui_preview_metadata" claim corrected (dated addendum); the M-100 ledger
+  row annotated; API-DELTA row 16 re-truthed.

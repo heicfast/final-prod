@@ -35,7 +35,7 @@ health, fix, apply, bench, driver); error codes **34 + OK**; errmod modules **13
 > closed by the 8-step classifier + `cr_ui_driver_status` + the ABI error
 > family. The b.2 row "RDA-first with direct fallback" is likewise
 > superseded (classified ERR_DRIVER_* refusal, no fallback). Current
-> counts: 83 exports / 11 verbs / 39+OK error codes.
+> counts: 85 exports / 12 verbs / 39+OK error codes.
 > Current contract docs: [ABI-CONTRACT.md](ABI-CONTRACT.md),
 > [DRIVER-REQUIRED.md](DRIVER-REQUIRED.md), [API.md](API.md).
 ---

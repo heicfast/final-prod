@@ -58,7 +58,7 @@ but not real (invented) | SUPERSET = documented deliberate divergence.
 | # | Corpus surface | Core equivalent | Status | Evidence |
 |---|---|---|---|---|
 | 15 | Preview open per-type; **IInWindowStream = LZMA SDK name, NOT a preview contract** (M-028 falsified the audit's attribution); caps 100 MB/15 s = UI policy; 1 MiB payload gate | `cr_ui_preview_*` family, 4 MiB/call cap, short only at EOF | **MATCH + doc tail FIXED this session** (6d0f16c landed the enumeration; N-088 tail swept) | corpus-api-context §1.9/§2.1 #26 |
-| 16 | ArchivePreviewModel browse-inside-damaged-zip | preview ArchiveEntry inventory (512 cap + truncated flag) | **MATCH — landed (6d0f16c, M-066)** | M-066 finding → FIXED |
+| 16 | ArchivePreviewModel browse-inside-damaged-zip | preview ArchiveEntry inventory (512 cap + truncated flag) + the C-ABI two-call surface (M-116: cr_ui_archive_entry_count/_at, the rrecov archive-list verb) | **MATCH — landed (6d0f16c, M-066; the ABI half M-116, S42)** | M-066 → FIXED; M-116 → FIXED (S42) |
 | 17 | Media thumbnail IPC TCP 20171/20172 + zmq | n/a — UI-process internals | **N/A-by-layer** | corpus-api-context §1.9 |
 | 17b | Per-row still-image thumbnail generation (the engine behind the og's results-page worker) | `cr_ui_thumbnail_generate` two-call + `cr_ui_thumbnail_format_supported` (M-102; M-083's grade promotion wired in; ABI-CONTRACT §7i) | **FIXED** — this session | UIUX/10-preview-subsystem.md §2; M-102's Resolution |
 | 18 | Recovery: `\\.\X:` same-volume block; 0x5c→0x2f path normalization; ACL preservation; overwrite policy NOT IN CORPUS | `cr_ui_recovery_*`; `ERR_DEST_OVERLAP`; conflict modes rename/skip/overwrite; ACL = N-009d tracked | **MATCH+** | audit #28/#29 |
