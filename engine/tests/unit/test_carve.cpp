@@ -8,6 +8,7 @@
 #include "cr/storage/cr_slice.h"
 #include "cr/session/cr_records.h"
 #include "cr/table/cr_table_wire.h"
+#include "cr/cr_text.h"
 #include <cstring>
 #include <ctime>
 #include <fstream>
@@ -146,6 +147,20 @@ size_t plant_png(std::vector<u8>& img, size_t at) {
     std::memcpy(img.data() + at + 57, "IEND", 4);
     putbe32(img, at + 61, 0xCAFEBABE);
     return 65;
+}
+
+/* A-011/N-089: a byte-exact SQLite header + content (every multi-byte
+ * field BIG-ENDIAN per the format spec; the og composes BE first-hand,
+ * FUN_18002e2b0). enc: 1 = UTF-8, 2 = UTF-16LE, 3 = UTF-16BE. */
+size_t plant_sqlite(std::vector<u8>& img, size_t at, u32 page_size, u32 pages, u32 enc) {
+    std::memcpy(img.data() + at, "SQLite format 3", 15);
+    img[at + 15] = 0;
+    putbe16(img, at + 16, page_size == 65536 ? u16(1) : u16(page_size)); /* BE; 1 = 64KiB */
+    img[at + 18] = 1;                                                    /* write ver */
+    img[at + 19] = 1;                                                    /* read ver */
+    putbe32(img, at + 28, pages);                                        /* page count (BE u32) */
+    putbe32(img, at + 56, enc); /* text encoding (BE u32) */
+    return size_t(pages) * page_size;
 }
 
 size_t plant_zip(std::vector<u8>& img, size_t at, const char* name, size_t name_len) {
@@ -3479,6 +3494,153 @@ TEST(CarveEngine, TailAnchorCarriedOnTailPairedHits) {
      * intra-stride offset 31) */
     EXPECT_EQ(sql_n->props()->carve_anchor_b, start + lo + tail_stride + 31);
     EXPECT_NE(sql_n->props()->carve_checksum, 0xFFFFFFFFu);
+}
+
+/* ------------------------------------------------------------------ */
+/* A-011: the SQLite header's multi-byte fields are BIG-ENDIAN (the    */
+/* format spec; the og composes the page size BE first-hand,           */
+/* FUN_18002e2b0's `v8 | (256 * v5 & 0xff00)`, RetDec :45142-45156).   */
+/* The pre-fix LE reads rejected every real database (4096-byte pages  */
+/* stored 10 00 at +16 read as 16 -> the < 512 gate).                  */
+/* ------------------------------------------------------------------ */
+TEST(CarveEngine, SqliteRealHeaderByteOrder) {
+    /* a byte-exact real-format database: 4096-byte pages, 4 pages,
+     * UTF-8 text encoding -> the grammar layer carves with the EXACT
+     * page-math extent (fail-before: the LE read rejected the header) */
+    std::vector<u8> img(64 * 1024, 0);
+    const u64 start = 4096;
+    const size_t db_bytes = plant_sqlite(img, start, 4096, 4, 1);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats st;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st),
+              OK);
+    tree::FileNode* sql_n = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        const std::string nm = c->name_utf8();
+        if (nm.size() > 7 && nm.compare(nm.size() - 7, 7, ".sqlite") == 0)
+            sql_n = c;
+    }
+    ASSERT_NE(sql_n, nullptr) << "a real-format SQLite header must carve (pre-A-011: LE-rejected)";
+    EXPECT_EQ(sql_n->props()->carve_format, u32(FMT_SQLITE))
+        << "the grammar layer owns the carve (pre-A-011: only the sign layer fired)";
+    EXPECT_EQ(sql_n->props()->logical_size, db_bytes) << "the exact page-math extent";
+    std::string note;
+    ASSERT_TRUE(cr::text::lossless_u16_to_utf8(sql_n->props()->carve_note, note));
+    EXPECT_EQ(note, "page-math") << "the generic page-math note";
+}
+
+TEST(CarveEngine, SqliteInvalidEncodingRejects) {
+    /* the og gates the text-encoding field's high byte < 4
+     * (FUN_18002e2b0's `v7 >> 24 < 4`): encoding 4 is invalid */
+    std::vector<u8> img(64 * 1024, 0);
+    plant_sqlite(img, 4096, 4096, 4, 4);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats st;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st),
+              OK);
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        const std::string nm = c->name_utf8();
+        if (nm.size() > 7 && nm.compare(nm.size() - 7, 7, ".sqlite") == 0) {
+            EXPECT_NE(c->props()->carve_format, u32(FMT_SQLITE))
+                << "an invalid encoding must not reach the grammar layer "
+                   "(the raw-sign layer's sign hit is legitimate)";
+        }
+    }
+}
+
+TEST(CarveEngine, SqliteLittleEndianShapeRejects) {
+    /* the regression guard: the pre-A-011 wrongness (an LE page size at
+     * +16) is not a valid SQLite header - 0x1000 LE = bytes 00 10 = the
+     * BE read 16, and the pow-2/512 gates reject it */
+    std::vector<u8> img(64 * 1024, 0);
+    std::memcpy(img.data() + 4096, "SQLite format 3", 15);
+    img[4096 + 15] = 0;
+    put16(img, 4096 + 16, 4096); /* LE - the old wrong shape */
+    putbe32(img, 4096 + 28, 4);
+    putbe32(img, 4096 + 56, 1);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats st;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st),
+              OK);
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        const std::string nm = c->name_utf8();
+        if (nm.size() > 7 && nm.compare(nm.size() - 7, 7, ".sqlite") == 0) {
+            EXPECT_NE(c->props()->carve_format, u32(FMT_SQLITE))
+                << "the LE shape (00 10 at +16) must not reach the grammar "
+                   "layer (the raw-sign layer's sign hit is legitimate)";
+        }
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* N-089: the og's CFCPEvt deep walk relabels FCP event databases to   */
+/* the subtype id 0x75 when a name read from the DB content (a UTF-16  */
+/* buffer, WideCharToMultiByte'd, exactly 17 chars) equals             */
+/* "tableactiveactive" (FUN_18002de40, RetDec :44847-45100; the .rdata */
+/* literal at 0x6a0c0). The marker rides the DB's text encoding.       */
+/* ------------------------------------------------------------------ */
+TEST(CarveEngine, SqliteFcpeventSubtypeRelabeled) {
+    /* a UTF-16LE FCP event database: the 34-byte UTF-16LE marker in
+     * page 1 (the sqlite_master schema region) -> the subtype note */
+    std::vector<u8> img(64 * 1024, 0);
+    const u64 start = 4096;
+    plant_sqlite(img, start, 4096, 4, 2); /* UTF-16LE */
+    const char marker[18] = "tableactiveactive";
+    for (int i = 0; i < 17; ++i) {
+        img[start + 512 + 2 * i] = u8(marker[i]);
+        img[start + 512 + 2 * i + 1] = 0;
+    }
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats st;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st),
+              OK);
+    tree::FileNode* sql_n = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        const std::string nm = c->name_utf8();
+        if (nm.size() > 7 && nm.compare(nm.size() - 7, 7, ".sqlite") == 0)
+            sql_n = c;
+    }
+    ASSERT_NE(sql_n, nullptr);
+    std::string note;
+    ASSERT_TRUE(cr::text::lossless_u16_to_utf8(sql_n->props()->carve_note, note));
+    EXPECT_EQ(note, "page-math+fcpevent") << "the FCP-event-database subtype note";
+}
+
+TEST(CarveEngine, SqliteGenericLabelUnchangedWithoutMarker) {
+    /* the same UTF-16LE database WITHOUT the marker -> the generic note */
+    std::vector<u8> img(64 * 1024, 0);
+    const u64 start = 4096;
+    plant_sqlite(img, start, 4096, 4, 2);
+    std::memcpy(img.data() + start + 512, "CREATE TABLE ordinary(x)", 25);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats st;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st),
+              OK);
+    tree::FileNode* sql_n = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        const std::string nm = c->name_utf8();
+        if (nm.size() > 7 && nm.compare(nm.size() - 7, 7, ".sqlite") == 0)
+            sql_n = c;
+    }
+    ASSERT_NE(sql_n, nullptr);
+    std::string note;
+    ASSERT_TRUE(cr::text::lossless_u16_to_utf8(sql_n->props()->carve_note, note));
+    EXPECT_EQ(note, "page-math") << "no marker -> the generic note";
 }
 
 /* ---------------------------------------------------------------------------

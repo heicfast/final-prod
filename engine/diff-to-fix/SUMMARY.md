@@ -1,5 +1,42 @@
 # SUMMARY.md — executive summary (the review-validate close-out on top; earlier sessions below)
 
+## Fix-session delta (2026-10-28 — the SA-6 probe lane, wave 2: A-011 (NEW, ACUTE, filed+fixed) + N-089 FIXED)
+
+**A-011 (ACUTE, NEW-FINDING — filed+fixed in one landing)**: the SQLite
+validator read the page size and the page count LITTLE-ENDIAN — every
+multi-byte SQLite header field is BIG-ENDIAN (the format spec; the og
+composes the page size explicitly BE, FUN_18002e2b0's `v8 | (256 * v5 &
+0xff00)`, the RetDec export :45142-45156 — the function was missing from
+the Ghidra export). A real 4096-page-size database stored `10 00` at +16,
+read as 16, failed the < 512 gate — **every real SQLite database was
+grammar-rejected** and surfaced only through the raw-sign layer with
+degraded extents. A SECOND latent bug fixed in the same never-exercised
+path: `pages > 2ull << 30 / page_size` parsed as `2ull << (30/page_size)`
+= 2 for 4096-byte pages (the precedence bug hid behind the endianness
+bug; NO grammar-layer SQLite test existed — both prior fixtures were
+raw-sign-layer tests). Both read BE now (`rdbe16`/`rdbe32`); the og's
+text-encoding gate added (BE u32 at +56, valid 1..3).
+`CarveEngine.SqliteRealHeaderByteOrder` (fail-before RED: no grammar
+carve) + the two reject-guards. **The grammar emit now also propagates
+the analyser evidence note to the node** (the og's CRAW second-string
+field +0x5A equivalent — every grammar-carved file carries its family
+evidence).
+
+**N-089 (MINOR) FIXED** (rode the A-011 landing): the FCP-event-database
+subtype relabel — the og's CFCPEvt deep walk relabels FCP event databases
+(id 0x73 -> 0x75) on the 17-byte "tableactiveactive" schema marker
+(FUN_18002de40, the RetDec export :44847-45100: a UTF-16 name buffer +
+WideCharToMultiByte + the exact-17-char compare). The core's
+validate_sqlite scans the first 4 pages for the marker in the DB's
+declared text encoding; a hit relabels the note to
+"page-math+fcpevent". `CarveEngine.SqliteFcpeventSubtypeRelabeled`
+(fail-before RED) + `SqliteGenericLabelUnchangedWithoutMarker`.
+
+**Board after A-011+N-089:** 3 active (1 SEVERE (S-038 steps 2-4) ·
+1 MAJOR (M-064-remainder) · 1 INFO (I-026 — deliberate, no action)) ·
+**242 FIXED** (240 + A-011 + N-089) · tracked-open 2 (OQ-S4-3, OQ-SA-1).
+Suite 970/970 (+8 tests).
+
 ## Probe-session delta (2026-10-28 — the SA-6 probe lane: OQ-SA-2 + OQ-SA-3 RESOLVED (all four + one questions decoded first-hand); N-089 filed; 2 corpus-errata rows)
 
 **OQ-SA-2 (the carve-family decode candidates) RESOLVED** — all four

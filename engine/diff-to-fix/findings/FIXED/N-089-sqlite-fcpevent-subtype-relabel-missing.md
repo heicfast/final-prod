@@ -52,3 +52,10 @@ Strength-1 decompile decode (this session, first-hand): the registry binding (th
 ## Open questions
 
 The marker's semantic identity (a literal table name vs a type+name concatenation) — bounded, one decompile read; does not change the mechanical gate or the fix shape.
+
+## Resolution
+
+**Status:** FIXED (rode the A-011 landing)
+**Fixed in commit:** (this session's A-011+N-089 commit)
+**Verified by:** `CarveEngine.SqliteFcpeventSubtypeRelabeled` (a UTF-16LE database carrying the 34-byte UTF-16LE "tableactiveactive" marker in page 1 → the note relabels to "page-math+fcpevent"; fail-before RED: no subtype existed) + `CarveEngine.SqliteGenericLabelUnchangedWithoutMarker` (marker-free → the generic "page-math" note). Fail-before EXECUTED RED on the stash-reverted build.
+**Resolution notes:** The marker scan implements the og's decoded mechanics: the marker rides the DB's declared text encoding (UTF-8 = the 17 ASCII bytes; UTF-16LE/BE = the 34-byte interleaved forms); the scan covers the first 4 pages (the sqlite_master schema region — the og's own read position came from its schema walk; the 4-page scan is the documented bounded equivalent). The labeling surface is `carve_note` (the og's CRAW second-string field +0x5A equivalent) — the grammar emit now propagates the analyser evidence note to the node (a general improvement: every grammar-carved file carries its family evidence), and the subtype relabel rides it as "page-math+fcpevent". The og's id 0x73 → 0x75 relabel is a type-id change in the og's registry; the core's registry ids are the serialized carve_format space, so the note channel was chosen (documented in PARITY-DELTAS terms: labeling-parity, not id-parity).

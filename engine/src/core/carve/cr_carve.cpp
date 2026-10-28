@@ -415,6 +415,14 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             props->logical_size = file_len;
             props->carve_format = sig.id;
             props->carve_confidence = u16((sig.base_confidence + cr.confidence) / 2);
+            /* N-089: the analyser's evidence note rides the node (the og's
+             * CRAW second-string field +0x5A): the per-family evidence
+             * ("page-math", "RIFF+AVI+hdrl", ...) and the FCP-event-database
+             * subtype relabel ("page-math+fcpevent" - the og's id 0x73 ->
+             * 0x75, FUN_18002de40's "tableactiveactive" marker). */
+            if (cr.note[0] != 0)
+                for (const char* np = cr.note; *np; ++np)
+                    props->carve_note.push_back(u16(u8(*np)));
             props->times.modified = ctx.scan_time; /* S-031: the scan-time stamp */
             /* M-051: the analyser checksum — CRC32 over the carved
              * extent's first 512 bytes (the re-verification value the

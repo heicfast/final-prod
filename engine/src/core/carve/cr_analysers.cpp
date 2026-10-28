@@ -1168,12 +1168,28 @@ CarveResult validate_sqlite(IStorageDevice* s, u64 hit, u64 cap) {
         return r;
     if (std::memcmp(tail, "t 3", 3) != 0 || tail[3] != 0)
         return r;
-    const u16 raw_ps = rd16(s, hit + 16);
+    /* A-011: every multi-byte SQLite header field is BIG-ENDIAN (the
+     * file-format spec; the og composes the page size explicitly BE -
+     * FUN_18002e2b0's `v8 | (256 * v5 & 0xff00)`, RetDec :45142-45156).
+     * The pre-A-011 LE reads rejected every real database (a 4096-page
+     * DB stored 10 00 at +16 read as 16 -> the < 512 gate) - real files
+     * only surfaced through the raw-sign layer with degraded extents. */
+    const u16 raw_ps = rdbe16(s, hit + 16);
     const u32 page_size = (raw_ps == 1) ? 65536u : u32(raw_ps); /* field: 1 = 64KiB */
     if (page_size < 512 || (page_size & (page_size - 1)) != 0 || page_size > 65536)
         return r;
-    u32 pages = rd32(s, hit + 28);
-    if (pages == 0 || pages > 2ull << 30 / page_size)
+    /* the text encoding at +56 (BE u32): 1 = UTF-8, 2 = UTF-16LE,
+     * 3 = UTF-16BE; the og gates the high byte < 4 (the same field,
+     * FUN_18002e2b0's `v7 >> 24 < 4`) */
+    const u32 encoding = rdbe32(s, hit + 56);
+    if (encoding < 1 || encoding > 3)
+        return r;
+    /* A-011's second half: the pre-fix `pages > 2ull << 30 / page_size`
+     * parsed as `2ull << (30 / page_size)` - for 4096-byte pages the
+     * limit was 2ull << 0 = 2, rejecting every real multi-page database
+     * (the same never-exercised path as the endianness). */
+    u32 pages = rdbe32(s, hit + 28);
+    if (pages == 0 || pages > (2ull << 30) / page_size)
         return r;
     u64 end = u64(pages) * page_size;
     if (end > cap)
@@ -1183,6 +1199,53 @@ CarveResult validate_sqlite(IStorageDevice* s, u64 hit, u64 cap) {
     r.end = hit + end;
     r.confidence = 860;
     r.note = "page-math";
+    /* N-089: the og's CFCPEvt deep walk (FUN_18002de40, the RetDec export
+     * :44847-45100 - missing from the Ghidra export) relabels FCP event
+     * databases to the subtype id 0x75 (from the generic 0x73) when a name
+     * read from the DB content - a 100-byte UTF-16 buffer loaded from the
+     * schema walk's position, WideCharToMultiByte'd, exactly 17 converted
+     * chars - equals "tableactiveactive" (the .rdata literal at 0x6a0c0,
+     * rabin2 :7968). The marker rides the DB's text encoding (the +56
+     * field above); table names live in the sqlite_master schema region
+     * (page 1). Bounded equivalent: scan the first 4 pages for the marker
+     * in the header-declared encoding; a hit relabels the note to the
+     * FCP-event-database subtype. */
+    {
+        static const char kMarker[17] = {'t', 'a', 'b', 'l', 'e', 'a', 'c', 't', 'i',
+                                         'v', 'e', 'a', 'c', 't', 'i', 'v', 'e'};
+        u8 encoded[34];
+        size_t enc_len = 0;
+        if (encoding == 1) {
+            std::memcpy(encoded, kMarker, sizeof(kMarker));
+            enc_len = sizeof(kMarker);
+        } else {
+            for (size_t i = 0; i < sizeof(kMarker); ++i) {
+                if (encoding == 2) { /* UTF-16LE */
+                    encoded[2 * i] = u8(kMarker[i]);
+                    encoded[2 * i + 1] = 0;
+                } else { /* UTF-16BE */
+                    encoded[2 * i] = 0;
+                    encoded[2 * i + 1] = u8(kMarker[i]);
+                }
+            }
+            enc_len = 2 * sizeof(kMarker);
+        }
+        const u64 scan_pages = 4;
+        const u64 scan_bytes = scan_pages * page_size < end ? scan_pages * page_size : end;
+        std::vector<u8> page(page_size);
+        for (u64 off = 0; off + enc_len <= scan_bytes; off += page_size) {
+            const u64 chunk = scan_bytes - off < page_size ? scan_bytes - off : page_size;
+            if (!rd(s, hit + off, page.data(), u32(chunk)) || chunk < enc_len)
+                break;
+            for (u64 p = 0; p + enc_len <= chunk; ++p) {
+                if (std::memcmp(page.data() + p, encoded, enc_len) == 0) {
+                    r.note = "page-math+fcpevent";
+                    off = scan_bytes; /* break the outer loop */
+                    break;
+                }
+            }
+        }
+    }
     return r;
 }
 

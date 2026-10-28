@@ -37,3 +37,45 @@ Each answer came from the bounded probe the file specified: the registry-initial
 - **A-010, S-037, N-086** (this session's earlier waves) — the resolved outcomes of the same family-artifact wave.
 - **N-089** (NEW, this resolution) — the FCP-event-database subtype relabel.
 
+
+
+## The Agent 2 scan-engine lane's convergent resolution (landed `1463221` — merged here per the convergent-landing convention)
+
+The Agent 2 lane resolved the same four questions independently in the same
+window. Agreements (both lanes, first-hand): **CFCPEvt IS the SQLite analyser
+on the SQLi key** (no format gap; the 0x75 FCP subtype → N-089, now FIXED),
+and **CNeedRawMgr is per-format config, NEVER scan-mode gating** (the core's
+M-024 disable list is the equivalent). The Agent 2 lane's complementary
+decodes, adopted into the record:
+
+2a. **Tier roles (their reading)**: the list-layer classes are the legacy
+FALLBACK generation — the chain decoded at the FileInfo's +0x18 slot
+(`MP3Analyzer -> FileMP3Analyser`); the ADTS frame math lives inside the
+modern analyser (:65536+, the 12-bit sync/0xFFF1 walker); the core's
+single-primary posture is the REGISTERED D-75, with the og-side boundary
+now decoded: modern reject -> legacy try -> both reject -> discard. (This
+lane's reading — the list is the capability-enumeration surface and the
+magic-key dispatch is the validation tier — and theirs describe the same
+two-layer architecture from its two ends; D-75 stands either way.)
+
+3a. **WPG (their reading, completing this lane's id-stamp decode)**: the
+`WPGRawFileInfo` factory stamps a CANONICAL MAXIMUM of 100,000,000 bytes
+(slot +0x23) with the extent header-derived and sanity-bounded (the x5
+factor, FUN_180014160 :15712-15748). **The core carries NO WPG format at
+all** (zero rows — verified by both lanes) — the absence is owned by the
+S-007 remainder census (the 64 not-implemented classes), now with the
+og-side facts measured for the format-implementation lane (key "wpg"
+0x677077, type id 0x45, min 20 B, max 100 MB, the x5 extent factor).
+
+4a. **CNeedRawMgr's population (their decode)**: the manager's map is
+populated from `config/RawConfig.ini`'s [Filter] section
+(`GetPrivateProfileSectionA("Filter", ...)`, FUN_180010b10 :13120+). (This
+lane's decode of the consult sites — the name-string + query + conditional
+construction pattern in the analyser-list builder FUN_180004fb0 — and their
+detection-time phrasing describe the same uniform pattern; the essential
+verdict is shared.)
+
+**Convergence verdict: OQ-SA-2 CLOSES** (both lanes) — no core change from
+the probes themselves (D-75/M-024 stand as registered); the WPG absence
+feeds the S-007 remainder lane with its measured og facts; N-089 (the one
+new observable this wave produced) is FIXED.
