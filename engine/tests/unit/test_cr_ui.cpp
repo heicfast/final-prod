@@ -34,6 +34,17 @@
 #include <future>
 #include <vector>
 
+/* the W1c autosave uniquifier: MSVC deprecates the POSIX name (C4996
+ * warning-as-error under /W4 /WX, run 40693014319) - the ISO conformant
+ * name on Windows is _getpid */
+#ifdef _WIN32
+#include <process.h>
+#define CR_TEST_PID() _getpid()
+#else
+#include <unistd.h>
+#define CR_TEST_PID() ::getpid()
+#endif
+
 /* ---------------------------------------------------------------- */
 /* synthetic FAT16 volume (test_orchestrator's fixture + PHOTO.JPG)  */
 /* ---------------------------------------------------------------- */
@@ -363,7 +374,7 @@ TEST(CrUi, AutoSaveOnCompletion) {
     const std::string img = write_fixture("autosave");
     ASSERT_FALSE(img.empty());
     const std::string dir = std::filesystem::path(img).parent_path().string();
-    const std::string adir = dir + "/w1c_autosave_" + std::to_string(::getpid());
+    const std::string adir = dir + "/w1c_autosave_" + std::to_string(CR_TEST_PID());
     std::filesystem::create_directories(adir);
     g_autosave_events = 0;
     g_autosave_rc = 1;
