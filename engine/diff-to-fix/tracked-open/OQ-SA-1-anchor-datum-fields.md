@@ -83,3 +83,45 @@ session round-trip stays green; full suite 927 passed / 4 platform-skips
 
 **Status: OQ-SA-1 stays tracked-open for the NTFS +0x64 half only (the
 narrowed question above); the FAT/exFAT anchor halves are CLOSED.**
+
+## FINAL RESOLUTION (2026-10-28, Agent 2 session 3 — the NTFS +0x64 half decoded; OQ-SA-1 CLOSES)
+
+**NTFS +0x64 — RESOLVED (instruction-decisive, every link read first-hand).**
+The value is the **low 32 bits of the file's FIRST $DATA RUN'S STARTING LCN** —
+the NTFS member of the vtable+0x30 location-anchor family (FAT +0x3e /
+exFAT +0x50 / NTFS +0x64 / CRAW +0xec; HFS+/ReFS/Generic return −1):
+
+- `FUN_1800336f0` (:40999-41128) — the runlist encoder: out1 (:41028) = the
+  first run cursor entry's stored start LCN; out2 (:41043) = Σ run lengths
+  (total clusters, zeroed when any run is sparse :41096-41098).
+- `FUN_1800069e0` ($DATA parse, :5115-5127): raw+0x53 = (u32)out1; raw+0x4f =
+  (u32)out2. The size-class formula at :5144 confirms out2 = total clusters.
+- `FUN_180003020` (copier, :1986-1988): +0x58 ← raw+0x47 (own record number);
+  **+0x64 ← raw+0x53**; +0x60 ← raw+0x4f.
+- `FUN_18002a340` ($FILE_NAME deep path, :33912): the raw+0x4f qword is
+  zeroed on this path (+0x60/+0x64 = 0; runs attach later via
+  `FUN_180033250` :2253-2265). The prior session's "local_41 → +0x53" premise
+  was the wrong stack slot: local_41 (@−0x41 = raw+0x47) feeds **+0x58**, and
+  the parent reference is returned via `*param_4` (:33932-33934) — never
+  stored in the object.
+- Serializer `FUN_180003440` (:2362-2363) persists +0x64 then +0x60.
+
+**The N-050/N-059 "+0x60 = type-registry id" reading is REFUTED** (writers
+site the encoder outputs there; the +0x60 getter (vtable+0x20) is the shared
+return-0 stub for 8 of 10 per-FS classes; the census's per-extension value
+multiplicity is allocated-clusters behavior). No core code landed on the
+refuted reading. Corpus errata rows filed (ifileproperties-part1, rsf-format
+:385, ntfs-engine-algorithms-v2's vtable+0x28 label — it is the SECTOR size).
+
+**Core fix landed (this session):** `tree::FileProperties::ntfs_origin_lcn`
+(u32) — the passive anchor stamped from the first decoded $DATA run at BOTH
+emission sites (main walk `cr_mftwalk.cpp` props block; GUID-dump remnant
+path), sparse first run → 0xFFFFFFFF (the og's stored-start read), resident /
+no-runs → 0 (the og's zeroed raw block). Persisted as the session tree
+record's nflags bit-8 block (4 bytes, fires only when nonzero — pre-fix
+sessions stay shape-identical). The og's +0x60 total-clusters twin is NOT
+carried (derivable from allocated_size + extents; no decoded consumer — its
+vtable getter is a 0-stub for 8/10 classes).
+
+**Status: OQ-SA-1 CLOSED — all three anchor fields (FAT +0x3e, exFAT +0x50,
+NTFS +0x64) decoded, carried, and persisted.**

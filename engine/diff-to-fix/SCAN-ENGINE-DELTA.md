@@ -15,16 +15,23 @@ delta)** — they are not defects.
 
 **Sources:** corpus `architecture/04-recovery-workflow.md` + `05-scan-engine-architecture.md`
 + `re-workspace/artifacts/SearchDLL/*` + `SaveScan/*` + `config-files/*` + the Ghidra
-decompiles (`re-workspace/reversed/ghidra-searchdll/`, `ghidra-drwui/`); core
+decompiles (`re-workspace/reversed/ghidra-searchdll/`, `ghidra-local/`, `ghidra-drwui/`); core
 `src/core/orchestrator/cr_scan.{h,cpp}` + per-FS engines + `diff-to-fix/*`; driver
 `rda-driver` shared headers + docs.
 
-**Session re-verification (SCAN-2f, 2026-10-28):** context recovery re-run per
-protocol — four parallel read legs (corpus carve-family census + dual registry; corpus
-NTFS decompile trace; core carve-state audit; rda-driver scan-surface audit), every
-load-bearing claim re-verified first-hand before this board moved (the NTFS +0x64
-producer chain re-read at `NTFSSearchDLL_decompiled.c` :5105-5131/:1986-1988; the
-carve sub-item FIXED states re-verified against the tree).
+**Session re-verification (SCAN-2f round 4 + SCAN-3, 2026-10-28 — two convergent
+A2 legs):** context recovery re-run per protocol — SCAN-2f's four read legs
+(corpus carve-family census + dual registry; corpus NTFS decompile trace; core
+carve-state audit; rda-driver scan-surface audit) and SCAN-3's four agents
+(research quick/advanced spec + the NTFS +0x64 decode probe; research carve
+census; core state audit; rda-driver scan surfaces). **Both legs independently
+decoded OQ-SA-1's NTFS +0x64 to the same value** (first $DATA run start LCN,
+low dword); every load-bearing claim below re-verified first-hand at the
+decompiles (the +0x64 producer chain re-read at `NTFSSearchDLL_decompiled.c`
+:5105-5131/:1986-1988/:41028/:2264-2265; the DRWUI twin serializer re-read at
+`DRWUI_decompiled.c`:853463-853464; the carve sub-item FIXED states re-verified
+against the tree). See the session-3 resolution log for the full decode chain
+and census table.
 
 ---
 
@@ -42,7 +49,7 @@ carve sub-item FIXED states re-verified against the tree).
 | Q8 | Quick is metadata-only + used-bitmap reasoning; no sector-by-sector content pass; same StartSector range reused by deep | Single-walk quick/deep (D-36 registered); stage telemetry + weighted progress 40/35/25 | **present (registered delta)** |
 | Q9 | Quick-scan error paths: HRESULT-style 0x5002xxxx facility ladder (89 distinct constants in HFS+ engine; "Return Error:0x…Fuction:" verbose channel); record-skip salvage semantics | `cr::Err` families 0x5002/0x5003/... with salvage-over-purity; numeric values core-internal (D-68 registered); read-truth gate ERR_READ_FAILED (anti-fake-success, stronger than og) | **present (registered delta)** |
 | Q10 | FAT 8.3 names persist as raw OEM-codepage bytes (part1:121; control-byte names survive verbatim) | **FIXED (8451913, other lane, verified by A2)**: `short_name_to_u16` CP437 boundary decode (`kCp437[128]`), corpus-cited, 0xE5-name-byte semantics preserved | ~~inconsistent~~ **present (fixed)** |
-| Q11 | IFileProperties anchor-datum fields: FAT +0x3e first-cluster origin kept for chainless deleted files; exFAT +0x50; NTFS +0x64 | **FIXED (A2, prior session)**: `fat_origin_cluster` carrier stamped from the dentry/stream-dentry independent of chain resolution (FAT/exFAT emission decode: FUN_180012e60's unconditional closing stamp); persisted as nflags bit-7; runtime fail-before proven. **NTFS +0x64 DECODED (SCAN-2f, instruction-decisive): the low dword of the STARTING LCN of the file's FIRST $DATA extent** — NOT the parent reference, NOT the own record number. The $FILE_NAME path (FUN_18002a340 :33912) zeroes the slot; the value is stamped by the $DATA-attach phase: FUN_1800069e0 :5126-5127 (`src+0x53 <- (u32)local_58` = the extent-pair B-tree's first pair start, FUN_1800336f0 :41028; `src+0x4f <- Sum(pair seconds)` = total clusters) -> FUN_180003020 :1986-1988 (`dst+0x64 <- src+0x53`, `dst+0x60 <- src+0x4f`). Companion engine-side +0x60 = TOTAL DATA-RUN CLUSTERS (1 for resident); the "+0x60 type-registry id" census reading is the DRWUI wire-side overwrite (part1:86), not the engine field. Family corroboration: FAT +0x3e / exFAT +0x50 / NTFS +0x64 = the first-data-location anchor triple; .rsf persists +0x64 immediately before the type id (DRWUI_decompiled.c:853462-853464). Resident-$DATA caveat: a synthetic single pair {walk-context record anchor, 1} — MFT-resident files carry the wrapper anchor, not a real LCN. **OQ-SA-1 closes on this decode; the core carrier is this session's formats-lane fix** | **og spec decoded; core carrier queued** |
+| Q11 | IFileProperties anchor-datum fields: FAT +0x3e first-cluster origin kept for chainless deleted files; exFAT +0x50; NTFS +0x64 | **FIXED (s2, A2)**: `fat_origin_cluster` carrier stamped from the dentry/stream-dentry independent of chain resolution (FAT/exFAT emission decode: FUN_180012e60's unconditional closing stamp); persisted as nflags bit-7; runtime fail-before proven. **NTFS +0x64 DECODED (SCAN-2f + SCAN-3 convergent, instruction-decisive — see the session-3 resolution log)**: the low dword of the STARTING LCN of the file's FIRST $DATA run — NOT the parent reference, NOT the own record number, NOT a type id. The $FILE_NAME path (FUN_18002a340 :33912) zeroes the slot; the value is stamped by the $DATA-attach phase: FUN_1800069e0 :5126-5127 (`raw+0x53 <- (u32)out1` = the runlist encoder's first-run start, FUN_1800336f0 :41028; `raw+0x4f <- (u32)out2` = Σ run lengths, sparse-zeroed :41096-98) -> FUN_180003020 :1987-1988 (`+0x64 <- raw+0x53`, `+0x60 <- raw+0x4f`); attach twin FUN_180033250 :2264-2265. **Companion engine-side +0x60 = TOTAL DATA-RUN CLUSTERS**; the "+0x60 type-registry id" census reading (part1:86) is refuted three ways (encoder outputs at every writer site; the +0x20 vtable getter is a return-0 stub for 8 of 10 per-FS classes — a Type-column feed cannot be NTFS-only; the census's per-extension value multiplicity is allocated-clusters behavior). The DRWUI twin serializer (FUN_140520d20, DRWUI:853463-853464) persists the ENGINE-POPULATED +0x64/+0x60 verbatim — no wire-side type-id overwrite exists at that site (SCAN-2f's "DRWUI wire-side overwrite" phrasing corrected by SCAN-3's re-read). Family corroboration: FAT +0x3e / exFAT +0x50 / NTFS +0x64 = the vtable+0x30 first-data-location anchor triple. Resident-$DATA caveat (SCAN-2f): the og's resident wrapper carries a synthetic pair {walk-context anchor, 1} — MFT-resident files carry the wrapper anchor, not a real LCN; the core's resident path stamps 0 (the honest no-runs value). **OQ-SA-1 CLOSED on this decode; the core carrier `ntfs_origin_lcn` + nflags bit-8 is this session's fix (landing below)** | **og spec decoded; core carrier landing this session** |
 
 ## 2. ADVANCED / DEEP SCAN
 
@@ -51,7 +58,7 @@ carve sub-item FIXED states re-verified against the tree).
 | A1 | FUN_140581500 creates full searcher set in order NTFS→FAT→exFAT→ZFS(gate)→HFS→ReFS→RAW(settings+0x60), `std::list`, final RAW naming callback vt+0x48 = FUN_140161fb0 | Stage model quick→deep→carve (O37 M-equivalent); composition deltas registered S-006/M-005; RAW naming = `raw_category_name` (M-029 `filter_generalraw`) | **present (registered delta)** |
 | A2 | Deep = complete FS behaviors (NTFS $Bitmap+USN+orphans+MFTMirr; FAT deleted chains + cross-FAT; HFS+ freed-node sweep; ReFS harvest) + same StartSector as quick | `deep_extras` flags per engine + single-walk (D-36); NTFS remnant sweep R2.5; two-pass S-012 | **present (registered delta)** |
 | A3 | Lost partitions: PartitionRecovery CalcPartition scoring, `Insert lost partition %s…`, sector size 512 default | `lost::discover` + `materialize` + parallel candidate scans; scoring matches the 187 CalcPartition.log rows (M-017); exFAT content-consistency reject (M-035) | **present** |
-| A4 | RAWSearchDLL carving: ~106 analyser classes (131 roster rows = 106 analysers + 7 FileInfo result classes + 18 infrastructure — count reconciled SCAN-2f; the "190+" was a stale approximation), dual registry (u32 fourcc RB-tree + u16-key multimap + list layer), 6 families, two-generation fallback chains, raw_signs.json (139 ext) loaded at engine init, RawConfig.ini 34 per-format toggles, ZIP 5,242,881 B padding cap, global carve cap 0xBEBC200 (200,000,000 B, singleton +0x70), PST/RAR/MKV/HEIC grammars, sector-size query via vtable slot 5 | Grammar registry (69 rows) + raw-sign table (compiled-in generated, byte-equal to corpus file) + user-signs layer; validators decompile-exact for the implemented set; M-024 disabled_formats = RawConfig toggles; D-75 registers the omitted fallback generation; N-086 FIXED (D-103, e81b98f); **N-068/N-069/N-070/S-032/S-037 sub-items ALL FIXED in tree (verified SCAN-2f)**. **S-007 niche remainder (the tracked recall residue): ~30 absent formats** — keyed: MPEG-TS (MTS/M2TS), APE (MAC ), MID (MThd), OGG (OggS), RM (.RMF), MXF (06 0E 2B 34), DMG (BZh1), X3F (FOVb), MRW (II1A/MM1A/\0MRM), WPG ("wpg\0"; min 20, max 100,000,000; type-id 0x45), WPD (\xFF WPC), PSP (Pain), SIT (Stuf), GZ (1F 8B), MDB (00 01 00 00 + "Standard Jet DB" gates; bounds 4 KiB..200 MB), MNY (MS), CHM (ITSF + deep field gates :22635), HLP (DB A5 2D 00 / 94 A6 2E 00 / 3F 5F 03 00), AU (.snd), AIFF (FORM), ICO/CUR (00 00 01 00 / 00 00 02 00), WMF/EMF (D7 CD C6 9A / 01 00 09 00 / EMF@+40), TTF (00 01 00 00), ONE (E4 52 5C 7B), EPS/AI (%! + C5 D0 D3 C6), 3GP (ftyp3gp), 3DS (MM u16 — multimap collision with TIFF-BE); list-layer/structural: TAR ("ustar"@+257), DXF (ASCII group codes), HTML/XML/SVG ("<h"/"<H"/"<!" u16 family), MOBI (BOOKMOBI), JP2 (sig box), SWF, LZH ("-lh" structural — NOT the 0x7B5C52E4 key, which is OneNote), FCPEvt (XML), OfficeTagFromXML, CRW (HEAPCCDR); standalone XML family: VCF/GPX/HIK/OSP/POS/AEP/CHFP. **NO DBF/dBase analyser exists in the og** (C5 D0 D3 C6 = CEPSAnalyser = AI/EPS — session-3 correction; implementing DBF would EXCEED the og) | **partially present — niche remainder tracked with the precise work list above** |
+| A4 | RAWSearchDLL carving: ~106 analyser classes (131 roster rows = 106 analysers + 7 FileInfo result classes + 18 infrastructure — count reconciled SCAN-2f; the "190+" was a stale approximation), dual registry (u32 fourcc RB-tree + u16-key multimap + list layer), 6 families, two-generation fallback chains, raw_signs.json (139 ext) loaded at engine init, RawConfig.ini 34 per-format toggles, ZIP 5,242,881 B padding cap, global carve cap 0xBEBC200 (200,000,000 B, singleton +0x70), PST/RAR/MKV/HEIC grammars, sector-size query via vtable slot 5 | Grammar registry (69 rows) + raw-sign table (compiled-in generated, byte-equal to corpus file) + user-signs layer; validators decompile-exact for the implemented set; M-024 disabled_formats = RawConfig toggles; D-75 registers the omitted fallback generation; N-086 FIXED (D-103, e81b98f); **N-068/N-069/N-070/S-032/S-037 sub-items ALL FIXED in tree (verified SCAN-2f + SCAN-3)**. **S-007 niche remainder (the tracked recall residue): ~30 absent formats** — keyed, keys census-verified at the registration sites (the s3 corrections folded): MPEG-TS (MTS/M2TS, list-layer), APE (`MAC ` id 0x51), MID (`MThd` id 0x26, BE grammar, 14B..10MB), OGG (`OggS` id 0x52), RM (`.RMF` id 0x5e), MXF (`06 0E 2B 34` id 0x78), DMG (`BZh1` id 0x71), X3F (`FOVb` id 0x6c), **CRW (`II\x1A\x00`/`MM\x1A\x00` id 0x12 — NOT MRW)** + **MRW (`\0MRM` id 0x66 only)**, WPG (key `wpg\0` 0x00677077, min 20, max 100,000,000; registry id 0x33 at the registration site per the s3 census re-read — the 0x45 stamp is E48's format-id disposition, the og id number is documentation-only for the core's append-only enum), WPD (`FF WPC` id 0x44), PSP (`Pain` id 0x37, 36B..20MB), SIT (`Stuf` id 0x5d, 20,480B..200MB), GZ (u16 `1F 8B` id 0x1f, max 400MB), MDB (u16 `00 01` id 0x27, max 200MB + "Standard Jet DB" family), MNY (u16 `MS` id 0x28), CHM (`ITSF` id 0x0e, full GUID grammar :22635 region, size=u64@+0x68), **HLP (`3F 5F 03 00` id 0x20 only — `DB A5 2D 00`/`94 A6 2E 00` = FileLowDocAnalyser, the old-Word .doc family id 0x17)**, AU (`.snd` id 0x09), AIFF (`FORM` id 0x50), ICO/CUR (`00 00 01 00`/`00 00 02 00` = LE keys 0x00010000/0x00020000, both id 0x22), WMF/EMF (placeable `D7 CD C6 9A` + std `01 00 09 00`, one analyser id 0x46; EMF itself is LIST-layer), TTF (key `00 01 00 00` 0x00000100, id 0x41), ONE (`E4 52 5C 7B` id 0x31, 20B..500MB), EPS/AI (u32 `C5 D0 D3 C6` id 0x1b + u16 `%!` second registration), 3GP (ftyp-brand dispatch id 0x02), **3DS (u16 `MM` id 0x01 with `==`@+16 chunk gate — the "TIFF-BE collision" census row was the erratum, corrected)**, DXF (u32 `"  0\r"` 0x0d302020 + u16 `99` 0x3939, id 0x19, full `"  0\r\nSECTION\r\n  "` grammar + 999-comment scan); list-layer/structural: TAR (`ustar`@+257 id 0x3f), SWF (`FWS`/`CWS`, size=u32@+4, ZWS NOT accepted, id 0x3e), HTML (u16 `<h`/`<H`/`<!`/UTF-16-BOM id 0x21) + SVG/XML (u32 `<?xm`/BOM`<`/`<svg`/0x000001cd id 0x5b), MOBI (BOOKMOBI, id 0x85, RawConfig-gated), JP2 (sig box + `jp2c` keys 0x80/0x81/0x82, id 0x80, gated), LZH ("-lh" structural id 0x24 — NOT the 0x7B5C52E4 key, which is OneNote), EMF (record-type-1 header, id 0x1a), FCPEvt (XML, id 0x73 — the SQLite container analyser), OfficeTagFromXML; standalone XML family: VCF/GPX/HIK/OSP/POS/AEP/CHFP. **NO DBF/dBase analyser exists in the og** (C5 D0 D3 C6 = CEPSAnalyser = AI/EPS — session-3 correction; implementing DBF would EXCEED the og). Full per-format grammar table + the 68-row u32 registry map: session-3 resolution log below | **partially present — niche remainder in fix (per-school batches, this session)** |
 | A5 | "Sector by sector" = whole-range FS passes + carve; settings+0x60 gate for RAW engagement | `run_carve` stage, `free_map` gate (M-005), occupancy gate (M-039), zero-stride skip (N-031) | **present** |
 | A6 | Carve validator gating (CNeedRawMgr) | **RESOLVED (OQ-SA-2, this session)**: CNeedRawMgr = the RawConfig.ini [Filter] per-format manager consulted per-detection (extension-keyed); NO quick-vs-deep mode gating exists in the og; the core's M-024 disabled_formats = the equivalent, and the core's all-validators carve matches the og. The File*/CFile* analysers = the legacy fallback generation (chain demonstrated: MP3Analyzer→FileMP3Analyser at +0x18) — D-75 registers the core's single-validator posture | **present (registered delta D-75/M-024)** |
 
@@ -94,7 +101,114 @@ carve sub-item FIXED states re-verified against the tree).
 
 ---
 
-## Resolution log (this session)
+## Session-3 resolution log (2026-10-28 — the fresh context-recovery leg; every claim below verified first-hand in the decompiles)
+
+**OQ-SA-1 NTFS half — the +0x64 decode, INSTRUCTION-DECISIVE (all sites read
+first-hand):**
+
+- `FUN_1800336f0` (NTFSSearchDLL :40999-41128) — the runlist encoder. Line 41026
+  fetches the FIRST run cursor entry; line 41028 `*param_2 = *plVar5` = **out1 =
+  the first run's stored start LCN**; line 41043 `*param_3 += run.length` =
+  **out2 = Σ run lengths (total clusters)**; lines 41037-41041 detect sparse runs
+  (stored start == −1) and 41096-41098 zero out2 when any run is sparse. The
+  nibble header at 41045 (`offsetSize<<4 | lenSize`) confirms this is the NTFS
+  datarun encoder and out1 is the standard runlist's absolute first offset.
+- `FUN_1800069e0` (the $DATA attribute parse inside the main walk's raw-block
+  builder, :5095-5154): line 5115 calls the encoder; line 5126 `raw+0x53 =
+  (u32)out1`; line 5127 `raw+0x4f = (u32)out2`. Line 5144's size-class formula
+  `(allocSize/512)/plVar12` independently confirms plVar12=out2=total clusters.
+- `FUN_180003020` (the raw-block→object copier, :1972-2005): line 1986 `+0x58 ←
+  raw+0x47` (own MFT record number); line 1987 **`+0x64 ← raw+0x53`**; line 1988
+  `+0x60 ← raw+0x4f`; lines 1996-1997 `+0x68`/`+0x6a` own/parent sequence numbers.
+- `FUN_18002a340` (the $FILE_NAME deep path, :33862-33941): `local_39 = 0`
+  (:33912) occupies the raw+0x4f qword — **+0x60/+0x64 are 0 on this path**; the
+  runs attach later. `local_41 = *param_1 & 0xffffffffffff` (:33900) is the OWN
+  48-bit reference → +0x58. The PARENT reference is returned to the caller via
+  `*param_4` (:33932-33934) — **never stored in the object**.
+- `FUN_180033250` (the data-stream attach helper, :2240-2266): line 2253 calls
+  the encoder; lines 2264-2265 stamp `+0x64 = out1`, `+0x60 = out2` onto the
+  props whenever a stream object attaches. The GUID-dump twin `FUN_18001c660`
+  (:22470-22471) and the main-walk manual copy block (:5427-5428) agree.
+- Serializer `FUN_180003440` (:2338-2407): lines 2362-2363 persist +0x64 then
+  +0x60 (4 bytes each) immediately after +0x40 (:2361) — both fields are
+  session-persisted in the og.
+- Cross-class corroboration (`re-workspace/raw-evidence/props-vtables.txt` +
+  DRWUI twins): the +0x64 getter is vtable slot +0x30 — a per-FS **location-
+  anchor family** (FAT `FUN_1405af310` → +0x3e; exFAT `FUN_14058cbb0` → +0x50;
+  CRAW → +0xec; HFS+/ReFS/Generic stubs return −1) — independently confirming
+  +0x64 as "first cluster of the file's data".
+
+**Consequence 1 — the N-050/N-059 "+0x60 type-registry id" reading is REFUTED**
+(three independent ways): (1) every writer sites the runlist encoder's outputs
+into +0x60/+0x64 — no type-detection call exists in the fill chain; (2) the
++0x60 getter (vtable slot +0x20) is the shared return-0 stub for 8 of 10
+per-FS classes — a Type-column feed cannot be NTFS-only; (3) the RSF census
+values attributed to "+0x60 type ids" (.lnk→1 ×410, .mp3→6 ×2,841, multiple
+values per extension) are exactly what allocated-size-in-clusters looks like
+on a duplicated-file QA disk. **Core impact: none** — no core code ever landed
+on the refuted reading (the N-059 block covers Btrfs/ZFS/HFS+ only; the
++0x60-equivalent datum is derivable from allocated_size+extents). Corpus errata
+rows filed (ifileproperties-part1 +0x60/+0x64/+0x40 rows; rsf-format :385;
+ntfs-engine-algorithms-v2's vtable+0x28 "record_size" label — it is the SECTOR
+size, making +0x40 the record's start sector).
+
+**Consequence 2 — the +0x40 row also corrects**: +0x40 = the MFT record's
+absolute start sector (batchByteOffset/stride + batchBase, stride = vtable+0x28
+= 512 default = SECTOR size), 0 on deep paths. Core parity: the core's
+record_ref already carries the record number; the record-sector datum is
+reconstructible from the walk geometry — no carrier required (the og never
+reads it back for recovery either).
+
+**S-007 remainder — the s3 carve census (registry decode re-verified):** the
+work list with corpus-exact keys and per-family provenance stands in
+findings/FIXED/S-007 (session-2/3 addenda) with these census-artifact
+CORRECTIONS absorbed into the implementation plan: DXF key `0x0d302020` +
+u16 `99` (id 0x19, full grammar `"  0\r\nSECTION\r\n  "` / `999`-comment scan);
+EPS/AI `C5 D0 D3 C6` (id 0x1b) + u16 `%!` second registration; OneNote
+`E4 52 5C 7B` (id 0x31, 20B..500MB); CRW = II/MM`\x1A\x00` (id 0x12) — the
+MRW key is `\0MRM` (id 0x66) only; placeable WMF `D7 CD C6 9A` + std WMF
+`01 00 09 00` (id 0x46, one analyser); ICO/CUR keys `00 00 01 00` /
+`00 00 02 00` (both id 0x22); TTF key `00 01 00 00` (id 0x41); u16 `MM` = 3DS
+(id 0x01, `==`@+16 chunk gate, max 200MB); HLP `3F 5F 03 00` (id 0x20);
+MNY u16 `MS` (id 0x28); MDB u16 `00 01` (id 0x27, max 200MB); WPG key
+0x00677077 (id 0x33 — the "0x45" in the census is the SIZE stamp, erratum
+E48; 20B..100MB); CHM `ITSF` (id 0x0e, full GUID grammar, size=u64@+0x68);
+AU `.snd` (id 0x09); MIDI `MThd` (id 0x26, BE grammar, 14B..10MB); APE `MAC `
+(id 0x51, BruteForce frame-sync); DMG `BZh1` (id 0x71); SWF = LIST-layer
+`FWS`/`CWS` (id 0x3e, size=u32@+4, ZWS NOT accepted); TAR = LIST-layer
+`ustar`@257 (id 0x3f); LZH = LIST-layer (id 0x24, max 200MB); MTS/M2TS/EMF/
+MOBI/JP2 = LIST-layer (ids 0x76/0x74/0x1a/0x85/0x80); 3GP = ftyp-brand
+dispatch (id 0x02); AIFF `FORM` (id 0x50); OGG `OggS` (id 0x52); MXF
+`06 0E 2B 34` (id 0x78); HTML = u16 `<h`/`<H`/`<!`/UTF-16-BOM (id 0x21);
+SVG/XML = u32 `<?xm`/BOM`<`/`<svg`/0x000001cd (id 0x5b); gzip u16 `1F 8B`
+(id 0x1f, max 400MB); StuffIt `Stuf` (id 0x5d, 20,480B..200MB); RM `.RMF`
+(id 0x5e); Dbx ×3 keys (id 0x15); PSP `Pain` (id 0x37, 36B..20MB); X3F `FOVb`
+(id 0x6c); MRW `\0MRM` (id 0x66); WPD `FF WPC` (id 0x44); MNY/MDB as above.
+PNG and WPG share id 0x33 in the og registry (duplicate ids exist in the og's
+own id space — the core's serialized carve_format enum stays append-only and
+core-sequential, unaffected).
+
+**rda-driver verification (v0.2.4, `323e75a`):** IOCTL contract unchanged
+(identity 0x60002400/04/08 raw values + extended 0x6002440/44/48; 19 live
+session codes — the README's "15 commands" prose is stale, header + switch
+authoritative; F11 Information×512; session LBA×probed-sector-size); zero
+NAS/Cloud paths anywhere (case-insensitive sweep — only exclusion declarations
+in docs); install exit codes 0-9 + `-Layout Versioned` + `-Uninstall`; sector
+512 default with per-target 4Kn probing. **No core scan-engine change
+required.** Driver-side doc-drift notes (the 15/18-vs-19 session-code prose,
+the PE-version-1.0 suffix) belong to the driver lane — handoff noted.
+
+**Core state verification:** suite green at last full run (970/970 gcc-13 ASan,
+c899998); every commit since is docs/CI-only. OQ-SA-1 FAT/exFAT halves landed
+(409503c); OQ-SA-3 correction batch landed (93097cb — CORPUS-ERRATA E-A/E-B +
+PARITY-DELTAS D-104). Two stale rows found in docs/PARAMETERS.md §3 (the
+user-sign caps row predates the S-039/M-067 v3 values 12/48/1024/80; the
+"4-8 MiB carve window" row predates the landed 1 MiB+4 KiB model) — fixed
+this session (formats/parameters phase). Board hygiene note for the owning
+lane: M-068's finding file still sits in MAJOR/ though its own text records
+the fix (43f4962) — move to FIXED/ + amend the SUMMARY count.
+
+## Session-2 resolution log (prior leg, retained)
 
 **OQ-SA-3 — RESOLVED (first-hand decompile chain, all sites cited):**
 DRWUI reads `%s/EUUserData` (:1005387, `_wfopen_s`+fseek/ftell) → JSON parse (:1005497+)
@@ -129,7 +243,34 @@ detected extensions into the +0x60 set (FUN_18000ed00 sites :19626/:20222/:20892
    legitimate once registered as such (A2 correction batch lands the row).
 4. **OQ-SA-3 closes**; OQ-SA-1/OQ-SA-2 remain tracked with bounded probes.
 
-## Fix queue (priority order — SCAN-2f refresh; items 1-3 below are the PRIOR session's queue, retained for the record with their outcomes)
+## Fix queue (session 3 — priority order; merges the SCAN-2f pinning (A-lane niche batch → F-lane NTFS carrier) with the SCAN-3 execution order — quick scan first, then advanced/deep, then formats/parameters)
+
+1. **OQ-SA-1 NTFS carrier (quick scan, FIRST — the F-lane item)** — `ntfs_origin_lcn`
+   (u32) = low 32 bits of the first $DATA run's start LCN (sparse first run →
+   0xFFFFFFFF per the og's stored-start read), stamped at both walk emission
+   sites (main walk cr_mftwalk.cpp:893 block; GUID-dump path :1480 block),
+   persisted as nflags bit-8 (4-byte append-only block, fires only when
+   nonzero — mirrors bit-7). Tests: NTFS engine carrier + session round-trip,
+   fail-before proven.
+2. **S-007 remainder (advanced/deep, per-school batches — the A-lane item)** —
+   the ~30 niche formats from the merged census table above, each: append FMT
+   id + registry row (og-exact key bytes) + validator (og grammar where
+   extracted; bounds + magic where the census is bounds-only) + per-format
+   tests (plant/carve/reject-noise pattern). Batch order: u32-keyed bounded
+   validators → u16-keyed → LIST-layer structural (SWF/TAR/3GP; LZH/MTS/EMF/
+   MOBI/JP2 stay registered as the og's list-layer posture — a core-side
+   equivalent sweep hook if the grammar is extractable, else documented
+   remainder).
+3. **Formats & parameters** — the two stale docs/PARAMETERS.md §3 rows fixed
+   (user-sign caps; carve window). No open rows in diff-to-fix/PARAMETERS.md.
+4. **Combination layer** — audit-verified present (roots/dedup/Lost Files/
+   find_by_extent all landed); no action.
+5. **Corpus errata** — the +0x60/+0x64/+0x40 correction rows (core
+   CORPUS-ERRATA.md; the corpus repo's artifact fixes left to the corpus lane
+   — handoff note).
+6. **OQ-S4-3** — the TTFR harness landed (2f3f798/3307980, the API lane); the
+   scan-level comparison itself stays execution-bound (Windows dispatch) —
+   tracked-open until the next green run transcribes the numbers.
 
 **Landed by the parallel lane while the prior session's context recovery ran (verified by A2):**
 - **N-087 FIXED** (8451913): FAT 8.3 CP437 boundary decode — corpus-faithful (part1:121),

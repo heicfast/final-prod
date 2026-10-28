@@ -491,7 +491,6 @@ Stage Summary:
 - The last code-side item this session could land without colliding with
   the parallel lanes' pinned queues. Watching: the installer round-trip
   job + the CI lane at 624db00.
->>>>>>> 32a14d1 (feat(cli+ci): OQ-S4-3's TTFR harness — the event-stream probe on rrecov scan + the staged-scenarios extraction)
 
 ---
 Task ID: PARITY-FIX-6b (the TTFR extraction port to the rebuilt CI lane)
@@ -609,3 +608,74 @@ Stage Summary:
   (b) the TTFR transcription after the next test-benchmark dispatch,
   (c) the first combined release (owner action; unblocks the
   test-benchmark lane + the installer payload's signed-driver posture).
+Task ID: SCAN-3 (Agent 2 — the scan-engine context-recovery re-run + the OQ-SA-1 NTFS decode + the fix queue execution)
+Agent: Agent 2 (scan-engine lane)
+
+Work Log:
+- Context recovery per protocol: four parallel read-legs (research quick/
+  advanced spec + NTFS +0x64 probe; research carve census; core state audit;
+  rda-driver scan surfaces). The refreshed Scan Engine Inventory / Delta
+  Report is diff-to-fix/SCAN-ENGINE-DELTA.md (session-3 resolution log +
+  updated fix queue; every load-bearing claim re-verified first-hand in the
+  decompiles before acting).
+- OQ-SA-1 NTFS +0x64 — DECODED, instruction-decisive: +0x64 = low u32 of the
+  FIRST $DATA RUN'S STARTING LCN (the vtable+0x30 location-anchor family —
+  NTFS sibling of the landed FAT +0x3e / exFAT +0x50 carriers); +0x60 = low
+  u32 of TOTAL $DATA RUN LENGTH IN CLUSTERS (sparse-zeroed). The N-050/N-059
+  "+0x60 type-registry id" census reading is REFUTED three independent ways
+  (encoder outputs at every writer site; the +0x20 vtable getter is a
+  return-0 stub for 8 of 10 per-FS classes; the census's per-extension value
+  multiplicity is allocated-clusters behavior). Decode chain: FUN_1800336f0
+  :41028/:41043 -> FUN_1800069e0 :5126-5127 -> FUN_180003020 :1987-1988 ->
+  attach twin FUN_180033250 :2264-2265 -> serializer FUN_180003440 :2362.
+  The prior session's "local_41 -> +0x53" trace premise was the wrong stack
+  slot (local_41 @ raw+0x47 feeds +0x58; the parent ref exits via *param_4,
+  never stored). OQ-SA-1 CLOSED (all three anchor halves).
+- handoff: corpus-lane — the corpus artifacts carrying the refuted reading
+  need the correction rows (ifileproperties-part1--ntfs-fat-exfat.md
+  +0x60/+0x64/+0x40 rows; rsf-format--scan-session.md :385;
+  ntfs-engine-algorithms-v2--deleted-viability.md's vtable+0x28
+  "record_size" label — it is the SECTOR size). Core-side errata rows are in
+  diff-to-fix/CORPUS-ERRATA.md (this session's batch).
+- handoff: api/packaging lane — board hygiene: M-068's finding file still
+  sits in findings/MAJOR/ while its own text records the fix (43f4962 +
+  convergence 38ccecb); SUMMARY's board count (1 active · 244 FIXED) does
+  not include it. Move to FIXED/ + amend the count. No scan-engine content
+  involved.
+- handoff: driver lane — rda-driver verified clean at v0.2.4 (323e75a):
+  19 live session codes vs the README's stale "15 commands" prose (header +
+  switch authoritative); the versioned image suffix derives from PE version
+  1.0 (rda10.sys), not the v0.2.4 tag. Zero NAS/Cloud paths confirmed. No
+  core scan-engine change required.
+- S-007 remainder scope locked: the s3 carve census re-verified the niche
+  work list against the registry decode and absorbed 8 census-artifact
+  corrections (DXF="  0\r" u32 + u16 "99"; EPS/AI=C5D0D3C6 + u16 "%!";
+  OneNote=E4 52 5C 7B id 0x31; II/MM\x1A=CRW not MRW (MRW=\0MRM id 0x66);
+  placeable WMF=D7CD C69A same analyser as std WMF; ICO/CUR keys 00 00 01 00
+  / 00 00 02 00 (both id 0x22); 00 01 00 00=TTF; u16 MM=3DS id 0x01; WPG
+  id 0x33 with 0x45 = the SIZE stamp, erratum E48). Full key/grammar table
+  in SCAN-ENGINE-DELTA session-3 log. Fix order: quick scan first (the NTFS
+  carrier, landing next commit), then the per-school carve batches.
+
+- Rebase reconciliation: the parallel SCAN-2f A2 leg (7bda022) decoded the
+  SAME +0x64 value in the same window — the two legs' evidence merged in
+  SCAN-ENGINE-DELTA.md (their DRWUI-twin cite + resident-wrapper caveat
+  kept; their "+0x60 = DRWUI wire-side overwrite" phrasing CORRECTED by
+  this leg's re-read of FUN_140520d20 DRWUI:853463-464 — the twin
+  serializer persists the ENGINE-POPULATED +0x64/+0x60 verbatim, no
+  overwrite exists at that site; the census values are
+  allocated-clusters behavior). Their A4 count reconciliation (131 = 106
+  analysers + 7 FileInfo + 18 infra) folded in. Their queue pinning
+  (A-lane niche batch -> F-lane NTFS carrier) merged into this session's
+  execution order.
+- Also swept in this rebase: the stray '>>>>>>> 32a14d1' marker the TTFR
+  lane left inside worklog.md on origin/main (same class as the orphaned
+  marker 47598bf swept before; no content lost — the surrounding API-FIX-4
+  entry is intact).
+
+Stage Summary:
+- Delta report refreshed + committed; OQ-SA-1 closed at the decode level;
+  the remaining scan-engine work is exactly the S-007 niche-format batches
+  (advanced/deep), the two stale docs/PARAMETERS.md §3 rows (formats/
+  parameters), and the execution-bound OQ-S4-3 (stays tracked). Combination
+  layer audit-verified present — no action.
