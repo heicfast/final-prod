@@ -280,3 +280,29 @@ Evidence: `evidence/decompiled-quotes/s10f-*.md`.
   repair-architecture row's deepest-decoded algorithm was unowned by the plan).
 - **Corpus erratum candidate for the next batch (I-033's item 4):** the DiskHealth
   artifact's auto.bat `trayicon` attribution (changeres.exe per boot-config:87).
+
+---
+
+## §12. Session-42 S42 currency update (2026-10-29 — the continuation audit lane; corpus `be0cfe9`, core `869da779`)
+
+- **The config-layer completeness correction:** I-034's og-file census claim ("no
+  undispositioned product surface") was wrong by four surfaces, all zero-citation at this
+  lane's open — **`config/shellexe.ini`** (the Explorer context-menu verb's 25-locale
+  tagline table; byte-identical install/PE copies; the consumer is the shell-extension
+  host outside the shipped tree), **`config/version.ini`'s `TreeType` gate** (the DRWUI
+  results-view layout boolean, shipped=1; both readers decoded — FUN_140a09c40's
+  absent-or-zero + ctx+0x1c8 co-gate, the Qt item-view consumers only; the scanext4
+  sibling's family completed), **`config/themdark.ini`** (118 Qt stylesheet fragments per
+  theme), and **`log/DRWLog.log`** (the 0-byte launcher channel). All four OOS-UI /
+  product-frame — **I-036** (acknowledged at filing, retired per the purge convention;
+  the live register: `evidence/decompiled-quotes/s42-config-layer-dispositions.md`).
+- **The HFS+ residuals closed** (not an inventory row — module-level): N-038's
+  field-name residual RESOLVED (`ownerFlags`, TN1150 byte-exact via the ushort-units
+  decode), the S-002 decmpfs-completion residual CLOSED core-superset, **N-155** filed
+  (the og's zero-logical-size `totalBlocks<<12` fallback absent in core).
+- **The board-truth verification over the hottest fix window:** every at-risk finding
+  re-checked LIVE at the lane tree (the S12 sweep pre-dated S-049/S-051/S-052/S-053 +
+  the N-wave landings); three stale-line cites noted; **no unretired fix found**
+  (`evidence/s42-board-verification.md`). S-048/S-054 fixed by the parallel window's
+  lanes mid-flight and properly retired (convergent verification recorded in their
+  ledger rows).
