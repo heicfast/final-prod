@@ -1,3 +1,11 @@
+**Session-40 lane B territory claim (coordination contract, 2026-10-29):** this lane
+(MINOR-first per the user directive) continues on the UNCLAIMED MINOR set: N-115
+(OfficeTagFromXML typing), N-126 (the Unsaved File category), N-125 (the disconnect-state
+classification), N-132 (API-DELTA truth + the SumaryFileType/PriorityDisplayType
+dispositions), N-135 (the fix-wave bookkeeping batch), N-148 (the comment-truth batch),
+N-150 (the api-doc-truth batch). Pulled-before-pushed discipline; one finding, one push.
+Landings this lane so far: N-151 (the nested-declaration double-carve rider), N-137, N-129,
+N-130+N-138, N-128, N-096, N-122, N-121 + the N-111/N-113 convergence verifications.
 - **N-121 FIXED** — the ESP auto-mount step (the og's CUpdateGptSystemBootPartition)
   registered as the documented HOST contract (PARITY-DELTAS D-90/N-121 + the rrecov CLI help +
   the boot-repair module row): the host discovers the ESP by type GUID, mounts, passes the BCD
