@@ -793,6 +793,17 @@ typedef struct cr_ui_apply_candidate {
                   * 2 exFAT, 4 GPT-table (refused by the planner), 5
                   * unknown (refused), 6 ext2, 7 HFS+, 8 Btrfs, 9 ZFS,
                   * 10 ReFS, 11 BitLocker */
+    /* M-137 append-only tail: the og's found-partition row context
+     * (UIUX/08 §2: Disk / Basic / Dynamic / MBR / GPT / File System).
+     * disk_layout: 0 none/unknown, 1 MBR, 2 EBR, 3 GPT, 4 GPT-damaged
+     * (table::TableLayout). disk_flags bit 0 = the scan target is
+     * dynamic (LDM database found), bit 1 = the target's table parsed.
+     * Hosts compiled against the pre-M-137 header may keep passing
+     * 24-byte structs - zero-initialize the whole struct before filling
+     * (the planner never reads these fields; they are presentation
+     * truth for the host's listing). */
+    uint32_t disk_layout;
+    uint32_t disk_flags;
 } cr_ui_apply_candidate;
 
 typedef struct cr_ui_apply_plan {

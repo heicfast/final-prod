@@ -52,3 +52,10 @@ S-058 (the polarity erratum's consumer), N-137/M-077/M-080/M-109 (the landings t
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-180 landing, S46 MINOR-first lane — post-push SHA in the ledger row and worklog entry)
+**Verified by:** per-row first-hand verification — each doc line re-read beside the code line it describes (`cr_preview.h:125-126` the 100 MiB/15 s defaults; `cr_thumbnail.h:76` the 200 MB max_read; `cr_ui.h`'s landed thumbnail ABI; `cr_safewriter.cpp:616-644` the per-item failure collection). Doc-only; the suite green at the landing. Item 7 (the s5 polarity erratum) was ALREADY landed by the S-058 Resolution — verified FIXED-ALREADY (the erratum block at the evidence file's :307 + the inline note at :258).
+**Resolution notes:** Six rows re-truthed: (1) REFERENCE-API-GAP R-28 both rows (:222/:376) — the thumbnail ABI landed (cr_ui.h:1233-1297) and the read budget is 200 MB per M-109, not "no cr_ui export yet"/"32 MiB per M-080"; (2) R-34 both rows (:233/:382) — the 100 MB/15 s defaults SHIP (M-077), not "no shipped defaults"; (3) ABI-CONTRACT §7i's caps line — max_read 200 MB (0xC800000, M-109); (4) API-DELTA S3-W4a — the row's Ours column flipped to LANDED with the code cite; (5) AUDIT-PIPELINE's WRITER-1 row — the "still returns on first per-item error / OPEN" claim flipped to the collect-and-continue MATCH (the same file's own findings block below the row already said FIXED; the row had drifted); (6) modules/exfat.md's B9 — the refuted "with tz-offset conversion" phrasing replaced with the S-011 local-as-UTC truth. The N-180 verification confirmed the finding's core claim exactly: the code was correct on every axis; only the docs lagged.

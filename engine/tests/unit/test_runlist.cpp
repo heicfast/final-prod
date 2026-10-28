@@ -55,9 +55,79 @@ TEST(RunList, SparseRun) {
 }
 
 TEST(RunList, TerminatesAndRejectsTruncated) {
-    u8 raw[] = {0x11, 0x10, 0x00}; /* header promises 1+1 bytes but cut */
+    /* N-163 re-pin: the og's buffer-end stop is a CLEAN stop
+     * (FUN_1800347d0 :41875 — pos >= bytes returns SUCCESS with the
+     * decoded runs; a runlist whose terminator byte is absent still
+     * decodes its complete entries). The pre-N-163 core rejected the
+     * whole fragment here — the strictness this finding removed. */
+    u8 raw[] = {0x11, 0x10, 0x00}; /* one complete run, no terminator */
     RunList rl;
-    EXPECT_EQ(RunList::decode(raw, sizeof(raw), 0, 1 << 20, rl), ERR_TRUNCATED);
+    EXPECT_EQ(RunList::decode(raw, sizeof(raw), 0, 1 << 20, rl), OK);
+    EXPECT_EQ(rl.runs().size(), 1u);
+    EXPECT_FALSE(rl.torn) << "a clean buffer end is not a tear";
+    /* zero runs + empty span still rejects (the empty-attribute class) */
+    u8 empty[] = {0x01};
+    RunList rl2;
+    EXPECT_EQ(RunList::decode(empty, 0, 0, 1 << 20, rl2), ERR_TRUNCATED);
+}
+
+TEST(RunList, TornAfterValidRunsKeepsPrefix) {
+    /* N-163: the og's truncate-and-keep — a width violation AFTER valid
+     * runs decodes to the prefix with OK + torn (the og's decoder
+     * breaks on len_width>8 and returns SUCCESS, :41891/:41992-94). */
+    const u8 raw[] = {0x11, 0x10, 0x00, /* valid run: 16 clusters @ lcn 0 */
+                      0x21, 0x20, 0x10, /* valid run: 32 clusters @ +0x10 */
+                      0xF1, 0xAB};      /* len_width 0xF > 8: the tear */
+    RunList rl;
+    EXPECT_EQ(RunList::decode(raw, sizeof(raw), 0, 1 << 20, rl), OK);
+    ASSERT_EQ(rl.runs().size(), 2u) << "the valid prefix is kept";
+    EXPECT_TRUE(rl.torn) << "the malformed tail sets the torn flag";
+    EXPECT_EQ(rl.runs()[0].length, 16u);
+    EXPECT_EQ(rl.runs()[1].length, 32u);
+    /* every tear class after valid runs: off_width>8, mid-entry cut,
+     * zero-length tail */
+    const u8 offw[] = {0x11, 0x10, 0x00, 0x1F, 0x10};
+    RunList rl2;
+    EXPECT_EQ(RunList::decode(offw, sizeof(offw), 0, 1 << 20, rl2), OK);
+    ASSERT_EQ(rl2.runs().size(), 1u);
+    EXPECT_TRUE(rl2.torn);
+    const u8 cut[] = {0x11, 0x10, 0x00, 0x11, 0x10}; /* 2nd entry cut */
+    RunList rl3;
+    EXPECT_EQ(RunList::decode(cut, sizeof(cut), 0, 1 << 20, rl3), OK);
+    ASSERT_EQ(rl3.runs().size(), 1u);
+    EXPECT_TRUE(rl3.torn);
+    const u8 zerolen[] = {0x11, 0x10, 0x00, 0x11, 0x00, 0x00};
+    RunList rl4;
+    EXPECT_EQ(RunList::decode(zerolen, sizeof(zerolen), 0, 1 << 20, rl4), OK);
+    ASSERT_EQ(rl4.runs().size(), 1u);
+    EXPECT_TRUE(rl4.torn) << "the zero-length tail keeps the prefix";
+}
+
+TEST(RunList, AllGarbageYieldsNothing) {
+    /* N-163 regression pin: a runlist whose FIRST header is garbage
+     * (the zero-valid-runs class) still rejects — the og's own
+     * pre-validator gate (FUN_18001d5f0 :23184) refuses the first
+     * header byte at the five $DATA parse sites. */
+    const u8 garbage_width[] = {0x91, 0x10}; /* len_width 9 > 8 first */
+    RunList rl;
+    EXPECT_EQ(RunList::decode(garbage_width, sizeof(garbage_width), 0, 1 << 20, rl),
+              ERR_BAD_PARAMETER);
+    EXPECT_TRUE(rl.runs().empty());
+    EXPECT_FALSE(rl.torn);
+}
+
+TEST(RunList, SparseFirstAcceptedAndRegistered) {
+    /* N-163 superset pin: the og's pre-validator REJECTS a sparse-FIRST
+     * $DATA (first header byte off-nibble==0, FUN_18001d5f0 :23184);
+     * the core accepts and represents it — the REGISTERED deliberate
+     * superset (PARITY-DELTAS D-135): a fully-sparse file is real
+     * content shape (all-hole) and recovers as zero-filled truth. */
+    const u8 sparse[] = {0x01, 0x10, 0x00}; /* one sparse run: 16 clusters */
+    RunList rl;
+    EXPECT_EQ(RunList::decode(sparse, sizeof(sparse), 0, 1 << 20, rl), OK);
+    ASSERT_EQ(rl.runs().size(), 1u);
+    EXPECT_TRUE(rl.runs()[0].sparse);
+    EXPECT_FALSE(rl.torn);
 }
 
 TEST(RunList, ZeroLengthRunRejected) {

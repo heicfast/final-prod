@@ -123,6 +123,46 @@ TEST(Grading, EmailCategoryFastPath) {
     EXPECT_NE(Grade::High, deleted_txt->grade()); /* not email, not twin */
 }
 
+TEST(Grading, RefsAndBtrfsDeletedFilesGradeHigh) {
+    /* S-061: the og's insert-time hook grades every non-existing ReFS
+     * (kind 10) and Btrfs (kind 0xB) file High unconditionally
+     * (FUN_14038a470 :605481-497 - FUN_140089630(node,2) + the gauge
+     * ticks DAT_141be5830/5828 for both kinds, verified first-hand).
+     * The pre-fix core returned early without touching the grade -
+     * the whole ReFS/Btrfs population sat at Average. */
+    ResultTree t;
+    auto* root = t.add_root(u"Found");
+    auto* refs_del =
+        add_file(t, root, "notes.txt", 900, u32(FsKindCode::Refs), DeletedState::Deleted);
+    auto* btrfs_del =
+        add_file(t, root, "photo.jpg", 900, u32(FsKindCode::Btrfs), DeletedState::Deleted);
+    /* control: the same shape on ext4 stays Average (no insert rule) */
+    auto* ext4_del =
+        add_file(t, root, "notes.txt", 900, u32(FsKindCode::Ext4), DeletedState::Deleted);
+    grading::AssistantStats st;
+    grading::grade_tree(t, single_disk_ctx(), st);
+    EXPECT_EQ(Grade::High, refs_del->grade()) << "ReFS deleted -> insert-time High";
+    EXPECT_EQ(Grade::High, btrfs_del->grade()) << "Btrfs deleted -> insert-time High";
+    EXPECT_NE(Grade::High, ext4_del->grade()) << "ext4 deleted keeps the generic path";
+}
+
+TEST(Grading, RefsExistingStillHighAndSmallStillLow) {
+    /* rule-order guards: the Active rule precedes the ReFS/Btrfs rule
+     * (identical outcome - High), and the size<1 Low rule precedes both
+     * (the og's insert hook is gated on size via the completion pass's
+     * :605726-27 - a zero-size node grades Low on every FS). */
+    ResultTree t;
+    auto* root = t.add_root(u"Found");
+    auto* refs_live =
+        add_file(t, root, "live.txt", 100, u32(FsKindCode::Refs), DeletedState::Active);
+    auto* refs_zero =
+        add_file(t, root, "zero.txt", 0, u32(FsKindCode::Refs), DeletedState::Deleted);
+    grading::AssistantStats st;
+    grading::grade_tree(t, single_disk_ctx(), st);
+    EXPECT_EQ(Grade::High, refs_live->grade());
+    EXPECT_EQ(Grade::Low, refs_zero->grade());
+}
+
 TEST(Grading, ExistingFilesHighDeletedNot) {
     /* the insert rule (FUN_14037a8a0): existing + size >= 1 -> 2 */
     ResultTree t;
@@ -174,14 +214,18 @@ TEST(Grading, ExtensionTableGatesDeepValidation) {
      * which this test had pinned.) */
     ResultTree t;
     auto* root = t.add_root(u"Found");
-    auto* a1 = add_file(t, root, "a.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    auto* a1 = add_file(t, root, "a.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x5000, 0x400);
-    auto* a2 = add_file(t, root, "b.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    auto* a2 = add_file(t, root, "b.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x5000, 0x400);
-    auto* c1 = add_file(t, root, "c.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    auto* c1 = add_file(t, root, "c.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x9000, 0x400);
-    auto* c2 = add_file(t, root, "d.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+    auto* c2 = add_file(t, root, "d.doc", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
                         Origin::Structured, 0x9000, 0x400);
+    auto* e1 = add_file(t, root, "noext1", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+                        Origin::Structured, 0xD000, 0x400);
+    auto* e2 = add_file(t, root, "noext2", 500, u32(FsKindCode::Fat16), DeletedState::Deleted,
+                        Origin::Structured, 0xD000, 0x400);
     grading::AssistantStats st;
     grading::grade_tree(t, single_disk_ctx(), st);
     EXPECT_FALSE(a1->overlap()) << "in-table (DOC) extensions skip the deep path";

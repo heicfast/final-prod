@@ -12,6 +12,8 @@ halves of the polarity pin) and convergence addendum ride in the finding file;
 its redundant code/tests were dropped per the superset rule (the winning 23/23
 battery incl. S-061's ReFS/Btrfs insert-time pins stands).
 
+**Session-46 lane landings (the other MINOR-first seat, 2026-10-29):** **N-158 FIXED** (`78b9b7aa` — the OfficeTagFromXML five-branch typing tail: XMIND/MMAP/EDDX/WFP/DRP, the disassembly-decoded XMIND probe + the no-stop chain walk + D-134), **N-159 FIXED** (`035508fa` — the failed-files report's tree_class axis + failed_bytes split + the three register repairs), **N-163 FIXED** (`142a7f40` — the NTFS runlist truncate-and-keep tolerance + the torn flag + PartialRisk grading + D-135), **N-165 FIXED** (`7f4f30d4` — the FAT out-of-volume stance registered D-136 + the stance pin). Suites green at each push; the full Resolutions ride the finding files + ledger rows.
+
 ## Session-44 minors-lane delta (2026-10-29 — the minor-first diff-fix execution lane per the user's operative directive; opened on `9807934` (the N-172/N-173 landing), corpus `be0cfe9`; suite at open 1203 green / 1161 pass · 42 win-skip · 0 fail)
 
 **Board at open (this lane's view): 77 active — 1 ACUTE · 9 SEVERE · 28 MAJOR ·
@@ -159,7 +161,32 @@ first-hand; every fix RED-test-first.
   the 9-iteration RED→GREEN pin + `LfnValidNameUnchanged`; the NUL early-return
   subtlety preserved in self-review).
 
-**Board (filesystem truth, running): 65 active — 0 ACUTE · 9 SEVERE · 27 MAJOR · 29 MINOR · 0 INFO / 73 FIXED files / 6 tracked-open (the parallel windows' landings absorbed at each rebase).**
+- **N-177 FIXED** — the ext4 size-exceeds-blocks damaged marker (EXT4SearchDLL
+  :6300-6303 + FUN_180007510 :5455-5467 re-read first-hand;
+  NODE_FLAG_SIZE_EXCEEDS_BLOCKS = the og's own bit 0x200, the clean 64-bit compute
+  on both emission paths, the D-135 non-adoption registration, the write_inode
+  i_blocks_lo fixture repair; 3 tests incl. the session round-trip).
+
+- **N-170 FIXED** — the pre-erratum EUUserData/GetRawUserInfoMap doc-truth batch
+  (CORRECTIONS.md #9 = E-A/E-B re-read first-hand; 6 sites re-truthed — the
+  cr_usersigns.h header's refuted "consults alongside raw_signs" claim, the
+  kMaxEntries census math, the OQ-SA-3 resolution text, D-52's "seeds" grouping,
+  D-60f's engine-reads list, SCAN-ENGINE-DELTA C4's "+ EUUserData MIME"; items 2/4
+  already re-truthed by the parallel S-055/N-179 landings — FIXED-ALREADY, verified;
+  acceptance grep zero).
+
+- **N-180 FIXED** — the doc-truth staleness batch (each row verified beside its code
+  cite: R-28 x2 + R-34 x2 in REFERENCE-API-GAP flipped to the landed thumbnail ABI +
+  the shipped 100 MiB/15 s caps; ABI-CONTRACT §7i's max_read 200 MB; API-DELTA
+  S3-W4a LANDED; AUDIT-PIPELINE's WRITER-1 row OPEN→MATCH; exfat.md B9's tz-offset
+  phrasing re-truthed; the s5 polarity erratum already landed by S-058 — verified).
+
+- **N-185 FIXED** — the b26017a7 record-truth erratum (the N-157 attribution line
+  annotated with the executed refutation + the corrected repair sequence; the
+  worklog's session-42 false-green claim dated per the 1233b4a0 precedent; the
+  code was already green at HEAD — record-truth only).
+
+**Board (filesystem truth, running): 61 active — 0 ACUTE · 9 SEVERE · 27 MAJOR · 25 MINOR · 0 INFO / 77 FIXED files / 5 tracked-open.**
 
 # SUMMARY.md — executive summary (the S42 diff-to-fix lane's convergence on top; the prior lanes below, newest-first)
 # SUMMARY.md — executive summary (the S46 MINOR-first fix lane on top — the user's priority-to-minor directive; the prior lanes below, newest-first)
@@ -198,6 +225,19 @@ repaired by the prior lanes).
   writer-module D13 addendum) + additive-within-v1 per the schema doc's
   own contract (the finding's version-bump plan corrected). 4 tests
   RED-first; suite 1243/1243 (1201/42/0). P13/P11/P46/P68 → MATCH.
+
+- **N-163 FIXED (MINOR, ntfs)** — the runlist malformed-input tolerance:
+  the og's truncate-and-keep lands (FUN_1800347d0 re-read: every malformed
+  branch a SUCCESS with the runs so far) — a torn $DATA fragment decodes
+  its valid prefix with the `torn` flag, OR-merged at every parse site,
+  and the walker grades the file PartialRisk (never silently pretending
+  completeness); the zero-valid-runs class still rejects (the og's own
+  pre-validator gate, FUN_18001d5f0 :23184); the clean buffer-end stop is
+  distinguished from a tear (the old strict pin re-truthed); the
+  sparse-first acceptance REGISTERED as PARITY-DELTAS D-135 (the deliberate
+  superset over the og's validator rejection). 4 tests, the prefix-keep +
+  the end-to-end PartialRisk grading RED pre-fix; suite 1280/1280
+  (1238/42/0).
 # SUMMARY.md — executive summary (the S12 session-2 deep-dive lane on top — sector math / scan-progress math / local database / state management / detection-calculation; the prior lanes below, newest-first)
 
 ## Session-12 S12 lane delta (2026-10-29 — the session-2 continuation audit per the user's second-session directive: remove-the-fixed + go-deeper, special focus on sector numbers / scanning / accurate detection / calculation / no-stuck-or-freeze / local database / state management; core `869da779` at open → rebased through the parallel windows to push at `f85def0f`, corpus `be0cfe9`)
@@ -239,7 +279,7 @@ wins over the parallel S42 lanes' consumed seats M-118..122/N-154..160/I-037..03
   layers but not the user-sign layer — D-104's "same format-toggle rules" registration
   claim was false in code. match_at's disabled_exts predicate now carries the og's
   removal-loop semantics (a disabled ext's signs never fire; sibling signs still can).
-- **S-057 (SEVERE)** — the og auto-saves STOPPED scans (stop-organize
+- **S-057 (FIXED session-51)** — the og auto-saved STOPPED scans (stop-organize
   "Scan stopped and found %1 files." → the shared completion handler
   FUN_140395e50 whose gates carry no stopped-check, DRWUI:1549399/:339076/:612572-87);
   the core never auto-saves a cancelled run and its comment mis-states the og.

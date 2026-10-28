@@ -19,9 +19,8 @@ New active findings on this module: **A-014 FIXED** (ACUTE — time-word validat
 hour/min/2s unchecked in `fat_datetime_to_unix_seconds`, shifted plausible timestamps
 where the og zeroes the slot, FAT:32135-54 — FIXED this session: the gate extended to
 the time word, 5 tests, findings/FIXED/A-014); **M-127** (the O(n^2) visited-vector
-cycle guard vs the og's range tree — stall-class); **M-130** (the dentry
-shape-validator family unported: ext-tail, size/chain-XOR, dir, >9-repeat histogram
-gates + walk-stop semantics); **N-162** (the og's 32-bit cluster-math wrap registered
+cycle guard vs the og's range tree — stall-class); **M-130 — FIXED (session-52: the two-tier port
+  [walk-BREAK gates + emission-SKIP shape gates], 3 decode corrections, suite 1322/1322)**; **N-162** (the og's 32-bit cluster-math wrap registered
 — core u64 correct); **N-165** (the "File overflows partition!" scan-time refusal vs
 deferred failure); **N-172** (deleted-first-char `'#'` vs `'_'` + the unregistered
 LFN-checksum recovery superset — closes OQ-T2); **N-173** (the 2106/2107 u32 clamp);
@@ -309,3 +308,16 @@ MATCH.
   0xFF9F/2107-12-31 value, the 0xFFFFFFFE boundary, the 0x100000000 regression
   step) + Date2107EndToEndFileTimeIsReal. The finding's 0xFFBF example word
   corrected (it decodes 2107-11-31 — invalid; 0xFF9F is 2107-12-31).
+
+## Session-46 addendum (2026-10-29 — the MINOR-first fix lane; audited `fa654673`-lineage, corpus `be0cfe9`)
+
+**N-165 FIXED — the out-of-volume run-end stance registered.** Both og factory
+gates re-read first-hand (:10865-10903 / :28040-28075: the run-end sector-limit
+check, ReleaseTrace "File overflows partition!", the runlist destruction). The
+core's deferred-failure posture — the truncated-tail volume stays a
+first-class target, the overflow-tail file stays listed with its chain
+extents, the readable prefix recovers and the tail discloses as Salvaged at
+recovery (FB-R02) — REGISTERED as PARITY-DELTAS D-136 and pinned by
+FatEngine.TruncatedVolumeOverflowChainStance (the scan-time grade stays the
+chain's own: the truncation is recovery-time knowledge). No behavior change,
+per the finding's own plan.

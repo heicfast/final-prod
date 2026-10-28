@@ -68,3 +68,10 @@ population.
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** `<this push>` (session-55 fix lane — the convergence commit over the S48/S46 lane's S-055/S-06 landings)
+**Verified by:** fail-before/pass-after executed: `CarveStats.UserSignFilesCountInCarvedFound` (two user-sign-only magics → `st.validated == 2`, `st.sign_hits == 2`) — the same assertion was executed RED pre-fix in this lane's independent S-055 work (validated == 0 while the tree carried two 0xFFFE0000 records) and GREEN post-tick; full suite 1342/1342 post-convergence.
+**Resolution notes:** CONFIRMED-DIVERGENCE. The parallel S48/S46 lane's S-055/S-056 landing (7bd5e00f) reordered the layers and gated the toggle but left the counter split (their emission ticks `sign_hits` only — verified on the merged tree before this push), so the N-171 half stayed open and is closed here: the user-sign emission ticks `validated` — the counter the orchestrator's carved_found headline reads (`stats.carved_found = cs.validated`, cr_scan.cpp) — per the finding's preferred option 1 (downstream per-stage counters stay uniform). The og's own counting surface counts analyser detections the same way (GetRawUserInfoMap, FUN_18000ed00 insert-or-increment — cited in the finding). The session-persisted leg is structural: the unchanged assignment feeds the telemetry snapshot and the session record. The built-in raw-sign layer's own absence from `validated` remains the separate N-140-adjacent question (its counter is `sign_validated`) — not touched, not silently changed.

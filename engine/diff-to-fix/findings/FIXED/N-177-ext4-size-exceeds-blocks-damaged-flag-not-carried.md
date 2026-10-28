@@ -64,3 +64,22 @@ the flags census).
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-177 landing, S46 MINOR-first lane — post-push SHA in the ledger row and worklog entry)
+**Verified by:** `Ext4Engine.SizeExceedsBlocksSetsDamagedFlag` (the live-tree damaged file + the files-only dir control + the deleted-path damaged file; i_size 4096 vs coverage 1024 and the zeroed-coverage variant) + `Ext4Engine.DamagedFlagCleanFilesCarryNoBit` (the pristine fixture sets the bit on nothing) + `Ext4Engine.DamagedFlagSessionRoundTrip` (the bit survives serialize/deserialize through FileProperties::flags' existing put16/g16 pair). RED pre-fix: the tests do not compile without the flag constant (the API is part of the fix) and the flag compute is absent. Suite 1275 ran / 1233 pass / 42 env-skips / 0 fail (linux-release).
+**Resolution notes:** The marker landed as `NODE_FLAG_SIZE_EXCEEDS_BLOCKS = 0x0200` — the SAME numeric bit as the og's node FLAGS 0x200 (EXT4SearchDLL :6300-6303, re-read first-hand; the verdict compute FUN_180007510 :5455-5467 re-read beside it). The compute is the CLEAN 64-bit form per the finding's own fix plan: `u64(blocks_512) * 512 < size`, files only, no sign-extension on i_size_high (the og's +0x1F quirk is the I-040/D-123 defect family — the non-adoption registered as PARITY-DELTAS D-135), no 32-bit truncation of either side (the og compares u32(u_blocks) < u32(size>>9)). Both emission paths compute it (the live-tree child walk and the deleted-inode "InodeNNNN" emission); the session round-trip needed NO code — FileProperties::flags already persists. The ext4 test fixture's `write_inode` now populates i_blocks_lo (real volumes always carry the coverage word; the fixture was unrealistic with it zeroed). The fixture-wide consequence is covered by DamagedFlagCleanFilesCarryNoBit.
+
+### Convergence addendum (S53 minors lane, 2026-10-29)
+
+This lane implemented the same fix independently (the same og bit 0x200 as
+`PFLAG_SIZE_EXCEEDS_BLOCKS`, the same lo-only i_blocks read at +0x1C, the same
+files-only gate at both InodeView-fed props sites, the same session round-trip pin)
+and RED-proved it via the stashed-gate rebuild (the truncated file carried no bit with
+the gate's condition forced false) before pulling the winning `7be438c9` landing
+(SA-9). The one editorial difference: this lane registered the sign-extension
+non-adoption under the EXISTING I-040/D-123 family (the same function's defect
+register, already pinned by `Ext4Engine.LegacyAclDirSizeClean`); the winner filed the
+new D-135 — both records describe the same non-adoption and cross-reference cleanly.

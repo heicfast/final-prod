@@ -1181,8 +1181,10 @@ NOT registered here — see docs/DRIVER-UTILIZATION.md's checklist.
   walks) while cutting 64 KiB blocks' 16,384/GiB. The alignbench sweep
   (PERFORMANCE-BASELINE §6) owns further tuning.
 - **D-52 — carve-format registry as a unified two-layer enumeration.** The
-  og exposes RAWSearchDLL registry views (EUGetAnalyserList/Map/Multimap +
-  GetRawUserInfoMap — raw-dual-registry seeds); ours exposes one POD
+  og exposes RAWSearchDLL registry views (EUGetAnalyserList/Map/Multimap —
+  the registry enumeration pair; N-170 re-truth: GetRawUserInfoMap is NOT a
+  registry seed, it is the per-scan carve-statistics OUTPUT map per E-B);
+  ours exposes one POD
   enumeration over BOTH layers (grammar validators then raw-sign formats)
   with stable append-only ordering. Equivalent host capability, different
   shape; the og's RawConfig.ini per-format toggles are host-side policy on
@@ -1849,7 +1851,9 @@ Verified against corpus 03ad46c and the running core before acknowledgment.
 - **D-60e — PENetwork SMB destinations (I-021-5, LANE).** WinPE-lane
   validation item (N-056 test gap), not an engine gap.
 - **D-60f — DRWCfg.bin (I-021-6, SCOPE).** UI-layer AES config cache; the
-  engine reads RawConfig/FileFilter/raw_signs/EUUserData only.
+  engine reads RawConfig/FileFilter/raw_signs only. (N-170 re-truth: the
+  ENGINE never reads EUUserData — its sole og consumer is DRWUI's
+  CHKRepairFileSign, the CHK repair chain, per CORRECTIONS.md #9/E-A.)
 - **D-60g — Session robustness (I-022-1, ACCEPTED).** Per-record CRC32 of
   the decompressed payload, F10 resync + torn-tail salvage, decompression
   bomb caps (cr_crsf.cpp) — the og's loader is per-field only. Keep.
@@ -3897,3 +3901,66 @@ analyser always-on). This divergence is bounded and honest: it documents a
 gate the og's config file advertises but whose engine-side wiring the corpus
 cannot prove. Registered by N-158's Resolution; revisit only if a future
 corpus artifact decodes the IAnalyserFilter's id plumbing.
+
+### D-135 — the sparse-FIRST $DATA acceptance (N-163 registration, REGISTERED DELIBERATE SUPERSET — a fully-sparse file is real content shape)
+
+The og's runlist pre-validator (FUN_18001d5f0, NTFSSearchDLL :23175-23210)
+REJECTS a $DATA whose first runlist header byte carries off-nibble==0
+(:23184: `(*b & 0xf0) == 0 -> return 0`) — enforced at the five attribute
+parse sites (:23412/:23506/:23533/:24337/:24643). A fully-sparse file
+(an all-hole $DATA, e.g. an NTFS sparse file never written or a
+hole-punch artifact) therefore yields NO extents in the og — the file is
+unrecoverable-by-policy on the reference.
+
+The core accepts and represents sparse-first runlists natively (the
+RunList decode treats off_width==0 as a legal sparse run; S-001's
+all-hole $DATA fixture recovers as zero-filled truth). Rationale: the
+shape is real content (the zero-filled recovery is honest — the
+Salvaged/FB-R02 family marks it), and rejecting a decodable structure
+the og's own DECODER accepts (FUN_1800347d0 has no sparse gate — only
+the pre-validator does) would sacrifice recoverable file identity for
+reference-quirk parity. Registered by N-163's Resolution alongside the
+decoder's truncate-and-keep tolerance landing (the og direction this
+finding fixed); the S-001 all-hole recovery behavior is unchanged and
+now decode-anchored.
+### D-135 — the ext4 damaged-marker compute: clean 64-bit form over the og's sign-extended/truncated comparison (N-177 registration)
+
+The og's truncation-damage verdict (EXT4SearchDLL FUN_180007510 :5455-5467)
+computes `size = (i_size_high << 32 | i_size_lo) + ((i_size_high >> 0x1F) & 0x1FF)`
+— a 9-bit sign-extension smear on the high dword (the same +0x6c-slot legacy-ACL
+poll family D-123 documents for directories, applied here as an arithmetic
+adjustment on files) — and then compares the two sides as TRUNCATED 32-bit words:
+`u32(i_blocks_lo) < u32(size >> 9)`. The core's N-177 landing computes the clean
+form: `u64(i_blocks_lo) * 512 < i_size`, files only. Divergences from the og:
+(1) sizes above 4 GiB compare correctly (the og's u32 truncation can mis-mark
+exactly-4-GiB-straddling files); (2) inodes whose +0x6c slot carries a legacy
+ACL pointer pollution never smear the size (the D-123 family); (3) the marker
+bit is the SAME numeric bit 0x200 so cross-tool consumption is unaffected.
+Registered deliberate superset: the og's comparison defects are NOT adopted
+(the I-040 anti-down-fix doctrine).
+
+### D-136 — the FAT out-of-volume run-end stance: deferred per-read failure, not scan-time destruction (N-165 registration, REGISTERED DELIBERATE SUPERSET — truncated-tail volumes are first-class recovery targets)
+
+The og's FAT runlist factories destroy a file's whole runlist at SCAN time
+when a run's end passes the volume sector limit — "File overflows
+partition!" via ReleaseTrace and the runlist object released
+(FATSearchDLL :10873-10903 and the second factory :28045-28070, both
+64-bit checks, re-read first-hand this session). The file then surfaces
+with NO data runs: no recoverable content offered even where the device
+still holds the chain's readable prefix.
+
+The core's registered stance: extents emit unguarded
+(cr_fat_quick.cpp:370-386) and validate_boot deliberately accepts volumes
+whose BPB claims more sectors than the device holds (the truncated-tail
+allowance, cr_chain.cpp:613-616) — a volume cut mid-FAT keeps every
+overflow-tail file LISTED with its chain extents; the readable prefix
+recovers, and the beyond-device tail fails per-read, surfacing through the
+FB-R02 Salvaged family (the recovery report's partial-content disclosure)
+instead of a scan-time destruction. Rationale: truncated-tail volumes are
+recovery targets exactly when the tail is gone (repartitioned/re-sized
+disks); destroying the runlist because its end is past the limit also
+destroys the in-device prefix the og itself could have served. The
+scan-time grade stays the chain's own (FAT-verified intact chains grade
+Excellent; the truncation is a recovery-time disclosure, never a silent
+drop). Pinned by FatEngine.TruncatedVolumeOverflowChainStance; do NOT
+"fix" toward the og's destruction without re-registering this row.
