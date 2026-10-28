@@ -448,8 +448,7 @@ void grade_tree(tree::ResultTree& t, const GradeContext& ctx, AssistantStats& ou
         out.matched = 0;
 }
 
-bool regrade_node(tree::FileNode* n, const GradeContext& ctx,
-                  const tree::ResultTree* tree) {
+bool regrade_node(tree::FileNode* n, const GradeContext& ctx, const tree::ResultTree* tree) {
     if (!n || n->is_full() || !n->props())
         return false;
     /* M-134: the og's one-shot re-grade gate - grade==1 AND the graded

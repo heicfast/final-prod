@@ -7634,11 +7634,12 @@ TEST(CarveEngine, UserSignYieldsToRawSignTableAtSamePosition) {
         const char* magic_hex; /* the og's own shipped sign bytes */
     };
     const Case cases[] = {
-        {"amr", "2321414D52"},                     /* #!AMR (conf 870) */
-        {"class", "CAFEBABE"},                     /* cafe babe (conf 800) */
-        {"flac", "664C614300000022"},              /* fLaC.... (conf 940) */
-        {"msf", "2F2F203C212D2D203C6D64623A6D6F726B"}, /* // <!-- <mdb:mork (the built-in's full 16) */
-        {"pdb", "4D6963726F736F66742043"},        /* "Microsoft C" (the built-in 12) */
+        {"amr", "2321414D52"},        /* #!AMR (conf 870) */
+        {"class", "CAFEBABE"},        /* cafe babe (conf 800) */
+        {"flac", "664C614300000022"}, /* fLaC.... (conf 940) */
+        {"msf",
+         "2F2F203C212D2D203C6D64623A6D6F726B"}, /* // <!-- <mdb:mork (the built-in's full 16) */
+        {"pdb", "4D6963726F736F66742043"},      /* "Microsoft C" (the built-in 12) */
     };
     for (const Case& c : cases) {
         std::vector<u8> img(2ull << 20, 0);
@@ -7651,8 +7652,8 @@ TEST(CarveEngine, UserSignYieldsToRawSignTableAtSamePosition) {
         (void)magic;
         /* a user sign under a DIFFERENT ext for the same magic: if the
          * user layer ran first, this record would win the position */
-        std::string json = std::string("{\"") + c.ext +
-                           "u\": {\"signs\": [\"0," + c.magic_hex + "\"], \"mime\": \"x/test\"}}";
+        std::string json = std::string("{\"") + c.ext + "u\": {\"signs\": [\"0," + c.magic_hex +
+                           "\"], \"mime\": \"x/test\"}}";
         carve::usersigns::UserSignSet set;
         ASSERT_EQ(OK, carve::usersigns::parse(json.c_str(), json.size(), set)) << c.ext;
         ASSERT_EQ(OK, carve::usersigns::install_set(std::move(set))) << c.ext;
@@ -7663,8 +7664,8 @@ TEST(CarveEngine, UserSignYieldsToRawSignTableAtSamePosition) {
         CarveFlags fl;
         fl.hash_small_files = false;
         CarveStats st;
-        ASSERT_EQ(OK,
-                  carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st))
+        ASSERT_EQ(
+            OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st))
             << c.ext;
         u32 builtin = 0, user = 0;
         tree::FileNode* built_n = nullptr;

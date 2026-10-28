@@ -605,9 +605,9 @@ void plant_compact_fat12(std::vector<u8>& img, u64 lba) {
     b[2] = 0x90;
     std::memcpy(b + 3, "MSDOS5.0", 8);
     *(u16*)(b + 0x0B) = u16(512);
-    b[0x0D] = 1;              /* spc */
-    *(u16*)(b + 0x0E) = u16(1); /* reserved */
-    b[0x10] = 1;              /* one FAT */
+    b[0x0D] = 1;                 /* spc */
+    *(u16*)(b + 0x0E) = u16(1);  /* reserved */
+    b[0x10] = 1;                 /* one FAT */
     *(u16*)(b + 0x11) = u16(16); /* root entries */
     *(u16*)(b + 0x16) = u16(8);  /* SPF 8 -> FAT12 flavor */
     b[0x15] = 0xF8;

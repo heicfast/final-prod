@@ -1364,7 +1364,7 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
          * reader through the global manager chain, FUN_14038c470
          * :606319-331; the completion pass's device is our equivalent).
          * One sector per not-in-table no-twin node, content-gated. */
-        gctx.reader.dev = slice; /* the run() scan device - the extents are rebased to it */
+        gctx.reader.dev = slice;     /* the run() scan device - the extents are rebased to it */
         gctx.reader.sector_size = 0; /* derive from the device geometry */
         tree::grading::grade_tree(tree_, gctx, stats.assistant);
     }
@@ -2122,12 +2122,10 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                 for (const auto& c : dr.candidates) {
                     if (work.size() >= kLostInsertCap) {
                         if (cr::log::enabled())
-                            cr::log::write(
-                                cr::log::Level::Info,
-                                "lost partition insertion cap: %zu of %llu candidates "
-                                "scanned (the og's 10-target cap, DRWUI:904229-234)",
-                                work.size(),
-                                (unsigned long long)dr.candidates.size());
+                            cr::log::write(cr::log::Level::Info,
+                                           "lost partition insertion cap: %zu of %llu candidates "
+                                           "scanned (the og's 10-target cap, DRWUI:904229-234)",
+                                           work.size(), (unsigned long long)dr.candidates.size());
                         break;
                     }
                     emit_lost_candidate_(c); /* GAP-S6-10 */
@@ -2171,8 +2169,7 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                         /* the no-FS-name fallback: the old LBA form */
                         role = u"Candidate @";
                         char buf[32];
-                        snprintf(buf, sizeof(buf), " %llu",
-                                 (unsigned long long)c.start_lba);
+                        snprintf(buf, sizeof(buf), " %llu", (unsigned long long)c.start_lba);
                         for (const char* p = buf; *p; ++p)
                             role.push_back(u16(u8(*p)));
                     }

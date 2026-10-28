@@ -88,7 +88,7 @@ public:
     u64 logical_size = 0; /* real_size */
     u64 allocated_size = 0;
     FileTimes times;
-    u32 attributes = 0;  /* DOS attributes (dir/hidden/...) */
+    u32 attributes = 0; /* DOS attributes (dir/hidden/...) */
     /* internal flags: 4 = system-filter (corpus); 0x10 = in-use (NTFS);
      * 0x02 = NTFS dir mirror. N-177: 0x0200 = size-exceeds-blocks
      * damage (the og's ext4 FLAGS bit 0x200 at +0x39, FUN_180007510's
