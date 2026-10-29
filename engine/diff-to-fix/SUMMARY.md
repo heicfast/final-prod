@@ -526,14 +526,14 @@ trail update, push. One finding, one push. This block grows as the lane lands.
   signature bytes are driver-pad zeros) - the bound math is the honest
   divergence surface.
 
-- **N-189 FIXED (MINOR — the DXF canonical gate).** The og's two-qword 16-byte
+- **N-208 FIXED (MINOR — the DXF canonical gate; renumbered from the born-collided N-189 seat at the CI-red repair — the remote lane's registry-sentinel finding holds N-189).** The og's two-qword 16-byte
   compare (RAWSearchDLL:42258-42275 re-read first-hand) lands in validate_dxf:
   "  0\r\nSECTION\r\n  " in full; the 8-byte-prefix collision class refused.
   RED→GREEN: Carve.DxfCanonicalRequiresFullSixteenBytePattern; the S-007 batch
   fixture re-truthed to the real covenant (the old 12-byte prefix-only shape
   was a synthetic the og itself refuses). Suite 1453/1453.
 
-- **N-190 FIXED (MINOR — the EXIF prefix 39-char cap).** The og's strncpy(dst, src,
+- **N-209 FIXED (MINOR — the EXIF prefix 39-char cap; renumbered from the born-collided N-190 seat at the CI-red repair — the remote lane's merge-red-build-gate finding holds N-190).** The og's strncpy(dst, src,
   0x27) sites re-read first-hand (RAWSearchDLL:40388-40389/:40483-40484); the tag
   string now resizes to 39 at capture - before BOTH the name prefix and the
   per-string counter key. RED proven by the stash-revert rebuild (the whole 45-char

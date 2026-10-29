@@ -641,9 +641,9 @@ static std::u16string jpeg_name_prefix(IStorageDevice* s, u64 hit, u64 cap, u64 
                                         v.pop_back(); /* NUL/space trim */
                                     if (v.empty())
                                         continue;
-                                    /* N-190: the og's strncpy(dst, src, 0x27)
-                                     * caps the tag value at 39 chars
-                                     * (RAWSearchDLL:40388-40389 the Software
+                                    /* N-209 (renumbered from the born-collided N-190 at the S57
+                                     * CI-red repair): the og's strncpy(dst, src, 0x27) caps the tag
+                                     * value at 39 chars (RAWSearchDLL:40388-40389 the Software
                                      * 0x131 branch, :40483-40484 the Model
                                      * 0x110 twin - the 39th char KEPT, no NUL
                                      * at exactly 39); the pre-fix core
@@ -5609,8 +5609,8 @@ CarveResult validate_ai(IStorageDevice* s, u64 hit, u64 cap) {
  * full probe window - the bound is this port's documented posture). */
 CarveResult validate_dxf(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
-    /* N-189: the canonical gate is the og's FULL 16-byte two-qword
-     * compare "  0\r\nSECTION\r\n  " (RAWSearchDLL FUN_1800376f0
+    /* N-208 (renumbered from the born-collided N-189 at the S57 CI-red repair): the canonical gate
+     * is the og's FULL 16-byte two-qword compare "  0\r\nSECTION\r\n  " (RAWSearchDLL FUN_1800376f0
      * :42258-42275: *p == 0x4345530a0d302020 && p[1] ==
      * 0x20200a0d4e4f4954) - the 8-byte prefix alone is a collision
      * class the og refuses; the pre-fix core carved it. A header

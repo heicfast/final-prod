@@ -9173,3 +9173,17 @@ form is one row's continuation, not a seat claim). Gate green: 135 unique D-rows
 CI-wired (checks.yml:173). No code change — the registry + gate + citations are the
 deliverable.
 
+
+## Session-57 lane — the CI-red repair: N-189/N-190 born-collided seats renumbered (2026-10-29)
+
+The remote Windows CI's doc-truth gate (checks.yml:173) failed on the S57 pushes:
+the hot-window lanes had filed and retired their OWN N-189 (registry-sentinel-walk
+ASan red, c481b812 01:02Z) and N-190 (hot-window-merge-red-build-gate) findings BEFORE
+this lane's DXF-gate (92858a74 01:57Z) and EXIF-cap (fd3b9af3 02:06Z) retirements
+landed — the gate's ID-uniqueness check caught the double claims. Per SA-9
+(earlier-push-wins) the remote lanes keep N-189/N-190; this lane's two findings
+RENUMBERED to N-208/N-209 with every live citation swept (the finding files, the
+FIXED-LEDGER rows — which a window fold had also dropped, re-landed — the code
+comments in cr_analysers.cpp, the test comments, the SUMMARY block). The gate now
+green locally: 53 active, 132 retired, 386 ledger-resolved, zero collisions, 135
+unique D-rows.

@@ -6689,8 +6689,8 @@ TEST(CarveEngine, OgNamingJpgSofDimensions) {
 }
 
 TEST(CarveEngine, JpegExifPrefixCappedAtThirtyNine) {
-    /* N-190: the og's strncpy(dst, src, 0x27) caps the EXIF tag value at
-     * 39 chars (RAWSearchDLL:40388-40389 the Software branch, :40483-40484
+    /* N-209 (renumbered from N-190 at the S57 CI-red repair): the og's strncpy(dst, src, 0x27) caps
+     * the EXIF tag value at 39 chars (RAWSearchDLL:40388-40389 the Software branch, :40483-40484
      * the Model twin - the 39th char kept) - a 60-char Software tag names
      * the file by its FIRST 39 chars; the pre-fix core consumed the whole
      * string into the prefix and the per-string counter key. */
@@ -9914,13 +9914,11 @@ TEST(Carve, GpxBomFormCarvesOnce) {
 /* ===================================================================== */
 
 TEST(Carve, DxfCanonicalRequiresFullSixteenBytePattern) {
-    /* N-189: the og's canonical acceptance gate is the FULL 16-byte
-     * two-qword compare "  0\r\nSECTION\r\n  " (RAWSearchDLL
-     * FUN_1800376f0 :42258-42275, re-read first-hand:
-     * *p == 0x4345530a0d302020 && p[1] == 0x20200a0d4e4f4954) - the
-     * 8-byte prefix "  0\r\nSECTION" alone does NOT carve: a stream
-     * whose continuation is wrong is a prefix collision the og refuses.
-     * The pre-fix core memcmp'd only the first 8 bytes. */
+    /* N-208 (renumbered from N-189 at the S57 CI-red repair): the og's canonical acceptance gate is
+     * the FULL 16-byte two-qword compare "  0\r\nSECTION\r\n  " (RAWSearchDLL FUN_1800376f0
+     * :42258-42275, re-read first-hand: *p == 0x4345530a0d302020 && p[1] == 0x20200a0d4e4f4954) -
+     * the 8-byte prefix "  0\r\nSECTION" alone does NOT carve: a stream whose continuation is wrong
+     * is a prefix collision the og refuses. The pre-fix core memcmp'd only the first 8 bytes. */
     {
         /* the wrong continuation: the 8-byte prefix + "XWRONG" */
         const char* doc = "  0\r\nSECTIONXWRONG\r\n  2\r\nHEADER\r\n";
