@@ -1,3 +1,30 @@
+# SUMMARY.md — executive summary (the S73 MAJOR-first continuation fix lane on top; the prior lanes below, newest-first)
+
+## Session-73 S73 lane delta (2026-10-29 — the user's MAJOR-first directive continuation ["priority to major first", 20+ fixes]; opened at core `f9f8c6e4` (the S68 continuation-audit lane absorbed; baseline suite 1496/1496 green on Linux before the first change; the racing S69/S70 audit lanes conceded per SA-9 with a disjoint slice taken), corpus `be0cfe9` throughout; every finding independently re-verified against the corpus and the running code before any change)
+
+- **M-144 FIXED (MAJOR, ext4)** — the 8 MiB single-shot GDT read cap at
+  `cr_ext4_engine.cpp:785` (which refused any 64BIT volume whose GDT
+  exceeded 8 MiB — i.e. 64-B descriptors above 16 TiB at 4 KiB blocks)
+  is removed and replaced with an 8 MiB chunked reader that tolerates
+  partial chunk failure (the dead-front behavior the prior single-shot
+  read applied to the whole table now applies per-chunk). `MAX_GROUPS`
+  at `:83` is raised from `1<<20` (~128 TiB) to `1<<26` (~1 PiB) —
+  still a corrupt-SB guard that no real volume hits, but no longer a
+  capability cliff that legitimate NAS arrays cross. The alt-GDT
+  ladder path is chunked identically. The og's unbounded allocation
+  (FUN_1800047c0 :3404-3408, re-read first-hand this session) is its
+  own defect class (a corrupt SB could request an arbitrary buffer);
+  the core's deliberate divergence is registered in PARITY-DELTAS
+  **D-148**. `Ext4EngineM144.Large64BitVolumeAbove8MiBGdtOpens` RED
+  pre-fix (`0x50030003 ERR_BAD_PARAMETER`) → GREEN post-fix
+  (`block_groups == 200000` on a 200k-group 64BIT volume with a 12.8
+  MiB GDT); `Ext4EngineM144.CorruptHugeGroupCountStillRefused` guards
+  the raised bound.
+
+**Board after this landing (M-144 absorbed): 0 ACUTE · 0 SEVERE ·
+16 MAJOR · 11 MINOR · 0 INFO active / 157 FIXED / 4 tracked-open.**
+Next free IDs: S-068+, M-148+, N-210+, I-048+, A-016+, D-149+.
+
 # SUMMARY.md — executive summary (the S66 MINOR-first fix lane on top; the prior lanes below, newest-first)
 
 ## Session-66 S66 lane delta (2026-10-29 — the user's MINOR-first directive continuation ["priority to minor first", 20+ fixes]; opened at core `24e480c4` (the S60-B/S63 windows absorbed; baseline suite 1485/1485 green on Linux before the first change), corpus `be0cfe9` throughout; every finding independently re-verified against the corpus and the running code before any change; the S64/S65 racing seats absorbed at the rebase — their committed-conflict-marker SUMMARY repaired in the same push, the M-120 class)

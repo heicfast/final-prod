@@ -72,3 +72,37 @@ Decompiled evidence, lead-verified first-hand: the allocation computation and th
 ## Open questions
 
 None — both caps are directly read on the core side and both og sites directly read; the only decision is the replacement bound's value and its registration.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's push — SHA recorded at commit time)
+**Verified by:**
+- `Ext4EngineM144.Large64BitVolumeAbove8MiBGdtOpens` — RED pre-fix (returns
+  `ERR_BAD_PARAMETER` 0x50030003 when the 8 MiB GDT cap refused a 12.8 MiB
+  GDT 64BIT volume); GREEN post-fix (the chunked reader opens the volume
+  and walks every group: `st.block_groups == 200000`). Verified locally
+  against a standalone gtest harness.
+- `Ext4EngineM144.CorruptHugeGroupCountStillRefused` — GREEN both pre- and
+  post-fix (asserts the raised `MAX_GROUPS = 1<<26` bound still refuses a
+  corrupt SB with `groups = (1<<26)+1` — the corrupt-SB guard the cap
+  legitimately provides).
+
+**Resolution notes:** the 8 MiB single-shot GDT read cap at
+`cr_ext4_engine.cpp:785` is removed and replaced with an 8 MiB chunked
+reader that tolerates partial chunk failure (the dead-front behavior the
+prior single-shot read applied to the whole table now applies per-chunk).
+`MAX_GROUPS` at `:83` is raised from `1<<20` (~128 TiB) to `1<<26`
+(~1 PiB) — still a corrupt-SB guard that no real volume hits, but no
+longer a cliff legitimate NAS arrays cross. The alt-GDT ladder path
+(:830-836) is chunked identically. The og's unbounded allocation
+(FUN_1800047c0 :3404-3408, re-read first-hand this session) is its own
+defect class (a corrupt SB could request an arbitrary buffer); the
+core's deliberate divergence is registered in PARITY-DELTAS D-148. No
+safety hardening was sacrificed: the chunked reader bounds per-read
+length the same way; the MAX_GROUPS bound keeps the corrupt-SB guard;
+the SB validator's existing `groups > blocks` geometry-consistency
+refusal survives. The two fixtures use 4 KiB blocks, 64-B descriptors,
+64BIT feature_incompat — the modern large-volume shape; no 16 TiB of
+storage is needed (the engine reads only the SB, the GDT block range,
+and the group-0 inode table to validate geometry).

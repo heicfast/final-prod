@@ -23,6 +23,7 @@ add_executable(cr_tests
     unit/test_fat_volume.cpp
     unit/test_exfat_volume.cpp
     unit/test_ext4_volume.cpp
+    unit/test_ext4_m144_large_volume.cpp
     unit/test_hfsplus_volume.cpp
     unit/test_btrfs_volume.cpp
     unit/test_zfs_volume.cpp

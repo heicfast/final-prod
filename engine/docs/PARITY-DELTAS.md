@@ -4372,3 +4372,46 @@ recorded OQ (the follow-up needs the og's JSON member-append attribution).
   phantom claim); the N-205 landing makes it true. Any future report/ABI
   exposure of the recoverability count should carry raw_tail_zero, not
   re-point raw_count.
+
+## Z. The S69 diff-to-fix continuation lane (2026-10-29) — the M-144 ext4 large-volume registration
+
+### D-148 — the ext4 GDT read cap: chunked reader + raised MAX_GROUPS, not the og's unbounded single-shot allocation (M-144 registration, REGISTERED DELIBERATE DIVERGENCE — the og's unbounded stance is its own corrupt-SB risk; the core keeps a generous guard while removing the capability cliff)
+
+- **OG:** `re-workspace/reversed/ghidra-searchdll/EXT4SearchDLL_decompiled.c`
+  FUN_1800047c0 (:3404-3408) — `round_up(groups × desc_size, block_size)`
+  with **no cap**, allocated in one shot and read in one shot. The
+  superblock validator (:3236-3239) carries no group-count ceiling.
+- **CORE (prior to M-144):** two caps neither registered as deliberate:
+  (a) `gdt_bytes > 8 MiB → ERR_BAD_PARAMETER` at `cr_ext4_engine.cpp:785`
+  — refused any 64BIT volume with 64-B descriptors above 16 TiB
+  (~131,072 groups); (b) `MAX_GROUPS = 1<<20` at `:83` refused above
+  ~128 TiB at 4 KiB blocks. Neither was in PARITY-DELTAS; both looked
+  like a hardening default that became a capability cliff.
+- **WHAT WE DO (M-144):** the single-shot GDT read is replaced with an
+  8 MiB chunked reader (the per-call length stays u32-safe for any
+  legitimate volume, and a transport that caps a single read still
+  succeeds). The 8 MiB cap is removed. `MAX_GROUPS` is raised to
+  `1<<26` (64M groups ≈ 1 PiB at 4 KiB blocks, 64-B desc) — still a
+  corrupt-SB guard that no real volume hits, but no longer a cliff
+  that legitimate NAS arrays cross. The alt-GDT path is chunked
+  identically. The og's unbounded stance is documented as a
+  deliberate divergence here: we do NOT adopt the og's risk that a
+  corrupt SB could request a multi-GiB buffer without any test.
+- **WHY:** the prior 8 MiB cap refused whole legitimate large-volume
+  recovery classes (modern NAS arrays routinely exceed 16 TiB;
+  multi-drive ext4 arrays exceed 128 TiB) — a real capability loss
+  with zero safety benefit (the chunked reader bounds per-read length
+  the same way). The raised MAX_GROUPS keeps the corrupt-SB guard the
+  original constant legitimately provided; the chunked read keeps the
+  transport safety the per-read u32 length requires.
+- **RISK:** a host feeding a corrupt SB with `groups = 1<<25` (32M ×
+  64 B = 2 GiB GDT) would now allocate that buffer where the prior
+  cap refused. Mitigated: the `1<<26` MAX_GROUPS bound still refuses
+  anything beyond PiB-scale; the chunked reader bounds per-read
+  length regardless of buffer size; the SB validator's existing
+  geometry-consistency checks (`groups > blocks` refusal) survive.
+- **VERDICT: ACCEPTED** (deliberate divergence, registered M-144; the
+  og's unbounded allocation is its own defect class — a corrupt SB
+  could request an arbitrary buffer; the core's raised cap keeps the
+  guard while removing the capability cliff). The chunked-reader
+  helper is the production-grade replacement for the silent refusal.

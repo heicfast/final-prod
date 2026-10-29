@@ -80,9 +80,18 @@ constexpr u32 EXTENTS_FL = 0x80000;
 constexpr u16 EXT4_EXT_MAGIC = 0xF30A;
 constexpr u32 EXTENT_DEPTH_LIMIT = 5;
 
-constexpr u64 MAX_GROUPS = 1ull << 20;  /* 1M groups = 128 TiB @ 128 MiB/group
-                                         * (4K blocks); GDT read is bounded
-                                         * by groups*desc_size */
+constexpr u64 MAX_GROUPS = 1ull << 26;  /* M-144: 64M groups = ~1 PiB @ 128 MiB/group
+                                          * (4K blocks, 64-B desc). The og is
+                                          * unbounded (FUN_1800047c0 :3404-3408
+                                          * allocates round_up(groups*desc_size,
+                                          * block_size) with no test); we keep a
+                                          * generous corrupt-SB guard that no real
+                                          * volume hits while the og's unbounded
+                                          * stance is documented as a deliberate
+                                          * hardening divergence in PARITY-DELTAS.
+                                          * GDT read is now chunked (8 MiB pieces)
+                                          * so the per-read length stays u32-safe
+                                          * for any legitimate volume. */
 constexpr u64 MAX_INODES = 16ull << 20; /* 16M inodes sweep bound */
 constexpr u32 MAX_DIR_BYTES = 64ull << 20;
 constexpr int DIR_WALK_DEPTH = 64;
@@ -782,11 +791,29 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
         front_gdt_dead = v.group(0).inode_table == 0;
     } else {
         const u64 gdt_bytes = v.sb.groups * v.sb.desc_size;
-        if (gdt_bytes == 0 || gdt_bytes > (8ull << 20))
+        if (gdt_bytes == 0)
             return ERR_BAD_PARAMETER;
+        /* M-144: the og allocates the rounded-up GDT unbounded and reads it
+         * in one shot (FUN_1800047c0 :3404-3408). We allocate the same buffer
+         * (still bounded by the MAX_GROUPS corrupt-SB guard at the SB
+         * validator), but read it in 8 MiB chunks so the per-call length is
+         * u32-safe and so a transport that caps a single read still succeeds.
+         * The chunked reader tolerates partial failure: a dead chunk zeroes
+         * its span (the dead-front behavior the prior single-shot read
+         * applied to the whole table). */
         v.gdt.resize(size_t(gdt_bytes));
-        if (slice->read_at(v.base + v.gdt_block * v.sb.block_size, v.gdt.data(), u32(gdt_bytes)) !=
-            OK) {
+        constexpr u64 GDT_CHUNK = 8ull << 20;  /* 8 MiB per read */
+        bool any_read_ok = false;
+        for (u64 off = 0; off < gdt_bytes; off += GDT_CHUNK) {
+            const u32 take = u32(std::min(GDT_CHUNK, gdt_bytes - off));
+            const u64 at = v.base + v.gdt_block * v.sb.block_size + off;
+            if (slice->read_at(at, v.gdt.data() + size_t(off), take) == OK) {
+                any_read_ok = true;
+            } else {
+                std::memset(v.gdt.data() + size_t(off), 0, take);
+            }
+        }
+        if (!any_read_ok) {
             if (v.backup_sb_block == 0)
                 return ERR_READ_FAILED;         /* primary scan, no ladder to walk */
             v.gdt.assign(size_t(gdt_bytes), 0); /* dead front: ladder below */
@@ -804,8 +831,17 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
         if (!v.meta_bg) {
             const u64 gdt_bytes = v.sb.groups * v.sb.desc_size;
             std::vector<u8> alt(size_t(gdt_bytes), 0);
-            if (slice->read_at(v.base + v.alt_gdt_block * v.sb.block_size, alt.data(),
-                               u32(gdt_bytes)) == OK)
+            /* M-144: chunked alt-table read matches the primary's chunking so
+             * the alt path tolerates the same multi-GiB GDT sizes. */
+            constexpr u64 GDT_CHUNK = 8ull << 20;
+            bool alt_ok = false;
+            for (u64 off = 0; off < gdt_bytes; off += GDT_CHUNK) {
+                const u32 take = u32(std::min(GDT_CHUNK, gdt_bytes - off));
+                const u64 at = v.base + v.alt_gdt_block * v.sb.block_size + off;
+                if (slice->read_at(at, alt.data() + size_t(off), take) == OK)
+                    alt_ok = true;
+            }
+            if (alt_ok)
                 v.gdt.swap(alt);
         } else {
             v.meta_cache.clear(); /* re-resolve m == 0 through the alt block */

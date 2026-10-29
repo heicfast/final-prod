@@ -227,3 +227,23 @@ the og's raw product — the core's kernel-correct decode
 (walk_extent_node :346-350) stays; the divergence is deliberate and must
 be preserved in future work. The module's B7 row (unwritten-extent
 semantics) is now backed by both the D-141 register and the pin.
+
+## S72 fix-lane addendum (2026-10-29 — the MAJOR-first continuation lane)
+
+**M-144 FIXED (MAJOR)** — the 8 MiB single-shot GDT read cap at
+`cr_ext4_engine.cpp:785` is removed and replaced with an 8 MiB chunked
+reader that tolerates partial chunk failure (the dead-front behavior the
+prior single-shot read applied to the whole table now applies per-chunk);
+`MAX_GROUPS` at `:83` is raised from `1<<20` (~128 TiB at 4 KiB blocks)
+to `1<<26` (~1 PiB) — still a corrupt-SB guard that no real volume hits,
+but no longer a capability cliff that legitimate NAS arrays cross. The
+alt-GDT ladder path is chunked identically. The og's unbounded allocation
+(FUN_1800047c0 :3404-3408, re-read first-hand) is its own defect class (a
+corrupt SB could request an arbitrary buffer); the core's deliberate
+divergence is registered in PARITY-DELTAS **D-148**.
+`Ext4EngineM144.Large64BitVolumeAbove8MiBGdtOpens` RED pre-fix
+(`0x50030003 ERR_BAD_PARAMETER`) → GREEN post-fix (`block_groups == 200000`);
+`Ext4EngineM144.CorruptHugeGroupCountStillRefused` guards the raised
+bound. The module's X49/X52/B1 capacity-edges rows are now MATCH
+(parallel to the og's unbounded scan, with the corrupt-SB guard
+deliberately kept and registered).

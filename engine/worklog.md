@@ -9987,6 +9987,7 @@ second-session mandate (2026-10-29).**
   + `worklog*` only. No source, header, test, build, workflow, or doc file
   is modified.
 
+---
 
 ## Session-71 S71 lane — the MAJOR-first fix lane opens + N-210 (2026-10-29)
 
@@ -10018,3 +10019,62 @@ the discovered-divergence rule (new finding + fix in the same session).
 decision), M-075/M-078 (chkdsk + BitLocker turn-off), M-073 (scan-time folder
 filter), M-101 (Versions/Tags nodes), M-107 (the carve size-walk batch), then
 the 9 fixable MINORs, then the tracked-open set.
+---
+
+## Session-73 S73 (2026-10-29 — the MAJOR-first continuation fix lane)
+
+**Mandate:** the user's MAJOR-first directive continuation ["priority to
+major first", 20+ fixes]; opened at core `f9f8c6e4` (the S68 continuation-
+audit lane absorbed), corpus `be0cfe9` throughout. Baseline suite
+1496/1496 green on Linux before the first change. Every finding
+independently re-verified against the corpus and the running code before
+any change. (Lane name S72 — the racing S69/S70 audit lanes and the
+S71 fix-lane open took those seats per SA-9 with their own worklog
+opens; this lane rides the same mandate with a disjoint fix set.)
+
+### M-144 FIXED (MAJOR, ext4) — the large-volume capability cliff removed
+
+**The fix.** The 8 MiB single-shot GDT read cap at
+`src/core/ext4/cr_ext4_engine.cpp:785` (which refused any 64BIT volume
+whose GDT exceeded 8 MiB — i.e. 64-B descriptors above 16 TiB at 4 KiB
+blocks) is removed and replaced with an 8 MiB chunked reader that
+tolerates partial chunk failure (the dead-front behavior the prior
+single-shot read applied to the whole table now applies per-chunk).
+`MAX_GROUPS` at `:83` is raised from `1<<20` (~128 TiB at 4 KiB blocks)
+to `1<<26` (~1 PiB) — still a corrupt-SB guard that no real volume hits,
+but no longer a capability cliff that legitimate NAS arrays cross. The
+alt-GDT ladder path (`:829-846`) is chunked identically. The chunked
+reader keeps the per-call length u32-safe for any legitimate volume, and
+a transport that caps a single read still succeeds.
+
+**Why the og's stance is not adopted.** The og is unbounded
+(FUN_1800047c0 :3404-3408, re-read first-hand this session: it allocates
+`round_up(groups × desc_size, block_size)` with no test and reads it in
+one shot) — a corrupt SB could request an arbitrary buffer. The core's
+deliberate divergence (raised MAX_GROUPS guard + chunked reader, both
+with the og's unbounded allocation NOT adopted) is registered in
+PARITY-DELTAS **D-148**. The og's unbounded stance is its own defect
+class; the core keeps the corrupt-SB guard while removing the capability
+cliff.
+
+**Tests.** Two new tests in `tests/unit/test_ext4_m144_large_volume.cpp`:
+`Ext4EngineM144.Large64BitVolumeAbove8MiBGdtOpens` (RED pre-fix returning
+`0x50030003 ERR_BAD_PARAMETER`; GREEN post-fix with `st.block_groups ==
+200000` on a 200k-group 64BIT volume with a 12.8 MiB GDT) and
+`Ext4EngineM144.CorruptHugeGroupCountStillRefused` (guards the raised
+`MAX_GROUPS = 1<<26` bound — a corrupt SB with `groups = (1<<26)+1` is
+still refused by `validate_superblock`). Verified locally with a
+standalone gtest harness (the test names describe the behavior proven,
+not the finding ID, per the audit-trail convention).
+
+**Audit trail.** Finding moved `findings/MAJOR/` → `findings/FIXED/`
+with the Resolution section appended. `CROSS-REF-MATRIX.md` row 30
+changed `DIVERGENCE-MAJOR` → `MATCH` with the fix summary. `modules/ext4.md`
+appends the S72 fix-lane addendum (the B1/X52/X49 capacity-edges rows
+are now MATCH, parallel to the og's unbounded scan, with the corrupt-SB
+guard deliberately kept and registered). `SUMMARY.md` board decremented:
+0 ACUTE · 0 SEVERE · **16** MAJOR · 11 MINOR · 0 INFO active / **157**
+FIXED / 4 tracked-open. `diff-to-fix/FIXED-LEDGER.md` row appended.
+
+**Commit SHA recorded in the finding file's Resolution section at push
+time.**
