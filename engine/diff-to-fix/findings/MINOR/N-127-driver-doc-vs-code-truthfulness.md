@@ -5,8 +5,27 @@
 **Parameters affected:** the security-posture claims (global-handle WRITE gating), the sector-length contract prose (CORRECTIONS-2 lineage), dead-code hygiene
 **Corpus references:** `artifacts/PartitionRecovery/eprdtdrv-sys--driver-internals.md` §4 (the legacy global-handle modes — no admin gate in the reference); `eudcpepm-euedkepm--hook-drivers.md` (the session protocol's semantics)
 **Core references (rda-driver @ 323e75a):** `src/shared/inc/rda_ioctl.h:360-368` (the admin-gate claim), `src/driver/rda_ioctl.c` (grep: no privilege check), `docs/requirements.md:51`, `docs/ground-truth-contracts.md` §2.2, `src/driver/inc/rda_trace.h:30`, `src/driver/rda_ioctl.c` (RdaSessionDispatch default), `docs/audit/2026-10-22-security-review.md` (the 56/57 checks claim)
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** PUSHED-FORWARD (driver-repo-resident; the two-repo grant of every fix session since S10 excludes heicfast/rda-driver — the OQ-S10-3 boundary record owns the lane)
 **Prior audit check:** newly discovered (the SA-9 lane's full driver read; the SCAN-2f D2-partial handoff covered the driver doc drifts generally — this finding owns the specific falsified claims). **Renumbered N-091 → N-127 at the push-time reconciliation** (the session-8 parallel lanes had taken N-091 for parity-deltas-registration-gaps; this lane's N-091 filing was the only ID-colliding finding whose content was NOT convergent — everything else this lane filed merged into the session-8 board as addenda: S-042 WMF, M-081 CRW, S-041 batch-2, M-086, M-087, N-107, N-093).
+
+## Session-86 disposition note (2026-10-29, S86 fix lane — re-verified, pushed forward)
+
+Boundary re-affirmed (the OQ-S10-3 record): all six items' fix surfaces live in
+heicfast/rda-driver (`rda_ioctl.h`, `requirements.md`, `ground-truth-contracts.md`
+§2.2, `rda_trace.h`, `rda_ioctl.c`'s unreachable default, the S12
+security-review count) — untouchable under the two-repo grant. The corpus
+posture re-read first-hand this session at `be0cfe9`:
+`artifacts/PartitionRecovery/eprdtdrv-sys--driver-internals.md:75-90` — the
+§4 IOCTL table + the explicit "No ACL on the device — access control comes
+from: (a) signed-driver install …, (b) handle-validation behavior in the
+GetFileObjName IOCTL" line: the reference's raw-disk security model is the
+install-time + handle-validation posture, NOT caller privilege — confirming
+the finding's "Option A (og-parity): delete the admin-gate sentence" as the
+parity-faithful resolution when the driver-repo lane takes it. The
+Option-A-vs-B decision itself stays with the driver-repo engineering team
+(N-127's own open-questions line). No core-side change owed; the next concrete
+step stands unchanged (OQ-S10-3's order: M-087 → M-089 → N-107/N-127 prose
+sweeps → M-086).
 
 ## Summary
 

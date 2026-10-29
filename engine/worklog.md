@@ -12573,3 +12573,30 @@ re-based) remains unmodeled — recorded honestly in the code comment and the
 finding (it is the OR-shape of the two walks this engine already runs, a
 future refinement, not a parity break: both og sites borrow the same hint
 bits and validate through the same FUN_180012c00 class).
+## Session-86 S86 fix-lane — entry 1: the open (2026-10-29)
+
+**Baseline recorded.** Core at open: `b6801ade` (the S84/S85 close tree); corpus
+`be0cfe9` throughout. Suite GREEN first-hand at the open (the linux-gcc preset,
+ASan on): **1381/1381 ctest** (163 s), LSAN clean at exit. The prompt saved
+(token redacted) at `worklog/session-diff-fix-s86-prompt.md`, read twice.
+
+**Board at open (filesystem truth): 0 ACUTE · 0 SEVERE · 8 MAJOR · 2 MINOR ·
+0 INFO active / 198 FIXED / 4 tracked-open.** In-grant fixable this session:
+M-075 (chkdsk launch), M-078 (BitLocker turn-off), M-101 (the two tree
+branches), M-105 (DRWService, option-a shape), M-107's nine remaining members
+(DWG WPG WPD PSP SIT APE EPS DXF SWF-RECT). Out-of-grant (driver-repo-resident
+per OQ-S10-3, re-affirmed): M-086/M-087/M-089/N-107/N-127.
+
+**The minor-first trail landing (this push):** per the user's session addendum
+("priority to minor first") the two open MINORs were handled first — both are
+driver-repo-resident, so the in-grant half is the trail: N-107/N-127 brought
+from the audit lanes' "READ-ONLY FINDING" status to the consistent PUSHED-FORWARD
+posture (the M-086/87/89 convention) with per-finding session disposition notes
+carrying this session's first-hand re-verifications (DRIVER-CONTRACT §4.4's 19
++ §4.2's wire-truth rows; the corpus's eprdtdrv §4 no-ACL posture), plus the
+OQ-S10-3 fifth re-affirmation note. No code change (none is owed in this repo);
+the audit trail is the deliverable of this landing.
+
+**Next:** the M-107 member queue (DWG's section-locator map first, per the
+finding's decode-then-land order), then M-075/M-078/M-101/M-105, then the OQ
+items (S79-1's $LogFile decode is in-repo workable).
