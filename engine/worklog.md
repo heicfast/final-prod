@@ -8832,3 +8832,22 @@ N-203 (the v4 tail), N-206 (the ceil pair), N-204 (the F6 og-side cell).
 Convergence: the S54/S50 lanes' batteries and the S52/S48 grading decodes
 converge on every overlapping row — this lane's independent verification
 recorded per the S42/S42-B/S42-C precedent.
+## Session-46 minors lane — N-183 landed (2026-10-29)
+
+**N-183 FIXED (MINOR — the recoverability aggregate: population + score +
+QSDE).** All three sub-gaps: (a) the gauge's candidate population is now the
+og's 20-format member set (kGaugeCandidateExtensions, the .rdata keys re-read
+via the finding's evidence) + the auto-High classes (email + non-existing
+ReFS/Btrfs per S-061), with the og's lowercased set lookup; (b) the verdict
+score int((matched/total + 0.05)*10) (FUN_14021b030) computed over that
+population, 0 on empty, the small-result zeroing applied first; (c) QSDE
+re-mapped to the per-node non-existing count (DRWUI :331164-170, the +0x1b8
+field) and the NTFS fixer-index rule tick moved to its own
+ntfs_device_index_high (the DAT_141be5818 gauge-matched global). The
+ScanAnalysis report block + the cr_ui copy carry the four new fields
+append-only. Tests: GaugePopulationIsMemberSet, ScoreFormulaRoundsLikeOg,
+QSDENotTheNtfsIndexCount — two first-draft bugs caught by the pins (a
+case-sensitive set lookup missing every uppercase extension; the score pin's
+own small-result floor). The NtfsDeviceIndexRuleUpgrades pin re-pinned to the
+two-counter truth. Suite 1361/1319/42/0. Trail: findings/FIXED/N-183 + ledger
+row + matrix row + the schema doc + this entry.

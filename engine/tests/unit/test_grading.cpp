@@ -191,16 +191,102 @@ TEST(Grading, SmallFileUnder1024High) {
     EXPECT_EQ(u64(2), st.raw_count);
 }
 
+TEST(Grading, GaugePopulationIsMemberSet) {
+    /* N-183 (diff-to-fix): the og's recoverability gauge counts the
+     * 20-format member set (the .rdata ctor map, DRWUI:605502-513) plus
+     * the auto-High classes - never every file. The core's all-files
+     * view (total/matched) stays as data beside it. */
+    ResultTree t;
+    auto* root = t.add_root(u"Found");
+    /* member-set files (jpg x2, docx, pdf) */
+    (void)add_file(t, root, "a.jpg", 500, u32(FsKindCode::Fat16), DeletedState::Deleted);
+    (void)add_file(t, root, "b.jpg", 500, u32(FsKindCode::Fat16), DeletedState::Active);
+    (void)add_file(t, root, "c.docx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted);
+    (void)add_file(t, root, "d.pdf", 500, u32(FsKindCode::Fat16), DeletedState::Deleted);
+    /* non-member files (txt x2, zzqx) */
+    (void)add_file(t, root, "e.txt", 500, u32(FsKindCode::Fat16), DeletedState::Deleted);
+    (void)add_file(t, root, "f.txt", 500, u32(FsKindCode::Fat16), DeletedState::Active);
+    (void)add_file(t, root, "g.zzqx", 500, u32(FsKindCode::Fat16), DeletedState::Deleted);
+    grading::AssistantStats st;
+    grading::grade_tree(t, single_disk_ctx(), st);
+    EXPECT_EQ(u64(7), st.total_file_count) << "the all-files view keeps every file";
+    EXPECT_EQ(u64(7), st.total) << "total stays the all-files aggregate";
+    EXPECT_EQ(u64(4), st.gauge_total) << "only the member-set population (jpg/docx/pdf)";
+}
+
+TEST(Grading, ScoreFormulaRoundsLikeOg) {
+    /* N-183: the og's verdict score int((matched/total + 0.05) * 10)
+     * (FUN_14021b030 :374451-481). Boundaries: 0.50 -> 5; 0.85 -> 9;
+     * 0.95 -> 10 (the int() truncation); 0 matched -> 0 (the 0.05 floor
+     * rounds to 0); an empty population -> 0. Small results (<100
+     * files): the gauge zeroes matched, the 0.05 floor still yields 0. */
+    ResultTree t;
+    auto* root = t.add_root(u"Found");
+    /* 200 member files, 100 High (carve<0x400 promotes) + 100
+     * too-large: 100/200 = 0.50 -> int(5.5) = 5; 200 >= 100 clears the
+     * small-result floor. */
+    for (int i = 0; i < 100; ++i) {
+        char nm[32];
+        snprintf(nm, sizeof(nm), "small%03d.jpg", i);
+        (void)add_file(t, root, nm, 100, u32(FsKindCode::Raw), DeletedState::Deleted,
+                       Origin::Carved);
+    }
+    for (int i = 0; i < 100; ++i) {
+        char nm[32];
+        snprintf(nm, sizeof(nm), "large%03d.jpg", i);
+        (void)add_file(t, root, nm, 100000, u32(FsKindCode::Raw), DeletedState::Deleted,
+                       Origin::Carved);
+    }
+    grading::AssistantStats st;
+    grading::grade_tree(t, single_disk_ctx(), st);
+    EXPECT_EQ(u64(200), st.gauge_total);
+    EXPECT_EQ(u64(100), st.gauge_matched);
+    EXPECT_FALSE(st.small_result) << "200 >= 100: the gauge shows";
+    EXPECT_EQ(5u, st.score) << "int((100/200 + 0.05) * 10) = int(5.5) = 5";
+}
+
+TEST(Grading, QSDENotTheNtfsIndexCount) {
+    /* N-183 (sub-gap c): QSDE (+0x1b8, DRWUI:331164-170) counts the
+     * NON-EXISTING population per node; the NTFS fixer-index rule's tick
+     * is DAT_141be5818 (the gauge-matched global) - two different
+     * counters the pre-fix code had fused. */
+    ResultTree t;
+    auto* root = t.add_root(u"Found");
+    /* a deleted NTFS node at a low device ordinal (the rule's firing
+     * population - the existing-rule shadow matches the og's insert-time
+     * High for live nodes): the fixer-index tick fires (grade High +
+     * ntfs_device_index_high) AND the node is non-existing (one QSDE
+     * tick). */
+    (void)add_file(t, root, "gone.txt", 5000, u32(FsKindCode::Ntfs), DeletedState::Deleted);
+    /* two deleted FAT nodes: QSDE ticks; the NTFS index never. */
+    (void)add_file(t, root, "dead1.txt", 500, u32(FsKindCode::Fat16), DeletedState::Deleted);
+    (void)add_file(t, root, "dead2.txt", 500, u32(FsKindCode::Fat16), DeletedState::Deleted);
+    /* an existing FAT node: neither counter (not non-existing, not NTFS). */
+    (void)add_file(t, root, "live.txt", 500, u32(FsKindCode::Fat16), DeletedState::Active);
+    grading::AssistantStats st;
+    grading::grade_tree(t, single_disk_ctx(), st);
+    EXPECT_EQ(u64(1), st.ntfs_device_index_high) << "the fixer-index tick (the NTFS node)";
+    EXPECT_EQ(u64(3), st.quick_scan_delete_extend)
+        << "the non-existing population (3 deleted nodes)";
+    /* the fusion test: the two counts differ -> neither is an alias */
+    EXPECT_NE(st.ntfs_device_index_high, st.quick_scan_delete_extend);
+}
+
 TEST(Grading, NtfsDeviceIndexRuleUpgrades) {
-    /* NTFS + device ordinal in [0,9) -> 2 + QuickScanDeleteExtend tick
-     * (FUN_14038b0e0 :605897-605900, DAT_141be5818) */
+    /* NTFS + device ordinal in [0,9) -> grade 2 + the DAT_141be5818 tick
+     * (FUN_14038b0e0 :605897-605900). N-183 re-pin: DAT_141be5818 is the
+     * GAUGE-MATCHED global, not QSDE - the rule's counter is
+     * ntfs_device_index_high; QSDE is the per-node NON-EXISTING count
+     * (the +0x1b8 field, DRWUI :331164-170), which this deleted node
+     * also ticks. Both asserted. */
     ResultTree t;
     auto* root = t.add_root(u"Found");
     auto* dead = add_file(t, root, "gone.txt", 5000, u32(FsKindCode::Ntfs), DeletedState::Deleted);
     grading::AssistantStats st;
     grading::grade_tree(t, single_disk_ctx(), st);
     EXPECT_EQ(Grade::High, dead->grade());
-    EXPECT_EQ(u64(1), st.quick_scan_delete_extend);
+    EXPECT_EQ(u64(1), st.ntfs_device_index_high) << "the fixer-index tick (DAT_141be5818)";
+    EXPECT_EQ(u64(1), st.quick_scan_delete_extend) << "the non-existing population count";
 }
 
 TEST(Grading, ExtensionTableGatesDeepValidation) {

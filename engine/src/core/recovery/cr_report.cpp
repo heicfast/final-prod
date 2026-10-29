@@ -197,6 +197,14 @@ static void append_analysis(std::string& out, const ScanAnalysis& a) {
     append_num(out, "total", a.total, false);
     out.append(",\n");
     append_num(out, "small_result", a.small_result ? 1 : 0, false);
+    out.append(",\n");
+    append_num(out, "gauge_matched", a.gauge_matched, false);
+    out.append(",\n");
+    append_num(out, "gauge_total", a.gauge_total, false);
+    out.append(",\n");
+    append_num(out, "score", a.score, false);
+    out.append(",\n");
+    append_num(out, "ntfs_device_index_high", a.ntfs_device_index_high, false);
     out.append("\n  },\n");
 }
 
