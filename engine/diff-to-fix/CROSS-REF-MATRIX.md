@@ -1,3 +1,11 @@
+# CROSS-REF-MATRIX.md — module × parameter verdict matrix (the S81 MINOR-first fix lane on top; the prior lanes below, newest-first)
+
+**Session-81 S81 lane rows (2026-10-29 — the MINOR-first diff-to-fix execution per the user's directive; opened at core `04fb5e88` [the M-155 red-window repair absorbed — this lane executed the identical arbitration independently and conceded the seat per SA-9, the convergence addendum in the M-155 finding], corpus `be0cfe9` throughout; every finding independently re-verified against corpus + code before fixing; this section re-landed after the N-217 lane's rebase dropped it):**
+
+| Parameter (module · surface) | Verdict | Evidence / finding |
+|---|---|---|
+| orchestrator · autosave_dir contract text vs S-057 (P46) | **MATCH** | **N-211 FIXED** — both header comments re-truthed (cr_scan.h's autosave_dir block + the gate-caught twin at cr_ui.h:636): the field is honored on completion AND on the stop window (the og's stop path feeds the shared completion handler — DRWUI :1549399-421 → FUN_140395e50, gates :612571-587 no stopped-check; corpus re-verified this session). The new `check_header_contract_phrases()` doc-truth gate: RED at the pre-fix tree (it caught the cr_ui.h twin the finding missed), GREEN post-fix — the retired-phrase class now fails CI on recurrence |
+
 # CROSS-REF-MATRIX.md — module × parameter verdict matrix (the S80 fix lane on top — the diff-to-fix execution per the user's 20+ mandate; the prior lanes below)
 
 **Session-80 S80 lane rows (2026-10-29 — every finding independently re-verified against corpus + code before fixing; opened at core `04fb5e88` [RED: the ed501caa push's committed conflict markers — repaired first as M-155], corpus `be0cfe9` throughout):**

@@ -24,6 +24,24 @@
 1 INFO active / 170 FIXED / 4 tracked-open** (M-155 filed+fixed same
 session; the +1 MAJOR is M-155 itself, closed on filing).
 
+# SUMMARY.md — executive summary (the S81 MINOR-first fix lane on top; the prior lanes below, newest-first)
+
+## Session-81 S81 fix-lane delta (2026-10-29 — the user's fix mandate ["fix all the audit findings, priority to minor first", 20+ fixes, fixed findings into findings/FIXED/]; opened at core `04fb5e88`, corpus `be0cfe9` throughout; the S81 lane executed the identical M-155 repair independently before pulling — the convergence addendum in the M-155 finding records it; the seat conceded to the racing `6d74ec2c` per SA-9; this block re-landed after the N-217 lane's rebase dropped the S80-parallel blocks)
+
+- **N-211 FIXED (MINOR, orchestrator/api-docs):** the `autosave_dir`
+  contract comments re-truthed at BOTH headers — `cr_scan.h`'s "a
+  cancelled run never auto-saves" and the twin at `cr_ui.h:636` the new
+  gate caught (the shim's own comment, whose code has stop-window-saved
+  since S-057). The og truth now stated: the field fires on completion
+  AND on the stop window (DRWUI :1549399-421 → FUN_140395e50, gates
+  :612571-587 no stopped-check — corpus re-verified this session). The
+  guard: `doc_truth_gate.py`'s `check_header_contract_phrases()` — RED
+  pre-fix (the cr_ui.h catch), GREEN post-fix.
+
+**Board (filesystem truth at this push): 0 ACUTE · 2 SEVERE · 17 MAJOR ·
+10 MINOR · 1 INFO active / 173 FIXED / 4 tracked-open.** Next free IDs:
+M-156+, N-218+, I-049+, A-016+, D-150+.
+
 # SUMMARY.md — executive summary (the S69 continuation audit lane on top; the prior lanes below, newest-first)
 
 ## Session-69 S69 lane delta (2026-10-29 — the NINTH continuation audit lane of the user's second-session mandate [remove-the-fixed + go-deeper + mark-all-remaining, focus: sector numbers / scanning / accurate detection / calculation / mathematics / no stuck or freeze / local database / state management]; the S68 seat conceded to the racing citation-census lane per SA-9 — this lane executed the S61 seat's never-landed plan, a disjoint slice; opened at core `3799dee2`, findings verified there and re-verified LIVE at the rebase head `271f5d06` after absorbing the S71..S79 fix windows [M-118/M-135/M-136/M-143/N-140/N-212/N-131/N-200/N-210/OQ-S52-1 landed by the racing lanes — zero of this lane's filings collided], corpus `be0cfe9` throughout)
