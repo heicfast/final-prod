@@ -1,3 +1,27 @@
+# SUMMARY.md — executive summary (the S86 MINOR-first 20+ fix lane on top; the prior lanes below, newest-first)
+
+## Session-86 S86 lane delta (2026-10-29 — the user's fix mandate ["fix all the audit findings, priority to minor first", 20+ fixes]; opened at core `e17a4e6d` [clean tree, ctest 1566/1566 green first-hand], corpus `be0cfe9` throughout; re-homed S79 → S86 per SA-9 [the racing windows took S68-S85]; prompt saved token-redacted at worklog/session-diff-fix-s86-prompt.md)
+
+- **N-181 CONCEDED to the racing S76 lane's `033c5d7c`** (earlier-push-wins):
+  this lane built and PROVED the og-faithful concurrent shape (the carve
+  worker at the loop-1 position, the stage-begin on the scan thread, the
+  carve-stage engine/finish split with disjoint ScanStats ownership, the
+  new locked snapshot_dfs/collect_structured_extents tree APIs, per-stage
+  telemetry clocks, 3 RED→GREEN tests, suite 1569/1569, TSan/UBSan clean)
+  but the racing window landed its sequential carve-before-deep reorder
+  first. Their landing keeps the seat; the interleaved-feeds residual (and
+  the reorder's flip of the deep population's time-to-first-result behind
+  the whole carve sweep) stays O37-registered — the full implementation
+  record + proof set is preserved in worklog.md's S86 concession entry for
+  the future lane that closes it. No board change (their landing already
+  counted).
+- **Riders landed:** the pre-existing UBSan violation in
+  test_orchestrator.cpp's plant_compact_fat12 fixed (unaligned u16 stores →
+  put16 — caught by this lane's local --san run; CI is windows-only by the
+  documented decision) + the CR_SANITIZER_LANE define on the ubsan preset
+  and ci-local's tsan lane (the honest scoping pattern for
+  timing-sensitive assertions under detector slowdown).
+
 # SUMMARY.md — executive summary (the S84 fix lane on top; the prior lanes below, newest-first)
 
 ## Session-84 S84 fix-lane delta (2026-10-29/30 — the user's fix mandate continuation ["fix all the audit findings (priority to major/informational first) one by one... Aim for atleast 20+ fixes in this session, dont stop before that"]; opened at core `842a587e` (the S83-close tree), corpus `be0cfe9` throughout)

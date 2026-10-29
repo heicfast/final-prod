@@ -185,7 +185,7 @@ if [ "$DO_SAN" = "1" ]; then
   echo "== [+] TSan lane =="
   cmake -S . -B build/tsan -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Debug \
     -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DCR_ENABLE_ASAN=OFF \
-    -DCMAKE_CXX_FLAGS="-fsanitize=thread -fPIE" \
+    -DCMAKE_CXX_FLAGS="-fsanitize=thread -fPIE -DCR_SANITIZER_LANE" \
     -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread -pie" \
     -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=thread" >/dev/null 2>&1 \
     && cmake --build build/tsan -j"$(nproc)" >/dev/null 2>&1 \
