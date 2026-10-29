@@ -5024,7 +5024,7 @@ CarveResult validate_x3f(IStorageDevice* s, u64 hit, u64 cap) {
     r.ok = true;
     const u64 limit = probe_limit(s, hit, cap); /* absolute device bound */
     const u64 rel_limit = limit - hit;          /* the walk's relative bound */
-    constexpr u64 X3F_DIR_TAIL = 0x4C; /* the og's fixed directory tail */
+    constexpr u64 X3F_DIR_TAIL = 0x4C;          /* the og's fixed directory tail */
     /* the S80 convergent-rider hardening: the 256 KiB window is a heap
      * vector, not a stack array — validate_x3f runs on the carve fan-out's
      * worker threads, and a 256 KiB stack frame is an overflow risk on
@@ -5042,8 +5042,8 @@ CarveResult validate_x3f(IStorageDevice* s, u64 hit, u64 cap) {
         if (!rd(s, hit + off, win.data(), u32(want)))
             break;
         for (u64 i = 0; i + 4 <= want; ++i) {
-            if (win[size_t(i)] == 'S' && win[size_t(i) + 1] == 'E' &&
-                win[size_t(i) + 2] == 'C' && win[size_t(i) + 3] == 'd') {
+            if (win[size_t(i)] == 'S' && win[size_t(i) + 1] == 'E' && win[size_t(i) + 2] == 'C' &&
+                win[size_t(i) + 3] == 'd') {
                 sec_at = off + i;
                 found = true;
                 break;

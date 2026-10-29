@@ -503,9 +503,9 @@ void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context
                 BitmapEntry be;
                 std::memcpy(&be, f, sizeof(be));
                 if (be.first_cluster >= 2) {
-                    ChainResult bc = ctx.have_fat ? follow_exfat_chain(ctx.fat, be.first_cluster,
-                                                                       0x10000)
-                                                  : contiguous_chain(be.first_cluster, 1);
+                    ChainResult bc = ctx.have_fat
+                                         ? follow_exfat_chain(ctx.fat, be.first_cluster, 0x10000)
+                                         : contiguous_chain(be.first_cluster, 1);
                     if (bc.clusters.empty())
                         bc = contiguous_chain(be.first_cluster, 1);
                     u64 total = u64(bc.clusters.size()) * ctx.p.cluster_bytes;
@@ -571,9 +571,9 @@ void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context
                  * (the bitmap branch's contract), bounded, incremental
                  * checksum32 - the same ROL31+add the boot region and
                  * entry sets use */
-                ChainResult bc = ctx.have_fat ? follow_exfat_chain(ctx.fat, ue.first_cluster,
-                                                                   0x10000)
-                                              : contiguous_chain(ue.first_cluster, 1);
+                ChainResult bc = ctx.have_fat
+                                     ? follow_exfat_chain(ctx.fat, ue.first_cluster, 0x10000)
+                                     : contiguous_chain(ue.first_cluster, 1);
                 if (bc.clusters.empty())
                     bc = contiguous_chain(ue.first_cluster, 1);
                 std::vector<u8> chunk;
@@ -1093,9 +1093,10 @@ u32 scan_exfat(IStorageDevice* slice, const ExfatScanFlags& flags, CancelToken* 
     ctx.root_deleted = root_deleted;
     ctx.root_lost = root_lost;
     ctx.stats = &stats;
-    ctx.fat.cluster_count = p.cluster_count; /* S-067: provisional (the
-     * boot count); corrected to the og's primary-path formula at the
-     * FAT setup below, where fat_length is known */
+    ctx.fat.cluster_count =
+        p.cluster_count; /* S-067: provisional (the
+                          * boot count); corrected to the og's primary-path formula at the
+                          * FAT setup below, where fat_length is known */
 
     /* FAT load (if the volume has one). S-013: the whole-FAT fast path
      * covers small volumes; EVERY other case (FAT over 32 MiB, FAT
@@ -1116,8 +1117,7 @@ u32 scan_exfat(IStorageDevice* slice, const ExfatScanFlags& flags, CancelToken* 
          * og FOLLOWS even when it is at or above the boot count. */
         {
             const u64 fat_entries64 = fat_bytes >> 2;
-            const u32 fat_entries =
-                fat_entries64 >= 0xFFFFFFFFu ? 0xFFFFFFFFu : u32(fat_entries64);
+            const u32 fat_entries = fat_entries64 >= 0xFFFFFFFFu ? 0xFFFFFFFFu : u32(fat_entries64);
             if (fat_entries > ctx.fat.cluster_count)
                 ctx.fat.cluster_count = fat_entries;
         }

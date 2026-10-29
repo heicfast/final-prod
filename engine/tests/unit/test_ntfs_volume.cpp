@@ -1798,10 +1798,10 @@ TEST(NtfsVolume, ParentAnchorIsMaskedFileNameParentRecord) {
     auto* rd2 = tree2.add_root(u"Deleted");
     auto* rl2 = tree2.add_root(u"Lost Files");
     WalkStats stats2;
-    ASSERT_EQ(walk_mft(vol.get(), bm.get(), wff, nullptr, nullptr, nullptr, tree2, ra2, rd2, rl2,
-                       stats2),
-              u32(OK));
-    const auto hard = nodes_named(tree2, "hard.txt");     /* parent 16 */
+    ASSERT_EQ(
+        walk_mft(vol.get(), bm.get(), wff, nullptr, nullptr, nullptr, tree2, ra2, rd2, rl2, stats2),
+        u32(OK));
+    const auto hard = nodes_named(tree2, "hard.txt");          /* parent 16 */
     const auto hardroot = nodes_named(tree2, "hard@root.txt"); /* parent 5 */
     ASSERT_EQ(hard.size(), 1u);
     ASSERT_EQ(hardroot.size(), 1u);
@@ -2766,8 +2766,7 @@ TEST(NtfsVolume, BootNoPow2RecordSizeAcceptedAtDecodedValue) {
     EXPECT_EQ(vol->params().record_size, 1536u); /* decoded value, unclamped */
 }
 
-TEST(NtfsVolume, BootRecordSizeZeroDefaultsTo1024)
-{
+TEST(NtfsVolume, BootRecordSizeZeroDefaultsTo1024) {
     /* M-147 (re-pin of BootRecordSizeZeroRejected): cpr == 0 takes the
      * og's four-site scan-path DEFAULT - 1024-byte records (the analyser
      * getter FUN_180004830 :3427-3440 `if (bVar1 == 0) return 0x400;`,
@@ -2802,8 +2801,7 @@ TEST(NtfsVolume, BootRecordSizeZeroDefaultsTo1024)
     EXPECT_GE(stats.active + stats.deleted, 5u);
 }
 
-TEST(NtfsVolume, BootCibZeroDefaultsTo4096IndexBlocks)
-{
+TEST(NtfsVolume, BootCibZeroDefaultsTo4096IndexBlocks) {
     /* M-147: cib == 0 is the og's 4096-byte default (the index getter
      * FUN_180004870 :3443-3456 `if (bVar1 == 0) return 0x1000;`), never a
      * refusal - the decoded value feeds no core walk (INDX extents ride
@@ -2817,8 +2815,7 @@ TEST(NtfsVolume, BootCibZeroDefaultsTo4096IndexBlocks)
     ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
 }
 
-TEST(NtfsVolume, BootCprZeroWithValidPrimaryDoesNotConsultBackup)
-{
+TEST(NtfsVolume, BootCprZeroWithValidPrimaryDoesNotConsultBackup) {
     /* M-147 + M-145 interplay: a VALID primary whose cpr byte is zeroed
      * opens FROM THE PRIMARY (the default stride) - the volume-end backup
      * (still carrying cpr=2) must NOT take over: boot_from_backup stays
@@ -4936,7 +4933,7 @@ TEST(NtfsVolume, TornSignatureWithIntactBackupStillFallsBack) {
     img.sec(0)[510] = 0x00; /* tear the primary signature */
     img.sec(0)[511] = 0x00;
     std::memset(img.sec(0) + 3, 0x58, 8); /* destroy the primary OEM too */
-    img.sec(NSECTORS - 1)[510] = 0x00; /* the backup's signature also torn */
+    img.sec(NSECTORS - 1)[510] = 0x00;    /* the backup's signature also torn */
     img.sec(NSECTORS - 1)[511] = 0x00;
 
     MemDevice dev(img.raw(), img.geom());
@@ -5116,8 +5113,8 @@ TEST(NtfsVolume, RecognitionNonPow2SpcDispatches) {
     build_image(img);
     u8* bs = img.sec(0);
     BootSector* boot = reinterpret_cast<BootSector*>(bs);
-    boot->sectors_per_cluster = 3; /* non-pow2 - real third-party output */
-    boot->mft_lcn = 8;             /* 8 x 3 x 512 = 12288: the new MFT byte offset */
+    boot->sectors_per_cluster = 3;      /* non-pow2 - real third-party output */
+    boot->mft_lcn = 8;                  /* 8 x 3 x 512 = 12288: the new MFT byte offset */
     boot->clusters_per_index_block = 8; /* 8 x 3 x 512 = 12288 = 3 x 4096: 4096-multiple */
     /* re-plant record 0's first sector at the new offset */
     std::memcpy(img.sec(24), img.sec(MFT_LCN), 512); /* 24 = 12288 / 512 */
@@ -5160,12 +5157,12 @@ TEST(NtfsVolume, RecognitionUnsweptBandsStayAccepted) {
     Image img;
     build_image(img);
     u8* bs = img.sec(0);
-    bs[0x0F] = 0x7F;  /* the reserved u16's high byte - unswept */
-    bs[0x15] = 0xF8;  /* media descriptor (already set by build_image) */
-    bs[0x18] = 0x3F;  /* sectors_per_track - unswept */
-    bs[0x1A] = 0xFF;  /* heads - unswept */
-    bs[0x1C] = 0x11;  /* hidden_sectors - unswept */
-    bs[0x24] = 0x80;  /* the signature dword's first byte - unswept */
+    bs[0x0F] = 0x7F; /* the reserved u16's high byte - unswept */
+    bs[0x15] = 0xF8; /* media descriptor (already set by build_image) */
+    bs[0x18] = 0x3F; /* sectors_per_track - unswept */
+    bs[0x1A] = 0xFF; /* heads - unswept */
+    bs[0x1C] = 0x11; /* hidden_sectors - unswept */
+    bs[0x24] = 0x80; /* the signature dword's first byte - unswept */
     bs[0x25] = 0x00;
     bs[0x26] = 0x80;
     bs[0x27] = 0x00;

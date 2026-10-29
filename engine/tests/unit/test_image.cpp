@@ -1126,9 +1126,7 @@ TEST(ImageCreate, CancelMidStreamKeepsTruthfulPartialStats) {
     FlagToken tok;
     /* flip the token inside the FIRST chunk's progress callback: the
      * second chunk's loop-head check then refuses to read */
-    auto progress = +[](void* user, u64, u64) {
-        static_cast<FlagToken*>(user)->flip();
-    };
+    auto progress = +[](void* user, u64, u64) { static_cast<FlagToken*>(user)->flip(); };
     ImageCreateStats st{};
     const u32 rc = create_image_stream(src, sink, &tok, progress, &tok, &st);
     ASSERT_EQ(ERR_CANCELLED, rc);

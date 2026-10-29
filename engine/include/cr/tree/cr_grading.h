@@ -123,13 +123,13 @@ struct GradeContext {
  *                               dump, size-0 rescue, freed-node sweeps)
  *   quick_scan_delete_extend  = the NTFS device-index rule's tick (exact)
  *
- * raw_count semantics (N-205, registered deliberate divergence D-146 [renumbered D-143->D-144->D-145->D-146 across three push-rebases: the racing windows' N-196/N-198/N-202 registrations keep the lower seats per SA-9]):
- * the og's rawCount (+0x1a0) is a VALIDATED-RECOVERABLE count - the
- * forced observe-only deep-read probe over the grade-1 NTFS population,
- * ANDed with the size rule (FUN_1401c76e0: the 0x23 ctor-default arm ->
- * size <= 0x77fffff) - ticked at quick-scan populate (FUN_1401c7d80,
- * DRWUI:331183-331311). The core's raw_count keeps the landed
- * Origin::Carved census (the report field's shipped meaning); the
+ * raw_count semantics (N-205, registered deliberate divergence D-146 [renumbered
+ * D-143->D-144->D-145->D-146 across three push-rebases: the racing windows' N-196/N-198/N-202
+ * registrations keep the lower seats per SA-9]): the og's rawCount (+0x1a0) is a
+ * VALIDATED-RECOVERABLE count - the forced observe-only deep-read probe over the grade-1 NTFS
+ * population, ANDed with the size rule (FUN_1401c76e0: the 0x23 ctor-default arm -> size <=
+ * 0x77fffff) - ticked at quick-scan populate (FUN_1401c7d80, DRWUI:331183-331311). The core's
+ * raw_count keeps the landed Origin::Carved census (the report field's shipped meaning); the
  * og-parity population is carried by raw_tail_zero below.
  */
 struct AssistantStats {

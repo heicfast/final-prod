@@ -287,7 +287,7 @@ TEST(HfsPlus, VhTornAllocForkStillValidates) {
     be16(vh + 0x02, 4);
     be32(vh + 0x28, 4096);
     be32(vh + 0x2C, 0x10000);
-    be32(vh + 0x30, 8); /* freeBlocks sane */
+    be32(vh + 0x30, 8);                             /* freeBlocks sane */
     write_fork(vh + 0x70, 999 * BS, 0, 0xFFFFFFFF); /* torn alloc fork */
     write_fork(vh + 0xC0, 0, 0, 0x7FFFFFFF);        /* torn extents fork */
     VolumeHeader h;
@@ -307,8 +307,7 @@ TEST(HfsPlus, VhFreeBlocksEqualTotalAccepted) {
     be32(vh + 0x30, 0x10000); /* == totalBlocks */
     be32(vh + 0x0C, 0x10000); /* journalInfoBlock == totalBlocks */
     VolumeHeader h;
-    EXPECT_TRUE(validate_volume_header(vh, h))
-        << "both ==-edges accepted (the <= forms)";
+    EXPECT_TRUE(validate_volume_header(vh, h)) << "both ==-edges accepted (the <= forms)";
 }
 
 TEST(HfsPlus, EndToEndWalk) {

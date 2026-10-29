@@ -76,11 +76,12 @@ private:
 
 std::vector<u8> read_file_bytes(const std::string& path) {
     std::ifstream f(path, std::ios::binary);
-    return std::vector<u8>((std::istreambuf_iterator<char>(f)),
-                           std::istreambuf_iterator<char>());
+    return std::vector<u8>((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
 }
 
-std::string hex32(const u8 d[32]) { return crypto::to_hex(d, 32); }
+std::string hex32(const u8 d[32]) {
+    return crypto::to_hex(d, 32);
+}
 
 } // namespace
 
@@ -123,9 +124,7 @@ TEST(ImageCreateFile, CancelKeepsExplicitPartialNeverComplete) {
     SrcDevice src(3 * 64 * 1024);
     const std::string out = cr_test::tmp_path("imgcreate", ".cancel.img");
     FlagToken tok;
-    auto progress = +[](void* user, u64, u64) {
-        static_cast<FlagToken*>(user)->flip();
-    };
+    auto progress = +[](void* user, u64, u64) { static_cast<FlagToken*>(user)->flip(); };
     storage::ImageCreateStats st{};
     const u32 rc = create_image_file(src, u16_from(out), &tok, progress, &tok, &st);
     ASSERT_EQ(ERR_CANCELLED, rc);
@@ -133,7 +132,7 @@ TEST(ImageCreateFile, CancelKeepsExplicitPartialNeverComplete) {
     EXPECT_EQ(u64(64 * 1024), st.bytes_written);
 
     EXPECT_FALSE(std::filesystem::exists(out)) << "a cancelled create never "
-                                                 "claims completeness";
+                                                  "claims completeness";
     EXPECT_FALSE(std::filesystem::exists(out + ".sha256")) << "no sidecar without "
                                                               "a commit";
     EXPECT_TRUE(std::filesystem::exists(out + ".partial")) << "the partial is kept";
@@ -167,6 +166,6 @@ TEST(ImageCreateFile, ReCreateReplacesOldImageAndPartial) {
 TEST(ImageCreateFile, EmptyPathRefused) {
     SrcDevice src(64 * 1024);
     storage::ImageCreateStats st{};
-    EXPECT_EQ(ERR_BAD_PARAMETER, create_image_file(src, u16_from(""), nullptr, nullptr,
-                                                   nullptr, &st));
+    EXPECT_EQ(ERR_BAD_PARAMETER,
+              create_image_file(src, u16_from(""), nullptr, nullptr, nullptr, &st));
 }

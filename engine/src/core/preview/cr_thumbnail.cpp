@@ -86,9 +86,10 @@ bool thumbnail_format_supported(std::string_view f) {
     return f == "jpeg" || f == "png" || f == "bmp" || f == "gif" || f == "tiff" ||
            f == "raw" /* S-045: the TIFF-RAW half */ || f == "psd" || f == "pnm" || f == "hdr" ||
            f == "txt" /* N-144: the text-snapshot family (the og's TxtViewFiles
-                        * thumbnails - eligibility itself is the caller's
-                        * textexts::eligible gate, exactly the og's
-                        * extension-membership dispatch) */;
+                       * thumbnails - eligibility itself is the caller's
+                       * textexts::eligible gate, exactly the og's
+                       * extension-membership dispatch) */
+        ;
 }
 
 /* ---------------------------------------------------------------- */
@@ -1580,8 +1581,7 @@ ThumbStatus make_text_snapshot(PreviewReader& pr, const ThumbnailCaps& caps, Thu
     const unsigned ch = thumbnail_font_cell_h();
     const unsigned margin = 2;
     const unsigned cols = caps.max_edge >= 2 * margin + cw ? (caps.max_edge - 2 * margin) / cw : 1;
-    const unsigned rows =
-        caps.max_edge >= 2 * margin + ch ? (caps.max_edge - 2 * margin) / ch : 1;
+    const unsigned rows = caps.max_edge >= 2 * margin + ch ? (caps.max_edge - 2 * margin) / ch : 1;
     out.width = caps.max_edge;
     out.height = caps.max_edge;
     out.rgba.assign(size_t(out.width) * size_t(out.height) * 4, 0);

@@ -158,8 +158,8 @@ TEST(ExfatEngine, HardeningBoundsPinned) {
         /* patch BOTH boots (main at 0, backup at 12*512) identically so
          * the S-066 re-base ladder stays inert */
         for (u64 base : {0u, 12u * 512u}) {
-            testfixture::fx_put64(img, base + 72, 100);    /* volume_length */
-            testfixture::fx_put32v(img, base + 92, 50);    /* cluster_count */
+            testfixture::fx_put64(img, base + 72, 100); /* volume_length */
+            testfixture::fx_put32v(img, base + 92, 50); /* cluster_count */
         }
         MemDevice disk(std::move(img));
         u32 err = 0;
@@ -171,8 +171,8 @@ TEST(ExfatEngine, HardeningBoundsPinned) {
         auto* rl = tree.add_root(u"L");
         ExfatScanFlags flags;
         ExfatScanStats stats;
-        EXPECT_NE(OK, scan_exfat(slice.get(), flags, nullptr, nullptr, nullptr, tree, ra, rd, rl,
-                                 stats))
+        EXPECT_NE(
+            OK, scan_exfat(slice.get(), flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats))
             << "volume_length < 2048 refuses (the og accepts this boot into its engine)";
     }
 
@@ -193,8 +193,8 @@ TEST(ExfatEngine, HardeningBoundsPinned) {
         auto* rl = tree.add_root(u"L");
         ExfatScanFlags flags;
         ExfatScanStats stats;
-        EXPECT_NE(OK, scan_exfat(slice.get(), flags, nullptr, nullptr, nullptr, tree, ra, rd, rl,
-                                 stats))
+        EXPECT_NE(
+            OK, scan_exfat(slice.get(), flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats))
             << "fat_offset < BOOT_REGION_SECTORS refuses (the og accepts)";
     }
 
@@ -220,8 +220,8 @@ TEST(ExfatEngine, HardeningBoundsPinned) {
         auto* rl = tree.add_root(u"L");
         ExfatScanFlags flags;
         ExfatScanStats stats;
-        EXPECT_NE(OK, scan_exfat(slice.get(), flags, nullptr, nullptr, nullptr, tree, ra, rd, rl,
-                                 stats))
+        EXPECT_NE(
+            OK, scan_exfat(slice.get(), flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats))
             << "cluster_count > 0xFFFFFFF5 refuses at the structural gate";
     }
 }

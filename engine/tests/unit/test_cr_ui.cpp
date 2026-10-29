@@ -678,8 +678,7 @@ TEST(CrUi, TextSnapshotThumbnailForTxtNode) {
 
     /* the size probe: the text snapshot answers the full canvas */
     cr_ui_thumbnail_info info{};
-    ASSERT_EQ(cr_ui_thumbnail_generate(u.dev, u.sess, doc, nullptr, nullptr, 0, &info),
-              CR_UI_OK);
+    ASSERT_EQ(cr_ui_thumbnail_generate(u.dev, u.sess, doc, nullptr, nullptr, 0, &info), CR_UI_OK);
     EXPECT_EQ(256u, info.width);
     EXPECT_EQ(256u, info.height);
     EXPECT_EQ(256u * 256u * 4u, info.bytes_needed);
@@ -689,8 +688,8 @@ TEST(CrUi, TextSnapshotThumbnailForTxtNode) {
      * construction - the printable head is present) */
     std::vector<uint8_t> px(info.bytes_needed, 0);
     cr_ui_thumbnail_info info2{};
-    ASSERT_EQ(cr_ui_thumbnail_generate(u.dev, u.sess, doc, nullptr, px.data(),
-                                       uint32_t(px.size()), &info2),
+    ASSERT_EQ(cr_ui_thumbnail_generate(u.dev, u.sess, doc, nullptr, px.data(), uint32_t(px.size()),
+                                       &info2),
               CR_UI_OK);
     bool any_dark = false, any_light = false;
     for (size_t i = 0; i + 3 < px.size(); i += 4) {
@@ -4295,8 +4294,7 @@ TEST(CrUi, ThumbnailUnsupportedFormat) {
     const uint64_t doc = query_node_id(u.sess, "DOC.TXT");
     ASSERT_NE(doc, 0u);
     cr_ui_thumbnail_info info{};
-    const uint32_t trc =
-        cr_ui_thumbnail_generate(u.dev, u.sess, doc, nullptr, nullptr, 0, &info);
+    const uint32_t trc = cr_ui_thumbnail_generate(u.dev, u.sess, doc, nullptr, nullptr, 0, &info);
     EXPECT_TRUE(trc == CR_UI_OK || trc == 0x50030008u)
         << "the text node answers the snapshot (OK when the head carries a "
            "renderable byte, Unsupported when it does not) - never the "

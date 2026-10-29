@@ -505,11 +505,11 @@ TEST(LostDiscovery, ExtMixedJournalIndicatorsRejected) {
         }
         MemDevice dev(std::move(img));
         DiscoveryResult r;
-        ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK)
-            << "shape " << shape;
+        ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK) << "shape " << shape;
         for (const auto& c : r.candidates)
             EXPECT_NE(c.start_lba, 6144u)
-                << "torn shape " << shape << ": mixed journal indicators must not anchor a candidate";
+                << "torn shape " << shape
+                << ": mixed journal indicators must not anchor a candidate";
     }
 }
 

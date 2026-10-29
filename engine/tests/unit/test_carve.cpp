@@ -2286,8 +2286,8 @@ size_t plant_dmg_koly(std::vector<u8>& img, size_t at, size_t koly_rel, bool ali
  * {offset, length, name}. Sigma writes the directory after the section
  * data - the og SEARCHES for it (sector-stepped with 2-sector overlap),
  * so the plant places it at the true end. */
-size_t plant_x3f(std::vector<u8>& img, size_t at, size_t payload_len = 0x800,
-                 u32 dir_entries = 3, u64 dir_offset_override = 0) {
+size_t plant_x3f(std::vector<u8>& img, size_t at, size_t payload_len = 0x800, u32 dir_entries = 3,
+                 u64 dir_offset_override = 0) {
     std::memcpy(img.data() + at, "FOVb", 4);
     std::memcpy(img.data() + at + 4, "2.1\x00", 4);
     for (size_t i = 8; i < 16; ++i)
@@ -2303,14 +2303,14 @@ size_t plant_x3f(std::vector<u8>& img, size_t at, size_t payload_len = 0x800,
     for (int i = 0; i < 4; ++i) {
         img[d + 4 + size_t(i)] = u8(table_bytes >> (8 * i)); /* size */
         img[d + 8 + size_t(i)] = u8(dir_entries >> (8 * i)); /* count */
-        img[d + 12 + size_t(i)] = 0;                          /* pad */
+        img[d + 12 + size_t(i)] = 0;                         /* pad */
     }
     for (u32 e = 0; e < dir_entries; ++e) {
         const size_t ep = d + 16 + size_t(e) * 12;
         const u32 sec_off = u32(16 + e * 0x100);
         const u32 sec_len = 0x100;
         for (int i = 0; i < 4; ++i) {
-            img[ep + size_t(i)] = u8(sec_off >> (8 * i)); /* entry offset */
+            img[ep + size_t(i)] = u8(sec_off >> (8 * i));     /* entry offset */
             img[ep + 4 + size_t(i)] = u8(sec_len >> (8 * i)); /* entry length */
         }
         std::memcpy(img.data() + ep + 8, "SECi", 4); /* entry name */

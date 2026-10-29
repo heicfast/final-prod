@@ -3017,8 +3017,8 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
                 /* M-118: the discovery channel restores from flags bit 2
                  * (v1/v2 sessions and pre-M-118 sessions deserialize with
                  * the bit clear - Scan, the append-only rule) */
-                c.provenance =
-                    (pc.flags & 0x4) != 0 ? u8(lost::Provenance::Register) : u8(lost::Provenance::Scan);
+                c.provenance = (pc.flags & 0x4) != 0 ? u8(lost::Provenance::Register)
+                                                     : u8(lost::Provenance::Scan);
                 /* M-137 v3: the presentation context + the boot label
                  * (v1/v2 sessions deserialize with zeros - the
                  * append-only wire; the listing degrades honestly). */

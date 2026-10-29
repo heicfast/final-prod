@@ -150,9 +150,9 @@ TEST(Thumbnail, TextSnapshotRenders) {
      * at the thumbnail surface. */
     EXPECT_TRUE(thumbnail_format_supported("txt"));
 
-    Node n(std::vector<u8>{'H', 'e', 'l', 'l', 'o', ',', ' ', 'p', 'r', 'e', 'v', 'i', 'e', 'w',
-                           '!'},
-           true);
+    Node n(
+        std::vector<u8>{'H', 'e', 'l', 'l', 'o', ',', ' ', 'p', 'r', 'e', 'v', 'i', 'e', 'w', '!'},
+        true);
     Thumbnail t;
     PreviewReader pr = n.reader();
     ASSERT_EQ(ThumbStatus::Ok, make_text_snapshot(pr, ThumbnailCaps{}, t));
@@ -162,8 +162,8 @@ TEST(Thumbnail, TextSnapshotRenders) {
     /* white background, black glyphs: the exact ink is the five glyph
      * cells' bitmap bits (deterministic - the font table is fixed) */
     const u64 want = ink_bits('H') + ink_bits('e') * 2 + ink_bits('l') * 2 + ink_bits('o') +
-                     ink_bits(',') + ink_bits('p') + ink_bits('r') + ink_bits('e') +
-                     ink_bits('v') + ink_bits('i') + ink_bits('w') + ink_bits('!');
+                     ink_bits(',') + ink_bits('p') + ink_bits('r') + ink_bits('e') + ink_bits('v') +
+                     ink_bits('i') + ink_bits('w') + ink_bits('!');
     EXPECT_EQ(want, dark_pixels(t));
     /* the canvas edge is untouched white */
     expect_pixel(t, 0, 0, 255, 255, 255, 0);

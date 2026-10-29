@@ -47,13 +47,25 @@ constexpr u64 B_INODE_TABLE = 3;
 constexpr u64 B_BITMAP = 4;
 constexpr u64 B_ROOTDIR = 5;
 
-void put16(u8* p, u16 v) { p[0] = u8(v); p[1] = u8(v >> 8); }
-void put32(u8* p, u32 v) {
-    p[0] = u8(v); p[1] = u8(v >> 8); p[2] = u8(v >> 16); p[3] = u8(v >> 24);
+void put16(u8* p, u16 v) {
+    p[0] = u8(v);
+    p[1] = u8(v >> 8);
 }
-void bput16(u8* p, u16 v) { p[0] = u8(v >> 8); p[1] = u8(v); }
+void put32(u8* p, u32 v) {
+    p[0] = u8(v);
+    p[1] = u8(v >> 8);
+    p[2] = u8(v >> 16);
+    p[3] = u8(v >> 24);
+}
+void bput16(u8* p, u16 v) {
+    p[0] = u8(v >> 8);
+    p[1] = u8(v);
+}
 void bput32(u8* p, u32 v) {
-    p[0] = u8(v >> 24); p[1] = u8(v >> 16); p[2] = u8(v >> 8); p[3] = u8(v);
+    p[0] = u8(v >> 24);
+    p[1] = u8(v >> 16);
+    p[2] = u8(v >> 8);
+    p[3] = u8(v);
 }
 
 class MemDevice : public IStorageDevice {
@@ -90,46 +102,46 @@ void add_dirent(u8* blk, u32& cur, u32 ino, const char* name, u8 type) {
 
 void write_sb(u8* img) {
     u8* sb = img + 1024;
-    put32(sb + 0x00, 8);             /* inodes_count */
-    put32(sb + 0x04, BPG);           /* blocks_count_lo */
-    put32(sb + 0x14, 1);             /* first_data_block (1KiB => 1) */
-    put32(sb + 0x18, 0);             /* log_block_size = 0 (1024) */
-    put32(sb + 0x20, BPG);           /* blocks_per_group */
-    put32(sb + 0x28, IPG);           /* inodes_per_group */
-    put16(sb + 0x38, 0xEF53);        /* magic */
-    put32(sb + 0x4C, 1);             /* rev level 1 */
-    put16(sb + 0x58, INO_SZ);        /* inode_size */
-    put32(sb + 0x60, 0x0002);        /* incompat: FILETYPE */
-    put32(sb + 0xE0, 8);             /* s_journal_inum = 8 (the journal inode) */
+    put32(sb + 0x00, 8);      /* inodes_count */
+    put32(sb + 0x04, BPG);    /* blocks_count_lo */
+    put32(sb + 0x14, 1);      /* first_data_block (1KiB => 1) */
+    put32(sb + 0x18, 0);      /* log_block_size = 0 (1024) */
+    put32(sb + 0x20, BPG);    /* blocks_per_group */
+    put32(sb + 0x28, IPG);    /* inodes_per_group */
+    put16(sb + 0x38, 0xEF53); /* magic */
+    put32(sb + 0x4C, 1);      /* rev level 1 */
+    put16(sb + 0x58, INO_SZ); /* inode_size */
+    put32(sb + 0x60, 0x0002); /* incompat: FILETYPE */
+    put32(sb + 0xE0, 8);      /* s_journal_inum = 8 (the journal inode) */
 }
 
-void write_inode(u8* img, u32 ino, u16 mode, u64 size, u64 block, u32 nblocks,
-                 u16 links, u32 dtime) {
+void write_inode(u8* img, u32 ino, u16 mode, u64 size, u64 block, u32 nblocks, u16 links,
+                 u32 dtime) {
     u8* p = img + B_INODE_TABLE * BS + (ino - 1) * INO_SZ;
     memset(p, 0, INO_SZ);
     put16(p + 0x00, mode);
-    put32(p + 0x04, u32(size & 0xFFFFFFFFu));     /* i_size_lo */
-    put32(p + 0x08, 1000);                        /* atime */
-    put32(p + 0x0C, 2000);                        /* ctime */
-    put32(p + 0x10, 3000);                        /* mtime */
+    put32(p + 0x04, u32(size & 0xFFFFFFFFu)); /* i_size_lo */
+    put32(p + 0x08, 1000);                    /* atime */
+    put32(p + 0x0C, 2000);                    /* ctime */
+    put32(p + 0x10, 3000);                    /* mtime */
     put32(p + 0x14, dtime);
     put16(p + 0x1A, links);
-    put32(p + 0x1C, nblocks * (BS / 512));        /* i_blocks_lo (512-byte) */
-    put32(p + 0x20, 0x80000);                     /* EXTENTS_FL */
+    put32(p + 0x1C, nblocks * (BS / 512)); /* i_blocks_lo (512-byte) */
+    put32(p + 0x20, 0x80000);              /* EXTENTS_FL */
     if ((mode & 0xF000) == 0x8000)
-        put32(p + 0x6C, u32(size >> 32));          /* i_size_high (regular) */
+        put32(p + 0x6C, u32(size >> 32)); /* i_size_high (regular) */
     /* extent root inline in i_block: header + 1 extent (matches the
      * existing test_ext4_volume.cpp convention) */
     u8* ib = p + 0x28;
-    put16(ib + 0, 0xF30A);                        /* magic */
-    put16(ib + 2, 1);                             /* entries */
-    put16(ib + 4, 4);                             /* max */
-    put16(ib + 6, 0);                             /* depth (leaf) */
-    put32(ib + 8, 0);                             /* generation */
-    put32(ib + 12, 0);                            /* logical block 0 */
-    put16(ib + 16, u16(nblocks));                 /* len in blocks */
-    put16(ib + 18, 0);                            /* start_hi */
-    put32(ib + 20, u32(block));                   /* start_lo */
+    put16(ib + 0, 0xF30A);        /* magic */
+    put16(ib + 2, 1);             /* entries */
+    put16(ib + 4, 4);             /* max */
+    put16(ib + 6, 0);             /* depth (leaf) */
+    put32(ib + 8, 0);             /* generation */
+    put32(ib + 12, 0);            /* logical block 0 */
+    put16(ib + 16, u16(nblocks)); /* len in blocks */
+    put16(ib + 18, 0);            /* start_hi */
+    put32(ib + 20, u32(block));   /* start_lo */
 }
 
 /* write a 5-block journal at B_JOURNAL..B_JOURNAL+4:
@@ -147,38 +159,38 @@ void write_inode(u8* img, u32 ino, u16 mode, u64 size, u64 block, u32 nblocks,
 void write_journal_skeleton(u8* img) {
     u8* jsb = img + B_JOURNAL * BS;
     bput32(jsb + 0, 0xC03B3998u);
-    bput32(jsb + 4, 3);              /* JBD2_SUPERBLOCK_V1 */
-    bput32(jsb + 8, 9);              /* sequence */
-    bput32(jsb + 0x10, 5);           /* s_maxlen */
-    bput32(jsb + 0x14, 0);           /* s_first */
-    bput32(jsb + 0x28, 0);           /* s_feature_incompat: none */
+    bput32(jsb + 4, 3);    /* JBD2_SUPERBLOCK_V1 */
+    bput32(jsb + 8, 9);    /* sequence */
+    bput32(jsb + 0x10, 5); /* s_maxlen */
+    bput32(jsb + 0x14, 0); /* s_first */
+    bput32(jsb + 0x28, 0); /* s_feature_incompat: none */
 
     u8* desc = img + (B_JOURNAL + 1) * BS;
     bput32(desc + 0, 0xC03B3998u);
-    bput32(desc + 4, 1);             /* JBD2_DESCRIPTOR_BLOCK */
-    bput32(desc + 8, 9);             /* sequence */
+    bput32(desc + 4, 1); /* JBD2_DESCRIPTOR_BLOCK */
+    bput32(desc + 8, 9); /* sequence */
     /* tag1: blocknr=40, no LAST, no SAME_UUID -> 16-byte UUID follows */
     bput32(desc + 12, 40);
-    bput16(desc + 16, 0);            /* checksum */
-    bput16(desc + 18, 0);            /* flags: no LAST, no SAME_UUID */
+    bput16(desc + 16, 0); /* checksum */
+    bput16(desc + 18, 0); /* flags: no LAST, no SAME_UUID */
     for (int i = 0; i < 16; ++i)
         desc[20 + i] = u8(0xA0 + i); /* journal UUID */
     /* tag2: LAST_TAG, no block referenced meaningfully */
     bput32(desc + 36, 41);
     bput16(desc + 40, 0);
-    bput16(desc + 42, 1);            /* LAST_TAG */
+    bput16(desc + 42, 1); /* LAST_TAG */
 
     u8* commit = img + (B_JOURNAL + 4) * BS;
     bput32(commit + 0, 0xC03B3998u);
-    bput32(commit + 4, 2);           /* JBD2_COMMIT_BLOCK */
-    bput32(commit + 8, 9);           /* sequence */
+    bput32(commit + 4, 2); /* JBD2_COMMIT_BLOCK */
+    bput32(commit + 8, 9); /* sequence */
 }
 
 /* plant an inode-image at jb=2 slot 0 (the engine reads jb=2 as the only
  * data block per the descriptor). The caller customizes mode/size/flags/
  * extent-magic/eh-entries via the gate-overrides. */
-void plant_inode_image_block(u8* img, u16 mode, u32 size_lo, u32 flags,
-                             u16 ext_magic, u16 eh_entries, u32 extent_block) {
+void plant_inode_image_block(u8* img, u16 mode, u32 size_lo, u32 flags, u16 ext_magic,
+                             u16 eh_entries, u32 extent_block) {
     u8* blk = img + (B_JOURNAL + 2) * BS;
     memset(blk, 0, BS);
     /* slot 0 (offset 0, inode_size=128) */
@@ -187,16 +199,16 @@ void plant_inode_image_block(u8* img, u16 mode, u32 size_lo, u32 flags,
     put32(p + 0x04, size_lo);
     put32(p + 0x20, flags);
     /* inline extent root at +0x28 (I_BLOCK), 12-byte header then extents */
-    put16(p + 0x28, ext_magic);     /* eh_magic */
-    put16(p + 0x2A, eh_entries);    /* eh_entries */
-    put16(p + 0x2C, 1);             /* eh_max */
-    put16(p + 0x2E, 0);             /* eh_depth (leaf) */
-    put32(p + 0x30, 0);             /* eh_generation */
+    put16(p + 0x28, ext_magic);  /* eh_magic */
+    put16(p + 0x2A, eh_entries); /* eh_entries */
+    put16(p + 0x2C, 1);          /* eh_max */
+    put16(p + 0x2E, 0);          /* eh_depth (leaf) */
+    put32(p + 0x30, 0);          /* eh_generation */
     if (ext_magic == 0xF30A && eh_entries != 0) {
         /* first extent at +0x34 (after the 12-byte header) */
-        put32(p + 0x34, 0);          /* ee_block (u32, logical) */
-        put16(p + 0x38, 1);          /* ee_len (u16) */
-        put16(p + 0x3A, 0);          /* ee_start_hi (u16) */
+        put32(p + 0x34, 0);            /* ee_block (u32, logical) */
+        put16(p + 0x38, 1);            /* ee_len (u16) */
+        put16(p + 0x3A, 0);            /* ee_start_hi (u16) */
         put32(p + 0x3C, extent_block); /* ee_start_lo (u32) */
     }
 }
@@ -236,8 +248,8 @@ std::vector<u8> build_base_image() {
     write_sb(img.data());
     /* GDT at block 2 (first_data_block=1 + 1) */
     u8* gdt = img.data() + 2 * BS;
-    put32(gdt + 0x00, B_BITMAP);     /* bg_block_bitmap */
-    put32(gdt + 0x04, 0);            /* bg_inode_bitmap (none) */
+    put32(gdt + 0x00, B_BITMAP);      /* bg_block_bitmap */
+    put32(gdt + 0x04, 0);             /* bg_inode_bitmap (none) */
     put32(gdt + 0x08, B_INODE_TABLE); /* bg_inode_table */
     /* block bitmap: blocks 0..14 in use, rest free */
     u8* bm = img.data() + B_BITMAP * BS;
@@ -269,8 +281,7 @@ TEST(Ext4EngineM143, JournalInodeImageSurfacesInodeRecord) {
     plant_inode_image_block(raw.data(), 0x8000, 100, 0x80000, 0xF30A, 1, 50);
     auto out = run_scan(raw);
     ASSERT_EQ(OK, out.rc) << err_text(out.rc);
-    ASSERT_EQ(1u, out.lost_names.size())
-        << "the inode-image must surface exactly one record";
+    ASSERT_EQ(1u, out.lost_names.size()) << "the inode-image must surface exactly one record";
     EXPECT_TRUE(out.lost_names[0].starts_with("Inode"))
         << "naming follows the engine's Inode%u convention (og's iNode%I64d form)";
     EXPECT_EQ(u64(50) * BS, out.lost_extents[0])
@@ -283,8 +294,7 @@ TEST(Ext4EngineM143, JournalInodeImageZeroSizeSkipped) {
     plant_inode_image_block(raw.data(), 0x8000, 0, 0x80000, 0xF30A, 1, 50);
     auto out = run_scan(raw);
     ASSERT_EQ(OK, out.rc);
-    EXPECT_EQ(0u, out.lost_names.size())
-        << "i_size_lo == 0 -> the gate rejects the record";
+    EXPECT_EQ(0u, out.lost_names.size()) << "i_size_lo == 0 -> the gate rejects the record";
 }
 
 TEST(Ext4EngineM143, JournalInodeImageNoExtentsFlagSkipped) {
@@ -292,8 +302,7 @@ TEST(Ext4EngineM143, JournalInodeImageNoExtentsFlagSkipped) {
     plant_inode_image_block(raw.data(), 0x8000, 100, 0, 0xF30A, 1, 50);
     auto out = run_scan(raw);
     ASSERT_EQ(OK, out.rc);
-    EXPECT_EQ(0u, out.lost_names.size())
-        << "EXTENTS_FL unset -> the gate rejects the record";
+    EXPECT_EQ(0u, out.lost_names.size()) << "EXTENTS_FL unset -> the gate rejects the record";
 }
 
 TEST(Ext4EngineM143, JournalInodeImageBadExtentMagicSkipped) {
@@ -301,8 +310,7 @@ TEST(Ext4EngineM143, JournalInodeImageBadExtentMagicSkipped) {
     plant_inode_image_block(raw.data(), 0x8000, 100, 0x80000, 0x1234, 1, 50);
     auto out = run_scan(raw);
     ASSERT_EQ(OK, out.rc);
-    EXPECT_EQ(0u, out.lost_names.size())
-        << "extent magic != 0xF30A -> the gate rejects the record";
+    EXPECT_EQ(0u, out.lost_names.size()) << "extent magic != 0xF30A -> the gate rejects the record";
 }
 
 TEST(Ext4EngineM143, JournalInodeImageZeroEhEntriesSkipped) {
@@ -310,8 +318,7 @@ TEST(Ext4EngineM143, JournalInodeImageZeroEhEntriesSkipped) {
     plant_inode_image_block(raw.data(), 0x8000, 100, 0x80000, 0xF30A, 0, 50);
     auto out = run_scan(raw);
     ASSERT_EQ(OK, out.rc);
-    EXPECT_EQ(0u, out.lost_names.size())
-        << "eh_entries == 0 -> the gate rejects the record";
+    EXPECT_EQ(0u, out.lost_names.size()) << "eh_entries == 0 -> the gate rejects the record";
 }
 
 /* directory-model precedence: a block with a leading '.'/..' dirent pair
@@ -329,7 +336,7 @@ TEST(Ext4EngineM143, JournalDirPairTakesPrecedence) {
     u8* blk = raw.data() + (B_JOURNAL + 2) * BS;
     memset(blk, 0, BS);
     u32 cur = 0;
-    add_dirent(blk, cur, 999, ".", 2);     /* ghost dir inode */
+    add_dirent(blk, cur, 999, ".", 2); /* ghost dir inode */
     add_dirent(blk, cur, 999, "..", 2);
     add_dirent(blk, cur, 50, "ghost.txt", 1);
     /* also plant a valid inode-image at slot 4 (offset 512) — the dir
@@ -354,8 +361,7 @@ TEST(Ext4EngineM143, JournalDirPairTakesPrecedence) {
         if (nm.starts_with("Inode"))
             has_inode_image = true;
     }
-    EXPECT_TRUE(has_ghost)
-        << "the directory-model path surfaces its child entry under Lost Files";
+    EXPECT_TRUE(has_ghost) << "the directory-model path surfaces its child entry under Lost Files";
     EXPECT_FALSE(has_inode_image)
         << "the inode-image scan did NOT run — directory model wins per the og's branch order";
 }

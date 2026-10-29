@@ -183,8 +183,8 @@ struct ScanCtx {
      * counter (never a silent drop). */
     std::atomic<u64> per_format[CarveStats::kFormatTallyCapacity] = {};
     std::atomic<u64> per_format_overflow{0};
-    u32 tally_slots = 0; /* the live counting-space bound (set by carve_slice) */
-    u32 tally_raw_base = 0;  /* registry_size(): raw-sign rows start here */
+    u32 tally_slots = 0;         /* the live counting-space bound (set by carve_slice) */
+    u32 tally_raw_base = 0;      /* registry_size(): raw-sign rows start here */
     u32 tally_usersign_slot = 0; /* the aggregate user-sign slot */
 
     void tally(u32 slot) {
@@ -909,7 +909,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                                                    : tree::Confidence::MetadataOnly);
             }
             ctx.validated.fetch_add(1, std::memory_order_relaxed);
-            ctx.tally(u32(sig.id)); /* N-140: the per-format breakdown */
+            ctx.tally(u32(sig.id));      /* N-140: the per-format breakdown */
             emitted_at.insert(cand_abs); /* this magic position resolved (N-070: the
                                               winner's start; the raw-sign layer must
                                               not re-probe it) */

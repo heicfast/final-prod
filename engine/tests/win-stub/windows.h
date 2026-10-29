@@ -305,7 +305,7 @@ inline BOOL QueryPerformanceFrequency(LARGE_INTEGER*) {
 }
 
 /* ---- CRT-adjacent formatting (MSVC secure CRT) ----------------------- */
-#define _TRUNCATE ((size_t)-1)
+#define _TRUNCATE ((size_t) - 1)
 inline int _snwprintf_s(wchar_t*, size_t, size_t, const wchar_t*, ...) {
     return 0;
 }
@@ -563,7 +563,6 @@ inline BOOL CloseServiceHandle(SC_HANDLE) {
 }
 
 /* S-040 (cr_image_create.cpp): the UTF-16 -> UTF-8 sidecar-name path */
-inline int WideCharToMultiByte(UINT, DWORD, const wchar_t*, int, char*, int,
-                                const char*, BOOL*) {
+inline int WideCharToMultiByte(UINT, DWORD, const wchar_t*, int, char*, int, const char*, BOOL*) {
     return 0;
 }

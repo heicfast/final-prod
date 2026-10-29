@@ -716,8 +716,8 @@ TEST(Report, ScanAnalysisCarriesPerFormat) {
      * carve stage). RED pre-fix: the fields did not exist. */
     recovery::report::ScanAnalysis a;
     a.total_file_count = 7;
-    a.carve_format_slots = 300; /* a live bound (grammar+raw+usersign) */
-    a.carve_format_counts[3] = 405; /* e.g. the JPG grammar row */
+    a.carve_format_slots = 300;      /* a live bound (grammar+raw+usersign) */
+    a.carve_format_counts[3] = 405;  /* e.g. the JPG grammar row */
     a.carve_format_counts[200] = 42; /* a raw-sign row */
     a.carve_format_counts[299] = 7;  /* the user-sign aggregate slot */
     recovery::report::Totals t;

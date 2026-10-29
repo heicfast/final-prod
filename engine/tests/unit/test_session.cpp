@@ -1445,7 +1445,7 @@ TEST(Session, NtfsParentRefRoundTrip) {
     tree::FileProperties* p = new tree::FileProperties();
     p->name = u"lineage.dat";
     p->fs_kind = u32(FsKindCode::Ntfs);
-    p->record_ref = 0x0011000000000021ull; /* own ref: record 0x21, seq 0x11 */
+    p->record_ref = 0x0011000000000021ull;      /* own ref: record 0x21, seq 0x11 */
     p->ntfs_parent_ref = 0x0000000000000010ull; /* parent: record 16 (masked) */
     p->extents.push_back({200 * 4096, 2 * 4096});
     auto* f = t.add_file(root, p);
@@ -1503,8 +1503,8 @@ TEST(Session, FatParentClusterRoundTrip) {
     tree::FileProperties* p = new tree::FileProperties();
     p->name = u"INNER.TXT";
     p->fs_kind = u32(FsKindCode::Fat16);
-    p->fat_origin_cluster = 15;  /* own first cluster */
-    p->fat_parent_cluster = 5;   /* the SUBDIR's first cluster */
+    p->fat_origin_cluster = 15; /* own first cluster */
+    p->fat_parent_cluster = 5;  /* the SUBDIR's first cluster */
     p->extents.push_back({8192, 512});
     auto* f = t.add_file(root, p);
     (void)f;
