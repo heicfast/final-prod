@@ -31,5 +31,18 @@ if command -v clang-format >/dev/null 2>&1; then
   fi
 fi
 
-echo -e "${GRN}[pre-commit ok]${RST} fast gate clean (secrets + format) - full gate: ./ci-local.sh"
+# N-231: duplicate gtest names (the M-120/N-230 class's build-red shape
+# - two same-named TEST() macros = the gtest redefinition error; the
+# marker lint cannot see it, the formatter reformats both copies, and
+# 3 of the class's 9 occurrences shipped main build-red). The FULL-TREE
+# form, not a staged-only variant: the class's real shape is lane B's
+# staged file colliding with lane A's already-committed file - the
+# unstaged half is invisible to any staged-only check. Sub-second
+# (1745 registrations), so the fast hook can afford the whole tree.
+if ! python3 scripts/verify/verify_test_names.py >/dev/null 2>&1; then
+  python3 scripts/verify/verify_test_names.py || true
+  fail "duplicate gtest names (the M-120/N-230 class - N-231): see the pairs above"
+fi
+
+echo -e "${GRN}[pre-commit ok]${RST} fast gate clean (secrets + format + test-name uniqueness) - full gate: ./ci-local.sh"
 exit 0

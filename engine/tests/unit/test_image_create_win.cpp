@@ -36,7 +36,11 @@ namespace {
 std::u16string u16_from(const std::string& s) {
     std::u16string out;
     for (char c : s)
-        out.push_back(char16_t(unsigned char(c)));
+        /* static_cast: the multi-word functional cast (unsigned char(c))
+         * is an MSVC-only extension - standard C++ functional casts take
+         * a simple-type-specifier only; identical conversion either way
+         * (the N-228 parse gate requires the standard form). */
+        out.push_back(char16_t(static_cast<unsigned char>(c)));
     return out;
 }
 

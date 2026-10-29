@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # tools/win_syntax_check.sh - Linux-side PARSE GATE over the Windows-only
-# platform layer (src/win/*.cpp).
+# platform layer (src/win/*.cpp) AND the Windows-only test files
+# (tests/unit/test_*_win.cpp).
 #
 # Why this exists (M-055): the win layer compiles only under MSVC, and a
 # build-breaking edit there is otherwise invisible on the Linux lane until
@@ -11,6 +12,13 @@
 # runs g++ -fsyntax-only against the declaration-only SDK stubs in
 # tests/win-stub/, so structural corruption of the win layer fails the
 # Linux suite immediately.
+#
+# N-228 (the same lesson, the test directory): test_fsck_win.cpp landed
+# (d10ae333) with unresolved names - bare u32 and Err constants that
+# only resolve through cr:: - and every local lane was green because
+# the file is WIN32-gated out of the Linux build; the first MSVC
+# compile was checks.yml run 321 (red). The test files now parse here
+# too, so the class dies on the Linux lane.
 #
 # The stubs are DECLARATIONS ONLY (never linked, never run): they
 # re-declare the exact SDK surface src/win consumes, with SDK-faithful
@@ -73,6 +81,48 @@ for f in "$SRC_DIR"/src/app/*.cpp "$SRC_DIR"/src/ui/*.cpp; do
         rc=1
     else
         echo "win_syntax_check: ok: app/$name"
+    fi
+done
+
+# N-228: the Windows-only TEST files are the same invisible-until-MSVC
+# class (the M-055 lesson, one directory over, twice). test_fsck_win.cpp
+# shipped with unresolved names (cr::u32 / the Err constants) and NO
+# Linux-visible gate ever saw it - the first MSVC compile was CI run
+# 321 (checks.yml red at 374c54cb). The gate now parses every
+# tests/unit/test_*_win.cpp the same way. Two additions the src lanes
+# never needed:
+#   - gtest's headers (GTEST_OS_WINDOWS pulls <direct.h>/<io.h> - the
+#     stubs grew them, plus the _fileno/_stat/_stricmp/_wfopen surface)
+#   - CR_SOURCE_DIR, which the CMake test targets define for
+#     test_tmpdir.hpp's fixture reads (a quoted path, same shape)
+# The gtest include dir is located from the build tree (FetchContent
+# materializes it at configure time, so ctest always finds it post-build);
+# GTEST_INCLUDE may override. NOT FOUND IS A FAILURE, never a skip.
+GTEST_INCLUDE_DIR="${GTEST_INCLUDE:-}"
+if [ -z "$GTEST_INCLUDE_DIR" ]; then
+    for cand in "$SRC_DIR"/build/*/_deps/googletest-src/googletest/include; do
+        if [ -d "$cand" ]; then
+            GTEST_INCLUDE_DIR="$cand"
+            break
+        fi
+    done
+fi
+if [ ! -d "$GTEST_INCLUDE_DIR" ]; then
+    echo "win_syntax_check: FAIL: no gtest include dir found (build one preset " >&2
+    echo "  first - FetchContent drops it at build/*/_deps/googletest-src/googletest/include -" >&2
+    echo "  or export GTEST_INCLUDE). The N-228 test-file section cannot run; a" >&2
+    echo "  missing gate is a failure, never a skip." >&2
+    exit 2
+fi
+TESTCXXFLAGS="$CXXFLAGS -DCR_SOURCE_DIR=\"$SRC_DIR\" -I$GTEST_INCLUDE_DIR"
+for f in "$SRC_DIR"/tests/unit/test_*_win.cpp; do
+    name=$(basename "$f")
+    if ! out=$("$CXX" $TESTCXXFLAGS "$f" 2>&1); then
+        echo "win_syntax_check: FAIL: tests/$name does not parse" >&2
+        echo "$out" | grep -E "error:" | head -20 >&2
+        rc=1
+    else
+        echo "win_syntax_check: ok: tests/$name"
     fi
 done
 exit $rc

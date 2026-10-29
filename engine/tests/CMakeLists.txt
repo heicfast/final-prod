@@ -225,3 +225,14 @@ if(NOT WIN32 AND NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/../tools/win_syntax_check.sh
                 ${CMAKE_SOURCE_DIR})
 endif()
+
+# N-231: the duplicate-gtest-name lint (the M-120/N-230 build-red class's
+# root-cause gate - two same-named TEST() macros = the gtest redefinition
+# error; the marker lint cannot see it). Full-tree, deterministic, sub-second.
+# Both CI lanes ship python (the doc_truth_gate/stamp_osversion tooling
+# depends on it), so REQUIRED is the honest form - a python-less
+# environment fails loudly here, never silently skips.
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+add_test(NAME test_name_uniqueness
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/verify/verify_test_names.py)
+set_tests_properties(test_name_uniqueness PROPERTIES LABELS lint)

@@ -77,3 +77,28 @@ windows that landed mid-session).
 - F5: D-52 flagged by the census regex — VERIFIED FALSE on first-hand read
   (:1684 `### D-52` + :4340 `### D-52 ADDENDUM` is one seat plus its
   addendum, not a collision). Recorded so the next session doesn't re-chase.
+
+---
+
+## Session-90 coherence addendum (re-stamped at the pre-v0.5.3 close)
+
+Status of this sheet's own rows against the current tree:
+
+- **D1** ("94 CR_UI_API lines"): now **96 lines** (3 #defines -> 93
+  declarations; the M-075/M-078 pair added the two this sheet
+  predated). The census arithmetic in api-surface.md's addendum is the
+  current truth.
+- **D12** (verb list): the dispatch carries **14 verbs** — add `unlock`
+  (rrecov.cpp:4037) and `fix --chkdsk` (:3621) / the unlock
+  `--turn-off` flag.
+- **D15** ("dispatch carries 13"): now 14, as above.
+- **F1 is RESOLVED** (a47419c7 landed cr_ui_session_resume_last; the
+  93/93 balance verified first-hand). F2-F5 remain open as filed —
+  none block the v0.5.3 release (all are doc-drift or tooling-scope
+  findings, none are wiring breaks).
+- The M-075/M-078 window's own ABI/CLI wiring was cross-checked this
+  session: both exports are called by their CLI verbs with matching
+  signatures, handled error codes, and documented exits (unlock 0/1/2,
+  fix --chkdsk 2/3). No new mismatch rows owed.
+
+— Session-90 coherence lane. End of addendum.

@@ -1,3 +1,66 @@
+# SUMMARY.md — executive summary (the S86 fix lane on top; the prior lanes below, newest-first)
+
+## Session-86 S86 fix-lane delta 2 (2026-10-30 — the DWG convergence riders + the N-231 root-cause gate)
+
+- **N-231 FIXED (MINOR, NEW — filed+fixed this session, §8's
+  discovered-divergence rule):** the recurring build-red class's OTHER
+  shape — duplicate gtest names (the gtest redefinition error; 3 of 9
+  occurrences shipped main red, N-230 the latest) — had NO gate: the
+  N-210 marker lint cannot see it, the formatter reformats both
+  copies, only the Werror build catches it and the racing lanes skip
+  that. The gate landed: scripts/verify/verify_test_names.py
+  (full-tree, sub-second) + ci-local.sh stage-2 wiring + the
+  pre-commit FULL-TREE form (a staged-only draft was proven
+  insufficient by the two-file RED — the class's real shape is a
+  staged file colliding with a COMMITTED file — and replaced) + the
+  ctest entry (Python3 REQUIRED). RED first-hand at the historical
+  98bd30d6 tree (N-230's exact pair) and via the staged-collision
+  hook test; GREEN 1745 registrations / 0 collisions.
+
+- **The DWG convergence riders (carried on the racing seat):** the
+  ten-pair gate truth (the asm's tenth "09" entry + `cmp edx,0xa` —
+  AC1009 gate-passed-but-un-walked, the decline og-true), the gen-3
+  fall-through fix (the explicit "21" match restores the og's
+  routing), and the WPD duplicate repair (conceded to the window's
+  N-230 delete form, both framings recorded there).
+
+**Board after this landing (filesystem truth): 0 ACUTE · 0 SEVERE ·
+4 MAJOR · 2 MINOR · 0 INFO active / 216 FIXED / 3 tracked-open** —
+M-086/M-087/M-089 + N-107/N-127 driver-repo-resident (out of grant);
+M-107 down to the DWG gen-3 R2007 remainder only (every other member
+landed across the racing windows: X3F CRW DWG WPG WPD PSP SIT APE DXF
+EPS AI SWF-RECT). Next free IDs: S-069+, M-158+, N-232+, I-049+,
+A-017+, D-163+.
+
+---
+# SUMMARY.md — executive summary (the S86 fix lane on top; the prior lanes below, newest-first)
+
+## Session-86 S86 fix-lane delta (2026-10-30 — the user's fix mandate ["fix all the audit findings (priority to minor first) one by one... Aim for at least 20+ fixes in this session"]; corpus `be0cfe9` throughout; three rebase windows absorbed)
+
+- **The minor-first trail landing:** both open MINORs (N-107, N-127)
+  are driver-repo-resident per the OQ-S10-3 boundary (re-affirmed with
+  this lane's first-hand core-side re-verifications); their status
+  lines brought to the consistent PUSHED-FORWARD posture with
+  per-finding disposition notes.
+- **The DWG member (M-107 member 3) — this lane's independent decode
+  CONCEDED to the racing S84/S85 seat per SA-9 (total convergence);
+  THREE riders landed:** (a) the tier-1 table is TEN pairs not nine
+  (the asm's tenth "09" entry + `cmp edx,0xa`; AC1009
+  gate-passed-but-un-walked, the decline og-true; the test renamed +
+  the third arm), (b) the gen-3 fall-through exposed and fixed (the
+  explicit "21" match restores the og's routing), (c) the WPD
+  duplicate-test red main — convergent with the window's N-230 (the
+  rename form conceded, recorded in N-230's Resolution).
+- **Verification:** the merged DWG+WPD battery 17/17 first-hand; the
+  full two-pass suite green at each push.
+
+**Board after this landing (filesystem truth): 0 ACUTE · 0 SEVERE ·
+4 MAJOR · 2 MINOR · 0 INFO active / 209+ FIXED / 3 tracked-open** —
+M-086/M-087/M-089 driver-repo-resident (out of grant), M-107 active
+for APE's frame walk + SWF-RECT (+ the DWG gen-3 remainder). Next
+free IDs: S-069+, M-158+, N-231+, I-049+, A-017+, D-163+.
+
+---
 # SUMMARY.md — executive summary (the S92 MINOR-first fix lane on top; the prior lanes below, newest-first)
 
 ## Session-92 S92 fix-lane delta (2026-10-30 — the user's fix mandate continuation ["fix all the audit findings (priority to minor first) ... Aim for atleast 20+ fixes in this session"]; opened at core `390069ab` pre-window, pulled through FIVE racing windows to the landing head; corpus `be0cfe9` throughout; seats S89/S90/S91 all born-collided — this lane renumbered to S92)
@@ -132,6 +195,28 @@ TTFR dispatch attempt.
   lane; doc_truth_gate green at error codes=44; the win-stub grown
   LSTATUS (win_syntax_check 13/13); the count claims swept 43→44.
 
+- **M-107's APE member LANDED + N-229 FIXED (MINOR, NEW — the second
+  red-main repair this window; the S89 lane's unique landings):** the
+  CAPEAnalyser walk decoded raw-asm-first-hand (evidence/
+  s89-lane-sheets/s89-l1-ape-cape-walk-decode.md): the tier-1 stamps
+  only the id 0x51; the walk's version gate is the **u16 LE at +4 in
+  [1000,9999]** — the stand-in's u32-BE [300,5000] gate REJECTED every
+  real Monkey's Audio file (the M-156 ASCII-gate class, third
+  occurrence); the format split at 3980 (the old seek-table scan with
+  the base/align/aux arithmetic vs the new descriptor sum
+  u32@8+12+16+20+24+32 with the MD5-term quirk kept); the APETAGEX
+  epilogue (the finalizing window = the 512 bytes ending at
+  round_up(size,512); the footer gates; the three extent arms — the
+  footer end / round_up(size+span,512) / the +512 slack); the cap
+  singleton+0x70×10 = 2e9 re-pinned into the row (min 0 per the
+  factory). RED 5/6 → GREEN 6/6; the S-007 batch plant + the
+  bad-variant fixture re-pinned to the real grammar; the full suite
+  **1722/1722**. N-229 rode the same push: the WPD convergence merges
+  duplicated `WpdZeroSizeFieldDeclines` (cr_tests unbuildable at
+  `e3f34b67` behind the v0.6.0 notes' "1700+ tests" claim) — deduped
+  to the S87-continuation form, no coverage lost. **M-107 now has ONE
+  member remaining: SWF-RECT** (+ the DWG gen-3 recorded remainder).
+
 - **OQ-S79-1 RESOLVED (the $LogFile dead-machinery register):** the
   follow-the-data decode executed in full — the walk driver FUN_18001d460
   (:23100-23160) discards its own out-params (frame locals, never read),
@@ -154,8 +239,12 @@ TTFR dispatch attempt.
   M-105 rows, the pushed rider comments in
   cr_analysers/cr_registry/test_carve).
 
-**Board after this landing (filesystem truth): 0 ACUTE · 0 SEVERE ·
-4 MAJOR · 3 MINOR · 0 INFO active / 209 FIXED / 3 tracked-open.**
+**Board after this landing (filesystem truth, recounted by the
+coherence session at the v0.6.0 close, then re-recounted after the
+final racing window landed M-160/N-230/SWF-RECT: 215 FIXED files on
+disk, 2 MINOR [N-107 N-127], 4 MAJOR [M-086 M-087 M-089 M-107], 3
+tracked-open): 0 ACUTE · 0 SEVERE · 4 MAJOR · 2 MINOR · 0 INFO active /
+215 FIXED / 3 tracked-open.**
 (The S86 lane's OQ-S79-1 resolution landed between the two counts: the
 $LogFile dead-machinery register I-049 [ACKNOWLEDGED at filing] + the
 OQ retired to findings/FIXED/ — M-101 also landed by the racing window
@@ -321,7 +410,7 @@ the /W4 /WX fixes, the v0.6.0 notes. Next free IDs: S-069+, M-160+, N-229+, I-05
 ACUTE · 0 SEVERE · 5 MAJOR (M-086 M-087 M-089 [driver-repo-resident per
 OQ-S10-3, outside the two-repo grant] M-105 M-107 [members 1-8 of 11
 landed; SIT, APE, SWF-RECT + the DWG gen-3 R2007 remainder standing]) ·
-2 MINOR (N-107 N-127, driver-repo-resident) · 0 INFO active / 209 FIXED
+2 MINOR (N-107 N-127, driver-repo-resident) · 0 INFO active / 208 FIXED
 / 4 tracked-open.** The racing windows' landings absorbed: M-075
 (chkdsk), M-078 (BitLocker turn-off), M-101 (the Versions node + Tags
 Extracted, b7d05b12), M-107's X3F/CRW/DWG/WPG/WPD/PSP/DXF/EPS/AI
@@ -364,7 +453,8 @@ active MAJORs, M-086/M-087/M-089 are driver-repo-resident per OQ-S10-3
 — out of this grant's two-repo boundary; the 2 active MINORs,
 N-107/N-127, are the same driver-repo class. M-107 remains active for
 its THREE un-landed members — SIT, APE, SWF-RECT — X3F, CRW, DWG, WPG,
-PSP, WPD, DXF, EPS, AI landed as members 1-9. M-101 was landed by the
+PSP, WPD, DXF, EPS, AI landed as members 1-8 (the finding file's own count; corrected from "1-9" by the coherence session: DWG gen-1+2 is one
+member with its gen-3 remainder standing). M-101 was landed by the
 racing window (verified + its collision repaired this lane). The
 in-scope fix queue: M-107's three members, M-105 (the DRWService
 lifecycle), OQ-S79-1 (the $LogFile decode), OQ-S4-3 (the Windows bench
