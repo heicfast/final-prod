@@ -2409,7 +2409,14 @@ TEST(CrUi, TypedEventStreamFullLifecycle) {
     EXPECT_TRUE(log.saw_quick);
     EXPECT_TRUE(log.saw_deep);
     EXPECT_TRUE(log.saw_carve);
-    /* stage order: quick before deep before carve */
+    /* stage order: quick before carve before deep - N-181's RAW-first
+     * order (the og starts the carve controllers before the FS deep
+     * controllers, DRWUI:916484-916509; the core runs the carve stage
+     * before the deep extras whenever the engine pass already emitted
+     * its nodes - the quick+deep+carve configuration here). Re-pinned
+     * from quick<deep<carve at the N-181 landing (the M-140 re-pin
+     * precedent: the behavioral contract changed by a corpus-verified
+     * fix). */
     int quick_i = -1, deep_i = -1, carve_i = -1;
     for (size_t i = 0; i < log.events.size(); ++i) {
         if (log.events[i].type == CR_EVT_SCAN_STAGE) {
@@ -2421,8 +2428,8 @@ TEST(CrUi, TypedEventStreamFullLifecycle) {
                 carve_i = int(i);
         }
     }
-    EXPECT_LT(quick_i, deep_i);
-    EXPECT_LT(deep_i, carve_i);
+    EXPECT_LT(quick_i, carve_i);
+    EXPECT_LT(carve_i, deep_i);
     /* progress samples: coalesced, monotonic overall permille */
     EXPECT_GE(log.progress_samples, 1u);
     uint32_t last_pm = 0;

@@ -1450,6 +1450,41 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
         if (u32 rc = emit_checkpoint_()) /* stage boundary (G-13) */
             return stamp(rc);
     }
+    /* N-181: the og starts the RAW (carve) controllers BEFORE the FS deep
+     * controllers inside the advanced phase (FUN_140580720's first loop
+     * RTTI-casts to CRAWSearchController and starts those first,
+     * DRWUI:916484-916509) - carved files are visible while the deep pass
+     * is still sweeping (the live capture's Reconstructed branch growing
+     * mid-scan). The core's stage model runs the carve BEFORE the deep
+     * extras whenever the engine pass has already emitted its nodes
+     * (quick_done_ - the standard quick+deep+carve configuration and every
+     * resume leg with quick done): the carved results then surface before
+     * the deep stage even begins, closing the time-to-first-carved-result
+     * gap the finding filed. When quick was DISABLED, the engine pass runs
+     * INSIDE run_deep and must precede carve (the F9 carve-vs-structured
+     * extent dedup needs the engine nodes in the tree), so the original
+     * carve-after-deep order stands for that configuration. */
+    const bool carve_before_deep = cfg_.run_carve && quick_done_;
+    const auto carve_boundary = [&]() -> u32 {
+        if (cancel && cancel->checkpoint())
+            return ERR_CANCELLED;
+        const size_t carve_mark = tree_.node_count_snapshot();
+        if (u32 rc = run_carve_stage(pipe, cancel, progress, progress_user, stats))
+            return rc;
+        /* GAP-S6-8: carve now emits DISK-absolute extents with the
+         * NODE_FLAG_EXT_SHIFTED guard (cr_carve.cpp) - this rebase skips
+         * every carved node and is retained as the boundary invariant. */
+        tree_.rebase_new_extents(carve_mark, vol_offset_);
+        /* M-073: the carve root itself is exempt (pathless content) but
+         * the pass runs at this boundary too - a whole-disk scan's
+         * structured roots (table volumes, lost candidates) prune here
+         * if the carve stage is the only remaining stage (resume legs). */
+        apply_folder_filter_(stats);
+        return emit_checkpoint_(); /* stage boundary (G-13) */
+    };
+    if (carve_before_deep)
+        if (u32 rc = carve_boundary())
+            return stamp(rc);
     if (cfg_.run_deep) {
         if (cancel && cancel->checkpoint())
             return stamp(ERR_CANCELLED);
@@ -1462,24 +1497,9 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
         if (u32 rc = emit_checkpoint_()) /* stage boundary (G-13) */
             return stamp(rc);
     }
-    if (cfg_.run_carve) {
-        if (cancel && cancel->checkpoint())
-            return stamp(ERR_CANCELLED);
-        const size_t carve_mark = tree_.node_count_snapshot();
-        if (u32 rc = run_carve_stage(pipe, cancel, progress, progress_user, stats))
+    if (!carve_before_deep && cfg_.run_carve)
+        if (u32 rc = carve_boundary())
             return stamp(rc);
-        /* GAP-S6-8: carve now emits DISK-absolute extents with the
-         * NODE_FLAG_EXT_SHIFTED guard (cr_carve.cpp) - this rebase skips
-         * every carved node and is retained as the boundary invariant. */
-        tree_.rebase_new_extents(carve_mark, vol_offset_);
-        /* M-073: the carve root itself is exempt (pathless content) but
-         * the pass runs at this boundary too - a whole-disk scan's
-         * structured roots (table volumes, lost candidates) prune here
-         * if the carve stage is the only remaining stage (resume legs). */
-        apply_folder_filter_(stats);
-        if (u32 rc = emit_checkpoint_()) /* stage boundary (G-13) */
-            return stamp(rc);
-    }
     checkpoint_stats_ = nullptr;
     /* surface the retry layer's error map (R1.6; merged inside stamp for
      * every exit path) + cache counters */

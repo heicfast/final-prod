@@ -480,3 +480,24 @@ output-equivalent on every non-type-6 device and conservative on
 type-6 shapes. The next probe (the concrete vtable +0xa8 getter
 mapping + the enumeration-chain 6-writer) is recorded in the D-36
 addendum for the implementing lane.
+
+## S80/S81 fix-lane addendum 2 (2026-10-29 — N-181 lands)
+
+**N-181 FIXED:** the RAW-first start order. The carve stage now runs
+BEFORE the deep extras whenever quick_done_ (the engine pass already
+emitted its nodes — the standard configuration and the quick-done
+resume legs): the ScanStage sequence reads quick → carve → deep, and
+the carved results surface before the deep stage begins — the og's
+controller-start order (FUN_140580720's first loop starts the
+CRAWSearchController casts first, DRWUI:916484-916509) and the finding's
+time-to-first-carved-result observable. The quick-disabled
+configuration keeps deep-first BY DESIGN (the engine pass rides inside
+run_deep and must precede carve for the F9 carve-vs-structured dedup).
+The finding's concurrent variant deliberately narrowed to the reorder
+(the og's shared-chunk-stream interleaving is the O37-registered
+architecture delta; the residual stays registered). Stage masks stay
+truthful; the weighted telemetry is stage-indexed, not order-dependent.
+Tests: ScanEvents.CarveStageBeginsBeforeDeepStage +
+DeepFirstWhenQuickDisabledForTheCarveDedup + the re-pinned
+CrUi.TypedEventStreamFullLifecycle (the M-140 precedent); suites 1564
+ran / 0 failed + 84/84.

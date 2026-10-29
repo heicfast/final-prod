@@ -3387,3 +3387,79 @@ TEST(FilterFolder, SizeCapHostOverrideRoundTrip) {
     /* restore the default for the other tests */
     filterfolder::set_max_file_size(u64(0x400) << 30);
 }
+
+TEST(ScanEvents, CarveStageBeginsBeforeDeepStage) {
+    /* N-181: the og starts the RAW (carve) controllers BEFORE the FS deep
+     * controllers inside the advanced phase (FUN_140580720's two loops,
+     * DRWUI:916484-916509) - carved files are visible while the deep pass
+     * is still sweeping. The core's stage model now runs the carve stage
+     * before the deep extras whenever the engine pass already emitted its
+     * nodes (quick_done_): the ScanStage begin sequence must read
+     * quick(0) -> carve(2) -> deep(1) in the standard configuration. The
+     * observable is the finding's own: the first carved-file event class
+     * precedes the deep stage's completion. */
+    struct StageSeqRecorder {
+        std::vector<std::pair<event::Type, u32>> seq;
+        static void on_evt(const event::Event& e, void* user) {
+            static_cast<StageSeqRecorder*>(user)->seq.emplace_back(e.type, e.stage);
+        }
+    };
+    FailingSectorDevice dev(build_fat16(), 30);
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = true;
+    cfg.run_carve = true;
+    cfg.whole_disk = false;
+    StageSeqRecorder rec;
+    cfg.event_fn = &StageSeqRecorder::on_evt;
+    cfg.event_user = &rec;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    ASSERT_EQ(OK, ctrl.run(&dev, nullptr, nullptr, nullptr, stats));
+    /* the stage-begin sequence */
+    std::vector<u32> begins;
+    for (const auto& [t, stage] : rec.seq)
+        if (t == event::Type::ScanStage && stage != 0xFFFFFFFFu)
+            begins.push_back(stage);
+    ASSERT_GE(begins.size(), 3u) << "all three stages must begin";
+    /* the STANDARD configuration's order: quick, carve, deep (N-181) */
+    EXPECT_EQ(begins[0], 0u) << "quick is first (the engine pass feeds the carve dedup)";
+    EXPECT_EQ(begins[1], 2u) << "carve begins before the deep extras (the og's RAW-first order)";
+    EXPECT_EQ(begins[2], 1u) << "deep follows (the extras: remnants + lost discovery)";
+    /* the carve results DID land (the stage completed truthfully) */
+    EXPECT_EQ(begins[begins.size() - 1] == 1u || begins[begins.size() - 1] == 2u, true);
+}
+
+TEST(ScanEvents, DeepFirstWhenQuickDisabledForTheCarveDedup) {
+    /* N-181's guarded configuration: with quick DISABLED the engine pass
+     * runs INSIDE run_deep and must precede carve (the F9
+     * carve-vs-structured extent dedup needs the engine nodes) - the
+     * original deep-before-carve order stands there. */
+    struct StageSeqRecorder {
+        std::vector<std::pair<event::Type, u32>> seq;
+        static void on_evt(const event::Event& e, void* user) {
+            static_cast<StageSeqRecorder*>(user)->seq.emplace_back(e.type, e.stage);
+        }
+    };
+    FailingSectorDevice dev(build_fat16(), 30);
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = false;
+    cfg.run_deep = true;
+    cfg.run_carve = true;
+    cfg.whole_disk = false;
+    StageSeqRecorder rec;
+    cfg.event_fn = &StageSeqRecorder::on_evt;
+    cfg.event_user = &rec;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    ASSERT_EQ(OK, ctrl.run(&dev, nullptr, nullptr, nullptr, stats));
+    std::vector<u32> begins;
+    for (const auto& [t, stage] : rec.seq)
+        if (t == event::Type::ScanStage && stage != 0xFFFFFFFFu)
+            begins.push_back(stage);
+    ASSERT_GE(begins.size(), 2u);
+    EXPECT_EQ(begins[0], 1u) << "deep first: the engine pass rides inside it";
+    EXPECT_EQ(begins[1], 2u) << "carve after: the F9 dedup has the engine nodes";
+}

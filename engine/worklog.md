@@ -11996,3 +11996,25 @@ The lane's next targets (the surviving board): M-101 (the
 Versions/Tags branches — the biggest remaining code feature), M-107's
 CRW member (the deep-decode lane), M-075/M-078 (the win layer),
 M-105/M-111/M-114 (the scope decisions), I-048 (the registers).
+
+## Session-80 S80 fix-lane — entry 9 (2026-10-29): the M-151-window red-main repair + N-181 lands
+
+**The repair (the M-155 class, second recurrence):** the racing M-151
+push (27bda40e) committed two unresolved hunks into
+test_ntfs_volume.cpp (the A-016 test vs the M-151 run-growth family,
+both opening into a shared walk_mft tail the merge interleaved) and one
+into the matrix — cr_tests could not compile at main. Both sides
+reconstructed complete (the A-016 test's eaten closing brace restored);
+the seven reconstructed tests pass first-hand; the N-210 lint clean.
+
+**N-181 FIXED (MINOR, orchestration/carve):** the RAW-first start
+order. The carve stage runs BEFORE the deep extras when quick_done_
+(quick → carve → deep on the event stream); quick-disabled legs keep
+deep-first BY DESIGN (the F9 dedup needs the engine nodes); the
+concurrent variant narrowed to the reorder (the O37-registered
+architecture delta covers the interleaving residual). One prior test
+re-pinned (TypedEventStreamFullLifecycle, the M-140 precedent). Tests:
+CarveStageBeginsBeforeDeepStage + DeepFirstWhenQuickDisabled...; suites
+1564 / 0-fail + 84/84. Trail: findings/FIXED/N-181 + Resolution,
+ledger row, matrix cell, modules/orchestration.md addendum 2, this
+entry.
