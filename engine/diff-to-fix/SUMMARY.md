@@ -2,14 +2,15 @@
 
 ## Session-60 S60 lane delta (2026-10-29 — the MINOR-first diff-to-fix execution lane of the user's fix mandate ["priority to minor first", 20+ fixes]; opened at core `98a5b139` (baseline suite 1460/1460 green before the first change), corpus `be0cfe9`; the S55 filings' audited commit `9633d94f` — every finding re-verified at the current tree before fixing)
 
-**Board at lane open (re-counted first-hand):** 50 active — 1 SEVERE · 23 MAJOR · 24 MINOR · 2 INFO — + 4 tracked-open, findings/FIXED/ at 136 files. N-107/N-127 (with M-086/M-087/M-089) are driver-repo-resident (OQ-S10-3's two-repo grant boundary) — not fixable in this lane, counted as active-open.
+**Board at lane open (re-counted first-hand; corrected in the N-195 push — the lane's first block overstated MINOR at 24):** 48 active — 1 SEVERE · 23 MAJOR · 22 MINOR · 2 INFO — + 4 tracked-open, findings/FIXED/ at 136 files. N-107/N-127 (with M-086/M-087/M-089) are driver-repo-resident (OQ-S10-3's two-repo grant boundary) — not fixable in this lane, counted as active-open.
 
 **Fixes landed this push:**
 
+- **N-195 FIXED (MINOR)** — the driver-verification bench's two phantom-zero extended-IOCTL constants righted to the contract codes (0x6002440 GET_INFO / 0x6002448 GET_VERSION, cr_rda.h CTL_CODE_RDA fn 0x910/0x912) — the bench can now actually exercise the GET_INFO/GET_VERSION paths it exists to verify. Pin test CrUi.BenchVerifyDriverIoctlCodesMatchContract (RED: both phantom literals present → GREEN: contract codes present, phantom absent); CrUi family 77/77.
 - **N-199 FIXED (MINOR)** — probe_family's ReFS branch now gates on BOTH boot signatures ("ReFS"@+3 AND "FSRS"@+0x10, Partition FUN_180003900 :1747-1759 re-read first-hand): a forged OEM no longer dispatches the ReFS family. Test Refs.RecognitionRequiresFsrsMarker RED (forged-OEM fixture dispatched Refs) → GREEN; Refs family 41/41; lost/ldm/probe neighborhood 153/153.
 - **N-192 FIXED (MINOR)** — FileProperties::clone() now copies `short_name` (the og's whole-block clone contract, part1 slot +0x08): the hard-link fan-out's cloned links keep the 8.3 name at the walk, through the session roundtrip (nflags bit 2), and at the UI preview clone. Test NtfsVolume.HardLinkFanOutClonesKeepShortName RED (cloned link's short_name empty, both axes) → GREEN; family 71/71.
 
-**Board at this push:** 48 active — 1 SEVERE · 23 MAJOR · 22 MINOR · 2 INFO — + 4 tracked-open, FIXED archive at 138 files.
+**Board at this push:** 45 active — 1 SEVERE · 23 MAJOR · 19 MINOR · 2 INFO — + 4 tracked-open, FIXED archive at 139 files.
 
 ---
 

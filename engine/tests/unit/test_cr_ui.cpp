@@ -3628,6 +3628,25 @@ TEST(CrUi, DriverWireCodesFreeOfPhantomZeroInDocs) {
     }
 }
 
+TEST(CrUi, BenchVerifyDriverIoctlCodesMatchContract) {
+    /* The driver-verification bench must call the CONTRACT's extended
+     * IOCTLs (cr_rda.h's CTL_CODE_RDA derivations: 0x6002440 GET_INFO /
+     * 0x6002448 GET_VERSION) — the phantom-zero 0x6000244x forms can
+     * never reach the real handlers, so a bench carrying them verifies
+     * nothing while reporting GET_INFO/GET_VERSION "rejected". The
+     * fail-before state: both bench calls carried the extra zero digit. */
+    const std::string txt = cr_test::read_repo_file("bench/ours/verify-driver.ps1");
+    ASSERT_FALSE(txt.empty()) << "bench/ours/verify-driver.ps1 unreadable";
+    EXPECT_EQ(txt.find("0x60002440"), std::string::npos)
+        << "phantom-zero GET_INFO literal in the bench (the contract code is 0x6002440)";
+    EXPECT_EQ(txt.find("0x60002448"), std::string::npos)
+        << "phantom-zero GET_VERSION literal in the bench (the contract code is 0x6002448)";
+    EXPECT_NE(txt.find("0x6002440"), std::string::npos)
+        << "the bench must issue the contract's GET_INFO code";
+    EXPECT_NE(txt.find("0x6002448"), std::string::npos)
+        << "the bench must issue the contract's GET_VERSION code";
+}
+
 TEST(CrUi, OutOfScopeRowsCarryTruthfulRegistrations) {
     /* S-050's disposition pin (the finding's own test idea: "a docs
      * test that every SURFACE-INVENTORY OOS row's cited registration

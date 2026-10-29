@@ -9226,3 +9226,26 @@ Refs.RecognitionRequiresFsrsMarker RED (forged OEM dispatched Refs) ->
 GREEN (Unknown); Refs 41/41; lost/ldm/probe 153/153. Trail: FIXED finding
 + Resolution, ledger row, matrix MATCH cell (row 23), refs.md +
 orchestration.md verdicts, SUMMARY block, this entry.
+
+
+## Session-60 lane — N-195 landed + the lane-open count correction (2026-10-29)
+
+**Hot-window note:** a racing lane pushed a format repair (468ce7a8)
+between this lane's N-192 and N-199 pushes; the merge absorbed it clean
+(both sides' files disjoint). The lane now pulls BEFORE each commit.
+
+**N-195 FIXED (MINOR — the bench's phantom-zero IOCTLs).** Verified
+first-hand: bench/ours/verify-driver.ps1:47/:55 carried 0x60002440/
+0x60002448 vs cr_rda.h:55-57's 0x6002440/0x6002448 (CTL_CODE fn
+0x910/0x912). Repo sweep: the bench was the only wrong-site family.
+Fix: both constants righted + the contract-source comment. Proof:
+CrUi.BenchVerifyDriverIoctlCodesMatchContract RED (both phantom
+literals present) -> GREEN (contract codes present); CrUi family
+77/77 incl. the sibling phantom-zero docs gate. Trail: FIXED finding
++ Resolution, ledger row, matrix MATCH (row 26 + S60 section), SUMMARY
+block, this entry.
+
+**Count correction (this lane's own truth repair):** the S60 open
+block overstated MINOR at 24; the first-hand recount is 22 (the two
+driver-repo-resident N-107/N-127 are counted active-open). SUMMARY
+corrected in this push.

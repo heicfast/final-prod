@@ -44,7 +44,9 @@ public static class RdaVerify {
         using (SafeFileHandle h = Open(device)) {
             byte[] b = new byte[24];
             uint ret;
-            bool ok = DeviceIoControl(h, 0x60002440, null, 0, b, 24, out ret, IntPtr.Zero);
+            /* N-195: the contract codes (cr_rda.h CTL_CODE_RDA fn 0x910/0x912) -
+               the phantom-zero 0x6000244x forms never reach the handlers. */
+            bool ok = DeviceIoControl(h, 0x6002440, null, 0, b, 24, out ret, IntPtr.Zero);
             int gle = Marshal.GetLastWin32Error();
             if (!ok || ret < 24) return "GET_INFO rejected (ok=" + ok + " ret=" + ret + " gle=" + gle + ")";
             uint major = BitConverter.ToUInt32(b, 4), minor = BitConverter.ToUInt32(b, 8);
@@ -52,7 +54,7 @@ public static class RdaVerify {
             uint base32 = BitConverter.ToUInt32(b, 20);
             byte[] v = new byte[8];
             uint ret2;
-            bool ok2 = DeviceIoControl(h, 0x60002448, null, 0, v, 8, out ret2, IntPtr.Zero);
+            bool ok2 = DeviceIoControl(h, 0x6002448, null, 0, v, 8, out ret2, IntPtr.Zero);
             int gle2 = Marshal.GetLastWin32Error();
             string ver = ok2 && ret2 >= 8 ? "0x" + BitConverter.ToUInt64(v, 0).ToString("X16") : ("GET_VERSION rejected (gle=" + gle2 + ")");
             return "v" + major + "." + minor + " flags=0x" + flags.ToString("X") + " maxDisks=" + maxDisks +

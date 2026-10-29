@@ -23,7 +23,7 @@
 | orchestrator/refs · recognition second signature (B3/C19) | **MATCH** | **N-199 — FIXED (S60 lane)**: probe_family's ReFS branch now gates on BOTH signatures ("ReFS"@+3 AND "FSRS"@+0x10, Partition FUN_180003900 :1747-1759); test Refs.RecognitionRequiresFsrsMarker RED->GREEN — findings/FIXED/N-199-refs-second-signature-fsrs-absent.md |
 | ext4 · superblock acceptance bands (B3/C20/Q68) | **DIVERGENCE-MINOR** | **N-193** — four band deltas consolidated (inode_size=0, log_bs 7..20, journal_inum gating, desc_size combos) |
 | query · size display formatters (B10/D13/Q68) | **DIVERGENCE-MINOR** | **N-194** — the og's two binary-tier formatters (log-side KB/MB/GB; UI-side B..TB) have no core counterpart |
-| bench · driver-verification IOCTL codes (Q65/C22) | **DIVERGENCE-MINOR** | **N-195** — the phantom-zero 0x60002440/48 vs the contract's 0x6002440/48 (cr_rda.h) |
+| bench · driver-verification IOCTL codes (Q65/C22) | **MATCH** | **N-195 — FIXED (S60 lane)**: both bench constants righted to the contract codes (0x6002440/0x6002448, cr_rda.h CTL_CODE_RDA) + the CrUi.BenchVerifyDriverIoctlCodesMatchContract pin (absence of the phantom forms + presence of the contract codes) — findings/FIXED/N-195-bench-verify-driver-phantom-zero-ioctls.md |
 | ext4 · unwritten-extent ee_len decode (Q68/B2) | **DIVERGENCE-INFORMATIONAL** | **I-045** — og-defect non-adoption register batch #3: the og multiplies raw; the core is kernel-correct — register |
 | session · ETA budget seed (O39) | **ADDENDUM** | **M-126 +S54** — `total_bytes/60 MiB + 60 s` at DRWUI:315150 decoded; the fix gains the seed |
 | session/orchestration · engine-pause type gate (S33) | **ADDENDUM** | **N-178 +S54** — the og skips engine pause for scan-type-1 runs (+0xD8 gate, :314405/:314476); the core pauses all stages |
@@ -1175,3 +1175,5 @@ their M-112).
 ## Session-60 detail rows (2026-10-29 — the MINOR-first diff-to-fix execution lane; opened at core `98a5b139`, corpus `be0cfe9`; the S55 filings' audited commit `9633d94f` re-verified current)
 
 - **tree/session · clone field parity (D11/P11)**: **MATCH** — **N-192 FIXED**: the 8.3 short_name rides FileProperties::clone() (the og's whole-block clone contract, part1 slot +0x08); NtfsVolume.HardLinkFanOutClonesKeepShortName RED->GREEN; `findings/FIXED/N-192-clone-drops-short-name-on-fanout.md`.
+
+- **bench · driver-verification IOCTL codes (Q65/C22)**: **MATCH** — **N-195 FIXED**: the phantom-zero 0x6000244x pair righted to the contract's 0x6002440/0x6002448 (cr_rda.h fn 0x910/0x912); CrUi.BenchVerifyDriverIoctlCodesMatchContract RED->GREEN (the pin rides the same read_repo_file gate family as DriverWireCodesFreeOfPhantomZeroInDocs); `findings/FIXED/N-195-bench-verify-driver-phantom-zero-ioctls.md`.

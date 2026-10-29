@@ -50,3 +50,10 @@ Executed-verification-class evidence: the constants compared side-by-side (bench
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (the S60 lane's N-195 landing — the two constants righted + the bench pin; SHA in the worklog entry and the ledger row)
+**Verified by:** CrUi.BenchVerifyDriverIoctlCodesMatchContract — RED pre-fix (both phantom literals present: "phantom-zero GET_INFO literal in the bench" / "phantom-zero GET_VERSION literal in the bench"), GREEN post-fix (phantom forms absent, contract codes present); the full CrUi family 77/77 including the sibling DriverWireCodesFreeOfPhantomZeroInDocs gate.
+**Resolution notes:** Verified first-hand at the current tree: bench/ours/verify-driver.ps1:47/:55 carried 0x60002440/0x60002448 against include/cr/win/cr_rda.h:55-57's kIoctlGetInfo=0x6002440 (fn 0x910) / kIoctlGetVersion=0x6002448 (fn 0x912) — exactly as filed (the finding's :47/:55 cites still current). The fix: both constants corrected in place + the comment pinning the contract source; the repo-wide sweep for the class (grep 0x600024/0x60024 over bench/ scripts/ tools/ tests/) shows the bench as the only wrong-site family — the test_cr_ui.cpp:3602-3626 gate and the 0x60002400/04/08 identity codes (RAW values, correct) stand. The pin test rides the existing read_repo_file doc-truth gate family (the N-040/N-045 precedent), asserting BOTH the absence of the phantom forms and the presence of the contract codes — the finding's acceptance criteria verbatim.
