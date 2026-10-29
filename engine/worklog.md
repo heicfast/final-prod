@@ -1,3 +1,83 @@
+
+**Session-47 S47 lane HANDOFF (2026-10-29 — the MAJOR-first fix lane closes at this
+push; every landing verified, tested, documented, pushed; main green 1296/1296 +
+73/73 at `de2fde24`-lineage):**
+
+**The lane's 10 MAJOR landings** (one finding, one verified fix, one push each;
+every corpus cite re-read first-hand before the change; every fix RED-proven
+pre-change — the stashed-engine / stashed-parser / neutered-rule / stashed-walker
+methods as applicable):
+
+1. **M-124** `dcb123dd` — the EBR link type 0x85 joins the Extended arm (whole
+   Linux-extended chains walk; the bogus link-target volume gone).
+2. **M-123** `10620f04` — FUN_1800078d0's full GPT header gate set (revision,
+   exact-92, reserved, the mirrored position pair, usable-range bounds, entries
+   outside the usable range; structural gates before the CRC; the 5 stale
+   og-invalid fixtures re-shaped).
+3. **M-132** `d746a75b` — the backup probe at device-last FIRST (the fixed-position
+   architecture); the dead-LBA1 recovery kept + registered (D-124a/b); the Case-A
+   observable honestly recorded as closed by M-123's gate.
+4. **M-128** `2b0184f3` — the hex-case superset registered as D-125 (option (b);
+   the og's %02X-only text compare is a machinery defect; the census corrected
+   12→11 first-hand).
+5. **M-129** `55b2fe32` — the EUUserData loader's og-tolerance (unknown members
+   skipped, _stricmp dispatch, malformed signs skip-and-continue, over-cap atomic
+   per S-039; D-126; the verbatim corpus file ships as the acceptance fixture).
+6. **M-119** `033b9cdb` — the tolerant partition-boundary pair (create-clamps the
+   declared window; the read ladder clamps + full-tail zero-fills; D-74's
+   read-half superseded with its safety core + under-zeroing non-adoption kept;
+   the fix-time probe confirmed the ENGINE device first-hand at FUN_180009290).
+7. **M-115** `1d7a761b` — the thumbnail grade promotion is READ-gated
+   (Thumbnail::read_ok; the 0x14 work-item floor; the TxtView/media triggers ride
+   N-144/OQ-S10-1).
+8. **M-134** `9455f50a` — the deep-read grade validation (the two threshold
+   rules; the GradeReader at the completion pass; the graded one-shot bit; the
+   full-tree regrade; OQ-S42-3's sub-gates unadopted per the fix plan's
+   allowance).
+9. **M-126** `089b7cc8` — the og's ETA model (eta_compute/format/countdown beside
+   the M-125 family; ScanTelemetrySnapshot.eta_* with the EMA state server-side;
+   the CLI remaining-time line; O39's wrong premise superseded).
+10. **M-127** `0a46063c` — the chain cycle guard's range-tree shape (VisitedRuns;
+    measured 62.18 s → 1.55 s on the 100×65,536 fixture — 40×, the no-freeze
+    stall class closed).
+
+**The main-red repairs the lane closed en route** (`ae2f9206`, `7ca39e5d`,
+`e4b00711`, and the merge-commit resolutions): the N-171 double/triple tick (the
+F-A3-6 class, re-entered twice through hot-window merges), the default-set
+registry leak (the LzhWrongDash order dependency), the N-177 same-name
+convergence, the S-058 fixture swap, the grading test's contradictory
+concatenated assertions — main left green after every window.
+
+**The remaining MAJOR board at close (24 active — the parallel audit lanes filed
+M-139..M-147 + I-045 while the fix lanes ran), with the precise next steps:**
+
+- **M-075/M-078/M-105** (chkdsk launch / BitLocker turn-off / DRWService install
+  lifecycle): Windows-CI-gated implementations (CreateProcessW/SCM surfaces) —
+  the fix plans are concrete (M-075's 5 steps incl. the D-90 rewrite; M-078's
+  consented-destructive design; M-105's per-call SCM error strings); land on the
+  Windows lane with the source-truth pin pattern until the runner executes them.
+- **M-073/M-101/M-111/M-113/M-118** (scan-time folder filter / results-tree
+  branches / explorer browse / recovered-OS boot surgery / lostpart register
+  channel): the big-feature set — each needs its scope decision then a
+  multi-commit landing; M-118's register walk is the most mechanical start
+  (HKCU MountPoints2 CPC\Volume, the FUN_18000f5b0 decode is in the finding).
+- **M-114** (system-restore purge): the decide-and-register finding — the og's
+  SRRemoveRestorePoint purge decoded; the next step is the product decision
+  (adopt-with-consent vs register-non-adoption) recorded in PARITY-DELTAS.
+- **M-135/M-136** (the writer's read-failure semantics + the retry-cache pipe):
+  the per-failure-class policy (truncate-and-keep partials for hard failures +
+  the six-cause taxonomy + the ReadSector log trio; then route the export reads
+  through the retry pipe) — M-136 first per M-135's own dependency note.
+- **M-086/M-087/M-089**: driver-repo-resident, out of this session's two-repo
+  grant — tracked in OQ-S10-3 with the one-driver-lane plan.
+- **M-139..M-147 + I-045**: the new audit wave's filings — unclaimed; the next
+  fix lane reads each corpus cite first-hand per the standing SOP.
+
+**The standing contracts this lane added/updated:** PARITY-DELTAS D-124a/b, D-125,
+D-126; D-74's dated supersession; the FIXED-LEDGER rows; the matrix cells; the
+module verdicts (table/lost-partition/storage/preview/orchestration); O39
+superseded. The next free IDs at close: S-062+, M-148+, N-186+, I-046+.
+
 **S56 lane — the CI format sweep + the session handoff (2026-10-29).**
 
 **The lint-gate repair:** the sibling window's landings left clang-format
