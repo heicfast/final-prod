@@ -329,8 +329,13 @@ struct ScanConfig {
      * 5.5 + UIUX/30:64-67). UTF-8; empty = OFF (zero-init safe).
      * The WRITE is host-side file I/O by architecture (pure core owns
      * no file API): cr_ui + the CLI honor this field on run()
-     * COMPLETION (rc == OK; a cancelled run never auto-saves - the
-     * og's flow is the completion window) by saving the standard record
+     * COMPLETION (rc == OK) AND on the STOP WINDOW (N-211 re-truth: the
+     * og's own stop path runs its organize into the shared completion
+     * handler - DRWUI :1549399-421 -> :339076-79 -> FUN_140395e50, the
+     * gates at :612571-587 carry no stopped-check, so the stopped
+     * scan's partial results land in the auto session exactly like a
+     * finished run's; S-057's landing, rrecov.cpp autosave_if_due(true))
+     * by saving the standard record
      * set through their existing save paths under
      * session::auto_session_name (the N-061 corpus naming + the
      * name-forbidden-char sanitizer). */

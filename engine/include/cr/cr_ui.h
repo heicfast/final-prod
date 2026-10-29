@@ -627,18 +627,29 @@ typedef struct cr_ui_scan_config {
                                          * auto_<vol>_<ts> SaveScan flow,
                                          * rsf-format section 5.5). NULL/""
                                          * = OFF (zero-init safe). On run()
-                                         * COMPLETION the shim saves the
+                                         * COMPLETION - and, per S-057/N-211,
+                                         * on a user-STOPPED run with results
+                                         * (the og's stop path runs its own
+                                         * organize into the shared
+                                         * completion handler - DRWUI
+                                         * :1549399-421 -> :339076-79 ->
+                                         * FUN_140395e50, gates :612571-587
+                                         * with no stopped-check) - the shim
+                                         * saves the
                                          * standard record set there under
                                          * session::auto_session_name (the
                                          * N-061 corpus naming + sanitizer),
                                          * fires CR_EVT_AUTOSAVED once and
-                                         * sets stats.autosaved; a cancelled
-                                         * run never auto-saves. S-044: an
+                                         * sets stats.autosaved. S-044: an
                                          * empty run (nothing found), a
                                          * resumed run and an already-
                                          * explicitly-saved run never
                                          * auto-save either (the og's
-                                         * trigger-site gates). */
+                                         * trigger-site gates). Other
+                                         * failures (device loss, read
+                                         * refusal) do not reach the
+                                         * completion handler and do not
+                                         * auto-save. */
 } cr_ui_scan_config;
 
 CR_UI_API uint32_t cr_ui_scan_create(const cr_ui_scan_config* cfg, cr_ui_scan** out);

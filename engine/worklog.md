@@ -11235,3 +11235,14 @@ seat; this lane's convergence addendum + the move of the resolved
 finding to findings/FIXED/ + the landed-tree verification (suite
 1578/1578 first-hand) complete the trail. This lane proceeds under the
 S81 seat with the MINOR-first ladder.
+
+**N-211 FIXED (MINOR, orchestrator/api-docs) — fix #1 of the S81 ladder:**
+the autosave_dir contract comments re-truthed at BOTH headers (cr_scan.h
++ the cr_ui.h:636 twin the new gate caught): completion AND the stop
+window (the og's stop-organize feeds the shared completion handler —
+DRWUI :1549399-421 → FUN_140395e50, gates :612571-587 no stopped-check;
+corpus re-verified first-hand this session). The guard landed:
+doc_truth_gate's check_header_contract_phrases() — RED at the pre-fix
+tree (the cr_ui.h catch), GREEN post-fix. Build green. Trail:
+findings/FIXED/N-211 + Resolution, matrix S81 row, modules/orchestration.md
+addendum, ledger row.

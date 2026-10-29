@@ -485,6 +485,51 @@ def check_parity_delta_numbering():
     return True
 
 
+# N-211: public-header contract phrases that a landed finding has retired.
+# A header comment asserting a retired contract is the doc-truth class the
+# markdown checks cannot see (the gate scanned diff-to-fix/ only). Each
+# entry: (the retired phrase, the finding that retired it). The phrase is
+# searched case-sensitively over include/cr/**/*.h.
+RETIRED_HEADER_CONTRACT_PHRASES = [
+    ("never auto-saves", "N-211"),
+    ("a cancelled run never auto-saves", "N-211"),
+]
+
+
+def check_header_contract_phrases():
+    """Public headers must not assert contracts a landed finding retired.
+
+    The N-211 class: cr_scan.h's autosave_dir comment claimed a cancelled
+    run never auto-saves while the CLI (S-057's landing) auto-saves the
+    stop window - a host integrator reading the header would drop the
+    user's partial results. The finding's fix re-truthed the comment; this
+    check keeps the retired phrase (and its family) out of every public
+    header so the drift cannot silently recur while the gate runs.
+    """
+    ok = True
+    hits = 0
+    for header in sorted((ROOT / "include").rglob("*.h")):
+        try:
+            lines = header.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        for i, line in enumerate(lines):
+            for phrase, finding in RETIRED_HEADER_CONTRACT_PHRASES:
+                if phrase in line:
+                    rel = header.relative_to(ROOT)
+                    print(
+                        f"doc_truth_gate: FAIL: {rel}:{i + 1} asserts the "
+                        f"retired contract phrase '{phrase}' (retired by "
+                        f"{finding} - the header-contract drift class; "
+                        f"re-truth the comment against the landed behavior)"
+                    )
+                    hits += 1
+                    ok = False
+    if ok:
+        print("doc_truth_gate: header-contract phrases clean (N-211 class)")
+    return ok
+
+
 def main():
     ok = check_floorversion()
     ok = check_deleted_citations() and ok
@@ -494,6 +539,7 @@ def main():
     ok = check_abi_count_claims() and ok
     ok = check_parity_delta_numbering() and ok
     ok = check_bench_ioctl_codes() and ok
+    ok = check_header_contract_phrases() and ok
     if not ok:
         return 1
     print("doc_truth_gate: green")

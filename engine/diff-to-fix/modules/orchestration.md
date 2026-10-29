@@ -419,3 +419,19 @@ register: the engine-side cancel-pause poll census + the quick→advanced
 transition trigger (subagent infra timeouts; the policy level is
 dispositioned by D-18/S54-Axis-4 — the per-engine poll-site census stays
 open for a future lane). Evidence: `evidence/s69-lane-sheets/`.
+
+## Session-81 addendum — N-211: the autosave_dir header contract re-truthed (2026-10-29)
+
+**The doc-truth drift closed, with a gate.** The `autosave_dir` field's
+contract comments in `cr_scan.h` (and the twin the new gate caught in
+`cr_ui.h:636`) claimed "a cancelled run never auto-saves" — contradicted
+by the landed S-057 behavior at both consuming sites (`rrecov.cpp`'s
+`autosave_if_due(true)` cancel-path call; `cr_ui.cpp:2418`'s cancel-branch
+`autosave_if_due_(s)`). Both comments now state the og truth: the field is
+honored on completion AND on the stop window (the og's stop path runs its
+own organize into the shared completion handler — DRWUI :1549399-421 →
+:339076-79 → FUN_140395e50, the gates at :612571-587 carrying no
+stopped-check; re-verified against the corpus this session). The guard:
+`tools/doc_truth_gate.py` gains `check_header_contract_phrases()` — the
+retired-phrase class now fails CI in any public header (RED pre-fix: it
+caught the cr_ui.h twin; GREEN post-fix). The P46 row: MATCH.
