@@ -536,3 +536,48 @@ later sector the extent shifts by multiples of 512") is thereby
 EXPLAINED: the "deferral" is the pending-list re-feed cadence (each
 re-feed advances the chunk by one sector), not an undecoded gate in the
 walk itself. The tier-1 id-only stamp is WHY the +0x20 processor exists.
+
+---
+
+## Session-93 addendum — the convergent-lane concession record + the TIER-1 CENSUS correction (a rider the seat-holder's landing carries a false prose claim about)
+
+**The concession.** This lane independently decoded the DWG member
+(the full gen-1 section-locator walk and the gen-2 rand()-XOR
+security-header walk — count u32@+0x15, the 9-byte records, the
+full-width id counter, the running max, the torn salvage; the +0x80
+decrypt offset, the field-gate set, qword@+0x34 + 0x6c) and built an
+eight-test battery plus the S-007 plant re-pin — all convergent with the
+racing window's landing (`ddab68b4` + the `f7e49eaf` gen-2 offset
+repair + the `d35e1cbb` S86 riders). Per SA-9 the earlier push holds
+the seat; this lane's code and tests conceded at the merge. The
+convergence itself is the strongest verification class the house
+records: two independent instruction-level decodes agreeing on every
+material point.
+
+**The census rider (the unique carry — a corpus-truth correction the
+seat-holder's comment gets wrong).** The landed comment above
+validate_dwg claims the og's tier-1 table (FUN_18002fe30) is "exactly
+these nine" versions {12,13,14,15,18,21,24,27,32}. The raw asm says
+TEN: the stack table runs "AC10"+{32,27,24,21,18,15,14,13,12} and then
+one more entry — `mov DWORD PTR [rbp-0x18],0x39303031` (0x18002feae:
+bytes 31 30 30 39 = "AC10" + "09") = **AC1009**, and the loop bound is
+`cmp edx,0xa; jl` (0x18002fede-0x18002fee1) — indices 0..9, TEN
+entries checked. So the og's tier-1 ACCEPTS AC1009 (stamps the result
+id 0x18 at 0x18002fef7) — and then the walk callback (FUN_18002f320)
+declines it, because AC1009 matches no generation table (gen-1
+{12,13,14,15} at 0x18002f345-0x18002f39f, gen-2 {18,24,27,32} at
+0x18002f478-0x18002f4d3, gen-3 {21}) — the size stays 0, no emission.
+The CARVE BEHAVIOR of the landed nine-version gate is correct (AC1009
+declines either way); the MECHANISM prose is wrong: AC1009 is
+tier-1-accepted-but-walk-declined, not tier-1-rejected. The correction
+lands as: the comment re-truthed (ten entries, the AC1009
+tier-1/walk-split recorded), and the seat-holder's
+`DwgVersionGateIsTheOgsNine` test re-named to what it actually proves
+(the gate matches the og's three generation tables; AC1009 declines
+through them).
+
+The AC1009 tier-1 acceptance has one consequence worth recording for
+future censuses: the og's magic-key registry census (the
+analyser-registry doc's DWG row) derives from the TIER-1 table, so any
+future count of "DWG versions the og recognizes" must say TEN, with the
+carve-effective set being the nine (the walk's three tables).

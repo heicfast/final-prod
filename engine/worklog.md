@@ -12936,6 +12936,65 @@ finding (it is the OR-shape of the two walks this engine already runs, a
 future refinement, not a parity break: both og sites borrow the same hint
 bits and validate through the same FUN_180012c00 class).
 
+## Session 93 — entry 0 (renumbered from the born-collided S86 seat per SA-9 — the remote's S86 lane holds that seat): the lane opened (the user's mandate continuation)
+
+Opened at core `e2b850d4` (the S84/S85 window's close tree), corpus `be0cfe9`
+throughout (read-only guarantee held). The audit read in full: SUMMARY board
+**8 MAJOR (M-075 M-078 M-086 M-087 M-089 M-101 M-105 M-107) · 2 MINOR (N-107
+N-127) · 0 INFO active / 200 FIXED / 4 tracked-open** — of the open MAJORs,
+M-086/M-087/M-089 + the MINORs are driver-repo-resident (OQ-S10-3's boundary,
+out of the two-repo grant). The queue (the S84 lane's recorded plan, continued):
+M-107's remaining members (DWG → WPG → WPD → PSP → SIT → APE → EPS → DXF →
+SWF-RECT), then M-075 (chkdsk launch), M-078 (BitLocker turn-off), M-101
+(Versions + Tags branches), M-105 (DRWService option a), the four OQs. Baseline
+at the open, first-hand: build green, **cr_tests 1571/1571 + cr_ui_tests
+89/89 + abi_check OK + win_syntax OK** (1662 total, sharded 4-way on the
+2-core container). The session prompt saved token-redacted
+(worklog/session-diff-fix-s86-prompt.md). Toolchain note: cmake/ninja/clang-
+format 18.1.8 pip-installed in-session (the container ships none of the
+three); objdump (binutils 2.44) present for the raw-asm decodes.
+
+## Session 93 — entry 1: the DWG convergence CONCEDED to the racing window per SA-9 (the lane's independent decode + 8-test battery unpushed at the window's discovery); the census rider carried
+
+**Conceded — convergent, not lost.** The lane's decode (the og's walk read first-hand from the corpus raw asm
+(objdump over og-codebase/RAWSearchDLL.dll; the chunk callback FUN_18002f320
++ the factory FUN_18002ff20 pinning the cursor init 0x15). Two generations
+landed: the R13-R2000 section-locator walk (count u32@+0x15; 9-byte records
+{id, seek@+1, size@+5} from +0x19; extent = max(seek+size); the FULL-WIDTH
+id-index compare — a u8 can never match index ≥ 256, so a table past record
+255 declines at 256; id-mismatch = the zero-size decline; torn = the
+walked-prefix salvage) and the R2004+ security-header walk (the 0x6c bytes at
++0x80 decrypted with the MSVC rand() keystream, state 1; the field gates
+{+0x0B==0, qword@+0x10==0x000000040000006c, +0x44==0x20, +0x48==0x80,
++0x4c==0x40}; extent = qword@+0x34 + 0x6c). AC1009 (tier-1-accepted,
+walk-less) and the old row's bogus "30" version now decline — the og's exact
+family sets. The dead sentinel check removed (no og walk reads it). AC1021's
+0x3d8-byte FUN_18002fc50 R2007 cipher walk is the NAMED REMAINDER (the fix
+plan's honest-remainder clause; the stand-in stays for that generation only,
+its note names it). The push rebase found the racing window (S84-S92, 101
+commits) already holding the seat (`ddab68b4` + the `f7e49eaf` gen-2
+offset repair + the `d35e1cbb` riders — every decode point agreeing);
+this lane's code and tests conceded at the merge. The unique carry —
+THE CENSUS RIDER — landed: the seat-holder's "exactly these nine"
+tier-1 prose corrected to the TEN-entry truth (`0x39303031` at
+0x18002feae = the AC1009 entry; the `cmp edx,0xa` loop bound — indices
+0..9): AC1009 is tier-1-ACCEPTED (result id 0x18 stamped) and
+WALK-DECLINED (no generation table matches, size 0). The carve behavior
+was already correct; the comment re-truthed, the
+`DwgVersionGateMatchesTheOgsGenerationTables` test re-named (from
+`DwgVersionGateIsTheOgsNine`), the matrix rider row + the M-107 S93
+addendum carry the evidence. The lane's own battery (RED-verified at
+the stand-in tree pre-discovery) recorded here as the convergence
+proof. Tests (this lane's, conceded as duplicates of the seat's):
+DwgSectionLocatorWalkCarvesTrueEnd / DwgRecordIdMismatchDeclines /
+DwgTornTableSalvagesTheWalkedPrefix / DwgHugeCountDeclinesAtRecord256 /
+DwgZeroRecordCountDeclines / DwgR2004SecurityHeaderWalkCarvesTrueEnd /
+DwgR2004HeaderChecksDecline / DwgAc1009AndUnlistedVersionsDecline.
+Trail: the finding's S86 addendum + the matrix's member-3 MATCH row +
+this entry. Corpus: RAWSearchDLL.dll raw asm (FUN_18002f320 / FUN_18002f630 /
+FUN_18002fe30 / FUN_18002ff20), first-hand. Remaining M-107 members: WPG →
+WPD → PSP → SIT → APE → EPS → DXF → SWF-RECT.
+
 ---
 
 ## Session-84 — entry 4 (this lane): the ledger collision repair — the gate red eb1b4e35 carried (2026-10-30)
@@ -13695,3 +13754,23 @@ narrowing analogue — pre-existing int->size_t sign sites at :569/:589/:729-734
 left untouched: C4365 is /Wall-only, not /W4); clang-format 18.1.8 (the CI
 pin) clean on all four files. The MSVC lane's green build is the final
 compile proof for the Windows-only rrecov.cpp.
+
+## Session 93 — entry 2: N-229 FIXED (the red-main repair at the merge-build: origin/main's tip carried a duplicate test definition)
+
+**N-229 (MINOR, NEW — filed+fixed this push).** The merge-build of the
+racing window failed: `tests/unit/test_carve.cpp` at origin/main
+`ddbab2a1` carries `TEST(Carve, WpdZeroSizeFieldDeclines)` TWICE — the
+S87 version-table battery's copy (:3438) and the S91 rider block's
+(:3616). gtest's TEST macro expands each name to a class; the second
+definition is a gcc redefinition error (exit 2) — cr_tests unbuildable
+at the remote tip, zero tests runnable there. The racing window's own
+dedupe (the S90 lane's `fce46d98`) dropped its two WPD rider
+duplicates but missed this one — the N-210 gate-skipping class's ninth
+recurrence: a lane pushed without rebuilding the pulled head. Fix: the
+S91 duplicate block removed (24 lines; its unique sibling
+`WpdZeroProductWordWithGoodPairCarves` — the +4-product-word retirement
+pin — kept; the S87 seat's test holds). RED first-hand (the gcc
+redefinition error at the merge-build) → GREEN (build 100%; the DWG
+battery + the full carve suite green; the repo-wide duplicate-name
+sweep over every test file clean). Trail: findings/FIXED/N-229 + the
+ledger row + the SUMMARY block + this entry.

@@ -4587,8 +4587,20 @@ CarveResult validate_dwg(IStorageDevice* s, u64 hit, u64 cap) {
         return r;
     if (std::memcmp(v, "AC10", 4) != 0)
         return r;
-    /* the og's tier-1 table (FUN_18002fe30 :36766-36794): exactly these
-     * nine. The S-007 landing carried "30" (AC1030 - not a real DWG
+    /* the carve-effective version gate. The og's tier-1 table
+     * (FUN_18002fe30) carries TEN entries - the raw asm's tenth is
+     * AC1009 (`mov DWORD PTR [rbp-0x18],0x39303031` at 0x18002feae;
+     * the loop bound `cmp edx,0xa; jl` at 0x18002fede - indices 0..9;
+     * the S93 convergence rider over this landing's earlier "exactly
+     * nine" prose). AC1009 is tier-1-ACCEPTED (the result id 0x18 is
+     * stamped) but WALK-DECLINED: FUN_18002f320 matches no generation
+     * table (gen-1 {12,13,14,15} / gen-2 {18,24,27,32} / gen-3 {21})
+     * and the size stays 0 - no emission. So the carve-effective set is
+     * the nine below (AC1009 declines through the same walk that
+     * declines every other unlisted version, and the behavior is
+     * byte-identical to a tier-1 reject); the census truth (ten
+     * recognized, nine carve-effective) lives in M-107's S93 addendum.
+     * The S-007 landing also carried "30" (AC1030 - not a real DWG
      * release) and lacked "13" (AC1013 = R13) - corrected here. The og
      * has NO sentinel check (the version table is the whole gate). */
     static const char* kVersions[] = {"12", "13", "14", "15", "18", "21", "24", "27", "32"};

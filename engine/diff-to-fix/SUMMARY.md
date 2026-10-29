@@ -1,3 +1,53 @@
+# SUMMARY.md — executive summary (the S93 fix lane on top; the prior lanes below, newest-first)
+
+## Session-93 S93 fix-lane delta (2026-10-30 — the user's fix mandate continuation ["fix all the audit findings (priority to major first) one by one... Aim for atleast 20+ fixes in this session, dont stop before that"]; born S86 at core `e2b850d4`, re-homed S86 → S93 at the push rebase per SA-9 — the racing windows took S85/S86/S88 first, the remote's S86 lane holds that seat; corpus `be0cfe9` throughout; baseline suite green re-run first-hand at the open [cr_tests 1571/1571 + cr_ui 89/89 + abi OK + win_syntax OK])
+
+- **The DWG convergence conceded per SA-9 — with the convergence itself
+  the verification record.** This lane independently decoded M-107's
+  DWG member end-to-end (gen-1's section-locator walk: count u32@+0x15,
+  9-byte records {id==index FULL-WIDTH, seeker@+1, size@+5}, the running
+  max, the id-mismatch zero-size decline, the torn walked-prefix
+  salvage; gen-2's rand()-XOR security header: the +0x80 offset repair,
+  the six field gates, qword@+0x34 + 0x6c; the AC1009 walk-split; the
+  phantom "30"/missing "13" corrections; the dead sentinel removal)
+  and built an eight-test battery + the S-007 plant re-pin — the push
+  rebase found the racing window (S84-S92, 101 commits) already holding
+  every seat (`ddab68b4` + `f7e49eaf` + `d35e1cbb` + the S87 WPD/DXF/
+  EPS/AI landings + M-075/M-078/M-101/M-105 + the OQ-S79-1 resolution).
+  Conceded; the two independent instruction-level decodes agreeing on
+  every material point is recorded in M-107's S93 addendum.
+- **The unique carry (the census rider, landed):** the seat-holder's
+  code comment + matrix row + `DwgVersionGateIsTheOgsNine` test name
+  claim the og's tier-1 table is "exactly nine" versions — the raw asm
+  proves TEN (`mov DWORD PTR [rbp-0x18],0x39303031` at 0x18002feae =
+  the AC1009 entry; the loop bound `cmp edx,0xa; jl` at 0x18002fede —
+  indices 0..9). The og's tier-1 ACCEPTS AC1009 (stamps the result id
+  0x18) and the WALK declines it (no generation table matches; the size
+  stays 0). The carve behavior of the landed nine-version gate was
+  already correct; the mechanism prose is re-truthed and the test
+  re-named to what it actually proves (the gate matches the og's three
+  generation tables; AC1009 declines through them).
+
+- **N-229 FIXED (MINOR, NEW — filed+fixed this push, the red-main
+  repair):** origin/main was RED at the racing window's tip
+  `ddbab2a1` — the S91 rider block's `WpdZeroSizeFieldDeclines`
+  duplicated the S87 battery's identical-name test (gtest's TEST macro
+  class redefinition, gcc exit 2, 0 tests runnable there; the window's
+  own convergence dedupe caught the other duplicates but missed this
+  one — the gate-skipping class's NINTH occurrence). The duplicate
+  removed (its unique sibling kept), the repo-wide duplicate-name sweep
+  clean, the build + the carve suite green.
+
+**Board after this merge + the N-229 repair (filesystem truth, at the
+S93 push): 0 ACUTE · 0 SEVERE · 4 MAJOR (M-086 M-087 M-089
+[driver-repo-resident per OQ-S10-3] + M-107 [SIT/APE/SWF-RECT
+remaining]) · 3 MINOR · 0 INFO active / 210 FIXED / 3 tracked-open.**
+Next free IDs: S-069+, M-160+, N-230+, I-050+, A-017+, D-167+. The S93
+lane's queue: M-107's SIT → APE → SWF-RECT members, then the
+tracked-open dispositions' re-verification.
+
+---
+
 # SUMMARY.md — executive summary (the S86 fix lane on top: M-105 landed under option (a); the prior lanes below, newest-first)
 
 ## Session-89 S86 fix-lane delta (2026-10-30 — the user's fix mandate continuation ["fix all the audit findings (priority to major first) one by one, with full context... update and put fixed findings in fixed directory... Aim for atleast 20+ fixes in this session"]; opened at core `32441353`, pulled through SIX racing windows (the windows landed M-107's DWG + PSP + WPG + WPD + DXF/EPS/AI members, M-075, M-078, M-159, N-223/N-224/N-225, the D-163..D-165 renumber wave); this lane's DWG landing CONCEDED to the racing window per SA-9 with two convergence riders carried; the S86 seat held (the racing window's own records renumbered onward in deference); corpus `be0cfe9` throughout)

@@ -824,6 +824,22 @@ The carve surface's size-walk residue now has owners:
 - **S-041** closed FIXED-as-umbrella (retired to history; the FIXED-LEDGER row
   carries the closure record).
 
+## S93 fix-lane addendum (2026-10-30 — renumbered from the born-collided S86 seat; the DWG convergence conceded per SA-9, the census rider carried)
+
+- **The concession:** this lane's independent DWG decode (gen-1
+  section-locator walk + gen-2 rand()-XOR security header — both
+  raw-asm first-hand) and its eight-test battery conceded to the racing
+  window's earlier landing (`ddab68b4`/`f7e49eaf`/`d35e1cbb`); the two
+  decodes agree on every material point. The current per-member state
+  (the remote window's S85/S87/S89/S90 sections below) is authoritative.
+- **The census rider (landed):** the seat-holder's "exactly these nine"
+  tier-1 prose corrected — the og's tier-1 table (FUN_18002fe30) is TEN
+  entries (`0x39303031` at 0x18002feae = AC1009; the `cmp edx,0xa` loop
+  bound): AC1009 tier-1-accepted, walk-declined (no generation table
+  matches — the size stays 0). The carve behavior was already correct;
+  the comment + the `DwgVersionGateMatchesTheOgsGenerationTables` test
+  name (re-named from `DwgVersionGateIsTheOgsNine`) now carry the truth.
+
 ## Session-11D fix lane (2026-10-29 — A-012, DISCOVERED during S-051's verification: the registry row restore)
 
 - **A-012 (ACUTE)** — the 81ee9775 rebase-window conflict sweep (the

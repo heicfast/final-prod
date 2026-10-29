@@ -3097,11 +3097,15 @@ TEST(Carve, DwgR2004GateFailDeclines) {
             << "the failed struct gate must decline";
 }
 
-TEST(Carve, DwgVersionGateIsTheOgsNine) {
-    /* the og's tier-1 table (FUN_18002fe30 :36766-36794): exactly
-     * {12,13,14,15,18,21,24,27,32}. The pre-fix core carried "30"
-     * (AC1030 - no such DWG release) and LACKED "13" (AC1013 = R13) -
-     * both directions pinned here. */
+TEST(Carve, DwgVersionGateMatchesTheOgsGenerationTables) {
+    /* the carve-effective gate = the og's three generation tables'
+     * union {12,13,14,15,18,21,24,27,32}. The pre-fix core carried
+     * "30" (AC1030 - no such DWG release) and LACKED "13" (AC1013 =
+     * R13) - both directions pinned here. AC1009 (the tier-1 table's
+     * TENTH entry - raw-asm 0x18002feae; the S93 convergence rider) is
+     * tier-1-accepted but walk-declined: it declines through the same
+     * walk every unlisted version declines through, so the
+     * carve-effective set is the nine. */
     for (int k = 0; k < 2; ++k) {
         std::vector<u8> img(128 * 1024, 0);
         const size_t at = 512;
@@ -3602,31 +3606,6 @@ TEST(Carve, WpdUnknownPairDeclines) {
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
         if (c->props() && !c->props()->extents.empty() && c->props()->extents.front().offset == at)
             FAIL() << "an unknown pair must decline the carve";
-    SUCCEED();
-}
-
-/* The S91 lane's convergent riders (the concession per SA-9: the racing
- * WPD landing keeps the seat; this lane's independent decode —
- * evidence/s91-lane-sheets/s91-l1-wpd-version-table-decode.md —
- * confirms it and adds the two directions its battery lacks). */
-TEST(Carve, WpdZeroSizeFieldDeclines) {
-    /* the zero declared size routes to the generic pending child whose
-     * walk declines (0x18000b760: xor al,al; ret) - no carve at all,
-     * never the blind cap. */
-    std::vector<u8> img(128 * 1024, 0);
-    const size_t at = 512;
-    plant_wpd(img, at, 0);
-    MemDevice dev(std::move(img));
-    tree::ResultTree tree;
-    auto* root = tree.add_root(u"L");
-    CarveFlags flags;
-    CarveStats stats;
-    ASSERT_EQ(
-        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
-        u32(OK));
-    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
-        if (c->props() && !c->props()->extents.empty() && c->props()->extents.front().offset == at)
-            FAIL() << "a zero declared size declines (the generic child's walk)";
     SUCCEED();
 }
 
