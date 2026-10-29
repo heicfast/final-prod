@@ -9593,3 +9593,27 @@ reverted, GREEN with them landed); NTFS family 158/158; doc_truth_gate green
 PARITY-DELTAS (the NTFSLib :19322/:19331 "rejection" was a store-guard
 misread — both paths share the fall-through exit). Trail:
 findings/FIXED/M-147 + ledger row + D-52 correction + this entry.
+
+
+---
+
+**Session-63 S63 lane — the diff-to-fix execution lane (2026-10-29).**
+
+- **Lane open record:** the parallel hot window absorbed (the first local
+  M-147 landing reset in favor of the remote S62 lane's convergent
+  `b09b46c8` per SA-9 — this lane's independent first-hand verification of
+  all four og default sites [FUN_180004830 :3427-3440, FUN_180004870
+  :3443-3456, NTFSSearchDLL FUN_18003f630 :51055-51072, PartitionRecoveryD
+  FUN_180011a10 :10231-10247 + FUN_180011a90 :10254-10268] and the
+  NTFSLib store-guard structure [:19292-19353, the zero paths share the
+  LAB_18001683f cleanup exit] CONFIRMED their reading — convergence
+  recorded, no duplicate code). Opening HEAD `9b92e3d9`, corpus `be0cfe9`;
+  baseline suite 1392/1350+42sk/0-fail; doc_truth_gate green. Board at
+  open: 1 SEVERE [S-040] · 20 MAJOR · 15 MINOR · 0 INFO / 148 FIXED /
+  4 tracked-open. Prompt saved (token redacted) at
+  `worklog/session-diff-fix-s63-prompt.md`.
+- **Lane plan (collision-aware):** S-040 first (the only SEVERE,
+  unclaimed), then the bounded MAJORs outside the S62 lane's claimed
+  family (M-142 is theirs per their worklog): M-140, M-143, M-144, M-146,
+  M-136, M-135, M-073, M-075, M-078, M-101, then the decision-class
+  M-105/M-111/M-114, the remaining MINORs, and the tracked-open items.
