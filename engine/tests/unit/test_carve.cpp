@@ -8337,6 +8337,16 @@ TEST(CarveStats, UserSignFilesCountInCarvedFound) {
     EXPECT_EQ(2u, count_tagged(root, 0xFFFE0000u));
     EXPECT_EQ(2u, st.validated) << "user-sign files count in the carved headline";
     EXPECT_EQ(2u, st.sign_hits) << "the channel's own counter still ticks";
+
+    /* S-055-hygiene teardown (the S52-B window repair): clear the
+     * per-process registry - a leaked sign re-matches in every later
+     * carve test (the window's first landing leaked the default set's
+     * lha sign "2,2D6C68", which re-matched the LZH wrong-dash fixture
+     * at +2 and turned Carve.LzhWrongDashByteRejects red). */
+    carve::usersigns::UserSignSet teardown{};
+    teardown.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
 }
 
 TEST(UserSigns, ParseOgShippedExtremes) {
@@ -8495,6 +8505,16 @@ TEST(UserSigns, RegistrationRoundTripProceedsToScan) {
             EXPECT_EQ(std::u16string(u"application/zip"), c->props()->carve_note);
         }
     }
+
+    /* S-055-hygiene teardown (the S52-B window repair): clear the
+     * per-process registry - a leaked sign re-matches in every later
+     * carve test (the window's first landing leaked the default set's
+     * lha sign "2,2D6C68", which re-matched the LZH wrong-dash fixture
+     * at +2 and turned Carve.LzhWrongDashByteRejects red). */
+    carve::usersigns::UserSignSet teardown{};
+    teardown.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
 }
 
 TEST(UserSigns, ShortFragmentMatchesInCore) {
@@ -8530,6 +8550,16 @@ TEST(UserSigns, ShortFragmentMatchesInCore) {
     carve::usersigns::UserSignSet zset;
     ASSERT_EQ(OK, carve::usersigns::parse(zip_json, std::strlen(zip_json), zset));
     ASSERT_EQ(OK, carve::usersigns::install_set(std::move(zset)));
+
+    /* S-055-hygiene teardown (the S52-B window repair): clear the
+     * per-process registry - a leaked sign re-matches in every later
+     * carve test (the window's first landing leaked the default set's
+     * lha sign "2,2D6C68", which re-matched the LZH wrong-dash fixture
+     * at +2 and turned Carve.LzhWrongDashByteRejects red). */
+    carve::usersigns::UserSignSet teardown{};
+    teardown.valid = true;
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(teardown)));
+    ASSERT_EQ(0u, carve::usersigns::active_count());
 }
 
 TEST(UserSigns, DefaultSetShipsAndLoads) {

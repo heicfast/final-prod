@@ -211,6 +211,10 @@ namespace {
 struct Volume {
     IStorageDevice* dev = nullptr;
     SuperBlock sb;
+    /* S-065: the cooperative-cancel handle for every volume-bound walk
+     * (the indirect-block ladder consults it per indirection block; set
+     * by scan_ext4, testable directly on a hand-built Volume). */
+    CancelToken* cancel = nullptr;
 
     /* S-027: when the volume was adopted from a BACKUP superblock found
      * at slice byte X, all volume-relative block numbers must be offset
@@ -435,35 +439,81 @@ bool read_inode(Volume& v, u32 ino, InodeView& iv) {
         if (!walk_extent_node(v, node.data(), depth, budget, iv.extents, 0))
             iv.extents_ok = false;
     } else if (ifmt(iv.mode) == 0x8000 || ifmt(iv.mode) == 0x4000) {
-        /* ext2/3 indirect blocks: single + double indirection (files < 64KiB
-         * are fully direct; larger get the classic ladder) */
+        /* ext2/3 indirect blocks. S-065: the og's ladder is bounded by the
+         * FILE'S LOGICAL SIZE (EXT4SearchDLL FUN_180005490 :3952-3954 - the
+         * `param_4 <= lVar9` break; the loop advances lVar9 by block_size
+         * and never translates a logical block at/after EOF, whatever the
+         * stale pointer blocks hold; the content loop FUN_1800068b0
+         * :5021-5024 carries the same `lVar16 < size` bound) and merges
+         * physically-contiguous blocks into extents as it goes (the
+         * :3986-3996 merge branch - the vector grows by physical-run
+         * count, not by pointer count). The pre-fix ladder recursed over
+         * EVERY nonzero pointer with no size bound, no budget, and no
+         * cancel consultation - a single stale triple-indirect pointer at
+         * a self-referential block drove per_block^3 block reads and
+         * extents (freeze/OOM at 4 KiB blocks: ~1.07e9 reads, ~17 GB of
+         * extents). */
         const u32 per_block = v.sb.block_size / 4;
         const u32 direct = 12;
-        for (u32 i = 0; i < direct; ++i) {
-            const u32 b = le32(raw + I_BLOCK + u32(i) * 4);
-            if (b == 0)
-                continue;
-            const u64 off = u64(b) * v.sb.block_size;
-            if (off + v.sb.block_size <= v.total_bytes())
+        /* the logical-block ceiling for the whole walk: ceil(size / bs).
+         * A zero-size stale inode walks nothing (the og's param_4 == 0
+         * breaks the translation loop immediately). */
+        const u64 size_blocks = iv.size == 0 ? 0 : (iv.size - 1) / v.sb.block_size + 1;
+        /* per-inode extent budget: the :426 P1-11 budget's ladder analog -
+         * defense-in-depth on the merged-extent vector beyond the og's
+         * size bound (registered as hardening, not og-parity). */
+        constexpr size_t kLadderExtentBudget = 65536;
+        /* emit one block, merging with the previous extent when
+         * physically contiguous (the og's observable output shape).
+         * Returns false when the budget is exhausted. */
+        auto emit_block = [&](u32 block_no) -> bool {
+            const u64 off = u64(block_no) * v.sb.block_size;
+            if (off + v.sb.block_size > v.total_bytes())
+                return true; /* out of volume: not emitted (the pre-fix
+                                behavior preserved) */
+            if (!iv.extents.empty() && iv.extents.back().offset + iv.extents.back().length == off) {
+                iv.extents.back().length += v.sb.block_size;
+            } else if (iv.extents.size() < kLadderExtentBudget) {
                 iv.extents.push_back({off, v.sb.block_size});
+            } else {
+                return false;
+            }
+            return true;
+        };
+        /* direct blocks: logical 0..min(direct, size_blocks) */
+        for (u32 i = 0; i < direct && u64(i) < size_blocks; ++i) {
+            const u32 b = le32(raw + I_BLOCK + u32(i) * 4);
+            if (b != 0 && !emit_block(b))
+                break;
         }
-        std::function<bool(u32, u32, std::vector<Extent>&)> read_ladder =
-            [&](u32 indirection_block, u32 levels, std::vector<Extent>& out) -> bool {
-            if (levels == 0 || indirection_block == 0)
-                return true;
+        /* the indirect ladder: logical-order walk, subtree-pruned at EOF.
+         * logical_start = the first logical block the subtree covers; one
+         * child pointer at `levels` covers per_block^(levels-1) blocks. */
+        std::function<bool(u32, u32, u64)> read_ladder = [&](u32 indirection_block, u32 levels,
+                                                             u64 logical_start) -> bool {
+            if (levels == 0 || indirection_block == 0 || logical_start >= size_blocks)
+                return true; /* the whole subtree is at/after EOF - the
+                                og's `param_4 <= lVar9` break */
+            if (v.cancel && v.cancel->cancelled())
+                return false; /* S-065: cancel honored inside the walk */
             std::vector<u8> blk(size_t(v.sb.block_size));
             if (v.dev->read_at(v.base + u64(indirection_block) * v.sb.block_size, blk.data(),
                                u32(blk.size())) != OK)
                 return false;
+            const u64 child_width =
+                levels == 1 ? 1 : (levels == 2 ? u64(per_block) : u64(per_block) * per_block);
             for (u32 i = 0; i < per_block; ++i) {
+                const u64 logical = logical_start + u64(i) * child_width;
+                if (logical >= size_blocks)
+                    break; /* this and every later pointer is past EOF
+                              (the og's linear-order stop) */
                 const u32 b = le32(blk.data() + u64(i) * 4);
                 if (b == 0)
                     continue;
                 if (levels == 1) {
-                    const u64 off = u64(b) * v.sb.block_size;
-                    if (off + v.sb.block_size <= v.total_bytes())
-                        out.push_back({off, v.sb.block_size});
-                } else if (!read_ladder(b, levels - 1, out)) {
+                    if (!emit_block(b))
+                        return false; /* budget exhausted */
+                } else if (!read_ladder(b, levels - 1, logical)) {
                     return false;
                 }
             }
@@ -473,8 +523,18 @@ bool read_inode(Volume& v, u32 ino, InodeView& iv) {
         (void)direct;
         for (u32 lvl = 1; lvl <= 3; ++lvl) {
             const u32 b = le32(raw + I_BLOCK + (11 + lvl) * 4);
-            if (b != 0)
-                (void)read_ladder(b, lvl, iv.extents);
+            if (b == 0)
+                continue;
+            /* the ladder levels cover logical blocks from `direct` up:
+             * lvl 1 at 12, lvl 2 at 12+per_block, lvl 3 after that. */
+            const u64 start =
+                lvl == 1 ? u64(direct)
+                         : (lvl == 2 ? u64(direct) + per_block
+                                     : u64(direct) + per_block + u64(per_block) * per_block);
+            if (start >= size_blocks)
+                continue; /* past EOF: nothing to walk at this level */
+            if (!read_ladder(b, lvl, start))
+                break;
         }
     }
     return true;
@@ -661,6 +721,7 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
     u8 sb[1024];
     const bool primary_read_ok = slice->read_at(1024, sb, sizeof(sb)) == OK;
     Volume v;
+    v.cancel = cancel; /* S-065: every volume-bound walk can honor it */
     bool primary_valid = primary_read_ok && validate_superblock(sb, v.sb);
     if (!primary_valid) {
         /* S-027: a destroyed/damaged primary superblock is exactly the og's

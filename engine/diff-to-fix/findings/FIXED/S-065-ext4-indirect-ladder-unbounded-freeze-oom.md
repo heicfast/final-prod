@@ -90,3 +90,38 @@ Core side: full read of `read_inode`/`read_ladder` at `34d6cf10` (quoted above);
 ## Open questions
 
 None — the decode is complete on both sides. Implementation choice only: size-bound alone (og-exact) vs. size-bound + budget cap (defense-in-depth); the recommendation is both, with the budget registered as hardening.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** `<this push>` (the S56 ACUTE-first lane, 2026-10-29)
+**Verified by:** fail-before/pass-after on all four tests:
+`Ext4Engine.PoisonDoubleIndirectBoundedBySize` (RED: 273 device reads vs the
+control's 15 — the unbounded walk reproduced; GREEN: reads == control),
+`Ext4Engine.PoisonTripleIndirectBoundedBySize` (RED: the capped counting
+device hit its 3000-read cap — the ~65k-read pre-fix walk blown past it;
+GREEN: reads == control), `Ext4Engine.StaleIndirectCancelResponsive` (RED:
+257 reads of the poison block after the token flipped; GREEN: ≤ 1),
+`Ext4Engine.ContiguousPhysicalBlocksMergedToSingleExtent` (RED: 4 separate
+extents; GREEN: 1 merged {21*BS, 4*BS}). Full ext4 family 42/42; full suite
+green post-landing.
+**Resolution notes:** CONFIRMED-DIVERGENCE, corpus re-verified first-hand
+before fixing: FUN_180005490's `if ((iVar2 == 0) || (param_4 <= lVar9))
+break;` at :3952-3954 (the loop advances lVar9 by block_size and never
+translates a logical block at/after EOF) and the contiguous-merge branch at
+:3986-3996 both re-read in the corpus decompile; FUN_1800068b0's
+`lVar16 < size` content bound confirmed. The fix is the finding's plan
+(both options, per its own recommendation): (1) the ladder is bounded by
+`ceil(i_size / block_size)` — the direct loop stops at `size_blocks` and
+the ladder's `read_ladder(indirection_block, levels, logical_start)`
+prunes any subtree whose logical start is at/after EOF, with the per-pointer
+`logical >= size_blocks` break giving the og's linear-order stop (a
+zero-size stale inode walks nothing, matching param_4 == 0); (2) the
+per-inode `kLadderExtentBudget = 65536` caps the merged-extent vector
+(registered as defense-in-depth beyond the og, not og-parity); (3) the
+cancel token is consulted at every indirection-block boundary (the Volume
+context gains `cancel`, set by scan_ext4); (4) the og's
+physically-contiguous merge adopted in `emit_block` (the vector grows by
+physical-run count). A parallel hot-window artifact repaired en route: the
+test file's doubled namespace closure + a stray orphan brace (the M-133
+class). No safety hardening touched — the budget IS the hardening.
