@@ -3636,9 +3636,14 @@ size_t plant_psp(std::vector<u8>& img, size_t at) {
 size_t plant_sit(std::vector<u8>& img, size_t at, size_t bytes = 20480) {
     /* N-093: the og's SIT floor is 20,480 bytes (SITRawFileInfo :16886-92) -
      * the plant grew from the 32-byte magic stub to the real minimum so the
-     * fixture exercises the og's own acceptance boundary. */
-    if (bytes < 7)
-        bytes = 7; /* the magic itself is 7 bytes; every real call far exceeds it */
+     * fixture exercises the og's own acceptance boundary.
+     * M-107 (the SIT member): the og's acceptance is "Stuf"+"fI"+'t' with
+     * byte[7] in {' ', '!'}; the '!' form's size walk is the entry-marker
+     * search (extent = marker + 8 + stride). The plant carries the '!' form
+     * with the 0x19-stride marker at bytes-12 so the walked extent lands
+     * exactly at the planted length. */
+    if (bytes < 24)
+        bytes = 24; /* the magic (8) + the marker (8) + the stride (4) + slack */
     img[at] = 'S';
     img[at + 1] = 't';
     img[at + 2] = 'u';
@@ -3646,7 +3651,19 @@ size_t plant_sit(std::vector<u8>& img, size_t at, size_t bytes = 20480) {
     img[at + 4] = 'f';
     img[at + 5] = 'I';
     img[at + 6] = 't';
-    for (size_t i = 7; i < bytes; ++i)
+    img[at + 7] = '!'; /* the FileSITAnalyser's own gate (raw-asm 0x180044a93) */
+    for (size_t i = 8; i < bytes - 12; ++i)
+        img[at + i] = u8((i * 7) & 0xFF); /* archive-ish body, marker-free */
+    const size_t m = at + bytes - 12;
+    img[m] = 0x02;
+    img[m + 1] = 0xD7;
+    img[m + 2] = 0x0A;
+    img[m + 3] = 0x19; /* the stride-4 form */
+    img[m + 4] = 0x98;
+    img[m + 5] = 0xF6;
+    img[m + 6] = 0x42;
+    img[m + 7] = 0x88;
+    for (size_t i = bytes - 4; i < bytes; ++i)
         img[at + i] = u8(i & 0xFF);
     return bytes;
 }
@@ -10696,6 +10713,170 @@ TEST(Carve, SitMinimumIsTheOgFloor) {
             EXPECT_EQ(all.size(), 0u) << "a sector under the og's 20,480 floor must reject";
         }
     }
+}
+
+/* ---- M-107: the SIT member — the FileSITAnalyser entry-marker walk ---- */
+
+TEST(Carve, SitEntryMarkerWalkSetsExtent) {
+    /* The og's '!' form walk (FUN_180044a10, raw-asm): the extent is the
+     * entry marker's position + 8 + stride — NOT the blind 64 MiB stand-in.
+     * A 32 KiB true end on a 100 MiB device: the stand-in carved 64 MiB. */
+    std::vector<u8> img(100ull << 20, 0);
+    const size_t at = 512;
+    const size_t marker_rel = 32768 - 12;
+    plant_sit(img, at, 32768);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                          stats),
+              u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    ASSERT_EQ(all.size(), 1u);
+    EXPECT_EQ(all[0]->props()->carve_format, FMT_SIT);
+    EXPECT_EQ(all[0]->props()->logical_size, size_t(marker_rel + 8 + 4));
+}
+
+TEST(Carve, SitMarkerStrideTable) {
+    /* The stride table (raw-asm 0x180044cab-0x180044cd2): XX == 0x19 -> 4,
+     * XX == ';' (0x3b) -> 5, anything else -> 6 — three extents off the
+     * same marker position. */
+    for (int form = 0; form < 3; ++form) {
+        std::vector<u8> img(1ull << 20, 0);
+        const size_t at = 512;
+        const size_t bytes = 40960;
+        plant_sit(img, at, bytes);
+        const u8 xx = form == 0 ? 0x19 : (form == 1 ? 0x3b : 0x10);
+        const u64 stride = form == 0 ? 4 : (form == 1 ? 5 : 6);
+        img[at + bytes - 12 + 3] = xx;
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
+                  u32(OK));
+        std::vector<tree::FileNode*> all;
+        collect_children(root, all);
+        ASSERT_EQ(all.size(), 1u) << "form " << form;
+        EXPECT_EQ(all[0]->props()->logical_size, size_t(bytes - 12 + 8 + stride))
+            << "form " << form;
+    }
+}
+
+TEST(Carve, SitNewHeaderAtSectorBoundaryEndsTheWalk) {
+    /* The new-header gate (raw-asm 0x180044bef-0x180044c10): a following
+     * archive's header at a 512-byte boundary ends this one's extent there
+     * — even with no entry marker in between (the torn-within-bounds case
+     * that the blind stand-in never honored). The second header is itself
+     * a carve candidate; the pin is on BOTH extents. */
+    std::vector<u8> img(8ull << 20, 0);
+    const size_t at = 512;
+    plant_sit(img, at, 65536); /* the marker rides at 65524: beyond the boundary */
+    /* a second "StuffIt!" at the 512-aligned offset 32768 (relative) */
+    const size_t second = at + 32768;
+    img[second] = 'S';
+    img[second + 1] = 't';
+    img[second + 2] = 'u';
+    img[second + 3] = 'f';
+    img[second + 4] = 'f';
+    img[second + 5] = 'I';
+    img[second + 6] = 't';
+    img[second + 7] = '!';
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                          stats),
+              u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    ASSERT_EQ(all.size(), 2u);
+    for (tree::FileNode* n : all) {
+        ASSERT_FALSE(n->props()->extents.empty());
+        if (n->props()->extents.front().offset == at) {
+            EXPECT_EQ(n->props()->logical_size, size_t(32768))
+                << "the first archive's extent ends at the new header's boundary";
+        }
+    }
+}
+
+TEST(Carve, SitCorruptEntryTerminalStampsTheSectorStart) {
+    /* The corrupt-entry terminal (raw-asm 0x180044ca9): a 3-byte prefix
+     * hit whose +4 u32 mismatches ends the walk at the 512-aligned sector
+     * start containing the broken marker. */
+    std::vector<u8> img(1ull << 20, 0);
+    const size_t at = 512;
+    const size_t bytes = 40960;
+    plant_sit(img, at, bytes);
+    /* break the planted marker's +4 u32 (leave the 3-byte prefix) */
+    img[at + bytes - 12 + 4] = 0x00;
+    img[at + bytes - 12 + 5] = 0x00;
+    img[at + bytes - 12 + 6] = 0x00;
+    img[at + bytes - 12 + 7] = 0x00;
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                          stats),
+              u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    ASSERT_EQ(all.size(), 1u);
+    const size_t corrupt_at = bytes - 12;
+    EXPECT_EQ(all[0]->props()->logical_size, size_t(corrupt_at & ~size_t(511)));
+}
+
+TEST(Carve, SitByteSevenOutsideTheWindowIsRefused) {
+    /* The acceptance defect: the og's processor gate (raw-asm
+     * 0x180015df3: byte[7] must be 0x20 or 0x21) — "StuffItX" never
+     * finalizes in the og; the 7-byte stand-in carved it blindly. */
+    for (const u8 b7 : {u8(0x00), u8('X'), u8(0x21 + 1)}) {
+        std::vector<u8> img(1ull << 20, 0);
+        plant_sit(img, 512, 20480);
+        img[512 + 7] = b7;
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              stats),
+                  u32(OK));
+        std::vector<tree::FileNode*> all;
+        collect_children(root, all);
+        EXPECT_EQ(all.size(), 0u) << "byte[7]=" << int(b7) << " must never finalize";
+    }
+}
+
+TEST(Carve, SitClassicSpaceFormKeepsTheRegisteredStandIn) {
+    /* The classic ' ' form: the primary's feeding-protocol walk is the
+     * recorded follow-up (undecoded as a whole-file semantic) — the honest
+     * stand-in carves it at the available-extent bound; the pin keeps a
+     * future lane from silently changing the population split. */
+    std::vector<u8> img(1ull << 20, 0);
+    plant_sit(img, 512, 20480);
+    img[512 + 7] = ' ';
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                          stats),
+              u32(OK));
+    std::vector<tree::FileNode*> all;
+    collect_children(root, all);
+    ASSERT_EQ(all.size(), 1u);
+    EXPECT_EQ(all[0]->props()->logical_size, size_t((1ull << 20) - 512));
 }
 
 /* ---- N-111: the JP2 family (the og's JP2Analyser id 0x80, the brand

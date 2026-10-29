@@ -13484,3 +13484,19 @@ M-107 WPD convergence merge (cc60e650) and the DXF/EPS/AI members — M-107
 now stands at members 1-9 of 11 with SIT/APE/SWF-RECT remaining, plus the
 DWG gen-3 remainder. Rebuild + full suite re-run on the merged tree before
 the next fix.
+**Fix #3 — M-107 member 10 (SIT) LANDED (the FileSITAnalyser entry-marker
+walk + the acceptance-window repair).** Decoded first-hand from the raw asm:
+the acceptance union (the processor 0x180015d70's byte[7] ∈ {' ', '!'} gate —
+the node's 7-byte gate is wider and the mismatch population never finalizes
+in the og; the pre-fix core carved it blindly), the entry-marker walk
+(FUN_180044a10, vtable 0x18006d5b0 slot-0: the 02 D7 0A + 0x8842f698 marker,
+extent = marker + 8 + stride {0x19→4, ';'→5, else 6}, the corrupt-entry
+terminal at the 512-aligned sector start, the new-header gate — a following
+"StuffIt"/WEBBAIKE key at a 512-byte boundary, FUN_180044960 — torn → the
+walked bound), and the classic ' ' form's honest stand-in (the primary's
+feeding epilogue 0x180015f42 is the streaming artifact — the recorded
+follow-up). RED→GREEN via the stash dance: 5/7 RED at the stand-in tree, GREEN
+with the walk; the S-007 SIT plant re-pinned (the '!' magic + the real
+marker); the full suite **1711/1711**. Trail: M-107's Session-89 addendum,
+the matrix SIT row (member 10 of 11), modules/carve.md's S89 section, this
+entry. Remaining members: APE, SWF-RECT.
