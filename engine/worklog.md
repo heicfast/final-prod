@@ -12308,3 +12308,42 @@ the landing's closer decode of :13757-13758). **N-220 filed** with the
 two-site decode and the class lesson: this shape passes the marker lint AND
 `-Werror` — only the full ctest catches a semantic clobber, so the
 pulled-red protocol starts with ctest, not the build.
+
+## Session-84 — Phase 0 complete: the five context sheets (2026-10-29)
+
+Parallel read agents A–E done; sheets committed at this point (per the
+mandate, nothing is fixed before this push). All agent claims below were
+spot-verified first-hand by the coordinating lane before recording.
+
+**The Phase 0 picture (the short form):**
+
+- `worklog/build-surface.md` — 10 CMake targets, 4 windows-2022-only
+  workflows, all action refs unpinned mutable tags, N-210 marker lint is
+  local-only and CI paths-ignore hides the 5 marker files from CI (the
+  tree is red-invisible), ASan preset run by no gate, fuzz campaign drift
+  (fuzz_reghive built-never-run, run-long drops fuzz_image), 1 pragma
+  suppression site tree-wide (cr_thumbnail.cpp:33-56, S-1 registered).
+- `worklog/api-surface.md` — 91 declarations in cr_ui.h vs **90
+  definitions in cr_ui.cpp; the missing 91st is `cr_ui_session_resume_last`
+  (cr_ui.h:927), declared with a full contract, zero implementation in
+  src/** — the phantom-export class, verified first-hand. Error enum
+  holds 43 ERR_ values + CR_OK; docs claim 45 (a doc_truth_gate regex
+  artifact counting two truncated og-corpus literals at cr_error.h:6-7).
+- `worklog/cli-surface.md` — 13 verbs, ~70 flags, exit codes 0/1/2/3/4/5;
+  exit 5 in no primary doc. **`image --create` is documented at 6+ doc
+  sites + Run-Benchmark.ps1:184 + the usage header (rrecov.cpp:43) + -h
+  (rrecov.cpp:3858) but cmd_image has never parsed it — not even in the
+  S-040 landing commit 13fe7258 (verified in that tree) — `--create`
+  hits "unknown image option" exit 1.** The journal-probe doc claim
+  ("rrecov-apply.ifj probed at every startup") is false in code
+  (`<session>.inflight`, probed only inside apply, rrecov.cpp:3345-3362).
+- `worklog/doc-inventory.md` — 622 md files inventoried, 77 deep-read;
+  5 conflict-corrupted, 4 stale, 5 suspect (F-D1..F-D14).
+- `worklog/recent-commits.md` — 60 commits analyzed; 12 ABI-touching,
+  5 CLI-touching, 9 repair commits, 4 red-main events; hot files are the
+  trail files (worklog.md 37 touches, CROSS-REF-MATRIX 24, FIXED-LEDGER
+  21); D-152 triple-claimed at HEAD (### 4218 + ## 4656 + ## 4683).
+
+**Phase 2 (cross-checks) consolidates next into
+`worklog/api-cli-mismatches.md` + `worklog/api-findings.md`; Phase 3
+fix order opens with the N-210 marker repair.**
