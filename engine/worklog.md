@@ -13470,6 +13470,65 @@ with the racing N-226 renumber). Two of this lane's own red pushes
 the verification-discipline lesson (gate must BLOCK the push, not just
 run) is now enforced in this lane's push script.
 
+---
+
+## Session-84 S84 fix-lane — entry 3: M-101 — the convergent landing closed, the silent fix retired, the compose rider kept (2026-10-30)
+
+**The convergence (the SA-9 class's M-101 instance):** TWO
+implementations of the two missing distinguished branches landed in
+the same window. The racing lane's (on main via b7d05b12's tree/query
+half — landed FIRST, keeps the seat): the FNV-1a namespace-identity
+`version_group` stamped AT EMISSION in the MFT walk, the
+`query::version_groups()` >=2-live-member census, the exact-id
+`Filter::version_group` selector, the runtime `tags_extracted` flag
+stamped by the host's preview pass, the safewriter's
+`lost_files_tags_extracted` report category (og kind 6 — a surface
+this lane's variant lacked), and the 5-test M101Branches battery.
+This lane's variant (built and proven first — 6 tests RED-first via
+the stash dance, the compile-error class): the post-scan pass keyed on
+the FS-NATIVE axis (ntfs_parent_ref + case-folded name — the only key
+that spans the Found/Deleted roots AND the orphaned-prior-under-LostDir
+shape), the min-MFT-record-number id (deterministic, idempotent), the
+distinct-record guard (hard-link fan-out clones are links, not
+versions), the carve-side tag extraction. Conceded per SA-9 at the
+push rebase.
+
+**The silent-fix closure (§8's no-silent-fixes rule):** the racing
+landing carried the code + tests but NO finding retirement, NO ledger
+row, NO matrix row — b7d05b12's message never mentions M-101 (the
+mixed-message landing class). This push retires the finding properly:
+findings/FIXED/M-101 + the full Resolution (both designs, the deltas,
+the convergence record), the ledger row, the matrix row, the module
+addenda converged.
+
+**The deltas recorded (the Resolution's next-probe notes):** (a) the
+landed hash is case-SENSITIVE over the name bytes — two records whose
+names differ only by case ("dupe.doc" vs "DUPE.DOC", the same pathname
+under NTFS's $UpCase-insensitive collation) derive DIFFERENT ids and
+never group; this lane's variant folded; the folded form is the closer
+corpus reading — recorded, not re-litigated. (b) The COMPOSE RIDER
+kept over the seat: the carve analyser's S-049 EXIF walk (Model, else
+Software) now stamps `props->tags_extracted` AT SCAN — a carved JPEG
+with an EXIF Model enters the branch without waiting for the host's
+preview pass (either path ORs the flag; zero extra I/O — the
+extraction already ran for the naming prefix). Pinned by
+CarveEngine.JpegExifTagGroupStamps.
+
+**Verification at the converged tree:** the 4 adapted S84 tests
+(Query.VersionsAndTagsExtractedBranchAxes rewritten against the
+landed exact-id + tags_only surface, Session.VersionsRoundTrip,
+Snapshot.CarriesTheDistinguishedBranchAxes [the boolean flag],
+CarveEngine.JpegExifTagGroupStamps [the rider]) + the landed 5-test
+M101Branches battery — 9/9 green. Full suite 1569/0 (42
+fixture-conditional skips, pre-existing); cr_ui_tests 91/91;
+doc_truth_gate green; clang-format clean (the racing window's
+cr_analysers.cpp:6289 drift fixed in passing).
+
+**Trail:** findings/FIXED/M-101 + Resolution (the convergence record),
+the ledger row, the matrix row, modules/{query,tree}.md converged
+addenda, SUMMARY's S84 block refreshed, this entry. Corpus: be0cfe9,
+read-only guarantee held.
+
 ## Session-84 S84 fix-lane — entry 6: M-101 FIXED (2026-10-30)
 
 **M-101 FIXED (MAJOR, the 5-branch results tree):** the two missing
