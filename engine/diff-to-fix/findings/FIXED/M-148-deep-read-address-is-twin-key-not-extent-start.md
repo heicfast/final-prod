@@ -1,4 +1,4 @@
-# MAJOR M-146 — the deep-read grade's read address is the extent START; the og reads at the twin key (= the extent END + the shifted index term) — discovered during M-134 convergence verification
+# MAJOR M-148 — the deep-read grade's read address is the extent START; the og reads at the twin key (= the extent END + the shifted index term) — discovered during M-134 convergence verification
 
 **Severity:** MAJOR (renumbered from the M-146 draft at the push window — the remote S54 lane's NTFS 55AA finding took the seat per earlier-push-wins)
 **Module:** grading (the M-134 landing's address semantics)
@@ -6,6 +6,7 @@
 **Corpus references:** `re-workspace/reversed/ghidra-drwui/DRWUI_decompiled.c:322640-322671` (the decisive consumer: `*param_4 = local_18[0]` = the extent START, `*param_5 = local_20` = the LENGTH, `*param_3 = local_18[0] + local_20 + local_28 * *param_6` = START + LENGTH + shifted-index·unit — the twin key, with the same out-parameter triple the completion pass computes at :605757-774); `:605774` (`local_88 = local_80 + local_98 + local_a8 * local_b8[0]` — the twin key passed AS the deep read's addr at :605798); `:606364-411` (FUN_14038c470's reads at addr / addr−1)
 **Core references:** `src/core/tree/cr_grading.cpp` `deep_read_grade` (the M-134 landing 9455f50a): `const u64 addr = pr->extents.front().offset / ss` — the START, no index term; at the current tree post the S-059 window
 **Status:** READ-ONLY FINDING — filed by the session-52 lane after the convergence verification
+**Renumber:** M-146 → **M-148** (2026-10-29, the S56 lane's fourth collision rider: the ACTIVE probe-family M-146 was filed at d0ba3eb2 23:52:10 UTC, this retirement landed at 9633d94f 00:31:50 UTC — the active filing keeps the seat per SA-9; caught by the doc_truth_gate IN CI, the first collision the gate has failed a remote run on)
 
 ## Summary
 
