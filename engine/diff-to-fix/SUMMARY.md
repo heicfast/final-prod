@@ -183,10 +183,11 @@ TTFR dispatch attempt.
   cr_analysers/cr_registry/test_carve).
 
 **Board after this landing (filesystem truth, recounted by the
-coherence session at the v0.6.0 close: 212 FIXED files on disk, 2
-MINOR [N-107 N-127], 4 MAJOR [M-086 M-087 M-089 M-107], 3
+coherence session at the v0.6.0 close, then re-recounted after the
+final racing window landed M-160/N-230/SWF-RECT: 215 FIXED files on
+disk, 2 MINOR [N-107 N-127], 4 MAJOR [M-086 M-087 M-089 M-107], 3
 tracked-open): 0 ACUTE · 0 SEVERE · 4 MAJOR · 2 MINOR · 0 INFO active /
-212 FIXED / 3 tracked-open.**
+215 FIXED / 3 tracked-open.**
 (The S86 lane's OQ-S79-1 resolution landed between the two counts: the
 $LogFile dead-machinery register I-049 [ACKNOWLEDGED at filing] + the
 OQ retired to findings/FIXED/ — M-101 also landed by the racing window
