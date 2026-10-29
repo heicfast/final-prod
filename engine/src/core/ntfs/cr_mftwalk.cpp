@@ -991,7 +991,7 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                     pe.length = e.clusters * vol->params().cluster_bytes;
                     pe.logical = e.vcn * vol->params().cluster_bytes;
                     pe.hole = e.sparse; /* S-059: holes keep their logical
-                                        * position (the og's type-2 zero chunk) */
+                                         * position (the og's type-2 zero chunk) */
                     props->extents.push_back(pe);
                 }
             }

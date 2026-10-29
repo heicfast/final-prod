@@ -1,3 +1,40 @@
+**S56 lane — the CI format sweep + the session handoff (2026-10-29).**
+
+**The lint-gate repair:** the sibling window's landings left clang-format
+violations red on CI (the Lint + parse gates job failing on 2a6ef339 and
+back — rrecov.cpp:149, cr_mftwalk.cpp:993, cr_scan.cpp:741/:742,
+cr_query.cpp:622 + the drift this lane's own edits contributed). The CI's
+own instruction executed: clang-format 18.1.8 -i over src/ include/ tests/
+(10 files, pure formatting — zero semantic change; the suite re-verified
+green at the swept tree: cr_tests 1,294 passed / 0 failed + cr_ui_tests
+78/78, linux-release). The doc_truth_gate green. This restores the lint
+gate for every lane pushing after this commit.
+
+**S56 session summary (the four landings + the riders):** N-160 (the
+register-truth batch: 6 doc repairs + the phantom-citation and ID-collision
+gate checks + scripts/og_tree_census.py), N-090 (the session-list scope
+superset registered + the v6 label_full[100] end-to-end landing: config
+channel, record tail, ABI row + session_info appends, the resume join),
+N-154 (the bookkeeping batch: the cr_log false-cite repair, tree.md +
+err.md closing I-030, the filed-as gate, the count-at-HEAD convention),
+N-150 (the API doc-truth batch: the count invariants CI-wired + both-
+direction repairs + the phantom macro + the dead --label handler). Riders:
+11 live ID collisions caught by the gate's own hardening and renumbered
+per SA-9 (N-156mpegps->N-187, M-133twin->M-138, N-142rsf->N-186,
+stock-raw-sign->N-193, N-200/N-201/N-202, M-147, the RRWR title drift),
+one red-main repair (superseded convergent by the sibling window's own
+fix), the FORMAT SWEEP (this commit). Every landing RED-proven, every
+Resolution recorded, the audit trail preserved.
+
+**Handoff:** the lane's remaining claimed MINOR set at the last board
+check: N-145, N-144, N-140, N-131, N-186 (the renumbered rsf variant
+record), N-184, N-183, N-182, N-181, N-178, N-169, N-167, N-166 - each
+needs the finding's own verify->classify->fix loop against the CURRENT
+tree (the parallel lanes are landing MINORs at speed; pull before every
+disposition). The doc_truth_gate now guards: phantom script citations,
+finding-ID collisions (active/retired/ledger), in-source filed-as cites,
+and the ABI count sites - any lane's drift fails CI by name.
+
 **Session-51 severe-first lane — S-050 landed (2026-10-29).**
 
 **S-050 FIXED (the repair-line registration, option (b) of the finding's own

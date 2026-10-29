@@ -2255,8 +2255,7 @@ TEST(NtfsVolume, CompressedDataRecoversRealContent) {
      * later extent over the gap (or failing the whole file with
      * ERR_TRUNCATED when the hole was the tail). */
     ASSERT_NE(ho, nullptr) << "hole-compressed file must surface";
-    ASSERT_EQ(u64(1), ho->props()->extents.size())
-        << "a hole unit emits exactly ONE hole extent";
+    ASSERT_EQ(u64(1), ho->props()->extents.size()) << "a hole unit emits exactly ONE hole extent";
     {
         const auto& he = ho->props()->extents[0];
         EXPECT_TRUE(he.hole) << "the extent is a hole marker";

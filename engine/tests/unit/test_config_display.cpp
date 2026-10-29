@@ -238,13 +238,11 @@ TEST(Eta, TimeBudgetVariant) {
      * Worked: total=100, done=40, elapsed=400s -> projected = 100*400/40
      * = 1000 (the whole run); budget=1000s -> field = (1000 -
      * 1000*400/1000)*0.6 = 600*0.6 = 360 */
-    const query::EtaModel em =
-        query::eta_compute(40, 100, 400'000ull, 0, true, 1000ull);
+    const query::EtaModel em = query::eta_compute(40, 100, 400'000ull, 0, true, 1000ull);
     EXPECT_EQ(360, em.eta_seconds) << "(1000 - 1000*400/1000)*0.6 = 360";
     /* over-budget shape: budget 500 vs projected 1000, 400s elapsed ->
      * (500 - 500*400/1000)*0.6 = (500-200)*0.6 = 180 */
-    const query::EtaModel over =
-        query::eta_compute(40, 100, 400'000ull, 0, true, 500ull);
+    const query::EtaModel over = query::eta_compute(40, 100, 400'000ull, 0, true, 500ull);
     EXPECT_EQ(180, over.eta_seconds);
 }
 

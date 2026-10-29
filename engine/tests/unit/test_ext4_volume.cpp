@@ -533,7 +533,6 @@ TEST(Ext4Engine, UnixTimeConversion) {
  * defect. */
 /* ---- N-177: the size-exceeds-blocks damaged flag ---------------------- */
 
-
 TEST(Ext4Engine, SizeExceedsBlocksDamagedDirectoryStaysUnflagged) {
     /* N-177 CONVERGENCE REPAIR (the S53 lane's byte-equivalent landing
      * kept under a distinct name per the superset rule - the cb2abd42
