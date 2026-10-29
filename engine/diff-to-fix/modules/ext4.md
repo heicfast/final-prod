@@ -320,7 +320,7 @@ deep scan exists for) surface as recoverable entries. The core's sweep
 now harvests the same population: the `dtime == 0 && links != 0` skip is
 removed, the visited-inodes guard is the claim resolution, the journal
 inode is claimed before the sweep (engine state, not a result), and the
-regular/dir mode gate stays as the registered D-150 hardening.
+regular/dir mode gate stays as the registered D-153 hardening (renumbered from the born-collided D-150 seat at the S84 repair).
 **B1/B5: MATCH.** Tests: OrphanActiveInodeSurfacesInSweep /
 OrphanSweepDedupsAgainstLiveTree / SweepModeGateHolds (RED->GREEN);
 the new orphan_admitted counter surfaces the population; ext4 family

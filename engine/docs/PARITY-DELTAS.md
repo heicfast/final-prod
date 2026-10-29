@@ -4580,7 +4580,7 @@ exact — unmatched); the M-149 test
 `LostDiscovery.ScoringTableMatchBonusIsNumeratorOnly` pins the 1029
 permille leader (ln(2520)/ln(2020)) and the undeflated 537 runner-up.
 
-### D-150 — the ext4 sweep's mode gate over the og's shape-only filter (M-152 registration, REGISTERED SAFETY HARDENING — the og's sweep admits ANY inode whose fields carry the extent shape, including a FIFO/socket with a forged extent header; the core's regular/dir mode gate excludes that class)
+### D-153 — the ext4 sweep's mode gate over the og's shape-only filter (M-152 registration, RENUMBERED from the born-collided D-150 seat at the S84 repair — N-216's landing took D-150 first; REGISTERED SAFETY HARDENING — the og's sweep admits ANY inode whose fields carry the extent shape, including a FIFO/socket with a forged extent header; the core's regular/dir mode gate excludes that class)
 
 **Reference behavior** (EXT4SearchDLL :4415-4421, re-verified first-hand
 at the M-152 fix): the og's per-inode harvest filter gates on the content
@@ -4604,7 +4604,7 @@ admit).
 step 3). Pinned by `Ext4.SweepModeGateHolds` (the FIFO stays excluded,
 `orphan_admitted == 0`).
 
-### D-150 — the pause surface's engine-notification leg (N-178's registration): the og notifies engines of pause; the core's pause is a token wait
+### D-154 — the pause surface's engine-notification leg (N-178's registration, RENUMBERED from the born-collided D-150 seat at the S84 repair — N-216's landing took D-150 first): the og notifies engines of pause; the core's pause is a token wait
 
 - **WHAT OG DOES:** the pause machinery (DRWUI:314388-314490) calls the
   ENGINE's vtable+0x88 with 1 on pause (:314401-314404) and 0 on resume
