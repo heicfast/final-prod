@@ -1,10 +1,52 @@
-## Session-86 S86 lane — opens at 32441353; the DWG landing CONCEDED to the racing S85 window per SA-9; two convergence riders carried (2026-10-29/30)
+## Session-90 S90 lane (re-homed S86 -> S89 -> S90 at the pushes: the racing windows took each seat name first — the born-collided convention) — the WPD/WPG convergence conceded across THREE racing windows; the tier-1 corroboration carried (2026-10-30)
+
+Opened at core `32441353`, corpus `be0cfe9` (read-only guarantee held).
+The prompt saved token-redacted (`worklog/session-diff-fix-s90-prompt.md`).
+Baseline suite green first-hand at the open: **1661/1661** (128 s).
+
+This lane independently decoded and implemented the WPD + WPG members
+(locally GREEN 1666/1666, RED proofs first-hand via the stash dance).
+**The pushes hit THREE convergent racing windows in sequence and every
+seat was conceded per SA-9:** (1) the S85 window's WPD pair-table
+landing (d20a8483) + the deeper WPG zero-tail walk (the +0x20 processor
+FUN_180014160, superseding this lane's tier-1-only zero-end
+classification); (2) the S84/S89 window's merge (M-101 + the DXF/EPS/AI
+members); (3) the S87 window's WPD version-table landing (1ff8ae24)
+with the 0xFFFFFFFF row max — the exact rider this lane had built at
+4 GiB, converged again (the S87 form is the more exact u32 ceiling and
+holds the seat). The final concession: no code delta from this lane
+survives — the main tree already implements every decode this lane
+derived; this lane's two rider tests were dropped as converged
+duplicates of the S87 battery (WpdOverCapSizeCarvesFull /
+WpdSecondAndThirdRecordsCarve).
+
+**The unique record this lane lands (the corroboration no other window
+carried): the WPG tier-1 decode closes the S85 zero-tail landing's own
+honest residue.** Byte-exact (FUN_180014030, objdump first-hand): the
+tier-1 stamps ONLY the id 0x45 — NO size; the size==0 acceptance cannot
+finalize in the scan loop (the :9564 emit gate fails), so the candidate
+rides the continuation path where the +0x20 processor computes the
+extent — the pending machinery (:9564-9591) is the racing processor's
+calling context, and the landing's recorded residue ("the ctx gate
+undecoded — the extent shifts by multiples of 512 if it defers") is the
+pending-list re-feed cadence, not an undecoded gate. Recorded in
+M-107's Session-90 addendum.
+
+Suite green at the racing head + this lane's trail (first-hand); the
+lane continues on the standing board: M-107's SIT/APE/SWF-RECT members,
+M-105, the tracked-open items, and the discovery sweep — see the
+following entries.
+
+## Session-86 S86 lane (the racing window's record, preserved verbatim) — opens at 32441353; the DWG landing CONCEDED to the racing S85 window per SA-9; two convergence riders carried (2026-10-29/30)
 
 Opened at core `32441353`, corpus `be0cfe9` (read-only guarantee held).
 The prompt saved token-redacted (`worklog/session-diff-fix-s86-prompt.md`).
 Baseline suite green first-hand at the open: **1661/1661 (543.7 s)** on
 this 2-core lane VM. Toolchain pinned to the CI versions (clang-format
-18.1.8, cmake 4.4.4).
+18.1.8, cmake 4.4.4). The full entry record: the DWG concession + the
+two riders (the row floor 0x15 + the full-counter id gate) live in
+M-107's Session-86 addendum and the S84 entries below.
+
 ## Session-84 S84 lane — M-107's WPD member landed (member 6 of 11; 2026-10-30)
 
 **FileWPDAnalyser's walk decoded first-hand** (evidence/s84-lane-sheets/
