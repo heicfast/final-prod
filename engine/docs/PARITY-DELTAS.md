@@ -4823,7 +4823,7 @@ step-3 corpus erratum (the MainModule behavior was never documented in
 the corpus's own per-binary artifacts) is recorded in
 diff-to-fix/CORPUS-ERRATA.md for the corpus maintainers.
 
-### D-163 — the BitLocker turn-off is a REQUEST-surfaced op: the OS decrypt continues in the background after OK; the og's transactional CBitlockerTurnOffOperation queue is UI-layer chrome (M-078, REGISTERED DELIBERATE POSTURE — not a divergence in capability, a divergence in observability)
+### D-165 — the BitLocker turn-off is a REQUEST-surfaced op (RENUMBERED from the born-collided D-165 seat at the Session-84 coherence repair — the ext4 journal-inode seat took D-165 first, per the 67d2bf25 first-landing-keeps convention): the OS decrypt continues in the background after OK; the og's transactional CBitlockerTurnOffOperation queue is UI-layer chrome (M-078, REGISTERED DELIBERATE POSTURE — not a divergence in capability, a divergence in observability)
 
 **CONTEXT:** M-078 landed the CBitlockerTurnOffOperation endpoint
 (`cr_ui_turn_off_bitlocker` + CLI `unlock --turn-off C:` + the win layer's

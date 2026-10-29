@@ -86,7 +86,7 @@ D-163+.
   duality; the og's exact verb undecoded, honestly registered), the
   `cr_ui_turn_off_bitlocker` ABI export #93 (request-phase progress; OK
   means accepted, not plaintext — the OS decrypt continues in the
-  background, D-163), the CLI `unlock --turn-off C:` verb (the
+  background, D-165), the CLI `unlock --turn-off C:` verb (the
   three-site lock). D-16's legitimate-unlock-only register untouched:
   decrypt, never bypass, the consent pin is a test
   (TurnOffIsTheConsentedDestructiveTwin). The 3-test seam battery +
