@@ -13648,18 +13648,18 @@ on 32441353) — the /WX build died on four warning classes the racing fix
 lanes had introduced, one per file. All four fixed in four commits, one root
 cause each, no suppressions, no behavior change.
 
-- **d0f7c0c0 (C4310):** test_ext4_m144_large_volume.cpp:84/:135 — the lo-word
+- **ea9bd420 (C4310):** test_ext4_m144_large_volume.cpp:84/:135 — the lo-word
   splits of >4 GiB block counts truncated via bare `u32()` constant casts;
   masked to `& 0xFFFFFFFFull` before the narrowing cast (identical bits).
-- **94c8d110 (C4127):** ui_abi_check.c:613 — `CHECK(0 && "...")` is a constant
+- **1dc6597d (C4127):** ui_abi_check.c:613 — `CHECK(0 && "...")` is a constant
   conditional; replaced with the file's own progress_cb direct-report
   convention (printf + g_failed; identical failure contract).
-- **4889a452 (C4267 x14):** test_cr_ui.cpp — z32(cd_len/cd_at) given explicit
+- **324d0404 (C4267 x14):** test_cr_ui.cpp — z32(cd_len/cd_at) given explicit
   `(unsigned long)` casts (the file's dentry convention) at :305/:306 and
   :4729/:4730; the five FAT-chain loops switched to `unsigned` loop vars
   (the file's own write_fixture_zip convention), values < 20 so no range
   change.
-- **0a6d2f80 (C4244):** rrecov.cpp:3377/:3628 — both N-145 journal paths used
+- **4691f152 (C4244):** rrecov.cpp:3377/:3628 — both N-145 journal paths used
   the wstring-iterator range ctor for std::string (implicit wchar_t->char in
   xutility's copy template); replaced with `narrow_bytes()` — the same
   per-element low-byte conversion made explicit. Kept SEPARATE from
