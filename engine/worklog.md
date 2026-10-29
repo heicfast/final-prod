@@ -1,3 +1,64 @@
+## Session-92 S92 fix lane (renumbered from the born-collided S89/S91 — the racing windows took each seat) — opens (2026-10-30, the MINOR-first 20+ mandate)
+
+- **Baseline:** opened at core `390069ab` (the S87/S88 windows' landing
+  head — pulled BEFORE this lane's first action: the window landed the
+  N-224 win-stub growth (three convergent lanes, the N-225 collision
+  merged to one definition set), M-159's S-068 complementary halves,
+  M-107's DWG member with the f7e49eaf gen-2 offset repair, and the S87
+  worklog marker sweep). This lane's own opening sweep had independently
+  found BOTH red items at its pre-pull pin (`ddab68b4`: win_syntax_check
+  RED on cr_fsck.cpp's un-stubbed Wow64 pair — converged with the racing
+  N-223/N-224 seats before any push, nothing conceded; the worklog.md
+  marker block at lines 2-103 — swept by the racing S87 window the same
+  way). Corpus `be0cfe9` throughout, read-only guarantee held. Prompt
+  saved token-redacted at `worklog/session-diff-fix-s92-prompt.md`.
+  Post-pull baseline verified first-hand: linux-release build clean
+  (gcc 14.2 -Werror), full ctest **1683/1683 green**, repo marker sweep
+  clean, clang-format 18.1.8 clean.
+- **Board at the open (filesystem truth):** 6 MAJOR (M-086/M-087/M-089
+  driver-repo-resident per OQ-S10-3 — out of the two-repo grant; M-101,
+  M-105, M-107) · 3 MINOR (N-107/N-127 driver-repo-resident; N-225
+  FIXED-status but still parked in findings/MINOR/ with no ledger row —
+  this lane's first housekeeping item) · 4 tracked-open (OQ-S10-1,
+  OQ-S10-3, OQ-S4-3, OQ-S79-1) · 204 FIXED. M-107's remaining members
+  per the code's stand-in sweep: **WPD, SIT, APE, EPS, DXF, SWF-RECT**
+  (six) + the DWG gen-3 R2007 remainder (ONE/3DS are M-106's registered
+  remainders, owned).
+- **Plan:** housekeeping first (N-225 into FIXED/ with its ledger row),
+  then M-107's six members decode-then-land in the finding's registry
+  order (WPD → SIT → APE → EPS → DXF → SWF-RECT), then M-101 (the two
+  og tree branches), M-105 (option (a): the elevation diagnosis + the
+  doc rows), the tracked-open OQs, and the doc-truth sweep. Every
+  landing: first-hand corpus decode (raw asm over
+  og-codebase/RAWSearchDLL.dll, instruction-address-cited) → RED→GREEN
+  test → trail sync (finding addendum, matrix row, modules/carve.md,
+  this worklog) → push.
+
+
+
+## Session-86 S86 lane — opens at 32441353; the DWG landing CONCEDED to the racing S85 window per SA-9; two convergence riders carried (2026-10-29/30)
+- **Post-rebase correction (the racing window absorbed at this lane's
+  first push attempt):** the window landed M-101 FIXED (b7d05b12 — the
+  Versions node + Tags Extracted), M-107's DXF/EPS/AI members (members
+  1-9 of 11 landed; SIT, APE, SWF-RECT + the DWG gen-3 remainder
+  stand), N-227 (a red-main repair), and the CONVERGENT WPD landing
+  (the S87 1ff8ae24 version-table walk — the same three-pair tier-1 +
+  u32@+0x14 extent decode this lane had independently derived and
+  proven RED->GREEN locally; their earlier push holds the seat per
+  SA-9, this lane's local landing dropped at the rebase with the
+  convergence recorded here). The board after the window: 5 MAJOR
+  (M-086/M-087/M-089 driver-repo-resident per OQ-S10-3, M-105, M-107)
+  · 2 MINOR (N-107/N-127 driver-repo-resident) · 4 tracked-open · 208
+  FIXED. This lane's queue refreshes to: the WPD sub-format-split rider
+  evaluation, M-107's SIT/APE/SWF-RECT members, M-105 option (a), the
+  OQs, the doc sweep.
+
+
+---
+
+---
+
+---
 
 ## Session-87 S87 fix lane (continuation) — entry 3: N-229 lands (the racing SIT push's red tree repaired); the SIT seat conceded (2026-10-30)
 
