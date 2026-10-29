@@ -1278,3 +1278,76 @@ with wrapped ids that the og refuses). RED→GREEN for both riders at the
 racing tree: DwgRowCarriesTheOgsRegisteredFloor (the 21-byte walked
 extent refused by the 512 floor AND the min-64 row) and
 DwgWalkSelfLimitsAt256Records (the 260-record wrapped-id fixture carved).
+The DWG row moves to **MATCH for gen-1 + gen-2** (the gen-3 R2007-only
+remainder named): the section-locator walk (count u32@0x15, 9-byte records
+{number==index, seeker, size} from 0x19, extent = max(seeker+size), the
+number-mismatch decline, the torn walked-prefix salvage) and the R2004+
+rand-XOR struct walk (the MSVC rand seed-1 stream over the 0x6c struct at
++0x20, six gates, extent = u64@0x34 + 0x6c). The registry row max carries
+the og walk's own cap constant (0x4A817C800 = the singleton's 200 MB ×
+100). Two defects discovered and fixed with the landing: the tier-1
+version table's phantom "30" / missing "13" (the og's nine exact —
+AC1013 = R13 carves again, AC1030 no longer does), and the non-og sentinel
+check (dropped — the og's tier-1 is the version table only). Evidence:
+`../evidence/s85-lane-sheets/s85-l1-dwg-section-walk-raw-asm-decode.md`.
+Tests: the six Dwg* pins (all RED at the stand-in tree). The carve suite
+180/180.
+
+---
+
+## Session-85 addendum 2 — M-107 member 4: the PSP ~BK block-chain walk landed
+
+The PSP row moves to **MATCH**: the tier-1 is the og's EXACT 32-byte
+signature ("Paint Shop Pro Image File" + 0x0a + 0x1a + 5 NULs — the old
+16-byte prefix was a discovered acceptance defect), and the extent is the
+~BK block-chain walk from 0x24 (blocks {u32 "~BK\0", u32 length @+6},
+advance 10+length; the extent = the walked end at the first non-~BK
+block / the 20 MB bound / the device end; the torn straddle salvages).
+Tests: PspBkBlockChainWalkSetsExtent / PspExactSignatureRequired /
+PspTornChainSalvagesTheWalkedEnd (the first two RED at the stand-in via
+the stash dance). The carve suite 183/183.
+
+---
+
+## Session-85 addendum 3 — M-107 member 5: the WPG zero-tail walk landed
+
+The WPG row moves to **MATCH**: the extent is the trailing-zero-run
+position of the hit's own 512-byte window (FUN_180042b30's binary
+search — the whole-buffer-zero case declines; the no-zeros case takes
+the window length), the og's one-chunk-then-done semantic with the
+sector-size chunk (the driver's ctx+0xF0). The deferral residue (the
+processor's [result+0x14] >= 0x10 gate — the field undecoded) is
+recorded in the finding: a future decode of the result object's layout
+could shift the window by multiples of 512. Tests: the three Wpg*
+pins (all RED at the stand-in via the stash dance). The carve suite
+186/186.
+
+## S84 rider — the DWG gen-2 struct offset repaired (+0x20 → +0x80)
+
+The racing S85 landing's gen-2 walk read the encrypted 0x6c struct at
+`hit + 0x20` — the Ghidra decompile's `param_2 + 0x20` ported without
+the INT* scaling. The raw asm arbitrates: 0x18002f5a0 is
+`lea rdx,[rdi+0x80]` with rdi = the chunk base (set once at
+0x18002f342, never reloaded; the phantom `mov edi,0x6c428d44` in naive
+disassembly is a mid-instruction start — the tail byte of
+`lea rcx,[rbp-0x41]`). **The struct sits at +0x80 BYTES** — matching the
+real R2004 format's section page map at 0x80 (the external
+corroboration). The read, both R2004 test plants, and the finding's
+gen-2 bullet repaired; RED first-hand (the +0x20 code against the +0x80
+plant declines — the struct at the wrong offset decodes zeros and the
+gates refuse). The full convergence record: M-107's Session-84
+convergence addendum + evidence/s84-lane-sheets/
+s84-l1-dwg-walk-decode.md §4.
+
+## S84 addendum 4 — M-107's WPD member (the pair table + the declared size; 2026-10-30)
+
+**WPD LANDED (members 1-6 of 11).** FileWPDAnalyser's one-function walk
+(the +0x10 slot FUN_180041f50; evidence:
+`evidence/s84-lane-sheets/s84-l2-wpd-pair-walk-decode.md`): the tier-1
+pair table (u32@+8, u32@+0xE against the three known pairs — the decline
+on unknown pairs) then extent = **u32@+0x14** (the declared document
+size). The S-007-era 'nonzero product word' gate was invented — the og
+never gates on +4 — and is gone with the 64 MiB stand-in. Tests:
+WpdPairTableDeclaredSizeSetsExtent (RED first-hand at the stand-in) +
+WpdUnknownPairDeclines; the batch plant re-pinned. The carve suite
+288/288. Remaining members: SIT APE EPS AI DXF SWF-RECT.

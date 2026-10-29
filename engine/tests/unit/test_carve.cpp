@@ -3123,15 +3123,74 @@ size_t plant_wpg(std::vector<u8>& img, size_t at) {
     return 32;
 }
 
-size_t plant_wpd(std::vector<u8>& img, size_t at) {
+size_t plant_wpd(std::vector<u8>& img, size_t at, u32 declared = 0x3000) {
+    /* M-107 member 6: the og's tier-1 pair table (FUN_180041f50's
+     * compare groups at 0x180041f8a-0x180041fd0): (u32@+8, u32@+0xE)
+     * = the known pair (0x01020a01, 0x00050200); the extent =
+     * u32@+0x14 (0x18004200c) - the declared document size */
     std::memcpy(img.data() + at,
                 "\xFF"
                 "WPC",
                 4);
-    put16(img, at + 4, 0x0200); /* nonzero product word */
-    for (size_t i = 6; i < 32; ++i)
-        img[at + i] = u8(i & 0xFF);
-    return 32;
+    put32v(img, at + 8, 0x01020a01);   /* the pair's first word */
+    put32v(img, at + 0xE, 0x00050200); /* the pair's second word */
+    put32v(img, at + 0x14, declared);  /* the og's size source */
+    return declared;
+}
+
+TEST(Carve, WpdPairTableDeclaredSizeSetsExtent) {
+    /* M-107 member 6 (WPD): the og's FileWPDAnalyser walk (the +0x10
+     * slot FUN_180041f50; the registry binding FF 'W' 'P' 'C' -> vtable
+     * 0x18006cff0 idx 0x44): the tier-1 pair table then extent =
+     * u32@+0x14 (0x18004200c) - the declared document size, NOT the
+     * blind 64 MiB stand-in. RED at the stand-in tree: the extent was
+     * the device-end-clamped 64 MiB. */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t at = 512;
+    const u32 declared = 0x5000;
+    plant_wpd(img, at, declared);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    tree::FileNode* wpd = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && !c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            wpd = c;
+    ASSERT_NE(wpd, nullptr) << "the WPD must carve through the pair table";
+    EXPECT_EQ(wpd->props()->logical_size, size_t(declared))
+        << "the extent is the declared size at +0x14, not 64 MiB";
+}
+
+TEST(Carve, WpdUnknownPairDeclines) {
+    /* the og's tier-1 (0x180041ff0-0x180041ff5): an unknown
+     * (u32@+8, u32@+0xE) pair returns 0 - the DECLINE, no bounded-extent
+     * fallback. The old 'nonzero product word' gate is gone with it. */
+    std::vector<u8> img(128 * 1024, 0);
+    const size_t at = 512;
+    std::memcpy(img.data() + at,
+                "\xFF"
+                "WPC",
+                4);
+    put32v(img, at + 8, 0xDEADBEEF); /* an unknown pair */
+    put32v(img, at + 0xE, 0xFEEDFACE);
+    put32v(img, at + 0x14, 0x4000);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        u32(OK));
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && !c->props()->extents.empty() && c->props()->extents.front().offset == at)
+            FAIL() << "an unknown pair must decline the carve";
+    SUCCEED();
 }
 
 /* M-107 member 4 (PSP): the og's tier-1 is the EXACT 32-byte signature

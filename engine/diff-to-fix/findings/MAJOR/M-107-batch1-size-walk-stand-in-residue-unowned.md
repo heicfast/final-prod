@@ -314,3 +314,110 @@ convergent findings on both sides:
   21-byte walked extent refused by the 512 floor AND the min-64 row;
   DwgWalkSelfLimitsAt256Records — the 260-record wrapped-id fixture
   carved), GREEN with the riders.
+- **The tier-1 is the EXACT 32-byte signature** (memcmp 0x20):
+  "Paint Shop Pro Image File" + 0x0a + 0x1a + 5 NULs — the core's old
+  16-byte prefix accepted files the og refuses (a discovered defect,
+  pinned by PspExactSignatureRequired).
+- **The walk**: from 0x24, each block is {u32 magic 0x004b427e
+  ("~BK\0"), u32 length @ +6}; the position advances 10 + length; the
+  extent = the walked END — the first non-~BK block, the 20 MB row
+  bound, or the device end all stop the walk there (never a refusal
+  once the signature held; the torn straddle salvages the walked end).
+
+RED→GREEN via the stash dance: PspBkBlockChainWalkSetsExtent +
+PspExactSignatureRequired both RED at the stand-in validator (the blind
+extent; the short-signature acceptance), GREEN with the walk. The
+S-007 batch-1 PSP plant re-pinned (the og's exact 32-byte signature +
+a real two-block chain; the old 26-byte plant lacked the 0x0a/0x1a).
+The carve suite 183/183. Remaining members: WPG, WPD, SIT, APE, EPS,
+DXF, SWF-RECT (seven) + the DWG gen-3 remainder.
+
+---
+
+## Session-85 addendum 3 — the WPG member LANDED (member 5 of 11: the zero-tail walk)
+
+**WPG FIXED (this session; six members remain).** The chain decoded
+first-hand: the "wpg\0" tier-1 FUN_180014030 (:15660-15683, id 0x45),
+the factory FUN_180014090 (the 0x120 WPGRawFileInfo child: min 20, max
+100 MB — already in the row), and the child's +0x20 processor
+FUN_180014160 (raw asm 0x180014160-0x1800142b0): **extent = chunk
+offset + zero_tail(chunk)**, returning 1 (done) after the first walked
+chunk. The zero-tail walk is FUN_180042b30 (:50703-50750): a binary
+search for the FIRST position whose remainder is all zeros (+1); the
+whole buffer zero → 0 (the decline class); no zeros → the buffer
+length. The chunk length the driver passes is the DEVICE SECTOR SIZE
+(ctx+0xF0, the storage device's sector query at :9192-9195, default
+0x200; the +0x20 dispatch at 0x18000d7ae).
+
+The model translation (the registered divergence class, the CRW/X3F
+stance): the core stamps the trailing-zero-run position of the hit's
+own 512-byte window — the og's semantic (the extent ends at the file's
+last non-zero byte within the first sector window) without the
+streaming artifacts. **The deferral residue, recorded:** the
+processor's gate `[result+0x14] >= 0x10` (the result-object field is
+undecoded — the same field gates GZ at >= 8 and the third zero-tail
+caller at >= 8) — if it defers the walk to a later sector, the extent
+shifts by multiples of 512; the landing takes the first window (the
+gate's most coherent reading: the candidate's available bytes in the
+feed). A future decode of the result object's +0x14 field settles the
+window position; the walk itself and the extent formula are
+byte-exact.
+
+RED→GREEN via the stash dance: all three tests RED at the stand-in
+(WpgZeroTailWalkSetsExtent / WpgZeroTailFullWindowIsTheBoundary /
+WpgAllZeroWindowDeclines — the stand-in's blind 64 MiB and its
+all-zero acceptance), GREEN with the walk. The carve suite 186/186.
+Remaining: WPD, SIT, APE, EPS, DXF, SWF-RECT (six) + the DWG gen-3
+remainder.
+
+---
+
+## Session-84 convergence record (the DWG member's convergent repair — the gen-2 struct offset)
+
+The DWG member was decoded and landed CONVERGENTLY by two lanes in the
+same window: the racing S85 lane's landing (8272daf2 — the seat, the
+structure: the gen-1 locator walk, the gen-2 rand-XOR struct walk, the
+gen-3 recorded remainder, the version-table correction
+{12,13,14,15,18,21,24,27,32}) and this lane's S84 decode (evidence:
+`evidence/s84-lane-sheets/s84-l1-dwg-walk-decode.md` — the same
+three-generation model, the same factory cursor 0x15 at 0x18002ff59, the
+same keystream's first byte 41). **The one material delta, arbitrated
+by the raw asm: the gen-2 encrypted struct's offset.** The landing read
+`hit + 0x20`; the asm at 0x18002f5a0 is `lea rdx,[rdi+0x80]` with rdi =
+the chunk base (set once at 0x18002f342, never reloaded — the phantom
+`mov edi,0x6c428d44` in naive disassembly is the tail byte of
+`lea rcx,[rbp-0x41]` at 0x18002f593, a mid-instruction start). The Ghidra
+decompile's `param_2 + 0x20` is INT* arithmetic = **0x80 BYTES** — the
+landing ported the unscaled constant. Repaired: the read, both test
+plants, and this finding's gen-2 bullet now carry +0x80 with the asm
+citation. The offset matches the real R2004 format (the section page
+map at 0x80) — the convergent external corroboration.
+
+---
+
+## Session-84 addendum 4 — the WPD member LANDED (member 6 of 11: the pair-table tier-1 + the declared size)
+
+**WPD's walk decoded first-hand from the raw asm** (evidence:
+`evidence/s84-lane-sheets/s84-l2-wpd-pair-walk-decode.md`). The
+analyser: **FileWPDAnalyser** (the registry key 0x435057ff 'FF WPC', the
+node vtable 0x18006cff0 idx 0x44; the +0x10 slot FUN_180041f50 = the
+File*Analyser one-function shape: tier-1 + size).
+
+- **The tier-1 pair table**: (u32@+8, u32@+0xE) ∈ {(0x01020a01,
+  0x00050200), (0x00021601, 0x00030000), (0x00010f0f, 0x00030000)} —
+  the three compare groups at 0x180041f8a/0x180041fa8/0x180041fc7
+  (the table at 0x18006ef40); an unknown pair returns 0 — the DECLINE
+  (0x180041ff0). The S-007-era 'nonzero product word at +4' gate was
+  invented (the og never reads +4 as a gate) — GONE.
+- **The size**: extent = u32@+0x14 (0x18004200c: `mov ecx,[r9+0x14]`
+  → the result's +0x10) — the declared document size. Never a walk,
+  never a refusal once the pair held.
+- (The adjacent vtable 0x18006cfa0's 0x180041eb0 walk is
+  FileRIFFAnalyser's under the 'RIFF' key — NOT WPD; the attribution
+  resolved by the registry leas.)
+
+RED→GREEN first-hand: WpdPairTableDeclaredSizeSetsExtent RED at the
+stand-in tree (the 64 MiB device-end extent) → GREEN (the declared
+size); WpdUnknownPairDeclines pins the decline. The S-007 batch's
+plant re-pinned. The carve suite 288/288. **WPD's member status:
+LANDED (members 1-6 of 11; remaining: SIT APE EPS AI DXF SWF-RECT).**

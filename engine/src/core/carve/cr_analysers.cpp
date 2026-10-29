@@ -5514,12 +5514,26 @@ CarveResult validate_wpg(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
-/* WPD: \xFF" "WPC key 0x435057ff (:5937) -> FileWPDAnalyser idx 68. The
- * document stream walk is undecoded; the 4-byte key + a nonzero
- * product-version word at +4 carry the gate, bounded extent stands in. */
+/* WPD: the registry binding FF 'W' 'P' 'C' (key 0x435057ff) ->
+ * FileWPDAnalyser idx 0x44 (0x180003cb5-0x180003cbf). M-107 member 6:
+ * the pair-table tier-1 + the declared-size walk, decoded in
+ * validate_wpd below. */
 CarveResult validate_wpd(IStorageDevice* s, u64 hit, u64 cap) {
+    /* M-107 member 6 (WPD): the og's FileWPDAnalyser walk, decoded
+     * first-hand from the raw asm (the registry binding 'FF WPC' ->
+     * vtable 0x18006cff0 idx 0x44 at 0x180003cb5-0x180003cbf; the
+     * +0x10 slot FUN_180041f50 = the tier-1 pair table + the size in
+     * ONE function - the File*Analyser family shape). The tier-1: the
+     * pair (u32@+8, u32@+0xE) must be one of the three known
+     * {(0x01020a01, 0x00050200) -> id 0x44, (0x00021601, 0x00030000)
+     * -> id 0x45, (0x00010f0f, 0x00030000) -> id 0x3D} (the compare
+     * table at 0x18006ef40, the groups at 0x180041f8a-0x180041fd0); an
+     * unknown pair returns 0 - the DECLINE. The size: **extent =
+     * u32@+0x14** (0x18004200c: mov ecx,[r9+0x14]; the result's +0x10
+     * write) - the declared document size, never a walk. The old
+     * 'zero product word' gate and the 64 MiB stand-in are GONE. */
     CarveResult r;
-    u8 h[8];
+    u8 h[0x18];
     if (!rd(s, hit, h, sizeof(h)))
         return r;
     if (std::memcmp(h,
@@ -5527,12 +5541,23 @@ CarveResult validate_wpd(IStorageDevice* s, u64 hit, u64 cap) {
                     "WPC",
                     4) != 0)
         return r;
-    if (h[4] == 0 && h[5] == 0)
-        return r; /* zero product word: degenerate */
+    const u32 a = u32_from_bytes_le(h + 8);
+    const u32 b = u32_from_bytes_le(h + 0xE);
+    const bool known = (a == 0x01020a01u && b == 0x00050200u) ||
+                       (a == 0x00021601u && b == 0x00030000u) ||
+                       (a == 0x00010f0fu && b == 0x00030000u);
+    if (!known)
+        return r; /* the og's unknown-pair decline */
     r.ok = true;
-    r.end = std::min(hit + u64(64 << 20), probe_limit(s, hit, cap));
-    r.confidence = 600;
-    r.note = "wpd-magic+bounded-extent";
+    const u64 limit = probe_limit(s, hit, cap);
+    u64 end = hit + u32_from_bytes_le(h + 0x14);
+    if (end > limit)
+        end = limit;
+    if (end <= hit)
+        return r;
+    r.end = end;
+    r.confidence = 650;
+    r.note = "wpd-pair-table,declared-size";
     return r;
 }
 
