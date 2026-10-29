@@ -1,233 +1,49 @@
+## Session-86 S86 lane — opens at 32441353; the DWG landing CONCEDED to the racing S85 window per SA-9; two convergence riders carried (2026-10-29/30)
 
-<<<<<<< HEAD
-=======
-## Session-84 S84 lane — the DWG gen-2 struct offset repaired (+0x20 -> +0x80; the convergent arbitration; 2026-10-30)
+Opened at core `32441353`, corpus `be0cfe9` (read-only guarantee held).
+The prompt saved token-redacted (`worklog/session-diff-fix-s86-prompt.md`).
+Baseline suite green first-hand at the open: **1661/1661 (543.7 s)** on
+this 2-core lane VM. Toolchain pinned to the CI versions (clang-format
+18.1.8, cmake 4.4.4).
 
-The racing S85 window landed M-107's DWG member (8272daf2 — the seat)
-while this lane worked; the convergence conceded per SA-9 (the same
-three-generation model, the same factory cursor 0x15, the same keystream
-byte 41 — this lane's evidence sheet
-s84-l1-dwg-walk-decode.md corroborates). **The one material delta,
-arbitrated by the raw asm:** the landing read the gen-2 encrypted struct
-at `hit + 0x20` (the Ghidra decompile's `param_2 + 0x20` ported without
-the INT* scaling). The asm at 0x18002f5a0: `lea rdx,[rdi+0x80]`, rdi =
-the chunk base set once at 0x18002f342, never reloaded (the phantom
-`mov edi,0x6c428d44` is a mid-instruction disassembly start — the tail
-byte of `lea rcx,[rbp-0x41]`). **+0x80 BYTES** — also matching the real
-R2004 format's section page map at 0x80. Repaired: the read, both R2004
-test plants, the finding's gen-2 bullet, the carve.md rider. RED
-first-hand (the +0x20 code against the +0x80 plant: DwgR2004RandStruct
-WalkSetsExtent FAILED -> GREEN). The carve suite 286/286. The board:
-M-107 at members 1-5 of 11 (the racing window took PSP + WPG too).
+**The DWG member of M-107 (the pattern's namesake) was decoded and landed
+by this lane unpushed (ab5bbb24) — the pull found the racing S85 window had
+landed the same member (ddab68b4 + the f7e49eaf gen-2 struct-offset
+repair). CONCEDED per SA-9: the racing seat stands (their decode went
+further — gen-2 landed where this lane recorded the follow-up). The
+convergence record rides the M-107 finding's Session-86 addendum. This
+lane's independent decode carried TWO real deltas the racing landing
+missed — landed as convergence riders (the S79 precedent: concede the
+seat, verify first-hand, fix what verification catches):
 
->>>>>>> 322dbdc0e0f9385a7618c5918ffc39d93d121203
-## Session-87 S87 fix lane — opens (2026-10-29, the MINOR-first 20+ mandate; re-homed S79 → S86 → S87 per SA-9: the racing windows took S68-S86)
+1. **The row floor**: the racing row kept min 64 (the S-007 superset);
+   the og's registered floor is 0x15 = 21 (the CDWGRawInfo factory
+   FUN_18002ff20's qword write at +0x110 — puVar1[0x22] = 0x15, the PNG/
+   ONE ctor pattern [0x22]=min/[0x23]=max; the SAME write seeds the gen-1
+   walk cursor). The racing gen-1 walk also carried the stand-in era's
+   residual 512-byte floor (`if (end - hit < 512) return r;`) which
+   contradicts the og's 21-byte floor. Fix: the row min re-pinned to
+   0x15 and the 512 floor removed from the gen-1 walk.
+   `DwgRowCarriesTheOgsRegisteredFloor` is the fail-before pin (a
+   21-byte walked extent: RED at the racing tree, GREEN with the rider).
+2. **The id-sequence gate**: the racing port compares `rec[0] != u8(i)`
+   (truncated); the og compares the id byte against the FULL 32-bit
+   running counter (raw-asm 0x18002f40a: `movzbl` the id into eax, `cmp
+   %ecx,%eax` with ecx the counter) — so the og's walk SELF-LIMITS at
+   256 records (no byte can match a counter >= 256). A count>260 fixture
+   with wrapped ids is accepted by the racing port and refused by the
+   og. Fix: `u32(rec[0]) != i`. `DwgWalkSelfLimitsAt256Records` is the
+   fail-before pin (RED at the racing tree: the fixture carved; GREEN:
+   refused).
 
-- **Baseline:** opened at core `e17a4e6d` (clean tree, ctest 1566/1566 green
-  first-hand, corpus `be0cfe9`), prompt saved token-redacted at
-  `worklog/session-diff-fix-s87-prompt.md`. This lane's first finding (N-181)
-  was implemented, proven, and then CONCEDED at the push-rebase: the racing
-  S76 window landed `033c5d7c` (the sequential carve-before-deep reorder)
-  while this lane's concurrent implementation was in flight. The concession
-  record and the verification riders follow.
+The racing window's same-window landings absorbed at this merge
+(verified first-hand at the merge tree): M-075 (the chkdsk endpoint
+src/win/cr_fsck.cpp + the win-stub repairs), M-078 (the turn-off
+endpoint), M-107 members 3 (DWG gen-1+gen-2), 4 (PSP ~BK), 5 (WPG
+zero-tail), plus the CLI/PARAMETERS truth repairs. Remaining M-107
+members after the window: WPD, SIT, APE, EPS, DXF, SWF-RECT + the gen-3
+R2007 remainder.
 
-## Session-87 S87 — the N-181 concession record (2026-10-29)
-
-- **N-181 CONCEDED to the racing S76 lane's `033c5d7c` per SA-9**
-  (earlier-push-wins). Their landing: the sequential reorder — the carve
-  stage runs before the deep extras whenever quick_done_ (quick disabled
-  keeps deep-first for the F9 carve-vs-structured dedup); their own tests
-  (ScanEvents.CarveStageBeginsBeforeDeepStage +
-  DeepFirstWhenQuickDisabledForTheCarveDedup + the re-pinned
-  CrUi.TypedEventStreamFullLifecycle); suites green at their landing. Their
-  commit registers the residual honestly: "the interleaved-feeds residual
-  stays O37-registered".
-- **This lane's concurrent implementation (withdrawn, preserved here for
-  the future lane that closes the O37 residual)**: the carve worker
-  launching at the og's loop-1 position (FUN_140580720 :916484-916509,
-  re-verified first-hand) with the stage-begin on the scan thread
-  (deterministic ScanStage(2)-before-ScanStage(1)); the defer point inside
-  run_deep's post-pass for the deep-only shape (the M-039/M-005
-  complete-gate semantics preserved — the racing lane's F9-dedup reasoning
-  converges with this lane's gate reasoning for the same configuration);
-  the carve-stage split (run_carve_engine_ worker half touching no caller
-  stats + finish_carve_stage_ scan-thread merge, with merge_carve_stats_
-  on the deep-failure exits); NEW ResultTree::snapshot_dfs (the checkpoint
-  serializer's DFS under the tree mutex — the latent unlocked child-link
-  walk race; byte-identical emission order with roots forward — a stack
-  LIFO bug in the first cut reversed the root order and was caught by the
-  CrUi recovery tests) + ResultTree::collect_structured_extents (the
-  occupancy gate's locked collection with per-node EXT_SHIFTED basis
-  normalization); per-stage telemetry clocks (stage_t0[3] seeded at run
-  start); threads==1 staying sequential per the serial event-delivery
-  contract (CrUi.EventThreadContractPinned); ~ScanController joining the
-  worker as the terminate net. Proven: 3 RED→GREEN tests
-  (Scan.CarveStartsBeforeDeepCompletes — the stash-dance RED [carve_begin
-  2 > deep_begin 1; live_raw_at_deep_boundary 0] + the deterministic
-  begin-order pin; Scan.ConcurrentCarveMatchesSequentialResults — the
-  result-set identity; Scan.ConcurrentCarveSessionMaskAndReCarveIdempotent
-  — the full stage mask + the by-extent re-carve dedup), suite 1569/1569,
-  TSan zero-race on every touched surface (the timing assertion
-  native-lane-scoped with the scan itself still race-checked — the
-  detector's measured 15x per-window inflation recorded in the test), UBSan
-  87/87, clang-format 18.1.8 clean. The commit was `8482132e` on the
-  pre-rebase local branch (visible in this repo's reflog until GC).
-- **Why the residual matters (recorded for the future lane)**: the racing
-  landing's reorder satisfies the finding's acceptance verbatim (the first
-  carved-file event precedes deep's completion — trivially, the whole carve
-  stage precedes deep) but flips the OTHER population's wait: every deep
-  result now sits behind the ENTIRE carve sweep (on a multi-TB volume,
-  tens of minutes of deep-side latency the pre-fix code did not have),
-  where the og interleaves both feeds over the shared chunk stream. The
-  concurrent shape closes both sides at once and is fully specified above
-  with its proof set; the one merge cost is the run() stage-sequence
-  region, which the racing window's M-073/M-135-riders have since touched.
-- **Riders landed now (this lane's verification catches, independent of
-  the conceded seat):** (1) the pre-existing UBSan violation in
-  tests/unit/test_orchestrator.cpp's plant_compact_fat12 (raw `*(u16*)`
-  unaligned stores on odd LBA bases → put16; caught by this lane's local
-  --san run — CI is windows-only by the documented decision, so the local
-  sanitizer lanes are the only place this surfaces; UBSan lane 87/87 green
-  post-fix on the scan/orchestrator/tree/session surfaces); (2) the
-  CR_SANITIZER_LANE define on the ubsan preset + ci-local's tsan lane, so
-  detector-slowed lanes can scope timing-sensitive assertions honestly
-  (the pattern this lane's withdrawn test pioneered).
-<<<<<<< HEAD
-
-=======
->>>>>>> 322dbdc0e0f9385a7618c5918ffc39d93d121203
-## Session-84 S84 lane — M-107's DWG member landed (member 3 of 11; 2026-10-29/30)
-
-**The three-generation DWG walk decoded first-hand from the raw asm**
-(evidence/s84-lane-sheets/s84-l1-dwg-walk-decode.md; objdump over the
-corpus binary, vtables via pefile): BruteForce::CDWGAnalyser
-('AC10' idx 0x18, the 0x508-byte instance, vtable 0x18006bc50 slot +0x20 =
-FUN_18002f320; the factory's initial scan position 0x15 at 0x18002ff59 —
-the constant the prior lanes never decoded; no File*Analyser secondary —
-the walk IS the authority per the M-155/N-217 census).
-
-- Mode 1 (R12-R2000): count u32@+0x15; 9-byte records {index gate,
-  seeker@+1, size@+5}; extent = max(seeker+size); index mismatch →
-  extent 0 (the decline); device-end read failure → the extent-so-far
-  salvage.
-- Mode 2 (R2004-R2018): the 108-byte map at +0x80 XOR the MSVC-LCG
-  keystream (seed*0x343fd+0x269ec3, seed0=1, byte=(seed>>16)&0xFF); six
-  validation gates; extent = u64@+0x34 + 0x6C.
-- Mode 3 (AC1021/R2007): the recorded remainder — the bounded extent
-  stands in for it alone (FUN_18002fc50's interleave undecoded, the next
-  probe recorded).
-
-The version set tightens to the og's exact tables {12,13,14,15,18,21,
-24,27,32}; the sanity cap rides the row-max approximation (the X3F/CRW
-precedent, registered). RED→GREEN first-hand via the stash dance (4 walk
-tests RED at the stand-in tree, GREEN with the walk; DwgR2007StandsIn
-Bounded pins the remainder; the S-007 batch's plant re-pinned to the
-walkable shape). The carve suite 279/279. Trail: M-107's S84 addendum 3,
-the matrix row, modules/carve.md's S84 addendum 3, this entry.
-
-## Session-84 S84 lane (the third convergent lane) — the audit-trail restoration's record (2026-10-29)
-
-- **The red-main window found at the opening baseline** (2 RED tests:
-  FatEngine.DeletedHigh16ZeroRebasesFromHint +
-  FatEngine.LastGoodHintUpdatesOnlyOnFileWalks), independently arbitrated
-  (BOTH occurrences of `0x310000 < DAT_1800728c8` in
-  FATSearchDLL_decompiled.c — :14834 + :30184 — are RETRY-leg gates; the
-  :14754 pre-walk re-base carries only the low-16-only + consistency
-  gates; the S82 open question 2 closed by that arbitration), and
-  repaired — then **conceded at the push** to the racing windows
-  (`cd3479e7`'s code byte-restore + `eeddec57`'s N-220 class record,
-  `15c59ee7`'s N-219 marker sweep). The convergence record: N-220's
-  addendum (this lane's).
-- **The unique landings that stand:** the S-068 finding file restored
-  from `ad1bcb9e` (the gutted S80 addendum + Resolution, the damage's
-  replacement had named a nonexistent test file) + the repair addendum;
-  modules/fat.md's S80 addendum restored + the repair note; the matrix's
-  A-016 MATCH row re-landed + the N-145 stale row re-truthed (the
-  residual rollback the N-219 sweep missed); the nested
-  0fac15de/309f7af8/09a18f9f markers resolved in FIXED-LEDGER.md +
-  I-048 (the racing sweeps took PARITY-DELTAS + worklog); the ledger's
-  N-220 row; the permanent note that `9b4a9302`'s "No code change rides
-  this commit" claim cannot be trusted for the diff it pushed.
-- RED→GREEN first-hand at this lane's repaired tree (pre-concession):
-  the two tests green, FAT 94/94, suite 1657/1657; re-verified green
-  after every rebase.
-- **The board at this push:** 8 MAJOR active (M-075/M-078/M-086/M-087/
-  M-089/M-101/M-105/M-107 — M-111/M-114 closed by the racing S82 batch's
-  D-158/D-159) · 2 MINOR (the driver-repo pair) · 4 tracked-open. This
-  lane's queue continues MAJOR-first: M-107's nine remaining members →
-  M-101 → M-075 → M-078 → M-105 → the OQ-S79-1 decode.
-## Session-86 S87 fix lane — opens (2026-10-29, the MINOR-first 20+ mandate; re-homed S79 → S87 per SA-9: the racing windows took S68-S85)
-
-- **Baseline:** opened at core `e17a4e6d` (clean tree, ctest 1566/1566 green
-  first-hand, corpus `be0cfe9`), prompt saved token-redacted at
-  `worklog/session-diff-fix-s86-prompt.md`. This lane's first finding (N-181)
-  was implemented, proven, and then CONCEDED at the push-rebase: the racing
-  S76 window landed `033c5d7c` (the sequential carve-before-deep reorder)
-  while this lane's concurrent implementation was in flight. Concession
-  below; the riders this lane's verification surfaced are landed instead.
-
-## Session-86 S87 — the N-181 concession record (2026-10-29)
-
-- **N-181 CONCEDED to the racing S76 lane's `033c5d7c` per SA-9**
-  (earlier-push-wins). Their landing: the sequential reorder — the carve
-  stage runs before the deep extras whenever quick_done_ (quick disabled
-  keeps deep-first for the F9 carve-vs-structured dedup); their own tests
-  (ScanEvents.CarveStageBeginsBeforeDeepStage +
-  DeepFirstWhenQuickDisabledForTheCarveDedup + the re-pinned
-  CrUi.TypedEventStreamFullLifecycle); suites green at their landing. Their
-  commit registers the residual honestly: "the interleaved-feeds residual
-  stays O37-registered".
-- **This lane's concurrent implementation (withdrawn, preserved here for
-  the future lane that closes the O37 residual)**: the carve worker
-  launching at the og's loop-1 position (FUN_140580720 :916484-916509,
-  re-verified first-hand) with the stage-begin on the scan thread
-  (deterministic ScanStage(2)-before-ScanStage(1)); the defer point inside
-  run_deep's post-pass for the deep-only shape (the M-039/M-005
-  complete-gate semantics preserved — the racing lane's F9-dedup reasoning
-  converges with this lane's gate reasoning for the same configuration);
-  the carve-stage split (run_carve_engine_ worker half touching no caller
-  stats + finish_carve_stage_ scan-thread merge, with merge_carve_stats_
-  on the deep-failure exits); NEW ResultTree::snapshot_dfs (the checkpoint
-  serializer's DFS under the tree mutex — the latent unlocked child-link
-  walk race; byte-identical emission order with roots forward — a stack
-  LIFO bug in the first cut reversed the root order and was caught by the
-  CrUi recovery tests) + ResultTree::collect_structured_extents (the
-  occupancy gate's locked collection with per-node EXT_SHIFTED basis
-  normalization); per-stage telemetry clocks (stage_t0[3] seeded at run
-  start); threads==1 staying sequential per the serial event-delivery
-  contract (CrUi.EventThreadContractPinned); ~ScanController joining the
-  worker as the terminate net. Proven: 3 RED→GREEN tests
-  (Scan.CarveStartsBeforeDeepCompletes — the stash-dance RED [carve_begin
-  2 > deep_begin 1; live_raw_at_deep_boundary 0] + the deterministic
-  begin-order pin; Scan.ConcurrentCarveMatchesSequentialResults — the
-  result-set identity; Scan.ConcurrentCarveSessionMaskAndReCarveIdempotent
-  — the full stage mask + the by-extent re-carve dedup), suite 1569/1569,
-  TSan zero-race on every touched surface (the timing assertion
-  native-lane-scoped with the scan itself still race-checked — the
-  detector's measured 15x per-window inflation recorded in the test), UBSan
-  87/87, clang-format 18.1.8 clean. The commit was `8482132e` on the
-  pre-rebase local branch (visible in this repo's reflog until GC).
-- **Why the residual matters (recorded for the future lane)**: the racing
-  landing's reorder satisfies the finding's acceptance verbatim (the first
-  carved-file event precedes deep's completion — trivially, the whole carve
-  stage precedes deep) but flips the OTHER population's wait: every deep
-  result now sits behind the ENTIRE carve sweep (on a multi-TB volume,
-  tens of minutes of deep-side latency the pre-fix code did not have),
-  where the og interleaves both feeds over the shared chunk stream. The
-  concurrent shape closes both sides at once and is fully specified above
-  with its proof set; the one merge cost is the run() stage-sequence
-  region, which the racing window's M-073/M-135-riders have since touched.
-- **Riders landed now (this lane's verification catches, independent of
-  the conceded seat):** (1) the pre-existing UBSan violation in
-  tests/unit/test_orchestrator.cpp's plant_compact_fat12 (raw `*(u16*)`
-  unaligned stores on odd LBA bases → put16; caught by this lane's local
-  --san run — CI is windows-only by the documented decision, so the local
-  sanitizer lanes are the only place this surfaces; UBSan lane 87/87 green
-  post-fix on the scan/orchestrator/tree/session surfaces); (2) the
-  CR_SANITIZER_LANE define on the ubsan preset + ci-local's tsan lane, so
-  detector-slowed lanes can scope timing-sensitive assertions honestly
-  (the pattern this lane's withdrawn test pioneered).
-8c90c72b (trail(S86): the N-181 concession record + the two verification riders (this lane re-homed S79 → S86 per SA-9: the racing windows took S68-S85))
 ## Session-84 S84 lane — opens; the red-main repair N-219 lands; the repair seat conceded to the racing S81 lane (2026-10-29/30)
 
 Opened at core `842a587e` (the S83-close tree), corpus `be0cfe9`.
@@ -12964,71 +12780,6 @@ items (S79-1's $LogFile decode is in-repo workable).
 
 ---
 
-## Session-84 S84 fix-lane — entry 2: M-101 FIXED (the two missing distinguished branches) (2026-10-30)
-
-**The finding:** the og's results tree distinguishes FIVE special roots
-(UIUX/09:27-36, the tr-verified coaching copy); the core landed three
-(Unimportant / File Name Lost / File Path Lost) and had NO concept for
-the other two — the Versions node ("It is another version of the file
-in the same directory. You can view different versions of the file
-respectively to help you easily locate your desired data.", NTFS
-file-record multi-version) and Tags Extracted ("We classify and
-organize the found files by extracted tags to help you easily locate
-desirable files.").
-
-**Corpus verification (first-hand, before the design):** UIUX/09 read
-in full (the five-branch census + the per-branch tooltips); the DRWUI
-tree-build site located and read (:642790 — the node-type field +0x1f0:
-value 6 = the Tags Extracted branch, 4 = Existing Files, 0 = Deleted,
-7 = Reconstructed; FUN_14008b040 is the field's getter); the coaching
-strings censused (strings_ascii:17041/17068/17119 +
-qt_strings:645's "We have found different versions of files in the
-same directory"); the tag-extraction source confirmed in the carve
-engine's own S-049 EXIF walk (Model 0x0110 / Software 0x0131, the
-N-209 39-char cap).
-
-**The landing (per the finding's own fix plan, all four steps):**
-(1) `FileProperties.version_group` — stamped by the new
-`tree::stamp_version_groups` pass at scan close (beside the junk
-filter): groups NTFS-origin structured files by the FS-NATIVE axis
-(ntfs_parent_ref + case-folded name) because the tree position CANNOT
-be the key (the walk nests deleted records inside the live directory
-tree when the parent exists — the EndToEndWalk pin — and routes
-orphaned priors under LostDir<NNNN>; the FS-native identity groups
-both shapes); the id = the family's minimum MFT record number
-(deterministic + idempotent — a reloaded session's persisted ids
-never drift from a re-derivation); the distinct-record guard excludes
-hard-link fan-out clones (links of one record, not versions).
-(2) Persistence: the nflags bit-14 block (8-byte append-only; fires
-only when nonzero — pre-M-101 sessions shape-identical).
-(3) Tags Extracted: the runtime `tag_group` — the S-049 analyser's
-EXIF walk now stamps `CarveResult::tag_group` (Model, else Software)
-and the emit site copies it onto the props; deliberately NOT persisted
-(the finding's own arbitration: "the corpus shows the og does not
-persist tags in the session — the branch is runtime grouping").
-(4) ABI: `SnapNode` carries both axes (the value capture is a
-live-tree copy — the runtime field rides it); `Row` carries both for
-host regrouping; `Filter.version_group_only`/`tag_extracted_only`
-scope the branches; `ScanStats.version_grouped` surfaces the total.
-
-**RED->GREEN first-hand:** the stash dance (source changes stashed,
-tests kept) → compile-error RED on the stash-reverted tree
-(`'stamp_version_groups' is not a member of 'cr::tree'`, `'FileProperties'
-has no member named 'version_group'`) → GREEN post-fix. 6 tests:
-NtfsVolume.VersionsNodeGroupsTornSiblings (the torn-overwrite pair
-grouped, same id, no false positives) / VersionsPassIsIdempotentAnd-
-CaseFolding / CarveEngine.JpegExifTagGroupStamps (Model / Software /
-tagless arms) / Query.VersionsAndTagsExtractedBranchAxes (both scopes
-+ the intersection) / Session.VersionsRoundTrip (the id persists, the
-tag does not) / Snapshot.CarriesTheDistinguishedBranchAxes (both axes
-+ the DFS-order guard). Full suite 1535/0 (+42 fixture-conditional
-skips, pre-existing); cr_ui_tests 89/89; doc_truth_gate green;
-clang-format clean.
-
-**Trail:** findings/FIXED/M-101 + Resolution, the matrix row, the
-ledger row, modules/{query,tree}.md addenda, SUMMARY's S84 block,
-this entry. Corpus: be0cfe9, read-only guarantee held.
-
 ## Session-84 — entry 5 (this lane): the T3/T4 registers land (2026-10-30)
 
 **`worklog/api-cli-mismatches.md`** — the ABI↔CLI↔docs cross-check register:
@@ -13313,3 +13064,70 @@ the matrix S88 rows, the SUMMARY S88 block (board: 7 MAJOR / 2 MINOR /
 (token redacted), this entry. Corpus: be0cfe9, read-only guarantee
 held. Next: M-101 (the Versions / Tags Extracted branches), then
 M-107's eight members (WPG, WPD, PSP, SIT, APE, EPS, DXF, SWF-RECT).
+
+---
+
+## Session-84 S84 fix-lane — entry 2: M-101 FIXED (the two missing distinguished branches) (2026-10-30)
+
+**The finding:** the og's results tree distinguishes FIVE special roots
+(UIUX/09:27-36, the tr-verified coaching copy); the core landed three
+(Unimportant / File Name Lost / File Path Lost) and had NO concept for
+the other two — the Versions node ("It is another version of the file
+in the same directory. You can view different versions of the file
+respectively to help you easily locate your desired data.", NTFS
+file-record multi-version) and Tags Extracted ("We classify and
+organize the found files by extracted tags to help you easily locate
+desirable files.").
+
+**Corpus verification (first-hand, before the design):** UIUX/09 read
+in full (the five-branch census + the per-branch tooltips); the DRWUI
+tree-build site located and read (:642790 — the node-type field +0x1f0:
+value 6 = the Tags Extracted branch, 4 = Existing Files, 0 = Deleted,
+7 = Reconstructed; FUN_14008b040 is the field's getter); the coaching
+strings censused (strings_ascii:17041/17068/17119 +
+qt_strings:645's "We have found different versions of files in the
+same directory"); the tag-extraction source confirmed in the carve
+engine's own S-049 EXIF walk (Model 0x0110 / Software 0x0131, the
+N-209 39-char cap).
+
+**The landing (per the finding's own fix plan, all four steps):**
+(1) `FileProperties.version_group` — stamped by the new
+`tree::stamp_version_groups` pass at scan close (beside the junk
+filter): groups NTFS-origin structured files by the FS-NATIVE axis
+(ntfs_parent_ref + case-folded name) because the tree position CANNOT
+be the key (the walk nests deleted records inside the live directory
+tree when the parent exists — the EndToEndWalk pin — and routes
+orphaned priors under LostDir<NNNN>; the FS-native identity groups
+both shapes); the id = the family's minimum MFT record number
+(deterministic + idempotent — a reloaded session's persisted ids
+never drift from a re-derivation); the distinct-record guard excludes
+hard-link fan-out clones (links of one record, not versions).
+(2) Persistence: the nflags bit-14 block (8-byte append-only; fires
+only when nonzero — pre-M-101 sessions shape-identical).
+(3) Tags Extracted: the runtime `tag_group` — the S-049 analyser's
+EXIF walk now stamps `CarveResult::tag_group` (Model, else Software)
+and the emit site copies it onto the props; deliberately NOT persisted
+(the finding's own arbitration: "the corpus shows the og does not
+persist tags in the session — the branch is runtime grouping").
+(4) ABI: `SnapNode` carries both axes (the value capture is a
+live-tree copy — the runtime field rides it); `Row` carries both for
+host regrouping; `Filter.version_group_only`/`tag_extracted_only`
+scope the branches; `ScanStats.version_grouped` surfaces the total.
+
+**RED->GREEN first-hand:** the stash dance (source changes stashed,
+tests kept) → compile-error RED on the stash-reverted tree
+(`'stamp_version_groups' is not a member of 'cr::tree'`, `'FileProperties'
+has no member named 'version_group'`) → GREEN post-fix. 6 tests:
+NtfsVolume.VersionsNodeGroupsTornSiblings (the torn-overwrite pair
+grouped, same id, no false positives) / VersionsPassIsIdempotentAnd-
+CaseFolding / CarveEngine.JpegExifTagGroupStamps (Model / Software /
+tagless arms) / Query.VersionsAndTagsExtractedBranchAxes (both scopes
++ the intersection) / Session.VersionsRoundTrip (the id persists, the
+tag does not) / Snapshot.CarriesTheDistinguishedBranchAxes (both axes
++ the DFS-order guard). Full suite 1535/0 (+42 fixture-conditional
+skips, pre-existing); cr_ui_tests 89/89; doc_truth_gate green;
+clang-format clean.
+
+**Trail:** findings/FIXED/M-101 + Resolution, the matrix row, the
+ledger row, modules/{query,tree}.md addenda, SUMMARY's S84 block,
+this entry. Corpus: be0cfe9, read-only guarantee held.
