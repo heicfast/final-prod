@@ -12216,3 +12216,29 @@ sheets are committed and pushed.
 
 **Phase 0 next:** parallel read agents A–E produce
 `worklog/{build,api,cli,doc}-surface.md` + `recent-commits.md`.
+
+---
+
+## Session-84 — entry 2 (convergence addendum, this lane): T1 conceded to the racing e8dcaba8 (2026-10-30)
+
+**Concession:** this lane's independent T1 bootstrap (same two artifacts,
+same baseline cac4258) was beaten to the push; the seat belongs to
+e8dcaba8 per SA-9. Corroboration recorded here with this lane's deltas:
+
+1. **Marker census (independent sweep, same baseline):** 24 marker lines
+   across 6 tracked files — the landing's five non-sanctioned carriers
+   (worklog.md:12069-12168, CROSS-REF-MATRIX.md:39-46, FIXED-LEDGER.md:656-669
+   [two blocks], findings/FIXED/I-048:52-62, docs/PARITY-DELTAS.md:4677-4682
+   + 4707-4863 nested) PLUS findings/FIXED/M-120:26-38, whose markers cite
+   the OLDER commit 59bd5208 — consistent with the landing's "one
+   sanctioned carrier" reading (M-120 is the finding about markers; its
+   block is likely preserved evidence). Phase 3 must verify that intent
+   before touching it (compare against the finding's own text).
+2. **Source-tree cleanliness:** zero conflict markers in any .cpp/.h/.c
+   at HEAD (`git grep -E '^(<{7}|={7}|>{7})( |$|\.)' -- '*.cpp' '*.h' '*.c'`
+   => empty). The C++ tree is marker-clean; the rot is docs/trail-only.
+3. **Local gate note:** the landing's ci-local.sh observation checked —
+   the repo's own marker check exists and would be RED at cac4258.
+
+**Next (T2):** this lane proceeds with the five Phase-0 read agents;
+before each push, fetch-and-check for the racing window's landings.
